@@ -41,7 +41,8 @@ import (
 //
 // API v2.4:
 //   - Shipped in Coder v2.19.0
-//   - Added support for ResourcesMonitoring RPCs on the Agent API.
+//   - Added support for GetResourcesMonitoringConfiguration and
+//     PushResourcesMonitoringUsage RPCs on the Agent API.
 const (
 	CurrentMajor = 2
 	CurrentMinor = 4

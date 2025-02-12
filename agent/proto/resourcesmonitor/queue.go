@@ -1,41 +1,41 @@
-package agent
+package resourcesmonitor
 
 import (
 	"github.com/coder/coder/v2/agent/proto"
 )
 
-type ResourcesMonitorDatapoint struct {
-	Memory  *ResourcesMonitorMemoryDatapoint
-	Volumes []*ResourcesMonitorVolumeDatapoint
+type Datapoint struct {
+	Memory  *MemoryDatapoint
+	Volumes []*VolumeDatapoint
 }
 
-type ResourcesMonitorMemoryDatapoint struct {
+type MemoryDatapoint struct {
 	Total int64
 	Used  int64
 }
 
-type ResourcesMonitorVolumeDatapoint struct {
+type VolumeDatapoint struct {
 	Path  string
 	Total int64
 	Used  int64
 }
 
-// ResourcesMonitorQueue represents a FIFO queue with a fixed size
-type ResourcesMonitorQueue struct {
-	items []ResourcesMonitorDatapoint
+// Queue represents a FIFO queue with a fixed size
+type Queue struct {
+	items []Datapoint
 	size  int
 }
 
-// newResourcesMonitorQueue creates a new ResourcesMonitorQueue with the given size
-func NewResourcesMonitorQueue(size int) *ResourcesMonitorQueue {
-	return &ResourcesMonitorQueue{
-		items: make([]ResourcesMonitorDatapoint, 0, size),
+// newQueue creates a new Queue with the given size
+func NewQueue(size int) *Queue {
+	return &Queue{
+		items: make([]Datapoint, 0, size),
 		size:  size,
 	}
 }
 
 // Push adds a new item to the queue
-func (q *ResourcesMonitorQueue) Push(item ResourcesMonitorDatapoint) {
+func (q *Queue) Push(item Datapoint) {
 	if len(q.items) >= q.size {
 		// Remove the first item (FIFO)
 		q.items = q.items[1:]
@@ -43,15 +43,15 @@ func (q *ResourcesMonitorQueue) Push(item ResourcesMonitorDatapoint) {
 	q.items = append(q.items, item)
 }
 
-func (q *ResourcesMonitorQueue) IsFull() bool {
+func (q *Queue) IsFull() bool {
 	return len(q.items) == q.size
 }
 
-func (q *ResourcesMonitorQueue) Items() []ResourcesMonitorDatapoint {
+func (q *Queue) Items() []Datapoint {
 	return q.items
 }
 
-func (q *ResourcesMonitorQueue) ItemsAsProto() []*proto.PushResourcesMonitoringUsageRequest_Datapoint {
+func (q *Queue) ItemsAsProto() []*proto.PushResourcesMonitoringUsageRequest_Datapoint {
 	items := make([]*proto.PushResourcesMonitoringUsageRequest_Datapoint, 0, len(q.items))
 
 	for _, item := range q.items {

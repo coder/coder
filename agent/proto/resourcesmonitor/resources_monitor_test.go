@@ -1,26 +1,32 @@
-package agent_test
+package resourcesmonitor_test
 
 import (
 	"context"
 	"os"
 	"testing"
 
-	"golang.org/x/xerrors"
-
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
-	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/agent/proto/resourcesmonitor"
 	"github.com/coder/quartz"
 )
+
+type datapointsPusherMock struct {
+	PushResourcesMonitoringUsageFunc func(ctx context.Context, req *proto.PushResourcesMonitoringUsageRequest) (*proto.PushResourcesMonitoringUsageResponse, error)
+}
+
+func (d *datapointsPusherMock) PushResourcesMonitoringUsage(ctx context.Context, req *proto.PushResourcesMonitoringUsageRequest) (*proto.PushResourcesMonitoringUsageResponse, error) {
+	return d.PushResourcesMonitoringUsageFunc(ctx, req)
+}
 
 func TestPushResourcesMonitoringWithConfig(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name             string
-		configFetcher    agent.ResourcesMonitorConfigurationFetcher
-		datapointsPusher agent.ResourcesMonitorDatapointsPusher
+		config           *proto.GetResourcesMonitoringConfigurationResponse
+		datapointsPusher func(ctx context.Context, req *proto.PushResourcesMonitoringUsageRequest) (*proto.PushResourcesMonitoringUsageResponse, error)
 		expectedError    bool
 		numTicks         int
 		counterCalls     int
@@ -28,15 +34,13 @@ func TestPushResourcesMonitoringWithConfig(t *testing.T) {
 	}{
 		{
 			name: "SuccessfulMonitoring",
-			configFetcher: func(_ context.Context, _ *proto.GetResourcesMonitoringConfigurationRequest) (*proto.GetResourcesMonitoringConfigurationResponse, error) {
-				return &proto.GetResourcesMonitoringConfigurationResponse{
-					Enabled: true,
-					Config: &proto.GetResourcesMonitoringConfigurationResponse_Config{
-						NumDatapoints: 20,
-						TickInterval:  1,
-					},
-					MonitoredVolumes: []string{"/"},
-				}, nil
+			config: &proto.GetResourcesMonitoringConfigurationResponse{
+				Enabled: true,
+				Config: &proto.GetResourcesMonitoringConfigurationResponse_Config{
+					NumDatapoints:             20,
+					CollectionIntervalSeconds: 1,
+				},
+				MonitoredVolumes: []string{"/"},
 			},
 			datapointsPusher: func(_ context.Context, _ *proto.PushResourcesMonitoringUsageRequest) (*proto.PushResourcesMonitoringUsageResponse, error) {
 				return &proto.PushResourcesMonitoringUsageResponse{}, nil
@@ -48,15 +52,13 @@ func TestPushResourcesMonitoringWithConfig(t *testing.T) {
 		},
 		{
 			name: "SuccessfulMonitoringLongRun",
-			configFetcher: func(_ context.Context, _ *proto.GetResourcesMonitoringConfigurationRequest) (*proto.GetResourcesMonitoringConfigurationResponse, error) {
-				return &proto.GetResourcesMonitoringConfigurationResponse{
-					Enabled: true,
-					Config: &proto.GetResourcesMonitoringConfigurationResponse_Config{
-						NumDatapoints: 20,
-						TickInterval:  1,
-					},
-					MonitoredVolumes: []string{"/"},
-				}, nil
+			config: &proto.GetResourcesMonitoringConfigurationResponse{
+				Enabled: true,
+				Config: &proto.GetResourcesMonitoringConfigurationResponse_Config{
+					NumDatapoints:             20,
+					CollectionIntervalSeconds: 1,
+				},
+				MonitoredVolumes: []string{"/"},
 			},
 			datapointsPusher: func(_ context.Context, _ *proto.PushResourcesMonitoringUsageRequest) (*proto.PushResourcesMonitoringUsageResponse, error) {
 				return &proto.PushResourcesMonitoringUsageResponse{}, nil
@@ -65,19 +67,6 @@ func TestPushResourcesMonitoringWithConfig(t *testing.T) {
 			numTicks:      60,
 			counterCalls:  0,
 			expectedCalls: 41,
-		},
-		{
-			name: "FailedToFetchConfiguration",
-			configFetcher: func(_ context.Context, _ *proto.GetResourcesMonitoringConfigurationRequest) (*proto.GetResourcesMonitoringConfigurationResponse, error) {
-				return &proto.GetResourcesMonitoringConfigurationResponse{}, xerrors.New("failed to fetch configuration")
-			},
-			datapointsPusher: func(_ context.Context, _ *proto.PushResourcesMonitoringUsageRequest) (*proto.PushResourcesMonitoringUsageResponse, error) {
-				return &proto.PushResourcesMonitoringUsageResponse{}, nil
-			},
-			expectedError: true,
-			numTicks:      10,
-			counterCalls:  0,
-			expectedCalls: 0,
 		},
 	}
 
@@ -97,7 +86,12 @@ func TestPushResourcesMonitoringWithConfig(t *testing.T) {
 				return tt.datapointsPusher(ctx, params)
 			}
 
-			err := agent.PushResourcesMonitoringWithConfig(ctx, logger, clk, tt.configFetcher, datapointsPusher)
+			pusher := &datapointsPusherMock{
+				PushResourcesMonitoringUsageFunc: datapointsPusher,
+			}
+
+			monitor := resourcesmonitor.NewResourcesMonitor(logger, clk, tt.config, pusher)
+			err := monitor.Start(ctx)
 			if (err != nil) != tt.expectedError {
 				t.Errorf("expected error: %v, got: %v", tt.expectedError, err)
 			}

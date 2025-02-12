@@ -37,6 +37,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentscripts"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/agent/proto/resourcesmonitor"
 	"github.com/coder/coder/v2/agent/reconnectingpty"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/gitauth"
@@ -46,6 +47,7 @@ import (
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/tailnet"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
+	"github.com/coder/quartz"
 	"github.com/coder/retry"
 )
 
@@ -785,7 +787,19 @@ func (a *agent) run() (retErr error) {
 	// metadata reporting can cease as soon as we start gracefully shutting down
 	connMan.startAgentAPI("report metadata", gracefulShutdownBehaviorStop, a.reportMetadata)
 
-	connMan.startAgentAPI("resources monitor", gracefulShutdownBehaviorStop, a.pushResourcesMonitoring)
+	// resources monitor can cease as soon as we start gracefully shutting down.
+	// The resources monitor is interesting when the workspace is running.
+	connMan.startAgentAPI("resources monitor", gracefulShutdownBehaviorStop, func(ctx context.Context, aAPI proto.DRPCAgentClient24) error {
+		logger := a.logger.Named("resources_monitor")
+		clk := quartz.NewReal()
+		config, err := aAPI.GetResourcesMonitoringConfiguration(ctx, &proto.GetResourcesMonitoringConfigurationRequest{})
+		if err != nil {
+			return xerrors.Errorf("failed to get resources monitoring configuration: %w", err)
+		}
+
+		resourcesmonitor := resourcesmonitor.NewResourcesMonitor(logger, clk, config, aAPI)
+		return resourcesmonitor.Start(ctx)
+	})
 
 	// channels to sync goroutines below
 	//  handle manifest

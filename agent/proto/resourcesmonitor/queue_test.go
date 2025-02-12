@@ -1,9 +1,9 @@
-package agent_test
+package resourcesmonitor_test
 
 import (
 	"testing"
 
-	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/proto/resourcesmonitor"
 )
 
 func TestResourceMonitorQueue(t *testing.T) {
@@ -12,30 +12,30 @@ func TestResourceMonitorQueue(t *testing.T) {
 	tests := []struct {
 		name      string
 		pushCount int
-		expected  []agent.ResourcesMonitorDatapoint
+		expected  []resourcesmonitor.Datapoint
 	}{
 		{
 			name:      "Push zero",
 			pushCount: 0,
-			expected:  []agent.ResourcesMonitorDatapoint{},
+			expected:  []resourcesmonitor.Datapoint{},
 		},
 		{
 			name:      "Push less than capacity",
 			pushCount: 3,
-			expected: []agent.ResourcesMonitorDatapoint{
-				{Memory: &agent.ResourcesMonitorMemoryDatapoint{Total: 1, Used: 1}},
-				{Memory: &agent.ResourcesMonitorMemoryDatapoint{Total: 2, Used: 2}},
-				{Memory: &agent.ResourcesMonitorMemoryDatapoint{Total: 3, Used: 3}},
+			expected: []resourcesmonitor.Datapoint{
+				{Memory: &resourcesmonitor.MemoryDatapoint{Total: 1, Used: 1}},
+				{Memory: &resourcesmonitor.MemoryDatapoint{Total: 2, Used: 2}},
+				{Memory: &resourcesmonitor.MemoryDatapoint{Total: 3, Used: 3}},
 			},
 		},
 		{
 			name:      "Push exactly capacity",
 			pushCount: 20,
-			expected: func() []agent.ResourcesMonitorDatapoint {
-				var result []agent.ResourcesMonitorDatapoint
+			expected: func() []resourcesmonitor.Datapoint {
+				var result []resourcesmonitor.Datapoint
 				for i := 1; i <= 20; i++ {
-					result = append(result, agent.ResourcesMonitorDatapoint{
-						Memory: &agent.ResourcesMonitorMemoryDatapoint{
+					result = append(result, resourcesmonitor.Datapoint{
+						Memory: &resourcesmonitor.MemoryDatapoint{
 							Total: int64(i),
 							Used:  int64(i),
 						},
@@ -47,11 +47,11 @@ func TestResourceMonitorQueue(t *testing.T) {
 		{
 			name:      "Push more than capacity",
 			pushCount: 25,
-			expected: func() []agent.ResourcesMonitorDatapoint {
-				var result []agent.ResourcesMonitorDatapoint
+			expected: func() []resourcesmonitor.Datapoint {
+				var result []resourcesmonitor.Datapoint
 				for i := 6; i <= 25; i++ {
-					result = append(result, agent.ResourcesMonitorDatapoint{
-						Memory: &agent.ResourcesMonitorMemoryDatapoint{
+					result = append(result, resourcesmonitor.Datapoint{
+						Memory: &resourcesmonitor.MemoryDatapoint{
 							Total: int64(i),
 							Used:  int64(i),
 						},
@@ -67,10 +67,10 @@ func TestResourceMonitorQueue(t *testing.T) {
 
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			queue := agent.NewResourcesMonitorQueue(20)
+			queue := resourcesmonitor.NewQueue(20)
 			for i := 1; i <= tt.pushCount; i++ {
-				queue.Push(agent.ResourcesMonitorDatapoint{
-					Memory: &agent.ResourcesMonitorMemoryDatapoint{
+				queue.Push(resourcesmonitor.Datapoint{
+					Memory: &resourcesmonitor.MemoryDatapoint{
 						Total: int64(i),
 						Used:  int64(i),
 					},
@@ -89,7 +89,7 @@ func TestResourceMonitorQueue(t *testing.T) {
 	}
 }
 
-func equal(a, b []agent.ResourcesMonitorDatapoint) bool {
+func equal(a, b []resourcesmonitor.Datapoint) bool {
 	if len(a) != len(b) {
 		return false
 	}

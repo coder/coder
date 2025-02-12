@@ -40,8 +40,8 @@ func (a *ResourcesMonitoringAPI) GetResourcesMonitoringConfiguration(ctx context
 	return &proto.GetResourcesMonitoringConfigurationResponse{
 		Enabled: false,
 		Config: &proto.GetResourcesMonitoringConfigurationResponse_Config{
-			TickInterval:  10,
-			NumDatapoints: 20,
+			CollectionIntervalSeconds: 10,
+			NumDatapoints:             20,
 		},
 		MonitoredVolumes: volumes,
 	}, nil

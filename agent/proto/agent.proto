@@ -302,7 +302,7 @@ message GetResourcesMonitoringConfigurationResponse {
 	bool enabled = 1;
 	message Config {
 		int32 num_datapoints = 1;
-		int32 tick_interval = 2; // expressed in seconds
+		int32 collection_interval_seconds = 2;
 	}
 	Config config = 2;
 	repeated string monitored_volumes = 3;
