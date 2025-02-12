@@ -131,7 +131,7 @@ export const OrganizationSettingsPageView: FC<
 						title="Settings"
 						description="Change or delete your organization."
 					>
-						<div className="flex bg-surface-primary items-center justify-between border border-solid border-surface-quaternary rounded-[8px] p-3 pl-[18px] gap-2 flex-grow">
+						<div className="flex bg-surface-orange items-center justify-between border border-solid border-orange-600 rounded-[8px] p-3 pl-[18px] gap-2 flex-grow">
 							<span>Deleting an organization is irreversible.</span>
 							<Button variant="destructive" onClick={() => setIsDeleting(true)}>
 								Delete this organization
