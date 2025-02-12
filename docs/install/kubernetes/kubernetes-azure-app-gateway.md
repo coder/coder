@@ -123,7 +123,7 @@ The steps here follow the Microsoft tutorial for a Coder deployment.
    helm install coder coder-v2/coder \
        --namespace coder \
     --values values.yaml \
-    --version 2.17.2
+    --version 2.18.3
    ```
 
 1. Clean up Azure resources:
