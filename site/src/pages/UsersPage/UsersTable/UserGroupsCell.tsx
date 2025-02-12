@@ -2,11 +2,10 @@ import { useTheme } from "@emotion/react";
 import GroupIcon from "@mui/icons-material/Group";
 import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
-import TableCell from "@mui/material/TableCell";
 import type { Group } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { OverflowY } from "components/OverflowY/OverflowY";
-import { Stack } from "components/Stack/Stack";
+import { TableCell } from "components/Table/Table";
 import {
 	Popover,
 	PopoverContent,
@@ -40,12 +39,9 @@ export const UserGroupsCell: FC<GroupsCellProps> = ({ userGroups }) => {
 								color: "inherit",
 								lineHeight: "1",
 							}}
+							type="button"
 						>
-							<Stack
-								spacing={0}
-								direction="row"
-								css={{ columnGap: 8, alignItems: "center" }}
-							>
+							<div className="flex flex-row gap-2 items-center">
 								<GroupIcon
 									css={{
 										width: "1rem",
@@ -57,7 +53,7 @@ export const UserGroupsCell: FC<GroupsCellProps> = ({ userGroups }) => {
 								<span>
 									{userGroups.length} Group{userGroups.length !== 1 && "s"}
 								</span>
-							</Stack>
+							</div>
 						</button>
 					</PopoverTrigger>
 
