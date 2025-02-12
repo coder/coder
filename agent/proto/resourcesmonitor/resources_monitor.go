@@ -43,7 +43,7 @@ func (m *monitor) Start(ctx context.Context) error {
 		return nil
 	}
 
-	m.clock.TickerFunc(ctx, time.Duration(m.config.Config.CollectionIntervalSeconds*int32(time.Second)), func() error {
+	m.clock.TickerFunc(ctx, time.Duration(m.config.Config.CollectionIntervalSeconds)*time.Second, func() error {
 		memTotal, memUsed, err := m.fetchResourceMonitoredMemory()
 		if err != nil {
 			m.logger.Error(ctx, "failed to fetch memory", slog.Error(err))
