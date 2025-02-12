@@ -5643,44 +5643,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/templateversions/{templateversion}/presets/parameters": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Templates"
-                ],
-                "summary": "Get template version preset parameters",
-                "operationId": "get-template-version-preset-parameters",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Template version ID",
-                        "name": "templateversion",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.PresetParameter"
-                            }
-                        }
-                    }
-                }
-            }
-        },
         "/templateversions/{templateversion}/resources": {
             "get": {
                 "security": [
@@ -13051,6 +13013,12 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "parameters": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.PresetParameter"
+                    }
                 }
             }
         },
@@ -13058,9 +13026,6 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "name": {
-                    "type": "string"
-                },
-                "presetID": {
                     "type": "string"
                 },
                 "value": {
@@ -13207,6 +13172,15 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.ProvisionerJobStatus"
                         }
                     ]
+                },
+                "template_display_name": {
+                    "type": "string"
+                },
+                "template_icon": {
+                    "type": "string"
+                },
+                "template_name": {
+                    "type": "string"
                 }
             }
         },

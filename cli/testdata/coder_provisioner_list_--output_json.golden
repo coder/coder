@@ -20,7 +20,10 @@
     "current_job": null,
     "previous_job": {
       "id": "======[workspace build job ID]======",
-      "status": "succeeded"
+      "status": "succeeded",
+      "template_name": "",
+      "template_icon": "",
+      "template_display_name": ""
     },
     "organization_name": "Coder"
   }

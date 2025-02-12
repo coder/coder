@@ -886,7 +886,6 @@ func (s *MethodTestSuite) TestOrganization() {
 			JobID:             job.ID,
 		})
 		insertPresetParams := database.InsertPresetParams{
-			ID:                uuid.New(),
 			TemplateVersionID: workspaceBuild.TemplateVersionID,
 			Name:              "test",
 		}
@@ -3817,13 +3816,11 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			CreatedBy:      user.ID,
 		})
 		preset, err := db.InsertPreset(ctx, database.InsertPresetParams{
-			ID:                uuid.New(),
 			TemplateVersionID: templateVersion.ID,
 			Name:              "test",
 		})
 		require.NoError(s.T(), err)
 		_, err = db.InsertPresetParameters(ctx, database.InsertPresetParametersParams{
-			ID:                      uuid.New(),
 			TemplateVersionPresetID: preset.ID,
 			Names:                   []string{"test"},
 			Values:                  []string{"test"},

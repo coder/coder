@@ -5494,25 +5494,19 @@ func (q *sqlQuerier) GetPresetsByTemplateVersionID(ctx context.Context, template
 
 const insertPreset = `-- name: InsertPreset :one
 INSERT INTO
-	template_version_presets (id, template_version_id, name, created_at)
+	template_version_presets (template_version_id, name, created_at)
 VALUES
-	($1, $2, $3, $4) RETURNING id, template_version_id, name, created_at
+	($1, $2, $3) RETURNING id, template_version_id, name, created_at
 `
 
 type InsertPresetParams struct {
-	ID                uuid.UUID `db:"id" json:"id"`
 	TemplateVersionID uuid.UUID `db:"template_version_id" json:"template_version_id"`
 	Name              string    `db:"name" json:"name"`
 	CreatedAt         time.Time `db:"created_at" json:"created_at"`
 }
 
 func (q *sqlQuerier) InsertPreset(ctx context.Context, arg InsertPresetParams) (TemplateVersionPreset, error) {
-	row := q.db.QueryRowContext(ctx, insertPreset,
-		arg.ID,
-		arg.TemplateVersionID,
-		arg.Name,
-		arg.CreatedAt,
-	)
+	row := q.db.QueryRowContext(ctx, insertPreset, arg.TemplateVersionID, arg.Name, arg.CreatedAt)
 	var i TemplateVersionPreset
 	err := row.Scan(
 		&i.ID,
@@ -5525,29 +5519,22 @@ func (q *sqlQuerier) InsertPreset(ctx context.Context, arg InsertPresetParams) (
 
 const insertPresetParameters = `-- name: InsertPresetParameters :many
 INSERT INTO
-	template_version_preset_parameters (id, template_version_preset_id, name, value)
+	template_version_preset_parameters (template_version_preset_id, name, value)
 SELECT
 	$1,
-	$2,
-	unnest($3 :: TEXT[]),
-	unnest($4 :: TEXT[])
+	unnest($2 :: TEXT[]),
+	unnest($3 :: TEXT[])
 RETURNING id, template_version_preset_id, name, value
 `
 
 type InsertPresetParametersParams struct {
-	ID                      uuid.UUID `db:"id" json:"id"`
 	TemplateVersionPresetID uuid.UUID `db:"template_version_preset_id" json:"template_version_preset_id"`
 	Names                   []string  `db:"names" json:"names"`
 	Values                  []string  `db:"values" json:"values"`
 }
 
 func (q *sqlQuerier) InsertPresetParameters(ctx context.Context, arg InsertPresetParametersParams) ([]TemplateVersionPresetParameter, error) {
-	rows, err := q.db.QueryContext(ctx, insertPresetParameters,
-		arg.ID,
-		arg.TemplateVersionPresetID,
-		pq.Array(arg.Names),
-		pq.Array(arg.Values),
-	)
+	rows, err := q.db.QueryContext(ctx, insertPresetParameters, arg.TemplateVersionPresetID, pq.Array(arg.Names), pq.Array(arg.Values))
 	if err != nil {
 		return nil, err
 	}
@@ -5755,7 +5742,10 @@ SELECT
 	current_job.id AS current_job_id,
 	current_job.job_status AS current_job_status,
 	previous_job.id AS previous_job_id,
-	previous_job.job_status AS previous_job_status
+	previous_job.job_status AS previous_job_status,
+	COALESCE(tmpl.name, ''::text) AS current_job_template_name,
+	COALESCE(tmpl.display_name, ''::text) AS current_job_template_display_name,
+	COALESCE(tmpl.icon, ''::text) AS current_job_template_icon
 FROM
 	provisioner_daemons pd
 JOIN
@@ -5780,6 +5770,10 @@ LEFT JOIN
 			LIMIT 1
 		)
 	)
+LEFT JOIN
+	template_versions version ON version.id = (current_job.input->>'template_version_id')::uuid
+LEFT JOIN
+	templates tmpl ON tmpl.id = version.template_id
 WHERE
 	pd.organization_id = $2::uuid
 	AND (COALESCE(array_length($3::uuid[], 1), 0) = 0 OR pd.id = ANY($3::uuid[]))
@@ -5796,13 +5790,16 @@ type GetProvisionerDaemonsWithStatusByOrganizationParams struct {
 }
 
 type GetProvisionerDaemonsWithStatusByOrganizationRow struct {
-	ProvisionerDaemon ProvisionerDaemon        `db:"provisioner_daemon" json:"provisioner_daemon"`
-	Status            ProvisionerDaemonStatus  `db:"status" json:"status"`
-	KeyName           string                   `db:"key_name" json:"key_name"`
-	CurrentJobID      uuid.NullUUID            `db:"current_job_id" json:"current_job_id"`
-	CurrentJobStatus  NullProvisionerJobStatus `db:"current_job_status" json:"current_job_status"`
-	PreviousJobID     uuid.NullUUID            `db:"previous_job_id" json:"previous_job_id"`
-	PreviousJobStatus NullProvisionerJobStatus `db:"previous_job_status" json:"previous_job_status"`
+	ProvisionerDaemon             ProvisionerDaemon        `db:"provisioner_daemon" json:"provisioner_daemon"`
+	Status                        ProvisionerDaemonStatus  `db:"status" json:"status"`
+	KeyName                       string                   `db:"key_name" json:"key_name"`
+	CurrentJobID                  uuid.NullUUID            `db:"current_job_id" json:"current_job_id"`
+	CurrentJobStatus              NullProvisionerJobStatus `db:"current_job_status" json:"current_job_status"`
+	PreviousJobID                 uuid.NullUUID            `db:"previous_job_id" json:"previous_job_id"`
+	PreviousJobStatus             NullProvisionerJobStatus `db:"previous_job_status" json:"previous_job_status"`
+	CurrentJobTemplateName        string                   `db:"current_job_template_name" json:"current_job_template_name"`
+	CurrentJobTemplateDisplayName string                   `db:"current_job_template_display_name" json:"current_job_template_display_name"`
+	CurrentJobTemplateIcon        string                   `db:"current_job_template_icon" json:"current_job_template_icon"`
 }
 
 func (q *sqlQuerier) GetProvisionerDaemonsWithStatusByOrganization(ctx context.Context, arg GetProvisionerDaemonsWithStatusByOrganizationParams) ([]GetProvisionerDaemonsWithStatusByOrganizationRow, error) {
@@ -5837,6 +5834,9 @@ func (q *sqlQuerier) GetProvisionerDaemonsWithStatusByOrganization(ctx context.C
 			&i.CurrentJobStatus,
 			&i.PreviousJobID,
 			&i.PreviousJobStatus,
+			&i.CurrentJobTemplateName,
+			&i.CurrentJobTemplateDisplayName,
+			&i.CurrentJobTemplateIcon,
 		); err != nil {
 			return nil, err
 		}

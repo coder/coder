@@ -69,8 +69,11 @@ type ProvisionerDaemon struct {
 }
 
 type ProvisionerDaemonJob struct {
-	ID     uuid.UUID            `json:"id" format:"uuid" table:"id"`
-	Status ProvisionerJobStatus `json:"status" enums:"pending,running,succeeded,canceling,canceled,failed" table:"status"`
+	ID                  uuid.UUID            `json:"id" format:"uuid" table:"id"`
+	Status              ProvisionerJobStatus `json:"status" enums:"pending,running,succeeded,canceling,canceled,failed" table:"status"`
+	TemplateName        string               `json:"template_name" table:"template name"`
+	TemplateIcon        string               `json:"template_icon" table:"template icon"`
+	TemplateDisplayName string               `json:"template_display_name" table:"template display name"`
 }
 
 // MatchedProvisioners represents the number of provisioner daemons

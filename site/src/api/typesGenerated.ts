@@ -1554,11 +1554,11 @@ export interface PprofConfig {
 export interface Preset {
 	readonly ID: string;
 	readonly Name: string;
+	readonly Parameters: readonly PresetParameter[];
 }
 
 // From codersdk/presets.go
 export interface PresetParameter {
-	readonly PresetID: string;
 	readonly Name: string;
 	readonly Value: string;
 }
@@ -1604,6 +1604,9 @@ export interface ProvisionerDaemon {
 export interface ProvisionerDaemonJob {
 	readonly id: string;
 	readonly status: ProvisionerJobStatus;
+	readonly template_name: string;
+	readonly template_icon: string;
+	readonly template_display_name: string;
 }
 
 // From codersdk/client.go
