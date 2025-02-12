@@ -44,7 +44,6 @@ func TestTemplateVersionPresets(t *testing.T) {
 	provisionerCtx := dbauthz.AsProvisionerd(ctx)
 
 	preset, err := db.InsertPreset(provisionerCtx, database.InsertPresetParams{
-		ID:                sdkPreset.ID,
 		Name:              sdkPreset.Name,
 		TemplateVersionID: version.ID,
 	})

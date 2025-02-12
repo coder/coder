@@ -1273,7 +1273,7 @@ CREATE TABLE template_version_preset_parameters (
 );
 
 CREATE TABLE template_version_presets (
-    id uuid NOT NULL,
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
     template_version_id uuid NOT NULL,
     name text NOT NULL,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL

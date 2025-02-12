@@ -8151,7 +8151,7 @@ func (q *FakeQuerier) InsertPreset(_ context.Context, arg database.InsertPresetP
 
 	//nolint:gosimple // arg needs to keep its type for interface reasons and that type is not appropriate for preset below.
 	preset := database.TemplateVersionPreset{
-		ID:                arg.ID,
+		ID:                uuid.New(),
 		TemplateVersionID: arg.TemplateVersionID,
 		Name:              arg.Name,
 		CreatedAt:         arg.CreatedAt,
