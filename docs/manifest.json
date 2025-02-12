@@ -165,6 +165,12 @@
 					"icon_path": "./images/icons/generic.svg"
 				},
 				{
+					"title": "Workspace Notifications",
+					"description": "Manage workspace notifications",
+					"path": "./user-guides/inbox/index.md",
+					"icon_path": "./images/icons/inbox-in.svg"
+				},
+				{
 					"title": "Workspace Scheduling",
 					"description": "Cost control with workspace schedules",
 					"path": "./user-guides/workspace-scheduling.md",
