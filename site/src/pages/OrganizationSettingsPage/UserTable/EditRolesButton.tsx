@@ -1,9 +1,8 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import UserIcon from "@mui/icons-material/PersonOutline";
 import Checkbox from "@mui/material/Checkbox";
-import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
 import type { SlimRole } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import {
 	HelpTooltip,
 	HelpTooltipContent,
@@ -12,13 +11,11 @@ import {
 	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { EditSquare } from "components/Icons/EditSquare";
-import { Stack } from "components/Stack/Stack";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
 } from "components/deprecated/Popover/Popover";
-import { type ClassName, useClassName } from "hooks/useClassName";
 import type { FC } from "react";
 
 const roleDescriptions: Record<string, string> = {
@@ -47,23 +44,23 @@ const Option: FC<OptionProps> = ({
 	onChange,
 }) => {
 	return (
-		<label htmlFor={name} css={styles.option}>
-			<Stack direction="row" alignItems="flex-start">
+		<label htmlFor={name} className="cursor-pointer">
+			<div className="flex items-start gap-4">
 				<Checkbox
 					id={name}
 					size="small"
-					css={styles.checkbox}
+					className="p-0 relative top-px"
 					value={value}
 					checked={isChecked}
 					onChange={(e) => {
 						onChange(e.currentTarget.value);
 					}}
 				/>
-				<Stack spacing={0}>
+				<div className="flex flex-col">
 					<strong>{name}</strong>
-					<span css={styles.optionDescription}>{description}</span>
-				</Stack>
-			</Stack>
+					<span className="text-xs text-content-secondary">{description}</span>
+				</div>
+			</div>
 		</label>
 	);
 };
@@ -85,8 +82,6 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
 	userLoginType,
 	oidcRoleSync,
 }) => {
-	const paper = useClassName(classNames.paper, []);
-
 	const handleChange = (roleName: string) => {
 		if (selectedRoleNames.has(roleName)) {
 			const serialized = [...selectedRoleNames];
@@ -118,23 +113,24 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
 		<Popover>
 			<PopoverTrigger>
 				<Tooltip title="Edit user roles">
-					<IconButton
+					<Button
+						variant="subtle"
 						aria-label="Edit user roles"
-						size="small"
-						css={styles.editButton}
+						size="icon"
+						className="text-content-secondary hover:text-content-primary"
 					>
 						<EditSquare />
-					</IconButton>
+					</Button>
 				</Tooltip>
 			</PopoverTrigger>
 
-			<PopoverContent classes={{ paper }} disablePortal={false}>
+			<PopoverContent className="w-80" disablePortal={false}>
 				<fieldset
-					css={styles.fieldset}
+					className="border-0 m-0 p-0 disabled:opacity-50"
 					disabled={isLoading}
 					title="Available roles"
 				>
-					<Stack css={styles.options} spacing={3}>
+					<div className="flex flex-col gap-4 p-6">
 						{roles.map((role) => (
 							<Option
 								key={role.name}
@@ -145,88 +141,20 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
 								description={roleDescriptions[role.name] ?? ""}
 							/>
 						))}
-					</Stack>
+					</div>
 				</fieldset>
-				<div css={styles.footer}>
-					<Stack direction="row" alignItems="flex-start">
-						<UserIcon css={styles.userIcon} />
-						<Stack spacing={0}>
+				<div className="p-6 border-t-1 border-solid border-border text-sm">
+					<div className="flex gap-4">
+						<UserIcon className="size-icon-sm" />
+						<div className="flex flex-col">
 							<strong>Member</strong>
-							<span css={styles.optionDescription}>
+							<span className="text-xs text-content-secondary">
 								{roleDescriptions.member}
 							</span>
-						</Stack>
-					</Stack>
+						</div>
+					</div>
 				</div>
 			</PopoverContent>
 		</Popover>
 	);
 };
-
-const classNames = {
-	paper: (css, theme) => css`
-    width: 360px;
-    margin-top: 8px;
-    background: ${theme.palette.background.paper};
-  `,
-} satisfies Record<string, ClassName>;
-
-const styles = {
-	editButton: (theme) => ({
-		color: theme.palette.text.secondary,
-
-		"& .MuiSvgIcon-root": {
-			width: 16,
-			height: 16,
-			position: "relative",
-			top: -2, // Align the pencil square
-		},
-
-		"&:hover": {
-			color: theme.palette.text.primary,
-			backgroundColor: "transparent",
-		},
-	}),
-	fieldset: {
-		border: 0,
-		margin: 0,
-		padding: 0,
-
-		"&:disabled": {
-			opacity: 0.5,
-		},
-	},
-	options: {
-		padding: 24,
-	},
-	option: {
-		cursor: "pointer",
-		fontSize: 14,
-	},
-	checkbox: {
-		padding: 0,
-		position: "relative",
-		top: 1, // Alignment
-
-		"& svg": {
-			width: 20,
-			height: 20,
-		},
-	},
-	optionDescription: (theme) => ({
-		fontSize: 13,
-		color: theme.palette.text.secondary,
-		lineHeight: "160%",
-	}),
-	footer: (theme) => ({
-		padding: 24,
-		backgroundColor: theme.palette.background.paper,
-		borderTop: `1px solid ${theme.palette.divider}`,
-		fontSize: 14,
-	}),
-	userIcon: (theme) => ({
-		width: 20, // Same as the checkbox
-		height: 20,
-		color: theme.palette.primary.main,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
