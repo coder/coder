@@ -51,9 +51,10 @@ type Builder struct {
 	logLevel         string
 	deploymentValues *codersdk.DeploymentValues
 
-	richParameterValues []codersdk.WorkspaceBuildParameter
-	initiator           uuid.UUID
-	reason              database.BuildReason
+	richParameterValues     []codersdk.WorkspaceBuildParameter
+	initiator               uuid.UUID
+	reason                  database.BuildReason
+	templateVersionPresetID uuid.UUID
 
 	// used during build, makes function arguments less verbose
 	ctx   context.Context
@@ -212,6 +213,12 @@ func (b Builder) SetLastWorkspaceBuildInTx(build *database.WorkspaceBuild) Build
 func (b Builder) SetLastWorkspaceBuildJobInTx(job *database.ProvisionerJob) Builder {
 	// nolint: revive
 	b.lastBuildJob = job
+	return b
+}
+
+func (b Builder) TemplateVersionPresetID(id uuid.UUID) Builder {
+	// nolint: revive
+	b.templateVersionPresetID = id
 	return b
 }
 
@@ -389,20 +396,23 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 	var workspaceBuild database.WorkspaceBuild
 	err = b.store.InTx(func(store database.Store) error {
 		err = store.InsertWorkspaceBuild(b.ctx, database.InsertWorkspaceBuildParams{
-			ID:                      workspaceBuildID,
-			CreatedAt:               now,
-			UpdatedAt:               now,
-			WorkspaceID:             b.workspace.ID,
-			TemplateVersionID:       templateVersionID,
-			BuildNumber:             buildNum,
-			ProvisionerState:        state,
-			InitiatorID:             b.initiator,
-			Transition:              b.trans,
-			JobID:                   provisionerJob.ID,
-			Reason:                  b.reason,
-			Deadline:                time.Time{},     // set by provisioner upon completion
-			MaxDeadline:             time.Time{},     // set by provisioner upon completion
-			TemplateVersionPresetID: uuid.NullUUID{}, // TODO (sasswart): add this in from the caller
+			ID:                workspaceBuildID,
+			CreatedAt:         now,
+			UpdatedAt:         now,
+			WorkspaceID:       b.workspace.ID,
+			TemplateVersionID: templateVersionID,
+			BuildNumber:       buildNum,
+			ProvisionerState:  state,
+			InitiatorID:       b.initiator,
+			Transition:        b.trans,
+			JobID:             provisionerJob.ID,
+			Reason:            b.reason,
+			Deadline:          time.Time{}, // set by provisioner upon completion
+			MaxDeadline:       time.Time{}, // set by provisioner upon completion
+			TemplateVersionPresetID: uuid.NullUUID{
+				UUID:  b.templateVersionPresetID,
+				Valid: b.templateVersionPresetID != uuid.Nil,
+			},
 		})
 		if err != nil {
 			code := http.StatusInternalServerError

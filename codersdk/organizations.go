@@ -209,6 +209,7 @@ type CreateWorkspaceRequest struct {
 	// during the initial provision.
 	RichParameterValues      []WorkspaceBuildParameter `json:"rich_parameter_values,omitempty"`
 	AutomaticUpdates         AutomaticUpdates          `json:"automatic_updates,omitempty"`
+	TemplateVersionPresetID  uuid.UUID                 `json:"template_version_preset_id,omitempty" format:"uuid"`
 	ClaimPrebuildIfAvailable bool                      `json:"claim_prebuild_if_available,omitempty"`
 }
 

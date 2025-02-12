@@ -698,6 +698,9 @@ func createWorkspace(
 		if req.TemplateVersionID != uuid.Nil {
 			builder = builder.VersionID(req.TemplateVersionID)
 		}
+		if req.TemplateVersionPresetID != uuid.Nil {
+			builder = builder.TemplateVersionPresetID(req.TemplateVersionPresetID)
+		}
 
 		if claimedWorkspace != nil {
 			builder = builder.MarkPrebuildClaimedBy(owner.ID)
