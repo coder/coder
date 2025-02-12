@@ -126,12 +126,12 @@ export const OrganizationSettingsPageView: FC<
 			</HorizontalForm>
 
 			{!organization.is_default && (
-				<HorizontalContainer css={{ marginTop: 48 }}>
+				<HorizontalContainer className="mt-12">
 					<HorizontalSection
 						title="Settings"
 						description="Change or delete your organization."
 					>
-						<div css={styles.dangerSettings}>
+						<div className="flex bg-surface-primary items-center justify-between border border-solid border-surface-quaternary rounded-[8px] p-3 pl-[18px] gap-2 flex-grow">
 							<span>Deleting an organization is irreversible.</span>
 							<Button variant="destructive" onClick={() => setIsDeleting(true)}>
 								Delete this organization
@@ -152,44 +152,3 @@ export const OrganizationSettingsPageView: FC<
 	);
 };
 
-const styles = {
-	dangerSettings: (theme) => ({
-		display: "flex",
-		backgroundColor: theme.roles.danger.background,
-		alignItems: "center",
-		justifyContent: "space-between",
-		border: `1px solid ${theme.roles.danger.outline}`,
-		borderRadius: 8,
-		padding: 12,
-		paddingLeft: 18,
-		gap: 8,
-		lineHeight: "18px",
-		flexGrow: 1,
-
-		"& .option": {
-			color: theme.roles.danger.fill.solid,
-			"&.Mui-checked": {
-				color: theme.roles.danger.fill.solid,
-			},
-		},
-
-		"& .info": {
-			fontSize: 14,
-			fontWeight: 600,
-			color: theme.roles.danger.text,
-		},
-	}),
-	dangerButton: (theme) => ({
-		borderColor: theme.roles.danger.outline,
-		color: theme.roles.danger.text,
-
-		"&.MuiLoadingButton-loading": {
-			color: theme.roles.danger.disabled.text,
-		},
-
-		"&:hover:not(:disabled)": {
-			backgroundColor: theme.roles.danger.hover.background,
-			borderColor: theme.roles.danger.hover.fill.outline,
-		},
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
