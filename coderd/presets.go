@@ -29,29 +29,6 @@ func (api *API) templateVersionPresets(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	var res []codersdk.Preset
-	for _, preset := range presets {
-		res = append(res, codersdk.Preset{
-			ID:   preset.ID,
-			Name: preset.Name,
-		})
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, res)
-}
-
-// @Summary Get template version preset parameters
-// @ID get-template-version-preset-parameters
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Templates
-// @Param templateversion path string true "Template version ID" format(uuid)
-// @Success 200 {array} codersdk.PresetParameter
-// @Router /templateversions/{templateversion}/presets/parameters [get]
-func (api *API) templateVersionPresetParameters(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	templateVersion := httpmw.TemplateVersionParam(r)
-
 	// TODO (sasswart): Test case: what if a user tries to read presets or preset parameters from a different org?
 	// TODO (sasswart): Do a prelim auth check here.
 
@@ -64,13 +41,21 @@ func (api *API) templateVersionPresetParameters(rw http.ResponseWriter, r *http.
 		return
 	}
 
-	var res []codersdk.PresetParameter
-	for _, presetParam := range presetParams {
-		res = append(res, codersdk.PresetParameter{
-			PresetID: presetParam.TemplateVersionPresetID,
-			Name:     presetParam.Name,
-			Value:    presetParam.Value,
-		})
+	var res []codersdk.Preset
+	for _, preset := range presets {
+		sdkPreset := codersdk.Preset{
+			ID:   preset.ID,
+			Name: preset.Name,
+		}
+		for _, presetParam := range presetParams {
+			if presetParam.TemplateVersionPresetID == preset.ID {
+				sdkPreset.Parameters = append(sdkPreset.Parameters, codersdk.PresetParameter{
+					Name:  presetParam.Name,
+					Value: presetParam.Value,
+				})
+			}
+		}
+		res = append(res, sdkPreset)
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, res)

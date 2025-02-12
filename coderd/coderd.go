@@ -1059,7 +1059,6 @@ func New(options *Options) *API {
 			r.Get("/variables", api.templateVersionVariables)
 			r.Route("/presets", func(r chi.Router) {
 				r.Get("/", api.templateVersionPresets)
-				r.Get("/parameters", api.templateVersionPresetParameters)
 			})
 			r.Get("/resources", api.templateVersionResources)
 			r.Get("/logs", api.templateVersionLogs)

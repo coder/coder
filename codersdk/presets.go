@@ -11,8 +11,9 @@ import (
 )
 
 type Preset struct {
-	ID   uuid.UUID
-	Name string
+	ID         uuid.UUID
+	Name       string
+	Parameters []PresetParameter
 }
 
 type PresetParameter struct {
@@ -33,18 +34,4 @@ func (c *Client) TemplateVersionPresets(ctx context.Context, templateVersionID u
 	}
 	var presets []Preset
 	return presets, json.NewDecoder(res.Body).Decode(&presets)
-}
-
-// TemplateVersionPresetParameters returns the parameters associated with the given presets.
-func (c *Client) TemplateVersionPresetParameters(ctx context.Context, templateVersionID uuid.UUID) ([]PresetParameter, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s/presets/parameters", templateVersionID), nil)
-	if err != nil {
-		return nil, xerrors.Errorf("do request: %w", err)
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
-	}
-	var parameters []PresetParameter
-	return parameters, json.NewDecoder(res.Body).Decode(&parameters)
 }

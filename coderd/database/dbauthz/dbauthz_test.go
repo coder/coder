@@ -3823,7 +3823,6 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		})
 		require.NoError(s.T(), err)
 		_, err = db.InsertPresetParameters(ctx, database.InsertPresetParametersParams{
-			ID:                      uuid.New(),
 			TemplateVersionPresetID: preset.ID,
 			Names:                   []string{"test"},
 			Values:                  []string{"test"},
