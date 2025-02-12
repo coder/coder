@@ -8,8 +8,9 @@ import (
 	"slices"
 	"time"
 
-	"cdr.dev/slog"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog"
 
 	"github.com/google/uuid"
 
@@ -214,13 +215,13 @@ func (a *ResourcesMonitoringAPI) monitorVolumes(ctx context.Context, datapoints 
 	return nil
 }
 
-func (m *ResourcesMonitoringAPI) calculateNextState(
+func (a *ResourcesMonitoringAPI) calculateNextState(
 	oldState database.WorkspaceAgentMonitorState,
 	states []database.WorkspaceAgentMonitorState,
 ) database.WorkspaceAgentMonitorState {
 	// If we do not have an OK in the last `X` datapoints, then we are
 	// in an alert state.
-	lastXStates := states[max(len(states)-m.ConsecutiveNOKsToAlert, 0):]
+	lastXStates := states[max(len(states)-a.ConsecutiveNOKsToAlert, 0):]
 	if !slices.Contains(lastXStates, database.WorkspaceAgentMonitorStateOK) {
 		return database.WorkspaceAgentMonitorStateNOK
 	}
@@ -233,7 +234,7 @@ func (m *ResourcesMonitoringAPI) calculateNextState(
 	}
 
 	// If there are enough NOK datapoints, we should be in an alert state.
-	if nokCount >= m.MinimumNOKsToAlert {
+	if nokCount >= a.MinimumNOKsToAlert {
 		return database.WorkspaceAgentMonitorStateNOK
 	}
 
