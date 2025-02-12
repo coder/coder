@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 
 	"golang.org/x/xerrors"
@@ -84,6 +85,41 @@ func (execer) CommandContext(ctx context.Context, cmd string, args ...string) *e
 
 func (execer) PTYCommandContext(ctx context.Context, cmd string, args ...string) *pty.Cmd {
 	return pty.CommandContext(ctx, cmd, args...)
+}
+
+// WrapFn is a function that modifies a command and its arguments.
+type WrapFn func(cmd string, args ...string) (string, []string)
+type wrappedExecer struct {
+	inner   Execer
+	wrapFns []WrapFn
+}
+
+var _ Execer = &wrappedExecer{}
+
+// Wrap wraps an Execer with a set of WrapFns. Each WrapFn is called in order.
+// If no WrapFns are provided, the original Execer is returned.
+func Wrap(execer Execer, wrapFns ...WrapFn) Execer {
+	if len(wrapFns) == 0 {
+		return execer
+	}
+	return &wrappedExecer{
+		inner: execer,
+		// Ensure that later modifications to wrapFns don't affect the wrapped execer.
+		wrapFns: slices.Clone(wrapFns),
+	}
+}
+
+func (w *wrappedExecer) CommandContext(ctx context.Context, cmd string, args ...string) *exec.Cmd {
+	for _, f := range w.wrapFns {
+		cmd, args = f(cmd, args...)
+	}
+	return w.inner.CommandContext(ctx, cmd, args...)
+}
+func (w *wrappedExecer) PTYCommandContext(ctx context.Context, cmd string, args ...string) *pty.Cmd {
+	for _, f := range w.wrapFns {
+		cmd, args = f(cmd, args...)
+	}
+	return w.inner.PTYCommandContext(ctx, cmd, args...)
 }
 
 type priorityExecer struct {

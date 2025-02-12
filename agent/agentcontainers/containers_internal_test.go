@@ -1,6 +1,7 @@
 package agentcontainers
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strconv"
@@ -8,29 +9,34 @@ import (
 	"testing"
 	"time"
 
+	"go.uber.org/mock/gomock"
+
+	"github.com/coder/coder/v2/agent/agentexec/execmock"
+	"github.com/coder/coder/v2/pty"
 	"github.com/google/uuid"
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 
 	"github.com/coder/coder/v2/agent/agentcontainers/acmock"
 	"github.com/coder/coder/v2/agent/agentexec"
+	//"github.com/coder/coder/v2/agent/agentexec/execmock"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
 
-// TestDockerCLIContainerLister tests the happy path of the
-// dockerCLIContainerLister.List method. It starts a container with a known
+// TestIntegrationDocker tests agentcontainers functionality using a real
+// Docker container. It starts a container with a known
 // label, lists the containers, and verifies that the expected container is
-// returned. The container is deleted after the test is complete.
+// returned. It also executes a sample command inside the container.
+// The container is deleted after the test is complete.
 // As this test creates containers, it is skipped by default.
 // It can be run manually as follows:
 //
-// CODER_TEST_USE_DOCKER=1 go test ./agent/agentcontainers -run TestDockerCLIContainerLister
-func TestDockerCLIContainerLister(t *testing.T) {
+// CODER_TEST_USE_DOCKER=1 go test ./agent/agentcontainers -run TestIntegrationDocker
+func TestIntegrationDocker(t *testing.T) {
 	t.Parallel()
 	if ctud, ok := os.LookupEnv("CODER_TEST_USE_DOCKER"); !ok || ctud != "1" {
 		t.Skip("Set CODER_TEST_USE_DOCKER=1 to run this test")
@@ -70,6 +76,8 @@ func TestDockerCLIContainerLister(t *testing.T) {
 	})
 
 	dcl := NewDocker(agentexec.DefaultExecer)
+	wex := agentexec.Wrap(agentexec.DefaultExecer, WrapDockerExec(ct.Container.Name, ""))
+	wexpty := agentexec.Wrap(agentexec.DefaultExecer, WrapDockerExecPTY(ct.Container.Name, ""))
 	ctx := testutil.Context(t, testutil.WaitShort)
 	actual, err := dcl.List(ctx)
 	require.NoError(t, err, "Could not list containers")
@@ -93,10 +101,86 @@ func TestDockerCLIContainerLister(t *testing.T) {
 			if assert.Len(t, foundContainer.Volumes, 1) {
 				assert.Equal(t, testTempDir, foundContainer.Volumes[testTempDir])
 			}
+			// Test command execution
+			cmd := wex.CommandContext(ctx, "cat", "/etc/hostname")
+			out, err := cmd.CombinedOutput()
+			if !assert.NoError(t, err) {
+				t.Logf("Container %q exited with error: %v", ct.Container.ID, err)
+				t.Logf("Output:\n%s", string(out))
+				t.FailNow()
+			}
+			require.Equal(t, ct.Container.Config.Hostname, strings.TrimSpace(string(out)))
+			// Test command execution with PTY
+			ptyCmd, ptyPs, err := pty.Start(wexpty.PTYCommandContext(ctx, "/bin/sh"))
+			require.NoError(t, err, "failed to start pty command")
+			t.Cleanup(func() {
+				_ = ptyPs.Kill()
+				_ = ptyCmd.Close()
+			})
+			_, _ = ptyCmd.InputWriter().Write([]byte("hostname\r\n"))
+			var ptyOut []byte
+			_, err = ptyCmd.OutputReader().Read(ptyOut)
+			require.NoError(t, err, "failed to read pty output")
+			require.Equal(t, ct.Container.Config.Hostname, strings.TrimSpace(string(out)))
 			break
 		}
 	}
 	assert.True(t, found, "Expected to find container with label 'com.coder.test=%s'", testLabelValue)
+}
+
+func TestWrapDockerExec(t *testing.T) {
+	tests := []struct {
+		name    string
+		wrapFn  agentexec.WrapFn
+		cmdArgs []string
+		wantCmd []string
+	}{
+		{
+			name:    "cmd with no args",
+			wrapFn:  WrapDockerExec("my-container", "my-user"),
+			cmdArgs: []string{"my-cmd"},
+			wantCmd: []string{"docker", "exec", "--interactive", "--user", "my-user", "my-container", "my-cmd"},
+		},
+		{
+			name:    "cmd with args",
+			wrapFn:  WrapDockerExec("my-container", "my-user"),
+			cmdArgs: []string{"my-cmd", "arg1", "--arg2", "arg3", "--arg4"},
+			wantCmd: []string{"docker", "exec", "--interactive", "--user", "my-user", "my-container", "my-cmd", "arg1", "--arg2", "arg3", "--arg4"},
+		},
+		{
+			name:    "no user specified",
+			wrapFn:  WrapDockerExec("my-container", ""),
+			cmdArgs: []string{"my-cmd"},
+			wantCmd: []string{"docker", "exec", "--interactive", "my-container", "my-cmd"},
+		},
+		{
+			name:    "tty cmd with no args",
+			wrapFn:  WrapDockerExecPTY("my-container", "my-user"),
+			cmdArgs: []string{"my-cmd"},
+			wantCmd: []string{"docker", "exec", "--interactive", "--tty", "--user", "my-user", "my-container", "my-cmd"},
+		},
+		{
+			name:    "cmd with args",
+			wrapFn:  WrapDockerExecPTY("my-container", "my-user"),
+			cmdArgs: []string{"my-cmd", "arg1", "--arg2", "arg3", "--arg4"},
+			wantCmd: []string{"docker", "exec", "--interactive", "--tty", "--user", "my-user", "my-container", "my-cmd", "arg1", "--arg2", "arg3", "--arg4"},
+		},
+		{
+			name:    "no user specified",
+			wrapFn:  WrapDockerExecPTY("my-container", ""),
+			cmdArgs: []string{"my-cmd"},
+			wantCmd: []string{"docker", "exec", "--interactive", "--tty", "my-container", "my-cmd"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mExec := execmock.NewMockExecer(ctrl)
+			mExec.EXPECT().CommandContext(gomock.Any(), tt.wantCmd[0], tt.wantCmd[1:]).Return(nil)
+			wex := agentexec.Wrap(mExec, tt.wrapFn)
+			_ = wex.CommandContext(context.Background(), tt.cmdArgs[0], tt.cmdArgs[1:]...)
+		})
+	}
 }
 
 // TestContainersHandler tests the containersHandler.getContainers method using
