@@ -3,7 +3,6 @@ package coderd_test
 import (
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -21,7 +20,6 @@ func TestTemplateVersionPresets(t *testing.T) {
 	t.Parallel()
 
 	sdkPreset := codersdk.Preset{
-		ID:   uuid.New(),
 		Name: "My Preset",
 		Parameters: []codersdk.PresetParameter{
 			{
@@ -70,7 +68,6 @@ func TestTemplateVersionPresets(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, 1, len(presets))
-	require.Equal(t, sdkPreset.ID, presets[0].ID)
 	require.Equal(t, sdkPreset.Name, presets[0].Name)
 
 	for _, presetParameter := range sdkPreset.Parameters {
