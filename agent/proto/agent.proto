@@ -301,17 +301,15 @@ message PushResourcesMonitoringUsageRequest {
 			int64 used = 1;
 			int64 total = 2;
 		}
-
 		message VolumeUsage {
 			string volume = 1;
 			int64 used = 2;
 			int64 total = 3;
 		}
 
-
 		google.protobuf.Timestamp collected_at = 1;
 		MemoryUsage memory = 2;
-		repeated VolumeUsage volume = 3;
+		repeated VolumeUsage volumes = 3;
 	}
 
 	repeated Datapoint datapoints = 1;

@@ -219,6 +219,17 @@ func TestMemoryResourceMonitor(t *testing.T) {
 			shouldNotify:     false,
 		},
 		{
+			name:             "WhenOK/ShouldStayInOK",
+			memoryUsage:      []int64{9, 3, 2, 4, 2, 3, 2, 1, 2, 3, 4, 4, 1, 2, 3, 1, 2},
+			memoryTotal:      10,
+			thresholdPercent: 80,
+			consecutiveNOKs:  4,
+			minimumNOKs:      10,
+			previousState:    database.WorkspaceAgentMonitorStateOK,
+			expectState:      database.WorkspaceAgentMonitorStateOK,
+			shouldNotify:     false,
+		},
+		{
 			name:             "WhenOK/ConsecutiveExceedsThreshold",
 			memoryUsage:      []int64{2, 3, 2, 4, 2, 3, 2, 1, 2, 3, 4, 4, 1, 8, 9, 8, 9},
 			memoryTotal:      10,
@@ -249,6 +260,17 @@ func TestMemoryResourceMonitor(t *testing.T) {
 			minimumNOKs:      10,
 			previousState:    database.WorkspaceAgentMonitorStateNOK,
 			expectState:      database.WorkspaceAgentMonitorStateOK,
+			shouldNotify:     false,
+		},
+		{
+			name:             "WhenNOK/ShouldStayInNOK",
+			memoryUsage:      []int64{9, 3, 2, 4, 2, 3, 2, 1, 2, 3, 4, 4, 1, 2, 3, 1, 2},
+			memoryTotal:      10,
+			thresholdPercent: 80,
+			consecutiveNOKs:  4,
+			minimumNOKs:      10,
+			previousState:    database.WorkspaceAgentMonitorStateNOK,
+			expectState:      database.WorkspaceAgentMonitorStateNOK,
 			shouldNotify:     false,
 		},
 		{
@@ -375,7 +397,7 @@ func TestVolumeResourceMonitorDebounce(t *testing.T) {
 		Datapoints: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint{
 			{
 				CollectedAt: timestamppb.New(clock.Now()),
-				Volume: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage{
+				Volumes: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage{
 					{Volume: firstVolumePath, Used: 10, Total: 10},
 					{Volume: secondVolumePath, Used: 1, Total: 10},
 				},
@@ -401,7 +423,7 @@ func TestVolumeResourceMonitorDebounce(t *testing.T) {
 		Datapoints: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint{
 			{
 				CollectedAt: timestamppb.New(clock.Now()),
-				Volume: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage{
+				Volumes: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage{
 					{Volume: firstVolumePath, Used: 1, Total: 10},
 					{Volume: secondVolumePath, Used: 10, Total: 10},
 				},
@@ -427,7 +449,7 @@ func TestVolumeResourceMonitorDebounce(t *testing.T) {
 		Datapoints: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint{
 			{
 				CollectedAt: timestamppb.New(clock.Now()),
-				Volume: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage{
+				Volumes: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage{
 					{Volume: firstVolumePath, Used: 10, Total: 10},
 					{Volume: secondVolumePath, Used: 1, Total: 10},
 				},
@@ -450,7 +472,7 @@ func TestVolumeResourceMonitorDebounce(t *testing.T) {
 		Datapoints: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint{
 			{
 				CollectedAt: timestamppb.New(clock.Now()),
-				Volume: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage{
+				Volumes: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage{
 					{Volume: firstVolumePath, Used: 1, Total: 10},
 					{Volume: secondVolumePath, Used: 10, Total: 10},
 				},
@@ -473,7 +495,7 @@ func TestVolumeResourceMonitorDebounce(t *testing.T) {
 		Datapoints: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint{
 			{
 				CollectedAt: timestamppb.New(clock.Now()),
-				Volume: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage{
+				Volumes: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage{
 					{Volume: firstVolumePath, Used: 10, Total: 10},
 					{Volume: secondVolumePath, Used: 1, Total: 10},
 				},
@@ -499,7 +521,7 @@ func TestVolumeResourceMonitorDebounce(t *testing.T) {
 		Datapoints: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint{
 			{
 				CollectedAt: timestamppb.New(clock.Now()),
-				Volume: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage{
+				Volumes: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage{
 					{Volume: firstVolumePath, Used: 1, Total: 10},
 					{Volume: secondVolumePath, Used: 10, Total: 10},
 				},
@@ -545,6 +567,18 @@ func TestVolumeResourceMonitor(t *testing.T) {
 			shouldNotify:     false,
 		},
 		{
+			name:             "WhenOK/ShouldStayInOK",
+			volumePath:       "/home/coder",
+			volumeUsage:      []int64{9, 3, 2, 4, 2, 3, 2, 1, 2, 3, 4, 4, 1, 2, 3, 1, 2},
+			volumeTotal:      10,
+			thresholdPercent: 80,
+			consecutiveNOKs:  4,
+			minimumNOKs:      10,
+			previousState:    database.WorkspaceAgentMonitorStateOK,
+			expectState:      database.WorkspaceAgentMonitorStateOK,
+			shouldNotify:     false,
+		},
+		{
 			name:             "WhenOK/ConsecutiveExceedsThreshold",
 			volumePath:       "/home/coder",
 			volumeUsage:      []int64{2, 3, 2, 4, 2, 3, 2, 1, 2, 3, 4, 4, 1, 8, 9, 8, 9},
@@ -578,6 +612,18 @@ func TestVolumeResourceMonitor(t *testing.T) {
 			minimumNOKs:      10,
 			previousState:    database.WorkspaceAgentMonitorStateNOK,
 			expectState:      database.WorkspaceAgentMonitorStateOK,
+			shouldNotify:     false,
+		},
+		{
+			name:             "WhenNOK/ShouldStayInNOK",
+			volumePath:       "/home/coder",
+			volumeUsage:      []int64{9, 3, 2, 4, 2, 3, 2, 1, 2, 3, 4, 4, 1, 2, 3, 1, 2},
+			volumeTotal:      10,
+			thresholdPercent: 80,
+			consecutiveNOKs:  4,
+			minimumNOKs:      10,
+			previousState:    database.WorkspaceAgentMonitorStateNOK,
+			expectState:      database.WorkspaceAgentMonitorStateNOK,
 			shouldNotify:     false,
 		},
 		{
@@ -631,7 +677,7 @@ func TestVolumeResourceMonitor(t *testing.T) {
 
 				datapoints = append(datapoints, &agentproto.PushResourcesMonitoringUsageRequest_Datapoint{
 					CollectedAt: timestamppb.New(collectedAt),
-					Volume:      volumeDatapoints,
+					Volumes:     volumeDatapoints,
 				})
 			}
 
@@ -684,7 +730,7 @@ func TestVolumeResourceMonitorMultiple(t *testing.T) {
 		Datapoints: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint{
 			{
 				CollectedAt: timestamppb.New(clock.Now()),
-				Volume: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage{
+				Volumes: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage{
 					{
 						Volume: "/home/coder",
 						Used:   10,
