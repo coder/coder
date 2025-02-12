@@ -133,7 +133,11 @@ export const OrganizationSettingsPageView: FC<
 					>
 						<div className="flex bg-surface-orange items-center justify-between border border-solid border-orange-600 rounded-[8px] p-3 pl-[18px] gap-2 flex-grow //flex-wrap">
 							<span>Deleting an organization is irreversible.</span>
-							<Button variant="destructive" onClick={() => setIsDeleting(true)} className="min-w-fit">
+							<Button
+								variant="destructive"
+								onClick={() => setIsDeleting(true)}
+								className="min-w-fit"
+							>
 								Delete this organization
 							</Button>
 						</div>
@@ -151,4 +155,3 @@ export const OrganizationSettingsPageView: FC<
 		</div>
 	);
 };
-
