@@ -162,8 +162,8 @@
 					"title": "Coder Desktop",
 					"description": "Use Coder Desktop to access your workspace like it's a local machine",
 					"path": "./user-guides/desktop/index.md",
-					"state": ["beta"],
-					"icon_path": "./images/icons/computer-code.svg"
+					"icon_path": "./images/icons/computer-code.svg",
+					"state": ["beta"]
 				},
 				{
 					"title": "Workspace Management",

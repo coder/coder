@@ -11,11 +11,11 @@ You can install Coder Desktop on macOS or Windows.
 
 ### macOS
 
-Download from 
+Download from here.
 
 ### Windows
 
-Download from 
+Download from there.
 
 </div>
 
