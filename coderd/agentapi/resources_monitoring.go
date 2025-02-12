@@ -21,31 +21,44 @@ type ResourcesMonitoringAPI struct {
 func (a *ResourcesMonitoringAPI) GetResourcesMonitoringConfiguration(ctx context.Context, _ *proto.GetResourcesMonitoringConfigurationRequest) (*proto.GetResourcesMonitoringConfigurationResponse, error) {
 	agent, err := a.AgentFn(ctx)
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("failed to fetch agent: %w", err)
 	}
 
-	_, err = a.Database.FetchMemoryResourceMonitorsByAgentID(ctx, agent.ID)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return nil, xerrors.New("failed to fetch memory resource monitors")
+	memoryMonitor, memoryErr := a.Database.FetchMemoryResourceMonitorsByAgentID(ctx, agent.ID)
+	if memoryErr != nil && !errors.Is(memoryErr, sql.ErrNoRows) {
+		return nil, xerrors.Errorf("failed to fetch memory resource monitor: %w", memoryErr)
 	}
 
 	volumeMonitors, err := a.Database.FetchVolumesResourceMonitorsByAgentID(ctx, agent.ID)
 	if err != nil {
-		return nil, err
-	}
-
-	volumes := make([]string, 0, len(volumeMonitors))
-	for _, monitor := range volumeMonitors {
-		volumes = append(volumes, monitor.Path)
+		return nil, xerrors.Errorf("failed to fetch volume resource monitors: %w", err)
 	}
 
 	return &proto.GetResourcesMonitoringConfigurationResponse{
-		Enabled: false,
 		Config: &proto.GetResourcesMonitoringConfigurationResponse_Config{
 			CollectionIntervalSeconds: 10,
 			NumDatapoints:             20,
 		},
-		MonitoredVolumes: volumes,
+		Memory: func() *proto.GetResourcesMonitoringConfigurationResponse_Memory {
+			if memoryErr != nil {
+				return nil
+			}
+
+			return &proto.GetResourcesMonitoringConfigurationResponse_Memory{
+				Enabled: memoryMonitor.Enabled,
+			}
+		}(),
+		Volumes: func() []*proto.GetResourcesMonitoringConfigurationResponse_Volume {
+			volumes := make([]*proto.GetResourcesMonitoringConfigurationResponse_Volume, 0, len(volumeMonitors))
+			for _, monitor := range volumeMonitors {
+				volumes = append(volumes, &proto.GetResourcesMonitoringConfigurationResponse_Volume{
+					Enabled: monitor.Enabled,
+					Path:    monitor.Path,
+				})
+			}
+
+			return volumes
+		}(),
 	}, nil
 }
 

@@ -37,12 +37,16 @@ func TestPushResourcesMonitoringWithConfig(t *testing.T) {
 		{
 			name: "SuccessfulMonitoring",
 			config: &proto.GetResourcesMonitoringConfigurationResponse{
-				Enabled: true,
 				Config: &proto.GetResourcesMonitoringConfigurationResponse_Config{
 					NumDatapoints:             20,
 					CollectionIntervalSeconds: 1,
 				},
-				MonitoredVolumes: []string{"/"},
+				Volumes: []*proto.GetResourcesMonitoringConfigurationResponse_Volume{
+					{
+						Enabled: true,
+						Path:    "/",
+					},
+				},
 			},
 			datapointsPusher: func(_ context.Context, _ *proto.PushResourcesMonitoringUsageRequest) (*proto.PushResourcesMonitoringUsageResponse, error) {
 				return &proto.PushResourcesMonitoringUsageResponse{}, nil
@@ -54,12 +58,16 @@ func TestPushResourcesMonitoringWithConfig(t *testing.T) {
 		{
 			name: "SuccessfulMonitoringLongRun",
 			config: &proto.GetResourcesMonitoringConfigurationResponse{
-				Enabled: true,
 				Config: &proto.GetResourcesMonitoringConfigurationResponse_Config{
 					NumDatapoints:             20,
 					CollectionIntervalSeconds: 1,
 				},
-				MonitoredVolumes: []string{"/"},
+				Volumes: []*proto.GetResourcesMonitoringConfigurationResponse_Volume{
+					{
+						Enabled: true,
+						Path:    "/",
+					},
+				},
 			},
 			datapointsPusher: func(_ context.Context, _ *proto.PushResourcesMonitoringUsageRequest) (*proto.PushResourcesMonitoringUsageResponse, error) {
 				return &proto.PushResourcesMonitoringUsageResponse{}, nil

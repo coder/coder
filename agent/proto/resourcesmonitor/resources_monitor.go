@@ -38,43 +38,41 @@ type datapointsPusher interface {
 }
 
 func (m *monitor) Start(ctx context.Context) error {
-	if !m.config.Enabled {
-		m.logger.Info(ctx, "resources monitoring is disabled - skipping")
-		return nil
-	}
-
 	m.clock.TickerFunc(ctx, time.Duration(m.config.Config.CollectionIntervalSeconds)*time.Second, func() error {
-		memTotal, memUsed, err := m.fetchResourceMonitoredMemory()
-		if err != nil {
-			m.logger.Error(ctx, "failed to fetch memory", slog.Error(err))
-			return nil
+		datapoint := Datapoint{
+			Volumes: make([]*VolumeDatapoint, 0, len(m.config.Volumes)),
 		}
 
-		volumes := make([]*VolumeDatapoint, 0, len(m.config.MonitoredVolumes))
-		for _, volume := range m.config.MonitoredVolumes {
-			volTotal, volUsed, err := m.fetchResourceMonitoredVolume(volume)
+		if m.config.Memory != nil && !m.config.Memory.Enabled {
+			memTotal, memUsed, err := m.fetchResourceMonitoredMemory()
+			if err != nil {
+				m.logger.Error(ctx, "failed to fetch memory", slog.Error(err))
+				return nil
+			}
+			datapoint.Memory = &MemoryDatapoint{
+				Total: memTotal,
+				Used:  memUsed,
+			}
+		}
+
+		for _, volume := range m.config.Volumes {
+			volTotal, volUsed, err := m.fetchResourceMonitoredVolume(volume.Path)
 			if err != nil {
 				m.logger.Error(ctx, "failed to fetch volume", slog.Error(err))
 				continue
 			}
 
-			volumes = append(volumes, &VolumeDatapoint{
-				Path:  volume,
+			datapoint.Volumes = append(datapoint.Volumes, &VolumeDatapoint{
+				Path:  volume.Path,
 				Total: volTotal,
 				Used:  volUsed,
 			})
 		}
 
-		m.queue.Push(Datapoint{
-			Memory: &MemoryDatapoint{
-				Total: memTotal,
-				Used:  memUsed,
-			},
-			Volumes: volumes,
-		})
+		m.queue.Push(datapoint)
 
 		if m.queue.IsFull() {
-			_, err = m.datapointsPusher.PushResourcesMonitoringUsage(ctx, &proto.PushResourcesMonitoringUsageRequest{
+			_, err := m.datapointsPusher.PushResourcesMonitoringUsage(ctx, &proto.PushResourcesMonitoringUsageRequest{
 				Datapoints: m.queue.ItemsAsProto(),
 			})
 			if err != nil {

@@ -299,13 +299,22 @@ message GetResourcesMonitoringConfigurationRequest {
 }
 
 message GetResourcesMonitoringConfigurationResponse {
-	bool enabled = 1;
 	message Config {
 		int32 num_datapoints = 1;
 		int32 collection_interval_seconds = 2;
 	}
-	Config config = 2;
-	repeated string monitored_volumes = 3;
+	Config config = 1;
+
+	message Memory {
+		bool enabled = 1;
+	}
+	optional Memory memory = 2;
+
+	message Volume {
+		bool enabled = 1;
+		string path = 2;
+	}
+	repeated Volume volumes = 3;
 }
 
 message PushResourcesMonitoringUsageRequest {
