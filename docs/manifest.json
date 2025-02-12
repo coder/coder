@@ -44,6 +44,12 @@
 					"icon_path": "./images/icons/kubernetes.svg"
 				},
 				{
+					"title": "Rancher",
+					"description": "Deploy Coder on Rancher",
+					"path": "./install/rancher.md",
+					"icon_path": "./images/icons/rancher.svg"
+				},
+				{
 					"title": "OpenShift",
 					"description": "Install Coder on OpenShift",
 					"path": "./install/openshift.md",
