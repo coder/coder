@@ -34,28 +34,13 @@ func (a *AuditAPI) ReportConnection(ctx context.Context, req *agentproto.ReportC
 		return nil, xerrors.Errorf("connection id from bytes: %w", err)
 	}
 
-	var action database.AuditAction
-	switch req.GetConnection().GetAction() {
-	case agentproto.Connection_CONNECT:
-		action = database.AuditActionConnect
-	case agentproto.Connection_DISCONNECT:
-		action = database.AuditActionDisconnect
-	default:
-		return nil, xerrors.Errorf("unknown agent connection action %q", req.GetConnection().GetAction())
+	action, err := AgentProtoConnectionActionToAuditAction(req.GetConnection().GetAction())
+	if err != nil {
+		return nil, err
 	}
-
-	var connectionType agentsdk.ConnectionType
-	switch req.GetConnection().GetType() {
-	case agentproto.Connection_SSH:
-		connectionType = agentsdk.ConnectionTypeSSH
-	case agentproto.Connection_VSCODE:
-		connectionType = agentsdk.ConnectionTypeVSCode
-	case agentproto.Connection_JETBRAINS:
-		connectionType = agentsdk.ConnectionTypeJetBrains
-	case agentproto.Connection_RECONNECTING_PTY:
-		connectionType = agentsdk.ConnectionTypeReconnectingPTY
-	default:
-		return nil, xerrors.Errorf("unknown agent connection type %q", req.GetConnection().GetType())
+	connectionType, err := AgentProtoConnectionTypeToAgentConnectionType(req.GetConnection().GetType())
+	if err != nil {
+		return nil, err
 	}
 
 	// Fetch contextual data for this audit event.
@@ -114,4 +99,30 @@ func (a *AuditAPI) ReportConnection(ctx context.Context, req *agentproto.ReportC
 	})
 
 	return &emptypb.Empty{}, nil
+}
+
+func AgentProtoConnectionActionToAuditAction(action agentproto.Connection_Action) (database.AuditAction, error) {
+	switch action {
+	case agentproto.Connection_CONNECT:
+		return database.AuditActionConnect, nil
+	case agentproto.Connection_DISCONNECT:
+		return database.AuditActionDisconnect, nil
+	default:
+		return "", xerrors.Errorf("unknown agent connection action %q", action)
+	}
+}
+
+func AgentProtoConnectionTypeToAgentConnectionType(typ agentproto.Connection_Type) (agentsdk.ConnectionType, error) {
+	switch typ {
+	case agentproto.Connection_SSH:
+		return agentsdk.ConnectionTypeSSH, nil
+	case agentproto.Connection_VSCODE:
+		return agentsdk.ConnectionTypeVSCode, nil
+	case agentproto.Connection_JETBRAINS:
+		return agentsdk.ConnectionTypeJetBrains, nil
+	case agentproto.Connection_RECONNECTING_PTY:
+		return agentsdk.ConnectionTypeReconnectingPTY, nil
+	default:
+		return "", xerrors.Errorf("unknown agent connection type %q", typ)
+	}
 }

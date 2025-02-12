@@ -147,32 +147,16 @@ func TestAuditReport(t *testing.T) {
 	}
 }
 
-func agentProtoConnectionActionToAudit(t *testing.T, typ agentproto.Connection_Action) database.AuditAction {
-	switch typ {
-	case agentproto.Connection_CONNECT:
-		return database.AuditActionConnect
-	case agentproto.Connection_DISCONNECT:
-		return database.AuditActionDisconnect
-	default:
-		t.Fatalf("unknown agent connection action %q", typ)
-		return ""
-	}
+func agentProtoConnectionActionToAudit(t *testing.T, action agentproto.Connection_Action) database.AuditAction {
+	a, err := agentapi.AgentProtoConnectionActionToAuditAction(action)
+	require.NoError(t, err)
+	return a
 }
 
 func agentProtoConnectionTypeToSDK(t *testing.T, typ agentproto.Connection_Type) agentsdk.ConnectionType {
-	switch typ {
-	case agentproto.Connection_SSH:
-		return agentsdk.ConnectionTypeSSH
-	case agentproto.Connection_VSCODE:
-		return agentsdk.ConnectionTypeVSCode
-	case agentproto.Connection_JETBRAINS:
-		return agentsdk.ConnectionTypeJetBrains
-	case agentproto.Connection_RECONNECTING_PTY:
-		return agentsdk.ConnectionTypeReconnectingPTY
-	default:
-		t.Fatalf("unknown agent connection type %q", typ)
-		return ""
-	}
+	action, err := agentapi.AgentProtoConnectionTypeToAgentConnectionType(typ)
+	require.NoError(t, err)
+	return action
 }
 
 func asAtomicPointer[T any](v T) *atomic.Pointer[T] {
