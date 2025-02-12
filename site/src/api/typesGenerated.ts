@@ -115,9 +115,11 @@ export interface AssignableRoles extends Role {
 
 // From codersdk/audit.go
 export type AuditAction =
+	| "close"
 	| "connect"
 	| "create"
 	| "delete"
+	| "disconnect"
 	| "login"
 	| "logout"
 	| "open"
@@ -128,9 +130,11 @@ export type AuditAction =
 	| "write";
 
 export const AuditActions: AuditAction[] = [
+	"close",
 	"connect",
 	"create",
 	"delete",
+	"disconnect",
 	"login",
 	"logout",
 	"open",
@@ -409,6 +413,7 @@ export interface CreateTestAuditLogRequest {
 	readonly time?: string;
 	readonly build_reason?: BuildReason;
 	readonly organization_id?: string;
+	readonly request_id?: string;
 }
 
 // From codersdk/apikey.go

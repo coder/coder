@@ -1318,6 +1318,7 @@ This is required on creation to enable a user-flow of validating a template work
   ],
   "build_reason": "autostart",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
   "resource_type": "template",
   "time": "2019-08-24T14:15:22Z"
@@ -1332,6 +1333,7 @@ This is required on creation to enable a user-flow of validating a template work
 | `additional_fields` | array of integer                               | false    |              |             |
 | `build_reason`      | [codersdk.BuildReason](#codersdkbuildreason)   | false    |              |             |
 | `organization_id`   | string                                         | false    |              |             |
+| `request_id`        | string                                         | false    |              |             |
 | `resource_id`       | string                                         | false    |              |             |
 | `resource_type`     | [codersdk.ResourceType](#codersdkresourcetype) | false    |              |             |
 | `time`              | string                                         | false    |              |             |

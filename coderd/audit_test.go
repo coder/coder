@@ -282,10 +282,6 @@ func TestAuditLogsFilter(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		for _, resource := range workspace.LatestBuild.Resources {
-			t.Logf("Resource: %#v", resource)
-		}
-
 		// Create one log with "Connect" and "Disconect".
 		connectRequestID := uuid.New()
 		err = client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{

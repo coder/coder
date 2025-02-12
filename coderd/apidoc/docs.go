@@ -10778,6 +10778,10 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "request_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "resource_id": {
                     "type": "string",
                     "format": "uuid"
