@@ -66,7 +66,6 @@ export interface CreateWorkspacePageViewProps {
 	parameters: TypesGen.TemplateVersionParameter[];
 	autofillParameters: AutofillBuildParameter[];
 	presets: TypesGen.Preset[];
-	presetParameters: TypesGen.PresetParameter[];
 	permissions: CreateWSPermissions;
 	creatingWorkspace: boolean;
 	onCancel: () => void;
@@ -92,7 +91,6 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	parameters,
 	autofillParameters,
 	presets = [],
-	presetParameters = [],
 	permissions,
 	creatingWorkspace,
 	onSubmit,
@@ -175,19 +173,23 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 		// If so, how should it behave? Reset to initial value? reset to last set value?
 		// TODO (sasswart): test case: rich parameters
 
-		if (!presetParameters) {
+		const selectedPresetOption = presetOptions[selectedPresetIndex];
+		let selectedPreset: TypesGen.Preset | undefined;
+		for (const preset of presets) {
+			if (preset.ID === selectedPresetOption.value) {
+				selectedPreset = preset;
+				break;
+			}
+		}
+
+		if (!selectedPreset || !selectedPreset.Parameters) {
+			setPresetParameterNames([]);
 			return;
 		}
 
-		const selectedPreset = presetOptions[selectedPresetIndex];
+		setPresetParameterNames(selectedPreset.Parameters.map((p) => p.Name));
 
-		const selectedPresetParameters = presetParameters.filter(
-			(param) => param.PresetID === selectedPreset.value,
-		);
-
-		setPresetParameterNames(selectedPresetParameters.map((p) => p.Name));
-
-		for (const presetParameter of selectedPresetParameters) {
+		for (const presetParameter of selectedPreset.Parameters) {
 			const parameterIndex = parameters.findIndex(
 				(p) => p.name === presetParameter.Name,
 			);
@@ -203,7 +205,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	}, [
 		presetOptions,
 		selectedPresetIndex,
-		presetParameters,
+		presets,
 		parameters,
 		form.setFieldValue,
 	]);

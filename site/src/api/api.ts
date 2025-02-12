@@ -1154,15 +1154,6 @@ class ApiMethods {
 		return response.data;
 	};
 
-	getTemplateVersionPresetParameters = async (
-		templateVersionId: string,
-	): Promise<TypesGen.PresetParameter[]> => {
-		const response = await this.axios.get<TypesGen.PresetParameter[]>(
-			`/api/v2/templateversions/${templateVersionId}/presets/parameters`,
-		);
-		return response.data;
-	};
-
 	startWorkspace = (
 		workspaceId: string,
 		templateVersionId: string,

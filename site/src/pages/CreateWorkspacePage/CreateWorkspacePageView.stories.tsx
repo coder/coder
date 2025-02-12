@@ -122,22 +122,22 @@ export const Presets: Story = {
 			{
 				ID: "preset-1",
 				Name: "Preset 1",
+				Parameters: [
+					{
+						Name: MockTemplateVersionParameter1.name,
+						Value: "preset 1 override",
+					},
+				],
 			},
 			{
 				ID: "preset-2",
 				Name: "Preset 2",
-			},
-		],
-		presetParameters: [
-			{
-				PresetID: "preset-1",
-				Name: MockTemplateVersionParameter1.name,
-				Value: "preset 1 override",
-			},
-			{
-				PresetID: "preset-2",
-				Name: MockTemplateVersionParameter2.name,
-				Value: "42",
+				Parameters: [
+					{
+						Name: MockTemplateVersionParameter2.name,
+						Value: "42",
+					},
+				],
 			},
 		],
 		parameters: [
