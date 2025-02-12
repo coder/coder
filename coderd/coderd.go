@@ -1749,10 +1749,12 @@ func singleSlashMW(next http.Handler) http.Handler {
 		newPath := multipleSlashesRe.ReplaceAllString(path, "/")
 
 		// Apply the cleaned path
+		// The approach is consistent with: https://github.com/go-chi/chi/blob/e846b8304c769c4f1a51c9de06bebfaa4576bd88/middleware/strip.go#L24-L28
 		if rctx != nil {
 			rctx.RoutePath = newPath
+		} else {
+			r.URL.Path = newPath
 		}
-		r.URL.Path = newPath
 
 		next.ServeHTTP(w, r)
 	}

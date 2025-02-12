@@ -33,26 +33,37 @@ func TestStripSlashesMW(t *testing.T) {
 
 	for _, tt := range tests {
 		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 
+		t.Run("chi/"+tt.name, func(t *testing.T) {
+			t.Parallel()
 			req := httptest.NewRequest("GET", tt.inputPath, nil)
 			rec := httptest.NewRecorder()
 
-			// Create a chi RouteContext and attach it to the request
+			// given
 			rctx := chi.NewRouteContext()
-			rctx.RoutePath = tt.inputPath // Simulate chi route path
+			rctx.RoutePath = tt.inputPath
 			req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 
-			// Pass the request through the middleware
+			// when
 			singleSlashMW(handler).ServeHTTP(rec, req)
-
-			// Get the updated chi RouteContext after middleware processing
 			updatedCtx := chi.RouteContext(req.Context())
 
-			// Validate URL path
-			assert.Equal(t, tt.wantPath, req.URL.Path)
+			// then
+			assert.Equal(t, tt.inputPath, req.URL.Path)
 			assert.Equal(t, tt.wantPath, updatedCtx.RoutePath)
+		})
+
+		t.Run("stdlib/"+tt.name, func(t *testing.T) {
+			t.Parallel()
+			req := httptest.NewRequest("GET", tt.inputPath, nil)
+			rec := httptest.NewRecorder()
+
+			// when
+			singleSlashMW(handler).ServeHTTP(rec, req)
+
+			// then
+			assert.Equal(t, tt.wantPath, req.URL.Path)
+			assert.Nil(t, chi.RouteContext(req.Context()))
 		})
 	}
 }
