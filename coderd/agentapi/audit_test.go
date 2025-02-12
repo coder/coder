@@ -3,11 +3,13 @@ package agentapi_test
 import (
 	"context"
 	"encoding/json"
+	"net"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -50,6 +52,8 @@ func TestAuditReport(t *testing.T) {
 		action *agentproto.Connection_Action
 		typ    *agentproto.Connection_Type
 		time   time.Time
+		ip     string
+		status int32
 		reason string
 	}{
 		{
@@ -58,6 +62,8 @@ func TestAuditReport(t *testing.T) {
 			action: agentproto.Connection_CONNECT.Enum(),
 			typ:    agentproto.Connection_SSH.Enum(),
 			time:   time.Now(),
+			ip:     "127.0.0.1",
+			status: 200,
 		},
 		{
 			name:   "VS Code Connect",
@@ -65,6 +71,7 @@ func TestAuditReport(t *testing.T) {
 			action: agentproto.Connection_CONNECT.Enum(),
 			typ:    agentproto.Connection_VSCODE.Enum(),
 			time:   time.Now(),
+			ip:     "8.8.8.8",
 		},
 		{
 			name:   "JetBrains Connect",
@@ -93,7 +100,8 @@ func TestAuditReport(t *testing.T) {
 			action: agentproto.Connection_DISCONNECT.Enum(),
 			typ:    agentproto.Connection_SSH.Enum(),
 			time:   time.Now(),
-			reason: "because",
+			status: 500,
+			reason: "because error says so",
 		},
 	}
 	//nolint:paralleltest // No longer necessary to reinitialise the variable tt.
@@ -116,11 +124,13 @@ func TestAuditReport(t *testing.T) {
 			}
 			api.ReportConnection(context.Background(), &agentproto.ReportConnectionRequest{
 				Connection: &agentproto.Connection{
-					Id:        tt.id[:],
-					Action:    *tt.action,
-					Type:      *tt.typ,
-					Timestamp: timestamppb.New(tt.time),
-					Reason:    &tt.reason,
+					Id:         tt.id[:],
+					Action:     *tt.action,
+					Type:       *tt.typ,
+					Timestamp:  timestamppb.New(tt.time),
+					Ip:         tt.ip,
+					StatusCode: tt.status,
+					Reason:     &tt.reason,
 				},
 			})
 
@@ -133,6 +143,8 @@ func TestAuditReport(t *testing.T) {
 				ResourceType:   database.ResourceTypeWorkspaceAgent,
 				ResourceID:     agent.ID,
 				ResourceTarget: agent.Name,
+				Ip:             pqtype.Inet{Valid: true, IPNet: net.IPNet{IP: net.ParseIP(tt.ip), Mask: net.CIDRMask(32, 32)}},
+				StatusCode:     tt.status,
 			})
 
 			// Check some additional fields.

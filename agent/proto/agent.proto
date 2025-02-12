@@ -314,7 +314,9 @@ message Connection {
 	Action action = 2;
 	Type type = 3;
 	google.protobuf.Timestamp timestamp = 4;
-	optional string reason = 5;
+	string ip = 5;
+	int32 status_code = 6;
+	optional string reason = 7;
 }
 
 message ReportConnectionRequest {

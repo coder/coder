@@ -3,7 +3,6 @@ package agentapi
 import (
 	"context"
 	"encoding/json"
-	"net/http"
 	"strconv"
 	"sync/atomic"
 
@@ -88,13 +87,13 @@ func (a *AuditAPI) ReportConnection(ctx context.Context, req *agentproto.ReportC
 		Log:              a.Log,
 		Time:             req.GetConnection().GetTimestamp().AsTime(),
 		OrganizationID:   workspace.OrganizationID,
-		UserID:           workspace.OwnerID, // TODO(mafredri): If the agent knows it, we should send the ID.
-		RequestID:        connectionID,      // TODO(mafredri): Should we use connection ID here?
+		UserID:           workspace.OwnerID, // NOTE(mafredri): This may not be accurate if e.g. an owner is connecting.
+		RequestID:        connectionID,
 		Action:           action,
-		New:              workspaceAgent, // TODO(mafredri): Can we do something better here?
-		Old:              workspaceAgent, // TODO(mafredri): Can we do something better here?
-		IP:               "",             // TODO(mafredri): Can we get this over tailnet?
-		Status:           http.StatusOK,  // Always OK.
+		New:              workspaceAgent,
+		Old:              workspaceAgent,
+		IP:               req.GetConnection().GetIp(),
+		Status:           int(req.GetConnection().GetStatusCode()),
 		AdditionalFields: riBytes,
 	})
 
