@@ -1058,6 +1058,7 @@ func New(options *Options) *API {
 			r.Get("/rich-parameters", api.templateVersionRichParameters)
 			r.Get("/external-auth", api.templateVersionExternalAuth)
 			r.Get("/variables", api.templateVersionVariables)
+			r.Get("/presets", api.templateVersionPresets)
 			r.Get("/resources", api.templateVersionResources)
 			r.Get("/logs", api.templateVersionLogs)
 			r.Route("/dry-run", func(r chi.Router) {

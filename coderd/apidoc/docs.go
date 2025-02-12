@@ -5605,6 +5605,44 @@ const docTemplate = `{
                 }
             }
         },
+        "/templateversions/{templateversion}/presets": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Get template version presets",
+                "operationId": "get-template-version-presets",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template version ID",
+                        "name": "templateversion",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.Preset"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/templateversions/{templateversion}/resources": {
             "get": {
                 "security": [
@@ -12964,6 +13002,34 @@ const docTemplate = `{
                 },
                 "enable": {
                     "type": "boolean"
+                }
+            }
+        },
+        "codersdk.Preset": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "parameters": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.PresetParameter"
+                    }
+                }
+            }
+        },
+        "codersdk.PresetParameter": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
                 }
             }
         },
