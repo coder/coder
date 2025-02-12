@@ -39,8 +39,7 @@ func (a *AuditAPI) ReportConnection(ctx context.Context, req *agentproto.ReportC
 	case agentproto.Connection_CONNECT:
 		action = database.AuditActionConnect
 	case agentproto.Connection_DISCONNECT:
-		// Discard for now.
-		return &emptypb.Empty{}, nil
+		action = database.AuditActionDisconnect
 	default:
 		return nil, xerrors.Errorf("unknown agent connection action %q", req.GetConnection().GetAction())
 	}
@@ -79,6 +78,7 @@ func (a *AuditAPI) ReportConnection(ctx context.Context, req *agentproto.ReportC
 		audit.AdditionalFields
 
 		ConnectionType agentsdk.ConnectionType `json:"connection_type"`
+		Reason         string                  `json:"reason,omitempty"`
 	}
 	resourceInfo := additionalFields{
 		AdditionalFields: audit.AdditionalFields{
@@ -89,6 +89,7 @@ func (a *AuditAPI) ReportConnection(ctx context.Context, req *agentproto.ReportC
 			BuildReason:    database.BuildReason(string(build.Reason)),
 		},
 		ConnectionType: connectionType,
+		Reason:         req.GetConnection().GetReason(),
 	}
 
 	riBytes, err := json.Marshal(resourceInfo)

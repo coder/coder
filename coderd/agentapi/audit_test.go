@@ -45,12 +45,12 @@ func TestAuditReport(t *testing.T) {
 	)
 
 	tests := []struct {
-		name    string
-		id      uuid.UUID
-		action  *agentproto.Connection_Action
-		typ     *agentproto.Connection_Type
-		time    time.Time
-		discard bool
+		name   string
+		id     uuid.UUID
+		action *agentproto.Connection_Action
+		typ    *agentproto.Connection_Type
+		time   time.Time
+		reason string
 	}{
 		{
 			name:   "SSH Connect",
@@ -80,15 +80,20 @@ func TestAuditReport(t *testing.T) {
 			typ:    agentproto.Connection_RECONNECTING_PTY.Enum(),
 			time:   time.Now(),
 		},
-
-		// Discard disconnects, for now.
 		{
-			name:    "SSH Disconnect",
-			id:      uuid.New(),
-			action:  agentproto.Connection_DISCONNECT.Enum(),
-			typ:     agentproto.Connection_SSH.Enum(),
-			time:    time.Now(),
-			discard: true,
+			name:   "SSH Disconnect",
+			id:     uuid.New(),
+			action: agentproto.Connection_DISCONNECT.Enum(),
+			typ:    agentproto.Connection_SSH.Enum(),
+			time:   time.Now(),
+		},
+		{
+			name:   "SSH Disconnect",
+			id:     uuid.New(),
+			action: agentproto.Connection_DISCONNECT.Enum(),
+			typ:    agentproto.Connection_SSH.Enum(),
+			time:   time.Now(),
+			reason: "because",
 		},
 	}
 	for _, tt := range tests {
@@ -98,10 +103,8 @@ func TestAuditReport(t *testing.T) {
 			mAudit := audit.NewMock()
 
 			mDB := dbmock.NewMockStore(gomock.NewController(t))
-			if !tt.discard {
-				mDB.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent.ID).Return(workspace, nil)
-				mDB.EXPECT().GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspace.ID).Return(build, nil)
-			}
+			mDB.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent.ID).Return(workspace, nil)
+			mDB.EXPECT().GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspace.ID).Return(build, nil)
 
 			api := &agentapi.AuditAPI{
 				Auditor:  asAtomicPointer[audit.Auditor](mAudit),
@@ -116,17 +119,13 @@ func TestAuditReport(t *testing.T) {
 					Action:    *tt.action,
 					Type:      *tt.typ,
 					Timestamp: timestamppb.New(tt.time),
+					Reason:    &tt.reason,
 				},
 			})
 
-			if tt.discard {
-				require.Len(t, mAudit.AuditLogs(), 0)
-				return
-			}
-
 			mAudit.Contains(t, database.AuditLog{
-				Time:           dbtime.Time(tt.time),
-				Action:         database.AuditActionConnect,
+				Time:           dbtime.Time(tt.time).In(time.UTC),
+				Action:         agentProtoConnectionActionToAudit(t, *tt.action),
 				OrganizationID: workspace.OrganizationID,
 				UserID:         owner.ID,
 				RequestID:      tt.id,
@@ -139,8 +138,23 @@ func TestAuditReport(t *testing.T) {
 			var m map[string]any
 			err := json.Unmarshal(mAudit.AuditLogs()[0].AdditionalFields, &m)
 			require.NoError(t, err)
-			require.Equal(t, agentProtoConnectionTypeToSDK(t, *tt.typ), agentsdk.ConnectionType((m["connection_type"]).(string)))
+			require.Equal(t, string(agentProtoConnectionTypeToSDK(t, *tt.typ)), m["connection_type"].(string))
+			if tt.reason != "" {
+				require.Equal(t, tt.reason, m["reason"])
+			}
 		})
+	}
+}
+
+func agentProtoConnectionActionToAudit(t *testing.T, typ agentproto.Connection_Action) database.AuditAction {
+	switch typ {
+	case agentproto.Connection_CONNECT:
+		return database.AuditActionConnect
+	case agentproto.Connection_DISCONNECT:
+		return database.AuditActionDisconnect
+	default:
+		t.Fatalf("unknown agent connection action %q", typ)
+		return ""
 	}
 }
 

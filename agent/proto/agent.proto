@@ -303,7 +303,7 @@ message Connection {
 		DISCONNECT = 2;
 	}
 	enum Type {
-		CONNECTION_TYPE_UNSPECIFIED = 0;
+		TYPE_UNSPECIFIED = 0;
 		SSH = 1;
 		VSCODE = 2;
 		JETBRAINS = 3;
@@ -314,6 +314,7 @@ message Connection {
 	Action action = 2;
 	Type type = 3;
 	google.protobuf.Timestamp timestamp = 4;
+	optional string reason = 5;
 }
 
 message ReportConnectionRequest {

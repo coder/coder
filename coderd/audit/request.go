@@ -466,7 +466,8 @@ func BackgroundAudit[T Auditable](ctx context.Context, p *BackgroundAuditParams[
 	if p.Time.IsZero() {
 		p.Time = dbtime.Now()
 	} else {
-		p.Time = dbtime.Time(p.Time)
+		// NOTE(mafredri): dbtime.Time does not currently enforce UTC.
+		p.Time = dbtime.Time(p.Time.In(time.UTC))
 	}
 	if p.AdditionalFields == nil {
 		p.AdditionalFields = json.RawMessage("{}")
