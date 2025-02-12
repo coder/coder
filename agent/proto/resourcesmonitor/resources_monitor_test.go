@@ -5,10 +5,13 @@ import (
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/agent/proto/resourcesmonitor"
+	"github.com/coder/coder/v2/cli/clistat"
 	"github.com/coder/quartz"
 )
 
@@ -29,7 +32,6 @@ func TestPushResourcesMonitoringWithConfig(t *testing.T) {
 		datapointsPusher func(ctx context.Context, req *proto.PushResourcesMonitoringUsageRequest) (*proto.PushResourcesMonitoringUsageResponse, error)
 		expectedError    bool
 		numTicks         int
-		counterCalls     int
 		expectedCalls    int
 	}{
 		{
@@ -47,7 +49,6 @@ func TestPushResourcesMonitoringWithConfig(t *testing.T) {
 			},
 			expectedError: false,
 			numTicks:      20,
-			counterCalls:  0,
 			expectedCalls: 1,
 		},
 		{
@@ -65,7 +66,6 @@ func TestPushResourcesMonitoringWithConfig(t *testing.T) {
 			},
 			expectedError: false,
 			numTicks:      60,
-			counterCalls:  0,
 			expectedCalls: 41,
 		},
 	}
@@ -75,14 +75,17 @@ func TestPushResourcesMonitoringWithConfig(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			clk := quartz.NewMock(t)
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			logger := slog.Make(sloghuman.Sink(os.Stdout))
+			var (
+				logger       = slog.Make(sloghuman.Sink(os.Stdout))
+				clk          = quartz.NewMock(t)
+				counterCalls = 0
+			)
 
 			datapointsPusher := func(ctx context.Context, params *proto.PushResourcesMonitoringUsageRequest) (*proto.PushResourcesMonitoringUsageResponse, error) {
-				tt.counterCalls++
+				counterCalls++
 				return tt.datapointsPusher(ctx, params)
 			}
 
@@ -90,25 +93,24 @@ func TestPushResourcesMonitoringWithConfig(t *testing.T) {
 				PushResourcesMonitoringUsageFunc: datapointsPusher,
 			}
 
-			monitor := resourcesmonitor.NewResourcesMonitor(logger, clk, tt.config, pusher)
-			err := monitor.Start(ctx)
-			if (err != nil) != tt.expectedError {
-				t.Errorf("expected error: %v, got: %v", tt.expectedError, err)
-			}
+			resourcesFetcher, err := clistat.New()
+			require.NoError(t, err)
 
+			monitor := resourcesmonitor.NewResourcesMonitor(logger, clk, tt.config, resourcesFetcher, pusher)
+			err = monitor.Start(ctx)
 			if tt.expectedError {
+				require.Error(t, err)
 				return
 			}
 
+			require.NoError(t, err)
+
 			for i := 0; i < tt.numTicks; i++ {
 				_, waiter := clk.AdvanceNext()
-				waiter.Wait(ctx)
+				require.NoError(t, waiter.Wait(ctx))
 			}
 
-			if tt.counterCalls != tt.expectedCalls {
-				t.Errorf("expected call count: %v, got: %v", tt.expectedCalls, tt.counterCalls)
-			}
-
+			require.Equal(t, tt.expectedCalls, counterCalls)
 			cancel()
 		})
 	}

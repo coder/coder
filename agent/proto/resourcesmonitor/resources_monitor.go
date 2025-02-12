@@ -16,16 +16,20 @@ type monitor struct {
 	logger           slog.Logger
 	clock            quartz.Clock
 	config           *proto.GetResourcesMonitoringConfigurationResponse
+	resourcesFetcher *clistat.Statter
 	datapointsPusher datapointsPusher
+	queue            *Queue
 }
 
 //nolint:revive
-func NewResourcesMonitor(logger slog.Logger, clock quartz.Clock, config *proto.GetResourcesMonitoringConfigurationResponse, datapointsPusher datapointsPusher) *monitor {
+func NewResourcesMonitor(logger slog.Logger, clock quartz.Clock, config *proto.GetResourcesMonitoringConfigurationResponse, resourcesFetcher *clistat.Statter, datapointsPusher datapointsPusher) *monitor {
 	return &monitor{
 		logger:           logger,
 		clock:            clock,
 		config:           config,
+		resourcesFetcher: resourcesFetcher,
 		datapointsPusher: datapointsPusher,
+		queue:            NewQueue(int(config.Config.NumDatapoints)),
 	}
 }
 
@@ -39,15 +43,8 @@ func (m *monitor) Start(ctx context.Context) error {
 		return nil
 	}
 
-	resourcesFetcher, err := clistat.New()
-	if err != nil {
-		return xerrors.Errorf("failed to create resources fetcher: %w", err)
-	}
-
-	datapointsQueue := NewQueue(int(m.config.Config.NumDatapoints))
-
 	m.clock.TickerFunc(ctx, time.Duration(m.config.Config.CollectionIntervalSeconds*int32(time.Second)), func() error {
-		memTotal, memUsed, err := m.fetchResourceMonitoredMemory(resourcesFetcher)
+		memTotal, memUsed, err := m.fetchResourceMonitoredMemory()
 		if err != nil {
 			m.logger.Error(ctx, "failed to fetch memory", slog.Error(err))
 			return nil
@@ -55,7 +52,7 @@ func (m *monitor) Start(ctx context.Context) error {
 
 		volumes := make([]*VolumeDatapoint, 0, len(m.config.MonitoredVolumes))
 		for _, volume := range m.config.MonitoredVolumes {
-			volTotal, volUsed, err := m.fetchResourceMonitoredVolume(resourcesFetcher, volume)
+			volTotal, volUsed, err := m.fetchResourceMonitoredVolume(volume)
 			if err != nil {
 				m.logger.Error(ctx, "failed to fetch volume", slog.Error(err))
 				continue
@@ -68,7 +65,7 @@ func (m *monitor) Start(ctx context.Context) error {
 			})
 		}
 
-		datapointsQueue.Push(Datapoint{
+		m.queue.Push(Datapoint{
 			Memory: &MemoryDatapoint{
 				Total: memTotal,
 				Used:  memUsed,
@@ -76,11 +73,14 @@ func (m *monitor) Start(ctx context.Context) error {
 			Volumes: volumes,
 		})
 
-		if datapointsQueue.IsFull() {
+		if m.queue.IsFull() {
 			_, err = m.datapointsPusher.PushResourcesMonitoringUsage(ctx, &proto.PushResourcesMonitoringUsageRequest{
-				Datapoints: datapointsQueue.ItemsAsProto(),
+				Datapoints: m.queue.ItemsAsProto(),
 			})
 			if err != nil {
+				// We don't want to stop the monitoring if we fail to push the datapoints
+				// to the server. We just log the error and continue.
+				// The queue will anyway remove the oldest datapoint and add the new one.
 				m.logger.Error(ctx, "failed to push resources monitoring usage", slog.Error(err))
 			}
 		}
@@ -91,8 +91,8 @@ func (m *monitor) Start(ctx context.Context) error {
 	return nil
 }
 
-func (m *monitor) fetchResourceMonitoredMemory(fetcher *clistat.Statter) (total int64, used int64, err error) {
-	mem, err := fetcher.HostMemory(clistat.PrefixMebi)
+func (m *monitor) fetchResourceMonitoredMemory() (total int64, used int64, err error) {
+	mem, err := m.resourcesFetcher.HostMemory(clistat.PrefixMebi)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -108,8 +108,8 @@ func (m *monitor) fetchResourceMonitoredMemory(fetcher *clistat.Statter) (total 
 	return memTotal, memUsed, nil
 }
 
-func (m *monitor) fetchResourceMonitoredVolume(fetcher *clistat.Statter, volume string) (total int64, used int64, err error) {
-	vol, err := fetcher.Disk(clistat.PrefixMebi, volume)
+func (m *monitor) fetchResourceMonitoredVolume(volume string) (total int64, used int64, err error) {
+	vol, err := m.resourcesFetcher.Disk(clistat.PrefixMebi, volume)
 	if err != nil {
 		return 0, 0, err
 	}

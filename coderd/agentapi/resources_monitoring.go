@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"errors"
 
+	"golang.org/x/xerrors"
+
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
@@ -24,7 +26,7 @@ func (a *ResourcesMonitoringAPI) GetResourcesMonitoringConfiguration(ctx context
 
 	_, err = a.Database.FetchMemoryResourceMonitorsByAgentID(ctx, agent.ID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return nil, err
+		return nil, xerrors.New("failed to fetch memory resource monitors")
 	}
 
 	volumeMonitors, err := a.Database.FetchVolumesResourceMonitorsByAgentID(ctx, agent.ID)

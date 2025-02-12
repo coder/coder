@@ -3,6 +3,8 @@ package resourcesmonitor_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/coder/coder/v2/agent/proto/resourcesmonitor"
 )
 
@@ -76,27 +78,15 @@ func TestResourceMonitorQueue(t *testing.T) {
 					},
 				})
 			}
-			if tt.pushCount < 20 && queue.IsFull() {
-				t.Errorf("expected %v, got %v", false, queue.IsFull())
+
+			if tt.pushCount < 20 {
+				require.False(t, queue.IsFull())
+			} else {
+				require.True(t, queue.IsFull())
+				require.Equal(t, 20, len(queue.Items()))
 			}
-			if tt.pushCount >= 20 && len(queue.Items()) != 20 {
-				t.Errorf("expected %v, got %v", 20, tt.pushCount)
-			}
-			if got := queue.Items(); !equal(got, tt.expected) {
-				t.Errorf("expected %v, got %v", tt.expected, got)
-			}
+
+			require.EqualValues(t, tt.expected, queue.Items())
 		})
 	}
-}
-
-func equal(a, b []resourcesmonitor.Datapoint) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i].Memory.Total != b[i].Memory.Total || a[i].Memory.Used != b[i].Memory.Used {
-			return false
-		}
-	}
-	return true
 }

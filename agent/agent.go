@@ -40,6 +40,7 @@ import (
 	"github.com/coder/coder/v2/agent/proto/resourcesmonitor"
 	"github.com/coder/coder/v2/agent/reconnectingpty"
 	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/cli/clistat"
 	"github.com/coder/coder/v2/cli/gitauth"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
@@ -797,7 +798,12 @@ func (a *agent) run() (retErr error) {
 			return xerrors.Errorf("failed to get resources monitoring configuration: %w", err)
 		}
 
-		resourcesmonitor := resourcesmonitor.NewResourcesMonitor(logger, clk, config, aAPI)
+		resourcesFetcher, err := clistat.New()
+		if err != nil {
+			return xerrors.Errorf("failed to create resources fetcher: %w", err)
+		}
+
+		resourcesmonitor := resourcesmonitor.NewResourcesMonitor(logger, clk, config, resourcesFetcher, aAPI)
 		return resourcesmonitor.Start(ctx)
 	})
 
