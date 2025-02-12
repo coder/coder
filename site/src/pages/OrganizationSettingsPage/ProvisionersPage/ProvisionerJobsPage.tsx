@@ -2,7 +2,6 @@ import { provisionerJobs } from "api/queries/organizations";
 import type { Organization, ProvisionerJob } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { Badge } from "components/Badge/Badge";
-import { Button } from "components/Button/Button";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Link } from "components/Link/Link";
 import { Loader } from "components/Loader/Loader";
@@ -15,13 +14,6 @@ import {
 	TableRow,
 } from "components/Table/Table";
 import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import {
-	BanIcon,
 	ChevronDownIcon,
 	ChevronRightIcon,
 	TriangleAlertIcon,
@@ -34,6 +26,7 @@ import { relativeTime } from "utils/time";
 import { DataGrid } from "./DataGrid";
 import { JobStatusIndicator } from "./JobStatusIndicator";
 import { ShrinkTags, Tag, Tags } from "./Tags";
+import { CancelJobButton } from "./CancelJobButton";
 
 type ProvisionerJobsPageProps = {
 	org: Organization;
@@ -97,7 +90,6 @@ type JobRowProps = {
 
 const JobRow: FC<JobRowProps> = ({ job }) => {
 	const metadata = job.metadata;
-	const canCancel = ["pending", "running"].includes(job.status);
 	const [isOpen, setIsOpen] = useState(false);
 
 	return (
@@ -151,21 +143,7 @@ const JobRow: FC<JobRowProps> = ({ job }) => {
 					<JobStatusIndicator job={job} />
 				</TableCell>
 				<TableCell className="text-right">
-					<TooltipProvider>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<Button
-									disabled={!canCancel}
-									aria-label="Cancel job"
-									size="icon"
-									variant="outline"
-								>
-									<BanIcon />
-								</Button>
-							</TooltipTrigger>
-							<TooltipContent>Cancel job</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
+					<CancelJobButton job={job} />
 				</TableCell>
 			</TableRow>
 

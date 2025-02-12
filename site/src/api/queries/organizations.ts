@@ -3,7 +3,6 @@ import type {
 	AuthorizationResponse,
 	CreateOrganizationRequest,
 	GroupSyncSettings,
-	ProvisionerDaemon,
 	RoleSyncSettings,
 	UpdateOrganizationRequest,
 } from "api/typesGenerated";
@@ -245,9 +244,15 @@ export const organizationPermissions = (organizationId: string | undefined) => {
 	};
 };
 
+export const provisionerJobQueryKey = (orgId: string) => [
+	"organization",
+	orgId,
+	"provisionerjobs",
+];
+
 export const provisionerJobs = (orgId: string) => {
 	return {
-		queryKey: ["organization", orgId, "provisionerjobs"],
+		queryKey: provisionerJobQueryKey(orgId),
 		queryFn: () => API.getProvisionerJobs(orgId),
 	};
 };
