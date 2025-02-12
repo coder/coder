@@ -148,7 +148,9 @@ const (
 	AuditActionRegister             AuditAction = "register"
 	AuditActionRequestPasswordReset AuditAction = "request_password_reset"
 	AuditActionConnect              AuditAction = "connect"
+	AuditActionDisconnect           AuditAction = "disconnect"
 	AuditActionOpen                 AuditAction = "open"
+	AuditActionClose                AuditAction = "close"
 )
 
 func (e *AuditAction) Scan(src interface{}) error {
@@ -198,7 +200,9 @@ func (e AuditAction) Valid() bool {
 		AuditActionRegister,
 		AuditActionRequestPasswordReset,
 		AuditActionConnect,
-		AuditActionOpen:
+		AuditActionDisconnect,
+		AuditActionOpen,
+		AuditActionClose:
 		return true
 	}
 	return false
@@ -216,7 +220,9 @@ func AllAuditActionValues() []AuditAction {
 		AuditActionRegister,
 		AuditActionRequestPasswordReset,
 		AuditActionConnect,
+		AuditActionDisconnect,
 		AuditActionOpen,
+		AuditActionClose,
 	}
 }
 

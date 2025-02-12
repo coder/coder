@@ -10100,7 +10100,9 @@ const docTemplate = `{
                 "register",
                 "request_password_reset",
                 "connect",
-                "open"
+                "disconnect",
+                "open",
+                "close"
             ],
             "x-enum-varnames": [
                 "AuditActionCreate",
@@ -10113,7 +10115,9 @@ const docTemplate = `{
                 "AuditActionRegister",
                 "AuditActionRequestPasswordReset",
                 "AuditActionConnect",
-                "AuditActionOpen"
+                "AuditActionDisconnect",
+                "AuditActionOpen",
+                "AuditActionClose"
             ]
         },
         "codersdk.AuditDiff": {

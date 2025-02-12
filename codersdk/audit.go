@@ -111,7 +111,9 @@ const (
 	AuditActionRegister             AuditAction = "register"
 	AuditActionRequestPasswordReset AuditAction = "request_password_reset"
 	AuditActionConnect              AuditAction = "connect"
+	AuditActionDisconnect           AuditAction = "disconnect"
 	AuditActionOpen                 AuditAction = "open"
+	AuditActionClose                AuditAction = "close"
 )
 
 func (a AuditAction) Friendly() string {
@@ -136,8 +138,12 @@ func (a AuditAction) Friendly() string {
 		return "password reset requested"
 	case AuditActionConnect:
 		return "connected"
+	case AuditActionDisconnect:
+		return "disconnected"
 	case AuditActionOpen:
 		return "opened"
+	case AuditActionClose:
+		return "closed"
 	default:
 		return "unknown"
 	}
@@ -196,6 +202,7 @@ type CreateTestAuditLogRequest struct {
 	Time             time.Time       `json:"time,omitempty" format:"date-time"`
 	BuildReason      BuildReason     `json:"build_reason,omitempty" enums:"autostart,autostop,initiator"`
 	OrganizationID   uuid.UUID       `json:"organization_id,omitempty" format:"uuid"`
+	RequestID        uuid.UUID       `json:"request_id,omitempty" format:"uuid"`
 }
 
 // AuditLogs retrieves audit logs from the given page.

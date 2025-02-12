@@ -286,21 +286,42 @@ func TestAuditLogsFilter(t *testing.T) {
 			t.Logf("Resource: %#v", resource)
 		}
 
-		// Create one log with "Connect"
+		// Create one log with "Connect" and "Disconect".
+		connectRequestID := uuid.New()
 		err = client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
 			Action:       codersdk.AuditActionConnect,
+			RequestID:    connectRequestID,
 			ResourceType: codersdk.ResourceTypeWorkspaceAgent,
 			ResourceID:   workspace.LatestBuild.Resources[0].Agents[0].ID,
 			Time:         time.Date(2022, 8, 15, 14, 30, 45, 100, time.UTC), // 2022-8-15 14:30:45
 		})
 		require.NoError(t, err)
 
-		// Create one log with "Open"
+		err = client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
+			Action:       codersdk.AuditActionDisconnect,
+			RequestID:    connectRequestID,
+			ResourceType: codersdk.ResourceTypeWorkspaceAgent,
+			ResourceID:   workspace.LatestBuild.Resources[0].Agents[0].ID,
+			Time:         time.Date(2022, 8, 15, 14, 35, 0o0, 100, time.UTC), // 2022-8-15 14:35:00
+		})
+		require.NoError(t, err)
+
+		// Create one log with "Open" and "Close".
+		openRequestID := uuid.New()
 		err = client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
 			Action:       codersdk.AuditActionOpen,
+			RequestID:    openRequestID,
 			ResourceType: codersdk.ResourceTypeWorkspaceApp,
 			ResourceID:   workspace.LatestBuild.Resources[0].Agents[0].Apps[0].ID,
 			Time:         time.Date(2022, 8, 15, 14, 30, 45, 100, time.UTC), // 2022-8-15 14:30:45
+		})
+		require.NoError(t, err)
+		err = client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
+			Action:       codersdk.AuditActionClose,
+			RequestID:    openRequestID,
+			ResourceType: codersdk.ResourceTypeWorkspaceApp,
+			ResourceID:   workspace.LatestBuild.Resources[0].Agents[0].Apps[0].ID,
+			Time:         time.Date(2022, 8, 15, 14, 35, 0o0, 100, time.UTC), // 2022-8-15 14:35:00
 		})
 		require.NoError(t, err)
 
@@ -334,12 +355,12 @@ func TestAuditLogsFilter(t *testing.T) {
 			{
 				Name:           "FilterByEmail",
 				SearchQuery:    "email:" + coderdtest.FirstUserParams.Email,
-				ExpectedResult: 7,
+				ExpectedResult: 9,
 			},
 			{
 				Name:           "FilterByUsername",
 				SearchQuery:    "username:" + coderdtest.FirstUserParams.Username,
-				ExpectedResult: 7,
+				ExpectedResult: 9,
 			},
 			{
 				Name:           "FilterByResourceID",
@@ -397,9 +418,29 @@ func TestAuditLogsFilter(t *testing.T) {
 				ExpectedResult: 1,
 			},
 			{
+				Name:           "FilterOnWorkspaceAgentDisconnect",
+				SearchQuery:    "resource_type:workspace_agent action:disconnect",
+				ExpectedResult: 1,
+			},
+			{
+				Name:           "FilterOnWorkspaceAgentConnectionRequestID",
+				SearchQuery:    "resource_type:workspace_agent request_id:" + connectRequestID.String(),
+				ExpectedResult: 2,
+			},
+			{
 				Name:           "FilterOnWorkspaceAppOpen",
 				SearchQuery:    "resource_type:workspace_app action:open",
 				ExpectedResult: 1,
+			},
+			{
+				Name:           "FilterOnWorkspaceAppClose",
+				SearchQuery:    "resource_type:workspace_app action:close",
+				ExpectedResult: 1,
+			},
+			{
+				Name:           "FilterOnWorkspaceAppOpenRequestID",
+				SearchQuery:    "resource_type:workspace_app request_id:" + openRequestID.String(),
+				ExpectedResult: 2,
 			},
 		}
 

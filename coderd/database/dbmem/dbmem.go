@@ -12370,10 +12370,13 @@ func (q *FakeQuerier) GetAuthorizedAuditLogsOffset(ctx context.Context, arg data
 			arg.OffsetOpt--
 			continue
 		}
+		if arg.RequestID != uuid.Nil && arg.RequestID != alog.RequestID {
+			continue
+		}
 		if arg.OrganizationID != uuid.Nil && arg.OrganizationID != alog.OrganizationID {
 			continue
 		}
-		if arg.Action != "" && !strings.Contains(string(alog.Action), arg.Action) {
+		if arg.Action != "" && string(alog.Action) != arg.Action {
 			continue
 		}
 		if arg.ResourceType != "" && !strings.Contains(string(alog.ResourceType), arg.ResourceType) {

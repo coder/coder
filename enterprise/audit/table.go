@@ -27,8 +27,8 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"Group":           {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"APIKey":          {codersdk.AuditActionLogin, codersdk.AuditActionLogout, codersdk.AuditActionRegister, codersdk.AuditActionCreate, codersdk.AuditActionDelete},
 	"License":         {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
-	"WorkspaceAgent":  {codersdk.AuditActionConnect},
-	"WorkspaceApp":    {codersdk.AuditActionOpen},
+	"WorkspaceAgent":  {codersdk.AuditActionConnect, codersdk.AuditActionDisconnect},
+	"WorkspaceApp":    {codersdk.AuditActionOpen, codersdk.AuditActionClose},
 }
 
 type Action string
@@ -310,14 +310,14 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"mapping": ActionTrack,
 	},
 	&database.WorkspaceAgent{}: {
-		"id":                         ActionTrack,
+		"id":                         ActionIgnore,
 		"created_at":                 ActionIgnore,
 		"updated_at":                 ActionIgnore,
-		"name":                       ActionTrack,
+		"name":                       ActionIgnore,
 		"first_connected_at":         ActionIgnore,
 		"last_connected_at":          ActionIgnore,
 		"disconnected_at":            ActionIgnore,
-		"resource_id":                ActionTrack,
+		"resource_id":                ActionIgnore,
 		"auth_token":                 ActionIgnore,
 		"auth_instance_id":           ActionIgnore,
 		"architecture":               ActionIgnore,
@@ -345,8 +345,8 @@ var auditableResourcesTypes = map[any]map[string]Action{
 	&database.WorkspaceApp{}: {
 		"id":                    ActionIgnore,
 		"created_at":            ActionIgnore,
-		"agent_id":              ActionTrack,
-		"display_name":          ActionTrack,
+		"agent_id":              ActionIgnore,
+		"display_name":          ActionIgnore,
 		"icon":                  ActionIgnore,
 		"command":               ActionIgnore,
 		"url":                   ActionIgnore,
@@ -356,7 +356,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"health":                ActionIgnore,
 		"subdomain":             ActionIgnore,
 		"sharing_level":         ActionIgnore,
-		"slug":                  ActionTrack,
+		"slug":                  ActionIgnore,
 		"external":              ActionIgnore,
 		"display_order":         ActionIgnore,
 		"hidden":                ActionIgnore,

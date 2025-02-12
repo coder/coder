@@ -555,7 +555,9 @@
 | `register`               |
 | `request_password_reset` |
 | `connect`                |
+| `disconnect`             |
 | `open`                   |
+| `close`                  |
 
 ## codersdk.AuditDiff
 
