@@ -16,6 +16,8 @@ import (
 )
 
 func TestTemplateVersionPresets(t *testing.T) {
+	// TODO (sasswart): Test case: what if a user tries to read presets or preset parameters from a different org?
+
 	t.Parallel()
 
 	sdkPreset := codersdk.Preset{

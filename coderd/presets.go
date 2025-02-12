@@ -29,9 +29,6 @@ func (api *API) templateVersionPresets(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// TODO (sasswart): Test case: what if a user tries to read presets or preset parameters from a different org?
-	// TODO (sasswart): Do a prelim auth check here.
-
 	presetParams, err := api.Database.GetPresetParametersByTemplateVersionID(ctx, templateVersion.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
