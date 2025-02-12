@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
@@ -65,6 +66,7 @@ type BackgroundAuditParams[T Auditable] struct {
 
 	UserID         uuid.UUID
 	RequestID      uuid.UUID
+	Time           time.Time
 	Status         int
 	Action         database.AuditAction
 	OrganizationID uuid.UUID
@@ -461,13 +463,19 @@ func BackgroundAudit[T Auditable](ctx context.Context, p *BackgroundAuditParams[
 		diffRaw = []byte("{}")
 	}
 
+	if p.Time.IsZero() {
+		p.Time = dbtime.Now()
+	} else {
+		// NOTE(mafredri): dbtime.Time does not currently enforce UTC.
+		p.Time = dbtime.Time(p.Time.In(time.UTC))
+	}
 	if p.AdditionalFields == nil {
 		p.AdditionalFields = json.RawMessage("{}")
 	}
 
 	auditLog := database.AuditLog{
 		ID:               uuid.New(),
-		Time:             dbtime.Now(),
+		Time:             p.Time,
 		UserID:           p.UserID,
 		OrganizationID:   requireOrgID[T](ctx, p.OrganizationID, p.Log),
 		Ip:               ip,

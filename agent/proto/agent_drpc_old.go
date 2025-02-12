@@ -3,6 +3,7 @@ package proto
 import (
 	"context"
 
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	"storj.io/drpc"
 )
 
@@ -39,4 +40,11 @@ type DRPCAgentClient22 interface {
 type DRPCAgentClient23 interface {
 	DRPCAgentClient22
 	ScriptCompleted(ctx context.Context, in *WorkspaceAgentScriptCompletedRequest) (*WorkspaceAgentScriptCompletedResponse, error)
+}
+
+// DRPCAgentClient23 is the Agent API at v2.4. It adds the ReportConnection RPC.
+// Compatible with Coder v2.20+
+type DRPCAgentClient24 interface {
+	DRPCAgentClient23
+	ReportConnection(ctx context.Context, in *ReportConnectionRequest) (*emptypb.Empty, error)
 }

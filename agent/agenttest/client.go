@@ -15,6 +15,7 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/emptypb"
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
 	"tailscale.com/tailcfg"
@@ -96,8 +97,8 @@ func (c *Client) Close() {
 	c.derpMapOnce.Do(func() { close(c.derpMapUpdates) })
 }
 
-func (c *Client) ConnectRPC23(ctx context.Context) (
-	agentproto.DRPCAgentClient23, proto.DRPCTailnetClient23, error,
+func (c *Client) ConnectRPC24(ctx context.Context) (
+	agentproto.DRPCAgentClient24, proto.DRPCTailnetClient24, error,
 ) {
 	conn, lis := drpcsdk.MemTransportPipe()
 	c.LastWorkspaceAgent = func() {
@@ -170,6 +171,7 @@ type FakeAgentAPI struct {
 	lifecycleStates []codersdk.WorkspaceAgentLifecycle
 	metadata        map[string]agentsdk.Metadata
 	timings         []*agentproto.Timing
+	connections     []*agentproto.Connection
 
 	getAnnouncementBannersFunc func() ([]codersdk.BannerConfig, error)
 }
@@ -309,10 +311,18 @@ func (f *FakeAgentAPI) BatchCreateLogs(ctx context.Context, req *agentproto.Batc
 
 func (f *FakeAgentAPI) ScriptCompleted(_ context.Context, req *agentproto.WorkspaceAgentScriptCompletedRequest) (*agentproto.WorkspaceAgentScriptCompletedResponse, error) {
 	f.Lock()
-	f.timings = append(f.timings, req.Timing)
+	f.timings = append(f.timings, req.GetTiming())
 	f.Unlock()
 
 	return &agentproto.WorkspaceAgentScriptCompletedResponse{}, nil
+}
+
+func (f *FakeAgentAPI) ReportConnection(_ context.Context, req *agentproto.ReportConnectionRequest) (*emptypb.Empty, error) {
+	f.Lock()
+	f.connections = append(f.connections, req.GetConnection())
+	f.Unlock()
+
+	return &emptypb.Empty{}, nil
 }
 
 func NewFakeAgentAPI(t testing.TB, logger slog.Logger, manifest *agentproto.Manifest, statsCh chan *agentproto.Stats) *FakeAgentAPI {
