@@ -45,9 +45,8 @@ export const BatchDeleteConfirmation: FC<BatchDeleteConfirmationProps> = ({
 		}
 	};
 
-	const workspaceCount = `${checkedWorkspaces.length} ${
-		checkedWorkspaces.length === 1 ? "workspace" : "workspaces"
-	}`;
+	const workspaceCount = `${checkedWorkspaces.length} ${checkedWorkspaces.length === 1 ? "workspace" : "workspaces"
+		}`;
 
 	let confirmText: ReactNode = <>Review selected workspaces&hellip;</>;
 	if (stage === "workspaces") {
@@ -57,9 +56,8 @@ export const BatchDeleteConfirmation: FC<BatchDeleteConfirmationProps> = ({
 		const resources = checkedWorkspaces
 			.map((workspace) => workspace.latest_build.resources.length)
 			.reduce((a, b) => a + b, 0);
-		const resourceCount = `${resources} ${
-			resources === 1 ? "resource" : "resources"
-		}`;
+		const resourceCount = `${resources} ${resources === 1 ? "resource" : "resources"
+			}`;
 		confirmText = (
 			<>
 				Delete {workspaceCount} and {resourceCount}
@@ -247,7 +245,12 @@ const Resources: FC<StageProps> = ({ workspaces }) => {
 			>
 				{Object.entries(resources).map(([type, summary]) => (
 					<Stack key={type} direction="row" alignItems="center" spacing={1}>
-						<img alt="" src={summary.icon} css={styles.summaryIcon} />
+						<div aria-hidden={true} className="bg-content-primary" style={{
+							width: styles.summaryIcon.width,
+							height: styles.summaryIcon.height,
+							WebkitMask: `url('${summary.icon}') no-repeat center / contain`,
+							mask: `url('${summary.icon}') no-repeat center / contain`,
+						}} />
 						<span>
 							{summary.count} <code>{type}</code>
 						</span>
