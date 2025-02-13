@@ -6,56 +6,44 @@ import (
 	"github.com/coder/coder/v2/cli/clistat"
 )
 
-type ResourcesFetcher interface {
-	FetchResourceMonitoredMemory() (total int64, used int64, err error)
-	FetchResourceMonitoredVolume(volume string) (total int64, used int64, err error)
+type Fetcher interface {
+	FetchMemory() (total int64, used int64, err error)
+	FetchVolume(volume string) (total int64, used int64, err error)
 }
 
-type resourcesFetcher struct {
-	fetcher *clistat.Statter
+type fetcher struct {
+	*clistat.Statter
 }
 
 //nolint:revive
-func NewResourcesFetcher(fetcher *clistat.Statter) *resourcesFetcher {
-	return &resourcesFetcher{
-		fetcher: fetcher,
+func NewFetcher(f *clistat.Statter) *fetcher {
+	return &fetcher{
+		f,
 	}
 }
 
-func (f *resourcesFetcher) FetchResourceMonitoredMemory() (total int64, used int64, err error) {
-	mem, err := f.fetcher.HostMemory(clistat.PrefixMebi)
+func (f *fetcher) FetchMemory() (total int64, used int64, err error) {
+	mem, err := f.HostMemory(clistat.PrefixDefault)
 	if err != nil {
 		return 0, 0, err
 	}
 
-	var memTotal, memUsed int64
 	if mem.Total == nil {
 		return 0, 0, xerrors.New("memory total is nil - can not fetch memory")
 	}
 
-	memTotal = f.bytesToMegabytes(int64(*mem.Total))
-	memUsed = f.bytesToMegabytes(int64(mem.Used))
-
-	return memTotal, memUsed, nil
+	return int64(*mem.Total), int64(mem.Used), nil
 }
 
-func (f *resourcesFetcher) FetchResourceMonitoredVolume(volume string) (total int64, used int64, err error) {
-	vol, err := f.fetcher.Disk(clistat.PrefixMebi, volume)
+func (f *fetcher) FetchVolume(volume string) (total int64, used int64, err error) {
+	vol, err := f.Disk(clistat.PrefixDefault, volume)
 	if err != nil {
 		return 0, 0, err
 	}
 
-	var volTotal, volUsed int64
 	if vol.Total == nil {
 		return 0, 0, xerrors.New("volume total is nil - can not fetch volume")
 	}
 
-	volTotal = f.bytesToMegabytes(int64(*vol.Total))
-	volUsed = f.bytesToMegabytes(int64(vol.Used))
-
-	return volTotal, volUsed, nil
-}
-
-func (*resourcesFetcher) bytesToMegabytes(bytes int64) int64 {
-	return bytes / (1024 * 1024)
+	return int64(*vol.Total), int64(vol.Used), nil
 }

@@ -13,13 +13,13 @@ type monitor struct {
 	logger           slog.Logger
 	clock            quartz.Clock
 	config           *proto.GetResourcesMonitoringConfigurationResponse
-	resourcesFetcher ResourcesFetcher
+	resourcesFetcher Fetcher
 	datapointsPusher datapointsPusher
 	queue            *Queue
 }
 
 //nolint:revive
-func NewResourcesMonitor(logger slog.Logger, clock quartz.Clock, config *proto.GetResourcesMonitoringConfigurationResponse, resourcesFetcher ResourcesFetcher, datapointsPusher datapointsPusher) *monitor {
+func NewResourcesMonitor(logger slog.Logger, clock quartz.Clock, config *proto.GetResourcesMonitoringConfigurationResponse, resourcesFetcher Fetcher, datapointsPusher datapointsPusher) *monitor {
 	return &monitor{
 		logger:           logger,
 		clock:            clock,
@@ -41,7 +41,7 @@ func (m *monitor) Start(ctx context.Context) error {
 		}
 
 		if m.config.Memory != nil && m.config.Memory.Enabled {
-			memTotal, memUsed, err := m.resourcesFetcher.FetchResourceMonitoredMemory()
+			memTotal, memUsed, err := m.resourcesFetcher.FetchMemory()
 			if err != nil {
 				m.logger.Error(ctx, "failed to fetch memory", slog.Error(err))
 			} else {
@@ -57,7 +57,7 @@ func (m *monitor) Start(ctx context.Context) error {
 				continue
 			}
 
-			volTotal, volUsed, err := m.resourcesFetcher.FetchResourceMonitoredVolume(volume.Path)
+			volTotal, volUsed, err := m.resourcesFetcher.FetchVolume(volume.Path)
 			if err != nil {
 				m.logger.Error(ctx, "failed to fetch volume", slog.Error(err))
 				continue

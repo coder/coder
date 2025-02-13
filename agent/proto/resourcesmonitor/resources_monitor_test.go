@@ -23,15 +23,32 @@ func (d *datapointsPusherMock) PushResourcesMonitoringUsage(ctx context.Context,
 	return d.PushResourcesMonitoringUsageFunc(ctx, req)
 }
 
+type fetcher struct {
+	totalMemory int64
+	usedMemory  int64
+	totalVolume int64
+	usedVolume  int64
+
+	errMemory error
+	errVolume error
+}
+
+func (r *fetcher) FetchMemory() (total int64, used int64, err error) {
+	return r.totalMemory, r.usedMemory, r.errMemory
+}
+
+func (r *fetcher) FetchVolume(volume string) (total int64, used int64, err error) {
+	return r.totalVolume, r.usedVolume, r.errVolume
+}
+
 func TestPushResourcesMonitoringWithConfig(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name                              string
-		config                            *proto.GetResourcesMonitoringConfigurationResponse
-		datapointsPusher                  func(ctx context.Context, req *proto.PushResourcesMonitoringUsageRequest) (*proto.PushResourcesMonitoringUsageResponse, error)
-		fetchResourcesMonitoredMemoryFunc func() (int64, int64, error)
-		fetchResourcesMonitoredVolumeFunc func(volume string) (int64, int64, error)
-		numTicks                          int
+		name             string
+		config           *proto.GetResourcesMonitoringConfigurationResponse
+		datapointsPusher func(ctx context.Context, req *proto.PushResourcesMonitoringUsageRequest) (*proto.PushResourcesMonitoringUsageResponse, error)
+		fetcher          resourcesmonitor.Fetcher
+		numTicks         int
 	}{
 		{
 			name: "SuccessfulMonitoring",
@@ -50,11 +67,11 @@ func TestPushResourcesMonitoringWithConfig(t *testing.T) {
 			datapointsPusher: func(_ context.Context, _ *proto.PushResourcesMonitoringUsageRequest) (*proto.PushResourcesMonitoringUsageResponse, error) {
 				return &proto.PushResourcesMonitoringUsageResponse{}, nil
 			},
-			fetchResourcesMonitoredMemoryFunc: func() (int64, int64, error) {
-				return 1000, 8000, nil
-			},
-			fetchResourcesMonitoredVolumeFunc: func(_ string) (int64, int64, error) {
-				return 50000, 100000, nil
+			fetcher: &fetcher{
+				totalMemory: 16000,
+				usedMemory:  8000,
+				totalVolume: 100000,
+				usedVolume:  50000,
 			},
 			numTicks: 20,
 		},
@@ -75,11 +92,11 @@ func TestPushResourcesMonitoringWithConfig(t *testing.T) {
 			datapointsPusher: func(_ context.Context, _ *proto.PushResourcesMonitoringUsageRequest) (*proto.PushResourcesMonitoringUsageResponse, error) {
 				return &proto.PushResourcesMonitoringUsageResponse{}, nil
 			},
-			fetchResourcesMonitoredMemoryFunc: func() (int64, int64, error) {
-				return 1000, 8000, nil
-			},
-			fetchResourcesMonitoredVolumeFunc: func(_ string) (int64, int64, error) {
-				return 50000, 100000, nil
+			fetcher: &fetcher{
+				totalMemory: 16000,
+				usedMemory:  8000,
+				totalVolume: 100000,
+				usedVolume:  50000,
 			},
 			numTicks: 60,
 		},
@@ -101,11 +118,11 @@ func TestPushResourcesMonitoringWithConfig(t *testing.T) {
 			datapointsPusher: func(_ context.Context, _ *proto.PushResourcesMonitoringUsageRequest) (*proto.PushResourcesMonitoringUsageResponse, error) {
 				return nil, assert.AnError
 			},
-			fetchResourcesMonitoredMemoryFunc: func() (int64, int64, error) {
-				return 1000, 8000, nil
-			},
-			fetchResourcesMonitoredVolumeFunc: func(_ string) (int64, int64, error) {
-				return 50000, 100000, nil
+			fetcher: &fetcher{
+				totalMemory: 16000,
+				usedMemory:  8000,
+				totalVolume: 100000,
+				usedVolume:  50000,
 			},
 			numTicks: 60,
 		},
@@ -136,11 +153,12 @@ func TestPushResourcesMonitoringWithConfig(t *testing.T) {
 
 				return &proto.PushResourcesMonitoringUsageResponse{}, nil
 			},
-			fetchResourcesMonitoredMemoryFunc: func() (int64, int64, error) {
-				return 0, 0, assert.AnError
-			},
-			fetchResourcesMonitoredVolumeFunc: func(_ string) (int64, int64, error) {
-				return 100000, 50000, nil
+			fetcher: &fetcher{
+				totalMemory: 0,
+				usedMemory:  0,
+				errMemory:   assert.AnError,
+				totalVolume: 100000,
+				usedVolume:  50000,
 			},
 			numTicks: 20,
 		},
@@ -165,11 +183,12 @@ func TestPushResourcesMonitoringWithConfig(t *testing.T) {
 
 				return &proto.PushResourcesMonitoringUsageResponse{}, nil
 			},
-			fetchResourcesMonitoredMemoryFunc: func() (int64, int64, error) {
-				return 1000, 8000, nil
-			},
-			fetchResourcesMonitoredVolumeFunc: func(_ string) (int64, int64, error) {
-				return 0, 0, assert.AnError
+			fetcher: &fetcher{
+				totalMemory: 16000,
+				usedMemory:  8000,
+				totalVolume: 0,
+				usedVolume:  0,
+				errVolume:   assert.AnError,
 			},
 			numTicks: 20,
 		},
@@ -198,12 +217,7 @@ func TestPushResourcesMonitoringWithConfig(t *testing.T) {
 				PushResourcesMonitoringUsageFunc: datapointsPusher,
 			}
 
-			resourcesFetcher := &resourcesFetcherMock{
-				fetchResourcesMonitoredMemoryFunc: tt.fetchResourcesMonitoredMemoryFunc,
-				fetchResourcesMonitoredVolumeFunc: tt.fetchResourcesMonitoredVolumeFunc,
-			}
-
-			monitor := resourcesmonitor.NewResourcesMonitor(logger, clk, tt.config, resourcesFetcher, pusher)
+			monitor := resourcesmonitor.NewResourcesMonitor(logger, clk, tt.config, tt.fetcher, pusher)
 			require.NoError(t, monitor.Start(ctx))
 
 			for i := 0; i < tt.numTicks; i++ {
