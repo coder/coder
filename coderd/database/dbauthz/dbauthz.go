@@ -1399,7 +1399,7 @@ func (q *querier) FetchMemoryResourceMonitorsByAgentID(ctx context.Context, agen
 		return database.WorkspaceAgentMemoryResourceMonitor{}, err
 	}
 
-	err = q.authorizeContext(ctx, policy.ActionUpdate, workspace)
+	err = q.authorizeContext(ctx, policy.ActionRead, workspace)
 	if err != nil {
 		return database.WorkspaceAgentMemoryResourceMonitor{}, err
 	}
@@ -1420,7 +1420,7 @@ func (q *querier) FetchVolumesResourceMonitorsByAgentID(ctx context.Context, age
 		return nil, err
 	}
 
-	err = q.authorizeContext(ctx, policy.ActionUpdate, workspace)
+	err = q.authorizeContext(ctx, policy.ActionRead, workspace)
 	if err != nil {
 		return nil, err
 	}

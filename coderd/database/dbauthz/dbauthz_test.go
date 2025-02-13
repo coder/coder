@@ -4611,7 +4611,7 @@ func (s *MethodTestSuite) TestResourcesMonitor() {
 		monitor, err := db.FetchMemoryResourceMonitorsByAgentID(context.Background(), agt.ID)
 		require.NoError(s.T(), err)
 
-		check.Args(agt.ID).Asserts().Returns(monitor)
+		check.Args(agt.ID).Asserts(w, policy.ActionRead).Returns(monitor)
 	}))
 
 	s.Run("FetchVolumesResourceMonitorsByAgentID", s.Subtest(func(db database.Store, check *expects) {
@@ -4652,6 +4652,6 @@ func (s *MethodTestSuite) TestResourcesMonitor() {
 		monitors, err := db.FetchVolumesResourceMonitorsByAgentID(context.Background(), agt.ID)
 		require.NoError(s.T(), err)
 
-		check.Args(agt.ID).Asserts().Returns(monitors)
+		check.Args(agt.ID).Asserts(w, policy.ActionRead).Returns(monitors)
 	}))
 }
