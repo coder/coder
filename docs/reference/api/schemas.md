@@ -4991,41 +4991,42 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 #### Enumerated Values
 
-| Value                     |
-|---------------------------|
-| `*`                       |
-| `api_key`                 |
-| `assign_org_role`         |
-| `assign_role`             |
-| `audit_log`               |
-| `crypto_key`              |
-| `debug_info`              |
-| `deployment_config`       |
-| `deployment_stats`        |
-| `file`                    |
-| `group`                   |
-| `group_member`            |
-| `idpsync_settings`        |
-| `license`                 |
-| `notification_message`    |
-| `notification_preference` |
-| `notification_template`   |
-| `oauth2_app`              |
-| `oauth2_app_code_token`   |
-| `oauth2_app_secret`       |
-| `organization`            |
-| `organization_member`     |
-| `provisioner_daemon`      |
-| `provisioner_jobs`        |
-| `provisioner_keys`        |
-| `replicas`                |
-| `system`                  |
-| `tailnet_coordinator`     |
-| `template`                |
-| `user`                    |
-| `workspace`               |
-| `workspace_dormant`       |
-| `workspace_proxy`         |
+| Value                              |
+|------------------------------------|
+| `*`                                |
+| `api_key`                          |
+| `assign_org_role`                  |
+| `assign_role`                      |
+| `audit_log`                        |
+| `crypto_key`                       |
+| `debug_info`                       |
+| `deployment_config`                |
+| `deployment_stats`                 |
+| `file`                             |
+| `group`                            |
+| `group_member`                     |
+| `idpsync_settings`                 |
+| `license`                          |
+| `notification_message`             |
+| `notification_preference`          |
+| `notification_template`            |
+| `oauth2_app`                       |
+| `oauth2_app_code_token`            |
+| `oauth2_app_secret`                |
+| `organization`                     |
+| `organization_member`              |
+| `provisioner_daemon`               |
+| `provisioner_jobs`                 |
+| `provisioner_keys`                 |
+| `replicas`                         |
+| `system`                           |
+| `tailnet_coordinator`              |
+| `template`                         |
+| `user`                             |
+| `workspace`                        |
+| `workspace_agent_resource_monitor` |
+| `workspace_dormant`                |
+| `workspace_proxy`                  |
 
 ## codersdk.RateLimitConfig
 
