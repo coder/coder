@@ -798,10 +798,11 @@ func (a *agent) run() (retErr error) {
 			return xerrors.Errorf("failed to get resources monitoring configuration: %w", err)
 		}
 
-		resourcesFetcher, err := clistat.New()
+		fetcher, err := clistat.New()
 		if err != nil {
 			return xerrors.Errorf("failed to create resources fetcher: %w", err)
 		}
+		resourcesFetcher := resourcesmonitor.NewResourcesFetcher(fetcher)
 
 		resourcesmonitor := resourcesmonitor.NewResourcesMonitor(logger, clk, config, resourcesFetcher, aAPI)
 		return resourcesmonitor.Start(ctx)

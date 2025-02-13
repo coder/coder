@@ -55,11 +55,12 @@ func (q *Queue) ItemsAsProto() []*proto.PushResourcesMonitoringUsageRequest_Data
 	items := make([]*proto.PushResourcesMonitoringUsageRequest_Datapoint, 0, len(q.items))
 
 	for _, item := range q.items {
-		protoItem := &proto.PushResourcesMonitoringUsageRequest_Datapoint{
-			Memory: &proto.PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage{
+		protoItem := &proto.PushResourcesMonitoringUsageRequest_Datapoint{}
+		if item.Memory != nil {
+			protoItem.Memory = &proto.PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage{
 				Total: item.Memory.Total,
 				Used:  item.Memory.Used,
-			},
+			}
 		}
 
 		for _, volume := range item.Volumes {

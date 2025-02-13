@@ -330,7 +330,7 @@ message PushResourcesMonitoringUsageRequest {
 		}
 
 		google.protobuf.Timestamp collected_at = 1;
-		MemoryUsage memory = 2;
+		optional MemoryUsage memory = 2;
 		repeated VolumeUsage volumes = 3;
 
 	}
