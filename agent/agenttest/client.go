@@ -220,7 +220,9 @@ func (f *FakeAgentAPI) GetResourcesMonitoringConfiguration(_ context.Context, _ 
 
 	if f.getResourcesMonitoringConfigurationFunc == nil {
 		return &agentproto.GetResourcesMonitoringConfigurationResponse{
-			Config: &agentproto.GetResourcesMonitoringConfigurationResponse_Config{},
+			Config: &agentproto.GetResourcesMonitoringConfigurationResponse_Config{
+				CollectionIntervalSeconds: 1,
+			},
 		}, nil
 	}
 
