@@ -37,7 +37,7 @@ func (r *fetcher) FetchMemory() (total int64, used int64, err error) {
 	return r.totalMemory, r.usedMemory, r.errMemory
 }
 
-func (r *fetcher) FetchVolume(volume string) (total int64, used int64, err error) {
+func (r *fetcher) FetchVolume(_ string) (total int64, used int64, err error) {
 	return r.totalVolume, r.usedVolume, r.errVolume
 }
 
