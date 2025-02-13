@@ -359,11 +359,13 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 
 ### Parameters
 
-| Name           | In    | Type         | Required | Description              |
-|----------------|-------|--------------|----------|--------------------------|
-| `organization` | path  | string(uuid) | true     | Organization ID          |
-| `limit`        | query | integer      | false    | Page limit               |
-| `status`       | query | string       | false    | Filter results by status |
+| Name           | In    | Type         | Required | Description                                                                        |
+|----------------|-------|--------------|----------|------------------------------------------------------------------------------------|
+| `organization` | path  | string(uuid) | true     | Organization ID                                                                    |
+| `limit`        | query | integer      | false    | Page limit                                                                         |
+| `ids`          | query | array(uuid)  | false    | Filter results by job IDs                                                          |
+| `status`       | query | string       | false    | Filter results by status                                                           |
+| `tags`         | query | object       | false    | Provisioner tags to filter by (JSON of the form {'tag1':'value1','tag2':'value2'}) |
 
 #### Enumerated Values
 
