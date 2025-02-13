@@ -83,6 +83,8 @@ func (f *OutputFormatter) Format(ctx context.Context, data any) (string, error) 
 	return "", xerrors.Errorf("unknown output format %q", f.formatID)
 }
 
+// FormatID will return the ID of the format selected by `--output`.
+// If no flag is present, it returns the 'default' formatter.
 func (f *OutputFormatter) FormatID() string {
 	return f.formatID
 }
