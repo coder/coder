@@ -3911,13 +3911,13 @@ func (q *querier) UpdateTemplateWorkspacesLastUsedAt(ctx context.Context, arg da
 	return fetchAndExec(q.log, q.auth, policy.ActionUpdate, fetch, q.db.UpdateTemplateWorkspacesLastUsedAt)(ctx, arg)
 }
 
-func (q *querier) UpdateUserAppearanceSettings(ctx context.Context, arg database.UpdateUserAppearanceSettingsParams) (database.User, error) {
-	u, err := q.db.GetUserByID(ctx, arg.ID)
+func (q *querier) UpdateUserAppearanceSettings(ctx context.Context, arg database.UpdateUserAppearanceSettingsParams) (database.UserConfig, error) {
+	u, err := q.db.GetUserByID(ctx, arg.UserID)
 	if err != nil {
-		return database.User{}, err
+		return database.UserConfig{}, err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, u); err != nil {
-		return database.User{}, err
+		return database.UserConfig{}, err
 	}
 	return q.db.UpdateUserAppearanceSettings(ctx, arg)
 }

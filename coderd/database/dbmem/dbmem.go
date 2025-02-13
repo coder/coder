@@ -55,43 +55,44 @@ func New() database.Store {
 		mutex: &sync.RWMutex{},
 		data: &data{
 			apiKeys:                   make([]database.APIKey, 0),
-			organizationMembers:       make([]database.OrganizationMember, 0),
-			organizations:             make([]database.Organization, 0),
-			users:                     make([]database.User, 0),
+			auditLogs:                 make([]database.AuditLog, 0),
+			customRoles:               make([]database.CustomRole, 0),
 			dbcryptKeys:               make([]database.DBCryptKey, 0),
 			externalAuthLinks:         make([]database.ExternalAuthLink, 0),
-			groups:                    make([]database.Group, 0),
-			groupMembers:              make([]database.GroupMemberTable, 0),
-			auditLogs:                 make([]database.AuditLog, 0),
 			files:                     make([]database.File, 0),
 			gitSSHKey:                 make([]database.GitSSHKey, 0),
+			groups:                    make([]database.Group, 0),
+			groupMembers:              make([]database.GroupMemberTable, 0),
+			licenses:                  make([]database.License, 0),
+			locks:                     map[int64]struct{}{},
 			notificationMessages:      make([]database.NotificationMessage, 0),
 			notificationPreferences:   make([]database.NotificationPreference, 0),
+			organizationMembers:       make([]database.OrganizationMember, 0),
+			organizations:             make([]database.Organization, 0),
 			parameterSchemas:          make([]database.ParameterSchema, 0),
+			presets:                   make([]database.TemplateVersionPreset, 0),
+			presetParameters:          make([]database.TemplateVersionPresetParameter, 0),
 			provisionerDaemons:        make([]database.ProvisionerDaemon, 0),
-			provisionerKeys:           make([]database.ProvisionerKey, 0),
-			workspaceAgents:           make([]database.WorkspaceAgent, 0),
+			provisionerJobs:           make([]database.ProvisionerJob, 0),
 			provisionerJobLogs:        make([]database.ProvisionerJobLog, 0),
+			provisionerKeys:           make([]database.ProvisionerKey, 0),
+			runtimeConfig:             map[string]string{},
+			telemetryItems:            make([]database.TelemetryItem, 0),
+			templateVersions:          make([]database.TemplateVersionTable, 0),
+			templates:                 make([]database.TemplateTable, 0),
+			users:                     make([]database.User, 0),
+			userConfigs:               make([]database.UserConfig, 0),
+			userStatusChanges:         make([]database.UserStatusChange, 0),
+			workspaceAgents:           make([]database.WorkspaceAgent, 0),
 			workspaceResources:        make([]database.WorkspaceResource, 0),
 			workspaceModules:          make([]database.WorkspaceModule, 0),
 			workspaceResourceMetadata: make([]database.WorkspaceResourceMetadatum, 0),
-			provisionerJobs:           make([]database.ProvisionerJob, 0),
-			templateVersions:          make([]database.TemplateVersionTable, 0),
-			templates:                 make([]database.TemplateTable, 0),
 			workspaceAgentStats:       make([]database.WorkspaceAgentStat, 0),
 			workspaceAgentLogs:        make([]database.WorkspaceAgentLog, 0),
 			workspaceBuilds:           make([]database.WorkspaceBuild, 0),
 			workspaceApps:             make([]database.WorkspaceApp, 0),
 			workspaces:                make([]database.WorkspaceTable, 0),
-			licenses:                  make([]database.License, 0),
 			workspaceProxies:          make([]database.WorkspaceProxy, 0),
-			customRoles:               make([]database.CustomRole, 0),
-			locks:                     map[int64]struct{}{},
-			runtimeConfig:             map[string]string{},
-			userStatusChanges:         make([]database.UserStatusChange, 0),
-			telemetryItems:            make([]database.TelemetryItem, 0),
-			presets:                   make([]database.TemplateVersionPreset, 0),
-			presetParameters:          make([]database.TemplateVersionPresetParameter, 0),
 		},
 	}
 	// Always start with a default org. Matching migration 198.
@@ -222,6 +223,7 @@ type data struct {
 	templateVersionWorkspaceTags         []database.TemplateVersionWorkspaceTag
 	templates                            []database.TemplateTable
 	templateUsageStats                   []database.TemplateUsageStat
+	userConfigs                          []database.UserConfig
 	workspaceAgents                      []database.WorkspaceAgent
 	workspaceAgentMetadata               []database.WorkspaceAgentMetadatum
 	workspaceAgentLogs                   []database.WorkspaceAgentLog
@@ -888,7 +890,6 @@ func (q *FakeQuerier) getGroupMemberNoLock(ctx context.Context, userID, groupID 
 		UserDeleted:            user.Deleted,
 		UserLastSeenAt:         user.LastSeenAt,
 		UserQuietHoursSchedule: user.QuietHoursSchedule,
-		UserThemePreference:    user.ThemePreference,
 		UserName:               user.Name,
 		UserGithubComUserID:    user.GithubComUserID,
 		OrganizationID:         orgID,
@@ -10064,24 +10065,31 @@ func (q *FakeQuerier) UpdateTemplateWorkspacesLastUsedAt(_ context.Context, arg 
 	return nil
 }
 
-func (q *FakeQuerier) UpdateUserAppearanceSettings(_ context.Context, arg database.UpdateUserAppearanceSettingsParams) (database.User, error) {
+func (q *FakeQuerier) UpdateUserAppearanceSettings(_ context.Context, arg database.UpdateUserAppearanceSettingsParams) (database.UserConfig, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
-		return database.User{}, err
+		return database.UserConfig{}, err
 	}
 
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	for index, user := range q.users {
-		if user.ID != arg.ID {
+	for i, uc := range q.userConfigs {
+		if uc.UserID != arg.UserID || uc.Key != "theme_preference" {
 			continue
 		}
-		user.ThemePreference = arg.ThemePreference
-		q.users[index] = user
-		return user, nil
+		uc.Value = arg.ThemePreference
+		q.userConfigs[i] = uc
+		return uc, nil
 	}
-	return database.User{}, sql.ErrNoRows
+
+	uc := database.UserConfig{
+		UserID: arg.UserID,
+		Key:    "theme_preference",
+		Value:  arg.ThemePreference,
+	}
+	q.userConfigs = append(q.userConfigs, uc)
+	return uc, nil
 }
 
 func (q *FakeQuerier) UpdateUserDeletedByID(_ context.Context, id uuid.UUID) error {
@@ -12437,7 +12445,6 @@ func (q *FakeQuerier) GetAuthorizedAuditLogsOffset(ctx context.Context, arg data
 			UserLastSeenAt:          sql.NullTime{Time: user.LastSeenAt, Valid: userValid},
 			UserLoginType:           database.NullLoginType{LoginType: user.LoginType, Valid: userValid},
 			UserDeleted:             sql.NullBool{Bool: user.Deleted, Valid: userValid},
-			UserThemePreference:     sql.NullString{String: user.ThemePreference, Valid: userValid},
 			UserQuietHoursSchedule:  sql.NullString{String: user.QuietHoursSchedule, Valid: userValid},
 			UserStatus:              database.NullUserStatus{UserStatus: user.Status, Valid: userValid},
 			UserRoles:               user.RBACRoles,

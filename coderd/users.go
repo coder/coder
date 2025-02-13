@@ -995,9 +995,8 @@ func (api *API) putUserAppearanceSettings(rw http.ResponseWriter, r *http.Reques
 	}
 
 	updatedUser, err := api.Database.UpdateUserAppearanceSettings(ctx, database.UpdateUserAppearanceSettingsParams{
-		ID:              user.ID,
+		UserID:          user.ID,
 		ThemePreference: params.ThemePreference,
-		UpdatedAt:       dbtime.Now(),
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
