@@ -1304,7 +1304,7 @@ func New(options *Options) *API {
 				func(next http.Handler) http.Handler {
 					return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 						if !api.Authorize(r, policy.ActionRead, rbac.ResourceDebugInfo) {
-							httpapi.ResourceNotFound(rw)
+							httpapi.Forbidden(rw)
 							return
 						}
 
