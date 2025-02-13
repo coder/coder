@@ -518,13 +518,6 @@ func createWorkspace(
 	// Update audit log's organization
 	auditReq.UpdateOrganizationID(template.OrganizationID)
 
-	// Do this upfront to save work. If this fails, the rest of the work
-	// would be wasted.
-	if !api.Authorize(r, policy.ActionCreate,
-		rbac.ResourceWorkspace.InOrg(template.OrganizationID).WithOwner(owner.ID.String())) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
 	// The user also needs permission to use the template. At this point they have
 	// read perms, but not necessarily "use". This is also checked in `db.InsertWorkspace`.
 	// Doing this up front can save some work below if the user doesn't have permission.

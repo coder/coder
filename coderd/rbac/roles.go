@@ -418,10 +418,12 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 						// All users can see the provisioner daemons for workspace
 						// creation.
 						ResourceProvisionerDaemon.Type: {policy.ActionRead},
-						// All org members can read the organization
+						// All org members can read the organization.
 						ResourceOrganization.Type: {policy.ActionRead},
 						// Can read available roles.
 						ResourceAssignOrgRole.Type: {policy.ActionRead},
+						// Can create workspaces.
+						ResourceWorkspace.Type: {policy.ActionCreate},
 					}),
 				},
 				User: []Permission{
