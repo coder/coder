@@ -98,16 +98,6 @@ export const notificationDispatchMethods = () => {
 	};
 };
 
-export const notificationTestKey = ["notifications", "test"];
-
-export const sendTestNotification = (queryClient: QueryClient) => {
-	return {
-		mutationFn: async () => {
-			await API.postTestNotification();
-		},
-	} satisfies UseMutationOptions;
-};
-
 export const updateNotificationTemplateMethod = (
 	templateId: string,
 	queryClient: QueryClient,
