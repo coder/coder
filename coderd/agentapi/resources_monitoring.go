@@ -7,29 +7,26 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/google/uuid"
+
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 )
 
 type ResourcesMonitoringAPI struct {
-	AgentFn  func(context.Context) (database.WorkspaceAgent, error)
+	AgentID  uuid.UUID
 	Database database.Store
 	Log      slog.Logger
 }
 
 func (a *ResourcesMonitoringAPI) GetResourcesMonitoringConfiguration(ctx context.Context, _ *proto.GetResourcesMonitoringConfigurationRequest) (*proto.GetResourcesMonitoringConfigurationResponse, error) {
-	agent, err := a.AgentFn(ctx)
-	if err != nil {
-		return nil, xerrors.Errorf("failed to fetch agent: %w", err)
-	}
-
-	memoryMonitor, memoryErr := a.Database.FetchMemoryResourceMonitorsByAgentID(ctx, agent.ID)
+	memoryMonitor, memoryErr := a.Database.FetchMemoryResourceMonitorsByAgentID(ctx, a.AgentID)
 	if memoryErr != nil && !errors.Is(memoryErr, sql.ErrNoRows) {
 		return nil, xerrors.Errorf("failed to fetch memory resource monitor: %w", memoryErr)
 	}
 
-	volumeMonitors, err := a.Database.FetchVolumesResourceMonitorsByAgentID(ctx, agent.ID)
+	volumeMonitors, err := a.Database.FetchVolumesResourceMonitorsByAgentID(ctx, a.AgentID)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to fetch volume resource monitors: %w", err)
 	}

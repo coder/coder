@@ -25,7 +25,7 @@ func NewFetcher(f *clistat.Statter) *fetcher {
 func (f *fetcher) FetchMemory() (total int64, used int64, err error) {
 	mem, err := f.HostMemory(clistat.PrefixDefault)
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, xerrors.Errorf("failed to fetch memory: %w", err)
 	}
 
 	if mem.Total == nil {

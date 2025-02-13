@@ -683,21 +683,6 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
-			Name:     "ResourcesMonitoring",
-			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead},
-			Resource: rbac.ResourceWorkspaceAgentResourceMonitor,
-			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true: {owner},
-				false: {
-					memberMe, orgMemberMe, otherOrgMember,
-					orgAdmin, otherOrgAdmin,
-					orgAuditor, otherOrgAuditor,
-					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
-					userAdmin, orgUserAdmin, otherOrgUserAdmin,
-				},
-			},
-		},
-		{
 			// Notification preferences are currently not organization-scoped
 			// Any owner/admin may access any users' preferences
 			// Members may not access other members' preferences
@@ -789,6 +774,21 @@ func TestRolePermissions(t *testing.T) {
 					memberMe, templateAdmin,
 					orgAuditor, orgTemplateAdmin,
 					otherOrgMember, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
+				},
+			},
+		},
+		{
+			Name:     "ResourceMonitor",
+			Actions:  []policy.Action{policy.ActionRead, policy.ActionCreate},
+			Resource: rbac.ResourceWorkspaceAgentResourceMonitor,
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner},
+				false: {
+					memberMe, orgMemberMe, otherOrgMember,
+					orgAdmin, otherOrgAdmin,
+					orgAuditor, otherOrgAuditor,
+					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
+					userAdmin, orgUserAdmin, otherOrgUserAdmin,
 				},
 			},
 		},

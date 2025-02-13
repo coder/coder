@@ -789,7 +789,6 @@ func (a *agent) run() (retErr error) {
 	connMan.startAgentAPI("report metadata", gracefulShutdownBehaviorStop, a.reportMetadata)
 
 	// resources monitor can cease as soon as we start gracefully shutting down.
-	// The resources monitor is interesting when the workspace is running.
 	connMan.startAgentAPI("resources monitor", gracefulShutdownBehaviorStop, func(ctx context.Context, aAPI proto.DRPCAgentClient24) error {
 		logger := a.logger.Named("resources_monitor")
 		clk := quartz.NewReal()

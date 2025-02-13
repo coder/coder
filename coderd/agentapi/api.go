@@ -105,7 +105,7 @@ func New(opts Options) *API {
 
 	api.ResourcesMonitoringAPI = &ResourcesMonitoringAPI{
 		Log:      opts.Log,
-		AgentFn:  api.agent,
+		AgentID:  opts.AgentID,
 		Database: opts.Database,
 	}
 
