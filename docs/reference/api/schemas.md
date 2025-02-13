@@ -4427,6 +4427,45 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `address` | [serpent.HostPort](#serpenthostport) | false    |              |             |
 | `enable`  | boolean                              | false    |              |             |
 
+## codersdk.Preset
+
+```json
+{
+  "id": "string",
+  "name": "string",
+  "parameters": [
+    {
+      "name": "string",
+      "value": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name         | Type                                                          | Required | Restrictions | Description |
+|--------------|---------------------------------------------------------------|----------|--------------|-------------|
+| `id`         | string                                                        | false    |              |             |
+| `name`       | string                                                        | false    |              |             |
+| `parameters` | array of [codersdk.PresetParameter](#codersdkpresetparameter) | false    |              |             |
+
+## codersdk.PresetParameter
+
+```json
+{
+  "name": "string",
+  "value": "string"
+}
+```
+
+### Properties
+
+| Name    | Type   | Required | Restrictions | Description |
+|---------|--------|----------|--------------|-------------|
+| `name`  | string | false    |              |             |
+| `value` | string | false    |              |             |
+
 ## codersdk.PrometheusConfig
 
 ```json
