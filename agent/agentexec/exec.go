@@ -88,11 +88,13 @@ func (execer) PTYCommandContext(ctx context.Context, cmd string, args ...string)
 }
 
 // WrapFn is a function that modifies a command and its arguments.
-type WrapFn func(cmd string, args ...string) (string, []string)
-type wrappedExecer struct {
-	inner   Execer
-	wrapFns []WrapFn
-}
+type (
+	WrapFn        func(cmd string, args ...string) (string, []string)
+	wrappedExecer struct {
+		inner   Execer
+		wrapFns []WrapFn
+	}
+)
 
 var _ Execer = &wrappedExecer{}
 
@@ -115,6 +117,7 @@ func (w *wrappedExecer) CommandContext(ctx context.Context, cmd string, args ...
 	}
 	return w.inner.CommandContext(ctx, cmd, args...)
 }
+
 func (w *wrappedExecer) PTYCommandContext(ctx context.Context, cmd string, args ...string) *pty.Cmd {
 	for _, f := range w.wrapFns {
 		cmd, args = f(cmd, args...)
