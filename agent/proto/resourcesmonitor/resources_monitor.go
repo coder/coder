@@ -40,7 +40,7 @@ func (m *monitor) Start(ctx context.Context) error {
 			Volumes: make([]*VolumeDatapoint, 0, len(m.config.Volumes)),
 		}
 
-		if m.config.Memory != nil && !m.config.Memory.Enabled {
+		if m.config.Memory != nil && m.config.Memory.Enabled {
 			memTotal, memUsed, err := m.resourcesFetcher.FetchResourceMonitoredMemory()
 			if err != nil {
 				m.logger.Error(ctx, "failed to fetch memory", slog.Error(err))
