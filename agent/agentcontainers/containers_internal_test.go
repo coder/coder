@@ -11,8 +11,6 @@ import (
 
 	"go.uber.org/mock/gomock"
 
-	"github.com/coder/coder/v2/agent/agentexec/execmock"
-	"github.com/coder/coder/v2/pty"
 	"github.com/google/uuid"
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
@@ -21,8 +19,9 @@ import (
 
 	"github.com/coder/coder/v2/agent/agentcontainers/acmock"
 	"github.com/coder/coder/v2/agent/agentexec"
-	//"github.com/coder/coder/v2/agent/agentexec/execmock"
+	"github.com/coder/coder/v2/agent/agentexec/execmock"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/pty"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
