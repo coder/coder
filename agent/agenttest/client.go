@@ -219,7 +219,9 @@ func (f *FakeAgentAPI) GetResourcesMonitoringConfiguration(_ context.Context, _ 
 	defer f.Unlock()
 
 	if f.getResourcesMonitoringConfigurationFunc == nil {
-		return &agentproto.GetResourcesMonitoringConfigurationResponse{}, nil
+		return &agentproto.GetResourcesMonitoringConfigurationResponse{
+			Config: &agentproto.GetResourcesMonitoringConfigurationResponse_Config{},
+		}, nil
 	}
 
 	return f.getResourcesMonitoringConfigurationFunc()

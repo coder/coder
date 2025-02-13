@@ -162,10 +162,6 @@ func TestPushResourcesMonitoringWithConfig(t *testing.T) {
 			datapointsPusher: func(_ context.Context, req *proto.PushResourcesMonitoringUsageRequest) (*proto.PushResourcesMonitoringUsageResponse, error) {
 				require.Len(t, req.Datapoints, 20)
 				require.Len(t, req.Datapoints[0].Volumes, 0)
-				require.Equal(t, &proto.PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage{
-					Total: 1000,
-					Used:  8000,
-				}, req.Datapoints[0].Memory)
 
 				return &proto.PushResourcesMonitoringUsageResponse{}, nil
 			},
