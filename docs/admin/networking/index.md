@@ -76,7 +76,7 @@ as well. There must not be a NAT between users and the coder server.
 
 Template admins can overwrite the site-wide access URL at the template level by
 leveraging the `url` argument when
-[defining the Coder provider](https://registry.terraform.io/providers/coder/coder/latest/docs#url):
+[defining the Coder provider](https://registry.terraform.io/providers/coder/coder/latest/docs#url-1):
 
 ```terraform
 provider "coder" {
