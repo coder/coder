@@ -1438,7 +1438,9 @@ export interface OrganizationMemberWithUserData extends OrganizationMember {
 // From codersdk/organizations.go
 export interface OrganizationProvisionerJobsOptions {
 	readonly Limit: number;
+	readonly IDs: readonly string[];
 	readonly Status: readonly ProvisionerJobStatus[];
+	readonly Tags: Record<string, string>;
 }
 
 // From codersdk/idpsync.go

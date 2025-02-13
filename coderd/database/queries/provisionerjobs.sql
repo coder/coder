@@ -158,6 +158,7 @@ WHERE
 	(sqlc.narg('organization_id')::uuid IS NULL OR pj.organization_id = @organization_id)
 	AND (COALESCE(array_length(@ids::uuid[], 1), 0) = 0 OR pj.id = ANY(@ids::uuid[]))
 	AND (COALESCE(array_length(@status::provisioner_job_status[], 1), 0) = 0 OR pj.job_status = ANY(@status::provisioner_job_status[]))
+	AND (@tags::tagset = 'null'::tagset OR provisioner_tagset_contains(pj.tags::tagset, @tags::tagset))
 GROUP BY
 	pj.id,
 	qp.queue_position,

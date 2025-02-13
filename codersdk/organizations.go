@@ -346,7 +346,9 @@ func (c *Client) OrganizationProvisionerDaemons(ctx context.Context, organizatio
 
 type OrganizationProvisionerJobsOptions struct {
 	Limit  int
+	IDs    []uuid.UUID
 	Status []ProvisionerJobStatus
+	Tags   map[string]string
 }
 
 func (c *Client) OrganizationProvisionerJobs(ctx context.Context, organizationID uuid.UUID, opts *OrganizationProvisionerJobsOptions) ([]ProvisionerJob, error) {
@@ -355,8 +357,18 @@ func (c *Client) OrganizationProvisionerJobs(ctx context.Context, organizationID
 		if opts.Limit > 0 {
 			qp.Add("limit", strconv.Itoa(opts.Limit))
 		}
+		if len(opts.IDs) > 0 {
+			qp.Add("ids", joinSliceStringer(opts.IDs))
+		}
 		if len(opts.Status) > 0 {
 			qp.Add("status", joinSlice(opts.Status))
+		}
+		if len(opts.Tags) > 0 {
+			tagsRaw, err := json.Marshal(opts.Tags)
+			if err != nil {
+				return nil, xerrors.Errorf("marshal tags: %w", err)
+			}
+			qp.Add("tags", string(tagsRaw))
 		}
 	}
 
@@ -397,6 +409,14 @@ func joinSlice[T ~string](s []T) string {
 	var ss []string
 	for _, v := range s {
 		ss = append(ss, string(v))
+	}
+	return strings.Join(ss, ",")
+}
+
+func joinSliceStringer[T fmt.Stringer](s []T) string {
+	var ss []string
+	for _, v := range s {
+		ss = append(ss, v.String())
 	}
 	return strings.Join(ss, ",")
 }
