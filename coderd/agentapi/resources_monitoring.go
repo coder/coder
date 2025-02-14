@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"slices"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -15,6 +14,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/coderd/agentapi/resourcesmonitor"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -122,7 +122,7 @@ func (a *ResourcesMonitoringAPI) monitorMemory(ctx context.Context, datapoints [
 		usageDatapoints = append(usageDatapoints, datapoint.Memory)
 	}
 
-	usageStates := calculateMemoryUsageStates(monitor, usageDatapoints)
+	usageStates := resourcesmonitor.CalculateMemoryUsageStates(monitor, usageDatapoints)
 
 	oldState := monitor.State
 	newState := a.calculateNextState(oldState, usageStates)
@@ -198,7 +198,7 @@ func (a *ResourcesMonitoringAPI) monitorVolumes(ctx context.Context, datapoints 
 			return VolumeNotFoundError{Volume: monitor.Path}
 		}
 
-		usageStates := calculateVolumeUsageStates(monitor, datapoints)
+		usageStates := resourcesmonitor.CalculateVolumeUsageStates(monitor, datapoints)
 
 		oldState := monitor.State
 		newState := a.calculateNextState(oldState, usageStates)
@@ -256,19 +256,22 @@ func (a *ResourcesMonitoringAPI) monitorVolumes(ctx context.Context, datapoints 
 
 func (a *ResourcesMonitoringAPI) calculateNextState(
 	oldState database.WorkspaceAgentMonitorState,
-	states []database.WorkspaceAgentMonitorState,
+	states []resourcesmonitor.State,
 ) database.WorkspaceAgentMonitorState {
-	// If we do not have an OK in the last `X` datapoints, then we are
-	// in an alert state.
-	lastXStates := states[max(len(states)-a.ConsecutiveNOKsToAlert, 0):]
-	if !slices.Contains(lastXStates, database.WorkspaceAgentMonitorStateOK) {
+	// If there are enough consecutive NOK states, we should be in an
+	// alert state.
+	consecutiveNOKs := resourcesmonitor.CalculateConsecutiveNOK(states)
+	if consecutiveNOKs >= a.ConsecutiveNOKsToAlert {
 		return database.WorkspaceAgentMonitorStateNOK
 	}
 
-	nokCount := 0
+	nokCount, okCount := 0, 0
 	for _, state := range states {
-		if state == database.WorkspaceAgentMonitorStateNOK {
-			nokCount++
+		switch state {
+		case resourcesmonitor.StateOK:
+			okCount += 1
+		case resourcesmonitor.StateNOK:
+			nokCount += 1
 		}
 	}
 
@@ -277,51 +280,11 @@ func (a *ResourcesMonitoringAPI) calculateNextState(
 		return database.WorkspaceAgentMonitorStateNOK
 	}
 
-	// If there are no NOK datapoints, we should be in an OK state.
-	if nokCount == 0 {
+	// If all datapoints are OK, we should be in an OK state
+	if okCount == len(states) {
 		return database.WorkspaceAgentMonitorStateOK
 	}
 
 	// Otherwise we stay in the same state as last.
 	return oldState
-}
-
-func calculateMemoryUsageStates(
-	monitor database.WorkspaceAgentMemoryResourceMonitor,
-	datapoints []*proto.PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage,
-) []database.WorkspaceAgentMonitorState {
-	states := make([]database.WorkspaceAgentMonitorState, 0, len(datapoints))
-
-	for _, datapoint := range datapoints {
-		percent := int32(float64(datapoint.Used) / float64(datapoint.Total) * 100)
-
-		state := database.WorkspaceAgentMonitorStateOK
-		if percent >= monitor.Threshold {
-			state = database.WorkspaceAgentMonitorStateNOK
-		}
-
-		states = append(states, state)
-	}
-
-	return states
-}
-
-func calculateVolumeUsageStates(
-	monitor database.WorkspaceAgentVolumeResourceMonitor,
-	datapoints []*proto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage,
-) []database.WorkspaceAgentMonitorState {
-	states := make([]database.WorkspaceAgentMonitorState, 0, len(datapoints))
-
-	for _, datapoint := range datapoints {
-		percent := int32(float64(datapoint.Used) / float64(datapoint.Total) * 100)
-
-		state := database.WorkspaceAgentMonitorStateOK
-		if percent >= monitor.Threshold {
-			state = database.WorkspaceAgentMonitorStateNOK
-		}
-
-		states = append(states, state)
-	}
-
-	return states
 }

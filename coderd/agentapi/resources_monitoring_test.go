@@ -84,6 +84,7 @@ func TestMemoryResourceMonitorDebounce(t *testing.T) {
 	// 5. OK -> NOK  |> sends a notification as debounce period exceeded
 
 	api, user, clock, notifyEnq := resourceMonitorAPI(t)
+	api.ConsecutiveNOKsToAlert = 1
 
 	// Given: A monitor in an OK state
 	dbgen.WorkspaceAgentMemoryResourceMonitor(t, api.Database, database.WorkspaceAgentMemoryResourceMonitor{
@@ -197,103 +198,76 @@ func TestMemoryResourceMonitor(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name             string
-		memoryUsage      []int64
-		memoryTotal      int64
-		thresholdPercent int32
-		minimumNOKs      int
-		consecutiveNOKs  int
-		previousState    database.WorkspaceAgentMonitorState
-		expectState      database.WorkspaceAgentMonitorState
-		shouldNotify     bool
+		name          string
+		memoryUsage   []int64
+		memoryTotal   int64
+		previousState database.WorkspaceAgentMonitorState
+		expectState   database.WorkspaceAgentMonitorState
+		shouldNotify  bool
 	}{
 		{
-			name:             "WhenOK/NeverExceedsThreshold",
-			memoryUsage:      []int64{2, 3, 2, 4, 2, 3, 2, 1, 2, 3, 4, 4, 1, 2, 3, 1, 2},
-			memoryTotal:      10,
-			thresholdPercent: 80,
-			consecutiveNOKs:  4,
-			minimumNOKs:      10,
-			previousState:    database.WorkspaceAgentMonitorStateOK,
-			expectState:      database.WorkspaceAgentMonitorStateOK,
-			shouldNotify:     false,
+			name:          "WhenOK/NeverExceedsThreshold",
+			memoryUsage:   []int64{2, 3, 2, 4, 2, 3, 2, 1, 2, 3, 4, 4, 1, 2, 3, 1, 2},
+			memoryTotal:   10,
+			previousState: database.WorkspaceAgentMonitorStateOK,
+			expectState:   database.WorkspaceAgentMonitorStateOK,
+			shouldNotify:  false,
 		},
 		{
-			name:             "WhenOK/ShouldStayInOK",
-			memoryUsage:      []int64{9, 3, 2, 4, 2, 3, 2, 1, 2, 3, 4, 4, 1, 2, 3, 1, 2},
-			memoryTotal:      10,
-			thresholdPercent: 80,
-			consecutiveNOKs:  4,
-			minimumNOKs:      10,
-			previousState:    database.WorkspaceAgentMonitorStateOK,
-			expectState:      database.WorkspaceAgentMonitorStateOK,
-			shouldNotify:     false,
+			name:          "WhenOK/ShouldStayInOK",
+			memoryUsage:   []int64{9, 3, 2, 4, 2, 3, 2, 1, 2, 3, 4, 4, 1, 2, 3, 1, 2},
+			memoryTotal:   10,
+			previousState: database.WorkspaceAgentMonitorStateOK,
+			expectState:   database.WorkspaceAgentMonitorStateOK,
+			shouldNotify:  false,
 		},
 		{
-			name:             "WhenOK/ConsecutiveExceedsThreshold",
-			memoryUsage:      []int64{2, 3, 2, 4, 2, 3, 2, 1, 2, 3, 4, 4, 1, 8, 9, 8, 9},
-			memoryTotal:      10,
-			thresholdPercent: 80,
-			consecutiveNOKs:  4,
-			minimumNOKs:      10,
-			previousState:    database.WorkspaceAgentMonitorStateOK,
-			expectState:      database.WorkspaceAgentMonitorStateNOK,
-			shouldNotify:     true,
+			name:          "WhenOK/ConsecutiveExceedsThreshold",
+			memoryUsage:   []int64{2, 3, 2, 4, 2, 3, 2, 1, 2, 3, 4, 4, 1, 8, 9, 8, 9},
+			memoryTotal:   10,
+			previousState: database.WorkspaceAgentMonitorStateOK,
+			expectState:   database.WorkspaceAgentMonitorStateNOK,
+			shouldNotify:  true,
 		},
 		{
-			name:             "WhenOK/MinimumExceedsThreshold",
-			memoryUsage:      []int64{2, 8, 2, 9, 2, 8, 2, 9, 2, 8, 4, 9, 1, 8, 2, 8, 9},
-			memoryTotal:      10,
-			thresholdPercent: 80,
-			minimumNOKs:      4,
-			consecutiveNOKs:  10,
-			previousState:    database.WorkspaceAgentMonitorStateOK,
-			expectState:      database.WorkspaceAgentMonitorStateNOK,
-			shouldNotify:     true,
+			name:          "WhenOK/MinimumExceedsThreshold",
+			memoryUsage:   []int64{2, 8, 2, 9, 2, 8, 2, 9, 2, 8, 4, 9, 1, 8, 2, 8, 9},
+			memoryTotal:   10,
+			previousState: database.WorkspaceAgentMonitorStateOK,
+			expectState:   database.WorkspaceAgentMonitorStateNOK,
+			shouldNotify:  true,
 		},
 		{
-			name:             "WhenNOK/NeverExceedsThreshold",
-			memoryUsage:      []int64{2, 3, 2, 4, 2, 3, 2, 1, 2, 3, 4, 4, 1, 2, 3, 1, 2},
-			memoryTotal:      10,
-			thresholdPercent: 80,
-			consecutiveNOKs:  4,
-			minimumNOKs:      10,
-			previousState:    database.WorkspaceAgentMonitorStateNOK,
-			expectState:      database.WorkspaceAgentMonitorStateOK,
-			shouldNotify:     false,
+			name:          "WhenNOK/NeverExceedsThreshold",
+			memoryUsage:   []int64{2, 3, 2, 4, 2, 3, 2, 1, 2, 3, 4, 4, 1, 2, 3, 1, 2},
+			memoryTotal:   10,
+			previousState: database.WorkspaceAgentMonitorStateNOK,
+			expectState:   database.WorkspaceAgentMonitorStateOK,
+			shouldNotify:  false,
 		},
 		{
-			name:             "WhenNOK/ShouldStayInNOK",
-			memoryUsage:      []int64{9, 3, 2, 4, 2, 3, 2, 1, 2, 3, 4, 4, 1, 2, 3, 1, 2},
-			memoryTotal:      10,
-			thresholdPercent: 80,
-			consecutiveNOKs:  4,
-			minimumNOKs:      10,
-			previousState:    database.WorkspaceAgentMonitorStateNOK,
-			expectState:      database.WorkspaceAgentMonitorStateNOK,
-			shouldNotify:     false,
+			name:          "WhenNOK/ShouldStayInNOK",
+			memoryUsage:   []int64{9, 3, 2, 4, 2, 3, 2, 1, 2, 3, 4, 4, 1, 2, 3, 1, 2},
+			memoryTotal:   10,
+			previousState: database.WorkspaceAgentMonitorStateNOK,
+			expectState:   database.WorkspaceAgentMonitorStateNOK,
+			shouldNotify:  false,
 		},
 		{
-			name:             "WhenNOK/ConsecutiveExceedsThreshold",
-			memoryUsage:      []int64{2, 3, 2, 4, 2, 3, 2, 1, 2, 3, 4, 4, 1, 8, 9, 8, 9},
-			memoryTotal:      10,
-			thresholdPercent: 80,
-			consecutiveNOKs:  4,
-			minimumNOKs:      10,
-			previousState:    database.WorkspaceAgentMonitorStateNOK,
-			expectState:      database.WorkspaceAgentMonitorStateNOK,
-			shouldNotify:     false,
+			name:          "WhenNOK/ConsecutiveExceedsThreshold",
+			memoryUsage:   []int64{2, 3, 2, 4, 2, 3, 2, 1, 2, 3, 4, 4, 1, 8, 9, 8, 9},
+			memoryTotal:   10,
+			previousState: database.WorkspaceAgentMonitorStateNOK,
+			expectState:   database.WorkspaceAgentMonitorStateNOK,
+			shouldNotify:  false,
 		},
 		{
-			name:             "WhenNOK/MinimumExceedsThreshold",
-			memoryUsage:      []int64{2, 8, 2, 9, 2, 8, 2, 9, 2, 8, 4, 9, 1, 8, 2, 8, 9},
-			memoryTotal:      10,
-			thresholdPercent: 80,
-			minimumNOKs:      4,
-			consecutiveNOKs:  10,
-			previousState:    database.WorkspaceAgentMonitorStateNOK,
-			expectState:      database.WorkspaceAgentMonitorStateNOK,
-			shouldNotify:     false,
+			name:          "WhenNOK/MinimumExceedsThreshold",
+			memoryUsage:   []int64{2, 8, 2, 9, 2, 8, 2, 9, 2, 8, 4, 9, 1, 8, 2, 8, 9},
+			memoryTotal:   10,
+			previousState: database.WorkspaceAgentMonitorStateNOK,
+			expectState:   database.WorkspaceAgentMonitorStateNOK,
+			shouldNotify:  false,
 		},
 	}
 
@@ -304,8 +278,8 @@ func TestMemoryResourceMonitor(t *testing.T) {
 			t.Parallel()
 
 			api, user, clock, notifyEnq := resourceMonitorAPI(t)
-			api.MinimumNOKsToAlert = tt.minimumNOKs
-			api.ConsecutiveNOKsToAlert = tt.consecutiveNOKs
+			api.MinimumNOKsToAlert = 4
+			api.ConsecutiveNOKsToAlert = 10
 
 			datapoints := make([]*agentproto.PushResourcesMonitoringUsageRequest_Datapoint, 0, len(tt.memoryUsage))
 			collectedAt := clock.Now()
@@ -323,7 +297,7 @@ func TestMemoryResourceMonitor(t *testing.T) {
 			dbgen.WorkspaceAgentMemoryResourceMonitor(t, api.Database, database.WorkspaceAgentMemoryResourceMonitor{
 				AgentID:   api.AgentID,
 				State:     tt.previousState,
-				Threshold: tt.thresholdPercent,
+				Threshold: 80,
 			})
 
 			clock.Set(collectedAt)
@@ -373,6 +347,7 @@ func TestVolumeResourceMonitorDebounce(t *testing.T) {
 	secondVolumePath := "/dev/coder"
 
 	api, _, clock, notifyEnq := resourceMonitorAPI(t)
+	api.MinimumNOKsToAlert = 1
 
 	// Given:
 	//  - First monitor in an OK state
@@ -709,6 +684,7 @@ func TestVolumeResourceMonitorMultiple(t *testing.T) {
 	t.Parallel()
 
 	api, _, clock, notifyEnq := resourceMonitorAPI(t)
+	api.ConsecutiveNOKsToAlert = 1
 
 	// Given: two different volume resource monitors
 	dbgen.WorkspaceAgentVolumeResourceMonitor(t, api.Database, database.WorkspaceAgentVolumeResourceMonitor{
