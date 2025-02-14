@@ -21,7 +21,6 @@
             "motd_file": null,
             "order": null,
             "os": "windows",
-            "resources_monitoring": [],
             "shutdown_script": null,
             "startup_script": null,
             "startup_script_behavior": "non-blocking",
@@ -30,7 +29,6 @@
           "sensitive_values": {
             "display_apps": [],
             "metadata": [],
-            "resources_monitoring": [],
             "token": true
           }
         },
@@ -71,7 +69,6 @@
           "motd_file": null,
           "order": null,
           "os": "windows",
-          "resources_monitoring": [],
           "shutdown_script": null,
           "startup_script": null,
           "startup_script_behavior": "non-blocking",
@@ -82,14 +79,12 @@
           "id": true,
           "init_script": true,
           "metadata": [],
-          "resources_monitoring": [],
           "token": true
         },
         "before_sensitive": false,
         "after_sensitive": {
           "display_apps": [],
           "metadata": [],
-          "resources_monitoring": [],
           "token": true
         }
       }
@@ -135,7 +130,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "e8485920-025a-4c2c-b018-722f61b64347",
+              "id": "678e4104-cd99-40d4-86e0-5244028860de",
               "mutable": false,
               "name": "Example",
               "option": null,
@@ -162,7 +157,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "6156655b-f893-4eba-914e-e87414f4bf7e",
+              "id": "22b1d84d-7c1d-47d0-b789-6a8d07ea926d",
               "mutable": false,
               "name": "Sample",
               "option": null,
@@ -268,7 +263,7 @@
       ]
     }
   },
-  "timestamp": "2025-01-29T22:48:18Z",
+  "timestamp": "2025-02-06T07:28:26Z",
   "applyable": true,
   "complete": true,
   "errored": false

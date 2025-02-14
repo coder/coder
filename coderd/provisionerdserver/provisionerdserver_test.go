@@ -30,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
@@ -1706,6 +1707,155 @@ func TestCompleteJob(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestInsertWorkspacePresetsAndParameters(t *testing.T) {
+	t.Parallel()
+
+	type testCase struct {
+		name         string
+		givenPresets []*sdkproto.Preset
+	}
+
+	testCases := []testCase{
+		{
+			name: "no presets",
+		},
+		{
+			name: "one preset with no parameters",
+			givenPresets: []*sdkproto.Preset{
+				{
+					Name: "preset1",
+				},
+			},
+		},
+		{
+			name: "one preset with multiple parameters",
+			givenPresets: []*sdkproto.Preset{
+				{
+					Name: "preset1",
+					Parameters: []*sdkproto.PresetParameter{
+						{
+							Name:  "param1",
+							Value: "value1",
+						},
+						{
+							Name:  "param2",
+							Value: "value2",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "multiple presets with parameters",
+			givenPresets: []*sdkproto.Preset{
+				{
+					Name: "preset1",
+					Parameters: []*sdkproto.PresetParameter{
+						{
+							Name:  "param1",
+							Value: "value1",
+						},
+						{
+							Name:  "param2",
+							Value: "value2",
+						},
+					},
+				},
+				{
+					Name: "preset2",
+					Parameters: []*sdkproto.PresetParameter{
+						{
+							Name:  "param3",
+							Value: "value3",
+						},
+						{
+							Name:  "param4",
+							Value: "value4",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, c := range testCases {
+		c := c
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+			logger := testutil.Logger(t)
+			db, ps := dbtestutil.NewDB(t)
+			org := dbgen.Organization(t, db, database.Organization{})
+			user := dbgen.User(t, db, database.User{})
+			job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+				Type:           database.ProvisionerJobTypeWorkspaceBuild,
+				OrganizationID: org.ID,
+			})
+			templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+				JobID:          job.ID,
+				OrganizationID: org.ID,
+				CreatedBy:      user.ID,
+			})
+
+			err := provisionerdserver.InsertWorkspacePresetsAndParameters(
+				ctx,
+				logger,
+				db,
+				job.ID,
+				templateVersion.ID,
+				c.givenPresets,
+				time.Now(),
+			)
+			require.NoError(t, err)
+
+			gotPresets, err := db.GetPresetsByTemplateVersionID(ctx, templateVersion.ID)
+			require.NoError(t, err)
+			require.Len(t, gotPresets, len(c.givenPresets))
+
+			for _, givenPreset := range c.givenPresets {
+				foundMatch := false
+				for _, gotPreset := range gotPresets {
+					if givenPreset.Name == gotPreset.Name {
+						foundMatch = true
+						break
+					}
+				}
+				require.True(t, foundMatch, "preset %s not found in parameters", givenPreset.Name)
+			}
+
+			gotPresetParameters, err := db.GetPresetParametersByTemplateVersionID(ctx, templateVersion.ID)
+			require.NoError(t, err)
+
+			for _, givenPreset := range c.givenPresets {
+				for _, givenParameter := range givenPreset.Parameters {
+					foundMatch := false
+					for _, gotParameter := range gotPresetParameters {
+						nameMatches := givenParameter.Name == gotParameter.Name
+						valueMatches := givenParameter.Value == gotParameter.Value
+
+						// ensure that preset parameters are matched to the correct preset:
+						var gotPreset database.TemplateVersionPreset
+						for _, preset := range gotPresets {
+							if preset.ID == gotParameter.TemplateVersionPresetID {
+								gotPreset = preset
+								break
+							}
+						}
+						presetMatches := gotPreset.Name == givenPreset.Name
+
+						if nameMatches && valueMatches && presetMatches {
+							foundMatch = true
+							break
+						}
+					}
+					require.True(t, foundMatch, "preset parameter %s not found in presets", givenParameter.Name)
+				}
+			}
+		})
+	}
 }
 
 func TestInsertWorkspaceResource(t *testing.T) {

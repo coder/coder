@@ -94,6 +94,17 @@ export interface RichParameterValue {
   value: string;
 }
 
+/** Preset represents a set of preset parameters for a template version. */
+export interface Preset {
+  name: string;
+  parameters: PresetParameter[];
+}
+
+export interface PresetParameter {
+  name: string;
+  value: string;
+}
+
 /** VariableValue holds the key/value mapping of a Terraform variable. */
 export interface VariableValue {
   name: string;
@@ -322,6 +333,7 @@ export interface PlanComplete {
   externalAuthProviders: ExternalAuthProviderResource[];
   timings: Timing[];
   modules: Module[];
+  presets: Preset[];
 }
 
 /**
@@ -475,6 +487,30 @@ export const RichParameter = {
 
 export const RichParameterValue = {
   encode(message: RichParameterValue, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.name !== "") {
+      writer.uint32(10).string(message.name);
+    }
+    if (message.value !== "") {
+      writer.uint32(18).string(message.value);
+    }
+    return writer;
+  },
+};
+
+export const Preset = {
+  encode(message: Preset, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.name !== "") {
+      writer.uint32(10).string(message.name);
+    }
+    for (const v of message.parameters) {
+      PresetParameter.encode(v!, writer.uint32(18).fork()).ldelim();
+    }
+    return writer;
+  },
+};
+
+export const PresetParameter = {
+  encode(message: PresetParameter, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
     if (message.name !== "") {
       writer.uint32(10).string(message.name);
     }
@@ -1017,6 +1053,9 @@ export const PlanComplete = {
     }
     for (const v of message.modules) {
       Module.encode(v!, writer.uint32(58).fork()).ldelim();
+    }
+    for (const v of message.presets) {
+      Preset.encode(v!, writer.uint32(66).fork()).ldelim();
     }
     return writer;
   },
