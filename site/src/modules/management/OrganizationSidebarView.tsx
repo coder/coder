@@ -88,11 +88,15 @@ const OrganizationsSettingsNavigation: FC<
 		return <Loader />;
 	}
 
-	// Sort organizations to put active organization first
-	const sortedOrganizations = [
-		activeOrganization,
-		...organizations.filter((org) => org.id !== activeOrganization.id),
-	];
+	const sortedOrganizations = [...organizations].sort((a, b) => {
+		// active org first
+		if (a.id === activeOrganization.id) return -1;
+		if (b.id === activeOrganization.id) return 1;
+
+		return a.display_name
+			.toLowerCase()
+			.localeCompare(b.display_name.toLowerCase());
+	});
 
 	const [isPopoverOpen, setIsPopoverOpen] = useState(false);
 	const navigate = useNavigate();

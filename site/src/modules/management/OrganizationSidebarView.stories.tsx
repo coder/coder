@@ -6,8 +6,12 @@ import {
 	MockOrganization2,
 	MockPermissions,
 } from "testHelpers/entities";
+import type { AuthorizationResponse } from "api/typesGenerated";
 import { withDashboardProvider } from "testHelpers/storybook";
-import { OrganizationSidebarView } from "./OrganizationSidebarView";
+import {
+	OrganizationSidebarView,
+	type OrganizationWithPermissions,
+} from "./OrganizationSidebarView";
 
 const meta: Meta<typeof OrganizationSidebarView> = {
 	title: "modules/management/OrganizationSidebarView",
@@ -284,5 +288,46 @@ export const SelectedOrgUserAdmin: Story = {
 export const OrgsDisabled: Story = {
 	parameters: {
 		showOrganizations: false,
+	},
+};
+
+const commonPerms: AuthorizationResponse = {
+	editOrganization: true,
+	editMembers: true,
+	editGroups: true,
+	auditOrganization: true,
+};
+
+const activeOrganization: OrganizationWithPermissions = {
+	...MockOrganization,
+	display_name: "Omega org",
+	name: "omega",
+	id: "1",
+	permissions: {
+		...commonPerms,
+	},
+};
+
+export const OrgsSortedAlphabetically: Story = {
+	args: {
+		activeOrganization,
+		permissions: MockPermissions,
+		organizations: [
+			{
+				...MockOrganization,
+				display_name: "Zeta Org",
+				id: "2",
+				name: "zeta",
+				permissions: commonPerms,
+			},
+			{
+				...MockOrganization,
+				display_name: "alpha Org",
+				id: "3",
+				name: "alpha",
+				permissions: commonPerms,
+			},
+			activeOrganization,
+		],
 	},
 };
