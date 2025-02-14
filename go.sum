@@ -240,8 +240,6 @@ github.com/coder/tailscale v1.1.1-0.20250129014916-8086c871eae6 h1:prDIwUcsSEKbs
 github.com/coder/tailscale v1.1.1-0.20250129014916-8086c871eae6/go.mod h1:1ggFFdHTRjPRu9Yc1yA7nVHBYB50w9Ce7VIXNqcW6Ko=
 github.com/coder/terraform-config-inspect v0.0.0-20250107175719-6d06d90c630e h1:JNLPDi2P73laR1oAclY6jWzAbucf70ASAvf5mh2cME0=
 github.com/coder/terraform-config-inspect v0.0.0-20250107175719-6d06d90c630e/go.mod h1:Gz/z9Hbn+4KSp8A2FBtNszfLSdT2Tn/uAKGuVqqWmDI=
-github.com/coder/terraform-provider-coder v1.0.4 h1:MJldCvykIQzzqBVUDjCJpPyqvKelAAHrtJKfIIx4Qxo=
-github.com/coder/terraform-provider-coder v1.0.4/go.mod h1:dQ1e/IccUxnmh/1bXTA3PopSoBkHMyWT6EkdBw8Lx6Y=
 github.com/coder/terraform-provider-coder/v2 v2.1.3 h1:zB7ObGsiOGBHcJUUMmcSauEPlTWRIYmMYieF05LxHSc=
 github.com/coder/terraform-provider-coder/v2 v2.1.3/go.mod h1:RHGyb+ghiy8UpDAMJM8duRFuzd+1VqA3AtkRLh2P3Ug=
 github.com/coder/websocket v1.8.12 h1:5bUXkEPPIbewrnkU8LTCLVaxi4N4J8ahufH2vlo4NAo=
