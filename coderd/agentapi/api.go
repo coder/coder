@@ -117,6 +117,7 @@ func New(opts Options) *API {
 		Clock:                 opts.Clock,
 		Database:              opts.Database,
 		NotificationsEnqueuer: opts.NotificationsEnqueuer,
+		Debounce:              5 * time.Minute,
 
 		// These values assume a window of 20
 		MinimumNOKsToAlert:     4,
