@@ -186,6 +186,10 @@ type ValidateUserPasswordResponse struct {
 	Details string `json:"details"`
 }
 
+type UserAppearanceSettings struct {
+	ThemePreference string `json:"theme_preference"`
+}
+
 type UpdateUserAppearanceSettingsRequest struct {
 	ThemePreference string `json:"theme_preference" validate:"required"`
 }

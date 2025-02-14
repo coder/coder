@@ -83,7 +83,6 @@ curl -X GET http://coder-server:8080/api/v2/audit?limit=0 \
           }
         ],
         "status": "active",
-        "theme_preference": "string",
         "updated_at": "2019-08-24T14:15:22Z",
         "username": "string"
       },

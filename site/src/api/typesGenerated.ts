@@ -2760,6 +2760,11 @@ export interface UserActivityInsightsResponse {
 	readonly report: UserActivityInsightsReport;
 }
 
+// From codersdk/users.go
+export interface UserAppearanceSettings {
+	readonly theme_preference: string;
+}
+
 // From codersdk/insights.go
 export interface UserLatency {
 	readonly template_ids: readonly string[];

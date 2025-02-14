@@ -5605,7 +5605,7 @@
 					"200": {
 						"description": "OK",
 						"schema": {
-							"$ref": "#/definitions/codersdk.User"
+							"$ref": "#/definitions/codersdk.UserAppearanceSettings"
 						}
 					}
 				}
@@ -12425,9 +12425,6 @@
 						}
 					]
 				},
-				"theme_preference": {
-					"type": "string"
-				},
 				"updated_at": {
 					"type": "string",
 					"format": "date-time"
@@ -13263,9 +13260,6 @@
 						}
 					]
 				},
-				"theme_preference": {
-					"type": "string"
-				},
 				"updated_at": {
 					"type": "string",
 					"format": "date-time"
@@ -13825,9 +13819,6 @@
 						}
 					]
 				},
-				"theme_preference": {
-					"type": "string"
-				},
 				"updated_at": {
 					"type": "string",
 					"format": "date-time"
@@ -13895,6 +13886,14 @@
 			"properties": {
 				"report": {
 					"$ref": "#/definitions/codersdk.UserActivityInsightsReport"
+				}
+			}
+		},
+		"codersdk.UserAppearanceSettings": {
+			"type": "object",
+			"properties": {
+				"theme_preference": {
+					"type": "string"
 				}
 			}
 		},
