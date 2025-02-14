@@ -40,7 +40,7 @@ import (
 //     ScriptCompleted, but be prepared to process "unsupported" errors.)
 const (
 	CurrentMajor = 2
-	CurrentMinor = 3
+	CurrentMinor = 4
 )
 
 var CurrentVersion = apiversion.New(CurrentMajor, CurrentMinor)

@@ -769,6 +769,7 @@ CREATE TABLE users (
     github_com_user_id bigint,
     hashed_one_time_passcode bytea,
     one_time_passcode_expires_at timestamp with time zone,
+    is_system boolean DEFAULT false,
     CONSTRAINT one_time_passcode_set CHECK ((((hashed_one_time_passcode IS NULL) AND (one_time_passcode_expires_at IS NULL)) OR ((hashed_one_time_passcode IS NOT NULL) AND (one_time_passcode_expires_at IS NOT NULL))))
 );
 
@@ -783,6 +784,8 @@ COMMENT ON COLUMN users.github_com_user_id IS 'The GitHub.com numerical user ID.
 COMMENT ON COLUMN users.hashed_one_time_passcode IS 'A hash of the one-time-passcode given to the user.';
 
 COMMENT ON COLUMN users.one_time_passcode_expires_at IS 'The time when the one-time-passcode expires.';
+
+COMMENT ON COLUMN users.is_system IS 'Determines if a user is a system user, and therefore cannot login or perform normal actions';
 
 CREATE VIEW group_members_expanded AS
  WITH all_members AS (
@@ -1270,6 +1273,21 @@ CREATE TABLE template_version_preset_parameters (
     template_version_preset_id uuid NOT NULL,
     name text NOT NULL,
     value text NOT NULL
+);
+
+CREATE TABLE template_version_preset_prebuild_schedules (
+    id uuid NOT NULL,
+    preset_prebuild_id uuid NOT NULL,
+    timezone text NOT NULL,
+    cron_schedule text NOT NULL,
+    desired_instances integer NOT NULL
+);
+
+CREATE TABLE template_version_preset_prebuilds (
+    id uuid NOT NULL,
+    preset_id uuid NOT NULL,
+    desired_instances integer NOT NULL,
+    invalidate_after_secs integer DEFAULT 0
 );
 
 CREATE TABLE template_version_presets (
@@ -1770,6 +1788,30 @@ CREATE VIEW workspace_build_with_user AS
 
 COMMENT ON VIEW workspace_build_with_user IS 'Joins in the username + avatar url of the initiated by user.';
 
+CREATE VIEW workspace_latest_build AS
+ SELECT wb.id,
+    wb.created_at,
+    wb.updated_at,
+    wb.workspace_id,
+    wb.template_version_id,
+    wb.build_number,
+    wb.transition,
+    wb.initiator_id,
+    wb.provisioner_state,
+    wb.job_id,
+    wb.deadline,
+    wb.reason,
+    wb.daily_cost,
+    wb.max_deadline,
+    wb.template_version_preset_id
+   FROM (( SELECT tv.template_id,
+            wbmax_1.workspace_id,
+            max(wbmax_1.build_number) AS max_build_number
+           FROM (workspace_builds wbmax_1
+             JOIN template_versions tv ON ((tv.id = wbmax_1.template_version_id)))
+          GROUP BY tv.template_id, wbmax_1.workspace_id) wbmax
+     JOIN workspace_builds wb ON (((wb.workspace_id = wbmax.workspace_id) AND (wb.build_number = wbmax.max_build_number))));
+
 CREATE TABLE workspace_modules (
     id uuid NOT NULL,
     job_id uuid NOT NULL,
@@ -1779,6 +1821,66 @@ CREATE TABLE workspace_modules (
     key text NOT NULL,
     created_at timestamp with time zone NOT NULL
 );
+
+CREATE VIEW workspace_prebuild_builds AS
+ SELECT workspace_builds.id,
+    workspace_builds.created_at,
+    workspace_builds.updated_at,
+    workspace_builds.workspace_id,
+    workspace_builds.template_version_id,
+    workspace_builds.build_number,
+    workspace_builds.transition,
+    workspace_builds.initiator_id,
+    workspace_builds.provisioner_state,
+    workspace_builds.job_id,
+    workspace_builds.deadline,
+    workspace_builds.reason,
+    workspace_builds.daily_cost,
+    workspace_builds.max_deadline,
+    workspace_builds.template_version_preset_id
+   FROM workspace_builds
+  WHERE (workspace_builds.initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid);
+
+CREATE TABLE workspaces (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    owner_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    template_id uuid NOT NULL,
+    deleted boolean DEFAULT false NOT NULL,
+    name character varying(64) NOT NULL,
+    autostart_schedule text,
+    ttl bigint,
+    last_used_at timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
+    dormant_at timestamp with time zone,
+    deleting_at timestamp with time zone,
+    automatic_updates automatic_updates DEFAULT 'never'::automatic_updates NOT NULL,
+    favorite boolean DEFAULT false NOT NULL,
+    next_start_at timestamp with time zone
+);
+
+COMMENT ON COLUMN workspaces.favorite IS 'Favorite is true if the workspace owner has favorited the workspace.';
+
+CREATE VIEW workspace_prebuilds AS
+ SELECT workspaces.id,
+    workspaces.created_at,
+    workspaces.updated_at,
+    workspaces.owner_id,
+    workspaces.organization_id,
+    workspaces.template_id,
+    workspaces.deleted,
+    workspaces.name,
+    workspaces.autostart_schedule,
+    workspaces.ttl,
+    workspaces.last_used_at,
+    workspaces.dormant_at,
+    workspaces.deleting_at,
+    workspaces.automatic_updates,
+    workspaces.favorite,
+    workspaces.next_start_at
+   FROM workspaces
+  WHERE (workspaces.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid);
 
 CREATE TABLE workspace_proxies (
     id uuid NOT NULL,
@@ -1849,27 +1951,6 @@ CREATE TABLE workspace_resources (
     daily_cost integer DEFAULT 0 NOT NULL,
     module_path text
 );
-
-CREATE TABLE workspaces (
-    id uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    owner_id uuid NOT NULL,
-    organization_id uuid NOT NULL,
-    template_id uuid NOT NULL,
-    deleted boolean DEFAULT false NOT NULL,
-    name character varying(64) NOT NULL,
-    autostart_schedule text,
-    ttl bigint,
-    last_used_at timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
-    dormant_at timestamp with time zone,
-    deleting_at timestamp with time zone,
-    automatic_updates automatic_updates DEFAULT 'never'::automatic_updates NOT NULL,
-    favorite boolean DEFAULT false NOT NULL,
-    next_start_at timestamp with time zone
-);
-
-COMMENT ON COLUMN workspaces.favorite IS 'Favorite is true if the workspace owner has favorited the workspace.';
 
 CREATE VIEW workspaces_expanded AS
  SELECT workspaces.id,
@@ -2076,6 +2157,12 @@ ALTER TABLE ONLY template_version_parameters
 ALTER TABLE ONLY template_version_preset_parameters
     ADD CONSTRAINT template_version_preset_parameters_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY template_version_preset_prebuild_schedules
+    ADD CONSTRAINT template_version_preset_prebuild_schedules_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY template_version_preset_prebuilds
+    ADD CONSTRAINT template_version_preset_prebuilds_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY template_version_presets
     ADD CONSTRAINT template_version_presets_pkey PRIMARY KEY (id);
 
@@ -2246,6 +2333,8 @@ CREATE UNIQUE INDEX template_usage_stats_start_time_template_id_user_id_idx ON t
 COMMENT ON INDEX template_usage_stats_start_time_template_id_user_id_idx IS 'Index for primary key.';
 
 CREATE UNIQUE INDEX templates_organization_id_name_idx ON templates USING btree (organization_id, lower((name)::text)) WHERE (deleted = false);
+
+CREATE INDEX user_is_system_idx ON users USING btree (is_system);
 
 CREATE UNIQUE INDEX user_links_linked_id_login_type_idx ON user_links USING btree (linked_id, login_type) WHERE (linked_id <> ''::text);
 
@@ -2471,6 +2560,12 @@ ALTER TABLE ONLY template_version_parameters
 
 ALTER TABLE ONLY template_version_preset_parameters
     ADD CONSTRAINT template_version_preset_paramet_template_version_preset_id_fkey FOREIGN KEY (template_version_preset_id) REFERENCES template_version_presets(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY template_version_preset_prebuild_schedules
+    ADD CONSTRAINT template_version_preset_prebuild_schedu_preset_prebuild_id_fkey FOREIGN KEY (preset_prebuild_id) REFERENCES template_version_preset_prebuilds(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY template_version_preset_prebuilds
+    ADD CONSTRAINT template_version_preset_prebuilds_preset_id_fkey FOREIGN KEY (preset_id) REFERENCES template_version_presets(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY template_version_presets
     ADD CONSTRAINT template_version_presets_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;

@@ -57,6 +57,22 @@ message RichParameterValue {
     string value = 2;
 }
 
+message Prebuild {
+    int32 instances = 1;
+}
+
+// Preset represents a set of preset parameters for a template version.
+message Preset {
+    string name = 1;
+    repeated PresetParameter parameters = 2;
+    Prebuild prebuild = 3;
+}
+
+message PresetParameter {
+    string name = 1;
+    string value = 2;
+}
+
 // VariableValue holds the key/value mapping of a Terraform variable.
 message VariableValue {
     string name = 1;
@@ -264,6 +280,8 @@ message Metadata {
     string workspace_owner_ssh_private_key = 16;
     string workspace_build_id = 17;
     string workspace_owner_login_type =  18;
+    bool   is_prebuild = 19;
+    string running_workspace_agent_token = 20;
 }
 
 // Config represents execution configuration shared by all subsequent requests in the Session
@@ -303,6 +321,7 @@ message PlanComplete {
     repeated ExternalAuthProviderResource external_auth_providers = 4;
     repeated Timing timings = 6;
     repeated Module modules = 7;
+	repeated Preset presets = 8;
 }
 
 // ApplyRequest asks the provisioner to apply the changes.  Apply MUST be preceded by a successful plan request/response

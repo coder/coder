@@ -94,6 +94,22 @@ export interface RichParameterValue {
   value: string;
 }
 
+export interface Prebuild {
+  instances: number;
+}
+
+/** Preset represents a set of preset parameters for a template version. */
+export interface Preset {
+  name: string;
+  parameters: PresetParameter[];
+  prebuild: Prebuild | undefined;
+}
+
+export interface PresetParameter {
+  name: string;
+  value: string;
+}
+
 /** VariableValue holds the key/value mapping of a Terraform variable. */
 export interface VariableValue {
   name: string;
@@ -278,6 +294,8 @@ export interface Metadata {
   workspaceOwnerSshPrivateKey: string;
   workspaceBuildId: string;
   workspaceOwnerLoginType: string;
+  isPrebuild: boolean;
+  runningWorkspaceAgentToken: string;
 }
 
 /** Config represents execution configuration shared by all subsequent requests in the Session */
@@ -322,6 +340,7 @@ export interface PlanComplete {
   externalAuthProviders: ExternalAuthProviderResource[];
   timings: Timing[];
   modules: Module[];
+  presets: Preset[];
 }
 
 /**
@@ -475,6 +494,42 @@ export const RichParameter = {
 
 export const RichParameterValue = {
   encode(message: RichParameterValue, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.name !== "") {
+      writer.uint32(10).string(message.name);
+    }
+    if (message.value !== "") {
+      writer.uint32(18).string(message.value);
+    }
+    return writer;
+  },
+};
+
+export const Prebuild = {
+  encode(message: Prebuild, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.instances !== 0) {
+      writer.uint32(8).int32(message.instances);
+    }
+    return writer;
+  },
+};
+
+export const Preset = {
+  encode(message: Preset, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.name !== "") {
+      writer.uint32(10).string(message.name);
+    }
+    for (const v of message.parameters) {
+      PresetParameter.encode(v!, writer.uint32(18).fork()).ldelim();
+    }
+    if (message.prebuild !== undefined) {
+      Prebuild.encode(message.prebuild, writer.uint32(26).fork()).ldelim();
+    }
+    return writer;
+  },
+};
+
+export const PresetParameter = {
+  encode(message: PresetParameter, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
     if (message.name !== "") {
       writer.uint32(10).string(message.name);
     }
@@ -925,6 +980,12 @@ export const Metadata = {
     if (message.workspaceOwnerLoginType !== "") {
       writer.uint32(146).string(message.workspaceOwnerLoginType);
     }
+    if (message.isPrebuild === true) {
+      writer.uint32(152).bool(message.isPrebuild);
+    }
+    if (message.runningWorkspaceAgentToken !== "") {
+      writer.uint32(162).string(message.runningWorkspaceAgentToken);
+    }
     return writer;
   },
 };
@@ -1017,6 +1078,9 @@ export const PlanComplete = {
     }
     for (const v of message.modules) {
       Module.encode(v!, writer.uint32(58).fork()).ldelim();
+    }
+    for (const v of message.presets) {
+      Preset.encode(v!, writer.uint32(66).fork()).ldelim();
     }
     return writer;
   },
