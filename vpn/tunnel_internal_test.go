@@ -100,6 +100,9 @@ func TestTunnel_StartStop(t *testing.T) {
 					TunnelFileDescriptor: 2,
 					CoderUrl:             "https://coder.example.com",
 					ApiToken:             "fakeToken",
+					Headers: []*StartRequest_Header{
+						{Name: "X-Test-Header", Value: "test"},
+					},
 				},
 			},
 		})
