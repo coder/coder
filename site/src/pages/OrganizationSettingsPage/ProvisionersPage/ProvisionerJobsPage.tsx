@@ -2,6 +2,7 @@ import { provisionerJobs } from "api/queries/organizations";
 import type { Organization, ProvisionerJob } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { Badge } from "components/Badge/Badge";
+import { Button } from "components/Button/Button";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Link } from "components/Link/Link";
 import { Loader } from "components/Loader/Loader";
@@ -26,8 +27,7 @@ import { relativeTime } from "utils/time";
 import { CancelJobButton } from "./CancelJobButton";
 import { DataGrid } from "./DataGrid";
 import { JobStatusIndicator } from "./JobStatusIndicator";
-import { TruncateTags, Tag, Tags } from "./Tags";
-import { Button } from "components/Button/Button";
+import { Tag, Tags, TruncateTags } from "./Tags";
 
 type ProvisionerJobsPageProps = {
 	orgId: string;

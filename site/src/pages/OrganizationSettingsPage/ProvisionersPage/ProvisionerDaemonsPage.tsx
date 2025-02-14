@@ -1,6 +1,7 @@
 import { provisionerDaemons } from "api/queries/organizations";
 import type { Organization, ProvisionerDaemon } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
+import { Button } from "components/Button/Button";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Link } from "components/Link/Link";
 import { Loader } from "components/Loader/Loader";
@@ -25,8 +26,7 @@ import { docs } from "utils/docs";
 import { relativeTime } from "utils/time";
 import { DataGrid, DataGridSpace } from "./DataGrid";
 import { DaemonJobStatusIndicator } from "./JobStatusIndicator";
-import { TruncateTags, Tag, Tags } from "./Tags";
-import { Button } from "components/Button/Button";
+import { Tag, Tags, TruncateTags } from "./Tags";
 
 type ProvisionerDaemonsPageProps = {
 	orgId: string;
