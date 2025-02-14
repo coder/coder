@@ -5,7 +5,7 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/terraform-provider-coder/provider"
+	"github.com/coder/terraform-provider-coder/v2/provider"
 )
 
 func ValidateNewWorkspaceParameters(richParameters []TemplateVersionParameter, buildParameters []WorkspaceBuildParameter) error {
