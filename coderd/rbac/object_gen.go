@@ -299,6 +299,7 @@ var (
 	// Valid Actions
 	//  - "ActionCreate" :: create workspace agent resource monitor
 	//  - "ActionRead" :: read workspace agent resource monitor
+	//  - "ActionUpdate" :: update workspace agent resource monitor
 	ResourceWorkspaceAgentResourceMonitor = Object{
 		Type: "workspace_agent_resource_monitor",
 	}

@@ -289,6 +289,24 @@ var (
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
 
+	subjectResourceMonitor = rbac.Subject{
+		FriendlyName: "Resource Monitor",
+		ID:           uuid.Nil.String(),
+		Roles: rbac.Roles([]rbac.Role{
+			{
+				Identifier:  rbac.RoleIdentifier{Name: "resourcemonitor"},
+				DisplayName: "Resource Monitor",
+				Site: rbac.Permissions(map[string][]policy.Action{
+					// The workspace monitor needs to be able to update monitors
+					rbac.ResourceWorkspaceAgentResourceMonitor.Type: {policy.ActionUpdate},
+				}),
+				Org:  map[string][]rbac.Permission{},
+				User: []rbac.Permission{},
+			},
+		}),
+		Scope: rbac.ScopeAll,
+	}.WithCachedASTValue()
+
 	subjectSystemRestricted = rbac.Subject{
 		FriendlyName: "System",
 		ID:           uuid.Nil.String(),
@@ -374,6 +392,12 @@ func AsKeyReader(ctx context.Context) context.Context {
 // creating/reading/updating/deleting notifications.
 func AsNotifier(ctx context.Context) context.Context {
 	return context.WithValue(ctx, authContextKey{}, subjectNotifier)
+}
+
+// AsResourceMonitor returns a context with an actor that has permissions required for
+// updating resource monitors.
+func AsResourceMonitor(ctx context.Context) context.Context {
+	return context.WithValue(ctx, authContextKey{}, subjectResourceMonitor)
 }
 
 // AsSystemRestricted returns a context with an actor that has permissions

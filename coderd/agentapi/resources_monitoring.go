@@ -136,7 +136,7 @@ func (a *ResourcesMonitoringAPI) monitorMemory(ctx context.Context, datapoints [
 		debouncedUntil = a.Clock.Now().Add(a.Debounce)
 	}
 
-	err = a.Database.UpdateMemoryResourceMonitor(ctx, database.UpdateMemoryResourceMonitorParams{
+	err = a.Database.UpdateMemoryResourceMonitor(dbauthz.AsResourceMonitor(ctx), database.UpdateMemoryResourceMonitorParams{
 		AgentID:        a.AgentID,
 		State:          newState,
 		UpdatedAt:      dbtime.Time(a.Clock.Now()),
@@ -217,7 +217,7 @@ func (a *ResourcesMonitoringAPI) monitorVolumes(ctx context.Context, datapoints 
 			})
 		}
 
-		if err := a.Database.UpdateVolumeResourceMonitor(ctx, database.UpdateVolumeResourceMonitorParams{
+		if err := a.Database.UpdateVolumeResourceMonitor(dbauthz.AsResourceMonitor(ctx), database.UpdateVolumeResourceMonitorParams{
 			AgentID:        a.AgentID,
 			Path:           monitor.Path,
 			State:          newState,
