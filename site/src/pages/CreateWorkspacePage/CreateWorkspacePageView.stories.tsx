@@ -10,6 +10,8 @@ import {
 	mockApiError,
 } from "testHelpers/entities";
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
+import { within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
 const meta: Meta<typeof CreateWorkspacePageView> = {
 	title: "pages/CreateWorkspacePage",
@@ -116,7 +118,7 @@ export const Parameters: Story = {
 	},
 };
 
-export const Presets: Story = {
+export const PresetsButNoneSelected: Story = {
 	args: {
 		presets: [
 			{
@@ -145,6 +147,15 @@ export const Presets: Story = {
 			MockTemplateVersionParameter2,
 			MockTemplateVersionParameter3,
 		],
+	},
+};
+
+export const PresetSelected: Story = {
+	args: PresetsButNoneSelected.args,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByLabelText("Preset"));
+		await userEvent.click(canvas.getByText("Preset 1"));
 	},
 };
 
