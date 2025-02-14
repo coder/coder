@@ -21,7 +21,7 @@
     "previous_job": {
       "id": "======[workspace build job ID]======",
       "status": "succeeded",
-      "template_name": "",
+      "template_name": "test-template",
       "template_icon": "",
       "template_display_name": ""
     },

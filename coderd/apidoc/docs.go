@@ -2977,6 +2977,43 @@ const docTemplate = `{
                         "required": true
                     },
                     {
+                        "type": "integer",
+                        "description": "Page limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "array",
+                        "format": "uuid",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "Filter results by job IDs",
+                        "name": "ids",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "pending",
+                            "running",
+                            "succeeded",
+                            "canceling",
+                            "canceled",
+                            "failed",
+                            "unknown",
+                            "pending",
+                            "running",
+                            "succeeded",
+                            "canceling",
+                            "canceled",
+                            "failed"
+                        ],
+                        "type": "string",
+                        "description": "Filter results by status",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
                         "type": "object",
                         "description": "Provisioner tags to filter by (JSON of the form {'tag1':'value1','tag2':'value2'})",
                         "name": "tags",
@@ -3056,6 +3093,16 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "type": "array",
+                        "format": "uuid",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "Filter results by job IDs",
+                        "name": "ids",
+                        "in": "query"
+                    },
+                    {
                         "enum": [
                             "pending",
                             "running",
@@ -3074,6 +3121,12 @@ const docTemplate = `{
                         "type": "string",
                         "description": "Filter results by status",
                         "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "object",
+                        "description": "Provisioner tags to filter by (JSON of the form {'tag1':'value1','tag2':'value2'})",
+                        "name": "tags",
                         "in": "query"
                     }
                 ],
