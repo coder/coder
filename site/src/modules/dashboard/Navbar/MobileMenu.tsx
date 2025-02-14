@@ -323,7 +323,7 @@ const UserSettingsSub: FC<UserSettingsSubProps> = ({
 	);
 };
 
-const includeOrigin = (target: string): string => {
+export const includeOrigin = (target: string): string => {
 	if (target.startsWith("/")) {
 		const baseUrl = window.location.origin;
 		return `${baseUrl}${target}`;
