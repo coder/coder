@@ -69,7 +69,7 @@ func CalculateConsecutiveNOK(states []State) int {
 
 	for _, state := range states {
 		if state == StateNOK {
-			curLength += 1
+			curLength++
 		} else {
 			maxLength = max(maxLength, curLength)
 			curLength = 0

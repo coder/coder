@@ -136,6 +136,7 @@ func (a *ResourcesMonitoringAPI) monitorMemory(ctx context.Context, datapoints [
 		debouncedUntil = a.Clock.Now().Add(a.Debounce)
 	}
 
+	//nolint:gocritic // We need to be able to update the resource monitor here.
 	err = a.Database.UpdateMemoryResourceMonitor(dbauthz.AsResourceMonitor(ctx), database.UpdateMemoryResourceMonitorParams{
 		AgentID:        a.AgentID,
 		State:          newState,
@@ -152,7 +153,7 @@ func (a *ResourcesMonitoringAPI) monitorMemory(ctx context.Context, datapoints [
 			return xerrors.Errorf("get workspace by id: %w", err)
 		}
 
-		_, err = a.NotificationsEnqueuer.Enqueue(
+		_, err = a.NotificationsEnqueuer.EnqueueWithData(
 			// nolint:gocritic // We need to be able to send the notification.
 			dbauthz.AsNotifier(ctx),
 			workspace.OwnerID,
@@ -160,6 +161,12 @@ func (a *ResourcesMonitoringAPI) monitorMemory(ctx context.Context, datapoints [
 			map[string]string{
 				"workspace": workspace.Name,
 				"threshold": fmt.Sprintf("%d%%", monitor.Threshold),
+			},
+			map[string]any{
+				// NOTE(DanielleMaywood):
+				// We are injecting a timestamp to circumvent the notification
+				// deduplication logic.
+				"timestamp": a.Clock.Now(),
 			},
 			"workspace-monitor-memory",
 		)
@@ -217,6 +224,7 @@ func (a *ResourcesMonitoringAPI) monitorVolumes(ctx context.Context, datapoints 
 			})
 		}
 
+		//nolint:gocritic // We need to be able to update the resource monitor here.
 		if err := a.Database.UpdateVolumeResourceMonitor(dbauthz.AsResourceMonitor(ctx), database.UpdateVolumeResourceMonitorParams{
 			AgentID:        a.AgentID,
 			Path:           monitor.Path,
@@ -244,6 +252,10 @@ func (a *ResourcesMonitoringAPI) monitorVolumes(ctx context.Context, datapoints 
 			},
 			map[string]any{
 				"volumes": outOfDiskVolumes,
+				// NOTE(DanielleMaywood):
+				// We are injecting a timestamp to circumvent the notification
+				// deduplication logic.
+				"timestamp": a.Clock.Now(),
 			},
 			"workspace-monitor-volumes",
 		); err != nil {
@@ -269,9 +281,9 @@ func (a *ResourcesMonitoringAPI) calculateNextState(
 	for _, state := range states {
 		switch state {
 		case resourcesmonitor.StateOK:
-			okCount += 1
+			okCount++
 		case resourcesmonitor.StateNOK:
-			nokCount += 1
+			nokCount++
 		}
 	}
 
