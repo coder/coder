@@ -1,6 +1,5 @@
 # Generated files
 agent/agentcontainers/acmock/acmock.go linguist-generated=true
-agent/agentexec/execmock/execmock.go linguist-generated=true
 coderd/apidoc/docs.go linguist-generated=true
 docs/reference/api/*.md linguist-generated=true
 docs/reference/cli/*.md linguist-generated=true
