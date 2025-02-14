@@ -29,14 +29,14 @@ These notifications are sent to the workspace owner:
 
 ### User Events
 
-These notifications sent to users with **owner** and **user admin** roles:
+These notifications are sent to users with **owner** and **user admin** roles:
 
 - User account created
 - User account deleted
 - User account suspended
 - User account activated
 
-These notifications sent to users themselves:
+These notifications are sent to users themselves:
 
 - User account suspended
 - User account activated
@@ -48,6 +48,8 @@ These notifications are sent to users with **template admin** roles:
 
 - Template deleted
 - Template deprecated
+- Out of memory (OOM) / Out of disk (OOD)
+  - [Configure](#configure-oomood-notifications) in the template `main.tf`.
 - Report: Workspace builds failed for template
   - This notification is delivered as part of a weekly cron job and summarizes
     the failed builds for a given template.
@@ -62,6 +64,48 @@ flags.
 |    ✔️    | `--notifications-dispatch-timeout`  | `CODER_NOTIFICATIONS_DISPATCH_TIMEOUT`  | `duration` | How long to wait while a notification is being sent before giving up.                                                 | 1m      |
 |    ✔️    | `--notifications-method`            | `CODER_NOTIFICATIONS_METHOD`            | `string`   | Which delivery method to use (available options: 'smtp', 'webhook'). See [Delivery Methods](#delivery-methods) below. | smtp    |
 |    -️    | `--notifications-max-send-attempts` | `CODER_NOTIFICATIONS_MAX_SEND_ATTEMPTS` | `int`      | The upper limit of attempts to send a notification.                                                                   | 5       |
+
+### Configure OOM/OOD notifications
+
+You can alert users when they overutilize memory and disk.
+
+This can help prevent agent disconnects due to OOM/OOD issues.
+
+To enable OOM/OOD notifications on a template, use the
+[`resources_monitoring`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#resources_monitoring-1)
+block on the
+[`coder_agent`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent)
+resource in our Terraform provider.
+
+You can specify one or more volumes to monitor for OOD alerts.
+OOM alerts are reported per-agent.
+
+Add the following example to the template's `main.tf`.
+Change the `90`, `80`, and `95` to a threshold that's more appropriate for your
+deployment:
+
+```hcl
+resource "coder_agent" "main" {
+  arch = data.coder_provisioner.dev.arch
+  os   = data.coder_provisioner.dev.os
+  resources_monitoring {
+    memory {
+      enabled   = true
+      threshold = 90
+    }
+    volume {
+      path      = "/volume1"
+      enabled   = true
+      threshold = 80
+    }
+    volume {
+      path      = "/volume2"
+      enabled   = true
+      threshold = 95
+    }
+  }
+}
+```
 
 ## Delivery Methods
 
@@ -135,7 +179,7 @@ for more options.
 
 After setting the required fields above:
 
-1. Setup an account on Microsoft 365 or outlook.com
+1. Set up an account on Microsoft 365 or outlook.com
 1. Set the following configuration options:
 
    ```text
