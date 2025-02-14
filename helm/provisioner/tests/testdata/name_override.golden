@@ -12,6 +12,7 @@ metadata:
     app.kubernetes.io/version: 0.1.0
     helm.sh/chart: coder-provisioner-0.1.0
   name: other-coder-provisioner
+  namespace: default
 ---
 # Source: coder-provisioner/templates/extra-templates.yaml
 apiVersion: v1
@@ -27,6 +28,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: other-coder-provisioner-workspace-perms
+  namespace: default
 rules:
   - apiGroups: [""]
     resources: ["pods"]
@@ -69,6 +71,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: "other-coder-provisioner"
+  namespace: default
 subjects:
   - kind: ServiceAccount
     name: "other-coder-provisioner"
@@ -90,6 +93,7 @@ metadata:
     app.kubernetes.io/version: 0.1.0
     helm.sh/chart: coder-provisioner-0.1.0
   name: other-coder-provisioner
+  namespace: default
 spec:
   replicas: 1
   selector:

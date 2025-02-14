@@ -3,6 +3,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "coder.name" .}}
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "coder.labels" . | nindent 4 }}
     {{- with .Values.coder.labels }}
@@ -80,6 +81,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: {{ .Values.coder.serviceAccount.name | quote }}
+  namespace: {{ .Release.Namespace }}
   annotations: {{ toYaml .Values.coder.serviceAccount.annotations | nindent 4 }}
   labels:
     {{- include "coder.labels" . | nindent 4 }}

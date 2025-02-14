@@ -13,6 +13,7 @@ metadata:
     app.kubernetes.io/version: 0.1.0
     helm.sh/chart: coder-provisioner-0.1.0
   name: coder-provisioner
+  namespace: default
 spec:
   replicas: 1
   selector:

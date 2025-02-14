@@ -4,6 +4,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: coder-workspace-perms
+  namespace: default
 rules:
   - apiGroups: [""]
     resources: ["pods"]
@@ -46,6 +47,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: "coder"
+  namespace: default
 subjects:
   - kind: ServiceAccount
     name: "coder"
@@ -59,6 +61,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: coder
+  namespace: default
   labels:
     helm.sh/chart: coder-0.1.0
     app.kubernetes.io/name: coder
@@ -96,6 +99,7 @@ metadata:
     app.kubernetes.io/version: 0.1.0
     helm.sh/chart: coder-0.1.0
   name: coder
+  namespace: default
 spec:
   replicas: 1
   selector:
