@@ -307,7 +307,11 @@ const UserSettingsSub: FC<UserSettingsSubProps> = ({
 								asChild
 								className={cn(itemStyles.default, itemStyles.sub)}
 							>
-								<a href={includeOrigin(l.target)} target="_blank" rel="noreferrer">
+								<a
+									href={includeOrigin(l.target)}
+									target="_blank"
+									rel="noreferrer"
+								>
 									{l.name}
 								</a>
 							</DropdownMenuItem>
