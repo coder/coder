@@ -26,17 +26,25 @@ import { relativeTime } from "utils/time";
 import { CancelJobButton } from "./CancelJobButton";
 import { DataGrid } from "./DataGrid";
 import { JobStatusIndicator } from "./JobStatusIndicator";
-import { ShrinkTags, Tag, Tags } from "./Tags";
+import { TruncateTags, Tag, Tags } from "./Tags";
+import { Button } from "components/Button/Button";
 
 type ProvisionerJobsPageProps = {
-	org: Organization;
+	orgId: string;
 };
 
-export const ProvisionerJobsPage: FC<ProvisionerJobsPageProps> = ({ org }) => {
-	const { data: jobs, isLoadingError } = useQuery(provisionerJobs(org.id));
+export const ProvisionerJobsPage: FC<ProvisionerJobsPageProps> = ({
+	orgId,
+}) => {
+	const {
+		data: jobs,
+		isLoadingError,
+		refetch,
+	} = useQuery(provisionerJobs(orgId));
 
 	return (
 		<section className="flex flex-col gap-8">
+			<h2 className="sr-only">Provisioner jobs</h2>
 			<p className="text-sm text-content-secondary m-0 mt-2">
 				Provisioner Jobs are the individual tasks assigned to Provisioners when
 				the workspaces are being built.{" "}
@@ -68,7 +76,10 @@ export const ProvisionerJobsPage: FC<ProvisionerJobsPageProps> = ({ org }) => {
 					) : isLoadingError ? (
 						<TableRow>
 							<TableCell colSpan={999}>
-								<EmptyState message="Error loading the provisioner jobs" />
+								<EmptyState
+									message="Error loading the provisioner jobs"
+									cta={<Button onClick={() => refetch()}>Retry</Button>}
+								/>
 							</TableCell>
 						</TableRow>
 					) : (
@@ -112,6 +123,7 @@ const JobRow: FC<JobRowProps> = ({ job }) => {
 						) : (
 							<ChevronRightIcon className="size-icon-sm p-0.5" />
 						)}
+						<span className="sr-only">({isOpen ? "Hide" : "Show more"})</span>
 						<span className="[&:first-letter]:uppercase">
 							{relativeTime(new Date(job.created_at))}
 						</span>
@@ -137,7 +149,7 @@ const JobRow: FC<JobRowProps> = ({ job }) => {
 					)}
 				</TableCell>
 				<TableCell>
-					<ShrinkTags tags={job.tags} />
+					<TruncateTags tags={job.tags} />
 				</TableCell>
 				<TableCell>
 					<JobStatusIndicator job={job} />
@@ -162,38 +174,38 @@ const JobRow: FC<JobRowProps> = ({ job }) => {
 							</div>
 						)}
 						<DataGrid>
-							<span>Job ID:</span>
-							<span>{job.id}</span>
+							<dt>Job ID:</dt>
+							<dd>{job.id}</dd>
 
-							<span>Available provisioners:</span>
-							<span>
+							<dt>Available provisioners:</dt>
+							<dd>
 								{job.available_workers
 									? JSON.stringify(job.available_workers)
 									: "[]"}
-							</span>
+							</dd>
 
-							<span>Completed by provisioner:</span>
-							<span>{job.worker_id}</span>
+							<dt>Completed by provisioner:</dt>
+							<dd>{job.worker_id}</dd>
 
-							<span>Associated workspace:</span>
-							<span>{job.metadata.workspace_name ?? "null"}</span>
+							<dt>Associated workspace:</dt>
+							<dd>{job.metadata.workspace_name ?? "null"}</dd>
 
-							<span>Creation time:</span>
-							<span>{job.created_at}</span>
+							<dt>Creation time:</dt>
+							<dd>{job.created_at}</dd>
 
-							<span>Queue:</span>
-							<span>
+							<dt>Queue:</dt>
+							<dd>
 								{job.queue_position}/{job.queue_size}
-							</span>
+							</dd>
 
-							<span>Tags:</span>
-							<span>
+							<dt>Tags:</dt>
+							<dd>
 								<Tags>
 									{Object.entries(job.tags).map(([key, value]) => (
 										<Tag key={key} label={key} value={value} />
 									))}
 								</Tags>
-							</span>
+							</dd>
 						</DataGrid>
 					</TableCell>
 				</TableRow>

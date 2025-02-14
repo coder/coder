@@ -1,6 +1,5 @@
 import type { ProvisionerJob } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import {
 	Tooltip,
 	TooltipContent,
@@ -9,6 +8,9 @@ import {
 } from "components/Tooltip/Tooltip";
 import { BanIcon } from "lucide-react";
 import { type FC, useState } from "react";
+import { CancelJobConfirmationDialog } from "./CancelJobConfirmationDialog";
+
+const CANCELLABLE = ["pending", "running"];
 
 type CancelJobButtonProps = {
 	job: ProvisionerJob;
@@ -16,7 +18,7 @@ type CancelJobButtonProps = {
 
 export const CancelJobButton: FC<CancelJobButtonProps> = ({ job }) => {
 	const [isDialogOpen, setIsDialogOpen] = useState(false);
-	const cancellable = ["pending", "running"].includes(job.status);
+	const isCancellable = CANCELLABLE.includes(job.status);
 
 	return (
 		<>
@@ -24,7 +26,7 @@ export const CancelJobButton: FC<CancelJobButtonProps> = ({ job }) => {
 				<Tooltip>
 					<TooltipTrigger asChild>
 						<Button
-							disabled={!cancellable}
+							disabled={!isCancellable}
 							aria-label="Cancel job"
 							size="icon"
 							variant="outline"
@@ -39,16 +41,12 @@ export const CancelJobButton: FC<CancelJobButtonProps> = ({ job }) => {
 				</Tooltip>
 			</TooltipProvider>
 
-			<ConfirmDialog
-				type="delete"
-				onClose={(): void => {
+			<CancelJobConfirmationDialog
+				open={isDialogOpen}
+				job={job}
+				onClose={() => {
 					setIsDialogOpen(false);
 				}}
-				open={isDialogOpen}
-				title="Cancel provisioner job"
-				description={`Are you sure you want to cancel the provisioner job "${job.id}"? This operation will result in the associated workspaces not getting created.`}
-				confirmText="Confirm"
-				cancelText="Discard"
 			/>
 		</>
 	);

@@ -4,26 +4,16 @@ import {
 	provisionerJobQueryKey,
 } from "api/queries/organizations";
 import type { ProvisionerJob } from "api/typesGenerated";
-import {
-	ConfirmDialog,
-	type ConfirmDialogProps,
-} from "components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import type { FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
 
-type CancelJobConfirmationDialogProps = Omit<
-	ConfirmDialogProps,
-	| "type"
-	| "title"
-	| "description"
-	| "confirmText"
-	| "cancelText"
-	| "onConfirm"
-	| "confirmLoading"
-> & {
+type CancelJobConfirmationDialogProps = {
+	open: boolean;
+	onClose: () => void;
 	job: ProvisionerJob;
-	cancelProvisionerJob: typeof API.cancelProvisionerJob;
+	cancelProvisionerJob?: typeof API.cancelProvisionerJob;
 };
 
 export const CancelJobConfirmationDialog: FC<

@@ -32,7 +32,7 @@ type TagsProps = {
 	tags: Record<string, string>;
 };
 
-export const ShrinkTags: FC<TagsProps> = ({ tags }) => {
+export const TruncateTags: FC<TagsProps> = ({ tags }) => {
 	const keys = Object.keys(tags);
 
 	if (keys.length === 0) {
@@ -41,12 +41,12 @@ export const ShrinkTags: FC<TagsProps> = ({ tags }) => {
 
 	const firstKey = keys[0];
 	const firstValue = tags[firstKey];
-	const restKeys = keys.slice(1);
+	const remainderCount = keys.length - 1;
 
 	return (
 		<Tags>
 			<Tag label={firstKey} value={firstValue} />
-			{restKeys.length > 0 && <Badge size="sm">+{restKeys.length}</Badge>}
+			{remainderCount > 0 && <Badge size="sm">+{remainderCount}</Badge>}
 		</Tags>
 	);
 };

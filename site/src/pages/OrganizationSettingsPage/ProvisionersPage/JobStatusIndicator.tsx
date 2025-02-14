@@ -11,40 +11,50 @@ import {
 import { TriangleAlertIcon } from "lucide-react";
 import type { FC } from "react";
 
+const variantByStatus: Record<
+	ProvisionerJobStatus,
+	StatusIndicatorProps["variant"]
+> = {
+	succeeded: "success",
+	failed: "failed",
+	pending: "pending",
+	running: "pending",
+	canceling: "pending",
+	canceled: "inactive",
+	unknown: "inactive",
+};
+
 type JobStatusIndicatorProps = {
-	job: ProvisionerJob | ProvisionerDaemonJob;
+	job: ProvisionerJob;
 };
 
 export const JobStatusIndicator: FC<JobStatusIndicatorProps> = ({ job }) => {
-	const isProvisionerJob = "queue_position" in job;
 	return (
-		<StatusIndicator size="sm" variant={statusIndicatorVariant(job.status)}>
+		<StatusIndicator size="sm" variant={variantByStatus[job.status]}>
 			<StatusIndicatorDot />
 			<span className="[&:first-letter]:uppercase">{job.status}</span>
 			{job.status === "failed" && (
 				<TriangleAlertIcon className="size-icon-xs p-[1px]" />
 			)}
-			{job.status === "pending" &&
-				isProvisionerJob &&
-				`(${job.queue_position}/${job.queue_size})`}
+			{job.status === "pending" && `(${job.queue_position}/${job.queue_size})`}
 		</StatusIndicator>
 	);
 };
 
-function statusIndicatorVariant(
-	status: ProvisionerJobStatus,
-): StatusIndicatorProps["variant"] {
-	switch (status) {
-		case "succeeded":
-			return "success";
-		case "failed":
-			return "failed";
-		case "pending":
-		case "running":
-		case "canceling":
-			return "pending";
-		case "canceled":
-		case "unknown":
-			return "inactive";
-	}
-}
+type DaemonJobStatusIndicatorProps = {
+	job: ProvisionerDaemonJob;
+};
+
+export const DaemonJobStatusIndicator: FC<DaemonJobStatusIndicatorProps> = ({
+	job,
+}) => {
+	return (
+		<StatusIndicator size="sm" variant={variantByStatus[job.status]}>
+			<StatusIndicatorDot />
+			<span className="[&:first-letter]:uppercase">{job.status}</span>
+			{job.status === "failed" && (
+				<TriangleAlertIcon className="size-icon-xs p-[1px]" />
+			)}
+		</StatusIndicator>
+	);
+};

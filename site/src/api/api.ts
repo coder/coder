@@ -1238,7 +1238,7 @@ class ApiMethods {
 	};
 
 	cancelTemplateVersionBuild = async (
-		templateVersionId: TypesGen.TemplateVersion["id"],
+		templateVersionId: string,
 	): Promise<TypesGen.Response> => {
 		const response = await this.axios.patch(
 			`/api/v2/templateversions/${templateVersionId}/cancel`,
@@ -1248,7 +1248,7 @@ class ApiMethods {
 	};
 
 	cancelTemplateVersionDryRun = async (
-		templateVersionId: TypesGen.TemplateVersion["id"],
+		templateVersionId: string,
 		jobId: string,
 	): Promise<TypesGen.Response> => {
 		const response = await this.axios.patch(

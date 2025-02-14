@@ -16,7 +16,14 @@ const ProvisionersPage: FC = () => {
 	});
 
 	if (!organization) {
-		return <EmptyState message="Organization not found" />;
+		return (
+			<>
+				<Helmet>
+					<title>{pageTitle("Provisioners")}</title>
+				</Helmet>
+				<EmptyState message="Organization not found" />
+			</>
+		);
 	}
 
 	return (
@@ -50,9 +57,11 @@ const ProvisionersPage: FC = () => {
 					</Tabs>
 
 					<div className="mt-6">
-						{tab.value === "jobs" && <ProvisionerJobsPage org={organization} />}
+						{tab.value === "jobs" && (
+							<ProvisionerJobsPage orgId={organization.id} />
+						)}
 						{tab.value === "daemons" && (
-							<ProvisionerDaemonsPage org={organization} />
+							<ProvisionerDaemonsPage orgId={organization.id} />
 						)}
 					</div>
 				</main>

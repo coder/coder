@@ -24,20 +24,26 @@ import { cn } from "utils/cn";
 import { docs } from "utils/docs";
 import { relativeTime } from "utils/time";
 import { DataGrid, DataGridSpace } from "./DataGrid";
-import { JobStatusIndicator } from "./JobStatusIndicator";
-import { ShrinkTags, Tag, Tags } from "./Tags";
+import { DaemonJobStatusIndicator } from "./JobStatusIndicator";
+import { TruncateTags, Tag, Tags } from "./Tags";
+import { Button } from "components/Button/Button";
 
 type ProvisionerDaemonsPageProps = {
-	org: Organization;
+	orgId: string;
 };
 
 export const ProvisionerDaemonsPage: FC<ProvisionerDaemonsPageProps> = ({
-	org,
+	orgId,
 }) => {
-	const { data: daemons, isLoadingError } = useQuery({
-		...provisionerDaemons(org.id),
+	const {
+		data: daemons,
+		isLoadingError,
+		refetch,
+	} = useQuery({
+		...provisionerDaemons(orgId),
 		select: (data) =>
 			data.toSorted((a, b) => {
+				if (!a.last_seen_at && !b.last_seen_at) return 0;
 				if (!a.last_seen_at) return 1;
 				if (!b.last_seen_at) return -1;
 				return (
@@ -49,6 +55,7 @@ export const ProvisionerDaemonsPage: FC<ProvisionerDaemonsPageProps> = ({
 
 	return (
 		<section className="flex flex-col gap-8">
+			<h2 className="sr-only">Provisioner daemons</h2>
 			<p className="text-sm text-content-secondary m-0 mt-2">
 				Coder server runs provisioner daemons which execute terraform during
 				workspace and template builds.{" "}
@@ -85,7 +92,10 @@ export const ProvisionerDaemonsPage: FC<ProvisionerDaemonsPageProps> = ({
 					) : isLoadingError ? (
 						<TableRow>
 							<TableCell colSpan={999}>
-								<EmptyState message="Error loading the provisioner daemons" />
+								<EmptyState
+									message="Error loading the provisioner daemons"
+									cta={<Button onClick={() => refetch()}>Retry</Button>}
+								/>
 							</TableCell>
 						</TableRow>
 					) : (
@@ -128,6 +138,7 @@ const DaemonRow: FC<DaemonRowProps> = ({ daemon }) => {
 						) : (
 							<ChevronRightIcon className="size-icon-sm p-0.5" />
 						)}
+						<span className="sr-only">({isOpen ? "Hide" : "Show more"})</span>
 						<span className="[&:first-letter]:uppercase">
 							{relativeTime(
 								new Date(daemon.last_seen_at ?? new Date().toISOString()),
@@ -159,7 +170,7 @@ const DaemonRow: FC<DaemonRowProps> = ({ daemon }) => {
 					)}
 				</TableCell>
 				<TableCell>
-					<ShrinkTags tags={daemon.tags} />
+					<TruncateTags tags={daemon.tags} />
 				</TableCell>
 				<TableCell>
 					<StatusIndicator size="sm" variant={statusIndicatorVariant(daemon)}>
@@ -175,35 +186,35 @@ const DaemonRow: FC<DaemonRowProps> = ({ daemon }) => {
 				<TableRow>
 					<TableCell colSpan={999} className="p-4 border-t-0">
 						<DataGrid>
-							<span>Last seen:</span>
-							<span>{daemon.last_seen_at}</span>
+							<dt>Last seen:</dt>
+							<dd>{daemon.last_seen_at}</dd>
 
-							<span>Creation time:</span>
-							<span>{daemon.created_at}</span>
+							<dt>Creation time:</dt>
+							<dd>{daemon.created_at}</dd>
 
-							<span>Version:</span>
-							<span>{daemon.version}</span>
+							<dt>Version:</dt>
+							<dd>{daemon.version}</dd>
 
-							<span>Tags:</span>
-							<span>
+							<dt>Tags:</dt>
+							<dd>
 								<Tags>
 									{Object.entries(daemon.tags).map(([key, value]) => (
 										<Tag key={key} label={key} value={value} />
 									))}
 								</Tags>
-							</span>
+							</dd>
 
 							{daemon.current_job && (
 								<>
 									<DataGridSpace />
 
-									<span>Last job:</span>
-									<span>{daemon.current_job.id}</span>
+									<dt>Last job:</dt>
+									<dd>{daemon.current_job.id}</dd>
 
-									<span>Last job state:</span>
-									<span>
-										<JobStatusIndicator job={daemon.current_job} />
-									</span>
+									<dt>Last job state:</dt>
+									<dd>
+										<DaemonJobStatusIndicator job={daemon.current_job} />
+									</dd>
 								</>
 							)}
 
@@ -211,13 +222,13 @@ const DaemonRow: FC<DaemonRowProps> = ({ daemon }) => {
 								<>
 									<DataGridSpace />
 
-									<span>Previous job:</span>
-									<span>{daemon.previous_job.id}</span>
+									<dt>Previous job:</dt>
+									<dd>{daemon.previous_job.id}</dd>
 
-									<span>Previous job state:</span>
-									<span>
-										<JobStatusIndicator job={daemon.previous_job} />
-									</span>
+									<dt>Previous job state:</dt>
+									<dd>
+										<DaemonJobStatusIndicator job={daemon.previous_job} />
+									</dd>
 								</>
 							)}
 						</DataGrid>
@@ -240,8 +251,7 @@ function statusIndicatorVariant(
 			return "success";
 		case "busy":
 			return "pending";
-		case "offline":
-		case null:
+		default:
 			return "inactive";
 	}
 }
@@ -258,7 +268,7 @@ function statusLabel(daemon: ProvisionerDaemon) {
 			return "Busy...";
 		case "offline":
 			return "Disconnected";
-		case null:
+		default:
 			return "Unknown";
 	}
 }
