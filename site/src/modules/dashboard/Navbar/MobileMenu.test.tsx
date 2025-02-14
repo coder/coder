@@ -4,7 +4,9 @@ const mockOrigin = "https://example.com";
 
 describe("support link", () => {
 	it("should include origin if target starts with '/'", () => {
-		(window as unknown as { location: Partial<Location> }).location = { origin: mockOrigin }; // Mock the location origin
+		(window as unknown as { location: Partial<Location> }).location = {
+			origin: mockOrigin,
+		}; // Mock the location origin
 
 		expect(includeOrigin("/test")).toBe(mockOrigin + "/test");
 		expect(includeOrigin("/path/to/resource")).toBe(
