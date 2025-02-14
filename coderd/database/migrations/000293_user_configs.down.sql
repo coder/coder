@@ -3,11 +3,11 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS
   theme_preference text DEFAULT ''::text NOT NULL;
 
 -- Copy "theme_preference" back to "users"
-UPDATE users (theme_preference)
-  SELECT value
+UPDATE users
+	SET theme_preference = (SELECT value
     FROM user_configs
-    WHERE users.id = user_configs.user_id
-		  AND user_configs.key = 'theme_preference';
+    WHERE user_configs.user_id = users.id
+		  AND user_configs.key = 'theme_preference');
 
 -- Drop the "user_configs" table.
 DROP TABLE user_configs;
