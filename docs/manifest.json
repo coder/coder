@@ -41,7 +41,14 @@
 					"title": "Kubernetes",
 					"description": "Install Coder on Kubernetes",
 					"path": "./install/kubernetes.md",
-					"icon_path": "./images/icons/kubernetes.svg"
+					"icon_path": "./images/icons/kubernetes.svg",
+					"children": [
+						{
+							"title": "Deploy Coder on Azure with an Application Gateway",
+							"description": "Deploy Coder on Azure with an Application Gateway",
+							"path": "./install/kubernetes/kubernetes-azure-app-gateway.md"
+						}
+					]
 				},
 				{
 					"title": "OpenShift",
