@@ -7,6 +7,7 @@ import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
 import { health, refreshHealth } from "api/queries/debug";
 import type { HealthSeverity } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { type ClassName, useClassName } from "hooks/useClassName";
 import kebabCase from "lodash/fp/kebabCase";
@@ -22,7 +23,11 @@ import { HealthIcon } from "./Content";
 export const HealthLayout: FC = () => {
 	const theme = useTheme();
 	const queryClient = useQueryClient();
-	const { data: healthStatus } = useQuery({
+	const {
+		data: healthStatus,
+		isLoading,
+		error,
+	} = useQuery({
 		...health(),
 		refetchInterval: 30_000,
 	});
@@ -194,6 +199,10 @@ export const HealthLayout: FC = () => {
 						</div>
 					</div>
 				</DashboardFullPage>
+			) : !isLoading && error ? (
+				<div className="p-6">
+					<ErrorAlert error={error} />
+				</div>
 			) : (
 				<Loader />
 			)}
