@@ -5871,6 +5871,20 @@ func (q *FakeQuerier) GetUserActivityInsights(_ context.Context, arg database.Ge
 	return rows, nil
 }
 
+func (q *FakeQuerier) GetUserAppearanceSettings(_ context.Context, userID uuid.UUID) (string, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, uc := range q.userConfigs {
+		if uc.UserID != userID || uc.Key != "theme_preference" {
+			continue
+		}
+		return uc.Value, nil
+	}
+
+	return "", sql.ErrNoRows
+}
+
 func (q *FakeQuerier) GetUserByEmailOrUsername(_ context.Context, arg database.GetUserByEmailOrUsernameParams) (database.User, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.User{}, err

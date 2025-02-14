@@ -292,13 +292,14 @@ type htmlState struct {
 	ApplicationName string
 	LogoURL         string
 
-	BuildInfo    string
-	User         string
-	Entitlements string
-	Appearance   string
-	Experiments  string
-	Regions      string
-	DocsURL      string
+	BuildInfo      string
+	User           string
+	Entitlements   string
+	Appearance     string
+	UserAppearance string
+	Experiments    string
+	Regions        string
+	DocsURL        string
 }
 
 type csrfState struct {
@@ -426,10 +427,16 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 
 	var eg errgroup.Group
 	var user database.User
+	var themePreference string
 	orgIDs := []uuid.UUID{}
 	eg.Go(func() error {
 		var err error
 		user, err = h.opts.Database.GetUserByID(ctx, apiKey.UserID)
+		return err
+	})
+	eg.Go(func() error {
+		var err error
+		themePreference, err = h.opts.Database.GetUserAppearanceSettings(ctx, apiKey.UserID)
 		return err
 	})
 	eg.Go(func() error {
@@ -452,6 +459,17 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 			user, err := json.Marshal(db2sdk.User(user, orgIDs))
 			if err == nil {
 				state.User = html.EscapeString(string(user))
+			}
+		}()
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			userAppearance, err := json.Marshal(codersdk.UserAppearanceSettings{
+				ThemePreference: themePreference,
+			})
+			if err == nil {
+				state.UserAppearance = html.EscapeString(string(userAppearance))
 			}
 		}()
 

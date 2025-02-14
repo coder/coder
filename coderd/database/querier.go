@@ -286,6 +286,7 @@ type sqlcQuerier interface {
 	// produces a bloated value if a user has used multiple templates
 	// simultaneously.
 	GetUserActivityInsights(ctx context.Context, arg GetUserActivityInsightsParams) ([]GetUserActivityInsightsRow, error)
+	GetUserAppearanceSettings(ctx context.Context, userID uuid.UUID) (string, error)
 	GetUserByEmailOrUsername(ctx context.Context, arg GetUserByEmailOrUsernameParams) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserCount(ctx context.Context) (int64, error)

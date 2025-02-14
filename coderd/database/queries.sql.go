@@ -10965,6 +10965,23 @@ func (q *sqlQuerier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.
 	return i, err
 }
 
+const getUserAppearanceSettings = `-- name: GetUserAppearanceSettings :one
+SELECT
+	value as theme_preference
+FROM
+	user_configs
+WHERE
+	user_id = $1
+	AND key = 'theme_preference'
+`
+
+func (q *sqlQuerier) GetUserAppearanceSettings(ctx context.Context, userID uuid.UUID) (string, error) {
+	row := q.db.QueryRowContext(ctx, getUserAppearanceSettings, userID)
+	var theme_preference string
+	err := row.Scan(&theme_preference)
+	return theme_preference, err
+}
+
 const getUserByEmailOrUsername = `-- name: GetUserByEmailOrUsername :one
 SELECT
 	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at

@@ -980,6 +980,35 @@ func (api *API) notifyUserStatusChanged(ctx context.Context, actingUserName stri
 // @Produce json
 // @Tags Users
 // @Param user path string true "User ID, name, or me"
+// @Success 200 {object} codersdk.UserAppearanceSettings
+// @Router /users/{user}/appearance [get]
+func (api *API) getUserAppearanceSettings(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx  = r.Context()
+		user = httpmw.UserParam(r)
+	)
+
+	themePreference, err := api.Database.GetUserAppearanceSettings(ctx, user.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating user.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserAppearanceSettings{
+		ThemePreference: themePreference,
+	})
+}
+
+// @Summary Update user appearance settings
+// @ID update-user-appearance-settings
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Users
+// @Param user path string true "User ID, name, or me"
 // @Param request body codersdk.UpdateUserAppearanceSettingsRequest true "New appearance settings"
 // @Success 200 {object} codersdk.UserAppearanceSettings
 // @Router /users/{user}/appearance [put]
