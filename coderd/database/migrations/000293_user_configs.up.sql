@@ -1,7 +1,10 @@
 CREATE TABLE IF NOT EXISTS user_configs (
-		user_id uuid NOT NULL,
-		key varchar(256) NOT NULL,
-		value text NOT NULL
+	user_id uuid NOT NULL,
+	key varchar(256) NOT NULL,
+	value text NOT NULL,
+
+	PRIMARY KEY (user_id, key),
+	FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
 
 ALTER TABLE ONLY user_configs
