@@ -54,9 +54,8 @@ type ReducedUser struct {
 	UpdatedAt   time.Time `json:"updated_at" table:"updated at" format:"date-time"`
 	LastSeenAt  time.Time `json:"last_seen_at" format:"date-time"`
 
-	Status          UserStatus `json:"status" table:"status" enums:"active,suspended"`
-	LoginType       LoginType  `json:"login_type"`
-	ThemePreference string     `json:"theme_preference"`
+	Status    UserStatus `json:"status" table:"status" enums:"active,suspended"`
+	LoginType LoginType  `json:"login_type"`
 }
 
 // User represents a user in Coder.
@@ -185,6 +184,10 @@ type ValidateUserPasswordRequest struct {
 type ValidateUserPasswordResponse struct {
 	Valid   bool   `json:"valid"`
 	Details string `json:"details"`
+}
+
+type UserAppearanceSettings struct {
+	ThemePreference string `json:"theme_preference"`
 }
 
 type UpdateUserAppearanceSettingsRequest struct {

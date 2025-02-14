@@ -5251,10 +5251,10 @@ func (mr *MockStoreMockRecorder) UpdateTemplateWorkspacesLastUsedAt(ctx, arg any
 }
 
 // UpdateUserAppearanceSettings mocks base method.
-func (m *MockStore) UpdateUserAppearanceSettings(ctx context.Context, arg database.UpdateUserAppearanceSettingsParams) (database.User, error) {
+func (m *MockStore) UpdateUserAppearanceSettings(ctx context.Context, arg database.UpdateUserAppearanceSettingsParams) (database.UserConfig, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateUserAppearanceSettings", ctx, arg)
-	ret0, _ := ret[0].(database.User)
+	ret0, _ := ret[0].(database.UserConfig)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

@@ -764,7 +764,6 @@ CREATE TABLE users (
     deleted boolean DEFAULT false NOT NULL,
     last_seen_at timestamp without time zone DEFAULT '0001-01-01 00:00:00'::timestamp without time zone NOT NULL,
     quiet_hours_schedule text DEFAULT ''::text NOT NULL,
-    theme_preference text DEFAULT ''::text NOT NULL,
     name text DEFAULT ''::text NOT NULL,
     github_com_user_id bigint,
     hashed_one_time_passcode bytea,
@@ -773,8 +772,6 @@ CREATE TABLE users (
 );
 
 COMMENT ON COLUMN users.quiet_hours_schedule IS 'Daily (!) cron schedule (with optional CRON_TZ) signifying the start of the user''s quiet hours. If empty, the default quiet hours on the instance is used instead.';
-
-COMMENT ON COLUMN users.theme_preference IS '"" can be interpreted as "the user does not care", falling back to the default theme';
 
 COMMENT ON COLUMN users.name IS 'Name of the Coder user';
 
@@ -807,7 +804,6 @@ CREATE VIEW group_members_expanded AS
     users.deleted AS user_deleted,
     users.last_seen_at AS user_last_seen_at,
     users.quiet_hours_schedule AS user_quiet_hours_schedule,
-    users.theme_preference AS user_theme_preference,
     users.name AS user_name,
     users.github_com_user_id AS user_github_com_user_id,
     groups.organization_id,
@@ -1447,6 +1443,12 @@ CREATE VIEW template_with_names AS
      LEFT JOIN organizations ON ((templates.organization_id = organizations.id)));
 
 COMMENT ON VIEW template_with_names IS 'Joins in the display name information such as username, avatar, and organization name.';
+
+CREATE TABLE user_configs (
+    user_id uuid NOT NULL,
+    key character varying(256) NOT NULL,
+    value text NOT NULL
+);
 
 CREATE TABLE user_deleted (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -2093,6 +2095,9 @@ ALTER TABLE ONLY template_versions
 
 ALTER TABLE ONLY templates
     ADD CONSTRAINT templates_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY user_configs
+    ADD CONSTRAINT unique_key_per_user UNIQUE (user_id, key);
 
 ALTER TABLE ONLY user_deleted
     ADD CONSTRAINT user_deleted_pkey PRIMARY KEY (id);

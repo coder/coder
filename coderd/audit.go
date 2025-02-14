@@ -204,7 +204,6 @@ func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogs
 			Deleted:            dblog.UserDeleted.Bool,
 			LastSeenAt:         dblog.UserLastSeenAt.Time,
 			QuietHoursSchedule: dblog.UserQuietHoursSchedule.String,
-			ThemePreference:    dblog.UserThemePreference.String,
 			Name:               dblog.UserName.String,
 		}, []uuid.UUID{})
 		user = &sdkUser
