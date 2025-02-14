@@ -37,7 +37,8 @@ type datapointsPusher interface {
 func (m *monitor) Start(ctx context.Context) error {
 	m.clock.TickerFunc(ctx, time.Duration(m.config.Config.CollectionIntervalSeconds)*time.Second, func() error {
 		datapoint := Datapoint{
-			Volumes: make([]*VolumeDatapoint, 0, len(m.config.Volumes)),
+			CollectedAt: m.clock.Now(),
+			Volumes:     make([]*VolumeDatapoint, 0, len(m.config.Volumes)),
 		}
 
 		if m.config.Memory != nil && m.config.Memory.Enabled {

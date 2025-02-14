@@ -1,12 +1,17 @@
 package resourcesmonitor
 
 import (
+	"time"
+
+	"google.golang.org/protobuf/types/known/timestamppb"
+
 	"github.com/coder/coder/v2/agent/proto"
 )
 
 type Datapoint struct {
-	Memory  *MemoryDatapoint
-	Volumes []*VolumeDatapoint
+	CollectedAt time.Time
+	Memory      *MemoryDatapoint
+	Volumes     []*VolumeDatapoint
 }
 
 type MemoryDatapoint struct {
@@ -55,7 +60,9 @@ func (q *Queue) ItemsAsProto() []*proto.PushResourcesMonitoringUsageRequest_Data
 	items := make([]*proto.PushResourcesMonitoringUsageRequest_Datapoint, 0, len(q.items))
 
 	for _, item := range q.items {
-		protoItem := &proto.PushResourcesMonitoringUsageRequest_Datapoint{}
+		protoItem := &proto.PushResourcesMonitoringUsageRequest_Datapoint{
+			CollectedAt: timestamppb.New(item.CollectedAt),
+		}
 		if item.Memory != nil {
 			protoItem.Memory = &proto.PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage{
 				Total: item.Memory.Total,
