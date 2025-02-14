@@ -5578,7 +5578,6 @@
 						"CoderSessionToken": []
 					}
 				],
-				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Users"],
 				"summary": "Get user appearance settings",

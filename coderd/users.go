@@ -976,7 +976,6 @@ func (api *API) notifyUserStatusChanged(ctx context.Context, actingUserName stri
 // @Summary Get user appearance settings
 // @ID get-user-appearance-settings
 // @Security CoderSessionToken
-// @Accept json
 // @Produce json
 // @Tags Users
 // @Param user path string true "User ID, name, or me"
