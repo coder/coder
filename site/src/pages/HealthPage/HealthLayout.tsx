@@ -18,11 +18,16 @@ import { NavLink, Outlet } from "react-router-dom";
 import { createDayString } from "utils/createDayString";
 import { pageTitle } from "utils/page";
 import { HealthIcon } from "./Content";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 
 export const HealthLayout: FC = () => {
 	const theme = useTheme();
 	const queryClient = useQueryClient();
-	const { data: healthStatus } = useQuery({
+	const {
+		data: healthStatus,
+		isLoading,
+		error,
+	} = useQuery({
 		...health(),
 		refetchInterval: 30_000,
 	});
@@ -194,6 +199,10 @@ export const HealthLayout: FC = () => {
 						</div>
 					</div>
 				</DashboardFullPage>
+			) : !isLoading && error ? (
+				<div className="p-6">
+					<ErrorAlert error={error} />
+				</div>
 			) : (
 				<Loader />
 			)}
