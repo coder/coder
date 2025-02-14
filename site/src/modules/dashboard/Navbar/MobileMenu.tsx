@@ -307,7 +307,7 @@ const UserSettingsSub: FC<UserSettingsSubProps> = ({
 								asChild
 								className={cn(itemStyles.default, itemStyles.sub)}
 							>
-								<a href={l.target} target="_blank" rel="noreferrer">
+								<a href={includeOrigin(l.target)} target="_blank" rel="noreferrer">
 									{l.name}
 								</a>
 							</DropdownMenuItem>
@@ -317,4 +317,12 @@ const UserSettingsSub: FC<UserSettingsSubProps> = ({
 			</CollapsibleContent>
 		</Collapsible>
 	);
+};
+
+const includeOrigin = (target: string): string => {
+	if (target.startsWith("/")) {
+		const baseUrl = window.location.origin;
+		return `${baseUrl}${target}`;
+	}
+	return target;
 };
