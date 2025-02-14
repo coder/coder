@@ -1,5 +1,7 @@
 import { action } from "@storybook/addon-actions";
 import type { Meta, StoryObj } from "@storybook/react";
+import { within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { chromatic } from "testHelpers/chromatic";
 import {
 	MockTemplate,
@@ -10,8 +12,6 @@ import {
 	mockApiError,
 } from "testHelpers/entities";
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
-import { within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 
 const meta: Meta<typeof CreateWorkspacePageView> = {
 	title: "pages/CreateWorkspacePage",
