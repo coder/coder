@@ -11,7 +11,7 @@
  */
 import { act, renderHook, screen } from "@testing-library/react";
 import { GlobalSnackbar } from "components/GlobalSnackbar/GlobalSnackbar";
-import { ThemeProvider } from "contexts/ThemeProvider";
+import { ThemeOverride } from "contexts/ThemeProvider";
 import {
 	COPY_FAILED_MESSAGE,
 	HTTP_FALLBACK_DATA_ID,
@@ -19,6 +19,7 @@ import {
 	type UseClipboardResult,
 	useClipboard,
 } from "./useClipboard";
+import themes, { DEFAULT_THEME } from "theme";
 
 // Need to mock console.error because we deliberately need to trigger errors in
 // the code to assert that it can recover from them, but we also don't want them
@@ -121,10 +122,10 @@ function renderUseClipboard<TInput extends UseClipboardInput>(inputs: TInput) {
 			initialProps: inputs,
 			wrapper: ({ children }) => (
 				// Need ThemeProvider because GlobalSnackbar uses theme
-				<ThemeProvider>
+				<ThemeOverride theme={themes[DEFAULT_THEME]}>
 					{children}
 					<GlobalSnackbar />
-				</ThemeProvider>
+				</ThemeOverride>
 			),
 		},
 	);
