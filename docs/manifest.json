@@ -620,6 +620,24 @@
 					]
 				},
 				{
+					"title": "Air-gapped",
+					"description": "Configure your air-gapped or offline Coder deployment",
+					"path": "./admin/air-gapped/index.md",
+					"icon_path": "./images/icons/plug.svg",
+					"children": [
+						{
+							"title": "Air-gapped configuration",
+							"description": "Run Coder in offline / air-gapped environments",
+							"path": "./install/offline.md"
+						},
+						{
+							"title": "VS Code",
+							"description": "How to use VS Code in your air-gapped deployment",
+							"path": "./admin/air-gapped/vs-code.md"
+						}
+					]
+				},
+				{
 					"title": "Licensing",
 					"description": "Configure licensing for your deployment",
 					"path": "./admin/licensing/index.md",
