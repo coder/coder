@@ -40,3 +40,11 @@ type DRPCAgentClient23 interface {
 	DRPCAgentClient22
 	ScriptCompleted(ctx context.Context, in *WorkspaceAgentScriptCompletedRequest) (*WorkspaceAgentScriptCompletedResponse, error)
 }
+
+// DRPCAgentClient24 is the Agent API at v2.4. It adds the GetResourcesMonitoringConfiguration and
+// PushResourcesMonitoringUsage RPCs. Compatible with Coder v2.19+
+type DRPCAgentClient24 interface {
+	DRPCAgentClient23
+	GetResourcesMonitoringConfiguration(ctx context.Context, in *GetResourcesMonitoringConfigurationRequest) (*GetResourcesMonitoringConfigurationResponse, error)
+	PushResourcesMonitoringUsage(ctx context.Context, in *PushResourcesMonitoringUsageRequest) (*PushResourcesMonitoringUsageResponse, error)
+}
