@@ -147,6 +147,10 @@ const (
 	AuditActionLogout               AuditAction = "logout"
 	AuditActionRegister             AuditAction = "register"
 	AuditActionRequestPasswordReset AuditAction = "request_password_reset"
+	AuditActionConnect              AuditAction = "connect"
+	AuditActionDisconnect           AuditAction = "disconnect"
+	AuditActionOpen                 AuditAction = "open"
+	AuditActionClose                AuditAction = "close"
 )
 
 func (e *AuditAction) Scan(src interface{}) error {
@@ -194,7 +198,11 @@ func (e AuditAction) Valid() bool {
 		AuditActionLogin,
 		AuditActionLogout,
 		AuditActionRegister,
-		AuditActionRequestPasswordReset:
+		AuditActionRequestPasswordReset,
+		AuditActionConnect,
+		AuditActionDisconnect,
+		AuditActionOpen,
+		AuditActionClose:
 		return true
 	}
 	return false
@@ -211,6 +219,10 @@ func AllAuditActionValues() []AuditAction {
 		AuditActionLogout,
 		AuditActionRegister,
 		AuditActionRequestPasswordReset,
+		AuditActionConnect,
+		AuditActionDisconnect,
+		AuditActionOpen,
+		AuditActionClose,
 	}
 }
 
@@ -1608,6 +1620,8 @@ const (
 	ResourceTypeIdpSyncSettingsOrganization ResourceType = "idp_sync_settings_organization"
 	ResourceTypeIdpSyncSettingsGroup        ResourceType = "idp_sync_settings_group"
 	ResourceTypeIdpSyncSettingsRole         ResourceType = "idp_sync_settings_role"
+	ResourceTypeWorkspaceAgent              ResourceType = "workspace_agent"
+	ResourceTypeWorkspaceApp                ResourceType = "workspace_app"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -1668,7 +1682,9 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeNotificationTemplate,
 		ResourceTypeIdpSyncSettingsOrganization,
 		ResourceTypeIdpSyncSettingsGroup,
-		ResourceTypeIdpSyncSettingsRole:
+		ResourceTypeIdpSyncSettingsRole,
+		ResourceTypeWorkspaceAgent,
+		ResourceTypeWorkspaceApp:
 		return true
 	}
 	return false
@@ -1698,6 +1714,8 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeIdpSyncSettingsOrganization,
 		ResourceTypeIdpSyncSettingsGroup,
 		ResourceTypeIdpSyncSettingsRole,
+		ResourceTypeWorkspaceAgent,
+		ResourceTypeWorkspaceApp,
 	}
 }
 

@@ -117,6 +117,12 @@ WHERE
             workspace_builds.reason::text = @build_reason
         ELSE true
     END
+	-- Filter request_id
+	AND CASE
+		WHEN @request_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			audit_logs.request_id = @request_id
+		ELSE true
+	END
 
 	-- Authorize Filter clause will be injected below in GetAuthorizedAuditLogsOffset
 	-- @authorize_filter
