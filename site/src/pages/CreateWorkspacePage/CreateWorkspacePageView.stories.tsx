@@ -116,6 +116,38 @@ export const Parameters: Story = {
 	},
 };
 
+export const Presets: Story = {
+	args: {
+		presets: [
+			{
+				ID: "preset-1",
+				Name: "Preset 1",
+				Parameters: [
+					{
+						Name: MockTemplateVersionParameter1.name,
+						Value: "preset 1 override",
+					},
+				],
+			},
+			{
+				ID: "preset-2",
+				Name: "Preset 2",
+				Parameters: [
+					{
+						Name: MockTemplateVersionParameter2.name,
+						Value: "42",
+					},
+				],
+			},
+		],
+		parameters: [
+			MockTemplateVersionParameter1,
+			MockTemplateVersionParameter2,
+			MockTemplateVersionParameter3,
+		],
+	},
+};
+
 export const ExternalAuth: Story = {
 	args: {
 		externalAuth: [
