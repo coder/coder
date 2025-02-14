@@ -9,7 +9,7 @@ import (
 	"golang.org/x/xerrors"
 )
 
-func Claim(ctx context.Context, store database.Store, userID uuid.UUID, name string) (*uuid.UUID, error) {
+func Claim(ctx context.Context, store database.Store, userID uuid.UUID, name string, presetID uuid.UUID) (*uuid.UUID, error) {
 	var prebuildID *uuid.UUID
 	err := store.InTx(func(db database.Store) error {
 		// TODO: do we need this?
@@ -22,6 +22,7 @@ func Claim(ctx context.Context, store database.Store, userID uuid.UUID, name str
 		result, err := db.ClaimPrebuild(ctx, database.ClaimPrebuildParams{
 			NewUserID: userID,
 			NewName:   name,
+			PresetID:  presetID,
 		})
 		if err != nil {
 			switch {

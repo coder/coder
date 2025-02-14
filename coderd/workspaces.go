@@ -633,12 +633,18 @@ func createWorkspace(
 		runningWorkspaceAgentID uuid.UUID
 	)
 	err = api.Database.InTx(func(db database.Store) error {
-		var workspaceID uuid.UUID
+		var (
+			workspaceID      uuid.UUID
+			claimedWorkspace *database.Workspace
+		)
 
-		// Try and claim an eligible prebuild, if available.
-		claimedWorkspace, err := claimPrebuild(ctx, db, api.Logger, req, owner)
-		if err != nil {
-			return xerrors.Errorf("claim prebuild: %w", err)
+		// If a template preset was chosen, try claim a prebuild.
+		if req.TemplateVersionPresetID != uuid.Nil {
+			// Try and claim an eligible prebuild, if available.
+			claimedWorkspace, err = claimPrebuild(ctx, db, api.Logger, req, owner)
+			if err != nil {
+				return xerrors.Errorf("claim prebuild: %w", err)
+			}
 		}
 
 		// No prebuild found; regular flow.
@@ -813,9 +819,7 @@ func claimPrebuild(ctx context.Context, db database.Store, logger slog.Logger, r
 	claimCtx, cancel := context.WithTimeout(ownerCtx, time.Second*10) // TODO: don't use elevated authz context
 	defer cancel()
 
-	// TODO: implement matching logic
-	// TODO: pass down rich params for matching
-	claimedID, err := prebuilds.Claim(claimCtx, db, owner.ID, req.Name)
+	claimedID, err := prebuilds.Claim(claimCtx, db, owner.ID, req.Name, req.TemplateVersionPresetID)
 	if err != nil {
 		// TODO: enhance this by clarifying whether this *specific* prebuild failed or whether there are none to claim.
 		return nil, xerrors.Errorf("claim prebuild: %w", err)

@@ -5408,6 +5408,7 @@ WHERE w.id IN (SELECT p.id
 			   WHERE (b.transition = 'start'::workspace_transition
 				   AND pj.job_status IN ('succeeded'::provisioner_job_status))
 				 AND b.template_version_id = t.active_version_id
+				 AND b.template_version_preset_id = $3::uuid
 			   ORDER BY random()
 			   LIMIT 1 FOR UPDATE OF p SKIP LOCKED)
 RETURNING w.id, w.name
@@ -5416,6 +5417,7 @@ RETURNING w.id, w.name
 type ClaimPrebuildParams struct {
 	NewUserID uuid.UUID `db:"new_user_id" json:"new_user_id"`
 	NewName   string    `db:"new_name" json:"new_name"`
+	PresetID  uuid.UUID `db:"preset_id" json:"preset_id"`
 }
 
 type ClaimPrebuildRow struct {
@@ -5425,7 +5427,7 @@ type ClaimPrebuildRow struct {
 
 // TODO: rewrite to use named CTE instead?
 func (q *sqlQuerier) ClaimPrebuild(ctx context.Context, arg ClaimPrebuildParams) (ClaimPrebuildRow, error) {
-	row := q.db.QueryRowContext(ctx, claimPrebuild, arg.NewUserID, arg.NewName)
+	row := q.db.QueryRowContext(ctx, claimPrebuild, arg.NewUserID, arg.NewName, arg.PresetID)
 	var i ClaimPrebuildRow
 	err := row.Scan(&i.ID, &i.Name)
 	return i, err

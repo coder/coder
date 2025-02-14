@@ -105,6 +105,7 @@ WHERE w.id IN (SELECT p.id
 			   WHERE (b.transition = 'start'::workspace_transition
 				   AND pj.job_status IN ('succeeded'::provisioner_job_status))
 				 AND b.template_version_id = t.active_version_id
+				 AND b.template_version_preset_id = @preset_id::uuid
 			   ORDER BY random()
 			   LIMIT 1 FOR UPDATE OF p SKIP LOCKED)
 RETURNING w.id, w.name;
