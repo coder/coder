@@ -164,15 +164,6 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	);
 
 	useEffect(() => {
-		// TODO (sasswart): test case: what if immutable parameters are used in the preset?
-		// TODO (sasswart): test case: what if presets are defined for a template version with no params?
-		// TODO (sasswart): test case: what if a non active version is selected?
-		// TODO (sasswart): test case: what if a preset is selected that has no parameters?
-		// TODO (sasswart): what if we have preset params and autofill params on the same param?
-		// TODO (sasswart): test case: if we move from preset to no preset, do we reset the params?
-		// If so, how should it behave? Reset to initial value? reset to last set value?
-		// TODO (sasswart): test case: rich parameters
-
 		const selectedPresetOption = presetOptions[selectedPresetIndex];
 		let selectedPreset: TypesGen.Preset | undefined;
 		for (const preset of presets) {
