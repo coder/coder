@@ -7,6 +7,7 @@ import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
 import { health, refreshHealth } from "api/queries/debug";
 import type { HealthSeverity } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { type ClassName, useClassName } from "hooks/useClassName";
 import kebabCase from "lodash/fp/kebabCase";
@@ -18,7 +19,6 @@ import { NavLink, Outlet } from "react-router-dom";
 import { createDayString } from "utils/createDayString";
 import { pageTitle } from "utils/page";
 import { HealthIcon } from "./Content";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
 
 export const HealthLayout: FC = () => {
 	const theme = useTheme();
