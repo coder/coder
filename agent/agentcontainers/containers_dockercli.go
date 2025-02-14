@@ -31,9 +31,12 @@ func NewDocker(execer agentexec.Execer) Lister {
 	}
 }
 
+// WrapFn is a function that wraps a command and its arguments with another command and arguments.
+type WrapFn func(cmd string, args ...string) (string, []string)
+
 // WrapDockerExec returns a WrapFn that wraps the given command and arguments
 // with a docker exec command that runs as the given user in the given container.
-func WrapDockerExec(containerName, userName string) agentexec.WrapFn {
+func WrapDockerExec(containerName, userName string) WrapFn {
 	return func(cmd string, args ...string) (string, []string) {
 		dockerArgs := []string{"exec", "--interactive"}
 		if userName != "" {
@@ -45,7 +48,7 @@ func WrapDockerExec(containerName, userName string) agentexec.WrapFn {
 }
 
 // WrapDockerExecPTY is similar to WrapDockerExec but also allocates a PTY.
-func WrapDockerExecPTY(containerName, userName string) agentexec.WrapFn {
+func WrapDockerExecPTY(containerName, userName string) WrapFn {
 	return func(cmd string, args ...string) (string, []string) {
 		dockerArgs := []string{"exec", "--interactive", "--tty"}
 		if userName != "" {

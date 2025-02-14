@@ -1,7 +1,6 @@
 package agentcontainers
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"strconv"
@@ -19,7 +18,6 @@ import (
 
 	"github.com/coder/coder/v2/agent/agentcontainers/acmock"
 	"github.com/coder/coder/v2/agent/agentexec"
-	"github.com/coder/coder/v2/agent/agentexec/execmock"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/pty"
 	"github.com/coder/coder/v2/testutil"
@@ -75,8 +73,8 @@ func TestIntegrationDocker(t *testing.T) {
 	})
 
 	dcl := NewDocker(agentexec.DefaultExecer)
-	wex := agentexec.Wrap(agentexec.DefaultExecer, WrapDockerExec(ct.Container.Name, ""))
-	wexpty := agentexec.Wrap(agentexec.DefaultExecer, WrapDockerExecPTY(ct.Container.Name, ""))
+	wex := WrapDockerExec(ct.Container.Name, "")
+	wexpty := WrapDockerExecPTY(ct.Container.Name, "")
 	ctx := testutil.Context(t, testutil.WaitShort)
 	actual, err := dcl.List(ctx)
 	require.NoError(t, err, "Could not list containers")
@@ -101,7 +99,8 @@ func TestIntegrationDocker(t *testing.T) {
 				assert.Equal(t, testTempDir, foundContainer.Volumes[testTempDir])
 			}
 			// Test command execution
-			cmd := wex.CommandContext(ctx, "cat", "/etc/hostname")
+			wrappedCmd, wrappedArgs := wex("cat", "/etc/hostname")
+			cmd := agentexec.DefaultExecer.CommandContext(ctx, wrappedCmd, wrappedArgs...)
 			out, err := cmd.CombinedOutput()
 			if !assert.NoError(t, err) {
 				t.Logf("Container %q exited with error: %v", ct.Container.ID, err)
@@ -109,8 +108,10 @@ func TestIntegrationDocker(t *testing.T) {
 				t.FailNow()
 			}
 			require.Equal(t, ct.Container.Config.Hostname, strings.TrimSpace(string(out)))
+
 			// Test command execution with PTY
-			ptyCmd, ptyPs, err := pty.Start(wexpty.PTYCommandContext(ctx, "/bin/sh"))
+			ptyWrappedCmd, ptyWrappedArgs := wexpty("/bin/sh")
+			ptyCmd, ptyPs, err := pty.Start(agentexec.DefaultExecer.PTYCommandContext(ctx, ptyWrappedCmd, ptyWrappedArgs...))
 			require.NoError(t, err, "failed to start pty command")
 			t.Cleanup(func() {
 				_ = ptyPs.Kill()
@@ -131,7 +132,7 @@ func TestWrapDockerExec(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name    string
-		wrapFn  agentexec.WrapFn
+		wrapFn  WrapFn
 		cmdArgs []string
 		wantCmd []string
 	}{
@@ -175,11 +176,9 @@ func TestWrapDockerExec(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			ctrl := gomock.NewController(t)
-			mExec := execmock.NewMockExecer(ctrl)
-			mExec.EXPECT().CommandContext(gomock.Any(), tt.wantCmd[0], tt.wantCmd[1:]).Return(nil)
-			wex := agentexec.Wrap(mExec, tt.wrapFn)
-			_ = wex.CommandContext(context.Background(), tt.cmdArgs[0], tt.cmdArgs[1:]...)
+			actualCmd, actualArgs := tt.wrapFn(tt.cmdArgs[0], tt.cmdArgs[1:]...)
+			assert.Equal(t, tt.wantCmd[0], actualCmd)
+			assert.Equal(t, tt.wantCmd[1:], actualArgs)
 		})
 	}
 }
