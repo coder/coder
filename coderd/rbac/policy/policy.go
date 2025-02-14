@@ -306,6 +306,7 @@ var RBACPermissions = map[string]PermissionDefinition{
 		Actions: map[Action]ActionDefinition{
 			ActionRead:   actDef("read workspace agent resource monitor"),
 			ActionCreate: actDef("create workspace agent resource monitor"),
+			ActionUpdate: actDef("update workspace agent resource monitor"),
 		},
 	},
 }

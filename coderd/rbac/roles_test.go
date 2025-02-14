@@ -779,7 +779,7 @@ func TestRolePermissions(t *testing.T) {
 		},
 		{
 			Name:     "ResourceMonitor",
-			Actions:  []policy.Action{policy.ActionRead, policy.ActionCreate},
+			Actions:  []policy.Action{policy.ActionRead, policy.ActionCreate, policy.ActionUpdate},
 			Resource: rbac.ResourceWorkspaceAgentResourceMonitor,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true: {owner},
