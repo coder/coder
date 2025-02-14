@@ -230,7 +230,7 @@ func (t *Tunnel) start(req *StartRequest) error {
 	if apiToken == "" {
 		return xerrors.New("missing api token")
 	}
-	var header http.Header
+	header := make(http.Header)
 	for _, h := range req.GetHeaders() {
 		header.Add(h.GetName(), h.GetValue())
 	}
