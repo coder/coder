@@ -473,6 +473,70 @@ func TestParseQueryParams(t *testing.T) {
 		testQueryParams(t, expParams, parser, parser.UUIDs)
 	})
 
+	t.Run("JSONStringMap", func(t *testing.T) {
+		t.Parallel()
+
+		expParams := []queryParamTestCase[map[string]string]{
+			{
+				QueryParam: "valid_map",
+				Value:      `{"key1": "value1", "key2": "value2"}`,
+				Expected: map[string]string{
+					"key1": "value1",
+					"key2": "value2",
+				},
+			},
+			{
+				QueryParam: "empty",
+				Value:      "{}",
+				Default:    map[string]string{},
+				Expected:   map[string]string{},
+			},
+			{
+				QueryParam: "no_value",
+				NoSet:      true,
+				Default:    map[string]string{},
+				Expected:   map[string]string{},
+			},
+			{
+				QueryParam: "default",
+				NoSet:      true,
+				Default:    map[string]string{"key": "value"},
+				Expected:   map[string]string{"key": "value"},
+			},
+			{
+				QueryParam: "null",
+				Value:      "null",
+				Expected:   map[string]string(nil),
+			},
+			{
+				QueryParam: "undefined",
+				Value:      "undefined",
+				Expected:   map[string]string(nil),
+			},
+			{
+				QueryParam:            "invalid_map",
+				Value:                 `{"key1": "value1", "key2": "value2"`, // missing closing brace
+				Expected:              map[string]string(nil),
+				Default:               map[string]string{},
+				ExpectedErrorContains: `Query param "invalid_map" must be a valid JSON object: unexpected EOF`,
+			},
+			{
+				QueryParam:            "incorrect_type",
+				Value:                 `{"key1": 1, "key2": true}`,
+				Expected:              map[string]string(nil),
+				ExpectedErrorContains: `Query param "incorrect_type" must be a valid JSON object: json: cannot unmarshal number into Go value of type string`,
+			},
+			{
+				QueryParam:            "multiple_keys",
+				Values:                []string{`{"key1": "value1"}`, `{"key2": "value2"}`},
+				Expected:              map[string]string(nil),
+				ExpectedErrorContains: `Query param "multiple_keys" provided more than once, found 2 times.`,
+			},
+		}
+		parser := httpapi.NewQueryParamParser()
+		testQueryParams(t, expParams, parser, parser.JSONStringMap)
+	})
+
 	t.Run("Required", func(t *testing.T) {
 		t.Parallel()
 
