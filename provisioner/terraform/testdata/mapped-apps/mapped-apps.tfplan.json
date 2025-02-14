@@ -1,6 +1,6 @@
 {
   "format_version": "1.2",
-  "terraform_version": "1.9.8",
+  "terraform_version": "1.10.5",
   "planned_values": {
     "root_module": {
       "resources": [
@@ -10,27 +10,28 @@
           "type": "coder_agent",
           "name": "dev",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 1,
+          "schema_version": 0,
           "values": {
             "arch": "amd64",
             "auth": "token",
             "connection_timeout": 120,
             "dir": null,
             "env": null,
+            "login_before_ready": true,
             "metadata": [],
             "motd_file": null,
             "order": null,
             "os": "linux",
-            "resources_monitoring": [],
             "shutdown_script": null,
+            "shutdown_script_timeout": 300,
             "startup_script": null,
-            "startup_script_behavior": "non-blocking",
+            "startup_script_behavior": null,
+            "startup_script_timeout": 300,
             "troubleshooting_url": null
           },
           "sensitive_values": {
             "display_apps": [],
             "metadata": [],
-            "resources_monitoring": [],
             "token": true
           }
         },
@@ -41,16 +42,16 @@
           "name": "apps",
           "index": "app1",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 1,
+          "schema_version": 0,
           "values": {
             "command": null,
             "display_name": "app1",
             "external": false,
             "healthcheck": [],
-            "hidden": false,
             "icon": null,
-            "open_in": "slim-window",
+            "name": null,
             "order": null,
+            "relative_path": null,
             "share": "owner",
             "slug": "app1",
             "subdomain": null,
@@ -67,16 +68,16 @@
           "name": "apps",
           "index": "app2",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 1,
+          "schema_version": 0,
           "values": {
             "command": null,
             "display_name": "app2",
             "external": false,
             "healthcheck": [],
-            "hidden": false,
             "icon": null,
-            "open_in": "slim-window",
+            "name": null,
             "order": null,
+            "relative_path": null,
             "share": "owner",
             "slug": "app2",
             "subdomain": null,
@@ -119,14 +120,16 @@
           "connection_timeout": 120,
           "dir": null,
           "env": null,
+          "login_before_ready": true,
           "metadata": [],
           "motd_file": null,
           "order": null,
           "os": "linux",
-          "resources_monitoring": [],
           "shutdown_script": null,
+          "shutdown_script_timeout": 300,
           "startup_script": null,
-          "startup_script_behavior": "non-blocking",
+          "startup_script_behavior": null,
+          "startup_script_timeout": 300,
           "troubleshooting_url": null
         },
         "after_unknown": {
@@ -134,14 +137,12 @@
           "id": true,
           "init_script": true,
           "metadata": [],
-          "resources_monitoring": [],
           "token": true
         },
         "before_sensitive": false,
         "after_sensitive": {
           "display_apps": [],
           "metadata": [],
-          "resources_monitoring": [],
           "token": true
         }
       }
@@ -163,10 +164,10 @@
           "display_name": "app1",
           "external": false,
           "healthcheck": [],
-          "hidden": false,
           "icon": null,
-          "open_in": "slim-window",
+          "name": null,
           "order": null,
+          "relative_path": null,
           "share": "owner",
           "slug": "app1",
           "subdomain": null,
@@ -200,10 +201,10 @@
           "display_name": "app2",
           "external": false,
           "healthcheck": [],
-          "hidden": false,
           "icon": null,
-          "open_in": "slim-window",
+          "name": null,
           "order": null,
+          "relative_path": null,
           "share": "owner",
           "slug": "app2",
           "subdomain": null,
@@ -270,7 +271,7 @@
               "constant_value": "linux"
             }
           },
-          "schema_version": 1
+          "schema_version": 0
         },
         {
           "address": "coder_app.apps",
@@ -297,7 +298,7 @@
               ]
             }
           },
-          "schema_version": 1,
+          "schema_version": 0,
           "for_each_expression": {
             "references": [
               "local.apps_map"
@@ -326,7 +327,7 @@
       ]
     }
   ],
-  "timestamp": "2025-01-29T22:47:59Z",
+  "timestamp": "2025-02-10T21:13:12Z",
   "applyable": true,
   "complete": true,
   "errored": false

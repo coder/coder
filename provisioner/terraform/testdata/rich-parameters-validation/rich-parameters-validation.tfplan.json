@@ -1,6 +1,6 @@
 {
   "format_version": "1.2",
-  "terraform_version": "1.9.8",
+  "terraform_version": "1.10.5",
   "planned_values": {
     "root_module": {
       "resources": [
@@ -10,27 +10,28 @@
           "type": "coder_agent",
           "name": "dev",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 1,
+          "schema_version": 0,
           "values": {
             "arch": "arm64",
             "auth": "token",
             "connection_timeout": 120,
             "dir": null,
             "env": null,
+            "login_before_ready": true,
             "metadata": [],
             "motd_file": null,
             "order": null,
             "os": "windows",
-            "resources_monitoring": [],
             "shutdown_script": null,
+            "shutdown_script_timeout": 300,
             "startup_script": null,
-            "startup_script_behavior": "non-blocking",
+            "startup_script_behavior": null,
+            "startup_script_timeout": 300,
             "troubleshooting_url": null
           },
           "sensitive_values": {
             "display_apps": [],
             "metadata": [],
-            "resources_monitoring": [],
             "token": true
           }
         },
@@ -67,14 +68,16 @@
           "connection_timeout": 120,
           "dir": null,
           "env": null,
+          "login_before_ready": true,
           "metadata": [],
           "motd_file": null,
           "order": null,
           "os": "windows",
-          "resources_monitoring": [],
           "shutdown_script": null,
+          "shutdown_script_timeout": 300,
           "startup_script": null,
-          "startup_script_behavior": "non-blocking",
+          "startup_script_behavior": null,
+          "startup_script_timeout": 300,
           "troubleshooting_url": null
         },
         "after_unknown": {
@@ -82,14 +85,12 @@
           "id": true,
           "init_script": true,
           "metadata": [],
-          "resources_monitoring": [],
           "token": true
         },
         "before_sensitive": false,
         "after_sensitive": {
           "display_apps": [],
           "metadata": [],
-          "resources_monitoring": [],
           "token": true
         }
       }
@@ -118,7 +119,7 @@
   ],
   "prior_state": {
     "format_version": "1.0",
-    "terraform_version": "1.9.8",
+    "terraform_version": "1.10.5",
     "values": {
       "root_module": {
         "resources": [
@@ -135,7 +136,7 @@
               "display_name": null,
               "ephemeral": true,
               "icon": null,
-              "id": "30116bcb-f109-4807-be06-666a60b6cbb2",
+              "id": "b8837281-b791-4ae7-9d94-d3cab9160882",
               "mutable": true,
               "name": "number_example",
               "option": null,
@@ -162,7 +163,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "755395f4-d163-4b90-a8f4-e7ae24e17dd0",
+              "id": "232d3f50-e65b-4f2f-a7c6-fb3d786eddeb",
               "mutable": false,
               "name": "number_example_max",
               "option": null,
@@ -201,7 +202,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "dec9fa47-a252-4eb7-868b-10d0fe7bad57",
+              "id": "390a692e-3ec1-47ab-8996-95b14f1ecb74",
               "mutable": false,
               "name": "number_example_max_zero",
               "option": null,
@@ -240,7 +241,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "57107f82-107b-484d-8491-0787f051dca7",
+              "id": "57d63acc-9aa8-4d98-bca7-22334b1377d8",
               "mutable": false,
               "name": "number_example_min",
               "option": null,
@@ -279,7 +280,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "c21a61f4-26e0-49bb-99c8-56240433c21b",
+              "id": "18d4cb51-8e94-466b-8a84-d1155efd9d98",
               "mutable": false,
               "name": "number_example_min_max",
               "option": null,
@@ -318,7 +319,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "4894f5cc-f4e6-4a86-bdfa-36c9d3f8f1a3",
+              "id": "216dc758-c284-49bc-a19e-5c06cd5757f5",
               "mutable": false,
               "name": "number_example_min_zero",
               "option": null,
@@ -376,7 +377,7 @@
               "constant_value": "windows"
             }
           },
-          "schema_version": 1
+          "schema_version": 0
         },
         {
           "address": "null_resource.dev",
@@ -550,7 +551,7 @@
       ]
     }
   },
-  "timestamp": "2025-01-29T22:48:20Z",
+  "timestamp": "2025-02-10T21:13:12Z",
   "applyable": true,
   "complete": true,
   "errored": false

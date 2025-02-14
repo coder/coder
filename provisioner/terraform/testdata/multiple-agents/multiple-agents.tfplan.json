@@ -1,6 +1,6 @@
 {
   "format_version": "1.2",
-  "terraform_version": "1.9.8",
+  "terraform_version": "1.10.5",
   "planned_values": {
     "root_module": {
       "resources": [
@@ -10,27 +10,28 @@
           "type": "coder_agent",
           "name": "dev1",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 1,
+          "schema_version": 0,
           "values": {
             "arch": "amd64",
             "auth": "token",
             "connection_timeout": 120,
             "dir": null,
             "env": null,
+            "login_before_ready": true,
             "metadata": [],
             "motd_file": null,
             "order": null,
             "os": "linux",
-            "resources_monitoring": [],
             "shutdown_script": null,
+            "shutdown_script_timeout": 300,
             "startup_script": null,
-            "startup_script_behavior": "non-blocking",
+            "startup_script_behavior": null,
+            "startup_script_timeout": 300,
             "troubleshooting_url": null
           },
           "sensitive_values": {
             "display_apps": [],
             "metadata": [],
-            "resources_monitoring": [],
             "token": true
           }
         },
@@ -40,27 +41,28 @@
           "type": "coder_agent",
           "name": "dev2",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 1,
+          "schema_version": 0,
           "values": {
             "arch": "amd64",
             "auth": "token",
             "connection_timeout": 1,
             "dir": null,
             "env": null,
+            "login_before_ready": true,
             "metadata": [],
             "motd_file": "/etc/motd",
             "order": null,
             "os": "darwin",
-            "resources_monitoring": [],
             "shutdown_script": "echo bye bye",
+            "shutdown_script_timeout": 300,
             "startup_script": null,
             "startup_script_behavior": "non-blocking",
+            "startup_script_timeout": 300,
             "troubleshooting_url": null
           },
           "sensitive_values": {
             "display_apps": [],
             "metadata": [],
-            "resources_monitoring": [],
             "token": true
           }
         },
@@ -70,27 +72,28 @@
           "type": "coder_agent",
           "name": "dev3",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 1,
+          "schema_version": 0,
           "values": {
             "arch": "arm64",
             "auth": "token",
             "connection_timeout": 120,
             "dir": null,
             "env": null,
+            "login_before_ready": true,
             "metadata": [],
             "motd_file": null,
             "order": null,
             "os": "windows",
-            "resources_monitoring": [],
             "shutdown_script": null,
+            "shutdown_script_timeout": 300,
             "startup_script": null,
             "startup_script_behavior": "blocking",
+            "startup_script_timeout": 300,
             "troubleshooting_url": "https://coder.com/troubleshoot"
           },
           "sensitive_values": {
             "display_apps": [],
             "metadata": [],
-            "resources_monitoring": [],
             "token": true
           }
         },
@@ -100,27 +103,28 @@
           "type": "coder_agent",
           "name": "dev4",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 1,
+          "schema_version": 0,
           "values": {
             "arch": "amd64",
             "auth": "token",
             "connection_timeout": 120,
             "dir": null,
             "env": null,
+            "login_before_ready": true,
             "metadata": [],
             "motd_file": null,
             "order": null,
             "os": "linux",
-            "resources_monitoring": [],
             "shutdown_script": null,
+            "shutdown_script_timeout": 300,
             "startup_script": null,
-            "startup_script_behavior": "non-blocking",
+            "startup_script_behavior": null,
+            "startup_script_timeout": 300,
             "troubleshooting_url": null
           },
           "sensitive_values": {
             "display_apps": [],
             "metadata": [],
-            "resources_monitoring": [],
             "token": true
           }
         },
@@ -157,14 +161,16 @@
           "connection_timeout": 120,
           "dir": null,
           "env": null,
+          "login_before_ready": true,
           "metadata": [],
           "motd_file": null,
           "order": null,
           "os": "linux",
-          "resources_monitoring": [],
           "shutdown_script": null,
+          "shutdown_script_timeout": 300,
           "startup_script": null,
-          "startup_script_behavior": "non-blocking",
+          "startup_script_behavior": null,
+          "startup_script_timeout": 300,
           "troubleshooting_url": null
         },
         "after_unknown": {
@@ -172,14 +178,12 @@
           "id": true,
           "init_script": true,
           "metadata": [],
-          "resources_monitoring": [],
           "token": true
         },
         "before_sensitive": false,
         "after_sensitive": {
           "display_apps": [],
           "metadata": [],
-          "resources_monitoring": [],
           "token": true
         }
       }
@@ -201,14 +205,16 @@
           "connection_timeout": 1,
           "dir": null,
           "env": null,
+          "login_before_ready": true,
           "metadata": [],
           "motd_file": "/etc/motd",
           "order": null,
           "os": "darwin",
-          "resources_monitoring": [],
           "shutdown_script": "echo bye bye",
+          "shutdown_script_timeout": 300,
           "startup_script": null,
           "startup_script_behavior": "non-blocking",
+          "startup_script_timeout": 300,
           "troubleshooting_url": null
         },
         "after_unknown": {
@@ -216,14 +222,12 @@
           "id": true,
           "init_script": true,
           "metadata": [],
-          "resources_monitoring": [],
           "token": true
         },
         "before_sensitive": false,
         "after_sensitive": {
           "display_apps": [],
           "metadata": [],
-          "resources_monitoring": [],
           "token": true
         }
       }
@@ -245,14 +249,16 @@
           "connection_timeout": 120,
           "dir": null,
           "env": null,
+          "login_before_ready": true,
           "metadata": [],
           "motd_file": null,
           "order": null,
           "os": "windows",
-          "resources_monitoring": [],
           "shutdown_script": null,
+          "shutdown_script_timeout": 300,
           "startup_script": null,
           "startup_script_behavior": "blocking",
+          "startup_script_timeout": 300,
           "troubleshooting_url": "https://coder.com/troubleshoot"
         },
         "after_unknown": {
@@ -260,14 +266,12 @@
           "id": true,
           "init_script": true,
           "metadata": [],
-          "resources_monitoring": [],
           "token": true
         },
         "before_sensitive": false,
         "after_sensitive": {
           "display_apps": [],
           "metadata": [],
-          "resources_monitoring": [],
           "token": true
         }
       }
@@ -289,14 +293,16 @@
           "connection_timeout": 120,
           "dir": null,
           "env": null,
+          "login_before_ready": true,
           "metadata": [],
           "motd_file": null,
           "order": null,
           "os": "linux",
-          "resources_monitoring": [],
           "shutdown_script": null,
+          "shutdown_script_timeout": 300,
           "startup_script": null,
-          "startup_script_behavior": "non-blocking",
+          "startup_script_behavior": null,
+          "startup_script_timeout": 300,
           "troubleshooting_url": null
         },
         "after_unknown": {
@@ -304,14 +310,12 @@
           "id": true,
           "init_script": true,
           "metadata": [],
-          "resources_monitoring": [],
           "token": true
         },
         "before_sensitive": false,
         "after_sensitive": {
           "display_apps": [],
           "metadata": [],
-          "resources_monitoring": [],
           "token": true
         }
       }
@@ -366,7 +370,7 @@
               "constant_value": "linux"
             }
           },
-          "schema_version": 1
+          "schema_version": 0
         },
         {
           "address": "coder_agent.dev2",
@@ -394,7 +398,7 @@
               "constant_value": "non-blocking"
             }
           },
-          "schema_version": 1
+          "schema_version": 0
         },
         {
           "address": "coder_agent.dev3",
@@ -416,7 +420,7 @@
               "constant_value": "https://coder.com/troubleshoot"
             }
           },
-          "schema_version": 1
+          "schema_version": 0
         },
         {
           "address": "coder_agent.dev4",
@@ -432,7 +436,7 @@
               "constant_value": "linux"
             }
           },
-          "schema_version": 1
+          "schema_version": 0
         },
         {
           "address": "null_resource.dev",
@@ -451,7 +455,7 @@
       ]
     }
   },
-  "timestamp": "2025-01-29T22:48:01Z",
+  "timestamp": "2025-02-10T21:13:12Z",
   "applyable": true,
   "complete": true,
   "errored": false

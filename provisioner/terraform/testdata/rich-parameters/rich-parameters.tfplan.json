@@ -1,6 +1,6 @@
 {
   "format_version": "1.2",
-  "terraform_version": "1.9.8",
+  "terraform_version": "1.10.5",
   "planned_values": {
     "root_module": {
       "resources": [
@@ -10,27 +10,28 @@
           "type": "coder_agent",
           "name": "dev",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 1,
+          "schema_version": 0,
           "values": {
             "arch": "arm64",
             "auth": "token",
             "connection_timeout": 120,
             "dir": null,
             "env": null,
+            "login_before_ready": true,
             "metadata": [],
             "motd_file": null,
             "order": null,
             "os": "windows",
-            "resources_monitoring": [],
             "shutdown_script": null,
+            "shutdown_script_timeout": 300,
             "startup_script": null,
-            "startup_script_behavior": "non-blocking",
+            "startup_script_behavior": null,
+            "startup_script_timeout": 300,
             "troubleshooting_url": null
           },
           "sensitive_values": {
             "display_apps": [],
             "metadata": [],
-            "resources_monitoring": [],
             "token": true
           }
         },
@@ -67,14 +68,16 @@
           "connection_timeout": 120,
           "dir": null,
           "env": null,
+          "login_before_ready": true,
           "metadata": [],
           "motd_file": null,
           "order": null,
           "os": "windows",
-          "resources_monitoring": [],
           "shutdown_script": null,
+          "shutdown_script_timeout": 300,
           "startup_script": null,
-          "startup_script_behavior": "non-blocking",
+          "startup_script_behavior": null,
+          "startup_script_timeout": 300,
           "troubleshooting_url": null
         },
         "after_unknown": {
@@ -82,14 +85,12 @@
           "id": true,
           "init_script": true,
           "metadata": [],
-          "resources_monitoring": [],
           "token": true
         },
         "before_sensitive": false,
         "after_sensitive": {
           "display_apps": [],
           "metadata": [],
-          "resources_monitoring": [],
           "token": true
         }
       }
@@ -118,7 +119,7 @@
   ],
   "prior_state": {
     "format_version": "1.0",
-    "terraform_version": "1.9.8",
+    "terraform_version": "1.10.5",
     "values": {
       "root_module": {
         "resources": [
@@ -135,7 +136,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "72f11f9b-8c7f-4e4a-a207-f080b114862b",
+              "id": "b8e482c3-e55e-4587-abb1-a0db57b0f856",
               "mutable": false,
               "name": "Example",
               "option": [
@@ -179,7 +180,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "b154b8a7-d31f-46f7-b876-e5bfdf50950c",
+              "id": "c0b429f3-8621-422a-8655-27727b7b74f4",
               "mutable": false,
               "name": "number_example",
               "option": null,
@@ -206,7 +207,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "8199f88e-8b73-4385-bbb2-315182f753ef",
+              "id": "e0f9fa03-2392-4915-8ecb-a23fc612b448",
               "mutable": false,
               "name": "number_example_max_zero",
               "option": null,
@@ -245,7 +246,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "110c995d-46d7-4277-8f57-a3d3d42733c3",
+              "id": "cedeb060-be8d-4ba2-8b71-efeff24076be",
               "mutable": false,
               "name": "number_example_min_max",
               "option": null,
@@ -284,7 +285,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "e7a1f991-48a8-44c5-8a5c-597db8539cb7",
+              "id": "beae7c42-5723-4224-80c4-6d507613d32a",
               "mutable": false,
               "name": "number_example_min_zero",
               "option": null,
@@ -323,7 +324,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "27d12cdf-da7e-466b-907a-4824920305da",
+              "id": "e77e3fca-8635-44d3-b3b0-7077dbcaf485",
               "mutable": false,
               "name": "Sample",
               "option": null,
@@ -354,7 +355,7 @@
                   "display_name": null,
                   "ephemeral": false,
                   "icon": null,
-                  "id": "1242389a-5061-482a-8274-410174fb3fc0",
+                  "id": "faef5893-f4a7-4c82-bc7c-2b528adf9164",
                   "mutable": true,
                   "name": "First parameter from module",
                   "option": null,
@@ -381,7 +382,7 @@
                   "display_name": null,
                   "ephemeral": false,
                   "icon": null,
-                  "id": "72418f70-4e3c-400f-9a7d-bf3467598deb",
+                  "id": "d702a904-19e9-4e67-9bb9-744f440f1cd7",
                   "mutable": true,
                   "name": "Second parameter from module",
                   "option": null,
@@ -413,7 +414,7 @@
                       "display_name": null,
                       "ephemeral": false,
                       "icon": null,
-                      "id": "9b4b60d8-21bb-4d52-910a-536355e9a85f",
+                      "id": "9252f5d4-b66b-45b4-ba7a-3003423bb7f9",
                       "mutable": true,
                       "name": "First parameter from child module",
                       "option": null,
@@ -440,7 +441,7 @@
                       "display_name": null,
                       "ephemeral": false,
                       "icon": null,
-                      "id": "4edca123-07bf-4409-ad40-ed26f93beb5f",
+                      "id": "b988dcc9-e1c9-4146-8cc7-3841b8b7a51d",
                       "mutable": true,
                       "name": "Second parameter from child module",
                       "option": null,
@@ -497,7 +498,7 @@
               "constant_value": "windows"
             }
           },
-          "schema_version": 1
+          "schema_version": 0
         },
         {
           "address": "null_resource.dev",
@@ -793,7 +794,7 @@
       }
     }
   },
-  "timestamp": "2025-01-29T22:48:16Z",
+  "timestamp": "2025-02-10T21:13:13Z",
   "applyable": true,
   "complete": true,
   "errored": false

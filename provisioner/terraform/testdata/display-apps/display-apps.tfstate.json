@@ -1,6 +1,6 @@
 {
   "format_version": "1.0",
-  "terraform_version": "1.9.8",
+  "terraform_version": "1.10.5",
   "values": {
     "root_module": {
       "resources": [
@@ -10,7 +10,7 @@
           "type": "coder_agent",
           "name": "main",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 1,
+          "schema_version": 0,
           "values": {
             "arch": "amd64",
             "auth": "token",
@@ -26,17 +26,19 @@
               }
             ],
             "env": null,
-            "id": "810cdd01-a27d-442f-9e69-bdaecced8a59",
+            "id": "14e4d398-d5d7-46b3-a973-6bacf0b8fcb9",
             "init_script": "",
+            "login_before_ready": true,
             "metadata": [],
             "motd_file": null,
             "order": null,
             "os": "linux",
-            "resources_monitoring": [],
             "shutdown_script": null,
+            "shutdown_script_timeout": 300,
             "startup_script": null,
-            "startup_script_behavior": "non-blocking",
-            "token": "fade1b71-d52b-4ef2-bb05-961f7795bab9",
+            "startup_script_behavior": null,
+            "startup_script_timeout": 300,
+            "token": "674e1a7f-548c-4c59-9168-cfc830bbe620",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -44,7 +46,6 @@
               {}
             ],
             "metadata": [],
-            "resources_monitoring": [],
             "token": true
           }
         },
@@ -56,7 +57,7 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "5174735461860530782",
+            "id": "5306625577114392588",
             "triggers": null
           },
           "sensitive_values": {},
