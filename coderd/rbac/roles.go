@@ -297,18 +297,17 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		Identifier:  RoleAuditor(),
 		DisplayName: "Auditor",
 		Site: Permissions(map[string][]policy.Action{
-			// Should be able to read all template details, even in orgs they
-			// are not in.
-			ResourceTemplate.Type:    {policy.ActionRead, policy.ActionViewInsights},
-			ResourceAuditLog.Type:    {policy.ActionRead},
-			ResourceUser.Type:        {policy.ActionRead},
-			ResourceGroup.Type:       {policy.ActionRead},
-			ResourceGroupMember.Type: {policy.ActionRead},
+			ResourceAuditLog.Type: {policy.ActionRead},
+			// Allow auditors to see the resources that audit logs reflect.
+			ResourceTemplate.Type:           {policy.ActionRead, policy.ActionViewInsights},
+			ResourceUser.Type:               {policy.ActionRead},
+			ResourceGroup.Type:              {policy.ActionRead},
+			ResourceGroupMember.Type:        {policy.ActionRead},
+			ResourceOrganization.Type:       {policy.ActionRead},
+			ResourceOrganizationMember.Type: {policy.ActionRead},
 			// Allow auditors to query deployment stats and insights.
 			ResourceDeploymentStats.Type:  {policy.ActionRead},
 			ResourceDeploymentConfig.Type: {policy.ActionRead},
-			// Org roles are not really used yet, so grant the perm at the site level.
-			ResourceOrganizationMember.Type: {policy.ActionRead},
 		}),
 		Org:  map[string][]Permission{},
 		User: []Permission{},

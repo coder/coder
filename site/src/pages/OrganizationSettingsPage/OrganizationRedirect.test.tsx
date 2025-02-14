@@ -10,19 +10,29 @@ import {
 	waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
-import OrganizationSettingsPage from "./OrganizationSettingsPage";
+import OrganizationRedirect from "./OrganizationRedirect";
 
 jest.spyOn(console, "error").mockImplementation(() => {});
 
 const renderPage = async () => {
-	renderWithOrganizationSettingsLayout(<OrganizationSettingsPage />, {
-		route: "/organizations",
-		path: "/organizations/:organization?",
-	});
+	const { router } = renderWithOrganizationSettingsLayout(
+		<OrganizationRedirect />,
+		{
+			route: "/organizations",
+			path: "/organizations",
+			extraRoutes: [
+				{
+					path: "/organizations/:organization",
+					element: <h1>Organization Settings</h1>,
+				},
+			],
+		},
+	);
 	await waitForLoaderToBeRemoved();
+	return router;
 };
 
-describe("OrganizationSettingsPage", () => {
+describe("OrganizationRedirect", () => {
 	it("has no editable organizations", async () => {
 		server.use(
 			http.get("/api/v2/entitlements", () => {
@@ -32,9 +42,7 @@ describe("OrganizationSettingsPage", () => {
 				return HttpResponse.json([MockDefaultOrganization, MockOrganization2]);
 			}),
 			http.post("/api/v2/authcheck", async () => {
-				return HttpResponse.json({
-					viewDeploymentValues: true,
-				});
+				return HttpResponse.json({});
 			}),
 		);
 		await renderPage();
@@ -52,16 +60,19 @@ describe("OrganizationSettingsPage", () => {
 			}),
 			http.post("/api/v2/authcheck", async () => {
 				return HttpResponse.json({
-					[`${MockDefaultOrganization.id}.editOrganization`]: true,
-					[`${MockOrganization2.id}.editOrganization`]: true,
-					viewDeploymentValues: true,
+					viewAnyMembers: true,
+					[`${MockDefaultOrganization.id}.viewMembers`]: true,
+					[`${MockDefaultOrganization.id}.editMembers`]: true,
+					[`${MockOrganization2.id}.viewMembers`]: true,
+					[`${MockOrganization2.id}.editMembers`]: true,
 				});
 			}),
 		);
-		await renderPage();
-		const form = screen.getByTestId("org-settings-form");
-		expect(within(form).getByRole("textbox", { name: "Slug" })).toHaveValue(
-			MockDefaultOrganization.name,
+		const router = await renderPage();
+		const form = screen.getByText("Organization Settings");
+		expect(form).toBeInTheDocument();
+		expect(router.state.location.pathname).toBe(
+			`/organizations/${MockDefaultOrganization.name}`,
 		);
 	});
 
@@ -75,15 +86,18 @@ describe("OrganizationSettingsPage", () => {
 			}),
 			http.post("/api/v2/authcheck", async () => {
 				return HttpResponse.json({
-					[`${MockOrganization2.id}.editOrganization`]: true,
-					viewDeploymentValues: true,
+					viewAnyMembers: true,
+					[`${MockDefaultOrganization.id}.viewMembers`]: true,
+					[`${MockOrganization2.id}.viewMembers`]: true,
+					[`${MockOrganization2.id}.editMembers`]: true,
 				});
 			}),
 		);
-		await renderPage();
-		const form = screen.getByTestId("org-settings-form");
-		expect(within(form).getByRole("textbox", { name: "Slug" })).toHaveValue(
-			MockOrganization2.name,
+		const router = await renderPage();
+		const form = screen.getByText("Organization Settings");
+		expect(form).toBeInTheDocument();
+		expect(router.state.location.pathname).toBe(
+			`/organizations/${MockOrganization2.name}`,
 		);
 	});
 });

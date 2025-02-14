@@ -9,7 +9,7 @@ import {
 import {
 	withAuthProvider,
 	withDashboardProvider,
-	withManagementSettingsProvider,
+	withOrganizationSettingsProvider,
 } from "testHelpers/storybook";
 import OrganizationSettingsPage from "./OrganizationSettingsPage";
 
@@ -19,7 +19,7 @@ const meta: Meta<typeof OrganizationSettingsPage> = {
 	decorators: [
 		withAuthProvider,
 		withDashboardProvider,
-		withManagementSettingsProvider,
+		withOrganizationSettingsProvider,
 	],
 	parameters: {
 		showOrganizations: true,

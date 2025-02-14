@@ -1,5 +1,4 @@
 import { getErrorMessage } from "api/errors";
-import { organizationPermissions } from "api/queries/organizations";
 import { deleteOrganizationRole, organizationRoles } from "api/queries/roles";
 import type { Role } from "api/typesGenerated";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
@@ -22,13 +21,10 @@ export const CustomRolesPage: FC = () => {
 	const { organization: organizationName } = useParams() as {
 		organization: string;
 	};
-	const { organizations } = useOrganizationSettings();
-	const organization = organizations?.find((o) => o.name === organizationName);
-	const permissionsQuery = useQuery(organizationPermissions(organization?.id));
-	const deleteRoleMutation = useMutation(
-		deleteOrganizationRole(queryClient, organizationName),
-	);
+	const { organizationPermissions } = useOrganizationSettings();
+
 	const [roleToDelete, setRoleToDelete] = useState<Role>();
+
 	const organizationRolesQuery = useQuery(organizationRoles(organizationName));
 	const builtInRoles = organizationRolesQuery.data?.filter(
 		(role) => role.built_in,
@@ -36,7 +32,10 @@ export const CustomRolesPage: FC = () => {
 	const customRoles = organizationRolesQuery.data?.filter(
 		(role) => !role.built_in,
 	);
-	const permissions = permissionsQuery.data;
+
+	const deleteRoleMutation = useMutation(
+		deleteOrganizationRole(queryClient, organizationName),
+	);
 
 	useEffect(() => {
 		if (organizationRolesQuery.error) {
@@ -49,7 +48,7 @@ export const CustomRolesPage: FC = () => {
 		}
 	}, [organizationRolesQuery.error]);
 
-	if (!permissions) {
+	if (!organizationPermissions) {
 		return <Loader />;
 	}
 
@@ -74,7 +73,8 @@ export const CustomRolesPage: FC = () => {
 				builtInRoles={builtInRoles}
 				customRoles={customRoles}
 				onDeleteRole={setRoleToDelete}
-				canAssignOrgRole={permissions.assignOrgRole}
+				canAssignOrgRole={organizationPermissions.assignOrgRoles}
+				canCreateOrgRole={organizationPermissions.createOrgRoles}
 				isCustomRolesEnabled={isCustomRolesEnabled}
 			/>
 

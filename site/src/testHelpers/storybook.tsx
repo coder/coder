@@ -17,6 +17,7 @@ import {
 	MockDefaultOrganization,
 	MockDeploymentConfig,
 	MockEntitlements,
+	MockOrganizationPermissions,
 } from "./entities";
 
 export const withDashboardProvider = (
@@ -28,6 +29,7 @@ export const withDashboardProvider = (
 		experiments = [],
 		showOrganizations = false,
 		organizations = [MockDefaultOrganization],
+		canViewOrganizationSettings = false,
 	} = parameters;
 
 	const entitlements: Entitlements = {
@@ -48,9 +50,10 @@ export const withDashboardProvider = (
 			value={{
 				entitlements,
 				experiments,
+				appearance: MockAppearanceConfig,
 				organizations,
 				showOrganizations,
-				appearance: MockAppearanceConfig,
+				canViewOrganizationSettings,
 			}}
 		>
 			<Story />
@@ -153,12 +156,16 @@ export const withGlobalSnackbar = (Story: FC) => (
 	</>
 );
 
-export const withManagementSettingsProvider = (Story: FC) => {
+export const withOrganizationSettingsProvider = (Story: FC) => {
 	return (
 		<OrganizationSettingsContext.Provider
 			value={{
 				organizations: [MockDefaultOrganization],
+				organizationPermissionsByOrganizationId: {
+					[MockDefaultOrganization.id]: MockOrganizationPermissions,
+				},
 				organization: MockDefaultOrganization,
+				organizationPermissions: MockOrganizationPermissions,
 			}}
 		>
 			<DeploymentSettingsContext.Provider

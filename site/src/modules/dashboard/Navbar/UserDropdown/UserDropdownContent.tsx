@@ -22,6 +22,7 @@ import { Stack } from "components/Stack/Stack";
 import { usePopover } from "components/deprecated/Popover/Popover";
 import type { FC } from "react";
 import { Link } from "react-router-dom";
+
 export const Language = {
 	accountLabel: "Account",
 	signOutLabel: "Sign Out",
@@ -129,7 +130,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 					</a>
 				</Tooltip>
 
-				{Boolean(buildInfo?.deployment_id) && (
+				{buildInfo?.deployment_id && (
 					<div
 						css={css`
               font-size: 12px;
@@ -145,11 +146,11 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
                   text-overflow: ellipsis;
                 `}
 							>
-								{buildInfo?.deployment_id}
+								{buildInfo.deployment_id}
 							</div>
 						</Tooltip>
 						<CopyButton
-							text={buildInfo!.deployment_id}
+							text={buildInfo.deployment_id}
 							buttonStyles={css`
                 width: 16px;
                 height: 16px;
