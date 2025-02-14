@@ -188,6 +188,7 @@ func TestWrapDockerExec(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt // appease the linter even though this isn't needed anymore
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			actualCmd, actualArgs := tt.wrapFn(tt.cmdArgs[0], tt.cmdArgs[1:]...)
