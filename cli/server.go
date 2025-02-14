@@ -172,6 +172,17 @@ func createOIDCConfig(ctx context.Context, logger slog.Logger, vals *codersdk.De
 		groupAllowList[group] = true
 	}
 
+	secondaryClaimsSrc := coderd.MergedClaimsSourceUserInfo
+	if !vals.OIDC.IgnoreUserInfo && vals.OIDC.UserInfoFromAccessToken {
+		return nil, xerrors.Errorf("to use 'oidc-access-token-claims', 'oidc-ignore-userinfo' must be set to 'false'")
+	}
+	if vals.OIDC.IgnoreUserInfo {
+		secondaryClaimsSrc = coderd.MergedClaimsSourceNone
+	}
+	if vals.OIDC.UserInfoFromAccessToken {
+		secondaryClaimsSrc = coderd.MergedClaimsSourceAccessToken
+	}
+
 	return &coderd.OIDCConfig{
 		OAuth2Config: useCfg,
 		Provider:     oidcProvider,
@@ -187,7 +198,7 @@ func createOIDCConfig(ctx context.Context, logger slog.Logger, vals *codersdk.De
 		NameField:           vals.OIDC.NameField.String(),
 		EmailField:          vals.OIDC.EmailField.String(),
 		AuthURLParams:       vals.OIDC.AuthURLParams.Value,
-		IgnoreUserInfo:      vals.OIDC.IgnoreUserInfo.Value(),
+		SecondaryClaims:     secondaryClaimsSrc,
 		SignInText:          vals.OIDC.SignInText.String(),
 		SignupsDisabledText: vals.OIDC.SignupsDisabledText.String(),
 		IconURL:             vals.OIDC.IconURL.String(),
