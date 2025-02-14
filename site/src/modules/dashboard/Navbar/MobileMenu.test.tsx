@@ -3,7 +3,10 @@ import { includeOrigin } from "./MobileMenu";
 describe("support link", () => {
 	it("should include origin if target starts with '/'", () => {
 		const mockOrigin = "https://example.com";
+
+		// eslint-disable-next-line window object
 		delete (window as any).location; // Remove the existing location object
+		// eslint-disable-next-line window object
 		(window as any).location = { origin: mockOrigin }; // Mock the location origin
 
 		expect(includeOrigin("/test")).toBe("https://example.com/test");
