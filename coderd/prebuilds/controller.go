@@ -300,7 +300,7 @@ func (c Controller) reconcileTemplate(ctx context.Context, template database.Tem
 
 		var lastErr multierror.Error
 		for _, state := range versionStates {
-			vlogger := logger.With(slog.F("template_version_id", state.TemplateVersionID))
+			vlogger := logger.With(slog.F("template_version_id", state.TemplateVersionID), slog.F("preset_id", state.PresetID))
 
 			actions, err := c.calculateActions(innerCtx, template, state)
 			if err != nil {
@@ -334,14 +334,14 @@ func (c Controller) reconcileTemplate(ctx context.Context, template database.Tem
 			// TODO: probably need to split these to have a transaction each... rolling back would lead to an
 			// 		 inconsistent state if 1 of n creations/deletions fail.
 			for _, id := range actions.createIDs {
-				if err := c.createPrebuild(ownerCtx, db, id, template); err != nil {
+				if err := c.createPrebuild(ownerCtx, db, id, template, state.PresetID); err != nil {
 					vlogger.Error(ctx, "failed to create prebuild", slog.Error(err))
 					lastErr.Errors = append(lastErr.Errors, err)
 				}
 			}
 
 			for _, id := range actions.deleteIDs {
-				if err := c.deletePrebuild(ownerCtx, db, id, template); err != nil {
+				if err := c.deletePrebuild(ownerCtx, db, id, template, state.PresetID); err != nil {
 					vlogger.Error(ctx, "failed to delete prebuild", slog.Error(err))
 					lastErr.Errors = append(lastErr.Errors, err)
 				}
@@ -360,7 +360,7 @@ func (c Controller) reconcileTemplate(ctx context.Context, template database.Tem
 	return nil
 }
 
-func (c Controller) createPrebuild(ctx context.Context, db database.Store, prebuildID uuid.UUID, template database.Template) error {
+func (c Controller) createPrebuild(ctx context.Context, db database.Store, prebuildID uuid.UUID, template database.Template, presetID uuid.UUID) error {
 	name, err := generateName()
 	if err != nil {
 		return xerrors.Errorf("failed to generate unique prebuild ID: %w", err)
@@ -389,22 +389,24 @@ func (c Controller) createPrebuild(ctx context.Context, db database.Store, prebu
 		return xerrors.Errorf("get workspace by ID: %w", err)
 	}
 
-	c.logger.Info(ctx, "attempting to create prebuild", slog.F("name", name), slog.F("workspace_id", prebuildID.String()))
+	c.logger.Info(ctx, "attempting to create prebuild", slog.F("name", name),
+		slog.F("workspace_id", prebuildID.String()), slog.F("preset_id", presetID.String()))
 
-	return c.provision(ctx, db, prebuildID, template, database.WorkspaceTransitionStart, workspace)
+	return c.provision(ctx, db, prebuildID, template, presetID, database.WorkspaceTransitionStart, workspace)
 }
-func (c Controller) deletePrebuild(ctx context.Context, db database.Store, prebuildID uuid.UUID, template database.Template) error {
+func (c Controller) deletePrebuild(ctx context.Context, db database.Store, prebuildID uuid.UUID, template database.Template, presetID uuid.UUID) error {
 	workspace, err := db.GetWorkspaceByID(ctx, prebuildID)
 	if err != nil {
 		return xerrors.Errorf("get workspace by ID: %w", err)
 	}
 
-	c.logger.Info(ctx, "attempting to delete prebuild", slog.F("workspace_id", prebuildID.String()))
+	c.logger.Info(ctx, "attempting to delete prebuild",
+		slog.F("workspace_id", prebuildID.String()), slog.F("preset_id", presetID.String()))
 
-	return c.provision(ctx, db, prebuildID, template, database.WorkspaceTransitionDelete, workspace)
+	return c.provision(ctx, db, prebuildID, template, presetID, database.WorkspaceTransitionDelete, workspace)
 }
 
-func (c Controller) provision(ctx context.Context, db database.Store, prebuildID uuid.UUID, template database.Template, transition database.WorkspaceTransition, workspace database.Workspace) error {
+func (c Controller) provision(ctx context.Context, db database.Store, prebuildID uuid.UUID, template database.Template, presetID uuid.UUID, transition database.WorkspaceTransition, workspace database.Workspace) error {
 	tvp, err := db.GetPresetParametersByTemplateVersionID(ctx, template.ActiveVersionID)
 	if err != nil {
 		return xerrors.Errorf("fetch preset details: %w", err)
@@ -412,6 +414,11 @@ func (c Controller) provision(ctx context.Context, db database.Store, prebuildID
 
 	var params []codersdk.WorkspaceBuildParameter
 	for _, param := range tvp {
+		// TODO: don't fetch in the first place.
+		if param.TemplateVersionPresetID != presetID {
+			continue
+		}
+
 		params = append(params, codersdk.WorkspaceBuildParameter{
 			Name:  param.Name,
 			Value: param.Value,
@@ -423,7 +430,8 @@ func (c Controller) provision(ctx context.Context, db database.Store, prebuildID
 		Initiator(PrebuildOwnerUUID).
 		ActiveVersion().
 		VersionID(template.ActiveVersionID).
-		MarkPrebuild()
+		MarkPrebuild().
+		TemplateVersionPresetID(presetID)
 
 	// We only inject the required params when the prebuild is being created.
 	// This mirrors the behaviour of regular workspace deletion (see cli/delete.go).
@@ -450,7 +458,8 @@ func (c Controller) provision(ctx context.Context, db database.Store, prebuildID
 	}
 
 	c.logger.Info(ctx, "prebuild job scheduled", slog.F("transition", transition),
-		slog.F("prebuild_id", prebuildID.String()), slog.F("job_id", provisionerJob.ID))
+		slog.F("prebuild_id", prebuildID.String()), slog.F("preset_id", presetID.String()),
+		slog.F("job_id", provisionerJob.ID))
 
 	return nil
 }
