@@ -989,11 +989,15 @@ func (api *API) userAppearanceSettings(rw http.ResponseWriter, r *http.Request) 
 
 	themePreference, err := api.Database.GetUserAppearanceSettings(ctx, user.ID)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error updating user.",
-			Detail:  err.Error(),
-		})
-		return
+		if !errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Error reading user settings.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		themePreference = ""
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserAppearanceSettings{

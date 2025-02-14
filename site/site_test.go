@@ -65,6 +65,9 @@ func TestInjection(t *testing.T) {
 
 	handler.ServeHTTP(rw, r)
 	require.Equal(t, http.StatusOK, rw.Code)
+	fmt.Println("oh boy oh boy oh boy")
+	fmt.Println(rw.Body.String())
+	fmt.Println("oh boy oh boy oh boy")
 	var got codersdk.User
 	err := json.Unmarshal([]byte(html.UnescapeString(rw.Body.String())), &got)
 	require.NoError(t, err)

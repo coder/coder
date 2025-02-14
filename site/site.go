@@ -437,6 +437,10 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 	eg.Go(func() error {
 		var err error
 		themePreference, err = h.opts.Database.GetUserAppearanceSettings(ctx, apiKey.UserID)
+		if errors.Is(err, sql.ErrNoRows) {
+			themePreference = ""
+			return nil
+		}
 		return err
 	})
 	eg.Go(func() error {
