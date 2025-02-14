@@ -21,9 +21,6 @@ export const AppearancePage: FC = () => {
 		appearanceSettings(metadata.userAppearance),
 	);
 
-	console.log(metadata.userAppearance);
-	console.log(appearanceSettingsQuery.data);
-
 	if (appearanceSettingsQuery.isLoading) {
 		return <Loader />;
 	}
