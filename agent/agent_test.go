@@ -25,8 +25,14 @@ import (
 	"testing"
 	"time"
 
+	"go.uber.org/goleak"
+	"tailscale.com/net/speedtest"
+	"tailscale.com/tailcfg"
+
 	"github.com/bramvdbogaerde/go-scp"
 	"github.com/google/uuid"
+	"github.com/ory/dockertest/v3"
+	"github.com/ory/dockertest/v3/docker"
 	"github.com/pion/udp"
 	"github.com/pkg/sftp"
 	"github.com/prometheus/client_golang/prometheus"
@@ -34,16 +40,15 @@ import (
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/goleak"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
-	"tailscale.com/net/speedtest"
-	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/agent/proto"
@@ -1759,6 +1764,61 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 			require.Contains(t, string(bytes), "❯")
 		})
 	}
+}
+
+func TestAgent_ReconnectingPTYContainer(t *testing.T) {
+	t.Parallel()
+	if ctud, ok := os.LookupEnv("CODER_TEST_USE_DOCKER"); !ok || ctud != "1" {
+		t.Skip("Set CODER_TEST_USE_DOCKER=1 to run this test")
+	}
+
+	testLabelValue := uuid.NewString()
+	pool, err := dockertest.NewPool("")
+	require.NoError(t, err, "failed to create docker pool")
+	ct, err := pool.RunWithOptions(&dockertest.RunOptions{
+		Repository: "busybox",
+		Tag:        "latest",
+		Cmd:        []string{"sleep", "infnity"},
+		Labels:     map[string]string{"com.coder.test": testLabelValue},
+	}, func(config *docker.HostConfig) {
+		config.AutoRemove = true
+		config.RestartPolicy = docker.RestartPolicy{Name: "no"}
+	})
+	require.NoError(t, err, "failed to create test container")
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	//nolint:dogsled
+	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
+
+	reconnectID := uuid.New()
+	wrappedCmd, wrappedArgs := agentcontainers.WrapDockerExecPTY(ct.Container.ID, "")("/bin/sh", "--norc")
+	ac, err := conn.ReconnectingPTY(ctx, reconnectID, 80, 80, strings.Join(append([]string{wrappedCmd}, wrappedArgs...), " "))
+	require.NoError(t, err)
+	tr := testutil.NewTerminalReader(t, ac)
+	matchPrompt := func(line string) bool {
+		return strings.HasPrefix(strings.TrimSpace(line), "/ #")
+	}
+	matchHostnameCmd := func(line string) bool {
+		return strings.Contains(strings.TrimSpace(line), "hostname")
+	}
+	matchHostnameOuput := func(line string) bool {
+		return strings.Contains(strings.TrimSpace(line), ct.Container.Config.Hostname)
+	}
+	require.NoError(t, tr.ReadUntil(ctx, matchPrompt), "failed to match prompt")
+	t.Logf("Matched prompt")
+	data, err := json.Marshal(workspacesdk.ReconnectingPTYRequest{
+		Data: "hostname\r\n",
+	})
+	require.NoError(t, err)
+	_, err = ac.Write(data)
+	require.NoError(t, err, "failed to write to reconnecting pty")
+	t.Logf("Wrote hostname command")
+	require.NoError(t, tr.ReadUntil(ctx, matchHostnameCmd), "failed to match hostname command")
+	t.Logf("Matched hostname command")
+	require.NoError(t, tr.ReadUntil(ctx, matchHostnameOuput), "failed to match hostname output")
+	t.Logf("Matched hostname output")
 }
 
 func TestAgent_Dial(t *testing.T) {
