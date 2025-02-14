@@ -110,18 +110,32 @@ func TestIntegrationDocker(t *testing.T) {
 			require.Equal(t, ct.Container.Config.Hostname, strings.TrimSpace(string(out)))
 
 			// Test command execution with PTY
-			ptyWrappedCmd, ptyWrappedArgs := wexpty("/bin/sh")
+			ptyWrappedCmd, ptyWrappedArgs := wexpty("/bin/sh", "--norc")
 			ptyCmd, ptyPs, err := pty.Start(agentexec.DefaultExecer.PTYCommandContext(ctx, ptyWrappedCmd, ptyWrappedArgs...))
 			require.NoError(t, err, "failed to start pty command")
 			t.Cleanup(func() {
 				_ = ptyPs.Kill()
 				_ = ptyCmd.Close()
 			})
-			_, _ = ptyCmd.InputWriter().Write([]byte("hostname\r\n"))
-			var ptyOut []byte
-			_, err = ptyCmd.OutputReader().Read(ptyOut)
-			require.NoError(t, err, "failed to read pty output")
-			require.Equal(t, ct.Container.Config.Hostname, strings.TrimSpace(string(out)))
+			tr := testutil.NewTerminalReader(t, ptyCmd.OutputReader())
+			matchPrompt := func(line string) bool {
+				return strings.HasPrefix(strings.TrimSpace(line), "/ #")
+			}
+			matchHostnameCmd := func(line string) bool {
+				return strings.Contains(strings.TrimSpace(line), "hostname")
+			}
+			matchHostnameOuput := func(line string) bool {
+				return strings.Contains(strings.TrimSpace(line), ct.Container.Config.Hostname)
+			}
+			require.NoError(t, tr.ReadUntil(ctx, matchPrompt), "failed to match prompt")
+			t.Logf("Matched prompt")
+			_, err = ptyCmd.InputWriter().Write([]byte("hostname\r\n"))
+			require.NoError(t, err, "failed to write to pty")
+			t.Logf("Wrote hostname command")
+			require.NoError(t, tr.ReadUntil(ctx, matchHostnameCmd), "failed to match hostname command")
+			t.Logf("Matched hostname command")
+			require.NoError(t, tr.ReadUntil(ctx, matchHostnameOuput), "failed to match hostname output")
+			t.Logf("Matched hostname output")
 			break
 		}
 	}
