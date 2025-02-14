@@ -2097,7 +2097,7 @@ ALTER TABLE ONLY templates
     ADD CONSTRAINT templates_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY user_configs
-    ADD CONSTRAINT unique_key_per_user UNIQUE (user_id, key);
+    ADD CONSTRAINT user_configs_pkey PRIMARY KEY (user_id, key);
 
 ALTER TABLE ONLY user_deleted
     ADD CONSTRAINT user_deleted_pkey PRIMARY KEY (id);
@@ -2500,6 +2500,9 @@ ALTER TABLE ONLY templates
 
 ALTER TABLE ONLY templates
     ADD CONSTRAINT templates_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY user_configs
+    ADD CONSTRAINT user_configs_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY user_deleted
     ADD CONSTRAINT user_deleted_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);

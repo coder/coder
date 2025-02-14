@@ -11426,7 +11426,7 @@ INSERT INTO
 VALUES
 	($1, 'theme_preference', $2)
 ON CONFLICT
-	ON CONSTRAINT unique_key_per_user
+	ON CONSTRAINT user_configs_pkey
 DO UPDATE
 SET
 	value = $2

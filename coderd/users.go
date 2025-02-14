@@ -982,7 +982,7 @@ func (api *API) notifyUserStatusChanged(ctx context.Context, actingUserName stri
 // @Param user path string true "User ID, name, or me"
 // @Success 200 {object} codersdk.UserAppearanceSettings
 // @Router /users/{user}/appearance [get]
-func (api *API) getUserAppearanceSettings(rw http.ResponseWriter, r *http.Request) {
+func (api *API) userAppearanceSettings(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx  = r.Context()
 		user = httpmw.UserParam(r)

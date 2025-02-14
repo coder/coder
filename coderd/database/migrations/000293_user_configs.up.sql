@@ -7,11 +7,8 @@ CREATE TABLE IF NOT EXISTS user_configs (
 	FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
 
-ALTER TABLE ONLY user_configs
-    ADD CONSTRAINT unique_key_per_user UNIQUE (user_id, key);
 
-
---
+-- Copy "theme_preference" from "users" table
 INSERT INTO user_configs (user_id, key, value)
   SELECT id, 'theme_preference', theme_preference
     FROM users

@@ -113,7 +113,7 @@ INSERT INTO
 VALUES
 	(@user_id, 'theme_preference', @theme_preference)
 ON CONFLICT
-	ON CONSTRAINT unique_key_per_user
+	ON CONSTRAINT user_configs_pkey
 DO UPDATE
 SET
 	value = @theme_preference
