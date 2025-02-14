@@ -1,5 +1,7 @@
 import { action } from "@storybook/addon-actions";
 import type { Meta, StoryObj } from "@storybook/react";
+import { within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { chromatic } from "testHelpers/chromatic";
 import {
 	MockTemplate,
@@ -113,6 +115,47 @@ export const Parameters: Story = {
 				source: "url",
 			},
 		],
+	},
+};
+
+export const PresetsButNoneSelected: Story = {
+	args: {
+		presets: [
+			{
+				ID: "preset-1",
+				Name: "Preset 1",
+				Parameters: [
+					{
+						Name: MockTemplateVersionParameter1.name,
+						Value: "preset 1 override",
+					},
+				],
+			},
+			{
+				ID: "preset-2",
+				Name: "Preset 2",
+				Parameters: [
+					{
+						Name: MockTemplateVersionParameter2.name,
+						Value: "42",
+					},
+				],
+			},
+		],
+		parameters: [
+			MockTemplateVersionParameter1,
+			MockTemplateVersionParameter2,
+			MockTemplateVersionParameter3,
+		],
+	},
+};
+
+export const PresetSelected: Story = {
+	args: PresetsButNoneSelected.args,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByLabelText("Preset"));
+		await userEvent.click(canvas.getByText("Preset 1"));
 	},
 };
 
