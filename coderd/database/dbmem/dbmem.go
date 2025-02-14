@@ -4170,6 +4170,9 @@ func (q *FakeQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePosition
 		if len(arg.IDs) > 0 && !slices.Contains(arg.IDs, job.ID) {
 			continue
 		}
+		if len(arg.Tags) > 0 && !tagsSubset(job.Tags, arg.Tags) {
+			continue
+		}
 
 		row := database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow{
 			ProvisionerJob: rowQP.ProvisionerJob,
@@ -8158,6 +8161,7 @@ func (q *FakeQuerier) InsertPreset(_ context.Context, arg database.InsertPresetP
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
+	//nolint:gosimple // arg needs to keep its type for interface reasons and that type is not appropriate for preset below.
 	preset := database.TemplateVersionPreset{
 		ID:                uuid.New(),
 		TemplateVersionID: arg.TemplateVersionID,

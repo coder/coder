@@ -14,7 +14,7 @@ import (
 
 	"github.com/google/uuid"
 
-	agentproto "github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -50,7 +50,46 @@ type ResourcesMonitoringAPI struct {
 	MinimumNOKsToAlert int
 }
 
-func (a *ResourcesMonitoringAPI) PushResourcesMonitoringUsage(ctx context.Context, req *agentproto.PushResourcesMonitoringUsageRequest) (*agentproto.PushResourcesMonitoringUsageResponse, error) {
+func (a *ResourcesMonitoringAPI) GetResourcesMonitoringConfiguration(ctx context.Context, _ *proto.GetResourcesMonitoringConfigurationRequest) (*proto.GetResourcesMonitoringConfigurationResponse, error) {
+	memoryMonitor, memoryErr := a.Database.FetchMemoryResourceMonitorsByAgentID(ctx, a.AgentID)
+	if memoryErr != nil && !errors.Is(memoryErr, sql.ErrNoRows) {
+		return nil, xerrors.Errorf("failed to fetch memory resource monitor: %w", memoryErr)
+	}
+
+	volumeMonitors, err := a.Database.FetchVolumesResourceMonitorsByAgentID(ctx, a.AgentID)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to fetch volume resource monitors: %w", err)
+	}
+
+	return &proto.GetResourcesMonitoringConfigurationResponse{
+		Config: &proto.GetResourcesMonitoringConfigurationResponse_Config{
+			CollectionIntervalSeconds: 10,
+			NumDatapoints:             20,
+		},
+		Memory: func() *proto.GetResourcesMonitoringConfigurationResponse_Memory {
+			if memoryErr != nil {
+				return nil
+			}
+
+			return &proto.GetResourcesMonitoringConfigurationResponse_Memory{
+				Enabled: memoryMonitor.Enabled,
+			}
+		}(),
+		Volumes: func() []*proto.GetResourcesMonitoringConfigurationResponse_Volume {
+			volumes := make([]*proto.GetResourcesMonitoringConfigurationResponse_Volume, 0, len(volumeMonitors))
+			for _, monitor := range volumeMonitors {
+				volumes = append(volumes, &proto.GetResourcesMonitoringConfigurationResponse_Volume{
+					Enabled: monitor.Enabled,
+					Path:    monitor.Path,
+				})
+			}
+
+			return volumes
+		}(),
+	}, nil
+}
+
+func (a *ResourcesMonitoringAPI) PushResourcesMonitoringUsage(ctx context.Context, req *proto.PushResourcesMonitoringUsageRequest) (*proto.PushResourcesMonitoringUsageResponse, error) {
 	if err := a.monitorMemory(ctx, req.Datapoints); err != nil {
 		return nil, xerrors.Errorf("monitor memory: %w", err)
 	}
@@ -59,10 +98,10 @@ func (a *ResourcesMonitoringAPI) PushResourcesMonitoringUsage(ctx context.Contex
 		return nil, xerrors.Errorf("monitor volumes: %w", err)
 	}
 
-	return &agentproto.PushResourcesMonitoringUsageResponse{}, nil
+	return &proto.PushResourcesMonitoringUsageResponse{}, nil
 }
 
-func (a *ResourcesMonitoringAPI) monitorMemory(ctx context.Context, datapoints []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint) error {
+func (a *ResourcesMonitoringAPI) monitorMemory(ctx context.Context, datapoints []*proto.PushResourcesMonitoringUsageRequest_Datapoint) error {
 	monitor, err := a.Database.FetchMemoryResourceMonitorsByAgentID(ctx, a.AgentID)
 	if err != nil {
 		// It is valid for an agent to not have a memory monitor, so we
@@ -78,7 +117,7 @@ func (a *ResourcesMonitoringAPI) monitorMemory(ctx context.Context, datapoints [
 		return nil
 	}
 
-	usageDatapoints := make([]*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage, 0, len(datapoints))
+	usageDatapoints := make([]*proto.PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage, 0, len(datapoints))
 	for _, datapoint := range datapoints {
 		usageDatapoints = append(usageDatapoints, datapoint.Memory)
 	}
@@ -132,13 +171,13 @@ func (a *ResourcesMonitoringAPI) monitorMemory(ctx context.Context, datapoints [
 	return nil
 }
 
-func (a *ResourcesMonitoringAPI) monitorVolumes(ctx context.Context, datapoints []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint) error {
+func (a *ResourcesMonitoringAPI) monitorVolumes(ctx context.Context, datapoints []*proto.PushResourcesMonitoringUsageRequest_Datapoint) error {
 	volumeMonitors, err := a.Database.FetchVolumesResourceMonitorsByAgentID(ctx, a.AgentID)
 	if err != nil {
 		return xerrors.Errorf("get or insert volume monitor: %w", err)
 	}
 
-	volumes := make(map[string][]*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage)
+	volumes := make(map[string][]*proto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage)
 	for _, datapoint := range datapoints {
 		for _, volume := range datapoint.Volumes {
 			volumeDatapoints := volumes[volume.Volume]
@@ -249,7 +288,7 @@ func (a *ResourcesMonitoringAPI) calculateNextState(
 
 func calculateMemoryUsageStates(
 	monitor database.WorkspaceAgentMemoryResourceMonitor,
-	datapoints []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage,
+	datapoints []*proto.PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage,
 ) []database.WorkspaceAgentMonitorState {
 	states := make([]database.WorkspaceAgentMonitorState, 0, len(datapoints))
 
@@ -269,7 +308,7 @@ func calculateMemoryUsageStates(
 
 func calculateVolumeUsageStates(
 	monitor database.WorkspaceAgentVolumeResourceMonitor,
-	datapoints []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage,
+	datapoints []*proto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage,
 ) []database.WorkspaceAgentMonitorState {
 	states := make([]database.WorkspaceAgentMonitorState, 0, len(datapoints))
 

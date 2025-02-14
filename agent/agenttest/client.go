@@ -96,8 +96,8 @@ func (c *Client) Close() {
 	c.derpMapOnce.Do(func() { close(c.derpMapUpdates) })
 }
 
-func (c *Client) ConnectRPC23(ctx context.Context) (
-	agentproto.DRPCAgentClient23, proto.DRPCTailnetClient23, error,
+func (c *Client) ConnectRPC24(ctx context.Context) (
+	agentproto.DRPCAgentClient24, proto.DRPCTailnetClient24, error,
 ) {
 	conn, lis := drpcsdk.MemTransportPipe()
 	c.LastWorkspaceAgent = func() {
@@ -171,7 +171,9 @@ type FakeAgentAPI struct {
 	metadata        map[string]agentsdk.Metadata
 	timings         []*agentproto.Timing
 
-	getAnnouncementBannersFunc func() ([]codersdk.BannerConfig, error)
+	getAnnouncementBannersFunc              func() ([]codersdk.BannerConfig, error)
+	getResourcesMonitoringConfigurationFunc func() (*agentproto.GetResourcesMonitoringConfigurationResponse, error)
+	pushResourcesMonitoringUsageFunc        func(*agentproto.PushResourcesMonitoringUsageRequest) (*agentproto.PushResourcesMonitoringUsageResponse, error)
 }
 
 func (f *FakeAgentAPI) GetManifest(context.Context, *agentproto.GetManifestRequest) (*agentproto.Manifest, error) {
@@ -210,6 +212,33 @@ func (f *FakeAgentAPI) GetAnnouncementBanners(context.Context, *agentproto.GetAn
 		bannersProto = append(bannersProto, agentsdk.ProtoFromBannerConfig(banner))
 	}
 	return &agentproto.GetAnnouncementBannersResponse{AnnouncementBanners: bannersProto}, nil
+}
+
+func (f *FakeAgentAPI) GetResourcesMonitoringConfiguration(_ context.Context, _ *agentproto.GetResourcesMonitoringConfigurationRequest) (*agentproto.GetResourcesMonitoringConfigurationResponse, error) {
+	f.Lock()
+	defer f.Unlock()
+
+	if f.getResourcesMonitoringConfigurationFunc == nil {
+		return &agentproto.GetResourcesMonitoringConfigurationResponse{
+			Config: &agentproto.GetResourcesMonitoringConfigurationResponse_Config{
+				CollectionIntervalSeconds: 10,
+				NumDatapoints:             20,
+			},
+		}, nil
+	}
+
+	return f.getResourcesMonitoringConfigurationFunc()
+}
+
+func (f *FakeAgentAPI) PushResourcesMonitoringUsage(_ context.Context, req *agentproto.PushResourcesMonitoringUsageRequest) (*agentproto.PushResourcesMonitoringUsageResponse, error) {
+	f.Lock()
+	defer f.Unlock()
+
+	if f.pushResourcesMonitoringUsageFunc == nil {
+		return &agentproto.PushResourcesMonitoringUsageResponse{}, nil
+	}
+
+	return f.pushResourcesMonitoringUsageFunc(req)
 }
 
 func (f *FakeAgentAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsRequest) (*agentproto.UpdateStatsResponse, error) {
@@ -313,10 +342,6 @@ func (f *FakeAgentAPI) ScriptCompleted(_ context.Context, req *agentproto.Worksp
 	f.Unlock()
 
 	return &agentproto.WorkspaceAgentScriptCompletedResponse{}, nil
-}
-
-func (*FakeAgentAPI) PushResourcesMonitoringUsage(_ context.Context, _ *agentproto.PushResourcesMonitoringUsageRequest) (*agentproto.PushResourcesMonitoringUsageResponse, error) {
-	return &agentproto.PushResourcesMonitoringUsageResponse{}, nil
 }
 
 func NewFakeAgentAPI(t testing.TB, logger slog.Logger, manifest *agentproto.Manifest, statsCh chan *agentproto.Stats) *FakeAgentAPI {

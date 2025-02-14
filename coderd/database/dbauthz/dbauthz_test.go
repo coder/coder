@@ -886,7 +886,6 @@ func (s *MethodTestSuite) TestOrganization() {
 			JobID:             job.ID,
 		})
 		insertPresetParams := database.InsertPresetParams{
-			ID:                uuid.New(),
 			TemplateVersionID: workspaceBuild.TemplateVersionID,
 			Name:              "test",
 		}
@@ -3817,13 +3816,11 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			CreatedBy:      user.ID,
 		})
 		preset, err := db.InsertPreset(ctx, database.InsertPresetParams{
-			ID:                uuid.New(),
 			TemplateVersionID: templateVersion.ID,
 			Name:              "test",
 		})
 		require.NoError(s.T(), err)
 		_, err = db.InsertPresetParameters(ctx, database.InsertPresetParametersParams{
-			ID:                      uuid.New(),
 			TemplateVersionPresetID: preset.ID,
 			Names:                   []string{"test"},
 			Values:                  []string{"test"},
@@ -4728,7 +4725,7 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppTokens() {
 }
 
 func (s *MethodTestSuite) TestResourcesMonitor() {
-	createAgent := func(t *testing.T, db database.Store) database.WorkspaceAgent {
+	createAgent := func(t *testing.T, db database.Store) (database.WorkspaceAgent, database.WorkspaceTable) {
 		t.Helper()
 
 		u := dbgen.User(t, db, database.User{})
@@ -4758,11 +4755,11 @@ func (s *MethodTestSuite) TestResourcesMonitor() {
 		res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: b.JobID})
 		agt := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: res.ID})
 
-		return agt
+		return agt, w
 	}
 
 	s.Run("InsertMemoryResourceMonitor", s.Subtest(func(db database.Store, check *expects) {
-		agt := createAgent(s.T(), db)
+		agt, _ := createAgent(s.T(), db)
 
 		check.Args(database.InsertMemoryResourceMonitorParams{
 			AgentID: agt.ID,
@@ -4771,7 +4768,7 @@ func (s *MethodTestSuite) TestResourcesMonitor() {
 	}))
 
 	s.Run("InsertVolumeResourceMonitor", s.Subtest(func(db database.Store, check *expects) {
-		agt := createAgent(s.T(), db)
+		agt, _ := createAgent(s.T(), db)
 
 		check.Args(database.InsertVolumeResourceMonitorParams{
 			AgentID: agt.ID,
@@ -4780,7 +4777,7 @@ func (s *MethodTestSuite) TestResourcesMonitor() {
 	}))
 
 	s.Run("UpdateMemoryResourceMonitor", s.Subtest(func(db database.Store, check *expects) {
-		agt := createAgent(s.T(), db)
+		agt, _ := createAgent(s.T(), db)
 
 		check.Args(database.UpdateMemoryResourceMonitorParams{
 			AgentID: agt.ID,
@@ -4789,7 +4786,7 @@ func (s *MethodTestSuite) TestResourcesMonitor() {
 	}))
 
 	s.Run("UpdateVolumeResourceMonitor", s.Subtest(func(db database.Store, check *expects) {
-		agt := createAgent(s.T(), db)
+		agt, _ := createAgent(s.T(), db)
 
 		check.Args(database.UpdateVolumeResourceMonitorParams{
 			AgentID: agt.ID,
@@ -4798,7 +4795,7 @@ func (s *MethodTestSuite) TestResourcesMonitor() {
 	}))
 
 	s.Run("FetchMemoryResourceMonitorsByAgentID", s.Subtest(func(db database.Store, check *expects) {
-		agt := createAgent(s.T(), db)
+		agt, w := createAgent(s.T(), db)
 
 		dbgen.WorkspaceAgentMemoryResourceMonitor(s.T(), db, database.WorkspaceAgentMemoryResourceMonitor{
 			AgentID:   agt.ID,
@@ -4810,11 +4807,11 @@ func (s *MethodTestSuite) TestResourcesMonitor() {
 		monitor, err := db.FetchMemoryResourceMonitorsByAgentID(context.Background(), agt.ID)
 		require.NoError(s.T(), err)
 
-		check.Args(agt.ID).Asserts(rbac.ResourceWorkspaceAgentResourceMonitor, policy.ActionRead).Returns(monitor)
+		check.Args(agt.ID).Asserts(w, policy.ActionRead).Returns(monitor)
 	}))
 
 	s.Run("FetchVolumesResourceMonitorsByAgentID", s.Subtest(func(db database.Store, check *expects) {
-		agt := createAgent(s.T(), db)
+		agt, w := createAgent(s.T(), db)
 
 		dbgen.WorkspaceAgentVolumeResourceMonitor(s.T(), db, database.WorkspaceAgentVolumeResourceMonitor{
 			AgentID:   agt.ID,
@@ -4827,6 +4824,6 @@ func (s *MethodTestSuite) TestResourcesMonitor() {
 		monitors, err := db.FetchVolumesResourceMonitorsByAgentID(context.Background(), agt.ID)
 		require.NoError(s.T(), err)
 
-		check.Args(agt.ID).Asserts(rbac.ResourceWorkspaceAgentResourceMonitor, policy.ActionRead).Returns(monitors)
+		check.Args(agt.ID).Asserts(w, policy.ActionRead).Returns(monitors)
 	}))
 }

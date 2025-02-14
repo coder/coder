@@ -1438,7 +1438,9 @@ export interface OrganizationMemberWithUserData extends OrganizationMember {
 // From codersdk/organizations.go
 export interface OrganizationProvisionerJobsOptions {
 	readonly Limit: number;
+	readonly IDs: readonly string[];
 	readonly Status: readonly ProvisionerJobStatus[];
+	readonly Tags: Record<string, string>;
 }
 
 // From codersdk/idpsync.go
@@ -1548,6 +1550,19 @@ export const PostgresAuths: PostgresAuth[] = ["awsiamrds", "password"];
 export interface PprofConfig {
 	readonly enable: boolean;
 	readonly address: string;
+}
+
+// From codersdk/presets.go
+export interface Preset {
+	readonly ID: string;
+	readonly Name: string;
+	readonly Parameters: readonly PresetParameter[];
+}
+
+// From codersdk/presets.go
+export interface PresetParameter {
+	readonly Name: string;
+	readonly Value: string;
 }
 
 // From codersdk/deployment.go

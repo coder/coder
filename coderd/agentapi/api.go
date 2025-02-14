@@ -44,9 +44,9 @@ type API struct {
 	*LifecycleAPI
 	*AppsAPI
 	*MetadataAPI
+	*ResourcesMonitoringAPI
 	*LogsAPI
 	*ScriptsAPI
-	*ResourcesMonitoringAPI
 	*tailnet.DRPCService
 
 	mu sync.Mutex
@@ -111,6 +111,18 @@ func New(opts Options) *API {
 		appearanceFetcher: opts.AppearanceFetcher,
 	}
 
+	api.ResourcesMonitoringAPI = &ResourcesMonitoringAPI{
+		AgentID:               opts.AgentID,
+		WorkspaceID:           opts.WorkspaceID,
+		Clock:                 opts.Clock,
+		Database:              opts.Database,
+		NotificationsEnqueuer: opts.NotificationsEnqueuer,
+
+		// These values assume a window of 20
+		MinimumNOKsToAlert:     4,
+		ConsecutiveNOKsToAlert: 10,
+	}
+
 	api.StatsAPI = &StatsAPI{
 		AgentFn:                   api.agent,
 		Database:                  opts.Database,
@@ -152,18 +164,6 @@ func New(opts Options) *API {
 
 	api.ScriptsAPI = &ScriptsAPI{
 		Database: opts.Database,
-	}
-
-	api.ResourcesMonitoringAPI = &ResourcesMonitoringAPI{
-		AgentID:               opts.AgentID,
-		WorkspaceID:           opts.WorkspaceID,
-		Clock:                 opts.Clock,
-		Database:              opts.Database,
-		NotificationsEnqueuer: opts.NotificationsEnqueuer,
-
-		// These values assume a window of 20
-		MinimumNOKsToAlert:     4,
-		ConsecutiveNOKsToAlert: 10,
 	}
 
 	api.DRPCService = &tailnet.DRPCService{
