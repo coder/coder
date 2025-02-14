@@ -2425,7 +2425,11 @@ func (q *querier) GetUserActivityInsights(ctx context.Context, arg database.GetU
 }
 
 func (q *querier) GetUserAppearanceSettings(ctx context.Context, userID uuid.UUID) (string, error) {
-	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, rbac.ResourceUser); err != nil {
+	u, err := q.db.GetUserByID(ctx, userID)
+	if err != nil {
+		return "", err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, u); err != nil {
 		return "", err
 	}
 	return q.db.GetUserAppearanceSettings(ctx, userID)

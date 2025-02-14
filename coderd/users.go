@@ -973,8 +973,8 @@ func (api *API) notifyUserStatusChanged(ctx context.Context, actingUserName stri
 	return nil
 }
 
-// @Summary Update user appearance settings
-// @ID update-user-appearance-settings
+// @Summary Get user appearance settings
+// @ID get-user-appearance-settings
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
@@ -1003,7 +1003,7 @@ func (api *API) userAppearanceSettings(rw http.ResponseWriter, r *http.Request) 
 }
 
 // @Summary Update user appearance settings
-// @ID update-user-appearance-settings
+// @ID update-user-appearance-setting
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json

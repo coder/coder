@@ -6329,8 +6329,8 @@ const docTemplate = `{
                 "tags": [
                     "Users"
                 ],
-                "summary": "Update user appearance settings",
-                "operationId": "update-user-appearance-settings",
+                "summary": "Get user appearance settings",
+                "operationId": "get-user-appearance-settings",
                 "parameters": [
                     {
                         "type": "string",
