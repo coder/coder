@@ -5743,9 +5743,12 @@ SELECT
 	current_job.job_status AS current_job_status,
 	previous_job.id AS previous_job_id,
 	previous_job.job_status AS previous_job_status,
-	COALESCE(tmpl.name, ''::text) AS current_job_template_name,
-	COALESCE(tmpl.display_name, ''::text) AS current_job_template_display_name,
-	COALESCE(tmpl.icon, ''::text) AS current_job_template_icon
+	COALESCE(current_template.name, ''::text) AS current_job_template_name,
+	COALESCE(current_template.display_name, ''::text) AS current_job_template_display_name,
+	COALESCE(current_template.icon, ''::text) AS current_job_template_icon,
+	COALESCE(previous_template.name, ''::text) AS previous_job_template_name,
+	COALESCE(previous_template.display_name, ''::text) AS previous_job_template_display_name,
+	COALESCE(previous_template.icon, ''::text) AS previous_job_template_icon
 FROM
 	provisioner_daemons pd
 JOIN
@@ -5771,43 +5774,62 @@ LEFT JOIN
 		)
 	)
 LEFT JOIN
-	template_versions version ON version.id = (current_job.input->>'template_version_id')::uuid
+	workspace_builds current_build ON current_build.id = CASE WHEN current_job.input ? 'workspace_build_id' THEN (current_job.input->>'workspace_build_id')::uuid END
 LEFT JOIN
-	templates tmpl ON tmpl.id = version.template_id
+	-- We should always have a template version, either explicitly or implicitly via workspace build.
+	template_versions current_version ON current_version.id = CASE WHEN current_job.input ? 'template_version_id' THEN (current_job.input->>'template_version_id')::uuid ELSE current_build.template_version_id END
+LEFT JOIN
+	templates current_template ON current_template.id = current_version.template_id
+LEFT JOIN
+	workspace_builds previous_build ON previous_build.id = CASE WHEN previous_job.input ? 'workspace_build_id' THEN (previous_job.input->>'workspace_build_id')::uuid END
+LEFT JOIN
+	-- We should always have a template version, either explicitly or implicitly via workspace build.
+	template_versions previous_version ON previous_version.id = CASE WHEN previous_job.input ? 'template_version_id' THEN (previous_job.input->>'template_version_id')::uuid ELSE previous_build.template_version_id END
+LEFT JOIN
+	templates previous_template ON previous_template.id = previous_version.template_id
 WHERE
 	pd.organization_id = $2::uuid
 	AND (COALESCE(array_length($3::uuid[], 1), 0) = 0 OR pd.id = ANY($3::uuid[]))
 	AND ($4::tagset = 'null'::tagset OR provisioner_tagset_contains(pd.tags::tagset, $4::tagset))
 ORDER BY
 	pd.created_at ASC
+LIMIT
+	$5::int
 `
 
 type GetProvisionerDaemonsWithStatusByOrganizationParams struct {
-	StaleIntervalMS int64       `db:"stale_interval_ms" json:"stale_interval_ms"`
-	OrganizationID  uuid.UUID   `db:"organization_id" json:"organization_id"`
-	IDs             []uuid.UUID `db:"ids" json:"ids"`
-	Tags            StringMap   `db:"tags" json:"tags"`
+	StaleIntervalMS int64         `db:"stale_interval_ms" json:"stale_interval_ms"`
+	OrganizationID  uuid.UUID     `db:"organization_id" json:"organization_id"`
+	IDs             []uuid.UUID   `db:"ids" json:"ids"`
+	Tags            StringMap     `db:"tags" json:"tags"`
+	Limit           sql.NullInt32 `db:"limit" json:"limit"`
 }
 
 type GetProvisionerDaemonsWithStatusByOrganizationRow struct {
-	ProvisionerDaemon             ProvisionerDaemon        `db:"provisioner_daemon" json:"provisioner_daemon"`
-	Status                        ProvisionerDaemonStatus  `db:"status" json:"status"`
-	KeyName                       string                   `db:"key_name" json:"key_name"`
-	CurrentJobID                  uuid.NullUUID            `db:"current_job_id" json:"current_job_id"`
-	CurrentJobStatus              NullProvisionerJobStatus `db:"current_job_status" json:"current_job_status"`
-	PreviousJobID                 uuid.NullUUID            `db:"previous_job_id" json:"previous_job_id"`
-	PreviousJobStatus             NullProvisionerJobStatus `db:"previous_job_status" json:"previous_job_status"`
-	CurrentJobTemplateName        string                   `db:"current_job_template_name" json:"current_job_template_name"`
-	CurrentJobTemplateDisplayName string                   `db:"current_job_template_display_name" json:"current_job_template_display_name"`
-	CurrentJobTemplateIcon        string                   `db:"current_job_template_icon" json:"current_job_template_icon"`
+	ProvisionerDaemon              ProvisionerDaemon        `db:"provisioner_daemon" json:"provisioner_daemon"`
+	Status                         ProvisionerDaemonStatus  `db:"status" json:"status"`
+	KeyName                        string                   `db:"key_name" json:"key_name"`
+	CurrentJobID                   uuid.NullUUID            `db:"current_job_id" json:"current_job_id"`
+	CurrentJobStatus               NullProvisionerJobStatus `db:"current_job_status" json:"current_job_status"`
+	PreviousJobID                  uuid.NullUUID            `db:"previous_job_id" json:"previous_job_id"`
+	PreviousJobStatus              NullProvisionerJobStatus `db:"previous_job_status" json:"previous_job_status"`
+	CurrentJobTemplateName         string                   `db:"current_job_template_name" json:"current_job_template_name"`
+	CurrentJobTemplateDisplayName  string                   `db:"current_job_template_display_name" json:"current_job_template_display_name"`
+	CurrentJobTemplateIcon         string                   `db:"current_job_template_icon" json:"current_job_template_icon"`
+	PreviousJobTemplateName        string                   `db:"previous_job_template_name" json:"previous_job_template_name"`
+	PreviousJobTemplateDisplayName string                   `db:"previous_job_template_display_name" json:"previous_job_template_display_name"`
+	PreviousJobTemplateIcon        string                   `db:"previous_job_template_icon" json:"previous_job_template_icon"`
 }
 
+// Current job information.
+// Previous job information.
 func (q *sqlQuerier) GetProvisionerDaemonsWithStatusByOrganization(ctx context.Context, arg GetProvisionerDaemonsWithStatusByOrganizationParams) ([]GetProvisionerDaemonsWithStatusByOrganizationRow, error) {
 	rows, err := q.db.QueryContext(ctx, getProvisionerDaemonsWithStatusByOrganization,
 		arg.StaleIntervalMS,
 		arg.OrganizationID,
 		pq.Array(arg.IDs),
 		arg.Tags,
+		arg.Limit,
 	)
 	if err != nil {
 		return nil, err
@@ -5837,6 +5859,9 @@ func (q *sqlQuerier) GetProvisionerDaemonsWithStatusByOrganization(ctx context.C
 			&i.CurrentJobTemplateName,
 			&i.CurrentJobTemplateDisplayName,
 			&i.CurrentJobTemplateIcon,
+			&i.PreviousJobTemplateName,
+			&i.PreviousJobTemplateDisplayName,
+			&i.PreviousJobTemplateIcon,
 		); err != nil {
 			return nil, err
 		}
@@ -6472,6 +6497,7 @@ WHERE
 	($1::uuid IS NULL OR pj.organization_id = $1)
 	AND (COALESCE(array_length($2::uuid[], 1), 0) = 0 OR pj.id = ANY($2::uuid[]))
 	AND (COALESCE(array_length($3::provisioner_job_status[], 1), 0) = 0 OR pj.job_status = ANY($3::provisioner_job_status[]))
+	AND ($4::tagset = 'null'::tagset OR provisioner_tagset_contains(pj.tags::tagset, $4::tagset))
 GROUP BY
 	pj.id,
 	qp.queue_position,
@@ -6486,13 +6512,14 @@ GROUP BY
 ORDER BY
 	pj.created_at DESC
 LIMIT
-	$4::int
+	$5::int
 `
 
 type GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams struct {
 	OrganizationID uuid.NullUUID          `db:"organization_id" json:"organization_id"`
 	IDs            []uuid.UUID            `db:"ids" json:"ids"`
 	Status         []ProvisionerJobStatus `db:"status" json:"status"`
+	Tags           StringMap              `db:"tags" json:"tags"`
 	Limit          sql.NullInt32          `db:"limit" json:"limit"`
 }
 
@@ -6515,6 +6542,7 @@ func (q *sqlQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePositionA
 		arg.OrganizationID,
 		pq.Array(arg.IDs),
 		pq.Array(arg.Status),
+		arg.Tags,
 		arg.Limit,
 	)
 	if err != nil {

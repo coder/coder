@@ -990,7 +990,9 @@ func TestGetProvisionerDaemons(t *testing.T) {
 				require.NoError(t, err)
 				require.Len(t, allDaemons, 1)
 
-				daemonsAsFound, err := orgAdmin.OrganizationProvisionerDaemons(ctx, org.ID, tt.tagsToFilterBy)
+				daemonsAsFound, err := orgAdmin.OrganizationProvisionerDaemons(ctx, org.ID, &codersdk.OrganizationProvisionerDaemonsOptions{
+					Tags: tt.tagsToFilterBy,
+				})
 				if tt.expectToGetDaemon {
 					require.NoError(t, err)
 					require.Len(t, daemonsAsFound, 1)
