@@ -4,8 +4,7 @@ describe("support link", () => {
 	it("should include origin if target starts with '/'", () => {
 		const mockOrigin = "https://example.com";
 
-		// eslint-disable-next-line
-		(window as any).location = { origin: mockOrigin }; // Mock the location origin
+		window.location = { origin: mockOrigin }; // Mock the location origin
 
 		expect(includeOrigin("/test")).toBe("https://example.com/test");
 		expect(includeOrigin("/path/to/resource")).toBe(
