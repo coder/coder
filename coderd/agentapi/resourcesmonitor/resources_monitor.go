@@ -3,6 +3,7 @@ package resourcesmonitor
 import (
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
 type State int
@@ -12,6 +13,16 @@ const (
 	StateNOK
 	StateUnknown
 )
+
+type Config struct {
+	// How many datapoints in a row are required to
+	// put the monitor in an alert state.
+	ConsecutiveNOKsToAlert int
+
+	// How many datapoints in total are required to
+	// put the monitor in an alert state.
+	MinimumNOKsToAlert int
+}
 
 func CalculateMemoryUsageStates(
 	monitor database.WorkspaceAgentMemoryResourceMonitor,
@@ -63,18 +74,34 @@ func CalculateVolumeUsageStates(
 	return states
 }
 
-func CalculateConsecutiveNOK(states []State) int {
-	maxLength := 0
-	curLength := 0
+func NextState(c Config, oldState database.WorkspaceAgentMonitorState, states []State) database.WorkspaceAgentMonitorState {
+	// If there are enough consecutive NOK states, we should be in an
+	// alert state.
+	consecutiveNOKs := slice.CountConsecutive(StateNOK, states...)
+	if consecutiveNOKs >= c.ConsecutiveNOKsToAlert {
+		return database.WorkspaceAgentMonitorStateNOK
+	}
 
+	nokCount, okCount := 0, 0
 	for _, state := range states {
-		if state == StateNOK {
-			curLength++
-		} else {
-			maxLength = max(maxLength, curLength)
-			curLength = 0
+		switch state {
+		case StateOK:
+			okCount++
+		case StateNOK:
+			nokCount++
 		}
 	}
 
-	return max(maxLength, curLength)
+	// If there are enough NOK datapoints, we should be in an alert state.
+	if nokCount >= c.MinimumNOKsToAlert {
+		return database.WorkspaceAgentMonitorStateNOK
+	}
+
+	// If all datapoints are OK, we should be in an OK state
+	if okCount == len(states) {
+		return database.WorkspaceAgentMonitorStateOK
+	}
+
+	// Otherwise we stay in the same state as last.
+	return oldState
 }

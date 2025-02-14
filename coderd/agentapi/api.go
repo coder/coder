@@ -17,6 +17,7 @@ import (
 
 	"cdr.dev/slog"
 	agentproto "github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/coderd/agentapi/resourcesmonitor"
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
@@ -120,8 +121,10 @@ func New(opts Options) *API {
 		Debounce:              5 * time.Minute,
 
 		// These values assume a window of 20
-		MinimumNOKsToAlert:     4,
-		ConsecutiveNOKsToAlert: 10,
+		Config: resourcesmonitor.Config{
+			MinimumNOKsToAlert:     4,
+			ConsecutiveNOKsToAlert: 10,
+		},
 	}
 
 	api.StatsAPI = &StatsAPI{

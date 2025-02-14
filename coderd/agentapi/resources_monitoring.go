@@ -32,14 +32,7 @@ type ResourcesMonitoringAPI struct {
 	NotificationsEnqueuer notifications.Enqueuer
 
 	Debounce time.Duration
-
-	// How many datapoints in a row are required to
-	// put the monitor in an alert state.
-	ConsecutiveNOKsToAlert int
-
-	// How many datapoints in total are required to
-	// put the monitor in an alert state.
-	MinimumNOKsToAlert int
+	Config   resourcesmonitor.Config
 }
 
 func (a *ResourcesMonitoringAPI) GetResourcesMonitoringConfiguration(ctx context.Context, _ *proto.GetResourcesMonitoringConfigurationRequest) (*proto.GetResourcesMonitoringConfigurationResponse, error) {
@@ -117,16 +110,9 @@ func (a *ResourcesMonitoringAPI) monitorMemory(ctx context.Context, datapoints [
 	usageStates := resourcesmonitor.CalculateMemoryUsageStates(monitor, usageDatapoints)
 
 	oldState := monitor.State
-	newState := a.calculateNextState(oldState, usageStates)
+	newState := resourcesmonitor.NextState(a.Config, oldState, usageStates)
 
-	shouldNotify := a.Clock.Now().After(monitor.DebouncedUntil) &&
-		oldState == database.WorkspaceAgentMonitorStateOK &&
-		newState == database.WorkspaceAgentMonitorStateNOK
-
-	debouncedUntil := monitor.DebouncedUntil
-	if shouldNotify {
-		debouncedUntil = a.Clock.Now().Add(a.Debounce)
-	}
+	debouncedUntil, shouldNotify := monitor.Debounce(a.Debounce, a.Clock.Now(), oldState, newState)
 
 	//nolint:gocritic // We need to be able to update the resource monitor here.
 	err = a.Database.UpdateMemoryResourceMonitor(dbauthz.AsResourceMonitor(ctx), database.UpdateMemoryResourceMonitorParams{
@@ -200,16 +186,11 @@ func (a *ResourcesMonitoringAPI) monitorVolumes(ctx context.Context, datapoints 
 		usageStates := resourcesmonitor.CalculateVolumeUsageStates(monitor, usageDatapoints)
 
 		oldState := monitor.State
-		newState := a.calculateNextState(oldState, usageStates)
+		newState := resourcesmonitor.NextState(a.Config, oldState, usageStates)
 
-		shouldNotify := a.Clock.Now().After(monitor.DebouncedUntil) &&
-			oldState == database.WorkspaceAgentMonitorStateOK &&
-			newState == database.WorkspaceAgentMonitorStateNOK
+		debouncedUntil, shouldNotify := monitor.Debounce(a.Debounce, a.Clock.Now(), oldState, newState)
 
-		debouncedUntil := monitor.DebouncedUntil
 		if shouldNotify {
-			debouncedUntil = a.Clock.Now().Add(a.Debounce)
-
 			outOfDiskVolumes = append(outOfDiskVolumes, map[string]any{
 				"path":      monitor.Path,
 				"threshold": fmt.Sprintf("%d%%", monitor.Threshold),
@@ -256,39 +237,4 @@ func (a *ResourcesMonitoringAPI) monitorVolumes(ctx context.Context, datapoints 
 	}
 
 	return nil
-}
-
-func (a *ResourcesMonitoringAPI) calculateNextState(
-	oldState database.WorkspaceAgentMonitorState,
-	states []resourcesmonitor.State,
-) database.WorkspaceAgentMonitorState {
-	// If there are enough consecutive NOK states, we should be in an
-	// alert state.
-	consecutiveNOKs := resourcesmonitor.CalculateConsecutiveNOK(states)
-	if consecutiveNOKs >= a.ConsecutiveNOKsToAlert {
-		return database.WorkspaceAgentMonitorStateNOK
-	}
-
-	nokCount, okCount := 0, 0
-	for _, state := range states {
-		switch state {
-		case resourcesmonitor.StateOK:
-			okCount++
-		case resourcesmonitor.StateNOK:
-			nokCount++
-		}
-	}
-
-	// If there are enough NOK datapoints, we should be in an alert state.
-	if nokCount >= a.MinimumNOKsToAlert {
-		return database.WorkspaceAgentMonitorStateNOK
-	}
-
-	// If all datapoints are OK, we should be in an OK state
-	if okCount == len(states) {
-		return database.WorkspaceAgentMonitorStateOK
-	}
-
-	// Otherwise we stay in the same state as last.
-	return oldState
 }
