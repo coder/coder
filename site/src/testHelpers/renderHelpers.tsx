@@ -19,8 +19,8 @@ import {
 	RouterProvider,
 	createMemoryRouter,
 } from "react-router-dom";
-import { MockUser } from "./entities";
 import themes, { DEFAULT_THEME } from "theme";
+import { MockUser } from "./entities";
 
 export function createTestQueryClient() {
 	// Helps create one query client for each test case, to make sure that tests

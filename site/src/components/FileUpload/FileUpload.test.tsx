@@ -1,6 +1,6 @@
 import { fireEvent, screen } from "@testing-library/react";
-import { FileUpload } from "./FileUpload";
 import { renderComponent } from "testHelpers/renderHelpers";
+import { FileUpload } from "./FileUpload";
 
 test("accepts files with the correct extension", async () => {
 	const onUpload = jest.fn();

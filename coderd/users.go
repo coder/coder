@@ -1003,7 +1003,7 @@ func (api *API) userAppearanceSettings(rw http.ResponseWriter, r *http.Request) 
 }
 
 // @Summary Update user appearance settings
-// @ID update-user-appearance-setting
+// @ID update-user-appearance-settings
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json

@@ -7,9 +7,9 @@ import { http, HttpResponse } from "msw";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { MockTemplate, MockWorkspace } from "testHelpers/entities";
+import { render } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
 import { WorkspaceScheduleControls } from "./WorkspaceScheduleControls";
-import { render } from "testHelpers/renderHelpers";
 
 const Wrapper: FC = () => {
 	const { data: workspace } = useQuery(

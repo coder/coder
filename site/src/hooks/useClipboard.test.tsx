@@ -12,6 +12,7 @@
 import { act, renderHook, screen } from "@testing-library/react";
 import { GlobalSnackbar } from "components/GlobalSnackbar/GlobalSnackbar";
 import { ThemeOverride } from "contexts/ThemeProvider";
+import themes, { DEFAULT_THEME } from "theme";
 import {
 	COPY_FAILED_MESSAGE,
 	HTTP_FALLBACK_DATA_ID,
@@ -19,7 +20,6 @@ import {
 	type UseClipboardResult,
 	useClipboard,
 } from "./useClipboard";
-import themes, { DEFAULT_THEME } from "theme";
 
 // Need to mock console.error because we deliberately need to trigger errors in
 // the code to assert that it can recover from them, but we also don't want them
