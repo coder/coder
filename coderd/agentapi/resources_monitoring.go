@@ -22,14 +22,6 @@ import (
 	"github.com/coder/quartz"
 )
 
-type VolumeNotFoundError struct {
-	Volume string
-}
-
-func (e VolumeNotFoundError) Error() string {
-	return fmt.Sprintf("volume not found: `%s`", e.Volume)
-}
-
 type ResourcesMonitoringAPI struct {
 	AgentID     uuid.UUID
 	WorkspaceID uuid.UUID
@@ -184,15 +176,6 @@ func (a *ResourcesMonitoringAPI) monitorVolumes(ctx context.Context, datapoints 
 		return xerrors.Errorf("get or insert volume monitor: %w", err)
 	}
 
-	volumes := make(map[string][]*proto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage)
-	for _, datapoint := range datapoints {
-		for _, volume := range datapoint.Volumes {
-			volumeDatapoints := volumes[volume.Volume]
-			volumeDatapoints = append(volumeDatapoints, volume)
-			volumes[volume.Volume] = volumeDatapoints
-		}
-	}
-
 	outOfDiskVolumes := make([]map[string]any, 0)
 
 	for _, monitor := range volumeMonitors {
@@ -200,12 +183,21 @@ func (a *ResourcesMonitoringAPI) monitorVolumes(ctx context.Context, datapoints 
 			continue
 		}
 
-		datapoints, found := volumes[monitor.Path]
-		if !found {
-			return VolumeNotFoundError{Volume: monitor.Path}
+		usageDatapoints := make([]*proto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage, 0, len(datapoints))
+		for _, datapoint := range datapoints {
+			var usage *proto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage
+
+			for _, volume := range datapoint.Volumes {
+				if volume.Volume == monitor.Path {
+					usage = volume
+					break
+				}
+			}
+
+			usageDatapoints = append(usageDatapoints, usage)
 		}
 
-		usageStates := resourcesmonitor.CalculateVolumeUsageStates(monitor, datapoints)
+		usageStates := resourcesmonitor.CalculateVolumeUsageStates(monitor, usageDatapoints)
 
 		oldState := monitor.State
 		newState := a.calculateNextState(oldState, usageStates)

@@ -831,6 +831,124 @@ func TestVolumeResourceMonitorMultiple(t *testing.T) {
 	require.Equal(t, "/dev/coder", volumes[1]["path"])
 }
 
+func TestVolumeResourceMonitorMissingData(t *testing.T) {
+	t.Parallel()
+
+	t.Run("UnknownPreventsMovingIntoAlertState", func(t *testing.T) {
+		t.Parallel()
+
+		volumePath := "/home/coder"
+
+		api, _, clock, notifyEnq := resourceMonitorAPI(t)
+		api.ConsecutiveNOKsToAlert = 2
+		api.MinimumNOKsToAlert = 10
+
+		// Given: A monitor in an OK state.
+		dbgen.WorkspaceAgentVolumeResourceMonitor(t, api.Database, database.WorkspaceAgentVolumeResourceMonitor{
+			AgentID:   api.AgentID,
+			Path:      volumePath,
+			State:     database.WorkspaceAgentMonitorStateOK,
+			Threshold: 80,
+		})
+
+		// When: A datapoint is missing, surrounded by two NOK datapoints.
+		_, err := api.PushResourcesMonitoringUsage(context.Background(), &agentproto.PushResourcesMonitoringUsageRequest{
+			Datapoints: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint{
+				{
+					CollectedAt: timestamppb.New(clock.Now()),
+					Volumes: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage{
+						{
+							Volume: volumePath,
+							Used:   10,
+							Total:  10,
+						},
+					},
+				},
+				{
+					CollectedAt: timestamppb.New(clock.Now().Add(10 * time.Second)),
+					Volumes:     []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage{},
+				},
+				{
+					CollectedAt: timestamppb.New(clock.Now().Add(20 * time.Second)),
+					Volumes: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage{
+						{
+							Volume: volumePath,
+							Used:   10,
+							Total:  10,
+						},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		// Then: We expect no notifications, as this unknown prevents us knowing we should alert.
+		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfDisk))
+		require.Len(t, sent, 0)
+
+		// Then: We expect the monitor to still be in an OK state.
+		monitors, err := api.Database.FetchVolumesResourceMonitorsByAgentID(context.Background(), api.AgentID)
+		require.NoError(t, err)
+		require.Len(t, monitors, 1)
+		require.Equal(t, database.WorkspaceAgentMonitorStateOK, monitors[0].State)
+	})
+
+	t.Run("UnknownPreventsMovingOutOfAlertState", func(t *testing.T) {
+		t.Parallel()
+
+		volumePath := "/home/coder"
+
+		api, _, clock, _ := resourceMonitorAPI(t)
+		api.ConsecutiveNOKsToAlert = 2
+		api.MinimumNOKsToAlert = 10
+
+		// Given: A monitor in a NOK state.
+		dbgen.WorkspaceAgentVolumeResourceMonitor(t, api.Database, database.WorkspaceAgentVolumeResourceMonitor{
+			AgentID:   api.AgentID,
+			Path:      volumePath,
+			State:     database.WorkspaceAgentMonitorStateNOK,
+			Threshold: 80,
+		})
+
+		// When: A datapoint is missing, surrounded by two OK datapoints.
+		_, err := api.PushResourcesMonitoringUsage(context.Background(), &agentproto.PushResourcesMonitoringUsageRequest{
+			Datapoints: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint{
+				{
+					CollectedAt: timestamppb.New(clock.Now()),
+					Volumes: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage{
+						{
+							Volume: volumePath,
+							Used:   1,
+							Total:  10,
+						},
+					},
+				},
+				{
+					CollectedAt: timestamppb.New(clock.Now().Add(10 * time.Second)),
+					Volumes:     []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage{},
+				},
+				{
+					CollectedAt: timestamppb.New(clock.Now().Add(20 * time.Second)),
+					Volumes: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage{
+						{
+							Volume: volumePath,
+							Used:   1,
+							Total:  10,
+						},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		// Then: We expect the monitor to still be in a NOK state.
+		monitors, err := api.Database.FetchVolumesResourceMonitorsByAgentID(context.Background(), api.AgentID)
+		require.NoError(t, err)
+		require.Len(t, monitors, 1)
+		require.Equal(t, database.WorkspaceAgentMonitorStateNOK, monitors[0].State)
+	})
+}
+
 func requireVolumeData(t *testing.T, notif *notificationstest.FakeNotification) []map[string]any {
 	t.Helper()
 
