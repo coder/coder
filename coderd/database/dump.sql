@@ -967,7 +967,8 @@ CREATE TABLE organizations (
     updated_at timestamp with time zone NOT NULL,
     is_default boolean DEFAULT false NOT NULL,
     display_name text NOT NULL,
-    icon text DEFAULT ''::text NOT NULL
+    icon text DEFAULT ''::text NOT NULL,
+    deleted boolean DEFAULT false NOT NULL
 );
 
 CREATE TABLE parameter_schemas (

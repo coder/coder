@@ -5081,7 +5081,7 @@ func (q *sqlQuerier) DeleteOrganization(ctx context.Context, id uuid.UUID) error
 
 const getDefaultOrganization = `-- name: GetDefaultOrganization :one
 SELECT
-	id, name, description, created_at, updated_at, is_default, display_name, icon
+	id, name, description, created_at, updated_at, is_default, display_name, icon, deleted
 FROM
 	organizations
 WHERE
@@ -5102,13 +5102,14 @@ func (q *sqlQuerier) GetDefaultOrganization(ctx context.Context) (Organization, 
 		&i.IsDefault,
 		&i.DisplayName,
 		&i.Icon,
+		&i.Deleted,
 	)
 	return i, err
 }
 
 const getOrganizationByID = `-- name: GetOrganizationByID :one
 SELECT
-	id, name, description, created_at, updated_at, is_default, display_name, icon
+	id, name, description, created_at, updated_at, is_default, display_name, icon, deleted
 FROM
 	organizations
 WHERE
@@ -5127,13 +5128,14 @@ func (q *sqlQuerier) GetOrganizationByID(ctx context.Context, id uuid.UUID) (Org
 		&i.IsDefault,
 		&i.DisplayName,
 		&i.Icon,
+		&i.Deleted,
 	)
 	return i, err
 }
 
 const getOrganizationByName = `-- name: GetOrganizationByName :one
 SELECT
-	id, name, description, created_at, updated_at, is_default, display_name, icon
+	id, name, description, created_at, updated_at, is_default, display_name, icon, deleted
 FROM
 	organizations
 WHERE
@@ -5154,13 +5156,14 @@ func (q *sqlQuerier) GetOrganizationByName(ctx context.Context, name string) (Or
 		&i.IsDefault,
 		&i.DisplayName,
 		&i.Icon,
+		&i.Deleted,
 	)
 	return i, err
 }
 
 const getOrganizations = `-- name: GetOrganizations :many
 SELECT
-	id, name, description, created_at, updated_at, is_default, display_name, icon
+	id, name, description, created_at, updated_at, is_default, display_name, icon, deleted
 FROM
 	organizations
 WHERE
@@ -5201,6 +5204,7 @@ func (q *sqlQuerier) GetOrganizations(ctx context.Context, arg GetOrganizationsP
 			&i.IsDefault,
 			&i.DisplayName,
 			&i.Icon,
+			&i.Deleted,
 		); err != nil {
 			return nil, err
 		}
@@ -5217,7 +5221,7 @@ func (q *sqlQuerier) GetOrganizations(ctx context.Context, arg GetOrganizationsP
 
 const getOrganizationsByUserID = `-- name: GetOrganizationsByUserID :many
 SELECT
-	id, name, description, created_at, updated_at, is_default, display_name, icon
+	id, name, description, created_at, updated_at, is_default, display_name, icon, deleted
 FROM
 	organizations
 WHERE
@@ -5249,6 +5253,7 @@ func (q *sqlQuerier) GetOrganizationsByUserID(ctx context.Context, userID uuid.U
 			&i.IsDefault,
 			&i.DisplayName,
 			&i.Icon,
+			&i.Deleted,
 		); err != nil {
 			return nil, err
 		}
@@ -5268,7 +5273,7 @@ INSERT INTO
 	organizations (id, "name", display_name, description, icon, created_at, updated_at, is_default)
 VALUES
 	-- If no organizations exist, and this is the first, make it the default.
-	($1, $2, $3, $4, $5, $6, $7, (SELECT TRUE FROM organizations LIMIT 1) IS NULL) RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon
+	($1, $2, $3, $4, $5, $6, $7, (SELECT TRUE FROM organizations LIMIT 1) IS NULL) RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon, deleted
 `
 
 type InsertOrganizationParams struct {
@@ -5301,6 +5306,7 @@ func (q *sqlQuerier) InsertOrganization(ctx context.Context, arg InsertOrganizat
 		&i.IsDefault,
 		&i.DisplayName,
 		&i.Icon,
+		&i.Deleted,
 	)
 	return i, err
 }
@@ -5316,7 +5322,7 @@ SET
 	icon = $5
 WHERE
 	id = $6
-RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon
+RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon, deleted
 `
 
 type UpdateOrganizationParams struct {
@@ -5347,6 +5353,7 @@ func (q *sqlQuerier) UpdateOrganization(ctx context.Context, arg UpdateOrganizat
 		&i.IsDefault,
 		&i.DisplayName,
 		&i.Icon,
+		&i.Deleted,
 	)
 	return i, err
 }
