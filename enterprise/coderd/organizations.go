@@ -150,7 +150,17 @@ func (api *API) deleteOrganization(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := api.Database.DeleteOrganization(ctx, organization.ID)
+	err := api.Database.InTx(func(tx database.Store) error {
+		err := tx.UpdateOrganizationDeletedByID(ctx, database.UpdateOrganizationDeletedByIDParams{
+			ID:        organization.ID,
+			Deleted:   true,
+			UpdatedAt: dbtime.Now(),
+		})
+		if err != nil {
+			return xerrors.Errorf("delete organization: %w", err)
+		}
+		return nil
+	}, nil)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error deleting organization.",
@@ -204,7 +214,10 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err := api.Database.GetOrganizationByName(ctx, req.Name)
+	_, err := api.Database.GetOrganizationByName(ctx, database.GetOrganizationByNameParams{
+		Name:    req.Name,
+		Deleted: false,
+	})
 	if err == nil {
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 			Message: "Organization already exists with that name.",

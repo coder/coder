@@ -2157,19 +2157,6 @@ func (q *FakeQuerier) DeleteOldWorkspaceAgentStats(_ context.Context) error {
 	return nil
 }
 
-func (q *FakeQuerier) DeleteOrganization(_ context.Context, id uuid.UUID) error {
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	for i, org := range q.organizations {
-		if org.ID == id && !org.IsDefault {
-			q.organizations = append(q.organizations[:i], q.organizations[i+1:]...)
-			return nil
-		}
-	}
-	return sql.ErrNoRows
-}
-
 func (q *FakeQuerier) DeleteOrganizationMember(ctx context.Context, arg database.DeleteOrganizationMemberParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -3688,12 +3675,12 @@ func (q *FakeQuerier) GetOrganizationByID(_ context.Context, id uuid.UUID) (data
 	return q.getOrganizationByIDNoLock(id)
 }
 
-func (q *FakeQuerier) GetOrganizationByName(_ context.Context, name string) (database.Organization, error) {
+func (q *FakeQuerier) GetOrganizationByName(_ context.Context, params database.GetOrganizationByNameParams) (database.Organization, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	for _, organization := range q.organizations {
-		if organization.Name == name {
+		if organization.Name == params.Name {
 			return organization, nil
 		}
 	}
@@ -3740,13 +3727,13 @@ func (q *FakeQuerier) GetOrganizations(_ context.Context, args database.GetOrgan
 	return tmp, nil
 }
 
-func (q *FakeQuerier) GetOrganizationsByUserID(_ context.Context, userID uuid.UUID) ([]database.Organization, error) {
+func (q *FakeQuerier) GetOrganizationsByUserID(_ context.Context, arg database.GetOrganizationsByUserIDParams) ([]database.Organization, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	organizations := make([]database.Organization, 0)
 	for _, organizationMember := range q.organizationMembers {
-		if organizationMember.UserID != userID {
+		if organizationMember.UserID != arg.UserID {
 			continue
 		}
 		for _, organization := range q.organizations {
@@ -9820,6 +9807,26 @@ func (q *FakeQuerier) UpdateOrganization(_ context.Context, arg database.UpdateO
 		}
 	}
 	return database.Organization{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateOrganizationDeletedByID(_ context.Context, arg database.UpdateOrganizationDeletedByIDParams) error {
+	if err := validateDatabaseType(arg); err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, organization := range q.organizations {
+		if organization.ID != arg.ID || organization.IsDefault {
+			continue
+		}
+		organization.Deleted = arg.Deleted
+		organization.UpdatedAt = arg.UpdatedAt
+		q.organizations[index] = organization
+		return nil
+	}
+	return sql.ErrNoRows
 }
 
 func (q *FakeQuerier) UpdateProvisionerDaemonLastSeenAt(_ context.Context, arg database.UpdateProvisionerDaemonLastSeenAtParams) error {

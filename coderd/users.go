@@ -1286,7 +1286,10 @@ func (api *API) organizationsByUser(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
 
-	organizations, err := api.Database.GetOrganizationsByUserID(ctx, user.ID)
+	organizations, err := api.Database.GetOrganizationsByUserID(ctx, database.GetOrganizationsByUserIDParams{
+		UserID:  user.ID,
+		Deleted: false,
+	})
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
 		organizations = []database.Organization{}
@@ -1324,7 +1327,10 @@ func (api *API) organizationsByUser(rw http.ResponseWriter, r *http.Request) {
 func (api *API) organizationByUserAndName(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organizationName := chi.URLParam(r, "organizationname")
-	organization, err := api.Database.GetOrganizationByName(ctx, organizationName)
+	organization, err := api.Database.GetOrganizationByName(ctx, database.GetOrganizationByNameParams{
+		Name:    organizationName,
+		Deleted: false,
+	})
 	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
 		return
