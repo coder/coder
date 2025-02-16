@@ -2032,9 +2032,6 @@ ALTER TABLE ONLY organization_members
     ADD CONSTRAINT organization_members_pkey PRIMARY KEY (organization_id, user_id);
 
 ALTER TABLE ONLY organizations
-    ADD CONSTRAINT organizations_name UNIQUE (name);
-
-ALTER TABLE ONLY organizations
     ADD CONSTRAINT organizations_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY parameter_schemas
@@ -2219,9 +2216,9 @@ CREATE INDEX idx_organization_member_organization_id_uuid ON organization_member
 
 CREATE INDEX idx_organization_member_user_id_uuid ON organization_members USING btree (user_id);
 
-CREATE UNIQUE INDEX idx_organization_name ON organizations USING btree (name);
+CREATE UNIQUE INDEX idx_organization_name ON organizations USING btree (name) WHERE (deleted = false);
 
-CREATE UNIQUE INDEX idx_organization_name_lower ON organizations USING btree (lower(name));
+CREATE UNIQUE INDEX idx_organization_name_lower ON organizations USING btree (lower(name)) WHERE (deleted = false);
 
 CREATE UNIQUE INDEX idx_provisioner_daemons_org_name_owner_key ON provisioner_daemons USING btree (organization_id, name, lower(COALESCE((tags ->> 'owner'::text), ''::text)));
 
