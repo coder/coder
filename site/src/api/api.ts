@@ -1605,6 +1605,29 @@ class ApiMethods {
 		return resp.data;
 	};
 
+	getOAuth2GitHubDeviceFlowCallback = async (
+		code: string,
+		state: string,
+	): Promise<TypesGen.OAuth2DeviceFlowCallbackResponse> => {
+		const resp = await this.axios.get(
+			`/api/v2/users/oauth2/github/callback?code=${code}&state=${state}`,
+		);
+		// sanity check
+		if (
+			typeof resp.data !== "object" ||
+			typeof resp.data.redirect_url !== "string"
+		) {
+			console.error("Invalid response from OAuth2 GitHub callback", resp);
+			throw new Error("Invalid response from OAuth2 GitHub callback");
+		}
+		return resp.data;
+	};
+
+	getOAuth2GitHubDevice = async (): Promise<TypesGen.ExternalAuthDevice> => {
+		const resp = await this.axios.get("/api/v2/users/oauth2/github/device");
+		return resp.data;
+	};
+
 	getOAuth2ProviderApps = async (
 		filter?: TypesGen.OAuth2ProviderAppFilter,
 	): Promise<TypesGen.OAuth2ProviderApp[]> => {
