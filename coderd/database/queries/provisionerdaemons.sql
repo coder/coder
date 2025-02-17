@@ -80,17 +80,29 @@ LEFT JOIN
 	workspace_builds current_build ON current_build.id = CASE WHEN current_job.input ? 'workspace_build_id' THEN (current_job.input->>'workspace_build_id')::uuid END
 LEFT JOIN
 	-- We should always have a template version, either explicitly or implicitly via workspace build.
-	template_versions current_version ON current_version.id = CASE WHEN current_job.input ? 'template_version_id' THEN (current_job.input->>'template_version_id')::uuid ELSE current_build.template_version_id END
+	template_versions current_version ON (
+		current_version.id = CASE WHEN current_job.input ? 'template_version_id' THEN (current_job.input->>'template_version_id')::uuid ELSE current_build.template_version_id END
+		AND current_version.organization_id = pd.organization_id
+	)
 LEFT JOIN
-	templates current_template ON current_template.id = current_version.template_id
+	templates current_template ON (
+		current_template.id = current_version.template_id
+		AND current_template.organization_id = pd.organization_id
+	)
 -- Previous job information.
 LEFT JOIN
 	workspace_builds previous_build ON previous_build.id = CASE WHEN previous_job.input ? 'workspace_build_id' THEN (previous_job.input->>'workspace_build_id')::uuid END
 LEFT JOIN
 	-- We should always have a template version, either explicitly or implicitly via workspace build.
-	template_versions previous_version ON previous_version.id = CASE WHEN previous_job.input ? 'template_version_id' THEN (previous_job.input->>'template_version_id')::uuid ELSE previous_build.template_version_id END
+	template_versions previous_version ON (
+		previous_version.id = CASE WHEN previous_job.input ? 'template_version_id' THEN (previous_job.input->>'template_version_id')::uuid ELSE previous_build.template_version_id END
+		AND previous_version.organization_id = pd.organization_id
+	)
 LEFT JOIN
-	templates previous_template ON previous_template.id = previous_version.template_id
+	templates previous_template ON (
+		previous_template.id = previous_version.template_id
+		AND previous_template.organization_id = pd.organization_id
+	)
 WHERE
 	pd.organization_id = @organization_id::uuid
 	AND (COALESCE(array_length(@ids::uuid[], 1), 0) = 0 OR pd.id = ANY(@ids::uuid[]))

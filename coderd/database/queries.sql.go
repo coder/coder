@@ -5777,16 +5777,28 @@ LEFT JOIN
 	workspace_builds current_build ON current_build.id = CASE WHEN current_job.input ? 'workspace_build_id' THEN (current_job.input->>'workspace_build_id')::uuid END
 LEFT JOIN
 	-- We should always have a template version, either explicitly or implicitly via workspace build.
-	template_versions current_version ON current_version.id = CASE WHEN current_job.input ? 'template_version_id' THEN (current_job.input->>'template_version_id')::uuid ELSE current_build.template_version_id END
+	template_versions current_version ON (
+		current_version.id = CASE WHEN current_job.input ? 'template_version_id' THEN (current_job.input->>'template_version_id')::uuid ELSE current_build.template_version_id END
+		AND current_version.organization_id = pd.organization_id
+	)
 LEFT JOIN
-	templates current_template ON current_template.id = current_version.template_id
+	templates current_template ON (
+		current_template.id = current_version.template_id
+		AND current_template.organization_id = pd.organization_id
+	)
 LEFT JOIN
 	workspace_builds previous_build ON previous_build.id = CASE WHEN previous_job.input ? 'workspace_build_id' THEN (previous_job.input->>'workspace_build_id')::uuid END
 LEFT JOIN
 	-- We should always have a template version, either explicitly or implicitly via workspace build.
-	template_versions previous_version ON previous_version.id = CASE WHEN previous_job.input ? 'template_version_id' THEN (previous_job.input->>'template_version_id')::uuid ELSE previous_build.template_version_id END
+	template_versions previous_version ON (
+		previous_version.id = CASE WHEN previous_job.input ? 'template_version_id' THEN (previous_job.input->>'template_version_id')::uuid ELSE previous_build.template_version_id END
+		AND previous_version.organization_id = pd.organization_id
+	)
 LEFT JOIN
-	templates previous_template ON previous_template.id = previous_version.template_id
+	templates previous_template ON (
+		previous_template.id = previous_version.template_id
+		AND previous_template.organization_id = pd.organization_id
+	)
 WHERE
 	pd.organization_id = $2::uuid
 	AND (COALESCE(array_length($3::uuid[], 1), 0) = 0 OR pd.id = ANY($3::uuid[]))
@@ -6487,14 +6499,23 @@ LEFT JOIN
 LEFT JOIN
 	workspace_builds wb ON wb.id = CASE WHEN pj.input ? 'workspace_build_id' THEN (pj.input->>'workspace_build_id')::uuid END
 LEFT JOIN
-	workspaces w ON wb.workspace_id = w.id
+	workspaces w ON (
+		w.id = wb.workspace_id
+		AND w.organization_id = pj.organization_id
+	)
 LEFT JOIN
 	-- We should always have a template version, either explicitly or implicitly via workspace build.
-	template_versions tv ON tv.id = CASE WHEN pj.input ? 'template_version_id' THEN (pj.input->>'template_version_id')::uuid ELSE wb.template_version_id END
+	template_versions tv ON (
+		tv.id = CASE WHEN pj.input ? 'template_version_id' THEN (pj.input->>'template_version_id')::uuid ELSE wb.template_version_id END
+		AND tv.organization_id = pj.organization_id
+	)
 LEFT JOIN
-	templates t ON tv.template_id = t.id
+	templates t ON (
+		t.id = tv.template_id
+		AND t.organization_id = pj.organization_id
+	)
 WHERE
-	($1::uuid IS NULL OR pj.organization_id = $1)
+	pj.organization_id = $1::uuid
 	AND (COALESCE(array_length($2::uuid[], 1), 0) = 0 OR pj.id = ANY($2::uuid[]))
 	AND (COALESCE(array_length($3::provisioner_job_status[], 1), 0) = 0 OR pj.job_status = ANY($3::provisioner_job_status[]))
 	AND ($4::tagset = 'null'::tagset OR provisioner_tagset_contains(pj.tags::tagset, $4::tagset))
@@ -6516,7 +6537,7 @@ LIMIT
 `
 
 type GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams struct {
-	OrganizationID uuid.NullUUID          `db:"organization_id" json:"organization_id"`
+	OrganizationID uuid.UUID              `db:"organization_id" json:"organization_id"`
 	IDs            []uuid.UUID            `db:"ids" json:"ids"`
 	Status         []ProvisionerJobStatus `db:"status" json:"status"`
 	Tags           StringMap              `db:"tags" json:"tags"`
