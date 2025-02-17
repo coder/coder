@@ -82,6 +82,9 @@ func NextState(c Config, oldState database.WorkspaceAgentMonitorState, states []
 		return database.WorkspaceAgentMonitorStateNOK
 	}
 
+	// We do not explicitly handle StateUnknown because it could have
+	// been either StateOK or StateNOK if collection didn't fail. As
+	// it could be either, our best bet is to ignore it.
 	nokCount, okCount := 0, 0
 	for _, state := range states {
 		switch state {

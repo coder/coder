@@ -125,32 +125,39 @@ func (a *ResourcesMonitoringAPI) monitorMemory(ctx context.Context, datapoints [
 		return xerrors.Errorf("update workspace monitor: %w", err)
 	}
 
-	if shouldNotify {
-		workspace, err := a.Database.GetWorkspaceByID(ctx, a.WorkspaceID)
-		if err != nil {
-			return xerrors.Errorf("get workspace by id: %w", err)
-		}
+	if !shouldNotify {
+		return nil
+	}
 
-		_, err = a.NotificationsEnqueuer.EnqueueWithData(
-			// nolint:gocritic // We need to be able to send the notification.
-			dbauthz.AsNotifier(ctx),
-			workspace.OwnerID,
-			notifications.TemplateWorkspaceOutOfMemory,
-			map[string]string{
-				"workspace": workspace.Name,
-				"threshold": fmt.Sprintf("%d%%", monitor.Threshold),
-			},
-			map[string]any{
-				// NOTE(DanielleMaywood):
-				// We are injecting a timestamp to circumvent the notification
-				// deduplication logic.
-				"timestamp": a.Clock.Now(),
-			},
-			"workspace-monitor-memory",
-		)
-		if err != nil {
-			return xerrors.Errorf("notify workspace OOM: %w", err)
-		}
+	workspace, err := a.Database.GetWorkspaceByID(ctx, a.WorkspaceID)
+	if err != nil {
+		return xerrors.Errorf("get workspace by id: %w", err)
+	}
+
+	_, err = a.NotificationsEnqueuer.EnqueueWithData(
+		// nolint:gocritic // We need to be able to send the notification.
+		dbauthz.AsNotifier(ctx),
+		workspace.OwnerID,
+		notifications.TemplateWorkspaceOutOfMemory,
+		map[string]string{
+			"workspace": workspace.Name,
+			"threshold": fmt.Sprintf("%d%%", monitor.Threshold),
+		},
+		map[string]any{
+			// NOTE(DanielleMaywood):
+			// When notifications are enqueued, they are checked to be
+			// unique within a single day. This means that if we attempt
+			// to send two OOM notifications for the same workspace on
+			// the same day, the enqueuer will prevent us from sending
+			// a second one. We are inject a timestamp to make the
+			// notifications appear different enough to circumvent this
+			// deduplication logic.
+			"timestamp": a.Clock.Now(),
+		},
+		"workspace-monitor-memory",
+	)
+	if err != nil {
+		return xerrors.Errorf("notify workspace OOM: %w", err)
 	}
 
 	return nil
@@ -209,31 +216,38 @@ func (a *ResourcesMonitoringAPI) monitorVolumes(ctx context.Context, datapoints 
 		}
 	}
 
-	if len(outOfDiskVolumes) != 0 {
-		workspace, err := a.Database.GetWorkspaceByID(ctx, a.WorkspaceID)
-		if err != nil {
-			return xerrors.Errorf("get workspace by id: %w", err)
-		}
+	if len(outOfDiskVolumes) == 0 {
+		return nil
+	}
 
-		if _, err := a.NotificationsEnqueuer.EnqueueWithData(
-			// nolint:gocritic // We need to be able to send the notification.
-			dbauthz.AsNotifier(ctx),
-			workspace.OwnerID,
-			notifications.TemplateWorkspaceOutOfDisk,
-			map[string]string{
-				"workspace": workspace.Name,
-			},
-			map[string]any{
-				"volumes": outOfDiskVolumes,
-				// NOTE(DanielleMaywood):
-				// We are injecting a timestamp to circumvent the notification
-				// deduplication logic.
-				"timestamp": a.Clock.Now(),
-			},
-			"workspace-monitor-volumes",
-		); err != nil {
-			return xerrors.Errorf("notify workspace OOD: %w", err)
-		}
+	workspace, err := a.Database.GetWorkspaceByID(ctx, a.WorkspaceID)
+	if err != nil {
+		return xerrors.Errorf("get workspace by id: %w", err)
+	}
+
+	if _, err := a.NotificationsEnqueuer.EnqueueWithData(
+		// nolint:gocritic // We need to be able to send the notification.
+		dbauthz.AsNotifier(ctx),
+		workspace.OwnerID,
+		notifications.TemplateWorkspaceOutOfDisk,
+		map[string]string{
+			"workspace": workspace.Name,
+		},
+		map[string]any{
+			"volumes": outOfDiskVolumes,
+			// NOTE(DanielleMaywood):
+			// When notifications are enqueued, they are checked to be
+			// unique within a single day. This means that if we attempt
+			// to send two OOM notifications for the same workspace on
+			// the same day, the enqueuer will prevent us from sending
+			// a second one. We are inject a timestamp to make the
+			// notifications appear different enough to circumvent this
+			// deduplication logic.
+			"timestamp": a.Clock.Now(),
+		},
+		"workspace-monitor-volumes",
+	); err != nil {
+		return xerrors.Errorf("notify workspace OOD: %w", err)
 	}
 
 	return nil

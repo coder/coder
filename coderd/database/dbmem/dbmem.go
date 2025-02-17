@@ -9649,6 +9649,9 @@ func (q *FakeQuerier) UpdateMemoryResourceMonitor(_ context.Context, arg databas
 		return err
 	}
 
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
 	for i, monitor := range q.workspaceAgentMemoryResourceMonitors {
 		if monitor.AgentID != arg.AgentID {
 			continue
@@ -10447,6 +10450,9 @@ func (q *FakeQuerier) UpdateVolumeResourceMonitor(_ context.Context, arg databas
 	if err != nil {
 		return err
 	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
 
 	for i, monitor := range q.workspaceAgentVolumeResourceMonitors {
 		if monitor.AgentID != arg.AgentID || monitor.Path != arg.Path {
