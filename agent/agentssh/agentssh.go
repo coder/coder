@@ -780,7 +780,7 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string,
 		}
 	}
 
-	// Modify command prior to execution.
+	// Modify command prior to execution. This will usually be a no-op, but not always.
 	name, args = deps.ModifyCommand(name, args...)
 	cmd := s.Execer.PTYCommandContext(ctx, name, args...)
 	cmd.Dir = s.config.WorkingDirectory()
