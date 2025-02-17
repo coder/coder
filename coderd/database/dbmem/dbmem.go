@@ -89,6 +89,9 @@ func New() database.Store {
 			locks:                     map[int64]struct{}{},
 			runtimeConfig:             map[string]string{},
 			userStatusChanges:         make([]database.UserStatusChange, 0),
+			telemetryItems:            make([]database.TelemetryItem, 0),
+			presets:                   make([]database.TemplateVersionPreset, 0),
+			presetParameters:          make([]database.TemplateVersionPresetParameter, 0),
 		},
 	}
 	// Always start with a default org. Matching migration 198.
@@ -114,7 +117,7 @@ func New() database.Store {
 	q.defaultProxyIconURL = "/emojis/1f3e1.png"
 
 	_, err = q.InsertProvisionerKey(context.Background(), database.InsertProvisionerKeyParams{
-		ID:             uuid.MustParse(codersdk.ProvisionerKeyIDBuiltIn),
+		ID:             codersdk.ProvisionerKeyUUIDBuiltIn,
 		OrganizationID: defaultOrg.ID,
 		CreatedAt:      dbtime.Now(),
 		HashedSecret:   []byte{},
@@ -125,7 +128,7 @@ func New() database.Store {
 		panic(xerrors.Errorf("failed to create built-in provisioner key: %w", err))
 	}
 	_, err = q.InsertProvisionerKey(context.Background(), database.InsertProvisionerKeyParams{
-		ID:             uuid.MustParse(codersdk.ProvisionerKeyIDUserAuth),
+		ID:             codersdk.ProvisionerKeyUUIDUserAuth,
 		OrganizationID: defaultOrg.ID,
 		CreatedAt:      dbtime.Now(),
 		HashedSecret:   []byte{},
@@ -136,7 +139,7 @@ func New() database.Store {
 		panic(xerrors.Errorf("failed to create user-auth provisioner key: %w", err))
 	}
 	_, err = q.InsertProvisionerKey(context.Background(), database.InsertProvisionerKeyParams{
-		ID:             uuid.MustParse(codersdk.ProvisionerKeyIDPSK),
+		ID:             codersdk.ProvisionerKeyUUIDPSK,
 		OrganizationID: defaultOrg.ID,
 		CreatedAt:      dbtime.Now(),
 		HashedSecret:   []byte{},
@@ -190,56 +193,58 @@ type data struct {
 	userLinks           []database.UserLink
 
 	// New tables
-	auditLogs                       []database.AuditLog
-	cryptoKeys                      []database.CryptoKey
-	dbcryptKeys                     []database.DBCryptKey
-	files                           []database.File
-	externalAuthLinks               []database.ExternalAuthLink
-	gitSSHKey                       []database.GitSSHKey
-	groupMembers                    []database.GroupMemberTable
-	groups                          []database.Group
-	jfrogXRayScans                  []database.JfrogXrayScan
-	licenses                        []database.License
-	notificationMessages            []database.NotificationMessage
-	notificationPreferences         []database.NotificationPreference
-	notificationReportGeneratorLogs []database.NotificationReportGeneratorLog
-	oauth2ProviderApps              []database.OAuth2ProviderApp
-	oauth2ProviderAppSecrets        []database.OAuth2ProviderAppSecret
-	oauth2ProviderAppCodes          []database.OAuth2ProviderAppCode
-	oauth2ProviderAppTokens         []database.OAuth2ProviderAppToken
-	parameterSchemas                []database.ParameterSchema
-	provisionerDaemons              []database.ProvisionerDaemon
-	provisionerJobLogs              []database.ProvisionerJobLog
-	provisionerJobs                 []database.ProvisionerJob
-	provisionerKeys                 []database.ProvisionerKey
-	replicas                        []database.Replica
-	templateVersions                []database.TemplateVersionTable
-	templateVersionParameters       []database.TemplateVersionParameter
-	templateVersionVariables        []database.TemplateVersionVariable
-	templateVersionWorkspaceTags    []database.TemplateVersionWorkspaceTag
-	templates                       []database.TemplateTable
-	templateUsageStats              []database.TemplateUsageStat
-	workspaceAgents                 []database.WorkspaceAgent
-	workspaceAgentMetadata          []database.WorkspaceAgentMetadatum
-	workspaceAgentLogs              []database.WorkspaceAgentLog
-	workspaceAgentLogSources        []database.WorkspaceAgentLogSource
-	workspaceAgentPortShares        []database.WorkspaceAgentPortShare
-	workspaceAgentScriptTimings     []database.WorkspaceAgentScriptTiming
-	workspaceAgentScripts           []database.WorkspaceAgentScript
-	workspaceAgentStats             []database.WorkspaceAgentStat
-	workspaceApps                   []database.WorkspaceApp
-	workspaceAppStatsLastInsertID   int64
-	workspaceAppStats               []database.WorkspaceAppStat
-	workspaceBuilds                 []database.WorkspaceBuild
-	workspaceBuildParameters        []database.WorkspaceBuildParameter
-	workspaceResourceMetadata       []database.WorkspaceResourceMetadatum
-	workspaceResources              []database.WorkspaceResource
-	workspaceModules                []database.WorkspaceModule
-	workspaces                      []database.WorkspaceTable
-	workspaceProxies                []database.WorkspaceProxy
-	customRoles                     []database.CustomRole
-	provisionerJobTimings           []database.ProvisionerJobTiming
-	runtimeConfig                   map[string]string
+	auditLogs                            []database.AuditLog
+	cryptoKeys                           []database.CryptoKey
+	dbcryptKeys                          []database.DBCryptKey
+	files                                []database.File
+	externalAuthLinks                    []database.ExternalAuthLink
+	gitSSHKey                            []database.GitSSHKey
+	groupMembers                         []database.GroupMemberTable
+	groups                               []database.Group
+	jfrogXRayScans                       []database.JfrogXrayScan
+	licenses                             []database.License
+	notificationMessages                 []database.NotificationMessage
+	notificationPreferences              []database.NotificationPreference
+	notificationReportGeneratorLogs      []database.NotificationReportGeneratorLog
+	oauth2ProviderApps                   []database.OAuth2ProviderApp
+	oauth2ProviderAppSecrets             []database.OAuth2ProviderAppSecret
+	oauth2ProviderAppCodes               []database.OAuth2ProviderAppCode
+	oauth2ProviderAppTokens              []database.OAuth2ProviderAppToken
+	parameterSchemas                     []database.ParameterSchema
+	provisionerDaemons                   []database.ProvisionerDaemon
+	provisionerJobLogs                   []database.ProvisionerJobLog
+	provisionerJobs                      []database.ProvisionerJob
+	provisionerKeys                      []database.ProvisionerKey
+	replicas                             []database.Replica
+	templateVersions                     []database.TemplateVersionTable
+	templateVersionParameters            []database.TemplateVersionParameter
+	templateVersionVariables             []database.TemplateVersionVariable
+	templateVersionWorkspaceTags         []database.TemplateVersionWorkspaceTag
+	templates                            []database.TemplateTable
+	templateUsageStats                   []database.TemplateUsageStat
+	workspaceAgents                      []database.WorkspaceAgent
+	workspaceAgentMetadata               []database.WorkspaceAgentMetadatum
+	workspaceAgentLogs                   []database.WorkspaceAgentLog
+	workspaceAgentLogSources             []database.WorkspaceAgentLogSource
+	workspaceAgentPortShares             []database.WorkspaceAgentPortShare
+	workspaceAgentScriptTimings          []database.WorkspaceAgentScriptTiming
+	workspaceAgentScripts                []database.WorkspaceAgentScript
+	workspaceAgentStats                  []database.WorkspaceAgentStat
+	workspaceAgentMemoryResourceMonitors []database.WorkspaceAgentMemoryResourceMonitor
+	workspaceAgentVolumeResourceMonitors []database.WorkspaceAgentVolumeResourceMonitor
+	workspaceApps                        []database.WorkspaceApp
+	workspaceAppStatsLastInsertID        int64
+	workspaceAppStats                    []database.WorkspaceAppStat
+	workspaceBuilds                      []database.WorkspaceBuild
+	workspaceBuildParameters             []database.WorkspaceBuildParameter
+	workspaceResourceMetadata            []database.WorkspaceResourceMetadatum
+	workspaceResources                   []database.WorkspaceResource
+	workspaceModules                     []database.WorkspaceModule
+	workspaces                           []database.WorkspaceTable
+	workspaceProxies                     []database.WorkspaceProxy
+	customRoles                          []database.CustomRole
+	provisionerJobTimings                []database.ProvisionerJobTiming
+	runtimeConfig                        map[string]string
 	// Locks is a map of lock names. Any keys within the map are currently
 	// locked.
 	locks                            map[int64]struct{}
@@ -258,6 +263,9 @@ type data struct {
 	defaultProxyDisplayName          string
 	defaultProxyIconURL              string
 	userStatusChanges                []database.UserStatusChange
+	telemetryItems                   []database.TelemetryItem
+	presets                          []database.TemplateVersionPreset
+	presetParameters                 []database.TemplateVersionPresetParameter
 }
 
 func tryPercentile(fs []float64, p float64) float64 {
@@ -2355,6 +2363,16 @@ func (q *FakeQuerier) FavoriteWorkspace(_ context.Context, arg uuid.UUID) error 
 	return nil
 }
 
+func (q *FakeQuerier) FetchMemoryResourceMonitorsByAgentID(_ context.Context, agentID uuid.UUID) (database.WorkspaceAgentMemoryResourceMonitor, error) {
+	for _, monitor := range q.workspaceAgentMemoryResourceMonitors {
+		if monitor.AgentID == agentID {
+			return monitor, nil
+		}
+	}
+
+	return database.WorkspaceAgentMemoryResourceMonitor{}, sql.ErrNoRows
+}
+
 func (q *FakeQuerier) FetchNewMessageMetadata(_ context.Context, arg database.FetchNewMessageMetadataParams) (database.FetchNewMessageMetadataRow, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -2385,6 +2403,18 @@ func (q *FakeQuerier) FetchNewMessageMetadata(_ context.Context, arg database.Fe
 		Actions:          actions,
 		UserID:           arg.UserID,
 	}, nil
+}
+
+func (q *FakeQuerier) FetchVolumesResourceMonitorsByAgentID(_ context.Context, agentID uuid.UUID) ([]database.WorkspaceAgentVolumeResourceMonitor, error) {
+	monitors := []database.WorkspaceAgentVolumeResourceMonitor{}
+
+	for _, monitor := range q.workspaceAgentVolumeResourceMonitors {
+		if monitor.AgentID == agentID {
+			monitors = append(monitors, monitor)
+		}
+	}
+
+	return monitors, nil
 }
 
 func (q *FakeQuerier) GetAPIKeyByID(_ context.Context, id string) (database.APIKey, error) {
@@ -3750,6 +3780,61 @@ func (q *FakeQuerier) GetParameterSchemasByJobID(_ context.Context, jobID uuid.U
 	return parameters, nil
 }
 
+func (q *FakeQuerier) GetPresetByWorkspaceBuildID(_ context.Context, workspaceBuildID uuid.UUID) (database.TemplateVersionPreset, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, workspaceBuild := range q.workspaceBuilds {
+		if workspaceBuild.ID != workspaceBuildID {
+			continue
+		}
+		for _, preset := range q.presets {
+			if preset.TemplateVersionID == workspaceBuild.TemplateVersionID {
+				return preset, nil
+			}
+		}
+	}
+	return database.TemplateVersionPreset{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) GetPresetParametersByTemplateVersionID(_ context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionPresetParameter, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	presets := make([]database.TemplateVersionPreset, 0)
+	parameters := make([]database.TemplateVersionPresetParameter, 0)
+	for _, preset := range q.presets {
+		if preset.TemplateVersionID != templateVersionID {
+			continue
+		}
+		presets = append(presets, preset)
+	}
+	for _, parameter := range q.presetParameters {
+		for _, preset := range presets {
+			if parameter.TemplateVersionPresetID != preset.ID {
+				continue
+			}
+			parameters = append(parameters, parameter)
+			break
+		}
+	}
+
+	return parameters, nil
+}
+
+func (q *FakeQuerier) GetPresetsByTemplateVersionID(_ context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionPreset, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	presets := make([]database.TemplateVersionPreset, 0)
+	for _, preset := range q.presets {
+		if preset.TemplateVersionID == templateVersionID {
+			presets = append(presets, preset)
+		}
+	}
+	return presets, nil
+}
+
 func (q *FakeQuerier) GetPreviousTemplateVersion(_ context.Context, arg database.GetPreviousTemplateVersionParams) (database.TemplateVersion, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.TemplateVersion{}, err
@@ -3846,7 +3931,7 @@ func (q *FakeQuerier) GetProvisionerDaemonsByOrganization(_ context.Context, arg
 	return daemons, nil
 }
 
-func (q *FakeQuerier) GetProvisionerDaemonsWithStatusByOrganization(_ context.Context, arg database.GetProvisionerDaemonsWithStatusByOrganizationParams) ([]database.GetProvisionerDaemonsWithStatusByOrganizationRow, error) {
+func (q *FakeQuerier) GetProvisionerDaemonsWithStatusByOrganization(ctx context.Context, arg database.GetProvisionerDaemonsWithStatusByOrganizationParams) ([]database.GetProvisionerDaemonsWithStatusByOrganizationRow, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return nil, err
@@ -3896,6 +3981,31 @@ func (q *FakeQuerier) GetProvisionerDaemonsWithStatusByOrganization(_ context.Co
 				status = database.ProvisionerDaemonStatusIdle
 			}
 		}
+		var currentTemplate database.Template
+		if currentJob.ID != uuid.Nil {
+			var input codersdk.ProvisionerJobInput
+			err := json.Unmarshal(currentJob.Input, &input)
+			if err != nil {
+				return nil, err
+			}
+			if input.WorkspaceBuildID != nil {
+				b, err := q.getWorkspaceBuildByIDNoLock(ctx, *input.WorkspaceBuildID)
+				if err != nil {
+					return nil, err
+				}
+				input.TemplateVersionID = &b.TemplateVersionID
+			}
+			if input.TemplateVersionID != nil {
+				v, err := q.getTemplateVersionByIDNoLock(ctx, *input.TemplateVersionID)
+				if err != nil {
+					return nil, err
+				}
+				currentTemplate, err = q.getTemplateByIDNoLock(ctx, v.TemplateID.UUID)
+				if err != nil {
+					return nil, err
+				}
+			}
+		}
 
 		var previousJob database.ProvisionerJob
 		for _, job := range q.provisionerJobs {
@@ -3912,6 +4022,31 @@ func (q *FakeQuerier) GetProvisionerDaemonsWithStatusByOrganization(_ context.Co
 				}
 			}
 		}
+		var previousTemplate database.Template
+		if previousJob.ID != uuid.Nil {
+			var input codersdk.ProvisionerJobInput
+			err := json.Unmarshal(previousJob.Input, &input)
+			if err != nil {
+				return nil, err
+			}
+			if input.WorkspaceBuildID != nil {
+				b, err := q.getWorkspaceBuildByIDNoLock(ctx, *input.WorkspaceBuildID)
+				if err != nil {
+					return nil, err
+				}
+				input.TemplateVersionID = &b.TemplateVersionID
+			}
+			if input.TemplateVersionID != nil {
+				v, err := q.getTemplateVersionByIDNoLock(ctx, *input.TemplateVersionID)
+				if err != nil {
+					return nil, err
+				}
+				previousTemplate, err = q.getTemplateByIDNoLock(ctx, v.TemplateID.UUID)
+				if err != nil {
+					return nil, err
+				}
+			}
+		}
 
 		// Get the provisioner key name
 		var keyName string
@@ -3923,19 +4058,29 @@ func (q *FakeQuerier) GetProvisionerDaemonsWithStatusByOrganization(_ context.Co
 		}
 
 		rows = append(rows, database.GetProvisionerDaemonsWithStatusByOrganizationRow{
-			ProvisionerDaemon: daemon,
-			Status:            status,
-			KeyName:           keyName,
-			CurrentJobID:      uuid.NullUUID{UUID: currentJob.ID, Valid: currentJob.ID != uuid.Nil},
-			CurrentJobStatus:  database.NullProvisionerJobStatus{ProvisionerJobStatus: currentJob.JobStatus, Valid: currentJob.ID != uuid.Nil},
-			PreviousJobID:     uuid.NullUUID{UUID: previousJob.ID, Valid: previousJob.ID != uuid.Nil},
-			PreviousJobStatus: database.NullProvisionerJobStatus{ProvisionerJobStatus: previousJob.JobStatus, Valid: previousJob.ID != uuid.Nil},
+			ProvisionerDaemon:              daemon,
+			Status:                         status,
+			KeyName:                        keyName,
+			CurrentJobID:                   uuid.NullUUID{UUID: currentJob.ID, Valid: currentJob.ID != uuid.Nil},
+			CurrentJobStatus:               database.NullProvisionerJobStatus{ProvisionerJobStatus: currentJob.JobStatus, Valid: currentJob.ID != uuid.Nil},
+			CurrentJobTemplateName:         currentTemplate.Name,
+			CurrentJobTemplateDisplayName:  currentTemplate.DisplayName,
+			CurrentJobTemplateIcon:         currentTemplate.Icon,
+			PreviousJobID:                  uuid.NullUUID{UUID: previousJob.ID, Valid: previousJob.ID != uuid.Nil},
+			PreviousJobStatus:              database.NullProvisionerJobStatus{ProvisionerJobStatus: previousJob.JobStatus, Valid: previousJob.ID != uuid.Nil},
+			PreviousJobTemplateName:        previousTemplate.Name,
+			PreviousJobTemplateDisplayName: previousTemplate.DisplayName,
+			PreviousJobTemplateIcon:        previousTemplate.Icon,
 		})
 	}
 
 	slices.SortFunc(rows, func(a, b database.GetProvisionerDaemonsWithStatusByOrganizationRow) int {
 		return a.ProvisionerDaemon.CreatedAt.Compare(b.ProvisionerDaemon.CreatedAt)
 	})
+
+	if arg.Limit.Valid && arg.Limit.Int32 > 0 && len(rows) > int(arg.Limit.Int32) {
+		rows = rows[:arg.Limit.Int32]
+	}
 
 	return rows, nil
 }
@@ -4085,12 +4230,54 @@ func (q *FakeQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePosition
 		if len(arg.IDs) > 0 && !slices.Contains(arg.IDs, job.ID) {
 			continue
 		}
+		if len(arg.Tags) > 0 && !tagsSubset(job.Tags, arg.Tags) {
+			continue
+		}
 
 		row := database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow{
 			ProvisionerJob: rowQP.ProvisionerJob,
 			QueuePosition:  rowQP.QueuePosition,
 			QueueSize:      rowQP.QueueSize,
 		}
+
+		// Start add metadata.
+		var input codersdk.ProvisionerJobInput
+		err := json.Unmarshal([]byte(job.Input), &input)
+		if err != nil {
+			return nil, err
+		}
+		templateVersionID := input.TemplateVersionID
+		if input.WorkspaceBuildID != nil {
+			workspaceBuild, err := q.getWorkspaceBuildByIDNoLock(ctx, *input.WorkspaceBuildID)
+			if err != nil {
+				return nil, err
+			}
+			workspace, err := q.getWorkspaceByIDNoLock(ctx, workspaceBuild.WorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+			row.WorkspaceID = uuid.NullUUID{UUID: workspace.ID, Valid: true}
+			row.WorkspaceName = workspace.Name
+			if templateVersionID == nil {
+				templateVersionID = &workspaceBuild.TemplateVersionID
+			}
+		}
+		if templateVersionID != nil {
+			templateVersion, err := q.getTemplateVersionByIDNoLock(ctx, *templateVersionID)
+			if err != nil {
+				return nil, err
+			}
+			row.TemplateVersionName = templateVersion.Name
+			template, err := q.getTemplateByIDNoLock(ctx, templateVersion.TemplateID.UUID)
+			if err != nil {
+				return nil, err
+			}
+			row.TemplateID = uuid.NullUUID{UUID: template.ID, Valid: true}
+			row.TemplateName = template.Name
+			row.TemplateDisplayName = template.DisplayName
+		}
+		// End add metadata.
+
 		if row.QueuePosition > 0 {
 			var availableWorkers []database.ProvisionerDaemon
 			for _, daemon := range q.provisionerDaemons {
@@ -4328,6 +4515,23 @@ func (*FakeQuerier) GetTailnetTunnelPeerBindings(context.Context, uuid.UUID) ([]
 
 func (*FakeQuerier) GetTailnetTunnelPeerIDs(context.Context, uuid.UUID) ([]database.GetTailnetTunnelPeerIDsRow, error) {
 	return nil, ErrUnimplemented
+}
+
+func (q *FakeQuerier) GetTelemetryItem(_ context.Context, key string) (database.TelemetryItem, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, item := range q.telemetryItems {
+		if item.Key == key {
+			return item, nil
+		}
+	}
+
+	return database.TelemetryItem{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) GetTelemetryItems(_ context.Context) ([]database.TelemetryItem, error) {
+	return q.telemetryItems, nil
 }
 
 func (q *FakeQuerier) GetTemplateAppInsights(ctx context.Context, arg database.GetTemplateAppInsightsParams) ([]database.GetTemplateAppInsightsRow, error) {
@@ -7776,6 +7980,21 @@ func (q *FakeQuerier) InsertLicense(
 	return l, nil
 }
 
+func (q *FakeQuerier) InsertMemoryResourceMonitor(_ context.Context, arg database.InsertMemoryResourceMonitorParams) (database.WorkspaceAgentMemoryResourceMonitor, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.WorkspaceAgentMemoryResourceMonitor{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	monitor := database.WorkspaceAgentMemoryResourceMonitor(arg)
+
+	q.workspaceAgentMemoryResourceMonitors = append(q.workspaceAgentMemoryResourceMonitors, monitor)
+	return monitor, nil
+}
+
 func (q *FakeQuerier) InsertMissingGroups(_ context.Context, arg database.InsertMissingGroupsParams) ([]database.Group, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -7984,6 +8203,50 @@ func (q *FakeQuerier) InsertOrganizationMember(_ context.Context, arg database.I
 	return organizationMember, nil
 }
 
+func (q *FakeQuerier) InsertPreset(_ context.Context, arg database.InsertPresetParams) (database.TemplateVersionPreset, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.TemplateVersionPreset{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	//nolint:gosimple // arg needs to keep its type for interface reasons and that type is not appropriate for preset below.
+	preset := database.TemplateVersionPreset{
+		ID:                uuid.New(),
+		TemplateVersionID: arg.TemplateVersionID,
+		Name:              arg.Name,
+		CreatedAt:         arg.CreatedAt,
+	}
+	q.presets = append(q.presets, preset)
+	return preset, nil
+}
+
+func (q *FakeQuerier) InsertPresetParameters(_ context.Context, arg database.InsertPresetParametersParams) ([]database.TemplateVersionPresetParameter, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	presetParameters := make([]database.TemplateVersionPresetParameter, 0, len(arg.Names))
+	for i, v := range arg.Names {
+		presetParameter := database.TemplateVersionPresetParameter{
+			ID:                      uuid.New(),
+			TemplateVersionPresetID: arg.TemplateVersionPresetID,
+			Name:                    v,
+			Value:                   arg.Values[i],
+		}
+		presetParameters = append(presetParameters, presetParameter)
+		q.presetParameters = append(q.presetParameters, presetParameter)
+	}
+
+	return presetParameters, nil
+}
+
 func (q *FakeQuerier) InsertProvisionerJob(_ context.Context, arg database.InsertProvisionerJobParams) (database.ProvisionerJob, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.ProvisionerJob{}, err
@@ -8118,6 +8381,30 @@ func (q *FakeQuerier) InsertReplica(_ context.Context, arg database.InsertReplic
 	}
 	q.replicas = append(q.replicas, replica)
 	return replica, nil
+}
+
+func (q *FakeQuerier) InsertTelemetryItemIfNotExists(_ context.Context, arg database.InsertTelemetryItemIfNotExistsParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, item := range q.telemetryItems {
+		if item.Key == arg.Key {
+			return nil
+		}
+	}
+
+	q.telemetryItems = append(q.telemetryItems, database.TelemetryItem{
+		Key:       arg.Key,
+		Value:     arg.Value,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	})
+	return nil
 }
 
 func (q *FakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTemplateParams) error {
@@ -8377,6 +8664,27 @@ func (q *FakeQuerier) InsertUserLink(_ context.Context, args database.InsertUser
 	q.userLinks = append(q.userLinks, link)
 
 	return link, nil
+}
+
+func (q *FakeQuerier) InsertVolumeResourceMonitor(_ context.Context, arg database.InsertVolumeResourceMonitorParams) (database.WorkspaceAgentVolumeResourceMonitor, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.WorkspaceAgentVolumeResourceMonitor{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	monitor := database.WorkspaceAgentVolumeResourceMonitor{
+		AgentID:   arg.AgentID,
+		Path:      arg.Path,
+		Enabled:   arg.Enabled,
+		Threshold: arg.Threshold,
+		CreatedAt: arg.CreatedAt,
+	}
+
+	q.workspaceAgentVolumeResourceMonitors = append(q.workspaceAgentVolumeResourceMonitors, monitor)
+	return monitor, nil
 }
 
 func (q *FakeQuerier) InsertWorkspace(_ context.Context, arg database.InsertWorkspaceParams) (database.WorkspaceTable, error) {
@@ -10872,6 +11180,33 @@ func (*FakeQuerier) UpsertTailnetTunnel(_ context.Context, arg database.UpsertTa
 	}
 
 	return database.TailnetTunnel{}, ErrUnimplemented
+}
+
+func (q *FakeQuerier) UpsertTelemetryItem(_ context.Context, arg database.UpsertTelemetryItemParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, item := range q.telemetryItems {
+		if item.Key == arg.Key {
+			q.telemetryItems[i].Value = arg.Value
+			q.telemetryItems[i].UpdatedAt = time.Now()
+			return nil
+		}
+	}
+
+	q.telemetryItems = append(q.telemetryItems, database.TelemetryItem{
+		Key:       arg.Key,
+		Value:     arg.Value,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	})
+
+	return nil
 }
 
 func (q *FakeQuerier) UpsertTemplateUsageStats(ctx context.Context) error {

@@ -42,6 +42,7 @@ type API struct {
 	*LifecycleAPI
 	*AppsAPI
 	*MetadataAPI
+	*ResourcesMonitoringAPI
 	*LogsAPI
 	*ScriptsAPI
 	*tailnet.DRPCService
@@ -100,6 +101,12 @@ func New(opts Options) *API {
 
 	api.AnnouncementBannerAPI = &AnnouncementBannerAPI{
 		appearanceFetcher: opts.AppearanceFetcher,
+	}
+
+	api.ResourcesMonitoringAPI = &ResourcesMonitoringAPI{
+		Log:      opts.Log,
+		AgentID:  opts.AgentID,
+		Database: opts.Database,
 	}
 
 	api.StatsAPI = &StatsAPI{

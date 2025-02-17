@@ -12,7 +12,7 @@ import (
 
 	"cdr.dev/slog"
 
-	"github.com/coder/terraform-provider-coder/provider"
+	"github.com/coder/terraform-provider-coder/v2/provider"
 
 	tfaddr "github.com/hashicorp/go-terraform-address"
 
@@ -56,6 +56,23 @@ type agentAttributes struct {
 	Metadata                 []agentMetadata              `mapstructure:"metadata"`
 	DisplayApps              []agentDisplayAppsAttributes `mapstructure:"display_apps"`
 	Order                    int64                        `mapstructure:"order"`
+	ResourcesMonitoring      []agentResourcesMonitoring   `mapstructure:"resources_monitoring"`
+}
+
+type agentResourcesMonitoring struct {
+	Memory  []agentMemoryResourceMonitor `mapstructure:"memory"`
+	Volumes []agentVolumeResourceMonitor `mapstructure:"volume"`
+}
+
+type agentMemoryResourceMonitor struct {
+	Enabled   bool  `mapstructure:"enabled"`
+	Threshold int32 `mapstructure:"threshold"`
+}
+
+type agentVolumeResourceMonitor struct {
+	Path      string `mapstructure:"path"`
+	Enabled   bool   `mapstructure:"enabled"`
+	Threshold int32  `mapstructure:"threshold"`
 }
 
 type agentDisplayAppsAttributes struct {
@@ -239,6 +256,29 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 				}
 			}
 
+			resourcesMonitoring := &proto.ResourcesMonitoring{
+				Volumes: make([]*proto.VolumeResourceMonitor, 0),
+			}
+
+			for _, resource := range attrs.ResourcesMonitoring {
+				for _, memoryResource := range resource.Memory {
+					resourcesMonitoring.Memory = &proto.MemoryResourceMonitor{
+						Enabled:   memoryResource.Enabled,
+						Threshold: memoryResource.Threshold,
+					}
+				}
+			}
+
+			for _, resource := range attrs.ResourcesMonitoring {
+				for _, volume := range resource.Volumes {
+					resourcesMonitoring.Volumes = append(resourcesMonitoring.Volumes, &proto.VolumeResourceMonitor{
+						Path:      volume.Path,
+						Enabled:   volume.Enabled,
+						Threshold: volume.Threshold,
+					})
+				}
+			}
+
 			agent := &proto.Agent{
 				Name:                     tfResource.Name,
 				Id:                       attrs.ID,
@@ -249,6 +289,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 				ConnectionTimeoutSeconds: attrs.ConnectionTimeoutSeconds,
 				TroubleshootingUrl:       attrs.TroubleshootingURL,
 				MotdFile:                 attrs.MOTDFile,
+				ResourcesMonitoring:      resourcesMonitoring,
 				Metadata:                 metadata,
 				DisplayApps:              displayApps,
 				Order:                    attrs.Order,

@@ -129,12 +129,29 @@ message Agent {
 	repeated Script scripts = 21;
 	repeated Env extra_envs = 22;
 	int64 order = 23;
+	ResourcesMonitoring resources_monitoring = 24;
 }
 
 enum AppSharingLevel {
     OWNER = 0;
     AUTHENTICATED = 1;
     PUBLIC = 2;
+}
+
+message ResourcesMonitoring {
+	MemoryResourceMonitor memory = 1;
+	repeated VolumeResourceMonitor volumes = 2;
+}
+
+message MemoryResourceMonitor {
+	bool enabled = 1;
+	int32 threshold = 2;
+}
+
+message VolumeResourceMonitor {
+	string path = 1;
+	bool enabled = 2;
+	int32 threshold = 3;
 }
 
 message DisplayApps {

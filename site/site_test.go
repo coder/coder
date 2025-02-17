@@ -27,8 +27,10 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/site"
 	"github.com/coder/coder/v2/testutil"
@@ -45,9 +47,10 @@ func TestInjection(t *testing.T) {
 	binFs := http.FS(fstest.MapFS{})
 	db := dbmem.New()
 	handler := site.New(&site.Options{
-		BinFS:    binFs,
-		Database: db,
-		SiteFS:   siteFS,
+		Telemetry: telemetry.NewNoop(),
+		BinFS:     binFs,
+		Database:  db,
+		SiteFS:    siteFS,
 	})
 
 	user := dbgen.User(t, db, database.User{})
@@ -101,9 +104,10 @@ func TestInjectionFailureProducesCleanHTML(t *testing.T) {
 		},
 	}
 	handler := site.New(&site.Options{
-		BinFS:    binFs,
-		Database: db,
-		SiteFS:   siteFS,
+		Telemetry: telemetry.NewNoop(),
+		BinFS:     binFs,
+		Database:  db,
+		SiteFS:    siteFS,
 
 		// No OAuth2 configs, refresh will fail.
 		OAuth2Configs: &httpmw.OAuth2Configs{
@@ -147,9 +151,12 @@ func TestCaching(t *testing.T) {
 	}
 	binFS := http.FS(fstest.MapFS{})
 
+	db, _ := dbtestutil.NewDB(t)
 	srv := httptest.NewServer(site.New(&site.Options{
-		BinFS:  binFS,
-		SiteFS: rootFS,
+		Telemetry: telemetry.NewNoop(),
+		BinFS:     binFS,
+		SiteFS:    rootFS,
+		Database:  db,
 	}))
 	defer srv.Close()
 
@@ -213,9 +220,12 @@ func TestServingFiles(t *testing.T) {
 	}
 	binFS := http.FS(fstest.MapFS{})
 
+	db, _ := dbtestutil.NewDB(t)
 	srv := httptest.NewServer(site.New(&site.Options{
-		BinFS:  binFS,
-		SiteFS: rootFS,
+		Telemetry: telemetry.NewNoop(),
+		BinFS:     binFS,
+		SiteFS:    rootFS,
+		Database:  db,
 	}))
 	defer srv.Close()
 
@@ -473,6 +483,7 @@ func TestServingBin(t *testing.T) {
 			}
 
 			srv := httptest.NewServer(site.New(&site.Options{
+				Telemetry: telemetry.NewNoop(),
 				BinFS:     binFS,
 				BinHashes: binHashes,
 				SiteFS:    rootFS,

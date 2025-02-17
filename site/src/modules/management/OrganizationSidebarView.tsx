@@ -18,7 +18,7 @@ import {
 	SettingsSidebarNavItem,
 } from "components/Sidebar/Sidebar";
 import type { Permissions } from "contexts/auth/permissions";
-import { ChevronDown, Plus } from "lucide-react";
+import { Check, ChevronDown, Plus } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -60,7 +60,9 @@ export const OrganizationSidebarView: FC<SidebarProps> = ({
 };
 
 function urlForSubpage(organizationName: string, subpage = ""): string {
-	return `/organizations/${organizationName}/${subpage}`;
+	return [`/organizations/${organizationName}`, subpage]
+		.filter(Boolean)
+		.join("/");
 }
 
 interface OrganizationsSettingsNavigationProps {
@@ -85,6 +87,12 @@ const OrganizationsSettingsNavigation: FC<
 	if (!organizations || !activeOrganization) {
 		return <Loader />;
 	}
+
+	// Sort organizations to put active organization first
+	const sortedOrganizations = [
+		activeOrganization,
+		...organizations.filter((org) => org.id !== activeOrganization.id),
+	];
 
 	const [isPopoverOpen, setIsPopoverOpen] = useState(false);
 	const navigate = useNavigate();
@@ -117,9 +125,9 @@ const OrganizationsSettingsNavigation: FC<
 					<Command loop>
 						<CommandList>
 							<CommandGroup className="pb-2">
-								{organizations.length > 1 && (
+								{sortedOrganizations.length > 1 && (
 									<div className="flex flex-col max-h-[260px] overflow-y-auto">
-										{organizations.map((organization) => (
+										{sortedOrganizations.map((organization) => (
 											<CommandItem
 												key={organization.id}
 												value={organization.name}
@@ -139,6 +147,13 @@ const OrganizationsSettingsNavigation: FC<
 												<span className="truncate">
 													{organization?.display_name || organization?.name}
 												</span>
+												{activeOrganization.name === organization.name && (
+													<Check
+														size={16}
+														strokeWidth={2}
+														className="ml-auto"
+													/>
+												)}
 											</CommandItem>
 										))}
 									</div>

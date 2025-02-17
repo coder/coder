@@ -184,6 +184,8 @@ var (
 					rbac.ResourceGroup.Type:        {policy.ActionRead},
 					// Provisionerd creates notification messages
 					rbac.ResourceNotificationMessage.Type: {policy.ActionCreate, policy.ActionRead},
+					// Provisionerd creates workspaces resources monitor
+					rbac.ResourceWorkspaceAgentResourceMonitor.Type: {policy.ActionCreate},
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},
@@ -1391,11 +1393,39 @@ func (q *querier) FavoriteWorkspace(ctx context.Context, id uuid.UUID) error {
 	return update(q.log, q.auth, fetch, q.db.FavoriteWorkspace)(ctx, id)
 }
 
+func (q *querier) FetchMemoryResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) (database.WorkspaceAgentMemoryResourceMonitor, error) {
+	workspace, err := q.db.GetWorkspaceByAgentID(ctx, agentID)
+	if err != nil {
+		return database.WorkspaceAgentMemoryResourceMonitor{}, err
+	}
+
+	err = q.authorizeContext(ctx, policy.ActionRead, workspace)
+	if err != nil {
+		return database.WorkspaceAgentMemoryResourceMonitor{}, err
+	}
+
+	return q.db.FetchMemoryResourceMonitorsByAgentID(ctx, agentID)
+}
+
 func (q *querier) FetchNewMessageMetadata(ctx context.Context, arg database.FetchNewMessageMetadataParams) (database.FetchNewMessageMetadataRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceNotificationMessage); err != nil {
 		return database.FetchNewMessageMetadataRow{}, err
 	}
 	return q.db.FetchNewMessageMetadata(ctx, arg)
+}
+
+func (q *querier) FetchVolumesResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) ([]database.WorkspaceAgentVolumeResourceMonitor, error) {
+	workspace, err := q.db.GetWorkspaceByAgentID(ctx, agentID)
+	if err != nil {
+		return nil, err
+	}
+
+	err = q.authorizeContext(ctx, policy.ActionRead, workspace)
+	if err != nil {
+		return nil, err
+	}
+
+	return q.db.FetchVolumesResourceMonitorsByAgentID(ctx, agentID)
 }
 
 func (q *querier) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
@@ -1914,6 +1944,33 @@ func (q *querier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUI
 	return q.db.GetParameterSchemasByJobID(ctx, jobID)
 }
 
+func (q *querier) GetPresetByWorkspaceBuildID(ctx context.Context, workspaceID uuid.UUID) (database.TemplateVersionPreset, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate); err != nil {
+		return database.TemplateVersionPreset{}, err
+	}
+	return q.db.GetPresetByWorkspaceBuildID(ctx, workspaceID)
+}
+
+func (q *querier) GetPresetParametersByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionPresetParameter, error) {
+	// An actor can read template version presets if they can read the related template version.
+	_, err := q.GetTemplateVersionByID(ctx, templateVersionID)
+	if err != nil {
+		return nil, err
+	}
+
+	return q.db.GetPresetParametersByTemplateVersionID(ctx, templateVersionID)
+}
+
+func (q *querier) GetPresetsByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionPreset, error) {
+	// An actor can read template version presets if they can read the related template version.
+	_, err := q.GetTemplateVersionByID(ctx, templateVersionID)
+	if err != nil {
+		return nil, err
+	}
+
+	return q.db.GetPresetsByTemplateVersionID(ctx, templateVersionID)
+}
+
 func (q *querier) GetPreviousTemplateVersion(ctx context.Context, arg database.GetPreviousTemplateVersionParams) (database.TemplateVersion, error) {
 	// An actor can read the previous template version if they can read the related template.
 	// If no linked template exists, we check if the actor can read *a* template.
@@ -2094,6 +2151,20 @@ func (q *querier) GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUID) 
 		return nil, err
 	}
 	return q.db.GetTailnetTunnelPeerIDs(ctx, srcID)
+}
+
+func (q *querier) GetTelemetryItem(ctx context.Context, key string) (database.TelemetryItem, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.TelemetryItem{}, err
+	}
+	return q.db.GetTelemetryItem(ctx, key)
+}
+
+func (q *querier) GetTelemetryItems(ctx context.Context) ([]database.TelemetryItem, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetTelemetryItems(ctx)
 }
 
 func (q *querier) GetTemplateAppInsights(ctx context.Context, arg database.GetTemplateAppInsightsParams) ([]database.GetTemplateAppInsightsRow, error) {
@@ -2989,6 +3060,14 @@ func (q *querier) InsertLicense(ctx context.Context, arg database.InsertLicenseP
 	return q.db.InsertLicense(ctx, arg)
 }
 
+func (q *querier) InsertMemoryResourceMonitor(ctx context.Context, arg database.InsertMemoryResourceMonitorParams) (database.WorkspaceAgentMemoryResourceMonitor, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceWorkspaceAgentResourceMonitor); err != nil {
+		return database.WorkspaceAgentMemoryResourceMonitor{}, err
+	}
+
+	return q.db.InsertMemoryResourceMonitor(ctx, arg)
+}
+
 func (q *querier) InsertMissingGroups(ctx context.Context, arg database.InsertMissingGroupsParams) ([]database.Group, error) {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
 		return nil, err
@@ -3050,6 +3129,24 @@ func (q *querier) InsertOrganizationMember(ctx context.Context, arg database.Ins
 	return insert(q.log, q.auth, obj, q.db.InsertOrganizationMember)(ctx, arg)
 }
 
+func (q *querier) InsertPreset(ctx context.Context, arg database.InsertPresetParams) (database.TemplateVersionPreset, error) {
+	err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceTemplate)
+	if err != nil {
+		return database.TemplateVersionPreset{}, err
+	}
+
+	return q.db.InsertPreset(ctx, arg)
+}
+
+func (q *querier) InsertPresetParameters(ctx context.Context, arg database.InsertPresetParametersParams) ([]database.TemplateVersionPresetParameter, error) {
+	err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceTemplate)
+	if err != nil {
+		return nil, err
+	}
+
+	return q.db.InsertPresetParameters(ctx, arg)
+}
+
 // TODO: We need to create a ProvisionerJob resource type
 func (q *querier) InsertProvisionerJob(ctx context.Context, arg database.InsertProvisionerJobParams) (database.ProvisionerJob, error) {
 	// if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
@@ -3083,6 +3180,13 @@ func (q *querier) InsertReplica(ctx context.Context, arg database.InsertReplicaP
 		return database.Replica{}, err
 	}
 	return q.db.InsertReplica(ctx, arg)
+}
+
+func (q *querier) InsertTelemetryItemIfNotExists(ctx context.Context, arg database.InsertTelemetryItemIfNotExistsParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.InsertTelemetryItemIfNotExists(ctx, arg)
 }
 
 func (q *querier) InsertTemplate(ctx context.Context, arg database.InsertTemplateParams) error {
@@ -3172,6 +3276,14 @@ func (q *querier) InsertUserLink(ctx context.Context, arg database.InsertUserLin
 		return database.UserLink{}, err
 	}
 	return q.db.InsertUserLink(ctx, arg)
+}
+
+func (q *querier) InsertVolumeResourceMonitor(ctx context.Context, arg database.InsertVolumeResourceMonitorParams) (database.WorkspaceAgentVolumeResourceMonitor, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceWorkspaceAgentResourceMonitor); err != nil {
+		return database.WorkspaceAgentVolumeResourceMonitor{}, err
+	}
+
+	return q.db.InsertVolumeResourceMonitor(ctx, arg)
 }
 
 func (q *querier) InsertWorkspace(ctx context.Context, arg database.InsertWorkspaceParams) (database.WorkspaceTable, error) {
@@ -4343,6 +4455,13 @@ func (q *querier) UpsertTailnetTunnel(ctx context.Context, arg database.UpsertTa
 		return database.TailnetTunnel{}, err
 	}
 	return q.db.UpsertTailnetTunnel(ctx, arg)
+}
+
+func (q *querier) UpsertTelemetryItem(ctx context.Context, arg database.UpsertTelemetryItemParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.UpsertTelemetryItem(ctx, arg)
 }
 
 func (q *querier) UpsertTemplateUsageStats(ctx context.Context) error {

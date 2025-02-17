@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	tfjson "github.com/hashicorp/terraform-json"
 	"github.com/stretchr/testify/require"
 	protobuf "google.golang.org/protobuf/proto"
@@ -66,6 +67,7 @@ func TestConvertResources(t *testing.T) {
 					Auth:                     &proto.Agent_Token{},
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps:              &displayApps,
+					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
 				}},
 			}},
 		},
@@ -83,6 +85,7 @@ func TestConvertResources(t *testing.T) {
 					Auth:                     &proto.Agent_Token{},
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps:              &displayApps,
+					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
 				}},
 			}, {
 				Name: "second",
@@ -101,6 +104,7 @@ func TestConvertResources(t *testing.T) {
 					Auth:                     &proto.Agent_InstanceId{},
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps:              &displayApps,
+					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
 				}},
 			}},
 		},
@@ -117,6 +121,7 @@ func TestConvertResources(t *testing.T) {
 					Auth:                     &proto.Agent_Token{},
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps:              &displayApps,
+					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
 				}},
 				ModulePath: "module.module",
 			}},
@@ -134,6 +139,7 @@ func TestConvertResources(t *testing.T) {
 					Auth:                     &proto.Agent_Token{},
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps:              &displayApps,
+					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
 				}, {
 					Name:                     "dev2",
 					OperatingSystem:          "darwin",
@@ -142,6 +148,7 @@ func TestConvertResources(t *testing.T) {
 					ConnectionTimeoutSeconds: 1,
 					MotdFile:                 "/etc/motd",
 					DisplayApps:              &displayApps,
+					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
 					Scripts: []*proto.Script{{
 						Icon:        "/emojis/25c0.png",
 						DisplayName: "Shutdown Script",
@@ -157,6 +164,7 @@ func TestConvertResources(t *testing.T) {
 					ConnectionTimeoutSeconds: 120,
 					TroubleshootingUrl:       "https://coder.com/troubleshoot",
 					DisplayApps:              &displayApps,
+					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
 				}, {
 					Name:                     "dev4",
 					OperatingSystem:          "linux",
@@ -164,6 +172,7 @@ func TestConvertResources(t *testing.T) {
 					Auth:                     &proto.Agent_Token{},
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps:              &displayApps,
+					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
 				}},
 			}},
 		},
@@ -205,6 +214,7 @@ func TestConvertResources(t *testing.T) {
 					Auth:                     &proto.Agent_Token{},
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps:              &displayApps,
+					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
 				}},
 			}},
 		},
@@ -231,6 +241,7 @@ func TestConvertResources(t *testing.T) {
 					Auth:                     &proto.Agent_Token{},
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps:              &displayApps,
+					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
 				}},
 			}},
 		},
@@ -265,6 +276,7 @@ func TestConvertResources(t *testing.T) {
 					Auth:                     &proto.Agent_Token{},
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps:              &displayApps,
+					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
 				}},
 			}, {
 				Name: "dev2",
@@ -284,6 +296,7 @@ func TestConvertResources(t *testing.T) {
 					Auth:                     &proto.Agent_Token{},
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps:              &displayApps,
+					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
 				}},
 			}},
 		},
@@ -308,6 +321,7 @@ func TestConvertResources(t *testing.T) {
 					Auth:                     &proto.Agent_Token{},
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps:              &displayApps,
+					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
 				}},
 			}, {
 				Name: "dev2",
@@ -325,6 +339,7 @@ func TestConvertResources(t *testing.T) {
 					Auth:                     &proto.Agent_Token{},
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps:              &displayApps,
+					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
 				}},
 			}, {
 				Name: "env1",
@@ -335,6 +350,75 @@ func TestConvertResources(t *testing.T) {
 			}, {
 				Name: "env3",
 				Type: "coder_env",
+			}},
+		},
+		"multiple-agents-multiple-monitors": {
+			resources: []*proto.Resource{{
+				Name: "dev",
+				Type: "null_resource",
+				Agents: []*proto.Agent{
+					{
+						Name:            "dev1",
+						OperatingSystem: "linux",
+						Architecture:    "amd64",
+						Apps: []*proto.App{
+							{
+								Slug:        "app1",
+								DisplayName: "app1",
+								// Subdomain defaults to false if unspecified.
+								Subdomain: false,
+								OpenIn:    proto.AppOpenIn_SLIM_WINDOW,
+							},
+							{
+								Slug:        "app2",
+								DisplayName: "app2",
+								Subdomain:   true,
+								Healthcheck: &proto.Healthcheck{
+									Url:       "http://localhost:13337/healthz",
+									Interval:  5,
+									Threshold: 6,
+								},
+								OpenIn: proto.AppOpenIn_SLIM_WINDOW,
+							},
+						},
+						Auth:                     &proto.Agent_Token{},
+						ConnectionTimeoutSeconds: 120,
+						DisplayApps:              &displayApps,
+						ResourcesMonitoring: &proto.ResourcesMonitoring{
+							Memory: &proto.MemoryResourceMonitor{
+								Enabled:   true,
+								Threshold: 80,
+							},
+						},
+					},
+					{
+						Name:                     "dev2",
+						OperatingSystem:          "linux",
+						Architecture:             "amd64",
+						Apps:                     []*proto.App{},
+						Auth:                     &proto.Agent_Token{},
+						ConnectionTimeoutSeconds: 120,
+						DisplayApps:              &displayApps,
+						ResourcesMonitoring: &proto.ResourcesMonitoring{
+							Memory: &proto.MemoryResourceMonitor{
+								Enabled:   true,
+								Threshold: 99,
+							},
+							Volumes: []*proto.VolumeResourceMonitor{
+								{
+									Path:      "volume2",
+									Enabled:   false,
+									Threshold: 50,
+								},
+								{
+									Path:      "volume1",
+									Enabled:   true,
+									Threshold: 80,
+								},
+							},
+						},
+					},
+				},
 			}},
 		},
 		"multiple-agents-multiple-scripts": {
@@ -360,6 +444,7 @@ func TestConvertResources(t *testing.T) {
 					Auth:                     &proto.Agent_Token{},
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps:              &displayApps,
+					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
 				}},
 			}, {
 				Name: "dev2",
@@ -378,6 +463,7 @@ func TestConvertResources(t *testing.T) {
 					Auth:                     &proto.Agent_Token{},
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps:              &displayApps,
+					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
 				}},
 			}},
 		},
@@ -417,6 +503,7 @@ func TestConvertResources(t *testing.T) {
 					}},
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps:              &displayApps,
+					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
 				}},
 			}},
 		},
@@ -468,6 +555,7 @@ func TestConvertResources(t *testing.T) {
 						Auth:                     &proto.Agent_Token{},
 						ConnectionTimeoutSeconds: 120,
 						DisplayApps:              &displayApps,
+						ResourcesMonitoring:      &proto.ResourcesMonitoring{},
 						Scripts: []*proto.Script{{
 							DisplayName: "Startup Script",
 							RunOnStart:  true,
@@ -490,6 +578,7 @@ func TestConvertResources(t *testing.T) {
 					Auth:                     &proto.Agent_Token{},
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps:              &displayApps,
+					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
 				}},
 			}},
 			parameters: []*proto.RichParameter{{
@@ -569,6 +658,7 @@ func TestConvertResources(t *testing.T) {
 					Auth:                     &proto.Agent_Token{},
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps:              &displayApps,
+					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
 				}},
 			}},
 			parameters: []*proto.RichParameter{{
@@ -595,6 +685,7 @@ func TestConvertResources(t *testing.T) {
 					Auth:                     &proto.Agent_Token{},
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps:              &displayApps,
+					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
 				}},
 			}},
 			parameters: []*proto.RichParameter{{
@@ -637,21 +728,6 @@ func TestConvertResources(t *testing.T) {
 				ValidationMax: nil,
 			}},
 		},
-		"git-auth-providers": {
-			resources: []*proto.Resource{{
-				Name: "dev",
-				Type: "null_resource",
-				Agents: []*proto.Agent{{
-					Name:                     "main",
-					OperatingSystem:          "linux",
-					Architecture:             "amd64",
-					Auth:                     &proto.Agent_Token{},
-					ConnectionTimeoutSeconds: 120,
-					DisplayApps:              &displayApps,
-				}},
-			}},
-			externalAuthProviders: []*proto.ExternalAuthProviderResource{{Id: "github"}, {Id: "gitlab"}},
-		},
 		"external-auth-providers": {
 			resources: []*proto.Resource{{
 				Name: "dev",
@@ -663,6 +739,7 @@ func TestConvertResources(t *testing.T) {
 					Auth:                     &proto.Agent_Token{},
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps:              &displayApps,
+					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
 				}},
 			}},
 			externalAuthProviders: []*proto.ExternalAuthProviderResource{{Id: "github"}, {Id: "gitlab", Optional: true}},
@@ -681,6 +758,7 @@ func TestConvertResources(t *testing.T) {
 						VscodeInsiders: true,
 						WebTerminal:    true,
 					},
+					ResourcesMonitoring: &proto.ResourcesMonitoring{},
 				}},
 			}},
 		},
@@ -695,6 +773,7 @@ func TestConvertResources(t *testing.T) {
 					Auth:                     &proto.Agent_Token{},
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps:              &proto.DisplayApps{},
+					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
 				}},
 			}},
 		},
@@ -764,7 +843,9 @@ func TestConvertResources(t *testing.T) {
 				var resourcesMap []map[string]interface{}
 				err = json.Unmarshal(data, &resourcesMap)
 				require.NoError(t, err)
-				require.Equal(t, expectedNoMetadataMap, resourcesMap)
+				if diff := cmp.Diff(expectedNoMetadataMap, resourcesMap); diff != "" {
+					require.Failf(t, "unexpected resources", "diff (-want +got):\n%s", diff)
+				}
 
 				expectedParams := expected.parameters
 				if expectedParams == nil {
@@ -819,7 +900,9 @@ func TestConvertResources(t *testing.T) {
 				var resourcesMap []map[string]interface{}
 				err = json.Unmarshal(data, &resourcesMap)
 				require.NoError(t, err)
-				require.Equal(t, expectedMap, resourcesMap)
+				if diff := cmp.Diff(expectedMap, resourcesMap); diff != "" {
+					require.Failf(t, "unexpected resources", "diff (-want +got):\n%s", diff)
+				}
 				require.ElementsMatch(t, expected.externalAuthProviders, state.ExternalAuthProviders)
 			})
 		})

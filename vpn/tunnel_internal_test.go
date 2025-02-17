@@ -100,6 +100,9 @@ func TestTunnel_StartStop(t *testing.T) {
 					TunnelFileDescriptor: 2,
 					CoderUrl:             "https://coder.example.com",
 					ApiToken:             "fakeToken",
+					Headers: []*StartRequest_Header{
+						{Name: "X-Test-Header", Value: "test"},
+					},
 				},
 			},
 		})
@@ -317,12 +320,8 @@ func TestUpdater_createPeerUpdate(t *testing.T) {
 		},
 	})
 	require.Len(t, update.UpsertedAgents, 1)
-	slices.SortFunc(update.UpsertedAgents[0].Fqdn, func(a, b string) int {
-		return strings.Compare(a, b)
-	})
-	slices.SortFunc(update.DeletedAgents[0].Fqdn, func(a, b string) int {
-		return strings.Compare(a, b)
-	})
+	slices.SortFunc(update.UpsertedAgents[0].Fqdn, strings.Compare)
+	slices.SortFunc(update.DeletedAgents[0].Fqdn, strings.Compare)
 	require.Equal(t, update, &PeerUpdate{
 		UpsertedWorkspaces: []*Workspace{
 			{Id: w1ID[:], Name: "w1", Status: Workspace_Status(proto.Workspace_STARTING)},

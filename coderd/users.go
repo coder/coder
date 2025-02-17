@@ -918,6 +918,7 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 
 func (api *API) notifyUserStatusChanged(ctx context.Context, actingUserName string, targetUser database.User, status database.UserStatus) error {
 	var labels map[string]string
+	var data map[string]any
 	var adminTemplateID, personalTemplateID uuid.UUID
 	switch status {
 	case database.UserStatusSuspended:
@@ -926,6 +927,9 @@ func (api *API) notifyUserStatusChanged(ctx context.Context, actingUserName stri
 			"suspended_account_user_name": targetUser.Name,
 			"initiator":                   actingUserName,
 		}
+		data = map[string]any{
+			"user": map[string]any{"id": targetUser.ID, "name": targetUser.Name, "email": targetUser.Email},
+		}
 		adminTemplateID = notifications.TemplateUserAccountSuspended
 		personalTemplateID = notifications.TemplateYourAccountSuspended
 	case database.UserStatusActive:
@@ -933,6 +937,9 @@ func (api *API) notifyUserStatusChanged(ctx context.Context, actingUserName stri
 			"activated_account_name":      targetUser.Username,
 			"activated_account_user_name": targetUser.Name,
 			"initiator":                   actingUserName,
+		}
+		data = map[string]any{
+			"user": map[string]any{"id": targetUser.ID, "name": targetUser.Name, "email": targetUser.Email},
 		}
 		adminTemplateID = notifications.TemplateUserAccountActivated
 		personalTemplateID = notifications.TemplateYourAccountActivated
@@ -949,16 +956,16 @@ func (api *API) notifyUserStatusChanged(ctx context.Context, actingUserName stri
 	// Send notifications to user admins and affected user
 	for _, u := range userAdmins {
 		// nolint:gocritic // Need notifier actor to enqueue notifications
-		if _, err := api.NotificationsEnqueuer.Enqueue(dbauthz.AsNotifier(ctx), u.ID, adminTemplateID,
-			labels, "api-put-user-status",
+		if _, err := api.NotificationsEnqueuer.EnqueueWithData(dbauthz.AsNotifier(ctx), u.ID, adminTemplateID,
+			labels, data, "api-put-user-status",
 			targetUser.ID,
 		); err != nil {
 			api.Logger.Warn(ctx, "unable to notify about changed user's status", slog.F("affected_user", targetUser.Username), slog.Error(err))
 		}
 	}
 	// nolint:gocritic // Need notifier actor to enqueue notifications
-	if _, err := api.NotificationsEnqueuer.Enqueue(dbauthz.AsNotifier(ctx), targetUser.ID, personalTemplateID,
-		labels, "api-put-user-status",
+	if _, err := api.NotificationsEnqueuer.EnqueueWithData(dbauthz.AsNotifier(ctx), targetUser.ID, personalTemplateID,
+		labels, data, "api-put-user-status",
 		targetUser.ID,
 	); err != nil {
 		api.Logger.Warn(ctx, "unable to notify user about status change of their account", slog.F("affected_user", targetUser.Username), slog.Error(err))
@@ -1424,13 +1431,20 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 	}
 
 	for _, u := range userAdmins {
-		// nolint:gocritic // Need notifier actor to enqueue notifications
-		if _, err := api.NotificationsEnqueuer.Enqueue(dbauthz.AsNotifier(ctx), u.ID, notifications.TemplateUserAccountCreated,
+		if _, err := api.NotificationsEnqueuer.EnqueueWithData(
+			// nolint:gocritic // Need notifier actor to enqueue notifications
+			dbauthz.AsNotifier(ctx),
+			u.ID,
+			notifications.TemplateUserAccountCreated,
 			map[string]string{
 				"created_account_name":      user.Username,
 				"created_account_user_name": user.Name,
 				"initiator":                 req.accountCreatorName,
-			}, "api-users-create",
+			},
+			map[string]any{
+				"user": map[string]any{"id": user.ID, "name": user.Name, "email": user.Email},
+			},
+			"api-users-create",
 			user.ID,
 		); err != nil {
 			api.Logger.Warn(ctx, "unable to notify about created user", slog.F("created_user", user.Username), slog.Error(err))

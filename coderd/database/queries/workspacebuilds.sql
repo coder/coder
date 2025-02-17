@@ -120,10 +120,11 @@ INSERT INTO
 		provisioner_state,
 		deadline,
 		max_deadline,
-		reason
+		reason,
+		template_version_preset_id
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13);
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14);
 
 -- name: UpdateWorkspaceBuildCostByID :exec
 UPDATE

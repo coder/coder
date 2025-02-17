@@ -60,10 +60,9 @@ const OrganizationSettingsLayout: FC = () => {
 	const canViewOrganizationSettingsPage =
 		permissions.viewDeploymentValues || permissions.editAnyOrganization;
 
-	const organization =
-		organizations && orgName
-			? organizations.find((org) => org.name === orgName)
-			: undefined;
+	const organization = orgName
+		? organizations.find((org) => org.name === orgName)
+		: undefined;
 
 	return (
 		<RequirePermission isFeatureVisible={canViewOrganizationSettingsPage}>
@@ -83,7 +82,6 @@ const OrganizationSettingsLayout: FC = () => {
 							<BreadcrumbItem>
 								<BreadcrumbPage className="flex items-center gap-2">
 									Organizations
-									<FeatureStageBadge contentType="beta" size="sm" />
 								</BreadcrumbPage>
 							</BreadcrumbItem>
 							{organization && (

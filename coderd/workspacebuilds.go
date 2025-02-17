@@ -527,7 +527,7 @@ func (api *API) notifyWorkspaceUpdated(
 			"workspace":        map[string]any{"id": workspace.ID, "name": workspace.Name},
 			"template":         map[string]any{"id": template.ID, "name": template.Name},
 			"template_version": map[string]any{"id": version.ID, "name": version.Name},
-			"owner":            map[string]any{"id": owner.ID, "name": owner.Name},
+			"owner":            map[string]any{"id": owner.ID, "name": owner.Name, "email": owner.Email},
 			"parameters":       buildParameters,
 		},
 		"api-workspaces-updated",

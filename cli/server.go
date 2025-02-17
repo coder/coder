@@ -513,7 +513,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 
 			accessURL := vals.AccessURL.String()
-			cliui.Infof(inv.Stdout, lipgloss.NewStyle().
+			cliui.Info(inv.Stdout, lipgloss.NewStyle().
 				Border(lipgloss.DoubleBorder()).
 				Align(lipgloss.Center).
 				Padding(0, 3).
@@ -694,7 +694,12 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 			}
 
-			if vals.OIDC.ClientKeyFile != "" || vals.OIDC.ClientSecret != "" {
+			// As OIDC clients can be confidential or public,
+			// we should only check for a client id being set.
+			// The underlying library handles the case of no
+			// client secrets correctly. For more details on
+			// client types: https://oauth.net/2/client-types/
+			if vals.OIDC.ClientID != "" {
 				if vals.OIDC.IgnoreEmailVerified {
 					logger.Warn(ctx, "coder will not check email_verified for OIDC logins")
 				}
@@ -781,40 +786,42 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// This should be output before the logs start streaming.
 			cliui.Infof(inv.Stdout, "\n==> Logs will stream in below (press ctrl+c to gracefully exit):")
 
-			if vals.Telemetry.Enable {
-				vals, err := vals.WithoutSecrets()
-				if err != nil {
-					return xerrors.Errorf("remove secrets from deployment values: %w", err)
-				}
-				options.Telemetry, err = telemetry.New(telemetry.Options{
-					BuiltinPostgres:  builtinPostgres,
-					DeploymentID:     deploymentID,
-					Database:         options.Database,
-					Logger:           logger.Named("telemetry"),
-					URL:              vals.Telemetry.URL.Value(),
-					Tunnel:           tunnel != nil,
-					DeploymentConfig: vals,
-					ParseLicenseJWT: func(lic *telemetry.License) error {
-						// This will be nil when running in AGPL-only mode.
-						if options.ParseLicenseClaims == nil {
-							return nil
-						}
-
-						email, trial, err := options.ParseLicenseClaims(lic.JWT)
-						if err != nil {
-							return err
-						}
-						if email != "" {
-							lic.Email = &email
-						}
-						lic.Trial = &trial
+			deploymentConfigWithoutSecrets, err := vals.WithoutSecrets()
+			if err != nil {
+				return xerrors.Errorf("remove secrets from deployment values: %w", err)
+			}
+			telemetryReporter, err := telemetry.New(telemetry.Options{
+				Disabled:         !vals.Telemetry.Enable.Value(),
+				BuiltinPostgres:  builtinPostgres,
+				DeploymentID:     deploymentID,
+				Database:         options.Database,
+				Logger:           logger.Named("telemetry"),
+				URL:              vals.Telemetry.URL.Value(),
+				Tunnel:           tunnel != nil,
+				DeploymentConfig: deploymentConfigWithoutSecrets,
+				ParseLicenseJWT: func(lic *telemetry.License) error {
+					// This will be nil when running in AGPL-only mode.
+					if options.ParseLicenseClaims == nil {
 						return nil
-					},
-				})
-				if err != nil {
-					return xerrors.Errorf("create telemetry reporter: %w", err)
-				}
-				defer options.Telemetry.Close()
+					}
+
+					email, trial, err := options.ParseLicenseClaims(lic.JWT)
+					if err != nil {
+						return err
+					}
+					if email != "" {
+						lic.Email = &email
+					}
+					lic.Trial = &trial
+					return nil
+				},
+			})
+			if err != nil {
+				return xerrors.Errorf("create telemetry reporter: %w", err)
+			}
+			defer telemetryReporter.Close()
+			if vals.Telemetry.Enable.Value() {
+				options.Telemetry = telemetryReporter
 			} else {
 				logger.Warn(ctx, fmt.Sprintf(`telemetry disabled, unable to notify of security issues. Read more: %s/admin/setup/telemetry`, vals.DocsURL.String()))
 			}
@@ -2558,6 +2565,8 @@ func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]coder
 	return providers, nil
 }
 
+var reInvalidPortAfterHost = regexp.MustCompile(`invalid port ".+" after host`)
+
 // If the user provides a postgres URL with a password that contains special
 // characters, the URL will be invalid. We need to escape the password so that
 // the URL parse doesn't fail at the DB connector level.
@@ -2566,7 +2575,11 @@ func escapePostgresURLUserInfo(v string) (string, error) {
 	// I wish I could use errors.Is here, but this error is not declared as a
 	// variable in net/url. :(
 	if err != nil {
-		if strings.Contains(err.Error(), "net/url: invalid userinfo") {
+		// Warning: The parser may also fail with an "invalid port" error if the password contains special
+		// characters. It does not detect invalid user information but instead incorrectly reports an invalid port.
+		//
+		// See: https://github.com/coder/coder/issues/16319
+		if strings.Contains(err.Error(), "net/url: invalid userinfo") || reInvalidPortAfterHost.MatchString(err.Error()) {
 			// If the URL is invalid, we assume it is because the password contains
 			// special characters that need to be escaped.
 

@@ -1164,6 +1164,13 @@ CREATE TABLE tailnet_tunnels (
     updated_at timestamp with time zone NOT NULL
 );
 
+CREATE TABLE telemetry_items (
+    key text NOT NULL,
+    value text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
 CREATE TABLE template_usage_stats (
     start_time timestamp with time zone NOT NULL,
     end_time timestamp with time zone NOT NULL,
@@ -1257,6 +1264,20 @@ COMMENT ON COLUMN template_version_parameters.display_name IS 'Display name of t
 COMMENT ON COLUMN template_version_parameters.display_order IS 'Specifies the order in which to display parameters in user interfaces.';
 
 COMMENT ON COLUMN template_version_parameters.ephemeral IS 'The value of an ephemeral parameter will not be preserved between consecutive workspace builds.';
+
+CREATE TABLE template_version_preset_parameters (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    template_version_preset_id uuid NOT NULL,
+    name text NOT NULL,
+    value text NOT NULL
+);
+
+CREATE TABLE template_version_presets (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    template_version_id uuid NOT NULL,
+    name text NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
 
 CREATE TABLE template_version_variables (
     template_version_id uuid NOT NULL,
@@ -1479,6 +1500,13 @@ CREATE UNLOGGED TABLE workspace_agent_logs (
     log_source_id uuid DEFAULT '00000000-0000-0000-0000-000000000000'::uuid NOT NULL
 );
 
+CREATE TABLE workspace_agent_memory_resource_monitors (
+    agent_id uuid NOT NULL,
+    enabled boolean NOT NULL,
+    threshold integer NOT NULL,
+    created_at timestamp with time zone NOT NULL
+);
+
 CREATE UNLOGGED TABLE workspace_agent_metadata (
     workspace_agent_id uuid NOT NULL,
     display_name character varying(127) NOT NULL,
@@ -1554,6 +1582,14 @@ CREATE TABLE workspace_agent_stats (
     session_count_reconnecting_pty bigint DEFAULT 0 NOT NULL,
     session_count_ssh bigint DEFAULT 0 NOT NULL,
     usage boolean DEFAULT false NOT NULL
+);
+
+CREATE TABLE workspace_agent_volume_resource_monitors (
+    agent_id uuid NOT NULL,
+    enabled boolean NOT NULL,
+    threshold integer NOT NULL,
+    path text NOT NULL,
+    created_at timestamp with time zone NOT NULL
 );
 
 CREATE TABLE workspace_agents (
@@ -1707,7 +1743,8 @@ CREATE TABLE workspace_builds (
     deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
     reason build_reason DEFAULT 'initiator'::build_reason NOT NULL,
     daily_cost integer DEFAULT 0 NOT NULL,
-    max_deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL
+    max_deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
+    template_version_preset_id uuid
 );
 
 CREATE VIEW workspace_build_with_user AS
@@ -1725,6 +1762,7 @@ CREATE VIEW workspace_build_with_user AS
     workspace_builds.reason,
     workspace_builds.daily_cost,
     workspace_builds.max_deadline,
+    workspace_builds.template_version_preset_id,
     COALESCE(visible_users.avatar_url, ''::text) AS initiator_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS initiator_by_username
    FROM (workspace_builds
@@ -2026,11 +2064,20 @@ ALTER TABLE ONLY tailnet_peers
 ALTER TABLE ONLY tailnet_tunnels
     ADD CONSTRAINT tailnet_tunnels_pkey PRIMARY KEY (coordinator_id, src_id, dst_id);
 
+ALTER TABLE ONLY telemetry_items
+    ADD CONSTRAINT telemetry_items_pkey PRIMARY KEY (key);
+
 ALTER TABLE ONLY template_usage_stats
     ADD CONSTRAINT template_usage_stats_pkey PRIMARY KEY (start_time, template_id, user_id);
 
 ALTER TABLE ONLY template_version_parameters
     ADD CONSTRAINT template_version_parameters_template_version_id_name_key UNIQUE (template_version_id, name);
+
+ALTER TABLE ONLY template_version_preset_parameters
+    ADD CONSTRAINT template_version_preset_parameters_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY template_version_presets
+    ADD CONSTRAINT template_version_presets_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY template_version_variables
     ADD CONSTRAINT template_version_variables_template_version_id_name_key UNIQUE (template_version_id, name);
@@ -2062,6 +2109,9 @@ ALTER TABLE ONLY users
 ALTER TABLE ONLY workspace_agent_log_sources
     ADD CONSTRAINT workspace_agent_log_sources_pkey PRIMARY KEY (workspace_agent_id, id);
 
+ALTER TABLE ONLY workspace_agent_memory_resource_monitors
+    ADD CONSTRAINT workspace_agent_memory_resource_monitors_pkey PRIMARY KEY (agent_id);
+
 ALTER TABLE ONLY workspace_agent_metadata
     ADD CONSTRAINT workspace_agent_metadata_pkey PRIMARY KEY (workspace_agent_id, key);
 
@@ -2076,6 +2126,9 @@ ALTER TABLE ONLY workspace_agent_scripts
 
 ALTER TABLE ONLY workspace_agent_logs
     ADD CONSTRAINT workspace_agent_startup_logs_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY workspace_agent_volume_resource_monitors
+    ADD CONSTRAINT workspace_agent_volume_resource_monitors_pkey PRIMARY KEY (agent_id, path);
 
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_pkey PRIMARY KEY (id);
@@ -2416,6 +2469,12 @@ ALTER TABLE ONLY tailnet_tunnels
 ALTER TABLE ONLY template_version_parameters
     ADD CONSTRAINT template_version_parameters_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY template_version_preset_parameters
+    ADD CONSTRAINT template_version_preset_paramet_template_version_preset_id_fkey FOREIGN KEY (template_version_preset_id) REFERENCES template_version_presets(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY template_version_presets
+    ADD CONSTRAINT template_version_presets_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
+
 ALTER TABLE ONLY template_version_variables
     ADD CONSTRAINT template_version_variables_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
 
@@ -2455,6 +2514,9 @@ ALTER TABLE ONLY user_status_changes
 ALTER TABLE ONLY workspace_agent_log_sources
     ADD CONSTRAINT workspace_agent_log_sources_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY workspace_agent_memory_resource_monitors
+    ADD CONSTRAINT workspace_agent_memory_resource_monitors_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
+
 ALTER TABLE ONLY workspace_agent_metadata
     ADD CONSTRAINT workspace_agent_metadata_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
 
@@ -2469,6 +2531,9 @@ ALTER TABLE ONLY workspace_agent_scripts
 
 ALTER TABLE ONLY workspace_agent_logs
     ADD CONSTRAINT workspace_agent_startup_logs_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_agent_volume_resource_monitors
+    ADD CONSTRAINT workspace_agent_volume_resource_monitors_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_resource_id_fkey FOREIGN KEY (resource_id) REFERENCES workspace_resources(id) ON DELETE CASCADE;
@@ -2493,6 +2558,9 @@ ALTER TABLE ONLY workspace_builds
 
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_builds
+    ADD CONSTRAINT workspace_builds_template_version_preset_id_fkey FOREIGN KEY (template_version_preset_id) REFERENCES template_version_presets(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;

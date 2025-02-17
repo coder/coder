@@ -16,7 +16,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"github.com/coder/terraform-provider-coder/provider"
+	"github.com/coder/terraform-provider-coder/v2/provider"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/tracing"
@@ -78,7 +78,7 @@ func (s *server) Plan(
 
 	e := s.executor(sess.WorkDirectory, database.ProvisionerJobTimingStagePlan)
 	if err := e.checkMinVersion(ctx); err != nil {
-		return provisionersdk.PlanErrorf(err.Error())
+		return provisionersdk.PlanErrorf("%s", err.Error())
 	}
 	logTerraformEnvVars(sess)
 
@@ -113,7 +113,6 @@ func (s *server) Plan(
 	initTimings.ingest(createInitTimingsEvent(timingInitStart))
 
 	err = e.init(ctx, killCtx, sess)
-
 	if err != nil {
 		initTimings.ingest(createInitTimingsEvent(timingInitErrored))
 
@@ -168,7 +167,7 @@ func (s *server) Plan(
 		request.Metadata.GetWorkspaceTransition() == proto.WorkspaceTransition_DESTROY,
 	)
 	if err != nil {
-		return provisionersdk.PlanErrorf(err.Error())
+		return provisionersdk.PlanErrorf("%s", err.Error())
 	}
 
 	// Prepend init timings since they occur prior to plan timings.
@@ -189,7 +188,7 @@ func (s *server) Apply(
 
 	e := s.executor(sess.WorkDirectory, database.ProvisionerJobTimingStageApply)
 	if err := e.checkMinVersion(ctx); err != nil {
-		return provisionersdk.ApplyErrorf(err.Error())
+		return provisionersdk.ApplyErrorf("%s", err.Error())
 	}
 	logTerraformEnvVars(sess)
 
@@ -270,7 +269,7 @@ func provisionEnv(
 		env = append(env, provider.ParameterEnvironmentVariable(param.Name)+"="+param.Value)
 	}
 	for _, extAuth := range externalAuth {
-		env = append(env, provider.GitAuthAccessTokenEnvironmentVariable(extAuth.Id)+"="+extAuth.AccessToken)
+		env = append(env, gitAuthAccessTokenEnvironmentVariable(extAuth.Id)+"="+extAuth.AccessToken)
 		env = append(env, provider.ExternalAuthAccessTokenEnvironmentVariable(extAuth.Id)+"="+extAuth.AccessToken)
 	}
 
@@ -350,4 +349,13 @@ func tryGettingCoderProviderStacktrace(sess *provisionersdk.Session) string {
 		sess.Logger.Error(sess.Context(), "could not read stack traces", slog.Error(err))
 	}
 	return string(stacktraces)
+}
+
+// gitAuthAccessTokenEnvironmentVariable is copied from
+// github.com/coder/terraform-provider-coder/provider.GitAuthAccessTokenEnvironmentVariable@v1.0.4.
+// While removed in v2 of the provider, we keep this to support customers using older templates that
+// depend on this environment variable. Once we are certain that no customers are still using v1 of
+// the provider, we can remove this function.
+func gitAuthAccessTokenEnvironmentVariable(id string) string {
+	return fmt.Sprintf("CODER_GIT_AUTH_ACCESS_TOKEN_%s", id)
 }

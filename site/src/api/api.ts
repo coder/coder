@@ -698,7 +698,7 @@ class ApiMethods {
 		}
 
 		const response = await this.axios.get<TypesGen.ProvisionerDaemon[]>(
-			`/api/v2/organizations/${organization}/provisionerdaemons?${params.toString()}`,
+			`/api/v2/organizations/${organization}/provisionerdaemons?${params}`,
 		);
 		return response.data;
 	};
@@ -783,6 +783,29 @@ class ApiMethods {
 	): Promise<TypesGen.RoleSyncSettings> => {
 		const response = await this.axios.get<TypesGen.RoleSyncSettings>(
 			`/api/v2/organizations/${organization}/settings/idpsync/roles`,
+		);
+		return response.data;
+	};
+
+	getDeploymentIdpSyncFieldValues = async (
+		field: string,
+	): Promise<readonly string[]> => {
+		const params = new URLSearchParams();
+		params.set("claimField", field);
+		const response = await this.axios.get<readonly string[]>(
+			`/api/v2/settings/idpsync/field-values?${params}`,
+		);
+		return response.data;
+	};
+
+	getOrganizationIdpSyncClaimFieldValues = async (
+		organization: string,
+		field: string,
+	) => {
+		const params = new URLSearchParams();
+		params.set("claimField", field);
+		const response = await this.axios.get<readonly string[]>(
+			`/api/v2/organizations/${organization}/settings/idpsync/field-values?${params}`,
 		);
 		return response.data;
 	};

@@ -585,6 +585,8 @@ func New(options *Options) *API {
 		AppearanceFetcher: &api.AppearanceFetcher,
 		BuildInfo:         buildInfo,
 		Entitlements:      options.Entitlements,
+		Telemetry:         options.Telemetry,
+		Logger:            options.Logger.Named("site"),
 	})
 	api.SiteHandler.Experiments.Store(&experiments)
 
@@ -786,6 +788,7 @@ func New(options *Options) *API {
 		httpmw.AttachRequestID,
 		httpmw.ExtractRealIP(api.RealIPConfig),
 		httpmw.Logger(api.Logger),
+		singleSlashMW,
 		rolestore.CustomRoleMW,
 		prometheusMW,
 		// Build-Version is helpful for debugging.
@@ -1055,6 +1058,7 @@ func New(options *Options) *API {
 			r.Get("/rich-parameters", api.templateVersionRichParameters)
 			r.Get("/external-auth", api.templateVersionExternalAuth)
 			r.Get("/variables", api.templateVersionVariables)
+			r.Get("/presets", api.templateVersionPresets)
 			r.Get("/resources", api.templateVersionResources)
 			r.Get("/logs", api.templateVersionLogs)
 			r.Route("/dry-run", func(r chi.Router) {
@@ -1209,6 +1213,7 @@ func New(options *Options) *API {
 				r.Get("/logs", api.workspaceAgentLogs)
 				r.Get("/listening-ports", api.workspaceAgentListeningPorts)
 				r.Get("/connection", api.workspaceAgentConnection)
+				r.Get("/containers", api.workspaceAgentListContainers)
 				r.Get("/coordinate", api.workspaceAgentClientCoordinate)
 
 				// PTY is part of workspaceAppServer.
@@ -1299,7 +1304,7 @@ func New(options *Options) *API {
 				func(next http.Handler) http.Handler {
 					return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 						if !api.Authorize(r, policy.ActionRead, rbac.ResourceDebugInfo) {
-							httpapi.ResourceNotFound(rw)
+							httpapi.Forbidden(rw)
 							return
 						}
 
@@ -1727,4 +1732,32 @@ func ReadExperiments(log slog.Logger, raw []string) codersdk.Experiments {
 		}
 	}
 	return exps
+}
+
+var multipleSlashesRe = regexp.MustCompile(`/+`)
+
+func singleSlashMW(next http.Handler) http.Handler {
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		var path string
+		rctx := chi.RouteContext(r.Context())
+		if rctx != nil && rctx.RoutePath != "" {
+			path = rctx.RoutePath
+		} else {
+			path = r.URL.Path
+		}
+
+		// Normalize multiple slashes to a single slash
+		newPath := multipleSlashesRe.ReplaceAllString(path, "/")
+
+		// Apply the cleaned path
+		// The approach is consistent with: https://github.com/go-chi/chi/blob/e846b8304c769c4f1a51c9de06bebfaa4576bd88/middleware/strip.go#L24-L28
+		if rctx != nil {
+			rctx.RoutePath = newPath
+		} else {
+			r.URL.Path = newPath
+		}
+
+		next.ServeHTTP(w, r)
+	}
+	return http.HandlerFunc(fn)
 }

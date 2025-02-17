@@ -771,6 +771,21 @@ func (mr *MockStoreMockRecorder) FavoriteWorkspace(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FavoriteWorkspace", reflect.TypeOf((*MockStore)(nil).FavoriteWorkspace), ctx, id)
 }
 
+// FetchMemoryResourceMonitorsByAgentID mocks base method.
+func (m *MockStore) FetchMemoryResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) (database.WorkspaceAgentMemoryResourceMonitor, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchMemoryResourceMonitorsByAgentID", ctx, agentID)
+	ret0, _ := ret[0].(database.WorkspaceAgentMemoryResourceMonitor)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchMemoryResourceMonitorsByAgentID indicates an expected call of FetchMemoryResourceMonitorsByAgentID.
+func (mr *MockStoreMockRecorder) FetchMemoryResourceMonitorsByAgentID(ctx, agentID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchMemoryResourceMonitorsByAgentID", reflect.TypeOf((*MockStore)(nil).FetchMemoryResourceMonitorsByAgentID), ctx, agentID)
+}
+
 // FetchNewMessageMetadata mocks base method.
 func (m *MockStore) FetchNewMessageMetadata(ctx context.Context, arg database.FetchNewMessageMetadataParams) (database.FetchNewMessageMetadataRow, error) {
 	m.ctrl.T.Helper()
@@ -784,6 +799,21 @@ func (m *MockStore) FetchNewMessageMetadata(ctx context.Context, arg database.Fe
 func (mr *MockStoreMockRecorder) FetchNewMessageMetadata(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchNewMessageMetadata", reflect.TypeOf((*MockStore)(nil).FetchNewMessageMetadata), ctx, arg)
+}
+
+// FetchVolumesResourceMonitorsByAgentID mocks base method.
+func (m *MockStore) FetchVolumesResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) ([]database.WorkspaceAgentVolumeResourceMonitor, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchVolumesResourceMonitorsByAgentID", ctx, agentID)
+	ret0, _ := ret[0].([]database.WorkspaceAgentVolumeResourceMonitor)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchVolumesResourceMonitorsByAgentID indicates an expected call of FetchVolumesResourceMonitorsByAgentID.
+func (mr *MockStoreMockRecorder) FetchVolumesResourceMonitorsByAgentID(ctx, agentID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchVolumesResourceMonitorsByAgentID", reflect.TypeOf((*MockStore)(nil).FetchVolumesResourceMonitorsByAgentID), ctx, agentID)
 }
 
 // GetAPIKeyByID mocks base method.
@@ -1986,6 +2016,51 @@ func (mr *MockStoreMockRecorder) GetParameterSchemasByJobID(ctx, jobID any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetParameterSchemasByJobID", reflect.TypeOf((*MockStore)(nil).GetParameterSchemasByJobID), ctx, jobID)
 }
 
+// GetPresetByWorkspaceBuildID mocks base method.
+func (m *MockStore) GetPresetByWorkspaceBuildID(ctx context.Context, workspaceBuildID uuid.UUID) (database.TemplateVersionPreset, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPresetByWorkspaceBuildID", ctx, workspaceBuildID)
+	ret0, _ := ret[0].(database.TemplateVersionPreset)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetPresetByWorkspaceBuildID indicates an expected call of GetPresetByWorkspaceBuildID.
+func (mr *MockStoreMockRecorder) GetPresetByWorkspaceBuildID(ctx, workspaceBuildID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPresetByWorkspaceBuildID", reflect.TypeOf((*MockStore)(nil).GetPresetByWorkspaceBuildID), ctx, workspaceBuildID)
+}
+
+// GetPresetParametersByTemplateVersionID mocks base method.
+func (m *MockStore) GetPresetParametersByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionPresetParameter, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPresetParametersByTemplateVersionID", ctx, templateVersionID)
+	ret0, _ := ret[0].([]database.TemplateVersionPresetParameter)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetPresetParametersByTemplateVersionID indicates an expected call of GetPresetParametersByTemplateVersionID.
+func (mr *MockStoreMockRecorder) GetPresetParametersByTemplateVersionID(ctx, templateVersionID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPresetParametersByTemplateVersionID", reflect.TypeOf((*MockStore)(nil).GetPresetParametersByTemplateVersionID), ctx, templateVersionID)
+}
+
+// GetPresetsByTemplateVersionID mocks base method.
+func (m *MockStore) GetPresetsByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionPreset, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPresetsByTemplateVersionID", ctx, templateVersionID)
+	ret0, _ := ret[0].([]database.TemplateVersionPreset)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetPresetsByTemplateVersionID indicates an expected call of GetPresetsByTemplateVersionID.
+func (mr *MockStoreMockRecorder) GetPresetsByTemplateVersionID(ctx, templateVersionID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPresetsByTemplateVersionID", reflect.TypeOf((*MockStore)(nil).GetPresetsByTemplateVersionID), ctx, templateVersionID)
+}
+
 // GetPreviousTemplateVersion mocks base method.
 func (m *MockStore) GetPreviousTemplateVersion(ctx context.Context, arg database.GetPreviousTemplateVersionParams) (database.TemplateVersion, error) {
 	m.ctrl.T.Helper()
@@ -2344,6 +2419,36 @@ func (m *MockStore) GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUID
 func (mr *MockStoreMockRecorder) GetTailnetTunnelPeerIDs(ctx, srcID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTailnetTunnelPeerIDs", reflect.TypeOf((*MockStore)(nil).GetTailnetTunnelPeerIDs), ctx, srcID)
+}
+
+// GetTelemetryItem mocks base method.
+func (m *MockStore) GetTelemetryItem(ctx context.Context, key string) (database.TelemetryItem, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTelemetryItem", ctx, key)
+	ret0, _ := ret[0].(database.TelemetryItem)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTelemetryItem indicates an expected call of GetTelemetryItem.
+func (mr *MockStoreMockRecorder) GetTelemetryItem(ctx, key any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTelemetryItem", reflect.TypeOf((*MockStore)(nil).GetTelemetryItem), ctx, key)
+}
+
+// GetTelemetryItems mocks base method.
+func (m *MockStore) GetTelemetryItems(ctx context.Context) ([]database.TelemetryItem, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTelemetryItems", ctx)
+	ret0, _ := ret[0].([]database.TelemetryItem)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTelemetryItems indicates an expected call of GetTelemetryItems.
+func (mr *MockStoreMockRecorder) GetTelemetryItems(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTelemetryItems", reflect.TypeOf((*MockStore)(nil).GetTelemetryItems), ctx)
 }
 
 // GetTemplateAppInsights mocks base method.
@@ -3871,6 +3976,21 @@ func (mr *MockStoreMockRecorder) InsertLicense(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertLicense", reflect.TypeOf((*MockStore)(nil).InsertLicense), ctx, arg)
 }
 
+// InsertMemoryResourceMonitor mocks base method.
+func (m *MockStore) InsertMemoryResourceMonitor(ctx context.Context, arg database.InsertMemoryResourceMonitorParams) (database.WorkspaceAgentMemoryResourceMonitor, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertMemoryResourceMonitor", ctx, arg)
+	ret0, _ := ret[0].(database.WorkspaceAgentMemoryResourceMonitor)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertMemoryResourceMonitor indicates an expected call of InsertMemoryResourceMonitor.
+func (mr *MockStoreMockRecorder) InsertMemoryResourceMonitor(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertMemoryResourceMonitor", reflect.TypeOf((*MockStore)(nil).InsertMemoryResourceMonitor), ctx, arg)
+}
+
 // InsertMissingGroups mocks base method.
 func (m *MockStore) InsertMissingGroups(ctx context.Context, arg database.InsertMissingGroupsParams) ([]database.Group, error) {
 	m.ctrl.T.Helper()
@@ -3976,6 +4096,36 @@ func (mr *MockStoreMockRecorder) InsertOrganizationMember(ctx, arg any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertOrganizationMember", reflect.TypeOf((*MockStore)(nil).InsertOrganizationMember), ctx, arg)
 }
 
+// InsertPreset mocks base method.
+func (m *MockStore) InsertPreset(ctx context.Context, arg database.InsertPresetParams) (database.TemplateVersionPreset, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertPreset", ctx, arg)
+	ret0, _ := ret[0].(database.TemplateVersionPreset)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertPreset indicates an expected call of InsertPreset.
+func (mr *MockStoreMockRecorder) InsertPreset(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertPreset", reflect.TypeOf((*MockStore)(nil).InsertPreset), ctx, arg)
+}
+
+// InsertPresetParameters mocks base method.
+func (m *MockStore) InsertPresetParameters(ctx context.Context, arg database.InsertPresetParametersParams) ([]database.TemplateVersionPresetParameter, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertPresetParameters", ctx, arg)
+	ret0, _ := ret[0].([]database.TemplateVersionPresetParameter)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertPresetParameters indicates an expected call of InsertPresetParameters.
+func (mr *MockStoreMockRecorder) InsertPresetParameters(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertPresetParameters", reflect.TypeOf((*MockStore)(nil).InsertPresetParameters), ctx, arg)
+}
+
 // InsertProvisionerJob mocks base method.
 func (m *MockStore) InsertProvisionerJob(ctx context.Context, arg database.InsertProvisionerJobParams) (database.ProvisionerJob, error) {
 	m.ctrl.T.Helper()
@@ -4049,6 +4199,20 @@ func (m *MockStore) InsertReplica(ctx context.Context, arg database.InsertReplic
 func (mr *MockStoreMockRecorder) InsertReplica(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertReplica", reflect.TypeOf((*MockStore)(nil).InsertReplica), ctx, arg)
+}
+
+// InsertTelemetryItemIfNotExists mocks base method.
+func (m *MockStore) InsertTelemetryItemIfNotExists(ctx context.Context, arg database.InsertTelemetryItemIfNotExistsParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertTelemetryItemIfNotExists", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertTelemetryItemIfNotExists indicates an expected call of InsertTelemetryItemIfNotExists.
+func (mr *MockStoreMockRecorder) InsertTelemetryItemIfNotExists(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertTelemetryItemIfNotExists", reflect.TypeOf((*MockStore)(nil).InsertTelemetryItemIfNotExists), ctx, arg)
 }
 
 // InsertTemplate mocks base method.
@@ -4181,6 +4345,21 @@ func (m *MockStore) InsertUserLink(ctx context.Context, arg database.InsertUserL
 func (mr *MockStoreMockRecorder) InsertUserLink(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertUserLink", reflect.TypeOf((*MockStore)(nil).InsertUserLink), ctx, arg)
+}
+
+// InsertVolumeResourceMonitor mocks base method.
+func (m *MockStore) InsertVolumeResourceMonitor(ctx context.Context, arg database.InsertVolumeResourceMonitorParams) (database.WorkspaceAgentVolumeResourceMonitor, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertVolumeResourceMonitor", ctx, arg)
+	ret0, _ := ret[0].(database.WorkspaceAgentVolumeResourceMonitor)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertVolumeResourceMonitor indicates an expected call of InsertVolumeResourceMonitor.
+func (mr *MockStoreMockRecorder) InsertVolumeResourceMonitor(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertVolumeResourceMonitor", reflect.TypeOf((*MockStore)(nil).InsertVolumeResourceMonitor), ctx, arg)
 }
 
 // InsertWorkspace mocks base method.
@@ -5859,6 +6038,20 @@ func (m *MockStore) UpsertTailnetTunnel(ctx context.Context, arg database.Upsert
 func (mr *MockStoreMockRecorder) UpsertTailnetTunnel(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertTailnetTunnel", reflect.TypeOf((*MockStore)(nil).UpsertTailnetTunnel), ctx, arg)
+}
+
+// UpsertTelemetryItem mocks base method.
+func (m *MockStore) UpsertTelemetryItem(ctx context.Context, arg database.UpsertTelemetryItemParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertTelemetryItem", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertTelemetryItem indicates an expected call of UpsertTelemetryItem.
+func (mr *MockStoreMockRecorder) UpsertTelemetryItem(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertTelemetryItem", reflect.TypeOf((*MockStore)(nil).UpsertTelemetryItem), ctx, arg)
 }
 
 // UpsertTemplateUsageStats mocks base method.

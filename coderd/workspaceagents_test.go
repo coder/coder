@@ -7,6 +7,7 @@ import (
 	"maps"
 	"net"
 	"net/http"
+	"os"
 	"runtime"
 	"strconv"
 	"strings"
@@ -15,9 +16,13 @@ import (
 	"time"
 
 	"github.com/go-jose/go-jose/v4/jwt"
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
+	"github.com/ory/dockertest/v3"
+	"github.com/ory/dockertest/v3/docker"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"tailscale.com/tailcfg"
@@ -25,6 +30,9 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agentcontainers"
+	"github.com/coder/coder/v2/agent/agentcontainers/acmock"
+	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agenttest"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -1053,6 +1061,191 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 	})
 }
 
+func TestWorkspaceAgentContainers(t *testing.T) {
+	t.Parallel()
+
+	// This test will not normally run in CI, but is kept here as a semi-manual
+	// test for local development. Run it as follows:
+	// CODER_TEST_USE_DOCKER=1 go test -run TestWorkspaceAgentContainers/Docker ./coderd
+	t.Run("Docker", func(t *testing.T) {
+		t.Parallel()
+		if ctud, ok := os.LookupEnv("CODER_TEST_USE_DOCKER"); !ok || ctud != "1" {
+			t.Skip("Set CODER_TEST_USE_DOCKER=1 to run this test")
+		}
+
+		pool, err := dockertest.NewPool("")
+		require.NoError(t, err, "Could not connect to docker")
+		testLabels := map[string]string{
+			"com.coder.test":  uuid.New().String(),
+			"com.coder.empty": "",
+		}
+		ct, err := pool.RunWithOptions(&dockertest.RunOptions{
+			Repository: "busybox",
+			Tag:        "latest",
+			Cmd:        []string{"sleep", "infinity"},
+			Labels:     testLabels,
+		}, func(config *docker.HostConfig) {
+			config.AutoRemove = true
+			config.RestartPolicy = docker.RestartPolicy{Name: "no"}
+		})
+		require.NoError(t, err, "Could not start test docker container")
+		t.Cleanup(func() {
+			assert.NoError(t, pool.Purge(ct), "Could not purge resource %q", ct.Container.Name)
+		})
+
+		// Start another container which we will expect to ignore.
+		ct2, err := pool.RunWithOptions(&dockertest.RunOptions{
+			Repository: "busybox",
+			Tag:        "latest",
+			Cmd:        []string{"sleep", "infinity"},
+			Labels: map[string]string{
+				"com.coder.test":  "ignoreme",
+				"com.coder.empty": "",
+			},
+		}, func(config *docker.HostConfig) {
+			config.AutoRemove = true
+			config.RestartPolicy = docker.RestartPolicy{Name: "no"}
+		})
+		require.NoError(t, err, "Could not start second test docker container")
+		t.Cleanup(func() {
+			assert.NoError(t, pool.Purge(ct2), "Could not purge resource %q", ct2.Container.Name)
+		})
+
+		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{})
+
+		user := coderdtest.CreateFirstUser(t, client)
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+			return agents
+		}).Do()
+		_ = agenttest.New(t, client.URL, r.AgentToken, func(opts *agent.Options) {
+			opts.ContainerLister = agentcontainers.NewDocker(agentexec.DefaultExecer)
+		})
+		resources := coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()
+		require.Len(t, resources, 1, "expected one resource")
+		require.Len(t, resources[0].Agents, 1, "expected one agent")
+		agentID := resources[0].Agents[0].ID
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// If we filter by testLabels, we should only get one container back.
+		res, err := client.WorkspaceAgentListContainers(ctx, agentID, testLabels)
+		require.NoError(t, err, "failed to list containers filtered by test label")
+		require.Len(t, res.Containers, 1, "expected exactly one container")
+		assert.Equal(t, ct.Container.ID, res.Containers[0].ID, "expected container ID to match")
+		assert.Equal(t, "busybox:latest", res.Containers[0].Image, "expected container image to match")
+		assert.Equal(t, ct.Container.Config.Labels, res.Containers[0].Labels, "expected container labels to match")
+		assert.Equal(t, strings.TrimPrefix(ct.Container.Name, "/"), res.Containers[0].FriendlyName, "expected container name to match")
+		assert.True(t, res.Containers[0].Running, "expected container to be running")
+		assert.Equal(t, "running", res.Containers[0].Status, "expected container status to be running")
+
+		// List all containers and ensure we get at least both (there may be more).
+		res, err = client.WorkspaceAgentListContainers(ctx, agentID, nil)
+		require.NoError(t, err, "failed to list all containers")
+		require.NotEmpty(t, res.Containers, "expected to find containers")
+		var found []string
+		for _, c := range res.Containers {
+			found = append(found, c.ID)
+		}
+		require.Contains(t, found, ct.Container.ID, "expected to find first container without label filter")
+		require.Contains(t, found, ct2.Container.ID, "expected to find first container without label filter")
+	})
+
+	// This test will normally run in CI. It uses a mock implementation of
+	// agentcontainers.Lister instead of introducing a hard dependency on Docker.
+	t.Run("Mock", func(t *testing.T) {
+		t.Parallel()
+
+		// begin test fixtures
+		testLabels := map[string]string{
+			"com.coder.test": uuid.New().String(),
+		}
+		testResponse := codersdk.WorkspaceAgentListContainersResponse{
+			Containers: []codersdk.WorkspaceAgentDevcontainer{
+				{
+					ID:           uuid.NewString(),
+					CreatedAt:    dbtime.Now(),
+					FriendlyName: testutil.GetRandomName(t),
+					Image:        "busybox:latest",
+					Labels:       testLabels,
+					Running:      true,
+					Status:       "running",
+					Ports: []codersdk.WorkspaceAgentListeningPort{
+						{
+							Network: "tcp",
+							Port:    80,
+						},
+					},
+					Volumes: map[string]string{
+						"/host": "/container",
+					},
+				},
+			},
+		}
+		// end test fixtures
+
+		for _, tc := range []struct {
+			name      string
+			setupMock func(*acmock.MockLister) (codersdk.WorkspaceAgentListContainersResponse, error)
+		}{
+			{
+				name: "test response",
+				setupMock: func(mcl *acmock.MockLister) (codersdk.WorkspaceAgentListContainersResponse, error) {
+					mcl.EXPECT().List(gomock.Any()).Return(testResponse, nil).Times(1)
+					return testResponse, nil
+				},
+			},
+			{
+				name: "error response",
+				setupMock: func(mcl *acmock.MockLister) (codersdk.WorkspaceAgentListContainersResponse, error) {
+					mcl.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{}, assert.AnError).Times(1)
+					return codersdk.WorkspaceAgentListContainersResponse{}, assert.AnError
+				},
+			},
+		} {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctrl := gomock.NewController(t)
+				mcl := acmock.NewMockLister(ctrl)
+				expected, expectedErr := tc.setupMock(mcl)
+				client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{})
+				user := coderdtest.CreateFirstUser(t, client)
+				r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+					OrganizationID: user.OrganizationID,
+					OwnerID:        user.UserID,
+				}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+					return agents
+				}).Do()
+				_ = agenttest.New(t, client.URL, r.AgentToken, func(opts *agent.Options) {
+					opts.ContainerLister = mcl
+				})
+				resources := coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()
+				require.Len(t, resources, 1, "expected one resource")
+				require.Len(t, resources[0].Agents, 1, "expected one agent")
+				agentID := resources[0].Agents[0].ID
+
+				ctx := testutil.Context(t, testutil.WaitLong)
+
+				// List containers and ensure we get the expected mocked response.
+				res, err := client.WorkspaceAgentListContainers(ctx, agentID, nil)
+				if expectedErr != nil {
+					require.Contains(t, err.Error(), expectedErr.Error(), "unexpected error")
+					require.Empty(t, res, "expected empty response")
+				} else {
+					require.NoError(t, err, "failed to list all containers")
+					if diff := cmp.Diff(expected, res); diff != "" {
+						t.Fatalf("unexpected response (-want +got):\n%s", diff)
+					}
+				}
+			})
+		}
+	})
+}
+
 func TestWorkspaceAgentAppHealth(t *testing.T) {
 	t.Parallel()
 	client, db := coderdtest.NewWithDatabase(t, nil)
@@ -2041,7 +2234,7 @@ func requireGetManifest(ctx context.Context, t testing.TB, aAPI agentproto.DRPCA
 }
 
 func postStartup(ctx context.Context, t testing.TB, client agent.Client, startup *agentproto.Startup) error {
-	aAPI, _, err := client.ConnectRPC23(ctx)
+	aAPI, _, err := client.ConnectRPC24(ctx)
 	require.NoError(t, err)
 	defer func() {
 		cErr := aAPI.DRPCConn().Close()

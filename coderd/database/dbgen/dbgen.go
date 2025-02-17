@@ -314,6 +314,10 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 			Deadline:          takeFirst(orig.Deadline, dbtime.Now().Add(time.Hour)),
 			MaxDeadline:       takeFirst(orig.MaxDeadline, time.Time{}),
 			Reason:            takeFirst(orig.Reason, database.BuildReasonInitiator),
+			TemplateVersionPresetID: takeFirst(orig.TemplateVersionPresetID, uuid.NullUUID{
+				UUID:  uuid.UUID{},
+				Valid: false,
+			}),
 		})
 		if err != nil {
 			return err
@@ -1032,6 +1036,29 @@ func OAuth2ProviderAppToken(t testing.TB, db database.Store, seed database.OAuth
 	return token
 }
 
+func WorkspaceAgentMemoryResourceMonitor(t testing.TB, db database.Store, seed database.WorkspaceAgentMemoryResourceMonitor) database.WorkspaceAgentMemoryResourceMonitor {
+	monitor, err := db.InsertMemoryResourceMonitor(genCtx, database.InsertMemoryResourceMonitorParams{
+		AgentID:   takeFirst(seed.AgentID, uuid.New()),
+		Enabled:   takeFirst(seed.Enabled, true),
+		Threshold: takeFirst(seed.Threshold, 100),
+		CreatedAt: takeFirst(seed.CreatedAt, dbtime.Now()),
+	})
+	require.NoError(t, err, "insert workspace agent memory resource monitor")
+	return monitor
+}
+
+func WorkspaceAgentVolumeResourceMonitor(t testing.TB, db database.Store, seed database.WorkspaceAgentVolumeResourceMonitor) database.WorkspaceAgentVolumeResourceMonitor {
+	monitor, err := db.InsertVolumeResourceMonitor(genCtx, database.InsertVolumeResourceMonitorParams{
+		AgentID:   takeFirst(seed.AgentID, uuid.New()),
+		Path:      takeFirst(seed.Path, "/"),
+		Enabled:   takeFirst(seed.Enabled, true),
+		Threshold: takeFirst(seed.Threshold, 100),
+		CreatedAt: takeFirst(seed.CreatedAt, dbtime.Now()),
+	})
+	require.NoError(t, err, "insert workspace agent volume resource monitor")
+	return monitor
+}
+
 func CustomRole(t testing.TB, db database.Store, seed database.CustomRole) database.CustomRole {
 	role, err := db.InsertCustomRole(genCtx, database.InsertCustomRoleParams{
 		Name:            takeFirst(seed.Name, strings.ToLower(testutil.GetRandomName(t))),
@@ -1091,6 +1118,23 @@ func ProvisionerJobTimings(t testing.TB, db database.Store, build database.Works
 		})
 	}
 	return timings
+}
+
+func TelemetryItem(t testing.TB, db database.Store, seed database.TelemetryItem) database.TelemetryItem {
+	if seed.Key == "" {
+		seed.Key = testutil.GetRandomName(t)
+	}
+	if seed.Value == "" {
+		seed.Value = time.Now().Format(time.RFC3339)
+	}
+	err := db.UpsertTelemetryItem(genCtx, database.UpsertTelemetryItemParams{
+		Key:   seed.Key,
+		Value: seed.Value,
+	})
+	require.NoError(t, err, "upsert telemetry item")
+	item, err := db.GetTelemetryItem(genCtx, seed.Key)
+	require.NoError(t, err, "get telemetry item")
+	return item
 }
 
 func provisionerJobTiming(t testing.TB, db database.Store, seed database.ProvisionerJobTiming) database.ProvisionerJobTiming {

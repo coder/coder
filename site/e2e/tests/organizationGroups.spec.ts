@@ -5,6 +5,7 @@ import {
 	createUser,
 	setupApiCalls,
 } from "../api";
+import { defaultOrganizationName } from "../constants";
 import { expectUrl } from "../expectUrl";
 import { login, randomName, requiresLicense } from "../helpers";
 import { beforeCoderTest } from "../hooks";
@@ -13,6 +14,17 @@ test.beforeEach(async ({ page }) => {
 	beforeCoderTest(page);
 	await login(page);
 	await setupApiCalls(page);
+});
+
+test("redirects", async ({ page }) => {
+	requiresLicense();
+
+	const orgName = defaultOrganizationName;
+	await page.goto("/groups");
+	await expectUrl(page).toHavePathName(`/organizations/${orgName}/groups`);
+
+	await page.goto("/deployment/groups");
+	await expectUrl(page).toHavePathName(`/organizations/${orgName}/groups`);
 });
 
 test("create group", async ({ page }) => {
@@ -24,7 +36,7 @@ test("create group", async ({ page }) => {
 
 	// Navigate to groups page
 	await page.getByRole("link", { name: "Groups" }).click();
-	await expect(page).toHaveTitle(`Groups - Org ${org.name} - Coder`);
+	await expect(page).toHaveTitle("Groups - Coder");
 
 	// Create a new group
 	await page.getByText("Create group").click();
@@ -72,7 +84,7 @@ test("create group", async ({ page }) => {
 	await expect(page.getByText("Group deleted successfully.")).toBeVisible();
 
 	await expectUrl(page).toHavePathName(`/organizations/${org.name}/groups`);
-	await expect(page).toHaveTitle(`Groups - Org ${org.name} - Coder`);
+	await expect(page).toHaveTitle("Groups - Coder");
 });
 
 test("change quota settings", async ({ page }) => {

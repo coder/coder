@@ -252,6 +252,7 @@ func (e *outExpecter) Peek(ctx context.Context, n int) []byte {
 	return slices.Clone(out)
 }
 
+//nolint:govet // We don't care about conforming to ReadRune() (rune, int, error).
 func (e *outExpecter) ReadRune(ctx context.Context) rune {
 	e.t.Helper()
 

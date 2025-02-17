@@ -4152,6 +4152,54 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | » `[any property]`            | array of string | false    |              |                                                                                                                                                                                     |
 | `organization_assign_default` | boolean         | false    |              | Organization assign default will ensure the default org is always included for every user, regardless of their claims. This preserves legacy behavior.                              |
 
+## codersdk.PatchGroupIDPSyncConfigRequest
+
+```json
+{
+  "auto_create_missing_groups": true,
+  "field": "string",
+  "regex_filter": {}
+}
+```
+
+### Properties
+
+| Name                         | Type                           | Required | Restrictions | Description |
+|------------------------------|--------------------------------|----------|--------------|-------------|
+| `auto_create_missing_groups` | boolean                        | false    |              |             |
+| `field`                      | string                         | false    |              |             |
+| `regex_filter`               | [regexp.Regexp](#regexpregexp) | false    |              |             |
+
+## codersdk.PatchGroupIDPSyncMappingRequest
+
+```json
+{
+  "add": [
+    {
+      "gets": "string",
+      "given": "string"
+    }
+  ],
+  "remove": [
+    {
+      "gets": "string",
+      "given": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name      | Type            | Required | Restrictions | Description                                              |
+|-----------|-----------------|----------|--------------|----------------------------------------------------------|
+| `add`     | array of object | false    |              |                                                          |
+| `» gets`  | string          | false    |              | The ID of the Coder resource the user should be added to |
+| `» given` | string          | false    |              | The IdP claim the user has                               |
+| `remove`  | array of object | false    |              |                                                          |
+| `» gets`  | string          | false    |              | The ID of the Coder resource the user should be added to |
+| `» given` | string          | false    |              | The IdP claim the user has                               |
+
 ## codersdk.PatchGroupRequest
 
 ```json
@@ -4179,6 +4227,96 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `name`            | string          | false    |              |             |
 | `quota_allowance` | integer         | false    |              |             |
 | `remove_users`    | array of string | false    |              |             |
+
+## codersdk.PatchOrganizationIDPSyncConfigRequest
+
+```json
+{
+  "assign_default": true,
+  "field": "string"
+}
+```
+
+### Properties
+
+| Name             | Type    | Required | Restrictions | Description |
+|------------------|---------|----------|--------------|-------------|
+| `assign_default` | boolean | false    |              |             |
+| `field`          | string  | false    |              |             |
+
+## codersdk.PatchOrganizationIDPSyncMappingRequest
+
+```json
+{
+  "add": [
+    {
+      "gets": "string",
+      "given": "string"
+    }
+  ],
+  "remove": [
+    {
+      "gets": "string",
+      "given": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name      | Type            | Required | Restrictions | Description                                              |
+|-----------|-----------------|----------|--------------|----------------------------------------------------------|
+| `add`     | array of object | false    |              |                                                          |
+| `» gets`  | string          | false    |              | The ID of the Coder resource the user should be added to |
+| `» given` | string          | false    |              | The IdP claim the user has                               |
+| `remove`  | array of object | false    |              |                                                          |
+| `» gets`  | string          | false    |              | The ID of the Coder resource the user should be added to |
+| `» given` | string          | false    |              | The IdP claim the user has                               |
+
+## codersdk.PatchRoleIDPSyncConfigRequest
+
+```json
+{
+  "field": "string"
+}
+```
+
+### Properties
+
+| Name    | Type   | Required | Restrictions | Description |
+|---------|--------|----------|--------------|-------------|
+| `field` | string | false    |              |             |
+
+## codersdk.PatchRoleIDPSyncMappingRequest
+
+```json
+{
+  "add": [
+    {
+      "gets": "string",
+      "given": "string"
+    }
+  ],
+  "remove": [
+    {
+      "gets": "string",
+      "given": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name      | Type            | Required | Restrictions | Description                                              |
+|-----------|-----------------|----------|--------------|----------------------------------------------------------|
+| `add`     | array of object | false    |              |                                                          |
+| `» gets`  | string          | false    |              | The ID of the Coder resource the user should be added to |
+| `» given` | string          | false    |              | The IdP claim the user has                               |
+| `remove`  | array of object | false    |              |                                                          |
+| `» gets`  | string          | false    |              | The ID of the Coder resource the user should be added to |
+| `» given` | string          | false    |              | The IdP claim the user has                               |
 
 ## codersdk.PatchTemplateVersionRequest
 
@@ -4289,6 +4427,45 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `address` | [serpent.HostPort](#serpenthostport) | false    |              |             |
 | `enable`  | boolean                              | false    |              |             |
 
+## codersdk.Preset
+
+```json
+{
+  "id": "string",
+  "name": "string",
+  "parameters": [
+    {
+      "name": "string",
+      "value": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name         | Type                                                          | Required | Restrictions | Description |
+|--------------|---------------------------------------------------------------|----------|--------------|-------------|
+| `id`         | string                                                        | false    |              |             |
+| `name`       | string                                                        | false    |              |             |
+| `parameters` | array of [codersdk.PresetParameter](#codersdkpresetparameter) | false    |              |             |
+
+## codersdk.PresetParameter
+
+```json
+{
+  "name": "string",
+  "value": "string"
+}
+```
+
+### Properties
+
+| Name    | Type   | Required | Restrictions | Description |
+|---------|--------|----------|--------------|-------------|
+| `name`  | string | false    |              |             |
+| `value` | string | false    |              |             |
+
 ## codersdk.PrometheusConfig
 
 ```json
@@ -4350,7 +4527,10 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "created_at": "2019-08-24T14:15:22Z",
   "current_job": {
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "status": "pending"
+    "status": "pending",
+    "template_display_name": "string",
+    "template_icon": "string",
+    "template_name": "string"
   },
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "key_id": "1e779c8a-6786-4c89-b7c3-a6666f5fd6b5",
@@ -4360,7 +4540,10 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "previous_job": {
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "status": "pending"
+    "status": "pending",
+    "template_display_name": "string",
+    "template_icon": "string",
+    "template_name": "string"
   },
   "provisioners": [
     "string"
@@ -4407,16 +4590,22 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 ```json
 {
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "status": "pending"
+  "status": "pending",
+  "template_display_name": "string",
+  "template_icon": "string",
+  "template_name": "string"
 }
 ```
 
 ### Properties
 
-| Name     | Type                                                           | Required | Restrictions | Description |
-|----------|----------------------------------------------------------------|----------|--------------|-------------|
-| `id`     | string                                                         | false    |              |             |
-| `status` | [codersdk.ProvisionerJobStatus](#codersdkprovisionerjobstatus) | false    |              |             |
+| Name                    | Type                                                           | Required | Restrictions | Description |
+|-------------------------|----------------------------------------------------------------|----------|--------------|-------------|
+| `id`                    | string                                                         | false    |              |             |
+| `status`                | [codersdk.ProvisionerJobStatus](#codersdkprovisionerjobstatus) | false    |              |             |
+| `template_display_name` | string                                                         | false    |              |             |
+| `template_icon`         | string                                                         | false    |              |             |
+| `template_name`         | string                                                         | false    |              |             |
 
 #### Enumerated Values
 
@@ -4464,6 +4653,15 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
     "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
     "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
   },
+  "metadata": {
+    "template_display_name": "string",
+    "template_icon": "string",
+    "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+    "template_name": "string",
+    "template_version_name": "string",
+    "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+    "workspace_name": "string"
+  },
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "queue_position": 0,
   "queue_size": 0,
@@ -4480,26 +4678,27 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name                | Type                                                           | Required | Restrictions | Description |
-|---------------------|----------------------------------------------------------------|----------|--------------|-------------|
-| `available_workers` | array of string                                                | false    |              |             |
-| `canceled_at`       | string                                                         | false    |              |             |
-| `completed_at`      | string                                                         | false    |              |             |
-| `created_at`        | string                                                         | false    |              |             |
-| `error`             | string                                                         | false    |              |             |
-| `error_code`        | [codersdk.JobErrorCode](#codersdkjoberrorcode)                 | false    |              |             |
-| `file_id`           | string                                                         | false    |              |             |
-| `id`                | string                                                         | false    |              |             |
-| `input`             | [codersdk.ProvisionerJobInput](#codersdkprovisionerjobinput)   | false    |              |             |
-| `organization_id`   | string                                                         | false    |              |             |
-| `queue_position`    | integer                                                        | false    |              |             |
-| `queue_size`        | integer                                                        | false    |              |             |
-| `started_at`        | string                                                         | false    |              |             |
-| `status`            | [codersdk.ProvisionerJobStatus](#codersdkprovisionerjobstatus) | false    |              |             |
-| `tags`              | object                                                         | false    |              |             |
-| » `[any property]`  | string                                                         | false    |              |             |
-| `type`              | [codersdk.ProvisionerJobType](#codersdkprovisionerjobtype)     | false    |              |             |
-| `worker_id`         | string                                                         | false    |              |             |
+| Name                | Type                                                               | Required | Restrictions | Description |
+|---------------------|--------------------------------------------------------------------|----------|--------------|-------------|
+| `available_workers` | array of string                                                    | false    |              |             |
+| `canceled_at`       | string                                                             | false    |              |             |
+| `completed_at`      | string                                                             | false    |              |             |
+| `created_at`        | string                                                             | false    |              |             |
+| `error`             | string                                                             | false    |              |             |
+| `error_code`        | [codersdk.JobErrorCode](#codersdkjoberrorcode)                     | false    |              |             |
+| `file_id`           | string                                                             | false    |              |             |
+| `id`                | string                                                             | false    |              |             |
+| `input`             | [codersdk.ProvisionerJobInput](#codersdkprovisionerjobinput)       | false    |              |             |
+| `metadata`          | [codersdk.ProvisionerJobMetadata](#codersdkprovisionerjobmetadata) | false    |              |             |
+| `organization_id`   | string                                                             | false    |              |             |
+| `queue_position`    | integer                                                            | false    |              |             |
+| `queue_size`        | integer                                                            | false    |              |             |
+| `started_at`        | string                                                             | false    |              |             |
+| `status`            | [codersdk.ProvisionerJobStatus](#codersdkprovisionerjobstatus)     | false    |              |             |
+| `tags`              | object                                                             | false    |              |             |
+| » `[any property]`  | string                                                             | false    |              |             |
+| `type`              | [codersdk.ProvisionerJobType](#codersdkprovisionerjobtype)         | false    |              |             |
+| `worker_id`         | string                                                             | false    |              |             |
 
 #### Enumerated Values
 
@@ -4564,6 +4763,32 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `log_level` | `info`  |
 | `log_level` | `warn`  |
 | `log_level` | `error` |
+
+## codersdk.ProvisionerJobMetadata
+
+```json
+{
+  "template_display_name": "string",
+  "template_icon": "string",
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+  "template_name": "string",
+  "template_version_name": "string",
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+  "workspace_name": "string"
+}
+```
+
+### Properties
+
+| Name                    | Type   | Required | Restrictions | Description |
+|-------------------------|--------|----------|--------------|-------------|
+| `template_display_name` | string | false    |              |             |
+| `template_icon`         | string | false    |              |             |
+| `template_id`           | string | false    |              |             |
+| `template_name`         | string | false    |              |             |
+| `template_version_name` | string | false    |              |             |
+| `workspace_id`          | string | false    |              |             |
+| `workspace_name`        | string | false    |              |             |
 
 ## codersdk.ProvisionerJobStatus
 
@@ -4636,7 +4861,10 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
       "created_at": "2019-08-24T14:15:22Z",
       "current_job": {
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-        "status": "pending"
+        "status": "pending",
+        "template_display_name": "string",
+        "template_icon": "string",
+        "template_name": "string"
       },
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "key_id": "1e779c8a-6786-4c89-b7c3-a6666f5fd6b5",
@@ -4646,7 +4874,10 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "previous_job": {
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-        "status": "pending"
+        "status": "pending",
+        "template_display_name": "string",
+        "template_icon": "string",
+        "template_name": "string"
       },
       "provisioners": [
         "string"
@@ -4853,41 +5084,42 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 #### Enumerated Values
 
-| Value                     |
-|---------------------------|
-| `*`                       |
-| `api_key`                 |
-| `assign_org_role`         |
-| `assign_role`             |
-| `audit_log`               |
-| `crypto_key`              |
-| `debug_info`              |
-| `deployment_config`       |
-| `deployment_stats`        |
-| `file`                    |
-| `group`                   |
-| `group_member`            |
-| `idpsync_settings`        |
-| `license`                 |
-| `notification_message`    |
-| `notification_preference` |
-| `notification_template`   |
-| `oauth2_app`              |
-| `oauth2_app_code_token`   |
-| `oauth2_app_secret`       |
-| `organization`            |
-| `organization_member`     |
-| `provisioner_daemon`      |
-| `provisioner_jobs`        |
-| `provisioner_keys`        |
-| `replicas`                |
-| `system`                  |
-| `tailnet_coordinator`     |
-| `template`                |
-| `user`                    |
-| `workspace`               |
-| `workspace_dormant`       |
-| `workspace_proxy`         |
+| Value                              |
+|------------------------------------|
+| `*`                                |
+| `api_key`                          |
+| `assign_org_role`                  |
+| `assign_role`                      |
+| `audit_log`                        |
+| `crypto_key`                       |
+| `debug_info`                       |
+| `deployment_config`                |
+| `deployment_stats`                 |
+| `file`                             |
+| `group`                            |
+| `group_member`                     |
+| `idpsync_settings`                 |
+| `license`                          |
+| `notification_message`             |
+| `notification_preference`          |
+| `notification_template`            |
+| `oauth2_app`                       |
+| `oauth2_app_code_token`            |
+| `oauth2_app_secret`                |
+| `organization`                     |
+| `organization_member`              |
+| `provisioner_daemon`               |
+| `provisioner_jobs`                 |
+| `provisioner_keys`                 |
+| `replicas`                         |
+| `system`                           |
+| `tailnet_coordinator`              |
+| `template`                         |
+| `user`                             |
+| `workspace`                        |
+| `workspace_agent_resource_monitor` |
+| `workspace_dormant`                |
+| `workspace_proxy`                  |
 
 ## codersdk.RateLimitConfig
 
@@ -5962,6 +6194,15 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
       "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
     },
+    "metadata": {
+      "template_display_name": "string",
+      "template_icon": "string",
+      "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+      "template_name": "string",
+      "template_version_name": "string",
+      "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+      "workspace_name": "string"
+    },
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "queue_position": 0,
     "queue_size": 0,
@@ -7027,6 +7268,15 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
         "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
       },
+      "metadata": {
+        "template_display_name": "string",
+        "template_icon": "string",
+        "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+        "template_name": "string",
+        "template_version_name": "string",
+        "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+        "workspace_name": "string"
+      },
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "queue_position": 0,
       "queue_size": 0,
@@ -7373,6 +7623,50 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `updated_at`                 | string                                                                                       | false    |              |                                                                                                                                                                              |
 | `version`                    | string                                                                                       | false    |              |                                                                                                                                                                              |
 
+## codersdk.WorkspaceAgentDevcontainer
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "string",
+  "image": "string",
+  "labels": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "name": "string",
+  "ports": [
+    {
+      "network": "string",
+      "port": 0,
+      "process_name": "string"
+    }
+  ],
+  "running": true,
+  "status": "string",
+  "volumes": {
+    "property1": "string",
+    "property2": "string"
+  }
+}
+```
+
+### Properties
+
+| Name               | Type                                                                                  | Required | Restrictions | Description                                                                                                                                |
+|--------------------|---------------------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------|
+| `created_at`       | string                                                                                | false    |              | Created at is the time the container was created.                                                                                          |
+| `id`               | string                                                                                | false    |              | ID is the unique identifier of the container.                                                                                              |
+| `image`            | string                                                                                | false    |              | Image is the name of the container image.                                                                                                  |
+| `labels`           | object                                                                                | false    |              | Labels is a map of key-value pairs of container labels.                                                                                    |
+| » `[any property]` | string                                                                                | false    |              |                                                                                                                                            |
+| `name`             | string                                                                                | false    |              | Name is the human-readable name of the container.                                                                                          |
+| `ports`            | array of [codersdk.WorkspaceAgentListeningPort](#codersdkworkspaceagentlisteningport) | false    |              | Ports includes ports exposed by the container.                                                                                             |
+| `running`          | boolean                                                                               | false    |              | Running is true if the container is currently running.                                                                                     |
+| `status`           | string                                                                                | false    |              | Status is the current status of the container. This is somewhat implementation-dependent, but should generally be a human-readable string. |
+| `volumes`          | object                                                                                | false    |              | Volumes is a map of "things" mounted into the container. Again, this is somewhat implementation-dependent.                                 |
+| » `[any property]` | string                                                                                | false    |              |                                                                                                                                            |
+
 ## codersdk.WorkspaceAgentHealth
 
 ```json
@@ -7410,6 +7704,48 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `shutdown_timeout` |
 | `shutdown_error`   |
 | `off`              |
+
+## codersdk.WorkspaceAgentListContainersResponse
+
+```json
+{
+  "containers": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": "string",
+      "image": "string",
+      "labels": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "name": "string",
+      "ports": [
+        {
+          "network": "string",
+          "port": 0,
+          "process_name": "string"
+        }
+      ],
+      "running": true,
+      "status": "string",
+      "volumes": {
+        "property1": "string",
+        "property2": "string"
+      }
+    }
+  ],
+  "warnings": [
+    "string"
+  ]
+}
+```
+
+### Properties
+
+| Name         | Type                                                                                | Required | Restrictions | Description                                                                                                                           |
+|--------------|-------------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------|
+| `containers` | array of [codersdk.WorkspaceAgentDevcontainer](#codersdkworkspaceagentdevcontainer) | false    |              | Containers is a list of containers visible to the workspace agent.                                                                    |
+| `warnings`   | array of string                                                                     | false    |              | Warnings is a list of warnings that may have occurred during the process of listing containers. This should not include fatal errors. |
 
 ## codersdk.WorkspaceAgentListeningPort
 
@@ -7768,6 +8104,15 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "error": "string",
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
       "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
+    },
+    "metadata": {
+      "template_display_name": "string",
+      "template_icon": "string",
+      "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+      "template_name": "string",
+      "template_version_name": "string",
+      "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+      "workspace_name": "string"
     },
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "queue_position": 0,
@@ -8432,6 +8777,15 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "error": "string",
             "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
             "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
+          },
+          "metadata": {
+            "template_display_name": "string",
+            "template_icon": "string",
+            "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+            "template_name": "string",
+            "template_version_name": "string",
+            "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+            "workspace_name": "string"
           },
           "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
           "queue_position": 0,
@@ -9531,7 +9885,10 @@ Zero means unspecified. There might be a limit, but the client need not try to r
           "created_at": "2019-08-24T14:15:22Z",
           "current_job": {
             "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-            "status": "pending"
+            "status": "pending",
+            "template_display_name": "string",
+            "template_icon": "string",
+            "template_name": "string"
           },
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "key_id": "1e779c8a-6786-4c89-b7c3-a6666f5fd6b5",
@@ -9541,7 +9898,10 @@ Zero means unspecified. There might be a limit, but the client need not try to r
           "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
           "previous_job": {
             "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-            "status": "pending"
+            "status": "pending",
+            "template_display_name": "string",
+            "template_icon": "string",
+            "template_name": "string"
           },
           "provisioners": [
             "string"
@@ -9667,7 +10027,10 @@ Zero means unspecified. There might be a limit, but the client need not try to r
         "created_at": "2019-08-24T14:15:22Z",
         "current_job": {
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-          "status": "pending"
+          "status": "pending",
+          "template_display_name": "string",
+          "template_icon": "string",
+          "template_name": "string"
         },
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "key_id": "1e779c8a-6786-4c89-b7c3-a6666f5fd6b5",
@@ -9677,7 +10040,10 @@ Zero means unspecified. There might be a limit, but the client need not try to r
         "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
         "previous_job": {
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-          "status": "pending"
+          "status": "pending",
+          "template_display_name": "string",
+          "template_icon": "string",
+          "template_name": "string"
         },
         "provisioners": [
           "string"
@@ -9734,7 +10100,10 @@ Zero means unspecified. There might be a limit, but the client need not try to r
     "created_at": "2019-08-24T14:15:22Z",
     "current_job": {
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "status": "pending"
+      "status": "pending",
+      "template_display_name": "string",
+      "template_icon": "string",
+      "template_name": "string"
     },
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "key_id": "1e779c8a-6786-4c89-b7c3-a6666f5fd6b5",
@@ -9744,7 +10113,10 @@ Zero means unspecified. There might be a limit, but the client need not try to r
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "previous_job": {
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "status": "pending"
+      "status": "pending",
+      "template_display_name": "string",
+      "template_icon": "string",
+      "template_name": "string"
     },
     "provisioners": [
       "string"

@@ -96,6 +96,7 @@ export const DestructiveSmall: Story = {
 export const IconButtonDefault: Story = {
 	args: {
 		variant: "default",
+		size: "icon",
 		children: <PlusIcon />,
 	},
 };
@@ -103,6 +104,7 @@ export const IconButtonDefault: Story = {
 export const IconButtonOutline: Story = {
 	args: {
 		variant: "outline",
+		size: "icon",
 		children: <PlusIcon />,
 	},
 };
@@ -110,6 +112,7 @@ export const IconButtonOutline: Story = {
 export const IconButtonSubtle: Story = {
 	args: {
 		variant: "subtle",
+		size: "icon",
 		children: <PlusIcon />,
 	},
 };

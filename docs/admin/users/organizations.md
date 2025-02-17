@@ -23,14 +23,14 @@ guide.
 All Coder deployments start with one organization called `coder`. All new users
 are added to this organization by default.
 
-To edit the organization details, select **Deployment** from the top bar, then
+To edit the organization details, select **Admin settings** from the top bar, then
 **Organizations**:
 
-![Organizations Menu](../../images/admin/users/organizations/deployment-organizations.png)
+<Image height="255px" src="../../images/admin/users/organizations/admin-settings-orgs.png" alt="Organizations Menu" align="center" />
 
 From there, you can manage the name, icon, description, users, and groups:
 
-![Organization Settings](../../images/admin/users/organizations/default-organization.png)
+![Organization Settings](../../images/admin/users/organizations/default-organization-settings.png)
 
 ## Additional organizations
 
@@ -52,10 +52,19 @@ identity provider to avoid manually assigning users to organizations.
 
 ### 1. Create the organization
 
-In the sidebar, select **New organization** to create an organization. In this
-example, we'll create the `data-platform` org.
+To create a new organization:
 
-![New Organization](../../images/admin/users/organizations/new-organization.png)
+1. Select **Admin settings** from the top bar, then **Organizations**.
+
+1. Select the current organization to expand the organizations dropdown, then select **Create Organization**:
+
+   <Image height="212px" src="../../images/admin/users/organizations/org-dropdown-create.png" alt="Organizations dropdown and Create Organization" align="center" />
+
+1. Enter the details and select **Save** to continue:
+
+   <Image height="579px" src="../../images/admin/users/organizations/new-organization.png" alt="New Organization" align="center" />
+
+In this example, we'll create the `data-platform` org.
 
 Next deploy a provisioner and template for this organization.
 
@@ -97,11 +106,11 @@ Once you've started a provisioner, you can create a template. You'll notice the
 
 ### 4. Add members
 
-From **Administration > Settings**, select **Organizations** to add members to
-your organization. Once added, they will be able to see the
+From **Admin settings**, select **Organizations**, then **Members** to add members to
+your organization. Once added, members will be able to see the
 organization-specific templates.
 
-![Add members](../../images/admin/users/organizations/organization-members.png)
+<Image height="365px" src="../../images/admin/users/organizations/organization-members.png" alt="Add members" align="center" />
 
 ### 5. Create a workspace
 
@@ -109,12 +118,6 @@ Now, users in the data platform organization will see the templates related to
 their organization. Users can be in multiple organizations.
 
 ![Workspace List](../../images/admin/users/organizations/workspace-list.png)
-
-## Beta
-
-Organizations is in beta. If you encounter any issues, please
-[file an issue](https://github.com/coder/internal/issues/new?title=request%28orgs%29%3A+request+title+here&labels=["customer-feedback"]&body=please+enter+your+issue+or+request+here)
-or contact your account team.
 
 ## Next steps
 

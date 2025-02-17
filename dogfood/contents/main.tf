@@ -249,7 +249,7 @@ resource "coder_agent" "dev" {
     key          = "swap_usage_host"
     order        = 4
     script       = <<EOT
-      #!/bin/bash
+      #!/usr/bin/env bash
       echo "$(free -b | awk '/^Swap/ { printf("%.1f/%.1f", $3/1024.0/1024.0/1024.0, $2/1024.0/1024.0/1024.0) }') GiB"
     EOT
     interval     = 10
@@ -262,7 +262,7 @@ resource "coder_agent" "dev" {
     order        = 5
     # get load avg scaled by number of cores
     script   = <<EOT
-      #!/bin/bash
+      #!/usr/bin/env bash
       echo "`cat /proc/loadavg | awk '{ print $1 }'` `nproc`" | awk '{ printf "%0.2f", $1/$2 }'
     EOT
     interval = 60
@@ -283,7 +283,7 @@ resource "coder_agent" "dev" {
     key          = "word"
     order        = 7
     script       = <<EOT
-      #!/bin/bash
+      #!/usr/bin/env bash
       curl -o - --silent https://www.merriam-webster.com/word-of-the-day 2>&1 | awk ' $0 ~ "Word of the Day: [A-z]+" { print $5; exit }'
     EOT
     interval     = 86400
@@ -291,6 +291,7 @@ resource "coder_agent" "dev" {
   }
 
   startup_script = <<-EOT
+    #!/usr/bin/env bash
     set -eux -o pipefail
 
     # Allow synchronization between scripts.
@@ -373,6 +374,7 @@ resource "docker_container" "workspace" {
     "CODER_PROC_PRIO_MGMT=1",
     "CODER_PROC_OOM_SCORE=10",
     "CODER_PROC_NICE_SCORE=1",
+    "CODER_AGENT_DEVCONTAINERS_ENABLE=1",
   ]
   host {
     host = "host.docker.internal"

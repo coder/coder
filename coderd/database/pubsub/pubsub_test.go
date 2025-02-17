@@ -137,6 +137,7 @@ func TestPGPubsubDriver(t *testing.T) {
 	// use a separate subber and pubber so we can keep track of listener connections
 	db, err := sql.Open("postgres", connectionURL)
 	require.NoError(t, err)
+	defer db.Close()
 	pubber, err := pubsub.New(ctx, logger, db, connectionURL)
 	require.NoError(t, err)
 	defer pubber.Close()
@@ -147,6 +148,7 @@ func TestPGPubsubDriver(t *testing.T) {
 	tconn, err := subDriver.Connector(connectionURL)
 	require.NoError(t, err)
 	tcdb := sql.OpenDB(tconn)
+	defer tcdb.Close()
 	subber, err := pubsub.New(ctx, logger, tcdb, connectionURL)
 	require.NoError(t, err)
 	defer subber.Close()

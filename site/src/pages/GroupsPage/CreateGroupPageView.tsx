@@ -3,13 +3,16 @@ import { isApiValidationError } from "api/errors";
 import type { CreateGroupRequest } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
-import { FormFooter } from "components/Form/Form";
-import { FullPageForm } from "components/FullPageForm/FullPageForm";
+import {
+	FormFields,
+	FormFooter,
+	FormSection,
+	HorizontalForm,
+} from "components/Form/Form";
 import { IconField } from "components/IconField/IconField";
-import { Margins } from "components/Margins/Margins";
+import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Spinner } from "components/Spinner/Spinner";
-import { Stack } from "components/Stack/Stack";
-import { type FormikTouched, useFormik } from "formik";
+import { useFormik } from "formik";
 import type { FC } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -27,15 +30,12 @@ export type CreateGroupPageViewProps = {
 	onSubmit: (data: CreateGroupRequest) => void;
 	error?: unknown;
 	isLoading: boolean;
-	// Helpful to show field errors on Storybook
-	initialTouched?: FormikTouched<CreateGroupRequest>;
 };
 
 export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
 	onSubmit,
 	error,
 	isLoading,
-	initialTouched,
 }) => {
 	const navigate = useNavigate();
 	const form = useFormik<CreateGroupRequest>({
@@ -47,16 +47,23 @@ export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
 		},
 		validationSchema,
 		onSubmit,
-		initialTouched,
 	});
 	const getFieldHelpers = getFormHelpers<CreateGroupRequest>(form, error);
-	const onCancel = () => navigate("/deployment/groups");
+	const onCancel = () => navigate(-1);
 
 	return (
-		<Margins>
-			<FullPageForm title="Create group">
-				<form onSubmit={form.handleSubmit}>
-					<Stack spacing={2.5}>
+		<>
+			<SettingsHeader
+				title="New Group"
+				description="Create a group in this organization."
+			/>
+
+			<HorizontalForm onSubmit={form.handleSubmit}>
+				<FormSection
+					title="Group settings"
+					description="Set a name and avatar for this group."
+				>
+					<FormFields>
 						{Boolean(error) && !isApiValidationError(error) && (
 							<ErrorAlert error={error} />
 						)}
@@ -84,21 +91,21 @@ export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
 							label="Avatar URL"
 							onPickEmoji={(value) => form.setFieldValue("avatar_url", value)}
 						/>
-					</Stack>
+					</FormFields>
+				</FormSection>
 
-					<FormFooter className="mt-8">
-						<Button onClick={onCancel} variant="outline">
-							Cancel
-						</Button>
+				<FormFooter>
+					<Button onClick={onCancel} variant="outline">
+						Cancel
+					</Button>
 
-						<Button type="submit" disabled={isLoading}>
-							{isLoading && <Spinner />}
-							Save
-						</Button>
-					</FormFooter>
-				</form>
-			</FullPageForm>
-		</Margins>
+					<Button type="submit" disabled={isLoading}>
+						<Spinner loading={isLoading} />
+						Save
+					</Button>
+				</FormFooter>
+			</HorizontalForm>
+		</>
 	);
 };
 export default CreateGroupPageView;

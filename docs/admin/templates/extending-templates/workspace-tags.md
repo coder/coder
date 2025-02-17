@@ -71,7 +71,7 @@ added that can handle its combination of tags.
 Before releasing the template version with configurable workspace tags, ensure
 that every tag set is associated with at least one healthy provisioner.
 
-> [!NOTE] It may be useful to run at least one provisioner with no additional
+> **Note:** It may be useful to run at least one provisioner with no additional
 > tag restrictions that is able to take on any job.
 
 ### Parameters types

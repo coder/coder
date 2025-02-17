@@ -45,10 +45,10 @@ Select which organization (uuid or name) to use.
 
 ### -c, --column
 
-|         |                                                                                                                                                                                                                                                               |
-|---------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Type    | <code>[id\|created at\|started at\|completed at\|canceled at\|error\|error code\|status\|worker id\|file id\|tags\|queue position\|queue size\|organization id\|template version id\|workspace build id\|type\|available workers\|organization\|queue]</code> |
-| Default | <code>created at,id,organization,status,type,queue,tags</code>                                                                                                                                                                                                |
+|         |                                                                                                                                                                                                                                                                                                                                                                                      |
+|---------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Type    | <code>[id\|created at\|started at\|completed at\|canceled at\|error\|error code\|status\|worker id\|file id\|tags\|queue position\|queue size\|organization id\|template version id\|workspace build id\|type\|available workers\|template version name\|template id\|template name\|template display name\|template icon\|workspace id\|workspace name\|organization\|queue]</code> |
+| Default | <code>created at,id,organization,status,type,queue,tags</code>                                                                                                                                                                                                                                                                                                                       |
 
 Columns to display in table output.
 

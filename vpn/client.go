@@ -8,6 +8,7 @@ import (
 
 	"golang.org/x/xerrors"
 	"tailscale.com/net/dns"
+	"tailscale.com/net/netmon"
 	"tailscale.com/wgengine/router"
 
 	"github.com/google/uuid"
@@ -57,12 +58,13 @@ func NewClient() Client {
 }
 
 type Options struct {
-	Headers           http.Header
-	Logger            slog.Logger
-	DNSConfigurator   dns.OSConfigurator
-	Router            router.Router
-	TUNFileDescriptor *int
-	UpdateHandler     tailnet.UpdatesHandler
+	Headers          http.Header
+	Logger           slog.Logger
+	DNSConfigurator  dns.OSConfigurator
+	Router           router.Router
+	TUNDevice        tun.Device
+	WireguardMonitor *netmon.Monitor
+	UpdateHandler    tailnet.UpdatesHandler
 }
 
 func (*client) NewConn(initCtx context.Context, serverURL *url.URL, token string, options *Options) (vpnC Conn, err error) {
@@ -72,15 +74,6 @@ func (*client) NewConn(initCtx context.Context, serverURL *url.URL, token string
 
 	if options.Headers == nil {
 		options.Headers = http.Header{}
-	}
-
-	var dev tun.Device
-	if options.TUNFileDescriptor != nil {
-		// No-op on non-Darwin platforms.
-		dev, err = makeTUN(*options.TUNFileDescriptor)
-		if err != nil {
-			return nil, xerrors.Errorf("make TUN: %w", err)
-		}
 	}
 
 	headers := options.Headers
@@ -134,7 +127,8 @@ func (*client) NewConn(initCtx context.Context, serverURL *url.URL, token string
 		BlockEndpoints:      connInfo.DisableDirectConnections,
 		DNSConfigurator:     options.DNSConfigurator,
 		Router:              options.Router,
-		TUNDev:              dev,
+		TUNDev:              options.TUNDevice,
+		WireguardMonitor:    options.WireguardMonitor,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet: %w", err)
@@ -154,7 +148,7 @@ func (*client) NewConn(initCtx context.Context, serverURL *url.URL, token string
 	updatesCtrl := tailnet.NewTunnelAllWorkspaceUpdatesController(
 		options.Logger,
 		coordCtrl,
-		tailnet.WithDNS(conn, me.Name),
+		tailnet.WithDNS(conn, me.Username),
 		tailnet.WithHandler(options.UpdateHandler),
 	)
 	controller.WorkspaceUpdatesCtrl = updatesCtrl

@@ -434,10 +434,24 @@ func (m queryMetricsStore) FavoriteWorkspace(ctx context.Context, arg uuid.UUID)
 	return r0
 }
 
+func (m queryMetricsStore) FetchMemoryResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) (database.WorkspaceAgentMemoryResourceMonitor, error) {
+	start := time.Now()
+	r0, r1 := m.s.FetchMemoryResourceMonitorsByAgentID(ctx, agentID)
+	m.queryLatencies.WithLabelValues("FetchMemoryResourceMonitorsByAgentID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) FetchNewMessageMetadata(ctx context.Context, arg database.FetchNewMessageMetadataParams) (database.FetchNewMessageMetadataRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.FetchNewMessageMetadata(ctx, arg)
 	m.queryLatencies.WithLabelValues("FetchNewMessageMetadata").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) FetchVolumesResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) ([]database.WorkspaceAgentVolumeResourceMonitor, error) {
+	start := time.Now()
+	r0, r1 := m.s.FetchVolumesResourceMonitorsByAgentID(ctx, agentID)
+	m.queryLatencies.WithLabelValues("FetchVolumesResourceMonitorsByAgentID").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -966,6 +980,27 @@ func (m queryMetricsStore) GetParameterSchemasByJobID(ctx context.Context, jobID
 	return schemas, err
 }
 
+func (m queryMetricsStore) GetPresetByWorkspaceBuildID(ctx context.Context, workspaceBuildID uuid.UUID) (database.TemplateVersionPreset, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetPresetByWorkspaceBuildID(ctx, workspaceBuildID)
+	m.queryLatencies.WithLabelValues("GetPresetByWorkspaceBuildID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetPresetParametersByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionPresetParameter, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetPresetParametersByTemplateVersionID(ctx, templateVersionID)
+	m.queryLatencies.WithLabelValues("GetPresetParametersByTemplateVersionID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetPresetsByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionPreset, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetPresetsByTemplateVersionID(ctx, templateVersionID)
+	m.queryLatencies.WithLabelValues("GetPresetsByTemplateVersionID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetPreviousTemplateVersion(ctx context.Context, arg database.GetPreviousTemplateVersionParams) (database.TemplateVersion, error) {
 	start := time.Now()
 	version, err := m.s.GetPreviousTemplateVersion(ctx, arg)
@@ -1131,6 +1166,20 @@ func (m queryMetricsStore) GetTailnetTunnelPeerIDs(ctx context.Context, srcID uu
 	start := time.Now()
 	r0, r1 := m.s.GetTailnetTunnelPeerIDs(ctx, srcID)
 	m.queryLatencies.WithLabelValues("GetTailnetTunnelPeerIDs").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetTelemetryItem(ctx context.Context, key string) (database.TelemetryItem, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTelemetryItem(ctx, key)
+	m.queryLatencies.WithLabelValues("GetTelemetryItem").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetTelemetryItems(ctx context.Context) ([]database.TelemetryItem, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTelemetryItems(ctx)
+	m.queryLatencies.WithLabelValues("GetTelemetryItems").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -1827,6 +1876,13 @@ func (m queryMetricsStore) InsertLicense(ctx context.Context, arg database.Inser
 	return license, err
 }
 
+func (m queryMetricsStore) InsertMemoryResourceMonitor(ctx context.Context, arg database.InsertMemoryResourceMonitorParams) (database.WorkspaceAgentMemoryResourceMonitor, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertMemoryResourceMonitor(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertMemoryResourceMonitor").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertMissingGroups(ctx context.Context, arg database.InsertMissingGroupsParams) ([]database.Group, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertMissingGroups(ctx, arg)
@@ -1876,6 +1932,20 @@ func (m queryMetricsStore) InsertOrganizationMember(ctx context.Context, arg dat
 	return member, err
 }
 
+func (m queryMetricsStore) InsertPreset(ctx context.Context, arg database.InsertPresetParams) (database.TemplateVersionPreset, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertPreset(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertPreset").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertPresetParameters(ctx context.Context, arg database.InsertPresetParametersParams) ([]database.TemplateVersionPresetParameter, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertPresetParameters(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertPresetParameters").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertProvisionerJob(ctx context.Context, arg database.InsertProvisionerJobParams) (database.ProvisionerJob, error) {
 	start := time.Now()
 	job, err := m.s.InsertProvisionerJob(ctx, arg)
@@ -1909,6 +1979,13 @@ func (m queryMetricsStore) InsertReplica(ctx context.Context, arg database.Inser
 	replica, err := m.s.InsertReplica(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertReplica").Observe(time.Since(start).Seconds())
 	return replica, err
+}
+
+func (m queryMetricsStore) InsertTelemetryItemIfNotExists(ctx context.Context, arg database.InsertTelemetryItemIfNotExistsParams) error {
+	start := time.Now()
+	r0 := m.s.InsertTelemetryItemIfNotExists(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertTelemetryItemIfNotExists").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m queryMetricsStore) InsertTemplate(ctx context.Context, arg database.InsertTemplateParams) error {
@@ -1972,6 +2049,13 @@ func (m queryMetricsStore) InsertUserLink(ctx context.Context, arg database.Inse
 	link, err := m.s.InsertUserLink(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertUserLink").Observe(time.Since(start).Seconds())
 	return link, err
+}
+
+func (m queryMetricsStore) InsertVolumeResourceMonitor(ctx context.Context, arg database.InsertVolumeResourceMonitorParams) (database.WorkspaceAgentVolumeResourceMonitor, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertVolumeResourceMonitor(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertVolumeResourceMonitor").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m queryMetricsStore) InsertWorkspace(ctx context.Context, arg database.InsertWorkspaceParams) (database.WorkspaceTable, error) {
@@ -2770,6 +2854,13 @@ func (m queryMetricsStore) UpsertTailnetTunnel(ctx context.Context, arg database
 	r0, r1 := m.s.UpsertTailnetTunnel(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpsertTailnetTunnel").Observe(time.Since(start).Seconds())
 	return r0, r1
+}
+
+func (m queryMetricsStore) UpsertTelemetryItem(ctx context.Context, arg database.UpsertTelemetryItemParams) error {
+	start := time.Now()
+	r0 := m.s.UpsertTelemetryItem(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertTelemetryItem").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m queryMetricsStore) UpsertTemplateUsageStats(ctx context.Context) error {

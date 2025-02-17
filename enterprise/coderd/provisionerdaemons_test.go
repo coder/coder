@@ -782,10 +782,14 @@ func TestGetProvisionerDaemons(t *testing.T) {
 		pkDaemons, err := orgAdmin.ListProvisionerKeyDaemons(ctx, org.ID)
 		require.NoError(t, err)
 
-		require.Len(t, pkDaemons, 1)
+		require.Len(t, pkDaemons, 2)
 		require.Len(t, pkDaemons[0].Daemons, 1)
 		assert.Equal(t, keys[0].ID, pkDaemons[0].Key.ID)
 		assert.Equal(t, keys[0].Name, pkDaemons[0].Key.Name)
+		// user-auth provisioners
+		require.Len(t, pkDaemons[1].Daemons, 0)
+		assert.Equal(t, codersdk.ProvisionerKeyUUIDUserAuth, pkDaemons[1].Key.ID)
+		assert.Equal(t, codersdk.ProvisionerKeyNameUserAuth, pkDaemons[1].Key.Name)
 
 		assert.Equal(t, daemonName, pkDaemons[0].Daemons[0].Name)
 		assert.Equal(t, buildinfo.Version(), pkDaemons[0].Daemons[0].Version)
@@ -986,7 +990,9 @@ func TestGetProvisionerDaemons(t *testing.T) {
 				require.NoError(t, err)
 				require.Len(t, allDaemons, 1)
 
-				daemonsAsFound, err := orgAdmin.OrganizationProvisionerDaemons(ctx, org.ID, tt.tagsToFilterBy)
+				daemonsAsFound, err := orgAdmin.OrganizationProvisionerDaemons(ctx, org.ID, &codersdk.OrganizationProvisionerDaemonsOptions{
+					Tags: tt.tagsToFilterBy,
+				})
 				if tt.expectToGetDaemon {
 					require.NoError(t, err)
 					require.Len(t, daemonsAsFound, 1)

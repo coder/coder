@@ -205,7 +205,7 @@ func (r *RootCmd) proxyServer() *serpent.Command {
 			httpClient.Transport = headerTransport
 
 			accessURL := cfg.AccessURL.String()
-			cliui.Infof(inv.Stdout, lipgloss.NewStyle().
+			cliui.Info(inv.Stdout, lipgloss.NewStyle().
 				Border(lipgloss.DoubleBorder()).
 				Align(lipgloss.Center).
 				Padding(0, 3).

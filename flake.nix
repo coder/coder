@@ -71,70 +71,97 @@
           vendorHash = null;
         };
 
+        # Packages required to build the frontend
+        frontendPackages =
+          with pkgs;
+          [
+            cairo
+            pango
+            pixman
+            libpng
+            libjpeg
+            giflib
+            librsvg
+            python312Packages.setuptools # Needed for node-gyp
+          ]
+          ++ (lib.optionals stdenv.targetPlatform.isDarwin [
+            darwin.apple_sdk.frameworks.Foundation
+            xcbuild
+          ]);
+
         # The minimal set of packages to build Coder.
-        devShellPackages = with pkgs; [
-          # google-chrome is not available on aarch64 linux
-          (lib.optionalDrvAttr (!stdenv.isLinux || !stdenv.isAarch64) google-chrome)
-          # strace is not available on OSX
-          (lib.optionalDrvAttr (!pkgs.stdenv.isDarwin) strace)
-          bat
-          cairo
-          curl
-          delve
-          dive
-          drpc.defaultPackage.${system}
-          formatter
-          fzf
-          gcc
-          gdk
-          getopt
-          gh
-          git
-          (lib.optionalDrvAttr stdenv.isLinux glibcLocales)
-          gnumake
-          gnused
-          go_1_22
-          go-migrate
-          (pinnedPkgs.golangci-lint)
-          gopls
-          gotestsum
-          jq
-          kubectl
-          kubectx
-          kubernetes-helm
-          lazygit
-          less
-          mockgen
-          moreutils
-          neovim
-          nfpm
-          nix-prefetch-git
-          nodejs
-          openssh
-          openssl
-          pango
-          pixman
-          pkg-config
-          playwright-driver.browsers
-          pnpm
-          postgresql_16
-          proto_gen_go_1_30
-          protobuf_23
-          ripgrep
-          shellcheck
-          (pinnedPkgs.shfmt)
-          sqlc
-          terraform
-          typos
-          # Needed for many LD system libs!
-          (lib.optional stdenv.isLinux util-linux)
-          vim
-          wget
-          yq-go
-          zip
-          zsh
-          zstd
-        ];
+        devShellPackages =
+          with pkgs;
+          [
+            # google-chrome is not available on aarch64 linux
+            (lib.optionalDrvAttr (!stdenv.isLinux || !stdenv.isAarch64) google-chrome)
+            # strace is not available on OSX
+            (lib.optionalDrvAttr (!pkgs.stdenv.isDarwin) strace)
+            bat
+            cairo
+            curl
+            delve
+            dive
+            drpc.defaultPackage.${system}
+            formatter
+            fzf
+            gawk
+            gcc13
+            gdk
+            getopt
+            gh
+            git
+            (lib.optionalDrvAttr stdenv.isLinux glibcLocales)
+            gnumake
+            gnused
+            gnugrep
+            gnutar
+            go_1_22
+            go-migrate
+            (pinnedPkgs.golangci-lint)
+            gopls
+            gotestsum
+            jq
+            kubectl
+            kubectx
+            kubernetes-helm
+            lazygit
+            less
+            mockgen
+            moreutils
+            neovim
+            nfpm
+            nix-prefetch-git
+            nodejs
+            openssh
+            openssl
+            pango
+            pixman
+            pkg-config
+            playwright-driver.browsers
+            pnpm
+            postgresql_16
+            proto_gen_go_1_30
+            protobuf_23
+            ripgrep
+            shellcheck
+            (pinnedPkgs.shfmt)
+            sqlc
+            terraform
+            typos
+            which
+            # Needed for many LD system libs!
+            (lib.optional stdenv.isLinux util-linux)
+            vim
+            wget
+            yq-go
+            zip
+            zsh
+            zstd
+          ]
+          ++ frontendPackages;
+
+        docker = pkgs.callPackage ./nix/docker.nix { };
 
         # buildSite packages the site directory.
         buildSite = pnpm2nix.packages.${system}.mkPnpmPackage {
@@ -142,22 +169,7 @@
 
           src = ./site/.;
           # Required for the `canvas` package!
-          extraBuildInputs =
-            with pkgs;
-            [
-              cairo
-              pango
-              pixman
-              libpng
-              libjpeg
-              giflib
-              librsvg
-              python312Packages.setuptools
-            ]
-            ++ (lib.optionals stdenv.targetPlatform.isDarwin [
-              darwin.apple_sdk.frameworks.Foundation
-              xcbuild
-            ]);
+          extraBuildInputs = frontendPackages;
           installInPlace = true;
           distDir = "out";
         };
@@ -172,7 +184,7 @@
             name = "coder-${osArch}";
             # Updated with ./scripts/update-flake.sh`.
             # This should be updated whenever go.mod changes!
-            vendorHash = "sha256-hJBNmHz9ZJLS/QTu8w8y1w/Yi45aSoaSeZ//ysllp6c=";
+            vendorHash = "sha256-QjqF+QZ5JKMnqkpNh6ZjrJU2QcSqiT4Dip1KoicwLYc=";
             proxyVendor = true;
             src = ./.;
             nativeBuildInputs = with pkgs; [
@@ -210,14 +222,16 @@
         devShells = {
           default = pkgs.mkShell {
             buildInputs = devShellPackages;
-            shellHook = ''
-              export PLAYWRIGHT_BROWSERS_PATH=${pkgs.playwright-driver.browsers}
-              export PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=true
-            '';
+
+            PLAYWRIGHT_BROWSERS_PATH = pkgs.playwright-driver.browsers;
+            PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = true;
 
             LOCALE_ARCHIVE =
               with pkgs;
               lib.optionalDrvAttr stdenv.isLinux "${glibcLocales}/lib/locale/locale-archive";
+
+            NODE_OPTIONS = "--max-old-space-size=8192";
+            GOPRIVATE = "coder.com,cdr.dev,go.coder.com,github.com/cdr,github.com/coder";
           };
         };
 
@@ -237,12 +251,38 @@
             aarch64-windows = buildFat "windows_arm64.exe";
           }
           // (pkgs.lib.optionalAttrs pkgs.stdenv.isLinux {
-            dev_image = pkgs.dockerTools.buildNixShellImage {
+            dev_image = docker.buildNixShellImage rec {
               name = "codercom/oss-dogfood-nix";
               tag = "latest-${system}";
 
+              # (ThomasK33): Workaround for images with too many layers (>64 layers) causing sysbox
+              # to have issues on dogfood envs.
+              maxLayers = 32;
+
+              uname = "coder";
+              homeDirectory = "/home/${uname}";
+
               drv = devShells.default.overrideAttrs (oldAttrs: {
-                buildInputs = oldAttrs.buildInputs ++ [ pkgs.nix ];
+                buildInputs =
+                  (with pkgs; [
+                    coreutils
+                    nix
+                    curl.bin # Ensure the actual curl binary is included in the PATH
+                    glibc.bin # Ensure the glibc binaries are included in the PATH
+                    jq.bin
+                    binutils # ld and strings
+                    filebrowser # Ensure that we're not redownloading filebrowser on each launch
+                    systemd.out
+                    service-wrapper
+                    docker_26
+                    shadow.out
+                    su
+                    ncurses.out # clear
+                    unzip
+                    zip
+                    gzip
+                  ])
+                  ++ oldAttrs.buildInputs;
               });
             };
           });

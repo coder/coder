@@ -1055,6 +1055,12 @@ export interface HealthcheckReport {
 	readonly coder_version: string;
 }
 
+// From codersdk/idpsync.go
+export interface IDPSyncMapping<ResourceIdType extends string | string> {
+	readonly Given: string;
+	readonly Gets: ResourceIdType;
+}
+
 // From codersdk/insights.go
 export type InsightsReportInterval = "day" | "week";
 
@@ -1430,9 +1436,18 @@ export interface OrganizationMemberWithUserData extends OrganizationMember {
 }
 
 // From codersdk/organizations.go
+export interface OrganizationProvisionerDaemonsOptions {
+	readonly Limit: number;
+	readonly IDs: readonly string[];
+	readonly Tags: Record<string, string>;
+}
+
+// From codersdk/organizations.go
 export interface OrganizationProvisionerJobsOptions {
 	readonly Limit: number;
+	readonly IDs: readonly string[];
 	readonly Status: readonly ProvisionerJobStatus[];
+	readonly Tags: Record<string, string>;
 }
 
 // From codersdk/idpsync.go
@@ -1449,6 +1464,19 @@ export interface Pagination {
 	readonly offset?: number;
 }
 
+// From codersdk/idpsync.go
+export interface PatchGroupIDPSyncConfigRequest {
+	readonly field: string;
+	readonly regex_filter: string | null;
+	readonly auto_create_missing_groups: boolean;
+}
+
+// From codersdk/idpsync.go
+export interface PatchGroupIDPSyncMappingRequest {
+	readonly Add: readonly IDPSyncMapping<string>[];
+	readonly Remove: readonly IDPSyncMapping<string>[];
+}
+
 // From codersdk/groups.go
 export interface PatchGroupRequest {
 	readonly add_users: readonly string[];
@@ -1457,6 +1485,29 @@ export interface PatchGroupRequest {
 	readonly display_name: string | null;
 	readonly avatar_url: string | null;
 	readonly quota_allowance: number | null;
+}
+
+// From codersdk/idpsync.go
+export interface PatchOrganizationIDPSyncConfigRequest {
+	readonly field: string;
+	readonly assign_default: boolean;
+}
+
+// From codersdk/idpsync.go
+export interface PatchOrganizationIDPSyncMappingRequest {
+	readonly Add: readonly IDPSyncMapping<string>[];
+	readonly Remove: readonly IDPSyncMapping<string>[];
+}
+
+// From codersdk/idpsync.go
+export interface PatchRoleIDPSyncConfigRequest {
+	readonly field: string;
+}
+
+// From codersdk/idpsync.go
+export interface PatchRoleIDPSyncMappingRequest {
+	readonly Add: readonly IDPSyncMapping<string>[];
+	readonly Remove: readonly IDPSyncMapping<string>[];
 }
 
 // From codersdk/templateversions.go
@@ -1508,6 +1559,19 @@ export interface PprofConfig {
 	readonly address: string;
 }
 
+// From codersdk/presets.go
+export interface Preset {
+	readonly ID: string;
+	readonly Name: string;
+	readonly Parameters: readonly PresetParameter[];
+}
+
+// From codersdk/presets.go
+export interface PresetParameter {
+	readonly Name: string;
+	readonly Value: string;
+}
+
 // From codersdk/deployment.go
 export interface PrometheusConfig {
 	readonly enable: boolean;
@@ -1549,6 +1613,9 @@ export interface ProvisionerDaemon {
 export interface ProvisionerDaemonJob {
 	readonly id: string;
 	readonly status: ProvisionerJobStatus;
+	readonly template_name: string;
+	readonly template_icon: string;
+	readonly template_display_name: string;
 }
 
 // From codersdk/client.go
@@ -1596,6 +1663,7 @@ export interface ProvisionerJob {
 	readonly input: ProvisionerJobInput;
 	readonly type: ProvisionerJobType;
 	readonly available_workers?: readonly string[];
+	readonly metadata: ProvisionerJobMetadata;
 }
 
 // From codersdk/provisionerdaemons.go
@@ -1613,6 +1681,17 @@ export interface ProvisionerJobLog {
 	readonly log_level: LogLevel;
 	readonly stage: string;
 	readonly output: string;
+}
+
+// From codersdk/provisionerdaemons.go
+export interface ProvisionerJobMetadata {
+	readonly template_version_name: string;
+	readonly template_id: string;
+	readonly template_name: string;
+	readonly template_display_name: string;
+	readonly template_icon: string;
+	readonly workspace_id?: string;
+	readonly workspace_name?: string;
 }
 
 // From codersdk/provisionerdaemons.go
@@ -1806,6 +1885,7 @@ export type RBACResource =
 	| "user"
 	| "*"
 	| "workspace"
+	| "workspace_agent_resource_monitor"
 	| "workspace_dormant"
 	| "workspace_proxy";
 
@@ -1841,6 +1921,7 @@ export const RBACResources: RBACResource[] = [
 	"user",
 	"*",
 	"workspace",
+	"workspace_agent_resource_monitor",
 	"workspace_dormant",
 	"workspace_proxy",
 ];
@@ -2872,6 +2953,19 @@ export interface WorkspaceAgent {
 }
 
 // From codersdk/workspaceagents.go
+export interface WorkspaceAgentDevcontainer {
+	readonly created_at: string;
+	readonly id: string;
+	readonly name: string;
+	readonly image: string;
+	readonly labels: Record<string, string>;
+	readonly running: boolean;
+	readonly ports: readonly WorkspaceAgentListeningPort[];
+	readonly status: string;
+	readonly volumes: Record<string, string>;
+}
+
+// From codersdk/workspaceagents.go
 export interface WorkspaceAgentHealth {
 	readonly healthy: boolean;
 	readonly reason?: string;
@@ -2900,6 +2994,12 @@ export const WorkspaceAgentLifecycles: WorkspaceAgentLifecycle[] = [
 	"start_timeout",
 	"starting",
 ];
+
+// From codersdk/workspaceagents.go
+export interface WorkspaceAgentListContainersResponse {
+	readonly containers: readonly WorkspaceAgentDevcontainer[];
+	readonly warnings?: readonly string[];
+}
 
 // From codersdk/workspaceagents.go
 export interface WorkspaceAgentListeningPort {

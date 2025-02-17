@@ -309,8 +309,8 @@ func TestDeploymentValues_DurationFormatNanoseconds(t *testing.T) {
 			continue
 		}
 		t.Logf("Option %q is a duration but does not have the format_duration annotation.", s.Name)
-		t.Logf("To fix this, add the following to the option declaration:")
-		t.Logf(`Annotations: serpent.Annotations{}.Mark(annotationFormatDurationNS, "true"),`)
+		t.Log("To fix this, add the following to the option declaration:")
+		t.Log(`Annotations: serpent.Annotations{}.Mark(annotationFormatDurationNS, "true"),`)
 		t.FailNow()
 	}
 }

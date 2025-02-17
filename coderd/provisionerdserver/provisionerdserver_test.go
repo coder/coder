@@ -101,7 +101,7 @@ func TestHeartbeat(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	heartbeatChan := make(chan struct{})
 	heartbeatFn := func(hbCtx context.Context) error {
-		t.Logf("heartbeat")
+		t.Log("heartbeat")
 		select {
 		case <-hbCtx.Done():
 			return hbCtx.Err()
@@ -1874,6 +1874,57 @@ func TestInsertWorkspaceResource(t *testing.T) {
 		// that all apps are disabled.
 		require.Equal(t, []database.DisplayApp{}, agent.DisplayApps)
 	})
+
+	t.Run("ResourcesMonitoring", func(t *testing.T) {
+		t.Parallel()
+		db := dbmem.New()
+		job := uuid.New()
+		err := insert(db, job, &sdkproto.Resource{
+			Name: "something",
+			Type: "aws_instance",
+			Agents: []*sdkproto.Agent{{
+				DisplayApps: &sdkproto.DisplayApps{},
+				ResourcesMonitoring: &sdkproto.ResourcesMonitoring{
+					Memory: &sdkproto.MemoryResourceMonitor{
+						Enabled:   true,
+						Threshold: 80,
+					},
+					Volumes: []*sdkproto.VolumeResourceMonitor{
+						{
+							Path:      "/volume1",
+							Enabled:   true,
+							Threshold: 90,
+						},
+						{
+							Path:      "/volume2",
+							Enabled:   true,
+							Threshold: 50,
+						},
+					},
+				},
+			}},
+		})
+		require.NoError(t, err)
+		resources, err := db.GetWorkspaceResourcesByJobID(ctx, job)
+		require.NoError(t, err)
+		require.Len(t, resources, 1)
+		agents, err := db.GetWorkspaceAgentsByResourceIDs(ctx, []uuid.UUID{resources[0].ID})
+		require.NoError(t, err)
+		require.Len(t, agents, 1)
+
+		agent := agents[0]
+		memMonitor, err := db.FetchMemoryResourceMonitorsByAgentID(ctx, agent.ID)
+		require.NoError(t, err)
+		volMonitors, err := db.FetchVolumesResourceMonitorsByAgentID(ctx, agent.ID)
+		require.NoError(t, err)
+
+		require.Equal(t, int32(80), memMonitor.Threshold)
+		require.Len(t, volMonitors, 2)
+		require.Equal(t, int32(90), volMonitors[0].Threshold)
+		require.Equal(t, "/volume1", volMonitors[0].Path)
+		require.Equal(t, int32(50), volMonitors[1].Threshold)
+		require.Equal(t, "/volume2", volMonitors[1].Path)
+	})
 }
 
 func TestNotifications(t *testing.T) {
@@ -2272,7 +2323,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 		Version:        buildinfo.Version(),
 		APIVersion:     proto.CurrentVersion.String(),
 		OrganizationID: defOrg.ID,
-		KeyID:          uuid.MustParse(codersdk.ProvisionerKeyIDBuiltIn),
+		KeyID:          codersdk.ProvisionerKeyUUIDBuiltIn,
 	})
 	require.NoError(t, err)
 

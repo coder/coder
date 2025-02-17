@@ -31,14 +31,6 @@ In order for clients and workspaces to be able to connect:
 - Any reverse proxy or ingress between the Coder control plane and
   clients/agents must support WebSockets.
 
-> **Note:** We strongly recommend that clients connect to Coder and their
-> workspaces over a good quality, broadband network connection. The following
-> are minimum requirements:
->
-> - better than 400ms round-trip latency to the Coder server and to their
->   workspace
-> - better than 0.5% random packet loss
-
 In order for clients to be able to establish direct connections:
 
 > **Note:** Direct connections via the web browser are not supported. To improve

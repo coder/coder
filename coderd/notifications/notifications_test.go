@@ -388,7 +388,7 @@ func TestBackpressure(t *testing.T) {
 			}, testutil.WaitShort, testutil.IntervalFast)
 		}
 	}
-	t.Logf("done advancing")
+	t.Log("done advancing")
 	// The batch completes
 	w.MustWait(ctx)
 
@@ -1061,6 +1061,67 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 					"workspace":    "bobby-workspace",
 					"template":     "bobby-template",
 					"version":      "alpha",
+				},
+			},
+		},
+		{
+			name: "TemplateWorkspaceOutOfMemory",
+			id:   notifications.TemplateWorkspaceOutOfMemory,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"workspace": "bobby-workspace",
+					"threshold": "90%",
+				},
+			},
+		},
+		{
+			name: "TemplateWorkspaceOutOfDisk",
+			id:   notifications.TemplateWorkspaceOutOfDisk,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"workspace": "bobby-workspace",
+				},
+				Data: map[string]any{
+					"volumes": []map[string]any{
+						{
+							"path":      "/home/coder",
+							"threshold": "90%",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "TemplateWorkspaceOutOfDisk_MultipleVolumes",
+			id:   notifications.TemplateWorkspaceOutOfDisk,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"workspace": "bobby-workspace",
+				},
+				Data: map[string]any{
+					"volumes": []map[string]any{
+						{
+							"path":      "/home/coder",
+							"threshold": "90%",
+						},
+						{
+							"path":      "/dev/coder",
+							"threshold": "80%",
+						},
+						{
+							"path":      "/etc/coder",
+							"threshold": "95%",
+						},
+					},
 				},
 			},
 		},
