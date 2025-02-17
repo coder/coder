@@ -31,8 +31,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/coder/coder/v2/coderd/prebuilds"
-
 	"github.com/charmbracelet/lipgloss"
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/coreos/go-systemd/daemon"
@@ -942,11 +940,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			} else {
 				cliui.Info(inv.Stdout, "Notifications are currently disabled as there are no configured delivery methods. See https://coder.com/docs/admin/monitoring/notifications#delivery-methods for more details.")
 			}
-
-			// TODO: implement experiment and configs
-			prebuildsCtrl := prebuilds.NewController(options.Database, options.Pubsub, logger.Named("prebuilds.controller"))
-			go prebuildsCtrl.Loop(ctx)
-			defer prebuildsCtrl.Stop()
 
 			// Since errCh only has one buffered slot, all routines
 			// sending on it must be wrapped in a select/default to

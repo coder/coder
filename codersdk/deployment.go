@@ -81,6 +81,7 @@ const (
 	FeatureControlSharedPorts         FeatureName = "control_shared_ports"
 	FeatureCustomRoles                FeatureName = "custom_roles"
 	FeatureMultipleOrganizations      FeatureName = "multiple_organizations"
+	FeatureWorkspacePrebuilds         FeatureName = "workspace_prebuilds"
 )
 
 // FeatureNames must be kept in-sync with the Feature enum above.
@@ -103,6 +104,7 @@ var FeatureNames = []FeatureName{
 	FeatureControlSharedPorts,
 	FeatureCustomRoles,
 	FeatureMultipleOrganizations,
+	FeatureWorkspacePrebuilds,
 }
 
 // Humanize returns the feature name in a human-readable format.
@@ -132,6 +134,7 @@ func (n FeatureName) AlwaysEnable() bool {
 		FeatureHighAvailability:           true,
 		FeatureCustomRoles:                true,
 		FeatureMultipleOrganizations:      true,
+		FeatureWorkspacePrebuilds:         true,
 	}[n]
 }
 
@@ -393,6 +396,7 @@ type DeploymentValues struct {
 	TermsOfServiceURL               serpent.String                       `json:"terms_of_service_url,omitempty" typescript:",notnull"`
 	Notifications                   NotificationsConfig                  `json:"notifications,omitempty" typescript:",notnull"`
 	AdditionalCSPPolicy             serpent.StringArray                  `json:"additional_csp_policy,omitempty" typescript:",notnull"`
+	Prebuilds                       PrebuildsConfig                      `json:"workspace_prebuilds,omitempty" typescript:",notnull"`
 
 	Config      serpent.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig serpent.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -747,6 +751,10 @@ type NotificationsWebhookConfig struct {
 	Endpoint serpent.URL `json:"endpoint" typescript:",notnull"`
 }
 
+type PrebuildsConfig struct {
+	ReconciliationInterval serpent.Duration `json:"reconciliation_interval" typescript:",notnull"`
+}
+
 const (
 	annotationFormatDuration = "format_duration"
 	annotationEnterpriseKey  = "enterprise"
@@ -976,6 +984,11 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Name:   "Webhook",
 			Parent: &deploymentGroupNotifications,
 			YAML:   "webhook",
+		}
+		deploymentGroupPrebuilds = serpent.Group{
+			Name:        "Workspace Prebuilds",
+			YAML:        "workspace_prebuilds",
+			Description: "Configure how workspace prebuilds behave.",
 		}
 	)
 
@@ -2897,6 +2910,16 @@ Write out the current server config as YAML to stdout.`,
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 			Hidden:      true, // Hidden because most operators should not need to modify this.
 		},
+		{
+			Name:        "Reconciliation Interval",
+			Description: "How often to reconcile workspace prebuilds state.",
+			Flag:        "workspace-prebuilds-reconciliation-interval",
+			Env:         "CODER_WORKSPACE_PREBUILDS_RECONCILIATION_INTERVAL",
+			Value:       &c.Prebuilds.ReconciliationInterval,
+			Default:     (time.Second * 15).String(),
+			Group:       &deploymentGroupPrebuilds,
+			YAML:        "reconciliation_interval",
+		},
 	}
 
 	return opts
@@ -3118,13 +3141,16 @@ const (
 	ExperimentAutoFillParameters Experiment = "auto-fill-parameters" // This should not be taken out of experiments until we have redesigned the feature.
 	ExperimentNotifications      Experiment = "notifications"        // Sends notifications via SMTP and webhooks following certain events.
 	ExperimentWorkspaceUsage     Experiment = "workspace-usage"      // Enables the new workspace usage tracking.
+	ExperimentWorkspacePrebuilds Experiment = "workspace-prebuilds"  // Enables the new workspace prebuilds feature.
 )
 
 // ExperimentsAll should include all experiments that are safe for
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-var ExperimentsAll = Experiments{}
+var ExperimentsAll = Experiments{
+	ExperimentWorkspacePrebuilds,
+}
 
 // Experiments is a list of experiments.
 // Multiple experiments may be enabled at the same time.

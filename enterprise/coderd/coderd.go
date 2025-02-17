@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"fmt"
+	"github.com/coder/coder/v2/coderd/prebuilds"
 	"math"
 	"net/http"
 	"net/url"
@@ -581,6 +582,15 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	}
 	go api.runEntitlementsLoop(ctx)
 
+	if api.AGPL.Experiments.Enabled(codersdk.ExperimentWorkspacePrebuilds) {
+		if !api.Entitlements.Enabled(codersdk.FeatureWorkspacePrebuilds) {
+			options.Logger.Warn(ctx, "prebuilds experiment enabled but not entitled to use")
+		} else {
+			api.prebuildsController = prebuilds.NewController(options.Database, options.Pubsub, options.DeploymentValues.Prebuilds, options.Logger.Named("prebuilds.controller"))
+			go api.prebuildsController.Loop(ctx)
+		}
+	}
+
 	return api, nil
 }
 
@@ -634,6 +644,8 @@ type API struct {
 
 	licenseMetricsCollector *license.MetricsCollector
 	tailnetService          *tailnet.ClientService
+
+	prebuildsController *prebuilds.Controller
 }
 
 // writeEntitlementWarningsHeader writes the entitlement warnings to the response header
@@ -664,6 +676,11 @@ func (api *API) Close() error {
 	if api.Options.CheckInactiveUsersCancelFunc != nil {
 		api.Options.CheckInactiveUsersCancelFunc()
 	}
+
+	if api.prebuildsController != nil {
+		api.prebuildsController.Close(xerrors.New("api closed")) // TODO: determine root cause (requires changes up the stack, though).
+	}
+
 	return api.AGPL.Close()
 }
 

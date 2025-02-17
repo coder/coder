@@ -8,6 +8,7 @@ import (
 	"math"
 	mrand "math/rand"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
@@ -34,66 +35,68 @@ import (
 
 type Controller struct {
 	store  database.Store
+	cfg    codersdk.PrebuildsConfig
 	pubsub pubsub.Pubsub
-	logger slog.Logger
 
-	nudgeCh chan *uuid.UUID
-	closeCh chan struct{}
+	logger   slog.Logger
+	nudgeCh  chan *uuid.UUID
+	cancelFn context.CancelCauseFunc
+	closed   atomic.Bool
 }
 
-func NewController(store database.Store, pubsub pubsub.Pubsub, logger slog.Logger) *Controller {
+func NewController(store database.Store, pubsub pubsub.Pubsub, cfg codersdk.PrebuildsConfig, logger slog.Logger) *Controller {
 	return &Controller{
 		store:   store,
 		pubsub:  pubsub,
 		logger:  logger,
+		cfg:     cfg,
 		nudgeCh: make(chan *uuid.UUID, 1),
-		closeCh: make(chan struct{}, 1),
 	}
 }
 
-func (c Controller) Loop(ctx context.Context) {
-	ticker := time.NewTicker(time.Second * 5) // TODO: configurable? 1m probably lowest valid value
+func (c *Controller) Loop(ctx context.Context) error {
+	ticker := time.NewTicker(c.cfg.ReconciliationInterval.Value())
 	defer ticker.Stop()
 
 	// TODO: create new authz role
-	ctx = dbauthz.AsSystemRestricted(ctx)
+	ctx, cancel := context.WithCancelCause(dbauthz.AsSystemRestricted(ctx))
+	c.cancelFn = cancel
 
-	// TODO: bounded concurrency?
-	var eg errgroup.Group
 	for {
 		select {
 		// Accept nudges from outside the control loop to trigger a new iteration.
 		case template := <-c.nudgeCh:
-			eg.Go(func() error {
-				c.reconcile(ctx, template)
-				return nil
-			})
+			c.reconcile(ctx, template)
 		// Trigger a new iteration on each tick.
 		case <-ticker.C:
-			eg.Go(func() error {
-				c.reconcile(ctx, nil)
-				return nil
-			})
-		case <-c.closeCh:
-			c.logger.Info(ctx, "control loop stopped")
-			goto wait
+			c.reconcile(ctx, nil)
 		case <-ctx.Done():
-			c.logger.Error(context.Background(), "control loop exited: %w", ctx.Err())
-			goto wait
+			c.logger.Error(context.Background(), "prebuilds reconciliation loop exited", slog.Error(ctx.Err()), slog.F("cause", context.Cause(ctx)))
+			return ctx.Err()
 		}
 	}
-
-	// TODO: no gotos
-wait:
-	_ = eg.Wait()
 }
 
-func (c Controller) ReconcileTemplate(templateID uuid.UUID) {
+func (c *Controller) Close(cause error) {
+	if c.isClosed() {
+		return
+	}
+	c.closed.Store(true)
+	if c.cancelFn != nil {
+		c.cancelFn(cause)
+	}
+}
+
+func (c *Controller) isClosed() bool {
+	return c.closed.Load()
+}
+
+func (c *Controller) ReconcileTemplate(templateID uuid.UUID) {
 	// TODO: replace this with pubsub listening
 	c.nudgeCh <- &templateID
 }
 
-func (c Controller) reconcile(ctx context.Context, templateID *uuid.UUID) {
+func (c *Controller) reconcile(ctx context.Context, templateID *uuid.UUID) {
 	var logger slog.Logger
 	if templateID == nil {
 		logger = c.logger.With(slog.F("reconcile_context", "all"))
@@ -167,7 +170,7 @@ type reconciliationActions struct {
 
 // calculateActions MUST be called within the context of a transaction (TODO: isolation)
 // with an advisory lock to prevent TOCTOU races.
-func (c Controller) calculateActions(ctx context.Context, template database.Template, state database.GetTemplatePrebuildStateRow) (*reconciliationActions, error) {
+func (c *Controller) calculateActions(ctx context.Context, template database.Template, state database.GetTemplatePrebuildStateRow) (*reconciliationActions, error) {
 	// TODO: align workspace states with how we represent them on the FE and the CLI
 	//	     right now there's some slight differences which can lead to additional prebuilds being created
 
@@ -279,7 +282,7 @@ func (c Controller) calculateActions(ctx context.Context, template database.Temp
 	return actions, nil
 }
 
-func (c Controller) reconcileTemplate(ctx context.Context, template database.Template) error {
+func (c *Controller) reconcileTemplate(ctx context.Context, template database.Template) error {
 	logger := c.logger.With(slog.F("template_id", template.ID.String()))
 
 	// get number of desired vs actual prebuild instances
@@ -360,7 +363,7 @@ func (c Controller) reconcileTemplate(ctx context.Context, template database.Tem
 	return nil
 }
 
-func (c Controller) createPrebuild(ctx context.Context, db database.Store, prebuildID uuid.UUID, template database.Template, presetID uuid.UUID) error {
+func (c *Controller) createPrebuild(ctx context.Context, db database.Store, prebuildID uuid.UUID, template database.Template, presetID uuid.UUID) error {
 	name, err := generateName()
 	if err != nil {
 		return xerrors.Errorf("failed to generate unique prebuild ID: %w", err)
@@ -394,7 +397,7 @@ func (c Controller) createPrebuild(ctx context.Context, db database.Store, prebu
 
 	return c.provision(ctx, db, prebuildID, template, presetID, database.WorkspaceTransitionStart, workspace)
 }
-func (c Controller) deletePrebuild(ctx context.Context, db database.Store, prebuildID uuid.UUID, template database.Template, presetID uuid.UUID) error {
+func (c *Controller) deletePrebuild(ctx context.Context, db database.Store, prebuildID uuid.UUID, template database.Template, presetID uuid.UUID) error {
 	workspace, err := db.GetWorkspaceByID(ctx, prebuildID)
 	if err != nil {
 		return xerrors.Errorf("get workspace by ID: %w", err)
@@ -406,7 +409,7 @@ func (c Controller) deletePrebuild(ctx context.Context, db database.Store, prebu
 	return c.provision(ctx, db, prebuildID, template, presetID, database.WorkspaceTransitionDelete, workspace)
 }
 
-func (c Controller) provision(ctx context.Context, db database.Store, prebuildID uuid.UUID, template database.Template, presetID uuid.UUID, transition database.WorkspaceTransition, workspace database.Workspace) error {
+func (c *Controller) provision(ctx context.Context, db database.Store, prebuildID uuid.UUID, template database.Template, presetID uuid.UUID, transition database.WorkspaceTransition, workspace database.Workspace) error {
 	tvp, err := db.GetPresetParametersByTemplateVersionID(ctx, template.ActiveVersionID)
 	if err != nil {
 		return xerrors.Errorf("fetch preset details: %w", err)
@@ -462,10 +465,6 @@ func (c Controller) provision(ctx context.Context, db database.Store, prebuildID
 		slog.F("job_id", provisionerJob.ID))
 
 	return nil
-}
-
-func (c Controller) Stop() {
-	c.closeCh <- struct{}{}
 }
 
 // generateName generates a 20-byte prebuild name which should safe to use without truncation in most situations.
