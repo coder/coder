@@ -36,6 +36,7 @@ func TestConvertResources(t *testing.T) {
 	type testCase struct {
 		resources             []*proto.Resource
 		parameters            []*proto.RichParameter
+		Presets               []*proto.Preset
 		externalAuthProviders []*proto.ExternalAuthProviderResource
 	}
 
@@ -777,6 +778,58 @@ func TestConvertResources(t *testing.T) {
 				}},
 			}},
 		},
+		"presets": {
+			resources: []*proto.Resource{{
+				Name: "dev",
+				Type: "null_resource",
+				Agents: []*proto.Agent{{
+					Name:                     "dev",
+					OperatingSystem:          "windows",
+					Architecture:             "arm64",
+					Auth:                     &proto.Agent_Token{},
+					ConnectionTimeoutSeconds: 120,
+					DisplayApps:              &displayApps,
+					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
+				}},
+			}},
+			parameters: []*proto.RichParameter{{
+				Name:         "First parameter from child module",
+				Type:         "string",
+				Description:  "First parameter from child module",
+				Mutable:      true,
+				DefaultValue: "abcdef",
+			}, {
+				Name:         "Second parameter from child module",
+				Type:         "string",
+				Description:  "Second parameter from child module",
+				Mutable:      true,
+				DefaultValue: "ghijkl",
+			}, {
+				Name:         "First parameter from module",
+				Type:         "string",
+				Description:  "First parameter from module",
+				Mutable:      true,
+				DefaultValue: "abcdef",
+			}, {
+				Name:         "Second parameter from module",
+				Type:         "string",
+				Description:  "Second parameter from module",
+				Mutable:      true,
+				DefaultValue: "ghijkl",
+			}, {
+				Name:         "Sample",
+				Type:         "string",
+				Description:  "blah blah",
+				DefaultValue: "ok",
+			}},
+			Presets: []*proto.Preset{{
+				Name: "My First Project",
+				Parameters: []*proto.PresetParameter{{
+					Name:  "Sample",
+					Value: "A1B2C3",
+				}},
+			}},
+		},
 	} {
 		folderName := folderName
 		expected := expected
@@ -859,6 +912,8 @@ func TestConvertResources(t *testing.T) {
 				require.Equal(t, expectedNoMetadataMap, resourcesMap)
 
 				require.ElementsMatch(t, expected.externalAuthProviders, state.ExternalAuthProviders)
+
+				require.ElementsMatch(t, expected.Presets, state.Presets)
 			})
 
 			t.Run("Provision", func(t *testing.T) {
@@ -904,6 +959,8 @@ func TestConvertResources(t *testing.T) {
 					require.Failf(t, "unexpected resources", "diff (-want +got):\n%s", diff)
 				}
 				require.ElementsMatch(t, expected.externalAuthProviders, state.ExternalAuthProviders)
+
+				require.ElementsMatch(t, expected.Presets, state.Presets)
 			})
 		})
 	}
