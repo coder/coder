@@ -81,11 +81,17 @@ Coder's [configuration options](../admin/setup/index.md).
 
 <blockquote class="admonition tip">
 
-You can install and test a [preview release of Coder](https://github.com/coder/coder/pkgs/container/coder-preview) by using the `ghcr.io/coder/coder-preview:latest` image tag. This image gets updated with the latest changes from the `main` branch.
+We do not recommend using preview releases in production environments.
 
 </blockquote>
 
-_We do not recommend using preview releases in production environments._
+You can install and test a
+[preview release of Coder](https://github.com/coder/coder/pkgs/container/coder-preview)
+by using the `coder-preview:latest` image tag.
+This image is automatically updated with the latest changes from the `main` branch.
+
+Replace `ghcr.io/coder/coder:latest` in the `docker run` command in the
+[steps above](#install-coder-via-docker-run) with `ghcr.io/coder/coder-preview:latest`.
 
 ## Troubleshooting
 
