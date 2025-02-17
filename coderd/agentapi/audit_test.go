@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -160,13 +161,13 @@ func TestAuditReport(t *testing.T) {
 }
 
 func agentProtoConnectionActionToAudit(t *testing.T, action agentproto.Connection_Action) database.AuditAction {
-	a, err := agentapi.AgentProtoConnectionActionToAuditAction(action)
+	a, err := db2sdk.AuditActionFromAgentProtoConnectionAction(action)
 	require.NoError(t, err)
 	return a
 }
 
 func agentProtoConnectionTypeToSDK(t *testing.T, typ agentproto.Connection_Type) agentsdk.ConnectionType {
-	action, err := agentapi.AgentProtoConnectionTypeToAgentConnectionType(typ)
+	action, err := agentsdk.ConnectionTypeFromProto(typ)
 	require.NoError(t, err)
 	return action
 }
