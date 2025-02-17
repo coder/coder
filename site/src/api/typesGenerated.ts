@@ -115,10 +115,14 @@ export interface AssignableRoles extends Role {
 
 // From codersdk/audit.go
 export type AuditAction =
+	| "close"
+	| "connect"
 	| "create"
 	| "delete"
+	| "disconnect"
 	| "login"
 	| "logout"
+	| "open"
 	| "register"
 	| "request_password_reset"
 	| "start"
@@ -126,10 +130,14 @@ export type AuditAction =
 	| "write";
 
 export const AuditActions: AuditAction[] = [
+	"close",
+	"connect",
 	"create",
 	"delete",
+	"disconnect",
 	"login",
 	"logout",
+	"open",
 	"register",
 	"request_password_reset",
 	"start",
@@ -405,6 +413,7 @@ export interface CreateTestAuditLogRequest {
 	readonly time?: string;
 	readonly build_reason?: BuildReason;
 	readonly organization_id?: string;
+	readonly request_id?: string;
 }
 
 // From codersdk/apikey.go
@@ -2006,6 +2015,8 @@ export type ResourceType =
 	| "template_version"
 	| "user"
 	| "workspace"
+	| "workspace_agent"
+	| "workspace_app"
 	| "workspace_build"
 	| "workspace_proxy";
 
@@ -2030,6 +2041,8 @@ export const ResourceTypes: ResourceType[] = [
 	"template_version",
 	"user",
 	"workspace",
+	"workspace_agent",
+	"workspace_app",
 	"workspace_build",
 	"workspace_proxy",
 ];
