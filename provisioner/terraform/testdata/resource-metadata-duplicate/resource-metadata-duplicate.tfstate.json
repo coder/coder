@@ -10,7 +10,7 @@
           "type": "coder_agent",
           "name": "main",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 1,
+          "schema_version": 0,
           "values": {
             "arch": "amd64",
             "auth": "token",
@@ -26,8 +26,9 @@
               }
             ],
             "env": null,
-            "id": "b3257d67-247c-4fc6-92a8-fc997501a0e1",
+            "id": "1cb702fa-c7e9-44bb-9f7e-6e486d3cc736",
             "init_script": "",
+            "login_before_ready": true,
             "metadata": [
               {
                 "display_name": "Process Count",
@@ -41,11 +42,12 @@
             "motd_file": null,
             "order": null,
             "os": "linux",
-            "resources_monitoring": [],
             "shutdown_script": null,
+            "shutdown_script_timeout": 300,
             "startup_script": null,
-            "startup_script_behavior": "non-blocking",
-            "token": "ac3563fb-3069-4919-b076-6687c765772b",
+            "startup_script_behavior": null,
+            "startup_script_timeout": 300,
+            "token": "b73e245b-dda8-4242-b453-d26be9c06571",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -55,7 +57,6 @@
             "metadata": [
               {}
             ],
-            "resources_monitoring": [],
             "token": true
           }
         },
@@ -65,12 +66,12 @@
           "type": "coder_metadata",
           "name": "about_info",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 1,
+          "schema_version": 0,
           "values": {
             "daily_cost": 29,
             "hide": true,
             "icon": "/icon/server.svg",
-            "id": "fcd81afa-64ad-45e3-b000-31d1b19df922",
+            "id": "7d52790c-3764-4929-bb07-0199353a2fe7",
             "item": [
               {
                 "is_null": false,
@@ -85,7 +86,7 @@
                 "value": ""
               }
             ],
-            "resource_id": "8033209281634385030"
+            "resource_id": "730850883312217353"
           },
           "sensitive_values": {
             "item": [
@@ -104,12 +105,12 @@
           "type": "coder_metadata",
           "name": "other_info",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 1,
+          "schema_version": 0,
           "values": {
             "daily_cost": 20,
             "hide": true,
             "icon": "/icon/server.svg",
-            "id": "186819f3-a92f-4785-9ee4-d79f57711f63",
+            "id": "8ad34ce7-0d5a-467f-8e39-ee6021756e2d",
             "item": [
               {
                 "is_null": false,
@@ -118,7 +119,7 @@
                 "value": "world"
               }
             ],
-            "resource_id": "8033209281634385030"
+            "resource_id": "730850883312217353"
           },
           "sensitive_values": {
             "item": [
@@ -138,7 +139,7 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "8033209281634385030",
+            "id": "730850883312217353",
             "triggers": null
           },
           "sensitive_values": {},

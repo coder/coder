@@ -10,7 +10,7 @@
           "type": "coder_agent",
           "name": "main",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 1,
+          "schema_version": 0,
           "values": {
             "arch": "amd64",
             "auth": "google-instance-identity",
@@ -26,17 +26,19 @@
               }
             ],
             "env": null,
-            "id": "c6e99a38-f10b-4242-a7c6-bd9186008b9d",
+            "id": "6782a80f-1514-4c8f-9d9e-d32519948f40",
             "init_script": "",
+            "login_before_ready": true,
             "metadata": [],
             "motd_file": null,
             "order": null,
             "os": "linux",
-            "resources_monitoring": [],
             "shutdown_script": null,
+            "shutdown_script_timeout": 300,
             "startup_script": null,
-            "startup_script_behavior": "non-blocking",
-            "token": "ecddacca-df83-4dd2-b6cb-71f439e9e5f5",
+            "startup_script_behavior": null,
+            "startup_script_timeout": 300,
+            "token": "fd5e8369-33ad-48be-a5f9-49ff05350abe",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -44,7 +46,6 @@
               {}
             ],
             "metadata": [],
-            "resources_monitoring": [],
             "token": true
           }
         },
@@ -56,8 +57,8 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 0,
           "values": {
-            "agent_id": "c6e99a38-f10b-4242-a7c6-bd9186008b9d",
-            "id": "0ed215f9-07b0-455f-828d-faee5f63ea93",
+            "agent_id": "6782a80f-1514-4c8f-9d9e-d32519948f40",
+            "id": "3237e9ee-d82d-44b1-88e2-a88b7ae83086",
             "instance_id": "example"
           },
           "sensitive_values": {},
@@ -73,7 +74,7 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "1340003819945612525",
+            "id": "4437025614079652379",
             "triggers": null
           },
           "sensitive_values": {},

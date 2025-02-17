@@ -10,27 +10,28 @@
           "type": "coder_agent",
           "name": "dev",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 1,
+          "schema_version": 0,
           "values": {
             "arch": "arm64",
             "auth": "token",
             "connection_timeout": 120,
             "dir": null,
             "env": null,
+            "login_before_ready": true,
             "metadata": [],
             "motd_file": null,
             "order": null,
             "os": "windows",
-            "resources_monitoring": [],
             "shutdown_script": null,
+            "shutdown_script_timeout": 300,
             "startup_script": null,
-            "startup_script_behavior": "non-blocking",
+            "startup_script_behavior": null,
+            "startup_script_timeout": 300,
             "troubleshooting_url": null
           },
           "sensitive_values": {
             "display_apps": [],
             "metadata": [],
-            "resources_monitoring": [],
             "token": true
           }
         },
@@ -67,14 +68,16 @@
           "connection_timeout": 120,
           "dir": null,
           "env": null,
+          "login_before_ready": true,
           "metadata": [],
           "motd_file": null,
           "order": null,
           "os": "windows",
-          "resources_monitoring": [],
           "shutdown_script": null,
+          "shutdown_script_timeout": 300,
           "startup_script": null,
-          "startup_script_behavior": "non-blocking",
+          "startup_script_behavior": null,
+          "startup_script_timeout": 300,
           "troubleshooting_url": null
         },
         "after_unknown": {
@@ -82,14 +85,12 @@
           "id": true,
           "init_script": true,
           "metadata": [],
-          "resources_monitoring": [],
           "token": true
         },
         "before_sensitive": false,
         "after_sensitive": {
           "display_apps": [],
           "metadata": [],
-          "resources_monitoring": [],
           "token": true
         }
       }
@@ -135,7 +136,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "e8485920-025a-4c2c-b018-722f61b64347",
+              "id": "eadc4346-c9f1-4f19-a45a-1166cada818a",
               "mutable": false,
               "name": "Example",
               "option": null,
@@ -162,7 +163,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "6156655b-f893-4eba-914e-e87414f4bf7e",
+              "id": "995788a7-dab0-4019-ac77-c21492e0443d",
               "mutable": false,
               "name": "Sample",
               "option": null,
@@ -208,7 +209,7 @@
               "constant_value": "windows"
             }
           },
-          "schema_version": 1
+          "schema_version": 0
         },
         {
           "address": "null_resource.dev",
@@ -268,7 +269,7 @@
       ]
     }
   },
-  "timestamp": "2025-01-29T22:48:18Z",
+  "timestamp": "2025-02-17T07:42:25Z",
   "applyable": true,
   "complete": true,
   "errored": false
