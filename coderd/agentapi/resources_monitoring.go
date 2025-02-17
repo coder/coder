@@ -48,8 +48,8 @@ func (a *ResourcesMonitoringAPI) GetResourcesMonitoringConfiguration(ctx context
 
 	return &proto.GetResourcesMonitoringConfigurationResponse{
 		Config: &proto.GetResourcesMonitoringConfigurationResponse_Config{
-			CollectionIntervalSeconds: 10,
-			NumDatapoints:             20,
+			CollectionIntervalSeconds: int32(a.Config.CollectionInterval.Seconds()),
+			NumDatapoints:             a.Config.NumDatapoints,
 		},
 		Memory: func() *proto.GetResourcesMonitoringConfigurationResponse_Memory {
 			if memoryErr != nil {

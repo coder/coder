@@ -120,10 +120,14 @@ func New(opts Options) *API {
 		NotificationsEnqueuer: opts.NotificationsEnqueuer,
 		Debounce:              5 * time.Minute,
 
-		// These values assume a window of 20
 		Config: resourcesmonitor.Config{
-			MinimumNOKsToAlert:     4,
-			ConsecutiveNOKsToAlert: 10,
+			NumDatapoints:      20,
+			CollectionInterval: 10 * time.Second,
+
+			Alert: resourcesmonitor.AlertConfig{
+				MinimumNOKsPercent:     20,
+				ConsecutiveNOKsPercent: 50,
+			},
 		},
 	}
 

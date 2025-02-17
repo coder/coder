@@ -1,6 +1,9 @@
 package resourcesmonitor
 
 import (
+	"math"
+	"time"
+
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/util/slice"
@@ -14,14 +17,25 @@ const (
 	StateUnknown
 )
 
-type Config struct {
-	// How many datapoints in a row are required to
-	// put the monitor in an alert state.
-	ConsecutiveNOKsToAlert int
+type AlertConfig struct {
+	// What percentage of datapoints in a row are
+	// required to put the monitor in an alert state.
+	ConsecutiveNOKsPercent int
 
-	// How many datapoints in total are required to
-	// put the monitor in an alert state.
-	MinimumNOKsToAlert int
+	// What percentage of datapoints in a window are
+	// required to put the monitor in an alert state.
+	MinimumNOKsPercent int
+}
+
+type Config struct {
+	// How many datapoints should the agent send
+	NumDatapoints int32
+
+	// How long between each datapoint should
+	// collection occur.
+	CollectionInterval time.Duration
+
+	Alert AlertConfig
 }
 
 func CalculateMemoryUsageStates(
@@ -75,10 +89,11 @@ func CalculateVolumeUsageStates(
 }
 
 func NextState(c Config, oldState database.WorkspaceAgentMonitorState, states []State) database.WorkspaceAgentMonitorState {
+
 	// If there are enough consecutive NOK states, we should be in an
 	// alert state.
 	consecutiveNOKs := slice.CountConsecutive(StateNOK, states...)
-	if consecutiveNOKs >= c.ConsecutiveNOKsToAlert {
+	if percent(consecutiveNOKs, len(states)) >= c.Alert.ConsecutiveNOKsPercent {
 		return database.WorkspaceAgentMonitorStateNOK
 	}
 
@@ -96,7 +111,7 @@ func NextState(c Config, oldState database.WorkspaceAgentMonitorState, states []
 	}
 
 	// If there are enough NOK datapoints, we should be in an alert state.
-	if nokCount >= c.MinimumNOKsToAlert {
+	if percent(nokCount, len(states)) >= c.Alert.MinimumNOKsPercent {
 		return database.WorkspaceAgentMonitorStateNOK
 	}
 
@@ -107,4 +122,9 @@ func NextState(c Config, oldState database.WorkspaceAgentMonitorState, states []
 
 	// Otherwise we stay in the same state as last.
 	return oldState
+}
+
+func percent[T int](numerator, denominator T) int {
+	percent := float64(numerator*100) / float64(denominator)
+	return int(math.Round(percent))
 }

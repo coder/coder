@@ -65,8 +65,13 @@ func resourceMonitorAPI(t *testing.T) (*agentapi.ResourcesMonitoringAPI, databas
 		Database:              db,
 		NotificationsEnqueuer: notifyEnq,
 		Config: resourcesmonitor.Config{
-			MinimumNOKsToAlert:     4,
-			ConsecutiveNOKsToAlert: 10,
+			NumDatapoints:      20,
+			CollectionInterval: 10 * time.Second,
+
+			Alert: resourcesmonitor.AlertConfig{
+				MinimumNOKsPercent:     20,
+				ConsecutiveNOKsPercent: 50,
+			},
 		},
 		Debounce: 1 * time.Minute,
 	}, user, clock, notifyEnq
@@ -87,7 +92,7 @@ func TestMemoryResourceMonitorDebounce(t *testing.T) {
 	// 5. OK -> NOK  |> sends a notification as debounce period exceeded
 
 	api, user, clock, notifyEnq := resourceMonitorAPI(t)
-	api.Config.ConsecutiveNOKsToAlert = 1
+	api.Config.Alert.ConsecutiveNOKsPercent = 100
 
 	// Given: A monitor in an OK state
 	dbgen.WorkspaceAgentMemoryResourceMonitor(t, api.Database, database.WorkspaceAgentMemoryResourceMonitor{
@@ -281,8 +286,6 @@ func TestMemoryResourceMonitor(t *testing.T) {
 			t.Parallel()
 
 			api, user, clock, notifyEnq := resourceMonitorAPI(t)
-			api.Config.MinimumNOKsToAlert = 4
-			api.Config.ConsecutiveNOKsToAlert = 10
 
 			datapoints := make([]*agentproto.PushResourcesMonitoringUsageRequest_Datapoint, 0, len(tt.memoryUsage))
 			collectedAt := clock.Now()
@@ -327,8 +330,8 @@ func TestMemoryResourceMonitorMissingData(t *testing.T) {
 		t.Parallel()
 
 		api, _, clock, notifyEnq := resourceMonitorAPI(t)
-		api.Config.ConsecutiveNOKsToAlert = 2
-		api.Config.MinimumNOKsToAlert = 10
+		api.Config.Alert.ConsecutiveNOKsPercent = 50
+		api.Config.Alert.MinimumNOKsPercent = 100
 
 		// Given: A monitor in an OK state.
 		dbgen.WorkspaceAgentMemoryResourceMonitor(t, api.Database, database.WorkspaceAgentMemoryResourceMonitor{
@@ -376,8 +379,8 @@ func TestMemoryResourceMonitorMissingData(t *testing.T) {
 		t.Parallel()
 
 		api, _, clock, _ := resourceMonitorAPI(t)
-		api.Config.ConsecutiveNOKsToAlert = 2
-		api.Config.MinimumNOKsToAlert = 10
+		api.Config.Alert.ConsecutiveNOKsPercent = 50
+		api.Config.Alert.MinimumNOKsPercent = 100
 
 		// Given: A monitor in a NOK state.
 		dbgen.WorkspaceAgentMemoryResourceMonitor(t, api.Database, database.WorkspaceAgentMemoryResourceMonitor{
@@ -448,7 +451,6 @@ func TestVolumeResourceMonitorDebounce(t *testing.T) {
 	secondVolumePath := "/dev/coder"
 
 	api, _, clock, notifyEnq := resourceMonitorAPI(t)
-	api.Config.MinimumNOKsToAlert = 1
 
 	// Given:
 	//  - First monitor in an OK state
@@ -627,8 +629,6 @@ func TestVolumeResourceMonitor(t *testing.T) {
 		previousState    database.WorkspaceAgentMonitorState
 		expectState      database.WorkspaceAgentMonitorState
 		shouldNotify     bool
-		minimumNOKs      int
-		consecutiveNOKs  int
 	}{
 		{
 			name:             "WhenOK/NeverExceedsThreshold",
@@ -636,8 +636,6 @@ func TestVolumeResourceMonitor(t *testing.T) {
 			volumeUsage:      []int64{2, 3, 2, 4, 2, 3, 2, 1, 2, 3, 4, 4, 1, 2, 3, 1, 2},
 			volumeTotal:      10,
 			thresholdPercent: 80,
-			consecutiveNOKs:  4,
-			minimumNOKs:      10,
 			previousState:    database.WorkspaceAgentMonitorStateOK,
 			expectState:      database.WorkspaceAgentMonitorStateOK,
 			shouldNotify:     false,
@@ -648,8 +646,6 @@ func TestVolumeResourceMonitor(t *testing.T) {
 			volumeUsage:      []int64{9, 3, 2, 4, 2, 3, 2, 1, 2, 3, 4, 4, 1, 2, 3, 1, 2},
 			volumeTotal:      10,
 			thresholdPercent: 80,
-			consecutiveNOKs:  4,
-			minimumNOKs:      10,
 			previousState:    database.WorkspaceAgentMonitorStateOK,
 			expectState:      database.WorkspaceAgentMonitorStateOK,
 			shouldNotify:     false,
@@ -660,8 +656,6 @@ func TestVolumeResourceMonitor(t *testing.T) {
 			volumeUsage:      []int64{2, 3, 2, 4, 2, 3, 2, 1, 2, 3, 4, 4, 1, 8, 9, 8, 9},
 			volumeTotal:      10,
 			thresholdPercent: 80,
-			consecutiveNOKs:  4,
-			minimumNOKs:      10,
 			previousState:    database.WorkspaceAgentMonitorStateOK,
 			expectState:      database.WorkspaceAgentMonitorStateNOK,
 			shouldNotify:     true,
@@ -672,8 +666,6 @@ func TestVolumeResourceMonitor(t *testing.T) {
 			volumeUsage:      []int64{2, 8, 2, 9, 2, 8, 2, 9, 2, 8, 4, 9, 1, 8, 2, 8, 9},
 			volumeTotal:      10,
 			thresholdPercent: 80,
-			minimumNOKs:      4,
-			consecutiveNOKs:  10,
 			previousState:    database.WorkspaceAgentMonitorStateOK,
 			expectState:      database.WorkspaceAgentMonitorStateNOK,
 			shouldNotify:     true,
@@ -684,8 +676,6 @@ func TestVolumeResourceMonitor(t *testing.T) {
 			volumeUsage:      []int64{2, 3, 2, 4, 2, 3, 2, 1, 2, 3, 4, 4, 1, 2, 3, 1, 2},
 			volumeTotal:      10,
 			thresholdPercent: 80,
-			consecutiveNOKs:  4,
-			minimumNOKs:      10,
 			previousState:    database.WorkspaceAgentMonitorStateNOK,
 			expectState:      database.WorkspaceAgentMonitorStateOK,
 			shouldNotify:     false,
@@ -696,8 +686,6 @@ func TestVolumeResourceMonitor(t *testing.T) {
 			volumeUsage:      []int64{9, 3, 2, 4, 2, 3, 2, 1, 2, 3, 4, 4, 1, 2, 3, 1, 2},
 			volumeTotal:      10,
 			thresholdPercent: 80,
-			consecutiveNOKs:  4,
-			minimumNOKs:      10,
 			previousState:    database.WorkspaceAgentMonitorStateNOK,
 			expectState:      database.WorkspaceAgentMonitorStateNOK,
 			shouldNotify:     false,
@@ -708,8 +696,6 @@ func TestVolumeResourceMonitor(t *testing.T) {
 			volumeUsage:      []int64{2, 3, 2, 4, 2, 3, 2, 1, 2, 3, 4, 4, 1, 8, 9, 8, 9},
 			volumeTotal:      10,
 			thresholdPercent: 80,
-			consecutiveNOKs:  4,
-			minimumNOKs:      10,
 			previousState:    database.WorkspaceAgentMonitorStateNOK,
 			expectState:      database.WorkspaceAgentMonitorStateNOK,
 			shouldNotify:     false,
@@ -720,8 +706,6 @@ func TestVolumeResourceMonitor(t *testing.T) {
 			volumeUsage:      []int64{2, 8, 2, 9, 2, 8, 2, 9, 2, 8, 4, 9, 1, 8, 2, 8, 9},
 			volumeTotal:      10,
 			thresholdPercent: 80,
-			minimumNOKs:      4,
-			consecutiveNOKs:  10,
 			previousState:    database.WorkspaceAgentMonitorStateNOK,
 			expectState:      database.WorkspaceAgentMonitorStateNOK,
 			shouldNotify:     false,
@@ -735,8 +719,6 @@ func TestVolumeResourceMonitor(t *testing.T) {
 			t.Parallel()
 
 			api, user, clock, notifyEnq := resourceMonitorAPI(t)
-			api.Config.MinimumNOKsToAlert = tt.minimumNOKs
-			api.Config.ConsecutiveNOKsToAlert = tt.consecutiveNOKs
 
 			datapoints := make([]*agentproto.PushResourcesMonitoringUsageRequest_Datapoint, 0, len(tt.volumeUsage))
 			collectedAt := clock.Now()
@@ -785,7 +767,7 @@ func TestVolumeResourceMonitorMultiple(t *testing.T) {
 	t.Parallel()
 
 	api, _, clock, notifyEnq := resourceMonitorAPI(t)
-	api.Config.ConsecutiveNOKsToAlert = 1
+	api.Config.Alert.ConsecutiveNOKsPercent = 100
 
 	// Given: two different volume resource monitors
 	dbgen.WorkspaceAgentVolumeResourceMonitor(t, api.Database, database.WorkspaceAgentVolumeResourceMonitor{
@@ -843,8 +825,8 @@ func TestVolumeResourceMonitorMissingData(t *testing.T) {
 		volumePath := "/home/coder"
 
 		api, _, clock, notifyEnq := resourceMonitorAPI(t)
-		api.Config.ConsecutiveNOKsToAlert = 2
-		api.Config.MinimumNOKsToAlert = 10
+		api.Config.Alert.ConsecutiveNOKsPercent = 50
+		api.Config.Alert.MinimumNOKsPercent = 100
 
 		// Given: A monitor in an OK state.
 		dbgen.WorkspaceAgentVolumeResourceMonitor(t, api.Database, database.WorkspaceAgentVolumeResourceMonitor{
@@ -902,8 +884,8 @@ func TestVolumeResourceMonitorMissingData(t *testing.T) {
 		volumePath := "/home/coder"
 
 		api, _, clock, _ := resourceMonitorAPI(t)
-		api.Config.ConsecutiveNOKsToAlert = 2
-		api.Config.MinimumNOKsToAlert = 10
+		api.Config.Alert.ConsecutiveNOKsPercent = 50
+		api.Config.Alert.MinimumNOKsPercent = 100
 
 		// Given: A monitor in a NOK state.
 		dbgen.WorkspaceAgentVolumeResourceMonitor(t, api.Database, database.WorkspaceAgentVolumeResourceMonitor{
