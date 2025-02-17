@@ -351,8 +351,11 @@ func tryGettingCoderProviderStacktrace(sess *provisionersdk.Session) string {
 	return string(stacktraces)
 }
 
-// gitAuthAccessTokenEnvironmentVariable was copied from provider.GitAuthAccessTokenEnvironmentVariable
-// in v1.0.4 of github.com/coder/terraform-provider-coder/provider when we upgraded to v2.
+// gitAuthAccessTokenEnvironmentVariable is copied from
+// github.com/coder/terraform-provider-coder/provider.GitAuthAccessTokenEnvironmentVariable@v1.0.4.
+// While removed in v2 of the provider, we keep this to support customers using older templates that
+// depend on this environment variable. Once we are certain that no customers are still using v1 of
+// the provider, we can remove this function.
 func gitAuthAccessTokenEnvironmentVariable(id string) string {
 	return fmt.Sprintf("CODER_GIT_AUTH_ACCESS_TOKEN_%s", id)
 }
