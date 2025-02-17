@@ -467,5 +467,3 @@ require (
 	kernel.org/pub/linux/libs/security/libcap/psx v1.2.73 // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
-
-require github.com/coder/terraform-provider-coder/v2 v2.1.3

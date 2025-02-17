@@ -314,7 +314,7 @@ message PlanComplete {
     repeated ExternalAuthProviderResource external_auth_providers = 4;
     repeated Timing timings = 6;
     repeated Module modules = 7;
-	repeated Preset presets = 8;
+    repeated Preset presets = 8;
 }
 
 // ApplyRequest asks the provisioner to apply the changes.  Apply MUST be preceded by a successful plan request/response

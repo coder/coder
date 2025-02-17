@@ -1785,7 +1785,7 @@ func TestInsertWorkspacePresetsAndParameters(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx := context.Background()
+			ctx := testutil.Context(t, testutil.WaitLong)
 			logger := testutil.Logger(t)
 			db, ps := dbtestutil.NewDB(t)
 			org := dbgen.Organization(t, db, database.Organization{})

@@ -824,7 +824,6 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 		}
 
 		if len(nonExistentParameters) > 0 {
-			// TODO (sasswart): should this be an error? Or should we just log it?
 			logger.Warn(
 				ctx,
 				"coder_workspace_preset defines preset values for at least one parameter that is not defined by the template",
