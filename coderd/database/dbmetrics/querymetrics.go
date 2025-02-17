@@ -2331,6 +2331,13 @@ func (m queryMetricsStore) UpdateMemberRoles(ctx context.Context, arg database.U
 	return member, err
 }
 
+func (m queryMetricsStore) UpdateMemoryResourceMonitor(ctx context.Context, arg database.UpdateMemoryResourceMonitorParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateMemoryResourceMonitor(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateMemoryResourceMonitor").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m queryMetricsStore) UpdateNotificationTemplateMethodByID(ctx context.Context, arg database.UpdateNotificationTemplateMethodByIDParams) (database.NotificationTemplate, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateNotificationTemplateMethodByID(ctx, arg)
@@ -2567,6 +2574,13 @@ func (m queryMetricsStore) UpdateUserStatus(ctx context.Context, arg database.Up
 	user, err := m.s.UpdateUserStatus(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateUserStatus").Observe(time.Since(start).Seconds())
 	return user, err
+}
+
+func (m queryMetricsStore) UpdateVolumeResourceMonitor(ctx context.Context, arg database.UpdateVolumeResourceMonitorParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateVolumeResourceMonitor(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateVolumeResourceMonitor").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m queryMetricsStore) UpdateWorkspace(ctx context.Context, arg database.UpdateWorkspaceParams) (database.WorkspaceTable, error) {

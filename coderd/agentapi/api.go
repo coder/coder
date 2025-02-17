@@ -17,10 +17,12 @@ import (
 
 	"cdr.dev/slog"
 	agentproto "github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/coderd/agentapi/resourcesmonitor"
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/workspacestats"
@@ -29,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/tailnet"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
+	"github.com/coder/quartz"
 )
 
 // API implements the DRPC agent API interface from agent/proto. This struct is
@@ -59,7 +62,9 @@ type Options struct {
 
 	Ctx                               context.Context
 	Log                               slog.Logger
+	Clock                             quartz.Clock
 	Database                          database.Store
+	NotificationsEnqueuer             notifications.Enqueuer
 	Pubsub                            pubsub.Pubsub
 	DerpMapFn                         func() *tailcfg.DERPMap
 	TailnetCoordinator                *atomic.Pointer[tailnet.Coordinator]
@@ -82,6 +87,10 @@ type Options struct {
 }
 
 func New(opts Options) *API {
+	if opts.Clock == nil {
+		opts.Clock = quartz.NewReal()
+	}
+
 	api := &API{
 		opts: opts,
 		mu:   sync.Mutex{},
@@ -104,9 +113,22 @@ func New(opts Options) *API {
 	}
 
 	api.ResourcesMonitoringAPI = &ResourcesMonitoringAPI{
-		Log:      opts.Log,
-		AgentID:  opts.AgentID,
-		Database: opts.Database,
+		AgentID:               opts.AgentID,
+		WorkspaceID:           opts.WorkspaceID,
+		Clock:                 opts.Clock,
+		Database:              opts.Database,
+		NotificationsEnqueuer: opts.NotificationsEnqueuer,
+		Debounce:              5 * time.Minute,
+
+		Config: resourcesmonitor.Config{
+			NumDatapoints:      20,
+			CollectionInterval: 10 * time.Second,
+
+			Alert: resourcesmonitor.AlertConfig{
+				MinimumNOKsPercent:     20,
+				ConsecutiveNOKsPercent: 50,
+			},
+		},
 	}
 
 	api.StatsAPI = &StatsAPI{
