@@ -139,7 +139,7 @@ func TestAuditReport(t *testing.T) {
 				Time:           dbtime.Time(tt.time).In(time.UTC),
 				Action:         agentProtoConnectionActionToAudit(t, *tt.action),
 				OrganizationID: workspace.OrganizationID,
-				UserID:         owner.ID,
+				UserID:         uuid.Nil,
 				RequestID:      tt.id,
 				ResourceType:   database.ResourceTypeWorkspaceAgent,
 				ResourceID:     agent.ID,
