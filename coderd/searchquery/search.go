@@ -19,6 +19,20 @@ import (
 
 // AuditLogs requires the database to fetch an organization by name
 // to convert to organization uuid.
+//
+// Supported query parameters:
+//
+//   - request_id: UUID (can be used to search for associated audits e.g. connect/disconnect or open/close)
+//   - resource_id: UUID
+//   - resource_target: string
+//   - username: string
+//   - email: string
+//   - date_from: string (date in format "2006-01-02")
+//   - date_to: string (date in format "2006-01-02")
+//   - organization: string (organization UUID or name)
+//   - resource_type: string (enum)
+//   - action: string (enum)
+//   - build_reason: string (enum)
 func AuditLogs(ctx context.Context, db database.Store, query string) (database.GetAuditLogsOffsetParams, []codersdk.ValidationError) {
 	// Always lowercase for all searches.
 	query = strings.ToLower(query)
