@@ -362,6 +362,17 @@ Client ID for Login with GitHub.
 
 Client secret for Login with GitHub.
 
+### --oauth2-github-device-flow
+
+|             |                                               |
+|-------------|-----------------------------------------------|
+| Type        | <code>bool</code>                             |
+| Environment | <code>$CODER_OAUTH2_GITHUB_DEVICE_FLOW</code> |
+| YAML        | <code>oauth2.github.deviceFlow</code>         |
+| Default     | <code>false</code>                            |
+
+Enable device flow for Login with GitHub.
+
 ### --oauth2-github-allowed-orgs
 
 |             |                                                |
