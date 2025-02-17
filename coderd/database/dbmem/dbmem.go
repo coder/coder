@@ -4221,7 +4221,7 @@ func (q *FakeQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePosition
 	for _, rowQP := range rowsWithQueuePosition {
 		job := rowQP.ProvisionerJob
 
-		if arg.OrganizationID.Valid && job.OrganizationID != arg.OrganizationID.UUID {
+		if job.OrganizationID != arg.OrganizationID {
 			continue
 		}
 		if len(arg.Status) > 0 && !slices.Contains(arg.Status, job.JobStatus) {
