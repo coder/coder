@@ -75,15 +75,17 @@ func (a *ResourcesMonitoringAPI) GetResourcesMonitoringConfiguration(ctx context
 }
 
 func (a *ResourcesMonitoringAPI) PushResourcesMonitoringUsage(ctx context.Context, req *proto.PushResourcesMonitoringUsageRequest) (*proto.PushResourcesMonitoringUsageResponse, error) {
-	if err := a.monitorMemory(ctx, req.Datapoints); err != nil {
-		return nil, xerrors.Errorf("monitor memory: %w", err)
+	var err error
+
+	if memoryErr := a.monitorMemory(ctx, req.Datapoints); memoryErr != nil {
+		err = errors.Join(err, fmt.Errorf("monitor memory: %w", memoryErr))
 	}
 
-	if err := a.monitorVolumes(ctx, req.Datapoints); err != nil {
-		return nil, xerrors.Errorf("monitor volumes: %w", err)
+	if volumeErr := a.monitorVolumes(ctx, req.Datapoints); volumeErr != nil {
+		err = errors.Join(err, fmt.Errorf("monitor volume: %w", volumeErr))
 	}
 
-	return &proto.PushResourcesMonitoringUsageResponse{}, nil
+	return &proto.PushResourcesMonitoringUsageResponse{}, err
 }
 
 func (a *ResourcesMonitoringAPI) monitorMemory(ctx context.Context, datapoints []*proto.PushResourcesMonitoringUsageRequest_Datapoint) error {
