@@ -2,17 +2,17 @@ import DeleteIcon from "@mui/icons-material/DeleteOutlined";
 import DownloadOutlined from "@mui/icons-material/DownloadOutlined";
 import DuplicateIcon from "@mui/icons-material/FileCopyOutlined";
 import HistoryIcon from "@mui/icons-material/HistoryOutlined";
-import MoreVertOutlined from "@mui/icons-material/MoreVertOutlined";
 import SettingsIcon from "@mui/icons-material/SettingsOutlined";
-import Divider from "@mui/material/Divider";
 import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
-import { TopbarIconButton } from "components/FullPageLayout/Topbar";
+import { Button } from "components/Button/Button";
 import {
-	MoreMenu,
-	MoreMenuContent,
-	MoreMenuItem,
-	MoreMenuTrigger,
-} from "components/MoreMenu/MoreMenu";
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "components/DropdownMenu/DropdownMenu";
+import { EllipsisVertical } from "lucide-react";
 import { useWorkspaceDuplication } from "pages/CreateWorkspacePage/useWorkspaceDuplication";
 import { type FC, Fragment, type ReactNode, useState } from "react";
 import { mustUpdateWorkspace } from "utils/workspace";
@@ -177,56 +177,59 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 				onToggle={handleToggleFavorite}
 			/>
 
-			<MoreMenu>
-				<MoreMenuTrigger>
-					<TopbarIconButton
-						title="More options"
+			<DropdownMenu>
+				<DropdownMenuTrigger asChild>
+					<Button
+						size="icon"
+						variant="subtle"
+						aria-label="More options"
 						data-testid="workspace-options-button"
 						aria-controls="workspace-options"
 						disabled={!canAcceptJobs}
 					>
-						<MoreVertOutlined />
-					</TopbarIconButton>
-				</MoreMenuTrigger>
+						<EllipsisVertical className="size-icon-md" aria-hidden="true" />
+						<span className="sr-only">More options</span>
+					</Button>
+				</DropdownMenuTrigger>
 
-				<MoreMenuContent id="workspace-options">
-					<MoreMenuItem onClick={handleSettings}>
+				<DropdownMenuContent id="workspace-options" align="end">
+					<DropdownMenuItem onClick={handleSettings}>
 						<SettingsIcon />
 						Settings
-					</MoreMenuItem>
+					</DropdownMenuItem>
 
 					{canChangeVersions && (
-						<MoreMenuItem onClick={handleChangeVersion}>
+						<DropdownMenuItem onClick={handleChangeVersion}>
 							<HistoryIcon />
 							Change version&hellip;
-						</MoreMenuItem>
+						</DropdownMenuItem>
 					)}
 
-					<MoreMenuItem
+					<DropdownMenuItem
 						onClick={duplicateWorkspace}
 						disabled={!isDuplicationReady}
 					>
 						<DuplicateIcon />
 						Duplicate&hellip;
-					</MoreMenuItem>
+					</DropdownMenuItem>
 
-					<MoreMenuItem onClick={() => setIsDownloadDialogOpen(true)}>
+					<DropdownMenuItem onClick={() => setIsDownloadDialogOpen(true)}>
 						<DownloadOutlined />
 						Download logs&hellip;
-					</MoreMenuItem>
+					</DropdownMenuItem>
 
-					<Divider />
+					<DropdownMenuSeparator />
 
-					<MoreMenuItem
-						danger
+					<DropdownMenuItem
+						className="text-content-destructive focus:text-content-destructive"
 						onClick={handleDelete}
 						data-testid="delete-button"
 					>
 						<DeleteIcon />
 						Delete&hellip;
-					</MoreMenuItem>
-				</MoreMenuContent>
-			</MoreMenu>
+					</DropdownMenuItem>
+				</DropdownMenuContent>
+			</DropdownMenu>
 
 			<DownloadLogsDialog
 				workspace={workspace}

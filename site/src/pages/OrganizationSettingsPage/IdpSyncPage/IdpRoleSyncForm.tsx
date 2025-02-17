@@ -318,7 +318,7 @@ const RoleRow: FC<RoleRowProps> = ({
 					aria-label="delete"
 					onClick={() => onDelete(idpRole)}
 				>
-					<Trash />
+					<Trash className="size-icon-sm" />
 					<span className="sr-only">Delete IdP mapping</span>
 				</Button>
 			</TableCell>

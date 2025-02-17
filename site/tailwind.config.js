@@ -12,7 +12,7 @@ module.exports = {
 				sans: `"Inter Variable", system-ui, sans-serif`,
 			},
 			size: {
-				"icon-lg": "1.5rem",
+				"icon-md": "1.5rem",
 				"icon-sm": "1.125rem",
 				"icon-xs": "0.875rem",
 			},
