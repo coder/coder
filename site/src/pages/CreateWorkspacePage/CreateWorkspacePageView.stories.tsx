@@ -126,7 +126,6 @@ export const PresetsButNoneSelected: Story = {
                 Name: "Preset 1",
                 Parameters: [
                     {
-                        PresetID: "preset-1",
                         Name: MockTemplateVersionParameter1.name,
                         Value: "preset 1 override",
                     }
@@ -137,7 +136,6 @@ export const PresetsButNoneSelected: Story = {
                 Name: "Preset 2",
                 Parameters: [
                     {
-                        PresetID: "preset-2",
                         Name: MockTemplateVersionParameter2.name,
                         Value: "42",
                     }

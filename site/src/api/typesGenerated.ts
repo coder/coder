@@ -453,6 +453,7 @@ export interface CreateWorkspaceRequest {
 	readonly rich_parameter_values?: readonly WorkspaceBuildParameter[];
 	readonly automatic_updates?: AutomaticUpdates;
 	readonly template_version_preset_id?: string;
+	readonly claim_prebuild_if_available?: boolean;
 }
 
 // From codersdk/deployment.go
@@ -1562,7 +1563,6 @@ export interface Preset {
 
 // From codersdk/presets.go
 export interface PresetParameter {
-	readonly PresetID: string;
 	readonly Name: string;
 	readonly Value: string;
 }
@@ -1608,6 +1608,9 @@ export interface ProvisionerDaemon {
 export interface ProvisionerDaemonJob {
 	readonly id: string;
 	readonly status: ProvisionerJobStatus;
+	readonly template_name: string;
+	readonly template_icon: string;
+	readonly template_display_name: string;
 }
 
 // From codersdk/client.go
