@@ -12,7 +12,7 @@ import (
 
 	"cdr.dev/slog"
 
-	"github.com/coder/terraform-provider-coder/provider"
+	"github.com/coder/terraform-provider-coder/v2/provider"
 
 	tfaddr "github.com/hashicorp/go-terraform-address"
 

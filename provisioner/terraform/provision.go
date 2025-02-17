@@ -16,7 +16,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"github.com/coder/terraform-provider-coder/provider"
+	"github.com/coder/terraform-provider-coder/v2/provider"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/tracing"
@@ -269,7 +269,7 @@ func provisionEnv(
 		env = append(env, provider.ParameterEnvironmentVariable(param.Name)+"="+param.Value)
 	}
 	for _, extAuth := range externalAuth {
-		env = append(env, provider.GitAuthAccessTokenEnvironmentVariable(extAuth.Id)+"="+extAuth.AccessToken)
+		env = append(env, gitAuthAccessTokenEnvironmentVariable(extAuth.Id)+"="+extAuth.AccessToken)
 		env = append(env, provider.ExternalAuthAccessTokenEnvironmentVariable(extAuth.Id)+"="+extAuth.AccessToken)
 	}
 
@@ -349,4 +349,10 @@ func tryGettingCoderProviderStacktrace(sess *provisionersdk.Session) string {
 		sess.Logger.Error(sess.Context(), "could not read stack traces", slog.Error(err))
 	}
 	return string(stacktraces)
+}
+
+// gitAuthAccessTokenEnvironmentVariable was copied from provider.GitAuthAccessTokenEnvironmentVariable
+// in v1.0.4 of github.com/coder/terraform-provider-coder/provider when we upgraded to v2.
+func gitAuthAccessTokenEnvironmentVariable(id string) string {
+	return fmt.Sprintf("CODER_GIT_AUTH_ACCESS_TOKEN_%s", id)
 }
