@@ -87,7 +87,6 @@ func (a *AuditAPI) ReportConnection(ctx context.Context, req *agentproto.ReportC
 		Log:              a.Log,
 		Time:             req.GetConnection().GetTimestamp().AsTime(),
 		OrganizationID:   workspace.OrganizationID,
-		UserID:           workspace.OwnerID, // NOTE(mafredri): This may not be accurate if e.g. an owner is connecting.
 		RequestID:        connectionID,
 		Action:           action,
 		New:              workspaceAgent,
@@ -95,6 +94,10 @@ func (a *AuditAPI) ReportConnection(ctx context.Context, req *agentproto.ReportC
 		IP:               req.GetConnection().GetIp(),
 		Status:           int(req.GetConnection().GetStatusCode()),
 		AdditionalFields: riBytes,
+
+		// It's not possible to tell which user connected. Once we have
+		// the capability, this may be reported by the agent.
+		UserID: uuid.Nil,
 	})
 
 	return &emptypb.Empty{}, nil
