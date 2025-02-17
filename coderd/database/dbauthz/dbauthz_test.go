@@ -3354,11 +3354,11 @@ func (s *MethodTestSuite) TestExtraMethods() {
 		dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{ID: wbID, WorkspaceID: w.ID, TemplateVersionID: tv.ID, JobID: j2.ID})
 
 		ds, err := db.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(context.Background(), database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams{
-			OrganizationID: uuid.NullUUID{Valid: true, UUID: org.ID},
+			OrganizationID: org.ID,
 		})
 		s.NoError(err, "get provisioner jobs by org")
 		check.Args(database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams{
-			OrganizationID: uuid.NullUUID{Valid: true, UUID: org.ID},
+			OrganizationID: org.ID,
 		}).Asserts(j1, policy.ActionRead, j2, policy.ActionRead).Returns(ds)
 	}))
 }
