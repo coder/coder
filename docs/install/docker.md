@@ -79,7 +79,7 @@ Coder's [configuration options](../admin/setup/index.md).
 
 ## Install the preview release
 
-<blockquote class="admonition tip">
+<blockquote class="tip">
 
 We do not recommend using preview releases in production environments.
 
