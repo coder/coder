@@ -5,10 +5,17 @@ export const terminalWebsocketUrl = async (
 	reconnect: string,
 	agentId: string,
 	command: string | undefined,
+	containerName: string | undefined,
 	height: number,
 	width: number,
 ): Promise<string> => {
 	const query = new URLSearchParams({ reconnect });
+	if (command) {
+		query.set("command", command);
+	}
+	if (containerName) {
+		query.set("container", containerName);
+	}
 	if (command) {
 		query.set("command", command);
 	}

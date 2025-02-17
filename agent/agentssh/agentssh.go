@@ -680,6 +680,8 @@ type EnvInfoer interface {
 	UserHomeDir() (string, error)
 	// UserShell returns the shell of the given user.
 	UserShell(username string) (string, error)
+	// ModifyCommand modifies the command and arguments before execution.
+	ModifyCommand(name string, args ...string) (string, []string)
 }
 
 type systemEnvInfoer struct{}
@@ -707,6 +709,10 @@ func (systemEnvInfoer) UserHomeDir() (string, error) {
 
 func (systemEnvInfoer) UserShell(username string) (string, error) {
 	return usershell.Get(username)
+}
+
+func (systemEnvInfoer) ModifyCommand(name string, args ...string) (string, []string) {
+	return name, args
 }
 
 // CreateCommand processes raw command input with OpenSSH-like behavior.
@@ -774,6 +780,8 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string,
 		}
 	}
 
+	// Modify command prior to execution.
+	name, args = deps.ModifyCommand(name, args...)
 	cmd := s.Execer.PTYCommandContext(ctx, name, args...)
 	cmd.Dir = s.config.WorkingDirectory()
 

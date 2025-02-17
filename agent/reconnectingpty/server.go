@@ -14,6 +14,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
@@ -158,6 +159,10 @@ func (s *Server) handleConn(ctx context.Context, logger slog.Logger, conn net.Co
 			}
 		}()
 
+		var wrapFn []agentcontainers.WrapFn
+		if msg.Container != "" {
+			wrapFn = append(wrapFn, agentcontainers.WrapDockerExecPTY(msg.Container, msg.ContainerUser))
+		}
 		// Empty command will default to the users shell!
 		cmd, err := s.commandCreator.CreateCommand(ctx, msg.Command, nil, nil)
 		if err != nil {

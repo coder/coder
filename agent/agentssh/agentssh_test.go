@@ -138,6 +138,10 @@ func (f *fakeEnvInfoer) UserShell(u string) (string, error) {
 	return f.UserShellFn(u)
 }
 
+func (*fakeEnvInfoer) ModifyCommand(cmd string, args ...string) (string, []string) {
+	return cmd, args
+}
+
 func TestNewServer_CloseActiveConnections(t *testing.T) {
 	t.Parallel()
 

@@ -12,6 +12,7 @@ import (
 	"net/http/cookiejar"
 	"net/http/httputil"
 	"net/url"
+	"os"
 	"path"
 	"runtime"
 	"strconv"
@@ -22,6 +23,8 @@ import (
 
 	"github.com/go-jose/go-jose/v4"
 	"github.com/google/uuid"
+	"github.com/ory/dockertest/v3"
+	"github.com/ory/dockertest/v3/docker"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
@@ -98,6 +101,103 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			// Make an unauthenticated client.
 			unauthedAppClient := codersdk.New(appDetails.AppClient(t).URL)
 			testReconnectingPTY(ctx, t, unauthedAppClient, appDetails.Agent.ID, issueRes.SignedToken)
+			assertWorkspaceLastUsedAtUpdated(t, appDetails)
+		})
+
+		// TODO: why is this not talking to the container?
+		t.Run("Docker", func(t *testing.T) {
+			t.Parallel()
+
+			if ctud, ok := os.LookupEnv("CODER_TEST_USE_DOCKER"); !ok || ctud != "1" {
+				t.Skip("Skipping test because CODER_TEST_USE_DOCKER is not set to 1")
+			}
+			pool, err := dockertest.NewPool("")
+			require.NoError(t, err, "Could not connect to docker")
+			testLabelValue := uuid.New().String()
+			ct, err := pool.RunWithOptions(&dockertest.RunOptions{
+				Repository: "busybox",
+				Tag:        "latest",
+				Cmd:        []string{"sleep", "infnity"},
+				Labels:     map[string]string{"com.coder.test": testLabelValue},
+			}, func(config *docker.HostConfig) {
+				config.AutoRemove = true
+				config.RestartPolicy = docker.RestartPolicy{Name: "no"}
+			})
+			require.NoError(t, err, "Could not start test docker container")
+			t.Logf("Created container %q", ct.Container.Name)
+			t.Cleanup(func() {
+				assert.NoError(t, pool.Purge(ct), "Could not purge resource %q", ct.Container.Name)
+				t.Logf("Purged container %q", ct.Container.Name)
+			})
+
+			// Run the test against the path app hostname since that's where the
+			// reconnecting-pty proxy server we want to test is mounted.
+			appDetails := setupProxyTest(t, nil)
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+			defer cancel()
+			client := appDetails.AppClient(t)
+			opts := workspacesdk.WorkspaceAgentReconnectingPTYOpts{
+				AgentID:   appDetails.Agent.ID,
+				Reconnect: uuid.New(),
+				Width:     80,
+				Height:    80,
+				// --norc disables executing .bashrc, which is often used to customize the bash prompt
+				Command:   "/bin/sh --norc",
+				Container: ct.Container.ID,
+			}
+			matchPrompt := func(line string) bool {
+				return strings.Contains(line, "$ ") || strings.Contains(line, "# ")
+			}
+			matchHostnameCommand := func(line string) bool {
+				return strings.Contains(line, "hostname")
+			}
+			matchHostnameOutput := func(line string) bool {
+				return strings.Contains(line, ct.Container.Config.Hostname)
+			}
+			matchExitCommand := func(line string) bool {
+				return strings.Contains(line, "exit")
+			}
+			matchExitOutput := func(line string) bool {
+				return strings.Contains(line, "exit") || strings.Contains(line, "logout")
+			}
+
+			conn, err := workspacesdk.New(client).AgentReconnectingPTY(ctx, opts)
+			require.NoError(t, err)
+			defer conn.Close()
+
+			tr := testutil.NewTerminalReader(t, conn)
+			// Wait for the prompt before writing commands.  If the command arrives before the prompt is written, screen
+			// will sometimes put the command output on the same line as the command and the test will flake
+			require.NoError(t, tr.ReadUntil(ctx, matchPrompt), "find prompt")
+
+			data, err := json.Marshal(workspacesdk.ReconnectingPTYRequest{
+				Data: "hostname\r\n",
+			})
+			require.NoError(t, err)
+			_, err = conn.Write(data)
+			require.NoError(t, err)
+
+			require.NoError(t, tr.ReadUntil(ctx, matchHostnameCommand), "find hostname command")
+			require.NoError(t, tr.ReadUntil(ctx, matchHostnameOutput), "find hostname output")
+
+			// Exit should cause the connection to close.
+			data, err = json.Marshal(workspacesdk.ReconnectingPTYRequest{
+				Data: "exit\r",
+			})
+			require.NoError(t, err)
+			_, err = conn.Write(data)
+			require.NoError(t, err)
+
+			// Once for the input and again for the output.
+			require.NoError(t, tr.ReadUntil(ctx, matchExitCommand), "find exit command")
+			require.NoError(t, tr.ReadUntil(ctx, matchExitOutput), "find exit output")
+
+			// Ensure the connection closes.
+			require.ErrorIs(t, tr.ReadUntil(ctx, nil), io.EOF)
+
+			// testReconnectingPTY(ctx, t, client, appDetails.Agent.ID, "", func(opts *workspacesdk.WorkspaceAgentReconnectingPTYOpts) {
+			// opts.Container = ct.Container.ID
+			// })
 			assertWorkspaceLastUsedAtUpdated(t, appDetails)
 		})
 	})
@@ -1852,7 +1952,7 @@ func (r *fakeStatsReporter) ReportAppStats(_ context.Context, stats []workspacea
 	return nil
 }
 
-func testReconnectingPTY(ctx context.Context, t *testing.T, client *codersdk.Client, agentID uuid.UUID, signedToken string) {
+func testReconnectingPTY(ctx context.Context, t *testing.T, client *codersdk.Client, agentID uuid.UUID, signedToken string, mutators ...func(*workspacesdk.WorkspaceAgentReconnectingPTYOpts)) {
 	opts := workspacesdk.WorkspaceAgentReconnectingPTYOpts{
 		AgentID:   agentID,
 		Reconnect: uuid.New(),
@@ -1861,6 +1961,9 @@ func testReconnectingPTY(ctx context.Context, t *testing.T, client *codersdk.Cli
 		// --norc disables executing .bashrc, which is often used to customize the bash prompt
 		Command:     "bash --norc",
 		SignedToken: signedToken,
+	}
+	for _, mut := range mutators {
+		mut(&opts)
 	}
 	matchPrompt := func(line string) bool {
 		return strings.Contains(line, "$ ") || strings.Contains(line, "# ")
