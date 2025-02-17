@@ -21,6 +21,7 @@
             "motd_file": null,
             "order": null,
             "os": "windows",
+            "resources_monitoring": [],
             "shutdown_script": null,
             "startup_script": null,
             "startup_script_behavior": "non-blocking",
@@ -29,6 +30,7 @@
           "sensitive_values": {
             "display_apps": [],
             "metadata": [],
+            "resources_monitoring": [],
             "token": true
           }
         },
@@ -69,6 +71,7 @@
           "motd_file": null,
           "order": null,
           "os": "windows",
+          "resources_monitoring": [],
           "shutdown_script": null,
           "startup_script": null,
           "startup_script_behavior": "non-blocking",
@@ -79,12 +82,14 @@
           "id": true,
           "init_script": true,
           "metadata": [],
+          "resources_monitoring": [],
           "token": true
         },
         "before_sensitive": false,
         "after_sensitive": {
           "display_apps": [],
           "metadata": [],
+          "resources_monitoring": [],
           "token": true
         }
       }
@@ -130,7 +135,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "18a679bf-c1f9-4056-b5ec-1401587efcaf",
+              "id": "72f11f9b-8c7f-4e4a-a207-f080b114862b",
               "mutable": false,
               "name": "Example",
               "option": [
@@ -174,7 +179,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "a15920af-2f38-4cba-a26f-97492b58d853",
+              "id": "b154b8a7-d31f-46f7-b876-e5bfdf50950c",
               "mutable": false,
               "name": "number_example",
               "option": null,
@@ -201,7 +206,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "7fdb781f-ad42-4cbf-88f2-b8014a4f1b9e",
+              "id": "8199f88e-8b73-4385-bbb2-315182f753ef",
               "mutable": false,
               "name": "number_example_max_zero",
               "option": null,
@@ -240,7 +245,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "b1284628-4b51-4fb5-9bd6-d4b46895e73a",
+              "id": "110c995d-46d7-4277-8f57-a3d3d42733c3",
               "mutable": false,
               "name": "number_example_min_max",
               "option": null,
@@ -279,7 +284,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "24062c56-f326-4bab-893f-eb6bd99d9d0e",
+              "id": "e7a1f991-48a8-44c5-8a5c-597db8539cb7",
               "mutable": false,
               "name": "number_example_min_zero",
               "option": null,
@@ -318,7 +323,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "ea1e26d1-dd66-41af-b1f9-b50220db3dc6",
+              "id": "27d12cdf-da7e-466b-907a-4824920305da",
               "mutable": false,
               "name": "Sample",
               "option": null,
@@ -349,7 +354,7 @@
                   "display_name": null,
                   "ephemeral": false,
                   "icon": null,
-                  "id": "91236b71-4966-4cdc-8d3c-39d706180779",
+                  "id": "1242389a-5061-482a-8274-410174fb3fc0",
                   "mutable": true,
                   "name": "First parameter from module",
                   "option": null,
@@ -376,7 +381,7 @@
                   "display_name": null,
                   "ephemeral": false,
                   "icon": null,
-                  "id": "6ae5570d-ef16-4bdf-a46b-0025b197f2fa",
+                  "id": "72418f70-4e3c-400f-9a7d-bf3467598deb",
                   "mutable": true,
                   "name": "Second parameter from module",
                   "option": null,
@@ -408,7 +413,7 @@
                       "display_name": null,
                       "ephemeral": false,
                       "icon": null,
-                      "id": "7b0cbc7c-c11b-4902-98d4-4b4354978e05",
+                      "id": "9b4b60d8-21bb-4d52-910a-536355e9a85f",
                       "mutable": true,
                       "name": "First parameter from child module",
                       "option": null,
@@ -435,7 +440,7 @@
                       "display_name": null,
                       "ephemeral": false,
                       "icon": null,
-                      "id": "2b4e1132-77ef-4871-9ffe-f51d188d9821",
+                      "id": "4edca123-07bf-4409-ad40-ed26f93beb5f",
                       "mutable": true,
                       "name": "Second parameter from child module",
                       "option": null,
@@ -788,7 +793,7 @@
       }
     }
   },
-  "timestamp": "2025-02-06T07:28:26Z",
+  "timestamp": "2025-01-29T22:48:16Z",
   "applyable": true,
   "complete": true,
   "errored": false
