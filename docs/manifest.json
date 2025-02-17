@@ -97,12 +97,6 @@
 					"icon_path": "./images/icons/trash.svg"
 				},
 				{
-					"title": "Install and test coder-preview",
-					"description": "Test the latest coder-preview build",
-					"path": "./install/coder-preview-docker.md",
-					"icon_path": "./images/icons/contributing.svg"
-				},
-				{
 					"title": "Releases",
 					"description": "Learn about the Coder release channels and schedule",
 					"path": "./install/releases.md",
