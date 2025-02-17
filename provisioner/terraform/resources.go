@@ -149,6 +149,7 @@ type resourceMetadataItem struct {
 type State struct {
 	Resources             []*proto.Resource
 	Parameters            []*proto.RichParameter
+	Presets               []*proto.Preset
 	ExternalAuthProviders []*proto.ExternalAuthProviderResource
 }
 
@@ -176,7 +177,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 
 	// Extra array to preserve the order of rich parameters.
 	tfResourcesRichParameters := make([]*tfjson.StateResource, 0)
-
+	tfResourcesPresets := make([]*tfjson.StateResource, 0)
 	var findTerraformResources func(mod *tfjson.StateModule)
 	findTerraformResources = func(mod *tfjson.StateModule) {
 		for _, module := range mod.ChildModules {
@@ -185,6 +186,9 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 		for _, resource := range mod.Resources {
 			if resource.Type == "coder_parameter" {
 				tfResourcesRichParameters = append(tfResourcesRichParameters, resource)
+			}
+			if resource.Type == "coder_workspace_preset" {
+				tfResourcesPresets = append(tfResourcesPresets, resource)
 			}
 
 			label := convertAddressToLabel(resource.Address)
@@ -775,6 +779,78 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 		)
 	}
 
+	var duplicatedPresetNames []string
+	presets := make([]*proto.Preset, 0)
+	for _, resource := range tfResourcesPresets {
+		var preset provider.WorkspacePreset
+		err = mapstructure.Decode(resource.AttributeValues, &preset)
+		if err != nil {
+			return nil, xerrors.Errorf("decode preset attributes: %w", err)
+		}
+
+		var duplicatedPresetParameterNames []string
+		var nonExistentParameters []string
+		var presetParameters []*proto.PresetParameter
+		for name, value := range preset.Parameters {
+			presetParameter := &proto.PresetParameter{
+				Name:  name,
+				Value: value,
+			}
+
+			formattedName := fmt.Sprintf("%q", name)
+			if !slice.Contains(duplicatedPresetParameterNames, formattedName) &&
+				slice.ContainsCompare(presetParameters, presetParameter, func(a, b *proto.PresetParameter) bool {
+					return a.Name == b.Name
+				}) {
+				duplicatedPresetParameterNames = append(duplicatedPresetParameterNames, formattedName)
+			}
+			if !slice.ContainsCompare(parameters, &proto.RichParameter{Name: name}, func(a, b *proto.RichParameter) bool {
+				return a.Name == b.Name
+			}) {
+				nonExistentParameters = append(nonExistentParameters, name)
+			}
+
+			presetParameters = append(presetParameters, presetParameter)
+		}
+
+		if len(duplicatedPresetParameterNames) > 0 {
+			s := ""
+			if len(duplicatedPresetParameterNames) == 1 {
+				s = "s"
+			}
+			return nil, xerrors.Errorf(
+				"coder_workspace_preset parameters must be unique but %s appear%s multiple times", stringutil.JoinWithConjunction(duplicatedPresetParameterNames), s,
+			)
+		}
+
+		if len(nonExistentParameters) > 0 {
+			logger.Warn(
+				ctx,
+				"coder_workspace_preset defines preset values for at least one parameter that is not defined by the template",
+				slog.F("parameters", stringutil.JoinWithConjunction(nonExistentParameters)),
+			)
+		}
+
+		protoPreset := &proto.Preset{
+			Name:       preset.Name,
+			Parameters: presetParameters,
+		}
+		if slice.Contains(duplicatedPresetNames, preset.Name) {
+			duplicatedPresetNames = append(duplicatedPresetNames, preset.Name)
+		}
+		presets = append(presets, protoPreset)
+	}
+	if len(duplicatedPresetNames) > 0 {
+		s := ""
+		if len(duplicatedPresetNames) == 1 {
+			s = "s"
+		}
+		return nil, xerrors.Errorf(
+			"coder_workspace_preset names must be unique but %s appear%s multiple times",
+			stringutil.JoinWithConjunction(duplicatedPresetNames), s,
+		)
+	}
+
 	// A map is used to ensure we don't have duplicates!
 	externalAuthProvidersMap := map[string]*proto.ExternalAuthProviderResource{}
 	for _, tfResources := range tfResourcesByLabel {
@@ -808,6 +884,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 	return &State{
 		Resources:             resources,
 		Parameters:            parameters,
+		Presets:               presets,
 		ExternalAuthProviders: externalAuthProviders,
 	}, nil
 }
