@@ -78,11 +78,11 @@ func (a *ResourcesMonitoringAPI) PushResourcesMonitoringUsage(ctx context.Contex
 	var err error
 
 	if memoryErr := a.monitorMemory(ctx, req.Datapoints); memoryErr != nil {
-		err = errors.Join(err, fmt.Errorf("monitor memory: %w", memoryErr))
+		err = errors.Join(err, xerrors.Errorf("monitor memory: %w", memoryErr))
 	}
 
 	if volumeErr := a.monitorVolumes(ctx, req.Datapoints); volumeErr != nil {
-		err = errors.Join(err, fmt.Errorf("monitor volume: %w", volumeErr))
+		err = errors.Join(err, xerrors.Errorf("monitor volume: %w", volumeErr))
 	}
 
 	return &proto.PushResourcesMonitoringUsageResponse{}, err
