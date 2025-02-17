@@ -2,8 +2,6 @@ module github.com/coder/coder/v2
 
 go 1.22.9
 
-toolchain go1.23.6
-
 // Required until a v3 of chroma is created to lazily initialize all XML files.
 // None of our dependencies seem to use the registries anyways, so this
 // should be fine...

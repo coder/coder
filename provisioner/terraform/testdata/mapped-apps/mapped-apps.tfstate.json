@@ -26,7 +26,7 @@
               }
             ],
             "env": null,
-            "id": "029eeed6-8e12-4606-84cf-7a301915c2bf",
+            "id": "4fafe4d0-806b-4014-a837-8ee8f6ed268a",
             "init_script": "",
             "login_before_ready": true,
             "metadata": [],
@@ -38,7 +38,7 @@
             "startup_script": null,
             "startup_script_behavior": null,
             "startup_script_timeout": 300,
-            "token": "838d73bf-5b16-4c64-b01f-a38656b32e95",
+            "token": "cfb3af3d-26a5-4ae7-bf8b-35d9fc2d9ad9",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -58,13 +58,13 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 0,
           "values": {
-            "agent_id": "029eeed6-8e12-4606-84cf-7a301915c2bf",
+            "agent_id": "4fafe4d0-806b-4014-a837-8ee8f6ed268a",
             "command": null,
             "display_name": "app1",
             "external": false,
             "healthcheck": [],
             "icon": null,
-            "id": "c852c1c3-5a8a-4ea7-81eb-b60c1b5aca76",
+            "id": "e78e4bf2-4796-4e51-9358-19ff0275de4d",
             "name": null,
             "order": null,
             "relative_path": null,
@@ -89,13 +89,13 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 0,
           "values": {
-            "agent_id": "029eeed6-8e12-4606-84cf-7a301915c2bf",
+            "agent_id": "4fafe4d0-806b-4014-a837-8ee8f6ed268a",
             "command": null,
             "display_name": "app2",
             "external": false,
             "healthcheck": [],
             "icon": null,
-            "id": "603f8423-bafa-4538-89a6-ad4c08042b4f",
+            "id": "b311a085-5f50-43ac-a8aa-b3cb618805df",
             "name": null,
             "order": null,
             "relative_path": null,
@@ -119,7 +119,7 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "1160847275473092386",
+            "id": "1480143277295860801",
             "triggers": null
           },
           "sensitive_values": {},
