@@ -9,6 +9,8 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -30,6 +32,13 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 		ctx = r.Context()
 		org = httpmw.OrganizationParam(r)
 	)
+
+	// This endpoint returns information about provisioner jobs.
+	// For now, only owners and template admins can access provisioner jobs.
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceProvisionerJobs.InOrg(org.ID)) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
 
 	qp := r.URL.Query()
 	p := httpapi.NewQueryParamParser()
