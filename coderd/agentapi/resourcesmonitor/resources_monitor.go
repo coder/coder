@@ -89,7 +89,6 @@ func CalculateVolumeUsageStates(
 }
 
 func NextState(c Config, oldState database.WorkspaceAgentMonitorState, states []State) database.WorkspaceAgentMonitorState {
-
 	// If there are enough consecutive NOK states, we should be in an
 	// alert state.
 	consecutiveNOKs := slice.CountConsecutive(StateNOK, states...)
