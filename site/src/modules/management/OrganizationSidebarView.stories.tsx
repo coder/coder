@@ -311,7 +311,10 @@ const activeOrganization: OrganizationWithPermissions = {
 export const OrgsSortedAlphabetically: Story = {
 	args: {
 		activeOrganization,
-		permissions: MockPermissions,
+		permissions: {
+			...MockPermissions,
+			createOrganization: true,
+		},
 		organizations: [
 			{
 				...MockOrganization,
@@ -330,9 +333,30 @@ export const OrgsSortedAlphabetically: Story = {
 			activeOrganization,
 		],
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: /Omega org/i }));
+
+		// dropdown is not in #storybook-root so must query full document
+		const globalScreen = within(document.body);
+
+		await waitFor(() => {
+			expect(globalScreen.queryByText("alpha Org")).toBeInTheDocument();
+			expect(globalScreen.queryByText("Zeta Org")).toBeInTheDocument();
+		});
+
+		const orgElements = globalScreen.getAllByRole("option");
+		const orgNames = orgElements.map(
+			// handling fuzzy matching
+			(el) => el.textContent?.replace(/^[A-Z]/, "").trim() || "",
+		);
+
+		// active name first
+		expect(orgNames).toEqual(["Omega org", "alpha Org", "Zeta Org"]);
+	},
 };
 
-export const SearchAndSelectOrg: Story = {
+export const SearchForOrg: Story = {
 	args: {
 		activeOrganization,
 		permissions: MockPermissions,
@@ -358,7 +382,7 @@ export const SearchAndSelectOrg: Story = {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button", { name: /Omega org/i }));
 
-		// searchInput is not in #storybook-root so must query full document
+		// dropdown is not in #storybook-root so must query full document
 		const globalScreen = within(document.body);
 		const searchInput =
 			await globalScreen.getByPlaceholderText("Find organization");
