@@ -376,6 +376,10 @@ export type GetJFrogXRayScanParams = {
 	agentId: string;
 };
 
+export type GetProvisionerJobsParams = {
+	ids?: string[];
+};
+
 export class MissingBuildParameters extends Error {
 	parameters: TypesGen.TemplateVersionParameter[] = [];
 	versionId: string;
@@ -2316,9 +2320,18 @@ class ApiMethods {
 		return res.data;
 	};
 
-	getProvisionerJobs = async (orgId: string) => {
+	getProvisionerJobs = async (
+		orgId: string,
+		params?: GetProvisionerJobsParams,
+	) => {
+		const urlParams = new URLSearchParams();
+
+		if (params?.ids) {
+			urlParams.set("ids", params.ids.join(","));
+		}
+
 		const res = await this.axios.get<TypesGen.ProvisionerJob[]>(
-			`/api/v2/organizations/${orgId}/provisionerjobs`,
+			`/api/v2/organizations/${orgId}/provisionerjobs?${urlParams}`,
 		);
 		return res.data;
 	};

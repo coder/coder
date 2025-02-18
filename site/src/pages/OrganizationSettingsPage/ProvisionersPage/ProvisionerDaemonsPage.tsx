@@ -121,7 +121,7 @@ const DaemonRow: FC<DaemonRowProps> = ({ daemon }) => {
 	return (
 		<>
 			<TableRow key={daemon.id}>
-				<TableCell>
+				<TableCell className="w-52">
 					<button
 						className={cn([
 							"flex items-center gap-1 p-0 bg-transparent border-0 text-inherit text-xs cursor-pointer",

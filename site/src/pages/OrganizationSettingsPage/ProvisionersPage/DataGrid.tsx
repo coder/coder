@@ -10,7 +10,7 @@ export const DataGrid: FC<HTMLProps<HTMLDListElement>> = ({
 			{...props}
 			className={cn([
 				"m-0 grid grid-cols-[auto_1fr] gap-x-4 items-center",
-				"[&_dt]:text-content-primary [&_dt]:font-mono [&_dt]:leading-[22px]",
+				"[&_dd]:text-content-primary [&_dd]:font-mono [&_dd]:leading-[22px]",
 				className,
 			])}
 		/>

@@ -10,7 +10,7 @@ import { cn } from "utils/cn";
 export const buttonVariants = cva(
 	`inline-flex items-center justify-center gap-1 whitespace-nowrap
 	border-solid rounded-md transition-colors
-	text-sm font-semibold font-medium cursor-pointer no-underline
+	text-sm font-semibold font-medium cursor-pointer no-underline hover:no-underline
 	focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link
 	disabled:pointer-events-none disabled:text-content-disabled
 	[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg]:p-0.5`,
@@ -30,6 +30,7 @@ export const buttonVariants = cva(
 			size: {
 				lg: "min-w-20 h-10 px-3 py-2 [&_svg]:size-icon-lg",
 				sm: "min-w-20 h-8 px-2 py-1.5 text-xs [&_svg]:size-icon-sm",
+				xs: "h-[22px] text-2xs py-1 px-2",
 				icon: "size-8 px-1.5 [&_svg]:size-icon-sm",
 			},
 		},

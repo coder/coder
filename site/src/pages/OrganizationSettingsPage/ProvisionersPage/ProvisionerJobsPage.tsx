@@ -1,5 +1,5 @@
 import { provisionerJobs } from "api/queries/organizations";
-import type { Organization, ProvisionerJob } from "api/typesGenerated";
+import type { ProvisionerJob } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
@@ -28,6 +28,9 @@ import { CancelJobButton } from "./CancelJobButton";
 import { DataGrid } from "./DataGrid";
 import { JobStatusIndicator } from "./JobStatusIndicator";
 import { Tag, Tags, TruncateTags } from "./Tags";
+import { SearchInput } from "./SearchInput";
+import { useSearchParamsKey } from "hooks/useSearchParamsKey";
+import { useDebouncedValue } from "hooks/debounce";
 
 type ProvisionerJobsPageProps = {
 	orgId: string;
@@ -36,14 +39,19 @@ type ProvisionerJobsPageProps = {
 export const ProvisionerJobsPage: FC<ProvisionerJobsPageProps> = ({
 	orgId,
 }) => {
+	const id = useSearchParamsKey({
+		key: "id",
+		defaultValue: "",
+	});
+	const debouncedId = useDebouncedValue(id.value, 500);
 	const {
 		data: jobs,
 		isLoadingError,
 		refetch,
-	} = useQuery(provisionerJobs(orgId));
+	} = useQuery(provisionerJobs(orgId, { ids: [debouncedId] }));
 
 	return (
-		<section className="flex flex-col gap-8">
+		<section className="flex flex-col">
 			<h2 className="sr-only">Provisioner jobs</h2>
 			<p className="text-sm text-content-secondary m-0 mt-2">
 				Provisioner Jobs are the individual tasks assigned to Provisioners when
@@ -51,7 +59,17 @@ export const ProvisionerJobsPage: FC<ProvisionerJobsPageProps> = ({
 				<Link href={docs("/admin/provisioners")}>View docs</Link>
 			</p>
 
-			<Table>
+			<div className="mt-8">
+				<SearchInput
+					placeholder="Search provisioner jobs..."
+					value={id.value}
+					onChange={(e) => {
+						id.setValue(e.currentTarget.value);
+					}}
+				/>
+			</div>
+
+			<Table className="mt-6">
 				<TableHeader>
 					<TableRow>
 						<TableHead>Created</TableHead>
@@ -106,7 +124,7 @@ const JobRow: FC<JobRowProps> = ({ job }) => {
 	return (
 		<>
 			<TableRow key={job.id}>
-				<TableCell>
+				<TableCell className="w-52">
 					<button
 						className={cn([
 							"flex items-center gap-1 p-0 bg-transparent border-0 text-inherit text-xs cursor-pointer",

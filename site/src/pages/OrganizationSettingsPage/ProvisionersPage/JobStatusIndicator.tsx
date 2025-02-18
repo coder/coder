@@ -3,6 +3,7 @@ import type {
 	ProvisionerJob,
 	ProvisionerJobStatus,
 } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import {
 	StatusIndicator,
 	StatusIndicatorDot,
@@ -10,6 +11,7 @@ import {
 } from "components/StatusIndicator/StatusIndicator";
 import { TriangleAlertIcon } from "lucide-react";
 import type { FC } from "react";
+import { Link as RouterLink } from "react-router-dom";
 
 const variantByStatus: Record<
 	ProvisionerJobStatus,
@@ -55,6 +57,9 @@ export const DaemonJobStatusIndicator: FC<DaemonJobStatusIndicatorProps> = ({
 			{job.status === "failed" && (
 				<TriangleAlertIcon className="size-icon-xs p-[1px]" />
 			)}
+			<Button size="xs" variant="outline" asChild>
+				<RouterLink to={`?id=${job.id}`}>View job</RouterLink>
+			</Button>
 		</StatusIndicator>
 	);
 };

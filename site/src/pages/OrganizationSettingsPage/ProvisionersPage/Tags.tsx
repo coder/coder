@@ -28,11 +28,11 @@ export const Tag: FC<TagProps> = ({ label, value }) => {
 	);
 };
 
-type TagsProps = {
+type TruncateTagsProps = {
 	tags: Record<string, string>;
 };
 
-export const TruncateTags: FC<TagsProps> = ({ tags }) => {
+export const TruncateTags: FC<TruncateTagsProps> = ({ tags }) => {
 	const keys = Object.keys(tags);
 
 	if (keys.length === 0) {
