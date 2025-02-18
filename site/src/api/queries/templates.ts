@@ -2,6 +2,7 @@ import { API, type GetTemplatesOptions, type GetTemplatesQuery } from "api/api";
 import type {
 	CreateTemplateRequest,
 	CreateTemplateVersionRequest,
+	Preset,
 	ProvisionerJob,
 	ProvisionerJobStatus,
 	Template,
@@ -302,6 +303,13 @@ export const previousTemplateVersion = (
 
 			return result ?? null;
 		},
+	};
+};
+
+export const templateVersionPresets = (versionId: string) => {
+	return {
+		queryKey: ["templateVersion", versionId, "presets"],
+		queryFn: () => API.getTemplateVersionPresets(versionId),
 	};
 };
 

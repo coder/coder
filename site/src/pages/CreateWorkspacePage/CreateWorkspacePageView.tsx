@@ -6,6 +6,7 @@ import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
 import { Button } from "components/Button/Button";
+import { SelectFilter } from "components/Filter/SelectFilter";
 import {
 	FormFields,
 	FormFooter,
@@ -64,6 +65,7 @@ export interface CreateWorkspacePageViewProps {
 	hasAllRequiredExternalAuth: boolean;
 	parameters: TypesGen.TemplateVersionParameter[];
 	autofillParameters: AutofillBuildParameter[];
+	presets: TypesGen.Preset[];
 	permissions: CreateWSPermissions;
 	creatingWorkspace: boolean;
 	onCancel: () => void;
@@ -88,6 +90,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	hasAllRequiredExternalAuth,
 	parameters,
 	autofillParameters,
+	presets = [],
 	permissions,
 	creatingWorkspace,
 	onSubmit,
@@ -145,6 +148,59 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 		[autofillParameters],
 	);
 
+	const presetOptions = useMemo(() => {
+		return [
+			{ label: "None", value: "" },
+			...presets.map((preset) => ({
+				label: preset.Name,
+				value: preset.ID,
+			})),
+		];
+	}, [presets]);
+
+	const [selectedPresetIndex, setSelectedPresetIndex] = useState(0);
+	const [presetParameterNames, setPresetParameterNames] = useState<string[]>(
+		[],
+	);
+
+	useEffect(() => {
+		const selectedPresetOption = presetOptions[selectedPresetIndex];
+		let selectedPreset: TypesGen.Preset | undefined;
+		for (const preset of presets) {
+			if (preset.ID === selectedPresetOption.value) {
+				selectedPreset = preset;
+				break;
+			}
+		}
+
+		if (!selectedPreset || !selectedPreset.Parameters) {
+			setPresetParameterNames([]);
+			return;
+		}
+
+		setPresetParameterNames(selectedPreset.Parameters.map((p) => p.Name));
+
+		for (const presetParameter of selectedPreset.Parameters) {
+			const parameterIndex = parameters.findIndex(
+				(p) => p.name === presetParameter.Name,
+			);
+			if (parameterIndex === -1) continue;
+
+			const parameterField = `rich_parameter_values.${parameterIndex}`;
+
+			form.setFieldValue(parameterField, {
+				name: presetParameter.Name,
+				value: presetParameter.Value,
+			});
+		}
+	}, [
+		presetOptions,
+		selectedPresetIndex,
+		presets,
+		parameters,
+		form.setFieldValue,
+	]);
+
 	return (
 		<Margins size="medium">
 			<PageHeader
@@ -187,6 +243,31 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 					<Alert severity="info" dismissible data-testid="duplication-warning">
 						{Language.duplicationWarning}
 					</Alert>
+				)}
+
+				{presets.length > 0 && (
+					<FormSection
+						title="Presets"
+						description="A list of preset workspace configurations to get you started."
+					>
+						<FormFields>
+							<Stack direction="row" spacing={2}>
+								<SelectFilter
+									label="Preset"
+									options={presetOptions}
+									onSelect={(option) => {
+										setSelectedPresetIndex(
+											presetOptions.findIndex(
+												(preset) => preset.value === option?.value,
+											),
+										);
+									}}
+									placeholder="Select a preset"
+									selectedOption={presetOptions[selectedPresetIndex]}
+								/>
+							</Stack>
+						</FormFields>
+					</FormSection>
 				)}
 
 				{/* General info */}
@@ -292,7 +373,9 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 								const isDisabled =
 									disabledParams?.includes(
 										parameter.name.toLowerCase().replace(/ /g, "_"),
-									) || creatingWorkspace;
+									) ||
+									creatingWorkspace ||
+									presetParameterNames.includes(parameter.name);
 
 								return (
 									<RichParameterInput
