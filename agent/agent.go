@@ -340,7 +340,7 @@ func (a *agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentM
 		// if it can guarantee the clocks are synchronized.
 		CollectedAt: now,
 	}
-	cmdPty, err := a.sshServer.CreateCommand(ctx, md.Script, nil)
+	cmdPty, err := a.sshServer.CreateCommand(ctx, md.Script, nil, nil)
 	if err != nil {
 		result.Error = fmt.Sprintf("create cmd: %+v", err)
 		return result
