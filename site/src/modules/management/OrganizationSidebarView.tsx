@@ -3,6 +3,7 @@ import { Avatar } from "components/Avatar/Avatar";
 import { Button } from "components/Button/Button";
 import {
 	Command,
+	CommandInput,
 	CommandGroup,
 	CommandItem,
 	CommandList,
@@ -127,6 +128,7 @@ const OrganizationsSettingsNavigation: FC<
 				</PopoverTrigger>
 				<PopoverContent align="start" className="w-60">
 					<Command loop>
+						<CommandInput placeholder="Find organization" />
 						<CommandList>
 							<CommandGroup className="pb-2">
 								{sortedOrganizations.length > 1 && (
@@ -134,7 +136,7 @@ const OrganizationsSettingsNavigation: FC<
 										{sortedOrganizations.map((organization) => (
 											<CommandItem
 												key={organization.id}
-												value={organization.name}
+												value={`${organization.display_name} ${organization.name}`}
 												onSelect={() => {
 													setIsPopoverOpen(false);
 													navigate(urlForSubpage(organization.name));

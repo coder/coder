@@ -331,3 +331,46 @@ export const OrgsSortedAlphabetically: Story = {
 		],
 	},
 };
+
+export const SearchAndSelectOrg: Story = {
+	args: {
+		activeOrganization,
+		permissions: MockPermissions,
+		organizations: [
+			{
+				...MockOrganization,
+				display_name: "Zeta Org",
+				id: "2",
+				name: "zeta",
+				permissions: commonPerms,
+			},
+			{
+				...MockOrganization,
+				display_name: "alpha Org",
+				id: "3",
+				name: "fish",
+				permissions: commonPerms,
+			},
+			activeOrganization,
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: /Omega org/i }));
+
+		// searchInput is not in #storybook-root so must query full document
+		const globalScreen = within(document.body);
+		const searchInput =
+			await globalScreen.getByPlaceholderText("Find organization");
+
+		await userEvent.type(searchInput, "ALPHA");
+
+		const filteredResult = await globalScreen.findByText("alpha Org");
+		expect(filteredResult).toBeInTheDocument();
+
+		// Omega org remains visible as the default org
+		await waitFor(() => {
+			expect(globalScreen.queryByText("Zeta Org")).not.toBeInTheDocument();
+		});
+	},
+};
