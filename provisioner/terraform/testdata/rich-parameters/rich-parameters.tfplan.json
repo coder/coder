@@ -10,23 +10,20 @@
           "type": "coder_agent",
           "name": "dev",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 0,
+          "schema_version": 1,
           "values": {
             "arch": "arm64",
             "auth": "token",
             "connection_timeout": 120,
             "dir": null,
             "env": null,
-            "login_before_ready": true,
             "metadata": [],
             "motd_file": null,
             "order": null,
             "os": "windows",
             "shutdown_script": null,
-            "shutdown_script_timeout": 300,
             "startup_script": null,
-            "startup_script_behavior": null,
-            "startup_script_timeout": 300,
+            "startup_script_behavior": "non-blocking",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -68,16 +65,13 @@
           "connection_timeout": 120,
           "dir": null,
           "env": null,
-          "login_before_ready": true,
           "metadata": [],
           "motd_file": null,
           "order": null,
           "os": "windows",
           "shutdown_script": null,
-          "shutdown_script_timeout": 300,
           "startup_script": null,
-          "startup_script_behavior": null,
-          "startup_script_timeout": 300,
+          "startup_script_behavior": "non-blocking",
           "troubleshooting_url": null
         },
         "after_unknown": {
@@ -136,7 +130,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "b8e482c3-e55e-4587-abb1-a0db57b0f856",
+              "id": "14d20380-9100-4218-afca-15d066dec134",
               "mutable": false,
               "name": "Example",
               "option": [
@@ -180,7 +174,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "c0b429f3-8621-422a-8655-27727b7b74f4",
+              "id": "fec66abe-d831-4095-8520-8a654ccf309a",
               "mutable": false,
               "name": "number_example",
               "option": null,
@@ -207,7 +201,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "e0f9fa03-2392-4915-8ecb-a23fc612b448",
+              "id": "9e6cbf84-b49c-4c24-ad71-91195269ec84",
               "mutable": false,
               "name": "number_example_max_zero",
               "option": null,
@@ -246,7 +240,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "cedeb060-be8d-4ba2-8b71-efeff24076be",
+              "id": "5fbb470c-3814-4706-8fa6-c8c7e0f04c19",
               "mutable": false,
               "name": "number_example_min_max",
               "option": null,
@@ -285,7 +279,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "beae7c42-5723-4224-80c4-6d507613d32a",
+              "id": "3790d994-f401-4e98-ad73-70b6f4e577d2",
               "mutable": false,
               "name": "number_example_min_zero",
               "option": null,
@@ -324,7 +318,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "e77e3fca-8635-44d3-b3b0-7077dbcaf485",
+              "id": "26b3faa6-2eda-45f0-abbe-f4aba303f7cc",
               "mutable": false,
               "name": "Sample",
               "option": null,
@@ -355,7 +349,7 @@
                   "display_name": null,
                   "ephemeral": false,
                   "icon": null,
-                  "id": "faef5893-f4a7-4c82-bc7c-2b528adf9164",
+                  "id": "6027c1aa-dae9-48d9-90f2-b66151bf3129",
                   "mutable": true,
                   "name": "First parameter from module",
                   "option": null,
@@ -382,7 +376,7 @@
                   "display_name": null,
                   "ephemeral": false,
                   "icon": null,
-                  "id": "d702a904-19e9-4e67-9bb9-744f440f1cd7",
+                  "id": "62262115-184d-4e14-a756-bedb553405a9",
                   "mutable": true,
                   "name": "Second parameter from module",
                   "option": null,
@@ -414,7 +408,7 @@
                       "display_name": null,
                       "ephemeral": false,
                       "icon": null,
-                      "id": "9252f5d4-b66b-45b4-ba7a-3003423bb7f9",
+                      "id": "9ced5a2a-0e83-44fe-8088-6db4df59c15e",
                       "mutable": true,
                       "name": "First parameter from child module",
                       "option": null,
@@ -441,7 +435,7 @@
                       "display_name": null,
                       "ephemeral": false,
                       "icon": null,
-                      "id": "b988dcc9-e1c9-4146-8cc7-3841b8b7a51d",
+                      "id": "f9564821-9614-4931-b760-2b942d59214a",
                       "mutable": true,
                       "name": "Second parameter from child module",
                       "option": null,
@@ -469,7 +463,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "0.22.0"
+        "version_constraint": ">= 2.0.0"
       },
       "module.this_is_external_module:docker": {
         "name": "docker",
@@ -498,7 +492,7 @@
               "constant_value": "windows"
             }
           },
-          "schema_version": 0
+          "schema_version": 1
         },
         {
           "address": "null_resource.dev",
@@ -794,7 +788,7 @@
       }
     }
   },
-  "timestamp": "2025-02-10T21:13:13Z",
+  "timestamp": "2025-02-18T10:58:12Z",
   "applyable": true,
   "complete": true,
   "errored": false
