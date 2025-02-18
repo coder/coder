@@ -670,8 +670,8 @@ func (s *Server) sftpHandler(logger slog.Logger, session ssh.Session) {
 	_ = session.Exit(1)
 }
 
-// CreateCommandDeps encapsulates external information required by CreateCommand.
-type CreateCommandDeps interface {
+// EnvInfoer encapsulates external information required by CreateCommand.
+type EnvInfoer interface {
 	// CurrentUser returns the current user.
 	CurrentUser() (*user.User, error)
 	// Environ returns the environment variables of the current process.
@@ -682,30 +682,30 @@ type CreateCommandDeps interface {
 	UserShell(username string) (string, error)
 }
 
-type systemCreateCommandDeps struct{}
+type systemEnvInfoer struct{}
 
-var defaultCreateCommandDeps CreateCommandDeps = &systemCreateCommandDeps{}
+var defaultEnvInfoer EnvInfoer = &systemEnvInfoer{}
 
-// DefaultCreateCommandDeps returns a default implementation of
-// CreateCommandDeps. This reads information using the default Go
+// DefaultEnvInfoer returns a default implementation of
+// EnvInfoer. This reads information using the default Go
 // implementations.
-func DefaultCreateCommandDeps() CreateCommandDeps {
-	return defaultCreateCommandDeps
+func DefaultEnvInfoer() EnvInfoer {
+	return defaultEnvInfoer
 }
 
-func (systemCreateCommandDeps) CurrentUser() (*user.User, error) {
+func (systemEnvInfoer) CurrentUser() (*user.User, error) {
 	return user.Current()
 }
 
-func (systemCreateCommandDeps) Environ() []string {
+func (systemEnvInfoer) Environ() []string {
 	return os.Environ()
 }
 
-func (systemCreateCommandDeps) UserHomeDir() (string, error) {
+func (systemEnvInfoer) UserHomeDir() (string, error) {
 	return userHomeDir()
 }
 
-func (systemCreateCommandDeps) UserShell(username string) (string, error) {
+func (systemEnvInfoer) UserShell(username string) (string, error) {
 	return usershell.Get(username)
 }
 
@@ -716,9 +716,9 @@ func (systemCreateCommandDeps) UserShell(username string) (string, error) {
 // alternative implementations for the dependencies of CreateCommand.
 // This is useful when creating a command to be run in a separate environment
 // (for example, a Docker container). Pass in nil to use the default.
-func (s *Server) CreateCommand(ctx context.Context, script string, env []string, deps CreateCommandDeps) (*pty.Cmd, error) {
+func (s *Server) CreateCommand(ctx context.Context, script string, env []string, deps EnvInfoer) (*pty.Cmd, error) {
 	if deps == nil {
-		deps = DefaultCreateCommandDeps()
+		deps = DefaultEnvInfoer()
 	}
 	currentUser, err := deps.CurrentUser()
 	if err != nil {
