@@ -148,14 +148,23 @@ LEFT JOIN
 LEFT JOIN
 	workspace_builds wb ON wb.id = CASE WHEN pj.input ? 'workspace_build_id' THEN (pj.input->>'workspace_build_id')::uuid END
 LEFT JOIN
-	workspaces w ON wb.workspace_id = w.id
+	workspaces w ON (
+		w.id = wb.workspace_id
+		AND w.organization_id = pj.organization_id
+	)
 LEFT JOIN
 	-- We should always have a template version, either explicitly or implicitly via workspace build.
-	template_versions tv ON tv.id = CASE WHEN pj.input ? 'template_version_id' THEN (pj.input->>'template_version_id')::uuid ELSE wb.template_version_id END
+	template_versions tv ON (
+		tv.id = CASE WHEN pj.input ? 'template_version_id' THEN (pj.input->>'template_version_id')::uuid ELSE wb.template_version_id END
+		AND tv.organization_id = pj.organization_id
+	)
 LEFT JOIN
-	templates t ON tv.template_id = t.id
+	templates t ON (
+		t.id = tv.template_id
+		AND t.organization_id = pj.organization_id
+	)
 WHERE
-	(sqlc.narg('organization_id')::uuid IS NULL OR pj.organization_id = @organization_id)
+	pj.organization_id = @organization_id::uuid
 	AND (COALESCE(array_length(@ids::uuid[], 1), 0) = 0 OR pj.id = ANY(@ids::uuid[]))
 	AND (COALESCE(array_length(@status::provisioner_job_status[], 1), 0) = 0 OR pj.job_status = ANY(@status::provisioner_job_status[]))
 	AND (@tags::tagset = 'null'::tagset OR provisioner_tagset_contains(pj.tags::tagset, @tags::tagset))

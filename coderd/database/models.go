@@ -147,6 +147,10 @@ const (
 	AuditActionLogout               AuditAction = "logout"
 	AuditActionRegister             AuditAction = "register"
 	AuditActionRequestPasswordReset AuditAction = "request_password_reset"
+	AuditActionConnect              AuditAction = "connect"
+	AuditActionDisconnect           AuditAction = "disconnect"
+	AuditActionOpen                 AuditAction = "open"
+	AuditActionClose                AuditAction = "close"
 )
 
 func (e *AuditAction) Scan(src interface{}) error {
@@ -194,7 +198,11 @@ func (e AuditAction) Valid() bool {
 		AuditActionLogin,
 		AuditActionLogout,
 		AuditActionRegister,
-		AuditActionRequestPasswordReset:
+		AuditActionRequestPasswordReset,
+		AuditActionConnect,
+		AuditActionDisconnect,
+		AuditActionOpen,
+		AuditActionClose:
 		return true
 	}
 	return false
@@ -211,6 +219,10 @@ func AllAuditActionValues() []AuditAction {
 		AuditActionLogout,
 		AuditActionRegister,
 		AuditActionRequestPasswordReset,
+		AuditActionConnect,
+		AuditActionDisconnect,
+		AuditActionOpen,
+		AuditActionClose,
 	}
 }
 
@@ -1608,6 +1620,8 @@ const (
 	ResourceTypeIdpSyncSettingsOrganization ResourceType = "idp_sync_settings_organization"
 	ResourceTypeIdpSyncSettingsGroup        ResourceType = "idp_sync_settings_group"
 	ResourceTypeIdpSyncSettingsRole         ResourceType = "idp_sync_settings_role"
+	ResourceTypeWorkspaceAgent              ResourceType = "workspace_agent"
+	ResourceTypeWorkspaceApp                ResourceType = "workspace_app"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -1668,7 +1682,9 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeNotificationTemplate,
 		ResourceTypeIdpSyncSettingsOrganization,
 		ResourceTypeIdpSyncSettingsGroup,
-		ResourceTypeIdpSyncSettingsRole:
+		ResourceTypeIdpSyncSettingsRole,
+		ResourceTypeWorkspaceAgent,
+		ResourceTypeWorkspaceApp:
 		return true
 	}
 	return false
@@ -1698,6 +1714,8 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeIdpSyncSettingsOrganization,
 		ResourceTypeIdpSyncSettingsGroup,
 		ResourceTypeIdpSyncSettingsRole,
+		ResourceTypeWorkspaceAgent,
+		ResourceTypeWorkspaceApp,
 	}
 }
 
@@ -1955,6 +1973,64 @@ func AllWorkspaceAgentLifecycleStateValues() []WorkspaceAgentLifecycleState {
 		WorkspaceAgentLifecycleStateShutdownTimeout,
 		WorkspaceAgentLifecycleStateShutdownError,
 		WorkspaceAgentLifecycleStateOff,
+	}
+}
+
+type WorkspaceAgentMonitorState string
+
+const (
+	WorkspaceAgentMonitorStateOK  WorkspaceAgentMonitorState = "OK"
+	WorkspaceAgentMonitorStateNOK WorkspaceAgentMonitorState = "NOK"
+)
+
+func (e *WorkspaceAgentMonitorState) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkspaceAgentMonitorState(s)
+	case string:
+		*e = WorkspaceAgentMonitorState(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkspaceAgentMonitorState: %T", src)
+	}
+	return nil
+}
+
+type NullWorkspaceAgentMonitorState struct {
+	WorkspaceAgentMonitorState WorkspaceAgentMonitorState `json:"workspace_agent_monitor_state"`
+	Valid                      bool                       `json:"valid"` // Valid is true if WorkspaceAgentMonitorState is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkspaceAgentMonitorState) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkspaceAgentMonitorState, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkspaceAgentMonitorState.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkspaceAgentMonitorState) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkspaceAgentMonitorState), nil
+}
+
+func (e WorkspaceAgentMonitorState) Valid() bool {
+	switch e {
+	case WorkspaceAgentMonitorStateOK,
+		WorkspaceAgentMonitorStateNOK:
+		return true
+	}
+	return false
+}
+
+func AllWorkspaceAgentMonitorStateValues() []WorkspaceAgentMonitorState {
+	return []WorkspaceAgentMonitorState{
+		WorkspaceAgentMonitorStateOK,
+		WorkspaceAgentMonitorStateNOK,
 	}
 }
 
@@ -3170,10 +3246,13 @@ type WorkspaceAgentLogSource struct {
 }
 
 type WorkspaceAgentMemoryResourceMonitor struct {
-	AgentID   uuid.UUID `db:"agent_id" json:"agent_id"`
-	Enabled   bool      `db:"enabled" json:"enabled"`
-	Threshold int32     `db:"threshold" json:"threshold"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	AgentID        uuid.UUID                  `db:"agent_id" json:"agent_id"`
+	Enabled        bool                       `db:"enabled" json:"enabled"`
+	Threshold      int32                      `db:"threshold" json:"threshold"`
+	CreatedAt      time.Time                  `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time                  `db:"updated_at" json:"updated_at"`
+	State          WorkspaceAgentMonitorState `db:"state" json:"state"`
+	DebouncedUntil time.Time                  `db:"debounced_until" json:"debounced_until"`
 }
 
 type WorkspaceAgentMetadatum struct {
@@ -3244,11 +3323,14 @@ type WorkspaceAgentStat struct {
 }
 
 type WorkspaceAgentVolumeResourceMonitor struct {
-	AgentID   uuid.UUID `db:"agent_id" json:"agent_id"`
-	Enabled   bool      `db:"enabled" json:"enabled"`
-	Threshold int32     `db:"threshold" json:"threshold"`
-	Path      string    `db:"path" json:"path"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	AgentID        uuid.UUID                  `db:"agent_id" json:"agent_id"`
+	Enabled        bool                       `db:"enabled" json:"enabled"`
+	Threshold      int32                      `db:"threshold" json:"threshold"`
+	Path           string                     `db:"path" json:"path"`
+	CreatedAt      time.Time                  `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time                  `db:"updated_at" json:"updated_at"`
+	State          WorkspaceAgentMonitorState `db:"state" json:"state"`
+	DebouncedUntil time.Time                  `db:"debounced_until" json:"debounced_until"`
 }
 
 type WorkspaceApp struct {

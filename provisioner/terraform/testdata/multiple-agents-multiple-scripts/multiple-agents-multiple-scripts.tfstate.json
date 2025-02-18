@@ -26,17 +26,16 @@
               }
             ],
             "env": null,
-            "id": "bd762939-8952-4ac7-a9e5-618ec420b518",
+            "id": "08227630-d8d8-44a6-8d1a-c6b4e56220e6",
             "init_script": "",
             "metadata": [],
             "motd_file": null,
             "order": null,
             "os": "linux",
-            "resources_monitoring": [],
             "shutdown_script": null,
             "startup_script": null,
             "startup_script_behavior": "non-blocking",
-            "token": "f86127e8-2852-4c02-9f07-c376ec04318f",
+            "token": "9e5b296e-3ce0-4cd8-af7d-8d702c96516e",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -44,7 +43,6 @@
               {}
             ],
             "metadata": [],
-            "resources_monitoring": [],
             "token": true
           }
         },
@@ -70,17 +68,16 @@
               }
             ],
             "env": null,
-            "id": "60244093-3c9d-4655-b34f-c4713f7001c1",
+            "id": "2b0d2ea6-b448-4c31-a95d-163475818d8e",
             "init_script": "",
             "metadata": [],
             "motd_file": null,
             "order": null,
             "os": "linux",
-            "resources_monitoring": [],
             "shutdown_script": null,
             "startup_script": null,
             "startup_script_behavior": "non-blocking",
-            "token": "cad61f70-873f-440c-ad1c-9d34be2e19c4",
+            "token": "81c60ec1-67f0-44d3-82af-41599fad84e1",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -88,7 +85,6 @@
               {}
             ],
             "metadata": [],
-            "resources_monitoring": [],
             "token": true
           }
         },
@@ -100,11 +96,11 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 1,
           "values": {
-            "agent_id": "bd762939-8952-4ac7-a9e5-618ec420b518",
+            "agent_id": "08227630-d8d8-44a6-8d1a-c6b4e56220e6",
             "cron": null,
             "display_name": "Foobar Script 1",
             "icon": null,
-            "id": "b34b6cd5-e85d-41c8-ad92-eaaceb2404cb",
+            "id": "4350804c-b8b5-45c8-994e-8f7020b41b1c",
             "log_path": null,
             "run_on_start": true,
             "run_on_stop": false,
@@ -125,11 +121,11 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 1,
           "values": {
-            "agent_id": "bd762939-8952-4ac7-a9e5-618ec420b518",
+            "agent_id": "08227630-d8d8-44a6-8d1a-c6b4e56220e6",
             "cron": null,
             "display_name": "Foobar Script 2",
             "icon": null,
-            "id": "d6f4e24c-3023-417d-b9be-4c83dbdf4802",
+            "id": "3b449c9e-48ab-4e7b-aa46-dd488ce1284c",
             "log_path": null,
             "run_on_start": true,
             "run_on_stop": false,
@@ -150,11 +146,11 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 1,
           "values": {
-            "agent_id": "60244093-3c9d-4655-b34f-c4713f7001c1",
+            "agent_id": "2b0d2ea6-b448-4c31-a95d-163475818d8e",
             "cron": null,
             "display_name": "Foobar Script 3",
             "icon": null,
-            "id": "a19e9106-5eb5-4941-b6ae-72a7724efdf0",
+            "id": "2132fa1c-d2e9-4229-983f-2dfca88da420",
             "log_path": null,
             "run_on_start": true,
             "run_on_stop": false,
@@ -175,7 +171,7 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "8576645433635584827",
+            "id": "6203386614814118800",
             "triggers": null
           },
           "sensitive_values": {},
@@ -191,7 +187,7 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "1280398780322015606",
+            "id": "3432231377698621412",
             "triggers": null
           },
           "sensitive_values": {},

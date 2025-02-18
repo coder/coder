@@ -21,7 +21,6 @@
             "motd_file": null,
             "order": null,
             "os": "linux",
-            "resources_monitoring": [],
             "shutdown_script": null,
             "startup_script": null,
             "startup_script_behavior": "non-blocking",
@@ -30,7 +29,6 @@
           "sensitive_values": {
             "display_apps": [],
             "metadata": [],
-            "resources_monitoring": [],
             "token": true
           }
         },
@@ -51,7 +49,6 @@
             "motd_file": "/etc/motd",
             "order": null,
             "os": "darwin",
-            "resources_monitoring": [],
             "shutdown_script": "echo bye bye",
             "startup_script": null,
             "startup_script_behavior": "non-blocking",
@@ -60,7 +57,6 @@
           "sensitive_values": {
             "display_apps": [],
             "metadata": [],
-            "resources_monitoring": [],
             "token": true
           }
         },
@@ -81,7 +77,6 @@
             "motd_file": null,
             "order": null,
             "os": "windows",
-            "resources_monitoring": [],
             "shutdown_script": null,
             "startup_script": null,
             "startup_script_behavior": "blocking",
@@ -90,7 +85,6 @@
           "sensitive_values": {
             "display_apps": [],
             "metadata": [],
-            "resources_monitoring": [],
             "token": true
           }
         },
@@ -111,7 +105,6 @@
             "motd_file": null,
             "order": null,
             "os": "linux",
-            "resources_monitoring": [],
             "shutdown_script": null,
             "startup_script": null,
             "startup_script_behavior": "non-blocking",
@@ -120,7 +113,6 @@
           "sensitive_values": {
             "display_apps": [],
             "metadata": [],
-            "resources_monitoring": [],
             "token": true
           }
         },
@@ -161,7 +153,6 @@
           "motd_file": null,
           "order": null,
           "os": "linux",
-          "resources_monitoring": [],
           "shutdown_script": null,
           "startup_script": null,
           "startup_script_behavior": "non-blocking",
@@ -172,14 +163,12 @@
           "id": true,
           "init_script": true,
           "metadata": [],
-          "resources_monitoring": [],
           "token": true
         },
         "before_sensitive": false,
         "after_sensitive": {
           "display_apps": [],
           "metadata": [],
-          "resources_monitoring": [],
           "token": true
         }
       }
@@ -205,7 +194,6 @@
           "motd_file": "/etc/motd",
           "order": null,
           "os": "darwin",
-          "resources_monitoring": [],
           "shutdown_script": "echo bye bye",
           "startup_script": null,
           "startup_script_behavior": "non-blocking",
@@ -216,14 +204,12 @@
           "id": true,
           "init_script": true,
           "metadata": [],
-          "resources_monitoring": [],
           "token": true
         },
         "before_sensitive": false,
         "after_sensitive": {
           "display_apps": [],
           "metadata": [],
-          "resources_monitoring": [],
           "token": true
         }
       }
@@ -249,7 +235,6 @@
           "motd_file": null,
           "order": null,
           "os": "windows",
-          "resources_monitoring": [],
           "shutdown_script": null,
           "startup_script": null,
           "startup_script_behavior": "blocking",
@@ -260,14 +245,12 @@
           "id": true,
           "init_script": true,
           "metadata": [],
-          "resources_monitoring": [],
           "token": true
         },
         "before_sensitive": false,
         "after_sensitive": {
           "display_apps": [],
           "metadata": [],
-          "resources_monitoring": [],
           "token": true
         }
       }
@@ -293,7 +276,6 @@
           "motd_file": null,
           "order": null,
           "os": "linux",
-          "resources_monitoring": [],
           "shutdown_script": null,
           "startup_script": null,
           "startup_script_behavior": "non-blocking",
@@ -304,14 +286,12 @@
           "id": true,
           "init_script": true,
           "metadata": [],
-          "resources_monitoring": [],
           "token": true
         },
         "before_sensitive": false,
         "after_sensitive": {
           "display_apps": [],
           "metadata": [],
-          "resources_monitoring": [],
           "token": true
         }
       }
@@ -343,7 +323,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "0.22.0"
+        "version_constraint": ">= 2.0.0"
       },
       "null": {
         "name": "null",
@@ -451,7 +431,7 @@
       ]
     }
   },
-  "timestamp": "2025-01-29T22:48:01Z",
+  "timestamp": "2025-02-18T18:21:16Z",
   "applyable": true,
   "complete": true,
   "errored": false

@@ -526,3 +526,31 @@ func (k CryptoKey) CanVerify(now time.Time) bool {
 func (r GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow) RBACObject() rbac.Object {
 	return r.ProvisionerJob.RBACObject()
 }
+
+func (m WorkspaceAgentMemoryResourceMonitor) Debounce(
+	by time.Duration,
+	now time.Time,
+	oldState, newState WorkspaceAgentMonitorState,
+) (time.Time, bool) {
+	if now.After(m.DebouncedUntil) &&
+		oldState == WorkspaceAgentMonitorStateOK &&
+		newState == WorkspaceAgentMonitorStateNOK {
+		return now.Add(by), true
+	}
+
+	return m.DebouncedUntil, false
+}
+
+func (m WorkspaceAgentVolumeResourceMonitor) Debounce(
+	by time.Duration,
+	now time.Time,
+	oldState, newState WorkspaceAgentMonitorState,
+) (debouncedUntil time.Time, shouldNotify bool) {
+	if now.After(m.DebouncedUntil) &&
+		oldState == WorkspaceAgentMonitorStateOK &&
+		newState == WorkspaceAgentMonitorStateNOK {
+		return now.Add(by), true
+	}
+
+	return m.DebouncedUntil, false
+}

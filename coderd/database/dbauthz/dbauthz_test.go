@@ -3367,11 +3367,11 @@ func (s *MethodTestSuite) TestExtraMethods() {
 		dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{ID: wbID, WorkspaceID: w.ID, TemplateVersionID: tv.ID, JobID: j2.ID})
 
 		ds, err := db.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(context.Background(), database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams{
-			OrganizationID: uuid.NullUUID{Valid: true, UUID: org.ID},
+			OrganizationID: org.ID,
 		})
 		s.NoError(err, "get provisioner jobs by org")
 		check.Args(database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams{
-			OrganizationID: uuid.NullUUID{Valid: true, UUID: org.ID},
+			OrganizationID: org.ID,
 		}).Asserts(j1, policy.ActionRead, j2, policy.ActionRead).Returns(ds)
 	}))
 }
@@ -4738,43 +4738,78 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppTokens() {
 }
 
 func (s *MethodTestSuite) TestResourcesMonitor() {
-	s.Run("InsertMemoryResourceMonitor", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		check.Args(database.InsertMemoryResourceMonitorParams{}).Asserts(rbac.ResourceWorkspaceAgentResourceMonitor, policy.ActionCreate)
-	}))
+	createAgent := func(t *testing.T, db database.Store) (database.WorkspaceAgent, database.WorkspaceTable) {
+		t.Helper()
 
-	s.Run("InsertVolumeResourceMonitor", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		check.Args(database.InsertVolumeResourceMonitorParams{}).Asserts(rbac.ResourceWorkspaceAgentResourceMonitor, policy.ActionCreate)
-	}))
-
-	s.Run("FetchMemoryResourceMonitorsByAgentID", s.Subtest(func(db database.Store, check *expects) {
-		u := dbgen.User(s.T(), db, database.User{})
-		o := dbgen.Organization(s.T(), db, database.Organization{})
-		tpl := dbgen.Template(s.T(), db, database.Template{
+		u := dbgen.User(t, db, database.User{})
+		o := dbgen.Organization(t, db, database.Organization{})
+		tpl := dbgen.Template(t, db, database.Template{
 			OrganizationID: o.ID,
 			CreatedBy:      u.ID,
 		})
-		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+		tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
 			TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
 			OrganizationID: o.ID,
 			CreatedBy:      u.ID,
 		})
-		w := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
+		w := dbgen.Workspace(t, db, database.WorkspaceTable{
 			TemplateID:     tpl.ID,
 			OrganizationID: o.ID,
 			OwnerID:        u.ID,
 		})
-		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
+		j := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 			Type: database.ProvisionerJobTypeWorkspaceBuild,
 		})
-		b := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{
+		b := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
 			JobID:             j.ID,
 			WorkspaceID:       w.ID,
 			TemplateVersionID: tv.ID,
 		})
-		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: b.JobID})
-		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
+		res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: b.JobID})
+		agt := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: res.ID})
+
+		return agt, w
+	}
+
+	s.Run("InsertMemoryResourceMonitor", s.Subtest(func(db database.Store, check *expects) {
+		agt, _ := createAgent(s.T(), db)
+
+		check.Args(database.InsertMemoryResourceMonitorParams{
+			AgentID: agt.ID,
+			State:   database.WorkspaceAgentMonitorStateOK,
+		}).Asserts(rbac.ResourceWorkspaceAgentResourceMonitor, policy.ActionCreate)
+	}))
+
+	s.Run("InsertVolumeResourceMonitor", s.Subtest(func(db database.Store, check *expects) {
+		agt, _ := createAgent(s.T(), db)
+
+		check.Args(database.InsertVolumeResourceMonitorParams{
+			AgentID: agt.ID,
+			State:   database.WorkspaceAgentMonitorStateOK,
+		}).Asserts(rbac.ResourceWorkspaceAgentResourceMonitor, policy.ActionCreate)
+	}))
+
+	s.Run("UpdateMemoryResourceMonitor", s.Subtest(func(db database.Store, check *expects) {
+		agt, _ := createAgent(s.T(), db)
+
+		check.Args(database.UpdateMemoryResourceMonitorParams{
+			AgentID: agt.ID,
+			State:   database.WorkspaceAgentMonitorStateOK,
+		}).Asserts(rbac.ResourceWorkspaceAgentResourceMonitor, policy.ActionUpdate)
+	}))
+
+	s.Run("UpdateVolumeResourceMonitor", s.Subtest(func(db database.Store, check *expects) {
+		agt, _ := createAgent(s.T(), db)
+
+		check.Args(database.UpdateVolumeResourceMonitorParams{
+			AgentID: agt.ID,
+			State:   database.WorkspaceAgentMonitorStateOK,
+		}).Asserts(rbac.ResourceWorkspaceAgentResourceMonitor, policy.ActionUpdate)
+	}))
+
+	s.Run("FetchMemoryResourceMonitorsByAgentID", s.Subtest(func(db database.Store, check *expects) {
+		agt, w := createAgent(s.T(), db)
+
 		dbgen.WorkspaceAgentMemoryResourceMonitor(s.T(), db, database.WorkspaceAgentMemoryResourceMonitor{
 			AgentID:   agt.ID,
 			Enabled:   true,
@@ -4785,36 +4820,12 @@ func (s *MethodTestSuite) TestResourcesMonitor() {
 		monitor, err := db.FetchMemoryResourceMonitorsByAgentID(context.Background(), agt.ID)
 		require.NoError(s.T(), err)
 
-		check.Args(agt.ID).Asserts(rbac.ResourceWorkspaceAgentResourceMonitor, policy.ActionRead).Returns(monitor)
+		check.Args(agt.ID).Asserts(w, policy.ActionRead).Returns(monitor)
 	}))
 
 	s.Run("FetchVolumesResourceMonitorsByAgentID", s.Subtest(func(db database.Store, check *expects) {
-		u := dbgen.User(s.T(), db, database.User{})
-		o := dbgen.Organization(s.T(), db, database.Organization{})
-		tpl := dbgen.Template(s.T(), db, database.Template{
-			OrganizationID: o.ID,
-			CreatedBy:      u.ID,
-		})
-		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
-			OrganizationID: o.ID,
-			CreatedBy:      u.ID,
-		})
-		w := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
-			TemplateID:     tpl.ID,
-			OrganizationID: o.ID,
-			OwnerID:        u.ID,
-		})
-		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
-			Type: database.ProvisionerJobTypeWorkspaceBuild,
-		})
-		b := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{
-			JobID:             j.ID,
-			WorkspaceID:       w.ID,
-			TemplateVersionID: tv.ID,
-		})
-		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: b.JobID})
-		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
+		agt, w := createAgent(s.T(), db)
+
 		dbgen.WorkspaceAgentVolumeResourceMonitor(s.T(), db, database.WorkspaceAgentVolumeResourceMonitor{
 			AgentID:   agt.ID,
 			Path:      "/var/lib",
@@ -4826,6 +4837,6 @@ func (s *MethodTestSuite) TestResourcesMonitor() {
 		monitors, err := db.FetchVolumesResourceMonitorsByAgentID(context.Background(), agt.ID)
 		require.NoError(s.T(), err)
 
-		check.Args(agt.ID).Asserts(rbac.ResourceWorkspaceAgentResourceMonitor, policy.ActionRead).Returns(monitors)
+		check.Args(agt.ID).Asserts(w, policy.ActionRead).Returns(monitors)
 	}))
 }

@@ -21,7 +21,6 @@
             "motd_file": null,
             "order": null,
             "os": "windows",
-            "resources_monitoring": [],
             "shutdown_script": null,
             "startup_script": null,
             "startup_script_behavior": "non-blocking",
@@ -30,7 +29,6 @@
           "sensitive_values": {
             "display_apps": [],
             "metadata": [],
-            "resources_monitoring": [],
             "token": true
           }
         },
@@ -71,7 +69,6 @@
           "motd_file": null,
           "order": null,
           "os": "windows",
-          "resources_monitoring": [],
           "shutdown_script": null,
           "startup_script": null,
           "startup_script_behavior": "non-blocking",
@@ -82,14 +79,12 @@
           "id": true,
           "init_script": true,
           "metadata": [],
-          "resources_monitoring": [],
           "token": true
         },
         "before_sensitive": false,
         "after_sensitive": {
           "display_apps": [],
           "metadata": [],
-          "resources_monitoring": [],
           "token": true
         }
       }
@@ -135,7 +130,7 @@
               "display_name": null,
               "ephemeral": true,
               "icon": null,
-              "id": "30116bcb-f109-4807-be06-666a60b6cbb2",
+              "id": "5bb41b73-1b57-4054-82d6-a24e37f0e489",
               "mutable": true,
               "name": "number_example",
               "option": null,
@@ -162,7 +157,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "755395f4-d163-4b90-a8f4-e7ae24e17dd0",
+              "id": "0906e50c-dae7-4a5f-b312-cc9acc58068b",
               "mutable": false,
               "name": "number_example_max",
               "option": null,
@@ -201,7 +196,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "dec9fa47-a252-4eb7-868b-10d0fe7bad57",
+              "id": "86b42229-3aca-45f7-a815-986a42f75515",
               "mutable": false,
               "name": "number_example_max_zero",
               "option": null,
@@ -240,7 +235,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "57107f82-107b-484d-8491-0787f051dca7",
+              "id": "9f920ec3-6c51-4264-bd95-ac6cdc2fce6b",
               "mutable": false,
               "name": "number_example_min",
               "option": null,
@@ -279,7 +274,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "c21a61f4-26e0-49bb-99c8-56240433c21b",
+              "id": "9e89b197-3df0-46a8-925a-c523be8b38f7",
               "mutable": false,
               "name": "number_example_min_max",
               "option": null,
@@ -318,7 +313,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "4894f5cc-f4e6-4a86-bdfa-36c9d3f8f1a3",
+              "id": "678a411a-91af-409e-b2aa-68e0cab28483",
               "mutable": false,
               "name": "number_example_min_zero",
               "option": null,
@@ -353,7 +348,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "0.22.0"
+        "version_constraint": ">= 2.0.0"
       },
       "null": {
         "name": "null",
@@ -550,7 +545,7 @@
       ]
     }
   },
-  "timestamp": "2025-01-29T22:48:20Z",
+  "timestamp": "2025-02-18T18:21:16Z",
   "applyable": true,
   "complete": true,
   "errored": false

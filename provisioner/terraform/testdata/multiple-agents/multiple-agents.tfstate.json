@@ -26,17 +26,16 @@
               }
             ],
             "env": null,
-            "id": "215a9369-35c9-4abe-b1c0-3eb3ab1c1922",
+            "id": "a8594294-4a4c-4e78-95b2-569e9c050b60",
             "init_script": "",
             "metadata": [],
             "motd_file": null,
             "order": null,
             "os": "linux",
-            "resources_monitoring": [],
             "shutdown_script": null,
             "startup_script": null,
             "startup_script_behavior": "non-blocking",
-            "token": "3fdd733c-b02e-4d81-a032-7c8d7ee3dcd8",
+            "token": "4d6a9b4d-52f1-4243-b2b9-4d5a4f96f4bf",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -44,7 +43,6 @@
               {}
             ],
             "metadata": [],
-            "resources_monitoring": [],
             "token": true
           }
         },
@@ -70,17 +68,16 @@
               }
             ],
             "env": null,
-            "id": "b79acfba-d148-4940-80aa-0c72c037a3ed",
+            "id": "4724838a-a88e-45ea-a7ac-ee70a653cbfb",
             "init_script": "",
             "metadata": [],
             "motd_file": "/etc/motd",
             "order": null,
             "os": "darwin",
-            "resources_monitoring": [],
             "shutdown_script": "echo bye bye",
             "startup_script": null,
             "startup_script_behavior": "non-blocking",
-            "token": "e841a152-a794-4b05-9818-95e7440d402d",
+            "token": "d579f2f2-db06-4fbc-9a8f-6d075d01e645",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -88,7 +85,6 @@
               {}
             ],
             "metadata": [],
-            "resources_monitoring": [],
             "token": true
           }
         },
@@ -114,17 +110,16 @@
               }
             ],
             "env": null,
-            "id": "4e863395-523b-443a-83c2-ab27e42a06b2",
+            "id": "349ebae6-324b-404a-a3b7-1a81c727a490",
             "init_script": "",
             "metadata": [],
             "motd_file": null,
             "order": null,
             "os": "windows",
-            "resources_monitoring": [],
             "shutdown_script": null,
             "startup_script": null,
             "startup_script_behavior": "blocking",
-            "token": "ee0a5e1d-879e-4bff-888e-6cf94533f0bd",
+            "token": "0647e08f-8661-4d3b-8789-cccdcf3263e3",
             "troubleshooting_url": "https://coder.com/troubleshoot"
           },
           "sensitive_values": {
@@ -132,7 +127,6 @@
               {}
             ],
             "metadata": [],
-            "resources_monitoring": [],
             "token": true
           }
         },
@@ -158,17 +152,16 @@
               }
             ],
             "env": null,
-            "id": "611c43f5-fa8f-4641-9b5c-a58a8945caa1",
+            "id": "2309f077-2c30-497b-813b-bd0bba5c1bc3",
             "init_script": "",
             "metadata": [],
             "motd_file": null,
             "order": null,
             "os": "linux",
-            "resources_monitoring": [],
             "shutdown_script": null,
             "startup_script": null,
             "startup_script_behavior": "non-blocking",
-            "token": "2d2669c7-6385-4ce8-8948-e4b24db45132",
+            "token": "b29e6471-68b5-41e8-a3c8-3192baab26c7",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -176,7 +169,6 @@
               {}
             ],
             "metadata": [],
-            "resources_monitoring": [],
             "token": true
           }
         },
@@ -188,7 +180,7 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "5237006672454822031",
+            "id": "1888190210657376001",
             "triggers": null
           },
           "sensitive_values": {},

@@ -208,6 +208,8 @@ type sqlcQuerier interface {
 	GetPreviousTemplateVersion(ctx context.Context, arg GetPreviousTemplateVersionParams) (TemplateVersion, error)
 	GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDaemon, error)
 	GetProvisionerDaemonsByOrganization(ctx context.Context, arg GetProvisionerDaemonsByOrganizationParams) ([]ProvisionerDaemon, error)
+	// Current job information.
+	// Previous job information.
 	GetProvisionerDaemonsWithStatusByOrganization(ctx context.Context, arg GetProvisionerDaemonsWithStatusByOrganizationParams) ([]GetProvisionerDaemonsWithStatusByOrganizationRow, error)
 	GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (ProvisionerJob, error)
 	GetProvisionerJobTimingsByJobID(ctx context.Context, jobID uuid.UUID) ([]ProvisionerJobTiming, error)
@@ -479,6 +481,7 @@ type sqlcQuerier interface {
 	UpdateGroupByID(ctx context.Context, arg UpdateGroupByIDParams) (Group, error)
 	UpdateInactiveUsersToDormant(ctx context.Context, arg UpdateInactiveUsersToDormantParams) ([]UpdateInactiveUsersToDormantRow, error)
 	UpdateMemberRoles(ctx context.Context, arg UpdateMemberRolesParams) (OrganizationMember, error)
+	UpdateMemoryResourceMonitor(ctx context.Context, arg UpdateMemoryResourceMonitorParams) error
 	UpdateNotificationTemplateMethodByID(ctx context.Context, arg UpdateNotificationTemplateMethodByIDParams) (NotificationTemplate, error)
 	UpdateOAuth2ProviderAppByID(ctx context.Context, arg UpdateOAuth2ProviderAppByIDParams) (OAuth2ProviderApp, error)
 	UpdateOAuth2ProviderAppSecretByID(ctx context.Context, arg UpdateOAuth2ProviderAppSecretByIDParams) (OAuth2ProviderAppSecret, error)
@@ -513,6 +516,7 @@ type sqlcQuerier interface {
 	UpdateUserQuietHoursSchedule(ctx context.Context, arg UpdateUserQuietHoursScheduleParams) (User, error)
 	UpdateUserRoles(ctx context.Context, arg UpdateUserRolesParams) (User, error)
 	UpdateUserStatus(ctx context.Context, arg UpdateUserStatusParams) (User, error)
+	UpdateVolumeResourceMonitor(ctx context.Context, arg UpdateVolumeResourceMonitorParams) error
 	UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams) (WorkspaceTable, error)
 	UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg UpdateWorkspaceAgentConnectionByIDParams) error
 	UpdateWorkspaceAgentLifecycleStateByID(ctx context.Context, arg UpdateWorkspaceAgentLifecycleStateByIDParams) error

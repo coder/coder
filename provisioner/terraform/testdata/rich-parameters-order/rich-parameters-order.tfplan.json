@@ -21,7 +21,6 @@
             "motd_file": null,
             "order": null,
             "os": "windows",
-            "resources_monitoring": [],
             "shutdown_script": null,
             "startup_script": null,
             "startup_script_behavior": "non-blocking",
@@ -30,7 +29,6 @@
           "sensitive_values": {
             "display_apps": [],
             "metadata": [],
-            "resources_monitoring": [],
             "token": true
           }
         },
@@ -71,7 +69,6 @@
           "motd_file": null,
           "order": null,
           "os": "windows",
-          "resources_monitoring": [],
           "shutdown_script": null,
           "startup_script": null,
           "startup_script_behavior": "non-blocking",
@@ -82,14 +79,12 @@
           "id": true,
           "init_script": true,
           "metadata": [],
-          "resources_monitoring": [],
           "token": true
         },
         "before_sensitive": false,
         "after_sensitive": {
           "display_apps": [],
           "metadata": [],
-          "resources_monitoring": [],
           "token": true
         }
       }
@@ -135,7 +130,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "e8485920-025a-4c2c-b018-722f61b64347",
+              "id": "b1e652cd-eb2c-4c6d-bc9c-3add380ffbe1",
               "mutable": false,
               "name": "Example",
               "option": null,
@@ -162,7 +157,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "6156655b-f893-4eba-914e-e87414f4bf7e",
+              "id": "af5ae8c5-fc90-4a04-9014-1708984a7b27",
               "mutable": false,
               "name": "Sample",
               "option": null,
@@ -185,7 +180,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "0.22.0"
+        "version_constraint": ">= 2.0.0"
       },
       "null": {
         "name": "null",
@@ -268,7 +263,7 @@
       ]
     }
   },
-  "timestamp": "2025-01-29T22:48:18Z",
+  "timestamp": "2025-02-18T18:21:16Z",
   "applyable": true,
   "complete": true,
   "errored": false
