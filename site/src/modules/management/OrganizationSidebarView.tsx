@@ -3,8 +3,8 @@ import { Avatar } from "components/Avatar/Avatar";
 import { Button } from "components/Button/Button";
 import {
 	Command,
-	CommandInput,
 	CommandGroup,
+	CommandInput,
 	CommandItem,
 	CommandList,
 } from "components/Command/Command";
