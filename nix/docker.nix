@@ -50,6 +50,10 @@ let
     experimental-features = nix-command flakes
   '';
 
+  etcReleaseName = writeTextDir "etc/coderniximage-release" ''
+    0.0.0
+  '';
+
   etcPamdSudoFile = writeText "pam-sudo" ''
     # Allow root to bypass authentication (optional)
     auth      sufficient pam_rootok.so
@@ -271,6 +275,7 @@ let
         etcNixConf
         etcSudoers
         etcPamdSudo
+        etcReleaseName
         (fakeNss.override {
           # Allows programs to look up the build user's home directory
           # https://github.com/NixOS/nix/blob/ffe155abd36366a870482625543f9bf924a58281/src/libstore/build/local-derivation-goal.cc#L906-L910
