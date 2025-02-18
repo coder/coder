@@ -49,6 +49,12 @@ files, then `coder templates push`.
 > Even if you are a Terraform expert, we suggest reading our
 > [guided tour of a template](../../../tutorials/template-from-scratch.md).
 
+### Workspace presets
+
+Workspace presets allow you to select settings tailored to your most common development scenarios.
+
+Coder admins can configure workspace presets with combinations of parameter values and workspace settings within each template's Terraform file, and workspace users can customize their configurations as they need to.
+
 ## Updating templates
 
 Coder tracks a template's versions, keeping all developer workspaces up-to-date.
