@@ -10591,6 +10591,7 @@
 					"format": "date-time"
 				},
 				"public_key": {
+					"description": "PublicKey is the SSH public key in OpenSSH format.\nExample: \"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID3OmYJvT7q1cF1azbybYy0OZ9yrXfA+M6Lr4vzX5zlp\\n\"\nNote: The key includes a trailing newline (\\n).",
 					"type": "string"
 				},
 				"updated_at": {

@@ -3090,12 +3090,12 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name         | Type   | Required | Restrictions | Description |
-|--------------|--------|----------|--------------|-------------|
-| `created_at` | string | false    |              |             |
-| `public_key` | string | false    |              |             |
-| `updated_at` | string | false    |              |             |
-| `user_id`    | string | false    |              |             |
+| Name         | Type   | Required | Restrictions | Description                                                                                                                                                                                       |
+|--------------|--------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `created_at` | string | false    |              |                                                                                                                                                                                                   |
+| `public_key` | string | false    |              | Public key is the SSH public key in OpenSSH format. Example: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID3OmYJvT7q1cF1azbybYy0OZ9yrXfA+M6Lr4vzX5zlp\n" Note: The key includes a trailing newline (\n). |
+| `updated_at` | string | false    |              |                                                                                                                                                                                                   |
+| `user_id`    | string | false    |              |                                                                                                                                                                                                   |
 
 ## codersdk.Group
 
