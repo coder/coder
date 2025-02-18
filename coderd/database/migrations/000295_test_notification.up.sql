@@ -7,5 +7,10 @@ VALUES (
 	E'Hi {{.UserName}},\n\n'||
 		E'This is a test notification.',
 	'Notification Events',
-	'[]'::jsonb
+	'[
+		{
+			"label": "View notification settings",
+			"url": "{{base_url}}/deployment/notifications?tab=settings"
+		}
+	]'::jsonb
 );

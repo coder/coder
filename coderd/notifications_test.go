@@ -346,6 +346,8 @@ func TestNotificationTest(t *testing.T) {
 	})
 
 	t.Run("MemberCannotSendTestNotification", func(t *testing.T) {
+		t.Parallel()
+
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		notifyEnq := &notificationstest.FakeEnqueuer{}

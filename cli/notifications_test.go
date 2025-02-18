@@ -116,6 +116,8 @@ func TestNotificationsTest(t *testing.T) {
 	t.Parallel()
 
 	t.Run("OwnerCanSendTestNotification", func(t *testing.T) {
+		t.Parallel()
+
 		notifyEnq := &notificationstest.FakeEnqueuer{}
 
 		// Given: An owner user.
@@ -138,6 +140,8 @@ func TestNotificationsTest(t *testing.T) {
 	})
 
 	t.Run("MemberCannotSendTestNotification", func(t *testing.T) {
+		t.Parallel()
+
 		notifyEnq := &notificationstest.FakeEnqueuer{}
 
 		// Given: A member user.
