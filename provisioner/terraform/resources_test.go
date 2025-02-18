@@ -407,12 +407,12 @@ func TestConvertResources(t *testing.T) {
 							},
 							Volumes: []*proto.VolumeResourceMonitor{
 								{
-									Path:      "volume2",
+									Path:      "/volume2",
 									Enabled:   false,
 									Threshold: 50,
 								},
 								{
-									Path:      "volume1",
+									Path:      "/volume1",
 									Enabled:   true,
 									Threshold: 80,
 								},
