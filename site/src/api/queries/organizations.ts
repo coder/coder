@@ -203,6 +203,19 @@ export const patchRoleSyncSettings = (
 	};
 };
 
+export const provisionerJobQueryKey = (orgId: string) => [
+	"organization",
+	orgId,
+	"provisionerjobs",
+];
+
+export const provisionerJobs = (orgId: string) => {
+	return {
+		queryKey: provisionerJobQueryKey(orgId),
+		queryFn: () => API.getProvisionerJobs(orgId),
+	};
+};
+
 /**
  * Fetch permissions for all provided organizations.
  *

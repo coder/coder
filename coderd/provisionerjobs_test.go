@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"strconv"
 	"testing"
 	"time"
 
@@ -65,9 +66,10 @@ func TestProvisionerJobs(t *testing.T) {
 	})
 
 	// Add more jobs than the default limit.
-	for range 60 {
+	for i := range 60 {
 		dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 			OrganizationID: owner.OrganizationID,
+			Tags:           database.StringMap{"count": strconv.Itoa(i)},
 		})
 	}
 
@@ -132,11 +134,31 @@ func TestProvisionerJobs(t *testing.T) {
 		require.Len(t, jobs, 50)
 	})
 
+	t.Run("IDs", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		jobs, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
+			IDs: []uuid.UUID{workspace.LatestBuild.Job.ID, version.Job.ID},
+		})
+		require.NoError(t, err)
+		require.Len(t, jobs, 2)
+	})
+
 	t.Run("Status", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		jobs, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
 			Status: []codersdk.ProvisionerJobStatus{codersdk.ProvisionerJobRunning},
+		})
+		require.NoError(t, err)
+		require.Len(t, jobs, 1)
+	})
+
+	t.Run("Tags", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		jobs, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
+			Tags: map[string]string{"count": "1"},
 		})
 		require.NoError(t, err)
 		require.Len(t, jobs, 1)

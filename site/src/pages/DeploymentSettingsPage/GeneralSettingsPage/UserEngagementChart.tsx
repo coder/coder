@@ -157,7 +157,7 @@ export const UserEngagementChart: FC<UserEngagementChartProps> = ({ data }) => {
 
 									<Area
 										dataKey="users"
-										type="natural"
+										type="linear"
 										fill="url(#fillUsers)"
 										fillOpacity={0.4}
 										stroke="var(--color-users)"

@@ -247,6 +247,11 @@ export const MockSupportLinks: TypesGen.LinkConfig[] = [
 			"https://github.com/coder/coder/issues/new?labels=needs+grooming&body={CODER_BUILD_INFO}",
 		icon: "",
 	},
+	{
+		name: "Fourth link",
+		target: "/icons",
+		icon: "",
+	},
 ];
 
 export const MockUpdateCheck: TypesGen.UpdateCheckResponse = {

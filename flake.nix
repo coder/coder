@@ -281,6 +281,7 @@
                     unzip
                     zip
                     gzip
+                    procps # free
                   ])
                   ++ oldAttrs.buildInputs;
               });
