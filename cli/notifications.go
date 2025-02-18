@@ -31,6 +31,7 @@ func (r *RootCmd) notifications() *serpent.Command {
 		Children: []*serpent.Command{
 			r.pauseNotifications(),
 			r.resumeNotifications(),
+			r.testNotifications(),
 		},
 	}
 	return cmd
@@ -78,6 +79,27 @@ func (r *RootCmd) resumeNotifications() *serpent.Command {
 			}
 
 			_, _ = fmt.Fprintln(inv.Stderr, "Notifications are now resumed.")
+			return nil
+		},
+	}
+	return cmd
+}
+
+func (r *RootCmd) testNotifications() *serpent.Command {
+	client := new(codersdk.Client)
+	cmd := &serpent.Command{
+		Use:   "test",
+		Short: "Test notifications",
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(0),
+			r.InitClient(client),
+		),
+		Handler: func(inv *serpent.Invocation) error {
+			if err := client.PostTestNotification(inv.Context()); err != nil {
+				return xerrors.Errorf("unable to post test notification: %w", err)
+			}
+
+			_, _ = fmt.Fprintln(inv.Stderr, "A test notification has been sent.")
 			return nil
 		},
 	}

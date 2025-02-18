@@ -184,8 +184,14 @@ func (api *API) postTestNotification(rw http.ResponseWriter, r *http.Request) {
 		notifications.TemplateTestNotification,
 		map[string]string{},
 		map[string]any{
-			// TODO: This is maybe not the best idea, but we want to avoid
-			// the notification de-duplication logic.
+			// NOTE(DanielleMaywood):
+			// When notifications are enqueued, they are checked to be
+			// unique within a single day. This means that if we attempt
+			// to send two test notifications to the same user on
+			// the same day, the enqueuer will prevent us from sending
+			// a second one. We are injecting a timestamp to make the
+			// notifications appear different enough to circumvent this
+			// deduplication logic.
 			"timestamp": api.Clock.Now(),
 		},
 		"send-test-notification",
