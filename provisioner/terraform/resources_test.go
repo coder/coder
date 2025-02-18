@@ -337,6 +337,75 @@ func TestConvertResources(t *testing.T) {
 				Type: "coder_env",
 			}},
 		},
+		"multiple-agents-multiple-monitors": {
+			resources: []*proto.Resource{{
+				Name: "dev",
+				Type: "null_resource",
+				Agents: []*proto.Agent{
+					{
+						Name:            "dev1",
+						OperatingSystem: "linux",
+						Architecture:    "amd64",
+						Apps: []*proto.App{
+							{
+								Slug:        "app1",
+								DisplayName: "app1",
+								// Subdomain defaults to false if unspecified.
+								Subdomain: false,
+								OpenIn:    proto.AppOpenIn_SLIM_WINDOW,
+							},
+							{
+								Slug:        "app2",
+								DisplayName: "app2",
+								Subdomain:   true,
+								Healthcheck: &proto.Healthcheck{
+									Url:       "http://localhost:13337/healthz",
+									Interval:  5,
+									Threshold: 6,
+								},
+								OpenIn: proto.AppOpenIn_SLIM_WINDOW,
+							},
+						},
+						Auth:                     &proto.Agent_Token{},
+						ConnectionTimeoutSeconds: 120,
+						DisplayApps:              &displayApps,
+						ResourcesMonitoring: &proto.ResourcesMonitoring{
+							Memory: &proto.MemoryResourceMonitor{
+								Enabled:   true,
+								Threshold: 80,
+							},
+						},
+					},
+					{
+						Name:                     "dev2",
+						OperatingSystem:          "linux",
+						Architecture:             "amd64",
+						Apps:                     []*proto.App{},
+						Auth:                     &proto.Agent_Token{},
+						ConnectionTimeoutSeconds: 120,
+						DisplayApps:              &displayApps,
+						ResourcesMonitoring: &proto.ResourcesMonitoring{
+							Memory: &proto.MemoryResourceMonitor{
+								Enabled:   true,
+								Threshold: 99,
+							},
+							Volumes: []*proto.VolumeResourceMonitor{
+								{
+									Path:      "/volume2",
+									Enabled:   false,
+									Threshold: 50,
+								},
+								{
+									Path:      "/volume1",
+									Enabled:   true,
+									Threshold: 80,
+								},
+							},
+						},
+					},
+				},
+			}},
+		},
 		"multiple-agents-multiple-scripts": {
 			resources: []*proto.Resource{{
 				Name: "dev1",

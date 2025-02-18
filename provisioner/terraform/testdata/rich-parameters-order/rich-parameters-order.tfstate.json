@@ -1,6 +1,6 @@
 {
   "format_version": "1.0",
-  "terraform_version": "1.9.8",
+  "terraform_version": "1.10.5",
   "values": {
     "root_module": {
       "resources": [
@@ -17,7 +17,7 @@
             "display_name": null,
             "ephemeral": false,
             "icon": null,
-            "id": "81ada233-3a30-49d3-a56f-aca92f19c411",
+            "id": "03899941-4e7d-4e74-bcfb-92dc9619a85d",
             "mutable": false,
             "name": "Example",
             "option": null,
@@ -44,7 +44,7 @@
             "display_name": null,
             "ephemeral": false,
             "icon": null,
-            "id": "4dc1049f-0d54-408a-a412-95629ae5cd84",
+            "id": "632aa89d-d903-44c3-b44c-eb131498c579",
             "mutable": false,
             "name": "Sample",
             "option": null,
@@ -64,7 +64,7 @@
           "type": "coder_agent",
           "name": "dev",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 0,
+          "schema_version": 1,
           "values": {
             "arch": "arm64",
             "auth": "token",
@@ -80,19 +80,16 @@
               }
             ],
             "env": null,
-            "id": "86cc4d6e-23b3-4632-9bc9-d3a321e8b906",
+            "id": "f67efb88-ae6d-4f33-8065-50b420c1ce80",
             "init_script": "",
-            "login_before_ready": true,
             "metadata": [],
             "motd_file": null,
             "order": null,
             "os": "windows",
             "shutdown_script": null,
-            "shutdown_script_timeout": 300,
             "startup_script": null,
-            "startup_script_behavior": null,
-            "startup_script_timeout": 300,
-            "token": "0c3e7639-bafc-4e62-8e38-cb4e1b44e3f3",
+            "startup_script_behavior": "non-blocking",
+            "token": "164cba1c-98ce-4590-8ebb-f966a66a2301",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -111,7 +108,7 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "2501594036325466407",
+            "id": "2247834665085956471",
             "triggers": null
           },
           "sensitive_values": {},

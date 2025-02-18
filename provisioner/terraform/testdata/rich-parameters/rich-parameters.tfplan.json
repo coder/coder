@@ -1,6 +1,6 @@
 {
   "format_version": "1.2",
-  "terraform_version": "1.9.8",
+  "terraform_version": "1.10.5",
   "planned_values": {
     "root_module": {
       "resources": [
@@ -10,23 +10,20 @@
           "type": "coder_agent",
           "name": "dev",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 0,
+          "schema_version": 1,
           "values": {
             "arch": "arm64",
             "auth": "token",
             "connection_timeout": 120,
             "dir": null,
             "env": null,
-            "login_before_ready": true,
             "metadata": [],
             "motd_file": null,
             "order": null,
             "os": "windows",
             "shutdown_script": null,
-            "shutdown_script_timeout": 300,
             "startup_script": null,
-            "startup_script_behavior": null,
-            "startup_script_timeout": 300,
+            "startup_script_behavior": "non-blocking",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -68,16 +65,13 @@
           "connection_timeout": 120,
           "dir": null,
           "env": null,
-          "login_before_ready": true,
           "metadata": [],
           "motd_file": null,
           "order": null,
           "os": "windows",
           "shutdown_script": null,
-          "shutdown_script_timeout": 300,
           "startup_script": null,
-          "startup_script_behavior": null,
-          "startup_script_timeout": 300,
+          "startup_script_behavior": "non-blocking",
           "troubleshooting_url": null
         },
         "after_unknown": {
@@ -119,7 +113,7 @@
   ],
   "prior_state": {
     "format_version": "1.0",
-    "terraform_version": "1.9.8",
+    "terraform_version": "1.10.5",
     "values": {
       "root_module": {
         "resources": [
@@ -136,7 +130,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "cbec5bff-b81a-4815-99c0-40c0629779fb",
+              "id": "d15a5f2d-00a6-4d44-ba1d-340c4172e882",
               "mutable": false,
               "name": "Example",
               "option": [
@@ -180,7 +174,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "dd1c36b7-a961-4eb2-9687-c32b5ee54fbc",
+              "id": "fbdc4337-1adc-4ec7-8157-5065a4523356",
               "mutable": false,
               "name": "number_example",
               "option": null,
@@ -207,7 +201,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "f1bcac54-a58c-44b2-94f5-243a0b1492d3",
+              "id": "e0555e6b-3899-4c51-a755-398e7369314f",
               "mutable": false,
               "name": "number_example_max_zero",
               "option": null,
@@ -246,7 +240,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "79c76ac1-8e71-4872-9107-d7a9529f7dce",
+              "id": "718dc4d2-62ac-4ca0-b303-16d511e0a0e8",
               "mutable": false,
               "name": "number_example_min_max",
               "option": null,
@@ -285,7 +279,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "da7a8aff-ffe3-402f-bf7e-b369ae04b041",
+              "id": "3d4d7d00-698b-46f7-904d-acfd84c7822a",
               "mutable": false,
               "name": "number_example_min_zero",
               "option": null,
@@ -324,7 +318,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "5fe2dad0-e11f-46f0-80ae-c0c3a29cd1fd",
+              "id": "587f613d-2ec6-4cb7-8e9c-b61ca12ac9ca",
               "mutable": false,
               "name": "Sample",
               "option": null,
@@ -355,7 +349,7 @@
                   "display_name": null,
                   "ephemeral": false,
                   "icon": null,
-                  "id": "920f98a1-3a6f-4602-8c87-ebbbef0310c5",
+                  "id": "a7f7ce22-ea95-45f9-80fa-774afd033d40",
                   "mutable": true,
                   "name": "First parameter from module",
                   "option": null,
@@ -382,7 +376,7 @@
                   "display_name": null,
                   "ephemeral": false,
                   "icon": null,
-                  "id": "f438d9ad-6c3e-44f3-95cd-1d423a9b09e5",
+                  "id": "86f108c2-91f1-4347-b667-e0afee5fa666",
                   "mutable": true,
                   "name": "Second parameter from module",
                   "option": null,
@@ -414,7 +408,7 @@
                       "display_name": null,
                       "ephemeral": false,
                       "icon": null,
-                      "id": "b2c53701-be53-4591-aacf-1c83f75bcf15",
+                      "id": "f3c13a53-aebd-4a78-81a4-ad75874f2238",
                       "mutable": true,
                       "name": "First parameter from child module",
                       "option": null,
@@ -441,7 +435,7 @@
                       "display_name": null,
                       "ephemeral": false,
                       "icon": null,
-                      "id": "038b18d4-d430-4703-886a-b7e10e01f856",
+                      "id": "7c8a6913-382c-4874-87a9-76fac542f6e0",
                       "mutable": true,
                       "name": "Second parameter from child module",
                       "option": null,
@@ -469,7 +463,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "0.22.0"
+        "version_constraint": ">= 2.0.0"
       },
       "module.this_is_external_module:docker": {
         "name": "docker",
@@ -498,7 +492,7 @@
               "constant_value": "windows"
             }
           },
-          "schema_version": 0
+          "schema_version": 1
         },
         {
           "address": "null_resource.dev",
@@ -794,7 +788,7 @@
       }
     }
   },
-  "timestamp": "2024-10-28T20:08:15Z",
+  "timestamp": "2025-03-04T19:25:36Z",
   "applyable": true,
   "complete": true,
   "errored": false
