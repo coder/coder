@@ -44,7 +44,7 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 	p := httpapi.NewQueryParamParser()
 	limit := p.PositiveInt32(qp, 50, "limit")
 	ids := p.UUIDs(qp, nil, "ids")
-	tagsRaw := p.String(qp, "", "tags")
+	tags := p.JSONStringMap(qp, database.StringMap{}, "tags")
 	p.ErrorExcessParams(qp)
 	if len(p.Errors) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -52,17 +52,6 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 			Validations: p.Errors,
 		})
 		return
-	}
-
-	tags := database.StringMap{}
-	if tagsRaw != "" {
-		if err := tags.Scan([]byte(tagsRaw)); err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Invalid tags query parameter",
-				Detail:  err.Error(),
-			})
-			return
-		}
 	}
 
 	daemons, err := api.Database.GetProvisionerDaemonsWithStatusByOrganization(
