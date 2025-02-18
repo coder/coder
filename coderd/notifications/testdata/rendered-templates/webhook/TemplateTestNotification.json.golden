@@ -9,7 +9,12 @@
     "user_email": "bobby@coder.com",
     "user_name": "Bobby",
     "user_username": "bobby",
-    "actions": [],
+    "actions": [
+      {
+        "label": "View notification settings",
+        "url": "http://test.com/deployment/notifications?tab=settings"
+      }
+    ],
     "labels": {},
     "data": null
   },

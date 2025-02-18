@@ -15,6 +15,9 @@ Hi Bobby,
 This is a test notification.
 
 
+View notification settings: http://test.com/deployment/notifications?tab=3D=
+settings
+
 --bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/html; charset=UTF-8
@@ -48,6 +51,13 @@ argin: 8px 0 32px; line-height: 1.5;">
 <p>This is a test notification.</p>
       </div>
       <div style=3D"text-align: center; margin-top: 32px;">
+       =20
+        <a href=3D"http://test.com/deployment/notifications?tab=3Dsettings"=
+ style=3D"display: inline-block; padding: 13px 24px; background-color: #020=
+617; color: #f8fafc; text-decoration: none; border-radius: 8px; margin: 0 4=
+px;">
+          View notification settings
+        </a>
        =20
       </div>
       <div style=3D"border-top: 1px solid #e2e8f0; color: #475569; font-siz=
