@@ -6,6 +6,7 @@ import {
 	MockEntitlementsWithMultiOrg,
 	MockOrganization,
 	MockOrganizationAuditorRole,
+	MockOrganizationPermissions,
 	MockUser,
 } from "testHelpers/entities";
 import {
@@ -23,10 +24,14 @@ beforeEach(() => {
 			return HttpResponse.json(MockEntitlementsWithMultiOrg);
 		}),
 		http.post("/api/v2/authcheck", async () => {
-			return HttpResponse.json({
-				editMembers: true,
-				viewDeploymentValues: true,
-			});
+			return HttpResponse.json(
+				Object.fromEntries(
+					Object.entries(MockOrganizationPermissions).map(([key, value]) => [
+						`${MockOrganization.id}.${key}`,
+						value,
+					]),
+				),
+			);
 		}),
 	);
 });

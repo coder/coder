@@ -14,6 +14,7 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import CreateEditRolePageView from "./CreateEditRolePageView";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 
 export const CreateEditRolePage: FC = () => {
 	const queryClient = useQueryClient();
@@ -35,8 +36,12 @@ export const CreateEditRolePage: FC = () => {
 	);
 	const role = roleData?.find((role) => role.name === roleName);
 
-	if (isLoading || !organizationPermissions) {
+	if (isLoading) {
 		return <Loader />;
+	}
+
+	if (!organizationPermissions) {
+		return <ErrorAlert error="Failed to load organization permissions" />;
 	}
 
 	return (
