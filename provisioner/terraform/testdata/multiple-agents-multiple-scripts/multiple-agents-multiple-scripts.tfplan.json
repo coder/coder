@@ -10,23 +10,20 @@
           "type": "coder_agent",
           "name": "dev1",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 0,
+          "schema_version": 1,
           "values": {
             "arch": "amd64",
             "auth": "token",
             "connection_timeout": 120,
             "dir": null,
             "env": null,
-            "login_before_ready": true,
             "metadata": [],
             "motd_file": null,
             "order": null,
             "os": "linux",
             "shutdown_script": null,
-            "shutdown_script_timeout": 300,
             "startup_script": null,
-            "startup_script_behavior": null,
-            "startup_script_timeout": 300,
+            "startup_script_behavior": "non-blocking",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -41,23 +38,20 @@
           "type": "coder_agent",
           "name": "dev2",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 0,
+          "schema_version": 1,
           "values": {
             "arch": "amd64",
             "auth": "token",
             "connection_timeout": 120,
             "dir": null,
             "env": null,
-            "login_before_ready": true,
             "metadata": [],
             "motd_file": null,
             "order": null,
             "os": "linux",
             "shutdown_script": null,
-            "shutdown_script_timeout": 300,
             "startup_script": null,
-            "startup_script_behavior": null,
-            "startup_script_timeout": 300,
+            "startup_script_behavior": "non-blocking",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -72,7 +66,7 @@
           "type": "coder_script",
           "name": "script1",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 0,
+          "schema_version": 1,
           "values": {
             "cron": null,
             "display_name": "Foobar Script 1",
@@ -92,7 +86,7 @@
           "type": "coder_script",
           "name": "script2",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 0,
+          "schema_version": 1,
           "values": {
             "cron": null,
             "display_name": "Foobar Script 2",
@@ -112,7 +106,7 @@
           "type": "coder_script",
           "name": "script3",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 0,
+          "schema_version": 1,
           "values": {
             "cron": null,
             "display_name": "Foobar Script 3",
@@ -171,16 +165,13 @@
           "connection_timeout": 120,
           "dir": null,
           "env": null,
-          "login_before_ready": true,
           "metadata": [],
           "motd_file": null,
           "order": null,
           "os": "linux",
           "shutdown_script": null,
-          "shutdown_script_timeout": 300,
           "startup_script": null,
-          "startup_script_behavior": null,
-          "startup_script_timeout": 300,
+          "startup_script_behavior": "non-blocking",
           "troubleshooting_url": null
         },
         "after_unknown": {
@@ -215,16 +206,13 @@
           "connection_timeout": 120,
           "dir": null,
           "env": null,
-          "login_before_ready": true,
           "metadata": [],
           "motd_file": null,
           "order": null,
           "os": "linux",
           "shutdown_script": null,
-          "shutdown_script_timeout": 300,
           "startup_script": null,
-          "startup_script_behavior": null,
-          "startup_script_timeout": 300,
+          "startup_script_behavior": "non-blocking",
           "troubleshooting_url": null
         },
         "after_unknown": {
@@ -380,7 +368,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "0.22.0"
+        "version_constraint": ">= 2.0.0"
       },
       "null": {
         "name": "null",
@@ -403,7 +391,7 @@
               "constant_value": "linux"
             }
           },
-          "schema_version": 0
+          "schema_version": 1
         },
         {
           "address": "coder_agent.dev2",
@@ -419,7 +407,7 @@
               "constant_value": "linux"
             }
           },
-          "schema_version": 0
+          "schema_version": 1
         },
         {
           "address": "coder_script.script1",
@@ -444,7 +432,7 @@
               "constant_value": "echo foobar 1"
             }
           },
-          "schema_version": 0
+          "schema_version": 1
         },
         {
           "address": "coder_script.script2",
@@ -469,7 +457,7 @@
               "constant_value": "echo foobar 2"
             }
           },
-          "schema_version": 0
+          "schema_version": 1
         },
         {
           "address": "coder_script.script3",
@@ -494,7 +482,7 @@
               "constant_value": "echo foobar 3"
             }
           },
-          "schema_version": 0
+          "schema_version": 1
         },
         {
           "address": "null_resource.dev1",
@@ -535,7 +523,7 @@
       ]
     }
   ],
-  "timestamp": "2025-02-10T21:13:12Z",
+  "timestamp": "2025-02-18T10:58:12Z",
   "applyable": true,
   "complete": true,
   "errored": false

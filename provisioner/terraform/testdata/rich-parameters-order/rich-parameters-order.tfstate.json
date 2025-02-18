@@ -17,7 +17,7 @@
             "display_name": null,
             "ephemeral": false,
             "icon": null,
-            "id": "32cfe291-cc59-40d2-b803-c964ef844de5",
+            "id": "3f56c659-fe68-47c3-9765-cd09abe69de7",
             "mutable": false,
             "name": "Example",
             "option": null,
@@ -44,7 +44,7 @@
             "display_name": null,
             "ephemeral": false,
             "icon": null,
-            "id": "27104b66-f6d8-48f4-b7ae-71c43cfb4041",
+            "id": "2ecde94b-399a-43c7-b50a-3603895aff83",
             "mutable": false,
             "name": "Sample",
             "option": null,
@@ -64,7 +64,7 @@
           "type": "coder_agent",
           "name": "dev",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 0,
+          "schema_version": 1,
           "values": {
             "arch": "arm64",
             "auth": "token",
@@ -80,19 +80,16 @@
               }
             ],
             "env": null,
-            "id": "d6b34cce-30b1-492a-bd29-711b6ddc7517",
+            "id": "a2171da1-5f68-446f-97e3-1c2755552840",
             "init_script": "",
-            "login_before_ready": true,
             "metadata": [],
             "motd_file": null,
             "order": null,
             "os": "windows",
             "shutdown_script": null,
-            "shutdown_script_timeout": 300,
             "startup_script": null,
-            "startup_script_behavior": null,
-            "startup_script_timeout": 300,
-            "token": "0c357437-59e0-47dc-affb-ef54ba3d7108",
+            "startup_script_behavior": "non-blocking",
+            "token": "a986f085-2697-4d95-a431-6545716ca36b",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -111,7 +108,7 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "8977917482017004077",
+            "id": "5482122353677678043",
             "triggers": null
           },
           "sensitive_values": {},
