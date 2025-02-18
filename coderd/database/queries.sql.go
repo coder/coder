@@ -5409,6 +5409,7 @@ WHERE w.id IN (SELECT p.id
 				   AND pj.job_status IN ('succeeded'::provisioner_job_status))
 				 AND b.template_version_id = t.active_version_id
 				 AND b.template_version_preset_id = $3::uuid
+				 AND p.lifecycle_state = 'ready'::workspace_agent_lifecycle_state
 			   ORDER BY random()
 			   LIMIT 1 FOR UPDATE OF p SKIP LOCKED)
 RETURNING w.id, w.name
@@ -5441,6 +5442,9 @@ WITH
 								 tvp_curr.id                 AS current_preset_id,
 								 tvp_desired.id              AS desired_preset_id,
 								 COUNT(*)                    AS count,
+								 SUM(CASE
+										 WHEN p.lifecycle_state = 'ready'::workspace_agent_lifecycle_state THEN 1
+										 ELSE 0 END)         AS eligible,
 								 STRING_AGG(p.id::text, ',') AS ids
 						  FROM workspace_prebuilds p
 								   INNER JOIN workspace_latest_build b ON b.workspace_id = p.id
@@ -5491,6 +5495,8 @@ SELECT t.template_id,
 			   ELSE '' END)::text                                                     AS running_prebuild_ids,
 	   COALESCE(MAX(CASE WHEN t.using_active_version THEN p.count ELSE 0 END),
 				0)::int                                                               AS actual,     -- running prebuilds for active version
+	   COALESCE(MAX(CASE WHEN t.using_active_version THEN p.eligible ELSE 0 END),
+				0)::int                                                               AS eligible,   -- prebuilds which can be claimed
 	   MAX(CASE WHEN t.using_active_version THEN t.desired_instances ELSE 0 END)::int AS desired,    -- we only care about the active version's desired instances
 	   COALESCE(MAX(CASE
 						WHEN p.template_version_id = t.template_version_id AND
@@ -5534,6 +5540,7 @@ type GetTemplatePrebuildStateRow struct {
 	IsActive           bool      `db:"is_active" json:"is_active"`
 	RunningPrebuildIds string    `db:"running_prebuild_ids" json:"running_prebuild_ids"`
 	Actual             int32     `db:"actual" json:"actual"`
+	Eligible           int32     `db:"eligible" json:"eligible"`
 	Desired            int32     `db:"desired" json:"desired"`
 	Outdated           int32     `db:"outdated" json:"outdated"`
 	Extraneous         int32     `db:"extraneous" json:"extraneous"`
@@ -5560,6 +5567,7 @@ func (q *sqlQuerier) GetTemplatePrebuildState(ctx context.Context, templateID uu
 			&i.IsActive,
 			&i.RunningPrebuildIds,
 			&i.Actual,
+			&i.Eligible,
 			&i.Desired,
 			&i.Outdated,
 			&i.Extraneous,

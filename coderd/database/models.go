@@ -3388,22 +3388,25 @@ type WorkspaceModule struct {
 }
 
 type WorkspacePrebuild struct {
-	ID                uuid.UUID        `db:"id" json:"id"`
-	CreatedAt         time.Time        `db:"created_at" json:"created_at"`
-	UpdatedAt         time.Time        `db:"updated_at" json:"updated_at"`
-	OwnerID           uuid.UUID        `db:"owner_id" json:"owner_id"`
-	OrganizationID    uuid.UUID        `db:"organization_id" json:"organization_id"`
-	TemplateID        uuid.UUID        `db:"template_id" json:"template_id"`
-	Deleted           bool             `db:"deleted" json:"deleted"`
-	Name              string           `db:"name" json:"name"`
-	AutostartSchedule sql.NullString   `db:"autostart_schedule" json:"autostart_schedule"`
-	Ttl               sql.NullInt64    `db:"ttl" json:"ttl"`
-	LastUsedAt        time.Time        `db:"last_used_at" json:"last_used_at"`
-	DormantAt         sql.NullTime     `db:"dormant_at" json:"dormant_at"`
-	DeletingAt        sql.NullTime     `db:"deleting_at" json:"deleting_at"`
-	AutomaticUpdates  AutomaticUpdates `db:"automatic_updates" json:"automatic_updates"`
-	Favorite          bool             `db:"favorite" json:"favorite"`
-	NextStartAt       sql.NullTime     `db:"next_start_at" json:"next_start_at"`
+	ID                uuid.UUID                        `db:"id" json:"id"`
+	CreatedAt         time.Time                        `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time                        `db:"updated_at" json:"updated_at"`
+	OwnerID           uuid.UUID                        `db:"owner_id" json:"owner_id"`
+	OrganizationID    uuid.UUID                        `db:"organization_id" json:"organization_id"`
+	TemplateID        uuid.UUID                        `db:"template_id" json:"template_id"`
+	Deleted           bool                             `db:"deleted" json:"deleted"`
+	Name              string                           `db:"name" json:"name"`
+	AutostartSchedule sql.NullString                   `db:"autostart_schedule" json:"autostart_schedule"`
+	Ttl               sql.NullInt64                    `db:"ttl" json:"ttl"`
+	LastUsedAt        time.Time                        `db:"last_used_at" json:"last_used_at"`
+	DormantAt         sql.NullTime                     `db:"dormant_at" json:"dormant_at"`
+	DeletingAt        sql.NullTime                     `db:"deleting_at" json:"deleting_at"`
+	AutomaticUpdates  AutomaticUpdates                 `db:"automatic_updates" json:"automatic_updates"`
+	Favorite          bool                             `db:"favorite" json:"favorite"`
+	NextStartAt       sql.NullTime                     `db:"next_start_at" json:"next_start_at"`
+	AgentID           uuid.NullUUID                    `db:"agent_id" json:"agent_id"`
+	LifecycleState    NullWorkspaceAgentLifecycleState `db:"lifecycle_state" json:"lifecycle_state"`
+	ReadyAt           sql.NullTime                     `db:"ready_at" json:"ready_at"`
 }
 
 type WorkspacePrebuildBuild struct {

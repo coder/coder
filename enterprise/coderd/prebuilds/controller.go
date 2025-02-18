@@ -328,7 +328,8 @@ func (c *Controller) reconcileTemplate(ctx context.Context, template database.Te
 				slog.F("to_create", len(actions.createIDs)), slog.F("to_delete", len(actions.deleteIDs)),
 				slog.F("desired", actions.meta.Desired), slog.F("actual", actions.meta.Actual),
 				slog.F("outdated", actions.meta.Outdated), slog.F("extraneous", actions.meta.Extraneous),
-				slog.F("starting", actions.meta.Starting), slog.F("stopping", actions.meta.Stopping), slog.F("deleting", actions.meta.Deleting))
+				slog.F("starting", actions.meta.Starting), slog.F("stopping", actions.meta.Stopping),
+				slog.F("deleting", actions.meta.Deleting), slog.F("eligible", actions.meta.Eligible))
 
 			// Provision workspaces within the same tx so we don't get any timing issues here.
 			// i.e. we hold the advisory lock until all reconciliatory actions have been taken.

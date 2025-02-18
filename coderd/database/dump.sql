@@ -1841,46 +1841,27 @@ CREATE VIEW workspace_prebuild_builds AS
    FROM workspace_builds
   WHERE (workspace_builds.initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid);
 
-CREATE TABLE workspaces (
-    id uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    owner_id uuid NOT NULL,
-    organization_id uuid NOT NULL,
-    template_id uuid NOT NULL,
-    deleted boolean DEFAULT false NOT NULL,
-    name character varying(64) NOT NULL,
-    autostart_schedule text,
-    ttl bigint,
-    last_used_at timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
-    dormant_at timestamp with time zone,
-    deleting_at timestamp with time zone,
-    automatic_updates automatic_updates DEFAULT 'never'::automatic_updates NOT NULL,
-    favorite boolean DEFAULT false NOT NULL,
-    next_start_at timestamp with time zone
-);
-
-COMMENT ON COLUMN workspaces.favorite IS 'Favorite is true if the workspace owner has favorited the workspace.';
-
 CREATE VIEW workspace_prebuilds AS
- SELECT workspaces.id,
-    workspaces.created_at,
-    workspaces.updated_at,
-    workspaces.owner_id,
-    workspaces.organization_id,
-    workspaces.template_id,
-    workspaces.deleted,
-    workspaces.name,
-    workspaces.autostart_schedule,
-    workspaces.ttl,
-    workspaces.last_used_at,
-    workspaces.dormant_at,
-    workspaces.deleting_at,
-    workspaces.automatic_updates,
-    workspaces.favorite,
-    workspaces.next_start_at
-   FROM workspaces
-  WHERE (workspaces.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid);
+SELECT
+    NULL::uuid AS id,
+    NULL::timestamp with time zone AS created_at,
+    NULL::timestamp with time zone AS updated_at,
+    NULL::uuid AS owner_id,
+    NULL::uuid AS organization_id,
+    NULL::uuid AS template_id,
+    NULL::boolean AS deleted,
+    NULL::character varying(64) AS name,
+    NULL::text AS autostart_schedule,
+    NULL::bigint AS ttl,
+    NULL::timestamp with time zone AS last_used_at,
+    NULL::timestamp with time zone AS dormant_at,
+    NULL::timestamp with time zone AS deleting_at,
+    NULL::automatic_updates AS automatic_updates,
+    NULL::boolean AS favorite,
+    NULL::timestamp with time zone AS next_start_at,
+    NULL::uuid AS agent_id,
+    NULL::workspace_agent_lifecycle_state AS lifecycle_state,
+    NULL::timestamp with time zone AS ready_at;
 
 CREATE TABLE workspace_proxies (
     id uuid NOT NULL,
@@ -1951,6 +1932,27 @@ CREATE TABLE workspace_resources (
     daily_cost integer DEFAULT 0 NOT NULL,
     module_path text
 );
+
+CREATE TABLE workspaces (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    owner_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    template_id uuid NOT NULL,
+    deleted boolean DEFAULT false NOT NULL,
+    name character varying(64) NOT NULL,
+    autostart_schedule text,
+    ttl bigint,
+    last_used_at timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
+    dormant_at timestamp with time zone,
+    deleting_at timestamp with time zone,
+    automatic_updates automatic_updates DEFAULT 'never'::automatic_updates NOT NULL,
+    favorite boolean DEFAULT false NOT NULL,
+    next_start_at timestamp with time zone
+);
+
+COMMENT ON COLUMN workspaces.favorite IS 'Favorite is true if the workspace owner has favorited the workspace.';
 
 CREATE VIEW workspaces_expanded AS
  SELECT workspaces.id,
@@ -2421,6 +2423,60 @@ CREATE OR REPLACE VIEW provisioner_job_stats AS
      JOIN workspace_builds wb ON ((wb.job_id = pj.id)))
      LEFT JOIN provisioner_job_timings pjt ON ((pjt.job_id = pj.id)))
   GROUP BY pj.id, wb.workspace_id;
+
+CREATE OR REPLACE VIEW workspace_prebuilds AS
+ WITH all_prebuilds AS (
+         SELECT w.id,
+            w.created_at,
+            w.updated_at,
+            w.owner_id,
+            w.organization_id,
+            w.template_id,
+            w.deleted,
+            w.name,
+            w.autostart_schedule,
+            w.ttl,
+            w.last_used_at,
+            w.dormant_at,
+            w.deleting_at,
+            w.automatic_updates,
+            w.favorite,
+            w.next_start_at
+           FROM workspaces w
+          WHERE (w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid)
+        ), workspace_agents AS (
+         SELECT w.id AS workspace_id,
+            wa.id AS agent_id,
+            wa.lifecycle_state,
+            wa.ready_at
+           FROM (((workspaces w
+             JOIN workspace_latest_build wlb ON ((wlb.workspace_id = w.id)))
+             JOIN workspace_resources wr ON ((wr.job_id = wlb.job_id)))
+             JOIN workspace_agents wa ON ((wa.resource_id = wr.id)))
+          WHERE (w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid)
+          GROUP BY w.id, wa.id
+        )
+ SELECT p.id,
+    p.created_at,
+    p.updated_at,
+    p.owner_id,
+    p.organization_id,
+    p.template_id,
+    p.deleted,
+    p.name,
+    p.autostart_schedule,
+    p.ttl,
+    p.last_used_at,
+    p.dormant_at,
+    p.deleting_at,
+    p.automatic_updates,
+    p.favorite,
+    p.next_start_at,
+    a.agent_id,
+    a.lifecycle_state,
+    a.ready_at
+   FROM (all_prebuilds p
+     LEFT JOIN workspace_agents a ON ((a.workspace_id = p.id)));
 
 CREATE TRIGGER inhibit_enqueue_if_disabled BEFORE INSERT ON notification_messages FOR EACH ROW EXECUTE FUNCTION inhibit_enqueue_if_disabled();
 

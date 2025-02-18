@@ -4,26 +4,17 @@ VALUES ('c42fdf75-3097-471c-8c33-fb52454d81c0', 'prebuilds@system', 'prebuilds',
 		'active', '{}', 'none', true);
 
 -- TODO: do we *want* to use the default org here? how do we handle multi-org?
-WITH default_org AS (
-	SELECT id FROM organizations WHERE is_default = true LIMIT 1
-)
-INSERT INTO organization_members (organization_id, user_id, created_at, updated_at)
-SELECT
-	default_org.id,
-	'c42fdf75-3097-471c-8c33-fb52454d81c0',
-	NOW(),
-	NOW()
+WITH default_org AS (SELECT id
+					 FROM organizations
+					 WHERE is_default = true
+					 LIMIT 1)
+INSERT
+INTO organization_members (organization_id, user_id, created_at, updated_at)
+SELECT default_org.id,
+	   'c42fdf75-3097-471c-8c33-fb52454d81c0',
+	   NOW(),
+	   NOW()
 FROM default_org;
-
-CREATE VIEW workspace_prebuilds AS
-SELECT *
-FROM workspaces
-WHERE owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0';
-
-CREATE VIEW workspace_prebuild_builds AS
-SELECT *
-FROM workspace_builds
-WHERE initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0';
 
 CREATE VIEW workspace_latest_build AS
 SELECT wb.*
@@ -38,3 +29,22 @@ FROM (SELECT tv.template_id,
 		AND wb.build_number = wbmax.max_build_number
 	);
 
+CREATE VIEW workspace_prebuilds AS
+WITH all_prebuilds AS (SELECT w.*
+					   FROM workspaces w
+					   WHERE w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'),
+	 workspace_agents AS (SELECT w.id AS workspace_id, wa.id AS agent_id, wa.lifecycle_state, wa.ready_at
+						  FROM workspaces w
+								   INNER JOIN workspace_latest_build wlb ON wlb.workspace_id = w.id
+								   INNER JOIN workspace_resources wr ON wr.job_id = wlb.job_id
+								   INNER JOIN workspace_agents wa ON wa.resource_id = wr.id
+						  WHERE w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'
+						  GROUP BY w.id, wa.id)
+SELECT p.*, a.agent_id, a.lifecycle_state, a.ready_at
+FROM all_prebuilds p
+		 LEFT JOIN workspace_agents a ON a.workspace_id = p.id;
+
+CREATE VIEW workspace_prebuild_builds AS
+SELECT *
+FROM workspace_builds
+WHERE initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0';
