@@ -14,6 +14,8 @@ import {
 	TableHeader,
 	TableRow,
 } from "components/Table/Table";
+import { useDebouncedValue } from "hooks/debounce";
+import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import {
 	ChevronDownIcon,
 	ChevronRightIcon,
@@ -27,10 +29,8 @@ import { relativeTime } from "utils/time";
 import { CancelJobButton } from "./CancelJobButton";
 import { DataGrid } from "./DataGrid";
 import { JobStatusIndicator } from "./JobStatusIndicator";
-import { Tag, Tags, TruncateTags } from "./Tags";
 import { SearchInput } from "./SearchInput";
-import { useSearchParamsKey } from "hooks/useSearchParamsKey";
-import { useDebouncedValue } from "hooks/debounce";
+import { Tag, Tags, TruncateTags } from "./Tags";
 
 type ProvisionerJobsPageProps = {
 	orgId: string;
