@@ -108,7 +108,7 @@ func (api *API) handleAuthAndFetchProvisionerJobs(rw http.ResponseWriter, r *htt
 	if ids == nil {
 		ids = p.UUIDs(qp, nil, "ids")
 	}
-	tags := p.JSONStringMap(qp, nil, "tags")
+	tags := p.JSONStringMap(qp, database.StringMap{}, "tags")
 	p.ErrorExcessParams(qp)
 	if len(p.Errors) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{

@@ -44,7 +44,7 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 	p := httpapi.NewQueryParamParser()
 	limit := p.PositiveInt32(qp, 50, "limit")
 	ids := p.UUIDs(qp, nil, "ids")
-	tags := p.JSONStringMap(qp, nil, "tags")
+	tags := p.JSONStringMap(qp, database.StringMap{}, "tags")
 	p.ErrorExcessParams(qp)
 	if len(p.Errors) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
