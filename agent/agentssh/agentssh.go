@@ -692,15 +692,19 @@ var defaultCreateCommandDeps CreateCommandDeps = &systemCreateCommandDeps{}
 func DefaultCreateCommandDeps() CreateCommandDeps {
 	return defaultCreateCommandDeps
 }
+
 func (systemCreateCommandDeps) CurrentUser() (*user.User, error) {
 	return user.Current()
 }
+
 func (systemCreateCommandDeps) Environ() []string {
 	return os.Environ()
 }
+
 func (systemCreateCommandDeps) UserHomeDir() (string, error) {
 	return userHomeDir()
 }
+
 func (systemCreateCommandDeps) UserShell(username string) (string, error) {
 	return usershell.Get(username)
 }
