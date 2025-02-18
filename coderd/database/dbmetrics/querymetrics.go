@@ -434,6 +434,20 @@ func (m queryMetricsStore) FavoriteWorkspace(ctx context.Context, arg uuid.UUID)
 	return r0
 }
 
+func (m queryMetricsStore) FetchInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) ([]database.NotificationsInbox, error) {
+	start := time.Now()
+	r0, r1 := m.s.FetchInboxNotificationsByUserID(ctx, userID)
+	m.queryLatencies.WithLabelValues("FetchInboxNotificationsByUserID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) FetchInboxNotificationsByUserIDAndTemplateIDAndTargetID(ctx context.Context, arg database.FetchInboxNotificationsByUserIDAndTemplateIDAndTargetIDParams) ([]database.NotificationsInbox, error) {
+	start := time.Now()
+	r0, r1 := m.s.FetchInboxNotificationsByUserIDAndTemplateIDAndTargetID(ctx, arg)
+	m.queryLatencies.WithLabelValues("FetchInboxNotificationsByUserIDAndTemplateIDAndTargetID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) FetchMemoryResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) (database.WorkspaceAgentMemoryResourceMonitor, error) {
 	start := time.Now()
 	r0, r1 := m.s.FetchMemoryResourceMonitorsByAgentID(ctx, agentID)
@@ -445,6 +459,20 @@ func (m queryMetricsStore) FetchNewMessageMetadata(ctx context.Context, arg data
 	start := time.Now()
 	r0, r1 := m.s.FetchNewMessageMetadata(ctx, arg)
 	m.queryLatencies.WithLabelValues("FetchNewMessageMetadata").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) FetchUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) ([]database.NotificationsInbox, error) {
+	start := time.Now()
+	r0, r1 := m.s.FetchUnreadInboxNotificationsByUserID(ctx, userID)
+	m.queryLatencies.WithLabelValues("FetchUnreadInboxNotificationsByUserID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) FetchUnreadInboxNotificationsByUserIDAndTemplateIDAndTargetID(ctx context.Context, arg database.FetchUnreadInboxNotificationsByUserIDAndTemplateIDAndTargetIDParams) ([]database.NotificationsInbox, error) {
+	start := time.Now()
+	r0, r1 := m.s.FetchUnreadInboxNotificationsByUserIDAndTemplateIDAndTargetID(ctx, arg)
+	m.queryLatencies.WithLabelValues("FetchUnreadInboxNotificationsByUserIDAndTemplateIDAndTargetID").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -1869,6 +1897,13 @@ func (m queryMetricsStore) InsertGroupMember(ctx context.Context, arg database.I
 	return err
 }
 
+func (m queryMetricsStore) InsertInboxNotification(ctx context.Context, arg database.InsertInboxNotificationParams) (database.NotificationsInbox, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertInboxNotification(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertInboxNotification").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertLicense(ctx context.Context, arg database.InsertLicenseParams) (database.License, error) {
 	start := time.Now()
 	license, err := m.s.InsertLicense(ctx, arg)
@@ -2244,6 +2279,13 @@ func (m queryMetricsStore) RevokeDBCryptKey(ctx context.Context, activeKeyDigest
 	start := time.Now()
 	r0 := m.s.RevokeDBCryptKey(ctx, activeKeyDigest)
 	m.queryLatencies.WithLabelValues("RevokeDBCryptKey").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m queryMetricsStore) SetInboxNotificationAsRead(ctx context.Context, arg database.SetInboxNotificationAsReadParams) error {
+	start := time.Now()
+	r0 := m.s.SetInboxNotificationAsRead(ctx, arg)
+	m.queryLatencies.WithLabelValues("SetInboxNotificationAsRead").Observe(time.Since(start).Seconds())
 	return r0
 }
 

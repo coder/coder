@@ -4298,6 +4298,246 @@ func (q *sqlQuerier) UpsertNotificationReportGeneratorLog(ctx context.Context, a
 	return err
 }
 
+const fetchInboxNotificationsByUserID = `-- name: FetchInboxNotificationsByUserID :many
+SELECT id, user_id, template_id, target_id, title, content, icon, actions, read_at, created_at FROM notifications_inbox WHERE user_id = $1 ORDER BY created_at DESC
+`
+
+func (q *sqlQuerier) FetchInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) ([]NotificationsInbox, error) {
+	rows, err := q.db.QueryContext(ctx, fetchInboxNotificationsByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []NotificationsInbox
+	for rows.Next() {
+		var i NotificationsInbox
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.TemplateID,
+			&i.TargetID,
+			&i.Title,
+			&i.Content,
+			&i.Icon,
+			&i.Actions,
+			&i.ReadAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const fetchInboxNotificationsByUserIDAndTemplateIDAndTargetID = `-- name: FetchInboxNotificationsByUserIDAndTemplateIDAndTargetID :many
+SELECT id, user_id, template_id, target_id, title, content, icon, actions, read_at, created_at FROM notifications_inbox WHERE user_id = $1 AND template_id = $2 AND target_id = $3 ORDER BY created_at DESC
+`
+
+type FetchInboxNotificationsByUserIDAndTemplateIDAndTargetIDParams struct {
+	UserID     uuid.UUID     `db:"user_id" json:"user_id"`
+	TemplateID uuid.UUID     `db:"template_id" json:"template_id"`
+	TargetID   uuid.NullUUID `db:"target_id" json:"target_id"`
+}
+
+func (q *sqlQuerier) FetchInboxNotificationsByUserIDAndTemplateIDAndTargetID(ctx context.Context, arg FetchInboxNotificationsByUserIDAndTemplateIDAndTargetIDParams) ([]NotificationsInbox, error) {
+	rows, err := q.db.QueryContext(ctx, fetchInboxNotificationsByUserIDAndTemplateIDAndTargetID, arg.UserID, arg.TemplateID, arg.TargetID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []NotificationsInbox
+	for rows.Next() {
+		var i NotificationsInbox
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.TemplateID,
+			&i.TargetID,
+			&i.Title,
+			&i.Content,
+			&i.Icon,
+			&i.Actions,
+			&i.ReadAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const fetchUnreadInboxNotificationsByUserID = `-- name: FetchUnreadInboxNotificationsByUserID :many
+SELECT id, user_id, template_id, target_id, title, content, icon, actions, read_at, created_at FROM notifications_inbox WHERE user_id = $1 AND read_at IS NULL ORDER BY created_at DESC
+`
+
+func (q *sqlQuerier) FetchUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) ([]NotificationsInbox, error) {
+	rows, err := q.db.QueryContext(ctx, fetchUnreadInboxNotificationsByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []NotificationsInbox
+	for rows.Next() {
+		var i NotificationsInbox
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.TemplateID,
+			&i.TargetID,
+			&i.Title,
+			&i.Content,
+			&i.Icon,
+			&i.Actions,
+			&i.ReadAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const fetchUnreadInboxNotificationsByUserIDAndTemplateIDAndTargetID = `-- name: FetchUnreadInboxNotificationsByUserIDAndTemplateIDAndTargetID :many
+SELECT id, user_id, template_id, target_id, title, content, icon, actions, read_at, created_at FROM notifications_inbox WHERE user_id = $1 AND template_id = $2 AND target_id = $3 AND read_at IS NULL ORDER BY created_at DESC
+`
+
+type FetchUnreadInboxNotificationsByUserIDAndTemplateIDAndTargetIDParams struct {
+	UserID     uuid.UUID     `db:"user_id" json:"user_id"`
+	TemplateID uuid.UUID     `db:"template_id" json:"template_id"`
+	TargetID   uuid.NullUUID `db:"target_id" json:"target_id"`
+}
+
+func (q *sqlQuerier) FetchUnreadInboxNotificationsByUserIDAndTemplateIDAndTargetID(ctx context.Context, arg FetchUnreadInboxNotificationsByUserIDAndTemplateIDAndTargetIDParams) ([]NotificationsInbox, error) {
+	rows, err := q.db.QueryContext(ctx, fetchUnreadInboxNotificationsByUserIDAndTemplateIDAndTargetID, arg.UserID, arg.TemplateID, arg.TargetID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []NotificationsInbox
+	for rows.Next() {
+		var i NotificationsInbox
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.TemplateID,
+			&i.TargetID,
+			&i.Title,
+			&i.Content,
+			&i.Icon,
+			&i.Actions,
+			&i.ReadAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertInboxNotification = `-- name: InsertInboxNotification :one
+INSERT INTO
+    notifications_inbox (
+        id,
+		user_id,
+		template_id,
+		target_id,
+		title,
+		content,
+		icon,
+		actions,
+		created_at
+    )
+VALUES
+    ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, user_id, template_id, target_id, title, content, icon, actions, read_at, created_at
+`
+
+type InsertInboxNotificationParams struct {
+	ID         uuid.UUID       `db:"id" json:"id"`
+	UserID     uuid.UUID       `db:"user_id" json:"user_id"`
+	TemplateID uuid.UUID       `db:"template_id" json:"template_id"`
+	TargetID   uuid.NullUUID   `db:"target_id" json:"target_id"`
+	Title      string          `db:"title" json:"title"`
+	Content    string          `db:"content" json:"content"`
+	Icon       string          `db:"icon" json:"icon"`
+	Actions    json.RawMessage `db:"actions" json:"actions"`
+	CreatedAt  time.Time       `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) InsertInboxNotification(ctx context.Context, arg InsertInboxNotificationParams) (NotificationsInbox, error) {
+	row := q.db.QueryRowContext(ctx, insertInboxNotification,
+		arg.ID,
+		arg.UserID,
+		arg.TemplateID,
+		arg.TargetID,
+		arg.Title,
+		arg.Content,
+		arg.Icon,
+		arg.Actions,
+		arg.CreatedAt,
+	)
+	var i NotificationsInbox
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.TemplateID,
+		&i.TargetID,
+		&i.Title,
+		&i.Content,
+		&i.Icon,
+		&i.Actions,
+		&i.ReadAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const setInboxNotificationAsRead = `-- name: SetInboxNotificationAsRead :exec
+UPDATE
+	notifications_inbox
+SET
+	read_at = $1
+WHERE
+	id = $2
+`
+
+type SetInboxNotificationAsReadParams struct {
+	ReadAt sql.NullTime `db:"read_at" json:"read_at"`
+	ID     uuid.UUID    `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) SetInboxNotificationAsRead(ctx context.Context, arg SetInboxNotificationAsReadParams) error {
+	_, err := q.db.ExecContext(ctx, setInboxNotificationAsRead, arg.ReadAt, arg.ID)
+	return err
+}
+
 const deleteOAuth2ProviderAppByID = `-- name: DeleteOAuth2ProviderAppByID :exec
 DELETE FROM oauth2_provider_apps WHERE id = $1
 `

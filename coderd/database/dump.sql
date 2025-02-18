@@ -912,6 +912,19 @@ COMMENT ON TABLE notification_templates IS 'Templates from which to create notif
 
 COMMENT ON COLUMN notification_templates.method IS 'NULL defers to the deployment-level method';
 
+CREATE TABLE notifications_inbox (
+    id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    template_id uuid NOT NULL,
+    target_id uuid,
+    title text NOT NULL,
+    content text NOT NULL,
+    icon text NOT NULL,
+    actions jsonb NOT NULL,
+    read_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
 CREATE TABLE oauth2_provider_app_codes (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -2003,6 +2016,9 @@ ALTER TABLE ONLY notification_templates
 ALTER TABLE ONLY notification_templates
     ADD CONSTRAINT notification_templates_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY notifications_inbox
+    ADD CONSTRAINT notifications_inbox_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY oauth2_provider_app_codes
     ADD CONSTRAINT oauth2_provider_app_codes_pkey PRIMARY KEY (id);
 
@@ -2213,6 +2229,10 @@ CREATE INDEX idx_custom_roles_id ON custom_roles USING btree (id);
 CREATE UNIQUE INDEX idx_custom_roles_name_lower ON custom_roles USING btree (lower(name));
 
 CREATE INDEX idx_notification_messages_status ON notification_messages USING btree (status);
+
+CREATE INDEX idx_notifications_inbox_user_id_read_at ON notifications_inbox USING btree (user_id, read_at);
+
+CREATE INDEX idx_notifications_inbox_user_id_template_id_target_id ON notifications_inbox USING btree (user_id, template_id, target_id);
 
 CREATE INDEX idx_organization_member_organization_id_uuid ON organization_members USING btree (organization_id);
 
