@@ -26,12 +26,6 @@ const meta: Meta<typeof OrganizationSidebarView> = {
 export default meta;
 type Story = StoryObj<typeof OrganizationSidebarView>;
 
-export const LoadingOrganizations: Story = {
-	args: {
-		organizations: undefined,
-	},
-};
-
 export const NoCreateOrg: Story = {
 	args: {
 		activeOrganization: MockOrganization,
@@ -164,8 +158,11 @@ export const SelectedOrgUserAdmin: Story = {
 		activeOrganization: MockOrganization,
 		orgPermissions: {
 			...MockNoOrganizationPermissions,
-			editMembers: true,
-			editGroups: true,
+			viewMembers: true,
+			viewGroups: true,
+			viewOrgRoles: true,
+			viewProvisioners: true,
+			viewIdpSyncSettings: true,
 		},
 		permissions: {
 			...MockPermissions,

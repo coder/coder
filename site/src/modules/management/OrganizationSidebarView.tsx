@@ -184,7 +184,7 @@ const OrganizationSettingsNavigation: FC<
 						Groups
 					</SettingsSidebarNavItem>
 				)}
-				{orgPermissions.assignOrgRoles && (
+				{orgPermissions.viewOrgRoles && (
 					<SettingsSidebarNavItem
 						href={urlForSubpage(organization.name, "roles")}
 					>
