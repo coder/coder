@@ -147,6 +147,10 @@ const (
 	AuditActionLogout               AuditAction = "logout"
 	AuditActionRegister             AuditAction = "register"
 	AuditActionRequestPasswordReset AuditAction = "request_password_reset"
+	AuditActionConnect              AuditAction = "connect"
+	AuditActionDisconnect           AuditAction = "disconnect"
+	AuditActionOpen                 AuditAction = "open"
+	AuditActionClose                AuditAction = "close"
 )
 
 func (e *AuditAction) Scan(src interface{}) error {
@@ -194,7 +198,11 @@ func (e AuditAction) Valid() bool {
 		AuditActionLogin,
 		AuditActionLogout,
 		AuditActionRegister,
-		AuditActionRequestPasswordReset:
+		AuditActionRequestPasswordReset,
+		AuditActionConnect,
+		AuditActionDisconnect,
+		AuditActionOpen,
+		AuditActionClose:
 		return true
 	}
 	return false
@@ -211,6 +219,10 @@ func AllAuditActionValues() []AuditAction {
 		AuditActionLogout,
 		AuditActionRegister,
 		AuditActionRequestPasswordReset,
+		AuditActionConnect,
+		AuditActionDisconnect,
+		AuditActionOpen,
+		AuditActionClose,
 	}
 }
 
@@ -1608,6 +1620,8 @@ const (
 	ResourceTypeIdpSyncSettingsOrganization ResourceType = "idp_sync_settings_organization"
 	ResourceTypeIdpSyncSettingsGroup        ResourceType = "idp_sync_settings_group"
 	ResourceTypeIdpSyncSettingsRole         ResourceType = "idp_sync_settings_role"
+	ResourceTypeWorkspaceAgent              ResourceType = "workspace_agent"
+	ResourceTypeWorkspaceApp                ResourceType = "workspace_app"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -1668,7 +1682,9 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeNotificationTemplate,
 		ResourceTypeIdpSyncSettingsOrganization,
 		ResourceTypeIdpSyncSettingsGroup,
-		ResourceTypeIdpSyncSettingsRole:
+		ResourceTypeIdpSyncSettingsRole,
+		ResourceTypeWorkspaceAgent,
+		ResourceTypeWorkspaceApp:
 		return true
 	}
 	return false
@@ -1698,6 +1714,8 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeIdpSyncSettingsOrganization,
 		ResourceTypeIdpSyncSettingsGroup,
 		ResourceTypeIdpSyncSettingsRole,
+		ResourceTypeWorkspaceAgent,
+		ResourceTypeWorkspaceApp,
 	}
 }
 
@@ -1955,6 +1973,64 @@ func AllWorkspaceAgentLifecycleStateValues() []WorkspaceAgentLifecycleState {
 		WorkspaceAgentLifecycleStateShutdownTimeout,
 		WorkspaceAgentLifecycleStateShutdownError,
 		WorkspaceAgentLifecycleStateOff,
+	}
+}
+
+type WorkspaceAgentMonitorState string
+
+const (
+	WorkspaceAgentMonitorStateOK  WorkspaceAgentMonitorState = "OK"
+	WorkspaceAgentMonitorStateNOK WorkspaceAgentMonitorState = "NOK"
+)
+
+func (e *WorkspaceAgentMonitorState) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkspaceAgentMonitorState(s)
+	case string:
+		*e = WorkspaceAgentMonitorState(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkspaceAgentMonitorState: %T", src)
+	}
+	return nil
+}
+
+type NullWorkspaceAgentMonitorState struct {
+	WorkspaceAgentMonitorState WorkspaceAgentMonitorState `json:"workspace_agent_monitor_state"`
+	Valid                      bool                       `json:"valid"` // Valid is true if WorkspaceAgentMonitorState is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkspaceAgentMonitorState) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkspaceAgentMonitorState, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkspaceAgentMonitorState.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkspaceAgentMonitorState) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkspaceAgentMonitorState), nil
+}
+
+func (e WorkspaceAgentMonitorState) Valid() bool {
+	switch e {
+	case WorkspaceAgentMonitorStateOK,
+		WorkspaceAgentMonitorStateNOK:
+		return true
+	}
+	return false
+}
+
+func AllWorkspaceAgentMonitorStateValues() []WorkspaceAgentMonitorState {
+	return []WorkspaceAgentMonitorState{
+		WorkspaceAgentMonitorStateOK,
+		WorkspaceAgentMonitorStateNOK,
 	}
 }
 
@@ -2954,6 +3030,20 @@ type TemplateVersionParameter struct {
 	Ephemeral bool `db:"ephemeral" json:"ephemeral"`
 }
 
+type TemplateVersionPreset struct {
+	ID                uuid.UUID `db:"id" json:"id"`
+	TemplateVersionID uuid.UUID `db:"template_version_id" json:"template_version_id"`
+	Name              string    `db:"name" json:"name"`
+	CreatedAt         time.Time `db:"created_at" json:"created_at"`
+}
+
+type TemplateVersionPresetParameter struct {
+	ID                      uuid.UUID `db:"id" json:"id"`
+	TemplateVersionPresetID uuid.UUID `db:"template_version_preset_id" json:"template_version_preset_id"`
+	Name                    string    `db:"name" json:"name"`
+	Value                   string    `db:"value" json:"value"`
+}
+
 type TemplateVersionTable struct {
 	ID             uuid.UUID     `db:"id" json:"id"`
 	TemplateID     uuid.NullUUID `db:"template_id" json:"template_id"`
@@ -3153,10 +3243,13 @@ type WorkspaceAgentLogSource struct {
 }
 
 type WorkspaceAgentMemoryResourceMonitor struct {
-	AgentID   uuid.UUID `db:"agent_id" json:"agent_id"`
-	Enabled   bool      `db:"enabled" json:"enabled"`
-	Threshold int32     `db:"threshold" json:"threshold"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	AgentID        uuid.UUID                  `db:"agent_id" json:"agent_id"`
+	Enabled        bool                       `db:"enabled" json:"enabled"`
+	Threshold      int32                      `db:"threshold" json:"threshold"`
+	CreatedAt      time.Time                  `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time                  `db:"updated_at" json:"updated_at"`
+	State          WorkspaceAgentMonitorState `db:"state" json:"state"`
+	DebouncedUntil time.Time                  `db:"debounced_until" json:"debounced_until"`
 }
 
 type WorkspaceAgentMetadatum struct {
@@ -3227,11 +3320,14 @@ type WorkspaceAgentStat struct {
 }
 
 type WorkspaceAgentVolumeResourceMonitor struct {
-	AgentID   uuid.UUID `db:"agent_id" json:"agent_id"`
-	Enabled   bool      `db:"enabled" json:"enabled"`
-	Threshold int32     `db:"threshold" json:"threshold"`
-	Path      string    `db:"path" json:"path"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	AgentID        uuid.UUID                  `db:"agent_id" json:"agent_id"`
+	Enabled        bool                       `db:"enabled" json:"enabled"`
+	Threshold      int32                      `db:"threshold" json:"threshold"`
+	Path           string                     `db:"path" json:"path"`
+	CreatedAt      time.Time                  `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time                  `db:"updated_at" json:"updated_at"`
+	State          WorkspaceAgentMonitorState `db:"state" json:"state"`
+	DebouncedUntil time.Time                  `db:"debounced_until" json:"debounced_until"`
 }
 
 type WorkspaceApp struct {
@@ -3283,22 +3379,23 @@ type WorkspaceAppStat struct {
 
 // Joins in the username + avatar url of the initiated by user.
 type WorkspaceBuild struct {
-	ID                   uuid.UUID           `db:"id" json:"id"`
-	CreatedAt            time.Time           `db:"created_at" json:"created_at"`
-	UpdatedAt            time.Time           `db:"updated_at" json:"updated_at"`
-	WorkspaceID          uuid.UUID           `db:"workspace_id" json:"workspace_id"`
-	TemplateVersionID    uuid.UUID           `db:"template_version_id" json:"template_version_id"`
-	BuildNumber          int32               `db:"build_number" json:"build_number"`
-	Transition           WorkspaceTransition `db:"transition" json:"transition"`
-	InitiatorID          uuid.UUID           `db:"initiator_id" json:"initiator_id"`
-	ProvisionerState     []byte              `db:"provisioner_state" json:"provisioner_state"`
-	JobID                uuid.UUID           `db:"job_id" json:"job_id"`
-	Deadline             time.Time           `db:"deadline" json:"deadline"`
-	Reason               BuildReason         `db:"reason" json:"reason"`
-	DailyCost            int32               `db:"daily_cost" json:"daily_cost"`
-	MaxDeadline          time.Time           `db:"max_deadline" json:"max_deadline"`
-	InitiatorByAvatarUrl string              `db:"initiator_by_avatar_url" json:"initiator_by_avatar_url"`
-	InitiatorByUsername  string              `db:"initiator_by_username" json:"initiator_by_username"`
+	ID                      uuid.UUID           `db:"id" json:"id"`
+	CreatedAt               time.Time           `db:"created_at" json:"created_at"`
+	UpdatedAt               time.Time           `db:"updated_at" json:"updated_at"`
+	WorkspaceID             uuid.UUID           `db:"workspace_id" json:"workspace_id"`
+	TemplateVersionID       uuid.UUID           `db:"template_version_id" json:"template_version_id"`
+	BuildNumber             int32               `db:"build_number" json:"build_number"`
+	Transition              WorkspaceTransition `db:"transition" json:"transition"`
+	InitiatorID             uuid.UUID           `db:"initiator_id" json:"initiator_id"`
+	ProvisionerState        []byte              `db:"provisioner_state" json:"provisioner_state"`
+	JobID                   uuid.UUID           `db:"job_id" json:"job_id"`
+	Deadline                time.Time           `db:"deadline" json:"deadline"`
+	Reason                  BuildReason         `db:"reason" json:"reason"`
+	DailyCost               int32               `db:"daily_cost" json:"daily_cost"`
+	MaxDeadline             time.Time           `db:"max_deadline" json:"max_deadline"`
+	TemplateVersionPresetID uuid.NullUUID       `db:"template_version_preset_id" json:"template_version_preset_id"`
+	InitiatorByAvatarUrl    string              `db:"initiator_by_avatar_url" json:"initiator_by_avatar_url"`
+	InitiatorByUsername     string              `db:"initiator_by_username" json:"initiator_by_username"`
 }
 
 type WorkspaceBuildParameter struct {
@@ -3310,20 +3407,21 @@ type WorkspaceBuildParameter struct {
 }
 
 type WorkspaceBuildTable struct {
-	ID                uuid.UUID           `db:"id" json:"id"`
-	CreatedAt         time.Time           `db:"created_at" json:"created_at"`
-	UpdatedAt         time.Time           `db:"updated_at" json:"updated_at"`
-	WorkspaceID       uuid.UUID           `db:"workspace_id" json:"workspace_id"`
-	TemplateVersionID uuid.UUID           `db:"template_version_id" json:"template_version_id"`
-	BuildNumber       int32               `db:"build_number" json:"build_number"`
-	Transition        WorkspaceTransition `db:"transition" json:"transition"`
-	InitiatorID       uuid.UUID           `db:"initiator_id" json:"initiator_id"`
-	ProvisionerState  []byte              `db:"provisioner_state" json:"provisioner_state"`
-	JobID             uuid.UUID           `db:"job_id" json:"job_id"`
-	Deadline          time.Time           `db:"deadline" json:"deadline"`
-	Reason            BuildReason         `db:"reason" json:"reason"`
-	DailyCost         int32               `db:"daily_cost" json:"daily_cost"`
-	MaxDeadline       time.Time           `db:"max_deadline" json:"max_deadline"`
+	ID                      uuid.UUID           `db:"id" json:"id"`
+	CreatedAt               time.Time           `db:"created_at" json:"created_at"`
+	UpdatedAt               time.Time           `db:"updated_at" json:"updated_at"`
+	WorkspaceID             uuid.UUID           `db:"workspace_id" json:"workspace_id"`
+	TemplateVersionID       uuid.UUID           `db:"template_version_id" json:"template_version_id"`
+	BuildNumber             int32               `db:"build_number" json:"build_number"`
+	Transition              WorkspaceTransition `db:"transition" json:"transition"`
+	InitiatorID             uuid.UUID           `db:"initiator_id" json:"initiator_id"`
+	ProvisionerState        []byte              `db:"provisioner_state" json:"provisioner_state"`
+	JobID                   uuid.UUID           `db:"job_id" json:"job_id"`
+	Deadline                time.Time           `db:"deadline" json:"deadline"`
+	Reason                  BuildReason         `db:"reason" json:"reason"`
+	DailyCost               int32               `db:"daily_cost" json:"daily_cost"`
+	MaxDeadline             time.Time           `db:"max_deadline" json:"max_deadline"`
+	TemplateVersionPresetID uuid.NullUUID       `db:"template_version_preset_id" json:"template_version_preset_id"`
 }
 
 type WorkspaceModule struct {

@@ -115,10 +115,14 @@ export interface AssignableRoles extends Role {
 
 // From codersdk/audit.go
 export type AuditAction =
+	| "close"
+	| "connect"
 	| "create"
 	| "delete"
+	| "disconnect"
 	| "login"
 	| "logout"
+	| "open"
 	| "register"
 	| "request_password_reset"
 	| "start"
@@ -126,10 +130,14 @@ export type AuditAction =
 	| "write";
 
 export const AuditActions: AuditAction[] = [
+	"close",
+	"connect",
 	"create",
 	"delete",
+	"disconnect",
 	"login",
 	"logout",
+	"open",
 	"register",
 	"request_password_reset",
 	"start",
@@ -405,6 +413,7 @@ export interface CreateTestAuditLogRequest {
 	readonly time?: string;
 	readonly build_reason?: BuildReason;
 	readonly organization_id?: string;
+	readonly request_id?: string;
 }
 
 // From codersdk/apikey.go
@@ -1436,9 +1445,18 @@ export interface OrganizationMemberWithUserData extends OrganizationMember {
 }
 
 // From codersdk/organizations.go
+export interface OrganizationProvisionerDaemonsOptions {
+	readonly Limit: number;
+	readonly IDs: readonly string[];
+	readonly Tags: Record<string, string>;
+}
+
+// From codersdk/organizations.go
 export interface OrganizationProvisionerJobsOptions {
 	readonly Limit: number;
+	readonly IDs: readonly string[];
 	readonly Status: readonly ProvisionerJobStatus[];
+	readonly Tags: Record<string, string>;
 }
 
 // From codersdk/idpsync.go
@@ -1550,6 +1568,19 @@ export interface PprofConfig {
 	readonly address: string;
 }
 
+// From codersdk/presets.go
+export interface Preset {
+	readonly ID: string;
+	readonly Name: string;
+	readonly Parameters: readonly PresetParameter[];
+}
+
+// From codersdk/presets.go
+export interface PresetParameter {
+	readonly Name: string;
+	readonly Value: string;
+}
+
 // From codersdk/deployment.go
 export interface PrometheusConfig {
 	readonly enable: boolean;
@@ -1591,6 +1622,9 @@ export interface ProvisionerDaemon {
 export interface ProvisionerDaemonJob {
 	readonly id: string;
 	readonly status: ProvisionerJobStatus;
+	readonly template_name: string;
+	readonly template_icon: string;
+	readonly template_display_name: string;
 }
 
 // From codersdk/client.go
@@ -1981,6 +2015,8 @@ export type ResourceType =
 	| "template_version"
 	| "user"
 	| "workspace"
+	| "workspace_agent"
+	| "workspace_app"
 	| "workspace_build"
 	| "workspace_proxy";
 
@@ -2005,6 +2041,8 @@ export const ResourceTypes: ResourceType[] = [
 	"template_version",
 	"user",
 	"workspace",
+	"workspace_agent",
+	"workspace_app",
 	"workspace_build",
 	"workspace_proxy",
 ];

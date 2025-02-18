@@ -90,6 +90,8 @@ func New() database.Store {
 			runtimeConfig:             map[string]string{},
 			userStatusChanges:         make([]database.UserStatusChange, 0),
 			telemetryItems:            make([]database.TelemetryItem, 0),
+			presets:                   make([]database.TemplateVersionPreset, 0),
+			presetParameters:          make([]database.TemplateVersionPresetParameter, 0),
 		},
 	}
 	// Always start with a default org. Matching migration 198.
@@ -262,6 +264,8 @@ type data struct {
 	defaultProxyIconURL              string
 	userStatusChanges                []database.UserStatusChange
 	telemetryItems                   []database.TelemetryItem
+	presets                          []database.TemplateVersionPreset
+	presetParameters                 []database.TemplateVersionPresetParameter
 }
 
 func tryPercentile(fs []float64, p float64) float64 {
@@ -3776,6 +3780,61 @@ func (q *FakeQuerier) GetParameterSchemasByJobID(_ context.Context, jobID uuid.U
 	return parameters, nil
 }
 
+func (q *FakeQuerier) GetPresetByWorkspaceBuildID(_ context.Context, workspaceBuildID uuid.UUID) (database.TemplateVersionPreset, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, workspaceBuild := range q.workspaceBuilds {
+		if workspaceBuild.ID != workspaceBuildID {
+			continue
+		}
+		for _, preset := range q.presets {
+			if preset.TemplateVersionID == workspaceBuild.TemplateVersionID {
+				return preset, nil
+			}
+		}
+	}
+	return database.TemplateVersionPreset{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) GetPresetParametersByTemplateVersionID(_ context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionPresetParameter, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	presets := make([]database.TemplateVersionPreset, 0)
+	parameters := make([]database.TemplateVersionPresetParameter, 0)
+	for _, preset := range q.presets {
+		if preset.TemplateVersionID != templateVersionID {
+			continue
+		}
+		presets = append(presets, preset)
+	}
+	for _, parameter := range q.presetParameters {
+		for _, preset := range presets {
+			if parameter.TemplateVersionPresetID != preset.ID {
+				continue
+			}
+			parameters = append(parameters, parameter)
+			break
+		}
+	}
+
+	return parameters, nil
+}
+
+func (q *FakeQuerier) GetPresetsByTemplateVersionID(_ context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionPreset, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	presets := make([]database.TemplateVersionPreset, 0)
+	for _, preset := range q.presets {
+		if preset.TemplateVersionID == templateVersionID {
+			presets = append(presets, preset)
+		}
+	}
+	return presets, nil
+}
+
 func (q *FakeQuerier) GetPreviousTemplateVersion(_ context.Context, arg database.GetPreviousTemplateVersionParams) (database.TemplateVersion, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.TemplateVersion{}, err
@@ -3872,7 +3931,7 @@ func (q *FakeQuerier) GetProvisionerDaemonsByOrganization(_ context.Context, arg
 	return daemons, nil
 }
 
-func (q *FakeQuerier) GetProvisionerDaemonsWithStatusByOrganization(_ context.Context, arg database.GetProvisionerDaemonsWithStatusByOrganizationParams) ([]database.GetProvisionerDaemonsWithStatusByOrganizationRow, error) {
+func (q *FakeQuerier) GetProvisionerDaemonsWithStatusByOrganization(ctx context.Context, arg database.GetProvisionerDaemonsWithStatusByOrganizationParams) ([]database.GetProvisionerDaemonsWithStatusByOrganizationRow, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return nil, err
@@ -3922,6 +3981,31 @@ func (q *FakeQuerier) GetProvisionerDaemonsWithStatusByOrganization(_ context.Co
 				status = database.ProvisionerDaemonStatusIdle
 			}
 		}
+		var currentTemplate database.Template
+		if currentJob.ID != uuid.Nil {
+			var input codersdk.ProvisionerJobInput
+			err := json.Unmarshal(currentJob.Input, &input)
+			if err != nil {
+				return nil, err
+			}
+			if input.WorkspaceBuildID != nil {
+				b, err := q.getWorkspaceBuildByIDNoLock(ctx, *input.WorkspaceBuildID)
+				if err != nil {
+					return nil, err
+				}
+				input.TemplateVersionID = &b.TemplateVersionID
+			}
+			if input.TemplateVersionID != nil {
+				v, err := q.getTemplateVersionByIDNoLock(ctx, *input.TemplateVersionID)
+				if err != nil {
+					return nil, err
+				}
+				currentTemplate, err = q.getTemplateByIDNoLock(ctx, v.TemplateID.UUID)
+				if err != nil {
+					return nil, err
+				}
+			}
+		}
 
 		var previousJob database.ProvisionerJob
 		for _, job := range q.provisionerJobs {
@@ -3938,6 +4022,31 @@ func (q *FakeQuerier) GetProvisionerDaemonsWithStatusByOrganization(_ context.Co
 				}
 			}
 		}
+		var previousTemplate database.Template
+		if previousJob.ID != uuid.Nil {
+			var input codersdk.ProvisionerJobInput
+			err := json.Unmarshal(previousJob.Input, &input)
+			if err != nil {
+				return nil, err
+			}
+			if input.WorkspaceBuildID != nil {
+				b, err := q.getWorkspaceBuildByIDNoLock(ctx, *input.WorkspaceBuildID)
+				if err != nil {
+					return nil, err
+				}
+				input.TemplateVersionID = &b.TemplateVersionID
+			}
+			if input.TemplateVersionID != nil {
+				v, err := q.getTemplateVersionByIDNoLock(ctx, *input.TemplateVersionID)
+				if err != nil {
+					return nil, err
+				}
+				previousTemplate, err = q.getTemplateByIDNoLock(ctx, v.TemplateID.UUID)
+				if err != nil {
+					return nil, err
+				}
+			}
+		}
 
 		// Get the provisioner key name
 		var keyName string
@@ -3949,19 +4058,29 @@ func (q *FakeQuerier) GetProvisionerDaemonsWithStatusByOrganization(_ context.Co
 		}
 
 		rows = append(rows, database.GetProvisionerDaemonsWithStatusByOrganizationRow{
-			ProvisionerDaemon: daemon,
-			Status:            status,
-			KeyName:           keyName,
-			CurrentJobID:      uuid.NullUUID{UUID: currentJob.ID, Valid: currentJob.ID != uuid.Nil},
-			CurrentJobStatus:  database.NullProvisionerJobStatus{ProvisionerJobStatus: currentJob.JobStatus, Valid: currentJob.ID != uuid.Nil},
-			PreviousJobID:     uuid.NullUUID{UUID: previousJob.ID, Valid: previousJob.ID != uuid.Nil},
-			PreviousJobStatus: database.NullProvisionerJobStatus{ProvisionerJobStatus: previousJob.JobStatus, Valid: previousJob.ID != uuid.Nil},
+			ProvisionerDaemon:              daemon,
+			Status:                         status,
+			KeyName:                        keyName,
+			CurrentJobID:                   uuid.NullUUID{UUID: currentJob.ID, Valid: currentJob.ID != uuid.Nil},
+			CurrentJobStatus:               database.NullProvisionerJobStatus{ProvisionerJobStatus: currentJob.JobStatus, Valid: currentJob.ID != uuid.Nil},
+			CurrentJobTemplateName:         currentTemplate.Name,
+			CurrentJobTemplateDisplayName:  currentTemplate.DisplayName,
+			CurrentJobTemplateIcon:         currentTemplate.Icon,
+			PreviousJobID:                  uuid.NullUUID{UUID: previousJob.ID, Valid: previousJob.ID != uuid.Nil},
+			PreviousJobStatus:              database.NullProvisionerJobStatus{ProvisionerJobStatus: previousJob.JobStatus, Valid: previousJob.ID != uuid.Nil},
+			PreviousJobTemplateName:        previousTemplate.Name,
+			PreviousJobTemplateDisplayName: previousTemplate.DisplayName,
+			PreviousJobTemplateIcon:        previousTemplate.Icon,
 		})
 	}
 
 	slices.SortFunc(rows, func(a, b database.GetProvisionerDaemonsWithStatusByOrganizationRow) int {
 		return a.ProvisionerDaemon.CreatedAt.Compare(b.ProvisionerDaemon.CreatedAt)
 	})
+
+	if arg.Limit.Valid && arg.Limit.Int32 > 0 && len(rows) > int(arg.Limit.Int32) {
+		rows = rows[:arg.Limit.Int32]
+	}
 
 	return rows, nil
 }
@@ -4102,13 +4221,16 @@ func (q *FakeQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePosition
 	for _, rowQP := range rowsWithQueuePosition {
 		job := rowQP.ProvisionerJob
 
-		if arg.OrganizationID.Valid && job.OrganizationID != arg.OrganizationID.UUID {
+		if job.OrganizationID != arg.OrganizationID {
 			continue
 		}
 		if len(arg.Status) > 0 && !slices.Contains(arg.Status, job.JobStatus) {
 			continue
 		}
 		if len(arg.IDs) > 0 && !slices.Contains(arg.IDs, job.ID) {
+			continue
+		}
+		if len(arg.Tags) > 0 && !tagsSubset(job.Tags, arg.Tags) {
 			continue
 		}
 
@@ -7867,7 +7989,16 @@ func (q *FakeQuerier) InsertMemoryResourceMonitor(_ context.Context, arg databas
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	monitor := database.WorkspaceAgentMemoryResourceMonitor(arg)
+	//nolint:unconvert // The structs field-order differs so this is needed.
+	monitor := database.WorkspaceAgentMemoryResourceMonitor(database.WorkspaceAgentMemoryResourceMonitor{
+		AgentID:        arg.AgentID,
+		Enabled:        arg.Enabled,
+		State:          arg.State,
+		Threshold:      arg.Threshold,
+		CreatedAt:      arg.CreatedAt,
+		UpdatedAt:      arg.UpdatedAt,
+		DebouncedUntil: arg.DebouncedUntil,
+	})
 
 	q.workspaceAgentMemoryResourceMonitors = append(q.workspaceAgentMemoryResourceMonitors, monitor)
 	return monitor, nil
@@ -8079,6 +8210,50 @@ func (q *FakeQuerier) InsertOrganizationMember(_ context.Context, arg database.I
 	}
 	q.organizationMembers = append(q.organizationMembers, organizationMember)
 	return organizationMember, nil
+}
+
+func (q *FakeQuerier) InsertPreset(_ context.Context, arg database.InsertPresetParams) (database.TemplateVersionPreset, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.TemplateVersionPreset{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	//nolint:gosimple // arg needs to keep its type for interface reasons and that type is not appropriate for preset below.
+	preset := database.TemplateVersionPreset{
+		ID:                uuid.New(),
+		TemplateVersionID: arg.TemplateVersionID,
+		Name:              arg.Name,
+		CreatedAt:         arg.CreatedAt,
+	}
+	q.presets = append(q.presets, preset)
+	return preset, nil
+}
+
+func (q *FakeQuerier) InsertPresetParameters(_ context.Context, arg database.InsertPresetParametersParams) ([]database.TemplateVersionPresetParameter, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	presetParameters := make([]database.TemplateVersionPresetParameter, 0, len(arg.Names))
+	for i, v := range arg.Names {
+		presetParameter := database.TemplateVersionPresetParameter{
+			ID:                      uuid.New(),
+			TemplateVersionPresetID: arg.TemplateVersionPresetID,
+			Name:                    v,
+			Value:                   arg.Values[i],
+		}
+		presetParameters = append(presetParameters, presetParameter)
+		q.presetParameters = append(q.presetParameters, presetParameter)
+	}
+
+	return presetParameters, nil
 }
 
 func (q *FakeQuerier) InsertProvisionerJob(_ context.Context, arg database.InsertProvisionerJobParams) (database.ProvisionerJob, error) {
@@ -8510,11 +8685,14 @@ func (q *FakeQuerier) InsertVolumeResourceMonitor(_ context.Context, arg databas
 	defer q.mutex.Unlock()
 
 	monitor := database.WorkspaceAgentVolumeResourceMonitor{
-		AgentID:   arg.AgentID,
-		Path:      arg.Path,
-		Enabled:   arg.Enabled,
-		Threshold: arg.Threshold,
-		CreatedAt: arg.CreatedAt,
+		AgentID:        arg.AgentID,
+		Path:           arg.Path,
+		Enabled:        arg.Enabled,
+		State:          arg.State,
+		Threshold:      arg.Threshold,
+		CreatedAt:      arg.CreatedAt,
+		UpdatedAt:      arg.UpdatedAt,
+		DebouncedUntil: arg.DebouncedUntil,
 	}
 
 	q.workspaceAgentVolumeResourceMonitors = append(q.workspaceAgentVolumeResourceMonitors, monitor)
@@ -9525,6 +9703,30 @@ func (q *FakeQuerier) UpdateMemberRoles(_ context.Context, arg database.UpdateMe
 	return database.OrganizationMember{}, sql.ErrNoRows
 }
 
+func (q *FakeQuerier) UpdateMemoryResourceMonitor(_ context.Context, arg database.UpdateMemoryResourceMonitorParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, monitor := range q.workspaceAgentMemoryResourceMonitors {
+		if monitor.AgentID != arg.AgentID {
+			continue
+		}
+
+		monitor.State = arg.State
+		monitor.UpdatedAt = arg.UpdatedAt
+		monitor.DebouncedUntil = arg.DebouncedUntil
+		q.workspaceAgentMemoryResourceMonitors[i] = monitor
+		return nil
+	}
+
+	return nil
+}
+
 func (*FakeQuerier) UpdateNotificationTemplateMethodByID(_ context.Context, _ database.UpdateNotificationTemplateMethodByIDParams) (database.NotificationTemplate, error) {
 	// Not implementing this function because it relies on state in the database which is created with migrations.
 	// We could consider using code-generation to align the database state and dbmem, but it's not worth it right now.
@@ -10301,6 +10503,30 @@ func (q *FakeQuerier) UpdateUserStatus(_ context.Context, arg database.UpdateUse
 		return user, nil
 	}
 	return database.User{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateVolumeResourceMonitor(_ context.Context, arg database.UpdateVolumeResourceMonitorParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, monitor := range q.workspaceAgentVolumeResourceMonitors {
+		if monitor.AgentID != arg.AgentID || monitor.Path != arg.Path {
+			continue
+		}
+
+		monitor.State = arg.State
+		monitor.UpdatedAt = arg.UpdatedAt
+		monitor.DebouncedUntil = arg.DebouncedUntil
+		q.workspaceAgentVolumeResourceMonitors[i] = monitor
+		return nil
+	}
+
+	return nil
 }
 
 func (q *FakeQuerier) UpdateWorkspace(_ context.Context, arg database.UpdateWorkspaceParams) (database.WorkspaceTable, error) {
@@ -12267,10 +12493,13 @@ func (q *FakeQuerier) GetAuthorizedAuditLogsOffset(ctx context.Context, arg data
 			arg.OffsetOpt--
 			continue
 		}
+		if arg.RequestID != uuid.Nil && arg.RequestID != alog.RequestID {
+			continue
+		}
 		if arg.OrganizationID != uuid.Nil && arg.OrganizationID != alog.OrganizationID {
 			continue
 		}
-		if arg.Action != "" && !strings.Contains(string(alog.Action), arg.Action) {
+		if arg.Action != "" && string(alog.Action) != arg.Action {
 			continue
 		}
 		if arg.ResourceType != "" && !strings.Contains(string(alog.ResourceType), arg.ResourceType) {

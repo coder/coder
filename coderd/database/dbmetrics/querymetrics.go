@@ -980,6 +980,27 @@ func (m queryMetricsStore) GetParameterSchemasByJobID(ctx context.Context, jobID
 	return schemas, err
 }
 
+func (m queryMetricsStore) GetPresetByWorkspaceBuildID(ctx context.Context, workspaceBuildID uuid.UUID) (database.TemplateVersionPreset, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetPresetByWorkspaceBuildID(ctx, workspaceBuildID)
+	m.queryLatencies.WithLabelValues("GetPresetByWorkspaceBuildID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetPresetParametersByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionPresetParameter, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetPresetParametersByTemplateVersionID(ctx, templateVersionID)
+	m.queryLatencies.WithLabelValues("GetPresetParametersByTemplateVersionID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetPresetsByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionPreset, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetPresetsByTemplateVersionID(ctx, templateVersionID)
+	m.queryLatencies.WithLabelValues("GetPresetsByTemplateVersionID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetPreviousTemplateVersion(ctx context.Context, arg database.GetPreviousTemplateVersionParams) (database.TemplateVersion, error) {
 	start := time.Now()
 	version, err := m.s.GetPreviousTemplateVersion(ctx, arg)
@@ -1911,6 +1932,20 @@ func (m queryMetricsStore) InsertOrganizationMember(ctx context.Context, arg dat
 	return member, err
 }
 
+func (m queryMetricsStore) InsertPreset(ctx context.Context, arg database.InsertPresetParams) (database.TemplateVersionPreset, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertPreset(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertPreset").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertPresetParameters(ctx context.Context, arg database.InsertPresetParametersParams) ([]database.TemplateVersionPresetParameter, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertPresetParameters(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertPresetParameters").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertProvisionerJob(ctx context.Context, arg database.InsertProvisionerJobParams) (database.ProvisionerJob, error) {
 	start := time.Now()
 	job, err := m.s.InsertProvisionerJob(ctx, arg)
@@ -2296,6 +2331,13 @@ func (m queryMetricsStore) UpdateMemberRoles(ctx context.Context, arg database.U
 	return member, err
 }
 
+func (m queryMetricsStore) UpdateMemoryResourceMonitor(ctx context.Context, arg database.UpdateMemoryResourceMonitorParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateMemoryResourceMonitor(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateMemoryResourceMonitor").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m queryMetricsStore) UpdateNotificationTemplateMethodByID(ctx context.Context, arg database.UpdateNotificationTemplateMethodByIDParams) (database.NotificationTemplate, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateNotificationTemplateMethodByID(ctx, arg)
@@ -2532,6 +2574,13 @@ func (m queryMetricsStore) UpdateUserStatus(ctx context.Context, arg database.Up
 	user, err := m.s.UpdateUserStatus(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateUserStatus").Observe(time.Since(start).Seconds())
 	return user, err
+}
+
+func (m queryMetricsStore) UpdateVolumeResourceMonitor(ctx context.Context, arg database.UpdateVolumeResourceMonitorParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateVolumeResourceMonitor(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateVolumeResourceMonitor").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m queryMetricsStore) UpdateWorkspace(ctx context.Context, arg database.UpdateWorkspaceParams) (database.WorkspaceTable, error) {

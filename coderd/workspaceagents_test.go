@@ -1076,7 +1076,8 @@ func TestWorkspaceAgentContainers(t *testing.T) {
 		pool, err := dockertest.NewPool("")
 		require.NoError(t, err, "Could not connect to docker")
 		testLabels := map[string]string{
-			"com.coder.test": uuid.New().String(),
+			"com.coder.test":  uuid.New().String(),
+			"com.coder.empty": "",
 		}
 		ct, err := pool.RunWithOptions(&dockertest.RunOptions{
 			Repository: "busybox",
@@ -1097,7 +1098,10 @@ func TestWorkspaceAgentContainers(t *testing.T) {
 			Repository: "busybox",
 			Tag:        "latest",
 			Cmd:        []string{"sleep", "infinity"},
-			Labels:     map[string]string{"com.coder.test": "ignoreme"},
+			Labels: map[string]string{
+				"com.coder.test":  "ignoreme",
+				"com.coder.empty": "",
+			},
 		}, func(config *docker.HostConfig) {
 			config.AutoRemove = true
 			config.RestartPolicy = docker.RestartPolicy{Name: "no"}
@@ -2230,7 +2234,7 @@ func requireGetManifest(ctx context.Context, t testing.TB, aAPI agentproto.DRPCA
 }
 
 func postStartup(ctx context.Context, t testing.TB, client agent.Client, startup *agentproto.Startup) error {
-	aAPI, _, err := client.ConnectRPC23(ctx)
+	aAPI, _, err := client.ConnectRPC24(ctx)
 	require.NoError(t, err)
 	defer func() {
 		cErr := aAPI.DRPCConn().Close()

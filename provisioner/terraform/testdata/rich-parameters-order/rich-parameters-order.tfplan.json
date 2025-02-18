@@ -1,6 +1,6 @@
 {
   "format_version": "1.2",
-  "terraform_version": "1.9.8",
+  "terraform_version": "1.10.5",
   "planned_values": {
     "root_module": {
       "resources": [
@@ -21,7 +21,6 @@
             "motd_file": null,
             "order": null,
             "os": "windows",
-            "resources_monitoring": [],
             "shutdown_script": null,
             "startup_script": null,
             "startup_script_behavior": "non-blocking",
@@ -30,7 +29,6 @@
           "sensitive_values": {
             "display_apps": [],
             "metadata": [],
-            "resources_monitoring": [],
             "token": true
           }
         },
@@ -71,7 +69,6 @@
           "motd_file": null,
           "order": null,
           "os": "windows",
-          "resources_monitoring": [],
           "shutdown_script": null,
           "startup_script": null,
           "startup_script_behavior": "non-blocking",
@@ -82,14 +79,12 @@
           "id": true,
           "init_script": true,
           "metadata": [],
-          "resources_monitoring": [],
           "token": true
         },
         "before_sensitive": false,
         "after_sensitive": {
           "display_apps": [],
           "metadata": [],
-          "resources_monitoring": [],
           "token": true
         }
       }
@@ -118,7 +113,7 @@
   ],
   "prior_state": {
     "format_version": "1.0",
-    "terraform_version": "1.9.8",
+    "terraform_version": "1.10.5",
     "values": {
       "root_module": {
         "resources": [
@@ -135,7 +130,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "e8485920-025a-4c2c-b018-722f61b64347",
+              "id": "b106fb5a-0ab1-4530-8cc0-9ff9a515dff4",
               "mutable": false,
               "name": "Example",
               "option": null,
@@ -162,7 +157,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "6156655b-f893-4eba-914e-e87414f4bf7e",
+              "id": "5b1c2605-c7a4-4248-bf92-b761e36e0111",
               "mutable": false,
               "name": "Sample",
               "option": null,
@@ -185,7 +180,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "0.22.0"
+        "version_constraint": ">= 2.0.0"
       },
       "null": {
         "name": "null",
@@ -268,7 +263,7 @@
       ]
     }
   },
-  "timestamp": "2025-01-29T22:48:18Z",
+  "timestamp": "2025-02-18T10:58:12Z",
   "applyable": true,
   "complete": true,
   "errored": false

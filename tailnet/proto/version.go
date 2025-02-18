@@ -38,9 +38,14 @@ import (
 //     shipped in Coder v2.16.0, but we forgot to increment the API version. If
 //     you dial for API v2.2, you MAY be connected to a server that supports
 //     ScriptCompleted, but be prepared to process "unsupported" errors.)
+//
+// API v2.4:
+//   - Shipped in Coder v2.{{placeholder}} // TODO Vincent: Replace with the correct version
+//   - Added support for GetResourcesMonitoringConfiguration and
+//     PushResourcesMonitoringUsage RPCs on the Agent API.
 const (
 	CurrentMajor = 2
-	CurrentMinor = 3
+	CurrentMinor = 4
 )
 
 var CurrentVersion = apiversion.New(CurrentMajor, CurrentMinor)

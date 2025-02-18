@@ -579,6 +579,7 @@ const createTemplateVersionTar = async (
 					parameters: response.apply?.parameters ?? [],
 					externalAuthProviders: response.apply?.externalAuthProviders ?? [],
 					timings: response.apply?.timings ?? [],
+					presets: [],
 				},
 			};
 		});
@@ -699,6 +700,7 @@ const createTemplateVersionTar = async (
 			externalAuthProviders: [],
 			timings: [],
 			modules: [],
+			presets: [],
 			...response.plan,
 		} as PlanComplete;
 		response.plan.resources = response.plan.resources?.map(fillResource);
@@ -762,7 +764,7 @@ export const createServer = async (
 async function waitForPort(
 	port: number,
 	host = "0.0.0.0",
-	timeout = 30000,
+	timeout = 60_000,
 ): Promise<void> {
 	const start = Date.now();
 	while (Date.now() - start < timeout) {

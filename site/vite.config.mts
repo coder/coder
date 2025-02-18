@@ -52,6 +52,12 @@ export default defineConfig({
 				"csrf_token=JXm9hOUdZctWt0ZZGAy9xiS/gxMKYOThdxjjMnMUyn4=; Path=/; HttpOnly; SameSite=Lax",
 		},
 		proxy: {
+			"//": {
+				changeOrigin: true,
+				target: process.env.CODER_HOST || "http://localhost:3000",
+				secure: process.env.NODE_ENV === "production",
+				rewrite: (path) => path.replace(/\/+/g, "/"),
+			},
 			"/api": {
 				ws: true,
 				changeOrigin: true,
@@ -84,6 +90,7 @@ export default defineConfig({
 				secure: process.env.NODE_ENV === "production",
 			},
 		},
+		allowedHosts: true,
 	},
 	resolve: {
 		alias: {

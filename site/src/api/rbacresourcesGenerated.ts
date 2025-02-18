@@ -171,6 +171,7 @@ export const RBACResourceActions: Partial<
 	workspace_agent_resource_monitor: {
 		create: "create workspace agent resource monitor",
 		read: "read workspace agent resource monitor",
+		update: "update workspace agent resource monitor",
 	},
 	workspace_dormant: {
 		application_connect: "connect to workspace apps via browser",

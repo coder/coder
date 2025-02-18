@@ -15,7 +15,10 @@ type GitSSHKey struct {
 	UserID    uuid.UUID `json:"user_id" format:"uuid"`
 	CreatedAt time.Time `json:"created_at" format:"date-time"`
 	UpdatedAt time.Time `json:"updated_at" format:"date-time"`
-	PublicKey string    `json:"public_key"`
+	// PublicKey is the SSH public key in OpenSSH format.
+	// Example: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID3OmYJvT7q1cF1azbybYy0OZ9yrXfA+M6Lr4vzX5zlp\n"
+	// Note: The key includes a trailing newline (\n).
+	PublicKey string `json:"public_key"`
 }
 
 // GitSSHKey returns the user's git SSH public key.

@@ -1340,6 +1340,11 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			}
 		}
 
+		err = InsertWorkspacePresetsAndParameters(ctx, s.Logger, s.Database, jobID, input.TemplateVersionID, jobType.TemplateImport.Presets, s.timeNow())
+		if err != nil {
+			return nil, xerrors.Errorf("insert workspace presets and parameters: %w", err)
+		}
+
 		var completedError sql.NullString
 
 		for _, externalAuthProvider := range jobType.TemplateImport.ExternalAuthProviders {
@@ -1809,6 +1814,52 @@ func InsertWorkspaceModule(ctx context.Context, db database.Store, jobID uuid.UU
 	return nil
 }
 
+func InsertWorkspacePresetsAndParameters(ctx context.Context, logger slog.Logger, db database.Store, jobID uuid.UUID, templateVersionID uuid.UUID, protoPresets []*sdkproto.Preset, t time.Time) error {
+	for _, preset := range protoPresets {
+		logger.Info(ctx, "inserting template import job preset",
+			slog.F("job_id", jobID.String()),
+			slog.F("preset_name", preset.Name),
+		)
+		if err := InsertWorkspacePresetAndParameters(ctx, db, templateVersionID, preset, t); err != nil {
+			return xerrors.Errorf("insert workspace preset: %w", err)
+		}
+	}
+	return nil
+}
+
+func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, templateVersionID uuid.UUID, protoPreset *sdkproto.Preset, t time.Time) error {
+	err := db.InTx(func(tx database.Store) error {
+		dbPreset, err := tx.InsertPreset(ctx, database.InsertPresetParams{
+			TemplateVersionID: templateVersionID,
+			Name:              protoPreset.Name,
+			CreatedAt:         t,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert preset: %w", err)
+		}
+
+		var presetParameterNames []string
+		var presetParameterValues []string
+		for _, parameter := range protoPreset.Parameters {
+			presetParameterNames = append(presetParameterNames, parameter.Name)
+			presetParameterValues = append(presetParameterValues, parameter.Value)
+		}
+		_, err = tx.InsertPresetParameters(ctx, database.InsertPresetParametersParams{
+			TemplateVersionPresetID: dbPreset.ID,
+			Names:                   presetParameterNames,
+			Values:                  presetParameterValues,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert preset parameters: %w", err)
+		}
+		return nil
+	}, nil)
+	if err != nil {
+		return xerrors.Errorf("insert preset and parameters: %w", err)
+	}
+	return nil
+}
+
 func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.UUID, transition database.WorkspaceTransition, protoResource *sdkproto.Resource, snapshot *telemetry.Snapshot) error {
 	resource, err := db.InsertWorkspaceResource(ctx, database.InsertWorkspaceResourceParams{
 		ID:         uuid.New(),
@@ -1930,10 +1981,13 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		if prAgent.ResourcesMonitoring != nil {
 			if prAgent.ResourcesMonitoring.Memory != nil {
 				_, err = db.InsertMemoryResourceMonitor(ctx, database.InsertMemoryResourceMonitorParams{
-					AgentID:   agentID,
-					Enabled:   prAgent.ResourcesMonitoring.Memory.Enabled,
-					Threshold: prAgent.ResourcesMonitoring.Memory.Threshold,
-					CreatedAt: dbtime.Now(),
+					AgentID:        agentID,
+					Enabled:        prAgent.ResourcesMonitoring.Memory.Enabled,
+					Threshold:      prAgent.ResourcesMonitoring.Memory.Threshold,
+					State:          database.WorkspaceAgentMonitorStateOK,
+					CreatedAt:      dbtime.Now(),
+					UpdatedAt:      dbtime.Now(),
+					DebouncedUntil: time.Time{},
 				})
 				if err != nil {
 					return xerrors.Errorf("failed to insert agent memory resource monitor into db: %w", err)
@@ -1941,11 +1995,14 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			}
 			for _, volume := range prAgent.ResourcesMonitoring.Volumes {
 				_, err = db.InsertVolumeResourceMonitor(ctx, database.InsertVolumeResourceMonitorParams{
-					AgentID:   agentID,
-					Path:      volume.Path,
-					Enabled:   volume.Enabled,
-					Threshold: volume.Threshold,
-					CreatedAt: dbtime.Now(),
+					AgentID:        agentID,
+					Path:           volume.Path,
+					Enabled:        volume.Enabled,
+					Threshold:      volume.Threshold,
+					State:          database.WorkspaceAgentMonitorStateOK,
+					CreatedAt:      dbtime.Now(),
+					UpdatedAt:      dbtime.Now(),
+					DebouncedUntil: time.Time{},
 				})
 				if err != nil {
 					return xerrors.Errorf("failed to insert agent volume resource monitor into db: %w", err)

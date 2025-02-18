@@ -10,6 +10,7 @@ import (
 	"net/netip"
 	"net/url"
 	"reflect"
+	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -229,7 +230,7 @@ func (t *Tunnel) start(req *StartRequest) error {
 	if apiToken == "" {
 		return xerrors.New("missing api token")
 	}
-	var header http.Header
+	header := make(http.Header)
 	for _, h := range req.GetHeaders() {
 		header.Add(h.GetName(), h.GetValue())
 	}
@@ -402,6 +403,9 @@ func (u *updater) createPeerUpdateLocked(update tailnet.WorkspaceUpdate) *PeerUp
 		for name := range agent.Hosts {
 			fqdn = append(fqdn, name.WithTrailingDot())
 		}
+		sort.Slice(fqdn, func(i, j int) bool {
+			return len(fqdn[i]) < len(fqdn[j])
+		})
 		out.DeletedAgents[i] = &Agent{
 			Id:            tailnet.UUIDToByteSlice(agent.ID),
 			Name:          agent.Name,
@@ -424,6 +428,9 @@ func (u *updater) convertAgentsLocked(agents []*tailnet.Agent) []*Agent {
 		for name := range agent.Hosts {
 			fqdn = append(fqdn, name.WithTrailingDot())
 		}
+		sort.Slice(fqdn, func(i, j int) bool {
+			return len(fqdn[i]) < len(fqdn[j])
+		})
 		protoAgent := &Agent{
 			Id:          tailnet.UUIDToByteSlice(agent.ID),
 			Name:        agent.Name,

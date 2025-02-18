@@ -554,6 +554,10 @@
 | `logout`                 |
 | `register`               |
 | `request_password_reset` |
+| `connect`                |
+| `disconnect`             |
+| `open`                   |
+| `close`                  |
 
 ## codersdk.AuditDiff
 
@@ -1314,6 +1318,7 @@ This is required on creation to enable a user-flow of validating a template work
   ],
   "build_reason": "autostart",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
   "resource_type": "template",
   "time": "2019-08-24T14:15:22Z"
@@ -1328,6 +1333,7 @@ This is required on creation to enable a user-flow of validating a template work
 | `additional_fields` | array of integer                               | false    |              |             |
 | `build_reason`      | [codersdk.BuildReason](#codersdkbuildreason)   | false    |              |             |
 | `organization_id`   | string                                         | false    |              |             |
+| `request_id`        | string                                         | false    |              |             |
 | `resource_id`       | string                                         | false    |              |             |
 | `resource_type`     | [codersdk.ResourceType](#codersdkresourcetype) | false    |              |             |
 | `time`              | string                                         | false    |              |             |
@@ -3084,12 +3090,12 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name         | Type   | Required | Restrictions | Description |
-|--------------|--------|----------|--------------|-------------|
-| `created_at` | string | false    |              |             |
-| `public_key` | string | false    |              |             |
-| `updated_at` | string | false    |              |             |
-| `user_id`    | string | false    |              |             |
+| Name         | Type   | Required | Restrictions | Description                                                                                                                                                                                       |
+|--------------|--------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `created_at` | string | false    |              |                                                                                                                                                                                                   |
+| `public_key` | string | false    |              | Public key is the SSH public key in OpenSSH format. Example: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID3OmYJvT7q1cF1azbybYy0OZ9yrXfA+M6Lr4vzX5zlp\n" Note: The key includes a trailing newline (\n). |
+| `updated_at` | string | false    |              |                                                                                                                                                                                                   |
+| `user_id`    | string | false    |              |                                                                                                                                                                                                   |
 
 ## codersdk.Group
 
@@ -4427,6 +4433,45 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `address` | [serpent.HostPort](#serpenthostport) | false    |              |             |
 | `enable`  | boolean                              | false    |              |             |
 
+## codersdk.Preset
+
+```json
+{
+  "id": "string",
+  "name": "string",
+  "parameters": [
+    {
+      "name": "string",
+      "value": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name         | Type                                                          | Required | Restrictions | Description |
+|--------------|---------------------------------------------------------------|----------|--------------|-------------|
+| `id`         | string                                                        | false    |              |             |
+| `name`       | string                                                        | false    |              |             |
+| `parameters` | array of [codersdk.PresetParameter](#codersdkpresetparameter) | false    |              |             |
+
+## codersdk.PresetParameter
+
+```json
+{
+  "name": "string",
+  "value": "string"
+}
+```
+
+### Properties
+
+| Name    | Type   | Required | Restrictions | Description |
+|---------|--------|----------|--------------|-------------|
+| `name`  | string | false    |              |             |
+| `value` | string | false    |              |             |
+
 ## codersdk.PrometheusConfig
 
 ```json
@@ -4488,7 +4533,10 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "created_at": "2019-08-24T14:15:22Z",
   "current_job": {
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "status": "pending"
+    "status": "pending",
+    "template_display_name": "string",
+    "template_icon": "string",
+    "template_name": "string"
   },
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "key_id": "1e779c8a-6786-4c89-b7c3-a6666f5fd6b5",
@@ -4498,7 +4546,10 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "previous_job": {
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "status": "pending"
+    "status": "pending",
+    "template_display_name": "string",
+    "template_icon": "string",
+    "template_name": "string"
   },
   "provisioners": [
     "string"
@@ -4545,16 +4596,22 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 ```json
 {
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "status": "pending"
+  "status": "pending",
+  "template_display_name": "string",
+  "template_icon": "string",
+  "template_name": "string"
 }
 ```
 
 ### Properties
 
-| Name     | Type                                                           | Required | Restrictions | Description |
-|----------|----------------------------------------------------------------|----------|--------------|-------------|
-| `id`     | string                                                         | false    |              |             |
-| `status` | [codersdk.ProvisionerJobStatus](#codersdkprovisionerjobstatus) | false    |              |             |
+| Name                    | Type                                                           | Required | Restrictions | Description |
+|-------------------------|----------------------------------------------------------------|----------|--------------|-------------|
+| `id`                    | string                                                         | false    |              |             |
+| `status`                | [codersdk.ProvisionerJobStatus](#codersdkprovisionerjobstatus) | false    |              |             |
+| `template_display_name` | string                                                         | false    |              |             |
+| `template_icon`         | string                                                         | false    |              |             |
+| `template_name`         | string                                                         | false    |              |             |
 
 #### Enumerated Values
 
@@ -4810,7 +4867,10 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
       "created_at": "2019-08-24T14:15:22Z",
       "current_job": {
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-        "status": "pending"
+        "status": "pending",
+        "template_display_name": "string",
+        "template_icon": "string",
+        "template_name": "string"
       },
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "key_id": "1e779c8a-6786-4c89-b7c3-a6666f5fd6b5",
@@ -4820,7 +4880,10 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "previous_job": {
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-        "status": "pending"
+        "status": "pending",
+        "template_display_name": "string",
+        "template_icon": "string",
+        "template_name": "string"
       },
       "provisioners": [
         "string"
@@ -5301,6 +5364,8 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `idp_sync_settings_organization` |
 | `idp_sync_settings_group`        |
 | `idp_sync_settings_role`         |
+| `workspace_agent`                |
+| `workspace_app`                  |
 
 ## codersdk.Response
 
@@ -9828,7 +9893,10 @@ Zero means unspecified. There might be a limit, but the client need not try to r
           "created_at": "2019-08-24T14:15:22Z",
           "current_job": {
             "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-            "status": "pending"
+            "status": "pending",
+            "template_display_name": "string",
+            "template_icon": "string",
+            "template_name": "string"
           },
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "key_id": "1e779c8a-6786-4c89-b7c3-a6666f5fd6b5",
@@ -9838,7 +9906,10 @@ Zero means unspecified. There might be a limit, but the client need not try to r
           "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
           "previous_job": {
             "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-            "status": "pending"
+            "status": "pending",
+            "template_display_name": "string",
+            "template_icon": "string",
+            "template_name": "string"
           },
           "provisioners": [
             "string"
@@ -9964,7 +10035,10 @@ Zero means unspecified. There might be a limit, but the client need not try to r
         "created_at": "2019-08-24T14:15:22Z",
         "current_job": {
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-          "status": "pending"
+          "status": "pending",
+          "template_display_name": "string",
+          "template_icon": "string",
+          "template_name": "string"
         },
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "key_id": "1e779c8a-6786-4c89-b7c3-a6666f5fd6b5",
@@ -9974,7 +10048,10 @@ Zero means unspecified. There might be a limit, but the client need not try to r
         "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
         "previous_job": {
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-          "status": "pending"
+          "status": "pending",
+          "template_display_name": "string",
+          "template_icon": "string",
+          "template_name": "string"
         },
         "provisioners": [
           "string"
@@ -10031,7 +10108,10 @@ Zero means unspecified. There might be a limit, but the client need not try to r
     "created_at": "2019-08-24T14:15:22Z",
     "current_job": {
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "status": "pending"
+      "status": "pending",
+      "template_display_name": "string",
+      "template_icon": "string",
+      "template_name": "string"
     },
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "key_id": "1e779c8a-6786-4c89-b7c3-a6666f5fd6b5",
@@ -10041,7 +10121,10 @@ Zero means unspecified. There might be a limit, but the client need not try to r
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "previous_job": {
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "status": "pending"
+      "status": "pending",
+      "template_display_name": "string",
+      "template_icon": "string",
+      "template_name": "string"
     },
     "provisioners": [
       "string"
