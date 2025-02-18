@@ -2022,6 +2022,7 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 			Username("coder").
 			Password(pgPassword).
 			Database("coder").
+			Encoding("UTF8").
 			Port(uint32(pgPort)).
 			Logger(stdlibLogger.Writer()),
 	)
