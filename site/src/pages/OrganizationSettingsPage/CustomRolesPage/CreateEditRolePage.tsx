@@ -5,6 +5,7 @@ import {
 	updateOrganizationRole,
 } from "api/queries/roles";
 import type { CustomRoleRequest } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
@@ -14,7 +15,6 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import CreateEditRolePageView from "./CreateEditRolePageView";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
 
 export const CreateEditRolePage: FC = () => {
 	const queryClient = useQueryClient();
