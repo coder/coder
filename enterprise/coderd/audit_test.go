@@ -60,7 +60,7 @@ func TestEnterpriseAuditLogs(t *testing.T) {
 		}, alogs.AuditLogs[0].Organization)
 
 		// OrganizationID is deprecated, but make sure it is set.
-		require.Equal(t, o.ID, alogs.AuditLogs[0].OrganizationID)
+		require.Equal(t, o.ID, alogs.AuditLogs[0].Organization.ID)
 
 		// Delete the org and try again, should be mostly empty.
 		err = client.DeleteOrganization(ctx, o.ID.String())
@@ -75,12 +75,8 @@ func TestEnterpriseAuditLogs(t *testing.T) {
 		require.Equal(t, int64(1), alogs.Count)
 		require.Len(t, alogs.AuditLogs, 1)
 
-		require.Equal(t, &codersdk.MinimalOrganization{
-			ID: o.ID,
-		}, alogs.AuditLogs[0].Organization)
-
 		// OrganizationID is deprecated, but make sure it is set.
-		require.Equal(t, o.ID, alogs.AuditLogs[0].OrganizationID)
+		require.Equal(t, o.ID, alogs.AuditLogs[0].Organization.ID)
 
 		// Some audit entries do not have an organization at all, in which case the
 		// response omits the organization.
@@ -104,6 +100,6 @@ func TestEnterpriseAuditLogs(t *testing.T) {
 		require.Equal(t, (*codersdk.MinimalOrganization)(nil), alogs.AuditLogs[0].Organization)
 
 		// OrganizationID is deprecated, but make sure it is empty.
-		require.Equal(t, uuid.Nil, alogs.AuditLogs[0].OrganizationID)
+		require.Equal(t, uuid.Nil, alogs.AuditLogs[0].Organization.ID)
 	})
 }
