@@ -148,14 +148,17 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 		[autofillParameters],
 	);
 
-	const presetOptions = useMemo(() => {
-		return [
+	const [presetOptions, setPresetOptions] = useState([
+		{ label: "None", value: "" },
+	]);
+	useEffect(() => {
+		setPresetOptions([
 			{ label: "None", value: "" },
 			...presets.map((preset) => ({
 				label: preset.Name,
 				value: preset.ID,
 			})),
-		];
+		]);
 	}, [presets]);
 
 	const [selectedPresetIndex, setSelectedPresetIndex] = useState(0);
@@ -245,31 +248,6 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 					</Alert>
 				)}
 
-				{presets.length > 0 && (
-					<FormSection
-						title="Presets"
-						description="A list of preset workspace configurations to get you started."
-					>
-						<FormFields>
-							<Stack direction="row" spacing={2}>
-								<SelectFilter
-									label="Preset"
-									options={presetOptions}
-									onSelect={(option) => {
-										setSelectedPresetIndex(
-											presetOptions.findIndex(
-												(preset) => preset.value === option?.value,
-											),
-										);
-									}}
-									placeholder="Select a preset"
-									selectedOption={presetOptions[selectedPresetIndex]}
-								/>
-							</Stack>
-						</FormFields>
-					</FormSection>
-				)}
-
 				{/* General info */}
 				<FormSection
 					title="General"
@@ -294,6 +272,26 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 							</Stack>
 						)}
 
+						{presets.length > 0 && (
+							<Stack direction="row" spacing={2}>
+								<SelectFilter
+									label="Preset"
+									options={presetOptions}
+									onSelect={(option) => {
+										setSelectedPresetIndex(
+											presetOptions.findIndex(
+												(preset) => preset.value === option?.value,
+											),
+										);
+									}}
+									placeholder="Select a preset"
+									selectedOption={presetOptions[selectedPresetIndex]}
+								/>
+								<span css={styles.description}>
+									Select a preset to get you started.
+								</span>
+							</Stack>
+						)}
 						<div>
 							<TextField
 								{...getFieldHelpers("name")}
