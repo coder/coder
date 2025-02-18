@@ -1370,7 +1370,7 @@ func (c *Controller) Run(ctx context.Context) {
 				c.logger.Error(c.ctx, "failed to dial tailnet v2+ API", errF)
 				continue
 			}
-			c.logger.Info(c.ctx, "obtained tailnet API v2+ client")
+			c.logger.Debug(c.ctx, "obtained tailnet API v2+ client")
 			err = c.precheckClientsAndControllers(tailnetClients)
 			if err != nil {
 				c.logger.Critical(c.ctx, "failed precheck", slog.Error(err))
@@ -1379,7 +1379,7 @@ func (c *Controller) Run(ctx context.Context) {
 			}
 			retrier.Reset()
 			c.runControllersOnce(tailnetClients)
-			c.logger.Info(c.ctx, "tailnet API v2+ connection lost")
+			c.logger.Debug(c.ctx, "tailnet API v2+ connection lost")
 		}
 	}()
 }
