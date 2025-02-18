@@ -318,21 +318,34 @@ func (c *Client) ProvisionerDaemons(ctx context.Context) ([]ProvisionerDaemon, e
 	return daemons, json.NewDecoder(res.Body).Decode(&daemons)
 }
 
-func (c *Client) OrganizationProvisionerDaemons(ctx context.Context, organizationID uuid.UUID, tags map[string]string) ([]ProvisionerDaemon, error) {
-	baseURL := fmt.Sprintf("/api/v2/organizations/%s/provisionerdaemons", organizationID.String())
+type OrganizationProvisionerDaemonsOptions struct {
+	Limit int
+	IDs   []uuid.UUID
+	Tags  map[string]string
+}
 
-	queryParams := url.Values{}
-	tagsJSON, err := json.Marshal(tags)
-	if err != nil {
-		return nil, xerrors.Errorf("marshal tags: %w", err)
+func (c *Client) OrganizationProvisionerDaemons(ctx context.Context, organizationID uuid.UUID, opts *OrganizationProvisionerDaemonsOptions) ([]ProvisionerDaemon, error) {
+	qp := url.Values{}
+	if opts != nil {
+		if opts.Limit > 0 {
+			qp.Add("limit", strconv.Itoa(opts.Limit))
+		}
+		if len(opts.IDs) > 0 {
+			qp.Add("ids", joinSliceStringer(opts.IDs))
+		}
+		if len(opts.Tags) > 0 {
+			tagsRaw, err := json.Marshal(opts.Tags)
+			if err != nil {
+				return nil, xerrors.Errorf("marshal tags: %w", err)
+			}
+			qp.Add("tags", string(tagsRaw))
+		}
 	}
 
-	queryParams.Add("tags", string(tagsJSON))
-	if len(queryParams) > 0 {
-		baseURL = fmt.Sprintf("%s?%s", baseURL, queryParams.Encode())
-	}
-
-	res, err := c.Request(ctx, http.MethodGet, baseURL, nil)
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/organizations/%s/provisionerdaemons?%s", organizationID.String(), qp.Encode()),
+		nil,
+	)
 	if err != nil {
 		return nil, xerrors.Errorf("execute request: %w", err)
 	}

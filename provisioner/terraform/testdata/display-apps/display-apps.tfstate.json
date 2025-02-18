@@ -26,16 +26,17 @@
               }
             ],
             "env": null,
-            "id": "52c95fc8-4d53-479c-8368-87f329b84bf7",
+            "id": "810cdd01-a27d-442f-9e69-bdaecced8a59",
             "init_script": "",
             "metadata": [],
             "motd_file": null,
             "order": null,
             "os": "linux",
+            "resources_monitoring": [],
             "shutdown_script": null,
             "startup_script": null,
             "startup_script_behavior": "non-blocking",
-            "token": "326a8bd5-1673-4bdf-beee-66c644b45088",
+            "token": "fade1b71-d52b-4ef2-bb05-961f7795bab9",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -43,6 +44,7 @@
               {}
             ],
             "metadata": [],
+            "resources_monitoring": [],
             "token": true
           }
         },
@@ -54,7 +56,7 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "2940668912954669921",
+            "id": "5174735461860530782",
             "triggers": null
           },
           "sensitive_values": {},

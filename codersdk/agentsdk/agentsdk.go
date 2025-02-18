@@ -231,9 +231,9 @@ func (c *Client) ConnectRPC23(ctx context.Context) (
 }
 
 // ConnectRPC24 returns a dRPC client to the Agent API v2.4.  It is useful when you want to be
-// maximally compatible with Coderd Release Versions from 2.18+ // TODO update release
+// maximally compatible with Coderd Release Versions from 2.xx+ // TODO @vincent: define version
 func (c *Client) ConnectRPC24(ctx context.Context) (
-	proto.DRPCAgentClient23, tailnetproto.DRPCTailnetClient23, error,
+	proto.DRPCAgentClient24, tailnetproto.DRPCTailnetClient24, error,
 ) {
 	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 4))
 	if err != nil {

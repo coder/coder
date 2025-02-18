@@ -21,6 +21,7 @@
             "motd_file": null,
             "order": null,
             "os": "windows",
+            "resources_monitoring": [],
             "shutdown_script": null,
             "startup_script": null,
             "startup_script_behavior": "non-blocking",
@@ -29,6 +30,7 @@
           "sensitive_values": {
             "display_apps": [],
             "metadata": [],
+            "resources_monitoring": [],
             "token": true
           }
         },
@@ -69,6 +71,7 @@
           "motd_file": null,
           "order": null,
           "os": "windows",
+          "resources_monitoring": [],
           "shutdown_script": null,
           "startup_script": null,
           "startup_script_behavior": "non-blocking",
@@ -79,12 +82,14 @@
           "id": true,
           "init_script": true,
           "metadata": [],
+          "resources_monitoring": [],
           "token": true
         },
         "before_sensitive": false,
         "after_sensitive": {
           "display_apps": [],
           "metadata": [],
+          "resources_monitoring": [],
           "token": true
         }
       }
@@ -130,7 +135,7 @@
               "display_name": null,
               "ephemeral": true,
               "icon": null,
-              "id": "0db9ef7c-02fe-43cf-8654-1bedc26f9fcb",
+              "id": "30116bcb-f109-4807-be06-666a60b6cbb2",
               "mutable": true,
               "name": "number_example",
               "option": null,
@@ -157,7 +162,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "ef93145f-722a-4c24-8e7f-f94fc8327188",
+              "id": "755395f4-d163-4b90-a8f4-e7ae24e17dd0",
               "mutable": false,
               "name": "number_example_max",
               "option": null,
@@ -196,7 +201,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "4561c132-1925-4612-8456-7ddbc8d1a1a8",
+              "id": "dec9fa47-a252-4eb7-868b-10d0fe7bad57",
               "mutable": false,
               "name": "number_example_max_zero",
               "option": null,
@@ -235,7 +240,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "b102d78f-a86b-4457-a643-505a59710008",
+              "id": "57107f82-107b-484d-8491-0787f051dca7",
               "mutable": false,
               "name": "number_example_min",
               "option": null,
@@ -274,7 +279,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "ad756fd0-ac71-4be8-87a3-ca7462d44a6b",
+              "id": "c21a61f4-26e0-49bb-99c8-56240433c21b",
               "mutable": false,
               "name": "number_example_min_max",
               "option": null,
@@ -313,7 +318,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "918bb8b5-ef2f-4bf6-9c65-bee901131d5d",
+              "id": "4894f5cc-f4e6-4a86-bdfa-36c9d3f8f1a3",
               "mutable": false,
               "name": "number_example_min_zero",
               "option": null,
@@ -545,7 +550,7 @@
       ]
     }
   },
-  "timestamp": "2025-02-06T07:28:26Z",
+  "timestamp": "2025-01-29T22:48:20Z",
   "applyable": true,
   "complete": true,
   "errored": false

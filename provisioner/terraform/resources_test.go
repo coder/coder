@@ -827,38 +827,9 @@ func TestConvertResources(t *testing.T) {
 				Parameters: []*proto.PresetParameter{{
 					Name:  "Sample",
 					Value: "A1B2C3",
-					// Advice from Danny:
-					// This is Terraform functionality. We don't have to test it explicitly.
-					// Sas: We still at some point need to document it.
-					// TODO (sasswart): Decide how to support presetting coder parameters from external modules
-					// Options are:
-					// * Set outputs with the parameter names and refer to those in the preset
-					// * set presets in the child module (won't work because we don't support merging presets)
-					// * hard coder parameter names
-					// }, {
-					//	Name:  "First parameter from module",
-					//	Value: "A1B2C3",
-					// }, {
-					//	Name:  "First parameter from child module",
-					//	Value: "A1B2C3",
 				}},
 			}},
 		},
-		// TODO (sasswart): Decide how to test sad paths.
-		// Do we just introduce an expectedErr in the testcase?
-		// Methinks yes
-		// "presets-without-parameters": {
-		// 	resources: []*proto.Resource{{
-		// 		Name: "dev",
-		// 		Type: "null_resource",
-		// 	}},
-		// },
-		// "presets-with-invalid-parameters": {
-		// 	resources: []*proto.Resource{{
-		// 		Name: "dev",
-		// 		Type: "null_resource",
-		// 	}},
-		// },
 	} {
 		folderName := folderName
 		expected := expected
