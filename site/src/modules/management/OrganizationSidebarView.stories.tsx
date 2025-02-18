@@ -346,7 +346,10 @@ export const OrgsSortedAlphabetically: Story = {
 		});
 
 		const orgElements = globalScreen.getAllByRole("option");
-		const orgNames = orgElements.map(
+		// filter out Create btn
+		const filteredElems = orgElements.slice(0, 3);
+
+		const orgNames = filteredElems.map(
 			// handling fuzzy matching
 			(el) => el.textContent?.replace(/^[A-Z]/, "").trim() || "",
 		);
