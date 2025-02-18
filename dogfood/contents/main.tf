@@ -295,6 +295,11 @@ resource "coder_agent" "dev" {
       enabled = true
       threshold = 80
     }
+    volume {
+      enabled = true
+      threshold = 80
+      path = "/"
+    }
   }
 
   startup_script = <<-EOT
