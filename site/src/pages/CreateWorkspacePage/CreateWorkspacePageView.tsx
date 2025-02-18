@@ -273,23 +273,25 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 						)}
 
 						{presets.length > 0 && (
-							<Stack direction="row" spacing={2}>
-								<SelectFilter
-									label="Preset"
-									options={presetOptions}
-									onSelect={(option) => {
-										setSelectedPresetIndex(
-											presetOptions.findIndex(
-												(preset) => preset.value === option?.value,
-											),
-										);
-									}}
-									placeholder="Select a preset"
-									selectedOption={presetOptions[selectedPresetIndex]}
-								/>
+							<Stack direction="column" spacing={2}>
 								<span css={styles.description}>
-									Select a preset to get you started.
+									Select a preset to get started
 								</span>
+								<Stack direction="row" spacing={2}>
+									<SelectFilter
+										label="Preset"
+										options={presetOptions}
+										onSelect={(option) => {
+											setSelectedPresetIndex(
+												presetOptions.findIndex(
+													(preset) => preset.value === option?.value,
+												),
+											);
+										}}
+										placeholder="Select a preset"
+										selectedOption={presetOptions[selectedPresetIndex]}
+									/>
+								</Stack>
 							</Stack>
 						)}
 						<div>
