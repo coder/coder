@@ -10,13 +10,11 @@ import {
 	BreadcrumbSeparator,
 } from "components/Breadcrumb/Breadcrumb";
 import { Loader } from "components/Loader/Loader";
-import { Paywall } from "components/Paywall/Paywall";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import NotFoundPage from "pages/404Page/404Page";
 import { type FC, Suspense, createContext, useContext } from "react";
 import { useQuery } from "react-query";
 import { Outlet, useParams } from "react-router-dom";
-import { docs } from "utils/docs";
 import {
 	type OrganizationPermissions,
 	canViewOrganization,
@@ -125,15 +123,7 @@ const OrganizationSettingsLayout: FC = () => {
 				<hr className="h-px border-none bg-border" />
 				<div className="px-10 max-w-screen-2xl">
 					<Suspense fallback={<Loader />}>
-						{showOrganizations ? (
-							<Outlet />
-						) : (
-							<Paywall
-								message="Organizations"
-								description="Organizations can be used to segment and isolate resources inside a Coder deployment. You need a Premium license to use this feature."
-								documentationLink={docs("/admin/users/organizations")}
-							/>
-						)}
+						<Outlet />
 					</Suspense>
 				</div>
 			</div>
