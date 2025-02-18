@@ -312,7 +312,7 @@ func (c *Controller) reconcileTemplate(ctx context.Context, template database.Te
 			}
 
 			// TODO: authz // Can't use existing profiles (i.e. AsSystemRestricted) because of dbauthz rules
-			var ownerCtx = dbauthz.As(ctx, rbac.Subject{
+			ownerCtx := dbauthz.As(ctx, rbac.Subject{
 				ID:     "owner",
 				Roles:  rbac.RoleIdentifiers{rbac.RoleOwner()},
 				Groups: []string{},
@@ -375,7 +375,7 @@ func (c *Controller) createPrebuild(ctx context.Context, db database.Store, preb
 		ID:               prebuildID,
 		CreatedAt:        now,
 		UpdatedAt:        now,
-		OwnerID:          PrebuildOwnerUUID,
+		OwnerID:          ownerID,
 		OrganizationID:   template.OrganizationID,
 		TemplateID:       template.ID,
 		Name:             name,
@@ -397,6 +397,7 @@ func (c *Controller) createPrebuild(ctx context.Context, db database.Store, preb
 
 	return c.provision(ctx, db, prebuildID, template, presetID, database.WorkspaceTransitionStart, workspace)
 }
+
 func (c *Controller) deletePrebuild(ctx context.Context, db database.Store, prebuildID uuid.UUID, template database.Template, presetID uuid.UUID) error {
 	workspace, err := db.GetWorkspaceByID(ctx, prebuildID)
 	if err != nil {
@@ -430,7 +431,7 @@ func (c *Controller) provision(ctx context.Context, db database.Store, prebuildI
 
 	builder := wsbuilder.New(workspace, transition).
 		Reason(database.BuildReasonInitiator).
-		Initiator(PrebuildOwnerUUID).
+		Initiator(ownerID).
 		ActiveVersion().
 		VersionID(template.ActiveVersionID).
 		MarkPrebuild().

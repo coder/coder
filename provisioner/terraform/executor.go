@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/coder/terraform-provider-coder/provider"
 	"io"
 	"os"
 	"os/exec"

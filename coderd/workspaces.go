@@ -11,8 +11,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/coder/coder/v2/coderd/prebuilds"
-
 	"github.com/dustin/go-humanize"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -30,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/schedule"
@@ -632,6 +631,9 @@ func createWorkspace(
 
 		runningWorkspaceAgentID uuid.UUID
 	)
+
+	prebuilds := (*api.PrebuildsClaimer.Load()).(prebuilds.Claimer)
+
 	err = api.Database.InTx(func(db database.Store) error {
 		var (
 			workspaceID      uuid.UUID
@@ -641,7 +643,7 @@ func createWorkspace(
 		// If a template preset was chosen, try claim a prebuild.
 		if req.TemplateVersionPresetID != uuid.Nil {
 			// Try and claim an eligible prebuild, if available.
-			claimedWorkspace, err = claimPrebuild(ctx, db, api.Logger, req, owner)
+			claimedWorkspace, err = claimPrebuild(ctx, prebuilds, db, api.Logger, req, owner)
 			if err != nil {
 				return xerrors.Errorf("claim prebuild: %w", err)
 			}
@@ -674,8 +676,7 @@ func createWorkspace(
 		} else {
 			// Prebuild found!
 			workspaceID = claimedWorkspace.ID
-			initiatorID = prebuilds.PrebuildOwnerUUID
-
+			initiatorID = prebuilds.Initiator()
 			agents, err := api.Database.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, claimedWorkspace.ID)
 			if err != nil {
 				api.Logger.Error(ctx, "failed to retrieve running agents of claimed prebuilt workspace",
@@ -806,9 +807,9 @@ func createWorkspace(
 	httpapi.Write(ctx, rw, http.StatusCreated, w)
 }
 
-func claimPrebuild(ctx context.Context, db database.Store, logger slog.Logger, req codersdk.CreateWorkspaceRequest, owner workspaceOwner) (*database.Workspace, error) {
+func claimPrebuild(ctx context.Context, claimer prebuilds.Claimer, db database.Store, logger slog.Logger, req codersdk.CreateWorkspaceRequest, owner workspaceOwner) (*database.Workspace, error) {
 	// TODO: authz // Can't use existing profiles (i.e. AsSystemRestricted) because of dbauthz rules
-	var ownerCtx = dbauthz.As(ctx, rbac.Subject{
+	ownerCtx := dbauthz.As(ctx, rbac.Subject{
 		ID:     "owner",
 		Roles:  rbac.RoleIdentifiers{rbac.RoleOwner()},
 		Groups: []string{},
@@ -819,7 +820,7 @@ func claimPrebuild(ctx context.Context, db database.Store, logger slog.Logger, r
 	claimCtx, cancel := context.WithTimeout(ownerCtx, time.Second*10) // TODO: don't use elevated authz context
 	defer cancel()
 
-	claimedID, err := prebuilds.Claim(claimCtx, db, owner.ID, req.Name, req.TemplateVersionPresetID)
+	claimedID, err := claimer.Claim(claimCtx, db, owner.ID, req.Name, req.TemplateVersionPresetID)
 	if err != nil {
 		// TODO: enhance this by clarifying whether this *specific* prebuild failed or whether there are none to claim.
 		return nil, xerrors.Errorf("claim prebuild: %w", err)

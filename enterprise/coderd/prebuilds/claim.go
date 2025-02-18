@@ -4,12 +4,18 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"github.com/coder/coder/v2/coderd/database"
+
+	"github.com/coder/coder/v2/coderd/prebuilds"
+
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/database"
 )
 
-func Claim(ctx context.Context, store database.Store, userID uuid.UUID, name string, presetID uuid.UUID) (*uuid.UUID, error) {
+type EnterpriseClaimer struct{}
+
+func (e EnterpriseClaimer) Claim(ctx context.Context, store database.Store, userID uuid.UUID, name string, presetID uuid.UUID) (*uuid.UUID, error) {
 	var prebuildID *uuid.UUID
 	err := store.InTx(func(db database.Store) error {
 		// TODO: do we need this?
@@ -44,3 +50,9 @@ func Claim(ctx context.Context, store database.Store, userID uuid.UUID, name str
 
 	return prebuildID, err
 }
+
+func (e EnterpriseClaimer) Initiator() uuid.UUID {
+	return ownerID
+}
+
+var _ prebuilds.Claimer = &EnterpriseClaimer{}
