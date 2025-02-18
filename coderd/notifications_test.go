@@ -12,6 +12,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -316,4 +317,57 @@ func TestNotificationDispatchMethods(t *testing.T) {
 			require.Equal(t, tc.expectedDefault, resp.DefaultNotificationMethod)
 		})
 	}
+}
+
+func TestNotificationTest(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OwnerCanSendTestNotification", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		notifyEnq := &notificationstest.FakeEnqueuer{}
+		ownerClient := coderdtest.New(t, &coderdtest.Options{
+			DeploymentValues:      coderdtest.DeploymentValues(t),
+			NotificationsEnqueuer: notifyEnq,
+		})
+
+		// Given: A user with owner permissions.
+		_ = coderdtest.CreateFirstUser(t, ownerClient)
+
+		// When: They attempt to send a test notification.
+		err := ownerClient.PostTestNotification(ctx)
+		require.NoError(t, err)
+
+		// Then: We expect a notification to have been sent.
+		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateTestNotification))
+		require.Len(t, sent, 1)
+	})
+
+	t.Run("MemberCannotSendTestNotification", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		notifyEnq := &notificationstest.FakeEnqueuer{}
+		ownerClient := coderdtest.New(t, &coderdtest.Options{
+			DeploymentValues:      coderdtest.DeploymentValues(t),
+			NotificationsEnqueuer: notifyEnq,
+		})
+
+		// Given: A user without owner permissions.
+		ownerUser := coderdtest.CreateFirstUser(t, ownerClient)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, ownerUser.OrganizationID)
+
+		// When: They attempt to send a test notification.
+		err := memberClient.PostTestNotification(ctx)
+
+		// Then: We expect a forbidden error with no notifications sent
+		var sdkError *codersdk.Error
+		require.Error(t, err)
+		require.ErrorAsf(t, err, &sdkError, "error should be of type *codersdk.Error")
+		require.Equal(t, http.StatusForbidden, sdkError.StatusCode())
+
+		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateTestNotification))
+		require.Len(t, sent, 0)
+	})
 }
