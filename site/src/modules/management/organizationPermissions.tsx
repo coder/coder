@@ -80,6 +80,13 @@ export const organizationPermissionChecks = (organizationId: string) =>
 			},
 			action: "read",
 		},
+		viewProvisionerJobs: {
+			object: {
+				resource_type: "provisioner_jobs",
+				organization_id: organizationId,
+			},
+			action: "read",
+		},
 		viewIdpSyncSettings: {
 			object: {
 				resource_type: "idpsync_settings",

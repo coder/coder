@@ -191,7 +191,7 @@ const OrganizationSettingsNavigation: FC<
 						Roles
 					</SettingsSidebarNavItem>
 				)}
-				{orgPermissions.viewProvisioners && (
+				{orgPermissions.viewProvisionerJobs && (
 					<SettingsSidebarNavItem
 						href={urlForSubpage(organization.name, "provisioners")}
 					>

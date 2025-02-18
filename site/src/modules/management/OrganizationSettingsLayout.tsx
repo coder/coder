@@ -19,6 +19,8 @@ import {
 	type OrganizationPermissions,
 	canViewOrganization,
 } from "./organizationPermissions";
+import { Paywall } from "components/Paywall/Paywall";
+import { docs } from "utils/docs";
 
 export const OrganizationSettingsContext = createContext<
 	OrganizationSettingsValue | undefined
@@ -46,7 +48,7 @@ export const useOrganizationSettings = (): OrganizationSettingsValue => {
 };
 
 const OrganizationSettingsLayout: FC = () => {
-	const { organizations } = useDashboard();
+	const { organizations, showOrganizations } = useDashboard();
 	const { organization: orgName } = useParams() as {
 		organization?: string;
 	};
@@ -123,7 +125,15 @@ const OrganizationSettingsLayout: FC = () => {
 				<hr className="h-px border-none bg-border" />
 				<div className="px-10 max-w-screen-2xl">
 					<Suspense fallback={<Loader />}>
-						<Outlet />
+						{showOrganizations ? (
+							<Outlet />
+						) : (
+							<Paywall
+								message="Organizations"
+								description="Organizations can be used to segment and isolate resources inside a Coder deployment. You need a Premium license to use this feature."
+								documentationLink={docs("/admin/users/organizations")}
+							/>
+						)}
 					</Suspense>
 				</div>
 			</div>

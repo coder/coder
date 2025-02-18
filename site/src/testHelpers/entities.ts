@@ -2855,6 +2855,7 @@ export const MockOrganizationPermissions: OrganizationPermissions = {
 	createOrgRoles: true,
 	assignOrgRoles: true,
 	viewProvisioners: true,
+	viewProvisionerJobs: true,
 	viewIdpSyncSettings: true,
 	editIdpSyncSettings: true,
 };
@@ -2870,6 +2871,7 @@ export const MockNoOrganizationPermissions: OrganizationPermissions = {
 	createOrgRoles: false,
 	assignOrgRoles: false,
 	viewProvisioners: false,
+	viewProvisionerJobs: false,
 	viewIdpSyncSettings: false,
 	editIdpSyncSettings: false,
 };
