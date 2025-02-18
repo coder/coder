@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os/user"
 	"runtime"
 	"strings"
 	"sync"
@@ -102,6 +103,39 @@ func TestNewServer_ExecuteShebang(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "test\n", string(output))
 	})
+	t.Run("CustomEnvInfoer", func(t *testing.T) {
+		t.Parallel()
+		ei := &fakeEnvInfoer{
+			CurrentUserFn: func() (u *user.User, err error) {
+				return nil, assert.AnError
+			},
+		}
+		_, err := s.CreateCommand(ctx, `whatever`, nil, ei)
+		require.ErrorIs(t, err, assert.AnError)
+	})
+}
+
+type fakeEnvInfoer struct {
+	CurrentUserFn func() (*user.User, error)
+	EnvironFn     func() []string
+	UserHomeDirFn func() (string, error)
+	UserShellFn   func(string) (string, error)
+}
+
+func (f *fakeEnvInfoer) CurrentUser() (u *user.User, err error) {
+	return f.CurrentUserFn()
+}
+
+func (f *fakeEnvInfoer) Environ() []string {
+	return f.EnvironFn()
+}
+
+func (f *fakeEnvInfoer) UserHomeDir() (string, error) {
+	return f.UserHomeDirFn()
+}
+
+func (f *fakeEnvInfoer) UserShell(u string) (string, error) {
+	return f.UserShellFn(u)
 }
 
 func TestNewServer_CloseActiveConnections(t *testing.T) {
