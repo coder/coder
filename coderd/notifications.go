@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -166,7 +167,7 @@ func (api *API) notificationDispatchMethods(rw http.ResponseWriter, r *http.Requ
 }
 
 // @Summary Send a test notification
-// @ID post-test-notification
+// @ID send-a-test-notification
 // @Security CoderSessionToken
 // @Tags Notifications
 // @Success 200
@@ -176,6 +177,11 @@ func (api *API) postTestNotification(rw http.ResponseWriter, r *http.Request) {
 		ctx = r.Context()
 		key = httpmw.APIKey(r)
 	)
+
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
+		return
+	}
 
 	if _, err := api.NotificationsEnqueuer.EnqueueWithData(
 		//nolint:gocritic // We need to be notifier to send the notification.

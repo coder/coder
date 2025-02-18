@@ -23,6 +23,7 @@ USAGE:
 SUBCOMMANDS:
     pause     Pause notifications
     resume    Resume notifications
+    test      Test notifications
 
 ———
 Run `coder --help` for a list of global options.
