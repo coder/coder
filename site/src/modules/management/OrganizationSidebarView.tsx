@@ -3,10 +3,12 @@ import { Avatar } from "components/Avatar/Avatar";
 import { Button } from "components/Button/Button";
 import {
 	Command,
+	CommandEmpty,
 	CommandGroup,
 	CommandInput,
 	CommandItem,
 	CommandList,
+	CommandSeparator,
 } from "components/Command/Command";
 import { Loader } from "components/Loader/Loader";
 import {
@@ -130,6 +132,7 @@ const OrganizationsSettingsNavigation: FC<
 					<Command loop>
 						<CommandInput placeholder="Find organization" />
 						<CommandList>
+							<CommandEmpty>No organization found.</CommandEmpty>
 							<CommandGroup className="pb-2">
 								{sortedOrganizations.length > 1 && (
 									<div className="flex flex-col max-h-[260px] overflow-y-auto">
@@ -164,11 +167,11 @@ const OrganizationsSettingsNavigation: FC<
 										))}
 									</div>
 								)}
-								{permissions.createOrganization && (
-									<>
-										{organizations.length > 1 && (
-											<hr className="h-px my-2 border-none bg-border -mx-2" />
-										)}
+							</CommandGroup>
+							{permissions.createOrganization && (
+								<>
+									{organizations.length > 1 && <CommandSeparator />}
+									<CommandGroup>
 										<CommandItem
 											className="flex justify-center data-[selected=true]:bg-transparent"
 											onSelect={() => {
@@ -180,9 +183,9 @@ const OrganizationsSettingsNavigation: FC<
 										>
 											<Plus /> Create Organization
 										</CommandItem>
-									</>
-								)}
-							</CommandGroup>
+									</CommandGroup>
+								</>
+							)}
 						</CommandList>
 					</Command>
 				</PopoverContent>
