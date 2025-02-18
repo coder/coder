@@ -290,6 +290,13 @@ resource "coder_agent" "dev" {
     timeout      = 5
   }
 
+  resources_monitoring {
+    memory {
+      enabled = true
+      threshold = 80
+    }
+  }
+
   startup_script = <<-EOT
     #!/usr/bin/env bash
     set -eux -o pipefail
