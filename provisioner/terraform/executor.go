@@ -15,6 +15,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coder/terraform-provider-coder/provider"
+
 	"github.com/hashicorp/go-version"
 	tfjson "github.com/hashicorp/terraform-json"
 	"go.opentelemetry.io/otel/attribute"

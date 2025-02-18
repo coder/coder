@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,9 +15,10 @@ import (
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
-	"github.com/coder/retry"
 	"golang.org/x/xerrors"
 	"gopkg.in/natefinch/lumberjack.v2"
+
+	"github.com/coder/retry"
 
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -66,8 +66,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 		Handler: func(inv *serpent.Invocation) error {
 			ctx, cancel := context.WithCancelCause(inv.Context())
 			defer func() {
-				fmt.Printf(">>>>>CANCELING CONTEXT")
-				cancel(errors.New("defer"))
+				cancel(xerrors.New("defer"))
 			}()
 
 			var (

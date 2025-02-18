@@ -1070,7 +1070,7 @@ func (api *API) workspaceAgentReinit(rw http.ResponseWriter, r *http.Request) {
 	workspace, err := api.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
 	if err != nil {
 		log.Error(ctx, "failed to retrieve workspace from agent token", slog.Error(err))
-		httpapi.InternalServerError(rw, errors.New("failed to determine workspace from agent token"))
+		httpapi.InternalServerError(rw, xerrors.New("failed to determine workspace from agent token"))
 	}
 
 	log.Info(ctx, "agent waiting for reinit instruction")
@@ -1094,7 +1094,7 @@ func (api *API) workspaceAgentReinit(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		log.Error(ctx, "failed to subscribe to prebuild claimed channel", slog.Error(err))
-		httpapi.InternalServerError(rw, errors.New("failed to subscribe to prebuild claimed channel"))
+		httpapi.InternalServerError(rw, xerrors.New("failed to subscribe to prebuild claimed channel"))
 		return
 	}
 	defer cancelSub()
