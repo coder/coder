@@ -6,6 +6,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os/user"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -28,6 +30,172 @@ var _ Lister = &DockerCLILister{}
 func NewDocker(execer agentexec.Execer) Lister {
 	return &DockerCLILister{
 		execer: agentexec.DefaultExecer,
+	}
+}
+
+// ContainerEnvInfoer is an implementation of agentssh.EnvInfoer that returns
+// information about a container.
+type ContainerEnvInfoer struct {
+	container string
+	user      *user.User
+	userShell string
+	env       []string
+}
+
+// EnvInfo returns information about the environment of a container.
+func EnvInfo(ctx context.Context, execer agentexec.Execer, container, containerUser string) (*ContainerEnvInfoer, error) {
+	var dei ContainerEnvInfoer
+	dei.container = container
+
+	var stdoutBuf, stderrBuf bytes.Buffer
+	if containerUser == "" {
+		// Get the "default" user of the container if no user is specified.
+		// TODO: handle different container runtimes.
+		cmd, args := WrapDockerExec(container, "")("whoami")
+		execCmd := execer.CommandContext(ctx, cmd, args...)
+		execCmd.Stdout = &stdoutBuf
+		execCmd.Stderr = &stderrBuf
+		if err := execCmd.Run(); err != nil {
+			return nil, xerrors.Errorf("get container user: run whoami: %w: stderr: %q", err, strings.TrimSpace(stderrBuf.String()))
+		}
+		out := strings.TrimSpace(stdoutBuf.String())
+		if len(out) == 0 {
+			return nil, xerrors.Errorf("get container user: run whoami: empty output: stderr: %q", strings.TrimSpace(stderrBuf.String()))
+		}
+		containerUser = out
+		stdoutBuf.Reset()
+		stderrBuf.Reset()
+	}
+	// Now that we know the username, get the required info from the container.
+	// We can't assume the presence of `getent` so we'll just have to sniff /etc/passwd.
+	cmd, args := WrapDockerExec(container, containerUser)("cat", "/etc/passwd")
+	execCmd := execer.CommandContext(ctx, cmd, args...)
+	execCmd.Stdout = &stdoutBuf
+	execCmd.Stderr = &stderrBuf
+	if err := execCmd.Run(); err != nil {
+		return nil, xerrors.Errorf("get container user: read /etc/passwd: %w stderr: %q", err, strings.TrimSpace(stderrBuf.String()))
+	}
+
+	scanner := bufio.NewScanner(&stdoutBuf)
+	var foundLine string
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if len(line) == 0 {
+			continue
+		}
+		if !strings.HasPrefix(line, containerUser+":") {
+			continue
+		}
+		foundLine = line
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, xerrors.Errorf("get container user: scan /etc/passwd: %w", err)
+	}
+	if foundLine == "" {
+		return nil, xerrors.Errorf("get container user: no matching entry for %q found in /etc/passwd", containerUser)
+	}
+
+	// Parse the output of /etc/passwd. It looks like this:
+	// postgres:x:999:999::/var/lib/postgresql:/bin/bash
+	passwdFields := strings.Split(foundLine, ":")
+	if len(passwdFields) < 7 {
+		return nil, xerrors.Errorf("get container user: invalid line in /etc/passwd: %q", foundLine)
+	}
+
+	// The fourth entry in /etc/passwd contains GECOS information, which is a
+	// comma-separated list of fields. The first field is the user's full name.
+	gecos := strings.Split(passwdFields[4], ",")
+	fullName := ""
+	if len(gecos) > 1 {
+		fullName = gecos[0]
+	}
+
+	dei.user = &user.User{
+		Gid:      passwdFields[3],
+		HomeDir:  passwdFields[5],
+		Name:     fullName,
+		Uid:      passwdFields[2],
+		Username: containerUser,
+	}
+	dei.userShell = passwdFields[6]
+
+	// Finally, get the environment of the container.
+	stdoutBuf.Reset()
+	stderrBuf.Reset()
+	cmd, args = WrapDockerExec(container, containerUser)("env")
+	execCmd = execer.CommandContext(ctx, cmd, args...)
+	execCmd.Stdout = &stdoutBuf
+	execCmd.Stderr = &stderrBuf
+	if err := execCmd.Run(); err != nil {
+		return nil, xerrors.Errorf("get container environment: run env: %w stderr: %q", err, strings.TrimSpace(stderrBuf.String()))
+	}
+
+	scanner = bufio.NewScanner(&stdoutBuf)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		dei.env = append(dei.env, line)
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, xerrors.Errorf("get container environment: scan env output: %w", err)
+	}
+
+	return &dei, nil
+}
+
+func (dei *ContainerEnvInfoer) CurrentUser() (*user.User, error) {
+	// Clone the user so that the caller can't modify it
+	u := &user.User{
+		Gid:      dei.user.Gid,
+		HomeDir:  dei.user.HomeDir,
+		Name:     dei.user.Name,
+		Uid:      dei.user.Uid,
+		Username: dei.user.Username,
+	}
+	return u, nil
+}
+
+func (dei *ContainerEnvInfoer) Environ() []string {
+	// Return a clone of the environment so that the caller can't modify it
+	return slices.Clone(dei.env)
+}
+
+func (dei *ContainerEnvInfoer) UserHomeDir() (string, error) {
+	return dei.user.HomeDir, nil
+}
+
+func (dei *ContainerEnvInfoer) UserShell(string) (string, error) {
+	return dei.userShell, nil
+}
+
+func (dei *ContainerEnvInfoer) ModifyCommand(cmd string, args ...string) (string, []string) {
+	return WrapDockerExecPTY(dei.container, dei.user.Username)(cmd, args...)
+}
+
+// WrapFn is a function that wraps a command and its arguments with another command and arguments.
+type WrapFn func(cmd string, args ...string) (string, []string)
+
+// WrapDockerExec returns a WrapFn that wraps the given command and arguments
+// with a docker exec command that runs as the given user in the given container.
+func WrapDockerExec(containerName, userName string) WrapFn {
+	return func(cmd string, args ...string) (string, []string) {
+		dockerArgs := []string{"exec", "--interactive"}
+		if userName != "" {
+			dockerArgs = append(dockerArgs, "--user", userName)
+		}
+		dockerArgs = append(dockerArgs, containerName, cmd)
+		return "docker", append(dockerArgs, args...)
+	}
+}
+
+// WrapDockerExecPTY is similar to WrapDockerExec but also allocates a PTY.
+func WrapDockerExecPTY(containerName, userName string) WrapFn {
+	return func(cmd string, args ...string) (string, []string) {
+		dockerArgs := []string{"exec", "--interactive", "--tty"}
+		if userName != "" {
+			dockerArgs = append(dockerArgs, "--user", userName)
+		}
+		dockerArgs = append(dockerArgs, containerName, cmd)
+		return "docker", append(dockerArgs, args...)
 	}
 }
 

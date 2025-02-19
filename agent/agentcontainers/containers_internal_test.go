@@ -2,38 +2,37 @@ package agentcontainers
 
 import (
 	"fmt"
-	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"go.uber.org/mock/gomock"
 
 	"github.com/google/uuid"
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 
 	"github.com/coder/coder/v2/agent/agentcontainers/acmock"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/pty"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
 
-// TestDockerCLIContainerLister tests the happy path of the
-// dockerCLIContainerLister.List method. It starts a container with a known
+// TestIntegrationDocker tests agentcontainers functionality using a real
+// Docker container. It starts a container with a known
 // label, lists the containers, and verifies that the expected container is
-// returned. The container is deleted after the test is complete.
-// As this test creates containers, it is skipped by default.
-// It can be run manually as follows:
-//
-// CODER_TEST_USE_DOCKER=1 go test ./agent/agentcontainers -run TestDockerCLIContainerLister
-func TestDockerCLIContainerLister(t *testing.T) {
+// returned. It also executes a sample command inside the container.
+// The container is deleted after the test is complete.
+func TestIntegrationDocker(t *testing.T) {
 	t.Parallel()
-	if ctud, ok := os.LookupEnv("CODER_TEST_USE_DOCKER"); !ok || ctud != "1" {
-		t.Skip("Set CODER_TEST_USE_DOCKER=1 to run this test")
+	if runtime.GOOS != "linux" {
+		t.Skip("This test creates containers, which can be flaky in non-Linux CI environments.")
 	}
 
 	pool, err := dockertest.NewPool("")
@@ -68,8 +67,15 @@ func TestDockerCLIContainerLister(t *testing.T) {
 		assert.NoError(t, pool.Purge(ct), "Could not purge resource %q", ct.Container.Name)
 		t.Logf("Purged container %q", ct.Container.Name)
 	})
+	// Wait for container to start
+	require.Eventually(t, func() bool {
+		ct, ok := pool.ContainerByName(ct.Container.Name)
+		return ok && ct.Container.State.Running
+	}, testutil.WaitShort, testutil.IntervalSlow, "Container did not start in time")
 
 	dcl := NewDocker(agentexec.DefaultExecer)
+	wex := WrapDockerExec(ct.Container.Name, "")
+	wexpty := WrapDockerExecPTY(ct.Container.Name, "")
 	ctx := testutil.Context(t, testutil.WaitShort)
 	actual, err := dcl.List(ctx)
 	require.NoError(t, err, "Could not list containers")
@@ -93,10 +99,104 @@ func TestDockerCLIContainerLister(t *testing.T) {
 			if assert.Len(t, foundContainer.Volumes, 1) {
 				assert.Equal(t, testTempDir, foundContainer.Volumes[testTempDir])
 			}
+			// Test command execution
+			wrappedCmd, wrappedArgs := wex("cat", "/etc/hostname")
+			cmd := agentexec.DefaultExecer.CommandContext(ctx, wrappedCmd, wrappedArgs...)
+			out, err := cmd.CombinedOutput()
+			if !assert.NoError(t, err) {
+				t.Logf("Container %q exited with error: %v", ct.Container.ID, err)
+				t.Logf("Output:\n%s", string(out))
+				t.FailNow()
+			}
+			require.Equal(t, ct.Container.Config.Hostname, strings.TrimSpace(string(out)))
+
+			// Test command execution with PTY
+			ptyWrappedCmd, ptyWrappedArgs := wexpty("/bin/sh", "--norc")
+			ptyCmd, ptyPs, err := pty.Start(agentexec.DefaultExecer.PTYCommandContext(ctx, ptyWrappedCmd, ptyWrappedArgs...))
+			require.NoError(t, err, "failed to start pty command")
+			t.Cleanup(func() {
+				_ = ptyPs.Kill()
+				_ = ptyCmd.Close()
+			})
+			tr := testutil.NewTerminalReader(t, ptyCmd.OutputReader())
+			matchPrompt := func(line string) bool {
+				return strings.HasPrefix(strings.TrimSpace(line), "/ #")
+			}
+			matchHostnameCmd := func(line string) bool {
+				return strings.Contains(strings.TrimSpace(line), "hostname")
+			}
+			matchHostnameOuput := func(line string) bool {
+				return strings.Contains(strings.TrimSpace(line), ct.Container.Config.Hostname)
+			}
+			require.NoError(t, tr.ReadUntil(ctx, matchPrompt), "failed to match prompt")
+			t.Logf("Matched prompt")
+			_, err = ptyCmd.InputWriter().Write([]byte("hostname\r\n"))
+			require.NoError(t, err, "failed to write to pty")
+			t.Logf("Wrote hostname command")
+			require.NoError(t, tr.ReadUntil(ctx, matchHostnameCmd), "failed to match hostname command")
+			t.Logf("Matched hostname command")
+			require.NoError(t, tr.ReadUntil(ctx, matchHostnameOuput), "failed to match hostname output")
+			t.Logf("Matched hostname output")
 			break
 		}
 	}
 	assert.True(t, found, "Expected to find container with label 'com.coder.test=%s'", testLabelValue)
+}
+
+func TestWrapDockerExec(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		wrapFn  WrapFn
+		cmdArgs []string
+		wantCmd []string
+	}{
+		{
+			name:    "cmd with no args",
+			wrapFn:  WrapDockerExec("my-container", "my-user"),
+			cmdArgs: []string{"my-cmd"},
+			wantCmd: []string{"docker", "exec", "--interactive", "--user", "my-user", "my-container", "my-cmd"},
+		},
+		{
+			name:    "cmd with args",
+			wrapFn:  WrapDockerExec("my-container", "my-user"),
+			cmdArgs: []string{"my-cmd", "arg1", "--arg2", "arg3", "--arg4"},
+			wantCmd: []string{"docker", "exec", "--interactive", "--user", "my-user", "my-container", "my-cmd", "arg1", "--arg2", "arg3", "--arg4"},
+		},
+		{
+			name:    "no user specified",
+			wrapFn:  WrapDockerExec("my-container", ""),
+			cmdArgs: []string{"my-cmd"},
+			wantCmd: []string{"docker", "exec", "--interactive", "my-container", "my-cmd"},
+		},
+		{
+			name:    "tty cmd with no args",
+			wrapFn:  WrapDockerExecPTY("my-container", "my-user"),
+			cmdArgs: []string{"my-cmd"},
+			wantCmd: []string{"docker", "exec", "--interactive", "--tty", "--user", "my-user", "my-container", "my-cmd"},
+		},
+		{
+			name:    "cmd with args",
+			wrapFn:  WrapDockerExecPTY("my-container", "my-user"),
+			cmdArgs: []string{"my-cmd", "arg1", "--arg2", "arg3", "--arg4"},
+			wantCmd: []string{"docker", "exec", "--interactive", "--tty", "--user", "my-user", "my-container", "my-cmd", "arg1", "--arg2", "arg3", "--arg4"},
+		},
+		{
+			name:    "no user specified",
+			wrapFn:  WrapDockerExecPTY("my-container", ""),
+			cmdArgs: []string{"my-cmd"},
+			wantCmd: []string{"docker", "exec", "--interactive", "--tty", "my-container", "my-cmd"},
+		},
+	}
+	for _, tt := range tests {
+		tt := tt // appease the linter even though this isn't needed anymore
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			actualCmd, actualArgs := tt.wrapFn(tt.cmdArgs[0], tt.cmdArgs[1:]...)
+			assert.Equal(t, tt.wantCmd[0], actualCmd)
+			assert.Equal(t, tt.wantCmd[1:], actualArgs)
+		})
+	}
 }
 
 // TestContainersHandler tests the containersHandler.getContainers method using
@@ -315,6 +415,113 @@ func TestConvertDockerVolume(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+		})
+	}
+}
+
+func TestDockerEnvInfoer(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS != "linux" {
+		t.Skip("This test creates containers, which can be flaky in non-Linux CI environments.")
+	}
+
+	pool, err := dockertest.NewPool("")
+	require.NoError(t, err, "Could not connect to docker")
+	// nolint:paralleltest // variable recapture no longer required
+	for idx, tt := range []struct {
+		image               string
+		env                 []string
+		containerUser       string
+		expectedUsername    string
+		expectedUserHomedir string
+		expectedUserShell   string
+		expectedEnviron     []string
+	}{
+		{
+			image:               "busybox:latest",
+			env:                 []string{"FOO=bar"},
+			expectedUsername:    "root",
+			expectedUserHomedir: "/root",
+			expectedUserShell:   "/bin/sh",
+			expectedEnviron:     []string{"FOO=bar"},
+		},
+		{
+			image:               "busybox:latest",
+			env:                 []string{"FOO=bar"},
+			containerUser:       "root",
+			expectedUsername:    "root",
+			expectedUserHomedir: "/root",
+			expectedUserShell:   "/bin/sh",
+			expectedEnviron:     []string{"FOO=bar"},
+		},
+		{
+			image:               "codercom/enterprise-minimal:ubuntu",
+			env:                 []string{"FOO=bar"},
+			expectedUsername:    "coder",
+			expectedUserHomedir: "/home/coder",
+			expectedUserShell:   "/bin/bash",
+			expectedEnviron:     []string{"FOO=bar"},
+		},
+		{
+			image:               "codercom/enterprise-minimal:ubuntu",
+			env:                 []string{"FOO=bar"},
+			containerUser:       "coder",
+			expectedUsername:    "coder",
+			expectedUserHomedir: "/home/coder",
+			expectedUserShell:   "/bin/bash",
+			expectedEnviron:     []string{"FOO=bar"},
+		},
+		{
+			image:               "codercom/enterprise-minimal:ubuntu",
+			env:                 []string{"FOO=bar"},
+			containerUser:       "root",
+			expectedUsername:    "root",
+			expectedUserHomedir: "/root",
+			expectedUserShell:   "/bin/bash",
+			expectedEnviron:     []string{"FOO=bar"},
+		},
+	} {
+		t.Run(fmt.Sprintf("#%d", idx), func(t *testing.T) {
+			t.Parallel()
+
+			// Start a container with the given image
+			// and environment variables
+			image := strings.Split(tt.image, ":")[0]
+			tag := strings.Split(tt.image, ":")[1]
+			ct, err := pool.RunWithOptions(&dockertest.RunOptions{
+				Repository: image,
+				Tag:        tag,
+				Cmd:        []string{"sleep", "infinity"},
+				Env:        tt.env,
+			}, func(config *docker.HostConfig) {
+				config.AutoRemove = true
+				config.RestartPolicy = docker.RestartPolicy{Name: "no"}
+			})
+			require.NoError(t, err, "Could not start test docker container")
+			t.Logf("Created container %q", ct.Container.Name)
+			t.Cleanup(func() {
+				assert.NoError(t, pool.Purge(ct), "Could not purge resource %q", ct.Container.Name)
+				t.Logf("Purged container %q", ct.Container.Name)
+			})
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			dei, err := EnvInfo(ctx, agentexec.DefaultExecer, ct.Container.ID, tt.containerUser)
+			require.NoError(t, err, "Expected no error from DockerEnvInfo()")
+
+			u, err := dei.CurrentUser()
+			require.NoError(t, err, "Expected no error from CurrentUser()")
+			require.Equal(t, tt.expectedUsername, u.Username, "Expected username to match")
+
+			hd, err := dei.UserHomeDir()
+			require.NoError(t, err, "Expected no error from UserHomeDir()")
+			require.Equal(t, tt.expectedUserHomedir, hd, "Expected user homedir to match")
+
+			sh, err := dei.UserShell(tt.containerUser)
+			require.NoError(t, err, "Expected no error from UserShell()")
+			require.Equal(t, tt.expectedUserShell, sh, "Expected user shell to match")
+
+			environ := dei.Environ()
+			require.Subset(t, environ, tt.expectedEnviron, "Expected environment to match")
 		})
 	}
 }
