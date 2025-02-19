@@ -1787,6 +1787,25 @@ const docTemplate = `{
                 }
             }
         },
+        "/notifications/test": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "Send a test notification",
+                "operationId": "send-a-test-notification",
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
         "/oauth2-provider/apps": {
             "get": {
                 "security": [
