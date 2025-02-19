@@ -3,9 +3,12 @@ import { Avatar } from "components/Avatar/Avatar";
 import { Button } from "components/Button/Button";
 import {
 	Command,
+	CommandEmpty,
 	CommandGroup,
+	CommandInput,
 	CommandItem,
 	CommandList,
+	CommandSeparator,
 } from "components/Command/Command";
 import { Loader } from "components/Loader/Loader";
 import {
@@ -88,11 +91,15 @@ const OrganizationsSettingsNavigation: FC<
 		return <Loader />;
 	}
 
-	// Sort organizations to put active organization first
-	const sortedOrganizations = [
-		activeOrganization,
-		...organizations.filter((org) => org.id !== activeOrganization.id),
-	];
+	const sortedOrganizations = [...organizations].sort((a, b) => {
+		// active org first
+		if (a.id === activeOrganization.id) return -1;
+		if (b.id === activeOrganization.id) return 1;
+
+		return a.display_name
+			.toLowerCase()
+			.localeCompare(b.display_name.toLowerCase());
+	});
 
 	const [isPopoverOpen, setIsPopoverOpen] = useState(false);
 	const navigate = useNavigate();
@@ -123,14 +130,16 @@ const OrganizationsSettingsNavigation: FC<
 				</PopoverTrigger>
 				<PopoverContent align="start" className="w-60">
 					<Command loop>
+						<CommandInput placeholder="Find organization" />
 						<CommandList>
+							<CommandEmpty>No organization found.</CommandEmpty>
 							<CommandGroup className="pb-2">
 								{sortedOrganizations.length > 1 && (
 									<div className="flex flex-col max-h-[260px] overflow-y-auto">
 										{sortedOrganizations.map((organization) => (
 											<CommandItem
 												key={organization.id}
-												value={organization.name}
+												value={`${organization.display_name} ${organization.name}`}
 												onSelect={() => {
 													setIsPopoverOpen(false);
 													navigate(urlForSubpage(organization.name));
@@ -158,11 +167,11 @@ const OrganizationsSettingsNavigation: FC<
 										))}
 									</div>
 								)}
-								{permissions.createOrganization && (
-									<>
-										{organizations.length > 1 && (
-											<hr className="h-px my-2 border-none bg-border -mx-2" />
-										)}
+							</CommandGroup>
+							{permissions.createOrganization && (
+								<>
+									{organizations.length > 1 && <CommandSeparator />}
+									<CommandGroup>
 										<CommandItem
 											className="flex justify-center data-[selected=true]:bg-transparent"
 											onSelect={() => {
@@ -174,9 +183,9 @@ const OrganizationsSettingsNavigation: FC<
 										>
 											<Plus /> Create Organization
 										</CommandItem>
-									</>
-								)}
-							</CommandGroup>
+									</CommandGroup>
+								</>
+							)}
 						</CommandList>
 					</Command>
 				</PopoverContent>
