@@ -206,7 +206,7 @@ var (
 
 	// ResourceProvisionerDaemon
 	// Valid Actions
-	//  - "ActionCreate" :: create a provisioner daemon key
+	//  - "ActionCreate" :: create a provisioner daemon/key
 	//  - "ActionDelete" :: delete a provisioner daemon/key
 	//  - "ActionRead" :: read provisioner daemon
 	//  - "ActionUpdate" :: update a provisioner daemon
