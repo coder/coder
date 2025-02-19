@@ -162,7 +162,7 @@ var RBACPermissions = map[string]PermissionDefinition{
 	},
 	"provisioner_daemon": {
 		Actions: map[Action]ActionDefinition{
-			ActionCreate: actDef("create a provisioner daemon key"),
+			ActionCreate: actDef("create a provisioner daemon/key"),
 			// TODO: Move to use?
 			ActionRead:   actDef("read provisioner daemon"),
 			ActionUpdate: actDef("update a provisioner daemon"),
