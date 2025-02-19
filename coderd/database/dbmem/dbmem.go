@@ -67,6 +67,7 @@ func New() database.Store {
 			gitSSHKey:                 make([]database.GitSSHKey, 0),
 			notificationMessages:      make([]database.NotificationMessage, 0),
 			notificationPreferences:   make([]database.NotificationPreference, 0),
+			notificationsInbox:        make([]database.NotificationsInbox, 0),
 			parameterSchemas:          make([]database.ParameterSchema, 0),
 			provisionerDaemons:        make([]database.ProvisionerDaemon, 0),
 			provisionerKeys:           make([]database.ProvisionerKey, 0),
@@ -206,6 +207,7 @@ type data struct {
 	notificationMessages                 []database.NotificationMessage
 	notificationPreferences              []database.NotificationPreference
 	notificationReportGeneratorLogs      []database.NotificationReportGeneratorLog
+	notificationsInbox                   []database.NotificationsInbox
 	oauth2ProviderApps                   []database.OAuth2ProviderApp
 	oauth2ProviderAppSecrets             []database.OAuth2ProviderAppSecret
 	oauth2ProviderAppCodes               []database.OAuth2ProviderAppCode
@@ -2363,17 +2365,32 @@ func (q *FakeQuerier) FavoriteWorkspace(_ context.Context, arg uuid.UUID) error 
 	return nil
 }
 
-func (q *FakeQuerier) FetchInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) ([]database.NotificationsInbox, error) {
-	panic("not implemented")
-}
+func (q *FakeQuerier) FetchInboxNotificationsByUserID(_ context.Context, userID uuid.UUID) ([]database.NotificationsInbox, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
 
-func (q *FakeQuerier) FetchInboxNotificationsByUserIDAndTemplateIDAndTargetID(ctx context.Context, arg database.FetchInboxNotificationsByUserIDAndTemplateIDAndTargetIDParams) ([]database.NotificationsInbox, error) {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return nil, err
+	notifications := make([]database.NotificationsInbox, 0)
+	for _, notification := range q.notificationsInbox {
+		if notification.UserID == userID {
+			notifications = append(notifications, notification)
+		}
 	}
 
-	panic("not implemented")
+	return notifications, nil
+}
+
+func (q *FakeQuerier) FetchInboxNotificationsByUserIDAndTemplateIDAndTargetID(_ context.Context, arg database.FetchInboxNotificationsByUserIDAndTemplateIDAndTargetIDParams) ([]database.NotificationsInbox, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	notifications := make([]database.NotificationsInbox, 0)
+	for _, notification := range q.notificationsInbox {
+		if notification.UserID == arg.UserID && notification.TemplateID == arg.TemplateID && notification.TargetID == arg.TargetID {
+			notifications = append(notifications, notification)
+		}
+	}
+
+	return notifications, nil
 }
 
 func (q *FakeQuerier) FetchMemoryResourceMonitorsByAgentID(_ context.Context, agentID uuid.UUID) (database.WorkspaceAgentMemoryResourceMonitor, error) {
@@ -2418,17 +2435,32 @@ func (q *FakeQuerier) FetchNewMessageMetadata(_ context.Context, arg database.Fe
 	}, nil
 }
 
-func (q *FakeQuerier) FetchUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) ([]database.NotificationsInbox, error) {
-	panic("not implemented")
-}
+func (q *FakeQuerier) FetchUnreadInboxNotificationsByUserID(_ context.Context, userID uuid.UUID) ([]database.NotificationsInbox, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
 
-func (q *FakeQuerier) FetchUnreadInboxNotificationsByUserIDAndTemplateIDAndTargetID(ctx context.Context, arg database.FetchUnreadInboxNotificationsByUserIDAndTemplateIDAndTargetIDParams) ([]database.NotificationsInbox, error) {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return nil, err
+	notifications := make([]database.NotificationsInbox, 0)
+	for _, notification := range q.notificationsInbox {
+		if notification.UserID == userID && !notification.ReadAt.Valid {
+			notifications = append(notifications, notification)
+		}
 	}
 
-	panic("not implemented")
+	return notifications, nil
+}
+
+func (q *FakeQuerier) FetchUnreadInboxNotificationsByUserIDAndTemplateIDAndTargetID(_ context.Context, arg database.FetchUnreadInboxNotificationsByUserIDAndTemplateIDAndTargetIDParams) ([]database.NotificationsInbox, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	notifications := make([]database.NotificationsInbox, 0)
+	for _, notification := range q.notificationsInbox {
+		if notification.UserID == arg.UserID && notification.TemplateID == arg.TemplateID && notification.TargetID == arg.TargetID && !notification.ReadAt.Valid {
+			notifications = append(notifications, notification)
+		}
+	}
+
+	return notifications, nil
 }
 
 func (q *FakeQuerier) FetchVolumesResourceMonitorsByAgentID(_ context.Context, agentID uuid.UUID) ([]database.WorkspaceAgentVolumeResourceMonitor, error) {
@@ -3358,8 +3390,17 @@ func (q *FakeQuerier) GetHungProvisionerJobs(_ context.Context, hungSince time.T
 	return hungJobs, nil
 }
 
-func (q *FakeQuerier) GetInboxNotificationByID(ctx context.Context, id uuid.UUID) (database.NotificationsInbox, error) {
-	panic("not implemented")
+func (q *FakeQuerier) GetInboxNotificationByID(_ context.Context, id uuid.UUID) (database.NotificationsInbox, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, notification := range q.notificationsInbox {
+		if notification.ID == id {
+			return notification, nil
+		}
+	}
+
+	return database.NotificationsInbox{}, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) GetJFrogXrayScanByWorkspaceAndAgentID(_ context.Context, arg database.GetJFrogXrayScanByWorkspaceAndAgentIDParams) (database.JfrogXrayScan, error) {
@@ -7989,13 +8030,28 @@ func (q *FakeQuerier) InsertGroupMember(_ context.Context, arg database.InsertGr
 	return nil
 }
 
-func (q *FakeQuerier) InsertInboxNotification(ctx context.Context, arg database.InsertInboxNotificationParams) (database.NotificationsInbox, error) {
-	err := validateDatabaseType(arg)
-	if err != nil {
+func (q *FakeQuerier) InsertInboxNotification(_ context.Context, arg database.InsertInboxNotificationParams) (database.NotificationsInbox, error) {
+	if err := validateDatabaseType(arg); err != nil {
 		return database.NotificationsInbox{}, err
 	}
 
-	panic("not implemented")
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	notification := database.NotificationsInbox{
+		ID:         arg.ID,
+		UserID:     arg.UserID,
+		TemplateID: arg.TemplateID,
+		TargetID:   arg.TargetID,
+		Title:      arg.Title,
+		Content:    arg.Content,
+		Icon:       arg.Icon,
+		Actions:    arg.Actions,
+		CreatedAt:  time.Now(),
+	}
+
+	q.notificationsInbox = append(q.notificationsInbox, notification)
+	return notification, nil
 }
 
 func (q *FakeQuerier) InsertLicense(
@@ -9482,13 +9538,22 @@ func (q *FakeQuerier) RevokeDBCryptKey(_ context.Context, activeKeyDigest string
 	return sql.ErrNoRows
 }
 
-func (q *FakeQuerier) SetInboxNotificationAsRead(ctx context.Context, arg database.SetInboxNotificationAsReadParams) error {
+func (q *FakeQuerier) SetInboxNotificationAsRead(_ context.Context, arg database.SetInboxNotificationAsReadParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return err
 	}
 
-	panic("not implemented")
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i := range q.notificationsInbox {
+		if q.notificationsInbox[i].ID == arg.ID {
+			q.notificationsInbox[i].ReadAt = arg.ReadAt
+		}
+	}
+
+	return nil
 }
 
 func (*FakeQuerier) TryAcquireLock(_ context.Context, _ int64) (bool, error) {

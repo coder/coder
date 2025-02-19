@@ -3588,16 +3588,17 @@ func (q *querier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) 
 	return q.db.RevokeDBCryptKey(ctx, activeKeyDigest)
 }
 
-func (q *querier) SetInboxNotificationAsRead(ctx context.Context, arg database.SetInboxNotificationAsReadParams) error {
-	fetchFunc := func(ctx context.Context, id uuid.UUID) (database.NotificationsInbox, error) {
-		return q.db.GetInboxNotificationByID(ctx, id)
-	}
+func (*querier) SetInboxNotificationAsRead(_ context.Context, _ database.SetInboxNotificationAsReadParams) error {
+	panic("implement me")
+	// fetchFunc := func(ctx context.Context, id uuid.UUID) (database.NotificationsInbox, error) {
+	// 	return q.db.GetInboxNotificationByID(ctx, id)
+	// }
 
-	updateFunc := func(ctx context.Context, arg database.SetInboxNotificationAsReadParams) error {
-		return q.db.SetInboxNotificationAsRead(ctx, arg)
-	}
+	// updateFunc := func(ctx context.Context, arg database.SetInboxNotificationAsReadParams) error {
+	// 	return q.db.SetInboxNotificationAsRead(ctx, arg)
+	// }
 
-	return update(q.log, q.auth, fetchFunc, updateFunc)(ctx, arg)
+	// return update(q.log, q.auth, fetchFunc, updateFunc)(ctx, arg)
 }
 
 func (q *querier) TryAcquireLock(ctx context.Context, id int64) (bool, error) {
