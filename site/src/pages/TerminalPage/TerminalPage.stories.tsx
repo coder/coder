@@ -22,6 +22,7 @@ import {
 } from "testHelpers/entities";
 import { withWebSocket } from "testHelpers/storybook";
 import TerminalPage from "./TerminalPage";
+import { anyOrganizationPermissionsKey } from "api/queries/organizations";
 
 const createWorkspaceWithAgent = (lifecycle: WorkspaceAgentLifecycle) => {
 	return {
@@ -76,6 +77,7 @@ const meta = {
 				key: getAuthorizationKey({ checks: permissionsToCheck }),
 				data: { editWorkspaceProxies: true },
 			},
+			{ key: anyOrganizationPermissionsKey, data: {} },
 		],
 		chromatic: { delay: 300 },
 	},

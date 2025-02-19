@@ -266,9 +266,14 @@ export const organizationsPermissions = (
 	};
 };
 
+export const anyOrganizationPermissionsKey = [
+	"authorization",
+	"anyOrganization",
+];
+
 export const anyOrganizationPermissions = () => {
 	return {
-		queryKey: ["authorization", "anyOrganization"],
+		queryKey: anyOrganizationPermissionsKey,
 		queryFn: () =>
 			API.checkAuthorization({
 				checks: anyOrganizationPermissionChecks,
