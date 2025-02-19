@@ -8,6 +8,7 @@ import type * as TypesGen from "api/typesGenerated";
 import type { Permissions } from "contexts/auth/permissions";
 import type { ProxyLatencyReport } from "contexts/useProxyLatency";
 import range from "lodash/range";
+import type { OrganizationPermissions } from "modules/management/organizationPermissions";
 import type { FileTree } from "utils/filetree";
 import type { TemplateVersionFiles } from "utils/templateVersion";
 
@@ -2836,12 +2837,43 @@ export const MockPermissions: Permissions = {
 	readWorkspaceProxies: true,
 	editWorkspaceProxies: true,
 	createOrganization: true,
-	editAnyOrganization: true,
 	viewAnyGroup: true,
 	createGroup: true,
 	viewAllLicenses: true,
 	viewNotificationTemplate: true,
 	viewOrganizationIDPSyncSettings: true,
+};
+
+export const MockOrganizationPermissions: OrganizationPermissions = {
+	viewMembers: true,
+	editMembers: true,
+	createGroup: true,
+	viewGroups: true,
+	editGroups: true,
+	editSettings: true,
+	viewOrgRoles: true,
+	createOrgRoles: true,
+	assignOrgRoles: true,
+	viewProvisioners: true,
+	viewProvisionerJobs: true,
+	viewIdpSyncSettings: true,
+	editIdpSyncSettings: true,
+};
+
+export const MockNoOrganizationPermissions: OrganizationPermissions = {
+	viewMembers: false,
+	editMembers: false,
+	createGroup: false,
+	viewGroups: false,
+	editGroups: false,
+	editSettings: false,
+	viewOrgRoles: false,
+	createOrgRoles: false,
+	assignOrgRoles: false,
+	viewProvisioners: false,
+	viewProvisionerJobs: false,
+	viewIdpSyncSettings: false,
+	editIdpSyncSettings: false,
 };
 
 export const MockNoPermissions: Permissions = {
@@ -2860,7 +2892,6 @@ export const MockNoPermissions: Permissions = {
 	readWorkspaceProxies: false,
 	editWorkspaceProxies: false,
 	createOrganization: false,
-	editAnyOrganization: false,
 	viewAnyGroup: false,
 	createGroup: false,
 	viewAllLicenses: false,

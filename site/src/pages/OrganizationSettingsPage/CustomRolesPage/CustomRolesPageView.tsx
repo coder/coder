@@ -35,6 +35,7 @@ interface CustomRolesPageViewProps {
 	customRoles: AssignableRoles[] | undefined;
 	onDeleteRole: (role: Role) => void;
 	canAssignOrgRole: boolean;
+	canCreateOrgRole: boolean;
 	isCustomRolesEnabled: boolean;
 }
 
@@ -43,6 +44,7 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 	customRoles,
 	onDeleteRole,
 	canAssignOrgRole,
+	canCreateOrgRole,
 	isCustomRolesEnabled,
 }) => {
 	return (
@@ -66,7 +68,7 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 						permissions.
 					</span>
 				</span>
-				{canAssignOrgRole && isCustomRolesEnabled && (
+				{canCreateOrgRole && isCustomRolesEnabled && (
 					<Button component={RouterLink} startIcon={<AddIcon />} to="create">
 						Create custom role
 					</Button>
