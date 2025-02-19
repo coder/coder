@@ -153,7 +153,6 @@ func (api *API) deleteOrganization(rw http.ResponseWriter, r *http.Request) {
 	err := api.Database.InTx(func(tx database.Store) error {
 		err := tx.UpdateOrganizationDeletedByID(ctx, database.UpdateOrganizationDeletedByIDParams{
 			ID:        organization.ID,
-			Deleted:   true,
 			UpdatedAt: dbtime.Now(),
 		})
 		if err != nil {

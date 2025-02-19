@@ -3680,7 +3680,7 @@ func (q *FakeQuerier) GetOrganizationByName(_ context.Context, params database.G
 	defer q.mutex.RUnlock()
 
 	for _, organization := range q.organizations {
-		if organization.Name == params.Name {
+		if organization.Name == params.Name && organization.Deleted == params.Deleted {
 			return organization, nil
 		}
 	}
@@ -3737,7 +3737,7 @@ func (q *FakeQuerier) GetOrganizationsByUserID(_ context.Context, arg database.G
 			continue
 		}
 		for _, organization := range q.organizations {
-			if organization.ID != organizationMember.OrganizationID {
+			if organization.ID != organizationMember.OrganizationID || organization.Deleted != arg.Deleted {
 				continue
 			}
 			organizations = append(organizations, organization)
@@ -9821,7 +9821,7 @@ func (q *FakeQuerier) UpdateOrganizationDeletedByID(_ context.Context, arg datab
 		if organization.ID != arg.ID || organization.IsDefault {
 			continue
 		}
-		organization.Deleted = arg.Deleted
+		organization.Deleted = true
 		organization.UpdatedAt = arg.UpdatedAt
 		q.organizations[index] = organization
 		return nil

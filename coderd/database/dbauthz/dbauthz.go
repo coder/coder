@@ -3737,7 +3737,6 @@ func (q *querier) UpdateOrganizationDeletedByID(ctx context.Context, arg databas
 	deleteF := func(ctx context.Context, id uuid.UUID) error {
 		return q.db.UpdateOrganizationDeletedByID(ctx, database.UpdateOrganizationDeletedByIDParams{
 			ID:        id,
-			Deleted:   true,
 			UpdatedAt: dbtime.Now(),
 		})
 	}

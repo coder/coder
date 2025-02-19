@@ -81,7 +81,6 @@ func (m queryMetricsStore) DeleteOrganization(ctx context.Context, id uuid.UUID)
 	start := time.Now()
 	r0 := m.s.UpdateOrganizationDeletedByID(ctx, database.UpdateOrganizationDeletedByIDParams{
 		ID:        id,
-		Deleted:   true,
 		UpdatedAt: time.Now(),
 	})
 	m.queryLatencies.WithLabelValues("DeleteOrganization").Observe(time.Since(start).Seconds())

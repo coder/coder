@@ -89,7 +89,7 @@ RETURNING *;
 -- name: UpdateOrganizationDeletedByID :exec
 UPDATE organizations
 SET
-    deleted = @deleted,
+    deleted = true,
     updated_at = @updated_at
 WHERE
     id = @id AND

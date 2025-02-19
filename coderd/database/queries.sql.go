@@ -5364,21 +5364,20 @@ func (q *sqlQuerier) UpdateOrganization(ctx context.Context, arg UpdateOrganizat
 const updateOrganizationDeletedByID = `-- name: UpdateOrganizationDeletedByID :exec
 UPDATE organizations
 SET
-    deleted = $1,
-    updated_at = $2
+    deleted = true,
+    updated_at = $1
 WHERE
-    id = $3 AND
+    id = $2 AND
     is_default = false
 `
 
 type UpdateOrganizationDeletedByIDParams struct {
-	Deleted   bool      `db:"deleted" json:"deleted"`
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 	ID        uuid.UUID `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) UpdateOrganizationDeletedByID(ctx context.Context, arg UpdateOrganizationDeletedByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateOrganizationDeletedByID, arg.Deleted, arg.UpdatedAt, arg.ID)
+	_, err := q.db.ExecContext(ctx, updateOrganizationDeletedByID, arg.UpdatedAt, arg.ID)
 	return err
 }
 
