@@ -42,51 +42,56 @@ type ContainerEnvInfoer struct {
 	env       []string
 }
 
+// Helper function to run a command and return its stdout and stderr.
+// We want to differentiate stdout and stderr instead of using CombinedOutput.
+// We also want to differentiate between a command running successfully with
+// output to stderr and a non-zero exit code.
+func run(ctx context.Context, execer agentexec.Execer, cmd string, args ...string) (stdout, stderr string, err error) {
+	var stdoutBuf, stderrBuf bytes.Buffer
+	execCmd := execer.CommandContext(ctx, cmd, args...)
+	execCmd.Stdout = &stdoutBuf
+	execCmd.Stderr = &stderrBuf
+	err = execCmd.Run()
+	stdout = strings.TrimSpace(stdoutBuf.String())
+	stderr = strings.TrimSpace(stderrBuf.String())
+	return stdout, stderr, err
+}
+
 // EnvInfo returns information about the environment of a container.
 func EnvInfo(ctx context.Context, execer agentexec.Execer, container, containerUser string) (*ContainerEnvInfoer, error) {
-	var dei ContainerEnvInfoer
-	dei.container = container
+	var cei ContainerEnvInfoer
+	cei.container = container
 
-	var stdoutBuf, stderrBuf bytes.Buffer
 	if containerUser == "" {
 		// Get the "default" user of the container if no user is specified.
 		// TODO: handle different container runtimes.
 		cmd, args := WrapDockerExec(container, "")("whoami")
-		execCmd := execer.CommandContext(ctx, cmd, args...)
-		execCmd.Stdout = &stdoutBuf
-		execCmd.Stderr = &stderrBuf
-		if err := execCmd.Run(); err != nil {
-			return nil, xerrors.Errorf("get container user: run whoami: %w: stderr: %q", err, strings.TrimSpace(stderrBuf.String()))
+		stdout, stderr, err := run(ctx, execer, cmd, args...)
+		if err != nil {
+			return nil, xerrors.Errorf("get container user: run whoami: %w: %s", err, stderr)
 		}
-		out := strings.TrimSpace(stdoutBuf.String())
-		if len(out) == 0 {
-			return nil, xerrors.Errorf("get container user: run whoami: empty output: stderr: %q", strings.TrimSpace(stderrBuf.String()))
+		if len(stdout) == 0 {
+			return nil, xerrors.Errorf("get container user: run whoami: empty output")
 		}
-		containerUser = out
-		stdoutBuf.Reset()
-		stderrBuf.Reset()
+		containerUser = stdout
 	}
 	// Now that we know the username, get the required info from the container.
 	// We can't assume the presence of `getent` so we'll just have to sniff /etc/passwd.
 	cmd, args := WrapDockerExec(container, containerUser)("cat", "/etc/passwd")
-	execCmd := execer.CommandContext(ctx, cmd, args...)
-	execCmd.Stdout = &stdoutBuf
-	execCmd.Stderr = &stderrBuf
-	if err := execCmd.Run(); err != nil {
-		return nil, xerrors.Errorf("get container user: read /etc/passwd: %w stderr: %q", err, strings.TrimSpace(stderrBuf.String()))
+	stdout, stderr, err := run(ctx, execer, cmd, args...)
+	if err != nil {
+		return nil, xerrors.Errorf("get container user: read /etc/passwd: %w: %q", err, stderr)
 	}
 
-	scanner := bufio.NewScanner(&stdoutBuf)
+	scanner := bufio.NewScanner(strings.NewReader(stdout))
 	var foundLine string
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
-		if len(line) == 0 {
-			continue
-		}
 		if !strings.HasPrefix(line, containerUser+":") {
 			continue
 		}
 		foundLine = line
+		break
 	}
 	if err := scanner.Err(); err != nil {
 		return nil, xerrors.Errorf("get container user: scan /etc/passwd: %w", err)
@@ -110,36 +115,40 @@ func EnvInfo(ctx context.Context, execer agentexec.Execer, container, containerU
 		fullName = gecos[0]
 	}
 
-	dei.user = &user.User{
+	cei.user = &user.User{
 		Gid:      passwdFields[3],
 		HomeDir:  passwdFields[5],
 		Name:     fullName,
 		Uid:      passwdFields[2],
 		Username: containerUser,
 	}
-	dei.userShell = passwdFields[6]
+	cei.userShell = passwdFields[6]
 
 	// Finally, get the environment of the container.
-	stdoutBuf.Reset()
-	stderrBuf.Reset()
-	cmd, args = WrapDockerExec(container, containerUser)("env")
-	execCmd = execer.CommandContext(ctx, cmd, args...)
-	execCmd.Stdout = &stdoutBuf
-	execCmd.Stderr = &stderrBuf
-	if err := execCmd.Run(); err != nil {
-		return nil, xerrors.Errorf("get container environment: run env: %w stderr: %q", err, strings.TrimSpace(stderrBuf.String()))
+	// TODO(cian): for devcontainers we will need to also take into account both
+	// remoteEnv and userEnvProbe.
+	// ref: https://code.visualstudio.com/docs/devcontainers/attach-container
+	cmd, args = WrapDockerExec(container, containerUser)("env", "-0")
+	stdout, stderr, err = run(ctx, execer, cmd, args...)
+	if err != nil {
+		return nil, xerrors.Errorf("get container environment: run env -0: %w: %q", err, stderr)
 	}
 
-	scanner = bufio.NewScanner(&stdoutBuf)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		dei.env = append(dei.env, line)
+	// Parse the output of `env -0` which is a null-terminated list of environment
+	// variables. This is important as environment variables can contain newlines.
+	envs := strings.Split(stdout, "\x00")
+	for _, env := range envs {
+		env = strings.TrimSpace(env)
+		if env == "" {
+			continue
+		}
+		cei.env = append(cei.env, env)
 	}
 	if err := scanner.Err(); err != nil {
 		return nil, xerrors.Errorf("get container environment: scan env output: %w", err)
 	}
 
-	return &dei, nil
+	return &cei, nil
 }
 
 func (dei *ContainerEnvInfoer) CurrentUser() (*user.User, error) {

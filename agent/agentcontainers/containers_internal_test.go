@@ -445,50 +445,44 @@ func TestDockerEnvInfoer(t *testing.T) {
 		expectedUsername    string
 		expectedUserHomedir string
 		expectedUserShell   string
-		expectedEnviron     []string
 	}{
 		{
 			image:               "busybox:latest",
-			env:                 []string{"FOO=bar"},
+			env:                 []string{"FOO=bar", "MULTILINE=foo\nbar\nbaz"},
 			expectedUsername:    "root",
 			expectedUserHomedir: "/root",
 			expectedUserShell:   "/bin/sh",
-			expectedEnviron:     []string{"FOO=bar"},
 		},
 		{
 			image:               "busybox:latest",
-			env:                 []string{"FOO=bar"},
+			env:                 []string{"FOO=bar", "MULTILINE=foo\nbar\nbaz"},
 			containerUser:       "root",
 			expectedUsername:    "root",
 			expectedUserHomedir: "/root",
 			expectedUserShell:   "/bin/sh",
-			expectedEnviron:     []string{"FOO=bar"},
 		},
 		{
 			image:               "codercom/enterprise-minimal:ubuntu",
-			env:                 []string{"FOO=bar"},
+			env:                 []string{"FOO=bar", "MULTILINE=foo\nbar\nbaz"},
 			expectedUsername:    "coder",
 			expectedUserHomedir: "/home/coder",
 			expectedUserShell:   "/bin/bash",
-			expectedEnviron:     []string{"FOO=bar"},
 		},
 		{
 			image:               "codercom/enterprise-minimal:ubuntu",
-			env:                 []string{"FOO=bar"},
+			env:                 []string{"FOO=bar", "MULTILINE=foo\nbar\nbaz"},
 			containerUser:       "coder",
 			expectedUsername:    "coder",
 			expectedUserHomedir: "/home/coder",
 			expectedUserShell:   "/bin/bash",
-			expectedEnviron:     []string{"FOO=bar"},
 		},
 		{
 			image:               "codercom/enterprise-minimal:ubuntu",
-			env:                 []string{"FOO=bar"},
+			env:                 []string{"FOO=bar", "MULTILINE=foo\nbar\nbaz"},
 			containerUser:       "root",
 			expectedUsername:    "root",
 			expectedUserHomedir: "/root",
 			expectedUserShell:   "/bin/bash",
-			expectedEnviron:     []string{"FOO=bar"},
 		},
 	} {
 		t.Run(fmt.Sprintf("#%d", idx), func(t *testing.T) {
@@ -531,7 +525,7 @@ func TestDockerEnvInfoer(t *testing.T) {
 			require.Equal(t, tt.expectedUserShell, sh, "Expected user shell to match")
 
 			environ := dei.Environ()
-			require.Subset(t, environ, tt.expectedEnviron, "Expected environment to match")
+			require.Subset(t, environ, tt.env, "Expected environment to match")
 		})
 	}
 }
