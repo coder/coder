@@ -1360,19 +1360,22 @@ func (a *agent) createTailnet(
 		return nil, xerrors.Errorf("update host signer: %w", err)
 	}
 
-	sshListener, err := network.Listen("tcp", ":"+strconv.Itoa(workspacesdk.AgentSSHPort))
-	if err != nil {
-		return nil, xerrors.Errorf("listen on the ssh port: %w", err)
-	}
-	defer func() {
+	for _, port := range []int{workspacesdk.AgentSSHPort, workspacesdk.AgentStandardSSHPort} {
+		sshListener, err := network.Listen("tcp", ":"+strconv.Itoa(port))
 		if err != nil {
-			_ = sshListener.Close()
+			return nil, xerrors.Errorf("listen on the ssh port (%v): %w", port, err)
 		}
-	}()
-	if err = a.trackGoroutine(func() {
-		_ = a.sshServer.Serve(sshListener)
-	}); err != nil {
-		return nil, err
+		// nolint:revive // We do want to run the deferred functions when createTailnet returns.
+		defer func() {
+			if err != nil {
+				_ = sshListener.Close()
+			}
+		}()
+		if err = a.trackGoroutine(func() {
+			_ = a.sshServer.Serve(sshListener)
+		}); err != nil {
+			return nil, err
+		}
 	}
 
 	reconnectingPTYListener, err := network.Listen("tcp", ":"+strconv.Itoa(workspacesdk.AgentReconnectingPTYPort))
