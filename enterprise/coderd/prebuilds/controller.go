@@ -111,13 +111,18 @@ func (c *Controller) reconcile(ctx context.Context, templateID *uuid.UUID) {
 	default:
 	}
 
+	logger.Debug(ctx, "starting reconciliation")
+
 	// get all templates or specific one requested
 	err := c.store.InTx(func(db database.Store) error {
+		start := time.Now()
 		err := db.AcquireLock(ctx, database.LockIDReconcileTemplatePrebuilds)
 		if err != nil {
-			logger.Warn(ctx, "failed to acquire top-level prebuilds lock; likely running on another coderd replica", slog.Error(err))
+			logger.Warn(ctx, "failed to acquire top-level prebuilds reconciliation lock; likely running on another coderd replica", slog.Error(err))
 			return nil
 		}
+
+		defer logger.Debug(ctx, "acquired top-level prebuilds reconciliation lock", slog.F("acquire_wait_secs", fmt.Sprintf("%.4f", time.Since(start).Seconds())))
 
 		innerCtx, cancel := context.WithTimeout(ctx, time.Second*30)
 		defer cancel()
