@@ -116,6 +116,12 @@ The steps here follow the Microsoft tutorial for a Coder deployment.
    --set persistence.size=10Gi
    ```
 
+1. Create the PostgreSQL secret:
+
+   ```shell
+   kubectl create secret generic coder-db-url -n coder --from-literal=url="postgres://coder:coder@coder-db-postgresql.coder.svc.cluster.local:5432/coder?sslmode=disable"
+   ```
+
 1. Deploy Coder to AKS cluster:
 
    ```shell
