@@ -1886,7 +1886,6 @@ export type RBACResource =
 	| "organization_member"
 	| "provisioner_daemon"
 	| "provisioner_jobs"
-	| "provisioner_keys"
 	| "replicas"
 	| "system"
 	| "tailnet_coordinator"
@@ -1922,7 +1921,6 @@ export const RBACResources: RBACResource[] = [
 	"organization_member",
 	"provisioner_daemon",
 	"provisioner_jobs",
-	"provisioner_keys",
 	"replicas",
 	"system",
 	"tailnet_coordinator",

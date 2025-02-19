@@ -162,23 +162,16 @@ var RBACPermissions = map[string]PermissionDefinition{
 	},
 	"provisioner_daemon": {
 		Actions: map[Action]ActionDefinition{
-			ActionCreate: actDef("create a provisioner daemon"),
+			ActionCreate: actDef("create a provisioner daemon key"),
 			// TODO: Move to use?
 			ActionRead:   actDef("read provisioner daemon"),
 			ActionUpdate: actDef("update a provisioner daemon"),
-			ActionDelete: actDef("delete a provisioner daemon"),
+			ActionDelete: actDef("delete a provisioner daemon/key"),
 		},
 	},
 	"provisioner_jobs": {
 		Actions: map[Action]ActionDefinition{
 			ActionRead: actDef("read provisioner jobs"),
-		},
-	},
-	"provisioner_keys": {
-		Actions: map[Action]ActionDefinition{
-			ActionCreate: actDef("create a provisioner key"),
-			ActionRead:   actDef("read provisioner keys"),
-			ActionDelete: actDef("delete a provisioner key"),
 		},
 	},
 	"organization": {
