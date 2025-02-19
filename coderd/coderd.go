@@ -930,6 +930,25 @@ func New(options *Options) *API {
 		r.Route("/audit", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
+				// This middleware only checks the site and orgs for the audit_log read
+				// permission.
+				// In the future if it makes sense to have this permission on the user as
+				// well we will need to update this middleware to include that check.
+				func(next http.Handler) http.Handler {
+					return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+						if api.Authorize(r, policy.ActionRead, rbac.ResourceAuditLog) {
+							next.ServeHTTP(rw, r)
+							return
+						}
+
+						if api.Authorize(r, policy.ActionRead, rbac.ResourceAuditLog.AnyOrganization()) {
+							next.ServeHTTP(rw, r)
+							return
+						}
+
+						httpapi.Forbidden(rw)
+					})
+				},
 			)
 
 			r.Get("/", api.auditLogs)
