@@ -420,9 +420,9 @@ func TestConvertDockerVolume(t *testing.T) {
 // CODER_TEST_USE_DOCKER=1 go test ./agent/agentcontainers -run TestDockerEnvInfoer
 func TestDockerEnvInfoer(t *testing.T) {
 	t.Parallel()
-	// if ctud, ok := os.LookupEnv("CODER_TEST_USE_DOCKER"); !ok || ctud != "1" {
-	// 	t.Skip("Set CODER_TEST_USE_DOCKER=1 to run this test")
-	// }
+	if ctud, ok := os.LookupEnv("CODER_TEST_USE_DOCKER"); !ok || ctud != "1" {
+		t.Skip("Set CODER_TEST_USE_DOCKER=1 to run this test")
+	}
 
 	pool, err := dockertest.NewPool("")
 	require.NoError(t, err, "Could not connect to docker")
