@@ -1,6 +1,6 @@
 {
   "format_version": "1.0",
-  "terraform_version": "1.9.8",
+  "terraform_version": "1.10.5",
   "values": {
     "root_module": {
       "resources": [
@@ -26,7 +26,7 @@
               }
             ],
             "env": null,
-            "id": "dabcdac4-9d40-4ed3-8331-9f5b29c88b5a",
+            "id": "febc1e16-503f-42c3-b1ab-b067d172a860",
             "init_script": "",
             "metadata": [
               {
@@ -44,7 +44,7 @@
             "shutdown_script": null,
             "startup_script": null,
             "startup_script_behavior": "non-blocking",
-            "token": "7df37d19-71f4-4b8d-8ebb-9665787aff28",
+            "token": "2b609454-ea6a-4ec8-ba03-d305712894d1",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -68,7 +68,7 @@
             "daily_cost": 29,
             "hide": true,
             "icon": "/icon/server.svg",
-            "id": "ed62b95e-6be8-4f94-a490-ea01e39c5a21",
+            "id": "0ea63fbe-3e81-4c34-9edc-c2b1ddc62c46",
             "item": [
               {
                 "is_null": false,
@@ -83,7 +83,7 @@
                 "value": ""
               }
             ],
-            "resource_id": "1655456926645556376"
+            "resource_id": "856574543079218847"
           },
           "sensitive_values": {
             "item": [
@@ -107,7 +107,7 @@
             "daily_cost": 20,
             "hide": true,
             "icon": "/icon/server.svg",
-            "id": "1dc3e361-d9f8-44a1-8b95-1f8eb43147b6",
+            "id": "2a367f6b-b055-425c-bdc0-7c63cafdc146",
             "item": [
               {
                 "is_null": false,
@@ -116,7 +116,7 @@
                 "value": "world"
               }
             ],
-            "resource_id": "1655456926645556376"
+            "resource_id": "856574543079218847"
           },
           "sensitive_values": {
             "item": [
@@ -136,7 +136,7 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "1655456926645556376",
+            "id": "856574543079218847",
             "triggers": null
           },
           "sensitive_values": {},
