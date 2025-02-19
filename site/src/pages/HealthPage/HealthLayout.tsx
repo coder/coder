@@ -47,7 +47,7 @@ export const HealthLayout: FC = () => {
 	const link = useClassName(classNames.link, []);
 	const activeLink = useClassName(classNames.activeLink, []);
 
-	if (isLoading || !healthStatus) {
+	if (isLoading) {
 		return (
 			<div className="p-6">
 				<Loader />
@@ -55,7 +55,7 @@ export const HealthLayout: FC = () => {
 		);
 	}
 
-	if (error) {
+	if (error || !healthStatus) {
 		return (
 			<div className="p-6">
 				<ErrorAlert error={error} />
