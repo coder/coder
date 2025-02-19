@@ -255,16 +255,15 @@ func filterInvalidPermissions(permissions []codersdk.Permission) []codersdk.Perm
 	// Filter out any invalid permissions
 	var validPermissions []codersdk.Permission
 	for _, permission := range permissions {
-		err := (&rbac.Permission{
+		err := rbac.Permission{
 			Negate:       permission.Negate,
 			ResourceType: string(permission.ResourceType),
 			Action:       policy.Action(permission.Action),
-		}).Valid()
-		if err == nil {
-			validPermissions = append(validPermissions, permission)
-		} else {
-			fmt.Println(err.Error())
+		}.Valid()
+		if err != nil {
+			continue
 		}
+		validPermissions = append(validPermissions, permission)
 	}
 	return validPermissions
 }
