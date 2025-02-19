@@ -23,6 +23,10 @@ func (r *RootCmd) notifications() *serpent.Command {
 				Description: "Resume Coder notifications",
 				Command:     "coder notifications resume",
 			},
+			Example{
+				Description: "Send a test notification. Administrators can use this to verify the notification target settings.",
+				Command:     "coder notifications test",
+			},
 		),
 		Aliases: []string{"notification"},
 		Handler: func(inv *serpent.Invocation) error {
@@ -89,7 +93,7 @@ func (r *RootCmd) testNotifications() *serpent.Command {
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "test",
-		Short: "Test notifications",
+		Short: "Send a test notification",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
 			r.InitClient(client),

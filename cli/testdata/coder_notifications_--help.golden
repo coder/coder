@@ -19,11 +19,17 @@ USAGE:
     - Resume Coder notifications:
   
        $ coder notifications resume
+  
+    - Send a test notification. Administrators can use this to verify the
+  notification
+  target settings.:
+  
+       $ coder notifications test
 
 SUBCOMMANDS:
     pause     Pause notifications
     resume    Resume notifications
-    test      Test notifications
+    test      Send a test notification
 
 ———
 Run `coder --help` for a list of global options.
