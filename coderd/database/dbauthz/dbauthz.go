@@ -3589,15 +3589,15 @@ func (q *querier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) 
 }
 
 func (q *querier) SetInboxNotificationAsRead(ctx context.Context, arg database.SetInboxNotificationAsReadParams) error {
-	fetch := func(ctx context.Context, id uuid.UUID) (database.NotificationsInbox, error) {
+	fetchFunc := func(ctx context.Context, id uuid.UUID) (database.NotificationsInbox, error) {
 		return q.db.GetInboxNotificationByID(ctx, id)
 	}
 
-	update := func(ctx context.Context, arg database.SetInboxNotificationAsReadParams) error {
+	updateFunc := func(ctx context.Context, arg database.SetInboxNotificationAsReadParams) error {
 		return q.db.SetInboxNotificationAsRead(ctx, arg)
 	}
 
-	return update(q.log, q.auth, policy.ActionUpdate, fetch, update)(ctx, arg)
+	return update(q.log, q.auth, fetchFunc, updateFunc)(ctx, arg)
 }
 
 func (q *querier) TryAcquireLock(ctx context.Context, id int64) (bool, error) {
