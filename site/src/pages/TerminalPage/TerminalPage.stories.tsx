@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { getAuthorizationKey } from "api/queries/authCheck";
+import { anyOrganizationPermissionsKey } from "api/queries/organizations";
 import { workspaceByOwnerAndNameKey } from "api/queries/workspaces";
 import type { Workspace, WorkspaceAgentLifecycle } from "api/typesGenerated";
 import { AuthProvider } from "contexts/auth/AuthProvider";
@@ -22,7 +23,6 @@ import {
 } from "testHelpers/entities";
 import { withWebSocket } from "testHelpers/storybook";
 import TerminalPage from "./TerminalPage";
-import { anyOrganizationPermissionsKey } from "api/queries/organizations";
 
 const createWorkspaceWithAgent = (lifecycle: WorkspaceAgentLifecycle) => {
 	return {
