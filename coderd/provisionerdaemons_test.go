@@ -241,11 +241,14 @@ func TestProvisionerDaemons(t *testing.T) {
 		require.Nil(t, daemons[0].PreviousJob)
 	})
 
-	t.Run("MemberAllowed", func(t *testing.T) {
+	// For now, this is not allowed even though the member has created a
+	// workspace. Once member-level permissions for jobs are supported
+	// by RBAC, this test should be updated.
+	t.Run("MemberDenied", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		daemons, err := memberClient.OrganizationProvisionerDaemons(ctx, owner.OrganizationID, nil)
-		require.NoError(t, err)
-		require.Len(t, daemons, 50)
+		require.Error(t, err)
+		require.Len(t, daemons, 0)
 	})
 }

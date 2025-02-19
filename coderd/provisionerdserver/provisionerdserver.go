@@ -2022,10 +2022,13 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		if prAgent.ResourcesMonitoring != nil {
 			if prAgent.ResourcesMonitoring.Memory != nil {
 				_, err = db.InsertMemoryResourceMonitor(ctx, database.InsertMemoryResourceMonitorParams{
-					AgentID:   agentID,
-					Enabled:   prAgent.ResourcesMonitoring.Memory.Enabled,
-					Threshold: prAgent.ResourcesMonitoring.Memory.Threshold,
-					CreatedAt: dbtime.Now(),
+					AgentID:        agentID,
+					Enabled:        prAgent.ResourcesMonitoring.Memory.Enabled,
+					Threshold:      prAgent.ResourcesMonitoring.Memory.Threshold,
+					State:          database.WorkspaceAgentMonitorStateOK,
+					CreatedAt:      dbtime.Now(),
+					UpdatedAt:      dbtime.Now(),
+					DebouncedUntil: time.Time{},
 				})
 				if err != nil {
 					return xerrors.Errorf("failed to insert agent memory resource monitor into db: %w", err)
@@ -2033,11 +2036,14 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			}
 			for _, volume := range prAgent.ResourcesMonitoring.Volumes {
 				_, err = db.InsertVolumeResourceMonitor(ctx, database.InsertVolumeResourceMonitorParams{
-					AgentID:   agentID,
-					Path:      volume.Path,
-					Enabled:   volume.Enabled,
-					Threshold: volume.Threshold,
-					CreatedAt: dbtime.Now(),
+					AgentID:        agentID,
+					Path:           volume.Path,
+					Enabled:        volume.Enabled,
+					Threshold:      volume.Threshold,
+					State:          database.WorkspaceAgentMonitorStateOK,
+					CreatedAt:      dbtime.Now(),
+					UpdatedAt:      dbtime.Now(),
+					DebouncedUntil: time.Time{},
 				})
 				if err != nil {
 					return xerrors.Errorf("failed to insert agent volume resource monitor into db: %w", err)

@@ -108,7 +108,7 @@ func (api *API) handleAuthAndFetchProvisionerJobs(rw http.ResponseWriter, r *htt
 	if ids == nil {
 		ids = p.UUIDs(qp, nil, "ids")
 	}
-	tagsRaw := p.String(qp, "", "tags")
+	tags := p.JSONStringMap(qp, database.StringMap{}, "tags")
 	p.ErrorExcessParams(qp)
 	if len(p.Errors) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -118,19 +118,8 @@ func (api *API) handleAuthAndFetchProvisionerJobs(rw http.ResponseWriter, r *htt
 		return nil, false
 	}
 
-	tags := database.StringMap{}
-	if tagsRaw != "" {
-		if err := tags.Scan([]byte(tagsRaw)); err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Invalid tags query parameter",
-				Detail:  err.Error(),
-			})
-			return nil, false
-		}
-	}
-
 	jobs, err := api.Database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(ctx, database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams{
-		OrganizationID: uuid.NullUUID{UUID: org.ID, Valid: true},
+		OrganizationID: org.ID,
 		Status:         slice.StringEnums[database.ProvisionerJobStatus](status),
 		Limit:          sql.NullInt32{Int32: limit, Valid: limit > 0},
 		IDs:            ids,

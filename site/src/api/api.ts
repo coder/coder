@@ -1247,10 +1247,21 @@ class ApiMethods {
 	};
 
 	cancelTemplateVersionBuild = async (
-		templateVersionId: TypesGen.TemplateVersion["id"],
+		templateVersionId: string,
 	): Promise<TypesGen.Response> => {
 		const response = await this.axios.patch(
 			`/api/v2/templateversions/${templateVersionId}/cancel`,
+		);
+
+		return response.data;
+	};
+
+	cancelTemplateVersionDryRun = async (
+		templateVersionId: string,
+		jobId: string,
+	): Promise<TypesGen.Response> => {
+		const response = await this.axios.patch(
+			`/api/v2/templateversions/${templateVersionId}/dry-run/${jobId}/cancel`,
 		);
 
 		return response.data;
@@ -2303,6 +2314,38 @@ class ApiMethods {
 			`/api/v2/workspacebuilds/${workspaceBuildId}/timings`,
 		);
 		return res.data;
+	};
+
+	getProvisionerJobs = async (orgId: string) => {
+		const res = await this.axios.get<TypesGen.ProvisionerJob[]>(
+			`/api/v2/organizations/${orgId}/provisionerjobs`,
+		);
+		return res.data;
+	};
+
+	cancelProvisionerJob = async (job: TypesGen.ProvisionerJob) => {
+		switch (job.type) {
+			case "workspace_build":
+				if (!job.input.workspace_build_id) {
+					throw new Error("Workspace build ID is required to cancel this job");
+				}
+				return this.cancelWorkspaceBuild(job.input.workspace_build_id);
+
+			case "template_version_import":
+				if (!job.input.template_version_id) {
+					throw new Error("Template version ID is required to cancel this job");
+				}
+				return this.cancelTemplateVersionBuild(job.input.template_version_id);
+
+			case "template_version_dry_run":
+				if (!job.input.template_version_id) {
+					throw new Error("Template version ID is required to cancel this job");
+				}
+				return this.cancelTemplateVersionDryRun(
+					job.input.template_version_id,
+					job.id,
+				);
+		}
 	};
 }
 

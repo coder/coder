@@ -25,7 +25,11 @@ CREATE TYPE audit_action AS ENUM (
     'login',
     'logout',
     'register',
-    'request_password_reset'
+    'request_password_reset',
+    'connect',
+    'disconnect',
+    'open',
+    'close'
 );
 
 CREATE TYPE automatic_updates AS ENUM (
@@ -201,7 +205,9 @@ CREATE TYPE resource_type AS ENUM (
     'notification_template',
     'idp_sync_settings_organization',
     'idp_sync_settings_group',
-    'idp_sync_settings_role'
+    'idp_sync_settings_role',
+    'workspace_agent',
+    'workspace_app'
 );
 
 CREATE TYPE startup_script_behavior AS ENUM (
@@ -236,6 +242,11 @@ CREATE TYPE workspace_agent_lifecycle_state AS ENUM (
     'shutdown_timeout',
     'shutdown_error',
     'off'
+);
+
+CREATE TYPE workspace_agent_monitor_state AS ENUM (
+    'OK',
+    'NOK'
 );
 
 CREATE TYPE workspace_agent_script_timing_stage AS ENUM (
@@ -1522,7 +1533,10 @@ CREATE TABLE workspace_agent_memory_resource_monitors (
     agent_id uuid NOT NULL,
     enabled boolean NOT NULL,
     threshold integer NOT NULL,
-    created_at timestamp with time zone NOT NULL
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    state workspace_agent_monitor_state DEFAULT 'OK'::workspace_agent_monitor_state NOT NULL,
+    debounced_until timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL
 );
 
 CREATE UNLOGGED TABLE workspace_agent_metadata (
@@ -1607,7 +1621,10 @@ CREATE TABLE workspace_agent_volume_resource_monitors (
     enabled boolean NOT NULL,
     threshold integer NOT NULL,
     path text NOT NULL,
-    created_at timestamp with time zone NOT NULL
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    state workspace_agent_monitor_state DEFAULT 'OK'::workspace_agent_monitor_state NOT NULL,
+    debounced_until timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL
 );
 
 CREATE TABLE workspace_agents (

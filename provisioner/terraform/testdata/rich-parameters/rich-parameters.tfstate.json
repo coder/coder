@@ -1,6 +1,6 @@
 {
   "format_version": "1.0",
-  "terraform_version": "1.9.8",
+  "terraform_version": "1.10.5",
   "values": {
     "root_module": {
       "resources": [
@@ -17,7 +17,7 @@
             "display_name": null,
             "ephemeral": false,
             "icon": null,
-            "id": "7298c15e-11c8-4a9e-a2ef-044dbc44d519",
+            "id": "bfd26633-f683-494b-8f71-1697c81488c3",
             "mutable": false,
             "name": "Example",
             "option": [
@@ -61,7 +61,7 @@
             "display_name": null,
             "ephemeral": false,
             "icon": null,
-            "id": "a0dda000-20cb-42a7-9f83-1a1de0876e48",
+            "id": "53a78857-abc2-4447-8329-cc12e160aaba",
             "mutable": false,
             "name": "number_example",
             "option": null,
@@ -88,7 +88,7 @@
             "display_name": null,
             "ephemeral": false,
             "icon": null,
-            "id": "82a297b9-bbcb-4807-9de3-7217953dc6b0",
+            "id": "2ac0c3b2-f97f-47ad-beda-54264ba69422",
             "mutable": false,
             "name": "number_example_max_zero",
             "option": null,
@@ -127,7 +127,7 @@
             "display_name": null,
             "ephemeral": false,
             "icon": null,
-            "id": "ae1c376b-e28b-456a-b36e-125b3bc6d938",
+            "id": "3b06ad67-0ab3-434c-b934-81e409e21565",
             "mutable": false,
             "name": "number_example_min_max",
             "option": null,
@@ -166,7 +166,7 @@
             "display_name": null,
             "ephemeral": false,
             "icon": null,
-            "id": "57573ac3-5610-4887-b269-376071867eb5",
+            "id": "6f7c9117-36e4-47d5-8f23-a4e495a62895",
             "mutable": false,
             "name": "number_example_min_zero",
             "option": null,
@@ -205,7 +205,7 @@
             "display_name": null,
             "ephemeral": false,
             "icon": null,
-            "id": "0e08645d-0105-49ef-b278-26cdc30a826c",
+            "id": "5311db13-4521-4566-aac1-c70db8976ba5",
             "mutable": false,
             "name": "Sample",
             "option": null,
@@ -241,17 +241,16 @@
               }
             ],
             "env": null,
-            "id": "c5c402bd-215b-487f-862f-eca25fe88a72",
+            "id": "2d891d31-82ac-4fdd-b922-25c1dfac956c",
             "init_script": "",
             "metadata": [],
             "motd_file": null,
             "order": null,
             "os": "windows",
-            "resources_monitoring": [],
             "shutdown_script": null,
             "startup_script": null,
             "startup_script_behavior": "non-blocking",
-            "token": "b70d10f3-90bc-4abd-8cd9-b11da843954a",
+            "token": "6942a4c6-24f6-42b5-bcc7-d3e26d00d950",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -259,7 +258,6 @@
               {}
             ],
             "metadata": [],
-            "resources_monitoring": [],
             "token": true
           }
         },
@@ -271,7 +269,7 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "8544034527967282476",
+            "id": "6111468857109842799",
             "triggers": null
           },
           "sensitive_values": {},
@@ -296,7 +294,7 @@
                 "display_name": null,
                 "ephemeral": false,
                 "icon": null,
-                "id": "68ae438d-7194-4f5b-adeb-9c74059d9888",
+                "id": "1adeea93-ddc4-4dd8-b328-e167161bbe84",
                 "mutable": true,
                 "name": "First parameter from module",
                 "option": null,
@@ -323,7 +321,7 @@
                 "display_name": null,
                 "ephemeral": false,
                 "icon": null,
-                "id": "32f0f7f3-26a5-4023-a4e6-d9436cfe8cb4",
+                "id": "4bb326d9-cf43-4947-b26c-bb668a9f7a80",
                 "mutable": true,
                 "name": "Second parameter from module",
                 "option": null,
@@ -355,7 +353,7 @@
                     "display_name": null,
                     "ephemeral": false,
                     "icon": null,
-                    "id": "5235636a-3319-47ae-8879-b62f9ee9c5aa",
+                    "id": "a2b6d1e4-2e77-4eff-a81b-0fe285750824",
                     "mutable": true,
                     "name": "First parameter from child module",
                     "option": null,
@@ -382,7 +380,7 @@
                     "display_name": null,
                     "ephemeral": false,
                     "icon": null,
-                    "id": "54fa94ff-3048-457d-8de2-c182f6287c8d",
+                    "id": "9dac8aaa-ccf6-4c94-90d2-2009bfbbd596",
                     "mutable": true,
                     "name": "Second parameter from child module",
                     "option": null,

@@ -4225,7 +4225,7 @@ func (q *FakeQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePosition
 	for _, rowQP := range rowsWithQueuePosition {
 		job := rowQP.ProvisionerJob
 
-		if arg.OrganizationID.Valid && job.OrganizationID != arg.OrganizationID.UUID {
+		if job.OrganizationID != arg.OrganizationID {
 			continue
 		}
 		if len(arg.Status) > 0 && !slices.Contains(arg.Status, job.JobStatus) {
@@ -7997,7 +7997,16 @@ func (q *FakeQuerier) InsertMemoryResourceMonitor(_ context.Context, arg databas
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	monitor := database.WorkspaceAgentMemoryResourceMonitor(arg)
+	//nolint:unconvert // The structs field-order differs so this is needed.
+	monitor := database.WorkspaceAgentMemoryResourceMonitor(database.WorkspaceAgentMemoryResourceMonitor{
+		AgentID:        arg.AgentID,
+		Enabled:        arg.Enabled,
+		State:          arg.State,
+		Threshold:      arg.Threshold,
+		CreatedAt:      arg.CreatedAt,
+		UpdatedAt:      arg.UpdatedAt,
+		DebouncedUntil: arg.DebouncedUntil,
+	})
 
 	q.workspaceAgentMemoryResourceMonitors = append(q.workspaceAgentMemoryResourceMonitors, monitor)
 	return monitor, nil
@@ -8693,11 +8702,14 @@ func (q *FakeQuerier) InsertVolumeResourceMonitor(_ context.Context, arg databas
 	defer q.mutex.Unlock()
 
 	monitor := database.WorkspaceAgentVolumeResourceMonitor{
-		AgentID:   arg.AgentID,
-		Path:      arg.Path,
-		Enabled:   arg.Enabled,
-		Threshold: arg.Threshold,
-		CreatedAt: arg.CreatedAt,
+		AgentID:        arg.AgentID,
+		Path:           arg.Path,
+		Enabled:        arg.Enabled,
+		State:          arg.State,
+		Threshold:      arg.Threshold,
+		CreatedAt:      arg.CreatedAt,
+		UpdatedAt:      arg.UpdatedAt,
+		DebouncedUntil: arg.DebouncedUntil,
 	}
 
 	q.workspaceAgentVolumeResourceMonitors = append(q.workspaceAgentVolumeResourceMonitors, monitor)
@@ -9708,6 +9720,30 @@ func (q *FakeQuerier) UpdateMemberRoles(_ context.Context, arg database.UpdateMe
 	return database.OrganizationMember{}, sql.ErrNoRows
 }
 
+func (q *FakeQuerier) UpdateMemoryResourceMonitor(_ context.Context, arg database.UpdateMemoryResourceMonitorParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, monitor := range q.workspaceAgentMemoryResourceMonitors {
+		if monitor.AgentID != arg.AgentID {
+			continue
+		}
+
+		monitor.State = arg.State
+		monitor.UpdatedAt = arg.UpdatedAt
+		monitor.DebouncedUntil = arg.DebouncedUntil
+		q.workspaceAgentMemoryResourceMonitors[i] = monitor
+		return nil
+	}
+
+	return nil
+}
+
 func (*FakeQuerier) UpdateNotificationTemplateMethodByID(_ context.Context, _ database.UpdateNotificationTemplateMethodByIDParams) (database.NotificationTemplate, error) {
 	// Not implementing this function because it relies on state in the database which is created with migrations.
 	// We could consider using code-generation to align the database state and dbmem, but it's not worth it right now.
@@ -10484,6 +10520,30 @@ func (q *FakeQuerier) UpdateUserStatus(_ context.Context, arg database.UpdateUse
 		return user, nil
 	}
 	return database.User{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateVolumeResourceMonitor(_ context.Context, arg database.UpdateVolumeResourceMonitorParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, monitor := range q.workspaceAgentVolumeResourceMonitors {
+		if monitor.AgentID != arg.AgentID || monitor.Path != arg.Path {
+			continue
+		}
+
+		monitor.State = arg.State
+		monitor.UpdatedAt = arg.UpdatedAt
+		monitor.DebouncedUntil = arg.DebouncedUntil
+		q.workspaceAgentVolumeResourceMonitors[i] = monitor
+		return nil
+	}
+
+	return nil
 }
 
 func (q *FakeQuerier) UpdateWorkspace(_ context.Context, arg database.UpdateWorkspaceParams) (database.WorkspaceTable, error) {
@@ -12450,10 +12510,13 @@ func (q *FakeQuerier) GetAuthorizedAuditLogsOffset(ctx context.Context, arg data
 			arg.OffsetOpt--
 			continue
 		}
+		if arg.RequestID != uuid.Nil && arg.RequestID != alog.RequestID {
+			continue
+		}
 		if arg.OrganizationID != uuid.Nil && arg.OrganizationID != alog.OrganizationID {
 			continue
 		}
-		if arg.Action != "" && !strings.Contains(string(alog.Action), arg.Action) {
+		if arg.Action != "" && string(alog.Action) != arg.Action {
 			continue
 		}
 		if arg.ResourceType != "" && !strings.Contains(string(alog.ResourceType), arg.ResourceType) {

@@ -9,6 +9,8 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -31,11 +33,18 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 		org = httpmw.OrganizationParam(r)
 	)
 
+	// This endpoint returns information about provisioner jobs.
+	// For now, only owners and template admins can access provisioner jobs.
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceProvisionerJobs.InOrg(org.ID)) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
 	qp := r.URL.Query()
 	p := httpapi.NewQueryParamParser()
 	limit := p.PositiveInt32(qp, 50, "limit")
 	ids := p.UUIDs(qp, nil, "ids")
-	tagsRaw := p.String(qp, "", "tags")
+	tags := p.JSONStringMap(qp, database.StringMap{}, "tags")
 	p.ErrorExcessParams(qp)
 	if len(p.Errors) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -43,17 +52,6 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 			Validations: p.Errors,
 		})
 		return
-	}
-
-	tags := database.StringMap{}
-	if tagsRaw != "" {
-		if err := tags.Scan([]byte(tagsRaw)); err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Invalid tags query parameter",
-				Detail:  err.Error(),
-			})
-			return
-		}
 	}
 
 	daemons, err := api.Database.GetProvisionerDaemonsWithStatusByOrganization(

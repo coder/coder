@@ -1038,10 +1038,13 @@ func OAuth2ProviderAppToken(t testing.TB, db database.Store, seed database.OAuth
 
 func WorkspaceAgentMemoryResourceMonitor(t testing.TB, db database.Store, seed database.WorkspaceAgentMemoryResourceMonitor) database.WorkspaceAgentMemoryResourceMonitor {
 	monitor, err := db.InsertMemoryResourceMonitor(genCtx, database.InsertMemoryResourceMonitorParams{
-		AgentID:   takeFirst(seed.AgentID, uuid.New()),
-		Enabled:   takeFirst(seed.Enabled, true),
-		Threshold: takeFirst(seed.Threshold, 100),
-		CreatedAt: takeFirst(seed.CreatedAt, dbtime.Now()),
+		AgentID:        takeFirst(seed.AgentID, uuid.New()),
+		Enabled:        takeFirst(seed.Enabled, true),
+		State:          takeFirst(seed.State, database.WorkspaceAgentMonitorStateOK),
+		Threshold:      takeFirst(seed.Threshold, 100),
+		CreatedAt:      takeFirst(seed.CreatedAt, dbtime.Now()),
+		UpdatedAt:      takeFirst(seed.UpdatedAt, dbtime.Now()),
+		DebouncedUntil: takeFirst(seed.DebouncedUntil, time.Time{}),
 	})
 	require.NoError(t, err, "insert workspace agent memory resource monitor")
 	return monitor
@@ -1049,11 +1052,14 @@ func WorkspaceAgentMemoryResourceMonitor(t testing.TB, db database.Store, seed d
 
 func WorkspaceAgentVolumeResourceMonitor(t testing.TB, db database.Store, seed database.WorkspaceAgentVolumeResourceMonitor) database.WorkspaceAgentVolumeResourceMonitor {
 	monitor, err := db.InsertVolumeResourceMonitor(genCtx, database.InsertVolumeResourceMonitorParams{
-		AgentID:   takeFirst(seed.AgentID, uuid.New()),
-		Path:      takeFirst(seed.Path, "/"),
-		Enabled:   takeFirst(seed.Enabled, true),
-		Threshold: takeFirst(seed.Threshold, 100),
-		CreatedAt: takeFirst(seed.CreatedAt, dbtime.Now()),
+		AgentID:        takeFirst(seed.AgentID, uuid.New()),
+		Path:           takeFirst(seed.Path, "/"),
+		Enabled:        takeFirst(seed.Enabled, true),
+		State:          takeFirst(seed.State, database.WorkspaceAgentMonitorStateOK),
+		Threshold:      takeFirst(seed.Threshold, 100),
+		CreatedAt:      takeFirst(seed.CreatedAt, dbtime.Now()),
+		UpdatedAt:      takeFirst(seed.UpdatedAt, dbtime.Now()),
+		DebouncedUntil: takeFirst(seed.DebouncedUntil, time.Time{}),
 	})
 	require.NoError(t, err, "insert workspace agent volume resource monitor")
 	return monitor

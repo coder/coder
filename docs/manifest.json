@@ -1039,6 +1039,11 @@
 							"path": "reference/cli/notifications_resume.md"
 						},
 						{
+							"title": "notifications test",
+							"description": "Send a test notification",
+							"path": "reference/cli/notifications_test.md"
+						},
+						{
 							"title": "open",
 							"description": "Open a workspace",
 							"path": "reference/cli/open.md"

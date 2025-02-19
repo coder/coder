@@ -558,6 +558,12 @@ WHERE
             workspace_builds.reason::text = $11
         ELSE true
     END
+	-- Filter request_id
+	AND CASE
+		WHEN $12 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			audit_logs.request_id = $12
+		ELSE true
+	END
 
 	-- Authorize Filter clause will be injected below in GetAuthorizedAuditLogsOffset
 	-- @authorize_filter
@@ -567,9 +573,9 @@ LIMIT
 	-- a limit of 0 means "no limit". The audit log table is unbounded
 	-- in size, and is expected to be quite large. Implement a default
 	-- limit of 100 to prevent accidental excessively large queries.
-	COALESCE(NULLIF($13 :: int, 0), 100)
+	COALESCE(NULLIF($14 :: int, 0), 100)
 OFFSET
-    $12
+    $13
 `
 
 type GetAuditLogsOffsetParams struct {
@@ -584,6 +590,7 @@ type GetAuditLogsOffsetParams struct {
 	DateFrom       time.Time `db:"date_from" json:"date_from"`
 	DateTo         time.Time `db:"date_to" json:"date_to"`
 	BuildReason    string    `db:"build_reason" json:"build_reason"`
+	RequestID      uuid.UUID `db:"request_id" json:"request_id"`
 	OffsetOpt      int32     `db:"offset_opt" json:"offset_opt"`
 	LimitOpt       int32     `db:"limit_opt" json:"limit_opt"`
 }
@@ -624,6 +631,7 @@ func (q *sqlQuerier) GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOff
 		arg.DateFrom,
 		arg.DateTo,
 		arg.BuildReason,
+		arg.RequestID,
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)
@@ -5981,6 +5989,7 @@ JOIN
 LEFT JOIN
 	provisioner_jobs current_job ON (
 		current_job.worker_id = pd.id
+		AND current_job.organization_id = pd.organization_id
 		AND current_job.completed_at IS NULL
 	)
 LEFT JOIN
@@ -5992,26 +6001,40 @@ LEFT JOIN
 				provisioner_jobs
 			WHERE
 				worker_id = pd.id
+				AND organization_id = pd.organization_id
 				AND completed_at IS NOT NULL
 			ORDER BY
 				completed_at DESC
 			LIMIT 1
 		)
+		AND previous_job.organization_id = pd.organization_id
 	)
 LEFT JOIN
 	workspace_builds current_build ON current_build.id = CASE WHEN current_job.input ? 'workspace_build_id' THEN (current_job.input->>'workspace_build_id')::uuid END
 LEFT JOIN
 	-- We should always have a template version, either explicitly or implicitly via workspace build.
-	template_versions current_version ON current_version.id = CASE WHEN current_job.input ? 'template_version_id' THEN (current_job.input->>'template_version_id')::uuid ELSE current_build.template_version_id END
+	template_versions current_version ON (
+		current_version.id = CASE WHEN current_job.input ? 'template_version_id' THEN (current_job.input->>'template_version_id')::uuid ELSE current_build.template_version_id END
+		AND current_version.organization_id = pd.organization_id
+	)
 LEFT JOIN
-	templates current_template ON current_template.id = current_version.template_id
+	templates current_template ON (
+		current_template.id = current_version.template_id
+		AND current_template.organization_id = pd.organization_id
+	)
 LEFT JOIN
 	workspace_builds previous_build ON previous_build.id = CASE WHEN previous_job.input ? 'workspace_build_id' THEN (previous_job.input->>'workspace_build_id')::uuid END
 LEFT JOIN
 	-- We should always have a template version, either explicitly or implicitly via workspace build.
-	template_versions previous_version ON previous_version.id = CASE WHEN previous_job.input ? 'template_version_id' THEN (previous_job.input->>'template_version_id')::uuid ELSE previous_build.template_version_id END
+	template_versions previous_version ON (
+		previous_version.id = CASE WHEN previous_job.input ? 'template_version_id' THEN (previous_job.input->>'template_version_id')::uuid ELSE previous_build.template_version_id END
+		AND previous_version.organization_id = pd.organization_id
+	)
 LEFT JOIN
-	templates previous_template ON previous_template.id = previous_version.template_id
+	templates previous_template ON (
+		previous_template.id = previous_version.template_id
+		AND previous_template.organization_id = pd.organization_id
+	)
 WHERE
 	pd.organization_id = $2::uuid
 	AND (COALESCE(array_length($3::uuid[], 1), 0) = 0 OR pd.id = ANY($3::uuid[]))
@@ -6712,14 +6735,23 @@ LEFT JOIN
 LEFT JOIN
 	workspace_builds wb ON wb.id = CASE WHEN pj.input ? 'workspace_build_id' THEN (pj.input->>'workspace_build_id')::uuid END
 LEFT JOIN
-	workspaces w ON wb.workspace_id = w.id
+	workspaces w ON (
+		w.id = wb.workspace_id
+		AND w.organization_id = pj.organization_id
+	)
 LEFT JOIN
 	-- We should always have a template version, either explicitly or implicitly via workspace build.
-	template_versions tv ON tv.id = CASE WHEN pj.input ? 'template_version_id' THEN (pj.input->>'template_version_id')::uuid ELSE wb.template_version_id END
+	template_versions tv ON (
+		tv.id = CASE WHEN pj.input ? 'template_version_id' THEN (pj.input->>'template_version_id')::uuid ELSE wb.template_version_id END
+		AND tv.organization_id = pj.organization_id
+	)
 LEFT JOIN
-	templates t ON tv.template_id = t.id
+	templates t ON (
+		t.id = tv.template_id
+		AND t.organization_id = pj.organization_id
+	)
 WHERE
-	($1::uuid IS NULL OR pj.organization_id = $1)
+	pj.organization_id = $1::uuid
 	AND (COALESCE(array_length($2::uuid[], 1), 0) = 0 OR pj.id = ANY($2::uuid[]))
 	AND (COALESCE(array_length($3::provisioner_job_status[], 1), 0) = 0 OR pj.job_status = ANY($3::provisioner_job_status[]))
 	AND ($4::tagset = 'null'::tagset OR provisioner_tagset_contains(pj.tags::tagset, $4::tagset))
@@ -6741,7 +6773,7 @@ LIMIT
 `
 
 type GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams struct {
-	OrganizationID uuid.NullUUID          `db:"organization_id" json:"organization_id"`
+	OrganizationID uuid.UUID              `db:"organization_id" json:"organization_id"`
 	IDs            []uuid.UUID            `db:"ids" json:"ids"`
 	Status         []ProvisionerJobStatus `db:"status" json:"status"`
 	Tags           StringMap              `db:"tags" json:"tags"`
@@ -12255,7 +12287,7 @@ func (q *sqlQuerier) UpsertWorkspaceAgentPortShare(ctx context.Context, arg Upse
 
 const fetchMemoryResourceMonitorsByAgentID = `-- name: FetchMemoryResourceMonitorsByAgentID :one
 SELECT
-	agent_id, enabled, threshold, created_at
+	agent_id, enabled, threshold, created_at, updated_at, state, debounced_until
 FROM
 	workspace_agent_memory_resource_monitors
 WHERE
@@ -12270,13 +12302,16 @@ func (q *sqlQuerier) FetchMemoryResourceMonitorsByAgentID(ctx context.Context, a
 		&i.Enabled,
 		&i.Threshold,
 		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.State,
+		&i.DebouncedUntil,
 	)
 	return i, err
 }
 
 const fetchVolumesResourceMonitorsByAgentID = `-- name: FetchVolumesResourceMonitorsByAgentID :many
 SELECT
-	agent_id, enabled, threshold, path, created_at
+	agent_id, enabled, threshold, path, created_at, updated_at, state, debounced_until
 FROM
 	workspace_agent_volume_resource_monitors
 WHERE
@@ -12298,6 +12333,9 @@ func (q *sqlQuerier) FetchVolumesResourceMonitorsByAgentID(ctx context.Context, 
 			&i.Threshold,
 			&i.Path,
 			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.State,
+			&i.DebouncedUntil,
 		); err != nil {
 			return nil, err
 		}
@@ -12317,26 +12355,35 @@ INSERT INTO
 	workspace_agent_memory_resource_monitors (
 		agent_id,
 		enabled,
+		state,
 		threshold,
-		created_at
+		created_at,
+		updated_at,
+		debounced_until
 	)
 VALUES
-	($1, $2, $3, $4) RETURNING agent_id, enabled, threshold, created_at
+	($1, $2, $3, $4, $5, $6, $7) RETURNING agent_id, enabled, threshold, created_at, updated_at, state, debounced_until
 `
 
 type InsertMemoryResourceMonitorParams struct {
-	AgentID   uuid.UUID `db:"agent_id" json:"agent_id"`
-	Enabled   bool      `db:"enabled" json:"enabled"`
-	Threshold int32     `db:"threshold" json:"threshold"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	AgentID        uuid.UUID                  `db:"agent_id" json:"agent_id"`
+	Enabled        bool                       `db:"enabled" json:"enabled"`
+	State          WorkspaceAgentMonitorState `db:"state" json:"state"`
+	Threshold      int32                      `db:"threshold" json:"threshold"`
+	CreatedAt      time.Time                  `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time                  `db:"updated_at" json:"updated_at"`
+	DebouncedUntil time.Time                  `db:"debounced_until" json:"debounced_until"`
 }
 
 func (q *sqlQuerier) InsertMemoryResourceMonitor(ctx context.Context, arg InsertMemoryResourceMonitorParams) (WorkspaceAgentMemoryResourceMonitor, error) {
 	row := q.db.QueryRowContext(ctx, insertMemoryResourceMonitor,
 		arg.AgentID,
 		arg.Enabled,
+		arg.State,
 		arg.Threshold,
 		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.DebouncedUntil,
 	)
 	var i WorkspaceAgentMemoryResourceMonitor
 	err := row.Scan(
@@ -12344,6 +12391,9 @@ func (q *sqlQuerier) InsertMemoryResourceMonitor(ctx context.Context, arg Insert
 		&i.Enabled,
 		&i.Threshold,
 		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.State,
+		&i.DebouncedUntil,
 	)
 	return i, err
 }
@@ -12354,19 +12404,25 @@ INSERT INTO
 		agent_id,
 		path,
 		enabled,
+		state,
 		threshold,
-		created_at
+		created_at,
+		updated_at,
+		debounced_until
 	)
 VALUES
-	($1, $2, $3, $4, $5) RETURNING agent_id, enabled, threshold, path, created_at
+	($1, $2, $3, $4, $5, $6, $7, $8) RETURNING agent_id, enabled, threshold, path, created_at, updated_at, state, debounced_until
 `
 
 type InsertVolumeResourceMonitorParams struct {
-	AgentID   uuid.UUID `db:"agent_id" json:"agent_id"`
-	Path      string    `db:"path" json:"path"`
-	Enabled   bool      `db:"enabled" json:"enabled"`
-	Threshold int32     `db:"threshold" json:"threshold"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	AgentID        uuid.UUID                  `db:"agent_id" json:"agent_id"`
+	Path           string                     `db:"path" json:"path"`
+	Enabled        bool                       `db:"enabled" json:"enabled"`
+	State          WorkspaceAgentMonitorState `db:"state" json:"state"`
+	Threshold      int32                      `db:"threshold" json:"threshold"`
+	CreatedAt      time.Time                  `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time                  `db:"updated_at" json:"updated_at"`
+	DebouncedUntil time.Time                  `db:"debounced_until" json:"debounced_until"`
 }
 
 func (q *sqlQuerier) InsertVolumeResourceMonitor(ctx context.Context, arg InsertVolumeResourceMonitorParams) (WorkspaceAgentVolumeResourceMonitor, error) {
@@ -12374,8 +12430,11 @@ func (q *sqlQuerier) InsertVolumeResourceMonitor(ctx context.Context, arg Insert
 		arg.AgentID,
 		arg.Path,
 		arg.Enabled,
+		arg.State,
 		arg.Threshold,
 		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.DebouncedUntil,
 	)
 	var i WorkspaceAgentVolumeResourceMonitor
 	err := row.Scan(
@@ -12384,8 +12443,67 @@ func (q *sqlQuerier) InsertVolumeResourceMonitor(ctx context.Context, arg Insert
 		&i.Threshold,
 		&i.Path,
 		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.State,
+		&i.DebouncedUntil,
 	)
 	return i, err
+}
+
+const updateMemoryResourceMonitor = `-- name: UpdateMemoryResourceMonitor :exec
+UPDATE workspace_agent_memory_resource_monitors
+SET
+	updated_at = $2,
+	state = $3,
+	debounced_until = $4
+WHERE
+	agent_id = $1
+`
+
+type UpdateMemoryResourceMonitorParams struct {
+	AgentID        uuid.UUID                  `db:"agent_id" json:"agent_id"`
+	UpdatedAt      time.Time                  `db:"updated_at" json:"updated_at"`
+	State          WorkspaceAgentMonitorState `db:"state" json:"state"`
+	DebouncedUntil time.Time                  `db:"debounced_until" json:"debounced_until"`
+}
+
+func (q *sqlQuerier) UpdateMemoryResourceMonitor(ctx context.Context, arg UpdateMemoryResourceMonitorParams) error {
+	_, err := q.db.ExecContext(ctx, updateMemoryResourceMonitor,
+		arg.AgentID,
+		arg.UpdatedAt,
+		arg.State,
+		arg.DebouncedUntil,
+	)
+	return err
+}
+
+const updateVolumeResourceMonitor = `-- name: UpdateVolumeResourceMonitor :exec
+UPDATE workspace_agent_volume_resource_monitors
+SET
+		updated_at = $3,
+		state = $4,
+		debounced_until = $5
+WHERE
+		agent_id = $1 AND path = $2
+`
+
+type UpdateVolumeResourceMonitorParams struct {
+	AgentID        uuid.UUID                  `db:"agent_id" json:"agent_id"`
+	Path           string                     `db:"path" json:"path"`
+	UpdatedAt      time.Time                  `db:"updated_at" json:"updated_at"`
+	State          WorkspaceAgentMonitorState `db:"state" json:"state"`
+	DebouncedUntil time.Time                  `db:"debounced_until" json:"debounced_until"`
+}
+
+func (q *sqlQuerier) UpdateVolumeResourceMonitor(ctx context.Context, arg UpdateVolumeResourceMonitorParams) error {
+	_, err := q.db.ExecContext(ctx, updateVolumeResourceMonitor,
+		arg.AgentID,
+		arg.Path,
+		arg.UpdatedAt,
+		arg.State,
+		arg.DebouncedUntil,
+	)
+	return err
 }
 
 const deleteOldWorkspaceAgentLogs = `-- name: DeleteOldWorkspaceAgentLogs :exec

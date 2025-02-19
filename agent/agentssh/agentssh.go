@@ -409,7 +409,7 @@ func (s *Server) sessionStart(logger slog.Logger, session ssh.Session, extraEnv 
 	magicTypeLabel := magicTypeMetricLabel(magicType)
 	sshPty, windowSize, isPty := session.Pty()
 
-	cmd, err := s.CreateCommand(ctx, session.RawCommand(), env)
+	cmd, err := s.CreateCommand(ctx, session.RawCommand(), env, nil)
 	if err != nil {
 		ptyLabel := "no"
 		if isPty {
@@ -670,17 +670,63 @@ func (s *Server) sftpHandler(logger slog.Logger, session ssh.Session) {
 	_ = session.Exit(1)
 }
 
+// EnvInfoer encapsulates external information required by CreateCommand.
+type EnvInfoer interface {
+	// CurrentUser returns the current user.
+	CurrentUser() (*user.User, error)
+	// Environ returns the environment variables of the current process.
+	Environ() []string
+	// UserHomeDir returns the home directory of the current user.
+	UserHomeDir() (string, error)
+	// UserShell returns the shell of the given user.
+	UserShell(username string) (string, error)
+}
+
+type systemEnvInfoer struct{}
+
+var defaultEnvInfoer EnvInfoer = &systemEnvInfoer{}
+
+// DefaultEnvInfoer returns a default implementation of
+// EnvInfoer. This reads information using the default Go
+// implementations.
+func DefaultEnvInfoer() EnvInfoer {
+	return defaultEnvInfoer
+}
+
+func (systemEnvInfoer) CurrentUser() (*user.User, error) {
+	return user.Current()
+}
+
+func (systemEnvInfoer) Environ() []string {
+	return os.Environ()
+}
+
+func (systemEnvInfoer) UserHomeDir() (string, error) {
+	return userHomeDir()
+}
+
+func (systemEnvInfoer) UserShell(username string) (string, error) {
+	return usershell.Get(username)
+}
+
 // CreateCommand processes raw command input with OpenSSH-like behavior.
 // If the script provided is empty, it will default to the users shell.
 // This injects environment variables specified by the user at launch too.
-func (s *Server) CreateCommand(ctx context.Context, script string, env []string) (*pty.Cmd, error) {
-	currentUser, err := user.Current()
+// The final argument is an interface that allows the caller to provide
+// alternative implementations for the dependencies of CreateCommand.
+// This is useful when creating a command to be run in a separate environment
+// (for example, a Docker container). Pass in nil to use the default.
+func (s *Server) CreateCommand(ctx context.Context, script string, env []string, deps EnvInfoer) (*pty.Cmd, error) {
+	if deps == nil {
+		deps = DefaultEnvInfoer()
+	}
+	currentUser, err := deps.CurrentUser()
 	if err != nil {
 		return nil, xerrors.Errorf("get current user: %w", err)
 	}
 	username := currentUser.Username
 
-	shell, err := usershell.Get(username)
+	shell, err := deps.UserShell(username)
 	if err != nil {
 		return nil, xerrors.Errorf("get user shell: %w", err)
 	}
@@ -736,13 +782,13 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string)
 	_, err = os.Stat(cmd.Dir)
 	if cmd.Dir == "" || err != nil {
 		// Default to user home if a directory is not set.
-		homedir, err := userHomeDir()
+		homedir, err := deps.UserHomeDir()
 		if err != nil {
 			return nil, xerrors.Errorf("get home dir: %w", err)
 		}
 		cmd.Dir = homedir
 	}
-	cmd.Env = append(os.Environ(), env...)
+	cmd.Env = append(deps.Environ(), env...)
 	cmd.Env = append(cmd.Env, fmt.Sprintf("USER=%s", username))
 
 	// Set SSH connection environment variables (these are also set by OpenSSH

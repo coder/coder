@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.22.0"
+      version = "2.2.0-pre0"
     }
   }
 }
@@ -27,12 +27,12 @@ resource "coder_agent" "dev2" {
       threshold = 99
     }
     volume {
-      path      = "volume1"
+      path      = "/volume1"
       enabled   = true
       threshold = 80
     }
     volume {
-      path      = "volume2"
+      path      = "/volume2"
       enabled   = false
       threshold = 50
     }
