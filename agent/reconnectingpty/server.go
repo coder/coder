@@ -14,6 +14,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
@@ -116,7 +117,7 @@ func (s *Server) handleConn(ctx context.Context, logger slog.Logger, conn net.Co
 	}
 
 	connectionID := uuid.NewString()
-	connLogger := logger.With(slog.F("message_id", msg.ID), slog.F("connection_id", connectionID))
+	connLogger := logger.With(slog.F("message_id", msg.ID), slog.F("connection_id", connectionID), slog.F("container", msg.Container), slog.F("container_user", msg.ContainerUser))
 	connLogger.Debug(ctx, "starting handler")
 
 	defer func() {
@@ -158,8 +159,17 @@ func (s *Server) handleConn(ctx context.Context, logger slog.Logger, conn net.Co
 			}
 		}()
 
+		var ei agentssh.EnvInfoer
+		if msg.Container != "" {
+			dei, err := agentcontainers.EnvInfo(ctx, s.commandCreator.Execer, msg.Container, msg.ContainerUser)
+			if err != nil {
+				return xerrors.Errorf("get container env info: %w", err)
+			}
+			ei = dei
+			s.logger.Info(ctx, "got container env info", slog.F("container", msg.Container))
+		}
 		// Empty command will default to the users shell!
-		cmd, err := s.commandCreator.CreateCommand(ctx, msg.Command, nil, nil)
+		cmd, err := s.commandCreator.CreateCommand(ctx, msg.Command, nil, ei)
 		if err != nil {
 			s.errorsTotal.WithLabelValues("create_command").Add(1)
 			return xerrors.Errorf("create command: %w", err)
