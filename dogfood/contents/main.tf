@@ -91,6 +91,10 @@ data "coder_parameter" "res_mon_memory_threshold" {
   default     = 80
   description = "The memory usage threshold used in resources monitoring to trigger notifications."
   mutable     = true
+  validation {
+    min = 0
+    max = 100
+  }
 }
 
 data "coder_parameter" "res_mon_volume_threshold" {
@@ -99,6 +103,10 @@ data "coder_parameter" "res_mon_volume_threshold" {
   default     = 80
   description = "The volume usage threshold used in resources monitoring to trigger notifications."
   mutable     = true
+  validation {
+    min = 0
+    max = 100
+  }
 }
 
 data "coder_parameter" "res_mon_volume_path" {
