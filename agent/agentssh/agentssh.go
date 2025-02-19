@@ -332,7 +332,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		s.connCountSSHSession.Add(1)
 		defer s.connCountSSHSession.Add(-1)
 	case MagicSessionTypeUnknown:
-		logger.Warn(ctx, "unknown session type", slog.F("raw_type", magicTypeRaw))
+		logger.Warn(ctx, "invalid magic ssh session type specified", slog.F("raw_type", magicTypeRaw))
 	}
 
 	if s.fileTransferBlocked(session) {
