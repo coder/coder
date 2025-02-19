@@ -43,10 +43,6 @@ const (
 	// unlikely to shadow other exit codes, which are typically 1, 2, 3, etc.
 	MagicSessionErrorCode = 229
 
-	// MagicSessionTypeEnvironmentVariable is used to track the purpose behind an SSH connection.
-	// This is stripped from any commands being executed, and is counted towards connection stats.
-	MagicSessionTypeEnvironmentVariable = "CODER_SSH_SESSION_TYPE"
-
 	// MagicProcessCmdlineJetBrains is a string in a process's command line that
 	// uniquely identifies it as JetBrains software.
 	MagicProcessCmdlineJetBrains = "idea.vendor.name=JetBrains"
@@ -60,6 +56,12 @@ const (
 // MagicSessionType is a type that represents the type of session that is being
 // established.
 type MagicSessionType string
+
+const (
+	// MagicSessionTypeEnvironmentVariable is used to track the purpose behind an SSH connection.
+	// This is stripped from any commands being executed, and is counted towards connection stats.
+	MagicSessionTypeEnvironmentVariable = "CODER_SSH_SESSION_TYPE"
+)
 
 // MagicSessionType enums.
 const (
