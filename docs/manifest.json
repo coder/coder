@@ -1040,7 +1040,7 @@
 						},
 						{
 							"title": "notifications test",
-							"description": "Test notifications",
+							"description": "Send a test notification",
 							"path": "reference/cli/notifications_test.md"
 						},
 						{

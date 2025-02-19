@@ -103,7 +103,7 @@ func (r *RootCmd) testNotifications() *serpent.Command {
 				return xerrors.Errorf("unable to post test notification: %w", err)
 			}
 
-			_, _ = fmt.Fprintln(inv.Stderr, "A test notification has been sent.")
+			_, _ = fmt.Fprintln(inv.Stderr, "A test notification has been sent. If you don't receive the notification, check Coder's logs for any errors.")
 			return nil
 		},
 	}

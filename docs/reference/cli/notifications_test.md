@@ -1,7 +1,7 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # notifications test
 
-Test notifications
+Send a test notification
 
 ## Usage
 

@@ -26,12 +26,17 @@ server or Webhook not responding).:
   - Resume Coder notifications:
 
      $ coder notifications resume
+
+  - Send a test notification. Administrators can use this to verify the notification
+target settings.:
+
+     $ coder notifications test
 ```
 
 ## Subcommands
 
-| Name                                             | Purpose              |
-|--------------------------------------------------|----------------------|
-| [<code>pause</code>](./notifications_pause.md)   | Pause notifications  |
-| [<code>resume</code>](./notifications_resume.md) | Resume notifications |
-| [<code>test</code>](./notifications_test.md)     | Test notifications   |
+| Name                                             | Purpose                  |
+|--------------------------------------------------|--------------------------|
+| [<code>pause</code>](./notifications_pause.md)   | Pause notifications      |
+| [<code>resume</code>](./notifications_resume.md) | Resume notifications     |
+| [<code>test</code>](./notifications_test.md)     | Send a test notification |
