@@ -2,7 +2,7 @@ package agentcontainers
 
 import (
 	"fmt"
-	"runtime"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -29,10 +29,14 @@ import (
 // label, lists the containers, and verifies that the expected container is
 // returned. It also executes a sample command inside the container.
 // The container is deleted after the test is complete.
+// As this test creates containers, it is skipped by default.
+// It can be run manually as follows:
+//
+// CODER_TEST_USE_DOCKER=1 go test ./agent/agentcontainers -run TestDockerCLIContainerLister
 func TestIntegrationDocker(t *testing.T) {
 	t.Parallel()
-	if runtime.GOOS != "linux" {
-		t.Skip("This test creates containers, which can be flaky in non-Linux CI environments.")
+	if ctud, ok := os.LookupEnv("CODER_TEST_USE_DOCKER"); !ok || ctud != "1" {
+		t.Skip("Set CODER_TEST_USE_DOCKER=1 to run this test")
 	}
 
 	pool, err := dockertest.NewPool("")
@@ -419,10 +423,16 @@ func TestConvertDockerVolume(t *testing.T) {
 	}
 }
 
+// TestDockerEnvInfoer tests the ability of EnvInfo to extract information from
+// running containers. Containers are deleted after the test is complete.
+// As this test creates containers, it is skipped by default.
+// It can be run manually as follows:
+//
+// CODER_TEST_USE_DOCKER=1 go test ./agent/agentcontainers -run TestDockerEnvInfoer
 func TestDockerEnvInfoer(t *testing.T) {
 	t.Parallel()
-	if runtime.GOOS != "linux" {
-		t.Skip("This test creates containers, which can be flaky in non-Linux CI environments.")
+	if ctud, ok := os.LookupEnv("CODER_TEST_USE_DOCKER"); !ok || ctud != "1" {
+		t.Skip("Set CODER_TEST_USE_DOCKER=1 to run this test")
 	}
 
 	pool, err := dockertest.NewPool("")
