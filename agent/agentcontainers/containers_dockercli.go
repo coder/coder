@@ -6,8 +6,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/user"
-	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -42,21 +42,6 @@ type ContainerEnvInfoer struct {
 	env       []string
 }
 
-// Helper function to run a command and return its stdout and stderr.
-// We want to differentiate stdout and stderr instead of using CombinedOutput.
-// We also want to differentiate between a command running successfully with
-// output to stderr and a non-zero exit code.
-func run(ctx context.Context, execer agentexec.Execer, cmd string, args ...string) (stdout, stderr string, err error) {
-	var stdoutBuf, stderrBuf bytes.Buffer
-	execCmd := execer.CommandContext(ctx, cmd, args...)
-	execCmd.Stdout = &stdoutBuf
-	execCmd.Stderr = &stderrBuf
-	err = execCmd.Run()
-	stdout = strings.TrimSpace(stdoutBuf.String())
-	stderr = strings.TrimSpace(stderrBuf.String())
-	return stdout, stderr, err
-}
-
 // EnvInfo returns information about the environment of a container.
 func EnvInfo(ctx context.Context, execer agentexec.Execer, container, containerUser string) (*ContainerEnvInfoer, error) {
 	var cei ContainerEnvInfoer
@@ -65,7 +50,7 @@ func EnvInfo(ctx context.Context, execer agentexec.Execer, container, containerU
 	if containerUser == "" {
 		// Get the "default" user of the container if no user is specified.
 		// TODO: handle different container runtimes.
-		cmd, args := WrapDockerExec(container, "")("whoami")
+		cmd, args := wrapDockerExec(container, "", "whoami")
 		stdout, stderr, err := run(ctx, execer, cmd, args...)
 		if err != nil {
 			return nil, xerrors.Errorf("get container user: run whoami: %w: %s", err, stderr)
@@ -77,7 +62,7 @@ func EnvInfo(ctx context.Context, execer agentexec.Execer, container, containerU
 	}
 	// Now that we know the username, get the required info from the container.
 	// We can't assume the presence of `getent` so we'll just have to sniff /etc/passwd.
-	cmd, args := WrapDockerExec(container, containerUser)("cat", "/etc/passwd")
+	cmd, args := wrapDockerExec(container, containerUser, "cat", "/etc/passwd")
 	stdout, stderr, err := run(ctx, execer, cmd, args...)
 	if err != nil {
 		return nil, xerrors.Errorf("get container user: read /etc/passwd: %w: %q", err, stderr)
@@ -125,81 +110,86 @@ func EnvInfo(ctx context.Context, execer agentexec.Execer, container, containerU
 	cei.userShell = passwdFields[6]
 
 	// Finally, get the environment of the container.
-	// TODO(cian): for devcontainers we will need to also take into account both
-	// remoteEnv and userEnvProbe.
+	// TODO: For containers, we can't simply run `env` inside the container.
+	// We need to inspect the container labels for remoteEnv and append these to
+	// the resulting docker exec command.
 	// ref: https://code.visualstudio.com/docs/devcontainers/attach-container
-	cmd, args = WrapDockerExec(container, containerUser)("env", "-0")
-	stdout, stderr, err = run(ctx, execer, cmd, args...)
-	if err != nil {
-		return nil, xerrors.Errorf("get container environment: run env -0: %w: %q", err, stderr)
-	}
-
-	// Parse the output of `env -0` which is a null-terminated list of environment
-	// variables. This is important as environment variables can contain newlines.
-	envs := strings.Split(stdout, "\x00")
-	for _, env := range envs {
-		env = strings.TrimSpace(env)
-		if env == "" {
-			continue
-		}
-		cei.env = append(cei.env, env)
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, xerrors.Errorf("get container environment: scan env output: %w", err)
-	}
+	// For now, we're simply returning the host environment.
+	cei.env = make([]string, 0)
 
 	return &cei, nil
 }
 
-func (dei *ContainerEnvInfoer) CurrentUser() (*user.User, error) {
+func (cei *ContainerEnvInfoer) CurrentUser() (*user.User, error) {
 	// Clone the user so that the caller can't modify it
-	u := *dei.user
+	u := *cei.user
 	return &u, nil
 }
 
-func (dei *ContainerEnvInfoer) Environ() []string {
+func (*ContainerEnvInfoer) Environ() []string {
 	// Return a clone of the environment so that the caller can't modify it
-	return slices.Clone(dei.env)
+	return os.Environ()
 }
 
-func (dei *ContainerEnvInfoer) UserHomeDir() (string, error) {
-	return dei.user.HomeDir, nil
+func (*ContainerEnvInfoer) UserHomeDir() (string, error) {
+	// We default the working directory of the command to the user's home
+	// directory. Since this came from inside the container, we cannot guarantee
+	// that this exists on the host. Return the "real" home directory of the user
+	// instead.
+	return os.UserHomeDir()
 }
 
-func (dei *ContainerEnvInfoer) UserShell(string) (string, error) {
-	return dei.userShell, nil
+func (cei *ContainerEnvInfoer) UserShell(string) (string, error) {
+	return cei.userShell, nil
 }
 
-func (dei *ContainerEnvInfoer) ModifyCommand(cmd string, args ...string) (string, []string) {
-	return WrapDockerExecPTY(dei.container, dei.user.Username)(cmd, args...)
-}
-
-// WrapFn is a function that wraps a command and its arguments with another command and arguments.
-type WrapFn func(cmd string, args ...string) (string, []string)
-
-// WrapDockerExec returns a WrapFn that wraps the given command and arguments
-// with a docker exec command that runs as the given user in the given container.
-func WrapDockerExec(containerName, userName string) WrapFn {
-	return func(cmd string, args ...string) (string, []string) {
-		dockerArgs := []string{"exec", "--interactive"}
-		if userName != "" {
-			dockerArgs = append(dockerArgs, "--user", userName)
-		}
-		dockerArgs = append(dockerArgs, containerName, cmd)
-		return "docker", append(dockerArgs, args...)
+func (cei *ContainerEnvInfoer) ModifyCommand(cmd string, args ...string) (string, []string) {
+	// Wrap the command with `docker exec` and run it as the container user.
+	// There is some additional munging here regarding the container user and environment.
+	// return WrapDockerExecPTY(dei.container, dei.user.Username)(cmd, args...)
+	dockerArgs := []string{
+		"exec",
+		// The assumption is that this command will be a shell command, so allocate a PTY.
+		"--interactive",
+		"--tty",
+		// Run the command as the user in the container.
+		"--user",
+		cei.user.Username,
+		// Set the working directory to the user's home directory as a sane default.
+		"--workdir",
+		cei.user.HomeDir,
+		cei.container,
+		cmd,
 	}
+	return "docker", append(dockerArgs, args...)
 }
 
-// WrapDockerExecPTY is similar to WrapDockerExec but also allocates a PTY.
-func WrapDockerExecPTY(containerName, userName string) WrapFn {
-	return func(cmd string, args ...string) (string, []string) {
-		dockerArgs := []string{"exec", "--interactive", "--tty"}
-		if userName != "" {
-			dockerArgs = append(dockerArgs, "--user", userName)
-		}
-		dockerArgs = append(dockerArgs, containerName, cmd)
-		return "docker", append(dockerArgs, args...)
+// wrapDockerExec is a helper function that wraps the given command and arguments
+// with a docker exec command that runs as the given user in the given
+// container. This is used to fetch information about a container prior to
+// running the actual command.
+func wrapDockerExec(containerName, userName, cmd string, args ...string) (string, []string) {
+	dockerArgs := []string{"exec", "--interactive"}
+	if userName != "" {
+		dockerArgs = append(dockerArgs, "--user", userName)
 	}
+	dockerArgs = append(dockerArgs, containerName, cmd)
+	return "docker", append(dockerArgs, args...)
+}
+
+// Helper function to run a command and return its stdout and stderr.
+// We want to differentiate stdout and stderr instead of using CombinedOutput.
+// We also want to differentiate between a command running successfully with
+// output to stderr and a non-zero exit code.
+func run(ctx context.Context, execer agentexec.Execer, cmd string, args ...string) (stdout, stderr string, err error) {
+	var stdoutBuf, stderrBuf bytes.Buffer
+	execCmd := execer.CommandContext(ctx, cmd, args...)
+	execCmd.Stdout = &stdoutBuf
+	execCmd.Stderr = &stderrBuf
+	err = execCmd.Run()
+	stdout = strings.TrimSpace(stdoutBuf.String())
+	stderr = strings.TrimSpace(stderrBuf.String())
+	return stdout, stderr, err
 }
 
 func (dcl *DockerCLILister) List(ctx context.Context) (codersdk.WorkspaceAgentListContainersResponse, error) {
