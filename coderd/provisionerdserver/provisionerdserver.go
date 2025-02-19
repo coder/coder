@@ -1891,10 +1891,12 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		appSlugs   = make(map[string]struct{})
 	)
 	for _, prAgent := range protoResource.Agents {
-		if _, ok := agentNames[prAgent.Name]; ok {
+		// Agent names must be case-insensitive-unique, to be unambiguous in
+		// `coder_app`s and CoderVPN DNS names.
+		if _, ok := agentNames[strings.ToLower(prAgent.Name)]; ok {
 			return xerrors.Errorf("duplicate agent name %q", prAgent.Name)
 		}
-		agentNames[prAgent.Name] = struct{}{}
+		agentNames[strings.ToLower(prAgent.Name)] = struct{}{}
 
 		var instanceID sql.NullString
 		if prAgent.GetInstanceId() != "" {

@@ -1905,6 +1905,32 @@ func TestInsertWorkspaceResource(t *testing.T) {
 		})
 		require.ErrorContains(t, err, "duplicate app slug")
 	})
+	t.Run("DuplicateAgentNames", func(t *testing.T) {
+		t.Parallel()
+		db := dbmem.New()
+		job := uuid.New()
+		// case-insensitive-unique
+		err := insert(db, job, &sdkproto.Resource{
+			Name: "something",
+			Type: "aws_instance",
+			Agents: []*sdkproto.Agent{{
+				Name: "dev",
+			}, {
+				Name: "Dev",
+			}},
+		})
+		require.ErrorContains(t, err, "duplicate agent name")
+		err = insert(db, job, &sdkproto.Resource{
+			Name: "something",
+			Type: "aws_instance",
+			Agents: []*sdkproto.Agent{{
+				Name: "dev",
+			}, {
+				Name: "dev",
+			}},
+		})
+		require.ErrorContains(t, err, "duplicate agent name")
+	})
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
 		db := dbmem.New()
