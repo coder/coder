@@ -1,7 +1,8 @@
 terraform {
   required_providers {
     coder = {
-      source = "coder/coder"
+      source  = "coder/coder"
+      version = "2.2.0-pre0"
     }
     docker = {
       source  = "kreuzwerker/docker"
@@ -82,6 +83,30 @@ data "coder_parameter" "region" {
     name  = "Cape Town"
     value = "za-cpt"
   }
+}
+
+data "coder_parameter" "res_mon_memory_threshold" {
+  type        = "number"
+  name        = "Memory usage threshold"
+  default     = 80
+  description = "The memory usage threshold used in resources monitoring to trigger notifications."
+  mutable     = true
+}
+
+data "coder_parameter" "res_mon_volume_threshold" {
+  type        = "number"
+  name        = "Volume usage threshold"
+  default     = 80
+  description = "The volume usage threshold used in resources monitoring to trigger notifications."
+  mutable     = true
+}
+
+data "coder_parameter" "res_mon_volume_path" {
+  type        = "string"
+  name        = "Volume path"
+  default     = "/home/coder"
+  description = "The path monitored in resources monitoring to trigger notifications."
+  mutable     = true
 }
 
 provider "docker" {
@@ -288,6 +313,18 @@ resource "coder_agent" "dev" {
     EOT
     interval     = 86400
     timeout      = 5
+  }
+
+  resources_monitoring {
+    memory {
+      enabled   = true
+      threshold = data.coder_parameter.res_mon_memory_threshold.value
+    }
+    volume {
+      enabled   = true
+      threshold = data.coder_parameter.res_mon_volume_threshold.value
+      path      = data.coder_parameter.res_mon_volume_path.value
+    }
   }
 
   startup_script = <<-EOT
