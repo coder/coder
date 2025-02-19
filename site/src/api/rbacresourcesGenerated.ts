@@ -114,7 +114,7 @@ export const RBACResourceActions: Partial<
 		update: "update an organization member",
 	},
 	provisioner_daemon: {
-		create: "create a provisioner daemon key",
+		create: "create a provisioner daemon/key",
 		delete: "delete a provisioner daemon/key",
 		read: "read provisioner daemon",
 		update: "update a provisioner daemon",
