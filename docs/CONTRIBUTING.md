@@ -106,6 +106,15 @@ Use the following `make` commands and scripts in development:
 - The default user is `admin@coder.com` and the default password is
   `SomeSecurePassword!`
 
+### Running Coder using docker-compose
+
+This mode is useful for testing HA or validating more complex setups.
+
+- Generate a new image from your HEAD: `make build/coder_$(./scripts/version.sh)_$(go env GOOS)_$(go env GOARCH).tag`
+  - This will output the name of the new image, e.g.: `ghcr.io/coder/coder:v2.19.0-devel-22fa71d15-amd64`
+- Inject this image into docker-compose: `CODER_VERSION=v2.19.0-devel-22fa71d15-amd64 docker-compose up` (*note the prefix `ghcr.io/coder/coder:` was removed*)
+- To use Docker, determine your host's `docker` group ID with `getent group docker | cut -d: -f3`, then update the value of `group_add` and uncomment
+
 ### Deploying a PR
 
 > You need to be a member or collaborator of the of

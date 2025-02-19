@@ -159,7 +159,7 @@ func (s *Server) handleConn(ctx context.Context, logger slog.Logger, conn net.Co
 		}()
 
 		// Empty command will default to the users shell!
-		cmd, err := s.commandCreator.CreateCommand(ctx, msg.Command, nil)
+		cmd, err := s.commandCreator.CreateCommand(ctx, msg.Command, nil, nil)
 		if err != nil {
 			s.errorsTotal.WithLabelValues("create_command").Add(1)
 			return xerrors.Errorf("create command: %w", err)

@@ -63,7 +63,7 @@ pages.
 | 2.16.x       | October 01, 2024   | Security Support |
 | 2.17.x       | November 05, 2024  | Security Support |
 | 2.18.x       | December 03, 2024  | Stable           |
-| 2.19.x       | February 04, 2024  | Not Released     |
+| 2.19.x       | February 04, 2024  | Mainline         |
 
 > **Tip**: We publish a
 > [`preview`](https://github.com/coder/coder/pkgs/container/coder-preview) image

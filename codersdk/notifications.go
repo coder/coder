@@ -193,6 +193,20 @@ func (c *Client) GetNotificationDispatchMethods(ctx context.Context) (Notificati
 	return resp, nil
 }
 
+func (c *Client) PostTestNotification(ctx context.Context) error {
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/notifications/test", nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return ReadBodyAsError(res)
+	}
+
+	return nil
+}
+
 type UpdateNotificationTemplateMethod struct {
 	Method string `json:"method,omitempty" example:"webhook"`
 }

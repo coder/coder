@@ -1,11 +1,14 @@
-import type { AuthorizationResponse, Organization } from "api/typesGenerated";
+import type { Organization } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { Button } from "components/Button/Button";
 import {
 	Command,
+	CommandEmpty,
 	CommandGroup,
+	CommandInput,
 	CommandItem,
 	CommandList,
+	CommandSeparator,
 } from "components/Command/Command";
 import {
 	Popover,
@@ -19,8 +22,8 @@ import { type FC, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { OrganizationPermissions } from "./organizationPermissions";
 
-interface SidebarProps {
-	/** The active org name, if any.  Overrides activeSettings. */
+interface OrganizationsSettingsNavigationProps {
+	/** The organization selected from the dropdown */
 	activeOrganization: Organization | undefined;
 	/** Permissions for the active organization */
 	orgPermissions: OrganizationPermissions | undefined;
@@ -31,21 +34,23 @@ interface SidebarProps {
 }
 
 /**
- * Organization settings left sidebar menu.
+ * Displays navigation items for the active organization and a combobox to
+ * switch between organizations.
+ *
+ * If organizations or their permissions are still loading, show a loader.
  */
-export const OrganizationSidebarView: FC<SidebarProps> = ({
-	activeOrganization,
-	orgPermissions,
-	organizations,
-	permissions,
-}) => {
-	// Sort organizations to put active organization first
-	const sortedOrganizations = activeOrganization
-		? [
-				activeOrganization,
-				...organizations.filter((org) => org.id !== activeOrganization.id),
-			]
-		: organizations;
+export const OrganizationSidebarView: FC<
+	OrganizationsSettingsNavigationProps
+> = ({ activeOrganization, orgPermissions, organizations, permissions }) => {
+	const sortedOrganizations = [...organizations].sort((a, b) => {
+		// active org first
+		if (a.id === activeOrganization?.id) return -1;
+		if (b.id === activeOrganization?.id) return 1;
+
+		return a.display_name
+			.toLowerCase()
+			.localeCompare(b.display_name.toLowerCase());
+	});
 
 	const [isPopoverOpen, setIsPopoverOpen] = useState(false);
 	const navigate = useNavigate();
@@ -80,14 +85,16 @@ export const OrganizationSidebarView: FC<SidebarProps> = ({
 				</PopoverTrigger>
 				<PopoverContent align="start" className="w-60">
 					<Command loop>
+						<CommandInput placeholder="Find organization" />
 						<CommandList>
+							<CommandEmpty>No organization found.</CommandEmpty>
 							<CommandGroup className="pb-2">
 								{sortedOrganizations.length > (activeOrganization ? 1 : 0) ? (
 									<div className="flex flex-col max-h-[260px] overflow-y-auto">
 										{sortedOrganizations.map((organization) => (
 											<CommandItem
 												key={organization.id}
-												value={organization.name}
+												value={`${organization.display_name} ${organization.name}`}
 												onSelect={() => {
 													setIsPopoverOpen(false);
 													navigate(urlForSubpage(organization.name));
@@ -121,11 +128,11 @@ export const OrganizationSidebarView: FC<SidebarProps> = ({
 										</span>
 									)
 								)}
-								{permissions.createOrganization && (
-									<>
-										{organizations.length > 1 && (
-											<hr className="h-px my-2 border-none bg-border -mx-2" />
-										)}
+							</CommandGroup>
+							{permissions.createOrganization && (
+								<>
+									{organizations.length > 1 && <CommandSeparator />}
+									<CommandGroup>
 										<CommandItem
 											className="flex justify-center data-[selected=true]:bg-transparent"
 											onSelect={() => {
@@ -137,9 +144,9 @@ export const OrganizationSidebarView: FC<SidebarProps> = ({
 										>
 											<Plus /> Create Organization
 										</CommandItem>
-									</>
-								)}
-							</CommandGroup>
+									</CommandGroup>
+								</>
+							)}
 						</CommandList>
 					</Command>
 				</PopoverContent>
