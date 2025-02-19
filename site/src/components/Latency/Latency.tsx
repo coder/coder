@@ -10,9 +10,14 @@ import { getLatencyColor } from "utils/latency";
 interface LatencyProps {
 	latency?: number;
 	isLoading?: boolean;
+	size?: number;
 }
 
-export const Latency: FC<LatencyProps> = ({ latency, isLoading }) => {
+export const Latency: FC<LatencyProps> = ({
+	latency,
+	isLoading,
+	size = 14,
+}) => {
 	const theme = useTheme();
 	// Always use the no latency color for loading.
 	const color = getLatencyColor(theme, isLoading ? undefined : latency);
@@ -21,7 +26,7 @@ export const Latency: FC<LatencyProps> = ({ latency, isLoading }) => {
 		return (
 			<Tooltip title="Loading latency...">
 				<CircularProgress
-					size={14}
+					size={size}
 					css={{ marginLeft: "auto" }}
 					style={{ color }}
 				/>
