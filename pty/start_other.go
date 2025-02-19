@@ -52,7 +52,7 @@ func startPty(cmdPty *Cmd, opt ...StartOption) (retPTY *otherPty, proc Process, 
 			cmdPty.Env = origEnv
 			return startPty(cmdPty, opt...)
 		}
-		return nil, nil, xerrors.Errorf("start: %w", err)
+		return nil, nil, xerrors.Errorf("start: cmd %q: %w", cmdPty.Args, err)
 	}
 	if runtime.GOOS == "linux" {
 		// Now that we've started the command, and passed the TTY to it, close

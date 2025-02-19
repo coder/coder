@@ -159,12 +159,16 @@ func (s *Server) handleConn(ctx context.Context, logger slog.Logger, conn net.Co
 			}
 		}()
 
-		var wrapFn []agentcontainers.WrapFn
+		ei := agentssh.DefaultEnvInfoer()
 		if msg.Container != "" {
-			wrapFn = append(wrapFn, agentcontainers.WrapDockerExecPTY(msg.Container, msg.ContainerUser))
+			dei, err := agentcontainers.EnvInfo(ctx, s.commandCreator.Execer, msg.Container, msg.ContainerUser)
+			if err != nil {
+				s.errorsTotal.WithLabelValues("container_env_info").Add(1)
+				return xerrors.Errorf("get docker container info: %w", err)
+			}
+			ei = dei
 		}
-		// Empty command will default to the users shell!
-		cmd, err := s.commandCreator.CreateCommand(ctx, msg.Command, nil, nil)
+		cmd, err := s.commandCreator.CreateCommand(ctx, msg.Command, nil, ei)
 		if err != nil {
 			s.errorsTotal.WithLabelValues("create_command").Add(1)
 			return xerrors.Errorf("create command: %w", err)
