@@ -98,7 +98,7 @@ func EnvInfo(ctx context.Context, execer agentexec.Execer, container, containerU
 	// Parse the output of /etc/passwd. It looks like this:
 	// postgres:x:999:999::/var/lib/postgresql:/bin/bash
 	passwdFields := strings.Split(foundLine, ":")
-	if len(passwdFields) < 7 {
+	if len(passwdFields) != 7 {
 		return nil, xerrors.Errorf("get container user: invalid line in /etc/passwd: %q", foundLine)
 	}
 
@@ -144,14 +144,8 @@ func EnvInfo(ctx context.Context, execer agentexec.Execer, container, containerU
 
 func (dei *ContainerEnvInfoer) CurrentUser() (*user.User, error) {
 	// Clone the user so that the caller can't modify it
-	u := &user.User{
-		Gid:      dei.user.Gid,
-		HomeDir:  dei.user.HomeDir,
-		Name:     dei.user.Name,
-		Uid:      dei.user.Uid,
-		Username: dei.user.Username,
-	}
-	return u, nil
+	u := *dei.user
+	return &u, nil
 }
 
 func (dei *ContainerEnvInfoer) Environ() []string {
