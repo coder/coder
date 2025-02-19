@@ -4462,6 +4462,28 @@ func (q *sqlQuerier) FetchUnreadInboxNotificationsByUserIDAndTemplateIDAndTarget
 	return items, nil
 }
 
+const getInboxNotificationByID = `-- name: GetInboxNotificationByID :one
+SELECT id, user_id, template_id, target_id, title, content, icon, actions, read_at, created_at FROM notifications_inbox WHERE id = $1
+`
+
+func (q *sqlQuerier) GetInboxNotificationByID(ctx context.Context, id uuid.UUID) (NotificationsInbox, error) {
+	row := q.db.QueryRowContext(ctx, getInboxNotificationByID, id)
+	var i NotificationsInbox
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.TemplateID,
+		&i.TargetID,
+		&i.Title,
+		&i.Content,
+		&i.Icon,
+		&i.Actions,
+		&i.ReadAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const insertInboxNotification = `-- name: InsertInboxNotification :one
 INSERT INTO
     notifications_inbox (

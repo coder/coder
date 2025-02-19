@@ -1626,6 +1626,21 @@ func (mr *MockStoreMockRecorder) GetHungProvisionerJobs(ctx, updatedAt any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHungProvisionerJobs", reflect.TypeOf((*MockStore)(nil).GetHungProvisionerJobs), ctx, updatedAt)
 }
 
+// GetInboxNotificationByID mocks base method.
+func (m *MockStore) GetInboxNotificationByID(ctx context.Context, id uuid.UUID) (database.NotificationsInbox, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetInboxNotificationByID", ctx, id)
+	ret0, _ := ret[0].(database.NotificationsInbox)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetInboxNotificationByID indicates an expected call of GetInboxNotificationByID.
+func (mr *MockStoreMockRecorder) GetInboxNotificationByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetInboxNotificationByID", reflect.TypeOf((*MockStore)(nil).GetInboxNotificationByID), ctx, id)
+}
+
 // GetJFrogXrayScanByWorkspaceAndAgentID mocks base method.
 func (m *MockStore) GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg database.GetJFrogXrayScanByWorkspaceAndAgentIDParams) (database.JfrogXrayScan, error) {
 	m.ctrl.T.Helper()

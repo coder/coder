@@ -10,6 +10,9 @@ SELECT * FROM notifications_inbox WHERE user_id = $1 AND template_id = $2 AND ta
 -- name: FetchUnreadInboxNotificationsByUserIDAndTemplateIDAndTargetID :many
 SELECT * FROM notifications_inbox WHERE user_id = $1 AND template_id = $2 AND target_id = $3 AND read_at IS NULL ORDER BY created_at DESC;
 
+-- name: GetInboxNotificationByID :one
+SELECT * FROM notifications_inbox WHERE id = $1;
+
 -- name: InsertInboxNotification :one
 INSERT INTO
     notifications_inbox (
@@ -32,4 +35,4 @@ UPDATE
 SET
 	read_at = $1
 WHERE
-	id = $2;
+	id = @id;

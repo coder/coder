@@ -1876,6 +1876,7 @@ export type RBACResource =
 	| "group_member"
 	| "idpsync_settings"
 	| "license"
+	| "notification_inbox"
 	| "notification_message"
 	| "notification_preference"
 	| "notification_template"
@@ -1912,6 +1913,7 @@ export const RBACResources: RBACResource[] = [
 	"group_member",
 	"idpsync_settings",
 	"license",
+	"notification_inbox",
 	"notification_message",
 	"notification_preference",
 	"notification_template",

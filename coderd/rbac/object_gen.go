@@ -129,6 +129,15 @@ var (
 		Type: "license",
 	}
 
+	// ResourceNotificationInbox
+	// Valid Actions
+	//  - "ActionCreate" :: create notifications inbox
+	//  - "ActionRead" :: read notifications inbox
+	//  - "ActionUpdate" :: update notifications inbox
+	ResourceNotificationInbox = Object{
+		Type: "notification_inbox",
+	}
+
 	// ResourceNotificationMessage
 	// Valid Actions
 	//  - "ActionCreate" :: create notification messages
@@ -345,6 +354,7 @@ func AllResources() []Objecter {
 		ResourceGroupMember,
 		ResourceIdpsyncSettings,
 		ResourceLicense,
+		ResourceNotificationInbox,
 		ResourceNotificationMessage,
 		ResourceNotificationPreference,
 		ResourceNotificationTemplate,

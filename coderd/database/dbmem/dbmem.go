@@ -3358,6 +3358,10 @@ func (q *FakeQuerier) GetHungProvisionerJobs(_ context.Context, hungSince time.T
 	return hungJobs, nil
 }
 
+func (q *FakeQuerier) GetInboxNotificationByID(ctx context.Context, id uuid.UUID) (database.NotificationsInbox, error) {
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) GetJFrogXrayScanByWorkspaceAndAgentID(_ context.Context, arg database.GetJFrogXrayScanByWorkspaceAndAgentIDParams) (database.JfrogXrayScan, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {

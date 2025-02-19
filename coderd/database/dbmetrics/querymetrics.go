@@ -798,6 +798,13 @@ func (m queryMetricsStore) GetHungProvisionerJobs(ctx context.Context, hungSince
 	return jobs, err
 }
 
+func (m queryMetricsStore) GetInboxNotificationByID(ctx context.Context, id uuid.UUID) (database.NotificationsInbox, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetInboxNotificationByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetInboxNotificationByID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg database.GetJFrogXrayScanByWorkspaceAndAgentIDParams) (database.JfrogXrayScan, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetJFrogXrayScanByWorkspaceAndAgentID(ctx, arg)
