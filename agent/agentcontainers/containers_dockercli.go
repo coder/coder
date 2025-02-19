@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"os/user"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -109,13 +110,14 @@ func EnvInfo(ctx context.Context, execer agentexec.Execer, container, containerU
 	}
 	cei.userShell = passwdFields[6]
 
-	// Finally, get the environment of the container.
-	// TODO: For containers, we can't simply run `env` inside the container.
 	// We need to inspect the container labels for remoteEnv and append these to
 	// the resulting docker exec command.
 	// ref: https://code.visualstudio.com/docs/devcontainers/attach-container
-	// For now, we're simply returning the host environment.
-	cei.env = make([]string, 0)
+	env, err := devcontainerEnv(ctx, execer, container)
+	if err != nil { // best effort.
+		return nil, xerrors.Errorf("read devcontainer remoteEnv: %w", err)
+	}
+	cei.env = env
 
 	return &cei, nil
 }
@@ -158,10 +160,55 @@ func (cei *ContainerEnvInfoer) ModifyCommand(cmd string, args ...string) (string
 		// Set the working directory to the user's home directory as a sane default.
 		"--workdir",
 		cei.user.HomeDir,
-		cei.container,
-		cmd,
 	}
+
+	// Append the environment variables from the container.
+	for _, e := range cei.env {
+		dockerArgs = append(dockerArgs, "--env", e)
+	}
+
+	// Append the container name and the command.
+	dockerArgs = append(dockerArgs, cei.container, cmd)
 	return "docker", append(dockerArgs, args...)
+}
+
+// devcontainerEnv is a helper function that inspects the container labels to
+// find the required environment variables for running a command in the container.
+func devcontainerEnv(ctx context.Context, execer agentexec.Execer, container string) ([]string, error) {
+	ins, stderr, err := runDockerInspect(ctx, execer, container)
+	if err != nil {
+		return nil, xerrors.Errorf("inspect container: %w: %q", err, stderr)
+	}
+
+	if len(ins) != 1 {
+		return nil, xerrors.Errorf("inspect container: expected 1 container, got %d", len(ins))
+	}
+
+	in := ins[0]
+	if in.Config.Labels == nil {
+		return nil, nil
+	}
+
+	// We want to look for the devcontainer metadata, which is in the
+	// value of the label `devcontainer.metadata`.
+	rawMeta, ok := in.Config.Labels["devcontainer.metadata"]
+	if !ok {
+		return nil, nil
+	}
+	meta := struct {
+		RemoteEnv map[string]string `json:"remoteEnv"`
+	}{}
+	if err := json.Unmarshal([]byte(rawMeta), &meta); err != nil {
+		return nil, xerrors.Errorf("unmarshal devcontainer.metadata: %w", err)
+	}
+
+	// The environment variables are stored in the `remoteEnv` key.
+	env := make([]string, 0, len(meta.RemoteEnv))
+	for k, v := range meta.RemoteEnv {
+		env = append(env, fmt.Sprintf("%s=%s", k, v))
+	}
+	slices.Sort(env)
+	return env, nil
 }
 
 // wrapDockerExec is a helper function that wraps the given command and arguments
@@ -227,30 +274,16 @@ func (dcl *DockerCLILister) List(ctx context.Context) (codersdk.WorkspaceAgentLi
 	}
 
 	// now we can get the detailed information for each container
-	// Run `docker inspect` on each container ID
-	stdoutBuf.Reset()
-	stderrBuf.Reset()
-	// nolint: gosec // We are not executing user input, these IDs come from
-	// `docker ps`.
-	cmd = dcl.execer.CommandContext(ctx, "docker", append([]string{"inspect"}, ids...)...)
-	cmd.Stdout = &stdoutBuf
-	cmd.Stderr = &stderrBuf
-	if err := cmd.Run(); err != nil {
-		return codersdk.WorkspaceAgentListContainersResponse{}, xerrors.Errorf("run docker inspect: %w: %s", err, strings.TrimSpace(stderrBuf.String()))
-	}
-
-	dockerInspectStderr := strings.TrimSpace(stderrBuf.String())
-
+	// Run `docker inspect` on each container ID.
 	// NOTE: There is an unavoidable potential race condition where a
 	// container is removed between `docker ps` and `docker inspect`.
 	// In this case, stderr will contain an error message but stdout
 	// will still contain valid JSON. We will just end up missing
 	// information about the removed container. We could potentially
 	// log this error, but I'm not sure it's worth it.
-	ins := make([]dockerInspect, 0, len(ids))
-	if err := json.NewDecoder(&stdoutBuf).Decode(&ins); err != nil {
-		// However, if we just get invalid JSON, we should absolutely return an error.
-		return codersdk.WorkspaceAgentListContainersResponse{}, xerrors.Errorf("decode docker inspect output: %w", err)
+	ins, dockerInspectStderr, err := runDockerInspect(ctx, dcl.execer, ids...)
+	if err != nil {
+		return codersdk.WorkspaceAgentListContainersResponse{}, xerrors.Errorf("run docker inspect: %w", err)
 	}
 
 	res := codersdk.WorkspaceAgentListContainersResponse{
@@ -270,6 +303,28 @@ func (dcl *DockerCLILister) List(ctx context.Context) (codersdk.WorkspaceAgentLi
 	}
 
 	return res, nil
+}
+
+// runDockerInspect is a helper function that runs `docker inspect` on the given
+// container IDs and returns the parsed output.
+// The stderr output is also returned for logging purposes.
+func runDockerInspect(ctx context.Context, execer agentexec.Execer, ids ...string) ([]dockerInspect, string, error) {
+	var stdoutBuf, stderrBuf bytes.Buffer
+	cmd := execer.CommandContext(ctx, "docker", append([]string{"inspect"}, ids...)...)
+	cmd.Stdout = &stdoutBuf
+	cmd.Stderr = &stderrBuf
+	err := cmd.Run()
+	stderr := strings.TrimSpace(stderrBuf.String())
+	if err != nil {
+		return nil, stderr, err
+	}
+
+	var ins []dockerInspect
+	if err := json.NewDecoder(&stdoutBuf).Decode(&ins); err != nil {
+		return nil, stderr, xerrors.Errorf("decode docker inspect output: %w", err)
+	}
+
+	return ins, stderr, nil
 }
 
 // To avoid a direct dependency on the Docker API, we use the docker CLI

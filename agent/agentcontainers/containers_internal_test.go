@@ -3,6 +3,7 @@ package agentcontainers
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -47,10 +48,13 @@ func TestIntegrationDocker(t *testing.T) {
 	// Pick a random port to expose for testing port bindings.
 	testRandPort := testutil.RandomPortNoListen(t)
 	ct, err := pool.RunWithOptions(&dockertest.RunOptions{
-		Repository:   "busybox",
-		Tag:          "latest",
-		Cmd:          []string{"sleep", "infnity"},
-		Labels:       map[string]string{"com.coder.test": testLabelValue},
+		Repository: "busybox",
+		Tag:        "latest",
+		Cmd:        []string{"sleep", "infnity"},
+		Labels: map[string]string{
+			"com.coder.test":        testLabelValue,
+			"devcontainer.metadata": `{"remoteEnv": {"FOO": "bar", "MULTILINE": "foo\nbar\nbaz"}}`,
+		},
 		Mounts:       []string{testTempDir + ":" + testTempDir},
 		ExposedPorts: []string{fmt.Sprintf("%d/tcp", testRandPort)},
 		PortBindings: map[docker.Port][]docker.PortBinding{
@@ -122,6 +126,12 @@ func TestIntegrationDocker(t *testing.T) {
 			matchHostnameOuput := func(line string) bool {
 				return strings.Contains(strings.TrimSpace(line), ct.Container.Config.Hostname)
 			}
+			matchEnvCmd := func(line string) bool {
+				return strings.Contains(strings.TrimSpace(line), "env")
+			}
+			matchEnvOutput := func(line string) bool {
+				return strings.Contains(line, "FOO=bar") || strings.Contains(line, "MULTILINE=foo")
+			}
 			require.NoError(t, tr.ReadUntil(ctx, matchPrompt), "failed to match prompt")
 			t.Logf("Matched prompt")
 			_, err = ptyCmd.InputWriter().Write([]byte("hostname\r\n"))
@@ -131,6 +141,13 @@ func TestIntegrationDocker(t *testing.T) {
 			t.Logf("Matched hostname command")
 			require.NoError(t, tr.ReadUntil(ctx, matchHostnameOuput), "failed to match hostname output")
 			t.Logf("Matched hostname output")
+			_, err = ptyCmd.InputWriter().Write([]byte("env\r\n"))
+			require.NoError(t, err, "failed to write to pty")
+			t.Logf("Wrote env command")
+			require.NoError(t, tr.ReadUntil(ctx, matchEnvCmd), "failed to match env command")
+			t.Logf("Matched env command")
+			require.NoError(t, tr.ReadUntil(ctx, matchEnvOutput), "failed to match env output")
+			t.Logf("Matched env output")
 			break
 		}
 	}
@@ -403,49 +420,56 @@ func TestConvertDockerVolume(t *testing.T) {
 // CODER_TEST_USE_DOCKER=1 go test ./agent/agentcontainers -run TestDockerEnvInfoer
 func TestDockerEnvInfoer(t *testing.T) {
 	t.Parallel()
-	if ctud, ok := os.LookupEnv("CODER_TEST_USE_DOCKER"); !ok || ctud != "1" {
-		t.Skip("Set CODER_TEST_USE_DOCKER=1 to run this test")
-	}
+	// if ctud, ok := os.LookupEnv("CODER_TEST_USE_DOCKER"); !ok || ctud != "1" {
+	// 	t.Skip("Set CODER_TEST_USE_DOCKER=1 to run this test")
+	// }
 
 	pool, err := dockertest.NewPool("")
 	require.NoError(t, err, "Could not connect to docker")
 	// nolint:paralleltest // variable recapture no longer required
 	for idx, tt := range []struct {
 		image             string
-		env               []string
+		labels            map[string]string
+		expectedEnv       []string
 		containerUser     string
 		expectedUsername  string
 		expectedUserShell string
 	}{
 		{
-			image:             "busybox:latest",
-			env:               []string{"FOO=bar", "MULTILINE=foo\nbar\nbaz"},
+			image:  "busybox:latest",
+			labels: map[string]string{`devcontainer.metadata`: `{"remoteEnv": {"FOO": "bar", "MULTILINE": "foo\nbar\nbaz"}}`},
+
+			expectedEnv:       []string{"FOO=bar", "MULTILINE=foo\nbar\nbaz"},
 			expectedUsername:  "root",
 			expectedUserShell: "/bin/sh",
 		},
 		{
 			image:             "busybox:latest",
-			env:               []string{"FOO=bar", "MULTILINE=foo\nbar\nbaz"},
+			labels:            map[string]string{`devcontainer.metadata`: `{"remoteEnv": {"FOO": "bar", "MULTILINE": "foo\nbar\nbaz"}}`},
+			expectedEnv:       []string{"FOO=bar", "MULTILINE=foo\nbar\nbaz"},
 			containerUser:     "root",
 			expectedUsername:  "root",
 			expectedUserShell: "/bin/sh",
 		},
 		{
 			image:             "codercom/enterprise-minimal:ubuntu",
-			env:               []string{"FOO=bar", "MULTILINE=foo\nbar\nbaz"},
+			labels:            map[string]string{`devcontainer.metadata`: `{"remoteEnv": {"FOO": "bar", "MULTILINE": "foo\nbar\nbaz"}}`},
+			expectedEnv:       []string{"FOO=bar", "MULTILINE=foo\nbar\nbaz"},
 			expectedUsername:  "coder",
 			expectedUserShell: "/bin/bash",
 		},
 		{
 			image:             "codercom/enterprise-minimal:ubuntu",
-			env:               []string{"FOO=bar", "MULTILINE=foo\nbar\nbaz"},
+			labels:            map[string]string{`devcontainer.metadata`: `{"remoteEnv": {"FOO": "bar", "MULTILINE": "foo\nbar\nbaz"}}`},
+			expectedEnv:       []string{"FOO=bar", "MULTILINE=foo\nbar\nbaz"},
 			containerUser:     "coder",
 			expectedUsername:  "coder",
 			expectedUserShell: "/bin/bash",
 		},
 		{
 			image:             "codercom/enterprise-minimal:ubuntu",
-			env:               []string{"FOO=bar", "MULTILINE=foo\nbar\nbaz"},
+			labels:            map[string]string{`devcontainer.metadata`: `{"remoteEnv": {"FOO": "bar", "MULTILINE": "foo\nbar\nbaz"}}`},
+			expectedEnv:       []string{"FOO=bar", "MULTILINE=foo\nbar\nbaz"},
 			containerUser:     "root",
 			expectedUsername:  "root",
 			expectedUserShell: "/bin/bash",
@@ -462,7 +486,7 @@ func TestDockerEnvInfoer(t *testing.T) {
 				Repository: image,
 				Tag:        tag,
 				Cmd:        []string{"sleep", "infinity"},
-				Env:        tt.env,
+				Labels:     tt.labels,
 			}, func(config *docker.HostConfig) {
 				config.AutoRemove = true
 				config.RestartPolicy = docker.RestartPolicy{Name: "no"}
@@ -490,9 +514,25 @@ func TestDockerEnvInfoer(t *testing.T) {
 			require.NoError(t, err, "Expected no error from UserShell()")
 			require.Equal(t, tt.expectedUserShell, sh, "Expected user shell to match")
 
-			// TODO: environment from devcontainer labels.
-			// environ := dei.Environ()
-			// require.Subset(t, environ, tt.env, "Expected environment to match")
+			// We don't need to test the actual environment variables here.
+			environ := dei.Environ()
+			require.NotEmpty(t, environ, "Expected environ to be non-empty")
+
+			// Test that the environment variables are present in modified command
+			// output.
+			envCmd, envArgs := dei.ModifyCommand("env")
+			for _, env := range tt.expectedEnv {
+				require.Subset(t, envArgs, []string{"--env", env})
+			}
+			// Run the command in the container and check the output
+			// HACK: we remove the --tty argument because we're not running in a tty
+			envArgs = slices.DeleteFunc(envArgs, func(s string) bool { return s == "--tty" })
+			stdout, stderr, err := run(ctx, agentexec.DefaultExecer, envCmd, envArgs...)
+			require.Empty(t, stderr, "Expected no stderr output")
+			require.NoError(t, err, "Expected no error from running command")
+			for _, env := range tt.expectedEnv {
+				require.Contains(t, stdout, env)
+			}
 		})
 	}
 }
