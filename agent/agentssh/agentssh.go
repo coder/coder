@@ -26,6 +26,7 @@ import (
 	"github.com/spf13/afero"
 	"go.uber.org/atomic"
 	gossh "golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -45,11 +46,7 @@ const (
 	// MagicSessionTypeEnvironmentVariable is used to track the purpose behind an SSH connection.
 	// This is stripped from any commands being executed, and is counted towards connection stats.
 	MagicSessionTypeEnvironmentVariable = "CODER_SSH_SESSION_TYPE"
-	// MagicSessionTypeVSCode is set in the SSH config by the VS Code extension to identify itself.
-	MagicSessionTypeVSCode = "vscode"
-	// MagicSessionTypeJetBrains is set in the SSH config by the JetBrains
-	// extension to identify itself.
-	MagicSessionTypeJetBrains = "jetbrains"
+
 	// MagicProcessCmdlineJetBrains is a string in a process's command line that
 	// uniquely identifies it as JetBrains software.
 	MagicProcessCmdlineJetBrains = "idea.vendor.name=JetBrains"
@@ -58,6 +55,23 @@ const (
 	// the file transfer.
 	BlockedFileTransferErrorCode    = 65 // Error code: host not allowed to connect
 	BlockedFileTransferErrorMessage = "File transfer has been disabled."
+)
+
+// MagicSessionType is a type that represents the type of session that is being
+// established.
+type MagicSessionType string
+
+// MagicSessionType enums.
+const (
+	// MagicSessionTypeUnknown means the session type could not be determined.
+	MagicSessionTypeUnknown MagicSessionType = "unknown"
+	// MagicSessionTypeSSH is the default session type.
+	MagicSessionTypeSSH MagicSessionType = "ssh"
+	// MagicSessionTypeVSCode is set in the SSH config by the VS Code extension to identify itself.
+	MagicSessionTypeVSCode MagicSessionType = "vscode"
+	// MagicSessionTypeJetBrains is set in the SSH config by the JetBrains
+	// extension to identify itself.
+	MagicSessionTypeJetBrains MagicSessionType = "jetbrains"
 )
 
 // BlockedFileTransferCommands contains a list of restricted file transfer commands.
@@ -255,14 +269,42 @@ func (s *Server) ConnStats() ConnStats {
 	}
 }
 
+func extractMagicSessionType(env []string) (magicType MagicSessionType, rawType string, filteredEnv []string) {
+	for _, kv := range env {
+		if !strings.HasPrefix(kv, MagicSessionTypeEnvironmentVariable) {
+			continue
+		}
+
+		rawType = strings.TrimPrefix(kv, MagicSessionTypeEnvironmentVariable+"=")
+		// Keep going, we'll use the last instance of the env.
+	}
+
+	// Always force lowercase checking to be case-insensitive.
+	switch MagicSessionType(strings.ToLower(rawType)) {
+	case MagicSessionTypeVSCode:
+		magicType = MagicSessionTypeVSCode
+	case MagicSessionTypeJetBrains:
+		magicType = MagicSessionTypeJetBrains
+	case "", MagicSessionTypeSSH:
+		magicType = MagicSessionTypeSSH
+	default:
+		magicType = MagicSessionTypeUnknown
+	}
+
+	return magicType, rawType, slices.DeleteFunc(env, func(kv string) bool {
+		return strings.HasPrefix(kv, MagicSessionTypeEnvironmentVariable+"=")
+	})
+}
+
 func (s *Server) sessionHandler(session ssh.Session) {
 	ctx := session.Context()
+	id := uuid.New()
 	logger := s.logger.With(
 		slog.F("remote_addr", session.RemoteAddr()),
 		slog.F("local_addr", session.LocalAddr()),
 		// Assigning a random uuid for each session is useful for tracking
 		// logs for the same ssh session.
-		slog.F("id", uuid.NewString()),
+		slog.F("id", id.String()),
 	)
 	logger.Info(ctx, "handling ssh session")
 
@@ -274,16 +316,21 @@ func (s *Server) sessionHandler(session ssh.Session) {
 	}
 	defer s.trackSession(session, false)
 
-	extraEnv := make([]string, 0)
-	x11, hasX11 := session.X11()
-	if hasX11 {
-		display, handled := s.x11Handler(session.Context(), x11)
-		if !handled {
-			_ = session.Exit(1)
-			logger.Error(ctx, "x11 handler failed")
-			return
-		}
-		extraEnv = append(extraEnv, fmt.Sprintf("DISPLAY=localhost:%d.%d", display, x11.ScreenNumber))
+	env := session.Environ()
+	magicType, magicTypeRaw, env := extractMagicSessionType(env)
+
+	switch magicType {
+	case MagicSessionTypeVSCode:
+		s.connCountVSCode.Add(1)
+		defer s.connCountVSCode.Add(-1)
+	case MagicSessionTypeJetBrains:
+		// Do nothing here because JetBrains launches hundreds of ssh sessions.
+		// We instead track JetBrains in the single persistent tcp forwarding channel.
+	case MagicSessionTypeSSH:
+		s.connCountSSHSession.Add(1)
+		defer s.connCountSSHSession.Add(-1)
+	case MagicSessionTypeUnknown:
+		logger.Warn(ctx, "unknown session type", slog.F("raw_type", magicTypeRaw))
 	}
 
 	if s.fileTransferBlocked(session) {
@@ -309,7 +356,18 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		return
 	}
 
-	err := s.sessionStart(logger, session, extraEnv)
+	x11, hasX11 := session.X11()
+	if hasX11 {
+		display, handled := s.x11Handler(session.Context(), x11)
+		if !handled {
+			_ = session.Exit(1)
+			logger.Error(ctx, "x11 handler failed")
+			return
+		}
+		env = append(env, fmt.Sprintf("DISPLAY=localhost:%d.%d", display, x11.ScreenNumber))
+	}
+
+	err := s.sessionStart(logger, session, env, magicType)
 	var exitError *exec.ExitError
 	if xerrors.As(err, &exitError) {
 		code := exitError.ExitCode()
@@ -379,32 +437,8 @@ func (s *Server) fileTransferBlocked(session ssh.Session) bool {
 	return false
 }
 
-func (s *Server) sessionStart(logger slog.Logger, session ssh.Session, extraEnv []string) (retErr error) {
+func (s *Server) sessionStart(logger slog.Logger, session ssh.Session, env []string, magicType MagicSessionType) (retErr error) {
 	ctx := session.Context()
-	env := append(session.Environ(), extraEnv...)
-	var magicType string
-	for index, kv := range env {
-		if !strings.HasPrefix(kv, MagicSessionTypeEnvironmentVariable) {
-			continue
-		}
-		magicType = strings.ToLower(strings.TrimPrefix(kv, MagicSessionTypeEnvironmentVariable+"="))
-		env = append(env[:index], env[index+1:]...)
-	}
-
-	// Always force lowercase checking to be case-insensitive.
-	switch magicType {
-	case MagicSessionTypeVSCode:
-		s.connCountVSCode.Add(1)
-		defer s.connCountVSCode.Add(-1)
-	case MagicSessionTypeJetBrains:
-		// Do nothing here because JetBrains launches hundreds of ssh sessions.
-		// We instead track JetBrains in the single persistent tcp forwarding channel.
-	case "":
-		s.connCountSSHSession.Add(1)
-		defer s.connCountSSHSession.Add(-1)
-	default:
-		logger.Warn(ctx, "invalid magic ssh session type specified", slog.F("type", magicType))
-	}
 
 	magicTypeLabel := magicTypeMetricLabel(magicType)
 	sshPty, windowSize, isPty := session.Pty()
@@ -473,7 +507,7 @@ func (s *Server) startNonPTYSession(logger slog.Logger, session ssh.Session, mag
 	}()
 	go func() {
 		for sig := range sigs {
-			s.handleSignal(logger, sig, cmd.Process, magicTypeLabel)
+			handleSignal(logger, sig, cmd.Process, s.metrics, magicTypeLabel)
 		}
 	}()
 	return cmd.Wait()
@@ -558,7 +592,7 @@ func (s *Server) startPTYSession(logger slog.Logger, session ptySession, magicTy
 					sigs = nil
 					continue
 				}
-				s.handleSignal(logger, sig, process, magicTypeLabel)
+				handleSignal(logger, sig, process, s.metrics, magicTypeLabel)
 			case win, ok := <-windowSize:
 				if !ok {
 					windowSize = nil
@@ -612,7 +646,7 @@ func (s *Server) startPTYSession(logger slog.Logger, session ptySession, magicTy
 	return nil
 }
 
-func (s *Server) handleSignal(logger slog.Logger, ssig ssh.Signal, signaler interface{ Signal(os.Signal) error }, magicTypeLabel string) {
+func handleSignal(logger slog.Logger, ssig ssh.Signal, signaler interface{ Signal(os.Signal) error }, metrics *sshServerMetrics, magicTypeLabel string) {
 	ctx := context.Background()
 	sig := osSignalFrom(ssig)
 	logger = logger.With(slog.F("ssh_signal", ssig), slog.F("signal", sig.String()))
@@ -620,7 +654,7 @@ func (s *Server) handleSignal(logger slog.Logger, ssig ssh.Signal, signaler inte
 	err := signaler.Signal(sig)
 	if err != nil {
 		logger.Warn(ctx, "signaling the process failed", slog.Error(err))
-		s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "signal").Add(1)
+		metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "signal").Add(1)
 	}
 }
 
