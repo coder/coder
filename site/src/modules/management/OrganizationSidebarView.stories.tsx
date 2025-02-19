@@ -118,6 +118,36 @@ export const OverflowDropdown: Story = {
 	},
 };
 
+export const NoOrganizations: Story = {
+	args: {
+		organizations: [],
+		activeOrganization: undefined,
+		orgPermissions: MockNoOrganizationPermissions,
+		permissions: MockNoPermissions,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /No organization selected/i }),
+		);
+	},
+};
+
+export const NoOtherOrganizations: Story = {
+	args: {
+		organizations: [MockOrganization],
+		activeOrganization: MockOrganization,
+		orgPermissions: MockNoOrganizationPermissions,
+		permissions: MockNoPermissions,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /My Organization/i }),
+		);
+	},
+};
+
 export const NoPermissions: Story = {
 	args: {
 		activeOrganization: MockOrganization,
@@ -263,7 +293,7 @@ export const SearchForOrg: Story = {
 		// dropdown is not in #storybook-root so must query full document
 		const globalScreen = within(document.body);
 		const searchInput =
-			await globalScreen.getByPlaceholderText("Find organization");
+			await globalScreen.findByPlaceholderText("Find organization");
 
 		await userEvent.type(searchInput, "ALPHA");
 

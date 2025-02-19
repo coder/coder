@@ -89,45 +89,33 @@ export const OrganizationSidebarView: FC<
 						<CommandList>
 							<CommandEmpty>No organization found.</CommandEmpty>
 							<CommandGroup className="pb-2">
-								{sortedOrganizations.length > (activeOrganization ? 1 : 0) ? (
-									<div className="flex flex-col max-h-[260px] overflow-y-auto">
-										{sortedOrganizations.map((organization) => (
-											<CommandItem
-												key={organization.id}
-												value={`${organization.display_name} ${organization.name}`}
-												onSelect={() => {
-													setIsPopoverOpen(false);
-													navigate(urlForSubpage(organization.name));
-												}}
-												// There is currently an issue with the cmdk component for keyboard navigation
-												// https://github.com/pacocoursey/cmdk/issues/322
-												tabIndex={0}
-											>
-												<Avatar
-													size="sm"
-													src={organization.icon}
-													fallback={organization.display_name}
-												/>
-												<span className="truncate">
-													{organization?.display_name || organization?.name}
-												</span>
-												{activeOrganization?.name === organization.name && (
-													<Check
-														size={16}
-														strokeWidth={2}
-														className="ml-auto"
-													/>
-												)}
-											</CommandItem>
-										))}
-									</div>
-								) : (
-									!permissions.createOrganization && (
-										<span className="select-none text-content-disabled text-center rounded-sm px-2 py-2 text-sm font-medium">
-											No more organizations
-										</span>
-									)
-								)}
+								<div className="flex flex-col max-h-[260px] overflow-y-auto">
+									{sortedOrganizations.map((organization) => (
+										<CommandItem
+											key={organization.id}
+											value={`${organization.display_name} ${organization.name}`}
+											onSelect={() => {
+												setIsPopoverOpen(false);
+												navigate(urlForSubpage(organization.name));
+											}}
+											// There is currently an issue with the cmdk component for keyboard navigation
+											// https://github.com/pacocoursey/cmdk/issues/322
+											tabIndex={0}
+										>
+											<Avatar
+												size="sm"
+												src={organization.icon}
+												fallback={organization.display_name}
+											/>
+											<span className="truncate">
+												{organization?.display_name || organization?.name}
+											</span>
+											{activeOrganization?.name === organization.name && (
+												<Check size={16} strokeWidth={2} className="ml-auto" />
+											)}
+										</CommandItem>
+									))}
+								</div>
 							</CommandGroup>
 							{permissions.createOrganization && (
 								<>
