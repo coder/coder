@@ -56,6 +56,7 @@ type Options struct {
 	TracerProvider trace.TracerProvider
 	Metrics        *Metrics
 
+	ExternalProvisioner bool
 	ForceCancelInterval time.Duration
 	UpdateInterval      time.Duration
 	LogBufferInterval   time.Duration
@@ -97,12 +98,13 @@ func New(clientDialer Dialer, opts *Options) *Server {
 		clientDialer: clientDialer,
 		clientCh:     make(chan proto.DRPCProvisionerDaemonClient),
 
-		closeContext:     ctx,
-		closeCancel:      ctxCancel,
-		closedCh:         make(chan struct{}),
-		shuttingDownCh:   make(chan struct{}),
-		acquireDoneCh:    make(chan struct{}),
-		initConnectionCh: opts.InitConnectionCh,
+		closeContext:        ctx,
+		closeCancel:         ctxCancel,
+		closedCh:            make(chan struct{}),
+		shuttingDownCh:      make(chan struct{}),
+		acquireDoneCh:       make(chan struct{}),
+		initConnectionCh:    opts.InitConnectionCh,
+		externalProvisioner: opts.ExternalProvisioner,
 	}
 
 	daemon.wg.Add(2)
@@ -141,8 +143,9 @@ type Server struct {
 	// shuttingDownCh will receive when we start graceful shutdown
 	shuttingDownCh chan struct{}
 	// acquireDoneCh will receive when the acquireLoop exits
-	acquireDoneCh chan struct{}
-	activeJob     *runner.Runner
+	acquireDoneCh       chan struct{}
+	activeJob           *runner.Runner
+	externalProvisioner bool
 }
 
 type Metrics struct {
@@ -212,6 +215,10 @@ func NewMetrics(reg prometheus.Registerer) Metrics {
 func (p *Server) connect() {
 	defer p.opts.Logger.Debug(p.closeContext, "connect loop exited")
 	defer p.wg.Done()
+	logConnect := p.opts.Logger.Debug
+	if p.externalProvisioner {
+		logConnect = p.opts.Logger.Info
+	}
 	// An exponential back-off occurs when the connection is failing to dial.
 	// This is to prevent server spam in case of a coderd outage.
 connectLoop:
@@ -239,7 +246,12 @@ connectLoop:
 			p.opts.Logger.Warn(p.closeContext, "coderd client failed to dial", slog.Error(err))
 			continue
 		}
-		p.opts.Logger.Info(p.closeContext, "successfully connected to coderd")
+		// This log is useful to verify that an external provisioner daemon is
+		// successfully connecting to coderd. It doesn't add much value if the
+		// daemon is built-in, so we only log it on the info level if p.externalProvisioner
+		// is true. This log message is mentioned in the docs:
+		// https://github.com/coder/coder/blob/5bd86cb1c06561d1d3e90ce689da220467e525c0/docs/admin/provisioners.md#L346
+		logConnect(p.closeContext, "successfully connected to coderd")
 		retrier.Reset()
 		p.initConnectionOnce.Do(func() {
 			close(p.initConnectionCh)
@@ -252,7 +264,7 @@ connectLoop:
 				client.DRPCConn().Close()
 				return
 			case <-client.DRPCConn().Closed():
-				p.opts.Logger.Info(p.closeContext, "connection to coderd closed")
+				logConnect(p.closeContext, "connection to coderd closed")
 				continue connectLoop
 			case p.clientCh <- client:
 				continue
