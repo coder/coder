@@ -2031,6 +2031,21 @@ func (mr *MockStoreMockRecorder) GetParameterSchemasByJobID(ctx, jobID any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetParameterSchemasByJobID", reflect.TypeOf((*MockStore)(nil).GetParameterSchemasByJobID), ctx, jobID)
 }
 
+// GetPrebuildsInProgress mocks base method.
+func (m *MockStore) GetPrebuildsInProgress(ctx context.Context) ([]database.GetPrebuildsInProgressRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPrebuildsInProgress", ctx)
+	ret0, _ := ret[0].([]database.GetPrebuildsInProgressRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetPrebuildsInProgress indicates an expected call of GetPrebuildsInProgress.
+func (mr *MockStoreMockRecorder) GetPrebuildsInProgress(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPrebuildsInProgress", reflect.TypeOf((*MockStore)(nil).GetPrebuildsInProgress), ctx)
+}
+
 // GetPresetByWorkspaceBuildID mocks base method.
 func (m *MockStore) GetPresetByWorkspaceBuildID(ctx context.Context, workspaceBuildID uuid.UUID) (database.TemplateVersionPreset, error) {
 	m.ctrl.T.Helper()
@@ -2346,6 +2361,21 @@ func (mr *MockStoreMockRecorder) GetReplicasUpdatedAfter(ctx, updatedAt any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetReplicasUpdatedAfter", reflect.TypeOf((*MockStore)(nil).GetReplicasUpdatedAfter), ctx, updatedAt)
 }
 
+// GetRunningPrebuilds mocks base method.
+func (m *MockStore) GetRunningPrebuilds(ctx context.Context) ([]database.GetRunningPrebuildsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetRunningPrebuilds", ctx)
+	ret0, _ := ret[0].([]database.GetRunningPrebuildsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetRunningPrebuilds indicates an expected call of GetRunningPrebuilds.
+func (mr *MockStoreMockRecorder) GetRunningPrebuilds(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRunningPrebuilds", reflect.TypeOf((*MockStore)(nil).GetRunningPrebuilds), ctx)
+}
+
 // GetRuntimeConfig mocks base method.
 func (m *MockStore) GetRuntimeConfig(ctx context.Context, key string) (string, error) {
 	m.ctrl.T.Helper()
@@ -2631,19 +2661,19 @@ func (mr *MockStoreMockRecorder) GetTemplateParameterInsights(ctx, arg any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateParameterInsights", reflect.TypeOf((*MockStore)(nil).GetTemplateParameterInsights), ctx, arg)
 }
 
-// GetTemplatePrebuildState mocks base method.
-func (m *MockStore) GetTemplatePrebuildState(ctx context.Context, templateID uuid.UUID) ([]database.GetTemplatePrebuildStateRow, error) {
+// GetTemplatePresetsWithPrebuilds mocks base method.
+func (m *MockStore) GetTemplatePresetsWithPrebuilds(ctx context.Context, templateID uuid.NullUUID) ([]database.GetTemplatePresetsWithPrebuildsRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTemplatePrebuildState", ctx, templateID)
-	ret0, _ := ret[0].([]database.GetTemplatePrebuildStateRow)
+	ret := m.ctrl.Call(m, "GetTemplatePresetsWithPrebuilds", ctx, templateID)
+	ret0, _ := ret[0].([]database.GetTemplatePresetsWithPrebuildsRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetTemplatePrebuildState indicates an expected call of GetTemplatePrebuildState.
-func (mr *MockStoreMockRecorder) GetTemplatePrebuildState(ctx, templateID any) *gomock.Call {
+// GetTemplatePresetsWithPrebuilds indicates an expected call of GetTemplatePresetsWithPrebuilds.
+func (mr *MockStoreMockRecorder) GetTemplatePresetsWithPrebuilds(ctx, templateID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplatePrebuildState", reflect.TypeOf((*MockStore)(nil).GetTemplatePrebuildState), ctx, templateID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplatePresetsWithPrebuilds", reflect.TypeOf((*MockStore)(nil).GetTemplatePresetsWithPrebuilds), ctx, templateID)
 }
 
 // GetTemplateUsageStats mocks base method.

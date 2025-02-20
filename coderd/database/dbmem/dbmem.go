@@ -3784,6 +3784,10 @@ func (q *FakeQuerier) GetParameterSchemasByJobID(_ context.Context, jobID uuid.U
 	return parameters, nil
 }
 
+func (q *FakeQuerier) GetPrebuildsInProgress(ctx context.Context) ([]database.GetPrebuildsInProgressRow, error) {
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) GetPresetByWorkspaceBuildID(_ context.Context, workspaceBuildID uuid.UUID) (database.TemplateVersionPreset, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -4487,6 +4491,10 @@ func (q *FakeQuerier) GetReplicasUpdatedAfter(_ context.Context, updatedAt time.
 		}
 	}
 	return replicas, nil
+}
+
+func (q *FakeQuerier) GetRunningPrebuilds(ctx context.Context) ([]database.GetRunningPrebuildsRow, error) {
+	panic("not implemented")
 }
 
 func (q *FakeQuerier) GetRuntimeConfig(_ context.Context, key string) (string, error) {
@@ -5528,7 +5536,7 @@ func (q *FakeQuerier) GetTemplateParameterInsights(ctx context.Context, arg data
 	return rows, nil
 }
 
-func (q *FakeQuerier) GetTemplatePrebuildState(ctx context.Context, templateID uuid.UUID) ([]database.GetTemplatePrebuildStateRow, error) {
+func (q *FakeQuerier) GetTemplatePresetsWithPrebuilds(ctx context.Context, templateID uuid.NullUUID) ([]database.GetTemplatePresetsWithPrebuildsRow, error) {
 	panic("not implemented")
 }
 

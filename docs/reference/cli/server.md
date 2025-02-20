@@ -1548,3 +1548,14 @@ The endpoint to which to send webhooks.
 | Default     | <code>5</code>                                      |
 
 The upper limit of attempts to send a notification.
+
+### --workspace-prebuilds-reconciliation-interval
+
+|             |                                                                 |
+|-------------|-----------------------------------------------------------------|
+| Type        | <code>duration</code>                                           |
+| Environment | <code>$CODER_WORKSPACE_PREBUILDS_RECONCILIATION_INTERVAL</code> |
+| YAML        | <code>workspace_prebuilds.reconciliation_interval</code>        |
+| Default     | <code>15s</code>                                                |
+
+How often to reconcile workspace prebuilds state.

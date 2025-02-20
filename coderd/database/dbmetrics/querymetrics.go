@@ -987,6 +987,13 @@ func (m queryMetricsStore) GetParameterSchemasByJobID(ctx context.Context, jobID
 	return schemas, err
 }
 
+func (m queryMetricsStore) GetPrebuildsInProgress(ctx context.Context) ([]database.GetPrebuildsInProgressRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetPrebuildsInProgress(ctx)
+	m.queryLatencies.WithLabelValues("GetPrebuildsInProgress").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetPresetByWorkspaceBuildID(ctx context.Context, workspaceBuildID uuid.UUID) (database.TemplateVersionPreset, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetPresetByWorkspaceBuildID(ctx, workspaceBuildID)
@@ -1134,6 +1141,13 @@ func (m queryMetricsStore) GetReplicasUpdatedAfter(ctx context.Context, updatedA
 	return replicas, err
 }
 
+func (m queryMetricsStore) GetRunningPrebuilds(ctx context.Context) ([]database.GetRunningPrebuildsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetRunningPrebuilds(ctx)
+	m.queryLatencies.WithLabelValues("GetRunningPrebuilds").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetRuntimeConfig(ctx context.Context, key string) (string, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetRuntimeConfig(ctx, key)
@@ -1260,10 +1274,10 @@ func (m queryMetricsStore) GetTemplateParameterInsights(ctx context.Context, arg
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetTemplatePrebuildState(ctx context.Context, templateID uuid.UUID) ([]database.GetTemplatePrebuildStateRow, error) {
+func (m queryMetricsStore) GetTemplatePresetsWithPrebuilds(ctx context.Context, templateID uuid.NullUUID) ([]database.GetTemplatePresetsWithPrebuildsRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetTemplatePrebuildState(ctx, templateID)
-	m.queryLatencies.WithLabelValues("GetTemplatePrebuildState").Observe(time.Since(start).Seconds())
+	r0, r1 := m.s.GetTemplatePresetsWithPrebuilds(ctx, templateID)
+	m.queryLatencies.WithLabelValues("GetTemplatePresetsWithPrebuilds").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 

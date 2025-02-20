@@ -1977,6 +1977,13 @@ func (q *querier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUI
 	return q.db.GetParameterSchemasByJobID(ctx, jobID)
 }
 
+func (q *querier) GetPrebuildsInProgress(ctx context.Context) ([]database.GetPrebuildsInProgressRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate); err != nil {
+		return nil, err
+	}
+	return q.db.GetPrebuildsInProgress(ctx)
+}
+
 func (q *querier) GetPresetByWorkspaceBuildID(ctx context.Context, workspaceID uuid.UUID) (database.TemplateVersionPreset, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate); err != nil {
 		return database.TemplateVersionPreset{}, err
@@ -2144,6 +2151,13 @@ func (q *querier) GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Ti
 	return q.db.GetReplicasUpdatedAfter(ctx, updatedAt)
 }
 
+func (q *querier) GetRunningPrebuilds(ctx context.Context) ([]database.GetRunningPrebuildsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate); err != nil {
+		return nil, err
+	}
+	return q.db.GetRunningPrebuilds(ctx)
+}
+
 func (q *querier) GetRuntimeConfig(ctx context.Context, key string) (string, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return "", err
@@ -2268,12 +2282,11 @@ func (q *querier) GetTemplateParameterInsights(ctx context.Context, arg database
 	return q.db.GetTemplateParameterInsights(ctx, arg)
 }
 
-func (q *querier) GetTemplatePrebuildState(ctx context.Context, templateID uuid.UUID) ([]database.GetTemplatePrebuildStateRow, error) {
-	// TODO: authz
+func (q *querier) GetTemplatePresetsWithPrebuilds(ctx context.Context, templateID uuid.NullUUID) ([]database.GetTemplatePresetsWithPrebuildsRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate); err != nil {
 		return nil, err
 	}
-	return q.db.GetTemplatePrebuildState(ctx, templateID)
+	return q.db.GetTemplatePresetsWithPrebuilds(ctx, templateID)
 }
 
 func (q *querier) GetTemplateUsageStats(ctx context.Context, arg database.GetTemplateUsageStatsParams) ([]database.TemplateUsageStat, error) {
