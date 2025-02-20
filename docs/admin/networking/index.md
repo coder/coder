@@ -1,14 +1,14 @@
 # Networking
 
-Coder's network topology has three types of nodes: workspaces, coder servers,
+Coder's network topology has three types of nodes: workspaces, Coder servers,
 and users.
 
-The coder server must have an inbound address reachable by users and workspaces,
+The Coder server must have an inbound address reachable by users and workspaces,
 but otherwise, all topologies _just work_ with Coder.
 
 When possible, we establish direct connections between users and workspaces.
 Direct connections are as fast as connecting to the workspace outside of Coder.
-When NAT traversal fails, connections are relayed through the coder server. All
+When NAT traversal fails, connections are relayed through the Coder server. All
 user-workspace connections are end-to-end encrypted.
 
 [Tailscale's open source](https://tailscale.com) backs our websocket/HTTPS
@@ -65,14 +65,14 @@ In order for clients to be able to establish direct connections:
     ephemeral (high) ports. If a firewall between the client and the agent
     blocks this UDP traffic, direct connections will not be possible.
 
-## coder server
+## Coder server
 
-Workspaces connect to the coder server via the server's external address, set
+Workspaces connect to the Coder server via the server's external address, set
 via [`ACCESS_URL`](../../admin/setup/index.md#access-url). There must not be a
 NAT between workspaces and coder server.
 
-Users connect to the coder server's dashboard and API through its `ACCESS_URL`
-as well. There must not be a NAT between users and the coder server.
+Users connect to the Coder server's dashboard and API through its `ACCESS_URL`
+as well. There must not be a NAT between users and the Coder server.
 
 Template admins can overwrite the site-wide access URL at the template level by
 leveraging the `url` argument when
@@ -89,7 +89,7 @@ and the Coder server.
 
 ## Web Apps
 
-The coder servers relays dashboard-initiated connections between the user and
+The Coder servers relays dashboard-initiated connections between the user and
 the workspace. Web terminal <-> workspace connections are an exception and may
 be direct.
 
@@ -166,7 +166,7 @@ coder server --derp-config-path derpmap.json
 ### Dashboard connections
 
 The dashboard (and web apps opened through the dashboard) are served from the
-coder server, so they can only be geo-distributed with High Availability mode in
+Coder server, so they can only be geo-distributed with High Availability mode in
 our Premium Edition. [Reach out to Sales](https://coder.com/contact) to learn
 more.
 
