@@ -916,7 +916,7 @@ CREATE TABLE notifications_inbox (
     id uuid NOT NULL,
     user_id uuid NOT NULL,
     template_id uuid NOT NULL,
-    target_id uuid,
+    targets uuid[],
     title text NOT NULL,
     content text NOT NULL,
     icon text NOT NULL,
@@ -2232,7 +2232,7 @@ CREATE INDEX idx_notification_messages_status ON notification_messages USING btr
 
 CREATE INDEX idx_notifications_inbox_user_id_read_at ON notifications_inbox USING btree (user_id, read_at);
 
-CREATE INDEX idx_notifications_inbox_user_id_template_id_target_id ON notifications_inbox USING btree (user_id, template_id, target_id);
+CREATE INDEX idx_notifications_inbox_user_id_template_id_targets ON notifications_inbox USING btree (user_id, template_id, targets);
 
 CREATE INDEX idx_organization_member_organization_id_uuid ON organization_members USING btree (organization_id);
 

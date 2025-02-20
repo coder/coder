@@ -2627,7 +2627,7 @@ type NotificationsInbox struct {
 	ID         uuid.UUID       `db:"id" json:"id"`
 	UserID     uuid.UUID       `db:"user_id" json:"user_id"`
 	TemplateID uuid.UUID       `db:"template_id" json:"template_id"`
-	TargetID   uuid.NullUUID   `db:"target_id" json:"target_id"`
+	Targets    []uuid.UUID     `db:"targets" json:"targets"`
 	Title      string          `db:"title" json:"title"`
 	Content    string          `db:"content" json:"content"`
 	Icon       string          `db:"icon" json:"icon"`

@@ -441,10 +441,10 @@ func (m queryMetricsStore) FetchInboxNotificationsByUserID(ctx context.Context, 
 	return r0, r1
 }
 
-func (m queryMetricsStore) FetchInboxNotificationsByUserIDAndTemplateIDAndTargetID(ctx context.Context, arg database.FetchInboxNotificationsByUserIDAndTemplateIDAndTargetIDParams) ([]database.NotificationsInbox, error) {
+func (m queryMetricsStore) FetchInboxNotificationsByUserIDAndTemplateIDAndTargets(ctx context.Context, arg database.FetchInboxNotificationsByUserIDAndTemplateIDAndTargetsParams) ([]database.NotificationsInbox, error) {
 	start := time.Now()
-	r0, r1 := m.s.FetchInboxNotificationsByUserIDAndTemplateIDAndTargetID(ctx, arg)
-	m.queryLatencies.WithLabelValues("FetchInboxNotificationsByUserIDAndTemplateIDAndTargetID").Observe(time.Since(start).Seconds())
+	r0, r1 := m.s.FetchInboxNotificationsByUserIDAndTemplateIDAndTargets(ctx, arg)
+	m.queryLatencies.WithLabelValues("FetchInboxNotificationsByUserIDAndTemplateIDAndTargets").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -469,10 +469,10 @@ func (m queryMetricsStore) FetchUnreadInboxNotificationsByUserID(ctx context.Con
 	return r0, r1
 }
 
-func (m queryMetricsStore) FetchUnreadInboxNotificationsByUserIDAndTemplateIDAndTargetID(ctx context.Context, arg database.FetchUnreadInboxNotificationsByUserIDAndTemplateIDAndTargetIDParams) ([]database.NotificationsInbox, error) {
+func (m queryMetricsStore) FetchUnreadInboxNotificationsByUserIDAndTemplateIDAndTargets(ctx context.Context, arg database.FetchUnreadInboxNotificationsByUserIDAndTemplateIDAndTargetsParams) ([]database.NotificationsInbox, error) {
 	start := time.Now()
-	r0, r1 := m.s.FetchUnreadInboxNotificationsByUserIDAndTemplateIDAndTargetID(ctx, arg)
-	m.queryLatencies.WithLabelValues("FetchUnreadInboxNotificationsByUserIDAndTemplateIDAndTargetID").Observe(time.Since(start).Seconds())
+	r0, r1 := m.s.FetchUnreadInboxNotificationsByUserIDAndTemplateIDAndTargets(ctx, arg)
+	m.queryLatencies.WithLabelValues("FetchUnreadInboxNotificationsByUserIDAndTemplateIDAndTargets").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 

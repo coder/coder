@@ -2379,14 +2379,28 @@ func (q *FakeQuerier) FetchInboxNotificationsByUserID(_ context.Context, userID 
 	return notifications, nil
 }
 
-func (q *FakeQuerier) FetchInboxNotificationsByUserIDAndTemplateIDAndTargetID(_ context.Context, arg database.FetchInboxNotificationsByUserIDAndTemplateIDAndTargetIDParams) ([]database.NotificationsInbox, error) {
+func (q *FakeQuerier) FetchInboxNotificationsByUserIDAndTemplateIDAndTargets(_ context.Context, arg database.FetchInboxNotificationsByUserIDAndTemplateIDAndTargetsParams) ([]database.NotificationsInbox, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	notifications := make([]database.NotificationsInbox, 0)
 	for _, notification := range q.notificationsInbox {
-		if notification.UserID == arg.UserID && notification.TemplateID == arg.TemplateID && notification.TargetID == arg.TargetID {
-			notifications = append(notifications, notification)
+		if notification.UserID == arg.UserID && notification.TemplateID == arg.TemplateID {
+			for _, target := range arg.Targets {
+				isFound := false
+				for _, insertedTarget := range notification.Targets {
+					if insertedTarget == target {
+						isFound = true
+						break
+					}
+				}
+
+				if !isFound {
+					continue
+				}
+
+				notifications = append(notifications, notification)
+			}
 		}
 	}
 
@@ -2449,14 +2463,28 @@ func (q *FakeQuerier) FetchUnreadInboxNotificationsByUserID(_ context.Context, u
 	return notifications, nil
 }
 
-func (q *FakeQuerier) FetchUnreadInboxNotificationsByUserIDAndTemplateIDAndTargetID(_ context.Context, arg database.FetchUnreadInboxNotificationsByUserIDAndTemplateIDAndTargetIDParams) ([]database.NotificationsInbox, error) {
+func (q *FakeQuerier) FetchUnreadInboxNotificationsByUserIDAndTemplateIDAndTargets(_ context.Context, arg database.FetchUnreadInboxNotificationsByUserIDAndTemplateIDAndTargetsParams) ([]database.NotificationsInbox, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	notifications := make([]database.NotificationsInbox, 0)
 	for _, notification := range q.notificationsInbox {
-		if notification.UserID == arg.UserID && notification.TemplateID == arg.TemplateID && notification.TargetID == arg.TargetID && !notification.ReadAt.Valid {
-			notifications = append(notifications, notification)
+		if notification.UserID == arg.UserID && notification.TemplateID == arg.TemplateID && !notification.ReadAt.Valid {
+			for _, target := range arg.Targets {
+				isFound := false
+				for _, insertedTarget := range notification.Targets {
+					if insertedTarget == target {
+						isFound = true
+						break
+					}
+				}
+
+				if !isFound {
+					continue
+				}
+
+				notifications = append(notifications, notification)
+			}
 		}
 	}
 
@@ -8042,7 +8070,7 @@ func (q *FakeQuerier) InsertInboxNotification(_ context.Context, arg database.In
 		ID:         arg.ID,
 		UserID:     arg.UserID,
 		TemplateID: arg.TemplateID,
-		TargetID:   arg.TargetID,
+		Targets:    arg.Targets,
 		Title:      arg.Title,
 		Content:    arg.Content,
 		Icon:       arg.Icon,

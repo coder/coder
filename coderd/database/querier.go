@@ -113,12 +113,12 @@ type sqlcQuerier interface {
 	EnqueueNotificationMessage(ctx context.Context, arg EnqueueNotificationMessageParams) error
 	FavoriteWorkspace(ctx context.Context, id uuid.UUID) error
 	FetchInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) ([]NotificationsInbox, error)
-	FetchInboxNotificationsByUserIDAndTemplateIDAndTargetID(ctx context.Context, arg FetchInboxNotificationsByUserIDAndTemplateIDAndTargetIDParams) ([]NotificationsInbox, error)
+	FetchInboxNotificationsByUserIDAndTemplateIDAndTargets(ctx context.Context, arg FetchInboxNotificationsByUserIDAndTemplateIDAndTargetsParams) ([]NotificationsInbox, error)
 	FetchMemoryResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) (WorkspaceAgentMemoryResourceMonitor, error)
 	// This is used to build up the notification_message's JSON payload.
 	FetchNewMessageMetadata(ctx context.Context, arg FetchNewMessageMetadataParams) (FetchNewMessageMetadataRow, error)
 	FetchUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) ([]NotificationsInbox, error)
-	FetchUnreadInboxNotificationsByUserIDAndTemplateIDAndTargetID(ctx context.Context, arg FetchUnreadInboxNotificationsByUserIDAndTemplateIDAndTargetIDParams) ([]NotificationsInbox, error)
+	FetchUnreadInboxNotificationsByUserIDAndTemplateIDAndTargets(ctx context.Context, arg FetchUnreadInboxNotificationsByUserIDAndTemplateIDAndTargetsParams) ([]NotificationsInbox, error)
 	FetchVolumesResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) ([]WorkspaceAgentVolumeResourceMonitor, error)
 	GetAPIKeyByID(ctx context.Context, id string) (APIKey, error)
 	// there is no unique constraint on empty token names
