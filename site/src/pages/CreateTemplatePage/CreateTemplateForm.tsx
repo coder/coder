@@ -2,6 +2,7 @@ import Link from "@mui/material/Link";
 import TextField from "@mui/material/TextField";
 import { provisionerDaemons } from "api/queries/organizations";
 import type {
+	CreateTemplateVersionRequest,
 	Organization,
 	ProvisionerJobLog,
 	ProvisionerType,
@@ -43,6 +44,7 @@ import {
 import * as Yup from "yup";
 import { TemplateUpload, type TemplateUploadProps } from "./TemplateUpload";
 import { VariableInput } from "./VariableInput";
+import { ProvisionerTagsField } from "modules/provisioners/ProvisionerTagsField";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 
@@ -63,6 +65,7 @@ export interface CreateTemplateFormData {
 	allow_everyone_group_access: boolean;
 	provisioner_type: ProvisionerType;
 	organization: string;
+	tags: CreateTemplateVersionRequest["tags"];
 }
 
 const validationSchema = Yup.object({
@@ -96,6 +99,7 @@ const defaultInitialValues: CreateTemplateFormData = {
 	allow_everyone_group_access: true,
 	provisioner_type: "terraform",
 	organization: "default",
+	tags: {},
 };
 
 type GetInitialValuesParams = {
@@ -322,6 +326,30 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 						onChange={onChangeTrimmed(form)}
 						fullWidth
 						onPickEmoji={(value) => form.setFieldValue("icon", value)}
+					/>
+				</FormFields>
+			</FormSection>
+
+			<FormSection
+				title="Provisioner tags"
+				description={
+					<>
+						Tags are a way to control which provisioner daemons complete which
+						build jobs.&nbsp;
+						<Link
+							href={docs("/admin/provisioners")}
+							target="_blank"
+							rel="noreferrer"
+						>
+							Learn more...
+						</Link>
+					</>
+				}
+			>
+				<FormFields>
+					<ProvisionerTagsField
+						value={form.values.tags}
+						onChange={(tags) => form.setFieldValue("tags", tags)}
 					/>
 				</FormFields>
 			</FormSection>

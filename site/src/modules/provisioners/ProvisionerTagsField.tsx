@@ -1,9 +1,10 @@
+import TextField from "@mui/material/TextField";
 import type { ProvisionerDaemon } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { Input } from "components/Input/Input";
 import { PlusIcon } from "lucide-react";
 import { ProvisionerTag } from "modules/provisioners/ProvisionerTag";
-import { type FC, useState } from "react";
+import { type FC, useRef, useState } from "react";
 import * as Yup from "yup";
 
 // Users can't delete these tags
@@ -45,8 +46,8 @@ export const ProvisionerTagsField: FC<ProvisionerTagsFieldProps> = ({
 					})}
 			</div>
 
-			<NewTagForm
-				onSubmit={(tag) => {
+			<NewTagControl
+				onAdd={(tag) => {
 					onChange({ ...fieldValue, [tag.key]: tag.value });
 				}}
 			/>
@@ -72,63 +73,85 @@ const newTagSchema = Yup.object({
 		}),
 });
 
-type NewTagFormProps = {
-	onSubmit: (values: { key: string; value: string }) => void;
+type Tag = { key: string; value: string };
+
+type NewTagControlProps = {
+	onAdd: (tag: Tag) => void;
 };
 
-const NewTagForm: FC<NewTagFormProps> = ({ onSubmit }) => {
+const NewTagControl: FC<NewTagControlProps> = ({ onAdd }) => {
+	const keyInputRef = useRef<HTMLInputElement>(null);
 	const [error, setError] = useState<string>();
+	const [newTag, setNewTag] = useState<Tag>({
+		key: "",
+		value: "",
+	});
+
+	const addNewTag = async () => {
+		try {
+			await newTagSchema.validate(newTag);
+			onAdd(newTag);
+			setNewTag({ key: "", value: "" });
+			keyInputRef.current?.focus();
+		} catch (e) {
+			const isValidationError = e instanceof Yup.ValidationError;
+
+			if (!isValidationError) {
+				throw e;
+			}
+
+			if (e instanceof Yup.ValidationError) {
+				setError(e.errors[0]);
+			}
+		}
+	};
+
+	const addNewTagOnEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
+		if (e.key === "Enter") {
+			e.preventDefault();
+			e.stopPropagation();
+			addNewTag();
+		}
+	};
 
 	return (
-		<form
-			className="flex flex-col gap-1"
-			onSubmit={async (e) => {
-				e.preventDefault();
-				const form = e.currentTarget;
-				const key = form.key.value.trim();
-				const value = form.value.value.trim();
-
-				try {
-					await newTagSchema.validate({ key, value });
-					onSubmit({ key, value });
-					form.reset();
-				} catch (e) {
-					const isValidationError = e instanceof Yup.ValidationError;
-
-					if (!isValidationError) {
-						throw e;
-					}
-
-					if (e instanceof Yup.ValidationError) {
-						setError(e.errors[0]);
-					}
-				}
-			}}
-		>
+		<div className="flex flex-col gap-1 max-w-72">
 			<div className="flex items-center gap-2">
 				<label className="sr-only" htmlFor="tag-key-input">
 					Tag key
 				</label>
-				<Input
+				<TextField
+					inputRef={keyInputRef}
+					size="small"
 					id="tag-key-input"
 					name="key"
 					placeholder="Key"
-					className="h-8 md:text-xs px-2"
-					required
+					value={newTag.key}
+					onChange={(e) => setNewTag({ ...newTag, key: e.target.value.trim() })}
+					onKeyDown={addNewTagOnEnter}
 				/>
 
 				<label className="sr-only" htmlFor="tag-value-input">
 					Tag value
 				</label>
-				<Input
+				<TextField
+					size="small"
 					id="tag-value-input"
 					name="value"
 					placeholder="Value"
-					className="h-8 md:text-xs px-2"
-					required
+					value={newTag.value}
+					onChange={(e) =>
+						setNewTag({ ...newTag, value: e.target.value.trim() })
+					}
+					onKeyDown={addNewTagOnEnter}
 				/>
 
-				<Button size="icon" type="submit">
+				<Button
+					className="flex-shrink-0"
+					size="icon"
+					type="button"
+					onClick={addNewTag}
+				>
 					<PlusIcon />
 					<span className="sr-only">Add tag</span>
 				</Button>
@@ -136,6 +159,6 @@ const NewTagForm: FC<NewTagFormProps> = ({ onSubmit }) => {
 			{error && (
 				<span className="text-xs text-content-destructive">{error}</span>
 			)}
-		</form>
+		</div>
 	);
 };
