@@ -1,1 +1,1 @@
-DROP TABLE IF EXISTS notifications_inbox;
+DROP TABLE IF EXISTS inbox_notifications;

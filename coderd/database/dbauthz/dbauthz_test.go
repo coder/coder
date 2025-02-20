@@ -4495,6 +4495,7 @@ func (s *MethodTestSuite) TestNotifications() {
 			Title:      "test title",
 			Content:    "test content notification",
 			Icon:       "test icon",
+			Actions:    json.RawMessage("{}"),
 		})
 
 		check.Args(u.ID).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionRead).Returns([]database.InboxNotification{notif})
@@ -4517,6 +4518,7 @@ func (s *MethodTestSuite) TestNotifications() {
 			Title:      "test title",
 			Content:    "test content notification",
 			Icon:       "test icon",
+			Actions:    json.RawMessage("{}"),
 		})
 
 		check.Args(u.ID).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionRead).Returns([]database.InboxNotification{notif})
@@ -4542,6 +4544,7 @@ func (s *MethodTestSuite) TestNotifications() {
 			Title:      "test title",
 			Content:    "test content notification",
 			Icon:       "test icon",
+			Actions:    json.RawMessage("{}"),
 		})
 
 		check.Args(database.FetchInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams{
@@ -4571,6 +4574,7 @@ func (s *MethodTestSuite) TestNotifications() {
 			Title:      "test title",
 			Content:    "test content notification",
 			Icon:       "test icon",
+			Actions:    json.RawMessage("{}"),
 		})
 
 		check.Args(database.FetchUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams{
@@ -4600,14 +4604,34 @@ func (s *MethodTestSuite) TestNotifications() {
 			Title:      "test title",
 			Content:    "test content notification",
 			Icon:       "test icon",
+			Actions:    json.RawMessage("{}"),
 		})
 
 		check.Args(notifID).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionRead).Returns(notif)
 	}))
 
-	s.Run("InsertInboxNotification", s.Subtest(func(_ database.Store, check *expects) {
-		owner := uuid.UUID{}
-		check.Args(database.InsertInboxNotificationParams{}).Asserts(rbac.ResourceInboxNotification.WithOwner(owner.String()), policy.ActionCreate)
+	s.Run("InsertInboxNotification", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		tpl := dbgen.Template(s.T(), db, database.Template{
+			OrganizationID: o.ID,
+			CreatedBy:      u.ID,
+		})
+
+		notifID := uuid.New()
+
+		targets := []uuid.UUID{u.ID, tpl.ID}
+
+		check.Args(database.InsertInboxNotificationParams{
+			ID:         notifID,
+			UserID:     u.ID,
+			TemplateID: tpl.ID,
+			Targets:    targets,
+			Title:      "test title",
+			Content:    "test content notification",
+			Icon:       "test icon",
+			Actions:    json.RawMessage("{}"),
+		}).Asserts(rbac.ResourceInboxNotification.WithOwner(u.ID.String()), policy.ActionCreate)
 	}))
 
 	s.Run("SetInboxNotificationAsRead", s.Subtest(func(db database.Store, check *expects) {
@@ -4631,6 +4655,7 @@ func (s *MethodTestSuite) TestNotifications() {
 			Title:      "test title",
 			Content:    "test content notification",
 			Icon:       "test icon",
+			Actions:    json.RawMessage("{}"),
 		})
 
 		notif.ReadAt = sql.NullTime{Time: readAt, Valid: true}
