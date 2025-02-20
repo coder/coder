@@ -25,7 +25,7 @@ You can install Coder Desktop on macOS or Windows.
 
    Select **Open System Settings**.
 
-1. In your **Network Extensions** system settings, enable the Coder Desktop extension.
+1. In the **Network Extensions** system settings, enable the Coder Desktop extension.
 
 1. Continue to the [configuration section](#configure).
 
