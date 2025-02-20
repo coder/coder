@@ -12,8 +12,8 @@ const Language = {
 	nameRequired: (name: string): string => {
 		return name ? `Please enter a ${name.toLowerCase()}.` : "Required";
 	},
-	nameInvalidChars: (name: string): string => {
-		return `${name} must start with a-Z or 0-9 and can contain a-Z, 0-9 or -`;
+	nameInvalidChars: (): string => {
+		return `Special characters (e.g.: !, @, #) are not supported`;
 	},
 	nameTooLong: (name: string, len: number): string => {
 		return `${name} cannot be longer than ${len} characters`;
@@ -119,7 +119,7 @@ const displayNameRE = /^[^\s](.*[^\s])?$/;
 export const nameValidator = (name: string): Yup.StringSchema =>
 	Yup.string()
 		.required(Language.nameRequired(name))
-		.matches(usernameRE, Language.nameInvalidChars(name))
+		.matches(usernameRE, Language.nameInvalidChars())
 		.max(maxLenName, Language.nameTooLong(name, maxLenName));
 
 export const displayNameValidator = (displayName: string): Yup.StringSchema =>
