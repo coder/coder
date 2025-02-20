@@ -8,3 +8,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_organization_name_lower ON organizations U
 
 ALTER TABLE ONLY organizations
 	ADD CONSTRAINT organizations_name UNIQUE (name);
+
+DROP TRIGGER IF EXISTS protect_provisioned_organizations ON organizations;
+DROP FUNCTION IF EXISTS protect_provisioned_organizations;

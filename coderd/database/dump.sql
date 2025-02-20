@@ -438,6 +438,40 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION protect_provisioned_organizations() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    workspace_count int;
+	template_count int;
+BEGIN
+    workspace_count := (
+        SELECT count(*) as count FROM workspaces
+        WHERE
+            workspaces.organization_id = OLD.id
+            AND workspaces.deleted = false
+    );
+
+	template_count := (
+        SELECT count(*) as count FROM templates
+        WHERE
+            templates.organization_id = OLD.id
+            AND templates.deleted = false
+    );
+
+    -- Fail the deletion if one of the following:
+    -- * the organization has 1 or more workspaces
+	-- * the organization has 1 or more templates
+    IF (workspace_count + template_count) > 0 THEN
+            RAISE EXCEPTION 'cannot delete organization: organization has % workspaces and % templates that must be deleted first', workspace_count, template_count;
+    END IF;
+
+    -- add more cases to fail a delete
+
+    RETURN OLD;
+END;
+$$;
+
 CREATE FUNCTION provisioner_tagset_contains(provisioner_tags tagset, job_tags tagset) RETURNS boolean
     LANGUAGE plpgsql
     AS $$
@@ -2349,6 +2383,8 @@ CREATE OR REPLACE VIEW provisioner_job_stats AS
   GROUP BY pj.id, wb.workspace_id;
 
 CREATE TRIGGER inhibit_enqueue_if_disabled BEFORE INSERT ON notification_messages FOR EACH ROW EXECUTE FUNCTION inhibit_enqueue_if_disabled();
+
+CREATE TRIGGER protect_provisioned_organizations BEFORE UPDATE ON organizations FOR EACH ROW WHEN (((new.deleted = true) AND (old.deleted = false))) EXECUTE FUNCTION protect_provisioned_organizations();
 
 CREATE TRIGGER remove_organization_member_custom_role BEFORE DELETE ON custom_roles FOR EACH ROW EXECUTE FUNCTION remove_organization_member_role();
 
