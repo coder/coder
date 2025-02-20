@@ -270,8 +270,13 @@ export const createTemplate = async (
 			);
 		}
 
-		await orgPicker.click();
-		await page.getByText(orgName, { exact: true }).click();
+		// picker is disabled if only one org is available
+		const pickerIsDisabled = await orgPicker.isDisabled();
+
+		if (!pickerIsDisabled) {
+			await orgPicker.click();
+			await page.getByText(orgName, { exact: true }).click();
+		}
 	}
 
 	const name = randomName();
