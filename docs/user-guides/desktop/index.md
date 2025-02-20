@@ -23,11 +23,9 @@ You can install Coder Desktop on macOS or Windows.
 
    **"Coder Desktop" would like to use a new network extension**
 
-   Select **OK**.
+   Select **Open System Settings**.
 
-1. The Coder icon will appear in the macOS menu bar:
-
-   ![Coder icon and menu](../../images/user-guides/desktop/coder-desktop-mac-menu-bar.png)
+1. In your **Network Extensions** system settings, enable the Coder Desktop extension.
 
 1. Continue to the [configuration section](#configure).
 
@@ -39,11 +37,7 @@ Download from there.
 
 ## Configure
 
-Before you can use Coder Desktop, you will need to approve the system extension and log in.
-
-1. Select the Desktop menu bar icon, then **Approve in System Settings**.
-
-1. Desktop opens your system settings. Enable the Coder Desktop extension.
+Before you can use Coder Desktop, you will need to log in.
 
 1. Open the Desktop menu again and select **Sign in**:
 
