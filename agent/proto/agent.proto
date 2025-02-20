@@ -6,6 +6,7 @@ package coder.agent.v2;
 import "tailnet/proto/tailnet.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/duration.proto";
+import "google/protobuf/empty.proto";
 
 message WorkspaceApp {
 	bytes id = 1;
@@ -340,6 +341,33 @@ message PushResourcesMonitoringUsageRequest {
 message PushResourcesMonitoringUsageResponse {
 }
 
+message Connection {
+	enum Action {
+		ACTION_UNSPECIFIED = 0;
+		CONNECT = 1;
+		DISCONNECT = 2;
+	}
+	enum Type {
+		TYPE_UNSPECIFIED = 0;
+		SSH = 1;
+		VSCODE = 2;
+		JETBRAINS = 3;
+		RECONNECTING_PTY = 4;
+	}
+
+	bytes id = 1;
+	Action action = 2;
+	Type type = 3;
+	google.protobuf.Timestamp timestamp = 4;
+	string ip = 5;
+	int32 status_code = 6;
+	optional string reason = 7;
+}
+
+message ReportConnectionRequest {
+	Connection connection = 1;
+}
+
 service Agent {
 	rpc GetManifest(GetManifestRequest) returns (Manifest);
 	rpc GetServiceBanner(GetServiceBannerRequest) returns (ServiceBanner);
@@ -353,4 +381,5 @@ service Agent {
 	rpc ScriptCompleted(WorkspaceAgentScriptCompletedRequest) returns (WorkspaceAgentScriptCompletedResponse);
 	rpc GetResourcesMonitoringConfiguration(GetResourcesMonitoringConfigurationRequest) returns (GetResourcesMonitoringConfigurationResponse);
 	rpc PushResourcesMonitoringUsage(PushResourcesMonitoringUsageRequest) returns (PushResourcesMonitoringUsageResponse);
+	rpc ReportConnection(ReportConnectionRequest) returns (google.protobuf.Empty);
 }

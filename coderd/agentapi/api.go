@@ -19,6 +19,7 @@ import (
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/agentapi/resourcesmonitor"
 	"github.com/coder/coder/v2/coderd/appearance"
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
@@ -48,6 +49,7 @@ type API struct {
 	*ResourcesMonitoringAPI
 	*LogsAPI
 	*ScriptsAPI
+	*AuditAPI
 	*tailnet.DRPCService
 
 	mu sync.Mutex
@@ -66,6 +68,7 @@ type Options struct {
 	Database                          database.Store
 	NotificationsEnqueuer             notifications.Enqueuer
 	Pubsub                            pubsub.Pubsub
+	Auditor                           *atomic.Pointer[audit.Auditor]
 	DerpMapFn                         func() *tailcfg.DERPMap
 	TailnetCoordinator                *atomic.Pointer[tailnet.Coordinator]
 	StatsReporter                     *workspacestats.Reporter
@@ -174,6 +177,13 @@ func New(opts Options) *API {
 
 	api.ScriptsAPI = &ScriptsAPI{
 		Database: opts.Database,
+	}
+
+	api.AuditAPI = &AuditAPI{
+		AgentFn:  api.agent,
+		Auditor:  opts.Auditor,
+		Database: opts.Database,
+		Log:      opts.Log,
 	}
 
 	api.DRPCService = &tailnet.DRPCService{

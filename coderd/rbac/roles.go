@@ -297,18 +297,17 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		Identifier:  RoleAuditor(),
 		DisplayName: "Auditor",
 		Site: Permissions(map[string][]policy.Action{
-			// Should be able to read all template details, even in orgs they
-			// are not in.
-			ResourceTemplate.Type:    {policy.ActionRead, policy.ActionViewInsights},
-			ResourceAuditLog.Type:    {policy.ActionRead},
-			ResourceUser.Type:        {policy.ActionRead},
-			ResourceGroup.Type:       {policy.ActionRead},
-			ResourceGroupMember.Type: {policy.ActionRead},
+			ResourceAuditLog.Type: {policy.ActionRead},
+			// Allow auditors to see the resources that audit logs reflect.
+			ResourceTemplate.Type:           {policy.ActionRead, policy.ActionViewInsights},
+			ResourceUser.Type:               {policy.ActionRead},
+			ResourceGroup.Type:              {policy.ActionRead},
+			ResourceGroupMember.Type:        {policy.ActionRead},
+			ResourceOrganization.Type:       {policy.ActionRead},
+			ResourceOrganizationMember.Type: {policy.ActionRead},
 			// Allow auditors to query deployment stats and insights.
 			ResourceDeploymentStats.Type:  {policy.ActionRead},
 			ResourceDeploymentConfig.Type: {policy.ActionRead},
-			// Org roles are not really used yet, so grant the perm at the site level.
-			ResourceOrganizationMember.Type: {policy.ActionRead},
 		}),
 		Org:  map[string][]Permission{},
 		User: []Permission{},
@@ -325,11 +324,10 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			// CRUD to provisioner daemons for now.
 			ResourceProvisionerDaemon.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 			// Needs to read all organizations since
-			ResourceOrganization.Type: {policy.ActionRead},
-			ResourceUser.Type:         {policy.ActionRead},
-			ResourceGroup.Type:        {policy.ActionRead},
-			ResourceGroupMember.Type:  {policy.ActionRead},
-			// Org roles are not really used yet, so grant the perm at the site level.
+			ResourceUser.Type:               {policy.ActionRead},
+			ResourceGroup.Type:              {policy.ActionRead},
+			ResourceGroupMember.Type:        {policy.ActionRead},
+			ResourceOrganization.Type:       {policy.ActionRead},
 			ResourceOrganizationMember.Type: {policy.ActionRead},
 		}),
 		Org:  map[string][]Permission{},
@@ -348,10 +346,11 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete,
 				policy.ActionUpdatePersonal, policy.ActionReadPersonal,
 			},
+			ResourceGroup.Type:        {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+			ResourceGroupMember.Type:  {policy.ActionRead},
+			ResourceOrganization.Type: {policy.ActionRead},
 			// Full perms to manage org members
 			ResourceOrganizationMember.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
-			ResourceGroup.Type:              {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
-			ResourceGroupMember.Type:        {policy.ActionRead},
 			// Manage org membership based on OIDC claims
 			ResourceIdpsyncSettings.Type: {policy.ActionRead, policy.ActionUpdate},
 		}),

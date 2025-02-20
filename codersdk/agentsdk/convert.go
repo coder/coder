@@ -390,3 +390,37 @@ func ProtoFromLifecycleState(s codersdk.WorkspaceAgentLifecycle) (proto.Lifecycl
 	}
 	return proto.Lifecycle_State(caps), nil
 }
+
+func ConnectionTypeFromProto(typ proto.Connection_Type) (ConnectionType, error) {
+	switch typ {
+	case proto.Connection_TYPE_UNSPECIFIED:
+		return ConnectionTypeUnspecified, nil
+	case proto.Connection_SSH:
+		return ConnectionTypeSSH, nil
+	case proto.Connection_VSCODE:
+		return ConnectionTypeVSCode, nil
+	case proto.Connection_JETBRAINS:
+		return ConnectionTypeJetBrains, nil
+	case proto.Connection_RECONNECTING_PTY:
+		return ConnectionTypeReconnectingPTY, nil
+	default:
+		return "", xerrors.Errorf("unknown connection type %q", typ)
+	}
+}
+
+func ProtoFromConnectionType(typ ConnectionType) (proto.Connection_Type, error) {
+	switch typ {
+	case ConnectionTypeUnspecified:
+		return proto.Connection_TYPE_UNSPECIFIED, nil
+	case ConnectionTypeSSH:
+		return proto.Connection_SSH, nil
+	case ConnectionTypeVSCode:
+		return proto.Connection_VSCODE, nil
+	case ConnectionTypeJetBrains:
+		return proto.Connection_JETBRAINS, nil
+	case ConnectionTypeReconnectingPTY:
+		return proto.Connection_RECONNECTING_PTY, nil
+	default:
+		return 0, xerrors.Errorf("unknown connection type %q", typ)
+	}
+}

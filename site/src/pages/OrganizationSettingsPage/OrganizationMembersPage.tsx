@@ -4,15 +4,14 @@ import { groupsByUserIdInOrganization } from "api/queries/groups";
 import {
 	addOrganizationMember,
 	organizationMembers,
-	organizationPermissions,
 	removeOrganizationMember,
 	updateOrganizationMemberRoles,
 } from "api/queries/organizations";
 import { organizationRoles } from "api/queries/roles";
 import type { OrganizationMemberWithUserData, User } from "api/typesGenerated";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { EmptyState } from "components/EmptyState/EmptyState";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
@@ -25,17 +24,17 @@ import { OrganizationMembersPageView } from "./OrganizationMembersPageView";
 
 const OrganizationMembersPage: FC = () => {
 	const queryClient = useQueryClient();
+	const { user: me } = useAuthenticated();
 	const { organization: organizationName } = useParams() as {
 		organization: string;
 	};
-	const { user: me } = useAuthenticated();
-
-	const groupsByUserIdQuery = useQuery(
-		groupsByUserIdInOrganization(organizationName),
-	);
+	const { organization, organizationPermissions } = useOrganizationSettings();
 
 	const membersQuery = useQuery(organizationMembers(organizationName));
 	const organizationRolesQuery = useQuery(organizationRoles(organizationName));
+	const groupsByUserIdQuery = useQuery(
+		groupsByUserIdInOrganization(organizationName),
+	);
 
 	const members = membersQuery.data?.map((member) => {
 		const groups = groupsByUserIdQuery.data?.get(member.user_id) ?? [];
@@ -52,19 +51,14 @@ const OrganizationMembersPage: FC = () => {
 		updateOrganizationMemberRoles(queryClient, organizationName),
 	);
 
-	const { organizations } = useOrganizationSettings();
-	const organization = organizations?.find((o) => o.name === organizationName);
-	const permissionsQuery = useQuery(organizationPermissions(organization?.id));
-
 	const [memberToDelete, setMemberToDelete] =
 		useState<OrganizationMemberWithUserData>();
 
-	const permissions = permissionsQuery.data;
-	if (!permissions) {
-		return <Loader />;
+	if (!organization || !organizationPermissions) {
+		return <EmptyState message="Organization not found" />;
 	}
 
-	const helmet = organization && (
+	const helmet = (
 		<Helmet>
 			<title>
 				{pageTitle("Members", organization.display_name || organization.name)}
@@ -77,9 +71,11 @@ const OrganizationMembersPage: FC = () => {
 			{helmet}
 			<OrganizationMembersPageView
 				allAvailableRoles={organizationRolesQuery.data}
-				canEditMembers={permissions.editMembers}
+				canEditMembers={organizationPermissions.editMembers}
 				error={
 					membersQuery.error ??
+					organizationRolesQuery.error ??
+					groupsByUserIdQuery.error ??
 					addMemberMutation.error ??
 					removeMemberMutation.error ??
 					updateMemberRolesMutation.error

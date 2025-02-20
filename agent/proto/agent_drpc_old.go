@@ -3,6 +3,7 @@ package proto
 import (
 	"context"
 
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	"storj.io/drpc"
 )
 
@@ -41,10 +42,11 @@ type DRPCAgentClient23 interface {
 	ScriptCompleted(ctx context.Context, in *WorkspaceAgentScriptCompletedRequest) (*WorkspaceAgentScriptCompletedResponse, error)
 }
 
-// DRPCAgentClient24 is the Agent API at v2.4. It adds the GetResourcesMonitoringConfiguration and
-// PushResourcesMonitoringUsage RPCs. Compatible with Coder v2.19+
+// DRPCAgentClient24 is the Agent API at v2.4. It adds the GetResourcesMonitoringConfiguration,
+// PushResourcesMonitoringUsage and ReportConnection RPCs. Compatible with Coder v2.19+
 type DRPCAgentClient24 interface {
 	DRPCAgentClient23
 	GetResourcesMonitoringConfiguration(ctx context.Context, in *GetResourcesMonitoringConfigurationRequest) (*GetResourcesMonitoringConfigurationResponse, error)
 	PushResourcesMonitoringUsage(ctx context.Context, in *PushResourcesMonitoringUsageRequest) (*PushResourcesMonitoringUsageResponse, error)
+	ReportConnection(ctx context.Context, in *ReportConnectionRequest) (*emptypb.Empty, error)
 }

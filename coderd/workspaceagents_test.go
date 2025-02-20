@@ -393,7 +393,8 @@ func TestWorkspaceAgentConnectRPC(t *testing.T) {
 							Name: "example",
 							Type: "aws_instance",
 							Agents: []*proto.Agent{{
-								Id: uuid.NewString(),
+								Id:   uuid.NewString(),
+								Name: "dev",
 								Auth: &proto.Agent_Token{
 									Token: uuid.NewString(),
 								},

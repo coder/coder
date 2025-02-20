@@ -1,17 +1,16 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
-import type { AuthorizationResponse } from "api/typesGenerated";
+import type { Organization } from "api/typesGenerated";
 import {
+	MockNoOrganizationPermissions,
 	MockNoPermissions,
 	MockOrganization,
 	MockOrganization2,
+	MockOrganizationPermissions,
 	MockPermissions,
 } from "testHelpers/entities";
 import { withDashboardProvider } from "testHelpers/storybook";
-import {
-	OrganizationSidebarView,
-	type OrganizationWithPermissions,
-} from "./OrganizationSidebarView";
+import { OrganizationSidebarView } from "./OrganizationSidebarView";
 
 const meta: Meta<typeof OrganizationSidebarView> = {
 	title: "modules/management/OrganizationSidebarView",
@@ -20,26 +19,7 @@ const meta: Meta<typeof OrganizationSidebarView> = {
 	parameters: { showOrganizations: true },
 	args: {
 		activeOrganization: undefined,
-		organizations: [
-			{
-				...MockOrganization,
-				permissions: {
-					editOrganization: true,
-					editMembers: true,
-					editGroups: true,
-					auditOrganization: true,
-				},
-			},
-			{
-				...MockOrganization2,
-				permissions: {
-					editOrganization: true,
-					editMembers: true,
-					editGroups: true,
-					auditOrganization: true,
-				},
-			},
-		],
+		organizations: [MockOrganization, MockOrganization2],
 		permissions: MockPermissions,
 	},
 };
@@ -47,18 +27,10 @@ const meta: Meta<typeof OrganizationSidebarView> = {
 export default meta;
 type Story = StoryObj<typeof OrganizationSidebarView>;
 
-export const LoadingOrganizations: Story = {
-	args: {
-		organizations: undefined,
-	},
-};
-
 export const NoCreateOrg: Story = {
 	args: {
-		activeOrganization: {
-			...MockOrganization,
-			permissions: { createOrganization: false },
-		},
+		activeOrganization: MockOrganization,
+		orgPermissions: MockNoOrganizationPermissions,
 		permissions: {
 			...MockPermissions,
 			createOrganization: false,
@@ -77,23 +49,15 @@ export const NoCreateOrg: Story = {
 
 export const OverflowDropdown: Story = {
 	args: {
-		activeOrganization: {
-			...MockOrganization,
-			permissions: { createOrganization: true },
-		},
+		activeOrganization: MockOrganization,
+		orgPermissions: MockOrganizationPermissions,
 		permissions: {
 			...MockPermissions,
 			createOrganization: true,
 		},
 		organizations: [
-			{
-				...MockOrganization,
-				permissions: {},
-			},
-			{
-				...MockOrganization2,
-				permissions: {},
-			},
+			MockOrganization,
+			MockOrganization2,
 			{
 				id: "my-organization-3-id",
 				name: "my-organization-3",
@@ -103,7 +67,6 @@ export const OverflowDropdown: Story = {
 				created_at: "",
 				updated_at: "",
 				is_default: false,
-				permissions: {},
 			},
 			{
 				id: "my-organization-4-id",
@@ -114,7 +77,6 @@ export const OverflowDropdown: Story = {
 				created_at: "",
 				updated_at: "",
 				is_default: false,
-				permissions: {},
 			},
 			{
 				id: "my-organization-5-id",
@@ -125,7 +87,6 @@ export const OverflowDropdown: Story = {
 				created_at: "",
 				updated_at: "",
 				is_default: false,
-				permissions: {},
 			},
 			{
 				id: "my-organization-6-id",
@@ -136,7 +97,6 @@ export const OverflowDropdown: Story = {
 				created_at: "",
 				updated_at: "",
 				is_default: false,
-				permissions: {},
 			},
 			{
 				id: "my-organization-7-id",
@@ -147,7 +107,6 @@ export const OverflowDropdown: Story = {
 				created_at: "",
 				updated_at: "",
 				is_default: false,
-				permissions: {},
 			},
 		],
 	},
@@ -159,129 +118,88 @@ export const OverflowDropdown: Story = {
 	},
 };
 
+export const NoOrganizations: Story = {
+	args: {
+		organizations: [],
+		activeOrganization: undefined,
+		orgPermissions: MockNoOrganizationPermissions,
+		permissions: MockNoPermissions,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /No organization selected/i }),
+		);
+	},
+};
+
+export const NoOtherOrganizations: Story = {
+	args: {
+		organizations: [MockOrganization],
+		activeOrganization: MockOrganization,
+		orgPermissions: MockNoOrganizationPermissions,
+		permissions: MockNoPermissions,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /My Organization/i }),
+		);
+	},
+};
+
 export const NoPermissions: Story = {
 	args: {
-		activeOrganization: {
-			...MockOrganization,
-			permissions: MockNoPermissions,
-		},
+		activeOrganization: MockOrganization,
+		orgPermissions: MockNoOrganizationPermissions,
 		permissions: MockNoPermissions,
 	},
 };
 
 export const AllPermissions: Story = {
 	args: {
-		activeOrganization: {
-			...MockOrganization,
-			permissions: {
-				editOrganization: true,
-				editMembers: true,
-				editGroups: true,
-				auditOrganization: true,
-				assignOrgRole: true,
-				viewProvisioners: true,
-				viewIdpSyncSettings: true,
-			},
-		},
-		organizations: [
-			{
-				...MockOrganization,
-				permissions: {
-					editOrganization: true,
-					editMembers: true,
-					editGroups: true,
-					auditOrganization: true,
-					assignOrgRole: true,
-					viewProvisioners: true,
-					viewIdpSyncSettings: true,
-				},
-			},
-		],
+		activeOrganization: MockOrganization,
+		orgPermissions: MockOrganizationPermissions,
+		organizations: [MockOrganization],
 	},
 };
 
 export const SelectedOrgAdmin: Story = {
 	args: {
-		activeOrganization: {
-			...MockOrganization,
-			permissions: {
-				editOrganization: true,
-				editMembers: true,
-				editGroups: true,
-				auditOrganization: true,
-				assignOrgRole: true,
-			},
-		},
-		organizations: [
-			{
-				...MockOrganization,
-				permissions: {
-					editOrganization: true,
-					editMembers: true,
-					editGroups: true,
-					auditOrganization: true,
-					assignOrgRole: true,
-				},
-			},
-		],
+		activeOrganization: MockOrganization,
+		orgPermissions: MockOrganizationPermissions,
+		organizations: [MockOrganization],
 	},
 };
 
 export const SelectedOrgAuditor: Story = {
 	args: {
-		activeOrganization: {
-			...MockOrganization,
-			permissions: {
-				editOrganization: false,
-				editMembers: false,
-				editGroups: false,
-				auditOrganization: true,
-			},
-		},
+		activeOrganization: MockOrganization,
+		orgPermissions: MockNoOrganizationPermissions,
 		permissions: {
 			...MockPermissions,
 			createOrganization: false,
 		},
-		organizations: [
-			{
-				...MockOrganization,
-				permissions: {
-					editOrganization: false,
-					editMembers: false,
-					editGroups: false,
-					auditOrganization: true,
-				},
-			},
-		],
+		organizations: [MockOrganization],
 	},
 };
 
 export const SelectedOrgUserAdmin: Story = {
 	args: {
-		activeOrganization: {
-			...MockOrganization,
-			permissions: {
-				editOrganization: false,
-				editMembers: true,
-				editGroups: true,
-				auditOrganization: false,
-			},
+		activeOrganization: MockOrganization,
+		orgPermissions: {
+			...MockNoOrganizationPermissions,
+			viewMembers: true,
+			viewGroups: true,
+			viewOrgRoles: true,
+			viewProvisioners: true,
+			viewIdpSyncSettings: true,
 		},
 		permissions: {
 			...MockPermissions,
 			createOrganization: false,
 		},
-		organizations: [
-			{
-				...MockOrganization,
-				permissions: {
-					editOrganization: false,
-					editMembers: true,
-					editGroups: true,
-					auditOrganization: false,
-				},
-			},
-		],
+		organizations: [MockOrganization],
 	},
 };
 
@@ -291,26 +209,17 @@ export const OrgsDisabled: Story = {
 	},
 };
 
-const commonPerms: AuthorizationResponse = {
-	editOrganization: true,
-	editMembers: true,
-	editGroups: true,
-	auditOrganization: true,
-};
-
-const activeOrganization: OrganizationWithPermissions = {
+const activeOrganization: Organization = {
 	...MockOrganization,
 	display_name: "Omega org",
 	name: "omega",
 	id: "1",
-	permissions: {
-		...commonPerms,
-	},
 };
 
 export const OrgsSortedAlphabetically: Story = {
 	args: {
 		activeOrganization,
+		orgPermissions: MockOrganizationPermissions,
 		permissions: {
 			...MockPermissions,
 			createOrganization: true,
@@ -321,14 +230,12 @@ export const OrgsSortedAlphabetically: Story = {
 				display_name: "Zeta Org",
 				id: "2",
 				name: "zeta",
-				permissions: commonPerms,
 			},
 			{
 				...MockOrganization,
 				display_name: "alpha Org",
 				id: "3",
 				name: "alpha",
-				permissions: commonPerms,
 			},
 			activeOrganization,
 		],
@@ -369,14 +276,12 @@ export const SearchForOrg: Story = {
 				display_name: "Zeta Org",
 				id: "2",
 				name: "zeta",
-				permissions: commonPerms,
 			},
 			{
 				...MockOrganization,
 				display_name: "alpha Org",
 				id: "3",
 				name: "fish",
-				permissions: commonPerms,
 			},
 			activeOrganization,
 		],
@@ -388,7 +293,7 @@ export const SearchForOrg: Story = {
 		// dropdown is not in #storybook-root so must query full document
 		const globalScreen = within(document.body);
 		const searchInput =
-			await globalScreen.getByPlaceholderText("Find organization");
+			await globalScreen.findByPlaceholderText("Find organization");
 
 		await userEvent.type(searchInput, "ALPHA");
 
