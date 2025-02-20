@@ -215,10 +215,12 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 				return nil, xerrors.Errorf("decode agent attributes: %w", err)
 			}
 
-			if _, ok := agentNames[tfResource.Name]; ok {
+			// Agent names must be case-insensitive-unique, to be unambiguous in
+			// `coder_app`s and CoderVPN DNS names.
+			if _, ok := agentNames[strings.ToLower(tfResource.Name)]; ok {
 				return nil, xerrors.Errorf("duplicate agent name: %s", tfResource.Name)
 			}
-			agentNames[tfResource.Name] = struct{}{}
+			agentNames[strings.ToLower(tfResource.Name)] = struct{}{}
 
 			// Handling for deprecated attributes. login_before_ready was replaced
 			// by startup_script_behavior, but we still need to support it for

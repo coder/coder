@@ -1026,6 +1026,39 @@ func TestAppSlugValidation(t *testing.T) {
 	require.ErrorContains(t, err, "duplicate app slug")
 }
 
+func TestAgentNameDuplicate(t *testing.T) {
+	t.Parallel()
+	ctx, logger := ctxAndLogger(t)
+
+	// nolint:dogsled
+	_, filename, _, _ := runtime.Caller(0)
+
+	dir := filepath.Join(filepath.Dir(filename), "testdata", "multiple-agents")
+	tfPlanRaw, err := os.ReadFile(filepath.Join(dir, "multiple-agents.tfplan.json"))
+	require.NoError(t, err)
+	var tfPlan tfjson.Plan
+	err = json.Unmarshal(tfPlanRaw, &tfPlan)
+	require.NoError(t, err)
+	tfPlanGraph, err := os.ReadFile(filepath.Join(dir, "multiple-agents.tfplan.dot"))
+	require.NoError(t, err)
+
+	for _, resource := range tfPlan.PlannedValues.RootModule.Resources {
+		if resource.Type == "coder_agent" {
+			switch resource.Name {
+			case "dev1":
+				resource.Name = "dev"
+			case "dev2":
+				resource.Name = "Dev"
+			}
+		}
+	}
+
+	state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfPlan.PlannedValues.RootModule}, string(tfPlanGraph), logger)
+	require.Nil(t, state)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "duplicate agent name")
+}
+
 func TestMetadataResourceDuplicate(t *testing.T) {
 	t.Parallel()
 	ctx, logger := ctxAndLogger(t)
