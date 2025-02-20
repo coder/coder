@@ -5,7 +5,7 @@ Use the
 block on the
 [`coder_agent`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent)
 resource in our Terraform provider to monitor out of memory (OOM) and out of
-disk (OOD) erros and alert users when they overutilize memory and disk.
+disk (OOD) errors and alert users when they overutilize memory and disk.
 
 This can help prevent agent disconnects due to OOM/OOD issues.
 

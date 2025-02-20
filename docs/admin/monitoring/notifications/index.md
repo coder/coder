@@ -67,7 +67,7 @@ flags.
 
 ### Configure OOM/OOD notifications
 
-You can monitor out of memory (OOM) and out of disk (OOD) erros and alert users
+You can monitor out of memory (OOM) and out of disk (OOD) errors and alert users
 when they overutilize memory and disk.
 
 This can help prevent agent disconnects due to OOM/OOD issues.
