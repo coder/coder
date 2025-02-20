@@ -1891,6 +1891,19 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		appSlugs   = make(map[string]struct{})
 	)
 	for _, prAgent := range protoResource.Agents {
+		// Similar logic is duplicated in terraform/resources.go.
+		if prAgent.Name == "" {
+			return xerrors.Errorf("agent name cannot be empty")
+		}
+		// In 2025-02 we removed support for underscores in agent names. To
+		// provide a nicer error message, we check the regex first and check
+		// for underscores if it fails.
+		if !provisioner.AgentNameRegex.MatchString(prAgent.Name) {
+			if strings.Contains(prAgent.Name, "_") {
+				return xerrors.Errorf("agent name %q contains underscores which are no longer supported, please use hyphens instead (regex: %q)", prAgent.Name, provisioner.AgentNameRegex.String())
+			}
+			return xerrors.Errorf("agent name %q does not match regex %q", prAgent.Name, provisioner.AgentNameRegex.String())
+		}
 		// Agent names must be case-insensitive-unique, to be unambiguous in
 		// `coder_app`s and CoderVPN DNS names.
 		if _, ok := agentNames[strings.ToLower(prAgent.Name)]; ok {
@@ -2070,10 +2083,13 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		}
 
 		for _, app := range prAgent.Apps {
+			// Similar logic is duplicated in terraform/resources.go.
 			slug := app.Slug
 			if slug == "" {
 				return xerrors.Errorf("app must have a slug or name set")
 			}
+			// Contrary to agent names above, app slugs were never permitted to
+			// contain uppercase letters or underscores.
 			if !provisioner.AppSlugRegex.MatchString(slug) {
 				return xerrors.Errorf("app slug %q does not match regex %q", slug, provisioner.AppSlugRegex.String())
 			}
