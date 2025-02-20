@@ -17,6 +17,7 @@ $$
 DECLARE
     workspace_count int;
 	template_count int;
+	group_count int;
 BEGIN
     workspace_count := (
         SELECT count(*) as count FROM workspaces
@@ -32,14 +33,23 @@ BEGIN
             AND templates.deleted = false
     );
 
+	group_count := (
+        SELECT count(*) as count FROM groups
+        WHERE
+            groups.organization_id = OLD.id
+    );
+
     -- Fail the deletion if one of the following:
     -- * the organization has 1 or more workspaces
 	-- * the organization has 1 or more templates
+	-- * the organization has 1 or more groups
     IF (workspace_count + template_count) > 0 THEN
             RAISE EXCEPTION 'cannot delete organization: organization has % workspaces and % templates that must be deleted first', workspace_count, template_count;
     END IF;
 
-    -- add more cases to fail a delete
+	IF (group_count) > 1 THEN
+            RAISE EXCEPTION 'cannot delete organization: organization has % groups that must be deleted first', group_count;
+    END IF;
 
     RETURN OLD;
 END;
