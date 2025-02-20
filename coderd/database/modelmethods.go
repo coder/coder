@@ -168,8 +168,8 @@ func (TemplateVersion) RBACObject(template Template) rbac.Object {
 	return template.RBACObject()
 }
 
-func (i NotificationsInbox) RBACObject() rbac.Object {
-	return rbac.ResourceNotificationInbox.
+func (i InboxNotification) RBACObject() rbac.Object {
+	return rbac.ResourceInboxNotification.
 		WithID(i.ID).
 		WithOwner(i.UserID.String())
 }

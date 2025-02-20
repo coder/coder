@@ -450,7 +450,7 @@ func OrganizationMember(t testing.TB, db database.Store, orig database.Organizat
 	return mem
 }
 
-func NotificationInbox(t testing.TB, db database.Store, orig database.InsertInboxNotificationParams) database.NotificationsInbox {
+func NotificationInbox(t testing.TB, db database.Store, orig database.InsertInboxNotificationParams) database.InboxNotification {
 	notification, err := db.InsertInboxNotification(genCtx, database.InsertInboxNotificationParams{
 		ID:         takeFirst(orig.ID, uuid.New()),
 		UserID:     takeFirst(orig.UserID, uuid.New()),

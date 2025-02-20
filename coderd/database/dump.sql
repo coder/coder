@@ -831,6 +831,19 @@ CREATE VIEW group_members_expanded AS
 
 COMMENT ON VIEW group_members_expanded IS 'Joins group members with user information, organization ID, group name. Includes both regular group members and organization members (as part of the "Everyone" group).';
 
+CREATE TABLE inbox_notifications (
+    id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    template_id uuid NOT NULL,
+    targets uuid[],
+    title text NOT NULL,
+    content text NOT NULL,
+    icon text NOT NULL,
+    actions jsonb NOT NULL,
+    read_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
 CREATE TABLE jfrog_xray_scans (
     agent_id uuid NOT NULL,
     workspace_id uuid NOT NULL,
@@ -911,19 +924,6 @@ CREATE TABLE notification_templates (
 COMMENT ON TABLE notification_templates IS 'Templates from which to create notification messages.';
 
 COMMENT ON COLUMN notification_templates.method IS 'NULL defers to the deployment-level method';
-
-CREATE TABLE notifications_inbox (
-    id uuid NOT NULL,
-    user_id uuid NOT NULL,
-    template_id uuid NOT NULL,
-    targets uuid[],
-    title text NOT NULL,
-    content text NOT NULL,
-    icon text NOT NULL,
-    actions jsonb NOT NULL,
-    read_at timestamp with time zone,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
-);
 
 CREATE TABLE oauth2_provider_app_codes (
     id uuid NOT NULL,
@@ -1992,6 +1992,9 @@ ALTER TABLE ONLY groups
 ALTER TABLE ONLY groups
     ADD CONSTRAINT groups_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY inbox_notifications
+    ADD CONSTRAINT inbox_notifications_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY jfrog_xray_scans
     ADD CONSTRAINT jfrog_xray_scans_pkey PRIMARY KEY (agent_id, workspace_id);
 
@@ -2015,9 +2018,6 @@ ALTER TABLE ONLY notification_templates
 
 ALTER TABLE ONLY notification_templates
     ADD CONSTRAINT notification_templates_pkey PRIMARY KEY (id);
-
-ALTER TABLE ONLY notifications_inbox
-    ADD CONSTRAINT notifications_inbox_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY oauth2_provider_app_codes
     ADD CONSTRAINT oauth2_provider_app_codes_pkey PRIMARY KEY (id);
@@ -2228,11 +2228,11 @@ CREATE INDEX idx_custom_roles_id ON custom_roles USING btree (id);
 
 CREATE UNIQUE INDEX idx_custom_roles_name_lower ON custom_roles USING btree (lower(name));
 
+CREATE INDEX idx_inbox_notifications_user_id_read_at ON inbox_notifications USING btree (user_id, read_at);
+
+CREATE INDEX idx_inbox_notifications_user_id_template_id_targets ON inbox_notifications USING btree (user_id, template_id, targets);
+
 CREATE INDEX idx_notification_messages_status ON notification_messages USING btree (status);
-
-CREATE INDEX idx_notifications_inbox_user_id_read_at ON notifications_inbox USING btree (user_id, read_at);
-
-CREATE INDEX idx_notifications_inbox_user_id_template_id_targets ON notifications_inbox USING btree (user_id, template_id, targets);
 
 CREATE INDEX idx_organization_member_organization_id_uuid ON organization_members USING btree (organization_id);
 

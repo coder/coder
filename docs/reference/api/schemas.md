@@ -5105,8 +5105,8 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `group`                            |
 | `group_member`                     |
 | `idpsync_settings`                 |
+| `inbox_notification`               |
 | `license`                          |
-| `notification_inbox`               |
 | `notification_message`             |
 | `notification_preference`          |
 | `notification_template`            |

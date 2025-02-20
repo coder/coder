@@ -1,4 +1,4 @@
-CREATE TABLE notifications_inbox (
+CREATE TABLE inbox_notifications (
 	id 				UUID 						PRIMARY KEY,
 	user_id 		UUID 						NOT NULL,
 	template_id 	UUID 						NOT NULL,
@@ -11,5 +11,5 @@ CREATE TABLE notifications_inbox (
 	created_at 		TIMESTAMP WITH TIME ZONE 	NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_notifications_inbox_user_id_read_at ON notifications_inbox(user_id, read_at);
-CREATE INDEX idx_notifications_inbox_user_id_template_id_targets ON notifications_inbox(user_id, template_id, targets);
+CREATE INDEX idx_inbox_notifications_user_id_read_at ON inbox_notifications(user_id, read_at);
+CREATE INDEX idx_inbox_notifications_user_id_template_id_targets ON inbox_notifications(user_id, template_id, targets);

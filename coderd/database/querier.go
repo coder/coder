@@ -112,13 +112,13 @@ type sqlcQuerier interface {
 	DisableForeignKeysAndTriggers(ctx context.Context) error
 	EnqueueNotificationMessage(ctx context.Context, arg EnqueueNotificationMessageParams) error
 	FavoriteWorkspace(ctx context.Context, id uuid.UUID) error
-	FetchInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) ([]NotificationsInbox, error)
-	FetchInboxNotificationsByUserIDAndTemplateIDAndTargets(ctx context.Context, arg FetchInboxNotificationsByUserIDAndTemplateIDAndTargetsParams) ([]NotificationsInbox, error)
+	FetchInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) ([]InboxNotification, error)
+	FetchInboxNotificationsByUserIDFilteredByTemplatesAndTargets(ctx context.Context, arg FetchInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams) ([]InboxNotification, error)
 	FetchMemoryResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) (WorkspaceAgentMemoryResourceMonitor, error)
 	// This is used to build up the notification_message's JSON payload.
 	FetchNewMessageMetadata(ctx context.Context, arg FetchNewMessageMetadataParams) (FetchNewMessageMetadataRow, error)
-	FetchUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) ([]NotificationsInbox, error)
-	FetchUnreadInboxNotificationsByUserIDAndTemplateIDAndTargets(ctx context.Context, arg FetchUnreadInboxNotificationsByUserIDAndTemplateIDAndTargetsParams) ([]NotificationsInbox, error)
+	FetchUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) ([]InboxNotification, error)
+	FetchUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets(ctx context.Context, arg FetchUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams) ([]InboxNotification, error)
 	FetchVolumesResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) ([]WorkspaceAgentVolumeResourceMonitor, error)
 	GetAPIKeyByID(ctx context.Context, id string) (APIKey, error)
 	// there is no unique constraint on empty token names
@@ -175,7 +175,7 @@ type sqlcQuerier interface {
 	GetGroups(ctx context.Context, arg GetGroupsParams) ([]GetGroupsRow, error)
 	GetHealthSettings(ctx context.Context) (string, error)
 	GetHungProvisionerJobs(ctx context.Context, updatedAt time.Time) ([]ProvisionerJob, error)
-	GetInboxNotificationByID(ctx context.Context, id uuid.UUID) (NotificationsInbox, error)
+	GetInboxNotificationByID(ctx context.Context, id uuid.UUID) (InboxNotification, error)
 	GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg GetJFrogXrayScanByWorkspaceAndAgentIDParams) (JfrogXrayScan, error)
 	GetLastUpdateCheck(ctx context.Context) (string, error)
 	GetLatestCryptoKeyByFeature(ctx context.Context, feature CryptoKeyFeature) (CryptoKey, error)
@@ -401,7 +401,7 @@ type sqlcQuerier interface {
 	InsertGitSSHKey(ctx context.Context, arg InsertGitSSHKeyParams) (GitSSHKey, error)
 	InsertGroup(ctx context.Context, arg InsertGroupParams) (Group, error)
 	InsertGroupMember(ctx context.Context, arg InsertGroupMemberParams) error
-	InsertInboxNotification(ctx context.Context, arg InsertInboxNotificationParams) (NotificationsInbox, error)
+	InsertInboxNotification(ctx context.Context, arg InsertInboxNotificationParams) (InboxNotification, error)
 	InsertLicense(ctx context.Context, arg InsertLicenseParams) (License, error)
 	InsertMemoryResourceMonitor(ctx context.Context, arg InsertMemoryResourceMonitorParams) (WorkspaceAgentMemoryResourceMonitor, error)
 	// Inserts any group by name that does not exist. All new groups are given

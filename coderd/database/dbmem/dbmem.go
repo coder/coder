@@ -67,7 +67,7 @@ func New() database.Store {
 			gitSSHKey:                 make([]database.GitSSHKey, 0),
 			notificationMessages:      make([]database.NotificationMessage, 0),
 			notificationPreferences:   make([]database.NotificationPreference, 0),
-			notificationsInbox:        make([]database.NotificationsInbox, 0),
+			InboxNotification:         make([]database.InboxNotification, 0),
 			parameterSchemas:          make([]database.ParameterSchema, 0),
 			provisionerDaemons:        make([]database.ProvisionerDaemon, 0),
 			provisionerKeys:           make([]database.ProvisionerKey, 0),
@@ -207,7 +207,7 @@ type data struct {
 	notificationMessages                 []database.NotificationMessage
 	notificationPreferences              []database.NotificationPreference
 	notificationReportGeneratorLogs      []database.NotificationReportGeneratorLog
-	notificationsInbox                   []database.NotificationsInbox
+	InboxNotification                    []database.InboxNotification
 	oauth2ProviderApps                   []database.OAuth2ProviderApp
 	oauth2ProviderAppSecrets             []database.OAuth2ProviderAppSecret
 	oauth2ProviderAppCodes               []database.OAuth2ProviderAppCode
@@ -2365,12 +2365,12 @@ func (q *FakeQuerier) FavoriteWorkspace(_ context.Context, arg uuid.UUID) error 
 	return nil
 }
 
-func (q *FakeQuerier) FetchInboxNotificationsByUserID(_ context.Context, userID uuid.UUID) ([]database.NotificationsInbox, error) {
+func (q *FakeQuerier) FetchInboxNotificationsByUserID(_ context.Context, userID uuid.UUID) ([]database.InboxNotification, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	notifications := make([]database.NotificationsInbox, 0)
-	for _, notification := range q.notificationsInbox {
+	notifications := make([]database.InboxNotification, 0)
+	for _, notification := range q.InboxNotification {
 		if notification.UserID == userID {
 			notifications = append(notifications, notification)
 		}
@@ -2379,13 +2379,24 @@ func (q *FakeQuerier) FetchInboxNotificationsByUserID(_ context.Context, userID 
 	return notifications, nil
 }
 
-func (q *FakeQuerier) FetchInboxNotificationsByUserIDAndTemplateIDAndTargets(_ context.Context, arg database.FetchInboxNotificationsByUserIDAndTemplateIDAndTargetsParams) ([]database.NotificationsInbox, error) {
+func (q *FakeQuerier) FetchInboxNotificationsByUserIDFilteredByTemplatesAndTargets(_ context.Context, arg database.FetchInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams) ([]database.InboxNotification, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	notifications := make([]database.NotificationsInbox, 0)
-	for _, notification := range q.notificationsInbox {
-		if notification.UserID == arg.UserID && notification.TemplateID == arg.TemplateID {
+	notifications := make([]database.InboxNotification, 0)
+	for _, notification := range q.InboxNotification {
+		if notification.UserID == arg.UserID {
+			for _, template := range arg.Templates {
+				templateFound := false
+				if notification.TemplateID == template {
+					templateFound = true
+				}
+
+				if !templateFound {
+					continue
+				}
+			}
+
 			for _, target := range arg.Targets {
 				isFound := false
 				for _, insertedTarget := range notification.Targets {
@@ -2449,12 +2460,12 @@ func (q *FakeQuerier) FetchNewMessageMetadata(_ context.Context, arg database.Fe
 	}, nil
 }
 
-func (q *FakeQuerier) FetchUnreadInboxNotificationsByUserID(_ context.Context, userID uuid.UUID) ([]database.NotificationsInbox, error) {
+func (q *FakeQuerier) FetchUnreadInboxNotificationsByUserID(_ context.Context, userID uuid.UUID) ([]database.InboxNotification, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	notifications := make([]database.NotificationsInbox, 0)
-	for _, notification := range q.notificationsInbox {
+	notifications := make([]database.InboxNotification, 0)
+	for _, notification := range q.InboxNotification {
 		if notification.UserID == userID && !notification.ReadAt.Valid {
 			notifications = append(notifications, notification)
 		}
@@ -2463,13 +2474,24 @@ func (q *FakeQuerier) FetchUnreadInboxNotificationsByUserID(_ context.Context, u
 	return notifications, nil
 }
 
-func (q *FakeQuerier) FetchUnreadInboxNotificationsByUserIDAndTemplateIDAndTargets(_ context.Context, arg database.FetchUnreadInboxNotificationsByUserIDAndTemplateIDAndTargetsParams) ([]database.NotificationsInbox, error) {
+func (q *FakeQuerier) FetchUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets(_ context.Context, arg database.FetchUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams) ([]database.InboxNotification, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	notifications := make([]database.NotificationsInbox, 0)
-	for _, notification := range q.notificationsInbox {
-		if notification.UserID == arg.UserID && notification.TemplateID == arg.TemplateID && !notification.ReadAt.Valid {
+	notifications := make([]database.InboxNotification, 0)
+	for _, notification := range q.InboxNotification {
+		if notification.UserID == arg.UserID && !notification.ReadAt.Valid {
+			for _, template := range arg.Templates {
+				templateFound := false
+				if notification.TemplateID == template {
+					templateFound = true
+				}
+
+				if !templateFound {
+					continue
+				}
+			}
+
 			for _, target := range arg.Targets {
 				isFound := false
 				for _, insertedTarget := range notification.Targets {
@@ -3418,17 +3440,17 @@ func (q *FakeQuerier) GetHungProvisionerJobs(_ context.Context, hungSince time.T
 	return hungJobs, nil
 }
 
-func (q *FakeQuerier) GetInboxNotificationByID(_ context.Context, id uuid.UUID) (database.NotificationsInbox, error) {
+func (q *FakeQuerier) GetInboxNotificationByID(_ context.Context, id uuid.UUID) (database.InboxNotification, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	for _, notification := range q.notificationsInbox {
+	for _, notification := range q.InboxNotification {
 		if notification.ID == id {
 			return notification, nil
 		}
 	}
 
-	return database.NotificationsInbox{}, sql.ErrNoRows
+	return database.InboxNotification{}, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) GetJFrogXrayScanByWorkspaceAndAgentID(_ context.Context, arg database.GetJFrogXrayScanByWorkspaceAndAgentIDParams) (database.JfrogXrayScan, error) {
@@ -8058,15 +8080,15 @@ func (q *FakeQuerier) InsertGroupMember(_ context.Context, arg database.InsertGr
 	return nil
 }
 
-func (q *FakeQuerier) InsertInboxNotification(_ context.Context, arg database.InsertInboxNotificationParams) (database.NotificationsInbox, error) {
+func (q *FakeQuerier) InsertInboxNotification(_ context.Context, arg database.InsertInboxNotificationParams) (database.InboxNotification, error) {
 	if err := validateDatabaseType(arg); err != nil {
-		return database.NotificationsInbox{}, err
+		return database.InboxNotification{}, err
 	}
 
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	notification := database.NotificationsInbox{
+	notification := database.InboxNotification{
 		ID:         arg.ID,
 		UserID:     arg.UserID,
 		TemplateID: arg.TemplateID,
@@ -8078,7 +8100,7 @@ func (q *FakeQuerier) InsertInboxNotification(_ context.Context, arg database.In
 		CreatedAt:  time.Now(),
 	}
 
-	q.notificationsInbox = append(q.notificationsInbox, notification)
+	q.InboxNotification = append(q.InboxNotification, notification)
 	return notification, nil
 }
 
@@ -9575,9 +9597,9 @@ func (q *FakeQuerier) SetInboxNotificationAsRead(_ context.Context, arg database
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	for i := range q.notificationsInbox {
-		if q.notificationsInbox[i].ID == arg.ID {
-			q.notificationsInbox[i].ReadAt = arg.ReadAt
+	for i := range q.InboxNotification {
+		if q.InboxNotification[i].ID == arg.ID {
+			q.InboxNotification[i].ReadAt = arg.ReadAt
 		}
 	}
 
