@@ -50,42 +50,67 @@ WHERE
 	id = ANY(@ids :: uuid [ ]);
 
 -- name: GetProvisionerJobsByIDsWithQueuePosition :many
-WITH pending_jobs AS (
-    SELECT
-        id, created_at
-    FROM
-        provisioner_jobs
-    WHERE
-        started_at IS NULL
-    AND
-        canceled_at IS NULL
-    AND
-        completed_at IS NULL
-    AND
-        error IS NULL
+WITH filtered_provisioner_jobs AS (
+	-- Step 1: Filter provisioner_jobs and assign an order from upstream system
+	SELECT
+		*,
+		ROW_NUMBER() OVER () AS ordinality -- Track original order
+	FROM
+		provisioner_jobs
+	WHERE
+		id = ANY(@ids :: uuid [ ]) -- Apply filter early to reduce dataset size before expensive JOINs
 ),
-queue_position AS (
-    SELECT
-        id,
-        ROW_NUMBER() OVER (ORDER BY created_at ASC) AS queue_position
-    FROM
-        pending_jobs
+pending_jobs AS (
+	-- Step 2: Extract only pending jobs from the already filtered dataset
+	SELECT *
+	FROM filtered_provisioner_jobs
+	WHERE started_at IS NULL
+		AND canceled_at IS NULL
+		AND completed_at IS NULL
+		AND error IS NULL
 ),
-queue_size AS (
-	SELECT COUNT(*) AS count FROM pending_jobs
+ranked_jobs AS (
+	-- Step 3: Rank only pending jobs based on provisioner availability
+	SELECT
+		pj.id,
+		pj.created_at,
+		ROW_NUMBER() OVER (PARTITION BY pd.id ORDER BY pj.created_at ASC) AS queue_position,
+		COUNT(*) OVER (PARTITION BY pd.id) AS queue_size
+	FROM
+		pending_jobs pj
+			INNER JOIN provisioner_daemons pd
+					ON provisioner_tagset_contains(pd.tags, pj.tags) -- Join only on the small filtered pending set
+),
+final_jobs AS (
+	-- Step 4: Compute best queue position and max queue size per job
+	SELECT
+		fpj.id,
+		fpj.created_at,
+		COALESCE(MIN(rj.queue_position), 0) :: BIGINT AS queue_position, -- Best queue position across provisioners
+		COALESCE(MAX(rj.queue_size), 0) :: BIGINT AS queue_size, -- Max queue size across provisioners
+		fpj.ordinality -- Preserve original order
+	FROM
+		filtered_provisioner_jobs fpj -- Use the pre-filtered dataset instead of full provisioner_jobs
+			LEFT JOIN ranked_jobs rj
+					ON fpj.id = rj.id -- Ensure we only keep jobs that have a ranking
+	GROUP BY
+		fpj.id, fpj.created_at, fpj.ordinality -- Include `ordinality` in GROUP BY
 )
+-- Step 5: Final SELECT with INNER JOIN provisioner_jobs
 SELECT
+	fj.id,
+	fj.created_at,
 	sqlc.embed(pj),
-    COALESCE(qp.queue_position, 0) AS queue_position,
-    COALESCE(qs.count, 0) AS queue_size
+	fj.queue_position,
+	fj.queue_size,
+	fj.ordinality
 FROM
-	provisioner_jobs pj
-LEFT JOIN
-	queue_position qp ON qp.id = pj.id
-LEFT JOIN
-	queue_size qs ON TRUE
-WHERE
-	pj.id = ANY(@ids :: uuid [ ]);
+	final_jobs fj
+		INNER JOIN provisioner_jobs pj
+				ON fj.id = pj.id -- Ensure we retrieve full details from `provisioner_jobs`.
+                                 -- JOIN with pj is required for sqlc.embed(pj) to compile successfully.
+ORDER BY
+	fj.ordinality; -- Preserve original ID order from upstream
 
 -- name: GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner :many
 WITH pending_jobs AS (

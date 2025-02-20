@@ -2162,11 +2162,125 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 		t.SkipNow()
 	}
 
+	now := dbtime.Now()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	testCases := []struct {
+		name           string
+		jobTags        []database.StringMap
+		daemonTags     []database.StringMap
+		queueSizes     []int64
+		queuePositions []int64
+	}{
+		{
+			name: "test-case-1",
+			jobTags: []database.StringMap{
+				{"a": "1", "b": "2"},
+				{"a": "1"},
+				{"a": "1", "c": "3"},
+			},
+			daemonTags: []database.StringMap{
+				{"a": "1", "b": "2"},
+				{"a": "1"},
+			},
+			queueSizes:     []int64{2, 2, 0},
+			queuePositions: []int64{1, 1, 0},
+		},
+		{
+			name: "test-case-2",
+			jobTags: []database.StringMap{
+				{"a": "1", "b": "2"},
+				{"a": "1"},
+				{"a": "1", "c": "3"},
+			},
+			daemonTags: []database.StringMap{
+				{"a": "1", "b": "2"},
+				{"a": "1"},
+				{"a": "1", "b": "2", "c": "3"},
+			},
+			queueSizes:     []int64{3, 3, 3},
+			queuePositions: []int64{1, 1, 3},
+		},
+	}
+
+	for _, tc := range testCases {
+		db, _ := dbtestutil.NewDB(t)
+
+		// Create provisioner jobs based on provided tags:
+		allJobs := make([]database.ProvisionerJob, len(tc.jobTags))
+		for idx, tags := range tc.jobTags {
+			// Make sure jobs are stored in correct order, first job should have the earliest createdAt timestamp.
+			// Example for 3 jobs:
+			// job_1 createdAt: now - 3 minutes
+			// job_2 createdAt: now - 2 minutes
+			// job_3 createdAt: now - 1 minute
+			timeOffsetInMinutes := len(tc.jobTags) - idx
+			timeOffset := time.Duration(timeOffsetInMinutes) * time.Minute
+			createdAt := now.Add(-timeOffset)
+
+			allJobs[idx] = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+				CreatedAt: createdAt,
+				Tags:      tags,
+			})
+		}
+
+		// Create provisioner daemons based on provided tags:
+		for idx, tags := range tc.daemonTags {
+			dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+				Name:         fmt.Sprintf("prov_%v", idx),
+				Provisioners: []database.ProvisionerType{database.ProvisionerTypeEcho},
+				Tags:         tags,
+			})
+		}
+
+		// Assert invariant: the jobs are in pending status
+		for idx, job := range allJobs {
+			require.Equal(t, database.ProvisionerJobStatusPending, job.JobStatus, "expected job %d to have status %s", idx, database.ProvisionerJobStatusPending)
+		}
+
+		var jobIDs []uuid.UUID
+		for _, job := range allJobs {
+			jobIDs = append(jobIDs, job.ID)
+		}
+
+		// When: we fetch the jobs by their IDs
+		actualJobs, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, jobIDs)
+		require.NoError(t, err)
+		require.Len(t, actualJobs, len(allJobs), "should return all jobs")
+
+		// Then: the jobs should be returned in the correct order (by IDs in the input slice)
+		for idx, job := range actualJobs {
+			assert.EqualValues(t, allJobs[idx], job.ProvisionerJob)
+		}
+
+		// Then: the queue size should be set correctly
+		var queueSizes []int64
+		for _, job := range actualJobs {
+			queueSizes = append(queueSizes, job.QueueSize)
+		}
+		assert.EqualValues(t, tc.queueSizes, queueSizes, "expected queue positions to be set correctly")
+
+		// Then: the queue position should be set correctly:
+		var queuePositions []int64
+		for _, job := range actualJobs {
+			queuePositions = append(queuePositions, job.QueuePosition)
+		}
+		assert.EqualValues(t, tc.queuePositions, queuePositions, "expected queue positions to be set correctly")
+	}
+}
+
+func TestGetProvisionerJobsByIDsWithQueuePosition_MixedStatuses(t *testing.T) {
+	t.Parallel()
+	if !dbtestutil.WillUsePostgres() {
+		t.SkipNow()
+	}
+
 	db, _ := dbtestutil.NewDB(t)
 	now := dbtime.Now()
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	// Given the following provisioner jobs:
+	defaultTags := database.StringMap{"a": "1"}
+	// Create the following provisioner jobs:
 	allJobs := []database.ProvisionerJob{
 		// Pending. This will be the last in the queue because
 		// it was created most recently.
@@ -2176,6 +2290,7 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 			CanceledAt:  sql.NullTime{},
 			CompletedAt: sql.NullTime{},
 			Error:       sql.NullString{},
+			Tags:        defaultTags,
 		}),
 
 		// Another pending. This will come first in the queue
@@ -2186,6 +2301,7 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 			CanceledAt:  sql.NullTime{},
 			CompletedAt: sql.NullTime{},
 			Error:       sql.NullString{},
+			Tags:        defaultTags,
 		}),
 
 		// Running
@@ -2195,6 +2311,7 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 			CanceledAt:  sql.NullTime{},
 			CompletedAt: sql.NullTime{},
 			Error:       sql.NullString{},
+			Tags:        defaultTags,
 		}),
 
 		// Succeeded
@@ -2204,6 +2321,7 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 			CanceledAt:  sql.NullTime{},
 			CompletedAt: sql.NullTime{Valid: true, Time: now},
 			Error:       sql.NullString{},
+			Tags:        defaultTags,
 		}),
 
 		// Canceling
@@ -2213,6 +2331,7 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 			CanceledAt:  sql.NullTime{Valid: true, Time: now},
 			CompletedAt: sql.NullTime{},
 			Error:       sql.NullString{},
+			Tags:        defaultTags,
 		}),
 
 		// Canceled
@@ -2222,6 +2341,7 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 			CanceledAt:  sql.NullTime{Valid: true, Time: now},
 			CompletedAt: sql.NullTime{Valid: true, Time: now},
 			Error:       sql.NullString{},
+			Tags:        defaultTags,
 		}),
 
 		// Failed
@@ -2231,8 +2351,16 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 			CanceledAt:  sql.NullTime{},
 			CompletedAt: sql.NullTime{},
 			Error:       sql.NullString{String: "failed", Valid: true},
+			Tags:        defaultTags,
 		}),
 	}
+
+	// Create default provisioner daemon:
+	dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+		Name:         "default_provisioner",
+		Provisioners: []database.ProvisionerType{database.ProvisionerTypeEcho},
+		Tags:         defaultTags,
+	})
 
 	// Assert invariant: the jobs are in the expected order
 	require.Len(t, allJobs, 7, "expected 7 jobs")
@@ -2264,9 +2392,11 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 	}
 
 	// Then: the queue size should be set correctly
+	var queueSizes []int64
 	for _, job := range actualJobs {
-		assert.EqualValues(t, job.QueueSize, 2, "should have queue size 2")
+		queueSizes = append(queueSizes, job.QueueSize)
 	}
+	assert.EqualValues(t, []int64{2, 2, 0, 0, 0, 0, 0}, queueSizes, "expected queue positions to be set correctly")
 
 	// Then: the queue position should be set correctly:
 	var queuePositions []int64
@@ -2274,6 +2404,101 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 		queuePositions = append(queuePositions, job.QueuePosition)
 	}
 	assert.EqualValues(t, []int64{2, 1, 0, 0, 0, 0, 0}, queuePositions, "expected queue positions to be set correctly")
+}
+
+func TestGetProvisionerJobsByIDsWithQueuePosition_OrderValidation(t *testing.T) {
+	t.Parallel()
+	if !dbtestutil.WillUsePostgres() {
+		t.SkipNow()
+	}
+
+	db, _ := dbtestutil.NewDB(t)
+	now := dbtime.Now()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	defaultTags := database.StringMap{"a": "1"}
+	// Create the following provisioner jobs:
+	allJobs := []database.ProvisionerJob{
+		dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			CreatedAt: now.Add(-4 * time.Minute),
+			Tags:      defaultTags,
+		}),
+
+		dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			CreatedAt: now.Add(-5 * time.Minute),
+			Tags:      defaultTags,
+		}),
+
+		dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			CreatedAt: now.Add(-6 * time.Minute),
+			Tags:      defaultTags,
+		}),
+
+		dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			CreatedAt: now.Add(-3 * time.Minute),
+			Tags:      defaultTags,
+		}),
+
+		dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			CreatedAt: now.Add(-2 * time.Minute),
+			Tags:      defaultTags,
+		}),
+
+		dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			CreatedAt: now.Add(-1 * time.Minute),
+			Tags:      defaultTags,
+		}),
+	}
+
+	// Create default provisioner daemon:
+	dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+		Name:         "default_provisioner",
+		Provisioners: []database.ProvisionerType{database.ProvisionerTypeEcho},
+		Tags:         defaultTags,
+	})
+
+	// Assert invariant: the jobs are in the expected order
+	require.Len(t, allJobs, 6, "expected 7 jobs")
+	for idx, status := range []database.ProvisionerJobStatus{
+		database.ProvisionerJobStatusPending,
+		database.ProvisionerJobStatusPending,
+		database.ProvisionerJobStatusPending,
+		database.ProvisionerJobStatusPending,
+		database.ProvisionerJobStatusPending,
+		database.ProvisionerJobStatusPending,
+	} {
+		require.Equal(t, status, allJobs[idx].JobStatus, "expected job %d to have status %s", idx, status)
+	}
+
+	var jobIDs []uuid.UUID
+	for _, job := range allJobs {
+		jobIDs = append(jobIDs, job.ID)
+	}
+
+	// When: we fetch the jobs by their IDs
+	actualJobs, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, jobIDs)
+	require.NoError(t, err)
+	require.Len(t, actualJobs, len(allJobs), "should return all jobs")
+
+	// Then: the jobs should be returned in the correct order (by IDs in the input slice)
+	for idx, job := range actualJobs {
+		assert.EqualValues(t, allJobs[idx], job.ProvisionerJob)
+		assert.EqualValues(t, allJobs[idx].CreatedAt, job.ProvisionerJob.CreatedAt)
+	}
+
+	// Then: the queue size should be set correctly
+	var queueSizes []int64
+	for _, job := range actualJobs {
+		queueSizes = append(queueSizes, job.QueueSize)
+	}
+	assert.EqualValues(t, []int64{6, 6, 6, 6, 6, 6}, queueSizes, "expected queue positions to be set correctly")
+
+	// Then: the queue position should be set correctly:
+	var queuePositions []int64
+	for _, job := range actualJobs {
+		queuePositions = append(queuePositions, job.QueuePosition)
+	}
+	assert.EqualValues(t, []int64{3, 2, 1, 4, 5, 6}, queuePositions, "expected queue positions to be set correctly")
 }
 
 func TestGroupRemovalTrigger(t *testing.T) {
