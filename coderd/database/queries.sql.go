@@ -4337,7 +4337,7 @@ func (q *sqlQuerier) FetchInboxNotificationsByUserID(ctx context.Context, userID
 }
 
 const fetchInboxNotificationsByUserIDAndTemplateIDAndTargets = `-- name: FetchInboxNotificationsByUserIDAndTemplateIDAndTargets :many
-SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at FROM notifications_inbox WHERE user_id = $1 AND template_id = $2 AND targets @> $3 ORDER BY created_at DESC
+SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at FROM notifications_inbox WHERE user_id = $1 AND template_id = $2 AND targets @> COALESCE($3, ARRAY[]::UUID[]) ORDER BY created_at DESC
 `
 
 type FetchInboxNotificationsByUserIDAndTemplateIDAndTargetsParams struct {
@@ -4419,7 +4419,7 @@ func (q *sqlQuerier) FetchUnreadInboxNotificationsByUserID(ctx context.Context, 
 }
 
 const fetchUnreadInboxNotificationsByUserIDAndTemplateIDAndTargets = `-- name: FetchUnreadInboxNotificationsByUserIDAndTemplateIDAndTargets :many
-SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at FROM notifications_inbox WHERE user_id = $1 AND template_id = $2 AND targets @> $3 AND read_at IS NULL ORDER BY created_at DESC
+SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at FROM notifications_inbox WHERE user_id = $1 AND template_id = $2 AND targets @> COALESCE($3, ARRAY[]::UUID[]) AND read_at IS NULL ORDER BY created_at DESC
 `
 
 type FetchUnreadInboxNotificationsByUserIDAndTemplateIDAndTargetsParams struct {

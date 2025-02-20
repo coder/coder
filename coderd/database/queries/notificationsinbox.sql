@@ -5,10 +5,10 @@ SELECT * FROM notifications_inbox WHERE user_id = $1 AND read_at IS NULL ORDER B
 SELECT * FROM notifications_inbox WHERE user_id = $1 ORDER BY created_at DESC;
 
 -- name: FetchInboxNotificationsByUserIDAndTemplateIDAndTargets :many
-SELECT * FROM notifications_inbox WHERE user_id = $1 AND template_id = $2 AND targets @> $3 ORDER BY created_at DESC;
+SELECT * FROM notifications_inbox WHERE user_id = $1 AND template_id = $2 AND targets @> COALESCE($3, ARRAY[]::UUID[]) ORDER BY created_at DESC;
 
 -- name: FetchUnreadInboxNotificationsByUserIDAndTemplateIDAndTargets :many
-SELECT * FROM notifications_inbox WHERE user_id = $1 AND template_id = $2 AND targets @> $3 AND read_at IS NULL ORDER BY created_at DESC;
+SELECT * FROM notifications_inbox WHERE user_id = $1 AND template_id = $2 AND targets @> COALESCE($3, ARRAY[]::UUID[]) AND read_at IS NULL ORDER BY created_at DESC;
 
 -- name: GetInboxNotificationByID :one
 SELECT * FROM notifications_inbox WHERE id = $1;
