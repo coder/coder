@@ -372,7 +372,6 @@ func (a *agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentM
 	// Important: if the command times out, we may see a misleading error like
 	// "exit status 1", so it's important to include the context error.
 	err = errors.Join(err, ctx.Err())
-
 	if err != nil {
 		result.Error = fmt.Sprintf("run cmd: %+v", err)
 	}
