@@ -236,10 +236,11 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 					ProvisionerKey: provisionerKey,
 				})
 			}, &provisionerd.Options{
-				Logger:         logger,
-				UpdateInterval: 500 * time.Millisecond,
-				Connector:      connector,
-				Metrics:        metrics,
+				Logger:              logger,
+				UpdateInterval:      500 * time.Millisecond,
+				Connector:           connector,
+				Metrics:             metrics,
+				ExternalProvisioner: true,
 			})
 
 			waitForProvisionerJobs := false

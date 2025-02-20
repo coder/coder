@@ -34,6 +34,18 @@ import (
 // log-source. This should be removed in the future.
 var ExternalLogSourceID = uuid.MustParse("3b579bf4-1ed8-4b99-87a8-e9a1e3410410")
 
+// ConnectionType is the type of connection that the agent is receiving.
+type ConnectionType string
+
+// Connection type enums.
+const (
+	ConnectionTypeUnspecified     ConnectionType = "Unspecified"
+	ConnectionTypeSSH             ConnectionType = "SSH"
+	ConnectionTypeVSCode          ConnectionType = "VS Code"
+	ConnectionTypeJetBrains       ConnectionType = "JetBrains"
+	ConnectionTypeReconnectingPTY ConnectionType = "Web Terminal"
+)
+
 // New returns a client that is used to interact with the
 // Coder API from a workspace agent.
 func New(serverURL *url.URL) *Client {
