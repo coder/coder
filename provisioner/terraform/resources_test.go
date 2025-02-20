@@ -984,6 +984,7 @@ func TestInvalidTerraformAddress(t *testing.T) {
 	require.Equal(t, state.Resources[0].ModulePath, "invalid terraform address")
 }
 
+//nolint:tparallel
 func TestAppSlugValidation(t *testing.T) {
 	t.Parallel()
 	ctx, logger := ctxAndLogger(t)
@@ -1061,6 +1062,7 @@ func TestAppSlugDuplicate(t *testing.T) {
 	require.ErrorContains(t, err, "duplicate app slug")
 }
 
+//nolint:tparallel
 func TestAgentNameInvalid(t *testing.T) {
 	t.Parallel()
 	ctx, logger := ctxAndLogger(t)
