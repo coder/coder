@@ -16,7 +16,7 @@ export const ErrorAlert: FC<
 	const shouldDisplayDetail = message !== detail;
 
 	const body = () => {
-		// When the error is a Forbidden response we include a link for the user to 
+		// When the error is a Forbidden response we include a link for the user to
 		// go back to a known viewable page.
 		// Additionally since the error messages and details from the server can be
 		// missing or confusing for an end user we render a friendlier message
