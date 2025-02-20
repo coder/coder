@@ -459,6 +459,7 @@ func NotificationInbox(t testing.TB, db database.Store, orig database.InsertInbo
 		Title:      takeFirst(orig.Title, testutil.GetRandomName(t)),
 		Content:    takeFirst(orig.Content, testutil.GetRandomName(t)),
 		Icon:       takeFirst(orig.Icon, ""),
+		Actions:    orig.Actions,
 		CreatedAt:  takeFirst(orig.CreatedAt, dbtime.Now()),
 	})
 	require.NoError(t, err, "insert notification")
