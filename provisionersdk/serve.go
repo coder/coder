@@ -25,9 +25,10 @@ type ServeOptions struct {
 	// Listener serves multiple connections. Cannot be combined with Conn.
 	Listener net.Listener
 	// Conn is a single connection to serve. Cannot be combined with Listener.
-	Conn          drpc.Transport
-	Logger        slog.Logger
-	WorkDirectory string
+	Conn                drpc.Transport
+	Logger              slog.Logger
+	WorkDirectory       string
+	ExternalProvisioner bool
 }
 
 type Server interface {

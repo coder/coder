@@ -63,7 +63,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, clk quartz.
 				return xerrors.Errorf("failed to delete old notification messages: %w", err)
 			}
 
-			logger.Info(ctx, "purged old database entries", slog.F("duration", clk.Since(start)))
+			logger.Debug(ctx, "purged old database entries", slog.F("duration", clk.Since(start)))
 
 			return nil
 		}, database.DefaultTXOptions().WithID("db_purge")); err != nil {
