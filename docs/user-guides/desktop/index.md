@@ -41,7 +41,7 @@ Before you can use Coder Desktop, you will need to log in.
 
 1. Open the Desktop menu again and select **Sign in**:
 
-   ![Coder Desktop menu before the user signs in](../../images/user-guides/desktop/coder-desktop-pre-sign-in.png)
+   <Image height="325px" src="../../images/user-guides/desktop/coder-desktop-pre-sign-in.png" alt="Coder Desktop menu before the user signs in" align="center" />
 
 1. In the **Sign In** window, enter your Coder deployment's URL and select **Next**:
 
@@ -55,7 +55,7 @@ Before you can use Coder Desktop, you will need to log in.
 
 1. Copy the session token to the clipboard:
 
-   <Image height="472px" src="../../images/templates/coder-session-token.png" alt="Copy session token" align="center" />
+   <Image height="350px" src="../../images/templates/coder-session-token.png" alt="Copy session token" align="center" />
 
 1. Paste the token in the **Session Token** box of the **Sign In** screen, then select **Sign In**:
 
