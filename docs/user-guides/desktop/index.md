@@ -11,7 +11,7 @@ You can install Coder Desktop on macOS or Windows.
 
 ### macOS
 
-1. Use [Homebrew](https://brew.sh/) to install the Coder Desktop from [cask](https://github.com/coder/coder-desktop-macos/tree/main):
+1. Use [Homebrew](https://brew.sh/) to install Coder Desktop:
 
    ```shell
    brew install --cask coder/coder/coder-desktop
@@ -19,7 +19,7 @@ You can install Coder Desktop on macOS or Windows.
 
 1. Open Coder Desktop from the Applications directory and when macOS asks if you want to open it, select **Open**.
 
-1. The application can connect as a VPN. macOS will prompt you to confirm with:
+1. The application connects as a VPN. macOS will prompt you to confirm with:
 
    **"Coder Desktop" would like to use a new network extension**
 
