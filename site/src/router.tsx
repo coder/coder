@@ -228,6 +228,10 @@ const AddNewLicensePage = lazy(
 			"./pages/DeploymentSettingsPage/LicensesSettingsPage/AddNewLicensePage"
 		),
 );
+const OrganizationRedirect = lazy(
+	() => import("./pages/OrganizationSettingsPage/OrganizationRedirect"),
+);
+
 const CreateOrganizationPage = lazy(
 	() => import("./pages/OrganizationSettingsPage/CreateOrganizationPage"),
 );
@@ -415,7 +419,7 @@ export const router = createBrowserRouter(
 						<Route path="new" element={<CreateOrganizationPage />} />
 
 						{/* General settings for the default org can omit the organization name */}
-						<Route index element={<OrganizationSettingsPage />} />
+						<Route index element={<OrganizationRedirect />} />
 
 						<Route path=":organization" element={<OrganizationSidebarLayout />}>
 							<Route index element={<OrganizationMembersPage />} />

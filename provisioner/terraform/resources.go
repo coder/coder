@@ -215,10 +215,25 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 				return nil, xerrors.Errorf("decode agent attributes: %w", err)
 			}
 
-			if _, ok := agentNames[tfResource.Name]; ok {
+			// Similar logic is duplicated in terraform/resources.go.
+			if tfResource.Name == "" {
+				return nil, xerrors.Errorf("agent name cannot be empty")
+			}
+			// In 2025-02 we removed support for underscores in agent names. To
+			// provide a nicer error message, we check the regex first and check
+			// for underscores if it fails.
+			if !provisioner.AgentNameRegex.MatchString(tfResource.Name) {
+				if strings.Contains(tfResource.Name, "_") {
+					return nil, xerrors.Errorf("agent name %q contains underscores which are no longer supported, please use hyphens instead (regex: %q)", tfResource.Name, provisioner.AgentNameRegex.String())
+				}
+				return nil, xerrors.Errorf("agent name %q does not match regex %q", tfResource.Name, provisioner.AgentNameRegex.String())
+			}
+			// Agent names must be case-insensitive-unique, to be unambiguous in
+			// `coder_app`s and CoderVPN DNS names.
+			if _, ok := agentNames[strings.ToLower(tfResource.Name)]; ok {
 				return nil, xerrors.Errorf("duplicate agent name: %s", tfResource.Name)
 			}
-			agentNames[tfResource.Name] = struct{}{}
+			agentNames[strings.ToLower(tfResource.Name)] = struct{}{}
 
 			// Handling for deprecated attributes. login_before_ready was replaced
 			// by startup_script_behavior, but we still need to support it for
@@ -441,6 +456,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			if attrs.Slug == "" {
 				attrs.Slug = resource.Name
 			}
+			// Similar logic is duplicated in terraform/resources.go.
 			if attrs.DisplayName == "" {
 				if attrs.Name != "" {
 					// Name is deprecated but still accepted.
@@ -450,8 +466,10 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 				}
 			}
 
+			// Contrary to agent names above, app slugs were never permitted to
+			// contain uppercase letters or underscores.
 			if !provisioner.AppSlugRegex.MatchString(attrs.Slug) {
-				return nil, xerrors.Errorf("invalid app slug %q, please update your coder/coder provider to the latest version and specify the slug property on each coder_app", attrs.Slug)
+				return nil, xerrors.Errorf("app slug %q does not match regex %q", attrs.Slug, provisioner.AppSlugRegex.String())
 			}
 
 			if _, exists := appSlugs[attrs.Slug]; exists {

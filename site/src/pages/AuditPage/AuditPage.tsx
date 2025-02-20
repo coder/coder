@@ -1,4 +1,5 @@
 import { paginatedAudits } from "api/queries/audits";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { useFilter } from "components/Filter/Filter";
 import { useUserFilterMenu } from "components/Filter/UserFilter";
 import { isNonInitialPage } from "components/PaginationWidget/utils";
@@ -66,6 +67,14 @@ const AuditPage: FC = () => {
 				organization: option?.value,
 			}),
 	});
+
+	if (auditsQuery.error) {
+		return (
+			<div className="p-6">
+				<ErrorAlert error={auditsQuery.error} />
+			</div>
+		);
+	}
 
 	return (
 		<>

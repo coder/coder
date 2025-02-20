@@ -25,6 +25,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -239,6 +240,70 @@ func TestServer(t *testing.T) {
 		if !strings.HasPrefix(got, "postgres://") {
 			t.Fatalf("expected postgres URL to start with \"postgres://\", got %q", got)
 		}
+	})
+	t.Run("SpammyLogs", func(t *testing.T) {
+		// The purpose of this test is to ensure we don't show excessive logs when the server starts.
+		t.Parallel()
+		inv, cfg := clitest.New(t,
+			"server",
+			"--in-memory",
+			"--http-address", ":0",
+			"--access-url", "http://localhost:3000/",
+			"--cache-dir", t.TempDir(),
+		)
+		stdoutRW := syncReaderWriter{}
+		stderrRW := syncReaderWriter{}
+		inv.Stdout = io.MultiWriter(os.Stdout, &stdoutRW)
+		inv.Stderr = io.MultiWriter(os.Stderr, &stderrRW)
+		clitest.Start(t, inv)
+
+		// Wait for startup
+		_ = waitAccessURL(t, cfg)
+
+		// Wait a bit for more logs to be printed.
+		time.Sleep(testutil.WaitShort)
+
+		// Lines containing these strings are printed because we're
+		// running the server with a test config. They wouldn't be
+		// normally shown to the user, so we'll ignore them.
+		ignoreLines := []string{
+			"isn't externally reachable",
+			"install.sh will be unavailable",
+			"telemetry disabled, unable to notify of security issues",
+		}
+
+		countLines := func(fullOutput string) int {
+			terminalWidth := 80
+			linesByNewline := strings.Split(fullOutput, "\n")
+			countByWidth := 0
+		lineLoop:
+			for _, line := range linesByNewline {
+				for _, ignoreLine := range ignoreLines {
+					if strings.Contains(line, ignoreLine) {
+						continue lineLoop
+					}
+				}
+				if line == "" {
+					// Empty lines take up one line.
+					countByWidth++
+				} else {
+					countByWidth += (len(line) + terminalWidth - 1) / terminalWidth
+				}
+			}
+			return countByWidth
+		}
+
+		stdout, err := io.ReadAll(&stdoutRW)
+		if err != nil {
+			t.Fatalf("failed to read stdout: %v", err)
+		}
+		stderr, err := io.ReadAll(&stderrRW)
+		if err != nil {
+			t.Fatalf("failed to read stderr: %v", err)
+		}
+
+		numLines := countLines(string(stdout)) + countLines(string(stderr))
+		require.Less(t, numLines, 20)
 	})
 
 	// Validate that a warning is printed that it may not be externally
@@ -2139,4 +2204,23 @@ func mockTelemetryServer(t *testing.T) (*url.URL, chan *telemetry.Deployment, ch
 	require.NoError(t, err)
 
 	return serverURL, deployment, snapshot
+}
+
+// syncWriter provides a thread-safe io.ReadWriter implementation
+type syncReaderWriter struct {
+	buf bytes.Buffer
+	mu  sync.Mutex
+}
+
+func (w *syncReaderWriter) Write(p []byte) (n int, err error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.buf.Write(p)
+}
+
+func (w *syncReaderWriter) Read(p []byte) (n int, err error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	return w.buf.Read(p)
 }

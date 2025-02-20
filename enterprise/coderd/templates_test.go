@@ -161,11 +161,11 @@ func TestTemplates(t *testing.T) {
 							Name: "some",
 							Type: "example",
 							Agents: []*proto.Agent{{
-								Id: "something",
+								Id:   "something",
+								Name: "test",
 								Auth: &proto.Agent_Token{
 									Token: uuid.NewString(),
 								},
-								Name: "test",
 							}},
 						}, {
 							Name: "another",

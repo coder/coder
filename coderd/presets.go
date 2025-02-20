@@ -45,6 +45,10 @@ func (api *API) templateVersionPresets(rw http.ResponseWriter, r *http.Request) 
 			Name: preset.Name,
 		}
 		for _, presetParam := range presetParams {
+			if presetParam.TemplateVersionPresetID != preset.ID {
+				continue
+			}
+
 			sdkPreset.Parameters = append(sdkPreset.Parameters, codersdk.PresetParameter{
 				Name:  presetParam.Name,
 				Value: presetParam.Value,

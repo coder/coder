@@ -36,7 +36,7 @@ type DRPCTailnetClient23 interface {
 }
 
 // DRPCTailnetClient24 is the Tailnet API at v2.4. It is functionally identical to 2.3, because the
-// change was to the Agent API (ResourcesMonitoring methods).
+// change was to the Agent API (ResourcesMonitoring and ReportConnection methods).
 type DRPCTailnetClient24 interface {
 	DRPCTailnetClient23
 }
