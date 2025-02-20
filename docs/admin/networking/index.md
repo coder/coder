@@ -1,7 +1,21 @@
 # Networking
 
-Coder's network topology has three types of nodes: workspaces, Coder servers,
-and users.
+The pages in this section outline Coder's networking stack and how aspects
+connect to or interact with each other. 
+
+This page is a high-level reference of Coder's network topology, requirements,
+and connection types.
+
+![Basic user to Coder diagram](../../images/admin/networking/network-stack/network-user-workspace.png)
+
+## Coder server, workspaces, users
+
+Coder's network topology has three general types of nodes or ways of interacting
+with Coder:
+
+- Coder servers
+- Workspaces
+- Users
 
 The Coder server must have an inbound address reachable by users and workspaces,
 but otherwise, all topologies _just work_ with Coder.
@@ -11,25 +25,86 @@ Direct connections are as fast as connecting to the workspace outside of Coder.
 When NAT traversal fails, connections are relayed through the Coder server. All
 user-workspace connections are end-to-end encrypted.
 
-[Tailscale's open source](https://tailscale.com) backs our websocket/HTTPS
-networking logic.
+[Tailscale](https://tailscale.com)'s implementation of
+[Wireguard](https://www.wireguard.com/) backs our websocket/HTTPS networking logic.
 
 ## Requirements
 
-In order for clients and workspaces to be able to connect:
+Coder’s networking is designed to support a wide range of infrastructure targets.
+Because of that, there are very few requirements for running Coder in your network:
 
-> **Note:** We strongly recommend that clients connect to Coder and their
-> workspaces over a good quality, broadband network connection. The following
-> are minimum requirements:
->
-> - better than 400ms round-trip latency to the Coder server and to their
->   workspace
-> - better than 0.5% random packet loss
+- The central server (coderd) needs port 443 to be open for HTTPS and websocket traffic
+- Workspaces, clients (developer laptops), and provisioners only need to reach the Coder server and establish a websocket connection. No ports need to be open.
+
+In order for clients and workspaces to be able to connect:
 
 - All clients and agents must be able to establish a connection to the Coder
   server (`CODER_ACCESS_URL`) over HTTP/HTTPS.
 - Any reverse proxy or ingress between the Coder control plane and
   clients/agents must support WebSockets.
+
+## Coder server
+
+Workspaces connect to the Coder server via the server's external address, set
+via [`ACCESS_URL`](../../admin/setup/index.md#access-url). There must not be a
+NAT between workspaces and the Coder server.
+
+Users connect to the Coder server's dashboard and API through its `ACCESS_URL`
+as well. There must not be a NAT between users and the Coder server.
+
+Template admins can overwrite the site-wide access URL at the template level by
+leveraging the `url` argument when
+[defining the Coder provider](https://registry.terraform.io/providers/coder/coder/latest/docs#url):
+
+```terraform
+provider "coder" {
+  url = "https://coder.namespace.svc.cluster.local"
+}
+```
+
+This is useful when debugging connectivity issues between the workspace agent
+and the Coder server.
+
+## Web Apps
+
+The Coder servers relays dashboard-initiated connections between the user and
+the workspace. Web terminal <-> workspace connections are an exception and may
+be direct.
+
+In general, [port forwarded](./port-forwarding.md) web apps are faster than
+dashboard-accessed web apps.
+
+## 🌎 Geo-distribution
+
+By default, Coder will attempt to create direct peer-to-peer connections between
+the client (developer laptop) and workspace.
+If this doesn’t work, the end result will be transparent to the end user because
+Coder will fall back to connections relayed to the control plane.
+
+### Direct connections
+
+Direct connections reduce latency and improve upload and download speeds for developers.
+However, there are many scenarios where direct connections cannot be established,
+such as when the Coder [administrators disable direct connections](../../reference/cli/server.md#--block-direct-connections).
+
+Consult the [direct connections section](./troubleshooting.md#common-problems-with-direct-connections)
+of the troubleshooting guide for more information.
+The troubleshooting guide also explains how to identify if a connection is direct
+or not via the `coder ping` command.
+
+Ideally, to speed up direct connections, move the user and workspace closer together.
+
+Establishing a direct connection can be an involved process because both the
+client and workspace agent will likely be behind at least one level of NAT,
+meaning that we need to use STUN to learn the IP address and port under which
+the client and agent can both contact each other. See [STUN and NAT](./stun.md)
+for more information on how this process works.
+
+If a direct connection is not available (e.g. client or server is behind NAT),
+Coder will use a relayed connection. By default,
+[Coder uses Google's public STUN server](../../reference/cli/server.md#--derp-server-stun-addresses),
+but this can be disabled or changed for
+[offline deployments](../../install/offline.md).
 
 In order for clients to be able to establish direct connections:
 
@@ -64,57 +139,6 @@ In order for clients to be able to establish direct connections:
     [WireGuard](https://www.wireguard.com/)️ tunnel and send UDP traffic on
     ephemeral (high) ports. If a firewall between the client and the agent
     blocks this UDP traffic, direct connections will not be possible.
-
-## Coder server
-
-Workspaces connect to the Coder server via the server's external address, set
-via [`ACCESS_URL`](../../admin/setup/index.md#access-url). There must not be a
-NAT between workspaces and coder server.
-
-Users connect to the Coder server's dashboard and API through its `ACCESS_URL`
-as well. There must not be a NAT between users and the Coder server.
-
-Template admins can overwrite the site-wide access URL at the template level by
-leveraging the `url` argument when
-[defining the Coder provider](https://registry.terraform.io/providers/coder/coder/latest/docs#url):
-
-```terraform
-provider "coder" {
-  url = "https://coder.namespace.svc.cluster.local"
-}
-```
-
-This is useful when debugging connectivity issues between the workspace agent
-and the Coder server.
-
-## Web Apps
-
-The Coder servers relays dashboard-initiated connections between the user and
-the workspace. Web terminal <-> workspace connections are an exception and may
-be direct.
-
-In general, [port forwarded](./port-forwarding.md) web apps are faster than
-dashboard-accessed web apps.
-
-## 🌎 Geo-distribution
-
-### Direct connections
-
-Direct connections are a straight line between the user and workspace, so there
-is no special geo-distribution configuration. To speed up direct connections,
-move the user and workspace closer together.
-
-Establishing a direct connection can be an involved process because both the
-client and workspace agent will likely be behind at least one level of NAT,
-meaning that we need to use STUN to learn the IP address and port under which
-the client and agent can both contact each other. See [STUN and NAT](./stun.md)
-for more information on how this process works.
-
-If a direct connection is not available (e.g. client or server is behind NAT),
-Coder will use a relayed connection. By default,
-[Coder uses Google's public STUN server](../../reference/cli/server.md#--derp-server-stun-addresses),
-but this can be disabled or changed for
-[offline deployments](../../install/offline.md).
 
 ### Relayed connections
 
