@@ -96,7 +96,7 @@ data "coder_parameter" "res_mon_memory_threshold" {
 data "coder_parameter" "res_mon_volume_threshold" {
   type        = "number"
   name        = "Volume usage threshold"
-  default     = 80
+  default     = 90
   description = "The volume usage threshold used in resources monitoring to trigger notifications."
   mutable     = true
 }
