@@ -2955,8 +2955,11 @@ func TestOrganizationDeleteTrigger(t *testing.T) {
 
 		orgA := dbfake.Organization(t, db).Do()
 
+		user := dbgen.User(t, db, database.User{})
+
 		dbgen.Template(t, db, database.Template{
 			OrganizationID: orgA.Org.ID,
+			CreatedBy:      user.ID,
 		})
 
 		ctx := testutil.Context(t, testutil.WaitShort)
@@ -2989,7 +2992,7 @@ func TestOrganizationDeleteTrigger(t *testing.T) {
 		require.Error(t, err)
 		// cannot delete organization: organization has 1 provisioner keys that must be deleted first
 		require.ErrorContains(t, err, "cannot delete organization")
-		require.ErrorContains(t, err, "has 1 provisioner keys")
+		require.ErrorContains(t, err, "1 provisioner keys")
 	})
 
 	t.Run("GroupExists", func(t *testing.T) {
@@ -3019,8 +3022,11 @@ func TestOrganizationDeleteTrigger(t *testing.T) {
 
 		orgA := dbfake.Organization(t, db).Do()
 
+		user := dbgen.User(t, db, database.User{})
+
 		dbgen.OrganizationMember(t, db, database.OrganizationMember{
 			OrganizationID: orgA.Org.ID,
+			UserID:         user.ID,
 		})
 
 		ctx := testutil.Context(t, testutil.WaitShort)
