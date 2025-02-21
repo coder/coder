@@ -17,6 +17,7 @@ DECLARE
 	template_count int;
 	group_count int;
 	member_count int;
+	provisioner_keys_count int;
 BEGIN
     workspace_count := (
         SELECT count(*) as count FROM workspaces
@@ -44,6 +45,12 @@ BEGIN
             organization_members.organization_id = OLD.id
     );
 
+	provisioner_keys_count := (
+		Select count(*) as count FROM provisioner_keys
+		WHERE
+			provisioner_keys.organization_id = OLD.id
+	)
+
     -- Fail the deletion if one of the following:
     -- * the organization has 1 or more workspaces
 	-- * the organization has 1 or more templates
@@ -54,8 +61,20 @@ BEGIN
             RAISE EXCEPTION 'cannot delete organization: organization has % workspaces and % templates that must be deleted first', workspace_count, template_count;
     END IF;
 
-	IF (group_count + member_count) > 2 THEN
-            RAISE EXCEPTION 'cannot delete organization: organization has % groups and % members that must be deleted first', group_count - 1, member_count - 1;
+	IF (group_count) > 1 THEN
+            RAISE EXCEPTION 'cannot delete organization: organization has % groups that must be deleted first', group_count - 1;
+    END IF;
+
+	IF (provisioner_keys_count) > 0 THEN
+            RAISE EXCEPTION 'cannot delete organization: organization has % provisioner keys that must be deleted first', provisioner_keys_count;
+    END IF;
+
+   -- If member count > 1
+    -- Allow 1 member to exist, because you cannot remove yourself. You can
+    -- remove everyone else. Ideally, we only omit the member that matches
+    -- the user_id of the caller, however in a trigger, the caller is unknown.
+	IF (member_count) > 1 THEN
+            RAISE EXCEPTION 'cannot delete organization: organization has % members that must be deleted first', member_count - 1;
     END IF;
 
     RETURN NEW;
