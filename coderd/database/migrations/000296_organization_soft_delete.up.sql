@@ -9,7 +9,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_organization_name_lower ON organizations U
 ALTER TABLE ONLY organizations
 	DROP CONSTRAINT IF EXISTS organizations_name;
 
-CREATE FUNCTION protect_provisioned_organizations()
+CREATE FUNCTION protect_deleted_organizations()
 	RETURNS TRIGGER AS
 $$
 DECLARE
@@ -56,6 +56,7 @@ BEGIN
 	-- * the organization has 1 or more templates
 	-- * the organization has 1 or more groups other than "Everyone" group
 	-- * the organization has 1 or more members other than the organization owner
+	-- * the organization has 1 or more provisioner keys
 
     IF (workspace_count + template_count + provisioner_keys_count) > 0 THEN
             RAISE EXCEPTION 'cannot delete organization: organization has % workspaces, % templates, and % provisioner keys that must be deleted first', workspace_count, template_count, provisioner_keys_count;
@@ -77,7 +78,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Trigger to protect organizations from being soft deleted with existing resources
-CREATE TRIGGER protect_provisioned_organizations
+CREATE TRIGGER protect_deleted_organizations
     BEFORE UPDATE ON organizations
     FOR EACH ROW
 	WHEN (NEW.deleted = true AND OLD.deleted = false)
