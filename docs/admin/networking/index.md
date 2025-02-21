@@ -8,7 +8,7 @@ and connection types.
 
 ![Basic user to Coder diagram](../../images/admin/networking/network-stack/network-user-workspace.png)
 
-For more information about the underlying networking stack, Coder agent, or geo-distributed networking, consult [Connections and geo-distribution](./more-networking/index.md). Visit the [troubleshooting doc](./troubleshooting.md) for ways to resolve common issues.
+For more in-depth information, visit our docs on [connections and geo-distribution](./more-networking/index.md) or [the underlying networking stack and Coder agent](./more-networking/underlying-stack.md), or use the [troubleshooting doc](./troubleshooting.md) for ways to resolve common issues.
 
 ## Coder server, workspaces, users
 
