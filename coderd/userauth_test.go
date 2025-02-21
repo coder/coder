@@ -22,6 +22,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -881,6 +882,92 @@ func TestUserOAuth2Github(t *testing.T) {
 
 		require.Equal(t, user.ID, userID, "user_id is different, a new user was likely created")
 		require.Equal(t, user.Email, newEmail)
+	})
+	t.Run("DeviceFlow", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			GithubOAuth2Config: &coderd.GithubOAuth2Config{
+				OAuth2Config:       &testutil.OAuth2Config{},
+				AllowOrganizations: []string{"coder"},
+				AllowSignups:       true,
+				ListOrganizationMemberships: func(_ context.Context, _ *http.Client) ([]*github.Membership, error) {
+					return []*github.Membership{{
+						State: &stateActive,
+						Organization: &github.Organization{
+							Login: github.String("coder"),
+						},
+					}}, nil
+				},
+				AuthenticatedUser: func(_ context.Context, _ *http.Client) (*github.User, error) {
+					return &github.User{
+						ID:    github.Int64(100),
+						Login: github.String("testuser"),
+						Name:  github.String("The Right Honorable Sir Test McUser"),
+					}, nil
+				},
+				ListEmails: func(_ context.Context, _ *http.Client) ([]*github.UserEmail, error) {
+					return []*github.UserEmail{{
+						Email:    github.String("testuser@coder.com"),
+						Verified: github.Bool(true),
+						Primary:  github.Bool(true),
+					}}, nil
+				},
+				DeviceFlowEnabled: true,
+				ExchangeDeviceCode: func(_ context.Context, _ string) (*oauth2.Token, error) {
+					return &oauth2.Token{
+						AccessToken:  "access_token",
+						RefreshToken: "refresh_token",
+						Expiry:       time.Now().Add(time.Hour),
+					}, nil
+				},
+				AuthorizeDevice: func(_ context.Context) (*codersdk.ExternalAuthDevice, error) {
+					return &codersdk.ExternalAuthDevice{
+						DeviceCode: "device_code",
+						UserCode:   "user_code",
+					}, nil
+				},
+			},
+		})
+		client.HTTPClient.CheckRedirect = func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		}
+
+		// Ensure that we redirect to the device login page when the user is not logged in.
+		oauthURL, err := client.URL.Parse("/api/v2/users/oauth2/github/callback")
+		require.NoError(t, err)
+
+		req, err := http.NewRequestWithContext(context.Background(), "GET", oauthURL.String(), nil)
+
+		require.NoError(t, err)
+		res, err := client.HTTPClient.Do(req)
+		require.NoError(t, err)
+		defer res.Body.Close()
+
+		require.Equal(t, http.StatusTemporaryRedirect, res.StatusCode)
+		location, err := res.Location()
+		require.NoError(t, err)
+		require.Equal(t, "/login/device", location.Path)
+		query := location.Query()
+		require.NotEmpty(t, query.Get("state"))
+
+		// Ensure that we return a JSON response when the code is successfully exchanged.
+		oauthURL, err = client.URL.Parse("/api/v2/users/oauth2/github/callback?code=hey&state=somestate")
+		require.NoError(t, err)
+
+		req, err = http.NewRequestWithContext(context.Background(), "GET", oauthURL.String(), nil)
+		req.AddCookie(&http.Cookie{
+			Name:  "oauth_state",
+			Value: "somestate",
+		})
+		require.NoError(t, err)
+		res, err = client.HTTPClient.Do(req)
+		require.NoError(t, err)
+		defer res.Body.Close()
+
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		var resp codersdk.OAuth2DeviceFlowCallbackResponse
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&resp))
+		require.Equal(t, "/", resp.RedirectURL)
 	})
 }
 
