@@ -2428,6 +2428,12 @@ ALTER TABLE ONLY group_members
 ALTER TABLE ONLY groups
     ADD CONSTRAINT groups_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY inbox_notifications
+    ADD CONSTRAINT inbox_notifications_template_id_fkey FOREIGN KEY (template_id) REFERENCES notification_templates(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY inbox_notifications
+    ADD CONSTRAINT inbox_notifications_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
 ALTER TABLE ONLY jfrog_xray_scans
     ADD CONSTRAINT jfrog_xray_scans_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
 
