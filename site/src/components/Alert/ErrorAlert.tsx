@@ -24,10 +24,9 @@ export const ErrorAlert: FC<
 		if (status === 403) {
 			return (
 				<>
-					<AlertTitle>You don't have permission to view this page</AlertTitle>
+					<AlertTitle>{message}</AlertTitle>
 					<AlertDetail>
-						If you believe this is a mistake, please contact your administrator
-						or try signing in with different credentials.{" "}
+						{detail}{" "}
 						<Link href="/workspaces" className="w-fit">
 							Go to workspaces
 						</Link>

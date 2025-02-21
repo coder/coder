@@ -4,8 +4,8 @@ import {
 	renderWithAuth,
 	waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
-import { Language as FormLanguage } from "./Language";
 import { CreateUserPage } from "./CreateUserPage";
+import { Language as FormLanguage } from "./Language";
 
 const renderCreateUserPage = async () => {
 	renderWithAuth(<CreateUserPage />, {
