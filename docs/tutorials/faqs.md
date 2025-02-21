@@ -73,7 +73,7 @@ The primary developer use case is a local IDE connecting over SSH to a Coder
 workspace.
 
 Coder's networking stack has intelligence to attempt a peer-to-peer or
-[Direct connection](../admin/networking/index.md#direct-connections) between the
+[Direct connection](../admin/networking/more-networking/index.md#direct-connections) between the
 local IDE and the workspace. However, this requires some additional protocols
 like UDP and being able to reach a STUN server to echo the IP addresses of the
 local IDE machine and workspace, for sharing using a Wireguard Coordination
