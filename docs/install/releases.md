@@ -77,5 +77,4 @@ pages.
 
 v2.18 was promoted to stable on January 7th, 2025.
 
-Effective starting January, 2025 we will skip the January release each year because most of our engineering team is out for the December holiday period.
-We'll return to our regular release cadence on February 4th.
+As of January, 2025 we skip the January release each year because most of our engineering team is out for the December holiday period.
