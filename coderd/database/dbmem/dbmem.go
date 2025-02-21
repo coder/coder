@@ -1230,24 +1230,6 @@ func (q *FakeQuerier) getProvisionerJobsByIDsWithQueuePositionLocked(_ context.C
 	return jobs, nil
 }
 
-func (q *FakeQuerier) UpdateInboxNotificationReadStatus(_ context.Context, arg database.UpdateInboxNotificationReadStatusParams) error {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	for i := range q.InboxNotification {
-		if q.InboxNotification[i].ID == arg.ID {
-			q.InboxNotification[i].ReadAt = arg.ReadAt
-		}
-	}
-
-	return nil
-}
-
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }
@@ -9834,6 +9816,24 @@ func (q *FakeQuerier) UpdateInactiveUsersToDormant(_ context.Context, params dat
 	}
 
 	return updated, nil
+}
+
+func (q *FakeQuerier) UpdateInboxNotificationReadStatus(_ context.Context, arg database.UpdateInboxNotificationReadStatusParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i := range q.InboxNotification {
+		if q.InboxNotification[i].ID == arg.ID {
+			q.InboxNotification[i].ReadAt = arg.ReadAt
+		}
+	}
+
+	return nil
 }
 
 func (q *FakeQuerier) UpdateMemberRoles(_ context.Context, arg database.UpdateMemberRolesParams) (database.OrganizationMember, error) {

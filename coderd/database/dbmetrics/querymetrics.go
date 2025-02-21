@@ -84,13 +84,6 @@ func (m queryMetricsStore) GetUnreadInboxNotificationsByUserIDAndTemplateIDAndTa
 	return r0, r1
 }
 
-func (m queryMetricsStore) UpdateInboxNotificationReadStatus(ctx context.Context, arg database.UpdateInboxNotificationReadStatusParams) error {
-	start := time.Now()
-	r0 := m.s.UpdateInboxNotificationReadStatus(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateInboxNotificationReadStatus").Observe(time.Since(start).Seconds())
-	return r0
-}
-
 func (m queryMetricsStore) AcquireLock(ctx context.Context, pgAdvisoryXactLock int64) error {
 	start := time.Now()
 	err := m.s.AcquireLock(ctx, pgAdvisoryXactLock)
@@ -2378,6 +2371,13 @@ func (m queryMetricsStore) UpdateInactiveUsersToDormant(ctx context.Context, las
 	r0, r1 := m.s.UpdateInactiveUsersToDormant(ctx, lastSeenAfter)
 	m.queryLatencies.WithLabelValues("UpdateInactiveUsersToDormant").Observe(time.Since(start).Seconds())
 	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateInboxNotificationReadStatus(ctx context.Context, arg database.UpdateInboxNotificationReadStatusParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateInboxNotificationReadStatus(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateInboxNotificationReadStatus").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m queryMetricsStore) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemberRolesParams) (database.OrganizationMember, error) {
