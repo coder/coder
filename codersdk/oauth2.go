@@ -227,3 +227,7 @@ func (c *Client) RevokeOAuth2ProviderApp(ctx context.Context, appID uuid.UUID) e
 	}
 	return nil
 }
+
+type OAuth2DeviceFlowCallbackResponse struct {
+	RedirectURL string `json:"redirect_url"`
+}

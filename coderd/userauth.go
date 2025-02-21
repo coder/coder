@@ -748,10 +748,30 @@ type GithubOAuth2Config struct {
 	ListOrganizationMemberships func(ctx context.Context, client *http.Client) ([]*github.Membership, error)
 	TeamMembership              func(ctx context.Context, client *http.Client, org, team, username string) (*github.Membership, error)
 
+	DeviceFlowEnabled  bool
+	ExchangeDeviceCode func(ctx context.Context, deviceCode string) (*oauth2.Token, error)
+	AuthorizeDevice    func(ctx context.Context) (*codersdk.ExternalAuthDevice, error)
+
 	AllowSignups       bool
 	AllowEveryone      bool
 	AllowOrganizations []string
 	AllowTeams         []GithubOAuth2Team
+}
+
+func (c *GithubOAuth2Config) Exchange(ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
+	if !c.DeviceFlowEnabled {
+		return c.OAuth2Config.Exchange(ctx, code, opts...)
+	}
+	return c.ExchangeDeviceCode(ctx, code)
+}
+
+func (c *GithubOAuth2Config) AuthCodeURL(state string, opts ...oauth2.AuthCodeOption) string {
+	if !c.DeviceFlowEnabled {
+		return c.OAuth2Config.AuthCodeURL(state, opts...)
+	}
+	// This is an absolute path in the Coder app. The device flow is orchestrated
+	// by the Coder frontend, so we need to redirect the user to the device flow page.
+	return "/login/device?state=" + state
 }
 
 // @Summary Get authentication methods
@@ -784,6 +804,53 @@ func (api *API) userAuthMethods(rw http.ResponseWriter, r *http.Request) {
 			IconURL:    iconURL,
 		},
 	})
+}
+
+// @Summary Get Github device auth.
+// @ID get-github-device-auth
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Success 200 {object} codersdk.ExternalAuthDevice
+// @Router /users/oauth2/github/device [get]
+func (api *API) userOAuth2GithubDevice(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx               = r.Context()
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.APIKey](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionLogin,
+		})
+	)
+	aReq.Old = database.APIKey{}
+	defer commitAudit()
+
+	if api.GithubOAuth2Config == nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Github OAuth2 is not enabled.",
+		})
+		return
+	}
+
+	if !api.GithubOAuth2Config.DeviceFlowEnabled {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Device flow is not enabled for Github OAuth2.",
+		})
+		return
+	}
+
+	deviceAuth, err := api.GithubOAuth2Config.AuthorizeDevice(ctx)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to authorize device.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, deviceAuth)
 }
 
 // @Summary OAuth 2.0 GitHub Callback
@@ -1016,7 +1083,14 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	redirect = uriFromURL(redirect)
-	http.Redirect(rw, r, redirect, http.StatusTemporaryRedirect)
+	if api.GithubOAuth2Config.DeviceFlowEnabled {
+		// In the device flow, the redirect is handled client-side.
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.OAuth2DeviceFlowCallbackResponse{
+			RedirectURL: redirect,
+		})
+	} else {
+		http.Redirect(rw, r, redirect, http.StatusTemporaryRedirect)
+	}
 }
 
 type OIDCConfig struct {

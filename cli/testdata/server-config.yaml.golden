@@ -262,6 +262,9 @@ oauth2:
     # Client ID for Login with GitHub.
     # (default: <unset>, type: string)
     clientID: ""
+    # Enable device flow for Login with GitHub.
+    # (default: false, type: bool)
+    deviceFlow: false
     # Organizations the user must be a member of to Login with GitHub.
     # (default: <unset>, type: string-array)
     allowedOrgs: []
