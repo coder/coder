@@ -1,5 +1,3 @@
-ALTER TABLE organizations DROP COLUMN deleted;
-
 DROP INDEX IF EXISTS idx_organization_name_lower;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_organization_name ON organizations USING btree (name);
@@ -10,3 +8,5 @@ ALTER TABLE ONLY organizations
 
 DROP TRIGGER IF EXISTS protect_provisioned_organizations ON organizations;
 DROP FUNCTION IF EXISTS protect_provisioned_organizations;
+
+ALTER TABLE organizations DROP COLUMN deleted;

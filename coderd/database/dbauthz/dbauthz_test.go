@@ -815,7 +815,7 @@ func (s *MethodTestSuite) TestOrganization() {
 	}))
 	s.Run("GetOrganizationByName", s.Subtest(func(db database.Store, check *expects) {
 		o := dbgen.Organization(s.T(), db, database.Organization{})
-		check.Args(o.Name).Asserts(o, policy.ActionRead).Returns(o)
+		check.Args(database.GetOrganizationByNameParams{Name: o.Name, Deleted: o.Deleted}).Asserts(o, policy.ActionRead).Returns(o)
 	}))
 	s.Run("GetOrganizationIDsByMemberIDs", s.Subtest(func(db database.Store, check *expects) {
 		oa := dbgen.Organization(s.T(), db, database.Organization{})

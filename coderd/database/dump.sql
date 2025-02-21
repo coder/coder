@@ -2269,8 +2269,6 @@ CREATE INDEX idx_organization_member_organization_id_uuid ON organization_member
 
 CREATE INDEX idx_organization_member_user_id_uuid ON organization_members USING btree (user_id);
 
-CREATE UNIQUE INDEX idx_organization_name ON organizations USING btree (name) WHERE (deleted = false);
-
 CREATE UNIQUE INDEX idx_organization_name_lower ON organizations USING btree (lower(name)) WHERE (deleted = false);
 
 CREATE UNIQUE INDEX idx_provisioner_daemons_org_name_owner_key ON provisioner_daemons USING btree (organization_id, name, lower(COALESCE((tags ->> 'owner'::text), ''::text)));
