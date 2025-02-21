@@ -3022,11 +3022,17 @@ func TestOrganizationDeleteTrigger(t *testing.T) {
 
 		orgA := dbfake.Organization(t, db).Do()
 
-		user := dbgen.User(t, db, database.User{})
+		userA := dbgen.User(t, db, database.User{})
+		userB := dbgen.User(t, db, database.User{})
 
 		dbgen.OrganizationMember(t, db, database.OrganizationMember{
 			OrganizationID: orgA.Org.ID,
-			UserID:         user.ID,
+			UserID:         userA.ID,
+		})
+
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: orgA.Org.ID,
+			UserID:         userB.ID,
 		})
 
 		ctx := testutil.Context(t, testutil.WaitShort)
