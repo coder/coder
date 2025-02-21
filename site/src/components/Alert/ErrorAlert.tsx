@@ -15,41 +15,30 @@ export const ErrorAlert: FC<
 	// not make sense in the FE to showing them duplicated
 	const shouldDisplayDetail = message !== detail;
 
-	const body = () => {
-		// When the error is a Forbidden response we include a link for the user to
-		// go back to a known viewable page.
-		// Additionally since the error messages and details from the server can be
-		// missing or confusing for an end user we render a friendlier message
-		// regardless of the response from the server.
-		if (status === 403) {
-			return (
-				<>
-					<AlertTitle>{message}</AlertTitle>
-					<AlertDetail>
-						{detail}{" "}
-						<Link href="/workspaces" className="w-fit">
-							Go to workspaces
-						</Link>
-					</AlertDetail>
-				</>
-			);
-		}
-
-		if (detail) {
-			return (
-				<>
-					<AlertTitle>{message}</AlertTitle>
-					{shouldDisplayDetail && <AlertDetail>{detail}</AlertDetail>}
-				</>
-			);
-		}
-
-		return message;
-	};
-
 	return (
 		<Alert severity="error" {...alertProps}>
-			{body()}
+			{
+				// When the error is a Forbidden response we include a link for the user to
+				// go back to a known viewable page.
+				status === 403 ? (
+					<>
+						<AlertTitle>{message}</AlertTitle>
+						<AlertDetail>
+							{detail}{" "}
+							<Link href="/workspaces" className="w-fit">
+								Go to workspaces
+							</Link>
+						</AlertDetail>
+					</>
+				) : detail ? (
+					<>
+						<AlertTitle>{message}</AlertTitle>
+						{shouldDisplayDetail && <AlertDetail>{detail}</AlertDetail>}
+					</>
+				) : (
+					message
+				)
+			}
 		</Alert>
 	);
 };
