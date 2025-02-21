@@ -2925,6 +2925,7 @@ func TestOrganizationDeleteTrigger(t *testing.T) {
 	}
 
 	t.Run("WorkspaceExists", func(t *testing.T) {
+		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 
 		orgA := dbfake.Organization(t, db).Do()
@@ -2946,6 +2947,91 @@ func TestOrganizationDeleteTrigger(t *testing.T) {
 		require.ErrorContains(t, err, "cannot delete organization")
 		require.ErrorContains(t, err, "has 1 workspaces")
 		require.ErrorContains(t, err, "1 templates")
+	})
+
+	t.Run("TemplateExists", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+
+		orgA := dbfake.Organization(t, db).Do()
+
+		dbgen.Template(t, db, database.Template{
+			OrganizationID: orgA.Org.ID,
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		err := db.UpdateOrganizationDeletedByID(ctx, database.UpdateOrganizationDeletedByIDParams{
+			UpdatedAt: dbtime.Now(),
+			ID:        orgA.Org.ID,
+		})
+		require.Error(t, err)
+		// cannot delete organization: organization has 1 workspaces and 1 templates that must be deleted first
+		require.ErrorContains(t, err, "cannot delete organization")
+		require.ErrorContains(t, err, "has 0 workspaces")
+		require.ErrorContains(t, err, "1 templates")
+	})
+
+	t.Run("ProvisionerKeyExists", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+
+		orgA := dbfake.Organization(t, db).Do()
+
+		dbgen.ProvisionerKey(t, db, database.ProvisionerKey{
+			OrganizationID: orgA.Org.ID,
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		err := db.UpdateOrganizationDeletedByID(ctx, database.UpdateOrganizationDeletedByIDParams{
+			UpdatedAt: dbtime.Now(),
+			ID:        orgA.Org.ID,
+		})
+		require.Error(t, err)
+		// cannot delete organization: organization has 1 provisioner keys that must be deleted first
+		require.ErrorContains(t, err, "cannot delete organization")
+		require.ErrorContains(t, err, "has 1 provisioner keys")
+	})
+
+	t.Run("GroupExists", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+
+		orgA := dbfake.Organization(t, db).Do()
+
+		dbgen.Group(t, db, database.Group{
+			OrganizationID: orgA.Org.ID,
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		err := db.UpdateOrganizationDeletedByID(ctx, database.UpdateOrganizationDeletedByIDParams{
+			UpdatedAt: dbtime.Now(),
+			ID:        orgA.Org.ID,
+		})
+		require.Error(t, err)
+		// cannot delete organization: organization has 1 groups that must be deleted first
+		require.ErrorContains(t, err, "cannot delete organization")
+		require.ErrorContains(t, err, "has 1 groups")
+	})
+
+	t.Run("MemberExists", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+
+		orgA := dbfake.Organization(t, db).Do()
+
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: orgA.Org.ID,
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		err := db.UpdateOrganizationDeletedByID(ctx, database.UpdateOrganizationDeletedByIDParams{
+			UpdatedAt: dbtime.Now(),
+			ID:        orgA.Org.ID,
+		})
+		require.Error(t, err)
+		// cannot delete organization: organization has 1 members that must be deleted first
+		require.ErrorContains(t, err, "cannot delete organization")
+		require.ErrorContains(t, err, "has 1 members")
 	})
 }
 
