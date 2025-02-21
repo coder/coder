@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import { useTheme } from "@emotion/react";
 import LoadingButton from "@mui/lab/LoadingButton";
 import { API } from "api/api";
@@ -46,5 +45,3 @@ export const Troubleshooting: FC = () => {
 		</>
 	);
 };
-
-const styles = {} as Record<string, Interpolation<Theme>>;
