@@ -10,7 +10,7 @@ deployment.
 ## Release channels
 
 We support two release channels:
-[mainline](https://github.com/coder/coder/releases/tag/v2.16.0) for the bleeding
+[mainline](https://github.com/coder/coder/releases/tag/v2.19.0) for the bleeding
 edge version of Coder and
 [stable](https://github.com/coder/coder/releases/latest) for those with lower
 tolerance for fault. We field our mainline releases publicly for one month
