@@ -33,7 +33,7 @@ with security policies. In these cases, pass the `--browser-only` flag to
 
 With browser-only connections, developers can only connect to their workspaces
 via the web terminal and
-[web IDEs](../../user-guides/workspace-access/web-ides.md).
+[web IDEs](../../../user-guides/workspace-access/web-ides.md).
 
 ## 🌎 Geo-distribution
 
@@ -49,7 +49,7 @@ Since Coder supports deploying resources in multiple regions, developers will wa
 
 ### Workspace Proxies
 
-[Workspace Proxies](./workspace-proxies.md) are a
+[Workspace Proxies](../workspace-proxies.md) are a
 [Premium](https://coder.com/pricing#compare-plans) feature that allows you to
 provide low-latency browser experiences for geo-distributed teams.
 
@@ -57,9 +57,9 @@ provide low-latency browser experiences for geo-distributed teams.
 
 Direct connections reduce latency and improve upload and download speeds for developers.
 However, there are many scenarios where direct connections cannot be established,
-such as when the Coder [administrators disable direct connections](../../reference/cli/server.md#--block-direct-connections).
+such as when the Coder [administrators disable direct connections](../../../reference/cli/server.md#--block-direct-connections).
 
-Consult the [direct connections section](./troubleshooting.md#common-problems-with-direct-connections)
+Consult the [direct connections section](../troubleshooting.md#common-problems-with-direct-connections)
 of the troubleshooting guide for more information.
 The troubleshooting guide also explains how to identify if a connection is direct
 or not via the `coder ping` command.
@@ -69,42 +69,42 @@ Ideally, to speed up direct connections, move the user and workspace closer toge
 Establishing a direct connection can be an involved process because both the
 client and workspace agent will likely be behind at least one level of NAT,
 meaning that we need to use STUN to learn the IP address and port under which
-the client and agent can both contact each other. See [STUN and NAT](./stun.md)
+the client and agent can both contact each other. See [STUN and NAT](../stun.md)
 for more information on how this process works.
 
 If a direct connection is not available (e.g. client or server is behind NAT),
 Coder will use a relayed connection. By default,
-[Coder uses Google's public STUN server](../../reference/cli/server.md#--derp-server-stun-addresses),
+[Coder uses Google's public STUN server](../../../reference/cli/server.md#--derp-server-stun-addresses),
 but this can be disabled or changed for
-[offline deployments](../../install/offline.md).
+[offline deployments](../../../install/offline.md).
 
 In order for clients to be able to establish direct connections:
 
 > **Note:** Direct connections via the web browser are not supported. To improve
 > latency for browser-based applications running inside Coder workspaces in
 > regions far from the Coder control plane, consider deploying one or more
-> [workspace proxies](./workspace-proxies.md).
+> [workspace proxies](../workspace-proxies.md).
 
 - The client is connecting using the CLI (e.g. `coder ssh` or
   `coder port-forward`). Note that the
   [VSCode extension](https://marketplace.visualstudio.com/items?itemName=coder.coder-remote)
   and [JetBrains Plugin](https://plugins.jetbrains.com/plugin/19620-coder/), and
-  [`ssh coder.<workspace>`](../../reference/cli/config-ssh.md) all utilize the
+  [`ssh coder.<workspace>`](../../../reference/cli/config-ssh.md) all utilize the
   CLI to establish a workspace connection.
 - Either the client or workspace agent are able to discover a reachable
   `ip:port` of their counterpart. If the agent and client are able to
   communicate with each other using their locally assigned IP addresses, then a
   direct connection can be established immediately. Otherwise, the client and
   agent will contact
-  [the configured STUN servers](../../reference/cli/server.md#--derp-server-stun-addresses)
+  [the configured STUN servers](../../../reference/cli/server.md#--derp-server-stun-addresses)
   to try and determine which `ip:port` can be used to communicate with their
-  counterpart. See [STUN and NAT](./stun.md) for more details on how this
+  counterpart. See [STUN and NAT](../stun.md) for more details on how this
   process works.
 - All outbound UDP traffic must be allowed for both the client and the agent on
   **all ports** to each others' respective networks.
   - To establish a direct connection, both agent and client use STUN. This
     involves sending UDP packets outbound on `udp/3478` to the configured
-    [STUN server](../../reference/cli/server.md#--derp-server-stun-addresses).
+    [STUN server](../../../reference/cli/server.md#--derp-server-stun-addresses).
     If either the agent or the client are unable to send and receive UDP packets
     to a STUN server, then direct connections will not be possible.
   - Both agents and clients will then establish a
@@ -115,7 +115,7 @@ In order for clients to be able to establish direct connections:
 ### Relayed connections
 
 By default, your Coder server also runs a built-in DERP relay which can be used
-for both public and [offline deployments](../../install/offline.md).
+for both public and [offline deployments](../../../install/offline.md).
 
 However, our Wireguard integration through Tailscale has graciously allowed us
 to use
