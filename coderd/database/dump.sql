@@ -438,7 +438,7 @@ BEGIN
 END;
 $$;
 
-CREATE FUNCTION protect_provisioned_organizations() RETURNS trigger
+CREATE FUNCTION protect_deleting_organizations() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 DECLARE
@@ -446,6 +446,7 @@ DECLARE
 	template_count int;
 	group_count int;
 	member_count int;
+	provisioner_keys_count int;
 BEGIN
     workspace_count := (
         SELECT count(*) as count FROM workspaces
@@ -473,18 +474,32 @@ BEGIN
             organization_members.organization_id = OLD.id
     );
 
+	provisioner_keys_count := (
+		Select count(*) as count FROM provisioner_keys
+		WHERE
+			provisioner_keys.organization_id = OLD.id
+	);
+
     -- Fail the deletion if one of the following:
     -- * the organization has 1 or more workspaces
 	-- * the organization has 1 or more templates
 	-- * the organization has 1 or more groups other than "Everyone" group
 	-- * the organization has 1 or more members other than the organization owner
+	-- * the organization has 1 or more provisioner keys
 
-    IF (workspace_count + template_count) > 0 THEN
-            RAISE EXCEPTION 'cannot delete organization: organization has % workspaces and % templates that must be deleted first', workspace_count, template_count;
+    IF (workspace_count + template_count + provisioner_keys_count) > 0 THEN
+            RAISE EXCEPTION 'cannot delete organization: organization has % workspaces, % templates, and % provisioner keys that must be deleted first', workspace_count, template_count, provisioner_keys_count;
     END IF;
 
-	IF (group_count + member_count) > 2 THEN
-            RAISE EXCEPTION 'cannot delete organization: organization has % groups and % members that must be deleted first', group_count - 1, member_count - 1;
+	IF (group_count) > 1 THEN
+            RAISE EXCEPTION 'cannot delete organization: organization has % groups that must be deleted first', group_count - 1;
+    END IF;
+
+    -- Allow 1 member to exist, because you cannot remove yourself. You can
+    -- remove everyone else. Ideally, we only omit the member that matches
+    -- the user_id of the caller, however in a trigger, the caller is unknown.
+	IF (member_count) > 1 THEN
+            RAISE EXCEPTION 'cannot delete organization: organization has % members that must be deleted first', member_count - 1;
     END IF;
 
     RETURN NEW;
@@ -2401,7 +2416,7 @@ CREATE OR REPLACE VIEW provisioner_job_stats AS
 
 CREATE TRIGGER inhibit_enqueue_if_disabled BEFORE INSERT ON notification_messages FOR EACH ROW EXECUTE FUNCTION inhibit_enqueue_if_disabled();
 
-CREATE TRIGGER protect_provisioned_organizations BEFORE UPDATE ON organizations FOR EACH ROW WHEN (((new.deleted = true) AND (old.deleted = false))) EXECUTE FUNCTION protect_provisioned_organizations();
+CREATE TRIGGER protect_deleting_organizations BEFORE UPDATE ON organizations FOR EACH ROW WHEN (((new.deleted = true) AND (old.deleted = false))) EXECUTE FUNCTION protect_deleting_organizations();
 
 CREATE TRIGGER remove_organization_member_custom_role BEFORE DELETE ON custom_roles FOR EACH ROW EXECUTE FUNCTION remove_organization_member_role();
 

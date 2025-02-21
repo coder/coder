@@ -82,4 +82,4 @@ CREATE TRIGGER protect_deleting_organizations
     BEFORE UPDATE ON organizations
     FOR EACH ROW
 	WHEN (NEW.deleted = true AND OLD.deleted = false)
-    EXECUTE FUNCTION protect_provisioned_organizations();
+    EXECUTE FUNCTION protect_deleting_organizations();
