@@ -1,7 +1,7 @@
 CREATE TABLE inbox_notifications (
 	id 				UUID 						PRIMARY KEY,
-	user_id 		UUID 						NOT NULL,
-	template_id 	UUID 						NOT NULL,
+	user_id 		UUID 						NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+	template_id 	UUID 						NOT NULL REFERENCES notification_templates(id) ON DELETE CASCADE,
 	targets 		UUID[],
 	title			TEXT 						NOT NULL,
 	content 		TEXT 						NOT NULL,
