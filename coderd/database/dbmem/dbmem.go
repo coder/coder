@@ -2365,7 +2365,7 @@ func (q *FakeQuerier) FavoriteWorkspace(_ context.Context, arg uuid.UUID) error 
 	return nil
 }
 
-func (q *FakeQuerier) FetchInboxNotificationsByUserID(_ context.Context, userID uuid.UUID) ([]database.InboxNotification, error) {
+func (q *FakeQuerier) GetInboxNotificationsByUserID(_ context.Context, userID uuid.UUID) ([]database.InboxNotification, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -2379,7 +2379,7 @@ func (q *FakeQuerier) FetchInboxNotificationsByUserID(_ context.Context, userID 
 	return notifications, nil
 }
 
-func (q *FakeQuerier) FetchInboxNotificationsByUserIDFilteredByTemplatesAndTargets(_ context.Context, arg database.FetchInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams) ([]database.InboxNotification, error) {
+func (q *FakeQuerier) GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets(_ context.Context, arg database.GetInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams) ([]database.InboxNotification, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -2460,7 +2460,7 @@ func (q *FakeQuerier) FetchNewMessageMetadata(_ context.Context, arg database.Fe
 	}, nil
 }
 
-func (q *FakeQuerier) FetchUnreadInboxNotificationsByUserID(_ context.Context, userID uuid.UUID) ([]database.InboxNotification, error) {
+func (q *FakeQuerier) GetUnreadInboxNotificationsByUserID(_ context.Context, userID uuid.UUID) ([]database.InboxNotification, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -2474,7 +2474,7 @@ func (q *FakeQuerier) FetchUnreadInboxNotificationsByUserID(_ context.Context, u
 	return notifications, nil
 }
 
-func (q *FakeQuerier) FetchUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets(_ context.Context, arg database.FetchUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams) ([]database.InboxNotification, error) {
+func (q *FakeQuerier) GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets(_ context.Context, arg database.GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams) ([]database.InboxNotification, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -9588,7 +9588,7 @@ func (q *FakeQuerier) RevokeDBCryptKey(_ context.Context, activeKeyDigest string
 	return sql.ErrNoRows
 }
 
-func (q *FakeQuerier) SetInboxNotificationAsRead(_ context.Context, arg database.SetInboxNotificationAsReadParams) error {
+func (q *FakeQuerier) UpdateInboxNotificationAsRead(_ context.Context, arg database.UpdateInboxNotificationAsReadParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return err

@@ -3551,7 +3551,7 @@ func (q *sqlQuerier) GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, 
 }
 
 const upsertJFrogXrayScanByWorkspaceAndAgentID = `-- name: UpsertJFrogXrayScanByWorkspaceAndAgentID :exec
-INSERT INTO 
+INSERT INTO
 	jfrog_xray_scans (
 		agent_id,
 		workspace_id,
@@ -3560,7 +3560,7 @@ INSERT INTO
 		medium,
 		results_url
 	)
-VALUES 
+VALUES
 	($1, $2, $3, $4, $5, $6)
 ON CONFLICT (agent_id, workspace_id)
 DO UPDATE SET critical = $3, high = $4, medium = $5, results_url = $6
@@ -4298,11 +4298,11 @@ func (q *sqlQuerier) UpsertNotificationReportGeneratorLog(ctx context.Context, a
 	return err
 }
 
-const fetchInboxNotificationsByUserID = `-- name: FetchInboxNotificationsByUserID :many
+const fetchInboxNotificationsByUserID = `-- name: GetInboxNotificationsByUserID :many
 SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at FROM inbox_notifications WHERE user_id = $1 ORDER BY created_at DESC
 `
 
-func (q *sqlQuerier) FetchInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) ([]InboxNotification, error) {
+func (q *sqlQuerier) GetInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) ([]InboxNotification, error) {
 	rows, err := q.db.QueryContext(ctx, fetchInboxNotificationsByUserID, userID)
 	if err != nil {
 		return nil, err
@@ -4336,17 +4336,17 @@ func (q *sqlQuerier) FetchInboxNotificationsByUserID(ctx context.Context, userID
 	return items, nil
 }
 
-const fetchInboxNotificationsByUserIDFilteredByTemplatesAndTargets = `-- name: FetchInboxNotificationsByUserIDFilteredByTemplatesAndTargets :many
+const fetchInboxNotificationsByUserIDFilteredByTemplatesAndTargets = `-- name: GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets :many
 SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at FROM inbox_notifications WHERE user_id = $1 AND template_id = ANY($2::UUID[]) AND targets @> COALESCE($3, ARRAY[]::UUID[]) ORDER BY created_at DESC
 `
 
-type FetchInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams struct {
+type GetInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams struct {
 	UserID    uuid.UUID   `db:"user_id" json:"user_id"`
 	Templates []uuid.UUID `db:"templates" json:"templates"`
 	Targets   []uuid.UUID `db:"targets" json:"targets"`
 }
 
-func (q *sqlQuerier) FetchInboxNotificationsByUserIDFilteredByTemplatesAndTargets(ctx context.Context, arg FetchInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams) ([]InboxNotification, error) {
+func (q *sqlQuerier) GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets(ctx context.Context, arg GetInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams) ([]InboxNotification, error) {
 	rows, err := q.db.QueryContext(ctx, fetchInboxNotificationsByUserIDFilteredByTemplatesAndTargets, arg.UserID, pq.Array(arg.Templates), pq.Array(arg.Targets))
 	if err != nil {
 		return nil, err
@@ -4380,11 +4380,11 @@ func (q *sqlQuerier) FetchInboxNotificationsByUserIDFilteredByTemplatesAndTarget
 	return items, nil
 }
 
-const fetchUnreadInboxNotificationsByUserID = `-- name: FetchUnreadInboxNotificationsByUserID :many
+const fetchUnreadInboxNotificationsByUserID = `-- name: GetUnreadInboxNotificationsByUserID :many
 SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at FROM inbox_notifications WHERE user_id = $1 AND read_at IS NULL ORDER BY created_at DESC
 `
 
-func (q *sqlQuerier) FetchUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) ([]InboxNotification, error) {
+func (q *sqlQuerier) GetUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) ([]InboxNotification, error) {
 	rows, err := q.db.QueryContext(ctx, fetchUnreadInboxNotificationsByUserID, userID)
 	if err != nil {
 		return nil, err
@@ -4418,17 +4418,17 @@ func (q *sqlQuerier) FetchUnreadInboxNotificationsByUserID(ctx context.Context, 
 	return items, nil
 }
 
-const fetchUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets = `-- name: FetchUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets :many
+const fetchUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets = `-- name: GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets :many
 SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at FROM inbox_notifications WHERE user_id = $1 AND template_id = ANY($2::UUID[]) AND targets @> COALESCE($3, ARRAY[]::UUID[]) AND read_at IS NULL ORDER BY created_at DESC
 `
 
-type FetchUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams struct {
+type GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams struct {
 	UserID    uuid.UUID   `db:"user_id" json:"user_id"`
 	Templates []uuid.UUID `db:"templates" json:"templates"`
 	Targets   []uuid.UUID `db:"targets" json:"targets"`
 }
 
-func (q *sqlQuerier) FetchUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets(ctx context.Context, arg FetchUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams) ([]InboxNotification, error) {
+func (q *sqlQuerier) GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets(ctx context.Context, arg GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams) ([]InboxNotification, error) {
 	rows, err := q.db.QueryContext(ctx, fetchUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets, arg.UserID, pq.Array(arg.Templates), pq.Array(arg.Targets))
 	if err != nil {
 		return nil, err
@@ -4541,7 +4541,7 @@ func (q *sqlQuerier) InsertInboxNotification(ctx context.Context, arg InsertInbo
 	return i, err
 }
 
-const setInboxNotificationAsRead = `-- name: SetInboxNotificationAsRead :exec
+const setInboxNotificationAsRead = `-- name: UpdateInboxNotificationAsRead :exec
 UPDATE
     inbox_notifications
 SET
@@ -4550,12 +4550,12 @@ WHERE
     id = $2
 `
 
-type SetInboxNotificationAsReadParams struct {
+type UpdateInboxNotificationAsReadParams struct {
 	ReadAt sql.NullTime `db:"read_at" json:"read_at"`
 	ID     uuid.UUID    `db:"id" json:"id"`
 }
 
-func (q *sqlQuerier) SetInboxNotificationAsRead(ctx context.Context, arg SetInboxNotificationAsReadParams) error {
+func (q *sqlQuerier) UpdateInboxNotificationAsRead(ctx context.Context, arg UpdateInboxNotificationAsReadParams) error {
 	_, err := q.db.ExecContext(ctx, setInboxNotificationAsRead, arg.ReadAt, arg.ID)
 	return err
 }
@@ -7210,7 +7210,7 @@ FROM
     provisioner_keys
 WHERE
     organization_id = $1
-AND 
+AND
     lower(name) = lower($2)
 `
 
@@ -7326,10 +7326,10 @@ WHERE
 AND
     -- exclude reserved built-in key
     id != '00000000-0000-0000-0000-000000000001'::uuid
-AND 
+AND
     -- exclude reserved user-auth key
     id != '00000000-0000-0000-0000-000000000002'::uuid
-AND 
+AND
     -- exclude reserved psk key
     id != '00000000-0000-0000-0000-000000000003'::uuid
 `
@@ -9015,7 +9015,7 @@ func (q *sqlQuerier) GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUI
 }
 
 const updateTailnetPeerStatusByCoordinator = `-- name: UpdateTailnetPeerStatusByCoordinator :exec
-UPDATE 
+UPDATE
 	tailnet_peers
 SET
 	status = $2
@@ -10817,14 +10817,14 @@ DO $$
 DECLARE
     table_record record;
 BEGIN
-    FOR table_record IN 
-        SELECT table_schema, table_name 
-        FROM information_schema.tables 
+    FOR table_record IN
+        SELECT table_schema, table_name
+        FROM information_schema.tables
         WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
         AND table_type = 'BASE TABLE'
     LOOP
-        EXECUTE format('ALTER TABLE %I.%I DISABLE TRIGGER ALL', 
-                    table_record.table_schema, 
+        EXECUTE format('ALTER TABLE %I.%I DISABLE TRIGGER ALL',
+                    table_record.table_schema,
                     table_record.table_name);
     END LOOP;
 END;
@@ -13931,7 +13931,7 @@ WITH agent_stats AS (
 		coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_95
 	 FROM workspace_agent_stats
 	-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
-	WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0 
+	WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0
 	GROUP BY user_id, agent_id, workspace_id, template_id
 ), latest_agent_stats AS (
 	SELECT

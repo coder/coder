@@ -1,18 +1,18 @@
--- name: FetchUnreadInboxNotificationsByUserID :many
+-- name: GetUnreadInboxNotificationsByUserID :many
 --
 SELECT * FROM inbox_notifications WHERE user_id = $1 AND read_at IS NULL ORDER BY created_at DESC;
 
--- name: FetchInboxNotificationsByUserID :many
+-- name: GetInboxNotificationsByUserID :many
 SELECT * FROM inbox_notifications WHERE user_id = $1 ORDER BY created_at DESC;
 
--- name: FetchInboxNotificationsByUserIDFilteredByTemplatesAndTargets :many
+-- name: GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets :many
 -- Fetches inbox notifications for a user filtered by templates and targets
 -- param user_id: The user ID
 -- param templates: The template IDs to filter by - the template_id = ANY(@templates::UUID[]) condition checks if the template_id is in the @templates array
 -- param targets: The target IDs to filter by - the targets @> COALESCE(@targets, ARRAY[]::UUID[]) condition checks if the targets array (from the DB) contains all the elements in the @targets array
 SELECT * FROM inbox_notifications WHERE user_id = @user_id AND template_id = ANY(@templates::UUID[]) AND targets @> COALESCE(@targets, ARRAY[]::UUID[]) ORDER BY created_at DESC;
 
--- name: FetchUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets :many
+-- name: GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets :many
 -- param user_id: The user ID
 -- param templates: The template IDs to filter by - the template_id = ANY(@templates::UUID[]) condition checks if the template_id is in the @templates array
 -- param targets: The target IDs to filter by - the targets @> COALESCE(@targets, ARRAY[]::UUID[]) condition checks if the targets array (from the DB) contains all the elements in the @targets array

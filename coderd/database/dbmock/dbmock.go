@@ -771,34 +771,34 @@ func (mr *MockStoreMockRecorder) FavoriteWorkspace(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FavoriteWorkspace", reflect.TypeOf((*MockStore)(nil).FavoriteWorkspace), ctx, id)
 }
 
-// FetchInboxNotificationsByUserID mocks base method.
-func (m *MockStore) FetchInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) ([]database.InboxNotification, error) {
+// GetInboxNotificationsByUserID mocks base method.
+func (m *MockStore) GetInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) ([]database.InboxNotification, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FetchInboxNotificationsByUserID", ctx, userID)
+	ret := m.ctrl.Call(m, "GetInboxNotificationsByUserID", ctx, userID)
 	ret0, _ := ret[0].([]database.InboxNotification)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// FetchInboxNotificationsByUserID indicates an expected call of FetchInboxNotificationsByUserID.
-func (mr *MockStoreMockRecorder) FetchInboxNotificationsByUserID(ctx, userID any) *gomock.Call {
+// GetInboxNotificationsByUserID indicates an expected call of GetInboxNotificationsByUserID.
+func (mr *MockStoreMockRecorder) GetInboxNotificationsByUserID(ctx, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchInboxNotificationsByUserID", reflect.TypeOf((*MockStore)(nil).FetchInboxNotificationsByUserID), ctx, userID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetInboxNotificationsByUserID", reflect.TypeOf((*MockStore)(nil).GetInboxNotificationsByUserID), ctx, userID)
 }
 
-// FetchInboxNotificationsByUserIDFilteredByTemplatesAndTargets mocks base method.
-func (m *MockStore) FetchInboxNotificationsByUserIDFilteredByTemplatesAndTargets(ctx context.Context, arg database.FetchInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams) ([]database.InboxNotification, error) {
+// GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets mocks base method.
+func (m *MockStore) GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets(ctx context.Context, arg database.GetInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams) ([]database.InboxNotification, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FetchInboxNotificationsByUserIDFilteredByTemplatesAndTargets", ctx, arg)
+	ret := m.ctrl.Call(m, "GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets", ctx, arg)
 	ret0, _ := ret[0].([]database.InboxNotification)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// FetchInboxNotificationsByUserIDFilteredByTemplatesAndTargets indicates an expected call of FetchInboxNotificationsByUserIDFilteredByTemplatesAndTargets.
-func (mr *MockStoreMockRecorder) FetchInboxNotificationsByUserIDFilteredByTemplatesAndTargets(ctx, arg any) *gomock.Call {
+// GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets indicates an expected call of GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets.
+func (mr *MockStoreMockRecorder) GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchInboxNotificationsByUserIDFilteredByTemplatesAndTargets", reflect.TypeOf((*MockStore)(nil).FetchInboxNotificationsByUserIDFilteredByTemplatesAndTargets), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets", reflect.TypeOf((*MockStore)(nil).GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets), ctx, arg)
 }
 
 // FetchMemoryResourceMonitorsByAgentID mocks base method.
@@ -831,34 +831,34 @@ func (mr *MockStoreMockRecorder) FetchNewMessageMetadata(ctx, arg any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchNewMessageMetadata", reflect.TypeOf((*MockStore)(nil).FetchNewMessageMetadata), ctx, arg)
 }
 
-// FetchUnreadInboxNotificationsByUserID mocks base method.
-func (m *MockStore) FetchUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) ([]database.InboxNotification, error) {
+// GetUnreadInboxNotificationsByUserID mocks base method.
+func (m *MockStore) GetUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) ([]database.InboxNotification, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FetchUnreadInboxNotificationsByUserID", ctx, userID)
+	ret := m.ctrl.Call(m, "GetUnreadInboxNotificationsByUserID", ctx, userID)
 	ret0, _ := ret[0].([]database.InboxNotification)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// FetchUnreadInboxNotificationsByUserID indicates an expected call of FetchUnreadInboxNotificationsByUserID.
-func (mr *MockStoreMockRecorder) FetchUnreadInboxNotificationsByUserID(ctx, userID any) *gomock.Call {
+// GetUnreadInboxNotificationsByUserID indicates an expected call of GetUnreadInboxNotificationsByUserID.
+func (mr *MockStoreMockRecorder) GetUnreadInboxNotificationsByUserID(ctx, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchUnreadInboxNotificationsByUserID", reflect.TypeOf((*MockStore)(nil).FetchUnreadInboxNotificationsByUserID), ctx, userID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUnreadInboxNotificationsByUserID", reflect.TypeOf((*MockStore)(nil).GetUnreadInboxNotificationsByUserID), ctx, userID)
 }
 
-// FetchUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets mocks base method.
-func (m *MockStore) FetchUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets(ctx context.Context, arg database.FetchUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams) ([]database.InboxNotification, error) {
+// GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets mocks base method.
+func (m *MockStore) GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets(ctx context.Context, arg database.GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams) ([]database.InboxNotification, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FetchUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets", ctx, arg)
+	ret := m.ctrl.Call(m, "GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets", ctx, arg)
 	ret0, _ := ret[0].([]database.InboxNotification)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// FetchUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets indicates an expected call of FetchUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets.
-func (mr *MockStoreMockRecorder) FetchUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets(ctx, arg any) *gomock.Call {
+// GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets indicates an expected call of GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets.
+func (mr *MockStoreMockRecorder) GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets", reflect.TypeOf((*MockStore)(nil).FetchUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets", reflect.TypeOf((*MockStore)(nil).GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets), ctx, arg)
 }
 
 // FetchVolumesResourceMonitorsByAgentID mocks base method.
@@ -4879,18 +4879,18 @@ func (mr *MockStoreMockRecorder) RevokeDBCryptKey(ctx, activeKeyDigest any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RevokeDBCryptKey", reflect.TypeOf((*MockStore)(nil).RevokeDBCryptKey), ctx, activeKeyDigest)
 }
 
-// SetInboxNotificationAsRead mocks base method.
-func (m *MockStore) SetInboxNotificationAsRead(ctx context.Context, arg database.SetInboxNotificationAsReadParams) error {
+// UpdateInboxNotificationAsRead mocks base method.
+func (m *MockStore) UpdateInboxNotificationAsRead(ctx context.Context, arg database.UpdateInboxNotificationAsReadParams) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetInboxNotificationAsRead", ctx, arg)
+	ret := m.ctrl.Call(m, "UpdateInboxNotificationAsRead", ctx, arg)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// SetInboxNotificationAsRead indicates an expected call of SetInboxNotificationAsRead.
-func (mr *MockStoreMockRecorder) SetInboxNotificationAsRead(ctx, arg any) *gomock.Call {
+// UpdateInboxNotificationAsRead indicates an expected call of UpdateInboxNotificationAsRead.
+func (mr *MockStoreMockRecorder) UpdateInboxNotificationAsRead(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetInboxNotificationAsRead", reflect.TypeOf((*MockStore)(nil).SetInboxNotificationAsRead), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateInboxNotificationAsRead", reflect.TypeOf((*MockStore)(nil).UpdateInboxNotificationAsRead), ctx, arg)
 }
 
 // TryAcquireLock mocks base method.

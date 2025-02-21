@@ -112,13 +112,13 @@ type sqlcQuerier interface {
 	DisableForeignKeysAndTriggers(ctx context.Context) error
 	EnqueueNotificationMessage(ctx context.Context, arg EnqueueNotificationMessageParams) error
 	FavoriteWorkspace(ctx context.Context, id uuid.UUID) error
-	FetchInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) ([]InboxNotification, error)
-	FetchInboxNotificationsByUserIDFilteredByTemplatesAndTargets(ctx context.Context, arg FetchInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams) ([]InboxNotification, error)
+	GetInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) ([]InboxNotification, error)
+	GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets(ctx context.Context, arg GetInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams) ([]InboxNotification, error)
 	FetchMemoryResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) (WorkspaceAgentMemoryResourceMonitor, error)
 	// This is used to build up the notification_message's JSON payload.
 	FetchNewMessageMetadata(ctx context.Context, arg FetchNewMessageMetadataParams) (FetchNewMessageMetadataRow, error)
-	FetchUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) ([]InboxNotification, error)
-	FetchUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets(ctx context.Context, arg FetchUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams) ([]InboxNotification, error)
+	GetUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) ([]InboxNotification, error)
+	GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets(ctx context.Context, arg GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams) ([]InboxNotification, error)
 	FetchVolumesResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) ([]WorkspaceAgentVolumeResourceMonitor, error)
 	GetAPIKeyByID(ctx context.Context, id string) (APIKey, error)
 	// there is no unique constraint on empty token names
@@ -469,7 +469,7 @@ type sqlcQuerier interface {
 	RemoveUserFromAllGroups(ctx context.Context, userID uuid.UUID) error
 	RemoveUserFromGroups(ctx context.Context, arg RemoveUserFromGroupsParams) ([]uuid.UUID, error)
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error
-	SetInboxNotificationAsRead(ctx context.Context, arg SetInboxNotificationAsReadParams) error
+	UpdateInboxNotificationAsRead(ctx context.Context, arg UpdateInboxNotificationAsReadParams) error
 	// Non blocking lock. Returns true if the lock was acquired, false otherwise.
 	//
 	// This must be called from within a transaction. The lock will be automatically
