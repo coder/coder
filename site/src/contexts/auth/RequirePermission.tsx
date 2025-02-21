@@ -1,5 +1,13 @@
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "components/Dialog/Dialog";
+import { Link } from "components/Link/Link";
 import type { FC, ReactNode } from "react";
-import { Navigate } from "react-router-dom";
 
 export interface RequirePermissionProps {
 	children?: ReactNode;
@@ -14,7 +22,25 @@ export const RequirePermission: FC<RequirePermissionProps> = ({
 	isFeatureVisible,
 }) => {
 	if (!isFeatureVisible) {
-		return <Navigate to="/workspaces" />;
+		// return <Navigate to="/workspaces" />;
+		return (
+			<Dialog open={true}>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>
+							You don't have permission to view this page
+						</DialogTitle>
+					</DialogHeader>
+					<DialogDescription>
+						If you believe this is a mistake, please contact your administrator
+						or try signing in with different credentials.
+					</DialogDescription>
+					<DialogFooter>
+						<Link href="/">Go to workspaces</Link>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+		);
 	}
 
 	return <>{children}</>;
