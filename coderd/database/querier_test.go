@@ -2927,21 +2927,19 @@ func TestOrganizationDeleteTrigger(t *testing.T) {
 	t.Run("WorkspaceExists", func(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 
-		orgA := dbgen.Organization(t, db, database.Organization{})
-		_, err := db.InsertAllUsersGroup(context.Background(), orgA.ID)
-		require.NoError(t, err)
+		orgA := dbfake.Organization(t, db).Do()
 
 		user := dbgen.User(t, db, database.User{})
 
 		dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-			OrganizationID: orgA.ID,
+			OrganizationID: orgA.Org.ID,
 			OwnerID:        user.ID,
 		}).Do()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
-		err = db.UpdateOrganizationDeletedByID(ctx, database.UpdateOrganizationDeletedByIDParams{
+		err := db.UpdateOrganizationDeletedByID(ctx, database.UpdateOrganizationDeletedByIDParams{
 			UpdatedAt: dbtime.Now(),
-			ID:        orgA.ID,
+			ID:        orgA.Org.ID,
 		})
 		require.Error(t, err)
 		// cannot delete organization: organization has 1 workspaces and 1 templates that must be deleted first
