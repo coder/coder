@@ -47,15 +47,10 @@ const OrganizationSettingsPage: FC = () => {
 			onDeleteOrganization={async () => {
 				try {
 					await deleteOrganizationMutation.mutateAsync(organization.id);
-					displaySuccess(`Organization ${organization.name} deleted`);
+					displaySuccess("Organization deleted");
 					navigate("/organizations");
 				} catch (error) {
-					displayError(
-						getErrorMessage(
-							error,
-							`Failed to delete organization: ${organization.name}`,
-						),
-					);
+					displayError(getErrorMessage(error, "Failed to delete organization"));
 				}
 			}}
 		/>
