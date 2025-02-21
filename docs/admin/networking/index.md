@@ -1,7 +1,7 @@
 # Networking
 
 The pages in this section outline Coder's networking stack and how aspects
-connect to or interact with each other. 
+connect to or interact with each other.
 
 This page is a high-level reference of Coder's network topology, requirements,
 and connection types.
