@@ -9,7 +9,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_organization_name_lower ON organizations U
 ALTER TABLE ONLY organizations
 	DROP CONSTRAINT IF EXISTS organizations_name;
 
-CREATE FUNCTION protect_deleted_organizations()
+CREATE FUNCTION protect_deleting_organizations()
 	RETURNS TRIGGER AS
 $$
 DECLARE
@@ -78,7 +78,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Trigger to protect organizations from being soft deleted with existing resources
-CREATE TRIGGER protect_deleted_organizations
+CREATE TRIGGER protect_deleting_organizations
     BEFORE UPDATE ON organizations
     FOR EACH ROW
 	WHEN (NEW.deleted = true AND OLD.deleted = false)
