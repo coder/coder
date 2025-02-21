@@ -22,7 +22,6 @@ export const RequirePermission: FC<RequirePermissionProps> = ({
 	isFeatureVisible,
 }) => {
 	if (!isFeatureVisible) {
-		// return <Navigate to="/workspaces" />;
 		return (
 			<Dialog open={true}>
 				<DialogContent>
