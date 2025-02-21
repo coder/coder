@@ -159,7 +159,7 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 		//nolint:dogsled
-		conn, _, stats, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
+		conn, agentClient, stats, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
 		sshClient, err := conn.SSHClient(ctx)
 		require.NoError(t, err)
 		defer sshClient.Close()
@@ -189,6 +189,8 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		_ = stdin.Close()
 		err = session.Wait()
 		require.NoError(t, err)
+
+		assertConnectionReport(t, agentClient, proto.Connection_VSCODE, 0, "")
 	})
 
 	t.Run("TracksJetBrains", func(t *testing.T) {
@@ -225,7 +227,7 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		remotePort := sc.Text()
 
 		//nolint:dogsled
-		conn, _, stats, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
+		conn, agentClient, stats, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
 		sshClient, err := conn.SSHClient(ctx)
 		require.NoError(t, err)
 
@@ -261,6 +263,8 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		}, testutil.WaitLong, testutil.IntervalFast,
 			"never saw stats after conn closes",
 		)
+
+		assertConnectionReport(t, agentClient, proto.Connection_JETBRAINS, 0, "")
 	})
 }
 
@@ -918,7 +922,7 @@ func TestAgent_SFTP(t *testing.T) {
 		home = "/" + strings.ReplaceAll(home, "\\", "/")
 	}
 	//nolint:dogsled
-	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
+	conn, agentClient, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
 	sshClient, err := conn.SSHClient(ctx)
 	require.NoError(t, err)
 	defer sshClient.Close()
@@ -941,6 +945,10 @@ func TestAgent_SFTP(t *testing.T) {
 	require.NoError(t, err)
 	_, err = os.Stat(tempFile)
 	require.NoError(t, err)
+
+	// Close the client to trigger disconnect event.
+	_ = client.Close()
+	assertConnectionReport(t, agentClient, proto.Connection_SSH, 0, "")
 }
 
 func TestAgent_SCP(t *testing.T) {
@@ -950,7 +958,7 @@ func TestAgent_SCP(t *testing.T) {
 	defer cancel()
 
 	//nolint:dogsled
-	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
+	conn, agentClient, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
 	sshClient, err := conn.SSHClient(ctx)
 	require.NoError(t, err)
 	defer sshClient.Close()
@@ -963,6 +971,10 @@ func TestAgent_SCP(t *testing.T) {
 	require.NoError(t, err)
 	_, err = os.Stat(tempFile)
 	require.NoError(t, err)
+
+	// Close the client to trigger disconnect event.
+	scpClient.Close()
+	assertConnectionReport(t, agentClient, proto.Connection_SSH, 0, "")
 }
 
 func TestAgent_FileTransferBlocked(t *testing.T) {
@@ -987,7 +999,7 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 		defer cancel()
 
 		//nolint:dogsled
-		conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
+		conn, agentClient, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
 			o.BlockFileTransfer = true
 		})
 		sshClient, err := conn.SSHClient(ctx)
@@ -996,6 +1008,8 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 		_, err = sftp.NewClient(sshClient)
 		require.Error(t, err)
 		assertFileTransferBlocked(t, err.Error())
+
+		assertConnectionReport(t, agentClient, proto.Connection_SSH, agentssh.BlockedFileTransferErrorCode, "")
 	})
 
 	t.Run("SCP with go-scp package", func(t *testing.T) {
@@ -1005,7 +1019,7 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 		defer cancel()
 
 		//nolint:dogsled
-		conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
+		conn, agentClient, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
 			o.BlockFileTransfer = true
 		})
 		sshClient, err := conn.SSHClient(ctx)
@@ -1018,6 +1032,8 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 		err = scpClient.CopyFile(context.Background(), strings.NewReader("hello world"), tempFile, "0755")
 		require.Error(t, err)
 		assertFileTransferBlocked(t, err.Error())
+
+		assertConnectionReport(t, agentClient, proto.Connection_SSH, agentssh.BlockedFileTransferErrorCode, "")
 	})
 
 	t.Run("Forbidden commands", func(t *testing.T) {
@@ -1031,7 +1047,7 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 				defer cancel()
 
 				//nolint:dogsled
-				conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
+				conn, agentClient, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
 					o.BlockFileTransfer = true
 				})
 				sshClient, err := conn.SSHClient(ctx)
@@ -1053,6 +1069,8 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 				msg, err := io.ReadAll(stdout)
 				require.NoError(t, err)
 				assertFileTransferBlocked(t, string(msg))
+
+				assertConnectionReport(t, agentClient, proto.Connection_SSH, agentssh.BlockedFileTransferErrorCode, "")
 			})
 		}
 	})
@@ -1661,8 +1679,16 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 			defer cancel()
 
 			//nolint:dogsled
-			conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
+			conn, agentClient, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
 			id := uuid.New()
+
+			// Test that the connection is reported. This must be tested in the
+			// first connection because we care about verifying all of these.
+			netConn0, err := conn.ReconnectingPTY(ctx, id, 80, 80, "bash --norc")
+			require.NoError(t, err)
+			_ = netConn0.Close()
+			assertConnectionReport(t, agentClient, proto.Connection_RECONNECTING_PTY, 0, "")
+
 			// --norc disables executing .bashrc, which is often used to customize the bash prompt
 			netConn1, err := conn.ReconnectingPTY(ctx, id, 80, 80, "bash --norc")
 			require.NoError(t, err)
@@ -2690,4 +2716,36 @@ func requireEcho(t *testing.T, conn net.Conn) {
 	_, err = conn.Read(b)
 	require.NoError(t, err)
 	require.Equal(t, "test", string(b))
+}
+
+func assertConnectionReport(t testing.TB, agentClient *agenttest.Client, connectionType proto.Connection_Type, status int, reason string) {
+	t.Helper()
+
+	var reports []*proto.ReportConnectionRequest
+	if !assert.Eventually(t, func() bool {
+		reports = agentClient.GetConnectionReports()
+		return len(reports) >= 2
+	}, testutil.WaitMedium, testutil.IntervalFast, "waiting for 2 connection reports or more; got %d", len(reports)) {
+		return
+	}
+
+	assert.Len(t, reports, 2, "want 2 connection reports")
+
+	assert.Equal(t, proto.Connection_CONNECT, reports[0].GetConnection().GetAction(), "first report should be connect")
+	assert.Equal(t, proto.Connection_DISCONNECT, reports[1].GetConnection().GetAction(), "second report should be disconnect")
+	assert.Equal(t, connectionType, reports[0].GetConnection().GetType(), "connect type should be %s", connectionType)
+	assert.Equal(t, connectionType, reports[1].GetConnection().GetType(), "disconnect type should be %s", connectionType)
+	t1 := reports[0].GetConnection().GetTimestamp().AsTime()
+	t2 := reports[1].GetConnection().GetTimestamp().AsTime()
+	assert.True(t, t1.Before(t2) || t1.Equal(t2), "connect timestamp should be before or equal to disconnect timestamp")
+	assert.NotEmpty(t, reports[0].GetConnection().GetIp(), "connect ip should not be empty")
+	assert.NotEmpty(t, reports[1].GetConnection().GetIp(), "disconnect ip should not be empty")
+	assert.Equal(t, 0, int(reports[0].GetConnection().GetStatusCode()), "connect status code should be 0")
+	assert.Equal(t, status, int(reports[1].GetConnection().GetStatusCode()), "disconnect status code should be %d", status)
+	assert.Equal(t, "", reports[0].GetConnection().GetReason(), "connect reason should be empty")
+	if reason != "" {
+		assert.Contains(t, reports[1].GetConnection().GetReason(), reason, "disconnect reason should contain %s", reason)
+	} else {
+		t.Logf("connection report disconnect reason: %s", reports[1].GetConnection().GetReason())
+	}
 }

@@ -27,6 +27,7 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"tailscale.com/net/speedtest"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/netlogtype"
@@ -174,6 +175,7 @@ func New(options Options) Agent {
 		lifecycleUpdate:                    make(chan struct{}, 1),
 		lifecycleReported:                  make(chan codersdk.WorkspaceAgentLifecycle, 1),
 		lifecycleStates:                    []agentsdk.PostLifecycleRequest{{State: codersdk.WorkspaceAgentLifecycleCreated}},
+		reportConnectionsUpdate:            make(chan struct{}, 1),
 		ignorePorts:                        options.IgnorePorts,
 		portCacheDuration:                  options.PortCacheDuration,
 		reportMetadataInterval:             options.ReportMetadataInterval,
@@ -247,6 +249,10 @@ type agent struct {
 	lifecycleStates            []agentsdk.PostLifecycleRequest
 	lifecycleLastReportedIndex int // Keeps track of the last lifecycle state we successfully reported.
 
+	reportConnectionsUpdate chan struct{}
+	reportConnectionsMu     sync.Mutex
+	reportConnections       []*proto.ReportConnectionRequest
+
 	network       *tailnet.Conn
 	statsReporter *statsReporter
 	logSender     *agentsdk.LogSender
@@ -272,6 +278,24 @@ func (a *agent) init() {
 		UpdateEnv:           a.updateCommandEnv,
 		WorkingDirectory:    func() string { return a.manifest.Load().Directory },
 		BlockFileTransfer:   a.blockFileTransfer,
+		ReportConnection: func(id uuid.UUID, magicType agentssh.MagicSessionType, ip string) func(code int, reason string) {
+			var connectionType proto.Connection_Type
+			switch magicType {
+			case agentssh.MagicSessionTypeSSH:
+				connectionType = proto.Connection_SSH
+			case agentssh.MagicSessionTypeVSCode:
+				connectionType = proto.Connection_VSCODE
+			case agentssh.MagicSessionTypeJetBrains:
+				connectionType = proto.Connection_JETBRAINS
+			case agentssh.MagicSessionTypeUnknown:
+				connectionType = proto.Connection_TYPE_UNSPECIFIED
+			default:
+				a.logger.Error(a.hardCtx, "unhandled magic session type when reporting connection", slog.F("magic_type", magicType))
+				connectionType = proto.Connection_TYPE_UNSPECIFIED
+			}
+
+			return a.reportConnection(id, connectionType, ip)
+		},
 	})
 	if err != nil {
 		panic(err)
@@ -294,6 +318,9 @@ func (a *agent) init() {
 	a.reconnectingPTYServer = reconnectingpty.NewServer(
 		a.logger.Named("reconnecting-pty"),
 		a.sshServer,
+		func(id uuid.UUID, ip string) func(code int, reason string) {
+			return a.reportConnection(id, proto.Connection_RECONNECTING_PTY, ip)
+		},
 		a.metrics.connectionsTotal, a.metrics.reconnectingPTYErrors,
 		a.reconnectingPTYTimeout,
 	)
@@ -703,6 +730,91 @@ func (a *agent) setLifecycle(state codersdk.WorkspaceAgentLifecycle) {
 	}
 }
 
+// reportConnectionsLoop reports connections to the agent for auditing.
+func (a *agent) reportConnectionsLoop(ctx context.Context, aAPI proto.DRPCAgentClient24) error {
+	for {
+		select {
+		case <-a.reportConnectionsUpdate:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+
+		for {
+			a.reportConnectionsMu.Lock()
+			if len(a.reportConnections) == 0 {
+				a.reportConnectionsMu.Unlock()
+				break
+			}
+			payload := a.reportConnections[0]
+			a.reportConnectionsMu.Unlock()
+
+			logger := a.logger.With(slog.F("payload", payload))
+			logger.Debug(ctx, "reporting connection")
+			_, err := aAPI.ReportConnection(ctx, payload)
+			if err != nil {
+				return xerrors.Errorf("failed to report connection: %w", err)
+			}
+
+			logger.Debug(ctx, "successfully reported connection")
+
+			a.reportConnectionsMu.Lock()
+			a.reportConnections = a.reportConnections[1:]
+			count := len(a.reportConnections)
+			a.reportConnectionsMu.Unlock()
+
+			if count == 0 {
+				break
+			}
+		}
+	}
+}
+
+func (a *agent) reportConnection(id uuid.UUID, connectionType proto.Connection_Type, ip string) (disconnected func(code int, reason string)) {
+	// Remove the port from the IP.
+	if portIndex := strings.LastIndex(ip, ":"); portIndex != -1 {
+		ip = ip[:portIndex]
+		ip = strings.Trim(ip, "[]") // IPv6 addresses are wrapped in brackets.
+	}
+
+	a.reportConnectionsMu.Lock()
+	defer a.reportConnectionsMu.Unlock()
+	a.reportConnections = append(a.reportConnections, &proto.ReportConnectionRequest{
+		Connection: &proto.Connection{
+			Id:         id[:],
+			Action:     proto.Connection_CONNECT,
+			Type:       connectionType,
+			Timestamp:  timestamppb.New(time.Now()),
+			Ip:         ip,
+			StatusCode: 0,
+			Reason:     nil,
+		},
+	})
+	select {
+	case a.reportConnectionsUpdate <- struct{}{}:
+	default:
+	}
+
+	return func(code int, reason string) {
+		a.reportConnectionsMu.Lock()
+		defer a.reportConnectionsMu.Unlock()
+		a.reportConnections = append(a.reportConnections, &proto.ReportConnectionRequest{
+			Connection: &proto.Connection{
+				Id:         id[:],
+				Action:     proto.Connection_DISCONNECT,
+				Type:       connectionType,
+				Timestamp:  timestamppb.New(time.Now()),
+				Ip:         ip,
+				StatusCode: int32(code), //nolint:gosec
+				Reason:     &reason,
+			},
+		})
+		select {
+		case a.reportConnectionsUpdate <- struct{}{}:
+		default:
+		}
+	}
+}
+
 // fetchServiceBannerLoop fetches the service banner on an interval.  It will
 // not be fetched immediately; the expectation is that it is primed elsewhere
 // (and must be done before the session actually starts).
@@ -812,6 +924,10 @@ func (a *agent) run() (retErr error) {
 		resourcesmonitor := resourcesmonitor.NewResourcesMonitor(logger, clk, config, resourcesFetcher, aAPI)
 		return resourcesmonitor.Start(ctx)
 	})
+
+	// Connection reports are part of auditing, we should keep sending them via
+	// gracefulShutdownBehaviorRemain.
+	connMan.startAgentAPI("report connections", gracefulShutdownBehaviorRemain, a.reportConnectionsLoop)
 
 	// channels to sync goroutines below
 	//  handle manifest

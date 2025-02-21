@@ -18,24 +18,33 @@ import (
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
+type reportConnectionFunc func(id uuid.UUID, ip string) (disconnected func(code int, reason string))
+
 type Server struct {
 	logger           slog.Logger
 	connectionsTotal prometheus.Counter
 	errorsTotal      *prometheus.CounterVec
 	commandCreator   *agentssh.Server
+	reportConnection reportConnectionFunc
 	connCount        atomic.Int64
 	reconnectingPTYs sync.Map
 	timeout          time.Duration
 }
 
 // NewServer returns a new ReconnectingPTY server
-func NewServer(logger slog.Logger, commandCreator *agentssh.Server,
+func NewServer(logger slog.Logger, commandCreator *agentssh.Server, reportConnection reportConnectionFunc,
 	connectionsTotal prometheus.Counter, errorsTotal *prometheus.CounterVec,
 	timeout time.Duration,
 ) *Server {
+	if reportConnection == nil {
+		reportConnection = func(uuid.UUID, string) func(int, string) {
+			return func(int, string) {}
+		}
+	}
 	return &Server{
 		logger:           logger,
 		commandCreator:   commandCreator,
+		reportConnection: reportConnection,
 		connectionsTotal: connectionsTotal,
 		errorsTotal:      errorsTotal,
 		timeout:          timeout,
@@ -59,20 +68,31 @@ func (s *Server) Serve(ctx, hardCtx context.Context, l net.Listener) (retErr err
 			slog.F("local", conn.LocalAddr().String()))
 		clog.Info(ctx, "accepted conn")
 		wg.Add(1)
+		disconnected := s.reportConnection(uuid.New(), conn.RemoteAddr().String())
 		closed := make(chan struct{})
 		go func() {
+			defer wg.Done()
 			select {
 			case <-closed:
 			case <-hardCtx.Done():
+				disconnected(1, "server shut down")
 				_ = conn.Close()
 			}
-			wg.Done()
 		}()
 		wg.Add(1)
 		go func() {
 			defer close(closed)
 			defer wg.Done()
-			_ = s.handleConn(ctx, clog, conn)
+			err := s.handleConn(ctx, clog, conn)
+			if err != nil {
+				if ctx.Err() != nil {
+					disconnected(1, "server shutting down")
+				} else {
+					disconnected(1, err.Error())
+				}
+			} else {
+				disconnected(0, "")
+			}
 		}()
 	}
 	wg.Wait()
