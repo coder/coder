@@ -8,7 +8,7 @@ CREATE TABLE inbox_notifications (
 	icon			TEXT						NOT NULL,
 	actions			JSONB						NOT NULL,
 	read_at			TIMESTAMP WITH TIME ZONE,
-	created_at		TIMESTAMP WITH TIME ZONE	NOT NULL DEFAULT NOW()
+	created_at		TIMESTAMP WITH TIME ZONE			NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_inbox_notifications_user_id_read_at ON inbox_notifications(user_id, read_at);
