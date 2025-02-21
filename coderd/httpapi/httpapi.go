@@ -154,6 +154,7 @@ func ResourceNotFound(rw http.ResponseWriter) {
 func Forbidden(rw http.ResponseWriter) {
 	Write(context.Background(), rw, http.StatusForbidden, codersdk.Response{
 		Message: "Forbidden.",
+		Detail:  "You don't have permission to view this content. If you believe this is a mistake, please contact your administrator or try signing in with different credentials.",
 	})
 }
 
