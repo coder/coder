@@ -342,7 +342,15 @@ resource "coder_agent" "dev" {
     while ! [[ -f "${local.repo_dir}/site/package.json" ]]; do
       sleep 1
     done
+    make clean
     cd "${local.repo_dir}/site" && pnpm install && pnpm playwright:install
+  EOT
+
+  shutdown_script = <<-EOT
+    #!/usr/bin/env bash
+    set -eux -o pipefail
+
+    cd "${local.repo_dir}" && make clean
   EOT
 }
 
