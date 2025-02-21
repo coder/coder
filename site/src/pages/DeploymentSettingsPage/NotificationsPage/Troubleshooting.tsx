@@ -6,9 +6,7 @@ import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import type { FC } from "react";
 import { useMutation } from "react-query";
 
-type TroubleshootingProps = {};
-
-export const Troubleshooting: FC<TroubleshootingProps> = ({}) => {
+export const Troubleshooting: FC = () => {
 	const { mutate: sendTestNotificationApi, isLoading } = useMutation(
 		API.postTestNotification,
 		{
