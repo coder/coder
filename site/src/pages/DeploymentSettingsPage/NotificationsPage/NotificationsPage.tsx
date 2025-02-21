@@ -17,6 +17,10 @@ import { deploymentGroupHasParent } from "utils/deployOptions";
 import { pageTitle } from "utils/page";
 import OptionsTable from "../OptionsTable";
 import { NotificationEvents } from "./NotificationEvents";
+import { Troubleshooting } from "./Troubleshooting";
+import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
+import { docs } from "utils/docs";
+import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 
 export const NotificationsPage: FC = () => {
 	const { deploymentConfig } = useDeploymentSettings();
@@ -40,48 +44,62 @@ export const NotificationsPage: FC = () => {
 			<Helmet>
 				<title>{pageTitle("Notifications Settings")}</title>
 			</Helmet>
-			<Section
-				title="Notifications"
+			<SettingsHeader
+				title={
+					<>
+						Notifications
+						<span css={{ position: "relative", top: "-6px" }}>
+							<FeatureStageBadge
+								contentType={"beta"}
+								size="lg"
+								css={{ marginBottom: "5px", fontSize: "0.75rem" }}
+							/>
+						</span>
+					</>
+				}
 				description="Control delivery methods for notifications on this deployment."
-				layout="fluid"
-				featureStage={"beta"}
-			>
-				<Tabs active={tabState.value}>
-					<TabsList>
-						<TabLink to="?tab=events" value="events">
-							Events
-						</TabLink>
-						<TabLink to="?tab=settings" value="settings">
-							Settings
-						</TabLink>
-					</TabsList>
-				</Tabs>
+				docsHref={docs("/admin/monitoring/notifications")}
+			/>
+			<Tabs active={tabState.value}>
+				<TabsList>
+					<TabLink to="?tab=events" value="events">
+						Events
+					</TabLink>
+					<TabLink to="?tab=settings" value="settings">
+						Settings
+					</TabLink>
+					<TabLink to="?tab=troubleshooting" value="troubleshooting">
+						Troubleshooting
+					</TabLink>
+				</TabsList>
+			</Tabs>
 
-				<div css={styles.content}>
-					{ready ? (
-						tabState.value === "events" ? (
-							<NotificationEvents
-								templatesByGroup={templatesByGroup.data}
-								deploymentConfig={deploymentConfig.config}
-								defaultMethod={castNotificationMethod(
-									dispatchMethods.data.default,
-								)}
-								availableMethods={dispatchMethods.data.available.map(
-									castNotificationMethod,
-								)}
-							/>
-						) : (
-							<OptionsTable
-								options={deploymentConfig.options.filter((o) =>
-									deploymentGroupHasParent(o.group, "Notifications"),
-								)}
-							/>
-						)
+			<div css={styles.content}>
+				{ready ? (
+					tabState.value === "events" ? (
+						<NotificationEvents
+							templatesByGroup={templatesByGroup.data}
+							deploymentConfig={deploymentConfig.config}
+							defaultMethod={castNotificationMethod(
+								dispatchMethods.data.default,
+							)}
+							availableMethods={dispatchMethods.data.available.map(
+								castNotificationMethod,
+							)}
+						/>
+					) : tabState.value === "troubleshooting" ? (
+						<Troubleshooting />
 					) : (
-						<Loader />
-					)}
-				</div>
-			</Section>
+						<OptionsTable
+							options={deploymentConfig.options.filter((o) =>
+								deploymentGroupHasParent(o.group, "Notifications"),
+							)}
+						/>
+					)
+				) : (
+					<Loader />
+				)}
+			</div>
 		</>
 	);
 };
