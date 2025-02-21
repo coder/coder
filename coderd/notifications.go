@@ -210,7 +210,7 @@ func (api *API) postTestNotification(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, nil)
+	rw.WriteHeader(http.StatusNoContent)
 }
 
 // @Summary Get user notification preferences

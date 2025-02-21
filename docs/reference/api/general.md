@@ -328,6 +328,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         ],
         "client_id": "string",
         "client_secret": "string",
+        "device_flow": true,
         "enterprise_base_url": "string"
       }
     },

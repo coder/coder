@@ -499,6 +499,9 @@ OAUTH2 / GITHUB OPTIONS:
       --oauth2-github-client-secret string, $CODER_OAUTH2_GITHUB_CLIENT_SECRET
           Client secret for Login with GitHub.
 
+      --oauth2-github-device-flow bool, $CODER_OAUTH2_GITHUB_DEVICE_FLOW (default: false)
+          Enable device flow for Login with GitHub.
+
       --oauth2-github-enterprise-base-url string, $CODER_OAUTH2_GITHUB_ENTERPRISE_BASE_URL
           Base URL of a GitHub Enterprise deployment to use for Login with
           GitHub.

@@ -3,11 +3,12 @@ package agentssh
 import (
 	"bufio"
 	"context"
-	"crypto/rand"
 	"crypto/rsa"
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
+	"math/rand"
 	"net"
 	"os"
 	"os/exec"
@@ -128,17 +129,6 @@ type Server struct {
 }
 
 func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prometheus.Registry, fs afero.Fs, execer agentexec.Execer, config *Config) (*Server, error) {
-	// Clients' should ignore the host key when connecting.
-	// The agent needs to authenticate with coderd to SSH,
-	// so SSH authentication doesn't improve security.
-	randomHostKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		return nil, err
-	}
-	randomSigner, err := gossh.NewSignerFromKey(randomHostKey)
-	if err != nil {
-		return nil, err
-	}
 	if config == nil {
 		config = &Config{}
 	}
@@ -205,8 +195,10 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 				slog.F("local_addr", conn.LocalAddr()),
 				slog.Error(err))
 		},
-		Handler:     s.sessionHandler,
-		HostSigners: []ssh.Signer{randomSigner},
+		Handler: s.sessionHandler,
+		// HostSigners are intentionally empty, as the host key will
+		// be set before we start listening.
+		HostSigners: []ssh.Signer{},
 		LocalPortForwardingCallback: func(ctx ssh.Context, destinationHost string, destinationPort uint32) bool {
 			// Allow local port forwarding all!
 			s.logger.Debug(ctx, "local port forward",
@@ -844,7 +836,13 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string,
 	return cmd, nil
 }
 
+// Serve starts the server to handle incoming connections on the provided listener.
+// It returns an error if no host keys are set or if there is an issue accepting connections.
 func (s *Server) Serve(l net.Listener) (retErr error) {
+	if len(s.srv.HostSigners) == 0 {
+		return xerrors.New("no host keys set")
+	}
+
 	s.logger.Info(context.Background(), "started serving listener", slog.F("listen_addr", l.Addr()))
 	defer func() {
 		s.logger.Info(context.Background(), "stopped serving listener",
@@ -1098,4 +1096,100 @@ func userHomeDir() (string, error) {
 		return "", xerrors.Errorf("current user: %w", err)
 	}
 	return u.HomeDir, nil
+}
+
+// UpdateHostSigner updates the host signer with a new key generated from the provided seed.
+// If an existing host key exists with the same algorithm, it is overwritten
+func (s *Server) UpdateHostSigner(seed int64) error {
+	key, err := CoderSigner(seed)
+	if err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.srv.AddHostKey(key)
+
+	return nil
+}
+
+// CoderSigner generates a deterministic SSH signer based on the provided seed.
+// It uses RSA with a key size of 2048 bits.
+func CoderSigner(seed int64) (gossh.Signer, error) {
+	// Clients should ignore the host key when connecting.
+	// The agent needs to authenticate with coderd to SSH,
+	// so SSH authentication doesn't improve security.
+
+	// Since the standard lib purposefully does not generate
+	// deterministic rsa keys, we need to do it ourselves.
+	coderHostKey := func() *rsa.PrivateKey {
+		// Create deterministic random source
+		// nolint: gosec
+		deterministicRand := rand.New(rand.NewSource(seed))
+
+		// Use fixed values for p and q based on the seed
+		p := big.NewInt(0)
+		q := big.NewInt(0)
+		e := big.NewInt(65537) // Standard RSA public exponent
+
+		// Generate deterministic primes using the seeded random
+		// Each prime should be ~1024 bits to get a 2048-bit key
+		for {
+			p.SetBit(p, 1024, 1) // Ensure it's large enough
+			for i := 0; i < 1024; i++ {
+				if deterministicRand.Int63()%2 == 1 {
+					p.SetBit(p, i, 1)
+				} else {
+					p.SetBit(p, i, 0)
+				}
+			}
+			if p.ProbablyPrime(20) {
+				break
+			}
+		}
+
+		for {
+			q.SetBit(q, 1024, 1) // Ensure it's large enough
+			for i := 0; i < 1024; i++ {
+				if deterministicRand.Int63()%2 == 1 {
+					q.SetBit(q, i, 1)
+				} else {
+					q.SetBit(q, i, 0)
+				}
+			}
+			if q.ProbablyPrime(20) && p.Cmp(q) != 0 {
+				break
+			}
+		}
+
+		// Calculate n = p * q
+		n := new(big.Int).Mul(p, q)
+
+		// Calculate phi = (p-1) * (q-1)
+		p1 := new(big.Int).Sub(p, big.NewInt(1))
+		q1 := new(big.Int).Sub(q, big.NewInt(1))
+		phi := new(big.Int).Mul(p1, q1)
+
+		// Calculate private exponent d
+		d := new(big.Int).ModInverse(e, phi)
+
+		// Create the private key
+		privateKey := &rsa.PrivateKey{
+			PublicKey: rsa.PublicKey{
+				N: n,
+				E: int(e.Int64()),
+			},
+			D:      d,
+			Primes: []*big.Int{p, q},
+		}
+
+		// Compute precomputed values
+		privateKey.Precompute()
+
+		return privateKey
+	}()
+
+	coderSigner, err := gossh.NewSignerFromKey(coderHostKey)
+	return coderSigner, err
 }

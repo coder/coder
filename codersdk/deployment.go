@@ -505,6 +505,7 @@ type OAuth2Config struct {
 type OAuth2GithubConfig struct {
 	ClientID          serpent.String      `json:"client_id" typescript:",notnull"`
 	ClientSecret      serpent.String      `json:"client_secret" typescript:",notnull"`
+	DeviceFlow        serpent.Bool        `json:"device_flow" typescript:",notnull"`
 	AllowedOrgs       serpent.StringArray `json:"allowed_orgs" typescript:",notnull"`
 	AllowedTeams      serpent.StringArray `json:"allowed_teams" typescript:",notnull"`
 	AllowSignups      serpent.Bool        `json:"allow_signups" typescript:",notnull"`
@@ -1571,6 +1572,16 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Value:       &c.OAuth2.Github.ClientSecret,
 			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
 			Group:       &deploymentGroupOAuth2GitHub,
+		},
+		{
+			Name:        "OAuth2 GitHub Device Flow",
+			Description: "Enable device flow for Login with GitHub.",
+			Flag:        "oauth2-github-device-flow",
+			Env:         "CODER_OAUTH2_GITHUB_DEVICE_FLOW",
+			Value:       &c.OAuth2.Github.DeviceFlow,
+			Group:       &deploymentGroupOAuth2GitHub,
+			YAML:        "deviceFlow",
+			Default:     "false",
 		},
 		{
 			Name:        "OAuth2 GitHub Allowed Orgs",
