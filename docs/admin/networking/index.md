@@ -79,5 +79,7 @@ dashboard-accessed web apps.
 
 ## Up next
 
-- Learn about [Port Forwarding](./port-forwarding.md)
 - Troubleshoot [Networking Issues](./troubleshooting.md)
+- [More about Coder networking](./more-networking/index.md)
+- [Underlying networking stack](./more-networking/underlying-stack.md)
+- Learn about [Port Forwarding](./port-forwarding.md)
