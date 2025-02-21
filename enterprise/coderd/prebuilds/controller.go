@@ -6,18 +6,15 @@ import (
 	"database/sql"
 	"encoding/base32"
 	"fmt"
-	"math"
-	mrand "math/rand"
 	"strings"
 	"sync/atomic"
 	"time"
 
-	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/hashicorp/go-multierror"
 
-	"golang.org/x/exp/slices"
-
 	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
@@ -31,9 +28,6 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
-
-	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 )
 
 type Controller struct {
@@ -134,39 +128,41 @@ func (c *Controller) reconcile(ctx context.Context, templateID *uuid.UUID) {
 			return nil
 		}
 
-		defer logger.Debug(ctx, "acquired top-level prebuilds reconciliation lock", slog.F("acquire_wait_secs", fmt.Sprintf("%.4f", time.Since(start).Seconds())))
-
-		innerCtx, cancel := context.WithTimeout(ctx, time.Second*30)
-		defer cancel()
+		logger.Debug(ctx, "acquired top-level prebuilds reconciliation lock", slog.F("acquire_wait_secs", fmt.Sprintf("%.4f", time.Since(start).Seconds())))
 
 		var id uuid.NullUUID
 		if templateID != nil {
 			id.UUID = *templateID
+			id.Valid = true
 		}
 
-		presetsWithPrebuilds, err := db.GetTemplatePresetsWithPrebuilds(ctx, id)
-		if len(presetsWithPrebuilds) == 0 {
-			logger.Debug(innerCtx, "no templates found with prebuilds configured")
+		state, err := c.determineState(ctx, db, id)
+		if err != nil {
+			return xerrors.Errorf("determine current state: %w", err)
+		}
+		if len(state.presets) == 0 {
+			logger.Debug(ctx, "no templates found with prebuilds configured")
 			return nil
-		}
-
-		runningPrebuilds, err := db.GetRunningPrebuilds(ctx)
-		if err != nil {
-			return xerrors.Errorf("failed to get running prebuilds: %w", err)
-		}
-
-		prebuildsInProgress, err := db.GetPrebuildsInProgress(ctx)
-		if err != nil {
-			return xerrors.Errorf("failed to get prebuilds in progress: %w", err)
 		}
 
 		// TODO: bounded concurrency? probably not but consider
 		var eg errgroup.Group
-		for _, preset := range presetsWithPrebuilds {
+		for _, preset := range state.presets {
+			ps, err := state.filterByPreset(preset.PresetID)
+			if err != nil {
+				logger.Warn(ctx, "failed to find preset state", slog.Error(err), slog.F("preset_id", preset.PresetID.String()))
+				continue
+			}
+
+			if !preset.UsingActiveVersion && len(ps.running) == 0 && len(ps.inProgress) == 0 {
+				logger.Debug(ctx, "skipping reconciliation for preset; inactive, no running prebuilds, and no in-progress operationss",
+					slog.F("preset_id", preset.PresetID.String()))
+				continue
+			}
+
 			eg.Go(func() error {
 				// Pass outer context.
-				// TODO: name these better to avoid the comment.
-				err := c.reconcilePrebuildsForPreset(ctx, preset, runningPrebuilds, prebuildsInProgress)
+				err := c.reconcilePrebuildsForPreset(ctx, ps)
 				if err != nil {
 					logger.Error(ctx, "failed to reconcile prebuilds for preset", slog.Error(err), slog.F("preset_id", preset.PresetID))
 				}
@@ -186,186 +182,64 @@ func (c *Controller) reconcile(ctx context.Context, templateID *uuid.UUID) {
 	}
 }
 
-type reconciliationActions struct {
-	deleteIDs []uuid.UUID
-	createIDs []uuid.UUID
+// determineState determines the current state of prebuilds & the presets which define them.
+// This function MUST be called within
+func (c *Controller) determineState(ctx context.Context, store database.Store, id uuid.NullUUID) (*reconciliationState, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 
-	actual                       int32 // Running prebuilds for active version.
-	desired                      int32 // Active template version's desired instances as defined in preset.
-	eligible                     int32 // Prebuilds which can be claimed.
-	outdated                     int32 // Prebuilds which no longer match the active template version.
-	extraneous                   int32 // Extra running prebuilds for active version (somehow).
-	starting, stopping, deleting int32 // Prebuilds currently being provisioned up or down.
+	var state reconciliationState
+
+	err := store.InTx(func(db database.Store) error {
+		start := time.Now()
+
+		// TODO: give up after some time waiting on this?
+		err := db.AcquireLock(ctx, database.LockIDDeterminePrebuildsState)
+		if err != nil {
+			return xerrors.Errorf("failed to acquire state determination lock: %w", err)
+		}
+
+		c.logger.Debug(ctx, "acquired state determination lock", slog.F("acquire_wait_secs", fmt.Sprintf("%.4f", time.Since(start).Seconds())))
+
+		presetsWithPrebuilds, err := db.GetTemplatePresetsWithPrebuilds(ctx, id)
+		if len(presetsWithPrebuilds) == 0 {
+			return nil
+		}
+
+		allRunningPrebuilds, err := db.GetRunningPrebuilds(ctx)
+		if err != nil {
+			return xerrors.Errorf("failed to get running prebuilds: %w", err)
+		}
+
+		allPrebuildsInProgress, err := db.GetPrebuildsInProgress(ctx)
+		if err != nil {
+			return xerrors.Errorf("failed to get prebuilds in progress: %w", err)
+		}
+
+		state = newReconciliationState(presetsWithPrebuilds, allRunningPrebuilds, allPrebuildsInProgress)
+		return nil
+	}, &database.TxOptions{
+		Isolation:    sql.LevelRepeatableRead, // This mirrors the MVCC snapshotting Postgres does when using CTEs
+		ReadOnly:     true,
+		TxIdentifier: "prebuilds_state_determination",
+	})
+
+	return &state, err
 }
 
-// calculateActions MUST be called within the context of a transaction (TODO: isolation)
-// with an advisory lock to prevent TOCTOU races.
-func (c *Controller) calculateActions(ctx context.Context, preset database.GetTemplatePresetsWithPrebuildsRow, running []database.GetRunningPrebuildsRow, inProgress []database.GetPrebuildsInProgressRow) (*reconciliationActions, error) {
-	// TODO: align workspace states with how we represent them on the FE and the CLI
-	//	     right now there's some slight differences which can lead to additional prebuilds being created
-
-	// TODO: add mechanism to prevent prebuilds being reconciled from being claimable by users; i.e. if a prebuild is
-	// 		 about to be deleted, it should not be deleted if it has been claimed - beware of TOCTOU races!
-
-	var (
-		actual                       int32 // Running prebuilds for active version.
-		desired                      int32 // Active template version's desired instances as defined in preset.
-		eligible                     int32 // Prebuilds which can be claimed.
-		outdated                     int32 // Prebuilds which no longer match the active template version.
-		extraneous                   int32 // Extra running prebuilds for active version (somehow).
-		starting, stopping, deleting int32 // Prebuilds currently being provisioned up or down.
-	)
-
-	if preset.UsingActiveVersion {
-		actual = int32(len(running))
-		desired = preset.DesiredInstances
+func (c *Controller) reconcilePrebuildsForPreset(ctx context.Context, ps *presetState) error {
+	if ps == nil {
+		return xerrors.Errorf("unexpected nil preset state")
 	}
 
-	for _, prebuild := range running {
-		if preset.UsingActiveVersion {
-			if prebuild.Eligible {
-				eligible++
-			}
-
-			extraneous = int32(math.Max(float64(actual-preset.DesiredInstances), 0))
-		}
-
-		if prebuild.TemplateVersionID == preset.TemplateVersionID && !preset.UsingActiveVersion {
-			outdated++
-		}
-	}
-
-	for _, progress := range inProgress {
-		switch progress.Transition {
-		case database.WorkspaceTransitionStart:
-			starting++
-		case database.WorkspaceTransitionStop:
-			stopping++
-		case database.WorkspaceTransitionDelete:
-			deleting++
-		default:
-			c.logger.Warn(ctx, "unknown transition found in prebuilds in progress result", slog.F("transition", progress.Transition))
-		}
-	}
-
-	var (
-		toCreate = int(math.Max(0, float64(
-			desired- // The number specified in the preset
-				(actual+starting)- // The current number of prebuilds (or builds in-flight)
-				stopping), // The number of prebuilds currently being stopped (should be 0)
-		))
-		toDelete = int(math.Max(0, float64(
-			outdated- // The number of prebuilds running above the desired count for active version
-				deleting), // The number of prebuilds currently being deleted
-		))
-
-		actions = &reconciliationActions{
-			actual:     actual,
-			desired:    desired,
-			eligible:   eligible,
-			outdated:   outdated,
-			extraneous: extraneous,
-			starting:   starting,
-			stopping:   stopping,
-			deleting:   deleting,
-		}
-	)
-
-	// Bail early to avoid scheduling new prebuilds while operations are in progress.
-	if (toCreate+toDelete) > 0 && (starting+stopping+deleting) > 0 {
-		c.logger.Warn(ctx, "prebuild operations in progress, skipping reconciliation",
-			slog.F("template_id", preset.TemplateID.String()), slog.F("starting", starting),
-			slog.F("stopping", stopping), slog.F("deleting", deleting),
-			slog.F("wanted_to_create", toCreate), slog.F("wanted_to_delete", toDelete))
-		return actions, nil
-	}
-
-	// It's possible that an operator could stop/start prebuilds which interfere with the reconciliation loop, so
-	// we check if there are somehow more prebuilds than we expect, and then pick random victims to be deleted.
-	if extraneous > 0 {
-		// Sort running IDs randomly so we can pick random victims.
-		slices.SortFunc(running, func(_, _ database.GetRunningPrebuildsRow) int {
-			if mrand.Float64() > 0.5 {
-				return -1
-			}
-
-			return 1
-		})
-
-		var victims []uuid.UUID
-		for i := 0; i < int(extraneous); i++ {
-			if i >= len(running) {
-				// This should never happen.
-				c.logger.Warn(ctx, "unexpected reconciliation state; extraneous count exceeds running prebuilds count!",
-					slog.F("running_count", len(running)),
-					slog.F("extraneous", extraneous))
-				continue
-			}
-
-			victims = append(victims, running[i].WorkspaceID)
-		}
-
-		actions.deleteIDs = append(actions.deleteIDs, victims...)
-
-		c.logger.Warn(ctx, "found extra prebuilds running, picking random victim(s)",
-			slog.F("template_id", preset.TemplateID.String()), slog.F("desired", desired), slog.F("actual", actual), slog.F("extra", extraneous),
-			slog.F("victims", victims))
-
-		// Prevent the rest of the reconciliation from completing
-		return actions, nil
-	}
-
-	// If the template has become deleted or deprecated since the last reconciliation, we need to ensure we
-	// scale those prebuilds down to zero.
-	if preset.Deleted || preset.Deprecated {
-		toCreate = 0
-		toDelete = int(actual + outdated)
-	}
-
-	for i := 0; i < toCreate; i++ {
-		actions.createIDs = append(actions.createIDs, uuid.New())
-	}
-
-	if toDelete > 0 && len(running) != toDelete {
-		c.logger.Warn(ctx, "mismatch between running prebuilds and expected deletion count!",
-			slog.F("template_id", preset.TemplateID.String()), slog.F("running", len(running)), slog.F("to_delete", toDelete))
-	}
-
-	// TODO: implement lookup to not perform same action on workspace multiple times in $period
-	// 		 i.e. a workspace cannot be deleted for some reason, which continually makes it eligible for deletion
-	for i := 0; i < toDelete; i++ {
-		if i >= len(running) {
-			// Above warning will have already addressed this.
-			continue
-		}
-
-		actions.deleteIDs = append(actions.deleteIDs, running[i].WorkspaceID)
-	}
-
-	return actions, nil
-}
-
-func (c *Controller) reconcilePrebuildsForPreset(ctx context.Context, preset database.GetTemplatePresetsWithPrebuildsRow,
-	allRunning []database.GetRunningPrebuildsRow, allInProgress []database.GetPrebuildsInProgressRow,
-) error {
-	logger := c.logger.With(slog.F("template_id", preset.TemplateID.String()))
+	logger := c.logger.With(slog.F("template_id", ps.preset.TemplateID.String()))
 
 	var lastErr multierror.Error
-	vlogger := logger.With(slog.F("template_version_id", preset.TemplateVersionID), slog.F("preset_id", preset.PresetID))
+	vlogger := logger.With(slog.F("template_version_id", ps.preset.TemplateVersionID), slog.F("preset_id", ps.preset.PresetID))
 
-	running := slice.Filter(allRunning, func(prebuild database.GetRunningPrebuildsRow) bool {
-		if !prebuild.DesiredPresetID.Valid && !prebuild.CurrentPresetID.Valid {
-			return false
-		}
-		return prebuild.CurrentPresetID.UUID == preset.PresetID &&
-			prebuild.TemplateVersionID == preset.TemplateVersionID // Not strictly necessary since presets are 1:1 with template versions, but no harm in being extra safe.
-	})
-
-	inProgress := slice.Filter(allInProgress, func(prebuild database.GetPrebuildsInProgressRow) bool {
-		return prebuild.TemplateVersionID == preset.TemplateVersionID
-	})
-
-	actions, err := c.calculateActions(ctx, preset, running, inProgress)
+	// TODO: move log lines up from calculateActions.
+	actions, err := ps.calculateActions()
 	if err != nil {
 		vlogger.Error(ctx, "failed to calculate reconciliation actions", slog.Error(err))
 		return xerrors.Errorf("failed to calculate reconciliation actions: %w", err)
@@ -380,12 +254,12 @@ func (c *Controller) reconcilePrebuildsForPreset(ctx context.Context, preset dat
 	})
 
 	levelFn := vlogger.Debug
-	if len(actions.createIDs) > 0 || len(actions.deleteIDs) > 0 {
+	if actions.create > 0 || len(actions.deleteIDs) > 0 {
 		// Only log with info level when there's a change that needs to be effected.
 		levelFn = vlogger.Info
 	}
 	levelFn(ctx, "template prebuild state retrieved",
-		slog.F("to_create", len(actions.createIDs)), slog.F("to_delete", len(actions.deleteIDs)),
+		slog.F("to_create", actions.create), slog.F("to_delete", len(actions.deleteIDs)),
 		slog.F("desired", actions.desired), slog.F("actual", actions.actual),
 		slog.F("outdated", actions.outdated), slog.F("extraneous", actions.extraneous),
 		slog.F("starting", actions.starting), slog.F("stopping", actions.stopping),
@@ -396,15 +270,15 @@ func (c *Controller) reconcilePrebuildsForPreset(ctx context.Context, preset dat
 	// TODO: max per reconciliation iteration?
 
 	// TODO: i've removed the surrounding tx, but if we restore it then we need to pass down the store to these funcs.
-	for _, id := range actions.createIDs {
-		if err := c.createPrebuild(ownerCtx, id, preset.TemplateID, preset.PresetID); err != nil {
+	for range actions.create {
+		if err := c.createPrebuild(ownerCtx, uuid.New(), ps.preset.TemplateID, ps.preset.PresetID); err != nil {
 			vlogger.Error(ctx, "failed to create prebuild", slog.Error(err))
 			lastErr.Errors = append(lastErr.Errors, err)
 		}
 	}
 
 	for _, id := range actions.deleteIDs {
-		if err := c.deletePrebuild(ownerCtx, id, preset.TemplateID, preset.PresetID); err != nil {
+		if err := c.deletePrebuild(ownerCtx, id, ps.preset.TemplateID, ps.preset.PresetID); err != nil {
 			vlogger.Error(ctx, "failed to delete prebuild", slog.Error(err))
 			lastErr.Errors = append(lastErr.Errors, err)
 		}
