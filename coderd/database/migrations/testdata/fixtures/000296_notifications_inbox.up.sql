@@ -13,8 +13,8 @@ INSERT INTO
 	)
 	VALUES (
 		'68b396aa-7f53-4bf1-b8d8-4cbf5fa244e5', -- uuid
-		'45e89705-e09d-4850-bcec-f9a937f5d78d', -- uuid
-		'193590e9-918f-4ef9-be47-04625f49c4c3', -- uuid
+		'5755e622-fadd-44ca-98da-5df070491844', -- uuid
+		'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', -- uuid
         ARRAY[]::UUID[], -- uuid[]
 		'Test Notification',
 		'This is a test notification',
