@@ -4494,7 +4494,7 @@ func (s *MethodTestSuite) TestNotifications() {
 			TemplateID: tpl.ID,
 			Title:      "test title",
 			Content:    "test content notification",
-			Icon:       "test icon",
+			Icon:       "https://coder.com/favicon.ico",
 			Actions:    json.RawMessage("{}"),
 		})
 
@@ -4517,7 +4517,7 @@ func (s *MethodTestSuite) TestNotifications() {
 			TemplateID: tpl.ID,
 			Title:      "test title",
 			Content:    "test content notification",
-			Icon:       "test icon",
+			Icon:       "https://coder.com/favicon.ico",
 			Actions:    json.RawMessage("{}"),
 		})
 
@@ -4543,7 +4543,7 @@ func (s *MethodTestSuite) TestNotifications() {
 			Targets:    targets,
 			Title:      "test title",
 			Content:    "test content notification",
-			Icon:       "test icon",
+			Icon:       "https://coder.com/favicon.ico",
 			Actions:    json.RawMessage("{}"),
 		})
 
@@ -4573,7 +4573,7 @@ func (s *MethodTestSuite) TestNotifications() {
 			Targets:    targets,
 			Title:      "test title",
 			Content:    "test content notification",
-			Icon:       "test icon",
+			Icon:       "https://coder.com/favicon.ico",
 			Actions:    json.RawMessage("{}"),
 		})
 
@@ -4603,7 +4603,7 @@ func (s *MethodTestSuite) TestNotifications() {
 			Targets:    targets,
 			Title:      "test title",
 			Content:    "test content notification",
-			Icon:       "test icon",
+			Icon:       "https://coder.com/favicon.ico",
 			Actions:    json.RawMessage("{}"),
 		})
 
@@ -4629,7 +4629,7 @@ func (s *MethodTestSuite) TestNotifications() {
 			Targets:    targets,
 			Title:      "test title",
 			Content:    "test content notification",
-			Icon:       "test icon",
+			Icon:       "https://coder.com/favicon.ico",
 			Actions:    json.RawMessage("{}"),
 		}).Asserts(rbac.ResourceInboxNotification.WithOwner(u.ID.String()), policy.ActionCreate)
 	}))
@@ -4654,7 +4654,7 @@ func (s *MethodTestSuite) TestNotifications() {
 			Targets:    targets,
 			Title:      "test title",
 			Content:    "test content notification",
-			Icon:       "test icon",
+			Icon:       "https://coder.com/favicon.ico",
 			Actions:    json.RawMessage("{}"),
 		})
 
