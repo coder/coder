@@ -20,6 +20,6 @@ INSERT INTO
 		'This is a test notification',
 		'https://test.coder.com/favicon.ico',
 		'{}',
-		'2024-01-01 00:00:00',
-		'2024-01-01 00:00:00'
+		'2025-01-01 00:00:00',
+		'2025-01-01 00:00:00'
 	);

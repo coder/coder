@@ -281,6 +281,7 @@ var (
 				DisplayName: "Notifier",
 				Site: rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceNotificationMessage.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceInboxNotification.Type:   {policy.ActionCreate},
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},
