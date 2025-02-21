@@ -543,7 +543,7 @@ func TestRolePermissions(t *testing.T) {
 			Actions:  []policy.Action{policy.ActionRead},
 			Resource: rbac.ResourceProvisionerDaemon.InOrg(orgID),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true:  {owner, templateAdmin, setOrgNotMe, orgAuditor, orgMemberMe},
+				true:  {owner, templateAdmin, setOrgNotMe, orgMemberMe},
 				false: {setOtherOrg, memberMe, userAdmin},
 			},
 		},
@@ -552,8 +552,8 @@ func TestRolePermissions(t *testing.T) {
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
 			Resource: rbac.ResourceProvisionerDaemon.WithOwner(currentUser.String()).InOrg(orgID),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true:  {owner, templateAdmin, orgMemberMe, orgAdmin},
-				false: {setOtherOrg, memberMe, userAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor},
+				true:  {owner, templateAdmin, orgTemplateAdmin, orgMemberMe, orgAdmin},
+				false: {setOtherOrg, memberMe, userAdmin, orgUserAdmin, orgAuditor},
 			},
 		},
 		{
