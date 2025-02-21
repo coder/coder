@@ -49,7 +49,7 @@ BEGIN
 		Select count(*) as count FROM provisioner_keys
 		WHERE
 			provisioner_keys.organization_id = OLD.id
-	)
+	);
 
     -- Fail the deletion if one of the following:
     -- * the organization has 1 or more workspaces
@@ -57,19 +57,14 @@ BEGIN
 	-- * the organization has 1 or more groups other than "Everyone" group
 	-- * the organization has 1 or more members other than the organization owner
 
-    IF (workspace_count + template_count) > 0 THEN
-            RAISE EXCEPTION 'cannot delete organization: organization has % workspaces and % templates that must be deleted first', workspace_count, template_count;
+    IF (workspace_count + template_count + provisioner_keys_count) > 0 THEN
+            RAISE EXCEPTION 'cannot delete organization: organization has % workspaces, % templates, and % provisioner keys that must be deleted first', workspace_count, template_count, provisioner_keys_count;
     END IF;
 
 	IF (group_count) > 1 THEN
             RAISE EXCEPTION 'cannot delete organization: organization has % groups that must be deleted first', group_count - 1;
     END IF;
 
-	IF (provisioner_keys_count) > 0 THEN
-            RAISE EXCEPTION 'cannot delete organization: organization has % provisioner keys that must be deleted first', provisioner_keys_count;
-    END IF;
-
-   -- If member count > 1
     -- Allow 1 member to exist, because you cannot remove yourself. You can
     -- remove everyone else. Ideally, we only omit the member that matches
     -- the user_id of the caller, however in a trigger, the caller is unknown.
