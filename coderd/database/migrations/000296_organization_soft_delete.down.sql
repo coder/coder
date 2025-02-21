@@ -1,6 +1,5 @@
 ALTER TABLE organizations DROP COLUMN deleted;
 
-DROP INDEX IF EXISTS idx_organization_name;
 DROP INDEX IF EXISTS idx_organization_name_lower;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_organization_name ON organizations USING btree (name);

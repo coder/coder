@@ -445,6 +445,7 @@ DECLARE
     workspace_count int;
 	template_count int;
 	group_count int;
+	member_count int;
 BEGIN
     workspace_count := (
         SELECT count(*) as count FROM workspaces
@@ -466,19 +467,27 @@ BEGIN
             groups.organization_id = OLD.id
     );
 
+	member_count := (
+        SELECT count(*) as count FROM organization_members
+        WHERE
+            organization_members.organization_id = OLD.id
+    );
+
     -- Fail the deletion if one of the following:
     -- * the organization has 1 or more workspaces
 	-- * the organization has 1 or more templates
-	-- * the organization has 1 or more groups
+	-- * the organization has 1 or more groups other than "Everyone" group
+	-- * the organization has 1 or more members other than the organization owner
+
     IF (workspace_count + template_count) > 0 THEN
             RAISE EXCEPTION 'cannot delete organization: organization has % workspaces and % templates that must be deleted first', workspace_count, template_count;
     END IF;
 
-	IF (group_count) > 1 THEN
-            RAISE EXCEPTION 'cannot delete organization: organization has % groups that must be deleted first', group_count;
+	IF (group_count + member_count) > 2 THEN
+            RAISE EXCEPTION 'cannot delete organization: organization has % groups and % members that must be deleted first', group_count - 1, member_count - 1;
     END IF;
 
-    RETURN OLD;
+    RETURN NEW;
 END;
 $$;
 
