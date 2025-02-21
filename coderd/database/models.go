@@ -3489,6 +3489,7 @@ type WorkspacePrebuild struct {
 	AgentID           uuid.NullUUID                    `db:"agent_id" json:"agent_id"`
 	LifecycleState    NullWorkspaceAgentLifecycleState `db:"lifecycle_state" json:"lifecycle_state"`
 	ReadyAt           sql.NullTime                     `db:"ready_at" json:"ready_at"`
+	CurrentPresetID   uuid.NullUUID                    `db:"current_preset_id" json:"current_preset_id"`
 }
 
 type WorkspacePrebuildBuild struct {

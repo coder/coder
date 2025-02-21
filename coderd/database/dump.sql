@@ -1878,7 +1878,8 @@ SELECT
     NULL::timestamp with time zone AS next_start_at,
     NULL::uuid AS agent_id,
     NULL::workspace_agent_lifecycle_state AS lifecycle_state,
-    NULL::timestamp with time zone AS ready_at;
+    NULL::timestamp with time zone AS ready_at,
+    NULL::uuid AS current_preset_id;
 
 CREATE TABLE workspace_proxies (
     id uuid NOT NULL,
@@ -2472,6 +2473,34 @@ CREATE OR REPLACE VIEW workspace_prebuilds AS
              JOIN workspace_agents wa ON ((wa.resource_id = wr.id)))
           WHERE (w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid)
           GROUP BY w.id, wa.id
+        ), current_presets AS (
+         SELECT w.id AS prebuild_id,
+            lps.template_version_preset_id
+           FROM (workspaces w
+             JOIN ( SELECT wb.id,
+                    wb.created_at,
+                    wb.updated_at,
+                    wb.workspace_id,
+                    wb.template_version_id,
+                    wb.build_number,
+                    wb.transition,
+                    wb.initiator_id,
+                    wb.provisioner_state,
+                    wb.job_id,
+                    wb.deadline,
+                    wb.reason,
+                    wb.daily_cost,
+                    wb.max_deadline,
+                    wb.template_version_preset_id
+                   FROM (( SELECT tv.template_id,
+                            wbmax_1.workspace_id,
+                            max(wbmax_1.build_number) AS max_build_number
+                           FROM (workspace_builds wbmax_1
+                             JOIN template_versions tv ON ((tv.id = wbmax_1.template_version_id)))
+                          WHERE (wbmax_1.template_version_preset_id IS NOT NULL)
+                          GROUP BY tv.template_id, wbmax_1.workspace_id) wbmax
+                     JOIN workspace_builds wb ON (((wb.workspace_id = wbmax.workspace_id) AND (wb.build_number = wbmax.max_build_number))))) lps ON ((lps.workspace_id = w.id)))
+          WHERE (w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid)
         )
  SELECT p.id,
     p.created_at,
@@ -2491,9 +2520,11 @@ CREATE OR REPLACE VIEW workspace_prebuilds AS
     p.next_start_at,
     a.agent_id,
     a.lifecycle_state,
-    a.ready_at
-   FROM (all_prebuilds p
-     LEFT JOIN workspace_agents a ON ((a.workspace_id = p.id)));
+    a.ready_at,
+    cp.template_version_preset_id AS current_preset_id
+   FROM ((all_prebuilds p
+     LEFT JOIN workspace_agents a ON ((a.workspace_id = p.id)))
+     JOIN current_presets cp ON ((cp.prebuild_id = p.id)));
 
 CREATE TRIGGER inhibit_enqueue_if_disabled BEFORE INSERT ON notification_messages FOR EACH ROW EXECUTE FUNCTION inhibit_enqueue_if_disabled();
 
