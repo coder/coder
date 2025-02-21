@@ -4480,18 +4480,13 @@ func (s *MethodTestSuite) TestNotifications() {
 
 	s.Run("FetchUnreadInboxNotificationsByUserID", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
-		o := dbgen.Organization(s.T(), db, database.Organization{})
-		tpl := dbgen.Template(s.T(), db, database.Template{
-			OrganizationID: o.ID,
-			CreatedBy:      u.ID,
-		})
 
 		notifID := uuid.New()
 
 		notif := dbgen.NotificationInbox(s.T(), db, database.InsertInboxNotificationParams{
 			ID:         notifID,
 			UserID:     u.ID,
-			TemplateID: tpl.ID,
+			TemplateID: notifications.TemplateWorkspaceAutoUpdated,
 			Title:      "test title",
 			Content:    "test content notification",
 			Icon:       "https://coder.com/favicon.ico",
@@ -4503,18 +4498,13 @@ func (s *MethodTestSuite) TestNotifications() {
 
 	s.Run("FetchInboxNotificationsByUserID", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
-		o := dbgen.Organization(s.T(), db, database.Organization{})
-		tpl := dbgen.Template(s.T(), db, database.Template{
-			OrganizationID: o.ID,
-			CreatedBy:      u.ID,
-		})
 
 		notifID := uuid.New()
 
 		notif := dbgen.NotificationInbox(s.T(), db, database.InsertInboxNotificationParams{
 			ID:         notifID,
 			UserID:     u.ID,
-			TemplateID: tpl.ID,
+			TemplateID: notifications.TemplateWorkspaceAutoUpdated,
 			Title:      "test title",
 			Content:    "test content notification",
 			Icon:       "https://coder.com/favicon.ico",
@@ -4526,20 +4516,15 @@ func (s *MethodTestSuite) TestNotifications() {
 
 	s.Run("FetchInboxNotificationsByUserIDFilteredByTemplatesAndTargets", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
-		o := dbgen.Organization(s.T(), db, database.Organization{})
-		tpl := dbgen.Template(s.T(), db, database.Template{
-			OrganizationID: o.ID,
-			CreatedBy:      u.ID,
-		})
 
 		notifID := uuid.New()
 
-		targets := []uuid.UUID{u.ID, tpl.ID}
+		targets := []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}
 
 		notif := dbgen.NotificationInbox(s.T(), db, database.InsertInboxNotificationParams{
 			ID:         notifID,
 			UserID:     u.ID,
-			TemplateID: tpl.ID,
+			TemplateID: notifications.TemplateWorkspaceAutoUpdated,
 			Targets:    targets,
 			Title:      "test title",
 			Content:    "test content notification",
@@ -4549,27 +4534,22 @@ func (s *MethodTestSuite) TestNotifications() {
 
 		check.Args(database.FetchInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams{
 			UserID:    u.ID,
-			Templates: []uuid.UUID{tpl.ID},
+			Templates: []uuid.UUID{notifications.TemplateWorkspaceAutoUpdated},
 			Targets:   []uuid.UUID{u.ID},
 		}).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionRead).Returns([]database.InboxNotification{notif})
 	}))
 
 	s.Run("FetchUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
-		o := dbgen.Organization(s.T(), db, database.Organization{})
-		tpl := dbgen.Template(s.T(), db, database.Template{
-			OrganizationID: o.ID,
-			CreatedBy:      u.ID,
-		})
 
 		notifID := uuid.New()
 
-		targets := []uuid.UUID{u.ID, tpl.ID}
+		targets := []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}
 
 		notif := dbgen.NotificationInbox(s.T(), db, database.InsertInboxNotificationParams{
 			ID:         notifID,
 			UserID:     u.ID,
-			TemplateID: tpl.ID,
+			TemplateID: notifications.TemplateWorkspaceAutoUpdated,
 			Targets:    targets,
 			Title:      "test title",
 			Content:    "test content notification",
@@ -4579,27 +4559,22 @@ func (s *MethodTestSuite) TestNotifications() {
 
 		check.Args(database.FetchUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams{
 			UserID:    u.ID,
-			Templates: []uuid.UUID{tpl.ID},
+			Templates: []uuid.UUID{notifications.TemplateWorkspaceAutoUpdated},
 			Targets:   []uuid.UUID{u.ID},
 		}).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionRead).Returns([]database.InboxNotification{notif})
 	}))
 
 	s.Run("GetInboxNotificationByID", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
-		o := dbgen.Organization(s.T(), db, database.Organization{})
-		tpl := dbgen.Template(s.T(), db, database.Template{
-			OrganizationID: o.ID,
-			CreatedBy:      u.ID,
-		})
 
 		notifID := uuid.New()
 
-		targets := []uuid.UUID{u.ID, tpl.ID}
+		targets := []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}
 
 		notif := dbgen.NotificationInbox(s.T(), db, database.InsertInboxNotificationParams{
 			ID:         notifID,
 			UserID:     u.ID,
-			TemplateID: tpl.ID,
+			TemplateID: notifications.TemplateWorkspaceAutoUpdated,
 			Targets:    targets,
 			Title:      "test title",
 			Content:    "test content notification",
@@ -4612,20 +4587,15 @@ func (s *MethodTestSuite) TestNotifications() {
 
 	s.Run("InsertInboxNotification", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
-		o := dbgen.Organization(s.T(), db, database.Organization{})
-		tpl := dbgen.Template(s.T(), db, database.Template{
-			OrganizationID: o.ID,
-			CreatedBy:      u.ID,
-		})
 
 		notifID := uuid.New()
 
-		targets := []uuid.UUID{u.ID, tpl.ID}
+		targets := []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}
 
 		check.Args(database.InsertInboxNotificationParams{
 			ID:         notifID,
 			UserID:     u.ID,
-			TemplateID: tpl.ID,
+			TemplateID: notifications.TemplateWorkspaceAutoUpdated,
 			Targets:    targets,
 			Title:      "test title",
 			Content:    "test content notification",
@@ -4636,21 +4606,16 @@ func (s *MethodTestSuite) TestNotifications() {
 
 	s.Run("SetInboxNotificationAsRead", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
-		o := dbgen.Organization(s.T(), db, database.Organization{})
-		tpl := dbgen.Template(s.T(), db, database.Template{
-			OrganizationID: o.ID,
-			CreatedBy:      u.ID,
-		})
 
 		notifID := uuid.New()
 
-		targets := []uuid.UUID{u.ID, tpl.ID}
+		targets := []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}
 		readAt := dbtestutil.NowInDefaultTimezone()
 
 		notif := dbgen.NotificationInbox(s.T(), db, database.InsertInboxNotificationParams{
 			ID:         notifID,
 			UserID:     u.ID,
-			TemplateID: tpl.ID,
+			TemplateID: notifications.TemplateWorkspaceAutoUpdated,
 			Targets:    targets,
 			Title:      "test title",
 			Content:    "test content notification",
