@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { Troubleshooting } from "./Troubleshooting";
-import { API } from "api/api";
 import { spyOn, userEvent, within } from "@storybook/test";
+import { API } from "api/api";
+import { Troubleshooting } from "./Troubleshooting";
 import { baseMeta } from "./storybookUtils";
 
 const meta: Meta<typeof Troubleshooting> = {

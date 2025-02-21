@@ -1,15 +1,15 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import { useTheme } from "@emotion/react";
-import { API } from "api/api";
-import { type FC } from "react";
-import { useMutation } from "react-query";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import LoadingButton from "@mui/lab/LoadingButton";
+import { API } from "api/api";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import type { FC } from "react";
+import { useMutation } from "react-query";
 
 type TroubleshootingProps = {};
 
 export const Troubleshooting: FC<TroubleshootingProps> = ({}) => {
-	const { mutate: sendTestNotificationApi, isLoading: isLoading } = useMutation(
+	const { mutate: sendTestNotificationApi, isLoading } = useMutation(
 		API.postTestNotification,
 		{
 			onSuccess: () => displaySuccess("Test notification sent"),
