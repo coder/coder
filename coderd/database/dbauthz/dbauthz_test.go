@@ -4604,7 +4604,7 @@ func (s *MethodTestSuite) TestNotifications() {
 		}).Asserts(rbac.ResourceInboxNotification.WithOwner(u.ID.String()), policy.ActionCreate)
 	}))
 
-	s.Run("UpdateInboxNotificationAsRead", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("UpdateInboxNotificationReadStatus", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
 
 		notifID := uuid.New()
@@ -4625,7 +4625,7 @@ func (s *MethodTestSuite) TestNotifications() {
 
 		notif.ReadAt = sql.NullTime{Time: readAt, Valid: true}
 
-		check.Args(database.UpdateInboxNotificationAsReadParams{
+		check.Args(database.UpdateInboxNotificationReadStatusParams{
 			ID:     notifID,
 			ReadAt: sql.NullTime{Time: readAt, Valid: true},
 		}).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionUpdate)

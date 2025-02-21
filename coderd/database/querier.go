@@ -112,13 +112,9 @@ type sqlcQuerier interface {
 	DisableForeignKeysAndTriggers(ctx context.Context) error
 	EnqueueNotificationMessage(ctx context.Context, arg EnqueueNotificationMessageParams) error
 	FavoriteWorkspace(ctx context.Context, id uuid.UUID) error
-	GetInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) ([]InboxNotification, error)
-	GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets(ctx context.Context, arg GetInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams) ([]InboxNotification, error)
 	FetchMemoryResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) (WorkspaceAgentMemoryResourceMonitor, error)
 	// This is used to build up the notification_message's JSON payload.
 	FetchNewMessageMetadata(ctx context.Context, arg FetchNewMessageMetadataParams) (FetchNewMessageMetadataRow, error)
-	GetUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) ([]InboxNotification, error)
-	GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets(ctx context.Context, arg GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams) ([]InboxNotification, error)
 	FetchVolumesResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) ([]WorkspaceAgentVolumeResourceMonitor, error)
 	GetAPIKeyByID(ctx context.Context, id string) (APIKey, error)
 	// there is no unique constraint on empty token names
@@ -176,6 +172,12 @@ type sqlcQuerier interface {
 	GetHealthSettings(ctx context.Context) (string, error)
 	GetHungProvisionerJobs(ctx context.Context, updatedAt time.Time) ([]ProvisionerJob, error)
 	GetInboxNotificationByID(ctx context.Context, id uuid.UUID) (InboxNotification, error)
+	GetInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) ([]InboxNotification, error)
+	// Fetches inbox notifications for a user filtered by templates and targets
+	// param user_id: The user ID
+	// param templates: The template IDs to filter by - the template_id = ANY(@templates::UUID[]) condition checks if the template_id is in the @templates array
+	// param targets: The target IDs to filter by - the targets @> COALESCE(@targets, ARRAY[]::UUID[]) condition checks if the targets array (from the DB) contains all the elements in the @targets array
+	GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets(ctx context.Context, arg GetInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams) ([]InboxNotification, error)
 	GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg GetJFrogXrayScanByWorkspaceAndAgentIDParams) (JfrogXrayScan, error)
 	GetLastUpdateCheck(ctx context.Context) (string, error)
 	GetLatestCryptoKeyByFeature(ctx context.Context, feature CryptoKeyFeature) (CryptoKey, error)
@@ -285,6 +287,12 @@ type sqlcQuerier interface {
 	GetTemplates(ctx context.Context) ([]Template, error)
 	GetTemplatesWithFilter(ctx context.Context, arg GetTemplatesWithFilterParams) ([]Template, error)
 	GetUnexpiredLicenses(ctx context.Context) ([]License, error)
+	//
+	GetUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) ([]InboxNotification, error)
+	// param user_id: The user ID
+	// param templates: The template IDs to filter by - the template_id = ANY(@templates::UUID[]) condition checks if the template_id is in the @templates array
+	// param targets: The target IDs to filter by - the targets @> COALESCE(@targets, ARRAY[]::UUID[]) condition checks if the targets array (from the DB) contains all the elements in the @targets array
+	GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets(ctx context.Context, arg GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams) ([]InboxNotification, error)
 	// GetUserActivityInsights returns the ranking with top active users.
 	// The result can be filtered on template_ids, meaning only user data
 	// from workspaces based on those templates will be included.
@@ -469,7 +477,6 @@ type sqlcQuerier interface {
 	RemoveUserFromAllGroups(ctx context.Context, userID uuid.UUID) error
 	RemoveUserFromGroups(ctx context.Context, arg RemoveUserFromGroupsParams) ([]uuid.UUID, error)
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error
-	UpdateInboxNotificationAsRead(ctx context.Context, arg UpdateInboxNotificationAsReadParams) error
 	// Non blocking lock. Returns true if the lock was acquired, false otherwise.
 	//
 	// This must be called from within a transaction. The lock will be automatically
@@ -486,6 +493,7 @@ type sqlcQuerier interface {
 	UpdateGitSSHKey(ctx context.Context, arg UpdateGitSSHKeyParams) (GitSSHKey, error)
 	UpdateGroupByID(ctx context.Context, arg UpdateGroupByIDParams) (Group, error)
 	UpdateInactiveUsersToDormant(ctx context.Context, arg UpdateInactiveUsersToDormantParams) ([]UpdateInactiveUsersToDormantRow, error)
+	UpdateInboxNotificationReadStatus(ctx context.Context, arg UpdateInboxNotificationReadStatusParams) error
 	UpdateMemberRoles(ctx context.Context, arg UpdateMemberRolesParams) (OrganizationMember, error)
 	UpdateMemoryResourceMonitor(ctx context.Context, arg UpdateMemoryResourceMonitorParams) error
 	UpdateNotificationTemplateMethodByID(ctx context.Context, arg UpdateNotificationTemplateMethodByIDParams) (NotificationTemplate, error)

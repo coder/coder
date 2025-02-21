@@ -1029,6 +1029,14 @@ func (q *querier) customRoleCheck(ctx context.Context, role database.CustomRole)
 	return nil
 }
 
+func (q *querier) UpdateInboxNotificationReadStatus(ctx context.Context, args database.UpdateInboxNotificationReadStatusParams) error {
+	fetchFunc := func(ctx context.Context, args database.UpdateInboxNotificationReadStatusParams) (database.InboxNotification, error) {
+		return q.db.GetInboxNotificationByID(ctx, args.ID)
+	}
+
+	return update(q.log, q.auth, fetchFunc, q.db.UpdateInboxNotificationReadStatus)(ctx, args)
+}
+
 func (q *querier) AcquireLock(ctx context.Context, id int64) error {
 	return q.db.AcquireLock(ctx, id)
 }
@@ -1418,14 +1426,6 @@ func (q *querier) FavoriteWorkspace(ctx context.Context, id uuid.UUID) error {
 	return update(q.log, q.auth, fetch, q.db.FavoriteWorkspace)(ctx, id)
 }
 
-func (q *querier) GetInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) ([]database.InboxNotification, error) {
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetInboxNotificationsByUserID)(ctx, userID)
-}
-
-func (q *querier) GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets(ctx context.Context, arg database.GetInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams) ([]database.InboxNotification, error) {
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets)(ctx, arg)
-}
-
 func (q *querier) FetchMemoryResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) (database.WorkspaceAgentMemoryResourceMonitor, error) {
 	workspace, err := q.db.GetWorkspaceByAgentID(ctx, agentID)
 	if err != nil {
@@ -1445,14 +1445,6 @@ func (q *querier) FetchNewMessageMetadata(ctx context.Context, arg database.Fetc
 		return database.FetchNewMessageMetadataRow{}, err
 	}
 	return q.db.FetchNewMessageMetadata(ctx, arg)
-}
-
-func (q *querier) GetUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) ([]database.InboxNotification, error) {
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetUnreadInboxNotificationsByUserID)(ctx, userID)
-}
-
-func (q *querier) GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets(ctx context.Context, arg database.GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams) ([]database.InboxNotification, error) {
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets)(ctx, arg)
 }
 
 func (q *querier) FetchVolumesResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) ([]database.WorkspaceAgentVolumeResourceMonitor, error) {
@@ -1769,6 +1761,14 @@ func (q *querier) GetHungProvisionerJobs(ctx context.Context, hungSince time.Tim
 
 func (q *querier) GetInboxNotificationByID(ctx context.Context, id uuid.UUID) (database.InboxNotification, error) {
 	return fetchWithAction(q.log, q.auth, policy.ActionRead, q.db.GetInboxNotificationByID)(ctx, id)
+}
+
+func (q *querier) GetInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) ([]database.InboxNotification, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetInboxNotificationsByUserID)(ctx, userID)
+}
+
+func (q *querier) GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets(ctx context.Context, arg database.GetInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams) ([]database.InboxNotification, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets)(ctx, arg)
 }
 
 func (q *querier) GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg database.GetJFrogXrayScanByWorkspaceAndAgentIDParams) (database.JfrogXrayScan, error) {
@@ -2459,6 +2459,14 @@ func (q *querier) GetUnexpiredLicenses(ctx context.Context) ([]database.License,
 		return nil, err
 	}
 	return q.db.GetUnexpiredLicenses(ctx)
+}
+
+func (q *querier) GetUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) ([]database.InboxNotification, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetUnreadInboxNotificationsByUserID)(ctx, userID)
+}
+
+func (q *querier) GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets(ctx context.Context, arg database.GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams) ([]database.InboxNotification, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets)(ctx, arg)
 }
 
 func (q *querier) GetUserActivityInsights(ctx context.Context, arg database.GetUserActivityInsightsParams) ([]database.GetUserActivityInsightsRow, error) {
@@ -3587,14 +3595,6 @@ func (q *querier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) 
 		return err
 	}
 	return q.db.RevokeDBCryptKey(ctx, activeKeyDigest)
-}
-
-func (q *querier) UpdateInboxNotificationAsRead(ctx context.Context, args database.UpdateInboxNotificationAsReadParams) error {
-	fetchFunc := func(ctx context.Context, args database.UpdateInboxNotificationAsReadParams) (database.InboxNotification, error) {
-		return q.db.GetInboxNotificationByID(ctx, args.ID)
-	}
-
-	return update(q.log, q.auth, fetchFunc, q.db.UpdateInboxNotificationAsRead)(ctx, args)
 }
 
 func (q *querier) TryAcquireLock(ctx context.Context, id int64) (bool, error) {

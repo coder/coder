@@ -1230,6 +1230,24 @@ func (q *FakeQuerier) getProvisionerJobsByIDsWithQueuePositionLocked(_ context.C
 	return jobs, nil
 }
 
+func (q *FakeQuerier) UpdateInboxNotificationReadStatus(_ context.Context, arg database.UpdateInboxNotificationReadStatusParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i := range q.InboxNotification {
+		if q.InboxNotification[i].ID == arg.ID {
+			q.InboxNotification[i].ReadAt = arg.ReadAt
+		}
+	}
+
+	return nil
+}
+
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }
@@ -2365,59 +2383,6 @@ func (q *FakeQuerier) FavoriteWorkspace(_ context.Context, arg uuid.UUID) error 
 	return nil
 }
 
-func (q *FakeQuerier) GetInboxNotificationsByUserID(_ context.Context, userID uuid.UUID) ([]database.InboxNotification, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	notifications := make([]database.InboxNotification, 0)
-	for _, notification := range q.InboxNotification {
-		if notification.UserID == userID {
-			notifications = append(notifications, notification)
-		}
-	}
-
-	return notifications, nil
-}
-
-func (q *FakeQuerier) GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets(_ context.Context, arg database.GetInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams) ([]database.InboxNotification, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	notifications := make([]database.InboxNotification, 0)
-	for _, notification := range q.InboxNotification {
-		if notification.UserID == arg.UserID {
-			for _, template := range arg.Templates {
-				templateFound := false
-				if notification.TemplateID == template {
-					templateFound = true
-				}
-
-				if !templateFound {
-					continue
-				}
-			}
-
-			for _, target := range arg.Targets {
-				isFound := false
-				for _, insertedTarget := range notification.Targets {
-					if insertedTarget == target {
-						isFound = true
-						break
-					}
-				}
-
-				if !isFound {
-					continue
-				}
-
-				notifications = append(notifications, notification)
-			}
-		}
-	}
-
-	return notifications, nil
-}
-
 func (q *FakeQuerier) FetchMemoryResourceMonitorsByAgentID(_ context.Context, agentID uuid.UUID) (database.WorkspaceAgentMemoryResourceMonitor, error) {
 	for _, monitor := range q.workspaceAgentMemoryResourceMonitors {
 		if monitor.AgentID == agentID {
@@ -2458,59 +2423,6 @@ func (q *FakeQuerier) FetchNewMessageMetadata(_ context.Context, arg database.Fe
 		Actions:          actions,
 		UserID:           arg.UserID,
 	}, nil
-}
-
-func (q *FakeQuerier) GetUnreadInboxNotificationsByUserID(_ context.Context, userID uuid.UUID) ([]database.InboxNotification, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	notifications := make([]database.InboxNotification, 0)
-	for _, notification := range q.InboxNotification {
-		if notification.UserID == userID && !notification.ReadAt.Valid {
-			notifications = append(notifications, notification)
-		}
-	}
-
-	return notifications, nil
-}
-
-func (q *FakeQuerier) GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets(_ context.Context, arg database.GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams) ([]database.InboxNotification, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	notifications := make([]database.InboxNotification, 0)
-	for _, notification := range q.InboxNotification {
-		if notification.UserID == arg.UserID && !notification.ReadAt.Valid {
-			for _, template := range arg.Templates {
-				templateFound := false
-				if notification.TemplateID == template {
-					templateFound = true
-				}
-
-				if !templateFound {
-					continue
-				}
-			}
-
-			for _, target := range arg.Targets {
-				isFound := false
-				for _, insertedTarget := range notification.Targets {
-					if insertedTarget == target {
-						isFound = true
-						break
-					}
-				}
-
-				if !isFound {
-					continue
-				}
-
-				notifications = append(notifications, notification)
-			}
-		}
-	}
-
-	return notifications, nil
 }
 
 func (q *FakeQuerier) FetchVolumesResourceMonitorsByAgentID(_ context.Context, agentID uuid.UUID) ([]database.WorkspaceAgentVolumeResourceMonitor, error) {
@@ -3451,6 +3363,59 @@ func (q *FakeQuerier) GetInboxNotificationByID(_ context.Context, id uuid.UUID) 
 	}
 
 	return database.InboxNotification{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) GetInboxNotificationsByUserID(_ context.Context, userID uuid.UUID) ([]database.InboxNotification, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	notifications := make([]database.InboxNotification, 0)
+	for _, notification := range q.InboxNotification {
+		if notification.UserID == userID {
+			notifications = append(notifications, notification)
+		}
+	}
+
+	return notifications, nil
+}
+
+func (q *FakeQuerier) GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets(_ context.Context, arg database.GetInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams) ([]database.InboxNotification, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	notifications := make([]database.InboxNotification, 0)
+	for _, notification := range q.InboxNotification {
+		if notification.UserID == arg.UserID {
+			for _, template := range arg.Templates {
+				templateFound := false
+				if notification.TemplateID == template {
+					templateFound = true
+				}
+
+				if !templateFound {
+					continue
+				}
+			}
+
+			for _, target := range arg.Targets {
+				isFound := false
+				for _, insertedTarget := range notification.Targets {
+					if insertedTarget == target {
+						isFound = true
+						break
+					}
+				}
+
+				if !isFound {
+					continue
+				}
+
+				notifications = append(notifications, notification)
+			}
+		}
+	}
+
+	return notifications, nil
 }
 
 func (q *FakeQuerier) GetJFrogXrayScanByWorkspaceAndAgentID(_ context.Context, arg database.GetJFrogXrayScanByWorkspaceAndAgentIDParams) (database.JfrogXrayScan, error) {
@@ -5903,6 +5868,59 @@ func (q *FakeQuerier) GetUnexpiredLicenses(_ context.Context) ([]database.Licens
 	}
 	sort.Slice(results, func(i, j int) bool { return results[i].ID < results[j].ID })
 	return results, nil
+}
+
+func (q *FakeQuerier) GetUnreadInboxNotificationsByUserID(_ context.Context, userID uuid.UUID) ([]database.InboxNotification, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	notifications := make([]database.InboxNotification, 0)
+	for _, notification := range q.InboxNotification {
+		if notification.UserID == userID && !notification.ReadAt.Valid {
+			notifications = append(notifications, notification)
+		}
+	}
+
+	return notifications, nil
+}
+
+func (q *FakeQuerier) GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets(_ context.Context, arg database.GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams) ([]database.InboxNotification, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	notifications := make([]database.InboxNotification, 0)
+	for _, notification := range q.InboxNotification {
+		if notification.UserID == arg.UserID && !notification.ReadAt.Valid {
+			for _, template := range arg.Templates {
+				templateFound := false
+				if notification.TemplateID == template {
+					templateFound = true
+				}
+
+				if !templateFound {
+					continue
+				}
+			}
+
+			for _, target := range arg.Targets {
+				isFound := false
+				for _, insertedTarget := range notification.Targets {
+					if insertedTarget == target {
+						isFound = true
+						break
+					}
+				}
+
+				if !isFound {
+					continue
+				}
+
+				notifications = append(notifications, notification)
+			}
+		}
+	}
+
+	return notifications, nil
 }
 
 func (q *FakeQuerier) GetUserActivityInsights(_ context.Context, arg database.GetUserActivityInsightsParams) ([]database.GetUserActivityInsightsRow, error) {
@@ -9586,24 +9604,6 @@ func (q *FakeQuerier) RevokeDBCryptKey(_ context.Context, activeKeyDigest string
 	}
 
 	return sql.ErrNoRows
-}
-
-func (q *FakeQuerier) UpdateInboxNotificationAsRead(_ context.Context, arg database.UpdateInboxNotificationAsReadParams) error {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	for i := range q.InboxNotification {
-		if q.InboxNotification[i].ID == arg.ID {
-			q.InboxNotification[i].ReadAt = arg.ReadAt
-		}
-	}
-
-	return nil
 }
 
 func (*FakeQuerier) TryAcquireLock(_ context.Context, _ int64) (bool, error) {

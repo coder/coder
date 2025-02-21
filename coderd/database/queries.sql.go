@@ -3551,7 +3551,7 @@ func (q *sqlQuerier) GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, 
 }
 
 const upsertJFrogXrayScanByWorkspaceAndAgentID = `-- name: UpsertJFrogXrayScanByWorkspaceAndAgentID :exec
-INSERT INTO
+INSERT INTO 
 	jfrog_xray_scans (
 		agent_id,
 		workspace_id,
@@ -3560,7 +3560,7 @@ INSERT INTO
 		medium,
 		results_url
 	)
-VALUES
+VALUES 
 	($1, $2, $3, $4, $5, $6)
 ON CONFLICT (agent_id, workspace_id)
 DO UPDATE SET critical = $3, high = $4, medium = $5, results_url = $6
@@ -4298,170 +4298,6 @@ func (q *sqlQuerier) UpsertNotificationReportGeneratorLog(ctx context.Context, a
 	return err
 }
 
-const fetchInboxNotificationsByUserID = `-- name: GetInboxNotificationsByUserID :many
-SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at FROM inbox_notifications WHERE user_id = $1 ORDER BY created_at DESC
-`
-
-func (q *sqlQuerier) GetInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) ([]InboxNotification, error) {
-	rows, err := q.db.QueryContext(ctx, fetchInboxNotificationsByUserID, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []InboxNotification
-	for rows.Next() {
-		var i InboxNotification
-		if err := rows.Scan(
-			&i.ID,
-			&i.UserID,
-			&i.TemplateID,
-			pq.Array(&i.Targets),
-			&i.Title,
-			&i.Content,
-			&i.Icon,
-			&i.Actions,
-			&i.ReadAt,
-			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const fetchInboxNotificationsByUserIDFilteredByTemplatesAndTargets = `-- name: GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets :many
-SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at FROM inbox_notifications WHERE user_id = $1 AND template_id = ANY($2::UUID[]) AND targets @> COALESCE($3, ARRAY[]::UUID[]) ORDER BY created_at DESC
-`
-
-type GetInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams struct {
-	UserID    uuid.UUID   `db:"user_id" json:"user_id"`
-	Templates []uuid.UUID `db:"templates" json:"templates"`
-	Targets   []uuid.UUID `db:"targets" json:"targets"`
-}
-
-func (q *sqlQuerier) GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets(ctx context.Context, arg GetInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams) ([]InboxNotification, error) {
-	rows, err := q.db.QueryContext(ctx, fetchInboxNotificationsByUserIDFilteredByTemplatesAndTargets, arg.UserID, pq.Array(arg.Templates), pq.Array(arg.Targets))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []InboxNotification
-	for rows.Next() {
-		var i InboxNotification
-		if err := rows.Scan(
-			&i.ID,
-			&i.UserID,
-			&i.TemplateID,
-			pq.Array(&i.Targets),
-			&i.Title,
-			&i.Content,
-			&i.Icon,
-			&i.Actions,
-			&i.ReadAt,
-			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const fetchUnreadInboxNotificationsByUserID = `-- name: GetUnreadInboxNotificationsByUserID :many
-SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at FROM inbox_notifications WHERE user_id = $1 AND read_at IS NULL ORDER BY created_at DESC
-`
-
-func (q *sqlQuerier) GetUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) ([]InboxNotification, error) {
-	rows, err := q.db.QueryContext(ctx, fetchUnreadInboxNotificationsByUserID, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []InboxNotification
-	for rows.Next() {
-		var i InboxNotification
-		if err := rows.Scan(
-			&i.ID,
-			&i.UserID,
-			&i.TemplateID,
-			pq.Array(&i.Targets),
-			&i.Title,
-			&i.Content,
-			&i.Icon,
-			&i.Actions,
-			&i.ReadAt,
-			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const fetchUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets = `-- name: GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets :many
-SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at FROM inbox_notifications WHERE user_id = $1 AND template_id = ANY($2::UUID[]) AND targets @> COALESCE($3, ARRAY[]::UUID[]) AND read_at IS NULL ORDER BY created_at DESC
-`
-
-type GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams struct {
-	UserID    uuid.UUID   `db:"user_id" json:"user_id"`
-	Templates []uuid.UUID `db:"templates" json:"templates"`
-	Targets   []uuid.UUID `db:"targets" json:"targets"`
-}
-
-func (q *sqlQuerier) GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets(ctx context.Context, arg GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams) ([]InboxNotification, error) {
-	rows, err := q.db.QueryContext(ctx, fetchUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets, arg.UserID, pq.Array(arg.Templates), pq.Array(arg.Targets))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []InboxNotification
-	for rows.Next() {
-		var i InboxNotification
-		if err := rows.Scan(
-			&i.ID,
-			&i.UserID,
-			&i.TemplateID,
-			pq.Array(&i.Targets),
-			&i.Title,
-			&i.Content,
-			&i.Icon,
-			&i.Actions,
-			&i.ReadAt,
-			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getInboxNotificationByID = `-- name: GetInboxNotificationByID :one
 SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at FROM inbox_notifications WHERE id = $1
 `
@@ -4482,6 +4318,177 @@ func (q *sqlQuerier) GetInboxNotificationByID(ctx context.Context, id uuid.UUID)
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const getInboxNotificationsByUserID = `-- name: GetInboxNotificationsByUserID :many
+SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at FROM inbox_notifications WHERE user_id = $1 ORDER BY created_at DESC
+`
+
+func (q *sqlQuerier) GetInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) ([]InboxNotification, error) {
+	rows, err := q.db.QueryContext(ctx, getInboxNotificationsByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []InboxNotification
+	for rows.Next() {
+		var i InboxNotification
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.TemplateID,
+			pq.Array(&i.Targets),
+			&i.Title,
+			&i.Content,
+			&i.Icon,
+			&i.Actions,
+			&i.ReadAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getInboxNotificationsByUserIDFilteredByTemplatesAndTargets = `-- name: GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets :many
+SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at FROM inbox_notifications WHERE user_id = $1 AND template_id = ANY($2::UUID[]) AND targets @> COALESCE($3, ARRAY[]::UUID[]) ORDER BY created_at DESC
+`
+
+type GetInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams struct {
+	UserID    uuid.UUID   `db:"user_id" json:"user_id"`
+	Templates []uuid.UUID `db:"templates" json:"templates"`
+	Targets   []uuid.UUID `db:"targets" json:"targets"`
+}
+
+// Fetches inbox notifications for a user filtered by templates and targets
+// param user_id: The user ID
+// param templates: The template IDs to filter by - the template_id = ANY(@templates::UUID[]) condition checks if the template_id is in the @templates array
+// param targets: The target IDs to filter by - the targets @> COALESCE(@targets, ARRAY[]::UUID[]) condition checks if the targets array (from the DB) contains all the elements in the @targets array
+func (q *sqlQuerier) GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets(ctx context.Context, arg GetInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams) ([]InboxNotification, error) {
+	rows, err := q.db.QueryContext(ctx, getInboxNotificationsByUserIDFilteredByTemplatesAndTargets, arg.UserID, pq.Array(arg.Templates), pq.Array(arg.Targets))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []InboxNotification
+	for rows.Next() {
+		var i InboxNotification
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.TemplateID,
+			pq.Array(&i.Targets),
+			&i.Title,
+			&i.Content,
+			&i.Icon,
+			&i.Actions,
+			&i.ReadAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getUnreadInboxNotificationsByUserID = `-- name: GetUnreadInboxNotificationsByUserID :many
+SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at FROM inbox_notifications WHERE user_id = $1 AND read_at IS NULL ORDER BY created_at DESC
+`
+
+func (q *sqlQuerier) GetUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) ([]InboxNotification, error) {
+	rows, err := q.db.QueryContext(ctx, getUnreadInboxNotificationsByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []InboxNotification
+	for rows.Next() {
+		var i InboxNotification
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.TemplateID,
+			pq.Array(&i.Targets),
+			&i.Title,
+			&i.Content,
+			&i.Icon,
+			&i.Actions,
+			&i.ReadAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets = `-- name: GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets :many
+SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at FROM inbox_notifications WHERE user_id = $1 AND template_id = ANY($2::UUID[]) AND targets @> COALESCE($3, ARRAY[]::UUID[]) AND read_at IS NULL ORDER BY created_at DESC
+`
+
+type GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams struct {
+	UserID    uuid.UUID   `db:"user_id" json:"user_id"`
+	Templates []uuid.UUID `db:"templates" json:"templates"`
+	Targets   []uuid.UUID `db:"targets" json:"targets"`
+}
+
+// param user_id: The user ID
+// param templates: The template IDs to filter by - the template_id = ANY(@templates::UUID[]) condition checks if the template_id is in the @templates array
+// param targets: The target IDs to filter by - the targets @> COALESCE(@targets, ARRAY[]::UUID[]) condition checks if the targets array (from the DB) contains all the elements in the @targets array
+func (q *sqlQuerier) GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets(ctx context.Context, arg GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams) ([]InboxNotification, error) {
+	rows, err := q.db.QueryContext(ctx, getUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets, arg.UserID, pq.Array(arg.Templates), pq.Array(arg.Targets))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []InboxNotification
+	for rows.Next() {
+		var i InboxNotification
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.TemplateID,
+			pq.Array(&i.Targets),
+			&i.Title,
+			&i.Content,
+			&i.Icon,
+			&i.Actions,
+			&i.ReadAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const insertInboxNotification = `-- name: InsertInboxNotification :one
@@ -4541,7 +4548,7 @@ func (q *sqlQuerier) InsertInboxNotification(ctx context.Context, arg InsertInbo
 	return i, err
 }
 
-const setInboxNotificationAsRead = `-- name: UpdateInboxNotificationAsRead :exec
+const updateInboxNotificationReadStatus = `-- name: UpdateInboxNotificationReadStatus :exec
 UPDATE
     inbox_notifications
 SET
@@ -4550,13 +4557,13 @@ WHERE
     id = $2
 `
 
-type UpdateInboxNotificationAsReadParams struct {
+type UpdateInboxNotificationReadStatusParams struct {
 	ReadAt sql.NullTime `db:"read_at" json:"read_at"`
 	ID     uuid.UUID    `db:"id" json:"id"`
 }
 
-func (q *sqlQuerier) UpdateInboxNotificationAsRead(ctx context.Context, arg UpdateInboxNotificationAsReadParams) error {
-	_, err := q.db.ExecContext(ctx, setInboxNotificationAsRead, arg.ReadAt, arg.ID)
+func (q *sqlQuerier) UpdateInboxNotificationReadStatus(ctx context.Context, arg UpdateInboxNotificationReadStatusParams) error {
+	_, err := q.db.ExecContext(ctx, updateInboxNotificationReadStatus, arg.ReadAt, arg.ID)
 	return err
 }
 
@@ -7210,7 +7217,7 @@ FROM
     provisioner_keys
 WHERE
     organization_id = $1
-AND
+AND 
     lower(name) = lower($2)
 `
 
@@ -7326,10 +7333,10 @@ WHERE
 AND
     -- exclude reserved built-in key
     id != '00000000-0000-0000-0000-000000000001'::uuid
-AND
+AND 
     -- exclude reserved user-auth key
     id != '00000000-0000-0000-0000-000000000002'::uuid
-AND
+AND 
     -- exclude reserved psk key
     id != '00000000-0000-0000-0000-000000000003'::uuid
 `
@@ -9015,7 +9022,7 @@ func (q *sqlQuerier) GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUI
 }
 
 const updateTailnetPeerStatusByCoordinator = `-- name: UpdateTailnetPeerStatusByCoordinator :exec
-UPDATE
+UPDATE 
 	tailnet_peers
 SET
 	status = $2
@@ -10817,14 +10824,14 @@ DO $$
 DECLARE
     table_record record;
 BEGIN
-    FOR table_record IN
-        SELECT table_schema, table_name
-        FROM information_schema.tables
+    FOR table_record IN 
+        SELECT table_schema, table_name 
+        FROM information_schema.tables 
         WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
         AND table_type = 'BASE TABLE'
     LOOP
-        EXECUTE format('ALTER TABLE %I.%I DISABLE TRIGGER ALL',
-                    table_record.table_schema,
+        EXECUTE format('ALTER TABLE %I.%I DISABLE TRIGGER ALL', 
+                    table_record.table_schema, 
                     table_record.table_name);
     END LOOP;
 END;
@@ -13931,7 +13938,7 @@ WITH agent_stats AS (
 		coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_95
 	 FROM workspace_agent_stats
 	-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
-	WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0
+	WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0 
 	GROUP BY user_id, agent_id, workspace_id, template_id
 ), latest_agent_stats AS (
 	SELECT
