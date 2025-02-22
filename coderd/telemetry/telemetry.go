@@ -947,6 +947,7 @@ func ConvertUser(dbUser database.User) User {
 		CreatedAt:       dbUser.CreatedAt,
 		Status:          dbUser.Status,
 		GithubComUserID: dbUser.GithubComUserID.Int64,
+		LoginType:       string(dbUser.LoginType),
 	}
 }
 
@@ -1149,6 +1150,8 @@ type User struct {
 	RBACRoles       []string            `json:"rbac_roles"`
 	Status          database.UserStatus `json:"status"`
 	GithubComUserID int64               `json:"github_com_user_id"`
+	// Omitempty for backwards compatibility.
+	LoginType string `json:"login_type,omitempty"`
 }
 
 type Group struct {
