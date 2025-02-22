@@ -200,7 +200,7 @@ export interface AuthMethod {
 export interface AuthMethods {
 	readonly terms_of_service_url?: string;
 	readonly password: AuthMethod;
-	readonly github: AuthMethod;
+	readonly github: GithubAuthMethod;
 	readonly oidc: OIDCAuthMethod;
 }
 
@@ -916,6 +916,12 @@ export interface GitSSHKey {
 	readonly public_key: string;
 }
 
+// From codersdk/users.go
+export interface GithubAuthMethod {
+	readonly enabled: boolean;
+	readonly default_provider_configured: boolean;
+}
+
 // From codersdk/groups.go
 export interface Group {
 	readonly id: string;
@@ -1326,6 +1332,7 @@ export interface OAuth2GithubConfig {
 	readonly client_id: string;
 	readonly client_secret: string;
 	readonly device_flow: boolean;
+	readonly default_provider_enable: boolean;
 	readonly allowed_orgs: string;
 	readonly allowed_teams: string;
 	readonly allow_signups: boolean;

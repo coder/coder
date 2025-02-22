@@ -8100,6 +8100,23 @@ func (q *sqlQuerier) GetNotificationsSettings(ctx context.Context) (string, erro
 	return notifications_settings, err
 }
 
+const getOAuth2GithubDefaultEligible = `-- name: GetOAuth2GithubDefaultEligible :one
+SELECT
+	CASE
+		WHEN value = 'true' THEN TRUE
+		ELSE FALSE
+	END
+FROM site_configs
+WHERE key = 'oauth2_github_default_eligible'
+`
+
+func (q *sqlQuerier) GetOAuth2GithubDefaultEligible(ctx context.Context) (bool, error) {
+	row := q.db.QueryRowContext(ctx, getOAuth2GithubDefaultEligible)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const getOAuthSigningKey = `-- name: GetOAuthSigningKey :one
 SELECT value FROM site_configs WHERE key = 'oauth_signing_key'
 `
@@ -8240,6 +8257,28 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'notificatio
 
 func (q *sqlQuerier) UpsertNotificationsSettings(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, upsertNotificationsSettings, value)
+	return err
+}
+
+const upsertOAuth2GithubDefaultEligible = `-- name: UpsertOAuth2GithubDefaultEligible :exec
+INSERT INTO site_configs (key, value)
+VALUES (
+    'oauth2_github_default_eligible',
+    CASE
+        WHEN $1::bool THEN 'true'
+        ELSE 'false'
+    END
+)
+ON CONFLICT (key) DO UPDATE
+SET value = CASE
+    WHEN $1::bool THEN 'true'
+    ELSE 'false'
+END
+WHERE site_configs.key = 'oauth2_github_default_eligible'
+`
+
+func (q *sqlQuerier) UpsertOAuth2GithubDefaultEligible(ctx context.Context, eligible bool) error {
+	_, err := q.db.ExecContext(ctx, upsertOAuth2GithubDefaultEligible, eligible)
 	return err
 }
 

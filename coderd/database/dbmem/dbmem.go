@@ -3515,6 +3515,10 @@ func (q *FakeQuerier) GetNotificationsSettings(_ context.Context) (string, error
 	return string(q.notificationsSettings), nil
 }
 
+func (q *FakeQuerier) GetOAuth2GithubDefaultEligible(ctx context.Context) (bool, error) {
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) GetOAuth2ProviderAppByID(_ context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -11152,6 +11156,10 @@ func (q *FakeQuerier) UpsertNotificationsSettings(_ context.Context, data string
 
 	q.notificationsSettings = []byte(data)
 	return nil
+}
+
+func (q *FakeQuerier) UpsertOAuth2GithubDefaultEligible(ctx context.Context, eligible bool) error {
+	panic("not implemented")
 }
 
 func (q *FakeQuerier) UpsertOAuthSigningKey(_ context.Context, value string) error {
