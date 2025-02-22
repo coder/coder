@@ -1846,7 +1846,10 @@ func (q *querier) GetNotificationsSettings(ctx context.Context) (string, error) 
 }
 
 func (q *querier) GetOAuth2GithubDefaultEligible(ctx context.Context) (bool, error) {
-	panic("not implemented")
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return false, err
+	}
+	return q.db.GetOAuth2GithubDefaultEligible(ctx)
 }
 
 func (q *querier) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {
@@ -4440,7 +4443,10 @@ func (q *querier) UpsertNotificationsSettings(ctx context.Context, value string)
 }
 
 func (q *querier) UpsertOAuth2GithubDefaultEligible(ctx context.Context, eligible bool) error {
-	panic("not implemented")
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.UpsertOAuth2GithubDefaultEligible(ctx, eligible)
 }
 
 func (q *querier) UpsertOAuthSigningKey(ctx context.Context, value string) error {
