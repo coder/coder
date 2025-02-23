@@ -4334,7 +4334,7 @@ func (q *sqlQuerier) GetInboxNotificationByID(ctx context.Context, id uuid.UUID)
 const getInboxNotificationsByUserID = `-- name: GetInboxNotificationsByUserID :many
 SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at FROM inbox_notifications WHERE
 	user_id = $1 AND
-	($2::UUID == '00000000-0000-0000-0000-000000000000'::UUID OR id > $2::UUID)
+	($2::UUID = '00000000-0000-0000-0000-000000000000'::UUID OR id > $2::UUID)
 	ORDER BY created_at DESC
 	LIMIT (COALESCE(NULLIF($3 :: INT, 0), 25))
 `
@@ -4384,7 +4384,7 @@ SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at
 	user_id = $1 AND
 	template_id = ANY($2::UUID[]) AND
 	targets @> COALESCE($3, ARRAY[]::UUID[]) AND
-	($4::UUID == '00000000-0000-0000-0000-000000000000'::UUID OR id > $4::UUID)
+	($4::UUID = '00000000-0000-0000-0000-000000000000'::UUID OR id > $4::UUID)
 	ORDER BY created_at DESC
 	LIMIT (COALESCE(NULLIF($5 :: INT, 0), 25))
 `
@@ -4445,7 +4445,7 @@ const getUnreadInboxNotificationsByUserID = `-- name: GetUnreadInboxNotification
 SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at FROM inbox_notifications WHERE
 	user_id = $1 AND
 	read_at IS NULL AND
-	($2::UUID == '00000000-0000-0000-0000-000000000000'::UUID OR id > $2::UUID)
+	($2::UUID = '00000000-0000-0000-0000-000000000000'::UUID OR id > $2::UUID)
 	ORDER BY created_at DESC
 	LIMIT (COALESCE(NULLIF($3 :: INT, 0), 25))
 `
@@ -4496,7 +4496,7 @@ SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at
 	template_id = ANY($2::UUID[]) AND
 	targets @> COALESCE($3, ARRAY[]::UUID[]) AND
 	read_at IS NULL AND
-	($4::UUID == '00000000-0000-0000-0000-000000000000'::UUID OR id > $4::UUID)
+	($4::UUID = '00000000-0000-0000-0000-000000000000'::UUID OR id > $4::UUID)
 	ORDER BY created_at DESC
 	LIMIT (COALESCE(NULLIF($5 :: INT, 0), 25))
 `

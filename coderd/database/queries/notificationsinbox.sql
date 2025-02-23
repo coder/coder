@@ -3,14 +3,14 @@
 SELECT * FROM inbox_notifications WHERE
 	user_id = @user_id AND
 	read_at IS NULL AND
-	(@id_opt::UUID == '00000000-0000-0000-0000-000000000000'::UUID OR id > @id_opt::UUID)
+	(@id_opt::UUID = '00000000-0000-0000-0000-000000000000'::UUID OR id > @id_opt::UUID)
 	ORDER BY created_at DESC
 	LIMIT (COALESCE(NULLIF(@limit_opt :: INT, 0), 25));
 
 -- name: GetInboxNotificationsByUserID :many
 SELECT * FROM inbox_notifications WHERE
 	user_id = @user_id AND
-	(@id_opt::UUID == '00000000-0000-0000-0000-000000000000'::UUID OR id > @id_opt::UUID)
+	(@id_opt::UUID = '00000000-0000-0000-0000-000000000000'::UUID OR id > @id_opt::UUID)
 	ORDER BY created_at DESC
 	LIMIT (COALESCE(NULLIF(@limit_opt :: INT, 0), 25));
 
@@ -23,7 +23,7 @@ SELECT * FROM inbox_notifications WHERE
 	user_id = @user_id AND
 	template_id = ANY(@templates::UUID[]) AND
 	targets @> COALESCE(@targets, ARRAY[]::UUID[]) AND
-	(@id_opt::UUID == '00000000-0000-0000-0000-000000000000'::UUID OR id > @id_opt::UUID)
+	(@id_opt::UUID = '00000000-0000-0000-0000-000000000000'::UUID OR id > @id_opt::UUID)
 	ORDER BY created_at DESC
 	LIMIT (COALESCE(NULLIF(@limit_opt :: INT, 0), 25));
 
@@ -36,7 +36,7 @@ SELECT * FROM inbox_notifications WHERE
 	template_id = ANY(@templates::UUID[]) AND
 	targets @> COALESCE(@targets, ARRAY[]::UUID[]) AND
 	read_at IS NULL AND
-	(@id_opt::UUID == '00000000-0000-0000-0000-000000000000'::UUID OR id > @id_opt::UUID)
+	(@id_opt::UUID = '00000000-0000-0000-0000-000000000000'::UUID OR id > @id_opt::UUID)
 	ORDER BY created_at DESC
 	LIMIT (COALESCE(NULLIF(@limit_opt :: INT, 0), 25));
 
