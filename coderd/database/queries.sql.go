@@ -4332,16 +4332,21 @@ func (q *sqlQuerier) GetInboxNotificationByID(ctx context.Context, id uuid.UUID)
 }
 
 const getInboxNotificationsByUserID = `-- name: GetInboxNotificationsByUserID :many
-SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at FROM inbox_notifications WHERE user_id = $1 ORDER BY created_at DESC LIMIT (COALESCE(NULLIF($2 :: INT, 0), 25))
+SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at FROM inbox_notifications WHERE
+	user_id = $1 AND
+	($2::UUID == '00000000-0000-0000-0000-000000000000'::UUID OR id > $2::UUID)
+	ORDER BY created_at DESC
+	LIMIT (COALESCE(NULLIF($3 :: INT, 0), 25))
 `
 
 type GetInboxNotificationsByUserIDParams struct {
 	UserID   uuid.UUID `db:"user_id" json:"user_id"`
+	IDOpt    uuid.UUID `db:"id_opt" json:"id_opt"`
 	LimitOpt int32     `db:"limit_opt" json:"limit_opt"`
 }
 
 func (q *sqlQuerier) GetInboxNotificationsByUserID(ctx context.Context, arg GetInboxNotificationsByUserIDParams) ([]InboxNotification, error) {
-	rows, err := q.db.QueryContext(ctx, getInboxNotificationsByUserID, arg.UserID, arg.LimitOpt)
+	rows, err := q.db.QueryContext(ctx, getInboxNotificationsByUserID, arg.UserID, arg.IDOpt, arg.LimitOpt)
 	if err != nil {
 		return nil, err
 	}
@@ -4375,13 +4380,20 @@ func (q *sqlQuerier) GetInboxNotificationsByUserID(ctx context.Context, arg GetI
 }
 
 const getInboxNotificationsByUserIDFilteredByTemplatesAndTargets = `-- name: GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets :many
-SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at FROM inbox_notifications WHERE user_id = $1 AND template_id = ANY($2::UUID[]) AND targets @> COALESCE($3, ARRAY[]::UUID[]) ORDER BY created_at DESC LIMIT (COALESCE(NULLIF($4 :: INT, 0), 25))
+SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at FROM inbox_notifications WHERE
+	user_id = $1 AND
+	template_id = ANY($2::UUID[]) AND
+	targets @> COALESCE($3, ARRAY[]::UUID[]) AND
+	($4::UUID == '00000000-0000-0000-0000-000000000000'::UUID OR id > $4::UUID)
+	ORDER BY created_at DESC
+	LIMIT (COALESCE(NULLIF($5 :: INT, 0), 25))
 `
 
 type GetInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams struct {
 	UserID    uuid.UUID   `db:"user_id" json:"user_id"`
 	Templates []uuid.UUID `db:"templates" json:"templates"`
 	Targets   []uuid.UUID `db:"targets" json:"targets"`
+	IDOpt     uuid.UUID   `db:"id_opt" json:"id_opt"`
 	LimitOpt  int32       `db:"limit_opt" json:"limit_opt"`
 }
 
@@ -4394,6 +4406,7 @@ func (q *sqlQuerier) GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets(
 		arg.UserID,
 		pq.Array(arg.Templates),
 		pq.Array(arg.Targets),
+		arg.IDOpt,
 		arg.LimitOpt,
 	)
 	if err != nil {
@@ -4429,13 +4442,18 @@ func (q *sqlQuerier) GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets(
 }
 
 const getUnreadInboxNotificationsByUserID = `-- name: GetUnreadInboxNotificationsByUserID :many
-SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at FROM inbox_notifications WHERE user_id = $1 AND read_at IS NULL AND ($2 IS NULL OR id > $2) ORDER BY created_at DESC LIMIT (COALESCE(NULLIF($3 :: INT, 0), 25))
+SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at FROM inbox_notifications WHERE
+	user_id = $1 AND
+	read_at IS NULL AND
+	($2::UUID == '00000000-0000-0000-0000-000000000000'::UUID OR id > $2::UUID)
+	ORDER BY created_at DESC
+	LIMIT (COALESCE(NULLIF($3 :: INT, 0), 25))
 `
 
 type GetUnreadInboxNotificationsByUserIDParams struct {
-	UserID   uuid.UUID   `db:"user_id" json:"user_id"`
-	IDOpt    interface{} `db:"id_opt" json:"id_opt"`
-	LimitOpt int32       `db:"limit_opt" json:"limit_opt"`
+	UserID   uuid.UUID `db:"user_id" json:"user_id"`
+	IDOpt    uuid.UUID `db:"id_opt" json:"id_opt"`
+	LimitOpt int32     `db:"limit_opt" json:"limit_opt"`
 }
 
 func (q *sqlQuerier) GetUnreadInboxNotificationsByUserID(ctx context.Context, arg GetUnreadInboxNotificationsByUserIDParams) ([]InboxNotification, error) {
@@ -4473,13 +4491,21 @@ func (q *sqlQuerier) GetUnreadInboxNotificationsByUserID(ctx context.Context, ar
 }
 
 const getUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets = `-- name: GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets :many
-SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at FROM inbox_notifications WHERE user_id = $1 AND template_id = ANY($2::UUID[]) AND targets @> COALESCE($3, ARRAY[]::UUID[]) AND read_at IS NULL ORDER BY created_at DESC LIMIT (COALESCE(NULLIF($4 :: INT, 0), 25))
+SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at FROM inbox_notifications WHERE
+	user_id = $1 AND
+	template_id = ANY($2::UUID[]) AND
+	targets @> COALESCE($3, ARRAY[]::UUID[]) AND
+	read_at IS NULL AND
+	($4::UUID == '00000000-0000-0000-0000-000000000000'::UUID OR id > $4::UUID)
+	ORDER BY created_at DESC
+	LIMIT (COALESCE(NULLIF($5 :: INT, 0), 25))
 `
 
 type GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams struct {
 	UserID    uuid.UUID   `db:"user_id" json:"user_id"`
 	Templates []uuid.UUID `db:"templates" json:"templates"`
 	Targets   []uuid.UUID `db:"targets" json:"targets"`
+	IDOpt     uuid.UUID   `db:"id_opt" json:"id_opt"`
 	LimitOpt  int32       `db:"limit_opt" json:"limit_opt"`
 }
 
@@ -4491,6 +4517,7 @@ func (q *sqlQuerier) GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTa
 		arg.UserID,
 		pq.Array(arg.Templates),
 		pq.Array(arg.Targets),
+		arg.IDOpt,
 		arg.LimitOpt,
 	)
 	if err != nil {
