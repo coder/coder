@@ -4589,6 +4589,27 @@ func (s *MethodTestSuite) TestNotifications() {
 		check.Args(notifID).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionRead).Returns(notif)
 	}))
 
+	s.Run("CountUnreadInboxNotificationsByUserID", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+
+		notifID := uuid.New()
+
+		targets := []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}
+
+		_ = dbgen.NotificationInbox(s.T(), db, database.InsertInboxNotificationParams{
+			ID:         notifID,
+			UserID:     u.ID,
+			TemplateID: notifications.TemplateWorkspaceAutoUpdated,
+			Targets:    targets,
+			Title:      "test title",
+			Content:    "test content notification",
+			Icon:       "https://coder.com/favicon.ico",
+			Actions:    json.RawMessage("{}"),
+		})
+
+		check.Args(u.ID).Asserts(rbac.ResourceInboxNotification.WithOwner(u.ID.String()), policy.ActionRead).Returns(int64(1))
+	}))
+
 	s.Run("InsertInboxNotification", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
 

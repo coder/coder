@@ -1127,7 +1127,7 @@ func (q *querier) CleanTailnetTunnels(ctx context.Context) error {
 }
 
 func (q *querier) CountUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceNotificationMessage.WithOwner(userID.String())); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceInboxNotification.WithOwner(userID.String())); err != nil {
 		return 0, err
 	}
 	return q.db.CountUnreadInboxNotificationsByUserID(ctx, userID)
