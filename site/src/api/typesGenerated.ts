@@ -1116,6 +1116,10 @@ export interface License {
 // From codersdk/licenses.go
 export const LicenseExpiryClaim = "license_expires";
 
+// From codersdk/licenses.go
+export const LicenseTelemetryRequiredErrorText =
+	"License requires telemetry but telemetry is disabled";
+
 // From codersdk/deployment.go
 export interface LinkConfig {
 	readonly name: string;
