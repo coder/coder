@@ -4493,7 +4493,9 @@ func (s *MethodTestSuite) TestNotifications() {
 			Actions:    json.RawMessage("{}"),
 		})
 
-		check.Args(u.ID).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionRead).Returns([]database.InboxNotification{notif})
+		check.Args(database.GetUnreadInboxNotificationsByUserIDParams{
+			UserID: u.ID,
+		}).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionRead).Returns([]database.InboxNotification{notif})
 	}))
 
 	s.Run("GetInboxNotificationsByUserID", s.Subtest(func(db database.Store, check *expects) {
@@ -4511,7 +4513,9 @@ func (s *MethodTestSuite) TestNotifications() {
 			Actions:    json.RawMessage("{}"),
 		})
 
-		check.Args(u.ID).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionRead).Returns([]database.InboxNotification{notif})
+		check.Args(database.GetInboxNotificationsByUserIDParams{
+			UserID: u.ID,
+		}).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionRead).Returns([]database.InboxNotification{notif})
 	}))
 
 	s.Run("GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets", s.Subtest(func(db database.Store, check *expects) {
