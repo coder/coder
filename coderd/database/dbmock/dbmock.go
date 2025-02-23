@@ -232,6 +232,21 @@ func (mr *MockStoreMockRecorder) CleanTailnetTunnels(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanTailnetTunnels", reflect.TypeOf((*MockStore)(nil).CleanTailnetTunnels), ctx)
 }
 
+// CountUnreadInboxNotificationsByUserID mocks base method.
+func (m *MockStore) CountUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountUnreadInboxNotificationsByUserID", ctx, userID)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountUnreadInboxNotificationsByUserID indicates an expected call of CountUnreadInboxNotificationsByUserID.
+func (mr *MockStoreMockRecorder) CountUnreadInboxNotificationsByUserID(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountUnreadInboxNotificationsByUserID", reflect.TypeOf((*MockStore)(nil).CountUnreadInboxNotificationsByUserID), ctx, userID)
+}
+
 // CustomRoles mocks base method.
 func (m *MockStore) CustomRoles(ctx context.Context, arg database.CustomRolesParams) ([]database.CustomRole, error) {
 	m.ctrl.T.Helper()
@@ -1582,18 +1597,18 @@ func (mr *MockStoreMockRecorder) GetInboxNotificationByID(ctx, id any) *gomock.C
 }
 
 // GetInboxNotificationsByUserID mocks base method.
-func (m *MockStore) GetInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) ([]database.InboxNotification, error) {
+func (m *MockStore) GetInboxNotificationsByUserID(ctx context.Context, arg database.GetInboxNotificationsByUserIDParams) ([]database.InboxNotification, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetInboxNotificationsByUserID", ctx, userID)
+	ret := m.ctrl.Call(m, "GetInboxNotificationsByUserID", ctx, arg)
 	ret0, _ := ret[0].([]database.InboxNotification)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetInboxNotificationsByUserID indicates an expected call of GetInboxNotificationsByUserID.
-func (mr *MockStoreMockRecorder) GetInboxNotificationsByUserID(ctx, userID any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetInboxNotificationsByUserID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetInboxNotificationsByUserID", reflect.TypeOf((*MockStore)(nil).GetInboxNotificationsByUserID), ctx, userID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetInboxNotificationsByUserID", reflect.TypeOf((*MockStore)(nil).GetInboxNotificationsByUserID), ctx, arg)
 }
 
 // GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets mocks base method.
@@ -2872,18 +2887,18 @@ func (mr *MockStoreMockRecorder) GetUnexpiredLicenses(ctx any) *gomock.Call {
 }
 
 // GetUnreadInboxNotificationsByUserID mocks base method.
-func (m *MockStore) GetUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) ([]database.InboxNotification, error) {
+func (m *MockStore) GetUnreadInboxNotificationsByUserID(ctx context.Context, arg database.GetUnreadInboxNotificationsByUserIDParams) ([]database.InboxNotification, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetUnreadInboxNotificationsByUserID", ctx, userID)
+	ret := m.ctrl.Call(m, "GetUnreadInboxNotificationsByUserID", ctx, arg)
 	ret0, _ := ret[0].([]database.InboxNotification)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetUnreadInboxNotificationsByUserID indicates an expected call of GetUnreadInboxNotificationsByUserID.
-func (mr *MockStoreMockRecorder) GetUnreadInboxNotificationsByUserID(ctx, userID any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetUnreadInboxNotificationsByUserID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUnreadInboxNotificationsByUserID", reflect.TypeOf((*MockStore)(nil).GetUnreadInboxNotificationsByUserID), ctx, userID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUnreadInboxNotificationsByUserID", reflect.TypeOf((*MockStore)(nil).GetUnreadInboxNotificationsByUserID), ctx, arg)
 }
 
 // GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets mocks base method.

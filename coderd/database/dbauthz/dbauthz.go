@@ -1126,6 +1126,13 @@ func (q *querier) CleanTailnetTunnels(ctx context.Context) error {
 	return q.db.CleanTailnetTunnels(ctx)
 }
 
+func (q *querier) CountUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceNotificationMessage.WithOwner(userID.String())); err != nil {
+		return 0, err
+	}
+	return q.db.CountUnreadInboxNotificationsByUserID(ctx, userID)
+}
+
 // TODO: Handle org scoped lookups
 func (q *querier) CustomRoles(ctx context.Context, arg database.CustomRolesParams) ([]database.CustomRole, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAssignRole); err != nil {
@@ -1755,7 +1762,7 @@ func (q *querier) GetInboxNotificationByID(ctx context.Context, id uuid.UUID) (d
 	return fetchWithAction(q.log, q.auth, policy.ActionRead, q.db.GetInboxNotificationByID)(ctx, id)
 }
 
-func (q *querier) GetInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) ([]database.InboxNotification, error) {
+func (q *querier) GetInboxNotificationsByUserID(ctx context.Context, userID database.GetInboxNotificationsByUserIDParams) ([]database.InboxNotification, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetInboxNotificationsByUserID)(ctx, userID)
 }
 
@@ -2453,7 +2460,7 @@ func (q *querier) GetUnexpiredLicenses(ctx context.Context) ([]database.License,
 	return q.db.GetUnexpiredLicenses(ctx)
 }
 
-func (q *querier) GetUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) ([]database.InboxNotification, error) {
+func (q *querier) GetUnreadInboxNotificationsByUserID(ctx context.Context, userID database.GetUnreadInboxNotificationsByUserIDParams) ([]database.InboxNotification, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetUnreadInboxNotificationsByUserID)(ctx, userID)
 }
 

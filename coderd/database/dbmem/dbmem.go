@@ -1599,6 +1599,26 @@ func (*FakeQuerier) CleanTailnetTunnels(context.Context) error {
 	return ErrUnimplemented
 }
 
+func (q *FakeQuerier) CountUnreadInboxNotificationsByUserID(_ context.Context, userID uuid.UUID) (int64, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	var count int64
+	for _, notification := range q.InboxNotification {
+		if notification.UserID != userID {
+			continue
+		}
+
+		if notification.ReadAt.Valid {
+			continue
+		}
+
+		count++
+	}
+
+	return count, nil
+}
+
 func (q *FakeQuerier) CustomRoles(_ context.Context, arg database.CustomRolesParams) ([]database.CustomRole, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -3347,13 +3367,13 @@ func (q *FakeQuerier) GetInboxNotificationByID(_ context.Context, id uuid.UUID) 
 	return database.InboxNotification{}, sql.ErrNoRows
 }
 
-func (q *FakeQuerier) GetInboxNotificationsByUserID(_ context.Context, userID uuid.UUID) ([]database.InboxNotification, error) {
+func (q *FakeQuerier) GetInboxNotificationsByUserID(_ context.Context, params database.GetInboxNotificationsByUserIDParams) ([]database.InboxNotification, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	notifications := make([]database.InboxNotification, 0)
 	for _, notification := range q.InboxNotification {
-		if notification.UserID == userID {
+		if notification.UserID == params.UserID {
 			notifications = append(notifications, notification)
 		}
 	}
@@ -5852,13 +5872,13 @@ func (q *FakeQuerier) GetUnexpiredLicenses(_ context.Context) ([]database.Licens
 	return results, nil
 }
 
-func (q *FakeQuerier) GetUnreadInboxNotificationsByUserID(_ context.Context, userID uuid.UUID) ([]database.InboxNotification, error) {
+func (q *FakeQuerier) GetUnreadInboxNotificationsByUserID(_ context.Context, params database.GetUnreadInboxNotificationsByUserIDParams) ([]database.InboxNotification, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	notifications := make([]database.InboxNotification, 0)
 	for _, notification := range q.InboxNotification {
-		if notification.UserID == userID && !notification.ReadAt.Valid {
+		if notification.UserID == params.UserID && !notification.ReadAt.Valid {
 			notifications = append(notifications, notification)
 		}
 	}

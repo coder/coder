@@ -175,6 +175,13 @@ func (m queryMetricsStore) CleanTailnetTunnels(ctx context.Context) error {
 	return r0
 }
 
+func (m queryMetricsStore) CountUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.CountUnreadInboxNotificationsByUserID(ctx, userID)
+	m.queryLatencies.WithLabelValues("CountUnreadInboxNotificationsByUserID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) CustomRoles(ctx context.Context, arg database.CustomRolesParams) ([]database.CustomRole, error) {
 	start := time.Now()
 	r0, r1 := m.s.CustomRoles(ctx, arg)
@@ -784,7 +791,7 @@ func (m queryMetricsStore) GetInboxNotificationByID(ctx context.Context, id uuid
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) ([]database.InboxNotification, error) {
+func (m queryMetricsStore) GetInboxNotificationsByUserID(ctx context.Context, userID database.GetInboxNotificationsByUserIDParams) ([]database.InboxNotification, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetInboxNotificationsByUserID(ctx, userID)
 	m.queryLatencies.WithLabelValues("GetInboxNotificationsByUserID").Observe(time.Since(start).Seconds())
@@ -1372,7 +1379,7 @@ func (m queryMetricsStore) GetUnexpiredLicenses(ctx context.Context) ([]database
 	return licenses, err
 }
 
-func (m queryMetricsStore) GetUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) ([]database.InboxNotification, error) {
+func (m queryMetricsStore) GetUnreadInboxNotificationsByUserID(ctx context.Context, userID database.GetUnreadInboxNotificationsByUserIDParams) ([]database.InboxNotification, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUnreadInboxNotificationsByUserID(ctx, userID)
 	m.queryLatencies.WithLabelValues("GetUnreadInboxNotificationsByUserID").Observe(time.Since(start).Seconds())
