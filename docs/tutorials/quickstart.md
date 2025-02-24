@@ -94,8 +94,10 @@ persistent environment from your main device, a tablet, or your phone.
    It's one of the first lines of output, so you might have to scroll up to find
    it.
 
-1. On the **Welcome to Coder** page, create an admin account using your
-   preferred signup method.
+1. On the **Welcome to Coder** page, to use your GitHub account to log in,
+   select **Continue with GitHub**.
+   You can also enter an email and password to create a new admin account on
+   the Coder deployment:
 
    ![Welcome to Coder - Create admin user](../images/screenshots/welcome-create-admin-user.png)_Welcome
    to Coder - Create admin user_
