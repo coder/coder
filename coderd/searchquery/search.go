@@ -258,7 +258,9 @@ func parseOrganization(ctx context.Context, db database.Store, parser *httpapi.Q
 		if err == nil {
 			return organizationID, nil
 		}
-		organization, err := db.GetOrganizationByName(ctx, v)
+		organization, err := db.GetOrganizationByName(ctx, database.GetOrganizationByNameParams{
+			Name: v, Deleted: false,
+		})
 		if err != nil {
 			return uuid.Nil, xerrors.Errorf("organization %q either does not exist, or you are unauthorized to view it", v)
 		}
