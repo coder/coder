@@ -228,7 +228,7 @@ func wrapDockerExec(containerName, userName, cmd string, args ...string) (string
 // We also want to differentiate between a command running successfully with
 // output to stderr and a non-zero exit code.
 func run(ctx context.Context, execer agentexec.Execer, cmd string, args ...string) (stdout, stderr string, err error) {
-	var stdoutBuf, stderrBuf bytes.Buffer
+	var stdoutBuf, stderrBuf strings.Builder
 	execCmd := execer.CommandContext(ctx, cmd, args...)
 	execCmd.Stdout = &stdoutBuf
 	execCmd.Stderr = &stderrBuf
