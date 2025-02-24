@@ -202,7 +202,7 @@ require (
 	google.golang.org/api v0.221.0
 	google.golang.org/grpc v1.70.0
 	google.golang.org/protobuf v1.36.5
-	gopkg.in/DataDog/dd-trace-go.v1 v1.71.0
+	gopkg.in/DataDog/dd-trace-go.v1 v1.72.1
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v3 v3.0.1
 	gvisor.dev/gvisor v0.0.0-20240509041132-65b30f7869dc
@@ -302,7 +302,7 @@ require (
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-sourcemap/sourcemap v2.1.3+incompatible // indirect
-	github.com/go-test/deep v1.0.8 // indirect
+	github.com/go-test/deep v1.1.0 // indirect
 	github.com/go-toast/toast v0.0.0-20190211030409-01e6764cf0a4 // indirect
 	github.com/go-viper/mapstructure/v2 v2.0.0 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
