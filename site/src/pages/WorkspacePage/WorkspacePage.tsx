@@ -82,20 +82,16 @@ export const WorkspacePage: FC = () => {
 			return;
 		}
 
-		const eventSource = watchWorkspace(workspaceId);
-
-		eventSource.addEventListener("data", async (event) => {
+		const socket = watchWorkspace(workspaceId);
+		socket.addEventListener("message", (event) => {
 			const newWorkspaceData = JSON.parse(event.data) as Workspace;
-			await updateWorkspaceData(newWorkspaceData);
+			void updateWorkspaceData(newWorkspaceData);
 		});
-
-		eventSource.addEventListener("error", (event) => {
+		socket.addEventListener("error", (event) => {
 			console.error("Error on getting workspace changes.", event);
 		});
 
-		return () => {
-			eventSource.close();
-		};
+		return () => socket.close();
 	}, [updateWorkspaceData, workspaceId]);
 
 	// Page statuses
