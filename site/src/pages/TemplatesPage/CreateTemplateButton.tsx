@@ -28,14 +28,6 @@ export const CreateTemplateButton: FC<CreateTemplateButtonProps> = ({
 			<MoreMenuContent>
 				<MoreMenuItem
 					onClick={() => {
-						onNavigate("/templates/new?exampleId=scratch");
-					}}
-				>
-					<NoteAddOutlined />
-					From scratch
-				</MoreMenuItem>
-				<MoreMenuItem
-					onClick={() => {
 						onNavigate("/templates/new");
 					}}
 				>
