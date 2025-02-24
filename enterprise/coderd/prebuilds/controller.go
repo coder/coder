@@ -93,6 +93,22 @@ func (c *Controller) ReconcileTemplate(templateID uuid.UUID) {
 	c.nudgeCh <- &templateID
 }
 
+// reconcile will attempt to resolve the desired vs actual state of all templates which have presets with prebuilds configured.
+//
+// NOTE:
+//
+// This function will kick of n provisioner jobs, based on the calculated state modifications.
+//
+// These provisioning jobs are fire-and-forget. We DO NOT wait for the prebuilt workspaces to complete their
+// provisioning. As a consequence, it's possible that another reconciliation run will occur, which will mean that
+// multiple preset versions could be reconciling at once. This may mean some temporary over-provisioning, but the
+// reconciliation loop will bring these resources back into their desired numbers in an EVENTUALLY-consistent way.
+//
+// For example: we could decide to provision 1 new instance in this reconciliation.
+// While that workspace is being provisioned, another template version is created which means this same preset will
+// be reconciled again, leading to another workspace being provisioned. Two workspace builds will be occurring
+// simultaneously for the same preset, but once both jobs have completed the reconciliation loop will notice the
+// extraneous instance and delete it.
 func (c *Controller) reconcile(ctx context.Context, templateID *uuid.UUID) {
 	var logger slog.Logger
 	if templateID == nil {
@@ -121,7 +137,7 @@ func (c *Controller) reconcile(ctx context.Context, templateID *uuid.UUID) {
 	err := c.store.InTx(func(db database.Store) error {
 		start := time.Now()
 
-		// TODO: give up after some time waiting on this?
+		// TODO: use TryAcquireLock here and bail out early.
 		err := db.AcquireLock(ctx, database.LockIDReconcileTemplatePrebuilds)
 		if err != nil {
 			logger.Warn(ctx, "failed to acquire top-level prebuilds reconciliation lock; likely running on another coderd replica", slog.Error(err))
@@ -183,7 +199,7 @@ func (c *Controller) reconcile(ctx context.Context, templateID *uuid.UUID) {
 }
 
 // determineState determines the current state of prebuilds & the presets which define them.
-// This function MUST be called within
+// An application-level lock is used
 func (c *Controller) determineState(ctx context.Context, store database.Store, id uuid.NullUUID) (*reconciliationState, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -259,14 +275,15 @@ func (c *Controller) reconcilePrebuildsForPreset(ctx context.Context, ps *preset
 		levelFn = vlogger.Info
 	}
 	levelFn(ctx, "template prebuild state retrieved",
-		slog.F("to_create", actions.create), slog.F("to_delete", len(actions.deleteIDs)),
+		slog.F("create_count", actions.create), slog.F("delete_count", len(actions.deleteIDs)),
+		slog.F("to_delete", actions.deleteIDs),
 		slog.F("desired", actions.desired), slog.F("actual", actions.actual),
 		slog.F("outdated", actions.outdated), slog.F("extraneous", actions.extraneous),
 		slog.F("starting", actions.starting), slog.F("stopping", actions.stopping),
 		slog.F("deleting", actions.deleting), slog.F("eligible", actions.eligible))
 
 	// Provision workspaces within the same tx so we don't get any timing issues here.
-	// i.e. we hold the advisory lock until all reconciliatory actions have been taken.
+	// i.e. we hold the advisory lock until all "reconciliatory" actions have been taken.
 	// TODO: max per reconciliation iteration?
 
 	// TODO: i've removed the surrounding tx, but if we restore it then we need to pass down the store to these funcs.

@@ -47,7 +47,7 @@ func (s reconciliationState) filterByPreset(presetID uuid.UUID) (*presetState, e
 	}
 
 	running := slice.Filter(s.runningPrebuilds, func(prebuild database.GetRunningPrebuildsRow) bool {
-		if !prebuild.DesiredPresetID.Valid && !prebuild.CurrentPresetID.Valid {
+		if !prebuild.CurrentPresetID.Valid {
 			return false
 		}
 		return prebuild.CurrentPresetID.UUID == preset.PresetID &&
@@ -57,8 +57,10 @@ func (s reconciliationState) filterByPreset(presetID uuid.UUID) (*presetState, e
 	// These aren't preset-specific, but they need to inhibit all presets of this template from operating since they could
 	// be in-progress builds which might impact another preset. For example, if a template goes from no defined prebuilds to defined prebuilds
 	// and back, or a template is updated from one version to another.
+	// We group by the template so that all prebuilds being provisioned for a prebuild are inhibited if any prebuild for
+	// any preset in that template are in progress, to prevent clobbering.
 	inProgress := slice.Filter(s.prebuildsInProgress, func(prebuild database.GetPrebuildsInProgressRow) bool {
-		return prebuild.TemplateVersionID == preset.TemplateVersionID
+		return prebuild.TemplateID == preset.TemplateID
 	})
 
 	return &presetState{
@@ -103,6 +105,8 @@ func (p presetState) calculateActions() (*reconciliationActions, error) {
 		}
 	}
 
+	// In-progress builds are common across all presets belonging to a given template.
+	// In other words: these values will be identical across all presets belonging to this template.
 	for _, progress := range p.inProgress {
 		switch progress.Transition {
 		case database.WorkspaceTransitionStart:
@@ -138,6 +142,7 @@ func (p presetState) calculateActions() (*reconciliationActions, error) {
 	)
 
 	// Bail early to avoid scheduling new prebuilds while operations are in progress.
+	// TODO: optimization: we should probably be able to create prebuilds while others are deleting for a given preset.
 	if (toCreate+toDelete) > 0 && (starting+stopping+deleting) > 0 {
 		// TODO: move up
 		//c.logger.Warn(ctx, "prebuild operations in progress, skipping reconciliation",
