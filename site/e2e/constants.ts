@@ -24,16 +24,22 @@ export const users = {
 		password: defaultPassword,
 		email: "admin@coder.com",
 	},
+	templateAdmin: {
+		username: "template-admin",
+		password: defaultPassword,
+		email: "templateadmin@coder.com",
+		roles: ["Template Admin"],
+	},
 	auditor: {
 		username: "auditor",
 		password: defaultPassword,
 		email: "auditor@coder.com",
 		roles: ["Template Admin", "Auditor"],
 	},
-	user: {
-		username: "user",
+	member: {
+		username: "member",
 		password: defaultPassword,
-		email: "user@coder.com",
+		email: "member@coder.com",
 	},
 } satisfies Record<
 	string,

@@ -21,32 +21,26 @@ import {
 	thirdParameter,
 } from "../../parameters";
 import type { RichParameter } from "../../provisionerGenerated";
+import { users } from "../../constants";
 
 test.describe.configure({ mode: "parallel" });
 
 test.beforeEach(async ({ page }) => {
 	beforeCoderTest(page);
-	await login(page);
 });
 
 test("create workspace", async ({ page }) => {
+	await login(page, users.templateAdmin);
 	const template = await createTemplate(page, {
-		apply: [
-			{
-				apply: {
-					resources: [
-						{
-							name: "example",
-						},
-					],
-				},
-			},
-		],
+		apply: [{ apply: { resources: [{ name: "example" }] } }],
 	});
+
+	await login(page, users.member);
 	await createWorkspace(page, template);
 });
 
 test("create workspace with default immutable parameters", async ({ page }) => {
+	await login(page, users.templateAdmin);
 	const richParameters: RichParameter[] = [
 		secondParameter,
 		fourthParameter,
@@ -56,6 +50,8 @@ test("create workspace with default immutable parameters", async ({ page }) => {
 		page,
 		echoResponsesWithParameters(richParameters),
 	);
+
+	await login(page, users.member);
 	const workspaceName = await createWorkspace(page, template);
 	await verifyParameters(page, workspaceName, richParameters, [
 		{ name: secondParameter.name, value: secondParameter.defaultValue },
@@ -65,11 +61,14 @@ test("create workspace with default immutable parameters", async ({ page }) => {
 });
 
 test("create workspace with default mutable parameters", async ({ page }) => {
+	await login(page, users.templateAdmin);
 	const richParameters: RichParameter[] = [firstParameter, thirdParameter];
 	const template = await createTemplate(
 		page,
 		echoResponsesWithParameters(richParameters),
 	);
+
+	await login(page, users.member);
 	const workspaceName = await createWorkspace(page, template);
 	await verifyParameters(page, workspaceName, richParameters, [
 		{ name: firstParameter.name, value: firstParameter.defaultValue },
@@ -80,6 +79,7 @@ test("create workspace with default mutable parameters", async ({ page }) => {
 test("create workspace with default and required parameters", async ({
 	page,
 }) => {
+	await login(page, users.templateAdmin);
 	const richParameters: RichParameter[] = [
 		secondParameter,
 		fourthParameter,
@@ -94,6 +94,8 @@ test("create workspace with default and required parameters", async ({
 		page,
 		echoResponsesWithParameters(richParameters),
 	);
+
+	await login(page, users.member);
 	const workspaceName = await createWorkspace(page, template, {
 		richParameters,
 		buildParameters,
@@ -108,6 +110,7 @@ test("create workspace with default and required parameters", async ({
 });
 
 test("create workspace and overwrite default parameters", async ({ page }) => {
+	await login(page, users.templateAdmin);
 	// We use randParamName to prevent the new values from corrupting user_history
 	// and thus affecting other tests.
 	const richParameters: RichParameter[] = [
@@ -124,6 +127,7 @@ test("create workspace and overwrite default parameters", async ({ page }) => {
 		echoResponsesWithParameters(richParameters),
 	);
 
+	await login(page, users.member);
 	const workspaceName = await createWorkspace(page, template, {
 		richParameters,
 		buildParameters,
@@ -132,6 +136,7 @@ test("create workspace and overwrite default parameters", async ({ page }) => {
 });
 
 test("create workspace with disable_param search params", async ({ page }) => {
+	await login(page, users.templateAdmin);
 	const richParameters: RichParameter[] = [
 		firstParameter, // mutable
 		secondParameter, //immutable
@@ -142,6 +147,7 @@ test("create workspace with disable_param search params", async ({ page }) => {
 		echoResponsesWithParameters(richParameters),
 	);
 
+	await login(page, users.member);
 	await page.goto(
 		`/templates/${templateName}/workspace?disable_params=first_parameter,second_parameter`,
 		{
@@ -157,8 +163,11 @@ test("create workspace with disable_param search params", async ({ page }) => {
 // the tests are over.
 test.skip("create docker workspace", async ({ context, page }) => {
 	requireTerraformProvisioner();
+
+	await login(page, users.templateAdmin);
 	const template = await createTemplate(page, StarterTemplates.STARTER_DOCKER);
 
+	await login(page, users.member);
 	const workspaceName = await createWorkspace(page, template);
 
 	// The workspace agents must be ready before we try to interact with the workspace.
@@ -184,8 +193,6 @@ test.skip("create docker workspace", async ({ context, page }) => {
 	);
 	await terminal.waitForSelector(
 		`//textarea[contains(@class,"xterm-helper-textarea")]`,
-		{
-			state: "visible",
-		},
+		{ state: "visible" },
 	);
 });
