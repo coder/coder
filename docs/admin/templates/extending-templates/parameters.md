@@ -313,6 +313,12 @@ data "coder_parameter" "project_id" {
 }
 ```
 
+## Workspace presets
+
+Workspace presets allow you to select settings tailored to your most common development scenarios.
+
+Coder admins can configure workspace presets with combinations of parameter values and workspace settings within each template's Terraform file, and workspace users can customize their configurations as they need to.
+
 ## Create Autofill
 
 When the template doesn't specify default values, Coder may still autofill
