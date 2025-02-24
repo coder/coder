@@ -100,7 +100,7 @@ data "coder_parameter" "res_mon_memory_threshold" {
 data "coder_parameter" "res_mon_volume_threshold" {
   type        = "number"
   name        = "Volume usage threshold"
-  default     = 80
+  default     = 90
   description = "The volume usage threshold used in resources monitoring to trigger notifications."
   mutable     = true
   validation {
@@ -350,6 +350,7 @@ resource "coder_agent" "dev" {
     while ! [[ -f "${local.repo_dir}/site/package.json" ]]; do
       sleep 1
     done
+    cd "${local.repo_dir}" && make clean
     cd "${local.repo_dir}/site" && pnpm install && pnpm playwright:install
   EOT
 }

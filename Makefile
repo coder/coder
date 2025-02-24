@@ -116,7 +116,7 @@ endif
 
 clean:
 	rm -rf build/ site/build/ site/out/
-	mkdir -p build/ site/out/bin/
+	mkdir -p build/
 	git restore site/out/
 .PHONY: clean
 
