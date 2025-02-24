@@ -150,7 +150,7 @@ require (
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c
 	github.com/moby/moby v28.0.0+incompatible
 	github.com/mocktools/go-smtp-mock/v2 v2.4.0
-	github.com/muesli/termenv v0.15.3-0.20240618155329-98d742f6907a
+	github.com/muesli/termenv v0.16.0
 	github.com/natefinch/atomic v1.0.1
 	github.com/open-policy-agent/opa v1.1.0
 	github.com/ory/dockertest/v3 v3.11.0
