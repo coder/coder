@@ -80,6 +80,44 @@ export const Running: Story = {
 	},
 };
 
+export const AppIcons: Story = {
+	args: {
+		...Running.args,
+		workspace: {
+			...Mocks.MockWorkspace,
+			latest_build: {
+				...Mocks.MockWorkspace.latest_build,
+				resources: [
+					{
+						...Mocks.MockWorkspaceResource,
+						agents: [
+							{
+								...Mocks.MockWorkspaceAgent,
+								apps: [
+									{
+										...Mocks.MockWorkspaceApp,
+										display_name: "Default Icon",
+									},
+									{
+										...Mocks.MockWorkspaceApp,
+										display_name: "Broken Icon",
+										icon: "/foobar/broken.png",
+									},
+									{
+										...Mocks.MockWorkspaceApp,
+										display_name: "Icon OK",
+										icon: "/favicon.ico",
+									},
+								],
+							},
+						],
+					},
+				],
+			},
+		},
+	},
+};
+
 export const Favorite: Story = {
 	args: {
 		...Running.args,

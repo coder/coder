@@ -37,6 +37,7 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
 	const preferredPathBase = proxy.preferredPathAppURL;
 	const appsHost = proxy.preferredWildcardHostname;
 	const [fetchingSessionToken, setFetchingSessionToken] = useState(false);
+	const [iconError, setIconError] = useState(false);
 
 	const theme = useTheme();
 	const username = workspace.owner_name;
@@ -67,7 +68,9 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
 	// To avoid bugs in the healthcheck code locking users out of apps, we no
 	// longer block access to apps if they are unhealthy/initializing.
 	let canClick = true;
-	let icon = <BaseIcon app={app} />;
+	let icon = !iconError && (
+		<BaseIcon app={app} onError={() => setIconError(true)} />
+	);
 
 	let primaryTooltip = "";
 	if (app.health === "initializing") {
