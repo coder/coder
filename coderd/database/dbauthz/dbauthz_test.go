@@ -4494,8 +4494,9 @@ func (s *MethodTestSuite) TestNotifications() {
 		})
 
 		check.Args(database.GetInboxNotificationsByUserIDParams{
-			UserID:     u.ID,
-			ReadStatus: database.InboxNotificationReadStatusAll.String(),
+			UserID:       u.ID,
+			ReadStatus:   database.InboxNotificationReadStatusAll.String(),
+			CreatedAtOpt: time.Now().Add(-72 * time.Hour),
 		}).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionRead).Returns([]database.InboxNotification{notif})
 	}))
 
