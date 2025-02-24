@@ -411,6 +411,7 @@ func TestWorkspace(t *testing.T) {
 			TemplateVersionID: uuid.UUID{},
 			Name:              "random",
 		})
+		require.NoError(t, err)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, wrk.LatestBuild.ID)
 
 		// Then: They cannot delete said workspace
