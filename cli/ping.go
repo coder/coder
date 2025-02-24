@@ -21,13 +21,14 @@ import (
 
 	"github.com/coder/pretty"
 
+	"github.com/coder/serpent"
+
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
-	"github.com/coder/serpent"
 )
 
 type pingSummary struct {
@@ -86,7 +87,7 @@ func (r *RootCmd) ping() *serpent.Command {
 		pingNum          int64
 		pingTimeout      time.Duration
 		pingWait         time.Duration
-		pingTime         bool
+		pingTimeLocal    bool
 		pingTimeUTC      bool
 		appearanceConfig codersdk.AppearanceConfig
 	)
@@ -275,7 +276,7 @@ func (r *RootCmd) ping() *serpent.Command {
 				}
 
 				var displayTime string
-				if pingTime || pingTimeUTC {
+				if pingTimeLocal || pingTimeUTC {
 					displayTime = pretty.Sprintf(cliui.DefaultStyles.DateTimeStamp, "[%s] ", pongTime.Format(time.RFC3339))
 				}
 
@@ -336,7 +337,7 @@ func (r *RootCmd) ping() *serpent.Command {
 		{
 			Flag:        "time",
 			Description: "Show the response time of each pong in local time.",
-			Value:       serpent.BoolOf(&pingTime),
+			Value:       serpent.BoolOf(&pingTimeLocal),
 		},
 		{
 			Flag:        "utc",
