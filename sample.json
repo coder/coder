@@ -1,0 +1,189 @@
+{
+	{
+		"name": "coder_image",
+		"type": "string",
+		"form_control": "radio",
+		"display_name": "Coder Image",
+		"description": "The Docker image used to run your workspace. Choose between nix and non-nix images.",
+		"default": "codercom/oss-dogfood:latest",
+		"icon": "",
+		"options": [
+			{
+				"name": "Dogfood (Default)",
+				"description": "",
+				"value": "codercom/oss-dogfood:latest",
+				"icon": "/icon/coder.svg"
+			},
+			{
+				"name": "Dogfood Nix (Experimental)",
+				"description": "",
+				"value": "codercom/oss-dogfood-nix:latest",
+				"icon": "/icon/nix.svg"
+			}
+		],
+		"order": 1,
+		"mutable": true,
+		"diagnostics": [
+			{
+				"severity": "error|warning",
+				"summary": "short version of the error",
+				"detail": "detailed version of the error",
+				"subject": {
+					"filename": "docker-compose.yml",
+					"start": 1,
+					"end": 1
+				},
+				"context": {
+					"filename": "docker-compose.yml",
+					"start": 1,
+					"end": 1
+				},
+				"expression": "",
+				"extra": {}
+			}
+		],
+	},
+	{
+		"name": "jetbrains_ide",
+		"type": "string",
+		"form_control": "dropdown",
+		"display_name": "JetBrains IDE",
+		"description": "",
+		"default": "GO",
+		"icon": "/icon/gateway.svg",
+		"options": [
+			{
+				"name": "GoLand",
+				"description": "",
+				"value": "GO",
+				"icon": "/icon/goland.svg"
+			},
+			{
+				"name": "WebStorm",
+				"description": "",
+				"value": "WS",
+				"icon": "/icon/webstorm.svg"
+			}
+		],
+		"order": 2,
+		"mutable": true,
+		"diagnostics": [
+			{
+				"severity": "error|warning",
+				"summary": "short version of the error",
+				"detail": "detailed version of the error",
+				"subject": {
+					"filename": "docker-compose.yml",
+					"start": 1,
+					"end": 1
+				},
+				"context": {
+					"filename": "docker-compose.yml",
+					"start": 1,
+					"end": 1
+				},
+				"expression": "",
+				"extra": {}
+			}
+		],
+	},
+	{
+		"name": "region",
+		"type": "string",
+		"form_control": "radio",
+		"description": "",
+		"default": "us-pittsburgh",
+		"icon": "/emojis/1f30e.png",
+		"required": true,
+		"options": [
+			{
+					"name": "Pittsburgh",
+					"description": "",
+					"value": "us-pittsburgh",
+					"icon": "/emojis/1f1fa-1f1f8.png"
+			},
+			{
+					"name": "Helsinki",
+					"description": "",
+					"value": "eu-helsinki",
+					"icon": "/emojis/1f1eb-1f1ee.png"
+			},
+			{
+					"name": "Sydney",
+					"description": "",
+					"value": "ap-sydney",
+					"icon": "/emojis/1f1e6-1f1fa.png"
+			},
+			{
+					"name": "São Paulo",
+					"description": "",
+					"value": "sa-saopaulo",
+					"icon": "/emojis/1f1e7-1f1f7.png"
+			},
+			{
+					"name": "Cape Town",
+					"description": "",
+					"value": "za-cpt",
+					"icon": "/emojis/1f1ff-1f1e6.png"
+			}
+		],
+		"order": 3,
+		"mutable": true,
+		"diagnostics": [
+			{
+				"severity": "error|warning",
+				"summary": "short version of the error",
+				"detail": "detailed version of the error",
+				"subject": {
+					"filename": "docker-compose.yml",
+					"start": 1,
+					"end": 1
+				},
+				"context": {
+					"filename": "docker-compose.yml",
+					"start": 1,
+					"end": 1
+				},
+				"expression": "",
+				"extra": {}
+			}
+		],
+	},
+	{
+		"name": "memory_usage_threshold",
+		"display_name": "Memory Usage Threshold",
+		"type": "number",
+		"form_control": "input",
+		"description": "The memory usage threshold used in resources monitoring to trigger notifications.",
+		"value": 80,
+		"default": 80,
+		"order": 3,
+		"mutable": true,
+		"diagnostics": [
+			{
+				"severity": "error|warning",
+				"summary": "short version of the error",
+				"detail": "detailed version of the error",
+				"subject": {
+					"filename": "docker-compose.yml",
+					"start": 1,
+					"end": 1
+				},
+				"context": {
+					"filename": "docker-compose.yml",
+					"start": 1,
+					"end": 1
+				},
+				"expression": "",
+				"extra": {}
+			}
+		],
+	},
+  	"diagnostics": [
+		{
+			"severity": "error|warning",
+			"summary": "short version of the error",
+			"detail": "detailed version of the error"
+		}
+	]
+}
