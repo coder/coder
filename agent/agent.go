@@ -752,6 +752,8 @@ func (a *agent) reportConnectionsLoop(ctx context.Context, aAPI proto.DRPCAgentC
 				break
 			}
 			payload := a.reportConnections[0]
+			// Release lock while we send the payload, this is safe
+			// since we only append to the slice.
 			a.reportConnectionsMu.Unlock()
 
 			logger := a.logger.With(slog.F("payload", payload))
@@ -763,14 +765,10 @@ func (a *agent) reportConnectionsLoop(ctx context.Context, aAPI proto.DRPCAgentC
 
 			logger.Debug(ctx, "successfully reported connection")
 
+			// Remove the payload we sent.
 			a.reportConnectionsMu.Lock()
 			a.reportConnections = a.reportConnections[1:]
-			count := len(a.reportConnections)
 			a.reportConnectionsMu.Unlock()
-
-			if count == 0 {
-				break
-			}
 		}
 	}
 }
