@@ -4,7 +4,7 @@ import { API, type DeploymentConfig } from "api/api";
 import type { SerpentOption } from "api/typesGenerated";
 import { formatDuration, intervalToDuration } from "date-fns";
 import { coderPort, defaultPassword } from "./constants";
-import { findSessionToken, type LoginOptions, randomName } from "./helpers";
+import { type LoginOptions, findSessionToken, randomName } from "./helpers";
 
 let currentOrgId: string;
 
