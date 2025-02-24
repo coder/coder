@@ -6,6 +6,7 @@ import type * as TypesGen from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import dayjs from "dayjs";
@@ -25,7 +26,6 @@ import {
 	formValuesToAutostartRequest,
 	formValuesToTTLRequest,
 } from "./formToRequest";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 
 const permissionsToCheck = (workspace: TypesGen.Workspace) =>
 	({
