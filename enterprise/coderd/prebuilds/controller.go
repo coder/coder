@@ -210,7 +210,7 @@ func (c *Controller) determineState(ctx context.Context, store database.Store, i
 	err := store.InTx(func(db database.Store) error {
 		start := time.Now()
 
-		// TODO: give up after some time waiting on this?
+		// TODO: per-template ID lock?
 		err := db.AcquireLock(ctx, database.LockIDDeterminePrebuildsState)
 		if err != nil {
 			return xerrors.Errorf("failed to acquire state determination lock: %w", err)
