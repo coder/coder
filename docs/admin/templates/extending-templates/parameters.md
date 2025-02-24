@@ -325,14 +325,15 @@ Use `prebuilds` to define how many instances of the template should be stored as
 When a developer selects the associated template, the workspace will be assigned to that developer and the server will build a new prebuilt workspace.
 
 <details><summary>Expand for an example</summary>
+
 ```tf
 data "coder_workspace_preset" "goland-gpu" {
   name        = "GoLand with GPU"
   parameters = {
-    "machine_type"	= "n1-standard-1"
-	"attach_gpu"	= "true"
-	"gcp_region"	= "europe-west4-c"
-	"jetbrains_ide"	= "GO"
+    "machine_type"  = "n1-standard-1"
+	"attach_gpu"    = "true"
+	"gcp_region"    = "europe-west4-c"
+	"jetbrains_ide" = "GO"
   }
   prebuilds {
 	instances = 1
@@ -340,31 +341,31 @@ data "coder_workspace_preset" "goland-gpu" {
 }
 
 data "coder_parameter" "machine_type" {
-  name        	= "machine_type"
-  display_name	= "Machine Type"
-  type			= "string"
-  default		= "n1-standard-2"
+  name          = "machine_type"
+  display_name  = "Machine Type"
+  type          = "string"
+  default       = "n1-standard-2"
 }
 
 data "coder_workspace_preset" "attach_gpu" {
-  name        	= "attach_gpu"
-  display_name	= "Attach GPU?"
-  type			= "bool"
-  default		= "false"
+  name          = "attach_gpu"
+  display_name  = "Attach GPU?"
+  type          = "bool"
+  default       = "false"
 }
 
 data "coder_workspace_preset" "gcp_region" {
-  name        	= "gcp_region"
-  display_name	= "Machine Type"
-  type			= "string"
-  default		= "n1-standard-2"
+  name          = "gcp_region"
+  display_name  = "Machine Type"
+  type          = "string"
+  default       = "n1-standard-2"
 }
 
 data "coder_workspace_preset" "jetbrains_ide" {
-  name        	= "jetbrains_ide"
-  display_name	= "Machine Type"
-  type			= "string"
-  default		= "n1-standard-2"
+  name          = "jetbrains_ide"
+  display_name  = "Machine Type"
+  type          = "string"
+  default       = "n1-standard-2"
 }
 ```
 
