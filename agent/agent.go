@@ -88,6 +88,8 @@ type Options struct {
 	BlockFileTransfer            bool
 	Execer                       agentexec.Execer
 	ContainerLister              agentcontainers.Lister
+
+	ExperimentalConnectionReports bool
 }
 
 type Client interface {
@@ -189,6 +191,8 @@ func New(options Options) Agent {
 		metrics:            newAgentMetrics(prometheusRegistry),
 		execer:             options.Execer,
 		lister:             options.ContainerLister,
+
+		experimentalConnectionReports: options.ExperimentalConnectionReports,
 	}
 	// Initially, we have a closed channel, reflecting the fact that we are not initially connected.
 	// Each time we connect we replace the channel (while holding the closeMutex) with a new one
@@ -263,6 +267,8 @@ type agent struct {
 	metrics *agentMetrics
 	execer  agentexec.Execer
 	lister  agentcontainers.Lister
+
+	experimentalConnectionReports bool
 }
 
 func (a *agent) TailnetConn() *tailnet.Conn {
@@ -770,6 +776,11 @@ func (a *agent) reportConnectionsLoop(ctx context.Context, aAPI proto.DRPCAgentC
 }
 
 func (a *agent) reportConnection(id uuid.UUID, connectionType proto.Connection_Type, ip string) (disconnected func(code int, reason string)) {
+	// If the experiment hasn't been enabled, we don't report connections.
+	if !a.experimentalConnectionReports {
+		return func(int, string) {} // Noop.
+	}
+
 	// Remove the port from the IP.
 	if portIndex := strings.LastIndex(ip, ":"); portIndex != -1 {
 		ip = ip[:portIndex]
