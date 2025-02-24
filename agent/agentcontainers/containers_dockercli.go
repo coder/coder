@@ -34,9 +34,9 @@ func NewDocker(execer agentexec.Execer) Lister {
 	}
 }
 
-// ContainerEnvInfoer is an implementation of agentssh.EnvInfoer that returns
+// DockerEnvInfoer is an implementation of agentssh.EnvInfoer that returns
 // information about a container.
-type ContainerEnvInfoer struct {
+type DockerEnvInfoer struct {
 	container string
 	user      *user.User
 	userShell string
@@ -44,9 +44,9 @@ type ContainerEnvInfoer struct {
 }
 
 // EnvInfo returns information about the environment of a container.
-func EnvInfo(ctx context.Context, execer agentexec.Execer, container, containerUser string) (*ContainerEnvInfoer, error) {
-	var cei ContainerEnvInfoer
-	cei.container = container
+func EnvInfo(ctx context.Context, execer agentexec.Execer, container, containerUser string) (*DockerEnvInfoer, error) {
+	var dei DockerEnvInfoer
+	dei.container = container
 
 	if containerUser == "" {
 		// Get the "default" user of the container if no user is specified.
@@ -93,7 +93,7 @@ func EnvInfo(ctx context.Context, execer agentexec.Execer, container, containerU
 		return nil, xerrors.Errorf("get container user: invalid line in /etc/passwd: %q", foundLine)
 	}
 
-	// The fourth entry in /etc/passwd contains GECOS information, which is a
+	// The fifth entry in /etc/passwd contains GECOS information, which is a
 	// comma-separated list of fields. The first field is the user's full name.
 	gecos := strings.Split(passwdFields[4], ",")
 	fullName := ""
@@ -101,14 +101,14 @@ func EnvInfo(ctx context.Context, execer agentexec.Execer, container, containerU
 		fullName = gecos[0]
 	}
 
-	cei.user = &user.User{
+	dei.user = &user.User{
 		Gid:      passwdFields[3],
 		HomeDir:  passwdFields[5],
 		Name:     fullName,
 		Uid:      passwdFields[2],
 		Username: containerUser,
 	}
-	cei.userShell = passwdFields[6]
+	dei.userShell = passwdFields[6]
 
 	// We need to inspect the container labels for remoteEnv and append these to
 	// the resulting docker exec command.
@@ -117,23 +117,23 @@ func EnvInfo(ctx context.Context, execer agentexec.Execer, container, containerU
 	if err != nil { // best effort.
 		return nil, xerrors.Errorf("read devcontainer remoteEnv: %w", err)
 	}
-	cei.env = env
+	dei.env = env
 
-	return &cei, nil
+	return &dei, nil
 }
 
-func (cei *ContainerEnvInfoer) CurrentUser() (*user.User, error) {
+func (dei *DockerEnvInfoer) CurrentUser() (*user.User, error) {
 	// Clone the user so that the caller can't modify it
-	u := *cei.user
+	u := *dei.user
 	return &u, nil
 }
 
-func (*ContainerEnvInfoer) Environ() []string {
+func (*DockerEnvInfoer) Environ() []string {
 	// Return a clone of the environment so that the caller can't modify it
 	return os.Environ()
 }
 
-func (*ContainerEnvInfoer) UserHomeDir() (string, error) {
+func (*DockerEnvInfoer) UserHomeDir() (string, error) {
 	// We default the working directory of the command to the user's home
 	// directory. Since this came from inside the container, we cannot guarantee
 	// that this exists on the host. Return the "real" home directory of the user
@@ -141,14 +141,13 @@ func (*ContainerEnvInfoer) UserHomeDir() (string, error) {
 	return os.UserHomeDir()
 }
 
-func (cei *ContainerEnvInfoer) UserShell(string) (string, error) {
-	return cei.userShell, nil
+func (dei *DockerEnvInfoer) UserShell(string) (string, error) {
+	return dei.userShell, nil
 }
 
-func (cei *ContainerEnvInfoer) ModifyCommand(cmd string, args ...string) (string, []string) {
+func (dei *DockerEnvInfoer) ModifyCommand(cmd string, args ...string) (string, []string) {
 	// Wrap the command with `docker exec` and run it as the container user.
 	// There is some additional munging here regarding the container user and environment.
-	// return WrapDockerExecPTY(dei.container, dei.user.Username)(cmd, args...)
 	dockerArgs := []string{
 		"exec",
 		// The assumption is that this command will be a shell command, so allocate a PTY.
@@ -156,19 +155,19 @@ func (cei *ContainerEnvInfoer) ModifyCommand(cmd string, args ...string) (string
 		"--tty",
 		// Run the command as the user in the container.
 		"--user",
-		cei.user.Username,
+		dei.user.Username,
 		// Set the working directory to the user's home directory as a sane default.
 		"--workdir",
-		cei.user.HomeDir,
+		dei.user.HomeDir,
 	}
 
 	// Append the environment variables from the container.
-	for _, e := range cei.env {
+	for _, e := range dei.env {
 		dockerArgs = append(dockerArgs, "--env", e)
 	}
 
 	// Append the container name and the command.
-	dockerArgs = append(dockerArgs, cei.container, cmd)
+	dockerArgs = append(dockerArgs, dei.container, cmd)
 	return "docker", append(dockerArgs, args...)
 }
 
