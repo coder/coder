@@ -4334,17 +4334,17 @@ func (q *sqlQuerier) GetInboxNotificationByID(ctx context.Context, id uuid.UUID)
 const getInboxNotificationsByUserID = `-- name: GetInboxNotificationsByUserID :many
 SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at FROM inbox_notifications WHERE
 	user_id = $1 AND
-	($2 = 'ALL' OR ($2 = 'UNREAD' AND read_at IS NULL) OR ($2 = 'READ' AND read_at IS NOT NULL)) AND
+	($2::text = 'ALL' OR ($2::text = 'UNREAD' AND read_at IS NULL) OR ($2::text = 'READ' AND read_at IS NOT NULL)) AND
 	($3::TIMESTAMPTZ IS NULL OR created_at < $3::TIMESTAMPTZ)
 	ORDER BY created_at DESC
 	LIMIT (COALESCE(NULLIF($4 :: INT, 0), 25))
 `
 
 type GetInboxNotificationsByUserIDParams struct {
-	UserID       uuid.UUID   `db:"user_id" json:"user_id"`
-	ReadStatus   interface{} `db:"read_status" json:"read_status"`
-	CreatedAtOpt time.Time   `db:"created_at_opt" json:"created_at_opt"`
-	LimitOpt     int32       `db:"limit_opt" json:"limit_opt"`
+	UserID       uuid.UUID `db:"user_id" json:"user_id"`
+	ReadStatus   string    `db:"read_status" json:"read_status"`
+	CreatedAtOpt time.Time `db:"created_at_opt" json:"created_at_opt"`
+	LimitOpt     int32     `db:"limit_opt" json:"limit_opt"`
 }
 
 func (q *sqlQuerier) GetInboxNotificationsByUserID(ctx context.Context, arg GetInboxNotificationsByUserIDParams) ([]InboxNotification, error) {
@@ -4391,7 +4391,7 @@ SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at
 	user_id = $1 AND
 	template_id = ANY($2::UUID[]) AND
 	targets @> COALESCE($3, ARRAY[]::UUID[]) AND
-	($4 = 'ALL' OR ($4 = 'UNREAD' AND read_at IS NULL) OR ($4 = 'READ' AND read_at IS NOT NULL)) AND
+	($4::text = 'ALL' OR ($4::text = 'UNREAD' AND read_at IS NULL) OR ($4::text = 'READ' AND read_at IS NOT NULL)) AND
 	($5::TIMESTAMPTZ IS NULL OR created_at < $5::TIMESTAMPTZ)
 	ORDER BY created_at DESC
 	LIMIT (COALESCE(NULLIF($6 :: INT, 0), 25))
@@ -4401,7 +4401,7 @@ type GetInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams struct {
 	UserID       uuid.UUID   `db:"user_id" json:"user_id"`
 	Templates    []uuid.UUID `db:"templates" json:"templates"`
 	Targets      []uuid.UUID `db:"targets" json:"targets"`
-	ReadStatus   interface{} `db:"read_status" json:"read_status"`
+	ReadStatus   string      `db:"read_status" json:"read_status"`
 	CreatedAtOpt time.Time   `db:"created_at_opt" json:"created_at_opt"`
 	LimitOpt     int32       `db:"limit_opt" json:"limit_opt"`
 }

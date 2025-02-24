@@ -4494,7 +4494,8 @@ func (s *MethodTestSuite) TestNotifications() {
 		})
 
 		check.Args(database.GetInboxNotificationsByUserIDParams{
-			UserID: u.ID,
+			UserID:     u.ID,
+			ReadStatus: database.InboxNotificationReadStatusAll.String(),
 		}).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionRead).Returns([]database.InboxNotification{notif})
 	}))
 
@@ -4517,9 +4518,10 @@ func (s *MethodTestSuite) TestNotifications() {
 		})
 
 		check.Args(database.GetInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams{
-			UserID:    u.ID,
-			Templates: []uuid.UUID{notifications.TemplateWorkspaceAutoUpdated},
-			Targets:   []uuid.UUID{u.ID},
+			UserID:     u.ID,
+			Templates:  []uuid.UUID{notifications.TemplateWorkspaceAutoUpdated},
+			Targets:    []uuid.UUID{u.ID},
+			ReadStatus: database.InboxNotificationReadStatusAll.String(),
 		}).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionRead).Returns([]database.InboxNotification{notif})
 	}))
 
