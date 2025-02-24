@@ -25,6 +25,7 @@ import {
 	formValuesToAutostartRequest,
 	formValuesToTTLRequest,
 } from "./formToRequest";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 
 const permissionsToCheck = (workspace: TypesGen.Workspace) =>
 	({
@@ -60,7 +61,9 @@ export const WorkspaceSchedulePage: FC = () => {
 					params.workspace,
 				),
 			);
+			displaySuccess("Workspace schedule updated");
 		},
+		onError: () => displayError("Failed to update workspace schedule"),
 	});
 	const error = checkPermissionsError || getTemplateError;
 	const isLoading = !template || !permissions;
