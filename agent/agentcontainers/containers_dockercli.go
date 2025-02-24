@@ -6,6 +6,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"os/user"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -29,6 +32,210 @@ func NewDocker(execer agentexec.Execer) Lister {
 	return &DockerCLILister{
 		execer: agentexec.DefaultExecer,
 	}
+}
+
+// DockerEnvInfoer is an implementation of agentssh.EnvInfoer that returns
+// information about a container.
+type DockerEnvInfoer struct {
+	container string
+	user      *user.User
+	userShell string
+	env       []string
+}
+
+// EnvInfo returns information about the environment of a container.
+func EnvInfo(ctx context.Context, execer agentexec.Execer, container, containerUser string) (*DockerEnvInfoer, error) {
+	var dei DockerEnvInfoer
+	dei.container = container
+
+	if containerUser == "" {
+		// Get the "default" user of the container if no user is specified.
+		// TODO: handle different container runtimes.
+		cmd, args := wrapDockerExec(container, "", "whoami")
+		stdout, stderr, err := run(ctx, execer, cmd, args...)
+		if err != nil {
+			return nil, xerrors.Errorf("get container user: run whoami: %w: %s", err, stderr)
+		}
+		if len(stdout) == 0 {
+			return nil, xerrors.Errorf("get container user: run whoami: empty output")
+		}
+		containerUser = stdout
+	}
+	// Now that we know the username, get the required info from the container.
+	// We can't assume the presence of `getent` so we'll just have to sniff /etc/passwd.
+	cmd, args := wrapDockerExec(container, containerUser, "cat", "/etc/passwd")
+	stdout, stderr, err := run(ctx, execer, cmd, args...)
+	if err != nil {
+		return nil, xerrors.Errorf("get container user: read /etc/passwd: %w: %q", err, stderr)
+	}
+
+	scanner := bufio.NewScanner(strings.NewReader(stdout))
+	var foundLine string
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if !strings.HasPrefix(line, containerUser+":") {
+			continue
+		}
+		foundLine = line
+		break
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, xerrors.Errorf("get container user: scan /etc/passwd: %w", err)
+	}
+	if foundLine == "" {
+		return nil, xerrors.Errorf("get container user: no matching entry for %q found in /etc/passwd", containerUser)
+	}
+
+	// Parse the output of /etc/passwd. It looks like this:
+	// postgres:x:999:999::/var/lib/postgresql:/bin/bash
+	passwdFields := strings.Split(foundLine, ":")
+	if len(passwdFields) != 7 {
+		return nil, xerrors.Errorf("get container user: invalid line in /etc/passwd: %q", foundLine)
+	}
+
+	// The fifth entry in /etc/passwd contains GECOS information, which is a
+	// comma-separated list of fields. The first field is the user's full name.
+	gecos := strings.Split(passwdFields[4], ",")
+	fullName := ""
+	if len(gecos) > 1 {
+		fullName = gecos[0]
+	}
+
+	dei.user = &user.User{
+		Gid:      passwdFields[3],
+		HomeDir:  passwdFields[5],
+		Name:     fullName,
+		Uid:      passwdFields[2],
+		Username: containerUser,
+	}
+	dei.userShell = passwdFields[6]
+
+	// We need to inspect the container labels for remoteEnv and append these to
+	// the resulting docker exec command.
+	// ref: https://code.visualstudio.com/docs/devcontainers/attach-container
+	env, err := devcontainerEnv(ctx, execer, container)
+	if err != nil { // best effort.
+		return nil, xerrors.Errorf("read devcontainer remoteEnv: %w", err)
+	}
+	dei.env = env
+
+	return &dei, nil
+}
+
+func (dei *DockerEnvInfoer) CurrentUser() (*user.User, error) {
+	// Clone the user so that the caller can't modify it
+	u := *dei.user
+	return &u, nil
+}
+
+func (*DockerEnvInfoer) Environ() []string {
+	// Return a clone of the environment so that the caller can't modify it
+	return os.Environ()
+}
+
+func (*DockerEnvInfoer) UserHomeDir() (string, error) {
+	// We default the working directory of the command to the user's home
+	// directory. Since this came from inside the container, we cannot guarantee
+	// that this exists on the host. Return the "real" home directory of the user
+	// instead.
+	return os.UserHomeDir()
+}
+
+func (dei *DockerEnvInfoer) UserShell(string) (string, error) {
+	return dei.userShell, nil
+}
+
+func (dei *DockerEnvInfoer) ModifyCommand(cmd string, args ...string) (string, []string) {
+	// Wrap the command with `docker exec` and run it as the container user.
+	// There is some additional munging here regarding the container user and environment.
+	dockerArgs := []string{
+		"exec",
+		// The assumption is that this command will be a shell command, so allocate a PTY.
+		"--interactive",
+		"--tty",
+		// Run the command as the user in the container.
+		"--user",
+		dei.user.Username,
+		// Set the working directory to the user's home directory as a sane default.
+		"--workdir",
+		dei.user.HomeDir,
+	}
+
+	// Append the environment variables from the container.
+	for _, e := range dei.env {
+		dockerArgs = append(dockerArgs, "--env", e)
+	}
+
+	// Append the container name and the command.
+	dockerArgs = append(dockerArgs, dei.container, cmd)
+	return "docker", append(dockerArgs, args...)
+}
+
+// devcontainerEnv is a helper function that inspects the container labels to
+// find the required environment variables for running a command in the container.
+func devcontainerEnv(ctx context.Context, execer agentexec.Execer, container string) ([]string, error) {
+	ins, stderr, err := runDockerInspect(ctx, execer, container)
+	if err != nil {
+		return nil, xerrors.Errorf("inspect container: %w: %q", err, stderr)
+	}
+
+	if len(ins) != 1 {
+		return nil, xerrors.Errorf("inspect container: expected 1 container, got %d", len(ins))
+	}
+
+	in := ins[0]
+	if in.Config.Labels == nil {
+		return nil, nil
+	}
+
+	// We want to look for the devcontainer metadata, which is in the
+	// value of the label `devcontainer.metadata`.
+	rawMeta, ok := in.Config.Labels["devcontainer.metadata"]
+	if !ok {
+		return nil, nil
+	}
+	meta := struct {
+		RemoteEnv map[string]string `json:"remoteEnv"`
+	}{}
+	if err := json.Unmarshal([]byte(rawMeta), &meta); err != nil {
+		return nil, xerrors.Errorf("unmarshal devcontainer.metadata: %w", err)
+	}
+
+	// The environment variables are stored in the `remoteEnv` key.
+	env := make([]string, 0, len(meta.RemoteEnv))
+	for k, v := range meta.RemoteEnv {
+		env = append(env, fmt.Sprintf("%s=%s", k, v))
+	}
+	slices.Sort(env)
+	return env, nil
+}
+
+// wrapDockerExec is a helper function that wraps the given command and arguments
+// with a docker exec command that runs as the given user in the given
+// container. This is used to fetch information about a container prior to
+// running the actual command.
+func wrapDockerExec(containerName, userName, cmd string, args ...string) (string, []string) {
+	dockerArgs := []string{"exec", "--interactive"}
+	if userName != "" {
+		dockerArgs = append(dockerArgs, "--user", userName)
+	}
+	dockerArgs = append(dockerArgs, containerName, cmd)
+	return "docker", append(dockerArgs, args...)
+}
+
+// Helper function to run a command and return its stdout and stderr.
+// We want to differentiate stdout and stderr instead of using CombinedOutput.
+// We also want to differentiate between a command running successfully with
+// output to stderr and a non-zero exit code.
+func run(ctx context.Context, execer agentexec.Execer, cmd string, args ...string) (stdout, stderr string, err error) {
+	var stdoutBuf, stderrBuf strings.Builder
+	execCmd := execer.CommandContext(ctx, cmd, args...)
+	execCmd.Stdout = &stdoutBuf
+	execCmd.Stderr = &stderrBuf
+	err = execCmd.Run()
+	stdout = strings.TrimSpace(stdoutBuf.String())
+	stderr = strings.TrimSpace(stderrBuf.String())
+	return stdout, stderr, err
 }
 
 func (dcl *DockerCLILister) List(ctx context.Context) (codersdk.WorkspaceAgentListContainersResponse, error) {
@@ -66,30 +273,16 @@ func (dcl *DockerCLILister) List(ctx context.Context) (codersdk.WorkspaceAgentLi
 	}
 
 	// now we can get the detailed information for each container
-	// Run `docker inspect` on each container ID
-	stdoutBuf.Reset()
-	stderrBuf.Reset()
-	// nolint: gosec // We are not executing user input, these IDs come from
-	// `docker ps`.
-	cmd = dcl.execer.CommandContext(ctx, "docker", append([]string{"inspect"}, ids...)...)
-	cmd.Stdout = &stdoutBuf
-	cmd.Stderr = &stderrBuf
-	if err := cmd.Run(); err != nil {
-		return codersdk.WorkspaceAgentListContainersResponse{}, xerrors.Errorf("run docker inspect: %w: %s", err, strings.TrimSpace(stderrBuf.String()))
-	}
-
-	dockerInspectStderr := strings.TrimSpace(stderrBuf.String())
-
+	// Run `docker inspect` on each container ID.
 	// NOTE: There is an unavoidable potential race condition where a
 	// container is removed between `docker ps` and `docker inspect`.
 	// In this case, stderr will contain an error message but stdout
 	// will still contain valid JSON. We will just end up missing
 	// information about the removed container. We could potentially
 	// log this error, but I'm not sure it's worth it.
-	ins := make([]dockerInspect, 0, len(ids))
-	if err := json.NewDecoder(&stdoutBuf).Decode(&ins); err != nil {
-		// However, if we just get invalid JSON, we should absolutely return an error.
-		return codersdk.WorkspaceAgentListContainersResponse{}, xerrors.Errorf("decode docker inspect output: %w", err)
+	ins, dockerInspectStderr, err := runDockerInspect(ctx, dcl.execer, ids...)
+	if err != nil {
+		return codersdk.WorkspaceAgentListContainersResponse{}, xerrors.Errorf("run docker inspect: %w", err)
 	}
 
 	res := codersdk.WorkspaceAgentListContainersResponse{
@@ -109,6 +302,28 @@ func (dcl *DockerCLILister) List(ctx context.Context) (codersdk.WorkspaceAgentLi
 	}
 
 	return res, nil
+}
+
+// runDockerInspect is a helper function that runs `docker inspect` on the given
+// container IDs and returns the parsed output.
+// The stderr output is also returned for logging purposes.
+func runDockerInspect(ctx context.Context, execer agentexec.Execer, ids ...string) ([]dockerInspect, string, error) {
+	var stdoutBuf, stderrBuf bytes.Buffer
+	cmd := execer.CommandContext(ctx, "docker", append([]string{"inspect"}, ids...)...)
+	cmd.Stdout = &stdoutBuf
+	cmd.Stderr = &stderrBuf
+	err := cmd.Run()
+	stderr := strings.TrimSpace(stderrBuf.String())
+	if err != nil {
+		return nil, stderr, err
+	}
+
+	var ins []dockerInspect
+	if err := json.NewDecoder(&stdoutBuf).Decode(&ins); err != nil {
+		return nil, stderr, xerrors.Errorf("decode docker inspect output: %w", err)
+	}
+
+	return ins, stderr, nil
 }
 
 // To avoid a direct dependency on the Docker API, we use the docker CLI

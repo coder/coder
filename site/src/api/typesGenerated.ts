@@ -1122,6 +1122,10 @@ export interface License {
 // From codersdk/licenses.go
 export const LicenseExpiryClaim = "license_expires";
 
+// From codersdk/licenses.go
+export const LicenseTelemetryRequiredErrorText =
+	"License requires telemetry but telemetry is disabled";
+
 // From codersdk/deployment.go
 export interface LinkConfig {
 	readonly name: string;
@@ -1318,10 +1322,16 @@ export interface OAuth2Config {
 	readonly github: OAuth2GithubConfig;
 }
 
+// From codersdk/oauth2.go
+export interface OAuth2DeviceFlowCallbackResponse {
+	readonly redirect_url: string;
+}
+
 // From codersdk/deployment.go
 export interface OAuth2GithubConfig {
 	readonly client_id: string;
 	readonly client_secret: string;
+	readonly device_flow: boolean;
 	readonly allowed_orgs: string;
 	readonly allowed_teams: string;
 	readonly allow_signups: boolean;

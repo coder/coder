@@ -1981,6 +1981,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         ],
         "client_id": "string",
         "client_secret": "string",
+        "device_flow": true,
         "enterprise_base_url": "string"
       }
     },
@@ -2451,6 +2452,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       ],
       "client_id": "string",
       "client_secret": "string",
+      "device_flow": true,
       "enterprise_base_url": "string"
     }
   },
@@ -3808,6 +3810,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
     ],
     "client_id": "string",
     "client_secret": "string",
+    "device_flow": true,
     "enterprise_base_url": "string"
   }
 }
@@ -3833,6 +3836,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   ],
   "client_id": "string",
   "client_secret": "string",
+  "device_flow": true,
   "enterprise_base_url": "string"
 }
 ```
@@ -3847,6 +3851,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `allowed_teams`       | array of string | false    |              |             |
 | `client_id`           | string          | false    |              |             |
 | `client_secret`       | string          | false    |              |             |
+| `device_flow`         | boolean         | false    |              |             |
 | `enterprise_base_url` | string          | false    |              |             |
 
 ## codersdk.OAuth2ProviderApp

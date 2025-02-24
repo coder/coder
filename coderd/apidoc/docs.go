@@ -6167,6 +6167,31 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/oauth2/github/device": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Get Github device auth.",
+                "operationId": "get-github-device-auth",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ExternalAuthDevice"
+                        }
+                    }
+                }
+            }
+        },
         "/users/oidc/callback": {
             "get": {
                 "security": [
@@ -12503,6 +12528,9 @@ const docTemplate = `{
                 },
                 "client_secret": {
                     "type": "string"
+                },
+                "device_flow": {
+                    "type": "boolean"
                 },
                 "enterprise_base_url": {
                     "type": "string"
