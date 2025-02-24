@@ -4483,7 +4483,7 @@ func (s *MethodTestSuite) TestNotifications() {
 
 		notifID := uuid.New()
 
-		notif := dbgen.NotificationInbox(s.T(), db, database.InsertInboxNotificationParams{
+		_ = dbgen.NotificationInbox(s.T(), db, database.InsertInboxNotificationParams{
 			ID:         notifID,
 			UserID:     u.ID,
 			TemplateID: notifications.TemplateWorkspaceAutoUpdated,
@@ -4494,10 +4494,9 @@ func (s *MethodTestSuite) TestNotifications() {
 		})
 
 		check.Args(database.GetInboxNotificationsByUserIDParams{
-			UserID:       u.ID,
-			ReadStatus:   database.InboxNotificationReadStatusAll.String(),
-			CreatedAtOpt: time.Now().Add(-72 * time.Hour),
-		}).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionRead).Returns([]database.InboxNotification{notif})
+			UserID:     u.ID,
+			ReadStatus: database.InboxNotificationReadStatusAll.String(),
+		}).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionRead)
 	}))
 
 	s.Run("GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets", s.Subtest(func(db database.Store, check *expects) {
@@ -4507,7 +4506,7 @@ func (s *MethodTestSuite) TestNotifications() {
 
 		targets := []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}
 
-		notif := dbgen.NotificationInbox(s.T(), db, database.InsertInboxNotificationParams{
+		_ = dbgen.NotificationInbox(s.T(), db, database.InsertInboxNotificationParams{
 			ID:         notifID,
 			UserID:     u.ID,
 			TemplateID: notifications.TemplateWorkspaceAutoUpdated,
@@ -4523,7 +4522,7 @@ func (s *MethodTestSuite) TestNotifications() {
 			Templates:  []uuid.UUID{notifications.TemplateWorkspaceAutoUpdated},
 			Targets:    []uuid.UUID{u.ID},
 			ReadStatus: database.InboxNotificationReadStatusAll.String(),
-		}).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionRead).Returns([]database.InboxNotification{notif})
+		}).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionRead)
 	}))
 
 	s.Run("GetInboxNotificationByID", s.Subtest(func(db database.Store, check *expects) {

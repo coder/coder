@@ -4335,7 +4335,7 @@ const getInboxNotificationsByUserID = `-- name: GetInboxNotificationsByUserID :m
 SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at FROM inbox_notifications WHERE
 	user_id = $1 AND
 	($2::text = 'ALL' OR ($2::text = 'UNREAD' AND read_at IS NULL) OR ($2::text = 'READ' AND read_at IS NOT NULL)) AND
-	($3::TIMESTAMPTZ IS NULL OR created_at < $3::TIMESTAMPTZ)
+	($3::TIMESTAMPTZ = '0001-01-01 00:00:00Z' OR created_at < $3::TIMESTAMPTZ)
 	ORDER BY created_at DESC
 	LIMIT (COALESCE(NULLIF($4 :: INT, 0), 25))
 `
@@ -4392,7 +4392,7 @@ SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at
 	template_id = ANY($2::UUID[]) AND
 	targets @> COALESCE($3, ARRAY[]::UUID[]) AND
 	($4::text = 'ALL' OR ($4::text = 'UNREAD' AND read_at IS NULL) OR ($4::text = 'READ' AND read_at IS NOT NULL)) AND
-	($5::TIMESTAMPTZ IS NULL OR created_at < $5::TIMESTAMPTZ)
+	($5::TIMESTAMPTZ = '0001-01-01 00:00:00Z' OR created_at < $5::TIMESTAMPTZ)
 	ORDER BY created_at DESC
 	LIMIT (COALESCE(NULLIF($6 :: INT, 0), 25))
 `

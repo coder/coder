@@ -2,7 +2,7 @@
 SELECT * FROM inbox_notifications WHERE
 	user_id = @user_id AND
 	(@read_status::text = 'ALL' OR (@read_status::text = 'UNREAD' AND read_at IS NULL) OR (@read_status::text = 'READ' AND read_at IS NOT NULL)) AND
-	(@created_at_opt::TIMESTAMPTZ IS NULL OR created_at < @created_at_opt::TIMESTAMPTZ)
+	(@created_at_opt::TIMESTAMPTZ = '0001-01-01 00:00:00Z' OR created_at < @created_at_opt::TIMESTAMPTZ)
 	ORDER BY created_at DESC
 	LIMIT (COALESCE(NULLIF(@limit_opt :: INT, 0), 25));
 
@@ -16,7 +16,7 @@ SELECT * FROM inbox_notifications WHERE
 	template_id = ANY(@templates::UUID[]) AND
 	targets @> COALESCE(@targets, ARRAY[]::UUID[]) AND
 	(@read_status::text = 'ALL' OR (@read_status::text = 'UNREAD' AND read_at IS NULL) OR (@read_status::text = 'READ' AND read_at IS NOT NULL)) AND
-	(@created_at_opt::TIMESTAMPTZ IS NULL OR created_at < @created_at_opt::TIMESTAMPTZ)
+	(@created_at_opt::TIMESTAMPTZ = '0001-01-01 00:00:00Z' OR created_at < @created_at_opt::TIMESTAMPTZ)
 	ORDER BY created_at DESC
 	LIMIT (COALESCE(NULLIF(@limit_opt :: INT, 0), 25));
 
