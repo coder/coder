@@ -114,7 +114,6 @@ export const canViewOrganization = (
 		permissions !== undefined &&
 		(permissions.viewMembers ||
 			permissions.viewGroups ||
-			permissions.viewOrgRoles ||
 			permissions.viewProvisioners ||
 			permissions.viewIdpSyncSettings)
 	);

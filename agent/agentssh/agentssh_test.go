@@ -41,6 +41,8 @@ func TestNewServer_ServeClient(t *testing.T) {
 	s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), agentexec.DefaultExecer, nil)
 	require.NoError(t, err)
 	defer s.Close()
+	err = s.UpdateHostSigner(42)
+	assert.NoError(t, err)
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
@@ -146,6 +148,8 @@ func TestNewServer_CloseActiveConnections(t *testing.T) {
 	s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), agentexec.DefaultExecer, nil)
 	require.NoError(t, err)
 	defer s.Close()
+	err = s.UpdateHostSigner(42)
+	assert.NoError(t, err)
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
@@ -197,6 +201,8 @@ func TestNewServer_Signal(t *testing.T) {
 		s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), agentexec.DefaultExecer, nil)
 		require.NoError(t, err)
 		defer s.Close()
+		err = s.UpdateHostSigner(42)
+		assert.NoError(t, err)
 
 		ln, err := net.Listen("tcp", "127.0.0.1:0")
 		require.NoError(t, err)
@@ -262,6 +268,8 @@ func TestNewServer_Signal(t *testing.T) {
 		s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), agentexec.DefaultExecer, nil)
 		require.NoError(t, err)
 		defer s.Close()
+		err = s.UpdateHostSigner(42)
+		assert.NoError(t, err)
 
 		ln, err := net.Listen("tcp", "127.0.0.1:0")
 		require.NoError(t, err)

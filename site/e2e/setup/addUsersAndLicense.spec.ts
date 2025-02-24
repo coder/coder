@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { API } from "api/api";
-import { Language } from "pages/CreateUserPage/CreateUserForm";
+import { Language } from "pages/CreateUserPage/Language";
 import { coderPort, license, premiumTestsRequired, users } from "../constants";
 import { expectUrl } from "../expectUrl";
 import { createUser } from "../helpers";
