@@ -12,6 +12,10 @@ This can help prevent agent disconnects due to OOM/OOD issues.
 You can specify one or more volumes to monitor for OOD alerts.
 OOM alerts are reported per-agent.
 
+## Prerequisites
+
+Configure Coder to [use an SMTP server](../../monitoring/notifications.md#smtp-email).
+
 ## Example
 
 Add the following example to the template's `main.tf`.
