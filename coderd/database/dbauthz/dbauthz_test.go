@@ -4478,26 +4478,6 @@ func (s *MethodTestSuite) TestNotifications() {
 		}).Asserts(rbac.ResourceNotificationPreference.WithOwner(user.ID.String()), policy.ActionUpdate)
 	}))
 
-	s.Run("GetUnreadInboxNotificationsByUserID", s.Subtest(func(db database.Store, check *expects) {
-		u := dbgen.User(s.T(), db, database.User{})
-
-		notifID := uuid.New()
-
-		notif := dbgen.NotificationInbox(s.T(), db, database.InsertInboxNotificationParams{
-			ID:         notifID,
-			UserID:     u.ID,
-			TemplateID: notifications.TemplateWorkspaceAutoUpdated,
-			Title:      "test title",
-			Content:    "test content notification",
-			Icon:       "https://coder.com/favicon.ico",
-			Actions:    json.RawMessage("{}"),
-		})
-
-		check.Args(database.GetUnreadInboxNotificationsByUserIDParams{
-			UserID: u.ID,
-		}).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionRead).Returns([]database.InboxNotification{notif})
-	}))
-
 	s.Run("GetInboxNotificationsByUserID", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
 
@@ -4537,31 +4517,6 @@ func (s *MethodTestSuite) TestNotifications() {
 		})
 
 		check.Args(database.GetInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams{
-			UserID:    u.ID,
-			Templates: []uuid.UUID{notifications.TemplateWorkspaceAutoUpdated},
-			Targets:   []uuid.UUID{u.ID},
-		}).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionRead).Returns([]database.InboxNotification{notif})
-	}))
-
-	s.Run("GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets", s.Subtest(func(db database.Store, check *expects) {
-		u := dbgen.User(s.T(), db, database.User{})
-
-		notifID := uuid.New()
-
-		targets := []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}
-
-		notif := dbgen.NotificationInbox(s.T(), db, database.InsertInboxNotificationParams{
-			ID:         notifID,
-			UserID:     u.ID,
-			TemplateID: notifications.TemplateWorkspaceAutoUpdated,
-			Targets:    targets,
-			Title:      "test title",
-			Content:    "test content notification",
-			Icon:       "https://coder.com/favicon.ico",
-			Actions:    json.RawMessage("{}"),
-		})
-
-		check.Args(database.GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams{
 			UserID:    u.ID,
 			Templates: []uuid.UUID{notifications.TemplateWorkspaceAutoUpdated},
 			Targets:   []uuid.UUID{u.ID},

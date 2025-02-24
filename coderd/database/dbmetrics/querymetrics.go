@@ -77,13 +77,6 @@ func (m queryMetricsStore) InTx(f func(database.Store) error, options *database.
 	return m.dbMetrics.InTx(f, options)
 }
 
-func (m queryMetricsStore) GetUnreadInboxNotificationsByUserIDAndTemplateIDAndTargets(ctx context.Context, arg database.GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams) ([]database.InboxNotification, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
 func (m queryMetricsStore) AcquireLock(ctx context.Context, pgAdvisoryXactLock int64) error {
 	start := time.Now()
 	err := m.s.AcquireLock(ctx, pgAdvisoryXactLock)
@@ -1377,20 +1370,6 @@ func (m queryMetricsStore) GetUnexpiredLicenses(ctx context.Context) ([]database
 	licenses, err := m.s.GetUnexpiredLicenses(ctx)
 	m.queryLatencies.WithLabelValues("GetUnexpiredLicenses").Observe(time.Since(start).Seconds())
 	return licenses, err
-}
-
-func (m queryMetricsStore) GetUnreadInboxNotificationsByUserID(ctx context.Context, userID database.GetUnreadInboxNotificationsByUserIDParams) ([]database.InboxNotification, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetUnreadInboxNotificationsByUserID(ctx, userID)
-	m.queryLatencies.WithLabelValues("GetUnreadInboxNotificationsByUserID").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets(ctx context.Context, arg database.GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams) ([]database.InboxNotification, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets").Observe(time.Since(start).Seconds())
-	return r0, r1
 }
 
 func (m queryMetricsStore) GetUserActivityInsights(ctx context.Context, arg database.GetUserActivityInsightsParams) ([]database.GetUserActivityInsightsRow, error) {

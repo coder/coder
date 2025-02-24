@@ -1,16 +1,8 @@
--- name: GetUnreadInboxNotificationsByUserID :many
---
-SELECT * FROM inbox_notifications WHERE
-	user_id = @user_id AND
-	read_at IS NULL AND
-	(@id_opt::UUID = '00000000-0000-0000-0000-000000000000'::UUID OR id > @id_opt::UUID)
-	ORDER BY created_at DESC
-	LIMIT (COALESCE(NULLIF(@limit_opt :: INT, 0), 25));
-
 -- name: GetInboxNotificationsByUserID :many
 SELECT * FROM inbox_notifications WHERE
 	user_id = @user_id AND
-	(@id_opt::UUID = '00000000-0000-0000-0000-000000000000'::UUID OR id > @id_opt::UUID)
+	(@read_status = 'ALL' OR (@read_status = 'UNREAD' AND read_at IS NULL) OR (@read_status = 'READ' AND read_at IS NOT NULL)) AND
+	(@created_at_opt::TIMESTAMPTZ IS NULL OR created_at < @created_at_opt::TIMESTAMPTZ)
 	ORDER BY created_at DESC
 	LIMIT (COALESCE(NULLIF(@limit_opt :: INT, 0), 25));
 
@@ -23,20 +15,8 @@ SELECT * FROM inbox_notifications WHERE
 	user_id = @user_id AND
 	template_id = ANY(@templates::UUID[]) AND
 	targets @> COALESCE(@targets, ARRAY[]::UUID[]) AND
-	(@id_opt::UUID = '00000000-0000-0000-0000-000000000000'::UUID OR id > @id_opt::UUID)
-	ORDER BY created_at DESC
-	LIMIT (COALESCE(NULLIF(@limit_opt :: INT, 0), 25));
-
--- name: GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets :many
--- param user_id: The user ID
--- param templates: The template IDs to filter by - the template_id = ANY(@templates::UUID[]) condition checks if the template_id is in the @templates array
--- param targets: The target IDs to filter by - the targets @> COALESCE(@targets, ARRAY[]::UUID[]) condition checks if the targets array (from the DB) contains all the elements in the @targets array
-SELECT * FROM inbox_notifications WHERE
-	user_id = @user_id AND
-	template_id = ANY(@templates::UUID[]) AND
-	targets @> COALESCE(@targets, ARRAY[]::UUID[]) AND
-	read_at IS NULL AND
-	(@id_opt::UUID = '00000000-0000-0000-0000-000000000000'::UUID OR id > @id_opt::UUID)
+	(@read_status = 'ALL' OR (@read_status = 'UNREAD' AND read_at IS NULL) OR (@read_status = 'READ' AND read_at IS NOT NULL)) AND
+	(@created_at_opt::TIMESTAMPTZ IS NULL OR created_at < @created_at_opt::TIMESTAMPTZ)
 	ORDER BY created_at DESC
 	LIMIT (COALESCE(NULLIF(@limit_opt :: INT, 0), 25));
 

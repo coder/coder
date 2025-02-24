@@ -2460,14 +2460,6 @@ func (q *querier) GetUnexpiredLicenses(ctx context.Context) ([]database.License,
 	return q.db.GetUnexpiredLicenses(ctx)
 }
 
-func (q *querier) GetUnreadInboxNotificationsByUserID(ctx context.Context, userID database.GetUnreadInboxNotificationsByUserIDParams) ([]database.InboxNotification, error) {
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetUnreadInboxNotificationsByUserID)(ctx, userID)
-}
-
-func (q *querier) GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets(ctx context.Context, arg database.GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams) ([]database.InboxNotification, error) {
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets)(ctx, arg)
-}
-
 func (q *querier) GetUserActivityInsights(ctx context.Context, arg database.GetUserActivityInsightsParams) ([]database.GetUserActivityInsightsRow, error) {
 	// Used by insights endpoints. Need to check both for auditors and for regular users with template acl perms.
 	if err := q.authorizeContext(ctx, policy.ActionViewInsights, rbac.ResourceTemplate); err != nil {

@@ -5872,59 +5872,6 @@ func (q *FakeQuerier) GetUnexpiredLicenses(_ context.Context) ([]database.Licens
 	return results, nil
 }
 
-func (q *FakeQuerier) GetUnreadInboxNotificationsByUserID(_ context.Context, params database.GetUnreadInboxNotificationsByUserIDParams) ([]database.InboxNotification, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	notifications := make([]database.InboxNotification, 0)
-	for _, notification := range q.InboxNotification {
-		if notification.UserID == params.UserID && !notification.ReadAt.Valid {
-			notifications = append(notifications, notification)
-		}
-	}
-
-	return notifications, nil
-}
-
-func (q *FakeQuerier) GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets(_ context.Context, arg database.GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams) ([]database.InboxNotification, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	notifications := make([]database.InboxNotification, 0)
-	for _, notification := range q.InboxNotification {
-		if notification.UserID == arg.UserID && !notification.ReadAt.Valid {
-			for _, template := range arg.Templates {
-				templateFound := false
-				if notification.TemplateID == template {
-					templateFound = true
-				}
-
-				if !templateFound {
-					continue
-				}
-			}
-
-			for _, target := range arg.Targets {
-				isFound := false
-				for _, insertedTarget := range notification.Targets {
-					if insertedTarget == target {
-						isFound = true
-						break
-					}
-				}
-
-				if !isFound {
-					continue
-				}
-
-				notifications = append(notifications, notification)
-			}
-		}
-	}
-
-	return notifications, nil
-}
-
 func (q *FakeQuerier) GetUserActivityInsights(_ context.Context, arg database.GetUserActivityInsightsParams) ([]database.GetUserActivityInsightsRow, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {

@@ -2886,36 +2886,6 @@ func (mr *MockStoreMockRecorder) GetUnexpiredLicenses(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUnexpiredLicenses", reflect.TypeOf((*MockStore)(nil).GetUnexpiredLicenses), ctx)
 }
 
-// GetUnreadInboxNotificationsByUserID mocks base method.
-func (m *MockStore) GetUnreadInboxNotificationsByUserID(ctx context.Context, arg database.GetUnreadInboxNotificationsByUserIDParams) ([]database.InboxNotification, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetUnreadInboxNotificationsByUserID", ctx, arg)
-	ret0, _ := ret[0].([]database.InboxNotification)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetUnreadInboxNotificationsByUserID indicates an expected call of GetUnreadInboxNotificationsByUserID.
-func (mr *MockStoreMockRecorder) GetUnreadInboxNotificationsByUserID(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUnreadInboxNotificationsByUserID", reflect.TypeOf((*MockStore)(nil).GetUnreadInboxNotificationsByUserID), ctx, arg)
-}
-
-// GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets mocks base method.
-func (m *MockStore) GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets(ctx context.Context, arg database.GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams) ([]database.InboxNotification, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets", ctx, arg)
-	ret0, _ := ret[0].([]database.InboxNotification)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets indicates an expected call of GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets.
-func (mr *MockStoreMockRecorder) GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets", reflect.TypeOf((*MockStore)(nil).GetUnreadInboxNotificationsByUserIDFilteredByTemplatesAndTargets), ctx, arg)
-}
-
 // GetUserActivityInsights mocks base method.
 func (m *MockStore) GetUserActivityInsights(ctx context.Context, arg database.GetUserActivityInsightsParams) ([]database.GetUserActivityInsightsRow, error) {
 	m.ctrl.T.Helper()
