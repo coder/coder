@@ -319,6 +319,57 @@ Workspace presets allow you to select settings tailored to your most common deve
 
 Coder admins can configure workspace presets with combinations of parameter values and workspace settings within each template's Terraform file, and workspace users can customize their configurations as they need to.
 
+Use `coder_workspace_preset` to define the preset parameters.
+You can use prebuilt workspaces to ensure that workspaces can be deployed within one minute.
+Use `prebuilds` to define how many instances of the template should be stored as a prebuilt workspace.
+When a developer selects the associated template, the workspace will be assigned to that developer and the server will build a new prebuilt workspace.
+
+<details><summary>Expand for an example</summary>
+```tf
+data "coder_workspace_preset" "goland-gpu" {
+  name        = "GoLand with GPU"
+  parameters = {
+    "machine_type"	= "n1-standard-1"
+	"attach_gpu"	= "true"
+	"gcp_region"	= "europe-west4-c"
+	"jetbrains_ide"	= "GO"
+  }
+  prebuilds {
+	instances = 1
+  }
+}
+
+data "coder_parameter" "machine_type" {
+  name        	= "machine_type"
+  display_name	= "Machine Type"
+  type			= "string"
+  default		= "n1-standard-2"
+}
+
+data "coder_workspace_preset" "attach_gpu" {
+  name        	= "attach_gpu"
+  display_name	= "Attach GPU?"
+  type			= "bool"
+  default		= "false"
+}
+
+data "coder_workspace_preset" "gcp_region" {
+  name        	= "gcp_region"
+  display_name	= "Machine Type"
+  type			= "string"
+  default		= "n1-standard-2"
+}
+
+data "coder_workspace_preset" "jetbrains_ide" {
+  name        	= "jetbrains_ide"
+  display_name	= "Machine Type"
+  type			= "string"
+  default		= "n1-standard-2"
+}
+```
+
+</details>
+
 ## Create Autofill
 
 When the template doesn't specify default values, Coder may still autofill
