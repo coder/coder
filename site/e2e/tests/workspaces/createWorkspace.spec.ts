@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { users } from "../../constants";
 import {
 	StarterTemplates,
 	createTemplate,
@@ -21,7 +22,6 @@ import {
 	thirdParameter,
 } from "../../parameters";
 import type { RichParameter } from "../../provisionerGenerated";
-import { users } from "../../constants";
 
 test.describe.configure({ mode: "parallel" });
 

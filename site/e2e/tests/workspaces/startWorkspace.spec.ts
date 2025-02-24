@@ -1,4 +1,5 @@
 import { test } from "@playwright/test";
+import { users } from "../../constants";
 import {
 	buildWorkspaceWithParameters,
 	createTemplate,
@@ -11,7 +12,6 @@ import { login } from "../../helpers";
 import { beforeCoderTest } from "../../hooks";
 import { firstBuildOption, secondBuildOption } from "../../parameters";
 import type { RichParameter } from "../../provisionerGenerated";
-import { users } from "../../constants";
 
 test.beforeEach(async ({ page }) => {
 	beforeCoderTest(page);
