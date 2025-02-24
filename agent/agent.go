@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/netip"
 	"os"
@@ -779,10 +780,12 @@ func (a *agent) reportConnection(id uuid.UUID, connectionType proto.Connection_T
 		return func(int, string) {} // Noop.
 	}
 
-	// Remove the port from the IP.
-	if portIndex := strings.LastIndex(ip, ":"); portIndex != -1 {
-		ip = ip[:portIndex]
-		ip = strings.Trim(ip, "[]") // IPv6 addresses are wrapped in brackets.
+	// Remove the port from the IP because ports are not supported in coderd.
+	if host, _, err := net.SplitHostPort(ip); err != nil {
+		a.logger.Error(a.hardCtx, "split host and port for connection report failed", slog.F("ip", ip), slog.Error(err))
+	} else {
+		// Best effort.
+		ip = host
 	}
 
 	a.reportConnectionsMu.Lock()
