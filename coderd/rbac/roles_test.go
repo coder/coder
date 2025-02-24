@@ -112,6 +112,7 @@ func TestRolePermissions(t *testing.T) {
 	// Subjects to user
 	memberMe := authSubject{Name: "member_me", Actor: rbac.Subject{ID: currentUser.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember()}}}
 	orgMemberMe := authSubject{Name: "org_member_me", Actor: rbac.Subject{ID: currentUser.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgMember(orgID)}}}
+	orgMemberMeBanWorkspace := authSubject{Name: "org_member_me_workspace_ban", Actor: rbac.Subject{ID: currentUser.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgMember(orgID), rbac.ScopedRoleOrgWorkspaceCreationBan(orgID)}}}
 	groupMemberMe := authSubject{Name: "group_member_me", Actor: rbac.Subject{ID: currentUser.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgMember(orgID)}, Groups: []string{groupID.String()}}}
 
 	owner := authSubject{Name: "owner", Actor: rbac.Subject{ID: adminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.RoleOwner()}}}
@@ -181,18 +182,28 @@ func TestRolePermissions(t *testing.T) {
 			Actions:  []policy.Action{policy.ActionRead},
 			Resource: rbac.ResourceWorkspace.WithID(workspaceID).InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true:  {owner, orgMemberMe, orgAdmin, templateAdmin, orgTemplateAdmin},
+				true:  {owner, orgMemberMe, orgAdmin, templateAdmin, orgTemplateAdmin, orgMemberMeBanWorkspace},
 				false: {setOtherOrg, memberMe, userAdmin, orgAuditor, orgUserAdmin},
 			},
 		},
 		{
-			Name: "C_RDMyWorkspaceInOrg",
+			Name: "UpdateMyWorkspaceInOrg",
 			// When creating the WithID won't be set, but it does not change the result.
-			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
+			Actions:  []policy.Action{policy.ActionUpdate},
 			Resource: rbac.ResourceWorkspace.WithID(workspaceID).InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgMemberMe, orgAdmin},
 				false: {setOtherOrg, memberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor},
+			},
+		},
+		{
+			Name: "C__DMyWorkspaceInOrg",
+			// When creating the WithID won't be set, but it does not change the result.
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionDelete},
+			Resource: rbac.ResourceWorkspace.WithID(workspaceID).InOrg(orgID).WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgMemberMe, orgAdmin},
+				false: {setOtherOrg, memberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgMemberMeBanWorkspace},
 			},
 		},
 		{
