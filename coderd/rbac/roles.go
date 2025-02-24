@@ -27,11 +27,12 @@ const (
 	customSiteRole         string = "custom-site-role"
 	customOrganizationRole string = "custom-organization-role"
 
-	orgAdmin         string = "organization-admin"
-	orgMember        string = "organization-member"
-	orgAuditor       string = "organization-auditor"
-	orgUserAdmin     string = "organization-user-admin"
-	orgTemplateAdmin string = "organization-template-admin"
+	orgAdmin                string = "organization-admin"
+	orgMember               string = "organization-member"
+	orgAuditor              string = "organization-auditor"
+	orgUserAdmin            string = "organization-user-admin"
+	orgTemplateAdmin        string = "organization-template-admin"
+	orgWorkspaceCreationBan string = "organization-workspace-creation-ban"
 )
 
 func init() {
@@ -159,6 +160,10 @@ func RoleOrgTemplateAdmin() string {
 	return orgTemplateAdmin
 }
 
+func RoleOrgWorkspaceCreationBan() string {
+	return orgWorkspaceCreationBan
+}
+
 // ScopedRoleOrgAdmin is the org role with the organization ID
 func ScopedRoleOrgAdmin(organizationID uuid.UUID) RoleIdentifier {
 	return RoleIdentifier{Name: RoleOrgAdmin(), OrganizationID: organizationID}
@@ -179,6 +184,10 @@ func ScopedRoleOrgUserAdmin(organizationID uuid.UUID) RoleIdentifier {
 
 func ScopedRoleOrgTemplateAdmin(organizationID uuid.UUID) RoleIdentifier {
 	return RoleIdentifier{Name: RoleOrgTemplateAdmin(), OrganizationID: organizationID}
+}
+
+func ScopedRoleOrgWorkspaceCreationBan(organizationID uuid.UUID) RoleIdentifier {
+	return RoleIdentifier{Name: RoleOrgWorkspaceCreationBan(), OrganizationID: organizationID}
 }
 
 func allPermsExcept(excepts ...Objecter) []Permission {
@@ -496,6 +505,31 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				User: []Permission{},
 			}
 		},
+		// orgWorkspaceCreationBan prevents creating & deleting workspaces. This
+		// overrides any permissions granted by the org or user level. It accomplishes
+		// this by using negative permissions.
+		orgWorkspaceCreationBan: func(organizationID uuid.UUID) Role {
+			return Role{
+				Identifier:  RoleIdentifier{Name: orgWorkspaceCreationBan, OrganizationID: organizationID},
+				DisplayName: "Organization Workspace Creation Ban",
+				Site:        []Permission{},
+				Org: map[string][]Permission{
+					organizationID.String(): {
+						{
+							Negate:       true,
+							ResourceType: ResourceWorkspace.Type,
+							Action:       policy.ActionCreate,
+						},
+						{
+							Negate:       true,
+							ResourceType: ResourceWorkspace.Type,
+							Action:       policy.ActionDelete,
+						},
+					},
+				},
+				User: []Permission{},
+			}
+		},
 	}
 }
 
@@ -506,44 +540,47 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 //	map[actor_role][assign_role]<can_assign>
 var assignRoles = map[string]map[string]bool{
 	"system": {
-		owner:                  true,
-		auditor:                true,
-		member:                 true,
-		orgAdmin:               true,
-		orgMember:              true,
-		orgAuditor:             true,
-		orgUserAdmin:           true,
-		orgTemplateAdmin:       true,
-		templateAdmin:          true,
-		userAdmin:              true,
-		customSiteRole:         true,
-		customOrganizationRole: true,
+		owner:                   true,
+		auditor:                 true,
+		member:                  true,
+		orgAdmin:                true,
+		orgMember:               true,
+		orgAuditor:              true,
+		orgUserAdmin:            true,
+		orgTemplateAdmin:        true,
+		orgWorkspaceCreationBan: true,
+		templateAdmin:           true,
+		userAdmin:               true,
+		customSiteRole:          true,
+		customOrganizationRole:  true,
 	},
 	owner: {
-		owner:                  true,
-		auditor:                true,
-		member:                 true,
-		orgAdmin:               true,
-		orgMember:              true,
-		orgAuditor:             true,
-		orgUserAdmin:           true,
-		orgTemplateAdmin:       true,
-		templateAdmin:          true,
-		userAdmin:              true,
-		customSiteRole:         true,
-		customOrganizationRole: true,
+		owner:                   true,
+		auditor:                 true,
+		member:                  true,
+		orgAdmin:                true,
+		orgMember:               true,
+		orgAuditor:              true,
+		orgUserAdmin:            true,
+		orgTemplateAdmin:        true,
+		orgWorkspaceCreationBan: true,
+		templateAdmin:           true,
+		userAdmin:               true,
+		customSiteRole:          true,
+		customOrganizationRole:  true,
 	},
 	userAdmin: {
 		member:    true,
 		orgMember: true,
 	},
 	orgAdmin: {
-		orgAdmin:               true,
-		orgMember:              true,
-		orgAuditor:             true,
-		orgUserAdmin:           true,
-		orgTemplateAdmin:       true,
-		customOrganizationRole: true,
+		orgAdmin:                true,
+		orgMember:               true,
+		orgAuditor:              true,
+		orgUserAdmin:            true,
+		orgTemplateAdmin:        true,
+		orgWorkspaceCreationBan: true,
+		customOrganizationRole:  true,
 	},
 	orgUserAdmin: {
 		orgMember: true,
