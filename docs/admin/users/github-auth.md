@@ -1,5 +1,27 @@
 # GitHub
 
+## Default Configuration
+
+By default, new Coder deployments use a Coder-managed GitHub app to authenticate
+users. We provide it for convenience, allowing you to experiment with Coder
+without setting up your own GitHub OAuth app. Once you authenticate with it, you
+grant Coder - both the self-hosted server and the company - read access to:
+
+- Your GitHub user email
+- Your GitHub organization membership
+- Other metadata listed during the authentication flow
+
+This access is necessary for the Coder server to complete the authentication
+process. Coder, the company, also receives access because it administers the
+app.
+
+The default is automatically disabled if you configure your own app as outlined
+below or set:
+
+```env
+CODER_OAUTH2_GITHUB_DEFAULT_PROVIDER=false
+```
+
 ## Step 1: Configure the OAuth application in GitHub
 
 First,
@@ -82,3 +104,16 @@ helm upgrade <release-name> coder-v2/coder -n <namespace> -f values.yaml
 > We recommend requiring and auditing MFA usage for all users in your GitHub
 > organizations. This can be enforced from the organization settings page in the
 > "Authentication security" sidebar tab.
+
+## Device Flow
+
+Coder supports
+[device flow](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps#device-flow)
+for GitHub OAuth. To enable it, set:
+
+```env
+CODER_OAUTH2_GITHUB_DEVICE_FLOW=true
+```
+
+This is optional. We recommend using the standard OAuth flow instead, as it is
+more convenient for end users.
