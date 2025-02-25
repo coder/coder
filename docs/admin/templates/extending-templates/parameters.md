@@ -320,6 +320,8 @@ into a single option, which makes it easier for developers to pick one that fits
 their needs.
 
 Use `coder_workspace_preset` to define the preset parameters.
+After you save the template file, the presets will be available for all new
+workspace deployments.
 
 <details><summary>Expand for an example</summary>
 
