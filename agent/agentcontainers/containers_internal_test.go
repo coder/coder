@@ -502,15 +502,15 @@ func TestDockerEnvInfoer(t *testing.T) {
 			dei, err := EnvInfo(ctx, agentexec.DefaultExecer, ct.Container.ID, tt.containerUser)
 			require.NoError(t, err, "Expected no error from DockerEnvInfo()")
 
-			u, err := dei.CurrentUser()
+			u, err := dei.User()
 			require.NoError(t, err, "Expected no error from CurrentUser()")
 			require.Equal(t, tt.expectedUsername, u.Username, "Expected username to match")
 
-			hd, err := dei.UserHomeDir()
+			hd, err := dei.HomeDir()
 			require.NoError(t, err, "Expected no error from UserHomeDir()")
 			require.NotEmpty(t, hd, "Expected user homedir to be non-empty")
 
-			sh, err := dei.UserShell(tt.containerUser)
+			sh, err := dei.Shell(tt.containerUser)
 			require.NoError(t, err, "Expected no error from UserShell()")
 			require.Equal(t, tt.expectedUserShell, sh, "Expected user shell to match")
 

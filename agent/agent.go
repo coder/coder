@@ -88,6 +88,8 @@ type Options struct {
 	BlockFileTransfer            bool
 	Execer                       agentexec.Execer
 	ContainerLister              agentcontainers.Lister
+
+	ExperimentalContainersEnabled bool
 }
 
 type Client interface {
@@ -188,6 +190,8 @@ func New(options Options) Agent {
 		metrics:            newAgentMetrics(prometheusRegistry),
 		execer:             options.Execer,
 		lister:             options.ContainerLister,
+
+		experimentalDevcontainersEnabled: options.ExperimentalContainersEnabled,
 	}
 	// Initially, we have a closed channel, reflecting the fact that we are not initially connected.
 	// Each time we connect we replace the channel (while holding the closeMutex) with a new one
@@ -258,6 +262,8 @@ type agent struct {
 	metrics *agentMetrics
 	execer  agentexec.Execer
 	lister  agentcontainers.Lister
+
+	experimentalDevcontainersEnabled bool
 }
 
 func (a *agent) TailnetConn() *tailnet.Conn {
@@ -297,6 +303,9 @@ func (a *agent) init() {
 		a.sshServer,
 		a.metrics.connectionsTotal, a.metrics.reconnectingPTYErrors,
 		a.reconnectingPTYTimeout,
+		func(s *reconnectingpty.Server) {
+			s.ExperimentalContainersEnabled = a.experimentalDevcontainersEnabled
+		},
 	)
 	go a.runLoop()
 }
