@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/gliderlabs/ssh"
+	"github.com/google/uuid"
 	"go.uber.org/atomic"
 	gossh "golang.org/x/crypto/ssh"
 
@@ -28,9 +29,11 @@ type JetbrainsChannelWatcher struct {
 	gossh.NewChannel
 	jetbrainsCounter *atomic.Int64
 	logger           slog.Logger
+	originAddr       string
+	reportConnection reportConnectionFunc
 }
 
-func NewJetbrainsChannelWatcher(ctx ssh.Context, logger slog.Logger, newChannel gossh.NewChannel, counter *atomic.Int64) gossh.NewChannel {
+func NewJetbrainsChannelWatcher(ctx ssh.Context, logger slog.Logger, reportConnection reportConnectionFunc, newChannel gossh.NewChannel, counter *atomic.Int64) gossh.NewChannel {
 	d := localForwardChannelData{}
 	if err := gossh.Unmarshal(newChannel.ExtraData(), &d); err != nil {
 		// If the data fails to unmarshal, do nothing.
@@ -61,12 +64,17 @@ func NewJetbrainsChannelWatcher(ctx ssh.Context, logger slog.Logger, newChannel 
 		NewChannel:       newChannel,
 		jetbrainsCounter: counter,
 		logger:           logger.With(slog.F("destination_port", d.DestPort)),
+		originAddr:       d.OriginAddr,
+		reportConnection: reportConnection,
 	}
 }
 
 func (w *JetbrainsChannelWatcher) Accept() (gossh.Channel, <-chan *gossh.Request, error) {
+	disconnected := w.reportConnection(uuid.New(), MagicSessionTypeJetBrains, w.originAddr)
+
 	c, r, err := w.NewChannel.Accept()
 	if err != nil {
+		disconnected(1, err.Error())
 		return c, r, err
 	}
 	w.jetbrainsCounter.Add(1)
@@ -77,6 +85,7 @@ func (w *JetbrainsChannelWatcher) Accept() (gossh.Channel, <-chan *gossh.Request
 		Channel: c,
 		done: func() {
 			w.jetbrainsCounter.Add(-1)
+			disconnected(0, "")
 			// nolint: gocritic // JetBrains is a proper noun and should be capitalized
 			w.logger.Debug(context.Background(), "JetBrains watcher channel closed")
 		},
