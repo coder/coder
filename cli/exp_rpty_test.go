@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"fmt"
+	"runtime"
 	"testing"
 
 	"github.com/ory/dockertest/v3"
@@ -58,6 +59,10 @@ func TestExpRpty(t *testing.T) {
 
 	t.Run("Container", func(t *testing.T) {
 		t.Parallel()
+		// Skip this test on non-Linux platforms since it requires Docker
+		if runtime.GOOS != "linux" {
+			t.Skip("Skipping test on non-Linux platform")
+		}
 
 		client, workspace, agentToken := setupWorkspaceForAgent(t)
 		ctx := testutil.Context(t, testutil.WaitLong)
