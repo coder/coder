@@ -308,8 +308,13 @@ type WorkspaceAgentReconnectingPTYOpts struct {
 	// on the client will not be sent.
 	SignedToken string
 
-	// Container, if set, will attempt to exec into a running container visible to the agent.
-	// This should be a unique container ID (implementation-dependent).
+	// Experimental: Container, if set, will attempt to exec into a running container
+	// visible to the agent. This should be a unique container ID
+	// (implementation-dependent).
+	// ContainerUser is the user as which to exec into the container.
+	// NOTE: This feature is currently experimental and is currently "opt-in".
+	// In order to use this feature, the agent must have the environment variable
+	// CODER_AGENT_DEVCONTAINERS_ENABLE set to "true".
 	Container     string
 	ContainerUser string
 }
