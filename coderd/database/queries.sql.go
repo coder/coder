@@ -5442,6 +5442,91 @@ func (q *sqlQuerier) ClaimPrebuild(ctx context.Context, arg ClaimPrebuildParams)
 	return i, err
 }
 
+const getPrebuildMetrics = `-- name: GetPrebuildMetrics :many
+SELECT
+    t.name as template_name,
+    tvp.name as preset_name,
+		COUNT(*) FILTER ( -- created
+				-- TODO (sasswart): double check which job statuses should be included here
+				WHERE
+					pj.initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
+					AND pj.job_status = 'succeeded'::provisioner_job_status
+		) as created,
+		COUNT(*) FILTER ( -- failed
+				-- TODO (sasswart): should we count cancelled here?
+				WHERE pj.initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
+						AND pj.job_status = 'failed'::provisioner_job_status
+		) as failed,
+		COUNT(*) FILTER ( -- assigned
+				WHERE pj.initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
+						AND NOT w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
+		) as assigned,
+		COUNT(*) FILTER ( -- exhausted
+				-- TODO (sasswart): write a filter to count this
+				-- we should be able to count:
+				-- - workspace builds
+				-- - that have a preset id
+				-- - and that preset has prebuilds enabled
+				-- - and the job for the prebuild was initiated by a user other than the prebuilds user
+				WHERE
+					wb.template_version_preset_id IS NOT NULL
+					AND w.owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
+					AND wb.initiator_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
+		) as exhausted,
+		COUNT(*) FILTER ( -- used_preset
+			WHERE wb.template_version_preset_id IS NOT NULL
+		) as used_preset
+FROM workspace_builds wb
+INNER JOIN provisioner_jobs pj ON wb.job_id = pj.id
+LEFT JOIN workspaces w ON wb.workspace_id = w.id
+LEFT JOIN template_version_presets tvp ON wb.template_version_preset_id = tvp.id
+LEFT JOIN template_versions tv ON tv.id = wb.template_version_id
+LEFT JOIN templates t ON t.id = tv.template_id
+WHERE pj.initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
+GROUP BY t.name, tvp.name
+`
+
+type GetPrebuildMetricsRow struct {
+	TemplateName sql.NullString `db:"template_name" json:"template_name"`
+	PresetName   sql.NullString `db:"preset_name" json:"preset_name"`
+	Created      int64          `db:"created" json:"created"`
+	Failed       int64          `db:"failed" json:"failed"`
+	Assigned     int64          `db:"assigned" json:"assigned"`
+	Exhausted    int64          `db:"exhausted" json:"exhausted"`
+	UsedPreset   int64          `db:"used_preset" json:"used_preset"`
+}
+
+func (q *sqlQuerier) GetPrebuildMetrics(ctx context.Context) ([]GetPrebuildMetricsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getPrebuildMetrics)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetPrebuildMetricsRow
+	for rows.Next() {
+		var i GetPrebuildMetricsRow
+		if err := rows.Scan(
+			&i.TemplateName,
+			&i.PresetName,
+			&i.Created,
+			&i.Failed,
+			&i.Assigned,
+			&i.Exhausted,
+			&i.UsedPreset,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getPrebuildsInProgress = `-- name: GetPrebuildsInProgress :many
 SELECT t.id AS template_id, wpb.template_version_id, wpb.transition, COUNT(wpb.transition) AS count
 FROM workspace_latest_build wlb

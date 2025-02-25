@@ -590,6 +590,13 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		} else {
 			api.prebuildsController = prebuilds.NewController(options.Database, options.Pubsub, options.DeploymentValues.Prebuilds, options.Logger.Named("prebuilds.controller"))
 			go api.prebuildsController.Loop(ctx)
+
+			prebuildMetricsCollector := prebuilds.NewMetricsCollector(options.Database, options.Logger)
+			// should this be api.prebuild...
+			err = api.PrometheusRegistry.Register(prebuildMetricsCollector)
+			if err != nil {
+				return nil, xerrors.Errorf("unable to register prebuilds metrics collector: %w", err)
+			}
 		}
 	}
 

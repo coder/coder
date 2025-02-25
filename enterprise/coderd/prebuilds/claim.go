@@ -52,7 +52,7 @@ func (e EnterpriseClaimer) Claim(ctx context.Context, store database.Store, user
 }
 
 func (e EnterpriseClaimer) Initiator() uuid.UUID {
-	return ownerID
+	return OwnerID
 }
 
 var _ prebuilds.Claimer = &EnterpriseClaimer{}

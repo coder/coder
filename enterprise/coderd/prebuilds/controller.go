@@ -321,7 +321,7 @@ func (c *Controller) createPrebuild(ctx context.Context, prebuildID uuid.UUID, t
 		ID:               prebuildID,
 		CreatedAt:        now,
 		UpdatedAt:        now,
-		OwnerID:          ownerID,
+		OwnerID:          OwnerID,
 		OrganizationID:   template.OrganizationID,
 		TemplateID:       template.ID,
 		Name:             name,
@@ -382,14 +382,14 @@ func (c *Controller) provision(ctx context.Context, prebuildID uuid.UUID, templa
 
 	builder := wsbuilder.New(workspace, transition).
 		Reason(database.BuildReasonInitiator).
-		Initiator(ownerID).
+		Initiator(OwnerID).
 		ActiveVersion().
 		VersionID(template.ActiveVersionID).
 		MarkPrebuild().
 		TemplateVersionPresetID(presetID)
 
 	// We only inject the required params when the prebuild is being created.
-	// This mirrors the behaviour of regular workspace deletion (see cli/delete.go).
+	// This mirrors the behavior of regular workspace deletion (see cli/delete.go).
 	if transition != database.WorkspaceTransitionDelete {
 		builder = builder.RichParameterValues(params)
 	}
