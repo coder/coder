@@ -159,3 +159,42 @@ export const NoUserAgent: Story = {
 		},
 	},
 };
+
+export const WithConnectionType: Story = {
+	args: {
+		showOrgDetails: true,
+		auditLog: {
+			id: "a26a8a29-9453-455c-8fdc-ce69d4e2c07b",
+			request_id: "0d649adb-016d-4d8f-8448-875bbdf30c74",
+			time: "2025-02-21T14:18:39.198013Z",
+			ip: "fd7a:115c:a1e0:4955:8019:f5d3:e126:b422",
+			user_agent: "",
+			resource_type: "workspace_agent",
+			resource_id: "a146c7e1-514b-4534-8f98-3f097fb83b11",
+			resource_target: "main",
+			resource_icon: "",
+			action: "disconnect",
+			diff: {},
+			status_code: 0,
+			additional_fields: {
+				build_number: "5",
+				build_reason: "initiator",
+				workspace_id: "d28295ae-a2dc-4aa0-af3c-79a2d4c44c55",
+				workspace_name: "test",
+				connection_type: "VS Code",
+				workspace_owner: "admin",
+			},
+			description: "{user} disconnected workspace agent {target}",
+			resource_link: "",
+			is_deleted: false,
+			organization_id: "0e6fa63f-b625-4a6f-ab5b-a8217f8c80b3",
+			organization: {
+				id: "0e6fa63f-b625-4a6f-ab5b-a8217f8c80b3",
+				name: "coder",
+				display_name: "Coder",
+				icon: "",
+			},
+			user: null,
+		},
+	},
+};
