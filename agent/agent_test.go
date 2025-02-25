@@ -1790,6 +1790,10 @@ func TestAgent_ReconnectingPTYContainer(t *testing.T) {
 		config.RestartPolicy = docker.RestartPolicy{Name: "no"}
 	})
 	require.NoError(t, err, "Could not start container")
+	t.Cleanup(func() {
+		err := pool.Purge(ct)
+		require.NoError(t, err, "Could not stop container")
+	})
 	// Wait for container to start
 	require.Eventually(t, func() bool {
 		ct, ok := pool.ContainerByName(ct.Container.Name)
