@@ -20,7 +20,10 @@
  * @todo 2025-02-24 - Add tests for this class. Originally tried to add unit
  * tests via MSW's WS namespace, but couldn't figure out how to get the tests to
  * work reliably. This wrapper class is lightweight enough that if something
- * breaks, there's probably something wrong with the browser itself.
+ * breaks, there's probably something wrong with the browser itself. Note that
+ * if we do bring in MSW's WS namespace with Jest, we will need to switch Jest
+ * to use jest-fixed-jsdom
+ * {@link https://github.com/mswjs/jest-fixed-jsdom}
  */
 
 // Not bothering with trying to borrow methods from the base WebSocket type
