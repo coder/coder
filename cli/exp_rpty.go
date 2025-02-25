@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -191,20 +192,26 @@ func handleRPTY(inv *serpent.Invocation, client *codersdk.Client, args handleRPT
 		}
 	}()
 	go func() {
-		defer close(stdoutDone)
+		defer func() {
+			close(stdoutDone)
+		}()
 		_, _ = io.Copy(inv.Stdout, conn)
 	}()
 	go func() {
-		defer close(stderrDone)
+		defer func() {
+			close(stderrDone)
+		}()
 		_, _ = io.Copy(inv.Stderr, conn)
 	}()
 	go func() {
 		defer close(done)
-		<-inv.Context().Done()
+		<-stdoutDone
+		<-stderrDone
 		_ = conn.Close()
 	}()
 
 	<-done
+	_, _ = fmt.Fprintf(inv.Stderr, "Connection closed\n")
 
 	return nil
 }
