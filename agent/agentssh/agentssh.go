@@ -765,10 +765,13 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string,
 
 	// Modify command prior to execution. This will usually be a no-op, but not always.
 	modifiedName, modifiedArgs := ei.ModifyCommand(name, args...)
-	s.logger.Info(ctx, "modified command",
-		slog.F("before", append([]string{name}, args...)),
-		slog.F("after", append([]string{modifiedName}, modifiedArgs...)),
-	)
+	// Log if the command was modified.
+	if modifiedName != name && slices.Compare(modifiedArgs, args) != 0 {
+		s.logger.Debug(ctx, "modified command",
+			slog.F("before", append([]string{name}, args...)),
+			slog.F("after", append([]string{modifiedName}, modifiedArgs...)),
+		)
+	}
 	cmd := s.Execer.PTYCommandContext(ctx, modifiedName, modifiedArgs...)
 	cmd.Dir = s.config.WorkingDirectory()
 
