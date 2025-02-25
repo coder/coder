@@ -208,10 +208,10 @@ func handleRPTY(inv *serpent.Invocation, client *codersdk.Client, args handleRPT
 		<-stdoutDone
 		<-stderrDone
 		_ = conn.Close()
+		_, _ = fmt.Fprintf(inv.Stderr, "Connection closed\n")
 	}()
 
 	<-done
-	_, _ = fmt.Fprintf(inv.Stderr, "Connection closed\n")
 
 	return nil
 }
