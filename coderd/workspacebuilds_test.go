@@ -720,6 +720,7 @@ func TestWorkspaceBuildLogs(t *testing.T) {
 						Type: "example",
 						Agents: []*proto.Agent{{
 							Id:   "something",
+							Name: "dev",
 							Auth: &proto.Agent_Token{},
 						}},
 					}, {

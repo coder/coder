@@ -84,6 +84,7 @@ message CompletedJob {
         repeated provisioner.ExternalAuthProviderResource external_auth_providers = 5;
         repeated provisioner.Module start_modules = 6;
         repeated provisioner.Module stop_modules = 7;
+        repeated provisioner.Preset presets = 8;
     }
     message TemplateDryRun {
         repeated provisioner.Resource resources = 1;

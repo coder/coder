@@ -23,6 +23,11 @@ import (
 // updateGoldenFiles is a flag that can be set to update golden files.
 var updateGoldenFiles = flag.Bool("update", false, "Update golden files")
 
+var namespaces = []string{
+	"default",
+	"coder",
+}
+
 var testCases = []testCase{
 	{
 		name:          "default_values",
@@ -94,6 +99,7 @@ var testCases = []testCase{
 
 type testCase struct {
 	name          string // Name of the test case. This is used to control which values and golden file are used.
+	namespace     string // Namespace is the name of the namespace the resources should be generated within
 	expectedError string // Expected error from running `helm template`.
 }
 
@@ -102,7 +108,11 @@ func (tc testCase) valuesFilePath() string {
 }
 
 func (tc testCase) goldenFilePath() string {
-	return filepath.Join("./testdata", tc.name+".golden")
+	if tc.namespace == "default" {
+		return filepath.Join("./testdata", tc.name+".golden")
+	}
+
+	return filepath.Join("./testdata", tc.name+"_"+tc.namespace+".golden")
 }
 
 func TestRenderChart(t *testing.T) {
@@ -124,35 +134,40 @@ func TestRenderChart(t *testing.T) {
 
 	for _, tc := range testCases {
 		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+		for _, ns := range namespaces {
+			tc := tc
+			tc.namespace = ns
 
-			// Ensure that the values file exists.
-			valuesFilePath := tc.valuesFilePath()
-			if _, err := os.Stat(valuesFilePath); os.IsNotExist(err) {
-				t.Fatalf("values file %q does not exist", valuesFilePath)
-			}
+			t.Run(tc.namespace+"/"+tc.name, func(t *testing.T) {
+				t.Parallel()
 
-			// Run helm template with the values file.
-			templateOutput, err := runHelmTemplate(t, helmPath, "..", valuesFilePath)
-			if tc.expectedError != "" {
-				require.Error(t, err, "helm template should have failed")
-				require.Contains(t, templateOutput, tc.expectedError, "helm template output should contain expected error")
-			} else {
-				require.NoError(t, err, "helm template should not have failed")
-				require.NotEmpty(t, templateOutput, "helm template output should not be empty")
-				goldenFilePath := tc.goldenFilePath()
-				goldenBytes, err := os.ReadFile(goldenFilePath)
-				require.NoError(t, err, "failed to read golden file %q", goldenFilePath)
+				// Ensure that the values file exists.
+				valuesFilePath := tc.valuesFilePath()
+				if _, err := os.Stat(valuesFilePath); os.IsNotExist(err) {
+					t.Fatalf("values file %q does not exist", valuesFilePath)
+				}
 
-				// Remove carriage returns to make tests pass on Windows.
-				goldenBytes = bytes.Replace(goldenBytes, []byte("\r"), []byte(""), -1)
-				expected := string(goldenBytes)
+				// Run helm template with the values file.
+				templateOutput, err := runHelmTemplate(t, helmPath, "..", valuesFilePath, tc.namespace)
+				if tc.expectedError != "" {
+					require.Error(t, err, "helm template should have failed")
+					require.Contains(t, templateOutput, tc.expectedError, "helm template output should contain expected error")
+				} else {
+					require.NoError(t, err, "helm template should not have failed")
+					require.NotEmpty(t, templateOutput, "helm template output should not be empty")
+					goldenFilePath := tc.goldenFilePath()
+					goldenBytes, err := os.ReadFile(goldenFilePath)
+					require.NoError(t, err, "failed to read golden file %q", goldenFilePath)
 
-				require.NoError(t, err, "failed to load golden file %q")
-				require.Equal(t, expected, templateOutput)
-			}
-		})
+					// Remove carriage returns to make tests pass on Windows.
+					goldenBytes = bytes.Replace(goldenBytes, []byte("\r"), []byte(""), -1)
+					expected := string(goldenBytes)
+
+					require.NoError(t, err, "failed to load golden file %q")
+					require.Equal(t, expected, templateOutput)
+				}
+			})
+		}
 	}
 }
 
@@ -167,22 +182,28 @@ func TestUpdateGoldenFiles(t *testing.T) {
 	require.NoError(t, err, "failed to build Helm dependencies")
 
 	for _, tc := range testCases {
+		tc := tc
 		if tc.expectedError != "" {
 			t.Logf("skipping test case %q with render error", tc.name)
 			continue
 		}
 
-		valuesPath := tc.valuesFilePath()
-		templateOutput, err := runHelmTemplate(t, helmPath, "..", valuesPath)
-		if err != nil {
-			t.Logf("error running `helm template -f %q`: %v", valuesPath, err)
-			t.Logf("output: %s", templateOutput)
-		}
-		require.NoError(t, err, "failed to run `helm template -f %q`", valuesPath)
+		for _, ns := range namespaces {
+			tc := tc
+			tc.namespace = ns
 
-		goldenFilePath := tc.goldenFilePath()
-		err = os.WriteFile(goldenFilePath, []byte(templateOutput), 0o644) // nolint:gosec
-		require.NoError(t, err, "failed to write golden file %q", goldenFilePath)
+			valuesPath := tc.valuesFilePath()
+			templateOutput, err := runHelmTemplate(t, helmPath, "..", valuesPath, tc.namespace)
+			if err != nil {
+				t.Logf("error running `helm template -f %q`: %v", valuesPath, err)
+				t.Logf("output: %s", templateOutput)
+			}
+			require.NoError(t, err, "failed to run `helm template -f %q`", valuesPath)
+
+			goldenFilePath := tc.goldenFilePath()
+			err = os.WriteFile(goldenFilePath, []byte(templateOutput), 0o644) // nolint:gosec
+			require.NoError(t, err, "failed to write golden file %q", goldenFilePath)
+		}
 	}
 	t.Log("Golden files updated. Please review the changes and commit them.")
 }
@@ -209,13 +230,13 @@ func updateHelmDependencies(t testing.TB, helmPath, chartDir string) error {
 
 // runHelmTemplate runs helm template on the given chart with the given values and
 // returns the raw output.
-func runHelmTemplate(t testing.TB, helmPath, chartDir, valuesFilePath string) (string, error) {
+func runHelmTemplate(t testing.TB, helmPath, chartDir, valuesFilePath, namespace string) (string, error) {
 	// Ensure that valuesFilePath exists
 	if _, err := os.Stat(valuesFilePath); err != nil {
 		return "", xerrors.Errorf("values file %q does not exist: %w", valuesFilePath, err)
 	}
 
-	cmd := exec.Command(helmPath, "template", chartDir, "-f", valuesFilePath, "--namespace", "default")
+	cmd := exec.Command(helmPath, "template", chartDir, "-f", valuesFilePath, "--namespace", namespace)
 	t.Logf("exec command: %v", cmd.Args)
 	out, err := cmd.CombinedOutput()
 	return string(out), err

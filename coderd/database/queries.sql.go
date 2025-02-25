@@ -558,6 +558,12 @@ WHERE
             workspace_builds.reason::text = $11
         ELSE true
     END
+	-- Filter request_id
+	AND CASE
+		WHEN $12 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			audit_logs.request_id = $12
+		ELSE true
+	END
 
 	-- Authorize Filter clause will be injected below in GetAuthorizedAuditLogsOffset
 	-- @authorize_filter
@@ -567,9 +573,9 @@ LIMIT
 	-- a limit of 0 means "no limit". The audit log table is unbounded
 	-- in size, and is expected to be quite large. Implement a default
 	-- limit of 100 to prevent accidental excessively large queries.
-	COALESCE(NULLIF($13 :: int, 0), 100)
+	COALESCE(NULLIF($14 :: int, 0), 100)
 OFFSET
-    $12
+    $13
 `
 
 type GetAuditLogsOffsetParams struct {
@@ -584,6 +590,7 @@ type GetAuditLogsOffsetParams struct {
 	DateFrom       time.Time `db:"date_from" json:"date_from"`
 	DateTo         time.Time `db:"date_to" json:"date_to"`
 	BuildReason    string    `db:"build_reason" json:"build_reason"`
+	RequestID      uuid.UUID `db:"request_id" json:"request_id"`
 	OffsetOpt      int32     `db:"offset_opt" json:"offset_opt"`
 	LimitOpt       int32     `db:"limit_opt" json:"limit_opt"`
 }
@@ -624,6 +631,7 @@ func (q *sqlQuerier) GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOff
 		arg.DateFrom,
 		arg.DateTo,
 		arg.BuildReason,
+		arg.RequestID,
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)
@@ -5058,28 +5066,15 @@ func (q *sqlQuerier) UpdateMemberRoles(ctx context.Context, arg UpdateMemberRole
 	return i, err
 }
 
-const deleteOrganization = `-- name: DeleteOrganization :exec
-DELETE FROM
-	organizations
-WHERE
-	id = $1 AND
-	is_default = false
-`
-
-func (q *sqlQuerier) DeleteOrganization(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteOrganization, id)
-	return err
-}
-
 const getDefaultOrganization = `-- name: GetDefaultOrganization :one
 SELECT
-	id, name, description, created_at, updated_at, is_default, display_name, icon
+    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted
 FROM
-	organizations
+    organizations
 WHERE
-	is_default = true
+    is_default = true
 LIMIT
-	1
+    1
 `
 
 func (q *sqlQuerier) GetDefaultOrganization(ctx context.Context) (Organization, error) {
@@ -5094,17 +5089,18 @@ func (q *sqlQuerier) GetDefaultOrganization(ctx context.Context) (Organization, 
 		&i.IsDefault,
 		&i.DisplayName,
 		&i.Icon,
+		&i.Deleted,
 	)
 	return i, err
 }
 
 const getOrganizationByID = `-- name: GetOrganizationByID :one
 SELECT
-	id, name, description, created_at, updated_at, is_default, display_name, icon
+    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted
 FROM
-	organizations
+    organizations
 WHERE
-	id = $1
+    id = $1
 `
 
 func (q *sqlQuerier) GetOrganizationByID(ctx context.Context, id uuid.UUID) (Organization, error) {
@@ -5119,23 +5115,31 @@ func (q *sqlQuerier) GetOrganizationByID(ctx context.Context, id uuid.UUID) (Org
 		&i.IsDefault,
 		&i.DisplayName,
 		&i.Icon,
+		&i.Deleted,
 	)
 	return i, err
 }
 
 const getOrganizationByName = `-- name: GetOrganizationByName :one
 SELECT
-	id, name, description, created_at, updated_at, is_default, display_name, icon
+    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted
 FROM
-	organizations
+    organizations
 WHERE
-	LOWER("name") = LOWER($1)
+    -- Optionally include deleted organizations
+    deleted = $1 AND
+    LOWER("name") = LOWER($2)
 LIMIT
-	1
+    1
 `
 
-func (q *sqlQuerier) GetOrganizationByName(ctx context.Context, name string) (Organization, error) {
-	row := q.db.QueryRowContext(ctx, getOrganizationByName, name)
+type GetOrganizationByNameParams struct {
+	Deleted bool   `db:"deleted" json:"deleted"`
+	Name    string `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) GetOrganizationByName(ctx context.Context, arg GetOrganizationByNameParams) (Organization, error) {
+	row := q.db.QueryRowContext(ctx, getOrganizationByName, arg.Deleted, arg.Name)
 	var i Organization
 	err := row.Scan(
 		&i.ID,
@@ -5146,37 +5150,40 @@ func (q *sqlQuerier) GetOrganizationByName(ctx context.Context, name string) (Or
 		&i.IsDefault,
 		&i.DisplayName,
 		&i.Icon,
+		&i.Deleted,
 	)
 	return i, err
 }
 
 const getOrganizations = `-- name: GetOrganizations :many
 SELECT
-	id, name, description, created_at, updated_at, is_default, display_name, icon
+    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted
 FROM
-	organizations
+    organizations
 WHERE
-	true
-	  -- Filter by ids
-	AND CASE
-		WHEN array_length($1 :: uuid[], 1) > 0 THEN
-			id = ANY($1)
-		ELSE true
-	END
-  	AND CASE
-		  WHEN $2::text != '' THEN
-			  LOWER("name") = LOWER($2)
-		  ELSE true
-	END
+    -- Optionally include deleted organizations
+    deleted = $1
+      -- Filter by ids
+    AND CASE
+        WHEN array_length($2 :: uuid[], 1) > 0 THEN
+            id = ANY($2)
+        ELSE true
+    END
+    AND CASE
+          WHEN $3::text != '' THEN
+              LOWER("name") = LOWER($3)
+          ELSE true
+    END
 `
 
 type GetOrganizationsParams struct {
-	IDs  []uuid.UUID `db:"ids" json:"ids"`
-	Name string      `db:"name" json:"name"`
+	Deleted bool        `db:"deleted" json:"deleted"`
+	IDs     []uuid.UUID `db:"ids" json:"ids"`
+	Name    string      `db:"name" json:"name"`
 }
 
 func (q *sqlQuerier) GetOrganizations(ctx context.Context, arg GetOrganizationsParams) ([]Organization, error) {
-	rows, err := q.db.QueryContext(ctx, getOrganizations, pq.Array(arg.IDs), arg.Name)
+	rows, err := q.db.QueryContext(ctx, getOrganizations, arg.Deleted, pq.Array(arg.IDs), arg.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -5193,6 +5200,7 @@ func (q *sqlQuerier) GetOrganizations(ctx context.Context, arg GetOrganizationsP
 			&i.IsDefault,
 			&i.DisplayName,
 			&i.Icon,
+			&i.Deleted,
 		); err != nil {
 			return nil, err
 		}
@@ -5209,22 +5217,29 @@ func (q *sqlQuerier) GetOrganizations(ctx context.Context, arg GetOrganizationsP
 
 const getOrganizationsByUserID = `-- name: GetOrganizationsByUserID :many
 SELECT
-	id, name, description, created_at, updated_at, is_default, display_name, icon
+    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted
 FROM
-	organizations
+    organizations
 WHERE
-	id = ANY(
-		SELECT
-			organization_id
-		FROM
-			organization_members
-		WHERE
-			user_id = $1
-	)
+    -- Optionally include deleted organizations
+    deleted = $2 AND
+    id = ANY(
+        SELECT
+            organization_id
+        FROM
+            organization_members
+        WHERE
+            user_id = $1
+    )
 `
 
-func (q *sqlQuerier) GetOrganizationsByUserID(ctx context.Context, userID uuid.UUID) ([]Organization, error) {
-	rows, err := q.db.QueryContext(ctx, getOrganizationsByUserID, userID)
+type GetOrganizationsByUserIDParams struct {
+	UserID  uuid.UUID `db:"user_id" json:"user_id"`
+	Deleted bool      `db:"deleted" json:"deleted"`
+}
+
+func (q *sqlQuerier) GetOrganizationsByUserID(ctx context.Context, arg GetOrganizationsByUserIDParams) ([]Organization, error) {
+	rows, err := q.db.QueryContext(ctx, getOrganizationsByUserID, arg.UserID, arg.Deleted)
 	if err != nil {
 		return nil, err
 	}
@@ -5241,6 +5256,7 @@ func (q *sqlQuerier) GetOrganizationsByUserID(ctx context.Context, userID uuid.U
 			&i.IsDefault,
 			&i.DisplayName,
 			&i.Icon,
+			&i.Deleted,
 		); err != nil {
 			return nil, err
 		}
@@ -5257,10 +5273,10 @@ func (q *sqlQuerier) GetOrganizationsByUserID(ctx context.Context, userID uuid.U
 
 const insertOrganization = `-- name: InsertOrganization :one
 INSERT INTO
-	organizations (id, "name", display_name, description, icon, created_at, updated_at, is_default)
+    organizations (id, "name", display_name, description, icon, created_at, updated_at, is_default)
 VALUES
-	-- If no organizations exist, and this is the first, make it the default.
-	($1, $2, $3, $4, $5, $6, $7, (SELECT TRUE FROM organizations LIMIT 1) IS NULL) RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon
+    -- If no organizations exist, and this is the first, make it the default.
+    ($1, $2, $3, $4, $5, $6, $7, (SELECT TRUE FROM organizations LIMIT 1) IS NULL) RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon, deleted
 `
 
 type InsertOrganizationParams struct {
@@ -5293,22 +5309,23 @@ func (q *sqlQuerier) InsertOrganization(ctx context.Context, arg InsertOrganizat
 		&i.IsDefault,
 		&i.DisplayName,
 		&i.Icon,
+		&i.Deleted,
 	)
 	return i, err
 }
 
 const updateOrganization = `-- name: UpdateOrganization :one
 UPDATE
-	organizations
+    organizations
 SET
-	updated_at = $1,
-	name = $2,
-	display_name = $3,
-	description = $4,
-	icon = $5
+    updated_at = $1,
+    name = $2,
+    display_name = $3,
+    description = $4,
+    icon = $5
 WHERE
-	id = $6
-RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon
+    id = $6
+RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon, deleted
 `
 
 type UpdateOrganizationParams struct {
@@ -5339,8 +5356,29 @@ func (q *sqlQuerier) UpdateOrganization(ctx context.Context, arg UpdateOrganizat
 		&i.IsDefault,
 		&i.DisplayName,
 		&i.Icon,
+		&i.Deleted,
 	)
 	return i, err
+}
+
+const updateOrganizationDeletedByID = `-- name: UpdateOrganizationDeletedByID :exec
+UPDATE organizations
+SET
+    deleted = true,
+    updated_at = $1
+WHERE
+    id = $2 AND
+    is_default = false
+`
+
+type UpdateOrganizationDeletedByIDParams struct {
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	ID        uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateOrganizationDeletedByID(ctx context.Context, arg UpdateOrganizationDeletedByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateOrganizationDeletedByID, arg.UpdatedAt, arg.ID)
+	return err
 }
 
 const getParameterSchemasByJobID = `-- name: GetParameterSchemasByJobID :many
@@ -5494,25 +5532,19 @@ func (q *sqlQuerier) GetPresetsByTemplateVersionID(ctx context.Context, template
 
 const insertPreset = `-- name: InsertPreset :one
 INSERT INTO
-	template_version_presets (id, template_version_id, name, created_at)
+	template_version_presets (template_version_id, name, created_at)
 VALUES
-	($1, $2, $3, $4) RETURNING id, template_version_id, name, created_at
+	($1, $2, $3) RETURNING id, template_version_id, name, created_at
 `
 
 type InsertPresetParams struct {
-	ID                uuid.UUID `db:"id" json:"id"`
 	TemplateVersionID uuid.UUID `db:"template_version_id" json:"template_version_id"`
 	Name              string    `db:"name" json:"name"`
 	CreatedAt         time.Time `db:"created_at" json:"created_at"`
 }
 
 func (q *sqlQuerier) InsertPreset(ctx context.Context, arg InsertPresetParams) (TemplateVersionPreset, error) {
-	row := q.db.QueryRowContext(ctx, insertPreset,
-		arg.ID,
-		arg.TemplateVersionID,
-		arg.Name,
-		arg.CreatedAt,
-	)
+	row := q.db.QueryRowContext(ctx, insertPreset, arg.TemplateVersionID, arg.Name, arg.CreatedAt)
 	var i TemplateVersionPreset
 	err := row.Scan(
 		&i.ID,
@@ -5525,29 +5557,22 @@ func (q *sqlQuerier) InsertPreset(ctx context.Context, arg InsertPresetParams) (
 
 const insertPresetParameters = `-- name: InsertPresetParameters :many
 INSERT INTO
-	template_version_preset_parameters (id, template_version_preset_id, name, value)
+	template_version_preset_parameters (template_version_preset_id, name, value)
 SELECT
 	$1,
-	$2,
-	unnest($3 :: TEXT[]),
-	unnest($4 :: TEXT[])
+	unnest($2 :: TEXT[]),
+	unnest($3 :: TEXT[])
 RETURNING id, template_version_preset_id, name, value
 `
 
 type InsertPresetParametersParams struct {
-	ID                      uuid.UUID `db:"id" json:"id"`
 	TemplateVersionPresetID uuid.UUID `db:"template_version_preset_id" json:"template_version_preset_id"`
 	Names                   []string  `db:"names" json:"names"`
 	Values                  []string  `db:"values" json:"values"`
 }
 
 func (q *sqlQuerier) InsertPresetParameters(ctx context.Context, arg InsertPresetParametersParams) ([]TemplateVersionPresetParameter, error) {
-	rows, err := q.db.QueryContext(ctx, insertPresetParameters,
-		arg.ID,
-		arg.TemplateVersionPresetID,
-		pq.Array(arg.Names),
-		pq.Array(arg.Values),
-	)
+	rows, err := q.db.QueryContext(ctx, insertPresetParameters, arg.TemplateVersionPresetID, pq.Array(arg.Names), pq.Array(arg.Values))
 	if err != nil {
 		return nil, err
 	}
@@ -5756,9 +5781,12 @@ SELECT
 	current_job.job_status AS current_job_status,
 	previous_job.id AS previous_job_id,
 	previous_job.job_status AS previous_job_status,
-	COALESCE(tmpl.name, ''::text) AS current_job_template_name,
-	COALESCE(tmpl.display_name, ''::text) AS current_job_template_display_name,
-	COALESCE(tmpl.icon, ''::text) AS current_job_template_icon
+	COALESCE(current_template.name, ''::text) AS current_job_template_name,
+	COALESCE(current_template.display_name, ''::text) AS current_job_template_display_name,
+	COALESCE(current_template.icon, ''::text) AS current_job_template_icon,
+	COALESCE(previous_template.name, ''::text) AS previous_job_template_name,
+	COALESCE(previous_template.display_name, ''::text) AS previous_job_template_display_name,
+	COALESCE(previous_template.icon, ''::text) AS previous_job_template_icon
 FROM
 	provisioner_daemons pd
 JOIN
@@ -5766,6 +5794,7 @@ JOIN
 LEFT JOIN
 	provisioner_jobs current_job ON (
 		current_job.worker_id = pd.id
+		AND current_job.organization_id = pd.organization_id
 		AND current_job.completed_at IS NULL
 	)
 LEFT JOIN
@@ -5777,50 +5806,83 @@ LEFT JOIN
 				provisioner_jobs
 			WHERE
 				worker_id = pd.id
+				AND organization_id = pd.organization_id
 				AND completed_at IS NOT NULL
 			ORDER BY
 				completed_at DESC
 			LIMIT 1
 		)
+		AND previous_job.organization_id = pd.organization_id
 	)
 LEFT JOIN
-	template_versions version ON version.id = (current_job.input->>'template_version_id')::uuid
+	workspace_builds current_build ON current_build.id = CASE WHEN current_job.input ? 'workspace_build_id' THEN (current_job.input->>'workspace_build_id')::uuid END
 LEFT JOIN
-	templates tmpl ON tmpl.id = version.template_id
+	-- We should always have a template version, either explicitly or implicitly via workspace build.
+	template_versions current_version ON (
+		current_version.id = CASE WHEN current_job.input ? 'template_version_id' THEN (current_job.input->>'template_version_id')::uuid ELSE current_build.template_version_id END
+		AND current_version.organization_id = pd.organization_id
+	)
+LEFT JOIN
+	templates current_template ON (
+		current_template.id = current_version.template_id
+		AND current_template.organization_id = pd.organization_id
+	)
+LEFT JOIN
+	workspace_builds previous_build ON previous_build.id = CASE WHEN previous_job.input ? 'workspace_build_id' THEN (previous_job.input->>'workspace_build_id')::uuid END
+LEFT JOIN
+	-- We should always have a template version, either explicitly or implicitly via workspace build.
+	template_versions previous_version ON (
+		previous_version.id = CASE WHEN previous_job.input ? 'template_version_id' THEN (previous_job.input->>'template_version_id')::uuid ELSE previous_build.template_version_id END
+		AND previous_version.organization_id = pd.organization_id
+	)
+LEFT JOIN
+	templates previous_template ON (
+		previous_template.id = previous_version.template_id
+		AND previous_template.organization_id = pd.organization_id
+	)
 WHERE
 	pd.organization_id = $2::uuid
 	AND (COALESCE(array_length($3::uuid[], 1), 0) = 0 OR pd.id = ANY($3::uuid[]))
 	AND ($4::tagset = 'null'::tagset OR provisioner_tagset_contains(pd.tags::tagset, $4::tagset))
 ORDER BY
 	pd.created_at ASC
+LIMIT
+	$5::int
 `
 
 type GetProvisionerDaemonsWithStatusByOrganizationParams struct {
-	StaleIntervalMS int64       `db:"stale_interval_ms" json:"stale_interval_ms"`
-	OrganizationID  uuid.UUID   `db:"organization_id" json:"organization_id"`
-	IDs             []uuid.UUID `db:"ids" json:"ids"`
-	Tags            StringMap   `db:"tags" json:"tags"`
+	StaleIntervalMS int64         `db:"stale_interval_ms" json:"stale_interval_ms"`
+	OrganizationID  uuid.UUID     `db:"organization_id" json:"organization_id"`
+	IDs             []uuid.UUID   `db:"ids" json:"ids"`
+	Tags            StringMap     `db:"tags" json:"tags"`
+	Limit           sql.NullInt32 `db:"limit" json:"limit"`
 }
 
 type GetProvisionerDaemonsWithStatusByOrganizationRow struct {
-	ProvisionerDaemon             ProvisionerDaemon        `db:"provisioner_daemon" json:"provisioner_daemon"`
-	Status                        ProvisionerDaemonStatus  `db:"status" json:"status"`
-	KeyName                       string                   `db:"key_name" json:"key_name"`
-	CurrentJobID                  uuid.NullUUID            `db:"current_job_id" json:"current_job_id"`
-	CurrentJobStatus              NullProvisionerJobStatus `db:"current_job_status" json:"current_job_status"`
-	PreviousJobID                 uuid.NullUUID            `db:"previous_job_id" json:"previous_job_id"`
-	PreviousJobStatus             NullProvisionerJobStatus `db:"previous_job_status" json:"previous_job_status"`
-	CurrentJobTemplateName        string                   `db:"current_job_template_name" json:"current_job_template_name"`
-	CurrentJobTemplateDisplayName string                   `db:"current_job_template_display_name" json:"current_job_template_display_name"`
-	CurrentJobTemplateIcon        string                   `db:"current_job_template_icon" json:"current_job_template_icon"`
+	ProvisionerDaemon              ProvisionerDaemon        `db:"provisioner_daemon" json:"provisioner_daemon"`
+	Status                         ProvisionerDaemonStatus  `db:"status" json:"status"`
+	KeyName                        string                   `db:"key_name" json:"key_name"`
+	CurrentJobID                   uuid.NullUUID            `db:"current_job_id" json:"current_job_id"`
+	CurrentJobStatus               NullProvisionerJobStatus `db:"current_job_status" json:"current_job_status"`
+	PreviousJobID                  uuid.NullUUID            `db:"previous_job_id" json:"previous_job_id"`
+	PreviousJobStatus              NullProvisionerJobStatus `db:"previous_job_status" json:"previous_job_status"`
+	CurrentJobTemplateName         string                   `db:"current_job_template_name" json:"current_job_template_name"`
+	CurrentJobTemplateDisplayName  string                   `db:"current_job_template_display_name" json:"current_job_template_display_name"`
+	CurrentJobTemplateIcon         string                   `db:"current_job_template_icon" json:"current_job_template_icon"`
+	PreviousJobTemplateName        string                   `db:"previous_job_template_name" json:"previous_job_template_name"`
+	PreviousJobTemplateDisplayName string                   `db:"previous_job_template_display_name" json:"previous_job_template_display_name"`
+	PreviousJobTemplateIcon        string                   `db:"previous_job_template_icon" json:"previous_job_template_icon"`
 }
 
+// Current job information.
+// Previous job information.
 func (q *sqlQuerier) GetProvisionerDaemonsWithStatusByOrganization(ctx context.Context, arg GetProvisionerDaemonsWithStatusByOrganizationParams) ([]GetProvisionerDaemonsWithStatusByOrganizationRow, error) {
 	rows, err := q.db.QueryContext(ctx, getProvisionerDaemonsWithStatusByOrganization,
 		arg.StaleIntervalMS,
 		arg.OrganizationID,
 		pq.Array(arg.IDs),
 		arg.Tags,
+		arg.Limit,
 	)
 	if err != nil {
 		return nil, err
@@ -5850,6 +5912,9 @@ func (q *sqlQuerier) GetProvisionerDaemonsWithStatusByOrganization(ctx context.C
 			&i.CurrentJobTemplateName,
 			&i.CurrentJobTemplateDisplayName,
 			&i.CurrentJobTemplateIcon,
+			&i.PreviousJobTemplateName,
+			&i.PreviousJobTemplateDisplayName,
+			&i.PreviousJobTemplateIcon,
 		); err != nil {
 			return nil, err
 		}
@@ -6475,16 +6540,26 @@ LEFT JOIN
 LEFT JOIN
 	workspace_builds wb ON wb.id = CASE WHEN pj.input ? 'workspace_build_id' THEN (pj.input->>'workspace_build_id')::uuid END
 LEFT JOIN
-	workspaces w ON wb.workspace_id = w.id
+	workspaces w ON (
+		w.id = wb.workspace_id
+		AND w.organization_id = pj.organization_id
+	)
 LEFT JOIN
 	-- We should always have a template version, either explicitly or implicitly via workspace build.
-	template_versions tv ON tv.id = CASE WHEN pj.input ? 'template_version_id' THEN (pj.input->>'template_version_id')::uuid ELSE wb.template_version_id END
+	template_versions tv ON (
+		tv.id = CASE WHEN pj.input ? 'template_version_id' THEN (pj.input->>'template_version_id')::uuid ELSE wb.template_version_id END
+		AND tv.organization_id = pj.organization_id
+	)
 LEFT JOIN
-	templates t ON tv.template_id = t.id
+	templates t ON (
+		t.id = tv.template_id
+		AND t.organization_id = pj.organization_id
+	)
 WHERE
-	($1::uuid IS NULL OR pj.organization_id = $1)
+	pj.organization_id = $1::uuid
 	AND (COALESCE(array_length($2::uuid[], 1), 0) = 0 OR pj.id = ANY($2::uuid[]))
 	AND (COALESCE(array_length($3::provisioner_job_status[], 1), 0) = 0 OR pj.job_status = ANY($3::provisioner_job_status[]))
+	AND ($4::tagset = 'null'::tagset OR provisioner_tagset_contains(pj.tags::tagset, $4::tagset))
 GROUP BY
 	pj.id,
 	qp.queue_position,
@@ -6499,13 +6574,14 @@ GROUP BY
 ORDER BY
 	pj.created_at DESC
 LIMIT
-	$4::int
+	$5::int
 `
 
 type GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams struct {
-	OrganizationID uuid.NullUUID          `db:"organization_id" json:"organization_id"`
+	OrganizationID uuid.UUID              `db:"organization_id" json:"organization_id"`
 	IDs            []uuid.UUID            `db:"ids" json:"ids"`
 	Status         []ProvisionerJobStatus `db:"status" json:"status"`
+	Tags           StringMap              `db:"tags" json:"tags"`
 	Limit          sql.NullInt32          `db:"limit" json:"limit"`
 }
 
@@ -6528,6 +6604,7 @@ func (q *sqlQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePositionA
 		arg.OrganizationID,
 		pq.Array(arg.IDs),
 		pq.Array(arg.Status),
+		arg.Tags,
 		arg.Limit,
 	)
 	if err != nil {
@@ -11997,7 +12074,7 @@ func (q *sqlQuerier) UpsertWorkspaceAgentPortShare(ctx context.Context, arg Upse
 
 const fetchMemoryResourceMonitorsByAgentID = `-- name: FetchMemoryResourceMonitorsByAgentID :one
 SELECT
-	agent_id, enabled, threshold, created_at
+	agent_id, enabled, threshold, created_at, updated_at, state, debounced_until
 FROM
 	workspace_agent_memory_resource_monitors
 WHERE
@@ -12012,13 +12089,16 @@ func (q *sqlQuerier) FetchMemoryResourceMonitorsByAgentID(ctx context.Context, a
 		&i.Enabled,
 		&i.Threshold,
 		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.State,
+		&i.DebouncedUntil,
 	)
 	return i, err
 }
 
 const fetchVolumesResourceMonitorsByAgentID = `-- name: FetchVolumesResourceMonitorsByAgentID :many
 SELECT
-	agent_id, enabled, threshold, path, created_at
+	agent_id, enabled, threshold, path, created_at, updated_at, state, debounced_until
 FROM
 	workspace_agent_volume_resource_monitors
 WHERE
@@ -12040,6 +12120,9 @@ func (q *sqlQuerier) FetchVolumesResourceMonitorsByAgentID(ctx context.Context, 
 			&i.Threshold,
 			&i.Path,
 			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.State,
+			&i.DebouncedUntil,
 		); err != nil {
 			return nil, err
 		}
@@ -12059,26 +12142,35 @@ INSERT INTO
 	workspace_agent_memory_resource_monitors (
 		agent_id,
 		enabled,
+		state,
 		threshold,
-		created_at
+		created_at,
+		updated_at,
+		debounced_until
 	)
 VALUES
-	($1, $2, $3, $4) RETURNING agent_id, enabled, threshold, created_at
+	($1, $2, $3, $4, $5, $6, $7) RETURNING agent_id, enabled, threshold, created_at, updated_at, state, debounced_until
 `
 
 type InsertMemoryResourceMonitorParams struct {
-	AgentID   uuid.UUID `db:"agent_id" json:"agent_id"`
-	Enabled   bool      `db:"enabled" json:"enabled"`
-	Threshold int32     `db:"threshold" json:"threshold"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	AgentID        uuid.UUID                  `db:"agent_id" json:"agent_id"`
+	Enabled        bool                       `db:"enabled" json:"enabled"`
+	State          WorkspaceAgentMonitorState `db:"state" json:"state"`
+	Threshold      int32                      `db:"threshold" json:"threshold"`
+	CreatedAt      time.Time                  `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time                  `db:"updated_at" json:"updated_at"`
+	DebouncedUntil time.Time                  `db:"debounced_until" json:"debounced_until"`
 }
 
 func (q *sqlQuerier) InsertMemoryResourceMonitor(ctx context.Context, arg InsertMemoryResourceMonitorParams) (WorkspaceAgentMemoryResourceMonitor, error) {
 	row := q.db.QueryRowContext(ctx, insertMemoryResourceMonitor,
 		arg.AgentID,
 		arg.Enabled,
+		arg.State,
 		arg.Threshold,
 		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.DebouncedUntil,
 	)
 	var i WorkspaceAgentMemoryResourceMonitor
 	err := row.Scan(
@@ -12086,6 +12178,9 @@ func (q *sqlQuerier) InsertMemoryResourceMonitor(ctx context.Context, arg Insert
 		&i.Enabled,
 		&i.Threshold,
 		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.State,
+		&i.DebouncedUntil,
 	)
 	return i, err
 }
@@ -12096,19 +12191,25 @@ INSERT INTO
 		agent_id,
 		path,
 		enabled,
+		state,
 		threshold,
-		created_at
+		created_at,
+		updated_at,
+		debounced_until
 	)
 VALUES
-	($1, $2, $3, $4, $5) RETURNING agent_id, enabled, threshold, path, created_at
+	($1, $2, $3, $4, $5, $6, $7, $8) RETURNING agent_id, enabled, threshold, path, created_at, updated_at, state, debounced_until
 `
 
 type InsertVolumeResourceMonitorParams struct {
-	AgentID   uuid.UUID `db:"agent_id" json:"agent_id"`
-	Path      string    `db:"path" json:"path"`
-	Enabled   bool      `db:"enabled" json:"enabled"`
-	Threshold int32     `db:"threshold" json:"threshold"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	AgentID        uuid.UUID                  `db:"agent_id" json:"agent_id"`
+	Path           string                     `db:"path" json:"path"`
+	Enabled        bool                       `db:"enabled" json:"enabled"`
+	State          WorkspaceAgentMonitorState `db:"state" json:"state"`
+	Threshold      int32                      `db:"threshold" json:"threshold"`
+	CreatedAt      time.Time                  `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time                  `db:"updated_at" json:"updated_at"`
+	DebouncedUntil time.Time                  `db:"debounced_until" json:"debounced_until"`
 }
 
 func (q *sqlQuerier) InsertVolumeResourceMonitor(ctx context.Context, arg InsertVolumeResourceMonitorParams) (WorkspaceAgentVolumeResourceMonitor, error) {
@@ -12116,8 +12217,11 @@ func (q *sqlQuerier) InsertVolumeResourceMonitor(ctx context.Context, arg Insert
 		arg.AgentID,
 		arg.Path,
 		arg.Enabled,
+		arg.State,
 		arg.Threshold,
 		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.DebouncedUntil,
 	)
 	var i WorkspaceAgentVolumeResourceMonitor
 	err := row.Scan(
@@ -12126,8 +12230,67 @@ func (q *sqlQuerier) InsertVolumeResourceMonitor(ctx context.Context, arg Insert
 		&i.Threshold,
 		&i.Path,
 		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.State,
+		&i.DebouncedUntil,
 	)
 	return i, err
+}
+
+const updateMemoryResourceMonitor = `-- name: UpdateMemoryResourceMonitor :exec
+UPDATE workspace_agent_memory_resource_monitors
+SET
+	updated_at = $2,
+	state = $3,
+	debounced_until = $4
+WHERE
+	agent_id = $1
+`
+
+type UpdateMemoryResourceMonitorParams struct {
+	AgentID        uuid.UUID                  `db:"agent_id" json:"agent_id"`
+	UpdatedAt      time.Time                  `db:"updated_at" json:"updated_at"`
+	State          WorkspaceAgentMonitorState `db:"state" json:"state"`
+	DebouncedUntil time.Time                  `db:"debounced_until" json:"debounced_until"`
+}
+
+func (q *sqlQuerier) UpdateMemoryResourceMonitor(ctx context.Context, arg UpdateMemoryResourceMonitorParams) error {
+	_, err := q.db.ExecContext(ctx, updateMemoryResourceMonitor,
+		arg.AgentID,
+		arg.UpdatedAt,
+		arg.State,
+		arg.DebouncedUntil,
+	)
+	return err
+}
+
+const updateVolumeResourceMonitor = `-- name: UpdateVolumeResourceMonitor :exec
+UPDATE workspace_agent_volume_resource_monitors
+SET
+		updated_at = $3,
+		state = $4,
+		debounced_until = $5
+WHERE
+		agent_id = $1 AND path = $2
+`
+
+type UpdateVolumeResourceMonitorParams struct {
+	AgentID        uuid.UUID                  `db:"agent_id" json:"agent_id"`
+	Path           string                     `db:"path" json:"path"`
+	UpdatedAt      time.Time                  `db:"updated_at" json:"updated_at"`
+	State          WorkspaceAgentMonitorState `db:"state" json:"state"`
+	DebouncedUntil time.Time                  `db:"debounced_until" json:"debounced_until"`
+}
+
+func (q *sqlQuerier) UpdateVolumeResourceMonitor(ctx context.Context, arg UpdateVolumeResourceMonitorParams) error {
+	_, err := q.db.ExecContext(ctx, updateVolumeResourceMonitor,
+		arg.AgentID,
+		arg.Path,
+		arg.UpdatedAt,
+		arg.State,
+		arg.DebouncedUntil,
+	)
+	return err
 }
 
 const deleteOldWorkspaceAgentLogs = `-- name: DeleteOldWorkspaceAgentLogs :exec

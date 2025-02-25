@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { getAuthorizationKey } from "api/queries/authCheck";
+import { anyOrganizationPermissionsKey } from "api/queries/organizations";
 import { workspaceByOwnerAndNameKey } from "api/queries/workspaces";
 import type { Workspace, WorkspaceAgentLifecycle } from "api/typesGenerated";
 import { AuthProvider } from "contexts/auth/AuthProvider";
@@ -76,6 +77,7 @@ const meta = {
 				key: getAuthorizationKey({ checks: permissionsToCheck }),
 				data: { editWorkspaceProxies: true },
 			},
+			{ key: anyOrganizationPermissionsKey, data: {} },
 		],
 		chromatic: { delay: 300 },
 	},

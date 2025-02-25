@@ -3,11 +3,12 @@ package agentssh
 import (
 	"bufio"
 	"context"
-	"crypto/rand"
 	"crypto/rsa"
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
+	"math/rand"
 	"net"
 	"os"
 	"os/exec"
@@ -26,6 +27,7 @@ import (
 	"github.com/spf13/afero"
 	"go.uber.org/atomic"
 	gossh "golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -42,14 +44,6 @@ const (
 	// unlikely to shadow other exit codes, which are typically 1, 2, 3, etc.
 	MagicSessionErrorCode = 229
 
-	// MagicSessionTypeEnvironmentVariable is used to track the purpose behind an SSH connection.
-	// This is stripped from any commands being executed, and is counted towards connection stats.
-	MagicSessionTypeEnvironmentVariable = "CODER_SSH_SESSION_TYPE"
-	// MagicSessionTypeVSCode is set in the SSH config by the VS Code extension to identify itself.
-	MagicSessionTypeVSCode = "vscode"
-	// MagicSessionTypeJetBrains is set in the SSH config by the JetBrains
-	// extension to identify itself.
-	MagicSessionTypeJetBrains = "jetbrains"
 	// MagicProcessCmdlineJetBrains is a string in a process's command line that
 	// uniquely identifies it as JetBrains software.
 	MagicProcessCmdlineJetBrains = "idea.vendor.name=JetBrains"
@@ -58,6 +52,29 @@ const (
 	// the file transfer.
 	BlockedFileTransferErrorCode    = 65 // Error code: host not allowed to connect
 	BlockedFileTransferErrorMessage = "File transfer has been disabled."
+)
+
+// MagicSessionType is a type that represents the type of session that is being
+// established.
+type MagicSessionType string
+
+const (
+	// MagicSessionTypeEnvironmentVariable is used to track the purpose behind an SSH connection.
+	// This is stripped from any commands being executed, and is counted towards connection stats.
+	MagicSessionTypeEnvironmentVariable = "CODER_SSH_SESSION_TYPE"
+)
+
+// MagicSessionType enums.
+const (
+	// MagicSessionTypeUnknown means the session type could not be determined.
+	MagicSessionTypeUnknown MagicSessionType = "unknown"
+	// MagicSessionTypeSSH is the default session type.
+	MagicSessionTypeSSH MagicSessionType = "ssh"
+	// MagicSessionTypeVSCode is set in the SSH config by the VS Code extension to identify itself.
+	MagicSessionTypeVSCode MagicSessionType = "vscode"
+	// MagicSessionTypeJetBrains is set in the SSH config by the JetBrains
+	// extension to identify itself.
+	MagicSessionTypeJetBrains MagicSessionType = "jetbrains"
 )
 
 // BlockedFileTransferCommands contains a list of restricted file transfer commands.
@@ -112,17 +129,6 @@ type Server struct {
 }
 
 func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prometheus.Registry, fs afero.Fs, execer agentexec.Execer, config *Config) (*Server, error) {
-	// Clients' should ignore the host key when connecting.
-	// The agent needs to authenticate with coderd to SSH,
-	// so SSH authentication doesn't improve security.
-	randomHostKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		return nil, err
-	}
-	randomSigner, err := gossh.NewSignerFromKey(randomHostKey)
-	if err != nil {
-		return nil, err
-	}
 	if config == nil {
 		config = &Config{}
 	}
@@ -189,8 +195,10 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 				slog.F("local_addr", conn.LocalAddr()),
 				slog.Error(err))
 		},
-		Handler:     s.sessionHandler,
-		HostSigners: []ssh.Signer{randomSigner},
+		Handler: s.sessionHandler,
+		// HostSigners are intentionally empty, as the host key will
+		// be set before we start listening.
+		HostSigners: []ssh.Signer{},
 		LocalPortForwardingCallback: func(ctx ssh.Context, destinationHost string, destinationPort uint32) bool {
 			// Allow local port forwarding all!
 			s.logger.Debug(ctx, "local port forward",
@@ -255,14 +263,42 @@ func (s *Server) ConnStats() ConnStats {
 	}
 }
 
+func extractMagicSessionType(env []string) (magicType MagicSessionType, rawType string, filteredEnv []string) {
+	for _, kv := range env {
+		if !strings.HasPrefix(kv, MagicSessionTypeEnvironmentVariable) {
+			continue
+		}
+
+		rawType = strings.TrimPrefix(kv, MagicSessionTypeEnvironmentVariable+"=")
+		// Keep going, we'll use the last instance of the env.
+	}
+
+	// Always force lowercase checking to be case-insensitive.
+	switch MagicSessionType(strings.ToLower(rawType)) {
+	case MagicSessionTypeVSCode:
+		magicType = MagicSessionTypeVSCode
+	case MagicSessionTypeJetBrains:
+		magicType = MagicSessionTypeJetBrains
+	case "", MagicSessionTypeSSH:
+		magicType = MagicSessionTypeSSH
+	default:
+		magicType = MagicSessionTypeUnknown
+	}
+
+	return magicType, rawType, slices.DeleteFunc(env, func(kv string) bool {
+		return strings.HasPrefix(kv, MagicSessionTypeEnvironmentVariable+"=")
+	})
+}
+
 func (s *Server) sessionHandler(session ssh.Session) {
 	ctx := session.Context()
+	id := uuid.New()
 	logger := s.logger.With(
 		slog.F("remote_addr", session.RemoteAddr()),
 		slog.F("local_addr", session.LocalAddr()),
 		// Assigning a random uuid for each session is useful for tracking
 		// logs for the same ssh session.
-		slog.F("id", uuid.NewString()),
+		slog.F("id", id.String()),
 	)
 	logger.Info(ctx, "handling ssh session")
 
@@ -274,16 +310,21 @@ func (s *Server) sessionHandler(session ssh.Session) {
 	}
 	defer s.trackSession(session, false)
 
-	extraEnv := make([]string, 0)
-	x11, hasX11 := session.X11()
-	if hasX11 {
-		display, handled := s.x11Handler(session.Context(), x11)
-		if !handled {
-			_ = session.Exit(1)
-			logger.Error(ctx, "x11 handler failed")
-			return
-		}
-		extraEnv = append(extraEnv, fmt.Sprintf("DISPLAY=localhost:%d.%d", display, x11.ScreenNumber))
+	env := session.Environ()
+	magicType, magicTypeRaw, env := extractMagicSessionType(env)
+
+	switch magicType {
+	case MagicSessionTypeVSCode:
+		s.connCountVSCode.Add(1)
+		defer s.connCountVSCode.Add(-1)
+	case MagicSessionTypeJetBrains:
+		// Do nothing here because JetBrains launches hundreds of ssh sessions.
+		// We instead track JetBrains in the single persistent tcp forwarding channel.
+	case MagicSessionTypeSSH:
+		s.connCountSSHSession.Add(1)
+		defer s.connCountSSHSession.Add(-1)
+	case MagicSessionTypeUnknown:
+		logger.Warn(ctx, "invalid magic ssh session type specified", slog.F("raw_type", magicTypeRaw))
 	}
 
 	if s.fileTransferBlocked(session) {
@@ -309,7 +350,18 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		return
 	}
 
-	err := s.sessionStart(logger, session, extraEnv)
+	x11, hasX11 := session.X11()
+	if hasX11 {
+		display, handled := s.x11Handler(session.Context(), x11)
+		if !handled {
+			_ = session.Exit(1)
+			logger.Error(ctx, "x11 handler failed")
+			return
+		}
+		env = append(env, fmt.Sprintf("DISPLAY=localhost:%d.%d", display, x11.ScreenNumber))
+	}
+
+	err := s.sessionStart(logger, session, env, magicType)
 	var exitError *exec.ExitError
 	if xerrors.As(err, &exitError) {
 		code := exitError.ExitCode()
@@ -379,37 +431,13 @@ func (s *Server) fileTransferBlocked(session ssh.Session) bool {
 	return false
 }
 
-func (s *Server) sessionStart(logger slog.Logger, session ssh.Session, extraEnv []string) (retErr error) {
+func (s *Server) sessionStart(logger slog.Logger, session ssh.Session, env []string, magicType MagicSessionType) (retErr error) {
 	ctx := session.Context()
-	env := append(session.Environ(), extraEnv...)
-	var magicType string
-	for index, kv := range env {
-		if !strings.HasPrefix(kv, MagicSessionTypeEnvironmentVariable) {
-			continue
-		}
-		magicType = strings.ToLower(strings.TrimPrefix(kv, MagicSessionTypeEnvironmentVariable+"="))
-		env = append(env[:index], env[index+1:]...)
-	}
-
-	// Always force lowercase checking to be case-insensitive.
-	switch magicType {
-	case MagicSessionTypeVSCode:
-		s.connCountVSCode.Add(1)
-		defer s.connCountVSCode.Add(-1)
-	case MagicSessionTypeJetBrains:
-		// Do nothing here because JetBrains launches hundreds of ssh sessions.
-		// We instead track JetBrains in the single persistent tcp forwarding channel.
-	case "":
-		s.connCountSSHSession.Add(1)
-		defer s.connCountSSHSession.Add(-1)
-	default:
-		logger.Warn(ctx, "invalid magic ssh session type specified", slog.F("type", magicType))
-	}
 
 	magicTypeLabel := magicTypeMetricLabel(magicType)
 	sshPty, windowSize, isPty := session.Pty()
 
-	cmd, err := s.CreateCommand(ctx, session.RawCommand(), env)
+	cmd, err := s.CreateCommand(ctx, session.RawCommand(), env, nil)
 	if err != nil {
 		ptyLabel := "no"
 		if isPty {
@@ -473,7 +501,7 @@ func (s *Server) startNonPTYSession(logger slog.Logger, session ssh.Session, mag
 	}()
 	go func() {
 		for sig := range sigs {
-			s.handleSignal(logger, sig, cmd.Process, magicTypeLabel)
+			handleSignal(logger, sig, cmd.Process, s.metrics, magicTypeLabel)
 		}
 	}()
 	return cmd.Wait()
@@ -558,7 +586,7 @@ func (s *Server) startPTYSession(logger slog.Logger, session ptySession, magicTy
 					sigs = nil
 					continue
 				}
-				s.handleSignal(logger, sig, process, magicTypeLabel)
+				handleSignal(logger, sig, process, s.metrics, magicTypeLabel)
 			case win, ok := <-windowSize:
 				if !ok {
 					windowSize = nil
@@ -612,7 +640,7 @@ func (s *Server) startPTYSession(logger slog.Logger, session ptySession, magicTy
 	return nil
 }
 
-func (s *Server) handleSignal(logger slog.Logger, ssig ssh.Signal, signaler interface{ Signal(os.Signal) error }, magicTypeLabel string) {
+func handleSignal(logger slog.Logger, ssig ssh.Signal, signaler interface{ Signal(os.Signal) error }, metrics *sshServerMetrics, magicTypeLabel string) {
 	ctx := context.Background()
 	sig := osSignalFrom(ssig)
 	logger = logger.With(slog.F("ssh_signal", ssig), slog.F("signal", sig.String()))
@@ -620,7 +648,7 @@ func (s *Server) handleSignal(logger slog.Logger, ssig ssh.Signal, signaler inte
 	err := signaler.Signal(sig)
 	if err != nil {
 		logger.Warn(ctx, "signaling the process failed", slog.Error(err))
-		s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "signal").Add(1)
+		metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "signal").Add(1)
 	}
 }
 
@@ -670,17 +698,63 @@ func (s *Server) sftpHandler(logger slog.Logger, session ssh.Session) {
 	_ = session.Exit(1)
 }
 
+// EnvInfoer encapsulates external information required by CreateCommand.
+type EnvInfoer interface {
+	// CurrentUser returns the current user.
+	CurrentUser() (*user.User, error)
+	// Environ returns the environment variables of the current process.
+	Environ() []string
+	// UserHomeDir returns the home directory of the current user.
+	UserHomeDir() (string, error)
+	// UserShell returns the shell of the given user.
+	UserShell(username string) (string, error)
+}
+
+type systemEnvInfoer struct{}
+
+var defaultEnvInfoer EnvInfoer = &systemEnvInfoer{}
+
+// DefaultEnvInfoer returns a default implementation of
+// EnvInfoer. This reads information using the default Go
+// implementations.
+func DefaultEnvInfoer() EnvInfoer {
+	return defaultEnvInfoer
+}
+
+func (systemEnvInfoer) CurrentUser() (*user.User, error) {
+	return user.Current()
+}
+
+func (systemEnvInfoer) Environ() []string {
+	return os.Environ()
+}
+
+func (systemEnvInfoer) UserHomeDir() (string, error) {
+	return userHomeDir()
+}
+
+func (systemEnvInfoer) UserShell(username string) (string, error) {
+	return usershell.Get(username)
+}
+
 // CreateCommand processes raw command input with OpenSSH-like behavior.
 // If the script provided is empty, it will default to the users shell.
 // This injects environment variables specified by the user at launch too.
-func (s *Server) CreateCommand(ctx context.Context, script string, env []string) (*pty.Cmd, error) {
-	currentUser, err := user.Current()
+// The final argument is an interface that allows the caller to provide
+// alternative implementations for the dependencies of CreateCommand.
+// This is useful when creating a command to be run in a separate environment
+// (for example, a Docker container). Pass in nil to use the default.
+func (s *Server) CreateCommand(ctx context.Context, script string, env []string, deps EnvInfoer) (*pty.Cmd, error) {
+	if deps == nil {
+		deps = DefaultEnvInfoer()
+	}
+	currentUser, err := deps.CurrentUser()
 	if err != nil {
 		return nil, xerrors.Errorf("get current user: %w", err)
 	}
 	username := currentUser.Username
 
-	shell, err := usershell.Get(username)
+	shell, err := deps.UserShell(username)
 	if err != nil {
 		return nil, xerrors.Errorf("get user shell: %w", err)
 	}
@@ -736,13 +810,13 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string)
 	_, err = os.Stat(cmd.Dir)
 	if cmd.Dir == "" || err != nil {
 		// Default to user home if a directory is not set.
-		homedir, err := userHomeDir()
+		homedir, err := deps.UserHomeDir()
 		if err != nil {
 			return nil, xerrors.Errorf("get home dir: %w", err)
 		}
 		cmd.Dir = homedir
 	}
-	cmd.Env = append(os.Environ(), env...)
+	cmd.Env = append(deps.Environ(), env...)
 	cmd.Env = append(cmd.Env, fmt.Sprintf("USER=%s", username))
 
 	// Set SSH connection environment variables (these are also set by OpenSSH
@@ -762,7 +836,13 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string)
 	return cmd, nil
 }
 
+// Serve starts the server to handle incoming connections on the provided listener.
+// It returns an error if no host keys are set or if there is an issue accepting connections.
 func (s *Server) Serve(l net.Listener) (retErr error) {
+	if len(s.srv.HostSigners) == 0 {
+		return xerrors.New("no host keys set")
+	}
+
 	s.logger.Info(context.Background(), "started serving listener", slog.F("listen_addr", l.Addr()))
 	defer func() {
 		s.logger.Info(context.Background(), "stopped serving listener",
@@ -1016,4 +1096,100 @@ func userHomeDir() (string, error) {
 		return "", xerrors.Errorf("current user: %w", err)
 	}
 	return u.HomeDir, nil
+}
+
+// UpdateHostSigner updates the host signer with a new key generated from the provided seed.
+// If an existing host key exists with the same algorithm, it is overwritten
+func (s *Server) UpdateHostSigner(seed int64) error {
+	key, err := CoderSigner(seed)
+	if err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.srv.AddHostKey(key)
+
+	return nil
+}
+
+// CoderSigner generates a deterministic SSH signer based on the provided seed.
+// It uses RSA with a key size of 2048 bits.
+func CoderSigner(seed int64) (gossh.Signer, error) {
+	// Clients should ignore the host key when connecting.
+	// The agent needs to authenticate with coderd to SSH,
+	// so SSH authentication doesn't improve security.
+
+	// Since the standard lib purposefully does not generate
+	// deterministic rsa keys, we need to do it ourselves.
+	coderHostKey := func() *rsa.PrivateKey {
+		// Create deterministic random source
+		// nolint: gosec
+		deterministicRand := rand.New(rand.NewSource(seed))
+
+		// Use fixed values for p and q based on the seed
+		p := big.NewInt(0)
+		q := big.NewInt(0)
+		e := big.NewInt(65537) // Standard RSA public exponent
+
+		// Generate deterministic primes using the seeded random
+		// Each prime should be ~1024 bits to get a 2048-bit key
+		for {
+			p.SetBit(p, 1024, 1) // Ensure it's large enough
+			for i := 0; i < 1024; i++ {
+				if deterministicRand.Int63()%2 == 1 {
+					p.SetBit(p, i, 1)
+				} else {
+					p.SetBit(p, i, 0)
+				}
+			}
+			if p.ProbablyPrime(20) {
+				break
+			}
+		}
+
+		for {
+			q.SetBit(q, 1024, 1) // Ensure it's large enough
+			for i := 0; i < 1024; i++ {
+				if deterministicRand.Int63()%2 == 1 {
+					q.SetBit(q, i, 1)
+				} else {
+					q.SetBit(q, i, 0)
+				}
+			}
+			if q.ProbablyPrime(20) && p.Cmp(q) != 0 {
+				break
+			}
+		}
+
+		// Calculate n = p * q
+		n := new(big.Int).Mul(p, q)
+
+		// Calculate phi = (p-1) * (q-1)
+		p1 := new(big.Int).Sub(p, big.NewInt(1))
+		q1 := new(big.Int).Sub(q, big.NewInt(1))
+		phi := new(big.Int).Mul(p1, q1)
+
+		// Calculate private exponent d
+		d := new(big.Int).ModInverse(e, phi)
+
+		// Create the private key
+		privateKey := &rsa.PrivateKey{
+			PublicKey: rsa.PublicKey{
+				N: n,
+				E: int(e.Int64()),
+			},
+			D:      d,
+			Primes: []*big.Int{p, q},
+		}
+
+		// Compute precomputed values
+		privateKey.Precompute()
+
+		return privateKey
+	}()
+
+	coderSigner, err := gossh.NewSignerFromKey(coderHostKey)
+	return coderSigner, err
 }

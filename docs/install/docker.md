@@ -56,26 +56,42 @@ which includes an PostgreSQL container and volume.
 1. Make sure you have [Docker Compose](https://docs.docker.com/compose/install/)
    installed.
 
-2. Download the
+1. Download the
    [`docker-compose.yaml`](https://github.com/coder/coder/blob/main/docker-compose.yaml)
    file.
 
-3. Update `group_add:` in `docker-compose.yaml` with the `gid` of `docker`
+1. Update `group_add:` in `docker-compose.yaml` with the `gid` of `docker`
    group. You can get the `docker` group `gid` by running the below command:
 
    ```shell
    getent group docker | cut -d: -f3
    ```
 
-4. Start Coder with `docker compose up`
+1. Start Coder with `docker compose up`
 
-5. Visit the web UI via the configured url.
+1. Visit the web UI via the configured url.
 
-6. Follow the on-screen instructions log in and create your first template and
+1. Follow the on-screen instructions log in and create your first template and
    workspace
 
 Coder configuration is defined via environment variables. Learn more about
 Coder's [configuration options](../admin/setup/index.md).
+
+## Install the preview release
+
+<blockquote class="tip">
+
+We do not recommend using preview releases in production environments.
+
+</blockquote>
+
+You can install and test a
+[preview release of Coder](https://github.com/coder/coder/pkgs/container/coder-preview)
+by using the `coder-preview:latest` image tag.
+This image is automatically updated with the latest changes from the `main` branch.
+
+Replace `ghcr.io/coder/coder:latest` in the `docker run` command in the
+[steps above](#install-coder-via-docker-run) with `ghcr.io/coder/coder-preview:latest`.
 
 ## Troubleshooting
 

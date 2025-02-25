@@ -1,14 +1,6 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import PersonAdd from "@mui/icons-material/PersonAdd";
 import LoadingButton from "@mui/lab/LoadingButton";
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
 import { getErrorMessage } from "api/errors";
-import type { GroupsByUserId } from "api/queries/groups";
 import type {
 	Group,
 	OrganizationMemberWithUserData,
@@ -28,6 +20,13 @@ import {
 } from "components/MoreMenu/MoreMenu";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHeader,
+	TableRow,
+} from "components/Table/Table";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { UserGroupsCell } from "pages/UsersPage/UsersTable/UserGroupsCell";
 import { type FC, useState } from "react";
@@ -81,82 +80,80 @@ export const OrganizationMembersPageView: FC<
 					/>
 				)}
 
-				<TableContainer>
-					<Table>
-						<TableHead>
-							<TableRow>
-								<TableCell width="33%">User</TableCell>
-								<TableCell width="33%">
-									<Stack direction="row" spacing={1} alignItems="center">
-										<span>Roles</span>
-										<TableColumnHelpTooltip variant="roles" />
-									</Stack>
-								</TableCell>
-								<TableCell width="33%">
-									<Stack direction="row" spacing={1} alignItems="center">
-										<span>Groups</span>
-										<TableColumnHelpTooltip variant="groups" />
-									</Stack>
-								</TableCell>
-								<TableCell width="1%" />
-							</TableRow>
-						</TableHead>
-						<TableBody>
-							{members?.map((member) => (
-								<TableRow key={member.user_id}>
-									<TableCell>
-										<AvatarData
-											avatar={
-												<Avatar
-													fallback={member.username}
-													src={member.avatar_url}
-												/>
-											}
-											title={member.name || member.username}
-											subtitle={member.email}
-										/>
-									</TableCell>
-									<UserRoleCell
-										inheritedRoles={member.global_roles}
-										roles={member.roles}
-										allAvailableRoles={allAvailableRoles}
-										oidcRoleSyncEnabled={false}
-										isLoading={isUpdatingMemberRoles}
-										canEditUsers={canEditMembers}
-										onEditRoles={async (roles) => {
-											try {
-												await updateMemberRoles(member, roles);
-												displaySuccess("Roles updated successfully.");
-											} catch (error) {
-												displayError(
-													getErrorMessage(error, "Failed to update roles."),
-												);
-											}
-										}}
+				<Table>
+					<TableHeader>
+						<TableRow>
+							<TableCell width="33%">User</TableCell>
+							<TableCell width="33%">
+								<Stack direction="row" spacing={1} alignItems="center">
+									<span>Roles</span>
+									<TableColumnHelpTooltip variant="roles" />
+								</Stack>
+							</TableCell>
+							<TableCell width="33%">
+								<Stack direction="row" spacing={1} alignItems="center">
+									<span>Groups</span>
+									<TableColumnHelpTooltip variant="groups" />
+								</Stack>
+							</TableCell>
+							<TableCell width="1%" />
+						</TableRow>
+					</TableHeader>
+					<TableBody>
+						{members?.map((member) => (
+							<TableRow key={member.user_id} className="align-baseline">
+								<TableCell>
+									<AvatarData
+										avatar={
+											<Avatar
+												fallback={member.username}
+												src={member.avatar_url}
+											/>
+										}
+										title={member.name || member.username}
+										subtitle={member.email}
 									/>
-									<UserGroupsCell userGroups={member.groups} />
-									<TableCell>
-										{member.user_id !== me.id && canEditMembers && (
-											<MoreMenu>
-												<MoreMenuTrigger>
-													<ThreeDotsButton />
-												</MoreMenuTrigger>
-												<MoreMenuContent>
-													<MoreMenuItem
-														danger
-														onClick={() => removeMember(member)}
-													>
-														Remove
-													</MoreMenuItem>
-												</MoreMenuContent>
-											</MoreMenu>
-										)}
-									</TableCell>
-								</TableRow>
-							))}
-						</TableBody>
-					</Table>
-				</TableContainer>
+								</TableCell>
+								<UserRoleCell
+									inheritedRoles={member.global_roles}
+									roles={member.roles}
+									allAvailableRoles={allAvailableRoles}
+									oidcRoleSyncEnabled={false}
+									isLoading={isUpdatingMemberRoles}
+									canEditUsers={canEditMembers}
+									onEditRoles={async (roles) => {
+										try {
+											await updateMemberRoles(member, roles);
+											displaySuccess("Roles updated successfully.");
+										} catch (error) {
+											displayError(
+												getErrorMessage(error, "Failed to update roles."),
+											);
+										}
+									}}
+								/>
+								<UserGroupsCell userGroups={member.groups} />
+								<TableCell>
+									{member.user_id !== me.id && canEditMembers && (
+										<MoreMenu>
+											<MoreMenuTrigger>
+												<ThreeDotsButton />
+											</MoreMenuTrigger>
+											<MoreMenuContent>
+												<MoreMenuItem
+													danger
+													onClick={() => removeMember(member)}
+												>
+													Remove
+												</MoreMenuItem>
+											</MoreMenuContent>
+										</MoreMenu>
+									)}
+								</TableCell>
+							</TableRow>
+						))}
+					</TableBody>
+				</Table>
 			</Stack>
 		</div>
 	);
@@ -190,7 +187,7 @@ const AddOrganizationMember: FC<AddOrganizationMemberProps> = ({
 		>
 			<Stack direction="row" alignItems="center" spacing={1}>
 				<UserAutocomplete
-					css={styles.autoComplete}
+					className="w-[300px]"
 					value={selectedUser}
 					onChange={(newValue) => {
 						setSelectedUser(newValue);
@@ -210,17 +207,3 @@ const AddOrganizationMember: FC<AddOrganizationMemberProps> = ({
 		</form>
 	);
 };
-
-const styles = {
-	role: (theme) => ({
-		backgroundColor: theme.roles.notice.background,
-		borderColor: theme.roles.notice.outline,
-	}),
-	globalRole: (theme) => ({
-		backgroundColor: theme.roles.inactive.background,
-		borderColor: theme.roles.inactive.outline,
-	}),
-	autoComplete: {
-		width: 300,
-	},
-} satisfies Record<string, Interpolation<Theme>>;

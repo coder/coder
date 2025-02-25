@@ -116,7 +116,7 @@ endif
 
 clean:
 	rm -rf build/ site/build/ site/out/
-	mkdir -p build/ site/out/bin/
+	mkdir -p build/
 	git restore site/out/
 .PHONY: clean
 
@@ -809,7 +809,7 @@ provisioner/terraform/testdata/version:
 .PHONY: provisioner/terraform/testdata/version
 
 test:
-	$(GIT_FLAGS) gotestsum --format standard-quiet -- -v -short -count=1 ./...
+	$(GIT_FLAGS) gotestsum --format standard-quiet -- -v -short -count=1 ./... $(if $(RUN),-run $(RUN))
 .PHONY: test
 
 test-cli:

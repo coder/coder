@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
@@ -65,6 +66,7 @@ type BackgroundAuditParams[T Auditable] struct {
 
 	UserID         uuid.UUID
 	RequestID      uuid.UUID
+	Time           time.Time
 	Status         int
 	Action         database.AuditAction
 	OrganizationID uuid.UUID
@@ -128,6 +130,10 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return "Organization Group Sync"
 	case idpsync.RoleSyncSettings:
 		return "Organization Role Sync"
+	case database.WorkspaceAgent:
+		return typed.Name
+	case database.WorkspaceApp:
+		return typed.Slug
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceTarget", tgt))
 	}
@@ -187,6 +193,10 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return noID // Org field on audit log has org id
 	case idpsync.RoleSyncSettings:
 		return noID // Org field on audit log has org id
+	case database.WorkspaceAgent:
+		return typed.ID
+	case database.WorkspaceApp:
+		return typed.ID
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceID", tgt))
 	}
@@ -238,6 +248,10 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeIdpSyncSettingsRole
 	case idpsync.GroupSyncSettings:
 		return database.ResourceTypeIdpSyncSettingsGroup
+	case database.WorkspaceAgent:
+		return database.ResourceTypeWorkspaceAgent
+	case database.WorkspaceApp:
+		return database.ResourceTypeWorkspaceApp
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceType", typed))
 	}
@@ -290,6 +304,10 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 	case idpsync.GroupSyncSettings:
 		return true
 	case idpsync.RoleSyncSettings:
+		return true
+	case database.WorkspaceAgent:
+		return true
+	case database.WorkspaceApp:
 		return true
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceRequiresOrgID", tgt))
@@ -445,13 +463,19 @@ func BackgroundAudit[T Auditable](ctx context.Context, p *BackgroundAuditParams[
 		diffRaw = []byte("{}")
 	}
 
+	if p.Time.IsZero() {
+		p.Time = dbtime.Now()
+	} else {
+		// NOTE(mafredri): dbtime.Time does not currently enforce UTC.
+		p.Time = dbtime.Time(p.Time.In(time.UTC))
+	}
 	if p.AdditionalFields == nil {
 		p.AdditionalFields = json.RawMessage("{}")
 	}
 
 	auditLog := database.AuditLog{
 		ID:               uuid.New(),
-		Time:             dbtime.Now(),
+		Time:             p.Time,
 		UserID:           p.UserID,
 		OrganizationID:   requireOrgID[T](ctx, p.OrganizationID, p.Log),
 		Ip:               ip,

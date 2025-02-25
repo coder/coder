@@ -344,6 +344,11 @@ func TestSearchAudit(t *testing.T) {
 				ResourceTarget: "foo",
 			},
 		},
+		{
+			Name:                  "RequestID",
+			Query:                 "request_id:foo",
+			ExpectedErrorContains: "valid uuid",
+		},
 	}
 
 	for _, c := range testCases {

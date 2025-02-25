@@ -206,8 +206,8 @@ var (
 
 	// ResourceProvisionerDaemon
 	// Valid Actions
-	//  - "ActionCreate" :: create a provisioner daemon
-	//  - "ActionDelete" :: delete a provisioner daemon
+	//  - "ActionCreate" :: create a provisioner daemon/key
+	//  - "ActionDelete" :: delete a provisioner daemon/key
 	//  - "ActionRead" :: read provisioner daemon
 	//  - "ActionUpdate" :: update a provisioner daemon
 	ResourceProvisionerDaemon = Object{
@@ -219,15 +219,6 @@ var (
 	//  - "ActionRead" :: read provisioner jobs
 	ResourceProvisionerJobs = Object{
 		Type: "provisioner_jobs",
-	}
-
-	// ResourceProvisionerKeys
-	// Valid Actions
-	//  - "ActionCreate" :: create a provisioner key
-	//  - "ActionDelete" :: delete a provisioner key
-	//  - "ActionRead" :: read provisioner keys
-	ResourceProvisionerKeys = Object{
-		Type: "provisioner_keys",
 	}
 
 	// ResourceReplicas
@@ -299,6 +290,7 @@ var (
 	// Valid Actions
 	//  - "ActionCreate" :: create workspace agent resource monitor
 	//  - "ActionRead" :: read workspace agent resource monitor
+	//  - "ActionUpdate" :: update workspace agent resource monitor
 	ResourceWorkspaceAgentResourceMonitor = Object{
 		Type: "workspace_agent_resource_monitor",
 	}
@@ -354,7 +346,6 @@ func AllResources() []Objecter {
 		ResourceOrganizationMember,
 		ResourceProvisionerDaemon,
 		ResourceProvisionerJobs,
-		ResourceProvisionerKeys,
 		ResourceReplicas,
 		ResourceSystem,
 		ResourceTailnetCoordinator,

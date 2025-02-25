@@ -122,7 +122,7 @@ stopped due to the policy at the start of the user's quiet hours.
 ![User schedule settings](../../../images/admin/templates/schedule/user-quiet-hours.png)
 
 Admins can define the default quiet hours for all users with the
-`--default-quiet-hours-schedule` flag or `CODER_DEFAULT_QUIET_HOURS_SCHEDULE`
+[CODER_QUIET_HOURS_DEFAULT_SCHEDULE](../../../reference/cli/server.md#--default-quiet-hours-schedule)
 environment variable. The value should be a cron expression such as
 `CRON_TZ=America/Chicago 30 2 * * *` which would set the default quiet hours to
 2:30 AM in the America/Chicago timezone. The cron schedule can only have a

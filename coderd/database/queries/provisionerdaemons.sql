@@ -45,9 +45,12 @@ SELECT
 	current_job.job_status AS current_job_status,
 	previous_job.id AS previous_job_id,
 	previous_job.job_status AS previous_job_status,
-	COALESCE(tmpl.name, ''::text) AS current_job_template_name,
-	COALESCE(tmpl.display_name, ''::text) AS current_job_template_display_name,
-	COALESCE(tmpl.icon, ''::text) AS current_job_template_icon
+	COALESCE(current_template.name, ''::text) AS current_job_template_name,
+	COALESCE(current_template.display_name, ''::text) AS current_job_template_display_name,
+	COALESCE(current_template.icon, ''::text) AS current_job_template_icon,
+	COALESCE(previous_template.name, ''::text) AS previous_job_template_name,
+	COALESCE(previous_template.display_name, ''::text) AS previous_job_template_display_name,
+	COALESCE(previous_template.icon, ''::text) AS previous_job_template_icon
 FROM
 	provisioner_daemons pd
 JOIN
@@ -55,6 +58,7 @@ JOIN
 LEFT JOIN
 	provisioner_jobs current_job ON (
 		current_job.worker_id = pd.id
+		AND current_job.organization_id = pd.organization_id
 		AND current_job.completed_at IS NULL
 	)
 LEFT JOIN
@@ -66,22 +70,50 @@ LEFT JOIN
 				provisioner_jobs
 			WHERE
 				worker_id = pd.id
+				AND organization_id = pd.organization_id
 				AND completed_at IS NOT NULL
 			ORDER BY
 				completed_at DESC
 			LIMIT 1
 		)
+		AND previous_job.organization_id = pd.organization_id
+	)
+-- Current job information.
+LEFT JOIN
+	workspace_builds current_build ON current_build.id = CASE WHEN current_job.input ? 'workspace_build_id' THEN (current_job.input->>'workspace_build_id')::uuid END
+LEFT JOIN
+	-- We should always have a template version, either explicitly or implicitly via workspace build.
+	template_versions current_version ON (
+		current_version.id = CASE WHEN current_job.input ? 'template_version_id' THEN (current_job.input->>'template_version_id')::uuid ELSE current_build.template_version_id END
+		AND current_version.organization_id = pd.organization_id
 	)
 LEFT JOIN
-	template_versions version ON version.id = (current_job.input->>'template_version_id')::uuid
+	templates current_template ON (
+		current_template.id = current_version.template_id
+		AND current_template.organization_id = pd.organization_id
+	)
+-- Previous job information.
 LEFT JOIN
-	templates tmpl ON tmpl.id = version.template_id
+	workspace_builds previous_build ON previous_build.id = CASE WHEN previous_job.input ? 'workspace_build_id' THEN (previous_job.input->>'workspace_build_id')::uuid END
+LEFT JOIN
+	-- We should always have a template version, either explicitly or implicitly via workspace build.
+	template_versions previous_version ON (
+		previous_version.id = CASE WHEN previous_job.input ? 'template_version_id' THEN (previous_job.input->>'template_version_id')::uuid ELSE previous_build.template_version_id END
+		AND previous_version.organization_id = pd.organization_id
+	)
+LEFT JOIN
+	templates previous_template ON (
+		previous_template.id = previous_version.template_id
+		AND previous_template.organization_id = pd.organization_id
+	)
 WHERE
 	pd.organization_id = @organization_id::uuid
 	AND (COALESCE(array_length(@ids::uuid[], 1), 0) = 0 OR pd.id = ANY(@ids::uuid[]))
 	AND (@tags::tagset = 'null'::tagset OR provisioner_tagset_contains(pd.tags::tagset, @tags::tagset))
 ORDER BY
-	pd.created_at ASC;
+	pd.created_at ASC
+LIMIT
+	sqlc.narg('limit')::int;
 
 -- name: DeleteOldProvisionerDaemons :exec
 -- Delete provisioner daemons that have been created at least a week ago

@@ -475,7 +475,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 		},
 		{
 			Flag:        "devcontainers-enable",
-			Default:     "true",
+			Default:     "false",
 			Env:         "CODER_AGENT_DEVCONTAINERS_ENABLE",
 			Description: "Allow the agent to automatically detect running devcontainers.",
 			Value:       serpent.BoolOf(&devcontainersEnabled),
