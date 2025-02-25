@@ -4483,7 +4483,7 @@ func (s *MethodTestSuite) TestNotifications() {
 
 		notifID := uuid.New()
 
-		_ = dbgen.NotificationInbox(s.T(), db, database.InsertInboxNotificationParams{
+		notif := dbgen.NotificationInbox(s.T(), db, database.InsertInboxNotificationParams{
 			ID:         notifID,
 			UserID:     u.ID,
 			TemplateID: notifications.TemplateWorkspaceAutoUpdated,
@@ -4496,7 +4496,7 @@ func (s *MethodTestSuite) TestNotifications() {
 		check.Args(database.GetInboxNotificationsByUserIDParams{
 			UserID:     u.ID,
 			ReadStatus: database.InboxNotificationReadStatusAll.String(),
-		}).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionRead)
+		}).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionRead).Returns([]database.InboxNotification{notif})
 	}))
 
 	s.Run("GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets", s.Subtest(func(db database.Store, check *expects) {
@@ -4506,7 +4506,7 @@ func (s *MethodTestSuite) TestNotifications() {
 
 		targets := []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}
 
-		_ = dbgen.NotificationInbox(s.T(), db, database.InsertInboxNotificationParams{
+		notif := dbgen.NotificationInbox(s.T(), db, database.InsertInboxNotificationParams{
 			ID:         notifID,
 			UserID:     u.ID,
 			TemplateID: notifications.TemplateWorkspaceAutoUpdated,
@@ -4522,7 +4522,7 @@ func (s *MethodTestSuite) TestNotifications() {
 			Templates:  []uuid.UUID{notifications.TemplateWorkspaceAutoUpdated},
 			Targets:    []uuid.UUID{u.ID},
 			ReadStatus: database.InboxNotificationReadStatusAll.String(),
-		}).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionRead)
+		}).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionRead).Returns([]database.InboxNotification{notif})
 	}))
 
 	s.Run("GetInboxNotificationByID", s.Subtest(func(db database.Store, check *expects) {
