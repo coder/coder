@@ -21,11 +21,6 @@ import (
 	"golang.org/x/xerrors"
 )
 
-const (
-	RuntimeSystem int = iota
-	RuntimeDocker
-)
-
 // DockerCLILister is a ContainerLister that lists containers using the docker CLI
 type DockerCLILister struct {
 	execer agentexec.Execer
