@@ -9,6 +9,7 @@ import (
 
 // HomeDir returns the home directory of the current user, giving
 // priority to the $HOME environment variable.
+// Deprecated: use EnvInfoer.HomeDir() instead.
 func HomeDir() (string, error) {
 	// First we check the environment.
 	homedir, err := os.UserHomeDir()
