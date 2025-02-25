@@ -124,7 +124,7 @@ type fakeEnvInfoer struct {
 	UserShellFn   func(string) (string, error)
 }
 
-func (f *fakeEnvInfoer) CurrentUser() (u *user.User, err error) {
+func (f *fakeEnvInfoer) User() (u *user.User, err error) {
 	return f.CurrentUserFn()
 }
 
@@ -132,11 +132,11 @@ func (f *fakeEnvInfoer) Environ() []string {
 	return f.EnvironFn()
 }
 
-func (f *fakeEnvInfoer) UserHomeDir() (string, error) {
+func (f *fakeEnvInfoer) HomeDir() (string, error) {
 	return f.UserHomeDirFn()
 }
 
-func (f *fakeEnvInfoer) UserShell(u string) (string, error) {
+func (f *fakeEnvInfoer) Shell(u string) (string, error) {
 	return f.UserShellFn(u)
 }
 

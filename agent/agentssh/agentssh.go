@@ -709,13 +709,13 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string,
 	if ei == nil {
 		ei = &usershell.SystemEnvInfo{}
 	}
-	currentUser, err := ei.CurrentUser()
+	currentUser, err := ei.User()
 	if err != nil {
 		return nil, xerrors.Errorf("get current user: %w", err)
 	}
 	username := currentUser.Username
 
-	shell, err := ei.UserShell(username)
+	shell, err := ei.Shell(username)
 	if err != nil {
 		return nil, xerrors.Errorf("get user shell: %w", err)
 	}
@@ -777,7 +777,7 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string,
 	_, err = os.Stat(cmd.Dir)
 	if cmd.Dir == "" || err != nil {
 		// Default to user home if a directory is not set.
-		homedir, err := ei.UserHomeDir()
+		homedir, err := ei.HomeDir()
 		if err != nil {
 			return nil, xerrors.Errorf("get home dir: %w", err)
 		}

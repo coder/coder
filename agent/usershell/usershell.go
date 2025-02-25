@@ -26,14 +26,14 @@ func HomeDir() (string, error) {
 
 // EnvInfoer encapsulates external information about the environment.
 type EnvInfoer interface {
-	// CurrentUser returns the current user.
-	CurrentUser() (*user.User, error)
+	// User returns the current user.
+	User() (*user.User, error)
 	// Environ returns the environment variables of the current process.
 	Environ() []string
-	// UserHomeDir returns the home directory of the current user.
-	UserHomeDir() (string, error)
-	// UserShell returns the shell of the given user.
-	UserShell(username string) (string, error)
+	// HomeDir returns the home directory of the current user.
+	HomeDir() (string, error)
+	// Shell returns the shell of the given user.
+	Shell(username string) (string, error)
 	// ModifyCommand modifies the command and arguments before execution based on
 	// the environment. This is useful for executing a command inside a container.
 	// In the default case, the command and arguments are returned unchanged.
@@ -44,7 +44,7 @@ type EnvInfoer interface {
 // just using the default Go implementations.
 type SystemEnvInfo struct{}
 
-func (SystemEnvInfo) CurrentUser() (*user.User, error) {
+func (SystemEnvInfo) User() (*user.User, error) {
 	return user.Current()
 }
 
@@ -52,11 +52,11 @@ func (SystemEnvInfo) Environ() []string {
 	return os.Environ()
 }
 
-func (SystemEnvInfo) UserHomeDir() (string, error) {
+func (SystemEnvInfo) HomeDir() (string, error) {
 	return HomeDir()
 }
 
-func (SystemEnvInfo) UserShell(username string) (string, error) {
+func (SystemEnvInfo) Shell(username string) (string, error) {
 	return Get(username)
 }
 

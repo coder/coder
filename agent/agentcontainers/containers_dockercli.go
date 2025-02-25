@@ -128,13 +128,13 @@ func EnvInfo(ctx context.Context, execer agentexec.Execer, container, containerU
 	return &dei, nil
 }
 
-func (dei *DockerEnvInfoer) CurrentUser() (*user.User, error) {
+func (dei *DockerEnvInfoer) User() (*user.User, error) {
 	// Clone the user so that the caller can't modify it
 	u := *dei.user
 	return &u, nil
 }
 
-func (dei *DockerEnvInfoer) UserShell(string) (string, error) {
+func (dei *DockerEnvInfoer) Shell(string) (string, error) {
 	return dei.userShell, nil
 }
 
