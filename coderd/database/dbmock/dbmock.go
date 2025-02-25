@@ -2031,6 +2031,21 @@ func (mr *MockStoreMockRecorder) GetParameterSchemasByJobID(ctx, jobID any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetParameterSchemasByJobID", reflect.TypeOf((*MockStore)(nil).GetParameterSchemasByJobID), ctx, jobID)
 }
 
+// GetPrebuildMetrics mocks base method.
+func (m *MockStore) GetPrebuildMetrics(ctx context.Context) ([]database.GetPrebuildMetricsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPrebuildMetrics", ctx)
+	ret0, _ := ret[0].([]database.GetPrebuildMetricsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetPrebuildMetrics indicates an expected call of GetPrebuildMetrics.
+func (mr *MockStoreMockRecorder) GetPrebuildMetrics(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPrebuildMetrics", reflect.TypeOf((*MockStore)(nil).GetPrebuildMetrics), ctx)
+}
+
 // GetPrebuildsInProgress mocks base method.
 func (m *MockStore) GetPrebuildsInProgress(ctx context.Context) ([]database.GetPrebuildsInProgressRow, error) {
 	m.ctrl.T.Helper()

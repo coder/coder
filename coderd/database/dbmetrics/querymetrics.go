@@ -987,6 +987,13 @@ func (m queryMetricsStore) GetParameterSchemasByJobID(ctx context.Context, jobID
 	return schemas, err
 }
 
+func (m queryMetricsStore) GetPrebuildMetrics(ctx context.Context) ([]database.GetPrebuildMetricsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetPrebuildMetrics(ctx)
+	m.queryLatencies.WithLabelValues("GetPrebuildMetrics").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetPrebuildsInProgress(ctx context.Context) ([]database.GetPrebuildsInProgressRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetPrebuildsInProgress(ctx)

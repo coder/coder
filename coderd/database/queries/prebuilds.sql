@@ -71,3 +71,46 @@ RETURNING w.id, w.name;
 INSERT INTO template_version_preset_prebuilds (id, preset_id, desired_instances, invalidate_after_secs)
 VALUES (@id::uuid, @preset_id::uuid, @desired_instances::int, @invalidate_after_secs::int)
 RETURNING *;
+
+-- name: GetPrebuildMetrics :many
+SELECT
+    t.name as template_name,
+    tvp.name as preset_name,
+		COUNT(*) FILTER ( -- created
+				-- TODO (sasswart): double check which job statuses should be included here
+				WHERE
+					pj.initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
+					AND pj.job_status = 'succeeded'::provisioner_job_status
+		) as created,
+		COUNT(*) FILTER ( -- failed
+				-- TODO (sasswart): should we count cancelled here?
+				WHERE pj.initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
+						AND pj.job_status = 'failed'::provisioner_job_status
+		) as failed,
+		COUNT(*) FILTER ( -- assigned
+				WHERE pj.initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
+						AND NOT w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
+		) as assigned,
+		COUNT(*) FILTER ( -- exhausted
+				-- TODO (sasswart): write a filter to count this
+				-- we should be able to count:
+				-- - workspace builds
+				-- - that have a preset id
+				-- - and that preset has prebuilds enabled
+				-- - and the job for the prebuild was initiated by a user other than the prebuilds user
+				WHERE
+					wb.template_version_preset_id IS NOT NULL
+					AND w.owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
+					AND wb.initiator_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
+		) as exhausted,
+		COUNT(*) FILTER ( -- used_preset
+			WHERE wb.template_version_preset_id IS NOT NULL
+		) as used_preset
+FROM workspace_builds wb
+INNER JOIN provisioner_jobs pj ON wb.job_id = pj.id
+LEFT JOIN workspaces w ON wb.workspace_id = w.id
+LEFT JOIN template_version_presets tvp ON wb.template_version_preset_id = tvp.id
+LEFT JOIN template_versions tv ON tv.id = wb.template_version_id
+LEFT JOIN templates t ON t.id = tv.template_id
+WHERE pj.initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
+GROUP BY t.name, tvp.name;
