@@ -1,4 +1,9 @@
 -- name: GetInboxNotificationsByUserID :many
+-- Fetches inbox notifications for a user filtered by templates and targets
+-- param user_id: The user ID
+-- param read_status: The read status to filter by - can be any of 'ALL', 'UNREAD', 'READ'
+-- param created_at_opt: The created_at timestamp to filter by. This parameter is usd for pagination - it fetches notifications created before the specified timestamp if it is not the zero value
+-- param limit_opt: The limit of notifications to fetch. If the limit is not specified, it defaults to 25
 SELECT * FROM inbox_notifications WHERE
 	user_id = @user_id AND
 	(@read_status::text = 'ALL' OR (@read_status::text = 'UNREAD' AND read_at IS NULL) OR (@read_status::text = 'READ' AND read_at IS NOT NULL)) AND
@@ -11,6 +16,9 @@ SELECT * FROM inbox_notifications WHERE
 -- param user_id: The user ID
 -- param templates: The template IDs to filter by - the template_id = ANY(@templates::UUID[]) condition checks if the template_id is in the @templates array
 -- param targets: The target IDs to filter by - the targets @> COALESCE(@targets, ARRAY[]::UUID[]) condition checks if the targets array (from the DB) contains all the elements in the @targets array
+-- param read_status: The read status to filter by - can be any of 'ALL', 'UNREAD', 'READ'
+-- param created_at_opt: The created_at timestamp to filter by. This parameter is usd for pagination - it fetches notifications created before the specified timestamp if it is not the zero value
+-- param limit_opt: The limit of notifications to fetch. If the limit is not specified, it defaults to 25
 SELECT * FROM inbox_notifications WHERE
 	user_id = @user_id AND
 	template_id = ANY(@templates::UUID[]) AND
