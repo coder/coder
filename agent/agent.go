@@ -68,26 +68,27 @@ const (
 )
 
 type Options struct {
-	Filesystem                    afero.Fs
-	LogDir                        string
-	TempDir                       string
-	ScriptDataDir                 string
-	ExchangeToken                 func(ctx context.Context) (string, error)
-	Client                        Client
-	ReconnectingPTYTimeout        time.Duration
-	EnvironmentVariables          map[string]string
-	Logger                        slog.Logger
-	IgnorePorts                   map[int]string
-	PortCacheDuration             time.Duration
-	SSHMaxTimeout                 time.Duration
-	TailnetListenPort             uint16
-	Subsystems                    []codersdk.AgentSubsystem
-	PrometheusRegistry            *prometheus.Registry
-	ReportMetadataInterval        time.Duration
-	ServiceBannerRefreshInterval  time.Duration
-	BlockFileTransfer             bool
-	Execer                        agentexec.Execer
-	ContainerLister               agentcontainers.Lister
+	Filesystem                   afero.Fs
+	LogDir                       string
+	TempDir                      string
+	ScriptDataDir                string
+	ExchangeToken                func(ctx context.Context) (string, error)
+	Client                       Client
+	ReconnectingPTYTimeout       time.Duration
+	EnvironmentVariables         map[string]string
+	Logger                       slog.Logger
+	IgnorePorts                  map[int]string
+	PortCacheDuration            time.Duration
+	SSHMaxTimeout                time.Duration
+	TailnetListenPort            uint16
+	Subsystems                   []codersdk.AgentSubsystem
+	PrometheusRegistry           *prometheus.Registry
+	ReportMetadataInterval       time.Duration
+	ServiceBannerRefreshInterval time.Duration
+	BlockFileTransfer            bool
+	Execer                       agentexec.Execer
+	ContainerLister              agentcontainers.Lister
+
 	ExperimentalContainersEnabled bool
 }
 
@@ -185,10 +186,11 @@ func New(options Options) Agent {
 		logSender:                          agentsdk.NewLogSender(options.Logger),
 		blockFileTransfer:                  options.BlockFileTransfer,
 
-		prometheusRegistry:               prometheusRegistry,
-		metrics:                          newAgentMetrics(prometheusRegistry),
-		execer:                           options.Execer,
-		lister:                           options.ContainerLister,
+		prometheusRegistry: prometheusRegistry,
+		metrics:            newAgentMetrics(prometheusRegistry),
+		execer:             options.Execer,
+		lister:             options.ContainerLister,
+
 		experimentalDevcontainersEnabled: options.ExperimentalContainersEnabled,
 	}
 	// Initially, we have a closed channel, reflecting the fact that we are not initially connected.
@@ -257,9 +259,10 @@ type agent struct {
 	prometheusRegistry *prometheus.Registry
 	// metrics are prometheus registered metrics that will be collected and
 	// labeled in Coder with the agent + workspace.
-	metrics                          *agentMetrics
-	execer                           agentexec.Execer
-	lister                           agentcontainers.Lister
+	metrics *agentMetrics
+	execer  agentexec.Execer
+	lister  agentcontainers.Lister
+
 	experimentalDevcontainersEnabled bool
 }
 

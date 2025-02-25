@@ -21,13 +21,14 @@ import (
 )
 
 type Server struct {
-	logger                        slog.Logger
-	connectionsTotal              prometheus.Counter
-	errorsTotal                   *prometheus.CounterVec
-	commandCreator                *agentssh.Server
-	connCount                     atomic.Int64
-	reconnectingPTYs              sync.Map
-	timeout                       time.Duration
+	logger           slog.Logger
+	connectionsTotal prometheus.Counter
+	errorsTotal      *prometheus.CounterVec
+	commandCreator   *agentssh.Server
+	connCount        atomic.Int64
+	reconnectingPTYs sync.Map
+	timeout          time.Duration
+
 	ExperimentalContainersEnabled bool
 }
 
