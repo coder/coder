@@ -65,6 +65,11 @@ export const RBACResourceActions: Partial<
 		read: "read IdP sync settings",
 		update: "update IdP sync settings",
 	},
+	inbox_notification: {
+		create: "create inbox notifications",
+		read: "read inbox notifications",
+		update: "update inbox notifications",
+	},
 	license: {
 		create: "create a license",
 		delete: "delete license",

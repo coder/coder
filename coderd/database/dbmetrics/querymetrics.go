@@ -178,6 +178,13 @@ func (m queryMetricsStore) CleanTailnetTunnels(ctx context.Context) error {
 	return r0
 }
 
+func (m queryMetricsStore) CountUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.CountUnreadInboxNotificationsByUserID(ctx, userID)
+	m.queryLatencies.WithLabelValues("CountUnreadInboxNotificationsByUserID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) CustomRoles(ctx context.Context, arg database.CustomRolesParams) ([]database.CustomRole, error) {
 	start := time.Now()
 	r0, r1 := m.s.CustomRoles(ctx, arg)
@@ -710,6 +717,13 @@ func (m queryMetricsStore) GetFileTemplates(ctx context.Context, fileID uuid.UUI
 	return rows, err
 }
 
+func (m queryMetricsStore) GetFilteredInboxNotificationsByUserID(ctx context.Context, arg database.GetFilteredInboxNotificationsByUserIDParams) ([]database.InboxNotification, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetFilteredInboxNotificationsByUserID(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetFilteredInboxNotificationsByUserID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
 	start := time.Now()
 	key, err := m.s.GetGitSSHKey(ctx, userID)
@@ -771,6 +785,20 @@ func (m queryMetricsStore) GetHungProvisionerJobs(ctx context.Context, hungSince
 	jobs, err := m.s.GetHungProvisionerJobs(ctx, hungSince)
 	m.queryLatencies.WithLabelValues("GetHungProvisionerJobs").Observe(time.Since(start).Seconds())
 	return jobs, err
+}
+
+func (m queryMetricsStore) GetInboxNotificationByID(ctx context.Context, id uuid.UUID) (database.InboxNotification, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetInboxNotificationByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetInboxNotificationByID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetInboxNotificationsByUserID(ctx context.Context, userID database.GetInboxNotificationsByUserIDParams) ([]database.InboxNotification, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetInboxNotificationsByUserID(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetInboxNotificationsByUserID").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m queryMetricsStore) GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg database.GetJFrogXrayScanByWorkspaceAndAgentIDParams) (database.JfrogXrayScan, error) {
@@ -1879,6 +1907,13 @@ func (m queryMetricsStore) InsertGroupMember(ctx context.Context, arg database.I
 	return err
 }
 
+func (m queryMetricsStore) InsertInboxNotification(ctx context.Context, arg database.InsertInboxNotificationParams) (database.InboxNotification, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertInboxNotification(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertInboxNotification").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertLicense(ctx context.Context, arg database.InsertLicenseParams) (database.License, error) {
 	start := time.Now()
 	license, err := m.s.InsertLicense(ctx, arg)
@@ -2332,6 +2367,13 @@ func (m queryMetricsStore) UpdateInactiveUsersToDormant(ctx context.Context, las
 	r0, r1 := m.s.UpdateInactiveUsersToDormant(ctx, lastSeenAfter)
 	m.queryLatencies.WithLabelValues("UpdateInactiveUsersToDormant").Observe(time.Since(start).Seconds())
 	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateInboxNotificationReadStatus(ctx context.Context, arg database.UpdateInboxNotificationReadStatusParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateInboxNotificationReadStatus(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateInboxNotificationReadStatus").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m queryMetricsStore) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemberRolesParams) (database.OrganizationMember, error) {
