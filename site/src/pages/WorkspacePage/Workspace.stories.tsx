@@ -96,17 +96,16 @@ export const AppIcons: Story = {
 								apps: [
 									{
 										...Mocks.MockWorkspaceApp,
+										id: "test-app-1",
+										slug: "test-app-1",
 										display_name: "Default Icon",
 									},
 									{
 										...Mocks.MockWorkspaceApp,
+										id: "test-app-2",
+										slug: "test-app-2",
 										display_name: "Broken Icon",
 										icon: "/foobar/broken.png",
-									},
-									{
-										...Mocks.MockWorkspaceApp,
-										display_name: "Icon OK",
-										icon: "/favicon.ico",
 									},
 								],
 							},
