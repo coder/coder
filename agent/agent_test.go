@@ -1773,12 +1773,11 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 // CODER_TEST_USE_DOCKER=1 go test -count=1 ./agent -run TestAgent_ReconnectingPTYContainer
 func TestAgent_ReconnectingPTYContainer(t *testing.T) {
 	t.Parallel()
-	if ctud, ok := os.LookupEnv("CODER_TEST_USE_DOCKER"); !ok || ctud != "1" {
+	if os.Getenv("CODER_TEST_USE_DOCKER") != "1" {
 		t.Skip("Set CODER_TEST_USE_DOCKER=1 to run this test")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
+	ctx := testutil.Context(t, testutil.WaitLong)
 
 	pool, err := dockertest.NewPool("")
 	require.NoError(t, err, "Could not connect to docker")
