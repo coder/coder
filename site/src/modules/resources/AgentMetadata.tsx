@@ -6,6 +6,7 @@ import type {
 	WorkspaceAgent,
 	WorkspaceAgentMetadata,
 } from "api/typesGenerated";
+import { displayError } from "components/GlobalSnackbar/utils";
 import { Stack } from "components/Stack/Stack";
 import dayjs from "dayjs";
 import {
@@ -81,7 +82,9 @@ export const AgentMetadata: FC<AgentMetadataProps> = ({
 				try {
 					const data = JSON.parse(e.data);
 					setMetadata(data);
-				} catch (err) {}
+				} catch {
+					displayError("Unable to process newest response from server");
+				}
 			});
 		};
 
