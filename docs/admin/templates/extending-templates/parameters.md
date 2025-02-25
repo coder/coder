@@ -315,9 +315,9 @@ data "coder_parameter" "project_id" {
 
 ## Workspace presets
 
-Workspace presets allow you to select settings tailored to your most common development scenarios.
-
-Coder admins can configure workspace presets with combinations of parameter values and workspace settings within each template's Terraform file, and workspace users can customize their configurations as they need to.
+Workspace presets allow you to configure commonly used combinations of parameters
+into a single option, which makes it easier for developers to pick one that fits
+their needs.
 
 Use `coder_workspace_preset` to define the preset parameters.
 
