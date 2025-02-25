@@ -354,8 +354,41 @@ func TestExtraneousInProgress(t *testing.T) {
 	}, *actions)
 }
 
-func preset(active bool, instances int32, opts options) database.GetTemplatePresetsWithPrebuildsRow {
-	return database.GetTemplatePresetsWithPrebuildsRow{
+// A template marked as deprecated will not have prebuilds running.
+func TestDeprecated(t *testing.T) {
+	current := opts[optionSet0]
+
+	// GIVEN: a preset with 1 desired prebuild.
+	presets := []database.GetTemplatePresetsWithPrebuildsRow{
+		preset(true, 1, current, func(row database.GetTemplatePresetsWithPrebuildsRow) database.GetTemplatePresetsWithPrebuildsRow {
+			row.Deprecated = true
+			return row
+		}),
+	}
+
+	// GIVEN: 1 running prebuilds for the preset.
+	running := []database.GetRunningPrebuildsRow{
+		prebuild(current),
+	}
+
+	// GIVEN: NO prebuilds in progress.
+	var inProgress []database.GetPrebuildsInProgressRow
+
+	// WHEN: calculating the current preset's state.
+	state := newReconciliationState(presets, running, inProgress)
+	ps, err := state.filterByPreset(current.presetID)
+	require.NoError(t, err)
+
+	// THEN: all running prebuilds should be deleted because the template is deprecated.
+	actions, err := ps.calculateActions()
+	require.NoError(t, err)
+	validateActions(t, reconciliationActions{
+		actual: 1, deleteIDs: []uuid.UUID{current.prebuildID}, eligible: 1,
+	}, *actions)
+}
+
+func preset(active bool, instances int32, opts options, muts ...func(row database.GetTemplatePresetsWithPrebuildsRow) database.GetTemplatePresetsWithPrebuildsRow) database.GetTemplatePresetsWithPrebuildsRow {
+	entry := database.GetTemplatePresetsWithPrebuildsRow{
 		TemplateID:         opts.templateID,
 		TemplateVersionID:  opts.templateVersionID,
 		PresetID:           opts.presetID,
@@ -365,6 +398,11 @@ func preset(active bool, instances int32, opts options) database.GetTemplatePres
 		Deleted:            false,
 		Deprecated:         false,
 	}
+
+	for _, mut := range muts {
+		entry = mut(entry)
+	}
+	return entry
 }
 
 func prebuild(opts options, muts ...func(row database.GetRunningPrebuildsRow) database.GetRunningPrebuildsRow) database.GetRunningPrebuildsRow {

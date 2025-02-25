@@ -141,6 +141,14 @@ func (p presetState) calculateActions() (*reconciliationActions, error) {
 		}
 	)
 
+	// If the template has become deleted or deprecated since the last reconciliation, we need to ensure we
+	// scale those prebuilds down to zero.
+	if p.preset.Deleted || p.preset.Deprecated {
+		toCreate = 0
+		toDelete = int(actual + outdated)
+		actions.desired = 0
+	}
+
 	// Bail early to avoid scheduling new prebuilds while operations are in progress.
 	// TODO: optimization: we should probably be able to create prebuilds while others are deleting for a given preset.
 	if (toCreate+toDelete) > 0 && (starting+stopping+deleting) > 0 {
@@ -191,13 +199,6 @@ func (p presetState) calculateActions() (*reconciliationActions, error) {
 
 		// Prevent the rest of the reconciliation from completing
 		return actions, nil
-	}
-
-	// If the template has become deleted or deprecated since the last reconciliation, we need to ensure we
-	// scale those prebuilds down to zero.
-	if p.preset.Deleted || p.preset.Deprecated {
-		toCreate = 0
-		toDelete = int(actual + outdated)
 	}
 
 	actions.create = int32(toCreate)
