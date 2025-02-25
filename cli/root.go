@@ -1219,7 +1219,7 @@ func wrapTransportWithVersionMismatchCheck(rt http.RoundTripper, inv *serpent.In
 					upgradeMessage = serverInfo.UpgradeMessage
 				// The site-local `install.sh` was introduced in v2.19.0
 				case serverInfo.DashboardURL != "" && semver.Compare(semver.MajorMinor(serverVersion), "v2.19") >= 0:
-					upgradeMessage = fmt.Sprintf("download the server version with: 'curl -fsSL %s/install.sh | sh'", serverInfo.DashboardURL)
+					upgradeMessage = fmt.Sprintf("download %s with: 'curl -fsSL %s/install.sh | sh'", serverVersion, serverInfo.DashboardURL)
 				}
 			}
 			fmtWarningText := "version mismatch: client %s, server %s\n%s"
