@@ -7,6 +7,7 @@ import (
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
 
+	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -59,9 +60,7 @@ func TestExpRpty(t *testing.T) {
 		t.Parallel()
 
 		client, workspace, agentToken := setupWorkspaceForAgent(t)
-
 		ctx := testutil.Context(t, testutil.WaitLong)
-
 		pool, err := dockertest.NewPool("")
 		require.NoError(t, err, "Could not connect to docker")
 		ct, err := pool.RunWithOptions(&dockertest.RunOptions{
@@ -92,11 +91,13 @@ func TestExpRpty(t *testing.T) {
 			assert.NoError(t, err)
 		})
 
-		_ = agenttest.New(t, client.URL, agentToken)
+		_ = agenttest.New(t, client.URL, agentToken, func(o *agent.Options) {
+			o.ExperimentalContainersEnabled = true
+		})
 		_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
 
 		pty.ExpectMatch(fmt.Sprintf("Connected to %s", workspace.Name))
-		pty.ExpectMatch("/ #")
+		pty.ExpectMatch(" #")
 		pty.WriteLine("hostname")
 		pty.ExpectMatch(ct.Container.Config.Hostname)
 		pty.WriteLine("exit")
