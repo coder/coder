@@ -20,7 +20,7 @@ export const SigningIn: Story = {
 		isSigningIn: true,
 		authMethods: {
 			password: { enabled: true },
-			github: { enabled: true },
+			github: { enabled: true, default_provider_configured: false },
 			oidc: { enabled: false, signInText: "", iconUrl: "" },
 		},
 	},
@@ -44,7 +44,7 @@ export const WithGithub: Story = {
 	args: {
 		authMethods: {
 			password: { enabled: true },
-			github: { enabled: true },
+			github: { enabled: true, default_provider_configured: false },
 			oidc: { enabled: false, signInText: "", iconUrl: "" },
 		},
 	},
@@ -54,7 +54,7 @@ export const WithOIDC: Story = {
 	args: {
 		authMethods: {
 			password: { enabled: true },
-			github: { enabled: false },
+			github: { enabled: false, default_provider_configured: false },
 			oidc: { enabled: true, signInText: "", iconUrl: "" },
 		},
 	},
@@ -64,7 +64,7 @@ export const WithOIDCWithoutPassword: Story = {
 	args: {
 		authMethods: {
 			password: { enabled: false },
-			github: { enabled: false },
+			github: { enabled: false, default_provider_configured: false },
 			oidc: { enabled: true, signInText: "", iconUrl: "" },
 		},
 	},
@@ -74,7 +74,7 @@ export const WithoutAny: Story = {
 	args: {
 		authMethods: {
 			password: { enabled: false },
-			github: { enabled: false },
+			github: { enabled: false, default_provider_configured: false },
 			oidc: { enabled: false, signInText: "", iconUrl: "" },
 		},
 	},
@@ -84,7 +84,7 @@ export const WithGithubAndOIDC: Story = {
 	args: {
 		authMethods: {
 			password: { enabled: true },
-			github: { enabled: true },
+			github: { enabled: true, default_provider_configured: false },
 			oidc: { enabled: true, signInText: "", iconUrl: "" },
 		},
 	},

@@ -373,6 +373,17 @@ Client secret for Login with GitHub.
 
 Enable device flow for Login with GitHub.
 
+### --oauth2-github-default-provider-enable
+
+|             |                                                           |
+|-------------|-----------------------------------------------------------|
+| Type        | <code>bool</code>                                         |
+| Environment | <code>$CODER_OAUTH2_GITHUB_DEFAULT_PROVIDER_ENABLE</code> |
+| YAML        | <code>oauth2.github.defaultProviderEnable</code>          |
+| Default     | <code>true</code>                                         |
+
+Enable the default GitHub OAuth2 provider managed by Coder.
+
 ### --oauth2-github-allowed-orgs
 
 |             |                                                |

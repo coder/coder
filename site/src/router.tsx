@@ -267,10 +267,7 @@ const CreateEditRolePage = lazy(
 		),
 );
 const ProvisionersPage = lazy(
-	() =>
-		import(
-			"./pages/OrganizationSettingsPage/ProvisionersPage/ProvisionersPage"
-		),
+	() => import("./pages/OrganizationSettingsPage/OrganizationProvisionersPage"),
 );
 const TemplateEmbedPage = lazy(
 	() => import("./pages/TemplatePage/TemplateEmbedPage/TemplateEmbedPage"),
