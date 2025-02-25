@@ -167,11 +167,9 @@ const OrganizationSettingsNavigation: FC<
 	return (
 		<>
 			<div className="flex flex-col gap-1 my-2">
-				{orgPermissions.viewMembers && (
-					<SettingsSidebarNavItem end href={urlForSubpage(organization.name)}>
-						Members
-					</SettingsSidebarNavItem>
-				)}
+				<SettingsSidebarNavItem end href={urlForSubpage(organization.name)}>
+					Members
+				</SettingsSidebarNavItem>
 				{orgPermissions.viewGroups && (
 					<SettingsSidebarNavItem
 						href={urlForSubpage(organization.name, "groups")}

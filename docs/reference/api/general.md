@@ -328,6 +328,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         ],
         "client_id": "string",
         "client_secret": "string",
+        "device_flow": true,
         "enterprise_base_url": "string"
       }
     },
@@ -375,6 +376,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "sign_in_text": "string",
       "signups_disabled_text": "string",
       "skip_issuer_checks": true,
+      "source_user_info_from_access_token": true,
       "user_role_field": "string",
       "user_role_mapping": {},
       "user_roles_default": [
