@@ -59,8 +59,7 @@ export const ManyChildren: Story = {
 			<>
 				{Array.from({ length: 10 }).map((_, i) => (
 					<div
-						// biome-ignore lint/suspicious/noArrayIndexKey: <explanation>
-						key={i}
+						key={`option-${i + 1}`}
 						className="p-2 border border-border rounded-md border-solid"
 					>
 						Option {i + 1}
