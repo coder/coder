@@ -1256,6 +1256,15 @@ func TestQueuePosition(t *testing.T) {
 		time.Sleep(time.Millisecond)
 	}
 
+	// Create default provisioner daemon:
+	dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+		Name:         "default_provisioner",
+		Provisioners: []database.ProvisionerType{database.ProvisionerTypeEcho},
+		// Ensure the `tags` field is NOT NULL for the default provisioner;
+		// otherwise, it won't be able to pick up any jobs.
+		Tags: database.StringMap{"a": "1"},
+	})
+
 	queued, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, jobIDs)
 	require.NoError(t, err)
 	require.Len(t, queued, jobCount)
