@@ -70,7 +70,7 @@ We support two release channels: mainline and stable - read the
   helm install coder coder-v2/coder \
       --namespace coder \
       --values values.yaml \
-      --version 2.18.0
+      --version 2.19.0
   ```
 
 - **Stable** Coder release:
@@ -81,7 +81,7 @@ We support two release channels: mainline and stable - read the
   helm install coder coder-v2/coder \
       --namespace coder \
       --values values.yaml \
-      --version 2.17.2
+      --version 2.18.5
   ```
 
 You can watch Coder start up by running `kubectl get pods -n coder`. Once Coder
