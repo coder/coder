@@ -771,7 +771,10 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []datab
 	for _, build := range workspaceBuilds {
 		jobIDs = append(jobIDs, build.JobID)
 	}
-	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, jobIDs)
+	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+		IDs:             jobIDs,
+		StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+	})
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return workspaceBuildsData{}, xerrors.Errorf("get provisioner jobs: %w", err)
 	}
