@@ -8,29 +8,6 @@ or deployment, such as:
 - Causes of pod provisioning failures, or why a pod is stuck in a pending state.
 - Visibility into when pods are OOMKilled, or when they are evicted.
 
-## Prerequisites
-
-`coder-logstream-kube` works best with the
-[`kubernetes_deployment`](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/deployment)
-Terraform resource, which requires the `coder` service account to have
-permission to create deployments. For example, if you use
-[Helm](../../install/kubernetes.md#4-install-coder-with-helm) to install Coder,
-you should set `coder.serviceAccount.enableDeployments=true` in your
-`values.yaml`
-
-```diff
-coder:
-serviceAccount:
-    workspacePerms: true
--   enableDeployments: false
-+   enableDeployments: true
-    annotations: {}
-    name: coder
-```
-
-> Note: This is only required for Coder versions < 0.28.0, as this will be the
-> default value for Coder versions >= 0.28.0
-
 ## Installation
 
 Install the `coder-logstream-kube` helm chart on the cluster where the

@@ -159,16 +159,16 @@ Database migrations are managed with
 To add new migrations, use the following command:
 
 ```shell
-./coderd/database/migrations/create_fixture.sh my name
+./coderd/database/migrations/create_migration.sh my name
 /home/coder/src/coder/coderd/database/migrations/000070_my_name.up.sql
 /home/coder/src/coder/coderd/database/migrations/000070_my_name.down.sql
 ```
 
-Run "make gen" to generate models.
-
 Then write queries into the generated `.up.sql` and `.down.sql` files and commit
 them into the repository. The down script should make a best-effort to retain as
 much data as possible.
+
+Run `make gen` to generate models.
 
 #### Database fixtures (for testing migrations)
 
