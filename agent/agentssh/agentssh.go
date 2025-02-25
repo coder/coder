@@ -763,7 +763,9 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string,
 		}
 	}
 
-	// Modify command prior to execution. This will usually be a no-op, but not always.
+	// Modify command prior to execution. This will usually be a no-op, but not
+	// always. For example, to run a command in a Docker container, we need to
+	// modify the command to be `docker exec -it <container> <command>`.
 	modifiedName, modifiedArgs := ei.ModifyCommand(name, args...)
 	// Log if the command was modified.
 	if modifiedName != name && slices.Compare(modifiedArgs, args) != 0 {
