@@ -242,7 +242,6 @@
           "login_type": "",
           "name": "string",
           "status": "active",
-          "theme_preference": "string",
           "updated_at": "2019-08-24T14:15:22Z",
           "username": "string"
         }
@@ -266,7 +265,6 @@
       "login_type": "",
       "name": "string",
       "status": "active",
-      "theme_preference": "string",
       "updated_at": "2019-08-24T14:15:22Z",
       "username": "string"
     }
@@ -658,7 +656,6 @@
       }
     ],
     "status": "active",
-    "theme_preference": "string",
     "updated_at": "2019-08-24T14:15:22Z",
     "username": "string"
   },
@@ -750,7 +747,6 @@
           }
         ],
         "status": "active",
-        "theme_preference": "string",
         "updated_at": "2019-08-24T14:15:22Z",
         "username": "string"
       },
@@ -3069,7 +3065,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
         }
       ],
       "status": "active",
-      "theme_preference": "string",
       "updated_at": "2019-08-24T14:15:22Z",
       "username": "string"
     }
@@ -3137,7 +3132,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
       "login_type": "",
       "name": "string",
       "status": "active",
-      "theme_preference": "string",
       "updated_at": "2019-08-24T14:15:22Z",
       "username": "string"
     }
@@ -5185,7 +5179,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "login_type": "",
   "name": "string",
   "status": "active",
-  "theme_preference": "string",
   "updated_at": "2019-08-24T14:15:22Z",
   "username": "string"
 }
@@ -5193,19 +5186,18 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name               | Type                                       | Required | Restrictions | Description |
-|--------------------|--------------------------------------------|----------|--------------|-------------|
-| `avatar_url`       | string                                     | false    |              |             |
-| `created_at`       | string                                     | true     |              |             |
-| `email`            | string                                     | true     |              |             |
-| `id`               | string                                     | true     |              |             |
-| `last_seen_at`     | string                                     | false    |              |             |
-| `login_type`       | [codersdk.LoginType](#codersdklogintype)   | false    |              |             |
-| `name`             | string                                     | false    |              |             |
-| `status`           | [codersdk.UserStatus](#codersdkuserstatus) | false    |              |             |
-| `theme_preference` | string                                     | false    |              |             |
-| `updated_at`       | string                                     | false    |              |             |
-| `username`         | string                                     | true     |              |             |
+| Name           | Type                                       | Required | Restrictions | Description |
+|----------------|--------------------------------------------|----------|--------------|-------------|
+| `avatar_url`   | string                                     | false    |              |             |
+| `created_at`   | string                                     | true     |              |             |
+| `email`        | string                                     | true     |              |             |
+| `id`           | string                                     | true     |              |             |
+| `last_seen_at` | string                                     | false    |              |             |
+| `login_type`   | [codersdk.LoginType](#codersdklogintype)   | false    |              |             |
+| `name`         | string                                     | false    |              |             |
+| `status`       | [codersdk.UserStatus](#codersdkuserstatus) | false    |              |             |
+| `updated_at`   | string                                     | false    |              |             |
+| `username`     | string                                     | true     |              |             |
 
 #### Enumerated Values
 
@@ -6170,7 +6162,6 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
     }
   ],
   "status": "active",
-  "theme_preference": "string",
   "updated_at": "2019-08-24T14:15:22Z",
   "username": "string"
 }
@@ -6191,7 +6182,6 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `role`             | [codersdk.TemplateRole](#codersdktemplaterole)  | false    |              |             |
 | `roles`            | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |             |
 | `status`           | [codersdk.UserStatus](#codersdkuserstatus)      | false    |              |             |
-| `theme_preference` | string                                          | false    |              |             |
 | `updated_at`       | string                                          | false    |              |             |
 | `username`         | string                                          | true     |              |             |
 
@@ -6870,7 +6860,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     }
   ],
   "status": "active",
-  "theme_preference": "string",
   "updated_at": "2019-08-24T14:15:22Z",
   "username": "string"
 }
@@ -6890,7 +6879,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `organization_ids` | array of string                                 | false    |              |             |
 | `roles`            | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |             |
 | `status`           | [codersdk.UserStatus](#codersdkuserstatus)      | false    |              |             |
-| `theme_preference` | string                                          | false    |              |             |
 | `updated_at`       | string                                          | false    |              |             |
 | `username`         | string                                          | true     |              |             |
 
@@ -6987,6 +6975,20 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | Name     | Type                                                                       | Required | Restrictions | Description |
 |----------|----------------------------------------------------------------------------|----------|--------------|-------------|
 | `report` | [codersdk.UserActivityInsightsReport](#codersdkuseractivityinsightsreport) | false    |              |             |
+
+## codersdk.UserAppearanceSettings
+
+```json
+{
+  "theme_preference": "string"
+}
+```
+
+### Properties
+
+| Name               | Type   | Required | Restrictions | Description |
+|--------------------|--------|----------|--------------|-------------|
+| `theme_preference` | string | false    |              |             |
 
 ## codersdk.UserLatency
 

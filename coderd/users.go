@@ -959,6 +959,38 @@ func (api *API) notifyUserStatusChanged(ctx context.Context, actingUserName stri
 	return nil
 }
 
+// @Summary Get user appearance settings
+// @ID get-user-appearance-settings
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Param user path string true "User ID, name, or me"
+// @Success 200 {object} codersdk.UserAppearanceSettings
+// @Router /users/{user}/appearance [get]
+func (api *API) userAppearanceSettings(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx  = r.Context()
+		user = httpmw.UserParam(r)
+	)
+
+	themePreference, err := api.Database.GetUserAppearanceSettings(ctx, user.ID)
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Error reading user settings.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		themePreference = ""
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserAppearanceSettings{
+		ThemePreference: themePreference,
+	})
+}
+
 // @Summary Update user appearance settings
 // @ID update-user-appearance-settings
 // @Security CoderSessionToken
@@ -967,7 +999,7 @@ func (api *API) notifyUserStatusChanged(ctx context.Context, actingUserName stri
 // @Tags Users
 // @Param user path string true "User ID, name, or me"
 // @Param request body codersdk.UpdateUserAppearanceSettingsRequest true "New appearance settings"
-// @Success 200 {object} codersdk.User
+// @Success 200 {object} codersdk.UserAppearanceSettings
 // @Router /users/{user}/appearance [put]
 func (api *API) putUserAppearanceSettings(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -980,10 +1012,9 @@ func (api *API) putUserAppearanceSettings(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	updatedUser, err := api.Database.UpdateUserAppearanceSettings(ctx, database.UpdateUserAppearanceSettingsParams{
-		ID:              user.ID,
+	updatedSettings, err := api.Database.UpdateUserAppearanceSettings(ctx, database.UpdateUserAppearanceSettingsParams{
+		UserID:          user.ID,
 		ThemePreference: params.ThemePreference,
-		UpdatedAt:       dbtime.Now(),
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -993,16 +1024,9 @@ func (api *API) putUserAppearanceSettings(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	organizationIDs, err := userOrganizationIDs(ctx, api, user)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching user's organizations.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.User(updatedUser, organizationIDs))
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserAppearanceSettings{
+		ThemePreference: updatedSettings.Value,
+	})
 }
 
 // @Summary Update user password

@@ -1966,7 +1966,6 @@ export interface ReducedUser extends MinimalUser {
 	readonly last_seen_at: string;
 	readonly status: UserStatus;
 	readonly login_type: LoginType;
-	readonly theme_preference: string;
 }
 
 // From codersdk/workspaceproxy.go
@@ -2795,6 +2794,11 @@ export interface UserActivityInsightsRequest {
 // From codersdk/insights.go
 export interface UserActivityInsightsResponse {
 	readonly report: UserActivityInsightsReport;
+}
+
+// From codersdk/users.go
+export interface UserAppearanceSettings {
+	readonly theme_preference: string;
 }
 
 // From codersdk/insights.go
