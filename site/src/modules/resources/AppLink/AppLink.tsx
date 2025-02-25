@@ -69,7 +69,7 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
 	// longer block access to apps if they are unhealthy/initializing.
 	let canClick = true;
 	let icon = !iconError && (
-		<BaseIcon app={app} onError={() => setIconError(true)} />
+		<BaseIcon app={app} onIconPathError={() => setIconError(true)} />
 	);
 
 	let primaryTooltip = "";

@@ -4,17 +4,17 @@ import type { FC } from "react";
 
 interface BaseIconProps {
 	app: WorkspaceApp;
-	onError?: () => void;
+	onIconPathError?: () => void;
 }
 
-export const BaseIcon: FC<BaseIconProps> = ({ app, onError }) => {
+export const BaseIcon: FC<BaseIconProps> = ({ app, onIconPathError }) => {
 	return app.icon ? (
 		<img
 			alt={`${app.display_name} Icon`}
 			src={app.icon}
 			style={{ pointerEvents: "none" }}
 			onError={() => {
-				onError?.();
+				onIconPathError?.();
 			}}
 		/>
 	) : (
