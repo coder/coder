@@ -33,7 +33,7 @@ const { API } = apiModule;
 jest.mock(
 	"modules/templates/TemplateResourcesTable/TemplateResourcesTable",
 	() => ({
-		TemplateResourcesTable: () => <div></div>,
+		TemplateResourcesTable: () => <div />,
 	}),
 );
 
@@ -58,7 +58,7 @@ const renderTemplateEditorPage = () => {
 		extraRoutes: [
 			{
 				path: "/templates/:templateId",
-				element: <div></div>,
+				element: <div />,
 			},
 		],
 	});

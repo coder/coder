@@ -15,6 +15,7 @@ import { useQuery, useQueryClient } from "react-query";
 import { useParams } from "react-router-dom";
 import { WorkspaceReadyPage } from "./WorkspaceReadyPage";
 import { type WorkspacePermissions, workspaceChecks } from "./permissions";
+import { displayError } from "components/GlobalSnackbar/utils";
 
 export const WorkspacePage: FC = () => {
 	const queryClient = useQueryClient();
@@ -82,20 +83,22 @@ export const WorkspacePage: FC = () => {
 			return;
 		}
 
-		const eventSource = watchWorkspace(workspaceId);
-
-		eventSource.addEventListener("data", async (event) => {
-			const newWorkspaceData = JSON.parse(event.data) as Workspace;
-			await updateWorkspaceData(newWorkspaceData);
+		const socket = watchWorkspace(workspaceId);
+		socket.addEventListener("message", (event) => {
+			try {
+				const newWorkspaceData = JSON.parse(event.data) as Workspace;
+				void updateWorkspaceData(newWorkspaceData);
+			} catch {
+				displayError(
+					"Unable to parse latest data from the server. The UI may be out of date.",
+				);
+			}
 		});
-
-		eventSource.addEventListener("error", (event) => {
+		socket.addEventListener("error", (event) => {
 			console.error("Error on getting workspace changes.", event);
 		});
 
-		return () => {
-			eventSource.close();
-		};
+		return () => socket.close();
 	}, [updateWorkspaceData, workspaceId]);
 
 	// Page statuses

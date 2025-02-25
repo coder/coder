@@ -6,6 +6,7 @@ import type {
 	WorkspaceAgent,
 	WorkspaceAgentMetadata,
 } from "api/typesGenerated";
+import { displayError } from "components/GlobalSnackbar/utils";
 import { Stack } from "components/Stack/Stack";
 import dayjs from "dayjs";
 import {
@@ -17,6 +18,7 @@ import {
 	useState,
 } from "react";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
+import type { OneWayWebSocket } from "utils/OneWayWebSocket";
 
 type ItemStatus = "stale" | "valid" | "loading";
 
@@ -48,41 +50,51 @@ export const AgentMetadata: FC<AgentMetadataProps> = ({
 }) => {
 	const [metadata, setMetadata] = useState<
 		WorkspaceAgentMetadata[] | undefined
-	>(undefined);
+	>(storybookMetadata);
 
 	useEffect(() => {
+		// Even though we're using storybookMetadata as the initial value of the
+		// `metadata` state, we can't sync on `metadata` itself. If we did, the
+		// moment we update the state with a new event, we would re-trigger the
+		// effect and immediately destroy the connection
 		if (storybookMetadata !== undefined) {
-			setMetadata(storybookMetadata);
 			return;
 		}
 
-		let timeout: ReturnType<typeof setTimeout> | undefined = undefined;
+		let timeoutId: number | undefined = undefined;
+		let latestSocket: OneWayWebSocket | undefined = undefined;
 
-		const connect = (): (() => void) => {
-			const source = watchAgentMetadata(agent.id);
+		const createNewConnection = () => {
+			const socket = watchAgentMetadata(agent.id);
+			latestSocket = socket;
 
-			source.onerror = (e) => {
+			socket.addEventListener("error", (e) => {
 				console.error("received error in watch stream", e);
 				setMetadata(undefined);
-				source.close();
+				socket.close();
 
-				timeout = setTimeout(() => {
-					connect();
-				}, 3000);
-			};
-
-			source.addEventListener("data", (e) => {
-				const data = JSON.parse(e.data);
-				setMetadata(data);
+				timeoutId = window.setTimeout(() => {
+					createNewConnection();
+				}, 3_000);
 			});
-			return () => {
-				if (timeout !== undefined) {
-					clearTimeout(timeout);
+
+			socket.addEventListener("message", (e) => {
+				try {
+					const data = JSON.parse(e.data);
+					setMetadata(data);
+				} catch {
+					displayError(
+						"Unable to process newest response from server. The UI may be out of date.",
+					);
 				}
-				source.close();
-			};
+			});
 		};
-		return connect();
+
+		createNewConnection();
+		return () => {
+			window.clearTimeout(timeoutId);
+			latestSocket?.close();
+		};
 	}, [agent.id, storybookMetadata]);
 
 	if (metadata === undefined) {
