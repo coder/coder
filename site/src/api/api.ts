@@ -106,8 +106,9 @@ const getMissingParameters = (
  * @returns A one-way WebSocket that receives agent metadata events
  */
 export const watchAgentMetadata = (agentId: string): OneWayWebSocket => {
+	const protocol = location.protocol === "https:" ? "wss:" : "ws:";
 	return new OneWayWebSocket(
-		`${location.protocol}//${location.host}/api/v2/workspaceagents/${agentId}/watch-metadata`,
+		`${protocol}//${location.host}/api/v2/workspaceagents/${agentId}/watch-metadata`,
 	);
 };
 
@@ -116,8 +117,9 @@ export const watchAgentMetadata = (agentId: string): OneWayWebSocket => {
  * @returns A one-way WebSocket that receives workspace events
  */
 export const watchWorkspace = (workspaceId: string): OneWayWebSocket => {
+	const protocol = location.protocol === "https:" ? "wss:" : "ws:";
 	return new OneWayWebSocket(
-		`${location.protocol}//${location.host}/api/v2/workspaces/${workspaceId}/watch`,
+		`${protocol}//${location.host}/api/v2/workspaces/${workspaceId}/watch`,
 	);
 };
 
