@@ -698,51 +698,6 @@ func (s *Server) sftpHandler(logger slog.Logger, session ssh.Session) {
 	_ = session.Exit(1)
 }
 
-// EnvInfoer encapsulates external information required by CreateCommand.
-type EnvInfoer interface {
-	// CurrentUser returns the current user.
-	CurrentUser() (*user.User, error)
-	// Environ returns the environment variables of the current process.
-	Environ() []string
-	// UserHomeDir returns the home directory of the current user.
-	UserHomeDir() (string, error)
-	// UserShell returns the shell of the given user.
-	UserShell(username string) (string, error)
-	// ModifyCommand modifies the command and arguments before execution.
-	ModifyCommand(name string, args ...string) (string, []string)
-}
-
-type systemEnvInfoer struct{}
-
-var defaultEnvInfoer EnvInfoer = &systemEnvInfoer{}
-
-// DefaultEnvInfoer returns a default implementation of
-// EnvInfoer. This reads information using the default Go
-// implementations.
-func DefaultEnvInfoer() EnvInfoer {
-	return defaultEnvInfoer
-}
-
-func (systemEnvInfoer) CurrentUser() (*user.User, error) {
-	return user.Current()
-}
-
-func (systemEnvInfoer) Environ() []string {
-	return os.Environ()
-}
-
-func (systemEnvInfoer) UserHomeDir() (string, error) {
-	return userHomeDir()
-}
-
-func (systemEnvInfoer) UserShell(username string) (string, error) {
-	return usershell.Get(username)
-}
-
-func (systemEnvInfoer) ModifyCommand(name string, args ...string) (string, []string) {
-	return name, args
-}
-
 // CreateCommand processes raw command input with OpenSSH-like behavior.
 // If the script provided is empty, it will default to the users shell.
 // This injects environment variables specified by the user at launch too.
@@ -750,17 +705,17 @@ func (systemEnvInfoer) ModifyCommand(name string, args ...string) (string, []str
 // alternative implementations for the dependencies of CreateCommand.
 // This is useful when creating a command to be run in a separate environment
 // (for example, a Docker container). Pass in nil to use the default.
-func (s *Server) CreateCommand(ctx context.Context, script string, env []string, deps EnvInfoer) (*pty.Cmd, error) {
-	if deps == nil {
-		deps = DefaultEnvInfoer()
+func (s *Server) CreateCommand(ctx context.Context, script string, env []string, ei usershell.EnvInfoer) (*pty.Cmd, error) {
+	if ei == nil {
+		ei = &usershell.SystemEnvInfo{}
 	}
-	currentUser, err := deps.CurrentUser()
+	currentUser, err := ei.CurrentUser()
 	if err != nil {
 		return nil, xerrors.Errorf("get current user: %w", err)
 	}
 	username := currentUser.Username
 
-	shell, err := deps.UserShell(username)
+	shell, err := ei.UserShell(username)
 	if err != nil {
 		return nil, xerrors.Errorf("get user shell: %w", err)
 	}
@@ -809,7 +764,7 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string,
 	}
 
 	// Modify command prior to execution. This will usually be a no-op, but not always.
-	modifiedName, modifiedArgs := deps.ModifyCommand(name, args...)
+	modifiedName, modifiedArgs := ei.ModifyCommand(name, args...)
 	s.logger.Info(ctx, "modified command",
 		slog.F("before", append([]string{name}, args...)),
 		slog.F("after", append([]string{modifiedName}, modifiedArgs...)),
@@ -822,13 +777,13 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string,
 	_, err = os.Stat(cmd.Dir)
 	if cmd.Dir == "" || err != nil {
 		// Default to user home if a directory is not set.
-		homedir, err := deps.UserHomeDir()
+		homedir, err := ei.UserHomeDir()
 		if err != nil {
 			return nil, xerrors.Errorf("get home dir: %w", err)
 		}
 		cmd.Dir = homedir
 	}
-	cmd.Env = append(deps.Environ(), env...)
+	cmd.Env = append(ei.Environ(), env...)
 	cmd.Env = append(cmd.Env, fmt.Sprintf("USER=%s", username))
 
 	// Set SSH connection environment variables (these are also set by OpenSSH

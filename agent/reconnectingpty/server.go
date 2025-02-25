@@ -16,6 +16,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentssh"
+	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
@@ -159,7 +160,7 @@ func (s *Server) handleConn(ctx context.Context, logger slog.Logger, conn net.Co
 			}
 		}()
 
-		var ei agentssh.EnvInfoer
+		var ei usershell.EnvInfoer
 		if msg.Container != "" {
 			dei, err := agentcontainers.EnvInfo(ctx, s.commandCreator.Execer, msg.Container, msg.ContainerUser)
 			if err != nil {

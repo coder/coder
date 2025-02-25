@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"os/user"
 	"slices"
 	"sort"
@@ -15,10 +14,16 @@ import (
 	"time"
 
 	"github.com/coder/coder/v2/agent/agentexec"
+	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/codersdk"
 
 	"golang.org/x/exp/maps"
 	"golang.org/x/xerrors"
+)
+
+const (
+	RuntimeSystem int = iota
+	RuntimeDocker
 )
 
 // DockerCLILister is a ContainerLister that lists containers using the docker CLI
@@ -37,6 +42,7 @@ func NewDocker(execer agentexec.Execer) Lister {
 // DockerEnvInfoer is an implementation of agentssh.EnvInfoer that returns
 // information about a container.
 type DockerEnvInfoer struct {
+	usershell.SystemEnvInfo
 	container string
 	user      *user.User
 	userShell string
@@ -126,19 +132,6 @@ func (dei *DockerEnvInfoer) CurrentUser() (*user.User, error) {
 	// Clone the user so that the caller can't modify it
 	u := *dei.user
 	return &u, nil
-}
-
-func (*DockerEnvInfoer) Environ() []string {
-	// Return a clone of the environment so that the caller can't modify it
-	return os.Environ()
-}
-
-func (*DockerEnvInfoer) UserHomeDir() (string, error) {
-	// We default the working directory of the command to the user's home
-	// directory. Since this came from inside the container, we cannot guarantee
-	// that this exists on the host. Return the "real" home directory of the user
-	// instead.
-	return os.UserHomeDir()
 }
 
 func (dei *DockerEnvInfoer) UserShell(string) (string, error) {
