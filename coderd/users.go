@@ -118,6 +118,8 @@ func (api *API) firstUser(rw http.ResponseWriter, r *http.Request) {
 // @Success 201 {object} codersdk.CreateFirstUserResponse
 // @Router /users/first [post]
 func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
+	// The first user can also be created via oidc, so if making changes to the flow,
+	// ensure that the oidc flow is also updated.
 	ctx := r.Context()
 	var createUser codersdk.CreateFirstUserRequest
 	if !httpapi.Read(ctx, rw, r, &createUser) {
@@ -198,6 +200,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 			OrganizationIDs: []uuid.UUID{defaultOrg.ID},
 		},
 		LoginType:          database.LoginTypePassword,
+		RBACRoles:          []string{rbac.RoleOwner().String()},
 		accountCreatorName: "coder",
 	})
 	if err != nil {
@@ -224,23 +227,6 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	api.Telemetry.Report(&telemetry.Snapshot{
 		Users: []telemetry.User{telemetryUser},
 	})
-
-	// TODO: @emyrk this currently happens outside the database tx used to create
-	// 	the user. Maybe I add this ability to grant roles in the createUser api
-	//	and add some rbac bypass when calling api functions this way??
-	// Add the admin role to this first user.
-	//nolint:gocritic // needed to create first user
-	_, err = api.Database.UpdateUserRoles(dbauthz.AsSystemRestricted(ctx), database.UpdateUserRolesParams{
-		GrantedRoles: []string{rbac.RoleOwner().String()},
-		ID:           user.ID,
-	})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error updating user's roles.",
-			Detail:  err.Error(),
-		})
-		return
-	}
 
 	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.CreateFirstUserResponse{
 		UserID:         user.ID,
@@ -1351,6 +1337,7 @@ type CreateUserRequest struct {
 	LoginType          database.LoginType
 	SkipNotifications  bool
 	accountCreatorName string
+	RBACRoles          []string
 }
 
 func (api *API) CreateUser(ctx context.Context, store database.Store, req CreateUserRequest) (database.User, error) {
@@ -1358,6 +1345,13 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 	// the username is valid and unique.
 	if usernameValid := codersdk.NameValid(req.Username); usernameValid != nil {
 		return database.User{}, xerrors.Errorf("invalid username %q: %w", req.Username, usernameValid)
+	}
+
+	// If the caller didn't specify rbac roles, default to
+	// a member of the site.
+	rbacRoles := []string{}
+	if req.RBACRoles != nil {
+		rbacRoles = req.RBACRoles
 	}
 
 	var user database.User
@@ -1376,10 +1370,9 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 			CreatedAt:      dbtime.Now(),
 			UpdatedAt:      dbtime.Now(),
 			HashedPassword: []byte{},
-			// All new users are defaulted to members of the site.
-			RBACRoles: []string{},
-			LoginType: req.LoginType,
-			Status:    status,
+			RBACRoles:      rbacRoles,
+			LoginType:      req.LoginType,
+			Status:         status,
 		}
 		// If a user signs up with OAuth, they can have no password!
 		if req.Password != "" {
@@ -1437,6 +1430,10 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 	}
 
 	for _, u := range userAdmins {
+		if u.ID == user.ID {
+			// If the new user is an admin, don't notify them about themselves.
+			continue
+		}
 		if _, err := api.NotificationsEnqueuer.EnqueueWithData(
 			// nolint:gocritic // Need notifier actor to enqueue notifications
 			dbauthz.AsNotifier(ctx),
