@@ -98,9 +98,6 @@ describe("WorkspacePage", () => {
 			.spyOn(API, "deleteWorkspace")
 			.mockResolvedValueOnce(MockWorkspaceBuild);
 		await renderWorkspacePage(MockWorkspace);
-		new MockServerSocket(
-			`ws://localhost/api/v2/workspaces/${MockWorkspace.id}/watch`,
-		);
 
 		// open the workspace action popover so we have access to all available ctas
 		const trigger = screen.getByTestId("workspace-options-button");

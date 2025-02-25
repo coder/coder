@@ -83,7 +83,9 @@ export const AgentMetadata: FC<AgentMetadataProps> = ({
 					const data = JSON.parse(e.data);
 					setMetadata(data);
 				} catch {
-					displayError("Unable to process newest response from server");
+					displayError(
+						"Unable to process newest response from server. The UI may be out of date.",
+					);
 				}
 			});
 		};
