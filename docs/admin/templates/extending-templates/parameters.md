@@ -341,21 +341,21 @@ data "coder_parameter" "machine_type" {
   default       = "n1-standard-2"
 }
 
-data "coder_workspace_preset" "attach_gpu" {
+data "coder_parameter" "attach_gpu" {
   name          = "attach_gpu"
   display_name  = "Attach GPU?"
   type          = "bool"
   default       = "false"
 }
 
-data "coder_workspace_preset" "gcp_region" {
+data "coder_parameter" "gcp_region" {
   name          = "gcp_region"
   display_name  = "Machine Type"
   type          = "string"
   default       = "n1-standard-2"
 }
 
-data "coder_workspace_preset" "jetbrains_ide" {
+data "coder_parameter" "jetbrains_ide" {
   name          = "jetbrains_ide"
   display_name  = "Machine Type"
   type          = "string"
