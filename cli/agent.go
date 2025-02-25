@@ -347,10 +347,11 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 				SSHMaxTimeout:        sshMaxTimeout,
 				Subsystems:           subsystems,
 
-				PrometheusRegistry: prometheusRegistry,
-				BlockFileTransfer:  blockFileTransfer,
-				Execer:             execer,
-				ContainerLister:    containerLister,
+				PrometheusRegistry:            prometheusRegistry,
+				BlockFileTransfer:             blockFileTransfer,
+				Execer:                        execer,
+				ContainerLister:               containerLister,
+				ExperimentalContainersEnabled: devcontainersEnabled,
 			})
 
 			promHandler := agent.PrometheusMetricsHandler(prometheusRegistry, logger)

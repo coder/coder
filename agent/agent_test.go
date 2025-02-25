@@ -1797,7 +1797,9 @@ func TestAgent_ReconnectingPTYContainer(t *testing.T) {
 	}, testutil.WaitShort, testutil.IntervalSlow, "Container did not start in time")
 
 	// nolint: dogsled
-	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
+	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
+		o.ExperimentalContainersEnabled = true
+	})
 	ac, err := conn.ReconnectingPTY(ctx, uuid.New(), 80, 80, "/bin/sh", func(arp *workspacesdk.AgentReconnectingPTYInit) {
 		arp.Container = ct.Container.ID
 	})

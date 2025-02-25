@@ -21,27 +21,32 @@ import (
 )
 
 type Server struct {
-	logger           slog.Logger
-	connectionsTotal prometheus.Counter
-	errorsTotal      *prometheus.CounterVec
-	commandCreator   *agentssh.Server
-	connCount        atomic.Int64
-	reconnectingPTYs sync.Map
-	timeout          time.Duration
+	logger                        slog.Logger
+	connectionsTotal              prometheus.Counter
+	errorsTotal                   *prometheus.CounterVec
+	commandCreator                *agentssh.Server
+	connCount                     atomic.Int64
+	reconnectingPTYs              sync.Map
+	timeout                       time.Duration
+	ExperimentalContainersEnabled bool
 }
 
 // NewServer returns a new ReconnectingPTY server
 func NewServer(logger slog.Logger, commandCreator *agentssh.Server,
 	connectionsTotal prometheus.Counter, errorsTotal *prometheus.CounterVec,
-	timeout time.Duration,
+	timeout time.Duration, opts ...func(*Server),
 ) *Server {
-	return &Server{
+	s := &Server{
 		logger:           logger,
 		commandCreator:   commandCreator,
 		connectionsTotal: connectionsTotal,
 		errorsTotal:      errorsTotal,
 		timeout:          timeout,
 	}
+	for _, o := range opts {
+		o(s)
+	}
+	return s
 }
 
 func (s *Server) Serve(ctx, hardCtx context.Context, l net.Listener) (retErr error) {
@@ -161,7 +166,7 @@ func (s *Server) handleConn(ctx context.Context, logger slog.Logger, conn net.Co
 		}()
 
 		var ei usershell.EnvInfoer
-		if msg.Container != "" {
+		if s.ExperimentalContainersEnabled && msg.Container != "" {
 			dei, err := agentcontainers.EnvInfo(ctx, s.commandCreator.Execer, msg.Container, msg.ContainerUser)
 			if err != nil {
 				return xerrors.Errorf("get container env info: %w", err)
