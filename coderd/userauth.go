@@ -765,6 +765,8 @@ type GithubOAuth2Config struct {
 	AllowEveryone      bool
 	AllowOrganizations []string
 	AllowTeams         []GithubOAuth2Team
+
+	DefaultProviderConfigured bool
 }
 
 func (c *GithubOAuth2Config) Exchange(ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
@@ -806,7 +808,10 @@ func (api *API) userAuthMethods(rw http.ResponseWriter, r *http.Request) {
 		Password: codersdk.AuthMethod{
 			Enabled: !api.DeploymentValues.DisablePasswordAuth.Value(),
 		},
-		Github: codersdk.AuthMethod{Enabled: api.GithubOAuth2Config != nil},
+		Github: codersdk.GithubAuthMethod{
+			Enabled:                   api.GithubOAuth2Config != nil,
+			DefaultProviderConfigured: api.GithubOAuth2Config != nil && api.GithubOAuth2Config.DefaultProviderConfigured,
+		},
 		OIDC: codersdk.OIDCAuthMethod{
 			AuthMethod: codersdk.AuthMethod{Enabled: api.OIDCConfig != nil},
 			SignInText: signInText,

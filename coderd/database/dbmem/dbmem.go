@@ -254,6 +254,7 @@ type data struct {
 	announcementBanners              []byte
 	healthSettings                   []byte
 	notificationsSettings            []byte
+	oauth2GithubDefaultEligible      *bool
 	applicationName                  string
 	logoURL                          string
 	appSecurityKey                   string
@@ -3513,6 +3514,16 @@ func (q *FakeQuerier) GetNotificationsSettings(_ context.Context) (string, error
 	}
 
 	return string(q.notificationsSettings), nil
+}
+
+func (q *FakeQuerier) GetOAuth2GithubDefaultEligible(_ context.Context) (bool, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	if q.oauth2GithubDefaultEligible == nil {
+		return false, sql.ErrNoRows
+	}
+	return *q.oauth2GithubDefaultEligible, nil
 }
 
 func (q *FakeQuerier) GetOAuth2ProviderAppByID(_ context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {
@@ -11151,6 +11162,14 @@ func (q *FakeQuerier) UpsertNotificationsSettings(_ context.Context, data string
 	defer q.mutex.Unlock()
 
 	q.notificationsSettings = []byte(data)
+	return nil
+}
+
+func (q *FakeQuerier) UpsertOAuth2GithubDefaultEligible(_ context.Context, eligible bool) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	q.oauth2GithubDefaultEligible = &eligible
 	return nil
 }
 

@@ -871,6 +871,13 @@ func (m queryMetricsStore) GetNotificationsSettings(ctx context.Context) (string
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetOAuth2GithubDefaultEligible(ctx context.Context) (bool, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOAuth2GithubDefaultEligible(ctx)
+	m.queryLatencies.WithLabelValues("GetOAuth2GithubDefaultEligible").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetOAuth2ProviderAppByID(ctx, id)
@@ -2814,6 +2821,13 @@ func (m queryMetricsStore) UpsertNotificationsSettings(ctx context.Context, valu
 	start := time.Now()
 	r0 := m.s.UpsertNotificationsSettings(ctx, value)
 	m.queryLatencies.WithLabelValues("UpsertNotificationsSettings").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m queryMetricsStore) UpsertOAuth2GithubDefaultEligible(ctx context.Context, eligible bool) error {
+	start := time.Now()
+	r0 := m.s.UpsertOAuth2GithubDefaultEligible(ctx, eligible)
+	m.queryLatencies.WithLabelValues("UpsertOAuth2GithubDefaultEligible").Observe(time.Since(start).Seconds())
 	return r0
 }
 
