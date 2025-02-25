@@ -94,10 +94,15 @@ export interface RichParameterValue {
   value: string;
 }
 
+export interface Prebuild {
+  instances: number;
+}
+
 /** Preset represents a set of preset parameters for a template version. */
 export interface Preset {
   name: string;
   parameters: PresetParameter[];
+  prebuild: Prebuild | undefined;
 }
 
 export interface PresetParameter {
@@ -289,6 +294,8 @@ export interface Metadata {
   workspaceOwnerSshPrivateKey: string;
   workspaceBuildId: string;
   workspaceOwnerLoginType: string;
+  isPrebuild: boolean;
+  runningWorkspaceAgentToken: string;
 }
 
 /** Config represents execution configuration shared by all subsequent requests in the Session */
@@ -497,6 +504,15 @@ export const RichParameterValue = {
   },
 };
 
+export const Prebuild = {
+  encode(message: Prebuild, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.instances !== 0) {
+      writer.uint32(8).int32(message.instances);
+    }
+    return writer;
+  },
+};
+
 export const Preset = {
   encode(message: Preset, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
     if (message.name !== "") {
@@ -504,6 +520,9 @@ export const Preset = {
     }
     for (const v of message.parameters) {
       PresetParameter.encode(v!, writer.uint32(18).fork()).ldelim();
+    }
+    if (message.prebuild !== undefined) {
+      Prebuild.encode(message.prebuild, writer.uint32(26).fork()).ldelim();
     }
     return writer;
   },
@@ -960,6 +979,12 @@ export const Metadata = {
     }
     if (message.workspaceOwnerLoginType !== "") {
       writer.uint32(146).string(message.workspaceOwnerLoginType);
+    }
+    if (message.isPrebuild === true) {
+      writer.uint32(152).bool(message.isPrebuild);
+    }
+    if (message.runningWorkspaceAgentToken !== "") {
+      writer.uint32(162).string(message.runningWorkspaceAgentToken);
     }
     return writer;
   },

@@ -461,6 +461,8 @@ export interface CreateWorkspaceRequest {
 	readonly ttl_ms?: number;
 	readonly rich_parameter_values?: readonly WorkspaceBuildParameter[];
 	readonly automatic_updates?: AutomaticUpdates;
+	readonly template_version_preset_id?: string;
+	readonly claim_prebuild_if_available?: boolean;
 }
 
 // From codersdk/deployment.go
@@ -675,6 +677,7 @@ export interface DeploymentValues {
 	readonly terms_of_service_url?: string;
 	readonly notifications?: NotificationsConfig;
 	readonly additional_csp_policy?: string;
+	readonly workspace_prebuilds?: PrebuildsConfig;
 	readonly config?: string;
 	readonly write_config?: boolean;
 	readonly address?: string;
@@ -742,6 +745,7 @@ export type Experiment =
 	| "auto-fill-parameters"
 	| "example"
 	| "notifications"
+	| "workspace-prebuilds"
 	| "workspace-usage";
 
 // From codersdk/deployment.go
@@ -856,6 +860,7 @@ export type FeatureName =
 	| "user_limit"
 	| "user_role_management"
 	| "workspace_batch_actions"
+	| "workspace_prebuilds"
 	| "workspace_proxy";
 
 export const FeatureNames: FeatureName[] = [
@@ -876,6 +881,7 @@ export const FeatureNames: FeatureName[] = [
 	"user_limit",
 	"user_role_management",
 	"workspace_batch_actions",
+	"workspace_prebuilds",
 	"workspace_proxy",
 ];
 
@@ -1584,6 +1590,11 @@ export const PostgresAuths: PostgresAuth[] = ["awsiamrds", "password"];
 export interface PprofConfig {
 	readonly enable: boolean;
 	readonly address: string;
+}
+
+// From codersdk/deployment.go
+export interface PrebuildsConfig {
+	readonly reconciliation_interval: number;
 }
 
 // From codersdk/presets.go

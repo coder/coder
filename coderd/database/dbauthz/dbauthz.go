@@ -1103,6 +1103,15 @@ func (q *querier) BulkMarkNotificationMessagesSent(ctx context.Context, arg data
 	return q.db.BulkMarkNotificationMessagesSent(ctx, arg)
 }
 
+func (q *querier) ClaimPrebuild(ctx context.Context, newOwnerID database.ClaimPrebuildParams) (database.ClaimPrebuildRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceWorkspace); err != nil {
+		return database.ClaimPrebuildRow{
+			ID: uuid.Nil,
+		}, err
+	}
+	return q.db.ClaimPrebuild(ctx, newOwnerID)
+}
+
 func (q *querier) CleanTailnetCoordinators(ctx context.Context) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
 		return err
@@ -1970,6 +1979,20 @@ func (q *querier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUI
 	return q.db.GetParameterSchemasByJobID(ctx, jobID)
 }
 
+func (q *querier) GetPrebuildMetrics(ctx context.Context) ([]database.GetPrebuildMetricsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate); err != nil {
+		return nil, err
+	}
+	return q.db.GetPrebuildMetrics(ctx)
+}
+
+func (q *querier) GetPrebuildsInProgress(ctx context.Context) ([]database.GetPrebuildsInProgressRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate); err != nil {
+		return nil, err
+	}
+	return q.db.GetPrebuildsInProgress(ctx)
+}
+
 func (q *querier) GetPresetByWorkspaceBuildID(ctx context.Context, workspaceID uuid.UUID) (database.TemplateVersionPreset, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate); err != nil {
 		return database.TemplateVersionPreset{}, err
@@ -2137,6 +2160,13 @@ func (q *querier) GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Ti
 	return q.db.GetReplicasUpdatedAfter(ctx, updatedAt)
 }
 
+func (q *querier) GetRunningPrebuilds(ctx context.Context) ([]database.GetRunningPrebuildsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate); err != nil {
+		return nil, err
+	}
+	return q.db.GetRunningPrebuilds(ctx)
+}
+
 func (q *querier) GetRuntimeConfig(ctx context.Context, key string) (string, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return "", err
@@ -2259,6 +2289,13 @@ func (q *querier) GetTemplateParameterInsights(ctx context.Context, arg database
 		return nil, err
 	}
 	return q.db.GetTemplateParameterInsights(ctx, arg)
+}
+
+func (q *querier) GetTemplatePresetsWithPrebuilds(ctx context.Context, templateID uuid.NullUUID) ([]database.GetTemplatePresetsWithPrebuildsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate); err != nil {
+		return nil, err
+	}
+	return q.db.GetTemplatePresetsWithPrebuilds(ctx, templateID)
 }
 
 func (q *querier) GetTemplateUsageStats(ctx context.Context, arg database.GetTemplateUsageStatsParams) ([]database.TemplateUsageStat, error) {
@@ -3171,6 +3208,13 @@ func (q *querier) InsertPresetParameters(ctx context.Context, arg database.Inser
 	}
 
 	return q.db.InsertPresetParameters(ctx, arg)
+}
+
+func (q *querier) InsertPresetPrebuild(ctx context.Context, arg database.InsertPresetPrebuildParams) (database.TemplateVersionPresetPrebuild, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.TemplateVersionPresetPrebuild{}, err
+	}
+	return q.db.InsertPresetPrebuild(ctx, arg)
 }
 
 // TODO: We need to create a ProvisionerJob resource type

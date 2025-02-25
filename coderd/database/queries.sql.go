@@ -5433,6 +5433,331 @@ func (q *sqlQuerier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.
 	return items, nil
 }
 
+const claimPrebuild = `-- name: ClaimPrebuild :one
+UPDATE workspaces w
+SET owner_id   = $1::uuid,
+	name       = $2::text,
+	updated_at = NOW()
+WHERE w.id IN (SELECT p.id
+			   FROM workspace_prebuilds p
+						INNER JOIN workspace_latest_build b ON b.workspace_id = p.id
+						INNER JOIN provisioner_jobs pj ON b.job_id = pj.id
+						INNER JOIN templates t ON p.template_id = t.id
+			   WHERE (b.transition = 'start'::workspace_transition
+				   AND pj.job_status IN ('succeeded'::provisioner_job_status))
+				 AND b.template_version_id = t.active_version_id
+				 AND b.template_version_preset_id = $3::uuid
+				 AND p.lifecycle_state = 'ready'::workspace_agent_lifecycle_state
+			   ORDER BY random()
+			   LIMIT 1 FOR UPDATE OF p SKIP LOCKED)
+RETURNING w.id, w.name
+`
+
+type ClaimPrebuildParams struct {
+	NewUserID uuid.UUID `db:"new_user_id" json:"new_user_id"`
+	NewName   string    `db:"new_name" json:"new_name"`
+	PresetID  uuid.UUID `db:"preset_id" json:"preset_id"`
+}
+
+type ClaimPrebuildRow struct {
+	ID   uuid.UUID `db:"id" json:"id"`
+	Name string    `db:"name" json:"name"`
+}
+
+// TODO: rewrite to use named CTE instead?
+func (q *sqlQuerier) ClaimPrebuild(ctx context.Context, arg ClaimPrebuildParams) (ClaimPrebuildRow, error) {
+	row := q.db.QueryRowContext(ctx, claimPrebuild, arg.NewUserID, arg.NewName, arg.PresetID)
+	var i ClaimPrebuildRow
+	err := row.Scan(&i.ID, &i.Name)
+	return i, err
+}
+
+const getPrebuildMetrics = `-- name: GetPrebuildMetrics :many
+SELECT
+    t.name as template_name,
+    tvp.name as preset_name,
+		COUNT(*) FILTER ( -- created
+				-- TODO (sasswart): double check which job statuses should be included here
+				WHERE
+					pj.initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
+					AND pj.job_status = 'succeeded'::provisioner_job_status
+		) as created,
+		COUNT(*) FILTER ( -- failed
+				-- TODO (sasswart): should we count cancelled here?
+				WHERE pj.initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
+						AND pj.job_status = 'failed'::provisioner_job_status
+		) as failed,
+		COUNT(*) FILTER ( -- assigned
+				WHERE pj.initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
+						AND NOT w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
+		) as assigned,
+		COUNT(*) FILTER ( -- exhausted
+				-- TODO (sasswart): write a filter to count this
+				-- we should be able to count:
+				-- - workspace builds
+				-- - that have a preset id
+				-- - and that preset has prebuilds enabled
+				-- - and the job for the prebuild was initiated by a user other than the prebuilds user
+				WHERE
+					wb.template_version_preset_id IS NOT NULL
+					AND w.owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
+					AND wb.initiator_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
+		) as exhausted,
+		COUNT(*) FILTER ( -- used_preset
+			WHERE wb.template_version_preset_id IS NOT NULL
+		) as used_preset
+FROM workspace_builds wb
+INNER JOIN provisioner_jobs pj ON wb.job_id = pj.id
+LEFT JOIN workspaces w ON wb.workspace_id = w.id
+LEFT JOIN template_version_presets tvp ON wb.template_version_preset_id = tvp.id
+LEFT JOIN template_versions tv ON tv.id = wb.template_version_id
+LEFT JOIN templates t ON t.id = tv.template_id
+WHERE pj.initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
+GROUP BY t.name, tvp.name
+`
+
+type GetPrebuildMetricsRow struct {
+	TemplateName sql.NullString `db:"template_name" json:"template_name"`
+	PresetName   sql.NullString `db:"preset_name" json:"preset_name"`
+	Created      int64          `db:"created" json:"created"`
+	Failed       int64          `db:"failed" json:"failed"`
+	Assigned     int64          `db:"assigned" json:"assigned"`
+	Exhausted    int64          `db:"exhausted" json:"exhausted"`
+	UsedPreset   int64          `db:"used_preset" json:"used_preset"`
+}
+
+func (q *sqlQuerier) GetPrebuildMetrics(ctx context.Context) ([]GetPrebuildMetricsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getPrebuildMetrics)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetPrebuildMetricsRow
+	for rows.Next() {
+		var i GetPrebuildMetricsRow
+		if err := rows.Scan(
+			&i.TemplateName,
+			&i.PresetName,
+			&i.Created,
+			&i.Failed,
+			&i.Assigned,
+			&i.Exhausted,
+			&i.UsedPreset,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getPrebuildsInProgress = `-- name: GetPrebuildsInProgress :many
+SELECT t.id AS template_id, wpb.template_version_id, wpb.transition, COUNT(wpb.transition) AS count
+FROM workspace_latest_build wlb
+		 INNER JOIN provisioner_jobs pj ON wlb.job_id = pj.id
+		 INNER JOIN workspace_prebuild_builds wpb ON wpb.id = wlb.id
+		 INNER JOIN templates t ON t.active_version_id = wlb.template_version_id
+WHERE pj.job_status NOT IN -- Jobs that are not in terminal states.
+	  ('succeeded'::provisioner_job_status, 'canceled'::provisioner_job_status,
+	   'failed'::provisioner_job_status)
+GROUP BY t.id, wpb.template_version_id, wpb.transition
+`
+
+type GetPrebuildsInProgressRow struct {
+	TemplateID        uuid.UUID           `db:"template_id" json:"template_id"`
+	TemplateVersionID uuid.UUID           `db:"template_version_id" json:"template_version_id"`
+	Transition        WorkspaceTransition `db:"transition" json:"transition"`
+	Count             int64               `db:"count" json:"count"`
+}
+
+func (q *sqlQuerier) GetPrebuildsInProgress(ctx context.Context) ([]GetPrebuildsInProgressRow, error) {
+	rows, err := q.db.QueryContext(ctx, getPrebuildsInProgress)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetPrebuildsInProgressRow
+	for rows.Next() {
+		var i GetPrebuildsInProgressRow
+		if err := rows.Scan(
+			&i.TemplateID,
+			&i.TemplateVersionID,
+			&i.Transition,
+			&i.Count,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getRunningPrebuilds = `-- name: GetRunningPrebuilds :many
+SELECT p.id               AS workspace_id,
+	   p.name             AS workspace_name,
+	   p.template_id,
+	   b.template_version_id,
+	   tvp_curr.id        AS current_preset_id,
+	   -- TODO: just because a prebuild is in a ready state doesn't mean it's eligible; if the prebuild is due to be
+	   --       deleted to reconcile state then it MUST NOT be eligible for claiming. We'll need some kind of lock here.
+	   CASE
+		   WHEN p.lifecycle_state = 'ready'::workspace_agent_lifecycle_state THEN TRUE
+		   ELSE FALSE END AS ready,
+	   p.created_at
+FROM workspace_prebuilds p
+		 INNER JOIN workspace_latest_build b ON b.workspace_id = p.id
+		 INNER JOIN provisioner_jobs pj ON b.job_id = pj.id
+		 INNER JOIN templates t ON p.template_id = t.id
+		 LEFT JOIN template_version_presets tvp_curr
+				   ON tvp_curr.id = p.current_preset_id -- See https://github.com/coder/internal/issues/398.
+WHERE (b.transition = 'start'::workspace_transition
+	-- Jobs that are not in terminal states.
+	OR pj.job_status IN ('failed'::provisioner_job_status, 'canceled'::provisioner_job_status,
+						 'unknown'::provisioner_job_status))
+`
+
+type GetRunningPrebuildsRow struct {
+	WorkspaceID       uuid.UUID     `db:"workspace_id" json:"workspace_id"`
+	WorkspaceName     string        `db:"workspace_name" json:"workspace_name"`
+	TemplateID        uuid.UUID     `db:"template_id" json:"template_id"`
+	TemplateVersionID uuid.UUID     `db:"template_version_id" json:"template_version_id"`
+	CurrentPresetID   uuid.NullUUID `db:"current_preset_id" json:"current_preset_id"`
+	Ready             bool          `db:"ready" json:"ready"`
+	CreatedAt         time.Time     `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) GetRunningPrebuilds(ctx context.Context) ([]GetRunningPrebuildsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getRunningPrebuilds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetRunningPrebuildsRow
+	for rows.Next() {
+		var i GetRunningPrebuildsRow
+		if err := rows.Scan(
+			&i.WorkspaceID,
+			&i.WorkspaceName,
+			&i.TemplateID,
+			&i.TemplateVersionID,
+			&i.CurrentPresetID,
+			&i.Ready,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getTemplatePresetsWithPrebuilds = `-- name: GetTemplatePresetsWithPrebuilds :many
+SELECT t.id                        AS template_id,
+	   tv.id                       AS template_version_id,
+	   tv.id = t.active_version_id AS using_active_version,
+	   tvpp.preset_id,
+	   tvp.name,
+	   tvpp.desired_instances      AS desired_instances,
+	   t.deleted,
+	   t.deprecated != ''          AS deprecated
+FROM templates t
+		 INNER JOIN template_versions tv ON tv.template_id = t.id
+		 INNER JOIN template_version_presets tvp ON tvp.template_version_id = tv.id
+		 INNER JOIN template_version_preset_prebuilds tvpp ON tvpp.preset_id = tvp.id
+WHERE (t.id = $1::uuid OR $1 IS NULL)
+`
+
+type GetTemplatePresetsWithPrebuildsRow struct {
+	TemplateID         uuid.UUID `db:"template_id" json:"template_id"`
+	TemplateVersionID  uuid.UUID `db:"template_version_id" json:"template_version_id"`
+	UsingActiveVersion bool      `db:"using_active_version" json:"using_active_version"`
+	PresetID           uuid.UUID `db:"preset_id" json:"preset_id"`
+	Name               string    `db:"name" json:"name"`
+	DesiredInstances   int32     `db:"desired_instances" json:"desired_instances"`
+	Deleted            bool      `db:"deleted" json:"deleted"`
+	Deprecated         bool      `db:"deprecated" json:"deprecated"`
+}
+
+func (q *sqlQuerier) GetTemplatePresetsWithPrebuilds(ctx context.Context, templateID uuid.NullUUID) ([]GetTemplatePresetsWithPrebuildsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getTemplatePresetsWithPrebuilds, templateID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetTemplatePresetsWithPrebuildsRow
+	for rows.Next() {
+		var i GetTemplatePresetsWithPrebuildsRow
+		if err := rows.Scan(
+			&i.TemplateID,
+			&i.TemplateVersionID,
+			&i.UsingActiveVersion,
+			&i.PresetID,
+			&i.Name,
+			&i.DesiredInstances,
+			&i.Deleted,
+			&i.Deprecated,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertPresetPrebuild = `-- name: InsertPresetPrebuild :one
+INSERT INTO template_version_preset_prebuilds (id, preset_id, desired_instances, invalidate_after_secs)
+VALUES ($1::uuid, $2::uuid, $3::int, $4::int)
+RETURNING id, preset_id, desired_instances, invalidate_after_secs
+`
+
+type InsertPresetPrebuildParams struct {
+	ID                  uuid.UUID `db:"id" json:"id"`
+	PresetID            uuid.UUID `db:"preset_id" json:"preset_id"`
+	DesiredInstances    int32     `db:"desired_instances" json:"desired_instances"`
+	InvalidateAfterSecs int32     `db:"invalidate_after_secs" json:"invalidate_after_secs"`
+}
+
+func (q *sqlQuerier) InsertPresetPrebuild(ctx context.Context, arg InsertPresetPrebuildParams) (TemplateVersionPresetPrebuild, error) {
+	row := q.db.QueryRowContext(ctx, insertPresetPrebuild,
+		arg.ID,
+		arg.PresetID,
+		arg.DesiredInstances,
+		arg.InvalidateAfterSecs,
+	)
+	var i TemplateVersionPresetPrebuild
+	err := row.Scan(
+		&i.ID,
+		&i.PresetID,
+		&i.DesiredInstances,
+		&i.InvalidateAfterSecs,
+	)
+	return i, err
+}
+
 const getPresetByWorkspaceBuildID = `-- name: GetPresetByWorkspaceBuildID :one
 SELECT
 	template_version_presets.id, template_version_presets.template_version_id, template_version_presets.name, template_version_presets.created_at
@@ -10989,6 +11314,7 @@ func (q *sqlQuerier) UpdateUserLinkedID(ctx context.Context, arg UpdateUserLinke
 
 const allUserIDs = `-- name: AllUserIDs :many
 SELECT DISTINCT id FROM USERS
+	WHERE is_system = false
 `
 
 // AllUserIDs returns all UserIDs regardless of user status or deletion.
@@ -11022,6 +11348,7 @@ FROM
 	users
 WHERE
 	status = 'active'::user_status AND deleted = false
+  	AND is_system = false
 `
 
 func (q *sqlQuerier) GetActiveUserCount(ctx context.Context) (int64, error) {
@@ -11098,7 +11425,7 @@ func (q *sqlQuerier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.
 
 const getUserByEmailOrUsername = `-- name: GetUserByEmailOrUsername :one
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system
 FROM
 	users
 WHERE
@@ -11135,13 +11462,14 @@ func (q *sqlQuerier) GetUserByEmailOrUsername(ctx context.Context, arg GetUserBy
 		&i.GithubComUserID,
 		&i.HashedOneTimePasscode,
 		&i.OneTimePasscodeExpiresAt,
+		&i.IsSystem,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system
 FROM
 	users
 WHERE
@@ -11172,6 +11500,7 @@ func (q *sqlQuerier) GetUserByID(ctx context.Context, id uuid.UUID) (User, error
 		&i.GithubComUserID,
 		&i.HashedOneTimePasscode,
 		&i.OneTimePasscodeExpiresAt,
+		&i.IsSystem,
 	)
 	return i, err
 }
@@ -11183,6 +11512,7 @@ FROM
 	users
 WHERE
 	deleted = false
+	AND is_system = false
 `
 
 func (q *sqlQuerier) GetUserCount(ctx context.Context) (int64, error) {
@@ -11194,11 +11524,12 @@ func (q *sqlQuerier) GetUserCount(ctx context.Context) (int64, error) {
 
 const getUsers = `-- name: GetUsers :many
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, COUNT(*) OVER() AS count
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, COUNT(*) OVER() AS count
 FROM
 	users
 WHERE
 	users.deleted = false
+  	AND is_system = false
 	AND CASE
 		-- This allows using the last element on a page as effectively a cursor.
 		-- This is an important option for scripts that need to paginate without
@@ -11309,6 +11640,7 @@ type GetUsersRow struct {
 	GithubComUserID          sql.NullInt64  `db:"github_com_user_id" json:"github_com_user_id"`
 	HashedOneTimePasscode    []byte         `db:"hashed_one_time_passcode" json:"hashed_one_time_passcode"`
 	OneTimePasscodeExpiresAt sql.NullTime   `db:"one_time_passcode_expires_at" json:"one_time_passcode_expires_at"`
+	IsSystem                 sql.NullBool   `db:"is_system" json:"is_system"`
 	Count                    int64          `db:"count" json:"count"`
 }
 
@@ -11352,6 +11684,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUse
 			&i.GithubComUserID,
 			&i.HashedOneTimePasscode,
 			&i.OneTimePasscodeExpiresAt,
+			&i.IsSystem,
 			&i.Count,
 		); err != nil {
 			return nil, err
@@ -11368,7 +11701,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUse
 }
 
 const getUsersByIDs = `-- name: GetUsersByIDs :many
-SELECT id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at FROM users WHERE id = ANY($1 :: uuid [ ])
+SELECT id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system FROM users WHERE id = ANY($1 :: uuid [ ])
 `
 
 // This shouldn't check for deleted, because it's frequently used
@@ -11402,6 +11735,7 @@ func (q *sqlQuerier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]User
 			&i.GithubComUserID,
 			&i.HashedOneTimePasscode,
 			&i.OneTimePasscodeExpiresAt,
+			&i.IsSystem,
 		); err != nil {
 			return nil, err
 		}
@@ -11435,7 +11769,7 @@ VALUES
 		-- if the status passed in is empty, fallback to dormant, which is what
 		-- we were doing before.
 		COALESCE(NULLIF($10::text, '')::user_status, 'dormant'::user_status)
-	) RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at
+	) RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system
 `
 
 type InsertUserParams struct {
@@ -11484,6 +11818,7 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 		&i.GithubComUserID,
 		&i.HashedOneTimePasscode,
 		&i.OneTimePasscodeExpiresAt,
+		&i.IsSystem,
 	)
 	return i, err
 }
@@ -11497,6 +11832,7 @@ SET
 WHERE
     last_seen_at < $2 :: timestamp
     AND status = 'active'::user_status
+  	AND is_system = false
 RETURNING id, email, username, last_seen_at
 `
 
@@ -11548,7 +11884,7 @@ SET
 	updated_at = $3
 WHERE
 	id = $1
-RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system
 `
 
 type UpdateUserAppearanceSettingsParams struct {
@@ -11579,6 +11915,7 @@ func (q *sqlQuerier) UpdateUserAppearanceSettings(ctx context.Context, arg Updat
 		&i.GithubComUserID,
 		&i.HashedOneTimePasscode,
 		&i.OneTimePasscodeExpiresAt,
+		&i.IsSystem,
 	)
 	return i, err
 }
@@ -11665,7 +12002,7 @@ SET
 	last_seen_at = $2,
 	updated_at = $3
 WHERE
-	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at
+	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system
 `
 
 type UpdateUserLastSeenAtParams struct {
@@ -11696,6 +12033,7 @@ func (q *sqlQuerier) UpdateUserLastSeenAt(ctx context.Context, arg UpdateUserLas
 		&i.GithubComUserID,
 		&i.HashedOneTimePasscode,
 		&i.OneTimePasscodeExpiresAt,
+		&i.IsSystem,
 	)
 	return i, err
 }
@@ -11713,7 +12051,7 @@ SET
 		'':: bytea
 	END
 WHERE
-	id = $2 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at
+	id = $2 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system
 `
 
 type UpdateUserLoginTypeParams struct {
@@ -11743,6 +12081,7 @@ func (q *sqlQuerier) UpdateUserLoginType(ctx context.Context, arg UpdateUserLogi
 		&i.GithubComUserID,
 		&i.HashedOneTimePasscode,
 		&i.OneTimePasscodeExpiresAt,
+		&i.IsSystem,
 	)
 	return i, err
 }
@@ -11758,7 +12097,7 @@ SET
 	name = $6
 WHERE
 	id = $1
-RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system
 `
 
 type UpdateUserProfileParams struct {
@@ -11799,6 +12138,7 @@ func (q *sqlQuerier) UpdateUserProfile(ctx context.Context, arg UpdateUserProfil
 		&i.GithubComUserID,
 		&i.HashedOneTimePasscode,
 		&i.OneTimePasscodeExpiresAt,
+		&i.IsSystem,
 	)
 	return i, err
 }
@@ -11810,7 +12150,7 @@ SET
 	quiet_hours_schedule = $2
 WHERE
 	id = $1
-RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system
 `
 
 type UpdateUserQuietHoursScheduleParams struct {
@@ -11840,6 +12180,7 @@ func (q *sqlQuerier) UpdateUserQuietHoursSchedule(ctx context.Context, arg Updat
 		&i.GithubComUserID,
 		&i.HashedOneTimePasscode,
 		&i.OneTimePasscodeExpiresAt,
+		&i.IsSystem,
 	)
 	return i, err
 }
@@ -11852,7 +12193,7 @@ SET
 	rbac_roles = ARRAY(SELECT DISTINCT UNNEST($1 :: text[]))
 WHERE
 	id = $2
-RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system
 `
 
 type UpdateUserRolesParams struct {
@@ -11882,6 +12223,7 @@ func (q *sqlQuerier) UpdateUserRoles(ctx context.Context, arg UpdateUserRolesPar
 		&i.GithubComUserID,
 		&i.HashedOneTimePasscode,
 		&i.OneTimePasscodeExpiresAt,
+		&i.IsSystem,
 	)
 	return i, err
 }
@@ -11893,7 +12235,7 @@ SET
 	status = $2,
 	updated_at = $3
 WHERE
-	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at
+	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system
 `
 
 type UpdateUserStatusParams struct {
@@ -11924,6 +12266,7 @@ func (q *sqlQuerier) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusP
 		&i.GithubComUserID,
 		&i.HashedOneTimePasscode,
 		&i.OneTimePasscodeExpiresAt,
+		&i.IsSystem,
 	)
 	return i, err
 }

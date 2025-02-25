@@ -11058,6 +11058,9 @@ const docTemplate = `{
                 "autostart_schedule": {
                     "type": "string"
                 },
+                "claim_prebuild_if_available": {
+                    "type": "boolean"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -11075,6 +11078,10 @@ const docTemplate = `{
                 },
                 "template_version_id": {
                     "description": "TemplateVersionID can be used to specify a specific version of a template for creating the workspace.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "template_version_preset_id": {
                     "type": "string",
                     "format": "uuid"
                 },
@@ -11590,19 +11597,22 @@ const docTemplate = `{
                 "example",
                 "auto-fill-parameters",
                 "notifications",
-                "workspace-usage"
+                "workspace-usage",
+                "workspace-prebuilds"
             ],
             "x-enum-comments": {
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
+                "ExperimentWorkspacePrebuilds": "Enables the new workspace prebuilds feature.",
                 "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
             },
             "x-enum-varnames": [
                 "ExperimentExample",
                 "ExperimentAutoFillParameters",
                 "ExperimentNotifications",
-                "ExperimentWorkspaceUsage"
+                "ExperimentWorkspaceUsage",
+                "ExperimentWorkspacePrebuilds"
             ]
         },
         "codersdk.ExternalAuth": {

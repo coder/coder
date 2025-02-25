@@ -7,6 +7,10 @@ import (
 	"strings"
 	"time"
 
+	"cdr.dev/slog"
+
+	"github.com/coder/coder/v2/coderd/database/pubsub"
+
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
@@ -34,6 +38,8 @@ type ManifestAPI struct {
 	AgentFn   func(context.Context) (database.WorkspaceAgent, error)
 	Database  database.Store
 	DerpMapFn func() *tailcfg.DERPMap
+	Pubsub    pubsub.Pubsub
+	Log       slog.Logger
 }
 
 func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifestRequest) (*agentproto.Manifest, error) {
