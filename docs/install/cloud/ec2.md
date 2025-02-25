@@ -11,39 +11,64 @@ This guide assumes your AWS account has `AmazonEC2FullAccess` permissions.
 
 ## Launch a Coder instance from the from AWS Marketplace
 
-We publish an Ubuntu 22.04 AMI with Coder and Docker pre-installed. Search for
-`Coder` in the EC2 "Launch an Instance" screen or
-[launch directly from the marketplace](https://aws.amazon.com/marketplace/pp/prodview-zaoq7tiogkxhc).
+We publish an Ubuntu 22.04 Amazon Machine Image (AMI) with Coder and Docker
+pre-installed.
 
-![Coder on AWS Marketplace](../../images/platforms/aws/marketplace.png)
+To launch a Coder AMI EC2 instance:
 
-Be sure to keep the default firewall (SecurityGroup) options checked so you can
-connect over HTTP, HTTPS, and SSH.
+1. Open the [Amazon EC2 console](https://console.aws.amazon.com/ec2/) and
+   confirm that you're logged in.
 
-![AWS Security Groups](../../images/platforms/aws/security-groups.png)
+1. Select **Launch instance**.
 
-We recommend keeping the default instance type (`t2.xlarge`, 4 cores and 16 GB
-memory) if you plan on provisioning Docker containers as workspaces on this EC2
-instance. Keep in mind this platforms is intended for proof-of-concept
-deployments and you should adjust your infrastructure when preparing for
-production use. See: [Scaling Coder](../../admin/infrastructure/index.md)
+1. Assign a name and, optionally, additional tags.
 
-Be sure to add a keypair so that you can connect over SSH to further
-[configure Coder](../../admin/setup/index.md).
+1. In the **Application and OS Images** section, use the search bar to search for `coder`.
 
-After launching the instance, wait 30 seconds and navigate to the public IPv4
+   Select the **AWS Marketplace AMIs** tab, then **Select** next to the
+   **Coder** AMI.
+
+   ![Coder on AWS Marketplace](../../images/platforms/aws/marketplace.png)
+
+   You can also access the
+   [Coder AMI directly](https://aws.amazon.com/marketplace/pp/prodview-zaoq7tiogkxhc),
+   then select **View purchase options** to continue to the configuration screen.
+
+1. Name your instance, then in the **Instance type** section, use the dropdown
+   list to select `t2.xlarge` (4 vCPU, 16 GiB memory)
+
+   Keep in mind this platform is intended for proof-of-concept deployments and
+   you should adjust your infrastructure when preparing for production use.
+
+   Consult the [scale Coder best practices](../../tutorials/best-practices/scale-coder.md)
+   for more considerations.
+
+1. Configure the key pair.
+
+1. In the **Firewall (security groups)** section of the **Network settings**,
+   enable  **Allow SSH traffic** and **Allow HTTPS traffic from the
+   internet**.
+   Select **Allow HTTP traffic from the internet** if you need it for your deployment.
+
+   Use the **Anywhere** dropdown list to select and customize what SSH traffic should be allowed:
+
+   ![AWS Security Groups](../../images/platforms/aws/security-groups.png)
+
+1. In the **Configure storage** section, enter `40` as the root volume size (in GiB).
+
+   The extra disk space is required for template and workspace builds and for
+   the embedded PostgreSQL DB.
+
+1. You can adjust other settings if you need to, then select **Launch instance**.
+
+After you launce the instance, wait 30 seconds and navigate to the public IPv4
 address. You should be redirected to a public tunnel URL.
 
-<video autoplay playsinline loop>
-  <source src="https://github.com/coder/coder/blob/main/docs/images/platforms/aws/launch.mp4?raw=true" type="video/mp4">
-Your browser does not support the video tag.
-</video>
-
-That's all! Use the UI to create your first user, template, and workspace. We
+That's all! Use the Coder UI to create your first user, template, and workspace. We
 recommend starting with a Docker template since the instance has Docker
 pre-installed.
 
-![Coder Workspace and IDE in AWS EC2](../../images/platforms/aws/workspace.png)
+![Coder Templates screen](../../images/admin/users/organizations/workspace-list.png)
 
 ## Configuring Coder server
 
@@ -51,8 +76,6 @@ Coder is primarily configured by server-side flags and environment variables.
 Given you created or added key-pairs when launching the instance, you can
 [configure your Coder deployment](../../admin/setup/index.md) by logging in via
 SSH or using the console:
-
-<!-- TOOD(@kylecarbs): fix this weird formatting (https://imgur.com/a/LAUY3cT) -->
 
 ```sh
 ssh ubuntu@<ec2-public-IPv4>
