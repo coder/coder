@@ -1694,6 +1694,10 @@ func (q *querier) GetFileTemplates(ctx context.Context, fileID uuid.UUID) ([]dat
 	return q.db.GetFileTemplates(ctx, fileID)
 }
 
+func (q *querier) GetFilteredInboxNotificationsByUserID(ctx context.Context, arg database.GetFilteredInboxNotificationsByUserIDParams) ([]database.InboxNotification, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetFilteredInboxNotificationsByUserID)(ctx, arg)
+}
+
 func (q *querier) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
 	return fetchWithAction(q.log, q.auth, policy.ActionReadPersonal, q.db.GetGitSSHKey)(ctx, userID)
 }
@@ -1759,10 +1763,6 @@ func (q *querier) GetInboxNotificationByID(ctx context.Context, id uuid.UUID) (d
 
 func (q *querier) GetInboxNotificationsByUserID(ctx context.Context, userID database.GetInboxNotificationsByUserIDParams) ([]database.InboxNotification, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetInboxNotificationsByUserID)(ctx, userID)
-}
-
-func (q *querier) GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets(ctx context.Context, arg database.GetInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams) ([]database.InboxNotification, error) {
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets)(ctx, arg)
 }
 
 func (q *querier) GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg database.GetJFrogXrayScanByWorkspaceAndAgentIDParams) (database.JfrogXrayScan, error) {

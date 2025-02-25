@@ -66,6 +66,12 @@ CREATE TYPE group_source AS ENUM (
     'oidc'
 );
 
+CREATE TYPE inbox_notification_read_status AS ENUM (
+    'all',
+    'unread',
+    'read'
+);
+
 CREATE TYPE log_level AS ENUM (
     'trace',
     'debug',

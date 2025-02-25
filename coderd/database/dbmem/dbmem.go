@@ -3143,6 +3143,45 @@ func (q *FakeQuerier) GetFileTemplates(_ context.Context, id uuid.UUID) ([]datab
 	return rows, nil
 }
 
+func (q *FakeQuerier) GetFilteredInboxNotificationsByUserID(_ context.Context, arg database.GetFilteredInboxNotificationsByUserIDParams) ([]database.InboxNotification, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	notifications := make([]database.InboxNotification, 0)
+	for _, notification := range q.InboxNotification {
+		if notification.UserID == arg.UserID {
+			for _, template := range arg.Templates {
+				templateFound := false
+				if notification.TemplateID == template {
+					templateFound = true
+				}
+
+				if !templateFound {
+					continue
+				}
+			}
+
+			for _, target := range arg.Targets {
+				isFound := false
+				for _, insertedTarget := range notification.Targets {
+					if insertedTarget == target {
+						isFound = true
+						break
+					}
+				}
+
+				if !isFound {
+					continue
+				}
+
+				notifications = append(notifications, notification)
+			}
+		}
+	}
+
+	return notifications, nil
+}
+
 func (q *FakeQuerier) GetGitSSHKey(_ context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -3362,45 +3401,6 @@ func (q *FakeQuerier) GetInboxNotificationsByUserID(_ context.Context, params da
 	for _, notification := range q.InboxNotification {
 		if notification.UserID == params.UserID {
 			notifications = append(notifications, notification)
-		}
-	}
-
-	return notifications, nil
-}
-
-func (q *FakeQuerier) GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets(_ context.Context, arg database.GetInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams) ([]database.InboxNotification, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	notifications := make([]database.InboxNotification, 0)
-	for _, notification := range q.InboxNotification {
-		if notification.UserID == arg.UserID {
-			for _, template := range arg.Templates {
-				templateFound := false
-				if notification.TemplateID == template {
-					templateFound = true
-				}
-
-				if !templateFound {
-					continue
-				}
-			}
-
-			for _, target := range arg.Targets {
-				isFound := false
-				for _, insertedTarget := range notification.Targets {
-					if insertedTarget == target {
-						isFound = true
-						break
-					}
-				}
-
-				if !isFound {
-					continue
-				}
-
-				notifications = append(notifications, notification)
-			}
 		}
 	}
 

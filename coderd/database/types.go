@@ -35,40 +35,6 @@ type NotificationsSettings struct {
 	NotifierPaused bool      `db:"notifier_paused" json:"notifier_paused"`
 }
 
-type InboxNotificationReadStatus string
-
-const (
-	InboxNotificationReadStatusRead   InboxNotificationReadStatus = "READ"
-	InboxNotificationReadStatusUnread InboxNotificationReadStatus = "UNREAD"
-	InboxNotificationReadStatusAll    InboxNotificationReadStatus = "ALL"
-)
-
-func ParseInboxNotificationReadStatus(s string) (InboxNotificationReadStatus, error) {
-	switch s {
-	case "READ":
-		return InboxNotificationReadStatusRead, nil
-	case "UNREAD":
-		return InboxNotificationReadStatusUnread, nil
-	case "ALL":
-		return InboxNotificationReadStatusAll, nil
-	default:
-		return "", xerrors.Errorf("invalid InboxNotificationReadStatus: %s", s)
-	}
-}
-
-func (s InboxNotificationReadStatus) String() string {
-	switch s {
-	case InboxNotificationReadStatusRead:
-		return "READ"
-	case InboxNotificationReadStatusUnread:
-		return "UNREAD"
-	case InboxNotificationReadStatusAll:
-		return "ALL"
-	default:
-		return ""
-	}
-}
-
 type Actions []policy.Action
 
 func (a *Actions) Scan(src interface{}) error {

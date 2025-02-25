@@ -717,6 +717,13 @@ func (m queryMetricsStore) GetFileTemplates(ctx context.Context, fileID uuid.UUI
 	return rows, err
 }
 
+func (m queryMetricsStore) GetFilteredInboxNotificationsByUserID(ctx context.Context, arg database.GetFilteredInboxNotificationsByUserIDParams) ([]database.InboxNotification, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetFilteredInboxNotificationsByUserID(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetFilteredInboxNotificationsByUserID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
 	start := time.Now()
 	key, err := m.s.GetGitSSHKey(ctx, userID)
@@ -791,13 +798,6 @@ func (m queryMetricsStore) GetInboxNotificationsByUserID(ctx context.Context, us
 	start := time.Now()
 	r0, r1 := m.s.GetInboxNotificationsByUserID(ctx, userID)
 	m.queryLatencies.WithLabelValues("GetInboxNotificationsByUserID").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets(ctx context.Context, arg database.GetInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams) ([]database.InboxNotification, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 

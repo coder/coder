@@ -1,3 +1,5 @@
+CREATE TYPE inbox_notification_read_status AS ENUM ('all', 'unread', 'read');
+
 CREATE TABLE inbox_notifications (
 	id			UUID						PRIMARY KEY,
 	user_id			UUID						NOT NULL REFERENCES users(id) ON DELETE CASCADE,

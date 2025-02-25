@@ -159,6 +159,14 @@ type sqlcQuerier interface {
 	GetFileByID(ctx context.Context, id uuid.UUID) (File, error)
 	// Get all templates that use a file.
 	GetFileTemplates(ctx context.Context, fileID uuid.UUID) ([]GetFileTemplatesRow, error)
+	// Fetches inbox notifications for a user filtered by templates and targets
+	// param user_id: The user ID
+	// param templates: The template IDs to filter by - the template_id = ANY(@templates::UUID[]) condition checks if the template_id is in the @templates array
+	// param targets: The target IDs to filter by - the targets @> COALESCE(@targets, ARRAY[]::UUID[]) condition checks if the targets array (from the DB) contains all the elements in the @targets array
+	// param read_status: The read status to filter by - can be any of 'ALL', 'UNREAD', 'READ'
+	// param created_at_opt: The created_at timestamp to filter by. This parameter is usd for pagination - it fetches notifications created before the specified timestamp if it is not the zero value
+	// param limit_opt: The limit of notifications to fetch. If the limit is not specified, it defaults to 25
+	GetFilteredInboxNotificationsByUserID(ctx context.Context, arg GetFilteredInboxNotificationsByUserIDParams) ([]InboxNotification, error)
 	GetGitSSHKey(ctx context.Context, userID uuid.UUID) (GitSSHKey, error)
 	GetGroupByID(ctx context.Context, id uuid.UUID) (Group, error)
 	GetGroupByOrgAndName(ctx context.Context, arg GetGroupByOrgAndNameParams) (Group, error)
@@ -172,12 +180,12 @@ type sqlcQuerier interface {
 	GetHealthSettings(ctx context.Context) (string, error)
 	GetHungProvisionerJobs(ctx context.Context, updatedAt time.Time) ([]ProvisionerJob, error)
 	GetInboxNotificationByID(ctx context.Context, id uuid.UUID) (InboxNotification, error)
-	GetInboxNotificationsByUserID(ctx context.Context, arg GetInboxNotificationsByUserIDParams) ([]InboxNotification, error)
 	// Fetches inbox notifications for a user filtered by templates and targets
 	// param user_id: The user ID
-	// param templates: The template IDs to filter by - the template_id = ANY(@templates::UUID[]) condition checks if the template_id is in the @templates array
-	// param targets: The target IDs to filter by - the targets @> COALESCE(@targets, ARRAY[]::UUID[]) condition checks if the targets array (from the DB) contains all the elements in the @targets array
-	GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets(ctx context.Context, arg GetInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams) ([]InboxNotification, error)
+	// param read_status: The read status to filter by - can be any of 'ALL', 'UNREAD', 'READ'
+	// param created_at_opt: The created_at timestamp to filter by. This parameter is usd for pagination - it fetches notifications created before the specified timestamp if it is not the zero value
+	// param limit_opt: The limit of notifications to fetch. If the limit is not specified, it defaults to 25
+	GetInboxNotificationsByUserID(ctx context.Context, arg GetInboxNotificationsByUserIDParams) ([]InboxNotification, error)
 	GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg GetJFrogXrayScanByWorkspaceAndAgentIDParams) (JfrogXrayScan, error)
 	GetLastUpdateCheck(ctx context.Context) (string, error)
 	GetLatestCryptoKeyByFeature(ctx context.Context, feature CryptoKeyFeature) (CryptoKey, error)

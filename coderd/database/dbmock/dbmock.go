@@ -1432,6 +1432,21 @@ func (mr *MockStoreMockRecorder) GetFileTemplates(ctx, fileID any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFileTemplates", reflect.TypeOf((*MockStore)(nil).GetFileTemplates), ctx, fileID)
 }
 
+// GetFilteredInboxNotificationsByUserID mocks base method.
+func (m *MockStore) GetFilteredInboxNotificationsByUserID(ctx context.Context, arg database.GetFilteredInboxNotificationsByUserIDParams) ([]database.InboxNotification, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetFilteredInboxNotificationsByUserID", ctx, arg)
+	ret0, _ := ret[0].([]database.InboxNotification)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetFilteredInboxNotificationsByUserID indicates an expected call of GetFilteredInboxNotificationsByUserID.
+func (mr *MockStoreMockRecorder) GetFilteredInboxNotificationsByUserID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFilteredInboxNotificationsByUserID", reflect.TypeOf((*MockStore)(nil).GetFilteredInboxNotificationsByUserID), ctx, arg)
+}
+
 // GetGitSSHKey mocks base method.
 func (m *MockStore) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
 	m.ctrl.T.Helper()
@@ -1595,21 +1610,6 @@ func (m *MockStore) GetInboxNotificationsByUserID(ctx context.Context, arg datab
 func (mr *MockStoreMockRecorder) GetInboxNotificationsByUserID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetInboxNotificationsByUserID", reflect.TypeOf((*MockStore)(nil).GetInboxNotificationsByUserID), ctx, arg)
-}
-
-// GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets mocks base method.
-func (m *MockStore) GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets(ctx context.Context, arg database.GetInboxNotificationsByUserIDFilteredByTemplatesAndTargetsParams) ([]database.InboxNotification, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets", ctx, arg)
-	ret0, _ := ret[0].([]database.InboxNotification)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets indicates an expected call of GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets.
-func (mr *MockStoreMockRecorder) GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets", reflect.TypeOf((*MockStore)(nil).GetInboxNotificationsByUserIDFilteredByTemplatesAndTargets), ctx, arg)
 }
 
 // GetJFrogXrayScanByWorkspaceAndAgentID mocks base method.
