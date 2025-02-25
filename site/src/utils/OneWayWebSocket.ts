@@ -15,6 +15,12 @@
  * browsers implement at least some degree of multiplexing for them. This file
  * just provides a wrapper to make it harder to use WebSockets for two-way
  * communication by accident.
+ *
+ * ---
+ * @todo 2025-02-24 - Add tests for this class. Originally tried to add unit
+ * tests via MSW's WS namespace, but couldn't figure out how to get the tests to
+ * work reliably. This wrapper class is lightweight enough that if something
+ * breaks, there's probably something wrong with the browser itself.
  */
 
 // Not bothering with trying to borrow methods from the base WebSocket type
