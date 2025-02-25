@@ -1,14 +1,14 @@
-import AddIcon from "@mui/icons-material/AddOutlined";
 import Inventory2 from "@mui/icons-material/Inventory2";
 import NoteAddOutlined from "@mui/icons-material/NoteAddOutlined";
 import UploadOutlined from "@mui/icons-material/UploadOutlined";
-import Button from "@mui/material/Button";
+import { Button } from "components/Button/Button";
 import {
 	MoreMenu,
 	MoreMenuContent,
 	MoreMenuItem,
 	MoreMenuTrigger,
 } from "components/MoreMenu/MoreMenu";
+import { PlusIcon } from "lucide-react";
 import type { FC } from "react";
 
 type CreateTemplateButtonProps = {
@@ -21,8 +21,9 @@ export const CreateTemplateButton: FC<CreateTemplateButtonProps> = ({
 	return (
 		<MoreMenu>
 			<MoreMenuTrigger>
-				<Button startIcon={<AddIcon />} variant="contained">
-					Create Template
+				<Button>
+					<PlusIcon />
+					Create template
 				</Button>
 			</MoreMenuTrigger>
 			<MoreMenuContent>
