@@ -221,12 +221,11 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 	});
 	const getFieldHelpers = getFormHelpers<CreateTemplateFormData>(form, error);
 
-	const provisionerDaemonsQuery = useQuery(
+	const { data: provisioners } = useQuery(
 		selectedOrg
 			? {
 					...provisionerDaemons(selectedOrg.id),
 					enabled: showOrganizationPicker,
-					select: (provisioners) => provisioners.length < 1,
 				}
 			: { enabled: false },
 	);
@@ -237,7 +236,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 	// form submission**!! A user could easily see this warning, connect a
 	// provisioner, and then not refresh the page. Even if they submit without
 	// a provisioner, it'll just sit in the job queue until they connect one.
-	const showProvisionerWarning = provisionerDaemonsQuery.data;
+	const showProvisionerWarning = provisioners ? provisioners.length < 1 : false;
 
 	return (
 		<HorizontalForm onSubmit={form.handleSubmit}>
@@ -330,29 +329,31 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 				</FormFields>
 			</FormSection>
 
-			<FormSection
-				title="Provisioner tags"
-				description={
-					<>
-						Tags are a way to control which provisioner daemons complete which
-						build jobs.&nbsp;
-						<Link
-							href={docs("/admin/provisioners")}
-							target="_blank"
-							rel="noreferrer"
-						>
-							Learn more...
-						</Link>
-					</>
-				}
-			>
-				<FormFields>
-					<ProvisionerTagsField
-						value={form.values.tags}
-						onChange={(tags) => form.setFieldValue("tags", tags)}
-					/>
-				</FormFields>
-			</FormSection>
+			{provisioners && provisioners.length > 0 && (
+				<FormSection
+					title="Provisioner tags"
+					description={
+						<>
+							Tags are a way to control which provisioner daemons complete which
+							build jobs.&nbsp;
+							<Link
+								href={docs("/admin/provisioners")}
+								target="_blank"
+								rel="noreferrer"
+							>
+								Learn more...
+							</Link>
+						</>
+					}
+				>
+					<FormFields>
+						<ProvisionerTagsField
+							value={form.values.tags}
+							onChange={(tags) => form.setFieldValue("tags", tags)}
+						/>
+					</FormFields>
+				</FormSection>
+			)}
 
 			{/* Variables */}
 			{variables && variables.length > 0 && (
