@@ -87,6 +87,11 @@ func TestExpRpty(t *testing.T) {
 			require.NoError(t, err, "Could not stop container")
 		})
 
+		_ = agenttest.New(t, client.URL, agentToken, func(o *agent.Options) {
+			o.ExperimentalContainersEnabled = true
+		})
+		_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+
 		inv, root := clitest.New(t, "exp", "rpty", workspace.Name, "-c", ct.Container.ID)
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t).Attach(inv)
@@ -95,11 +100,6 @@ func TestExpRpty(t *testing.T) {
 			err := inv.WithContext(ctx).Run()
 			assert.NoError(t, err)
 		})
-
-		_ = agenttest.New(t, client.URL, agentToken, func(o *agent.Options) {
-			o.ExperimentalContainersEnabled = true
-		})
-		_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
 
 		pty.ExpectMatch(fmt.Sprintf("Connected to %s", workspace.Name))
 		pty.ExpectMatch("Reconnect ID: ")
