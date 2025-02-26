@@ -4073,7 +4073,7 @@ func (q *FakeQuerier) GetProvisionerDaemonsWithStatusByOrganization(ctx context.
 	}
 
 	slices.SortFunc(rows, func(a, b database.GetProvisionerDaemonsWithStatusByOrganizationRow) int {
-		return a.ProvisionerDaemon.CreatedAt.Compare(b.ProvisionerDaemon.CreatedAt)
+		return b.ProvisionerDaemon.CreatedAt.Compare(a.ProvisionerDaemon.CreatedAt)
 	})
 
 	if arg.Limit.Valid && arg.Limit.Int32 > 0 && len(rows) > int(arg.Limit.Int32) {
