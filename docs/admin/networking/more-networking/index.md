@@ -5,6 +5,8 @@
 Coder workspaces have SSH support which allows the use of desktop editors such
 as VS Code remote connections and JetBrains Gateway.
 
+![Diagram of SSH and browser connections](../../../images/admin/networking/network-stack/network-diagram-ssh-browser.png)
+
 SSH connections require that you open port 443 on the server.
 
 Coder does not require workspaces to have port 22 open, an OpenSSH server running,
