@@ -70,7 +70,7 @@ You can opt-out of a feature after you've enabled it.
 Beta features are open to the public and are tagged with a `Beta` label.
 
 They’re in active development and subject to minor changes.
-They might contain bugs, but are generally ready for use.
+They might contain minor bugs, but are generally ready for use.
 
 Beta features are often ready for general availability within two-three releases.
 You should test beta features in staging environments.
