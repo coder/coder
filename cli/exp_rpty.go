@@ -121,7 +121,6 @@ func handleRPTY(inv *serpent.Invocation, client *codersdk.Client, args handleRPT
 	if err := cliui.Agent(ctx, inv.Stderr, agt.ID, cliui.AgentOptions{
 		FetchInterval: 0,
 		Fetch:         client.WorkspaceAgent,
-		FetchLogs:     client.WorkspaceAgentLogsAfter,
 		Wait:          false,
 	}); err != nil {
 		return err
@@ -165,24 +164,19 @@ func handleRPTY(inv *serpent.Invocation, client *codersdk.Client, args handleRPT
 	defer conn.Close()
 
 	cliui.Infof(inv.Stderr, "Connected to %s (agent id: %s)", args.NamedWorkspace, agt.ID)
+	cliui.Infof(inv.Stderr, "Reconnect ID: %s", reconnectID)
 	closeUsage := client.UpdateWorkspaceUsageWithBodyContext(ctx, ws.ID, codersdk.PostWorkspaceUsageRequest{
 		AgentID: agt.ID,
 		AppName: codersdk.UsageAppNameReconnectingPty,
 	})
 	defer closeUsage()
 
-	stdinDone := make(chan struct{})
-	stdoutDone := make(chan struct{})
-	stderrDone := make(chan struct{})
-	done := make(chan struct{})
+	br := bufio.NewScanner(inv.Stdin)
+	// Split on bytes, otherwise you have to send a newline to flush the buffer.
+	br.Split(bufio.ScanBytes)
+	je := json.NewEncoder(conn)
 
 	go func() {
-		defer close(stdinDone)
-		// This is how we send commands to the agent.
-		br := bufio.NewScanner(inv.Stdin)
-		// Split on bytes, otherwise you have to send a newline to flush the buffer.
-		br.Split(bufio.ScanBytes)
-		je := json.NewEncoder(conn)
 		for br.Scan() {
 			if err := je.Encode(map[string]string{
 				"data": br.Text(),
@@ -191,27 +185,32 @@ func handleRPTY(inv *serpent.Invocation, client *codersdk.Client, args handleRPT
 			}
 		}
 	}()
+
+	windowChange := listenWindowSize(ctx)
 	go func() {
-		defer func() {
-			close(stdoutDone)
-		}()
-		_, _ = io.Copy(inv.Stdout, conn)
-	}()
-	go func() {
-		defer func() {
-			close(stderrDone)
-		}()
-		_, _ = io.Copy(inv.Stderr, conn)
-	}()
-	go func() {
-		defer close(done)
-		<-stdoutDone
-		<-stderrDone
-		_ = conn.Close()
-		_, _ = fmt.Fprintf(inv.Stderr, "Connection closed\n")
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-windowChange:
+			}
+			width, height, err := term.GetSize(int(stdoutFile.Fd()))
+			if err != nil {
+				continue
+			}
+			if err := je.Encode(map[string]int{
+				"width":  width,
+				"height": height,
+			}); err != nil {
+				cliui.Errorf(inv.Stderr, "Failed to send window size: %v", err)
+			}
+		}
 	}()
 
-	<-done
+	_, _ = io.Copy(inv.Stdout, conn)
+	cancel()
+	_ = conn.Close()
+	_, _ = fmt.Fprintf(inv.Stderr, "Connection closed\n")
 
 	return nil
 }

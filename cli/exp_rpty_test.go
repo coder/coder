@@ -102,6 +102,7 @@ func TestExpRpty(t *testing.T) {
 		_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
 
 		pty.ExpectMatch(fmt.Sprintf("Connected to %s", workspace.Name))
+		pty.ExpectMatch("Reconnect ID: ")
 		pty.ExpectMatch(" #")
 		pty.WriteLine("hostname")
 		pty.ExpectMatch(ct.Container.Config.Hostname)
