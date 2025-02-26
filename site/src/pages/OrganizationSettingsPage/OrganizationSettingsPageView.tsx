@@ -75,7 +75,6 @@ export const OrganizationSettingsPageView: FC<
 			)}
 
 			<HorizontalForm
-				data-testid="org-settings-form"
 				onSubmit={form.handleSubmit}
 				aria-label="Organization settings form"
 			>
@@ -147,7 +146,10 @@ export const OrganizationSettingsPageView: FC<
 
 			<DeleteDialog
 				isOpen={isDeleting}
-				onConfirm={onDeleteOrganization}
+				onConfirm={async () => {
+					await onDeleteOrganization();
+					setIsDeleting(false);
+				}}
 				onCancel={() => setIsDeleting(false)}
 				entity="organization"
 				name={organization.name}

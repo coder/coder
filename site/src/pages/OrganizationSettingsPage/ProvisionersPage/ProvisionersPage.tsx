@@ -9,13 +9,13 @@ import { ProvisionerDaemonsPage } from "./ProvisionerDaemonsPage";
 import { ProvisionerJobsPage } from "./ProvisionerJobsPage";
 
 const ProvisionersPage: FC = () => {
-	const { organization } = useOrganizationSettings();
+	const { organization, organizationPermissions } = useOrganizationSettings();
 	const tab = useSearchParamsKey({
 		key: "tab",
 		defaultValue: "jobs",
 	});
 
-	if (!organization) {
+	if (!organization || !organizationPermissions?.viewProvisionerJobs) {
 		return (
 			<>
 				<Helmet>

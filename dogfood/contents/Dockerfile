@@ -160,6 +160,7 @@ RUN apt-get update --quiet && apt-get install --yes \
 	kubectl \
 	language-pack-en \
 	less \
+	libgbm-dev \
 	libssl-dev \
 	lsb-release \
 	man \

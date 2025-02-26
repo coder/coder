@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"io"
 	"net/http"
 	"net/netip"
@@ -87,6 +88,8 @@ type Options struct {
 	BlockFileTransfer            bool
 	Execer                       agentexec.Execer
 	ContainerLister              agentcontainers.Lister
+
+	ExperimentalContainersEnabled bool
 }
 
 type Client interface {
@@ -187,6 +190,8 @@ func New(options Options) Agent {
 		metrics:            newAgentMetrics(prometheusRegistry),
 		execer:             options.Execer,
 		lister:             options.ContainerLister,
+
+		experimentalDevcontainersEnabled: options.ExperimentalContainersEnabled,
 	}
 	// Initially, we have a closed channel, reflecting the fact that we are not initially connected.
 	// Each time we connect we replace the channel (while holding the closeMutex) with a new one
@@ -257,6 +262,8 @@ type agent struct {
 	metrics *agentMetrics
 	execer  agentexec.Execer
 	lister  agentcontainers.Lister
+
+	experimentalDevcontainersEnabled bool
 }
 
 func (a *agent) TailnetConn() *tailnet.Conn {
@@ -296,6 +303,9 @@ func (a *agent) init() {
 		a.sshServer,
 		a.metrics.connectionsTotal, a.metrics.reconnectingPTYErrors,
 		a.reconnectingPTYTimeout,
+		func(s *reconnectingpty.Server) {
+			s.ExperimentalContainersEnabled = a.experimentalDevcontainersEnabled
+		},
 	)
 	go a.runLoop()
 }
@@ -340,7 +350,7 @@ func (a *agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentM
 		// if it can guarantee the clocks are synchronized.
 		CollectedAt: now,
 	}
-	cmdPty, err := a.sshServer.CreateCommand(ctx, md.Script, nil)
+	cmdPty, err := a.sshServer.CreateCommand(ctx, md.Script, nil, nil)
 	if err != nil {
 		result.Error = fmt.Sprintf("create cmd: %+v", err)
 		return result
@@ -372,7 +382,6 @@ func (a *agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentM
 	// Important: if the command times out, we may see a misleading error like
 	// "exit status 1", so it's important to include the context error.
 	err = errors.Join(err, ctx.Err())
-
 	if err != nil {
 		result.Error = fmt.Sprintf("run cmd: %+v", err)
 	}
@@ -995,7 +1004,6 @@ func (a *agent) createOrUpdateNetwork(manifestOK, networkOK *checkpoint) func(co
 		if err := manifestOK.wait(ctx); err != nil {
 			return xerrors.Errorf("no manifest: %w", err)
 		}
-		var err error
 		defer func() {
 			networkOK.complete(retErr)
 		}()
@@ -1004,9 +1012,20 @@ func (a *agent) createOrUpdateNetwork(manifestOK, networkOK *checkpoint) func(co
 		network := a.network
 		a.closeMutex.Unlock()
 		if network == nil {
+			keySeed, err := WorkspaceKeySeed(manifest.WorkspaceID, manifest.AgentName)
+			if err != nil {
+				return xerrors.Errorf("generate seed from workspace id: %w", err)
+			}
 			// use the graceful context here, because creating the tailnet is not itself tied to the
 			// agent API.
-			network, err = a.createTailnet(a.gracefulCtx, manifest.AgentID, manifest.DERPMap, manifest.DERPForceWebSockets, manifest.DisableDirectConnections)
+			network, err = a.createTailnet(
+				a.gracefulCtx,
+				manifest.AgentID,
+				manifest.DERPMap,
+				manifest.DERPForceWebSockets,
+				manifest.DisableDirectConnections,
+				keySeed,
+			)
 			if err != nil {
 				return xerrors.Errorf("create tailnet: %w", err)
 			}
@@ -1146,7 +1165,13 @@ func (a *agent) trackGoroutine(fn func()) error {
 	return nil
 }
 
-func (a *agent) createTailnet(ctx context.Context, agentID uuid.UUID, derpMap *tailcfg.DERPMap, derpForceWebSockets, disableDirectConnections bool) (_ *tailnet.Conn, err error) {
+func (a *agent) createTailnet(
+	ctx context.Context,
+	agentID uuid.UUID,
+	derpMap *tailcfg.DERPMap,
+	derpForceWebSockets, disableDirectConnections bool,
+	keySeed int64,
+) (_ *tailnet.Conn, err error) {
 	// Inject `CODER_AGENT_HEADER` into the DERP header.
 	var header http.Header
 	if client, ok := a.client.(*agentsdk.Client); ok {
@@ -1172,6 +1197,10 @@ func (a *agent) createTailnet(ctx context.Context, agentID uuid.UUID, derpMap *t
 			network.Close()
 		}
 	}()
+
+	if err := a.sshServer.UpdateHostSigner(keySeed); err != nil {
+		return nil, xerrors.Errorf("update host signer: %w", err)
+	}
 
 	sshListener, err := network.Listen("tcp", ":"+strconv.Itoa(workspacesdk.AgentSSHPort))
 	if err != nil {
@@ -1849,4 +1878,21 @@ func PrometheusMetricsHandler(prometheusRegistry *prometheus.Registry, logger sl
 			}
 		}
 	})
+}
+
+// WorkspaceKeySeed converts a WorkspaceID UUID and agent name to an int64 hash.
+// This uses the FNV-1a hash algorithm which provides decent distribution and collision
+// resistance for string inputs.
+func WorkspaceKeySeed(workspaceID uuid.UUID, agentName string) (int64, error) {
+	h := fnv.New64a()
+	_, err := h.Write(workspaceID[:])
+	if err != nil {
+		return 42, err
+	}
+	_, err = h.Write([]byte(agentName))
+	if err != nil {
+		return 42, err
+	}
+
+	return int64(h.Sum64()), nil
 }

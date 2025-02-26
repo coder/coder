@@ -367,6 +367,26 @@ func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.Get
 			api.Logger.Error(ctx, "unable to fetch workspace", slog.Error(err))
 		}
 		return workspace.Deleted
+	case database.ResourceTypeWorkspaceAgent:
+		// We use workspace as a proxy for workspace agents.
+		workspace, err := api.Database.GetWorkspaceByAgentID(ctx, alog.AuditLog.ResourceID)
+		if err != nil {
+			if xerrors.Is(err, sql.ErrNoRows) {
+				return true
+			}
+			api.Logger.Error(ctx, "unable to fetch workspace", slog.Error(err))
+		}
+		return workspace.Deleted
+	case database.ResourceTypeWorkspaceApp:
+		// We use workspace as a proxy for workspace apps.
+		workspace, err := api.Database.GetWorkspaceByWorkspaceAppID(ctx, alog.AuditLog.ResourceID)
+		if err != nil {
+			if xerrors.Is(err, sql.ErrNoRows) {
+				return true
+			}
+			api.Logger.Error(ctx, "unable to fetch workspace", slog.Error(err))
+		}
+		return workspace.Deleted
 	case database.ResourceTypeOauth2ProviderApp:
 		_, err := api.Database.GetOAuth2ProviderAppByID(ctx, alog.AuditLog.ResourceID)
 		if xerrors.Is(err, sql.ErrNoRows) {
@@ -428,6 +448,26 @@ func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAudit
 		}
 		return fmt.Sprintf("/@%s/%s/builds/%s",
 			workspaceOwner.Username, additionalFields.WorkspaceName, additionalFields.BuildNumber)
+
+	case database.ResourceTypeWorkspaceAgent:
+		if additionalFields.WorkspaceOwner != "" && additionalFields.WorkspaceName != "" {
+			return fmt.Sprintf("/@%s/%s", additionalFields.WorkspaceOwner, additionalFields.WorkspaceName)
+		}
+		workspace, getWorkspaceErr := api.Database.GetWorkspaceByAgentID(ctx, alog.AuditLog.ResourceID)
+		if getWorkspaceErr != nil {
+			return ""
+		}
+		return fmt.Sprintf("/@%s/%s", workspace.OwnerUsername, workspace.Name)
+
+	case database.ResourceTypeWorkspaceApp:
+		if additionalFields.WorkspaceOwner != "" && additionalFields.WorkspaceName != "" {
+			return fmt.Sprintf("/@%s/%s", additionalFields.WorkspaceOwner, additionalFields.WorkspaceName)
+		}
+		workspace, getWorkspaceErr := api.Database.GetWorkspaceByWorkspaceAppID(ctx, alog.AuditLog.ResourceID)
+		if getWorkspaceErr != nil {
+			return ""
+		}
+		return fmt.Sprintf("/@%s/%s", workspace.OwnerUsername, workspace.Name)
 
 	case database.ResourceTypeOauth2ProviderApp:
 		return fmt.Sprintf("/deployment/oauth2-provider/apps/%s", alog.AuditLog.ResourceID)

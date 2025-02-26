@@ -71,6 +71,7 @@ func NewTunnel(
 	if err != nil {
 		return nil, err
 	}
+	uCtx, uCancel := context.WithCancel(ctx)
 	t := &Tunnel{
 		//nolint:govet // safe to copy the locks here because we haven't started the speaker
 		speaker:         *(s),
@@ -80,7 +81,8 @@ func NewTunnel(
 		requestLoopDone: make(chan struct{}),
 		client:          client,
 		updater: updater{
-			ctx:         ctx,
+			ctx:         uCtx,
+			cancel:      uCancel,
 			netLoopDone: make(chan struct{}),
 			uSendCh:     s.sendCh,
 			agents:      map[uuid.UUID]tailnet.Agent{},
@@ -317,6 +319,7 @@ func sinkEntryToPb(e slog.SinkEntry) *Log {
 // updates to the manager.
 type updater struct {
 	ctx         context.Context
+	cancel      context.CancelFunc
 	netLoopDone chan struct{}
 
 	mu      sync.Mutex
@@ -480,6 +483,7 @@ func (u *updater) stop() error {
 	}
 	err := u.conn.Close()
 	u.conn = nil
+	u.cancel()
 	return err
 }
 

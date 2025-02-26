@@ -52,5 +52,6 @@ test("create and delete organization", async ({ page }) => {
 	const dialog = page.getByTestId("dialog");
 	await dialog.getByLabel("Name").fill(newName);
 	await dialog.getByRole("button", { name: "Delete" }).click();
-	await expect(page.getByText("Organization deleted.")).toBeVisible();
+	await page.waitForTimeout(1000);
+	await expect(page.getByText("Organization deleted")).toBeVisible();
 });

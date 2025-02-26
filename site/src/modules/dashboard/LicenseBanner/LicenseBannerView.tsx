@@ -6,6 +6,7 @@ import {
 	useTheme,
 } from "@emotion/react";
 import Link from "@mui/material/Link";
+import { LicenseTelemetryRequiredErrorText } from "api/typesGenerated";
 import { Expander } from "components/Expander/Expander";
 import { Pill } from "components/Pill/Pill";
 import { type FC, useState } from "react";
@@ -14,6 +15,7 @@ export const Language = {
 	licenseIssue: "License Issue",
 	licenseIssues: (num: number): string => `${num} License Issues`,
 	upgrade: "Contact sales@coder.com.",
+	exception: "Contact sales@coder.com if you need an exception.",
 	exceeded: "It looks like you've exceeded some limits of your license.",
 	lessDetails: "Less",
 	moreDetails: "More",
@@ -25,6 +27,14 @@ const styles = {
 		marginLeft: 8,
 	},
 } satisfies Record<string, Interpolation<Theme>>;
+
+const formatMessage = (message: string) => {
+	// If the message ends with an alphanumeric character, add a period.
+	if (/[a-z0-9]$/i.test(message)) {
+		return `${message}.`;
+	}
+	return message;
+};
 
 export interface LicenseBannerViewProps {
 	errors: readonly string[];
@@ -57,14 +67,16 @@ export const LicenseBannerView: FC<LicenseBannerViewProps> = ({
 			<div css={containerStyles}>
 				<Pill type={type}>{Language.licenseIssue}</Pill>
 				<div css={styles.leftContent}>
-					<span>{messages[0]}</span>
+					<span>{formatMessage(messages[0])}</span>
 					&nbsp;
 					<Link
 						color={textColor}
 						fontWeight="medium"
 						href="mailto:sales@coder.com"
 					>
-						{Language.upgrade}
+						{messages[0] === LicenseTelemetryRequiredErrorText
+							? Language.exception
+							: Language.upgrade}
 					</Link>
 				</div>
 			</div>
@@ -90,7 +102,7 @@ export const LicenseBannerView: FC<LicenseBannerViewProps> = ({
 					<ul css={{ padding: 8, margin: 0 }}>
 						{messages.map((message) => (
 							<li css={{ margin: 4 }} key={message}>
-								{message}
+								{formatMessage(message)}
 							</li>
 						))}
 					</ul>

@@ -5066,28 +5066,15 @@ func (q *sqlQuerier) UpdateMemberRoles(ctx context.Context, arg UpdateMemberRole
 	return i, err
 }
 
-const deleteOrganization = `-- name: DeleteOrganization :exec
-DELETE FROM
-	organizations
-WHERE
-	id = $1 AND
-	is_default = false
-`
-
-func (q *sqlQuerier) DeleteOrganization(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteOrganization, id)
-	return err
-}
-
 const getDefaultOrganization = `-- name: GetDefaultOrganization :one
 SELECT
-	id, name, description, created_at, updated_at, is_default, display_name, icon
+    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted
 FROM
-	organizations
+    organizations
 WHERE
-	is_default = true
+    is_default = true
 LIMIT
-	1
+    1
 `
 
 func (q *sqlQuerier) GetDefaultOrganization(ctx context.Context) (Organization, error) {
@@ -5102,17 +5089,18 @@ func (q *sqlQuerier) GetDefaultOrganization(ctx context.Context) (Organization, 
 		&i.IsDefault,
 		&i.DisplayName,
 		&i.Icon,
+		&i.Deleted,
 	)
 	return i, err
 }
 
 const getOrganizationByID = `-- name: GetOrganizationByID :one
 SELECT
-	id, name, description, created_at, updated_at, is_default, display_name, icon
+    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted
 FROM
-	organizations
+    organizations
 WHERE
-	id = $1
+    id = $1
 `
 
 func (q *sqlQuerier) GetOrganizationByID(ctx context.Context, id uuid.UUID) (Organization, error) {
@@ -5127,23 +5115,31 @@ func (q *sqlQuerier) GetOrganizationByID(ctx context.Context, id uuid.UUID) (Org
 		&i.IsDefault,
 		&i.DisplayName,
 		&i.Icon,
+		&i.Deleted,
 	)
 	return i, err
 }
 
 const getOrganizationByName = `-- name: GetOrganizationByName :one
 SELECT
-	id, name, description, created_at, updated_at, is_default, display_name, icon
+    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted
 FROM
-	organizations
+    organizations
 WHERE
-	LOWER("name") = LOWER($1)
+    -- Optionally include deleted organizations
+    deleted = $1 AND
+    LOWER("name") = LOWER($2)
 LIMIT
-	1
+    1
 `
 
-func (q *sqlQuerier) GetOrganizationByName(ctx context.Context, name string) (Organization, error) {
-	row := q.db.QueryRowContext(ctx, getOrganizationByName, name)
+type GetOrganizationByNameParams struct {
+	Deleted bool   `db:"deleted" json:"deleted"`
+	Name    string `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) GetOrganizationByName(ctx context.Context, arg GetOrganizationByNameParams) (Organization, error) {
+	row := q.db.QueryRowContext(ctx, getOrganizationByName, arg.Deleted, arg.Name)
 	var i Organization
 	err := row.Scan(
 		&i.ID,
@@ -5154,37 +5150,40 @@ func (q *sqlQuerier) GetOrganizationByName(ctx context.Context, name string) (Or
 		&i.IsDefault,
 		&i.DisplayName,
 		&i.Icon,
+		&i.Deleted,
 	)
 	return i, err
 }
 
 const getOrganizations = `-- name: GetOrganizations :many
 SELECT
-	id, name, description, created_at, updated_at, is_default, display_name, icon
+    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted
 FROM
-	organizations
+    organizations
 WHERE
-	true
-	  -- Filter by ids
-	AND CASE
-		WHEN array_length($1 :: uuid[], 1) > 0 THEN
-			id = ANY($1)
-		ELSE true
-	END
-  	AND CASE
-		  WHEN $2::text != '' THEN
-			  LOWER("name") = LOWER($2)
-		  ELSE true
-	END
+    -- Optionally include deleted organizations
+    deleted = $1
+      -- Filter by ids
+    AND CASE
+        WHEN array_length($2 :: uuid[], 1) > 0 THEN
+            id = ANY($2)
+        ELSE true
+    END
+    AND CASE
+          WHEN $3::text != '' THEN
+              LOWER("name") = LOWER($3)
+          ELSE true
+    END
 `
 
 type GetOrganizationsParams struct {
-	IDs  []uuid.UUID `db:"ids" json:"ids"`
-	Name string      `db:"name" json:"name"`
+	Deleted bool        `db:"deleted" json:"deleted"`
+	IDs     []uuid.UUID `db:"ids" json:"ids"`
+	Name    string      `db:"name" json:"name"`
 }
 
 func (q *sqlQuerier) GetOrganizations(ctx context.Context, arg GetOrganizationsParams) ([]Organization, error) {
-	rows, err := q.db.QueryContext(ctx, getOrganizations, pq.Array(arg.IDs), arg.Name)
+	rows, err := q.db.QueryContext(ctx, getOrganizations, arg.Deleted, pq.Array(arg.IDs), arg.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -5201,6 +5200,7 @@ func (q *sqlQuerier) GetOrganizations(ctx context.Context, arg GetOrganizationsP
 			&i.IsDefault,
 			&i.DisplayName,
 			&i.Icon,
+			&i.Deleted,
 		); err != nil {
 			return nil, err
 		}
@@ -5217,22 +5217,29 @@ func (q *sqlQuerier) GetOrganizations(ctx context.Context, arg GetOrganizationsP
 
 const getOrganizationsByUserID = `-- name: GetOrganizationsByUserID :many
 SELECT
-	id, name, description, created_at, updated_at, is_default, display_name, icon
+    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted
 FROM
-	organizations
+    organizations
 WHERE
-	id = ANY(
-		SELECT
-			organization_id
-		FROM
-			organization_members
-		WHERE
-			user_id = $1
-	)
+    -- Optionally include deleted organizations
+    deleted = $2 AND
+    id = ANY(
+        SELECT
+            organization_id
+        FROM
+            organization_members
+        WHERE
+            user_id = $1
+    )
 `
 
-func (q *sqlQuerier) GetOrganizationsByUserID(ctx context.Context, userID uuid.UUID) ([]Organization, error) {
-	rows, err := q.db.QueryContext(ctx, getOrganizationsByUserID, userID)
+type GetOrganizationsByUserIDParams struct {
+	UserID  uuid.UUID `db:"user_id" json:"user_id"`
+	Deleted bool      `db:"deleted" json:"deleted"`
+}
+
+func (q *sqlQuerier) GetOrganizationsByUserID(ctx context.Context, arg GetOrganizationsByUserIDParams) ([]Organization, error) {
+	rows, err := q.db.QueryContext(ctx, getOrganizationsByUserID, arg.UserID, arg.Deleted)
 	if err != nil {
 		return nil, err
 	}
@@ -5249,6 +5256,7 @@ func (q *sqlQuerier) GetOrganizationsByUserID(ctx context.Context, userID uuid.U
 			&i.IsDefault,
 			&i.DisplayName,
 			&i.Icon,
+			&i.Deleted,
 		); err != nil {
 			return nil, err
 		}
@@ -5265,10 +5273,10 @@ func (q *sqlQuerier) GetOrganizationsByUserID(ctx context.Context, userID uuid.U
 
 const insertOrganization = `-- name: InsertOrganization :one
 INSERT INTO
-	organizations (id, "name", display_name, description, icon, created_at, updated_at, is_default)
+    organizations (id, "name", display_name, description, icon, created_at, updated_at, is_default)
 VALUES
-	-- If no organizations exist, and this is the first, make it the default.
-	($1, $2, $3, $4, $5, $6, $7, (SELECT TRUE FROM organizations LIMIT 1) IS NULL) RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon
+    -- If no organizations exist, and this is the first, make it the default.
+    ($1, $2, $3, $4, $5, $6, $7, (SELECT TRUE FROM organizations LIMIT 1) IS NULL) RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon, deleted
 `
 
 type InsertOrganizationParams struct {
@@ -5301,22 +5309,23 @@ func (q *sqlQuerier) InsertOrganization(ctx context.Context, arg InsertOrganizat
 		&i.IsDefault,
 		&i.DisplayName,
 		&i.Icon,
+		&i.Deleted,
 	)
 	return i, err
 }
 
 const updateOrganization = `-- name: UpdateOrganization :one
 UPDATE
-	organizations
+    organizations
 SET
-	updated_at = $1,
-	name = $2,
-	display_name = $3,
-	description = $4,
-	icon = $5
+    updated_at = $1,
+    name = $2,
+    display_name = $3,
+    description = $4,
+    icon = $5
 WHERE
-	id = $6
-RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon
+    id = $6
+RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon, deleted
 `
 
 type UpdateOrganizationParams struct {
@@ -5347,8 +5356,29 @@ func (q *sqlQuerier) UpdateOrganization(ctx context.Context, arg UpdateOrganizat
 		&i.IsDefault,
 		&i.DisplayName,
 		&i.Icon,
+		&i.Deleted,
 	)
 	return i, err
+}
+
+const updateOrganizationDeletedByID = `-- name: UpdateOrganizationDeletedByID :exec
+UPDATE organizations
+SET
+    deleted = true,
+    updated_at = $1
+WHERE
+    id = $2 AND
+    is_default = false
+`
+
+type UpdateOrganizationDeletedByIDParams struct {
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	ID        uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateOrganizationDeletedByID(ctx context.Context, arg UpdateOrganizationDeletedByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateOrganizationDeletedByID, arg.UpdatedAt, arg.ID)
+	return err
 }
 
 const getParameterSchemasByJobID = `-- name: GetParameterSchemasByJobID :many
@@ -5815,7 +5845,7 @@ WHERE
 	AND (COALESCE(array_length($3::uuid[], 1), 0) = 0 OR pd.id = ANY($3::uuid[]))
 	AND ($4::tagset = 'null'::tagset OR provisioner_tagset_contains(pd.tags::tagset, $4::tagset))
 ORDER BY
-	pd.created_at ASC
+	pd.created_at DESC
 LIMIT
 	$5::int
 `
@@ -8070,6 +8100,23 @@ func (q *sqlQuerier) GetNotificationsSettings(ctx context.Context) (string, erro
 	return notifications_settings, err
 }
 
+const getOAuth2GithubDefaultEligible = `-- name: GetOAuth2GithubDefaultEligible :one
+SELECT
+	CASE
+		WHEN value = 'true' THEN TRUE
+		ELSE FALSE
+	END
+FROM site_configs
+WHERE key = 'oauth2_github_default_eligible'
+`
+
+func (q *sqlQuerier) GetOAuth2GithubDefaultEligible(ctx context.Context) (bool, error) {
+	row := q.db.QueryRowContext(ctx, getOAuth2GithubDefaultEligible)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const getOAuthSigningKey = `-- name: GetOAuthSigningKey :one
 SELECT value FROM site_configs WHERE key = 'oauth_signing_key'
 `
@@ -8210,6 +8257,28 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'notificatio
 
 func (q *sqlQuerier) UpsertNotificationsSettings(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, upsertNotificationsSettings, value)
+	return err
+}
+
+const upsertOAuth2GithubDefaultEligible = `-- name: UpsertOAuth2GithubDefaultEligible :exec
+INSERT INTO site_configs (key, value)
+VALUES (
+    'oauth2_github_default_eligible',
+    CASE
+        WHEN $1::bool THEN 'true'
+        ELSE 'false'
+    END
+)
+ON CONFLICT (key) DO UPDATE
+SET value = CASE
+    WHEN $1::bool THEN 'true'
+    ELSE 'false'
+END
+WHERE site_configs.key = 'oauth2_github_default_eligible'
+`
+
+func (q *sqlQuerier) UpsertOAuth2GithubDefaultEligible(ctx context.Context, eligible bool) error {
+	_, err := q.db.ExecContext(ctx, upsertOAuth2GithubDefaultEligible, eligible)
 	return err
 }
 
