@@ -171,6 +171,12 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 															</Link>
 														</div>
 													)}
+													{auditLog.additional_fields?.reason && (
+														<div>
+															<h4 css={styles.auditLogInfoHeader}>Reason:</h4>
+															<div>{auditLog.additional_fields?.reason}</div>
+														</div>
+													)}
 												</div>
 											}
 										>
