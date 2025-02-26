@@ -2186,6 +2186,7 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 		// but this should not affect the queue position or queue size of other jobs.
 		skipJobIDs map[int]struct{}
 	}{
+		// Baseline test case
 		{
 			name: "test-case-1",
 			jobTags: []database.StringMap{
@@ -2200,7 +2201,7 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 			queueSizes:     []int64{2, 2, 0},
 			queuePositions: []int64{1, 1, 0},
 		},
-		// Similar to the previous case, but includes an additional provisioner.
+		// Includes an additional provisioner
 		{
 			name: "test-case-2",
 			jobTags: []database.StringMap{
@@ -2216,7 +2217,7 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 			queueSizes:     []int64{3, 3, 3},
 			queuePositions: []int64{1, 1, 3},
 		},
-		// Similar to the previous case, but skips job at index 0
+		// Skips job at index 0
 		{
 			name: "test-case-3",
 			jobTags: []database.StringMap{
@@ -2291,6 +2292,46 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 			skipJobIDs: map[int]struct{}{
 				0: {},
 				2: {},
+			},
+		},
+		// Includes two additional jobs that any provisioner can execute.
+		{
+			name: "test-case-7",
+			jobTags: []database.StringMap{
+				{},
+				{},
+				{"a": "1", "b": "2"},
+				{"a": "1"},
+				{"a": "1", "c": "3"},
+			},
+			daemonTags: []database.StringMap{
+				{"a": "1", "b": "2"},
+				{"a": "1"},
+				{"a": "1", "b": "2", "c": "3"},
+			},
+			queueSizes:     []int64{5, 5, 5, 5, 5},
+			queuePositions: []int64{1, 2, 3, 3, 5},
+		},
+		// Includes two additional jobs that any provisioner can execute, but they are intentionally skipped.
+		{
+			name: "test-case-8",
+			jobTags: []database.StringMap{
+				{},
+				{},
+				{"a": "1", "b": "2"},
+				{"a": "1"},
+				{"a": "1", "c": "3"},
+			},
+			daemonTags: []database.StringMap{
+				{"a": "1", "b": "2"},
+				{"a": "1"},
+				{"a": "1", "b": "2", "c": "3"},
+			},
+			queueSizes:     []int64{5, 5, 5},
+			queuePositions: []int64{3, 3, 5},
+			skipJobIDs: map[int]struct{}{
+				0: {},
+				1: {},
 			},
 		},
 	}
