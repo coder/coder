@@ -1262,7 +1262,7 @@ func TestQueuePosition(t *testing.T) {
 		Provisioners: []database.ProvisionerType{database.ProvisionerTypeEcho},
 		// Ensure the `tags` field is NOT NULL for the default provisioner;
 		// otherwise, it won't be able to pick up any jobs.
-		Tags: database.StringMap{"a": "1"},
+		Tags: database.StringMap{},
 	})
 
 	queued, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, jobIDs)
@@ -2421,7 +2421,6 @@ func TestGetProvisionerJobsByIDsWithQueuePosition_MixedStatuses(t *testing.T) {
 	now := dbtime.Now()
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	defaultTags := database.StringMap{"a": "1"}
 	// Create the following provisioner jobs:
 	allJobs := []database.ProvisionerJob{
 		// Pending. This will be the last in the queue because
@@ -2432,7 +2431,9 @@ func TestGetProvisionerJobsByIDsWithQueuePosition_MixedStatuses(t *testing.T) {
 			CanceledAt:  sql.NullTime{},
 			CompletedAt: sql.NullTime{},
 			Error:       sql.NullString{},
-			Tags:        defaultTags,
+			// Ensure the `tags` field is NOT NULL for both provisioner jobs and provisioner daemons;
+			// otherwise, provisioner daemons won't be able to pick up any jobs.
+			Tags: database.StringMap{},
 		}),
 
 		// Another pending. This will come first in the queue
@@ -2443,7 +2444,7 @@ func TestGetProvisionerJobsByIDsWithQueuePosition_MixedStatuses(t *testing.T) {
 			CanceledAt:  sql.NullTime{},
 			CompletedAt: sql.NullTime{},
 			Error:       sql.NullString{},
-			Tags:        defaultTags,
+			Tags:        database.StringMap{},
 		}),
 
 		// Running
@@ -2453,7 +2454,7 @@ func TestGetProvisionerJobsByIDsWithQueuePosition_MixedStatuses(t *testing.T) {
 			CanceledAt:  sql.NullTime{},
 			CompletedAt: sql.NullTime{},
 			Error:       sql.NullString{},
-			Tags:        defaultTags,
+			Tags:        database.StringMap{},
 		}),
 
 		// Succeeded
@@ -2463,7 +2464,7 @@ func TestGetProvisionerJobsByIDsWithQueuePosition_MixedStatuses(t *testing.T) {
 			CanceledAt:  sql.NullTime{},
 			CompletedAt: sql.NullTime{Valid: true, Time: now},
 			Error:       sql.NullString{},
-			Tags:        defaultTags,
+			Tags:        database.StringMap{},
 		}),
 
 		// Canceling
@@ -2473,7 +2474,7 @@ func TestGetProvisionerJobsByIDsWithQueuePosition_MixedStatuses(t *testing.T) {
 			CanceledAt:  sql.NullTime{Valid: true, Time: now},
 			CompletedAt: sql.NullTime{},
 			Error:       sql.NullString{},
-			Tags:        defaultTags,
+			Tags:        database.StringMap{},
 		}),
 
 		// Canceled
@@ -2483,7 +2484,7 @@ func TestGetProvisionerJobsByIDsWithQueuePosition_MixedStatuses(t *testing.T) {
 			CanceledAt:  sql.NullTime{Valid: true, Time: now},
 			CompletedAt: sql.NullTime{Valid: true, Time: now},
 			Error:       sql.NullString{},
-			Tags:        defaultTags,
+			Tags:        database.StringMap{},
 		}),
 
 		// Failed
@@ -2493,7 +2494,7 @@ func TestGetProvisionerJobsByIDsWithQueuePosition_MixedStatuses(t *testing.T) {
 			CanceledAt:  sql.NullTime{},
 			CompletedAt: sql.NullTime{},
 			Error:       sql.NullString{String: "failed", Valid: true},
-			Tags:        defaultTags,
+			Tags:        database.StringMap{},
 		}),
 	}
 
@@ -2501,7 +2502,7 @@ func TestGetProvisionerJobsByIDsWithQueuePosition_MixedStatuses(t *testing.T) {
 	dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
 		Name:         "default_provisioner",
 		Provisioners: []database.ProvisionerType{database.ProvisionerTypeEcho},
-		Tags:         defaultTags,
+		Tags:         database.StringMap{},
 	})
 
 	// Assert invariant: the jobs are in the expected order
@@ -2561,37 +2562,38 @@ func TestGetProvisionerJobsByIDsWithQueuePosition_OrderValidation(t *testing.T) 
 	now := dbtime.Now()
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	defaultTags := database.StringMap{"a": "1"}
 	// Create the following provisioner jobs:
 	allJobs := []database.ProvisionerJob{
 		dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 			CreatedAt: now.Add(-4 * time.Minute),
-			Tags:      defaultTags,
+			// Ensure the `tags` field is NOT NULL for both provisioner jobs and provisioner daemons;
+			// otherwise, provisioner daemons won't be able to pick up any jobs.
+			Tags: database.StringMap{},
 		}),
 
 		dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 			CreatedAt: now.Add(-5 * time.Minute),
-			Tags:      defaultTags,
+			Tags:      database.StringMap{},
 		}),
 
 		dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 			CreatedAt: now.Add(-6 * time.Minute),
-			Tags:      defaultTags,
+			Tags:      database.StringMap{},
 		}),
 
 		dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 			CreatedAt: now.Add(-3 * time.Minute),
-			Tags:      defaultTags,
+			Tags:      database.StringMap{},
 		}),
 
 		dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 			CreatedAt: now.Add(-2 * time.Minute),
-			Tags:      defaultTags,
+			Tags:      database.StringMap{},
 		}),
 
 		dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 			CreatedAt: now.Add(-1 * time.Minute),
-			Tags:      defaultTags,
+			Tags:      database.StringMap{},
 		}),
 	}
 
@@ -2599,7 +2601,7 @@ func TestGetProvisionerJobsByIDsWithQueuePosition_OrderValidation(t *testing.T) 
 	dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
 		Name:         "default_provisioner",
 		Provisioners: []database.ProvisionerType{database.ProvisionerTypeEcho},
-		Tags:         defaultTags,
+		Tags:         database.StringMap{},
 	})
 
 	// Assert invariant: the jobs are in the expected order
