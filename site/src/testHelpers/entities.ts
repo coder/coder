@@ -468,7 +468,11 @@ export function assignableRole(
 	};
 }
 
-export const MockSiteRoles = [MockUserAdminRole, MockAuditorRole, MockWorkspaceCreationBanRole];
+export const MockSiteRoles = [
+	MockUserAdminRole,
+	MockAuditorRole,
+	MockWorkspaceCreationBanRole,
+];
 export const MockAssignableSiteRoles = [
 	assignableRole(MockUserAdminRole, true),
 	assignableRole(MockAuditorRole, true),
