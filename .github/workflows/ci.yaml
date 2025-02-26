@@ -1017,7 +1017,6 @@ jobs:
     # to main branch.
     needs:
       - changes
-      - build-dylib
     #if: github.ref == 'refs/heads/main' && needs.changes.outputs.docs-only == 'false' && !github.event.pull_request.head.repo.fork
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-22.04' }}
     permissions:
@@ -1091,17 +1090,17 @@ jobs:
       - name: Setup GCloud SDK
         uses: google-github-actions/setup-gcloud@77e7a554d41e2ee56fc945c52dfd3f33d12def9a # v2.1.4
 
-      - name: Download dylibs
-        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
-        with:
-          name: dylibs
-          path: ./build
+      #- name: Download dylibs
+      #  uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+      #  with:
+      #    name: dylibs
+      #    path: ./build
 
-      - name: Insert dylibs
-        run: |
-          mv ./build/*amd64.dylib ./site/out/bin/coder-vpn-darwin-amd64.dylib
-          mv ./build/*arm64.dylib ./site/out/bin/coder-vpn-darwin-arm64.dylib
-          mv ./build/*arm64.h     ./site/out/bin/coder-vpn-darwin-dylib.h
+      #- name: Insert dylibs
+      #  run: |
+      #    mv ./build/*amd64.dylib ./site/out/bin/coder-vpn-darwin-amd64.dylib
+      #    mv ./build/*arm64.dylib ./site/out/bin/coder-vpn-darwin-arm64.dylib
+      #    mv ./build/*arm64.h     ./site/out/bin/coder-vpn-darwin-dylib.h
 
       - name: Build
         run: |
