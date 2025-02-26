@@ -22,10 +22,10 @@
 import globalAxios, { type AxiosInstance, isAxiosError } from "axios";
 import type dayjs from "dayjs";
 import userAgentParser from "ua-parser-js";
+import { OneWayWebSocket } from "utils/OneWayWebSocket";
 import { delay } from "../utils/delay";
 import * as TypesGen from "./typesGenerated";
 import type { PostWorkspaceUsageRequest } from "./typesGenerated";
-import { OneWayWebSocket } from "utils/OneWayWebSocket";
 
 const getMissingParameters = (
 	oldBuildParameters: TypesGen.WorkspaceBuildParameter[],

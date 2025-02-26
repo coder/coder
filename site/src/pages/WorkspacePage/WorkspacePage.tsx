@@ -5,6 +5,7 @@ import { workspaceBuildsKey } from "api/queries/workspaceBuilds";
 import { workspaceByOwnerAndName } from "api/queries/workspaces";
 import type { Workspace } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { useEffectEvent } from "hooks/hookPolyfills";
@@ -15,7 +16,6 @@ import { useQuery, useQueryClient } from "react-query";
 import { useParams } from "react-router-dom";
 import { WorkspaceReadyPage } from "./WorkspaceReadyPage";
 import { type WorkspacePermissions, workspaceChecks } from "./permissions";
-import { displayError } from "components/GlobalSnackbar/utils";
 
 export const WorkspacePage: FC = () => {
 	const queryClient = useQueryClient();
