@@ -20,7 +20,7 @@
 				{
 					"title": "Feature stages",
 					"description": "Information about pre-GA stages.",
-					"path": "./contributing/feature-stages.md",
+					"path": "./about/feature-stages.md",
 					"icon_path": "./images/icons/stairs.svg"
 				}
 			]
