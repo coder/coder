@@ -292,9 +292,9 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
-			Name:     "CreateCustomRole",
-			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate},
-			Resource: rbac.ResourceAssignRole,
+			Name:     "CreateUpdateDeleteCustomRole",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
+			Resource: rbac.ResourceAssignOrgRole,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner},
 				false: {setOtherOrg, setOrgNotMe, userAdmin, orgMemberMe, memberMe, templateAdmin},
@@ -302,7 +302,7 @@ func TestRolePermissions(t *testing.T) {
 		},
 		{
 			Name:     "RoleAssignment",
-			Actions:  []policy.Action{policy.ActionAssign, policy.ActionDelete},
+			Actions:  []policy.Action{policy.ActionAssign, policy.ActionUnassign},
 			Resource: rbac.ResourceAssignRole,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, userAdmin},
@@ -320,7 +320,7 @@ func TestRolePermissions(t *testing.T) {
 		},
 		{
 			Name:     "OrgRoleAssignment",
-			Actions:  []policy.Action{policy.ActionAssign, policy.ActionDelete},
+			Actions:  []policy.Action{policy.ActionAssign, policy.ActionUnassign},
 			Resource: rbac.ResourceAssignOrgRole.InOrg(orgID),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin, userAdmin, orgUserAdmin},

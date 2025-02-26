@@ -34,11 +34,11 @@ func TestInsertCustomRoles(t *testing.T) {
 		}
 	}
 
-	canAssignRole := rbac.Role{
+	canCreateCustomRole := rbac.Role{
 		Identifier:  rbac.RoleIdentifier{Name: "can-assign"},
 		DisplayName: "",
 		Site: rbac.Permissions(map[string][]policy.Action{
-			rbac.ResourceAssignRole.Type: {policy.ActionRead, policy.ActionCreate},
+			rbac.ResourceAssignOrgRole.Type: {policy.ActionRead, policy.ActionCreate},
 		}),
 	}
 
@@ -61,17 +61,15 @@ func TestInsertCustomRoles(t *testing.T) {
 		return all
 	}
 
-	orgID := uuid.NullUUID{
-		UUID:  uuid.New(),
-		Valid: true,
-	}
+	orgID := uuid.New()
+
 	testCases := []struct {
 		name string
 
 		subject rbac.ExpandableRoles
 
 		// Perms to create on new custom role
-		organizationID uuid.NullUUID
+		organizationID uuid.UUID
 		site           []codersdk.Permission
 		org            []codersdk.Permission
 		user           []codersdk.Permission
@@ -79,19 +77,21 @@ func TestInsertCustomRoles(t *testing.T) {
 	}{
 		{
 			// No roles, so no assign role
-			name:          "no-roles",
-			subject:       rbac.RoleIdentifiers{},
-			errorContains: "forbidden",
+			name:           "no-roles",
+			organizationID: orgID,
+			subject:        rbac.RoleIdentifiers{},
+			errorContains:  "forbidden",
 		},
 		{
 			// This works because the new role has 0 perms
-			name:    "empty",
-			subject: merge(canAssignRole),
+			name:           "empty",
+			organizationID: orgID,
+			subject:        merge(canCreateCustomRole),
 		},
 		{
 			name:           "mixed-scopes",
-			subject:        merge(canAssignRole, rbac.RoleOwner()),
 			organizationID: orgID,
+			subject:        merge(canCreateCustomRole, rbac.RoleOwner()),
 			site: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
 				codersdk.ResourceWorkspace: {codersdk.ActionRead},
 			}),
@@ -101,27 +101,30 @@ func TestInsertCustomRoles(t *testing.T) {
 			errorContains: "organization roles specify site or user permissions",
 		},
 		{
-			name:    "invalid-action",
-			subject: merge(canAssignRole, rbac.RoleOwner()),
-			site: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+			name:           "invalid-action",
+			organizationID: orgID,
+			subject:        merge(canCreateCustomRole, rbac.RoleOwner()),
+			org: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
 				// Action does not go with resource
 				codersdk.ResourceWorkspace: {codersdk.ActionViewInsights},
 			}),
 			errorContains: "invalid action",
 		},
 		{
-			name:    "invalid-resource",
-			subject: merge(canAssignRole, rbac.RoleOwner()),
-			site: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+			name:           "invalid-resource",
+			organizationID: orgID,
+			subject:        merge(canCreateCustomRole, rbac.RoleOwner()),
+			org: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
 				"foobar": {codersdk.ActionViewInsights},
 			}),
 			errorContains: "invalid resource",
 		},
 		{
 			// Not allowing these at this time.
-			name:    "negative-permission",
-			subject: merge(canAssignRole, rbac.RoleOwner()),
-			site: []codersdk.Permission{
+			name:           "negative-permission",
+			organizationID: orgID,
+			subject:        merge(canCreateCustomRole, rbac.RoleOwner()),
+			org: []codersdk.Permission{
 				{
 					Negate:       true,
 					ResourceType: codersdk.ResourceWorkspace,
@@ -131,86 +134,66 @@ func TestInsertCustomRoles(t *testing.T) {
 			errorContains: "no negative permissions",
 		},
 		{
-			name:    "wildcard", // not allowed
-			subject: merge(canAssignRole, rbac.RoleOwner()),
-			site: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+			name:           "wildcard", // not allowed
+			organizationID: orgID,
+			subject:        merge(canCreateCustomRole, rbac.RoleOwner()),
+			org: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
 				codersdk.ResourceWorkspace: {"*"},
 			}),
 			errorContains: "no wildcard symbols",
 		},
 		// escalation checks
 		{
-			name:    "read-workspace-escalation",
-			subject: merge(canAssignRole),
-			site: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+			name:           "read-workspace-escalation",
+			organizationID: orgID,
+			subject:        merge(canCreateCustomRole),
+			org: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
 				codersdk.ResourceWorkspace: {codersdk.ActionRead},
 			}),
 			errorContains: "not allowed to grant this permission",
 		},
 		{
-			name: "read-workspace-outside-org",
-			organizationID: uuid.NullUUID{
-				UUID:  uuid.New(),
-				Valid: true,
-			},
-			subject: merge(canAssignRole, rbac.ScopedRoleOrgAdmin(orgID.UUID)),
+			name:           "read-workspace-outside-org",
+			organizationID: uuid.New(),
+			subject:        merge(canCreateCustomRole, rbac.ScopedRoleOrgAdmin(orgID)),
 			org: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
 				codersdk.ResourceWorkspace: {codersdk.ActionRead},
 			}),
-			errorContains: "forbidden",
+			errorContains: "not allowed to grant this permission",
 		},
 		{
 			name: "user-escalation",
 			// These roles do not grant user perms
-			subject: merge(canAssignRole, rbac.ScopedRoleOrgAdmin(orgID.UUID)),
+			organizationID: orgID,
+			subject:        merge(canCreateCustomRole, rbac.ScopedRoleOrgAdmin(orgID)),
 			user: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
 				codersdk.ResourceWorkspace: {codersdk.ActionRead},
 			}),
-			errorContains: "not allowed to grant this permission",
+			errorContains: "organization roles specify site or user permissions",
 		},
 		{
-			name:    "template-admin-escalation",
-			subject: merge(canAssignRole, rbac.RoleTemplateAdmin()),
+			name:           "site-escalation",
+			organizationID: orgID,
+			subject:        merge(canCreateCustomRole, rbac.RoleTemplateAdmin()),
 			site: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
-				codersdk.ResourceWorkspace:        {codersdk.ActionRead},   // ok!
 				codersdk.ResourceDeploymentConfig: {codersdk.ActionUpdate}, // not ok!
 			}),
-			user: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
-				codersdk.ResourceWorkspace: {codersdk.ActionRead}, // ok!
-			}),
-			errorContains: "deployment_config",
+			errorContains: "organization roles specify site or user permissions",
 		},
 		// ok!
 		{
-			name:    "read-workspace-template-admin",
-			subject: merge(canAssignRole, rbac.RoleTemplateAdmin()),
-			site: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+			name:           "read-workspace-template-admin",
+			organizationID: orgID,
+			subject:        merge(canCreateCustomRole, rbac.RoleTemplateAdmin()),
+			org: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
 				codersdk.ResourceWorkspace: {codersdk.ActionRead},
 			}),
 		},
 		{
 			name:           "read-workspace-in-org",
-			subject:        merge(canAssignRole, rbac.ScopedRoleOrgAdmin(orgID.UUID)),
 			organizationID: orgID,
+			subject:        merge(canCreateCustomRole, rbac.ScopedRoleOrgAdmin(orgID)),
 			org: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
-				codersdk.ResourceWorkspace: {codersdk.ActionRead},
-			}),
-		},
-		{
-			name: "user-perms",
-			// This is weird, but is ok
-			subject: merge(canAssignRole, rbac.RoleMember()),
-			user: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
-				codersdk.ResourceWorkspace: {codersdk.ActionRead},
-			}),
-		},
-		{
-			name:    "site+user-perms",
-			subject: merge(canAssignRole, rbac.RoleMember(), rbac.RoleTemplateAdmin()),
-			site: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
-				codersdk.ResourceWorkspace: {codersdk.ActionRead},
-			}),
-			user: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
 				codersdk.ResourceWorkspace: {codersdk.ActionRead},
 			}),
 		},
@@ -234,7 +217,7 @@ func TestInsertCustomRoles(t *testing.T) {
 			_, err := az.InsertCustomRole(ctx, database.InsertCustomRoleParams{
 				Name:            "test-role",
 				DisplayName:     "",
-				OrganizationID:  tc.organizationID,
+				OrganizationID:  uuid.NullUUID{UUID: tc.organizationID, Valid: true},
 				SitePermissions: db2sdk.List(tc.site, convertSDKPerm),
 				OrgPermissions:  db2sdk.List(tc.org, convertSDKPerm),
 				UserPermissions: db2sdk.List(tc.user, convertSDKPerm),
@@ -249,11 +232,11 @@ func TestInsertCustomRoles(t *testing.T) {
 					LookupRoles: []database.NameOrganizationPair{
 						{
 							Name:           "test-role",
-							OrganizationID: tc.organizationID.UUID,
+							OrganizationID: tc.organizationID,
 						},
 					},
 					ExcludeOrgRoles: false,
-					OrganizationID:  uuid.UUID{},
+					OrganizationID:  uuid.Nil,
 				})
 				require.NoError(t, err)
 				require.Len(t, roles, 1)

@@ -7775,25 +7775,25 @@ SELECT
 FROM
 	custom_roles
 WHERE
-  true
-  -- @lookup_roles will filter for exact (role_name, org_id) pairs
-  -- To do this manually in SQL, you can construct an array and cast it:
-  -- cast(ARRAY[('customrole','ece79dac-926e-44ca-9790-2ff7c5eb6e0c')] AS name_organization_pair[])
-  AND CASE WHEN array_length($1 :: name_organization_pair[], 1) > 0  THEN
-    -- Using 'coalesce' to avoid troubles with null literals being an empty string.
-	(name, coalesce(organization_id, '00000000-0000-0000-0000-000000000000' ::uuid)) = ANY ($1::name_organization_pair[])
-    ELSE true
-  END
-  -- This allows fetching all roles, or just site wide roles
-  AND CASE WHEN $2 :: boolean  THEN
-	organization_id IS null
+	true
+	-- @lookup_roles will filter for exact (role_name, org_id) pairs
+	-- To do this manually in SQL, you can construct an array and cast it:
+	-- cast(ARRAY[('customrole','ece79dac-926e-44ca-9790-2ff7c5eb6e0c')] AS name_organization_pair[])
+	AND CASE WHEN array_length($1 :: name_organization_pair[], 1) > 0  THEN
+		-- Using 'coalesce' to avoid troubles with null literals being an empty string.
+		(name, coalesce(organization_id, '00000000-0000-0000-0000-000000000000' ::uuid)) = ANY ($1::name_organization_pair[])
 	ELSE true
-  END
-  -- Allows fetching all roles to a particular organization
-  AND CASE WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid  THEN
-      organization_id = $3
-    ELSE true
-  END
+	END
+	-- This allows fetching all roles, or just site wide roles
+	AND CASE WHEN $2 :: boolean  THEN
+		organization_id IS null
+	ELSE true
+	END
+	-- Allows fetching all roles to a particular organization
+	AND CASE WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid  THEN
+		organization_id = $3
+	ELSE true
+	END
 `
 
 type CustomRolesParams struct {
@@ -7866,16 +7866,16 @@ INSERT INTO
 	updated_at
 )
 VALUES (
-		   -- Always force lowercase names
-		   lower($1),
-		   $2,
-		   $3,
-		   $4,
-		   $5,
-		   $6,
-		   now(),
-		   now()
-	   )
+	-- Always force lowercase names
+	lower($1),
+	$2,
+	$3,
+	$4,
+	$5,
+	$6,
+	now(),
+	now()
+)
 RETURNING name, display_name, site_permissions, org_permissions, user_permissions, created_at, updated_at, organization_id, id
 `
 
