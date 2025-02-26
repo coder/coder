@@ -197,7 +197,7 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
-			Name: "C__DMyWorkspaceInOrg",
+			Name: "CreateDeleteMyWorkspaceInOrg",
 			// When creating the WithID won't be set, but it does not change the result.
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionDelete},
 			Resource: rbac.ResourceWorkspace.WithID(workspaceID).InOrg(orgID).WithOwner(currentUser.String()),
