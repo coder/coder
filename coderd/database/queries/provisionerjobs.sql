@@ -51,19 +51,18 @@ WHERE
 
 -- name: GetProvisionerJobsByIDsWithQueuePosition :many
 WITH filtered_provisioner_jobs AS (
-	-- Step 1: Filter provisioner_jobs and assign an order from upstream system
+	-- Step 1: Filter provisioner_jobs
 	SELECT
-		*,
-		ROW_NUMBER() OVER () AS ordinality -- Track original order
+		*
 	FROM
 		provisioner_jobs
 	WHERE
 		id = ANY(@ids :: uuid [ ]) -- Apply filter early to reduce dataset size before expensive JOINs
 ),
 pending_jobs AS (
-	-- Step 2: Extract only pending jobs from the already filtered dataset
+	-- Step 2: Extract only pending jobs
 	SELECT *
-	FROM filtered_provisioner_jobs
+	FROM provisioner_jobs
 	WHERE started_at IS NULL
 		AND canceled_at IS NULL
 		AND completed_at IS NULL
@@ -79,7 +78,7 @@ ranked_jobs AS (
 	FROM
 		pending_jobs pj
 			INNER JOIN provisioner_daemons pd
-					ON provisioner_tagset_contains(pd.tags, pj.tags) -- Join only on the small filtered pending set
+					ON provisioner_tagset_contains(pd.tags, pj.tags) -- Join only on the small pending set
 ),
 final_jobs AS (
 	-- Step 4: Compute best queue position and max queue size per job
@@ -87,30 +86,28 @@ final_jobs AS (
 		fpj.id,
 		fpj.created_at,
 		COALESCE(MIN(rj.queue_position), 0) :: BIGINT AS queue_position, -- Best queue position across provisioners
-		COALESCE(MAX(rj.queue_size), 0) :: BIGINT AS queue_size, -- Max queue size across provisioners
-		fpj.ordinality -- Preserve original order
+		COALESCE(MAX(rj.queue_size), 0) :: BIGINT AS queue_size -- Max queue size across provisioners
 	FROM
 		filtered_provisioner_jobs fpj -- Use the pre-filtered dataset instead of full provisioner_jobs
 			LEFT JOIN ranked_jobs rj
 					ON fpj.id = rj.id -- Ensure we only keep jobs that have a ranking
 	GROUP BY
-		fpj.id, fpj.created_at, fpj.ordinality -- Include `ordinality` in GROUP BY
+		fpj.id, fpj.created_at
 )
--- Step 5: Final SELECT with INNER JOIN provisioner_jobs
 SELECT
+	-- Step 5: Final SELECT with INNER JOIN provisioner_jobs
 	fj.id,
 	fj.created_at,
 	sqlc.embed(pj),
 	fj.queue_position,
-	fj.queue_size,
-	fj.ordinality
+	fj.queue_size
 FROM
 	final_jobs fj
 		INNER JOIN provisioner_jobs pj
 				ON fj.id = pj.id -- Ensure we retrieve full details from `provisioner_jobs`.
                                  -- JOIN with pj is required for sqlc.embed(pj) to compile successfully.
 ORDER BY
-	fj.ordinality; -- Preserve original ID order from upstream
+	fj.created_at;
 
 -- name: GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner :many
 WITH pending_jobs AS (

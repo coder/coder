@@ -6361,19 +6361,18 @@ func (q *sqlQuerier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUI
 
 const getProvisionerJobsByIDsWithQueuePosition = `-- name: GetProvisionerJobsByIDsWithQueuePosition :many
 WITH filtered_provisioner_jobs AS (
-	-- Step 1: Filter provisioner_jobs and assign an order from upstream system
+	-- Step 1: Filter provisioner_jobs
 	SELECT
-		id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status,
-		ROW_NUMBER() OVER () AS ordinality -- Track original order
+		id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status
 	FROM
 		provisioner_jobs
 	WHERE
 		id = ANY($1 :: uuid [ ]) -- Apply filter early to reduce dataset size before expensive JOINs
 ),
 pending_jobs AS (
-	-- Step 2: Extract only pending jobs from the already filtered dataset
-	SELECT id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status, ordinality
-	FROM filtered_provisioner_jobs
+	-- Step 2: Extract only pending jobs
+	SELECT id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status
+	FROM provisioner_jobs
 	WHERE started_at IS NULL
 		AND canceled_at IS NULL
 		AND completed_at IS NULL
@@ -6389,7 +6388,7 @@ ranked_jobs AS (
 	FROM
 		pending_jobs pj
 			INNER JOIN provisioner_daemons pd
-					ON provisioner_tagset_contains(pd.tags, pj.tags) -- Join only on the small filtered pending set
+					ON provisioner_tagset_contains(pd.tags, pj.tags) -- Join only on the small pending set
 ),
 final_jobs AS (
 	-- Step 4: Compute best queue position and max queue size per job
@@ -6397,29 +6396,28 @@ final_jobs AS (
 		fpj.id,
 		fpj.created_at,
 		COALESCE(MIN(rj.queue_position), 0) :: BIGINT AS queue_position, -- Best queue position across provisioners
-		COALESCE(MAX(rj.queue_size), 0) :: BIGINT AS queue_size, -- Max queue size across provisioners
-		fpj.ordinality -- Preserve original order
+		COALESCE(MAX(rj.queue_size), 0) :: BIGINT AS queue_size -- Max queue size across provisioners
 	FROM
 		filtered_provisioner_jobs fpj -- Use the pre-filtered dataset instead of full provisioner_jobs
 			LEFT JOIN ranked_jobs rj
 					ON fpj.id = rj.id -- Ensure we only keep jobs that have a ranking
 	GROUP BY
-		fpj.id, fpj.created_at, fpj.ordinality -- Include ` + "`" + `ordinality` + "`" + ` in GROUP BY
+		fpj.id, fpj.created_at
 )
 SELECT
+	-- Step 5: Final SELECT with INNER JOIN provisioner_jobs
 	fj.id,
 	fj.created_at,
 	pj.id, pj.created_at, pj.updated_at, pj.started_at, pj.canceled_at, pj.completed_at, pj.error, pj.organization_id, pj.initiator_id, pj.provisioner, pj.storage_method, pj.type, pj.input, pj.worker_id, pj.file_id, pj.tags, pj.error_code, pj.trace_metadata, pj.job_status,
 	fj.queue_position,
-	fj.queue_size,
-	fj.ordinality
+	fj.queue_size
 FROM
 	final_jobs fj
 		INNER JOIN provisioner_jobs pj
 				ON fj.id = pj.id -- Ensure we retrieve full details from ` + "`" + `provisioner_jobs` + "`" + `.
                                  -- JOIN with pj is required for sqlc.embed(pj) to compile successfully.
 ORDER BY
-	fj.ordinality
+	fj.created_at
 `
 
 type GetProvisionerJobsByIDsWithQueuePositionRow struct {
@@ -6428,10 +6426,8 @@ type GetProvisionerJobsByIDsWithQueuePositionRow struct {
 	ProvisionerJob ProvisionerJob `db:"provisioner_job" json:"provisioner_job"`
 	QueuePosition  int64          `db:"queue_position" json:"queue_position"`
 	QueueSize      int64          `db:"queue_size" json:"queue_size"`
-	Ordinality     int64          `db:"ordinality" json:"ordinality"`
 }
 
-// Step 5: Final SELECT with INNER JOIN provisioner_jobs
 func (q *sqlQuerier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Context, ids []uuid.UUID) ([]GetProvisionerJobsByIDsWithQueuePositionRow, error) {
 	rows, err := q.db.QueryContext(ctx, getProvisionerJobsByIDsWithQueuePosition, pq.Array(ids))
 	if err != nil {
@@ -6465,7 +6461,6 @@ func (q *sqlQuerier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Contex
 			&i.ProvisionerJob.JobStatus,
 			&i.QueuePosition,
 			&i.QueueSize,
-			&i.Ordinality,
 		); err != nil {
 			return nil, err
 		}
@@ -6481,7 +6476,6 @@ func (q *sqlQuerier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Contex
 }
 
 const getProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner = `-- name: GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner :many
-
 WITH pending_jobs AS (
     SELECT
         id, created_at
@@ -6601,7 +6595,6 @@ type GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow
 	WorkspaceName       string         `db:"workspace_name" json:"workspace_name"`
 }
 
-// Preserve original ID order from upstream
 func (q *sqlQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(ctx context.Context, arg GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams) ([]GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow, error) {
 	rows, err := q.db.QueryContext(ctx, getProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner,
 		arg.OrganizationID,

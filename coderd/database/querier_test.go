@@ -2180,6 +2180,11 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 		daemonTags     []database.StringMap
 		queueSizes     []int64
 		queuePositions []int64
+		// GetProvisionerJobsByIDsWithQueuePosition takes jobIDs as a parameter.
+		// If skipJobIDs is empty, all jobs are passed to the function; otherwise, the specified jobs are skipped.
+		// NOTE: Skipping job IDs means they will be excluded from the result,
+		// but this should not affect the queue position or queue size of other jobs.
+		skipJobIDs map[int]struct{}
 	}{
 		{
 			name: "test-case-1",
@@ -2195,6 +2200,7 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 			queueSizes:     []int64{2, 2, 0},
 			queuePositions: []int64{1, 1, 0},
 		},
+		// Similar to the previous case, but includes an additional provisioner.
 		{
 			name: "test-case-2",
 			jobTags: []database.StringMap{
@@ -2209,6 +2215,83 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 			},
 			queueSizes:     []int64{3, 3, 3},
 			queuePositions: []int64{1, 1, 3},
+		},
+		// Similar to the previous case, but skips job at index 0
+		{
+			name: "test-case-3",
+			jobTags: []database.StringMap{
+				{"a": "1", "b": "2"},
+				{"a": "1"},
+				{"a": "1", "c": "3"},
+			},
+			daemonTags: []database.StringMap{
+				{"a": "1", "b": "2"},
+				{"a": "1"},
+				{"a": "1", "b": "2", "c": "3"},
+			},
+			queueSizes:     []int64{3, 3},
+			queuePositions: []int64{1, 3},
+			skipJobIDs: map[int]struct{}{
+				0: {},
+			},
+		},
+		// Skips job at index 1
+		{
+			name: "test-case-4",
+			jobTags: []database.StringMap{
+				{"a": "1", "b": "2"},
+				{"a": "1"},
+				{"a": "1", "c": "3"},
+			},
+			daemonTags: []database.StringMap{
+				{"a": "1", "b": "2"},
+				{"a": "1"},
+				{"a": "1", "b": "2", "c": "3"},
+			},
+			queueSizes:     []int64{3, 3},
+			queuePositions: []int64{1, 3},
+			skipJobIDs: map[int]struct{}{
+				1: {},
+			},
+		},
+		// Skips job at index 2
+		{
+			name: "test-case-5",
+			jobTags: []database.StringMap{
+				{"a": "1", "b": "2"},
+				{"a": "1"},
+				{"a": "1", "c": "3"},
+			},
+			daemonTags: []database.StringMap{
+				{"a": "1", "b": "2"},
+				{"a": "1"},
+				{"a": "1", "b": "2", "c": "3"},
+			},
+			queueSizes:     []int64{3, 3},
+			queuePositions: []int64{1, 1},
+			skipJobIDs: map[int]struct{}{
+				2: {},
+			},
+		},
+		// Skips jobs at indexes 0 and 2
+		{
+			name: "test-case-6",
+			jobTags: []database.StringMap{
+				{"a": "1", "b": "2"},
+				{"a": "1"},
+				{"a": "1", "c": "3"},
+			},
+			daemonTags: []database.StringMap{
+				{"a": "1", "b": "2"},
+				{"a": "1"},
+				{"a": "1", "b": "2", "c": "3"},
+			},
+			queueSizes:     []int64{3},
+			queuePositions: []int64{1},
+			skipJobIDs: map[int]struct{}{
+				0: {},
+				2: {},
+			},
 		},
 	}
 
@@ -2247,19 +2330,28 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 			require.Equal(t, database.ProvisionerJobStatusPending, job.JobStatus, "expected job %d to have status %s", idx, database.ProvisionerJobStatusPending)
 		}
 
-		var jobIDs []uuid.UUID
-		for _, job := range allJobs {
-			jobIDs = append(jobIDs, job.ID)
+		filteredJobs := make([]database.ProvisionerJob, 0)
+		filteredJobIDs := make([]uuid.UUID, 0)
+		for idx, job := range allJobs {
+			if _, skip := tc.skipJobIDs[idx]; skip {
+				continue
+			}
+
+			filteredJobs = append(filteredJobs, job)
+			filteredJobIDs = append(filteredJobIDs, job.ID)
 		}
 
 		// When: we fetch the jobs by their IDs
-		actualJobs, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, jobIDs)
+		actualJobs, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, filteredJobIDs)
 		require.NoError(t, err)
-		require.Len(t, actualJobs, len(allJobs), "should return all jobs")
+		require.Len(t, actualJobs, len(filteredJobs), "should return all unskipped jobs")
 
-		// Then: the jobs should be returned in the correct order (by IDs in the input slice)
+		// Then: the jobs should be returned in the correct order (sorted by createdAt)
+		sort.Slice(filteredJobs, func(i, j int) bool {
+			return filteredJobs[i].CreatedAt.Before(filteredJobs[j].CreatedAt)
+		})
 		for idx, job := range actualJobs {
-			assert.EqualValues(t, allJobs[idx], job.ProvisionerJob)
+			assert.EqualValues(t, filteredJobs[idx], job.ProvisionerJob)
 		}
 
 		// Then: the queue size should be set correctly
@@ -2395,7 +2487,10 @@ func TestGetProvisionerJobsByIDsWithQueuePosition_MixedStatuses(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, actualJobs, len(allJobs), "should return all jobs")
 
-	// Then: the jobs should be returned in the correct order (by IDs in the input slice)
+	// Then: the jobs should be returned in the correct order (sorted by createdAt)
+	sort.Slice(allJobs, func(i, j int) bool {
+		return allJobs[i].CreatedAt.Before(allJobs[j].CreatedAt)
+	})
 	for idx, job := range actualJobs {
 		assert.EqualValues(t, allJobs[idx], job.ProvisionerJob)
 	}
@@ -2405,14 +2500,14 @@ func TestGetProvisionerJobsByIDsWithQueuePosition_MixedStatuses(t *testing.T) {
 	for _, job := range actualJobs {
 		queueSizes = append(queueSizes, job.QueueSize)
 	}
-	assert.EqualValues(t, []int64{2, 2, 0, 0, 0, 0, 0}, queueSizes, "expected queue positions to be set correctly")
+	assert.EqualValues(t, []int64{0, 0, 0, 0, 0, 2, 2}, queueSizes, "expected queue positions to be set correctly")
 
 	// Then: the queue position should be set correctly:
 	var queuePositions []int64
 	for _, job := range actualJobs {
 		queuePositions = append(queuePositions, job.QueuePosition)
 	}
-	assert.EqualValues(t, []int64{2, 1, 0, 0, 0, 0, 0}, queuePositions, "expected queue positions to be set correctly")
+	assert.EqualValues(t, []int64{0, 0, 0, 0, 0, 1, 2}, queuePositions, "expected queue positions to be set correctly")
 }
 
 func TestGetProvisionerJobsByIDsWithQueuePosition_OrderValidation(t *testing.T) {
@@ -2489,7 +2584,10 @@ func TestGetProvisionerJobsByIDsWithQueuePosition_OrderValidation(t *testing.T) 
 	require.NoError(t, err)
 	require.Len(t, actualJobs, len(allJobs), "should return all jobs")
 
-	// Then: the jobs should be returned in the correct order (by IDs in the input slice)
+	// Then: the jobs should be returned in the correct order (sorted by createdAt)
+	sort.Slice(allJobs, func(i, j int) bool {
+		return allJobs[i].CreatedAt.Before(allJobs[j].CreatedAt)
+	})
 	for idx, job := range actualJobs {
 		assert.EqualValues(t, allJobs[idx], job.ProvisionerJob)
 		assert.EqualValues(t, allJobs[idx].CreatedAt, job.ProvisionerJob.CreatedAt)
@@ -2507,7 +2605,7 @@ func TestGetProvisionerJobsByIDsWithQueuePosition_OrderValidation(t *testing.T) 
 	for _, job := range actualJobs {
 		queuePositions = append(queuePositions, job.QueuePosition)
 	}
-	assert.EqualValues(t, []int64{3, 2, 1, 4, 5, 6}, queuePositions, "expected queue positions to be set correctly")
+	assert.EqualValues(t, []int64{1, 2, 3, 4, 5, 6}, queuePositions, "expected queue positions to be set correctly")
 }
 
 func TestGroupRemovalTrigger(t *testing.T) {
