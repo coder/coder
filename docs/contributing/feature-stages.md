@@ -28,17 +28,27 @@ Coder may make significant changes or revert features to a feature flag at any t
 If you plan to activate an early access feature, we suggest that you use a
 staging deployment.
 
-```yaml
-# Enable all early access features
-coder server --experiments=*
+<details><summary>To enable early access features:</summary>
 
-# Enable multiple early access features
-coder server --experiments=feature1,feature2
+Use the [Coder CLI](../install/cli.md) `--experiments` flag to enable early access features:
 
-# Alternatively, use the `CODER_EXPERIMENTS` environment variable.
-```
+- Enable all early access features:
+
+   ```shell
+   coder server --experiments=*
+   ```
+
+- Enable multiple early access features:
+
+   ```shell
+   coder server --experiments=feature1,feature2
+   ```
+
+You can also use the `CODER_EXPERIMENTS` [environment variable](../admin/setup/index.md).
 
 You can opt-out of a feature after you've enabled it.
+
+</details>
 
 ### Available early access features
 
