@@ -16184,13 +16184,11 @@ func (q *sqlQuerier) GetWorkspaceByWorkspaceAppID(ctx context.Context, workspace
 }
 
 const getWorkspaceUniqueOwnerCountByTemplateIDs = `-- name: GetWorkspaceUniqueOwnerCountByTemplateIDs :many
-SELECT
-	template_id, COUNT(DISTINCT owner_id) AS unique_owners_sum
-FROM
-	workspaces
-WHERE
-	template_id = ANY($1 :: uuid[]) AND deleted = false
-GROUP BY template_id
+SELECT templates.id AS template_id, COUNT(DISTINCT workspaces.owner_id) AS unique_owners_sum
+FROM templates
+LEFT JOIN workspaces ON workspaces.template_id = templates.id AND workspaces.deleted = false
+WHERE templates.id = ANY($1 :: uuid[])
+GROUP BY templates.id
 `
 
 type GetWorkspaceUniqueOwnerCountByTemplateIDsRow struct {
