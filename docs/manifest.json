@@ -551,6 +551,8 @@
 						},
 						{
 							"title": "More",
+							"description": "More about networking",
+							"path": "./admin/networking/more-networking/index.md",
 							"children": [
 								{
 									"title": "Connections and geo-distribution",
