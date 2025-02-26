@@ -9,36 +9,36 @@ If you encounter an issue with any Coder feature, please submit a
 
 ## Early access features
 
+- **Stable**: No
+- **Production-ready**: No
+- **Support**: GitHub issues
+
 Early access features are neither feature-complete nor stable. We do not
 recommend using early access features in production deployments.
 
 Coder releases early access features behind an “unsafe” experiment, where
 they’re accessible but not easy to find.
-
-## Experimental features
-
-These features are disabled by default, and not recommended for use in
+They are disabled by default, and not recommended for use in
 production as they may cause performance or stability issues. In most cases,
-experimental features are complete, but require further internal testing and
-will stay in the experimental stage for one month.
+early access features are complete, but require further internal testing and
+will stay in the early access stage for at least one month.
 
-Coder may make significant changes to experiments or revert features to a
-feature flag at any time.
+Coder may make significant changes or revert features to a feature flag at any time.
 
-If you plan to activate an experimental feature, we suggest that you use a
+If you plan to activate an early access feature, we suggest that you use a
 staging deployment.
 
-You can opt-out of an experiment after you've enabled it.
-
 ```yaml
-# Enable all experimental features
+# Enable all early access  features
 coder server --experiments=*
 
-# Enable multiple experimental features
+# Enable multiple early access features
 coder server --experiments=feature1,feature2
 
 # Alternatively, use the `CODER_EXPERIMENTS` environment variable.
 ```
+
+You can opt-out of a feature after you've enabled it.
 
 ### Available experimental features
 
