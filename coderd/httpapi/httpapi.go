@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/websocket"
+	"github.com/coder/websocket/wsjson"
 )
 
 var Validate *validator.Validate
@@ -285,7 +286,7 @@ type WebSocketEvent[T any] struct {
 }
 
 func OneWayWebSocket[T any](rw http.ResponseWriter, r *http.Request) (
-	sendEvent func(ctx context.Context, wsEvent T) error,
+	sendEvent func(wsEvent T) error,
 	closed chan struct{},
 	err error,
 ) {
@@ -302,17 +303,29 @@ func OneWayWebSocket[T any](rw http.ResponseWriter, r *http.Request) (
 		Code   websocket.StatusCode
 		Reason string
 	}
+
+	eventC := make(chan T)
 	socketErrC := make(chan SocketError, 1)
-	closed = make(chan struct{}, 1)
+	closed = make(chan struct{})
 	go func() {
-		select {
-		case err := <-socketErrC:
-			_ = socket.Close(err.Code, err.Reason)
-		case <-ctx.Done():
-			_ = socket.Close(websocket.StatusNormalClosure, "Connection closed")
+		defer cancel()
+		defer close(closed)
+
+		for {
+			select {
+			case event := <-eventC:
+				err := wsjson.Write(ctx, socket, event)
+				if err == nil {
+					continue
+				}
+				_ = socket.Close(websocket.StatusInternalError, "Unable to send newest message")
+			case err := <-socketErrC:
+				_ = socket.Close(err.Code, err.Reason)
+			case <-ctx.Done():
+				_ = socket.Close(websocket.StatusNormalClosure, "Connection closed")
+			}
+			return
 		}
-		cancel()
-		close(closed)
 	}()
 
 	// We have some tools in the UI code to help enforce one-way WebSocket
@@ -321,7 +334,7 @@ func OneWayWebSocket[T any](rw http.ResponseWriter, r *http.Request) (
 	// forgot to use those tools, and communication probably can't be trusted.
 	// Better to just close the socket and force the UI to fix its mess
 	go func() {
-		msgType, _, err := socket.Read(ctx)
+		_, _, err := socket.Read(ctx)
 		if errors.Is(err, context.Canceled) {
 			return
 		}
@@ -332,33 +345,18 @@ func OneWayWebSocket[T any](rw http.ResponseWriter, r *http.Request) (
 			}
 			return
 		}
-		switch msgType {
-		case websocket.MessageBinary, websocket.MessageText:
-			socketErrC <- SocketError{
-				Code:   websocket.StatusProtocolError,
-				Reason: "Clients cannot send messages for one-way WebSockets",
-			}
+		socketErrC <- SocketError{
+			Code:   websocket.StatusProtocolError,
+			Reason: "Clients cannot send messages for one-way WebSockets",
 		}
 	}()
 
-	sendEvent = func(context.Context, T) error {
-		// Using multiple selects because we want possible errors to be
-		// processed deterministically
+	sendEvent = func(event T) error {
 		select {
-		case _, open := <-ctx.Done():
-			if !open {
-				return xerrors.New("connection closed from client")
-			}
-		default:
+		case eventC <- event:
+		case <-ctx.Done():
+			return ctx.Err()
 		}
-		select {
-		case _, open := <-closed:
-			if !open {
-				return xerrors.New("connection closed internally")
-			}
-		default:
-		}
-
 		return nil
 	}
 
