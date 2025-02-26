@@ -1018,7 +1018,7 @@ jobs:
     needs:
       - changes
       - build-dylib
-    #if: github.ref == 'refs/heads/main' && needs.changes.outputs.docs-only == 'false' && !github.event.pull_request.head.repo.fork
+    if: github.ref == 'refs/heads/main' && needs.changes.outputs.docs-only == 'false' && !github.event.pull_request.head.repo.fork
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-22.04' }}
     permissions:
       # Necessary to push docker images to ghcr.io.
@@ -1131,7 +1131,6 @@ jobs:
           JSIGN_PATH: /tmp/jsign-6.0.jar
 
       - name: Build Linux Docker images
-        if: github.ref == 'refs/heads/main'
         id: build-docker
         env:
           CODER_IMAGE_BASE: ghcr.io/coder/coder-preview
@@ -1187,7 +1186,7 @@ jobs:
           prune-untagged: true
 
       - name: Upload build artifacts
-        #if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         with:
           name: coder
