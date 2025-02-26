@@ -10,6 +10,7 @@ import (
 )
 
 // Get returns the $SHELL environment variable.
+// Deprecated: use SystemEnvInfo.UserShell instead.
 func Get(username string) (string, error) {
 	// This command will output "UserShell: /bin/zsh" if successful, we
 	// can ignore the error since we have fallback behavior.

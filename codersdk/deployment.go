@@ -507,14 +507,15 @@ type OAuth2Config struct {
 }
 
 type OAuth2GithubConfig struct {
-	ClientID          serpent.String      `json:"client_id" typescript:",notnull"`
-	ClientSecret      serpent.String      `json:"client_secret" typescript:",notnull"`
-	DeviceFlow        serpent.Bool        `json:"device_flow" typescript:",notnull"`
-	AllowedOrgs       serpent.StringArray `json:"allowed_orgs" typescript:",notnull"`
-	AllowedTeams      serpent.StringArray `json:"allowed_teams" typescript:",notnull"`
-	AllowSignups      serpent.Bool        `json:"allow_signups" typescript:",notnull"`
-	AllowEveryone     serpent.Bool        `json:"allow_everyone" typescript:",notnull"`
-	EnterpriseBaseURL serpent.String      `json:"enterprise_base_url" typescript:",notnull"`
+	ClientID              serpent.String      `json:"client_id" typescript:",notnull"`
+	ClientSecret          serpent.String      `json:"client_secret" typescript:",notnull"`
+	DeviceFlow            serpent.Bool        `json:"device_flow" typescript:",notnull"`
+	DefaultProviderEnable serpent.Bool        `json:"default_provider_enable" typescript:",notnull"`
+	AllowedOrgs           serpent.StringArray `json:"allowed_orgs" typescript:",notnull"`
+	AllowedTeams          serpent.StringArray `json:"allowed_teams" typescript:",notnull"`
+	AllowSignups          serpent.Bool        `json:"allow_signups" typescript:",notnull"`
+	AllowEveryone         serpent.Bool        `json:"allow_everyone" typescript:",notnull"`
+	EnterpriseBaseURL     serpent.String      `json:"enterprise_base_url" typescript:",notnull"`
 }
 
 type OIDCConfig struct {
@@ -522,17 +523,27 @@ type OIDCConfig struct {
 	ClientID     serpent.String `json:"client_id" typescript:",notnull"`
 	ClientSecret serpent.String `json:"client_secret" typescript:",notnull"`
 	// ClientKeyFile & ClientCertFile are used in place of ClientSecret for PKI auth.
-	ClientKeyFile             serpent.String                         `json:"client_key_file" typescript:",notnull"`
-	ClientCertFile            serpent.String                         `json:"client_cert_file" typescript:",notnull"`
-	EmailDomain               serpent.StringArray                    `json:"email_domain" typescript:",notnull"`
-	IssuerURL                 serpent.String                         `json:"issuer_url" typescript:",notnull"`
-	Scopes                    serpent.StringArray                    `json:"scopes" typescript:",notnull"`
-	IgnoreEmailVerified       serpent.Bool                           `json:"ignore_email_verified" typescript:",notnull"`
-	UsernameField             serpent.String                         `json:"username_field" typescript:",notnull"`
-	NameField                 serpent.String                         `json:"name_field" typescript:",notnull"`
-	EmailField                serpent.String                         `json:"email_field" typescript:",notnull"`
-	AuthURLParams             serpent.Struct[map[string]string]      `json:"auth_url_params" typescript:",notnull"`
-	IgnoreUserInfo            serpent.Bool                           `json:"ignore_user_info" typescript:",notnull"`
+	ClientKeyFile       serpent.String                    `json:"client_key_file" typescript:",notnull"`
+	ClientCertFile      serpent.String                    `json:"client_cert_file" typescript:",notnull"`
+	EmailDomain         serpent.StringArray               `json:"email_domain" typescript:",notnull"`
+	IssuerURL           serpent.String                    `json:"issuer_url" typescript:",notnull"`
+	Scopes              serpent.StringArray               `json:"scopes" typescript:",notnull"`
+	IgnoreEmailVerified serpent.Bool                      `json:"ignore_email_verified" typescript:",notnull"`
+	UsernameField       serpent.String                    `json:"username_field" typescript:",notnull"`
+	NameField           serpent.String                    `json:"name_field" typescript:",notnull"`
+	EmailField          serpent.String                    `json:"email_field" typescript:",notnull"`
+	AuthURLParams       serpent.Struct[map[string]string] `json:"auth_url_params" typescript:",notnull"`
+	// IgnoreUserInfo & UserInfoFromAccessToken are mutually exclusive. Only 1
+	// can be set to true. Ideally this would be an enum with 3 states, ['none',
+	// 'userinfo', 'access_token']. However, for backward compatibility,
+	// `ignore_user_info` must remain. And `access_token` is a niche, non-spec
+	// compliant edge case. So it's use is rare, and should not be advised.
+	IgnoreUserInfo serpent.Bool `json:"ignore_user_info" typescript:",notnull"`
+	// UserInfoFromAccessToken as mentioned above is an edge case. This allows
+	// sourcing the user_info from the access token itself instead of a user_info
+	// endpoint. This assumes the access token is a valid JWT with a set of claims to
+	// be merged with the id_token.
+	UserInfoFromAccessToken   serpent.Bool                           `json:"source_user_info_from_access_token" typescript:",notnull"`
 	OrganizationField         serpent.String                         `json:"organization_field" typescript:",notnull"`
 	OrganizationMapping       serpent.Struct[map[string][]uuid.UUID] `json:"organization_mapping" typescript:",notnull"`
 	OrganizationAssignDefault serpent.Bool                           `json:"organization_assign_default" typescript:",notnull"`
@@ -1597,6 +1608,16 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Default:     "false",
 		},
 		{
+			Name:        "OAuth2 GitHub Default Provider Enable",
+			Description: "Enable the default GitHub OAuth2 provider managed by Coder.",
+			Flag:        "oauth2-github-default-provider-enable",
+			Env:         "CODER_OAUTH2_GITHUB_DEFAULT_PROVIDER_ENABLE",
+			Value:       &c.OAuth2.Github.DefaultProviderEnable,
+			Group:       &deploymentGroupOAuth2GitHub,
+			YAML:        "defaultProviderEnable",
+			Default:     "true",
+		},
+		{
 			Name:        "OAuth2 GitHub Allowed Orgs",
 			Description: "Organizations the user must be a member of to Login with GitHub.",
 			Flag:        "oauth2-github-allowed-orgs",
@@ -1776,6 +1797,23 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Value:       &c.OIDC.IgnoreUserInfo,
 			Group:       &deploymentGroupOIDC,
 			YAML:        "ignoreUserInfo",
+		},
+		{
+			Name: "OIDC Access Token Claims",
+			// This is a niche edge case that should not be advertised. Alternatives should
+			// be investigated before turning this on. A properly configured IdP should
+			// always have a userinfo endpoint which is preferred.
+			Hidden: true,
+			Description: "Source supplemental user claims from the 'access_token'. This assumes the " +
+				"token is a jwt signed by the same issuer as the id_token. Using this requires setting " +
+				"'oidc-ignore-userinfo' to true. This setting is not compliant with the OIDC specification " +
+				"and is not recommended. Use at your own risk.",
+			Flag:    "oidc-access-token-claims",
+			Env:     "CODER_OIDC_ACCESS_TOKEN_CLAIMS",
+			Default: "false",
+			Value:   &c.OIDC.UserInfoFromAccessToken,
+			Group:   &deploymentGroupOIDC,
+			YAML:    "accessTokenClaims",
 		},
 		{
 			Name: "OIDC Organization Field",
