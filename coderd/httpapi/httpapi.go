@@ -282,9 +282,6 @@ func WebsocketCloseSprintf(format string, vars ...any) string {
 	return msg
 }
 
-type WebSocketEvent[T any] struct {
-}
-
 func OneWayWebSocket[T any](rw http.ResponseWriter, r *http.Request) (
 	sendEvent func(wsEvent T) error,
 	closed chan struct{},
@@ -303,7 +300,6 @@ func OneWayWebSocket[T any](rw http.ResponseWriter, r *http.Request) (
 		Code   websocket.StatusCode
 		Reason string
 	}
-
 	eventC := make(chan T)
 	socketErrC := make(chan SocketError, 1)
 	closed = make(chan struct{})
