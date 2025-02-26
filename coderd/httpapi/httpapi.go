@@ -280,6 +280,15 @@ func WebsocketCloseSprintf(format string, vars ...any) string {
 	return msg
 }
 
+// OneWayWebSocket establishes a new WebSocket connection that enforces one-way
+// communication from the server to the client.
+//
+// We must use an approach like this instead of Server-Sent Events for the
+// browser, because on HTTP/1.1 connections, browsers are locked to no more than
+// six HTTP connections for a domain total, across all tabs. If a user were to
+// open a workspace in multiple tabs, the entire UI can start to lock up.
+// WebSockets have no such limitation, no matter what HTTP protocol was used to
+// establish the connection.
 func OneWayWebSocket[T any](rw http.ResponseWriter, r *http.Request) (
 	sendEvent func(wsEvent T) error,
 	closed chan struct{},
