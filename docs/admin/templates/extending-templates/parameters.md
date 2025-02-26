@@ -319,6 +319,8 @@ Workspace presets allow you to configure commonly used combinations of parameter
 into a single option, which makes it easier for developers to pick one that fits
 their needs.
 
+![Template with options in the preset dropdown](../../../images/admin/templates/extend-templates/template-preset-dropdown.png)
+
 Use `coder_workspace_preset` to define the preset parameters.
 After you save the template file, the presets will be available for all new
 workspace deployments.
