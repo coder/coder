@@ -141,13 +141,13 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
 				</Tooltip>
 			</PopoverTrigger>
 
-			<PopoverContent className="w-80" disablePortal={false}>
+			<PopoverContent className="w-96" disablePortal={false}>
 				<fieldset
 					className="border-0 m-0 p-0 disabled:opacity-50"
 					disabled={isLoading}
 					title="Available roles"
 				>
-					<div className="flex flex-col gap-4 p-6">
+					<div className="flex flex-col gap-4 p-6 w-96">
 						{filteredRoles.map((role) => (
 							<Option
 								key={role.name}
