@@ -14,6 +14,9 @@ OPTIONS:
   -c, --column [id|organization id|created at|last seen at|name|version|api version|tags|key name|status|current job id|current job status|current job template name|current job template icon|current job template display name|previous job id|previous job status|previous job template name|previous job template icon|previous job template display name|organization] (default: name,organization,status,key name,created at,last seen at,version,tags)
           Columns to display in table output.
 
+  -l, --limit int, $CODER_PROVISIONER_LIST_LIMIT (default: 50)
+          Limit the number of provisioners returned.
+
   -o, --output table|json (default: table)
           Output format.
 
