@@ -59,6 +59,8 @@ Direct connections reduce latency and improve upload and download speeds for dev
 However, there are many scenarios where direct connections cannot be established,
 such as when the Coder [administrators disable direct connections](../../../reference/cli/server.md#--block-direct-connections).
 
+![Diagram of a direct connection](../../../images/admin/networking/network-stack/network-diagram-direct-connection.png)
+
 Consult the [direct connections section](../troubleshooting.md#common-problems-with-direct-connections)
 of the troubleshooting guide for more information.
 The troubleshooting guide also explains how to identify if a connection is direct
@@ -116,6 +118,8 @@ In order for clients to be able to establish direct connections:
 
 By default, your Coder server also runs a built-in DERP relay which can be used
 for both public and [offline deployments](../../../install/offline.md).
+
+![Diagram of a relayed connection](../../../images/admin/networking/network-stack/network-diagram-relayed-connection.png)
 
 However, our Wireguard integration through Tailscale has graciously allowed us
 to use
