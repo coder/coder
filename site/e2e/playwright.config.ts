@@ -122,6 +122,8 @@ export default defineConfig({
 			CODER_OIDC_SIGN_IN_TEXT: "Hello",
 			CODER_OIDC_ICON_URL: "/icon/google.svg",
 		},
-		reuseExistingServer: false,
+		reuseExistingServer: process.env.CODER_E2E_REUSE_EXISTING_SERVER
+			? Boolean(process.env.CODER_E2E_REUSE_EXISTING_SERVER)
+			: false,
 	},
 });
