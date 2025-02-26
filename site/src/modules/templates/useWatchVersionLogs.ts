@@ -15,17 +15,11 @@ export const useWatchVersionLogs = (
 		setLogs(undefined);
 	}
 
-	const templateVersionStatus = templateVersion?.job.status;
 	const stableOnDone = useEffectEvent(() => options?.onDone());
+	const status = templateVersion?.job.status;
+	const canWatch = status === "running" || status === "pending";
 	useEffect(() => {
-		if (!templateVersionId || !templateVersionStatus) {
-			return;
-		}
-
-		if (
-			templateVersionStatus !== "running" &&
-			templateVersionStatus !== "pending"
-		) {
+		if (!templateVersionId || !canWatch) {
 			return;
 		}
 
@@ -40,7 +34,7 @@ export const useWatchVersionLogs = (
 		});
 
 		return () => socket.close();
-	}, [stableOnDone, templateVersionId, templateVersionStatus]);
+	}, [stableOnDone, canWatch, templateVersionId]);
 
 	return logs;
 };
