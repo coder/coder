@@ -1021,7 +1021,10 @@ jobs:
     #if: github.ref == 'refs/heads/main' && needs.changes.outputs.docs-only == 'false' && !github.event.pull_request.head.repo.fork
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-22.04' }}
     permissions:
-      packages: write # Needed to push images to ghcr.io
+      # Necessary to push docker images to ghcr.io.
+      packages: write
+      # Necessary for GCP authentication (https://github.com/google-github-actions/setup-gcloud#usage)
+      id-token: write
     env:
       DOCKER_CLI_EXPERIMENTAL: "enabled"
     outputs:
