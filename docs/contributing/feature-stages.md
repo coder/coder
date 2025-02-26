@@ -4,7 +4,7 @@ Some Coder features are released in feature stages before they are generally
 available.
 
 If you encounter an issue with any Coder feature, please submit a
-[GitHub issues](https://github.com/coder/coder/issues) or join the
+[GitHub issue](https://github.com/coder/coder/issues) or join the
 [Coder Discord](https://discord.gg/coder).
 
 ## Early access features
