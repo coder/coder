@@ -16,7 +16,7 @@ If you encounter an issue with any Coder feature, please submit a
 Early access features are neither feature-complete nor stable. We do not
 recommend using early access features in production deployments.
 
-Coder releases early access features behind an “unsafe” experiment, where
+Coder often releases early access features behind an “unsafe” experiment, where
 they’re accessible but not easy to find.
 They are disabled by default, and not recommended for use in
 production because they might cause performance or stability issues. In most cases,
@@ -53,11 +53,31 @@ You can opt-out of a feature after you've enabled it.
 
 ## Beta
 
-Beta features are open to the public, but are tagged with a `Beta` label.
+- **Stable**: No
+- **Production-ready**: Not fully
+- **Support**: Documentation, [Discord](https://discord.gg/coder), and [GitHub issues](https://github.com/coder/coder/issues)
 
-They’re subject to minor changes and may contain bugs, but are generally ready
-for use.
+Beta features are open to the public and are tagged with a `Beta` label.
+
+They’re in active development and subject to minor changes.
+They might contain bugs, but are generally ready for use.
+
+Beta features are often ready for general availability within two-three releases.
+You should test beta features in staging environments.
+You can use beta features in production, but should set expectations and inform users that some features may be incomplete.
+
+We keep documentation about beta features up-to-date with the latest information, including planned features, limitations, and workarounds.
+If you encounter an issue, please contact your [Coder account team](https://coder.com/contact), reach out on [Discord](https://discord.gg/coder), or create a [GitHub issues](https://github.com/coder/coder/issues) if there isn't one already.
+While we will do our best to provide support with beta features, most issues will be escalated to the product team.
+Beta features are not covered within service-level agreements (SLA).
+
+Most beta features are enabled by default.
+Beta features are announced through the [Coder Changelog](https://coder.com/changelog), and more information is available in the documentation.
 
 ## General Availability (GA)
+
+- **Stable**: Yes
+- **Production-ready**: Yes
+- **Support**: Yes, [based on license](https://coder.com/pricing).
 
 All other features have been tested, are stable, and are enabled by default.
