@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi/httpapiconstraints"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/websocket"
 )
 
 var Validate *validator.Validate
@@ -278,6 +279,90 @@ func WebsocketCloseSprintf(format string, vars ...any) string {
 	}
 
 	return msg
+}
+
+type WebSocketEvent[T any] struct {
+}
+
+func OneWayWebSocket[T any](rw http.ResponseWriter, r *http.Request) (
+	sendEvent func(ctx context.Context, wsEvent T) error,
+	closed chan struct{},
+	err error,
+) {
+	ctx, cancel := context.WithCancel(r.Context())
+	r = r.WithContext(ctx)
+	socket, err := websocket.Accept(rw, r, nil)
+	if err != nil {
+		cancel()
+		return nil, nil, xerrors.Errorf("cannot establish connection: %w", err)
+	}
+	go Heartbeat(ctx, socket)
+
+	type SocketError struct {
+		Code   websocket.StatusCode
+		Reason string
+	}
+	socketErrC := make(chan SocketError, 1)
+	closed = make(chan struct{}, 1)
+	go func() {
+		select {
+		case err := <-socketErrC:
+			_ = socket.Close(err.Code, err.Reason)
+		case <-ctx.Done():
+			_ = socket.Close(websocket.StatusNormalClosure, "Connection closed")
+		}
+		cancel()
+		close(closed)
+	}()
+
+	// We have some tools in the UI code to help enforce one-way WebSocket
+	// connections, but there's still the possibility that the client could send
+	// a message when it's not supposed to. If that happens, the client likely
+	// forgot to use those tools, and communication probably can't be trusted.
+	// Better to just close the socket and force the UI to fix its mess
+	go func() {
+		msgType, _, err := socket.Read(ctx)
+		if errors.Is(err, context.Canceled) {
+			return
+		}
+		if err != nil {
+			socketErrC <- SocketError{
+				Code:   websocket.StatusInternalError,
+				Reason: "Unable to process invalid message from client",
+			}
+			return
+		}
+		switch msgType {
+		case websocket.MessageBinary, websocket.MessageText:
+			socketErrC <- SocketError{
+				Code:   websocket.StatusProtocolError,
+				Reason: "Clients cannot send messages for one-way WebSockets",
+			}
+		}
+	}()
+
+	sendEvent = func(context.Context, T) error {
+		// Using multiple selects because we want possible errors to be
+		// processed deterministically
+		select {
+		case _, open := <-ctx.Done():
+			if !open {
+				return xerrors.New("connection closed from client")
+			}
+		default:
+		}
+		select {
+		case _, open := <-closed:
+			if !open {
+				return xerrors.New("connection closed internally")
+			}
+		default:
+		}
+
+		return nil
+	}
+
+	return sendEvent, closed, nil
 }
 
 func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (sendEvent func(ctx context.Context, sse codersdk.ServerSentEvent) error, closed chan struct{}, err error) {
