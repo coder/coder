@@ -80,4 +80,16 @@ Beta features are announced through the [Coder Changelog](https://coder.com/chan
 - **Production-ready**: Yes
 - **Support**: Yes, [based on license](https://coder.com/pricing).
 
-All other features have been tested, are stable, and are enabled by default.
+All features that are not explicitly tagged as `Early access` or `Beta` are considered generally available (GA).
+They have been tested, are stable, and are enabled by default.
+
+If your Coder license includes an SLA, please consult it for an outline of specific expectations.
+
+For support, consult our knowledgeable and growing community on [Discord](https://discord.gg/coder), or create a [GitHub issue](https://github.com/coder/coder/issues) if one doesn't exist already.
+Customers with a valid Coder license, can submit a support request or contact your [account team](https://coder.com/contact).
+
+We intend [Coder documentation](../README.md) to be the [single source of truth](https://en.wikipedia.org/wiki/Single_source_of_truth) and all features should have some form of complete documentation that outlines how to use or implement a feature.
+If you discover an error or if you have a suggestion that could improve the documentation, please [submit a GitHub issue](https://github.com/coder/internal/issues/new?title=request%28docs%29%3A+request+title+here&labels=["customer-feedback","docs"]&body=please+enter+your+request+here).
+
+Some GA features can be disabled for air-gapped deployments.
+Consult the feature's documentation or submit a support ticket for assistance.
