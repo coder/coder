@@ -68,7 +68,7 @@ function AppSessionAuditLogDescription({ auditLog }: AuditLogDescriptionProps) {
 	return (
 		<>
 			{connection_type} session to {workspace_owner}'s{" "}
-			<Link component={RouterLink} to={`@${workspace_owner}/${workspace_name}`}>
+			<Link component={RouterLink} to={`${auditLog.resource_link}`}>
 				<strong>{workspace_name}</strong>
 			</Link>{" "}
 			workspace{" "}
