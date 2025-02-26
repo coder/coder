@@ -87,7 +87,7 @@ func (c *Cache) refreshTemplateBuildTimes(ctx context.Context) error {
 	//nolint:gocritic // This is a system service.
 	ctx = dbauthz.AsSystemRestricted(ctx)
 
-	templates, err := c.database.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{})
+	templates, err := c.database.GetTemplates(ctx)
 	if err != nil {
 		return err
 	}
