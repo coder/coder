@@ -1219,6 +1219,8 @@ jobs:
           kubectl --namespace coder rollout status deployment/coder
           kubectl --namespace coder rollout restart deployment/coder-provisioner
           kubectl --namespace coder rollout status deployment/coder-provisioner
+          kubectl --namespace coder rollout restart deployment/coder-provisioner-tagged
+          kubectl --namespace coder rollout status deployment/coder-provisioner-tagged
 
   deploy-wsproxies:
     runs-on: ubuntu-latest
