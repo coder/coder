@@ -13,7 +13,6 @@ import { SetupPage } from "./SetupPage";
 import { Language as PageViewLanguage } from "./SetupPageView";
 
 const fillForm = async ({
-	username = "someuser",
 	email = "someone@coder.com",
 	password = "password",
 }: {
@@ -21,10 +20,8 @@ const fillForm = async ({
 	email?: string;
 	password?: string;
 } = {}) => {
-	const usernameField = screen.getByLabelText(PageViewLanguage.usernameLabel);
 	const emailField = screen.getByLabelText(PageViewLanguage.emailLabel);
 	const passwordField = screen.getByLabelText(PageViewLanguage.passwordLabel);
-	await userEvent.type(usernameField, username);
 	await userEvent.type(emailField, email);
 	await userEvent.type(passwordField, password);
 	const submitButton = screen.getByRole("button", {

@@ -10,8 +10,14 @@ OPTIONS:
           Specifies the number of pings to perform. By default, pings will
           continue until interrupted.
 
+      --time bool
+          Show the response time of each pong in local time.
+
   -t, --timeout duration (default: 5s)
           Specifies how long to wait for a ping to complete.
+
+      --utc bool
+          Show the response time of each pong in UTC (implies --time).
 
       --wait duration (default: 1s)
           Specifies how long to wait between pings.

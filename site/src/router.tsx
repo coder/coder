@@ -13,6 +13,7 @@ import { RequireAuth } from "./contexts/auth/RequireAuth";
 import { DashboardLayout } from "./modules/dashboard/DashboardLayout";
 import AuditPage from "./pages/AuditPage/AuditPage";
 import { HealthLayout } from "./pages/HealthPage/HealthLayout";
+import LoginOAuthDevicePage from "./pages/LoginOAuthDevicePage/LoginOAuthDevicePage";
 import LoginPage from "./pages/LoginPage/LoginPage";
 import { SetupPage } from "./pages/SetupPage/SetupPage";
 import { TemplateLayout } from "./pages/TemplatePage/TemplateLayout";
@@ -266,10 +267,7 @@ const CreateEditRolePage = lazy(
 		),
 );
 const ProvisionersPage = lazy(
-	() =>
-		import(
-			"./pages/OrganizationSettingsPage/ProvisionersPage/ProvisionersPage"
-		),
+	() => import("./pages/OrganizationSettingsPage/OrganizationProvisionersPage"),
 );
 const TemplateEmbedPage = lazy(
 	() => import("./pages/TemplatePage/TemplateEmbedPage/TemplateEmbedPage"),
@@ -373,6 +371,7 @@ export const router = createBrowserRouter(
 			errorElement={<GlobalErrorBoundary />}
 		>
 			<Route path="login" element={<LoginPage />} />
+			<Route path="login/device" element={<LoginOAuthDevicePage />} />
 			<Route path="setup" element={<SetupPage />} />
 			<Route path="reset-password">
 				<Route index element={<RequestOTPPage />} />
