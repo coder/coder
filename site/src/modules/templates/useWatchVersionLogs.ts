@@ -1,20 +1,22 @@
 import { watchBuildLogsByTemplateVersionId } from "api/api";
 import type { ProvisionerJobLog, TemplateVersion } from "api/typesGenerated";
+import { useEffectEvent } from "hooks/hookPolyfills";
 import { useEffect, useState } from "react";
 
 export const useWatchVersionLogs = (
 	templateVersion: TemplateVersion | undefined,
 	options?: { onDone: () => Promise<unknown> },
 ) => {
-	const [logs, setLogs] = useState<ProvisionerJobLog[] | undefined>();
+	const [logs, setLogs] = useState<ProvisionerJobLog[]>();
 	const templateVersionId = templateVersion?.id;
-	const templateVersionStatus = templateVersion?.job.status;
-
-	// biome-ignore lint/correctness/useExhaustiveDependencies: consider refactoring
-	useEffect(() => {
+	const [cachedVersionId, setCachedVersionId] = useState(templateVersionId);
+	if (cachedVersionId !== templateVersionId) {
+		setCachedVersionId(templateVersionId);
 		setLogs(undefined);
-	}, [templateVersionId]);
+	}
 
+	const templateVersionStatus = templateVersion?.job.status;
+	const stableOnDone = useEffectEvent(() => options?.onDone());
 	useEffect(() => {
 		if (!templateVersionId || !templateVersionStatus) {
 			return;
@@ -31,16 +33,14 @@ export const useWatchVersionLogs = (
 			onMessage: (log) => {
 				setLogs((logs) => (logs ? [...logs, log] : [log]));
 			},
-			onDone: options?.onDone,
+			onDone: stableOnDone,
 			onError: (error) => {
 				console.error(error);
 			},
 		});
 
-		return () => {
-			socket.close();
-		};
-	}, [options?.onDone, templateVersionId, templateVersionStatus]);
+		return () => socket.close();
+	}, [stableOnDone, templateVersionId, templateVersionStatus]);
 
 	return logs;
 };
