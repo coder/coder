@@ -126,7 +126,7 @@
 		"@biomejs/biome": "1.9.4",
 		"@chromatic-com/storybook": "3.2.2",
 		"@octokit/types": "12.3.0",
-		"@playwright/test": "1.47.2",
+		"@playwright/test": "1.47.0",
 		"@storybook/addon-actions": "8.5.2",
 		"@storybook/addon-essentials": "8.4.6",
 		"@storybook/addon-interactions": "8.5.3",
