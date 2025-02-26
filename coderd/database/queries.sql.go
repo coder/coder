@@ -6372,8 +6372,8 @@ WITH filtered_provisioner_jobs AS (
 ),
 pending_jobs AS (
 	-- Step 2: Extract only pending jobs from the already filtered dataset
-	SELECT id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status, ordinality
-	FROM filtered_provisioner_jobs
+	SELECT id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status
+	FROM provisioner_jobs
 	WHERE started_at IS NULL
 		AND canceled_at IS NULL
 		AND completed_at IS NULL

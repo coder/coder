@@ -63,7 +63,7 @@ WITH filtered_provisioner_jobs AS (
 pending_jobs AS (
 	-- Step 2: Extract only pending jobs from the already filtered dataset
 	SELECT *
-	FROM filtered_provisioner_jobs
+	FROM provisioner_jobs
 	WHERE started_at IS NULL
 		AND canceled_at IS NULL
 		AND completed_at IS NULL
