@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"sort"
 	"testing"
 	"time"
@@ -1265,7 +1266,10 @@ func TestQueuePosition(t *testing.T) {
 		Tags: database.StringMap{"a": "1"},
 	})
 
-	queued, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, jobIDs)
+	queued, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+		IDs:             jobIDs,
+		StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+	})
 	require.NoError(t, err)
 	require.Len(t, queued, jobCount)
 	sort.Slice(queued, func(i, j int) bool {
@@ -1293,7 +1297,10 @@ func TestQueuePosition(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, jobs[0].ID, job.ID)
 
-	queued, err = db.GetProvisionerJobsByIDsWithQueuePosition(ctx, jobIDs)
+	queued, err = db.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+		IDs:             jobIDs,
+		StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+	})
 	require.NoError(t, err)
 	require.Len(t, queued, jobCount)
 	sort.Slice(queued, func(i, j int) bool {
@@ -2340,7 +2347,10 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 		}
 
 		// When: we fetch the jobs by their IDs
-		actualJobs, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, jobIDs)
+		actualJobs, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+			IDs:             jobIDs,
+			StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+		})
 		require.NoError(t, err)
 		require.Len(t, actualJobs, len(jobIDs), "should return all unskipped jobs")
 
@@ -2478,7 +2488,10 @@ func TestGetProvisionerJobsByIDsWithQueuePosition_MixedStatuses(t *testing.T) {
 	}
 
 	// When: we fetch the jobs by their IDs
-	actualJobs, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, jobIDs)
+	actualJobs, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+		IDs:             jobIDs,
+		StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+	})
 	require.NoError(t, err)
 	require.Len(t, actualJobs, len(allJobs), "should return all jobs")
 
@@ -2572,7 +2585,10 @@ func TestGetProvisionerJobsByIDsWithQueuePosition_OrderValidation(t *testing.T) 
 	}
 
 	// When: we fetch the jobs by their IDs
-	actualJobs, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, jobIDs)
+	actualJobs, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+		IDs:             jobIDs,
+		StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+	})
 	require.NoError(t, err)
 	require.Len(t, actualJobs, len(allJobs), "should return all jobs")
 

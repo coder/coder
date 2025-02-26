@@ -53,7 +53,10 @@ func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	templateVersion := httpmw.TemplateVersionParam(r)
 
-	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, []uuid.UUID{templateVersion.JobID})
+	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+		IDs:             []uuid.UUID{templateVersion.JobID},
+		StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+	})
 	if err != nil || len(jobs) == 0 {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner job.",
@@ -182,7 +185,10 @@ func (api *API) patchTemplateVersion(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, []uuid.UUID{templateVersion.JobID})
+	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+		IDs:             []uuid.UUID{templateVersion.JobID},
+		StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+	})
 	if err != nil || len(jobs) == 0 {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner job.",
@@ -733,7 +739,10 @@ func (api *API) fetchTemplateVersionDryRunJob(rw http.ResponseWriter, r *http.Re
 		return database.GetProvisionerJobsByIDsWithQueuePositionRow{}, false
 	}
 
-	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, []uuid.UUID{jobUUID})
+	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+		IDs:             []uuid.UUID{jobUUID},
+		StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+	})
 	if httpapi.Is404Error(err) {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: fmt.Sprintf("Provisioner job %q not found.", jobUUID),
@@ -863,7 +872,10 @@ func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 		for _, version := range versions {
 			jobIDs = append(jobIDs, version.JobID)
 		}
-		jobs, err := store.GetProvisionerJobsByIDsWithQueuePosition(ctx, jobIDs)
+		jobs, err := store.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+			IDs:             jobIDs,
+			StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+		})
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error fetching provisioner job.",
@@ -931,7 +943,10 @@ func (api *API) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, []uuid.UUID{templateVersion.JobID})
+	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+		IDs:             []uuid.UUID{templateVersion.JobID},
+		StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+	})
 	if err != nil || len(jobs) == 0 {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner job.",
@@ -1011,7 +1026,10 @@ func (api *API) templateVersionByOrganizationTemplateAndName(rw http.ResponseWri
 		})
 		return
 	}
-	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, []uuid.UUID{templateVersion.JobID})
+	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+		IDs:             []uuid.UUID{templateVersion.JobID},
+		StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+	})
 	if err != nil || len(jobs) == 0 {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner job.",
@@ -1113,7 +1131,10 @@ func (api *API) previousTemplateVersionByOrganizationTemplateAndName(rw http.Res
 		return
 	}
 
-	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, []uuid.UUID{previousTemplateVersion.JobID})
+	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+		IDs:             []uuid.UUID{previousTemplateVersion.JobID},
+		StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+	})
 	if err != nil || len(jobs) == 0 {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner job.",

@@ -1050,7 +1050,7 @@ func (m queryMetricsStore) GetProvisionerJobsByIDs(ctx context.Context, ids []uu
 	return jobs, err
 }
 
-func (m queryMetricsStore) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Context, ids []uuid.UUID) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
+func (m queryMetricsStore) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Context, ids database.GetProvisionerJobsByIDsWithQueuePositionParams) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetProvisionerJobsByIDsWithQueuePosition(ctx, ids)
 	m.queryLatencies.WithLabelValues("GetProvisionerJobsByIDsWithQueuePosition").Observe(time.Since(start).Seconds())

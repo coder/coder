@@ -2167,18 +2167,18 @@ func (mr *MockStoreMockRecorder) GetProvisionerJobsByIDs(ctx, ids any) *gomock.C
 }
 
 // GetProvisionerJobsByIDsWithQueuePosition mocks base method.
-func (m *MockStore) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Context, ids []uuid.UUID) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
+func (m *MockStore) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Context, arg database.GetProvisionerJobsByIDsWithQueuePositionParams) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetProvisionerJobsByIDsWithQueuePosition", ctx, ids)
+	ret := m.ctrl.Call(m, "GetProvisionerJobsByIDsWithQueuePosition", ctx, arg)
 	ret0, _ := ret[0].([]database.GetProvisionerJobsByIDsWithQueuePositionRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetProvisionerJobsByIDsWithQueuePosition indicates an expected call of GetProvisionerJobsByIDsWithQueuePosition.
-func (mr *MockStoreMockRecorder) GetProvisionerJobsByIDsWithQueuePosition(ctx, ids any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetProvisionerJobsByIDsWithQueuePosition(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProvisionerJobsByIDsWithQueuePosition", reflect.TypeOf((*MockStore)(nil).GetProvisionerJobsByIDsWithQueuePosition), ctx, ids)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProvisionerJobsByIDsWithQueuePosition", reflect.TypeOf((*MockStore)(nil).GetProvisionerJobsByIDsWithQueuePosition), ctx, arg)
 }
 
 // GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner mocks base method.

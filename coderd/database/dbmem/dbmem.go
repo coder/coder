@@ -4136,14 +4136,14 @@ func (q *FakeQuerier) GetProvisionerJobsByIDs(_ context.Context, ids []uuid.UUID
 	return jobs, nil
 }
 
-func (q *FakeQuerier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Context, ids []uuid.UUID) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
+func (q *FakeQuerier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Context, arg database.GetProvisionerJobsByIDsWithQueuePositionParams) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	if ids == nil {
-		ids = []uuid.UUID{}
+	if arg.IDs == nil {
+		arg.IDs = []uuid.UUID{}
 	}
-	return q.getProvisionerJobsByIDsWithQueuePositionLocked(ctx, ids)
+	return q.getProvisionerJobsByIDsWithQueuePositionLocked(ctx, arg.IDs)
 }
 
 func (q *FakeQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(ctx context.Context, arg database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams) ([]database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow, error) {
