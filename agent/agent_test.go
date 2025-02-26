@@ -25,8 +25,14 @@ import (
 	"testing"
 	"time"
 
+	"go.uber.org/goleak"
+	"tailscale.com/net/speedtest"
+	"tailscale.com/tailcfg"
+
 	"github.com/bramvdbogaerde/go-scp"
 	"github.com/google/uuid"
+	"github.com/ory/dockertest/v3"
+	"github.com/ory/dockertest/v3/docker"
 	"github.com/pion/udp"
 	"github.com/pkg/sftp"
 	"github.com/prometheus/client_golang/prometheus"
@@ -34,15 +40,13 @@ import (
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/goleak"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
-	"tailscale.com/net/speedtest"
-	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/agenttest"
@@ -1759,6 +1763,74 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 			require.Contains(t, string(bytes), "❯")
 		})
 	}
+}
+
+// This tests end-to-end functionality of connecting to a running container
+// and executing a command. It creates a real Docker container and runs a
+// command. As such, it does not run by default in CI.
+// You can run it manually as follows:
+//
+// CODER_TEST_USE_DOCKER=1 go test -count=1 ./agent -run TestAgent_ReconnectingPTYContainer
+func TestAgent_ReconnectingPTYContainer(t *testing.T) {
+	t.Parallel()
+	if os.Getenv("CODER_TEST_USE_DOCKER") != "1" {
+		t.Skip("Set CODER_TEST_USE_DOCKER=1 to run this test")
+	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	pool, err := dockertest.NewPool("")
+	require.NoError(t, err, "Could not connect to docker")
+	ct, err := pool.RunWithOptions(&dockertest.RunOptions{
+		Repository: "busybox",
+		Tag:        "latest",
+		Cmd:        []string{"sleep", "infnity"},
+	}, func(config *docker.HostConfig) {
+		config.AutoRemove = true
+		config.RestartPolicy = docker.RestartPolicy{Name: "no"}
+	})
+	require.NoError(t, err, "Could not start container")
+	t.Cleanup(func() {
+		err := pool.Purge(ct)
+		require.NoError(t, err, "Could not stop container")
+	})
+	// Wait for container to start
+	require.Eventually(t, func() bool {
+		ct, ok := pool.ContainerByName(ct.Container.Name)
+		return ok && ct.Container.State.Running
+	}, testutil.WaitShort, testutil.IntervalSlow, "Container did not start in time")
+
+	// nolint: dogsled
+	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
+		o.ExperimentalContainersEnabled = true
+	})
+	ac, err := conn.ReconnectingPTY(ctx, uuid.New(), 80, 80, "/bin/sh", func(arp *workspacesdk.AgentReconnectingPTYInit) {
+		arp.Container = ct.Container.ID
+	})
+	require.NoError(t, err, "failed to create ReconnectingPTY")
+	defer ac.Close()
+	tr := testutil.NewTerminalReader(t, ac)
+
+	require.NoError(t, tr.ReadUntil(ctx, func(line string) bool {
+		return strings.Contains(line, "#") || strings.Contains(line, "$")
+	}), "find prompt")
+
+	require.NoError(t, json.NewEncoder(ac).Encode(workspacesdk.ReconnectingPTYRequest{
+		Data: "hostname\r",
+	}), "write hostname")
+	require.NoError(t, tr.ReadUntil(ctx, func(line string) bool {
+		return strings.Contains(line, "hostname")
+	}), "find hostname command")
+
+	require.NoError(t, tr.ReadUntil(ctx, func(line string) bool {
+		return strings.Contains(line, ct.Container.Config.Hostname)
+	}), "find hostname output")
+	require.NoError(t, json.NewEncoder(ac).Encode(workspacesdk.ReconnectingPTYRequest{
+		Data: "exit\r",
+	}), "write exit command")
+
+	// Wait for the connection to close.
+	require.ErrorIs(t, tr.ReadUntil(ctx, nil), io.EOF)
 }
 
 func TestAgent_Dial(t *testing.T) {
