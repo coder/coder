@@ -7,12 +7,12 @@ export const useWatchVersionLogs = (
 	templateVersion: TemplateVersion | undefined,
 	options?: { onDone: () => Promise<unknown> },
 ) => {
-	const [logs, setLogs] = useState<ProvisionerJobLog[]>();
+	const [logs, setLogs] = useState<ProvisionerJobLog[]>([]);
 	const templateVersionId = templateVersion?.id;
 	const [cachedVersionId, setCachedVersionId] = useState(templateVersionId);
 	if (cachedVersionId !== templateVersionId) {
 		setCachedVersionId(templateVersionId);
-		setLogs(undefined);
+		setLogs([]);
 	}
 
 	const stableOnDone = useEffectEvent(() => options?.onDone());
@@ -24,13 +24,9 @@ export const useWatchVersionLogs = (
 		}
 
 		const socket = watchBuildLogsByTemplateVersionId(templateVersionId, {
-			onMessage: (log) => {
-				setLogs((logs) => (logs ? [...logs, log] : [log]));
-			},
+			onMessage: (newLog) => setLogs((current) => [...current, newLog]),
+			onError: (error) => console.error(error),
 			onDone: stableOnDone,
-			onError: (error) => {
-				console.error(error);
-			},
 		});
 
 		return () => socket.close();
