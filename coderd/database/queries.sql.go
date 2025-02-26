@@ -5845,7 +5845,7 @@ WHERE
 	AND (COALESCE(array_length($3::uuid[], 1), 0) = 0 OR pd.id = ANY($3::uuid[]))
 	AND ($4::tagset = 'null'::tagset OR provisioner_tagset_contains(pd.tags::tagset, $4::tagset))
 ORDER BY
-	pd.created_at ASC
+	pd.created_at DESC
 LIMIT
 	$5::int
 `
