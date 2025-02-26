@@ -128,6 +128,8 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 								</Stack>
 
 								<Stack direction="row" alignItems="center">
+									<StatusPill code={auditLog.status_code} />
+
 									{/* With multi-org, there is not enough space so show
                       everything in a tooltip. */}
 									{showOrgDetails ? (
@@ -169,6 +171,12 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 															</Link>
 														</div>
 													)}
+													{auditLog.additional_fields?.reason && (
+														<div>
+															<h4 css={styles.auditLogInfoHeader}>Reason:</h4>
+															<div>{auditLog.additional_fields?.reason}</div>
+														</div>
+													)}
 												</div>
 											}
 										>
@@ -203,13 +211,6 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 											)}
 										</Stack>
 									)}
-
-									<Pill
-										css={styles.httpStatusPill}
-										type={httpStatusColor(auditLog.status_code)}
-									>
-										{auditLog.status_code.toString()}
-									</Pill>
 								</Stack>
 							</Stack>
 						</Stack>
@@ -218,7 +219,7 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 					{shouldDisplayDiff ? (
 						<div> {<DropdownArrow close={isDiffOpen} />}</div>
 					) : (
-						<div css={styles.columnWithoutDiff}></div>
+						<div css={styles.columnWithoutDiff} />
 					)}
 				</Stack>
 
@@ -231,6 +232,19 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 		</TimelineEntry>
 	);
 };
+
+function StatusPill({ code }: { code: number }) {
+	const isHttp = code >= 100;
+
+	return (
+		<Pill
+			css={styles.statusCodePill}
+			type={isHttp ? httpStatusColor(code) : code === 0 ? "success" : "error"}
+		>
+			{code.toString()}
+		</Pill>
+	);
+}
 
 const styles = {
 	auditLogCell: {
@@ -287,7 +301,7 @@ const styles = {
 		width: "100%",
 	},
 
-	httpStatusPill: {
+	statusCodePill: {
 		fontSize: 10,
 		height: 20,
 		paddingLeft: 10,

@@ -159,8 +159,8 @@ func TestProvisionerDaemons(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Len(t, daemons, 2)
-		require.Equal(t, pd1.ID, daemons[0].ID)
-		require.Equal(t, pd2.ID, daemons[1].ID)
+		require.Equal(t, pd1.ID, daemons[1].ID)
+		require.Equal(t, pd2.ID, daemons[0].ID)
 	})
 
 	t.Run("Tags", func(t *testing.T) {

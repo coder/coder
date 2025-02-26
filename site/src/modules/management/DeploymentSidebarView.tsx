@@ -94,11 +94,6 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 						IdP Organization Sync
 					</SidebarNavItem>
 				)}
-				{permissions.viewDeploymentValues && (
-					<SidebarNavItem href="/deployment/provisioners">
-						Provisioners
-					</SidebarNavItem>
-				)}
 				{!hasPremiumLicense && (
 					<SidebarNavItem href="/deployment/premium">Premium</SidebarNavItem>
 				)}
