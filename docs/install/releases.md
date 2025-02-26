@@ -35,7 +35,7 @@ only for security issues or CVEs.
 - In-product security vulnerabilities and CVEs are supported
 
 > For more information on feature rollout, see our
-> [feature stages documentation](../contributing/feature-stages.md).
+> [feature stages documentation](../about/feature-stages.md).
 
 ## Installing stable
 
