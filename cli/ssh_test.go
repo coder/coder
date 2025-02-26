@@ -24,6 +24,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/ory/dockertest/v3"
+	"github.com/ory/dockertest/v3/docker"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1922,6 +1924,76 @@ Expire-Date: 0
 	// And we're done.
 	tpty.WriteLine("exit")
 	<-cmdDone
+}
+
+func TestSSH_Container(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS != "linux" {
+		t.Skip("Skipping test on non-Linux platform")
+	}
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		pool, err := dockertest.NewPool("")
+		require.NoError(t, err, "Could not connect to docker")
+		ct, err := pool.RunWithOptions(&dockertest.RunOptions{
+			Repository: "busybox",
+			Tag:        "latest",
+			Cmd:        []string{"sleep", "infnity"},
+		}, func(config *docker.HostConfig) {
+			config.AutoRemove = true
+			config.RestartPolicy = docker.RestartPolicy{Name: "no"}
+		})
+		require.NoError(t, err, "Could not start container")
+		// Wait for container to start
+		require.Eventually(t, func() bool {
+			ct, ok := pool.ContainerByName(ct.Container.Name)
+			return ok && ct.Container.State.Running
+		}, testutil.WaitShort, testutil.IntervalSlow, "Container did not start in time")
+		t.Cleanup(func() {
+			err := pool.Purge(ct)
+			require.NoError(t, err, "Could not stop container")
+		})
+
+		_ = agenttest.New(t, client.URL, agentToken, func(o *agent.Options) {
+			o.ExperimentalContainersEnabled = true
+		})
+		_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+
+		inv, root := clitest.New(t, "ssh", workspace.Name, "-c", ct.Container.ID)
+		clitest.SetupConfig(t, client, root)
+		ptty := ptytest.New(t).Attach(inv)
+
+		cmdDone := tGo(t, func() {
+			err := inv.WithContext(ctx).Run()
+			assert.NoError(t, err)
+		})
+
+		ptty.ExpectMatch(" #")
+		ptty.WriteLine("hostname")
+		ptty.ExpectMatch(ct.Container.Config.Hostname)
+		ptty.WriteLine("exit")
+		<-cmdDone
+	})
+
+	t.Run("NotFound", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		_ = agenttest.New(t, client.URL, agentToken, func(o *agent.Options) {
+			o.ExperimentalContainersEnabled = true
+		})
+		_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+
+		inv, root := clitest.New(t, "ssh", workspace.Name, "-c", uuid.NewString())
+		clitest.SetupConfig(t, client, root)
+		err := inv.WithContext(ctx).Run()
+		require.ErrorContains(t, err, "container not found:")
+	})
 }
 
 // tGoContext runs fn in a goroutine passing a context that will be

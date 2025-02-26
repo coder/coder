@@ -76,6 +76,9 @@ func (r *RootCmd) ssh() *serpent.Command {
 		appearanceConfig    codersdk.AppearanceConfig
 		networkInfoDir      string
 		networkInfoInterval time.Duration
+
+		container     string
+		containerUser string
 	)
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
@@ -282,6 +285,23 @@ func (r *RootCmd) ssh() *serpent.Command {
 			}
 			conn.AwaitReachable(ctx)
 
+			if container != "" {
+				cts, err := client.WorkspaceAgentListContainers(ctx, workspaceAgent.ID, nil)
+				if err != nil {
+					return xerrors.Errorf("list containers: %w", err)
+				}
+				var found bool
+				for _, c := range cts.Containers {
+					if c.FriendlyName == container || c.ID == container {
+						found = true
+						break
+					}
+				}
+				if !found {
+					return xerrors.Errorf("container not found: %q", container)
+				}
+			}
+
 			stopPolling := tryPollWorkspaceAutostop(ctx, client, workspace)
 			defer stopPolling()
 
@@ -454,6 +474,17 @@ func (r *RootCmd) ssh() *serpent.Command {
 				}
 			}
 
+			if container != "" {
+				for k, v := range map[string]string{
+					"CODER_CONTAINER":      container,
+					"CODER_CONTAINER_USER": containerUser,
+				} {
+					if err := sshSession.Setenv(k, v); err != nil {
+						return xerrors.Errorf("setenv: %w", err)
+					}
+				}
+			}
+
 			err = sshSession.RequestPty("xterm-256color", 128, 128, gossh.TerminalModes{})
 			if err != nil {
 				return xerrors.Errorf("request pty: %w", err)
@@ -593,6 +624,20 @@ func (r *RootCmd) ssh() *serpent.Command {
 			Description: "Specifies the interval to update network information.",
 			Default:     "5s",
 			Value:       serpent.DurationOf(&networkInfoInterval),
+		},
+		{
+			Flag:          "container",
+			FlagShorthand: "c",
+			Description:   "Specifies a container inside the workspace to connect to.",
+			Value:         serpent.StringOf(&container),
+			Hidden:        true, // Hidden until this features is at least in beta.
+		},
+		{
+			Flag:          "container-user",
+			FlagShorthand: "u",
+			Description:   "When connecting to a container, specifies the user to connect as.",
+			Value:         serpent.StringOf(&containerUser),
+			Hidden:        true, // Hidden until this features is at least in beta.
 		},
 		sshDisableAutostartOption(serpent.BoolOf(&disableAutostart)),
 	}

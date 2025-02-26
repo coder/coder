@@ -307,6 +307,8 @@ func (a *agent) init() {
 
 			return a.reportConnection(id, connectionType, ip)
 		},
+
+		ExperimentalContainersEnabled: a.experimentalDevcontainersEnabled,
 	})
 	if err != nil {
 		panic(err)
