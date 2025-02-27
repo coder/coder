@@ -91,7 +91,8 @@ func (b WorkspaceBuildBuilder) WithAgent(mutations ...func([]*sdkproto.Agent) []
 	//nolint: revive // returns modified struct
 	b.agentToken = uuid.NewString()
 	agents := []*sdkproto.Agent{{
-		Id: uuid.NewString(),
+		Id:   uuid.NewString(),
+		Name: "dev",
 		Auth: &sdkproto.Agent_Token{
 			Token: b.agentToken,
 		},

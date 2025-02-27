@@ -44,34 +44,6 @@ export const CreateTemplateGalleryPageView: FC<
 						<Card variant="outlined" css={{ width: 320, borderRadius: 6 }}>
 							<CardActionArea
 								component={RouterLink}
-								to="/templates/new?exampleId=scratch"
-								sx={{ height: 115, padding: 1 }}
-							>
-								<CardContent>
-									<Stack
-										direction="row"
-										spacing={3}
-										css={{ alignItems: "center" }}
-									>
-										<div css={styles.icon}>
-											<ExternalImage
-												src="/emojis/1f4c4.png"
-												css={{ width: "100%", height: "100%" }}
-											/>
-										</div>
-										<div>
-											<h4 css={styles.cardTitle}>Scratch Template</h4>
-											<span css={styles.cardDescription}>
-												Create a minimal starter template that you can customize
-											</span>
-										</div>
-									</Stack>
-								</CardContent>
-							</CardActionArea>
-						</Card>
-						<Card variant="outlined" css={{ width: 320, borderRadius: 6 }}>
-							<CardActionArea
-								component={RouterLink}
 								to="/templates/new"
 								sx={{ height: 115, padding: 1 }}
 							>

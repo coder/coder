@@ -14,11 +14,10 @@
  * users like that, though, know that it will be painful
  */
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import Stack from "@mui/material/Stack";
-import TableCell from "@mui/material/TableCell";
 import Tooltip from "@mui/material/Tooltip";
 import type { LoginType, SlimRole } from "api/typesGenerated";
 import { Pill } from "components/Pill/Pill";
+import { TableCell } from "components/Table/Table";
 import {
 	Popover,
 	PopoverContent,
@@ -59,7 +58,7 @@ export const UserRoleCell: FC<UserRoleCellProps> = ({
 
 	return (
 		<TableCell>
-			<Stack direction="row" spacing={1}>
+			<div className="flex flex-row gap-1 items-center">
 				{canEditUsers && (
 					<EditRolesButton
 						roles={sortRolesByAccessLevel(allAvailableRoles ?? [])}
@@ -97,7 +96,7 @@ export const UserRoleCell: FC<UserRoleCellProps> = ({
 				</Pill>
 
 				{extraRoles.length > 0 && <OverflowRolePill roles={extraRoles} />}
-			</Stack>
+			</div>
 		</TableCell>
 	);
 };

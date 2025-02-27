@@ -1145,6 +1145,15 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getTemplateVersionPresets = async (
+		templateVersionId: string,
+	): Promise<TypesGen.Preset[]> => {
+		const response = await this.axios.get<TypesGen.Preset[]>(
+			`/api/v2/templateversions/${templateVersionId}/presets`,
+		);
+		return response.data;
+	};
+
 	startWorkspace = (
 		workspaceId: string,
 		templateVersionId: string,
@@ -1238,10 +1247,21 @@ class ApiMethods {
 	};
 
 	cancelTemplateVersionBuild = async (
-		templateVersionId: TypesGen.TemplateVersion["id"],
+		templateVersionId: string,
 	): Promise<TypesGen.Response> => {
 		const response = await this.axios.patch(
 			`/api/v2/templateversions/${templateVersionId}/cancel`,
+		);
+
+		return response.data;
+	};
+
+	cancelTemplateVersionDryRun = async (
+		templateVersionId: string,
+		jobId: string,
+	): Promise<TypesGen.Response> => {
+		const response = await this.axios.patch(
+			`/api/v2/templateversions/${templateVersionId}/dry-run/${jobId}/cancel`,
 		);
 
 		return response.data;
@@ -1582,6 +1602,29 @@ class ApiMethods {
 
 	unlinkExternalAuthProvider = async (provider: string): Promise<string> => {
 		const resp = await this.axios.delete(`/api/v2/external-auth/${provider}`);
+		return resp.data;
+	};
+
+	getOAuth2GitHubDeviceFlowCallback = async (
+		code: string,
+		state: string,
+	): Promise<TypesGen.OAuth2DeviceFlowCallbackResponse> => {
+		const resp = await this.axios.get(
+			`/api/v2/users/oauth2/github/callback?code=${code}&state=${state}`,
+		);
+		// sanity check
+		if (
+			typeof resp.data !== "object" ||
+			typeof resp.data.redirect_url !== "string"
+		) {
+			console.error("Invalid response from OAuth2 GitHub callback", resp);
+			throw new Error("Invalid response from OAuth2 GitHub callback");
+		}
+		return resp.data;
+	};
+
+	getOAuth2GitHubDevice = async (): Promise<TypesGen.ExternalAuthDevice> => {
+		const resp = await this.axios.get("/api/v2/users/oauth2/github/device");
 		return resp.data;
 	};
 
@@ -2277,6 +2320,10 @@ class ApiMethods {
 		return res.data;
 	};
 
+	postTestNotification = async () => {
+		await this.axios.post<void>("/api/v2/notifications/test");
+	};
+
 	requestOneTimePassword = async (
 		req: TypesGen.RequestOneTimePasscodeRequest,
 	) => {
@@ -2294,6 +2341,38 @@ class ApiMethods {
 			`/api/v2/workspacebuilds/${workspaceBuildId}/timings`,
 		);
 		return res.data;
+	};
+
+	getProvisionerJobs = async (orgId: string) => {
+		const res = await this.axios.get<TypesGen.ProvisionerJob[]>(
+			`/api/v2/organizations/${orgId}/provisionerjobs`,
+		);
+		return res.data;
+	};
+
+	cancelProvisionerJob = async (job: TypesGen.ProvisionerJob) => {
+		switch (job.type) {
+			case "workspace_build":
+				if (!job.input.workspace_build_id) {
+					throw new Error("Workspace build ID is required to cancel this job");
+				}
+				return this.cancelWorkspaceBuild(job.input.workspace_build_id);
+
+			case "template_version_import":
+				if (!job.input.template_version_id) {
+					throw new Error("Template version ID is required to cancel this job");
+				}
+				return this.cancelTemplateVersionBuild(job.input.template_version_id);
+
+			case "template_version_dry_run":
+				if (!job.input.template_version_id) {
+					throw new Error("Template version ID is required to cancel this job");
+				}
+				return this.cancelTemplateVersionDryRun(
+					job.input.template_version_id,
+					job.id,
+				);
+		}
 	};
 }
 

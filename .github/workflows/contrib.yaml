@@ -84,7 +84,7 @@ jobs:
               repo: context.repo.repo,
             }
 
-            if (action === "opened" || action === "reopened") {
+            if (action === "opened" || action === "reopened" || action === "ready_for_review") {
               if (isBreakingTitle && !labels.includes(releaseLabels.breaking)) {
                 console.log('Add "%s" label', releaseLabels.breaking)
                 await github.rest.issues.addLabels({

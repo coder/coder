@@ -17,6 +17,10 @@ import (
 
 func TestDotfiles(t *testing.T) {
 	t.Parallel()
+	// This test will time out if the user has commit signing enabled.
+	if _, gpgTTYFound := os.LookupEnv("GPG_TTY"); gpgTTYFound {
+		t.Skip("GPG_TTY is set, skipping test to avoid hanging")
+	}
 	t.Run("MissingArg", func(t *testing.T) {
 		t.Parallel()
 		inv, _ := clitest.New(t, "dotfiles")

@@ -351,6 +351,8 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 				BlockFileTransfer:  blockFileTransfer,
 				Execer:             execer,
 				ContainerLister:    containerLister,
+
+				ExperimentalContainersEnabled: devcontainersEnabled,
 			})
 
 			promHandler := agent.PrometheusMetricsHandler(prometheusRegistry, logger)

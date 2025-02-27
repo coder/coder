@@ -133,6 +133,14 @@ export const getErrorDetail = (error: unknown): string | undefined => {
 	return undefined;
 };
 
+export const getErrorStatus = (error: unknown): number | undefined => {
+	if (isApiError(error)) {
+		return error.status;
+	}
+
+	return undefined;
+};
+
 export class DetailedError extends Error {
 	constructor(
 		message: string,

@@ -1,6 +1,6 @@
 {
   "format_version": "1.2",
-  "terraform_version": "1.9.8",
+  "terraform_version": "1.10.5",
   "planned_values": {
     "root_module": {
       "resources": [
@@ -79,12 +79,12 @@
                 "volume": [
                   {
                     "enabled": false,
-                    "path": "volume2",
+                    "path": "/volume2",
                     "threshold": 50
                   },
                   {
                     "enabled": true,
-                    "path": "volume1",
+                    "path": "/volume1",
                     "threshold": 80
                   }
                 ]
@@ -286,12 +286,12 @@
               "volume": [
                 {
                   "enabled": false,
-                  "path": "volume2",
+                  "path": "/volume2",
                   "threshold": 50
                 },
                 {
                   "enabled": true,
-                  "path": "volume1",
+                  "path": "/volume1",
                   "threshold": 80
                 }
               ]
@@ -448,7 +448,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "0.22.0"
+        "version_constraint": "2.2.0-pre0"
       },
       "null": {
         "name": "null",
@@ -518,7 +518,7 @@
                       "constant_value": true
                     },
                     "path": {
-                      "constant_value": "volume1"
+                      "constant_value": "/volume1"
                     },
                     "threshold": {
                       "constant_value": 80
@@ -529,7 +529,7 @@
                       "constant_value": false
                     },
                     "path": {
-                      "constant_value": "volume2"
+                      "constant_value": "/volume2"
                     },
                     "threshold": {
                       "constant_value": 50
@@ -618,7 +618,7 @@
       ]
     }
   ],
-  "timestamp": "2025-01-29T22:48:06Z",
+  "timestamp": "2025-02-18T10:58:12Z",
   "applyable": true,
   "complete": true,
   "errored": false

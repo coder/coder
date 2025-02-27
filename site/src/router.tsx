@@ -13,6 +13,7 @@ import { RequireAuth } from "./contexts/auth/RequireAuth";
 import { DashboardLayout } from "./modules/dashboard/DashboardLayout";
 import AuditPage from "./pages/AuditPage/AuditPage";
 import { HealthLayout } from "./pages/HealthPage/HealthLayout";
+import LoginOAuthDevicePage from "./pages/LoginOAuthDevicePage/LoginOAuthDevicePage";
 import LoginPage from "./pages/LoginPage/LoginPage";
 import { SetupPage } from "./pages/SetupPage/SetupPage";
 import { TemplateLayout } from "./pages/TemplatePage/TemplateLayout";
@@ -228,6 +229,10 @@ const AddNewLicensePage = lazy(
 			"./pages/DeploymentSettingsPage/LicensesSettingsPage/AddNewLicensePage"
 		),
 );
+const OrganizationRedirect = lazy(
+	() => import("./pages/OrganizationSettingsPage/OrganizationRedirect"),
+);
+
 const CreateOrganizationPage = lazy(
 	() => import("./pages/OrganizationSettingsPage/CreateOrganizationPage"),
 );
@@ -261,7 +266,7 @@ const CreateEditRolePage = lazy(
 			"./pages/OrganizationSettingsPage/CustomRolesPage/CreateEditRolePage"
 		),
 );
-const OrganizationProvisionersPage = lazy(
+const ProvisionersPage = lazy(
 	() => import("./pages/OrganizationSettingsPage/OrganizationProvisionersPage"),
 );
 const TemplateEmbedPage = lazy(
@@ -366,6 +371,7 @@ export const router = createBrowserRouter(
 			errorElement={<GlobalErrorBoundary />}
 		>
 			<Route path="login" element={<LoginPage />} />
+			<Route path="login/device" element={<LoginOAuthDevicePage />} />
 			<Route path="setup" element={<SetupPage />} />
 			<Route path="reset-password">
 				<Route index element={<RequestOTPPage />} />
@@ -412,7 +418,7 @@ export const router = createBrowserRouter(
 						<Route path="new" element={<CreateOrganizationPage />} />
 
 						{/* General settings for the default org can omit the organization name */}
-						<Route index element={<OrganizationSettingsPage />} />
+						<Route index element={<OrganizationRedirect />} />
 
 						<Route path=":organization" element={<OrganizationSidebarLayout />}>
 							<Route index element={<OrganizationMembersPage />} />
@@ -422,10 +428,7 @@ export const router = createBrowserRouter(
 								<Route path="create" element={<CreateEditRolePage />} />
 								<Route path=":roleName" element={<CreateEditRolePage />} />
 							</Route>
-							<Route
-								path="provisioners"
-								element={<OrganizationProvisionersPage />}
-							/>
+							<Route path="provisioners" element={<ProvisionersPage />} />
 							<Route path="idp-sync" element={<OrganizationIdPSyncPage />} />
 							<Route path="settings" element={<OrganizationSettingsPage />} />
 						</Route>

@@ -9,5 +9,10 @@
 		}
 	},
 	// SYS_PTRACE to enable go debugging
-	"runArgs": ["--cap-add=SYS_PTRACE"]
+	"runArgs": ["--cap-add=SYS_PTRACE"],
+	"customizations": {
+		"vscode": {
+			"extensions": ["biomejs.biome"]
+		}
+	}
 }

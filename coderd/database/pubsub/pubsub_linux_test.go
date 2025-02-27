@@ -1,5 +1,3 @@
-//go:build linux
-
 package pubsub_test
 
 import (

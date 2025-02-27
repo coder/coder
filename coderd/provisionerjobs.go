@@ -72,7 +72,9 @@ func (api *API) provisionerJob(rw http.ResponseWriter, r *http.Request) {
 // @Tags Organizations
 // @Param organization path string true "Organization ID" format(uuid)
 // @Param limit query int false "Page limit"
+// @Param ids query []string false "Filter results by job IDs" format(uuid)
 // @Param status query codersdk.ProvisionerJobStatus false "Filter results by status" enums(pending,running,succeeded,canceling,canceled,failed)
+// @Param tags query object false "Provisioner tags to filter by (JSON of the form {'tag1':'value1','tag2':'value2'})"
 // @Success 200 {array} codersdk.ProvisionerJob
 // @Router /organizations/{organization}/provisionerjobs [get]
 func (api *API) provisionerJobs(rw http.ResponseWriter, r *http.Request) {
@@ -103,6 +105,10 @@ func (api *API) handleAuthAndFetchProvisionerJobs(rw http.ResponseWriter, r *htt
 	p := httpapi.NewQueryParamParser()
 	limit := p.PositiveInt32(qp, 50, "limit")
 	status := p.Strings(qp, nil, "status")
+	if ids == nil {
+		ids = p.UUIDs(qp, nil, "ids")
+	}
+	tags := p.JSONStringMap(qp, database.StringMap{}, "tags")
 	p.ErrorExcessParams(qp)
 	if len(p.Errors) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -113,10 +119,11 @@ func (api *API) handleAuthAndFetchProvisionerJobs(rw http.ResponseWriter, r *htt
 	}
 
 	jobs, err := api.Database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(ctx, database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams{
-		OrganizationID: uuid.NullUUID{UUID: org.ID, Valid: true},
+		OrganizationID: org.ID,
 		Status:         slice.StringEnums[database.ProvisionerJobStatus](status),
 		Limit:          sql.NullInt32{Int32: limit, Valid: limit > 0},
 		IDs:            ids,
+		Tags:           tags,
 	})
 	if err != nil {
 		if httpapi.Is404Error(err) {

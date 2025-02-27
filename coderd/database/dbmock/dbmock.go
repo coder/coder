@@ -557,20 +557,6 @@ func (mr *MockStoreMockRecorder) DeleteOldWorkspaceAgentStats(ctx any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldWorkspaceAgentStats", reflect.TypeOf((*MockStore)(nil).DeleteOldWorkspaceAgentStats), ctx)
 }
 
-// DeleteOrganization mocks base method.
-func (m *MockStore) DeleteOrganization(ctx context.Context, id uuid.UUID) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteOrganization", ctx, id)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteOrganization indicates an expected call of DeleteOrganization.
-func (mr *MockStoreMockRecorder) DeleteOrganization(ctx, id any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOrganization", reflect.TypeOf((*MockStore)(nil).DeleteOrganization), ctx, id)
-}
-
 // DeleteOrganizationMember mocks base method.
 func (m *MockStore) DeleteOrganizationMember(ctx context.Context, arg database.DeleteOrganizationMemberParams) error {
 	m.ctrl.T.Helper()
@@ -1776,6 +1762,21 @@ func (mr *MockStoreMockRecorder) GetNotificationsSettings(ctx any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNotificationsSettings", reflect.TypeOf((*MockStore)(nil).GetNotificationsSettings), ctx)
 }
 
+// GetOAuth2GithubDefaultEligible mocks base method.
+func (m *MockStore) GetOAuth2GithubDefaultEligible(ctx context.Context) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOAuth2GithubDefaultEligible", ctx)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetOAuth2GithubDefaultEligible indicates an expected call of GetOAuth2GithubDefaultEligible.
+func (mr *MockStoreMockRecorder) GetOAuth2GithubDefaultEligible(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOAuth2GithubDefaultEligible", reflect.TypeOf((*MockStore)(nil).GetOAuth2GithubDefaultEligible), ctx)
+}
+
 // GetOAuth2ProviderAppByID mocks base method.
 func (m *MockStore) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {
 	m.ctrl.T.Helper()
@@ -1942,18 +1943,18 @@ func (mr *MockStoreMockRecorder) GetOrganizationByID(ctx, id any) *gomock.Call {
 }
 
 // GetOrganizationByName mocks base method.
-func (m *MockStore) GetOrganizationByName(ctx context.Context, name string) (database.Organization, error) {
+func (m *MockStore) GetOrganizationByName(ctx context.Context, arg database.GetOrganizationByNameParams) (database.Organization, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetOrganizationByName", ctx, name)
+	ret := m.ctrl.Call(m, "GetOrganizationByName", ctx, arg)
 	ret0, _ := ret[0].(database.Organization)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetOrganizationByName indicates an expected call of GetOrganizationByName.
-func (mr *MockStoreMockRecorder) GetOrganizationByName(ctx, name any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetOrganizationByName(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrganizationByName", reflect.TypeOf((*MockStore)(nil).GetOrganizationByName), ctx, name)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrganizationByName", reflect.TypeOf((*MockStore)(nil).GetOrganizationByName), ctx, arg)
 }
 
 // GetOrganizationIDsByMemberIDs mocks base method.
@@ -1987,18 +1988,18 @@ func (mr *MockStoreMockRecorder) GetOrganizations(ctx, arg any) *gomock.Call {
 }
 
 // GetOrganizationsByUserID mocks base method.
-func (m *MockStore) GetOrganizationsByUserID(ctx context.Context, userID uuid.UUID) ([]database.Organization, error) {
+func (m *MockStore) GetOrganizationsByUserID(ctx context.Context, arg database.GetOrganizationsByUserIDParams) ([]database.Organization, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetOrganizationsByUserID", ctx, userID)
+	ret := m.ctrl.Call(m, "GetOrganizationsByUserID", ctx, arg)
 	ret0, _ := ret[0].([]database.Organization)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetOrganizationsByUserID indicates an expected call of GetOrganizationsByUserID.
-func (mr *MockStoreMockRecorder) GetOrganizationsByUserID(ctx, userID any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetOrganizationsByUserID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrganizationsByUserID", reflect.TypeOf((*MockStore)(nil).GetOrganizationsByUserID), ctx, userID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrganizationsByUserID", reflect.TypeOf((*MockStore)(nil).GetOrganizationsByUserID), ctx, arg)
 }
 
 // GetParameterSchemasByJobID mocks base method.
@@ -4965,6 +4966,20 @@ func (mr *MockStoreMockRecorder) UpdateMemberRoles(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateMemberRoles", reflect.TypeOf((*MockStore)(nil).UpdateMemberRoles), ctx, arg)
 }
 
+// UpdateMemoryResourceMonitor mocks base method.
+func (m *MockStore) UpdateMemoryResourceMonitor(ctx context.Context, arg database.UpdateMemoryResourceMonitorParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateMemoryResourceMonitor", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateMemoryResourceMonitor indicates an expected call of UpdateMemoryResourceMonitor.
+func (mr *MockStoreMockRecorder) UpdateMemoryResourceMonitor(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateMemoryResourceMonitor", reflect.TypeOf((*MockStore)(nil).UpdateMemoryResourceMonitor), ctx, arg)
+}
+
 // UpdateNotificationTemplateMethodByID mocks base method.
 func (m *MockStore) UpdateNotificationTemplateMethodByID(ctx context.Context, arg database.UpdateNotificationTemplateMethodByIDParams) (database.NotificationTemplate, error) {
 	m.ctrl.T.Helper()
@@ -5023,6 +5038,20 @@ func (m *MockStore) UpdateOrganization(ctx context.Context, arg database.UpdateO
 func (mr *MockStoreMockRecorder) UpdateOrganization(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOrganization", reflect.TypeOf((*MockStore)(nil).UpdateOrganization), ctx, arg)
+}
+
+// UpdateOrganizationDeletedByID mocks base method.
+func (m *MockStore) UpdateOrganizationDeletedByID(ctx context.Context, arg database.UpdateOrganizationDeletedByIDParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateOrganizationDeletedByID", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateOrganizationDeletedByID indicates an expected call of UpdateOrganizationDeletedByID.
+func (mr *MockStoreMockRecorder) UpdateOrganizationDeletedByID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOrganizationDeletedByID", reflect.TypeOf((*MockStore)(nil).UpdateOrganizationDeletedByID), ctx, arg)
 }
 
 // UpdateProvisionerDaemonLastSeenAt mocks base method.
@@ -5454,6 +5483,20 @@ func (m *MockStore) UpdateUserStatus(ctx context.Context, arg database.UpdateUse
 func (mr *MockStoreMockRecorder) UpdateUserStatus(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserStatus", reflect.TypeOf((*MockStore)(nil).UpdateUserStatus), ctx, arg)
+}
+
+// UpdateVolumeResourceMonitor mocks base method.
+func (m *MockStore) UpdateVolumeResourceMonitor(ctx context.Context, arg database.UpdateVolumeResourceMonitorParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateVolumeResourceMonitor", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateVolumeResourceMonitor indicates an expected call of UpdateVolumeResourceMonitor.
+func (mr *MockStoreMockRecorder) UpdateVolumeResourceMonitor(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateVolumeResourceMonitor", reflect.TypeOf((*MockStore)(nil).UpdateVolumeResourceMonitor), ctx, arg)
 }
 
 // UpdateWorkspace mocks base method.
@@ -5906,6 +5949,20 @@ func (m *MockStore) UpsertNotificationsSettings(ctx context.Context, value strin
 func (mr *MockStoreMockRecorder) UpsertNotificationsSettings(ctx, value any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertNotificationsSettings", reflect.TypeOf((*MockStore)(nil).UpsertNotificationsSettings), ctx, value)
+}
+
+// UpsertOAuth2GithubDefaultEligible mocks base method.
+func (m *MockStore) UpsertOAuth2GithubDefaultEligible(ctx context.Context, eligible bool) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertOAuth2GithubDefaultEligible", ctx, eligible)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertOAuth2GithubDefaultEligible indicates an expected call of UpsertOAuth2GithubDefaultEligible.
+func (mr *MockStoreMockRecorder) UpsertOAuth2GithubDefaultEligible(ctx, eligible any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertOAuth2GithubDefaultEligible", reflect.TypeOf((*MockStore)(nil).UpsertOAuth2GithubDefaultEligible), ctx, eligible)
 }
 
 // UpsertOAuthSigningKey mocks base method.

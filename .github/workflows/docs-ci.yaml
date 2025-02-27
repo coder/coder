@@ -15,6 +15,9 @@ on:
       - "**.md"
       - ".github/workflows/docs-ci.yaml"
 
+permissions:
+  contents: read
+
 jobs:
   docs:
     runs-on: ubuntu-latest

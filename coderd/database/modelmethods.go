@@ -277,8 +277,10 @@ func (p GetEligibleProvisionerDaemonsByProvisionerJobIDsRow) RBACObject() rbac.O
 	return p.ProvisionerDaemon.RBACObject()
 }
 
+// RBACObject for a provisioner key is the same as a provisioner daemon.
+// Keys == provisioners from a RBAC perspective.
 func (p ProvisionerKey) RBACObject() rbac.Object {
-	return rbac.ResourceProvisionerKeys.
+	return rbac.ResourceProvisionerDaemon.
 		WithID(p.ID).
 		InOrg(p.OrganizationID)
 }
@@ -526,4 +528,32 @@ func (k CryptoKey) CanVerify(now time.Time) bool {
 
 func (r GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow) RBACObject() rbac.Object {
 	return r.ProvisionerJob.RBACObject()
+}
+
+func (m WorkspaceAgentMemoryResourceMonitor) Debounce(
+	by time.Duration,
+	now time.Time,
+	oldState, newState WorkspaceAgentMonitorState,
+) (time.Time, bool) {
+	if now.After(m.DebouncedUntil) &&
+		oldState == WorkspaceAgentMonitorStateOK &&
+		newState == WorkspaceAgentMonitorStateNOK {
+		return now.Add(by), true
+	}
+
+	return m.DebouncedUntil, false
+}
+
+func (m WorkspaceAgentVolumeResourceMonitor) Debounce(
+	by time.Duration,
+	now time.Time,
+	oldState, newState WorkspaceAgentMonitorState,
+) (debouncedUntil time.Time, shouldNotify bool) {
+	if now.After(m.DebouncedUntil) &&
+		oldState == WorkspaceAgentMonitorStateOK &&
+		newState == WorkspaceAgentMonitorStateNOK {
+		return now.Add(by), true
+	}
+
+	return m.DebouncedUntil, false
 }

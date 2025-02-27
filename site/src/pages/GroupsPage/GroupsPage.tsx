@@ -1,7 +1,8 @@
 import GroupAdd from "@mui/icons-material/GroupAddOutlined";
 import { getErrorMessage } from "api/errors";
 import { groupsByOrganization } from "api/queries/groups";
-import { organizationPermissions } from "api/queries/organizations";
+import { organizationsPermissions } from "api/queries/organizations";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { displayError } from "components/GlobalSnackbar/utils";
@@ -23,7 +24,11 @@ export const GroupsPage: FC = () => {
 	const groupsQuery = useQuery(
 		organization ? groupsByOrganization(organization.name) : { enabled: false },
 	);
-	const permissionsQuery = useQuery(organizationPermissions(organization?.id));
+	const permissionsQuery = useQuery(
+		organization
+			? organizationsPermissions([organization.id])
+			: { enabled: false },
+	);
 
 	useEffect(() => {
 		if (groupsQuery.error) {
@@ -45,9 +50,13 @@ export const GroupsPage: FC = () => {
 		return <EmptyState message="Organization not found" />;
 	}
 
-	const permissions = permissionsQuery.data;
-	if (!permissions) {
+	if (permissionsQuery.isLoading) {
 		return <Loader />;
+	}
+
+	const permissions = permissionsQuery.data?.[organization.id];
+	if (!permissions) {
+		return <ErrorAlert error={permissionsQuery.error} />;
 	}
 
 	return (

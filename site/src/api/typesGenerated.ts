@@ -115,10 +115,14 @@ export interface AssignableRoles extends Role {
 
 // From codersdk/audit.go
 export type AuditAction =
+	| "close"
+	| "connect"
 	| "create"
 	| "delete"
+	| "disconnect"
 	| "login"
 	| "logout"
+	| "open"
 	| "register"
 	| "request_password_reset"
 	| "start"
@@ -126,10 +130,14 @@ export type AuditAction =
 	| "write";
 
 export const AuditActions: AuditAction[] = [
+	"close",
+	"connect",
 	"create",
 	"delete",
+	"disconnect",
 	"login",
 	"logout",
+	"open",
 	"register",
 	"request_password_reset",
 	"start",
@@ -192,7 +200,7 @@ export interface AuthMethod {
 export interface AuthMethods {
 	readonly terms_of_service_url?: string;
 	readonly password: AuthMethod;
-	readonly github: AuthMethod;
+	readonly github: GithubAuthMethod;
 	readonly oidc: OIDCAuthMethod;
 }
 
@@ -405,6 +413,7 @@ export interface CreateTestAuditLogRequest {
 	readonly time?: string;
 	readonly build_reason?: BuildReason;
 	readonly organization_id?: string;
+	readonly request_id?: string;
 }
 
 // From codersdk/apikey.go
@@ -907,6 +916,12 @@ export interface GitSSHKey {
 	readonly public_key: string;
 }
 
+// From codersdk/users.go
+export interface GithubAuthMethod {
+	readonly enabled: boolean;
+	readonly default_provider_configured: boolean;
+}
+
 // From codersdk/groups.go
 export interface Group {
 	readonly id: string;
@@ -1107,6 +1122,10 @@ export interface License {
 // From codersdk/licenses.go
 export const LicenseExpiryClaim = "license_expires";
 
+// From codersdk/licenses.go
+export const LicenseTelemetryRequiredErrorText =
+	"License requires telemetry but telemetry is disabled";
+
 // From codersdk/deployment.go
 export interface LinkConfig {
 	readonly name: string;
@@ -1303,10 +1322,17 @@ export interface OAuth2Config {
 	readonly github: OAuth2GithubConfig;
 }
 
+// From codersdk/oauth2.go
+export interface OAuth2DeviceFlowCallbackResponse {
+	readonly redirect_url: string;
+}
+
 // From codersdk/deployment.go
 export interface OAuth2GithubConfig {
 	readonly client_id: string;
 	readonly client_secret: string;
+	readonly device_flow: boolean;
+	readonly default_provider_enable: boolean;
 	readonly allowed_orgs: string;
 	readonly allowed_teams: string;
 	readonly allow_signups: boolean;
@@ -1392,6 +1418,7 @@ export interface OIDCConfig {
 	readonly email_field: string;
 	readonly auth_url_params: SerpentStruct<Record<string, string>>;
 	readonly ignore_user_info: boolean;
+	readonly source_user_info_from_access_token: boolean;
 	readonly organization_field: string;
 	readonly organization_mapping: SerpentStruct<Record<string, string[]>>;
 	readonly organization_assign_default: boolean;
@@ -1436,9 +1463,18 @@ export interface OrganizationMemberWithUserData extends OrganizationMember {
 }
 
 // From codersdk/organizations.go
+export interface OrganizationProvisionerDaemonsOptions {
+	readonly Limit: number;
+	readonly IDs: readonly string[];
+	readonly Tags: Record<string, string>;
+}
+
+// From codersdk/organizations.go
 export interface OrganizationProvisionerJobsOptions {
 	readonly Limit: number;
+	readonly IDs: readonly string[];
 	readonly Status: readonly ProvisionerJobStatus[];
+	readonly Tags: Record<string, string>;
 }
 
 // From codersdk/idpsync.go
@@ -1868,7 +1904,6 @@ export type RBACResource =
 	| "organization_member"
 	| "provisioner_daemon"
 	| "provisioner_jobs"
-	| "provisioner_keys"
 	| "replicas"
 	| "system"
 	| "tailnet_coordinator"
@@ -1904,7 +1939,6 @@ export const RBACResources: RBACResource[] = [
 	"organization_member",
 	"provisioner_daemon",
 	"provisioner_jobs",
-	"provisioner_keys",
 	"replicas",
 	"system",
 	"tailnet_coordinator",
@@ -1997,6 +2031,8 @@ export type ResourceType =
 	| "template_version"
 	| "user"
 	| "workspace"
+	| "workspace_agent"
+	| "workspace_app"
 	| "workspace_build"
 	| "workspace_proxy";
 
@@ -2021,6 +2057,8 @@ export const ResourceTypes: ResourceType[] = [
 	"template_version",
 	"user",
 	"workspace",
+	"workspace_agent",
+	"workspace_app",
 	"workspace_build",
 	"workspace_proxy",
 ];

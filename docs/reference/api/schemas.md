@@ -554,6 +554,10 @@
 | `logout`                 |
 | `register`               |
 | `request_password_reset` |
+| `connect`                |
+| `disconnect`             |
+| `open`                   |
+| `close`                  |
 
 ## codersdk.AuditDiff
 
@@ -783,6 +787,7 @@
 ```json
 {
   "github": {
+    "default_provider_configured": true,
     "enabled": true
   },
   "oidc": {
@@ -799,12 +804,12 @@
 
 ### Properties
 
-| Name                   | Type                                               | Required | Restrictions | Description |
-|------------------------|----------------------------------------------------|----------|--------------|-------------|
-| `github`               | [codersdk.AuthMethod](#codersdkauthmethod)         | false    |              |             |
-| `oidc`                 | [codersdk.OIDCAuthMethod](#codersdkoidcauthmethod) | false    |              |             |
-| `password`             | [codersdk.AuthMethod](#codersdkauthmethod)         | false    |              |             |
-| `terms_of_service_url` | string                                             | false    |              |             |
+| Name                   | Type                                                   | Required | Restrictions | Description |
+|------------------------|--------------------------------------------------------|----------|--------------|-------------|
+| `github`               | [codersdk.GithubAuthMethod](#codersdkgithubauthmethod) | false    |              |             |
+| `oidc`                 | [codersdk.OIDCAuthMethod](#codersdkoidcauthmethod)     | false    |              |             |
+| `password`             | [codersdk.AuthMethod](#codersdkauthmethod)             | false    |              |             |
+| `terms_of_service_url` | string                                                 | false    |              |             |
 
 ## codersdk.AuthorizationCheck
 
@@ -1314,6 +1319,7 @@ This is required on creation to enable a user-flow of validating a template work
   ],
   "build_reason": "autostart",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
   "resource_type": "template",
   "time": "2019-08-24T14:15:22Z"
@@ -1328,6 +1334,7 @@ This is required on creation to enable a user-flow of validating a template work
 | `additional_fields` | array of integer                               | false    |              |             |
 | `build_reason`      | [codersdk.BuildReason](#codersdkbuildreason)   | false    |              |             |
 | `organization_id`   | string                                         | false    |              |             |
+| `request_id`        | string                                         | false    |              |             |
 | `resource_id`       | string                                         | false    |              |             |
 | `resource_type`     | [codersdk.ResourceType](#codersdkresourcetype) | false    |              |             |
 | `time`              | string                                         | false    |              |             |
@@ -1971,6 +1978,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         ],
         "client_id": "string",
         "client_secret": "string",
+        "default_provider_enable": true,
+        "device_flow": true,
         "enterprise_base_url": "string"
       }
     },
@@ -2018,6 +2027,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "sign_in_text": "string",
       "signups_disabled_text": "string",
       "skip_issuer_checks": true,
+      "source_user_info_from_access_token": true,
       "user_role_field": "string",
       "user_role_mapping": {},
       "user_roles_default": [
@@ -2441,6 +2451,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       ],
       "client_id": "string",
       "client_secret": "string",
+      "default_provider_enable": true,
+      "device_flow": true,
       "enterprise_base_url": "string"
     }
   },
@@ -2488,6 +2500,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "sign_in_text": "string",
     "signups_disabled_text": "string",
     "skip_issuer_checks": true,
+    "source_user_info_from_access_token": true,
     "user_role_field": "string",
     "user_role_mapping": {},
     "user_roles_default": [
@@ -3084,12 +3097,28 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name         | Type   | Required | Restrictions | Description |
-|--------------|--------|----------|--------------|-------------|
-| `created_at` | string | false    |              |             |
-| `public_key` | string | false    |              |             |
-| `updated_at` | string | false    |              |             |
-| `user_id`    | string | false    |              |             |
+| Name         | Type   | Required | Restrictions | Description                                                                                                                                                                                       |
+|--------------|--------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `created_at` | string | false    |              |                                                                                                                                                                                                   |
+| `public_key` | string | false    |              | Public key is the SSH public key in OpenSSH format. Example: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID3OmYJvT7q1cF1azbybYy0OZ9yrXfA+M6Lr4vzX5zlp\n" Note: The key includes a trailing newline (\n). |
+| `updated_at` | string | false    |              |                                                                                                                                                                                                   |
+| `user_id`    | string | false    |              |                                                                                                                                                                                                   |
+
+## codersdk.GithubAuthMethod
+
+```json
+{
+  "default_provider_configured": true,
+  "enabled": true
+}
+```
+
+### Properties
+
+| Name                          | Type    | Required | Restrictions | Description |
+|-------------------------------|---------|----------|--------------|-------------|
+| `default_provider_configured` | boolean | false    |              |             |
+| `enabled`                     | boolean | false    |              |             |
 
 ## codersdk.Group
 
@@ -3797,6 +3826,8 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
     ],
     "client_id": "string",
     "client_secret": "string",
+    "default_provider_enable": true,
+    "device_flow": true,
     "enterprise_base_url": "string"
   }
 }
@@ -3822,21 +3853,25 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   ],
   "client_id": "string",
   "client_secret": "string",
+  "default_provider_enable": true,
+  "device_flow": true,
   "enterprise_base_url": "string"
 }
 ```
 
 ### Properties
 
-| Name                  | Type            | Required | Restrictions | Description |
-|-----------------------|-----------------|----------|--------------|-------------|
-| `allow_everyone`      | boolean         | false    |              |             |
-| `allow_signups`       | boolean         | false    |              |             |
-| `allowed_orgs`        | array of string | false    |              |             |
-| `allowed_teams`       | array of string | false    |              |             |
-| `client_id`           | string          | false    |              |             |
-| `client_secret`       | string          | false    |              |             |
-| `enterprise_base_url` | string          | false    |              |             |
+| Name                      | Type            | Required | Restrictions | Description |
+|---------------------------|-----------------|----------|--------------|-------------|
+| `allow_everyone`          | boolean         | false    |              |             |
+| `allow_signups`           | boolean         | false    |              |             |
+| `allowed_orgs`            | array of string | false    |              |             |
+| `allowed_teams`           | array of string | false    |              |             |
+| `client_id`               | string          | false    |              |             |
+| `client_secret`           | string          | false    |              |             |
+| `default_provider_enable` | boolean         | false    |              |             |
+| `device_flow`             | boolean         | false    |              |             |
+| `enterprise_base_url`     | string          | false    |              |             |
 
 ## codersdk.OAuth2ProviderApp
 
@@ -3983,6 +4018,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "sign_in_text": "string",
   "signups_disabled_text": "string",
   "skip_issuer_checks": true,
+  "source_user_info_from_access_token": true,
   "user_role_field": "string",
   "user_role_mapping": {},
   "user_roles_default": [
@@ -3994,37 +4030,38 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name                          | Type                             | Required | Restrictions | Description                                                                      |
-|-------------------------------|----------------------------------|----------|--------------|----------------------------------------------------------------------------------|
-| `allow_signups`               | boolean                          | false    |              |                                                                                  |
-| `auth_url_params`             | object                           | false    |              |                                                                                  |
-| `client_cert_file`            | string                           | false    |              |                                                                                  |
-| `client_id`                   | string                           | false    |              |                                                                                  |
-| `client_key_file`             | string                           | false    |              | Client key file & ClientCertFile are used in place of ClientSecret for PKI auth. |
-| `client_secret`               | string                           | false    |              |                                                                                  |
-| `email_domain`                | array of string                  | false    |              |                                                                                  |
-| `email_field`                 | string                           | false    |              |                                                                                  |
-| `group_allow_list`            | array of string                  | false    |              |                                                                                  |
-| `group_auto_create`           | boolean                          | false    |              |                                                                                  |
-| `group_mapping`               | object                           | false    |              |                                                                                  |
-| `group_regex_filter`          | [serpent.Regexp](#serpentregexp) | false    |              |                                                                                  |
-| `groups_field`                | string                           | false    |              |                                                                                  |
-| `icon_url`                    | [serpent.URL](#serpenturl)       | false    |              |                                                                                  |
-| `ignore_email_verified`       | boolean                          | false    |              |                                                                                  |
-| `ignore_user_info`            | boolean                          | false    |              |                                                                                  |
-| `issuer_url`                  | string                           | false    |              |                                                                                  |
-| `name_field`                  | string                           | false    |              |                                                                                  |
-| `organization_assign_default` | boolean                          | false    |              |                                                                                  |
-| `organization_field`          | string                           | false    |              |                                                                                  |
-| `organization_mapping`        | object                           | false    |              |                                                                                  |
-| `scopes`                      | array of string                  | false    |              |                                                                                  |
-| `sign_in_text`                | string                           | false    |              |                                                                                  |
-| `signups_disabled_text`       | string                           | false    |              |                                                                                  |
-| `skip_issuer_checks`          | boolean                          | false    |              |                                                                                  |
-| `user_role_field`             | string                           | false    |              |                                                                                  |
-| `user_role_mapping`           | object                           | false    |              |                                                                                  |
-| `user_roles_default`          | array of string                  | false    |              |                                                                                  |
-| `username_field`              | string                           | false    |              |                                                                                  |
+| Name                                 | Type                             | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                        |
+|--------------------------------------|----------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `allow_signups`                      | boolean                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `auth_url_params`                    | object                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `client_cert_file`                   | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `client_id`                          | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `client_key_file`                    | string                           | false    |              | Client key file & ClientCertFile are used in place of ClientSecret for PKI auth.                                                                                                                                                                                                                                                                                   |
+| `client_secret`                      | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `email_domain`                       | array of string                  | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `email_field`                        | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `group_allow_list`                   | array of string                  | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `group_auto_create`                  | boolean                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `group_mapping`                      | object                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `group_regex_filter`                 | [serpent.Regexp](#serpentregexp) | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `groups_field`                       | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `icon_url`                           | [serpent.URL](#serpenturl)       | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `ignore_email_verified`              | boolean                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `ignore_user_info`                   | boolean                          | false    |              | Ignore user info & UserInfoFromAccessToken are mutually exclusive. Only 1 can be set to true. Ideally this would be an enum with 3 states, ['none', 'userinfo', 'access_token']. However, for backward compatibility, `ignore_user_info` must remain. And `access_token` is a niche, non-spec compliant edge case. So it's use is rare, and should not be advised. |
+| `issuer_url`                         | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `name_field`                         | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `organization_assign_default`        | boolean                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `organization_field`                 | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `organization_mapping`               | object                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `scopes`                             | array of string                  | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `sign_in_text`                       | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `signups_disabled_text`              | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `skip_issuer_checks`                 | boolean                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `source_user_info_from_access_token` | boolean                          | false    |              | Source user info from access token as mentioned above is an edge case. This allows sourcing the user_info from the access token itself instead of a user_info endpoint. This assumes the access token is a valid JWT with a set of claims to be merged with the id_token.                                                                                          |
+| `user_role_field`                    | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `user_role_mapping`                  | object                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `user_roles_default`                 | array of string                  | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `username_field`                     | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
 
 ## codersdk.Organization
 
@@ -5110,7 +5147,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `organization_member`              |
 | `provisioner_daemon`               |
 | `provisioner_jobs`                 |
-| `provisioner_keys`                 |
 | `replicas`                         |
 | `system`                           |
 | `tailnet_coordinator`              |
@@ -5358,6 +5394,8 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `idp_sync_settings_organization` |
 | `idp_sync_settings_group`        |
 | `idp_sync_settings_role`         |
+| `workspace_agent`                |
+| `workspace_app`                  |
 
 ## codersdk.Response
 

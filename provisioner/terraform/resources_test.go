@@ -36,6 +36,7 @@ func TestConvertResources(t *testing.T) {
 	type testCase struct {
 		resources             []*proto.Resource
 		parameters            []*proto.RichParameter
+		Presets               []*proto.Preset
 		externalAuthProviders []*proto.ExternalAuthProviderResource
 	}
 
@@ -406,12 +407,12 @@ func TestConvertResources(t *testing.T) {
 							},
 							Volumes: []*proto.VolumeResourceMonitor{
 								{
-									Path:      "volume2",
+									Path:      "/volume2",
 									Enabled:   false,
 									Threshold: 50,
 								},
 								{
-									Path:      "volume1",
+									Path:      "/volume1",
 									Enabled:   true,
 									Threshold: 80,
 								},
@@ -777,6 +778,58 @@ func TestConvertResources(t *testing.T) {
 				}},
 			}},
 		},
+		"presets": {
+			resources: []*proto.Resource{{
+				Name: "dev",
+				Type: "null_resource",
+				Agents: []*proto.Agent{{
+					Name:                     "dev",
+					OperatingSystem:          "windows",
+					Architecture:             "arm64",
+					Auth:                     &proto.Agent_Token{},
+					ConnectionTimeoutSeconds: 120,
+					DisplayApps:              &displayApps,
+					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
+				}},
+			}},
+			parameters: []*proto.RichParameter{{
+				Name:         "First parameter from child module",
+				Type:         "string",
+				Description:  "First parameter from child module",
+				Mutable:      true,
+				DefaultValue: "abcdef",
+			}, {
+				Name:         "Second parameter from child module",
+				Type:         "string",
+				Description:  "Second parameter from child module",
+				Mutable:      true,
+				DefaultValue: "ghijkl",
+			}, {
+				Name:         "First parameter from module",
+				Type:         "string",
+				Description:  "First parameter from module",
+				Mutable:      true,
+				DefaultValue: "abcdef",
+			}, {
+				Name:         "Second parameter from module",
+				Type:         "string",
+				Description:  "Second parameter from module",
+				Mutable:      true,
+				DefaultValue: "ghijkl",
+			}, {
+				Name:         "Sample",
+				Type:         "string",
+				Description:  "blah blah",
+				DefaultValue: "ok",
+			}},
+			Presets: []*proto.Preset{{
+				Name: "My First Project",
+				Parameters: []*proto.PresetParameter{{
+					Name:  "Sample",
+					Value: "A1B2C3",
+				}},
+			}},
+		},
 	} {
 		folderName := folderName
 		expected := expected
@@ -859,6 +912,8 @@ func TestConvertResources(t *testing.T) {
 				require.Equal(t, expectedNoMetadataMap, resourcesMap)
 
 				require.ElementsMatch(t, expected.externalAuthProviders, state.ExternalAuthProviders)
+
+				require.ElementsMatch(t, expected.Presets, state.Presets)
 			})
 
 			t.Run("Provision", func(t *testing.T) {
@@ -904,6 +959,8 @@ func TestConvertResources(t *testing.T) {
 					require.Failf(t, "unexpected resources", "diff (-want +got):\n%s", diff)
 				}
 				require.ElementsMatch(t, expected.externalAuthProviders, state.ExternalAuthProviders)
+
+				require.ElementsMatch(t, expected.Presets, state.Presets)
 			})
 		})
 	}
@@ -927,6 +984,7 @@ func TestInvalidTerraformAddress(t *testing.T) {
 	require.Equal(t, state.Resources[0].ModulePath, "invalid terraform address")
 }
 
+//nolint:tparallel
 func TestAppSlugValidation(t *testing.T) {
 	t.Parallel()
 	ctx, logger := ctxAndLogger(t)
@@ -944,29 +1002,147 @@ func TestAppSlugValidation(t *testing.T) {
 	tfPlanGraph, err := os.ReadFile(filepath.Join(dir, "multiple-apps.tfplan.dot"))
 	require.NoError(t, err)
 
-	// Change all slugs to be invalid.
+	cases := []struct {
+		slug        string
+		errContains string
+	}{
+		{slug: "$$$ invalid slug $$$", errContains: "does not match regex"},
+		{slug: "invalid--slug", errContains: "does not match regex"},
+		{slug: "invalid_slug", errContains: "does not match regex"},
+		{slug: "Invalid-slug", errContains: "does not match regex"},
+		{slug: "valid", errContains: ""},
+	}
+
+	//nolint:paralleltest
+	for i, c := range cases {
+		c := c
+		t.Run(fmt.Sprintf("case-%d", i), func(t *testing.T) {
+			// Change the first app slug to match the current case.
+			for _, resource := range tfPlan.PlannedValues.RootModule.Resources {
+				if resource.Type == "coder_app" {
+					resource.AttributeValues["slug"] = c.slug
+					break
+				}
+			}
+
+			_, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfPlan.PlannedValues.RootModule}, string(tfPlanGraph), logger)
+			if c.errContains != "" {
+				require.ErrorContains(t, err, c.errContains)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestAppSlugDuplicate(t *testing.T) {
+	t.Parallel()
+	ctx, logger := ctxAndLogger(t)
+
+	// nolint:dogsled
+	_, filename, _, _ := runtime.Caller(0)
+
+	dir := filepath.Join(filepath.Dir(filename), "testdata", "multiple-apps")
+	tfPlanRaw, err := os.ReadFile(filepath.Join(dir, "multiple-apps.tfplan.json"))
+	require.NoError(t, err)
+	var tfPlan tfjson.Plan
+	err = json.Unmarshal(tfPlanRaw, &tfPlan)
+	require.NoError(t, err)
+	tfPlanGraph, err := os.ReadFile(filepath.Join(dir, "multiple-apps.tfplan.dot"))
+	require.NoError(t, err)
+
 	for _, resource := range tfPlan.PlannedValues.RootModule.Resources {
 		if resource.Type == "coder_app" {
-			resource.AttributeValues["slug"] = "$$$ invalid slug $$$"
+			resource.AttributeValues["slug"] = "dev"
+		}
+	}
+
+	_, err = terraform.ConvertState(ctx, []*tfjson.StateModule{tfPlan.PlannedValues.RootModule}, string(tfPlanGraph), logger)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "duplicate app slug")
+}
+
+//nolint:tparallel
+func TestAgentNameInvalid(t *testing.T) {
+	t.Parallel()
+	ctx, logger := ctxAndLogger(t)
+
+	// nolint:dogsled
+	_, filename, _, _ := runtime.Caller(0)
+
+	dir := filepath.Join(filepath.Dir(filename), "testdata", "multiple-agents")
+	tfPlanRaw, err := os.ReadFile(filepath.Join(dir, "multiple-agents.tfplan.json"))
+	require.NoError(t, err)
+	var tfPlan tfjson.Plan
+	err = json.Unmarshal(tfPlanRaw, &tfPlan)
+	require.NoError(t, err)
+	tfPlanGraph, err := os.ReadFile(filepath.Join(dir, "multiple-agents.tfplan.dot"))
+	require.NoError(t, err)
+
+	cases := []struct {
+		name        string
+		errContains string
+	}{
+		{name: "bad--name", errContains: "does not match regex"},
+		{name: "bad_name", errContains: "contains underscores"}, // custom error for underscores
+		{name: "valid-name-123", errContains: ""},
+		{name: "valid", errContains: ""},
+		{name: "UppercaseValid", errContains: ""},
+	}
+
+	//nolint:paralleltest
+	for i, c := range cases {
+		c := c
+		t.Run(fmt.Sprintf("case-%d", i), func(t *testing.T) {
+			// Change the first agent name to match the current case.
+			for _, resource := range tfPlan.PlannedValues.RootModule.Resources {
+				if resource.Type == "coder_agent" {
+					resource.Name = c.name
+					break
+				}
+			}
+
+			_, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfPlan.PlannedValues.RootModule}, string(tfPlanGraph), logger)
+			if c.errContains != "" {
+				require.ErrorContains(t, err, c.errContains)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestAgentNameDuplicate(t *testing.T) {
+	t.Parallel()
+	ctx, logger := ctxAndLogger(t)
+
+	// nolint:dogsled
+	_, filename, _, _ := runtime.Caller(0)
+
+	dir := filepath.Join(filepath.Dir(filename), "testdata", "multiple-agents")
+	tfPlanRaw, err := os.ReadFile(filepath.Join(dir, "multiple-agents.tfplan.json"))
+	require.NoError(t, err)
+	var tfPlan tfjson.Plan
+	err = json.Unmarshal(tfPlanRaw, &tfPlan)
+	require.NoError(t, err)
+	tfPlanGraph, err := os.ReadFile(filepath.Join(dir, "multiple-agents.tfplan.dot"))
+	require.NoError(t, err)
+
+	for _, resource := range tfPlan.PlannedValues.RootModule.Resources {
+		if resource.Type == "coder_agent" {
+			switch resource.Name {
+			case "dev1":
+				resource.Name = "dev"
+			case "dev2":
+				resource.Name = "Dev"
+			}
 		}
 	}
 
 	state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfPlan.PlannedValues.RootModule}, string(tfPlanGraph), logger)
 	require.Nil(t, state)
 	require.Error(t, err)
-	require.ErrorContains(t, err, "invalid app slug")
-
-	// Change all slugs to be identical and valid.
-	for _, resource := range tfPlan.PlannedValues.RootModule.Resources {
-		if resource.Type == "coder_app" {
-			resource.AttributeValues["slug"] = "valid"
-		}
-	}
-
-	state, err = terraform.ConvertState(ctx, []*tfjson.StateModule{tfPlan.PlannedValues.RootModule}, string(tfPlanGraph), logger)
-	require.Nil(t, state)
-	require.Error(t, err)
-	require.ErrorContains(t, err, "duplicate app slug")
+	require.ErrorContains(t, err, "duplicate agent name")
 }
 
 func TestMetadataResourceDuplicate(t *testing.T) {
