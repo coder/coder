@@ -1628,7 +1628,7 @@ func (s *MethodTestSuite) TestUser() {
 		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(slice.New(a.ID, b.ID))
 	}))
 	s.Run("CustomRoles", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.CustomRolesParams{}).Asserts(rbac.ResourceAssignOrgRole, policy.ActionRead).Returns([]database.CustomRole{})
+		check.Args(database.CustomRolesParams{}).Asserts(rbac.ResourceAssignRole, policy.ActionRead).Returns([]database.CustomRole{})
 	}))
 	s.Run("Organization/DeleteCustomRole", s.Subtest(func(db database.Store, check *expects) {
 		customRole := dbgen.CustomRole(s.T(), db, database.CustomRole{

@@ -38,6 +38,7 @@ func TestInsertCustomRoles(t *testing.T) {
 		Identifier:  rbac.RoleIdentifier{Name: "can-assign"},
 		DisplayName: "",
 		Site: rbac.Permissions(map[string][]policy.Action{
+			rbac.ResourceAssignRole.Type:    {policy.ActionRead},
 			rbac.ResourceAssignOrgRole.Type: {policy.ActionRead, policy.ActionCreate},
 		}),
 	}

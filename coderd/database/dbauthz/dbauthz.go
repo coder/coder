@@ -1127,7 +1127,7 @@ func (q *querier) CleanTailnetTunnels(ctx context.Context) error {
 }
 
 func (q *querier) CustomRoles(ctx context.Context, arg database.CustomRolesParams) ([]database.CustomRole, error) {
-	roleObject := rbac.ResourceAssignOrgRole
+	roleObject := rbac.ResourceAssignRole
 	if arg.OrganizationID != uuid.Nil {
 		roleObject = rbac.ResourceAssignOrgRole.InOrg(arg.OrganizationID)
 	}
