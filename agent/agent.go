@@ -775,6 +775,7 @@ func (a *agent) reportConnectionsLoop(ctx context.Context, aAPI proto.DRPCAgentC
 
 			// Remove the payload we sent.
 			a.reportConnectionsMu.Lock()
+			a.reportConnections[0] = nil // Release the pointer from the underlying array.
 			a.reportConnections = a.reportConnections[1:]
 			a.reportConnectionsMu.Unlock()
 		}
