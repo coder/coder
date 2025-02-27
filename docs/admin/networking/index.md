@@ -77,6 +77,16 @@ direct.
 In general, [port forwarded](./port-forwarding.md) web apps are faster than
 dashboard-accessed web apps.
 
+## Latency
+
+Coder measures and reports several measures of latency, including database latency and the round-trip time between a user and their workspace.
+
+A higher latency can lead to lag for the user in how they interact with terminal sessions, file actions, lag within code-server and other browser-based IDEs, and a general experience of a laggy connection.
+
+You can find latency measurements in
+
+To lower latency and help improve your users' experience, you can
+
 ## Up next
 
 - Troubleshoot [Networking Issues](./troubleshooting.md)
