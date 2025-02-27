@@ -31,7 +31,39 @@ You can install Coder Desktop on macOS or Windows.
 
 ### Windows
 
-Download from there.
+1. Download the latest `CoderDesktop` executable (`.exe`) from the [coder-desktop-windows repository](https://github.com/coder/coder-desktop-windows/).
+
+   Choose the architecture that fits your Windows system, ARM or x64.
+
+1. Open the `.exe` files, acknowledge the license terms and conditions, and select **Install**.
+
+1. Windows asks if you "want to allow this app from an unknown publisher to make changes to your device?"
+
+   Select **Yes**.
+
+1. The Coder Desktop installation creates a system restore point.
+   Depending on your system, this step might take a while.
+
+1. If .NET is not already installed, the installation might prompt you with the **Windows Desktop Runtime** installation.
+
+   In that installation window, select **Install**. Select **Close** when the Runtime installation completes.
+
+1. When the Coder Desktop installation completes, select **Close**.
+
+1. Find and open **Coder Desktop** from your Start Menu.
+
+1. Some systems require an additional Windows App Runtime.
+
+   Select **Yes** if you are prompted to install it.
+   This will open your default browser where you can download and install the latest stable release of Windows App SDK.
+   
+   Reopen Coder Desktop after you install Windows App SDK.
+
+1. Coder Desktop starts minimized in the Windows System Tray.
+
+   You might need to select the **^** in your system tray to show more icons.
+
+1. Continue to the [configuration section](#configure).
 
 </div>
 
@@ -39,7 +71,7 @@ Download from there.
 
 Before you can use Coder Desktop, you will need to log in.
 
-1. Open the Desktop menu again and select **Sign in**:
+1. Open the Desktop menu and select **Sign in**:
 
    <Image height="325px" src="../../images/user-guides/desktop/coder-desktop-pre-sign-in.png" alt="Coder Desktop menu before the user signs in" align="center" />
 
@@ -47,7 +79,9 @@ Before you can use Coder Desktop, you will need to log in.
 
    ![Coder Desktop sign in](../../images/user-guides/desktop/coder-desktop-sign-in.png)
 
-1. Select the link to your deployment's `/cli-auth` page to generate a [session token](../../admin/users/sessions-tokens.md).
+1. macOS: Select the link to your deployment's `/cli-auth` page to generate a [session token](../../admin/users/sessions-tokens.md).
+
+   Windows: Select **Generate a token via the Web UI**.
 
 1. In your web browser, enter your credentials:
 
@@ -65,7 +99,7 @@ Before you can use Coder Desktop, you will need to log in.
 
 1. Coder Desktop is now running!
 
-   Select the Coder icon in the menu bar (macOS) or system tray (Windows) to enable [CoderVPN](#codervpn).
+1. Select the Coder icon in the menu bar (macOS) or system tray (Windows) and enable **CoderVPN**.
 
 ## Workspaces from Coder Desktop
 
