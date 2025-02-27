@@ -62,7 +62,11 @@ Before you can use Coder Desktop, you will need to log in.
 
 ## Workspaces from Coder Desktop
 
-Placeholder for what users can do with workspaces from Coder Desktop
+You can use `ping6` in your terminal to verify the connection to your workspace:
+
+```shell
+ping6 -c 5 yourworkspacename.coder
+```
 
 ## CoderVPN
 
