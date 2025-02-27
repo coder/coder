@@ -4,6 +4,7 @@ import { groupsByUserIdInOrganization } from "api/queries/groups";
 import {
 	addOrganizationMember,
 	organizationMembers,
+	paginatedMembers,
 	removeOrganizationMember,
 	updateOrganizationMemberRoles,
 } from "api/queries/organizations";
@@ -14,29 +15,34 @@ import { EmptyState } from "components/EmptyState/EmptyState";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Stack } from "components/Stack/Stack";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { usePaginatedQuery } from "hooks/usePaginatedQuery";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import { type FC, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { OrganizationMembersPageView } from "./OrganizationMembersPageView";
 
 const OrganizationMembersPage: FC = () => {
 	const queryClient = useQueryClient();
+	const searchParamsResult = useSearchParams();
 	const { user: me } = useAuthenticated();
 	const { organization: organizationName } = useParams() as {
 		organization: string;
 	};
 	const { organization, organizationPermissions } = useOrganizationSettings();
+	const [searchParams] = searchParamsResult;
 
-	const membersQuery = useQuery(organizationMembers(organizationName));
+	const membersQuery = usePaginatedQuery(
+		paginatedMembers(organizationName, searchParamsResult[0]),
+	);
 	const organizationRolesQuery = useQuery(organizationRoles(organizationName));
 	const groupsByUserIdQuery = useQuery(
 		groupsByUserIdInOrganization(organizationName),
 	);
 
-	const members = membersQuery.data?.map((member) => {
+	const members = membersQuery.data?.members.map((member) => {
 		const groups = groupsByUserIdQuery.data?.get(member.user_id) ?? [];
 		return { ...member, groups };
 	});

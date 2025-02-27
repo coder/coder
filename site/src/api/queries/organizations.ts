@@ -1,11 +1,13 @@
 import { API } from "api/api";
 import type {
 	CreateOrganizationRequest,
+	GetMembersResponse,
 	GroupSyncSettings,
 	MembersRequest,
 	RoleSyncSettings,
 	UpdateOrganizationRequest,
 } from "api/typesGenerated";
+import type { UsePaginatedQueryOptions } from "hooks/usePaginatedQuery";
 import {
 	type AnyOrganizationPermissions,
 	type OrganizationPermissionName,
@@ -14,6 +16,7 @@ import {
 	organizationPermissionChecks,
 } from "modules/management/organizationPermissions";
 import type { QueryClient } from "react-query";
+import { prepareQuery } from "utils/filters";
 import { meKey } from "./users";
 
 export const createOrganization = (queryClient: QueryClient) => {
@@ -68,6 +71,25 @@ export const organizationMembers = (id: string, req: MembersRequest) => {
 		queryKey: organizationMembersKey(id),
 	};
 };
+
+export function paginatedMembers(
+	id: string,
+	searchParams: URLSearchParams,
+): UsePaginatedQueryOptions<GetMembersResponse, MembersRequest> {
+	return {
+		searchParams,
+		queryPayload: ({ limit, offset }) => {
+			return {
+				limit,
+				offset,
+				q: prepareQuery(searchParams.get("filter") ?? ""),
+			};
+		},
+
+		queryKey: () => organizationMembersKey(id),
+		queryFn: ({ payload }) => API.getOrganizationMembers(id, payload),
+	};
+}
 
 export const addOrganizationMember = (queryClient: QueryClient, id: string) => {
 	return {
