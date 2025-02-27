@@ -73,7 +73,10 @@ func ExtractOrganizationParam(db database.Store) func(http.Handler) http.Handler
 				if err == nil {
 					organization, dbErr = db.GetOrganizationByID(ctx, id)
 				} else {
-					organization, dbErr = db.GetOrganizationByName(ctx, arg)
+					organization, dbErr = db.GetOrganizationByName(ctx, database.GetOrganizationByNameParams{
+						Name:    arg,
+						Deleted: false,
+					})
 				}
 			}
 			if httpapi.Is404Error(dbErr) {

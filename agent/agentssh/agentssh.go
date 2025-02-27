@@ -3,8 +3,6 @@ package agentssh
 import (
 	"bufio"
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
 	"errors"
 	"fmt"
 	"io"
@@ -32,6 +30,7 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/agent/agentexec"
+	"github.com/coder/coder/v2/agent/agentrsa"
 	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/pty"
@@ -132,17 +131,6 @@ type Server struct {
 }
 
 func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prometheus.Registry, fs afero.Fs, execer agentexec.Execer, config *Config) (*Server, error) {
-	// Clients' should ignore the host key when connecting.
-	// The agent needs to authenticate with coderd to SSH,
-	// so SSH authentication doesn't improve security.
-	randomHostKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		return nil, err
-	}
-	randomSigner, err := gossh.NewSignerFromKey(randomHostKey)
-	if err != nil {
-		return nil, err
-	}
 	if config == nil {
 		config = &Config{}
 	}
@@ -212,8 +200,10 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 				slog.F("local_addr", conn.LocalAddr()),
 				slog.Error(err))
 		},
-		Handler:     s.sessionHandler,
-		HostSigners: []ssh.Signer{randomSigner},
+		Handler: s.sessionHandler,
+		// HostSigners are intentionally empty, as the host key will
+		// be set before we start listening.
+		HostSigners: []ssh.Signer{},
 		LocalPortForwardingCallback: func(ctx ssh.Context, destinationHost string, destinationPort uint32) bool {
 			// Allow local port forwarding all!
 			s.logger.Debug(ctx, "local port forward",
@@ -773,45 +763,6 @@ func (s *Server) sftpHandler(logger slog.Logger, session ssh.Session) error {
 	return xerrors.Errorf("sftp server closed with error: %w", err)
 }
 
-// EnvInfoer encapsulates external information required by CreateCommand.
-type EnvInfoer interface {
-	// CurrentUser returns the current user.
-	CurrentUser() (*user.User, error)
-	// Environ returns the environment variables of the current process.
-	Environ() []string
-	// UserHomeDir returns the home directory of the current user.
-	UserHomeDir() (string, error)
-	// UserShell returns the shell of the given user.
-	UserShell(username string) (string, error)
-}
-
-type systemEnvInfoer struct{}
-
-var defaultEnvInfoer EnvInfoer = &systemEnvInfoer{}
-
-// DefaultEnvInfoer returns a default implementation of
-// EnvInfoer. This reads information using the default Go
-// implementations.
-func DefaultEnvInfoer() EnvInfoer {
-	return defaultEnvInfoer
-}
-
-func (systemEnvInfoer) CurrentUser() (*user.User, error) {
-	return user.Current()
-}
-
-func (systemEnvInfoer) Environ() []string {
-	return os.Environ()
-}
-
-func (systemEnvInfoer) UserHomeDir() (string, error) {
-	return userHomeDir()
-}
-
-func (systemEnvInfoer) UserShell(username string) (string, error) {
-	return usershell.Get(username)
-}
-
 // CreateCommand processes raw command input with OpenSSH-like behavior.
 // If the script provided is empty, it will default to the users shell.
 // This injects environment variables specified by the user at launch too.
@@ -819,17 +770,17 @@ func (systemEnvInfoer) UserShell(username string) (string, error) {
 // alternative implementations for the dependencies of CreateCommand.
 // This is useful when creating a command to be run in a separate environment
 // (for example, a Docker container). Pass in nil to use the default.
-func (s *Server) CreateCommand(ctx context.Context, script string, env []string, deps EnvInfoer) (*pty.Cmd, error) {
-	if deps == nil {
-		deps = DefaultEnvInfoer()
+func (s *Server) CreateCommand(ctx context.Context, script string, env []string, ei usershell.EnvInfoer) (*pty.Cmd, error) {
+	if ei == nil {
+		ei = &usershell.SystemEnvInfo{}
 	}
-	currentUser, err := deps.CurrentUser()
+	currentUser, err := ei.User()
 	if err != nil {
 		return nil, xerrors.Errorf("get current user: %w", err)
 	}
 	username := currentUser.Username
 
-	shell, err := deps.UserShell(username)
+	shell, err := ei.Shell(username)
 	if err != nil {
 		return nil, xerrors.Errorf("get user shell: %w", err)
 	}
@@ -877,7 +828,18 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string,
 		}
 	}
 
-	cmd := s.Execer.PTYCommandContext(ctx, name, args...)
+	// Modify command prior to execution. This will usually be a no-op, but not
+	// always. For example, to run a command in a Docker container, we need to
+	// modify the command to be `docker exec -it <container> <command>`.
+	modifiedName, modifiedArgs := ei.ModifyCommand(name, args...)
+	// Log if the command was modified.
+	if modifiedName != name && slices.Compare(modifiedArgs, args) != 0 {
+		s.logger.Debug(ctx, "modified command",
+			slog.F("before", append([]string{name}, args...)),
+			slog.F("after", append([]string{modifiedName}, modifiedArgs...)),
+		)
+	}
+	cmd := s.Execer.PTYCommandContext(ctx, modifiedName, modifiedArgs...)
 	cmd.Dir = s.config.WorkingDirectory()
 
 	// If the metadata directory doesn't exist, we run the command
@@ -885,13 +847,13 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string,
 	_, err = os.Stat(cmd.Dir)
 	if cmd.Dir == "" || err != nil {
 		// Default to user home if a directory is not set.
-		homedir, err := deps.UserHomeDir()
+		homedir, err := ei.HomeDir()
 		if err != nil {
 			return nil, xerrors.Errorf("get home dir: %w", err)
 		}
 		cmd.Dir = homedir
 	}
-	cmd.Env = append(deps.Environ(), env...)
+	cmd.Env = append(ei.Environ(), env...)
 	cmd.Env = append(cmd.Env, fmt.Sprintf("USER=%s", username))
 
 	// Set SSH connection environment variables (these are also set by OpenSSH
@@ -911,7 +873,13 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string,
 	return cmd, nil
 }
 
+// Serve starts the server to handle incoming connections on the provided listener.
+// It returns an error if no host keys are set or if there is an issue accepting connections.
 func (s *Server) Serve(l net.Listener) (retErr error) {
+	if len(s.srv.HostSigners) == 0 {
+		return xerrors.New("no host keys set")
+	}
+
 	s.logger.Info(context.Background(), "started serving listener", slog.F("listen_addr", l.Addr()))
 	defer func() {
 		s.logger.Info(context.Background(), "stopped serving listener",
@@ -1165,4 +1133,32 @@ func userHomeDir() (string, error) {
 		return "", xerrors.Errorf("current user: %w", err)
 	}
 	return u.HomeDir, nil
+}
+
+// UpdateHostSigner updates the host signer with a new key generated from the provided seed.
+// If an existing host key exists with the same algorithm, it is overwritten
+func (s *Server) UpdateHostSigner(seed int64) error {
+	key, err := CoderSigner(seed)
+	if err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.srv.AddHostKey(key)
+
+	return nil
+}
+
+// CoderSigner generates a deterministic SSH signer based on the provided seed.
+// It uses RSA with a key size of 2048 bits.
+func CoderSigner(seed int64) (gossh.Signer, error) {
+	// Clients should ignore the host key when connecting.
+	// The agent needs to authenticate with coderd to SSH,
+	// so SSH authentication doesn't improve security.
+	coderHostKey := agentrsa.GenerateDeterministicKey(seed)
+
+	coderSigner, err := gossh.NewSignerFromKey(coderHostKey)
+	return coderSigner, err
 }

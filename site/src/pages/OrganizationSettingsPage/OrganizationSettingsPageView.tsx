@@ -146,7 +146,10 @@ export const OrganizationSettingsPageView: FC<
 
 			<DeleteDialog
 				isOpen={isDeleting}
-				onConfirm={onDeleteOrganization}
+				onConfirm={async () => {
+					await onDeleteOrganization();
+					setIsDeleting(false);
+				}}
 				onCancel={() => setIsDeleting(false)}
 				entity="organization"
 				name={organization.name}

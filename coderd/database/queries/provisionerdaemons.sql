@@ -111,7 +111,7 @@ WHERE
 	AND (COALESCE(array_length(@ids::uuid[], 1), 0) = 0 OR pd.id = ANY(@ids::uuid[]))
 	AND (@tags::tagset = 'null'::tagset OR provisioner_tagset_contains(pd.tags::tagset, @tags::tagset))
 ORDER BY
-	pd.created_at ASC
+	pd.created_at DESC
 LIMIT
 	sqlc.narg('limit')::int;
 

@@ -14,7 +14,9 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentssh"
+	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
@@ -29,19 +31,21 @@ type Server struct {
 	connCount        atomic.Int64
 	reconnectingPTYs sync.Map
 	timeout          time.Duration
+
+	ExperimentalContainersEnabled bool
 }
 
 // NewServer returns a new ReconnectingPTY server
 func NewServer(logger slog.Logger, commandCreator *agentssh.Server, reportConnection reportConnectionFunc,
 	connectionsTotal prometheus.Counter, errorsTotal *prometheus.CounterVec,
-	timeout time.Duration,
+	timeout time.Duration, opts ...func(*Server),
 ) *Server {
 	if reportConnection == nil {
 		reportConnection = func(uuid.UUID, string) func(int, string) {
 			return func(int, string) {}
 		}
 	}
-	return &Server{
+	s := &Server{
 		logger:           logger,
 		commandCreator:   commandCreator,
 		reportConnection: reportConnection,
@@ -49,6 +53,10 @@ func NewServer(logger slog.Logger, commandCreator *agentssh.Server, reportConnec
 		errorsTotal:      errorsTotal,
 		timeout:          timeout,
 	}
+	for _, o := range opts {
+		o(s)
+	}
+	return s
 }
 
 func (s *Server) Serve(ctx, hardCtx context.Context, l net.Listener) (retErr error) {
@@ -136,7 +144,7 @@ func (s *Server) handleConn(ctx context.Context, logger slog.Logger, conn net.Co
 	}
 
 	connectionID := uuid.NewString()
-	connLogger := logger.With(slog.F("message_id", msg.ID), slog.F("connection_id", connectionID))
+	connLogger := logger.With(slog.F("message_id", msg.ID), slog.F("connection_id", connectionID), slog.F("container", msg.Container), slog.F("container_user", msg.ContainerUser))
 	connLogger.Debug(ctx, "starting handler")
 
 	defer func() {
@@ -178,8 +186,17 @@ func (s *Server) handleConn(ctx context.Context, logger slog.Logger, conn net.Co
 			}
 		}()
 
+		var ei usershell.EnvInfoer
+		if s.ExperimentalContainersEnabled && msg.Container != "" {
+			dei, err := agentcontainers.EnvInfo(ctx, s.commandCreator.Execer, msg.Container, msg.ContainerUser)
+			if err != nil {
+				return xerrors.Errorf("get container env info: %w", err)
+			}
+			ei = dei
+			s.logger.Info(ctx, "got container env info", slog.F("container", msg.Container))
+		}
 		// Empty command will default to the users shell!
-		cmd, err := s.commandCreator.CreateCommand(ctx, msg.Command, nil, nil)
+		cmd, err := s.commandCreator.CreateCommand(ctx, msg.Command, nil, ei)
 		if err != nil {
 			s.errorsTotal.WithLabelValues("create_command").Add(1)
 			return xerrors.Errorf("create command: %w", err)

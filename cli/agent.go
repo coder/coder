@@ -358,6 +358,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 				Execer:             execer,
 				ContainerLister:    containerLister,
 
+				ExperimentalContainersEnabled: devcontainersEnabled,
 				ExperimentalConnectionReports: experimentalConnectionReports,
 			})
 
