@@ -269,7 +269,7 @@ type data struct {
 	presetParameters                 []database.TemplateVersionPresetParameter
 }
 
-func tryPercentile(fs []float64, p float64) float64 {
+func tryPercentileCont(fs []float64, p float64) float64 {
 	if len(fs) == 0 {
 		return -1
 	}
@@ -280,6 +280,14 @@ func tryPercentile(fs []float64, p float64) float64 {
 		return fs[lower]
 	}
 	return fs[lower] + (fs[upper]-fs[lower])*(pos-float64(lower))
+}
+
+func tryPercentileDisc(fs []float64, p float64) float64 {
+	if len(fs) == 0 {
+		return -1
+	}
+	sort.Float64s(fs)
+	return fs[max(int(math.Ceil(float64(len(fs))*p/100-1)), 0)]
 }
 
 func validateDatabaseTypeWithValid(v reflect.Value) (handled bool, err error) {
@@ -2790,8 +2798,8 @@ func (q *FakeQuerier) GetDeploymentWorkspaceAgentStats(_ context.Context, create
 		latencies = append(latencies, agentStat.ConnectionMedianLatencyMS)
 	}
 
-	stat.WorkspaceConnectionLatency50 = tryPercentile(latencies, 50)
-	stat.WorkspaceConnectionLatency95 = tryPercentile(latencies, 95)
+	stat.WorkspaceConnectionLatency50 = tryPercentileCont(latencies, 50)
+	stat.WorkspaceConnectionLatency95 = tryPercentileCont(latencies, 95)
 
 	return stat, nil
 }
@@ -2839,8 +2847,8 @@ func (q *FakeQuerier) GetDeploymentWorkspaceAgentUsageStats(_ context.Context, c
 		stat.WorkspaceTxBytes += agentStat.TxBytes
 		latencies = append(latencies, agentStat.ConnectionMedianLatencyMS)
 	}
-	stat.WorkspaceConnectionLatency50 = tryPercentile(latencies, 50)
-	stat.WorkspaceConnectionLatency95 = tryPercentile(latencies, 95)
+	stat.WorkspaceConnectionLatency50 = tryPercentileCont(latencies, 50)
+	stat.WorkspaceConnectionLatency95 = tryPercentileCont(latencies, 95)
 
 	for _, agentStat := range sessions {
 		stat.SessionCountVSCode += agentStat.SessionCountVSCode
@@ -4987,9 +4995,9 @@ func (q *FakeQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg datab
 	}
 
 	var row database.GetTemplateAverageBuildTimeRow
-	row.Delete50, row.Delete95 = tryPercentile(deleteTimes, 50), tryPercentile(deleteTimes, 95)
-	row.Stop50, row.Stop95 = tryPercentile(stopTimes, 50), tryPercentile(stopTimes, 95)
-	row.Start50, row.Start95 = tryPercentile(startTimes, 50), tryPercentile(startTimes, 95)
+	row.Delete50, row.Delete95 = tryPercentileDisc(deleteTimes, 50), tryPercentileDisc(deleteTimes, 95)
+	row.Stop50, row.Stop95 = tryPercentileDisc(stopTimes, 50), tryPercentileDisc(stopTimes, 95)
+	row.Start50, row.Start95 = tryPercentileDisc(startTimes, 50), tryPercentileDisc(startTimes, 95)
 	return row, nil
 }
 
@@ -6024,8 +6032,8 @@ func (q *FakeQuerier) GetUserLatencyInsights(_ context.Context, arg database.Get
 			Username:                     user.Username,
 			AvatarURL:                    user.AvatarURL,
 			TemplateIDs:                  seenTemplatesByUserID[userID],
-			WorkspaceConnectionLatency50: tryPercentile(latencies, 50),
-			WorkspaceConnectionLatency95: tryPercentile(latencies, 95),
+			WorkspaceConnectionLatency50: tryPercentileCont(latencies, 50),
+			WorkspaceConnectionLatency95: tryPercentileCont(latencies, 95),
 		}
 		rows = append(rows, row)
 	}
@@ -6669,8 +6677,8 @@ func (q *FakeQuerier) GetWorkspaceAgentStats(_ context.Context, createdAfter tim
 		if !ok {
 			continue
 		}
-		stat.WorkspaceConnectionLatency50 = tryPercentile(latencies, 50)
-		stat.WorkspaceConnectionLatency95 = tryPercentile(latencies, 95)
+		stat.WorkspaceConnectionLatency50 = tryPercentileCont(latencies, 50)
+		stat.WorkspaceConnectionLatency95 = tryPercentileCont(latencies, 95)
 		statByAgent[stat.AgentID] = stat
 	}
 
@@ -6807,8 +6815,8 @@ func (q *FakeQuerier) GetWorkspaceAgentUsageStats(_ context.Context, createdAt t
 	for key, latencies := range latestAgentLatencies {
 		val, ok := latestAgentStats[key]
 		if ok {
-			val.WorkspaceConnectionLatency50 = tryPercentile(latencies, 50)
-			val.WorkspaceConnectionLatency95 = tryPercentile(latencies, 95)
+			val.WorkspaceConnectionLatency50 = tryPercentileCont(latencies, 50)
+			val.WorkspaceConnectionLatency95 = tryPercentileCont(latencies, 95)
 		}
 		latestAgentStats[key] = val
 	}
