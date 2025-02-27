@@ -155,3 +155,35 @@ func TestWebsocketCloseMsg(t *testing.T) {
 		assert.Equal(t, len(trunc), 123)
 	})
 }
+
+func TestOneWayWebSocket(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Produces an error if the socket connection could not be established", func(t *testing.T) {
+		t.Parallel()
+	})
+
+	t.Run("Returned callback can publish a new event to the WebSocket connection", func(t *testing.T) {
+		t.Parallel()
+	})
+
+	t.Run("Signals to an outside consumer when the socket has been closed", func(t *testing.T) {
+		t.Parallel()
+	})
+
+	t.Run("Socket will automatically close if client sends a single message", func(t *testing.T) {
+		t.Parallel()
+	})
+
+	t.Run("Returned callback returns error if called after socket has been closed", func(t *testing.T) {
+		t.Parallel()
+	})
+
+	t.Run("Sends a heartbeat to the socket on a fixed internal of time to keep connections alive", func(t *testing.T) {
+		t.Parallel()
+	})
+
+	t.Run("Renders the socket inert if the parent context cancels", func(t *testing.T) {
+		t.Parallel()
+	})
+}

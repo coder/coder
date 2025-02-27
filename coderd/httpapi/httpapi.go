@@ -289,8 +289,8 @@ func WebsocketCloseSprintf(format string, vars ...any) string {
 // open a workspace in multiple tabs, the entire UI can start to lock up.
 // WebSockets have no such limitation, no matter what HTTP protocol was used to
 // establish the connection.
-func OneWayWebSocket[T any](rw http.ResponseWriter, r *http.Request) (
-	sendEvent func(wsEvent T) error,
+func OneWayWebSocket[JsonSerializable any](rw http.ResponseWriter, r *http.Request) (
+	sendEvent func(event JsonSerializable) error,
 	closed chan struct{},
 	err error,
 ) {
@@ -307,7 +307,7 @@ func OneWayWebSocket[T any](rw http.ResponseWriter, r *http.Request) (
 		Code   websocket.StatusCode
 		Reason string
 	}
-	eventC := make(chan T)
+	eventC := make(chan JsonSerializable)
 	socketErrC := make(chan SocketError, 1)
 	closed = make(chan struct{})
 	go func() {
@@ -354,7 +354,7 @@ func OneWayWebSocket[T any](rw http.ResponseWriter, r *http.Request) (
 		}
 	}()
 
-	sendEvent = func(event T) error {
+	sendEvent = func(event JsonSerializable) error {
 		select {
 		case eventC <- event:
 		case <-ctx.Done():
