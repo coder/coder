@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/idpsync"
 	agplportsharing "github.com/coder/coder/v2/coderd/portsharing"
+	agplprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/enterprise/coderd/enidpsync"
 	"github.com/coder/coder/v2/enterprise/coderd/portsharing"
@@ -43,6 +44,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/dbauthz"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/enterprise/coderd/prebuilds"
 	"github.com/coder/coder/v2/enterprise/coderd/proxyhealth"
 	"github.com/coder/coder/v2/enterprise/coderd/schedule"
 	"github.com/coder/coder/v2/enterprise/dbcrypt"
@@ -581,6 +583,23 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	}
 	go api.runEntitlementsLoop(ctx)
 
+	if api.AGPL.Experiments.Enabled(codersdk.ExperimentWorkspacePrebuilds) {
+		// TODO: future enhancement, start this up without restarting coderd when entitlement is updated.
+		if !api.Entitlements.Enabled(codersdk.FeatureWorkspacePrebuilds) {
+			options.Logger.Warn(ctx, "prebuilds experiment enabled but not entitled to use")
+		} else {
+			api.prebuildsController = prebuilds.NewController(options.Database, options.Pubsub, options.DeploymentValues.Prebuilds, options.Logger.Named("prebuilds.controller"))
+			go api.prebuildsController.Loop(ctx)
+
+			prebuildMetricsCollector := prebuilds.NewMetricsCollector(options.Database, options.Logger)
+			// should this be api.prebuild...
+			err = api.PrometheusRegistry.Register(prebuildMetricsCollector)
+			if err != nil {
+				return nil, xerrors.Errorf("unable to register prebuilds metrics collector: %w", err)
+			}
+		}
+	}
+
 	return api, nil
 }
 
@@ -634,6 +653,8 @@ type API struct {
 
 	licenseMetricsCollector *license.MetricsCollector
 	tailnetService          *tailnet.ClientService
+
+	prebuildsController *prebuilds.Controller
 }
 
 // writeEntitlementWarningsHeader writes the entitlement warnings to the response header
@@ -664,6 +685,11 @@ func (api *API) Close() error {
 	if api.Options.CheckInactiveUsersCancelFunc != nil {
 		api.Options.CheckInactiveUsersCancelFunc()
 	}
+
+	if api.prebuildsController != nil {
+		api.prebuildsController.Close(xerrors.New("api closed")) // TODO: determine root cause (requires changes up the stack, though).
+	}
+
 	return api.AGPL.Close()
 }
 
@@ -864,6 +890,14 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				ps = portsharing.NewEnterprisePortSharer()
 			}
 			api.AGPL.PortSharer.Store(&ps)
+		}
+
+		if initial, changed, enabled := featureChanged(codersdk.FeatureWorkspacePrebuilds); shouldUpdate(initial, changed, enabled) {
+			c := agplprebuilds.DefaultClaimer
+			if enabled {
+				c = prebuilds.EnterpriseClaimer{}
+			}
+			api.AGPL.PrebuildsClaimer.Store(&c)
 		}
 
 		// External token encryption is soft-enforced
