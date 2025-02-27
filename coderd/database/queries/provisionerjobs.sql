@@ -57,7 +57,7 @@ WITH filtered_provisioner_jobs AS (
 	FROM
 		provisioner_jobs
 	WHERE
-		id = ANY(@ids :: uuid [ ]) -- Apply filter early to reduce dataset size before expensive JOINs
+		id = ANY(@ids :: uuid [ ]) -- Apply filter early to reduce dataset size before expensive JOIN
 ),
 pending_jobs AS (
 	-- Step 2: Extract only pending jobs
@@ -90,7 +90,7 @@ final_jobs AS (
 	FROM
 		filtered_provisioner_jobs fpj -- Use the pre-filtered dataset instead of full provisioner_jobs
 			LEFT JOIN ranked_jobs rj
-					ON fpj.id = rj.id -- Ensure we only keep jobs that have a ranking
+					ON fpj.id = rj.id -- Join with the ranking jobs CTE to assign a rank to each specified provisioner job.
 	GROUP BY
 		fpj.id, fpj.created_at
 )
