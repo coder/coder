@@ -2391,77 +2391,81 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		db, _ := dbtestutil.NewDB(t)
+		tc := tc // Capture loop variable to avoid data races
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			db, _ := dbtestutil.NewDB(t)
 
-		// Create provisioner jobs based on provided tags:
-		allJobs := make([]database.ProvisionerJob, len(tc.jobTags))
-		for idx, tags := range tc.jobTags {
-			// Make sure jobs are stored in correct order, first job should have the earliest createdAt timestamp.
-			// Example for 3 jobs:
-			// job_1 createdAt: now - 3 minutes
-			// job_2 createdAt: now - 2 minutes
-			// job_3 createdAt: now - 1 minute
-			timeOffsetInMinutes := len(tc.jobTags) - idx
-			timeOffset := time.Duration(timeOffsetInMinutes) * time.Minute
-			createdAt := now.Add(-timeOffset)
+			// Create provisioner jobs based on provided tags:
+			allJobs := make([]database.ProvisionerJob, len(tc.jobTags))
+			for idx, tags := range tc.jobTags {
+				// Make sure jobs are stored in correct order, first job should have the earliest createdAt timestamp.
+				// Example for 3 jobs:
+				// job_1 createdAt: now - 3 minutes
+				// job_2 createdAt: now - 2 minutes
+				// job_3 createdAt: now - 1 minute
+				timeOffsetInMinutes := len(tc.jobTags) - idx
+				timeOffset := time.Duration(timeOffsetInMinutes) * time.Minute
+				createdAt := now.Add(-timeOffset)
 
-			allJobs[idx] = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
-				CreatedAt: createdAt,
-				Tags:      tags,
-			})
-		}
-
-		// Create provisioner daemons based on provided tags:
-		for idx, tags := range tc.daemonTags {
-			dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
-				Name:         fmt.Sprintf("prov_%v", idx),
-				Provisioners: []database.ProvisionerType{database.ProvisionerTypeEcho},
-				Tags:         tags,
-			})
-		}
-
-		// Assert invariant: the jobs are in pending status
-		for idx, job := range allJobs {
-			require.Equal(t, database.ProvisionerJobStatusPending, job.JobStatus, "expected job %d to have status %s", idx, database.ProvisionerJobStatusPending)
-		}
-
-		filteredJobs := make([]database.ProvisionerJob, 0)
-		filteredJobIDs := make([]uuid.UUID, 0)
-		for idx, job := range allJobs {
-			if _, skip := tc.skipJobIDs[idx]; skip {
-				continue
+				allJobs[idx] = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+					CreatedAt: createdAt,
+					Tags:      tags,
+				})
 			}
 
-			filteredJobs = append(filteredJobs, job)
-			filteredJobIDs = append(filteredJobIDs, job.ID)
-		}
+			// Create provisioner daemons based on provided tags:
+			for idx, tags := range tc.daemonTags {
+				dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+					Name:         fmt.Sprintf("prov_%v", idx),
+					Provisioners: []database.ProvisionerType{database.ProvisionerTypeEcho},
+					Tags:         tags,
+				})
+			}
 
-		// When: we fetch the jobs by their IDs
-		actualJobs, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, filteredJobIDs)
-		require.NoError(t, err)
-		require.Len(t, actualJobs, len(filteredJobs), "should return all unskipped jobs")
+			// Assert invariant: the jobs are in pending status
+			for idx, job := range allJobs {
+				require.Equal(t, database.ProvisionerJobStatusPending, job.JobStatus, "expected job %d to have status %s", idx, database.ProvisionerJobStatusPending)
+			}
 
-		// Then: the jobs should be returned in the correct order (sorted by createdAt)
-		sort.Slice(filteredJobs, func(i, j int) bool {
-			return filteredJobs[i].CreatedAt.Before(filteredJobs[j].CreatedAt)
+			filteredJobs := make([]database.ProvisionerJob, 0)
+			filteredJobIDs := make([]uuid.UUID, 0)
+			for idx, job := range allJobs {
+				if _, skip := tc.skipJobIDs[idx]; skip {
+					continue
+				}
+
+				filteredJobs = append(filteredJobs, job)
+				filteredJobIDs = append(filteredJobIDs, job.ID)
+			}
+
+			// When: we fetch the jobs by their IDs
+			actualJobs, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, filteredJobIDs)
+			require.NoError(t, err)
+			require.Len(t, actualJobs, len(filteredJobs), "should return all unskipped jobs")
+
+			// Then: the jobs should be returned in the correct order (sorted by createdAt)
+			sort.Slice(filteredJobs, func(i, j int) bool {
+				return filteredJobs[i].CreatedAt.Before(filteredJobs[j].CreatedAt)
+			})
+			for idx, job := range actualJobs {
+				assert.EqualValues(t, filteredJobs[idx], job.ProvisionerJob)
+			}
+
+			// Then: the queue size should be set correctly
+			var queueSizes []int64
+			for _, job := range actualJobs {
+				queueSizes = append(queueSizes, job.QueueSize)
+			}
+			assert.EqualValues(t, tc.queueSizes, queueSizes, "expected queue positions to be set correctly")
+
+			// Then: the queue position should be set correctly:
+			var queuePositions []int64
+			for _, job := range actualJobs {
+				queuePositions = append(queuePositions, job.QueuePosition)
+			}
+			assert.EqualValues(t, tc.queuePositions, queuePositions, "expected queue positions to be set correctly")
 		})
-		for idx, job := range actualJobs {
-			assert.EqualValues(t, filteredJobs[idx], job.ProvisionerJob)
-		}
-
-		// Then: the queue size should be set correctly
-		var queueSizes []int64
-		for _, job := range actualJobs {
-			queueSizes = append(queueSizes, job.QueueSize)
-		}
-		assert.EqualValues(t, tc.queueSizes, queueSizes, "expected queue positions to be set correctly")
-
-		// Then: the queue position should be set correctly:
-		var queuePositions []int64
-		for _, job := range actualJobs {
-			queuePositions = append(queuePositions, job.QueuePosition)
-		}
-		assert.EqualValues(t, tc.queuePositions, queuePositions, "expected queue positions to be set correctly")
 	}
 }
 
