@@ -1994,6 +1994,20 @@ func TestSSH_Container(t *testing.T) {
 		err := inv.WithContext(ctx).Run()
 		require.ErrorContains(t, err, "container not found:")
 	})
+
+	t.Run("NotEnabled", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		_ = agenttest.New(t, client.URL, agentToken)
+		_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+
+		inv, root := clitest.New(t, "ssh", workspace.Name, "-c", uuid.NewString())
+		clitest.SetupConfig(t, client, root)
+		err := inv.WithContext(ctx).Run()
+		require.ErrorContains(t, err, "container not found:")
+	})
 }
 
 // tGoContext runs fn in a goroutine passing a context that will be

@@ -61,6 +61,14 @@ const (
 	// MagicSessionTypeEnvironmentVariable is used to track the purpose behind an SSH connection.
 	// This is stripped from any commands being executed, and is counted towards connection stats.
 	MagicSessionTypeEnvironmentVariable = "CODER_SSH_SESSION_TYPE"
+	// ContainerEnvironmentVariable is used to specify the target container for an SSH connection.
+	// This is stripped from any commands being executed.
+	// Only available if CODER_AGENT_DEVCONTAINERS_ENABLE=true.
+	ContainerEnvironmentVariable = "CODER_CONTAINER"
+	// ContainerUserEnvironmentVariable is used to specify the container user for
+	// an SSH connection.
+	// Only available if CODER_AGENT_DEVCONTAINERS_ENABLE=true.
+	ContainerUserEnvironmentVariable = "CODER_CONTAINER_USER"
 )
 
 // MagicSessionType enums.
@@ -330,17 +338,17 @@ func (s *sessionCloseTracker) Close() error {
 
 func extractContainerInfo(env []string) (container, containerUser string, filteredEnv []string) {
 	for _, kv := range env {
-		if strings.HasPrefix(kv, "CODER_CONTAINER=") {
-			container = strings.TrimPrefix(kv, "CODER_CONTAINER=")
+		if strings.HasPrefix(kv, ContainerEnvironmentVariable+"=") {
+			container = strings.TrimPrefix(kv, ContainerEnvironmentVariable+"=")
 		}
 
-		if strings.HasPrefix(kv, "CODER_CONTAINER_USER=") {
-			containerUser = strings.TrimPrefix(kv, "CODER_CONTAINER_USER=")
+		if strings.HasPrefix(kv, ContainerUserEnvironmentVariable+"=") {
+			containerUser = strings.TrimPrefix(kv, ContainerUserEnvironmentVariable+"=")
 		}
 	}
 
 	return container, containerUser, slices.DeleteFunc(env, func(kv string) bool {
-		return strings.HasPrefix(kv, "CODER_CONTAINER=") || strings.HasPrefix(kv, "CODER_CONTAINER_USER=")
+		return strings.HasPrefix(kv, ContainerEnvironmentVariable+"=") || strings.HasPrefix(kv, ContainerUserEnvironmentVariable+"=")
 	})
 }
 
@@ -536,7 +544,6 @@ func (s *Server) sessionStart(logger slog.Logger, session ssh.Session, env []str
 		ptyLabel = "yes"
 	}
 
-	// plumb in envinfoer here to modify command for container exec?
 	var ei usershell.EnvInfoer
 	var err error
 	if s.config.ExperimentalContainersEnabled && container != "" {

@@ -34,6 +34,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/coderd/autobuild/notify"
@@ -476,8 +477,8 @@ func (r *RootCmd) ssh() *serpent.Command {
 
 			if container != "" {
 				for k, v := range map[string]string{
-					"CODER_CONTAINER":      container,
-					"CODER_CONTAINER_USER": containerUser,
+					agentssh.ContainerEnvironmentVariable:     container,
+					agentssh.ContainerUserEnvironmentVariable: containerUser,
 				} {
 					if err := sshSession.Setenv(k, v); err != nil {
 						return xerrors.Errorf("setenv: %w", err)
