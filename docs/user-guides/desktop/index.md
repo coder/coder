@@ -5,9 +5,8 @@ port-forwarding required.
 
 ## Install Coder Desktop
 
-<div class="tabs">
-
-You can install Coder Desktop on macOS or Windows.
+Coder Desktop is available for early access testing on macOS.
+A Windows version is in development.
 
 ### macOS
 
@@ -28,12 +27,6 @@ You can install Coder Desktop on macOS or Windows.
 1. In the **Network Extensions** system settings, enable the Coder Desktop extension.
 
 1. Continue to the [configuration section](#configure).
-
-### Windows
-
-Download from there.
-
-</div>
 
 ## Configure
 
@@ -65,7 +58,7 @@ Before you can use Coder Desktop, you will need to log in.
 
 1. Coder Desktop is now running!
 
-   Select the Coder icon in the menu bar (macOS) or system tray (Windows) to enable [CoderVPN](#codervpn).
+   Select the Coder icon in the menu bar to enable [CoderVPN](#codervpn).
 
 ## Workspaces from Coder Desktop
 
