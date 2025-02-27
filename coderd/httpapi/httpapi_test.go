@@ -1,10 +1,13 @@
 package httpapi_test
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -157,22 +160,68 @@ func TestWebsocketCloseMsg(t *testing.T) {
 	})
 }
 
+type mockHijacker struct {
+	http.ResponseWriter
+	connection net.Conn
+	rw         *bufio.ReadWriter
+}
+
+func (mh mockHijacker) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	return mh.connection, mh.rw, nil
+}
+
+func (mh mockHijacker) Flush() {
+	if f, ok := mh.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
 func TestOneWayWebSocket(t *testing.T) {
 	t.Parallel()
-	url := "ws://www.fake-website.com/logs"
+
+	createBaseRequest := func(t *testing.T) *http.Request {
+		url := "ws://www.fake-website.com/logs"
+		ctx := testutil.Context(t, testutil.WaitShort)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		require.NoError(t, err)
+		req.Header = http.Header{
+			"Connection":            {"Upgrade"},
+			"Upgrade":               {"websocket"},
+			"Sec-WebSocket-Version": {"13"},
+			"Sec-WebSocket-Key":     {"dGhlIHNhbXBsZSBub25jZQ=="},
+		}
+		// Todo: Figure out why headers are missing without these calls
+		req.Header.Add("Sec-WebSocket-Version", "13")
+		req.Header.Add("Sec-WebSocket-Key", "dGhlIHNhbXBsZSBub25jZQ==")
+
+		return req
+	}
+
+	wrapWriter := func(rw http.ResponseWriter, r io.Reader) http.ResponseWriter {
+		server, _ := net.Pipe()
+		reader := bufio.NewReader(r)
+		writer := bufio.NewWriter(rw)
+		readWriter := bufio.NewReadWriter(reader, writer)
+
+		hijacker := mockHijacker{
+			connection:     server,
+			ResponseWriter: rw,
+			rw:             readWriter,
+		}
+
+		return hijacker
+	}
 
 	t.Run("Produces an error if the socket connection could not be established", func(t *testing.T) {
 		t.Parallel()
 
 		// WebSocket connections cannot be created on HTTP/1.0 and below
-		ctx := testutil.Context(t, testutil.WaitShort)
-		r, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-		require.NoError(t, err)
-		r.ProtoMajor = 1
-		r.ProtoMinor = 0
-		r.Proto = "HTTP/1.0"
+		req := createBaseRequest(t)
+		req.ProtoMajor = 1
+		req.ProtoMinor = 0
+		req.Proto = "HTTP/1.0"
 
-		_, _, err = httpapi.OneWayWebSocket[any](httptest.NewRecorder(), r)
+		_, _, err := httpapi.OneWayWebSocket[any](httptest.NewRecorder(), req)
 		require.ErrorContains(
 			t,
 			err,
@@ -182,6 +231,21 @@ func TestOneWayWebSocket(t *testing.T) {
 
 	t.Run("Returned callback can publish a new event to the WebSocket connection", func(t *testing.T) {
 		t.Parallel()
+
+		r := strings.NewReader("")
+		recorder := httptest.NewRecorder()
+		writer := wrapWriter(recorder, r)
+		send, _, err := httpapi.OneWayWebSocket[codersdk.ServerSentEvent](
+			writer,
+			createBaseRequest(t),
+		)
+		require.NoError(t, err)
+
+		err = send(codersdk.ServerSentEvent{
+			Type: codersdk.ServerSentEventTypeData,
+			Data: "Blah",
+		})
+		require.NoError(t, err)
 	})
 
 	t.Run("Signals to an outside consumer when the socket has been closed", func(t *testing.T) {
