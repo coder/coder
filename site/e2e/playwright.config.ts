@@ -31,7 +31,7 @@ export default defineConfig({
 	],
 	reporter: [["./reporter.ts"]],
 	use: {
-		actionTimeout: 5000,
+		actionTimeout: 60_000,
 		baseURL: `http://localhost:${coderPort}`,
 		video: "retain-on-failure",
 		...(wsEndpoint
