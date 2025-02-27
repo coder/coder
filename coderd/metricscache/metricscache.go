@@ -158,8 +158,8 @@ func (c *Cache) refreshDeploymentStats(ctx context.Context) error {
 	}
 	c.deploymentStatsResponse.Store(&codersdk.DeploymentStats{
 		AggregatedFrom: from,
-		CollectedAt:    c.clock.Now(),
-		NextUpdateAt:   c.clock.Now().Add(c.intervals.DeploymentStats),
+		CollectedAt:    dbtime.Time(c.clock.Now()),
+		NextUpdateAt:   dbtime.Time(c.clock.Now().Add(c.intervals.DeploymentStats)),
 		Workspaces: codersdk.WorkspaceDeploymentStats{
 			Pending:  workspaceStats.PendingWorkspaces,
 			Building: workspaceStats.BuildingWorkspaces,
