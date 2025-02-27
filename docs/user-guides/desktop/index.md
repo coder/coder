@@ -62,11 +62,21 @@ Before you can use Coder Desktop, you will need to log in.
 
 ## Workspaces from Coder Desktop
 
-You can use `ping6` in your terminal to verify the connection to your workspace:
+![Coder Desktop list of workspaces](../../images/user-guides/desktop/coder-desktop-workspaces.png)
 
-```shell
-ping6 -c 5 yourworkspacename.coder
-```
+1. You can use `ping6` in your terminal to verify the connection to your workspace:
+
+   ```shell
+   ping6 -c 5 yourworkspacename.coder
+   ```
+
+1. Select your workspace from the Coder Desktop icon.
+
+   Desktop opens the workspace in your browser.
+
+   ![Screenshot of a workspace](../../images/screenshots/workspace-running-with-topbar.png)
+
+1. Select the IDE you want to use and start working on your code.
 
 ## CoderVPN
 
