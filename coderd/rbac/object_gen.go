@@ -27,22 +27,21 @@ var (
 
 	// ResourceAssignOrgRole
 	// Valid Actions
-	//  - "ActionAssign" :: ability to assign org scoped roles
-	//  - "ActionCreate" :: ability to create/delete custom roles within an organization
-	//  - "ActionDelete" :: ability to delete org scoped roles
-	//  - "ActionRead" :: view what roles are assignable
-	//  - "ActionUpdate" :: ability to edit custom roles within an organization
+	//  - "ActionAssign" :: assign org scoped roles
+	//  - "ActionCreate" :: create/delete custom roles within an organization
+	//  - "ActionDelete" :: delete roles within an organization
+	//  - "ActionRead" :: view what roles are assignable within an organization
+	//  - "ActionUnassign" :: unassign org scoped roles
+	//  - "ActionUpdate" :: edit custom roles within an organization
 	ResourceAssignOrgRole = Object{
 		Type: "assign_org_role",
 	}
 
 	// ResourceAssignRole
 	// Valid Actions
-	//  - "ActionAssign" :: ability to assign roles
-	//  - "ActionCreate" :: ability to create/delete/edit custom roles
-	//  - "ActionDelete" :: ability to unassign roles
+	//  - "ActionAssign" :: assign user roles
 	//  - "ActionRead" :: view what roles are assignable
-	//  - "ActionUpdate" :: ability to edit custom roles
+	//  - "ActionUnassign" :: unassign user roles
 	ResourceAssignRole = Object{
 		Type: "assign_role",
 	}
@@ -367,6 +366,7 @@ func AllActions() []policy.Action {
 		policy.ActionRead,
 		policy.ActionReadPersonal,
 		policy.ActionSSH,
+		policy.ActionUnassign,
 		policy.ActionUpdate,
 		policy.ActionUpdatePersonal,
 		policy.ActionUse,

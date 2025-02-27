@@ -78,6 +78,8 @@ const (
 // BlockedFileTransferCommands contains a list of restricted file transfer commands.
 var BlockedFileTransferCommands = []string{"nc", "rsync", "scp", "sftp"}
 
+type reportConnectionFunc func(id uuid.UUID, sessionType MagicSessionType, ip string) (disconnected func(code int, reason string))
+
 // Config sets configuration parameters for the agent SSH server.
 type Config struct {
 	// MaxTimeout sets the absolute connection timeout, none if empty. If set to
@@ -100,6 +102,8 @@ type Config struct {
 	X11DisplayOffset *int
 	// BlockFileTransfer restricts use of file transfer applications.
 	BlockFileTransfer bool
+	// ReportConnection.
+	ReportConnection reportConnectionFunc
 }
 
 type Server struct {
@@ -152,6 +156,9 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 			return home
 		}
 	}
+	if config.ReportConnection == nil {
+		config.ReportConnection = func(uuid.UUID, MagicSessionType, string) func(int, string) { return func(int, string) {} }
+	}
 
 	forwardHandler := &ssh.ForwardedTCPHandler{}
 	unixForwardHandler := newForwardedUnixHandler(logger)
@@ -174,7 +181,7 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 		ChannelHandlers: map[string]ssh.ChannelHandler{
 			"direct-tcpip": func(srv *ssh.Server, conn *gossh.ServerConn, newChan gossh.NewChannel, ctx ssh.Context) {
 				// Wrapper is designed to find and track JetBrains Gateway connections.
-				wrapped := NewJetbrainsChannelWatcher(ctx, s.logger, newChan, &s.connCountJetBrains)
+				wrapped := NewJetbrainsChannelWatcher(ctx, s.logger, s.config.ReportConnection, newChan, &s.connCountJetBrains)
 				ssh.DirectTCPIPHandler(srv, conn, wrapped, ctx)
 			},
 			"direct-streamlocal@openssh.com": directStreamLocalHandler,
@@ -288,6 +295,35 @@ func extractMagicSessionType(env []string) (magicType MagicSessionType, rawType 
 	})
 }
 
+// sessionCloseTracker is a wrapper around Session that tracks the exit code.
+type sessionCloseTracker struct {
+	ssh.Session
+	exitOnce sync.Once
+	code     atomic.Int64
+}
+
+var _ ssh.Session = &sessionCloseTracker{}
+
+func (s *sessionCloseTracker) track(code int) {
+	s.exitOnce.Do(func() {
+		s.code.Store(int64(code))
+	})
+}
+
+func (s *sessionCloseTracker) exitCode() int {
+	return int(s.code.Load())
+}
+
+func (s *sessionCloseTracker) Exit(code int) error {
+	s.track(code)
+	return s.Session.Exit(code)
+}
+
+func (s *sessionCloseTracker) Close() error {
+	s.track(1)
+	return s.Session.Close()
+}
+
 func (s *Server) sessionHandler(session ssh.Session) {
 	ctx := session.Context()
 	id := uuid.New()
@@ -300,17 +336,23 @@ func (s *Server) sessionHandler(session ssh.Session) {
 	)
 	logger.Info(ctx, "handling ssh session")
 
+	env := session.Environ()
+	magicType, magicTypeRaw, env := extractMagicSessionType(env)
+
 	if !s.trackSession(session, true) {
+		reason := "unable to accept new session, server is closing"
+		// Report connection attempt even if we couldn't accept it.
+		disconnected := s.config.ReportConnection(id, magicType, session.RemoteAddr().String())
+		defer disconnected(1, reason)
+
+		logger.Info(ctx, reason)
 		// See (*Server).Close() for why we call Close instead of Exit.
 		_ = session.Close()
-		logger.Info(ctx, "unable to accept new session, server is closing")
 		return
 	}
 	defer s.trackSession(session, false)
 
-	env := session.Environ()
-	magicType, magicTypeRaw, env := extractMagicSessionType(env)
-
+	reportSession := true
 	switch magicType {
 	case MagicSessionTypeVSCode:
 		s.connCountVSCode.Add(1)
@@ -318,11 +360,26 @@ func (s *Server) sessionHandler(session ssh.Session) {
 	case MagicSessionTypeJetBrains:
 		// Do nothing here because JetBrains launches hundreds of ssh sessions.
 		// We instead track JetBrains in the single persistent tcp forwarding channel.
+		reportSession = false
 	case MagicSessionTypeSSH:
 		s.connCountSSHSession.Add(1)
 		defer s.connCountSSHSession.Add(-1)
 	case MagicSessionTypeUnknown:
 		logger.Warn(ctx, "invalid magic ssh session type specified", slog.F("raw_type", magicTypeRaw))
+	}
+
+	closeCause := func(string) {}
+	if reportSession {
+		var reason string
+		closeCause = func(r string) { reason = r }
+
+		scr := &sessionCloseTracker{Session: session}
+		session = scr
+
+		disconnected := s.config.ReportConnection(id, magicType, session.RemoteAddr().String())
+		defer func() {
+			disconnected(scr.exitCode(), reason)
+		}()
 	}
 
 	if s.fileTransferBlocked(session) {
@@ -333,6 +390,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 			errorMessage := fmt.Sprintf("\x02%s\n", BlockedFileTransferErrorMessage)
 			_, _ = session.Write([]byte(errorMessage))
 		}
+		closeCause("file transfer blocked")
 		_ = session.Exit(BlockedFileTransferErrorCode)
 		return
 	}
@@ -340,10 +398,14 @@ func (s *Server) sessionHandler(session ssh.Session) {
 	switch ss := session.Subsystem(); ss {
 	case "":
 	case "sftp":
-		s.sftpHandler(logger, session)
+		err := s.sftpHandler(logger, session)
+		if err != nil {
+			closeCause(err.Error())
+		}
 		return
 	default:
 		logger.Warn(ctx, "unsupported subsystem", slog.F("subsystem", ss))
+		closeCause(fmt.Sprintf("unsupported subsystem: %s", ss))
 		_ = session.Exit(1)
 		return
 	}
@@ -352,8 +414,9 @@ func (s *Server) sessionHandler(session ssh.Session) {
 	if hasX11 {
 		display, handled := s.x11Handler(session.Context(), x11)
 		if !handled {
-			_ = session.Exit(1)
 			logger.Error(ctx, "x11 handler failed")
+			closeCause("x11 handler failed")
+			_ = session.Exit(1)
 			return
 		}
 		env = append(env, fmt.Sprintf("DISPLAY=localhost:%d.%d", display, x11.ScreenNumber))
@@ -380,6 +443,8 @@ func (s *Server) sessionHandler(session ssh.Session) {
 			slog.F("exit_code", code),
 		)
 
+		closeCause(fmt.Sprintf("process exited with error status: %d", exitError.ExitCode()))
+
 		// TODO(mafredri): For signal exit, there's also an "exit-signal"
 		// request (session.Exit sends "exit-status"), however, since it's
 		// not implemented on the session interface and not used by
@@ -391,6 +456,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		logger.Warn(ctx, "ssh session failed", slog.Error(err))
 		// This exit code is designed to be unlikely to be confused for a legit exit code
 		// from the process.
+		closeCause(err.Error())
 		_ = session.Exit(MagicSessionErrorCode)
 		return
 	}
@@ -650,7 +716,7 @@ func handleSignal(logger slog.Logger, ssig ssh.Signal, signaler interface{ Signa
 	}
 }
 
-func (s *Server) sftpHandler(logger slog.Logger, session ssh.Session) {
+func (s *Server) sftpHandler(logger slog.Logger, session ssh.Session) error {
 	s.metrics.sftpConnectionsTotal.Add(1)
 
 	ctx := session.Context()
@@ -674,7 +740,7 @@ func (s *Server) sftpHandler(logger slog.Logger, session ssh.Session) {
 	server, err := sftp.NewServer(session, opts...)
 	if err != nil {
 		logger.Debug(ctx, "initialize sftp server", slog.Error(err))
-		return
+		return xerrors.Errorf("initialize sftp server: %w", err)
 	}
 	defer server.Close()
 
@@ -689,11 +755,12 @@ func (s *Server) sftpHandler(logger slog.Logger, session ssh.Session) {
 		// code but `scp` on macOS does (when using the default
 		// SFTP backend).
 		_ = session.Exit(0)
-		return
+		return nil
 	}
 	logger.Warn(ctx, "sftp server closed with error", slog.Error(err))
 	s.metrics.sftpServerErrors.Add(1)
 	_ = session.Exit(1)
+	return xerrors.Errorf("sftp server closed with error: %w", err)
 }
 
 // CreateCommand processes raw command input with OpenSSH-like behavior.
