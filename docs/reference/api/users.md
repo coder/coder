@@ -157,6 +157,7 @@ curl -X GET http://coder-server:8080/api/v2/users/authmethods \
 ```json
 {
   "github": {
+    "default_provider_configured": true,
     "enabled": true
   },
   "oidc": {
@@ -332,6 +333,41 @@ curl -X GET http://coder-server:8080/api/v2/users/oauth2/github/callback \
 | Status | Meaning                                                                 | Description        | Schema |
 |--------|-------------------------------------------------------------------------|--------------------|--------|
 | 307    | [Temporary Redirect](https://tools.ietf.org/html/rfc7231#section-6.4.7) | Temporary Redirect |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get Github device auth
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/users/oauth2/github/device \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /users/oauth2/github/device`
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "device_code": "string",
+  "expires_in": 0,
+  "interval": 0,
+  "user_code": "string",
+  "verification_uri": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                               |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ExternalAuthDevice](schemas.md#codersdkexternalauthdevice) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

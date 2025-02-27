@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"io"
+	"net"
 	"net/http"
 	"net/netip"
 	"os"
@@ -27,6 +29,7 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"tailscale.com/net/speedtest"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/netlogtype"
@@ -87,6 +90,9 @@ type Options struct {
 	BlockFileTransfer            bool
 	Execer                       agentexec.Execer
 	ContainerLister              agentcontainers.Lister
+
+	ExperimentalContainersEnabled bool
+	ExperimentalConnectionReports bool
 }
 
 type Client interface {
@@ -174,6 +180,7 @@ func New(options Options) Agent {
 		lifecycleUpdate:                    make(chan struct{}, 1),
 		lifecycleReported:                  make(chan codersdk.WorkspaceAgentLifecycle, 1),
 		lifecycleStates:                    []agentsdk.PostLifecycleRequest{{State: codersdk.WorkspaceAgentLifecycleCreated}},
+		reportConnectionsUpdate:            make(chan struct{}, 1),
 		ignorePorts:                        options.IgnorePorts,
 		portCacheDuration:                  options.PortCacheDuration,
 		reportMetadataInterval:             options.ReportMetadataInterval,
@@ -187,6 +194,9 @@ func New(options Options) Agent {
 		metrics:            newAgentMetrics(prometheusRegistry),
 		execer:             options.Execer,
 		lister:             options.ContainerLister,
+
+		experimentalDevcontainersEnabled: options.ExperimentalContainersEnabled,
+		experimentalConnectionReports:    options.ExperimentalConnectionReports,
 	}
 	// Initially, we have a closed channel, reflecting the fact that we are not initially connected.
 	// Each time we connect we replace the channel (while holding the closeMutex) with a new one
@@ -247,6 +257,10 @@ type agent struct {
 	lifecycleStates            []agentsdk.PostLifecycleRequest
 	lifecycleLastReportedIndex int // Keeps track of the last lifecycle state we successfully reported.
 
+	reportConnectionsUpdate chan struct{}
+	reportConnectionsMu     sync.Mutex
+	reportConnections       []*proto.ReportConnectionRequest
+
 	network       *tailnet.Conn
 	statsReporter *statsReporter
 	logSender     *agentsdk.LogSender
@@ -257,6 +271,9 @@ type agent struct {
 	metrics *agentMetrics
 	execer  agentexec.Execer
 	lister  agentcontainers.Lister
+
+	experimentalDevcontainersEnabled bool
+	experimentalConnectionReports    bool
 }
 
 func (a *agent) TailnetConn() *tailnet.Conn {
@@ -272,6 +289,24 @@ func (a *agent) init() {
 		UpdateEnv:           a.updateCommandEnv,
 		WorkingDirectory:    func() string { return a.manifest.Load().Directory },
 		BlockFileTransfer:   a.blockFileTransfer,
+		ReportConnection: func(id uuid.UUID, magicType agentssh.MagicSessionType, ip string) func(code int, reason string) {
+			var connectionType proto.Connection_Type
+			switch magicType {
+			case agentssh.MagicSessionTypeSSH:
+				connectionType = proto.Connection_SSH
+			case agentssh.MagicSessionTypeVSCode:
+				connectionType = proto.Connection_VSCODE
+			case agentssh.MagicSessionTypeJetBrains:
+				connectionType = proto.Connection_JETBRAINS
+			case agentssh.MagicSessionTypeUnknown:
+				connectionType = proto.Connection_TYPE_UNSPECIFIED
+			default:
+				a.logger.Error(a.hardCtx, "unhandled magic session type when reporting connection", slog.F("magic_type", magicType))
+				connectionType = proto.Connection_TYPE_UNSPECIFIED
+			}
+
+			return a.reportConnection(id, connectionType, ip)
+		},
 	})
 	if err != nil {
 		panic(err)
@@ -294,8 +329,14 @@ func (a *agent) init() {
 	a.reconnectingPTYServer = reconnectingpty.NewServer(
 		a.logger.Named("reconnecting-pty"),
 		a.sshServer,
+		func(id uuid.UUID, ip string) func(code int, reason string) {
+			return a.reportConnection(id, proto.Connection_RECONNECTING_PTY, ip)
+		},
 		a.metrics.connectionsTotal, a.metrics.reconnectingPTYErrors,
 		a.reconnectingPTYTimeout,
+		func(s *reconnectingpty.Server) {
+			s.ExperimentalContainersEnabled = a.experimentalDevcontainersEnabled
+		},
 	)
 	go a.runLoop()
 }
@@ -340,7 +381,7 @@ func (a *agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentM
 		// if it can guarantee the clocks are synchronized.
 		CollectedAt: now,
 	}
-	cmdPty, err := a.sshServer.CreateCommand(ctx, md.Script, nil)
+	cmdPty, err := a.sshServer.CreateCommand(ctx, md.Script, nil, nil)
 	if err != nil {
 		result.Error = fmt.Sprintf("create cmd: %+v", err)
 		return result
@@ -372,7 +413,6 @@ func (a *agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentM
 	// Important: if the command times out, we may see a misleading error like
 	// "exit status 1", so it's important to include the context error.
 	err = errors.Join(err, ctx.Err())
-
 	if err != nil {
 		result.Error = fmt.Sprintf("run cmd: %+v", err)
 	}
@@ -704,6 +744,129 @@ func (a *agent) setLifecycle(state codersdk.WorkspaceAgentLifecycle) {
 	}
 }
 
+// reportConnectionsLoop reports connections to the agent for auditing.
+func (a *agent) reportConnectionsLoop(ctx context.Context, aAPI proto.DRPCAgentClient24) error {
+	for {
+		select {
+		case <-a.reportConnectionsUpdate:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+
+		for {
+			a.reportConnectionsMu.Lock()
+			if len(a.reportConnections) == 0 {
+				a.reportConnectionsMu.Unlock()
+				break
+			}
+			payload := a.reportConnections[0]
+			// Release lock while we send the payload, this is safe
+			// since we only append to the slice.
+			a.reportConnectionsMu.Unlock()
+
+			logger := a.logger.With(slog.F("payload", payload))
+			logger.Debug(ctx, "reporting connection")
+			_, err := aAPI.ReportConnection(ctx, payload)
+			if err != nil {
+				return xerrors.Errorf("failed to report connection: %w", err)
+			}
+
+			logger.Debug(ctx, "successfully reported connection")
+
+			// Remove the payload we sent.
+			a.reportConnectionsMu.Lock()
+			a.reportConnections[0] = nil // Release the pointer from the underlying array.
+			a.reportConnections = a.reportConnections[1:]
+			a.reportConnectionsMu.Unlock()
+		}
+	}
+}
+
+const (
+	// reportConnectionBufferLimit limits the number of connection reports we
+	// buffer to avoid growing the buffer indefinitely. This should not happen
+	// unless the agent has lost connection to coderd for a long time or if
+	// the agent is being spammed with connections.
+	//
+	// If we assume ~150 byte per connection report, this would be around 300KB
+	// of memory which seems acceptable. We could reduce this if necessary by
+	// not using the proto struct directly.
+	reportConnectionBufferLimit = 2048
+)
+
+func (a *agent) reportConnection(id uuid.UUID, connectionType proto.Connection_Type, ip string) (disconnected func(code int, reason string)) {
+	// If the experiment hasn't been enabled, we don't report connections.
+	if !a.experimentalConnectionReports {
+		return func(int, string) {} // Noop.
+	}
+
+	// Remove the port from the IP because ports are not supported in coderd.
+	if host, _, err := net.SplitHostPort(ip); err != nil {
+		a.logger.Error(a.hardCtx, "split host and port for connection report failed", slog.F("ip", ip), slog.Error(err))
+	} else {
+		// Best effort.
+		ip = host
+	}
+
+	a.reportConnectionsMu.Lock()
+	defer a.reportConnectionsMu.Unlock()
+
+	if len(a.reportConnections) >= reportConnectionBufferLimit {
+		a.logger.Warn(a.hardCtx, "connection report buffer limit reached, dropping connect",
+			slog.F("limit", reportConnectionBufferLimit),
+			slog.F("connection_id", id),
+			slog.F("connection_type", connectionType),
+			slog.F("ip", ip),
+		)
+	} else {
+		a.reportConnections = append(a.reportConnections, &proto.ReportConnectionRequest{
+			Connection: &proto.Connection{
+				Id:         id[:],
+				Action:     proto.Connection_CONNECT,
+				Type:       connectionType,
+				Timestamp:  timestamppb.New(time.Now()),
+				Ip:         ip,
+				StatusCode: 0,
+				Reason:     nil,
+			},
+		})
+		select {
+		case a.reportConnectionsUpdate <- struct{}{}:
+		default:
+		}
+	}
+
+	return func(code int, reason string) {
+		a.reportConnectionsMu.Lock()
+		defer a.reportConnectionsMu.Unlock()
+		if len(a.reportConnections) >= reportConnectionBufferLimit {
+			a.logger.Warn(a.hardCtx, "connection report buffer limit reached, dropping disconnect",
+				slog.F("limit", reportConnectionBufferLimit),
+				slog.F("connection_id", id),
+				slog.F("connection_type", connectionType),
+				slog.F("ip", ip),
+			)
+			return
+		}
+
+		a.reportConnections = append(a.reportConnections, &proto.ReportConnectionRequest{
+			Connection: &proto.Connection{
+				Id:         id[:],
+				Action:     proto.Connection_DISCONNECT,
+				Type:       connectionType,
+				Timestamp:  timestamppb.New(time.Now()),
+				Ip:         ip,
+				StatusCode: int32(code), //nolint:gosec
+				Reason:     &reason,
+			},
+		})
+		select {
+		case a.reportConnectionsUpdate <- struct{}{}:
+		default:
+		}
+	}
+}
+
 // fetchServiceBannerLoop fetches the service banner on an interval.  It will
 // not be fetched immediately; the expectation is that it is primed elsewhere
 // (and must be done before the session actually starts).
@@ -813,6 +976,10 @@ func (a *agent) run() (retErr error) {
 		resourcesmonitor := resourcesmonitor.NewResourcesMonitor(logger, clk, config, resourcesFetcher, aAPI)
 		return resourcesmonitor.Start(ctx)
 	})
+
+	// Connection reports are part of auditing, we should keep sending them via
+	// gracefulShutdownBehaviorRemain.
+	connMan.startAgentAPI("report connections", gracefulShutdownBehaviorRemain, a.reportConnectionsLoop)
 
 	// channels to sync goroutines below
 	//  handle manifest
@@ -995,7 +1162,6 @@ func (a *agent) createOrUpdateNetwork(manifestOK, networkOK *checkpoint) func(co
 		if err := manifestOK.wait(ctx); err != nil {
 			return xerrors.Errorf("no manifest: %w", err)
 		}
-		var err error
 		defer func() {
 			networkOK.complete(retErr)
 		}()
@@ -1004,9 +1170,20 @@ func (a *agent) createOrUpdateNetwork(manifestOK, networkOK *checkpoint) func(co
 		network := a.network
 		a.closeMutex.Unlock()
 		if network == nil {
+			keySeed, err := WorkspaceKeySeed(manifest.WorkspaceID, manifest.AgentName)
+			if err != nil {
+				return xerrors.Errorf("generate seed from workspace id: %w", err)
+			}
 			// use the graceful context here, because creating the tailnet is not itself tied to the
 			// agent API.
-			network, err = a.createTailnet(a.gracefulCtx, manifest.AgentID, manifest.DERPMap, manifest.DERPForceWebSockets, manifest.DisableDirectConnections)
+			network, err = a.createTailnet(
+				a.gracefulCtx,
+				manifest.AgentID,
+				manifest.DERPMap,
+				manifest.DERPForceWebSockets,
+				manifest.DisableDirectConnections,
+				keySeed,
+			)
 			if err != nil {
 				return xerrors.Errorf("create tailnet: %w", err)
 			}
@@ -1146,7 +1323,13 @@ func (a *agent) trackGoroutine(fn func()) error {
 	return nil
 }
 
-func (a *agent) createTailnet(ctx context.Context, agentID uuid.UUID, derpMap *tailcfg.DERPMap, derpForceWebSockets, disableDirectConnections bool) (_ *tailnet.Conn, err error) {
+func (a *agent) createTailnet(
+	ctx context.Context,
+	agentID uuid.UUID,
+	derpMap *tailcfg.DERPMap,
+	derpForceWebSockets, disableDirectConnections bool,
+	keySeed int64,
+) (_ *tailnet.Conn, err error) {
 	// Inject `CODER_AGENT_HEADER` into the DERP header.
 	var header http.Header
 	if client, ok := a.client.(*agentsdk.Client); ok {
@@ -1172,6 +1355,10 @@ func (a *agent) createTailnet(ctx context.Context, agentID uuid.UUID, derpMap *t
 			network.Close()
 		}
 	}()
+
+	if err := a.sshServer.UpdateHostSigner(keySeed); err != nil {
+		return nil, xerrors.Errorf("update host signer: %w", err)
+	}
 
 	sshListener, err := network.Listen("tcp", ":"+strconv.Itoa(workspacesdk.AgentSSHPort))
 	if err != nil {
@@ -1849,4 +2036,21 @@ func PrometheusMetricsHandler(prometheusRegistry *prometheus.Registry, logger sl
 			}
 		}
 	})
+}
+
+// WorkspaceKeySeed converts a WorkspaceID UUID and agent name to an int64 hash.
+// This uses the FNV-1a hash algorithm which provides decent distribution and collision
+// resistance for string inputs.
+func WorkspaceKeySeed(workspaceID uuid.UUID, agentName string) (int64, error) {
+	h := fnv.New64a()
+	_, err := h.Write(workspaceID[:])
+	if err != nil {
+		return 42, err
+	}
+	_, err = h.Write([]byte(agentName))
+	if err != nil {
+		return 42, err
+	}
+
+	return int64(h.Sum64()), nil
 }

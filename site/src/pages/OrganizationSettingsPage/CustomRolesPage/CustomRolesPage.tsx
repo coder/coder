@@ -1,5 +1,4 @@
 import { getErrorMessage } from "api/errors";
-import { organizationPermissions } from "api/queries/organizations";
 import { deleteOrganizationRole, organizationRoles } from "api/queries/roles";
 import type { Role } from "api/typesGenerated";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
@@ -7,6 +6,7 @@ import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
+import { RequirePermission } from "contexts/auth/RequirePermission";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import { type FC, useEffect, useState } from "react";
@@ -22,13 +22,10 @@ export const CustomRolesPage: FC = () => {
 	const { organization: organizationName } = useParams() as {
 		organization: string;
 	};
-	const { organizations } = useOrganizationSettings();
-	const organization = organizations?.find((o) => o.name === organizationName);
-	const permissionsQuery = useQuery(organizationPermissions(organization?.id));
-	const deleteRoleMutation = useMutation(
-		deleteOrganizationRole(queryClient, organizationName),
-	);
+	const { organizationPermissions } = useOrganizationSettings();
+
 	const [roleToDelete, setRoleToDelete] = useState<Role>();
+
 	const organizationRolesQuery = useQuery(organizationRoles(organizationName));
 	const builtInRoles = organizationRolesQuery.data?.filter(
 		(role) => role.built_in,
@@ -36,7 +33,10 @@ export const CustomRolesPage: FC = () => {
 	const customRoles = organizationRolesQuery.data?.filter(
 		(role) => !role.built_in,
 	);
-	const permissions = permissionsQuery.data;
+
+	const deleteRoleMutation = useMutation(
+		deleteOrganizationRole(queryClient, organizationName),
+	);
 
 	useEffect(() => {
 		if (organizationRolesQuery.error) {
@@ -49,12 +49,18 @@ export const CustomRolesPage: FC = () => {
 		}
 	}, [organizationRolesQuery.error]);
 
-	if (!permissions) {
+	if (!organizationPermissions) {
 		return <Loader />;
 	}
 
 	return (
-		<>
+		<RequirePermission
+			isFeatureVisible={
+				organizationPermissions.assignOrgRoles ||
+				organizationPermissions.createOrgRoles ||
+				organizationPermissions.viewOrgRoles
+			}
+		>
 			<Helmet>
 				<title>{pageTitle("Custom Roles")}</title>
 			</Helmet>
@@ -74,7 +80,8 @@ export const CustomRolesPage: FC = () => {
 				builtInRoles={builtInRoles}
 				customRoles={customRoles}
 				onDeleteRole={setRoleToDelete}
-				canAssignOrgRole={permissions.assignOrgRole}
+				canAssignOrgRole={organizationPermissions.assignOrgRoles}
+				canCreateOrgRole={organizationPermissions.createOrgRoles}
 				isCustomRolesEnabled={isCustomRolesEnabled}
 			/>
 
@@ -100,7 +107,7 @@ export const CustomRolesPage: FC = () => {
 					}
 				}}
 			/>
-		</>
+		</RequirePermission>
 	);
 };
 

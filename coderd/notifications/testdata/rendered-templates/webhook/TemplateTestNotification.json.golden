@@ -1,0 +1,25 @@
+{
+  "_version": "1.1",
+  "msg_id": "00000000-0000-0000-0000-000000000000",
+  "payload": {
+    "_version": "1.1",
+    "notification_name": "Test Notification",
+    "notification_template_id": "00000000-0000-0000-0000-000000000000",
+    "user_id": "00000000-0000-0000-0000-000000000000",
+    "user_email": "bobby@coder.com",
+    "user_name": "Bobby",
+    "user_username": "bobby",
+    "actions": [
+      {
+        "label": "View notification settings",
+        "url": "http://test.com/deployment/notifications?tab=settings"
+      }
+    ],
+    "labels": {},
+    "data": null
+  },
+  "title": "A test notification",
+  "title_markdown": "A test notification",
+  "body": "Hi Bobby,\n\nThis is a test notification.",
+  "body_markdown": "Hi Bobby,\n\nThis is a test notification."
+}

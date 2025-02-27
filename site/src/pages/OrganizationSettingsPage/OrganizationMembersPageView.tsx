@@ -28,6 +28,7 @@ import {
 	TableRow,
 } from "components/Table/Table";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
+import { TriangleAlert } from "lucide-react";
 import { UserGroupsCell } from "pages/UsersPage/UsersTable/UserGroupsCell";
 import { type FC, useState } from "react";
 import { TableColumnHelpTooltip } from "./UserTable/TableColumnHelpTooltip";
@@ -36,6 +37,7 @@ import { UserRoleCell } from "./UserTable/UserRoleCell";
 interface OrganizationMembersPageViewProps {
 	allAvailableRoles: readonly SlimRole[] | undefined;
 	canEditMembers: boolean;
+	canViewMembers: boolean;
 	error: unknown;
 	isAddingMember: boolean;
 	isUpdatingMemberRoles: boolean;
@@ -58,6 +60,7 @@ export const OrganizationMembersPageView: FC<
 > = ({
 	allAvailableRoles,
 	canEditMembers,
+	canViewMembers,
 	error,
 	isAddingMember,
 	isUpdatingMemberRoles,
@@ -70,7 +73,7 @@ export const OrganizationMembersPageView: FC<
 	return (
 		<div>
 			<SettingsHeader title="Members" />
-			<Stack>
+			<div className="flex flex-col gap-4">
 				{Boolean(error) && <ErrorAlert error={error} />}
 
 				{canEditMembers && (
@@ -79,6 +82,16 @@ export const OrganizationMembersPageView: FC<
 						onSubmit={addMember}
 					/>
 				)}
+
+				{!canViewMembers && (
+					<div className="flex flex-row text-content-warning gap-2 items-center text-sm font-medium">
+						<TriangleAlert className="size-icon-sm" />
+						<p>
+							You do not have permission to view members other than yourself.
+						</p>
+					</div>
+				)}
+
 				<Table>
 					<TableHeader>
 						<TableRow>
@@ -153,7 +166,7 @@ export const OrganizationMembersPageView: FC<
 						))}
 					</TableBody>
 				</Table>
-			</Stack>
+			</div>
 		</div>
 	);
 };

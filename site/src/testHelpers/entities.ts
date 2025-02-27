@@ -8,6 +8,7 @@ import type * as TypesGen from "api/typesGenerated";
 import type { Permissions } from "contexts/auth/permissions";
 import type { ProxyLatencyReport } from "contexts/useProxyLatency";
 import range from "lodash/range";
+import type { OrganizationPermissions } from "modules/management/organizationPermissions";
 import type { FileTree } from "utils/filetree";
 import type { TemplateVersionFiles } from "utils/templateVersion";
 
@@ -295,6 +296,15 @@ export const MockAuditorRole: TypesGen.Role = {
 	organization_id: "",
 };
 
+export const MockWorkspaceCreationBanRole: TypesGen.Role = {
+	name: "organization-workspace-creation-ban",
+	display_name: "Organization Workspace Creation Ban",
+	site_permissions: [],
+	organization_permissions: [],
+	user_permissions: [],
+	organization_id: "",
+};
+
 export const MockMemberRole: TypesGen.SlimRole = {
 	name: "member",
 	display_name: "Member",
@@ -458,10 +468,15 @@ export function assignableRole(
 	};
 }
 
-export const MockSiteRoles = [MockUserAdminRole, MockAuditorRole];
+export const MockSiteRoles = [
+	MockUserAdminRole,
+	MockAuditorRole,
+	MockWorkspaceCreationBanRole,
+];
 export const MockAssignableSiteRoles = [
 	assignableRole(MockUserAdminRole, true),
 	assignableRole(MockAuditorRole, true),
+	assignableRole(MockWorkspaceCreationBanRole, true),
 ];
 
 export const MockMemberPermissions = {
@@ -1684,20 +1699,20 @@ export const MockUserAgent = {
 
 export const MockAuthMethodsPasswordOnly: TypesGen.AuthMethods = {
 	password: { enabled: true },
-	github: { enabled: false },
+	github: { enabled: false, default_provider_configured: true },
 	oidc: { enabled: false, signInText: "", iconUrl: "" },
 };
 
 export const MockAuthMethodsPasswordTermsOfService: TypesGen.AuthMethods = {
 	terms_of_service_url: "https://www.youtube.com/watch?v=C2f37Vb2NAE",
 	password: { enabled: true },
-	github: { enabled: false },
+	github: { enabled: false, default_provider_configured: true },
 	oidc: { enabled: false, signInText: "", iconUrl: "" },
 };
 
 export const MockAuthMethodsExternal: TypesGen.AuthMethods = {
 	password: { enabled: false },
-	github: { enabled: true },
+	github: { enabled: true, default_provider_configured: true },
 	oidc: {
 		enabled: true,
 		signInText: "Google",
@@ -1707,7 +1722,7 @@ export const MockAuthMethodsExternal: TypesGen.AuthMethods = {
 
 export const MockAuthMethodsAll: TypesGen.AuthMethods = {
 	password: { enabled: true },
-	github: { enabled: true },
+	github: { enabled: true, default_provider_configured: true },
 	oidc: {
 		enabled: true,
 		signInText: "Google",
@@ -2837,12 +2852,43 @@ export const MockPermissions: Permissions = {
 	readWorkspaceProxies: true,
 	editWorkspaceProxies: true,
 	createOrganization: true,
-	editAnyOrganization: true,
 	viewAnyGroup: true,
 	createGroup: true,
 	viewAllLicenses: true,
 	viewNotificationTemplate: true,
 	viewOrganizationIDPSyncSettings: true,
+};
+
+export const MockOrganizationPermissions: OrganizationPermissions = {
+	viewMembers: true,
+	editMembers: true,
+	createGroup: true,
+	viewGroups: true,
+	editGroups: true,
+	editSettings: true,
+	viewOrgRoles: true,
+	createOrgRoles: true,
+	assignOrgRoles: true,
+	viewProvisioners: true,
+	viewProvisionerJobs: true,
+	viewIdpSyncSettings: true,
+	editIdpSyncSettings: true,
+};
+
+export const MockNoOrganizationPermissions: OrganizationPermissions = {
+	viewMembers: false,
+	editMembers: false,
+	createGroup: false,
+	viewGroups: false,
+	editGroups: false,
+	editSettings: false,
+	viewOrgRoles: false,
+	createOrgRoles: false,
+	assignOrgRoles: false,
+	viewProvisioners: false,
+	viewProvisionerJobs: false,
+	viewIdpSyncSettings: false,
+	editIdpSyncSettings: false,
 };
 
 export const MockNoPermissions: Permissions = {
@@ -2861,7 +2907,6 @@ export const MockNoPermissions: Permissions = {
 	readWorkspaceProxies: false,
 	editWorkspaceProxies: false,
 	createOrganization: false,
-	editAnyOrganization: false,
 	viewAnyGroup: false,
 	createGroup: false,
 	viewAllLicenses: false,

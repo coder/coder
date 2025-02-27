@@ -173,6 +173,7 @@ Status Code **200**
 | `action`        | `read`                             |
 | `action`        | `read_personal`                    |
 | `action`        | `ssh`                              |
+| `action`        | `unassign`                         |
 | `action`        | `update`                           |
 | `action`        | `update_personal`                  |
 | `action`        | `use`                              |
@@ -203,7 +204,6 @@ Status Code **200**
 | `resource_type` | `organization_member`              |
 | `resource_type` | `provisioner_daemon`               |
 | `resource_type` | `provisioner_jobs`                 |
-| `resource_type` | `provisioner_keys`                 |
 | `resource_type` | `replicas`                         |
 | `resource_type` | `system`                           |
 | `resource_type` | `tailnet_coordinator`              |
@@ -336,6 +336,7 @@ Status Code **200**
 | `action`        | `read`                             |
 | `action`        | `read_personal`                    |
 | `action`        | `ssh`                              |
+| `action`        | `unassign`                         |
 | `action`        | `update`                           |
 | `action`        | `update_personal`                  |
 | `action`        | `use`                              |
@@ -366,7 +367,6 @@ Status Code **200**
 | `resource_type` | `organization_member`              |
 | `resource_type` | `provisioner_daemon`               |
 | `resource_type` | `provisioner_jobs`                 |
-| `resource_type` | `provisioner_keys`                 |
 | `resource_type` | `replicas`                         |
 | `resource_type` | `system`                           |
 | `resource_type` | `tailnet_coordinator`              |
@@ -499,6 +499,7 @@ Status Code **200**
 | `action`        | `read`                             |
 | `action`        | `read_personal`                    |
 | `action`        | `ssh`                              |
+| `action`        | `unassign`                         |
 | `action`        | `update`                           |
 | `action`        | `update_personal`                  |
 | `action`        | `use`                              |
@@ -529,7 +530,6 @@ Status Code **200**
 | `resource_type` | `organization_member`              |
 | `resource_type` | `provisioner_daemon`               |
 | `resource_type` | `provisioner_jobs`                 |
-| `resource_type` | `provisioner_keys`                 |
 | `resource_type` | `replicas`                         |
 | `resource_type` | `system`                           |
 | `resource_type` | `tailnet_coordinator`              |
@@ -631,6 +631,7 @@ Status Code **200**
 | `action`        | `read`                             |
 | `action`        | `read_personal`                    |
 | `action`        | `ssh`                              |
+| `action`        | `unassign`                         |
 | `action`        | `update`                           |
 | `action`        | `update_personal`                  |
 | `action`        | `use`                              |
@@ -661,7 +662,6 @@ Status Code **200**
 | `resource_type` | `organization_member`              |
 | `resource_type` | `provisioner_daemon`               |
 | `resource_type` | `provisioner_jobs`                 |
-| `resource_type` | `provisioner_keys`                 |
 | `resource_type` | `replicas`                         |
 | `resource_type` | `system`                           |
 | `resource_type` | `tailnet_coordinator`              |
@@ -895,6 +895,7 @@ Status Code **200**
 | `action`        | `read`                             |
 | `action`        | `read_personal`                    |
 | `action`        | `ssh`                              |
+| `action`        | `unassign`                         |
 | `action`        | `update`                           |
 | `action`        | `update_personal`                  |
 | `action`        | `use`                              |
@@ -925,7 +926,6 @@ Status Code **200**
 | `resource_type` | `organization_member`              |
 | `resource_type` | `provisioner_daemon`               |
 | `resource_type` | `provisioner_jobs`                 |
-| `resource_type` | `provisioner_keys`                 |
 | `resource_type` | `replicas`                         |
 | `resource_type` | `system`                           |
 | `resource_type` | `tailnet_coordinator`              |

@@ -883,23 +883,30 @@ type Workspace struct {
 }
 
 // updateDNSNames updates the DNS names for all agents in the workspace.
+// DNS hosts must be all lowercase, or the resolver won't be able to find them.
+// Usernames are globally unique & case-insensitive.
+// Workspace names are unique per-user & case-insensitive.
+// Agent names are unique per-workspace & case-insensitive.
 func (w *Workspace) updateDNSNames() error {
+	wsName := strings.ToLower(w.Name)
+	username := strings.ToLower(w.ownerUsername)
 	for id, a := range w.agents {
+		agentName := strings.ToLower(a.Name)
 		names := make(map[dnsname.FQDN][]netip.Addr)
 		// TODO: technically, DNS labels cannot start with numbers, but the rules are often not
 		//       strictly enforced.
-		fqdn, err := dnsname.ToFQDN(fmt.Sprintf("%s.%s.me.coder.", a.Name, w.Name))
+		fqdn, err := dnsname.ToFQDN(fmt.Sprintf("%s.%s.me.coder.", agentName, wsName))
 		if err != nil {
 			return err
 		}
 		names[fqdn] = []netip.Addr{CoderServicePrefix.AddrFromUUID(a.ID)}
-		fqdn, err = dnsname.ToFQDN(fmt.Sprintf("%s.%s.%s.coder.", a.Name, w.Name, w.ownerUsername))
+		fqdn, err = dnsname.ToFQDN(fmt.Sprintf("%s.%s.%s.coder.", agentName, wsName, username))
 		if err != nil {
 			return err
 		}
 		names[fqdn] = []netip.Addr{CoderServicePrefix.AddrFromUUID(a.ID)}
 		if len(w.agents) == 1 {
-			fqdn, err := dnsname.ToFQDN(fmt.Sprintf("%s.coder.", w.Name))
+			fqdn, err := dnsname.ToFQDN(fmt.Sprintf("%s.coder.", wsName))
 			if err != nil {
 				return err
 			}
@@ -1363,7 +1370,7 @@ func (c *Controller) Run(ctx context.Context) {
 				c.logger.Error(c.ctx, "failed to dial tailnet v2+ API", errF)
 				continue
 			}
-			c.logger.Info(c.ctx, "obtained tailnet API v2+ client")
+			c.logger.Debug(c.ctx, "obtained tailnet API v2+ client")
 			err = c.precheckClientsAndControllers(tailnetClients)
 			if err != nil {
 				c.logger.Critical(c.ctx, "failed precheck", slog.Error(err))
@@ -1372,7 +1379,7 @@ func (c *Controller) Run(ctx context.Context) {
 			}
 			retrier.Reset()
 			c.runControllersOnce(tailnetClients)
-			c.logger.Info(c.ctx, "tailnet API v2+ connection lost")
+			c.logger.Debug(c.ctx, "tailnet API v2+ connection lost")
 		}
 	}()
 }

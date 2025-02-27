@@ -16,6 +16,11 @@
 					"title": "Screenshots",
 					"description": "View screenshots of the Coder platform",
 					"path": "./start/screenshots.md"
+				},
+				{
+					"title": "Feature stages",
+					"description": "Information about pre-GA stages.",
+					"path": "./about/feature-stages.md"
 				}
 			]
 		},
@@ -640,12 +645,6 @@
 					"icon_path": "./images/icons/circle-dot.svg"
 				},
 				{
-					"title": "Feature stages",
-					"description": "Policies for Alpha and Experimental features.",
-					"path": "./contributing/feature-stages.md",
-					"icon_path": "./images/icons/stairs.svg"
-				},
-				{
 					"title": "Documentation",
 					"description": "Our style guide for use when authoring documentation",
 					"path": "./contributing/documentation.md",
@@ -1037,6 +1036,11 @@
 							"title": "notifications resume",
 							"description": "Resume notifications",
 							"path": "reference/cli/notifications_resume.md"
+						},
+						{
+							"title": "notifications test",
+							"description": "Send a test notification",
+							"path": "reference/cli/notifications_test.md"
 						},
 						{
 							"title": "open",

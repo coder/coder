@@ -422,6 +422,7 @@ func New(options *Options) *API {
 	metricsCache := metricscache.New(
 		options.Database,
 		options.Logger.Named("metrics_cache"),
+		options.Clock,
 		metricscache.Intervals{
 			TemplateBuildTimes: options.MetricsCacheRefreshInterval,
 			DeploymentStats:    options.AgentStatsRefreshInterval,
@@ -930,6 +931,25 @@ func New(options *Options) *API {
 		r.Route("/audit", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
+				// This middleware only checks the site and orgs for the audit_log read
+				// permission.
+				// In the future if it makes sense to have this permission on the user as
+				// well we will need to update this middleware to include that check.
+				func(next http.Handler) http.Handler {
+					return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+						if api.Authorize(r, policy.ActionRead, rbac.ResourceAuditLog) {
+							next.ServeHTTP(rw, r)
+							return
+						}
+
+						if api.Authorize(r, policy.ActionRead, rbac.ResourceAuditLog.AnyOrganization()) {
+							next.ServeHTTP(rw, r)
+							return
+						}
+
+						httpapi.Forbidden(rw)
+					})
+				},
 			)
 
 			r.Get("/", api.auditLogs)
@@ -1087,6 +1107,7 @@ func New(options *Options) *API {
 				r.Post("/validate-password", api.validateUserPassword)
 				r.Post("/otp/change-password", api.postChangePasswordWithOneTimePasscode)
 				r.Route("/oauth2", func(r chi.Router) {
+					r.Get("/github/device", api.userOAuth2GithubDevice)
 					r.Route("/github", func(r chi.Router) {
 						r.Use(
 							httpmw.ExtractOAuth2(options.GithubOAuth2Config, options.HTTPClient, nil),
@@ -1371,6 +1392,7 @@ func New(options *Options) *API {
 				r.Get("/system", api.systemNotificationTemplates)
 			})
 			r.Get("/dispatch-methods", api.notificationDispatchMethods)
+			r.Post("/test", api.postTestNotification)
 		})
 		r.Route("/tailnet", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)

@@ -2674,6 +2674,7 @@ type Organization struct {
 	IsDefault   bool      `db:"is_default" json:"is_default"`
 	DisplayName string    `db:"display_name" json:"display_name"`
 	Icon        string    `db:"icon" json:"icon"`
+	Deleted     bool      `db:"deleted" json:"deleted"`
 }
 
 type OrganizationMember struct {
