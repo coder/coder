@@ -16,6 +16,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestInternalServerError(t *testing.T) {
@@ -158,9 +159,25 @@ func TestWebsocketCloseMsg(t *testing.T) {
 
 func TestOneWayWebSocket(t *testing.T) {
 	t.Parallel()
+	url := "ws://www.fake-website.com/logs"
 
 	t.Run("Produces an error if the socket connection could not be established", func(t *testing.T) {
 		t.Parallel()
+
+		// WebSocket connections cannot be created on HTTP/1.0 and below
+		ctx := testutil.Context(t, testutil.WaitShort)
+		r, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		require.NoError(t, err)
+		r.ProtoMajor = 1
+		r.ProtoMinor = 0
+		r.Proto = "HTTP/1.0"
+
+		_, _, err = httpapi.OneWayWebSocket[any](httptest.NewRecorder(), r)
+		require.ErrorContains(
+			t,
+			err,
+			"WebSocket protocol violation: handshake request must be at least HTTP/1.1:",
+		)
 	})
 
 	t.Run("Returned callback can publish a new event to the WebSocket connection", func(t *testing.T) {
@@ -183,7 +200,7 @@ func TestOneWayWebSocket(t *testing.T) {
 		t.Parallel()
 	})
 
-	t.Run("Renders the socket inert if the parent context cancels", func(t *testing.T) {
+	t.Run("Renders the socket inert if the request context cancels", func(t *testing.T) {
 		t.Parallel()
 	})
 }
