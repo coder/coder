@@ -840,7 +840,7 @@ func (a *agent) reportConnection(id uuid.UUID, connectionType proto.Connection_T
 		a.reportConnectionsMu.Lock()
 		defer a.reportConnectionsMu.Unlock()
 		if len(a.reportConnections) >= reportConnectionBufferLimit {
-			a.logger.Warn(a.hardCtx, "connection report buffer limit reached, dropping connect",
+			a.logger.Warn(a.hardCtx, "connection report buffer limit reached, dropping disconnect",
 				slog.F("limit", reportConnectionBufferLimit),
 				slog.F("connection_id", id),
 				slog.F("connection_type", connectionType),
