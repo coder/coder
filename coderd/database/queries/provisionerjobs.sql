@@ -63,10 +63,7 @@ pending_jobs AS (
 	-- Step 2: Extract only pending jobs
 	SELECT *
 	FROM provisioner_jobs
-	WHERE started_at IS NULL
-		AND canceled_at IS NULL
-		AND completed_at IS NULL
-		AND error IS NULL
+	WHERE job_status = 'pending'
 ),
 ranked_jobs AS (
 	-- Step 3: Rank only pending jobs based on provisioner availability
