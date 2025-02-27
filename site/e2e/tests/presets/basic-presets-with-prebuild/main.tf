@@ -32,7 +32,7 @@ data "coder_workspace_preset" "goland" {
     "jetbrains_ide" = "GO"
   }
   prebuilds {
-    instances = 1
+    instances = 2
   }
 }
 
@@ -40,9 +40,6 @@ data "coder_workspace_preset" "python" {
   name = "Some Like PyCharm"
   parameters = {
     "jetbrains_ide" = "PY"
-  }
-  prebuilds {
-    instances = 2
   }
 }
 
@@ -58,7 +55,9 @@ resource "coder_agent" "main" {
       touch ~/.init_done
     fi
 
-    # Add any commands that should be executed at workspace startup (e.g install requirements, start a program, etc) here
+    if [[ "${data.coder_workspace.me.prebuild_count}" -eq 1 ]]; then
+      touch ~/.prebuild_note
+    fi
   EOT
 
   # These environment variables allow you to make Git commits right away after creating a
@@ -78,9 +77,9 @@ resource "coder_agent" "main" {
   # For basic resources, you can use the `coder stat` command.
   # If you need more control, you can write your own script.
   metadata {
-    display_name = "Is Prebuild"
+    display_name = "Was Prebuild"
     key          = "prebuild"
-    script       = "echo ${data.coder_workspace.me.prebuild_count}"
+    script       = "[[ -e ~/.prebuild_note ]] && echo 'Yes' || echo 'No'"
     interval     = 10
     timeout      = 1
   }

@@ -12,6 +12,8 @@ test("create template with preset and use in workspace", async ({
 	page,
 	baseURL,
 }) => {
+	test.setTimeout(300_000);
+
 	// Create new template.
 	const templateName = randomName();
 	await importTemplate(page, templateName, [
