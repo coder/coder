@@ -1669,7 +1669,7 @@ func (s *MethodTestSuite) TestUser() {
 			SitePermissions: nil,
 			OrgPermissions:  nil,
 			UserPermissions: nil,
-		}).Asserts(rbac.ResourceAssignOrgRole.InOrg(customRole.OrganizationID.UUID), policy.ActionUpdate).ErrorsWithPG(sql.ErrNoRows)
+		}).Asserts(rbac.ResourceAssignOrgRole.InOrg(customRole.OrganizationID.UUID), policy.ActionUpdate)
 	}))
 	s.Run("SitePermissions/UpdateCustomRole", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.UpdateCustomRoleParams{
