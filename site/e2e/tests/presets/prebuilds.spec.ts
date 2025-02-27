@@ -1,5 +1,5 @@
 import path from "node:path";
-import { expect, test } from "@playwright/test";
+import { type Locator, expect, test } from "@playwright/test";
 import {
 	currentUser,
 	importTemplate,
@@ -14,18 +14,22 @@ test.beforeEach(async ({ page }) => {
 	await login(page);
 });
 
+const waitForBuildTimeout = 120_000; // Builds can take a while, let's give them at most 2m.
+
+const templateFiles = [
+	path.join(__dirname, "basic-presets-with-prebuild/main.tf"),
+	path.join(__dirname, "basic-presets-with-prebuild/.terraform.lock.hcl"),
+];
+
+const expectedPrebuilds = 2;
+
 // NOTE: requires the `workspace-prebuilds` experiment enabled!
 test("create template with desired prebuilds", async ({ page, baseURL }) => {
 	requiresLicense();
 
-	const expectedPrebuilds = 2;
-
 	// Create new template.
 	const templateName = randomName();
-	await importTemplate(page, templateName, [
-		path.join(__dirname, "basic-presets-with-prebuild/main.tf"),
-		path.join(__dirname, "basic-presets-with-prebuild/.terraform.lock.hcl"),
-	]);
+	await importTemplate(page, templateName, templateFiles);
 
 	await page.goto(
 		`/workspaces?filter=owner:prebuilds%20template:${templateName}&page=1`,
@@ -34,13 +38,13 @@ test("create template with desired prebuilds", async ({ page, baseURL }) => {
 
 	// Wait for prebuilds to show up.
 	const prebuilds = page.getByTestId(/^workspace-.+$/);
-	await prebuilds.first().waitFor({ state: "visible", timeout: 120_000 });
-	expect((await prebuilds.all()).length).toEqual(expectedPrebuilds);
+	await waitForExpectedCount(prebuilds, expectedPrebuilds);
 
 	// Wait for prebuilds to start.
-	const runningPrebuilds = page.getByTestId("build-status").getByText("Running");
-	await runningPrebuilds.first().waitFor({ state: "visible", timeout: 120_000 });
-	expect((await runningPrebuilds.all()).length).toEqual(expectedPrebuilds);
+	const runningPrebuilds = page
+		.getByTestId("build-status")
+		.getByText("Running");
+	await waitForExpectedCount(runningPrebuilds, expectedPrebuilds);
 });
 
 // NOTE: requires the `workspace-prebuilds` experiment enabled!
@@ -51,10 +55,7 @@ test("claim prebuild matching selected preset", async ({ page, baseURL }) => {
 
 	// Create new template.
 	const templateName = randomName();
-	await importTemplate(page, templateName, [
-		path.join(__dirname, "basic-presets-with-prebuild/main.tf"),
-		path.join(__dirname, "basic-presets-with-prebuild/.terraform.lock.hcl"),
-	]);
+	await importTemplate(page, templateName, templateFiles);
 
 	await page.goto(
 		`/workspaces?filter=owner:prebuilds%20template:${templateName}&page=1`,
@@ -63,11 +64,17 @@ test("claim prebuild matching selected preset", async ({ page, baseURL }) => {
 
 	// Wait for prebuilds to show up.
 	const prebuilds = page.getByTestId(/^workspace-.+$/);
-	await prebuilds.first().waitFor({ state: "visible", timeout: 120_000 });
+	await waitForExpectedCount(prebuilds, expectedPrebuilds);
+
+	const previousWorkspaceNames = await Promise.all(
+		(await prebuilds.all()).map((value) => {
+			return value.getByText(/prebuild-.+/).textContent();
+		}),
+	);
 
 	// Wait for prebuilds to start.
-	const runningPrebuilds = page.getByTestId("build-status").getByText("Running");
-	await runningPrebuilds.first().waitFor({ state: "visible", timeout: 120_000 });
+	let runningPrebuilds = page.getByTestId("build-status").getByText("Running");
+	await waitForExpectedCount(runningPrebuilds, expectedPrebuilds);
 
 	// Open the first prebuild.
 	await runningPrebuilds.first().click();
@@ -101,7 +108,7 @@ test("claim prebuild matching selected preset", async ({ page, baseURL }) => {
 	// Wait for the workspace build display to be navigated to.
 	const user = currentUser(page);
 	await page.waitForURL(`/@${user.username}/${workspaceName}`, {
-		timeout: 120_000, // Account for workspace build time.
+		timeout: waitForBuildTimeout, // Account for workspace build time.
 	});
 
 	// Validate the workspace metadata that it was indeed a claimed prebuild.
@@ -109,4 +116,41 @@ test("claim prebuild matching selected preset", async ({ page, baseURL }) => {
 	await indicator.waitFor({ timeout: 60_000 });
 	const text = indicator.locator("xpath=..").getByText("Yes");
 	await text.waitFor({ timeout: 30_000 });
+
+	// Navigate back to prebuilds page to see that a new prebuild replaced the claimed one.
+	await page.goto(
+		`/workspaces?filter=owner:prebuilds%20template:${templateName}&page=1`,
+		{ waitUntil: "domcontentloaded" },
+	);
+
+	// Wait for prebuilds to show up.
+	const newPrebuilds = page.getByTestId(/^workspace-.+$/);
+	await waitForExpectedCount(newPrebuilds, expectedPrebuilds);
+
+	const currentWorkspaceNames = await Promise.all(
+		(await newPrebuilds.all()).map((value) => {
+			return value.getByText(/prebuild-.+/).textContent();
+		}),
+	);
+
+	// Ensure the prebuilds have changed.
+	expect(currentWorkspaceNames).not.toEqual(previousWorkspaceNames);
+
+	// Wait for prebuilds to start.
+	runningPrebuilds = page.getByTestId("build-status").getByText("Running");
+	await waitForExpectedCount(runningPrebuilds, expectedPrebuilds);
 });
+
+function waitForExpectedCount(prebuilds: Locator, expectedCount: number) {
+	return expect
+		.poll(
+			async () => {
+				return (await prebuilds.all()).length === expectedCount;
+			},
+			{
+				intervals: [100],
+				timeout: waitForBuildTimeout,
+			},
+		)
+		.toBe(true);
+}
