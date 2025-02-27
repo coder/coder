@@ -2334,6 +2334,60 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 				1: {},
 			},
 		},
+		// N jobs (1 job with 0 tags) & 0 provisioners exist
+		{
+			name: "test-case-9",
+			jobTags: []database.StringMap{
+				{},
+				{"a": "1"},
+				{"b": "2"},
+			},
+			daemonTags:     []database.StringMap{},
+			queueSizes:     []int64{0, 0, 0},
+			queuePositions: []int64{0, 0, 0},
+		},
+		// N jobs (1 job with 0 tags) & N provisioners
+		{
+			name: "test-case-10",
+			jobTags: []database.StringMap{
+				{},
+				{"a": "1"},
+				{"b": "2"},
+			},
+			daemonTags: []database.StringMap{
+				{},
+				{"a": "1"},
+				{"b": "2"},
+			},
+			queueSizes:     []int64{2, 2, 2},
+			queuePositions: []int64{1, 2, 2},
+		},
+		// (N + 1) jobs (1 job with 0 tags) & N provisioners
+		// 1 job not matching any provisioner (first in the list)
+		{
+			name: "test-case-11",
+			jobTags: []database.StringMap{
+				{"c": "3"},
+				{},
+				{"a": "1"},
+				{"b": "2"},
+			},
+			daemonTags: []database.StringMap{
+				{},
+				{"a": "1"},
+				{"b": "2"},
+			},
+			queueSizes:     []int64{0, 2, 2, 2},
+			queuePositions: []int64{0, 1, 2, 2},
+		},
+		// 0 jobs & 0 provisioners
+		{
+			name:           "test-case-12",
+			jobTags:        []database.StringMap{},
+			daemonTags:     []database.StringMap{},
+			queueSizes:     nil, // TODO(yevhenii): should it be empty array instead?
+			queuePositions: nil,
+		},
 	}
 
 	for _, tc := range testCases {
