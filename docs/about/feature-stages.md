@@ -18,7 +18,7 @@ recommend using early access features in production deployments.
 
 Coder sometimes releases early access features that are available for use, but are disabled by default.
 You shouldn't use early access features in production because they might cause performance or stability issues.
-Early access features can be are mostly feature-complete, but require further internal testing and remain in the early access stage for at least one month.
+Early access features can be mostly feature-complete, but require further internal testing and remain in the early access stage for at least one month.
 
 Coder may make significant changes or revert features to a feature flag at any time.
 
