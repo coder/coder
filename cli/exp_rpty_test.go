@@ -88,7 +88,7 @@ func TestExpRpty(t *testing.T) {
 		})
 
 		_ = agenttest.New(t, client.URL, agentToken, func(o *agent.Options) {
-			o.ExperimentalContainersEnabled = true
+			o.ExperimentalDevcontainersEnabled = true
 		})
 		_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
 

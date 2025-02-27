@@ -35,6 +35,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/agenttest"
 	agentproto "github.com/coder/coder/v2/agent/proto"
@@ -1959,7 +1960,8 @@ func TestSSH_Container(t *testing.T) {
 		})
 
 		_ = agenttest.New(t, client.URL, agentToken, func(o *agent.Options) {
-			o.ExperimentalContainersEnabled = true
+			o.ExperimentalDevcontainersEnabled = true
+			o.ContainerLister = agentcontainers.NewDocker(o.Execer)
 		})
 		_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
 
@@ -1985,14 +1987,22 @@ func TestSSH_Container(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		client, workspace, agentToken := setupWorkspaceForAgent(t)
 		_ = agenttest.New(t, client.URL, agentToken, func(o *agent.Options) {
-			o.ExperimentalContainersEnabled = true
+			o.ExperimentalDevcontainersEnabled = true
+			o.ContainerLister = agentcontainers.NewDocker(o.Execer)
 		})
 		_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
 
 		inv, root := clitest.New(t, "ssh", workspace.Name, "-c", uuid.NewString())
 		clitest.SetupConfig(t, client, root)
-		err := inv.WithContext(ctx).Run()
-		require.ErrorContains(t, err, "container not found:")
+		ptty := ptytest.New(t).Attach(inv)
+
+		cmdDone := tGo(t, func() {
+			err := inv.WithContext(ctx).Run()
+			assert.NoError(t, err)
+		})
+
+		ptty.ExpectMatch("Container not found:")
+		<-cmdDone
 	})
 
 	t.Run("NotEnabled", func(t *testing.T) {
@@ -2005,8 +2015,16 @@ func TestSSH_Container(t *testing.T) {
 
 		inv, root := clitest.New(t, "ssh", workspace.Name, "-c", uuid.NewString())
 		clitest.SetupConfig(t, client, root)
-		err := inv.WithContext(ctx).Run()
-		require.ErrorContains(t, err, "container not found:")
+		ptty := ptytest.New(t).Attach(inv)
+
+		cmdDone := tGo(t, func() {
+			err := inv.WithContext(ctx).Run()
+			assert.NoError(t, err)
+		})
+
+		ptty.ExpectMatch("No containers found!")
+		ptty.ExpectMatch("Tip: Agent container integration is experimental and not enabled by default.")
+		<-cmdDone
 	})
 }
 

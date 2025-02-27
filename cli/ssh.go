@@ -78,7 +78,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 		networkInfoDir      string
 		networkInfoInterval time.Duration
 
-		container     string
+		containerName string
 		containerUser string
 	)
 	client := new(codersdk.Client)
@@ -286,20 +286,31 @@ func (r *RootCmd) ssh() *serpent.Command {
 			}
 			conn.AwaitReachable(ctx)
 
-			if container != "" {
+			if containerName != "" {
 				cts, err := client.WorkspaceAgentListContainers(ctx, workspaceAgent.ID, nil)
 				if err != nil {
 					return xerrors.Errorf("list containers: %w", err)
 				}
+				if len(cts.Containers) == 0 {
+					cliui.Info(inv.Stderr, "No containers found!")
+					cliui.Info(inv.Stderr, "Tip: Agent container integration is experimental and not enabled by default.")
+					cliui.Info(inv.Stderr, "     To enable it, set CODER_AGENT_DEVCONTAINERS_ENABLE=true in your template.")
+					return nil
+				}
 				var found bool
 				for _, c := range cts.Containers {
-					if c.FriendlyName == container || c.ID == container {
+					if c.FriendlyName == containerName || c.ID == containerName {
 						found = true
 						break
 					}
 				}
 				if !found {
-					return xerrors.Errorf("container not found: %q", container)
+					availableContainers := make([]string, len(cts.Containers))
+					for i, c := range cts.Containers {
+						availableContainers[i] = c.FriendlyName
+					}
+					cliui.Errorf(inv.Stderr, "Container not found: %q\nAvailable containers: %v", containerName, availableContainers)
+					return nil
 				}
 			}
 
@@ -475,9 +486,9 @@ func (r *RootCmd) ssh() *serpent.Command {
 				}
 			}
 
-			if container != "" {
+			if containerName != "" {
 				for k, v := range map[string]string{
-					agentssh.ContainerEnvironmentVariable:     container,
+					agentssh.ContainerEnvironmentVariable:     containerName,
 					agentssh.ContainerUserEnvironmentVariable: containerUser,
 				} {
 					if err := sshSession.Setenv(k, v); err != nil {
@@ -630,15 +641,14 @@ func (r *RootCmd) ssh() *serpent.Command {
 			Flag:          "container",
 			FlagShorthand: "c",
 			Description:   "Specifies a container inside the workspace to connect to.",
-			Value:         serpent.StringOf(&container),
+			Value:         serpent.StringOf(&containerName),
 			Hidden:        true, // Hidden until this features is at least in beta.
 		},
 		{
-			Flag:          "container-user",
-			FlagShorthand: "u",
-			Description:   "When connecting to a container, specifies the user to connect as.",
-			Value:         serpent.StringOf(&containerUser),
-			Hidden:        true, // Hidden until this features is at least in beta.
+			Flag:        "container-user",
+			Description: "When connecting to a container, specifies the user to connect as.",
+			Value:       serpent.StringOf(&containerUser),
+			Hidden:      true, // Hidden until this features is at least in beta.
 		},
 		sshDisableAutostartOption(serpent.BoolOf(&disableAutostart)),
 	}

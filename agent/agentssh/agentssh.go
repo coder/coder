@@ -115,7 +115,7 @@ type Config struct {
 	ReportConnection reportConnectionFunc
 	// Experimental: allow connecting to running containers if
 	// CODER_AGENT_DEVCONTAINERS_ENABLE=true.
-	ExperimentalContainersEnabled bool
+	ExperimentalDevContainersEnabled bool
 }
 
 type Server struct {
@@ -425,16 +425,19 @@ func (s *Server) sessionHandler(session ssh.Session) {
 	}
 
 	container, containerUser, env := extractContainerInfo(env)
-	s.logger.Debug(ctx, "container info",
-		slog.F("container", container),
-		slog.F("container_user", containerUser),
-	)
+	if container != "" {
+		s.logger.Debug(ctx, "container info",
+			slog.F("container", container),
+			slog.F("container_user", containerUser),
+		)
+	}
 
 	switch ss := session.Subsystem(); ss {
 	case "":
 	case "sftp":
-		if s.config.ExperimentalContainersEnabled && container != "" {
+		if s.config.ExperimentalDevContainersEnabled && container != "" {
 			closeCause("sftp not yet supported with containers")
+			_ = session.Exit(1)
 			return
 		}
 		err := s.sftpHandler(logger, session)
@@ -546,7 +549,7 @@ func (s *Server) sessionStart(logger slog.Logger, session ssh.Session, env []str
 
 	var ei usershell.EnvInfoer
 	var err error
-	if s.config.ExperimentalContainersEnabled && container != "" {
+	if s.config.ExperimentalDevContainersEnabled && container != "" {
 		ei, err = agentcontainers.EnvInfo(ctx, s.Execer, container, containerUser)
 		if err != nil {
 			s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, ptyLabel, "container_env_info").Add(1)
