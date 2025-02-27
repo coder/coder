@@ -215,26 +215,37 @@ func TestOneWayWebSocket(t *testing.T) {
 	t.Run("Produces an error if the socket connection could not be established", func(t *testing.T) {
 		t.Parallel()
 
-		// WebSocket connections cannot be created on HTTP/1.0 and below
-		req := createBaseRequest(t)
-		req.ProtoMajor = 1
-		req.ProtoMinor = 0
-		req.Proto = "HTTP/1.0"
+		incorrectProtocols := []struct {
+			major int
+			minor int
+			proto string
+		}{
+			{0, 9, "HTTP/0.9"},
+			{1, 0, "HTTP/1.0"},
+		}
+		for _, p := range incorrectProtocols {
+			req := createBaseRequest(t)
+			req.ProtoMajor = p.major
+			req.ProtoMinor = p.minor
+			req.Proto = p.proto
 
-		_, _, err := httpapi.OneWayWebSocket[any](httptest.NewRecorder(), req)
-		require.ErrorContains(
-			t,
-			err,
-			"WebSocket protocol violation: handshake request must be at least HTTP/1.1:",
-		)
+			_, _, err := httpapi.OneWayWebSocket[any](httptest.NewRecorder(), req)
+			require.ErrorContains(
+				t,
+				err,
+				fmt.Sprintf(
+					"WebSocket protocol violation: handshake request must be at least HTTP/1.1: %q",
+					p.proto,
+				),
+			)
+		}
 	})
 
 	t.Run("Returned callback can publish a new event to the WebSocket connection", func(t *testing.T) {
 		t.Parallel()
 
-		r := strings.NewReader("")
 		recorder := httptest.NewRecorder()
-		writer := wrapWriter(recorder, r)
+		writer := wrapWriter(recorder, strings.NewReader(""))
 		send, _, err := httpapi.OneWayWebSocket[codersdk.ServerSentEvent](
 			writer,
 			createBaseRequest(t),
