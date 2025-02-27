@@ -2,6 +2,7 @@ import { API } from "api/api";
 import type {
 	CreateOrganizationRequest,
 	GroupSyncSettings,
+	MembersRequest,
 	RoleSyncSettings,
 	UpdateOrganizationRequest,
 } from "api/typesGenerated";
@@ -61,9 +62,9 @@ export const organizationMembersKey = (id: string) => [
 	"members",
 ];
 
-export const organizationMembers = (id: string) => {
+export const organizationMembers = (id: string, req: MembersRequest) => {
 	return {
-		queryFn: () => API.getOrganizationMembers(id),
+		queryFn: () => API.getOrganizationMembers(id, req),
 		queryKey: organizationMembersKey(id),
 	};
 };
