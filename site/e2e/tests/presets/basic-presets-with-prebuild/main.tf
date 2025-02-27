@@ -1,11 +1,11 @@
 terraform {
   required_providers {
     coder = {
-      source = "coder/coder"
+      source  = "coder/coder"
       version = "2.1.3"
     }
     docker = {
-      source = "kreuzwerker/docker"
+      source  = "kreuzwerker/docker"
       version = "3.0.2"
     }
   }
@@ -66,9 +66,9 @@ resource "coder_agent" "main" {
   # You can remove this block if you'd prefer to configure Git manually or using
   # dotfiles. (see docs/dotfiles.md)
   env = {
-    GIT_AUTHOR_NAME = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
+    GIT_AUTHOR_NAME     = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
     GIT_AUTHOR_EMAIL    = "${data.coder_workspace_owner.me.email}"
-    GIT_COMMITTER_NAME = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
+    GIT_COMMITTER_NAME  = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
     GIT_COMMITTER_EMAIL = "${data.coder_workspace_owner.me.email}"
   }
 
@@ -96,12 +96,12 @@ resource "coder_agent" "main" {
 
 # See https://registry.coder.com/modules/jetbrains-gateway
 module "jetbrains_gateway" {
-  count = data.coder_workspace.me.start_count
+  count  = data.coder_workspace.me.start_count
   source = "registry.coder.com/modules/jetbrains-gateway/coder"
 
   # JetBrains IDEs to make available for the user to select
   jetbrains_ides = ["IU", "PY", "WS", "PS", "RD", "CL", "GO", "RM"]
-  default = "IU"
+  default        = "IU"
 
   # Default folder to open when starting a JetBrains IDE
   folder = "/home/coder"

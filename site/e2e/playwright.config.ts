@@ -111,7 +111,7 @@ export default defineConfig({
 				gitAuth.validatePath,
 			),
 			CODER_PPROF_ADDRESS: `127.0.0.1:${coderdPProfPort}`,
-			CODER_EXPERIMENTS: `${e2eFakeExperiment1},${e2eFakeExperiment2}`,
+			CODER_EXPERIMENTS: `${e2eFakeExperiment1},${e2eFakeExperiment2},${process.env.CODER_EXPERIMENTS}`,
 
 			// Tests for Deployment / User Authentication / OIDC
 			CODER_OIDC_ISSUER_URL: "https://accounts.google.com",

@@ -1,6 +1,8 @@
 import { type ChildProcess, exec, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import fs from "node:fs";
 import net from "node:net";
+import * as os from "node:os";
 import path from "node:path";
 import { Duplex } from "node:stream";
 import { type BrowserContext, type Page, expect, test } from "@playwright/test";
@@ -10,6 +12,7 @@ import type {
 	WorkspaceBuildParameter,
 } from "api/typesGenerated";
 import express from "express";
+import JSZip from "jszip";
 import capitalize from "lodash/capitalize";
 import * as ssh from "ssh2";
 import { TarWriter } from "utils/tar";
@@ -1126,4 +1129,85 @@ export async function createOrganization(page: Page): Promise<{
 	await expect(page.getByText("Organization created.")).toBeVisible();
 
 	return { name, displayName, description };
+}
+
+// TODO: convert to test fixture and dispose after each test.
+export async function importTemplate(
+	page: Page,
+	templateName: string,
+	files: string[],
+	orgName = defaultOrganizationName,
+): Promise<string> {
+	// Create a ZIP from the given input files.
+	const tmpdir = fs.mkdtempSync(path.join(os.tmpdir(), templateName));
+	const templatePath = path.join(tmpdir, `${templateName}.zip`);
+	await createZIP(templatePath, files);
+
+	// Create new template.
+	await page.goto("/templates/new", { waitUntil: "domcontentloaded" });
+	await page.getByTestId("drop-zone").click();
+
+	// Select the template file.
+	const [fileChooser] = await Promise.all([
+		page.waitForEvent("filechooser"),
+		page.getByTestId("drop-zone").click(),
+	]);
+	await fileChooser.setFiles(templatePath);
+
+	// Set name and submit.
+	await page.locator("input[name=name]").fill(templateName);
+
+	// If the organization picker is present on the page, select the default
+	// organization.
+	const orgPicker = page.getByLabel("Belongs to *");
+	const organizationsEnabled = await orgPicker.isVisible();
+	if (organizationsEnabled) {
+		if (orgName !== defaultOrganizationName) {
+			throw new Error(
+				`No provisioners registered for ${orgName}, creating this template will fail`,
+			);
+		}
+
+		await orgPicker.click();
+		await page.getByText(orgName, { exact: true }).click();
+	}
+
+	await page.getByRole("button", { name: "Save" }).click();
+
+	await page.waitForURL(`/templates/${orgName}/${templateName}/files`, {
+		timeout: 120_000,
+	});
+	return templateName;
+}
+
+async function createZIP(
+	outpath: string,
+	inputFiles: string[],
+): Promise<{ path: string; length: number }> {
+	const zip = new JSZip();
+
+	let found = false;
+	for (const file of inputFiles) {
+		if (!fs.existsSync(file)) {
+			console.warn(`${file} not found, not including in zip`);
+			continue;
+		}
+		found = true;
+
+		const contents = fs.readFileSync(file);
+		zip.file(path.basename(file), contents);
+	}
+
+	if (!found) {
+		throw new Error(`no files found to zip into ${outpath}`);
+	}
+
+	zip
+		.generateNodeStream({ type: "nodebuffer", streamFiles: true })
+		.pipe(fs.createWriteStream(outpath));
+
+	return {
+		path: outpath,
+		length: zip.length,
+	};
 }
