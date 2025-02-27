@@ -781,6 +781,18 @@ func (a *agent) reportConnectionsLoop(ctx context.Context, aAPI proto.DRPCAgentC
 	}
 }
 
+const (
+	// reportConnectionBufferLimit limits the number of connection reports we
+	// buffer to avoid growing the buffer indefinitely. This should not happen
+	// unless the agent has lost connection to coderd for a long time or if
+	// the agent is being spammed with connections.
+	//
+	// If we assume ~150 byte per connection report, this would be around 300KB
+	// of memory which seems acceptable. We could reduce this if necessary by
+	// not using the proto struct directly.
+	reportConnectionBufferLimit = 2048
+)
+
 func (a *agent) reportConnection(id uuid.UUID, connectionType proto.Connection_Type, ip string) (disconnected func(code int, reason string)) {
 	// If the experiment hasn't been enabled, we don't report connections.
 	if !a.experimentalConnectionReports {
@@ -797,25 +809,45 @@ func (a *agent) reportConnection(id uuid.UUID, connectionType proto.Connection_T
 
 	a.reportConnectionsMu.Lock()
 	defer a.reportConnectionsMu.Unlock()
-	a.reportConnections = append(a.reportConnections, &proto.ReportConnectionRequest{
-		Connection: &proto.Connection{
-			Id:         id[:],
-			Action:     proto.Connection_CONNECT,
-			Type:       connectionType,
-			Timestamp:  timestamppb.New(time.Now()),
-			Ip:         ip,
-			StatusCode: 0,
-			Reason:     nil,
-		},
-	})
-	select {
-	case a.reportConnectionsUpdate <- struct{}{}:
-	default:
+
+	if len(a.reportConnections) >= reportConnectionBufferLimit {
+		a.logger.Warn(a.hardCtx, "connection report buffer limit reached, dropping connect",
+			slog.F("limit", reportConnectionBufferLimit),
+			slog.F("connection_id", id),
+			slog.F("connection_type", connectionType),
+			slog.F("ip", ip),
+		)
+	} else {
+		a.reportConnections = append(a.reportConnections, &proto.ReportConnectionRequest{
+			Connection: &proto.Connection{
+				Id:         id[:],
+				Action:     proto.Connection_CONNECT,
+				Type:       connectionType,
+				Timestamp:  timestamppb.New(time.Now()),
+				Ip:         ip,
+				StatusCode: 0,
+				Reason:     nil,
+			},
+		})
+		select {
+		case a.reportConnectionsUpdate <- struct{}{}:
+		default:
+		}
 	}
 
 	return func(code int, reason string) {
 		a.reportConnectionsMu.Lock()
 		defer a.reportConnectionsMu.Unlock()
+		if len(a.reportConnections) >= reportConnectionBufferLimit {
+			a.logger.Warn(a.hardCtx, "connection report buffer limit reached, dropping connect",
+				slog.F("limit", reportConnectionBufferLimit),
+				slog.F("connection_id", id),
+				slog.F("connection_type", connectionType),
+				slog.F("ip", ip),
+			)
+			return
+		}
+
 		a.reportConnections = append(a.reportConnections, &proto.ReportConnectionRequest{
 			Connection: &proto.Connection{
 				Id:         id[:],
