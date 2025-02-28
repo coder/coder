@@ -44,6 +44,7 @@ import type {
 } from "./CreateWorkspacePage";
 import { ExternalAuthButton } from "./ExternalAuthButton";
 import type { CreateWSPermissions } from "./permissions";
+import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 
 export const Language = {
 	duplicationWarning:
@@ -274,9 +275,15 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 
 						{presets.length > 0 && (
 							<Stack direction="column" spacing={2}>
-								<span css={styles.description}>
-									Select a preset to get started
-								</span>
+								<Stack direction="row" spacing={2} alignItems="center">
+									<span css={styles.description}>
+										Select a preset to get started
+									</span>
+									<FeatureStageBadge
+										contentType={"beta"}
+										size="md"
+									/>
+								</Stack>
 								<Stack direction="row" spacing={2}>
 									<SelectFilter
 										label="Preset"
