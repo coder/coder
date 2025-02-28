@@ -253,11 +253,16 @@ func (dcl *DockerCLILister) List(ctx context.Context) (codersdk.WorkspaceAgentLi
 		return codersdk.WorkspaceAgentListContainersResponse{}, xerrors.Errorf("scan docker ps output: %w", err)
 	}
 
+	res := codersdk.WorkspaceAgentListContainersResponse{
+		Containers: make([]codersdk.WorkspaceAgentDevcontainer, 0, len(ids)),
+		Warnings:   make([]string, 0),
+	}
 	dockerPsStderr := strings.TrimSpace(stderrBuf.String())
+	if dockerPsStderr != "" {
+		res.Warnings = append(res.Warnings, dockerPsStderr)
+	}
 	if len(ids) == 0 {
-		return codersdk.WorkspaceAgentListContainersResponse{
-			Warnings: []string{dockerPsStderr},
-		}, nil
+		return res, nil
 	}
 
 	// now we can get the detailed information for each container
@@ -273,9 +278,6 @@ func (dcl *DockerCLILister) List(ctx context.Context) (codersdk.WorkspaceAgentLi
 		return codersdk.WorkspaceAgentListContainersResponse{}, xerrors.Errorf("run docker inspect: %w", err)
 	}
 
-	res := codersdk.WorkspaceAgentListContainersResponse{
-		Containers: make([]codersdk.WorkspaceAgentDevcontainer, len(ins)),
-	}
 	for idx, in := range ins {
 		out, warns := convertDockerInspect(in)
 		res.Warnings = append(res.Warnings, warns...)
