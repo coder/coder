@@ -175,7 +175,18 @@ func (api *API) listMembers(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, resp)
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.GetMembersResponse{
+		Members: resp,
+		Count:   len(resp),
+	})
+}
+
+func (api *API) GetMembers(rw http.ResponseWriter, r *http.Request) ([]database.OrganizationMember, int64, bool) {
+	// ctx := r.Context()
+	// query := r.URL.Query().Get("q")
+	// params, errs := sear
+
+	return nil, -1, false
 }
 
 // @Summary Assign role to organization member
