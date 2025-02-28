@@ -1,10 +1,13 @@
 package httpapi_test
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -16,6 +19,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestInternalServerError(t *testing.T) {
@@ -153,5 +157,125 @@ func TestWebsocketCloseMsg(t *testing.T) {
 		msg := strings.Repeat("こんにちは", 10)
 		trunc := httpapi.WebsocketCloseSprintf("%s", msg)
 		assert.Equal(t, len(trunc), 123)
+	})
+}
+
+type mockHijacker struct {
+	http.ResponseWriter
+	connection net.Conn
+	rw         *bufio.ReadWriter
+}
+
+func (mh mockHijacker) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	return mh.connection, mh.rw, nil
+}
+
+func (mh mockHijacker) Flush() {
+	if f, ok := mh.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
+func TestOneWayWebSocket(t *testing.T) {
+	t.Parallel()
+
+	createBaseRequest := func(t *testing.T) *http.Request {
+		url := "ws://www.fake-website.com/logs"
+		ctx := testutil.Context(t, testutil.WaitShort)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		require.NoError(t, err)
+		req.Header = http.Header{
+			"Connection":            {"Upgrade"},
+			"Upgrade":               {"websocket"},
+			"Sec-WebSocket-Version": {"13"},
+			"Sec-WebSocket-Key":     {"dGhlIHNhbXBsZSBub25jZQ=="},
+		}
+		// Todo: Figure out why headers are missing without these calls
+		req.Header.Add("Sec-WebSocket-Version", "13")
+		req.Header.Add("Sec-WebSocket-Key", "dGhlIHNhbXBsZSBub25jZQ==")
+
+		return req
+	}
+
+	wrapWriter := func(rw http.ResponseWriter, r io.Reader) http.ResponseWriter {
+		server, _ := net.Pipe()
+		reader := bufio.NewReader(r)
+		writer := bufio.NewWriter(rw)
+		readWriter := bufio.NewReadWriter(reader, writer)
+
+		hijacker := mockHijacker{
+			connection:     server,
+			ResponseWriter: rw,
+			rw:             readWriter,
+		}
+
+		return hijacker
+	}
+
+	t.Run("Produces an error if the socket connection could not be established", func(t *testing.T) {
+		t.Parallel()
+
+		incorrectProtocols := []struct {
+			major int
+			minor int
+			proto string
+		}{
+			{0, 9, "HTTP/0.9"},
+			{1, 0, "HTTP/1.0"},
+		}
+		for _, p := range incorrectProtocols {
+			req := createBaseRequest(t)
+			req.ProtoMajor = p.major
+			req.ProtoMinor = p.minor
+			req.Proto = p.proto
+
+			_, _, err := httpapi.OneWayWebSocket[any](httptest.NewRecorder(), req)
+			require.ErrorContains(
+				t,
+				err,
+				fmt.Sprintf(
+					"WebSocket protocol violation: handshake request must be at least HTTP/1.1: %q",
+					p.proto,
+				),
+			)
+		}
+	})
+
+	t.Run("Returned callback can publish a new event to the WebSocket connection", func(t *testing.T) {
+		t.Parallel()
+
+		recorder := httptest.NewRecorder()
+		writer := wrapWriter(recorder, strings.NewReader(""))
+		send, _, err := httpapi.OneWayWebSocket[codersdk.ServerSentEvent](
+			writer,
+			createBaseRequest(t),
+		)
+		require.NoError(t, err)
+
+		err = send(codersdk.ServerSentEvent{
+			Type: codersdk.ServerSentEventTypeData,
+			Data: "Blah",
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("Signals to an outside consumer when the socket has been closed", func(t *testing.T) {
+		t.Parallel()
+	})
+
+	t.Run("Socket will automatically close if client sends a single message", func(t *testing.T) {
+		t.Parallel()
+	})
+
+	t.Run("Returned callback returns error if called after socket has been closed", func(t *testing.T) {
+		t.Parallel()
+	})
+
+	t.Run("Sends a heartbeat to the socket on a fixed internal of time to keep connections alive", func(t *testing.T) {
+		t.Parallel()
+	})
+
+	t.Run("Renders the socket inert if the request context cancels", func(t *testing.T) {
+		t.Parallel()
 	})
 }

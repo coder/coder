@@ -1,7 +1,6 @@
 package httpapi
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -11,7 +10,6 @@ import (
 	"net/http"
 	"reflect"
 	"strings"
-	"time"
 
 	"github.com/go-playground/validator/v10"
 	"golang.org/x/xerrors"
@@ -19,6 +17,8 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi/httpapiconstraints"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/websocket"
+	"github.com/coder/websocket/wsjson"
 )
 
 var Validate *validator.Validate
@@ -282,107 +282,87 @@ func WebsocketCloseSprintf(format string, vars ...any) string {
 	return msg
 }
 
-func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (sendEvent func(ctx context.Context, sse codersdk.ServerSentEvent) error, closed chan struct{}, err error) {
-	h := rw.Header()
-	h.Set("Content-Type", "text/event-stream")
-	h.Set("Cache-Control", "no-cache")
-	h.Set("Connection", "keep-alive")
-	h.Set("X-Accel-Buffering", "no")
-
-	f, ok := rw.(http.Flusher)
-	if !ok {
-		panic("http.ResponseWriter is not http.Flusher")
+// OneWayWebSocket establishes a new WebSocket connection that enforces one-way
+// communication from the server to the client.
+//
+// We must use an approach like this instead of Server-Sent Events for the
+// browser, because on HTTP/1.1 connections, browsers are locked to no more than
+// six HTTP connections for a domain total, across all tabs. If a user were to
+// open a workspace in multiple tabs, the entire UI can start to lock up.
+// WebSockets have no such limitation, no matter what HTTP protocol was used to
+// establish the connection.
+func OneWayWebSocket[JsonSerializable any](rw http.ResponseWriter, r *http.Request) (
+	sendEvent func(event JsonSerializable) error,
+	closed chan struct{},
+	err error,
+) {
+	ctx, cancel := context.WithCancel(r.Context())
+	r = r.WithContext(ctx)
+	socket, err := websocket.Accept(rw, r, nil)
+	if err != nil {
+		cancel()
+		return nil, nil, xerrors.Errorf("cannot establish connection: %w", err)
 	}
+	go Heartbeat(ctx, socket)
 
+	type SocketError struct {
+		Code   websocket.StatusCode
+		Reason string
+	}
+	eventC := make(chan JsonSerializable)
+	socketErrC := make(chan SocketError, 1)
 	closed = make(chan struct{})
-	type sseEvent struct {
-		payload []byte
-		errC    chan error
-	}
-	eventC := make(chan sseEvent)
-
-	// Synchronized handling of events (no guarantee of order).
 	go func() {
+		defer cancel()
 		defer close(closed)
 
-		// Send a heartbeat every 15 seconds to avoid the connection being killed.
-		ticker := time.NewTicker(time.Second * 15)
-		defer ticker.Stop()
-
 		for {
-			var event sseEvent
-
 			select {
-			case <-r.Context().Done():
-				return
-			case event = <-eventC:
-			case <-ticker.C:
-				event = sseEvent{
-					payload: []byte(fmt.Sprintf("event: %s\n\n", codersdk.ServerSentEventTypePing)),
+			case event := <-eventC:
+				err := wsjson.Write(ctx, socket, event)
+				if err == nil {
+					continue
 				}
+				_ = socket.Close(websocket.StatusInternalError, "Unable to send newest message")
+			case err := <-socketErrC:
+				_ = socket.Close(err.Code, err.Reason)
+			case <-ctx.Done():
+				_ = socket.Close(websocket.StatusNormalClosure, "Connection closed")
 			}
-
-			_, err := rw.Write(event.payload)
-			if event.errC != nil {
-				event.errC <- err
-			}
-			if err != nil {
-				return
-			}
-			f.Flush()
+			return
 		}
 	}()
 
-	sendEvent = func(ctx context.Context, sse codersdk.ServerSentEvent) error {
-		buf := &bytes.Buffer{}
-		enc := json.NewEncoder(buf)
-
-		_, err := buf.WriteString(fmt.Sprintf("event: %s\n", sse.Type))
+	// We have some tools in the UI code to help enforce one-way WebSocket
+	// connections, but there's still the possibility that the client could send
+	// a message when it's not supposed to. If that happens, the client likely
+	// forgot to use those tools, and communication probably can't be trusted.
+	// Better to just close the socket and force the UI to fix its mess
+	go func() {
+		_, _, err := socket.Read(ctx)
+		if errors.Is(err, context.Canceled) {
+			return
+		}
 		if err != nil {
-			return err
-		}
-
-		if sse.Data != nil {
-			_, err = buf.WriteString("data: ")
-			if err != nil {
-				return err
+			socketErrC <- SocketError{
+				Code:   websocket.StatusInternalError,
+				Reason: "Unable to process invalid message from client",
 			}
-			err = enc.Encode(sse.Data)
-			if err != nil {
-				return err
-			}
+			return
 		}
-
-		err = buf.WriteByte('\n')
-		if err != nil {
-			return err
+		socketErrC <- SocketError{
+			Code:   websocket.StatusProtocolError,
+			Reason: "Clients cannot send messages for one-way WebSockets",
 		}
+	}()
 
-		event := sseEvent{
-			payload: buf.Bytes(),
-			errC:    make(chan error, 1), // Buffered to prevent deadlock.
-		}
-
+	sendEvent = func(event JsonSerializable) error {
 		select {
-		case <-r.Context().Done():
-			return r.Context().Err()
+		case eventC <- event:
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-closed:
-			return xerrors.New("server sent event sender closed")
-		case eventC <- event:
-			// Re-check closure signals after sending the event to allow
-			// for early exit. We don't check closed here because it
-			// can't happen while processing the event.
-			select {
-			case <-r.Context().Done():
-				return r.Context().Err()
-			case <-ctx.Done():
-				return ctx.Err()
-			case err := <-event.errC:
-				return err
-			}
 		}
+		return nil
 	}
 
 	return sendEvent, closed, nil

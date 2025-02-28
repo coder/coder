@@ -22,6 +22,7 @@
 import globalAxios, { type AxiosInstance, isAxiosError } from "axios";
 import type dayjs from "dayjs";
 import userAgentParser from "ua-parser-js";
+import { OneWayWebSocket } from "utils/OneWayWebSocket";
 import { delay } from "../utils/delay";
 import * as TypesGen from "./typesGenerated";
 import type { PostWorkspaceUsageRequest } from "./typesGenerated";
@@ -101,26 +102,24 @@ const getMissingParameters = (
 };
 
 /**
- *
  * @param agentId
- * @returns An EventSource that emits agent metadata event objects
- * (ServerSentEvent)
+ * @returns A one-way WebSocket that receives agent metadata events
  */
-export const watchAgentMetadata = (agentId: string): EventSource => {
-	return new EventSource(
-		`${location.protocol}//${location.host}/api/v2/workspaceagents/${agentId}/watch-metadata`,
-		{ withCredentials: true },
+export const watchAgentMetadata = (agentId: string): OneWayWebSocket => {
+	const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+	return new OneWayWebSocket(
+		`${protocol}//${location.host}/api/v2/workspaceagents/${agentId}/watch-metadata`,
 	);
 };
 
 /**
- * @returns {EventSource} An EventSource that emits workspace event objects
- * (ServerSentEvent)
+ * @param workspaceId
+ * @returns A one-way WebSocket that receives workspace events
  */
-export const watchWorkspace = (workspaceId: string): EventSource => {
-	return new EventSource(
-		`${location.protocol}//${location.host}/api/v2/workspaces/${workspaceId}/watch`,
-		{ withCredentials: true },
+export const watchWorkspace = (workspaceId: string): OneWayWebSocket => {
+	const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+	return new OneWayWebSocket(
+		`${protocol}//${location.host}/api/v2/workspaces/${workspaceId}/watch`,
 	);
 };
 
