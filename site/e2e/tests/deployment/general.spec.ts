@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { API } from "api/api";
 import { setupApiCalls } from "../../api";
-import { e2eFakeExperiment1, e2eFakeExperiment2 } from "../../constants";
+import { e2eFakeExperiment1, e2eFakeExperiment2, users } from "../../constants";
 import { login } from "../../helpers";
 import { beforeCoderTest } from "../../hooks";
 
@@ -16,7 +16,7 @@ test("experiments", async ({ page }) => {
 	const availableExperiments = await API.getAvailableExperiments();
 
 	// Verify if the site lists the same experiments
-	await page.goto("/deployment/general", { waitUntil: "networkidle" });
+	await page.goto("/deployment/general", { waitUntil: "domcontentloaded" });
 
 	const experimentsLocator = page.locator(
 		"div.options-table tr.option-experiments ul.option-array",
@@ -42,4 +42,33 @@ test("experiments", async ({ page }) => {
 		);
 		await expect(experimentLocator).toBeVisible();
 	}
+});
+
+test.describe("deployment settings access", () => {
+	test("regular users cannot see deployment settings", async ({ page }) => {
+		await login(page, users.member);
+		await page.goto("/", { waitUntil: "domcontentloaded" });
+
+		await expect(
+			page.getByRole("button", { name: "Admin settings" }),
+		).not.toBeVisible();
+	});
+
+	test("admin users can see deployment settings", async ({ page }) => {
+		await login(page, users.admin);
+		await page.goto("/", { waitUntil: "domcontentloaded" });
+
+		await expect(
+			page.getByRole("button", { name: "Admin settings" }),
+		).toBeVisible();
+	});
+
+	test("admin users can see deployment settijjjjngs", async ({ page }) => {
+		await login(page, users.admin);
+		await page.goto("/", { waitUntil: "domcontentloaded" });
+
+		await expect(
+			page.getByRole("button", { name: "Admin fucking mumbo jibberish" }),
+		).not.toBeVisible();
+	});
 });
