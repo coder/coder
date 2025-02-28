@@ -71,6 +71,7 @@ func newNotifier(outerCtx context.Context, cfg codersdk.NotificationsConfig, id 
 	hr map[database.NotificationMethod]Handler, helpers template.FuncMap, metrics *Metrics, clock quartz.Clock,
 ) *notifier {
 	gracefulCtx, gracefulCancel := context.WithCancel(outerCtx)
+
 	return &notifier{
 		id:             id,
 		cfg:            cfg,
@@ -163,7 +164,7 @@ func (n *notifier) process(ctx context.Context, success chan<- dispatchResult, f
 		return xerrors.Errorf("fetch messages: %w", err)
 	}
 
-	n.log.Debug(ctx, "dequeued messages", slog.F("count", len(msgs)))
+	n.log.Info(ctx, "dequeued messages", slog.F("count", len(msgs)))
 
 	if len(msgs) == 0 {
 		return nil
@@ -276,6 +277,10 @@ func (n *notifier) deliver(ctx context.Context, msg database.AcquireNotification
 
 	if msg.AttemptCount > 0 {
 		n.metrics.RetryCount.WithLabelValues(string(msg.Method), msg.TemplateID.String()).Inc()
+	} else {
+		// for now, we do want to push the notification into the inbox only at the first attempt. Anyway, insert into inbox is not a
+		// retryable operation.
+
 	}
 
 	n.metrics.InflightDispatches.WithLabelValues(string(msg.Method), msg.TemplateID.String()).Inc()
