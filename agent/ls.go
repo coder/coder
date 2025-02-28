@@ -18,7 +18,7 @@ import (
 func (*agent) HandleLS(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	var query LSQuery
+	var query LSRequest
 	if !httpapi.Read(ctx, rw, r, &query) {
 		return
 	}
@@ -45,7 +45,7 @@ func (*agent) HandleLS(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
-func listFiles(query LSQuery) (LSResponse, error) {
+func listFiles(query LSRequest) (LSResponse, error) {
 	var fullPath []string
 	switch query.Relativity {
 	case LSRelativityHome:
@@ -67,28 +67,29 @@ func listFiles(query LSQuery) (LSResponse, error) {
 	}
 
 	fullPath = append(fullPath, query.Path...)
-	absolutePathString, err := filepath.Abs(filepath.Join(fullPath...))
+	fullPathRelative := filepath.Join(fullPath...)
+	absolutePathString, err := filepath.Abs(fullPathRelative)
 	if err != nil {
-		return LSResponse{}, xerrors.Errorf("failed to get absolute path: %w", err)
+		return LSResponse{}, xerrors.Errorf("failed to get absolute path of %q: %w", fullPathRelative, err)
 	}
 
 	f, err := os.Open(absolutePathString)
 	if err != nil {
-		return LSResponse{}, xerrors.Errorf("failed to open directory: %w", err)
+		return LSResponse{}, xerrors.Errorf("failed to open directory %q: %w", absolutePathString, err)
 	}
 	defer f.Close()
 
 	stat, err := f.Stat()
 	if err != nil {
-		return LSResponse{}, xerrors.Errorf("failed to stat directory: %w", err)
+		return LSResponse{}, xerrors.Errorf("failed to stat directory %q: %w", absolutePathString, err)
 	}
 
 	if !stat.IsDir() {
-		return LSResponse{}, xerrors.New("path is not a directory")
+		return LSResponse{}, xerrors.Errorf("path %q is not a directory", absolutePathString)
 	}
 
 	// `contents` may be partially populated even if the operation fails midway.
-	contents, _ := f.Readdir(-1)
+	contents, _ := f.ReadDir(-1)
 	respContents := make([]LSFile, 0, len(contents))
 	for _, file := range contents {
 		respContents = append(respContents, LSFile{
@@ -140,7 +141,7 @@ func pathToArray(path string) []string {
 	return out
 }
 
-type LSQuery struct {
+type LSRequest struct {
 	// e.g. [], ["repos", "coder"],
 	Path []string `json:"path"`
 	// Whether the supplied path is relative to the user's home directory,

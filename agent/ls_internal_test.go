@@ -12,7 +12,7 @@ import (
 func TestListFilesNonExistentDirectory(t *testing.T) {
 	t.Parallel()
 
-	query := LSQuery{
+	query := LSRequest{
 		Path:       []string{"idontexist"},
 		Relativity: LSRelativityHome,
 	}
@@ -39,7 +39,7 @@ func TestListFilesPermissionDenied(t *testing.T) {
 	rel, err := filepath.Rel(home, reposDir)
 	require.NoError(t, err)
 
-	query := LSQuery{
+	query := LSRequest{
 		Path:       pathToArray(rel),
 		Relativity: LSRelativityHome,
 	}
@@ -62,12 +62,12 @@ func TestListFilesNotADirectory(t *testing.T) {
 	rel, err := filepath.Rel(home, filePath)
 	require.NoError(t, err)
 
-	query := LSQuery{
+	query := LSRequest{
 		Path:       pathToArray(rel),
 		Relativity: LSRelativityHome,
 	}
 	_, err = listFiles(query)
-	require.ErrorContains(t, err, "path is not a directory")
+	require.ErrorContains(t, err, "is not a directory")
 }
 
 func TestListFilesSuccess(t *testing.T) {
@@ -125,7 +125,7 @@ func TestListFilesSuccess(t *testing.T) {
 				queryComponents = pathToArray(rel)
 			}
 
-			query := LSQuery{
+			query := LSRequest{
 				Path:       queryComponents,
 				Relativity: tc.relativity,
 			}
@@ -161,7 +161,7 @@ func TestListFilesListDrives(t *testing.T) {
 		t.Skip("skipping test on non-Windows OS")
 	}
 
-	query := LSQuery{
+	query := LSRequest{
 		Path:       []string{},
 		Relativity: LSRelativityRoot,
 	}
@@ -173,14 +173,14 @@ func TestListFilesListDrives(t *testing.T) {
 		IsDir:              true,
 	})
 
-	query = LSQuery{
+	query = LSRequest{
 		Path:       []string{"C:\\"},
 		Relativity: LSRelativityRoot,
 	}
 	resp, err = listFiles(query)
 	require.NoError(t, err)
 
-	query = LSQuery{
+	query = LSRequest{
 		Path:       resp.AbsolutePath,
 		Relativity: LSRelativityRoot,
 	}
