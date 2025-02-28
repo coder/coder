@@ -6,6 +6,7 @@ import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
 import { Button } from "components/Button/Button";
+import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { SelectFilter } from "components/Filter/SelectFilter";
 import {
 	FormFields,
@@ -44,7 +45,6 @@ import type {
 } from "./CreateWorkspacePage";
 import { ExternalAuthButton } from "./ExternalAuthButton";
 import type { CreateWSPermissions } from "./permissions";
-import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 
 export const Language = {
 	duplicationWarning:
@@ -279,10 +279,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 									<span css={styles.description}>
 										Select a preset to get started
 									</span>
-									<FeatureStageBadge
-										contentType={"beta"}
-										size="md"
-									/>
+									<FeatureStageBadge contentType={"beta"} size="md" />
 								</Stack>
 								<Stack direction="row" spacing={2}>
 									<SelectFilter
