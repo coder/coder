@@ -194,37 +194,10 @@ func (w mockWsResponseWrite) Write(b []byte) (int, error) {
 	return w(b)
 }
 
-func newMockWebsocketWriter() mockWsResponseWriter {
-	server, client := net.Pipe()
-	recorder := httptest.NewRecorder()
-
-	var write mockWsResponseWrite = func(b []byte) (int, error) {
-		serverCount, err := server.Write(b)
-		if err != nil {
-			return serverCount, err
-		}
-		recorderCount, err := recorder.Write(b)
-		if serverCount < recorderCount {
-			return serverCount, err
-		}
-		return recorderCount, err
-	}
-
-	return mockWsResponseWriter{
-		serverConn: server,
-		clientConn: client,
-		recorder:   recorder,
-		serverReadWriter: bufio.NewReadWriter(
-			bufio.NewReader(server),
-			bufio.NewWriter(write),
-		),
-	}
-}
-
 func TestOneWayWebSocket(t *testing.T) {
 	t.Parallel()
 
-	createBaseRequest := func(t *testing.T) *http.Request {
+	newBaseRequest := func(t *testing.T) *http.Request {
 		url := "ws://www.fake-website.com/logs"
 		ctx := testutil.Context(t, testutil.WaitShort)
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -234,9 +207,33 @@ func TestOneWayWebSocket(t *testing.T) {
 		h.Add("Connection", "Upgrade")
 		h.Add("Upgrade", "websocket")
 		h.Add("Sec-WebSocket-Version", "13")
-		h.Add("Sec-WebSocket-Key", "dGhlIHNhbXBsZSBub25jZQ==")
+		h.Add("Sec-WebSocket-Key", "dGhlIHNhbXBsZSBub25jZQ==") // Just need any string
 
 		return req
+	}
+
+	newWebsocketWriter := func() mockWsResponseWriter {
+		server, client := net.Pipe()
+		recorder := httptest.NewRecorder()
+
+		var write mockWsResponseWrite = func(b []byte) (int, error) {
+			serverCount, err := server.Write(b)
+			if err != nil {
+				return serverCount, err
+			}
+			recorderCount, err := recorder.Write(b)
+			return min(serverCount, recorderCount), err
+		}
+
+		return mockWsResponseWriter{
+			serverConn: server,
+			clientConn: client,
+			recorder:   recorder,
+			serverReadWriter: bufio.NewReadWriter(
+				bufio.NewReader(server),
+				bufio.NewWriter(write),
+			),
+		}
 	}
 
 	t.Run("Produces an error if the socket connection could not be established", func(t *testing.T) {
@@ -251,12 +248,12 @@ func TestOneWayWebSocket(t *testing.T) {
 			{1, 0, "HTTP/1.0"},
 		}
 		for _, p := range incorrectProtocols {
-			req := createBaseRequest(t)
+			req := newBaseRequest(t)
 			req.ProtoMajor = p.major
 			req.ProtoMinor = p.minor
 			req.Proto = p.proto
 
-			writer := newMockWebsocketWriter()
+			writer := newWebsocketWriter()
 			_, _, err := httpapi.OneWayWebSocket[any](writer, req)
 			require.ErrorContains(t, err, p.proto)
 		}
@@ -265,15 +262,16 @@ func TestOneWayWebSocket(t *testing.T) {
 	t.Run("Returned callback can publish a new event to the WebSocket connection", func(t *testing.T) {
 		t.Parallel()
 
-		req := createBaseRequest(t)
-		writer := newMockWebsocketWriter()
+		req := newBaseRequest(t)
+		writer := newWebsocketWriter()
 		send, _, err := httpapi.OneWayWebSocket[codersdk.ServerSentEvent](writer, req)
 		require.NoError(t, err)
 
-		err = send(codersdk.ServerSentEvent{
+		payload := codersdk.ServerSentEvent{
 			Type: codersdk.ServerSentEventTypeData,
 			Data: "Blah",
-		})
+		}
+		err = send(payload)
 		require.NoError(t, err)
 	})
 
