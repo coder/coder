@@ -153,7 +153,7 @@ func (p presetState) calculateActions() (*reconciliationActions, error) {
 	// TODO: optimization: we should probably be able to create prebuilds while others are deleting for a given preset.
 	if (toCreate+toDelete) > 0 && (starting+stopping+deleting) > 0 {
 		// TODO: move up
-		//c.logger.Warn(ctx, "prebuild operations in progress, skipping reconciliation",
+		// c.logger.Warn(ctx, "prebuild operations in progress, skipping reconciliation",
 		//	slog.F("template_id", p.preset.TemplateID.String()), slog.F("starting", starting),
 		//	slog.F("stopping", stopping), slog.F("deleting", deleting),
 		//	slog.F("wanted_to_create", create), slog.F("wanted_to_delete", toDelete))
@@ -181,7 +181,7 @@ func (p presetState) calculateActions() (*reconciliationActions, error) {
 			if i >= len(p.running) {
 				// This should never happen.
 				// TODO: move up
-				//c.logger.Warn(ctx, "unexpected reconciliation state; extraneous count exceeds running prebuilds count!",
+				// c.logger.Warn(ctx, "unexpected reconciliation state; extraneous count exceeds running prebuilds count!",
 				//	slog.F("running_count", len(p.running)),
 				//	slog.F("extraneous", extraneous))
 				continue
@@ -193,7 +193,7 @@ func (p presetState) calculateActions() (*reconciliationActions, error) {
 		actions.deleteIDs = append(actions.deleteIDs, victims...)
 
 		// TODO: move up
-		//c.logger.Warn(ctx, "found extra prebuilds running, picking random victim(s)",
+		// c.logger.Warn(ctx, "found extra prebuilds running, picking random victim(s)",
 		//	slog.F("template_id", p.preset.TemplateID.String()), slog.F("desired", desired), slog.F("actual", actual), slog.F("extra", extraneous),
 		//	slog.F("victims", victims))
 
@@ -205,7 +205,7 @@ func (p presetState) calculateActions() (*reconciliationActions, error) {
 
 	if toDelete > 0 && len(p.running) != toDelete {
 		// TODO: move up
-		//c.logger.Warn(ctx, "mismatch between running prebuilds and expected deletion count!",
+		// c.logger.Warn(ctx, "mismatch between running prebuilds and expected deletion count!",
 		//	slog.F("template_id", s.preset.TemplateID.String()), slog.F("running", len(p.running)), slog.F("to_delete", toDelete))
 	}
 
