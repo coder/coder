@@ -1522,13 +1522,26 @@ func (s *MethodTestSuite) TestUser() {
 			[]database.GetUserWorkspaceBuildParametersRow{},
 		)
 	}))
+	s.Run("GetUserAppearanceSettings", s.Subtest(func(db database.Store, check *expects) {
+		ctx := context.Background()
+		u := dbgen.User(s.T(), db, database.User{})
+		db.UpdateUserAppearanceSettings(ctx, database.UpdateUserAppearanceSettingsParams{
+			UserID:          u.ID,
+			ThemePreference: "light",
+		})
+		check.Args(u.ID).Asserts(u, policy.ActionReadPersonal).Returns("light")
+	}))
 	s.Run("UpdateUserAppearanceSettings", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
+		uc := database.UserConfig{
+			UserID: u.ID,
+			Key:    "theme_preference",
+			Value:  "dark",
+		}
 		check.Args(database.UpdateUserAppearanceSettingsParams{
-			ID:              u.ID,
-			ThemePreference: u.ThemePreference,
-			UpdatedAt:       u.UpdatedAt,
-		}).Asserts(u, policy.ActionUpdatePersonal).Returns(u)
+			UserID:          u.ID,
+			ThemePreference: uc.Value,
+		}).Asserts(u, policy.ActionUpdatePersonal).Returns(uc)
 	}))
 	s.Run("UpdateUserStatus", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})

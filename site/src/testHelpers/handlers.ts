@@ -162,6 +162,9 @@ export const handlers = [
 	http.get("/api/v2/users/me", () => {
 		return HttpResponse.json(M.MockUser);
 	}),
+	http.get("/api/v2/users/me/appearance", () => {
+		return HttpResponse.json(M.MockUserAppearanceSettings);
+	}),
 	http.get("/api/v2/users/me/keys", () => {
 		return HttpResponse.json(M.MockAPIKey);
 	}),
