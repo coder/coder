@@ -6,7 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 
+	"github.com/shirou/gopsutil/v3/disk"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -26,11 +28,11 @@ func (*agent) HandleLS(rw http.ResponseWriter, r *http.Request) {
 		switch {
 		case errors.Is(err, os.ErrNotExist):
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-				Message: "Directory does not exist",
+				Message: err.Error(),
 			})
 		case errors.Is(err, os.ErrPermission):
 			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-				Message: "Permission denied",
+				Message: err.Error(),
 			})
 		default:
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -44,28 +46,27 @@ func (*agent) HandleLS(rw http.ResponseWriter, r *http.Request) {
 }
 
 func listFiles(query LSQuery) (LSResponse, error) {
-	var base string
+	var fullPath []string
 	switch query.Relativity {
 	case LSRelativityHome:
 		home, err := os.UserHomeDir()
 		if err != nil {
 			return LSResponse{}, xerrors.Errorf("failed to get user home directory: %w", err)
 		}
-		base = home
+		fullPath = []string{home}
 	case LSRelativityRoot:
 		if runtime.GOOS == "windows" {
-			// TODO: Eventually, we could have a empty path with a root base
-			// return all drives.
-			// C drive should be good enough for now.
-			base = "C:\\"
+			if len(query.Path) == 0 {
+				return listDrives()
+			}
 		} else {
-			base = "/"
+			fullPath = []string{"/"}
 		}
 	default:
 		return LSResponse{}, xerrors.Errorf("unsupported relativity type %q", query.Relativity)
 	}
 
-	fullPath := append([]string{base}, query.Path...)
+	fullPath = append(fullPath, query.Path...)
 	absolutePathString, err := filepath.Abs(filepath.Join(fullPath...))
 	if err != nil {
 		return LSResponse{}, xerrors.Errorf("failed to get absolute path: %w", err)
@@ -97,10 +98,46 @@ func listFiles(query LSQuery) (LSResponse, error) {
 		})
 	}
 
+	absolutePath := pathToArray(absolutePathString)
+
 	return LSResponse{
+		AbsolutePath:       absolutePath,
 		AbsolutePathString: absolutePathString,
 		Contents:           respContents,
 	}, nil
+}
+
+func listDrives() (LSResponse, error) {
+	aa, err := disk.Partitions(true)
+	if err != nil {
+		return LSResponse{}, xerrors.Errorf("failed to get partitions: %w", err)
+	}
+	contents := make([]LSFile, 0, len(aa))
+	for _, a := range aa {
+		name := a.Mountpoint + string(os.PathSeparator)
+		contents = append(contents, LSFile{
+			Name:               name,
+			AbsolutePathString: name,
+			IsDir:              true,
+		})
+	}
+
+	return LSResponse{
+		AbsolutePath:       []string{},
+		AbsolutePathString: "",
+		Contents:           contents,
+	}, nil
+}
+
+func pathToArray(path string) []string {
+	out := strings.FieldsFunc(path, func(r rune) bool {
+		return r == os.PathSeparator
+	})
+	// Drive letters on Windows should have a trailing separator.
+	if runtime.GOOS == "windows" && len(out) > 0 {
+		out[0] += string(os.PathSeparator)
+	}
+	return out
 }
 
 type LSQuery struct {
@@ -112,6 +149,7 @@ type LSQuery struct {
 }
 
 type LSResponse struct {
+	AbsolutePath []string `json:"absolute_path"`
 	// Returned so clients can display the full path to the user, and
 	// copy it to configure file sync
 	// e.g. Windows: "C:\\Users\\coder"

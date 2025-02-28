@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -90,9 +89,9 @@ func TestListFilesSuccess(t *testing.T) {
 		},
 		{
 			name: "root",
-			baseFunc: func(t *testing.T) string {
+			baseFunc: func(*testing.T) string {
 				if runtime.GOOS == "windows" {
-					return "C:\\"
+					return ""
 				}
 				return "/"
 			},
@@ -116,12 +115,18 @@ func TestListFilesSuccess(t *testing.T) {
 			err = os.Mkdir(downloadsDir, 0o755)
 			require.NoError(t, err)
 
-			rel, err := filepath.Rel(base, tmpDir)
-			require.NoError(t, err)
-			relComponents := pathToArray(rel)
+			var queryComponents []string
+			// We can't get an absolute path relative to empty string on Windows.
+			if runtime.GOOS == "windows" && base == "" {
+				queryComponents = pathToArray(tmpDir)
+			} else {
+				rel, err := filepath.Rel(base, tmpDir)
+				require.NoError(t, err)
+				queryComponents = pathToArray(rel)
+			}
 
 			query := LSQuery{
-				Path:       relComponents,
+				Path:       queryComponents,
 				Relativity: tc.relativity,
 			}
 			resp, err := listFiles(query)
@@ -149,7 +154,7 @@ func TestListFilesSuccess(t *testing.T) {
 	}
 }
 
-func TestListFilesWindowsRoot(t *testing.T) {
+func TestListFilesListDrives(t *testing.T) {
 	t.Parallel()
 
 	if runtime.GOOS != "windows" {
@@ -162,11 +167,23 @@ func TestListFilesWindowsRoot(t *testing.T) {
 	}
 	resp, err := listFiles(query)
 	require.NoError(t, err)
-	require.Equal(t, "C:\\", resp.AbsolutePathString)
-}
-
-func pathToArray(path string) []string {
-	return strings.FieldsFunc(path, func(r rune) bool {
-		return r == os.PathSeparator
+	require.Contains(t, resp.Contents, LSFile{
+		Name:               "C:\\",
+		AbsolutePathString: "C:\\",
+		IsDir:              true,
 	})
+
+	query = LSQuery{
+		Path:       []string{"C:\\"},
+		Relativity: LSRelativityRoot,
+	}
+	resp, err = listFiles(query)
+	require.NoError(t, err)
+
+	query = LSQuery{
+		Path:       resp.AbsolutePath,
+		Relativity: LSRelativityRoot,
+	}
+	resp, err = listFiles(query)
+	require.NoError(t, err)
 }
