@@ -200,10 +200,9 @@ func (c *Client) PostTestNotification(ctx context.Context) error {
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode != http.StatusOK {
+	if res.StatusCode != http.StatusNoContent {
 		return ReadBodyAsError(res)
 	}
-
 	return nil
 }
 

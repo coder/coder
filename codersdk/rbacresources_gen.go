@@ -28,7 +28,6 @@ const (
 	ResourceOrganizationMember            RBACResource = "organization_member"
 	ResourceProvisionerDaemon             RBACResource = "provisioner_daemon"
 	ResourceProvisionerJobs               RBACResource = "provisioner_jobs"
-	ResourceProvisionerKeys               RBACResource = "provisioner_keys"
 	ResourceReplicas                      RBACResource = "replicas"
 	ResourceSystem                        RBACResource = "system"
 	ResourceTailnetCoordinator            RBACResource = "tailnet_coordinator"
@@ -50,6 +49,7 @@ const (
 	ActionRead               RBACAction = "read"
 	ActionReadPersonal       RBACAction = "read_personal"
 	ActionSSH                RBACAction = "ssh"
+	ActionUnassign           RBACAction = "unassign"
 	ActionUpdate             RBACAction = "update"
 	ActionUpdatePersonal     RBACAction = "update_personal"
 	ActionUse                RBACAction = "use"
@@ -63,8 +63,8 @@ const (
 var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceWildcard:                      {},
 	ResourceApiKey:                        {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
-	ResourceAssignOrgRole:                 {ActionAssign, ActionCreate, ActionDelete, ActionRead, ActionUpdate},
-	ResourceAssignRole:                    {ActionAssign, ActionCreate, ActionDelete, ActionRead, ActionUpdate},
+	ResourceAssignOrgRole:                 {ActionAssign, ActionCreate, ActionDelete, ActionRead, ActionUnassign, ActionUpdate},
+	ResourceAssignRole:                    {ActionAssign, ActionRead, ActionUnassign},
 	ResourceAuditLog:                      {ActionCreate, ActionRead},
 	ResourceCryptoKey:                     {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceDebugInfo:                     {ActionRead},
@@ -85,7 +85,6 @@ var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceOrganizationMember:            {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceProvisionerDaemon:             {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceProvisionerJobs:               {ActionRead},
-	ResourceProvisionerKeys:               {ActionCreate, ActionDelete, ActionRead},
 	ResourceReplicas:                      {ActionRead},
 	ResourceSystem:                        {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceTailnetCoordinator:            {ActionCreate, ActionDelete, ActionRead, ActionUpdate},

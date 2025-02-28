@@ -15,6 +15,7 @@ export const coderdPProfPort = 6062;
 
 // The name of the organization that should be used by default when needed.
 export const defaultOrganizationName = "coder";
+export const defaultOrganizationId = "00000000-0000-0000-0000-000000000000";
 export const defaultPassword = "SomeSecurePassword!";
 
 // Credentials for users
@@ -24,16 +25,28 @@ export const users = {
 		password: defaultPassword,
 		email: "admin@coder.com",
 	},
+	templateAdmin: {
+		username: "template-admin",
+		password: defaultPassword,
+		email: "templateadmin@coder.com",
+		roles: ["Template Admin"],
+	},
+	userAdmin: {
+		username: "user-admin",
+		password: defaultPassword,
+		email: "useradmin@coder.com",
+		roles: ["User Admin"],
+	},
 	auditor: {
 		username: "auditor",
 		password: defaultPassword,
 		email: "auditor@coder.com",
 		roles: ["Template Admin", "Auditor"],
 	},
-	user: {
-		username: "user",
+	member: {
+		username: "member",
 		password: defaultPassword,
-		email: "user@coder.com",
+		email: "member@coder.com",
 	},
 } satisfies Record<
 	string,

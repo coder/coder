@@ -41,6 +41,8 @@ func TestNewServer_ServeClient(t *testing.T) {
 	s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), agentexec.DefaultExecer, nil)
 	require.NoError(t, err)
 	defer s.Close()
+	err = s.UpdateHostSigner(42)
+	assert.NoError(t, err)
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
@@ -122,7 +124,7 @@ type fakeEnvInfoer struct {
 	UserShellFn   func(string) (string, error)
 }
 
-func (f *fakeEnvInfoer) CurrentUser() (u *user.User, err error) {
+func (f *fakeEnvInfoer) User() (u *user.User, err error) {
 	return f.CurrentUserFn()
 }
 
@@ -130,12 +132,16 @@ func (f *fakeEnvInfoer) Environ() []string {
 	return f.EnvironFn()
 }
 
-func (f *fakeEnvInfoer) UserHomeDir() (string, error) {
+func (f *fakeEnvInfoer) HomeDir() (string, error) {
 	return f.UserHomeDirFn()
 }
 
-func (f *fakeEnvInfoer) UserShell(u string) (string, error) {
+func (f *fakeEnvInfoer) Shell(u string) (string, error) {
 	return f.UserShellFn(u)
+}
+
+func (*fakeEnvInfoer) ModifyCommand(cmd string, args ...string) (string, []string) {
+	return cmd, args
 }
 
 func TestNewServer_CloseActiveConnections(t *testing.T) {
@@ -146,6 +152,8 @@ func TestNewServer_CloseActiveConnections(t *testing.T) {
 	s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), agentexec.DefaultExecer, nil)
 	require.NoError(t, err)
 	defer s.Close()
+	err = s.UpdateHostSigner(42)
+	assert.NoError(t, err)
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
@@ -197,6 +205,8 @@ func TestNewServer_Signal(t *testing.T) {
 		s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), agentexec.DefaultExecer, nil)
 		require.NoError(t, err)
 		defer s.Close()
+		err = s.UpdateHostSigner(42)
+		assert.NoError(t, err)
 
 		ln, err := net.Listen("tcp", "127.0.0.1:0")
 		require.NoError(t, err)
@@ -262,6 +272,8 @@ func TestNewServer_Signal(t *testing.T) {
 		s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), agentexec.DefaultExecer, nil)
 		require.NoError(t, err)
 		defer s.Close()
+		err = s.UpdateHostSigner(42)
+		assert.NoError(t, err)
 
 		ln, err := net.Listen("tcp", "127.0.0.1:0")
 		require.NoError(t, err)

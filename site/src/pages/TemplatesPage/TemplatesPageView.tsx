@@ -246,6 +246,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 							<EmptyTemplates
 								canCreateTemplates={canCreateTemplates}
 								examples={examples ?? []}
+								isUsingFilter={filter.used}
 							/>
 						) : (
 							templates?.map((template) => (

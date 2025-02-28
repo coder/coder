@@ -43,6 +43,8 @@ import (
 //   - Shipped in Coder v2.{{placeholder}} // TODO Vincent: Replace with the correct version
 //   - Added support for GetResourcesMonitoringConfiguration and
 //     PushResourcesMonitoringUsage RPCs on the Agent API.
+//   - Added support for reporting connection events for auditing via the
+//     ReportConnection RPC on the Agent API.
 const (
 	CurrentMajor = 2
 	CurrentMinor = 4

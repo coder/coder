@@ -9,6 +9,7 @@ import (
 	errors "errors"
 	protojson "google.golang.org/protobuf/encoding/protojson"
 	proto "google.golang.org/protobuf/proto"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	drpc "storj.io/drpc"
 	drpcerr "storj.io/drpc/drpcerr"
 )
@@ -50,6 +51,7 @@ type DRPCAgentClient interface {
 	ScriptCompleted(ctx context.Context, in *WorkspaceAgentScriptCompletedRequest) (*WorkspaceAgentScriptCompletedResponse, error)
 	GetResourcesMonitoringConfiguration(ctx context.Context, in *GetResourcesMonitoringConfigurationRequest) (*GetResourcesMonitoringConfigurationResponse, error)
 	PushResourcesMonitoringUsage(ctx context.Context, in *PushResourcesMonitoringUsageRequest) (*PushResourcesMonitoringUsageResponse, error)
+	ReportConnection(ctx context.Context, in *ReportConnectionRequest) (*emptypb.Empty, error)
 }
 
 type drpcAgentClient struct {
@@ -170,6 +172,15 @@ func (c *drpcAgentClient) PushResourcesMonitoringUsage(ctx context.Context, in *
 	return out, nil
 }
 
+func (c *drpcAgentClient) ReportConnection(ctx context.Context, in *ReportConnectionRequest) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/coder.agent.v2.Agent/ReportConnection", drpcEncoding_File_agent_proto_agent_proto{}, in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 type DRPCAgentServer interface {
 	GetManifest(context.Context, *GetManifestRequest) (*Manifest, error)
 	GetServiceBanner(context.Context, *GetServiceBannerRequest) (*ServiceBanner, error)
@@ -183,6 +194,7 @@ type DRPCAgentServer interface {
 	ScriptCompleted(context.Context, *WorkspaceAgentScriptCompletedRequest) (*WorkspaceAgentScriptCompletedResponse, error)
 	GetResourcesMonitoringConfiguration(context.Context, *GetResourcesMonitoringConfigurationRequest) (*GetResourcesMonitoringConfigurationResponse, error)
 	PushResourcesMonitoringUsage(context.Context, *PushResourcesMonitoringUsageRequest) (*PushResourcesMonitoringUsageResponse, error)
+	ReportConnection(context.Context, *ReportConnectionRequest) (*emptypb.Empty, error)
 }
 
 type DRPCAgentUnimplementedServer struct{}
@@ -235,9 +247,13 @@ func (s *DRPCAgentUnimplementedServer) PushResourcesMonitoringUsage(context.Cont
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
+func (s *DRPCAgentUnimplementedServer) ReportConnection(context.Context, *ReportConnectionRequest) (*emptypb.Empty, error) {
+	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
 type DRPCAgentDescription struct{}
 
-func (DRPCAgentDescription) NumMethods() int { return 12 }
+func (DRPCAgentDescription) NumMethods() int { return 13 }
 
 func (DRPCAgentDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
 	switch n {
@@ -349,6 +365,15 @@ func (DRPCAgentDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver,
 						in1.(*PushResourcesMonitoringUsageRequest),
 					)
 			}, DRPCAgentServer.PushResourcesMonitoringUsage, true
+	case 12:
+		return "/coder.agent.v2.Agent/ReportConnection", drpcEncoding_File_agent_proto_agent_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return srv.(DRPCAgentServer).
+					ReportConnection(
+						ctx,
+						in1.(*ReportConnectionRequest),
+					)
+			}, DRPCAgentServer.ReportConnection, true
 	default:
 		return "", nil, nil, nil, false
 	}
@@ -544,6 +569,22 @@ type drpcAgent_PushResourcesMonitoringUsageStream struct {
 }
 
 func (x *drpcAgent_PushResourcesMonitoringUsageStream) SendAndClose(m *PushResourcesMonitoringUsageResponse) error {
+	if err := x.MsgSend(m, drpcEncoding_File_agent_proto_agent_proto{}); err != nil {
+		return err
+	}
+	return x.CloseSend()
+}
+
+type DRPCAgent_ReportConnectionStream interface {
+	drpc.Stream
+	SendAndClose(*emptypb.Empty) error
+}
+
+type drpcAgent_ReportConnectionStream struct {
+	drpc.Stream
+}
+
+func (x *drpcAgent_ReportConnectionStream) SendAndClose(m *emptypb.Empty) error {
 	if err := x.MsgSend(m, drpcEncoding_File_agent_proto_agent_proto{}); err != nil {
 		return err
 	}

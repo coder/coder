@@ -167,9 +167,16 @@ func ExtractOAuth2(config promoauth.OAuth2Config, client *http.Client, authURLOp
 
 			oauthToken, err := config.Exchange(ctx, code)
 			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-					Message: "Internal error exchanging Oauth code.",
-					Detail:  err.Error(),
+				errorCode := http.StatusInternalServerError
+				detail := err.Error()
+				if detail == "authorization_pending" {
+					// In the device flow, the token may not be immediately
+					// available. This is expected, and the client will retry.
+					errorCode = http.StatusBadRequest
+				}
+				httpapi.Write(ctx, rw, errorCode, codersdk.Response{
+					Message: "Failed exchanging Oauth code.",
+					Detail:  detail,
 				})
 				return
 			}

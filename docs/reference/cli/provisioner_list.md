@@ -15,6 +15,16 @@ coder provisioner list [flags]
 
 ## Options
 
+### -l, --limit
+
+|             |                                            |
+|-------------|--------------------------------------------|
+| Type        | <code>int</code>                           |
+| Environment | <code>$CODER_PROVISIONER_LIST_LIMIT</code> |
+| Default     | <code>50</code>                            |
+
+Limit the number of provisioners returned.
+
 ### -O, --org
 
 |             |                                  |
