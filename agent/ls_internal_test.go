@@ -115,6 +115,10 @@ func TestListFilesSuccess(t *testing.T) {
 			err = os.Mkdir(downloadsDir, 0o755)
 			require.NoError(t, err)
 
+			textFile := filepath.Join(tmpDir, "file.txt")
+			err = os.WriteFile(textFile, []byte("content"), 0o600)
+			require.NoError(t, err)
+
 			var queryComponents []string
 			// We can't get an absolute path relative to empty string on Windows.
 			if runtime.GOOS == "windows" && base == "" {
@@ -133,23 +137,23 @@ func TestListFilesSuccess(t *testing.T) {
 			require.NoError(t, err)
 
 			require.Equal(t, tmpDir, resp.AbsolutePathString)
-
-			var foundRepos, foundDownloads bool
-			for _, file := range resp.Contents {
-				switch file.Name {
-				case "repos":
-					foundRepos = true
-					expectedPath := filepath.Join(tmpDir, "repos")
-					require.Equal(t, expectedPath, file.AbsolutePathString)
-					require.True(t, file.IsDir)
-				case "Downloads":
-					foundDownloads = true
-					expectedPath := filepath.Join(tmpDir, "Downloads")
-					require.Equal(t, expectedPath, file.AbsolutePathString)
-					require.True(t, file.IsDir)
-				}
-			}
-			require.True(t, foundRepos && foundDownloads, "expected to find both repos and Downloads directories, got: %+v", resp.Contents)
+			require.ElementsMatch(t, []LSFile{
+				{
+					Name:               "repos",
+					AbsolutePathString: reposDir,
+					IsDir:              true,
+				},
+				{
+					Name:               "Downloads",
+					AbsolutePathString: downloadsDir,
+					IsDir:              true,
+				},
+				{
+					Name:               "file.txt",
+					AbsolutePathString: textFile,
+					IsDir:              false,
+				},
+			}, resp.Contents)
 		})
 	}
 }
@@ -186,4 +190,12 @@ func TestListFilesListDrives(t *testing.T) {
 	}
 	resp, err = listFiles(query)
 	require.NoError(t, err)
+
+	query = LSRequest{
+		// Network drives are not supported.
+		Path:       []string{"\\sshfs\\work"},
+		Relativity: LSRelativityRoot,
+	}
+	resp, err = listFiles(query)
+	require.ErrorContains(t, err, "drive")
 }

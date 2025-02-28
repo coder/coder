@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 
@@ -25,20 +26,17 @@ func (*agent) HandleLS(rw http.ResponseWriter, r *http.Request) {
 
 	resp, err := listFiles(query)
 	if err != nil {
+		status := http.StatusInternalServerError
 		switch {
 		case errors.Is(err, os.ErrNotExist):
-			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-				Message: err.Error(),
-			})
+			status = http.StatusNotFound
 		case errors.Is(err, os.ErrPermission):
-			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-				Message: err.Error(),
-			})
+			status = http.StatusForbidden
 		default:
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: err.Error(),
-			})
 		}
+		httpapi.Write(ctx, rw, status, codersdk.Response{
+			Message: err.Error(),
+		})
 		return
 	}
 
@@ -58,6 +56,10 @@ func listFiles(query LSRequest) (LSResponse, error) {
 		if runtime.GOOS == "windows" {
 			if len(query.Path) == 0 {
 				return listDrives()
+			}
+			re := regexp.MustCompile(`^[a-zA-Z]:\\$`)
+			if !re.MatchString(query.Path[0]) {
+				return LSResponse{}, xerrors.Errorf("invalid drive letter %q", query.Path[0])
 			}
 		} else {
 			fullPath = []string{"/"}
