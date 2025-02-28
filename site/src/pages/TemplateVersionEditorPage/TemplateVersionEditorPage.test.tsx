@@ -513,4 +513,26 @@ describe("Find entrypoint", () => {
 		const mainFile = findEntrypointFile(ft);
 		expect(mainFile).toBe("aaa-dir/main.tf");
 	});
+	it("with dirs, multiple main.tf, unordered file tree", () => {
+		const ft: FileTree = {
+			"ccc-dir": {
+				"aaa.tf": "hello",
+				"bbb.tf": "world",
+				"main.tf": "foobar",
+			},
+			"aaa-dir": {
+				"aaa.tf": "hello",
+				"bbb.tf": "world",
+				"main.tf": "foobar",
+			},
+			"zzz-dir": {
+				"aaa.tf": "hello",
+				"bbb.tf": "world",
+				"main.tf": "foobar",
+			},
+		};
+
+		const mainFile = findEntrypointFile(ft);
+		expect(mainFile).toBe("aaa-dir/main.tf");
+	});
 });
