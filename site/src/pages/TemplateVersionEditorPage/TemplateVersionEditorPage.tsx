@@ -20,7 +20,7 @@ import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { type FileTree, traverse } from "utils/filetree";
+import { type FileTree, existsFile, traverse } from "utils/filetree";
 import { pageTitle } from "utils/page";
 import { TarReader, TarWriter } from "utils/tar";
 import { createTemplateVersionFileTree } from "utils/templateVersion";
@@ -88,9 +88,8 @@ export const TemplateVersionEditorPage: FC = () => {
 		useState<TemplateVersion>();
 
 	// File navigation
-	// It can be undefined when a selected file is deleted
-	const activePath: string | undefined =
-		searchParams.get("path") ?? findEntrypointFile(fileTree ?? {});
+	const activePath = getActivePath(searchParams, fileTree || {});
+
 	const onActivePathChange = (path: string | undefined) => {
 		if (path) {
 			searchParams.set("path", path);
@@ -390,6 +389,17 @@ export const findEntrypointFile = (fileTree: FileTree): string | undefined => {
 	});
 
 	return initialFile;
+};
+
+export const getActivePath = (
+	searchParams: URLSearchParams,
+	fileTree: FileTree,
+): string | undefined => {
+	const selectedPath = searchParams.get("path");
+	if (selectedPath && existsFile(selectedPath, fileTree)) {
+		return selectedPath;
+	}
+	return findEntrypointFile(fileTree);
 };
 
 export default TemplateVersionEditorPage;
