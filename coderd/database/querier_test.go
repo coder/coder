@@ -2168,9 +2168,6 @@ func TestExpectOne(t *testing.T) {
 
 func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.SkipNow()
-	}
 
 	now := dbtime.Now()
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -2613,9 +2610,6 @@ func TestGetProvisionerJobsByIDsWithQueuePosition_MixedStatuses(t *testing.T) {
 
 func TestGetProvisionerJobsByIDsWithQueuePosition_OrderValidation(t *testing.T) {
 	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.SkipNow()
-	}
 
 	db, _ := dbtestutil.NewDB(t)
 	now := dbtime.Now()
