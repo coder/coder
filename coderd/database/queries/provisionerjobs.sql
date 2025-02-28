@@ -53,7 +53,7 @@ WHERE
 WITH filtered_provisioner_jobs AS (
 	-- Step 1: Filter provisioner_jobs
 	SELECT
-		*
+		id, created_at
 	FROM
 		provisioner_jobs
 	WHERE
@@ -61,9 +61,12 @@ WITH filtered_provisioner_jobs AS (
 ),
 pending_jobs AS (
 	-- Step 2: Extract only pending jobs
-	SELECT *
-	FROM provisioner_jobs
-	WHERE job_status = 'pending'
+	SELECT
+		id, created_at, tags
+	FROM
+		provisioner_jobs
+	WHERE
+		job_status = 'pending'
 ),
 ranked_jobs AS (
 	-- Step 3: Rank only pending jobs based on provisioner availability

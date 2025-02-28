@@ -6393,7 +6393,7 @@ const getProvisionerJobsByIDsWithQueuePosition = `-- name: GetProvisionerJobsByI
 WITH filtered_provisioner_jobs AS (
 	-- Step 1: Filter provisioner_jobs
 	SELECT
-		id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status
+		id, created_at
 	FROM
 		provisioner_jobs
 	WHERE
@@ -6401,9 +6401,12 @@ WITH filtered_provisioner_jobs AS (
 ),
 pending_jobs AS (
 	-- Step 2: Extract only pending jobs
-	SELECT id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status
-	FROM provisioner_jobs
-	WHERE job_status = 'pending'
+	SELECT
+		id, created_at, tags
+	FROM
+		provisioner_jobs
+	WHERE
+		job_status = 'pending'
 ),
 ranked_jobs AS (
 	-- Step 3: Rank only pending jobs based on provisioner availability
