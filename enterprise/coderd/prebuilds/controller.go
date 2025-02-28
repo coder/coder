@@ -52,7 +52,11 @@ func NewController(store database.Store, pubsub pubsub.Pubsub, cfg codersdk.Preb
 }
 
 func (c *Controller) Loop(ctx context.Context) error {
-	ticker := time.NewTicker(c.cfg.ReconciliationInterval.Value())
+	reconciliationInterval := c.cfg.ReconciliationInterval.Value()
+	if reconciliationInterval <= 0 { // avoids a panic
+		reconciliationInterval = 5 * time.Minute
+	}
+	ticker := time.NewTicker(reconciliationInterval)
 	defer ticker.Stop()
 
 	// TODO: create new authz role
@@ -88,9 +92,9 @@ func (c *Controller) isClosed() bool {
 	return c.closed.Load()
 }
 
-func (c *Controller) ReconcileTemplate(templateID uuid.UUID) {
+func (c *Controller) ReconcileTemplate(templateID *uuid.UUID) {
 	// TODO: replace this with pubsub listening
-	c.nudgeCh <- &templateID
+	c.nudgeCh <- templateID
 }
 
 // reconcile will attempt to resolve the desired vs actual state of all templates which have presets with prebuilds configured.
@@ -146,13 +150,7 @@ func (c *Controller) reconcile(ctx context.Context, templateID *uuid.UUID) {
 
 		logger.Debug(ctx, "acquired top-level prebuilds reconciliation lock", slog.F("acquire_wait_secs", fmt.Sprintf("%.4f", time.Since(start).Seconds())))
 
-		var id uuid.NullUUID
-		if templateID != nil {
-			id.UUID = *templateID
-			id.Valid = true
-		}
-
-		state, err := c.determineState(ctx, db, id)
+		state, err := c.determineState(ctx, db, templateID)
 		if err != nil {
 			return xerrors.Errorf("determine current state: %w", err)
 		}
@@ -200,7 +198,7 @@ func (c *Controller) reconcile(ctx context.Context, templateID *uuid.UUID) {
 
 // determineState determines the current state of prebuilds & the presets which define them.
 // An application-level lock is used
-func (c *Controller) determineState(ctx context.Context, store database.Store, id uuid.NullUUID) (*reconciliationState, error) {
+func (c *Controller) determineState(ctx context.Context, store database.Store, templateId *uuid.UUID) (*reconciliationState, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -218,7 +216,13 @@ func (c *Controller) determineState(ctx context.Context, store database.Store, i
 
 		c.logger.Debug(ctx, "acquired state determination lock", slog.F("acquire_wait_secs", fmt.Sprintf("%.4f", time.Since(start).Seconds())))
 
-		presetsWithPrebuilds, err := db.GetTemplatePresetsWithPrebuilds(ctx, id)
+		var dbTemplateID uuid.NullUUID
+		if templateId != nil {
+			dbTemplateID.UUID = *templateId
+			dbTemplateID.Valid = true
+		}
+
+		presetsWithPrebuilds, err := db.GetTemplatePresetsWithPrebuilds(ctx, dbTemplateID)
 		if len(presetsWithPrebuilds) == 0 {
 			return nil
 		}
