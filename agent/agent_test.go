@@ -1841,7 +1841,7 @@ func TestAgent_ReconnectingPTYContainer(t *testing.T) {
 
 	// nolint: dogsled
 	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
-		o.ExperimentalContainersEnabled = true
+		o.ExperimentalDevcontainersEnabled = true
 	})
 	ac, err := conn.ReconnectingPTY(ctx, uuid.New(), 80, 80, "/bin/sh", func(arp *workspacesdk.AgentReconnectingPTYInit) {
 		arp.Container = ct.Container.ID

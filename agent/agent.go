@@ -91,8 +91,8 @@ type Options struct {
 	Execer                       agentexec.Execer
 	ContainerLister              agentcontainers.Lister
 
-	ExperimentalContainersEnabled bool
-	ExperimentalConnectionReports bool
+	ExperimentalConnectionReports    bool
+	ExperimentalDevcontainersEnabled bool
 }
 
 type Client interface {
@@ -156,7 +156,7 @@ func New(options Options) Agent {
 		options.Execer = agentexec.DefaultExecer
 	}
 	if options.ContainerLister == nil {
-		options.ContainerLister = agentcontainers.NewDocker(options.Execer)
+		options.ContainerLister = agentcontainers.NoopLister{}
 	}
 
 	hardCtx, hardCancel := context.WithCancel(context.Background())
@@ -195,7 +195,7 @@ func New(options Options) Agent {
 		execer:             options.Execer,
 		lister:             options.ContainerLister,
 
-		experimentalDevcontainersEnabled: options.ExperimentalContainersEnabled,
+		experimentalDevcontainersEnabled: options.ExperimentalDevcontainersEnabled,
 		experimentalConnectionReports:    options.ExperimentalConnectionReports,
 	}
 	// Initially, we have a closed channel, reflecting the fact that we are not initially connected.
@@ -307,6 +307,8 @@ func (a *agent) init() {
 
 			return a.reportConnection(id, connectionType, ip)
 		},
+
+		ExperimentalDevContainersEnabled: a.experimentalDevcontainersEnabled,
 	})
 	if err != nil {
 		panic(err)
@@ -335,7 +337,7 @@ func (a *agent) init() {
 		a.metrics.connectionsTotal, a.metrics.reconnectingPTYErrors,
 		a.reconnectingPTYTimeout,
 		func(s *reconnectingpty.Server) {
-			s.ExperimentalContainersEnabled = a.experimentalDevcontainersEnabled
+			s.ExperimentalDevcontainersEnabled = a.experimentalDevcontainersEnabled
 		},
 	)
 	go a.runLoop()
