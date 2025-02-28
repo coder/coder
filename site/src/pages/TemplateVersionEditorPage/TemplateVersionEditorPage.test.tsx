@@ -27,6 +27,7 @@ import type { MonacoEditorProps } from "./MonacoEditor";
 import { Language } from "./PublishTemplateVersionDialog";
 import TemplateVersionEditorPage, {
 	findEntrypointFile,
+	getActivePath,
 } from "./TemplateVersionEditorPage";
 
 const { API } = apiModule;
@@ -412,6 +413,34 @@ function renderEditorPage(queryClient: QueryClient) {
 		</AppProviders>,
 	);
 }
+
+describe("Get active path", () => {
+	it("empty path", () => {
+		const ft: FileTree = {
+			"main.tf": "foobar",
+		};
+		const searchParams = new URLSearchParams({ path: "" });
+		const activePath = getActivePath(searchParams, ft);
+		expect(activePath).toBe("main.tf");
+	});
+	it("invalid path", () => {
+		const ft: FileTree = {
+			"main.tf": "foobar",
+		};
+		const searchParams = new URLSearchParams({ path: "foobaz" });
+		const activePath = getActivePath(searchParams, ft);
+		expect(activePath).toBe("main.tf");
+	});
+	it("valid path", () => {
+		const ft: FileTree = {
+			"main.tf": "foobar",
+			"foobar.tf": "foobaz",
+		};
+		const searchParams = new URLSearchParams({ path: "foobar.tf" });
+		const activePath = getActivePath(searchParams, ft);
+		expect(activePath).toBe("foobar.tf");
+	});
+});
 
 describe("Find entrypoint", () => {
 	it("empty tree", () => {
