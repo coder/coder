@@ -278,10 +278,10 @@ func (dcl *DockerCLILister) List(ctx context.Context) (codersdk.WorkspaceAgentLi
 		return codersdk.WorkspaceAgentListContainersResponse{}, xerrors.Errorf("run docker inspect: %w", err)
 	}
 
-	for idx, in := range ins {
+	for _, in := range ins {
 		out, warns := convertDockerInspect(in)
 		res.Warnings = append(res.Warnings, warns...)
-		res.Containers[idx] = out
+		res.Containers = append(res.Containers, out)
 	}
 
 	if dockerPsStderr != "" {
