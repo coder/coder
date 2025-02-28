@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -162,10 +163,11 @@ func TestWebsocketCloseMsg(t *testing.T) {
 // Our WebSocket library accepts any arbitrary ResponseWriter at the type level,
 // but it must also implement http.Hijack
 type mockWsResponseWriter struct {
-	recorder         http.ResponseWriter
+	recorder         *httptest.ResponseRecorder
 	clientConn       net.Conn
 	serverConn       net.Conn
 	serverReadWriter *bufio.ReadWriter
+	close            func()
 }
 
 func (m mockWsResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
@@ -233,6 +235,11 @@ func TestOneWayWebSocket(t *testing.T) {
 				bufio.NewReader(server),
 				bufio.NewWriter(write),
 			),
+			close: func() {
+				_ = recorder.Result().Body.Close()
+				_ = server.Close()
+				_ = client.Close()
+			},
 		}
 	}
 
@@ -256,6 +263,7 @@ func TestOneWayWebSocket(t *testing.T) {
 			writer := newWebsocketWriter()
 			_, _, err := httpapi.OneWayWebSocket[any](writer, req)
 			require.ErrorContains(t, err, p.proto)
+			writer.close()
 		}
 	})
 
@@ -264,15 +272,26 @@ func TestOneWayWebSocket(t *testing.T) {
 
 		req := newBaseRequest(t)
 		writer := newWebsocketWriter()
+		defer writer.close()
 		send, _, err := httpapi.OneWayWebSocket[codersdk.ServerSentEvent](writer, req)
 		require.NoError(t, err)
 
-		payload := codersdk.ServerSentEvent{
+		serverPayload := codersdk.ServerSentEvent{
 			Type: codersdk.ServerSentEventTypeData,
 			Data: "Blah",
 		}
-		err = send(payload)
+		err = send(serverPayload)
 		require.NoError(t, err)
+
+		b, err := io.ReadAll(writer.clientConn)
+		require.NoError(t, err)
+		clientPayload := codersdk.ServerSentEvent{}
+		err = json.Unmarshal(b, &clientPayload)
+		require.NoError(t, err)
+		require.Equal(t, serverPayload.Type, clientPayload.Type)
+		cb, ok := clientPayload.Data.([]byte)
+		require.True(t, ok)
+		require.Equal(t, serverPayload.Data, string(cb))
 	})
 
 	t.Run("Signals to an outside consumer when the socket has been closed", func(t *testing.T) {
