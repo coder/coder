@@ -84,6 +84,19 @@ export const MultipleOrganizations: Story = {
 	},
 };
 
+export const WithFilteredAllTemplates: Story = {
+	args: {
+		...WithTemplates.args,
+		templates: [],
+		...getDefaultFilterProps({
+			query: "deprecated:false searchnotfound",
+			menus: {},
+			values: {},
+			used: true,
+		}),
+	},
+};
+
 export const EmptyCanCreate: Story = {
 	args: {
 		canCreateTemplates: true,

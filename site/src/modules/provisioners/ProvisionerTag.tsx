@@ -45,7 +45,6 @@ export const ProvisionerTag: FC<ProvisionerTagProps> = ({
 		<>
 			{kv}
 			<IconButton
-				aria-label={`delete-${tagName}`}
 				size="small"
 				color="secondary"
 				onClick={() => {
@@ -53,6 +52,7 @@ export const ProvisionerTag: FC<ProvisionerTagProps> = ({
 				}}
 			>
 				<CloseIcon fontSize="inherit" css={{ width: 14, height: 14 }} />
+				<span className="sr-only">Delete {tagName}</span>
 			</IconButton>
 		</>
 	) : (
@@ -62,7 +62,7 @@ export const ProvisionerTag: FC<ProvisionerTagProps> = ({
 		return <BooleanPill value={boolValue}>{content}</BooleanPill>;
 	}
 	return (
-		<Pill size="lg" icon={<Sell />}>
+		<Pill size="lg" icon={<Sell />} data-testid={`tag-${tagName}`}>
 			{content}
 		</Pill>
 	);

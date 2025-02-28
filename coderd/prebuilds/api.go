@@ -3,10 +3,8 @@ package prebuilds
 import (
 	"context"
 
-	"github.com/google/uuid"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/google/uuid"
 )
 
 type Claimer interface {
@@ -17,7 +15,8 @@ type Claimer interface {
 type AGPLPrebuildClaimer struct{}
 
 func (c AGPLPrebuildClaimer) Claim(context.Context, database.Store, uuid.UUID, string, uuid.UUID) (*uuid.UUID, error) {
-	return nil, xerrors.Errorf("not entitled to claim prebuilds")
+	// Not entitled to claim prebuilds in AGPL version.
+	return nil, nil
 }
 
 func (c AGPLPrebuildClaimer) Initiator() uuid.UUID {
