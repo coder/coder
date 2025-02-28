@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -162,16 +161,17 @@ func TestWebsocketCloseMsg(t *testing.T) {
 
 type mockHijacker struct {
 	http.ResponseWriter
-	connection net.Conn
+	serverConn net.Conn
+	clientConn net.Conn
 	rw         *bufio.ReadWriter
 }
 
-func (mh mockHijacker) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-	return mh.connection, mh.rw, nil
+func (m mockHijacker) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	return m.serverConn, m.rw, nil
 }
 
-func (mh mockHijacker) Flush() {
-	if f, ok := mh.ResponseWriter.(http.Flusher); ok {
+func (m mockHijacker) Flush() {
+	if f, ok := m.ResponseWriter.(http.Flusher); ok {
 		f.Flush()
 	}
 }
@@ -184,32 +184,29 @@ func TestOneWayWebSocket(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		require.NoError(t, err)
-		req.Header = http.Header{
-			"Connection":            {"Upgrade"},
-			"Upgrade":               {"websocket"},
-			"Sec-WebSocket-Version": {"13"},
-			"Sec-WebSocket-Key":     {"dGhlIHNhbXBsZSBub25jZQ=="},
-		}
-		// Todo: Figure out why headers are missing without these calls
-		req.Header.Add("Sec-WebSocket-Version", "13")
-		req.Header.Add("Sec-WebSocket-Key", "dGhlIHNhbXBsZSBub25jZQ==")
+
+		h := req.Header
+		h.Add("Connection", "Upgrade")
+		h.Add("Upgrade", "websocket")
+		h.Add("Sec-WebSocket-Version", "13")
+		h.Add("Sec-WebSocket-Key", "dGhlIHNhbXBsZSBub25jZQ==")
 
 		return req
 	}
 
-	wrapWriter := func(rw http.ResponseWriter, r io.Reader) http.ResponseWriter {
-		server, _ := net.Pipe()
-		reader := bufio.NewReader(r)
-		writer := bufio.NewWriter(rw)
+	newMockHijacker := func() mockHijacker {
+		server, client := net.Pipe()
+		reader := bufio.NewReader(strings.NewReader(""))
+		recorder := httptest.NewRecorder()
+		writer := bufio.NewWriter(recorder)
 		readWriter := bufio.NewReadWriter(reader, writer)
 
-		hijacker := mockHijacker{
-			connection:     server,
-			ResponseWriter: rw,
+		return mockHijacker{
+			serverConn:     server,
+			clientConn:     client,
+			ResponseWriter: recorder,
 			rw:             readWriter,
 		}
-
-		return hijacker
 	}
 
 	t.Run("Produces an error if the socket connection could not be established", func(t *testing.T) {
@@ -237,10 +234,9 @@ func TestOneWayWebSocket(t *testing.T) {
 	t.Run("Returned callback can publish a new event to the WebSocket connection", func(t *testing.T) {
 		t.Parallel()
 
-		recorder := httptest.NewRecorder()
-		writer := wrapWriter(recorder, strings.NewReader(""))
+		mock := newMockHijacker()
 		send, _, err := httpapi.OneWayWebSocket[codersdk.ServerSentEvent](
-			writer,
+			mock,
 			createBaseRequest(t),
 		)
 		require.NoError(t, err)
