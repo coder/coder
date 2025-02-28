@@ -2061,13 +2061,13 @@ func (q *querier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (data
 		// can read the job.
 		_, err := q.GetWorkspaceBuildByJobID(ctx, id)
 		if err != nil {
-			return database.ProvisionerJob{}, err
+			return database.ProvisionerJob{}, xerrors.Errorf("fetch related workspace build: %w", err)
 		}
 	case database.ProvisionerJobTypeTemplateVersionDryRun, database.ProvisionerJobTypeTemplateVersionImport:
 		// Authorized call to get template version.
 		_, err := authorizedTemplateVersionFromJob(ctx, q, job)
 		if err != nil {
-			return database.ProvisionerJob{}, err
+			return database.ProvisionerJob{}, xerrors.Errorf("fetch related template version: %w", err)
 		}
 	default:
 		return database.ProvisionerJob{}, xerrors.Errorf("unknown job type: %q", job.Type)
