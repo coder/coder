@@ -17,6 +17,10 @@ import (
 )
 
 func TestNoReconciliationActionsIfNoPresets(t *testing.T) {
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres")
+	}
+
 	// Scenario: No reconciliation actions are taken if there are no presets
 	t.Parallel()
 
@@ -57,6 +61,10 @@ func TestNoReconciliationActionsIfNoPresets(t *testing.T) {
 }
 
 func TestNoReconciliationActionsIfNoPrebuilds(t *testing.T) {
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres")
+	}
+
 	// Scenario: No reconciliation actions are taken if there are no prebuilds
 	t.Parallel()
 
@@ -109,6 +117,10 @@ func TestNoReconciliationActionsIfNoPrebuilds(t *testing.T) {
 }
 
 func TestPrebuildCreation(t *testing.T) {
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres")
+	}
+
 	t.Parallel()
 
 	// Scenario: Prebuilds are created if and only if they are needed
@@ -260,6 +272,10 @@ func TestPrebuildCreation(t *testing.T) {
 }
 
 func TestDeleteUnwantedPrebuilds(t *testing.T) {
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres")
+	}
+
 	// Scenario: Prebuilds are deleted if and only if they are extraneous
 	t.Parallel()
 
