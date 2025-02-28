@@ -3,6 +3,7 @@ import {
 	AlphaBadge,
 	Badges,
 	DisabledBadge,
+	EaBadge,
 	EnabledBadge,
 	EntitledBadge,
 	HealthyBadge,
@@ -63,5 +64,10 @@ export const Preview: Story = {
 export const Alpha: Story = {
 	args: {
 		children: <AlphaBadge />,
+	},
+};
+export const EarlyAccess: Story = {
+	args: {
+		children: <EaBadge />,
 	},
 };
