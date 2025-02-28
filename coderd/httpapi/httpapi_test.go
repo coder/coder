@@ -159,20 +159,67 @@ func TestWebsocketCloseMsg(t *testing.T) {
 	})
 }
 
-type mockHijacker struct {
-	http.ResponseWriter
-	serverConn net.Conn
-	clientConn net.Conn
-	rw         *bufio.ReadWriter
+// Our WebSocket library accepts any arbitrary ResponseWriter at the type level,
+// but it must also implement http.Hijack
+type mockWsResponseWriter struct {
+	recorder         http.ResponseWriter
+	serverConn       net.Conn
+	clientConn       net.Conn
+	serverReadWriter *bufio.ReadWriter
 }
 
-func (m mockHijacker) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-	return m.serverConn, m.rw, nil
+func (m mockWsResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	return m.serverConn, m.serverReadWriter, nil
 }
 
-func (m mockHijacker) Flush() {
-	if f, ok := m.ResponseWriter.(http.Flusher); ok {
+func (m mockWsResponseWriter) Flush() {
+	if f, ok := m.recorder.(http.Flusher); ok {
 		f.Flush()
+	}
+}
+
+func (m mockWsResponseWriter) Header() http.Header {
+	return m.recorder.Header()
+}
+
+func (m mockWsResponseWriter) Write(b []byte) (int, error) {
+	return m.serverReadWriter.Write(b)
+}
+
+func (m mockWsResponseWriter) WriteHeader(code int) {
+	m.recorder.WriteHeader(code)
+}
+
+type mockWsResponseWrite func(b []byte) (int, error)
+
+func (w mockWsResponseWrite) Write(b []byte) (int, error) {
+	return w(b)
+}
+
+func newMockWebsocketWriter() mockWsResponseWriter {
+	server, client := net.Pipe()
+	recorder := httptest.NewRecorder()
+
+	var write mockWsResponseWrite = func(b []byte) (int, error) {
+		serverCount, err := server.Write(b)
+		if err != nil {
+			return serverCount, err
+		}
+		recorderCount, err := recorder.Write(b)
+		if serverCount < recorderCount {
+			return serverCount, err
+		}
+		return recorderCount, err
+	}
+
+	return mockWsResponseWriter{
+		serverConn: server,
+		clientConn: client,
+		recorder:   recorder,
+		serverReadWriter: bufio.NewReadWriter(
+			bufio.NewReader(server),
+			bufio.NewWriter(write),
+		),
 	}
 }
 
@@ -194,21 +241,6 @@ func TestOneWayWebSocket(t *testing.T) {
 		return req
 	}
 
-	newMockHijacker := func() mockHijacker {
-		server, client := net.Pipe()
-		reader := bufio.NewReader(strings.NewReader(""))
-		recorder := httptest.NewRecorder()
-		writer := bufio.NewWriter(recorder)
-		readWriter := bufio.NewReadWriter(reader, writer)
-
-		return mockHijacker{
-			serverConn:     server,
-			clientConn:     client,
-			ResponseWriter: recorder,
-			rw:             readWriter,
-		}
-	}
-
 	t.Run("Produces an error if the socket connection could not be established", func(t *testing.T) {
 		t.Parallel()
 
@@ -226,7 +258,8 @@ func TestOneWayWebSocket(t *testing.T) {
 			req.ProtoMinor = p.minor
 			req.Proto = p.proto
 
-			_, _, err := httpapi.OneWayWebSocket[any](httptest.NewRecorder(), req)
+			writer := newMockWebsocketWriter()
+			_, _, err := httpapi.OneWayWebSocket[any](writer, req)
 			require.ErrorContains(t, err, p.proto)
 		}
 	})
@@ -234,11 +267,9 @@ func TestOneWayWebSocket(t *testing.T) {
 	t.Run("Returned callback can publish a new event to the WebSocket connection", func(t *testing.T) {
 		t.Parallel()
 
-		mock := newMockHijacker()
-		send, _, err := httpapi.OneWayWebSocket[codersdk.ServerSentEvent](
-			mock,
-			createBaseRequest(t),
-		)
+		req := createBaseRequest(t)
+		writer := newMockWebsocketWriter()
+		send, _, err := httpapi.OneWayWebSocket[codersdk.ServerSentEvent](writer, req)
 		require.NoError(t, err)
 
 		err = send(codersdk.ServerSentEvent{
