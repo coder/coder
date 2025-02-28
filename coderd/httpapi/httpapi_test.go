@@ -163,8 +163,8 @@ func TestWebsocketCloseMsg(t *testing.T) {
 // but it must also implement http.Hijack
 type mockWsResponseWriter struct {
 	recorder         http.ResponseWriter
-	serverConn       net.Conn
 	clientConn       net.Conn
+	serverConn       net.Conn
 	serverReadWriter *bufio.ReadWriter
 }
 
@@ -173,9 +173,7 @@ func (m mockWsResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 }
 
 func (m mockWsResponseWriter) Flush() {
-	if f, ok := m.recorder.(http.Flusher); ok {
-		f.Flush()
-	}
+	_ = m.serverReadWriter.Flush()
 }
 
 func (m mockWsResponseWriter) Header() http.Header {
