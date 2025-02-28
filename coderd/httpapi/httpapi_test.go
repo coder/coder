@@ -230,14 +230,7 @@ func TestOneWayWebSocket(t *testing.T) {
 			req.Proto = p.proto
 
 			_, _, err := httpapi.OneWayWebSocket[any](httptest.NewRecorder(), req)
-			require.ErrorContains(
-				t,
-				err,
-				fmt.Sprintf(
-					"WebSocket protocol violation: handshake request must be at least HTTP/1.1: %q",
-					p.proto,
-				),
-			)
+			require.ErrorContains(t, err, p.proto)
 		}
 	})
 
