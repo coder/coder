@@ -326,6 +326,32 @@ func TestOneWayWebSocket(t *testing.T) {
 
 	t.Run("Socket will immediately close if client sends any message", func(t *testing.T) {
 		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		req := newBaseRequest(ctx)
+		writer := newWebsocketWriter()
+		t.Cleanup(writer.close)
+		_, done, err := httpapi.OneWayWebSocket[codersdk.ServerSentEvent](writer, req)
+		require.NoError(t, err)
+
+		successC := make(chan bool)
+		ticker := time.NewTicker(testutil.WaitShort)
+		go func() {
+			select {
+			case <-done:
+				successC <- true
+			case <-ticker.C:
+				successC <- false
+			}
+		}()
+
+		b, err := json.Marshal(struct {
+			Value string `json:"value"`
+		}{"Hi :)"})
+		require.NoError(t, err)
+		_, err = writer.clientConn.Write(b)
+		require.NoError(t, err)
+		require.True(t, <-successC)
 	})
 
 	t.Run("Returned callback returns error if called after socket has been closed", func(t *testing.T) {
