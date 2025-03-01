@@ -262,9 +262,9 @@ func TestOneWayWebSocket(t *testing.T) {
 			req.Proto = p.proto
 
 			writer := newWebsocketWriter()
+			t.Cleanup(writer.close)
 			_, _, err := httpapi.OneWayWebSocket[any](writer, req)
 			require.ErrorContains(t, err, p.proto)
-			t.Cleanup(writer.close)
 		}
 	})
 
@@ -354,7 +354,7 @@ func TestOneWayWebSocket(t *testing.T) {
 		require.True(t, <-successC)
 	})
 
-	t.Run("Returned callback returns error if called after socket has been closed", func(t *testing.T) {
+	t.Run("Renders the socket inert if the request context cancels", func(t *testing.T) {
 		t.Parallel()
 
 		rootCtx := testutil.Context(t, testutil.WaitShort)
@@ -381,16 +381,18 @@ func TestOneWayWebSocket(t *testing.T) {
 		require.True(t, <-successC)
 		err = send(codersdk.ServerSentEvent{
 			Type: codersdk.ServerSentEventTypeData,
-			Data: "Whoops",
+			Data: "Didn't realize you were closed - sorry!",
 		})
+		require.Error(t, err)
+		_, open := <-done
+		require.False(t, open)
+		_, err = writer.serverConn.Write([]byte{})
+		require.Error(t, err)
+		_, err = writer.clientConn.Read([]byte{})
 		require.Error(t, err)
 	})
 
 	t.Run("Sends a heartbeat to the socket on a fixed internal of time to keep connections alive", func(t *testing.T) {
-		t.Parallel()
-	})
-
-	t.Run("Renders the socket inert if the request context cancels", func(t *testing.T) {
 		t.Parallel()
 	})
 }
