@@ -383,13 +383,13 @@ func TestOneWayWebSocket(t *testing.T) {
 			Type: codersdk.ServerSentEventTypeData,
 			Data: "Didn't realize you were closed - sorry!",
 		})
-		require.Error(t, err)
+		require.Equal(t, err, cancelCtx.Err())
 		_, open := <-done
 		require.False(t, open)
 		_, err = writer.serverConn.Write([]byte{})
-		require.Error(t, err)
+		require.Equal(t, err, io.ErrClosedPipe)
 		_, err = writer.clientConn.Read([]byte{})
-		require.Error(t, err)
+		require.Equal(t, err, io.EOF)
 	})
 
 	t.Run("Sends a heartbeat to the socket on a fixed internal of time to keep connections alive", func(t *testing.T) {
