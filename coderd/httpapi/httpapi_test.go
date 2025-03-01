@@ -392,7 +392,12 @@ func TestOneWayWebSocket(t *testing.T) {
 	t.Run("Sends a heartbeat to the socket on a fixed internal of time to keep connections alive", func(t *testing.T) {
 		t.Parallel()
 
-		timeout := httpapi.HeartbeatInterval + (5 * time.Second)
+		// Need add at least three heartbeats for something to be reliably
+		// counted as an interval, but also need some wiggle room
+		heartbeatCount := 3
+		hbDuration := time.Duration(heartbeatCount) * httpapi.HeartbeatInterval
+		timeout := hbDuration + (5 * time.Second)
+
 		ctx := testutil.Context(t, timeout)
 		req := newBaseRequest(ctx)
 		writer := newWebsocketWriter()
@@ -408,14 +413,20 @@ func TestOneWayWebSocket(t *testing.T) {
 		go func() {
 			err := writer.
 				clientConn.
-				SetReadDeadline(time.Now().Add(httpapi.HeartbeatInterval))
+				SetReadDeadline(time.Now().Add(hbDuration))
 			if err != nil {
 				resultC <- Result{err, false}
 				return
 			}
-			pingBuffer := make([]byte, 1)
-			pingSize, err := writer.clientConn.Read(pingBuffer)
-			resultC <- Result{err, pingSize == 1}
+			for range heartbeatCount {
+				pingBuffer := make([]byte, 1)
+				pingSize, err := writer.clientConn.Read(pingBuffer)
+				if err != nil || pingSize != 1 {
+					resultC <- Result{err, false}
+					return
+				}
+			}
+			resultC <- Result{nil, true}
 		}()
 
 		result := <-resultC
