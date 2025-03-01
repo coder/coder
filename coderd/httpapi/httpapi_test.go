@@ -164,11 +164,16 @@ func TestWebsocketCloseMsg(t *testing.T) {
 // Our WebSocket library accepts any arbitrary ResponseWriter at the type level,
 // but it must also implement http.Hijack
 type mockWsResponseWriter struct {
-	recorder         *httptest.ResponseRecorder
-	clientConn       net.Conn
+	serverRecorder   *httptest.ResponseRecorder
 	serverConn       net.Conn
+	clientConn       net.Conn
 	serverReadWriter *bufio.ReadWriter
-	close            func()
+}
+
+func (m mockWsResponseWriter) Close() {
+	_ = m.serverRecorder.Result().Body.Close()
+	_ = m.serverConn.Close()
+	_ = m.clientConn.Close()
 }
 
 func (m mockWsResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
@@ -180,7 +185,7 @@ func (m mockWsResponseWriter) Flush() {
 }
 
 func (m mockWsResponseWriter) Header() http.Header {
-	return m.recorder.Header()
+	return m.serverRecorder.Header()
 }
 
 func (m mockWsResponseWriter) Write(b []byte) (int, error) {
@@ -188,12 +193,12 @@ func (m mockWsResponseWriter) Write(b []byte) (int, error) {
 }
 
 func (m mockWsResponseWriter) WriteHeader(code int) {
-	m.recorder.WriteHeader(code)
+	m.serverRecorder.WriteHeader(code)
 }
 
-type mockWsResponseWrite func(b []byte) (int, error)
+type mockWsWrite func(b []byte) (int, error)
 
-func (w mockWsResponseWrite) Write(b []byte) (int, error) {
+func (w mockWsWrite) Write(b []byte) (int, error) {
 	return w(b)
 }
 
@@ -215,11 +220,11 @@ func TestOneWayWebSocket(t *testing.T) {
 	}
 
 	newWebsocketWriter := func() mockWsResponseWriter {
-		server, client := net.Pipe()
+		mockServer, mockClient := net.Pipe()
 		recorder := httptest.NewRecorder()
 
-		var write mockWsResponseWrite = func(b []byte) (int, error) {
-			serverCount, err := server.Write(b)
+		var write mockWsWrite = func(b []byte) (int, error) {
+			serverCount, err := mockServer.Write(b)
 			if err != nil {
 				return serverCount, err
 			}
@@ -228,18 +233,13 @@ func TestOneWayWebSocket(t *testing.T) {
 		}
 
 		return mockWsResponseWriter{
-			serverConn: server,
-			clientConn: client,
-			recorder:   recorder,
+			serverConn:     mockServer,
+			clientConn:     mockClient,
+			serverRecorder: recorder,
 			serverReadWriter: bufio.NewReadWriter(
-				bufio.NewReader(server),
+				bufio.NewReader(mockServer),
 				bufio.NewWriter(write),
 			),
-			close: func() {
-				_ = recorder.Result().Body.Close()
-				_ = server.Close()
-				_ = client.Close()
-			},
 		}
 	}
 
@@ -262,7 +262,7 @@ func TestOneWayWebSocket(t *testing.T) {
 			req.Proto = p.proto
 
 			writer := newWebsocketWriter()
-			t.Cleanup(writer.close)
+			t.Cleanup(writer.Close)
 			_, _, err := httpapi.OneWayWebSocket[any](writer, req)
 			require.ErrorContains(t, err, p.proto)
 		}
@@ -274,7 +274,7 @@ func TestOneWayWebSocket(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		req := newBaseRequest(ctx)
 		writer := newWebsocketWriter()
-		t.Cleanup(writer.close)
+		t.Cleanup(writer.Close)
 		send, _, err := httpapi.OneWayWebSocket[codersdk.ServerSentEvent](writer, req)
 		require.NoError(t, err)
 
@@ -300,12 +300,10 @@ func TestOneWayWebSocket(t *testing.T) {
 	t.Run("Signals to outside consumer when socket has been closed", func(t *testing.T) {
 		t.Parallel()
 
-		rootCtx := testutil.Context(t, testutil.WaitShort)
-		cancelCtx, cancel := context.WithCancel(rootCtx)
-
-		req := newBaseRequest(cancelCtx)
+		ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitShort))
+		req := newBaseRequest(ctx)
 		writer := newWebsocketWriter()
-		t.Cleanup(writer.close)
+		t.Cleanup(writer.Close)
 		_, done, err := httpapi.OneWayWebSocket[codersdk.ServerSentEvent](writer, req)
 		require.NoError(t, err)
 
@@ -330,7 +328,7 @@ func TestOneWayWebSocket(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		req := newBaseRequest(ctx)
 		writer := newWebsocketWriter()
-		t.Cleanup(writer.close)
+		t.Cleanup(writer.Close)
 		_, done, err := httpapi.OneWayWebSocket[codersdk.ServerSentEvent](writer, req)
 		require.NoError(t, err)
 
@@ -345,9 +343,10 @@ func TestOneWayWebSocket(t *testing.T) {
 			}
 		}()
 
-		b, err := json.Marshal(struct {
-			Value string `json:"value"`
-		}{"Hi :)"})
+		type JunkClientEvent struct {
+			Value string
+		}
+		b, err := json.Marshal(JunkClientEvent{"Hi :)"})
 		require.NoError(t, err)
 		_, err = writer.clientConn.Write(b)
 		require.NoError(t, err)
@@ -357,12 +356,10 @@ func TestOneWayWebSocket(t *testing.T) {
 	t.Run("Renders the socket inert if the request context cancels", func(t *testing.T) {
 		t.Parallel()
 
-		rootCtx := testutil.Context(t, testutil.WaitShort)
-		cancelCtx, cancel := context.WithCancel(rootCtx)
-
-		req := newBaseRequest(cancelCtx)
+		ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitShort))
+		req := newBaseRequest(ctx)
 		writer := newWebsocketWriter()
-		t.Cleanup(writer.close)
+		t.Cleanup(writer.Close)
 		send, done, err := httpapi.OneWayWebSocket[codersdk.ServerSentEvent](writer, req)
 		require.NoError(t, err)
 
@@ -381,9 +378,9 @@ func TestOneWayWebSocket(t *testing.T) {
 		require.True(t, <-successC)
 		err = send(codersdk.ServerSentEvent{
 			Type: codersdk.ServerSentEventTypeData,
-			Data: "Didn't realize you were closed - sorry!",
+			Data: "Didn't realize you were closed - sorry! I'll try coming back tomorrow.",
 		})
-		require.Equal(t, err, cancelCtx.Err())
+		require.Equal(t, err, ctx.Err())
 		_, open := <-done
 		require.False(t, open)
 		_, err = writer.serverConn.Write([]byte{})
@@ -394,5 +391,35 @@ func TestOneWayWebSocket(t *testing.T) {
 
 	t.Run("Sends a heartbeat to the socket on a fixed internal of time to keep connections alive", func(t *testing.T) {
 		t.Parallel()
+
+		timeout := httpapi.HeartbeatInterval + (5 * time.Second)
+		ctx := testutil.Context(t, timeout)
+		req := newBaseRequest(ctx)
+		writer := newWebsocketWriter()
+		t.Cleanup(writer.Close)
+		_, _, err := httpapi.OneWayWebSocket[codersdk.ServerSentEvent](writer, req)
+		require.NoError(t, err)
+
+		type Result struct {
+			Err     error
+			Success bool
+		}
+		resultC := make(chan Result)
+		go func() {
+			err := writer.
+				clientConn.
+				SetReadDeadline(time.Now().Add(httpapi.HeartbeatInterval))
+			if err != nil {
+				resultC <- Result{err, false}
+				return
+			}
+			pingBuffer := make([]byte, 1)
+			pingSize, err := writer.clientConn.Read(pingBuffer)
+			resultC <- Result{err, pingSize == 1}
+		}()
+
+		result := <-resultC
+		require.NoError(t, result.Err)
+		require.True(t, result.Success)
 	})
 }
