@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -199,9 +200,8 @@ func (w mockWsResponseWrite) Write(b []byte) (int, error) {
 func TestOneWayWebSocket(t *testing.T) {
 	t.Parallel()
 
-	newBaseRequest := func(t *testing.T) *http.Request {
+	newBaseRequest := func(ctx context.Context) *http.Request {
 		url := "ws://www.fake-website.com/logs"
-		ctx := testutil.Context(t, testutil.WaitShort)
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		require.NoError(t, err)
 
@@ -243,7 +243,7 @@ func TestOneWayWebSocket(t *testing.T) {
 		}
 	}
 
-	t.Run("Produces an error if the socket connection could not be established", func(t *testing.T) {
+	t.Run("Produces error if the socket connection could not be established", func(t *testing.T) {
 		t.Parallel()
 
 		incorrectProtocols := []struct {
@@ -255,7 +255,8 @@ func TestOneWayWebSocket(t *testing.T) {
 			{1, 0, "HTTP/1.0"},
 		}
 		for _, p := range incorrectProtocols {
-			req := newBaseRequest(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			req := newBaseRequest(ctx)
 			req.ProtoMajor = p.major
 			req.ProtoMinor = p.minor
 			req.Proto = p.proto
@@ -263,16 +264,17 @@ func TestOneWayWebSocket(t *testing.T) {
 			writer := newWebsocketWriter()
 			_, _, err := httpapi.OneWayWebSocket[any](writer, req)
 			require.ErrorContains(t, err, p.proto)
-			writer.close()
+			t.Cleanup(writer.close)
 		}
 	})
 
-	t.Run("Returned callback can publish a new event to the WebSocket connection", func(t *testing.T) {
+	t.Run("Returned callback can publish new event to WebSocket connection", func(t *testing.T) {
 		t.Parallel()
 
-		req := newBaseRequest(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		req := newBaseRequest(ctx)
 		writer := newWebsocketWriter()
-		defer writer.close()
+		t.Cleanup(writer.close)
 		send, _, err := httpapi.OneWayWebSocket[codersdk.ServerSentEvent](writer, req)
 		require.NoError(t, err)
 
@@ -285,20 +287,44 @@ func TestOneWayWebSocket(t *testing.T) {
 
 		b, err := io.ReadAll(writer.clientConn)
 		require.NoError(t, err)
+		fmt.Printf("-----------%q\n", b) // todo: Figure out why junk characters are added to JSON
 		clientPayload := codersdk.ServerSentEvent{}
 		err = json.Unmarshal(b, &clientPayload)
 		require.NoError(t, err)
 		require.Equal(t, serverPayload.Type, clientPayload.Type)
-		cb, ok := clientPayload.Data.([]byte)
+		data, ok := clientPayload.Data.([]byte)
 		require.True(t, ok)
-		require.Equal(t, serverPayload.Data, string(cb))
+		require.Equal(t, serverPayload.Data, string(data))
 	})
 
-	t.Run("Signals to an outside consumer when the socket has been closed", func(t *testing.T) {
+	t.Run("Signals to outside consumer when socket has been closed", func(t *testing.T) {
 		t.Parallel()
+
+		rootCtx := testutil.Context(t, testutil.WaitShort)
+		cancelCtx, cancel := context.WithCancel(rootCtx)
+
+		req := newBaseRequest(cancelCtx)
+		writer := newWebsocketWriter()
+		t.Cleanup(writer.close)
+		_, done, err := httpapi.OneWayWebSocket[codersdk.ServerSentEvent](writer, req)
+		require.NoError(t, err)
+
+		successC := make(chan bool)
+		ticker := time.NewTicker(testutil.WaitShort)
+		go func() {
+			select {
+			case <-done:
+				successC <- true
+			case <-ticker.C:
+				successC <- false
+			}
+		}()
+
+		cancel()
+		require.True(t, <-successC)
 	})
 
-	t.Run("Socket will automatically close if client sends a single message", func(t *testing.T) {
+	t.Run("Socket will immediately close if client sends any message", func(t *testing.T) {
 		t.Parallel()
 	})
 
