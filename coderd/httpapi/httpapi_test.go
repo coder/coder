@@ -356,6 +356,34 @@ func TestOneWayWebSocket(t *testing.T) {
 
 	t.Run("Returned callback returns error if called after socket has been closed", func(t *testing.T) {
 		t.Parallel()
+
+		rootCtx := testutil.Context(t, testutil.WaitShort)
+		cancelCtx, cancel := context.WithCancel(rootCtx)
+
+		req := newBaseRequest(cancelCtx)
+		writer := newWebsocketWriter()
+		t.Cleanup(writer.close)
+		send, done, err := httpapi.OneWayWebSocket[codersdk.ServerSentEvent](writer, req)
+		require.NoError(t, err)
+
+		successC := make(chan bool)
+		ticker := time.NewTicker(testutil.WaitShort)
+		go func() {
+			select {
+			case <-done:
+				successC <- true
+			case <-ticker.C:
+				successC <- false
+			}
+		}()
+
+		cancel()
+		require.True(t, <-successC)
+		err = send(codersdk.ServerSentEvent{
+			Type: codersdk.ServerSentEventTypeData,
+			Data: "Whoops",
+		})
+		require.Error(t, err)
 	})
 
 	t.Run("Sends a heartbeat to the socket on a fixed internal of time to keep connections alive", func(t *testing.T) {
