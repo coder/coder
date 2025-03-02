@@ -106,7 +106,7 @@ only supported on Windows and Linux workspace agents).
 We allow developers to share ports as URLs, either with other authenticated
 coder users or publicly. Using the open ports interface, developers can assign a
 sharing levels that match our `coder_app`’s share option in
-[Coder terraform provider](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app#share).
+[Coder terraform provider](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app#share-1).
 
 - `owner` (Default): The implicit sharing level for all listening ports, only
   visible to the workspace owner
