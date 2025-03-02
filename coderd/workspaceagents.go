@@ -1159,7 +1159,7 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 	//nolint:ineffassign // Release memory.
 	initialMD = nil
 
-	sendWsEvent, wsClosed, err := httpapi.OneWayWebSocket[codersdk.ServerSentEvent](rw, r)
+	sendSse, closed, err := httpapi.ServerSentEventSender(rw, r)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error setting up server-sent events.",
@@ -1170,14 +1170,14 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 	// Prevent handler from returning until the sender is closed.
 	defer func() {
 		cancel()
-		<-wsClosed
+		<-closed
 	}()
 	// Synchronize cancellation from SSE -> context, this lets us simplify the
 	// cancellation logic.
 	go func() {
 		select {
 		case <-ctx.Done():
-		case <-wsClosed:
+		case <-closed:
 			cancel()
 		}
 	}()
@@ -1189,7 +1189,7 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 
 		log.Debug(ctx, "sending metadata", "num", len(values))
 
-		_ = sendWsEvent(codersdk.ServerSentEvent{
+		_ = sendSse(ctx, codersdk.ServerSentEvent{
 			Type: codersdk.ServerSentEventTypeData,
 			Data: convertWorkspaceAgentMetadata(values),
 		})
@@ -1221,7 +1221,7 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 				if err != nil {
 					if !database.IsQueryCanceledError(err) {
 						log.Error(ctx, "failed to get metadata", slog.Error(err))
-						_ = sendWsEvent(codersdk.ServerSentEvent{
+						_ = sendSse(ctx, codersdk.ServerSentEvent{
 							Type: codersdk.ServerSentEventTypeError,
 							Data: codersdk.Response{
 								Message: "Failed to get metadata.",
