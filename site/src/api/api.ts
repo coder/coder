@@ -108,7 +108,7 @@ const getMissingParameters = (
 export const watchAgentMetadata = (agentId: string): OneWayWebSocket => {
 	const protocol = location.protocol === "https:" ? "wss:" : "ws:";
 	return new OneWayWebSocket(
-		`${protocol}//${location.host}/api/v2/workspaceagents/${agentId}/watch-metadata`,
+		`${protocol}//${location.host}/api/v2/workspaceagents/${agentId}/watch-metadata-ws`,
 	);
 };
 
@@ -119,7 +119,7 @@ export const watchAgentMetadata = (agentId: string): OneWayWebSocket => {
 export const watchWorkspace = (workspaceId: string): OneWayWebSocket => {
 	const protocol = location.protocol === "https:" ? "wss:" : "ws:";
 	return new OneWayWebSocket(
-		`${protocol}//${location.host}/api/v2/workspaces/${workspaceId}/watch`,
+		`${protocol}//${location.host}/api/v2/workspaces/${workspaceId}/watch-ws`,
 	);
 };
 
