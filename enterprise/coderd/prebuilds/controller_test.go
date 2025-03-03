@@ -19,6 +19,10 @@ import (
 )
 
 func TestNoReconciliationActionsIfNoPresets(t *testing.T) {
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres")
+	}
+
 	// Scenario: No reconciliation actions are taken if there are no presets
 	t.Parallel()
 
@@ -59,6 +63,10 @@ func TestNoReconciliationActionsIfNoPresets(t *testing.T) {
 }
 
 func TestNoReconciliationActionsIfNoPrebuilds(t *testing.T) {
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres")
+	}
+
 	// Scenario: No reconciliation actions are taken if there are no prebuilds
 	t.Parallel()
 
@@ -232,6 +240,10 @@ func setupTestDBPrebuild(
 }
 
 func TestActiveTemplateVersionPrebuilds(t *testing.T) {
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres")
+	}
+
 	t.Parallel()
 
 	type testCase struct {
