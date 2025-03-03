@@ -17,13 +17,13 @@ import { type ClassName, useClassName } from "hooks/useClassName";
 import type { FC } from "react";
 import { docs } from "utils/docs";
 
-export interface SSHButtonProps {
+export interface AgentSSHButtonProps {
 	workspaceName: string;
 	agentName: string;
 	sshPrefix?: string;
 }
 
-export const SSHButton: FC<SSHButtonProps> = ({
+export const AgentSSHButton: FC<AgentSSHButtonProps> = ({
 	workspaceName,
 	agentName,
 	sshPrefix,
@@ -72,6 +72,60 @@ export const SSHButton: FC<SSHButtonProps> = ({
 						href={docs("/user-guides/workspace-access/jetbrains")}
 					>
 						Connect via JetBrains Gateway
+					</HelpTooltipLink>
+					<HelpTooltipLink href={docs("/user-guides/workspace-access#ssh")}>
+						SSH configuration
+					</HelpTooltipLink>
+				</HelpTooltipLinksGroup>
+			</PopoverContent>
+		</Popover>
+	);
+};
+
+export interface AgentDevcontainerSSHButtonProps {
+	workspace: string;
+	container: string;
+}
+
+export const AgentDevcontainerSSHButton: FC<
+	AgentDevcontainerSSHButtonProps
+> = ({ workspace, container }) => {
+	const paper = useClassName(classNames.paper, []);
+
+	return (
+		<Popover>
+			<PopoverTrigger>
+				<Button
+					size="small"
+					variant="text"
+					endIcon={<KeyboardArrowDown />}
+					css={{ fontSize: 13, padding: "8px 12px" }}
+				>
+					Connect via SSH
+				</Button>
+			</PopoverTrigger>
+
+			<PopoverContent horizontal="right" classes={{ paper }}>
+				<HelpTooltipText>
+					Run the following commands to connect with SSH:
+				</HelpTooltipText>
+
+				<ol style={{ margin: 0, padding: 0 }}>
+					<Stack spacing={0.5} css={styles.codeExamples}>
+						<SSHStep
+							helpText="Configure SSH hosts on machine:"
+							codeExample="coder config-ssh"
+						/>
+						<SSHStep
+							helpText="Connect to the agent:"
+							codeExample={`ssh ${workspace} -c ${container}`}
+						/>
+					</Stack>
+				</ol>
+
+				<HelpTooltipLinksGroup>
+					<HelpTooltipLink href={docs("/install")}>
+						Install Coder CLI
 					</HelpTooltipLink>
 					<HelpTooltipLink href={docs("/user-guides/workspace-access#ssh")}>
 						SSH configuration
