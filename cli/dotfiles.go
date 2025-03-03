@@ -41,16 +41,7 @@ func (r *RootCmd) dotfiles() *serpent.Command {
 				dotfilesDir = filepath.Join(cfgDir, dotfilesRepoDir)
 				// This follows the same pattern outlined by others in the market:
 				// https://github.com/coder/coder/pull/1696#issue-1245742312
-				installScriptSet = []string{
-					"install.sh",
-					"install",
-					"bootstrap.sh",
-					"bootstrap",
-					"script/bootstrap",
-					"setup.sh",
-					"setup",
-					"script/setup",
-				}
+				installScriptSet = installScriptFiles()
 			)
 
 			if cfg == "" {
