@@ -25,6 +25,8 @@ type Store interface {
 	GetNotificationsSettings(ctx context.Context) (string, error)
 	GetApplicationName(ctx context.Context) (string, error)
 	GetLogoURL(ctx context.Context) (string, error)
+
+	InsertInboxNotification(ctx context.Context, arg database.InsertInboxNotificationParams) (database.InboxNotification, error)
 }
 
 // Handler is responsible for preparing and delivering a notification by a given method.
