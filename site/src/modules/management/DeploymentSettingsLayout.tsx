@@ -22,7 +22,16 @@ const DeploymentSettingsLayout: FC = () => {
 	const canViewDeploymentSettingsPage = canViewDeploymentSettings(permissions);
 
 	if (location.pathname === "/deployment") {
-		return <Navigate to="/deployment/users" replace />;
+		return (
+			<Navigate
+				to={
+					permissions.viewDeploymentValues
+						? "/deployment/general"
+						: "/deployment/users"
+				}
+				replace
+			/>
+		);
 	}
 
 	return (
