@@ -3809,6 +3809,7 @@ SELECT
     nm.method,
     nm.attempt_count::int                                                 AS attempt_count,
     nm.queued_seconds::float                                              AS queued_seconds,
+	nm.targets,
     -- template
     nt.id                                                                 AS template_id,
     nt.title_template,
@@ -3834,6 +3835,7 @@ type AcquireNotificationMessagesRow struct {
 	Method        NotificationMethod `db:"method" json:"method"`
 	AttemptCount  int32              `db:"attempt_count" json:"attempt_count"`
 	QueuedSeconds float64            `db:"queued_seconds" json:"queued_seconds"`
+	Targets       []uuid.UUID        `db:"targets" json:"targets"`
 	TemplateID    uuid.UUID          `db:"template_id" json:"template_id"`
 	TitleTemplate string             `db:"title_template" json:"title_template"`
 	BodyTemplate  string             `db:"body_template" json:"body_template"`
@@ -3870,6 +3872,7 @@ func (q *sqlQuerier) AcquireNotificationMessages(ctx context.Context, arg Acquir
 			&i.Method,
 			&i.AttemptCount,
 			&i.QueuedSeconds,
+			pq.Array(&i.Targets),
 			&i.TemplateID,
 			&i.TitleTemplate,
 			&i.BodyTemplate,

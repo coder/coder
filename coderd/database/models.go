@@ -878,6 +878,7 @@ type NotificationMethod string
 const (
 	NotificationMethodSmtp    NotificationMethod = "smtp"
 	NotificationMethodWebhook NotificationMethod = "webhook"
+	NotificationMethodInbox   NotificationMethod = "inbox"
 )
 
 func (e *NotificationMethod) Scan(src interface{}) error {
@@ -918,7 +919,8 @@ func (ns NullNotificationMethod) Value() (driver.Value, error) {
 func (e NotificationMethod) Valid() bool {
 	switch e {
 	case NotificationMethodSmtp,
-		NotificationMethodWebhook:
+		NotificationMethodWebhook,
+		NotificationMethodInbox:
 		return true
 	}
 	return false
@@ -928,6 +930,7 @@ func AllNotificationMethodValues() []NotificationMethod {
 	return []NotificationMethod{
 		NotificationMethodSmtp,
 		NotificationMethodWebhook,
+		NotificationMethodInbox,
 	}
 }
 
