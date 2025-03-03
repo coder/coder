@@ -98,14 +98,27 @@ SET
 WHERE
 	id = $1;
 
--- name: UpdateUserAppearanceSettings :one
-UPDATE
-	users
-SET
-	theme_preference = $2,
-	updated_at = $3
+-- name: GetUserAppearanceSettings :one
+SELECT
+	value as theme_preference
+FROM
+	user_configs
 WHERE
-	id = $1
+	user_id = @user_id
+	AND key = 'theme_preference';
+
+-- name: UpdateUserAppearanceSettings :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'theme_preference', @theme_preference)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @theme_preference
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'theme_preference'
 RETURNING *;
 
 -- name: UpdateUserRoles :one

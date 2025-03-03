@@ -34,7 +34,7 @@ describe("appearance page", () => {
 
 		// Check if the API was called correctly
 		expect(API.updateAppearanceSettings).toBeCalledTimes(1);
-		expect(API.updateAppearanceSettings).toHaveBeenCalledWith("me", {
+		expect(API.updateAppearanceSettings).toHaveBeenCalledWith({
 			theme_preference: "light",
 		});
 	});
