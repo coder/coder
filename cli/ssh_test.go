@@ -29,6 +29,7 @@ import (
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"golang.org/x/crypto/ssh"
 	gosshagent "golang.org/x/crypto/ssh/agent"
 	"golang.org/x/sync/errgroup"
@@ -36,6 +37,7 @@ import (
 
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agentcontainers"
+	"github.com/coder/coder/v2/agent/agentcontainers/acmock"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/agenttest"
 	agentproto "github.com/coder/coder/v2/agent/proto"
@@ -1986,13 +1988,26 @@ func TestSSH_Container(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		ctrl := gomock.NewController(t)
+		mLister := acmock.NewMockLister(ctrl)
 		_ = agenttest.New(t, client.URL, agentToken, func(o *agent.Options) {
 			o.ExperimentalDevcontainersEnabled = true
-			o.ContainerLister = agentcontainers.NewDocker(o.Execer)
+			o.ContainerLister = mLister
 		})
 		_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
 
-		inv, root := clitest.New(t, "ssh", workspace.Name, "-c", uuid.NewString())
+		mLister.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
+			Containers: []codersdk.WorkspaceAgentDevcontainer{
+				{
+					ID:           uuid.NewString(),
+					FriendlyName: "something_completely_different",
+				},
+			},
+			Warnings: nil,
+		}, nil)
+
+		cID := uuid.NewString()
+		inv, root := clitest.New(t, "ssh", workspace.Name, "-c", cID)
 		clitest.SetupConfig(t, client, root)
 		ptty := ptytest.New(t).Attach(inv)
 
@@ -2001,7 +2016,8 @@ func TestSSH_Container(t *testing.T) {
 			assert.NoError(t, err)
 		})
 
-		ptty.ExpectMatch("Container not found:")
+		ptty.ExpectMatch(fmt.Sprintf("Container not found: %q", cID))
+		ptty.ExpectMatch("Available containers: [something_completely_different]")
 		<-cmdDone
 	})
 

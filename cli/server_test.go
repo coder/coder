@@ -314,6 +314,7 @@ func TestServer(t *testing.T) {
 			githubDefaultProviderEnabled          string
 			githubClientID                        string
 			githubClientSecret                    string
+			allowedOrg                            string
 			expectGithubEnabled                   bool
 			expectGithubDefaultProviderConfigured bool
 			createUserPreStart                    bool
@@ -355,7 +356,9 @@ func TestServer(t *testing.T) {
 			if tc.githubDefaultProviderEnabled != "" {
 				args = append(args, fmt.Sprintf("--oauth2-github-default-provider-enable=%s", tc.githubDefaultProviderEnabled))
 			}
-
+			if tc.allowedOrg != "" {
+				args = append(args, fmt.Sprintf("--oauth2-github-allowed-orgs=%s", tc.allowedOrg))
+			}
 			inv, cfg := clitest.New(t, args...)
 			errChan := make(chan error, 1)
 			go func() {
@@ -438,6 +441,12 @@ func TestServer(t *testing.T) {
 				githubClientSecret:                    "456",
 				expectGithubEnabled:                   true,
 				expectGithubDefaultProviderConfigured: false,
+			},
+			{
+				name:                                  "AllowedOrg",
+				allowedOrg:                            "coder",
+				expectGithubEnabled:                   true,
+				expectGithubDefaultProviderConfigured: true,
 			},
 		} {
 			tc := tc
