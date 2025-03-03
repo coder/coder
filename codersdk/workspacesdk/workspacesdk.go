@@ -29,6 +29,7 @@ var ErrSkipClose = xerrors.New("skip tailnet close")
 
 const (
 	AgentSSHPort             = tailnet.WorkspaceAgentSSHPort
+	AgentStandardSSHPort     = tailnet.WorkspaceAgentStandardSSHPort
 	AgentReconnectingPTYPort = tailnet.WorkspaceAgentReconnectingPTYPort
 	AgentSpeedtestPort       = tailnet.WorkspaceAgentSpeedtestPort
 	// AgentHTTPAPIServerPort serves a HTTP server with endpoints for e.g.
