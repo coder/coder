@@ -157,23 +157,6 @@ export const PreviewBadge: FC = () => {
 	);
 };
 
-export const EaBadge: FC = () => {
-	return (
-		<span
-			css={[
-				styles.badge,
-				(theme) => ({
-					border: `1px solid ${theme.roles.preview.outline}`,
-					backgroundColor: theme.roles.preview.background,
-					color: theme.roles.preview.text,
-				}),
-			]}
-		>
-			Early Access
-		</span>
-	);
-};
-
 export const AlphaBadge: FC = () => {
 	return (
 		<span
