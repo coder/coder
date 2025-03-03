@@ -187,7 +187,7 @@ func TestSMTPDispatch(t *testing.T) {
 	require.Len(t, msgs, 1)
 	require.Contains(t, msgs[0].MsgRequest(), fmt.Sprintf("From: %s", from))
 	require.Contains(t, msgs[0].MsgRequest(), fmt.Sprintf("To: %s", user.Email))
-	require.Contains(t, msgs[0].MsgRequest(), fmt.Sprintf("Message-Id: %s", msgID))
+	require.Contains(t, msgs[0].MsgRequest(), fmt.Sprintf("Message-Id: %s", msgID[0]))
 }
 
 func TestWebhookDispatch(t *testing.T) {
