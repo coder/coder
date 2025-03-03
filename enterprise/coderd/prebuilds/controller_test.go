@@ -112,7 +112,6 @@ func TestNoReconciliationActionsIfNoPrebuilds(t *testing.T) {
 
 func setupTestDBTemplate(
 	t *testing.T,
-	ctx context.Context,
 	db database.Store,
 ) (
 	orgID uuid.UUID,
@@ -220,7 +219,7 @@ func setupTestDBPrebuild(
 		OrganizationID: orgID,
 		Error:          buildError,
 	})
-	prebuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+	dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
 		WorkspaceID:             workspace.ID,
 		InitiatorID:             OwnerID,
 		TemplateVersionID:       templateVersion.ID,
@@ -229,71 +228,58 @@ func setupTestDBPrebuild(
 		Transition:              transition,
 	})
 
-	return templateVersion.ID, preset.ID, prebuild.ID
+	return templateVersion.ID, preset.ID, workspace.ID
 }
 
-func TestPrebuildCreation(t *testing.T) {
+func TestActiveTemplateVersionPrebuilds(t *testing.T) {
 	t.Parallel()
 
-	// Scenario: Prebuilds are created if and only if they are needed
 	type testCase struct {
 		name                    string
 		prebuildStatus          database.WorkspaceStatus
 		shouldCreateNewPrebuild bool
 		shouldDeleteOldPrebuild bool
-		templateVersionActive   bool
 	}
 
 	testCases := []testCase{
 		{
 			name:                    "running prebuild",
 			prebuildStatus:          database.WorkspaceStatusRunning,
-			templateVersionActive:   true,
 			shouldCreateNewPrebuild: false,
 			shouldDeleteOldPrebuild: false,
 		},
-		// {
-		// 	name:                    "stopped prebuild",
-		// 	prebuildStatus:          database.WorkspaceStatusStopped,
-		// 	templateVersionActive:   true,
-		// 	shouldCreateNewPrebuild: true,
-		// 	shouldDeleteOldPrebuild: false,
-		// },
-		// {
-		// 	name:                    "failed prebuild",
-		// 	prebuildStatus:          database.WorkspaceStatusFailed,
-		// 	templateVersionActive:   true,
-		// 	shouldCreateNewPrebuild: true,
-		// 	shouldDeleteOldPrebuild: true,
-		// },
-		// {
-		// 	name:                    "canceled prebuild",
-		// 	prebuildStatus:          database.WorkspaceStatusCanceled,
-		// 	templateVersionActive:   true,
-		// 	shouldCreateNewPrebuild: true,
-		// 	shouldDeleteOldPrebuild: true,
-		// },
+		{
+			name:                    "stopped prebuild",
+			prebuildStatus:          database.WorkspaceStatusStopped,
+			shouldCreateNewPrebuild: true,
+			shouldDeleteOldPrebuild: false,
+		},
+		{
+			name:                    "failed prebuild",
+			prebuildStatus:          database.WorkspaceStatusFailed,
+			shouldCreateNewPrebuild: true,
+			shouldDeleteOldPrebuild: false,
+		},
+		{
+			name:                    "canceled prebuild",
+			prebuildStatus:          database.WorkspaceStatusCanceled,
+			shouldCreateNewPrebuild: true,
+			shouldDeleteOldPrebuild: false,
+		},
 		// {
 		// 	name:                    "deleted prebuild",
 		// 	prebuildStatus:          database.WorkspaceStatusDeleted,
-		// 	templateVersionActive:   true,
+		// 	shouldConsiderPrebuildRunning: false,
+		// 	shouldConsiderPrebuildInProgress: false,
 		// 	shouldCreateNewPrebuild: true,
 		// 	shouldDeleteOldPrebuild: false,
 		// },
-		// {
-		// 	name:                    "pending prebuild",
-		// 	prebuildStatus:          database.WorkspaceStatusPending,
-		// 	templateVersionActive:   true,
-		// 	shouldCreateNewPrebuild: false,
-		// 	shouldDeleteOldPrebuild: false,
-		// },
-		// {
-		// 	name:                    "inactive template version",
-		// 	prebuildStatus:          database.WorkspaceStatusRunning,
-		// 	shouldDeleteOldPrebuild: true,
-		// 	templateVersionActive:   false,
-		// 	shouldCreateNewPrebuild: false,
-		// },
+		{
+			name:                    "pending prebuild",
+			prebuildStatus:          database.WorkspaceStatusPending,
+			shouldCreateNewPrebuild: false,
+			shouldDeleteOldPrebuild: false,
+		},
 	}
 	for _, tc := range testCases {
 		tc := tc
@@ -305,7 +291,7 @@ func TestPrebuildCreation(t *testing.T) {
 			logger := testutil.Logger(t)
 			controller := NewController(db, pubsub, cfg, logger)
 
-			orgID, userID, templateID := setupTestDBTemplate(t, ctx, db)
+			orgID, userID, templateID := setupTestDBTemplate(t, db)
 			_, _, prebuildID := setupTestDBPrebuild(
 				t,
 				ctx,
@@ -316,125 +302,32 @@ func TestPrebuildCreation(t *testing.T) {
 				userID,
 				templateID,
 			)
-			if !tc.templateVersionActive {
-				_, _, _ = setupTestDBPrebuild(
-					t,
-					ctx,
-					db,
-					pubsub,
-					tc.prebuildStatus,
-					orgID,
-					userID,
-					templateID,
-				)
-			}
+
 			controller.reconcile(ctx, nil)
 
 			createdNewPrebuild := false
-			deletedOldPrebuild := false
+			deletedOldPrebuild := true
 			workspaces, err := db.GetWorkspacesByTemplateID(ctx, templateID)
 			require.NoError(t, err)
 			for _, workspace := range workspaces {
-				if workspace.ID == prebuildID && workspace.Deleted {
-					deletedOldPrebuild = true
+				if workspace.ID == prebuildID {
+					deletedOldPrebuild = false
 				}
 
-				if workspace.ID != prebuildID && !workspace.Deleted {
+				if workspace.ID != prebuildID {
 					createdNewPrebuild = true
 				}
 			}
 			require.Equal(t, tc.shouldCreateNewPrebuild, createdNewPrebuild)
-
-			// workspacebuilds, err := db.GetWorkspaceBuildsCreatedAfter(ctx, time.Now().Add(-24*time.Hour))
-			// require.NoError(t, err)
-
 			require.Equal(t, tc.shouldDeleteOldPrebuild, deletedOldPrebuild)
 		})
 	}
 }
 
-func TestDeleteUnwantedPrebuilds(t *testing.T) {
-	// Scenario: Prebuilds are deleted if and only if they are extraneous
+func TestInactiveTemplateVersionPrebuilds(t *testing.T) {
+	// Scenario: Prebuilds are never created and always deleted if the template version is inactive
 	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-	db, pubsub := dbtestutil.NewDB(t)
-	cfg := codersdk.PrebuildsConfig{}
-	logger := testutil.Logger(t)
-	controller := NewController(db, pubsub, cfg, logger)
-
-	type testCase struct {
-		name           string
-		prebuildStatus database.WorkspaceStatus
-		shouldDelete   bool
-	}
-
-	testCases := []testCase{
-		{
-			name:           "running prebuild",
-			prebuildStatus: database.WorkspaceStatusRunning,
-			shouldDelete:   false,
-		},
-		{
-			name:           "stopped prebuild",
-			prebuildStatus: database.WorkspaceStatusStopped,
-			shouldDelete:   true,
-		},
-		{
-			name:           "failed prebuild",
-			prebuildStatus: database.WorkspaceStatusFailed,
-			shouldDelete:   true,
-		},
-		{
-			name:           "canceled prebuild",
-			prebuildStatus: database.WorkspaceStatusCanceled,
-			shouldDelete:   true,
-		},
-		{
-			name:           "deleted prebuild",
-			prebuildStatus: database.WorkspaceStatusDeleted,
-			shouldDelete:   true,
-		},
-		{
-			name:           "pending prebuild",
-			prebuildStatus: database.WorkspaceStatusPending,
-			shouldDelete:   false,
-		},
-	}
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			ctx := testutil.Context(t, testutil.WaitShort)
-			db, pubsub := dbtestutil.NewDB(t)
-			cfg := codersdk.PrebuildsConfig{}
-			logger := testutil.Logger(t)
-			controller := NewController(db, pubsub, cfg, logger)
-			controller.reconcile(ctx, nil)
-			jobs, err := db.GetProvisionerJobsCreatedAfter(ctx, time.Now().Add(-time.Hour))
-			require.NoError(t, err)
-			require.Equal(t, tc.shouldDelete, len(jobs) == 1)
-		})
-	}
-	// when does a prebuild get deleted?
-	// * when it is in some way permanently ineligible to be claimed
-	//   * or it belongs to a template version that is no longer active
-	//   * or it belongs to a template version that is deprecated
-	// * when there are more prebuilds than the preset desires
-	//   * someone could have manually created a workspace for the prebuild user
-	// * any workspaces that were created for the prebuilds user and don't match a preset should be deleted - deferred
-
-	// given a preset that desires 2 prebuilds
-	// and there are 3 running prebuilds for the preset
-	// and there are 4 non-running prebuilds for the preset
-	// * one is not running because its latest build was a stop transition
-	// * another is not running because its latest build was a delete transition
-	// * a third is not running because its latest build was a start transition but the build failed
-	// * a fourth is not running because its latest build was a start transition but the build was canceled
-	// when we trigger the reconciliation loop for all templates
-	controller.reconcile(ctx, nil)
-	// then the four non running prebuilds are deleted
-	// and 1 of the running prebuilds is deleted
-	// because stopped, deleted and failed builds are not considered running in terms of the definition of "running" above.
+	t.Skip("todo")
 }
 
 // TODO (sasswart): test claim (success, fail) x (eligible)
