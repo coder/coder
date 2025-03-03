@@ -12,6 +12,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -24,11 +25,11 @@ import (
 	"github.com/spf13/afero"
 	"go.uber.org/atomic"
 	gossh "golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 
+	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentrsa"
 	"github.com/coder/coder/v2/agent/usershell"
@@ -60,6 +61,14 @@ const (
 	// MagicSessionTypeEnvironmentVariable is used to track the purpose behind an SSH connection.
 	// This is stripped from any commands being executed, and is counted towards connection stats.
 	MagicSessionTypeEnvironmentVariable = "CODER_SSH_SESSION_TYPE"
+	// ContainerEnvironmentVariable is used to specify the target container for an SSH connection.
+	// This is stripped from any commands being executed.
+	// Only available if CODER_AGENT_DEVCONTAINERS_ENABLE=true.
+	ContainerEnvironmentVariable = "CODER_CONTAINER"
+	// ContainerUserEnvironmentVariable is used to specify the container user for
+	// an SSH connection.
+	// Only available if CODER_AGENT_DEVCONTAINERS_ENABLE=true.
+	ContainerUserEnvironmentVariable = "CODER_CONTAINER_USER"
 )
 
 // MagicSessionType enums.
@@ -104,6 +113,9 @@ type Config struct {
 	BlockFileTransfer bool
 	// ReportConnection.
 	ReportConnection reportConnectionFunc
+	// Experimental: allow connecting to running containers if
+	// CODER_AGENT_DEVCONTAINERS_ENABLE=true.
+	ExperimentalDevContainersEnabled bool
 }
 
 type Server struct {
@@ -324,6 +336,22 @@ func (s *sessionCloseTracker) Close() error {
 	return s.Session.Close()
 }
 
+func extractContainerInfo(env []string) (container, containerUser string, filteredEnv []string) {
+	for _, kv := range env {
+		if strings.HasPrefix(kv, ContainerEnvironmentVariable+"=") {
+			container = strings.TrimPrefix(kv, ContainerEnvironmentVariable+"=")
+		}
+
+		if strings.HasPrefix(kv, ContainerUserEnvironmentVariable+"=") {
+			containerUser = strings.TrimPrefix(kv, ContainerUserEnvironmentVariable+"=")
+		}
+	}
+
+	return container, containerUser, slices.DeleteFunc(env, func(kv string) bool {
+		return strings.HasPrefix(kv, ContainerEnvironmentVariable+"=") || strings.HasPrefix(kv, ContainerUserEnvironmentVariable+"=")
+	})
+}
+
 func (s *Server) sessionHandler(session ssh.Session) {
 	ctx := session.Context()
 	id := uuid.New()
@@ -353,6 +381,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 	defer s.trackSession(session, false)
 
 	reportSession := true
+
 	switch magicType {
 	case MagicSessionTypeVSCode:
 		s.connCountVSCode.Add(1)
@@ -395,9 +424,22 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		return
 	}
 
+	container, containerUser, env := extractContainerInfo(env)
+	if container != "" {
+		s.logger.Debug(ctx, "container info",
+			slog.F("container", container),
+			slog.F("container_user", containerUser),
+		)
+	}
+
 	switch ss := session.Subsystem(); ss {
 	case "":
 	case "sftp":
+		if s.config.ExperimentalDevContainersEnabled && container != "" {
+			closeCause("sftp not yet supported with containers")
+			_ = session.Exit(1)
+			return
+		}
 		err := s.sftpHandler(logger, session)
 		if err != nil {
 			closeCause(err.Error())
@@ -422,7 +464,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		env = append(env, fmt.Sprintf("DISPLAY=localhost:%d.%d", display, x11.ScreenNumber))
 	}
 
-	err := s.sessionStart(logger, session, env, magicType)
+	err := s.sessionStart(logger, session, env, magicType, container, containerUser)
 	var exitError *exec.ExitError
 	if xerrors.As(err, &exitError) {
 		code := exitError.ExitCode()
@@ -495,18 +537,27 @@ func (s *Server) fileTransferBlocked(session ssh.Session) bool {
 	return false
 }
 
-func (s *Server) sessionStart(logger slog.Logger, session ssh.Session, env []string, magicType MagicSessionType) (retErr error) {
+func (s *Server) sessionStart(logger slog.Logger, session ssh.Session, env []string, magicType MagicSessionType, container, containerUser string) (retErr error) {
 	ctx := session.Context()
 
 	magicTypeLabel := magicTypeMetricLabel(magicType)
 	sshPty, windowSize, isPty := session.Pty()
+	ptyLabel := "no"
+	if isPty {
+		ptyLabel = "yes"
+	}
 
-	cmd, err := s.CreateCommand(ctx, session.RawCommand(), env, nil)
-	if err != nil {
-		ptyLabel := "no"
-		if isPty {
-			ptyLabel = "yes"
+	var ei usershell.EnvInfoer
+	var err error
+	if s.config.ExperimentalDevContainersEnabled && container != "" {
+		ei, err = agentcontainers.EnvInfo(ctx, s.Execer, container, containerUser)
+		if err != nil {
+			s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, ptyLabel, "container_env_info").Add(1)
+			return err
 		}
+	}
+	cmd, err := s.CreateCommand(ctx, session.RawCommand(), env, ei)
+	if err != nil {
 		s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, ptyLabel, "create_command").Add(1)
 		return err
 	}
@@ -514,11 +565,6 @@ func (s *Server) sessionStart(logger slog.Logger, session ssh.Session, env []str
 	if ssh.AgentRequested(session) {
 		l, err := ssh.NewAgentListener()
 		if err != nil {
-			ptyLabel := "no"
-			if isPty {
-				ptyLabel = "yes"
-			}
-
 			s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, ptyLabel, "listener").Add(1)
 			return xerrors.Errorf("new agent listener: %w", err)
 		}

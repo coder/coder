@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/trace"
+	"slices"
 	"strings"
 	"sync"
 	"syscall"
@@ -25,7 +26,6 @@ import (
 
 	"github.com/mattn/go-isatty"
 	"github.com/mitchellh/go-wordwrap"
-	"golang.org/x/exp/slices"
 	"golang.org/x/mod/semver"
 	"golang.org/x/xerrors"
 

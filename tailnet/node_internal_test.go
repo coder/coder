@@ -2,13 +2,13 @@ package tailnet
 
 import (
 	"net/netip"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"

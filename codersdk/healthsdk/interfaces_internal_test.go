@@ -3,11 +3,11 @@ package healthsdk
 import (
 	"net"
 	"net/netip"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 	"tailscale.com/net/interfaces"
 
 	"github.com/coder/coder/v2/coderd/healthcheck/health"

@@ -7,13 +7,13 @@ import (
 	"io"
 	"net/http"
 	"net/http/cookiejar"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/buildinfo"

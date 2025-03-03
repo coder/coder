@@ -36,17 +36,19 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 version=""
 os="${GOOS:-linux}"
 arch="${GOARCH:-amd64}"
+output_path=""
 slim="${CODER_SLIM_BUILD:-0}"
+agpl="${CODER_BUILD_AGPL:-0}"
 sign_darwin="${CODER_SIGN_DARWIN:-0}"
 sign_windows="${CODER_SIGN_WINDOWS:-0}"
-bin_ident="com.coder.cli"
-output_path=""
-agpl="${CODER_BUILD_AGPL:-0}"
 boringcrypto=${CODER_BUILD_BORINGCRYPTO:-0}
-debug=0
 dylib=0
+windows_resources="${CODER_WINDOWS_RESOURCES:-0}"
+debug=0
 
-args="$(getopt -o "" -l version:,os:,arch:,output:,slim,agpl,sign-darwin,boringcrypto,dylib,debug -- "$@")"
+bin_ident="com.coder.cli"
+
+args="$(getopt -o "" -l version:,os:,arch:,output:,slim,agpl,sign-darwin,sign-windows,boringcrypto,dylib,windows-resources,debug -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
@@ -79,12 +81,20 @@ while true; do
 		sign_darwin=1
 		shift
 		;;
+	--sign-windows)
+		sign_windows=1
+		shift
+		;;
 	--boringcrypto)
 		boringcrypto=1
 		shift
 		;;
 	--dylib)
 		dylib=1
+		shift
+		;;
+	--windows-resources)
+		windows_resources=1
 		shift
 		;;
 	--debug)
@@ -115,10 +125,12 @@ if [[ "$sign_darwin" == 1 ]]; then
 	dependencies rcodesign
 	requiredenvs AC_CERTIFICATE_FILE AC_CERTIFICATE_PASSWORD_FILE
 fi
-
 if [[ "$sign_windows" == 1 ]]; then
 	dependencies java
 	requiredenvs JSIGN_PATH EV_KEYSTORE EV_KEY EV_CERTIFICATE_PATH EV_TSA_URL GCLOUD_ACCESS_TOKEN
+fi
+if [[ "$windows_resources" == 1 ]]; then
+	dependencies go-winres
 fi
 
 ldflags=(
@@ -204,10 +216,100 @@ if [[ "$boringcrypto" == 1 ]]; then
 	goexp="boringcrypto"
 fi
 
+# On Windows, we use go-winres to embed the resources into the binary.
+if [[ "$windows_resources" == 1 ]] && [[ "$os" == "windows" ]]; then
+	# Convert the version to a format that Windows understands.
+	# Remove any trailing data after a "+" or "-".
+	version_windows=$version
+	version_windows="${version_windows%+*}"
+	version_windows="${version_windows%-*}"
+	# If there wasn't any extra data, add a .0 to the version. Otherwise, add
+	# a .1 to the version to signify that this is not a release build so it can
+	# be distinguished from a release build.
+	non_release_build=0
+	if [[ "$version_windows" == "$version" ]]; then
+		version_windows+=".0"
+	else
+		version_windows+=".1"
+		non_release_build=1
+	fi
+
+	if [[ ! "$version_windows" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-1]$ ]]; then
+		error "Computed invalid windows version format: $version_windows"
+	fi
+
+	# File description changes based on slimness, AGPL status, and architecture.
+	file_description="Coder"
+	if [[ "$agpl" == 1 ]]; then
+		file_description+=" AGPL"
+	fi
+	if [[ "$slim" == 1 ]]; then
+		file_description+=" CLI"
+	fi
+	if [[ "$non_release_build" == 1 ]]; then
+		file_description+=" (development build)"
+	fi
+
+	# Because this writes to a file with the OS and arch in the filename, we
+	# don't support concurrent builds for the same OS and arch (irregardless of
+	# slimness or AGPL status).
+	#
+	# This is fine since we only embed resources during dogfood and release
+	# builds, which use make (which will build all slim targets in parallel,
+	# then all non-slim targets in parallel).
+	expected_rsrc_file="./buildinfo/resources/resources_windows_${arch}.syso"
+	if [[ -f "$expected_rsrc_file" ]]; then
+		rm "$expected_rsrc_file"
+	fi
+	touch "$expected_rsrc_file"
+
+	pushd ./buildinfo/resources
+	GOARCH="$arch" go-winres simply \
+		--arch "$arch" \
+		--out "resources" \
+		--product-version "$version_windows" \
+		--file-version "$version_windows" \
+		--manifest "cli" \
+		--file-description "$file_description" \
+		--product-name "Coder" \
+		--copyright "Copyright $(date +%Y) Coder Technologies Inc." \
+		--original-filename "coder.exe" \
+		--icon ../../scripts/win-installer/coder.ico
+	popd
+
+	if [[ ! -f "$expected_rsrc_file" ]]; then
+		error "Failed to generate $expected_rsrc_file"
+	fi
+fi
+
+set +e
 GOEXPERIMENT="$goexp" CGO_ENABLED="$cgo" GOOS="$os" GOARCH="$arch" GOARM="$arm_version" \
 	go build \
 	"${build_args[@]}" \
 	"$cmd_path" 1>&2
+exit_code=$?
+set -e
+
+# Clean up the resources file if it was generated.
+if [[ "$windows_resources" == 1 ]] && [[ "$os" == "windows" ]]; then
+	rm "$expected_rsrc_file"
+fi
+
+if [[ "$exit_code" != 0 ]]; then
+	exit "$exit_code"
+fi
+
+# If we did embed resources, verify that they were included.
+if [[ "$windows_resources" == 1 ]] && [[ "$os" == "windows" ]]; then
+	winres_dir=$(mktemp -d)
+	if ! go-winres extract --dir "$winres_dir" "$output_path" 1>&2; then
+		rm -rf "$winres_dir"
+		error "Compiled binary does not contain embedded resources"
+	fi
+	# If go-winres didn't return an error, it means it did find embedded
+	# resources.
+	rm -rf "$winres_dir"
+fi
 
 if [[ "$sign_darwin" == 1 ]] && [[ "$os" == "darwin" ]]; then
 	execrelative ./sign_darwin.sh "$output_path" "$bin_ident" 1>&2

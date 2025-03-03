@@ -450,6 +450,22 @@ func OrganizationMember(t testing.TB, db database.Store, orig database.Organizat
 	return mem
 }
 
+func NotificationInbox(t testing.TB, db database.Store, orig database.InsertInboxNotificationParams) database.InboxNotification {
+	notification, err := db.InsertInboxNotification(genCtx, database.InsertInboxNotificationParams{
+		ID:         takeFirst(orig.ID, uuid.New()),
+		UserID:     takeFirst(orig.UserID, uuid.New()),
+		TemplateID: takeFirst(orig.TemplateID, uuid.New()),
+		Targets:    takeFirstSlice(orig.Targets, []uuid.UUID{}),
+		Title:      takeFirst(orig.Title, testutil.GetRandomName(t)),
+		Content:    takeFirst(orig.Content, testutil.GetRandomName(t)),
+		Icon:       takeFirst(orig.Icon, ""),
+		Actions:    orig.Actions,
+		CreatedAt:  takeFirst(orig.CreatedAt, dbtime.Now()),
+	})
+	require.NoError(t, err, "insert notification")
+	return notification
+}
+
 func Group(t testing.TB, db database.Store, orig database.Group) database.Group {
 	t.Helper()
 

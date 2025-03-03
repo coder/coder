@@ -3,10 +3,10 @@ package cli
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
-	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"

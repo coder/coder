@@ -1021,7 +1021,10 @@ jobs:
     if: github.ref == 'refs/heads/main' && needs.changes.outputs.docs-only == 'false' && !github.event.pull_request.head.repo.fork
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-22.04' }}
     permissions:
-      packages: write # Needed to push images to ghcr.io
+      # Necessary to push docker images to ghcr.io.
+      packages: write
+      # Necessary for GCP authentication (https://github.com/google-github-actions/setup-gcloud#usage)
+      id-token: write
     env:
       DOCKER_CLI_EXPERIMENTAL: "enabled"
     outputs:
@@ -1050,11 +1053,43 @@ jobs:
       - name: Setup Go
         uses: ./.github/actions/setup-go
 
+      # Necessary for signing Windows binaries.
+      - name: Setup Java
+        uses: actions/setup-java@3a4f6e1af504cf6a31855fa899c6aa5355ba6c12 # v4.7.0
+        with:
+          distribution: "zulu"
+          java-version: "11.0"
+
+      - name: Install go-winres
+        run: go install github.com/tc-hib/go-winres@d743268d7ea168077ddd443c4240562d4f5e8c3e # v0.3.3
+
       - name: Install nfpm
         run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.35.1
 
       - name: Install zstd
         run: sudo apt-get install -y zstd
+
+      - name: Setup Windows EV Signing Certificate
+        run: |
+          set -euo pipefail
+          touch /tmp/ev_cert.pem
+          chmod 600 /tmp/ev_cert.pem
+          echo "$EV_SIGNING_CERT" > /tmp/ev_cert.pem
+          wget https://github.com/ebourg/jsign/releases/download/6.0/jsign-6.0.jar -O /tmp/jsign-6.0.jar
+        env:
+          EV_SIGNING_CERT: ${{ secrets.EV_SIGNING_CERT }}
+
+      # Setup GCloud for signing Windows binaries.
+      - name: Authenticate to Google Cloud
+        id: gcloud_auth
+        uses: google-github-actions/auth@71f986410dfbc7added4569d411d040a91dc6935 # v2.1.8
+        with:
+          workload_identity_provider: ${{ secrets.GCP_CODE_SIGNING_WORKLOAD_ID_PROVIDER }}
+          service_account: ${{ secrets.GCP_CODE_SIGNING_SERVICE_ACCOUNT }}
+          token_format: "access_token"
+
+      - name: Setup GCloud SDK
+        uses: google-github-actions/setup-gcloud@77e7a554d41e2ee56fc945c52dfd3f33d12def9a # v2.1.4
 
       - name: Download dylibs
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
@@ -1082,6 +1117,18 @@ jobs:
             build/coder_linux_{amd64,arm64,armv7} \
             build/coder_"$version"_windows_amd64.zip \
             build/coder_"$version"_linux_amd64.{tar.gz,deb}
+        env:
+          # The Windows slim binary must be signed for Coder Desktop to accept
+          # it. The darwin executables don't need to be signed, but the dylibs
+          # do (see above).
+          CODER_SIGN_WINDOWS: "1"
+          CODER_WINDOWS_RESOURCES: "1"
+          EV_KEY: ${{ secrets.EV_KEY }}
+          EV_KEYSTORE: ${{ secrets.EV_KEYSTORE }}
+          EV_TSA_URL: ${{ secrets.EV_TSA_URL }}
+          EV_CERTIFICATE_PATH: /tmp/ev_cert.pem
+          GCLOUD_ACCESS_TOKEN: ${{ steps.gcloud_auth.outputs.access_token }}
+          JSIGN_PATH: /tmp/jsign-6.0.jar
 
       - name: Build Linux Docker images
         id: build-docker
@@ -1183,10 +1230,10 @@ jobs:
         uses: google-github-actions/setup-gcloud@77e7a554d41e2ee56fc945c52dfd3f33d12def9a # v2.1.4
 
       - name: Set up Flux CLI
-        uses: fluxcd/flux2/action@af67405ee43a6cd66e0b73f4b3802e8583f9d961 # v2.5.0
+        uses: fluxcd/flux2/action@8d5f40dca5aa5d3c0fc3414457dda15a0ac92fa4 # v2.5.1
         with:
           # Keep this and the github action up to date with the version of flux installed in dogfood cluster
-          version: "2.2.1"
+          version: "2.5.1"
 
       - name: Get Cluster Credentials
         uses: google-github-actions/get-gke-credentials@7a108e64ed8546fe38316b4086e91da13f4785e1 # v2.3.1

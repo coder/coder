@@ -2,10 +2,10 @@ package coderd_test
 
 import (
 	"net/http"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 
 	"github.com/coder/serpent"
 

@@ -32,7 +32,7 @@ type Server struct {
 	reconnectingPTYs sync.Map
 	timeout          time.Duration
 
-	ExperimentalContainersEnabled bool
+	ExperimentalDevcontainersEnabled bool
 }
 
 // NewServer returns a new ReconnectingPTY server
@@ -187,7 +187,7 @@ func (s *Server) handleConn(ctx context.Context, logger slog.Logger, conn net.Co
 		}()
 
 		var ei usershell.EnvInfoer
-		if s.ExperimentalContainersEnabled && msg.Container != "" {
+		if s.ExperimentalDevcontainersEnabled && msg.Container != "" {
 			dei, err := agentcontainers.EnvInfo(ctx, s.commandCreator.Execer, msg.Container, msg.ContainerUser)
 			if err != nil {
 				return xerrors.Errorf("get container env info: %w", err)

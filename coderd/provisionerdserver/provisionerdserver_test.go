@@ -377,6 +377,7 @@ func TestAcquireJob(t *testing.T) {
 						WorkspaceOwnerSshPrivateKey:   sshKey.PrivateKey,
 						WorkspaceBuildId:              build.ID.String(),
 						WorkspaceOwnerLoginType:       string(user.LoginType),
+						WorkspaceOwnerRbacRoles:       []*sdkproto.Role{{Name: "member", OrgId: pd.OrganizationID.String()}},
 					},
 				},
 			})

@@ -2,12 +2,12 @@ package agentsdk
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 	protobuf "google.golang.org/protobuf/proto"
 

@@ -1,0 +1,1 @@
+DROP INDEX idx_provisioner_jobs_status;

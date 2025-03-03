@@ -10,6 +10,7 @@ import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
 import { TimelineEntry } from "components/Timeline/TimelineEntry";
+import { NetworkIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import type { ThemeRole } from "theme/roles";
@@ -101,10 +102,20 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 						css={styles.auditLogHeaderInfo}
 					>
 						<Stack direction="row" alignItems="center" css={styles.fullWidth}>
-							<Avatar
-								fallback={auditLog.user?.username ?? "?"}
-								src={auditLog.user?.avatar_url}
-							/>
+							{/*
+							 * Session logs don't have an associated user to the log,
+							 * so when it happens we display a default icon to represent non user actions
+							 */}
+							{auditLog.user ? (
+								<Avatar
+									fallback={auditLog.user.username}
+									src={auditLog.user.avatar_url}
+								/>
+							) : (
+								<Avatar>
+									<NetworkIcon className="h-full w-full p-1" />
+								</Avatar>
+							)}
 
 							<Stack
 								alignItems="baseline"
