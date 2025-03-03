@@ -16,7 +16,9 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "components/deprecated/Popover/Popover";
-import type { FC } from "react";
+import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
+import { type FC, useEffect, useState } from "react";
+import { cn } from "utils/cn";
 
 const roleDescriptions: Record<string, string> = {
 	owner:
@@ -57,7 +59,7 @@ const Option: FC<OptionProps> = ({
 					}}
 				/>
 				<div className="flex flex-col">
-					<strong>{name}</strong>
+					<strong className="text-sm">{name}</strong>
 					<span className="text-xs text-content-secondary">{description}</span>
 				</div>
 			</div>
@@ -91,6 +93,7 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
 
 		onChange([...selectedRoleNames, roleName]);
 	};
+	const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
 
 	const canSetRoles =
 		userLoginType !== "oidc" || (userLoginType === "oidc" && !oidcRoleSync);
@@ -109,6 +112,20 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
 		);
 	}
 
+	const filteredRoles = roles.filter(
+		(role) => role.name !== "organization-workspace-creation-ban",
+	);
+	const advancedRoles = roles.filter(
+		(role) => role.name === "organization-workspace-creation-ban",
+	);
+
+	// make sure the advanced roles are always visible if the user has one of these roles
+	useEffect(() => {
+		if (selectedRoleNames.has("organization-workspace-creation-ban")) {
+			setIsAdvancedOpen(true);
+		}
+	}, [selectedRoleNames]);
+
 	return (
 		<Popover>
 			<PopoverTrigger>
@@ -124,14 +141,14 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
 				</Tooltip>
 			</PopoverTrigger>
 
-			<PopoverContent className="w-80" disablePortal={false}>
+			<PopoverContent className="w-96" disablePortal={false}>
 				<fieldset
 					className="border-0 m-0 p-0 disabled:opacity-50"
 					disabled={isLoading}
 					title="Available roles"
 				>
-					<div className="flex flex-col gap-4 p-6">
-						{roles.map((role) => (
+					<div className="flex flex-col gap-4 p-6 w-96">
+						{filteredRoles.map((role) => (
 							<Option
 								key={role.name}
 								onChange={handleChange}
@@ -141,6 +158,43 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
 								description={roleDescriptions[role.name] ?? ""}
 							/>
 						))}
+						{advancedRoles.length > 0 && (
+							<>
+								<button
+									className={cn([
+										"flex items-center gap-1 p-0 bg-transparent border-0 text-inherit text-sm cursor-pointer",
+										"transition-colors text-content-secondary hover:text-content-primary font-medium whitespace-nowrap",
+										isAdvancedOpen && "text-content-primary",
+									])}
+									type="button"
+									onClick={() => {
+										setIsAdvancedOpen((v) => !v);
+									}}
+								>
+									{isAdvancedOpen ? (
+										<ChevronDownIcon className="size-icon-sm p-0.5" />
+									) : (
+										<ChevronRightIcon className="size-icon-sm p-0.5" />
+									)}
+									<span className="sr-only">
+										({isAdvancedOpen ? "Hide" : "Show advanced"})
+									</span>
+									<span className="[&:first-letter]:uppercase">Advanced</span>
+								</button>
+
+								{isAdvancedOpen &&
+									advancedRoles.map((role) => (
+										<Option
+											key={role.name}
+											onChange={handleChange}
+											isChecked={selectedRoleNames.has(role.name)}
+											value={role.name}
+											name={role.display_name || role.name}
+											description={roleDescriptions[role.name] ?? ""}
+										/>
+									))}
+							</>
+						)}
 					</div>
 				</fieldset>
 				<div className="p-6 border-t-1 border-solid border-border text-sm">
