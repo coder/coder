@@ -46,7 +46,7 @@ export const useOrganizationSettings = (): OrganizationSettingsValue => {
 };
 
 const OrganizationSettingsLayout: FC = () => {
-	const { organizations, showOrganizations } = useDashboard();
+	const { organizations } = useDashboard();
 	const { organization: orgName } = useParams() as {
 		organization?: string;
 	};
