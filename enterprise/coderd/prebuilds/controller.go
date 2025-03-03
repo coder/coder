@@ -67,10 +67,10 @@ func (c *Controller) Loop(ctx context.Context) error {
 		select {
 		// Accept nudges from outside the control loop to trigger a new iteration.
 		case template := <-c.nudgeCh:
-			c.reconcile(ctx, template)
+			c.Reconcile(ctx, template)
 		// Trigger a new iteration on each tick.
 		case <-ticker.C:
-			c.reconcile(ctx, nil)
+			c.Reconcile(ctx, nil)
 		case <-ctx.Done():
 			c.logger.Error(context.Background(), "prebuilds reconciliation loop exited", slog.Error(ctx.Err()), slog.F("cause", context.Cause(ctx)))
 			return ctx.Err()
@@ -97,7 +97,7 @@ func (c *Controller) ReconcileTemplate(templateID *uuid.UUID) {
 	c.nudgeCh <- templateID
 }
 
-// reconcile will attempt to resolve the desired vs actual state of all templates which have presets with prebuilds configured.
+// Reconcile will attempt to resolve the desired vs actual state of all templates which have presets with prebuilds configured.
 //
 // NOTE:
 //
@@ -113,7 +113,7 @@ func (c *Controller) ReconcileTemplate(templateID *uuid.UUID) {
 // be reconciled again, leading to another workspace being provisioned. Two workspace builds will be occurring
 // simultaneously for the same preset, but once both jobs have completed the reconciliation loop will notice the
 // extraneous instance and delete it.
-func (c *Controller) reconcile(ctx context.Context, templateID *uuid.UUID) {
+func (c *Controller) Reconcile(ctx context.Context, templateID *uuid.UUID) {
 	var logger slog.Logger
 	if templateID == nil {
 		logger = c.logger.With(slog.F("reconcile_context", "all"))

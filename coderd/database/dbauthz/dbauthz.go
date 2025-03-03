@@ -1104,7 +1104,7 @@ func (q *querier) BulkMarkNotificationMessagesSent(ctx context.Context, arg data
 }
 
 func (q *querier) ClaimPrebuild(ctx context.Context, newOwnerID database.ClaimPrebuildParams) (database.ClaimPrebuildRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceWorkspace); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceWorkspace); err != nil {
 		return database.ClaimPrebuildRow{
 			ID: uuid.Nil,
 		}, err

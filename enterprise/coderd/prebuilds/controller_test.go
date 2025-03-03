@@ -1,27 +1,21 @@
-package prebuilds
+package prebuilds_test
 
 import (
 	"context"
 	"database/sql"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/coder/serpent"
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
-	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/provisioner/echo"
-	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/enterprise/coderd/prebuilds"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -39,7 +33,7 @@ func TestNoReconciliationActionsIfNoPresets(t *testing.T) {
 		ReconciliationInterval: serpent.Duration(testutil.WaitLong),
 	}
 	logger := testutil.Logger(t)
-	controller := NewController(db, pubsub, cfg, logger)
+	controller := prebuilds.NewController(db, pubsub, cfg, logger)
 
 	// given a template version with no presets
 	org := dbgen.Organization(t, db, database.Organization{})
@@ -59,7 +53,7 @@ func TestNoReconciliationActionsIfNoPresets(t *testing.T) {
 	require.Equal(t, templateVersion, gotTemplateVersion)
 
 	// when we trigger the reconciliation loop for all templates
-	controller.reconcile(ctx, nil)
+	controller.Reconcile(ctx, nil)
 
 	// then no reconciliation actions are taken
 	// because without presets, there are no prebuilds
@@ -83,7 +77,7 @@ func TestNoReconciliationActionsIfNoPrebuilds(t *testing.T) {
 		ReconciliationInterval: serpent.Duration(testutil.WaitLong),
 	}
 	logger := testutil.Logger(t)
-	controller := NewController(db, pubsub, cfg, logger)
+	controller := prebuilds.NewController(db, pubsub, cfg, logger)
 
 	// given there are presets, but no prebuilds
 	org := dbgen.Organization(t, db, database.Organization{})
@@ -115,7 +109,7 @@ func TestNoReconciliationActionsIfNoPrebuilds(t *testing.T) {
 	require.NotEmpty(t, presetParameters)
 
 	// when we trigger the reconciliation loop for all templates
-	controller.reconcile(ctx, nil)
+	controller.Reconcile(ctx, nil)
 
 	// then no reconciliation actions are taken
 	// because without prebuilds, there is nothing to reconcile
@@ -223,11 +217,11 @@ func setupTestDBPrebuild(
 	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
 		TemplateID:     templateID,
 		OrganizationID: orgID,
-		OwnerID:        OwnerID,
+		OwnerID:        prebuilds.OwnerID,
 		Deleted:        deleted,
 	})
 	job := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
-		InitiatorID:    OwnerID,
+		InitiatorID:    prebuilds.OwnerID,
 		CreatedAt:      time.Now().Add(-2 * time.Hour),
 		CompletedAt:    completedAt,
 		CanceledAt:     cancelledAt,
@@ -236,7 +230,7 @@ func setupTestDBPrebuild(
 	})
 	dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
 		WorkspaceID:             workspace.ID,
-		InitiatorID:             OwnerID,
+		InitiatorID:             prebuilds.OwnerID,
 		TemplateVersionID:       templateVersion.ID,
 		JobID:                   job.ID,
 		TemplateVersionPresetID: uuid.NullUUID{UUID: preset.ID, Valid: true},
@@ -308,7 +302,7 @@ func TestActiveTemplateVersionPrebuilds(t *testing.T) {
 			db, pubsub := dbtestutil.NewDB(t)
 			cfg := codersdk.PrebuildsConfig{}
 			logger := testutil.Logger(t)
-			controller := NewController(db, pubsub, cfg, logger)
+			controller := prebuilds.NewController(db, pubsub, cfg, logger)
 
 			orgID, userID, templateID := setupTestDBTemplate(t, db)
 			_, _, prebuildID := setupTestDBPrebuild(
@@ -322,7 +316,7 @@ func TestActiveTemplateVersionPrebuilds(t *testing.T) {
 				templateID,
 			)
 
-			controller.reconcile(ctx, nil)
+			controller.Reconcile(ctx, nil)
 
 			createdNewPrebuild := false
 			deletedOldPrebuild := true
@@ -347,314 +341,35 @@ func TestInactiveTemplateVersionPrebuilds(t *testing.T) {
 	// Scenario: Prebuilds are never created and always deleted if the template version is inactive
 	t.Parallel()
 	t.Skip("todo")
-}
 
-type partiallyMockedDB struct {
-	mock.Mock
-	database.Store
-}
-
-func (m *partiallyMockedDB) ClaimPrebuild(ctx context.Context, arg database.ClaimPrebuildParams) (database.ClaimPrebuildRow, error) {
-	args := m.Mock.Called(ctx, arg)
-	return args.Get(0).(database.ClaimPrebuildRow), args.Error(1)
-}
-
-func TestClaimPrebuild(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitSuperLong)
-
+	ctx := testutil.Context(t, testutil.WaitShort)
 	db, pubsub := dbtestutil.NewDB(t)
-	mockedDB := &partiallyMockedDB{
-		Store: db,
-	}
-
-	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-		IncludeProvisionerDaemon: true,
-		Database:                 mockedDB,
-		Pubsub:                   pubsub,
-	})
-
 	cfg := codersdk.PrebuildsConfig{}
 	logger := testutil.Logger(t)
-	controller := NewController(mockedDB, pubsub, cfg, logger)
+	controller := prebuilds.NewController(db, pubsub, cfg, logger)
 
-	const (
-		desiredInstances = 1
-		presetCount      = 2
-	)
+	// when does a prebuild get deleted?
+	// * when it is in some way permanently ineligible to be claimed
+	//   * this could be because the build failed or was canceled
+	//   * or it belongs to a template version that is no longer active
+	//   * or it belongs to a template version that is deprecated
+	// * when there are more prebuilds than the preset desires
+	//   * someone could have manually created a workspace for the prebuild user
+	// * any workspaces that were created for the prebuilds user and don't match a preset should be deleted - deferred
 
-	// Setup. // TODO: abstract?
-	owner := coderdtest.CreateFirstUser(t, client)
-	version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, templateWithAgentAndPresetsWithPrebuilds(desiredInstances))
-	_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-	coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
-	presets, err := client.TemplateVersionPresets(ctx, version.ID)
-	require.NoError(t, err)
-	require.Len(t, presets, presetCount)
-
-
-	//
-	//
-	//
-	//
-	//
-	// TODO: for Monday: need to get this feature entitled so the EnterpriseClaimer is used, otherwise it's a noop.
-	//
-	//
-	//
-	//
-	//
-	//
-
-	api.Entitlements.Modify(func(entitlements *codersdk.Entitlements) {
-		entitlements.Features[codersdk.FeatureWorkspacePrebuilds] = codersdk.Feature{
-			Enabled:     true,
-			Entitlement: codersdk.EntitlementEntitled,
-		}
-	})
-	// TODO: can't use coderd.PubsubEventLicenses const because of an import cycle.
-	require.NoError(t, api.Pubsub.Publish("licenses", []byte("add")))
-
-	userClient, user := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleMember())
-
-	ctx = dbauthz.AsSystemRestricted(ctx)
-
-	//claimer := EnterpriseClaimer{}
-	//prebuildsUser, err := db.GetUserByID(ctx, claimer.Initiator())
-	//require.NoError(t, err)
-
-	controller.reconcile(ctx, nil)
-
-	runningPrebuilds := make(map[uuid.UUID]database.GetRunningPrebuildsRow, desiredInstances*presetCount)
-	require.Eventually(t, func() bool {
-		rows, err := mockedDB.GetRunningPrebuilds(ctx)
-		require.NoError(t, err)
-		t.Logf("found %d running prebuilds so far", len(rows))
-
-		for _, row := range rows {
-			runningPrebuilds[row.CurrentPresetID.UUID] = row
-		}
-
-		return len(runningPrebuilds) == (desiredInstances * presetCount)
-	}, testutil.WaitSuperLong, testutil.IntervalSlow)
-
-	workspaceName := strings.ReplaceAll(testutil.GetRandomName(t), "_", "-")
-
-	params := database.ClaimPrebuildParams{
-		NewUserID: user.ID,
-		NewName:   workspaceName,
-		PresetID:  presets[0].ID,
-	}
-	mockedDB.On("ClaimPrebuild", mock.Anything, params).Return(db.ClaimPrebuild(ctx, params)).Once()
-
-	// When: a user creates a new workspace with a preset for which prebuilds are configured.
-	userWorkspace, err := userClient.CreateUserWorkspace(ctx, user.Username, codersdk.CreateWorkspaceRequest{
-		TemplateVersionID:        version.ID,
-		Name:                     workspaceName,
-		TemplateVersionPresetID:  presets[0].ID,
-		ClaimPrebuildIfAvailable: true, // TODO: doesn't do anything yet; it probably should though.
-	})
-	require.NoError(t, err)
-	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, userWorkspace.LatestBuild.ID)
-
-	require.True(t, mockedDB.AssertCalled(t, "ClaimPrebuild", ctx, params))
-
-	for _, rp := range runningPrebuilds {
-		t.Logf("prev >>%s", rp.WorkspaceName)
-	}
-
-	pb, err := mockedDB.GetRunningPrebuilds(ctx)
-	require.NoError(t, err)
-	for _, rp := range pb {
-		t.Logf("new >>%s", rp.WorkspaceName)
-	}
-	require.Len(t, pb, 4)
-
-	//var prebuildIDs []uuid.UUID
-	//// Given: two running prebuilds.
-	//for i := 0; i < 2; i++ {
-	//	prebuiltWorkspace := dbgen.Workspace(t, db, database.WorkspaceTable{
-	//		TemplateID:     template.ID,
-	//		OrganizationID: owner.OrganizationID,
-	//		OwnerID:        prebuildsUser.ID,
-	//	})
-	//	prebuildIDs = append(prebuildIDs, prebuiltWorkspace.ID)
-	//
-	//	job := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
-	//		InitiatorID:    OwnerID,
-	//		CreatedAt:      time.Now().Add(-2 * time.Hour),
-	//		CompletedAt:    sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
-	//		OrganizationID: owner.OrganizationID,
-	//		Provisioner:    database.ProvisionerTypeEcho,
-	//		Type:           database.ProvisionerJobTypeWorkspaceBuild,
-	//	})
-	//	dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-	//		WorkspaceID:             prebuiltWorkspace.ID,
-	//		InitiatorID:             OwnerID,
-	//		TemplateVersionID:       version.ID,
-	//		JobID:                   job.ID,
-	//		TemplateVersionPresetID: uuid.NullUUID{UUID: presets[0].ID, Valid: true},
-	//		Transition:              database.WorkspaceTransitionStart,
-	//	})
-	//
-	//	// Setup workspace agent which is in a given state. // TODO: table test with unclaimable when !ready
-	//	resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
-	//		ID:         uuid.New(),
-	//		CreatedAt:  time.Now().Add(-1 * time.Hour),
-	//		JobID:      job.ID,
-	//		Transition: database.WorkspaceTransitionStart,
-	//		Type:       "some_compute_resource",
-	//		Name:       "beep_boop",
-	//	})
-	//	agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
-	//		ID:               uuid.New(),
-	//		CreatedAt:        time.Now().Add(-1 * time.Hour),
-	//		Name:             "main",
-	//		FirstConnectedAt: sql.NullTime{Time: time.Now().Add(-1 * time.Hour), Valid: true},
-	//		LastConnectedAt:  sql.NullTime{Time: time.Now().Add(-1 * time.Hour), Valid: true},
-	//		ResourceID:       resource.ID,
-	//	})
-	//	require.NoError(t, db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
-	//		ID:             agent.ID,
-	//		LifecycleState: database.WorkspaceAgentLifecycleStateReady,
-	//		StartedAt:      sql.NullTime{Time: time.Now().Add(-1 * time.Hour), Valid: true},
-	//		ReadyAt:        sql.NullTime{Time: time.Now().Add(-1 * time.Hour), Valid: true},
-	//	}))
-	//}
-	//
-	////Then: validate that these prebuilds are indeed considered running.
-	//running, err := db.GetRunningPrebuilds(ctx)
-	//require.NoError(t, err)
-	//var (
-	//	found []uuid.UUID
-	//	ready int
-	//)
-	//for _, w := range running {
-	//	found = append(found, w.WorkspaceID)
-	//	if w.Ready {
-	//		ready++
-	//	}
-	//}
-	//require.ElementsMatch(t, prebuildIDs, found)
-	//require.EqualValues(t, len(prebuildIDs), ready)
-
-	//// When: a user creates a new workspace with a preset for which prebuilds are configured.
-	//userWorkspace, err := userClient.CreateUserWorkspace(ctx, user.Username, codersdk.CreateWorkspaceRequest{
-	//	TemplateVersionID:        templateVersion.ID,
-	//	Name:                     strings.ReplaceAll(testutil.GetRandomName(t), "_", "-"),
-	//	TemplateVersionPresetID:  preset.ID,
-	//	ClaimPrebuildIfAvailable: true, // TODO: doesn't do anything yet; it probably should though.
-	//})
-	//require.NoError(t, err)
-	//require.NoError(t, cliui.WorkspaceBuild(ctx, os.Stderr, userClient, userWorkspace.LatestBuild.ID))
+	// given a preset that desires 2 prebuilds
+	// and there are 3 running prebuilds for the preset
+	// and there are 4 non-running prebuilds for the preset
+	// * one is not running because its latest build was a stop transition
+	// * another is not running because its latest build was a delete transition
+	// * a third is not running because its latest build was a start transition but the build failed
+	// * a fourth is not running because its latest build was a start transition but the build was canceled
+	// when we trigger the reconciliation loop for all templates
+	controller.Reconcile(ctx, nil)
+	// then the four non running prebuilds are deleted
+	// and 1 of the running prebuilds is deleted
+	// because stopped, deleted and failed builds are not considered running in terms of the definition of "running" above.
 }
 
-//func addPremiumLicense(t *testing.T) (*codersdk.Entitlements, error) {
-//	premiumLicense := (&coderdenttest.LicenseOptions{
-//		AccountType:   "salesforce",
-//		AccountID:     "Charlie",
-//		DeploymentIDs: nil,
-//		Trial:         false,
-//		FeatureSet:    codersdk.FeatureSetPremium,
-//		AllFeatures:   true,
-//	}).Valid(time.Now())
-//	licenses := []*coderdenttest.LicenseOptions{premiumLicense}
-//
-//	allEnablements := make(map[codersdk.FeatureName]bool, len(codersdk.FeatureNames))
-//	for _, e := range codersdk.FeatureNames {
-//		allEnablements[e] = true
-//	}
-//
-//	generatedLicenses := make([]database.License, 0, len(licenses))
-//	for i, lo := range licenses {
-//		generatedLicenses = append(generatedLicenses, database.License{
-//			ID:         int32(i),
-//			UploadedAt: time.Now().Add(time.Hour * -1),
-//			JWT:        lo.Generate(t),
-//			Exp:        lo.GraceAt,
-//			UUID:       uuid.New(),
-//		})
-//	}
-//
-//	ents, err := license.LicensesEntitlements(time.Now(), generatedLicenses, allEnablements, coderdenttest.Keys, license.FeatureArguments{})
-//	return &ents, err
-//}
-
-func templateWithAgentAndPresetsWithPrebuilds(desiredInstances int32) *echo.Responses {
-	return &echo.Responses{
-		Parse: echo.ParseComplete,
-		ProvisionPlan: []*proto.Response{
-			{
-				Type: &proto.Response_Plan{
-					Plan: &proto.PlanComplete{
-						Resources: []*proto.Resource{
-							{
-								Type: "compute",
-								Name: "main",
-								Agents: []*proto.Agent{
-									{
-										Name:            "smith",
-										OperatingSystem: "linux",
-										Architecture:    "i386",
-									},
-								},
-							},
-						},
-						Presets: []*proto.Preset{
-							{
-								Name: "preset-a",
-								Parameters: []*proto.PresetParameter{
-									{
-										Name:  "k1",
-										Value: "v1",
-									},
-								},
-								Prebuild: &proto.Prebuild{
-									Instances: desiredInstances,
-								},
-							},
-							{
-								Name: "preset-b",
-								Parameters: []*proto.PresetParameter{
-									{
-										Name:  "k1",
-										Value: "v2",
-									},
-								},
-								Prebuild: &proto.Prebuild{
-									Instances: desiredInstances,
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		ProvisionApply: []*proto.Response{
-			{
-				Type: &proto.Response_Apply{
-					Apply: &proto.ApplyComplete{
-						Resources: []*proto.Resource{
-							{
-								Type: "compute",
-								Name: "main",
-								Agents: []*proto.Agent{
-									{
-										Name:            "smith",
-										OperatingSystem: "linux",
-										Architecture:    "i386",
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-// TODO(dannyk): test that prebuilds are only attempted to be claimed for net-new workspace builds
 // TODO (sasswart): test idempotency of reconciliation
 // TODO (sasswart): test mutual exclusion
