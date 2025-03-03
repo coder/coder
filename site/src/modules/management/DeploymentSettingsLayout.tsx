@@ -17,10 +17,6 @@ const DeploymentSettingsLayout: FC = () => {
 	const { permissions } = useAuthenticated();
 	const location = useLocation();
 
-	// The deployment settings page also contains users and groups and more so
-	// this page must be visible if you can see any of these.
-	const canViewDeploymentSettingsPage = canViewDeploymentSettings(permissions);
-
 	if (location.pathname === "/deployment") {
 		return (
 			<Navigate
@@ -33,6 +29,10 @@ const DeploymentSettingsLayout: FC = () => {
 			/>
 		);
 	}
+
+	// The deployment settings page also contains users and groups and more so
+	// this page must be visible if you can see any of these.
+	const canViewDeploymentSettingsPage = canViewDeploymentSettings(permissions);
 
 	return (
 		<RequirePermission isFeatureVisible={canViewDeploymentSettingsPage}>

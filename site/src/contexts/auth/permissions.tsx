@@ -180,7 +180,6 @@ export const canViewDeploymentSettings = (
 		permissions !== undefined &&
 		(permissions.viewDeploymentValues ||
 			permissions.viewAllLicenses ||
-			permissions.viewDeploymentValues ||
 			permissions.viewAllUsers ||
 			permissions.viewAnyGroup ||
 			permissions.viewNotificationTemplate ||
