@@ -639,7 +639,10 @@ func TestNotifierPaused(t *testing.T) {
 	cfg.FetchInterval = serpent.Duration(fetchInterval)
 	mgr, err := notifications.NewManager(cfg, store, defaultHelpers(), createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
-	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
+	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{
+		method:                           handler,
+		database.NotificationMethodInbox: &fakeHandler{},
+	})
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
 	})
@@ -667,8 +670,9 @@ func TestNotifierPaused(t *testing.T) {
 		Limit:  10,
 	})
 	require.NoError(t, err)
-	require.Len(t, pendingMessages, 1)
+	require.Len(t, pendingMessages, 2)
 	require.Equal(t, pendingMessages[0].ID.String(), sid[0].String())
+	require.Equal(t, pendingMessages[1].ID.String(), sid[1].String())
 
 	// Wait a few fetch intervals to be sure that no new notifications are being sent.
 	// TODO: use quartz instead.

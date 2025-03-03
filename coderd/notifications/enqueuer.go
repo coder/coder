@@ -118,6 +118,8 @@ func (s *StoreEnqueuer) EnqueueWithData(ctx context.Context, userID, templateID 
 			s.log.Warn(ctx, "failed to enqueue notification", slog.F("template_id", templateID), slog.F("input", input), slog.Error(err))
 			return nil, xerrors.Errorf("enqueue notification: %w", err)
 		}
+
+		uuids = append(uuids, id)
 	}
 
 	s.log.Debug(ctx, "enqueued notification", slog.F("msg_ids", uuids))

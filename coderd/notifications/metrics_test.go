@@ -252,8 +252,11 @@ func TestPendingUpdatesMetric(t *testing.T) {
 		assert.NoError(t, mgr.Stop(ctx))
 	})
 	handler := &fakeHandler{}
+	inboxHandler := &fakeHandler{}
+
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{
-		method: handler,
+		method:                           handler,
+		database.NotificationMethodInbox: inboxHandler,
 	})
 
 	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
@@ -285,7 +288,7 @@ func TestPendingUpdatesMetric(t *testing.T) {
 	}()
 
 	// Both handler calls should be pending in the metrics.
-	require.EqualValues(t, 2, promtest.ToFloat64(metrics.PendingUpdates))
+	require.EqualValues(t, 4, promtest.ToFloat64(metrics.PendingUpdates))
 
 	// THEN:
 	// Trigger syncing updates
@@ -293,13 +296,13 @@ func TestPendingUpdatesMetric(t *testing.T) {
 
 	// Wait until we intercept the calls to sync the pending updates to the store.
 	success := testutil.RequireRecvCtx(testutil.Context(t, testutil.WaitShort), t, interceptor.updateSuccess)
-	require.EqualValues(t, 1, success)
+	require.EqualValues(t, 2, success)
 	failure := testutil.RequireRecvCtx(testutil.Context(t, testutil.WaitShort), t, interceptor.updateFailure)
-	require.EqualValues(t, 1, failure)
+	require.EqualValues(t, 2, failure)
 
 	// Validate that the store synced the expected number of updates.
 	require.Eventually(t, func() bool {
-		return syncer.sent.Load() == 1 && syncer.failed.Load() == 1
+		return syncer.sent.Load() == 2 && syncer.failed.Load() == 2
 	}, testutil.WaitShort, testutil.IntervalFast)
 
 	// Wait for the updates to be synced and the metric to reflect that.

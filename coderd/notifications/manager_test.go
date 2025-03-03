@@ -38,6 +38,7 @@ func TestBufferedUpdates(t *testing.T) {
 
 	interceptor := &syncInterceptor{Store: store}
 	santa := &santaHandler{}
+	santaInbox := &santaHandler{}
 
 	cfg := defaultNotificationsConfig(database.NotificationMethodSmtp)
 	cfg.StoreSyncInterval = serpent.Duration(time.Hour) // Ensure we don't sync the store automatically.
@@ -46,7 +47,8 @@ func TestBufferedUpdates(t *testing.T) {
 	mgr, err := notifications.NewManager(cfg, interceptor, defaultHelpers(), createMetrics(), logger.Named("notifications-manager"))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{
-		database.NotificationMethodSmtp: santa,
+		database.NotificationMethodSmtp:  santa,
+		database.NotificationMethodInbox: santaInbox,
 	})
 	enq, err := notifications.NewStoreEnqueuer(cfg, interceptor, defaultHelpers(), logger.Named("notifications-enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
@@ -79,7 +81,7 @@ func TestBufferedUpdates(t *testing.T) {
 	// Wait for the expected number of buffered updates to be accumulated.
 	require.Eventually(t, func() bool {
 		success, failure := mgr.BufferedUpdatesCount()
-		return success == expectedSuccess && failure == expectedFailure
+		return success == 4 && failure == 2
 	}, testutil.WaitShort, testutil.IntervalFast)
 
 	// Stop the manager which forces an update of buffered updates.
@@ -93,8 +95,8 @@ func TestBufferedUpdates(t *testing.T) {
 			ct.FailNow()
 		}
 
-		assert.EqualValues(ct, expectedFailure, interceptor.failed.Load())
-		assert.EqualValues(ct, expectedSuccess, interceptor.sent.Load())
+		assert.EqualValues(ct, 2, interceptor.failed.Load())
+		assert.EqualValues(ct, 4, interceptor.sent.Load())
 	}, testutil.WaitMedium, testutil.IntervalFast)
 }
 
