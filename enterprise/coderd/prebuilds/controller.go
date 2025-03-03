@@ -223,6 +223,9 @@ func (c *Controller) determineState(ctx context.Context, store database.Store, t
 		}
 
 		presetsWithPrebuilds, err := db.GetTemplatePresetsWithPrebuilds(ctx, dbTemplateID)
+		if err != nil {
+			return xerrors.Errorf("failed to get template presets with prebuilds: %w", err)
+		}
 		if len(presetsWithPrebuilds) == 0 {
 			return nil
 		}

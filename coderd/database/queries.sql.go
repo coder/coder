@@ -5624,7 +5624,7 @@ FROM workspace_prebuilds p
 				   ON tvp_curr.id = p.current_preset_id -- See https://github.com/coder/internal/issues/398.
 WHERE (b.transition = 'start'::workspace_transition
 	-- Jobs that are not in terminal states.
-	OR pj.job_status IN ('failed'::provisioner_job_status, 'canceled'::provisioner_job_status,
+	AND pj.job_status NOT IN ('failed'::provisioner_job_status, 'canceled'::provisioner_job_status,
 						 'unknown'::provisioner_job_status))
 `
 

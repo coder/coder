@@ -20,8 +20,8 @@ func (e EnterpriseClaimer) Claim(ctx context.Context, store database.Store, user
 	err := store.InTx(func(db database.Store) error {
 		// TODO: do we need this?
 		//// Ensure no other replica can claim a prebuild for this user simultaneously.
-		//err := store.AcquireLock(ctx, database.GenLockID(fmt.Sprintf("prebuild-user-claim-%s", userID.String())))
-		//if err != nil {
+		// err := store.AcquireLock(ctx, database.GenLockID(fmt.Sprintf("prebuild-user-claim-%s", userID.String())))
+		// if err != nil {
 		//	return xerrors.Errorf("acquire claim lock for user %q: %w", userID.String(), err)
 		//}
 

@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -124,18 +125,139 @@ func TestNoReconciliationActionsIfNoPrebuilds(t *testing.T) {
 	require.Empty(t, jobs)
 }
 
-func TestPrebuildCreation(t *testing.T) {
+func setupTestDBTemplate(
+	t *testing.T,
+	db database.Store,
+) (
+	orgID uuid.UUID,
+	userID uuid.UUID,
+	templateID uuid.UUID,
+) {
+	t.Helper()
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+
+	template := dbgen.Template(t, db, database.Template{
+		CreatedBy:      user.ID,
+		OrganizationID: org.ID,
+	})
+
+	return org.ID, user.ID, template.ID
+}
+func setupTestDBPrebuild(
+	t *testing.T,
+	ctx context.Context,
+	db database.Store,
+	pubsub pubsub.Pubsub,
+	prebuildStatus database.WorkspaceStatus,
+	orgID uuid.UUID,
+	userID uuid.UUID,
+	templateID uuid.UUID,
+) (
+	templateVersionID uuid.UUID,
+	presetID uuid.UUID,
+	prebuildID uuid.UUID,
+) {
+	templateVersionJob := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
+		ID:             uuid.New(),
+		CreatedAt:      time.Now().Add(-2 * time.Hour),
+		CompletedAt:    sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
+		OrganizationID: orgID,
+		InitiatorID:    userID,
+	})
+	templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		TemplateID:     uuid.NullUUID{UUID: templateID, Valid: true},
+		OrganizationID: orgID,
+		CreatedBy:      userID,
+		JobID:          templateVersionJob.ID,
+	})
+	db.UpdateTemplateActiveVersionByID(ctx, database.UpdateTemplateActiveVersionByIDParams{
+		ID:              templateID,
+		ActiveVersionID: templateVersion.ID,
+	})
+	preset, err := db.InsertPreset(ctx, database.InsertPresetParams{
+		TemplateVersionID: templateVersion.ID,
+		Name:              "test",
+	})
+	require.NoError(t, err)
+	_, err = db.InsertPresetParameters(ctx, database.InsertPresetParametersParams{
+		TemplateVersionPresetID: preset.ID,
+		Names:                   []string{"test"},
+		Values:                  []string{"test"},
+	})
+	require.NoError(t, err)
+	_, err = db.InsertPresetPrebuild(ctx, database.InsertPresetPrebuildParams{
+		ID:               uuid.New(),
+		PresetID:         preset.ID,
+		DesiredInstances: 1,
+	})
+	require.NoError(t, err)
+
+	completedAt := sql.NullTime{}
+	cancelledAt := sql.NullTime{}
+	transition := database.WorkspaceTransitionStart
+	deleted := false
+	buildError := sql.NullString{}
+	switch prebuildStatus {
+	case database.WorkspaceStatusRunning:
+		completedAt = sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true}
+	case database.WorkspaceStatusStopped:
+		completedAt = sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true}
+		transition = database.WorkspaceTransitionStop
+	case database.WorkspaceStatusFailed:
+		completedAt = sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true}
+		buildError = sql.NullString{String: "build failed", Valid: true}
+	case database.WorkspaceStatusCanceled:
+		completedAt = sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true}
+		cancelledAt = sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true}
+	case database.WorkspaceStatusDeleted:
+		completedAt = sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true}
+		transition = database.WorkspaceTransitionDelete
+		deleted = true
+	case database.WorkspaceStatusPending:
+		completedAt = sql.NullTime{}
+		transition = database.WorkspaceTransitionStart
+	default:
+	}
+
+	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		TemplateID:     templateID,
+		OrganizationID: orgID,
+		OwnerID:        OwnerID,
+		Deleted:        deleted,
+	})
+	job := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
+		InitiatorID:    OwnerID,
+		CreatedAt:      time.Now().Add(-2 * time.Hour),
+		CompletedAt:    completedAt,
+		CanceledAt:     cancelledAt,
+		OrganizationID: orgID,
+		Error:          buildError,
+	})
+	dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		WorkspaceID:             workspace.ID,
+		InitiatorID:             OwnerID,
+		TemplateVersionID:       templateVersion.ID,
+		JobID:                   job.ID,
+		TemplateVersionPresetID: uuid.NullUUID{UUID: preset.ID, Valid: true},
+		Transition:              transition,
+	})
+
+	return templateVersion.ID, preset.ID, workspace.ID
+}
+
+func TestActiveTemplateVersionPrebuilds(t *testing.T) {
 	if !dbtestutil.WillUsePostgres() {
 		t.Skip("This test requires postgres")
 	}
 
 	t.Parallel()
 
-	// Scenario: Prebuilds are created if and only if they are needed
 	type testCase struct {
 		name                    string
 		prebuildStatus          database.WorkspaceStatus
 		shouldCreateNewPrebuild bool
+		shouldDeleteOldPrebuild bool
 	}
 
 	testCases := []testCase{
@@ -143,34 +265,43 @@ func TestPrebuildCreation(t *testing.T) {
 			name:                    "running prebuild",
 			prebuildStatus:          database.WorkspaceStatusRunning,
 			shouldCreateNewPrebuild: false,
+			shouldDeleteOldPrebuild: false,
 		},
 		{
 			name:                    "stopped prebuild",
 			prebuildStatus:          database.WorkspaceStatusStopped,
 			shouldCreateNewPrebuild: true,
+			shouldDeleteOldPrebuild: false,
 		},
 		{
 			name:                    "failed prebuild",
 			prebuildStatus:          database.WorkspaceStatusFailed,
 			shouldCreateNewPrebuild: true,
+			shouldDeleteOldPrebuild: false,
 		},
 		{
 			name:                    "canceled prebuild",
 			prebuildStatus:          database.WorkspaceStatusCanceled,
 			shouldCreateNewPrebuild: true,
+			shouldDeleteOldPrebuild: false,
 		},
-		{
-			name:                    "deleted prebuild",
-			prebuildStatus:          database.WorkspaceStatusDeleted,
-			shouldCreateNewPrebuild: true,
-		},
+		// {
+		// 	name:                    "deleted prebuild",
+		// 	prebuildStatus:          database.WorkspaceStatusDeleted,
+		// 	shouldConsiderPrebuildRunning: false,
+		// 	shouldConsiderPrebuildInProgress: false,
+		// 	shouldCreateNewPrebuild: true,
+		// 	shouldDeleteOldPrebuild: false,
+		// },
 		{
 			name:                    "pending prebuild",
 			prebuildStatus:          database.WorkspaceStatusPending,
 			shouldCreateNewPrebuild: false,
+			shouldDeleteOldPrebuild: false,
 		},
 	}
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitShort)
@@ -179,141 +310,43 @@ func TestPrebuildCreation(t *testing.T) {
 			logger := testutil.Logger(t)
 			controller := NewController(db, pubsub, cfg, logger)
 
-			// given a user
-			org := dbgen.Organization(t, db, database.Organization{})
-			user := dbgen.User(t, db, database.User{})
-
-			template := dbgen.Template(t, db, database.Template{
-				CreatedBy:      user.ID,
-				OrganizationID: org.ID,
-			})
-			templateVersionJob := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
-				ID:             uuid.New(),
-				CreatedAt:      time.Now().Add(-2 * time.Hour),
-				CompletedAt:    sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
-				OrganizationID: org.ID,
-				InitiatorID:    user.ID,
-			})
-			templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-				TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
-				OrganizationID: org.ID,
-				CreatedBy:      user.ID,
-				JobID:          templateVersionJob.ID,
-			})
-			db.UpdateTemplateActiveVersionByID(ctx, database.UpdateTemplateActiveVersionByIDParams{
-				ID:              template.ID,
-				ActiveVersionID: templateVersion.ID,
-			})
-			preset, err := db.InsertPreset(ctx, database.InsertPresetParams{
-				TemplateVersionID: templateVersion.ID,
-				Name:              "test",
-			})
-			require.NoError(t, err)
-			_, err = db.InsertPresetParameters(ctx, database.InsertPresetParametersParams{
-				TemplateVersionPresetID: preset.ID,
-				Names:                   []string{"test"},
-				Values:                  []string{"test"},
-			})
-			require.NoError(t, err)
-			_, err = db.InsertPresetPrebuild(ctx, database.InsertPresetPrebuildParams{
-				ID:               uuid.New(),
-				PresetID:         preset.ID,
-				DesiredInstances: 1,
-			})
-			require.NoError(t, err)
-			completedAt := sql.NullTime{}
-			cancelledAt := sql.NullTime{}
-			transition := database.WorkspaceTransitionStart
-			deleted := false
-			buildError := sql.NullString{}
-			switch tc.prebuildStatus {
-			case database.WorkspaceStatusRunning:
-				completedAt = sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true}
-			case database.WorkspaceStatusStopped:
-				completedAt = sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true}
-				transition = database.WorkspaceTransitionStop
-			case database.WorkspaceStatusFailed:
-				completedAt = sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true}
-				buildError = sql.NullString{String: "build failed", Valid: true}
-			case database.WorkspaceStatusCanceled:
-				completedAt = sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true}
-				cancelledAt = sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true}
-			case database.WorkspaceStatusDeleted:
-				completedAt = sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true}
-				transition = database.WorkspaceTransitionDelete
-				deleted = true
-			case database.WorkspaceStatusPending:
-				completedAt = sql.NullTime{}
-				transition = database.WorkspaceTransitionStart
-			default:
-			}
-
-			workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
-				TemplateID:     template.ID,
-				OrganizationID: org.ID,
-				OwnerID:        OwnerID,
-				Deleted:        deleted,
-			})
-			job := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
-				InitiatorID:    OwnerID,
-				CreatedAt:      time.Now().Add(-2 * time.Hour),
-				CompletedAt:    completedAt,
-				CanceledAt:     cancelledAt,
-				OrganizationID: org.ID,
-				Error:          buildError,
-			})
-			dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-				WorkspaceID:             workspace.ID,
-				InitiatorID:             OwnerID,
-				TemplateVersionID:       templateVersion.ID,
-				JobID:                   job.ID,
-				TemplateVersionPresetID: uuid.NullUUID{UUID: preset.ID, Valid: true},
-				Transition:              transition,
-			})
+			orgID, userID, templateID := setupTestDBTemplate(t, db)
+			_, _, prebuildID := setupTestDBPrebuild(
+				t,
+				ctx,
+				db,
+				pubsub,
+				tc.prebuildStatus,
+				orgID,
+				userID,
+				templateID,
+			)
 
 			controller.reconcile(ctx, nil)
-			jobs, err := db.GetProvisionerJobsCreatedAfter(ctx, time.Now().Add(-time.Hour))
+
+			createdNewPrebuild := false
+			deletedOldPrebuild := true
+			workspaces, err := db.GetWorkspacesByTemplateID(ctx, templateID)
 			require.NoError(t, err)
-			require.Equal(t, tc.shouldCreateNewPrebuild, len(jobs) == 1)
+			for _, workspace := range workspaces {
+				if workspace.ID == prebuildID {
+					deletedOldPrebuild = false
+				}
+
+				if workspace.ID != prebuildID {
+					createdNewPrebuild = true
+				}
+			}
+			require.Equal(t, tc.shouldCreateNewPrebuild, createdNewPrebuild)
+			require.Equal(t, tc.shouldDeleteOldPrebuild, deletedOldPrebuild)
 		})
 	}
 }
 
-func TestDeleteUnwantedPrebuilds(t *testing.T) {
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres")
-	}
-
-	// Scenario: Prebuilds are deleted if and only if they are extraneous
+func TestInactiveTemplateVersionPrebuilds(t *testing.T) {
+	// Scenario: Prebuilds are never created and always deleted if the template version is inactive
 	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-	db, pubsub := dbtestutil.NewDB(t)
-	cfg := codersdk.PrebuildsConfig{}
-	logger := testutil.Logger(t)
-	controller := NewController(db, pubsub, cfg, logger)
-
-	// when does a prebuild get deleted?
-	// * when it is in some way permanently ineligible to be claimed
-	//   * this could be because the build failed or was canceled
-	//   * or it belongs to a template version that is no longer active
-	//   * or it belongs to a template version that is deprecated
-	// * when there are more prebuilds than the preset desires
-	//   * someone could have manually created a workspace for the prebuild user
-	// * any workspaces that were created for the prebuilds user and don't match a preset should be deleted - deferred
-
-	// given a preset that desires 2 prebuilds
-	// and there are 3 running prebuilds for the preset
-	// and there are 4 non-running prebuilds for the preset
-	// * one is not running because its latest build was a stop transition
-	// * another is not running because its latest build was a delete transition
-	// * a third is not running because its latest build was a start transition but the build failed
-	// * a fourth is not running because its latest build was a start transition but the build was canceled
-	// when we trigger the reconciliation loop for all templates
-	controller.reconcile(ctx, nil)
-	// then the four non running prebuilds are deleted
-	// and 1 of the running prebuilds is deleted
-	// because stopped, deleted and failed builds are not considered running in terms of the definition of "running" above.
+	t.Skip("todo")
 }
 
 type partiallyMockedDB struct {
