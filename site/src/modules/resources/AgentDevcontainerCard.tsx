@@ -3,6 +3,8 @@ import type { WorkspaceAgentDevcontainer } from "api/typesGenerated";
 import type { FC } from "react";
 import { AgentButton } from "./AgentButton";
 import { AgentDevcontainerSSHButton } from "./SSHButton/SSHButton";
+import { ExternalLinkIcon } from "lucide-react";
+import { TerminalLink } from "./TerminalLink/TerminalLink";
 
 type AgentDevcontainerCardProps = {
 	container: WorkspaceAgentDevcontainer;
@@ -32,6 +34,7 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 			<h4 className="m-0 text-xl font-semibold">Forwarded ports</h4>
 
 			<div className="flex gap-4 flex-wrap mt-4">
+				<TerminalLink workspaceName={workspace} />
 				{container.ports.map((port) => {
 					return (
 						<Link
@@ -39,6 +42,7 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 							color="inherit"
 							component={AgentButton}
 							underline="none"
+							startIcon={<ExternalLinkIcon className="size-icon-sm" />}
 						>
 							{port.process_name ||
 								`${port.port}/${port.network.toUpperCase()}`}
