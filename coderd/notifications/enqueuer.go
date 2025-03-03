@@ -85,40 +85,43 @@ func (s *StoreEnqueuer) EnqueueWithData(ctx context.Context, userID, templateID 
 		return nil, xerrors.Errorf("failed encoding input labels: %w", err)
 	}
 
-	id := uuid.New()
-	err = s.store.EnqueueNotificationMessage(ctx, database.EnqueueNotificationMessageParams{
-		ID:                     id,
-		UserID:                 userID,
-		NotificationTemplateID: templateID,
-		Method:                 dispatchMethod,
-		Payload:                input,
-		Targets:                targets,
-		CreatedBy:              createdBy,
-		CreatedAt:              dbtime.Time(s.clock.Now().UTC()),
-	})
-	if err != nil {
-		// We have a trigger on the notification_messages table named `inhibit_enqueue_if_disabled` which prevents messages
-		// from being enqueued if the user has disabled them via notification_preferences. The trigger will fail the insertion
-		// with the message "cannot enqueue message: user has disabled this notification".
-		//
-		// This is more efficient than fetching the user's preferences for each enqueue, and centralizes the business logic.
-		if strings.Contains(err.Error(), ErrCannotEnqueueDisabledNotification.Error()) {
-			return nil, ErrCannotEnqueueDisabledNotification
-		}
+	uuids := make([]uuid.UUID, 0, 2)
+	for _, method := range []database.NotificationMethod{dispatchMethod, database.NotificationMethodInbox} {
+		id := uuid.New()
+		err = s.store.EnqueueNotificationMessage(ctx, database.EnqueueNotificationMessageParams{
+			ID:                     id,
+			UserID:                 userID,
+			NotificationTemplateID: templateID,
+			Method:                 method,
+			Payload:                input,
+			Targets:                targets,
+			CreatedBy:              createdBy,
+			CreatedAt:              dbtime.Time(s.clock.Now().UTC()),
+		})
+		if err != nil {
+			// We have a trigger on the notification_messages table named `inhibit_enqueue_if_disabled` which prevents messages
+			// from being enqueued if the user has disabled them via notification_preferences. The trigger will fail the insertion
+			// with the message "cannot enqueue message: user has disabled this notification".
+			//
+			// This is more efficient than fetching the user's preferences for each enqueue, and centralizes the business logic.
+			if strings.Contains(err.Error(), ErrCannotEnqueueDisabledNotification.Error()) {
+				return nil, ErrCannotEnqueueDisabledNotification
+			}
 
-		// If the enqueue fails due to a dedupe hash conflict, this means that a notification has already been enqueued
-		// today with identical properties. It's far simpler to prevent duplicate sends in this central manner, rather than
-		// having each notification enqueue handle its own logic.
-		if database.IsUniqueViolation(err, database.UniqueNotificationMessagesDedupeHashIndex) {
-			return nil, ErrDuplicate
-		}
+			// If the enqueue fails due to a dedupe hash conflict, this means that a notification has already been enqueued
+			// today with identical properties. It's far simpler to prevent duplicate sends in this central manner, rather than
+			// having each notification enqueue handle its own logic.
+			if database.IsUniqueViolation(err, database.UniqueNotificationMessagesDedupeHashIndex) {
+				return nil, ErrDuplicate
+			}
 
-		s.log.Warn(ctx, "failed to enqueue notification", slog.F("template_id", templateID), slog.F("input", input), slog.Error(err))
-		return nil, xerrors.Errorf("enqueue notification: %w", err)
+			s.log.Warn(ctx, "failed to enqueue notification", slog.F("template_id", templateID), slog.F("input", input), slog.Error(err))
+			return nil, xerrors.Errorf("enqueue notification: %w", err)
+		}
 	}
 
-	s.log.Debug(ctx, "enqueued notification", slog.F("msg_id", id))
-	return []uuid.UUID{id}, nil
+	s.log.Debug(ctx, "enqueued notification", slog.F("msg_ids", uuids))
+	return uuids, nil
 }
 
 // buildPayload creates the payload that the notification will for variable substitution and/or routing.
