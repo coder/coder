@@ -12135,6 +12135,46 @@ func (q *sqlQuerier) FetchMemoryResourceMonitorsByAgentID(ctx context.Context, a
 	return i, err
 }
 
+const fetchMemoryResourceMonitorsUpdatedAfter = `-- name: FetchMemoryResourceMonitorsUpdatedAfter :many
+SELECT
+	agent_id, enabled, threshold, created_at, updated_at, state, debounced_until
+FROM
+	workspace_agent_memory_resource_monitors
+WHERE
+	updated_at > $1
+`
+
+func (q *sqlQuerier) FetchMemoryResourceMonitorsUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]WorkspaceAgentMemoryResourceMonitor, error) {
+	rows, err := q.db.QueryContext(ctx, fetchMemoryResourceMonitorsUpdatedAfter, updatedAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAgentMemoryResourceMonitor
+	for rows.Next() {
+		var i WorkspaceAgentMemoryResourceMonitor
+		if err := rows.Scan(
+			&i.AgentID,
+			&i.Enabled,
+			&i.Threshold,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.State,
+			&i.DebouncedUntil,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const fetchVolumesResourceMonitorsByAgentID = `-- name: FetchVolumesResourceMonitorsByAgentID :many
 SELECT
 	agent_id, enabled, threshold, path, created_at, updated_at, state, debounced_until
@@ -12146,6 +12186,47 @@ WHERE
 
 func (q *sqlQuerier) FetchVolumesResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) ([]WorkspaceAgentVolumeResourceMonitor, error) {
 	rows, err := q.db.QueryContext(ctx, fetchVolumesResourceMonitorsByAgentID, agentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAgentVolumeResourceMonitor
+	for rows.Next() {
+		var i WorkspaceAgentVolumeResourceMonitor
+		if err := rows.Scan(
+			&i.AgentID,
+			&i.Enabled,
+			&i.Threshold,
+			&i.Path,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.State,
+			&i.DebouncedUntil,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const fetchVolumesResourceMonitorsUpdatedAfter = `-- name: FetchVolumesResourceMonitorsUpdatedAfter :many
+SELECT
+	agent_id, enabled, threshold, path, created_at, updated_at, state, debounced_until
+FROM
+	workspace_agent_volume_resource_monitors
+WHERE
+	updated_at > $1
+`
+
+func (q *sqlQuerier) FetchVolumesResourceMonitorsUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]WorkspaceAgentVolumeResourceMonitor, error) {
+	rows, err := q.db.QueryContext(ctx, fetchVolumesResourceMonitorsUpdatedAfter, updatedAt)
 	if err != nil {
 		return nil, err
 	}

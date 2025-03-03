@@ -1426,6 +1426,17 @@ func (q *querier) FetchMemoryResourceMonitorsByAgentID(ctx context.Context, agen
 	return q.db.FetchMemoryResourceMonitorsByAgentID(ctx, agentID)
 }
 
+func (q *querier) FetchMemoryResourceMonitorsUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]database.WorkspaceAgentMemoryResourceMonitor, error) {
+	// Ideally, we would return a list of monitors that the user has access to. However, that check would need to
+	// be implemented similarly to GetWorkspaces, which is more complex than what we're doing here. Since this query
+	// was introduced for telemetry, we perform a simpler check.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspaceAgentResourceMonitor); err != nil {
+		return nil, err
+	}
+
+	return q.db.FetchMemoryResourceMonitorsUpdatedAfter(ctx, updatedAt)
+}
+
 func (q *querier) FetchNewMessageMetadata(ctx context.Context, arg database.FetchNewMessageMetadataParams) (database.FetchNewMessageMetadataRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceNotificationMessage); err != nil {
 		return database.FetchNewMessageMetadataRow{}, err
@@ -1445,6 +1456,17 @@ func (q *querier) FetchVolumesResourceMonitorsByAgentID(ctx context.Context, age
 	}
 
 	return q.db.FetchVolumesResourceMonitorsByAgentID(ctx, agentID)
+}
+
+func (q *querier) FetchVolumesResourceMonitorsUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]database.WorkspaceAgentVolumeResourceMonitor, error) {
+	// Ideally, we would return a list of monitors that the user has access to. However, that check would need to
+	// be implemented similarly to GetWorkspaces, which is more complex than what we're doing here. Since this query
+	// was introduced for telemetry, we perform a simpler check.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspaceAgentResourceMonitor); err != nil {
+		return nil, err
+	}
+
+	return q.db.FetchVolumesResourceMonitorsUpdatedAfter(ctx, updatedAt)
 }
 
 func (q *querier) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {

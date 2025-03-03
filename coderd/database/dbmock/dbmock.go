@@ -772,6 +772,21 @@ func (mr *MockStoreMockRecorder) FetchMemoryResourceMonitorsByAgentID(ctx, agent
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchMemoryResourceMonitorsByAgentID", reflect.TypeOf((*MockStore)(nil).FetchMemoryResourceMonitorsByAgentID), ctx, agentID)
 }
 
+// FetchMemoryResourceMonitorsUpdatedAfter mocks base method.
+func (m *MockStore) FetchMemoryResourceMonitorsUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]database.WorkspaceAgentMemoryResourceMonitor, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchMemoryResourceMonitorsUpdatedAfter", ctx, updatedAt)
+	ret0, _ := ret[0].([]database.WorkspaceAgentMemoryResourceMonitor)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchMemoryResourceMonitorsUpdatedAfter indicates an expected call of FetchMemoryResourceMonitorsUpdatedAfter.
+func (mr *MockStoreMockRecorder) FetchMemoryResourceMonitorsUpdatedAfter(ctx, updatedAt any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchMemoryResourceMonitorsUpdatedAfter", reflect.TypeOf((*MockStore)(nil).FetchMemoryResourceMonitorsUpdatedAfter), ctx, updatedAt)
+}
+
 // FetchNewMessageMetadata mocks base method.
 func (m *MockStore) FetchNewMessageMetadata(ctx context.Context, arg database.FetchNewMessageMetadataParams) (database.FetchNewMessageMetadataRow, error) {
 	m.ctrl.T.Helper()
@@ -800,6 +815,21 @@ func (m *MockStore) FetchVolumesResourceMonitorsByAgentID(ctx context.Context, a
 func (mr *MockStoreMockRecorder) FetchVolumesResourceMonitorsByAgentID(ctx, agentID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchVolumesResourceMonitorsByAgentID", reflect.TypeOf((*MockStore)(nil).FetchVolumesResourceMonitorsByAgentID), ctx, agentID)
+}
+
+// FetchVolumesResourceMonitorsUpdatedAfter mocks base method.
+func (m *MockStore) FetchVolumesResourceMonitorsUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]database.WorkspaceAgentVolumeResourceMonitor, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchVolumesResourceMonitorsUpdatedAfter", ctx, updatedAt)
+	ret0, _ := ret[0].([]database.WorkspaceAgentVolumeResourceMonitor)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchVolumesResourceMonitorsUpdatedAfter indicates an expected call of FetchVolumesResourceMonitorsUpdatedAfter.
+func (mr *MockStoreMockRecorder) FetchVolumesResourceMonitorsUpdatedAfter(ctx, updatedAt any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchVolumesResourceMonitorsUpdatedAfter", reflect.TypeOf((*MockStore)(nil).FetchVolumesResourceMonitorsUpdatedAfter), ctx, updatedAt)
 }
 
 // GetAPIKeyByID mocks base method.
