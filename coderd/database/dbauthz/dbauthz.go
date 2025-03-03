@@ -1438,6 +1438,10 @@ func (q *querier) FetchMemoryResourceMonitorsByAgentID(ctx context.Context, agen
 	return q.db.FetchMemoryResourceMonitorsByAgentID(ctx, agentID)
 }
 
+func (q *querier) FetchMemoryResourceMonitorsUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]database.WorkspaceAgentMemoryResourceMonitor, error) {
+	panic("not implemented")
+}
+
 func (q *querier) FetchNewMessageMetadata(ctx context.Context, arg database.FetchNewMessageMetadataParams) (database.FetchNewMessageMetadataRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceNotificationMessage); err != nil {
 		return database.FetchNewMessageMetadataRow{}, err
@@ -1457,6 +1461,10 @@ func (q *querier) FetchVolumesResourceMonitorsByAgentID(ctx context.Context, age
 	}
 
 	return q.db.FetchVolumesResourceMonitorsByAgentID(ctx, agentID)
+}
+
+func (q *querier) FetchVolumesResourceMonitorsUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]database.WorkspaceAgentVolumeResourceMonitor, error) {
+	panic("not implemented")
 }
 
 func (q *querier) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {

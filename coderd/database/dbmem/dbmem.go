@@ -2391,6 +2391,10 @@ func (q *FakeQuerier) FetchMemoryResourceMonitorsByAgentID(_ context.Context, ag
 	return database.WorkspaceAgentMemoryResourceMonitor{}, sql.ErrNoRows
 }
 
+func (q *FakeQuerier) FetchMemoryResourceMonitorsUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]database.WorkspaceAgentMemoryResourceMonitor, error) {
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) FetchNewMessageMetadata(_ context.Context, arg database.FetchNewMessageMetadataParams) (database.FetchNewMessageMetadataRow, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -2433,6 +2437,10 @@ func (q *FakeQuerier) FetchVolumesResourceMonitorsByAgentID(_ context.Context, a
 	}
 
 	return monitors, nil
+}
+
+func (q *FakeQuerier) FetchVolumesResourceMonitorsUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]database.WorkspaceAgentVolumeResourceMonitor, error) {
+	panic("not implemented")
 }
 
 func (q *FakeQuerier) GetAPIKeyByID(_ context.Context, id string) (database.APIKey, error) {
