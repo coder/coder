@@ -195,6 +195,8 @@ type databaseRequest struct {
 	Workspace database.Workspace
 	// Agent is the agent that the app is running on.
 	Agent database.WorkspaceAgent
+	// App is the app that the user is trying to access.
+	App database.WorkspaceApp
 
 	// AppURL is the resolved URL to the workspace app. This is only set for non
 	// terminal requests.
@@ -288,6 +290,7 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 	// in the workspace or not.
 	var (
 		agentNameOrID   = r.AgentNameOrID
+		app             database.WorkspaceApp
 		appURL          string
 		appSharingLevel database.AppSharingLevel
 		// First check if it's a port-based URL with an optional "s" suffix for HTTPS.
@@ -353,8 +356,9 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 			appSharingLevel = ps.ShareLevel
 		}
 	} else {
-		for _, app := range apps {
-			if app.Slug == r.AppSlugOrPort {
+		for _, a := range apps {
+			if a.Slug == r.AppSlugOrPort {
+				app = a
 				if !app.Url.Valid {
 					return nil, xerrors.Errorf("app URL is not valid")
 				}
@@ -410,6 +414,7 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 		User:            user,
 		Workspace:       workspace,
 		Agent:           agent,
+		App:             app,
 		AppURL:          appURLParsed,
 		AppSharingLevel: appSharingLevel,
 	}, nil
