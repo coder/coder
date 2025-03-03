@@ -1,6 +1,7 @@
 import { buildInfo } from "api/queries/buildInfo";
 import { useProxy } from "contexts/ProxyContext";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { canViewDeploymentSettings } from "contexts/auth/permissions";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { canViewDeploymentSettings } from "modules/permissions";

@@ -112,6 +112,8 @@ func TestTelemetry(t *testing.T) {
 		_, _ = dbgen.WorkspaceProxy(t, db, database.WorkspaceProxy{})
 
 		_ = dbgen.WorkspaceModule(t, db, database.WorkspaceModule{})
+		_ = dbgen.WorkspaceAgentMemoryResourceMonitor(t, db, database.WorkspaceAgentMemoryResourceMonitor{})
+		_ = dbgen.WorkspaceAgentVolumeResourceMonitor(t, db, database.WorkspaceAgentVolumeResourceMonitor{})
 
 		_, snapshot := collectSnapshot(t, db, nil)
 		require.Len(t, snapshot.ProvisionerJobs, 1)
@@ -133,6 +135,8 @@ func TestTelemetry(t *testing.T) {
 		require.Len(t, snapshot.Organizations, 1)
 		// We create one item manually above. The other is TelemetryEnabled, created by the snapshotter.
 		require.Len(t, snapshot.TelemetryItems, 2)
+		require.Len(t, snapshot.WorkspaceAgentMemoryResourceMonitors, 1)
+		require.Len(t, snapshot.WorkspaceAgentVolumeResourceMonitors, 1)
 		wsa := snapshot.WorkspaceAgents[0]
 		require.Len(t, wsa.Subsystems, 2)
 		require.Equal(t, string(database.WorkspaceAgentSubsystemEnvbox), wsa.Subsystems[0])
