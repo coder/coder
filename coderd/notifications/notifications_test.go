@@ -103,8 +103,8 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 	require.Eventually(t, func() bool {
 		handler.mu.RLock()
 		defer handler.mu.RUnlock()
-		return slices.Contains(handler.succeeded, sid.String()) &&
-			slices.Contains(handler.failed, fid.String())
+		return slices.Contains(handler.succeeded, sid[0].String()) &&
+			slices.Contains(handler.failed, fid[0].String())
 	}, testutil.WaitLong, testutil.IntervalFast)
 
 	// THEN: we expect the store to be called with the updates of the earlier dispatches
@@ -255,7 +255,7 @@ func TestWebhookDispatch(t *testing.T) {
 	// THEN: the webhook is received by the mock server and has the expected contents
 	payload := testutil.RequireRecvCtx(testutil.Context(t, testutil.WaitShort), t, sent)
 	require.EqualValues(t, "1.1", payload.Version)
-	require.Equal(t, *msgID, payload.MsgID)
+	require.Equal(t, msgID[0], payload.MsgID)
 	require.Equal(t, payload.Payload.Labels, input)
 	require.Equal(t, payload.Payload.UserEmail, email)
 	// UserName is coalesced from `name` and `username`; in this case `name` wins.
@@ -536,7 +536,7 @@ func TestExpiredLeaseIsRequeued(t *testing.T) {
 		id, err := enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted,
 			map[string]string{"type": "success", "index": fmt.Sprintf("%d", i)}, "test")
 		require.NoError(t, err)
-		msgs = append(msgs, id.String())
+		msgs = append(msgs, id[0].String())
 	}
 
 	mgr.Run(mgrCtx)
@@ -668,7 +668,7 @@ func TestNotifierPaused(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, pendingMessages, 1)
-	require.Equal(t, pendingMessages[0].ID.String(), sid.String())
+	require.Equal(t, pendingMessages[0].ID.String(), sid[0].String())
 
 	// Wait a few fetch intervals to be sure that no new notifications are being sent.
 	// TODO: use quartz instead.
@@ -691,7 +691,7 @@ func TestNotifierPaused(t *testing.T) {
 	require.Eventually(t, func() bool {
 		handler.mu.RLock()
 		defer handler.mu.RUnlock()
-		return slices.Contains(handler.succeeded, sid.String())
+		return slices.Contains(handler.succeeded, sid[0].String())
 	}, fetchInterval*5, testutil.IntervalFast)
 }
 
@@ -1621,7 +1621,7 @@ func TestDisabledAfterEnqueue(t *testing.T) {
 		})
 		assert.NoError(ct, err)
 		if assert.Equal(ct, len(m), 1) {
-			assert.Equal(ct, m[0].ID.String(), msgID.String())
+			assert.Equal(ct, m[0].ID.String(), msgID[0].String())
 			assert.Contains(ct, m[0].StatusReason.String, "disabled by user")
 		}
 	}, testutil.WaitLong, testutil.IntervalFast, "did not find the expected inhibited message")
@@ -1713,7 +1713,7 @@ func TestCustomNotificationMethod(t *testing.T) {
 	mgr.Run(ctx)
 
 	receivedMsgID := testutil.RequireRecvCtx(ctx, t, received)
-	require.Equal(t, msgID.String(), receivedMsgID.String())
+	require.Equal(t, msgID[0].String(), receivedMsgID.String())
 
 	// Ensure no messages received by default method (SMTP):
 	msgs := mockSMTPSrv.MessagesAndPurge()

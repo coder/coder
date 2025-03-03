@@ -53,13 +53,13 @@ func NewStoreEnqueuer(cfg codersdk.NotificationsConfig, store Store, helpers tem
 }
 
 // Enqueue queues a notification message for later delivery, assumes no structured input data.
-func (s *StoreEnqueuer) Enqueue(ctx context.Context, userID, templateID uuid.UUID, labels map[string]string, createdBy string, targets ...uuid.UUID) (*uuid.UUID, error) {
+func (s *StoreEnqueuer) Enqueue(ctx context.Context, userID, templateID uuid.UUID, labels map[string]string, createdBy string, targets ...uuid.UUID) ([]uuid.UUID, error) {
 	return s.EnqueueWithData(ctx, userID, templateID, labels, nil, createdBy, targets...)
 }
 
 // Enqueue queues a notification message for later delivery.
 // Messages will be dequeued by a notifier later and dispatched.
-func (s *StoreEnqueuer) EnqueueWithData(ctx context.Context, userID, templateID uuid.UUID, labels map[string]string, data map[string]any, createdBy string, targets ...uuid.UUID) (*uuid.UUID, error) {
+func (s *StoreEnqueuer) EnqueueWithData(ctx context.Context, userID, templateID uuid.UUID, labels map[string]string, data map[string]any, createdBy string, targets ...uuid.UUID) ([]uuid.UUID, error) {
 	metadata, err := s.store.FetchNewMessageMetadata(ctx, database.FetchNewMessageMetadataParams{
 		UserID:                 userID,
 		NotificationTemplateID: templateID,
@@ -118,7 +118,7 @@ func (s *StoreEnqueuer) EnqueueWithData(ctx context.Context, userID, templateID 
 	}
 
 	s.log.Debug(ctx, "enqueued notification", slog.F("msg_id", id))
-	return &id, nil
+	return []uuid.UUID{id}, nil
 }
 
 // buildPayload creates the payload that the notification will for variable substitution and/or routing.
@@ -165,12 +165,12 @@ func NewNoopEnqueuer() *NoopEnqueuer {
 	return &NoopEnqueuer{}
 }
 
-func (*NoopEnqueuer) Enqueue(context.Context, uuid.UUID, uuid.UUID, map[string]string, string, ...uuid.UUID) (*uuid.UUID, error) {
+func (*NoopEnqueuer) Enqueue(context.Context, uuid.UUID, uuid.UUID, map[string]string, string, ...uuid.UUID) ([]uuid.UUID, error) {
 	// nolint:nilnil // irrelevant.
 	return nil, nil
 }
 
-func (*NoopEnqueuer) EnqueueWithData(context.Context, uuid.UUID, uuid.UUID, map[string]string, map[string]any, string, ...uuid.UUID) (*uuid.UUID, error) {
+func (*NoopEnqueuer) EnqueueWithData(context.Context, uuid.UUID, uuid.UUID, map[string]string, map[string]any, string, ...uuid.UUID) ([]uuid.UUID, error) {
 	// nolint:nilnil // irrelevant.
 	return nil, nil
 }
