@@ -20,6 +20,7 @@ import {
 	determineGroupDiff,
 	determineIdPSyncMappingDiff,
 } from "./AuditLogDiff/auditUtils";
+import { NetworkIcon } from "lucide-react";
 
 const httpStatusColor = (httpStatus: number): ThemeRole => {
 	// Treat server errors (500) as errors
@@ -101,10 +102,20 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 						css={styles.auditLogHeaderInfo}
 					>
 						<Stack direction="row" alignItems="center" css={styles.fullWidth}>
-							<Avatar
-								fallback={auditLog.user?.username ?? "?"}
-								src={auditLog.user?.avatar_url}
-							/>
+							{/*
+							 * Session logs don't have an associated user to the log,
+							 * so when it happens we display a default icon to represent non user actions
+							 */}
+							{auditLog.user ? (
+								<Avatar
+									fallback={auditLog.user.username}
+									src={auditLog.user.avatar_url}
+								/>
+							) : (
+								<Avatar>
+									<NetworkIcon className="h-full w-full p-1" />
+								</Avatar>
+							)}
 
 							<Stack
 								alignItems="baseline"
