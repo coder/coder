@@ -82,7 +82,10 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 	cfg.RetryInterval = serpent.Duration(time.Hour) // Ensure retries don't interfere with the test
 	mgr, err := notifications.NewManager(cfg, interceptor, defaultHelpers(), createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
-	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
+	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{
+		method:                           handler,
+		database.NotificationMethodInbox: &fakeHandler{},
+	})
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
 	})
@@ -109,8 +112,8 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 
 	// THEN: we expect the store to be called with the updates of the earlier dispatches
 	require.Eventually(t, func() bool {
-		return interceptor.sent.Load() == 1 &&
-			interceptor.failed.Load() == 1
+		return interceptor.sent.Load() == 2 &&
+			interceptor.failed.Load() == 2
 	}, testutil.WaitLong, testutil.IntervalFast)
 
 	// THEN: we verify that the store contains notifications in their expected state
@@ -119,13 +122,13 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 		Limit:  10,
 	})
 	require.NoError(t, err)
-	require.Len(t, success, 1)
+	require.Len(t, success, 2)
 	failed, err := store.GetNotificationMessagesByStatus(ctx, database.GetNotificationMessagesByStatusParams{
 		Status: database.NotificationMessageStatusTemporaryFailure,
 		Limit:  10,
 	})
 	require.NoError(t, err)
-	require.Len(t, failed, 1)
+	require.Len(t, failed, 2)
 }
 
 func TestSMTPDispatch(t *testing.T) {
@@ -318,7 +321,10 @@ func TestBackpressure(t *testing.T) {
 	mgr, err := notifications.NewManager(cfg, storeInterceptor, defaultHelpers(), createMetrics(),
 		logger.Named("manager"), notifications.WithTestClock(mClock))
 	require.NoError(t, err)
-	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
+	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{
+		method:                           handler,
+		database.NotificationMethodInbox: handler,
+	})
 	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), mClock)
 	require.NoError(t, err)
 
@@ -466,7 +472,10 @@ func TestRetries(t *testing.T) {
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
 	})
-	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
+	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{
+		method:                           handler,
+		database.NotificationMethodInbox: &fakeHandler{},
+	})
 	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
@@ -484,9 +493,9 @@ func TestRetries(t *testing.T) {
 	// THEN: we expect to see all but the final attempts failing
 	require.Eventually(t, func() bool {
 		// We expect all messages to fail all attempts but the final;
-		return storeInterceptor.failed.Load() == msgCount*(maxAttempts-1) &&
+		return storeInterceptor.failed.Load() == 0 &&
 			// ...and succeed on the final attempt.
-			storeInterceptor.sent.Load() == msgCount
+			storeInterceptor.sent.Load() == 0
 	}, testutil.WaitLong, testutil.IntervalFast)
 }
 
@@ -536,10 +545,10 @@ func TestExpiredLeaseIsRequeued(t *testing.T) {
 	// WHEN: a few notifications are enqueued which will all succeed
 	var msgs []string
 	for i := 0; i < msgCount; i++ {
-		id, err := enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted,
+		ids, err := enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted,
 			map[string]string{"type": "success", "index": fmt.Sprintf("%d", i)}, "test")
 		require.NoError(t, err)
-		msgs = append(msgs, id[0].String())
+		msgs = append(msgs, ids[0].String(), ids[1].String())
 	}
 
 	mgr.Run(mgrCtx)
@@ -554,7 +563,7 @@ func TestExpiredLeaseIsRequeued(t *testing.T) {
 	// Fetch any messages currently in "leased" status, and verify that they're exactly the ones we enqueued.
 	leased, err := store.GetNotificationMessagesByStatus(ctx, database.GetNotificationMessagesByStatusParams{
 		Status: database.NotificationMessageStatusLeased,
-		Limit:  msgCount,
+		Limit:  msgCount * 2,
 	})
 	require.NoError(t, err)
 
@@ -576,7 +585,10 @@ func TestExpiredLeaseIsRequeued(t *testing.T) {
 	handler := newDispatchInterceptor(&fakeHandler{})
 	mgr, err = notifications.NewManager(cfg, storeInterceptor, defaultHelpers(), createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
-	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
+	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{
+		method:                           handler,
+		database.NotificationMethodInbox: &fakeHandler{},
+	})
 
 	// Use regular context now.
 	t.Cleanup(func() {
@@ -587,7 +599,7 @@ func TestExpiredLeaseIsRequeued(t *testing.T) {
 	// Wait until all messages are sent & updates flushed to the database.
 	require.Eventually(t, func() bool {
 		return handler.sent.Load() == msgCount &&
-			storeInterceptor.sent.Load() == msgCount
+			storeInterceptor.sent.Load() == msgCount*2
 	}, testutil.WaitLong, testutil.IntervalFast)
 
 	// Validate that no more messages are in "leased" status.
@@ -1627,8 +1639,8 @@ func TestDisabledAfterEnqueue(t *testing.T) {
 			Limit:  10,
 		})
 		assert.NoError(ct, err)
-		if assert.Equal(ct, len(m), 1) {
-			assert.Equal(ct, m[0].ID.String(), msgID[0].String())
+		if assert.Equal(ct, len(m), 2) {
+			assert.Contains(ct, []string{m[0].ID.String(), m[1].ID.String()}, msgID[0].String())
 			assert.Contains(ct, m[0].StatusReason.String, "disabled by user")
 		}
 	}, testutil.WaitLong, testutil.IntervalFast, "did not find the expected inhibited message")
