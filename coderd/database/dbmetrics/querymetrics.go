@@ -5,11 +5,11 @@ package dbmetrics
 
 import (
 	"context"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
-	"golang.org/x/exp/slices"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
