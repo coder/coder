@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -41,7 +42,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -65,38 +65,48 @@ func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
+var sshPorts = []uint16{workspacesdk.AgentSSHPort, workspacesdk.AgentStandardSSHPort}
+
 // NOTE: These tests only work when your default shell is bash for some reason.
 
 func TestAgent_Stats_SSH(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
 
-	//nolint:dogsled
-	conn, _, stats, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
+	for _, port := range sshPorts {
+		port := port
+		t.Run(fmt.Sprintf("(:%d)", port), func(t *testing.T) {
+			t.Parallel()
 
-	sshClient, err := conn.SSHClient(ctx)
-	require.NoError(t, err)
-	defer sshClient.Close()
-	session, err := sshClient.NewSession()
-	require.NoError(t, err)
-	defer session.Close()
-	stdin, err := session.StdinPipe()
-	require.NoError(t, err)
-	err = session.Shell()
-	require.NoError(t, err)
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
 
-	var s *proto.Stats
-	require.Eventuallyf(t, func() bool {
-		var ok bool
-		s, ok = <-stats
-		return ok && s.ConnectionCount > 0 && s.RxBytes > 0 && s.TxBytes > 0 && s.SessionCountSsh == 1
-	}, testutil.WaitLong, testutil.IntervalFast,
-		"never saw stats: %+v", s,
-	)
-	_ = stdin.Close()
-	err = session.Wait()
-	require.NoError(t, err)
+			//nolint:dogsled
+			conn, _, stats, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
+
+			sshClient, err := conn.SSHClientOnPort(ctx, port)
+			require.NoError(t, err)
+			defer sshClient.Close()
+			session, err := sshClient.NewSession()
+			require.NoError(t, err)
+			defer session.Close()
+			stdin, err := session.StdinPipe()
+			require.NoError(t, err)
+			err = session.Shell()
+			require.NoError(t, err)
+
+			var s *proto.Stats
+			require.Eventuallyf(t, func() bool {
+				var ok bool
+				s, ok = <-stats
+				return ok && s.ConnectionCount > 0 && s.RxBytes > 0 && s.TxBytes > 0 && s.SessionCountSsh == 1
+			}, testutil.WaitLong, testutil.IntervalFast,
+				"never saw stats: %+v", s,
+			)
+			_ = stdin.Close()
+			err = session.Wait()
+			require.NoError(t, err)
+		})
+	}
 }
 
 func TestAgent_Stats_ReconnectingPTY(t *testing.T) {
@@ -278,15 +288,23 @@ func TestAgent_Stats_Magic(t *testing.T) {
 
 func TestAgent_SessionExec(t *testing.T) {
 	t.Parallel()
-	session := setupSSHSession(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil)
 
-	command := "echo test"
-	if runtime.GOOS == "windows" {
-		command = "cmd.exe /c echo test"
+	for _, port := range sshPorts {
+		port := port
+		t.Run(fmt.Sprintf("(:%d)", port), func(t *testing.T) {
+			t.Parallel()
+
+			session := setupSSHSessionOnPort(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil, port)
+
+			command := "echo test"
+			if runtime.GOOS == "windows" {
+				command = "cmd.exe /c echo test"
+			}
+			output, err := session.Output(command)
+			require.NoError(t, err)
+			require.Equal(t, "test", strings.TrimSpace(string(output)))
+		})
 	}
-	output, err := session.Output(command)
-	require.NoError(t, err)
-	require.Equal(t, "test", strings.TrimSpace(string(output)))
 }
 
 //nolint:tparallel // Sub tests need to run sequentially.
@@ -396,25 +414,33 @@ func TestAgent_SessionTTYShell(t *testing.T) {
 		// it seems like it could be either.
 		t.Skip("ConPTY appears to be inconsistent on Windows.")
 	}
-	session := setupSSHSession(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil)
-	command := "sh"
-	if runtime.GOOS == "windows" {
-		command = "cmd.exe"
+
+	for _, port := range sshPorts {
+		port := port
+		t.Run(fmt.Sprintf("(%d)", port), func(t *testing.T) {
+			t.Parallel()
+
+			session := setupSSHSessionOnPort(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil, port)
+			command := "sh"
+			if runtime.GOOS == "windows" {
+				command = "cmd.exe"
+			}
+			err := session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
+			require.NoError(t, err)
+			ptty := ptytest.New(t)
+			session.Stdout = ptty.Output()
+			session.Stderr = ptty.Output()
+			session.Stdin = ptty.Input()
+			err = session.Start(command)
+			require.NoError(t, err)
+			_ = ptty.Peek(ctx, 1) // wait for the prompt
+			ptty.WriteLine("echo test")
+			ptty.ExpectMatch("test")
+			ptty.WriteLine("exit")
+			err = session.Wait()
+			require.NoError(t, err)
+		})
 	}
-	err := session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
-	require.NoError(t, err)
-	ptty := ptytest.New(t)
-	session.Stdout = ptty.Output()
-	session.Stderr = ptty.Output()
-	session.Stdin = ptty.Input()
-	err = session.Start(command)
-	require.NoError(t, err)
-	_ = ptty.Peek(ctx, 1) // wait for the prompt
-	ptty.WriteLine("echo test")
-	ptty.ExpectMatch("test")
-	ptty.WriteLine("exit")
-	err = session.Wait()
-	require.NoError(t, err)
 }
 
 func TestAgent_SessionTTYExitCode(t *testing.T) {
@@ -608,37 +634,41 @@ func TestAgent_Session_TTY_MOTD_Update(t *testing.T) {
 	//nolint:dogsled // Allow the blank identifiers.
 	conn, client, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, setSBInterval)
 
-	sshClient, err := conn.SSHClient(ctx)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = sshClient.Close()
-	})
-
 	//nolint:paralleltest // These tests need to swap the banner func.
-	for i, test := range tests {
-		test := test
-		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
-			// Set new banner func and wait for the agent to call it to update the
-			// banner.
-			ready := make(chan struct{}, 2)
-			client.SetAnnouncementBannersFunc(func() ([]codersdk.BannerConfig, error) {
-				select {
-				case ready <- struct{}{}:
-				default:
-				}
-				return []codersdk.BannerConfig{test.banner}, nil
-			})
-			<-ready
-			<-ready // Wait for two updates to ensure the value has propagated.
+	for _, port := range sshPorts {
+		port := port
 
-			session, err := sshClient.NewSession()
-			require.NoError(t, err)
-			t.Cleanup(func() {
-				_ = session.Close()
-			})
-
-			testSessionOutput(t, session, test.expected, test.unexpected, nil)
+		sshClient, err := conn.SSHClientOnPort(ctx, port)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_ = sshClient.Close()
 		})
+
+		for i, test := range tests {
+			test := test
+			t.Run(fmt.Sprintf("(:%d)/%d", port, i), func(t *testing.T) {
+				// Set new banner func and wait for the agent to call it to update the
+				// banner.
+				ready := make(chan struct{}, 2)
+				client.SetAnnouncementBannersFunc(func() ([]codersdk.BannerConfig, error) {
+					select {
+					case ready <- struct{}{}:
+					default:
+					}
+					return []codersdk.BannerConfig{test.banner}, nil
+				})
+				<-ready
+				<-ready // Wait for two updates to ensure the value has propagated.
+
+				session, err := sshClient.NewSession()
+				require.NoError(t, err)
+				t.Cleanup(func() {
+					_ = session.Close()
+				})
+
+				testSessionOutput(t, session, test.expected, test.unexpected, nil)
+			})
+		}
 	}
 }
 
@@ -2425,6 +2455,17 @@ func setupSSHSession(
 	prepareFS func(fs afero.Fs),
 	opts ...func(*agenttest.Client, *agent.Options),
 ) *ssh.Session {
+	return setupSSHSessionOnPort(t, manifest, banner, prepareFS, workspacesdk.AgentSSHPort, opts...)
+}
+
+func setupSSHSessionOnPort(
+	t *testing.T,
+	manifest agentsdk.Manifest,
+	banner codersdk.BannerConfig,
+	prepareFS func(fs afero.Fs),
+	port uint16,
+	opts ...func(*agenttest.Client, *agent.Options),
+) *ssh.Session {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 	opts = append(opts, func(c *agenttest.Client, o *agent.Options) {
@@ -2437,7 +2478,7 @@ func setupSSHSession(
 	if prepareFS != nil {
 		prepareFS(fs)
 	}
-	sshClient, err := conn.SSHClient(ctx)
+	sshClient, err := conn.SSHClientOnPort(ctx, port)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = sshClient.Close()

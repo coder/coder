@@ -66,6 +66,12 @@ CREATE TYPE group_source AS ENUM (
     'oidc'
 );
 
+CREATE TYPE inbox_notification_read_status AS ENUM (
+    'all',
+    'unread',
+    'read'
+);
+
 CREATE TYPE log_level AS ENUM (
     'trace',
     'debug',
@@ -898,6 +904,19 @@ CREATE VIEW group_members_expanded AS
   WHERE (users.deleted = false);
 
 COMMENT ON VIEW group_members_expanded IS 'Joins group members with user information, organization ID, group name. Includes both regular group members and organization members (as part of the "Everyone" group).';
+
+CREATE TABLE inbox_notifications (
+    id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    template_id uuid NOT NULL,
+    targets uuid[],
+    title text NOT NULL,
+    content text NOT NULL,
+    icon text NOT NULL,
+    actions jsonb NOT NULL,
+    read_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
 
 CREATE TABLE jfrog_xray_scans (
     agent_id uuid NOT NULL,
@@ -2048,6 +2067,9 @@ ALTER TABLE ONLY groups
 ALTER TABLE ONLY groups
     ADD CONSTRAINT groups_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY inbox_notifications
+    ADD CONSTRAINT inbox_notifications_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY jfrog_xray_scans
     ADD CONSTRAINT jfrog_xray_scans_pkey PRIMARY KEY (agent_id, workspace_id);
 
@@ -2278,6 +2300,10 @@ CREATE INDEX idx_custom_roles_id ON custom_roles USING btree (id);
 
 CREATE UNIQUE INDEX idx_custom_roles_name_lower ON custom_roles USING btree (lower(name));
 
+CREATE INDEX idx_inbox_notifications_user_id_read_at ON inbox_notifications USING btree (user_id, read_at);
+
+CREATE INDEX idx_inbox_notifications_user_id_template_id_targets ON inbox_notifications USING btree (user_id, template_id, targets);
+
 CREATE INDEX idx_notification_messages_status ON notification_messages USING btree (status);
 
 CREATE INDEX idx_organization_member_organization_id_uuid ON organization_members USING btree (organization_id);
@@ -2475,6 +2501,12 @@ ALTER TABLE ONLY group_members
 
 ALTER TABLE ONLY groups
     ADD CONSTRAINT groups_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY inbox_notifications
+    ADD CONSTRAINT inbox_notifications_template_id_fkey FOREIGN KEY (template_id) REFERENCES notification_templates(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY inbox_notifications
+    ADD CONSTRAINT inbox_notifications_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY jfrog_xray_scans
     ADD CONSTRAINT jfrog_xray_scans_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
