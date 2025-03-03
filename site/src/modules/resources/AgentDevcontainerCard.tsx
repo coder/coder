@@ -1,9 +1,9 @@
 import Link from "@mui/material/Link";
 import type { WorkspaceAgentDevcontainer } from "api/typesGenerated";
+import { ExternalLinkIcon } from "lucide-react";
 import type { FC } from "react";
 import { AgentButton } from "./AgentButton";
 import { AgentDevcontainerSSHButton } from "./SSHButton/SSHButton";
-import { ExternalLinkIcon } from "lucide-react";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
 
 type AgentDevcontainerCardProps = {
