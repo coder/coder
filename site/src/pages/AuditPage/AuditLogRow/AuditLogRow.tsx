@@ -10,6 +10,7 @@ import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
 import { TimelineEntry } from "components/Timeline/TimelineEntry";
+import { NetworkIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import type { ThemeRole } from "theme/roles";
@@ -20,7 +21,6 @@ import {
 	determineGroupDiff,
 	determineIdPSyncMappingDiff,
 } from "./AuditLogDiff/auditUtils";
-import { NetworkIcon } from "lucide-react";
 
 const httpStatusColor = (httpStatus: number): ThemeRole => {
 	// Treat server errors (500) as errors
