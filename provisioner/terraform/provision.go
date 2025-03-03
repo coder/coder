@@ -242,6 +242,11 @@ func provisionEnv(
 		return nil, xerrors.Errorf("marshal owner groups: %w", err)
 	}
 
+	ownerRbacRoles, err := json.Marshal(metadata.GetWorkspaceOwnerRbacRoles())
+	if err != nil {
+		return nil, xerrors.Errorf("marshal owner rbac roles: %w", err)
+	}
+
 	env = append(env,
 		"CODER_AGENT_URL="+metadata.GetCoderUrl(),
 		"CODER_WORKSPACE_TRANSITION="+strings.ToLower(metadata.GetWorkspaceTransition().String()),
@@ -254,6 +259,7 @@ func provisionEnv(
 		"CODER_WORKSPACE_OWNER_SSH_PUBLIC_KEY="+metadata.GetWorkspaceOwnerSshPublicKey(),
 		"CODER_WORKSPACE_OWNER_SSH_PRIVATE_KEY="+metadata.GetWorkspaceOwnerSshPrivateKey(),
 		"CODER_WORKSPACE_OWNER_LOGIN_TYPE="+metadata.GetWorkspaceOwnerLoginType(),
+		"CODER_WORKSPACE_OWNER_RBAC_ROLES="+string(ownerRbacRoles),
 		"CODER_WORKSPACE_ID="+metadata.GetWorkspaceId(),
 		"CODER_WORKSPACE_OWNER_ID="+metadata.GetWorkspaceOwnerId(),
 		"CODER_WORKSPACE_OWNER_SESSION_TOKEN="+metadata.GetWorkspaceOwnerSessionToken(),

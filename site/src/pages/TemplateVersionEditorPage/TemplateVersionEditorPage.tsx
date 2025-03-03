@@ -20,7 +20,7 @@ import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { type FileTree, traverse } from "utils/filetree";
+import { type FileTree, existsFile, traverse } from "utils/filetree";
 import { pageTitle } from "utils/page";
 import { TarReader, TarWriter } from "utils/tar";
 import { createTemplateVersionFileTree } from "utils/templateVersion";
@@ -88,9 +88,8 @@ export const TemplateVersionEditorPage: FC = () => {
 		useState<TemplateVersion>();
 
 	// File navigation
-	// It can be undefined when a selected file is deleted
-	const activePath: string | undefined =
-		searchParams.get("path") ?? findInitialFile(fileTree ?? {});
+	const activePath = getActivePath(searchParams, fileTree || {});
+
 	const onActivePathChange = (path: string | undefined) => {
 		if (path) {
 			searchParams.set("path", path);
@@ -357,16 +356,50 @@ const publishVersion = async (options: {
 	return Promise.all(publishActions);
 };
 
-const findInitialFile = (fileTree: FileTree): string | undefined => {
+const defaultMainTerraformFile = "main.tf";
+
+// findEntrypointFile function locates the entrypoint file to open in the Editor.
+// It browses the filetree following these steps:
+// 1. If "main.tf" exists in root, return it.
+// 2. Traverse through sub-directories.
+// 3. If "main.tf" exists in a sub-directory, skip further browsing, and return the path.
+// 4. If "main.tf" was not found, return the last reviewed "".tf" file.
+export const findEntrypointFile = (fileTree: FileTree): string | undefined => {
 	let initialFile: string | undefined;
 
-	traverse(fileTree, (content, filename, path) => {
+	if (Object.keys(fileTree).find((key) => key === defaultMainTerraformFile)) {
+		return defaultMainTerraformFile;
+	}
+
+	let skip = false;
+	traverse(fileTree, (_, filename, path) => {
+		if (skip) {
+			return;
+		}
+
+		if (filename === defaultMainTerraformFile) {
+			initialFile = path;
+			skip = true;
+			return;
+		}
+
 		if (filename.endsWith(".tf")) {
 			initialFile = path;
 		}
 	});
 
 	return initialFile;
+};
+
+export const getActivePath = (
+	searchParams: URLSearchParams,
+	fileTree: FileTree,
+): string | undefined => {
+	const selectedPath = searchParams.get("path");
+	if (selectedPath && existsFile(selectedPath, fileTree)) {
+		return selectedPath;
+	}
+	return findEntrypointFile(fileTree);
 };
 
 export default TemplateVersionEditorPage;

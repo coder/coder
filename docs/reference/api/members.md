@@ -173,6 +173,7 @@ Status Code **200**
 | `action`        | `read`                             |
 | `action`        | `read_personal`                    |
 | `action`        | `ssh`                              |
+| `action`        | `unassign`                         |
 | `action`        | `update`                           |
 | `action`        | `update_personal`                  |
 | `action`        | `use`                              |
@@ -336,6 +337,7 @@ Status Code **200**
 | `action`        | `read`                             |
 | `action`        | `read_personal`                    |
 | `action`        | `ssh`                              |
+| `action`        | `unassign`                         |
 | `action`        | `update`                           |
 | `action`        | `update_personal`                  |
 | `action`        | `use`                              |
@@ -499,6 +501,7 @@ Status Code **200**
 | `action`        | `read`                             |
 | `action`        | `read_personal`                    |
 | `action`        | `ssh`                              |
+| `action`        | `unassign`                         |
 | `action`        | `update`                           |
 | `action`        | `update_personal`                  |
 | `action`        | `use`                              |
@@ -631,6 +634,7 @@ Status Code **200**
 | `action`        | `read`                             |
 | `action`        | `read_personal`                    |
 | `action`        | `ssh`                              |
+| `action`        | `unassign`                         |
 | `action`        | `update`                           |
 | `action`        | `update_personal`                  |
 | `action`        | `use`                              |
@@ -895,6 +899,7 @@ Status Code **200**
 | `action`        | `read`                             |
 | `action`        | `read_personal`                    |
 | `action`        | `ssh`                              |
+| `action`        | `unassign`                         |
 | `action`        | `update`                           |
 | `action`        | `update_personal`                  |
 | `action`        | `use`                              |
