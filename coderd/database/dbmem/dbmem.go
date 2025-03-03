@@ -7014,7 +7014,7 @@ func (q *FakeQuerier) GetWorkspaceAgentUsageStatsAndLabels(_ context.Context, cr
 		}
 		// WHERE usage = true AND created_at > now() - '1 minute'::interval
 		// GROUP BY user_id, agent_id, workspace_id
-		if agentStat.Usage && agentStat.CreatedAt.After(time.Now().Add(-time.Minute)) {
+		if agentStat.Usage && agentStat.CreatedAt.After(dbtime.Now().Add(-time.Minute)) {
 			val, ok := latestAgentStats[key]
 			if !ok {
 				latestAgentStats[key] = agentStat
