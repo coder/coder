@@ -15,6 +15,19 @@ This access is necessary for the Coder server to complete the authentication
 process. To the best of our knowledge, Coder, the company, does not gain access
 to this data by administering the GitHub app.
 
+By default, only the admin user can sign up. To allow additional users to sign
+up with GitHub, add the following environment variable:
+
+```env
+CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS=true
+```
+
+To limit sign ups to members of specific GitHub organizations, set:
+
+```env
+CODER_OAUTH2_GITHUB_ALLOWED_ORGS="your-org"
+```
+
 For production deployments, we recommend configuring your own GitHub OAuth app
 as outlined below. The default is automatically disabled if you configure your
 own app or set:
