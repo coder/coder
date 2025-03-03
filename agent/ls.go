@@ -16,6 +16,8 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+var WindowsDriveRegex = regexp.MustCompile(`^[a-zA-Z]:\\$`)
+
 func (*agent) HandleLS(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -57,8 +59,7 @@ func listFiles(query LSRequest) (LSResponse, error) {
 			if len(query.Path) == 0 {
 				return listDrives()
 			}
-			re := regexp.MustCompile(`^[a-zA-Z]:\\$`)
-			if !re.MatchString(query.Path[0]) {
+			if !WindowsDriveRegex.MatchString(query.Path[0]) {
 				return LSResponse{}, xerrors.Errorf("invalid drive letter %q", query.Path[0])
 			}
 		} else {
@@ -74,6 +75,7 @@ func listFiles(query LSRequest) (LSResponse, error) {
 	if err != nil {
 		return LSResponse{}, xerrors.Errorf("failed to get absolute path of %q: %w", fullPathRelative, err)
 	}
+	absolutePath := pathToArray(absolutePathString)
 
 	f, err := os.Open(absolutePathString)
 	if err != nil {
@@ -87,7 +89,18 @@ func listFiles(query LSRequest) (LSResponse, error) {
 	}
 
 	if !stat.IsDir() {
-		return LSResponse{}, xerrors.Errorf("path %q is not a directory", absolutePathString)
+		// `ls` on a file should return just that file.
+		return LSResponse{
+			AbsolutePath:       absolutePath,
+			AbsolutePathString: absolutePathString,
+			Contents: []LSFile{
+				{
+					Name:               f.Name(),
+					AbsolutePathString: absolutePathString,
+					IsDir:              false,
+				},
+			},
+		}, nil
 	}
 
 	// `contents` may be partially populated even if the operation fails midway.
@@ -101,8 +114,6 @@ func listFiles(query LSRequest) (LSResponse, error) {
 		})
 	}
 
-	absolutePath := pathToArray(absolutePathString)
-
 	return LSResponse{
 		AbsolutePath:       absolutePath,
 		AbsolutePathString: absolutePathString,
@@ -111,12 +122,12 @@ func listFiles(query LSRequest) (LSResponse, error) {
 }
 
 func listDrives() (LSResponse, error) {
-	aa, err := disk.Partitions(true)
+	partitionStats, err := disk.Partitions(true)
 	if err != nil {
 		return LSResponse{}, xerrors.Errorf("failed to get partitions: %w", err)
 	}
-	contents := make([]LSFile, 0, len(aa))
-	for _, a := range aa {
+	contents := make([]LSFile, 0, len(partitionStats))
+	for _, a := range partitionStats {
 		name := a.Mountpoint + string(os.PathSeparator)
 		contents = append(contents, LSFile{
 			Name:               name,
