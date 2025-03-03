@@ -1,12 +1,12 @@
 import { type Page, expect, test } from "@playwright/test";
-import { license, users } from "../constants";
-import { login, requiresLicense } from "../helpers";
-import { beforeCoderTest } from "../hooks";
 import {
 	createOrganization,
 	createOrganizationMember,
 	setupApiCalls,
 } from "../api";
+import { license, users } from "../constants";
+import { login, requiresLicense } from "../helpers";
+import { beforeCoderTest } from "../hooks";
 
 test.beforeEach(async ({ page }) => {
 	beforeCoderTest(page);
