@@ -127,7 +127,7 @@ Any services listening on ports in your workspace will be available on the same 
 You can also connect to the SSH server in your workspace using any SSH client, such as OpenSSH or PuTTY:
 
    ```shell
-	ssh your-workpace.coder
+   ssh your-workspace.coder
    ```
 
 > [!NOTE]
