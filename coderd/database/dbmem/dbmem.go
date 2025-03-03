@@ -2391,8 +2391,17 @@ func (q *FakeQuerier) FetchMemoryResourceMonitorsByAgentID(_ context.Context, ag
 	return database.WorkspaceAgentMemoryResourceMonitor{}, sql.ErrNoRows
 }
 
-func (q *FakeQuerier) FetchMemoryResourceMonitorsUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]database.WorkspaceAgentMemoryResourceMonitor, error) {
-	panic("not implemented")
+func (q *FakeQuerier) FetchMemoryResourceMonitorsUpdatedAfter(_ context.Context, updatedAt time.Time) ([]database.WorkspaceAgentMemoryResourceMonitor, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	monitors := []database.WorkspaceAgentMemoryResourceMonitor{}
+	for _, monitor := range q.workspaceAgentMemoryResourceMonitors {
+		if monitor.UpdatedAt.After(updatedAt) {
+			monitors = append(monitors, monitor)
+		}
+	}
+	return monitors, nil
 }
 
 func (q *FakeQuerier) FetchNewMessageMetadata(_ context.Context, arg database.FetchNewMessageMetadataParams) (database.FetchNewMessageMetadataRow, error) {
@@ -2439,8 +2448,17 @@ func (q *FakeQuerier) FetchVolumesResourceMonitorsByAgentID(_ context.Context, a
 	return monitors, nil
 }
 
-func (q *FakeQuerier) FetchVolumesResourceMonitorsUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]database.WorkspaceAgentVolumeResourceMonitor, error) {
-	panic("not implemented")
+func (q *FakeQuerier) FetchVolumesResourceMonitorsUpdatedAfter(_ context.Context, updatedAt time.Time) ([]database.WorkspaceAgentVolumeResourceMonitor, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	monitors := []database.WorkspaceAgentVolumeResourceMonitor{}
+	for _, monitor := range q.workspaceAgentVolumeResourceMonitors {
+		if monitor.UpdatedAt.After(updatedAt) {
+			monitors = append(monitors, monitor)
+		}
+	}
+	return monitors, nil
 }
 
 func (q *FakeQuerier) GetAPIKeyByID(_ context.Context, id string) (database.APIKey, error) {
