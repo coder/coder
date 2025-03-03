@@ -1758,6 +1758,32 @@ COMMENT ON COLUMN workspace_agents.ready_at IS 'The time the agent entered the r
 
 COMMENT ON COLUMN workspace_agents.display_order IS 'Specifies the order in which to display agents in user interfaces.';
 
+CREATE UNLOGGED TABLE workspace_app_audit_sessions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    agent_id uuid NOT NULL,
+    app_id uuid,
+    user_id uuid,
+    ip inet,
+    started_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL
+);
+
+COMMENT ON TABLE workspace_app_audit_sessions IS 'Audit sessions for workspace apps, the data in this table is ephemeral and is used to track the current session of a user in a workspace app.';
+
+COMMENT ON COLUMN workspace_app_audit_sessions.id IS 'Unique identifier for the workspace app audit session.';
+
+COMMENT ON COLUMN workspace_app_audit_sessions.agent_id IS 'The agent that is currently in the workspace app.';
+
+COMMENT ON COLUMN workspace_app_audit_sessions.app_id IS 'The app that is currently in the workspace app. This is nullable because ports are not associated with an app.';
+
+COMMENT ON COLUMN workspace_app_audit_sessions.user_id IS 'The user that is currently using the workspace app. This is nullable because the app may be ';
+
+COMMENT ON COLUMN workspace_app_audit_sessions.ip IS 'The IP address of the user that is currently using the workspace app.';
+
+COMMENT ON COLUMN workspace_app_audit_sessions.started_at IS 'The time the user started the session.';
+
+COMMENT ON COLUMN workspace_app_audit_sessions.updated_at IS 'The time the session was last updated.';
+
 CREATE TABLE workspace_app_stats (
     id bigint NOT NULL,
     user_id uuid NOT NULL,
@@ -2244,6 +2270,9 @@ ALTER TABLE ONLY workspace_agent_volume_resource_monitors
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY workspace_app_audit_sessions
+    ADD CONSTRAINT workspace_app_audit_sessions_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY workspace_app_stats
     ADD CONSTRAINT workspace_app_stats_pkey PRIMARY KEY (id);
 
@@ -2381,6 +2410,10 @@ COMMENT ON INDEX workspace_agent_stats_template_id_created_at_user_id_idx IS 'Su
 CREATE INDEX workspace_agents_auth_token_idx ON workspace_agents USING btree (auth_token);
 
 CREATE INDEX workspace_agents_resource_id_idx ON workspace_agents USING btree (resource_id);
+
+CREATE INDEX workspace_app_audit_sessions_agent_id_app_id ON workspace_app_audit_sessions USING btree (agent_id, app_id);
+
+COMMENT ON INDEX workspace_app_audit_sessions_agent_id_app_id IS 'Index for the agent_id and app_id columns to perform updates.';
 
 CREATE INDEX workspace_app_stats_workspace_id_idx ON workspace_app_stats USING btree (workspace_id);
 
@@ -2663,6 +2696,15 @@ ALTER TABLE ONLY workspace_agent_volume_resource_monitors
 
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_resource_id_fkey FOREIGN KEY (resource_id) REFERENCES workspace_resources(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_app_audit_sessions
+    ADD CONSTRAINT workspace_app_audit_sessions_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_app_audit_sessions
+    ADD CONSTRAINT workspace_app_audit_sessions_app_id_fkey FOREIGN KEY (app_id) REFERENCES workspace_apps(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_app_audit_sessions
+    ADD CONSTRAINT workspace_app_audit_sessions_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_app_stats
     ADD CONSTRAINT workspace_app_stats_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id);

@@ -3434,6 +3434,24 @@ type WorkspaceApp struct {
 	OpenIn WorkspaceAppOpenIn `db:"open_in" json:"open_in"`
 }
 
+// Audit sessions for workspace apps, the data in this table is ephemeral and is used to track the current session of a user in a workspace app.
+type WorkspaceAppAuditSession struct {
+	// Unique identifier for the workspace app audit session.
+	ID uuid.UUID `db:"id" json:"id"`
+	// The agent that is currently in the workspace app.
+	AgentID uuid.UUID `db:"agent_id" json:"agent_id"`
+	// The app that is currently in the workspace app. This is nullable because ports are not associated with an app.
+	AppID uuid.NullUUID `db:"app_id" json:"app_id"`
+	// The user that is currently using the workspace app. This is nullable because the app may be
+	UserID uuid.NullUUID `db:"user_id" json:"user_id"`
+	// The IP address of the user that is currently using the workspace app.
+	Ip pqtype.Inet `db:"ip" json:"ip"`
+	// The time the user started the session.
+	StartedAt time.Time `db:"started_at" json:"started_at"`
+	// The time the session was last updated.
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+}
+
 // A record of workspace app usage statistics
 type WorkspaceAppStat struct {
 	// The ID of the record

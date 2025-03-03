@@ -459,6 +459,7 @@ type sqlcQuerier interface {
 	InsertWorkspaceAgentScripts(ctx context.Context, arg InsertWorkspaceAgentScriptsParams) ([]WorkspaceAgentScript, error)
 	InsertWorkspaceAgentStats(ctx context.Context, arg InsertWorkspaceAgentStatsParams) error
 	InsertWorkspaceApp(ctx context.Context, arg InsertWorkspaceAppParams) (WorkspaceApp, error)
+	InsertWorkspaceAppAuditSession(ctx context.Context, arg InsertWorkspaceAppAuditSessionParams) (uuid.UUID, error)
 	InsertWorkspaceAppStats(ctx context.Context, arg InsertWorkspaceAppStatsParams) error
 	InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspaceBuildParams) error
 	InsertWorkspaceBuildParameters(ctx context.Context, arg InsertWorkspaceBuildParametersParams) error
@@ -544,6 +545,10 @@ type sqlcQuerier interface {
 	UpdateWorkspaceAgentLogOverflowByID(ctx context.Context, arg UpdateWorkspaceAgentLogOverflowByIDParams) error
 	UpdateWorkspaceAgentMetadata(ctx context.Context, arg UpdateWorkspaceAgentMetadataParams) error
 	UpdateWorkspaceAgentStartupByID(ctx context.Context, arg UpdateWorkspaceAgentStartupByIDParams) error
+	//
+	// Return ID to determine if a row was updated or not. This table isn't strict
+	// about uniqueness, so we need to know if we updated an existing row or not.
+	UpdateWorkspaceAppAuditSession(ctx context.Context, arg UpdateWorkspaceAppAuditSessionParams) ([]uuid.UUID, error)
 	UpdateWorkspaceAppHealthByID(ctx context.Context, arg UpdateWorkspaceAppHealthByIDParams) error
 	UpdateWorkspaceAutomaticUpdates(ctx context.Context, arg UpdateWorkspaceAutomaticUpdatesParams) error
 	UpdateWorkspaceAutostart(ctx context.Context, arg UpdateWorkspaceAutostartParams) error

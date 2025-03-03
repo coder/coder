@@ -14560,6 +14560,108 @@ func (q *sqlQuerier) InsertWorkspaceAgentStats(ctx context.Context, arg InsertWo
 	return err
 }
 
+const insertWorkspaceAppAuditSession = `-- name: InsertWorkspaceAppAuditSession :one
+INSERT INTO
+	workspace_app_audit_sessions (
+		agent_id,
+		app_id,
+		user_id,
+		ip,
+		started_at,
+		updated_at
+	)
+VALUES
+	(
+		$1,
+		$2,
+		$3,
+		$4,
+		$5,
+		$6
+	)
+RETURNING
+	id
+`
+
+type InsertWorkspaceAppAuditSessionParams struct {
+	AgentID   uuid.UUID     `db:"agent_id" json:"agent_id"`
+	AppID     uuid.NullUUID `db:"app_id" json:"app_id"`
+	UserID    uuid.NullUUID `db:"user_id" json:"user_id"`
+	Ip        pqtype.Inet   `db:"ip" json:"ip"`
+	StartedAt time.Time     `db:"started_at" json:"started_at"`
+	UpdatedAt time.Time     `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceAppAuditSession(ctx context.Context, arg InsertWorkspaceAppAuditSessionParams) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, insertWorkspaceAppAuditSession,
+		arg.AgentID,
+		arg.AppID,
+		arg.UserID,
+		arg.Ip,
+		arg.StartedAt,
+		arg.UpdatedAt,
+	)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
+const updateWorkspaceAppAuditSession = `-- name: UpdateWorkspaceAppAuditSession :many
+UPDATE
+	workspace_app_audit_sessions
+SET
+	updated_at = $1
+WHERE
+	agent_id = $2
+	AND app_id IS NOT DISTINCT FROM $3
+	AND user_id IS NOT DISTINCT FROM $4
+	AND ip IS NOT DISTINCT FROM $5
+	AND updated_at > NOW() - ($6::bigint || ' ms')::interval
+RETURNING
+	id
+`
+
+type UpdateWorkspaceAppAuditSessionParams struct {
+	UpdatedAt       time.Time     `db:"updated_at" json:"updated_at"`
+	AgentID         uuid.UUID     `db:"agent_id" json:"agent_id"`
+	AppID           uuid.NullUUID `db:"app_id" json:"app_id"`
+	UserID          uuid.NullUUID `db:"user_id" json:"user_id"`
+	Ip              pqtype.Inet   `db:"ip" json:"ip"`
+	StaleIntervalMS int64         `db:"stale_interval_ms" json:"stale_interval_ms"`
+}
+
+// Return ID to determine if a row was updated or not. This table isn't strict
+// about uniqueness, so we need to know if we updated an existing row or not.
+func (q *sqlQuerier) UpdateWorkspaceAppAuditSession(ctx context.Context, arg UpdateWorkspaceAppAuditSessionParams) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, updateWorkspaceAppAuditSession,
+		arg.UpdatedAt,
+		arg.AgentID,
+		arg.AppID,
+		arg.UserID,
+		arg.Ip,
+		arg.StaleIntervalMS,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkspaceAppByAgentIDAndSlug = `-- name: GetWorkspaceAppByAgentIDAndSlug :one
 SELECT id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external, display_order, hidden, open_in FROM workspace_apps WHERE agent_id = $1 AND slug = $2
 `

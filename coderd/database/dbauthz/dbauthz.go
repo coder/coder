@@ -3439,6 +3439,13 @@ func (q *querier) InsertWorkspaceApp(ctx context.Context, arg database.InsertWor
 	return q.db.InsertWorkspaceApp(ctx, arg)
 }
 
+func (q *querier) InsertWorkspaceAppAuditSession(ctx context.Context, arg database.InsertWorkspaceAppAuditSessionParams) (uuid.UUID, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return uuid.Nil, err
+	}
+	return q.db.InsertWorkspaceAppAuditSession(ctx, arg)
+}
+
 func (q *querier) InsertWorkspaceAppStats(ctx context.Context, arg database.InsertWorkspaceAppStatsParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
 		return err
@@ -4267,6 +4274,13 @@ func (q *querier) UpdateWorkspaceAgentStartupByID(ctx context.Context, arg datab
 	}
 
 	return q.db.UpdateWorkspaceAgentStartupByID(ctx, arg)
+}
+
+func (q *querier) UpdateWorkspaceAppAuditSession(ctx context.Context, arg database.UpdateWorkspaceAppAuditSessionParams) ([]uuid.UUID, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.UpdateWorkspaceAppAuditSession(ctx, arg)
 }
 
 func (q *querier) UpdateWorkspaceAppHealthByID(ctx context.Context, arg database.UpdateWorkspaceAppHealthByIDParams) error {

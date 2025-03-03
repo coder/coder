@@ -2187,6 +2187,13 @@ func (m queryMetricsStore) InsertWorkspaceApp(ctx context.Context, arg database.
 	return app, err
 }
 
+func (m queryMetricsStore) InsertWorkspaceAppAuditSession(ctx context.Context, arg database.InsertWorkspaceAppAuditSessionParams) (uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertWorkspaceAppAuditSession(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertWorkspaceAppAuditSession").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertWorkspaceAppStats(ctx context.Context, arg database.InsertWorkspaceAppStatsParams) error {
 	start := time.Now()
 	r0 := m.s.InsertWorkspaceAppStats(ctx, arg)
@@ -2703,6 +2710,13 @@ func (m queryMetricsStore) UpdateWorkspaceAgentStartupByID(ctx context.Context, 
 	err := m.s.UpdateWorkspaceAgentStartupByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateWorkspaceAgentStartupByID").Observe(time.Since(start).Seconds())
 	return err
+}
+
+func (m queryMetricsStore) UpdateWorkspaceAppAuditSession(ctx context.Context, arg database.UpdateWorkspaceAppAuditSessionParams) ([]uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateWorkspaceAppAuditSession(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkspaceAppAuditSession").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m queryMetricsStore) UpdateWorkspaceAppHealthByID(ctx context.Context, arg database.UpdateWorkspaceAppHealthByIDParams) error {
