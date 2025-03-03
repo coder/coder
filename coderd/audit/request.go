@@ -423,7 +423,7 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 			action = req.Action
 		}
 
-		ip := parseIP(p.Request.RemoteAddr)
+		ip := ParseIP(p.Request.RemoteAddr)
 		auditLog := database.AuditLog{
 			ID:               uuid.New(),
 			Time:             dbtime.Now(),
@@ -454,7 +454,7 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 // BackgroundAudit creates an audit log for a background event.
 // The audit log is committed upon invocation.
 func BackgroundAudit[T Auditable](ctx context.Context, p *BackgroundAuditParams[T]) {
-	ip := parseIP(p.IP)
+	ip := ParseIP(p.IP)
 
 	diff := Diff(p.Audit, p.Old, p.New)
 	var err error
@@ -567,7 +567,7 @@ func either[T Auditable, R any](old, new T, fn func(T) R, auditAction database.A
 	panic("both old and new are nil")
 }
 
-func parseIP(ipStr string) pqtype.Inet {
+func ParseIP(ipStr string) pqtype.Inet {
 	ip := net.ParseIP(ipStr)
 	ipNet := net.IPNet{}
 	if ip != nil {

@@ -3,27 +3,33 @@ package workspaceapps
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
 	"path"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"time"
 
+	"github.com/go-jose/go-jose/v4/jwt"
+	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
-	"github.com/go-jose/go-jose/v4/jwt"
-
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -35,6 +41,7 @@ type DBTokenProvider struct {
 	// DashboardURL is the main dashboard access URL for error pages.
 	DashboardURL                  *url.URL
 	Authorizer                    rbac.Authorizer
+	Auditor                       *atomic.Pointer[audit.Auditor]
 	Database                      database.Store
 	DeploymentValues              *codersdk.DeploymentValues
 	OAuth2Configs                 *httpmw.OAuth2Configs
@@ -47,6 +54,7 @@ var _ SignedTokenProvider = &DBTokenProvider{}
 func NewDBTokenProvider(log slog.Logger,
 	accessURL *url.URL,
 	authz rbac.Authorizer,
+	auditor *atomic.Pointer[audit.Auditor],
 	db database.Store,
 	cfg *codersdk.DeploymentValues,
 	oauth2Cfgs *httpmw.OAuth2Configs,
@@ -61,6 +69,7 @@ func NewDBTokenProvider(log slog.Logger,
 		Logger:                        log,
 		DashboardURL:                  accessURL,
 		Authorizer:                    authz,
+		Auditor:                       auditor,
 		Database:                      db,
 		DeploymentValues:              cfg,
 		OAuth2Configs:                 oauth2Cfgs,
@@ -80,6 +89,8 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 	//                 // logic is handled in Provider.authorizeWorkspaceApp which directly checks the actor's
 	//                 // permissions.
 	dangerousSystemCtx := dbauthz.AsSystemRestricted(ctx)
+
+	aReq := p.auditInitAutocommitRequest(ctx, rw, r)
 
 	appReq := issueReq.AppRequest.Normalize()
 	err := appReq.Check()
@@ -111,6 +122,8 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 		return nil, "", false
 	}
 
+	aReq.apiKey = apiKey // Update audit request.
+
 	// Lookup workspace app details from DB.
 	dbReq, err := appReq.getDatabase(dangerousSystemCtx, p.Database)
 	if xerrors.Is(err, sql.ErrNoRows) {
@@ -123,6 +136,9 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 		WriteWorkspaceApp500(p.Logger, p.DashboardURL, rw, r, &appReq, err, "get app details from database")
 		return nil, "", false
 	}
+
+	aReq.dbReq = dbReq // Update audit request.
+
 	token.UserID = dbReq.User.ID
 	token.WorkspaceID = dbReq.Workspace.ID
 	token.AgentID = dbReq.Agent.ID
@@ -133,6 +149,7 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 	// Verify the user has access to the app.
 	authed, warnings, err := p.authorizeRequest(r.Context(), authz, dbReq)
 	if err != nil {
+		// TODO(mafredri): Audit?
 		WriteWorkspaceApp500(p.Logger, p.DashboardURL, rw, r, &appReq, err, "verify authz")
 		return nil, "", false
 	}
@@ -340,4 +357,182 @@ func (p *DBTokenProvider) authorizeRequest(ctx context.Context, roles *rbac.Subj
 
 	// No checks were successful.
 	return false, warnings, nil
+}
+
+type auditRequest struct {
+	time   time.Time
+	ip     pqtype.Inet
+	apiKey *database.APIKey
+	dbReq  *databaseRequest
+}
+
+// auditInitAutocommitRequest creates a new audit session and audit log for the
+// given request, if one does not already exist. If an audit session already
+// exists, it will be updated with the current timestamp. A session is used to
+// reduce the number of audit logs created.
+//
+// A session is unique to the agent, app, user and users IP. If any of these
+// values change, a new session and audit log is created.
+func (p *DBTokenProvider) auditInitAutocommitRequest(ctx context.Context, w http.ResponseWriter, r *http.Request) (aReq *auditRequest) {
+	// Get the status writer from the request context so we can figure
+	// out the HTTP status and autocommit the audit log.
+	sw, ok := w.(*tracing.StatusWriter)
+	if !ok {
+		panic("dev error: http.ResponseWriter is not *tracing.StatusWriter")
+	}
+
+	aReq = &auditRequest{
+		time: dbtime.Now(),
+		ip:   audit.ParseIP(r.RemoteAddr),
+	}
+
+	// Set the commit function on the status writer to create an audit
+	// log, this ensures that the status and response body are available.
+	sw.Done = append(sw.Done, func() {
+		p.Logger.Info(ctx, "workspace app audit session", slog.F("status", sw.Status), slog.F("body", string(sw.ResponseBody())), slog.F("api_key", aReq.apiKey), slog.F("db_req", aReq.dbReq))
+
+		if sw.Status == http.StatusSeeOther {
+			// Redirects aren't interesting as we will capture the audit
+			// log after the redirect.
+			//
+			// There's a case where we call httpmw.RedirectToLogin for
+			// path-based apps the user doesn't have access to, in which
+			// case the dashboard login redirect is used and we end up
+			// not hitting the workspaceapps API again due to dashboard
+			// showing 404. (Bug?)
+			return
+		}
+
+		if aReq.dbReq == nil {
+			// App doesn't exist, there's information in the Request
+			// struct but we need UUIDs for audit logging.
+			return
+		}
+
+		type additionalFields struct {
+			audit.AdditionalFields
+			App string `json:"app"`
+		}
+		appInfo := additionalFields{
+			AdditionalFields: audit.AdditionalFields{
+				WorkspaceOwner: aReq.dbReq.Workspace.OwnerUsername,
+				WorkspaceName:  aReq.dbReq.Workspace.Name,
+				WorkspaceID:    aReq.dbReq.Workspace.ID,
+			},
+			App: aReq.dbReq.AppSlugOrPort,
+		}
+
+		appInfoBytes, err := json.Marshal(appInfo)
+		if err != nil {
+			p.Logger.Error(ctx, "marshal additional fields failed", slog.Error(err))
+		}
+
+		userID := uuid.NullUUID{}
+		if aReq.apiKey != nil {
+			userID = uuid.NullUUID{Valid: true, UUID: aReq.apiKey.UserID}
+		}
+
+		var (
+			updatedIDs []uuid.UUID
+			sessionID  = uuid.Nil
+		)
+		err = p.Database.InTx(func(tx database.Store) error {
+			// nolint:gocritic // System context is needed to write audit sessions.
+			dangerousSystemCtx := dbauthz.AsSystemRestricted(ctx)
+
+			updatedIDs, err = tx.UpdateWorkspaceAppAuditSession(dangerousSystemCtx, database.UpdateWorkspaceAppAuditSessionParams{
+				AgentID:         aReq.dbReq.Agent.ID,
+				AppID:           uuid.NullUUID{Valid: aReq.dbReq.App.ID != uuid.Nil, UUID: aReq.dbReq.App.ID},
+				UserID:          userID,
+				Ip:              aReq.ip,
+				UpdatedAt:       aReq.time,
+				StaleIntervalMS: (2 * time.Hour).Milliseconds(),
+			})
+			if err != nil {
+				return xerrors.Errorf("update workspace app audit session: %w", err)
+			}
+			if len(updatedIDs) > 0 {
+				// Session is valid and got updated, no need to create a new audit log.
+				return nil
+			}
+
+			sessionID, err = tx.InsertWorkspaceAppAuditSession(dangerousSystemCtx, database.InsertWorkspaceAppAuditSessionParams{
+				AgentID:   aReq.dbReq.Agent.ID,
+				AppID:     uuid.NullUUID{Valid: aReq.dbReq.App.ID != uuid.Nil, UUID: aReq.dbReq.App.ID},
+				UserID:    userID,
+				Ip:        aReq.ip,
+				StartedAt: aReq.time,
+				UpdatedAt: aReq.time,
+			})
+			if err != nil {
+				return xerrors.Errorf("insert workspace app audit session: %w", err)
+			}
+
+			return nil
+		}, nil)
+		if err != nil {
+			p.Logger.Error(ctx, "update workspace app audit session failed", slog.Error(err))
+		}
+
+		p.Logger.Info(ctx, "workspace app audit session", slog.F("session_id", sessionID), slog.F("status", sw.Status), slog.F("body", string(sw.ResponseBody())))
+
+		if sessionID == uuid.Nil {
+			if sw.Status < 400 {
+				// Session was updated and no error occurred, no need to
+				// create a new audit log.
+				return
+			}
+			if len(updatedIDs) > 0 {
+				// Session was updated but an error occurred, we need to
+				// create a new audit log.
+				sessionID = updatedIDs[0]
+			} else {
+				// This shouldn't happen, but fall-back to request so it
+				// can be correlated to _something_.
+				sessionID = httpmw.RequestID(r)
+			}
+		}
+
+		// We use the background audit function instead of init request
+		// here because we don't know the resource type ahead of time.
+		// This also allows us to log unauthenticated access.
+		auditor := *p.Auditor.Load()
+		switch {
+		case aReq.dbReq.App.ID != uuid.Nil:
+			audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.WorkspaceApp]{
+				Audit: auditor,
+				Log:   p.Logger,
+
+				Action:           database.AuditActionOpen,
+				OrganizationID:   aReq.dbReq.Workspace.OrganizationID,
+				UserID:           userID.UUID,
+				RequestID:        sessionID,
+				Time:             aReq.time,
+				Status:           sw.Status,
+				IP:               aReq.ip.IPNet.IP.String(),
+				UserAgent:        r.UserAgent(),
+				New:              aReq.dbReq.App,
+				AdditionalFields: appInfoBytes,
+			})
+		default:
+			// Web terminal, port app, etc.
+			audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.WorkspaceAgent]{
+				Audit: auditor,
+				Log:   p.Logger,
+
+				Action:           database.AuditActionOpen,
+				OrganizationID:   aReq.dbReq.Workspace.OrganizationID,
+				UserID:           userID.UUID,
+				RequestID:        sessionID,
+				Time:             aReq.time,
+				Status:           sw.Status,
+				IP:               aReq.ip.IPNet.IP.String(),
+				UserAgent:        r.UserAgent(),
+				New:              aReq.dbReq.Agent,
+				AdditionalFields: appInfoBytes,
+			})
+		}
+	})
+
+	return aReq
 }

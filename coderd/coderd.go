@@ -534,16 +534,6 @@ func New(options *Options) *API {
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
 		},
-		WorkspaceAppsProvider: workspaceapps.NewDBTokenProvider(
-			options.Logger.Named("workspaceapps"),
-			options.AccessURL,
-			options.Authorizer,
-			options.Database,
-			options.DeploymentValues,
-			oauthConfigs,
-			options.AgentInactiveDisconnectTimeout,
-			options.AppSigningKeyCache,
-		),
 		metricsCache:                metricsCache,
 		Auditor:                     atomic.Pointer[audit.Auditor]{},
 		TailnetCoordinator:          atomic.Pointer[tailnet.Coordinator]{},
@@ -561,6 +551,17 @@ func New(options *Options) *API {
 		),
 		dbRolluper: options.DatabaseRolluper,
 	}
+	api.WorkspaceAppsProvider = workspaceapps.NewDBTokenProvider(
+		options.Logger.Named("workspaceapps"),
+		options.AccessURL,
+		options.Authorizer,
+		&api.Auditor,
+		options.Database,
+		options.DeploymentValues,
+		oauthConfigs,
+		options.AgentInactiveDisconnectTimeout,
+		options.AppSigningKeyCache,
+	)
 
 	f := appearance.NewDefaultFetcher(api.DeploymentValues.DocsURL.String())
 	api.AppearanceFetcher.Store(&f)
