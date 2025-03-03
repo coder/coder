@@ -9,7 +9,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/shirou/gopsutil/v3/disk"
+	"github.com/shirou/gopsutil/v4/disk"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -118,6 +118,8 @@ func listDrives() (LSResponse, error) {
 	}
 	contents := make([]LSFile, 0, len(partitionStats))
 	for _, a := range partitionStats {
+		// Drive letters on Windows have a trailing separator as part of their name.
+		// i.e. `os.Open("C:")` does not work, but `os.Open("C:\\")` does.
 		name := a.Mountpoint + string(os.PathSeparator)
 		contents = append(contents, LSFile{
 			Name:               name,
@@ -137,7 +139,8 @@ func pathToArray(path string) []string {
 	out := strings.FieldsFunc(path, func(r rune) bool {
 		return r == os.PathSeparator
 	})
-	// Drive letters on Windows should have a trailing separator.
+	// Drive letters on Windows have a trailing separator as part of their name.
+	// i.e. `os.Open("C:")` does not work, but `os.Open("C:\\")` does.
 	if runtime.GOOS == "windows" && len(out) > 0 {
 		out[0] += string(os.PathSeparator)
 	}
