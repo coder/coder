@@ -190,6 +190,12 @@ func TestListFilesListDrives(t *testing.T) {
 	}
 	resp, err = listFiles(query)
 	require.NoError(t, err)
+	// System directory should always exist
+	require.Contains(t, resp.Contents, LSFile{
+		Name:               "Windows",
+		AbsolutePathString: "C:\\Windows",
+		IsDir:              true,
+	})
 
 	query = LSRequest{
 		// Network drives are not supported.
