@@ -95,7 +95,7 @@ func listFiles(query LSRequest) (LSResponse, error) {
 			AbsolutePathString: absolutePathString,
 			Contents: []LSFile{
 				{
-					Name:               f.Name(),
+					Name:               filepath.Base(f.Name()),
 					AbsolutePathString: absolutePathString,
 					IsDir:              false,
 				},

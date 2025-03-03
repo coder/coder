@@ -66,8 +66,16 @@ func TestListFilesNotADirectory(t *testing.T) {
 		Path:       pathToArray(rel),
 		Relativity: LSRelativityHome,
 	}
-	_, err = listFiles(query)
-	require.ErrorContains(t, err, "is not a directory")
+	resp, err := listFiles(query)
+	require.NoError(t, err)
+	require.Equal(t, filePath, resp.AbsolutePathString)
+	require.ElementsMatch(t, []LSFile{
+		{
+			Name:               "file.txt",
+			AbsolutePathString: filePath,
+			IsDir:              false,
+		},
+	}, resp.Contents)
 }
 
 func TestListFilesSuccess(t *testing.T) {
