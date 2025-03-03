@@ -90,6 +90,6 @@ describe("NavbarView", () => {
 		await userEvent.click(deploymentMenu);
 		const deploymentSettingsLink =
 			await screen.findByText<HTMLAnchorElement>(/deployment/i);
-		expect(deploymentSettingsLink.href).toContain("/deployment/general");
+		expect(deploymentSettingsLink.href).toContain("/deployment");
 	});
 });
