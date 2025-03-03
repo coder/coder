@@ -81,7 +81,7 @@ func TestBufferedUpdates(t *testing.T) {
 	// Wait for the expected number of buffered updates to be accumulated.
 	require.Eventually(t, func() bool {
 		success, failure := mgr.BufferedUpdatesCount()
-		return success == 4 && failure == 2
+		return success == expectedSuccess*2 && failure == expectedFailure*2 // Each message is enqueued twice.
 	}, testutil.WaitShort, testutil.IntervalFast)
 
 	// Stop the manager which forces an update of buffered updates.
@@ -95,8 +95,8 @@ func TestBufferedUpdates(t *testing.T) {
 			ct.FailNow()
 		}
 
-		assert.EqualValues(ct, 2, interceptor.failed.Load())
-		assert.EqualValues(ct, 4, interceptor.sent.Load())
+		assert.EqualValues(ct, expectedFailure*2, interceptor.failed.Load())
+		assert.EqualValues(ct, expectedSuccess*2, interceptor.sent.Load())
 	}, testutil.WaitMedium, testutil.IntervalFast)
 }
 

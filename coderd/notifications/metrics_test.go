@@ -175,8 +175,6 @@ func TestMetrics(t *testing.T) {
 			}
 
 			// 1 message will exceed its maxAttempts, 1 will succeed on the first try.
-			t.Logf("values : %v", metric.Counter.GetValue())
-			t.Logf("max Attempt : %v", maxAttempts+1)
 			return metric.Counter.GetValue() == (maxAttempts+1)*2 // *2 because we have 2 enqueuers.
 		},
 	}
@@ -213,9 +211,6 @@ func TestMetrics(t *testing.T) {
 			}
 
 			for _, metric := range family.Metric {
-				t.Logf("metric ----> %q", metric)
-				t.Logf("metric(string) ----> %q", metric.String())
-				t.Logf("family(GetName) ----> %q", family.GetName())
 				assert.True(ct, hasExpectedValue(metric, metric.String()))
 			}
 		}
