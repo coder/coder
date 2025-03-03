@@ -18,8 +18,7 @@ FROM workspace_prebuilds p
 				   ON tvp_curr.id = p.current_preset_id -- See https://github.com/coder/internal/issues/398.
 WHERE (b.transition = 'start'::workspace_transition
 	-- Jobs that are not in terminal states.
-	AND pj.job_status NOT IN ('failed'::provisioner_job_status, 'canceled'::provisioner_job_status,
-						 'unknown'::provisioner_job_status));
+	AND pj.job_status = 'succeeded'::provisioner_job_status);
 
 -- name: GetTemplatePresetsWithPrebuilds :many
 SELECT t.id                        AS template_id,
@@ -42,9 +41,7 @@ FROM workspace_latest_build wlb
 		 INNER JOIN provisioner_jobs pj ON wlb.job_id = pj.id
 		 INNER JOIN workspace_prebuild_builds wpb ON wpb.id = wlb.id
 		 INNER JOIN templates t ON t.active_version_id = wlb.template_version_id
-WHERE pj.job_status NOT IN -- Jobs that are not in terminal states.
-	  ('succeeded'::provisioner_job_status, 'canceled'::provisioner_job_status,
-	   'failed'::provisioner_job_status)
+WHERE pj.job_status IN ('pending'::provisioner_job_status, 'running'::provisioner_job_status)
 GROUP BY t.id, wpb.template_version_id, wpb.transition;
 
 -- name: ClaimPrebuild :one

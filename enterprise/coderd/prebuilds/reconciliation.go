@@ -176,7 +176,6 @@ func (p presetState) calculateActions() (*reconciliationActions, error) {
 			return 0
 		})
 
-		var victims []uuid.UUID
 		for i := 0; i < int(extraneous); i++ {
 			if i >= len(p.running) {
 				// This should never happen.
@@ -187,10 +186,8 @@ func (p presetState) calculateActions() (*reconciliationActions, error) {
 				continue
 			}
 
-			victims = append(victims, p.running[i].WorkspaceID)
+			actions.deleteIDs = append(actions.deleteIDs, p.running[i].WorkspaceID)
 		}
-
-		actions.deleteIDs = append(actions.deleteIDs, victims...)
 
 		// TODO: move up
 		// c.logger.Warn(ctx, "found extra prebuilds running, picking random victim(s)",
