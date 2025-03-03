@@ -503,14 +503,15 @@ type OAuth2Config struct {
 }
 
 type OAuth2GithubConfig struct {
-	ClientID          serpent.String      `json:"client_id" typescript:",notnull"`
-	ClientSecret      serpent.String      `json:"client_secret" typescript:",notnull"`
-	DeviceFlow        serpent.Bool        `json:"device_flow" typescript:",notnull"`
-	AllowedOrgs       serpent.StringArray `json:"allowed_orgs" typescript:",notnull"`
-	AllowedTeams      serpent.StringArray `json:"allowed_teams" typescript:",notnull"`
-	AllowSignups      serpent.Bool        `json:"allow_signups" typescript:",notnull"`
-	AllowEveryone     serpent.Bool        `json:"allow_everyone" typescript:",notnull"`
-	EnterpriseBaseURL serpent.String      `json:"enterprise_base_url" typescript:",notnull"`
+	ClientID              serpent.String      `json:"client_id" typescript:",notnull"`
+	ClientSecret          serpent.String      `json:"client_secret" typescript:",notnull"`
+	DeviceFlow            serpent.Bool        `json:"device_flow" typescript:",notnull"`
+	DefaultProviderEnable serpent.Bool        `json:"default_provider_enable" typescript:",notnull"`
+	AllowedOrgs           serpent.StringArray `json:"allowed_orgs" typescript:",notnull"`
+	AllowedTeams          serpent.StringArray `json:"allowed_teams" typescript:",notnull"`
+	AllowSignups          serpent.Bool        `json:"allow_signups" typescript:",notnull"`
+	AllowEveryone         serpent.Bool        `json:"allow_everyone" typescript:",notnull"`
+	EnterpriseBaseURL     serpent.String      `json:"enterprise_base_url" typescript:",notnull"`
 }
 
 type OIDCConfig struct {
@@ -1592,6 +1593,16 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Group:       &deploymentGroupOAuth2GitHub,
 			YAML:        "deviceFlow",
 			Default:     "false",
+		},
+		{
+			Name:        "OAuth2 GitHub Default Provider Enable",
+			Description: "Enable the default GitHub OAuth2 provider managed by Coder.",
+			Flag:        "oauth2-github-default-provider-enable",
+			Env:         "CODER_OAUTH2_GITHUB_DEFAULT_PROVIDER_ENABLE",
+			Value:       &c.OAuth2.Github.DefaultProviderEnable,
+			Group:       &deploymentGroupOAuth2GitHub,
+			YAML:        "defaultProviderEnable",
+			Default:     "true",
 		},
 		{
 			Name:        "OAuth2 GitHub Allowed Orgs",

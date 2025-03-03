@@ -1822,6 +1822,21 @@ func (mr *MockStoreMockRecorder) GetNotificationsSettings(ctx any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNotificationsSettings", reflect.TypeOf((*MockStore)(nil).GetNotificationsSettings), ctx)
 }
 
+// GetOAuth2GithubDefaultEligible mocks base method.
+func (m *MockStore) GetOAuth2GithubDefaultEligible(ctx context.Context) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOAuth2GithubDefaultEligible", ctx)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetOAuth2GithubDefaultEligible indicates an expected call of GetOAuth2GithubDefaultEligible.
+func (mr *MockStoreMockRecorder) GetOAuth2GithubDefaultEligible(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOAuth2GithubDefaultEligible", reflect.TypeOf((*MockStore)(nil).GetOAuth2GithubDefaultEligible), ctx)
+}
+
 // GetOAuth2ProviderAppByID mocks base method.
 func (m *MockStore) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {
 	m.ctrl.T.Helper()
@@ -6023,6 +6038,20 @@ func (m *MockStore) UpsertNotificationsSettings(ctx context.Context, value strin
 func (mr *MockStoreMockRecorder) UpsertNotificationsSettings(ctx, value any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertNotificationsSettings", reflect.TypeOf((*MockStore)(nil).UpsertNotificationsSettings), ctx, value)
+}
+
+// UpsertOAuth2GithubDefaultEligible mocks base method.
+func (m *MockStore) UpsertOAuth2GithubDefaultEligible(ctx context.Context, eligible bool) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertOAuth2GithubDefaultEligible", ctx, eligible)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertOAuth2GithubDefaultEligible indicates an expected call of UpsertOAuth2GithubDefaultEligible.
+func (mr *MockStoreMockRecorder) UpsertOAuth2GithubDefaultEligible(ctx, eligible any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertOAuth2GithubDefaultEligible", reflect.TypeOf((*MockStore)(nil).UpsertOAuth2GithubDefaultEligible), ctx, eligible)
 }
 
 // UpsertOAuthSigningKey mocks base method.

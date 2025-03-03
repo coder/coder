@@ -10331,7 +10331,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "github": {
-                    "$ref": "#/definitions/codersdk.AuthMethod"
+                    "$ref": "#/definitions/codersdk.GithubAuthMethod"
                 },
                 "oidc": {
                     "$ref": "#/definitions/codersdk.OIDCAuthMethod"
@@ -11857,6 +11857,17 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.GithubAuthMethod": {
+            "type": "object",
+            "properties": {
+                "default_provider_configured": {
+                    "type": "boolean"
+                },
+                "enabled": {
+                    "type": "boolean"
+                }
+            }
+        },
         "codersdk.Group": {
             "type": "object",
             "properties": {
@@ -12518,6 +12529,9 @@ const docTemplate = `{
                 },
                 "client_secret": {
                     "type": "string"
+                },
+                "default_provider_enable": {
+                    "type": "boolean"
                 },
                 "device_flow": {
                     "type": "boolean"
@@ -13685,6 +13699,7 @@ const docTemplate = `{
                 "read",
                 "read_personal",
                 "ssh",
+                "unassign",
                 "update",
                 "update_personal",
                 "use",
@@ -13700,6 +13715,7 @@ const docTemplate = `{
                 "ActionRead",
                 "ActionReadPersonal",
                 "ActionSSH",
+                "ActionUnassign",
                 "ActionUpdate",
                 "ActionUpdatePersonal",
                 "ActionUse",

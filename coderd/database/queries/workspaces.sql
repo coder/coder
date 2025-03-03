@@ -415,13 +415,11 @@ WHERE
 ORDER BY created_at DESC;
 
 -- name: GetWorkspaceUniqueOwnerCountByTemplateIDs :many
-SELECT
-	template_id, COUNT(DISTINCT owner_id) AS unique_owners_sum
-FROM
-	workspaces
-WHERE
-	template_id = ANY(@template_ids :: uuid[]) AND deleted = false
-GROUP BY template_id;
+SELECT templates.id AS template_id, COUNT(DISTINCT workspaces.owner_id) AS unique_owners_sum
+FROM templates
+LEFT JOIN workspaces ON workspaces.template_id = templates.id AND workspaces.deleted = false
+WHERE templates.id = ANY(@template_ids :: uuid[])
+GROUP BY templates.id;
 
 -- name: InsertWorkspace :one
 INSERT INTO

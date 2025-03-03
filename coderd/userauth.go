@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/coderd/jwtutils"
+	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 
 	"github.com/coder/coder/v2/coderd/apikey"
@@ -764,6 +765,8 @@ type GithubOAuth2Config struct {
 	AllowEveryone      bool
 	AllowOrganizations []string
 	AllowTeams         []GithubOAuth2Team
+
+	DefaultProviderConfigured bool
 }
 
 func (c *GithubOAuth2Config) Exchange(ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
@@ -805,7 +808,10 @@ func (api *API) userAuthMethods(rw http.ResponseWriter, r *http.Request) {
 		Password: codersdk.AuthMethod{
 			Enabled: !api.DeploymentValues.DisablePasswordAuth.Value(),
 		},
-		Github: codersdk.AuthMethod{Enabled: api.GithubOAuth2Config != nil},
+		Github: codersdk.GithubAuthMethod{
+			Enabled:                   api.GithubOAuth2Config != nil,
+			DefaultProviderConfigured: api.GithubOAuth2Config != nil && api.GithubOAuth2Config.DefaultProviderConfigured,
+		},
 		OIDC: codersdk.OIDCAuthMethod{
 			AuthMethod: codersdk.AuthMethod{Enabled: api.OIDCConfig != nil},
 			SignInText: signInText,
@@ -1054,6 +1060,10 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	defer params.CommitAuditLogs()
 	if err != nil {
 		if httpErr := idpsync.IsHTTPError(err); httpErr != nil {
+			// In the device flow, the error page is rendered client-side.
+			if api.GithubOAuth2Config.DeviceFlowEnabled && httpErr.RenderStaticPage {
+				httpErr.RenderStaticPage = false
+			}
 			httpErr.Write(rw, r)
 			return
 		}
@@ -1634,7 +1644,17 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			isConvertLoginType = true
 		}
 
-		if user.ID == uuid.Nil && !params.AllowSignups {
+		// nolint:gocritic // Getting user count is a system function.
+		userCount, err := tx.GetUserCount(dbauthz.AsSystemRestricted(ctx))
+		if err != nil {
+			return xerrors.Errorf("unable to fetch user count: %w", err)
+		}
+
+		// Allow the first user to sign up with OIDC, regardless of
+		// whether signups are enabled or not.
+		allowSignup := userCount == 0 || params.AllowSignups
+
+		if user.ID == uuid.Nil && !allowSignup {
 			signupsDisabledText := "Please contact your Coder administrator to request access."
 			if api.OIDCConfig != nil && api.OIDCConfig.SignupsDisabledText != "" {
 				signupsDisabledText = render.HTMLFromMarkdown(api.OIDCConfig.SignupsDisabledText)
@@ -1695,6 +1715,12 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 				return xerrors.Errorf("unable to fetch default organization: %w", err)
 			}
 
+			rbacRoles := []string{}
+			// If this is the first user, add the owner role.
+			if userCount == 0 {
+				rbacRoles = append(rbacRoles, rbac.RoleOwner().String())
+			}
+
 			//nolint:gocritic
 			user, err = api.CreateUser(dbauthz.AsSystemRestricted(ctx), tx, CreateUserRequest{
 				CreateUserRequestWithOrgs: codersdk.CreateUserRequestWithOrgs{
@@ -1709,9 +1735,19 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 				},
 				LoginType:          params.LoginType,
 				accountCreatorName: "oauth",
+				RBACRoles:          rbacRoles,
 			})
 			if err != nil {
 				return xerrors.Errorf("create user: %w", err)
+			}
+
+			if userCount == 0 {
+				telemetryUser := telemetry.ConvertUser(user)
+				// The email is not anonymized for the first user.
+				telemetryUser.Email = &user.Email
+				api.Telemetry.Report(&telemetry.Snapshot{
+					Users: []telemetry.User{telemetryUser},
+				})
 			}
 		}
 

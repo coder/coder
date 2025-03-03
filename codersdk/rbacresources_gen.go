@@ -50,6 +50,7 @@ const (
 	ActionRead               RBACAction = "read"
 	ActionReadPersonal       RBACAction = "read_personal"
 	ActionSSH                RBACAction = "ssh"
+	ActionUnassign           RBACAction = "unassign"
 	ActionUpdate             RBACAction = "update"
 	ActionUpdatePersonal     RBACAction = "update_personal"
 	ActionUse                RBACAction = "use"
@@ -63,8 +64,8 @@ const (
 var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceWildcard:                      {},
 	ResourceApiKey:                        {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
-	ResourceAssignOrgRole:                 {ActionAssign, ActionCreate, ActionDelete, ActionRead, ActionUpdate},
-	ResourceAssignRole:                    {ActionAssign, ActionCreate, ActionDelete, ActionRead, ActionUpdate},
+	ResourceAssignOrgRole:                 {ActionAssign, ActionCreate, ActionDelete, ActionRead, ActionUnassign, ActionUpdate},
+	ResourceAssignRole:                    {ActionAssign, ActionRead, ActionUnassign},
 	ResourceAuditLog:                      {ActionCreate, ActionRead},
 	ResourceCryptoKey:                     {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceDebugInfo:                     {ActionRead},

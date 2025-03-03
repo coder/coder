@@ -764,6 +764,53 @@ func TestProvision(t *testing.T) {
 				}},
 			},
 		},
+		{
+			Name:       "workspace-owner-rbac-roles",
+			SkipReason: "field will be added in provider version 2.2.0",
+			Files: map[string]string{
+				"main.tf": `terraform {
+					required_providers {
+					  coder = {
+						source  = "coder/coder"
+						version = "2.2.0"
+					  }
+					}
+				}
+
+				resource "null_resource" "example" {}
+				data "coder_workspace_owner" "me" {}
+				resource "coder_metadata" "example" {
+					resource_id = null_resource.example.id
+					item {
+						key = "rbac_roles_name"
+						value = data.coder_workspace_owner.me.rbac_roles[0].name
+					}
+					item {
+						key = "rbac_roles_org_id"
+						value = data.coder_workspace_owner.me.rbac_roles[0].org_id
+					}
+				}
+				`,
+			},
+			Request: &proto.PlanRequest{
+				Metadata: &proto.Metadata{
+					WorkspaceOwnerRbacRoles: []*proto.Role{{Name: "member", OrgId: ""}},
+				},
+			},
+			Response: &proto.PlanComplete{
+				Resources: []*proto.Resource{{
+					Name: "example",
+					Type: "null_resource",
+					Metadata: []*proto.Resource_Metadata{{
+						Key:   "rbac_roles_name",
+						Value: "member",
+					}, {
+						Key:   "rbac_roles_org_id",
+						Value: "",
+					}},
+				}},
+			},
+		},
 	}
 
 	for _, testCase := range testCases {

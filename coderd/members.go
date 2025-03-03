@@ -323,7 +323,7 @@ func convertOrganizationMembers(ctx context.Context, db database.Store, mems []d
 	customRoles, err := db.CustomRoles(ctx, database.CustomRolesParams{
 		LookupRoles:     roleLookup,
 		ExcludeOrgRoles: false,
-		OrganizationID:  uuid.UUID{},
+		OrganizationID:  uuid.Nil,
 	})
 	if err != nil {
 		// We are missing the display names, but that is not absolutely required. So just
