@@ -280,6 +280,13 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionUpdate: actDef("update notification preferences"),
 		},
 	},
+	"inbox_notification": {
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: actDef("create inbox notifications"),
+			ActionRead:   actDef("read inbox notifications"),
+			ActionUpdate: actDef("update inbox notifications"),
+		},
+	},
 	"crypto_key": {
 		Actions: map[Action]ActionDefinition{
 			ActionRead:   actDef("read crypto keys"),

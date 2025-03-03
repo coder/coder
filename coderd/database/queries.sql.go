@@ -4298,6 +4298,243 @@ func (q *sqlQuerier) UpsertNotificationReportGeneratorLog(ctx context.Context, a
 	return err
 }
 
+const countUnreadInboxNotificationsByUserID = `-- name: CountUnreadInboxNotificationsByUserID :one
+SELECT COUNT(*) FROM inbox_notifications WHERE user_id = $1 AND read_at IS NULL
+`
+
+func (q *sqlQuerier) CountUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countUnreadInboxNotificationsByUserID, userID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const getFilteredInboxNotificationsByUserID = `-- name: GetFilteredInboxNotificationsByUserID :many
+SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at FROM inbox_notifications WHERE
+	user_id = $1 AND
+	template_id = ANY($2::UUID[]) AND
+	targets @> COALESCE($3, ARRAY[]::UUID[]) AND
+	($4::inbox_notification_read_status = 'all' OR ($4::inbox_notification_read_status = 'unread' AND read_at IS NULL) OR ($4::inbox_notification_read_status = 'read' AND read_at IS NOT NULL)) AND
+	($5::TIMESTAMPTZ = '0001-01-01 00:00:00Z' OR created_at < $5::TIMESTAMPTZ)
+	ORDER BY created_at DESC
+	LIMIT (COALESCE(NULLIF($6 :: INT, 0), 25))
+`
+
+type GetFilteredInboxNotificationsByUserIDParams struct {
+	UserID       uuid.UUID                   `db:"user_id" json:"user_id"`
+	Templates    []uuid.UUID                 `db:"templates" json:"templates"`
+	Targets      []uuid.UUID                 `db:"targets" json:"targets"`
+	ReadStatus   InboxNotificationReadStatus `db:"read_status" json:"read_status"`
+	CreatedAtOpt time.Time                   `db:"created_at_opt" json:"created_at_opt"`
+	LimitOpt     int32                       `db:"limit_opt" json:"limit_opt"`
+}
+
+// Fetches inbox notifications for a user filtered by templates and targets
+// param user_id: The user ID
+// param templates: The template IDs to filter by - the template_id = ANY(@templates::UUID[]) condition checks if the template_id is in the @templates array
+// param targets: The target IDs to filter by - the targets @> COALESCE(@targets, ARRAY[]::UUID[]) condition checks if the targets array (from the DB) contains all the elements in the @targets array
+// param read_status: The read status to filter by - can be any of 'ALL', 'UNREAD', 'READ'
+// param created_at_opt: The created_at timestamp to filter by. This parameter is usd for pagination - it fetches notifications created before the specified timestamp if it is not the zero value
+// param limit_opt: The limit of notifications to fetch. If the limit is not specified, it defaults to 25
+func (q *sqlQuerier) GetFilteredInboxNotificationsByUserID(ctx context.Context, arg GetFilteredInboxNotificationsByUserIDParams) ([]InboxNotification, error) {
+	rows, err := q.db.QueryContext(ctx, getFilteredInboxNotificationsByUserID,
+		arg.UserID,
+		pq.Array(arg.Templates),
+		pq.Array(arg.Targets),
+		arg.ReadStatus,
+		arg.CreatedAtOpt,
+		arg.LimitOpt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []InboxNotification
+	for rows.Next() {
+		var i InboxNotification
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.TemplateID,
+			pq.Array(&i.Targets),
+			&i.Title,
+			&i.Content,
+			&i.Icon,
+			&i.Actions,
+			&i.ReadAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getInboxNotificationByID = `-- name: GetInboxNotificationByID :one
+SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at FROM inbox_notifications WHERE id = $1
+`
+
+func (q *sqlQuerier) GetInboxNotificationByID(ctx context.Context, id uuid.UUID) (InboxNotification, error) {
+	row := q.db.QueryRowContext(ctx, getInboxNotificationByID, id)
+	var i InboxNotification
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.TemplateID,
+		pq.Array(&i.Targets),
+		&i.Title,
+		&i.Content,
+		&i.Icon,
+		&i.Actions,
+		&i.ReadAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getInboxNotificationsByUserID = `-- name: GetInboxNotificationsByUserID :many
+SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at FROM inbox_notifications WHERE
+	user_id = $1 AND
+	($2::inbox_notification_read_status = 'all' OR ($2::inbox_notification_read_status = 'unread' AND read_at IS NULL) OR ($2::inbox_notification_read_status = 'read' AND read_at IS NOT NULL)) AND
+	($3::TIMESTAMPTZ = '0001-01-01 00:00:00Z' OR created_at < $3::TIMESTAMPTZ)
+	ORDER BY created_at DESC
+	LIMIT (COALESCE(NULLIF($4 :: INT, 0), 25))
+`
+
+type GetInboxNotificationsByUserIDParams struct {
+	UserID       uuid.UUID                   `db:"user_id" json:"user_id"`
+	ReadStatus   InboxNotificationReadStatus `db:"read_status" json:"read_status"`
+	CreatedAtOpt time.Time                   `db:"created_at_opt" json:"created_at_opt"`
+	LimitOpt     int32                       `db:"limit_opt" json:"limit_opt"`
+}
+
+// Fetches inbox notifications for a user filtered by templates and targets
+// param user_id: The user ID
+// param read_status: The read status to filter by - can be any of 'ALL', 'UNREAD', 'READ'
+// param created_at_opt: The created_at timestamp to filter by. This parameter is usd for pagination - it fetches notifications created before the specified timestamp if it is not the zero value
+// param limit_opt: The limit of notifications to fetch. If the limit is not specified, it defaults to 25
+func (q *sqlQuerier) GetInboxNotificationsByUserID(ctx context.Context, arg GetInboxNotificationsByUserIDParams) ([]InboxNotification, error) {
+	rows, err := q.db.QueryContext(ctx, getInboxNotificationsByUserID,
+		arg.UserID,
+		arg.ReadStatus,
+		arg.CreatedAtOpt,
+		arg.LimitOpt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []InboxNotification
+	for rows.Next() {
+		var i InboxNotification
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.TemplateID,
+			pq.Array(&i.Targets),
+			&i.Title,
+			&i.Content,
+			&i.Icon,
+			&i.Actions,
+			&i.ReadAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertInboxNotification = `-- name: InsertInboxNotification :one
+INSERT INTO
+    inbox_notifications (
+        id,
+        user_id,
+        template_id,
+        targets,
+        title,
+        content,
+        icon,
+        actions,
+        created_at
+    )
+VALUES
+    ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at
+`
+
+type InsertInboxNotificationParams struct {
+	ID         uuid.UUID       `db:"id" json:"id"`
+	UserID     uuid.UUID       `db:"user_id" json:"user_id"`
+	TemplateID uuid.UUID       `db:"template_id" json:"template_id"`
+	Targets    []uuid.UUID     `db:"targets" json:"targets"`
+	Title      string          `db:"title" json:"title"`
+	Content    string          `db:"content" json:"content"`
+	Icon       string          `db:"icon" json:"icon"`
+	Actions    json.RawMessage `db:"actions" json:"actions"`
+	CreatedAt  time.Time       `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) InsertInboxNotification(ctx context.Context, arg InsertInboxNotificationParams) (InboxNotification, error) {
+	row := q.db.QueryRowContext(ctx, insertInboxNotification,
+		arg.ID,
+		arg.UserID,
+		arg.TemplateID,
+		pq.Array(arg.Targets),
+		arg.Title,
+		arg.Content,
+		arg.Icon,
+		arg.Actions,
+		arg.CreatedAt,
+	)
+	var i InboxNotification
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.TemplateID,
+		pq.Array(&i.Targets),
+		&i.Title,
+		&i.Content,
+		&i.Icon,
+		&i.Actions,
+		&i.ReadAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const updateInboxNotificationReadStatus = `-- name: UpdateInboxNotificationReadStatus :exec
+UPDATE
+    inbox_notifications
+SET
+    read_at = $1
+WHERE
+    id = $2
+`
+
+type UpdateInboxNotificationReadStatusParams struct {
+	ReadAt sql.NullTime `db:"read_at" json:"read_at"`
+	ID     uuid.UUID    `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateInboxNotificationReadStatus(ctx context.Context, arg UpdateInboxNotificationReadStatusParams) error {
+	_, err := q.db.ExecContext(ctx, updateInboxNotificationReadStatus, arg.ReadAt, arg.ID)
+	return err
+}
+
 const deleteOAuth2ProviderAppByID = `-- name: DeleteOAuth2ProviderAppByID :exec
 DELETE FROM oauth2_provider_apps WHERE id = $1
 `
