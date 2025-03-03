@@ -20,7 +20,8 @@
       "template_version_message": "template now includes catnip",
       "template_version_name": "1.0"
     },
-    "data": null
+    "data": null,
+    "targets": null
   },
   "title": "Workspace \"bobby-workspace\" updated automatically",
   "title_markdown": "Workspace \"bobby-workspace\" updated automatically",
