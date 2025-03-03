@@ -91,7 +91,6 @@ type Options struct {
 	Execer                       agentexec.Execer
 	ContainerLister              agentcontainers.Lister
 
-	ExperimentalConnectionReports    bool
 	ExperimentalDevcontainersEnabled bool
 }
 
@@ -196,7 +195,6 @@ func New(options Options) Agent {
 		lister:             options.ContainerLister,
 
 		experimentalDevcontainersEnabled: options.ExperimentalDevcontainersEnabled,
-		experimentalConnectionReports:    options.ExperimentalConnectionReports,
 	}
 	// Initially, we have a closed channel, reflecting the fact that we are not initially connected.
 	// Each time we connect we replace the channel (while holding the closeMutex) with a new one
@@ -273,7 +271,6 @@ type agent struct {
 	lister  agentcontainers.Lister
 
 	experimentalDevcontainersEnabled bool
-	experimentalConnectionReports    bool
 }
 
 func (a *agent) TailnetConn() *tailnet.Conn {
@@ -797,11 +794,6 @@ const (
 )
 
 func (a *agent) reportConnection(id uuid.UUID, connectionType proto.Connection_Type, ip string) (disconnected func(code int, reason string)) {
-	// If the experiment hasn't been enabled, we don't report connections.
-	if !a.experimentalConnectionReports {
-		return func(int, string) {} // Noop.
-	}
-
 	// Remove the port from the IP because ports are not supported in coderd.
 	if host, _, err := net.SplitHostPort(ip); err != nil {
 		a.logger.Error(a.hardCtx, "split host and port for connection report failed", slog.F("ip", ip), slog.Error(err))
