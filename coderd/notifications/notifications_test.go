@@ -160,7 +160,10 @@ func TestSMTPDispatch(t *testing.T) {
 	handler := newDispatchInterceptor(dispatch.NewSMTPHandler(cfg.SMTP, logger.Named("smtp")))
 	mgr, err := notifications.NewManager(cfg, store, defaultHelpers(), createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
-	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
+	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{
+		method:                           handler,
+		database.NotificationMethodInbox: &fakeHandler{},
+	})
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
 	})

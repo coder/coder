@@ -345,7 +345,8 @@ func TestInflightDispatchesMetric(t *testing.T) {
 	// Barrier handler will wait until all notification messages are in-flight.
 	barrier := newBarrierHandler(msgCount, handler)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{
-		method: barrier,
+		method:                           barrier,
+		database.NotificationMethodInbox: &fakeHandler{},
 	})
 
 	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
@@ -381,7 +382,7 @@ func TestInflightDispatchesMetric(t *testing.T) {
 
 	// Wait for the updates to be synced and the metric to reflect that.
 	require.Eventually(t, func() bool {
-		return promtest.ToFloat64(metrics.InflightDispatches) == 0
+		return promtest.ToFloat64(metrics.InflightDispatches.WithLabelValues(string(method), tmpl.String())) == 0
 	}, testutil.WaitShort, testutil.IntervalFast)
 }
 
