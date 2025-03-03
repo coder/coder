@@ -75,7 +75,6 @@ func listFiles(query LSRequest) (LSResponse, error) {
 	if err != nil {
 		return LSResponse{}, xerrors.Errorf("failed to get absolute path of %q: %w", fullPathRelative, err)
 	}
-	absolutePath := pathToArray(absolutePathString)
 
 	f, err := os.Open(absolutePathString)
 	if err != nil {
@@ -89,18 +88,7 @@ func listFiles(query LSRequest) (LSResponse, error) {
 	}
 
 	if !stat.IsDir() {
-		// `ls` on a file should return just that file.
-		return LSResponse{
-			AbsolutePath:       absolutePath,
-			AbsolutePathString: absolutePathString,
-			Contents: []LSFile{
-				{
-					Name:               filepath.Base(f.Name()),
-					AbsolutePathString: absolutePathString,
-					IsDir:              false,
-				},
-			},
-		}, nil
+		return LSResponse{}, xerrors.Errorf("path %q is not a directory", absolutePathString)
 	}
 
 	// `contents` may be partially populated even if the operation fails midway.
@@ -113,6 +101,8 @@ func listFiles(query LSRequest) (LSResponse, error) {
 			IsDir:              file.IsDir(),
 		})
 	}
+
+	absolutePath := pathToArray(absolutePathString)
 
 	return LSResponse{
 		AbsolutePath:       absolutePath,
