@@ -32,6 +32,14 @@ func OverrideVSCodeConfigs(fs afero.Fs) error {
 		filepath.Join(xdg.DataHome, "code-server", "Machine", "settings.json"),
 		// vscode-remote's default configuration path.
 		filepath.Join(home, ".vscode-server", "data", "Machine", "settings.json"),
+		// vscode-insiders' default configuration path.
+		filepath.Join(home, ".vscode-insiders-server", "data", "Machine", "settings.json"),
+		// cursor default configuration path.
+		filepath.Join(home, ".cursor-server", "data", "Machine", "settings.json"),
+		// windsurf default configuration path.
+		filepath.Join(home, ".windsurf-server", "data", "Machine", "settings.json"),
+		// vscodium default configuration path.
+		filepath.Join(home, ".vscodium-server", "data", "Machine", "settings.json"),
 	} {
 		_, err := fs.Stat(configPath)
 		if err != nil {

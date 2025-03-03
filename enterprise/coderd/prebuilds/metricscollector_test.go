@@ -20,6 +20,10 @@ import (
 func TestMetricsCollector(t *testing.T) {
 	t.Parallel()
 
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("this test requires postgres")
+	}
+
 	db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
 
 	org := dbgen.Organization(t, db, database.Organization{})

@@ -16,7 +16,6 @@ test("setup deployment", async ({ page }) => {
 	}
 
 	// Setup first user
-	await page.getByLabel(Language.usernameLabel).fill(users.admin.username);
 	await page.getByLabel(Language.emailLabel).fill(users.admin.email);
 	await page.getByLabel(Language.passwordLabel).fill(users.admin.password);
 	await page.getByTestId("create").click();
