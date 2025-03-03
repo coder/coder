@@ -1149,7 +1149,119 @@ func getOwnerFromTags(tags map[string]string) string {
 	return ""
 }
 
-func (q *FakeQuerier) getProvisionerJobsByIDsWithQueuePositionLocked(_ context.Context, ids []uuid.UUID) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
+// provisionerTagsetContains checks if daemonTags contain all key-value pairs from jobTags
+func provisionerTagsetContains(daemonTags, jobTags map[string]string) bool {
+	for jobKey, jobValue := range jobTags {
+		if daemonValue, exists := daemonTags[jobKey]; !exists || daemonValue != jobValue {
+			return false
+		}
+	}
+	return true
+}
+
+// GetProvisionerJobsByIDsWithQueuePosition mimics the SQL logic in pure Go
+func (q *FakeQuerier) getProvisionerJobsByIDsWithQueuePositionLockedTagBasedQueue(_ context.Context, jobIDs []uuid.UUID) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
+	// Step 1: Filter provisionerJobs based on jobIDs
+	filteredJobs := make(map[uuid.UUID]database.ProvisionerJob)
+	for _, job := range q.provisionerJobs {
+		for _, id := range jobIDs {
+			if job.ID == id {
+				filteredJobs[job.ID] = job
+			}
+		}
+	}
+
+	// Step 2: Identify pending jobs
+	pendingJobs := make(map[uuid.UUID]database.ProvisionerJob)
+	for _, job := range q.provisionerJobs {
+		if job.JobStatus == "pending" {
+			pendingJobs[job.ID] = job
+		}
+	}
+
+	// Step 3: Identify pending jobs that have a matching provisioner
+	matchedJobs := make(map[uuid.UUID]struct{})
+	for _, job := range pendingJobs {
+		for _, daemon := range q.provisionerDaemons {
+			if provisionerTagsetContains(daemon.Tags, job.Tags) {
+				matchedJobs[job.ID] = struct{}{}
+				break
+			}
+		}
+	}
+
+	// Step 4: Rank pending jobs per provisioner
+	jobRanks := make(map[uuid.UUID][]database.ProvisionerJob)
+	for _, job := range pendingJobs {
+		for _, daemon := range q.provisionerDaemons {
+			if provisionerTagsetContains(daemon.Tags, job.Tags) {
+				jobRanks[daemon.ID] = append(jobRanks[daemon.ID], job)
+			}
+		}
+	}
+
+	// Sort jobs per provisioner by CreatedAt
+	for daemonID := range jobRanks {
+		sort.Slice(jobRanks[daemonID], func(i, j int) bool {
+			return jobRanks[daemonID][i].CreatedAt.Before(jobRanks[daemonID][j].CreatedAt)
+		})
+	}
+
+	// Step 5: Compute queue position & max queue size across all provisioners
+	jobQueueStats := make(map[uuid.UUID]database.GetProvisionerJobsByIDsWithQueuePositionRow)
+	for _, jobs := range jobRanks {
+		queueSize := int64(len(jobs)) // Queue size per provisioner
+		for i, job := range jobs {
+			queuePosition := int64(i + 1)
+
+			// If the job already exists, update only if this queuePosition is better
+			if existing, exists := jobQueueStats[job.ID]; exists {
+				jobQueueStats[job.ID] = database.GetProvisionerJobsByIDsWithQueuePositionRow{
+					ID:             job.ID,
+					CreatedAt:      job.CreatedAt,
+					ProvisionerJob: job,
+					QueuePosition:  min(existing.QueuePosition, queuePosition),
+					QueueSize:      max(existing.QueueSize, queueSize), // Take the maximum queue size across provisioners
+				}
+			} else {
+				jobQueueStats[job.ID] = database.GetProvisionerJobsByIDsWithQueuePositionRow{
+					ID:             job.ID,
+					CreatedAt:      job.CreatedAt,
+					ProvisionerJob: job,
+					QueuePosition:  queuePosition,
+					QueueSize:      queueSize,
+				}
+			}
+		}
+	}
+
+	// Step 6: Compute the final results with minimal checks
+	var results []database.GetProvisionerJobsByIDsWithQueuePositionRow
+	for _, job := range filteredJobs {
+		// If the job has a computed rank, use it
+		if rank, found := jobQueueStats[job.ID]; found {
+			results = append(results, rank)
+		} else {
+			// Otherwise, return (0,0) for non-pending jobs and unranked pending jobs
+			results = append(results, database.GetProvisionerJobsByIDsWithQueuePositionRow{
+				ID:             job.ID,
+				CreatedAt:      job.CreatedAt,
+				ProvisionerJob: job,
+				QueuePosition:  0,
+				QueueSize:      0,
+			})
+		}
+	}
+
+	// Step 7: Sort results by CreatedAt
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].CreatedAt.Before(results[j].CreatedAt)
+	})
+
+	return results, nil
+}
+
+func (q *FakeQuerier) getProvisionerJobsByIDsWithQueuePositionLockedGlobalQueue(_ context.Context, ids []uuid.UUID) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
 	//	WITH pending_jobs AS (
 	//		SELECT
 	//			id, created_at
@@ -4237,7 +4349,7 @@ func (q *FakeQuerier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Conte
 	if ids == nil {
 		ids = []uuid.UUID{}
 	}
-	return q.getProvisionerJobsByIDsWithQueuePositionLocked(ctx, ids)
+	return q.getProvisionerJobsByIDsWithQueuePositionLockedTagBasedQueue(ctx, ids)
 }
 
 func (q *FakeQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(ctx context.Context, arg database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams) ([]database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow, error) {
@@ -4306,7 +4418,7 @@ func (q *FakeQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePosition
 		LIMIT
 			sqlc.narg('limit')::int;
 	*/
-	rowsWithQueuePosition, err := q.getProvisionerJobsByIDsWithQueuePositionLocked(ctx, nil)
+	rowsWithQueuePosition, err := q.getProvisionerJobsByIDsWithQueuePositionLockedGlobalQueue(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
