@@ -402,6 +402,11 @@
 									"path": "./admin/templates/extending-templates/resource-metadata.md"
 								},
 								{
+									"title": "Resource Monitoring",
+									"description": "Monitor resources in the workspace dashboard",
+									"path": "./admin/templates/extending-templates/resource-monitoring.md"
+								},
+								{
 									"title": "Resource Ordering",
 									"description": "Design the UI of workspaces",
 									"path": "./admin/templates/extending-templates/resource-ordering.md"
