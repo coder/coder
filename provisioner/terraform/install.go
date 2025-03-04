@@ -22,10 +22,10 @@ var (
 	// when Terraform is not available on the system.
 	// NOTE: Keep this in sync with the version in scripts/Dockerfile.base.
 	// NOTE: Keep this in sync with the version in install.sh.
-	TerraformVersion = version.Must(version.NewVersion("1.10.5"))
+	TerraformVersion = version.Must(version.NewVersion("1.11.0"))
 
 	minTerraformVersion = version.Must(version.NewVersion("1.1.0"))
-	maxTerraformVersion = version.Must(version.NewVersion("1.10.9")) // use .9 to automatically allow patch releases
+	maxTerraformVersion = version.Must(version.NewVersion("1.11.9")) // use .9 to automatically allow patch releases
 
 	terraformMinorVersionMismatch = xerrors.New("Terraform binary minor version mismatch.")
 )
