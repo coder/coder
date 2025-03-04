@@ -71,6 +71,7 @@ type BackgroundAuditParams[T Auditable] struct {
 	Action         database.AuditAction
 	OrganizationID uuid.UUID
 	IP             string
+	UserAgent      string
 	// todo: this should automatically marshal an interface{} instead of accepting a raw message.
 	AdditionalFields json.RawMessage
 
@@ -479,7 +480,7 @@ func BackgroundAudit[T Auditable](ctx context.Context, p *BackgroundAuditParams[
 		UserID:           p.UserID,
 		OrganizationID:   requireOrgID[T](ctx, p.OrganizationID, p.Log),
 		Ip:               ip,
-		UserAgent:        sql.NullString{},
+		UserAgent:        sql.NullString{Valid: p.UserAgent != "", String: p.UserAgent},
 		ResourceType:     either(p.Old, p.New, ResourceType[T], p.Action),
 		ResourceID:       either(p.Old, p.New, ResourceID[T], p.Action),
 		ResourceTarget:   either(p.Old, p.New, ResourceTarget[T], p.Action),
