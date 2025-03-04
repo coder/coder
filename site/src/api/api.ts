@@ -2374,6 +2374,18 @@ class ApiMethods {
 				);
 		}
 	};
+
+	getAgentContainers = async (agentId: string, labels?: string[]) => {
+		const params = new URLSearchParams(
+			labels?.map((label) => ["label", label]),
+		);
+
+		const res =
+			await this.axios.get<TypesGen.WorkspaceAgentListContainersResponse>(
+				`/api/v2/workspaceagents/${agentId}/containers?${params.toString()}`,
+			);
+		return res.data;
+	};
 }
 
 // This is a hard coded CSRF token/cookie pair for local development. In prod,
