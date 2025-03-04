@@ -85,7 +85,8 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 			className={className}
 			options={options}
 			loading={organizationsQuery.isLoading}
-			value={value}
+			value={options.length === 1 ? options[0] : value}
+			disabled={options.length === 1}
 			data-testid="organization-autocomplete"
 			open={autoComplete.open}
 			isOptionEqualToValue={(a, b) => a.name === b.name}
@@ -154,6 +155,6 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 };
 
 const root = css`
-  padding-left: 14px !important; // Same padding left as input
-  gap: 4px;
+	padding-left: 14px !important; // Same padding left as input
+	gap: 4px;
 `;
