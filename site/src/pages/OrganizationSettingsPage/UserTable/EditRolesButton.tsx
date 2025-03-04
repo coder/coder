@@ -3,6 +3,7 @@ import Checkbox from "@mui/material/Checkbox";
 import Tooltip from "@mui/material/Tooltip";
 import type { SlimRole } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
+import { CollapsibleSummary } from "components/CollapsibleSummary/CollapsibleSummary";
 import {
 	HelpTooltip,
 	HelpTooltipContent,
@@ -159,41 +160,18 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
 							/>
 						))}
 						{advancedRoles.length > 0 && (
-							<>
-								<button
-									className={cn([
-										"flex items-center gap-1 p-0 bg-transparent border-0 text-inherit text-sm cursor-pointer",
-										"transition-colors text-content-secondary hover:text-content-primary font-medium whitespace-nowrap",
-										isAdvancedOpen && "text-content-primary",
-									])}
-									type="button"
-									onClick={() => {
-										setIsAdvancedOpen((v) => !v);
-									}}
-								>
-									{isAdvancedOpen ? (
-										<ChevronDownIcon className="size-icon-sm p-0.5" />
-									) : (
-										<ChevronRightIcon className="size-icon-sm p-0.5" />
-									)}
-									<span className="sr-only">
-										({isAdvancedOpen ? "Hide" : "Show advanced"})
-									</span>
-									<span className="[&:first-letter]:uppercase">Advanced</span>
-								</button>
-
-								{isAdvancedOpen &&
-									advancedRoles.map((role) => (
-										<Option
-											key={role.name}
-											onChange={handleChange}
-											isChecked={selectedRoleNames.has(role.name)}
-											value={role.name}
-											name={role.display_name || role.name}
-											description={roleDescriptions[role.name] ?? ""}
-										/>
-									))}
-							</>
+							<CollapsibleSummary label="advanced" defaultOpen={isAdvancedOpen}>
+								{advancedRoles.map((role) => (
+									<Option
+										key={role.name}
+										onChange={handleChange}
+										isChecked={selectedRoleNames.has(role.name)}
+										value={role.name}
+										name={role.display_name || role.name}
+										description={roleDescriptions[role.name] ?? ""}
+									/>
+								))}
+							</CollapsibleSummary>
 						)}
 					</div>
 				</fieldset>
