@@ -1856,6 +1856,7 @@ export type RBACAction =
 	| "read"
 	| "read_personal"
 	| "ssh"
+	| "unassign"
 	| "update"
 	| "update_personal"
 	| "use"
@@ -1871,6 +1872,7 @@ export const RBACActions: RBACAction[] = [
 	"read",
 	"read_personal",
 	"ssh",
+	"unassign",
 	"update",
 	"update_personal",
 	"use",
