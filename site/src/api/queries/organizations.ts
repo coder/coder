@@ -9,7 +9,7 @@ import {
 	type OrganizationPermissionName,
 	type OrganizationPermissions,
 	organizationPermissionChecks,
-} from "modules/management/organizationPermissions";
+} from "modules/permissions/organizationPermissions";
 import type { QueryClient } from "react-query";
 import { meKey } from "./users";
 

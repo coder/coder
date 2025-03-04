@@ -4,7 +4,7 @@ import { workspaceByOwnerAndNameKey } from "api/queries/workspaces";
 import type { Workspace, WorkspaceAgentLifecycle } from "api/typesGenerated";
 import { AuthProvider } from "contexts/auth/AuthProvider";
 import { RequireAuth } from "contexts/auth/RequireAuth";
-import { permissionChecks } from "contexts/auth/permissions";
+import { permissionChecks } from "modules/permissions";
 import {
 	reactRouterOutlet,
 	reactRouterParameters,

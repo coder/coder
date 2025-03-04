@@ -11,7 +11,7 @@ import type {
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
-import { canViewAnyOrganization } from "contexts/auth/permissions";
+import { canViewAnyOrganization } from "modules/permissions";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { type FC, type PropsWithChildren, createContext } from "react";
 import { useQuery } from "react-query";

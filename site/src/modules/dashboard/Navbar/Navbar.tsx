@@ -1,9 +1,9 @@
 import { buildInfo } from "api/queries/buildInfo";
 import { useProxy } from "contexts/ProxyContext";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
-import { canViewDeploymentSettings } from "contexts/auth/permissions";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { useDashboard } from "modules/dashboard/useDashboard";
+import { canViewDeploymentSettings } from "modules/permissions";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useFeatureVisibility } from "../useFeatureVisibility";

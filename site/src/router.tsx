@@ -31,8 +31,8 @@ const NotFoundPage = lazy(() => import("./pages/404Page/404Page"));
 const DeploymentSettingsLayout = lazy(
 	() => import("./modules/management/DeploymentSettingsLayout"),
 );
-const DeploymentSettingsProvider = lazy(
-	() => import("./modules/management/DeploymentSettingsProvider"),
+const DeploymentConfigProvider = lazy(
+	() => import("./modules/management/DeploymentConfigProvider"),
 );
 const OrganizationSidebarLayout = lazy(
 	() => import("./modules/management/OrganizationSidebarLayout"),
@@ -435,8 +435,8 @@ export const router = createBrowserRouter(
 					</Route>
 
 					<Route path="/deployment" element={<DeploymentSettingsLayout />}>
-						<Route element={<DeploymentSettingsProvider />}>
-							<Route path="general" element={<GeneralSettingsPage />} />
+						<Route element={<DeploymentConfigProvider />}>
+							<Route path="overview" element={<GeneralSettingsPage />} />
 							<Route path="security" element={<SecuritySettingsPage />} />
 							<Route
 								path="observability"

@@ -82,8 +82,8 @@ test.describe("roles admin settings access", () => {
 		]);
 	});
 
-	test("admin can see admin settings", async ({ page }) => {
-		await login(page, users.admin);
+	test("owner can see admin settings", async ({ page }) => {
+		await login(page, users.owner);
 		await page.goto("/", { waitUntil: "domcontentloaded" });
 
 		await hasAccessToAdminSettings(page, [

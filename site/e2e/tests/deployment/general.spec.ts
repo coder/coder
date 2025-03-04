@@ -16,7 +16,7 @@ test("experiments", async ({ page }) => {
 	const availableExperiments = await API.getAvailableExperiments();
 
 	// Verify if the site lists the same experiments
-	await page.goto("/deployment/general", { waitUntil: "networkidle" });
+	await page.goto("/deployment/overview", { waitUntil: "domcontentloaded" });
 
 	const experimentsLocator = page.locator(
 		"div.options-table tr.option-experiments ul.option-array",
