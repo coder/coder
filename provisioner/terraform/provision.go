@@ -268,6 +268,11 @@ func provisionEnv(
 		"CODER_WORKSPACE_TEMPLATE_VERSION="+metadata.GetTemplateVersion(),
 		"CODER_WORKSPACE_BUILD_ID="+metadata.GetWorkspaceBuildId(),
 	)
+	if metadata.GetIsPrebuild() {
+		env = append(env, provider.IsPrebuildEnvironmentVariable()+"=true")
+	} else {
+		env = append(env, provider.RunningAgentTokenEnvironmentVariable()+"="+metadata.GetRunningWorkspaceAgentToken())
+	}
 	for key, value := range provisionersdk.AgentScriptEnv() {
 		env = append(env, key+"="+value)
 	}
@@ -275,7 +280,7 @@ func provisionEnv(
 		env = append(env, provider.ParameterEnvironmentVariable(param.Name)+"="+param.Value)
 	}
 	for _, extAuth := range externalAuth {
-		env = append(env, gitAuthAccessTokenEnvironmentVariable(extAuth.Id)+"="+extAuth.AccessToken)
+		// env = append(env, gitAuthAccessTokenEnvironmentVariable(extAuth.Id)+"="+extAuth.AccessToken)
 		env = append(env, provider.ExternalAuthAccessTokenEnvironmentVariable(extAuth.Id)+"="+extAuth.AccessToken)
 	}
 
@@ -284,6 +289,7 @@ func provisionEnv(
 		// The idea behind using TF_LOG=JSON instead of TF_LOG=debug is ensuring the proper log format.
 		env = append(env, "TF_LOG=JSON")
 	}
+
 	return env, nil
 }
 

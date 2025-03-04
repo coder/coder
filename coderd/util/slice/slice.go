@@ -77,6 +77,17 @@ func Find[T any](haystack []T, cond func(T) bool) (T, bool) {
 	return empty, false
 }
 
+// Filter returns all elements that satisfy the condition.
+func Filter[T any](haystack []T, cond func(T) bool) []T {
+	out := make([]T, 0, len(haystack))
+	for _, hay := range haystack {
+		if cond(hay) {
+			out = append(out, hay)
+		}
+	}
+	return out
+}
+
 // Overlap returns if the 2 sets have any overlap (element(s) in common)
 func Overlap[T comparable](a []T, b []T) bool {
 	return OverlapCompare(a, b, func(a, b T) bool {
