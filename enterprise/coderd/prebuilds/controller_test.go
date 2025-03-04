@@ -33,7 +33,7 @@ func TestNoReconciliationActionsIfNoPresets(t *testing.T) {
 		ReconciliationInterval: serpent.Duration(testutil.WaitLong),
 	}
 	logger := testutil.Logger(t)
-	controller := prebuilds.NewController(db, pubsub, cfg, logger)
+	controller := prebuilds.NewStoreReconciler(db, pubsub, cfg, logger)
 
 	// given a template version with no presets
 	org := dbgen.Organization(t, db, database.Organization{})
@@ -77,7 +77,7 @@ func TestNoReconciliationActionsIfNoPrebuilds(t *testing.T) {
 		ReconciliationInterval: serpent.Duration(testutil.WaitLong),
 	}
 	logger := testutil.Logger(t)
-	controller := prebuilds.NewController(db, pubsub, cfg, logger)
+	controller := prebuilds.NewStoreReconciler(db, pubsub, cfg, logger)
 
 	// given there are presets, but no prebuilds
 	org := dbgen.Organization(t, db, database.Organization{})
@@ -302,7 +302,7 @@ func TestActiveTemplateVersionPrebuilds(t *testing.T) {
 			db, pubsub := dbtestutil.NewDB(t)
 			cfg := codersdk.PrebuildsConfig{}
 			logger := testutil.Logger(t)
-			controller := prebuilds.NewController(db, pubsub, cfg, logger)
+			controller := prebuilds.NewStoreReconciler(db, pubsub, cfg, logger)
 
 			orgID, userID, templateID := setupTestDBTemplate(t, db)
 			_, _, prebuildID := setupTestDBPrebuild(
@@ -346,7 +346,7 @@ func TestInactiveTemplateVersionPrebuilds(t *testing.T) {
 	db, pubsub := dbtestutil.NewDB(t)
 	cfg := codersdk.PrebuildsConfig{}
 	logger := testutil.Logger(t)
-	controller := prebuilds.NewController(db, pubsub, cfg, logger)
+	controller := prebuilds.NewStoreReconciler(db, pubsub, cfg, logger)
 
 	// when does a prebuild get deleted?
 	// * when it is in some way permanently ineligible to be claimed

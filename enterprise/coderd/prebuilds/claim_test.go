@@ -85,7 +85,7 @@ func TestClaimPrebuild(t *testing.T) {
 		},
 	})
 
-	controller := prebuilds.NewController(spy, pubsub, codersdk.PrebuildsConfig{}, testutil.Logger(t))
+	controller := prebuilds.NewStoreReconciler(spy, pubsub, codersdk.PrebuildsConfig{}, testutil.Logger(t))
 
 	const (
 		desiredInstances = 1

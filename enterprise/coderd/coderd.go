@@ -3,6 +3,7 @@ package coderd
 import (
 	"context"
 	"crypto/ed25519"
+	"errors"
 	"fmt"
 	"math"
 	"net/http"
@@ -583,23 +584,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	}
 	go api.runEntitlementsLoop(ctx)
 
-	if api.AGPL.Experiments.Enabled(codersdk.ExperimentWorkspacePrebuilds) {
-		// TODO: future enhancement, start this up without restarting coderd when entitlement is updated.
-		if !api.Entitlements.Enabled(codersdk.FeatureWorkspacePrebuilds) {
-			options.Logger.Warn(ctx, "prebuilds experiment enabled but not entitled to use")
-		} else {
-			api.prebuildsController = prebuilds.NewController(options.Database, options.Pubsub, options.DeploymentValues.Prebuilds, options.Logger.Named("prebuilds.controller"))
-			go api.prebuildsController.Loop(ctx)
-
-			prebuildMetricsCollector := prebuilds.NewMetricsCollector(options.Database, options.Logger)
-			// should this be api.prebuild...
-			err = api.PrometheusRegistry.Register(prebuildMetricsCollector)
-			if err != nil {
-				return nil, xerrors.Errorf("unable to register prebuilds metrics collector: %w", err)
-			}
-		}
-	}
-
 	return api, nil
 }
 
@@ -654,7 +638,8 @@ type API struct {
 	licenseMetricsCollector *license.MetricsCollector
 	tailnetService          *tailnet.ClientService
 
-	prebuildsController *prebuilds.Controller
+	prebuildsReconciler       agplprebuilds.Reconciler
+	prebuildsMetricsCollector *prebuilds.MetricsCollector
 }
 
 // writeEntitlementWarningsHeader writes the entitlement warnings to the response header
@@ -686,8 +671,10 @@ func (api *API) Close() error {
 		api.Options.CheckInactiveUsersCancelFunc()
 	}
 
-	if api.prebuildsController != nil {
-		api.prebuildsController.Close(xerrors.New("api closed")) // TODO: determine root cause (requires changes up the stack, though).
+	if api.prebuildsReconciler != nil {
+		ctx, giveUp := context.WithTimeoutCause(context.Background(), time.Second*30, errors.New("gave up waiting for reconciler to stop"))
+		defer giveUp()
+		api.prebuildsReconciler.Stop(ctx, xerrors.New("api closed")) // TODO: determine root cause (requires changes up the stack, though).
 	}
 
 	return api.AGPL.Close()
@@ -893,11 +880,22 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		}
 
 		if initial, changed, enabled := featureChanged(codersdk.FeatureWorkspacePrebuilds); shouldUpdate(initial, changed, enabled) {
-			c := agplprebuilds.DefaultClaimer
-			if enabled {
-				c = prebuilds.EnterpriseClaimer{}
+			reconciler, claimer, metrics := api.setupPrebuilds(enabled)
+			if api.prebuildsReconciler != nil {
+				stopCtx, giveUp := context.WithTimeoutCause(context.Background(), time.Second*30, errors.New("gave up waiting for reconciler to stop"))
+				defer giveUp()
+				api.prebuildsReconciler.Stop(stopCtx, errors.New("entitlements change"))
 			}
-			api.AGPL.PrebuildsClaimer.Store(&c)
+
+			// Only register metrics once.
+			if api.prebuildsMetricsCollector != nil {
+				api.prebuildsMetricsCollector = metrics
+			}
+
+			api.prebuildsReconciler = reconciler
+			go reconciler.RunLoop(context.Background())
+
+			api.AGPL.PrebuildsClaimer.Store(&claimer)
 		}
 
 		// External token encryption is soft-enforced
@@ -1167,4 +1165,26 @@ func (api *API) runEntitlementsLoop(ctx context.Context) {
 
 func (api *API) Authorize(r *http.Request, action policy.Action, object rbac.Objecter) bool {
 	return api.AGPL.HTTPAuth.Authorize(r, action, object)
+}
+
+func (api *API) setupPrebuilds(entitled bool) (agplprebuilds.Reconciler, agplprebuilds.Claimer, *prebuilds.MetricsCollector) {
+	enabled := api.AGPL.Experiments.Enabled(codersdk.ExperimentWorkspacePrebuilds)
+	if !enabled || !entitled {
+		api.Logger.Debug(context.Background(), "prebuilds not enabled",
+			slog.F("experiment_enabled", enabled), slog.F("entitled", entitled))
+
+		return agplprebuilds.NewNoopReconciler(), agplprebuilds.DefaultClaimer, nil
+	}
+
+	logger := api.Logger.Named("prebuilds.metrics")
+	collector := prebuilds.NewMetricsCollector(api.Database, logger)
+	err := api.PrometheusRegistry.Register(collector)
+	if err != nil {
+		logger.Error(context.Background(), "failed to register prebuilds metrics collector", slog.F("error", err))
+		collector = nil
+	}
+
+	return prebuilds.NewStoreReconciler(api.Database, api.Pubsub, api.DeploymentValues.Prebuilds, api.Logger.Named("prebuilds")),
+		prebuilds.EnterpriseClaimer{},
+		collector
 }

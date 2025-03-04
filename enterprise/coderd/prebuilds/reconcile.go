@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
@@ -30,34 +31,40 @@ import (
 	"golang.org/x/xerrors"
 )
 
-type Controller struct {
+type storeReconciler struct {
 	store  database.Store
 	cfg    codersdk.PrebuildsConfig
 	pubsub pubsub.Pubsub
 
 	logger   slog.Logger
-	nudgeCh  chan *uuid.UUID
 	cancelFn context.CancelCauseFunc
-	closed   atomic.Bool
+	stopped  atomic.Bool
+	done     chan struct{}
 }
 
-func NewController(store database.Store, pubsub pubsub.Pubsub, cfg codersdk.PrebuildsConfig, logger slog.Logger) *Controller {
-	return &Controller{
-		store:   store,
-		pubsub:  pubsub,
-		logger:  logger,
-		cfg:     cfg,
-		nudgeCh: make(chan *uuid.UUID, 1),
+func NewStoreReconciler(store database.Store, pubsub pubsub.Pubsub, cfg codersdk.PrebuildsConfig, logger slog.Logger) prebuilds.Reconciler {
+	return &storeReconciler{
+		store:  store,
+		pubsub: pubsub,
+		logger: logger,
+		cfg:    cfg,
+		done:   make(chan struct{}, 1),
 	}
 }
 
-func (c *Controller) Loop(ctx context.Context) error {
+func (c *storeReconciler) RunLoop(ctx context.Context) {
 	reconciliationInterval := c.cfg.ReconciliationInterval.Value()
 	if reconciliationInterval <= 0 { // avoids a panic
 		reconciliationInterval = 5 * time.Minute
 	}
+
+	c.logger.Info(ctx, "starting reconciler", slog.F("interval", reconciliationInterval))
+
 	ticker := time.NewTicker(reconciliationInterval)
 	defer ticker.Stop()
+	defer func() {
+		c.done <- struct{}{}
+	}()
 
 	// TODO: create new authz role
 	ctx, cancel := context.WithCancelCause(dbauthz.AsSystemRestricted(ctx))
@@ -65,39 +72,47 @@ func (c *Controller) Loop(ctx context.Context) error {
 
 	for {
 		select {
-		// Accept nudges from outside the control loop to trigger a new iteration.
-		case template := <-c.nudgeCh:
-			c.Reconcile(ctx, template)
-		// Trigger a new iteration on each tick.
+		// TODO: implement pubsub listener to allow reconciling a specific template imperatively once it has been changed,
+		//		 instead of waiting for the next reconciliation interval
 		case <-ticker.C:
-			c.Reconcile(ctx, nil)
+			// Trigger a new iteration on each tick.
+			err := c.ReconcileAll(ctx)
+			if err != nil {
+				c.logger.Error(context.Background(), "reconciliation failed", slog.Error(err))
+			}
 		case <-ctx.Done():
-			c.logger.Error(context.Background(), "prebuilds reconciliation loop exited", slog.Error(ctx.Err()), slog.F("cause", context.Cause(ctx)))
-			return ctx.Err()
+			c.logger.Warn(context.Background(), "reconciliation loop exited", slog.Error(ctx.Err()), slog.F("cause", context.Cause(ctx)))
+			return
 		}
 	}
 }
 
-func (c *Controller) Close(cause error) {
-	if c.isClosed() {
+func (c *storeReconciler) Stop(ctx context.Context, cause error) {
+	c.logger.Warn(context.Background(), "stopping reconciler", slog.F("cause", cause))
+
+	if c.isStopped() {
 		return
 	}
-	c.closed.Store(true)
+	c.stopped.Store(true)
 	if c.cancelFn != nil {
 		c.cancelFn(cause)
 	}
+
+	select {
+	// Give up waiting for control loop to exit.
+	case <-ctx.Done():
+		c.logger.Error(context.Background(), "reconciler stop exited prematurely", slog.Error(ctx.Err()), slog.F("cause", context.Cause(ctx)))
+	// Wait for the control loop to exit.
+	case <-c.done:
+		c.logger.Info(context.Background(), "reconciler stopped")
+	}
 }
 
-func (c *Controller) isClosed() bool {
-	return c.closed.Load()
+func (c *storeReconciler) isStopped() bool {
+	return c.stopped.Load()
 }
 
-func (c *Controller) ReconcileTemplate(templateID *uuid.UUID) {
-	// TODO: replace this with pubsub listening
-	c.nudgeCh <- templateID
-}
-
-// Reconcile will attempt to resolve the desired vs actual state of all templates which have presets with prebuilds configured.
+// ReconcileAll will attempt to resolve the desired vs actual state of all templates which have presets with prebuilds configured.
 //
 // NOTE:
 //
@@ -113,18 +128,13 @@ func (c *Controller) ReconcileTemplate(templateID *uuid.UUID) {
 // be reconciled again, leading to another workspace being provisioned. Two workspace builds will be occurring
 // simultaneously for the same preset, but once both jobs have completed the reconciliation loop will notice the
 // extraneous instance and delete it.
-func (c *Controller) Reconcile(ctx context.Context, templateID *uuid.UUID) {
-	var logger slog.Logger
-	if templateID == nil {
-		logger = c.logger.With(slog.F("reconcile_context", "all"))
-	} else {
-		logger = c.logger.With(slog.F("reconcile_context", "specific"), slog.F("template_id", templateID.String()))
-	}
+func (c *storeReconciler) ReconcileAll(ctx context.Context) error {
+	logger := c.logger.With(slog.F("reconcile_context", "all"))
 
 	select {
 	case <-ctx.Done():
 		logger.Warn(context.Background(), "reconcile exiting prematurely; context done", slog.Error(ctx.Err()))
-		return
+		return nil
 	default:
 	}
 
@@ -144,13 +154,13 @@ func (c *Controller) Reconcile(ctx context.Context, templateID *uuid.UUID) {
 		// TODO: use TryAcquireLock here and bail out early.
 		err := db.AcquireLock(ctx, database.LockIDReconcileTemplatePrebuilds)
 		if err != nil {
-			logger.Warn(ctx, "failed to acquire top-level prebuilds reconciliation lock; likely running on another coderd replica", slog.Error(err))
+			logger.Warn(ctx, "failed to acquire top-level reconciliation lock; likely running on another coderd replica", slog.Error(err))
 			return nil
 		}
 
-		logger.Debug(ctx, "acquired top-level prebuilds reconciliation lock", slog.F("acquire_wait_secs", fmt.Sprintf("%.4f", time.Since(start).Seconds())))
+		logger.Debug(ctx, "acquired top-level reconciliation lock", slog.F("acquire_wait_secs", fmt.Sprintf("%.4f", time.Since(start).Seconds())))
 
-		state, err := c.determineState(ctx, db, templateID)
+		state, err := c.determineState(ctx, db)
 		if err != nil {
 			return xerrors.Errorf("determine current state: %w", err)
 		}
@@ -194,11 +204,13 @@ func (c *Controller) Reconcile(ctx context.Context, templateID *uuid.UUID) {
 	if err != nil {
 		logger.Error(ctx, "failed to reconcile", slog.Error(err))
 	}
+
+	return err
 }
 
 // determineState determines the current state of prebuilds & the presets which define them.
 // An application-level lock is used
-func (c *Controller) determineState(ctx context.Context, store database.Store, templateId *uuid.UUID) (*reconciliationState, error) {
+func (c *storeReconciler) determineState(ctx context.Context, store database.Store) (*reconciliationState, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -216,13 +228,7 @@ func (c *Controller) determineState(ctx context.Context, store database.Store, t
 
 		c.logger.Debug(ctx, "acquired state determination lock", slog.F("acquire_wait_secs", fmt.Sprintf("%.4f", time.Since(start).Seconds())))
 
-		var dbTemplateID uuid.NullUUID
-		if templateId != nil {
-			dbTemplateID.UUID = *templateId
-			dbTemplateID.Valid = true
-		}
-
-		presetsWithPrebuilds, err := db.GetTemplatePresetsWithPrebuilds(ctx, dbTemplateID)
+		presetsWithPrebuilds, err := db.GetTemplatePresetsWithPrebuilds(ctx, uuid.NullUUID{}) // TODO: implement template-specific reconciliations later
 		if err != nil {
 			return xerrors.Errorf("failed to get template presets with prebuilds: %w", err)
 		}
@@ -251,7 +257,7 @@ func (c *Controller) determineState(ctx context.Context, store database.Store, t
 	return &state, err
 }
 
-func (c *Controller) reconcilePrebuildsForPreset(ctx context.Context, ps *presetState) error {
+func (c *storeReconciler) reconcilePrebuildsForPreset(ctx context.Context, ps *presetState) error {
 	if ps == nil {
 		return xerrors.Errorf("unexpected nil preset state")
 	}
@@ -311,7 +317,7 @@ func (c *Controller) reconcilePrebuildsForPreset(ctx context.Context, ps *preset
 	return lastErr.ErrorOrNil()
 }
 
-func (c *Controller) createPrebuild(ctx context.Context, prebuildID uuid.UUID, templateID uuid.UUID, presetID uuid.UUID) error {
+func (c *storeReconciler) createPrebuild(ctx context.Context, prebuildID uuid.UUID, templateID uuid.UUID, presetID uuid.UUID) error {
 	name, err := generateName()
 	if err != nil {
 		return xerrors.Errorf("failed to generate unique prebuild ID: %w", err)
@@ -351,7 +357,7 @@ func (c *Controller) createPrebuild(ctx context.Context, prebuildID uuid.UUID, t
 	return c.provision(ctx, prebuildID, template, presetID, database.WorkspaceTransitionStart, workspace)
 }
 
-func (c *Controller) deletePrebuild(ctx context.Context, prebuildID uuid.UUID, templateID uuid.UUID, presetID uuid.UUID) error {
+func (c *storeReconciler) deletePrebuild(ctx context.Context, prebuildID uuid.UUID, templateID uuid.UUID, presetID uuid.UUID) error {
 	workspace, err := c.store.GetWorkspaceByID(ctx, prebuildID)
 	if err != nil {
 		return xerrors.Errorf("get workspace by ID: %w", err)
@@ -368,7 +374,7 @@ func (c *Controller) deletePrebuild(ctx context.Context, prebuildID uuid.UUID, t
 	return c.provision(ctx, prebuildID, template, presetID, database.WorkspaceTransitionDelete, workspace)
 }
 
-func (c *Controller) provision(ctx context.Context, prebuildID uuid.UUID, template database.Template, presetID uuid.UUID, transition database.WorkspaceTransition, workspace database.Workspace) error {
+func (c *storeReconciler) provision(ctx context.Context, prebuildID uuid.UUID, template database.Template, presetID uuid.UUID, transition database.WorkspaceTransition, workspace database.Workspace) error {
 	tvp, err := c.store.GetPresetParametersByTemplateVersionID(ctx, template.ActiveVersionID)
 	if err != nil {
 		return xerrors.Errorf("fetch preset details: %w", err)
