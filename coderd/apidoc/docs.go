@@ -11520,6 +11520,9 @@ const docTemplate = `{
                 "wildcard_access_url": {
                     "type": "string"
                 },
+                "workspace_prebuilds": {
+                    "$ref": "#/definitions/codersdk.PrebuildsConfig"
+                },
                 "write_config": {
                     "type": "boolean"
                 }
@@ -13144,6 +13147,14 @@ const docTemplate = `{
                 },
                 "enable": {
                     "type": "boolean"
+                }
+            }
+        },
+        "codersdk.PrebuildsConfig": {
+            "type": "object",
+            "properties": {
+                "reconciliation_interval": {
+                    "type": "integer"
                 }
             }
         },

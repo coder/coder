@@ -2165,6 +2165,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "web_terminal_renderer": "string",
     "wgtunnel_host": "string",
     "wildcard_access_url": "string",
+    "workspace_prebuilds": {
+      "reconciliation_interval": 0
+    },
     "write_config": true
   },
   "options": [
@@ -2638,6 +2641,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "web_terminal_renderer": "string",
   "wgtunnel_host": "string",
   "wildcard_access_url": "string",
+  "workspace_prebuilds": {
+    "reconciliation_interval": 0
+  },
   "write_config": true
 }
 ```
@@ -2706,6 +2712,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `web_terminal_renderer`              | string                                                                                               | false    |              |                                                                    |
 | `wgtunnel_host`                      | string                                                                                               | false    |              |                                                                    |
 | `wildcard_access_url`                | string                                                                                               | false    |              |                                                                    |
+| `workspace_prebuilds`                | [codersdk.PrebuildsConfig](#codersdkprebuildsconfig)                                                 | false    |              |                                                                    |
 | `write_config`                       | boolean                                                                                              | false    |              |                                                                    |
 
 ## codersdk.DisplayApp
@@ -4468,6 +4475,20 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |-----------|--------------------------------------|----------|--------------|-------------|
 | `address` | [serpent.HostPort](#serpenthostport) | false    |              |             |
 | `enable`  | boolean                              | false    |              |             |
+
+## codersdk.PrebuildsConfig
+
+```json
+{
+  "reconciliation_interval": 0
+}
+```
+
+### Properties
+
+| Name                      | Type    | Required | Restrictions | Description |
+|---------------------------|---------|----------|--------------|-------------|
+| `reconciliation_interval` | integer | false    |              |             |
 
 ## codersdk.Preset
 

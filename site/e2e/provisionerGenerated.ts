@@ -1002,10 +1002,10 @@ export const Metadata = {
       Role.encode(v!, writer.uint32(154).fork()).ldelim();
     }
     if (message.isPrebuild === true) {
-      writer.uint32(152).bool(message.isPrebuild);
+      writer.uint32(160).bool(message.isPrebuild);
     }
     if (message.runningWorkspaceAgentToken !== "") {
-      writer.uint32(162).string(message.runningWorkspaceAgentToken);
+      writer.uint32(170).string(message.runningWorkspaceAgentToken);
     }
     return writer;
   },

@@ -511,6 +511,9 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "web_terminal_renderer": "string",
     "wgtunnel_host": "string",
     "wildcard_access_url": "string",
+    "workspace_prebuilds": {
+      "reconciliation_interval": 0
+    },
     "write_config": true
   },
   "options": [
