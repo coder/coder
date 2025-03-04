@@ -53,7 +53,7 @@ func TestNoReconciliationActionsIfNoPresets(t *testing.T) {
 	require.Equal(t, templateVersion, gotTemplateVersion)
 
 	// when we trigger the reconciliation loop for all templates
-	controller.Reconcile(ctx, nil)
+	require.NoError(t, controller.ReconcileAll(ctx))
 
 	// then no reconciliation actions are taken
 	// because without presets, there are no prebuilds
@@ -109,7 +109,7 @@ func TestNoReconciliationActionsIfNoPrebuilds(t *testing.T) {
 	require.NotEmpty(t, presetParameters)
 
 	// when we trigger the reconciliation loop for all templates
-	controller.Reconcile(ctx, nil)
+	require.NoError(t, controller.ReconcileAll(ctx))
 
 	// then no reconciliation actions are taken
 	// because without prebuilds, there is nothing to reconcile
@@ -316,7 +316,7 @@ func TestActiveTemplateVersionPrebuilds(t *testing.T) {
 				templateID,
 			)
 
-			controller.Reconcile(ctx, nil)
+			require.NoError(t, controller.ReconcileAll(ctx))
 
 			createdNewPrebuild := false
 			deletedOldPrebuild := true
@@ -365,7 +365,7 @@ func TestInactiveTemplateVersionPrebuilds(t *testing.T) {
 	// * a third is not running because its latest build was a start transition but the build failed
 	// * a fourth is not running because its latest build was a start transition but the build was canceled
 	// when we trigger the reconciliation loop for all templates
-	controller.Reconcile(ctx, nil)
+	require.NoError(t, controller.ReconcileAll(ctx))
 	// then the four non running prebuilds are deleted
 	// and 1 of the running prebuilds is deleted
 	// because stopped, deleted and failed builds are not considered running in terms of the definition of "running" above.

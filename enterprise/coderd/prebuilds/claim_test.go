@@ -104,7 +104,7 @@ func TestClaimPrebuild(t *testing.T) {
 	ctx = dbauthz.AsSystemRestricted(ctx)
 
 	// Given: a reconciliation completes.
-	controller.Reconcile(ctx, nil)
+	require.NoError(t, controller.ReconcileAll(ctx))
 
 	// Given: a set of running, eligible prebuilds eventually starts up.
 	runningPrebuilds := make(map[uuid.UUID]database.GetRunningPrebuildsRow, desiredInstances*presetCount)
