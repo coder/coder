@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/serpent"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
@@ -19,7 +20,6 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
-	"github.com/coder/coder/v2/enterprise/coderd/prebuilds"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
@@ -58,128 +58,225 @@ func (m *storeSpy) ClaimPrebuild(ctx context.Context, arg database.ClaimPrebuild
 	m.claims.Add(1)
 	m.claimParams.Store(&arg)
 	result, err := m.Store.ClaimPrebuild(ctx, arg)
-	m.claimedWorkspace.Store(&result)
+	if err == nil {
+		m.claimedWorkspace.Store(&result)
+	}
 	return result, err
 }
 
 func TestClaimPrebuild(t *testing.T) {
 	t.Parallel()
 
-	// Setup. // TODO: abstract?
-
-	ctx := testutil.Context(t, testutil.WaitSuperLong)
-	db, pubsub := dbtestutil.NewDB(t)
-	spy := newStoreSpy(db)
-
-	client, _, _, owner := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
-		Options: &coderdtest.Options{
-			IncludeProvisionerDaemon: true,
-			Database:                 spy,
-			Pubsub:                   pubsub,
-		},
-
-		LicenseOptions: &coderdenttest.LicenseOptions{
-			Features: license.Features{
-				codersdk.FeatureWorkspacePrebuilds: 1,
-			},
-		},
-	})
-
-	controller := prebuilds.NewStoreReconciler(spy, pubsub, codersdk.PrebuildsConfig{}, testutil.Logger(t))
-
 	const (
 		desiredInstances = 1
 		presetCount      = 2
 	)
 
-	version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, templateWithAgentAndPresetsWithPrebuilds(desiredInstances))
-	_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-	coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
-	presets, err := client.TemplateVersionPresets(ctx, version.ID)
-	require.NoError(t, err)
-	require.Len(t, presets, presetCount)
+	cases := map[string]struct {
+		entitlementEnabled     bool
+		experimentEnabled      bool
+		attemptPrebuildClaim   bool
+		expectPrebuildClaimed  bool
+		markPrebuildsClaimable bool
+		expectedPrebuildsCount int
+	}{
+		"without the experiment enabled, prebuilds will not provisioned": {
+			experimentEnabled:      false,
+			entitlementEnabled:     true,
+			attemptPrebuildClaim:   false,
+			expectedPrebuildsCount: 0,
+		},
+		"without the entitlement, prebuilds will not provisioned": {
+			experimentEnabled:      true,
+			entitlementEnabled:     false,
+			attemptPrebuildClaim:   false,
+			expectedPrebuildsCount: 0,
+		},
+		"with everything enabled, but no eligible prebuilds to claim": {
+			entitlementEnabled:     true,
+			experimentEnabled:      true,
+			attemptPrebuildClaim:   true,
+			expectPrebuildClaimed:  false,
+			markPrebuildsClaimable: false,
+			expectedPrebuildsCount: desiredInstances * presetCount,
+		},
+		"with everything enabled, claiming an eligible prebuild should succeed": {
+			entitlementEnabled:     true,
+			experimentEnabled:      true,
+			attemptPrebuildClaim:   true,
+			expectPrebuildClaimed:  true,
+			markPrebuildsClaimable: true,
+			expectedPrebuildsCount: desiredInstances * presetCount,
+		},
+	}
 
-	userClient, user := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleMember())
+	for name, tc := range cases {
+		tc := tc
 
-	ctx = dbauthz.AsSystemRestricted(ctx)
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 
-	// Given: a reconciliation completes.
-	require.NoError(t, controller.ReconcileAll(ctx))
+			// Setup. // TODO: abstract?
 
-	// Given: a set of running, eligible prebuilds eventually starts up.
-	runningPrebuilds := make(map[uuid.UUID]database.GetRunningPrebuildsRow, desiredInstances*presetCount)
-	require.Eventually(t, func() bool {
-		rows, err := spy.GetRunningPrebuilds(ctx)
-		require.NoError(t, err)
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			db, pubsub := dbtestutil.NewDB(t)
+			spy := newStoreSpy(db)
 
-		for _, row := range rows {
-			runningPrebuilds[row.CurrentPresetID.UUID] = row
+			var prebuildsEntitled int64
+			if tc.entitlementEnabled {
+				prebuildsEntitled = 1
+			}
 
-			agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, row.WorkspaceID)
+			client, _, api, owner := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{
+					IncludeProvisionerDaemon: true,
+					Database:                 spy,
+					Pubsub:                   pubsub,
+					DeploymentValues: coderdtest.DeploymentValues(t, func(values *codersdk.DeploymentValues) {
+						values.Prebuilds.ReconciliationInterval = serpent.Duration(time.Hour) // We will kick off a reconciliation manually.
+
+						if tc.experimentEnabled {
+							values.Experiments = serpent.StringArray{string(codersdk.ExperimentWorkspacePrebuilds)}
+						}
+					}),
+				},
+
+				EntitlementsUpdateInterval: time.Second,
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{
+						codersdk.FeatureWorkspacePrebuilds: prebuildsEntitled,
+					},
+				},
+			})
+
+			// The entitlements will need to refresh before the reconciler is set.
+			require.Eventually(t, func() bool {
+				return api.PrebuildsReconciler != nil
+			}, testutil.WaitSuperLong, testutil.IntervalFast)
+
+			version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, templateWithAgentAndPresetsWithPrebuilds(desiredInstances))
+			_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+			coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+			presets, err := client.TemplateVersionPresets(ctx, version.ID)
+			require.NoError(t, err)
+			require.Len(t, presets, presetCount)
+
+			userClient, user := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleMember())
+
+			ctx = dbauthz.AsSystemRestricted(ctx)
+
+			// Given: a reconciliation completes.
+			require.NoError(t, api.PrebuildsReconciler.ReconcileAll(ctx))
+
+			// Given: a set of running, eligible prebuilds eventually starts up.
+			runningPrebuilds := make(map[uuid.UUID]database.GetRunningPrebuildsRow, desiredInstances*presetCount)
+			require.Eventually(t, func() bool {
+				rows, err := spy.GetRunningPrebuilds(ctx)
+				require.NoError(t, err)
+
+				for _, row := range rows {
+					runningPrebuilds[row.CurrentPresetID.UUID] = row
+
+					if !tc.markPrebuildsClaimable {
+						continue
+					}
+
+					agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, row.WorkspaceID)
+					require.NoError(t, err)
+
+					for _, agent := range agents {
+						require.NoError(t, db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+							ID:             agent.ID,
+							LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+							StartedAt:      sql.NullTime{Time: time.Now().Add(time.Hour), Valid: true},
+							ReadyAt:        sql.NullTime{Time: time.Now().Add(-1 * time.Hour), Valid: true},
+						}))
+					}
+				}
+
+				t.Logf("found %d running prebuilds so far, want %d", len(runningPrebuilds), tc.expectedPrebuildsCount)
+
+				return len(runningPrebuilds) == tc.expectedPrebuildsCount
+			}, testutil.WaitSuperLong, testutil.IntervalSlow)
+
+			// When: a user creates a new workspace with a preset for which prebuilds are configured.
+			workspaceName := strings.ReplaceAll(testutil.GetRandomName(t), "_", "-")
+			params := database.ClaimPrebuildParams{
+				NewUserID: user.ID,
+				NewName:   workspaceName,
+				PresetID:  presets[0].ID,
+			}
+			userWorkspace, err := userClient.CreateUserWorkspace(ctx, user.Username, codersdk.CreateWorkspaceRequest{
+				TemplateVersionID:        version.ID,
+				Name:                     workspaceName,
+				TemplateVersionPresetID:  presets[0].ID,
+				ClaimPrebuildIfAvailable: true, // TODO: doesn't do anything yet; it probably should though.
+			})
+			require.NoError(t, err)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, userWorkspace.LatestBuild.ID)
+
+			// Then: if we're not expecting any prebuild claims to succeed, handle this specifically.
+			if !tc.attemptPrebuildClaim {
+				require.EqualValues(t, spy.claims.Load(), 0)
+				require.Nil(t, spy.claimedWorkspace.Load())
+
+				currentPrebuilds, err := spy.GetRunningPrebuilds(ctx)
+				require.NoError(t, err)
+				// The number of prebuilds should NOT change.
+				require.Equal(t, len(currentPrebuilds), len(runningPrebuilds))
+				return
+			}
+
+			// Then: a prebuild should have been claimed.
+			require.EqualValues(t, spy.claims.Load(), 1)
+			require.NotNil(t, spy.claims.Load())
+			require.EqualValues(t, *spy.claimParams.Load(), params)
+
+			if !tc.expectPrebuildClaimed {
+				require.Nil(t, spy.claimedWorkspace.Load())
+				return
+			}
+
+			require.NotNil(t, spy.claimedWorkspace.Load())
+			claimed := *spy.claimedWorkspace.Load()
+			require.NotEqual(t, claimed, uuid.Nil)
+
+			// Then: the claimed prebuild must now be owned by the requester.
+			workspace, err := spy.GetWorkspaceByID(ctx, claimed.ID)
+			require.NoError(t, err)
+			require.Equal(t, user.ID, workspace.OwnerID)
+
+			// Then: the number of running prebuilds has changed since one was claimed.
+			currentPrebuilds, err := spy.GetRunningPrebuilds(ctx)
+			require.NoError(t, err)
+			require.NotEqual(t, len(currentPrebuilds), len(runningPrebuilds))
+
+			// Then: the claimed prebuild is now missing from the running prebuilds set.
+			current, err := spy.GetRunningPrebuilds(ctx)
 			require.NoError(t, err)
 
-			for _, agent := range agents {
-				require.NoError(t, db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
-					ID:             agent.ID,
-					LifecycleState: database.WorkspaceAgentLifecycleStateReady,
-					StartedAt:      sql.NullTime{Time: time.Now().Add(time.Hour), Valid: true},
-					ReadyAt:        sql.NullTime{Time: time.Now().Add(-1 * time.Hour), Valid: true},
-				}))
+			var found bool
+			for _, prebuild := range current {
+				if prebuild.WorkspaceID == claimed.ID {
+					found = true
+					break
+				}
 			}
-		}
+			require.False(t, found, "claimed prebuild should not still be considered a running prebuild")
 
-		t.Logf("found %d running prebuilds so far, want %d", len(runningPrebuilds), desiredInstances*presetCount)
+			// Then: reconciling at this point will provision a new prebuild to replace the claimed one.
+			require.NoError(t, api.PrebuildsReconciler.ReconcileAll(ctx))
 
-		return len(runningPrebuilds) == (desiredInstances * presetCount)
-	}, testutil.WaitSuperLong, testutil.IntervalSlow)
+			require.Eventually(t, func() bool {
+				rows, err := spy.GetRunningPrebuilds(ctx)
+				require.NoError(t, err)
 
-	// When: a user creates a new workspace with a preset for which prebuilds are configured.
-	workspaceName := strings.ReplaceAll(testutil.GetRandomName(t), "_", "-")
-	params := database.ClaimPrebuildParams{
-		NewUserID: user.ID,
-		NewName:   workspaceName,
-		PresetID:  presets[0].ID,
+				t.Logf("found %d running prebuilds so far, want %d", len(rows), tc.expectedPrebuildsCount)
+
+				return len(runningPrebuilds) == tc.expectedPrebuildsCount
+			}, testutil.WaitSuperLong, testutil.IntervalSlow)
+		})
 	}
-	userWorkspace, err := userClient.CreateUserWorkspace(ctx, user.Username, codersdk.CreateWorkspaceRequest{
-		TemplateVersionID:        version.ID,
-		Name:                     workspaceName,
-		TemplateVersionPresetID:  presets[0].ID,
-		ClaimPrebuildIfAvailable: true, // TODO: doesn't do anything yet; it probably should though.
-	})
-	require.NoError(t, err)
-	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, userWorkspace.LatestBuild.ID)
-
-	// TODO: this feels... wrong; we should probably be injecting an implementation of prebuilds.Claimer.
-	// Then: a prebuild should have been claimed.
-	require.EqualValues(t, spy.claims.Load(), 1)
-	require.NotNil(t, spy.claims.Load())
-	require.EqualValues(t, *spy.claimParams.Load(), params)
-	require.NotNil(t, spy.claimedWorkspace.Load())
-	claimed := *spy.claimedWorkspace.Load()
-	require.NotEqual(t, claimed, uuid.Nil)
-
-	// Then: the claimed prebuild must now be owned by the requester.
-	workspace, err := spy.GetWorkspaceByID(ctx, claimed.ID)
-	require.NoError(t, err)
-	require.Equal(t, user.ID, workspace.OwnerID)
-
-	// Then: the number of running prebuilds has changed since one was claimed.
-	currentPrebuilds, err := spy.GetRunningPrebuilds(ctx)
-	require.NoError(t, err)
-	require.NotEqual(t, len(currentPrebuilds), len(runningPrebuilds))
-
-	// Then: the claimed prebuild is now missing from the running prebuilds set.
-	current, err := spy.GetRunningPrebuilds(ctx)
-	require.NoError(t, err)
-
-	var found bool
-	for _, prebuild := range current {
-		if prebuild.WorkspaceID == claimed.ID {
-			found = true
-			break
-		}
-	}
-	require.False(t, found, "claimed prebuild should not still be considered a running prebuild")
 }
 
 func templateWithAgentAndPresetsWithPrebuilds(desiredInstances int32) *echo.Responses {
@@ -256,5 +353,4 @@ func templateWithAgentAndPresetsWithPrebuilds(desiredInstances int32) *echo.Resp
 	}
 }
 
-// TODO(dannyk): test claiming a prebuild causes a replacement to be provisioned.
 // TODO(dannyk): test that prebuilds are only attempted to be claimed for net-new workspace builds

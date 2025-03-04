@@ -638,7 +638,7 @@ type API struct {
 	licenseMetricsCollector *license.MetricsCollector
 	tailnetService          *tailnet.ClientService
 
-	prebuildsReconciler       agplprebuilds.Reconciler
+	PrebuildsReconciler       agplprebuilds.Reconciler
 	prebuildsMetricsCollector *prebuilds.MetricsCollector
 }
 
@@ -671,10 +671,10 @@ func (api *API) Close() error {
 		api.Options.CheckInactiveUsersCancelFunc()
 	}
 
-	if api.prebuildsReconciler != nil {
+	if api.PrebuildsReconciler != nil {
 		ctx, giveUp := context.WithTimeoutCause(context.Background(), time.Second*30, errors.New("gave up waiting for reconciler to stop"))
 		defer giveUp()
-		api.prebuildsReconciler.Stop(ctx, xerrors.New("api closed")) // TODO: determine root cause (requires changes up the stack, though).
+		api.PrebuildsReconciler.Stop(ctx, xerrors.New("api closed")) // TODO: determine root cause (requires changes up the stack, though).
 	}
 
 	return api.AGPL.Close()
@@ -879,12 +879,12 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			api.AGPL.PortSharer.Store(&ps)
 		}
 
-		if initial, changed, enabled := featureChanged(codersdk.FeatureWorkspacePrebuilds); shouldUpdate(initial, changed, enabled) {
+		if initial, changed, enabled := featureChanged(codersdk.FeatureWorkspacePrebuilds); shouldUpdate(initial, changed, enabled) || api.PrebuildsReconciler == nil {
 			reconciler, claimer, metrics := api.setupPrebuilds(enabled)
-			if api.prebuildsReconciler != nil {
+			if api.PrebuildsReconciler != nil {
 				stopCtx, giveUp := context.WithTimeoutCause(context.Background(), time.Second*30, errors.New("gave up waiting for reconciler to stop"))
 				defer giveUp()
-				api.prebuildsReconciler.Stop(stopCtx, errors.New("entitlements change"))
+				api.PrebuildsReconciler.Stop(stopCtx, errors.New("entitlements change"))
 			}
 
 			// Only register metrics once.
@@ -892,7 +892,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				api.prebuildsMetricsCollector = metrics
 			}
 
-			api.prebuildsReconciler = reconciler
+			api.PrebuildsReconciler = reconciler
 			go reconciler.RunLoop(context.Background())
 
 			api.AGPL.PrebuildsClaimer.Store(&claimer)
