@@ -6,6 +6,9 @@ export function optionValue(
 	option: SerpentOption,
 	additionalValues?: readonly string[],
 ) {
+	if (!option.value) {
+		return "";
+	}
 	// If option annotations are present, use them to format the value.
 	if (option.annotations) {
 		for (const [k, v] of Object.entries(option.annotations)) {
