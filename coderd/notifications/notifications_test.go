@@ -491,12 +491,15 @@ func TestRetries(t *testing.T) {
 
 	mgr.Run(ctx)
 
-	// THEN: we expect to see all but the final attempts failing
+	// the number of tries is equal to the number of messages times the number of attempts
+	// times 2 as the Enqueue method pushes into both the defined dispatch method and inbox
+	nbTries := msgCount * maxAttempts * 2
+
+	// THEN: we expect to see all but the final attempts failing on webhook, and all messages to fail on inbox
 	require.Eventually(t, func() bool {
-		// We expect all messages to fail all attempts but the final;
-		return storeInterceptor.failed.Load() == 0 &&
-			// ...and succeed on the final attempt.
-			storeInterceptor.sent.Load() == 0
+		// nolint:gosec
+		return storeInterceptor.failed.Load() == int32(nbTries-msgCount) &&
+			storeInterceptor.sent.Load() == msgCount
 	}, testutil.WaitLong, testutil.IntervalFast)
 }
 

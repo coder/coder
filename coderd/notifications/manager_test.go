@@ -46,10 +46,13 @@ func TestBufferedUpdates(t *testing.T) {
 	// GIVEN: a manager which will pass or fail notifications based on their "nice" labels
 	mgr, err := notifications.NewManager(cfg, interceptor, defaultHelpers(), createMetrics(), logger.Named("notifications-manager"))
 	require.NoError(t, err)
-	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{
+
+	handlers := map[database.NotificationMethod]notifications.Handler{
 		database.NotificationMethodSmtp:  santa,
 		database.NotificationMethodInbox: santaInbox,
-	})
+	}
+
+	mgr.WithHandlers(handlers)
 	enq, err := notifications.NewStoreEnqueuer(cfg, interceptor, defaultHelpers(), logger.Named("notifications-enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
@@ -81,7 +84,7 @@ func TestBufferedUpdates(t *testing.T) {
 	// Wait for the expected number of buffered updates to be accumulated.
 	require.Eventually(t, func() bool {
 		success, failure := mgr.BufferedUpdatesCount()
-		return success == expectedSuccess*2 && failure == expectedFailure*2 // Each message is enqueued twice.
+		return success == expectedSuccess*len(handlers) && failure == expectedFailure*len(handlers)
 	}, testutil.WaitShort, testutil.IntervalFast)
 
 	// Stop the manager which forces an update of buffered updates.
@@ -95,8 +98,8 @@ func TestBufferedUpdates(t *testing.T) {
 			ct.FailNow()
 		}
 
-		assert.EqualValues(ct, expectedFailure*2, interceptor.failed.Load())
-		assert.EqualValues(ct, expectedSuccess*2, interceptor.sent.Load())
+		assert.EqualValues(ct, expectedFailure*len(handlers), interceptor.failed.Load())
+		assert.EqualValues(ct, expectedSuccess*len(handlers), interceptor.sent.Load())
 	}, testutil.WaitMedium, testutil.IntervalFast)
 }
 
