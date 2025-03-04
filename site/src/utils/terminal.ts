@@ -7,6 +7,8 @@ export const terminalWebsocketUrl = async (
 	command: string | undefined,
 	height: number,
 	width: number,
+	containerName: string | undefined,
+	containerUser: string | undefined,
 ): Promise<string> => {
 	const query = new URLSearchParams({ reconnect });
 	if (command) {
@@ -14,6 +16,13 @@ export const terminalWebsocketUrl = async (
 	}
 	query.set("height", height.toString());
 	query.set("width", width.toString());
+	if (containerName) {
+		query.set("container", containerName);
+	}
+	if (containerName && containerUser) {
+		query.set("container_user", containerUser);
+	}
+
 
 	const url = new URL(baseUrl || `${location.protocol}//${location.host}`);
 	url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
