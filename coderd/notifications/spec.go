@@ -25,6 +25,8 @@ type Store interface {
 	GetNotificationsSettings(ctx context.Context) (string, error)
 	GetApplicationName(ctx context.Context) (string, error)
 	GetLogoURL(ctx context.Context) (string, error)
+
+	InsertInboxNotification(ctx context.Context, arg database.InsertInboxNotificationParams) (database.InboxNotification, error)
 }
 
 // Handler is responsible for preparing and delivering a notification by a given method.
@@ -35,6 +37,6 @@ type Handler interface {
 
 // Enqueuer enqueues a new notification message in the store and returns its ID, should it enqueue without failure.
 type Enqueuer interface {
-	Enqueue(ctx context.Context, userID, templateID uuid.UUID, labels map[string]string, createdBy string, targets ...uuid.UUID) (*uuid.UUID, error)
-	EnqueueWithData(ctx context.Context, userID, templateID uuid.UUID, labels map[string]string, data map[string]any, createdBy string, targets ...uuid.UUID) (*uuid.UUID, error)
+	Enqueue(ctx context.Context, userID, templateID uuid.UUID, labels map[string]string, createdBy string, targets ...uuid.UUID) ([]uuid.UUID, error)
+	EnqueueWithData(ctx context.Context, userID, templateID uuid.UUID, labels map[string]string, data map[string]any, createdBy string, targets ...uuid.UUID) ([]uuid.UUID, error)
 }

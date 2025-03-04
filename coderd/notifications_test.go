@@ -296,6 +296,9 @@ func TestNotificationDispatchMethods(t *testing.T) {
 
 	var allMethods []string
 	for _, nm := range database.AllNotificationMethodValues() {
+		if nm == database.NotificationMethodInbox {
+			continue
+		}
 		allMethods = append(allMethods, string(nm))
 	}
 	slices.Sort(allMethods)

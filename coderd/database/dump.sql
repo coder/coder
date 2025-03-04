@@ -113,7 +113,8 @@ CREATE TYPE notification_message_status AS ENUM (
 
 CREATE TYPE notification_method AS ENUM (
     'smtp',
-    'webhook'
+    'webhook',
+    'inbox'
 );
 
 CREATE TYPE notification_template_kind AS ENUM (

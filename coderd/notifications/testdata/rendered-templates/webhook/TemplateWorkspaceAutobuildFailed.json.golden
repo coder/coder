@@ -19,7 +19,8 @@
       "name": "bobby-workspace",
       "reason": "autostart"
     },
-    "data": null
+    "data": null,
+    "targets": null
   },
   "title": "Workspace \"bobby-workspace\" autobuild failed",
   "title_markdown": "Workspace \"bobby-workspace\" autobuild failed",
