@@ -55,6 +55,8 @@ const TerminalPage: FC = () => {
 	// a round-trip, and must be a UUIDv4.
 	const reconnectionToken = searchParams.get("reconnect") ?? uuidv4();
 	const command = searchParams.get("command") || undefined;
+	const containerName = searchParams.get("container") || undefined;
+	const containerUser = searchParams.get("container_user") || undefined;
 	// The workspace name is in the format:
 	// <workspace name>[.<agent name>]
 	const workspaceNameParts = params.workspace?.split(".");
@@ -234,6 +236,8 @@ const TerminalPage: FC = () => {
 			command,
 			terminal.rows,
 			terminal.cols,
+			containerName,
+			containerUser,
 		)
 			.then((url) => {
 				if (disposed) {
@@ -302,6 +306,8 @@ const TerminalPage: FC = () => {
 		workspace.error,
 		workspace.isLoading,
 		workspaceAgent,
+		containerName,
+		containerUser,
 	]);
 
 	return (
