@@ -147,6 +147,8 @@ If you require secure context web APIs, you will need to mark the workspace host
 
 We are planning some changes to Coder Desktop that will make accessing secure context web apps easier. Stay tuned for updates.
 
+<div class="tabs">
+
 ### Chrome
 
 1. Open Chrome and visit `chrome://flags/#unsafely-treat-insecure-origin-as-secure`.
@@ -182,3 +184,5 @@ We are planning some changes to Coder Desktop that will make accessing secure co
    ![Firefox insecure origin settings](../../images/user-guides/desktop/firefox-insecure-origin.png)
 
 1. Web apps accessed on the configured hostnames will now function correctly in a secure context without requiring a restart.
+
+</div>
