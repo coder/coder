@@ -163,7 +163,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 				"devcontainer.local_folder=",
 			]),
 		enabled: agent.status === "connected",
-		select: (res) => res.containers,
+		select: (res) => res.containers.filter((c) => c.status === "running"),
 	});
 
 	return (
@@ -215,7 +215,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 							proxy.preferredWildcardHostname !== "" &&
 							agent.display_apps.includes("port_forwarding_helper") && (
 								<PortForwardButton
-									host={proxy.preferredWildcardHostname || window.location.host}
+									host={proxy.preferredWildcardHostname}
 									workspaceName={workspace.name}
 									agent={agent}
 									username={workspace.owner_name}
@@ -281,8 +281,8 @@ export const AgentRow: FC<AgentRowProps> = ({
 					</section>
 				)}
 
-				{containers && (
-					<section>
+				{containers && containers.length > 0 && (
+					<section className="flex flex-col gap-4">
 						{containers.map((container) => {
 							return (
 								<AgentDevcontainerCard
