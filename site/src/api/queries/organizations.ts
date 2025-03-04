@@ -59,16 +59,17 @@ export const deleteOrganization = (queryClient: QueryClient) => {
 	};
 };
 
-export const organizationMembersKey = (id: string) => [
+export const organizationMembersKey = (id: string, req: MembersRequest) => [
 	"organization",
 	id,
 	"members",
+	req,
 ];
 
 export const organizationMembers = (id: string, req: MembersRequest) => {
 	return {
 		queryFn: () => API.getOrganizationMembers(id, req),
-		queryKey: organizationMembersKey(id),
+		queryKey: organizationMembersKey(id, req),
 	};
 };
 
@@ -86,7 +87,7 @@ export function paginatedMembers(
 			};
 		},
 
-		queryKey: () => organizationMembersKey(id),
+		queryKey: ({ payload }) => organizationMembersKey(id, payload),
 		queryFn: ({ payload }) => API.getOrganizationMembers(id, payload),
 	};
 }

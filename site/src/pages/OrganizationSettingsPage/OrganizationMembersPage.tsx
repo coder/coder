@@ -32,7 +32,6 @@ const OrganizationMembersPage: FC = () => {
 		organization: string;
 	};
 	const { organization, organizationPermissions } = useOrganizationSettings();
-	const [searchParams] = searchParamsResult;
 
 	const membersQuery = usePaginatedQuery(
 		paginatedMembers(organizationName, searchParamsResult[0]),
@@ -105,6 +104,7 @@ const OrganizationMembersPage: FC = () => {
 						roles: newRoles,
 					});
 				}}
+				membersQuery={membersQuery}
 			/>
 
 			<ConfirmDialog

@@ -18,6 +18,10 @@ import {
 	MoreMenuTrigger,
 	ThreeDotsButton,
 } from "components/MoreMenu/MoreMenu";
+import {
+	PaginationContainer,
+	type PaginationResult,
+} from "components/PaginationWidget/PaginationContainer";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import {
@@ -33,6 +37,7 @@ import { UserGroupsCell } from "pages/UsersPage/UsersTable/UserGroupsCell";
 import { type FC, useState } from "react";
 import { TableColumnHelpTooltip } from "./UserTable/TableColumnHelpTooltip";
 import { UserRoleCell } from "./UserTable/UserRoleCell";
+import TableContainer from "@mui/material/TableContainer";
 
 interface OrganizationMembersPageViewProps {
 	allAvailableRoles: readonly SlimRole[] | undefined;
@@ -49,6 +54,7 @@ interface OrganizationMembersPageViewProps {
 		member: OrganizationMemberWithUserData,
 		newRoles: string[],
 	) => Promise<void>;
+	membersQuery: PaginationResult;
 }
 
 interface OrganizationMemberTableEntry extends OrganizationMemberWithUserData {
@@ -69,6 +75,7 @@ export const OrganizationMembersPageView: FC<
 	addMember,
 	removeMember,
 	updateMemberRoles,
+	membersQuery,
 }) => {
 	return (
 		<div>
@@ -92,80 +99,84 @@ export const OrganizationMembersPageView: FC<
 					</div>
 				)}
 
-				<Table>
-					<TableHeader>
-						<TableRow>
-							<TableCell width="33%">User</TableCell>
-							<TableCell width="33%">
-								<Stack direction="row" spacing={1} alignItems="center">
-									<span>Roles</span>
-									<TableColumnHelpTooltip variant="roles" />
-								</Stack>
-							</TableCell>
-							<TableCell width="33%">
-								<Stack direction="row" spacing={1} alignItems="center">
-									<span>Groups</span>
-									<TableColumnHelpTooltip variant="groups" />
-								</Stack>
-							</TableCell>
-							<TableCell width="1%" />
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{members?.map((member) => (
-							<TableRow key={member.user_id} className="align-baseline">
-								<TableCell>
-									<AvatarData
-										avatar={
-											<Avatar
-												fallback={member.username}
-												src={member.avatar_url}
-											/>
-										}
-										title={member.name || member.username}
-										subtitle={member.email}
-									/>
+				<PaginationContainer query={membersQuery} paginationUnitLabel="members">
+		<TableContainer>
+					<Table>
+						<TableHeader>
+							<TableRow>
+								<TableCell width="33%">User</TableCell>
+								<TableCell width="33%">
+									<Stack direction="row" spacing={1} alignItems="center">
+										<span>Roles</span>
+										<TableColumnHelpTooltip variant="roles" />
+									</Stack>
 								</TableCell>
-								<UserRoleCell
-									inheritedRoles={member.global_roles}
-									roles={member.roles}
-									allAvailableRoles={allAvailableRoles}
-									oidcRoleSyncEnabled={false}
-									isLoading={isUpdatingMemberRoles}
-									canEditUsers={canEditMembers}
-									onEditRoles={async (roles) => {
-										try {
-											await updateMemberRoles(member, roles);
-											displaySuccess("Roles updated successfully.");
-										} catch (error) {
-											displayError(
-												getErrorMessage(error, "Failed to update roles."),
-											);
-										}
-									}}
-								/>
-								<UserGroupsCell userGroups={member.groups} />
-								<TableCell>
-									{member.user_id !== me.id && canEditMembers && (
-										<MoreMenu>
-											<MoreMenuTrigger>
-												<ThreeDotsButton />
-											</MoreMenuTrigger>
-											<MoreMenuContent>
-												<MoreMenuItem
-													danger
-													onClick={() => removeMember(member)}
-												>
-													Remove
-												</MoreMenuItem>
-											</MoreMenuContent>
-										</MoreMenu>
-									)}
+								<TableCell width="33%">
+									<Stack direction="row" spacing={1} alignItems="center">
+										<span>Groups</span>
+										<TableColumnHelpTooltip variant="groups" />
+									</Stack>
 								</TableCell>
+								<TableCell width="1%" />
 							</TableRow>
-						))}
-					</TableBody>
-				</Table>
+						</TableHeader>
+						<TableBody>
+							{members?.map((member) => (
+								<TableRow key={member.user_id} className="align-baseline">
+									<TableCell>
+										<AvatarData
+											avatar={
+												<Avatar
+													fallback={member.username}
+													src={member.avatar_url}
+												/>
+											}
+											title={member.name || member.username}
+											subtitle={member.email}
+										/>
+									</TableCell>
+									<UserRoleCell
+										inheritedRoles={member.global_roles}
+										roles={member.roles}
+										allAvailableRoles={allAvailableRoles}
+										oidcRoleSyncEnabled={false}
+										isLoading={isUpdatingMemberRoles}
+										canEditUsers={canEditMembers}
+										onEditRoles={async (roles) => {
+											try {
+												await updateMemberRoles(member, roles);
+												displaySuccess("Roles updated successfully.");
+											} catch (error) {
+												displayError(
+													getErrorMessage(error, "Failed to update roles."),
+												);
+											}
+										}}
+									/>
+									<UserGroupsCell userGroups={member.groups} />
+									<TableCell>
+										{member.user_id !== me.id && canEditMembers && (
+											<MoreMenu>
+												<MoreMenuTrigger>
+													<ThreeDotsButton />
+												</MoreMenuTrigger>
+												<MoreMenuContent>
+													<MoreMenuItem
+														danger
+														onClick={() => removeMember(member)}
+													>
+														Remove
+													</MoreMenuItem>
+												</MoreMenuContent>
+											</MoreMenu>
+										)}
+									</TableCell>
+								</TableRow>
+							))}
+						</TableBody>
+					</Table>
+		</TableContainer>
+				</PaginationContainer>
 			</div>
 		</div>
 	);
