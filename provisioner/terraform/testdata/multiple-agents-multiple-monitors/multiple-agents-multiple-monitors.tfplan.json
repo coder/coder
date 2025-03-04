@@ -21,6 +21,17 @@
             "motd_file": null,
             "order": null,
             "os": "linux",
+            "resources_monitoring": [
+              {
+                "memory": [
+                  {
+                    "enabled": true,
+                    "threshold": 80
+                  }
+                ],
+                "volume": []
+              }
+            ],
             "shutdown_script": null,
             "startup_script": null,
             "startup_script_behavior": "non-blocking",
@@ -29,6 +40,14 @@
           "sensitive_values": {
             "display_apps": [],
             "metadata": [],
+            "resources_monitoring": [
+              {
+                "memory": [
+                  {}
+                ],
+                "volume": []
+              }
+            ],
             "token": true
           }
         },
@@ -49,6 +68,28 @@
             "motd_file": null,
             "order": null,
             "os": "linux",
+            "resources_monitoring": [
+              {
+                "memory": [
+                  {
+                    "enabled": true,
+                    "threshold": 99
+                  }
+                ],
+                "volume": [
+                  {
+                    "enabled": false,
+                    "path": "/volume2",
+                    "threshold": 50
+                  },
+                  {
+                    "enabled": true,
+                    "path": "/volume1",
+                    "threshold": 80
+                  }
+                ]
+              }
+            ],
             "shutdown_script": null,
             "startup_script": null,
             "startup_script_behavior": "non-blocking",
@@ -57,86 +98,83 @@
           "sensitive_values": {
             "display_apps": [],
             "metadata": [],
+            "resources_monitoring": [
+              {
+                "memory": [
+                  {}
+                ],
+                "volume": [
+                  {},
+                  {}
+                ]
+              }
+            ],
             "token": true
           }
         },
         {
-          "address": "coder_script.script1",
+          "address": "coder_app.app1",
           "mode": "managed",
-          "type": "coder_script",
-          "name": "script1",
+          "type": "coder_app",
+          "name": "app1",
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 1,
           "values": {
-            "cron": null,
-            "display_name": "Foobar Script 1",
+            "command": null,
+            "display_name": null,
+            "external": false,
+            "healthcheck": [],
+            "hidden": false,
             "icon": null,
-            "log_path": null,
-            "run_on_start": true,
-            "run_on_stop": false,
-            "script": "echo foobar 1",
-            "start_blocks_login": false,
-            "timeout": 0
+            "open_in": "slim-window",
+            "order": null,
+            "share": "owner",
+            "slug": "app1",
+            "subdomain": null,
+            "url": null
           },
-          "sensitive_values": {}
+          "sensitive_values": {
+            "healthcheck": []
+          }
         },
         {
-          "address": "coder_script.script2",
+          "address": "coder_app.app2",
           "mode": "managed",
-          "type": "coder_script",
-          "name": "script2",
+          "type": "coder_app",
+          "name": "app2",
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 1,
           "values": {
-            "cron": null,
-            "display_name": "Foobar Script 2",
+            "command": null,
+            "display_name": null,
+            "external": false,
+            "healthcheck": [
+              {
+                "interval": 5,
+                "threshold": 6,
+                "url": "http://localhost:13337/healthz"
+              }
+            ],
+            "hidden": false,
             "icon": null,
-            "log_path": null,
-            "run_on_start": true,
-            "run_on_stop": false,
-            "script": "echo foobar 2",
-            "start_blocks_login": false,
-            "timeout": 0
+            "open_in": "slim-window",
+            "order": null,
+            "share": "owner",
+            "slug": "app2",
+            "subdomain": true,
+            "url": null
           },
-          "sensitive_values": {}
+          "sensitive_values": {
+            "healthcheck": [
+              {}
+            ]
+          }
         },
         {
-          "address": "coder_script.script3",
-          "mode": "managed",
-          "type": "coder_script",
-          "name": "script3",
-          "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 1,
-          "values": {
-            "cron": null,
-            "display_name": "Foobar Script 3",
-            "icon": null,
-            "log_path": null,
-            "run_on_start": true,
-            "run_on_stop": false,
-            "script": "echo foobar 3",
-            "start_blocks_login": false,
-            "timeout": 0
-          },
-          "sensitive_values": {}
-        },
-        {
-          "address": "null_resource.dev1",
+          "address": "null_resource.dev",
           "mode": "managed",
           "type": "null_resource",
-          "name": "dev1",
-          "provider_name": "registry.terraform.io/hashicorp/null",
-          "schema_version": 0,
-          "values": {
-            "triggers": null
-          },
-          "sensitive_values": {}
-        },
-        {
-          "address": "null_resource.dev2",
-          "mode": "managed",
-          "type": "null_resource",
-          "name": "dev2",
+          "name": "dev",
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
@@ -169,6 +207,17 @@
           "motd_file": null,
           "order": null,
           "os": "linux",
+          "resources_monitoring": [
+            {
+              "memory": [
+                {
+                  "enabled": true,
+                  "threshold": 80
+                }
+              ],
+              "volume": []
+            }
+          ],
           "shutdown_script": null,
           "startup_script": null,
           "startup_script_behavior": "non-blocking",
@@ -179,12 +228,28 @@
           "id": true,
           "init_script": true,
           "metadata": [],
+          "resources_monitoring": [
+            {
+              "memory": [
+                {}
+              ],
+              "volume": []
+            }
+          ],
           "token": true
         },
         "before_sensitive": false,
         "after_sensitive": {
           "display_apps": [],
           "metadata": [],
+          "resources_monitoring": [
+            {
+              "memory": [
+                {}
+              ],
+              "volume": []
+            }
+          ],
           "token": true
         }
       }
@@ -210,6 +275,28 @@
           "motd_file": null,
           "order": null,
           "os": "linux",
+          "resources_monitoring": [
+            {
+              "memory": [
+                {
+                  "enabled": true,
+                  "threshold": 99
+                }
+              ],
+              "volume": [
+                {
+                  "enabled": false,
+                  "path": "/volume2",
+                  "threshold": 50
+                },
+                {
+                  "enabled": true,
+                  "path": "/volume1",
+                  "threshold": 80
+                }
+              ]
+            }
+          ],
           "shutdown_script": null,
           "startup_script": null,
           "startup_script_behavior": "non-blocking",
@@ -220,21 +307,43 @@
           "id": true,
           "init_script": true,
           "metadata": [],
+          "resources_monitoring": [
+            {
+              "memory": [
+                {}
+              ],
+              "volume": [
+                {},
+                {}
+              ]
+            }
+          ],
           "token": true
         },
         "before_sensitive": false,
         "after_sensitive": {
           "display_apps": [],
           "metadata": [],
+          "resources_monitoring": [
+            {
+              "memory": [
+                {}
+              ],
+              "volume": [
+                {},
+                {}
+              ]
+            }
+          ],
           "token": true
         }
       }
     },
     {
-      "address": "coder_script.script1",
+      "address": "coder_app.app1",
       "mode": "managed",
-      "type": "coder_script",
-      "name": "script1",
+      "type": "coder_app",
+      "name": "app1",
       "provider_name": "registry.terraform.io/coder/coder",
       "change": {
         "actions": [
@@ -242,29 +351,35 @@
         ],
         "before": null,
         "after": {
-          "cron": null,
-          "display_name": "Foobar Script 1",
+          "command": null,
+          "display_name": null,
+          "external": false,
+          "healthcheck": [],
+          "hidden": false,
           "icon": null,
-          "log_path": null,
-          "run_on_start": true,
-          "run_on_stop": false,
-          "script": "echo foobar 1",
-          "start_blocks_login": false,
-          "timeout": 0
+          "open_in": "slim-window",
+          "order": null,
+          "share": "owner",
+          "slug": "app1",
+          "subdomain": null,
+          "url": null
         },
         "after_unknown": {
           "agent_id": true,
+          "healthcheck": [],
           "id": true
         },
         "before_sensitive": false,
-        "after_sensitive": {}
+        "after_sensitive": {
+          "healthcheck": []
+        }
       }
     },
     {
-      "address": "coder_script.script2",
+      "address": "coder_app.app2",
       "mode": "managed",
-      "type": "coder_script",
-      "name": "script2",
+      "type": "coder_app",
+      "name": "app2",
       "provider_name": "registry.terraform.io/coder/coder",
       "change": {
         "actions": [
@@ -272,80 +387,45 @@
         ],
         "before": null,
         "after": {
-          "cron": null,
-          "display_name": "Foobar Script 2",
+          "command": null,
+          "display_name": null,
+          "external": false,
+          "healthcheck": [
+            {
+              "interval": 5,
+              "threshold": 6,
+              "url": "http://localhost:13337/healthz"
+            }
+          ],
+          "hidden": false,
           "icon": null,
-          "log_path": null,
-          "run_on_start": true,
-          "run_on_stop": false,
-          "script": "echo foobar 2",
-          "start_blocks_login": false,
-          "timeout": 0
+          "open_in": "slim-window",
+          "order": null,
+          "share": "owner",
+          "slug": "app2",
+          "subdomain": true,
+          "url": null
         },
         "after_unknown": {
           "agent_id": true,
+          "healthcheck": [
+            {}
+          ],
           "id": true
         },
         "before_sensitive": false,
-        "after_sensitive": {}
+        "after_sensitive": {
+          "healthcheck": [
+            {}
+          ]
+        }
       }
     },
     {
-      "address": "coder_script.script3",
-      "mode": "managed",
-      "type": "coder_script",
-      "name": "script3",
-      "provider_name": "registry.terraform.io/coder/coder",
-      "change": {
-        "actions": [
-          "create"
-        ],
-        "before": null,
-        "after": {
-          "cron": null,
-          "display_name": "Foobar Script 3",
-          "icon": null,
-          "log_path": null,
-          "run_on_start": true,
-          "run_on_stop": false,
-          "script": "echo foobar 3",
-          "start_blocks_login": false,
-          "timeout": 0
-        },
-        "after_unknown": {
-          "agent_id": true,
-          "id": true
-        },
-        "before_sensitive": false,
-        "after_sensitive": {}
-      }
-    },
-    {
-      "address": "null_resource.dev1",
+      "address": "null_resource.dev",
       "mode": "managed",
       "type": "null_resource",
-      "name": "dev1",
-      "provider_name": "registry.terraform.io/hashicorp/null",
-      "change": {
-        "actions": [
-          "create"
-        ],
-        "before": null,
-        "after": {
-          "triggers": null
-        },
-        "after_unknown": {
-          "id": true
-        },
-        "before_sensitive": false,
-        "after_sensitive": {}
-      }
-    },
-    {
-      "address": "null_resource.dev2",
-      "mode": "managed",
-      "type": "null_resource",
-      "name": "dev2",
+      "name": "dev",
       "provider_name": "registry.terraform.io/hashicorp/null",
       "change": {
         "actions": [
@@ -368,7 +448,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": ">= 2.0.0"
+        "version_constraint": "2.2.0-pre0"
       },
       "null": {
         "name": "null",
@@ -389,7 +469,21 @@
             },
             "os": {
               "constant_value": "linux"
-            }
+            },
+            "resources_monitoring": [
+              {
+                "memory": [
+                  {
+                    "enabled": {
+                      "constant_value": true
+                    },
+                    "threshold": {
+                      "constant_value": 80
+                    }
+                  }
+                ]
+              }
+            ]
           },
           "schema_version": 1
         },
@@ -405,15 +499,53 @@
             },
             "os": {
               "constant_value": "linux"
-            }
+            },
+            "resources_monitoring": [
+              {
+                "memory": [
+                  {
+                    "enabled": {
+                      "constant_value": true
+                    },
+                    "threshold": {
+                      "constant_value": 99
+                    }
+                  }
+                ],
+                "volume": [
+                  {
+                    "enabled": {
+                      "constant_value": true
+                    },
+                    "path": {
+                      "constant_value": "/volume1"
+                    },
+                    "threshold": {
+                      "constant_value": 80
+                    }
+                  },
+                  {
+                    "enabled": {
+                      "constant_value": false
+                    },
+                    "path": {
+                      "constant_value": "/volume2"
+                    },
+                    "threshold": {
+                      "constant_value": 50
+                    }
+                  }
+                ]
+              }
+            ]
           },
           "schema_version": 1
         },
         {
-          "address": "coder_script.script1",
+          "address": "coder_app.app1",
           "mode": "managed",
-          "type": "coder_script",
-          "name": "script1",
+          "type": "coder_app",
+          "name": "app1",
           "provider_config_key": "coder",
           "expressions": {
             "agent_id": {
@@ -422,23 +554,17 @@
                 "coder_agent.dev1"
               ]
             },
-            "display_name": {
-              "constant_value": "Foobar Script 1"
-            },
-            "run_on_start": {
-              "constant_value": true
-            },
-            "script": {
-              "constant_value": "echo foobar 1"
+            "slug": {
+              "constant_value": "app1"
             }
           },
           "schema_version": 1
         },
         {
-          "address": "coder_script.script2",
+          "address": "coder_app.app2",
           "mode": "managed",
-          "type": "coder_script",
-          "name": "script2",
+          "type": "coder_app",
+          "name": "app2",
           "provider_config_key": "coder",
           "expressions": {
             "agent_id": {
@@ -447,62 +573,37 @@
                 "coder_agent.dev1"
               ]
             },
-            "display_name": {
-              "constant_value": "Foobar Script 2"
+            "healthcheck": [
+              {
+                "interval": {
+                  "constant_value": 5
+                },
+                "threshold": {
+                  "constant_value": 6
+                },
+                "url": {
+                  "constant_value": "http://localhost:13337/healthz"
+                }
+              }
+            ],
+            "slug": {
+              "constant_value": "app2"
             },
-            "run_on_start": {
+            "subdomain": {
               "constant_value": true
-            },
-            "script": {
-              "constant_value": "echo foobar 2"
             }
           },
           "schema_version": 1
         },
         {
-          "address": "coder_script.script3",
-          "mode": "managed",
-          "type": "coder_script",
-          "name": "script3",
-          "provider_config_key": "coder",
-          "expressions": {
-            "agent_id": {
-              "references": [
-                "coder_agent.dev2.id",
-                "coder_agent.dev2"
-              ]
-            },
-            "display_name": {
-              "constant_value": "Foobar Script 3"
-            },
-            "run_on_start": {
-              "constant_value": true
-            },
-            "script": {
-              "constant_value": "echo foobar 3"
-            }
-          },
-          "schema_version": 1
-        },
-        {
-          "address": "null_resource.dev1",
+          "address": "null_resource.dev",
           "mode": "managed",
           "type": "null_resource",
-          "name": "dev1",
+          "name": "dev",
           "provider_config_key": "null",
           "schema_version": 0,
           "depends_on": [
-            "coder_agent.dev1"
-          ]
-        },
-        {
-          "address": "null_resource.dev2",
-          "mode": "managed",
-          "type": "null_resource",
-          "name": "dev2",
-          "provider_config_key": "null",
-          "schema_version": 0,
-          "depends_on": [
+            "coder_agent.dev1",
             "coder_agent.dev2"
           ]
         }
@@ -511,19 +612,13 @@
   },
   "relevant_attributes": [
     {
-      "resource": "coder_agent.dev2",
-      "attribute": [
-        "id"
-      ]
-    },
-    {
       "resource": "coder_agent.dev1",
       "attribute": [
         "id"
       ]
     }
   ],
-  "timestamp": "2025-03-04T19:25:23Z",
+  "timestamp": "2025-03-04T19:25:21Z",
   "applyable": true,
   "complete": true,
   "errored": false

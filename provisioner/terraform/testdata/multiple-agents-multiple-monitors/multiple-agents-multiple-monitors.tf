@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = ">=2.0.0"
+      version = "2.2.0-pre0"
     }
   }
 }
@@ -10,11 +10,33 @@ terraform {
 resource "coder_agent" "dev1" {
   os   = "linux"
   arch = "amd64"
+  resources_monitoring {
+    memory {
+      enabled   = true
+      threshold = 80
+    }
+  }
 }
 
 resource "coder_agent" "dev2" {
   os   = "linux"
   arch = "amd64"
+  resources_monitoring {
+    memory {
+      enabled   = true
+      threshold = 99
+    }
+    volume {
+      path      = "/volume1"
+      enabled   = true
+      threshold = 80
+    }
+    volume {
+      path      = "/volume2"
+      enabled   = false
+      threshold = 50
+    }
+  }
 }
 
 # app1 is for testing subdomain default.
@@ -37,21 +59,9 @@ resource "coder_app" "app2" {
   }
 }
 
-# app3 tests that subdomain can explicitly be false.
-resource "coder_app" "app3" {
-  agent_id  = coder_agent.dev2.id
-  slug      = "app3"
-  subdomain = false
-}
-
-resource "null_resource" "dev1" {
+resource "null_resource" "dev" {
   depends_on = [
-    coder_agent.dev1
-  ]
-}
-
-resource "null_resource" "dev2" {
-  depends_on = [
+    coder_agent.dev1,
     coder_agent.dev2
   ]
 }

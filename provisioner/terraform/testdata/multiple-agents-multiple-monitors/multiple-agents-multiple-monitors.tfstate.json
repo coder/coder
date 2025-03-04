@@ -26,16 +26,27 @@
               }
             ],
             "env": null,
-            "id": "9cd3c7d2-75fb-4ad0-acba-40ae78434154",
+            "id": "baa57f58-60fb-4490-9f11-1f7e17ae698a",
             "init_script": "",
             "metadata": [],
             "motd_file": null,
             "order": null,
             "os": "linux",
+            "resources_monitoring": [
+              {
+                "memory": [
+                  {
+                    "enabled": true,
+                    "threshold": 80
+                  }
+                ],
+                "volume": []
+              }
+            ],
             "shutdown_script": null,
             "startup_script": null,
             "startup_script_behavior": "non-blocking",
-            "token": "fcf46094-a739-4acc-9d64-7b40b2fbdc5c",
+            "token": "6a54f7c6-93b5-4d2f-a194-7b6f968b9293",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -43,6 +54,14 @@
               {}
             ],
             "metadata": [],
+            "resources_monitoring": [
+              {
+                "memory": [
+                  {}
+                ],
+                "volume": []
+              }
+            ],
             "token": true
           }
         },
@@ -68,16 +87,38 @@
               }
             ],
             "env": null,
-            "id": "37b0b6fd-6f9e-4ad4-a273-6c4334d4bc02",
+            "id": "60fa4e03-a7b1-47fc-9977-7cf43bb04f1f",
             "init_script": "",
             "metadata": [],
             "motd_file": null,
             "order": null,
             "os": "linux",
+            "resources_monitoring": [
+              {
+                "memory": [
+                  {
+                    "enabled": true,
+                    "threshold": 99
+                  }
+                ],
+                "volume": [
+                  {
+                    "enabled": false,
+                    "path": "/volume2",
+                    "threshold": 50
+                  },
+                  {
+                    "enabled": true,
+                    "path": "/volume1",
+                    "threshold": 80
+                  }
+                ]
+              }
+            ],
             "shutdown_script": null,
             "startup_script": null,
             "startup_script_behavior": "non-blocking",
-            "token": "ed7abd75-cdf7-4b4f-b092-3288cae29f80",
+            "token": "753eb1c8-e032-4d9c-baea-4534040f68d9",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -85,6 +126,17 @@
               {}
             ],
             "metadata": [],
+            "resources_monitoring": [
+              {
+                "memory": [
+                  {}
+                ],
+                "volume": [
+                  {},
+                  {}
+                ]
+              }
+            ],
             "token": true
           }
         },
@@ -96,14 +148,14 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 1,
           "values": {
-            "agent_id": "9cd3c7d2-75fb-4ad0-acba-40ae78434154",
+            "agent_id": "baa57f58-60fb-4490-9f11-1f7e17ae698a",
             "command": null,
             "display_name": null,
             "external": false,
             "healthcheck": [],
             "hidden": false,
             "icon": null,
-            "id": "c267f275-9d8b-40da-a78b-cc3ad0cc4e94",
+            "id": "9e46f6e5-72c3-4502-b0f8-36bcec12baba",
             "open_in": "slim-window",
             "order": null,
             "share": "owner",
@@ -126,7 +178,7 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 1,
           "values": {
-            "agent_id": "9cd3c7d2-75fb-4ad0-acba-40ae78434154",
+            "agent_id": "baa57f58-60fb-4490-9f11-1f7e17ae698a",
             "command": null,
             "display_name": null,
             "external": false,
@@ -139,7 +191,7 @@
             ],
             "hidden": false,
             "icon": null,
-            "id": "dd509891-e05b-4f3c-b860-bd240b4771f8",
+            "id": "e3591c31-401b-44c6-bbba-df36d02199c8",
             "open_in": "slim-window",
             "order": null,
             "share": "owner",
@@ -157,64 +209,19 @@
           ]
         },
         {
-          "address": "coder_app.app3",
-          "mode": "managed",
-          "type": "coder_app",
-          "name": "app3",
-          "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 1,
-          "values": {
-            "agent_id": "37b0b6fd-6f9e-4ad4-a273-6c4334d4bc02",
-            "command": null,
-            "display_name": null,
-            "external": false,
-            "healthcheck": [],
-            "hidden": false,
-            "icon": null,
-            "id": "7b2bf8ad-c1ec-445d-acad-cfd046d6b950",
-            "open_in": "slim-window",
-            "order": null,
-            "share": "owner",
-            "slug": "app3",
-            "subdomain": false,
-            "url": null
-          },
-          "sensitive_values": {
-            "healthcheck": []
-          },
-          "depends_on": [
-            "coder_agent.dev2"
-          ]
-        },
-        {
-          "address": "null_resource.dev1",
+          "address": "null_resource.dev",
           "mode": "managed",
           "type": "null_resource",
-          "name": "dev1",
+          "name": "dev",
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "8605362455735888550",
+            "id": "4101480329869104281",
             "triggers": null
           },
           "sensitive_values": {},
           "depends_on": [
-            "coder_agent.dev1"
-          ]
-        },
-        {
-          "address": "null_resource.dev2",
-          "mode": "managed",
-          "type": "null_resource",
-          "name": "dev2",
-          "provider_name": "registry.terraform.io/hashicorp/null",
-          "schema_version": 0,
-          "values": {
-            "id": "2566554723161358367",
-            "triggers": null
-          },
-          "sensitive_values": {},
-          "depends_on": [
+            "coder_agent.dev1",
             "coder_agent.dev2"
           ]
         }
