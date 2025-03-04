@@ -178,6 +178,7 @@ func TestSMTPDispatch(t *testing.T) {
 	// WHEN: a message is enqueued
 	msgID, err := enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{}, "test")
 	require.NoError(t, err)
+	require.Len(t, msgID, 2)
 
 	mgr.Run(ctx)
 
@@ -548,6 +549,7 @@ func TestExpiredLeaseIsRequeued(t *testing.T) {
 		ids, err := enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted,
 			map[string]string{"type": "success", "index": fmt.Sprintf("%d", i)}, "test")
 		require.NoError(t, err)
+		require.Len(t, ids, 2)
 		msgs = append(msgs, ids[0].String(), ids[1].String())
 	}
 
@@ -785,6 +787,10 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 					"name":      "bobby-workspace",
 					"reason":    "autodeleted due to dormancy",
 					"initiator": "autobuild",
+				},
+				Targets: []uuid.UUID{
+					uuid.MustParse("5c6ea841-ca63-46cc-9c37-78734c7a788b"),
+					uuid.MustParse("b8355e3a-f3c5-4dd1-b382-7eb1fae7db52"),
 				},
 			},
 		},
@@ -1317,6 +1323,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				)
 				require.NoError(t, err)
 
+				tc.payload.Targets = append(tc.payload.Targets, user.ID)
 				_, err = smtpEnqueuer.EnqueueWithData(
 					ctx,
 					user.ID,
@@ -1324,7 +1331,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 					tc.payload.Labels,
 					tc.payload.Data,
 					user.Username,
-					user.ID,
+					tc.payload.Targets...,
 				)
 				require.NoError(t, err)
 

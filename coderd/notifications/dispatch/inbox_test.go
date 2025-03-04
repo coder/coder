@@ -20,7 +20,7 @@ import (
 func TestInbox(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true, IgnoredErrorIs: []error{}}).Leveled(slog.LevelDebug)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	tests := []struct {
 		name          string
 		msgID         uuid.UUID
@@ -73,6 +73,8 @@ func TestInbox(t *testing.T) {
 			t.Parallel()
 
 			db, _ := dbtestutil.NewDB(t)
+			dbtestutil.DisableForeignKeysAndTriggers(t, db)
+
 			ctx := context.Background()
 
 			handler := dispatch.NewInboxHandler(logger.Named("smtp"), db)
@@ -83,17 +85,14 @@ func TestInbox(t *testing.T) {
 
 			if tc.expectedErr != "" {
 				require.ErrorContains(t, err, tc.expectedErr)
-				if tc.expectedRetry {
-					require.True(t, retryable)
-				} else {
-					require.False(t, retryable)
-				}
+				require.Equal(t, tc.expectedRetry, retryable)
 			} else {
 				require.NoError(t, err)
 				require.False(t, retryable)
 				uid := uuid.MustParse(tc.payload.UserID)
 				notifs, err := db.GetInboxNotificationsByUserID(ctx, database.GetInboxNotificationsByUserIDParams{
-					UserID: uid,
+					UserID:     uid,
+					ReadStatus: database.InboxNotificationReadStatusAll,
 				})
 
 				require.NoError(t, err)

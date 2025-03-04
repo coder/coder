@@ -86,6 +86,9 @@ func (s *StoreEnqueuer) EnqueueWithData(ctx context.Context, userID, templateID 
 	}
 
 	uuids := make([]uuid.UUID, 0, 2)
+	// All the enqueued messages are enqueued both on the dispatch method set by the user (or default one) and the inbox.
+	// As the inbox is not configurable per the user and is always enabled, we always enqueue the message on the inbox.
+	// The logic is done here in order to have two completely separated processing and retries are handled separately.
 	for _, method := range []database.NotificationMethod{dispatchMethod, database.NotificationMethodInbox} {
 		id := uuid.New()
 		err = s.store.EnqueueNotificationMessage(ctx, database.EnqueueNotificationMessageParams{

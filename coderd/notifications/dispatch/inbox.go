@@ -17,17 +17,17 @@ import (
 	markdown "github.com/coder/coder/v2/coderd/render"
 )
 
-type inboxStore interface {
+type InboxStore interface {
 	InsertInboxNotification(ctx context.Context, arg database.InsertInboxNotificationParams) (database.InboxNotification, error)
 }
 
-// InboxHandler is responsible for dispatching notification messages in the Coder Inbox.
+// InboxHandler is responsible for dispatching notification messages to the Coder Inbox.
 type InboxHandler struct {
 	log   slog.Logger
-	store inboxStore
+	store InboxStore
 }
 
-func NewInboxHandler(log slog.Logger, store inboxStore) *InboxHandler {
+func NewInboxHandler(log slog.Logger, store InboxStore) *InboxHandler {
 	return &InboxHandler{log: log, store: store}
 }
 
