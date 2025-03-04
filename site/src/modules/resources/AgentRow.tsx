@@ -211,8 +211,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 								sshPrefix={sshPrefix}
 							/>
 						)}
-						{proxy.preferredWildcardHostname &&
-							proxy.preferredWildcardHostname !== "" &&
+						{proxy.preferredWildcardHostname !== "" &&
 							agent.display_apps.includes("port_forwarding_helper") && (
 								<PortForwardButton
 									host={proxy.preferredWildcardHostname}
@@ -289,7 +288,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 									key={container.id}
 									container={container}
 									workspace={workspace}
-									host={proxy.preferredWildcardHostname || window.location.host}
+									wildcardHostname={proxy.preferredWildcardHostname}
 									agentName={agent.name}
 								/>
 							);

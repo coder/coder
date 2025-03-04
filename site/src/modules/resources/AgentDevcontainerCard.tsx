@@ -10,7 +10,7 @@ import { TerminalLink } from "./TerminalLink/TerminalLink";
 type AgentDevcontainerCardProps = {
 	container: WorkspaceAgentDevcontainer;
 	workspace: Workspace;
-	host: string;
+	wildcardHostname: string;
 	agentName: string;
 };
 
@@ -18,7 +18,7 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 	container,
 	workspace,
 	agentName,
-	host,
+	wildcardHostname,
 }) => {
 	return (
 		<section
@@ -45,28 +45,29 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 					containerName={container.name}
 					userName={workspace.owner_name}
 				/>
-				{container.ports.map((port) => {
-					return (
-						<Link
-							key={port.port}
-							color="inherit"
-							component={AgentButton}
-							underline="none"
-							startIcon={<ExternalLinkIcon className="size-icon-sm" />}
-							href={portForwardURL(
-								host,
-								port.port,
-								agentName,
-								workspace.name,
-								workspace.owner_name,
-								location.protocol === "https" ? "https" : "http",
-							)}
-						>
-							{port.process_name ||
-								`${port.port}/${port.network.toUpperCase()}`}
-						</Link>
-					);
-				})}
+				{wildcardHostname !== "" &&
+					container.ports.map((port) => {
+						return (
+							<Link
+								key={port.port}
+								color="inherit"
+								component={AgentButton}
+								underline="none"
+								startIcon={<ExternalLinkIcon className="size-icon-sm" />}
+								href={portForwardURL(
+									wildcardHostname,
+									port.port,
+									agentName,
+									workspace.name,
+									workspace.owner_name,
+									location.protocol === "https" ? "https" : "http",
+								)}
+							>
+								{port.process_name ||
+									`${port.port}/${port.network.toUpperCase()}`}
+							</Link>
+						);
+					})}
 			</div>
 		</section>
 	);
