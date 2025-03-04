@@ -113,12 +113,8 @@ export const AgentDevcontainerSSHButton: FC<
 				<ol style={{ margin: 0, padding: 0 }}>
 					<Stack spacing={0.5} css={styles.codeExamples}>
 						<SSHStep
-							helpText="Configure SSH hosts on machine:"
-							codeExample="coder config-ssh"
-						/>
-						<SSHStep
-							helpText="Connect to the agent:"
-							codeExample={`ssh ${workspace} -c ${container}`}
+							helpText="Connect to the container:"
+							codeExample={`coder ssh ${workspace} -c ${container}`}
 						/>
 					</Stack>
 				</ol>
