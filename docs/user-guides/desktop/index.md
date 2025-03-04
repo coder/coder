@@ -3,7 +3,7 @@
 Use Coder Desktop to work on your workspaces as though they're on your LAN, no
 port-forwarding required.
 
-> ⚠️ Note: Coder Desktop requires a Coder deployment running v2.20.0 or later.
+> ⚠️ Note: Coder Desktop requires a Coder deployment running [v2.20.0](https://github.com/coder/coder/releases/tag/v2.20.0) or later.
 
 ## Install Coder Desktop
 
