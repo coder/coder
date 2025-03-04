@@ -306,6 +306,8 @@ const TerminalPage: FC = () => {
 		workspace.error,
 		workspace.isLoading,
 		workspaceAgent,
+		containerName,
+		containerUser,
 	]);
 
 	return (

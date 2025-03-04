@@ -23,7 +23,6 @@ export const terminalWebsocketUrl = async (
 		query.set("container_user", containerUser);
 	}
 
-
 	const url = new URL(baseUrl || `${location.protocol}//${location.host}`);
 	url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
 	if (!url.pathname.endsWith("/")) {
