@@ -11,6 +11,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"tailscale.com/types/ptr"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -120,7 +122,7 @@ func TestNoReconciliationActionsIfNoPrebuilds(t *testing.T) {
 	require.Empty(t, jobs)
 }
 
-func TestPrebuildCreation(t *testing.T) {
+func TestPrebuildReconciliation(t *testing.T) {
 	t.Parallel()
 
 	if !dbtestutil.WillUsePostgres() {
@@ -131,8 +133,9 @@ func TestPrebuildCreation(t *testing.T) {
 		name                      string
 		prebuildLatestTransitions []database.WorkspaceTransition
 		prebuildJobStatuses       []database.ProvisionerJobStatus
-		templateVersionActive     bool
-		shouldCreateNewPrebuild   bool
+		templateVersionActive     []bool
+		shouldCreateNewPrebuild   *bool
+		shouldDeleteOldPrebuild   *bool
 	}
 
 	testCases := []testCase{
@@ -147,27 +150,12 @@ func TestPrebuildCreation(t *testing.T) {
 				database.ProvisionerJobStatusSucceeded,
 				database.ProvisionerJobStatusCanceled,
 				database.ProvisionerJobStatusFailed,
-				// database.ProvisionerJobStatusPending, // fails because it tries to delete an active build
-				// database.ProvisionerJobStatusRunning, // fails because it tries to delete an active build
-				// database.ProvisionerJobStatusCanceling, // fails because it tries to delete an active build
+				database.ProvisionerJobStatusPending,
+				database.ProvisionerJobStatusRunning,
+				database.ProvisionerJobStatusCanceling,
 			},
-			templateVersionActive:   false,
-			shouldCreateNewPrebuild: false,
-		},
-		{
-			name: "never attempt to interfere with active builds",
-			prebuildLatestTransitions: []database.WorkspaceTransition{
-				database.WorkspaceTransitionStart,
-				database.WorkspaceTransitionStop,
-				database.WorkspaceTransitionDelete,
-			},
-			prebuildJobStatuses: []database.ProvisionerJobStatus{
-				// database.ProvisionerJobStatusPending, // fails because it tries to delete an active build
-				// database.ProvisionerJobStatusRunning, // fails because it tries to delete an active build
-				// database.ProvisionerJobStatusCanceling, // fails because it tries to delete an active build
-			},
-			templateVersionActive:   true,
-			shouldCreateNewPrebuild: false,
+			templateVersionActive:   []bool{false},
+			shouldCreateNewPrebuild: ptr.To(false),
 		},
 		{
 			name: "no need to replace an already running prebuild",
@@ -177,20 +165,35 @@ func TestPrebuildCreation(t *testing.T) {
 			prebuildJobStatuses: []database.ProvisionerJobStatus{
 				database.ProvisionerJobStatusSucceeded,
 			},
-			templateVersionActive:   true,
-			shouldCreateNewPrebuild: false,
+			templateVersionActive:   []bool{true},
+			shouldCreateNewPrebuild: ptr.To(false),
 		},
 		{
-			name: "if a prebuild was stopped or deleted, create a new one",
+			name: "don't replace prebuilds that are queued to build or already building",
+			prebuildLatestTransitions: []database.WorkspaceTransition{
+				database.WorkspaceTransitionStart,
+			},
+			prebuildJobStatuses: []database.ProvisionerJobStatus{
+				database.ProvisionerJobStatusPending,
+				database.ProvisionerJobStatusRunning,
+			},
+			templateVersionActive:   []bool{true},
+			shouldCreateNewPrebuild: ptr.To(false),
+		},
+		{
+			name: "replace prebuilds that are in unexpected or exceptional states",
 			prebuildLatestTransitions: []database.WorkspaceTransition{
 				database.WorkspaceTransitionStop,
 				database.WorkspaceTransitionDelete,
 			},
 			prebuildJobStatuses: []database.ProvisionerJobStatus{
+				database.ProvisionerJobStatusPending,
+				database.ProvisionerJobStatusRunning,
+				database.ProvisionerJobStatusCanceling,
 				database.ProvisionerJobStatusSucceeded,
 			},
-			templateVersionActive:   true,
-			shouldCreateNewPrebuild: true,
+			templateVersionActive:   []bool{true},
+			shouldCreateNewPrebuild: ptr.To(true),
 		},
 		{
 			name: "replace prebuilds that are in any kind of exceptional state",
@@ -203,94 +206,9 @@ func TestPrebuildCreation(t *testing.T) {
 				database.ProvisionerJobStatusCanceled,
 				database.ProvisionerJobStatusFailed,
 			},
-			templateVersionActive:   true,
-			shouldCreateNewPrebuild: true,
+			templateVersionActive:   []bool{true},
+			shouldCreateNewPrebuild: ptr.To(true),
 		},
-	}
-	for _, tc := range testCases {
-		for _, prebuildLatestTransition := range tc.prebuildLatestTransitions {
-			for _, prebuildJobStatus := range tc.prebuildJobStatuses {
-				t.Run(fmt.Sprintf("%s - %s - %s", tc.name, prebuildLatestTransition, prebuildJobStatus), func(t *testing.T) {
-					t.Parallel()
-					ctx := testutil.Context(t, testutil.WaitShort)
-					db, pubsub := dbtestutil.NewDB(t)
-					cfg := codersdk.PrebuildsConfig{}
-					logger := testutil.Logger(t)
-					controller := NewController(db, pubsub, cfg, logger)
-
-					orgID, userID, templateID := setupTestDBTemplate(t, db)
-					templateVersionID := setupTestDBTemplateVersion(
-						t,
-						ctx,
-						db,
-						pubsub,
-						orgID,
-						userID,
-						templateID,
-					)
-					_, prebuildID := setupTestDBPrebuild(
-						t,
-						ctx,
-						db,
-						pubsub,
-						prebuildLatestTransition,
-						prebuildJobStatus,
-						orgID,
-						templateID,
-						templateVersionID,
-					)
-
-					if !tc.templateVersionActive {
-						// Create a new template version and mark it as active
-						// This marks the template version that we care about as inactive
-						setupTestDBTemplateVersion(
-							t,
-							ctx,
-							db,
-							pubsub,
-							orgID,
-							userID,
-							templateID,
-						)
-					}
-
-					// Run the reconciliation multiple times to ensure idempotency
-					// 8 was arbitrary, but large enough to reasonably trust the result
-					for range 8 {
-						controller.reconcile(ctx, nil)
-
-						createdNewPrebuild := false
-						workspaces, err := db.GetWorkspacesByTemplateID(ctx, templateID)
-						require.NoError(t, err)
-						for _, workspace := range workspaces {
-							if workspace.ID != prebuildID {
-								createdNewPrebuild = true
-							}
-						}
-						require.Equal(t, tc.shouldCreateNewPrebuild, createdNewPrebuild)
-					}
-				})
-			}
-		}
-	}
-}
-
-func TestPrebuildDeletion(t *testing.T) {
-	t.Parallel()
-
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres")
-	}
-
-	type testCase struct {
-		name                      string
-		prebuildLatestTransitions []database.WorkspaceTransition
-		prebuildJobStatuses       []database.ProvisionerJobStatus
-		templateVersionActive     bool
-		shouldDeleteOldPrebuild   bool
-	}
-
-	testCases := []testCase{
 		{
 			name: "never attempt to interfere with active builds for active template versions",
 			prebuildLatestTransitions: []database.WorkspaceTransition{
@@ -299,27 +217,12 @@ func TestPrebuildDeletion(t *testing.T) {
 				database.WorkspaceTransitionDelete,
 			},
 			prebuildJobStatuses: []database.ProvisionerJobStatus{
-				// database.ProvisionerJobStatusPending, // fails because it tries to delete an active build
-				// database.ProvisionerJobStatusRunning, // fails because it tries to delete an active build
-				// database.ProvisionerJobStatusCanceling, // fails because it tries to delete an active build
+				database.ProvisionerJobStatusPending,
+				database.ProvisionerJobStatusRunning,
+				database.ProvisionerJobStatusCanceling,
 			},
-			templateVersionActive:   true,
-			shouldDeleteOldPrebuild: false,
-		},
-		{
-			name: "never attempt to interfere with active builds for inactive template versions",
-			prebuildLatestTransitions: []database.WorkspaceTransition{
-				database.WorkspaceTransitionStart,
-				database.WorkspaceTransitionStop,
-				database.WorkspaceTransitionDelete,
-			},
-			prebuildJobStatuses: []database.ProvisionerJobStatus{
-				// database.ProvisionerJobStatusPending, // fails because it tries to delete an active build
-				// database.ProvisionerJobStatusRunning, // fails because it tries to delete an active build
-				// database.ProvisionerJobStatusCanceling, // fails because it tries to delete an active build
-			},
-			templateVersionActive:   false,
-			shouldDeleteOldPrebuild: false,
+			templateVersionActive:   []bool{true, false},
+			shouldDeleteOldPrebuild: ptr.To(false),
 		},
 		{
 			name: "never delete prebuilds in an exceptional state for active template versions",
@@ -332,33 +235,19 @@ func TestPrebuildDeletion(t *testing.T) {
 				database.ProvisionerJobStatusCanceled,
 				database.ProvisionerJobStatusFailed,
 			},
-			templateVersionActive:   true,
-			shouldDeleteOldPrebuild: false,
+			templateVersionActive:   []bool{true, false},
+			shouldDeleteOldPrebuild: ptr.To(false),
 		},
 		{
-			name: "never delete prebuilds in an exceptional state for inactive template versions",
+			name: "delete running prebuilds for inactive template versions",
 			prebuildLatestTransitions: []database.WorkspaceTransition{
 				database.WorkspaceTransitionStart,
-				database.WorkspaceTransitionStop,
-				database.WorkspaceTransitionDelete,
-			},
-			prebuildJobStatuses: []database.ProvisionerJobStatus{
-				database.ProvisionerJobStatusCanceled,
-				database.ProvisionerJobStatusFailed,
-			},
-			templateVersionActive:   false,
-			shouldDeleteOldPrebuild: false,
-		},
-		{
-			name:                      "delete running prebuilds for inactive template versions",
-			prebuildLatestTransitions: []database.WorkspaceTransition{
-				// database.WorkspaceTransitionStart, // TODO (sasswart): why does this fail?
 			},
 			prebuildJobStatuses: []database.ProvisionerJobStatus{
 				database.ProvisionerJobStatusSucceeded,
 			},
-			templateVersionActive:   false,
-			shouldDeleteOldPrebuild: true,
+			templateVersionActive:   []bool{false},
+			shouldDeleteOldPrebuild: ptr.To(true),
 		},
 		{
 			name: "don't delete running prebuilds for active template versions",
@@ -368,8 +257,8 @@ func TestPrebuildDeletion(t *testing.T) {
 			prebuildJobStatuses: []database.ProvisionerJobStatus{
 				database.ProvisionerJobStatusSucceeded,
 			},
-			templateVersionActive:   true,
-			shouldDeleteOldPrebuild: false,
+			templateVersionActive:   []bool{true},
+			shouldDeleteOldPrebuild: ptr.To(false),
 		},
 		{
 			name: "don't delete stopped or already deleted prebuilds for inactive template versions",
@@ -380,59 +269,24 @@ func TestPrebuildDeletion(t *testing.T) {
 			prebuildJobStatuses: []database.ProvisionerJobStatus{
 				database.ProvisionerJobStatusSucceeded,
 			},
-			templateVersionActive:   false,
-			shouldDeleteOldPrebuild: false,
-		},
-		{
-			name: "don't delete stopped or already deleted prebuilds for active template versions",
-			prebuildLatestTransitions: []database.WorkspaceTransition{
-				database.WorkspaceTransitionStop,
-				database.WorkspaceTransitionDelete,
-			},
-			prebuildJobStatuses: []database.ProvisionerJobStatus{
-				database.ProvisionerJobStatusSucceeded,
-			},
-			templateVersionActive:   true,
-			shouldDeleteOldPrebuild: false,
+			templateVersionActive:   []bool{true, false},
+			shouldDeleteOldPrebuild: ptr.To(false),
 		},
 	}
 	for _, tc := range testCases {
-		for _, prebuildLatestTransition := range tc.prebuildLatestTransitions {
-			for _, prebuildJobStatus := range tc.prebuildJobStatuses {
-				t.Run(fmt.Sprintf("%s - %s - %s", tc.name, prebuildLatestTransition, prebuildJobStatus), func(t *testing.T) {
-					t.Parallel()
-					ctx := testutil.Context(t, testutil.WaitShort)
-					db, pubsub := dbtestutil.NewDB(t)
-					cfg := codersdk.PrebuildsConfig{}
-					logger := testutil.Logger(t)
-					controller := NewController(db, pubsub, cfg, logger)
+		for _, templateVersionActive := range tc.templateVersionActive {
+			for _, prebuildLatestTransition := range tc.prebuildLatestTransitions {
+				for _, prebuildJobStatus := range tc.prebuildJobStatuses {
+					t.Run(fmt.Sprintf("%s - %s - %s", tc.name, prebuildLatestTransition, prebuildJobStatus), func(t *testing.T) {
+						t.Parallel()
+						ctx := testutil.Context(t, testutil.WaitShort)
+						db, pubsub := dbtestutil.NewDB(t)
+						cfg := codersdk.PrebuildsConfig{}
+						logger := testutil.Logger(t)
+						controller := NewController(db, pubsub, cfg, logger)
 
-					orgID, userID, templateID := setupTestDBTemplate(t, db)
-					templateVersionID := setupTestDBTemplateVersion(
-						t,
-						ctx,
-						db,
-						pubsub,
-						orgID,
-						userID,
-						templateID,
-					)
-					_, prebuildID := setupTestDBPrebuild(
-						t,
-						ctx,
-						db,
-						pubsub,
-						prebuildLatestTransition,
-						prebuildJobStatus,
-						orgID,
-						templateID,
-						templateVersionID,
-					)
-
-					if !tc.templateVersionActive {
-						// Create a new template version and mark it as active
-						// This marks the template version that we care about as inactive
-						setupTestDBTemplateVersion(
+						orgID, userID, templateID := setupTestDBTemplate(t, db)
+						templateVersionID := setupTestDBTemplateVersion(
 							t,
 							ctx,
 							db,
@@ -441,24 +295,51 @@ func TestPrebuildDeletion(t *testing.T) {
 							userID,
 							templateID,
 						)
-					}
+						_, prebuildID := setupTestDBPrebuild(
+							t,
+							ctx,
+							db,
+							pubsub,
+							prebuildLatestTransition,
+							prebuildJobStatus,
+							orgID,
+							templateID,
+							templateVersionID,
+						)
 
-					// Run the reconciliation multiple times to ensure idempotency
-					// 8 was arbitrary, but large enough to reasonably trust the result
-					for range 8 {
-						controller.reconcile(ctx, nil)
+						if !templateVersionActive {
+							// Create a new template version and mark it as active
+							// This marks the template version that we care about as inactive
+							setupTestDBTemplateVersion(
+								t,
+								ctx,
+								db,
+								pubsub,
+								orgID,
+								userID,
+								templateID,
+							)
+						}
 
-						deletedOldPrebuild := true
-						workspaces, err := db.GetWorkspacesByTemplateID(ctx, templateID)
-						require.NoError(t, err)
-						for _, workspace := range workspaces {
-							if workspace.ID == prebuildID {
-								deletedOldPrebuild = false
+						// Run the reconciliation multiple times to ensure idempotency
+						// 8 was arbitrary, but large enough to reasonably trust the result
+						for range 8 {
+							controller.reconcile(ctx, nil)
+
+							if tc.shouldCreateNewPrebuild != nil {
+								createdNewPrebuild := false
+								workspaces, err := db.GetWorkspacesByTemplateID(ctx, templateID)
+								require.NoError(t, err)
+								for _, workspace := range workspaces {
+									if workspace.ID != prebuildID {
+										createdNewPrebuild = true
+									}
+								}
+								require.Equal(t, *tc.shouldCreateNewPrebuild, createdNewPrebuild)
 							}
 						}
-						require.Equal(t, tc.shouldDeleteOldPrebuild, deletedOldPrebuild)
-					}
-				})
+					})
+				}
 			}
 		}
 	}
