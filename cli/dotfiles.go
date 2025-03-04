@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -186,21 +187,28 @@ func (r *RootCmd) dotfiles() *serpent.Command {
 
 				_, _ = fmt.Fprintf(inv.Stdout, "Running %s...\n", script)
 
-				// Check if the script is executable and notify on error
 				scriptPath := filepath.Join(dotfilesDir, script)
-				fi, err := os.Stat(scriptPath)
-				if err != nil {
-					return xerrors.Errorf("stat %s: %w", scriptPath, err)
-				}
 
-				if fi.Mode()&0o111 == 0 {
-					return xerrors.Errorf("script %q does not have execute permissions", script)
+				// Permissions checks will always fail on Windows, since it doesn't have
+				// conventional Unix file system permissions.
+				if runtime.GOOS != "windows" {
+					// Check if the script is executable and notify on error
+					fi, err := os.Stat(scriptPath)
+					if err != nil {
+						return xerrors.Errorf("stat %s: %w", scriptPath, err)
+					}
+					if fi.Mode()&0o111 == 0 {
+						return xerrors.Errorf("script %q does not have execute permissions", script)
+					}
 				}
 
 				// it is safe to use a variable command here because it's from
 				// a filtered list of pre-approved install scripts
 				// nolint:gosec
-				scriptCmd := exec.CommandContext(inv.Context(), filepath.Join(dotfilesDir, script))
+				scriptCmd := exec.CommandContext(inv.Context(), scriptPath)
+				if runtime.GOOS == "windows" {
+					scriptCmd = exec.CommandContext(inv.Context(), "powershell", "-NoLogo", scriptPath)
+				}
 				scriptCmd.Dir = dotfilesDir
 				scriptCmd.Stdout = inv.Stdout
 				scriptCmd.Stderr = inv.Stderr
