@@ -16,6 +16,11 @@
 					"title": "Screenshots",
 					"description": "View screenshots of the Coder platform",
 					"path": "./start/screenshots.md"
+				},
+				{
+					"title": "Feature stages",
+					"description": "Information about pre-GA stages.",
+					"path": "./about/feature-stages.md"
 				}
 			]
 		},
@@ -638,12 +643,6 @@
 					"description": "See the code of conduct for contributing to Coder",
 					"path": "./contributing/CODE_OF_CONDUCT.md",
 					"icon_path": "./images/icons/circle-dot.svg"
-				},
-				{
-					"title": "Feature stages",
-					"description": "Policies for Alpha and Experimental features.",
-					"path": "./contributing/feature-stages.md",
-					"icon_path": "./images/icons/stairs.svg"
 				},
 				{
 					"title": "Documentation",

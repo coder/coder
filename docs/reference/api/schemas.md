@@ -5109,6 +5109,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `read`                |
 | `read_personal`       |
 | `ssh`                 |
+| `unassign`            |
 | `update`              |
 | `update_personal`     |
 | `use`                 |
@@ -5141,6 +5142,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `group`                            |
 | `group_member`                     |
 | `idpsync_settings`                 |
+| `inbox_notification`               |
 | `license`                          |
 | `notification_message`             |
 | `notification_preference`          |

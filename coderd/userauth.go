@@ -922,7 +922,17 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if len(selectedMemberships) == 0 {
-			httpmw.CustomRedirectToLogin(rw, r, redirect, "You aren't a member of the authorized Github organizations!", http.StatusUnauthorized)
+			status := http.StatusUnauthorized
+			msg := "You aren't a member of the authorized Github organizations!"
+			if api.GithubOAuth2Config.DeviceFlowEnabled {
+				// In the device flow, the error is rendered client-side.
+				httpapi.Write(ctx, rw, status, codersdk.Response{
+					Message: "Unauthorized",
+					Detail:  msg,
+				})
+			} else {
+				httpmw.CustomRedirectToLogin(rw, r, redirect, msg, status)
+			}
 			return
 		}
 	}
@@ -959,7 +969,17 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if allowedTeam == nil {
-			httpmw.CustomRedirectToLogin(rw, r, redirect, fmt.Sprintf("You aren't a member of an authorized team in the %v Github organization(s)!", organizationNames), http.StatusUnauthorized)
+			msg := fmt.Sprintf("You aren't a member of an authorized team in the %v Github organization(s)!", organizationNames)
+			status := http.StatusUnauthorized
+			if api.GithubOAuth2Config.DeviceFlowEnabled {
+				// In the device flow, the error is rendered client-side.
+				httpapi.Write(ctx, rw, status, codersdk.Response{
+					Message: "Unauthorized",
+					Detail:  msg,
+				})
+			} else {
+				httpmw.CustomRedirectToLogin(rw, r, redirect, msg, status)
+			}
 			return
 		}
 	}

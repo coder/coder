@@ -41,22 +41,23 @@ import (
 
 func (r *RootCmd) workspaceAgent() *serpent.Command {
 	var (
-		auth                 string
-		logDir               string
-		scriptDataDir        string
-		pprofAddress         string
-		noReap               bool
-		sshMaxTimeout        time.Duration
-		tailnetListenPort    int64
-		prometheusAddress    string
-		debugAddress         string
-		slogHumanPath        string
-		slogJSONPath         string
-		slogStackdriverPath  string
-		blockFileTransfer    bool
-		agentHeaderCommand   string
-		agentHeader          []string
-		devcontainersEnabled bool
+		auth                string
+		logDir              string
+		scriptDataDir       string
+		pprofAddress        string
+		noReap              bool
+		sshMaxTimeout       time.Duration
+		tailnetListenPort   int64
+		prometheusAddress   string
+		debugAddress        string
+		slogHumanPath       string
+		slogJSONPath        string
+		slogStackdriverPath string
+		blockFileTransfer   bool
+		agentHeaderCommand  string
+		agentHeader         []string
+
+		experimentalDevcontainersEnabled bool
 	)
 	cmd := &serpent.Command{
 		Use:   "agent",
@@ -321,7 +322,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			}
 
 			var containerLister agentcontainers.Lister
-			if !devcontainersEnabled {
+			if !experimentalDevcontainersEnabled {
 				logger.Info(ctx, "agent devcontainer detection not enabled")
 				containerLister = &agentcontainers.NoopLister{}
 			} else {
@@ -383,7 +384,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 					BlockFileTransfer:             blockFileTransfer,
 					Execer:                        execer,
 					ContainerLister:               containerLister,
-					ExperimentalContainersEnabled: devcontainersEnabled,
+					ExperimentalDevcontainersEnabled: experimentalDevcontainersEnabled,
 				})
 
 				promHandler := agent.PrometheusMetricsHandler(prometheusRegistry, logger)
@@ -528,7 +529,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			Default:     "false",
 			Env:         "CODER_AGENT_DEVCONTAINERS_ENABLE",
 			Description: "Allow the agent to automatically detect running devcontainers.",
-			Value:       serpent.BoolOf(&devcontainersEnabled),
+			Value:       serpent.BoolOf(&experimentalDevcontainersEnabled),
 		},
 	}
 

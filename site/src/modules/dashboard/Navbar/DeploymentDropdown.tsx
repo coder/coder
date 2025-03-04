@@ -82,7 +82,7 @@ const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
 			{canViewDeployment && (
 				<MenuItem
 					component={NavLink}
-					to="/deployment/general"
+					to="/deployment"
 					css={styles.menuItem}
 					onClick={onPopoverClose}
 				>

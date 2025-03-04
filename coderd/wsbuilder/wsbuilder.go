@@ -831,6 +831,15 @@ func (b *Builder) authorize(authFunc func(action policy.Action, object rbac.Obje
 		return BuildError{http.StatusBadRequest, msg, xerrors.New(msg)}
 	}
 	if !authFunc(action, b.workspace) {
+		if authFunc(policy.ActionRead, b.workspace) {
+			// If the user can read the workspace, but not delete/create/update. Show
+			// a more helpful error. They are allowed to know the workspace exists.
+			return BuildError{
+				Status:  http.StatusForbidden,
+				Message: fmt.Sprintf("You do not have permission to %s this workspace.", action),
+				Wrapped: xerrors.New(httpapi.ResourceForbiddenResponse.Detail),
+			}
+		}
 		// We use the same wording as the httpapi to avoid leaking the existence of the workspace
 		return BuildError{http.StatusNotFound, httpapi.ResourceNotFoundResponse.Message, xerrors.New(httpapi.ResourceNotFoundResponse.Message)}
 	}

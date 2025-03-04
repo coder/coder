@@ -453,8 +453,6 @@ export const router = createBrowserRouter(
 								path="notifications"
 								element={<DeploymentNotificationsPage />}
 							/>
-							<Route path="idp-org-sync" element={<IdpOrgSyncPage />} />
-							<Route path="premium" element={<PremiumPage />} />
 						</Route>
 
 						<Route path="licenses">
@@ -476,6 +474,9 @@ export const router = createBrowserRouter(
 						<Route path="users/create" element={<CreateUserPage />} />
 
 						{groupsRouter()}
+
+						<Route path="idp-org-sync" element={<IdpOrgSyncPage />} />
+						<Route path="premium" element={<PremiumPage />} />
 					</Route>
 
 					<Route path="/settings" element={<UserSettingsLayout />}>

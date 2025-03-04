@@ -1867,6 +1867,7 @@ export type RBACAction =
 	| "read"
 	| "read_personal"
 	| "ssh"
+	| "unassign"
 	| "update"
 	| "update_personal"
 	| "use"
@@ -1882,6 +1883,7 @@ export const RBACActions: RBACAction[] = [
 	"read",
 	"read_personal",
 	"ssh",
+	"unassign",
 	"update",
 	"update_personal",
 	"use",
@@ -1904,6 +1906,7 @@ export type RBACResource =
 	| "group"
 	| "group_member"
 	| "idpsync_settings"
+	| "inbox_notification"
 	| "license"
 	| "notification_message"
 	| "notification_preference"
@@ -1939,6 +1942,7 @@ export const RBACResources: RBACResource[] = [
 	"group",
 	"group_member",
 	"idpsync_settings",
+	"inbox_notification",
 	"license",
 	"notification_message",
 	"notification_preference",
@@ -2111,6 +2115,10 @@ export const RoleOrganizationTemplateAdmin = "organization-template-admin";
 
 // From codersdk/rbacroles.go
 export const RoleOrganizationUserAdmin = "organization-user-admin";
+
+// From codersdk/rbacroles.go
+export const RoleOrganizationWorkspaceCreationBan =
+	"organization-workspace-creation-ban";
 
 // From codersdk/rbacroles.go
 export const RoleOwner = "owner";

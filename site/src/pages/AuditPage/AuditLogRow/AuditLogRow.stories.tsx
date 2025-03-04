@@ -159,3 +159,43 @@ export const NoUserAgent: Story = {
 		},
 	},
 };
+
+export const WithConnectionType: Story = {
+	args: {
+		showOrgDetails: true,
+		auditLog: {
+			id: "725ea2f2-faae-4bdd-a821-c2384a67d89c",
+			request_id: "a486c1cb-6acb-41c9-9bce-1f4f24a2e8ff",
+			time: "2025-02-24T10:20:08.054072Z",
+			ip: "fd7a:115c:a1e0:4fa5:9ccd:27e4:5d72:c66a",
+			user_agent: "",
+			resource_type: "workspace_agent",
+			resource_id: "813311fb-bad3-4a92-98cd-09ee57e73d6e",
+			resource_target: "main",
+			resource_icon: "",
+			action: "disconnect",
+			diff: {},
+			status_code: 255,
+			additional_fields: {
+				reason: "process exited with error status: -1",
+				build_number: "1",
+				build_reason: "initiator",
+				workspace_id: "6a7cfb32-d208-47bb-91d0-ec54b69912b6",
+				workspace_name: "test2",
+				connection_type: "SSH",
+				workspace_owner: "admin",
+			},
+			description: "{user} disconnected workspace agent {target}",
+			resource_link: "",
+			is_deleted: false,
+			organization_id: "0e6fa63f-b625-4a6f-ab5b-a8217f8c80b3",
+			organization: {
+				id: "0e6fa63f-b625-4a6f-ab5b-a8217f8c80b3",
+				name: "coder",
+				display_name: "Coder",
+				icon: "",
+			},
+			user: null,
+		},
+	},
+};

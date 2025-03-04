@@ -168,6 +168,12 @@ func (TemplateVersion) RBACObject(template Template) rbac.Object {
 	return template.RBACObject()
 }
 
+func (i InboxNotification) RBACObject() rbac.Object {
+	return rbac.ResourceInboxNotification.
+		WithID(i.ID).
+		WithOwner(i.UserID.String())
+}
+
 // RBACObjectNoTemplate is for orphaned template versions.
 func (v TemplateVersion) RBACObjectNoTemplate() rbac.Object {
 	return rbac.ResourceTemplate.InOrg(v.OrganizationID)

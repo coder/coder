@@ -4298,6 +4298,243 @@ func (q *sqlQuerier) UpsertNotificationReportGeneratorLog(ctx context.Context, a
 	return err
 }
 
+const countUnreadInboxNotificationsByUserID = `-- name: CountUnreadInboxNotificationsByUserID :one
+SELECT COUNT(*) FROM inbox_notifications WHERE user_id = $1 AND read_at IS NULL
+`
+
+func (q *sqlQuerier) CountUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countUnreadInboxNotificationsByUserID, userID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const getFilteredInboxNotificationsByUserID = `-- name: GetFilteredInboxNotificationsByUserID :many
+SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at FROM inbox_notifications WHERE
+	user_id = $1 AND
+	template_id = ANY($2::UUID[]) AND
+	targets @> COALESCE($3, ARRAY[]::UUID[]) AND
+	($4::inbox_notification_read_status = 'all' OR ($4::inbox_notification_read_status = 'unread' AND read_at IS NULL) OR ($4::inbox_notification_read_status = 'read' AND read_at IS NOT NULL)) AND
+	($5::TIMESTAMPTZ = '0001-01-01 00:00:00Z' OR created_at < $5::TIMESTAMPTZ)
+	ORDER BY created_at DESC
+	LIMIT (COALESCE(NULLIF($6 :: INT, 0), 25))
+`
+
+type GetFilteredInboxNotificationsByUserIDParams struct {
+	UserID       uuid.UUID                   `db:"user_id" json:"user_id"`
+	Templates    []uuid.UUID                 `db:"templates" json:"templates"`
+	Targets      []uuid.UUID                 `db:"targets" json:"targets"`
+	ReadStatus   InboxNotificationReadStatus `db:"read_status" json:"read_status"`
+	CreatedAtOpt time.Time                   `db:"created_at_opt" json:"created_at_opt"`
+	LimitOpt     int32                       `db:"limit_opt" json:"limit_opt"`
+}
+
+// Fetches inbox notifications for a user filtered by templates and targets
+// param user_id: The user ID
+// param templates: The template IDs to filter by - the template_id = ANY(@templates::UUID[]) condition checks if the template_id is in the @templates array
+// param targets: The target IDs to filter by - the targets @> COALESCE(@targets, ARRAY[]::UUID[]) condition checks if the targets array (from the DB) contains all the elements in the @targets array
+// param read_status: The read status to filter by - can be any of 'ALL', 'UNREAD', 'READ'
+// param created_at_opt: The created_at timestamp to filter by. This parameter is usd for pagination - it fetches notifications created before the specified timestamp if it is not the zero value
+// param limit_opt: The limit of notifications to fetch. If the limit is not specified, it defaults to 25
+func (q *sqlQuerier) GetFilteredInboxNotificationsByUserID(ctx context.Context, arg GetFilteredInboxNotificationsByUserIDParams) ([]InboxNotification, error) {
+	rows, err := q.db.QueryContext(ctx, getFilteredInboxNotificationsByUserID,
+		arg.UserID,
+		pq.Array(arg.Templates),
+		pq.Array(arg.Targets),
+		arg.ReadStatus,
+		arg.CreatedAtOpt,
+		arg.LimitOpt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []InboxNotification
+	for rows.Next() {
+		var i InboxNotification
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.TemplateID,
+			pq.Array(&i.Targets),
+			&i.Title,
+			&i.Content,
+			&i.Icon,
+			&i.Actions,
+			&i.ReadAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getInboxNotificationByID = `-- name: GetInboxNotificationByID :one
+SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at FROM inbox_notifications WHERE id = $1
+`
+
+func (q *sqlQuerier) GetInboxNotificationByID(ctx context.Context, id uuid.UUID) (InboxNotification, error) {
+	row := q.db.QueryRowContext(ctx, getInboxNotificationByID, id)
+	var i InboxNotification
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.TemplateID,
+		pq.Array(&i.Targets),
+		&i.Title,
+		&i.Content,
+		&i.Icon,
+		&i.Actions,
+		&i.ReadAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getInboxNotificationsByUserID = `-- name: GetInboxNotificationsByUserID :many
+SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at FROM inbox_notifications WHERE
+	user_id = $1 AND
+	($2::inbox_notification_read_status = 'all' OR ($2::inbox_notification_read_status = 'unread' AND read_at IS NULL) OR ($2::inbox_notification_read_status = 'read' AND read_at IS NOT NULL)) AND
+	($3::TIMESTAMPTZ = '0001-01-01 00:00:00Z' OR created_at < $3::TIMESTAMPTZ)
+	ORDER BY created_at DESC
+	LIMIT (COALESCE(NULLIF($4 :: INT, 0), 25))
+`
+
+type GetInboxNotificationsByUserIDParams struct {
+	UserID       uuid.UUID                   `db:"user_id" json:"user_id"`
+	ReadStatus   InboxNotificationReadStatus `db:"read_status" json:"read_status"`
+	CreatedAtOpt time.Time                   `db:"created_at_opt" json:"created_at_opt"`
+	LimitOpt     int32                       `db:"limit_opt" json:"limit_opt"`
+}
+
+// Fetches inbox notifications for a user filtered by templates and targets
+// param user_id: The user ID
+// param read_status: The read status to filter by - can be any of 'ALL', 'UNREAD', 'READ'
+// param created_at_opt: The created_at timestamp to filter by. This parameter is usd for pagination - it fetches notifications created before the specified timestamp if it is not the zero value
+// param limit_opt: The limit of notifications to fetch. If the limit is not specified, it defaults to 25
+func (q *sqlQuerier) GetInboxNotificationsByUserID(ctx context.Context, arg GetInboxNotificationsByUserIDParams) ([]InboxNotification, error) {
+	rows, err := q.db.QueryContext(ctx, getInboxNotificationsByUserID,
+		arg.UserID,
+		arg.ReadStatus,
+		arg.CreatedAtOpt,
+		arg.LimitOpt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []InboxNotification
+	for rows.Next() {
+		var i InboxNotification
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.TemplateID,
+			pq.Array(&i.Targets),
+			&i.Title,
+			&i.Content,
+			&i.Icon,
+			&i.Actions,
+			&i.ReadAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertInboxNotification = `-- name: InsertInboxNotification :one
+INSERT INTO
+    inbox_notifications (
+        id,
+        user_id,
+        template_id,
+        targets,
+        title,
+        content,
+        icon,
+        actions,
+        created_at
+    )
+VALUES
+    ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at
+`
+
+type InsertInboxNotificationParams struct {
+	ID         uuid.UUID       `db:"id" json:"id"`
+	UserID     uuid.UUID       `db:"user_id" json:"user_id"`
+	TemplateID uuid.UUID       `db:"template_id" json:"template_id"`
+	Targets    []uuid.UUID     `db:"targets" json:"targets"`
+	Title      string          `db:"title" json:"title"`
+	Content    string          `db:"content" json:"content"`
+	Icon       string          `db:"icon" json:"icon"`
+	Actions    json.RawMessage `db:"actions" json:"actions"`
+	CreatedAt  time.Time       `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) InsertInboxNotification(ctx context.Context, arg InsertInboxNotificationParams) (InboxNotification, error) {
+	row := q.db.QueryRowContext(ctx, insertInboxNotification,
+		arg.ID,
+		arg.UserID,
+		arg.TemplateID,
+		pq.Array(arg.Targets),
+		arg.Title,
+		arg.Content,
+		arg.Icon,
+		arg.Actions,
+		arg.CreatedAt,
+	)
+	var i InboxNotification
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.TemplateID,
+		pq.Array(&i.Targets),
+		&i.Title,
+		&i.Content,
+		&i.Icon,
+		&i.Actions,
+		&i.ReadAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const updateInboxNotificationReadStatus = `-- name: UpdateInboxNotificationReadStatus :exec
+UPDATE
+    inbox_notifications
+SET
+    read_at = $1
+WHERE
+    id = $2
+`
+
+type UpdateInboxNotificationReadStatusParams struct {
+	ReadAt sql.NullTime `db:"read_at" json:"read_at"`
+	ID     uuid.UUID    `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateInboxNotificationReadStatus(ctx context.Context, arg UpdateInboxNotificationReadStatusParams) error {
+	_, err := q.db.ExecContext(ctx, updateInboxNotificationReadStatus, arg.ReadAt, arg.ID)
+	return err
+}
+
 const deleteOAuth2ProviderAppByID = `-- name: DeleteOAuth2ProviderAppByID :exec
 DELETE FROM oauth2_provider_apps WHERE id = $1
 `
@@ -6170,7 +6407,7 @@ WHERE
 	AND (COALESCE(array_length($3::uuid[], 1), 0) = 0 OR pd.id = ANY($3::uuid[]))
 	AND ($4::tagset = 'null'::tagset OR provisioner_tagset_contains(pd.tags::tagset, $4::tagset))
 ORDER BY
-	pd.created_at ASC
+	pd.created_at DESC
 LIMIT
 	$5::int
 `
@@ -6715,45 +6952,69 @@ func (q *sqlQuerier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUI
 }
 
 const getProvisionerJobsByIDsWithQueuePosition = `-- name: GetProvisionerJobsByIDsWithQueuePosition :many
-WITH pending_jobs AS (
-    SELECT
-        id, created_at
-    FROM
-        provisioner_jobs
-    WHERE
-        started_at IS NULL
-    AND
-        canceled_at IS NULL
-    AND
-        completed_at IS NULL
-    AND
-        error IS NULL
+WITH filtered_provisioner_jobs AS (
+	-- Step 1: Filter provisioner_jobs
+	SELECT
+		id, created_at
+	FROM
+		provisioner_jobs
+	WHERE
+		id = ANY($1 :: uuid [ ]) -- Apply filter early to reduce dataset size before expensive JOIN
 ),
-queue_position AS (
-    SELECT
-        id,
-        ROW_NUMBER() OVER (ORDER BY created_at ASC) AS queue_position
-    FROM
-        pending_jobs
+pending_jobs AS (
+	-- Step 2: Extract only pending jobs
+	SELECT
+		id, created_at, tags
+	FROM
+		provisioner_jobs
+	WHERE
+		job_status = 'pending'
 ),
-queue_size AS (
-	SELECT COUNT(*) AS count FROM pending_jobs
+ranked_jobs AS (
+	-- Step 3: Rank only pending jobs based on provisioner availability
+	SELECT
+		pj.id,
+		pj.created_at,
+		ROW_NUMBER() OVER (PARTITION BY pd.id ORDER BY pj.created_at ASC) AS queue_position,
+		COUNT(*) OVER (PARTITION BY pd.id) AS queue_size
+	FROM
+		pending_jobs pj
+			INNER JOIN provisioner_daemons pd
+					ON provisioner_tagset_contains(pd.tags, pj.tags) -- Join only on the small pending set
+),
+final_jobs AS (
+	-- Step 4: Compute best queue position and max queue size per job
+	SELECT
+		fpj.id,
+		fpj.created_at,
+		COALESCE(MIN(rj.queue_position), 0) :: BIGINT AS queue_position, -- Best queue position across provisioners
+		COALESCE(MAX(rj.queue_size), 0) :: BIGINT AS queue_size -- Max queue size across provisioners
+	FROM
+		filtered_provisioner_jobs fpj -- Use the pre-filtered dataset instead of full provisioner_jobs
+			LEFT JOIN ranked_jobs rj
+					ON fpj.id = rj.id -- Join with the ranking jobs CTE to assign a rank to each specified provisioner job.
+	GROUP BY
+		fpj.id, fpj.created_at
 )
 SELECT
+	-- Step 5: Final SELECT with INNER JOIN provisioner_jobs
+	fj.id,
+	fj.created_at,
 	pj.id, pj.created_at, pj.updated_at, pj.started_at, pj.canceled_at, pj.completed_at, pj.error, pj.organization_id, pj.initiator_id, pj.provisioner, pj.storage_method, pj.type, pj.input, pj.worker_id, pj.file_id, pj.tags, pj.error_code, pj.trace_metadata, pj.job_status,
-    COALESCE(qp.queue_position, 0) AS queue_position,
-    COALESCE(qs.count, 0) AS queue_size
+	fj.queue_position,
+	fj.queue_size
 FROM
-	provisioner_jobs pj
-LEFT JOIN
-	queue_position qp ON qp.id = pj.id
-LEFT JOIN
-	queue_size qs ON TRUE
-WHERE
-	pj.id = ANY($1 :: uuid [ ])
+	final_jobs fj
+		INNER JOIN provisioner_jobs pj
+				ON fj.id = pj.id -- Ensure we retrieve full details from ` + "`" + `provisioner_jobs` + "`" + `.
+                                 -- JOIN with pj is required for sqlc.embed(pj) to compile successfully.
+ORDER BY
+	fj.created_at
 `
 
 type GetProvisionerJobsByIDsWithQueuePositionRow struct {
+	ID             uuid.UUID      `db:"id" json:"id"`
+	CreatedAt      time.Time      `db:"created_at" json:"created_at"`
 	ProvisionerJob ProvisionerJob `db:"provisioner_job" json:"provisioner_job"`
 	QueuePosition  int64          `db:"queue_position" json:"queue_position"`
 	QueueSize      int64          `db:"queue_size" json:"queue_size"`
@@ -6769,6 +7030,8 @@ func (q *sqlQuerier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Contex
 	for rows.Next() {
 		var i GetProvisionerJobsByIDsWithQueuePositionRow
 		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
 			&i.ProvisionerJob.ID,
 			&i.ProvisionerJob.CreatedAt,
 			&i.ProvisionerJob.UpdatedAt,
@@ -8100,25 +8363,25 @@ SELECT
 FROM
 	custom_roles
 WHERE
-  true
-  -- @lookup_roles will filter for exact (role_name, org_id) pairs
-  -- To do this manually in SQL, you can construct an array and cast it:
-  -- cast(ARRAY[('customrole','ece79dac-926e-44ca-9790-2ff7c5eb6e0c')] AS name_organization_pair[])
-  AND CASE WHEN array_length($1 :: name_organization_pair[], 1) > 0  THEN
-    -- Using 'coalesce' to avoid troubles with null literals being an empty string.
-	(name, coalesce(organization_id, '00000000-0000-0000-0000-000000000000' ::uuid)) = ANY ($1::name_organization_pair[])
-    ELSE true
-  END
-  -- This allows fetching all roles, or just site wide roles
-  AND CASE WHEN $2 :: boolean  THEN
-	organization_id IS null
+	true
+	-- @lookup_roles will filter for exact (role_name, org_id) pairs
+	-- To do this manually in SQL, you can construct an array and cast it:
+	-- cast(ARRAY[('customrole','ece79dac-926e-44ca-9790-2ff7c5eb6e0c')] AS name_organization_pair[])
+	AND CASE WHEN array_length($1 :: name_organization_pair[], 1) > 0  THEN
+		-- Using 'coalesce' to avoid troubles with null literals being an empty string.
+		(name, coalesce(organization_id, '00000000-0000-0000-0000-000000000000' ::uuid)) = ANY ($1::name_organization_pair[])
 	ELSE true
-  END
-  -- Allows fetching all roles to a particular organization
-  AND CASE WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid  THEN
-      organization_id = $3
-    ELSE true
-  END
+	END
+	-- This allows fetching all roles, or just site wide roles
+	AND CASE WHEN $2 :: boolean  THEN
+		organization_id IS null
+	ELSE true
+	END
+	-- Allows fetching all roles to a particular organization
+	AND CASE WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid  THEN
+		organization_id = $3
+	ELSE true
+	END
 `
 
 type CustomRolesParams struct {
@@ -8191,16 +8454,16 @@ INSERT INTO
 	updated_at
 )
 VALUES (
-		   -- Always force lowercase names
-		   lower($1),
-		   $2,
-		   $3,
-		   $4,
-		   $5,
-		   $6,
-		   now(),
-		   now()
-	   )
+	-- Always force lowercase names
+	lower($1),
+	$2,
+	$3,
+	$4,
+	$5,
+	$6,
+	now(),
+	now()
+)
 RETURNING name, display_name, site_permissions, org_permissions, user_permissions, created_at, updated_at, organization_id, id
 `
 
@@ -12478,6 +12741,46 @@ func (q *sqlQuerier) FetchMemoryResourceMonitorsByAgentID(ctx context.Context, a
 	return i, err
 }
 
+const fetchMemoryResourceMonitorsUpdatedAfter = `-- name: FetchMemoryResourceMonitorsUpdatedAfter :many
+SELECT
+	agent_id, enabled, threshold, created_at, updated_at, state, debounced_until
+FROM
+	workspace_agent_memory_resource_monitors
+WHERE
+	updated_at > $1
+`
+
+func (q *sqlQuerier) FetchMemoryResourceMonitorsUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]WorkspaceAgentMemoryResourceMonitor, error) {
+	rows, err := q.db.QueryContext(ctx, fetchMemoryResourceMonitorsUpdatedAfter, updatedAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAgentMemoryResourceMonitor
+	for rows.Next() {
+		var i WorkspaceAgentMemoryResourceMonitor
+		if err := rows.Scan(
+			&i.AgentID,
+			&i.Enabled,
+			&i.Threshold,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.State,
+			&i.DebouncedUntil,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const fetchVolumesResourceMonitorsByAgentID = `-- name: FetchVolumesResourceMonitorsByAgentID :many
 SELECT
 	agent_id, enabled, threshold, path, created_at, updated_at, state, debounced_until
@@ -12489,6 +12792,47 @@ WHERE
 
 func (q *sqlQuerier) FetchVolumesResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) ([]WorkspaceAgentVolumeResourceMonitor, error) {
 	rows, err := q.db.QueryContext(ctx, fetchVolumesResourceMonitorsByAgentID, agentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAgentVolumeResourceMonitor
+	for rows.Next() {
+		var i WorkspaceAgentVolumeResourceMonitor
+		if err := rows.Scan(
+			&i.AgentID,
+			&i.Enabled,
+			&i.Threshold,
+			&i.Path,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.State,
+			&i.DebouncedUntil,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const fetchVolumesResourceMonitorsUpdatedAfter = `-- name: FetchVolumesResourceMonitorsUpdatedAfter :many
+SELECT
+	agent_id, enabled, threshold, path, created_at, updated_at, state, debounced_until
+FROM
+	workspace_agent_volume_resource_monitors
+WHERE
+	updated_at > $1
+`
+
+func (q *sqlQuerier) FetchVolumesResourceMonitorsUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]WorkspaceAgentVolumeResourceMonitor, error) {
+	rows, err := q.db.QueryContext(ctx, fetchVolumesResourceMonitorsUpdatedAfter, updatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -16596,13 +16940,11 @@ func (q *sqlQuerier) GetWorkspaceByWorkspaceAppID(ctx context.Context, workspace
 }
 
 const getWorkspaceUniqueOwnerCountByTemplateIDs = `-- name: GetWorkspaceUniqueOwnerCountByTemplateIDs :many
-SELECT
-	template_id, COUNT(DISTINCT owner_id) AS unique_owners_sum
-FROM
-	workspaces
-WHERE
-	template_id = ANY($1 :: uuid[]) AND deleted = false
-GROUP BY template_id
+SELECT templates.id AS template_id, COUNT(DISTINCT workspaces.owner_id) AS unique_owners_sum
+FROM templates
+LEFT JOIN workspaces ON workspaces.template_id = templates.id AND workspaces.deleted = false
+WHERE templates.id = ANY($1 :: uuid[])
+GROUP BY templates.id
 `
 
 type GetWorkspaceUniqueOwnerCountByTemplateIDsRow struct {

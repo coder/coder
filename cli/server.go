@@ -1911,8 +1911,10 @@ func getGithubOAuth2ConfigParams(ctx context.Context, db database.Store, vals *c
 	}
 
 	params.clientID = GithubOAuth2DefaultProviderClientID
-	params.allowEveryone = GithubOAuth2DefaultProviderAllowEveryone
 	params.deviceFlow = GithubOAuth2DefaultProviderDeviceFlow
+	if len(params.allowOrgs) == 0 {
+		params.allowEveryone = GithubOAuth2DefaultProviderAllowEveryone
+	}
 
 	return &params, nil
 }

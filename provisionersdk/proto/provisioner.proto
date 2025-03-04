@@ -260,6 +260,11 @@ enum WorkspaceTransition {
     DESTROY = 2;
 }
 
+message Role {
+    string name = 1;
+    string org_id = 2;
+}
+
 // Metadata is information about a workspace used in the execution of a build
 message Metadata {
     string coder_url = 1;
@@ -280,8 +285,9 @@ message Metadata {
     string workspace_owner_ssh_private_key = 16;
     string workspace_build_id = 17;
     string workspace_owner_login_type =  18;
-    bool   is_prebuild = 19;
-    string running_workspace_agent_token = 20;
+		repeated Role workspace_owner_rbac_roles = 19;
+		bool   is_prebuild = 20;
+		string running_workspace_agent_token = 21;
 }
 
 // Config represents execution configuration shared by all subsequent requests in the Session

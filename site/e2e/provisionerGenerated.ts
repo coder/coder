@@ -274,6 +274,11 @@ export interface Module {
   key: string;
 }
 
+export interface Role {
+  name: string;
+  orgId: string;
+}
+
 /** Metadata is information about a workspace used in the execution of a build */
 export interface Metadata {
   coderUrl: string;
@@ -294,6 +299,7 @@ export interface Metadata {
   workspaceOwnerSshPrivateKey: string;
   workspaceBuildId: string;
   workspaceOwnerLoginType: string;
+  workspaceOwnerRbacRoles: Role[];
   isPrebuild: boolean;
   runningWorkspaceAgentToken: string;
 }
@@ -924,6 +930,18 @@ export const Module = {
   },
 };
 
+export const Role = {
+  encode(message: Role, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.name !== "") {
+      writer.uint32(10).string(message.name);
+    }
+    if (message.orgId !== "") {
+      writer.uint32(18).string(message.orgId);
+    }
+    return writer;
+  },
+};
+
 export const Metadata = {
   encode(message: Metadata, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
     if (message.coderUrl !== "") {
@@ -979,6 +997,9 @@ export const Metadata = {
     }
     if (message.workspaceOwnerLoginType !== "") {
       writer.uint32(146).string(message.workspaceOwnerLoginType);
+    }
+    for (const v of message.workspaceOwnerRbacRoles) {
+      Role.encode(v!, writer.uint32(154).fork()).ldelim();
     }
     if (message.isPrebuild === true) {
       writer.uint32(152).bool(message.isPrebuild);
