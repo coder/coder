@@ -52,6 +52,7 @@ const (
 	WorkspaceAgentSSHPort             = 1
 	WorkspaceAgentReconnectingPTYPort = 2
 	WorkspaceAgentSpeedtestPort       = 3
+	WorkspaceAgentStandardSSHPort     = 22
 )
 
 // EnvMagicsockDebugLogging enables super-verbose logging for the magicsock
@@ -745,7 +746,7 @@ func (c *Conn) forwardTCP(src, dst netip.AddrPort) (handler func(net.Conn), opts
 		return nil, nil, false
 	}
 	// See: https://github.com/tailscale/tailscale/blob/c7cea825aea39a00aca71ea02bab7266afc03e7c/wgengine/netstack/netstack.go#L888
-	if dst.Port() == WorkspaceAgentSSHPort || dst.Port() == 22 {
+	if dst.Port() == WorkspaceAgentSSHPort || dst.Port() == WorkspaceAgentStandardSSHPort {
 		opt := tcpip.KeepaliveIdleOption(72 * time.Hour)
 		opts = append(opts, &opt)
 	}

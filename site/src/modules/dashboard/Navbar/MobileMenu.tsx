@@ -220,7 +220,7 @@ const AdminSettingsSub: FC<MobileMenuPermissions> = ({
 						asChild
 						className={cn(itemStyles.default, itemStyles.sub)}
 					>
-						<Link to="/deployment/general">Deployment</Link>
+						<Link to="/deployment">Deployment</Link>
 					</DropdownMenuItem>
 				)}
 				{canViewOrganizations && (

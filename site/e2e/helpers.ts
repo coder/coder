@@ -61,7 +61,7 @@ export function requireTerraformProvisioner() {
 	test.skip(!requireTerraformTests);
 }
 
-type LoginOptions = {
+export type LoginOptions = {
 	username: string;
 	email: string;
 	password: string;
@@ -150,7 +150,6 @@ export const createWorkspace = async (
 	await page.getByRole("button", { name: /create workspace/i }).click();
 
 	const user = currentUser(page);
-
 	await expectUrl(page).toHavePathName(`/@${user.username}/${name}`);
 
 	await page.waitForSelector("[data-testid='build-status'] >> text=Running", {
@@ -165,12 +164,10 @@ export const verifyParameters = async (
 	richParameters: RichParameter[],
 	expectedBuildParameters: WorkspaceBuildParameter[],
 ) => {
-	await page.goto(`/@admin/${workspaceName}/settings/parameters`, {
+	const user = currentUser(page);
+	await page.goto(`/@${user.username}/${workspaceName}/settings/parameters`, {
 		waitUntil: "domcontentloaded",
 	});
-	await expectUrl(page).toHavePathName(
-		`/@admin/${workspaceName}/settings/parameters`,
-	);
 
 	for (const buildParameter of expectedBuildParameters) {
 		const richParameter = richParameters.find(
@@ -356,10 +353,10 @@ export const sshIntoWorkspace = async (
 };
 
 export const stopWorkspace = async (page: Page, workspaceName: string) => {
-	await page.goto(`/@admin/${workspaceName}`, {
+	const user = currentUser(page);
+	await page.goto(`/@${user.username}/${workspaceName}`, {
 		waitUntil: "domcontentloaded",
 	});
-	await expectUrl(page).toHavePathName(`/@admin/${workspaceName}`);
 
 	await page.getByTestId("workspace-stop-button").click();
 
@@ -375,10 +372,10 @@ export const buildWorkspaceWithParameters = async (
 	buildParameters: WorkspaceBuildParameter[] = [],
 	confirm = false,
 ) => {
-	await page.goto(`/@admin/${workspaceName}`, {
+	const user = currentUser(page);
+	await page.goto(`/@${user.username}/${workspaceName}`, {
 		waitUntil: "domcontentloaded",
 	});
-	await expectUrl(page).toHavePathName(`/@admin/${workspaceName}`);
 
 	await page.getByTestId("build-parameters-button").click();
 
@@ -993,10 +990,10 @@ export const updateWorkspace = async (
 	richParameters: RichParameter[] = [],
 	buildParameters: WorkspaceBuildParameter[] = [],
 ) => {
-	await page.goto(`/@admin/${workspaceName}`, {
+	const user = currentUser(page);
+	await page.goto(`/@${user.username}/${workspaceName}`, {
 		waitUntil: "domcontentloaded",
 	});
-	await expectUrl(page).toHavePathName(`/@admin/${workspaceName}`);
 
 	await page.getByTestId("workspace-update-button").click();
 	await page.getByTestId("confirm-button").click();
@@ -1015,12 +1012,10 @@ export const updateWorkspaceParameters = async (
 	richParameters: RichParameter[] = [],
 	buildParameters: WorkspaceBuildParameter[] = [],
 ) => {
-	await page.goto(`/@admin/${workspaceName}/settings/parameters`, {
+	const user = currentUser(page);
+	await page.goto(`/@${user.username}/${workspaceName}/settings/parameters`, {
 		waitUntil: "domcontentloaded",
 	});
-	await expectUrl(page).toHavePathName(
-		`/@admin/${workspaceName}/settings/parameters`,
-	);
 
 	await fillParameters(page, richParameters, buildParameters);
 	await page.getByRole("button", { name: /submit and restart/i }).click();
@@ -1044,11 +1039,14 @@ export async function openTerminalWindow(
 
 	// Specify that the shell should be `bash`, to prevent inheriting a shell that
 	// isn't POSIX compatible, such as Fish.
+	const user = currentUser(page);
 	const commandQuery = `?command=${encodeURIComponent("/usr/bin/env bash")}`;
 	await expectUrl(terminal).toHavePathName(
-		`/@admin/${workspaceName}.${agentName}/terminal`,
+		`/@${user.username}/${workspaceName}.${agentName}/terminal`,
 	);
-	await terminal.goto(`/@admin/${workspaceName}.dev/terminal${commandQuery}`);
+	await terminal.goto(
+		`/@${user.username}/${workspaceName}.${agentName}/terminal${commandQuery}`,
+	);
 
 	return terminal;
 }
@@ -1100,7 +1098,7 @@ export async function createUser(
 	// Give them a role
 	await addedRow.getByLabel("Edit user roles").click();
 	for (const role of roles) {
-		await page.getByText(role, { exact: true }).click();
+		await page.getByRole("group").getByText(role, { exact: true }).click();
 	}
 	await page.mouse.click(10, 10); // close the popover by clicking outside of it
 
@@ -1128,4 +1126,31 @@ export async function createOrganization(page: Page): Promise<{
 	await expect(page.getByText("Organization created.")).toBeVisible();
 
 	return { name, displayName, description };
+}
+
+/**
+ * @param organization organization name
+ * @param user user email or username
+ */
+export async function addUserToOrganization(
+	page: Page,
+	organization: string,
+	user: string,
+	roles: string[] = [],
+): Promise<void> {
+	await page.goto(`/organizations/${organization}`, {
+		waitUntil: "domcontentloaded",
+	});
+
+	await page.getByPlaceholder("User email or username").fill(user);
+	await page.getByRole("option", { name: user }).click();
+	await page.getByRole("button", { name: "Add user" }).click();
+	const addedRow = page.locator("tr", { hasText: user });
+	await expect(addedRow).toBeVisible();
+
+	await addedRow.getByLabel("Edit user roles").click();
+	for (const role of roles) {
+		await page.getByText(role).click();
+	}
+	await page.mouse.click(10, 10); // close the popover by clicking outside of it
 }

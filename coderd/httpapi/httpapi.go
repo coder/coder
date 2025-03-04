@@ -153,11 +153,13 @@ func ResourceNotFound(rw http.ResponseWriter) {
 	Write(context.Background(), rw, http.StatusNotFound, ResourceNotFoundResponse)
 }
 
+var ResourceForbiddenResponse = codersdk.Response{
+	Message: "Forbidden.",
+	Detail:  "You don't have permission to view this content. If you believe this is a mistake, please contact your administrator or try signing in with different credentials.",
+}
+
 func Forbidden(rw http.ResponseWriter) {
-	Write(context.Background(), rw, http.StatusForbidden, codersdk.Response{
-		Message: "Forbidden.",
-		Detail:  "You don't have permission to view this content. If you believe this is a mistake, please contact your administrator or try signing in with different credentials.",
-	})
+	Write(context.Background(), rw, http.StatusForbidden, ResourceForbiddenResponse)
 }
 
 func InternalServerError(rw http.ResponseWriter, err error) {

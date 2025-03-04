@@ -72,6 +72,7 @@ const OrganizationMembersPage: FC = () => {
 			<OrganizationMembersPageView
 				allAvailableRoles={organizationRolesQuery.data}
 				canEditMembers={organizationPermissions.editMembers}
+				canViewMembers={organizationPermissions.viewMembers}
 				error={
 					membersQuery.error ??
 					organizationRolesQuery.error ??

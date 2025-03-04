@@ -200,7 +200,7 @@ export interface AuthMethod {
 export interface AuthMethods {
 	readonly terms_of_service_url?: string;
 	readonly password: AuthMethod;
-	readonly github: AuthMethod;
+	readonly github: GithubAuthMethod;
 	readonly oidc: OIDCAuthMethod;
 }
 
@@ -916,6 +916,12 @@ export interface GitSSHKey {
 	readonly public_key: string;
 }
 
+// From codersdk/users.go
+export interface GithubAuthMethod {
+	readonly enabled: boolean;
+	readonly default_provider_configured: boolean;
+}
+
 // From codersdk/groups.go
 export interface Group {
 	readonly id: string;
@@ -1326,6 +1332,7 @@ export interface OAuth2GithubConfig {
 	readonly client_id: string;
 	readonly client_secret: string;
 	readonly device_flow: boolean;
+	readonly default_provider_enable: boolean;
 	readonly allowed_orgs: string;
 	readonly allowed_teams: string;
 	readonly allow_signups: boolean;
@@ -1411,6 +1418,7 @@ export interface OIDCConfig {
 	readonly email_field: string;
 	readonly auth_url_params: SerpentStruct<Record<string, string>>;
 	readonly ignore_user_info: boolean;
+	readonly source_user_info_from_access_token: boolean;
 	readonly organization_field: string;
 	readonly organization_mapping: SerpentStruct<Record<string, string[]>>;
 	readonly organization_assign_default: boolean;
@@ -1848,6 +1856,7 @@ export type RBACAction =
 	| "read"
 	| "read_personal"
 	| "ssh"
+	| "unassign"
 	| "update"
 	| "update_personal"
 	| "use"
@@ -1863,6 +1872,7 @@ export const RBACActions: RBACAction[] = [
 	"read",
 	"read_personal",
 	"ssh",
+	"unassign",
 	"update",
 	"update_personal",
 	"use",
@@ -1885,6 +1895,7 @@ export type RBACResource =
 	| "group"
 	| "group_member"
 	| "idpsync_settings"
+	| "inbox_notification"
 	| "license"
 	| "notification_message"
 	| "notification_preference"
@@ -1896,7 +1907,6 @@ export type RBACResource =
 	| "organization_member"
 	| "provisioner_daemon"
 	| "provisioner_jobs"
-	| "provisioner_keys"
 	| "replicas"
 	| "system"
 	| "tailnet_coordinator"
@@ -1921,6 +1931,7 @@ export const RBACResources: RBACResource[] = [
 	"group",
 	"group_member",
 	"idpsync_settings",
+	"inbox_notification",
 	"license",
 	"notification_message",
 	"notification_preference",
@@ -1932,7 +1943,6 @@ export const RBACResources: RBACResource[] = [
 	"organization_member",
 	"provisioner_daemon",
 	"provisioner_jobs",
-	"provisioner_keys",
 	"replicas",
 	"system",
 	"tailnet_coordinator",
@@ -2094,6 +2104,10 @@ export const RoleOrganizationTemplateAdmin = "organization-template-admin";
 
 // From codersdk/rbacroles.go
 export const RoleOrganizationUserAdmin = "organization-user-admin";
+
+// From codersdk/rbacroles.go
+export const RoleOrganizationWorkspaceCreationBan =
+	"organization-workspace-creation-ban";
 
 // From codersdk/rbacroles.go
 export const RoleOwner = "owner";

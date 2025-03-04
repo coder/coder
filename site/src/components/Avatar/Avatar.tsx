@@ -57,7 +57,6 @@ const avatarVariants = cva(
 export type AvatarProps = AvatarPrimitive.AvatarProps &
 	VariantProps<typeof avatarVariants> & {
 		src?: string;
-
 		fallback?: string;
 	};
 

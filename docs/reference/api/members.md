@@ -173,6 +173,7 @@ Status Code **200**
 | `action`        | `read`                             |
 | `action`        | `read_personal`                    |
 | `action`        | `ssh`                              |
+| `action`        | `unassign`                         |
 | `action`        | `update`                           |
 | `action`        | `update_personal`                  |
 | `action`        | `use`                              |
@@ -192,6 +193,7 @@ Status Code **200**
 | `resource_type` | `group`                            |
 | `resource_type` | `group_member`                     |
 | `resource_type` | `idpsync_settings`                 |
+| `resource_type` | `inbox_notification`               |
 | `resource_type` | `license`                          |
 | `resource_type` | `notification_message`             |
 | `resource_type` | `notification_preference`          |
@@ -203,7 +205,6 @@ Status Code **200**
 | `resource_type` | `organization_member`              |
 | `resource_type` | `provisioner_daemon`               |
 | `resource_type` | `provisioner_jobs`                 |
-| `resource_type` | `provisioner_keys`                 |
 | `resource_type` | `replicas`                         |
 | `resource_type` | `system`                           |
 | `resource_type` | `tailnet_coordinator`              |
@@ -336,6 +337,7 @@ Status Code **200**
 | `action`        | `read`                             |
 | `action`        | `read_personal`                    |
 | `action`        | `ssh`                              |
+| `action`        | `unassign`                         |
 | `action`        | `update`                           |
 | `action`        | `update_personal`                  |
 | `action`        | `use`                              |
@@ -355,6 +357,7 @@ Status Code **200**
 | `resource_type` | `group`                            |
 | `resource_type` | `group_member`                     |
 | `resource_type` | `idpsync_settings`                 |
+| `resource_type` | `inbox_notification`               |
 | `resource_type` | `license`                          |
 | `resource_type` | `notification_message`             |
 | `resource_type` | `notification_preference`          |
@@ -366,7 +369,6 @@ Status Code **200**
 | `resource_type` | `organization_member`              |
 | `resource_type` | `provisioner_daemon`               |
 | `resource_type` | `provisioner_jobs`                 |
-| `resource_type` | `provisioner_keys`                 |
 | `resource_type` | `replicas`                         |
 | `resource_type` | `system`                           |
 | `resource_type` | `tailnet_coordinator`              |
@@ -499,6 +501,7 @@ Status Code **200**
 | `action`        | `read`                             |
 | `action`        | `read_personal`                    |
 | `action`        | `ssh`                              |
+| `action`        | `unassign`                         |
 | `action`        | `update`                           |
 | `action`        | `update_personal`                  |
 | `action`        | `use`                              |
@@ -518,6 +521,7 @@ Status Code **200**
 | `resource_type` | `group`                            |
 | `resource_type` | `group_member`                     |
 | `resource_type` | `idpsync_settings`                 |
+| `resource_type` | `inbox_notification`               |
 | `resource_type` | `license`                          |
 | `resource_type` | `notification_message`             |
 | `resource_type` | `notification_preference`          |
@@ -529,7 +533,6 @@ Status Code **200**
 | `resource_type` | `organization_member`              |
 | `resource_type` | `provisioner_daemon`               |
 | `resource_type` | `provisioner_jobs`                 |
-| `resource_type` | `provisioner_keys`                 |
 | `resource_type` | `replicas`                         |
 | `resource_type` | `system`                           |
 | `resource_type` | `tailnet_coordinator`              |
@@ -631,6 +634,7 @@ Status Code **200**
 | `action`        | `read`                             |
 | `action`        | `read_personal`                    |
 | `action`        | `ssh`                              |
+| `action`        | `unassign`                         |
 | `action`        | `update`                           |
 | `action`        | `update_personal`                  |
 | `action`        | `use`                              |
@@ -650,6 +654,7 @@ Status Code **200**
 | `resource_type` | `group`                            |
 | `resource_type` | `group_member`                     |
 | `resource_type` | `idpsync_settings`                 |
+| `resource_type` | `inbox_notification`               |
 | `resource_type` | `license`                          |
 | `resource_type` | `notification_message`             |
 | `resource_type` | `notification_preference`          |
@@ -661,7 +666,6 @@ Status Code **200**
 | `resource_type` | `organization_member`              |
 | `resource_type` | `provisioner_daemon`               |
 | `resource_type` | `provisioner_jobs`                 |
-| `resource_type` | `provisioner_keys`                 |
 | `resource_type` | `replicas`                         |
 | `resource_type` | `system`                           |
 | `resource_type` | `tailnet_coordinator`              |
@@ -895,6 +899,7 @@ Status Code **200**
 | `action`        | `read`                             |
 | `action`        | `read_personal`                    |
 | `action`        | `ssh`                              |
+| `action`        | `unassign`                         |
 | `action`        | `update`                           |
 | `action`        | `update_personal`                  |
 | `action`        | `use`                              |
@@ -914,6 +919,7 @@ Status Code **200**
 | `resource_type` | `group`                            |
 | `resource_type` | `group_member`                     |
 | `resource_type` | `idpsync_settings`                 |
+| `resource_type` | `inbox_notification`               |
 | `resource_type` | `license`                          |
 | `resource_type` | `notification_message`             |
 | `resource_type` | `notification_preference`          |
@@ -925,7 +931,6 @@ Status Code **200**
 | `resource_type` | `organization_member`              |
 | `resource_type` | `provisioner_daemon`               |
 | `resource_type` | `provisioner_jobs`                 |
-| `resource_type` | `provisioner_keys`                 |
 | `resource_type` | `replicas`                         |
 | `resource_type` | `system`                           |
 | `resource_type` | `tailnet_coordinator`              |

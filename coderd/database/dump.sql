@@ -66,6 +66,12 @@ CREATE TYPE group_source AS ENUM (
     'oidc'
 );
 
+CREATE TYPE inbox_notification_read_status AS ENUM (
+    'all',
+    'unread',
+    'read'
+);
+
 CREATE TYPE log_level AS ENUM (
     'trace',
     'debug',
@@ -435,6 +441,74 @@ BEGIN
 		WHERE id = NEW.id;
 	END IF;
 	RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION protect_deleting_organizations() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    workspace_count int;
+	template_count int;
+	group_count int;
+	member_count int;
+	provisioner_keys_count int;
+BEGIN
+    workspace_count := (
+        SELECT count(*) as count FROM workspaces
+        WHERE
+            workspaces.organization_id = OLD.id
+            AND workspaces.deleted = false
+    );
+
+	template_count := (
+        SELECT count(*) as count FROM templates
+        WHERE
+            templates.organization_id = OLD.id
+            AND templates.deleted = false
+    );
+
+	group_count := (
+        SELECT count(*) as count FROM groups
+        WHERE
+            groups.organization_id = OLD.id
+    );
+
+	member_count := (
+        SELECT count(*) as count FROM organization_members
+        WHERE
+            organization_members.organization_id = OLD.id
+    );
+
+	provisioner_keys_count := (
+		Select count(*) as count FROM provisioner_keys
+		WHERE
+			provisioner_keys.organization_id = OLD.id
+	);
+
+    -- Fail the deletion if one of the following:
+    -- * the organization has 1 or more workspaces
+	-- * the organization has 1 or more templates
+	-- * the organization has 1 or more groups other than "Everyone" group
+	-- * the organization has 1 or more members other than the organization owner
+	-- * the organization has 1 or more provisioner keys
+
+    IF (workspace_count + template_count + provisioner_keys_count) > 0 THEN
+            RAISE EXCEPTION 'cannot delete organization: organization has % workspaces, % templates, and % provisioner keys that must be deleted first', workspace_count, template_count, provisioner_keys_count;
+    END IF;
+
+	IF (group_count) > 1 THEN
+            RAISE EXCEPTION 'cannot delete organization: organization has % groups that must be deleted first', group_count - 1;
+    END IF;
+
+    -- Allow 1 member to exist, because you cannot remove yourself. You can
+    -- remove everyone else. Ideally, we only omit the member that matches
+    -- the user_id of the caller, however in a trigger, the caller is unknown.
+	IF (member_count) > 1 THEN
+            RAISE EXCEPTION 'cannot delete organization: organization has % members that must be deleted first', member_count - 1;
+    END IF;
+
+    RETURN NEW;
 END;
 $$;
 
@@ -831,6 +905,19 @@ CREATE VIEW group_members_expanded AS
 
 COMMENT ON VIEW group_members_expanded IS 'Joins group members with user information, organization ID, group name. Includes both regular group members and organization members (as part of the "Everyone" group).';
 
+CREATE TABLE inbox_notifications (
+    id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    template_id uuid NOT NULL,
+    targets uuid[],
+    title text NOT NULL,
+    content text NOT NULL,
+    icon text NOT NULL,
+    actions jsonb NOT NULL,
+    read_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
 CREATE TABLE jfrog_xray_scans (
     agent_id uuid NOT NULL,
     workspace_id uuid NOT NULL,
@@ -967,7 +1054,8 @@ CREATE TABLE organizations (
     updated_at timestamp with time zone NOT NULL,
     is_default boolean DEFAULT false NOT NULL,
     display_name text NOT NULL,
-    icon text DEFAULT ''::text NOT NULL
+    icon text DEFAULT ''::text NOT NULL,
+    deleted boolean DEFAULT false NOT NULL
 );
 
 CREATE TABLE parameter_schemas (
@@ -1979,6 +2067,9 @@ ALTER TABLE ONLY groups
 ALTER TABLE ONLY groups
     ADD CONSTRAINT groups_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY inbox_notifications
+    ADD CONSTRAINT inbox_notifications_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY jfrog_xray_scans
     ADD CONSTRAINT jfrog_xray_scans_pkey PRIMARY KEY (agent_id, workspace_id);
 
@@ -2029,9 +2120,6 @@ ALTER TABLE ONLY oauth2_provider_apps
 
 ALTER TABLE ONLY organization_members
     ADD CONSTRAINT organization_members_pkey PRIMARY KEY (organization_id, user_id);
-
-ALTER TABLE ONLY organizations
-    ADD CONSTRAINT organizations_name UNIQUE (name);
 
 ALTER TABLE ONLY organizations
     ADD CONSTRAINT organizations_pkey PRIMARY KEY (id);
@@ -2212,19 +2300,23 @@ CREATE INDEX idx_custom_roles_id ON custom_roles USING btree (id);
 
 CREATE UNIQUE INDEX idx_custom_roles_name_lower ON custom_roles USING btree (lower(name));
 
+CREATE INDEX idx_inbox_notifications_user_id_read_at ON inbox_notifications USING btree (user_id, read_at);
+
+CREATE INDEX idx_inbox_notifications_user_id_template_id_targets ON inbox_notifications USING btree (user_id, template_id, targets);
+
 CREATE INDEX idx_notification_messages_status ON notification_messages USING btree (status);
 
 CREATE INDEX idx_organization_member_organization_id_uuid ON organization_members USING btree (organization_id);
 
 CREATE INDEX idx_organization_member_user_id_uuid ON organization_members USING btree (user_id);
 
-CREATE UNIQUE INDEX idx_organization_name ON organizations USING btree (name);
-
-CREATE UNIQUE INDEX idx_organization_name_lower ON organizations USING btree (lower(name));
+CREATE UNIQUE INDEX idx_organization_name_lower ON organizations USING btree (lower(name)) WHERE (deleted = false);
 
 CREATE UNIQUE INDEX idx_provisioner_daemons_org_name_owner_key ON provisioner_daemons USING btree (organization_id, name, lower(COALESCE((tags ->> 'owner'::text), ''::text)));
 
 COMMENT ON INDEX idx_provisioner_daemons_org_name_owner_key IS 'Allow unique provisioner daemon names by organization and user';
+
+CREATE INDEX idx_provisioner_jobs_status ON provisioner_jobs USING btree (job_status);
 
 CREATE INDEX idx_tailnet_agents_coordinator ON tailnet_agents USING btree (coordinator_id);
 
@@ -2352,6 +2444,8 @@ CREATE OR REPLACE VIEW provisioner_job_stats AS
 
 CREATE TRIGGER inhibit_enqueue_if_disabled BEFORE INSERT ON notification_messages FOR EACH ROW EXECUTE FUNCTION inhibit_enqueue_if_disabled();
 
+CREATE TRIGGER protect_deleting_organizations BEFORE UPDATE ON organizations FOR EACH ROW WHEN (((new.deleted = true) AND (old.deleted = false))) EXECUTE FUNCTION protect_deleting_organizations();
+
 CREATE TRIGGER remove_organization_member_custom_role BEFORE DELETE ON custom_roles FOR EACH ROW EXECUTE FUNCTION remove_organization_member_role();
 
 COMMENT ON TRIGGER remove_organization_member_custom_role ON custom_roles IS 'When a custom_role is deleted, this trigger removes the role from all organization members.';
@@ -2407,6 +2501,12 @@ ALTER TABLE ONLY group_members
 
 ALTER TABLE ONLY groups
     ADD CONSTRAINT groups_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY inbox_notifications
+    ADD CONSTRAINT inbox_notifications_template_id_fkey FOREIGN KEY (template_id) REFERENCES notification_templates(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY inbox_notifications
+    ADD CONSTRAINT inbox_notifications_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY jfrog_xray_scans
     ADD CONSTRAINT jfrog_xray_scans_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;

@@ -422,6 +422,7 @@ func New(options *Options) *API {
 	metricsCache := metricscache.New(
 		options.Database,
 		options.Logger.Named("metrics_cache"),
+		options.Clock,
 		metricscache.Intervals{
 			TemplateBuildTimes: options.MetricsCacheRefreshInterval,
 			DeploymentStats:    options.AgentStatsRefreshInterval,

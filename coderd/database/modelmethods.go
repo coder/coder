@@ -168,6 +168,12 @@ func (TemplateVersion) RBACObject(template Template) rbac.Object {
 	return template.RBACObject()
 }
 
+func (i InboxNotification) RBACObject() rbac.Object {
+	return rbac.ResourceInboxNotification.
+		WithID(i.ID).
+		WithOwner(i.UserID.String())
+}
+
 // RBACObjectNoTemplate is for orphaned template versions.
 func (v TemplateVersion) RBACObjectNoTemplate() rbac.Object {
 	return rbac.ResourceTemplate.InOrg(v.OrganizationID)
@@ -277,8 +283,10 @@ func (p GetEligibleProvisionerDaemonsByProvisionerJobIDsRow) RBACObject() rbac.O
 	return p.ProvisionerDaemon.RBACObject()
 }
 
+// RBACObject for a provisioner key is the same as a provisioner daemon.
+// Keys == provisioners from a RBAC perspective.
 func (p ProvisionerKey) RBACObject() rbac.Object {
-	return rbac.ResourceProvisionerKeys.
+	return rbac.ResourceProvisionerDaemon.
 		WithID(p.ID).
 		InOrg(p.OrganizationID)
 }

@@ -8,6 +8,7 @@ import (
 	"io"
 	"regexp"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -16,7 +17,6 @@ import (
 
 	"github.com/acarl005/stripansi"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/pty"

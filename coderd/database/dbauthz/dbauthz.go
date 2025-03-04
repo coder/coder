@@ -5,13 +5,13 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
-	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"github.com/open-policy-agent/opa/topdown"
@@ -281,6 +281,7 @@ var (
 				DisplayName: "Notifier",
 				Site: rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceNotificationMessage.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceInboxNotification.Type:   {policy.ActionCreate},
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},
@@ -324,7 +325,6 @@ var (
 					rbac.ResourceOrganization.Type:           {policy.ActionCreate, policy.ActionRead},
 					rbac.ResourceOrganizationMember.Type:     {policy.ActionCreate, policy.ActionDelete, policy.ActionRead},
 					rbac.ResourceProvisionerDaemon.Type:      {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
-					rbac.ResourceProvisionerKeys.Type:        {policy.ActionCreate, policy.ActionRead, policy.ActionDelete},
 					rbac.ResourceUser.Type:                   rbac.ResourceUser.AvailableActions(),
 					rbac.ResourceWorkspaceDormant.Type:       {policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceStop},
 					rbac.ResourceWorkspace.Type:              {policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceStart, policy.ActionWorkspaceStop, policy.ActionSSH},
@@ -748,7 +748,7 @@ func (*querier) convertToDeploymentRoles(names []string) []rbac.RoleIdentifier {
 }
 
 // canAssignRoles handles assigning built in and custom roles.
-func (q *querier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, removed []rbac.RoleIdentifier) error {
+func (q *querier) canAssignRoles(ctx context.Context, orgID uuid.UUID, added, removed []rbac.RoleIdentifier) error {
 	actor, ok := ActorFromContext(ctx)
 	if !ok {
 		return NoActorError
@@ -756,12 +756,14 @@ func (q *querier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, r
 
 	roleAssign := rbac.ResourceAssignRole
 	shouldBeOrgRoles := false
-	if orgID != nil {
-		roleAssign = rbac.ResourceAssignOrgRole.InOrg(*orgID)
+	if orgID != uuid.Nil {
+		roleAssign = rbac.ResourceAssignOrgRole.InOrg(orgID)
 		shouldBeOrgRoles = true
 	}
 
-	grantedRoles := append(added, removed...)
+	grantedRoles := make([]rbac.RoleIdentifier, 0, len(added)+len(removed))
+	grantedRoles = append(grantedRoles, added...)
+	grantedRoles = append(grantedRoles, removed...)
 	customRoles := make([]rbac.RoleIdentifier, 0)
 	// Validate that the roles being assigned are valid.
 	for _, r := range grantedRoles {
@@ -775,11 +777,11 @@ func (q *querier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, r
 		}
 
 		if shouldBeOrgRoles {
-			if orgID == nil {
+			if orgID == uuid.Nil {
 				return xerrors.Errorf("should never happen, orgID is nil, but trying to assign an organization role")
 			}
 
-			if r.OrganizationID != *orgID {
+			if r.OrganizationID != orgID {
 				return xerrors.Errorf("attempted to assign role from a different org, role %q to %q", r, orgID.String())
 			}
 		}
@@ -825,7 +827,7 @@ func (q *querier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, r
 	}
 
 	if len(removed) > 0 {
-		if err := q.authorizeContext(ctx, policy.ActionDelete, roleAssign); err != nil {
+		if err := q.authorizeContext(ctx, policy.ActionUnassign, roleAssign); err != nil {
 			return err
 		}
 	}
@@ -1125,11 +1127,23 @@ func (q *querier) CleanTailnetTunnels(ctx context.Context) error {
 	return q.db.CleanTailnetTunnels(ctx)
 }
 
+func (q *querier) CountUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceInboxNotification.WithOwner(userID.String())); err != nil {
+		return 0, err
+	}
+	return q.db.CountUnreadInboxNotificationsByUserID(ctx, userID)
+}
+
 // TODO: Handle org scoped lookups
 func (q *querier) CustomRoles(ctx context.Context, arg database.CustomRolesParams) ([]database.CustomRole, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAssignRole); err != nil {
+	roleObject := rbac.ResourceAssignRole
+	if arg.OrganizationID != uuid.Nil {
+		roleObject = rbac.ResourceAssignOrgRole.InOrg(arg.OrganizationID)
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, roleObject); err != nil {
 		return nil, err
 	}
+
 	return q.db.CustomRoles(ctx, arg)
 }
 
@@ -1186,14 +1200,11 @@ func (q *querier) DeleteCryptoKey(ctx context.Context, arg database.DeleteCrypto
 }
 
 func (q *querier) DeleteCustomRole(ctx context.Context, arg database.DeleteCustomRoleParams) error {
-	if arg.OrganizationID.UUID != uuid.Nil {
-		if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceAssignOrgRole.InOrg(arg.OrganizationID.UUID)); err != nil {
-			return err
-		}
-	} else {
-		if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceAssignRole); err != nil {
-			return err
-		}
+	if !arg.OrganizationID.Valid || arg.OrganizationID.UUID == uuid.Nil {
+		return NotAuthorizedError{Err: xerrors.New("custom roles must belong to an organization")}
+	}
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceAssignOrgRole.InOrg(arg.OrganizationID.UUID)); err != nil {
+		return err
 	}
 
 	return q.db.DeleteCustomRole(ctx, arg)
@@ -1300,10 +1311,6 @@ func (q *querier) DeleteOldWorkspaceAgentStats(ctx context.Context) error {
 		return err
 	}
 	return q.db.DeleteOldWorkspaceAgentStats(ctx)
-}
-
-func (q *querier) DeleteOrganization(ctx context.Context, id uuid.UUID) error {
-	return deleteQ(q.log, q.auth, q.db.GetOrganizationByID, q.db.DeleteOrganization)(ctx, id)
 }
 
 func (q *querier) DeleteOrganizationMember(ctx context.Context, arg database.DeleteOrganizationMemberParams) error {
@@ -1431,6 +1438,17 @@ func (q *querier) FetchMemoryResourceMonitorsByAgentID(ctx context.Context, agen
 	return q.db.FetchMemoryResourceMonitorsByAgentID(ctx, agentID)
 }
 
+func (q *querier) FetchMemoryResourceMonitorsUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]database.WorkspaceAgentMemoryResourceMonitor, error) {
+	// Ideally, we would return a list of monitors that the user has access to. However, that check would need to
+	// be implemented similarly to GetWorkspaces, which is more complex than what we're doing here. Since this query
+	// was introduced for telemetry, we perform a simpler check.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspaceAgentResourceMonitor); err != nil {
+		return nil, err
+	}
+
+	return q.db.FetchMemoryResourceMonitorsUpdatedAfter(ctx, updatedAt)
+}
+
 func (q *querier) FetchNewMessageMetadata(ctx context.Context, arg database.FetchNewMessageMetadataParams) (database.FetchNewMessageMetadataRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceNotificationMessage); err != nil {
 		return database.FetchNewMessageMetadataRow{}, err
@@ -1450,6 +1468,17 @@ func (q *querier) FetchVolumesResourceMonitorsByAgentID(ctx context.Context, age
 	}
 
 	return q.db.FetchVolumesResourceMonitorsByAgentID(ctx, agentID)
+}
+
+func (q *querier) FetchVolumesResourceMonitorsUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]database.WorkspaceAgentVolumeResourceMonitor, error) {
+	// Ideally, we would return a list of monitors that the user has access to. However, that check would need to
+	// be implemented similarly to GetWorkspaces, which is more complex than what we're doing here. Since this query
+	// was introduced for telemetry, we perform a simpler check.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspaceAgentResourceMonitor); err != nil {
+		return nil, err
+	}
+
+	return q.db.FetchVolumesResourceMonitorsUpdatedAfter(ctx, updatedAt)
 }
 
 func (q *querier) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
@@ -1691,6 +1720,10 @@ func (q *querier) GetFileTemplates(ctx context.Context, fileID uuid.UUID) ([]dat
 	return q.db.GetFileTemplates(ctx, fileID)
 }
 
+func (q *querier) GetFilteredInboxNotificationsByUserID(ctx context.Context, arg database.GetFilteredInboxNotificationsByUserIDParams) ([]database.InboxNotification, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetFilteredInboxNotificationsByUserID)(ctx, arg)
+}
+
 func (q *querier) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
 	return fetchWithAction(q.log, q.auth, policy.ActionReadPersonal, q.db.GetGitSSHKey)(ctx, userID)
 }
@@ -1748,6 +1781,14 @@ func (q *querier) GetHungProvisionerJobs(ctx context.Context, hungSince time.Tim
 	// return nil, err
 	// }
 	return q.db.GetHungProvisionerJobs(ctx, hungSince)
+}
+
+func (q *querier) GetInboxNotificationByID(ctx context.Context, id uuid.UUID) (database.InboxNotification, error) {
+	return fetchWithAction(q.log, q.auth, policy.ActionRead, q.db.GetInboxNotificationByID)(ctx, id)
+}
+
+func (q *querier) GetInboxNotificationsByUserID(ctx context.Context, userID database.GetInboxNotificationsByUserIDParams) ([]database.InboxNotification, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetInboxNotificationsByUserID)(ctx, userID)
 }
 
 func (q *querier) GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg database.GetJFrogXrayScanByWorkspaceAndAgentIDParams) (database.JfrogXrayScan, error) {
@@ -1850,6 +1891,13 @@ func (q *querier) GetNotificationsSettings(ctx context.Context) (string, error) 
 	return q.db.GetNotificationsSettings(ctx)
 }
 
+func (q *querier) GetOAuth2GithubDefaultEligible(ctx context.Context) (bool, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return false, err
+	}
+	return q.db.GetOAuth2GithubDefaultEligible(ctx)
+}
+
 func (q *querier) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceOauth2App); err != nil {
 		return database.OAuth2ProviderApp{}, err
@@ -1926,7 +1974,7 @@ func (q *querier) GetOrganizationByID(ctx context.Context, id uuid.UUID) (databa
 	return fetch(q.log, q.auth, q.db.GetOrganizationByID)(ctx, id)
 }
 
-func (q *querier) GetOrganizationByName(ctx context.Context, name string) (database.Organization, error) {
+func (q *querier) GetOrganizationByName(ctx context.Context, name database.GetOrganizationByNameParams) (database.Organization, error) {
 	return fetch(q.log, q.auth, q.db.GetOrganizationByName)(ctx, name)
 }
 
@@ -1943,7 +1991,7 @@ func (q *querier) GetOrganizations(ctx context.Context, args database.GetOrganiz
 	return fetchWithPostFilter(q.auth, policy.ActionRead, fetch)(ctx, nil)
 }
 
-func (q *querier) GetOrganizationsByUserID(ctx context.Context, userID uuid.UUID) ([]database.Organization, error) {
+func (q *querier) GetOrganizationsByUserID(ctx context.Context, userID database.GetOrganizationsByUserIDParams) ([]database.Organization, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetOrganizationsByUserID)(ctx, userID)
 }
 
@@ -3007,14 +3055,11 @@ func (q *querier) InsertCryptoKey(ctx context.Context, arg database.InsertCrypto
 
 func (q *querier) InsertCustomRole(ctx context.Context, arg database.InsertCustomRoleParams) (database.CustomRole, error) {
 	// Org and site role upsert share the same query. So switch the assertion based on the org uuid.
-	if arg.OrganizationID.UUID != uuid.Nil {
-		if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceAssignOrgRole.InOrg(arg.OrganizationID.UUID)); err != nil {
-			return database.CustomRole{}, err
-		}
-	} else {
-		if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceAssignRole); err != nil {
-			return database.CustomRole{}, err
-		}
+	if !arg.OrganizationID.Valid || arg.OrganizationID.UUID == uuid.Nil {
+		return database.CustomRole{}, NotAuthorizedError{Err: xerrors.New("custom roles must belong to an organization")}
+	}
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceAssignOrgRole.InOrg(arg.OrganizationID.UUID)); err != nil {
+		return database.CustomRole{}, err
 	}
 
 	if err := q.customRoleCheck(ctx, database.CustomRole{
@@ -3075,6 +3120,10 @@ func (q *querier) InsertGroupMember(ctx context.Context, arg database.InsertGrou
 		return q.db.GetGroupByID(ctx, arg.GroupID)
 	}
 	return update(q.log, q.auth, fetch, q.db.InsertGroupMember)(ctx, arg)
+}
+
+func (q *querier) InsertInboxNotification(ctx context.Context, arg database.InsertInboxNotificationParams) (database.InboxNotification, error) {
+	return insert(q.log, q.auth, rbac.ResourceInboxNotification.WithOwner(arg.UserID.String()), q.db.InsertInboxNotification)(ctx, arg)
 }
 
 func (q *querier) InsertLicense(ctx context.Context, arg database.InsertLicenseParams) (database.License, error) {
@@ -3144,7 +3193,7 @@ func (q *querier) InsertOrganizationMember(ctx context.Context, arg database.Ins
 
 	// All roles are added roles. Org member is always implied.
 	addedRoles := append(orgRoles, rbac.ScopedRoleOrgMember(arg.OrganizationID))
-	err = q.canAssignRoles(ctx, &arg.OrganizationID, addedRoles, []rbac.RoleIdentifier{})
+	err = q.canAssignRoles(ctx, arg.OrganizationID, addedRoles, []rbac.RoleIdentifier{})
 	if err != nil {
 		return database.OrganizationMember{}, err
 	}
@@ -3196,7 +3245,7 @@ func (q *querier) InsertProvisionerJobTimings(ctx context.Context, arg database.
 }
 
 func (q *querier) InsertProvisionerKey(ctx context.Context, arg database.InsertProvisionerKeyParams) (database.ProvisionerKey, error) {
-	return insert(q.log, q.auth, rbac.ResourceProvisionerKeys.InOrg(arg.OrganizationID).WithID(arg.ID), q.db.InsertProvisionerKey)(ctx, arg)
+	return insert(q.log, q.auth, rbac.ResourceProvisionerDaemon.InOrg(arg.OrganizationID).WithID(arg.ID), q.db.InsertProvisionerKey)(ctx, arg)
 }
 
 func (q *querier) InsertReplica(ctx context.Context, arg database.InsertReplicaParams) (database.Replica, error) {
@@ -3268,7 +3317,7 @@ func (q *querier) InsertTemplateVersionWorkspaceTag(ctx context.Context, arg dat
 func (q *querier) InsertUser(ctx context.Context, arg database.InsertUserParams) (database.User, error) {
 	// Always check if the assigned roles can actually be assigned by this actor.
 	impliedRoles := append([]rbac.RoleIdentifier{rbac.RoleMember()}, q.convertToDeploymentRoles(arg.RBACRoles)...)
-	err := q.canAssignRoles(ctx, nil, impliedRoles, []rbac.RoleIdentifier{})
+	err := q.canAssignRoles(ctx, uuid.Nil, impliedRoles, []rbac.RoleIdentifier{})
 	if err != nil {
 		return database.User{}, err
 	}
@@ -3606,14 +3655,11 @@ func (q *querier) UpdateCryptoKeyDeletesAt(ctx context.Context, arg database.Upd
 }
 
 func (q *querier) UpdateCustomRole(ctx context.Context, arg database.UpdateCustomRoleParams) (database.CustomRole, error) {
-	if arg.OrganizationID.UUID != uuid.Nil {
-		if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAssignOrgRole.InOrg(arg.OrganizationID.UUID)); err != nil {
-			return database.CustomRole{}, err
-		}
-	} else {
-		if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAssignRole); err != nil {
-			return database.CustomRole{}, err
-		}
+	if !arg.OrganizationID.Valid || arg.OrganizationID.UUID == uuid.Nil {
+		return database.CustomRole{}, NotAuthorizedError{Err: xerrors.New("custom roles must belong to an organization")}
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAssignOrgRole.InOrg(arg.OrganizationID.UUID)); err != nil {
+		return database.CustomRole{}, err
 	}
 
 	if err := q.customRoleCheck(ctx, database.CustomRole{
@@ -3667,6 +3713,14 @@ func (q *querier) UpdateInactiveUsersToDormant(ctx context.Context, lastSeenAfte
 	return q.db.UpdateInactiveUsersToDormant(ctx, lastSeenAfter)
 }
 
+func (q *querier) UpdateInboxNotificationReadStatus(ctx context.Context, args database.UpdateInboxNotificationReadStatusParams) error {
+	fetchFunc := func(ctx context.Context, args database.UpdateInboxNotificationReadStatusParams) (database.InboxNotification, error) {
+		return q.db.GetInboxNotificationByID(ctx, args.ID)
+	}
+
+	return update(q.log, q.auth, fetchFunc, q.db.UpdateInboxNotificationReadStatus)(ctx, args)
+}
+
 func (q *querier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemberRolesParams) (database.OrganizationMember, error) {
 	// Authorized fetch will check that the actor has read access to the org member since the org member is returned.
 	member, err := database.ExpectOne(q.OrganizationMembers(ctx, database.OrganizationMembersParams{
@@ -3693,7 +3747,7 @@ func (q *querier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemb
 	impliedTypes := append(scopedGranted, rbac.ScopedRoleOrgMember(arg.OrgID))
 
 	added, removed := rbac.ChangeRoleSet(originalRoles, impliedTypes)
-	err = q.canAssignRoles(ctx, &arg.OrgID, added, removed)
+	err = q.canAssignRoles(ctx, arg.OrgID, added, removed)
 	if err != nil {
 		return database.OrganizationMember{}, err
 	}
@@ -3735,6 +3789,16 @@ func (q *querier) UpdateOrganization(ctx context.Context, arg database.UpdateOrg
 		return q.db.GetOrganizationByID(ctx, arg.ID)
 	}
 	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateOrganization)(ctx, arg)
+}
+
+func (q *querier) UpdateOrganizationDeletedByID(ctx context.Context, arg database.UpdateOrganizationDeletedByIDParams) error {
+	deleteF := func(ctx context.Context, id uuid.UUID) error {
+		return q.db.UpdateOrganizationDeletedByID(ctx, database.UpdateOrganizationDeletedByIDParams{
+			ID:        id,
+			UpdatedAt: dbtime.Now(),
+		})
+	}
+	return deleteQ(q.log, q.auth, q.db.GetOrganizationByID, deleteF)(ctx, arg.ID)
 }
 
 func (q *querier) UpdateProvisionerDaemonLastSeenAt(ctx context.Context, arg database.UpdateProvisionerDaemonLastSeenAtParams) error {
@@ -4090,7 +4154,7 @@ func (q *querier) UpdateUserRoles(ctx context.Context, arg database.UpdateUserRo
 	impliedTypes := append(q.convertToDeploymentRoles(arg.GrantedRoles), rbac.RoleMember())
 	// If the changeset is nothing, less rbac checks need to be done.
 	added, removed := rbac.ChangeRoleSet(q.convertToDeploymentRoles(user.RBACRoles), impliedTypes)
-	err = q.canAssignRoles(ctx, nil, added, removed)
+	err = q.canAssignRoles(ctx, uuid.Nil, added, removed)
 	if err != nil {
 		return database.User{}, err
 	}
@@ -4428,6 +4492,13 @@ func (q *querier) UpsertNotificationsSettings(ctx context.Context, value string)
 		return err
 	}
 	return q.db.UpsertNotificationsSettings(ctx, value)
+}
+
+func (q *querier) UpsertOAuth2GithubDefaultEligible(ctx context.Context, eligible bool) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.UpsertOAuth2GithubDefaultEligible(ctx, eligible)
 }
 
 func (q *querier) UpsertOAuthSigningKey(ctx context.Context, value string) error {

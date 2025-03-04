@@ -267,10 +267,7 @@ const CreateEditRolePage = lazy(
 		),
 );
 const ProvisionersPage = lazy(
-	() =>
-		import(
-			"./pages/OrganizationSettingsPage/ProvisionersPage/ProvisionersPage"
-		),
+	() => import("./pages/OrganizationSettingsPage/OrganizationProvisionersPage"),
 );
 const TemplateEmbedPage = lazy(
 	() => import("./pages/TemplatePage/TemplateEmbedPage/TemplateEmbedPage"),
@@ -456,8 +453,6 @@ export const router = createBrowserRouter(
 								path="notifications"
 								element={<DeploymentNotificationsPage />}
 							/>
-							<Route path="idp-org-sync" element={<IdpOrgSyncPage />} />
-							<Route path="premium" element={<PremiumPage />} />
 						</Route>
 
 						<Route path="licenses">
@@ -479,6 +474,9 @@ export const router = createBrowserRouter(
 						<Route path="users/create" element={<CreateUserPage />} />
 
 						{groupsRouter()}
+
+						<Route path="idp-org-sync" element={<IdpOrgSyncPage />} />
+						<Route path="premium" element={<PremiumPage />} />
 					</Route>
 
 					<Route path="/settings" element={<UserSettingsLayout />}>

@@ -543,6 +543,67 @@ func AllGroupSourceValues() []GroupSource {
 	}
 }
 
+type InboxNotificationReadStatus string
+
+const (
+	InboxNotificationReadStatusAll    InboxNotificationReadStatus = "all"
+	InboxNotificationReadStatusUnread InboxNotificationReadStatus = "unread"
+	InboxNotificationReadStatusRead   InboxNotificationReadStatus = "read"
+)
+
+func (e *InboxNotificationReadStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = InboxNotificationReadStatus(s)
+	case string:
+		*e = InboxNotificationReadStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for InboxNotificationReadStatus: %T", src)
+	}
+	return nil
+}
+
+type NullInboxNotificationReadStatus struct {
+	InboxNotificationReadStatus InboxNotificationReadStatus `json:"inbox_notification_read_status"`
+	Valid                       bool                        `json:"valid"` // Valid is true if InboxNotificationReadStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullInboxNotificationReadStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.InboxNotificationReadStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.InboxNotificationReadStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullInboxNotificationReadStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.InboxNotificationReadStatus), nil
+}
+
+func (e InboxNotificationReadStatus) Valid() bool {
+	switch e {
+	case InboxNotificationReadStatusAll,
+		InboxNotificationReadStatusUnread,
+		InboxNotificationReadStatusRead:
+		return true
+	}
+	return false
+}
+
+func AllInboxNotificationReadStatusValues() []InboxNotificationReadStatus {
+	return []InboxNotificationReadStatus{
+		InboxNotificationReadStatusAll,
+		InboxNotificationReadStatusUnread,
+		InboxNotificationReadStatusRead,
+	}
+}
+
 type LogLevel string
 
 const (
@@ -2557,6 +2618,19 @@ type GroupMemberTable struct {
 	GroupID uuid.UUID `db:"group_id" json:"group_id"`
 }
 
+type InboxNotification struct {
+	ID         uuid.UUID       `db:"id" json:"id"`
+	UserID     uuid.UUID       `db:"user_id" json:"user_id"`
+	TemplateID uuid.UUID       `db:"template_id" json:"template_id"`
+	Targets    []uuid.UUID     `db:"targets" json:"targets"`
+	Title      string          `db:"title" json:"title"`
+	Content    string          `db:"content" json:"content"`
+	Icon       string          `db:"icon" json:"icon"`
+	Actions    json.RawMessage `db:"actions" json:"actions"`
+	ReadAt     sql.NullTime    `db:"read_at" json:"read_at"`
+	CreatedAt  time.Time       `db:"created_at" json:"created_at"`
+}
+
 type JfrogXrayScan struct {
 	AgentID     uuid.UUID `db:"agent_id" json:"agent_id"`
 	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
@@ -2675,6 +2749,7 @@ type Organization struct {
 	IsDefault   bool      `db:"is_default" json:"is_default"`
 	DisplayName string    `db:"display_name" json:"display_name"`
 	Icon        string    `db:"icon" json:"icon"`
+	Deleted     bool      `db:"deleted" json:"deleted"`
 }
 
 type OrganizationMember struct {
