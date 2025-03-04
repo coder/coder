@@ -48,10 +48,7 @@ export const AgentMetadata: FC<AgentMetadataProps> = ({
 	agent,
 	storybookMetadata,
 }) => {
-	const [metadata, setMetadata] = useState<
-		WorkspaceAgentMetadata[] | undefined
-	>(storybookMetadata);
-
+	const [metadata, setMetadata] = useState(storybookMetadata);
 	useEffect(() => {
 		// Even though we're using storybookMetadata as the initial value of the
 		// `metadata` state, we can't sync on `metadata` itself. If we did, the
