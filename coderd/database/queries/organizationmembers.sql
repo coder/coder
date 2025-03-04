@@ -27,7 +27,8 @@ WHERE
 -- name: PaginatedOrganizationMembers :many
 SELECT
 	sqlc.embed(organization_members),
-	users.username, users.avatar_url, users.name, users.email, users.rbac_roles as "global_roles"
+	users.username, users.avatar_url, users.name, users.email, users.rbac_roles as "global_roles",
+	COUNT(*) OVER() AS count
 FROM
 	organization_members
 		INNER JOIN

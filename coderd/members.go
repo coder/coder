@@ -235,7 +235,7 @@ func (api *API) GetMembers(rw http.ResponseWriter, r *http.Request) ([]codersdk.
 		})
 	}
 
-	return converted, int64(len(converted)), true
+	return converted, memberRows[0].Count, true
 }
 
 // @Summary Assign role to organization member

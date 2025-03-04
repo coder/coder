@@ -5038,7 +5038,8 @@ func (q *sqlQuerier) OrganizationMembers(ctx context.Context, arg OrganizationMe
 const paginatedOrganizationMembers = `-- name: PaginatedOrganizationMembers :many
 SELECT
 	organization_members.user_id, organization_members.organization_id, organization_members.created_at, organization_members.updated_at, organization_members.roles,
-	users.username, users.avatar_url, users.name, users.email, users.rbac_roles as "global_roles"
+	users.username, users.avatar_url, users.name, users.email, users.rbac_roles as "global_roles",
+	COUNT(*) OVER() AS count
 FROM
 	organization_members
 		INNER JOIN
@@ -5071,6 +5072,7 @@ type PaginatedOrganizationMembersRow struct {
 	Name               string             `db:"name" json:"name"`
 	Email              string             `db:"email" json:"email"`
 	GlobalRoles        pq.StringArray     `db:"global_roles" json:"global_roles"`
+	Count              int64              `db:"count" json:"count"`
 }
 
 func (q *sqlQuerier) PaginatedOrganizationMembers(ctx context.Context, arg PaginatedOrganizationMembersParams) ([]PaginatedOrganizationMembersRow, error) {
@@ -5093,6 +5095,7 @@ func (q *sqlQuerier) PaginatedOrganizationMembers(ctx context.Context, arg Pagin
 			&i.Name,
 			&i.Email,
 			&i.GlobalRoles,
+			&i.Count,
 		); err != nil {
 			return nil, err
 		}
