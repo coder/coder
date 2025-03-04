@@ -2375,10 +2375,14 @@ class ApiMethods {
 		}
 	};
 
-	getAgentContainers = async (agentId: string) => {
+	getAgentContainers = async (agentId: string, labels?: string[]) => {
+		const params = new URLSearchParams(
+			labels?.map((label) => ["label", label]),
+		);
+
 		const res =
 			await this.axios.get<TypesGen.WorkspaceAgentListContainersResponse>(
-				`/api/v2/workspaceagents/${agentId}/containers`,
+				`/api/v2/workspaceagents/${agentId}/containers?${params.toString()}`,
 			);
 		return res.data;
 	};
