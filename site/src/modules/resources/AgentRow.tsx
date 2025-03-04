@@ -283,7 +283,9 @@ export const AgentRow: FC<AgentRowProps> = ({
 								<AgentDevcontainerCard
 									key={container.id}
 									container={container}
-									workspace={workspace.name}
+									workspace={workspace}
+									host={proxy.preferredWildcardHostname}
+									agentName={agent.name}
 								/>
 							);
 						})}

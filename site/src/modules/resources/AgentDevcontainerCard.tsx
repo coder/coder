@@ -1,19 +1,24 @@
 import Link from "@mui/material/Link";
-import type { WorkspaceAgentDevcontainer } from "api/typesGenerated";
+import type { Workspace, WorkspaceAgentDevcontainer } from "api/typesGenerated";
 import { ExternalLinkIcon } from "lucide-react";
 import type { FC } from "react";
+import { portForwardURL } from "utils/portForward";
 import { AgentButton } from "./AgentButton";
 import { AgentDevcontainerSSHButton } from "./SSHButton/SSHButton";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
 
 type AgentDevcontainerCardProps = {
 	container: WorkspaceAgentDevcontainer;
-	workspace: string;
+	workspace: Workspace;
+	host: string;
+	agentName: string;
 };
 
 export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 	container,
 	workspace,
+	agentName,
+	host,
 }) => {
 	return (
 		<section
@@ -26,7 +31,7 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 				</h3>
 
 				<AgentDevcontainerSSHButton
-					workspace={workspace}
+					workspace={workspace.name}
 					container={container.name}
 				/>
 			</header>
@@ -34,7 +39,12 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 			<h4 className="m-0 text-xl font-semibold">Forwarded ports</h4>
 
 			<div className="flex gap-4 flex-wrap mt-4">
-				<TerminalLink workspaceName={workspace} />
+				<TerminalLink
+					workspaceName={workspace.name}
+					agentName={agentName}
+					containerName={container.name}
+					userName={workspace.owner_name}
+				/>
 				{container.ports.map((port) => {
 					return (
 						<Link
@@ -43,6 +53,14 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 							component={AgentButton}
 							underline="none"
 							startIcon={<ExternalLinkIcon className="size-icon-sm" />}
+							href={portForwardURL(
+								host,
+								port.port,
+								agentName,
+								workspace.name,
+								workspace.owner_name,
+								location.protocol === "https" ? "https" : "http",
+							)}
 						>
 							{port.process_name ||
 								`${port.port}/${port.network.toUpperCase()}`}
