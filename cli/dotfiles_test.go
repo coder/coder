@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+	"unicode/utf16"
 
 	"github.com/stretchr/testify/require"
 
@@ -309,7 +310,7 @@ func TestDotfilesInstallScriptWindows(t *testing.T) {
 
 		b, err := os.ReadFile(filepath.Join(string(root), "greeting.txt"))
 		require.NoError(t, err)
-		require.Equal(t, string(b), "hello, computer!\n")
+		require.Equal(t, string(b), utf16.Encode([]rune("hello, computer!\n")))
 	})
 }
 
