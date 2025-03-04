@@ -1,4 +1,4 @@
-# Coder Desktop
+# Coder Desktop (Early Access)
 
 Use Coder Desktop to work on your workspaces as though they're on your LAN, no
 port-forwarding required.
