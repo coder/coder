@@ -92,6 +92,7 @@ func New() database.Store {
 			workspaceAgentLogs:        make([]database.WorkspaceAgentLog, 0),
 			workspaceBuilds:           make([]database.WorkspaceBuild, 0),
 			workspaceApps:             make([]database.WorkspaceApp, 0),
+			workspaceAppAuditSessions: make([]database.WorkspaceAppAuditSession, 0),
 			workspaces:                make([]database.WorkspaceTable, 0),
 			workspaceProxies:          make([]database.WorkspaceProxy, 0),
 		},
@@ -237,6 +238,7 @@ type data struct {
 	workspaceAgentMemoryResourceMonitors []database.WorkspaceAgentMemoryResourceMonitor
 	workspaceAgentVolumeResourceMonitors []database.WorkspaceAgentVolumeResourceMonitor
 	workspaceApps                        []database.WorkspaceApp
+	workspaceAppAuditSessions            []database.WorkspaceAppAuditSession
 	workspaceAppStatsLastInsertID        int64
 	workspaceAppStats                    []database.WorkspaceAppStat
 	workspaceBuilds                      []database.WorkspaceBuild
@@ -9249,13 +9251,27 @@ func (q *FakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertW
 	return workspaceApp, nil
 }
 
-func (*FakeQuerier) InsertWorkspaceAppAuditSession(_ context.Context, arg database.InsertWorkspaceAppAuditSessionParams) (uuid.UUID, error) {
+func (q *FakeQuerier) InsertWorkspaceAppAuditSession(_ context.Context, arg database.InsertWorkspaceAppAuditSessionParams) (uuid.UUID, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return uuid.Nil, err
 	}
 
-	panic("not implemented")
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	id := uuid.New()
+	q.workspaceAppAuditSessions = append(q.workspaceAppAuditSessions, database.WorkspaceAppAuditSession{
+		ID:        id,
+		AgentID:   arg.AgentID,
+		AppID:     arg.AppID,
+		UserID:    arg.UserID,
+		Ip:        arg.Ip,
+		StartedAt: arg.StartedAt,
+		UpdatedAt: arg.UpdatedAt,
+	})
+
+	return id, nil
 }
 
 func (q *FakeQuerier) InsertWorkspaceAppStats(_ context.Context, arg database.InsertWorkspaceAppStatsParams) error {
@@ -11004,13 +11020,37 @@ func (q *FakeQuerier) UpdateWorkspaceAgentStartupByID(_ context.Context, arg dat
 	return sql.ErrNoRows
 }
 
-func (*FakeQuerier) UpdateWorkspaceAppAuditSession(_ context.Context, arg database.UpdateWorkspaceAppAuditSessionParams) ([]uuid.UUID, error) {
+func (q *FakeQuerier) UpdateWorkspaceAppAuditSession(_ context.Context, arg database.UpdateWorkspaceAppAuditSessionParams) ([]uuid.UUID, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return nil, err
 	}
 
-	panic("not implemented")
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	var updated []uuid.UUID
+	for i, s := range q.workspaceAppAuditSessions {
+		if s.AgentID != arg.AgentID {
+			continue
+		}
+		if s.AppID != arg.AppID {
+			continue
+		}
+		if s.UserID != arg.UserID {
+			continue
+		}
+		if s.Ip.IPNet.String() != arg.Ip.IPNet.String() {
+			continue
+		}
+		staleTime := dbtime.Now().Add(-(time.Duration(arg.StaleIntervalMS) * time.Millisecond))
+		if !s.UpdatedAt.After(staleTime) {
+			continue
+		}
+		q.workspaceAppAuditSessions[i].UpdatedAt = arg.UpdatedAt
+		updated = append(updated, s.ID)
+	}
+	return updated, nil
 }
 
 func (q *FakeQuerier) UpdateWorkspaceAppHealthByID(_ context.Context, arg database.UpdateWorkspaceAppHealthByIDParams) error {
