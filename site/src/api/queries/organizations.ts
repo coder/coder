@@ -6,10 +6,8 @@ import type {
 	UpdateOrganizationRequest,
 } from "api/typesGenerated";
 import {
-	type AnyOrganizationPermissions,
 	type OrganizationPermissionName,
 	type OrganizationPermissions,
-	anyOrganizationPermissionChecks,
 	organizationPermissionChecks,
 } from "modules/management/organizationPermissions";
 import type { QueryClient } from "react-query";
@@ -263,21 +261,6 @@ export const organizationsPermissions = (
 				{} as Record<string, Partial<OrganizationPermissions>>,
 			) as Record<string, OrganizationPermissions>;
 		},
-	};
-};
-
-export const anyOrganizationPermissionsKey = [
-	"authorization",
-	"anyOrganization",
-];
-
-export const anyOrganizationPermissions = () => {
-	return {
-		queryKey: anyOrganizationPermissionsKey,
-		queryFn: () =>
-			API.checkAuthorization({
-				checks: anyOrganizationPermissionChecks,
-			}) as Promise<AnyOrganizationPermissions>,
 	};
 };
 

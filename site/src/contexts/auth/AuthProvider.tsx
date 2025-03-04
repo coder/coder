@@ -18,7 +18,7 @@ import {
 	useContext,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { type Permissions, permissionsToCheck } from "./permissions";
+import { type Permissions, permissionChecks } from "./permissions";
 
 export type AuthContextValue = {
 	isLoading: boolean;
@@ -50,13 +50,13 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
 	const hasFirstUserQuery = useQuery(hasFirstUser(userMetadataState));
 
 	const permissionsQuery = useQuery({
-		...checkAuthorization({ checks: permissionsToCheck }),
+		...checkAuthorization({ checks: permissionChecks }),
 		enabled: userQuery.data !== undefined,
 	});
 
 	const queryClient = useQueryClient();
 	const loginMutation = useMutation(
-		login({ checks: permissionsToCheck }, queryClient),
+		login({ checks: permissionChecks }, queryClient),
 	);
 
 	const logoutMutation = useMutation(logout(queryClient));

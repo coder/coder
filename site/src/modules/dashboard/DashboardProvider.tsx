@@ -1,10 +1,7 @@
 import { appearance } from "api/queries/appearance";
 import { entitlements } from "api/queries/entitlements";
 import { experiments } from "api/queries/experiments";
-import {
-	anyOrganizationPermissions,
-	organizations,
-} from "api/queries/organizations";
+import { organizations } from "api/queries/organizations";
 import type {
 	AppearanceConfig,
 	Entitlements,
@@ -13,8 +10,9 @@ import type {
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { canViewAnyOrganization } from "contexts/auth/permissions";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
-import { canViewAnyOrganization } from "modules/management/organizationPermissions";
 import { type FC, type PropsWithChildren, createContext } from "react";
 import { useQuery } from "react-query";
 import { selectFeatureVisibility } from "./entitlements";
@@ -34,20 +32,17 @@ export const DashboardContext = createContext<DashboardValue | undefined>(
 
 export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
 	const { metadata } = useEmbeddedMetadata();
+	const { permissions } = useAuthenticated();
 	const entitlementsQuery = useQuery(entitlements(metadata.entitlements));
 	const experimentsQuery = useQuery(experiments(metadata.experiments));
 	const appearanceQuery = useQuery(appearance(metadata.appearance));
 	const organizationsQuery = useQuery(organizations());
-	const anyOrganizationPermissionsQuery = useQuery(
-		anyOrganizationPermissions(),
-	);
 
 	const error =
 		entitlementsQuery.error ||
 		appearanceQuery.error ||
 		experimentsQuery.error ||
-		organizationsQuery.error ||
-		anyOrganizationPermissionsQuery.error;
+		organizationsQuery.error;
 
 	if (error) {
 		return <ErrorAlert error={error} />;
@@ -57,8 +52,7 @@ export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
 		!entitlementsQuery.data ||
 		!appearanceQuery.data ||
 		!experimentsQuery.data ||
-		!organizationsQuery.data ||
-		!anyOrganizationPermissionsQuery.data;
+		!organizationsQuery.data;
 
 	if (isLoading) {
 		return <Loader fullscreen />;
@@ -79,8 +73,7 @@ export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
 				organizations: organizationsQuery.data,
 				showOrganizations,
 				canViewOrganizationSettings:
-					showOrganizations &&
-					canViewAnyOrganization(anyOrganizationPermissionsQuery.data),
+					showOrganizations && canViewAnyOrganization(permissions),
 			}}
 		>
 			{children}
