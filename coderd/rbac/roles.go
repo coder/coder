@@ -307,7 +307,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		Identifier:  RoleAuditor(),
 		DisplayName: "Auditor",
 		Site: Permissions(map[string][]policy.Action{
-			ResourceAuditLog.Type: {policy.ActionRead},
+			ResourceAssignOrgRole.Type: {policy.ActionRead},
+			ResourceAuditLog.Type:      {policy.ActionRead},
 			// Allow auditors to see the resources that audit logs reflect.
 			ResourceTemplate.Type:           {policy.ActionRead, policy.ActionViewInsights},
 			ResourceUser.Type:               {policy.ActionRead},
@@ -327,7 +328,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		Identifier:  RoleTemplateAdmin(),
 		DisplayName: "Template Admin",
 		Site: Permissions(map[string][]policy.Action{
-			ResourceTemplate.Type: ResourceTemplate.AvailableActions(),
+			ResourceAssignOrgRole.Type: {policy.ActionRead},
+			ResourceTemplate.Type:      ResourceTemplate.AvailableActions(),
 			// CRUD all files, even those they did not upload.
 			ResourceFile.Type:      {policy.ActionCreate, policy.ActionRead},
 			ResourceWorkspace.Type: {policy.ActionRead},
