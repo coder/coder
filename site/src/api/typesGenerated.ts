@@ -892,6 +892,12 @@ export interface GenerateAPIKeyResponse {
 	readonly key: string;
 }
 
+// From codersdk/organizations.go
+export interface GetMembersResponse {
+	readonly members: readonly OrganizationMemberWithUserData[];
+	readonly count: number;
+}
+
 // From codersdk/insights.go
 export interface GetUserStatusCountsRequest {
 	readonly offset: string;
@@ -1191,6 +1197,11 @@ export interface MatchedProvisioners {
 	readonly count: number;
 	readonly available: number;
 	readonly most_recently_seen?: string;
+}
+
+// From codersdk/organizations.go
+export interface MembersRequest extends Pagination {
+	readonly q?: string;
 }
 
 // From codersdk/organizations.go

@@ -575,10 +575,16 @@ class ApiMethods {
 	/**
 	 * @param organization Can be the organization's ID or name
 	 */
-	getOrganizationMembers = async (organization: string) => {
-		const response = await this.axios.get<
-			TypesGen.OrganizationMemberWithUserData[]
-		>(`/api/v2/organizations/${organization}/members`);
+	getOrganizationMembers = async (
+		organization: string,
+		options: TypesGen.MembersRequest,
+	) => {
+		const url = getURLWithSearchParams(
+			`/api/v2/organizations/${organization}/members`,
+			options,
+		);
+
+		const response = await this.axios.get<TypesGen.GetMembersResponse>(url);
 
 		return response.data;
 	};
