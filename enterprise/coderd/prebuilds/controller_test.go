@@ -1,4 +1,4 @@
-package prebuilds
+package prebuilds_test
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/serpent"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
@@ -14,8 +15,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/enterprise/coderd/prebuilds"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/coder/serpent"
 )
 
 func TestNoReconciliationActionsIfNoPresets(t *testing.T) {
@@ -32,7 +33,7 @@ func TestNoReconciliationActionsIfNoPresets(t *testing.T) {
 		ReconciliationInterval: serpent.Duration(testutil.WaitLong),
 	}
 	logger := testutil.Logger(t)
-	controller := NewController(db, pubsub, cfg, logger)
+	controller := prebuilds.NewStoreReconciler(db, pubsub, cfg, logger)
 
 	// given a template version with no presets
 	org := dbgen.Organization(t, db, database.Organization{})
@@ -52,7 +53,7 @@ func TestNoReconciliationActionsIfNoPresets(t *testing.T) {
 	require.Equal(t, templateVersion, gotTemplateVersion)
 
 	// when we trigger the reconciliation loop for all templates
-	controller.reconcile(ctx, nil)
+	controller.Reconcile(ctx, nil)
 
 	// then no reconciliation actions are taken
 	// because without presets, there are no prebuilds
@@ -76,7 +77,7 @@ func TestNoReconciliationActionsIfNoPrebuilds(t *testing.T) {
 		ReconciliationInterval: serpent.Duration(testutil.WaitLong),
 	}
 	logger := testutil.Logger(t)
-	controller := NewController(db, pubsub, cfg, logger)
+	controller := prebuilds.NewStoreReconciler(db, pubsub, cfg, logger)
 
 	// given there are presets, but no prebuilds
 	org := dbgen.Organization(t, db, database.Organization{})
@@ -108,7 +109,7 @@ func TestNoReconciliationActionsIfNoPrebuilds(t *testing.T) {
 	require.NotEmpty(t, presetParameters)
 
 	// when we trigger the reconciliation loop for all templates
-	controller.reconcile(ctx, nil)
+	controller.Reconcile(ctx, nil)
 
 	// then no reconciliation actions are taken
 	// because without prebuilds, there is nothing to reconcile
@@ -216,11 +217,11 @@ func setupTestDBPrebuild(
 	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
 		TemplateID:     templateID,
 		OrganizationID: orgID,
-		OwnerID:        OwnerID,
+		OwnerID:        prebuilds.OwnerID,
 		Deleted:        deleted,
 	})
 	job := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
-		InitiatorID:    OwnerID,
+		InitiatorID:    prebuilds.OwnerID,
 		CreatedAt:      time.Now().Add(-2 * time.Hour),
 		CompletedAt:    completedAt,
 		CanceledAt:     cancelledAt,
@@ -229,7 +230,7 @@ func setupTestDBPrebuild(
 	})
 	dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
 		WorkspaceID:             workspace.ID,
-		InitiatorID:             OwnerID,
+		InitiatorID:             prebuilds.OwnerID,
 		TemplateVersionID:       templateVersion.ID,
 		JobID:                   job.ID,
 		TemplateVersionPresetID: uuid.NullUUID{UUID: preset.ID, Valid: true},
@@ -301,7 +302,7 @@ func TestActiveTemplateVersionPrebuilds(t *testing.T) {
 			db, pubsub := dbtestutil.NewDB(t)
 			cfg := codersdk.PrebuildsConfig{}
 			logger := testutil.Logger(t)
-			controller := NewController(db, pubsub, cfg, logger)
+			controller := prebuilds.NewStoreReconciler(db, pubsub, cfg, logger)
 
 			orgID, userID, templateID := setupTestDBTemplate(t, db)
 			_, _, prebuildID := setupTestDBPrebuild(
@@ -315,7 +316,7 @@ func TestActiveTemplateVersionPrebuilds(t *testing.T) {
 				templateID,
 			)
 
-			controller.reconcile(ctx, nil)
+			controller.Reconcile(ctx, nil)
 
 			createdNewPrebuild := false
 			deletedOldPrebuild := true
@@ -340,8 +341,35 @@ func TestInactiveTemplateVersionPrebuilds(t *testing.T) {
 	// Scenario: Prebuilds are never created and always deleted if the template version is inactive
 	t.Parallel()
 	t.Skip("todo")
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, pubsub := dbtestutil.NewDB(t)
+	cfg := codersdk.PrebuildsConfig{}
+	logger := testutil.Logger(t)
+	controller := prebuilds.NewStoreReconciler(db, pubsub, cfg, logger)
+
+	// when does a prebuild get deleted?
+	// * when it is in some way permanently ineligible to be claimed
+	//   * this could be because the build failed or was canceled
+	//   * or it belongs to a template version that is no longer active
+	//   * or it belongs to a template version that is deprecated
+	// * when there are more prebuilds than the preset desires
+	//   * someone could have manually created a workspace for the prebuild user
+	// * any workspaces that were created for the prebuilds user and don't match a preset should be deleted - deferred
+
+	// given a preset that desires 2 prebuilds
+	// and there are 3 running prebuilds for the preset
+	// and there are 4 non-running prebuilds for the preset
+	// * one is not running because its latest build was a stop transition
+	// * another is not running because its latest build was a delete transition
+	// * a third is not running because its latest build was a start transition but the build failed
+	// * a fourth is not running because its latest build was a start transition but the build was canceled
+	// when we trigger the reconciliation loop for all templates
+	controller.Reconcile(ctx, nil)
+	// then the four non running prebuilds are deleted
+	// and 1 of the running prebuilds is deleted
+	// because stopped, deleted and failed builds are not considered running in terms of the definition of "running" above.
 }
 
-// TODO (sasswart): test claim (success, fail) x (eligible)
 // TODO (sasswart): test idempotency of reconciliation
 // TODO (sasswart): test mutual exclusion
