@@ -61,6 +61,7 @@ func (s *InboxHandler) dispatch(payload types.MessagePayload, title, body string
 			return false, xerrors.Errorf("marshal actions: %w", err)
 		}
 
+		// nolint:exhaustruct
 		_, err = s.store.InsertInboxNotification(ctx, database.InsertInboxNotificationParams{
 			ID:         msgID,
 			UserID:     userID,
@@ -68,7 +69,6 @@ func (s *InboxHandler) dispatch(payload types.MessagePayload, title, body string
 			Targets:    payload.Targets,
 			Title:      title,
 			Content:    body,
-			Icon:       "https://cdn.coder.com/icons/coder-icon-512x512.png",
 			Actions:    actions,
 			CreatedAt:  dbtime.Now(),
 		})
