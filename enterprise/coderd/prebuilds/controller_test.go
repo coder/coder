@@ -7,9 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/serpent"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/serpent"
 
 	"tailscale.com/types/ptr"
 
@@ -283,7 +284,7 @@ func TestPrebuildReconciliation(t *testing.T) {
 						db, pubsub := dbtestutil.NewDB(t)
 						cfg := codersdk.PrebuildsConfig{}
 						logger := testutil.Logger(t)
-						controller := NewController(db, pubsub, cfg, logger)
+						controller := prebuilds.NewStoreReconciler(db, pubsub, cfg, logger)
 
 						orgID, userID, templateID := setupTestDBTemplate(t, db)
 						templateVersionID := setupTestDBTemplateVersion(
@@ -324,7 +325,7 @@ func TestPrebuildReconciliation(t *testing.T) {
 						// Run the reconciliation multiple times to ensure idempotency
 						// 8 was arbitrary, but large enough to reasonably trust the result
 						for range 8 {
-							controller.reconcile(ctx, nil)
+							controller.ReconcileAll(ctx)
 
 							if tc.shouldCreateNewPrebuild != nil {
 								createdNewPrebuild := false
