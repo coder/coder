@@ -313,6 +313,62 @@ data "coder_parameter" "project_id" {
 }
 ```
 
+## Workspace presets
+
+Workspace presets allow you to configure commonly used combinations of parameters
+into a single option, which makes it easier for developers to pick one that fits
+their needs.
+
+![Template with options in the preset dropdown](../../../images/admin/templates/extend-templates/template-preset-dropdown.png)
+
+Use `coder_workspace_preset` to define the preset parameters.
+After you save the template file, the presets will be available for all new
+workspace deployments.
+
+<details><summary>Expand for an example</summary>
+
+```tf
+data "coder_workspace_preset" "goland-gpu" {
+  name        = "GoLand with GPU"
+  parameters = {
+    "machine_type"  = "n1-standard-1"
+    "attach_gpu"    = "true"
+    "gcp_region"    = "europe-west4-c"
+    "jetbrains_ide" = "GO"
+  }
+}
+
+data "coder_parameter" "machine_type" {
+  name          = "machine_type"
+  display_name  = "Machine Type"
+  type          = "string"
+  default       = "n1-standard-2"
+}
+
+data "coder_parameter" "attach_gpu" {
+  name          = "attach_gpu"
+  display_name  = "Attach GPU?"
+  type          = "bool"
+  default       = "false"
+}
+
+data "coder_parameter" "gcp_region" {
+  name          = "gcp_region"
+  display_name  = "Machine Type"
+  type          = "string"
+  default       = "n1-standard-2"
+}
+
+data "coder_parameter" "jetbrains_ide" {
+  name          = "jetbrains_ide"
+  display_name  = "Machine Type"
+  type          = "string"
+  default       = "n1-standard-2"
+}
+```
+
+</details>
+
 ## Create Autofill
 
 When the template doesn't specify default values, Coder may still autofill
