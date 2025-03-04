@@ -71,6 +71,7 @@ type BackgroundAuditParams[T Auditable] struct {
 	Action         database.AuditAction
 	OrganizationID uuid.UUID
 	IP             string
+	UserAgent      string
 	// todo: this should automatically marshal an interface{} instead of accepting a raw message.
 	AdditionalFields json.RawMessage
 
@@ -422,7 +423,7 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 			action = req.Action
 		}
 
-		ip := parseIP(p.Request.RemoteAddr)
+		ip := ParseIP(p.Request.RemoteAddr)
 		auditLog := database.AuditLog{
 			ID:               uuid.New(),
 			Time:             dbtime.Now(),
@@ -453,7 +454,7 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 // BackgroundAudit creates an audit log for a background event.
 // The audit log is committed upon invocation.
 func BackgroundAudit[T Auditable](ctx context.Context, p *BackgroundAuditParams[T]) {
-	ip := parseIP(p.IP)
+	ip := ParseIP(p.IP)
 
 	diff := Diff(p.Audit, p.Old, p.New)
 	var err error
@@ -479,7 +480,7 @@ func BackgroundAudit[T Auditable](ctx context.Context, p *BackgroundAuditParams[
 		UserID:           p.UserID,
 		OrganizationID:   requireOrgID[T](ctx, p.OrganizationID, p.Log),
 		Ip:               ip,
-		UserAgent:        sql.NullString{},
+		UserAgent:        sql.NullString{Valid: p.UserAgent != "", String: p.UserAgent},
 		ResourceType:     either(p.Old, p.New, ResourceType[T], p.Action),
 		ResourceID:       either(p.Old, p.New, ResourceID[T], p.Action),
 		ResourceTarget:   either(p.Old, p.New, ResourceTarget[T], p.Action),
@@ -566,7 +567,7 @@ func either[T Auditable, R any](old, new T, fn func(T) R, auditAction database.A
 	panic("both old and new are nil")
 }
 
-func parseIP(ipStr string) pqtype.Inet {
+func ParseIP(ipStr string) pqtype.Inet {
 	ip := net.ParseIP(ipStr)
 	ipNet := net.IPNet{}
 	if ip != nil {

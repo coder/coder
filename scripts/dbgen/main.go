@@ -340,7 +340,7 @@ func orderAndStubDatabaseFunctions(filePath, receiver, structName string, stub f
 			})
 			for _, r := range fn.Func.Results.List {
 				switch typ := r.Type.(type) {
-				case *dst.StarExpr, *dst.ArrayType:
+				case *dst.StarExpr, *dst.ArrayType, *dst.SelectorExpr:
 					returnStmt.Results = append(returnStmt.Results, dst.NewIdent("nil"))
 				case *dst.Ident:
 					if typ.Path != "" {
