@@ -9234,7 +9234,7 @@ func (q *FakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertW
 	return workspaceApp, nil
 }
 
-func (q *FakeQuerier) InsertWorkspaceAppAuditSession(ctx context.Context, arg database.InsertWorkspaceAppAuditSessionParams) (uuid.UUID, error) {
+func (*FakeQuerier) InsertWorkspaceAppAuditSession(_ context.Context, arg database.InsertWorkspaceAppAuditSessionParams) (uuid.UUID, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return uuid.Nil, err
@@ -10982,7 +10982,7 @@ func (q *FakeQuerier) UpdateWorkspaceAgentStartupByID(_ context.Context, arg dat
 	return sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateWorkspaceAppAuditSession(_ context.Context, arg database.UpdateWorkspaceAppAuditSessionParams) ([]uuid.UUID, error) {
+func (*FakeQuerier) UpdateWorkspaceAppAuditSession(_ context.Context, arg database.UpdateWorkspaceAppAuditSessionParams) ([]uuid.UUID, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return nil, err
