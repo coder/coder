@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
-	"unicode/utf16"
 
 	"github.com/stretchr/testify/require"
 
@@ -310,7 +309,9 @@ func TestDotfilesInstallScriptWindows(t *testing.T) {
 
 		b, err := os.ReadFile(filepath.Join(string(root), "greeting.txt"))
 		require.NoError(t, err)
-		require.Equal(t, string(b), utf16.Encode([]rune("hello, computer!\n")))
+		// If you squint, it does in fact say "hello, computer!" in here, but in
+		// UTF-16 and with a byte-order-marker at the beginning. Windows!
+		require.Equal(t, b, []byte("\xff\xfeh\x00e\x00l\x00l\x00o\x00,\x00 \x00c\x00o\x00m\x00p\x00u\x00t\x00e\x00r\x00!\x00\r\x00\n\x00"))
 	})
 }
 
