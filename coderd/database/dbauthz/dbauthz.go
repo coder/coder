@@ -3523,6 +3523,10 @@ func (q *querier) OrganizationMembers(ctx context.Context, arg database.Organiza
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.OrganizationMembers)(ctx, arg)
 }
 
+func (q *querier) PaginatedOrganizationMembers(ctx context.Context, arg database.PaginatedOrganizationMembersParams) ([]database.PaginatedOrganizationMembersRow, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.PaginatedOrganizationMembers)(ctx, arg)
+}
+
 func (q *querier) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error {
 	template, err := q.db.GetTemplateByID(ctx, templateID)
 	if err != nil {

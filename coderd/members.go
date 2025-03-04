@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -152,41 +153,110 @@ func (api *API) deleteOrganizationMember(rw http.ResponseWriter, r *http.Request
 // @Router /organizations/{organization}/members [get]
 func (api *API) listMembers(rw http.ResponseWriter, r *http.Request) {
 	var (
-		ctx          = r.Context()
-		organization = httpmw.OrganizationParam(r)
+		ctx = r.Context()
+		// organization = httpmw.OrganizationParam(r)
 	)
-
-	members, err := api.Database.OrganizationMembers(ctx, database.OrganizationMembersParams{
-		OrganizationID: organization.ID,
-		UserID:         uuid.Nil,
-	})
-	if httpapi.Is404Error(err) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
+	members, membersCount, ok := api.GetMembers(rw, r)
+	if !ok {
 		return
 	}
 
-	resp, err := convertOrganizationMembersWithUserData(ctx, api.Database, members)
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return
-	}
+	// members, err := api.Database.OrganizationMembers(ctx, database.OrganizationMembersParams{
+	// 	OrganizationID: organization.ID,
+	// 	UserID:         uuid.Nil,
+	// })
+	// if httpapi.Is404Error(err) {
+	// 	httpapi.ResourceNotFound(rw)
+	// 	return
+	// }
+	// if err != nil {
+	// 	httpapi.InternalServerError(rw, err)
+	// 	return
+	// }
+
+	// resp, err := convertOrganizationMembersWithUserData(ctx, api.Database, members)
+	// if err != nil {
+	// 	httpapi.InternalServerError(rw, err)
+	// 	return
+	// }
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.GetMembersResponse{
-		Members: resp,
-		Count:   len(resp),
+		Members: members,
+		Count:   int(membersCount),
 	})
 }
 
-func (api *API) GetMembers(rw http.ResponseWriter, r *http.Request) ([]database.OrganizationMember, int64, bool) {
-	// ctx := r.Context()
-	// query := r.URL.Query().Get("q")
-	// params, errs := sear
+func (api *API) GetMembers(rw http.ResponseWriter, r *http.Request) ([]codersdk.OrganizationMemberWithUserData, int64, bool) {
+	var (
+		ctx          = r.Context()
+		organization = httpmw.OrganizationParam(r)
+	)
+	query := r.URL.Query().Get("q")
+	_, errs := searchquery.Members(query)
+	if len(errs) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid organization members search query.",
+			Validations: errs,
+		})
+		return nil, -1, false
+	}
 
-	return nil, -1, false
+	paginationParams, ok := parsePagination(rw, r)
+	if !ok {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, "Oop")
+		return nil, -1, false
+	}
+
+	memberRows, err := api.Database.PaginatedOrganizationMembers(ctx, database.PaginatedOrganizationMembersParams{
+		OrganizationID: organization.ID,
+		OffsetOpt:      int32(paginationParams.Offset),
+		LimitOpt:       int32(paginationParams.Limit),
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching users.",
+			Detail:  err.Error(),
+		})
+		return nil, -1, false
+	}
+
+	if len(memberRows) == 0 {
+		return []codersdk.OrganizationMemberWithUserData{}, 0, true
+	}
+
+	members := make([]database.OrganizationMember, 0)
+	for _, row := range memberRows {
+		members = append(members, row.OrganizationMember)
+	}
+
+	convertedMembers, err := convertOrganizationMembers(ctx, api.Database, members)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching members.",
+			Detail:  err.Error(),
+		})
+		return nil, -1, false
+	}
+	if len(convertedMembers) != len(memberRows) {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching members.",
+		})
+		return nil, -1, false
+	}
+
+	converted := make([]codersdk.OrganizationMemberWithUserData, 0)
+	for i := range convertedMembers {
+		converted = append(converted, codersdk.OrganizationMemberWithUserData{
+			Username:           memberRows[i].Username,
+			AvatarURL:          memberRows[i].AvatarURL,
+			Name:               memberRows[i].Name,
+			Email:              memberRows[i].Email,
+			GlobalRoles:        db2sdk.SlimRolesFromNames(memberRows[i].GlobalRoles),
+			OrganizationMember: convertedMembers[i],
+		})
+	}
+
+	return converted, int64(len(converted)), true
 }
 
 // @Summary Assign role to organization member
