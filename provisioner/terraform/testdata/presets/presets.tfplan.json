@@ -1,6 +1,6 @@
 {
   "format_version": "1.2",
-  "terraform_version": "1.9.8",
+  "terraform_version": "1.11.0",
   "planned_values": {
     "root_module": {
       "resources": [
@@ -113,7 +113,7 @@
   ],
   "prior_state": {
     "format_version": "1.0",
-    "terraform_version": "1.9.8",
+    "terraform_version": "1.11.0",
     "values": {
       "root_module": {
         "resources": [
@@ -130,7 +130,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "1e5ebd18-fd9e-435e-9b85-d5dded4b2d69",
+              "id": "57ccea62-8edf-41d1-a2c1-33f365e27567",
               "mutable": false,
               "name": "Sample",
               "option": null,
@@ -179,7 +179,7 @@
                   "display_name": null,
                   "ephemeral": false,
                   "icon": null,
-                  "id": "600375fe-cb06-4d7d-92b6-8e2c93d4d9dd",
+                  "id": "1774175f-0efd-4a79-8d40-dbbc559bf7c1",
                   "mutable": true,
                   "name": "First parameter from module",
                   "option": null,
@@ -206,7 +206,7 @@
                   "display_name": null,
                   "ephemeral": false,
                   "icon": null,
-                  "id": "c58f2ba6-9db3-49aa-8795-33fdb18f3e67",
+                  "id": "23d6841f-bb95-42bb-b7ea-5b254ce6c37d",
                   "mutable": true,
                   "name": "Second parameter from module",
                   "option": null,
@@ -238,7 +238,7 @@
                       "display_name": null,
                       "ephemeral": false,
                       "icon": null,
-                      "id": "7d212d9b-f6cb-4611-989e-4512d4f86c10",
+                      "id": "9d629df2-9846-47b2-ab1f-e7c882f35117",
                       "mutable": true,
                       "name": "First parameter from child module",
                       "option": null,
@@ -265,7 +265,7 @@
                       "display_name": null,
                       "ephemeral": false,
                       "icon": null,
-                      "id": "6f71825d-4332-4f1c-a8d9-8bc118fa6a45",
+                      "id": "52ca7b77-42a1-4887-a2f5-7a728feebdd5",
                       "mutable": true,
                       "name": "Second parameter from child module",
                       "option": null,
@@ -293,7 +293,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "0.22.0"
+        "version_constraint": "2.1.3"
       },
       "module.this_is_external_module:docker": {
         "name": "docker",
@@ -497,7 +497,7 @@
       }
     }
   },
-  "timestamp": "2025-02-06T07:28:26Z",
+  "timestamp": "2025-03-03T20:39:59Z",
   "applyable": true,
   "complete": true,
   "errored": false
