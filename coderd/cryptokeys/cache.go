@@ -251,15 +251,14 @@ func (c *cache) cryptoKey(ctx context.Context, sequence int32) (string, []byte, 
 	}
 
 	c.fetching = true
-	c.mu.Unlock()
 
+	c.mu.Unlock()
 	keys, err := c.cryptoKeys(ctx)
+	c.mu.Lock()
 	if err != nil {
-		c.mu.Lock() // Re-lock because of defer.
 		return "", nil, xerrors.Errorf("get keys: %w", err)
 	}
 
-	c.mu.Lock()
 	c.lastFetch = c.clock.Now()
 	c.refresher.Reset(refreshInterval)
 	c.keys = keys
