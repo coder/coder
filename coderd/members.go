@@ -152,33 +152,12 @@ func (api *API) deleteOrganizationMember(rw http.ResponseWriter, r *http.Request
 // @Success 200 {object} []codersdk.OrganizationMemberWithUserData
 // @Router /organizations/{organization}/members [get]
 func (api *API) listMembers(rw http.ResponseWriter, r *http.Request) {
-	var (
-		ctx = r.Context()
-		// organization = httpmw.OrganizationParam(r)
-	)
+	ctx := r.Context()
+
 	members, membersCount, ok := api.GetMembers(rw, r)
 	if !ok {
 		return
 	}
-
-	// members, err := api.Database.OrganizationMembers(ctx, database.OrganizationMembersParams{
-	// 	OrganizationID: organization.ID,
-	// 	UserID:         uuid.Nil,
-	// })
-	// if httpapi.Is404Error(err) {
-	// 	httpapi.ResourceNotFound(rw)
-	// 	return
-	// }
-	// if err != nil {
-	// 	httpapi.InternalServerError(rw, err)
-	// 	return
-	// }
-
-	// resp, err := convertOrganizationMembersWithUserData(ctx, api.Database, members)
-	// if err != nil {
-	// 	httpapi.InternalServerError(rw, err)
-	// 	return
-	// }
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.GetMembersResponse{
 		Members: members,
