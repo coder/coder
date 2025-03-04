@@ -255,6 +255,7 @@ func (c *cache) cryptoKey(ctx context.Context, sequence int32) (string, []byte, 
 
 	keys, err := c.cryptoKeys(ctx)
 	if err != nil {
+		c.mu.Lock() // Re-lock because of defer.
 		return "", nil, xerrors.Errorf("get keys: %w", err)
 	}
 
