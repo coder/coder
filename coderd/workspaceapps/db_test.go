@@ -3,6 +3,7 @@ package workspaceapps_test
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"fmt"
 	"io"
 	"net"
@@ -24,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/tracing"
@@ -83,6 +85,9 @@ func Test_ResolveRequest(t *testing.T) {
 
 	auditor := audit.NewMock()
 	t.Cleanup(func() {
+		if t.Failed() {
+			return
+		}
 		assert.Len(t, auditor.AuditLogs(), 0, "one or more test cases produced unexpected audit logs, did you replace the auditor or forget to call ResetLogs?")
 	})
 	client, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
@@ -220,10 +225,23 @@ func Test_ResolveRequest(t *testing.T) {
 		for _, agnt := range resource.Agents {
 			if agnt.Name == agentName {
 				agentID = agnt.ID
+				break
 			}
 		}
 	}
 	require.NotEqual(t, uuid.Nil, agentID)
+
+	//nonlint:gocritic // This is a test, allow dbauthz.AsSystemRestricted.
+	agent, err := api.Database.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), agentID)
+	require.NoError(t, err)
+
+	//nolint:gocritic // This is a test, allow dbauthz.AsSystemRestricted.
+	apps, err := api.Database.GetWorkspaceAppsByAgentID(dbauthz.AsSystemRestricted(ctx), agentID)
+	require.NoError(t, err)
+	appsBySlug := make(map[string]database.WorkspaceApp, len(apps))
+	for _, app := range apps {
+		appsBySlug[app.Slug] = app
+	}
 
 	// Reset audit logs so cleanup check can pass.
 	auditor.ResetLogs()
@@ -268,12 +286,14 @@ func Test_ResolveRequest(t *testing.T) {
 
 					auditor := audit.NewMock()
 					auditableIP := randomIPv6(t)
+					auditableUA := "Tidua"
 
 					t.Log("app", app)
 					rw := httptest.NewRecorder()
 					r := httptest.NewRequest("GET", "/app", nil)
 					r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
 					r = requestWithAuditorAndRemoteAddr(r, auditor, auditableIP)
+					r.Header.Set("User-Agent", auditableUA)
 
 					// Try resolving the request without a token.
 					token, ok := workspaceappsResolveRequest(t, rw, r, workspaceapps.ResolveRequestOptions{
@@ -314,7 +334,12 @@ func Test_ResolveRequest(t *testing.T) {
 
 					require.True(t, auditor.Contains(t, database.AuditLog{
 						OrganizationID: workspace.OrganizationID,
+						Action:         database.AuditActionOpen,
+						ResourceType:   audit.ResourceType(appsBySlug[app]),
+						ResourceID:     audit.ResourceID(appsBySlug[app]),
+						ResourceTarget: audit.ResourceTarget(appsBySlug[app]),
 						UserID:         me.ID,
+						UserAgent:      sql.NullString{Valid: true, String: auditableUA},
 						Ip:             audit.ParseIP(auditableIP),
 						StatusCode:     int32(w.StatusCode), //nolint:gosec
 					}), "audit log")
@@ -399,6 +424,10 @@ func Test_ResolveRequest(t *testing.T) {
 
 			require.True(t, auditor.Contains(t, database.AuditLog{
 				OrganizationID: workspace.OrganizationID,
+				Action:         database.AuditActionOpen,
+				ResourceType:   audit.ResourceType(appsBySlug[app]),
+				ResourceID:     audit.ResourceID(appsBySlug[app]),
+				ResourceTarget: audit.ResourceTarget(appsBySlug[app]),
 				UserID:         secondUser.ID,
 				Ip:             audit.ParseIP(auditableIP),
 				StatusCode:     int32(w.StatusCode), //nolint:gosec
@@ -457,6 +486,10 @@ func Test_ResolveRequest(t *testing.T) {
 
 				require.True(t, auditor.Contains(t, database.AuditLog{
 					OrganizationID: workspace.OrganizationID,
+					ResourceType:   audit.ResourceType(appsBySlug[app]),
+					ResourceID:     audit.ResourceID(appsBySlug[app]),
+					ResourceTarget: audit.ResourceTarget(appsBySlug[app]),
+					UserID:         uuid.Nil, // Nil is not verified by Contains, see below.
 					Ip:             audit.ParseIP(auditableIP),
 					StatusCode:     int32(w.StatusCode), //nolint:gosec
 				}), "audit log")
@@ -587,6 +620,9 @@ func Test_ResolveRequest(t *testing.T) {
 					require.Equal(t, token.AgentID, agentID)
 					require.True(t, auditor.Contains(t, database.AuditLog{
 						OrganizationID: workspace.OrganizationID,
+						ResourceType:   audit.ResourceType(appsBySlug[token.AppSlugOrPort]),
+						ResourceID:     audit.ResourceID(appsBySlug[token.AppSlugOrPort]),
+						ResourceTarget: audit.ResourceTarget(appsBySlug[token.AppSlugOrPort]),
 						UserID:         me.ID,
 						Ip:             audit.ParseIP(auditableIP),
 						StatusCode:     int32(w.StatusCode), //nolint:gosec
@@ -677,6 +713,9 @@ func Test_ResolveRequest(t *testing.T) {
 
 		require.True(t, auditor.Contains(t, database.AuditLog{
 			OrganizationID: workspace.OrganizationID,
+			ResourceType:   audit.ResourceType(appsBySlug[token.AppSlugOrPort]),
+			ResourceID:     audit.ResourceID(appsBySlug[token.AppSlugOrPort]),
+			ResourceTarget: audit.ResourceTarget(appsBySlug[token.AppSlugOrPort]),
 			UserID:         me.ID,
 			Ip:             audit.ParseIP(auditableIP),
 			StatusCode:     int32(w.StatusCode), //nolint:gosec
@@ -759,10 +798,13 @@ func Test_ResolveRequest(t *testing.T) {
 		require.Equal(t, http.StatusOK, w.StatusCode)
 		require.True(t, auditor.Contains(t, database.AuditLog{
 			OrganizationID: workspace.OrganizationID,
+			ResourceType:   audit.ResourceType(agent),
+			ResourceID:     audit.ResourceID(agent),
+			ResourceTarget: audit.ResourceTarget(agent),
 			UserID:         me.ID,
 			Ip:             audit.ParseIP(auditableIP),
 			StatusCode:     int32(w.StatusCode), //nolint:gosec
-		}), "audit log")
+		}), "audit log for agent, not app")
 		require.Len(t, auditor.AuditLogs(), 1, "single audit log")
 	})
 
@@ -839,6 +881,9 @@ func Test_ResolveRequest(t *testing.T) {
 		_ = w.Body.Close()
 		require.True(t, auditor.Contains(t, database.AuditLog{
 			OrganizationID: workspace.OrganizationID,
+			ResourceType:   audit.ResourceType(appsBySlug[token.AppSlugOrPort]),
+			ResourceID:     audit.ResourceID(appsBySlug[token.AppSlugOrPort]),
+			ResourceTarget: audit.ResourceTarget(appsBySlug[token.AppSlugOrPort]),
 			UserID:         me.ID,
 			Ip:             audit.ParseIP(auditableIP),
 			StatusCode:     int32(w.StatusCode), //nolint:gosec
@@ -883,10 +928,13 @@ func Test_ResolveRequest(t *testing.T) {
 		_ = w.Body.Close()
 		require.True(t, auditor.Contains(t, database.AuditLog{
 			OrganizationID: workspace.OrganizationID,
+			ResourceType:   audit.ResourceType(agent),
+			ResourceID:     audit.ResourceID(agent),
+			ResourceTarget: audit.ResourceTarget(agent),
 			UserID:         me.ID,
 			Ip:             audit.ParseIP(auditableIP),
 			StatusCode:     int32(w.StatusCode), //nolint:gosec
-		}), "audit log")
+		}), "audit log for agent, not app")
 		require.Len(t, auditor.AuditLogs(), 1, "single audit log")
 	})
 
