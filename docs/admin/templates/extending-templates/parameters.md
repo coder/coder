@@ -79,34 +79,31 @@ data "coder_parameter" "security_groups" {
 }
 ```
 
-<blockquote class="admonition note">
-
-Overriding a `list(string)` on the CLI is tricky because:
-
-- `--parameter "parameter_name=parameter_value"` is parsed as CSV.
-- `parameter_value` is parsed as JSON.
-
-So, to properly specify a `list(string)` with the `--parameter` CLI argument,
-you will need to take care of both CSV quoting and shell quoting.
-
-For the above example, to override the default values of the `security_groups`
-parameter, you will need to pass the following argument to `coder create`:
-
-```shell
---parameter "\"security_groups=[\"\"DevOps Security Group\"\",\"\"Backend Security Group\"\"]\""
-```
-
-Alternatively, you can use `--rich-parameter-file` to work around the above
-issues. This allows you to specify parameters as YAML. An equivalent parameter
-file for the above `--parameter` is provided below:
-
-```yaml
-security_groups:
-  - DevOps Security Group
-  - Backend Security Group
-```
-
-</blockquote>
+> [!NOTE]
+> Overriding a `list(string)` on the CLI is tricky because:
+>
+> - `--parameter "parameter_name=parameter_value"` is parsed as CSV.
+> - `parameter_value` is parsed as JSON.
+>
+> So, to properly specify a `list(string)` with the `--parameter` CLI argument,
+> you will need to take care of both CSV quoting and shell quoting.
+>
+> For the above example, to override the default values of the `security_groups`
+> parameter, you will need to pass the following argument to `coder create`:
+>
+> ```shell
+> --parameter "\"security_groups=[\"\"DevOps Security Group\"\",\"\"Backend Security Group\"\"]\""
+> ```
+>
+> Alternatively, you can use `--rich-parameter-file` to work around the above
+> issues. This allows you to specify parameters as YAML. An equivalent parameter
+> file for the above `--parameter` is provided below:
+>
+> ```yaml
+> security_groups:
+>   - DevOps Security Group
+>   - Backend Security Group
+> ```
 
 ## Options
 

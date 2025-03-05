@@ -166,13 +166,10 @@ inside the Terraform. See the
 [workspace tags documentation](../admin/templates/extending-templates/workspace-tags.md)
 for more information.
 
-<blockquote class="admonition note">
-
-Workspace tags defined with the `coder_workspace_tags` data source
-template **do not** automatically apply to the template import job! You may
-need to specify the desired tags when importing the template.
-
-</blockquote>
+> [!NOTE]
+> Workspace tags defined with the `coder_workspace_tags` data source
+> template **do not** automatically apply to the template import job! You may
+> need to specify the desired tags when importing the template.
 
 A provisioner can run a given build job if one of the below is true:
 
@@ -194,17 +191,14 @@ However, it will not pick up any build jobs that do not have either of the
 from templates with the tag `scope=user` set, or build jobs from templates in
 different organizations.
 
-<blockquote class="admonition note">
-
-If you only run tagged provisioners, you will need to specify a set of
-tags that matches at least one provisioner for _all_ template import jobs and
-workspace build jobs.
-
-You may wish to run at least one additional provisioner with no additional
-tags so that provisioner jobs with no additional tags defined will be picked
-up instead of potentially remaining in the Pending state indefinitely.
-
-</blockquote>
+> [!NOTE]
+> If you only run tagged provisioners, you will need to specify a set of
+> tags that matches at least one provisioner for _all_ template import jobs and
+> workspace build jobs.
+>
+> You may wish to run at least one additional provisioner with no additional
+> tags so that provisioner jobs with no additional tags defined will be picked
+> up instead of potentially remaining in the Pending state indefinitely.
 
 This is illustrated in the below table:
 
