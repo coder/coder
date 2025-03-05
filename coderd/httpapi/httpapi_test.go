@@ -170,12 +170,6 @@ type mockWsResponseWriter struct {
 	serverReadWriter *bufio.ReadWriter
 }
 
-func (m mockWsResponseWriter) Close() {
-	_ = m.serverRecorder.Result().Body.Close()
-	_ = m.serverConn.Close()
-	_ = m.clientConn.Close()
-}
-
 func (m mockWsResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return m.serverConn, m.serverReadWriter, nil
 }
@@ -262,7 +256,6 @@ func TestOneWayWebSocket(t *testing.T) {
 			req.Proto = p.proto
 
 			writer := newWebsocketWriter()
-			t.Cleanup(writer.Close)
 			_, _, err := httpapi.OneWayWebSocket[any](writer, req)
 			require.ErrorContains(t, err, p.proto)
 		}
@@ -274,7 +267,6 @@ func TestOneWayWebSocket(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		req := newBaseRequest(ctx)
 		writer := newWebsocketWriter()
-		t.Cleanup(writer.Close)
 		send, _, err := httpapi.OneWayWebSocket[codersdk.ServerSentEvent](writer, req)
 		require.NoError(t, err)
 
@@ -301,7 +293,6 @@ func TestOneWayWebSocket(t *testing.T) {
 		ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitShort))
 		req := newBaseRequest(ctx)
 		writer := newWebsocketWriter()
-		t.Cleanup(writer.Close)
 		_, done, err := httpapi.OneWayWebSocket[codersdk.ServerSentEvent](writer, req)
 		require.NoError(t, err)
 
@@ -326,7 +317,6 @@ func TestOneWayWebSocket(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		req := newBaseRequest(ctx)
 		writer := newWebsocketWriter()
-		t.Cleanup(writer.Close)
 		_, done, err := httpapi.OneWayWebSocket[codersdk.ServerSentEvent](writer, req)
 		require.NoError(t, err)
 
@@ -357,7 +347,6 @@ func TestOneWayWebSocket(t *testing.T) {
 		ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitShort))
 		req := newBaseRequest(ctx)
 		writer := newWebsocketWriter()
-		t.Cleanup(writer.Close)
 		send, done, err := httpapi.OneWayWebSocket[codersdk.ServerSentEvent](writer, req)
 		require.NoError(t, err)
 
@@ -399,7 +388,6 @@ func TestOneWayWebSocket(t *testing.T) {
 		ctx := testutil.Context(t, timeout)
 		req := newBaseRequest(ctx)
 		writer := newWebsocketWriter()
-		t.Cleanup(writer.Close)
 		_, _, err := httpapi.OneWayWebSocket[codersdk.ServerSentEvent](writer, req)
 		require.NoError(t, err)
 
