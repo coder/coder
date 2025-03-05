@@ -1,9 +1,9 @@
-import type { FC } from "react";
-import { InboxPopover } from "./InboxPopover";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import type { Notification } from "./types";
-import { displayError } from "components/GlobalSnackbar/utils";
 import { getErrorDetail, getErrorMessage } from "api/errors";
+import { displayError } from "components/GlobalSnackbar/utils";
+import type { FC } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { InboxPopover } from "./InboxPopover";
+import type { Notification } from "./types";
 
 const NOTIFICATIONS_QUERY_KEY = ["notifications"];
 

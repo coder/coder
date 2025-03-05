@@ -2,9 +2,9 @@ import { Avatar } from "components/Avatar/Avatar";
 import { Button } from "components/Button/Button";
 import { SquareCheckBig } from "lucide-react";
 import type { FC } from "react";
-import type { Notification } from "./types";
-import { relativeTime } from "utils/time";
 import { Link as RouterLink } from "react-router-dom";
+import { relativeTime } from "utils/time";
+import type { Notification } from "./types";
 
 type InboxItemProps = {
 	notification: Notification;

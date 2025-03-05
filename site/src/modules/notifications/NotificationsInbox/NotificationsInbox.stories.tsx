@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { NotificationsInbox } from "./NotificationsInbox";
-import { mockApiError, MockNotifications } from "testHelpers/entities";
-import { fn, userEvent, within, expect } from "@storybook/test";
+import { expect, fn, userEvent, within } from "@storybook/test";
+import { MockNotifications, mockApiError } from "testHelpers/entities";
 import { withGlobalSnackbar } from "testHelpers/storybook";
+import { NotificationsInbox } from "./NotificationsInbox";
 
 const meta: Meta<typeof NotificationsInbox> = {
 	title: "modules/notifications/NotificationsInbox/NotificationsInbox",

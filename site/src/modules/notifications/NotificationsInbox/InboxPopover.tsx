@@ -1,19 +1,19 @@
+import { Button } from "components/Button/Button";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
 } from "components/Popover/Popover";
-import type { FC } from "react";
-import { InboxButton } from "./InboxButton";
-import { UnreadBadge } from "./UnreadBadge";
-import { Button } from "components/Button/Button";
-import { RefreshCwIcon, SettingsIcon } from "lucide-react";
-import { InboxItem } from "./InboxItem";
-import type { Notification } from "./types";
-import { cn } from "utils/cn";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import { Spinner } from "components/Spinner/Spinner";
+import { RefreshCwIcon, SettingsIcon } from "lucide-react";
+import type { FC } from "react";
 import { Link as RouterLink } from "react-router-dom";
+import { cn } from "utils/cn";
+import { InboxButton } from "./InboxButton";
+import { InboxItem } from "./InboxItem";
+import { UnreadBadge } from "./UnreadBadge";
+import type { Notification } from "./types";
 
 type InboxPopoverProps = {
 	notifications: Notification[] | undefined;

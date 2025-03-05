@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { InboxPopover } from "./InboxPopover";
+import { expect, fn, userEvent, within } from "@storybook/test";
 import { MockNotifications } from "testHelpers/entities";
-import { fn, userEvent, within, expect } from "@storybook/test";
+import { InboxPopover } from "./InboxPopover";
 
 const meta: Meta<typeof InboxPopover> = {
 	title: "modules/notifications/NotificationsInbox/InboxPopover",
