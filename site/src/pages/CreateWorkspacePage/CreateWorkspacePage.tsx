@@ -134,7 +134,7 @@ const CreateWorkspacePage: FC = () => {
 			});
 
 			onCreateWorkspace(newWorkspace);
-		} catch (err) {
+		} catch {
 			setMode("form");
 		}
 	});
