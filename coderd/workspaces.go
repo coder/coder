@@ -1850,7 +1850,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Watch workspace by ID via WebSockets
-// @ID watch-workspace-ws
+// @ID watch-workspace-by-id-via-websockets
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Workspaces

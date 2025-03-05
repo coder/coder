@@ -1275,7 +1275,7 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 }
 
 // @Summary Watch for workspace agent metadata updates via WebSockets
-// @ID watch-for-workspace-agent-metadata-updates-ws
+// @ID watch-for-workspace-agent-metadata-updates-via-websockets
 // @Security CoderSessionToken
 // @Tags Agents
 // @Success 200 {object} codersdk.ServerSentEvent
