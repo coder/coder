@@ -1274,13 +1274,13 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 	}
 }
 
-// @Summary Watch for workspace agent metadata updates
-// @ID watch-for-workspace-agent-metadata-updates
+// @Summary Watch for workspace agent metadata updates via WebSockets
+// @ID watch-for-workspace-agent-metadata-updates-ws
 // @Security CoderSessionToken
 // @Tags Agents
-// @Success 200 "Success"
+// @Success 200 {object} codersdk.ServerSentEvent
 // @Param workspaceagent path string true "Workspace agent ID" format(uuid)
-// @Router /workspaceagents/{workspaceagent}/watch-metadata [get]
+// @Router /workspaceagents/{workspaceagent}/watch-metadata-ws [get]
 // @x-apidocgen {"skip": true}
 func (api *API) watchWorkspaceAgentMetadataWs(rw http.ResponseWriter, r *http.Request) {
 	// Allow us to interrupt watch via cancel.

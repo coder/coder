@@ -1849,14 +1849,14 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// @Summary Watch workspace by ID
-// @ID watch-workspace-by-id
+// @Summary Watch workspace by ID via WebSockets
+// @ID watch-workspace-ws
 // @Security CoderSessionToken
-// @Produce text/event-stream
+// @Produce json
 // @Tags Workspaces
 // @Param workspace path string true "Workspace ID" format(uuid)
-// @Success 200 {object} codersdk.Response
-// @Router /workspaces/{workspace}/watch [get]
+// @Success 200 {object} codersdk.ServerSentEvent
+// @Router /workspaces/{workspace}/watch-ws [get]
 func (api *API) watchWorkspaceWs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspace := httpmw.WorkspaceParam(r)
