@@ -292,11 +292,11 @@ func Test_ResolveRequest(t *testing.T) {
 					rw := httptest.NewRecorder()
 					r := httptest.NewRequest("GET", "/app", nil)
 					r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
-					r = requestWithAuditorAndRemoteAddr(r, auditor, auditableIP)
+					r.RemoteAddr = auditableIP
 					r.Header.Set("User-Agent", auditableUA)
 
 					// Try resolving the request without a token.
-					token, ok := workspaceappsResolveRequest(t, rw, r, workspaceapps.ResolveRequestOptions{
+					token, ok := workspaceappsResolveRequest(t, auditor, rw, r, workspaceapps.ResolveRequestOptions{
 						Logger:              api.Logger,
 						SignedTokenProvider: api.WorkspaceAppsProvider,
 						DashboardURL:        api.AccessURL,
@@ -357,9 +357,9 @@ func Test_ResolveRequest(t *testing.T) {
 					rw = httptest.NewRecorder()
 					r = httptest.NewRequest("GET", "/app", nil)
 					r.AddCookie(cookie)
-					r = requestWithAuditorAndRemoteAddr(r, auditor, auditableIP)
+					r.RemoteAddr = auditableIP
 
-					secondToken, ok := workspaceappsResolveRequest(t, rw, r, workspaceapps.ResolveRequestOptions{
+					secondToken, ok := workspaceappsResolveRequest(t, auditor, rw, r, workspaceapps.ResolveRequestOptions{
 						Logger:              api.Logger,
 						SignedTokenProvider: api.WorkspaceAppsProvider,
 						DashboardURL:        api.AccessURL,
@@ -398,9 +398,9 @@ func Test_ResolveRequest(t *testing.T) {
 			rw := httptest.NewRecorder()
 			r := httptest.NewRequest("GET", "/app", nil)
 			r.Header.Set(codersdk.SessionTokenHeader, secondUserClient.SessionToken())
-			r = requestWithAuditorAndRemoteAddr(r, auditor, auditableIP)
+			r.RemoteAddr = auditableIP
 
-			token, ok := workspaceappsResolveRequest(t, rw, r, workspaceapps.ResolveRequestOptions{
+			token, ok := workspaceappsResolveRequest(t, auditor, rw, r, workspaceapps.ResolveRequestOptions{
 				Logger:              api.Logger,
 				SignedTokenProvider: api.WorkspaceAppsProvider,
 				DashboardURL:        api.AccessURL,
@@ -454,8 +454,8 @@ func Test_ResolveRequest(t *testing.T) {
 			t.Log("app", app)
 			rw := httptest.NewRecorder()
 			r := httptest.NewRequest("GET", "/app", nil)
-			r = requestWithAuditorAndRemoteAddr(r, auditor, auditableIP)
-			token, ok := workspaceappsResolveRequest(t, rw, r, workspaceapps.ResolveRequestOptions{
+			r.RemoteAddr = auditableIP
+			token, ok := workspaceappsResolveRequest(t, auditor, rw, r, workspaceapps.ResolveRequestOptions{
 				Logger:              api.Logger,
 				SignedTokenProvider: api.WorkspaceAppsProvider,
 				DashboardURL:        api.AccessURL,
@@ -509,8 +509,8 @@ func Test_ResolveRequest(t *testing.T) {
 		auditableIP := randomIPv6(t)
 		rw := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/app", nil)
-		r = requestWithAuditorAndRemoteAddr(r, auditor, auditableIP)
-		token, ok := workspaceappsResolveRequest(t, rw, r, workspaceapps.ResolveRequestOptions{
+		r.RemoteAddr = auditableIP
+		token, ok := workspaceappsResolveRequest(t, auditor, rw, r, workspaceapps.ResolveRequestOptions{
 			Logger:              api.Logger,
 			SignedTokenProvider: api.WorkspaceAppsProvider,
 			DashboardURL:        api.AccessURL,
@@ -594,9 +594,9 @@ func Test_ResolveRequest(t *testing.T) {
 				rw := httptest.NewRecorder()
 				r := httptest.NewRequest("GET", "/app", nil)
 				r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
-				r = requestWithAuditorAndRemoteAddr(r, auditor, auditableIP)
+				r.RemoteAddr = auditableIP
 
-				token, ok := workspaceappsResolveRequest(t, rw, r, workspaceapps.ResolveRequestOptions{
+				token, ok := workspaceappsResolveRequest(t, auditor, rw, r, workspaceapps.ResolveRequestOptions{
 					Logger:              api.Logger,
 					SignedTokenProvider: api.WorkspaceAppsProvider,
 					DashboardURL:        api.AccessURL,
@@ -681,11 +681,11 @@ func Test_ResolveRequest(t *testing.T) {
 			Name:  codersdk.SignedAppTokenCookie,
 			Value: badTokenStr,
 		})
-		r = requestWithAuditorAndRemoteAddr(r, auditor, auditableIP)
+		r.RemoteAddr = auditableIP
 
 		// Even though the token is invalid, we should still perform request
 		// resolution without failure since we'll just ignore the bad token.
-		token, ok := workspaceappsResolveRequest(t, rw, r, workspaceapps.ResolveRequestOptions{
+		token, ok := workspaceappsResolveRequest(t, auditor, rw, r, workspaceapps.ResolveRequestOptions{
 			Logger:              api.Logger,
 			SignedTokenProvider: api.WorkspaceAppsProvider,
 			DashboardURL:        api.AccessURL,
@@ -740,9 +740,9 @@ func Test_ResolveRequest(t *testing.T) {
 		rw := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/app", nil)
 		r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
-		r = requestWithAuditorAndRemoteAddr(r, auditor, auditableIP)
+		r.RemoteAddr = auditableIP
 
-		token, ok := workspaceappsResolveRequest(t, rw, r, workspaceapps.ResolveRequestOptions{
+		token, ok := workspaceappsResolveRequest(t, auditor, rw, r, workspaceapps.ResolveRequestOptions{
 			Logger:              api.Logger,
 			SignedTokenProvider: api.WorkspaceAppsProvider,
 			DashboardURL:        api.AccessURL,
@@ -778,9 +778,9 @@ func Test_ResolveRequest(t *testing.T) {
 		rw := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/", nil)
 		r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
-		r = requestWithAuditorAndRemoteAddr(r, auditor, auditableIP)
+		r.RemoteAddr = auditableIP
 
-		token, ok := workspaceappsResolveRequest(t, rw, r, workspaceapps.ResolveRequestOptions{
+		token, ok := workspaceappsResolveRequest(t, auditor, rw, r, workspaceapps.ResolveRequestOptions{
 			Logger:              api.Logger,
 			SignedTokenProvider: api.WorkspaceAppsProvider,
 			DashboardURL:        api.AccessURL,
@@ -825,9 +825,9 @@ func Test_ResolveRequest(t *testing.T) {
 		rw := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/", nil)
 		r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
-		r = requestWithAuditorAndRemoteAddr(r, auditor, auditableIP)
+		r.RemoteAddr = auditableIP
 
-		_, ok := workspaceappsResolveRequest(t, rw, r, workspaceapps.ResolveRequestOptions{
+		_, ok := workspaceappsResolveRequest(t, auditor, rw, r, workspaceapps.ResolveRequestOptions{
 			Logger:              api.Logger,
 			SignedTokenProvider: api.WorkspaceAppsProvider,
 			DashboardURL:        api.AccessURL,
@@ -864,9 +864,9 @@ func Test_ResolveRequest(t *testing.T) {
 		rw := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/", nil)
 		r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
-		r = requestWithAuditorAndRemoteAddr(r, auditor, auditableIP)
+		r.RemoteAddr = auditableIP
 
-		token, ok := workspaceappsResolveRequest(t, rw, r, workspaceapps.ResolveRequestOptions{
+		token, ok := workspaceappsResolveRequest(t, auditor, rw, r, workspaceapps.ResolveRequestOptions{
 			Logger:              api.Logger,
 			SignedTokenProvider: api.WorkspaceAppsProvider,
 			DashboardURL:        api.AccessURL,
@@ -905,9 +905,9 @@ func Test_ResolveRequest(t *testing.T) {
 		rw := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/app", nil)
 		r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
-		r = requestWithAuditorAndRemoteAddr(r, auditor, auditableIP)
+		r.RemoteAddr = auditableIP
 
-		token, ok := workspaceappsResolveRequest(t, rw, r, workspaceapps.ResolveRequestOptions{
+		token, ok := workspaceappsResolveRequest(t, auditor, rw, r, workspaceapps.ResolveRequestOptions{
 			Logger:              api.Logger,
 			SignedTokenProvider: api.WorkspaceAppsProvider,
 			DashboardURL:        api.AccessURL,
@@ -955,9 +955,9 @@ func Test_ResolveRequest(t *testing.T) {
 		rw := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/app", nil)
 		r.Header.Set(codersdk.SessionTokenHeader, secondUserClient.SessionToken())
-		r = requestWithAuditorAndRemoteAddr(r, auditor, auditableIP)
+		r.RemoteAddr = auditableIP
 
-		token, ok := workspaceappsResolveRequest(t, rw, r, workspaceapps.ResolveRequestOptions{
+		token, ok := workspaceappsResolveRequest(t, auditor, rw, r, workspaceapps.ResolveRequestOptions{
 			Logger:              api.Logger,
 			SignedTokenProvider: api.WorkspaceAppsProvider,
 			DashboardURL:        api.AccessURL,
@@ -996,9 +996,9 @@ func Test_ResolveRequest(t *testing.T) {
 		rw := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/app", nil)
 		r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
-		r = requestWithAuditorAndRemoteAddr(r, auditor, auditableIP)
+		r.RemoteAddr = auditableIP
 
-		token, ok := workspaceappsResolveRequest(t, rw, r, workspaceapps.ResolveRequestOptions{
+		token, ok := workspaceappsResolveRequest(t, auditor, rw, r, workspaceapps.ResolveRequestOptions{
 			Logger:              api.Logger,
 			SignedTokenProvider: api.WorkspaceAppsProvider,
 			DashboardURL:        api.AccessURL,
@@ -1030,9 +1030,9 @@ func Test_ResolveRequest(t *testing.T) {
 		r := httptest.NewRequest("GET", "/some-path", nil)
 		// Should not be used as the hostname in the redirect URI.
 		r.Host = "app.com"
-		r = requestWithAuditorAndRemoteAddr(r, auditor, auditableIP)
+		r.RemoteAddr = auditableIP
 
-		token, ok := workspaceappsResolveRequest(t, rw, r, workspaceapps.ResolveRequestOptions{
+		token, ok := workspaceappsResolveRequest(t, auditor, rw, r, workspaceapps.ResolveRequestOptions{
 			Logger:              api.Logger,
 			SignedTokenProvider: api.WorkspaceAppsProvider,
 			DashboardURL:        api.AccessURL,
@@ -1092,9 +1092,9 @@ func Test_ResolveRequest(t *testing.T) {
 		rw := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/app", nil)
 		r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
-		r = requestWithAuditorAndRemoteAddr(r, auditor, auditableIP)
+		r.RemoteAddr = auditableIP
 
-		token, ok := workspaceappsResolveRequest(t, rw, r, workspaceapps.ResolveRequestOptions{
+		token, ok := workspaceappsResolveRequest(t, auditor, rw, r, workspaceapps.ResolveRequestOptions{
 			Logger:              api.Logger,
 			SignedTokenProvider: api.WorkspaceAppsProvider,
 			DashboardURL:        api.AccessURL,
@@ -1160,9 +1160,9 @@ func Test_ResolveRequest(t *testing.T) {
 		rw := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/app", nil)
 		r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
-		r = requestWithAuditorAndRemoteAddr(r, auditor, auditableIP)
+		r.RemoteAddr = auditableIP
 
-		token, ok := workspaceappsResolveRequest(t, rw, r, workspaceapps.ResolveRequestOptions{
+		token, ok := workspaceappsResolveRequest(t, auditor, rw, r, workspaceapps.ResolveRequestOptions{
 			Logger:              api.Logger,
 			SignedTokenProvider: api.WorkspaceAppsProvider,
 			DashboardURL:        api.AccessURL,
@@ -1225,9 +1225,9 @@ func Test_ResolveRequest(t *testing.T) {
 		rw := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/app", nil)
 		r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
-		r = requestWithAuditorAndRemoteAddr(r, auditor, auditableIP)
+		r.RemoteAddr = auditableIP
 
-		token, ok := workspaceappsResolveRequest(t, rw, r, workspaceapps.ResolveRequestOptions{
+		token, ok := workspaceappsResolveRequest(t, auditor, rw, r, workspaceapps.ResolveRequestOptions{
 			Logger:              api.Logger,
 			SignedTokenProvider: api.WorkspaceAppsProvider,
 			DashboardURL:        api.AccessURL,
@@ -1270,9 +1270,9 @@ func Test_ResolveRequest(t *testing.T) {
 			rw := httptest.NewRecorder()
 			r := httptest.NewRequest("GET", "/app", nil)
 			r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
-			r = requestWithAuditorAndRemoteAddr(r, auditor, auditableIP)
+			r.RemoteAddr = auditableIP
 
-			_, ok := workspaceappsResolveRequest(t, rw, r, workspaceapps.ResolveRequestOptions{
+			_, ok := workspaceappsResolveRequest(t, auditor, rw, r, workspaceapps.ResolveRequestOptions{
 				Logger:              api.Logger,
 				SignedTokenProvider: api.WorkspaceAppsProvider,
 				DashboardURL:        api.AccessURL,
@@ -1299,9 +1299,9 @@ func Test_ResolveRequest(t *testing.T) {
 			rw = httptest.NewRecorder()
 			r = httptest.NewRequest("GET", "/app", nil)
 			r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
-			r = requestWithAuditorAndRemoteAddr(r, auditor, auditableIP)
+			r.RemoteAddr = auditableIP
 
-			_, ok = workspaceappsResolveRequest(t, rw, r, workspaceapps.ResolveRequestOptions{
+			_, ok = workspaceappsResolveRequest(t, auditor, rw, r, workspaceapps.ResolveRequestOptions{
 				Logger:              api.Logger,
 				SignedTokenProvider: api.WorkspaceAppsProvider,
 				DashboardURL:        api.AccessURL,
@@ -1321,7 +1321,7 @@ func Test_ResolveRequest(t *testing.T) {
 			r.RemoteAddr = auditableIP
 
 			sessionTimeoutTokenProvider := signedTokenProviderWithAuditor(t, api.WorkspaceAppsProvider, auditor, 0)
-			_, ok = workspaceappsResolveRequest(t, rw, r, workspaceapps.ResolveRequestOptions{
+			_, ok = workspaceappsResolveRequest(t, nil, rw, r, workspaceapps.ResolveRequestOptions{
 				Logger:              api.Logger,
 				SignedTokenProvider: sessionTimeoutTokenProvider,
 				DashboardURL:        api.AccessURL,
@@ -1349,9 +1349,9 @@ func Test_ResolveRequest(t *testing.T) {
 			rw = httptest.NewRecorder()
 			r = httptest.NewRequest("GET", "/app", nil)
 			r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
-			r = requestWithAuditorAndRemoteAddr(r, auditor, auditableIP)
+			r.RemoteAddr = auditableIP
 
-			_, ok = workspaceappsResolveRequest(t, rw, r, workspaceapps.ResolveRequestOptions{
+			_, ok = workspaceappsResolveRequest(t, auditor, rw, r, workspaceapps.ResolveRequestOptions{
 				Logger:              api.Logger,
 				SignedTokenProvider: api.WorkspaceAppsProvider,
 				DashboardURL:        api.AccessURL,
@@ -1377,18 +1377,6 @@ func Test_ResolveRequest(t *testing.T) {
 	})
 }
 
-type auditorKey int
-
-const auditorKey0 auditorKey = iota
-
-func requestWithAuditorAndRemoteAddr(r *http.Request, auditor audit.Auditor, remoteAddr string) *http.Request {
-	ctx := r.Context()
-	ctx = context.WithValue(ctx, auditorKey0, auditor)
-	rr := r.WithContext(ctx)
-	rr.RemoteAddr = remoteAddr
-	return rr
-}
-
 func randomIPv6(t testing.TB) string {
 	t.Helper()
 
@@ -1401,13 +1389,9 @@ func randomIPv6(t testing.TB) string {
 		buf[6], buf[7], buf[8], buf[9], buf[10], buf[11])
 }
 
-func workspaceappsResolveRequest(t testing.TB, w http.ResponseWriter, r *http.Request, opts workspaceapps.ResolveRequestOptions) (token *workspaceapps.SignedToken, ok bool) {
+func workspaceappsResolveRequest(t testing.TB, auditor audit.Auditor, w http.ResponseWriter, r *http.Request, opts workspaceapps.ResolveRequestOptions) (token *workspaceapps.SignedToken, ok bool) {
 	t.Helper()
-	ctx := r.Context()
-	auditorValue := ctx.Value(auditorKey0)
-	if opts.SignedTokenProvider != nil && auditorValue != nil {
-		auditor, ok := auditorValue.(audit.Auditor)
-		require.True(t, ok, "auditor is not an audit.Auditor")
+	if opts.SignedTokenProvider != nil && auditor != nil {
 		opts.SignedTokenProvider = signedTokenProviderWithAuditor(t, opts.SignedTokenProvider, auditor, time.Hour)
 	}
 
