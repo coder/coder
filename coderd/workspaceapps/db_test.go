@@ -372,8 +372,7 @@ func Test_ResolveRequest(t *testing.T) {
 					require.WithinDuration(t, token.Expiry.Time(), secondToken.Expiry.Time(), 2*time.Second)
 					secondToken.Expiry = token.Expiry
 					require.Equal(t, token, secondToken)
-
-					require.Len(t, auditor.AuditLogs(), 1, "single audit log, same user and app audit session is active")
+					require.Len(t, auditor.AuditLogs(), 1, "no new audit log, FromRequest returned the same token and is not audited")
 				}
 			})
 		}
@@ -1248,6 +1247,134 @@ func Test_ResolveRequest(t *testing.T) {
 		}), "audit log unhealthy app")
 		require.Len(t, auditor.AuditLogs(), 1, "single audit log")
 	})
+
+	t.Run("AuditLogging", func(t *testing.T) {
+		t.Parallel()
+
+		for _, app := range allApps {
+			req := (workspaceapps.Request{
+				AccessMethod:      workspaceapps.AccessMethodPath,
+				BasePath:          "/app",
+				UsernameOrID:      me.Username,
+				WorkspaceNameOrID: workspace.Name,
+				AgentNameOrID:     agentName,
+				AppSlugOrPort:     app,
+			}).Normalize()
+
+			auditor := audit.NewMock()
+			auditableIP := randomIPv6(t)
+
+			t.Log("app", app)
+
+			// First request, new audit log.
+			rw := httptest.NewRecorder()
+			r := httptest.NewRequest("GET", "/app", nil)
+			r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
+			r = requestWithAuditorAndRemoteAddr(r, auditor, auditableIP)
+
+			_, ok := workspaceappsResolveRequest(t, rw, r, workspaceapps.ResolveRequestOptions{
+				Logger:              api.Logger,
+				SignedTokenProvider: api.WorkspaceAppsProvider,
+				DashboardURL:        api.AccessURL,
+				PathAppBaseURL:      api.AccessURL,
+				AppHostname:         api.AppHostname,
+				AppRequest:          req,
+			})
+			require.True(t, ok)
+			w := rw.Result()
+			_ = w.Body.Close()
+			require.True(t, auditor.Contains(t, database.AuditLog{
+				OrganizationID: workspace.OrganizationID,
+				Action:         database.AuditActionOpen,
+				ResourceType:   audit.ResourceType(appsBySlug[app]),
+				ResourceID:     audit.ResourceID(appsBySlug[app]),
+				ResourceTarget: audit.ResourceTarget(appsBySlug[app]),
+				UserID:         me.ID,
+				Ip:             audit.ParseIP(auditableIP),
+				StatusCode:     int32(w.StatusCode), //nolint:gosec
+			}), "audit log 1")
+			require.Len(t, auditor.AuditLogs(), 1, "single audit log")
+
+			// Second request, no audit log because the session is active.
+			rw = httptest.NewRecorder()
+			r = httptest.NewRequest("GET", "/app", nil)
+			r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
+			r = requestWithAuditorAndRemoteAddr(r, auditor, auditableIP)
+
+			_, ok = workspaceappsResolveRequest(t, rw, r, workspaceapps.ResolveRequestOptions{
+				Logger:              api.Logger,
+				SignedTokenProvider: api.WorkspaceAppsProvider,
+				DashboardURL:        api.AccessURL,
+				PathAppBaseURL:      api.AccessURL,
+				AppHostname:         api.AppHostname,
+				AppRequest:          req,
+			})
+			require.True(t, ok)
+			w = rw.Result()
+			_ = w.Body.Close()
+			require.Len(t, auditor.AuditLogs(), 1, "single audit log, previous session active")
+
+			// Third request, session timed out, new audit log.
+			rw = httptest.NewRecorder()
+			r = httptest.NewRequest("GET", "/app", nil)
+			r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
+			r.RemoteAddr = auditableIP
+
+			sessionTimeoutTokenProvider := signedTokenProviderWithAuditor(t, api.WorkspaceAppsProvider, auditor, 0)
+			_, ok = workspaceappsResolveRequest(t, rw, r, workspaceapps.ResolveRequestOptions{
+				Logger:              api.Logger,
+				SignedTokenProvider: sessionTimeoutTokenProvider,
+				DashboardURL:        api.AccessURL,
+				PathAppBaseURL:      api.AccessURL,
+				AppHostname:         api.AppHostname,
+				AppRequest:          req,
+			})
+			require.True(t, ok)
+			w = rw.Result()
+			_ = w.Body.Close()
+			require.True(t, auditor.Contains(t, database.AuditLog{
+				OrganizationID: workspace.OrganizationID,
+				Action:         database.AuditActionOpen,
+				ResourceType:   audit.ResourceType(appsBySlug[app]),
+				ResourceID:     audit.ResourceID(appsBySlug[app]),
+				ResourceTarget: audit.ResourceTarget(appsBySlug[app]),
+				UserID:         me.ID,
+				Ip:             audit.ParseIP(auditableIP),
+				StatusCode:     int32(w.StatusCode), //nolint:gosec
+			}), "audit log 2")
+			require.Len(t, auditor.AuditLogs(), 2, "two audit logs, session timed out")
+
+			// Fourth request, new IP produces new audit log.
+			auditableIP = randomIPv6(t)
+			rw = httptest.NewRecorder()
+			r = httptest.NewRequest("GET", "/app", nil)
+			r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
+			r = requestWithAuditorAndRemoteAddr(r, auditor, auditableIP)
+
+			_, ok = workspaceappsResolveRequest(t, rw, r, workspaceapps.ResolveRequestOptions{
+				Logger:              api.Logger,
+				SignedTokenProvider: api.WorkspaceAppsProvider,
+				DashboardURL:        api.AccessURL,
+				PathAppBaseURL:      api.AccessURL,
+				AppHostname:         api.AppHostname,
+				AppRequest:          req,
+			})
+			require.True(t, ok)
+			w = rw.Result()
+			_ = w.Body.Close()
+			require.True(t, auditor.Contains(t, database.AuditLog{
+				OrganizationID: workspace.OrganizationID,
+				Action:         database.AuditActionOpen,
+				ResourceType:   audit.ResourceType(appsBySlug[app]),
+				ResourceID:     audit.ResourceID(appsBySlug[app]),
+				ResourceTarget: audit.ResourceTarget(appsBySlug[app]),
+				UserID:         me.ID,
+				Ip:             audit.ParseIP(auditableIP),
+				StatusCode:     int32(w.StatusCode), //nolint:gosec
+			}), "audit log 3")
+			require.Len(t, auditor.AuditLogs(), 3, "three audit logs, new IP")
+		}
+	})
 }
 
 type auditorKey int
@@ -1281,7 +1408,7 @@ func workspaceappsResolveRequest(t testing.TB, w http.ResponseWriter, r *http.Re
 	if opts.SignedTokenProvider != nil && auditorValue != nil {
 		auditor, ok := auditorValue.(audit.Auditor)
 		require.True(t, ok, "auditor is not an audit.Auditor")
-		opts.SignedTokenProvider = signedTokenProviderWithAuditor(t, opts.SignedTokenProvider, auditor)
+		opts.SignedTokenProvider = signedTokenProviderWithAuditor(t, opts.SignedTokenProvider, auditor, time.Hour)
 	}
 
 	tracing.StatusWriterMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1291,7 +1418,7 @@ func workspaceappsResolveRequest(t testing.TB, w http.ResponseWriter, r *http.Re
 	return token, ok
 }
 
-func signedTokenProviderWithAuditor(t testing.TB, provider workspaceapps.SignedTokenProvider, auditor audit.Auditor) workspaceapps.SignedTokenProvider {
+func signedTokenProviderWithAuditor(t testing.TB, provider workspaceapps.SignedTokenProvider, auditor audit.Auditor, sessionTimeout time.Duration) workspaceapps.SignedTokenProvider {
 	t.Helper()
 	p, ok := provider.(*workspaceapps.DBTokenProvider)
 	require.True(t, ok, "provider is not a DBTokenProvider")
@@ -1299,5 +1426,6 @@ func signedTokenProviderWithAuditor(t testing.TB, provider workspaceapps.SignedT
 	shallowCopy := *p
 	shallowCopy.Auditor = &atomic.Pointer[audit.Auditor]{}
 	shallowCopy.Auditor.Store(&auditor)
+	shallowCopy.WorkspaceAppAuditSessionTimeout = sessionTimeout
 	return &shallowCopy
 }

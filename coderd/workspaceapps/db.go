@@ -155,7 +155,6 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 	// Verify the user has access to the app.
 	authed, warnings, err := p.authorizeRequest(r.Context(), authz, dbReq)
 	if err != nil {
-		// TODO(mafredri): Audit?
 		WriteWorkspaceApp500(p.Logger, p.DashboardURL, rw, r, &appReq, err, "verify authz")
 		return nil, "", false
 	}
