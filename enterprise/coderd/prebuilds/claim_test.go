@@ -213,7 +213,7 @@ func TestClaimPrebuild(t *testing.T) {
 				ClaimPrebuildIfAvailable: true, // TODO: doesn't do anything yet; it probably should though.
 			})
 			require.NoError(t, err)
-			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, userWorkspace.LatestBuild.ID)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, userWorkspace.LatestBuild.ID)
 
 			// Then: if we're not expecting any prebuild claims to succeed, handle this specifically.
 			if !tc.attemptPrebuildClaim {
@@ -275,6 +275,34 @@ func TestClaimPrebuild(t *testing.T) {
 
 				return len(runningPrebuilds) == tc.expectedPrebuildsCount
 			}, testutil.WaitSuperLong, testutil.IntervalSlow)
+
+			// Then: when restarting the created workspace (which claimed a prebuild), it should not try and claim a new prebuild.
+			// Prebuilds should ONLY be used for net-new workspaces.
+			// This is expected by default anyway currently since new workspaces and operations on existing workspaces
+			// take different code paths, but it's worth validating.
+
+			spy.claims.Store(0) // Reset counter because we need to check if any new claim requests happen.
+
+			wp, err := userClient.WorkspaceBuildParameters(ctx, userWorkspace.LatestBuild.ID)
+			require.NoError(t, err)
+
+			stopBuild, err := userClient.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+				TemplateVersionID:   version.ID,
+				Transition:          codersdk.WorkspaceTransitionStop,
+				RichParameterValues: wp,
+			})
+			require.NoError(t, err)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, stopBuild.ID)
+
+			startBuild, err := userClient.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+				TemplateVersionID:   version.ID,
+				Transition:          codersdk.WorkspaceTransitionStart,
+				RichParameterValues: wp,
+			})
+			require.NoError(t, err)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, startBuild.ID)
+
+			require.Zero(t, spy.claims.Load())
 		})
 	}
 }
@@ -352,5 +380,3 @@ func templateWithAgentAndPresetsWithPrebuilds(desiredInstances int32) *echo.Resp
 		},
 	}
 }
-
-// TODO(dannyk): test that prebuilds are only attempted to be claimed for net-new workspace builds
