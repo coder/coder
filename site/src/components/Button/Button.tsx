@@ -20,7 +20,7 @@ export const buttonVariants = cva(
 				default:
 					"bg-surface-invert-primary text-content-invert hover:bg-surface-invert-secondary border-none disabled:bg-surface-secondary font-semibold",
 				outline:
-					"border border-border-default text-content-primary bg-transparent hover:bg-surface-secondary",
+					"border border-border-default text-content-primary bg-transparent bg-surface-primary hover:bg-surface-secondary",
 				subtle:
 					"border-none bg-transparent text-content-secondary hover:text-content-primary",
 				destructive:
@@ -31,6 +31,7 @@ export const buttonVariants = cva(
 				lg: "min-w-20 h-10 px-3 py-2 [&_svg]:size-icon-lg",
 				sm: "min-w-20 h-8 px-2 py-1.5 text-xs [&_svg]:size-icon-sm",
 				icon: "size-8 px-1.5 [&_svg]:size-icon-sm",
+				"icon-lg": "size-10 px-2 [&_svg]:size-icon-lg",
 			},
 		},
 		defaultVariants: {
