@@ -13888,6 +13888,10 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "theme_preference": {
+                    "description": "Deprecated: this value should be retrieved from\n` + "`" + `codersdk.UserPreferenceSettings` + "`" + ` instead.",
+                    "type": "string"
+                },
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
@@ -14752,6 +14756,10 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "theme_preference": {
+                    "description": "Deprecated: this value should be retrieved from\n` + "`" + `codersdk.UserPreferenceSettings` + "`" + ` instead.",
+                    "type": "string"
+                },
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
@@ -15358,6 +15366,10 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.UserStatus"
                         }
                     ]
+                },
+                "theme_preference": {
+                    "description": "Deprecated: this value should be retrieved from\n` + "`" + `codersdk.UserPreferenceSettings` + "`" + ` instead.",
+                    "type": "string"
                 },
                 "updated_at": {
                     "type": "string",

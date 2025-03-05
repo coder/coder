@@ -56,6 +56,9 @@ type ReducedUser struct {
 
 	Status    UserStatus `json:"status" table:"status" enums:"active,suspended"`
 	LoginType LoginType  `json:"login_type"`
+	// Deprecated: this value should be retrieved from
+	// `codersdk.UserPreferenceSettings` instead.
+	ThemePreference string `json:"theme_preference,omitempty"`
 }
 
 // User represents a user in Coder.
