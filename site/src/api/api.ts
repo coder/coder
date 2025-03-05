@@ -1089,7 +1089,6 @@ class ApiMethods {
 			{ params },
 		);
 
-		console.log("Res", response.data);
 		return response.data;
 	};
 
