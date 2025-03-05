@@ -1,5 +1,4 @@
 import Link from "@mui/material/Link";
-import type * as TypesGen from "api/typesGenerated";
 import { TerminalIcon } from "components/Icons/TerminalIcon";
 import type { FC, MouseEvent } from "react";
 import { generateRandomString } from "utils/random";

@@ -1,7 +1,6 @@
 import AlertTitle from "@mui/material/AlertTitle";
 import type {
 	DAUsResponse,
-	Entitlements,
 	Experiments,
 	SerpentOption,
 } from "api/typesGenerated";
