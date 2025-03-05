@@ -146,13 +146,13 @@ filesystem mirror without re-building the image.
 
 First, create an empty plugins directory:
 
-```console
+```shell
 mkdir $HOME/plugins
 ```
 
 Next, add a volume mount to docker-compose.yaml:
 
-```console
+```shell
 vim compose.yaml
 ```
 
