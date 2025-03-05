@@ -38,7 +38,11 @@ const permissionsQuery = (data: unknown, id?: string) => ({
 });
 
 const membersQuery = (data: unknown) => ({
-	key: organizationMembersKey(MockDefaultOrganization.id, { limit: 25, offset: 25, q: "" }),
+	key: organizationMembersKey(MockDefaultOrganization.id, {
+		limit: 25,
+		offset: 25,
+		q: "",
+	}),
 	data,
 });
 
