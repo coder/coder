@@ -411,7 +411,7 @@ func TestOneWayWebSocket(t *testing.T) {
 		go func() {
 			err := writer.
 				clientConn.
-				SetReadDeadline(time.Now().Add(hbDuration))
+				SetReadDeadline(time.Now().Add(timeout))
 			if err != nil {
 				resultC <- Result{err, false}
 				return
