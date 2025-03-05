@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
@@ -34,7 +35,7 @@ func TestInbox(t *testing.T) {
 			payload: types.MessagePayload{
 				NotificationName:       "test",
 				NotificationTemplateID: notifications.TemplateWorkspaceDeleted.String(),
-				UserID:                 "1e965b51-9465-43d8-ac20-c5f689f9c788",
+				UserID:                 "valid",
 				Actions: []types.TemplateAction{
 					{
 						Label: "View my workspace",
@@ -59,7 +60,7 @@ func TestInbox(t *testing.T) {
 			payload: types.MessagePayload{
 				NotificationName:       "test",
 				NotificationTemplateID: "invalid",
-				UserID:                 "1e965b51-9465-43d8-ac20-c5f689f9c788",
+				UserID:                 "valid",
 				Actions:                []types.TemplateAction{},
 			},
 			expectedErr:   "parse template ID",
@@ -73,7 +74,11 @@ func TestInbox(t *testing.T) {
 			t.Parallel()
 
 			db, _ := dbtestutil.NewDB(t)
-			dbtestutil.DisableForeignKeysAndTriggers(t, db)
+
+			if tc.payload.UserID == "valid" {
+				user := dbgen.User(t, db, database.User{})
+				tc.payload.UserID = user.ID.String()
+			}
 
 			ctx := context.Background()
 

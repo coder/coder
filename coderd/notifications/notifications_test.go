@@ -808,6 +808,10 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 					"name":   "bobby-workspace",
 					"reason": "autostart",
 				},
+				Targets: []uuid.UUID{
+					uuid.MustParse("5c6ea841-ca63-46cc-9c37-78734c7a788b"),
+					uuid.MustParse("b8355e3a-f3c5-4dd1-b382-7eb1fae7db52"),
+				},
 			},
 		},
 		{
