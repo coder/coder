@@ -2605,7 +2605,6 @@ type GroupMember struct {
 	UserDeleted            bool          `db:"user_deleted" json:"user_deleted"`
 	UserLastSeenAt         time.Time     `db:"user_last_seen_at" json:"user_last_seen_at"`
 	UserQuietHoursSchedule string        `db:"user_quiet_hours_schedule" json:"user_quiet_hours_schedule"`
-	UserThemePreference    string        `db:"user_theme_preference" json:"user_theme_preference"`
 	UserName               string        `db:"user_name" json:"user_name"`
 	UserGithubComUserID    sql.NullInt64 `db:"user_github_com_user_id" json:"user_github_com_user_id"`
 	OrganizationID         uuid.UUID     `db:"organization_id" json:"organization_id"`
@@ -3176,8 +3175,6 @@ type User struct {
 	LastSeenAt     time.Time      `db:"last_seen_at" json:"last_seen_at"`
 	// Daily (!) cron schedule (with optional CRON_TZ) signifying the start of the user's quiet hours. If empty, the default quiet hours on the instance is used instead.
 	QuietHoursSchedule string `db:"quiet_hours_schedule" json:"quiet_hours_schedule"`
-	// "" can be interpreted as "the user does not care", falling back to the default theme
-	ThemePreference string `db:"theme_preference" json:"theme_preference"`
 	// Name of the Coder user
 	Name string `db:"name" json:"name"`
 	// The GitHub.com numerical user ID. At time of implementation, this is used to check if the user has starred the Coder repository.
@@ -3186,6 +3183,12 @@ type User struct {
 	HashedOneTimePasscode []byte `db:"hashed_one_time_passcode" json:"hashed_one_time_passcode"`
 	// The time when the one-time-passcode expires.
 	OneTimePasscodeExpiresAt sql.NullTime `db:"one_time_passcode_expires_at" json:"one_time_passcode_expires_at"`
+}
+
+type UserConfig struct {
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	Key    string    `db:"key" json:"key"`
+	Value  string    `db:"value" json:"value"`
 }
 
 // Tracks when users were deleted

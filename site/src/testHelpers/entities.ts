@@ -495,7 +495,6 @@ export const MockUser: TypesGen.User = {
 	avatar_url: "https://avatars.githubusercontent.com/u/95932066?s=200&v=4",
 	last_seen_at: "",
 	login_type: "password",
-	theme_preference: "",
 	name: "",
 };
 
@@ -516,7 +515,6 @@ export const MockUser2: TypesGen.User = {
 	avatar_url: "",
 	last_seen_at: "2022-09-14T19:12:21Z",
 	login_type: "oidc",
-	theme_preference: "",
 	name: "Mock User The Second",
 };
 
@@ -532,8 +530,11 @@ export const SuspendedMockUser: TypesGen.User = {
 	avatar_url: "",
 	last_seen_at: "",
 	login_type: "password",
-	theme_preference: "",
 	name: "",
+};
+
+export const MockUserAppearanceSettings: TypesGen.UserAppearanceSettings = {
+	theme_preference: "dark",
 };
 
 export const MockOrganizationMember: TypesGen.OrganizationMemberWithUserData = {
