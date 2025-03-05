@@ -395,8 +395,6 @@ func (p *DBTokenProvider) auditInitAutocommitRequest(ctx context.Context, w http
 	// Set the commit function on the status writer to create an audit
 	// log, this ensures that the status and response body are available.
 	sw.AddDoneFunc(func() {
-		p.Logger.Info(ctx, "workspace app audit session", slog.F("status", sw.Status), slog.F("body", string(sw.ResponseBody())), slog.F("api_key", aReq.apiKey), slog.F("db_req", aReq.dbReq))
-
 		if sw.Status == http.StatusSeeOther {
 			// Redirects aren't interesting as we will capture the audit
 			// log after the redirect.
@@ -479,8 +477,6 @@ func (p *DBTokenProvider) auditInitAutocommitRequest(ctx context.Context, w http
 		if err != nil {
 			p.Logger.Error(ctx, "update workspace app audit session failed", slog.Error(err))
 		}
-
-		p.Logger.Info(ctx, "workspace app audit session", slog.F("session_id", sessionID), slog.F("status", sw.Status), slog.F("body", string(sw.ResponseBody())))
 
 		if sessionID == uuid.Nil {
 			if sw.Status < 400 {
