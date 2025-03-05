@@ -39,14 +39,15 @@ type DBTokenProvider struct {
 	Logger slog.Logger
 
 	// DashboardURL is the main dashboard access URL for error pages.
-	DashboardURL                  *url.URL
-	Authorizer                    rbac.Authorizer
-	Auditor                       *atomic.Pointer[audit.Auditor]
-	Database                      database.Store
-	DeploymentValues              *codersdk.DeploymentValues
-	OAuth2Configs                 *httpmw.OAuth2Configs
-	WorkspaceAgentInactiveTimeout time.Duration
-	Keycache                      cryptokeys.SigningKeycache
+	DashboardURL                    *url.URL
+	Authorizer                      rbac.Authorizer
+	Auditor                         *atomic.Pointer[audit.Auditor]
+	Database                        database.Store
+	DeploymentValues                *codersdk.DeploymentValues
+	OAuth2Configs                   *httpmw.OAuth2Configs
+	WorkspaceAgentInactiveTimeout   time.Duration
+	WorkspaceAppAuditSessionTimeout time.Duration
+	Keycache                        cryptokeys.SigningKeycache
 }
 
 var _ SignedTokenProvider = &DBTokenProvider{}
@@ -59,22 +60,27 @@ func NewDBTokenProvider(log slog.Logger,
 	cfg *codersdk.DeploymentValues,
 	oauth2Cfgs *httpmw.OAuth2Configs,
 	workspaceAgentInactiveTimeout time.Duration,
+	workspaceAppAuditSessionTimeout time.Duration,
 	signer cryptokeys.SigningKeycache,
 ) SignedTokenProvider {
 	if workspaceAgentInactiveTimeout == 0 {
 		workspaceAgentInactiveTimeout = 1 * time.Minute
 	}
+	if workspaceAppAuditSessionTimeout == 0 {
+		workspaceAppAuditSessionTimeout = time.Hour
+	}
 
 	return &DBTokenProvider{
-		Logger:                        log,
-		DashboardURL:                  accessURL,
-		Authorizer:                    authz,
-		Auditor:                       auditor,
-		Database:                      db,
-		DeploymentValues:              cfg,
-		OAuth2Configs:                 oauth2Cfgs,
-		WorkspaceAgentInactiveTimeout: workspaceAgentInactiveTimeout,
-		Keycache:                      signer,
+		Logger:                          log,
+		DashboardURL:                    accessURL,
+		Authorizer:                      authz,
+		Auditor:                         auditor,
+		Database:                        db,
+		DeploymentValues:                cfg,
+		OAuth2Configs:                   oauth2Cfgs,
+		WorkspaceAgentInactiveTimeout:   workspaceAgentInactiveTimeout,
+		WorkspaceAppAuditSessionTimeout: workspaceAppAuditSessionTimeout,
+		Keycache:                        signer,
 	}
 }
 
@@ -446,7 +452,7 @@ func (p *DBTokenProvider) auditInitAutocommitRequest(ctx context.Context, w http
 				UserID:          userID,
 				Ip:              aReq.ip,
 				UpdatedAt:       aReq.time,
-				StaleIntervalMS: (2 * time.Hour).Milliseconds(),
+				StaleIntervalMS: p.WorkspaceAppAuditSessionTimeout.Milliseconds(),
 			})
 			if err != nil {
 				return xerrors.Errorf("update workspace app audit session: %w", err)

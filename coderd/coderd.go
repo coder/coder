@@ -226,6 +226,7 @@ type Options struct {
 	UpdateAgentMetrics func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 	StatsBatcher       workspacestats.Batcher
 
+	WorkspaceAppAuditSessionTimeout    time.Duration
 	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions
 
 	// This janky function is used in telemetry to parse fields out of the raw
@@ -560,6 +561,7 @@ func New(options *Options) *API {
 		options.DeploymentValues,
 		oauthConfigs,
 		options.AgentInactiveDisconnectTimeout,
+		options.WorkspaceAppAuditSessionTimeout,
 		options.AppSigningKeyCache,
 	)
 
