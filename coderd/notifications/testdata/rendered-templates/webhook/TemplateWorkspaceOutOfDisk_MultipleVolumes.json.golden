@@ -33,7 +33,8 @@
           "threshold": "95%"
         }
       ]
-    }
+    },
+    "targets": null
   },
   "title": "Your workspace \"bobby-workspace\" is low on volume space",
   "title_markdown": "Your workspace \"bobby-workspace\" is low on volume space",

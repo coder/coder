@@ -19,7 +19,8 @@
       "activated_account_name": "bobby",
       "initiator": "rob"
     },
-    "data": null
+    "data": null,
+    "targets": null
   },
   "title": "Your account \"bobby\" has been activated",
   "title_markdown": "Your account \"bobby\" has been activated",
