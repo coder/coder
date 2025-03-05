@@ -1,6 +1,7 @@
 module github.com/coder/coder/v2
 
-go 1.22.9
+go 1.23
+
 toolchain go1.23.7
 
 // Required until a v3 of chroma is created to lazily initialize all XML files.
