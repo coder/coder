@@ -4479,6 +4479,141 @@ func (s *MethodTestSuite) TestNotifications() {
 			Disableds:               []bool{true, false},
 		}).Asserts(rbac.ResourceNotificationPreference.WithOwner(user.ID.String()), policy.ActionUpdate)
 	}))
+
+	s.Run("GetInboxNotificationsByUserID", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+
+		notifID := uuid.New()
+
+		notif := dbgen.NotificationInbox(s.T(), db, database.InsertInboxNotificationParams{
+			ID:         notifID,
+			UserID:     u.ID,
+			TemplateID: notifications.TemplateWorkspaceAutoUpdated,
+			Title:      "test title",
+			Content:    "test content notification",
+			Icon:       "https://coder.com/favicon.ico",
+			Actions:    json.RawMessage("{}"),
+		})
+
+		check.Args(database.GetInboxNotificationsByUserIDParams{
+			UserID:     u.ID,
+			ReadStatus: database.InboxNotificationReadStatusAll,
+		}).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionRead).Returns([]database.InboxNotification{notif})
+	}))
+
+	s.Run("GetFilteredInboxNotificationsByUserID", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+
+		notifID := uuid.New()
+
+		targets := []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}
+
+		notif := dbgen.NotificationInbox(s.T(), db, database.InsertInboxNotificationParams{
+			ID:         notifID,
+			UserID:     u.ID,
+			TemplateID: notifications.TemplateWorkspaceAutoUpdated,
+			Targets:    targets,
+			Title:      "test title",
+			Content:    "test content notification",
+			Icon:       "https://coder.com/favicon.ico",
+			Actions:    json.RawMessage("{}"),
+		})
+
+		check.Args(database.GetFilteredInboxNotificationsByUserIDParams{
+			UserID:     u.ID,
+			Templates:  []uuid.UUID{notifications.TemplateWorkspaceAutoUpdated},
+			Targets:    []uuid.UUID{u.ID},
+			ReadStatus: database.InboxNotificationReadStatusAll,
+		}).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionRead).Returns([]database.InboxNotification{notif})
+	}))
+
+	s.Run("GetInboxNotificationByID", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+
+		notifID := uuid.New()
+
+		targets := []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}
+
+		notif := dbgen.NotificationInbox(s.T(), db, database.InsertInboxNotificationParams{
+			ID:         notifID,
+			UserID:     u.ID,
+			TemplateID: notifications.TemplateWorkspaceAutoUpdated,
+			Targets:    targets,
+			Title:      "test title",
+			Content:    "test content notification",
+			Icon:       "https://coder.com/favicon.ico",
+			Actions:    json.RawMessage("{}"),
+		})
+
+		check.Args(notifID).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionRead).Returns(notif)
+	}))
+
+	s.Run("CountUnreadInboxNotificationsByUserID", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+
+		notifID := uuid.New()
+
+		targets := []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}
+
+		_ = dbgen.NotificationInbox(s.T(), db, database.InsertInboxNotificationParams{
+			ID:         notifID,
+			UserID:     u.ID,
+			TemplateID: notifications.TemplateWorkspaceAutoUpdated,
+			Targets:    targets,
+			Title:      "test title",
+			Content:    "test content notification",
+			Icon:       "https://coder.com/favicon.ico",
+			Actions:    json.RawMessage("{}"),
+		})
+
+		check.Args(u.ID).Asserts(rbac.ResourceInboxNotification.WithOwner(u.ID.String()), policy.ActionRead).Returns(int64(1))
+	}))
+
+	s.Run("InsertInboxNotification", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+
+		notifID := uuid.New()
+
+		targets := []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}
+
+		check.Args(database.InsertInboxNotificationParams{
+			ID:         notifID,
+			UserID:     u.ID,
+			TemplateID: notifications.TemplateWorkspaceAutoUpdated,
+			Targets:    targets,
+			Title:      "test title",
+			Content:    "test content notification",
+			Icon:       "https://coder.com/favicon.ico",
+			Actions:    json.RawMessage("{}"),
+		}).Asserts(rbac.ResourceInboxNotification.WithOwner(u.ID.String()), policy.ActionCreate)
+	}))
+
+	s.Run("UpdateInboxNotificationReadStatus", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+
+		notifID := uuid.New()
+
+		targets := []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}
+		readAt := dbtestutil.NowInDefaultTimezone()
+
+		notif := dbgen.NotificationInbox(s.T(), db, database.InsertInboxNotificationParams{
+			ID:         notifID,
+			UserID:     u.ID,
+			TemplateID: notifications.TemplateWorkspaceAutoUpdated,
+			Targets:    targets,
+			Title:      "test title",
+			Content:    "test content notification",
+			Icon:       "https://coder.com/favicon.ico",
+			Actions:    json.RawMessage("{}"),
+		})
+
+		notif.ReadAt = sql.NullTime{Time: readAt, Valid: true}
+
+		check.Args(database.UpdateInboxNotificationReadStatusParams{
+			ID:     notifID,
+			ReadAt: sql.NullTime{Time: readAt, Valid: true},
+		}).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionUpdate)
+	}))
 }
 
 func (s *MethodTestSuite) TestOAuth2ProviderApps() {
@@ -4795,6 +4930,14 @@ func (s *MethodTestSuite) TestResourcesMonitor() {
 			AgentID: agt.ID,
 			State:   database.WorkspaceAgentMonitorStateOK,
 		}).Asserts(rbac.ResourceWorkspaceAgentResourceMonitor, policy.ActionUpdate)
+	}))
+
+	s.Run("FetchMemoryResourceMonitorsUpdatedAfter", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(dbtime.Now()).Asserts(rbac.ResourceWorkspaceAgentResourceMonitor, policy.ActionRead)
+	}))
+
+	s.Run("FetchVolumesResourceMonitorsUpdatedAfter", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(dbtime.Now()).Asserts(rbac.ResourceWorkspaceAgentResourceMonitor, policy.ActionRead)
 	}))
 
 	s.Run("FetchMemoryResourceMonitorsByAgentID", s.Subtest(func(db database.Store, check *expects) {

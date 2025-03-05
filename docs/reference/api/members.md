@@ -193,6 +193,7 @@ Status Code **200**
 | `resource_type` | `group`                            |
 | `resource_type` | `group_member`                     |
 | `resource_type` | `idpsync_settings`                 |
+| `resource_type` | `inbox_notification`               |
 | `resource_type` | `license`                          |
 | `resource_type` | `notification_message`             |
 | `resource_type` | `notification_preference`          |
@@ -356,6 +357,7 @@ Status Code **200**
 | `resource_type` | `group`                            |
 | `resource_type` | `group_member`                     |
 | `resource_type` | `idpsync_settings`                 |
+| `resource_type` | `inbox_notification`               |
 | `resource_type` | `license`                          |
 | `resource_type` | `notification_message`             |
 | `resource_type` | `notification_preference`          |
@@ -519,6 +521,7 @@ Status Code **200**
 | `resource_type` | `group`                            |
 | `resource_type` | `group_member`                     |
 | `resource_type` | `idpsync_settings`                 |
+| `resource_type` | `inbox_notification`               |
 | `resource_type` | `license`                          |
 | `resource_type` | `notification_message`             |
 | `resource_type` | `notification_preference`          |
@@ -651,6 +654,7 @@ Status Code **200**
 | `resource_type` | `group`                            |
 | `resource_type` | `group_member`                     |
 | `resource_type` | `idpsync_settings`                 |
+| `resource_type` | `inbox_notification`               |
 | `resource_type` | `license`                          |
 | `resource_type` | `notification_message`             |
 | `resource_type` | `notification_preference`          |
@@ -915,6 +919,7 @@ Status Code **200**
 | `resource_type` | `group`                            |
 | `resource_type` | `group_member`                     |
 | `resource_type` | `idpsync_settings`                 |
+| `resource_type` | `inbox_notification`               |
 | `resource_type` | `license`                          |
 | `resource_type` | `notification_message`             |
 | `resource_type` | `notification_preference`          |

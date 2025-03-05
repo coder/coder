@@ -11,9 +11,10 @@ export const Language = {
 };
 
 export interface TerminalLinkProps {
-	agentName?: TypesGen.WorkspaceAgent["name"];
-	userName?: TypesGen.User["username"];
-	workspaceName: TypesGen.Workspace["name"];
+	workspaceName: string;
+	agentName?: string;
+	userName?: string;
+	containerName?: string;
 }
 
 /**
@@ -27,11 +28,16 @@ export const TerminalLink: FC<TerminalLinkProps> = ({
 	agentName,
 	userName = "me",
 	workspaceName,
+	containerName,
 }) => {
+	const params = new URLSearchParams();
+	if (containerName) {
+		params.append("container", containerName);
+	}
 	// Always use the primary for the terminal link. This is a relative link.
 	const href = `/@${userName}/${workspaceName}${
 		agentName ? `.${agentName}` : ""
-	}/terminal`;
+	}/terminal?${params.toString()}`;
 
 	return (
 		<Link

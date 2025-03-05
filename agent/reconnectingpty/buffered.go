@@ -5,11 +5,11 @@ import (
 	"errors"
 	"io"
 	"net"
+	"slices"
 	"time"
 
 	"github.com/armon/circbuf"
 	"github.com/prometheus/client_golang/prometheus"
-	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"

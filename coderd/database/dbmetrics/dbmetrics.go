@@ -2,11 +2,11 @@ package dbmetrics
 
 import (
 	"context"
+	"slices"
 	"strconv"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"golang.org/x/exp/slices"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"

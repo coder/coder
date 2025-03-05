@@ -2857,6 +2857,41 @@ export const MockPermissions: Permissions = {
 	viewAllLicenses: true,
 	viewNotificationTemplate: true,
 	viewOrganizationIDPSyncSettings: true,
+	viewDebugInfo: true,
+	assignAnyRoles: true,
+	editAnyGroups: true,
+	editAnySettings: true,
+	viewAnyIdpSyncSettings: true,
+	viewAnyMembers: true,
+};
+
+export const MockNoPermissions: Permissions = {
+	createTemplates: false,
+	createUser: false,
+	deleteTemplates: false,
+	updateTemplates: false,
+	viewAllUsers: false,
+	updateUsers: false,
+	viewAnyAuditLog: false,
+	viewDeploymentValues: false,
+	editDeploymentValues: false,
+	viewUpdateCheck: false,
+	viewDeploymentStats: false,
+	viewExternalAuthConfig: false,
+	readWorkspaceProxies: false,
+	editWorkspaceProxies: false,
+	createOrganization: false,
+	viewAnyGroup: false,
+	createGroup: false,
+	viewAllLicenses: false,
+	viewNotificationTemplate: false,
+	viewOrganizationIDPSyncSettings: false,
+	viewDebugInfo: false,
+	assignAnyRoles: false,
+	editAnyGroups: false,
+	editAnySettings: false,
+	viewAnyIdpSyncSettings: false,
+	viewAnyMembers: false,
 };
 
 export const MockOrganizationPermissions: OrganizationPermissions = {
@@ -2889,29 +2924,6 @@ export const MockNoOrganizationPermissions: OrganizationPermissions = {
 	viewProvisionerJobs: false,
 	viewIdpSyncSettings: false,
 	editIdpSyncSettings: false,
-};
-
-export const MockNoPermissions: Permissions = {
-	createTemplates: false,
-	createUser: false,
-	deleteTemplates: false,
-	updateTemplates: false,
-	viewAllUsers: false,
-	updateUsers: false,
-	viewAnyAuditLog: false,
-	viewDeploymentValues: false,
-	editDeploymentValues: false,
-	viewUpdateCheck: false,
-	viewDeploymentStats: false,
-	viewExternalAuthConfig: false,
-	readWorkspaceProxies: false,
-	editWorkspaceProxies: false,
-	createOrganization: false,
-	viewAnyGroup: false,
-	createGroup: false,
-	viewAllLicenses: false,
-	viewNotificationTemplate: false,
-	viewOrganizationIDPSyncSettings: false,
 };
 
 export const MockDeploymentConfig: DeploymentConfig = {

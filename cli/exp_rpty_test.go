@@ -9,6 +9,7 @@ import (
 	"github.com/ory/dockertest/v3/docker"
 
 	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -88,7 +89,8 @@ func TestExpRpty(t *testing.T) {
 		})
 
 		_ = agenttest.New(t, client.URL, agentToken, func(o *agent.Options) {
-			o.ExperimentalContainersEnabled = true
+			o.ExperimentalDevcontainersEnabled = true
+			o.ContainerLister = agentcontainers.NewDocker(o.Execer)
 		})
 		_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
 

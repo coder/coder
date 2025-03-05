@@ -5,13 +5,13 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
-	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"github.com/open-policy-agent/opa/topdown"
@@ -281,6 +281,7 @@ var (
 				DisplayName: "Notifier",
 				Site: rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceNotificationMessage.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceInboxNotification.Type:   {policy.ActionCreate},
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},
@@ -1126,6 +1127,14 @@ func (q *querier) CleanTailnetTunnels(ctx context.Context) error {
 	return q.db.CleanTailnetTunnels(ctx)
 }
 
+func (q *querier) CountUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceInboxNotification.WithOwner(userID.String())); err != nil {
+		return 0, err
+	}
+	return q.db.CountUnreadInboxNotificationsByUserID(ctx, userID)
+}
+
+// TODO: Handle org scoped lookups
 func (q *querier) CustomRoles(ctx context.Context, arg database.CustomRolesParams) ([]database.CustomRole, error) {
 	roleObject := rbac.ResourceAssignRole
 	if arg.OrganizationID != uuid.Nil {
@@ -1429,6 +1438,17 @@ func (q *querier) FetchMemoryResourceMonitorsByAgentID(ctx context.Context, agen
 	return q.db.FetchMemoryResourceMonitorsByAgentID(ctx, agentID)
 }
 
+func (q *querier) FetchMemoryResourceMonitorsUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]database.WorkspaceAgentMemoryResourceMonitor, error) {
+	// Ideally, we would return a list of monitors that the user has access to. However, that check would need to
+	// be implemented similarly to GetWorkspaces, which is more complex than what we're doing here. Since this query
+	// was introduced for telemetry, we perform a simpler check.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspaceAgentResourceMonitor); err != nil {
+		return nil, err
+	}
+
+	return q.db.FetchMemoryResourceMonitorsUpdatedAfter(ctx, updatedAt)
+}
+
 func (q *querier) FetchNewMessageMetadata(ctx context.Context, arg database.FetchNewMessageMetadataParams) (database.FetchNewMessageMetadataRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceNotificationMessage); err != nil {
 		return database.FetchNewMessageMetadataRow{}, err
@@ -1448,6 +1468,17 @@ func (q *querier) FetchVolumesResourceMonitorsByAgentID(ctx context.Context, age
 	}
 
 	return q.db.FetchVolumesResourceMonitorsByAgentID(ctx, agentID)
+}
+
+func (q *querier) FetchVolumesResourceMonitorsUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]database.WorkspaceAgentVolumeResourceMonitor, error) {
+	// Ideally, we would return a list of monitors that the user has access to. However, that check would need to
+	// be implemented similarly to GetWorkspaces, which is more complex than what we're doing here. Since this query
+	// was introduced for telemetry, we perform a simpler check.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspaceAgentResourceMonitor); err != nil {
+		return nil, err
+	}
+
+	return q.db.FetchVolumesResourceMonitorsUpdatedAfter(ctx, updatedAt)
 }
 
 func (q *querier) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
@@ -1689,6 +1720,10 @@ func (q *querier) GetFileTemplates(ctx context.Context, fileID uuid.UUID) ([]dat
 	return q.db.GetFileTemplates(ctx, fileID)
 }
 
+func (q *querier) GetFilteredInboxNotificationsByUserID(ctx context.Context, arg database.GetFilteredInboxNotificationsByUserIDParams) ([]database.InboxNotification, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetFilteredInboxNotificationsByUserID)(ctx, arg)
+}
+
 func (q *querier) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
 	return fetchWithAction(q.log, q.auth, policy.ActionReadPersonal, q.db.GetGitSSHKey)(ctx, userID)
 }
@@ -1746,6 +1781,14 @@ func (q *querier) GetHungProvisionerJobs(ctx context.Context, hungSince time.Tim
 	// return nil, err
 	// }
 	return q.db.GetHungProvisionerJobs(ctx, hungSince)
+}
+
+func (q *querier) GetInboxNotificationByID(ctx context.Context, id uuid.UUID) (database.InboxNotification, error) {
+	return fetchWithAction(q.log, q.auth, policy.ActionRead, q.db.GetInboxNotificationByID)(ctx, id)
+}
+
+func (q *querier) GetInboxNotificationsByUserID(ctx context.Context, userID database.GetInboxNotificationsByUserIDParams) ([]database.InboxNotification, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetInboxNotificationsByUserID)(ctx, userID)
 }
 
 func (q *querier) GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg database.GetJFrogXrayScanByWorkspaceAndAgentIDParams) (database.JfrogXrayScan, error) {
@@ -3090,6 +3133,10 @@ func (q *querier) InsertGroupMember(ctx context.Context, arg database.InsertGrou
 	return update(q.log, q.auth, fetch, q.db.InsertGroupMember)(ctx, arg)
 }
 
+func (q *querier) InsertInboxNotification(ctx context.Context, arg database.InsertInboxNotificationParams) (database.InboxNotification, error) {
+	return insert(q.log, q.auth, rbac.ResourceInboxNotification.WithOwner(arg.UserID.String()), q.db.InsertInboxNotification)(ctx, arg)
+}
+
 func (q *querier) InsertLicense(ctx context.Context, arg database.InsertLicenseParams) (database.License, error) {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceLicense); err != nil {
 		return database.License{}, err
@@ -3675,6 +3722,14 @@ func (q *querier) UpdateInactiveUsersToDormant(ctx context.Context, lastSeenAfte
 		return nil, err
 	}
 	return q.db.UpdateInactiveUsersToDormant(ctx, lastSeenAfter)
+}
+
+func (q *querier) UpdateInboxNotificationReadStatus(ctx context.Context, args database.UpdateInboxNotificationReadStatusParams) error {
+	fetchFunc := func(ctx context.Context, args database.UpdateInboxNotificationReadStatusParams) (database.InboxNotification, error) {
+		return q.db.GetInboxNotificationByID(ctx, args.ID)
+	}
+
+	return update(q.log, q.auth, fetchFunc, q.db.UpdateInboxNotificationReadStatus)(ctx, args)
 }
 
 func (q *querier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemberRolesParams) (database.OrganizationMember, error) {
