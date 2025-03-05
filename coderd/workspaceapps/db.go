@@ -493,6 +493,13 @@ func (p *DBTokenProvider) auditInitAutocommitRequest(ctx context.Context, w http
 			}
 		}
 
+		// Mimic the behavior of a HTTP status writer
+		// by defaulting to 200 if the status is 0.
+		status := sw.Status
+		if status == 0 {
+			status = http.StatusOK
+		}
+
 		// We use the background audit function instead of init request
 		// here because we don't know the resource type ahead of time.
 		// This also allows us to log unauthenticated access.
@@ -508,7 +515,7 @@ func (p *DBTokenProvider) auditInitAutocommitRequest(ctx context.Context, w http
 				UserID:           userID.UUID,
 				RequestID:        sessionID,
 				Time:             aReq.time,
-				Status:           sw.Status,
+				Status:           status,
 				IP:               aReq.ip.IPNet.IP.String(),
 				UserAgent:        r.UserAgent(),
 				New:              aReq.dbReq.App,
@@ -525,7 +532,7 @@ func (p *DBTokenProvider) auditInitAutocommitRequest(ctx context.Context, w http
 				UserID:           userID.UUID,
 				RequestID:        sessionID,
 				Time:             aReq.time,
-				Status:           sw.Status,
+				Status:           status,
 				IP:               aReq.ip.IPNet.IP.String(),
 				UserAgent:        r.UserAgent(),
 				New:              aReq.dbReq.Agent,
