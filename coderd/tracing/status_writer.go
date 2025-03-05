@@ -27,7 +27,7 @@ type StatusWriter struct {
 	http.ResponseWriter
 	Status       int
 	Hijacked     bool
-	Done         []func() // If non-nil, this function will be called when the handler is done.
+	doneFuncs    []func() // If non-nil, this function will be called when the handler is done.
 	responseBody []byte
 
 	wroteHeader      bool
@@ -38,10 +38,15 @@ func StatusWriterMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		sw := &StatusWriter{ResponseWriter: rw}
 		next.ServeHTTP(sw, r)
-		for _, done := range sw.Done {
+		for _, done := range sw.doneFuncs {
 			done()
 		}
 	})
+}
+
+func (w *StatusWriter) AddDoneFunc(f func()) {
+	// Prepend, as if deferred.
+	w.doneFuncs = append([]func(){f}, w.doneFuncs...)
 }
 
 func (w *StatusWriter) WriteHeader(status int) {

@@ -116,6 +116,27 @@ func TestStatusWriter(t *testing.T) {
 		require.Error(t, err)
 		require.Equal(t, "hijacked", err.Error())
 	})
+
+	t.Run("Middleware", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			sw   *tracing.StatusWriter
+			done = false
+			rr   = httptest.NewRecorder()
+		)
+		tracing.StatusWriterMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			sw = w.(*tracing.StatusWriter)
+			sw.AddDoneFunc(func() {
+				done = true
+			})
+			w.WriteHeader(http.StatusNoContent)
+		})).ServeHTTP(rr, httptest.NewRequest("GET", "/", nil))
+
+		require.Equal(t, http.StatusNoContent, rr.Code, "rr status code not set")
+		require.Equal(t, http.StatusNoContent, sw.Status, "sw status code not set")
+		require.True(t, done, "done func not called")
+	})
 }
 
 type hijacker struct {
