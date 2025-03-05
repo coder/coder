@@ -25,7 +25,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -2348,23 +2347,4 @@ func mockTelemetryServer(t *testing.T) (*url.URL, chan *telemetry.Deployment, ch
 	require.NoError(t, err)
 
 	return serverURL, deployment, snapshot
-}
-
-// syncWriter provides a thread-safe io.ReadWriter implementation
-type syncReaderWriter struct {
-	buf bytes.Buffer
-	mu  sync.Mutex
-}
-
-func (w *syncReaderWriter) Write(p []byte) (n int, err error) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	return w.buf.Write(p)
-}
-
-func (w *syncReaderWriter) Read(p []byte) (n int, err error) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-
-	return w.buf.Read(p)
 }
