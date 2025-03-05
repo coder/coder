@@ -135,7 +135,9 @@ provider_installation {
 }
 ```
 
-## Run offline via Docker
+<div class="tabs">
+
+### Docker
 
 Follow our [docker-compose](./docker.md#install-coder-via-docker-compose)
 documentation and modify the docker-compose file to specify your custom Coder
@@ -177,7 +179,7 @@ services:
 > command can be used to download the required plugins for a Coder template.
 > This can be uploaded into the `plugins` directory on your offline server.
 
-## Run offline via Kubernetes
+### Kubernetes
 
 We publish the Helm chart for download on
 [GitHub Releases](https://github.com/coder/coder/releases/latest). Follow our
@@ -208,6 +210,8 @@ coder:
       value: ""
 # ...
 ```
+
+</div>
 
 ## Offline docs
 
