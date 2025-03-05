@@ -253,7 +253,7 @@ func TestServer(t *testing.T) {
 			"--cache-dir", t.TempDir(),
 		)
 		pty := ptytest.New(t).Attach(inv)
-		require.NoError(t, pty.Resize(80, 80))
+		require.NoError(t, pty.Resize(20, 80))
 		clitest.Start(t, inv)
 
 		// Wait for startup
