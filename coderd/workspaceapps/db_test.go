@@ -231,7 +231,7 @@ func Test_ResolveRequest(t *testing.T) {
 	}
 	require.NotEqual(t, uuid.Nil, agentID)
 
-	//nonlint:gocritic // This is a test, allow dbauthz.AsSystemRestricted.
+	//nolint:gocritic // This is a test, allow dbauthz.AsSystemRestricted.
 	agent, err := api.Database.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), agentID)
 	require.NoError(t, err)
 
