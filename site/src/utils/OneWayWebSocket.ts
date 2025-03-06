@@ -33,7 +33,7 @@ type WebSocketEventType = "close" | "error" | "message" | "open";
 type WebSocketEventPayloadMap = {
 	close: CloseEvent;
 	error: Event;
-	message: MessageEvent;
+	message: MessageEvent<string>;
 	open: Event;
 };
 
