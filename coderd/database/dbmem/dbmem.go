@@ -9262,13 +9262,14 @@ func (q *FakeQuerier) InsertWorkspaceAppAuditSession(_ context.Context, arg data
 
 	id := uuid.New()
 	q.workspaceAppAuditSessions = append(q.workspaceAppAuditSessions, database.WorkspaceAppAuditSession{
-		ID:        id,
-		AgentID:   arg.AgentID,
-		AppID:     arg.AppID,
-		UserID:    arg.UserID,
-		Ip:        arg.Ip,
-		StartedAt: arg.StartedAt,
-		UpdatedAt: arg.UpdatedAt,
+		ID:         id,
+		AgentID:    arg.AgentID,
+		AppID:      arg.AppID,
+		UserID:     arg.UserID,
+		Ip:         arg.Ip,
+		SlugOrPort: arg.SlugOrPort,
+		StartedAt:  arg.StartedAt,
+		UpdatedAt:  arg.UpdatedAt,
 	})
 
 	return id, nil
@@ -11041,6 +11042,9 @@ func (q *FakeQuerier) UpdateWorkspaceAppAuditSession(_ context.Context, arg data
 			continue
 		}
 		if s.Ip.IPNet.String() != arg.Ip.IPNet.String() {
+			continue
+		}
+		if s.SlugOrPort != arg.SlugOrPort {
 			continue
 		}
 		staleTime := dbtime.Now().Add(-(time.Duration(arg.StaleIntervalMS) * time.Millisecond))

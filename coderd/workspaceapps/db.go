@@ -414,7 +414,7 @@ func (p *DBTokenProvider) auditInitAutocommitRequest(ctx context.Context, w http
 
 		type additionalFields struct {
 			audit.AdditionalFields
-			App string `json:"app"`
+			SlugOrPort string `json:"slug_or_port,omitempty"`
 		}
 		appInfo := additionalFields{
 			AdditionalFields: audit.AdditionalFields{
@@ -422,7 +422,13 @@ func (p *DBTokenProvider) auditInitAutocommitRequest(ctx context.Context, w http
 				WorkspaceName:  aReq.dbReq.Workspace.Name,
 				WorkspaceID:    aReq.dbReq.Workspace.ID,
 			},
-			App: aReq.dbReq.AppSlugOrPort,
+		}
+		switch {
+		case aReq.dbReq.AccessMethod == AccessMethodTerminal:
+			appInfo.SlugOrPort = "terminal"
+		case aReq.dbReq.App.ID == uuid.Nil:
+			// If this isn't an app or a terminal, it's a port.
+			appInfo.SlugOrPort = aReq.dbReq.AppSlugOrPort
 		}
 
 		appInfoBytes, err := json.Marshal(appInfo)
@@ -448,6 +454,7 @@ func (p *DBTokenProvider) auditInitAutocommitRequest(ctx context.Context, w http
 				AppID:           uuid.NullUUID{Valid: aReq.dbReq.App.ID != uuid.Nil, UUID: aReq.dbReq.App.ID},
 				UserID:          userID,
 				Ip:              aReq.ip,
+				SlugOrPort:      appInfo.SlugOrPort,
 				UpdatedAt:       aReq.time,
 				StaleIntervalMS: p.WorkspaceAppAuditSessionTimeout.Milliseconds(),
 			})

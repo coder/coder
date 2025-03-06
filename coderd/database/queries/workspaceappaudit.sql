@@ -5,6 +5,7 @@ INSERT INTO
 		app_id,
 		user_id,
 		ip,
+		slug_or_port,
 		started_at,
 		updated_at
 	)
@@ -15,7 +16,8 @@ VALUES
 		$3,
 		$4,
 		$5,
-		$6
+		$6,
+		$7
 	)
 RETURNING
 	id;
@@ -33,6 +35,7 @@ WHERE
 	AND app_id IS NOT DISTINCT FROM @app_id
 	AND user_id IS NOT DISTINCT FROM @user_id
 	AND ip IS NOT DISTINCT FROM @ip
+	AND slug_or_port = @slug_or_port
 	AND updated_at > NOW() - (@stale_interval_ms::bigint || ' ms')::interval
 RETURNING
 	id;
