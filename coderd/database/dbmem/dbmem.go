@@ -9590,7 +9590,37 @@ func (q *FakeQuerier) PaginatedOrganizationMembers(ctx context.Context, arg data
 		return nil, err
 	}
 
-	panic("not implemented")
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	tmp := make([]database.PaginatedOrganizationMembersRow, 0)
+
+	skippedMembers := 0
+	for _, organizationMember := range q.organizationMembers {
+		if arg.OrganizationID != uuid.Nil && organizationMember.OrganizationID != arg.OrganizationID {
+			continue
+		}
+
+		if skippedMembers < int(arg.OffsetOpt) {
+			skippedMembers += 1
+			continue
+		}
+
+		if len(tmp) >= int(arg.LimitOpt) {
+			break
+		}
+
+		user, _ := q.getUserByIDNoLock(organizationMember.UserID)
+		tmp = append(tmp, database.PaginatedOrganizationMembersRow{
+			OrganizationMember: organizationMember,
+			Username:           user.Username,
+			AvatarURL:          user.AvatarURL,
+			Name:               user.Name,
+			Email:              user.Email,
+			GlobalRoles:        user.RBACRoles,
+		})
+	}
+	return tmp, nil
 }
 
 func (q *FakeQuerier) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(_ context.Context, templateID uuid.UUID) error {
