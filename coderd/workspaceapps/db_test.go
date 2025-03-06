@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -246,6 +247,9 @@ func Test_ResolveRequest(t *testing.T) {
 	// Reset audit logs so cleanup check can pass.
 	auditor.ResetLogs()
 
+	assertAuditAgent := auditAsserter[database.WorkspaceAgent](workspace)
+	assertAuditApp := auditAsserter[database.WorkspaceApp](workspace)
+
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
@@ -332,18 +336,8 @@ func Test_ResolveRequest(t *testing.T) {
 					require.Equal(t, codersdk.SignedAppTokenCookie, cookie.Name)
 					require.Equal(t, req.BasePath, cookie.Path)
 
-					require.True(t, auditor.Contains(t, database.AuditLog{
-						OrganizationID: workspace.OrganizationID,
-						Action:         database.AuditActionOpen,
-						ResourceType:   audit.ResourceType(appsBySlug[app]),
-						ResourceID:     audit.ResourceID(appsBySlug[app]),
-						ResourceTarget: audit.ResourceTarget(appsBySlug[app]),
-						UserID:         me.ID,
-						UserAgent:      sql.NullString{Valid: true, String: auditableUA},
-						Ip:             audit.ParseIP(auditableIP),
-						StatusCode:     int32(w.StatusCode), //nolint:gosec
-					}), "audit log")
-					require.Len(t, auditor.AuditLogs(), 1, "single audit log")
+					assertAuditApp(t, rw, r, auditor, appsBySlug[app], me.ID, nil)
+					require.Len(t, auditor.AuditLogs(), 1, "audit log count")
 
 					var parsedToken workspaceapps.SignedToken
 					err := jwtutils.Verify(ctx, api.AppSigningKeyCache, cookie.Value, &parsedToken)
@@ -421,16 +415,7 @@ func Test_ResolveRequest(t *testing.T) {
 			require.NotNil(t, token)
 			require.Zero(t, w.StatusCode)
 
-			require.True(t, auditor.Contains(t, database.AuditLog{
-				OrganizationID: workspace.OrganizationID,
-				Action:         database.AuditActionOpen,
-				ResourceType:   audit.ResourceType(appsBySlug[app]),
-				ResourceID:     audit.ResourceID(appsBySlug[app]),
-				ResourceTarget: audit.ResourceTarget(appsBySlug[app]),
-				UserID:         secondUser.ID,
-				Ip:             audit.ParseIP(auditableIP),
-				StatusCode:     int32(w.StatusCode), //nolint:gosec
-			}), "audit log")
+			assertAuditApp(t, rw, r, auditor, appsBySlug[app], secondUser.ID, nil)
 			require.Len(t, auditor.AuditLogs(), 1, "single audit log")
 		}
 	})
@@ -483,17 +468,8 @@ func Test_ResolveRequest(t *testing.T) {
 					t.Fatalf("expected 200 (or unset) response code, got %d", rw.Code)
 				}
 
-				require.True(t, auditor.Contains(t, database.AuditLog{
-					OrganizationID: workspace.OrganizationID,
-					ResourceType:   audit.ResourceType(appsBySlug[app]),
-					ResourceID:     audit.ResourceID(appsBySlug[app]),
-					ResourceTarget: audit.ResourceTarget(appsBySlug[app]),
-					UserID:         uuid.Nil, // Nil is not verified by Contains, see below.
-					Ip:             audit.ParseIP(auditableIP),
-					StatusCode:     int32(w.StatusCode), //nolint:gosec
-				}), "audit log")
+				assertAuditApp(t, rw, r, auditor, appsBySlug[app], uuid.Nil, nil)
 				require.Len(t, auditor.AuditLogs(), 1, "single audit log")
-				require.Equal(t, uuid.Nil, auditor.AuditLogs()[0].UserID, "no user ID in audit log")
 			}
 			_ = w.Body.Close()
 		}
@@ -617,15 +593,7 @@ func Test_ResolveRequest(t *testing.T) {
 					require.Equal(t, token.AgentNameOrID, c.agent)
 					require.Equal(t, token.WorkspaceID, workspace.ID)
 					require.Equal(t, token.AgentID, agentID)
-					require.True(t, auditor.Contains(t, database.AuditLog{
-						OrganizationID: workspace.OrganizationID,
-						ResourceType:   audit.ResourceType(appsBySlug[token.AppSlugOrPort]),
-						ResourceID:     audit.ResourceID(appsBySlug[token.AppSlugOrPort]),
-						ResourceTarget: audit.ResourceTarget(appsBySlug[token.AppSlugOrPort]),
-						UserID:         me.ID,
-						Ip:             audit.ParseIP(auditableIP),
-						StatusCode:     int32(w.StatusCode), //nolint:gosec
-					}), "audit log")
+					assertAuditApp(t, rw, r, auditor, appsBySlug[token.AppSlugOrPort], me.ID, nil)
 					require.Len(t, auditor.AuditLogs(), 1, "single audit log")
 				} else {
 					require.Nil(t, token)
@@ -710,15 +678,7 @@ func Test_ResolveRequest(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, appNameOwner, parsedToken.AppSlugOrPort)
 
-		require.True(t, auditor.Contains(t, database.AuditLog{
-			OrganizationID: workspace.OrganizationID,
-			ResourceType:   audit.ResourceType(appsBySlug[token.AppSlugOrPort]),
-			ResourceID:     audit.ResourceID(appsBySlug[token.AppSlugOrPort]),
-			ResourceTarget: audit.ResourceTarget(appsBySlug[token.AppSlugOrPort]),
-			UserID:         me.ID,
-			Ip:             audit.ParseIP(auditableIP),
-			StatusCode:     int32(w.StatusCode), //nolint:gosec
-		}), "audit log")
+		assertAuditApp(t, rw, r, auditor, appsBySlug[appNameOwner], me.ID, nil)
 		require.Len(t, auditor.AuditLogs(), 1, "single audit log")
 	})
 
@@ -792,18 +752,9 @@ func Test_ResolveRequest(t *testing.T) {
 		require.Equal(t, req.AppSlugOrPort, token.AppSlugOrPort)
 		require.Equal(t, "http://127.0.0.1:9090", token.AppURL)
 
-		w := rw.Result()
-		_ = w.Body.Close()
-		require.Equal(t, http.StatusOK, w.StatusCode)
-		require.True(t, auditor.Contains(t, database.AuditLog{
-			OrganizationID: workspace.OrganizationID,
-			ResourceType:   audit.ResourceType(agent),
-			ResourceID:     audit.ResourceID(agent),
-			ResourceTarget: audit.ResourceTarget(agent),
-			UserID:         me.ID,
-			Ip:             audit.ParseIP(auditableIP),
-			StatusCode:     int32(w.StatusCode), //nolint:gosec
-		}), "audit log for agent, not app")
+		assertAuditAgent(t, rw, r, auditor, agent, me.ID, map[string]any{
+			"slug_or_port": "9090",
+		})
 		require.Len(t, auditor.AuditLogs(), 1, "single audit log")
 	})
 
@@ -876,17 +827,7 @@ func Test_ResolveRequest(t *testing.T) {
 		})
 		require.True(t, ok)
 		require.Equal(t, req.AppSlugOrPort, token.AppSlugOrPort)
-		w := rw.Result()
-		_ = w.Body.Close()
-		require.True(t, auditor.Contains(t, database.AuditLog{
-			OrganizationID: workspace.OrganizationID,
-			ResourceType:   audit.ResourceType(appsBySlug[token.AppSlugOrPort]),
-			ResourceID:     audit.ResourceID(appsBySlug[token.AppSlugOrPort]),
-			ResourceTarget: audit.ResourceTarget(appsBySlug[token.AppSlugOrPort]),
-			UserID:         me.ID,
-			Ip:             audit.ParseIP(auditableIP),
-			StatusCode:     int32(w.StatusCode), //nolint:gosec
-		}), "audit log")
+		assertAuditApp(t, rw, r, auditor, appsBySlug[appNameEndsInS], me.ID, nil)
 		require.Len(t, auditor.AuditLogs(), 1, "single audit log")
 	})
 
@@ -923,17 +864,9 @@ func Test_ResolveRequest(t *testing.T) {
 		require.Equal(t, req.AgentNameOrID, token.Request.AgentNameOrID)
 		require.Empty(t, token.AppSlugOrPort)
 		require.Empty(t, token.AppURL)
-		w := rw.Result()
-		_ = w.Body.Close()
-		require.True(t, auditor.Contains(t, database.AuditLog{
-			OrganizationID: workspace.OrganizationID,
-			ResourceType:   audit.ResourceType(agent),
-			ResourceID:     audit.ResourceID(agent),
-			ResourceTarget: audit.ResourceTarget(agent),
-			UserID:         me.ID,
-			Ip:             audit.ParseIP(auditableIP),
-			StatusCode:     int32(w.StatusCode), //nolint:gosec
-		}), "audit log for agent, not app")
+		assertAuditAgent(t, rw, r, auditor, agent, me.ID, map[string]any{
+			"slug_or_port": "terminal",
+		})
 		require.Len(t, auditor.AuditLogs(), 1, "single audit log")
 	})
 
@@ -967,15 +900,7 @@ func Test_ResolveRequest(t *testing.T) {
 		})
 		require.False(t, ok)
 		require.Nil(t, token)
-		w := rw.Result()
-		_ = w.Body.Close()
-		require.Equal(t, http.StatusNotFound, w.StatusCode)
-		require.True(t, auditor.Contains(t, database.AuditLog{
-			OrganizationID: workspace.OrganizationID,
-			UserID:         secondUser.ID,
-			Ip:             audit.ParseIP(auditableIP),
-			StatusCode:     int32(w.StatusCode), //nolint:gosec
-		}), "audit log insufficient permissions")
+		assertAuditApp(t, rw, r, auditor, appsBySlug[appNameOwner], secondUser.ID, nil)
 		require.Len(t, auditor.AuditLogs(), 1, "single audit log")
 	})
 
@@ -1108,12 +1033,7 @@ func Test_ResolveRequest(t *testing.T) {
 		w := rw.Result()
 		defer w.Body.Close()
 		require.Equal(t, http.StatusBadGateway, w.StatusCode)
-		require.True(t, auditor.Contains(t, database.AuditLog{
-			OrganizationID: workspace.OrganizationID,
-			UserID:         me.ID,
-			Ip:             audit.ParseIP(auditableIP),
-			StatusCode:     int32(w.StatusCode), //nolint:gosec
-		}), "audit log unhealthy agent")
+		assertAuditApp(t, rw, r, auditor, appsBySlug[appNameAgentUnhealthy], me.ID, nil)
 		require.Len(t, auditor.AuditLogs(), 1, "single audit log")
 
 		body, err := io.ReadAll(w.Body)
@@ -1172,14 +1092,7 @@ func Test_ResolveRequest(t *testing.T) {
 		})
 		require.True(t, ok, "ResolveRequest failed, should pass even though app is initializing")
 		require.NotNil(t, token)
-		w := rw.Result()
-		_ = w.Body.Close()
-		require.True(t, auditor.Contains(t, database.AuditLog{
-			OrganizationID: workspace.OrganizationID,
-			UserID:         me.ID,
-			Ip:             audit.ParseIP(auditableIP),
-			StatusCode:     int32(w.StatusCode), //nolint:gosec
-		}), "audit log initializing app")
+		assertAuditApp(t, rw, r, auditor, appsBySlug[token.AppSlugOrPort], me.ID, nil)
 		require.Len(t, auditor.AuditLogs(), 1, "single audit log")
 	})
 
@@ -1237,14 +1150,7 @@ func Test_ResolveRequest(t *testing.T) {
 		})
 		require.True(t, ok, "ResolveRequest failed, should pass even though app is unhealthy")
 		require.NotNil(t, token)
-		w := rw.Result()
-		_ = w.Body.Close()
-		require.True(t, auditor.Contains(t, database.AuditLog{
-			OrganizationID: workspace.OrganizationID,
-			UserID:         me.ID,
-			Ip:             audit.ParseIP(auditableIP),
-			StatusCode:     int32(w.StatusCode), //nolint:gosec
-		}), "audit log unhealthy app")
+		assertAuditApp(t, rw, r, auditor, appsBySlug[token.AppSlugOrPort], me.ID, nil)
 		require.Len(t, auditor.AuditLogs(), 1, "single audit log")
 	})
 
@@ -1281,18 +1187,7 @@ func Test_ResolveRequest(t *testing.T) {
 				AppRequest:          req,
 			})
 			require.True(t, ok)
-			w := rw.Result()
-			_ = w.Body.Close()
-			require.True(t, auditor.Contains(t, database.AuditLog{
-				OrganizationID: workspace.OrganizationID,
-				Action:         database.AuditActionOpen,
-				ResourceType:   audit.ResourceType(appsBySlug[app]),
-				ResourceID:     audit.ResourceID(appsBySlug[app]),
-				ResourceTarget: audit.ResourceTarget(appsBySlug[app]),
-				UserID:         me.ID,
-				Ip:             audit.ParseIP(auditableIP),
-				StatusCode:     int32(w.StatusCode), //nolint:gosec
-			}), "audit log 1")
+			assertAuditApp(t, rw, r, auditor, appsBySlug[app], me.ID, nil)
 			require.Len(t, auditor.AuditLogs(), 1, "single audit log")
 
 			// Second request, no audit log because the session is active.
@@ -1310,8 +1205,6 @@ func Test_ResolveRequest(t *testing.T) {
 				AppRequest:          req,
 			})
 			require.True(t, ok)
-			w = rw.Result()
-			_ = w.Body.Close()
 			require.Len(t, auditor.AuditLogs(), 1, "single audit log, previous session active")
 
 			// Third request, session timed out, new audit log.
@@ -1330,18 +1223,7 @@ func Test_ResolveRequest(t *testing.T) {
 				AppRequest:          req,
 			})
 			require.True(t, ok)
-			w = rw.Result()
-			_ = w.Body.Close()
-			require.True(t, auditor.Contains(t, database.AuditLog{
-				OrganizationID: workspace.OrganizationID,
-				Action:         database.AuditActionOpen,
-				ResourceType:   audit.ResourceType(appsBySlug[app]),
-				ResourceID:     audit.ResourceID(appsBySlug[app]),
-				ResourceTarget: audit.ResourceTarget(appsBySlug[app]),
-				UserID:         me.ID,
-				Ip:             audit.ParseIP(auditableIP),
-				StatusCode:     int32(w.StatusCode), //nolint:gosec
-			}), "audit log 2")
+			assertAuditApp(t, rw, r, auditor, appsBySlug[app], me.ID, nil)
 			require.Len(t, auditor.AuditLogs(), 2, "two audit logs, session timed out")
 
 			// Fourth request, new IP produces new audit log.
@@ -1360,18 +1242,7 @@ func Test_ResolveRequest(t *testing.T) {
 				AppRequest:          req,
 			})
 			require.True(t, ok)
-			w = rw.Result()
-			_ = w.Body.Close()
-			require.True(t, auditor.Contains(t, database.AuditLog{
-				OrganizationID: workspace.OrganizationID,
-				Action:         database.AuditActionOpen,
-				ResourceType:   audit.ResourceType(appsBySlug[app]),
-				ResourceID:     audit.ResourceID(appsBySlug[app]),
-				ResourceTarget: audit.ResourceTarget(appsBySlug[app]),
-				UserID:         me.ID,
-				Ip:             audit.ParseIP(auditableIP),
-				StatusCode:     int32(w.StatusCode), //nolint:gosec
-			}), "audit log 3")
+			assertAuditApp(t, rw, r, auditor, appsBySlug[app], me.ID, nil)
 			require.Len(t, auditor.AuditLogs(), 3, "three audit logs, new IP")
 		}
 	})
@@ -1412,4 +1283,42 @@ func signedTokenProviderWithAuditor(t testing.TB, provider workspaceapps.SignedT
 	shallowCopy.Auditor.Store(&auditor)
 	shallowCopy.WorkspaceAppAuditSessionTimeout = sessionTimeout
 	return &shallowCopy
+}
+
+func auditAsserter[T audit.Auditable](workspace codersdk.Workspace) func(t testing.TB, rr *httptest.ResponseRecorder, r *http.Request, auditor *audit.MockAuditor, auditable T, userID uuid.UUID, additionalFields map[string]any) {
+	return func(t testing.TB, rr *httptest.ResponseRecorder, r *http.Request, auditor *audit.MockAuditor, auditable T, userID uuid.UUID, additionalFields map[string]any) {
+		t.Helper()
+
+		resp := rr.Result()
+		defer resp.Body.Close()
+
+		require.True(t, auditor.Contains(t, database.AuditLog{
+			OrganizationID: workspace.OrganizationID,
+			Action:         database.AuditActionOpen,
+			ResourceType:   audit.ResourceType(auditable),
+			ResourceID:     audit.ResourceID(auditable),
+			ResourceTarget: audit.ResourceTarget(auditable),
+			UserID:         userID,
+			Ip:             audit.ParseIP(r.RemoteAddr),
+			UserAgent:      sql.NullString{Valid: r.UserAgent() != "", String: r.UserAgent()},
+			StatusCode:     int32(resp.StatusCode), //nolint:gosec
+		}), "audit log")
+
+		// Verify additional fields, assume the last log entry.
+		alog := auditor.AuditLogs()[len(auditor.AuditLogs())-1]
+
+		// Contains does not verify uuid.Nil.
+		if userID == uuid.Nil {
+			require.Equal(t, uuid.Nil, alog.UserID, "unauthenticated user")
+		}
+
+		add := make(map[string]any)
+		if len(alog.AdditionalFields) > 0 {
+			err := json.Unmarshal([]byte(alog.AdditionalFields), &add)
+			require.NoError(t, err, "audit log unmarhsal additional fields")
+		}
+		for k, v := range additionalFields {
+			require.Equal(t, v, add[k], "audit log additional field %s: additional fields: %v", k, add)
+		}
+	}
 }
