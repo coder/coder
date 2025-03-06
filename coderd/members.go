@@ -188,7 +188,9 @@ func (api *API) listMembers(rw http.ResponseWriter, r *http.Request) {
 // @Router /organizations/{organization}/paginated-members [get]
 func (api *API) paginatedMembers(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	httpapi.Write(ctx, rw, http.StatusNotImplemented, nil)
+
+	resp := codersdk.PaginatedMembersResponse{}
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
 // @Summary Assign role to organization member
