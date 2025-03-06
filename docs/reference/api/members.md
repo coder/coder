@@ -828,9 +828,11 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/paginat
 
 ### Parameters
 
-| Name           | In   | Type   | Required | Description     |
-|----------------|------|--------|----------|-----------------|
-| `organization` | path | string | true     | Organization ID |
+| Name           | In    | Type    | Required | Description     |
+|----------------|-------|---------|----------|-----------------|
+| `organization` | path  | string  | true     | Organization ID |
+| `limit`        | query | integer | false    | Page limit      |
+| `offset`       | query | integer | false    | Page offset     |
 
 ### Example responses
 
@@ -839,58 +841,65 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/paginat
 ```json
 [
   {
-    "avatar_url": "string",
-    "created_at": "2019-08-24T14:15:22Z",
-    "email": "string",
-    "global_roles": [
+    "count": 0,
+    "members": [
       {
-        "display_name": "string",
+        "avatar_url": "string",
+        "created_at": "2019-08-24T14:15:22Z",
+        "email": "string",
+        "global_roles": [
+          {
+            "display_name": "string",
+            "name": "string",
+            "organization_id": "string"
+          }
+        ],
         "name": "string",
-        "organization_id": "string"
+        "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+        "roles": [
+          {
+            "display_name": "string",
+            "name": "string",
+            "organization_id": "string"
+          }
+        ],
+        "updated_at": "2019-08-24T14:15:22Z",
+        "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+        "username": "string"
       }
-    ],
-    "name": "string",
-    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-    "roles": [
-      {
-        "display_name": "string",
-        "name": "string",
-        "organization_id": "string"
-      }
-    ],
-    "updated_at": "2019-08-24T14:15:22Z",
-    "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
-    "username": "string"
+    ]
   }
 ]
 ```
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                                                |
-|--------|---------------------------------------------------------|-------------|-------------------------------------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.OrganizationMemberWithUserData](schemas.md#codersdkorganizationmemberwithuserdata) |
+| Status | Meaning                                                 | Description | Schema                                                                                    |
+|--------|---------------------------------------------------------|-------------|-------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.PaginatedMembersResponse](schemas.md#codersdkpaginatedmembersresponse) |
 
 <h3 id="paginated-organization-members-responseschema">Response Schema</h3>
 
 Status Code **200**
 
-| Name                 | Type              | Required | Restrictions | Description |
-|----------------------|-------------------|----------|--------------|-------------|
-| `[array item]`       | array             | false    |              |             |
-| `» avatar_url`       | string            | false    |              |             |
-| `» created_at`       | string(date-time) | false    |              |             |
-| `» email`            | string            | false    |              |             |
-| `» global_roles`     | array             | false    |              |             |
-| `»» display_name`    | string            | false    |              |             |
-| `»» name`            | string            | false    |              |             |
-| `»» organization_id` | string            | false    |              |             |
-| `» name`             | string            | false    |              |             |
-| `» organization_id`  | string(uuid)      | false    |              |             |
-| `» roles`            | array             | false    |              |             |
-| `» updated_at`       | string(date-time) | false    |              |             |
-| `» user_id`          | string(uuid)      | false    |              |             |
-| `» username`         | string            | false    |              |             |
+| Name                  | Type              | Required | Restrictions | Description |
+|-----------------------|-------------------|----------|--------------|-------------|
+| `[array item]`        | array             | false    |              |             |
+| `» count`             | integer           | false    |              |             |
+| `» members`           | array             | false    |              |             |
+| `»» avatar_url`       | string            | false    |              |             |
+| `»» created_at`       | string(date-time) | false    |              |             |
+| `»» email`            | string            | false    |              |             |
+| `»» global_roles`     | array             | false    |              |             |
+| `»»» display_name`    | string            | false    |              |             |
+| `»»» name`            | string            | false    |              |             |
+| `»»» organization_id` | string            | false    |              |             |
+| `»» name`             | string            | false    |              |             |
+| `»» organization_id`  | string(uuid)      | false    |              |             |
+| `»» roles`            | array             | false    |              |             |
+| `»» updated_at`       | string(date-time) | false    |              |             |
+| `»» user_id`          | string(uuid)      | false    |              |             |
+| `»» username`         | string            | false    |              |             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
