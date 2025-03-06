@@ -102,7 +102,7 @@ Before you can use Coder Desktop, you will need to sign in.
 
 1. macOS: You may be prompted to enter your password to allow Coder Connect to start.
 
-1. Coder Desktop is now running!
+1. Coder Connect is now running!
 
 ## Coder Connect
 
