@@ -102,8 +102,8 @@ export const CreateUserForm: FC<
 			password: "",
 			username: "",
 			name: "",
-			// If we aren't given a list of organizations to choose from, use the
-			// fallback ID to add the user to the default organization.
+			// If organizations aren't enabled, use the fallback ID to add the user to
+			// the default organization.
 			organization: showOrganizations
 				? ""
 				: "00000000-0000-0000-0000-000000000000",

@@ -48,13 +48,6 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 			: { enabled: false },
 	);
 
-	// const { debounced: debouncedInputOnChange } = useDebouncedFunction(
-	// 	(event: ChangeEvent<HTMLInputElement>) => {
-	// 		setInputValue(event.target.value);
-	// 	},
-	// 	750,
-	// );
-
 	// If an authorization check was provided, filter the organizations based on
 	// the results of that check.
 	let options = organizationsQuery.data ?? [];
@@ -132,6 +125,6 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 };
 
 const root = css`
-  padding-left: 14px !important; // Same padding left as input
-  gap: 4px;
+	padding-left: 14px !important; // Same padding left as input
+	gap: 4px;
 `;
