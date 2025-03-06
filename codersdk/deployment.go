@@ -405,7 +405,10 @@ type DeploymentValues struct {
 // ssh connections.
 type SSHConfig struct {
 	// DeploymentName is the config-ssh Hostname prefix
+	// DEPRECATED: Use HostnameSuffix instead.
 	DeploymentName serpent.String
+	// HostnameSuffix is the config-ssh hostname suffix that will be used for workspace hostnames
+	HostnameSuffix serpent.String
 	// SSHConfigOptions are additional options to add to the ssh config file.
 	// This will override defaults.
 	SSHConfigOptions serpent.StringArray
@@ -2528,7 +2531,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		},
 		{
 			Name:        "SSH Host Prefix",
-			Description: "The SSH deployment prefix is used in the Host of the ssh config.",
+			Description: "The SSH deployment prefix is used in the Host of the ssh config.\nDEPRECATED: Use --ssh-hostname-suffix instead.",
 			Flag:        "ssh-hostname-prefix",
 			Env:         "CODER_SSH_HOSTNAME_PREFIX",
 			YAML:        "sshHostnamePrefix",
@@ -2536,6 +2539,18 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Value:       &c.SSHConfig.DeploymentName,
 			Hidden:      false,
 			Default:     "coder.",
+			Deprecated:  true,
+		},
+		{
+			Name:        "SSH Host Suffix",
+			Description: "The SSH hostname suffix used as the domain part of workspace hostnames in the SSH config.",
+			Flag:        "ssh-hostname-suffix",
+			Env:         "CODER_SSH_HOSTNAME_SUFFIX",
+			YAML:        "sshHostnameSuffix",
+			Group:       &deploymentGroupClient,
+			Value:       &c.SSHConfig.HostnameSuffix,
+			Hidden:      false,
+			Default:     "coder",
 		},
 		{
 			Name: "SSH Config Options",
@@ -3353,7 +3368,11 @@ type DeploymentStats struct {
 }
 
 type SSHConfigResponse struct {
+	// HostnamePrefix is the deprecated prefix for workspace SSH hostnames
+	// DEPRECATED: Use HostnameSuffix instead
 	HostnamePrefix   string            `json:"hostname_prefix"`
+	// HostnameSuffix is the suffix used for workspace SSH hostnames (e.g., workspace.coder)
+	HostnameSuffix   string            `json:"hostname_suffix"`
 	SSHConfigOptions map[string]string `json:"ssh_config_options"`
 }
 

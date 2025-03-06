@@ -63,6 +63,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 	var (
 		stdio               bool
 		hostPrefix          string
+		hostnameSuffix      string
 		forwardAgent        bool
 		forwardGPG          bool
 		identityAgent       string
@@ -200,7 +201,19 @@ func (r *RootCmd) ssh() *serpent.Command {
 				parsedEnv = append(parsedEnv, [2]string{k, v})
 			}
 
-			namedWorkspace := strings.TrimPrefix(inv.Args[0], hostPrefix)
+			var namedWorkspace string
+			if hostnameSuffix != "" && strings.Contains(inv.Args[0], "."+hostnameSuffix) {
+				// Extract workspace name from suffix-based naming (e.g., workspace.coder)
+				parts := strings.Split(inv.Args[0], ".")
+				if len(parts) >= 2 {
+					namedWorkspace = parts[0]
+				} else {
+					namedWorkspace = inv.Args[0]
+				}
+			} else {
+				// Legacy prefix-based naming (e.g., coder.workspace)
+				namedWorkspace = strings.TrimPrefix(inv.Args[0], hostPrefix)
+			}
 			// Support "--" as a delimiter between owner and workspace name
 			namedWorkspace = strings.Replace(namedWorkspace, "--", "/", 1)
 
@@ -560,8 +573,15 @@ func (r *RootCmd) ssh() *serpent.Command {
 		{
 			Flag:        "ssh-host-prefix",
 			Env:         "CODER_SSH_SSH_HOST_PREFIX",
-			Description: "Strip this prefix from the provided hostname to determine the workspace name. This is useful when used as part of an OpenSSH proxy command.",
+			Description: "Strip this prefix from the provided hostname to determine the workspace name.\nDEPRECATED: Use --ssh-hostname-suffix instead.",
 			Value:       serpent.StringOf(&hostPrefix),
+			Deprecated:  true,
+		},
+		{
+			Flag:        "ssh-hostname-suffix",
+			Env:         "CODER_SSH_SSH_HOSTNAME_SUFFIX",
+			Description: "Strip this suffix from the provided hostname to determine the workspace name. This is useful when used as part of an OpenSSH proxy command.",
+			Value:       serpent.StringOf(&hostnameSuffix),
 		},
 		{
 			Flag:          "forward-agent",

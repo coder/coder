@@ -1,3 +1,4 @@
+// Package cli provides the command line interface for Coder.
 package cli
 
 import (
@@ -45,13 +46,14 @@ const (
 // sshConfigOptions represents options that can be stored and read
 // from the coder config in ~/.ssh/coder.
 type sshConfigOptions struct {
-	waitEnum         string
-	userHostPrefix   string
-	sshOptions       []string
-	disableAutostart bool
-	header           []string
-	headerCommand    string
-	removedKeys      map[string]bool
+	waitEnum           string
+	userHostPrefix     string
+	userHostnameSuffix string
+	sshOptions         []string
+	disableAutostart   bool
+	header             []string
+	headerCommand      string
+	removedKeys        map[string]bool
 }
 
 // addOptions expects options in the form of "option=value" or "option value".
@@ -97,7 +99,11 @@ func (o sshConfigOptions) equal(other sshConfigOptions) bool {
 	if !slicesSortedEqual(o.header, other.header) {
 		return false
 	}
-	return o.waitEnum == other.waitEnum && o.userHostPrefix == other.userHostPrefix && o.disableAutostart == other.disableAutostart && o.headerCommand == other.headerCommand
+	return o.waitEnum == other.waitEnum && 
+		o.userHostPrefix == other.userHostPrefix && 
+		o.userHostnameSuffix == other.userHostnameSuffix && 
+		o.disableAutostart == other.disableAutostart && 
+		o.headerCommand == other.headerCommand
 }
 
 // slicesSortedEqual compares two slices without side-effects or regard to order.
@@ -118,6 +124,9 @@ func (o sshConfigOptions) asList() (list []string) {
 	}
 	if o.userHostPrefix != "" {
 		list = append(list, fmt.Sprintf("ssh-host-prefix: %s", o.userHostPrefix))
+	}
+	if o.userHostnameSuffix != "" {
+		list = append(list, fmt.Sprintf("ssh-hostname-suffix: %s", o.userHostnameSuffix))
 	}
 	if o.disableAutostart {
 		list = append(list, fmt.Sprintf("disable-autostart: %v", o.disableAutostart))
@@ -314,6 +323,11 @@ func (r *RootCmd) configSSH() *serpent.Command {
 				// Override with user flag.
 				coderdConfig.HostnamePrefix = sshConfigOpts.userHostPrefix
 			}
+			
+			if sshConfigOpts.userHostnameSuffix != "" {
+				// Override with user flag.
+				coderdConfig.HostnameSuffix = sshConfigOpts.userHostnameSuffix
+			}
 
 			// Write agent configuration.
 			defaultOptions := []string{
@@ -343,9 +357,18 @@ func (r *RootCmd) configSSH() *serpent.Command {
 				if sshConfigOpts.disableAutostart {
 					flags += " --disable-autostart=true"
 				}
+				
+				// Add either the suffix or prefix flag for SSH
+				sshHostFlag := ""
+				if coderdConfig.HostnameSuffix != "" {
+					sshHostFlag = fmt.Sprintf(" --ssh-hostname-suffix %s", coderdConfig.HostnameSuffix)
+				} else {
+					sshHostFlag = fmt.Sprintf(" --ssh-host-prefix %s", coderdConfig.HostnamePrefix)
+				}
+				
 				defaultOptions = append(defaultOptions, fmt.Sprintf(
-					"ProxyCommand %s %s ssh --stdio%s --ssh-host-prefix %s %%h",
-					escapedCoderBinary, rootFlags, flags, coderdConfig.HostnamePrefix,
+					"ProxyCommand %s %s ssh --stdio%s%s %%h",
+					escapedCoderBinary, rootFlags, flags, sshHostFlag,
 				))
 			}
 
@@ -377,8 +400,16 @@ func (r *RootCmd) configSSH() *serpent.Command {
 				return err
 			}
 
+			// If we have a suffix, use that instead of the prefix
+			var hostPattern string
+			if coderdConfig.HostnameSuffix != "" {
+				hostPattern = "Host *." + coderdConfig.HostnameSuffix
+			} else {
+				// Fall back to the old prefix-based pattern
+				hostPattern = "Host " + coderdConfig.HostnamePrefix + "*"
+			}
 			hostBlock := []string{
-				"Host " + coderdConfig.HostnamePrefix + "*",
+				hostPattern,
 			}
 			// Prefix with '\t'
 			for _, v := range configOptions.sshOptions {
@@ -451,7 +482,13 @@ func (r *RootCmd) configSSH() *serpent.Command {
 
 			if len(res.Workspaces) > 0 {
 				_, _ = fmt.Fprintln(out, "You should now be able to ssh into your workspace.")
-				_, _ = fmt.Fprintf(out, "For example, try running:\n\n\t$ ssh %s%s\n", coderdConfig.HostnamePrefix, res.Workspaces[0].Name)
+				var exampleCmd string
+				if coderdConfig.HostnameSuffix != "" {
+					exampleCmd = fmt.Sprintf("$ ssh %s.%s", res.Workspaces[0].Name, coderdConfig.HostnameSuffix)
+				} else {
+					exampleCmd = fmt.Sprintf("$ ssh %s%s", coderdConfig.HostnamePrefix, res.Workspaces[0].Name)
+				}
+				_, _ = fmt.Fprintf(out, "For example, try running:\n\n\t%s\n", exampleCmd)
 			} else {
 				_, _ = fmt.Fprint(out, "You don't have any workspaces yet, try creating one with:\n\n\t$ coder create <workspace>\n")
 			}
@@ -515,8 +552,15 @@ func (r *RootCmd) configSSH() *serpent.Command {
 		{
 			Flag:        "ssh-host-prefix",
 			Env:         "CODER_CONFIGSSH_SSH_HOST_PREFIX",
-			Description: "Override the default host prefix.",
+			Description: "Override the default host prefix.\nDEPRECATED: Use --ssh-hostname-suffix instead.",
 			Value:       serpent.StringOf(&sshConfigOpts.userHostPrefix),
+			Deprecated:  true,
+		},
+		{
+			Flag:        "ssh-hostname-suffix",
+			Env:         "CODER_CONFIGSSH_SSH_HOSTNAME_SUFFIX",
+			Description: "Override the default hostname suffix for workspace domain names.",
+			Value:       serpent.StringOf(&sshConfigOpts.userHostnameSuffix),
 		},
 		{
 			Flag:        "wait",
@@ -568,6 +612,9 @@ func sshConfigWriteSectionHeader(w io.Writer, addNewline bool, o sshConfigOption
 	if o.userHostPrefix != "" {
 		_, _ = fmt.Fprintf(&ow, "# :%s=%s\n", "ssh-host-prefix", o.userHostPrefix)
 	}
+	if o.userHostnameSuffix != "" {
+		_, _ = fmt.Fprintf(&ow, "# :%s=%s\n", "ssh-hostname-suffix", o.userHostnameSuffix)
+	}
 	if o.disableAutostart {
 		_, _ = fmt.Fprintf(&ow, "# :%s=%v\n", "disable-autostart", o.disableAutostart)
 	}
@@ -607,6 +654,8 @@ func sshConfigParseLastOptions(r io.Reader) (o sshConfigOptions) {
 				o.waitEnum = parts[1]
 			case "ssh-host-prefix":
 				o.userHostPrefix = parts[1]
+			case "ssh-hostname-suffix":
+				o.userHostnameSuffix = parts[1]
 			case "ssh-option":
 				o.sshOptions = append(o.sshOptions, parts[1])
 			case "disable-autostart":

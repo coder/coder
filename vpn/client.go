@@ -65,6 +65,7 @@ type Options struct {
 	TUNDevice        tun.Device
 	WireguardMonitor *netmon.Monitor
 	UpdateHandler    tailnet.UpdatesHandler
+	DomainSuffix     string
 }
 
 func (*client) NewConn(initCtx context.Context, serverURL *url.URL, token string, options *Options) (vpnC Conn, err error) {
@@ -145,10 +146,15 @@ func (*client) NewConn(initCtx context.Context, serverURL *url.URL, token string
 	controller.ResumeTokenCtrl = tailnet.NewBasicResumeTokenController(options.Logger, clk)
 	controller.CoordCtrl = coordCtrl
 	controller.DERPCtrl = tailnet.NewBasicDERPController(options.Logger, conn)
+	// Default to "coder" if no domain suffix is provided
+	domainSuffix := "coder"
+	if options.DomainSuffix != "" {
+		domainSuffix = options.DomainSuffix
+	}
 	updatesCtrl := tailnet.NewTunnelAllWorkspaceUpdatesController(
 		options.Logger,
 		coordCtrl,
-		tailnet.WithDNS(conn, me.Username),
+		tailnet.WithDNS(conn, me.Username, domainSuffix),
 		tailnet.WithHandler(options.UpdateHandler),
 	)
 	controller.WorkspaceUpdatesCtrl = updatesCtrl
