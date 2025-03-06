@@ -18,7 +18,7 @@ export const CreateUserPage: FC = () => {
 	const queryClient = useQueryClient();
 	const createUserMutation = useMutation(createUser(queryClient));
 	const authMethodsQuery = useQuery(authMethods());
-	const { organizations, showOrganizations } = useDashboard();
+	const { showOrganizations } = useDashboard();
 
 	return (
 		<Margins>
@@ -46,7 +46,7 @@ export const CreateUserPage: FC = () => {
 					navigate("..", { relative: "path" });
 				}}
 				authMethods={authMethodsQuery.data}
-				organizations={showOrganizations ? organizations : undefined}
+				showOrganizations={showOrganizations}
 			/>
 		</Margins>
 	);

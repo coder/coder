@@ -11,7 +11,7 @@ import { OrganizationAutocomplete } from "components/OrganizationAutocomplete/Or
 import { PasswordField } from "components/PasswordField/PasswordField";
 import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
-import { type FormikContextType, useFormik } from "formik";
+import { useFormik } from "formik";
 import type { FC } from "react";
 import {
 	displayNameValidator,
@@ -83,12 +83,19 @@ export interface CreateUserFormProps {
 	onSubmit: (user: CreateUserFormData) => void;
 	onCancel: () => void;
 	authMethods?: TypesGen.AuthMethods;
-	organizations?: readonly TypesGen.Organization[];
+	showOrganizations: boolean;
 }
 
 export const CreateUserForm: FC<
 	React.PropsWithChildren<CreateUserFormProps>
-> = ({ error, isLoading, onSubmit, onCancel, organizations, authMethods }) => {
+> = ({
+	error,
+	isLoading,
+	onSubmit,
+	onCancel,
+	showOrganizations,
+	authMethods,
+}) => {
 	const form = useFormik<CreateUserFormData>({
 		initialValues: {
 			email: "",
@@ -97,7 +104,9 @@ export const CreateUserForm: FC<
 			name: "",
 			// If we aren't given a list of organizations to choose from, use the
 			// fallback ID to add the user to the default organization.
-			organization: organizations ? "" : "00000000-0000-0000-0000-000000000000",
+			organization: showOrganizations
+				? ""
+				: "00000000-0000-0000-0000-000000000000",
 			login_type: "",
 		},
 		validationSchema,
@@ -140,16 +149,11 @@ export const CreateUserForm: FC<
 						fullWidth
 						label={Language.emailLabel}
 					/>
-					{organizations && (
+					{showOrganizations && (
 						<OrganizationAutocomplete
 							{...getFieldHelpers("organization")}
 							required
 							label="Organization"
-							value={
-								organizations.find(
-									(it) => it.id === form.values.organization,
-								) ?? null
-							}
 							onChange={(newValue) => {
 								void form.setFieldValue("organization", newValue?.id ?? "");
 							}}
