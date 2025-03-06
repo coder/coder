@@ -187,9 +187,49 @@ func (api *API) listMembers(rw http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} []codersdk.OrganizationMemberWithUserData
 // @Router /organizations/{organization}/paginated-members [get]
 func (api *API) paginatedMembers(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	var (
+		ctx                  = r.Context()
+		organization         = httpmw.OrganizationParam(r)
+		paginationParams, ok = parsePagination(rw, r)
+	)
+	if !ok {
+		return
+	}
 
-	resp := codersdk.PaginatedMembersResponse{}
+	paginatedMemberRows, err := api.Database.PaginatedOrganizationMembers(ctx, database.PaginatedOrganizationMembersParams{
+		OrganizationID: organization.ID,
+		LimitOpt:       int32(paginationParams.Limit),
+		OffsetOpt:      int32(paginationParams.Offset),
+	})
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	memberRows := make([]database.OrganizationMembersRow, len(paginatedMemberRows))
+	for _, pRow := range paginatedMemberRows {
+		row := database.OrganizationMembersRow{
+			OrganizationMember: pRow.OrganizationMember,
+			Username:           pRow.Username,
+			AvatarURL:          pRow.AvatarURL,
+			Name:               pRow.Name,
+			Email:              pRow.Email,
+			GlobalRoles:        pRow.GlobalRoles,
+		}
+
+		memberRows = append(memberRows, row)
+	}
+
+	members, err := convertOrganizationMembersWithUserData(ctx, api.Database, memberRows)
+
+	resp := codersdk.PaginatedMembersResponse{
+		Members: members,
+		Count:   int(paginatedMemberRows[0].Count),
+	}
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
