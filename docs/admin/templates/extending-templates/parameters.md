@@ -313,7 +313,7 @@ data "coder_parameter" "project_id" {
 }
 ```
 
-## Workspace presets
+## Workspace presets (beta)
 
 Workspace presets allow you to configure commonly used combinations of parameters
 into a single option, which makes it easier for developers to pick one that fits
