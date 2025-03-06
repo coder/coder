@@ -1,6 +1,6 @@
 {
   "format_version": "1.0",
-  "terraform_version": "1.10.5",
+  "terraform_version": "1.11.0",
   "values": {
     "root_module": {
       "resources": [
@@ -26,16 +26,17 @@
               }
             ],
             "env": null,
-            "id": "e7f1e434-ad52-4175-b8d1-4fab9fbe7891",
+            "id": "9d50f18e-e702-46a0-8477-1e311bce7ba1",
             "init_script": "",
             "metadata": [],
             "motd_file": null,
             "order": null,
             "os": "linux",
+            "resources_monitoring": [],
             "shutdown_script": null,
             "startup_script": null,
             "startup_script_behavior": "non-blocking",
-            "token": "da1c4966-5bb7-459e-8b7e-ce1cf189e49d",
+            "token": "c994562d-7d86-4f1a-bd99-25fc2eebd4ee",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -43,6 +44,7 @@
               {}
             ],
             "metadata": [],
+            "resources_monitoring": [],
             "token": true
           }
         },
@@ -54,14 +56,14 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 1,
           "values": {
-            "agent_id": "e7f1e434-ad52-4175-b8d1-4fab9fbe7891",
+            "agent_id": "9d50f18e-e702-46a0-8477-1e311bce7ba1",
             "command": null,
             "display_name": null,
             "external": false,
             "healthcheck": [],
             "hidden": false,
             "icon": null,
-            "id": "41882acb-ad8c-4436-a756-e55160e2eba7",
+            "id": "df8683f4-adea-46b3-8cbd-19a6ffbf155c",
             "open_in": "slim-window",
             "order": null,
             "share": "owner",
@@ -84,7 +86,7 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 1,
           "values": {
-            "agent_id": "e7f1e434-ad52-4175-b8d1-4fab9fbe7891",
+            "agent_id": "9d50f18e-e702-46a0-8477-1e311bce7ba1",
             "command": null,
             "display_name": null,
             "external": false,
@@ -97,7 +99,7 @@
             ],
             "hidden": false,
             "icon": null,
-            "id": "28fb460e-746b-47b9-8c88-fc546f2ca6c4",
+            "id": "f0491813-f843-4732-86f0-a70bf54aa898",
             "open_in": "slim-window",
             "order": null,
             "share": "owner",
@@ -122,14 +124,14 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 1,
           "values": {
-            "agent_id": "e7f1e434-ad52-4175-b8d1-4fab9fbe7891",
+            "agent_id": "9d50f18e-e702-46a0-8477-1e311bce7ba1",
             "command": null,
             "display_name": null,
             "external": false,
             "healthcheck": [],
             "hidden": false,
             "icon": null,
-            "id": "2751d89f-6c41-4b50-9982-9270ba0660b0",
+            "id": "9a3b47e1-906c-4d1b-9efa-bd0a457db790",
             "open_in": "slim-window",
             "order": null,
             "share": "owner",
@@ -152,7 +154,7 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "1493563047742372481",
+            "id": "2673809068267716634",
             "triggers": null
           },
           "sensitive_values": {},

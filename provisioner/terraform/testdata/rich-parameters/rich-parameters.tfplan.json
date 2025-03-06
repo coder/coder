@@ -1,6 +1,6 @@
 {
   "format_version": "1.2",
-  "terraform_version": "1.10.5",
+  "terraform_version": "1.11.0",
   "planned_values": {
     "root_module": {
       "resources": [
@@ -21,6 +21,7 @@
             "motd_file": null,
             "order": null,
             "os": "windows",
+            "resources_monitoring": [],
             "shutdown_script": null,
             "startup_script": null,
             "startup_script_behavior": "non-blocking",
@@ -29,6 +30,7 @@
           "sensitive_values": {
             "display_apps": [],
             "metadata": [],
+            "resources_monitoring": [],
             "token": true
           }
         },
@@ -69,6 +71,7 @@
           "motd_file": null,
           "order": null,
           "os": "windows",
+          "resources_monitoring": [],
           "shutdown_script": null,
           "startup_script": null,
           "startup_script_behavior": "non-blocking",
@@ -79,12 +82,14 @@
           "id": true,
           "init_script": true,
           "metadata": [],
+          "resources_monitoring": [],
           "token": true
         },
         "before_sensitive": false,
         "after_sensitive": {
           "display_apps": [],
           "metadata": [],
+          "resources_monitoring": [],
           "token": true
         }
       }
@@ -113,7 +118,7 @@
   ],
   "prior_state": {
     "format_version": "1.0",
-    "terraform_version": "1.10.5",
+    "terraform_version": "1.11.0",
     "values": {
       "root_module": {
         "resources": [
@@ -130,7 +135,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "14d20380-9100-4218-afca-15d066dec134",
+              "id": "3f60c80f-c36a-470b-bcf0-6ea54179ea91",
               "mutable": false,
               "name": "Example",
               "option": [
@@ -174,7 +179,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "fec66abe-d831-4095-8520-8a654ccf309a",
+              "id": "49ca7109-2294-4bdd-b381-5d59d29f3cab",
               "mutable": false,
               "name": "number_example",
               "option": null,
@@ -201,7 +206,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "9e6cbf84-b49c-4c24-ad71-91195269ec84",
+              "id": "be4663b5-9922-4476-ae72-f3b723bc22be",
               "mutable": false,
               "name": "number_example_max_zero",
               "option": null,
@@ -240,7 +245,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "5fbb470c-3814-4706-8fa6-c8c7e0f04c19",
+              "id": "04b707b1-a112-4fea-90ae-d94c058e7ba4",
               "mutable": false,
               "name": "number_example_min_max",
               "option": null,
@@ -279,7 +284,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "3790d994-f401-4e98-ad73-70b6f4e577d2",
+              "id": "1645c7a0-b187-4538-9a4a-462292823d54",
               "mutable": false,
               "name": "number_example_min_zero",
               "option": null,
@@ -318,7 +323,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "26b3faa6-2eda-45f0-abbe-f4aba303f7cc",
+              "id": "25a526b6-0b18-4c45-94a6-5728ad308127",
               "mutable": false,
               "name": "Sample",
               "option": null,
@@ -349,7 +354,7 @@
                   "display_name": null,
                   "ephemeral": false,
                   "icon": null,
-                  "id": "6027c1aa-dae9-48d9-90f2-b66151bf3129",
+                  "id": "36508b38-2ccf-4d81-8201-b8967ce45df6",
                   "mutable": true,
                   "name": "First parameter from module",
                   "option": null,
@@ -376,7 +381,7 @@
                   "display_name": null,
                   "ephemeral": false,
                   "icon": null,
-                  "id": "62262115-184d-4e14-a756-bedb553405a9",
+                  "id": "bd29126c-8a7e-4197-b881-6471e5ec4a9b",
                   "mutable": true,
                   "name": "Second parameter from module",
                   "option": null,
@@ -408,7 +413,7 @@
                       "display_name": null,
                       "ephemeral": false,
                       "icon": null,
-                      "id": "9ced5a2a-0e83-44fe-8088-6db4df59c15e",
+                      "id": "a3b93cd2-e750-48ff-abff-ec6798237650",
                       "mutable": true,
                       "name": "First parameter from child module",
                       "option": null,
@@ -435,7 +440,7 @@
                       "display_name": null,
                       "ephemeral": false,
                       "icon": null,
-                      "id": "f9564821-9614-4931-b760-2b942d59214a",
+                      "id": "272ef767-dd70-47be-b42c-fdc92980976c",
                       "mutable": true,
                       "name": "Second parameter from child module",
                       "option": null,
@@ -788,7 +793,7 @@
       }
     }
   },
-  "timestamp": "2025-02-18T10:58:12Z",
+  "timestamp": "2025-03-06T19:16:45Z",
   "applyable": true,
   "complete": true,
   "errored": false

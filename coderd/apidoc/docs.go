@@ -8261,6 +8261,7 @@ const docTemplate = `{
                 ],
                 "summary": "Watch for workspace agent metadata updates",
                 "operationId": "watch-for-workspace-agent-metadata-updates",
+                "deprecated": true,
                 "parameters": [
                     {
                         "type": "string",
@@ -8274,6 +8275,44 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "Success"
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/workspaceagents/{workspaceagent}/watch-metadata-ws": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Watch for workspace agent metadata updates via WebSockets",
+                "operationId": "watch-for-workspace-agent-metadata-updates-via-websockets",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace agent ID",
+                        "name": "workspaceagent",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ServerSentEvent"
+                        }
                     }
                 },
                 "x-apidocgen": {
@@ -9692,6 +9731,7 @@ const docTemplate = `{
                 ],
                 "summary": "Watch workspace by ID",
                 "operationId": "watch-workspace-by-id",
+                "deprecated": true,
                 "parameters": [
                     {
                         "type": "string",
@@ -9707,6 +9747,41 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspaces/{workspace}/watch-ws": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Watch workspace by ID via WebSockets",
+                "operationId": "watch-workspace-by-id-via-websockets",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace ID",
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ServerSentEvent"
                         }
                     }
                 }
@@ -14131,6 +14206,28 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "codersdk.ServerSentEvent": {
+            "type": "object",
+            "properties": {
+                "data": {},
+                "type": {
+                    "$ref": "#/definitions/codersdk.ServerSentEventType"
+                }
+            }
+        },
+        "codersdk.ServerSentEventType": {
+            "type": "string",
+            "enum": [
+                "ping",
+                "data",
+                "error"
+            ],
+            "x-enum-varnames": [
+                "ServerSentEventTypePing",
+                "ServerSentEventTypeData",
+                "ServerSentEventTypeError"
+            ]
         },
         "codersdk.SessionCountDeploymentStats": {
             "type": "object",

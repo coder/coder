@@ -1,6 +1,6 @@
 {
   "format_version": "1.0",
-  "terraform_version": "1.10.5",
+  "terraform_version": "1.11.0",
   "values": {
     "root_module": {
       "resources": [
@@ -26,16 +26,17 @@
               }
             ],
             "env": null,
-            "id": "f65fcb62-ef69-44e8-b8eb-56224c9e9d6f",
+            "id": "2950f03d-482f-469c-9adf-70d8b8db12f8",
             "init_script": "",
             "metadata": [],
             "motd_file": null,
             "order": null,
             "os": "linux",
+            "resources_monitoring": [],
             "shutdown_script": null,
             "startup_script": null,
             "startup_script_behavior": "non-blocking",
-            "token": "57047ef7-1433-4938-a604-4dd2812b1039",
+            "token": "4b9a88d4-abc4-4d55-884e-5c4e3b47e8c0",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -43,6 +44,7 @@
               {}
             ],
             "metadata": [],
+            "resources_monitoring": [],
             "token": true
           }
         },
@@ -68,16 +70,17 @@
               }
             ],
             "env": null,
-            "id": "d366a56f-2899-4e96-b0a1-3e97ac9bd834",
+            "id": "1565560d-cddb-4f94-a3c2-008417997c4d",
             "init_script": "",
             "metadata": [],
             "motd_file": "/etc/motd",
             "order": null,
             "os": "darwin",
+            "resources_monitoring": [],
             "shutdown_script": "echo bye bye",
             "startup_script": null,
             "startup_script_behavior": "non-blocking",
-            "token": "59a6c328-d6ac-450d-a507-de6c14cb16d0",
+            "token": "5c1dccbe-f6df-4158-affa-69de75cdaea3",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -85,6 +88,7 @@
               {}
             ],
             "metadata": [],
+            "resources_monitoring": [],
             "token": true
           }
         },
@@ -110,16 +114,17 @@
               }
             ],
             "env": null,
-            "id": "907bbf6b-fa77-4138-a348-ef5d0fb98b15",
+            "id": "a6ac180b-c310-4dda-a1dc-b706616946bd",
             "init_script": "",
             "metadata": [],
             "motd_file": null,
             "order": null,
             "os": "windows",
+            "resources_monitoring": [],
             "shutdown_script": null,
             "startup_script": null,
             "startup_script_behavior": "blocking",
-            "token": "7f0bb618-c82a-491b-891a-6d9f3abeeca0",
+            "token": "e425b802-7faa-49a8-a789-ebafe3396add",
             "troubleshooting_url": "https://coder.com/troubleshoot"
           },
           "sensitive_values": {
@@ -127,6 +132,7 @@
               {}
             ],
             "metadata": [],
+            "resources_monitoring": [],
             "token": true
           }
         },
@@ -152,16 +158,17 @@
               }
             ],
             "env": null,
-            "id": "e9b11e47-0238-4915-9539-ac06617f3398",
+            "id": "11dee091-7c6a-46b8-b996-a7d31f1d3af8",
             "init_script": "",
             "metadata": [],
             "motd_file": null,
             "order": null,
             "os": "linux",
+            "resources_monitoring": [],
             "shutdown_script": null,
             "startup_script": null,
             "startup_script_behavior": "non-blocking",
-            "token": "102a2043-9a42-4490-b0b4-c4fb215552e0",
+            "token": "084ce31a-cc97-4600-b028-febb2a8db5e5",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -169,6 +176,7 @@
               {}
             ],
             "metadata": [],
+            "resources_monitoring": [],
             "token": true
           }
         },
@@ -180,7 +188,7 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "2948336473894256689",
+            "id": "7205404627237619317",
             "triggers": null
           },
           "sensitive_values": {},
