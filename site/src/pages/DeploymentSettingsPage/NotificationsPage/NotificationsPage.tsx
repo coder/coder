@@ -11,7 +11,6 @@ import { TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import { useDeploymentSettings } from "modules/management/DeploymentSettingsProvider";
 import { castNotificationMethod } from "modules/notifications/utils";
-import { Section } from "pages/UserSettingsPage/Section";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQueries } from "react-query";

@@ -1340,14 +1340,16 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getAppearanceSettings =
+		async (): Promise<TypesGen.UserAppearanceSettings> => {
+			const response = await this.axios.get("/api/v2/users/me/appearance");
+			return response.data;
+		};
+
 	updateAppearanceSettings = async (
-		userId: string,
 		data: TypesGen.UpdateUserAppearanceSettingsRequest,
-	): Promise<TypesGen.User> => {
-		const response = await this.axios.put(
-			`/api/v2/users/${userId}/appearance`,
-			data,
-		);
+	): Promise<TypesGen.UserAppearanceSettings> => {
+		const response = await this.axios.put("/api/v2/users/me/appearance", data);
 		return response.data;
 	};
 
@@ -2373,6 +2375,18 @@ class ApiMethods {
 					job.id,
 				);
 		}
+	};
+
+	getAgentContainers = async (agentId: string, labels?: string[]) => {
+		const params = new URLSearchParams(
+			labels?.map((label) => ["label", label]),
+		);
+
+		const res =
+			await this.axios.get<TypesGen.WorkspaceAgentListContainersResponse>(
+				`/api/v2/workspaceagents/${agentId}/containers?${params.toString()}`,
+			);
+		return res.data;
 	};
 }
 

@@ -2169,9 +2169,6 @@ func TestExpectOne(t *testing.T) {
 func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 	t.Parallel()
 
-	now := dbtime.Now()
-	ctx := testutil.Context(t, testutil.WaitShort)
-
 	testCases := []struct {
 		name           string
 		jobTags        []database.StringMap
@@ -2393,6 +2390,8 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			db, _ := dbtestutil.NewDB(t)
+			now := dbtime.Now()
+			ctx := testutil.Context(t, testutil.WaitShort)
 
 			// Create provisioner jobs based on provided tags:
 			allJobs := make([]database.ProvisionerJob, len(tc.jobTags))

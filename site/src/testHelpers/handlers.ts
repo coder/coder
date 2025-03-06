@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { CreateWorkspaceBuildRequest } from "api/typesGenerated";
-import { permissionsToCheck } from "contexts/auth/permissions";
+import { permissionChecks } from "contexts/auth/permissions";
 import { http, HttpResponse } from "msw";
 import * as M from "./entities";
 import { MockGroup, MockWorkspaceQuota } from "./entities";
@@ -162,6 +162,9 @@ export const handlers = [
 	http.get("/api/v2/users/me", () => {
 		return HttpResponse.json(M.MockUser);
 	}),
+	http.get("/api/v2/users/me/appearance", () => {
+		return HttpResponse.json(M.MockUserAppearanceSettings);
+	}),
 	http.get("/api/v2/users/me/keys", () => {
 		return HttpResponse.json(M.MockAPIKey);
 	}),
@@ -173,7 +176,7 @@ export const handlers = [
 	}),
 	http.post("/api/v2/authcheck", () => {
 		const permissions = [
-			...Object.keys(permissionsToCheck),
+			...Object.keys(permissionChecks),
 			"canUpdateTemplate",
 			"updateWorkspace",
 		];

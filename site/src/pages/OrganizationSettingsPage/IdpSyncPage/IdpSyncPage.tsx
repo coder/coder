@@ -8,7 +8,6 @@ import {
 	roleIdpSyncSettings,
 } from "api/queries/organizations";
 import { organizationRoles } from "api/queries/roles";
-import type { GroupSyncSettings, RoleSyncSettings } from "api/typesGenerated";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { displayError } from "components/GlobalSnackbar/utils";

@@ -495,7 +495,6 @@ export const MockUser: TypesGen.User = {
 	avatar_url: "https://avatars.githubusercontent.com/u/95932066?s=200&v=4",
 	last_seen_at: "",
 	login_type: "password",
-	theme_preference: "",
 	name: "",
 };
 
@@ -516,7 +515,6 @@ export const MockUser2: TypesGen.User = {
 	avatar_url: "",
 	last_seen_at: "2022-09-14T19:12:21Z",
 	login_type: "oidc",
-	theme_preference: "",
 	name: "Mock User The Second",
 };
 
@@ -532,8 +530,11 @@ export const SuspendedMockUser: TypesGen.User = {
 	avatar_url: "",
 	last_seen_at: "",
 	login_type: "password",
-	theme_preference: "",
 	name: "",
+};
+
+export const MockUserAppearanceSettings: TypesGen.UserAppearanceSettings = {
+	theme_preference: "dark",
 };
 
 export const MockOrganizationMember: TypesGen.OrganizationMemberWithUserData = {
@@ -2856,6 +2857,41 @@ export const MockPermissions: Permissions = {
 	viewAllLicenses: true,
 	viewNotificationTemplate: true,
 	viewOrganizationIDPSyncSettings: true,
+	viewDebugInfo: true,
+	assignAnyRoles: true,
+	editAnyGroups: true,
+	editAnySettings: true,
+	viewAnyIdpSyncSettings: true,
+	viewAnyMembers: true,
+};
+
+export const MockNoPermissions: Permissions = {
+	createTemplates: false,
+	createUser: false,
+	deleteTemplates: false,
+	updateTemplates: false,
+	viewAllUsers: false,
+	updateUsers: false,
+	viewAnyAuditLog: false,
+	viewDeploymentValues: false,
+	editDeploymentValues: false,
+	viewUpdateCheck: false,
+	viewDeploymentStats: false,
+	viewExternalAuthConfig: false,
+	readWorkspaceProxies: false,
+	editWorkspaceProxies: false,
+	createOrganization: false,
+	viewAnyGroup: false,
+	createGroup: false,
+	viewAllLicenses: false,
+	viewNotificationTemplate: false,
+	viewOrganizationIDPSyncSettings: false,
+	viewDebugInfo: false,
+	assignAnyRoles: false,
+	editAnyGroups: false,
+	editAnySettings: false,
+	viewAnyIdpSyncSettings: false,
+	viewAnyMembers: false,
 };
 
 export const MockOrganizationPermissions: OrganizationPermissions = {
@@ -2888,29 +2924,6 @@ export const MockNoOrganizationPermissions: OrganizationPermissions = {
 	viewProvisionerJobs: false,
 	viewIdpSyncSettings: false,
 	editIdpSyncSettings: false,
-};
-
-export const MockNoPermissions: Permissions = {
-	createTemplates: false,
-	createUser: false,
-	deleteTemplates: false,
-	updateTemplates: false,
-	viewAllUsers: false,
-	updateUsers: false,
-	viewAnyAuditLog: false,
-	viewDeploymentValues: false,
-	editDeploymentValues: false,
-	viewUpdateCheck: false,
-	viewDeploymentStats: false,
-	viewExternalAuthConfig: false,
-	readWorkspaceProxies: false,
-	editWorkspaceProxies: false,
-	createOrganization: false,
-	viewAnyGroup: false,
-	createGroup: false,
-	viewAllLicenses: false,
-	viewNotificationTemplate: false,
-	viewOrganizationIDPSyncSettings: false,
 };
 
 export const MockDeploymentConfig: DeploymentConfig = {

@@ -54,7 +54,6 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 		agentHeaderCommand  string
 		agentHeader         []string
 
-		experimentalConnectionReports    bool
 		experimentalDevcontainersEnabled bool
 	)
 	cmd := &serpent.Command{
@@ -327,10 +326,6 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 				containerLister = agentcontainers.NewDocker(execer)
 			}
 
-			if experimentalConnectionReports {
-				logger.Info(ctx, "experimental connection reports enabled")
-			}
-
 			agnt := agent.New(agent.Options{
 				Client:            client,
 				Logger:            logger,
@@ -359,7 +354,6 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 				ContainerLister:    containerLister,
 
 				ExperimentalDevcontainersEnabled: experimentalDevcontainersEnabled,
-				ExperimentalConnectionReports:    experimentalConnectionReports,
 			})
 
 			promHandler := agent.PrometheusMetricsHandler(prometheusRegistry, logger)
@@ -488,14 +482,6 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			Env:         "CODER_AGENT_DEVCONTAINERS_ENABLE",
 			Description: "Allow the agent to automatically detect running devcontainers.",
 			Value:       serpent.BoolOf(&experimentalDevcontainersEnabled),
-		},
-		{
-			Flag:        "experimental-connection-reports-enable",
-			Hidden:      true,
-			Default:     "false",
-			Env:         "CODER_AGENT_EXPERIMENTAL_CONNECTION_REPORTS_ENABLE",
-			Description: "Enable experimental connection reports.",
-			Value:       serpent.BoolOf(&experimentalConnectionReports),
 		},
 	}
 

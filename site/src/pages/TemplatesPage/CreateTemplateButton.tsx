@@ -1,5 +1,4 @@
 import Inventory2 from "@mui/icons-material/Inventory2";
-import NoteAddOutlined from "@mui/icons-material/NoteAddOutlined";
 import UploadOutlined from "@mui/icons-material/UploadOutlined";
 import { Button } from "components/Button/Button";
 import {

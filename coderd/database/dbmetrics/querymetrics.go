@@ -451,6 +451,13 @@ func (m queryMetricsStore) FetchMemoryResourceMonitorsByAgentID(ctx context.Cont
 	return r0, r1
 }
 
+func (m queryMetricsStore) FetchMemoryResourceMonitorsUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]database.WorkspaceAgentMemoryResourceMonitor, error) {
+	start := time.Now()
+	r0, r1 := m.s.FetchMemoryResourceMonitorsUpdatedAfter(ctx, updatedAt)
+	m.queryLatencies.WithLabelValues("FetchMemoryResourceMonitorsUpdatedAfter").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) FetchNewMessageMetadata(ctx context.Context, arg database.FetchNewMessageMetadataParams) (database.FetchNewMessageMetadataRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.FetchNewMessageMetadata(ctx, arg)
@@ -462,6 +469,13 @@ func (m queryMetricsStore) FetchVolumesResourceMonitorsByAgentID(ctx context.Con
 	start := time.Now()
 	r0, r1 := m.s.FetchVolumesResourceMonitorsByAgentID(ctx, agentID)
 	m.queryLatencies.WithLabelValues("FetchVolumesResourceMonitorsByAgentID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) FetchVolumesResourceMonitorsUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]database.WorkspaceAgentVolumeResourceMonitor, error) {
+	start := time.Now()
+	r0, r1 := m.s.FetchVolumesResourceMonitorsUpdatedAfter(ctx, updatedAt)
+	m.queryLatencies.WithLabelValues("FetchVolumesResourceMonitorsUpdatedAfter").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -1386,6 +1400,13 @@ func (m queryMetricsStore) GetUserActivityInsights(ctx context.Context, arg data
 	start := time.Now()
 	r0, r1 := m.s.GetUserActivityInsights(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetUserActivityInsights").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetUserAppearanceSettings(ctx context.Context, userID uuid.UUID) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserAppearanceSettings(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetUserAppearanceSettings").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -2537,7 +2558,7 @@ func (m queryMetricsStore) UpdateTemplateWorkspacesLastUsedAt(ctx context.Contex
 	return r0
 }
 
-func (m queryMetricsStore) UpdateUserAppearanceSettings(ctx context.Context, arg database.UpdateUserAppearanceSettingsParams) (database.User, error) {
+func (m queryMetricsStore) UpdateUserAppearanceSettings(ctx context.Context, arg database.UpdateUserAppearanceSettingsParams) (database.UserConfig, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateUserAppearanceSettings(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateUserAppearanceSettings").Observe(time.Since(start).Seconds())

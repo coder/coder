@@ -173,9 +173,7 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 		//nolint:dogsled
-		conn, agentClient, stats, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
-			o.ExperimentalConnectionReports = true
-		})
+		conn, agentClient, stats, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
 		sshClient, err := conn.SSHClient(ctx)
 		require.NoError(t, err)
 		defer sshClient.Close()
@@ -243,9 +241,7 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		remotePort := sc.Text()
 
 		//nolint:dogsled
-		conn, agentClient, stats, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
-			o.ExperimentalConnectionReports = true
-		})
+		conn, agentClient, stats, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
 		sshClient, err := conn.SSHClient(ctx)
 		require.NoError(t, err)
 
@@ -960,9 +956,7 @@ func TestAgent_SFTP(t *testing.T) {
 		home = "/" + strings.ReplaceAll(home, "\\", "/")
 	}
 	//nolint:dogsled
-	conn, agentClient, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
-		o.ExperimentalConnectionReports = true
-	})
+	conn, agentClient, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
 	sshClient, err := conn.SSHClient(ctx)
 	require.NoError(t, err)
 	defer sshClient.Close()
@@ -998,9 +992,7 @@ func TestAgent_SCP(t *testing.T) {
 	defer cancel()
 
 	//nolint:dogsled
-	conn, agentClient, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
-		o.ExperimentalConnectionReports = true
-	})
+	conn, agentClient, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
 	sshClient, err := conn.SSHClient(ctx)
 	require.NoError(t, err)
 	defer sshClient.Close()
@@ -1043,7 +1035,6 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 		//nolint:dogsled
 		conn, agentClient, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
 			o.BlockFileTransfer = true
-			o.ExperimentalConnectionReports = true
 		})
 		sshClient, err := conn.SSHClient(ctx)
 		require.NoError(t, err)
@@ -1064,7 +1055,6 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 		//nolint:dogsled
 		conn, agentClient, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
 			o.BlockFileTransfer = true
-			o.ExperimentalConnectionReports = true
 		})
 		sshClient, err := conn.SSHClient(ctx)
 		require.NoError(t, err)
@@ -1093,7 +1083,6 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 				//nolint:dogsled
 				conn, agentClient, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
 					o.BlockFileTransfer = true
-					o.ExperimentalConnectionReports = true
 				})
 				sshClient, err := conn.SSHClient(ctx)
 				require.NoError(t, err)
@@ -1724,9 +1713,7 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 			defer cancel()
 
 			//nolint:dogsled
-			conn, agentClient, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
-				o.ExperimentalConnectionReports = true
-			})
+			conn, agentClient, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
 			id := uuid.New()
 
 			// Test that the connection is reported. This must be tested in the

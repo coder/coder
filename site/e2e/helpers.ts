@@ -510,7 +510,7 @@ export const waitUntilUrlIsNotResponding = async (url: string) => {
 	while (retries < maxRetries) {
 		try {
 			await axiosInstance.get(url);
-		} catch (error) {
+		} catch {
 			return;
 		}
 
