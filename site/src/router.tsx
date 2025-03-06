@@ -309,6 +309,12 @@ const ChangePasswordPage = lazy(
 const IdpOrgSyncPage = lazy(
 	() => import("./pages/DeploymentSettingsPage/IdpOrgSyncPage/IdpOrgSyncPage"),
 );
+const ProvisionerJobsPage = lazy(
+	() =>
+		import(
+			"./pages/OrganizationSettingsPage/ProvisionersPage/ProvisionerJobsPage"
+		),
+);
 
 const RoutesWithSuspense = () => {
 	return (
@@ -429,6 +435,10 @@ export const router = createBrowserRouter(
 								<Route path=":roleName" element={<CreateEditRolePage />} />
 							</Route>
 							<Route path="provisioners" element={<ProvisionersPage />} />
+							<Route
+								path="provisioner-jobs"
+								element={<ProvisionerJobsPage />}
+							/>
 							<Route path="idp-sync" element={<OrganizationIdPSyncPage />} />
 							<Route path="settings" element={<OrganizationSettingsPage />} />
 						</Route>

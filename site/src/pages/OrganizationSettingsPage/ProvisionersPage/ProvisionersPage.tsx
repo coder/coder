@@ -6,7 +6,7 @@ import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
 import { ProvisionerDaemonsPage } from "./ProvisionerDaemonsPage";
-import { ProvisionerJobsPage } from "./ProvisionerJobsPage";
+import ProvisionerJobsPage from "./ProvisionerJobsPage";
 
 const ProvisionersPage: FC = () => {
 	const { organization, organizationPermissions } = useOrganizationSettings();
@@ -57,9 +57,7 @@ const ProvisionersPage: FC = () => {
 					</Tabs>
 
 					<div className="mt-6">
-						{tab.value === "jobs" && (
-							<ProvisionerJobsPage orgId={organization.id} />
-						)}
+						{tab.value === "jobs" && <ProvisionerJobsPage />}
 						{tab.value === "daemons" && (
 							<ProvisionerDaemonsPage orgId={organization.id} />
 						)}
