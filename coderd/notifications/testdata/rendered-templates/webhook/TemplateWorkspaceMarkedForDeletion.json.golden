@@ -21,7 +21,8 @@
       "reason": "template updated to new dormancy policy",
       "timeTilDormant": "24 hours"
     },
-    "data": null
+    "data": null,
+    "targets": null
   },
   "title": "Workspace \"bobby-workspace\" marked for deletion",
   "title_markdown": "Workspace \"bobby-workspace\" marked for deletion",

@@ -15,18 +15,17 @@ export const RBACResourceActions: Partial<
 		update: "update an api key, eg expires",
 	},
 	assign_org_role: {
-		assign: "ability to assign org scoped roles",
-		create: "ability to create/delete custom roles within an organization",
-		delete: "ability to delete org scoped roles",
-		read: "view what roles are assignable",
-		update: "ability to edit custom roles within an organization",
+		assign: "assign org scoped roles",
+		create: "create/delete custom roles within an organization",
+		delete: "delete roles within an organization",
+		read: "view what roles are assignable within an organization",
+		unassign: "unassign org scoped roles",
+		update: "edit custom roles within an organization",
 	},
 	assign_role: {
-		assign: "ability to assign roles",
-		create: "ability to create/delete/edit custom roles",
-		delete: "ability to unassign roles",
+		assign: "assign user roles",
 		read: "view what roles are assignable",
-		update: "ability to edit custom roles",
+		unassign: "unassign user roles",
 	},
 	audit_log: {
 		create: "create new audit log entries",
@@ -64,6 +63,11 @@ export const RBACResourceActions: Partial<
 	idpsync_settings: {
 		read: "read IdP sync settings",
 		update: "update IdP sync settings",
+	},
+	inbox_notification: {
+		create: "create inbox notifications",
+		read: "read inbox notifications",
+		update: "update inbox notifications",
 	},
 	license: {
 		create: "create a license",
@@ -114,18 +118,13 @@ export const RBACResourceActions: Partial<
 		update: "update an organization member",
 	},
 	provisioner_daemon: {
-		create: "create a provisioner daemon",
-		delete: "delete a provisioner daemon",
+		create: "create a provisioner daemon/key",
+		delete: "delete a provisioner daemon/key",
 		read: "read provisioner daemon",
 		update: "update a provisioner daemon",
 	},
 	provisioner_jobs: {
 		read: "read provisioner jobs",
-	},
-	provisioner_keys: {
-		create: "create a provisioner key",
-		delete: "delete a provisioner key",
-		read: "read provisioner keys",
 	},
 	replicas: {
 		read: "read replicas",

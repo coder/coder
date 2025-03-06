@@ -114,7 +114,6 @@ export const canViewOrganization = (
 		permissions !== undefined &&
 		(permissions.viewMembers ||
 			permissions.viewGroups ||
-			permissions.viewOrgRoles ||
 			permissions.viewProvisioners ||
 			permissions.viewIdpSyncSettings)
 	);
@@ -134,67 +133,5 @@ export const canEditOrganization = (
 			permissions.assignOrgRoles ||
 			permissions.editIdpSyncSettings ||
 			permissions.createOrgRoles)
-	);
-};
-
-export type AnyOrganizationPermissions = {
-	[k in AnyOrganizationPermissionName]: boolean;
-};
-
-export type AnyOrganizationPermissionName =
-	keyof typeof anyOrganizationPermissionChecks;
-
-export const anyOrganizationPermissionChecks = {
-	viewAnyMembers: {
-		object: {
-			resource_type: "organization_member",
-			any_org: true,
-		},
-		action: "read",
-	},
-	editAnyGroups: {
-		object: {
-			resource_type: "group",
-			any_org: true,
-		},
-		action: "update",
-	},
-	assignAnyRoles: {
-		object: {
-			resource_type: "assign_org_role",
-			any_org: true,
-		},
-		action: "assign",
-	},
-	viewAnyIdpSyncSettings: {
-		object: {
-			resource_type: "idpsync_settings",
-			any_org: true,
-		},
-		action: "read",
-	},
-	editAnySettings: {
-		object: {
-			resource_type: "organization",
-			any_org: true,
-		},
-		action: "update",
-	},
-} as const satisfies Record<string, AuthorizationCheck>;
-
-/**
- * Checks if the user can view or edit members or groups for the organization
- * that produced the given OrganizationPermissions.
- */
-export const canViewAnyOrganization = (
-	permissions: AnyOrganizationPermissions | undefined,
-): permissions is AnyOrganizationPermissions => {
-	return (
-		permissions !== undefined &&
-		(permissions.viewAnyMembers ||
-			permissions.editAnyGroups ||
-			permissions.assignAnyRoles ||
-			permissions.viewAnyIdpSyncSettings ||
-			permissions.editAnySettings)
 	);
 };

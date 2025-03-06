@@ -22,6 +22,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
@@ -61,7 +62,7 @@ func TestOIDCOauthLoginWithExisting(t *testing.T) {
 
 	cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
 		cfg.AllowSignups = true
-		cfg.IgnoreUserInfo = true
+		cfg.SecondaryClaims = coderd.MergedClaimsSourceNone
 	})
 
 	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
@@ -254,11 +255,20 @@ func TestUserOAuth2Github(t *testing.T) {
 	})
 	t.Run("BlockSignups", func(t *testing.T) {
 		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+
+		id := atomic.NewInt64(100)
+		login := atomic.NewString("testuser")
+		email := atomic.NewString("testuser@coder.com")
+
 		client := coderdtest.New(t, &coderdtest.Options{
+			Database: db,
+			Pubsub:   ps,
 			GithubOAuth2Config: &coderd.GithubOAuth2Config{
 				OAuth2Config:       &testutil.OAuth2Config{},
 				AllowOrganizations: []string{"coder"},
-				ListOrganizationMemberships: func(ctx context.Context, client *http.Client) ([]*github.Membership, error) {
+				ListOrganizationMemberships: func(_ context.Context, _ *http.Client) ([]*github.Membership, error) {
 					return []*github.Membership{{
 						State: &stateActive,
 						Organization: &github.Organization{
@@ -266,16 +276,19 @@ func TestUserOAuth2Github(t *testing.T) {
 						},
 					}}, nil
 				},
-				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
+				AuthenticatedUser: func(_ context.Context, _ *http.Client) (*github.User, error) {
+					id := id.Load()
+					login := login.Load()
 					return &github.User{
-						ID:    github.Int64(100),
-						Login: github.String("testuser"),
+						ID:    &id,
+						Login: &login,
 						Name:  github.String("The Right Honorable Sir Test McUser"),
 					}, nil
 				},
-				ListEmails: func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error) {
+				ListEmails: func(_ context.Context, _ *http.Client) ([]*github.UserEmail, error) {
+					email := email.Load()
 					return []*github.UserEmail{{
-						Email:    github.String("testuser@coder.com"),
+						Email:    &email,
 						Verified: github.Bool(true),
 						Primary:  github.Bool(true),
 					}}, nil
@@ -283,8 +296,23 @@ func TestUserOAuth2Github(t *testing.T) {
 			},
 		})
 
+		// The first user in a deployment with signups disabled will be allowed to sign up,
+		// but all the other users will not.
 		resp := oauth2Callback(t, client)
+		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// nolint:gocritic // Unit test
+		count, err := db.GetUserCount(dbauthz.AsSystemRestricted(ctx))
+		require.NoError(t, err)
+		require.Equal(t, int64(1), count)
+
+		id.Store(101)
+		email.Store("someotheruser@coder.com")
+		login.Store("someotheruser")
+
+		resp = oauth2Callback(t, client)
 		require.Equal(t, http.StatusForbidden, resp.StatusCode)
 	})
 	t.Run("MultiLoginNotAllowed", func(t *testing.T) {
@@ -979,6 +1007,7 @@ func TestUserOIDC(t *testing.T) {
 		Name                string
 		IDTokenClaims       jwt.MapClaims
 		UserInfoClaims      jwt.MapClaims
+		AccessTokenClaims   jwt.MapClaims
 		AllowSignups        bool
 		EmailDomain         []string
 		AssertUser          func(t testing.TB, u codersdk.User)
@@ -986,6 +1015,8 @@ func TestUserOIDC(t *testing.T) {
 		AssertResponse      func(t testing.TB, resp *http.Response)
 		IgnoreEmailVerified bool
 		IgnoreUserInfo      bool
+		UseAccessToken      bool
+		PrecreateFirstUser  bool
 	}{
 		{
 			Name: "NoSub",
@@ -994,6 +1025,32 @@ func TestUserOIDC(t *testing.T) {
 			},
 			AllowSignups: true,
 			StatusCode:   http.StatusBadRequest,
+		},
+		{
+			Name: "AccessTokenMerge",
+			IDTokenClaims: jwt.MapClaims{
+				"sub": uuid.NewString(),
+			},
+			AccessTokenClaims: jwt.MapClaims{
+				"email": "kyle@kwc.io",
+			},
+			IgnoreUserInfo: true,
+			AllowSignups:   true,
+			UseAccessToken: true,
+			StatusCode:     http.StatusOK,
+			AssertUser: func(t testing.TB, u codersdk.User) {
+				assert.Equal(t, "kyle@kwc.io", u.Email)
+			},
+		},
+		{
+			Name: "AccessTokenMergeNotJWT",
+			IDTokenClaims: jwt.MapClaims{
+				"sub": uuid.NewString(),
+			},
+			IgnoreUserInfo: true,
+			AllowSignups:   true,
+			UseAccessToken: true,
+			StatusCode:     http.StatusBadRequest,
 		},
 		{
 			Name: "EmailOnly",
@@ -1122,7 +1179,17 @@ func TestUserOIDC(t *testing.T) {
 				"email_verified": true,
 				"sub":            uuid.NewString(),
 			},
-			StatusCode: http.StatusForbidden,
+			StatusCode:         http.StatusForbidden,
+			PrecreateFirstUser: true,
+		},
+		{
+			Name: "FirstSignup",
+			IDTokenClaims: jwt.MapClaims{
+				"email":          "kyle@kwc.io",
+				"email_verified": true,
+				"sub":            uuid.NewString(),
+			},
+			StatusCode: http.StatusOK,
 		},
 		{
 			Name: "UsernameFromEmail",
@@ -1377,18 +1444,32 @@ func TestUserOIDC(t *testing.T) {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
-			fake := oidctest.NewFakeIDP(t,
+			opts := []oidctest.FakeIDPOpt{
 				oidctest.WithRefresh(func(_ string) error {
 					return xerrors.New("refreshing token should never occur")
 				}),
 				oidctest.WithServing(),
 				oidctest.WithStaticUserInfo(tc.UserInfoClaims),
-			)
+			}
+
+			if tc.AccessTokenClaims != nil && len(tc.AccessTokenClaims) > 0 {
+				opts = append(opts, oidctest.WithAccessTokenJWTHook(func(email string, exp time.Time) jwt.MapClaims {
+					return tc.AccessTokenClaims
+				}))
+			}
+
+			fake := oidctest.NewFakeIDP(t, opts...)
 			cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
 				cfg.AllowSignups = tc.AllowSignups
 				cfg.EmailDomain = tc.EmailDomain
 				cfg.IgnoreEmailVerified = tc.IgnoreEmailVerified
-				cfg.IgnoreUserInfo = tc.IgnoreUserInfo
+				cfg.SecondaryClaims = coderd.MergedClaimsSourceUserInfo
+				if tc.IgnoreUserInfo {
+					cfg.SecondaryClaims = coderd.MergedClaimsSourceNone
+				}
+				if tc.UseAccessToken {
+					cfg.SecondaryClaims = coderd.MergedClaimsSourceAccessToken
+				}
 				cfg.NameField = "name"
 			})
 
@@ -1401,14 +1482,21 @@ func TestUserOIDC(t *testing.T) {
 			})
 			numLogs := len(auditor.AuditLogs())
 
+			ctx := testutil.Context(t, testutil.WaitShort)
+			if tc.PrecreateFirstUser {
+				owner.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{
+					Email:    "precreated@coder.com",
+					Username: "precreated",
+					Password: "SomeSecurePassword!",
+				})
+			}
+
 			client, resp := fake.AttemptLogin(t, owner, tc.IDTokenClaims)
 			numLogs++ // add an audit log for login
 			require.Equal(t, tc.StatusCode, resp.StatusCode)
 			if tc.AssertResponse != nil {
 				tc.AssertResponse(t, resp)
 			}
-
-			ctx := testutil.Context(t, testutil.WaitShort)
 
 			if tc.AssertUser != nil {
 				user, err := client.User(ctx, "me")

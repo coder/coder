@@ -1,5 +1,5 @@
 import { provisionerJobs } from "api/queries/organizations";
-import type { Organization, ProvisionerJob } from "api/typesGenerated";
+import type { ProvisionerJob } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";

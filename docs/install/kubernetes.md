@@ -101,6 +101,10 @@ coder:
           # postgres://coder:password@postgres:5432/coder?sslmode=disable
           name: coder-db-url
           key: url
+    # For production deployments, we recommend configuring your own GitHub
+    # OAuth2 provider and disabling the default one.
+    - name: CODER_OAUTH2_GITHUB_DEFAULT_PROVIDER_ENABLE
+      value: "false"
 
     # (Optional) For production deployments the access URL should be set.
     # If you're just trying Coder, access the dashboard via the service IP.
@@ -129,7 +133,7 @@ We support two release channels: mainline and stable - read the
   helm install coder coder-v2/coder \
       --namespace coder \
       --values values.yaml \
-      --version 2.18.0
+      --version 2.20.0
   ```
 
 - **Stable** Coder release:
@@ -140,7 +144,7 @@ We support two release channels: mainline and stable - read the
   helm install coder coder-v2/coder \
       --namespace coder \
       --values values.yaml \
-      --version 2.17.2
+      --version 2.19.0
   ```
 
 You can watch Coder start up by running `kubectl get pods -n coder`. Once Coder

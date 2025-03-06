@@ -1,5 +1,5 @@
 import { provisionerDaemons } from "api/queries/organizations";
-import type { Organization, ProvisionerDaemon } from "api/typesGenerated";
+import type { ProvisionerDaemon } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { Button } from "components/Button/Button";
 import { EmptyState } from "components/EmptyState/EmptyState";

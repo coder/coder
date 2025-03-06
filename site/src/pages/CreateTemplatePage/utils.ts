@@ -58,19 +58,21 @@ export const firstVersionFromFile = (
 	fileId: string,
 	variables: VariableValue[] | undefined,
 	provisionerType: ProvisionerType,
+	tags: CreateTemplateVersionRequest["tags"],
 ): CreateTemplateVersionRequest => {
 	return {
 		storage_method: "file" as const,
 		provisioner: provisionerType,
 		user_variable_values: variables,
 		file_id: fileId,
-		tags: {},
+		tags,
 	};
 };
 
 export const firstVersionFromExample = (
 	example: TemplateExample,
 	variables: VariableValue[] | undefined,
+	tags: CreateTemplateVersionRequest["tags"],
 ): CreateTemplateVersionRequest => {
 	return {
 		storage_method: "file" as const,
@@ -78,6 +80,6 @@ export const firstVersionFromExample = (
 		provisioner: "terraform",
 		user_variable_values: variables,
 		example_id: example.id,
-		tags: {},
+		tags,
 	};
 };

@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import TextField from "@mui/material/TextField";
 import { isApiValidationError } from "api/errors";
 import type {
@@ -146,7 +145,10 @@ export const OrganizationSettingsPageView: FC<
 
 			<DeleteDialog
 				isOpen={isDeleting}
-				onConfirm={onDeleteOrganization}
+				onConfirm={async () => {
+					await onDeleteOrganization();
+					setIsDeleting(false);
+				}}
 				onCancel={() => setIsDeleting(false)}
 				entity="organization"
 				name={organization.name}

@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/coderd/jwtutils"
+	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 
 	"github.com/coder/coder/v2/coderd/apikey"
@@ -44,6 +45,14 @@ import (
 	"github.com/coder/coder/v2/coderd/userpassword"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
+)
+
+type MergedClaimsSource string
+
+var (
+	MergedClaimsSourceNone        MergedClaimsSource = "none"
+	MergedClaimsSourceUserInfo    MergedClaimsSource = "user_info"
+	MergedClaimsSourceAccessToken MergedClaimsSource = "access_token"
 )
 
 const (
@@ -756,6 +765,8 @@ type GithubOAuth2Config struct {
 	AllowEveryone      bool
 	AllowOrganizations []string
 	AllowTeams         []GithubOAuth2Team
+
+	DefaultProviderConfigured bool
 }
 
 func (c *GithubOAuth2Config) Exchange(ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
@@ -797,7 +808,10 @@ func (api *API) userAuthMethods(rw http.ResponseWriter, r *http.Request) {
 		Password: codersdk.AuthMethod{
 			Enabled: !api.DeploymentValues.DisablePasswordAuth.Value(),
 		},
-		Github: codersdk.AuthMethod{Enabled: api.GithubOAuth2Config != nil},
+		Github: codersdk.GithubAuthMethod{
+			Enabled:                   api.GithubOAuth2Config != nil,
+			DefaultProviderConfigured: api.GithubOAuth2Config != nil && api.GithubOAuth2Config.DefaultProviderConfigured,
+		},
 		OIDC: codersdk.OIDCAuthMethod{
 			AuthMethod: codersdk.AuthMethod{Enabled: api.OIDCConfig != nil},
 			SignInText: signInText,
@@ -908,7 +922,17 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if len(selectedMemberships) == 0 {
-			httpmw.CustomRedirectToLogin(rw, r, redirect, "You aren't a member of the authorized Github organizations!", http.StatusUnauthorized)
+			status := http.StatusUnauthorized
+			msg := "You aren't a member of the authorized Github organizations!"
+			if api.GithubOAuth2Config.DeviceFlowEnabled {
+				// In the device flow, the error is rendered client-side.
+				httpapi.Write(ctx, rw, status, codersdk.Response{
+					Message: "Unauthorized",
+					Detail:  msg,
+				})
+			} else {
+				httpmw.CustomRedirectToLogin(rw, r, redirect, msg, status)
+			}
 			return
 		}
 	}
@@ -945,7 +969,17 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if allowedTeam == nil {
-			httpmw.CustomRedirectToLogin(rw, r, redirect, fmt.Sprintf("You aren't a member of an authorized team in the %v Github organization(s)!", organizationNames), http.StatusUnauthorized)
+			msg := fmt.Sprintf("You aren't a member of an authorized team in the %v Github organization(s)!", organizationNames)
+			status := http.StatusUnauthorized
+			if api.GithubOAuth2Config.DeviceFlowEnabled {
+				// In the device flow, the error is rendered client-side.
+				httpapi.Write(ctx, rw, status, codersdk.Response{
+					Message: "Unauthorized",
+					Detail:  msg,
+				})
+			} else {
+				httpmw.CustomRedirectToLogin(rw, r, redirect, msg, status)
+			}
 			return
 		}
 	}
@@ -1046,6 +1080,10 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	defer params.CommitAuditLogs()
 	if err != nil {
 		if httpErr := idpsync.IsHTTPError(err); httpErr != nil {
+			// In the device flow, the error page is rendered client-side.
+			if api.GithubOAuth2Config.DeviceFlowEnabled && httpErr.RenderStaticPage {
+				httpErr.RenderStaticPage = false
+			}
 			httpErr.Write(rw, r)
 			return
 		}
@@ -1116,11 +1154,13 @@ type OIDCConfig struct {
 	// AuthURLParams are additional parameters to be passed to the OIDC provider
 	// when requesting an access token.
 	AuthURLParams map[string]string
-	// IgnoreUserInfo causes Coder to only use claims from the ID token to
-	// process OIDC logins. This is useful if the OIDC provider does not
-	// support the userinfo endpoint, or if the userinfo endpoint causes
-	// undesirable behavior.
-	IgnoreUserInfo bool
+	// SecondaryClaims indicates where to source additional claim information from.
+	// The standard is either 'MergedClaimsSourceNone' or 'MergedClaimsSourceUserInfo'.
+	//
+	// The OIDC compliant way is to use the userinfo endpoint. This option
+	// is useful when the userinfo endpoint does not exist or causes undesirable
+	// behavior.
+	SecondaryClaims MergedClaimsSource
 	// SignInText is the text to display on the OIDC login button
 	SignInText string
 	// IconURL points to the URL of an icon to display on the OIDC login button
@@ -1216,50 +1256,39 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	// Some providers (e.g. ADFS) do not support custom OIDC claims in the
 	// UserInfo endpoint, so we allow users to disable it and only rely on the
 	// ID token.
-	userInfoClaims := make(map[string]interface{})
+	//
 	// If user info is skipped, the idtokenClaims are the claims.
 	mergedClaims := idtokenClaims
-	if !api.OIDCConfig.IgnoreUserInfo {
-		userInfo, err := api.OIDCConfig.Provider.UserInfo(ctx, oauth2.StaticTokenSource(state.Token))
-		if err == nil {
-			err = userInfo.Claims(&userInfoClaims)
-			if err != nil {
-				logger.Error(ctx, "oauth2: unable to unmarshal user info claims", slog.Error(err))
-				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-					Message: "Failed to unmarshal user info claims.",
-					Detail:  err.Error(),
-				})
-				return
-			}
-			logger.Debug(ctx, "got oidc claims",
-				slog.F("source", "userinfo"),
-				slog.F("claim_fields", claimFields(userInfoClaims)),
-				slog.F("blank", blankFields(userInfoClaims)),
-			)
-
-			// Merge the claims from the ID token and the UserInfo endpoint.
-			// Information from UserInfo takes precedence.
-			mergedClaims = mergeClaims(idtokenClaims, userInfoClaims)
-
-			// Log all of the field names after merging.
-			logger.Debug(ctx, "got oidc claims",
-				slog.F("source", "merged"),
-				slog.F("claim_fields", claimFields(mergedClaims)),
-				slog.F("blank", blankFields(mergedClaims)),
-			)
-		} else if !strings.Contains(err.Error(), "user info endpoint is not supported by this provider") {
-			logger.Error(ctx, "oauth2: unable to obtain user information claims", slog.Error(err))
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to obtain user information claims.",
-				Detail:  "The attempt to fetch claims via the UserInfo endpoint failed: " + err.Error(),
-			})
+	supplementaryClaims := make(map[string]interface{})
+	switch api.OIDCConfig.SecondaryClaims {
+	case MergedClaimsSourceUserInfo:
+		supplementaryClaims, ok = api.userInfoClaims(ctx, rw, state, logger)
+		if !ok {
 			return
-		} else {
-			// The OIDC provider does not support the UserInfo endpoint.
-			// This is not an error, but we should log it as it may mean
-			// that some claims are missing.
-			logger.Warn(ctx, "OIDC provider does not support the user info endpoint, ensure that all required claims are present in the id_token")
 		}
+
+		// The precedence ordering is userInfoClaims > idTokenClaims.
+		// Note: Unsure why exactly this is the case. idTokenClaims feels more
+		// important?
+		mergedClaims = mergeClaims(idtokenClaims, supplementaryClaims)
+	case MergedClaimsSourceAccessToken:
+		supplementaryClaims, ok = api.accessTokenClaims(ctx, rw, state, logger)
+		if !ok {
+			return
+		}
+		// idTokenClaims take priority over accessTokenClaims. The order should
+		// not matter. It is just safer to assume idTokenClaims is the truth,
+		// and accessTokenClaims are supplemental.
+		mergedClaims = mergeClaims(supplementaryClaims, idtokenClaims)
+	case MergedClaimsSourceNone:
+		// noop, keep the userInfoClaims empty
+	default:
+		// This should never happen and is a developer error
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Invalid source for secondary user claims.",
+			Detail:  fmt.Sprintf("invalid source: %q", api.OIDCConfig.SecondaryClaims),
+		})
+		return // Invalid MergedClaimsSource
 	}
 
 	usernameRaw, ok := mergedClaims[api.OIDCConfig.UsernameField]
@@ -1413,7 +1442,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		RoleSync:         roleSync,
 		UserClaims: database.UserLinkClaims{
 			IDTokenClaims:  idtokenClaims,
-			UserInfoClaims: userInfoClaims,
+			UserInfoClaims: supplementaryClaims,
 			MergedClaims:   mergedClaims,
 		},
 	}).SetInitAuditRequest(func(params *audit.RequestParams) (*audit.Request[database.User], func()) {
@@ -1445,6 +1474,68 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	// any nefarious redirects.
 	redirect = uriFromURL(redirect)
 	http.Redirect(rw, r, redirect, http.StatusTemporaryRedirect)
+}
+
+func (api *API) accessTokenClaims(ctx context.Context, rw http.ResponseWriter, state httpmw.OAuth2State, logger slog.Logger) (accessTokenClaims map[string]interface{}, ok bool) {
+	// Assume the access token is a jwt, and signed by the provider.
+	accessToken, err := api.OIDCConfig.Verifier.Verify(ctx, state.Token.AccessToken)
+	if err != nil {
+		logger.Error(ctx, "oauth2: unable to verify access token as secondary claims source", slog.Error(err))
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Failed to verify access token.",
+			Detail:  fmt.Sprintf("sourcing secondary claims from access token: %s", err.Error()),
+		})
+		return nil, false
+	}
+
+	rawClaims := make(map[string]any)
+	err = accessToken.Claims(&rawClaims)
+	if err != nil {
+		logger.Error(ctx, "oauth2: unable to unmarshal access token claims", slog.Error(err))
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to unmarshal access token claims.",
+			Detail:  err.Error(),
+		})
+		return nil, false
+	}
+
+	return rawClaims, true
+}
+
+func (api *API) userInfoClaims(ctx context.Context, rw http.ResponseWriter, state httpmw.OAuth2State, logger slog.Logger) (userInfoClaims map[string]interface{}, ok bool) {
+	userInfoClaims = make(map[string]interface{})
+	userInfo, err := api.OIDCConfig.Provider.UserInfo(ctx, oauth2.StaticTokenSource(state.Token))
+	if err == nil {
+		err = userInfo.Claims(&userInfoClaims)
+		if err != nil {
+			logger.Error(ctx, "oauth2: unable to unmarshal user info claims", slog.Error(err))
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to unmarshal user info claims.",
+				Detail:  err.Error(),
+			})
+			return nil, false
+		}
+		logger.Debug(ctx, "got oidc claims",
+			slog.F("source", "userinfo"),
+			slog.F("claim_fields", claimFields(userInfoClaims)),
+			slog.F("blank", blankFields(userInfoClaims)),
+		)
+	} else if !strings.Contains(err.Error(), "user info endpoint is not supported by this provider") {
+		logger.Error(ctx, "oauth2: unable to obtain user information claims", slog.Error(err))
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to obtain user information claims.",
+			Detail:  "The attempt to fetch claims via the UserInfo endpoint failed: " + err.Error(),
+		})
+		return nil, false
+	} else {
+		// The OIDC provider does not support the UserInfo endpoint.
+		// This is not an error, but we should log it as it may mean
+		// that some claims are missing.
+		logger.Warn(ctx, "OIDC provider does not support the user info endpoint, ensure that all required claims are present in the id_token",
+			slog.Error(err),
+		)
+	}
+	return userInfoClaims, true
 }
 
 // claimFields returns the sorted list of fields in the claims map.
@@ -1573,7 +1664,17 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			isConvertLoginType = true
 		}
 
-		if user.ID == uuid.Nil && !params.AllowSignups {
+		// nolint:gocritic // Getting user count is a system function.
+		userCount, err := tx.GetUserCount(dbauthz.AsSystemRestricted(ctx))
+		if err != nil {
+			return xerrors.Errorf("unable to fetch user count: %w", err)
+		}
+
+		// Allow the first user to sign up with OIDC, regardless of
+		// whether signups are enabled or not.
+		allowSignup := userCount == 0 || params.AllowSignups
+
+		if user.ID == uuid.Nil && !allowSignup {
 			signupsDisabledText := "Please contact your Coder administrator to request access."
 			if api.OIDCConfig != nil && api.OIDCConfig.SignupsDisabledText != "" {
 				signupsDisabledText = render.HTMLFromMarkdown(api.OIDCConfig.SignupsDisabledText)
@@ -1634,6 +1735,12 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 				return xerrors.Errorf("unable to fetch default organization: %w", err)
 			}
 
+			rbacRoles := []string{}
+			// If this is the first user, add the owner role.
+			if userCount == 0 {
+				rbacRoles = append(rbacRoles, rbac.RoleOwner().String())
+			}
+
 			//nolint:gocritic
 			user, err = api.CreateUser(dbauthz.AsSystemRestricted(ctx), tx, CreateUserRequest{
 				CreateUserRequestWithOrgs: codersdk.CreateUserRequestWithOrgs{
@@ -1648,9 +1755,19 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 				},
 				LoginType:          params.LoginType,
 				accountCreatorName: "oauth",
+				RBACRoles:          rbacRoles,
 			})
 			if err != nil {
 				return xerrors.Errorf("create user: %w", err)
+			}
+
+			if userCount == 0 {
+				telemetryUser := telemetry.ConvertUser(user)
+				// The email is not anonymized for the first user.
+				telemetryUser.Email = &user.Email
+				api.Telemetry.Report(&telemetry.Snapshot{
+					Users: []telemetry.User{telemetryUser},
+				})
 			}
 		}
 

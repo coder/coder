@@ -2,12 +2,12 @@ package insights
 
 import (
 	"context"
+	"slices"
 	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
-	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 

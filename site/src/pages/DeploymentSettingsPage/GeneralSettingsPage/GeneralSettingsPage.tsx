@@ -1,5 +1,4 @@
 import { deploymentDAUs } from "api/queries/deployment";
-import { entitlements } from "api/queries/entitlements";
 import { availableExperiments, experiments } from "api/queries/experiments";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { useDeploymentSettings } from "modules/management/DeploymentSettingsProvider";

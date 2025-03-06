@@ -815,7 +815,7 @@ func (s *MethodTestSuite) TestOrganization() {
 	}))
 	s.Run("GetOrganizationByName", s.Subtest(func(db database.Store, check *expects) {
 		o := dbgen.Organization(s.T(), db, database.Organization{})
-		check.Args(o.Name).Asserts(o, policy.ActionRead).Returns(o)
+		check.Args(database.GetOrganizationByNameParams{Name: o.Name, Deleted: o.Deleted}).Asserts(o, policy.ActionRead).Returns(o)
 	}))
 	s.Run("GetOrganizationIDsByMemberIDs", s.Subtest(func(db database.Store, check *expects) {
 		oa := dbgen.Organization(s.T(), db, database.Organization{})
@@ -839,7 +839,7 @@ func (s *MethodTestSuite) TestOrganization() {
 		_ = dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{UserID: u.ID, OrganizationID: a.ID})
 		b := dbgen.Organization(s.T(), db, database.Organization{})
 		_ = dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{UserID: u.ID, OrganizationID: b.ID})
-		check.Args(u.ID).Asserts(a, policy.ActionRead, b, policy.ActionRead).Returns(slice.New(a, b))
+		check.Args(database.GetOrganizationsByUserIDParams{UserID: u.ID, Deleted: false}).Asserts(a, policy.ActionRead, b, policy.ActionRead).Returns(slice.New(a, b))
 	}))
 	s.Run("InsertOrganization", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.InsertOrganizationParams{
@@ -960,13 +960,14 @@ func (s *MethodTestSuite) TestOrganization() {
 			Name: "something-different",
 		}).Asserts(o, policy.ActionUpdate)
 	}))
-	s.Run("DeleteOrganization", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("UpdateOrganizationDeletedByID", s.Subtest(func(db database.Store, check *expects) {
 		o := dbgen.Organization(s.T(), db, database.Organization{
 			Name: "doomed",
 		})
-		check.Args(
-			o.ID,
-		).Asserts(o, policy.ActionDelete)
+		check.Args(database.UpdateOrganizationDeletedByIDParams{
+			ID:        o.ID,
+			UpdatedAt: o.UpdatedAt,
+		}).Asserts(o, policy.ActionDelete).Returns()
 	}))
 	s.Run("OrganizationMembers", s.Subtest(func(db database.Store, check *expects) {
 		o := dbgen.Organization(s.T(), db, database.Organization{})
@@ -1010,7 +1011,7 @@ func (s *MethodTestSuite) TestOrganization() {
 			Asserts(
 				mem, policy.ActionRead,
 				rbac.ResourceAssignOrgRole.InOrg(o.ID), policy.ActionAssign, // org-mem
-				rbac.ResourceAssignOrgRole.InOrg(o.ID), policy.ActionDelete, // org-admin
+				rbac.ResourceAssignOrgRole.InOrg(o.ID), policy.ActionUnassign, // org-admin
 			).Returns(out)
 	}))
 }
@@ -1521,13 +1522,26 @@ func (s *MethodTestSuite) TestUser() {
 			[]database.GetUserWorkspaceBuildParametersRow{},
 		)
 	}))
+	s.Run("GetUserAppearanceSettings", s.Subtest(func(db database.Store, check *expects) {
+		ctx := context.Background()
+		u := dbgen.User(s.T(), db, database.User{})
+		db.UpdateUserAppearanceSettings(ctx, database.UpdateUserAppearanceSettingsParams{
+			UserID:          u.ID,
+			ThemePreference: "light",
+		})
+		check.Args(u.ID).Asserts(u, policy.ActionReadPersonal).Returns("light")
+	}))
 	s.Run("UpdateUserAppearanceSettings", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
+		uc := database.UserConfig{
+			UserID: u.ID,
+			Key:    "theme_preference",
+			Value:  "dark",
+		}
 		check.Args(database.UpdateUserAppearanceSettingsParams{
-			ID:              u.ID,
-			ThemePreference: u.ThemePreference,
-			UpdatedAt:       u.UpdatedAt,
-		}).Asserts(u, policy.ActionUpdatePersonal).Returns(u)
+			UserID:          u.ID,
+			ThemePreference: uc.Value,
+		}).Asserts(u, policy.ActionUpdatePersonal).Returns(uc)
 	}))
 	s.Run("UpdateUserStatus", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
@@ -1618,7 +1632,7 @@ func (s *MethodTestSuite) TestUser() {
 		}).Asserts(
 			u, policy.ActionRead,
 			rbac.ResourceAssignRole, policy.ActionAssign,
-			rbac.ResourceAssignRole, policy.ActionDelete,
+			rbac.ResourceAssignRole, policy.ActionUnassign,
 		).Returns(o)
 	}))
 	s.Run("AllUserIDs", s.Subtest(func(db database.Store, check *expects) {
@@ -1652,30 +1666,28 @@ func (s *MethodTestSuite) TestUser() {
 		check.Args(database.DeleteCustomRoleParams{
 			Name: customRole.Name,
 		}).Asserts(
-			rbac.ResourceAssignRole, policy.ActionDelete)
+		// fails immediately, missing organization id
+		).Errors(dbauthz.NotAuthorizedError{Err: xerrors.New("custom roles must belong to an organization")})
 	}))
 	s.Run("Blank/UpdateCustomRole", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		customRole := dbgen.CustomRole(s.T(), db, database.CustomRole{})
+		customRole := dbgen.CustomRole(s.T(), db, database.CustomRole{
+			OrganizationID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		})
 		// Blank is no perms in the role
 		check.Args(database.UpdateCustomRoleParams{
 			Name:            customRole.Name,
 			DisplayName:     "Test Name",
+			OrganizationID:  customRole.OrganizationID,
 			SitePermissions: nil,
 			OrgPermissions:  nil,
 			UserPermissions: nil,
-		}).Asserts(rbac.ResourceAssignRole, policy.ActionUpdate).ErrorsWithPG(sql.ErrNoRows)
+		}).Asserts(rbac.ResourceAssignOrgRole.InOrg(customRole.OrganizationID.UUID), policy.ActionUpdate)
 	}))
 	s.Run("SitePermissions/UpdateCustomRole", s.Subtest(func(db database.Store, check *expects) {
-		customRole := dbgen.CustomRole(s.T(), db, database.CustomRole{
-			OrganizationID: uuid.NullUUID{
-				UUID:  uuid.Nil,
-				Valid: false,
-			},
-		})
 		check.Args(database.UpdateCustomRoleParams{
-			Name:           customRole.Name,
-			OrganizationID: customRole.OrganizationID,
+			Name:           "",
+			OrganizationID: uuid.NullUUID{UUID: uuid.Nil, Valid: false},
 			DisplayName:    "Test Name",
 			SitePermissions: db2sdk.List(codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
 				codersdk.ResourceTemplate: {codersdk.ActionCreate, codersdk.ActionRead, codersdk.ActionUpdate, codersdk.ActionDelete, codersdk.ActionViewInsights},
@@ -1685,17 +1697,8 @@ func (s *MethodTestSuite) TestUser() {
 				codersdk.ResourceWorkspace: {codersdk.ActionRead},
 			}), convertSDKPerm),
 		}).Asserts(
-			// First check
-			rbac.ResourceAssignRole, policy.ActionUpdate,
-			// Escalation checks
-			rbac.ResourceTemplate, policy.ActionCreate,
-			rbac.ResourceTemplate, policy.ActionRead,
-			rbac.ResourceTemplate, policy.ActionUpdate,
-			rbac.ResourceTemplate, policy.ActionDelete,
-			rbac.ResourceTemplate, policy.ActionViewInsights,
-
-			rbac.ResourceWorkspace.WithOwner(testActorID.String()), policy.ActionRead,
-		).ErrorsWithPG(sql.ErrNoRows)
+		// fails immediately, missing organization id
+		).Errors(dbauthz.NotAuthorizedError{Err: xerrors.New("custom roles must belong to an organization")})
 	}))
 	s.Run("OrgPermissions/UpdateCustomRole", s.Subtest(func(db database.Store, check *expects) {
 		orgID := uuid.New()
@@ -1725,13 +1728,15 @@ func (s *MethodTestSuite) TestUser() {
 	}))
 	s.Run("Blank/InsertCustomRole", s.Subtest(func(db database.Store, check *expects) {
 		// Blank is no perms in the role
+		orgID := uuid.New()
 		check.Args(database.InsertCustomRoleParams{
 			Name:            "test",
 			DisplayName:     "Test Name",
+			OrganizationID:  uuid.NullUUID{UUID: orgID, Valid: true},
 			SitePermissions: nil,
 			OrgPermissions:  nil,
 			UserPermissions: nil,
-		}).Asserts(rbac.ResourceAssignRole, policy.ActionCreate)
+		}).Asserts(rbac.ResourceAssignOrgRole.InOrg(orgID), policy.ActionCreate)
 	}))
 	s.Run("SitePermissions/InsertCustomRole", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.InsertCustomRoleParams{
@@ -1745,17 +1750,8 @@ func (s *MethodTestSuite) TestUser() {
 				codersdk.ResourceWorkspace: {codersdk.ActionRead},
 			}), convertSDKPerm),
 		}).Asserts(
-			// First check
-			rbac.ResourceAssignRole, policy.ActionCreate,
-			// Escalation checks
-			rbac.ResourceTemplate, policy.ActionCreate,
-			rbac.ResourceTemplate, policy.ActionRead,
-			rbac.ResourceTemplate, policy.ActionUpdate,
-			rbac.ResourceTemplate, policy.ActionDelete,
-			rbac.ResourceTemplate, policy.ActionViewInsights,
-
-			rbac.ResourceWorkspace.WithOwner(testActorID.String()), policy.ActionRead,
-		)
+		// fails immediately, missing organization id
+		).Errors(dbauthz.NotAuthorizedError{Err: xerrors.New("custom roles must belong to an organization")})
 	}))
 	s.Run("OrgPermissions/InsertCustomRole", s.Subtest(func(db database.Store, check *expects) {
 		orgID := uuid.New()
@@ -4404,6 +4400,12 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			Value: "value",
 		}).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
 	}))
+	s.Run("GetOAuth2GithubDefaultEligible", s.Subtest(func(db database.Store, check *expects) {
+		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Errors(sql.ErrNoRows)
+	}))
+	s.Run("UpsertOAuth2GithubDefaultEligible", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(true).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
+	}))
 }
 
 func (s *MethodTestSuite) TestNotifications() {
@@ -4476,6 +4478,141 @@ func (s *MethodTestSuite) TestNotifications() {
 			NotificationTemplateIds: []uuid.UUID{notifications.TemplateWorkspaceAutoUpdated, notifications.TemplateWorkspaceDeleted},
 			Disableds:               []bool{true, false},
 		}).Asserts(rbac.ResourceNotificationPreference.WithOwner(user.ID.String()), policy.ActionUpdate)
+	}))
+
+	s.Run("GetInboxNotificationsByUserID", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+
+		notifID := uuid.New()
+
+		notif := dbgen.NotificationInbox(s.T(), db, database.InsertInboxNotificationParams{
+			ID:         notifID,
+			UserID:     u.ID,
+			TemplateID: notifications.TemplateWorkspaceAutoUpdated,
+			Title:      "test title",
+			Content:    "test content notification",
+			Icon:       "https://coder.com/favicon.ico",
+			Actions:    json.RawMessage("{}"),
+		})
+
+		check.Args(database.GetInboxNotificationsByUserIDParams{
+			UserID:     u.ID,
+			ReadStatus: database.InboxNotificationReadStatusAll,
+		}).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionRead).Returns([]database.InboxNotification{notif})
+	}))
+
+	s.Run("GetFilteredInboxNotificationsByUserID", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+
+		notifID := uuid.New()
+
+		targets := []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}
+
+		notif := dbgen.NotificationInbox(s.T(), db, database.InsertInboxNotificationParams{
+			ID:         notifID,
+			UserID:     u.ID,
+			TemplateID: notifications.TemplateWorkspaceAutoUpdated,
+			Targets:    targets,
+			Title:      "test title",
+			Content:    "test content notification",
+			Icon:       "https://coder.com/favicon.ico",
+			Actions:    json.RawMessage("{}"),
+		})
+
+		check.Args(database.GetFilteredInboxNotificationsByUserIDParams{
+			UserID:     u.ID,
+			Templates:  []uuid.UUID{notifications.TemplateWorkspaceAutoUpdated},
+			Targets:    []uuid.UUID{u.ID},
+			ReadStatus: database.InboxNotificationReadStatusAll,
+		}).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionRead).Returns([]database.InboxNotification{notif})
+	}))
+
+	s.Run("GetInboxNotificationByID", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+
+		notifID := uuid.New()
+
+		targets := []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}
+
+		notif := dbgen.NotificationInbox(s.T(), db, database.InsertInboxNotificationParams{
+			ID:         notifID,
+			UserID:     u.ID,
+			TemplateID: notifications.TemplateWorkspaceAutoUpdated,
+			Targets:    targets,
+			Title:      "test title",
+			Content:    "test content notification",
+			Icon:       "https://coder.com/favicon.ico",
+			Actions:    json.RawMessage("{}"),
+		})
+
+		check.Args(notifID).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionRead).Returns(notif)
+	}))
+
+	s.Run("CountUnreadInboxNotificationsByUserID", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+
+		notifID := uuid.New()
+
+		targets := []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}
+
+		_ = dbgen.NotificationInbox(s.T(), db, database.InsertInboxNotificationParams{
+			ID:         notifID,
+			UserID:     u.ID,
+			TemplateID: notifications.TemplateWorkspaceAutoUpdated,
+			Targets:    targets,
+			Title:      "test title",
+			Content:    "test content notification",
+			Icon:       "https://coder.com/favicon.ico",
+			Actions:    json.RawMessage("{}"),
+		})
+
+		check.Args(u.ID).Asserts(rbac.ResourceInboxNotification.WithOwner(u.ID.String()), policy.ActionRead).Returns(int64(1))
+	}))
+
+	s.Run("InsertInboxNotification", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+
+		notifID := uuid.New()
+
+		targets := []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}
+
+		check.Args(database.InsertInboxNotificationParams{
+			ID:         notifID,
+			UserID:     u.ID,
+			TemplateID: notifications.TemplateWorkspaceAutoUpdated,
+			Targets:    targets,
+			Title:      "test title",
+			Content:    "test content notification",
+			Icon:       "https://coder.com/favicon.ico",
+			Actions:    json.RawMessage("{}"),
+		}).Asserts(rbac.ResourceInboxNotification.WithOwner(u.ID.String()), policy.ActionCreate)
+	}))
+
+	s.Run("UpdateInboxNotificationReadStatus", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+
+		notifID := uuid.New()
+
+		targets := []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}
+		readAt := dbtestutil.NowInDefaultTimezone()
+
+		notif := dbgen.NotificationInbox(s.T(), db, database.InsertInboxNotificationParams{
+			ID:         notifID,
+			UserID:     u.ID,
+			TemplateID: notifications.TemplateWorkspaceAutoUpdated,
+			Targets:    targets,
+			Title:      "test title",
+			Content:    "test content notification",
+			Icon:       "https://coder.com/favicon.ico",
+			Actions:    json.RawMessage("{}"),
+		})
+
+		notif.ReadAt = sql.NullTime{Time: readAt, Valid: true}
+
+		check.Args(database.UpdateInboxNotificationReadStatusParams{
+			ID:     notifID,
+			ReadAt: sql.NullTime{Time: readAt, Valid: true},
+		}).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionUpdate)
 	}))
 }
 
@@ -4793,6 +4930,14 @@ func (s *MethodTestSuite) TestResourcesMonitor() {
 			AgentID: agt.ID,
 			State:   database.WorkspaceAgentMonitorStateOK,
 		}).Asserts(rbac.ResourceWorkspaceAgentResourceMonitor, policy.ActionUpdate)
+	}))
+
+	s.Run("FetchMemoryResourceMonitorsUpdatedAfter", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(dbtime.Now()).Asserts(rbac.ResourceWorkspaceAgentResourceMonitor, policy.ActionRead)
+	}))
+
+	s.Run("FetchVolumesResourceMonitorsUpdatedAfter", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(dbtime.Now()).Asserts(rbac.ResourceWorkspaceAgentResourceMonitor, policy.ActionRead)
 	}))
 
 	s.Run("FetchMemoryResourceMonitorsByAgentID", s.Subtest(func(db database.Store, check *expects) {
