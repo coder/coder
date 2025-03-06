@@ -150,7 +150,7 @@ First, create an empty plugins directory:
 mkdir $HOME/plugins
 ```
 
-Next, add a volume mount to docker-compose.yaml:
+Next, add a volume mount to compose.yaml:
 
 ```shell
 vim compose.yaml
