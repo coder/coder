@@ -212,7 +212,7 @@ func (api *API) paginatedMembers(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	memberRows := make([]database.OrganizationMembersRow, len(paginatedMemberRows))
+	memberRows := make([]database.OrganizationMembersRow, 0)
 	for _, pRow := range paginatedMemberRows {
 		row := database.OrganizationMembersRow{
 			OrganizationMember: pRow.OrganizationMember,
@@ -227,6 +227,9 @@ func (api *API) paginatedMembers(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	members, err := convertOrganizationMembersWithUserData(ctx, api.Database, memberRows)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+	}
 
 	resp := codersdk.PaginatedMembersResponse{
 		Members: members,

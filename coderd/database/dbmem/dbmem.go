@@ -9584,7 +9584,7 @@ func (q *FakeQuerier) OrganizationMembers(_ context.Context, arg database.Organi
 	return tmp, nil
 }
 
-func (q *FakeQuerier) PaginatedOrganizationMembers(ctx context.Context, arg database.PaginatedOrganizationMembersParams) ([]database.PaginatedOrganizationMembersRow, error) {
+func (q *FakeQuerier) PaginatedOrganizationMembers(_ context.Context, arg database.PaginatedOrganizationMembersParams) ([]database.PaginatedOrganizationMembersRow, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return nil, err
@@ -9602,7 +9602,7 @@ func (q *FakeQuerier) PaginatedOrganizationMembers(ctx context.Context, arg data
 		}
 
 		if skippedMembers < int(arg.OffsetOpt) {
-			skippedMembers += 1
+			skippedMembers++
 			continue
 		}
 
