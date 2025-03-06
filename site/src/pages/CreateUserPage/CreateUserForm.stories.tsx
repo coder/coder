@@ -1,7 +1,14 @@
 import { action } from "@storybook/addon-actions";
 import type { Meta, StoryObj } from "@storybook/react";
-import { mockApiError } from "testHelpers/entities";
+import { userEvent, within } from "@storybook/test";
+import {
+	mockApiError,
+	MockOrganization,
+	MockOrganization2,
+} from "testHelpers/entities";
 import { CreateUserForm } from "./CreateUserForm";
+import { organizationsKey } from "api/queries/organizations";
+import type { Organization } from "api/typesGenerated";
 
 const meta: Meta<typeof CreateUserForm> = {
 	title: "pages/CreateUserPage",
@@ -17,6 +24,48 @@ export default meta;
 type Story = StoryObj<typeof CreateUserForm>;
 
 export const Ready: Story = {};
+
+const permissionCheckQuery = (organizations: Organization[]) => {
+	return {
+		key: [
+			"authorization",
+			{
+				checks: Object.fromEntries(
+					organizations.map((org) => [
+						org.id,
+						{
+							action: "create",
+							object: {
+								resource_type: "organization_member",
+								organization_id: org.id,
+							},
+						},
+					]),
+				),
+			},
+		],
+		data: Object.fromEntries(organizations.map((org) => [org.id, true])),
+	};
+};
+
+export const WithOrganizations: Story = {
+	parameters: {
+		queries: [
+			{
+				key: organizationsKey,
+				data: [MockOrganization, MockOrganization2],
+			},
+			permissionCheckQuery([MockOrganization, MockOrganization2]),
+		],
+	},
+	args: {
+		showOrganizations: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByLabelText("Organization *"));
+	},
+};
 
 export const FormError: Story = {
 	args: {
