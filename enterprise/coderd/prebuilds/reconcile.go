@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/base32"
 	"fmt"
+	"math"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -30,6 +31,8 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 )
+
+var ErrBackoff = xerrors.New("reconciliation in backoff")
 
 type storeReconciler struct {
 	store  database.Store
@@ -179,7 +182,7 @@ func (c *storeReconciler) ReconcileAll(ctx context.Context) error {
 			}
 
 			if !preset.UsingActiveVersion && len(ps.running) == 0 && len(ps.inProgress) == 0 {
-				logger.Debug(ctx, "skipping reconciliation for preset; inactive, no running prebuilds, and no in-progress operationss",
+				logger.Debug(ctx, "skipping reconciliation for preset; inactive, no running prebuilds, and no in-progress operations",
 					slog.F("preset_id", preset.PresetID.String()))
 				continue
 			}
@@ -246,7 +249,12 @@ func (c *storeReconciler) determineState(ctx context.Context, store database.Sto
 			return xerrors.Errorf("failed to get prebuilds in progress: %w", err)
 		}
 
-		state = newReconciliationState(presetsWithPrebuilds, allRunningPrebuilds, allPrebuildsInProgress)
+		presetsBackoff, err := db.GetPresetsBackoff(ctx)
+		if err != nil {
+			return xerrors.Errorf("failed to get backoffs for presets: %w", err)
+		}
+
+		state = newReconciliationState(presetsWithPrebuilds, allRunningPrebuilds, allPrebuildsInProgress, presetsBackoff)
 		return nil
 	}, &database.TxOptions{
 		Isolation:    sql.LevelRepeatableRead, // This mirrors the MVCC snapshotting Postgres does when using CTEs
@@ -268,7 +276,7 @@ func (c *storeReconciler) reconcilePrebuildsForPreset(ctx context.Context, ps *p
 	vlogger := logger.With(slog.F("template_version_id", ps.preset.TemplateVersionID), slog.F("preset_id", ps.preset.PresetID))
 
 	// TODO: move log lines up from calculateActions.
-	actions, err := ps.calculateActions()
+	actions, err := ps.calculateActions(c.cfg.ReconciliationBackoffInterval.Value())
 	if err != nil {
 		vlogger.Error(ctx, "failed to calculate reconciliation actions", slog.Error(err))
 		return xerrors.Errorf("failed to calculate reconciliation actions: %w", err)
@@ -286,14 +294,34 @@ func (c *storeReconciler) reconcilePrebuildsForPreset(ctx context.Context, ps *p
 	if actions.create > 0 || len(actions.deleteIDs) > 0 {
 		// Only log with info level when there's a change that needs to be effected.
 		levelFn = vlogger.Info
+	} else if dbtime.Now().Before(actions.backoffUntil) {
+		levelFn = vlogger.Warn
 	}
-	levelFn(ctx, "template prebuild state retrieved",
+
+	fields := []any{
 		slog.F("create_count", actions.create), slog.F("delete_count", len(actions.deleteIDs)),
 		slog.F("to_delete", actions.deleteIDs),
 		slog.F("desired", actions.desired), slog.F("actual", actions.actual),
 		slog.F("outdated", actions.outdated), slog.F("extraneous", actions.extraneous),
 		slog.F("starting", actions.starting), slog.F("stopping", actions.stopping),
-		slog.F("deleting", actions.deleting), slog.F("eligible", actions.eligible))
+		slog.F("deleting", actions.deleting), slog.F("eligible", actions.eligible),
+	}
+
+	// TODO: add quartz
+
+	// If there is anything to backoff for (usually a cycle of failed prebuilds), then log and bail out.
+	if actions.backoffUntil.After(dbtime.Now()) {
+		levelFn(ctx, "template prebuild state retrieved, backing off",
+			append(fields,
+				slog.F("backoff_until", actions.backoffUntil.Format(time.RFC3339)),
+				slog.F("backoff_secs", math.Round(actions.backoffUntil.Sub(dbtime.Now()).Seconds())),
+			)...)
+
+		// return ErrBackoff
+		return nil
+	} else {
+		levelFn(ctx, "template prebuild state retrieved", fields...)
+	}
 
 	// Provision workspaces within the same tx so we don't get any timing issues here.
 	// i.e. we hold the advisory lock until all "reconciliatory" actions have been taken.

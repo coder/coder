@@ -3,11 +3,13 @@ package prebuilds
 import (
 	"math"
 	"slices"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
@@ -15,12 +17,14 @@ type reconciliationState struct {
 	presets             []database.GetTemplatePresetsWithPrebuildsRow
 	runningPrebuilds    []database.GetRunningPrebuildsRow
 	prebuildsInProgress []database.GetPrebuildsInProgressRow
+	backoffs            []database.GetPresetsBackoffRow
 }
 
 type presetState struct {
 	preset     database.GetTemplatePresetsWithPrebuildsRow
 	running    []database.GetRunningPrebuildsRow
 	inProgress []database.GetPrebuildsInProgressRow
+	backoff    *database.GetPresetsBackoffRow
 }
 
 type reconciliationActions struct {
@@ -32,10 +36,13 @@ type reconciliationActions struct {
 	starting, stopping, deleting int32       // Prebuilds currently being provisioned up or down.
 	create                       int32       // The number of prebuilds required to be created to reconcile required state.
 	deleteIDs                    []uuid.UUID // IDs of running prebuilds required to be deleted to reconcile required state.
+	backoffUntil                 time.Time   // The time to wait until before trying to provision a new prebuild.
 }
 
-func newReconciliationState(presets []database.GetTemplatePresetsWithPrebuildsRow, runningPrebuilds []database.GetRunningPrebuildsRow, prebuildsInProgress []database.GetPrebuildsInProgressRow) reconciliationState {
-	return reconciliationState{presets: presets, runningPrebuilds: runningPrebuilds, prebuildsInProgress: prebuildsInProgress}
+func newReconciliationState(presets []database.GetTemplatePresetsWithPrebuildsRow, runningPrebuilds []database.GetRunningPrebuildsRow,
+	prebuildsInProgress []database.GetPrebuildsInProgressRow, backoffs []database.GetPresetsBackoffRow,
+) reconciliationState {
+	return reconciliationState{presets: presets, runningPrebuilds: runningPrebuilds, prebuildsInProgress: prebuildsInProgress, backoffs: backoffs}
 }
 
 func (s reconciliationState) filterByPreset(presetID uuid.UUID) (*presetState, error) {
@@ -63,14 +70,23 @@ func (s reconciliationState) filterByPreset(presetID uuid.UUID) (*presetState, e
 		return prebuild.TemplateID == preset.TemplateID
 	})
 
+	var backoff *database.GetPresetsBackoffRow
+	backoffs := slice.Filter(s.backoffs, func(row database.GetPresetsBackoffRow) bool {
+		return row.PresetID == preset.PresetID
+	})
+	if len(backoffs) == 1 {
+		backoff = &backoffs[0]
+	}
+
 	return &presetState{
 		preset:     preset,
 		running:    running,
 		inProgress: inProgress,
+		backoff:    backoff,
 	}, nil
 }
 
-func (p presetState) calculateActions() (*reconciliationActions, error) {
+func (p presetState) calculateActions(backoffInterval time.Duration) (*reconciliationActions, error) {
 	// TODO: align workspace states with how we represent them on the FE and the CLI
 	//	     right now there's some slight differences which can lead to additional prebuilds being created
 
@@ -147,6 +163,21 @@ func (p presetState) calculateActions() (*reconciliationActions, error) {
 		toCreate = 0
 		toDelete = int(actual + outdated)
 		actions.desired = 0
+	}
+
+	// We backoff when the last build failed, to give the operator some time to investigate the issue and to not provision
+	// a tonne of prebuilds (_n_ on each reconciliation iteration).
+	if p.backoff != nil && p.backoff.NumFailed > 0 {
+		backoffUntil := p.backoff.LastBuildAt.Add(time.Duration(p.backoff.NumFailed) * backoffInterval)
+
+		if dbtime.Now().Before(backoffUntil) {
+			actions.create = 0
+			actions.deleteIDs = nil
+			actions.backoffUntil = backoffUntil
+
+			// Return early here; we should not perform any reconciliation actions if we're in a backoff period.
+			return actions, nil
+		}
 	}
 
 	// Bail early to avoid scheduling new prebuilds while operations are in progress.

@@ -764,7 +764,8 @@ type NotificationsWebhookConfig struct {
 }
 
 type PrebuildsConfig struct {
-	ReconciliationInterval serpent.Duration `json:"reconciliation_interval" typescript:",notnull"`
+	ReconciliationInterval        serpent.Duration `json:"reconciliation_interval" typescript:",notnull"`
+	ReconciliationBackoffInterval serpent.Duration `json:"reconciliation_backoff_interval" typescript:",notnull"`
 }
 
 const (
@@ -2968,6 +2969,16 @@ Write out the current server config as YAML to stdout.`,
 			Default:     (time.Second * 15).String(),
 			Group:       &deploymentGroupPrebuilds,
 			YAML:        "reconciliation_interval",
+		},
+		{
+			Name:        "Reconciliation Backoff Interval",
+			Description: "Interval to increase reconciliation backoff by when unrecoverable errors occur.",
+			Flag:        "workspace-prebuilds-reconciliation-backoff-interval",
+			Env:         "CODER_WORKSPACE_PREBUILDS_RECONCILIATION_INTERVAL",
+			Value:       &c.Prebuilds.ReconciliationBackoffInterval,
+			Default:     (time.Second * 15).String(),
+			Group:       &deploymentGroupPrebuilds,
+			YAML:        "reconciliation_backoff_interval",
 		},
 	}
 

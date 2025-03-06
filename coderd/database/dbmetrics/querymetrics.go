@@ -1067,6 +1067,13 @@ func (m queryMetricsStore) GetPresetParametersByTemplateVersionID(ctx context.Co
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetPresetsBackoff(ctx context.Context) ([]database.GetPresetsBackoffRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetPresetsBackoff(ctx)
+	m.queryLatencies.WithLabelValues("GetPresetsBackoff").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetPresetsByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionPreset, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetPresetsByTemplateVersionID(ctx, templateVersionID)

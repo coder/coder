@@ -24,6 +24,8 @@ type options struct {
 var templateID = uuid.New()
 
 const (
+	backoffInterval = time.Second * 5
+
 	optionSet0 = iota
 	optionSet1
 	optionSet2
@@ -64,11 +66,11 @@ func TestNoPrebuilds(t *testing.T) {
 		preset(true, 0, current),
 	}
 
-	state := newReconciliationState(presets, nil, nil)
+	state := newReconciliationState(presets, nil, nil, nil)
 	ps, err := state.filterByPreset(current.presetID)
 	require.NoError(t, err)
 
-	actions, err := ps.calculateActions()
+	actions, err := ps.calculateActions(backoffInterval)
 	require.NoError(t, err)
 
 	validateActions(t, reconciliationActions{ /*all zero values*/ }, *actions)
@@ -82,11 +84,11 @@ func TestNetNew(t *testing.T) {
 		preset(true, 1, current),
 	}
 
-	state := newReconciliationState(presets, nil, nil)
+	state := newReconciliationState(presets, nil, nil, nil)
 	ps, err := state.filterByPreset(current.presetID)
 	require.NoError(t, err)
 
-	actions, err := ps.calculateActions()
+	actions, err := ps.calculateActions(backoffInterval)
 	require.NoError(t, err)
 
 	validateActions(t, reconciliationActions{
@@ -116,12 +118,12 @@ func TestOutdatedPrebuilds(t *testing.T) {
 	var inProgress []database.GetPrebuildsInProgressRow
 
 	// WHEN: calculating the outdated preset's state.
-	state := newReconciliationState(presets, running, inProgress)
+	state := newReconciliationState(presets, running, inProgress, nil)
 	ps, err := state.filterByPreset(outdated.presetID)
 	require.NoError(t, err)
 
 	// THEN: we should identify that this prebuild is outdated and needs to be deleted.
-	actions, err := ps.calculateActions()
+	actions, err := ps.calculateActions(backoffInterval)
 	require.NoError(t, err)
 	validateActions(t, reconciliationActions{outdated: 1, deleteIDs: []uuid.UUID{outdated.prebuildID}}, *actions)
 
@@ -130,7 +132,7 @@ func TestOutdatedPrebuilds(t *testing.T) {
 	require.NoError(t, err)
 
 	// THEN: we should not be blocked from creating a new prebuild while the outdate one deletes.
-	actions, err = ps.calculateActions()
+	actions, err = ps.calculateActions(backoffInterval)
 	require.NoError(t, err)
 	validateActions(t, reconciliationActions{desired: 1, create: 1}, *actions)
 }
@@ -163,12 +165,12 @@ func TestBlockedOnDeleteActions(t *testing.T) {
 	}
 
 	// WHEN: calculating the outdated preset's state.
-	state := newReconciliationState(presets, running, inProgress)
+	state := newReconciliationState(presets, running, inProgress, nil)
 	ps, err := state.filterByPreset(outdated.presetID)
 	require.NoError(t, err)
 
 	// THEN: we should identify that this prebuild is in progress, and not attempt to delete this prebuild again.
-	actions, err := ps.calculateActions()
+	actions, err := ps.calculateActions(backoffInterval)
 	require.NoError(t, err)
 	validateActions(t, reconciliationActions{outdated: 1, deleting: 1}, *actions)
 
@@ -177,7 +179,7 @@ func TestBlockedOnDeleteActions(t *testing.T) {
 	require.NoError(t, err)
 
 	// THEN: we are blocked from creating a new prebuild while another one is busy provisioning.
-	actions, err = ps.calculateActions()
+	actions, err = ps.calculateActions(backoffInterval)
 	require.NoError(t, err)
 	validateActions(t, reconciliationActions{desired: 1, create: 0, deleting: 1}, *actions)
 }
@@ -209,12 +211,12 @@ func TestBlockedOnStopActions(t *testing.T) {
 	}
 
 	// WHEN: calculating the outdated preset's state.
-	state := newReconciliationState(presets, running, inProgress)
+	state := newReconciliationState(presets, running, inProgress, nil)
 	ps, err := state.filterByPreset(outdated.presetID)
 	require.NoError(t, err)
 
 	// THEN: there is nothing to do.
-	actions, err := ps.calculateActions()
+	actions, err := ps.calculateActions(backoffInterval)
 	require.NoError(t, err)
 	validateActions(t, reconciliationActions{stopping: 1}, *actions)
 
@@ -223,7 +225,7 @@ func TestBlockedOnStopActions(t *testing.T) {
 	require.NoError(t, err)
 
 	// THEN: we are blocked from creating a new prebuild while another one is busy provisioning.
-	actions, err = ps.calculateActions()
+	actions, err = ps.calculateActions(backoffInterval)
 	require.NoError(t, err)
 	validateActions(t, reconciliationActions{desired: 2, stopping: 1, create: 0}, *actions)
 }
@@ -255,12 +257,12 @@ func TestBlockedOnStartActions(t *testing.T) {
 	}
 
 	// WHEN: calculating the outdated preset's state.
-	state := newReconciliationState(presets, running, inProgress)
+	state := newReconciliationState(presets, running, inProgress, nil)
 	ps, err := state.filterByPreset(outdated.presetID)
 	require.NoError(t, err)
 
 	// THEN: there is nothing to do.
-	actions, err := ps.calculateActions()
+	actions, err := ps.calculateActions(backoffInterval)
 	require.NoError(t, err)
 	validateActions(t, reconciliationActions{starting: 1}, *actions)
 
@@ -269,7 +271,7 @@ func TestBlockedOnStartActions(t *testing.T) {
 	require.NoError(t, err)
 
 	// THEN: we are blocked from creating a new prebuild while another one is busy provisioning.
-	actions, err = ps.calculateActions()
+	actions, err = ps.calculateActions(backoffInterval)
 	require.NoError(t, err)
 	validateActions(t, reconciliationActions{desired: 2, starting: 1, create: 0}, *actions)
 }
@@ -302,12 +304,12 @@ func TestExtraneous(t *testing.T) {
 	var inProgress []database.GetPrebuildsInProgressRow
 
 	// WHEN: calculating the current preset's state.
-	state := newReconciliationState(presets, running, inProgress)
+	state := newReconciliationState(presets, running, inProgress, nil)
 	ps, err := state.filterByPreset(current.presetID)
 	require.NoError(t, err)
 
 	// THEN: an extraneous prebuild is detected and marked for deletion.
-	actions, err := ps.calculateActions()
+	actions, err := ps.calculateActions(backoffInterval)
 	require.NoError(t, err)
 	validateActions(t, reconciliationActions{
 		actual: 2, desired: 1, extraneous: 1, deleteIDs: []uuid.UUID{older}, eligible: 2,
@@ -342,12 +344,12 @@ func TestExtraneousInProgress(t *testing.T) {
 	var inProgress []database.GetPrebuildsInProgressRow
 
 	// WHEN: calculating the current preset's state.
-	state := newReconciliationState(presets, running, inProgress)
+	state := newReconciliationState(presets, running, inProgress, nil)
 	ps, err := state.filterByPreset(current.presetID)
 	require.NoError(t, err)
 
 	// THEN: an extraneous prebuild is detected and marked for deletion.
-	actions, err := ps.calculateActions()
+	actions, err := ps.calculateActions(backoffInterval)
 	require.NoError(t, err)
 	validateActions(t, reconciliationActions{
 		actual: 2, desired: 1, extraneous: 1, deleteIDs: []uuid.UUID{older}, eligible: 2,
@@ -375,15 +377,71 @@ func TestDeprecated(t *testing.T) {
 	var inProgress []database.GetPrebuildsInProgressRow
 
 	// WHEN: calculating the current preset's state.
-	state := newReconciliationState(presets, running, inProgress)
+	state := newReconciliationState(presets, running, inProgress, nil)
 	ps, err := state.filterByPreset(current.presetID)
 	require.NoError(t, err)
 
 	// THEN: all running prebuilds should be deleted because the template is deprecated.
-	actions, err := ps.calculateActions()
+	actions, err := ps.calculateActions(backoffInterval)
 	require.NoError(t, err)
 	validateActions(t, reconciliationActions{
 		actual: 1, deleteIDs: []uuid.UUID{current.prebuildID}, eligible: 1,
+	}, *actions)
+}
+
+// If the latest build failed, backoff exponentially with the given interval.
+func TestLatestBuildFailed(t *testing.T) {
+	current := opts[optionSet0]
+	other := opts[optionSet1]
+
+	// GIVEN: two presets.
+	presets := []database.GetTemplatePresetsWithPrebuildsRow{
+		preset(true, 1, current),
+		preset(true, 1, other),
+	}
+
+	// GIVEN: running prebuilds only for one preset (the other will be failing, as evidenced by the backoffs below).
+	running := []database.GetRunningPrebuildsRow{
+		prebuild(other),
+	}
+
+	// GIVEN: NO prebuilds in progress.
+	var inProgress []database.GetPrebuildsInProgressRow
+
+	// GIVEN: a backoff entry.
+	lastBuildTime := time.Now()
+	numFailed := 1
+	backoffs := []database.GetPresetsBackoffRow{
+		{
+			TemplateVersionID: current.templateVersionID,
+			PresetID:          current.presetID,
+			LatestBuildStatus: database.ProvisionerJobStatusFailed,
+			NumFailed:         int32(numFailed),
+			LastBuildAt:       lastBuildTime,
+		},
+	}
+
+	// WHEN: calculating the current preset's state.
+	state := newReconciliationState(presets, running, inProgress, backoffs)
+	ps, err := state.filterByPreset(current.presetID)
+	require.NoError(t, err)
+
+	// THEN: reconciliation should backoff.
+	actions, err := ps.calculateActions(backoffInterval)
+	require.NoError(t, err)
+	validateActions(t, reconciliationActions{
+		actual: 0, desired: 1, backoffUntil: lastBuildTime.Add(time.Duration(numFailed) * backoffInterval),
+	}, *actions)
+
+	// WHEN: calculating the other preset's state.
+	ps, err = state.filterByPreset(other.presetID)
+	require.NoError(t, err)
+
+	// THEN: it should NOT be in backoff because all is OK.
+	actions, err = ps.calculateActions(backoffInterval)
+	require.NoError(t, err)
+	validateActions(t, reconciliationActions{
+		actual: 1, desired: 1, eligible: 1, backoffUntil: time.Time{},
 	}, *actions)
 }
 

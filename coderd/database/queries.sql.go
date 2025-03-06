@@ -5800,8 +5800,7 @@ FROM workspace_latest_build wlb
 		 INNER JOIN provisioner_jobs pj ON wlb.job_id = pj.id
 		 INNER JOIN workspace_prebuild_builds wpb ON wpb.id = wlb.id
 		 INNER JOIN templates t ON t.active_version_id = wlb.template_version_id
-WHERE wlb.transition = 'start'::workspace_transition
-	  AND pj.job_status IN ('pending'::provisioner_job_status, 'running'::provisioner_job_status)
+WHERE pj.job_status IN ('pending'::provisioner_job_status, 'running'::provisioner_job_status)
 GROUP BY t.id, wpb.template_version_id, wpb.transition
 `
 
@@ -5826,6 +5825,77 @@ func (q *sqlQuerier) GetPrebuildsInProgress(ctx context.Context) ([]GetPrebuilds
 			&i.TemplateVersionID,
 			&i.Transition,
 			&i.Count,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getPresetsBackoff = `-- name: GetPresetsBackoff :many
+WITH filtered_builds AS (
+    -- Only select builds which are for prebuild creations
+    SELECT wlb.id, wlb.created_at, wlb.updated_at, wlb.workspace_id, wlb.template_version_id, wlb.build_number, wlb.transition, wlb.initiator_id, wlb.provisioner_state, wlb.job_id, wlb.deadline, wlb.reason, wlb.daily_cost, wlb.max_deadline, wlb.template_version_preset_id, tvp.id AS preset_id, pj.job_status
+    FROM template_version_presets tvp
+             JOIN workspace_latest_build wlb ON wlb.template_version_preset_id = tvp.id
+             JOIN provisioner_jobs pj ON wlb.job_id = pj.id
+             JOIN template_versions tv ON wlb.template_version_id = tv.id
+             JOIN templates t ON tv.template_id = t.id AND t.active_version_id = tv.id
+             JOIN template_version_preset_prebuilds tvpp ON tvpp.preset_id = tvp.id
+    WHERE wlb.transition = 'start'::workspace_transition),
+     latest_builds AS (
+         -- Select only the latest build per template_version AND preset
+         SELECT fb.id, fb.created_at, fb.updated_at, fb.workspace_id, fb.template_version_id, fb.build_number, fb.transition, fb.initiator_id, fb.provisioner_state, fb.job_id, fb.deadline, fb.reason, fb.daily_cost, fb.max_deadline, fb.template_version_preset_id, fb.preset_id, fb.job_status,
+                ROW_NUMBER() OVER (PARTITION BY fb.template_version_preset_id ORDER BY fb.created_at DESC) as rn
+         FROM filtered_builds fb),
+     failed_count AS (
+         -- Count failed builds per template version/preset in the last hour
+         SELECT preset_id, COUNT(*) AS num_failed
+         FROM filtered_builds
+         WHERE job_status = 'failed'::provisioner_job_status
+           AND created_at >= NOW() - INTERVAL '1 hour'
+         GROUP BY preset_id)
+SELECT lb.template_version_id,
+       lb.preset_id,
+       lb.job_status                   AS latest_build_status,
+       COALESCE(fc.num_failed, 0)::int AS num_failed,
+       lb.created_at                   AS last_build_at
+FROM latest_builds lb
+         LEFT JOIN failed_count fc ON fc.preset_id = lb.preset_id
+WHERE lb.rn = 1
+  AND lb.job_status = 'failed'::provisioner_job_status
+`
+
+type GetPresetsBackoffRow struct {
+	TemplateVersionID uuid.UUID            `db:"template_version_id" json:"template_version_id"`
+	PresetID          uuid.UUID            `db:"preset_id" json:"preset_id"`
+	LatestBuildStatus ProvisionerJobStatus `db:"latest_build_status" json:"latest_build_status"`
+	NumFailed         int32                `db:"num_failed" json:"num_failed"`
+	LastBuildAt       time.Time            `db:"last_build_at" json:"last_build_at"`
+}
+
+func (q *sqlQuerier) GetPresetsBackoff(ctx context.Context) ([]GetPresetsBackoffRow, error) {
+	rows, err := q.db.QueryContext(ctx, getPresetsBackoff)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetPresetsBackoffRow
+	for rows.Next() {
+		var i GetPresetsBackoffRow
+		if err := rows.Scan(
+			&i.TemplateVersionID,
+			&i.PresetID,
+			&i.LatestBuildStatus,
+			&i.NumFailed,
+			&i.LastBuildAt,
 		); err != nil {
 			return nil, err
 		}

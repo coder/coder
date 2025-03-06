@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
@@ -297,7 +299,9 @@ func TestPrebuildReconciliation(t *testing.T) {
 						t.Parallel()
 						ctx := testutil.Context(t, testutil.WaitShort)
 						cfg := codersdk.PrebuildsConfig{}
-						logger := testutil.Logger(t)
+						logger := slogtest.Make(
+							t, &slogtest.Options{IgnoreErrors: true},
+						).Leveled(slog.LevelDebug)
 						db, pubsub := dbtestutil.NewDB(t)
 						controller := prebuilds.NewStoreReconciler(db, pubsub, cfg, logger)
 
@@ -339,8 +343,8 @@ func TestPrebuildReconciliation(t *testing.T) {
 
 						// Run the reconciliation multiple times to ensure idempotency
 						// 8 was arbitrary, but large enough to reasonably trust the result
-						for range 8 {
-							controller.ReconcileAll(ctx)
+						for i := 1; i <= 8; i++ {
+							require.NoErrorf(t, controller.ReconcileAll(ctx), "failed on iteration %d", i)
 
 							if tc.shouldCreateNewPrebuild != nil {
 								newPrebuildCount := 0

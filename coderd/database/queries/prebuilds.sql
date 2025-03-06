@@ -44,6 +44,39 @@ FROM workspace_latest_build wlb
 WHERE pj.job_status IN ('pending'::provisioner_job_status, 'running'::provisioner_job_status)
 GROUP BY t.id, wpb.template_version_id, wpb.transition;
 
+-- name: GetPresetsBackoff :many
+WITH filtered_builds AS (
+    -- Only select builds which are for prebuild creations
+    SELECT wlb.*, tvp.id AS preset_id, pj.job_status
+    FROM template_version_presets tvp
+             JOIN workspace_latest_build wlb ON wlb.template_version_preset_id = tvp.id
+             JOIN provisioner_jobs pj ON wlb.job_id = pj.id
+             JOIN template_versions tv ON wlb.template_version_id = tv.id
+             JOIN templates t ON tv.template_id = t.id AND t.active_version_id = tv.id
+             JOIN template_version_preset_prebuilds tvpp ON tvpp.preset_id = tvp.id
+    WHERE wlb.transition = 'start'::workspace_transition),
+     latest_builds AS (
+         -- Select only the latest build per template_version AND preset
+         SELECT fb.*,
+                ROW_NUMBER() OVER (PARTITION BY fb.template_version_preset_id ORDER BY fb.created_at DESC) as rn
+         FROM filtered_builds fb),
+     failed_count AS (
+         -- Count failed builds per template version/preset in the last hour
+         SELECT preset_id, COUNT(*) AS num_failed
+         FROM filtered_builds
+         WHERE job_status = 'failed'::provisioner_job_status
+           AND created_at >= NOW() - INTERVAL '1 hour'
+         GROUP BY preset_id)
+SELECT lb.template_version_id,
+       lb.preset_id,
+       lb.job_status                   AS latest_build_status,
+       COALESCE(fc.num_failed, 0)::int AS num_failed,
+       lb.created_at                   AS last_build_at
+FROM latest_builds lb
+         LEFT JOIN failed_count fc ON fc.preset_id = lb.preset_id
+WHERE lb.rn = 1
+  AND lb.job_status = 'failed'::provisioner_job_status;
+
 -- name: ClaimPrebuild :one
 -- TODO: rewrite to use named CTE instead?
 UPDATE workspaces w
