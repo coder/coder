@@ -3,7 +3,7 @@ import { checkAuthorization } from "api/queries/authCheck";
 import { template as templateQueryOptions } from "api/queries/templates";
 import { workspaceBuildsKey } from "api/queries/workspaceBuilds";
 import { workspaceByOwnerAndName } from "api/queries/workspaces";
-import type { Workspace } from "api/typesGenerated";
+import type { ServerSentEvent, Workspace } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
@@ -86,16 +86,20 @@ export const WorkspacePage: FC = () => {
 		const socket = watchWorkspace(workspaceId);
 		socket.addEventListener("message", (event) => {
 			try {
-				const newWorkspaceData = JSON.parse(event.data) as Workspace;
-				void updateWorkspaceData(newWorkspaceData);
+				const sse = JSON.parse(event.data);
+				if (sse.type === "data") {
+					updateWorkspaceData(sse.data as Workspace);
+				}
 			} catch {
 				displayError(
 					"Unable to parse latest data from the server. The UI may be out of date.",
 				);
 			}
 		});
-		socket.addEventListener("error", (event) => {
-			console.error("Error on getting workspace changes.", event);
+		socket.addEventListener("error", () => {
+			displayError(
+				"Unable to get workspace changes. Connection has been closed.",
+			);
 		});
 
 		return () => socket.close();

@@ -3,6 +3,7 @@ import Skeleton from "@mui/material/Skeleton";
 import Tooltip from "@mui/material/Tooltip";
 import { watchAgentMetadata } from "api/api";
 import type {
+	ServerSentEvent,
 	WorkspaceAgent,
 	WorkspaceAgentMetadata,
 } from "api/typesGenerated";
@@ -66,10 +67,11 @@ export const AgentMetadata: FC<AgentMetadataProps> = ({
 			latestSocket = socket;
 
 			socket.addEventListener("error", (e) => {
-				console.error("received error in watch stream", e);
+				console.error(
+					"Received error in watch stream. Creating new connection...",
+					e,
+				);
 				setMetadata(undefined);
-				socket.close();
-
 				timeoutId = window.setTimeout(() => {
 					createNewConnection();
 				}, 3_000);
@@ -77,8 +79,10 @@ export const AgentMetadata: FC<AgentMetadataProps> = ({
 
 			socket.addEventListener("message", (e) => {
 				try {
-					const data = JSON.parse(e.data);
-					setMetadata(data);
+					const sse = JSON.parse(e.data);
+					if (sse.type === "data") {
+						setMetadata(sse.data as WorkspaceAgentMetadata[]);
+					}
 				} catch {
 					displayError(
 						"Unable to process newest response from server. The UI may be out of date.",
