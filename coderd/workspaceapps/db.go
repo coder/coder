@@ -467,12 +467,13 @@ func (p *DBTokenProvider) auditInitAutocommitRequest(ctx context.Context, w http
 			}
 
 			sessionID, err = tx.InsertWorkspaceAppAuditSession(dangerousSystemCtx, database.InsertWorkspaceAppAuditSessionParams{
-				AgentID:   aReq.dbReq.Agent.ID,
-				AppID:     uuid.NullUUID{Valid: aReq.dbReq.App.ID != uuid.Nil, UUID: aReq.dbReq.App.ID},
-				UserID:    userID,
-				Ip:        aReq.ip,
-				StartedAt: aReq.time,
-				UpdatedAt: aReq.time,
+				AgentID:    aReq.dbReq.Agent.ID,
+				AppID:      uuid.NullUUID{Valid: aReq.dbReq.App.ID != uuid.Nil, UUID: aReq.dbReq.App.ID},
+				UserID:     userID,
+				Ip:         aReq.ip,
+				SlugOrPort: appInfo.SlugOrPort,
+				StartedAt:  aReq.time,
+				UpdatedAt:  aReq.time,
 			})
 			if err != nil {
 				return xerrors.Errorf("insert workspace app audit session: %w", err)

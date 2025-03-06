@@ -1763,7 +1763,7 @@ CREATE UNLOGGED TABLE workspace_app_audit_sessions (
     agent_id uuid NOT NULL,
     app_id uuid,
     user_id uuid,
-    ip inet NOT NULL,
+    ip inet,
     slug_or_port text NOT NULL,
     started_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL

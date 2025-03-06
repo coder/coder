@@ -3,7 +3,7 @@ CREATE UNLOGGED TABLE workspace_app_audit_sessions (
 	agent_id UUID NOT NULL,
 	app_id UUID NULL,
 	user_id UUID NULL,
-	ip inet NOT NULL,
+	ip inet NULL,
 	slug_or_port TEXT NOT NULL,
 	started_at TIMESTAMP WITH TIME ZONE NOT NULL,
 	updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
