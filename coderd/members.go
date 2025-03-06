@@ -178,6 +178,19 @@ func (api *API) listMembers(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
+// @Summary Paginated organization members
+// @ID paginated-organization-members
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Members
+// @Param organization path string true "Organization ID"
+// @Success 200 {object} []codersdk.OrganizationMemberWithUserData
+// @Router /organizations/{organization}/paginated-members [get]
+func (api *API) paginatedMembers(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	httpapi.Write(ctx, rw, http.StatusNotImplemented, nil)
+}
+
 // @Summary Assign role to organization member
 // @ID assign-role-to-organization-member
 // @Security CoderSessionToken
