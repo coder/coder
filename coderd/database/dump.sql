@@ -1763,7 +1763,8 @@ CREATE UNLOGGED TABLE workspace_app_audit_sessions (
     agent_id uuid NOT NULL,
     app_id uuid,
     user_id uuid,
-    ip inet,
+    ip inet NOT NULL,
+    slug_or_port text NOT NULL,
     started_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL
 );
@@ -1779,6 +1780,8 @@ COMMENT ON COLUMN workspace_app_audit_sessions.app_id IS 'The app that is curren
 COMMENT ON COLUMN workspace_app_audit_sessions.user_id IS 'The user that is currently using the workspace app. This is nullable because the app may be ';
 
 COMMENT ON COLUMN workspace_app_audit_sessions.ip IS 'The IP address of the user that is currently using the workspace app.';
+
+COMMENT ON COLUMN workspace_app_audit_sessions.slug_or_port IS 'The slug or port of the workspace app that the user is currently using.';
 
 COMMENT ON COLUMN workspace_app_audit_sessions.started_at IS 'The time the user started the session.';
 
@@ -2411,9 +2414,9 @@ CREATE INDEX workspace_agents_auth_token_idx ON workspace_agents USING btree (au
 
 CREATE INDEX workspace_agents_resource_id_idx ON workspace_agents USING btree (resource_id);
 
-CREATE INDEX workspace_app_audit_sessions_agent_id_app_id ON workspace_app_audit_sessions USING btree (agent_id, app_id);
+CREATE INDEX workspace_app_audit_sessions_agent_id_app_id_slug_or_port ON workspace_app_audit_sessions USING btree (agent_id, app_id, slug_or_port);
 
-COMMENT ON INDEX workspace_app_audit_sessions_agent_id_app_id IS 'Index for the agent_id and app_id columns to perform updates.';
+COMMENT ON INDEX workspace_app_audit_sessions_agent_id_app_id_slug_or_port IS 'Index for the agent_id and app_id columns to perform updates.';
 
 CREATE INDEX workspace_app_stats_workspace_id_idx ON workspace_app_stats USING btree (workspace_id);
 

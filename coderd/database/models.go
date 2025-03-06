@@ -3446,6 +3446,8 @@ type WorkspaceAppAuditSession struct {
 	UserID uuid.NullUUID `db:"user_id" json:"user_id"`
 	// The IP address of the user that is currently using the workspace app.
 	Ip pqtype.Inet `db:"ip" json:"ip"`
+	// The slug or port of the workspace app that the user is currently using.
+	SlugOrPort string `db:"slug_or_port" json:"slug_or_port"`
 	// The time the user started the session.
 	StartedAt time.Time `db:"started_at" json:"started_at"`
 	// The time the session was last updated.

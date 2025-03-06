@@ -14567,6 +14567,7 @@ INSERT INTO
 		app_id,
 		user_id,
 		ip,
+		slug_or_port,
 		started_at,
 		updated_at
 	)
@@ -14577,19 +14578,21 @@ VALUES
 		$3,
 		$4,
 		$5,
-		$6
+		$6,
+		$7
 	)
 RETURNING
 	id
 `
 
 type InsertWorkspaceAppAuditSessionParams struct {
-	AgentID   uuid.UUID     `db:"agent_id" json:"agent_id"`
-	AppID     uuid.NullUUID `db:"app_id" json:"app_id"`
-	UserID    uuid.NullUUID `db:"user_id" json:"user_id"`
-	Ip        pqtype.Inet   `db:"ip" json:"ip"`
-	StartedAt time.Time     `db:"started_at" json:"started_at"`
-	UpdatedAt time.Time     `db:"updated_at" json:"updated_at"`
+	AgentID    uuid.UUID     `db:"agent_id" json:"agent_id"`
+	AppID      uuid.NullUUID `db:"app_id" json:"app_id"`
+	UserID     uuid.NullUUID `db:"user_id" json:"user_id"`
+	Ip         pqtype.Inet   `db:"ip" json:"ip"`
+	SlugOrPort string        `db:"slug_or_port" json:"slug_or_port"`
+	StartedAt  time.Time     `db:"started_at" json:"started_at"`
+	UpdatedAt  time.Time     `db:"updated_at" json:"updated_at"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceAppAuditSession(ctx context.Context, arg InsertWorkspaceAppAuditSessionParams) (uuid.UUID, error) {
@@ -14598,6 +14601,7 @@ func (q *sqlQuerier) InsertWorkspaceAppAuditSession(ctx context.Context, arg Ins
 		arg.AppID,
 		arg.UserID,
 		arg.Ip,
+		arg.SlugOrPort,
 		arg.StartedAt,
 		arg.UpdatedAt,
 	)
@@ -14616,7 +14620,8 @@ WHERE
 	AND app_id IS NOT DISTINCT FROM $3
 	AND user_id IS NOT DISTINCT FROM $4
 	AND ip IS NOT DISTINCT FROM $5
-	AND updated_at > NOW() - ($6::bigint || ' ms')::interval
+	AND slug_or_port = $6
+	AND updated_at > NOW() - ($7::bigint || ' ms')::interval
 RETURNING
 	id
 `
@@ -14627,6 +14632,7 @@ type UpdateWorkspaceAppAuditSessionParams struct {
 	AppID           uuid.NullUUID `db:"app_id" json:"app_id"`
 	UserID          uuid.NullUUID `db:"user_id" json:"user_id"`
 	Ip              pqtype.Inet   `db:"ip" json:"ip"`
+	SlugOrPort      string        `db:"slug_or_port" json:"slug_or_port"`
 	StaleIntervalMS int64         `db:"stale_interval_ms" json:"stale_interval_ms"`
 }
 
@@ -14639,6 +14645,7 @@ func (q *sqlQuerier) UpdateWorkspaceAppAuditSession(ctx context.Context, arg Upd
 		arg.AppID,
 		arg.UserID,
 		arg.Ip,
+		arg.SlugOrPort,
 		arg.StaleIntervalMS,
 	)
 	if err != nil {
