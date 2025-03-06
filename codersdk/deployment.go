@@ -2539,7 +2539,6 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Value:       &c.SSHConfig.DeploymentName,
 			Hidden:      false,
 			Default:     "coder.",
-			Deprecated:  true,
 		},
 		{
 			Name:        "SSH Host Suffix",

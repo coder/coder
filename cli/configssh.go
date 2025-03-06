@@ -554,7 +554,6 @@ func (r *RootCmd) configSSH() *serpent.Command {
 			Env:         "CODER_CONFIGSSH_SSH_HOST_PREFIX",
 			Description: "Override the default host prefix.\nDEPRECATED: Use --ssh-hostname-suffix instead.",
 			Value:       serpent.StringOf(&sshConfigOpts.userHostPrefix),
-			Deprecated:  true,
 		},
 		{
 			Flag:        "ssh-hostname-suffix",

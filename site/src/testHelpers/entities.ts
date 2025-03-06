@@ -3015,6 +3015,7 @@ export const MockDeploymentStats: TypesGen.DeploymentStats = {
 
 export const MockDeploymentSSH: TypesGen.SSHConfigResponse = {
 	hostname_prefix: " coder.",
+	hostname_suffix: "coder",
 	ssh_config_options: {},
 };
 

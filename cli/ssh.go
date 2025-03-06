@@ -575,7 +575,6 @@ func (r *RootCmd) ssh() *serpent.Command {
 			Env:         "CODER_SSH_SSH_HOST_PREFIX",
 			Description: "Strip this prefix from the provided hostname to determine the workspace name.\nDEPRECATED: Use --ssh-hostname-suffix instead.",
 			Value:       serpent.StringOf(&hostPrefix),
-			Deprecated:  true,
 		},
 		{
 			Flag:        "ssh-hostname-suffix",
