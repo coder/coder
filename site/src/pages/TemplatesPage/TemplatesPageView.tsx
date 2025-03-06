@@ -48,7 +48,6 @@ import {
 	formatTemplateActiveDevelopers,
 	formatTemplateBuildTime,
 } from "utils/templates";
-import { CreateTemplateButton } from "./CreateTemplateButton";
 import { EmptyTemplates } from "./EmptyTemplates";
 import { TemplatesFilter } from "./TemplatesFilter";
 
@@ -95,7 +94,6 @@ const TemplateRow: FC<TemplateRowProps> = ({ showOrganizations, template }) => {
 	const templatePageLink = getLink(
 		linkToTemplate(template.organization_name, template.name),
 	);
-	const hasIcon = template.icon && template.icon !== "";
 	const navigate = useNavigate();
 
 	const { css: clickableCss, ...clickableRow } = useClickableTableRow({
@@ -193,17 +191,14 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 }) => {
 	const isLoading = !templates;
 	const isEmpty = templates && templates.length === 0;
-	const navigate = useNavigate();
 
-	const createTemplateAction = showOrganizations ? (
+	const createTemplateAction = (
 		<Button asChild size="lg">
 			<Link to="/starter-templates">
 				<PlusIcon />
 				New template
 			</Link>
 		</Button>
-	) : (
-		<CreateTemplateButton onNavigate={navigate} />
 	);
 
 	return (
