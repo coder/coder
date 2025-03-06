@@ -436,7 +436,9 @@ func OneWayWebSocket[JsonSerializable any](rw http.ResponseWriter, r *http.Reque
 		for {
 			select {
 			case event := <-eventC:
-				err := wsjson.Write(ctx, socket, event)
+				writeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+				err := wsjson.Write(writeCtx, socket, event)
+				cancel()
 				if err == nil {
 					continue
 				}
