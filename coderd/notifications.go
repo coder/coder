@@ -2,8 +2,11 @@ package coderd
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
+	"slices"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -15,10 +18,109 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/wsjson"
+	"github.com/coder/websocket"
 )
+
+// watchNotifications watches for new notifications and sends them to the client.
+// The client can specify a list of target IDs to filter the notifications.
+// @Summary Watch for new notifications
+// @ID watch-notifications
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Notifications
+// @Param targets query string false "Comma-separated list of target IDs to filter notifications"
+// @Success 200 {object} codersdk.InboxNotification
+// @Router /notifications/watch [get]
+func (api *API) watchNotifications(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var (
+		apikey       = httpmw.APIKey(r)
+		targetsParam = r.URL.Query().Get("targets")
+	)
+
+	var targets []uuid.UUID
+	if targetsParam != "" {
+		splitTargets := strings.Split(targetsParam, ",")
+		for _, target := range splitTargets {
+			id, err := uuid.Parse(target)
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Invalid target ID.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+			targets = append(targets, id)
+		}
+	}
+
+	// get the workspace query param if any
+	// get the template in params if any
+
+	conn, err := websocket.Accept(rw, r, nil)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to upgrade connection to websocket.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	go httpapi.Heartbeat(ctx, conn)
+	defer conn.Close(websocket.StatusNormalClosure, "connection closed")
+
+	notificationCh := make(chan codersdk.InboxNotification, 1)
+
+	closeInboxNotificationsSubscriber, err := api.Pubsub.SubscribeWithErr(pubsub.InboxNotificationForOwnerEventChannel(apikey.UserID),
+		pubsub.HandleInboxNotificationEvent(
+			func(ctx context.Context, payload pubsub.InboxNotificationEvent, err error) {
+				if err != nil {
+					api.Logger.Error(ctx, "inbox notification event", slog.Error(err))
+					return
+				}
+
+				// filter out notifications that don't match the targets
+				if len(targets) > 0 {
+					for _, target := range targets {
+						if isFound := slices.Contains(payload.InboxNotification.Targets, target); !isFound {
+							return
+						}
+					}
+				}
+
+				notificationCh <- payload.InboxNotification
+			},
+		))
+	if err != nil {
+		api.Logger.Error(ctx, "subscribe to inbox notification event", slog.Error(err))
+		return
+	}
+
+	defer closeInboxNotificationsSubscriber()
+
+	encoder := wsjson.NewEncoder[codersdk.InboxNotification](conn, websocket.MessageText)
+	defer encoder.Close(websocket.StatusNormalClosure)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case notif := <-notificationCh:
+			api.Logger.Info(ctx, "sending notifications")
+			if err := encoder.Encode(notif); err != nil {
+				api.Logger.Error(ctx, "encode notification", slog.Error(err))
+				return
+			}
+			api.Logger.Info(ctx, "sent notifications")
+		}
+	}
+}
 
 // @Summary Get notifications settings
 // @ID get-notifications-settings

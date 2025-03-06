@@ -202,6 +202,59 @@ curl -X POST http://coder-server:8080/api/v2/notifications/test \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Watch for new notifications
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/notifications/watch \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /notifications/watch`
+
+### Parameters
+
+| Name      | In    | Type   | Required | Description                                                |
+|-----------|-------|--------|----------|------------------------------------------------------------|
+| `targets` | query | string | false    | Comma-separated list of target IDs to filter notifications |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "actions": [
+    {
+      "label": "string",
+      "url": "string"
+    }
+  ],
+  "content": "string",
+  "created_at": "2019-08-24T14:15:22Z",
+  "icon": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "read_at": "string",
+  "targets": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ],
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+  "title": "string",
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                             |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.InboxNotification](schemas.md#codersdkinboxnotification) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get user notification preferences
 
 ### Code samples
