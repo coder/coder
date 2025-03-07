@@ -99,10 +99,7 @@ const CreateWorkspacePage = lazy(
 	() => import("./pages/CreateWorkspacePage/CreateWorkspacePage"),
 );
 const OverviewPage = lazy(
-	() =>
-		import(
-			"./pages/DeploymentSettingsPage/OverviewPage/OverviewPage"
-		),
+	() => import("./pages/DeploymentSettingsPage/OverviewPage/OverviewPage"),
 );
 const SecuritySettingsPage = lazy(
 	() =>
