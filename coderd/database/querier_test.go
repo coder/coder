@@ -2166,224 +2166,334 @@ func TestExpectOne(t *testing.T) {
 	})
 }
 
+// defaultQueuePositionTestCases contains shared test cases used across multiple tests.
+var defaultQueuePositionTestCases = []struct {
+	name           string
+	jobTags        []database.StringMap
+	daemonTags     []database.StringMap
+	queueSizes     []int64
+	queuePositions []int64
+	// GetProvisionerJobsByIDsWithQueuePosition takes jobIDs as a parameter.
+	// If skipJobIDs is empty, all jobs are passed to the function; otherwise, the specified jobs are skipped.
+	// NOTE: Skipping job IDs means they will be excluded from the result,
+	// but this should not affect the queue position or queue size of other jobs.
+	skipJobIDs map[int]struct{}
+}{
+	// Baseline test case
+	{
+		name: "test-case-1",
+		jobTags: []database.StringMap{
+			{"a": "1", "b": "2"},
+			{"a": "1"},
+			{"a": "1", "c": "3"},
+		},
+		daemonTags: []database.StringMap{
+			{"a": "1", "b": "2"},
+			{"a": "1"},
+		},
+		queueSizes:     []int64{0, 2, 2},
+		queuePositions: []int64{0, 1, 1},
+	},
+	// Includes an additional provisioner
+	{
+		name: "test-case-2",
+		jobTags: []database.StringMap{
+			{"a": "1", "b": "2"},
+			{"a": "1"},
+			{"a": "1", "c": "3"},
+		},
+		daemonTags: []database.StringMap{
+			{"a": "1", "b": "2"},
+			{"a": "1"},
+			{"a": "1", "b": "2", "c": "3"},
+		},
+		queueSizes:     []int64{3, 3, 3},
+		queuePositions: []int64{3, 1, 1},
+	},
+	// Skips job at index 0
+	{
+		name: "test-case-3",
+		jobTags: []database.StringMap{
+			{"a": "1", "b": "2"},
+			{"a": "1"},
+			{"a": "1", "c": "3"},
+		},
+		daemonTags: []database.StringMap{
+			{"a": "1", "b": "2"},
+			{"a": "1"},
+			{"a": "1", "b": "2", "c": "3"},
+		},
+		queueSizes:     []int64{3, 3},
+		queuePositions: []int64{3, 1},
+		skipJobIDs: map[int]struct{}{
+			0: {},
+		},
+	},
+	// Skips job at index 1
+	{
+		name: "test-case-4",
+		jobTags: []database.StringMap{
+			{"a": "1", "b": "2"},
+			{"a": "1"},
+			{"a": "1", "c": "3"},
+		},
+		daemonTags: []database.StringMap{
+			{"a": "1", "b": "2"},
+			{"a": "1"},
+			{"a": "1", "b": "2", "c": "3"},
+		},
+		queueSizes:     []int64{3, 3},
+		queuePositions: []int64{3, 1},
+		skipJobIDs: map[int]struct{}{
+			1: {},
+		},
+	},
+	// Skips job at index 2
+	{
+		name: "test-case-5",
+		jobTags: []database.StringMap{
+			{"a": "1", "b": "2"},
+			{"a": "1"},
+			{"a": "1", "c": "3"},
+		},
+		daemonTags: []database.StringMap{
+			{"a": "1", "b": "2"},
+			{"a": "1"},
+			{"a": "1", "b": "2", "c": "3"},
+		},
+		queueSizes:     []int64{3, 3},
+		queuePositions: []int64{1, 1},
+		skipJobIDs: map[int]struct{}{
+			2: {},
+		},
+	},
+	// Skips jobs at indexes 0 and 2
+	{
+		name: "test-case-6",
+		jobTags: []database.StringMap{
+			{"a": "1", "b": "2"},
+			{"a": "1"},
+			{"a": "1", "c": "3"},
+		},
+		daemonTags: []database.StringMap{
+			{"a": "1", "b": "2"},
+			{"a": "1"},
+			{"a": "1", "b": "2", "c": "3"},
+		},
+		queueSizes:     []int64{3},
+		queuePositions: []int64{1},
+		skipJobIDs: map[int]struct{}{
+			0: {},
+			2: {},
+		},
+	},
+	// Includes two additional jobs that any provisioner can execute.
+	{
+		name: "test-case-7",
+		jobTags: []database.StringMap{
+			{},
+			{},
+			{"a": "1", "b": "2"},
+			{"a": "1"},
+			{"a": "1", "c": "3"},
+		},
+		daemonTags: []database.StringMap{
+			{"a": "1", "b": "2"},
+			{"a": "1"},
+			{"a": "1", "b": "2", "c": "3"},
+		},
+		queueSizes:     []int64{5, 5, 5, 5, 5},
+		queuePositions: []int64{5, 3, 3, 2, 1},
+	},
+	// Includes two additional jobs that any provisioner can execute, but they are intentionally skipped.
+	{
+		name: "test-case-8",
+		jobTags: []database.StringMap{
+			{},
+			{},
+			{"a": "1", "b": "2"},
+			{"a": "1"},
+			{"a": "1", "c": "3"},
+		},
+		daemonTags: []database.StringMap{
+			{"a": "1", "b": "2"},
+			{"a": "1"},
+			{"a": "1", "b": "2", "c": "3"},
+		},
+		queueSizes:     []int64{5, 5, 5},
+		queuePositions: []int64{5, 3, 3},
+		skipJobIDs: map[int]struct{}{
+			0: {},
+			1: {},
+		},
+	},
+	// N jobs (1 job with 0 tags) & 0 provisioners exist
+	{
+		name: "test-case-9",
+		jobTags: []database.StringMap{
+			{},
+			{"a": "1"},
+			{"b": "2"},
+		},
+		daemonTags:     []database.StringMap{},
+		queueSizes:     []int64{0, 0, 0},
+		queuePositions: []int64{0, 0, 0},
+	},
+	// N jobs (1 job with 0 tags) & N provisioners
+	{
+		name: "test-case-10",
+		jobTags: []database.StringMap{
+			{},
+			{"a": "1"},
+			{"b": "2"},
+		},
+		daemonTags: []database.StringMap{
+			{},
+			{"a": "1"},
+			{"b": "2"},
+		},
+		queueSizes:     []int64{2, 2, 2},
+		queuePositions: []int64{2, 2, 1},
+	},
+	// (N + 1) jobs (1 job with 0 tags) & N provisioners
+	// 1 job not matching any provisioner (first in the list)
+	{
+		name: "test-case-11",
+		jobTags: []database.StringMap{
+			{"c": "3"},
+			{},
+			{"a": "1"},
+			{"b": "2"},
+		},
+		daemonTags: []database.StringMap{
+			{},
+			{"a": "1"},
+			{"b": "2"},
+		},
+		queueSizes:     []int64{2, 2, 2, 0},
+		queuePositions: []int64{2, 2, 1, 0},
+	},
+	// 0 jobs & 0 provisioners
+	{
+		name:           "test-case-12",
+		jobTags:        []database.StringMap{},
+		daemonTags:     []database.StringMap{},
+		queueSizes:     nil, // TODO(yevhenii): should it be empty array instead?
+		queuePositions: nil,
+	},
+}
+
+func TestGetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(t *testing.T) {
+	t.Parallel()
+
+	testCases := defaultQueuePositionTestCases
+
+	for _, tc := range testCases {
+		tc := tc // Capture loop variable to avoid data races
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			db, _ := dbtestutil.NewDB(t)
+			now := dbtime.Now()
+			ctx := testutil.Context(t, testutil.WaitShort)
+
+			defaultOrg, err := db.GetDefaultOrganization(ctx)
+			require.NoError(t, err)
+			defaultOrgID := defaultOrg.ID
+
+			// Create provisioner jobs based on provided tags:
+			allJobs := make([]database.ProvisionerJob, len(tc.jobTags))
+			// daemonOrgIDs := make([]uuid.UUID, len(tc.daemonTags))
+			for idx, tags := range tc.jobTags {
+				// Make sure jobs are stored in correct order, first job should have the earliest createdAt timestamp.
+				// Example for 3 jobs:
+				// job_1 createdAt: now - 3 minutes
+				// job_2 createdAt: now - 2 minutes
+				// job_3 createdAt: now - 1 minute
+				timeOffsetInMinutes := len(tc.jobTags) - idx
+				timeOffset := time.Duration(timeOffsetInMinutes) * time.Minute
+				createdAt := now.Add(-timeOffset)
+
+				allJobs[idx] = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+					CreatedAt: createdAt,
+					Tags:      tags,
+				})
+
+				// Ensure that all jobs and daemons share the same OrganizationID
+				require.Equal(t, defaultOrgID, allJobs[idx].OrganizationID, "all jobs and daemons should be associated with the same organization")
+			}
+
+			// Create provisioner daemons based on provided tags:
+			for idx, tags := range tc.daemonTags {
+				daemon := dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+					Name:         fmt.Sprintf("prov_%v", idx),
+					Provisioners: []database.ProvisionerType{database.ProvisionerTypeEcho},
+					Tags:         tags,
+				})
+
+				// Ensure that all jobs and daemons share the same OrganizationID
+				require.Equal(t, defaultOrgID, daemon.OrganizationID, "all jobs and daemons should be associated with the same organization")
+			}
+
+			// Assert invariant: the jobs are in pending status
+			for idx, job := range allJobs {
+				require.Equal(t, database.ProvisionerJobStatusPending, job.JobStatus, "expected job %d to have status %s", idx, database.ProvisionerJobStatusPending)
+			}
+
+			filteredJobs := make([]database.ProvisionerJob, 0)
+			filteredJobIDs := make([]uuid.UUID, 0)
+			for idx, job := range allJobs {
+				if _, skip := tc.skipJobIDs[idx]; skip {
+					continue
+				}
+
+				filteredJobs = append(filteredJobs, job)
+				filteredJobIDs = append(filteredJobIDs, job.ID)
+			}
+
+			// When: we fetch the jobs by their IDs
+			req := database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams{
+				OrganizationID: defaultOrgID,
+				IDs:            filteredJobIDs,
+				// TODO: extend tests with different statuses, tags, limits, etc.?
+			}
+			actualJobs, err := db.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(
+				ctx,
+				req,
+			)
+			require.NoError(t, err)
+			require.Len(t, actualJobs, len(filteredJobs), "should return all unskipped jobs: %v", defaultOrgID)
+
+			// Then: the jobs should be returned in the correct order (sorted by createdAt in descending order)
+			sort.Slice(filteredJobs, func(i, j int) bool {
+				return filteredJobs[i].CreatedAt.After(filteredJobs[j].CreatedAt)
+			})
+
+			for idx, job := range actualJobs {
+				assert.EqualValues(t, filteredJobs[idx], job.ProvisionerJob)
+				// TODO: Verify the AvailableWorkers field and potentially other fields.
+			}
+
+			// Then: the queue size should be set correctly
+			var queueSizes []int64
+			for _, job := range actualJobs {
+				queueSizes = append(queueSizes, job.QueueSize)
+			}
+			assert.EqualValues(t, tc.queueSizes, queueSizes, "expected queue positions to be set correctly")
+
+			// Then: the queue position should be set correctly:
+			var queuePositions []int64
+			for _, job := range actualJobs {
+				queuePositions = append(queuePositions, job.QueuePosition)
+			}
+			assert.EqualValues(t, tc.queuePositions, queuePositions, "expected queue positions to be set correctly")
+		})
+	}
+}
+
 func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
-		name           string
-		jobTags        []database.StringMap
-		daemonTags     []database.StringMap
-		queueSizes     []int64
-		queuePositions []int64
-		// GetProvisionerJobsByIDsWithQueuePosition takes jobIDs as a parameter.
-		// If skipJobIDs is empty, all jobs are passed to the function; otherwise, the specified jobs are skipped.
-		// NOTE: Skipping job IDs means they will be excluded from the result,
-		// but this should not affect the queue position or queue size of other jobs.
-		skipJobIDs map[int]struct{}
-	}{
-		// Baseline test case
-		{
-			name: "test-case-1",
-			jobTags: []database.StringMap{
-				{"a": "1", "b": "2"},
-				{"a": "1"},
-				{"a": "1", "c": "3"},
-			},
-			daemonTags: []database.StringMap{
-				{"a": "1", "b": "2"},
-				{"a": "1"},
-			},
-			queueSizes:     []int64{2, 2, 0},
-			queuePositions: []int64{1, 1, 0},
-		},
-		// Includes an additional provisioner
-		{
-			name: "test-case-2",
-			jobTags: []database.StringMap{
-				{"a": "1", "b": "2"},
-				{"a": "1"},
-				{"a": "1", "c": "3"},
-			},
-			daemonTags: []database.StringMap{
-				{"a": "1", "b": "2"},
-				{"a": "1"},
-				{"a": "1", "b": "2", "c": "3"},
-			},
-			queueSizes:     []int64{3, 3, 3},
-			queuePositions: []int64{1, 1, 3},
-		},
-		// Skips job at index 0
-		{
-			name: "test-case-3",
-			jobTags: []database.StringMap{
-				{"a": "1", "b": "2"},
-				{"a": "1"},
-				{"a": "1", "c": "3"},
-			},
-			daemonTags: []database.StringMap{
-				{"a": "1", "b": "2"},
-				{"a": "1"},
-				{"a": "1", "b": "2", "c": "3"},
-			},
-			queueSizes:     []int64{3, 3},
-			queuePositions: []int64{1, 3},
-			skipJobIDs: map[int]struct{}{
-				0: {},
-			},
-		},
-		// Skips job at index 1
-		{
-			name: "test-case-4",
-			jobTags: []database.StringMap{
-				{"a": "1", "b": "2"},
-				{"a": "1"},
-				{"a": "1", "c": "3"},
-			},
-			daemonTags: []database.StringMap{
-				{"a": "1", "b": "2"},
-				{"a": "1"},
-				{"a": "1", "b": "2", "c": "3"},
-			},
-			queueSizes:     []int64{3, 3},
-			queuePositions: []int64{1, 3},
-			skipJobIDs: map[int]struct{}{
-				1: {},
-			},
-		},
-		// Skips job at index 2
-		{
-			name: "test-case-5",
-			jobTags: []database.StringMap{
-				{"a": "1", "b": "2"},
-				{"a": "1"},
-				{"a": "1", "c": "3"},
-			},
-			daemonTags: []database.StringMap{
-				{"a": "1", "b": "2"},
-				{"a": "1"},
-				{"a": "1", "b": "2", "c": "3"},
-			},
-			queueSizes:     []int64{3, 3},
-			queuePositions: []int64{1, 1},
-			skipJobIDs: map[int]struct{}{
-				2: {},
-			},
-		},
-		// Skips jobs at indexes 0 and 2
-		{
-			name: "test-case-6",
-			jobTags: []database.StringMap{
-				{"a": "1", "b": "2"},
-				{"a": "1"},
-				{"a": "1", "c": "3"},
-			},
-			daemonTags: []database.StringMap{
-				{"a": "1", "b": "2"},
-				{"a": "1"},
-				{"a": "1", "b": "2", "c": "3"},
-			},
-			queueSizes:     []int64{3},
-			queuePositions: []int64{1},
-			skipJobIDs: map[int]struct{}{
-				0: {},
-				2: {},
-			},
-		},
-		// Includes two additional jobs that any provisioner can execute.
-		{
-			name: "test-case-7",
-			jobTags: []database.StringMap{
-				{},
-				{},
-				{"a": "1", "b": "2"},
-				{"a": "1"},
-				{"a": "1", "c": "3"},
-			},
-			daemonTags: []database.StringMap{
-				{"a": "1", "b": "2"},
-				{"a": "1"},
-				{"a": "1", "b": "2", "c": "3"},
-			},
-			queueSizes:     []int64{5, 5, 5, 5, 5},
-			queuePositions: []int64{1, 2, 3, 3, 5},
-		},
-		// Includes two additional jobs that any provisioner can execute, but they are intentionally skipped.
-		{
-			name: "test-case-8",
-			jobTags: []database.StringMap{
-				{},
-				{},
-				{"a": "1", "b": "2"},
-				{"a": "1"},
-				{"a": "1", "c": "3"},
-			},
-			daemonTags: []database.StringMap{
-				{"a": "1", "b": "2"},
-				{"a": "1"},
-				{"a": "1", "b": "2", "c": "3"},
-			},
-			queueSizes:     []int64{5, 5, 5},
-			queuePositions: []int64{3, 3, 5},
-			skipJobIDs: map[int]struct{}{
-				0: {},
-				1: {},
-			},
-		},
-		// N jobs (1 job with 0 tags) & 0 provisioners exist
-		{
-			name: "test-case-9",
-			jobTags: []database.StringMap{
-				{},
-				{"a": "1"},
-				{"b": "2"},
-			},
-			daemonTags:     []database.StringMap{},
-			queueSizes:     []int64{0, 0, 0},
-			queuePositions: []int64{0, 0, 0},
-		},
-		// N jobs (1 job with 0 tags) & N provisioners
-		{
-			name: "test-case-10",
-			jobTags: []database.StringMap{
-				{},
-				{"a": "1"},
-				{"b": "2"},
-			},
-			daemonTags: []database.StringMap{
-				{},
-				{"a": "1"},
-				{"b": "2"},
-			},
-			queueSizes:     []int64{2, 2, 2},
-			queuePositions: []int64{1, 2, 2},
-		},
-		// (N + 1) jobs (1 job with 0 tags) & N provisioners
-		// 1 job not matching any provisioner (first in the list)
-		{
-			name: "test-case-11",
-			jobTags: []database.StringMap{
-				{"c": "3"},
-				{},
-				{"a": "1"},
-				{"b": "2"},
-			},
-			daemonTags: []database.StringMap{
-				{},
-				{"a": "1"},
-				{"b": "2"},
-			},
-			queueSizes:     []int64{0, 2, 2, 2},
-			queuePositions: []int64{0, 1, 2, 2},
-		},
-		// 0 jobs & 0 provisioners
-		{
-			name:           "test-case-12",
-			jobTags:        []database.StringMap{},
-			daemonTags:     []database.StringMap{},
-			queueSizes:     nil, // TODO(yevhenii): should it be empty array instead?
-			queuePositions: nil,
-		},
-	}
+	testCases := defaultQueuePositionTestCases
 
 	for _, tc := range testCases {
 		tc := tc // Capture loop variable to avoid data races
@@ -2443,7 +2553,7 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 
 			// Then: the jobs should be returned in the correct order (sorted by createdAt)
 			sort.Slice(filteredJobs, func(i, j int) bool {
-				return filteredJobs[i].CreatedAt.Before(filteredJobs[j].CreatedAt)
+				return filteredJobs[i].CreatedAt.After(filteredJobs[j].CreatedAt)
 			})
 			for idx, job := range actualJobs {
 				assert.EqualValues(t, filteredJobs[idx], job.ProvisionerJob)
@@ -2586,7 +2696,7 @@ func TestGetProvisionerJobsByIDsWithQueuePosition_MixedStatuses(t *testing.T) {
 
 	// Then: the jobs should be returned in the correct order (sorted by createdAt)
 	sort.Slice(allJobs, func(i, j int) bool {
-		return allJobs[i].CreatedAt.Before(allJobs[j].CreatedAt)
+		return allJobs[i].CreatedAt.After(allJobs[j].CreatedAt)
 	})
 	for idx, job := range actualJobs {
 		assert.EqualValues(t, allJobs[idx], job.ProvisionerJob)
@@ -2597,14 +2707,14 @@ func TestGetProvisionerJobsByIDsWithQueuePosition_MixedStatuses(t *testing.T) {
 	for _, job := range actualJobs {
 		queueSizes = append(queueSizes, job.QueueSize)
 	}
-	assert.EqualValues(t, []int64{0, 0, 0, 0, 0, 2, 2}, queueSizes, "expected queue positions to be set correctly")
+	assert.EqualValues(t, []int64{2, 2, 0, 0, 0, 0, 0}, queueSizes, "expected queue positions to be set correctly")
 
 	// Then: the queue position should be set correctly:
 	var queuePositions []int64
 	for _, job := range actualJobs {
 		queuePositions = append(queuePositions, job.QueuePosition)
 	}
-	assert.EqualValues(t, []int64{0, 0, 0, 0, 0, 1, 2}, queuePositions, "expected queue positions to be set correctly")
+	assert.EqualValues(t, []int64{2, 1, 0, 0, 0, 0, 0}, queuePositions, "expected queue positions to be set correctly")
 }
 
 func TestGetProvisionerJobsByIDsWithQueuePosition_OrderValidation(t *testing.T) {
@@ -2681,7 +2791,7 @@ func TestGetProvisionerJobsByIDsWithQueuePosition_OrderValidation(t *testing.T) 
 
 	// Then: the jobs should be returned in the correct order (sorted by createdAt)
 	sort.Slice(allJobs, func(i, j int) bool {
-		return allJobs[i].CreatedAt.Before(allJobs[j].CreatedAt)
+		return allJobs[i].CreatedAt.After(allJobs[j].CreatedAt)
 	})
 	for idx, job := range actualJobs {
 		assert.EqualValues(t, allJobs[idx], job.ProvisionerJob)
@@ -2700,7 +2810,7 @@ func TestGetProvisionerJobsByIDsWithQueuePosition_OrderValidation(t *testing.T) 
 	for _, job := range actualJobs {
 		queuePositions = append(queuePositions, job.QueuePosition)
 	}
-	assert.EqualValues(t, []int64{1, 2, 3, 4, 5, 6}, queuePositions, "expected queue positions to be set correctly")
+	assert.EqualValues(t, []int64{6, 5, 4, 3, 2, 1}, queuePositions, "expected queue positions to be set correctly")
 }
 
 func TestGroupRemovalTrigger(t *testing.T) {
