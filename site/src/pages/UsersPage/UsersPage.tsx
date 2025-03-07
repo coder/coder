@@ -23,7 +23,7 @@ import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { generateRandomString } from "utils/random";
 import { ResetPasswordDialog } from "./ResetPasswordDialog";
@@ -39,7 +39,6 @@ type UserPageProps = {
 const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
-	const location = useLocation();
 	const searchParamsResult = useSearchParams();
 	const { entitlements } = useDashboard();
 	const [searchParams] = searchParamsResult;

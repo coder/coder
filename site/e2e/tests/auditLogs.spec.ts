@@ -35,7 +35,6 @@ test("logins are logged", async ({ page }) => {
 	await page.goto("/audit");
 	const username = users.auditor.username;
 
-	const user = currentUser(page);
 	const loginMessage = `${username} logged in`;
 	// Make sure those things we did all actually show up
 	await resetSearch(page, username);
