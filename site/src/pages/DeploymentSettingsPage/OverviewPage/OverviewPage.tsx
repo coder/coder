@@ -6,9 +6,9 @@ import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { pageTitle } from "utils/page";
-import { GeneralSettingsPageView } from "./GeneralSettingsPageView";
+import { OverviewPageView } from "./OverviewPageView";
 
-const GeneralSettingsPage: FC = () => {
+const OverviewPage: FC = () => {
 	const { deploymentConfig } = useDeploymentConfig();
 	const safeExperimentsQuery = useQuery(availableExperiments());
 
@@ -26,9 +26,9 @@ const GeneralSettingsPage: FC = () => {
 	return (
 		<>
 			<Helmet>
-				<title>{pageTitle("General Settings")}</title>
+				<title>{pageTitle("Overview", "Deployment")}</title>
 			</Helmet>
-			<GeneralSettingsPageView
+			<OverviewPageView
 				deploymentOptions={deploymentConfig.options}
 				dailyActiveUsers={dailyActiveUsers}
 				invalidExperiments={invalidExperiments}
@@ -38,4 +38,4 @@ const GeneralSettingsPage: FC = () => {
 	);
 };
 
-export default GeneralSettingsPage;
+export default OverviewPage;
