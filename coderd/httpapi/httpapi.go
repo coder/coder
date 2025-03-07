@@ -294,7 +294,7 @@ func WebsocketCloseSprintf(format string, vars ...any) string {
 // OneWayWebSocket function. See OneWayWebSocket for more context.
 func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (
 	func(ctx context.Context, sse codersdk.ServerSentEvent) error,
-	chan struct{},
+	<-chan struct{},
 	error,
 ) {
 	h := rw.Header()
