@@ -505,7 +505,7 @@ lint/ts: site/node_modules/.installed
 lint/go:
 	./scripts/check_enterprise_imports.sh
 	./scripts/check_codersdk_imports.sh
-	linter_ver=$(shell egrep -o 'GOLANGCI_LINT_VERSION=\S+' dogfood/contents/Dockerfile | cut -d '=' -f 2)
+	linter_ver=$(shell egrep -o 'GOLANGCI_LINT_VERSION=\S+' dogfood/coder/contents/Dockerfile | cut -d '=' -f 2)
 	go run github.com/golangci/golangci-lint/cmd/golangci-lint@v$$linter_ver run
 .PHONY: lint/go
 
@@ -963,5 +963,5 @@ else
 endif
 .PHONY: test-e2e
 
-dogfood/contents/nix.hash: flake.nix flake.lock
-	sha256sum flake.nix flake.lock >./dogfood/contents/nix.hash
+dogfood/coder/contents/nix.hash: flake.nix flake.lock
+	sha256sum flake.nix flake.lock >./dogfood/coder/contents/nix.hash
