@@ -1081,13 +1081,12 @@ class ApiMethods {
 	};
 
 	getWorkspaceByOwnerAndName = async (
-		username: string | undefined,
+		username: string,
 		workspaceName: string,
 		params?: TypesGen.WorkspaceOptions,
 	): Promise<TypesGen.Workspace> => {
-		const user = username || "me";
 		const response = await this.axios.get<TypesGen.Workspace>(
-			`/api/v2/users/${user}/workspace/${workspaceName}`,
+			`/api/v2/users/${username}/workspace/${workspaceName}`,
 			{ params },
 		);
 
@@ -1095,13 +1094,12 @@ class ApiMethods {
 	};
 
 	getWorkspaceBuildByNumber = async (
-		username: string | undefined,
+		username: string,
 		workspaceName: string,
 		buildNumber: number,
 	): Promise<TypesGen.WorkspaceBuild> => {
-		const name = username || "me";
 		const response = await this.axios.get<TypesGen.WorkspaceBuild>(
-			`/api/v2/users/${name}/workspace/${workspaceName}/builds/${buildNumber}`,
+			`/api/v2/users/${username}/workspace/${workspaceName}/builds/${buildNumber}`,
 		);
 
 		return response.data;
@@ -1282,12 +1280,11 @@ class ApiMethods {
 	};
 
 	createWorkspace = async (
-		userId: string | undefined,
+		userId: string,
 		workspace: TypesGen.CreateWorkspaceRequest,
 	): Promise<TypesGen.Workspace> => {
-		const id = userId || "me";
 		const response = await this.axios.post<TypesGen.Workspace>(
-			`/api/v2/users/${id}/workspaces`,
+			`/api/v2/users/${userId}/workspaces`,
 			workspace,
 		);
 
