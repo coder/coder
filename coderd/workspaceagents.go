@@ -1348,7 +1348,7 @@ func (api *API) watchWorkspaceAgentMetadataWs(rw http.ResponseWriter, r *http.Re
 	//nolint:ineffassign // Release memory.
 	initialMD = nil
 
-	send, closed, err := httpapi.OneWayWebSocket[codersdk.ServerSentEvent](rw, r)
+	send, closed, err := httpapi.OneWayWebSocket(rw, r)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error setting up server-sent events.",

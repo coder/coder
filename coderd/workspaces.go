@@ -1862,7 +1862,7 @@ func (api *API) watchWorkspaceWs(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
 	apiKey := httpmw.APIKey(r)
 
-	send, closed, err := httpapi.OneWayWebSocket[codersdk.ServerSentEvent](rw, r)
+	send, closed, err := httpapi.OneWayWebSocket(rw, r)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error setting up server-sent events.",

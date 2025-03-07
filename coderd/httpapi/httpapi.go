@@ -287,12 +287,15 @@ func WebsocketCloseSprintf(format string, vars ...any) string {
 // ServerSentEventSender establishes a Server-Sent Event connection and allows
 // the consumer to send messages to the client.
 //
+// The function returned allows you to send a single message to the client,
+// while the channel lets you listen for when the connection closes.
+//
 // As much as possible, this function should be avoided in favor of using the
 // OneWayWebSocket function. See OneWayWebSocket for more context.
 func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (
-	sendEvent func(ctx context.Context, sse codersdk.ServerSentEvent) error,
-	closed chan struct{},
-	err error,
+	func(ctx context.Context, sse codersdk.ServerSentEvent) error,
+	chan struct{},
+	error,
 ) {
 	h := rw.Header()
 	h.Set("Content-Type", "text/event-stream")
@@ -305,7 +308,7 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (
 		panic("http.ResponseWriter is not http.Flusher")
 	}
 
-	closed = make(chan struct{})
+	closed := make(chan struct{})
 	type sseEvent struct {
 		payload []byte
 		errC    chan error
@@ -344,7 +347,7 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (
 		}
 	}()
 
-	sendEvent = func(ctx context.Context, sse codersdk.ServerSentEvent) error {
+	sendEvent := func(ctx context.Context, sse codersdk.ServerSentEvent) error {
 		buf := &bytes.Buffer{}
 		enc := json.NewEncoder(buf)
 
@@ -402,16 +405,19 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (
 // OneWayWebSocket establishes a new WebSocket connection that enforces one-way
 // communication from the server to the client.
 //
+// The function returned allows you to send a single message to the client,
+// while the channel lets you listen for when the connection closes.
+//
 // We must use an approach like this instead of Server-Sent Events for the
 // browser, because on HTTP/1.1 connections, browsers are locked to no more than
 // six HTTP connections for a domain total, across all tabs. If a user were to
 // open a workspace in multiple tabs, the entire UI can start to lock up.
 // WebSockets have no such limitation, no matter what HTTP protocol was used to
 // establish the connection.
-func OneWayWebSocket[JsonSerializable any](rw http.ResponseWriter, r *http.Request) (
-	sendEvent func(event JsonSerializable) error,
-	closed chan struct{},
-	err error,
+func OneWayWebSocket(rw http.ResponseWriter, r *http.Request) (
+	func(event codersdk.ServerSentEvent) error,
+	<-chan struct{},
+	error,
 ) {
 	ctx, cancel := context.WithCancel(r.Context())
 	r = r.WithContext(ctx)
@@ -426,9 +432,9 @@ func OneWayWebSocket[JsonSerializable any](rw http.ResponseWriter, r *http.Reque
 		Code   websocket.StatusCode
 		Reason string
 	}
-	eventC := make(chan JsonSerializable)
+	eventC := make(chan codersdk.ServerSentEvent)
 	socketErrC := make(chan SocketError, 1)
-	closed = make(chan struct{})
+	closed := make(chan struct{})
 	go func() {
 		defer cancel()
 		defer close(closed)
@@ -475,7 +481,7 @@ func OneWayWebSocket[JsonSerializable any](rw http.ResponseWriter, r *http.Reque
 		}
 	}()
 
-	sendEvent = func(event JsonSerializable) error {
+	sendEvent := func(event codersdk.ServerSentEvent) error {
 		select {
 		case eventC <- event:
 		case <-ctx.Done():

@@ -256,7 +256,7 @@ func TestOneWayWebSocket(t *testing.T) {
 			req.Proto = p.proto
 
 			writer := newWebsocketWriter()
-			_, _, err := httpapi.OneWayWebSocket[any](writer, req)
+			_, _, err := httpapi.OneWayWebSocket(writer, req)
 			require.ErrorContains(t, err, p.proto)
 		}
 	})
@@ -267,7 +267,7 @@ func TestOneWayWebSocket(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		req := newBaseRequest(ctx)
 		writer := newWebsocketWriter()
-		send, _, err := httpapi.OneWayWebSocket[codersdk.ServerSentEvent](writer, req)
+		send, _, err := httpapi.OneWayWebSocket(writer, req)
 		require.NoError(t, err)
 
 		serverPayload := codersdk.ServerSentEvent{
@@ -293,7 +293,7 @@ func TestOneWayWebSocket(t *testing.T) {
 		ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitShort))
 		req := newBaseRequest(ctx)
 		writer := newWebsocketWriter()
-		_, done, err := httpapi.OneWayWebSocket[codersdk.ServerSentEvent](writer, req)
+		_, done, err := httpapi.OneWayWebSocket(writer, req)
 		require.NoError(t, err)
 
 		successC := make(chan bool)
@@ -317,7 +317,7 @@ func TestOneWayWebSocket(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		req := newBaseRequest(ctx)
 		writer := newWebsocketWriter()
-		_, done, err := httpapi.OneWayWebSocket[codersdk.ServerSentEvent](writer, req)
+		_, done, err := httpapi.OneWayWebSocket(writer, req)
 		require.NoError(t, err)
 
 		successC := make(chan bool)
@@ -347,7 +347,7 @@ func TestOneWayWebSocket(t *testing.T) {
 		ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitShort))
 		req := newBaseRequest(ctx)
 		writer := newWebsocketWriter()
-		send, done, err := httpapi.OneWayWebSocket[codersdk.ServerSentEvent](writer, req)
+		send, done, err := httpapi.OneWayWebSocket(writer, req)
 		require.NoError(t, err)
 
 		successC := make(chan bool)
@@ -388,7 +388,7 @@ func TestOneWayWebSocket(t *testing.T) {
 		ctx := testutil.Context(t, timeout)
 		req := newBaseRequest(ctx)
 		writer := newWebsocketWriter()
-		_, _, err := httpapi.OneWayWebSocket[codersdk.ServerSentEvent](writer, req)
+		_, _, err := httpapi.OneWayWebSocket(writer, req)
 		require.NoError(t, err)
 
 		type Result struct {
