@@ -1,7 +1,7 @@
 import { deploymentDAUs } from "api/queries/deployment";
 import { availableExperiments, experiments } from "api/queries/experiments";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
-import { useDeploymentSettings } from "modules/management/DeploymentSettingsProvider";
+import { useDeploymentConfig } from "modules/management/DeploymentConfigProvider";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
@@ -9,7 +9,7 @@ import { pageTitle } from "utils/page";
 import { GeneralSettingsPageView } from "./GeneralSettingsPageView";
 
 const GeneralSettingsPage: FC = () => {
-	const { deploymentConfig } = useDeploymentSettings();
+	const { deploymentConfig } = useDeploymentConfig();
 	const safeExperimentsQuery = useQuery(availableExperiments());
 
 	const { metadata } = useEmbeddedMetadata();

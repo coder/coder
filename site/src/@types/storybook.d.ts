@@ -6,7 +6,7 @@ import type {
 	SerpentOption,
 	User,
 } from "api/typesGenerated";
-import type { Permissions } from "contexts/auth/permissions";
+import type { Permissions } from "modules/permissions";
 import type { QueryKey } from "react-query";
 
 declare module "@storybook/react" {
