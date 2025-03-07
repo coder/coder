@@ -26,26 +26,10 @@ func HandleInboxNotificationEvent(cb func(ctx context.Context, payload InboxNoti
 			cb(ctx, InboxNotificationEvent{}, xerrors.Errorf("unmarshal inbox notification event"))
 			return
 		}
-		// if err := payload.Validate(); err != nil {
-		// 	cb(ctx, payload, xerrors.Errorf("validate inbox notification event"))
-		// 	return
-		// }
+
 		cb(ctx, payload, err)
 	}
 }
-
-// func (*InboxNotificationEvent) Validate() error {
-// if w.WorkspaceID == uuid.Nil {
-// 	return xerrors.New("workspaceID must be set")
-// }
-// if w.Kind == "" {
-// 	return xerrors.New("kind must be set")
-// }
-// if w.Kind == WorkspaceEventKindAgentLifecycleUpdate && w.AgentID == nil {
-// 	return xerrors.New("agentID must be set for Agent events")
-// }
-// 	return nil
-// }
 
 type InboxNotificationEvent struct {
 	Kind              InboxNotificationEventKind `json:"kind"`

@@ -169,7 +169,6 @@ func (api *API) watchNotifications(rw http.ResponseWriter, r *http.Request) {
 				api.Logger.Error(ctx, "count unread inbox notifications", slog.Error(err))
 				return
 			}
-			api.Logger.Info(ctx, "sending notifications")
 			if err := encoder.Encode(codersdk.GetInboxNotificationResponse{
 				Notification: notif,
 				UnreadCount:  int(unreadCount),
@@ -177,7 +176,6 @@ func (api *API) watchNotifications(rw http.ResponseWriter, r *http.Request) {
 				api.Logger.Error(ctx, "encode notification", slog.Error(err))
 				return
 			}
-			api.Logger.Info(ctx, "sent notifications")
 		}
 	}
 }
