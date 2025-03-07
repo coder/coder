@@ -34,6 +34,8 @@ import (
 // @Produce json
 // @Tags Notifications
 // @Param targets query string false "Comma-separated list of target IDs to filter notifications"
+// @Param templates query string false "Comma-separated list of template IDs to filter notifications"
+// @Param read_status query string false "Filter notifications by read status. Possible values: read, unread, all"
 // @Success 200 {object} codersdk.InboxNotification
 // @Router /notifications/watch [get]
 func (api *API) watchNotifications(rw http.ResponseWriter, r *http.Request) {

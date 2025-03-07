@@ -1827,6 +1827,18 @@ const docTemplate = `{
                         "description": "Comma-separated list of target IDs to filter notifications",
                         "name": "targets",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated list of template IDs to filter notifications",
+                        "name": "templates",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter notifications by read status. Possible values: read, unread, all",
+                        "name": "read_status",
+                        "in": "query"
                     }
                 ],
                 "responses": {

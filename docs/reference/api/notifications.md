@@ -217,9 +217,11 @@ curl -X GET http://coder-server:8080/api/v2/notifications/watch \
 
 ### Parameters
 
-| Name      | In    | Type   | Required | Description                                                |
-|-----------|-------|--------|----------|------------------------------------------------------------|
-| `targets` | query | string | false    | Comma-separated list of target IDs to filter notifications |
+| Name          | In    | Type   | Required | Description                                                             |
+|---------------|-------|--------|----------|-------------------------------------------------------------------------|
+| `targets`     | query | string | false    | Comma-separated list of target IDs to filter notifications              |
+| `templates`   | query | string | false    | Comma-separated list of template IDs to filter notifications            |
+| `read_status` | query | string | false    | Filter notifications by read status. Possible values: read, unread, all |
 
 ### Example responses
 
