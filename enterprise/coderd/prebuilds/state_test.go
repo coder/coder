@@ -1,6 +1,7 @@
 package prebuilds
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -137,143 +138,157 @@ func TestOutdatedPrebuilds(t *testing.T) {
 	validateActions(t, reconciliationActions{desired: 1, create: 1}, *actions)
 }
 
-// A new template version is created with a preset with prebuilds configured; while the outdated prebuild is deleting,
-// the new preset's prebuild cannot be provisioned concurrently, to prevent clobbering.
-func TestBlockedOnDeleteActions(t *testing.T) {
-	outdated := opts[optionSet0]
-	current := opts[optionSet1]
+// A new template version is created with a preset with prebuilds configured; while a prebuild is provisioning up or down,
+// the calculated actions should indicate the state correctly.
+func TestInProgressActions(t *testing.T) {
+	current := opts[optionSet0]
 
-	// GIVEN: 2 presets, one outdated and one new.
-	presets := []database.GetTemplatePresetsWithPrebuildsRow{
-		preset(false, 1, outdated),
-		preset(true, 1, current),
-	}
-
-	// GIVEN: a running prebuild for the outdated preset.
-	running := []database.GetRunningPrebuildsRow{
-		prebuild(outdated),
-	}
-
-	// GIVEN: one prebuild for the old preset which is currently deleting.
-	inProgress := []database.GetPrebuildsInProgressRow{
+	cases := []struct {
+		name       string
+		transition database.WorkspaceTransition
+		desired    int32
+		running    int32
+		checkFn    func(actions reconciliationActions) bool
+	}{
+		// With no running prebuilds and one starting, no creations/deletions should take place.
 		{
-			TemplateID:        outdated.templateID,
-			TemplateVersionID: outdated.templateVersionID,
-			Transition:        database.WorkspaceTransitionDelete,
-			Count:             1,
+			name:       fmt.Sprintf("%s-short", database.WorkspaceTransitionStart),
+			transition: database.WorkspaceTransitionStart,
+			desired:    1,
+			running:    0,
+			checkFn: func(actions reconciliationActions) bool {
+				return assert.True(t, validateActions(t, reconciliationActions{desired: 1, starting: 1}, actions))
+			},
+		},
+		// With one running prebuild and one starting, no creations/deletions should occur since we're approaching the correct state.
+		{
+			name:       fmt.Sprintf("%s-balanced", database.WorkspaceTransitionStart),
+			transition: database.WorkspaceTransitionStart,
+			desired:    2,
+			running:    1,
+			checkFn: func(actions reconciliationActions) bool {
+				return assert.True(t, validateActions(t, reconciliationActions{actual: 1, desired: 2, starting: 1}, actions))
+			},
+		},
+		// With one running prebuild and one starting, no creations/deletions should occur
+		// SIDE-NOTE: once the starting prebuild completes, the older of the two will be considered extraneous since we only desire 2.
+		{
+			name:       fmt.Sprintf("%s-extraneous", database.WorkspaceTransitionStart),
+			transition: database.WorkspaceTransitionStart,
+			desired:    2,
+			running:    2,
+			checkFn: func(actions reconciliationActions) bool {
+				return assert.True(t, validateActions(t, reconciliationActions{actual: 2, desired: 2, starting: 1}, actions))
+			},
+		},
+		// With one prebuild desired and one stopping, a new prebuild will be created.
+		{
+			name:       fmt.Sprintf("%s-short", database.WorkspaceTransitionStop),
+			transition: database.WorkspaceTransitionStop,
+			desired:    1,
+			running:    0,
+			checkFn: func(actions reconciliationActions) bool {
+				return assert.True(t, validateActions(t, reconciliationActions{desired: 1, stopping: 1, create: 1}, actions))
+			},
+		},
+		// With 3 prebuilds desired, 2 running, and 1 stopping, a new prebuild will be created.
+		{
+			name:       fmt.Sprintf("%s-balanced", database.WorkspaceTransitionStop),
+			transition: database.WorkspaceTransitionStop,
+			desired:    3,
+			running:    2,
+			checkFn: func(actions reconciliationActions) bool {
+				return assert.True(t, validateActions(t, reconciliationActions{actual: 2, desired: 3, stopping: 1, create: 1}, actions))
+			},
+		},
+		// With 3 prebuilds desired, 3 running, and 1 stopping, no creations/deletions should occur since the desired state is already achieved.
+		{
+			name:       fmt.Sprintf("%s-extraneous", database.WorkspaceTransitionStop),
+			transition: database.WorkspaceTransitionStop,
+			desired:    3,
+			running:    3,
+			checkFn: func(actions reconciliationActions) bool {
+				return assert.True(t, validateActions(t, reconciliationActions{actual: 3, desired: 3, stopping: 1}, actions))
+			},
+		},
+		// With one prebuild desired and one deleting, a new prebuild will be created.
+		{
+			name:       fmt.Sprintf("%s-short", database.WorkspaceTransitionDelete),
+			transition: database.WorkspaceTransitionDelete,
+			desired:    1,
+			running:    0,
+			checkFn: func(actions reconciliationActions) bool {
+				return assert.True(t, validateActions(t, reconciliationActions{desired: 1, deleting: 1, create: 1}, actions))
+			},
+		},
+		// With 2 prebuilds desired, 1 running, and 1 deleting, a new prebuild will be created.
+		{
+			name:       fmt.Sprintf("%s-balanced", database.WorkspaceTransitionDelete),
+			transition: database.WorkspaceTransitionDelete,
+			desired:    2,
+			running:    1,
+			checkFn: func(actions reconciliationActions) bool {
+				return assert.True(t, validateActions(t, reconciliationActions{actual: 1, desired: 2, deleting: 1, create: 1}, actions))
+			},
+		},
+		// With 2 prebuilds desired, 2 running, and 1 deleting, no creations/deletions should occur since the desired state is already achieved.
+		{
+			name:       fmt.Sprintf("%s-extraneous", database.WorkspaceTransitionDelete),
+			transition: database.WorkspaceTransitionDelete,
+			desired:    2,
+			running:    2,
+			checkFn: func(actions reconciliationActions) bool {
+				return assert.True(t, validateActions(t, reconciliationActions{actual: 2, desired: 2, deleting: 1}, actions))
+			},
 		},
 	}
 
-	// WHEN: calculating the outdated preset's state.
-	state := newReconciliationState(presets, running, inProgress, nil)
-	ps, err := state.filterByPreset(outdated.presetID)
-	require.NoError(t, err)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	// THEN: we should identify that this prebuild is in progress, and not attempt to delete this prebuild again.
-	actions, err := ps.calculateActions(backoffInterval)
-	require.NoError(t, err)
-	validateActions(t, reconciliationActions{outdated: 1, deleting: 1}, *actions)
+			// GIVEN: a presets.
+			presets := []database.GetTemplatePresetsWithPrebuildsRow{
+				preset(true, tc.desired, current),
+			}
 
-	// WHEN: calculating the current preset's state.
-	ps, err = state.filterByPreset(current.presetID)
-	require.NoError(t, err)
+			// GIVEN: a running prebuild for the preset.
+			running := make([]database.GetRunningPrebuildsRow, 0, tc.running)
+			for range tc.running {
+				name, err := generateName()
+				require.NoError(t, err)
+				running = append(running, database.GetRunningPrebuildsRow{
+					WorkspaceID:       uuid.New(),
+					WorkspaceName:     name,
+					TemplateID:        current.templateID,
+					TemplateVersionID: current.templateVersionID,
+					CurrentPresetID:   uuid.NullUUID{UUID: current.presetID, Valid: true},
+					Ready:             false,
+					CreatedAt:         time.Now(),
+				})
+			}
 
-	// THEN: we are blocked from creating a new prebuild while another one is busy provisioning.
-	actions, err = ps.calculateActions(backoffInterval)
-	require.NoError(t, err)
-	validateActions(t, reconciliationActions{desired: 1, create: 0, deleting: 1}, *actions)
-}
+			// GIVEN: one prebuild for the old preset which is currently transitioning.
+			inProgress := []database.GetPrebuildsInProgressRow{
+				{
+					TemplateID:        current.templateID,
+					TemplateVersionID: current.templateVersionID,
+					Transition:        tc.transition,
+					Count:             1,
+				},
+			}
 
-// A new template version is created with a preset with prebuilds configured. An operator comes along and stops one of the
-// running prebuilds (this shouldn't be done, but it's possible). While this prebuild is stopping, all other prebuild
-// actions are blocked.
-func TestBlockedOnStopActions(t *testing.T) {
-	outdated := opts[optionSet0]
-	current := opts[optionSet1]
+			// WHEN: calculating the current preset's state.
+			state := newReconciliationState(presets, running, inProgress, nil)
+			ps, err := state.filterByPreset(current.presetID)
+			require.NoError(t, err)
 
-	// GIVEN: 2 presets, one outdated and one new (which now expects 2 prebuilds!).
-	presets := []database.GetTemplatePresetsWithPrebuildsRow{
-		preset(false, 1, outdated),
-		preset(true, 2, current),
+			// THEN: we should identify that this prebuild is in progress.
+			actions, err := ps.calculateActions(backoffInterval)
+			require.NoError(t, err)
+			require.True(t, tc.checkFn(*actions))
+		})
 	}
-
-	// GIVEN: NO running prebuilds for either preset.
-	var running []database.GetRunningPrebuildsRow
-
-	// GIVEN: one prebuild for the old preset which is currently stopping.
-	inProgress := []database.GetPrebuildsInProgressRow{
-		{
-			TemplateID:        outdated.templateID,
-			TemplateVersionID: outdated.templateVersionID,
-			Transition:        database.WorkspaceTransitionStop,
-			Count:             1,
-		},
-	}
-
-	// WHEN: calculating the outdated preset's state.
-	state := newReconciliationState(presets, running, inProgress, nil)
-	ps, err := state.filterByPreset(outdated.presetID)
-	require.NoError(t, err)
-
-	// THEN: there is nothing to do.
-	actions, err := ps.calculateActions(backoffInterval)
-	require.NoError(t, err)
-	validateActions(t, reconciliationActions{stopping: 1}, *actions)
-
-	// WHEN: calculating the current preset's state.
-	ps, err = state.filterByPreset(current.presetID)
-	require.NoError(t, err)
-
-	// THEN: we are blocked from creating a new prebuild while another one is busy provisioning.
-	actions, err = ps.calculateActions(backoffInterval)
-	require.NoError(t, err)
-	validateActions(t, reconciliationActions{desired: 2, stopping: 1, create: 0}, *actions)
-}
-
-// A new template version is created with a preset with prebuilds configured; the outdated prebuilds are deleted,
-// and one of the new prebuilds is already being provisioned, but we bail out early if operations are already in progress
-// for this prebuild - to prevent clobbering.
-func TestBlockedOnStartActions(t *testing.T) {
-	outdated := opts[optionSet0]
-	current := opts[optionSet1]
-
-	// GIVEN: 2 presets, one outdated and one new (which now expects 2 prebuilds!).
-	presets := []database.GetTemplatePresetsWithPrebuildsRow{
-		preset(false, 1, outdated),
-		preset(true, 2, current),
-	}
-
-	// GIVEN: NO running prebuilds for either preset.
-	var running []database.GetRunningPrebuildsRow
-
-	// GIVEN: one prebuild for the old preset which is currently provisioning.
-	inProgress := []database.GetPrebuildsInProgressRow{
-		{
-			TemplateID:        current.templateID,
-			TemplateVersionID: current.templateVersionID,
-			Transition:        database.WorkspaceTransitionStart,
-			Count:             1,
-		},
-	}
-
-	// WHEN: calculating the outdated preset's state.
-	state := newReconciliationState(presets, running, inProgress, nil)
-	ps, err := state.filterByPreset(outdated.presetID)
-	require.NoError(t, err)
-
-	// THEN: there is nothing to do.
-	actions, err := ps.calculateActions(backoffInterval)
-	require.NoError(t, err)
-	validateActions(t, reconciliationActions{starting: 1}, *actions)
-
-	// WHEN: calculating the current preset's state.
-	ps, err = state.filterByPreset(current.presetID)
-	require.NoError(t, err)
-
-	// THEN: we are blocked from creating a new prebuild while another one is busy provisioning.
-	actions, err = ps.calculateActions(backoffInterval)
-	require.NoError(t, err)
-	validateActions(t, reconciliationActions{desired: 2, starting: 1, create: 0}, *actions)
 }
 
 // Additional prebuilds exist for a given preset configuration; these must be deleted.
