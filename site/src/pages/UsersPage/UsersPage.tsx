@@ -51,12 +51,12 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 	const {
 		createUser: canCreateUser,
 		updateUsers: canEditUsers,
-		viewDeploymentValues,
+		viewDeploymentConfig,
 	} = permissions;
 	const rolesQuery = useQuery(roles());
 	const { data: deploymentValues } = useQuery({
 		...deploymentConfig(),
-		enabled: viewDeploymentValues,
+		enabled: viewDeploymentConfig,
 	});
 
 	const usersQuery = usePaginatedQuery(paginatedUsers(searchParamsResult[0]));
@@ -94,7 +94,7 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 	// Indicates if oidc roles are synced from the oidc idp.
 	// Assign 'false' if unknown.
 	const oidcRoleSyncEnabled =
-		viewDeploymentValues &&
+		viewDeploymentConfig &&
 		deploymentValues?.config.oidc?.user_role_field !== "";
 
 	const isLoading =

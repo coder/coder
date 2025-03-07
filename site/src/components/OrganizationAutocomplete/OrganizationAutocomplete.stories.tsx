@@ -12,7 +12,6 @@ const meta: Meta<typeof OrganizationAutocomplete> = {
 	title: "components/OrganizationAutocomplete",
 	component: OrganizationAutocomplete,
 	args: {
-		value: null,
 		onChange: action("Selected organization"),
 	},
 };
@@ -25,7 +24,7 @@ export const ManyOrgs: Story = {
 		showOrganizations: true,
 		user: MockUser,
 		features: ["multiple_organizations"],
-		permissions: { viewDeploymentValues: true },
+		permissions: { viewDeploymentConfig: true },
 		queries: [
 			{
 				key: ["organizations"],
@@ -45,7 +44,7 @@ export const OneOrg: Story = {
 		showOrganizations: true,
 		user: MockUser,
 		features: ["multiple_organizations"],
-		permissions: { viewDeploymentValues: true },
+		permissions: { viewDeploymentConfig: true },
 		queries: [
 			{
 				key: ["organizations"],
