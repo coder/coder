@@ -1820,7 +1820,7 @@ const docTemplate = `{
                     "Notifications"
                 ],
                 "summary": "Watch for new notifications",
-                "operationId": "watch-notifications",
+                "operationId": "watch-for-new-notifications",
                 "parameters": [
                     {
                         "type": "string",
