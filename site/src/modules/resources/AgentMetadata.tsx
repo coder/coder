@@ -65,6 +65,7 @@ export const AgentMetadata: FC<AgentMetadataProps> = ({
 			socket.addEventListener("error", () => {
 				displayError("Socket closed unexpectedly. Creating new connection...");
 				setMetadata(undefined);
+				window.clearTimeout(timeoutId);
 				timeoutId = window.setTimeout(() => {
 					createNewConnection();
 				}, 3_000);
