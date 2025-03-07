@@ -219,11 +219,7 @@ CODER_EXTERNAL_AUTH_0_SCOPES="repo:read repo:write write:gpg_key"
 
    ![Install GitHub App](../images/admin/github-app-install.png)
 
-## Multiple External Providers
-
-> [!NOTE]
-> Multiple providers is an Enterprise and Premium feature.
-> [Learn more](https://coder.com/pricing#compare-plans).
+## Multiple External Providers (Enterprise)(Premium)
 
 Below is an example configuration with multiple providers:
 
