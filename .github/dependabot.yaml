@@ -37,7 +37,8 @@ updates:
   # Update our Dockerfile.
   - package-ecosystem: "docker"
     directories:
-      - "/dogfood/contents"
+      - "/dogfood/coder/contents"
+      - "/dogfood/coder-envbuilder/contents"
       - "/scripts"
       - "/examples/templates/docker/build"
       - "/examples/parameters/build"
