@@ -503,7 +503,7 @@ func asserts(inputs ...any) []AssertRBAC {
 				// Could be the string type.
 				actionAsString, ok := inputs[i+1].(string)
 				if !ok {
-					panic(fmt.Sprintf("action '%q' not a supported action", actionAsString))
+					panic(fmt.Sprintf("action '%T' not a supported action", inputs[i+1]))
 				}
 				action = policy.Action(actionAsString)
 			}
