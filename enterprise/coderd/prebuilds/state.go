@@ -136,9 +136,7 @@ func (p presetState) calculateActions(backoffInterval time.Duration) (*reconcili
 
 	var (
 		toCreate = int(math.Max(0, float64(
-			desired- // The number specified in the preset
-				(actual+starting)- // The current number of prebuilds (or builds in-flight)
-				stopping), // The number of prebuilds currently being stopped (should be 0)
+			desired-(actual+starting)), // The number of prebuilds currently being stopped (should be 0)
 		))
 		toDelete = int(math.Max(0, float64(
 			outdated- // The number of prebuilds running above the desired count for active version
@@ -178,17 +176,6 @@ func (p presetState) calculateActions(backoffInterval time.Duration) (*reconcili
 			// Return early here; we should not perform any reconciliation actions if we're in a backoff period.
 			return actions, nil
 		}
-	}
-
-	// Bail early to avoid scheduling new prebuilds while operations are in progress.
-	// TODO: optimization: we should probably be able to create prebuilds while others are deleting for a given preset.
-	if (toCreate+toDelete) > 0 && (starting+stopping+deleting) > 0 {
-		// TODO: move up
-		// c.logger.Warn(ctx, "prebuild operations in progress, skipping reconciliation",
-		//	slog.F("template_id", p.preset.TemplateID.String()), slog.F("starting", starting),
-		//	slog.F("stopping", stopping), slog.F("deleting", deleting),
-		//	slog.F("wanted_to_create", create), slog.F("wanted_to_delete", toDelete))
-		return actions, nil
 	}
 
 	// It's possible that an operator could stop/start prebuilds which interfere with the reconciliation loop, so
