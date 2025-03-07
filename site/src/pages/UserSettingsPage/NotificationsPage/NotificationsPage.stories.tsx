@@ -40,7 +40,7 @@ const meta = {
 			},
 		],
 		user: MockUser,
-		permissions: { viewDeploymentValues: true },
+		permissions: { viewDeploymentConfig: true },
 	},
 	decorators: [withGlobalSnackbar, withAuthProvider, withDashboardProvider],
 } satisfies Meta<typeof NotificationsPage>;
@@ -74,7 +74,7 @@ export const ToggleNotification: Story = {
 
 export const NonAdmin: Story = {
 	parameters: {
-		permissions: { viewDeploymentValues: false },
+		permissions: { viewDeploymentConfig: false },
 	},
 };
 

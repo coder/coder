@@ -9,7 +9,7 @@ import { Loader } from "components/Loader/Loader";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
-import { useDeploymentSettings } from "modules/management/DeploymentSettingsProvider";
+import { useDeploymentConfig } from "modules/management/DeploymentConfigProvider";
 import { castNotificationMethod } from "modules/notifications/utils";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
@@ -22,7 +22,7 @@ import { NotificationEvents } from "./NotificationEvents";
 import { Troubleshooting } from "./Troubleshooting";
 
 export const NotificationsPage: FC = () => {
-	const { deploymentConfig } = useDeploymentSettings();
+	const { deploymentConfig } = useDeploymentConfig();
 	const [templatesByGroup, dispatchMethods] = useQueries({
 		queries: [
 			{

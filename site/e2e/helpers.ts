@@ -67,7 +67,7 @@ export type LoginOptions = {
 	password: string;
 };
 
-export async function login(page: Page, options: LoginOptions = users.admin) {
+export async function login(page: Page, options: LoginOptions = users.owner) {
 	const ctx = page.context();
 	// biome-ignore lint/suspicious/noExplicitAny: reset the current user
 	(ctx as any)[Symbol.for("currentUser")] = undefined;
