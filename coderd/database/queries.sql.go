@@ -5800,8 +5800,7 @@ FROM workspace_latest_build wlb
 		 INNER JOIN provisioner_jobs pj ON wlb.job_id = pj.id
 		 INNER JOIN workspace_prebuild_builds wpb ON wpb.id = wlb.id
 		 INNER JOIN templates t ON t.active_version_id = wlb.template_version_id
-WHERE wlb.transition = 'start'::workspace_transition
-	  AND pj.job_status IN ('pending'::provisioner_job_status, 'running'::provisioner_job_status)
+WHERE pj.job_status IN ('pending'::provisioner_job_status, 'running'::provisioner_job_status)
 GROUP BY t.id, wpb.template_version_id, wpb.transition
 `
 
