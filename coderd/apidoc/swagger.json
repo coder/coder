@@ -2223,6 +2223,7 @@
 				"tags": ["Members"],
 				"summary": "List organization members",
 				"operationId": "list-organization-members",
+				"deprecated": true,
 				"parameters": [
 					{
 						"type": "string",
@@ -2628,7 +2629,7 @@
 					},
 					{
 						"type": "integer",
-						"description": "Page limit",
+						"description": "Page limit, if 0 returns all members",
 						"name": "limit",
 						"in": "query"
 					},

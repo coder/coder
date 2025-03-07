@@ -142,6 +142,7 @@ func (api *API) deleteOrganizationMember(rw http.ResponseWriter, r *http.Request
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+// @Deprecated use /organizations/{organization}/paginated-members [get]
 // @Summary List organization members
 // @ID list-organization-members
 // @Security CoderSessionToken
@@ -184,7 +185,7 @@ func (api *API) listMembers(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Members
 // @Param organization path string true "Organization ID"
-// @Param limit query int false "Page limit"
+// @Param limit query int false "Page limit, if 0 returns all members"
 // @Param offset query int false "Page offset"
 // @Success 200 {object} []codersdk.PaginatedMembersResponse
 // @Router /organizations/{organization}/paginated-members [get]

@@ -828,11 +828,11 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/paginat
 
 ### Parameters
 
-| Name           | In    | Type    | Required | Description     |
-|----------------|-------|---------|----------|-----------------|
-| `organization` | path  | string  | true     | Organization ID |
-| `limit`        | query | integer | false    | Page limit      |
-| `offset`       | query | integer | false    | Page offset     |
+| Name           | In    | Type    | Required | Description                          |
+|----------------|-------|---------|----------|--------------------------------------|
+| `organization` | path  | string  | true     | Organization ID                      |
+| `limit`        | query | integer | false    | Page limit, if 0 returns all members |
+| `offset`       | query | integer | false    | Page offset                          |
 
 ### Example responses
 
