@@ -145,3 +145,58 @@ jobs:
           TF_VAR_CODER_TEMPLATE_DIR: ./contents
           TF_VAR_CODER_TEMPLATE_MESSAGE: ${{ steps.message.outputs.pr_title }}
           TF_LOG: info
+
+  deploy_template_envbuilder:
+    needs: build_image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Terraform
+        uses: ./.github/actions/setup-tf
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@71f986410dfbc7added4569d411d040a91dc6935 # v2.1.8
+        with:
+          workload_identity_provider: projects/573722524737/locations/global/workloadIdentityPools/github/providers/github
+          service_account: coder-ci@coder-dogfood.iam.gserviceaccount.com
+
+      - name: Terraform init and validate
+        run: |
+          cd dogfood/coder-envbuilder
+          terraform init -upgrade
+          terraform validate
+          cd contents
+          terraform init -upgrade
+          terraform validate
+
+      - name: Get short commit SHA
+        if: github.ref == 'refs/heads/main'
+        id: vars
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Get latest commit title
+        if: github.ref == 'refs/heads/main'
+        id: message
+        run: echo "pr_title=$(git log --format=%s -n 1 ${{ github.sha }})" >> $GITHUB_OUTPUT
+
+      - name: "Push template"
+        if: github.ref == 'refs/heads/main'
+        run: |
+          cd dogfood/coder-envbuilder
+          terraform apply -auto-approve
+        env:
+          # Consumed by coderd provider
+          CODER_URL: https://dev.coder.com
+          CODER_SESSION_TOKEN: ${{ secrets.CODER_SESSION_TOKEN }}
+          # Template source & details
+          TF_VAR_CODER_TEMPLATE_VERSION: ${{ steps.vars.outputs.sha_short }}
+          TF_VAR_CODER_TEMPLATE_DIR: ./contents
+          TF_VAR_CODER_TEMPLATE_MESSAGE: ${{ steps.message.outputs.pr_title }}
+          TF_LOG: info
