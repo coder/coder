@@ -48,8 +48,8 @@ export const CreateEditRolePage: FC = () => {
 	return (
 		<RequirePermission
 			isFeatureVisible={
-				organizationPermissions.assignOrgRoles ||
-				organizationPermissions.createOrgRoles
+				(organizationPermissions.updateOrgRoles && role !== undefined) ||
+				(organizationPermissions.createOrgRoles && role === undefined)
 			}
 		>
 			<Helmet>
@@ -87,7 +87,6 @@ export const CreateEditRolePage: FC = () => {
 						: createOrganizationRoleMutation.isLoading
 				}
 				organizationName={organizationName}
-				canAssignOrgRole={organizationPermissions.assignOrgRoles}
 			/>
 		</RequirePermission>
 	);
