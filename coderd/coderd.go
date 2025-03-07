@@ -1229,8 +1229,8 @@ func New(options *Options) *API {
 					httpmw.ExtractWorkspaceParam(options.Database),
 				)
 				r.Get("/", api.workspaceAgent)
-				r.Get("/watch-metadata", api.watchWorkspaceAgentMetadata)
-				r.Get("/watch-metadata-ws", api.watchWorkspaceAgentMetadataWs)
+				r.Get("/watch-metadata", api.watchWorkspaceAgentMetadataSSE)
+				r.Get("/watch-metadata-ws", api.watchWorkspaceAgentMetadataWS)
 				r.Get("/startup-logs", api.workspaceAgentLogsDeprecated)
 				r.Get("/logs", api.workspaceAgentLogs)
 				r.Get("/listening-ports", api.workspaceAgentListeningPorts)
@@ -1262,8 +1262,8 @@ func New(options *Options) *API {
 				r.Route("/ttl", func(r chi.Router) {
 					r.Put("/", api.putWorkspaceTTL)
 				})
-				r.Get("/watch", api.watchWorkspace)
-				r.Get("/watch-ws", api.watchWorkspaceWs)
+				r.Get("/watch", api.watchWorkspaceSSE)
+				r.Get("/watch-ws", api.watchWorkspaceWS)
 				r.Put("/extend", api.putExtendWorkspace)
 				r.Post("/usage", api.postWorkspaceUsage)
 				r.Put("/dormant", api.putWorkspaceDormant)
