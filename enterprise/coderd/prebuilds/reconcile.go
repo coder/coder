@@ -323,59 +323,69 @@ func (c *storeReconciler) createPrebuild(ctx context.Context, prebuildID uuid.UU
 		return xerrors.Errorf("failed to generate unique prebuild ID: %w", err)
 	}
 
-	template, err := c.store.GetTemplateByID(ctx, templateID)
-	if err != nil {
-		return xerrors.Errorf("failed to get template: %w", err)
-	}
+	return c.store.InTx(func(db database.Store) error {
+		template, err := db.GetTemplateByID(ctx, templateID)
+		if err != nil {
+			return xerrors.Errorf("failed to get template: %w", err)
+		}
 
-	now := dbtime.Now()
-	// Workspaces are created without any versions.
-	minimumWorkspace, err := c.store.InsertWorkspace(ctx, database.InsertWorkspaceParams{
-		ID:               prebuildID,
-		CreatedAt:        now,
-		UpdatedAt:        now,
-		OwnerID:          OwnerID,
-		OrganizationID:   template.OrganizationID,
-		TemplateID:       template.ID,
-		Name:             name,
-		LastUsedAt:       dbtime.Now(),
-		AutomaticUpdates: database.AutomaticUpdatesNever,
+		now := dbtime.Now()
+
+		minimumWorkspace, err := db.InsertWorkspace(ctx, database.InsertWorkspaceParams{
+			ID:               prebuildID,
+			CreatedAt:        now,
+			UpdatedAt:        now,
+			OwnerID:          OwnerID,
+			OrganizationID:   template.OrganizationID,
+			TemplateID:       template.ID,
+			Name:             name,
+			LastUsedAt:       dbtime.Now(),
+			AutomaticUpdates: database.AutomaticUpdatesNever,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert workspace: %w", err)
+		}
+
+		// We have to refetch the workspace for the joined in fields.
+		workspace, err := db.GetWorkspaceByID(ctx, minimumWorkspace.ID)
+		if err != nil {
+			return xerrors.Errorf("get workspace by ID: %w", err)
+		}
+
+		c.logger.Info(ctx, "attempting to create prebuild", slog.F("name", name),
+			slog.F("workspace_id", prebuildID.String()), slog.F("preset_id", presetID.String()))
+
+		return c.provision(ctx, db, prebuildID, template, presetID, database.WorkspaceTransitionStart, workspace)
+	}, &database.TxOptions{
+		Isolation: sql.LevelRepeatableRead,
+		ReadOnly: false,
 	})
-	if err != nil {
-		return xerrors.Errorf("insert workspace: %w", err)
-	}
-
-	// We have to refetch the workspace for the joined in fields.
-	workspace, err := c.store.GetWorkspaceByID(ctx, minimumWorkspace.ID)
-	if err != nil {
-		return xerrors.Errorf("get workspace by ID: %w", err)
-	}
-
-	c.logger.Info(ctx, "attempting to create prebuild", slog.F("name", name),
-		slog.F("workspace_id", prebuildID.String()), slog.F("preset_id", presetID.String()))
-
-	return c.provision(ctx, prebuildID, template, presetID, database.WorkspaceTransitionStart, workspace)
 }
 
 func (c *storeReconciler) deletePrebuild(ctx context.Context, prebuildID uuid.UUID, templateID uuid.UUID, presetID uuid.UUID) error {
-	workspace, err := c.store.GetWorkspaceByID(ctx, prebuildID)
-	if err != nil {
-		return xerrors.Errorf("get workspace by ID: %w", err)
-	}
+	return c.store.InTx(func(db database.Store) error {
+		workspace, err := db.GetWorkspaceByID(ctx, prebuildID)
+		if err != nil {
+			return xerrors.Errorf("get workspace by ID: %w", err)
+		}
 
-	template, err := c.store.GetTemplateByID(ctx, templateID)
-	if err != nil {
-		return xerrors.Errorf("failed to get template: %w", err)
-	}
+		template, err := db.GetTemplateByID(ctx, templateID)
+		if err != nil {
+			return xerrors.Errorf("failed to get template: %w", err)
+		}
 
-	c.logger.Info(ctx, "attempting to delete prebuild",
-		slog.F("workspace_id", prebuildID.String()), slog.F("preset_id", presetID.String()))
+		c.logger.Info(ctx, "attempting to delete prebuild",
+			slog.F("workspace_id", prebuildID.String()), slog.F("preset_id", presetID.String()))
 
-	return c.provision(ctx, prebuildID, template, presetID, database.WorkspaceTransitionDelete, workspace)
+		return c.provision(ctx, db, prebuildID, template, presetID, database.WorkspaceTransitionDelete, workspace)
+	}, &database.TxOptions{
+		Isolation: sql.LevelRepeatableRead,
+		ReadOnly:  false,
+	})
 }
 
-func (c *storeReconciler) provision(ctx context.Context, prebuildID uuid.UUID, template database.Template, presetID uuid.UUID, transition database.WorkspaceTransition, workspace database.Workspace) error {
-	tvp, err := c.store.GetPresetParametersByTemplateVersionID(ctx, template.ActiveVersionID)
+func (c *storeReconciler) provision(ctx context.Context, db database.Store, prebuildID uuid.UUID, template database.Template, presetID uuid.UUID, transition database.WorkspaceTransition, workspace database.Workspace) error {
+	tvp, err := db.GetPresetParametersByTemplateVersionID(ctx, template.ActiveVersionID)
 	if err != nil {
 		return xerrors.Errorf("fetch preset details: %w", err)
 	}
@@ -409,7 +419,7 @@ func (c *storeReconciler) provision(ctx context.Context, prebuildID uuid.UUID, t
 
 	_, provisionerJob, _, err := builder.Build(
 		ctx,
-		c.store,
+		db,
 		func(action policy.Action, object rbac.Objecter) bool {
 			return true // TODO: harden?
 		},
