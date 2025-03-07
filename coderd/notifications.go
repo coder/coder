@@ -29,7 +29,7 @@ import (
 // watchNotifications watches for new notifications and sends them to the client.
 // The client can specify a list of target IDs to filter the notifications.
 // @Summary Watch for new notifications
-// @ID watch-notifications
+// @ID watch-for-new-notifications
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Notifications
