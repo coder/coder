@@ -79,7 +79,7 @@ func (api *API) watchNotifications(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if readStatusParam != "" {
-		var readOptions = []string{
+		readOptions := []string{
 			string(database.InboxNotificationReadStatusRead),
 			string(database.InboxNotificationReadStatusUnread),
 			string(database.InboxNotificationReadStatusAll),
@@ -124,12 +124,14 @@ func (api *API) watchNotifications(rw http.ResponseWriter, r *http.Request) {
 					}
 				}
 
+				// filter out notifications that don't match the templates
 				if len(templates) > 0 {
 					if isFound := slices.Contains(templates, payload.InboxNotification.TemplateID); !isFound {
 						return
 					}
 				}
 
+				// filter out notifications that don't match the read status
 				if readStatusParam != "" {
 					if readStatusParam == string(database.InboxNotificationReadStatusRead) {
 						if payload.InboxNotification.ReadAt == nil {
@@ -152,7 +154,7 @@ func (api *API) watchNotifications(rw http.ResponseWriter, r *http.Request) {
 
 	defer closeInboxNotificationsSubscriber()
 
-	encoder := wsjson.NewEncoder[codersdk.InboxNotification](conn, websocket.MessageText)
+	encoder := wsjson.NewEncoder[codersdk.GetInboxNotificationResponse](conn, websocket.MessageText)
 	defer encoder.Close(websocket.StatusNormalClosure)
 
 	for {
@@ -160,8 +162,16 @@ func (api *API) watchNotifications(rw http.ResponseWriter, r *http.Request) {
 		case <-ctx.Done():
 			return
 		case notif := <-notificationCh:
+			unreadCount, err := api.Database.CountUnreadInboxNotificationsByUserID(ctx, apikey.UserID)
+			if err != nil {
+				api.Logger.Error(ctx, "count unread inbox notifications", slog.Error(err))
+				return
+			}
 			api.Logger.Info(ctx, "sending notifications")
-			if err := encoder.Encode(notif); err != nil {
+			if err := encoder.Encode(codersdk.GetInboxNotificationResponse{
+				Notification: notif,
+				UnreadCount:  int(unreadCount),
+			}); err != nil {
 				api.Logger.Error(ctx, "encode notification", slog.Error(err))
 				return
 			}

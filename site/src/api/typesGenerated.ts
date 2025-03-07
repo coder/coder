@@ -892,6 +892,12 @@ export interface GenerateAPIKeyResponse {
 	readonly key: string;
 }
 
+// From codersdk/inboxnotification.go
+export interface GetInboxNotificationResponse {
+	readonly notification: InboxNotification;
+	readonly unread_count: number;
+}
+
 // From codersdk/insights.go
 export interface GetUserStatusCountsRequest {
 	readonly offset: string;
@@ -1151,6 +1157,12 @@ export interface LinkConfig {
 	readonly name: string;
 	readonly target: string;
 	readonly icon: string;
+}
+
+// From codersdk/inboxnotification.go
+export interface ListInboxNotificationsResponse {
+	readonly notifications: readonly InboxNotification[];
+	readonly unread_count: number;
 }
 
 // From codersdk/externalauth.go

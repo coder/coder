@@ -6,6 +6,16 @@ import (
 	"github.com/google/uuid"
 )
 
+type GetInboxNotificationResponse struct {
+	Notification InboxNotification `json:"notification"`
+	UnreadCount  int               `json:"unread_count"`
+}
+
+type ListInboxNotificationsResponse struct {
+	Notifications []InboxNotification `json:"notifications"`
+	UnreadCount   int                 `json:"unread_count"`
+}
+
 type InboxNotification struct {
 	ID         uuid.UUID                 `json:"id" format:"uuid"`
 	UserID     uuid.UUID                 `json:"user_id" format:"uuid"`
