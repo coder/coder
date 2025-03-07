@@ -1,3 +1,6 @@
 {
-	"registry-mirrors": ["https://mirror.gcr.io"]
+	"registry-mirrors": ["https://mirror.gcr.io"],
+	"features": {
+		"containerd-snapshotter': true
+	}
 }

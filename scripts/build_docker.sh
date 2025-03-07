@@ -136,10 +136,12 @@ fi
 
 log "--- Building Docker image for $arch ($image_tag)"
 
-docker build \
+docker buildx build \
 	--platform "$arch" \
 	--build-arg "BASE_IMAGE=$base_image" \
 	--build-arg "CODER_VERSION=$version" \
+	--provenence true \
+	--sbom true \
 	--no-cache \
 	--tag "$image_tag" \
 	-f Dockerfile \
