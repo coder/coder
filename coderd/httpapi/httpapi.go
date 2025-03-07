@@ -284,6 +284,12 @@ func WebsocketCloseSprintf(format string, vars ...any) string {
 	return msg
 }
 
+type InitializeConnectionCallback func(rw http.ResponseWriter, r *http.Request) (
+	sendEvent func(sse codersdk.ServerSentEvent),
+	done <-chan struct{},
+	err error,
+)
+
 // ServerSentEventSender establishes a Server-Sent Event connection and allows
 // the consumer to send messages to the client.
 //
@@ -293,7 +299,7 @@ func WebsocketCloseSprintf(format string, vars ...any) string {
 // As much as possible, this function should be avoided in favor of using the
 // OneWayWebSocket function. See OneWayWebSocket for more context.
 func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (
-	func(ctx context.Context, sse codersdk.ServerSentEvent) error,
+	func(sse codersdk.ServerSentEvent) error,
 	<-chan struct{},
 	error,
 ) {
@@ -308,6 +314,7 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (
 		panic("http.ResponseWriter is not http.Flusher")
 	}
 
+	ctx := r.Context()
 	closed := make(chan struct{})
 	type sseEvent struct {
 		payload []byte
@@ -347,7 +354,7 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (
 		}
 	}()
 
-	sendEvent := func(ctx context.Context, sse codersdk.ServerSentEvent) error {
+	sendEvent := func(sse codersdk.ServerSentEvent) error {
 		buf := &bytes.Buffer{}
 		enc := json.NewEncoder(buf)
 

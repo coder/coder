@@ -1190,7 +1190,7 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 
 		log.Debug(ctx, "sending metadata", "num", len(values))
 
-		_ = sseSendEvent(ctx, codersdk.ServerSentEvent{
+		_ = sseSendEvent(codersdk.ServerSentEvent{
 			Type: codersdk.ServerSentEventTypeData,
 			Data: convertWorkspaceAgentMetadata(values),
 		})
@@ -1222,7 +1222,7 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 				if err != nil {
 					if !database.IsQueryCanceledError(err) {
 						log.Error(ctx, "failed to get metadata", slog.Error(err))
-						_ = sseSendEvent(ctx, codersdk.ServerSentEvent{
+						_ = sseSendEvent(codersdk.ServerSentEvent{
 							Type: codersdk.ServerSentEventTypeError,
 							Data: codersdk.Response{
 								Message: "Failed to get metadata.",
