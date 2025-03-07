@@ -149,17 +149,6 @@ func (p presetState) calculateActions() (*reconciliationActions, error) {
 		actions.desired = 0
 	}
 
-	// Bail early to avoid scheduling new prebuilds while operations are in progress.
-	// TODO: optimization: we should probably be able to create prebuilds while others are deleting for a given preset.
-	if (toCreate+toDelete) > 0 && (starting+stopping+deleting) > 0 {
-		// TODO: move up
-		// c.logger.Warn(ctx, "prebuild operations in progress, skipping reconciliation",
-		//	slog.F("template_id", p.preset.TemplateID.String()), slog.F("starting", starting),
-		//	slog.F("stopping", stopping), slog.F("deleting", deleting),
-		//	slog.F("wanted_to_create", create), slog.F("wanted_to_delete", toDelete))
-		return actions, nil
-	}
-
 	// It's possible that an operator could stop/start prebuilds which interfere with the reconciliation loop, so
 	// we check if there are somehow more prebuilds than we expect, and then pick random victims to be deleted.
 	if extraneous > 0 {
