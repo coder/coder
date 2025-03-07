@@ -40,7 +40,7 @@ If there is an issue, you may see one of the following errors reported:
 [`url.Parse`](https://pkg.go.dev/net/url#Parse). Example:
 `https://dev.coder.com/`.
 
-> **Tip:** You can check this [here](https://go.dev/play/p/CabcJZyTwt9).
+You can use [the Go playground](https://go.dev/play/p/CabcJZyTwt9) for additional testing.
 
 ### EACS03
 

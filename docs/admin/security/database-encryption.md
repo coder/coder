@@ -26,20 +26,22 @@ The following database fields are currently encrypted:
 
 Additional database fields may be encrypted in the future.
 
-> Implementation notes: each encrypted database column `$C` has a corresponding
-> `$C_key_id` column. This column is used to determine which encryption key was
-> used to encrypt the data. This allows Coder to rotate encryption keys without
-> invalidating existing tokens, and provides referential integrity for encrypted
-> data.
->
-> The `$C_key_id` column stores the first 7 bytes of the SHA-256 hash of the
-> encryption key used to encrypt the data.
->
-> Encryption keys in use are stored in `dbcrypt_keys`. This table stores a
-> record of all encryption keys that have been used to encrypt data. Active keys
-> have a null `revoked_key_id` column, and revoked keys have a non-null
-> `revoked_key_id` column. You cannot revoke a key until you have rotated all
-> values using that key to a new key.
+### Implementation notes
+
+Each encrypted database column `$C` has a corresponding
+`$C_key_id` column. This column is used to determine which encryption key was
+used to encrypt the data. This allows Coder to rotate encryption keys without
+invalidating existing tokens, and provides referential integrity for encrypted
+data.
+
+The `$C_key_id` column stores the first 7 bytes of the SHA-256 hash of the
+encryption key used to encrypt the data.
+
+Encryption keys in use are stored in `dbcrypt_keys`. This table stores a
+record of all encryption keys that have been used to encrypt data. Active keys
+have a null `revoked_key_id` column, and revoked keys have a non-null
+`revoked_key_id` column. You cannot revoke a key until you have rotated all
+values using that key to a new key.
 
 ## Enabling encryption
 

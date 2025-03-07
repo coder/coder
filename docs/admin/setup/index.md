@@ -10,8 +10,7 @@ full list of the options, run `coder server --help` or see our
 external URL that users and workspaces use to connect to Coder (e.g.
 <https://coder.example.com>). This should not be localhost.
 
-> Access URL should be an external IP address or domain with DNS records
-> pointing to Coder.
+Access URL should be an external IP address or domain with DNS records pointing to Coder.
 
 ### Tunnel
 
@@ -108,6 +107,7 @@ deployment information. Use `CODER_PG_CONNECTION_URL` to set the database that
 Coder connects to. If unset, PostgreSQL binaries will be downloaded from Maven
 (<https://repo1.maven.org/maven2>) and store all data in the config root.
 
+> [!NOTE]
 > Postgres 13 is the minimum supported version.
 
 If you are using the built-in PostgreSQL deployment and need to use `psql` (aka
