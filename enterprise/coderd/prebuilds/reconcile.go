@@ -358,7 +358,7 @@ func (c *storeReconciler) createPrebuild(ctx context.Context, prebuildID uuid.UU
 		return c.provision(ctx, db, prebuildID, template, presetID, database.WorkspaceTransitionStart, workspace)
 	}, &database.TxOptions{
 		Isolation: sql.LevelRepeatableRead,
-		ReadOnly: false,
+		ReadOnly:  false,
 	})
 }
 

@@ -120,9 +120,7 @@ func (p presetState) calculateActions() (*reconciliationActions, error) {
 
 	var (
 		toCreate = int(math.Max(0, float64(
-			desired- // The number specified in the preset
-				(actual+starting)- // The current number of prebuilds (or builds in-flight)
-				stopping), // The number of prebuilds currently being stopped (should be 0)
+			desired-(actual+starting)), // The number of prebuilds currently being stopped (should be 0)
 		))
 		toDelete = int(math.Max(0, float64(
 			outdated- // The number of prebuilds running above the desired count for active version
