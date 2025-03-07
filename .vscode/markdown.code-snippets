@@ -5,7 +5,7 @@
 	"alert": {
         "prefix": "#alert",
         "body": [
-            "> [!${1|caution,important,note,tip,warning|}]\n",
+            "> [!${1|caution,important,note,tip,warning|}]",
             "> ${TM_SELECTED_TEXT:${2:add info here}}\n\n"
         ],
         "description": "callout admonition caution important note tip warning"
