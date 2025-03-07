@@ -40,8 +40,10 @@ func (api *API) watchNotifications(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	var (
-		apikey       = httpmw.APIKey(r)
-		targetsParam = r.URL.Query().Get("targets")
+		apikey          = httpmw.APIKey(r)
+		targetsParam    = r.URL.Query().Get("targets")
+		templatesParam  = r.URL.Query().Get("templates")
+		readStatusParam = r.URL.Query().Get("read_status")
 	)
 
 	var targets []uuid.UUID
@@ -60,8 +62,36 @@ func (api *API) watchNotifications(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// get the workspace query param if any
-	// get the template in params if any
+	var templates []uuid.UUID
+	if templatesParam != "" {
+		splitTemplates := strings.Split(templatesParam, ",")
+		for _, template := range splitTemplates {
+			id, err := uuid.Parse(template)
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Invalid template ID.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+			templates = append(templates, id)
+		}
+	}
+
+	if readStatusParam != "" {
+		var readOptions = []string{
+			string(database.InboxNotificationReadStatusRead),
+			string(database.InboxNotificationReadStatusUnread),
+			string(database.InboxNotificationReadStatusAll),
+		}
+
+		if !slices.Contains(readOptions, readStatusParam) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid read status.",
+			})
+			return
+		}
+	}
 
 	conn, err := websocket.Accept(rw, r, nil)
 	if err != nil {
@@ -89,6 +119,24 @@ func (api *API) watchNotifications(rw http.ResponseWriter, r *http.Request) {
 				if len(targets) > 0 {
 					for _, target := range targets {
 						if isFound := slices.Contains(payload.InboxNotification.Targets, target); !isFound {
+							return
+						}
+					}
+				}
+
+				if len(templates) > 0 {
+					if isFound := slices.Contains(templates, payload.InboxNotification.TemplateID); !isFound {
+						return
+					}
+				}
+
+				if readStatusParam != "" {
+					if readStatusParam == string(database.InboxNotificationReadStatusRead) {
+						if payload.InboxNotification.ReadAt == nil {
+							return
+						}
+					} else if readStatusParam == string(database.InboxNotificationReadStatusUnread) {
+						if payload.InboxNotification.ReadAt != nil {
 							return
 						}
 					}
