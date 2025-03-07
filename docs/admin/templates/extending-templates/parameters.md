@@ -79,7 +79,8 @@ data "coder_parameter" "security_groups" {
 }
 ```
 
-> [!NOTE] Overriding a `list(string)` on the CLI is tricky because:
+> [!NOTE]
+> Overriding a `list(string)` on the CLI is tricky because:
 >
 > - `--parameter "parameter_name=parameter_value"` is parsed as CSV.
 > - `parameter_value` is parsed as JSON.
