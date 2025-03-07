@@ -36,7 +36,7 @@ func (r *RootCmd) provisionerList() *serpent.Command {
 		client     = new(codersdk.Client)
 		orgContext = NewOrganizationContext()
 		formatter  = cliui.NewOutputFormatter(
-			cliui.TableFormat([]provisionerDaemonRow{}, []string{"name", "organization", "status", "key name", "created at", "last seen at", "version", "tags"}),
+			cliui.TableFormat([]provisionerDaemonRow{}, []string{"created at", "last seen at", "name", "version", "tags", "key name", "status", "organization"}),
 			cliui.JSONFormat(),
 		)
 		limit int64
