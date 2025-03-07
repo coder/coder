@@ -7,7 +7,13 @@ import { organizations } from "api/queries/organizations";
 import type { AuthorizationCheck, Organization } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
-import { type ComponentProps, type FC, useState, useMemo, useEffect } from "react";
+import {
+	type ComponentProps,
+	type FC,
+	useEffect,
+	useMemo,
+	useState,
+} from "react";
 import { useQuery } from "react-query";
 
 export type OrganizationAutocompleteProps = {
