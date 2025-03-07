@@ -11,10 +11,9 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"tailscale.com/types/ptr"
 
 	"github.com/coder/serpent"
-
-	"tailscale.com/types/ptr"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -64,7 +63,7 @@ func TestNoReconciliationActionsIfNoPresets(t *testing.T) {
 	// then no reconciliation actions are taken
 	// because without presets, there are no prebuilds
 	// and without prebuilds, there is nothing to reconcile
-	jobs, err := db.GetProvisionerJobsCreatedAfter(ctx, time.Now().Add(-time.Hour))
+	jobs, err := db.GetProvisionerJobsCreatedAfter(ctx, time.Now().Add(earlier))
 	require.NoError(t, err)
 	require.Empty(t, jobs)
 }
@@ -120,7 +119,7 @@ func TestNoReconciliationActionsIfNoPrebuilds(t *testing.T) {
 	// then no reconciliation actions are taken
 	// because without prebuilds, there is nothing to reconcile
 	// even if there are presets
-	jobs, err := db.GetProvisionerJobsCreatedAfter(ctx, time.Now().Add(-time.Hour))
+	jobs, err := db.GetProvisionerJobsCreatedAfter(ctx, time.Now().Add(earlier))
 	require.NoError(t, err)
 	require.Empty(t, jobs)
 }
@@ -401,6 +400,11 @@ func setupTestDBTemplate(
 	return org.ID, user.ID, template.ID
 }
 
+const (
+	earlier     = -time.Hour
+	muchEarlier = time.Hour * -2
+)
+
 func setupTestDBTemplateVersion(
 	t *testing.T,
 	ctx context.Context,
@@ -413,8 +417,8 @@ func setupTestDBTemplateVersion(
 	t.Helper()
 	templateVersionJob := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
 		ID:             uuid.New(),
-		CreatedAt:      time.Now().Add(-2 * time.Hour),
-		CompletedAt:    sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
+		CreatedAt:      time.Now().Add(muchEarlier),
+		CompletedAt:    sql.NullTime{Time: time.Now().Add(earlier), Valid: true},
 		OrganizationID: orgID,
 		InitiatorID:    userID,
 	})
@@ -424,10 +428,10 @@ func setupTestDBTemplateVersion(
 		CreatedBy:      userID,
 		JobID:          templateVersionJob.ID,
 	})
-	db.UpdateTemplateActiveVersionByID(ctx, database.UpdateTemplateActiveVersionByIDParams{
+	require.NoError(t, db.UpdateTemplateActiveVersionByID(ctx, database.UpdateTemplateActiveVersionByIDParams{
 		ID:              templateID,
 		ActiveVersionID: templateVersion.ID,
-	})
+	}))
 	return templateVersion.ID
 }
 
@@ -469,24 +473,23 @@ func setupTestDBPrebuild(
 
 	startedAt := sql.NullTime{}
 	if prebuildStatus != database.ProvisionerJobStatusPending {
-		startedAt = sql.NullTime{Time: time.Now().Add(-2 * time.Hour), Valid: true}
+		startedAt = sql.NullTime{Time: time.Now().Add(muchEarlier), Valid: true}
 	}
 
 	buildError := sql.NullString{}
 	if prebuildStatus == database.ProvisionerJobStatusFailed {
-		completedAt = sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true}
+		completedAt = sql.NullTime{Time: time.Now().Add(earlier), Valid: true}
 		buildError = sql.NullString{String: "build failed", Valid: true}
 	}
 
-	deleted := false
 	switch prebuildStatus {
 	case database.ProvisionerJobStatusCanceling:
-		cancelledAt = sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true}
+		cancelledAt = sql.NullTime{Time: time.Now().Add(earlier), Valid: true}
 	case database.ProvisionerJobStatusCanceled:
-		completedAt = sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true}
-		cancelledAt = sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true}
+		completedAt = sql.NullTime{Time: time.Now().Add(earlier), Valid: true}
+		cancelledAt = sql.NullTime{Time: time.Now().Add(earlier), Valid: true}
 	case database.ProvisionerJobStatusSucceeded:
-		completedAt = sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true}
+		completedAt = sql.NullTime{Time: time.Now().Add(earlier), Valid: true}
 	default:
 	}
 
@@ -494,11 +497,11 @@ func setupTestDBPrebuild(
 		TemplateID:     templateID,
 		OrganizationID: orgID,
 		OwnerID:        prebuilds.OwnerID,
-		Deleted:        deleted,
+		Deleted:        false,
 	})
 	job := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
 		InitiatorID:    prebuilds.OwnerID,
-		CreatedAt:      time.Now().Add(-2 * time.Hour),
+		CreatedAt:      time.Now().Add(muchEarlier),
 		StartedAt:      startedAt,
 		CompletedAt:    completedAt,
 		CanceledAt:     cancelledAt,

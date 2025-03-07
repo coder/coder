@@ -61,11 +61,11 @@ WITH filtered_builds AS (
                 ROW_NUMBER() OVER (PARTITION BY fb.template_version_preset_id ORDER BY fb.created_at DESC) as rn
          FROM filtered_builds fb),
      failed_count AS (
-         -- Count failed builds per template version/preset in the last hour
+         -- Count failed builds per template version/preset in the given period
          SELECT preset_id, COUNT(*) AS num_failed
          FROM filtered_builds
          WHERE job_status = 'failed'::provisioner_job_status
-           AND created_at >= NOW() - INTERVAL '1 hour'
+           AND created_at >= NOW() - (sqlc.arg('lookback')::integer * INTERVAL '1 microsecond') -- microsecond is the smallest unit in PG
          GROUP BY preset_id)
 SELECT lb.template_version_id,
        lb.preset_id,

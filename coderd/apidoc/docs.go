@@ -13153,6 +13153,12 @@ const docTemplate = `{
         "codersdk.PrebuildsConfig": {
             "type": "object",
             "properties": {
+                "reconciliation_backoff_interval": {
+                    "type": "integer"
+                },
+                "reconciliation_backoff_lookback": {
+                    "type": "integer"
+                },
                 "reconciliation_interval": {
                     "type": "integer"
                 }

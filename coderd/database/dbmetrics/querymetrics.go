@@ -12,6 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -1067,9 +1068,9 @@ func (m queryMetricsStore) GetPresetParametersByTemplateVersionID(ctx context.Co
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetPresetsBackoff(ctx context.Context) ([]database.GetPresetsBackoffRow, error) {
+func (m queryMetricsStore) GetPresetsBackoff(ctx context.Context, period int32) ([]database.GetPresetsBackoffRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetPresetsBackoff(ctx)
+	r0, r1 := m.s.GetPresetsBackoff(ctx, period)
 	m.queryLatencies.WithLabelValues("GetPresetsBackoff").Observe(time.Since(start).Seconds())
 	return r0, r1
 }

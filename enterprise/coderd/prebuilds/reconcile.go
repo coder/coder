@@ -249,7 +249,7 @@ func (c *storeReconciler) determineState(ctx context.Context, store database.Sto
 			return xerrors.Errorf("failed to get prebuilds in progress: %w", err)
 		}
 
-		presetsBackoff, err := db.GetPresetsBackoff(ctx)
+		presetsBackoff, err := db.GetPresetsBackoff(ctx, durationToInterval(c.cfg.ReconciliationBackoffLookback.Value()))
 		if err != nil {
 			return xerrors.Errorf("failed to get backoffs for presets: %w", err)
 		}
@@ -486,4 +486,10 @@ func generateName() (string, error) {
 
 	// Encode the bytes to Base32 (A-Z2-7), strip any '=' padding
 	return fmt.Sprintf("prebuild-%s", strings.ToLower(base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(b))), nil
+}
+
+// durationToInterval converts a given duration to microseconds, which is the unit PG represents intervals in.
+func durationToInterval(d time.Duration) int32 {
+	// Convert duration to seconds (as an example)
+	return int32(d.Microseconds())
 }
