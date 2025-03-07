@@ -1,4 +1,5 @@
-# Troubleshooting
+
+ Troubleshooting
 
 `coder ping <workspace>` will ping the workspace agent and print diagnostics on
 the state of the connection. These diagnostics are created by inspecting both
