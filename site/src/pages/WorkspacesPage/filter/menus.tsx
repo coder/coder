@@ -11,7 +11,6 @@ import {
 	useFilterMenu,
 } from "components/Filter/menu";
 import {
-	StatusIndicator,
 	StatusIndicatorDot,
 	type StatusIndicatorDotProps,
 } from "components/StatusIndicator/StatusIndicator";

@@ -166,7 +166,8 @@ inside the Terraform. See the
 [workspace tags documentation](../admin/templates/extending-templates/workspace-tags.md)
 for more information.
 
-> [!NOTE] Workspace tags defined with the `coder_workspace_tags` data source
+> [!NOTE]
+> Workspace tags defined with the `coder_workspace_tags` data source
 > template **do not** automatically apply to the template import job! You may
 > need to specify the desired tags when importing the template.
 
@@ -190,7 +191,8 @@ However, it will not pick up any build jobs that do not have either of the
 from templates with the tag `scope=user` set, or build jobs from templates in
 different organizations.
 
-> [!NOTE] If you only run tagged provisioners, you will need to specify a set of
+> [!NOTE]
+> If you only run tagged provisioners, you will need to specify a set of
 > tags that matches at least one provisioner for _all_ template import jobs and
 > workspace build jobs.
 >

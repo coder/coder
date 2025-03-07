@@ -1,13 +1,11 @@
 import LoadingButton from "@mui/lab/LoadingButton";
 import TextField from "@mui/material/TextField";
-import type * as TypesGen from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Form, FormFields } from "components/Form/Form";
 import { PasswordField } from "components/PasswordField/PasswordField";
 import { type FormikContextType, useFormik } from "formik";
 import type { FC } from "react";
-import { useEffect } from "react";
 import { getFormHelpers } from "utils/formUtils";
 import * as Yup from "yup";
 

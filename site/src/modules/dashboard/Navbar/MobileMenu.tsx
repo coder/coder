@@ -13,7 +13,6 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
-import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Latency } from "components/Latency/Latency";
 import type { ProxyContextValue } from "contexts/ProxyContext";

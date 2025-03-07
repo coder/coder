@@ -1,292 +1,292 @@
 {
-  "format_version": "1.0",
-  "terraform_version": "1.11.0",
-  "values": {
-    "root_module": {
-      "resources": [
-        {
-          "address": "data.coder_parameter.number_example",
-          "mode": "data",
-          "type": "coder_parameter",
-          "name": "number_example",
-          "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 0,
-          "values": {
-            "default": "4",
-            "description": null,
-            "display_name": null,
-            "ephemeral": true,
-            "icon": null,
-            "id": "5d079537-6700-4cad-8fd3-803ed9997a89",
-            "mutable": true,
-            "name": "number_example",
-            "option": null,
-            "optional": true,
-            "order": null,
-            "type": "number",
-            "validation": [],
-            "value": "4"
-          },
-          "sensitive_values": {
-            "validation": []
-          }
-        },
-        {
-          "address": "data.coder_parameter.number_example_max",
-          "mode": "data",
-          "type": "coder_parameter",
-          "name": "number_example_max",
-          "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 0,
-          "values": {
-            "default": "4",
-            "description": null,
-            "display_name": null,
-            "ephemeral": false,
-            "icon": null,
-            "id": "33eba3d7-41bb-4a5c-87a9-373791b21e0e",
-            "mutable": false,
-            "name": "number_example_max",
-            "option": null,
-            "optional": true,
-            "order": null,
-            "type": "number",
-            "validation": [
-              {
-                "error": "",
-                "max": 6,
-                "max_disabled": false,
-                "min": 0,
-                "min_disabled": true,
-                "monotonic": "",
-                "regex": ""
-              }
-            ],
-            "value": "4"
-          },
-          "sensitive_values": {
-            "validation": [
-              {}
-            ]
-          }
-        },
-        {
-          "address": "data.coder_parameter.number_example_max_zero",
-          "mode": "data",
-          "type": "coder_parameter",
-          "name": "number_example_max_zero",
-          "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 0,
-          "values": {
-            "default": "-3",
-            "description": null,
-            "display_name": null,
-            "ephemeral": false,
-            "icon": null,
-            "id": "3d8675ae-a974-4e23-8167-ac454cee1761",
-            "mutable": false,
-            "name": "number_example_max_zero",
-            "option": null,
-            "optional": true,
-            "order": null,
-            "type": "number",
-            "validation": [
-              {
-                "error": "",
-                "max": 0,
-                "max_disabled": false,
-                "min": 0,
-                "min_disabled": true,
-                "monotonic": "",
-                "regex": ""
-              }
-            ],
-            "value": "-3"
-          },
-          "sensitive_values": {
-            "validation": [
-              {}
-            ]
-          }
-        },
-        {
-          "address": "data.coder_parameter.number_example_min",
-          "mode": "data",
-          "type": "coder_parameter",
-          "name": "number_example_min",
-          "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 0,
-          "values": {
-            "default": "4",
-            "description": null,
-            "display_name": null,
-            "ephemeral": false,
-            "icon": null,
-            "id": "7ee27396-5c9c-4d7b-8fb8-ab475516982e",
-            "mutable": false,
-            "name": "number_example_min",
-            "option": null,
-            "optional": true,
-            "order": null,
-            "type": "number",
-            "validation": [
-              {
-                "error": "",
-                "max": 0,
-                "max_disabled": true,
-                "min": 3,
-                "min_disabled": false,
-                "monotonic": "",
-                "regex": ""
-              }
-            ],
-            "value": "4"
-          },
-          "sensitive_values": {
-            "validation": [
-              {}
-            ]
-          }
-        },
-        {
-          "address": "data.coder_parameter.number_example_min_max",
-          "mode": "data",
-          "type": "coder_parameter",
-          "name": "number_example_min_max",
-          "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 0,
-          "values": {
-            "default": "4",
-            "description": null,
-            "display_name": null,
-            "ephemeral": false,
-            "icon": null,
-            "id": "37b5b1c9-3072-4298-a66c-e3dca868b49d",
-            "mutable": false,
-            "name": "number_example_min_max",
-            "option": null,
-            "optional": true,
-            "order": null,
-            "type": "number",
-            "validation": [
-              {
-                "error": "",
-                "max": 6,
-                "max_disabled": false,
-                "min": 3,
-                "min_disabled": false,
-                "monotonic": "",
-                "regex": ""
-              }
-            ],
-            "value": "4"
-          },
-          "sensitive_values": {
-            "validation": [
-              {}
-            ]
-          }
-        },
-        {
-          "address": "data.coder_parameter.number_example_min_zero",
-          "mode": "data",
-          "type": "coder_parameter",
-          "name": "number_example_min_zero",
-          "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 0,
-          "values": {
-            "default": "4",
-            "description": null,
-            "display_name": null,
-            "ephemeral": false,
-            "icon": null,
-            "id": "151a6b05-1412-4add-aa73-78e6da5cde96",
-            "mutable": false,
-            "name": "number_example_min_zero",
-            "option": null,
-            "optional": true,
-            "order": null,
-            "type": "number",
-            "validation": [
-              {
-                "error": "",
-                "max": 0,
-                "max_disabled": true,
-                "min": 0,
-                "min_disabled": false,
-                "monotonic": "",
-                "regex": ""
-              }
-            ],
-            "value": "4"
-          },
-          "sensitive_values": {
-            "validation": [
-              {}
-            ]
-          }
-        },
-        {
-          "address": "coder_agent.dev",
-          "mode": "managed",
-          "type": "coder_agent",
-          "name": "dev",
-          "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 1,
-          "values": {
-            "arch": "arm64",
-            "auth": "token",
-            "connection_timeout": 120,
-            "dir": null,
-            "display_apps": [
-              {
-                "port_forwarding_helper": true,
-                "ssh_helper": true,
-                "vscode": true,
-                "vscode_insiders": false,
-                "web_terminal": true
-              }
-            ],
-            "env": null,
-            "id": "93618e63-cf42-40b1-a11e-ba4169ff8ff5",
-            "init_script": "",
-            "metadata": [],
-            "motd_file": null,
-            "order": null,
-            "os": "windows",
-            "resources_monitoring": [],
-            "shutdown_script": null,
-            "startup_script": null,
-            "startup_script_behavior": "non-blocking",
-            "token": "76203492-fcde-4467-8656-38787298bdf6",
-            "troubleshooting_url": null
-          },
-          "sensitive_values": {
-            "display_apps": [
-              {}
-            ],
-            "metadata": [],
-            "resources_monitoring": [],
-            "token": true
-          }
-        },
-        {
-          "address": "null_resource.dev",
-          "mode": "managed",
-          "type": "null_resource",
-          "name": "dev",
-          "provider_name": "registry.terraform.io/hashicorp/null",
-          "schema_version": 0,
-          "values": {
-            "id": "9062302210421040649",
-            "triggers": null
-          },
-          "sensitive_values": {},
-          "depends_on": [
-            "coder_agent.dev"
-          ]
-        }
-      ]
-    }
-  }
+	"format_version": "1.0",
+	"terraform_version": "1.11.0",
+	"values": {
+		"root_module": {
+			"resources": [
+				{
+					"address": "data.coder_parameter.number_example",
+					"mode": "data",
+					"type": "coder_parameter",
+					"name": "number_example",
+					"provider_name": "registry.terraform.io/coder/coder",
+					"schema_version": 0,
+					"values": {
+						"default": "4",
+						"description": null,
+						"display_name": null,
+						"ephemeral": true,
+						"icon": null,
+						"id": "69d94f37-bd4f-4e1f-9f35-b2f70677be2f",
+						"mutable": true,
+						"name": "number_example",
+						"option": null,
+						"optional": true,
+						"order": null,
+						"type": "number",
+						"validation": [],
+						"value": "4"
+					},
+					"sensitive_values": {
+						"validation": []
+					}
+				},
+				{
+					"address": "data.coder_parameter.number_example_max",
+					"mode": "data",
+					"type": "coder_parameter",
+					"name": "number_example_max",
+					"provider_name": "registry.terraform.io/coder/coder",
+					"schema_version": 0,
+					"values": {
+						"default": "4",
+						"description": null,
+						"display_name": null,
+						"ephemeral": false,
+						"icon": null,
+						"id": "5184898a-1542-4cc9-95ee-6c8f10047836",
+						"mutable": false,
+						"name": "number_example_max",
+						"option": null,
+						"optional": true,
+						"order": null,
+						"type": "number",
+						"validation": [
+							{
+								"error": "",
+								"max": 6,
+								"max_disabled": false,
+								"min": 0,
+								"min_disabled": true,
+								"monotonic": "",
+								"regex": ""
+							}
+						],
+						"value": "4"
+					},
+					"sensitive_values": {
+						"validation": [
+							{}
+						]
+					}
+				},
+				{
+					"address": "data.coder_parameter.number_example_max_zero",
+					"mode": "data",
+					"type": "coder_parameter",
+					"name": "number_example_max_zero",
+					"provider_name": "registry.terraform.io/coder/coder",
+					"schema_version": 0,
+					"values": {
+						"default": "-3",
+						"description": null,
+						"display_name": null,
+						"ephemeral": false,
+						"icon": null,
+						"id": "23c02245-5e89-42dd-a45f-8470d9c9024a",
+						"mutable": false,
+						"name": "number_example_max_zero",
+						"option": null,
+						"optional": true,
+						"order": null,
+						"type": "number",
+						"validation": [
+							{
+								"error": "",
+								"max": 0,
+								"max_disabled": false,
+								"min": 0,
+								"min_disabled": true,
+								"monotonic": "",
+								"regex": ""
+							}
+						],
+						"value": "-3"
+					},
+					"sensitive_values": {
+						"validation": [
+							{}
+						]
+					}
+				},
+				{
+					"address": "data.coder_parameter.number_example_min",
+					"mode": "data",
+					"type": "coder_parameter",
+					"name": "number_example_min",
+					"provider_name": "registry.terraform.io/coder/coder",
+					"schema_version": 0,
+					"values": {
+						"default": "4",
+						"description": null,
+						"display_name": null,
+						"ephemeral": false,
+						"icon": null,
+						"id": "9f61eec0-ec39-4649-a972-6eaf9055efcc",
+						"mutable": false,
+						"name": "number_example_min",
+						"option": null,
+						"optional": true,
+						"order": null,
+						"type": "number",
+						"validation": [
+							{
+								"error": "",
+								"max": 0,
+								"max_disabled": true,
+								"min": 3,
+								"min_disabled": false,
+								"monotonic": "",
+								"regex": ""
+							}
+						],
+						"value": "4"
+					},
+					"sensitive_values": {
+						"validation": [
+							{}
+						]
+					}
+				},
+				{
+					"address": "data.coder_parameter.number_example_min_max",
+					"mode": "data",
+					"type": "coder_parameter",
+					"name": "number_example_min_max",
+					"provider_name": "registry.terraform.io/coder/coder",
+					"schema_version": 0,
+					"values": {
+						"default": "4",
+						"description": null,
+						"display_name": null,
+						"ephemeral": false,
+						"icon": null,
+						"id": "3fd9601e-4ddb-4b56-af9f-e2391f9121d2",
+						"mutable": false,
+						"name": "number_example_min_max",
+						"option": null,
+						"optional": true,
+						"order": null,
+						"type": "number",
+						"validation": [
+							{
+								"error": "",
+								"max": 6,
+								"max_disabled": false,
+								"min": 3,
+								"min_disabled": false,
+								"monotonic": "",
+								"regex": ""
+							}
+						],
+						"value": "4"
+					},
+					"sensitive_values": {
+						"validation": [
+							{}
+						]
+					}
+				},
+				{
+					"address": "data.coder_parameter.number_example_min_zero",
+					"mode": "data",
+					"type": "coder_parameter",
+					"name": "number_example_min_zero",
+					"provider_name": "registry.terraform.io/coder/coder",
+					"schema_version": 0,
+					"values": {
+						"default": "4",
+						"description": null,
+						"display_name": null,
+						"ephemeral": false,
+						"icon": null,
+						"id": "fe0b007a-b200-4982-ba64-d201bdad3fa0",
+						"mutable": false,
+						"name": "number_example_min_zero",
+						"option": null,
+						"optional": true,
+						"order": null,
+						"type": "number",
+						"validation": [
+							{
+								"error": "",
+								"max": 0,
+								"max_disabled": true,
+								"min": 0,
+								"min_disabled": false,
+								"monotonic": "",
+								"regex": ""
+							}
+						],
+						"value": "4"
+					},
+					"sensitive_values": {
+						"validation": [
+							{}
+						]
+					}
+				},
+				{
+					"address": "coder_agent.dev",
+					"mode": "managed",
+					"type": "coder_agent",
+					"name": "dev",
+					"provider_name": "registry.terraform.io/coder/coder",
+					"schema_version": 1,
+					"values": {
+						"arch": "arm64",
+						"auth": "token",
+						"connection_timeout": 120,
+						"dir": null,
+						"display_apps": [
+							{
+								"port_forwarding_helper": true,
+								"ssh_helper": true,
+								"vscode": true,
+								"vscode_insiders": false,
+								"web_terminal": true
+							}
+						],
+						"env": null,
+						"id": "9c8368da-924c-4df4-a049-940a9a035051",
+						"init_script": "",
+						"metadata": [],
+						"motd_file": null,
+						"order": null,
+						"os": "windows",
+						"resources_monitoring": [],
+						"shutdown_script": null,
+						"startup_script": null,
+						"startup_script_behavior": "non-blocking",
+						"token": "e09a4d7d-8341-4adf-b93b-21f3724d76d7",
+						"troubleshooting_url": null
+					},
+					"sensitive_values": {
+						"display_apps": [
+							{}
+						],
+						"metadata": [],
+						"resources_monitoring": [],
+						"token": true
+					}
+				},
+				{
+					"address": "null_resource.dev",
+					"mode": "managed",
+					"type": "null_resource",
+					"name": "dev",
+					"provider_name": "registry.terraform.io/hashicorp/null",
+					"schema_version": 0,
+					"values": {
+						"id": "8775913147618687383",
+						"triggers": null
+					},
+					"sensitive_values": {},
+					"depends_on": [
+						"coder_agent.dev"
+					]
+				}
+			]
+		}
+	}
 }
