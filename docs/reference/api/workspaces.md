@@ -1979,3 +1979,41 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/watch \
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Watch workspace by ID via WebSockets
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/watch-ws \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /workspaces/{workspace}/watch-ws`
+
+### Parameters
+
+| Name        | In   | Type         | Required | Description  |
+|-------------|------|--------------|----------|--------------|
+| `workspace` | path | string(uuid) | true     | Workspace ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "data": null,
+  "type": "ping"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                         |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ServerSentEvent](schemas.md#codersdkserversentevent) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
