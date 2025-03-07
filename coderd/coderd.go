@@ -823,7 +823,7 @@ func New(options *Options) *API {
 	// we do not override subdomain app routes.
 	r.Get("/latency-check", tracing.StatusWriterMiddleware(prometheusMW(LatencyCheck())).ServeHTTP)
 
-	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("OK")) })
+	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("OK")) })
 
 	// Attach workspace apps routes.
 	r.Group(func(r chi.Router) {
@@ -838,7 +838,7 @@ func New(options *Options) *API {
 		r.Route("/derp", func(r chi.Router) {
 			r.Get("/", derpHandler.ServeHTTP)
 			// This is used when UDP is blocked, and latency must be checked via HTTP(s).
-			r.Get("/latency-check", func(w http.ResponseWriter, r *http.Request) {
+			r.Get("/latency-check", func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(http.StatusOK)
 			})
 		})
@@ -895,7 +895,7 @@ func New(options *Options) *API {
 	r.Route("/api/v2", func(r chi.Router) {
 		api.APIHandler = r
 
-		r.NotFound(func(rw http.ResponseWriter, r *http.Request) { httpapi.RouteNotFound(rw) })
+		r.NotFound(func(rw http.ResponseWriter, _ *http.Request) { httpapi.RouteNotFound(rw) })
 		r.Use(
 			// Specific routes can specify different limits, but every rate
 			// limit must be configurable by the admin.
@@ -1230,7 +1230,8 @@ func New(options *Options) *API {
 					httpmw.ExtractWorkspaceParam(options.Database),
 				)
 				r.Get("/", api.workspaceAgent)
-				r.Get("/watch-metadata", api.watchWorkspaceAgentMetadata)
+				r.Get("/watch-metadata", api.watchWorkspaceAgentMetadataSSE)
+				r.Get("/watch-metadata-ws", api.watchWorkspaceAgentMetadataWS)
 				r.Get("/startup-logs", api.workspaceAgentLogsDeprecated)
 				r.Get("/logs", api.workspaceAgentLogs)
 				r.Get("/listening-ports", api.workspaceAgentListeningPorts)
@@ -1262,7 +1263,8 @@ func New(options *Options) *API {
 				r.Route("/ttl", func(r chi.Router) {
 					r.Put("/", api.putWorkspaceTTL)
 				})
-				r.Get("/watch", api.watchWorkspace)
+				r.Get("/watch", api.watchWorkspaceSSE)
+				r.Get("/watch-ws", api.watchWorkspaceWS)
 				r.Put("/extend", api.putExtendWorkspace)
 				r.Post("/usage", api.postWorkspaceUsage)
 				r.Put("/dormant", api.putWorkspaceDormant)
@@ -1408,7 +1410,7 @@ func New(options *Options) *API {
 		// global variable here.
 		r.Get("/swagger/*", globalHTTPSwaggerHandler)
 	} else {
-		swaggerDisabled := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		swaggerDisabled := http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
 			httpapi.Write(context.Background(), rw, http.StatusNotFound, codersdk.Response{
 				Message: "Swagger documentation is disabled.",
 			})
