@@ -285,7 +285,7 @@ func WebsocketCloseSprintf(format string, vars ...any) string {
 }
 
 type InitializeConnectionCallback func(rw http.ResponseWriter, r *http.Request) (
-	sendEvent func(sse codersdk.ServerSentEvent),
+	sendEvent func(sse codersdk.ServerSentEvent) error,
 	done <-chan struct{},
 	err error,
 )
