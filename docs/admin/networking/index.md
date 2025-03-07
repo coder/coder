@@ -27,8 +27,7 @@ Direct connections are as fast as connecting to the workspace outside of Coder.
 When NAT traversal fails, connections are relayed through the Coder server. All
 user-workspace connections are end-to-end encrypted.
 
-[Tailscale](https://tailscale.com)'s implementation of
-[Wireguard](https://www.wireguard.com/) backs our websocket/HTTPS networking logic.
+Coder establishes network connections with an embedded version of [Tailscale](https://tailscale.com)'s open source data plane.
 
 ## Requirements
 
