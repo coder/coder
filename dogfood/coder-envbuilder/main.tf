@@ -30,7 +30,7 @@ variable "CODER_TEMPLATE_MESSAGE" {
   type = string
 }
 
-resource "coderd_template" "dogfood" {
+resource "coderd_template" "coder-envbuilder" {
   name            = "coder-envbuilder"
   display_name    = "Write Coder on Coder using Envbuilder"
   description     = "Write Coder on Coder using a workspace built by Envbuilder."
@@ -42,10 +42,13 @@ resource "coderd_template" "dogfood" {
       message   = var.CODER_TEMPLATE_MESSAGE
       directory = var.CODER_TEMPLATE_DIR
       active    = true
-      tf_vars = [{
-        # clusters/dogfood-v2/coder/provisioner/configs/values.yaml#L191-L194
-        "envbuilder_cache_dockerconfigjson_path" = "/home/coder/envbuilder-cache-dockerconfig.json"
-      }]
+      tf_vars = [
+        {
+          # clusters/dogfood-v2/coder/provisioner/configs/values.yaml#L191-L194
+          name  = "envbuilder_cache_dockerconfigjson_path"
+          value = "/home/coder/envbuilder-cache-dockerconfig.json"
+        }
+      ]
     }
   ]
   acl = {
