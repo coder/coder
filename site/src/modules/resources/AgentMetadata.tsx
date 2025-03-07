@@ -51,10 +51,6 @@ export const AgentMetadata: FC<AgentMetadataProps> = ({
 }) => {
 	const [metadata, setMetadata] = useState<WorkspaceAgentMetadata[]>();
 	useEffect(() => {
-		// Even though we're using storybookMetadata as the initial value of the
-		// `metadata` state, we can't sync on `metadata` itself. If we did, the
-		// moment we update the state with a new event, we would re-trigger the
-		// effect and immediately destroy the connection
 		if (storybookMetadata !== undefined) {
 			return;
 		}
