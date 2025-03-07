@@ -51,12 +51,9 @@ for your workspace.
 
 ## Autostop requirement
 
-<blockquote class="info">
-
-Autostop requirement is an Enterprise and Premium feature.
-[Learn more](https://coder.com/pricing#compare-plans).
-
-</blockquote>
+> [!NOTE]
+> Autostop requirement is an Enterprise and Premium feature.
+> [Learn more](https://coder.com/pricing#compare-plans).
 
 Licensed template admins may enforce a required stop for workspaces to apply
 updates or undergo maintenance. These stops ignore any active connections or
@@ -70,12 +67,9 @@ and specified quiet hours (see below).
 
 ### User quiet hours
 
-<blockquote class="info">
-
-User quiet hours are an Enterprise and Premium feature.
-[Learn more](https://coder.com/pricing#compare-plans).
-
-</blockquote>
+> [!NOTE]
+> User quiet hours are an Enterprise and Premium feature.
+> [Learn more](https://coder.com/pricing#compare-plans).
 
 User quiet hours can be configured in the user's schedule settings page.
 Workspaces on templates with an autostop requirement will only be forcibly
@@ -115,12 +109,9 @@ hours of inactivity.
 
 ## Dormancy
 
-<blockquote class="info">
-
-Dormancy is an Enterprise and Premium feature.
-[Learn more](https://coder.com/pricing#compare-plans).
-
-</blockquote>
+> [!NOTE]
+> Dormancy is an Enterprise and Premium feature.
+> [Learn more](https://coder.com/pricing#compare-plans).
 
 Dormancy automatically deletes workspaces which remain unused for long
 durations. Template admins configure an inactivity period after which your

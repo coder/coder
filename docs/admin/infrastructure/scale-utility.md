@@ -36,19 +36,16 @@ Since Coder's performance is highly dependent on the templates and workflows you
 support, you may wish to use our internal scale testing utility against your own
 environments.
 
-<blockquote class="admonition important">
-
-This utility is experimental.
-
-It is not subject to any compatibility guarantees and may cause interruptions
-for your users.
-To avoid potential outages and orphaned resources, we recommend that you run
-scale tests on a secondary "staging" environment or a dedicated
-[Kubernetes playground cluster](https://github.com/coder/coder/tree/main/scaletest/terraform).
-
-Run it against a production environment at your own risk.
-
-</blockquote>
+> [!IMPORTANT]
+> This utility is experimental.
+>
+> It is not subject to any compatibility guarantees and may cause interruptions
+> for your users.
+> To avoid potential outages and orphaned resources, we recommend that you run
+> scale tests on a secondary "staging" environment or a dedicated
+> [Kubernetes playground cluster](https://github.com/coder/coder/tree/main/scaletest/terraform).
+>
+> Run it against a production environment at your own risk.
 
 ### Create workspaces
 

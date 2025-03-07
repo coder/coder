@@ -120,11 +120,8 @@ The Redirect URI for Gitea should be
 
 ### GitHub
 
-<blockquote class="admonition tip">
-
-If you don't require fine-grained access control, it's easier to [configure a GitHub OAuth app](#configure-a-github-oauth-app).
-
-</blockquote>
+> [!TIP]
+> If you don't require fine-grained access control, it's easier to [configure a GitHub OAuth app](#configure-a-github-oauth-app).
 
 ```env
 CODER_EXTERNAL_AUTH_0_ID="USER_DEFINED_ID"
@@ -224,24 +221,18 @@ CODER_EXTERNAL_AUTH_0_SCOPES="repo:read repo:write write:gpg_key"
 
 ## Multiple External Providers
 
-<blockquote class="info">
-
-Multiple providers is an Enterprise and Premium feature.
-[Learn more](https://coder.com/pricing#compare-plans).
-
-</blockquote>
+> [!NOTE]
+> Multiple providers is an Enterprise and Premium feature.
+> [Learn more](https://coder.com/pricing#compare-plans).
 
 Below is an example configuration with multiple providers:
 
-<blockquote class="admonition warning">
-
-**Note:** To support regex matching for paths like `github\.com/org`, add the following `git config` line to the [Coder agent startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script):
-
-```shell
-git config --global credential.useHttpPath true
-```
-
-</blockquote>
+> [!IMPORTANT]
+> To support regex matching for paths like `github\.com/org`, add the following `git config` line to the [Coder agent startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script):
+>
+> ```shell
+> git config --global credential.useHttpPath true
+> ```
 
 ```env
 # Provider 1) github.com

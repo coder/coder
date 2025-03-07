@@ -172,12 +172,9 @@ more.
 
 ## Browser-only connections
 
-<blockquote class="info">
-
-Browser-only connections is an Enterprise and Premium feature.
-[Learn more](https://coder.com/pricing#compare-plans).
-
-</blockquote>
+> [!NOTE]
+> Browser-only connections is an Enterprise and Premium feature.
+> [Learn more](https://coder.com/pricing#compare-plans).
 
 Some Coder deployments require that all access is through the browser to comply
 with security policies. In these cases, pass the `--browser-only` flag to
@@ -189,12 +186,9 @@ via the web terminal and
 
 ### Workspace Proxies
 
-<blockquote class="info">
-
-Workspace proxies are an Enterprise and Premium feature.
-[Learn more](https://coder.com/pricing#compare-plans).
-
-</blockquote>
+> [!NOTE]
+> Workspace proxies are an Enterprise and Premium feature.
+> [Learn more](https://coder.com/pricing#compare-plans).
 
 Workspace proxies are a Coder Enterprise feature that allows you to provide
 low-latency browser experiences for geo-distributed teams.

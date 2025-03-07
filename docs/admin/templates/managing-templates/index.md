@@ -60,12 +60,9 @@ infrastructure, software, or security patches. Learn more about
 
 ### Template update policies
 
-<blockquote class="info">
-
-Template update policies are an Enterprise and Premium feature.
-[Learn more](https://coder.com/pricing#compare-plans).
-
-</blockquote>
+> [!NOTE]
+> Template update policies are an Enterprise and Premium feature.
+> [Learn more](https://coder.com/pricing#compare-plans).
 
 Licensed template admins may want workspaces to always remain on the latest
 version of their parent template. To do so, enable **Template Update Policies**

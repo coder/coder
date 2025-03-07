@@ -131,12 +131,9 @@ to the app.
 
 ### Configure maximum port sharing level
 
-<blockquote class="info">
-
-Configuring port sharing level is an Enterprise and Premium feature.
-[Learn more](https://coder.com/pricing#compare-plans).
-
-</blockquote>
+> [!NOTE]
+> Configuring port sharing level is an Enterprise and Premium feature.
+> [Learn more](https://coder.com/pricing#compare-plans).
 
 Premium-licensed template admins can control the maximum port sharing level for
 workspaces under a given template in the template settings. By default, the

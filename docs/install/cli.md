@@ -58,11 +58,8 @@ coder login https://coder.example.com
 
 ## Download the CLI from your deployment
 
-<blockquote class="admonition note">
-
-Available in Coder 2.19 and newer.
-
-</blockquote>
+> [!NOTE]
+> Available in Coder 2.19 and newer.
 
 Every Coder server hosts CLI binaries for all supported platforms. You can run a
 script to download the appropriate CLI for your machine from your Coder
