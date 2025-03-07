@@ -22,9 +22,10 @@
 import globalAxios, { type AxiosInstance, isAxiosError } from "axios";
 import type dayjs from "dayjs";
 import userAgentParser from "ua-parser-js";
+import { OneWayWebSocket } from "utils/OneWayWebSocket";
 import { delay } from "../utils/delay";
-import * as TypesGen from "./typesGenerated";
 import type { PostWorkspaceUsageRequest } from "./typesGenerated";
+import * as TypesGen from "./typesGenerated";
 
 const getMissingParameters = (
 	oldBuildParameters: TypesGen.WorkspaceBuildParameter[],
@@ -106,10 +107,10 @@ const getMissingParameters = (
  * @returns An EventSource that emits agent metadata event objects
  * (ServerSentEvent)
  */
-export const watchAgentMetadata = (agentId: string): EventSource => {
-	return new EventSource(
-		`${location.protocol}//${location.host}/api/v2/workspaceagents/${agentId}/watch-metadata`,
-		{ withCredentials: true },
+export const watchAgentMetadata = (agentId: string): OneWayWebSocket => {
+	const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+	return new OneWayWebSocket(
+		`${protocol}//${location.host}/api/v2/workspaceagents/${agentId}/watch-metadata-ws`,
 	);
 };
 
@@ -117,10 +118,10 @@ export const watchAgentMetadata = (agentId: string): EventSource => {
  * @returns {EventSource} An EventSource that emits workspace event objects
  * (ServerSentEvent)
  */
-export const watchWorkspace = (workspaceId: string): EventSource => {
-	return new EventSource(
-		`${location.protocol}//${location.host}/api/v2/workspaces/${workspaceId}/watch`,
-		{ withCredentials: true },
+export const watchWorkspace = (workspaceId: string): OneWayWebSocket => {
+	const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+	return new OneWayWebSocket(
+		`${protocol}//${location.host}/api/v2/workspaces/${workspaceId}/watch-ws`,
 	);
 };
 
@@ -1080,12 +1081,13 @@ class ApiMethods {
 	};
 
 	getWorkspaceByOwnerAndName = async (
-		username = "me",
+		username: string | undefined,
 		workspaceName: string,
 		params?: TypesGen.WorkspaceOptions,
 	): Promise<TypesGen.Workspace> => {
+		const user = username || "me";
 		const response = await this.axios.get<TypesGen.Workspace>(
-			`/api/v2/users/${username}/workspace/${workspaceName}`,
+			`/api/v2/users/${user}/workspace/${workspaceName}`,
 			{ params },
 		);
 
@@ -1093,12 +1095,13 @@ class ApiMethods {
 	};
 
 	getWorkspaceBuildByNumber = async (
-		username = "me",
+		username: string | undefined,
 		workspaceName: string,
 		buildNumber: number,
 	): Promise<TypesGen.WorkspaceBuild> => {
+		const name = username || "me";
 		const response = await this.axios.get<TypesGen.WorkspaceBuild>(
-			`/api/v2/users/${username}/workspace/${workspaceName}/builds/${buildNumber}`,
+			`/api/v2/users/${name}/workspace/${workspaceName}/builds/${buildNumber}`,
 		);
 
 		return response.data;
@@ -1279,11 +1282,12 @@ class ApiMethods {
 	};
 
 	createWorkspace = async (
-		userId = "me",
+		userId: string | undefined,
 		workspace: TypesGen.CreateWorkspaceRequest,
 	): Promise<TypesGen.Workspace> => {
+		const id = userId || "me";
 		const response = await this.axios.post<TypesGen.Workspace>(
-			`/api/v2/users/${userId}/workspaces`,
+			`/api/v2/users/${id}/workspaces`,
 			workspace,
 		);
 

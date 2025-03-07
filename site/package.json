@@ -164,7 +164,6 @@
 		"@vitejs/plugin-react": "4.3.4",
 		"autoprefixer": "10.4.20",
 		"chromatic": "11.25.2",
-		"eventsourcemock": "2.0.0",
 		"express": "4.21.2",
 		"jest": "29.7.0",
 		"jest-canvas-mock": "2.5.2",
@@ -189,7 +188,11 @@
 		"vite-plugin-checker": "0.8.0",
 		"vite-plugin-turbosnap": "1.0.3"
 	},
-	"browserslist": ["chrome 110", "firefox 111", "safari 16.0"],
+	"browserslist": [
+		"chrome 110",
+		"firefox 111",
+		"safari 16.0"
+	],
 	"resolutions": {
 		"optionator": "0.9.3",
 		"semver": "7.6.2"

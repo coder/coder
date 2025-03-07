@@ -3,9 +3,11 @@ import Skeleton from "@mui/material/Skeleton";
 import Tooltip from "@mui/material/Tooltip";
 import { watchAgentMetadata } from "api/api";
 import type {
+	ServerSentEvent,
 	WorkspaceAgent,
 	WorkspaceAgentMetadata,
 } from "api/typesGenerated";
+import { displayError } from "components/GlobalSnackbar/utils";
 import { Stack } from "components/Stack/Stack";
 import dayjs from "dayjs";
 import {
@@ -17,6 +19,7 @@ import {
 	useState,
 } from "react";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
+import type { OneWayWebSocket } from "utils/OneWayWebSocket";
 
 type ItemStatus = "stale" | "valid" | "loading";
 
@@ -46,43 +49,50 @@ export const AgentMetadata: FC<AgentMetadataProps> = ({
 	agent,
 	storybookMetadata,
 }) => {
-	const [metadata, setMetadata] = useState<
-		WorkspaceAgentMetadata[] | undefined
-	>(undefined);
-
+	const [metadata, setMetadata] = useState<WorkspaceAgentMetadata[]>();
 	useEffect(() => {
+		// Even though we're using storybookMetadata as the initial value of the
+		// `metadata` state, we can't sync on `metadata` itself. If we did, the
+		// moment we update the state with a new event, we would re-trigger the
+		// effect and immediately destroy the connection
 		if (storybookMetadata !== undefined) {
-			setMetadata(storybookMetadata);
 			return;
 		}
 
-		let timeout: ReturnType<typeof setTimeout> | undefined = undefined;
+		let timeoutId: number | undefined = undefined;
+		let latestSocket: OneWayWebSocket | undefined = undefined;
 
-		const connect = (): (() => void) => {
-			const source = watchAgentMetadata(agent.id);
+		const createNewConnection = () => {
+			const socket = watchAgentMetadata(agent.id);
+			latestSocket = socket;
 
-			source.onerror = (e) => {
-				console.error("received error in watch stream", e);
+			socket.addEventListener("error", () => {
+				displayError("Socket closed unexpectedly. Creating new connection...");
 				setMetadata(undefined);
-				source.close();
-
-				timeout = setTimeout(() => {
-					connect();
-				}, 3000);
-			};
-
-			source.addEventListener("data", (e) => {
-				const data = JSON.parse(e.data);
-				setMetadata(data);
+				timeoutId = window.setTimeout(() => {
+					createNewConnection();
+				}, 3_000);
 			});
-			return () => {
-				if (timeout !== undefined) {
-					clearTimeout(timeout);
+
+			socket.addEventListener("message", (e) => {
+				try {
+					const payload = JSON.parse(e.data) as ServerSentEvent;
+					if (payload.type === "data") {
+						setMetadata(payload.data as WorkspaceAgentMetadata[]);
+					}
+				} catch {
+					displayError(
+						"Unable to process newest response from server. Please try refreshing the page.",
+					);
 				}
-				source.close();
-			};
+			});
 		};
-		return connect();
+
+		createNewConnection();
+		return () => {
+			window.clearTimeout(timeoutId);
+			latestSocket?.close();
+		};
 	}, [agent.id, storybookMetadata]);
 
 	if (metadata === undefined) {
