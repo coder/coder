@@ -72,8 +72,7 @@ manually setting up an SSH connection.
 
    ![Gateway IDE Opened](../../images/gateway/gateway-intellij-opened.png)
 
-   > Note the JetBrains IDE is remotely installed into
-   > `~/.cache/JetBrains/RemoteDev/dist`
+The JetBrains IDE is remotely installed into `~/.cache/JetBrains/RemoteDev/dist`
 
 ### Update a Coder plugin version
 
@@ -187,8 +186,7 @@ keytool -import -alias coder -file cacert.pem -keystore /Applications/JetBrains\
 
    ![Gateway Choose IDE](../../images/gateway/gateway-choose-ide.png)
 
-   > Note the JetBrains IDE is remotely installed into
-   > `~/. cache/JetBrains/RemoteDev/dist`
+   The JetBrains IDE is remotely installed into `~/. cache/JetBrains/RemoteDev/dist`
 
 1. Click **Download and Start IDE** to connect.
 

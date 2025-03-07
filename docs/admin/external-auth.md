@@ -90,7 +90,8 @@ CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
 CODER_EXTERNAL_AUTH_0_AUTH_URL="https://login.microsoftonline.com/<TENANT ID>/oauth2/authorize"
 ```
 
-> Note: Your app registration in Entra ID requires the `vso.code_write` scope
+> [!NOTE]
+> Your app registration in Entra ID requires the `vso.code_write` scope
 
 ### Bitbucket Server
 
@@ -176,7 +177,8 @@ CODER_EXTERNAL_AUTH_0_VALIDATE_URL="https://your-domain.com/oauth/token/info"
 CODER_EXTERNAL_AUTH_0_REGEX=github\.company\.org
 ```
 
-> Note: The `REGEX` variable must be set if using a custom git domain.
+> [!NOTE]
+> The `REGEX` variable must be set if using a custom git domain.
 
 ## Custom scopes
 

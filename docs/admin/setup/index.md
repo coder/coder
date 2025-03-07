@@ -44,7 +44,8 @@ coder server
 or running [coder_apps](../templates/index.md) on an absolute path. Set this to
 a wildcard subdomain that resolves to Coder (e.g. `*.coder.example.com`).
 
-> Note: We do not recommend using a top-level-domain for Coder wildcard access
+> [!NOTE]
+> We do not recommend using a top-level-domain for Coder wildcard access
 > (for example `*.workspaces`), even on private networks with split-DNS. Some
 > browsers consider these "public" domains and will refuse Coder's cookies,
 > which are vital to the proper operation of this feature.

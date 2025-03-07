@@ -15,7 +15,8 @@ If you remove the admin user account (or forget the password), you can run the
 [`coder server create-admin-user`](../../reference/cli/server_create-admin-user.md)command
 on your server.
 
-> Note: You must run this command on the same machine running the Coder server.
+> [!NOTE]
+> You must run this command on the same machine running the Coder server.
 > If you are running Coder on Kubernetes, this means using
 > [kubectl exec](https://kubernetes.io/docs/reference/kubectl/generated/kubectl_exec/)
 > to exec into the pod.

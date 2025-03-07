@@ -3,7 +3,8 @@
 The workspace process logging feature allows you to log all system-level
 processes executing in the workspace.
 
-> **Note:** This feature is only available on Linux in Kubernetes. There are
+> [!NOTE]
+> This feature is only available on Linux in Kubernetes. There are
 > additional requirements outlined further in this document.
 
 Workspace process logging adds a sidecar container to workspace pods that will
@@ -164,7 +165,8 @@ would like to add workspace process logging to, follow these steps:
    }
    ```
 
-   > **Note:** If you are using the `envbox` template, you will need to update
+   > [!NOTE]
+   > If you are using the `envbox` template, you will need to update
    > the third argument to be
    > `"${local.exectrace_init_script}\n\nexec /envbox docker"` instead.
 
@@ -212,7 +214,8 @@ would like to add workspace process logging to, follow these steps:
    }
    ```
 
-   > **Note:** `exectrace` requires root privileges and a privileged container
+   > [!NOTE]
+   > `exectrace` requires root privileges and a privileged container
    > to attach probes to the kernel. This is a requirement of eBPF.
 
 1. Add the following environment variable to your workspace pod:

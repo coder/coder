@@ -141,7 +141,8 @@ A browser typically considers an origin secure if the connection is to `localhos
 
 As CoderVPN uses its own hostnames and does not provide TLS to the browser, Google Chrome and Firefox will not allow any web APIs that require a secure context.
 
-> Note: Despite the browser showing an insecure connection without `HTTPS`, the underlying tunnel is encrypted with WireGuard in the same fashion as other Coder workspace connections (e.g. `coder port-forward`).
+> [!NOTE]
+> Despite the browser showing an insecure connection without `HTTPS`, the underlying tunnel is encrypted with WireGuard in the same fashion as other Coder workspace connections (e.g. `coder port-forward`).
 
 If you require secure context web APIs, you will need to mark the workspace hostnames as secure in your browser settings.
 

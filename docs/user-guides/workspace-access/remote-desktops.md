@@ -45,10 +45,10 @@ Then, connect to your workspace via RDP:
 mstsc /v localhost:3399
 ```
 
-or use your favorite RDP client to connect to `localhost:3399`.
+Or use your favorite RDP client to connect to `localhost:3399`.
 ![windows-rdp](../../images/ides/windows_rdp_client.png)
 
-> Note: Default username is `Administrator` and password is `coderRDP!`.
+The default username is `Administrator` and password is `coderRDP!`.
 
 ## RDP Web
 

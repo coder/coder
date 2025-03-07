@@ -28,7 +28,8 @@ hardware sizing recommendations.
 | Kubernetes (GKE) | 4 cores   | 16 GB     | 2              | db-custom-8-30720 | 2000  | 50                | 2000 simulated                        | `v2.8.4`      | Feb 28, 2024 |
 | Kubernetes (GKE) | 2 cores   | 4 GB      | 2              | db-custom-2-7680  | 1000  | 50                | 1000 simulated                        | `v2.10.2`     | Apr 26, 2024 |
 
-> Note: A simulated connection reads and writes random data at 40KB/s per connection.
+> [!NOTE]
+> A simulated connection reads and writes random data at 40KB/s per connection.
 
 ## Scale testing utility
 

@@ -31,7 +31,8 @@ following:
     [network mirror](https://www.terraform.io/internals/provider-network-mirror-protocol).
     See below for details.
 
-> Note: Coder includes the latest
+> [!NOTE]
+> Coder includes the latest
 > [supported version](https://github.com/coder/coder/blob/main/provisioner/terraform/install.go#L23-L24)
 > of Terraform in the official Docker images. If you need to bundle a different
 > version of terraform, you can do so by customizing the image.

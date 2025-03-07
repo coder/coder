@@ -521,7 +521,8 @@ Below are some details specific to individual OIDC providers.
 
 ### Active Directory Federation Services (ADFS)
 
-> **Note:** Tested on ADFS 4.0, Windows Server 2019
+> [!NOTE]
+> Tested on ADFS 4.0, Windows Server 2019
 
 1. In your Federation Server, create a new application group for Coder.
    Follow the steps as described in the [Windows Server documentation]

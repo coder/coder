@@ -226,7 +226,8 @@ This is illustrated in the below table:
 | scope=user owner=aaa environment=on-prem datacenter=chicago       | scope=user owner=aaa environment=on-prem datacenter=new_york     | ✅        | ❌            |
 | scope=organization owner= environment=on-prem                     | scope=organization owner= environment=on-prem                    | ❌        | ❌            |
 
-> **Note to maintainers:** to generate this table, run the following command and
+> [!TIP]
+> To generate this table, run the following command and
 > copy the output:
 >
 > ```go

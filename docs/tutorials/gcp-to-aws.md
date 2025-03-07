@@ -122,7 +122,8 @@ gcloud auth print-identity-token --audiences=https://aws.amazon.com --impersonat
 veloper.gserviceaccount.com  --include-email
 ```
 
-> Note: Your `gcloud` client may needed elevated permissions to run this
+> [!NOTE]
+> Your `gcloud` client may needed elevated permissions to run this
 > command.
 
 ## 5. Set identity token in Coder control plane

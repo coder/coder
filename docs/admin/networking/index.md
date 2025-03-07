@@ -18,7 +18,8 @@ networking logic.
 
 In order for clients and workspaces to be able to connect:
 
-> **Note:** We strongly recommend that clients connect to Coder and their
+> [!NOTE]
+> We strongly recommend that clients connect to Coder and their
 > workspaces over a good quality, broadband network connection. The following
 > are minimum requirements:
 >
@@ -33,7 +34,8 @@ In order for clients and workspaces to be able to connect:
 
 In order for clients to be able to establish direct connections:
 
-> **Note:** Direct connections via the web browser are not supported. To improve
+> [!NOTE]
+> Direct connections via the web browser are not supported. To improve
 > latency for browser-based applications running inside Coder workspaces in
 > regions far from the Coder control plane, consider deploying one or more
 > [workspace proxies](./workspace-proxies.md).

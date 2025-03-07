@@ -24,7 +24,7 @@ Then open the **Schedule** tab to see your workspace scheduling options.
 
 ## Autostart
 
-> Autostart must be enabled in the template settings by your administrator.
+Autostart must be enabled in the template settings by your administrator.
 
 Use autostart to start a workspace at a specified time and which days of the
 week. Also, you can choose your preferred timezone. Admins may restrict which
@@ -62,8 +62,8 @@ frequency for updates, either in **days** or **weeks**. Workspaces will apply
 the template autostop requirement on the given day **in the user's timezone**
 and specified quiet hours (see below).
 
-> Admins: See the template schedule settings for more information on configuring
-> Autostop Requirement.
+Admins: See the template schedule settings for more information on configuring
+Autostop Requirement.
 
 ### User quiet hours
 
@@ -84,7 +84,8 @@ powerful system for scheduling your workspace. However, synchronizing all of
 them simultaneously can be somewhat challenging, here are a few example
 configurations to better understand how they interact.
 
-> Note that the inactivity timer must be configured by your template admin.
+> [!NOTE]
+> The inactivity timer must be configured by your template admin.
 
 ### Working hours
 

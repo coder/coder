@@ -43,7 +43,8 @@ Additional database fields may be encrypted in the future.
 
 ## Enabling encryption
 
-> NOTE: Enabling encryption does not encrypt all existing data. To encrypt
+> [!NOTE]
+> Enabling encryption does not encrypt all existing data. To encrypt
 > existing data, see [rotating keys](#rotating-keys) below.
 
 - Ensure you have a valid backup of your database. **Do not skip this step.** If
@@ -115,7 +116,8 @@ data:
   This command will re-encrypt all tokens with the specified new encryption key.
   We recommend performing this action during a maintenance window.
 
-  > Note: this command requires direct access to the database. If you are using
+  > [!NOTE]
+  > this command requires direct access to the database. If you are using
   > the built-in PostgreSQL database, you can run
   > [`coder server postgres-builtin-url`](../../reference/cli/server_postgres-builtin-url.md)
   > to get the connection URL.
@@ -138,7 +140,8 @@ To disable encryption, perform the following actions:
   This command will decrypt all encrypted user tokens and revoke all active
   encryption keys.
 
-  > Note: for `decrypt` command, the equivalent environment variable for
+  > [!NOTE]
+  > for `decrypt` command, the equivalent environment variable for
   > `--keys` is `CODER_EXTERNAL_TOKEN_ENCRYPTION_DECRYPT_KEYS` and not
   > `CODER_EXTERNAL_TOKEN_ENCRYPTION_KEYS`. This is explicitly named differently
   > to help prevent accidentally decrypting data.
@@ -152,7 +155,8 @@ To disable encryption, perform the following actions:
 
 ## Deleting Encrypted Data
 
-> NOTE: This is a destructive operation.
+> [!CAUTION]
+> This is a destructive operation.
 
 To delete all encrypted data from your database, perform the following actions:
 
