@@ -68,9 +68,9 @@ sudo rm /etc/coder.d/coder.env
 
 ## Coder settings, cache, and the optional built-in PostgreSQL database
 
-> There is a `postgres` directory within the `coderv2` directory that has the
-> database engine and database. If you want to reuse the database, consider not
-> performing the following step or copying the directory to another location.
+There is a `postgres` directory within the `coderv2` directory that has the
+database engine and database. If you want to reuse the database, consider not
+performing the following step or copying the directory to another location.
 
 <div class="tabs">
 

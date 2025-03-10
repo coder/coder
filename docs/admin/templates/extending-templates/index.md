@@ -49,8 +49,7 @@ Persistent resources stay provisioned when workspaces are stopped, where as
 ephemeral resources are destroyed and recreated on restart. All resources are
 destroyed when a workspace is deleted.
 
-> You can read more about how resource behavior and workspace state in the
-> [workspace lifecycle documentation](../../../user-guides/workspace-lifecycle.md).
+You can read more about how resource behavior and workspace state in the [workspace lifecycle documentation](../../../user-guides/workspace-lifecycle.md).
 
 Template resources follow the
 [behavior of Terraform resources](https://developer.hashicorp.com/terraform/language/resources/behavior#how-terraform-applies-a-configuration)
@@ -65,6 +64,7 @@ When a workspace is deleted, the Coder server essentially runs a
 [terraform destroy](https://www.terraform.io/cli/commands/destroy) to remove all
 resources associated with the workspace.
 
+> [!TIP]
 > Terraform's
 > [prevent-destroy](https://www.terraform.io/language/meta-arguments/lifecycle#prevent_destroy)
 > and

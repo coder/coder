@@ -28,8 +28,8 @@ Containers** template by pressing **Use Template**.
 
 ![Starter Templates UI](../images/start/starter-templates.png)
 
-> You can also a find a comprehensive list of starter templates in **Templates**
-> -> **Create Template** -> **Starter Templates**. s
+You can also a find a comprehensive list of starter templates in **Templates**
+-> **Create Template** -> **Starter Templates**. s
 
 ## 3. Create your template
 
@@ -75,7 +75,8 @@ This starter template lets you connect to your workspace in a few ways:
   haven't already, you'll have to install Coder on your local machine to
   configure your SSH client.
 
-> **Tip**: You can edit the template to let developers connect to a workspace in
+> [!TIP]
+> You can edit the template to let developers connect to a workspace in
 > [a few more ways](../ides.md).
 
 When you're done, you can stop the workspace. -->

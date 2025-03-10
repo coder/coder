@@ -104,10 +104,10 @@ CODER_TLS_KEY_FILE="<key_file_location>"
 
 ### Running on Kubernetes
 
-Make a `values-wsproxy.yaml` with the workspace proxy configuration:
+Make a `values-wsproxy.yaml` with the workspace proxy configuration.
 
-> Notice the `workspaceProxy` configuration which is `false` by default in the
-> coder Helm chart.
+Notice the `workspaceProxy` configuration which is `false` by default in the
+Coder Helm chart:
 
 ```yaml
 coder:

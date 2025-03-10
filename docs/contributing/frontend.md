@@ -23,11 +23,8 @@ You can run the UI and access the Coder dashboard in two ways:
 In both cases, you can access the dashboard on `http://localhost:8080`. If using
 `./scripts/develop.sh` you can log in with the default credentials.
 
-<blockquote class="admonition note">
-
-**Default Credentials:** `admin@coder.com` and `SomeSecurePassword!`.
-
-</blockquote>
+> [!NOTE]
+> **Default Credentials:** `admin@coder.com` and `SomeSecurePassword!`.
 
 ## Tech Stack Overview
 
@@ -88,8 +85,8 @@ views, tests, and utility functions. The page component fetches necessary data
 and passes to the view. We explain this decision a bit better in the next
 section which talks about where to fetch data.
 
-> ℹ️ If code within a page becomes reusable across other parts of the app,
-> consider moving it to `src/utils`, `hooks`, `components`, or `modules`.
+If code within a page becomes reusable across other parts of the app,
+consider moving it to `src/utils`, `hooks`, `components`, or `modules`.
 
 ### Handling States
 
@@ -272,8 +269,8 @@ template", etc. We use [Playwright](https://playwright.dev/). If you only need
 to test if the page is being rendered correctly, you should consider using the
 **Visual Testing** approach.
 
-> ℹ️ For scenarios where you need to be authenticated, you can use
-> `test.use({ storageState: getStatePath("authState") })`.
+For scenarios where you need to be authenticated, you can use
+`test.use({ storageState: getStatePath("authState") })`.
 
 For ease of debugging, it's possible to run a Playwright test in headful mode
 running a Playwright server on your local machine, and executing the test inside
@@ -309,8 +306,8 @@ always be your first option since it is way easier to maintain. For this, we use
 [Storybook](https://storybook.js.org/) and
 [Chromatic](https://www.chromatic.com/).
 
-> ℹ️ To learn more about testing components that fetch API data, refer to the
-> [**Where to fetch data**](#where-to-fetch-data) section.
+To learn more about testing components that fetch API data, refer to the
+[**Where to fetch data**](#where-to-fetch-data) section.
 
 ### What should I test?
 

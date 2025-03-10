@@ -43,7 +43,8 @@ Agent logs are also stored in the workspace filesystem by default:
   [azure-windows](https://github.com/coder/coder/blob/2cfadad023cb7f4f85710cff0b21ac46bdb5a845/examples/templates/azure-windows/Initialize.ps1.tftpl#L64))
   to see where logs are stored.
 
-> Note: Logs are truncated once they reach 5MB in size.
+> [!NOTE]
+> Logs are truncated once they reach 5MB in size.
 
 Startup script logs are also stored in the temporary directory of macOS and
 Linux workspaces.

@@ -33,12 +33,9 @@ may use personal workspaces.
 
 ## Custom Roles
 
-<blockquote class="info">
-
-Custom roles are a Premium feature.
-[Learn more](https://coder.com/pricing#compare-plans).
-
-</blockquote>
+> [!NOTE]
+> Custom roles are a Premium feature.
+> [Learn more](https://coder.com/pricing#compare-plans).
 
 Starting in v2.16.0, Premium Coder deployments can configure custom roles on the
 [Organization](./organizations.md) level. You can create and assign custom roles

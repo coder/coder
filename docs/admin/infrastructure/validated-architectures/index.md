@@ -36,9 +36,8 @@ cloud/on-premise computing, containerization, and the Coder platform.
 | Reference architectures for up to 3,000 users  | An approval of your architecture; the CVA solely provides recommendations and guidelines |
 | Best practices for building a Coder deployment | Recommendations for every possible deployment scenario                                   |
 
-> For higher level design principles and architectural best practices, see
-> Coder's
-> [Well-Architected Framework](https://coder.com/blog/coder-well-architected-framework).
+For higher level design principles and architectural best practices, see Coder's
+[Well-Architected Framework](https://coder.com/blog/coder-well-architected-framework).
 
 ## General concepts
 

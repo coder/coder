@@ -181,12 +181,11 @@ To build the server to receive webhooks and interact with Slack:
 Slack requires the bot to acknowledge when a user clicks on a URL action button.
 This is handled by setting up interactivity.
 
-1. Under "Interactivity & Shortcuts" in your Slack app settings, set the Request
-   URL to match the public URL of your web server's endpoint.
+Under "Interactivity & Shortcuts" in your Slack app settings, set the Request
+URL to match the public URL of your web server's endpoint.
 
-> Notice: You can use any public endpoint that accepts and responds to POST
-> requests with HTTP 200. For temporary testing, you can set it to
-> `https://httpbin.org/status/200`.
+You can use any public endpoint that accepts and responds to POST requests with HTTP 200.
+For temporary testing, you can set it to `https://httpbin.org/status/200`.
 
 Once this is set, Slack will send interaction payloads to your server, which
 must respond appropriately.

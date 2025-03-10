@@ -50,7 +50,8 @@ The Docker starter template lets you connect to your workspace in a few ways:
   haven't already, you'll have to install Coder on your local machine to
   configure your SSH client.
 
-> **Tip**: You can edit the template to let developers connect to a workspace in
+> [!TIP]
+> You can edit the template to let developers connect to a workspace in
 > [a few more ways](../admin/templates/extending-templates/web-ides.md).
 
 ## 3. Modify your workspace settings

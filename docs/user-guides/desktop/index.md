@@ -3,7 +3,8 @@
 Use Coder Desktop to work on your workspaces as though they're on your LAN, no
 port-forwarding required.
 
-> ⚠️ Note: Coder Desktop requires a Coder deployment running [v2.20.0](https://github.com/coder/coder/releases/tag/v2.20.0) or later.
+> [!NOTE]
+> Coder Desktop requires a Coder deployment running [v2.20.0](https://github.com/coder/coder/releases/tag/v2.20.0) or later.
 
 ## Install Coder Desktop
 
@@ -132,7 +133,8 @@ You can also connect to the SSH server in your workspace using any SSH client, s
    ssh your-workspace.coder
    ```
 
-> ⚠️ Note: Currently, the Coder IDE extensions for VSCode and JetBrains create their own tunnel and do not utilize the CoderVPN tunnel to connect to workspaces.
+> [!NOTE]
+> Currently, the Coder IDE extensions for VSCode and JetBrains create their own tunnel and do not utilize the CoderVPN tunnel to connect to workspaces.
 
 ## Accessing web apps in a secure browser context
 
@@ -141,7 +143,8 @@ A browser typically considers an origin secure if the connection is to `localhos
 
 As CoderVPN uses its own hostnames and does not provide TLS to the browser, Google Chrome and Firefox will not allow any web APIs that require a secure context.
 
-> Note: Despite the browser showing an insecure connection without `HTTPS`, the underlying tunnel is encrypted with WireGuard in the same fashion as other Coder workspace connections (e.g. `coder port-forward`).
+> [!NOTE]
+> Despite the browser showing an insecure connection without `HTTPS`, the underlying tunnel is encrypted with WireGuard in the same fashion as other Coder workspace connections (e.g. `coder port-forward`).
 
 If you require secure context web APIs, you will need to mark the workspace hostnames as secure in your browser settings.
 

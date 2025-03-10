@@ -1,13 +1,13 @@
 # STUN and NAT
 
-> [Session Traversal Utilities for NAT (STUN)](https://www.rfc-editor.org/rfc/rfc8489.html)
-> is a protocol used to assist applications in establishing peer-to-peer
-> communications across Network Address Translations (NATs) or firewalls.
->
-> [Network Address Translation (NAT)](https://en.wikipedia.org/wiki/Network_address_translation)
-> is commonly used in private networks to allow multiple devices to share a
-> single public IP address. The vast majority of home and corporate internet
-> connections use at least one level of NAT.
+[Session Traversal Utilities for NAT (STUN)](https://www.rfc-editor.org/rfc/rfc8489.html)
+is a protocol used to assist applications in establishing peer-to-peer
+communications across Network Address Translations (NATs) or firewalls.
+
+[Network Address Translation (NAT)](https://en.wikipedia.org/wiki/Network_address_translation)
+is commonly used in private networks to allow multiple devices to share a
+single public IP address. The vast majority of home and corporate internet
+connections use at least one level of NAT.
 
 ## Overview
 
@@ -33,8 +33,9 @@ counterpart can be reached. Once communication succeeds in one direction, we can
 inspect the source address of the received packet to determine the return
 address.
 
-> The below glosses over a lot of the complexity of traversing NATs. For a more
-> in-depth technical explanation, see
+> [!TIP]
+> The below glosses over a lot of the complexity of traversing NATs.
+> For a more in-depth technical explanation, see
 > [How NAT traversal works (tailscale.com)](https://tailscale.com/blog/how-nat-traversal-works).
 
 At a high level, STUN works like this:

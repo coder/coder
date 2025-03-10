@@ -93,7 +93,7 @@ to resolve modules via [Artifactory](https://jfrog.com/artifactory/).
    }
    ```
 
-6. Update module source as,
+6. Update module source as:
 
    ```tf
    module "module-name" {
@@ -104,7 +104,7 @@ to resolve modules via [Artifactory](https://jfrog.com/artifactory/).
    }
    ```
 
-> Do not forget to replace example.jfrog.io with your Artifactory URL
+   Replace `example.jfrog.io` with your Artifactory URL
 
 Based on the instructions
 [here](https://jfrog.com/blog/tour-terraform-registries-in-artifactory/).

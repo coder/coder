@@ -104,10 +104,9 @@ tags.
 
 ## Global PSK (Not Recommended)
 
-> Global pre-shared keys (PSK) make it difficult to rotate keys or isolate
-> provisioners.
->
-> We do not recommend using global PSK.
+We do not recommend using global PSK.
+
+Global pre-shared keys (PSK) make it difficult to rotate keys or isolate provisioners.
 
 A deployment-wide PSK can be used to authenticate any provisioner. To use a
 global PSK, set a
@@ -158,7 +157,7 @@ coder templates push on-prem-chicago \
 
 This can also be done in the UI when building a template:
 
-> ![template tags](../images/admin/provisioner-tags.png)
+![template tags](../images/admin/provisioner-tags.png)
 
 Alternatively, a template can target a provisioner via
 [workspace tags](https://github.com/coder/coder/tree/main/examples/workspace-tags)
@@ -226,7 +225,8 @@ This is illustrated in the below table:
 | scope=user owner=aaa environment=on-prem datacenter=chicago       | scope=user owner=aaa environment=on-prem datacenter=new_york     | ✅        | ❌            |
 | scope=organization owner= environment=on-prem                     | scope=organization owner= environment=on-prem                    | ❌        | ❌            |
 
-> **Note to maintainers:** to generate this table, run the following command and
+> [!TIP]
+> To generate this table, run the following command and
 > copy the output:
 >
 > ```go

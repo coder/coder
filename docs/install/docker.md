@@ -79,11 +79,8 @@ Coder's [configuration options](../admin/setup/index.md).
 
 ## Install the preview release
 
-<blockquote class="tip">
-
-We do not recommend using preview releases in production environments.
-
-</blockquote>
+> [!TIP]
+> We do not recommend using preview releases in production environments.
 
 You can install and test a
 [preview release of Coder](https://github.com/coder/coder/pkgs/container/coder-preview)

@@ -273,8 +273,8 @@ A
 can be added to your templates to add docker support. This may come in handy if
 your nodes cannot run Sysbox.
 
-> ⚠️ **Warning**: This is insecure. Workspaces will be able to gain root access
-> to the host machine.
+> [!WARNING]
+> This is insecure. Workspaces will be able to gain root access to the host machine.
 
 ### Use a privileged sidecar container in Docker-based templates
 

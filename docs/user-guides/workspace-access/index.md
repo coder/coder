@@ -3,9 +3,9 @@
 There are many ways to connect to your workspace, the options are only limited
 by the template configuration.
 
-> Deployment operators can learn more about different types of workspace
-> connections and performance in our
-> [networking docs](../../admin/infrastructure/index.md).
+Deployment operators can learn more about different types of workspace
+connections and performance in our
+[networking docs](../../admin/infrastructure/index.md).
 
 You can see the primary methods of connecting to your workspace in the workspace
 dashboard.
@@ -38,30 +38,37 @@ Or, you can configure plain SSH on your client below.
 Coder generates [SSH key pairs](../../admin/security/secrets.md#ssh-keys) for
 each user to simplify the setup process.
 
-> Before proceeding, run `coder login <accessURL>` if you haven't already to
-> authenticate the CLI with the web UI and your workspaces.
+1. Use your terminal to authenticate the CLI with Coder web UI and your workspaces:
 
-To access Coder via SSH, run the following in the terminal:
+   ```bash
+   coder login <accessURL>
+   ```
 
-```console
-coder config-ssh
-```
+1. Access Coder via SSH:
 
-> Run `coder config-ssh --dry-run` if you'd like to see the changes that will be
-> made before proceeding.
+   ```console
+   coder config-ssh
+   ```
 
-Confirm that you want to continue by typing **yes** and pressing enter. If
+1. Run `coder config-ssh --dry-run` if you'd like to see the changes that will be
+   before you proceed:
+
+   ```bash
+   coder config-ssh --dry-run
+   ```
+
+1. Confirm that you want to continue by typing **yes** and pressing enter. If
 successful, you'll see the following message:
 
-```console
-You should now be able to ssh into your workspace.
-For example, try running:
+   ```console
+   You should now be able to ssh into your workspace.
+   For example, try running:
+   
+   $ ssh coder.<workspaceName>
+   ```
 
-$ ssh coder.<workspaceName>
-```
-
-Your workspace is now accessible via `ssh coder.<workspace_name>` (e.g.,
-`ssh coder.myEnv` if your workspace is named `myEnv`).
+Your workspace is now accessible via `ssh coder.<workspace_name>`
+(for example, `ssh coder.myEnv` if your workspace is named `myEnv`).
 
 ## Visual Studio Code
 

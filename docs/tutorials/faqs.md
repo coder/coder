@@ -123,10 +123,10 @@ icons except the web terminal.
 
 ## I want to allow code-server to be accessible by other users in my deployment
 
-> It is **not** recommended to share a web IDE, but if required, the following
-> deployment environment variable settings are required.
+We don't recommend that you share a web IDE, but if you need to, the following
+deployment environment variable settings are required.
 
-Set deployment (Kubernetes) to allow path app sharing
+Set deployment (Kubernetes) to allow path app sharing:
 
 ```yaml
 # allow authenticated users to access path-based workspace apps
@@ -160,8 +160,8 @@ If the [`CODER_ACCESS_URL`](../admin/setup/index.md#access-url) is not
 accessible from a workspace, the workspace may build, but the agent cannot reach
 Coder, and thus the missing icons. e.g., Terminal, IDEs, Apps.
 
-> By default, `coder server` automatically creates an Internet-accessible
-> reverse proxy so that workspaces you create can reach the server.
+By default, `coder server` automatically creates an Internet-accessible
+reverse proxy so that workspaces you create can reach the server.
 
 If you are doing a standalone install, e.g., on a MacBook and want to build
 workspaces in Docker Desktop, everything is self-contained and workspaces
@@ -171,8 +171,8 @@ workspaces in Docker Desktop, everything is self-contained and workspaces
 coder server --access-url http://localhost:3000 --address 0.0.0.0:3000
 ```
 
-> Even `coder server` which creates a reverse proxy, will let you use
-> <http://localhost> to access Coder from a browser.
+Even `coder server` which creates a reverse proxy, will let you use
+<http://localhost> to access Coder from a browser.
 
 ## I updated a template, and an existing workspace based on that template fails to start
 

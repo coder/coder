@@ -15,8 +15,8 @@ In Coder, web IDEs are defined as
 resources in the template. With our generic model, any web application can be
 used as a Coder application. For example:
 
-> To learn more about configuring IDEs in templates, see our docs on
-> [template administration](../../admin/templates/index.md).
+To learn more about configuring IDEs in templates, see our docs on
+[template administration](../../admin/templates/index.md).
 
 ![External URLs](../../images/external-apps.png)
 
