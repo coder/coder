@@ -2212,7 +2212,7 @@ func TestGetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisione
 			queueSizes:     []int64{3, 3, 3},
 			queuePositions: []int64{3, 1, 1},
 		},
-		//Skips job at index 0
+		// Skips job at index 0
 		{
 			name: "test-case-3",
 			jobTags: []database.StringMap{
@@ -2399,7 +2399,7 @@ func TestGetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisione
 
 			// Create provisioner jobs based on provided tags:
 			allJobs := make([]database.ProvisionerJob, len(tc.jobTags))
-			//daemonOrgIDs := make([]uuid.UUID, len(tc.daemonTags))
+			// daemonOrgIDs := make([]uuid.UUID, len(tc.daemonTags))
 			for idx, tags := range tc.jobTags {
 				// Make sure jobs are stored in correct order, first job should have the earliest createdAt timestamp.
 				// Example for 3 jobs:
@@ -2451,9 +2451,9 @@ func TestGetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisione
 			req := database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams{
 				OrganizationID: defaultOrgID,
 				IDs:            filteredJobIDs,
-				//Status         []ProvisionerJobStatus
-				//Tags           StringMap
-				//Limit          sql.NullInt32
+				// Status         []ProvisionerJobStatus
+				// Tags           StringMap
+				// Limit          sql.NullInt32
 			}
 			actualJobs, err := db.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(
 				ctx,
