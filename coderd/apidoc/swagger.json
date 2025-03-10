@@ -1571,6 +1571,47 @@
 				}
 			}
 		},
+		"/notifications/watch": {
+			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"produces": ["application/json"],
+				"tags": ["Notifications"],
+				"summary": "Watch for new notifications",
+				"operationId": "watch-for-new-notifications",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "Comma-separated list of target IDs to filter notifications",
+						"name": "targets",
+						"in": "query"
+					},
+					{
+						"type": "string",
+						"description": "Comma-separated list of template IDs to filter notifications",
+						"name": "templates",
+						"in": "query"
+					},
+					{
+						"type": "string",
+						"description": "Filter notifications by read status. Possible values: read, unread, all",
+						"name": "read_status",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.InboxNotification"
+						}
+					}
+				}
+			}
+		},
 		"/oauth2-provider/apps": {
 			"get": {
 				"security": [
@@ -10793,6 +10834,63 @@
 				},
 				"threshold_database": {
 					"type": "integer"
+				}
+			}
+		},
+		"codersdk.InboxNotification": {
+			"type": "object",
+			"properties": {
+				"actions": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.InboxNotificationAction"
+					}
+				},
+				"content": {
+					"type": "string"
+				},
+				"created_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"icon": {
+					"type": "string"
+				},
+				"id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"read_at": {
+					"type": "string"
+				},
+				"targets": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"format": "uuid"
+					}
+				},
+				"template_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"title": {
+					"type": "string"
+				},
+				"user_id": {
+					"type": "string",
+					"format": "uuid"
+				}
+			}
+		},
+		"codersdk.InboxNotificationAction": {
+			"type": "object",
+			"properties": {
+				"label": {
+					"type": "string"
+				},
+				"url": {
+					"type": "string"
 				}
 			}
 		},
