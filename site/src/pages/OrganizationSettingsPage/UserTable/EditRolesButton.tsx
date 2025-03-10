@@ -17,9 +17,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "components/deprecated/Popover/Popover";
-import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
-import { cn } from "utils/cn";
 
 const roleDescriptions: Record<string, string> = {
 	owner:

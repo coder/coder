@@ -260,7 +260,7 @@ Status Code **200**
 | `»» login_type`               | [codersdk.LoginType](schemas.md#codersdklogintype)     | false    |              |                                                                                                                                                                       |
 | `»» name`                     | string                                                 | false    |              |                                                                                                                                                                       |
 | `»» status`                   | [codersdk.UserStatus](schemas.md#codersdkuserstatus)   | false    |              |                                                                                                                                                                       |
-| `»» theme_preference`         | string                                                 | false    |              |                                                                                                                                                                       |
+| `»» theme_preference`         | string                                                 | false    |              | Deprecated: this value should be retrieved from `codersdk.UserPreferenceSettings` instead.                                                                            |
 | `»» updated_at`               | string(date-time)                                      | false    |              |                                                                                                                                                                       |
 | `»» username`                 | string                                                 | true     |              |                                                                                                                                                                       |
 | `» name`                      | string                                                 | false    |              |                                                                                                                                                                       |
@@ -1271,7 +1271,7 @@ Status Code **200**
 | `»» login_type`               | [codersdk.LoginType](schemas.md#codersdklogintype)     | false    |              |                                                                                                                                                                       |
 | `»» name`                     | string                                                 | false    |              |                                                                                                                                                                       |
 | `»» status`                   | [codersdk.UserStatus](schemas.md#codersdkuserstatus)   | false    |              |                                                                                                                                                                       |
-| `»» theme_preference`         | string                                                 | false    |              |                                                                                                                                                                       |
+| `»» theme_preference`         | string                                                 | false    |              | Deprecated: this value should be retrieved from `codersdk.UserPreferenceSettings` instead.                                                                            |
 | `»» updated_at`               | string(date-time)                                      | false    |              |                                                                                                                                                                       |
 | `»» username`                 | string                                                 | true     |              |                                                                                                                                                                       |
 | `» name`                      | string                                                 | false    |              |                                                                                                                                                                       |
@@ -3126,26 +3126,26 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl \
 
 Status Code **200**
 
-| Name                 | Type                                                     | Required | Restrictions | Description |
-|----------------------|----------------------------------------------------------|----------|--------------|-------------|
-| `[array item]`       | array                                                    | false    |              |             |
-| `» avatar_url`       | string(uri)                                              | false    |              |             |
-| `» created_at`       | string(date-time)                                        | true     |              |             |
-| `» email`            | string(email)                                            | true     |              |             |
-| `» id`               | string(uuid)                                             | true     |              |             |
-| `» last_seen_at`     | string(date-time)                                        | false    |              |             |
-| `» login_type`       | [codersdk.LoginType](schemas.md#codersdklogintype)       | false    |              |             |
-| `» name`             | string                                                   | false    |              |             |
-| `» organization_ids` | array                                                    | false    |              |             |
-| `» role`             | [codersdk.TemplateRole](schemas.md#codersdktemplaterole) | false    |              |             |
-| `» roles`            | array                                                    | false    |              |             |
-| `»» display_name`    | string                                                   | false    |              |             |
-| `»» name`            | string                                                   | false    |              |             |
-| `»» organization_id` | string                                                   | false    |              |             |
-| `» status`           | [codersdk.UserStatus](schemas.md#codersdkuserstatus)     | false    |              |             |
-| `» theme_preference` | string                                                   | false    |              |             |
-| `» updated_at`       | string(date-time)                                        | false    |              |             |
-| `» username`         | string                                                   | true     |              |             |
+| Name                 | Type                                                     | Required | Restrictions | Description                                                                                |
+|----------------------|----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------|
+| `[array item]`       | array                                                    | false    |              |                                                                                            |
+| `» avatar_url`       | string(uri)                                              | false    |              |                                                                                            |
+| `» created_at`       | string(date-time)                                        | true     |              |                                                                                            |
+| `» email`            | string(email)                                            | true     |              |                                                                                            |
+| `» id`               | string(uuid)                                             | true     |              |                                                                                            |
+| `» last_seen_at`     | string(date-time)                                        | false    |              |                                                                                            |
+| `» login_type`       | [codersdk.LoginType](schemas.md#codersdklogintype)       | false    |              |                                                                                            |
+| `» name`             | string                                                   | false    |              |                                                                                            |
+| `» organization_ids` | array                                                    | false    |              |                                                                                            |
+| `» role`             | [codersdk.TemplateRole](schemas.md#codersdktemplaterole) | false    |              |                                                                                            |
+| `» roles`            | array                                                    | false    |              |                                                                                            |
+| `»» display_name`    | string                                                   | false    |              |                                                                                            |
+| `»» name`            | string                                                   | false    |              |                                                                                            |
+| `»» organization_id` | string                                                   | false    |              |                                                                                            |
+| `» status`           | [codersdk.UserStatus](schemas.md#codersdkuserstatus)     | false    |              |                                                                                            |
+| `» theme_preference` | string                                                   | false    |              | Deprecated: this value should be retrieved from `codersdk.UserPreferenceSettings` instead. |
+| `» updated_at`       | string(date-time)                                        | false    |              |                                                                                            |
+| `» username`         | string                                                   | true     |              |                                                                                            |
 
 #### Enumerated Values
 
@@ -3325,7 +3325,7 @@ Status Code **200**
 | `»»» login_type`               | [codersdk.LoginType](schemas.md#codersdklogintype)     | false    |              |                                                                                                                                                                       |
 | `»»» name`                     | string                                                 | false    |              |                                                                                                                                                                       |
 | `»»» status`                   | [codersdk.UserStatus](schemas.md#codersdkuserstatus)   | false    |              |                                                                                                                                                                       |
-| `»»» theme_preference`         | string                                                 | false    |              |                                                                                                                                                                       |
+| `»»» theme_preference`         | string                                                 | false    |              | Deprecated: this value should be retrieved from `codersdk.UserPreferenceSettings` instead.                                                                            |
 | `»»» updated_at`               | string(date-time)                                      | false    |              |                                                                                                                                                                       |
 | `»»» username`                 | string                                                 | true     |              |                                                                                                                                                                       |
 | `»» name`                      | string                                                 | false    |              |                                                                                                                                                                       |

@@ -1,7 +1,6 @@
 import { type Interpolation, type Theme, css, useTheme } from "@emotion/react";
 import MenuItem from "@mui/material/MenuItem";
 import { Button } from "components/Button/Button";
-import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import {
 	Popover,
 	PopoverContent,

@@ -57,7 +57,8 @@
         }
       ],
       "total_builds": 55
-    }
+    },
+    "targets": null
   },
   "title": "Workspace builds failed for template \"Bobby First Template\"",
   "title_markdown": "Workspace builds failed for template \"Bobby First Template\"",

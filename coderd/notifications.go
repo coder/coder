@@ -157,6 +157,11 @@ func (api *API) systemNotificationTemplates(rw http.ResponseWriter, r *http.Requ
 func (api *API) notificationDispatchMethods(rw http.ResponseWriter, r *http.Request) {
 	var methods []string
 	for _, nm := range database.AllNotificationMethodValues() {
+		// Skip inbox method as for now this is an implicit delivery target and should not appear
+		// anywhere in the Web UI.
+		if nm == database.NotificationMethodInbox {
+			continue
+		}
 		methods = append(methods, string(nm))
 	}
 

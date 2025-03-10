@@ -118,7 +118,7 @@ test("claim prebuild matching selected preset", async ({ page, baseURL }) => {
 	await text.waitFor({ timeout: 30_000 });
 
 	// Logout as unprivileged user, and login as admin.
-	await login(page, users.admin);
+	await login(page, users.owner);
 
 	// Navigate back to prebuilds page to see that a new prebuild replaced the claimed one.
 	await page.goto(

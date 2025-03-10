@@ -3,7 +3,7 @@ import { fn, userEvent, within } from "@storybook/test";
 import { getAuthorizationKey } from "api/queries/authCheck";
 import { getPreferredProxy } from "contexts/ProxyContext";
 import { AuthProvider } from "contexts/auth/AuthProvider";
-import { permissionChecks } from "contexts/auth/permissions";
+import { permissionChecks } from "modules/permissions";
 import {
 	MockAuthMethodsAll,
 	MockPermissions,
