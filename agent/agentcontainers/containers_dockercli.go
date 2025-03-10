@@ -182,17 +182,18 @@ func devcontainerEnv(ctx context.Context, execer agentexec.Execer, container str
 	if !ok {
 		return nil, nil
 	}
-	meta := struct {
-		RemoteEnv map[string]string `json:"remoteEnv"`
-	}{}
+
+	meta := make([]DevContainerMeta, 0)
 	if err := json.Unmarshal([]byte(rawMeta), &meta); err != nil {
 		return nil, xerrors.Errorf("unmarshal devcontainer.metadata: %w", err)
 	}
 
 	// The environment variables are stored in the `remoteEnv` key.
-	env := make([]string, 0, len(meta.RemoteEnv))
-	for k, v := range meta.RemoteEnv {
-		env = append(env, fmt.Sprintf("%s=%s", k, v))
+	env := make([]string, 0)
+	for _, m := range meta {
+		for k, v := range m.RemoteEnv {
+			env = append(env, fmt.Sprintf("%s=%s", k, v))
+		}
 	}
 	slices.Sort(env)
 	return env, nil
