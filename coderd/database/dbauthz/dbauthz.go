@@ -3582,6 +3582,7 @@ func (q *querier) OrganizationMembers(ctx context.Context, arg database.Organiza
 }
 
 func (q *querier) PaginatedOrganizationMembers(ctx context.Context, arg database.PaginatedOrganizationMembersParams) ([]database.PaginatedOrganizationMembersRow, error) {
+	// Required to have permission to read all members in the organization
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceOrganizationMember.InOrg(arg.OrganizationID)); err != nil {
 		return nil, err
 	}

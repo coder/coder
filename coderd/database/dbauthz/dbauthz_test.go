@@ -987,6 +987,12 @@ func (s *MethodTestSuite) TestOrganization() {
 	}))
 	s.Run("PaginatedOrganizationMembers", s.Subtest(func(db database.Store, check *expects) {
 		o := dbgen.Organization(s.T(), db, database.Organization{})
+		u := dbgen.User(s.T(), db, database.User{})
+		mem := dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{
+			OrganizationID: o.ID,
+			UserID:         u.ID,
+			Roles:          []string{rbac.RoleOrgAdmin()},
+		})
 
 		check.Args(database.PaginatedOrganizationMembersParams{
 			OrganizationID: o.ID,
