@@ -2,9 +2,11 @@ import { API } from "api/api";
 import type {
 	CreateOrganizationRequest,
 	GroupSyncSettings,
+	PaginatedMembersResponse,
 	RoleSyncSettings,
 	UpdateOrganizationRequest,
 } from "api/typesGenerated";
+import type { UsePaginatedQueryOptions } from "hooks/usePaginatedQuery";
 import {
 	type OrganizationPermissionName,
 	type OrganizationPermissions,
@@ -58,6 +60,26 @@ export const organizationMembersKey = (id: string) => [
 	id,
 	"members",
 ];
+
+export function paginatedOrganizationMembers(
+	organizationName: string,
+	searchParams: URLSearchParams
+): UsePaginatedQueryOptions<PaginatedMembersResponse, { limit: number; offset: number }> {
+	return {
+		searchParams,
+		queryPayload: (params) => {
+			return {
+				limit: params.limit,
+				offset: params.offset,
+			};
+		},
+		queryKey: ({ payload }) => [
+			...organizationMembersKey(organizationName),
+			payload,
+		],
+		queryFn: ({ payload }) => API.getOrganizationPaginatedMembers(organizationName, payload),
+	};
+}
 
 export const organizationMembers = (id: string) => {
 	return {

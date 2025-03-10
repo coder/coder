@@ -18,7 +18,9 @@ import {
 	MoreMenuTrigger,
 	ThreeDotsButton,
 } from "components/MoreMenu/MoreMenu";
+import { PaginationContainer } from "components/PaginationWidget/PaginationContainer";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
+import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
 import {
 	Table,
@@ -28,6 +30,7 @@ import {
 	TableRow,
 } from "components/Table/Table";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
+import type { PaginationResultInfo } from "hooks/usePaginatedQuery";
 import { TriangleAlert } from "lucide-react";
 import { UserGroupsCell } from "pages/UsersPage/UsersTable/UserGroupsCell";
 import { type FC, useState } from "react";
@@ -41,8 +44,12 @@ interface OrganizationMembersPageViewProps {
 	error: unknown;
 	isAddingMember: boolean;
 	isUpdatingMemberRoles: boolean;
+	isLoading: boolean;
 	me: User;
 	members: Array<OrganizationMemberTableEntry> | undefined;
+	membersQuery: PaginationResultInfo & {
+		isPreviousData: boolean;
+	};
 	addMember: (user: User) => Promise<void>;
 	removeMember: (member: OrganizationMemberWithUserData) => void;
 	updateMemberRoles: (
@@ -64,8 +71,10 @@ export const OrganizationMembersPageView: FC<
 	error,
 	isAddingMember,
 	isUpdatingMemberRoles,
+	isLoading,
 	me,
 	members,
+	membersQuery,
 	addMember,
 	removeMember,
 	updateMemberRoles,
@@ -92,80 +101,89 @@ export const OrganizationMembersPageView: FC<
 					</div>
 				)}
 
-				<Table>
-					<TableHeader>
-						<TableRow>
-							<TableCell width="33%">User</TableCell>
-							<TableCell width="33%">
-								<Stack direction="row" spacing={1} alignItems="center">
-									<span>Roles</span>
-									<TableColumnHelpTooltip variant="roles" />
-								</Stack>
-							</TableCell>
-							<TableCell width="33%">
-								<Stack direction="row" spacing={1} alignItems="center">
-									<span>Groups</span>
-									<TableColumnHelpTooltip variant="groups" />
-								</Stack>
-							</TableCell>
-							<TableCell width="1%" />
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{members?.map((member) => (
-							<TableRow key={member.user_id} className="align-baseline">
-								<TableCell>
-									<AvatarData
-										avatar={
-											<Avatar
-												fallback={member.username}
-												src={member.avatar_url}
+				{isLoading ? (
+					<Loader />
+				) : (
+					<PaginationContainer
+						query={membersQuery}
+						paginationUnitLabel="members"
+					>
+						<Table>
+							<TableHeader>
+								<TableRow>
+									<TableCell width="33%">User</TableCell>
+									<TableCell width="33%">
+										<Stack direction="row" spacing={1} alignItems="center">
+											<span>Roles</span>
+											<TableColumnHelpTooltip variant="roles" />
+										</Stack>
+									</TableCell>
+									<TableCell width="33%">
+										<Stack direction="row" spacing={1} alignItems="center">
+											<span>Groups</span>
+											<TableColumnHelpTooltip variant="groups" />
+										</Stack>
+									</TableCell>
+									<TableCell width="1%" />
+								</TableRow>
+							</TableHeader>
+							<TableBody>
+								{members?.map((member) => (
+									<TableRow key={member.user_id} className="align-baseline">
+										<TableCell>
+											<AvatarData
+												avatar={
+													<Avatar
+														fallback={member.username}
+														src={member.avatar_url}
+													/>
+												}
+												title={member.name || member.username}
+												subtitle={member.email}
 											/>
-										}
-										title={member.name || member.username}
-										subtitle={member.email}
-									/>
-								</TableCell>
-								<UserRoleCell
-									inheritedRoles={member.global_roles}
-									roles={member.roles}
-									allAvailableRoles={allAvailableRoles}
-									oidcRoleSyncEnabled={false}
-									isLoading={isUpdatingMemberRoles}
-									canEditUsers={canEditMembers}
-									onEditRoles={async (roles) => {
-										try {
-											await updateMemberRoles(member, roles);
-											displaySuccess("Roles updated successfully.");
-										} catch (error) {
-											displayError(
-												getErrorMessage(error, "Failed to update roles."),
-											);
-										}
-									}}
-								/>
-								<UserGroupsCell userGroups={member.groups} />
-								<TableCell>
-									{member.user_id !== me.id && canEditMembers && (
-										<MoreMenu>
-											<MoreMenuTrigger>
-												<ThreeDotsButton />
-											</MoreMenuTrigger>
-											<MoreMenuContent>
-												<MoreMenuItem
-													danger
-													onClick={() => removeMember(member)}
-												>
-													Remove
-												</MoreMenuItem>
-											</MoreMenuContent>
-										</MoreMenu>
-									)}
-								</TableCell>
-							</TableRow>
-						))}
-					</TableBody>
-				</Table>
+										</TableCell>
+										<UserRoleCell
+											inheritedRoles={member.global_roles}
+											roles={member.roles}
+											allAvailableRoles={allAvailableRoles}
+											oidcRoleSyncEnabled={false}
+											isLoading={isUpdatingMemberRoles}
+											canEditUsers={canEditMembers}
+											onEditRoles={async (roles) => {
+												try {
+													await updateMemberRoles(member, roles);
+													displaySuccess("Roles updated successfully.");
+												} catch (error) {
+													displayError(
+														getErrorMessage(error, "Failed to update roles."),
+													);
+												}
+											}}
+										/>
+										<UserGroupsCell userGroups={member.groups} />
+										<TableCell>
+											{member.user_id !== me.id && canEditMembers && (
+												<MoreMenu>
+													<MoreMenuTrigger>
+														<ThreeDotsButton />
+													</MoreMenuTrigger>
+													<MoreMenuContent>
+														<MoreMenuItem
+															danger
+															onClick={() => removeMember(member)}
+														>
+															Remove
+														</MoreMenuItem>
+													</MoreMenuContent>
+												</MoreMenu>
+											)}
+										</TableCell>
+									</TableRow>
+								))}
+							</TableBody>
+						</Table>
+					</PaginationContainer>
+				)}
 			</div>
 		</div>
 	);
