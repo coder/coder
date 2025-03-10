@@ -39,7 +39,7 @@ import {
 } from "components/TableLoader/TableLoader";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import { PlusIcon } from "lucide-react";
-import type { OrganizationPermissions } from "modules/management/organizationPermissions";
+import type { OrganizationPermissions } from "modules/permissions/organizations";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import type { FC } from "react";
 import { Link, useNavigate } from "react-router-dom";
