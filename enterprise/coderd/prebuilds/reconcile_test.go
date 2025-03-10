@@ -7,12 +7,13 @@ import (
 	"testing"
 	"time"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/quartz"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"tailscale.com/types/ptr"
+
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/quartz"
 
 	"github.com/coder/serpent"
 
@@ -143,22 +144,11 @@ func TestPrebuildReconciliation(t *testing.T) {
 
 	testCases := []testCase{
 		{
-			name: "never create prebuilds for inactive template versions",
-			prebuildLatestTransitions: []database.WorkspaceTransition{
-				database.WorkspaceTransitionStart,
-				database.WorkspaceTransitionStop,
-				database.WorkspaceTransitionDelete,
-			},
-			prebuildJobStatuses: []database.ProvisionerJobStatus{
-				database.ProvisionerJobStatusSucceeded,
-				database.ProvisionerJobStatusCanceled,
-				database.ProvisionerJobStatusFailed,
-				database.ProvisionerJobStatusPending,
-				database.ProvisionerJobStatusRunning,
-				database.ProvisionerJobStatusCanceling,
-			},
-			templateVersionActive:   []bool{false},
-			shouldCreateNewPrebuild: ptr.To(false),
+			name:                      "never create prebuilds for inactive template versions",
+			prebuildLatestTransitions: allTransitions,
+			prebuildJobStatuses:       allJobStatuses,
+			templateVersionActive:     []bool{false},
+			shouldCreateNewPrebuild:   ptr.To(false),
 		},
 		{
 			name: "no need to create a new prebuild if one is already running",
@@ -199,12 +189,8 @@ func TestPrebuildReconciliation(t *testing.T) {
 			shouldCreateNewPrebuild: ptr.To(true),
 		},
 		{
-			name: "create a new prebuild if one is in any kind of exceptional state",
-			prebuildLatestTransitions: []database.WorkspaceTransition{
-				database.WorkspaceTransitionStart,
-				database.WorkspaceTransitionStop,
-				database.WorkspaceTransitionDelete,
-			},
+			name:                      "create a new prebuild if one is in any kind of exceptional state",
+			prebuildLatestTransitions: allTransitions,
 			prebuildJobStatuses: []database.ProvisionerJobStatus{
 				database.ProvisionerJobStatusCanceled,
 				database.ProvisionerJobStatusFailed,
@@ -218,11 +204,7 @@ func TestPrebuildReconciliation(t *testing.T) {
 			// pending, running, or canceling. As such, we should never attempt to start, stop or delete
 			// such prebuilds. Rather, we should wait for the existing build to complete and reconcile
 			// again in the next cycle.
-			prebuildLatestTransitions: []database.WorkspaceTransition{
-				database.WorkspaceTransitionStart,
-				database.WorkspaceTransitionStop,
-				database.WorkspaceTransitionDelete,
-			},
+			prebuildLatestTransitions: allTransitions,
 			prebuildJobStatuses: []database.ProvisionerJobStatus{
 				database.ProvisionerJobStatusPending,
 				database.ProvisionerJobStatusRunning,
@@ -236,11 +218,7 @@ func TestPrebuildReconciliation(t *testing.T) {
 			// We don't want to destroy evidence that might be useful to operators
 			// when troubleshooting issues. So we leave these prebuilds in place.
 			// Operators are expected to manually delete these prebuilds.
-			prebuildLatestTransitions: []database.WorkspaceTransition{
-				database.WorkspaceTransitionStart,
-				database.WorkspaceTransitionStop,
-				database.WorkspaceTransitionDelete,
-			},
+			prebuildLatestTransitions: allTransitions,
 			prebuildJobStatuses: []database.ProvisionerJobStatus{
 				database.ProvisionerJobStatusCanceled,
 				database.ProvisionerJobStatusFailed,
@@ -289,14 +267,19 @@ func TestPrebuildReconciliation(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		tc := tc
 		for _, templateVersionActive := range tc.templateVersionActive {
-			templateVersionActive := templateVersionActive
 			for _, prebuildLatestTransition := range tc.prebuildLatestTransitions {
-				prebuildLatestTransition := prebuildLatestTransition
 				for _, prebuildJobStatus := range tc.prebuildJobStatuses {
 					t.Run(fmt.Sprintf("%s - %s - %s", tc.name, prebuildLatestTransition, prebuildJobStatus), func(t *testing.T) {
 						t.Parallel()
+						t.Cleanup(func() {
+							if t.Failed() {
+								t.Logf("failed to run test: %s", tc.name)
+								t.Logf("templateVersionActive: %t", templateVersionActive)
+								t.Logf("prebuildLatestTransition: %s", prebuildLatestTransition)
+								t.Logf("prebuildJobStatus: %s", prebuildJobStatus)
+							}
+						})
 						ctx := testutil.Context(t, testutil.WaitShort)
 						cfg := codersdk.PrebuildsConfig{}
 						logger := slogtest.Make(
@@ -305,17 +288,28 @@ func TestPrebuildReconciliation(t *testing.T) {
 						db, pubsub := dbtestutil.NewDB(t)
 						controller := prebuilds.NewStoreReconciler(db, pubsub, cfg, logger, quartz.NewMock(t))
 
-						orgID, userID, templateID := setupTestDBTemplate(t, db)
+						ownerID := uuid.New()
+						dbgen.User(t, db, database.User{
+							ID: ownerID,
+						})
+						orgID, templateID := setupTestDBTemplate(t, db, ownerID)
 						templateVersionID := setupTestDBTemplateVersion(
 							t,
 							ctx,
 							db,
 							pubsub,
 							orgID,
-							userID,
+							ownerID,
 							templateID,
 						)
-						_, prebuildID := setupTestDBPrebuild(
+						presetID := setupTestDBPreset(
+							t,
+							ctx,
+							db,
+							pubsub,
+							templateVersionID,
+						)
+						prebuildID := setupTestDBPrebuild(
 							t,
 							ctx,
 							db,
@@ -325,6 +319,9 @@ func TestPrebuildReconciliation(t *testing.T) {
 							orgID,
 							templateID,
 							templateVersionID,
+							presetID,
+							prebuilds.OwnerID,
+							prebuilds.OwnerID,
 						)
 
 						if !templateVersionActive {
@@ -336,7 +333,7 @@ func TestPrebuildReconciliation(t *testing.T) {
 								db,
 								pubsub,
 								orgID,
-								userID,
+								ownerID,
 								templateID,
 							)
 						}
@@ -384,21 +381,20 @@ func TestPrebuildReconciliation(t *testing.T) {
 func setupTestDBTemplate(
 	t *testing.T,
 	db database.Store,
+	userID uuid.UUID,
 ) (
 	orgID uuid.UUID,
-	userID uuid.UUID,
 	templateID uuid.UUID,
 ) {
 	t.Helper()
 	org := dbgen.Organization(t, db, database.Organization{})
-	user := dbgen.User(t, db, database.User{})
 
 	template := dbgen.Template(t, db, database.Template{
-		CreatedBy:      user.ID,
+		CreatedBy:      userID,
 		OrganizationID: org.ID,
 	})
 
-	return org.ID, user.ID, template.ID
+	return org.ID, template.ID
 }
 
 const (
@@ -410,14 +406,13 @@ func setupTestDBTemplateVersion(
 	t *testing.T,
 	ctx context.Context,
 	db database.Store,
-	pubsub pubsub.Pubsub,
+	ps pubsub.Pubsub,
 	orgID uuid.UUID,
 	userID uuid.UUID,
 	templateID uuid.UUID,
 ) uuid.UUID {
 	t.Helper()
-	templateVersionJob := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
-		ID:             uuid.New(),
+	templateVersionJob := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
 		CreatedAt:      time.Now().Add(muchEarlier),
 		CompletedAt:    sql.NullTime{Time: time.Now().Add(earlier), Valid: true},
 		OrganizationID: orgID,
@@ -436,39 +431,48 @@ func setupTestDBTemplateVersion(
 	return templateVersion.ID
 }
 
-func setupTestDBPrebuild(
+func setupTestDBPreset(
 	t *testing.T,
 	ctx context.Context,
 	db database.Store,
-	pubsub pubsub.Pubsub,
-	transition database.WorkspaceTransition,
-	prebuildStatus database.ProvisionerJobStatus,
-	orgID uuid.UUID,
-	templateID uuid.UUID,
+	ps pubsub.Pubsub,
 	templateVersionID uuid.UUID,
-) (
-	presetID uuid.UUID,
-	prebuildID uuid.UUID,
-) {
+) uuid.UUID {
 	t.Helper()
-	preset, err := db.InsertPreset(ctx, database.InsertPresetParams{
+	preset := dbgen.Preset(t, db, database.InsertPresetParams{
 		TemplateVersionID: templateVersionID,
 		Name:              "test",
 	})
-	require.NoError(t, err)
-	_, err = db.InsertPresetParameters(ctx, database.InsertPresetParametersParams{
+	dbgen.PresetParameter(t, db, database.InsertPresetParametersParams{
 		TemplateVersionPresetID: preset.ID,
 		Names:                   []string{"test"},
 		Values:                  []string{"test"},
 	})
-	require.NoError(t, err)
-	_, err = db.InsertPresetPrebuild(ctx, database.InsertPresetPrebuildParams{
+	_, err := db.InsertPresetPrebuild(ctx, database.InsertPresetPrebuildParams{
 		ID:               uuid.New(),
 		PresetID:         preset.ID,
 		DesiredInstances: 1,
 	})
 	require.NoError(t, err)
+	return preset.ID
+}
 
+func setupTestDBPrebuild(
+	t *testing.T,
+	ctx context.Context,
+	db database.Store,
+	ps pubsub.Pubsub,
+	transition database.WorkspaceTransition,
+	prebuildStatus database.ProvisionerJobStatus,
+	orgID uuid.UUID,
+	templateID uuid.UUID,
+	templateVersionID uuid.UUID,
+	presetID uuid.UUID,
+	initiatorID uuid.UUID,
+	ownerID uuid.UUID,
+) (
+	prebuildID uuid.UUID,
+) {
 	cancelledAt := sql.NullTime{}
 	completedAt := sql.NullTime{}
 
@@ -497,11 +501,11 @@ func setupTestDBPrebuild(
 	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
 		TemplateID:     templateID,
 		OrganizationID: orgID,
-		OwnerID:        prebuilds.OwnerID,
+		OwnerID:        ownerID,
 		Deleted:        false,
 	})
-	job := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
-		InitiatorID:    prebuilds.OwnerID,
+	job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+		InitiatorID:    initiatorID,
 		CreatedAt:      time.Now().Add(muchEarlier),
 		StartedAt:      startedAt,
 		CompletedAt:    completedAt,
@@ -511,14 +515,29 @@ func setupTestDBPrebuild(
 	})
 	dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
 		WorkspaceID:             workspace.ID,
-		InitiatorID:             prebuilds.OwnerID,
+		InitiatorID:             initiatorID,
 		TemplateVersionID:       templateVersionID,
 		JobID:                   job.ID,
-		TemplateVersionPresetID: uuid.NullUUID{UUID: preset.ID, Valid: true},
+		TemplateVersionPresetID: uuid.NullUUID{UUID: presetID, Valid: true},
 		Transition:              transition,
 	})
 
-	return preset.ID, workspace.ID
+	return workspace.ID
+}
+
+var allTransitions = []database.WorkspaceTransition{
+	database.WorkspaceTransitionStart,
+	database.WorkspaceTransitionStop,
+	database.WorkspaceTransitionDelete,
+}
+
+var allJobStatuses = []database.ProvisionerJobStatus{
+	database.ProvisionerJobStatusPending,
+	database.ProvisionerJobStatusRunning,
+	database.ProvisionerJobStatusSucceeded,
+	database.ProvisionerJobStatusFailed,
+	database.ProvisionerJobStatusCanceled,
+	database.ProvisionerJobStatusCanceling,
 }
 
 // TODO (sasswart): test mutual exclusion

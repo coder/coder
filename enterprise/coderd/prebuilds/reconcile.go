@@ -8,8 +8,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/coder/quartz"
 	"github.com/hashicorp/go-multierror"
+
+	"github.com/coder/quartz"
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
