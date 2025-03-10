@@ -1,11 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { getAuthorizationKey } from "api/queries/authCheck";
-import { anyOrganizationPermissionsKey } from "api/queries/organizations";
 import { workspaceByOwnerAndNameKey } from "api/queries/workspaces";
 import type { Workspace, WorkspaceAgentLifecycle } from "api/typesGenerated";
 import { AuthProvider } from "contexts/auth/AuthProvider";
 import { RequireAuth } from "contexts/auth/RequireAuth";
-import { permissionsToCheck } from "contexts/auth/permissions";
+import { permissionChecks } from "modules/permissions";
 import {
 	reactRouterOutlet,
 	reactRouterParameters,
@@ -74,10 +73,9 @@ const meta = {
 			{ key: ["appearance"], data: MockAppearanceConfig },
 			{ key: ["organizations"], data: [MockDefaultOrganization] },
 			{
-				key: getAuthorizationKey({ checks: permissionsToCheck }),
+				key: getAuthorizationKey({ checks: permissionChecks }),
 				data: { editWorkspaceProxies: true },
 			},
-			{ key: anyOrganizationPermissionsKey, data: {} },
 		],
 		chromatic: { delay: 300 },
 	},

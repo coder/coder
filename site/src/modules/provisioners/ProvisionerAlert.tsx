@@ -2,7 +2,6 @@ import type { Theme } from "@emotion/react";
 import AlertTitle from "@mui/material/AlertTitle";
 import { Alert, type AlertColor } from "components/Alert/Alert";
 import { AlertDetail } from "components/Alert/Alert";
-import { Stack } from "components/Stack/Stack";
 import { ProvisionerTag } from "modules/provisioners/ProvisionerTag";
 import type { FC } from "react";
 

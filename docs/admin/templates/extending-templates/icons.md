@@ -12,13 +12,13 @@ come bundled with your Coder deployment.
 
 - [**Terraform**](https://registry.terraform.io/providers/coder/coder/latest/docs):
 
-  - [`coder_app`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app#icon)
-  - [`coder_parameter`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter#icon)
+  - [`coder_app`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app#icon-1)
+  - [`coder_parameter`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter#icon-1)
     and
     [`option`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter#nested-schema-for-option)
     blocks
-  - [`coder_script`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/script#icon)
-  - [`coder_metadata`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/metadata#icon)
+  - [`coder_script`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/script#icon-1)
+  - [`coder_metadata`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/metadata#icon-1)
 
   These can all be configured to use an icon by setting the `icon` field.
 

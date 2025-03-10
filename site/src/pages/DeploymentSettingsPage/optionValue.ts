@@ -51,6 +51,10 @@ export function optionValue(
 				break;
 			}
 
+			if (!option.value) {
+				return "";
+			}
+
 			// We show all experiments (including unsafe) that are currently enabled on a deployment
 			// but only show safe experiments that are not.
 			// biome-ignore lint/suspicious/noExplicitAny: opt.value is any
@@ -59,7 +63,6 @@ export function optionValue(
 					experimentMap[v] = true;
 				}
 			}
-
 			return experimentMap;
 		}
 		default:

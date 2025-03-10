@@ -3,8 +3,8 @@
 All Coder features are supported in offline / behind firewalls / in air-gapped
 environments. However, some changes to your configuration are necessary.
 
-> This is a general comparison. Keep reading for a full tutorial running Coder
-> offline with Kubernetes or Docker.
+This is a general comparison. Keep reading for a full tutorial running Coder
+offline with Kubernetes or Docker.
 
 |                    | Public deployments                                                                                                                                                                                                                                                 | Offline deployments                                                                                                                                                                                                                                                                                                    |
 |--------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -31,7 +31,8 @@ following:
     [network mirror](https://www.terraform.io/internals/provider-network-mirror-protocol).
     See below for details.
 
-> Note: Coder includes the latest
+> [!NOTE]
+> Coder includes the latest
 > [supported version](https://github.com/coder/coder/blob/main/provisioner/terraform/install.go#L23-L24)
 > of Terraform in the official Docker images. If you need to bundle a different
 > version of terraform, you can do so by customizing the image.
@@ -54,7 +55,7 @@ RUN mkdir -p /opt/terraform
 # The below step is optional if you wish to keep the existing version.
 # See https://github.com/coder/coder/blob/main/provisioner/terraform/install.go#L23-L24
 # for supported Terraform versions.
-ARG TERRAFORM_VERSION=1.10.5
+ARG TERRAFORM_VERSION=1.11.0
 RUN apk update && \
     apk del terraform && \
     curl -LOs https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip \
@@ -79,7 +80,7 @@ ADD filesystem-mirror-example.tfrc /home/coder/.terraformrc
 # Optionally, we can "seed" the filesystem mirror with common providers.
 # Comment out lines 40-49 if you plan on only using a volume or network mirror:
 WORKDIR /home/coder/.terraform.d/plugins/registry.terraform.io
-ARG CODER_PROVIDER_VERSION=1.0.1
+ARG CODER_PROVIDER_VERSION=2.2.0
 RUN echo "Adding coder/coder v${CODER_PROVIDER_VERSION}" \
     && mkdir -p coder/coder && cd coder/coder \
     && curl -LOs https://github.com/coder/terraform-provider-coder/releases/download/v${CODER_PROVIDER_VERSION}/terraform-provider-coder_${CODER_PROVIDER_VERSION}_linux_amd64.zip
@@ -87,11 +88,11 @@ ARG DOCKER_PROVIDER_VERSION=3.0.2
 RUN echo "Adding kreuzwerker/docker v${DOCKER_PROVIDER_VERSION}" \
     && mkdir -p kreuzwerker/docker && cd kreuzwerker/docker \
     && curl -LOs https://github.com/kreuzwerker/terraform-provider-docker/releases/download/v${DOCKER_PROVIDER_VERSION}/terraform-provider-docker_${DOCKER_PROVIDER_VERSION}_linux_amd64.zip
-ARG KUBERNETES_PROVIDER_VERSION=2.23.0
+ARG KUBERNETES_PROVIDER_VERSION=2.36.0
 RUN echo "Adding kubernetes/kubernetes v${KUBERNETES_PROVIDER_VERSION}" \
     && mkdir -p hashicorp/kubernetes && cd hashicorp/kubernetes \
     && curl -LOs https://releases.hashicorp.com/terraform-provider-kubernetes/${KUBERNETES_PROVIDER_VERSION}/terraform-provider-kubernetes_${KUBERNETES_PROVIDER_VERSION}_linux_amd64.zip
-ARG AWS_PROVIDER_VERSION=5.19.0
+ARG AWS_PROVIDER_VERSION=5.89.0
 RUN echo "Adding aws/aws v${AWS_PROVIDER_VERSION}" \
     && mkdir -p aws/aws && cd aws/aws \
     && curl -LOs https://releases.hashicorp.com/terraform-provider-aws/${AWS_PROVIDER_VERSION}/terraform-provider-aws_${AWS_PROVIDER_VERSION}_linux_amd64.zip
@@ -112,6 +113,7 @@ USER coder
 ENV TF_CLI_CONFIG_FILE=/home/coder/.terraformrc
 ```
 
+> [!NOTE]
 > If you are bundling Terraform providers into your Coder image, be sure the
 > provider version matches any templates or
 > [example templates](https://github.com/coder/coder/tree/main/examples/templates)
@@ -135,7 +137,9 @@ provider_installation {
 }
 ```
 
-## Run offline via Docker
+<div class="tabs">
+
+### Docker
 
 Follow our [docker-compose](./docker.md#install-coder-via-docker-compose)
 documentation and modify the docker-compose file to specify your custom Coder
@@ -144,19 +148,18 @@ filesystem mirror without re-building the image.
 
 First, create an empty plugins directory:
 
-```console
+```shell
 mkdir $HOME/plugins
 ```
 
-Next, add a volume mount to docker-compose.yaml:
+Next, add a volume mount to compose.yaml:
 
-```console
-vim docker-compose.yaml
+```shell
+vim compose.yaml
 ```
 
 ```yaml
-# docker-compose.yaml
-version: "3.9"
+# compose.yaml
 services:
   coder:
     image: registry.example.com/coder:latest
@@ -169,16 +172,16 @@ services:
     CODER_DERP_SERVER_STUN_ADDRESSES: "disable" # Only use relayed connections
     CODER_UPDATE_CHECK: "false" # Disable automatic update checks
   database:
-    image: registry.example.com/postgres:13
+    image: registry.example.com/postgres:17
     # ...
 ```
 
-> The
-> [terraform providers mirror](https://www.terraform.io/cli/commands/providers/mirror)
-> command can be used to download the required plugins for a Coder template.
-> This can be uploaded into the `plugins` directory on your offline server.
+The
+[terraform providers mirror](https://www.terraform.io/cli/commands/providers/mirror)
+command can be used to download the required plugins for a Coder template.
+This can be uploaded into the `plugins` directory on your offline server.
 
-## Run offline via Kubernetes
+### Kubernetes
 
 We publish the Helm chart for download on
 [GitHub Releases](https://github.com/coder/coder/releases/latest). Follow our
@@ -209,6 +212,8 @@ coder:
       value: ""
 # ...
 ```
+
+</div>
 
 ## Offline docs
 

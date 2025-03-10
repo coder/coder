@@ -1,4 +1,3 @@
-import ArrowForwardOutlined from "@mui/icons-material/ArrowForwardOutlined";
 import type { Template } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { Button } from "components/Button/Button";

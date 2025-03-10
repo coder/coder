@@ -44,6 +44,15 @@ In order for clients and workspaces to be able to connect:
 - Any reverse proxy or ingress between the Coder control plane and
   clients/agents must support WebSockets.
 
+> [!NOTE]
+> We strongly recommend that clients connect to Coder and their
+> workspaces over a good quality, broadband network connection. The following
+> are minimum requirements:
+>
+> - Better than 400ms round-trip latency to the Coder server and to their
+>   workspace
+> - Better than 0.5% random packet loss
+
 ## Coder server
 
 Workspaces connect to the Coder server via the server's external address, set
@@ -55,7 +64,7 @@ as well. There must not be a NAT between users and the Coder server.
 
 Template admins can overwrite the site-wide access URL at the template level by
 leveraging the `url` argument when
-[defining the Coder provider](https://registry.terraform.io/providers/coder/coder/latest/docs#url):
+[defining the Coder provider](https://registry.terraform.io/providers/coder/coder/latest/docs#url-1):
 
 ```terraform
 provider "coder" {

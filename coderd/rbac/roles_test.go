@@ -366,6 +366,17 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
+			Name: "InboxNotification",
+			Actions: []policy.Action{
+				policy.ActionCreate, policy.ActionRead, policy.ActionUpdate,
+			},
+			Resource: rbac.ResourceInboxNotification.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgMemberMe, orgAdmin},
+				false: {setOtherOrg, orgUserAdmin, orgTemplateAdmin, orgAuditor, templateAdmin, userAdmin, memberMe},
+			},
+		},
+		{
 			Name:     "UserData",
 			Actions:  []policy.Action{policy.ActionReadPersonal, policy.ActionUpdatePersonal},
 			Resource: rbac.ResourceUserObject(currentUser),
