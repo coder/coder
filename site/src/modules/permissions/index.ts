@@ -6,6 +6,9 @@ export type Permissions = {
 
 export type PermissionName = keyof typeof permissionChecks;
 
+/**
+ * Site-wide permission checks
+ */
 export const permissionChecks = {
 	viewAllUsers: {
 		object: {
