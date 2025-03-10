@@ -43,7 +43,7 @@ resource "coderd_template" "dogfood" {
     {
       name      = var.CODER_TEMPLATE_VERSION
       message   = var.CODER_TEMPLATE_MESSAGE
-      directory = "./coder/contents"
+      directory = var.CODER_TEMPLATE_DIR
       active    = true
     }
   ]
