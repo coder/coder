@@ -255,7 +255,7 @@ func (c *StoreReconciler) SnapshotState(ctx context.Context, store database.Stor
 			return xerrors.Errorf("failed to get prebuilds in progress: %w", err)
 		}
 
-		presetsBackoff, err := db.GetPresetsBackoff(ctx, prebuilds.DurationToInterval(c.cfg.ReconciliationBackoffLookback.Value()))
+		presetsBackoff, err := db.GetPresetsBackoff(ctx, c.clock.Now().Add(-c.cfg.ReconciliationBackoffLookback.Value()))
 		if err != nil {
 			return xerrors.Errorf("failed to get backoffs for presets: %w", err)
 		}

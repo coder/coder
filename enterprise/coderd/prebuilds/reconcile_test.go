@@ -33,6 +33,7 @@ func TestNoReconciliationActionsIfNoPresets(t *testing.T) {
 	// Scenario: No reconciliation actions are taken if there are no presets
 	t.Parallel()
 
+	clock := quartz.NewMock(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
 	db, pubsub := dbtestutil.NewDB(t)
 	cfg := codersdk.PrebuildsConfig{
@@ -64,7 +65,7 @@ func TestNoReconciliationActionsIfNoPresets(t *testing.T) {
 	// then no reconciliation actions are taken
 	// because without presets, there are no prebuilds
 	// and without prebuilds, there is nothing to reconcile
-	jobs, err := db.GetProvisionerJobsCreatedAfter(ctx, time.Now().Add(earlier))
+	jobs, err := db.GetProvisionerJobsCreatedAfter(ctx, clock.Now().Add(earlier))
 	require.NoError(t, err)
 	require.Empty(t, jobs)
 }
@@ -77,6 +78,7 @@ func TestNoReconciliationActionsIfNoPrebuilds(t *testing.T) {
 	// Scenario: No reconciliation actions are taken if there are no prebuilds
 	t.Parallel()
 
+	clock := quartz.NewMock(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
 	db, pubsub := dbtestutil.NewDB(t)
 	cfg := codersdk.PrebuildsConfig{
@@ -120,7 +122,7 @@ func TestNoReconciliationActionsIfNoPrebuilds(t *testing.T) {
 	// then no reconciliation actions are taken
 	// because without prebuilds, there is nothing to reconcile
 	// even if there are presets
-	jobs, err := db.GetProvisionerJobsCreatedAfter(ctx, time.Now().Add(earlier))
+	jobs, err := db.GetProvisionerJobsCreatedAfter(ctx, clock.Now().Add(earlier))
 	require.NoError(t, err)
 	require.Empty(t, jobs)
 }
@@ -199,15 +201,14 @@ func TestPrebuildReconciliation(t *testing.T) {
 			shouldCreateNewPrebuild: ptr.To(true),
 		},
 		{
+			// See TestFailedBuildBackoff for the start/failed case.
 			name: "create a new prebuild if one is in any kind of exceptional state",
 			prebuildLatestTransitions: []database.WorkspaceTransition{
-				database.WorkspaceTransitionStart,
 				database.WorkspaceTransitionStop,
 				database.WorkspaceTransitionDelete,
 			},
 			prebuildJobStatuses: []database.ProvisionerJobStatus{
 				database.ProvisionerJobStatusCanceled,
-				database.ProvisionerJobStatusFailed,
 			},
 			templateVersionActive:   []bool{true},
 			shouldCreateNewPrebuild: ptr.To(true),
@@ -297,6 +298,7 @@ func TestPrebuildReconciliation(t *testing.T) {
 				for _, prebuildJobStatus := range tc.prebuildJobStatuses {
 					t.Run(fmt.Sprintf("%s - %s - %s", tc.name, prebuildLatestTransition, prebuildJobStatus), func(t *testing.T) {
 						t.Parallel()
+						clock := quartz.NewMock(t)
 						ctx := testutil.Context(t, testutil.WaitShort)
 						cfg := codersdk.PrebuildsConfig{}
 						logger := slogtest.Make(
@@ -306,18 +308,11 @@ func TestPrebuildReconciliation(t *testing.T) {
 						controller := prebuilds.NewStoreReconciler(db, pubsub, cfg, logger, quartz.NewMock(t))
 
 						orgID, userID, templateID := setupTestDBTemplate(t, db)
-						templateVersionID := setupTestDBTemplateVersion(
+						templateVersionID := setupTestDBTemplateVersion(t, ctx, clock, db, pubsub, orgID, userID, templateID)
+						_, prebuild := setupTestDBPrebuild(
 							t,
 							ctx,
-							db,
-							pubsub,
-							orgID,
-							userID,
-							templateID,
-						)
-						_, prebuildID := setupTestDBPrebuild(
-							t,
-							ctx,
+							clock,
 							db,
 							pubsub,
 							prebuildLatestTransition,
@@ -330,15 +325,7 @@ func TestPrebuildReconciliation(t *testing.T) {
 						if !templateVersionActive {
 							// Create a new template version and mark it as active
 							// This marks the template version that we care about as inactive
-							setupTestDBTemplateVersion(
-								t,
-								ctx,
-								db,
-								pubsub,
-								orgID,
-								userID,
-								templateID,
-							)
+							setupTestDBTemplateVersion(t, ctx, clock, db, pubsub, orgID, userID, templateID)
 						}
 
 						// Run the reconciliation multiple times to ensure idempotency
@@ -351,7 +338,7 @@ func TestPrebuildReconciliation(t *testing.T) {
 								workspaces, err := db.GetWorkspacesByTemplateID(ctx, templateID)
 								require.NoError(t, err)
 								for _, workspace := range workspaces {
-									if workspace.ID != prebuildID {
+									if workspace.ID != prebuild.ID {
 										newPrebuildCount++
 									}
 								}
@@ -362,7 +349,7 @@ func TestPrebuildReconciliation(t *testing.T) {
 
 							if tc.shouldDeleteOldPrebuild != nil {
 								builds, err := db.GetWorkspaceBuildsByWorkspaceID(ctx, database.GetWorkspaceBuildsByWorkspaceIDParams{
-									WorkspaceID: prebuildID,
+									WorkspaceID: prebuild.ID,
 								})
 								require.NoError(t, err)
 								if *tc.shouldDeleteOldPrebuild {
@@ -381,6 +368,84 @@ func TestPrebuildReconciliation(t *testing.T) {
 	}
 }
 
+func TestFailedBuildBackoff(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres")
+	}
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+
+	// Setup.
+	clock := quartz.NewMock(t)
+	backoffInterval := time.Minute
+	cfg := codersdk.PrebuildsConfig{
+		// Given: explicitly defined backoff configuration to validate timings.
+		ReconciliationBackoffLookback: serpent.Duration(muchEarlier * -10), // Has to be positive.
+		ReconciliationBackoffInterval: serpent.Duration(backoffInterval),
+		ReconciliationInterval:        serpent.Duration(time.Second),
+	}
+	logger := slogtest.Make(
+		t, &slogtest.Options{IgnoreErrors: true},
+	).Leveled(slog.LevelDebug)
+	db, ps := dbtestutil.NewDB(t)
+	reconciler := prebuilds.NewStoreReconciler(db, ps, cfg, logger, clock)
+
+	// Given: an active template version with presets and prebuilds configured.
+	orgID, userID, templateID := setupTestDBTemplate(t, db)
+	templateVersionID := setupTestDBTemplateVersion(t, ctx, clock, db, ps, orgID, userID, templateID)
+	preset, _ := setupTestDBPrebuild(t, ctx, clock, db, ps, database.WorkspaceTransitionStart, database.ProvisionerJobStatusFailed, orgID, templateID, templateVersionID)
+
+	// When: determining what actions to take next, backoff is calculated because the prebuild is in a failed state.
+	state, err := reconciler.SnapshotState(ctx, db)
+	require.NoError(t, err)
+	require.Len(t, state.Presets, 1)
+	presetState, err := state.FilterByPreset(preset.ID)
+	require.NoError(t, err)
+	actions, err := reconciler.DetermineActions(ctx, *presetState)
+	require.NoError(t, err)
+	// Then: the backoff time is in the future, and no prebuilds are running.
+	require.EqualValues(t, 0, actions.Actual)
+	require.EqualValues(t, 1, actions.Desired)
+	require.True(t, clock.Now().Before(actions.BackoffUntil))
+
+	// Then: the backoff time is roughly equal to one backoff interval, since only one build has failed so far.
+	require.NotNil(t, presetState.Backoff)
+	require.EqualValues(t, 1, presetState.Backoff.NumFailed)
+	require.EqualValues(t, backoffInterval*time.Duration(presetState.Backoff.NumFailed), clock.Until(actions.BackoffUntil).Truncate(backoffInterval))
+
+	// When: advancing beyond the backoff time.
+
+	clock.Advance(clock.Until(actions.BackoffUntil.Add(time.Second)))
+
+	// Then: we will attempt to create a new prebuild.
+	state, err = reconciler.SnapshotState(ctx, db)
+	require.NoError(t, err)
+	presetState, err = state.FilterByPreset(preset.ID)
+	require.NoError(t, err)
+	actions, err = reconciler.DetermineActions(ctx, *presetState)
+	require.NoError(t, err)
+	require.EqualValues(t, 0, actions.Actual)
+	require.EqualValues(t, 1, actions.Desired)
+	require.EqualValues(t, 1, actions.Create)
+
+	// When: a new prebuild is provisioned but it fails again.
+	_ = setupTestWorkspaceBuild(t, ctx, clock, db, ps, database.WorkspaceTransitionStart, database.ProvisionerJobStatusFailed, orgID, preset, templateID, templateVersionID)
+
+	// Then: the backoff time is roughly equal to two backoff intervals, since another build has failed.
+	state, err = reconciler.SnapshotState(ctx, db)
+	require.NoError(t, err)
+	presetState, err = state.FilterByPreset(preset.ID)
+	require.NoError(t, err)
+	actions, err = reconciler.DetermineActions(ctx, *presetState)
+	require.NoError(t, err)
+	require.EqualValues(t, 0, actions.Actual)
+	require.EqualValues(t, 1, actions.Desired)
+	require.EqualValues(t, 0, actions.Create)
+	require.EqualValues(t, 2, presetState.Backoff.NumFailed)
+	require.EqualValues(t, backoffInterval*time.Duration(presetState.Backoff.NumFailed), clock.Until(actions.BackoffUntil).Truncate(backoffInterval))
+}
+
 func setupTestDBTemplate(
 	t *testing.T,
 	db database.Store,
@@ -396,6 +461,7 @@ func setupTestDBTemplate(
 	template := dbgen.Template(t, db, database.Template{
 		CreatedBy:      user.ID,
 		OrganizationID: org.ID,
+		CreatedAt:      time.Now().Add(muchEarlier),
 	})
 
 	return org.ID, user.ID, template.ID
@@ -403,12 +469,13 @@ func setupTestDBTemplate(
 
 const (
 	earlier     = -time.Hour
-	muchEarlier = time.Hour * -2
+	muchEarlier = -time.Hour * 2
 )
 
 func setupTestDBTemplateVersion(
 	t *testing.T,
 	ctx context.Context,
+	clock quartz.Clock,
 	db database.Store,
 	pubsub pubsub.Pubsub,
 	orgID uuid.UUID,
@@ -418,8 +485,8 @@ func setupTestDBTemplateVersion(
 	t.Helper()
 	templateVersionJob := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
 		ID:             uuid.New(),
-		CreatedAt:      time.Now().Add(muchEarlier),
-		CompletedAt:    sql.NullTime{Time: time.Now().Add(earlier), Valid: true},
+		CreatedAt:      clock.Now().Add(muchEarlier),
+		CompletedAt:    sql.NullTime{Time: clock.Now().Add(earlier), Valid: true},
 		OrganizationID: orgID,
 		InitiatorID:    userID,
 	})
@@ -428,6 +495,7 @@ func setupTestDBTemplateVersion(
 		OrganizationID: orgID,
 		CreatedBy:      userID,
 		JobID:          templateVersionJob.ID,
+		CreatedAt:      time.Now().Add(muchEarlier),
 	})
 	require.NoError(t, db.UpdateTemplateActiveVersionByID(ctx, database.UpdateTemplateActiveVersionByIDParams{
 		ID:              templateID,
@@ -439,6 +507,7 @@ func setupTestDBTemplateVersion(
 func setupTestDBPrebuild(
 	t *testing.T,
 	ctx context.Context,
+	clock quartz.Clock,
 	db database.Store,
 	pubsub pubsub.Pubsub,
 	transition database.WorkspaceTransition,
@@ -447,13 +516,14 @@ func setupTestDBPrebuild(
 	templateID uuid.UUID,
 	templateVersionID uuid.UUID,
 ) (
-	presetID uuid.UUID,
-	prebuildID uuid.UUID,
+	preset database.TemplateVersionPreset,
+	prebuild database.WorkspaceTable,
 ) {
 	t.Helper()
 	preset, err := db.InsertPreset(ctx, database.InsertPresetParams{
 		TemplateVersionID: templateVersionID,
 		Name:              "test",
+		CreatedAt:         clock.Now().Add(muchEarlier),
 	})
 	require.NoError(t, err)
 	_, err = db.InsertPresetParameters(ctx, database.InsertPresetParametersParams{
@@ -469,28 +539,44 @@ func setupTestDBPrebuild(
 	})
 	require.NoError(t, err)
 
+	return preset, setupTestWorkspaceBuild(t, ctx, clock, db, pubsub, transition, prebuildStatus, orgID, preset, templateID, templateVersionID)
+}
+
+func setupTestWorkspaceBuild(
+	t *testing.T,
+	ctx context.Context,
+	clock quartz.Clock,
+	db database.Store,
+	pubsub pubsub.Pubsub,
+	transition database.WorkspaceTransition,
+	prebuildStatus database.ProvisionerJobStatus,
+	orgID uuid.UUID,
+	preset database.TemplateVersionPreset,
+	templateID uuid.UUID,
+	templateVersionID uuid.UUID) (workspaceID database.WorkspaceTable) {
+
 	cancelledAt := sql.NullTime{}
 	completedAt := sql.NullTime{}
 
 	startedAt := sql.NullTime{}
 	if prebuildStatus != database.ProvisionerJobStatusPending {
-		startedAt = sql.NullTime{Time: time.Now().Add(muchEarlier), Valid: true}
+		startedAt = sql.NullTime{Time: clock.Now().Add(muchEarlier), Valid: true}
 	}
 
 	buildError := sql.NullString{}
 	if prebuildStatus == database.ProvisionerJobStatusFailed {
-		completedAt = sql.NullTime{Time: time.Now().Add(earlier), Valid: true}
+		completedAt = sql.NullTime{Time: clock.Now().Add(earlier), Valid: true}
 		buildError = sql.NullString{String: "build failed", Valid: true}
 	}
 
 	switch prebuildStatus {
 	case database.ProvisionerJobStatusCanceling:
-		cancelledAt = sql.NullTime{Time: time.Now().Add(earlier), Valid: true}
+		cancelledAt = sql.NullTime{Time: clock.Now().Add(earlier), Valid: true}
 	case database.ProvisionerJobStatusCanceled:
-		completedAt = sql.NullTime{Time: time.Now().Add(earlier), Valid: true}
-		cancelledAt = sql.NullTime{Time: time.Now().Add(earlier), Valid: true}
+		completedAt = sql.NullTime{Time: clock.Now().Add(earlier), Valid: true}
+		cancelledAt = sql.NullTime{Time: clock.Now().Add(earlier), Valid: true}
 	case database.ProvisionerJobStatusSucceeded:
-		completedAt = sql.NullTime{Time: time.Now().Add(earlier), Valid: true}
+		completedAt = sql.NullTime{Time: clock.Now().Add(earlier), Valid: true}
 	default:
 	}
 
@@ -502,7 +588,7 @@ func setupTestDBPrebuild(
 	})
 	job := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
 		InitiatorID:    prebuilds.OwnerID,
-		CreatedAt:      time.Now().Add(muchEarlier),
+		CreatedAt:      clock.Now().Add(muchEarlier),
 		StartedAt:      startedAt,
 		CompletedAt:    completedAt,
 		CanceledAt:     cancelledAt,
@@ -516,9 +602,10 @@ func setupTestDBPrebuild(
 		JobID:                   job.ID,
 		TemplateVersionPresetID: uuid.NullUUID{UUID: preset.ID, Valid: true},
 		Transition:              transition,
+		CreatedAt:               clock.Now(),
 	})
 
-	return preset.ID, workspace.ID
+	return workspace
 }
 
 // TODO (sasswart): test mutual exclusion

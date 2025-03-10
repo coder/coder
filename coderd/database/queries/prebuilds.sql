@@ -65,7 +65,7 @@ WITH filtered_builds AS (
          SELECT preset_id, COUNT(*) AS num_failed
          FROM filtered_builds
          WHERE job_status = 'failed'::provisioner_job_status
-           AND created_at >= NOW() - (sqlc.arg('lookback')::bigint * INTERVAL '1 microsecond') -- microsecond is the smallest unit in PG, bigint is used because Go deals with time as int64
+           AND created_at >= @lookback::timestamptz
          GROUP BY preset_id)
 SELECT lb.template_version_id,
        lb.preset_id,

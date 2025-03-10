@@ -1068,9 +1068,9 @@ func (m queryMetricsStore) GetPresetParametersByTemplateVersionID(ctx context.Co
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetPresetsBackoff(ctx context.Context, period int64) ([]database.GetPresetsBackoffRow, error) {
+func (m queryMetricsStore) GetPresetsBackoff(ctx context.Context, lookback time.Time) ([]database.GetPresetsBackoffRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetPresetsBackoff(ctx, period)
+	r0, r1 := m.s.GetPresetsBackoff(ctx, lookback)
 	m.queryLatencies.WithLabelValues("GetPresetsBackoff").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
