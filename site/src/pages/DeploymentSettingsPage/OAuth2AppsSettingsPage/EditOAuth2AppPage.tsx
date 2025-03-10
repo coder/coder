@@ -62,7 +62,7 @@ const EditOAuth2AppPage: FC = () => {
 							`Successfully updated the OAuth2 application "${req.name}".`,
 						);
 						navigate("/deployment/oauth2-provider/apps?updated=true");
-					} catch (ignore) {
+					} catch {
 						displayError("Failed to update OAuth2 application");
 					}
 				}}
@@ -73,7 +73,7 @@ const EditOAuth2AppPage: FC = () => {
 							`You have successfully deleted the OAuth2 application "${name}"`,
 						);
 						navigate("/deployment/oauth2-provider/apps?deleted=true");
-					} catch (error) {
+					} catch {
 						displayError("Failed to delete OAuth2 application");
 					}
 				}}
@@ -82,7 +82,7 @@ const EditOAuth2AppPage: FC = () => {
 						const secret = await postSecretMutation.mutateAsync(appId);
 						displaySuccess("Successfully generated OAuth2 client secret");
 						setFullNewSecret(secret);
-					} catch (ignore) {
+					} catch {
 						displayError("Failed to generate OAuth2 client secret");
 					}
 				}}
@@ -93,7 +93,7 @@ const EditOAuth2AppPage: FC = () => {
 						if (fullNewSecret?.id === secretId) {
 							setFullNewSecret(undefined);
 						}
-					} catch (ignore) {
+					} catch {
 						displayError("Failed to delete OAuth2 client secret");
 					}
 				}}

@@ -70,7 +70,8 @@ When creating the template, set the parameter `cache_repo` to a valid Docker rep
 
 See the [Envbuilder Terraform Provider Examples](https://github.com/coder/terraform-provider-envbuilder/blob/main/examples/resources/envbuilder_cached_image/envbuilder_cached_image_resource.tf/) for a more complete example of how the provider works.
 
-> [!NOTE] We recommend using a registry cache with authentication enabled.
+> [!NOTE]
+> We recommend using a registry cache with authentication enabled.
 > To allow Envbuilder to authenticate with the registry cache, specify the variable `cache_repo_docker_config_path`
 > with the path to a Docker config `.json` on disk containing valid credentials for the registry.
 

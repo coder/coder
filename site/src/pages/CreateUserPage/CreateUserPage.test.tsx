@@ -9,7 +9,9 @@ import { Language as FormLanguage } from "./Language";
 
 const renderCreateUserPage = async () => {
 	renderWithAuth(<CreateUserPage />, {
-		extraRoutes: [{ path: "/users", element: <div>Users Page</div> }],
+		extraRoutes: [
+			{ path: "/deployment/users", element: <div>Users Page</div> },
+		],
 	});
 	await waitForLoaderToBeRemoved();
 };

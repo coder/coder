@@ -156,7 +156,7 @@ const useWorkspacesFilter = ({
 	});
 
 	const { permissions } = useAuthenticated();
-	const canFilterByUser = permissions.viewDeploymentValues;
+	const canFilterByUser = permissions.viewDeploymentConfig;
 	const userMenu = useUserFilterMenu({
 		value: filter.values.owner,
 		onChange: (option) =>

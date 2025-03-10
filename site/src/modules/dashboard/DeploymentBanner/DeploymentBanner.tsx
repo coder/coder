@@ -10,10 +10,10 @@ export const DeploymentBanner: FC = () => {
 	const deploymentStatsQuery = useQuery(deploymentStats());
 	const healthQuery = useQuery({
 		...health(),
-		enabled: permissions.viewDeploymentValues,
+		enabled: permissions.viewDeploymentConfig,
 	});
 
-	if (!permissions.viewDeploymentValues || !deploymentStatsQuery.data) {
+	if (!permissions.viewDeploymentConfig || !deploymentStatsQuery.data) {
 		return null;
 	}
 

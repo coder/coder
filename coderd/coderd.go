@@ -422,6 +422,7 @@ func New(options *Options) *API {
 	metricsCache := metricscache.New(
 		options.Database,
 		options.Logger.Named("metrics_cache"),
+		options.Clock,
 		metricscache.Intervals{
 			TemplateBuildTimes: options.MetricsCacheRefreshInterval,
 			DeploymentStats:    options.AgentStatsRefreshInterval,
@@ -1001,6 +1002,7 @@ func New(options *Options) *API {
 						})
 					})
 				})
+				r.Get("/paginated-members", api.paginatedMembers)
 				r.Route("/members", func(r chi.Router) {
 					r.Get("/", api.listMembers)
 					r.Route("/roles", func(r chi.Router) {
@@ -1144,6 +1146,7 @@ func New(options *Options) *API {
 						r.Put("/suspend", api.putSuspendUserAccount())
 						r.Put("/activate", api.putActivateUserAccount())
 					})
+					r.Get("/appearance", api.userAppearanceSettings)
 					r.Put("/appearance", api.putUserAppearanceSettings)
 					r.Route("/password", func(r chi.Router) {
 						r.Use(httpmw.RateLimit(options.LoginRateLimit, time.Minute))

@@ -1,10 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { MockDeploymentDAUResponse } from "testHelpers/entities";
-import { GeneralSettingsPageView } from "./GeneralSettingsPageView";
+import { OverviewPageView } from "./OverviewPageView";
 
-const meta: Meta<typeof GeneralSettingsPageView> = {
-	title: "pages/DeploymentSettingsPage/GeneralSettingsPageView",
-	component: GeneralSettingsPageView,
+const meta: Meta<typeof OverviewPageView> = {
+	title: "pages/DeploymentSettingsPage/OverviewPageView",
+	component: OverviewPageView,
 	args: {
 		deploymentOptions: [
 			{
@@ -42,7 +42,7 @@ const meta: Meta<typeof GeneralSettingsPageView> = {
 };
 
 export default meta;
-type Story = StoryObj<typeof GeneralSettingsPageView>;
+type Story = StoryObj<typeof OverviewPageView>;
 
 export const Page: Story = {};
 

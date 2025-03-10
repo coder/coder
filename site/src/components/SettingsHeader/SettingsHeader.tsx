@@ -1,5 +1,4 @@
 import { useTheme } from "@emotion/react";
-import LaunchOutlined from "@mui/icons-material/LaunchOutlined";
 import { Button } from "components/Button/Button";
 import { Stack } from "components/Stack/Stack";
 import { SquareArrowOutUpRightIcon } from "lucide-react";

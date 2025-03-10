@@ -66,6 +66,12 @@ CREATE TYPE group_source AS ENUM (
     'oidc'
 );
 
+CREATE TYPE inbox_notification_read_status AS ENUM (
+    'all',
+    'unread',
+    'read'
+);
+
 CREATE TYPE log_level AS ENUM (
     'trace',
     'debug',
@@ -107,7 +113,8 @@ CREATE TYPE notification_message_status AS ENUM (
 
 CREATE TYPE notification_method AS ENUM (
     'smtp',
-    'webhook'
+    'webhook',
+    'inbox'
 );
 
 CREATE TYPE notification_template_kind AS ENUM (
@@ -843,7 +850,6 @@ CREATE TABLE users (
     deleted boolean DEFAULT false NOT NULL,
     last_seen_at timestamp without time zone DEFAULT '0001-01-01 00:00:00'::timestamp without time zone NOT NULL,
     quiet_hours_schedule text DEFAULT ''::text NOT NULL,
-    theme_preference text DEFAULT ''::text NOT NULL,
     name text DEFAULT ''::text NOT NULL,
     github_com_user_id bigint,
     hashed_one_time_passcode bytea,
@@ -852,8 +858,6 @@ CREATE TABLE users (
 );
 
 COMMENT ON COLUMN users.quiet_hours_schedule IS 'Daily (!) cron schedule (with optional CRON_TZ) signifying the start of the user''s quiet hours. If empty, the default quiet hours on the instance is used instead.';
-
-COMMENT ON COLUMN users.theme_preference IS '"" can be interpreted as "the user does not care", falling back to the default theme';
 
 COMMENT ON COLUMN users.name IS 'Name of the Coder user';
 
@@ -886,7 +890,6 @@ CREATE VIEW group_members_expanded AS
     users.deleted AS user_deleted,
     users.last_seen_at AS user_last_seen_at,
     users.quiet_hours_schedule AS user_quiet_hours_schedule,
-    users.theme_preference AS user_theme_preference,
     users.name AS user_name,
     users.github_com_user_id AS user_github_com_user_id,
     groups.organization_id,
@@ -898,6 +901,19 @@ CREATE VIEW group_members_expanded AS
   WHERE (users.deleted = false);
 
 COMMENT ON VIEW group_members_expanded IS 'Joins group members with user information, organization ID, group name. Includes both regular group members and organization members (as part of the "Everyone" group).';
+
+CREATE TABLE inbox_notifications (
+    id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    template_id uuid NOT NULL,
+    targets uuid[],
+    title text NOT NULL,
+    content text NOT NULL,
+    icon text NOT NULL,
+    actions jsonb NOT NULL,
+    read_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
 
 CREATE TABLE jfrog_xray_scans (
     agent_id uuid NOT NULL,
@@ -1528,6 +1544,12 @@ CREATE VIEW template_with_names AS
 
 COMMENT ON VIEW template_with_names IS 'Joins in the display name information such as username, avatar, and organization name.';
 
+CREATE TABLE user_configs (
+    user_id uuid NOT NULL,
+    key character varying(256) NOT NULL,
+    value text NOT NULL
+);
+
 CREATE TABLE user_deleted (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
@@ -2048,6 +2070,9 @@ ALTER TABLE ONLY groups
 ALTER TABLE ONLY groups
     ADD CONSTRAINT groups_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY inbox_notifications
+    ADD CONSTRAINT inbox_notifications_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY jfrog_xray_scans
     ADD CONSTRAINT jfrog_xray_scans_pkey PRIMARY KEY (agent_id, workspace_id);
 
@@ -2177,6 +2202,9 @@ ALTER TABLE ONLY template_versions
 ALTER TABLE ONLY templates
     ADD CONSTRAINT templates_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY user_configs
+    ADD CONSTRAINT user_configs_pkey PRIMARY KEY (user_id, key);
+
 ALTER TABLE ONLY user_deleted
     ADD CONSTRAINT user_deleted_pkey PRIMARY KEY (id);
 
@@ -2278,6 +2306,10 @@ CREATE INDEX idx_custom_roles_id ON custom_roles USING btree (id);
 
 CREATE UNIQUE INDEX idx_custom_roles_name_lower ON custom_roles USING btree (lower(name));
 
+CREATE INDEX idx_inbox_notifications_user_id_read_at ON inbox_notifications USING btree (user_id, read_at);
+
+CREATE INDEX idx_inbox_notifications_user_id_template_id_targets ON inbox_notifications USING btree (user_id, template_id, targets);
+
 CREATE INDEX idx_notification_messages_status ON notification_messages USING btree (status);
 
 CREATE INDEX idx_organization_member_organization_id_uuid ON organization_members USING btree (organization_id);
@@ -2289,6 +2321,8 @@ CREATE UNIQUE INDEX idx_organization_name_lower ON organizations USING btree (lo
 CREATE UNIQUE INDEX idx_provisioner_daemons_org_name_owner_key ON provisioner_daemons USING btree (organization_id, name, lower(COALESCE((tags ->> 'owner'::text), ''::text)));
 
 COMMENT ON INDEX idx_provisioner_daemons_org_name_owner_key IS 'Allow unique provisioner daemon names by organization and user';
+
+CREATE INDEX idx_provisioner_jobs_status ON provisioner_jobs USING btree (job_status);
 
 CREATE INDEX idx_tailnet_agents_coordinator ON tailnet_agents USING btree (coordinator_id);
 
@@ -2474,6 +2508,12 @@ ALTER TABLE ONLY group_members
 ALTER TABLE ONLY groups
     ADD CONSTRAINT groups_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY inbox_notifications
+    ADD CONSTRAINT inbox_notifications_template_id_fkey FOREIGN KEY (template_id) REFERENCES notification_templates(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY inbox_notifications
+    ADD CONSTRAINT inbox_notifications_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
 ALTER TABLE ONLY jfrog_xray_scans
     ADD CONSTRAINT jfrog_xray_scans_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
 
@@ -2578,6 +2618,9 @@ ALTER TABLE ONLY templates
 
 ALTER TABLE ONLY templates
     ADD CONSTRAINT templates_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY user_configs
+    ADD CONSTRAINT user_configs_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY user_deleted
     ADD CONSTRAINT user_deleted_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);

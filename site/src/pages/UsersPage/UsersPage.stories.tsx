@@ -63,7 +63,7 @@ const parameters = {
 	permissions: {
 		createUser: true,
 		updateUsers: true,
-		viewDeploymentValues: true,
+		viewDeploymentConfig: true,
 	},
 };
 

@@ -1484,6 +1484,19 @@ export interface OrganizationSyncSettings {
 	readonly organization_assign_default: boolean;
 }
 
+// From codersdk/organizations.go
+export interface PaginatedMembersRequest {
+	readonly organization_id: string;
+	readonly limit?: number;
+	readonly offset?: number;
+}
+
+// From codersdk/organizations.go
+export interface PaginatedMembersResponse {
+	readonly Members: readonly OrganizationMemberWithUserData[];
+	readonly count: number;
+}
+
 // From codersdk/pagination.go
 export interface Pagination {
 	readonly after_id?: string;
@@ -1856,6 +1869,7 @@ export type RBACAction =
 	| "read"
 	| "read_personal"
 	| "ssh"
+	| "unassign"
 	| "update"
 	| "update_personal"
 	| "use"
@@ -1871,6 +1885,7 @@ export const RBACActions: RBACAction[] = [
 	"read",
 	"read_personal",
 	"ssh",
+	"unassign",
 	"update",
 	"update_personal",
 	"use",
@@ -1893,6 +1908,7 @@ export type RBACResource =
 	| "group"
 	| "group_member"
 	| "idpsync_settings"
+	| "inbox_notification"
 	| "license"
 	| "notification_message"
 	| "notification_preference"
@@ -1928,6 +1944,7 @@ export const RBACResources: RBACResource[] = [
 	"group",
 	"group_member",
 	"idpsync_settings",
+	"inbox_notification",
 	"license",
 	"notification_message",
 	"notification_preference",
@@ -1966,7 +1983,7 @@ export interface ReducedUser extends MinimalUser {
 	readonly last_seen_at: string;
 	readonly status: UserStatus;
 	readonly login_type: LoginType;
-	readonly theme_preference: string;
+	readonly theme_preference?: string;
 }
 
 // From codersdk/workspaceproxy.go
@@ -2100,6 +2117,10 @@ export const RoleOrganizationTemplateAdmin = "organization-template-admin";
 
 // From codersdk/rbacroles.go
 export const RoleOrganizationUserAdmin = "organization-user-admin";
+
+// From codersdk/rbacroles.go
+export const RoleOrganizationWorkspaceCreationBan =
+	"organization-workspace-creation-ban";
 
 // From codersdk/rbacroles.go
 export const RoleOwner = "owner";
@@ -2795,6 +2816,11 @@ export interface UserActivityInsightsRequest {
 // From codersdk/insights.go
 export interface UserActivityInsightsResponse {
 	readonly report: UserActivityInsightsReport;
+}
+
+// From codersdk/users.go
+export interface UserAppearanceSettings {
+	readonly theme_preference: string;
 }
 
 // From codersdk/insights.go

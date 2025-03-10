@@ -88,7 +88,7 @@ const FeatureIcon: FC = () => {
 };
 
 const styles = {
-	root: (theme) => ({
+	root: {
 		display: "flex",
 		flexDirection: "row",
 		alignItems: "center",
@@ -96,7 +96,7 @@ const styles = {
 		padding: "24px 36px",
 		borderRadius: 8,
 		gap: 18,
-	}),
+	},
 	title: {
 		fontWeight: 600,
 		fontFamily: "inherit",

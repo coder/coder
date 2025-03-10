@@ -114,7 +114,7 @@ func TestUpdateNotificationTemplateMethod(t *testing.T) {
 		require.Equal(t, "Invalid request to update notification template method", sdkError.Response.Message)
 		require.Len(t, sdkError.Response.Validations, 1)
 		require.Equal(t, "method", sdkError.Response.Validations[0].Field)
-		require.Equal(t, fmt.Sprintf("%q is not a valid method; smtp, webhook are the available options", method), sdkError.Response.Validations[0].Detail)
+		require.Equal(t, fmt.Sprintf("%q is not a valid method; smtp, webhook, inbox are the available options", method), sdkError.Response.Validations[0].Detail)
 	})
 
 	t.Run("Not modified", func(t *testing.T) {

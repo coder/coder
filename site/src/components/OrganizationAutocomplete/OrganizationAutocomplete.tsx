@@ -7,17 +7,10 @@ import { organizations } from "api/queries/organizations";
 import type { AuthorizationCheck, Organization } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
-import { useDebouncedFunction } from "hooks/debounce";
-import {
-	type ChangeEvent,
-	type ComponentProps,
-	type FC,
-	useState,
-} from "react";
+import { type ComponentProps, type FC, useEffect, useState } from "react";
 import { useQuery } from "react-query";
 
 export type OrganizationAutocompleteProps = {
-	value: Organization | null;
 	onChange: (organization: Organization | null) => void;
 	label?: string;
 	className?: string;
@@ -27,7 +20,6 @@ export type OrganizationAutocompleteProps = {
 };
 
 export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
-	value,
 	onChange,
 	label,
 	className,
@@ -35,13 +27,9 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 	required,
 	check,
 }) => {
-	const [autoComplete, setAutoComplete] = useState<{
-		value: string;
-		open: boolean;
-	}>({
-		value: value?.name ?? "",
-		open: false,
-	});
+	const [open, setOpen] = useState(false);
+	const [selected, setSelected] = useState<Organization | null>(null);
+
 	const organizationsQuery = useQuery(organizations());
 
 	const permissionsQuery = useQuery(
@@ -60,16 +48,6 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 			: { enabled: false },
 	);
 
-	const { debounced: debouncedInputOnChange } = useDebouncedFunction(
-		(event: ChangeEvent<HTMLInputElement>) => {
-			setAutoComplete((state) => ({
-				...state,
-				value: event.target.value,
-			}));
-		},
-		750,
-	);
-
 	// If an authorization check was provided, filter the organizations based on
 	// the results of that check.
 	let options = organizationsQuery.data ?? [];
@@ -79,30 +57,39 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 			: [];
 	}
 
+	// Unfortunate: this useEffect sets a default org value
+	// if only one is available and is necessary as the autocomplete loads
+	// its own data. Until we refactor, proceed cautiously!
+	useEffect(() => {
+		const org = options[0];
+		if (options.length !== 1 || org === selected) {
+			return;
+		}
+
+		setSelected(org);
+		onChange(org);
+	}, [options, selected, onChange]);
+
 	return (
 		<Autocomplete
 			noOptionsText="No organizations found"
 			className={className}
 			options={options}
+			disabled={options.length === 1}
+			value={selected}
 			loading={organizationsQuery.isLoading}
-			value={value}
 			data-testid="organization-autocomplete"
-			open={autoComplete.open}
-			isOptionEqualToValue={(a, b) => a.name === b.name}
+			open={open}
+			isOptionEqualToValue={(a, b) => a.id === b.id}
 			getOptionLabel={(option) => option.display_name}
 			onOpen={() => {
-				setAutoComplete((state) => ({
-					...state,
-					open: true,
-				}));
+				setOpen(true);
 			}}
 			onClose={() => {
-				setAutoComplete({
-					value: value?.name ?? "",
-					open: false,
-				});
+				setOpen(false);
 			}}
 			onChange={(_, newValue) => {
+				setSelected(newValue);
 				onChange(newValue);
 			}}
 			renderOption={({ key, ...props }, option) => (
@@ -130,13 +117,12 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 					}}
 					InputProps={{
 						...params.InputProps,
-						onChange: debouncedInputOnChange,
-						startAdornment: value && (
-							<Avatar size="sm" src={value.icon} fallback={value.name} />
+						startAdornment: selected && (
+							<Avatar size="sm" src={selected.icon} fallback={selected.name} />
 						),
 						endAdornment: (
 							<>
-								{organizationsQuery.isFetching && autoComplete.open && (
+								{organizationsQuery.isFetching && open && (
 									<CircularProgress size={16} />
 								)}
 								{params.InputProps.endAdornment}
@@ -154,6 +140,6 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 };
 
 const root = css`
-  padding-left: 14px !important; // Same padding left as input
-  gap: 4px;
+	padding-left: 14px !important; // Same padding left as input
+	gap: 4px;
 `;

@@ -2,11 +2,11 @@ package audit
 
 import (
 	"context"
+	"slices"
 	"sync"
 	"testing"
 
 	"github.com/google/uuid"
-	"golang.org/x/exp/slices"
 
 	"github.com/coder/coder/v2/coderd/database"
 )

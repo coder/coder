@@ -9,7 +9,7 @@ SELECT
 FROM
 	organization_members
 		INNER JOIN
-	users ON organization_members.user_id = users.id
+	users ON organization_members.user_id = users.id AND users.deleted = false
 WHERE
 	-- Filter by organization id
 	CASE
@@ -66,3 +66,26 @@ WHERE
 	user_id = @user_id
 	AND organization_id = @org_id
 RETURNING *;
+
+-- name: PaginatedOrganizationMembers :many
+SELECT
+	sqlc.embed(organization_members),
+	users.username, users.avatar_url, users.name, users.email, users.rbac_roles as "global_roles",
+	COUNT(*) OVER() AS count
+FROM
+	organization_members
+		INNER JOIN
+	users ON organization_members.user_id = users.id AND users.deleted = false
+WHERE
+	-- Filter by organization id
+	CASE
+		WHEN @organization_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			organization_id = @organization_id
+		ELSE true
+	END
+ORDER BY
+	-- Deterministic and consistent ordering of all users. This is to ensure consistent pagination.
+	LOWER(username) ASC OFFSET @offset_opt
+LIMIT
+	-- A null limit means "no limit", so 0 means return all
+	NULLIF(@limit_opt :: int, 0);

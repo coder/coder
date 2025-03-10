@@ -47,8 +47,8 @@ export const NoDeploymentValues: Story = {
 	args: {
 		permissions: {
 			...MockPermissions,
-			viewDeploymentValues: false,
-			editDeploymentValues: false,
+			viewDeploymentConfig: false,
+			editDeploymentConfig: false,
 		},
 	},
 };

@@ -3,7 +3,7 @@ import { fn, userEvent, within } from "@storybook/test";
 import { getAuthorizationKey } from "api/queries/authCheck";
 import { getPreferredProxy } from "contexts/ProxyContext";
 import { AuthProvider } from "contexts/auth/AuthProvider";
-import { permissionsToCheck } from "contexts/auth/permissions";
+import { permissionChecks } from "modules/permissions";
 import {
 	MockAuthMethodsAll,
 	MockPermissions,
@@ -45,7 +45,7 @@ const meta: Meta<typeof ProxyMenu> = {
 			{ key: ["authMethods"], data: MockAuthMethodsAll },
 			{ key: ["hasFirstUser"], data: true },
 			{
-				key: getAuthorizationKey({ checks: permissionsToCheck }),
+				key: getAuthorizationKey({ checks: permissionChecks }),
 				data: MockPermissions,
 			},
 		],

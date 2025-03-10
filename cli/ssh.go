@@ -34,6 +34,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/coderd/autobuild/notify"
@@ -76,6 +77,9 @@ func (r *RootCmd) ssh() *serpent.Command {
 		appearanceConfig    codersdk.AppearanceConfig
 		networkInfoDir      string
 		networkInfoInterval time.Duration
+
+		containerName string
+		containerUser string
 	)
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
@@ -282,6 +286,34 @@ func (r *RootCmd) ssh() *serpent.Command {
 			}
 			conn.AwaitReachable(ctx)
 
+			if containerName != "" {
+				cts, err := client.WorkspaceAgentListContainers(ctx, workspaceAgent.ID, nil)
+				if err != nil {
+					return xerrors.Errorf("list containers: %w", err)
+				}
+				if len(cts.Containers) == 0 {
+					cliui.Info(inv.Stderr, "No containers found!")
+					cliui.Info(inv.Stderr, "Tip: Agent container integration is experimental and not enabled by default.")
+					cliui.Info(inv.Stderr, "     To enable it, set CODER_AGENT_DEVCONTAINERS_ENABLE=true in your template.")
+					return nil
+				}
+				var found bool
+				for _, c := range cts.Containers {
+					if c.FriendlyName == containerName || c.ID == containerName {
+						found = true
+						break
+					}
+				}
+				if !found {
+					availableContainers := make([]string, len(cts.Containers))
+					for i, c := range cts.Containers {
+						availableContainers[i] = c.FriendlyName
+					}
+					cliui.Errorf(inv.Stderr, "Container not found: %q\nAvailable containers: %v", containerName, availableContainers)
+					return nil
+				}
+			}
+
 			stopPolling := tryPollWorkspaceAutostop(ctx, client, workspace)
 			defer stopPolling()
 
@@ -454,6 +486,17 @@ func (r *RootCmd) ssh() *serpent.Command {
 				}
 			}
 
+			if containerName != "" {
+				for k, v := range map[string]string{
+					agentssh.ContainerEnvironmentVariable:     containerName,
+					agentssh.ContainerUserEnvironmentVariable: containerUser,
+				} {
+					if err := sshSession.Setenv(k, v); err != nil {
+						return xerrors.Errorf("setenv: %w", err)
+					}
+				}
+			}
+
 			err = sshSession.RequestPty("xterm-256color", 128, 128, gossh.TerminalModes{})
 			if err != nil {
 				return xerrors.Errorf("request pty: %w", err)
@@ -593,6 +636,19 @@ func (r *RootCmd) ssh() *serpent.Command {
 			Description: "Specifies the interval to update network information.",
 			Default:     "5s",
 			Value:       serpent.DurationOf(&networkInfoInterval),
+		},
+		{
+			Flag:          "container",
+			FlagShorthand: "c",
+			Description:   "Specifies a container inside the workspace to connect to.",
+			Value:         serpent.StringOf(&containerName),
+			Hidden:        true, // Hidden until this features is at least in beta.
+		},
+		{
+			Flag:        "container-user",
+			Description: "When connecting to a container, specifies the user to connect as.",
+			Value:       serpent.StringOf(&containerUser),
+			Hidden:      true, // Hidden until this features is at least in beta.
 		},
 		sshDisableAutostartOption(serpent.BoolOf(&disableAutostart)),
 	}

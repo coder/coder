@@ -104,7 +104,7 @@ const ExternalAuthPage: FC = () => {
 					authenticated: false,
 				});
 			}}
-			viewExternalAuthConfig={permissions.viewExternalAuthConfig}
+			viewExternalAuthConfig={permissions.viewDeploymentConfig}
 			deviceExchangeError={deviceExchangeError}
 			externalAuthDevice={externalAuthDeviceQuery.data}
 		/>

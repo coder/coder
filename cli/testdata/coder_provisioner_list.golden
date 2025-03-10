@@ -1,2 +1,2 @@
-CREATED AT            LAST SEEN AT          NAME  VERSION       TAGS                            KEY NAME  STATUS  ORGANIZATION  
-====[timestamp]=====  ====[timestamp]=====  test  v0.0.0-devel  map[owner: scope:organization]  built-in  idle    Coder         
+CREATED AT            LAST SEEN AT          KEY NAME  NAME  VERSION       STATUS  TAGS                            
+====[timestamp]=====  ====[timestamp]=====  built-in  test  v0.0.0-devel  idle    map[owner: scope:organization]  

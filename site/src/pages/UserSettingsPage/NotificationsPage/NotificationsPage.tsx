@@ -48,7 +48,7 @@ export const NotificationsPage: FC = () => {
 				...systemNotificationTemplates(),
 				select: (data: NotificationTemplate[]) => {
 					const groups = selectTemplatesByGroup(data);
-					return permissions.viewDeploymentValues
+					return permissions.viewDeploymentConfig
 						? groups
 						: {
 								// Members only have access to the "Workspace Notifications" group

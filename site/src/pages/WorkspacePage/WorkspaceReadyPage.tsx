@@ -66,7 +66,7 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 	// Debug mode
 	const { data: deploymentValues } = useQuery({
 		...deploymentConfig(),
-		enabled: permissions.viewDeploymentValues,
+		enabled: permissions.viewDeploymentConfig,
 	});
 
 	// Build logs

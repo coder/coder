@@ -1,3 +1,19 @@
+-- name: FetchVolumesResourceMonitorsUpdatedAfter :many
+SELECT
+	*
+FROM
+	workspace_agent_volume_resource_monitors
+WHERE
+	updated_at > $1;
+
+-- name: FetchMemoryResourceMonitorsUpdatedAfter :many
+SELECT
+	*
+FROM
+	workspace_agent_memory_resource_monitors
+WHERE
+	updated_at > $1;
+
 -- name: FetchMemoryResourceMonitorsByAgentID :one
 SELECT
 	*

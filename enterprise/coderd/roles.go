@@ -127,8 +127,7 @@ func (api *API) putOrgRoles(rw http.ResponseWriter, r *http.Request) {
 			},
 		},
 		ExcludeOrgRoles: false,
-		// Linter requires all fields to be set. This field is not actually required.
-		OrganizationID: organization.ID,
+		OrganizationID:  organization.ID,
 	})
 	// If it is a 404 (not found) error, ignore it.
 	if err != nil && !httpapi.Is404Error(err) {

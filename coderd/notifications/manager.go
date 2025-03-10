@@ -109,7 +109,7 @@ func NewManager(cfg codersdk.NotificationsConfig, store Store, helpers template.
 		stop: make(chan any),
 		done: make(chan any),
 
-		handlers: defaultHandlers(cfg, log),
+		handlers: defaultHandlers(cfg, log, store),
 		helpers:  helpers,
 
 		clock: quartz.NewReal(),
@@ -121,10 +121,11 @@ func NewManager(cfg codersdk.NotificationsConfig, store Store, helpers template.
 }
 
 // defaultHandlers builds a set of known handlers; panics if any error occurs as these handlers should be valid at compile time.
-func defaultHandlers(cfg codersdk.NotificationsConfig, log slog.Logger) map[database.NotificationMethod]Handler {
+func defaultHandlers(cfg codersdk.NotificationsConfig, log slog.Logger, store Store) map[database.NotificationMethod]Handler {
 	return map[database.NotificationMethod]Handler{
 		database.NotificationMethodSmtp:    dispatch.NewSMTPHandler(cfg.SMTP, log.Named("dispatcher.smtp")),
 		database.NotificationMethodWebhook: dispatch.NewWebhookHandler(cfg.Webhook, log.Named("dispatcher.webhook")),
+		database.NotificationMethodInbox:   dispatch.NewInboxHandler(log.Named("dispatcher.inbox"), store),
 	}
 }
 

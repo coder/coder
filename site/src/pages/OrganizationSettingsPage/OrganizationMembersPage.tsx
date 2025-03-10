@@ -15,6 +15,7 @@ import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Stack } from "components/Stack/Stack";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
+import { RequirePermission } from "modules/permissions/RequirePermission";
 import { type FC, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
@@ -54,7 +55,7 @@ const OrganizationMembersPage: FC = () => {
 	const [memberToDelete, setMemberToDelete] =
 		useState<OrganizationMemberWithUserData>();
 
-	if (!organization || !organizationPermissions) {
+	if (!organization) {
 		return <EmptyState message="Organization not found" />;
 	}
 
@@ -66,12 +67,22 @@ const OrganizationMembersPage: FC = () => {
 		</Helmet>
 	);
 
+	if (!organizationPermissions) {
+		return (
+			<>
+				{helmet}
+				<RequirePermission isFeatureVisible={false} />
+			</>
+		);
+	}
+
 	return (
 		<>
 			{helmet}
 			<OrganizationMembersPageView
 				allAvailableRoles={organizationRolesQuery.data}
 				canEditMembers={organizationPermissions.editMembers}
+				canViewMembers={organizationPermissions.viewMembers}
 				error={
 					membersQuery.error ??
 					organizationRolesQuery.error ??

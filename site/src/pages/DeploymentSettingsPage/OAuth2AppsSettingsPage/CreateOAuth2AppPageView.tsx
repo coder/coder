@@ -1,4 +1,3 @@
-import KeyboardArrowLeft from "@mui/icons-material/KeyboardArrowLeft";
 import type * as TypesGen from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";

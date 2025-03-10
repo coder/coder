@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/coder/coder/v2/agent/agentexec"
+	_ "github.com/coder/coder/v2/buildinfo/resources"
 	entcli "github.com/coder/coder/v2/enterprise/cli"
 )
 

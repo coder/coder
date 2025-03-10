@@ -1,7 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { API, withDefaultFeatures } from "api/api";
-import type { Template, UpdateTemplateMeta } from "api/typesGenerated";
+import type { UpdateTemplateMeta } from "api/typesGenerated";
 import { http, HttpResponse } from "msw";
 import {
 	MockEntitlements,

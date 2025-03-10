@@ -1,6 +1,6 @@
 import { API, type InsightsParams, type InsightsTemplateParams } from "api/api";
 import type { GetUserStatusCountsResponse } from "api/typesGenerated";
-import { type UseQueryOptions, UseQueryResult } from "react-query";
+import type { UseQueryOptions } from "react-query";
 
 export const insightsTemplate = (params: InsightsTemplateParams) => {
 	return {

@@ -94,7 +94,7 @@ parse_experiments() {
 }
 
 workdir=build/docs/experiments
-dest=docs/contributing/feature-stages.md
+dest=docs/about/feature-stages.md
 
 log "Updating available experimental features in ${dest}"
 
