@@ -490,6 +490,10 @@ func (p *DBTokenProvider) auditInitRequest(ctx context.Context, w http.ResponseW
 		}, nil)
 		if err != nil {
 			p.Logger.Error(ctx, "update workspace app audit session failed", slog.Error(err))
+
+			// Avoid spamming the audit log if deduplication failed, this should
+			// only happen if there are problems communicating with the database.
+			return
 		}
 
 		if sessionID == uuid.Nil {
