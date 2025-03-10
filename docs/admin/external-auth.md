@@ -90,7 +90,8 @@ CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
 CODER_EXTERNAL_AUTH_0_AUTH_URL="https://login.microsoftonline.com/<TENANT ID>/oauth2/authorize"
 ```
 
-> Note: Your app registration in Entra ID requires the `vso.code_write` scope
+> [!NOTE]
+> Your app registration in Entra ID requires the `vso.code_write` scope
 
 ### Bitbucket Server
 
@@ -120,11 +121,8 @@ The Redirect URI for Gitea should be
 
 ### GitHub
 
-<blockquote class="admonition tip">
-
-If you don't require fine-grained access control, it's easier to [configure a GitHub OAuth app](#configure-a-github-oauth-app).
-
-</blockquote>
+> [!TIP]
+> If you don't require fine-grained access control, it's easier to [configure a GitHub OAuth app](#configure-a-github-oauth-app).
 
 ```env
 CODER_EXTERNAL_AUTH_0_ID="USER_DEFINED_ID"
@@ -179,7 +177,8 @@ CODER_EXTERNAL_AUTH_0_VALIDATE_URL="https://your-domain.com/oauth/token/info"
 CODER_EXTERNAL_AUTH_0_REGEX=github\.company\.org
 ```
 
-> Note: The `REGEX` variable must be set if using a custom git domain.
+> [!NOTE]
+> The `REGEX` variable must be set if using a custom git domain.
 
 ## Custom scopes
 
@@ -222,26 +221,16 @@ CODER_EXTERNAL_AUTH_0_SCOPES="repo:read repo:write write:gpg_key"
 
    ![Install GitHub App](../images/admin/github-app-install.png)
 
-## Multiple External Providers
-
-<blockquote class="info">
-
-Multiple providers is an Enterprise and Premium feature.
-[Learn more](https://coder.com/pricing#compare-plans).
-
-</blockquote>
+## Multiple External Providers (Enterprise)(Premium)
 
 Below is an example configuration with multiple providers:
 
-<blockquote class="admonition warning">
-
-**Note:** To support regex matching for paths like `github\.com/org`, add the following `git config` line to the [Coder agent startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script):
-
-```shell
-git config --global credential.useHttpPath true
-```
-
-</blockquote>
+> [!IMPORTANT]
+> To support regex matching for paths like `github\.com/org`, add the following `git config` line to the [Coder agent startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script):
+>
+> ```shell
+> git config --global credential.useHttpPath true
+> ```
 
 ```env
 # Provider 1) github.com

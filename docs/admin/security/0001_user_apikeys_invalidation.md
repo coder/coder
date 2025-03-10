@@ -42,7 +42,8 @@ failed to check whether the API key corresponds to a deleted user.
 
 ## Indications of Compromise
 
-> 💡 Automated remediation steps in the upgrade purge all affected API keys.
+> [!TIP]
+> Automated remediation steps in the upgrade purge all affected API keys.
 > Either perform the following query before upgrade or run it on a backup of
 > your database from before the upgrade.
 
@@ -81,7 +82,8 @@ Otherwise, the following information will be reported:
 - User API key ID
 - Time the affected API key was last used
 
-> 💡 If your license includes the
+> [!TIP]
+> If your license includes the
 > [Audit Logs](https://coder.com/docs/admin/audit-logs#filtering-logs) feature,
 > you can then query all actions performed by the above users by using the
 > filter `email:$USER_EMAIL`.

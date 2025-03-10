@@ -34,8 +34,8 @@ only for security issues or CVEs.
 
 - In-product security vulnerabilities and CVEs are supported
 
-> For more information on feature rollout, see our
-> [feature stages documentation](../about/feature-stages.md).
+For more information on feature rollout, see our
+[feature stages documentation](../about/feature-stages.md).
 
 ## Installing stable
 
@@ -66,7 +66,8 @@ pages.
 | 2.19.x       | February 04, 2024  | Stable           |
 | 2.20.x       | March 05, 2024     | Mainline         |
 
-> **Tip**: We publish a
+> [!TIP]
+> We publish a
 > [`preview`](https://github.com/coder/coder/pkgs/container/coder-preview) image
 > `ghcr.io/coder/coder-preview` on each commit to the `main` branch. This can be
 > used to test under-development features and bug fixes that have not yet been
