@@ -11,6 +11,7 @@ import (
 
 	"go.uber.org/mock/gomock"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
@@ -46,7 +47,7 @@ func TestIntegrationDocker(t *testing.T) {
 	// Create a temporary directory to validate that we surface mounts correctly.
 	testTempDir := t.TempDir()
 	// Pick a random port to expose for testing port bindings.
-	testRandPort := testutil.RandomPortNoListen(t)
+	testRandHostPort, testRandContainerPort := testutil.RandomPortNoListen(t), testutil.RandomPortNoListen(t)
 	ct, err := pool.RunWithOptions(&dockertest.RunOptions{
 		Repository: "busybox",
 		Tag:        "latest",
@@ -56,12 +57,12 @@ func TestIntegrationDocker(t *testing.T) {
 			"devcontainer.metadata": `[{"remoteEnv": {"FOO": "bar", "MULTILINE": "foo\nbar\nbaz"}}]`,
 		},
 		Mounts:       []string{testTempDir + ":" + testTempDir},
-		ExposedPorts: []string{fmt.Sprintf("%d/tcp", testRandPort)},
+		ExposedPorts: []string{fmt.Sprintf("%d/tcp", testRandContainerPort)},
 		PortBindings: map[docker.Port][]docker.PortBinding{
-			docker.Port(fmt.Sprintf("%d/tcp", testRandPort)): {
+			docker.Port(fmt.Sprintf("%d/tcp", testRandContainerPort)): {
 				{
 					HostIP:   "0.0.0.0",
-					HostPort: strconv.FormatInt(int64(testRandPort), 10),
+					HostPort: strconv.FormatInt(int64(testRandHostPort), 10),
 				},
 			},
 		},
@@ -99,7 +100,7 @@ func TestIntegrationDocker(t *testing.T) {
 			assert.True(t, foundContainer.Running)
 			assert.Equal(t, "running", foundContainer.Status)
 			if assert.Len(t, foundContainer.Ports, 1) {
-				assert.Equal(t, testRandPort, foundContainer.Ports[0].Port)
+				assert.Equal(t, testRandHostPort, foundContainer.Ports[0].Port)
 				assert.Equal(t, "tcp", foundContainer.Ports[0].Network)
 			}
 			if assert.Len(t, foundContainer.Volumes, 1) {
@@ -306,68 +307,138 @@ func TestContainersHandler(t *testing.T) {
 	})
 }
 
-func TestConvertDockerPort(t *testing.T) {
+func TestDockerPortBinding(t *testing.T) {
 	t.Parallel()
 
-	for _, tc := range []struct {
+	testCases := []struct {
 		name          string
-		in            string
-		expectPort    uint16
-		expectNetwork string
-		expectError   string
+		networkPorts  map[string][]dockerPortBinding
+		expectedPorts []codersdk.WorkspaceAgentListeningPort
+		expectedWarns int
 	}{
 		{
-			name:        "empty port",
-			in:          "",
-			expectError: "invalid port",
+			name:          "nil",
+			networkPorts:  nil,
+			expectedPorts: []codersdk.WorkspaceAgentListeningPort{},
 		},
 		{
-			name:          "valid tcp port",
-			in:            "8080/tcp",
-			expectPort:    8080,
-			expectNetwork: "tcp",
+			name: "simple port binding",
+			networkPorts: map[string][]dockerPortBinding{
+				"8080/tcp": {
+					{HostIP: "0.0.0.0", HostPort: "9090"},
+				},
+			},
+			expectedPorts: []codersdk.WorkspaceAgentListeningPort{
+				{Network: "tcp", Port: 9090},
+			},
 		},
 		{
-			name:          "valid udp port",
-			in:            "8080/udp",
-			expectPort:    8080,
-			expectNetwork: "udp",
+			name: "multiple port bindings",
+			networkPorts: map[string][]dockerPortBinding{
+				"8080/tcp": {
+					{HostIP: "0.0.0.0", HostPort: "9090"},
+				},
+				"8081/tcp": {
+					{HostIP: "0.0.0.0", HostPort: "9091"},
+				},
+			},
+			expectedPorts: []codersdk.WorkspaceAgentListeningPort{
+				{Network: "tcp", Port: 9090},
+				{Network: "tcp", Port: 9091},
+			},
 		},
 		{
-			name:          "valid port no network",
-			in:            "8080",
-			expectPort:    8080,
-			expectNetwork: "tcp",
+			name: "duplicate host ports on different interfaces",
+			networkPorts: map[string][]dockerPortBinding{
+				"8080/tcp": {
+					{HostIP: "0.0.0.0", HostPort: "9090"},
+					{HostIP: "127.0.0.1", HostPort: "9090"},
+				},
+			},
+			expectedPorts: []codersdk.WorkspaceAgentListeningPort{
+				{Network: "tcp", Port: 9090},
+			},
 		},
 		{
-			name:        "invalid port",
-			in:          "invalid/tcp",
-			expectError: "invalid port",
+			name: "udp protocol",
+			networkPorts: map[string][]dockerPortBinding{
+				"8080/udp": {
+					{HostIP: "0.0.0.0", HostPort: "9090"},
+				},
+			},
+			expectedPorts: []codersdk.WorkspaceAgentListeningPort{
+				{Network: "udp", Port: 9090},
+			},
 		},
 		{
-			name:        "invalid port no network",
-			in:          "invalid",
-			expectError: "invalid port",
+			name: "no protocol defaults to tcp",
+			networkPorts: map[string][]dockerPortBinding{
+				"8080": {
+					{HostIP: "0.0.0.0", HostPort: "9090"},
+				},
+			},
+			expectedPorts: []codersdk.WorkspaceAgentListeningPort{
+				{Network: "tcp", Port: 9090},
+			},
 		},
 		{
-			name:        "multiple network",
-			in:          "8080/tcp/udp",
-			expectError: "invalid port",
+			name: "no bindings should not create ports",
+			networkPorts: map[string][]dockerPortBinding{
+				"8080/tcp": {},
+			},
+			expectedPorts: []codersdk.WorkspaceAgentListeningPort{},
 		},
-	} {
-		tc := tc // not needed anymore but makes the linter happy
+		{
+			name: "invalid host port",
+			networkPorts: map[string][]dockerPortBinding{
+				"8080/tcp": {
+					{HostIP: "0.0.0.0", HostPort: "invalid"},
+				},
+			},
+			expectedPorts: []codersdk.WorkspaceAgentListeningPort{},
+			expectedWarns: 1,
+		},
+		{
+			name: "mix of valid and invalid ports",
+			networkPorts: map[string][]dockerPortBinding{
+				"8080/tcp": {
+					{HostIP: "0.0.0.0", HostPort: "9090"},
+				},
+				"8081/tcp": {
+					{HostIP: "0.0.0.0", HostPort: "invalid"},
+				},
+			},
+			expectedPorts: []codersdk.WorkspaceAgentListeningPort{
+				{Network: "tcp", Port: 9090},
+			},
+			expectedWarns: 1,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			actualPort, actualNetwork, actualErr := convertDockerPort(tc.in)
-			if tc.expectError != "" {
-				assert.Zero(t, actualPort, "expected no port")
-				assert.Empty(t, actualNetwork, "expected no network")
-				assert.ErrorContains(t, actualErr, tc.expectError)
-			} else {
-				assert.NoError(t, actualErr, "expected no error")
-				assert.Equal(t, tc.expectPort, actualPort, "expected port to match")
-				assert.Equal(t, tc.expectNetwork, actualNetwork, "expected network to match")
+
+			dockerData := dockerInspect{
+				ID:      "test-container",
+				Created: time.Now(),
+				Config: dockerInspectConfig{
+					Image:  "test-image",
+					Labels: map[string]string{"test": "value"},
+				},
+				Name:  "test-container",
+				State: dockerInspectState{Running: true},
+				NetworkSettings: dockerNetworkSettings{
+					Ports: tc.networkPorts,
+				},
 			}
+
+			container, warns := convertDockerInspect(dockerData)
+			if diff := cmp.Diff(tc.expectedPorts, container.Ports); diff != "" {
+				assert.Failf(t, "port mismatch", "(-want +got):\n%s", diff)
+			}
+			assert.Len(t, warns, tc.expectedWarns, "wrong number of warnings")
 		})
 	}
 }
