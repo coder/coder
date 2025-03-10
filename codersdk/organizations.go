@@ -111,6 +111,20 @@ type CreateTemplateVersionRequest struct {
 	UserVariableValues []VariableValue `json:"user_variable_values,omitempty"`
 }
 
+type MembersRequest struct {
+	Search string `json:"search,omitempty" typescript:"-"`
+	// Filter users that have the given role.
+	Role string `json:"role,omitempty" typescript:"-"`
+
+	SearchQuery string `json:"q,omitempty"`
+	Pagination
+}
+
+type GetMembersResponse struct {
+	Members []OrganizationMemberWithUserData `json:"members"`
+	Count   int                              `json:"count"`
+}
+
 type VariableValue struct {
 	Name  string `json:"name"`
 	Value string `json:"value"`
