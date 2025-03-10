@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -12,6 +11,7 @@ import (
 
 	"go.uber.org/mock/gomock"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
@@ -307,7 +307,6 @@ func TestContainersHandler(t *testing.T) {
 	})
 }
 
-// TestDockerPortBinding tests the port binding handling in convertDockerInspect
 func TestDockerPortBinding(t *testing.T) {
 	t.Parallel()
 
@@ -421,7 +420,6 @@ func TestDockerPortBinding(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Create a sample docker inspection result
 			dockerData := dockerInspect{
 				ID:      "test-container",
 				Created: time.Now(),
@@ -436,34 +434,11 @@ func TestDockerPortBinding(t *testing.T) {
 				},
 			}
 
-			// Process the docker data
 			container, warns := convertDockerInspect(dockerData)
-
-			// Verify the ports
-			assert.Len(t, container.Ports, len(tc.expectedPorts), "wrong number of ports")
-			assert.Len(t, warns, tc.expectedWarns, "wrong number of warnings")
-
-			// Sort ports for consistent comparison (order may vary)
-			sort.Slice(container.Ports, func(i, j int) bool {
-				if container.Ports[i].Network == container.Ports[j].Network {
-					return container.Ports[i].Port < container.Ports[j].Port
-				}
-				return container.Ports[i].Network < container.Ports[j].Network
-			})
-			sort.Slice(tc.expectedPorts, func(i, j int) bool {
-				if tc.expectedPorts[i].Network == tc.expectedPorts[j].Network {
-					return tc.expectedPorts[i].Port < tc.expectedPorts[j].Port
-				}
-				return tc.expectedPorts[i].Network < tc.expectedPorts[j].Network
-			})
-
-			// Compare ports
-			for i, expected := range tc.expectedPorts {
-				if i < len(container.Ports) {
-					assert.Equal(t, expected.Network, container.Ports[i].Network, "network mismatch")
-					assert.Equal(t, expected.Port, container.Ports[i].Port, "port mismatch")
-				}
+			if diff := cmp.Diff(tc.expectedPorts, container.Ports); diff != "" {
+				assert.Failf(t, "port mismatch", "(-want +got):\n%s", diff)
 			}
+			assert.Len(t, warns, tc.expectedWarns, "wrong number of warnings")
 		})
 	}
 }

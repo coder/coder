@@ -400,12 +400,13 @@ func convertDockerInspect(in dockerInspect) (codersdk.WorkspaceAgentDevcontainer
 	// Track host ports to avoid duplicates (same port on multiple interfaces)
 	seenHostPorts := make(map[string]bool)
 
-	// Get all port mappings
+	// Get port mappings in sorted order for deterministic output
 	portKeys := maps.Keys(in.NetworkSettings.Ports)
-	// Sort the ports for deterministic output
 	sort.Strings(portKeys)
 
-	for containerPortSpec, bindings := range in.NetworkSettings.Ports {
+	for _, containerPortSpec := range portKeys {
+		bindings := in.NetworkSettings.Ports[containerPortSpec]
+
 		// Skip if no bindings exist (don't expose the container port)
 		if len(bindings) == 0 {
 			continue
