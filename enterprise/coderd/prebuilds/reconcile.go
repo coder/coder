@@ -2,12 +2,9 @@ package prebuilds
 
 import (
 	"context"
-	"crypto/rand"
 	"database/sql"
-	"encoding/base32"
 	"fmt"
 	"math"
-	"strings"
 	"sync/atomic"
 	"time"
 
@@ -32,9 +29,7 @@ import (
 	"golang.org/x/xerrors"
 )
 
-var ErrBackoff = xerrors.New("reconciliation in backoff")
-
-type storeReconciler struct {
+type StoreReconciler struct {
 	store  database.Store
 	cfg    codersdk.PrebuildsConfig
 	pubsub pubsub.Pubsub
@@ -46,8 +41,10 @@ type storeReconciler struct {
 	done     chan struct{}
 }
 
-func NewStoreReconciler(store database.Store, pubsub pubsub.Pubsub, cfg codersdk.PrebuildsConfig, logger slog.Logger, clock quartz.Clock) prebuilds.Reconciler {
-	return &storeReconciler{
+var _ prebuilds.ReconciliationOrchestrator = &StoreReconciler{}
+
+func NewStoreReconciler(store database.Store, pubsub pubsub.Pubsub, cfg codersdk.PrebuildsConfig, logger slog.Logger, clock quartz.Clock) *StoreReconciler {
+	return &StoreReconciler{
 		store:  store,
 		pubsub: pubsub,
 		logger: logger,
@@ -57,7 +54,7 @@ func NewStoreReconciler(store database.Store, pubsub pubsub.Pubsub, cfg codersdk
 	}
 }
 
-func (c *storeReconciler) RunLoop(ctx context.Context) {
+func (c *StoreReconciler) RunLoop(ctx context.Context) {
 	reconciliationInterval := c.cfg.ReconciliationInterval.Value()
 	if reconciliationInterval <= 0 { // avoids a panic
 		reconciliationInterval = 5 * time.Minute
@@ -92,7 +89,7 @@ func (c *storeReconciler) RunLoop(ctx context.Context) {
 	}
 }
 
-func (c *storeReconciler) Stop(ctx context.Context, cause error) {
+func (c *StoreReconciler) Stop(ctx context.Context, cause error) {
 	c.logger.Warn(context.Background(), "stopping reconciler", slog.F("cause", cause))
 
 	if c.isStopped() {
@@ -113,7 +110,7 @@ func (c *storeReconciler) Stop(ctx context.Context, cause error) {
 	}
 }
 
-func (c *storeReconciler) isStopped() bool {
+func (c *StoreReconciler) isStopped() bool {
 	return c.stopped.Load()
 }
 
@@ -133,7 +130,8 @@ func (c *storeReconciler) isStopped() bool {
 // be reconciled again, leading to another workspace being provisioned. Two workspace builds will be occurring
 // simultaneously for the same preset, but once both jobs have completed the reconciliation loop will notice the
 // extraneous instance and delete it.
-func (c *storeReconciler) ReconcileAll(ctx context.Context) error {
+// TODO: make this unexported?
+func (c *StoreReconciler) ReconcileAll(ctx context.Context) error {
 	logger := c.logger.With(slog.F("reconcile_context", "all"))
 
 	select {
@@ -165,33 +163,39 @@ func (c *storeReconciler) ReconcileAll(ctx context.Context) error {
 
 		logger.Debug(ctx, "acquired top-level reconciliation lock", slog.F("acquire_wait_secs", fmt.Sprintf("%.4f", c.clock.Since(start).Seconds())))
 
-		state, err := c.determineState(ctx, db)
+		state, err := c.SnapshotState(ctx, db)
 		if err != nil {
 			return xerrors.Errorf("determine current state: %w", err)
 		}
-		if len(state.presets) == 0 {
+		if len(state.Presets) == 0 {
 			logger.Debug(ctx, "no templates found with prebuilds configured")
 			return nil
 		}
 
 		// TODO: bounded concurrency? probably not but consider
 		var eg errgroup.Group
-		for _, preset := range state.presets {
-			ps, err := state.filterByPreset(preset.PresetID)
+		for _, preset := range state.Presets {
+			ps, err := state.FilterByPreset(preset.PresetID)
 			if err != nil {
 				logger.Warn(ctx, "failed to find preset state", slog.Error(err), slog.F("preset_id", preset.PresetID.String()))
 				continue
 			}
 
-			if !preset.UsingActiveVersion && len(ps.running) == 0 && len(ps.inProgress) == 0 {
+			if !preset.UsingActiveVersion && len(ps.Running) == 0 && len(ps.InProgress) == 0 {
 				logger.Debug(ctx, "skipping reconciliation for preset; inactive, no running prebuilds, and no in-progress operations",
 					slog.F("preset_id", preset.PresetID.String()))
 				continue
 			}
 
 			eg.Go(func() error {
+				actions, err := c.DetermineActions(ctx, *ps)
+				if err != nil {
+					logger.Error(ctx, "failed to determine actions for preset", slog.Error(err), slog.F("preset_id", preset.PresetID))
+					return nil
+				}
+
 				// Pass outer context.
-				err := c.reconcilePrebuildsForPreset(ctx, ps)
+				err = c.Reconcile(ctx, *ps, *actions)
 				if err != nil {
 					logger.Error(ctx, "failed to reconcile prebuilds for preset", slog.Error(err), slog.F("preset_id", preset.PresetID))
 				}
@@ -213,14 +217,14 @@ func (c *storeReconciler) ReconcileAll(ctx context.Context) error {
 	return err
 }
 
-// determineState determines the current state of prebuilds & the presets which define them.
+// SnapshotState determines the current state of prebuilds & the presets which define them.
 // An application-level lock is used
-func (c *storeReconciler) determineState(ctx context.Context, store database.Store) (*reconciliationState, error) {
+func (c *StoreReconciler) SnapshotState(ctx context.Context, store database.Store) (*prebuilds.ReconciliationState, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
-	var state reconciliationState
+	var state prebuilds.ReconciliationState
 
 	err := store.InTx(func(db database.Store) error {
 		start := c.clock.Now()
@@ -251,12 +255,12 @@ func (c *storeReconciler) determineState(ctx context.Context, store database.Sto
 			return xerrors.Errorf("failed to get prebuilds in progress: %w", err)
 		}
 
-		presetsBackoff, err := db.GetPresetsBackoff(ctx, durationToInterval(c.cfg.ReconciliationBackoffLookback.Value()))
+		presetsBackoff, err := db.GetPresetsBackoff(ctx, prebuilds.DurationToInterval(c.cfg.ReconciliationBackoffLookback.Value()))
 		if err != nil {
 			return xerrors.Errorf("failed to get backoffs for presets: %w", err)
 		}
 
-		state = newReconciliationState(presetsWithPrebuilds, allRunningPrebuilds, allPrebuildsInProgress, presetsBackoff)
+		state = prebuilds.NewReconciliationState(presetsWithPrebuilds, allRunningPrebuilds, allPrebuildsInProgress, presetsBackoff)
 		return nil
 	}, &database.TxOptions{
 		Isolation:    sql.LevelRepeatableRead, // This mirrors the MVCC snapshotting Postgres does when using CTEs
@@ -267,22 +271,19 @@ func (c *storeReconciler) determineState(ctx context.Context, store database.Sto
 	return &state, err
 }
 
-func (c *storeReconciler) reconcilePrebuildsForPreset(ctx context.Context, ps *presetState) error {
-	if ps == nil {
-		return xerrors.Errorf("unexpected nil preset state")
+func (c *StoreReconciler) DetermineActions(ctx context.Context, state prebuilds.PresetState) (*prebuilds.ReconciliationActions, error) {
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
 	}
 
-	logger := c.logger.With(slog.F("template_id", ps.preset.TemplateID.String()))
+	return state.CalculateActions(c.clock, c.cfg.ReconciliationBackoffLookback.Value())
+}
+
+func (c *StoreReconciler) Reconcile(ctx context.Context, ps prebuilds.PresetState, actions prebuilds.ReconciliationActions) error {
+	logger := c.logger.With(slog.F("template_id", ps.Preset.TemplateID.String()))
 
 	var lastErr multierror.Error
-	vlogger := logger.With(slog.F("template_version_id", ps.preset.TemplateVersionID), slog.F("preset_id", ps.preset.PresetID))
-
-	// TODO: move log lines up from calculateActions.
-	actions, err := ps.calculateActions(c.clock, c.cfg.ReconciliationBackoffInterval.Value())
-	if err != nil {
-		vlogger.Error(ctx, "failed to calculate reconciliation actions", slog.Error(err))
-		return xerrors.Errorf("failed to calculate reconciliation actions: %w", err)
-	}
+	vlogger := logger.With(slog.F("template_version_id", ps.Preset.TemplateVersionID), slog.F("preset_id", ps.Preset.PresetID))
 
 	// TODO: authz // Can't use existing profiles (i.e. AsSystemRestricted) because of dbauthz rules
 	ownerCtx := dbauthz.As(ctx, rbac.Subject{
@@ -293,30 +294,30 @@ func (c *storeReconciler) reconcilePrebuildsForPreset(ctx context.Context, ps *p
 	})
 
 	levelFn := vlogger.Debug
-	if actions.create > 0 || len(actions.deleteIDs) > 0 {
+	if actions.Create > 0 || len(actions.DeleteIDs) > 0 {
 		// Only log with info level when there's a change that needs to be effected.
 		levelFn = vlogger.Info
-	} else if c.clock.Now().Before(actions.backoffUntil) {
+	} else if c.clock.Now().Before(actions.BackoffUntil) {
 		levelFn = vlogger.Warn
 	}
 
 	fields := []any{
-		slog.F("create_count", actions.create), slog.F("delete_count", len(actions.deleteIDs)),
-		slog.F("to_delete", actions.deleteIDs),
-		slog.F("desired", actions.desired), slog.F("actual", actions.actual),
-		slog.F("outdated", actions.outdated), slog.F("extraneous", actions.extraneous),
-		slog.F("starting", actions.starting), slog.F("stopping", actions.stopping),
-		slog.F("deleting", actions.deleting), slog.F("eligible", actions.eligible),
+		slog.F("create_count", actions.Create), slog.F("delete_count", len(actions.DeleteIDs)),
+		slog.F("to_delete", actions.DeleteIDs),
+		slog.F("desired", actions.Desired), slog.F("actual", actions.Actual),
+		slog.F("outdated", actions.Outdated), slog.F("extraneous", actions.Extraneous),
+		slog.F("starting", actions.Starting), slog.F("stopping", actions.Stopping),
+		slog.F("deleting", actions.Deleting), slog.F("eligible", actions.Eligible),
 	}
 
 	// TODO: add quartz
 
 	// If there is anything to backoff for (usually a cycle of failed prebuilds), then log and bail out.
-	if actions.backoffUntil.After(c.clock.Now()) {
+	if actions.BackoffUntil.After(c.clock.Now()) {
 		levelFn(ctx, "template prebuild state retrieved, backing off",
 			append(fields,
-				slog.F("backoff_until", actions.backoffUntil.Format(time.RFC3339)),
-				slog.F("backoff_secs", math.Round(actions.backoffUntil.Sub(c.clock.Now()).Seconds())),
+				slog.F("backoff_until", actions.BackoffUntil.Format(time.RFC3339)),
+				slog.F("backoff_secs", math.Round(actions.BackoffUntil.Sub(c.clock.Now()).Seconds())),
 			)...)
 
 		// return ErrBackoff
@@ -330,15 +331,15 @@ func (c *storeReconciler) reconcilePrebuildsForPreset(ctx context.Context, ps *p
 	// TODO: max per reconciliation iteration?
 
 	// TODO: i've removed the surrounding tx, but if we restore it then we need to pass down the store to these funcs.
-	for range actions.create {
-		if err := c.createPrebuild(ownerCtx, uuid.New(), ps.preset.TemplateID, ps.preset.PresetID); err != nil {
+	for range actions.Create {
+		if err := c.createPrebuild(ownerCtx, uuid.New(), ps.Preset.TemplateID, ps.Preset.PresetID); err != nil {
 			vlogger.Error(ctx, "failed to create prebuild", slog.Error(err))
 			lastErr.Errors = append(lastErr.Errors, err)
 		}
 	}
 
-	for _, id := range actions.deleteIDs {
-		if err := c.deletePrebuild(ownerCtx, id, ps.preset.TemplateID, ps.preset.PresetID); err != nil {
+	for _, id := range actions.DeleteIDs {
+		if err := c.deletePrebuild(ownerCtx, id, ps.Preset.TemplateID, ps.Preset.PresetID); err != nil {
 			vlogger.Error(ctx, "failed to delete prebuild", slog.Error(err))
 			lastErr.Errors = append(lastErr.Errors, err)
 		}
@@ -347,8 +348,8 @@ func (c *storeReconciler) reconcilePrebuildsForPreset(ctx context.Context, ps *p
 	return lastErr.ErrorOrNil()
 }
 
-func (c *storeReconciler) createPrebuild(ctx context.Context, prebuildID uuid.UUID, templateID uuid.UUID, presetID uuid.UUID) error {
-	name, err := generateName()
+func (c *StoreReconciler) createPrebuild(ctx context.Context, prebuildID uuid.UUID, templateID uuid.UUID, presetID uuid.UUID) error {
+	name, err := prebuilds.GenerateName()
 	if err != nil {
 		return xerrors.Errorf("failed to generate unique prebuild ID: %w", err)
 	}
@@ -392,7 +393,7 @@ func (c *storeReconciler) createPrebuild(ctx context.Context, prebuildID uuid.UU
 	})
 }
 
-func (c *storeReconciler) deletePrebuild(ctx context.Context, prebuildID uuid.UUID, templateID uuid.UUID, presetID uuid.UUID) error {
+func (c *StoreReconciler) deletePrebuild(ctx context.Context, prebuildID uuid.UUID, templateID uuid.UUID, presetID uuid.UUID) error {
 	return c.store.InTx(func(db database.Store) error {
 		workspace, err := db.GetWorkspaceByID(ctx, prebuildID)
 		if err != nil {
@@ -414,7 +415,7 @@ func (c *storeReconciler) deletePrebuild(ctx context.Context, prebuildID uuid.UU
 	})
 }
 
-func (c *storeReconciler) provision(ctx context.Context, db database.Store, prebuildID uuid.UUID, template database.Template, presetID uuid.UUID, transition database.WorkspaceTransition, workspace database.Workspace) error {
+func (c *StoreReconciler) provision(ctx context.Context, db database.Store, prebuildID uuid.UUID, template database.Template, presetID uuid.UUID, transition database.WorkspaceTransition, workspace database.Workspace) error {
 	tvp, err := db.GetPresetParametersByTemplateVersionID(ctx, template.ActiveVersionID)
 	if err != nil {
 		return xerrors.Errorf("fetch preset details: %w", err)
@@ -470,28 +471,4 @@ func (c *storeReconciler) provision(ctx context.Context, db database.Store, preb
 		slog.F("job_id", provisionerJob.ID))
 
 	return nil
-}
-
-// generateName generates a 20-byte prebuild name which should safe to use without truncation in most situations.
-// UUIDs may be too long for a resource name in cloud providers (since this ID will be used in the prebuild's name).
-//
-// We're generating a 9-byte suffix (72 bits of entry):
-// 1 - e^(-1e9^2 / (2 * 2^72)) = ~0.01% likelihood of collision in 1 billion IDs.
-// See https://en.wikipedia.org/wiki/Birthday_attack.
-func generateName() (string, error) {
-	b := make([]byte, 9)
-
-	_, err := rand.Read(b)
-	if err != nil {
-		return "", err
-	}
-
-	// Encode the bytes to Base32 (A-Z2-7), strip any '=' padding
-	return fmt.Sprintf("prebuild-%s", strings.ToLower(base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(b))), nil
-}
-
-// durationToInterval converts a given duration to microseconds, which is the unit PG represents intervals in.
-func durationToInterval(d time.Duration) int32 {
-	// Convert duration to seconds (as an example)
-	return int32(d.Microseconds())
 }

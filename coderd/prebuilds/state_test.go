@@ -1,4 +1,4 @@
-package prebuilds
+package prebuilds_test
 
 import (
 	"fmt"
@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/prebuilds"
 )
 
 type options struct {
@@ -69,14 +70,14 @@ func TestNoPrebuilds(t *testing.T) {
 		preset(true, 0, current),
 	}
 
-	state := newReconciliationState(presets, nil, nil, nil)
-	ps, err := state.filterByPreset(current.presetID)
+	state := prebuilds.NewReconciliationState(presets, nil, nil, nil)
+	ps, err := state.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
-	actions, err := ps.calculateActions(clock, backoffInterval)
+	actions, err := ps.CalculateActions(clock, backoffInterval)
 	require.NoError(t, err)
 
-	validateActions(t, reconciliationActions{ /*all zero values*/ }, *actions)
+	validateActions(t, prebuilds.ReconciliationActions{ /*all zero values*/ }, *actions)
 }
 
 // A new template version with a preset with prebuilds configured should result in a new prebuild being created.
@@ -88,16 +89,16 @@ func TestNetNew(t *testing.T) {
 		preset(true, 1, current),
 	}
 
-	state := newReconciliationState(presets, nil, nil, nil)
-	ps, err := state.filterByPreset(current.presetID)
+	state := prebuilds.NewReconciliationState(presets, nil, nil, nil)
+	ps, err := state.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
-	actions, err := ps.calculateActions(clock, backoffInterval)
+	actions, err := ps.CalculateActions(clock, backoffInterval)
 	require.NoError(t, err)
 
-	validateActions(t, reconciliationActions{
-		desired: 1,
-		create:  1,
+	validateActions(t, prebuilds.ReconciliationActions{
+		Desired: 1,
+		Create:  1,
 	}, *actions)
 }
 
@@ -123,23 +124,23 @@ func TestOutdatedPrebuilds(t *testing.T) {
 	var inProgress []database.GetPrebuildsInProgressRow
 
 	// WHEN: calculating the outdated preset's state.
-	state := newReconciliationState(presets, running, inProgress, nil)
-	ps, err := state.filterByPreset(outdated.presetID)
+	state := prebuilds.NewReconciliationState(presets, running, inProgress, nil)
+	ps, err := state.FilterByPreset(outdated.presetID)
 	require.NoError(t, err)
 
 	// THEN: we should identify that this prebuild is outdated and needs to be deleted.
-	actions, err := ps.calculateActions(clock, backoffInterval)
+	actions, err := ps.CalculateActions(clock, backoffInterval)
 	require.NoError(t, err)
-	validateActions(t, reconciliationActions{outdated: 1, deleteIDs: []uuid.UUID{outdated.prebuildID}}, *actions)
+	validateActions(t, prebuilds.ReconciliationActions{Outdated: 1, DeleteIDs: []uuid.UUID{outdated.prebuildID}}, *actions)
 
 	// WHEN: calculating the current preset's state.
-	ps, err = state.filterByPreset(current.presetID)
+	ps, err = state.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
 	// THEN: we should not be blocked from creating a new prebuild while the outdate one deletes.
-	actions, err = ps.calculateActions(clock, backoffInterval)
+	actions, err = ps.CalculateActions(clock, backoffInterval)
 	require.NoError(t, err)
-	validateActions(t, reconciliationActions{desired: 1, create: 1}, *actions)
+	validateActions(t, prebuilds.ReconciliationActions{Desired: 1, Create: 1}, *actions)
 }
 
 // A new template version is created with a preset with prebuilds configured; while a prebuild is provisioning up or down,
@@ -153,7 +154,7 @@ func TestInProgressActions(t *testing.T) {
 		transition database.WorkspaceTransition
 		desired    int32
 		running    int32
-		checkFn    func(actions reconciliationActions) bool
+		checkFn    func(actions prebuilds.ReconciliationActions) bool
 	}{
 		// With no running prebuilds and one starting, no creations/deletions should take place.
 		{
@@ -161,8 +162,8 @@ func TestInProgressActions(t *testing.T) {
 			transition: database.WorkspaceTransitionStart,
 			desired:    1,
 			running:    0,
-			checkFn: func(actions reconciliationActions) bool {
-				return assert.True(t, validateActions(t, reconciliationActions{desired: 1, starting: 1}, actions))
+			checkFn: func(actions prebuilds.ReconciliationActions) bool {
+				return assert.True(t, validateActions(t, prebuilds.ReconciliationActions{Desired: 1, Starting: 1}, actions))
 			},
 		},
 		// With one running prebuild and one starting, no creations/deletions should occur since we're approaching the correct state.
@@ -171,8 +172,8 @@ func TestInProgressActions(t *testing.T) {
 			transition: database.WorkspaceTransitionStart,
 			desired:    2,
 			running:    1,
-			checkFn: func(actions reconciliationActions) bool {
-				return assert.True(t, validateActions(t, reconciliationActions{actual: 1, desired: 2, starting: 1}, actions))
+			checkFn: func(actions prebuilds.ReconciliationActions) bool {
+				return assert.True(t, validateActions(t, prebuilds.ReconciliationActions{Actual: 1, Desired: 2, Starting: 1}, actions))
 			},
 		},
 		// With one running prebuild and one starting, no creations/deletions should occur
@@ -182,8 +183,8 @@ func TestInProgressActions(t *testing.T) {
 			transition: database.WorkspaceTransitionStart,
 			desired:    2,
 			running:    2,
-			checkFn: func(actions reconciliationActions) bool {
-				return assert.True(t, validateActions(t, reconciliationActions{actual: 2, desired: 2, starting: 1}, actions))
+			checkFn: func(actions prebuilds.ReconciliationActions) bool {
+				return assert.True(t, validateActions(t, prebuilds.ReconciliationActions{Actual: 2, Desired: 2, Starting: 1}, actions))
 			},
 		},
 		// With one prebuild desired and one stopping, a new prebuild will be created.
@@ -192,8 +193,8 @@ func TestInProgressActions(t *testing.T) {
 			transition: database.WorkspaceTransitionStop,
 			desired:    1,
 			running:    0,
-			checkFn: func(actions reconciliationActions) bool {
-				return assert.True(t, validateActions(t, reconciliationActions{desired: 1, stopping: 1, create: 1}, actions))
+			checkFn: func(actions prebuilds.ReconciliationActions) bool {
+				return assert.True(t, validateActions(t, prebuilds.ReconciliationActions{Desired: 1, Stopping: 1, Create: 1}, actions))
 			},
 		},
 		// With 3 prebuilds desired, 2 running, and 1 stopping, a new prebuild will be created.
@@ -202,8 +203,8 @@ func TestInProgressActions(t *testing.T) {
 			transition: database.WorkspaceTransitionStop,
 			desired:    3,
 			running:    2,
-			checkFn: func(actions reconciliationActions) bool {
-				return assert.True(t, validateActions(t, reconciliationActions{actual: 2, desired: 3, stopping: 1, create: 1}, actions))
+			checkFn: func(actions prebuilds.ReconciliationActions) bool {
+				return assert.True(t, validateActions(t, prebuilds.ReconciliationActions{Actual: 2, Desired: 3, Stopping: 1, Create: 1}, actions))
 			},
 		},
 		// With 3 prebuilds desired, 3 running, and 1 stopping, no creations/deletions should occur since the desired state is already achieved.
@@ -212,8 +213,8 @@ func TestInProgressActions(t *testing.T) {
 			transition: database.WorkspaceTransitionStop,
 			desired:    3,
 			running:    3,
-			checkFn: func(actions reconciliationActions) bool {
-				return assert.True(t, validateActions(t, reconciliationActions{actual: 3, desired: 3, stopping: 1}, actions))
+			checkFn: func(actions prebuilds.ReconciliationActions) bool {
+				return assert.True(t, validateActions(t, prebuilds.ReconciliationActions{Actual: 3, Desired: 3, Stopping: 1}, actions))
 			},
 		},
 		// With one prebuild desired and one deleting, a new prebuild will be created.
@@ -222,8 +223,8 @@ func TestInProgressActions(t *testing.T) {
 			transition: database.WorkspaceTransitionDelete,
 			desired:    1,
 			running:    0,
-			checkFn: func(actions reconciliationActions) bool {
-				return assert.True(t, validateActions(t, reconciliationActions{desired: 1, deleting: 1, create: 1}, actions))
+			checkFn: func(actions prebuilds.ReconciliationActions) bool {
+				return assert.True(t, validateActions(t, prebuilds.ReconciliationActions{Desired: 1, Deleting: 1, Create: 1}, actions))
 			},
 		},
 		// With 2 prebuilds desired, 1 running, and 1 deleting, a new prebuild will be created.
@@ -232,8 +233,8 @@ func TestInProgressActions(t *testing.T) {
 			transition: database.WorkspaceTransitionDelete,
 			desired:    2,
 			running:    1,
-			checkFn: func(actions reconciliationActions) bool {
-				return assert.True(t, validateActions(t, reconciliationActions{actual: 1, desired: 2, deleting: 1, create: 1}, actions))
+			checkFn: func(actions prebuilds.ReconciliationActions) bool {
+				return assert.True(t, validateActions(t, prebuilds.ReconciliationActions{Actual: 1, Desired: 2, Deleting: 1, Create: 1}, actions))
 			},
 		},
 		// With 2 prebuilds desired, 2 running, and 1 deleting, no creations/deletions should occur since the desired state is already achieved.
@@ -242,8 +243,8 @@ func TestInProgressActions(t *testing.T) {
 			transition: database.WorkspaceTransitionDelete,
 			desired:    2,
 			running:    2,
-			checkFn: func(actions reconciliationActions) bool {
-				return assert.True(t, validateActions(t, reconciliationActions{actual: 2, desired: 2, deleting: 1}, actions))
+			checkFn: func(actions prebuilds.ReconciliationActions) bool {
+				return assert.True(t, validateActions(t, prebuilds.ReconciliationActions{Actual: 2, Desired: 2, Deleting: 1}, actions))
 			},
 		},
 	}
@@ -260,7 +261,7 @@ func TestInProgressActions(t *testing.T) {
 			// GIVEN: a running prebuild for the preset.
 			running := make([]database.GetRunningPrebuildsRow, 0, tc.running)
 			for range tc.running {
-				name, err := generateName()
+				name, err := prebuilds.GenerateName()
 				require.NoError(t, err)
 				running = append(running, database.GetRunningPrebuildsRow{
 					WorkspaceID:       uuid.New(),
@@ -284,12 +285,12 @@ func TestInProgressActions(t *testing.T) {
 			}
 
 			// WHEN: calculating the current preset's state.
-			state := newReconciliationState(presets, running, inProgress, nil)
-			ps, err := state.filterByPreset(current.presetID)
+			state := prebuilds.NewReconciliationState(presets, running, inProgress, nil)
+			ps, err := state.FilterByPreset(current.presetID)
 			require.NoError(t, err)
 
 			// THEN: we should identify that this prebuild is in progress.
-			actions, err := ps.calculateActions(clock, backoffInterval)
+			actions, err := ps.CalculateActions(clock, backoffInterval)
 			require.NoError(t, err)
 			require.True(t, tc.checkFn(*actions))
 		})
@@ -325,15 +326,15 @@ func TestExtraneous(t *testing.T) {
 	var inProgress []database.GetPrebuildsInProgressRow
 
 	// WHEN: calculating the current preset's state.
-	state := newReconciliationState(presets, running, inProgress, nil)
-	ps, err := state.filterByPreset(current.presetID)
+	state := prebuilds.NewReconciliationState(presets, running, inProgress, nil)
+	ps, err := state.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
 	// THEN: an extraneous prebuild is detected and marked for deletion.
-	actions, err := ps.calculateActions(clock, backoffInterval)
+	actions, err := ps.CalculateActions(clock, backoffInterval)
 	require.NoError(t, err)
-	validateActions(t, reconciliationActions{
-		actual: 2, desired: 1, extraneous: 1, deleteIDs: []uuid.UUID{older}, eligible: 2,
+	validateActions(t, prebuilds.ReconciliationActions{
+		Actual: 2, Desired: 1, Extraneous: 1, DeleteIDs: []uuid.UUID{older}, Eligible: 2,
 	}, *actions)
 }
 
@@ -366,15 +367,15 @@ func TestExtraneousInProgress(t *testing.T) {
 	var inProgress []database.GetPrebuildsInProgressRow
 
 	// WHEN: calculating the current preset's state.
-	state := newReconciliationState(presets, running, inProgress, nil)
-	ps, err := state.filterByPreset(current.presetID)
+	state := prebuilds.NewReconciliationState(presets, running, inProgress, nil)
+	ps, err := state.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
 	// THEN: an extraneous prebuild is detected and marked for deletion.
-	actions, err := ps.calculateActions(clock, backoffInterval)
+	actions, err := ps.CalculateActions(clock, backoffInterval)
 	require.NoError(t, err)
-	validateActions(t, reconciliationActions{
-		actual: 2, desired: 1, extraneous: 1, deleteIDs: []uuid.UUID{older}, eligible: 2,
+	validateActions(t, prebuilds.ReconciliationActions{
+		Actual: 2, Desired: 1, Extraneous: 1, DeleteIDs: []uuid.UUID{older}, Eligible: 2,
 	}, *actions)
 }
 
@@ -400,15 +401,15 @@ func TestDeprecated(t *testing.T) {
 	var inProgress []database.GetPrebuildsInProgressRow
 
 	// WHEN: calculating the current preset's state.
-	state := newReconciliationState(presets, running, inProgress, nil)
-	ps, err := state.filterByPreset(current.presetID)
+	state := prebuilds.NewReconciliationState(presets, running, inProgress, nil)
+	ps, err := state.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
 	// THEN: all running prebuilds should be deleted because the template is deprecated.
-	actions, err := ps.calculateActions(clock, backoffInterval)
+	actions, err := ps.CalculateActions(clock, backoffInterval)
 	require.NoError(t, err)
-	validateActions(t, reconciliationActions{
-		actual: 1, deleteIDs: []uuid.UUID{current.prebuildID}, eligible: 1,
+	validateActions(t, prebuilds.ReconciliationActions{
+		Actual: 1, DeleteIDs: []uuid.UUID{current.prebuildID}, Eligible: 1,
 	}, *actions)
 }
 
@@ -446,39 +447,39 @@ func TestLatestBuildFailed(t *testing.T) {
 	}
 
 	// WHEN: calculating the current preset's state.
-	state := newReconciliationState(presets, running, inProgress, backoffs)
-	psCurrent, err := state.filterByPreset(current.presetID)
+	state := prebuilds.NewReconciliationState(presets, running, inProgress, backoffs)
+	psCurrent, err := state.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
 	// THEN: reconciliation should backoff.
-	actions, err := psCurrent.calculateActions(clock, backoffInterval)
+	actions, err := psCurrent.CalculateActions(clock, backoffInterval)
 	require.NoError(t, err)
-	validateActions(t, reconciliationActions{
-		actual: 0, desired: 1, backoffUntil: lastBuildTime.Add(time.Duration(numFailed) * backoffInterval),
+	validateActions(t, prebuilds.ReconciliationActions{
+		Actual: 0, Desired: 1, BackoffUntil: lastBuildTime.Add(time.Duration(numFailed) * backoffInterval),
 	}, *actions)
 
 	// WHEN: calculating the other preset's state.
-	psOther, err := state.filterByPreset(other.presetID)
+	psOther, err := state.FilterByPreset(other.presetID)
 	require.NoError(t, err)
 
 	// THEN: it should NOT be in backoff because all is OK.
-	actions, err = psOther.calculateActions(clock, backoffInterval)
+	actions, err = psOther.CalculateActions(clock, backoffInterval)
 	require.NoError(t, err)
-	validateActions(t, reconciliationActions{
-		actual: 1, desired: 1, eligible: 1, backoffUntil: time.Time{},
+	validateActions(t, prebuilds.ReconciliationActions{
+		Actual: 1, Desired: 1, Eligible: 1, BackoffUntil: time.Time{},
 	}, *actions)
 
 	// WHEN: the clock is advanced a backoff interval.
 	clock.Advance(backoffInterval + time.Microsecond)
 
 	// THEN: a new prebuild should be created.
-	psCurrent, err = state.filterByPreset(current.presetID)
+	psCurrent, err = state.FilterByPreset(current.presetID)
 	require.NoError(t, err)
-	actions, err = psCurrent.calculateActions(clock, backoffInterval)
+	actions, err = psCurrent.CalculateActions(clock, backoffInterval)
 	require.NoError(t, err)
-	validateActions(t, reconciliationActions{
-		create: 1, // <--- NOTE: we're now able to create a new prebuild because the interval has elapsed.
-		actual: 0, desired: 1, backoffUntil: lastBuildTime.Add(time.Duration(numFailed) * backoffInterval),
+	validateActions(t, prebuilds.ReconciliationActions{
+		Create: 1, // <--- NOTE: we're now able to create a new prebuild because the interval has elapsed.
+		Actual: 0, Desired: 1, BackoffUntil: lastBuildTime.Add(time.Duration(numFailed) * backoffInterval),
 	}, *actions)
 }
 
@@ -519,15 +520,15 @@ func prebuild(opts options, clock quartz.Clock, muts ...func(row database.GetRun
 
 // validateActions is a convenience func to make tests more readable; it exploits the fact that the default states for
 // prebuilds align with zero values.
-func validateActions(t *testing.T, expected, actual reconciliationActions) bool {
-	return assert.EqualValuesf(t, expected.deleteIDs, actual.deleteIDs, "'deleteIDs' did not match expectation") &&
-		assert.EqualValuesf(t, expected.create, actual.create, "'create' did not match expectation") &&
-		assert.EqualValuesf(t, expected.desired, actual.desired, "'desired' did not match expectation") &&
-		assert.EqualValuesf(t, expected.actual, actual.actual, "'actual' did not match expectation") &&
-		assert.EqualValuesf(t, expected.eligible, actual.eligible, "'eligible' did not match expectation") &&
-		assert.EqualValuesf(t, expected.extraneous, actual.extraneous, "'extraneous' did not match expectation") &&
-		assert.EqualValuesf(t, expected.outdated, actual.outdated, "'outdated' did not match expectation") &&
-		assert.EqualValuesf(t, expected.starting, actual.starting, "'starting' did not match expectation") &&
-		assert.EqualValuesf(t, expected.stopping, actual.stopping, "'stopping' did not match expectation") &&
-		assert.EqualValuesf(t, expected.deleting, actual.deleting, "'deleting' did not match expectation")
+func validateActions(t *testing.T, expected, actual prebuilds.ReconciliationActions) bool {
+	return assert.EqualValuesf(t, expected.DeleteIDs, actual.DeleteIDs, "'deleteIDs' did not match expectation") &&
+		assert.EqualValuesf(t, expected.Create, actual.Create, "'create' did not match expectation") &&
+		assert.EqualValuesf(t, expected.Desired, actual.Desired, "'desired' did not match expectation") &&
+		assert.EqualValuesf(t, expected.Actual, actual.Actual, "'actual' did not match expectation") &&
+		assert.EqualValuesf(t, expected.Eligible, actual.Eligible, "'eligible' did not match expectation") &&
+		assert.EqualValuesf(t, expected.Extraneous, actual.Extraneous, "'extraneous' did not match expectation") &&
+		assert.EqualValuesf(t, expected.Outdated, actual.Outdated, "'outdated' did not match expectation") &&
+		assert.EqualValuesf(t, expected.Starting, actual.Starting, "'starting' did not match expectation") &&
+		assert.EqualValuesf(t, expected.Stopping, actual.Stopping, "'stopping' did not match expectation") &&
+		assert.EqualValuesf(t, expected.Deleting, actual.Deleting, "'deleting' did not match expectation")
 }

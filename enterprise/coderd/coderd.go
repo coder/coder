@@ -640,7 +640,7 @@ type API struct {
 	licenseMetricsCollector *license.MetricsCollector
 	tailnetService          *tailnet.ClientService
 
-	PrebuildsReconciler       agplprebuilds.Reconciler
+	PrebuildsReconciler       agplprebuilds.ReconciliationOrchestrator
 	prebuildsMetricsCollector *prebuilds.MetricsCollector
 }
 
@@ -1169,7 +1169,7 @@ func (api *API) Authorize(r *http.Request, action policy.Action, object rbac.Obj
 	return api.AGPL.HTTPAuth.Authorize(r, action, object)
 }
 
-func (api *API) setupPrebuilds(entitled bool) (agplprebuilds.Reconciler, agplprebuilds.Claimer, *prebuilds.MetricsCollector) {
+func (api *API) setupPrebuilds(entitled bool) (agplprebuilds.ReconciliationOrchestrator, agplprebuilds.Claimer, *prebuilds.MetricsCollector) {
 	enabled := api.AGPL.Experiments.Enabled(codersdk.ExperimentWorkspacePrebuilds)
 	if !enabled || !entitled {
 		api.Logger.Debug(context.Background(), "prebuilds not enabled",
