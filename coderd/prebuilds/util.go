@@ -27,7 +27,7 @@ func GenerateName() (string, error) {
 }
 
 // DurationToInterval converts a given duration to microseconds, which is the unit PG represents intervals in.
-func DurationToInterval(d time.Duration) int32 {
+func DurationToInterval(d time.Duration) int64 {
 	// Convert duration to seconds (as an example)
-	return int32(d.Microseconds())
+	return d.Microseconds()
 }

@@ -2056,7 +2056,7 @@ func (q *querier) GetPresetParametersByTemplateVersionID(ctx context.Context, te
 	return q.db.GetPresetParametersByTemplateVersionID(ctx, templateVersionID)
 }
 
-func (q *querier) GetPresetsBackoff(ctx context.Context, period int32) ([]database.GetPresetsBackoffRow, error) {
+func (q *querier) GetPresetsBackoff(ctx context.Context, period int64) ([]database.GetPresetsBackoffRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate); err != nil {
 		return nil, err
 	}

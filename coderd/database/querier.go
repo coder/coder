@@ -226,7 +226,7 @@ type sqlcQuerier interface {
 	GetPrebuildsInProgress(ctx context.Context) ([]GetPrebuildsInProgressRow, error)
 	GetPresetByWorkspaceBuildID(ctx context.Context, workspaceBuildID uuid.UUID) (TemplateVersionPreset, error)
 	GetPresetParametersByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionPresetParameter, error)
-	GetPresetsBackoff(ctx context.Context, lookback int32) ([]GetPresetsBackoffRow, error)
+	GetPresetsBackoff(ctx context.Context, lookback int64) ([]GetPresetsBackoffRow, error)
 	GetPresetsByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionPreset, error)
 	GetPreviousTemplateVersion(ctx context.Context, arg GetPreviousTemplateVersionParams) (TemplateVersion, error)
 	GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDaemon, error)

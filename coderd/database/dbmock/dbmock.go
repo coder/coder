@@ -2183,7 +2183,7 @@ func (mr *MockStoreMockRecorder) GetPresetParametersByTemplateVersionID(ctx, tem
 }
 
 // GetPresetsBackoff mocks base method.
-func (m *MockStore) GetPresetsBackoff(ctx context.Context, lookback int32) ([]database.GetPresetsBackoffRow, error) {
+func (m *MockStore) GetPresetsBackoff(ctx context.Context, lookback int64) ([]database.GetPresetsBackoffRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetPresetsBackoff", ctx, lookback)
 	ret0, _ := ret[0].([]database.GetPresetsBackoffRow)

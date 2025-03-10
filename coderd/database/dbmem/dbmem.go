@@ -4066,7 +4066,7 @@ func (q *FakeQuerier) GetPresetParametersByTemplateVersionID(_ context.Context, 
 	return parameters, nil
 }
 
-func (q *FakeQuerier) GetPresetsBackoff(ctx context.Context, period int32) ([]database.GetPresetsBackoffRow, error) {
+func (q *FakeQuerier) GetPresetsBackoff(ctx context.Context, period int64) ([]database.GetPresetsBackoffRow, error) {
 	panic("not implemented")
 }
 

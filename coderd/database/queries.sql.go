@@ -5860,7 +5860,7 @@ WITH filtered_builds AS (
          SELECT preset_id, COUNT(*) AS num_failed
          FROM filtered_builds
          WHERE job_status = 'failed'::provisioner_job_status
-           AND created_at >= NOW() - ($1::integer * INTERVAL '1 microsecond') -- microsecond is the smallest unit in PG
+           AND created_at >= NOW() - ($1::bigint * INTERVAL '1 microsecond') -- microsecond is the smallest unit in PG, bigint is used because Go deals with time as int64
          GROUP BY preset_id)
 SELECT lb.template_version_id,
        lb.preset_id,
@@ -5881,7 +5881,7 @@ type GetPresetsBackoffRow struct {
 	LastBuildAt       time.Time            `db:"last_build_at" json:"last_build_at"`
 }
 
-func (q *sqlQuerier) GetPresetsBackoff(ctx context.Context, lookback int32) ([]GetPresetsBackoffRow, error) {
+func (q *sqlQuerier) GetPresetsBackoff(ctx context.Context, lookback int64) ([]GetPresetsBackoffRow, error) {
 	rows, err := q.db.QueryContext(ctx, getPresetsBackoff, lookback)
 	if err != nil {
 		return nil, err

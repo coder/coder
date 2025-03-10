@@ -276,7 +276,7 @@ func (c *StoreReconciler) DetermineActions(ctx context.Context, state prebuilds.
 		return nil, ctx.Err()
 	}
 
-	return state.CalculateActions(c.clock, c.cfg.ReconciliationBackoffLookback.Value())
+	return state.CalculateActions(c.clock, c.cfg.ReconciliationBackoffInterval.Value())
 }
 
 func (c *StoreReconciler) Reconcile(ctx context.Context, ps prebuilds.PresetState, actions prebuilds.ReconciliationActions) error {
