@@ -312,7 +312,7 @@ const IdpOrgSyncPage = lazy(
 const ProvisionerJobsPage = lazy(
 	() =>
 		import(
-			"./pages/OrganizationSettingsPage/ProvisionersPage/ProvisionerJobsPage"
+			"./pages/OrganizationSettingsPage/OrganizationProvisionerJobsPage/OrganizationProvisionerJobsPage"
 		),
 );
 

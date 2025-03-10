@@ -24,7 +24,7 @@ export const OrganizationSettingsContext = createContext<
 	OrganizationSettingsValue | undefined
 >(undefined);
 
-type OrganizationSettingsValue = Readonly<{
+export type OrganizationSettingsValue = Readonly<{
 	organizations: readonly Organization[];
 	organizationPermissionsByOrganizationId: Record<
 		string,
@@ -34,11 +34,14 @@ type OrganizationSettingsValue = Readonly<{
 	organizationPermissions?: OrganizationPermissions;
 }>;
 
-export const useOrganizationSettings = (): OrganizationSettingsValue => {
-	const context = useContext(OrganizationSettingsContext);
+export const useOrganizationSettings = (
+	defaultValues?: OrganizationSettingsValue,
+): OrganizationSettingsValue => {
+	const context = useContext(OrganizationSettingsContext) ?? defaultValues;
+
 	if (!context) {
 		throw new Error(
-			"useOrganizationSettings should be used inside of OrganizationSettingsLayout",
+			"useOrganizationSettings should be used inside of OrganizationSettingsLayout or with the default values in case of testing.",
 		);
 	}
 
@@ -46,7 +49,7 @@ export const useOrganizationSettings = (): OrganizationSettingsValue => {
 };
 
 const OrganizationSettingsLayout: FC = () => {
-	const { organizations, showOrganizations } = useDashboard();
+	const { organizations } = useDashboard();
 	const { organization: orgName } = useParams() as {
 		organization?: string;
 	};
