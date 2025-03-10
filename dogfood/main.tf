@@ -4,9 +4,9 @@ terraform {
       source = "coder/coderd"
     }
   }
-  # backend "gcs" {
-  # bucket = "coder-dogfood-tf-state"
-  # }
+  backend "gcs" {
+    bucket = "coder-dogfood-tf-state"
+  }
 }
 
 data "coderd_organization" "default" {
