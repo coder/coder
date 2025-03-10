@@ -111,23 +111,20 @@ jobs:
           workload_identity_provider: projects/573722524737/locations/global/workloadIdentityPools/github/providers/github
           service_account: coder-ci@coder-dogfood.iam.gserviceaccount.com
 
-      - name: Terraform init and validate coder template
+      - name: Terraform init and validate
         run: |
-          cd dogfood/coder
+          pushd dogfood/
           terraform init -upgrade
           terraform validate
-          cd contents
+          popd
+          pushd coder/contents
           terraform init -upgrade
           terraform validate
-
-      - name: Terraform init and validate coder-envbuilder template
-        run: |
-          cd dogfood/coder-envbuilder
+          popd
+          pushd coder-envbuilder/contents
           terraform init -upgrade
           terraform validate
-          cd contents
-          terraform init -upgrade
-          terraform validate
+          popd
 
       - name: Get short commit SHA
         if: github.ref == 'refs/heads/main'
