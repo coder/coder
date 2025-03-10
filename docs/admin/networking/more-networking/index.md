@@ -22,12 +22,9 @@ web terminal, web RDP, and others.
 
 ### Browser-only connections
 
-<blockquote class="info">
-
-Browser-only connections is an Enterprise and Premium feature.
-[Learn more](https://coder.com/pricing#compare-plans).
-
-</blockquote>
+> [!NOTE]
+> Browser-only connections is an Enterprise and Premium feature.
+> [Learn more](https://coder.com/pricing#compare-plans).
 
 Some Coder deployments require that all access is through the browser to comply
 with security policies. In these cases, pass the `--browser-only` flag to
