@@ -51,6 +51,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -1189,6 +1190,52 @@ func TestAgent_SSHConnectionEnvVars(t *testing.T) {
 			output, err := session.Output(command)
 			require.NoError(t, err)
 			require.NotEmpty(t, strings.TrimSpace(string(output)))
+		})
+	}
+}
+
+func TestAgent_SSHConnectionLoginVars(t *testing.T) {
+	t.Parallel()
+
+	envInfo := usershell.SystemEnvInfo{}
+	u, err := envInfo.User()
+	require.NoError(t, err, "get current user")
+	shell, err := envInfo.Shell(u.Username)
+	require.NoError(t, err, "get current shell")
+
+	tests := []struct {
+		key  string
+		want string
+	}{
+		{
+			key:  "USER",
+			want: u.Username,
+		},
+		{
+			key:  "LOGNAME",
+			want: u.Username,
+		},
+		{
+			key:  "HOME",
+			want: u.HomeDir,
+		},
+		{
+			key:  "SHELL",
+			want: shell,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.key, func(t *testing.T) {
+			t.Parallel()
+
+			session := setupSSHSession(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil)
+			command := "sh -c 'echo $" + tt.key + "'"
+			if runtime.GOOS == "windows" {
+				command = "cmd.exe /c echo %" + tt.key + "%"
+			}
+			output, err := session.Output(command)
+			require.NoError(t, err)
+			require.Equal(t, tt.want, strings.TrimSpace(string(output)))
 		})
 	}
 }
