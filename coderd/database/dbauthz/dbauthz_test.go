@@ -999,7 +999,17 @@ func (s *MethodTestSuite) TestOrganization() {
 			LimitOpt:       0,
 		}).Asserts(
 			rbac.ResourceOrganizationMember.InOrg(o.ID), policy.ActionRead,
-		).Returns(mem)
+		).Returns([]database.PaginatedOrganizationMembersRow{
+			{
+				OrganizationMember: mem,
+				Username:           u.Username,
+				AvatarURL:          u.AvatarURL,
+				Name:               u.Name,
+				Email:              u.Email,
+				GlobalRoles:        u.RBACRoles,
+				Count:              1,
+			},
+		})
 	}))
 	s.Run("UpdateMemberRoles", s.Subtest(func(db database.Store, check *expects) {
 		o := dbgen.Organization(s.T(), db, database.Organization{})
