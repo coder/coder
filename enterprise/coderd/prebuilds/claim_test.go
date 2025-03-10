@@ -8,9 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/serpent"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/serpent"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -20,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/enterprise/coderd/prebuilds"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
@@ -148,10 +151,15 @@ func TestClaimPrebuild(t *testing.T) {
 					},
 				},
 			})
+			reconciler := api.PrebuildsReconciler
 
 			// The entitlements will need to refresh before the reconciler is set.
 			require.Eventually(t, func() bool {
-				return api.PrebuildsReconciler != nil
+				if tc.entitlementEnabled && tc.experimentEnabled {
+					assert.IsType(t, &prebuilds.StoreReconciler{}, reconciler)
+				}
+
+				return reconciler != nil
 			}, testutil.WaitSuperLong, testutil.IntervalFast)
 
 			version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, templateWithAgentAndPresetsWithPrebuilds(desiredInstances))
@@ -165,8 +173,28 @@ func TestClaimPrebuild(t *testing.T) {
 
 			ctx = dbauthz.AsSystemRestricted(ctx)
 
-			// Given: a reconciliation completes.
-			require.NoError(t, api.PrebuildsReconciler.ReconcileAll(ctx))
+			// Given: the reconciliation state is snapshot.
+			state, err := reconciler.SnapshotState(ctx, spy)
+			require.NoError(t, err)
+
+			// When: the experiment or entitlement is not preset, there should be nothing to reconcile.
+			if !tc.entitlementEnabled || !tc.experimentEnabled {
+				require.Len(t, state.Presets, 0)
+				return
+			}
+
+			require.Len(t, state.Presets, presetCount)
+			// When: a reconciliation is setup for each preset.
+			for _, preset := range presets {
+				ps, err := state.FilterByPreset(preset.ID)
+				require.NoError(t, err)
+				require.NotNil(t, ps)
+				actions, err := reconciler.DetermineActions(ctx, *ps)
+				require.NoError(t, err)
+				require.NotNil(t, actions)
+
+				require.NoError(t, reconciler.Reconcile(ctx, *ps, *actions))
+			}
 
 			// Given: a set of running, eligible prebuilds eventually starts up.
 			runningPrebuilds := make(map[uuid.UUID]database.GetRunningPrebuildsRow, desiredInstances*presetCount)
@@ -265,7 +293,22 @@ func TestClaimPrebuild(t *testing.T) {
 			require.False(t, found, "claimed prebuild should not still be considered a running prebuild")
 
 			// Then: reconciling at this point will provision a new prebuild to replace the claimed one.
-			require.NoError(t, api.PrebuildsReconciler.ReconcileAll(ctx))
+			{
+				// Given: the reconciliation state is snapshot.
+				state, err = reconciler.SnapshotState(ctx, spy)
+				require.NoError(t, err)
+
+				// When: a reconciliation is setup for each preset.
+				for _, preset := range presets {
+					ps, err := state.FilterByPreset(preset.ID)
+					require.NoError(t, err)
+					actions, err := reconciler.DetermineActions(ctx, *ps)
+					require.NoError(t, err)
+
+					// Then: the reconciliation takes place without error.
+					require.NoError(t, reconciler.Reconcile(ctx, *ps, *actions))
+				}
+			}
 
 			require.Eventually(t, func() bool {
 				rows, err := spy.GetRunningPrebuilds(ctx)

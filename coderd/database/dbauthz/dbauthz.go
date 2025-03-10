@@ -2056,6 +2056,13 @@ func (q *querier) GetPresetParametersByTemplateVersionID(ctx context.Context, te
 	return q.db.GetPresetParametersByTemplateVersionID(ctx, templateVersionID)
 }
 
+func (q *querier) GetPresetsBackoff(ctx context.Context, lookback time.Time) ([]database.GetPresetsBackoffRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate); err != nil {
+		return nil, err
+	}
+	return q.db.GetPresetsBackoff(ctx, lookback)
+}
+
 func (q *querier) GetPresetsByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionPreset, error) {
 	// An actor can read template version presets if they can read the related template version.
 	_, err := q.GetTemplateVersionByID(ctx, templateVersionID)

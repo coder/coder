@@ -679,6 +679,7 @@ func createWorkspace(
 			initiatorID = prebuilds.Initiator()
 			agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, claimedWorkspace.ID)
 			if err != nil {
+				// TODO: comment about best-effort, workspace can be restarted if this fails...
 				api.Logger.Error(ctx, "failed to retrieve running agents of claimed prebuilt workspace",
 					slog.F("workspace_id", claimedWorkspace.ID), slog.Error(err))
 			}

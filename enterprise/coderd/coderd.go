@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coder/quartz"
+
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/database"
@@ -638,7 +640,7 @@ type API struct {
 	licenseMetricsCollector *license.MetricsCollector
 	tailnetService          *tailnet.ClientService
 
-	PrebuildsReconciler       agplprebuilds.Reconciler
+	PrebuildsReconciler       agplprebuilds.ReconciliationOrchestrator
 	prebuildsMetricsCollector *prebuilds.MetricsCollector
 }
 
@@ -1167,7 +1169,7 @@ func (api *API) Authorize(r *http.Request, action policy.Action, object rbac.Obj
 	return api.AGPL.HTTPAuth.Authorize(r, action, object)
 }
 
-func (api *API) setupPrebuilds(entitled bool) (agplprebuilds.Reconciler, agplprebuilds.Claimer, *prebuilds.MetricsCollector) {
+func (api *API) setupPrebuilds(entitled bool) (agplprebuilds.ReconciliationOrchestrator, agplprebuilds.Claimer, *prebuilds.MetricsCollector) {
 	enabled := api.AGPL.Experiments.Enabled(codersdk.ExperimentWorkspacePrebuilds)
 	if !enabled || !entitled {
 		api.Logger.Debug(context.Background(), "prebuilds not enabled",
@@ -1184,7 +1186,8 @@ func (api *API) setupPrebuilds(entitled bool) (agplprebuilds.Reconciler, agplpre
 		collector = nil
 	}
 
-	return prebuilds.NewStoreReconciler(api.Database, api.Pubsub, api.DeploymentValues.Prebuilds, api.Logger.Named("prebuilds")),
+	return prebuilds.NewStoreReconciler(api.Database, api.Pubsub, api.DeploymentValues.Prebuilds,
+			api.Logger.Named("prebuilds"), quartz.NewReal()),
 		prebuilds.EnterpriseClaimer{},
 		collector
 }

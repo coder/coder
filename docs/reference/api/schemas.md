@@ -2166,6 +2166,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "wgtunnel_host": "string",
     "wildcard_access_url": "string",
     "workspace_prebuilds": {
+      "reconciliation_backoff_interval": 0,
+      "reconciliation_backoff_lookback": 0,
       "reconciliation_interval": 0
     },
     "write_config": true
@@ -2642,6 +2644,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "wgtunnel_host": "string",
   "wildcard_access_url": "string",
   "workspace_prebuilds": {
+    "reconciliation_backoff_interval": 0,
+    "reconciliation_backoff_lookback": 0,
     "reconciliation_interval": 0
   },
   "write_config": true
@@ -4480,15 +4484,19 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ```json
 {
+  "reconciliation_backoff_interval": 0,
+  "reconciliation_backoff_lookback": 0,
   "reconciliation_interval": 0
 }
 ```
 
 ### Properties
 
-| Name                      | Type    | Required | Restrictions | Description |
-|---------------------------|---------|----------|--------------|-------------|
-| `reconciliation_interval` | integer | false    |              |             |
+| Name                              | Type    | Required | Restrictions | Description |
+|-----------------------------------|---------|----------|--------------|-------------|
+| `reconciliation_backoff_interval` | integer | false    |              |             |
+| `reconciliation_backoff_lookback` | integer | false    |              |             |
+| `reconciliation_interval`         | integer | false    |              |             |
 
 ## codersdk.Preset
 

@@ -764,7 +764,9 @@ type NotificationsWebhookConfig struct {
 }
 
 type PrebuildsConfig struct {
-	ReconciliationInterval serpent.Duration `json:"reconciliation_interval" typescript:",notnull"`
+	ReconciliationInterval        serpent.Duration `json:"reconciliation_interval" typescript:",notnull"`
+	ReconciliationBackoffInterval serpent.Duration `json:"reconciliation_backoff_interval" typescript:",notnull"`
+	ReconciliationBackoffLookback serpent.Duration `json:"reconciliation_backoff_lookback" typescript:",notnull"`
 }
 
 const (
@@ -2968,6 +2970,28 @@ Write out the current server config as YAML to stdout.`,
 			Default:     (time.Second * 15).String(),
 			Group:       &deploymentGroupPrebuilds,
 			YAML:        "reconciliation_interval",
+		},
+		{
+			Name:        "Reconciliation Backoff Interval",
+			Description: "Interval to increase reconciliation backoff by when unrecoverable errors occur.",
+			Flag:        "workspace-prebuilds-reconciliation-backoff-interval",
+			Env:         "CODER_WORKSPACE_PREBUILDS_RECONCILIATION_BACKOFF_INTERVAL",
+			Value:       &c.Prebuilds.ReconciliationBackoffInterval,
+			Default:     (time.Second * 15).String(),
+			Group:       &deploymentGroupPrebuilds,
+			YAML:        "reconciliation_backoff_interval",
+			Hidden:      true,
+		},
+		{
+			Name:        "Reconciliation Backoff Lookback Period",
+			Description: "Interval to look back to determine number of failed builds, which influences backoff.",
+			Flag:        "workspace-prebuilds-reconciliation-backoff-lookback-period",
+			Env:         "CODER_WORKSPACE_PREBUILDS_RECONCILIATION_BACKOFF_LOOKBACK_PERIOD",
+			Value:       &c.Prebuilds.ReconciliationBackoffLookback,
+			Default:     (time.Hour).String(), // TODO: use https://pkg.go.dev/github.com/jackc/pgtype@v1.12.0#Interval
+			Group:       &deploymentGroupPrebuilds,
+			YAML:        "reconciliation_backoff_lookback_period",
+			Hidden:      true,
 		},
 	}
 

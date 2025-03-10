@@ -4066,6 +4066,10 @@ func (q *FakeQuerier) GetPresetParametersByTemplateVersionID(_ context.Context, 
 	return parameters, nil
 }
 
+func (q *FakeQuerier) GetPresetsBackoff(ctx context.Context, period time.Time) ([]database.GetPresetsBackoffRow, error) {
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) GetPresetsByTemplateVersionID(_ context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionPreset, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
