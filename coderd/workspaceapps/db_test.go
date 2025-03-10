@@ -2,7 +2,6 @@ package workspaceapps_test
 
 import (
 	"context"
-	"crypto/rand"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -289,7 +288,7 @@ func Test_ResolveRequest(t *testing.T) {
 					}).Normalize()
 
 					auditor := audit.NewMock()
-					auditableIP := randomIPv6(t)
+					auditableIP := testutil.RandomIPv6(t)
 					auditableUA := "Tidua"
 
 					t.Log("app", app)
@@ -386,7 +385,7 @@ func Test_ResolveRequest(t *testing.T) {
 			}).Normalize()
 
 			auditor := audit.NewMock()
-			auditableIP := randomIPv6(t)
+			auditableIP := testutil.RandomIPv6(t)
 
 			t.Log("app", app)
 			rw := httptest.NewRecorder()
@@ -434,7 +433,7 @@ func Test_ResolveRequest(t *testing.T) {
 			}).Normalize()
 
 			auditor := audit.NewMock()
-			auditableIP := randomIPv6(t)
+			auditableIP := testutil.RandomIPv6(t)
 
 			t.Log("app", app)
 			rw := httptest.NewRecorder()
@@ -482,7 +481,7 @@ func Test_ResolveRequest(t *testing.T) {
 			AccessMethod: "invalid",
 		}).Normalize()
 		auditor := audit.NewMock()
-		auditableIP := randomIPv6(t)
+		auditableIP := testutil.RandomIPv6(t)
 		rw := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/app", nil)
 		r.RemoteAddr = auditableIP
@@ -565,7 +564,7 @@ func Test_ResolveRequest(t *testing.T) {
 				}).Normalize()
 
 				auditor := audit.NewMock()
-				auditableIP := randomIPv6(t)
+				auditableIP := testutil.RandomIPv6(t)
 
 				rw := httptest.NewRecorder()
 				r := httptest.NewRequest("GET", "/app", nil)
@@ -640,7 +639,7 @@ func Test_ResolveRequest(t *testing.T) {
 		}).Normalize()
 
 		auditor := audit.NewMock()
-		auditableIP := randomIPv6(t)
+		auditableIP := testutil.RandomIPv6(t)
 
 		rw := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/app", nil)
@@ -695,7 +694,7 @@ func Test_ResolveRequest(t *testing.T) {
 		}).Normalize()
 
 		auditor := audit.NewMock()
-		auditableIP := randomIPv6(t)
+		auditableIP := testutil.RandomIPv6(t)
 
 		rw := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/app", nil)
@@ -733,7 +732,7 @@ func Test_ResolveRequest(t *testing.T) {
 		}).Normalize()
 
 		auditor := audit.NewMock()
-		auditableIP := randomIPv6(t)
+		auditableIP := testutil.RandomIPv6(t)
 
 		rw := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/", nil)
@@ -771,7 +770,7 @@ func Test_ResolveRequest(t *testing.T) {
 		}).Normalize()
 
 		auditor := audit.NewMock()
-		auditableIP := randomIPv6(t)
+		auditableIP := testutil.RandomIPv6(t)
 
 		rw := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/", nil)
@@ -810,7 +809,7 @@ func Test_ResolveRequest(t *testing.T) {
 		}).Normalize()
 
 		auditor := audit.NewMock()
-		auditableIP := randomIPv6(t)
+		auditableIP := testutil.RandomIPv6(t)
 
 		rw := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/", nil)
@@ -841,7 +840,7 @@ func Test_ResolveRequest(t *testing.T) {
 		}).Normalize()
 
 		auditor := audit.NewMock()
-		auditableIP := randomIPv6(t)
+		auditableIP := testutil.RandomIPv6(t)
 
 		rw := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/app", nil)
@@ -883,7 +882,7 @@ func Test_ResolveRequest(t *testing.T) {
 		}).Normalize()
 
 		auditor := audit.NewMock()
-		auditableIP := randomIPv6(t)
+		auditableIP := testutil.RandomIPv6(t)
 
 		rw := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/app", nil)
@@ -916,7 +915,7 @@ func Test_ResolveRequest(t *testing.T) {
 		}).Normalize()
 
 		auditor := audit.NewMock()
-		auditableIP := randomIPv6(t)
+		auditableIP := testutil.RandomIPv6(t)
 
 		rw := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/app", nil)
@@ -949,7 +948,7 @@ func Test_ResolveRequest(t *testing.T) {
 		}).Normalize()
 
 		auditor := audit.NewMock()
-		auditableIP := randomIPv6(t)
+		auditableIP := testutil.RandomIPv6(t)
 
 		rw := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/some-path", nil)
@@ -1012,7 +1011,7 @@ func Test_ResolveRequest(t *testing.T) {
 		}).Normalize()
 
 		auditor := audit.NewMock()
-		auditableIP := randomIPv6(t)
+		auditableIP := testutil.RandomIPv6(t)
 
 		rw := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/app", nil)
@@ -1075,7 +1074,7 @@ func Test_ResolveRequest(t *testing.T) {
 		}).Normalize()
 
 		auditor := audit.NewMock()
-		auditableIP := randomIPv6(t)
+		auditableIP := testutil.RandomIPv6(t)
 
 		rw := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/app", nil)
@@ -1133,7 +1132,7 @@ func Test_ResolveRequest(t *testing.T) {
 		}).Normalize()
 
 		auditor := audit.NewMock()
-		auditableIP := randomIPv6(t)
+		auditableIP := testutil.RandomIPv6(t)
 
 		rw := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/app", nil)
@@ -1168,7 +1167,7 @@ func Test_ResolveRequest(t *testing.T) {
 			}).Normalize()
 
 			auditor := audit.NewMock()
-			auditableIP := randomIPv6(t)
+			auditableIP := testutil.RandomIPv6(t)
 
 			t.Log("app", app)
 
@@ -1227,7 +1226,7 @@ func Test_ResolveRequest(t *testing.T) {
 			require.Len(t, auditor.AuditLogs(), 2, "two audit logs, session timed out")
 
 			// Fourth request, new IP produces new audit log.
-			auditableIP = randomIPv6(t)
+			auditableIP = testutil.RandomIPv6(t)
 			rw = httptest.NewRecorder()
 			r = httptest.NewRequest("GET", "/app", nil)
 			r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
@@ -1246,18 +1245,6 @@ func Test_ResolveRequest(t *testing.T) {
 			require.Len(t, auditor.AuditLogs(), 3, "three audit logs, new IP")
 		}
 	})
-}
-
-func randomIPv6(t testing.TB) string {
-	t.Helper()
-
-	// 2001:db8::/32 is reserved for documentation and examples.
-	buf := make([]byte, 16)
-	_, err := rand.Read(buf)
-	require.NoError(t, err, "error generating random IPv6 address")
-	return fmt.Sprintf("2001:db8:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x",
-		buf[0], buf[1], buf[2], buf[3], buf[4], buf[5],
-		buf[6], buf[7], buf[8], buf[9], buf[10], buf[11])
 }
 
 func workspaceappsResolveRequest(t testing.TB, auditor audit.Auditor, w http.ResponseWriter, r *http.Request, opts workspaceapps.ResolveRequestOptions) (token *workspaceapps.SignedToken, ok bool) {
