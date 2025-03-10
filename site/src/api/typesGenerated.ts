@@ -2673,6 +2673,17 @@ export interface UpdateHealthSettings {
 	readonly dismissed_healthchecks: readonly HealthSection[];
 }
 
+// From codersdk/inboxnotification.go
+export interface UpdateInboxNotificationReadStatusRequest {
+	readonly is_read: boolean;
+}
+
+// From codersdk/inboxnotification.go
+export interface UpdateInboxNotificationReadStatusResponse {
+	readonly notification: InboxNotification;
+	readonly unread_count: number;
+}
+
 // From codersdk/notifications.go
 export interface UpdateNotificationTemplateMethod {
 	readonly method?: string;

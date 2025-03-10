@@ -33,3 +33,12 @@ type InboxNotificationAction struct {
 	Label string `json:"label"`
 	URL   string `json:"url"`
 }
+
+type UpdateInboxNotificationReadStatusRequest struct {
+	IsRead bool `json:"is_read"`
+}
+
+type UpdateInboxNotificationReadStatusResponse struct {
+	Notification InboxNotification `json:"notification"`
+	UnreadCount  int               `json:"unread_count"`
+}
