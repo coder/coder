@@ -9593,34 +9593,42 @@ func (q *FakeQuerier) PaginatedOrganizationMembers(_ context.Context, arg databa
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	tmp := make([]database.PaginatedOrganizationMembersRow, 0)
-
-	skippedMembers := 0
-	for _, organizationMember := range q.organizationMembers {
-		if arg.OrganizationID != uuid.Nil && organizationMember.OrganizationID != arg.OrganizationID {
+	// All of the members in the organization
+	orgMembers := make([]database.OrganizationMember, 0)
+	for _, mem := range q.organizationMembers {
+		if arg.OrganizationID != uuid.Nil && mem.OrganizationID != arg.OrganizationID {
 			continue
 		}
 
+		orgMembers = append(orgMembers, mem)
+	}
+
+	selectedMembers := make([]database.PaginatedOrganizationMembersRow, 0)
+
+	skippedMembers := 0
+	for _, organizationMember := range q.organizationMembers {
 		if skippedMembers < int(arg.OffsetOpt) {
 			skippedMembers++
 			continue
 		}
 
-		if len(tmp) >= int(arg.LimitOpt) {
+		// if the limit is set to 0 we treat that as returning all of the org members
+		if int(arg.LimitOpt) != 0 && len(selectedMembers) >= int(arg.LimitOpt) {
 			break
 		}
 
 		user, _ := q.getUserByIDNoLock(organizationMember.UserID)
-		tmp = append(tmp, database.PaginatedOrganizationMembersRow{
+		selectedMembers = append(selectedMembers, database.PaginatedOrganizationMembersRow{
 			OrganizationMember: organizationMember,
 			Username:           user.Username,
 			AvatarURL:          user.AvatarURL,
 			Name:               user.Name,
 			Email:              user.Email,
 			GlobalRoles:        user.RBACRoles,
+			Count:              int64(len(orgMembers)),
 		})
 	}
-	return tmp, nil
+	return selectedMembers, nil
 }
 
 func (q *FakeQuerier) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(_ context.Context, templateID uuid.UUID) error {
