@@ -38,7 +38,7 @@ resource "coderd_template" "dogfood" {
   display_name    = "Write Coder on Coder"
   description     = "The template to use when developing Coder on Coder!"
   icon            = "/emojis/1f3c5.png"
-  organization_id = "703f72a1-76f6-4f89-9de6-8a3989693fe5"
+  organization_id = data.coderd_organization.default.id
   versions = [
     {
       name      = var.CODER_TEMPLATE_VERSION
@@ -80,7 +80,7 @@ resource "coderd_template" "envbuilder_dogfood" {
   display_name    = "Write Coder on Coder using Envbuilder"
   description     = "Write Coder on Coder using a workspace built by Envbuilder."
   icon            = "/emojis/1f3d7.png" # 🏗️
-  organization_id = "703f72a1-76f6-4f89-9de6-8a3989693fe5"
+  organization_id = data.coderd_organization.default.id
   versions = [
     {
       name      = var.CODER_TEMPLATE_VERSION
