@@ -180,9 +180,29 @@ resource "docker_volume" "home_volume" {
   }
 }
 
+data "coder_parameter" "image" {
+  name         = "image"
+  display_name = "Image"
+  description  = "The Docker image to use for the workspace"
+  type         = "string"
+  default      = "codercom/enterprise-base:ubuntu"
+  mutable      = true
+  icon         = "/icon/docker.svg"
+}
+
+data "coder_parameter" "base_image" {
+  name         = "base_image"
+  display_name = "Base Image"
+  description  = "The base Docker image used to build the workspace image"
+  type         = "string"
+  default      = ""
+  mutable      = true
+  icon         = "/icon/docker.svg"
+}
+
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
-  image = "codercom/enterprise-base:ubuntu"
+  image = data.coder_parameter.image.value
   # Uses lower() to avoid Docker restriction on container names.
   name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
   # Hostname makes the shell more user friendly: coder@my-workspace:~$
@@ -216,5 +236,18 @@ resource "docker_container" "workspace" {
   labels {
     label = "coder.workspace_name"
     value = data.coder_workspace.me.name
+  }
+}
+
+resource "coder_metadata" "container_info" {
+  count       = data.coder_workspace.me.start_count
+  resource_id = coder_agent.main.id
+  item {
+    key   = "image"
+    value = data.coder_parameter.image.value
+  }
+  item {
+    key   = "base_image"
+    value = data.coder_parameter.base_image.value != "" ? data.coder_parameter.base_image.value : "Not specified"
   }
 }
