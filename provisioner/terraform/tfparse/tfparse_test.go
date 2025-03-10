@@ -268,7 +268,7 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						}
 					}`,
 			},
-			expectError: `provisioner tag "az" evaluated to an empty value, please set a default value`,
+			expectTags: map[string]string{"cluster": "developers", "az": "", "platform": "kubernetes", "region": "us"},
 		},
 		{
 			name: "main.tf with missing parameter default value outside workspace tags",

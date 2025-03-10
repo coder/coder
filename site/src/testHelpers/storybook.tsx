@@ -6,10 +6,10 @@ import { hasFirstUserKey, meKey } from "api/queries/users";
 import type { Entitlements } from "api/typesGenerated";
 import { GlobalSnackbar } from "components/GlobalSnackbar/GlobalSnackbar";
 import { AuthProvider } from "contexts/auth/AuthProvider";
-import { permissionsToCheck } from "contexts/auth/permissions";
 import { DashboardContext } from "modules/dashboard/DashboardProvider";
-import { DeploymentSettingsContext } from "modules/management/DeploymentSettingsProvider";
+import { DeploymentConfigContext } from "modules/management/DeploymentConfigProvider";
 import { OrganizationSettingsContext } from "modules/management/OrganizationSettingsLayout";
+import { permissionChecks } from "modules/permissions";
 import type { FC } from "react";
 import { useQueryClient } from "react-query";
 import {
@@ -17,6 +17,7 @@ import {
 	MockDefaultOrganization,
 	MockDeploymentConfig,
 	MockEntitlements,
+	MockOrganizationPermissions,
 } from "./entities";
 
 export const withDashboardProvider = (
@@ -28,6 +29,7 @@ export const withDashboardProvider = (
 		experiments = [],
 		showOrganizations = false,
 		organizations = [MockDefaultOrganization],
+		canViewOrganizationSettings = false,
 	} = parameters;
 
 	const entitlements: Entitlements = {
@@ -48,9 +50,10 @@ export const withDashboardProvider = (
 			value={{
 				entitlements,
 				experiments,
+				appearance: MockAppearanceConfig,
 				organizations,
 				showOrganizations,
-				appearance: MockAppearanceConfig,
+				canViewOrganizationSettings,
 			}}
 		>
 			<Story />
@@ -111,7 +114,7 @@ export const withAuthProvider = (Story: FC, { parameters }: StoryContext) => {
 	queryClient.setQueryData(meKey, parameters.user);
 	queryClient.setQueryData(hasFirstUserKey, true);
 	queryClient.setQueryData(
-		getAuthorizationKey({ checks: permissionsToCheck }),
+		getAuthorizationKey({ checks: permissionChecks }),
 		parameters.permissions ?? {},
 	);
 
@@ -153,19 +156,23 @@ export const withGlobalSnackbar = (Story: FC) => (
 	</>
 );
 
-export const withManagementSettingsProvider = (Story: FC) => {
+export const withOrganizationSettingsProvider = (Story: FC) => {
 	return (
 		<OrganizationSettingsContext.Provider
 			value={{
 				organizations: [MockDefaultOrganization],
+				organizationPermissionsByOrganizationId: {
+					[MockDefaultOrganization.id]: MockOrganizationPermissions,
+				},
 				organization: MockDefaultOrganization,
+				organizationPermissions: MockOrganizationPermissions,
 			}}
 		>
-			<DeploymentSettingsContext.Provider
+			<DeploymentConfigContext.Provider
 				value={{ deploymentConfig: MockDeploymentConfig }}
 			>
 				<Story />
-			</DeploymentSettingsContext.Provider>
+			</DeploymentConfigContext.Provider>
 		</OrganizationSettingsContext.Provider>
 	);
 };

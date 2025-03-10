@@ -1,20 +1,7 @@
-
-resource "google_compute_network" "vpc" {
-  project                 = var.project_id
-  name                    = var.name
-  auto_create_subnetworks = "false"
-  depends_on = [
-    google_project_service.api["compute.googleapis.com"]
-  ]
-}
-
-resource "google_compute_subnetwork" "subnet" {
-  for_each      = local.deployments
-  name          = "${var.name}-${each.key}"
-  project       = var.project_id
-  region        = each.value.region
-  network       = google_compute_network.vpc.name
-  ip_cidr_range = each.value.cidr
+locals {
+  vpc_name    = "scaletest"
+  vpc_id      = "projects/${var.project_id}/global/networks/${local.vpc_name}"
+  subnet_name = "scaletest"
 }
 
 resource "google_compute_address" "coder" {
@@ -32,11 +19,11 @@ resource "google_compute_global_address" "sql_peering" {
   purpose       = "VPC_PEERING"
   address_type  = "INTERNAL"
   prefix_length = 16
-  network       = google_compute_network.vpc.id
+  network       = local.vpc_name
 }
 
 resource "google_service_networking_connection" "private_vpc_connection" {
-  network                 = google_compute_network.vpc.id
+  network                 = local.vpc_id
   service                 = "servicenetworking.googleapis.com"
   reserved_peering_ranges = [google_compute_global_address.sql_peering.name]
 }

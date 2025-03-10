@@ -219,6 +219,7 @@ func TestWorkspace(t *testing.T) {
 								Type: "example",
 								Agents: []*proto.Agent{{
 									Id:   uuid.NewString(),
+									Name: "dev",
 									Auth: &proto.Agent_Token{},
 								}},
 							}},
@@ -259,6 +260,7 @@ func TestWorkspace(t *testing.T) {
 								Type: "example",
 								Agents: []*proto.Agent{{
 									Id:                       uuid.NewString(),
+									Name:                     "dev",
 									Auth:                     &proto.Agent_Token{},
 									ConnectionTimeoutSeconds: 1,
 								}},
@@ -372,6 +374,54 @@ func TestWorkspace(t *testing.T) {
 		})
 		require.Error(t, err, "create workspace with archived version")
 		require.ErrorContains(t, err, "Archived template versions cannot")
+	})
+
+	t.Run("WorkspaceBan", func(t *testing.T) {
+		t.Parallel()
+		owner, _, _ := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		first := coderdtest.CreateFirstUser(t, owner)
+
+		version := coderdtest.CreateTemplateVersion(t, owner, first.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, owner, version.ID)
+		template := coderdtest.CreateTemplate(t, owner, first.OrganizationID, version.ID)
+
+		goodClient, _ := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
+
+		// When a user with workspace-creation-ban
+		client, user := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.ScopedRoleOrgWorkspaceCreationBan(first.OrganizationID))
+
+		// Ensure a similar user can create a workspace
+		coderdtest.CreateWorkspace(t, goodClient, template.ID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		// Then: Cannot create a workspace
+		_, err := client.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
+			TemplateID:        template.ID,
+			TemplateVersionID: uuid.UUID{},
+			Name:              "random",
+		})
+		require.Error(t, err)
+		var apiError *codersdk.Error
+		require.ErrorAs(t, err, &apiError)
+		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
+
+		// When: workspace-ban use has a workspace
+		wrk, err := owner.CreateUserWorkspace(ctx, user.ID.String(), codersdk.CreateWorkspaceRequest{
+			TemplateID:        template.ID,
+			TemplateVersionID: uuid.UUID{},
+			Name:              "random",
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, wrk.LatestBuild.ID)
+
+		// Then: They cannot delete said workspace
+		_, err = client.CreateWorkspaceBuild(ctx, wrk.ID, codersdk.CreateWorkspaceBuildRequest{
+			Transition:       codersdk.WorkspaceTransitionDelete,
+			ProvisionerState: []byte{},
+		})
+		require.Error(t, err)
+		require.ErrorAs(t, err, &apiError)
+		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
 	})
 }
 
@@ -639,6 +689,12 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		require.Contains(t, sent[0].Targets, workspace.ID)
 		require.Contains(t, sent[0].Targets, workspace.OrganizationID)
 		require.Contains(t, sent[0].Targets, workspace.OwnerID)
+
+		owner, ok := sent[0].Data["owner"].(map[string]any)
+		require.True(t, ok, "notification data should have owner")
+		require.Equal(t, memberUser.ID, owner["id"])
+		require.Equal(t, memberUser.Name, owner["name"])
+		require.Equal(t, memberUser.Email, owner["email"])
 	})
 
 	t.Run("CreateWithAuditLogs", func(t *testing.T) {
@@ -1716,7 +1772,8 @@ func TestWorkspaceFilterManual(t *testing.T) {
 							Name: "example",
 							Type: "aws_instance",
 							Agents: []*proto.Agent{{
-								Id: uuid.NewString(),
+								Id:   uuid.NewString(),
+								Name: "dev",
 								Auth: &proto.Agent_Token{
 									Token: authToken,
 								},
@@ -2723,7 +2780,8 @@ func TestWorkspaceWatcher(t *testing.T) {
 						Name: "example",
 						Type: "aws_instance",
 						Agents: []*proto.Agent{{
-							Id: uuid.NewString(),
+							Id:   uuid.NewString(),
+							Name: "dev",
 							Auth: &proto.Agent_Token{
 								Token: authToken,
 							},
@@ -2945,6 +3003,7 @@ func TestWorkspaceResource(t *testing.T) {
 							Type: "example",
 							Agents: []*proto.Agent{{
 								Id:   "something",
+								Name: "dev",
 								Auth: &proto.Agent_Token{},
 								Apps: apps,
 							}},
@@ -3019,6 +3078,7 @@ func TestWorkspaceResource(t *testing.T) {
 							Type: "example",
 							Agents: []*proto.Agent{{
 								Id:   "something",
+								Name: "dev",
 								Auth: &proto.Agent_Token{},
 								Apps: apps,
 							}},
@@ -3062,6 +3122,7 @@ func TestWorkspaceResource(t *testing.T) {
 							Type: "example",
 							Agents: []*proto.Agent{{
 								Id:   "something",
+								Name: "dev",
 								Auth: &proto.Agent_Token{},
 							}},
 							Metadata: []*proto.Resource_Metadata{{

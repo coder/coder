@@ -2,10 +2,8 @@ import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import CreateIcon from "@mui/icons-material/AddOutlined";
 import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
 import CloseOutlined from "@mui/icons-material/CloseOutlined";
-import PlayArrowOutlined from "@mui/icons-material/PlayArrowOutlined";
 import WarningOutlined from "@mui/icons-material/WarningOutlined";
 import Button from "@mui/material/Button";
-import ButtonGroup from "@mui/material/ButtonGroup";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
 import { getErrorDetail, getErrorMessage } from "api/errors";
@@ -29,6 +27,7 @@ import {
 } from "components/FullPageLayout/Topbar";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
+import { PlayIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { ProvisionerAlert } from "modules/provisioners/ProvisionerAlert";
 import { AlertVariant } from "modules/provisioners/ProvisionerAlert";
@@ -260,48 +259,25 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 					>
 						<TemplateVersionStatusBadge version={templateVersion} />
 
-						<ButtonGroup
-							variant="outlined"
-							css={{
-								// Workaround to make the border transitions smoothly on button groups
-								"& > button:hover + button": {
-									borderLeft: "1px solid #FFF",
-								},
-							}}
-							disabled={!canBuild}
-						>
+						<div className="flex gap-1 items-center">
 							<TopbarButton
-								startIcon={
-									<PlayArrowOutlined
-										css={{ color: theme.palette.success.light }}
-									/>
-								}
 								title="Build template (Ctrl + Enter)"
 								disabled={!canBuild}
 								onClick={async () => {
 									await triggerPreview();
 								}}
 							>
+								<PlayIcon />
 								Build
 							</TopbarButton>
 							<ProvisionerTagsPopover
 								tags={provisionerTags}
-								onSubmit={({ key, value }) => {
-									onUpdateProvisionerTags({
-										...provisionerTags,
-										[key]: value,
-									});
-								}}
-								onDelete={(key) => {
-									const newTags = { ...provisionerTags };
-									delete newTags[key];
-									onUpdateProvisionerTags(newTags);
-								}}
+								onTagsChange={onUpdateProvisionerTags}
 							/>
-						</ButtonGroup>
+						</div>
 
 						<TopbarButton
-							variant="contained"
+							variant="default"
 							disabled={dirty || !canPublish}
 							onClick={onPublish}
 						>
@@ -555,6 +531,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 									}}
 								>
 									<button
+										type="button"
 										disabled={!buildLogs}
 										css={styles.tab}
 										className={selectedTab === "logs" ? "active" : ""}
@@ -566,6 +543,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 									</button>
 
 									<button
+										type="button"
 										disabled={!canPublish}
 										css={styles.tab}
 										className={selectedTab === "resources" ? "active" : ""}

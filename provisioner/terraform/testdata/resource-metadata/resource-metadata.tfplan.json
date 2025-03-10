@@ -1,6 +1,6 @@
 {
   "format_version": "1.2",
-  "terraform_version": "1.9.8",
+  "terraform_version": "1.11.0",
   "planned_values": {
     "root_module": {
       "resources": [
@@ -10,14 +10,13 @@
           "type": "coder_agent",
           "name": "main",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 0,
+          "schema_version": 1,
           "values": {
             "arch": "amd64",
             "auth": "token",
             "connection_timeout": 120,
             "dir": null,
             "env": null,
-            "login_before_ready": true,
             "metadata": [
               {
                 "display_name": "Process Count",
@@ -32,10 +31,8 @@
             "order": null,
             "os": "linux",
             "shutdown_script": null,
-            "shutdown_script_timeout": 300,
             "startup_script": null,
-            "startup_script_behavior": null,
-            "startup_script_timeout": 300,
+            "startup_script_behavior": "non-blocking",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -52,7 +49,7 @@
           "type": "coder_metadata",
           "name": "about_info",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 0,
+          "schema_version": 1,
           "values": {
             "daily_cost": 29,
             "hide": true,
@@ -122,7 +119,6 @@
           "connection_timeout": 120,
           "dir": null,
           "env": null,
-          "login_before_ready": true,
           "metadata": [
             {
               "display_name": "Process Count",
@@ -137,10 +133,8 @@
           "order": null,
           "os": "linux",
           "shutdown_script": null,
-          "shutdown_script_timeout": 300,
           "startup_script": null,
-          "startup_script_behavior": null,
-          "startup_script_timeout": 300,
+          "startup_script_behavior": "non-blocking",
           "troubleshooting_url": null
         },
         "after_unknown": {
@@ -256,7 +250,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "0.22.0"
+        "version_constraint": ">= 2.0.0"
       },
       "null": {
         "name": "null",
@@ -301,7 +295,7 @@
               "constant_value": "linux"
             }
           },
-          "schema_version": 0
+          "schema_version": 1
         },
         {
           "address": "coder_metadata.about_info",
@@ -360,7 +354,7 @@
               ]
             }
           },
-          "schema_version": 0
+          "schema_version": 1
         },
         {
           "address": "null_resource.about",
@@ -384,7 +378,7 @@
       ]
     }
   ],
-  "timestamp": "2024-10-28T20:08:11Z",
+  "timestamp": "2025-03-03T20:39:59Z",
   "applyable": true,
   "complete": true,
   "errored": false

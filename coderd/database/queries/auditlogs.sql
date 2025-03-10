@@ -16,7 +16,6 @@ SELECT
     users.rbac_roles AS user_roles,
     users.avatar_url AS user_avatar_url,
     users.deleted AS user_deleted,
-    users.theme_preference AS user_theme_preference,
     users.quiet_hours_schedule AS user_quiet_hours_schedule,
     COALESCE(organizations.name, '') AS organization_name,
     COALESCE(organizations.display_name, '') AS organization_display_name,
@@ -117,6 +116,12 @@ WHERE
             workspace_builds.reason::text = @build_reason
         ELSE true
     END
+	-- Filter request_id
+	AND CASE
+		WHEN @request_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			audit_logs.request_id = @request_id
+		ELSE true
+	END
 
 	-- Authorize Filter clause will be injected below in GetAuthorizedAuditLogsOffset
 	-- @authorize_filter

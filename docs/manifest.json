@@ -16,6 +16,11 @@
 					"title": "Screenshots",
 					"description": "View screenshots of the Coder platform",
 					"path": "./start/screenshots.md"
+				},
+				{
+					"title": "Feature stages",
+					"description": "Information about pre-GA stages.",
+					"path": "./about/feature-stages.md"
 				}
 			]
 		},
@@ -157,8 +162,20 @@
 							"title": "Web IDEs and Coder Apps",
 							"description": "Access your workspace with IDEs in the browser",
 							"path": "./user-guides/workspace-access/web-ides.md"
+						},
+						{
+							"title": "Zed",
+							"description": "Access your workspace with Zed",
+							"path": "./user-guides/workspace-access/zed.md"
 						}
 					]
+				},
+				{
+					"title": "Coder Desktop",
+					"description": "Use Coder Desktop to access your workspace like it's a local machine",
+					"path": "./user-guides/desktop/index.md",
+					"icon_path": "./images/icons/computer-code.svg",
+					"state": ["early access"]
 				},
 				{
 					"title": "Workspace Management",
@@ -286,14 +303,14 @@
 							"state": ["enterprise", "premium"]
 						},
 						{
-							"title": "IDP Sync",
+							"title": "IdP Sync",
 							"path": "./admin/users/idp-sync.md",
 							"state": ["enterprise", "premium"]
 						},
 						{
 							"title": "Organizations",
 							"path": "./admin/users/organizations.md",
-							"state": ["premium", "beta"]
+							"state": ["premium"]
 						},
 						{
 							"title": "Quotas",
@@ -390,6 +407,11 @@
 									"title": "Resource Metadata",
 									"description": "Display resource state in the workspace dashboard",
 									"path": "./admin/templates/extending-templates/resource-metadata.md"
+								},
+								{
+									"title": "Resource Monitoring",
+									"description": "Monitor resources in the workspace dashboard",
+									"path": "./admin/templates/extending-templates/resource-monitoring.md"
 								},
 								{
 									"title": "Resource Ordering",
@@ -505,6 +527,11 @@
 							"title": "Island Secure Browser",
 							"description": "Integrate Coder with Island's Secure Browser",
 							"path": "./admin/integrations/island.md"
+						},
+						{
+							"title": "DX PlatformX",
+							"description": "Integrate Coder with DX PlatformX",
+							"path": "./admin/integrations/platformx.md"
 						},
 						{
 							"title": "Hashicorp Vault",
@@ -635,12 +662,6 @@
 					"description": "See the code of conduct for contributing to Coder",
 					"path": "./contributing/CODE_OF_CONDUCT.md",
 					"icon_path": "./images/icons/circle-dot.svg"
-				},
-				{
-					"title": "Feature stages",
-					"description": "Policies for Alpha and Experimental features.",
-					"path": "./contributing/feature-stages.md",
-					"icon_path": "./images/icons/stairs.svg"
 				},
 				{
 					"title": "Documentation",
@@ -1036,6 +1057,11 @@
 							"path": "reference/cli/notifications_resume.md"
 						},
 						{
+							"title": "notifications test",
+							"description": "Send a test notification",
+							"path": "reference/cli/notifications_test.md"
+						},
+						{
 							"title": "open",
 							"description": "Open a workspace",
 							"path": "reference/cli/open.md"
@@ -1164,6 +1190,11 @@
 							"title": "provisioner jobs",
 							"description": "View and manage provisioner jobs",
 							"path": "reference/cli/provisioner_jobs.md"
+						},
+						{
+							"title": "provisioner jobs cancel",
+							"description": "Cancel a provisioner job",
+							"path": "reference/cli/provisioner_jobs_cancel.md"
 						},
 						{
 							"title": "provisioner jobs list",

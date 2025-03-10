@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"runtime"
 
+	"golang.org/x/xerrors"
+
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/migrations"
 )
@@ -37,25 +39,34 @@ func main() {
 		}
 	}()
 
-	connection, cleanup, err := dbtestutil.OpenContainerized(t, dbtestutil.DBContainerOptions{})
-	if err != nil {
-		panic(err)
+	connection := os.Getenv("DB_DUMP_CONNECTION_URL")
+	if connection == "" {
+		var cleanup func()
+		var err error
+		connection, cleanup, err = dbtestutil.OpenContainerized(t, dbtestutil.DBContainerOptions{})
+		if err != nil {
+			err = xerrors.Errorf("open containerized database failed: %w", err)
+			panic(err)
+		}
+		defer cleanup()
 	}
-	defer cleanup()
 
 	db, err := sql.Open("postgres", connection)
 	if err != nil {
+		err = xerrors.Errorf("open database failed: %w", err)
 		panic(err)
 	}
 	defer db.Close()
 
 	err = migrations.Up(db)
 	if err != nil {
+		err = xerrors.Errorf("run migrations failed: %w", err)
 		panic(err)
 	}
 
 	dumpBytes, err := dbtestutil.PGDumpSchemaOnly(connection)
 	if err != nil {
+		err = xerrors.Errorf("dump schema failed: %w", err)
 		panic(err)
 	}
 
@@ -65,6 +76,7 @@ func main() {
 	}
 	err = os.WriteFile(filepath.Join(mainPath, "..", "..", "..", "dump.sql"), append(preamble, dumpBytes...), 0o600)
 	if err != nil {
+		err = xerrors.Errorf("write dump failed: %w", err)
 		panic(err)
 	}
 }

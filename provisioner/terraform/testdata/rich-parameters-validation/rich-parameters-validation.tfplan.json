@@ -1,6 +1,6 @@
 {
   "format_version": "1.2",
-  "terraform_version": "1.9.8",
+  "terraform_version": "1.11.0",
   "planned_values": {
     "root_module": {
       "resources": [
@@ -10,23 +10,20 @@
           "type": "coder_agent",
           "name": "dev",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 0,
+          "schema_version": 1,
           "values": {
             "arch": "arm64",
             "auth": "token",
             "connection_timeout": 120,
             "dir": null,
             "env": null,
-            "login_before_ready": true,
             "metadata": [],
             "motd_file": null,
             "order": null,
             "os": "windows",
             "shutdown_script": null,
-            "shutdown_script_timeout": 300,
             "startup_script": null,
-            "startup_script_behavior": null,
-            "startup_script_timeout": 300,
+            "startup_script_behavior": "non-blocking",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -68,16 +65,13 @@
           "connection_timeout": 120,
           "dir": null,
           "env": null,
-          "login_before_ready": true,
           "metadata": [],
           "motd_file": null,
           "order": null,
           "os": "windows",
           "shutdown_script": null,
-          "shutdown_script_timeout": 300,
           "startup_script": null,
-          "startup_script_behavior": null,
-          "startup_script_timeout": 300,
+          "startup_script_behavior": "non-blocking",
           "troubleshooting_url": null
         },
         "after_unknown": {
@@ -119,7 +113,7 @@
   ],
   "prior_state": {
     "format_version": "1.0",
-    "terraform_version": "1.9.8",
+    "terraform_version": "1.11.0",
     "values": {
       "root_module": {
         "resources": [
@@ -136,7 +130,7 @@
               "display_name": null,
               "ephemeral": true,
               "icon": null,
-              "id": "df8ad066-047d-434d-baa3-e19517ee7395",
+              "id": "44d79e2a-4bbf-42a7-8959-0bc07e37126b",
               "mutable": true,
               "name": "number_example",
               "option": null,
@@ -163,7 +157,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "7d9658aa-ff69-477a-9063-e9fd49fd9a9b",
+              "id": "ae80adac-870e-4b35-b4e4-57abf91a1fe2",
               "mutable": false,
               "name": "number_example_max",
               "option": null,
@@ -202,7 +196,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "bd6fcaac-db7f-4c4d-a664-fe7f47fad28a",
+              "id": "6a52ec1e-b8b8-4445-a255-2020cc93a952",
               "mutable": false,
               "name": "number_example_max_zero",
               "option": null,
@@ -241,7 +235,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "8d42942d-5a10-43c9-a31d-d3fe9a7814e8",
+              "id": "9c799b8e-7cc1-435b-9789-71d8c4cd45dc",
               "mutable": false,
               "name": "number_example_min",
               "option": null,
@@ -280,7 +274,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "695301d0-8325-4685-824d-1ca9591689e3",
+              "id": "a1da93d3-10a9-4a55-a4db-fba2fbc271d3",
               "mutable": false,
               "name": "number_example_min_max",
               "option": null,
@@ -319,7 +313,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "cd921934-d1b1-4370-8a73-2d43658ea877",
+              "id": "f6555b94-c121-49df-b577-f06e8b5b9adc",
               "mutable": false,
               "name": "number_example_min_zero",
               "option": null,
@@ -354,7 +348,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "0.22.0"
+        "version_constraint": ">= 2.0.0"
       },
       "null": {
         "name": "null",
@@ -377,7 +371,7 @@
               "constant_value": "windows"
             }
           },
-          "schema_version": 0
+          "schema_version": 1
         },
         {
           "address": "null_resource.dev",
@@ -551,7 +545,7 @@
       ]
     }
   },
-  "timestamp": "2024-10-28T20:08:18Z",
+  "timestamp": "2025-03-03T20:39:59Z",
   "applyable": true,
   "complete": true,
   "errored": false

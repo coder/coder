@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -19,7 +20,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
@@ -392,12 +392,19 @@ func TestNotifyUserStatusChanged(t *testing.T) {
 		// Validate that each expected notification is present in notifyEnq.Sent()
 		for _, expected := range expectedNotifications {
 			found := false
-			for _, sent := range notifyEnq.Sent() {
+			for _, sent := range notifyEnq.Sent(notificationstest.WithTemplateID(expected.TemplateID)) {
 				if sent.TemplateID == expected.TemplateID &&
 					sent.UserID == expected.UserID &&
 					slices.Contains(sent.Targets, member.ID) &&
 					sent.Labels[label] == member.Username {
 					found = true
+
+					require.IsType(t, map[string]any{}, sent.Data["user"])
+					userData := sent.Data["user"].(map[string]any)
+					require.Equal(t, member.ID, userData["id"])
+					require.Equal(t, member.Name, userData["name"])
+					require.Equal(t, member.Email, userData["email"])
+
 					break
 				}
 			}
@@ -824,6 +831,7 @@ func TestPostUsers(t *testing.T) {
 		// Try to log in with OIDC.
 		userClient, _ := fake.Login(t, client, jwt.MapClaims{
 			"email": email,
+			"sub":   uuid.NewString(),
 		})
 
 		found, err := userClient.User(ctx, "me")
@@ -858,11 +866,18 @@ func TestNotifyCreatedUser(t *testing.T) {
 		require.NoError(t, err)
 
 		// then
-		require.Len(t, notifyEnq.Sent(), 1)
-		require.Equal(t, notifications.TemplateUserAccountCreated, notifyEnq.Sent()[0].TemplateID)
-		require.Equal(t, firstUser.UserID, notifyEnq.Sent()[0].UserID)
-		require.Contains(t, notifyEnq.Sent()[0].Targets, user.ID)
-		require.Equal(t, user.Username, notifyEnq.Sent()[0].Labels["created_account_name"])
+		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateUserAccountCreated))
+		require.Len(t, sent, 1)
+		require.Equal(t, notifications.TemplateUserAccountCreated, sent[0].TemplateID)
+		require.Equal(t, firstUser.UserID, sent[0].UserID)
+		require.Contains(t, sent[0].Targets, user.ID)
+		require.Equal(t, user.Username, sent[0].Labels["created_account_name"])
+
+		require.IsType(t, map[string]any{}, sent[0].Data["user"])
+		userData := sent[0].Data["user"].(map[string]any)
+		require.Equal(t, user.ID, userData["id"])
+		require.Equal(t, user.Name, userData["name"])
+		require.Equal(t, user.Email, userData["email"])
 	})
 
 	t.Run("UserAdminNotified", func(t *testing.T) {

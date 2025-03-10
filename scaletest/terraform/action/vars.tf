@@ -85,3 +85,8 @@ variable "provisionerd_image_tag" {
   description = "Tag to use for Provisionerd image."
   default     = "latest"
 }
+
+// Prometheus
+variable "prometheus_remote_write_url" {
+  description = "URL to push prometheus metrics to."
+}

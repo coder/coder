@@ -363,19 +363,20 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 	var workspaceBuild database.WorkspaceBuild
 	err = b.store.InTx(func(store database.Store) error {
 		err = store.InsertWorkspaceBuild(b.ctx, database.InsertWorkspaceBuildParams{
-			ID:                workspaceBuildID,
-			CreatedAt:         now,
-			UpdatedAt:         now,
-			WorkspaceID:       b.workspace.ID,
-			TemplateVersionID: templateVersionID,
-			BuildNumber:       buildNum,
-			ProvisionerState:  state,
-			InitiatorID:       b.initiator,
-			Transition:        b.trans,
-			JobID:             provisionerJob.ID,
-			Reason:            b.reason,
-			Deadline:          time.Time{}, // set by provisioner upon completion
-			MaxDeadline:       time.Time{}, // set by provisioner upon completion
+			ID:                      workspaceBuildID,
+			CreatedAt:               now,
+			UpdatedAt:               now,
+			WorkspaceID:             b.workspace.ID,
+			TemplateVersionID:       templateVersionID,
+			BuildNumber:             buildNum,
+			ProvisionerState:        state,
+			InitiatorID:             b.initiator,
+			Transition:              b.trans,
+			JobID:                   provisionerJob.ID,
+			Reason:                  b.reason,
+			Deadline:                time.Time{},     // set by provisioner upon completion
+			MaxDeadline:             time.Time{},     // set by provisioner upon completion
+			TemplateVersionPresetID: uuid.NullUUID{}, // TODO (sasswart): add this in from the caller
 		})
 		if err != nil {
 			code := http.StatusInternalServerError
@@ -789,6 +790,15 @@ func (b *Builder) authorize(authFunc func(action policy.Action, object rbac.Obje
 		return BuildError{http.StatusBadRequest, msg, xerrors.New(msg)}
 	}
 	if !authFunc(action, b.workspace) {
+		if authFunc(policy.ActionRead, b.workspace) {
+			// If the user can read the workspace, but not delete/create/update. Show
+			// a more helpful error. They are allowed to know the workspace exists.
+			return BuildError{
+				Status:  http.StatusForbidden,
+				Message: fmt.Sprintf("You do not have permission to %s this workspace.", action),
+				Wrapped: xerrors.New(httpapi.ResourceForbiddenResponse.Detail),
+			}
+		}
 		// We use the same wording as the httpapi to avoid leaking the existence of the workspace
 		return BuildError{http.StatusNotFound, httpapi.ResourceNotFoundResponse.Message, xerrors.New(httpapi.ResourceNotFoundResponse.Message)}
 	}

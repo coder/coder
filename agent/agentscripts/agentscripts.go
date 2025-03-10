@@ -283,14 +283,14 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 		cmdCtx, ctxCancel = context.WithTimeout(ctx, script.Timeout)
 		defer ctxCancel()
 	}
-	cmdPty, err := r.SSHServer.CreateCommand(cmdCtx, script.Script, nil)
+	cmdPty, err := r.SSHServer.CreateCommand(cmdCtx, script.Script, nil, nil)
 	if err != nil {
 		return xerrors.Errorf("%s script: create command: %w", logPath, err)
 	}
 	cmd = cmdPty.AsExec()
 	cmd.SysProcAttr = cmdSysProcAttr()
 	cmd.WaitDelay = 10 * time.Second
-	cmd.Cancel = cmdCancel(cmd)
+	cmd.Cancel = cmdCancel(ctx, logger, cmd)
 
 	// Expose env vars that can be used in the script for storing data
 	// and binaries. In the future, we may want to expose more env vars

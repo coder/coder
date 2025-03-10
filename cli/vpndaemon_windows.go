@@ -41,7 +41,10 @@ func (r *RootCmd) vpnDaemonRun() *serpent.Command {
 		},
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
-			logger := inv.Logger.AppendSinks(sloghuman.Sink(inv.Stderr)).Leveled(slog.LevelDebug)
+			sinks := []slog.Sink{
+				sloghuman.Sink(inv.Stderr),
+			}
+			logger := inv.Logger.AppendSinks(sinks...).Leveled(slog.LevelDebug)
 
 			if rpcReadHandleInt < 0 || rpcWriteHandleInt < 0 {
 				return xerrors.Errorf("rpc-read-handle (%v) and rpc-write-handle (%v) must be positive", rpcReadHandleInt, rpcWriteHandleInt)
@@ -60,7 +63,11 @@ func (r *RootCmd) vpnDaemonRun() *serpent.Command {
 			defer pipe.Close()
 
 			logger.Info(ctx, "starting tunnel")
-			tunnel, err := vpn.NewTunnel(ctx, logger, pipe, vpn.NewClient())
+			tunnel, err := vpn.NewTunnel(ctx, logger, pipe, vpn.NewClient(),
+				vpn.UseOSNetworkingStack(),
+				vpn.UseAsLogger(),
+				vpn.UseCustomLogSinks(sinks...),
+			)
 			if err != nil {
 				return xerrors.Errorf("create new tunnel for client: %w", err)
 			}

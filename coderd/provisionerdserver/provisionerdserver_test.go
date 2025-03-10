@@ -30,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
@@ -101,7 +102,7 @@ func TestHeartbeat(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	heartbeatChan := make(chan struct{})
 	heartbeatFn := func(hbCtx context.Context) error {
-		t.Logf("heartbeat")
+		t.Log("heartbeat")
 		select {
 		case <-hbCtx.Done():
 			return hbCtx.Err()
@@ -376,6 +377,7 @@ func TestAcquireJob(t *testing.T) {
 						WorkspaceOwnerSshPrivateKey:   sshKey.PrivateKey,
 						WorkspaceBuildId:              build.ID.String(),
 						WorkspaceOwnerLoginType:       string(user.LoginType),
+						WorkspaceOwnerRbacRoles:       []*sdkproto.Role{{Name: "member", OrgId: pd.OrganizationID.String()}},
 					},
 				},
 			})
@@ -1708,6 +1710,155 @@ func TestCompleteJob(t *testing.T) {
 	})
 }
 
+func TestInsertWorkspacePresetsAndParameters(t *testing.T) {
+	t.Parallel()
+
+	type testCase struct {
+		name         string
+		givenPresets []*sdkproto.Preset
+	}
+
+	testCases := []testCase{
+		{
+			name: "no presets",
+		},
+		{
+			name: "one preset with no parameters",
+			givenPresets: []*sdkproto.Preset{
+				{
+					Name: "preset1",
+				},
+			},
+		},
+		{
+			name: "one preset with multiple parameters",
+			givenPresets: []*sdkproto.Preset{
+				{
+					Name: "preset1",
+					Parameters: []*sdkproto.PresetParameter{
+						{
+							Name:  "param1",
+							Value: "value1",
+						},
+						{
+							Name:  "param2",
+							Value: "value2",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "multiple presets with parameters",
+			givenPresets: []*sdkproto.Preset{
+				{
+					Name: "preset1",
+					Parameters: []*sdkproto.PresetParameter{
+						{
+							Name:  "param1",
+							Value: "value1",
+						},
+						{
+							Name:  "param2",
+							Value: "value2",
+						},
+					},
+				},
+				{
+					Name: "preset2",
+					Parameters: []*sdkproto.PresetParameter{
+						{
+							Name:  "param3",
+							Value: "value3",
+						},
+						{
+							Name:  "param4",
+							Value: "value4",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, c := range testCases {
+		c := c
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			logger := testutil.Logger(t)
+			db, ps := dbtestutil.NewDB(t)
+			org := dbgen.Organization(t, db, database.Organization{})
+			user := dbgen.User(t, db, database.User{})
+			job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+				Type:           database.ProvisionerJobTypeWorkspaceBuild,
+				OrganizationID: org.ID,
+			})
+			templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+				JobID:          job.ID,
+				OrganizationID: org.ID,
+				CreatedBy:      user.ID,
+			})
+
+			err := provisionerdserver.InsertWorkspacePresetsAndParameters(
+				ctx,
+				logger,
+				db,
+				job.ID,
+				templateVersion.ID,
+				c.givenPresets,
+				time.Now(),
+			)
+			require.NoError(t, err)
+
+			gotPresets, err := db.GetPresetsByTemplateVersionID(ctx, templateVersion.ID)
+			require.NoError(t, err)
+			require.Len(t, gotPresets, len(c.givenPresets))
+
+			for _, givenPreset := range c.givenPresets {
+				foundMatch := false
+				for _, gotPreset := range gotPresets {
+					if givenPreset.Name == gotPreset.Name {
+						foundMatch = true
+						break
+					}
+				}
+				require.True(t, foundMatch, "preset %s not found in parameters", givenPreset.Name)
+			}
+
+			gotPresetParameters, err := db.GetPresetParametersByTemplateVersionID(ctx, templateVersion.ID)
+			require.NoError(t, err)
+
+			for _, givenPreset := range c.givenPresets {
+				for _, givenParameter := range givenPreset.Parameters {
+					foundMatch := false
+					for _, gotParameter := range gotPresetParameters {
+						nameMatches := givenParameter.Name == gotParameter.Name
+						valueMatches := givenParameter.Value == gotParameter.Value
+
+						// ensure that preset parameters are matched to the correct preset:
+						var gotPreset database.TemplateVersionPreset
+						for _, preset := range gotPresets {
+							if preset.ID == gotParameter.TemplateVersionPresetID {
+								gotPreset = preset
+								break
+							}
+						}
+						presetMatches := gotPreset.Name == givenPreset.Name
+
+						if nameMatches && valueMatches && presetMatches {
+							foundMatch = true
+							break
+						}
+					}
+					require.True(t, foundMatch, "preset parameter %s not found in presets", givenParameter.Name)
+				}
+			}
+		})
+	}
+}
+
 func TestInsertWorkspaceResource(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -1733,6 +1884,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 			Name: "something",
 			Type: "aws_instance",
 			Agents: []*sdkproto.Agent{{
+				Name: "dev",
 				Auth: &sdkproto.Agent_Token{
 					Token: "bananas",
 				},
@@ -1746,6 +1898,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 			Name: "something",
 			Type: "aws_instance",
 			Agents: []*sdkproto.Agent{{
+				Name: "dev",
 				Apps: []*sdkproto.App{{
 					Slug: "a",
 				}, {
@@ -1753,7 +1906,116 @@ func TestInsertWorkspaceResource(t *testing.T) {
 				}},
 			}},
 		})
-		require.ErrorContains(t, err, "duplicate app slug")
+		require.ErrorContains(t, err, `duplicate app slug, must be unique per template: "a"`)
+		err = insert(dbmem.New(), uuid.New(), &sdkproto.Resource{
+			Name: "something",
+			Type: "aws_instance",
+			Agents: []*sdkproto.Agent{{
+				Name: "dev1",
+				Apps: []*sdkproto.App{{
+					Slug: "a",
+				}},
+			}, {
+				Name: "dev2",
+				Apps: []*sdkproto.App{{
+					Slug: "a",
+				}},
+			}},
+		})
+		require.ErrorContains(t, err, `duplicate app slug, must be unique per template: "a"`)
+	})
+	t.Run("AppSlugInvalid", func(t *testing.T) {
+		t.Parallel()
+		db := dbmem.New()
+		job := uuid.New()
+		err := insert(db, job, &sdkproto.Resource{
+			Name: "something",
+			Type: "aws_instance",
+			Agents: []*sdkproto.Agent{{
+				Name: "dev",
+				Apps: []*sdkproto.App{{
+					Slug: "dev_1",
+				}},
+			}},
+		})
+		require.ErrorContains(t, err, `app slug "dev_1" does not match regex`)
+		err = insert(db, job, &sdkproto.Resource{
+			Name: "something",
+			Type: "aws_instance",
+			Agents: []*sdkproto.Agent{{
+				Name: "dev",
+				Apps: []*sdkproto.App{{
+					Slug: "dev--1",
+				}},
+			}},
+		})
+		require.ErrorContains(t, err, `app slug "dev--1" does not match regex`)
+		err = insert(db, job, &sdkproto.Resource{
+			Name: "something",
+			Type: "aws_instance",
+			Agents: []*sdkproto.Agent{{
+				Name: "dev",
+				Apps: []*sdkproto.App{{
+					Slug: "Dev",
+				}},
+			}},
+		})
+		require.ErrorContains(t, err, `app slug "Dev" does not match regex`)
+	})
+	t.Run("DuplicateAgentNames", func(t *testing.T) {
+		t.Parallel()
+		db := dbmem.New()
+		job := uuid.New()
+		// case-insensitive-unique
+		err := insert(db, job, &sdkproto.Resource{
+			Name: "something",
+			Type: "aws_instance",
+			Agents: []*sdkproto.Agent{{
+				Name: "dev",
+			}, {
+				Name: "Dev",
+			}},
+		})
+		require.ErrorContains(t, err, "duplicate agent name")
+		err = insert(db, job, &sdkproto.Resource{
+			Name: "something",
+			Type: "aws_instance",
+			Agents: []*sdkproto.Agent{{
+				Name: "dev",
+			}, {
+				Name: "dev",
+			}},
+		})
+		require.ErrorContains(t, err, "duplicate agent name")
+	})
+	t.Run("AgentNameInvalid", func(t *testing.T) {
+		t.Parallel()
+		db := dbmem.New()
+		job := uuid.New()
+		err := insert(db, job, &sdkproto.Resource{
+			Name: "something",
+			Type: "aws_instance",
+			Agents: []*sdkproto.Agent{{
+				Name: "Dev",
+			}},
+		})
+		require.NoError(t, err) // uppercase is still allowed
+		err = insert(db, job, &sdkproto.Resource{
+			Name: "something",
+			Type: "aws_instance",
+			Agents: []*sdkproto.Agent{{
+				Name: "dev_1",
+			}},
+		})
+		require.ErrorContains(t, err, `agent name "dev_1" contains underscores`) // custom error for underscores
+		err = insert(db, job, &sdkproto.Resource{
+			Name: "something",
+			Type: "aws_instance",
+			Agents: []*sdkproto.Agent{{
+				Name: "dev--1",
+			}},
+		})
+		require.ErrorContains(t, err, `agent name "dev--1" does not match regex`)
 	})
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
@@ -1831,6 +2093,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 			Name: "something",
 			Type: "aws_instance",
 			Agents: []*sdkproto.Agent{{
+				Name: "dev",
 				DisplayApps: &sdkproto.DisplayApps{
 					Vscode:               true,
 					VscodeInsiders:       true,
@@ -1859,6 +2122,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 			Name: "something",
 			Type: "aws_instance",
 			Agents: []*sdkproto.Agent{{
+				Name:        "dev",
 				DisplayApps: &sdkproto.DisplayApps{},
 			}},
 		})
@@ -1873,6 +2137,58 @@ func TestInsertWorkspaceResource(t *testing.T) {
 		// An empty array (as opposed to nil) should be returned to indicate
 		// that all apps are disabled.
 		require.Equal(t, []database.DisplayApp{}, agent.DisplayApps)
+	})
+
+	t.Run("ResourcesMonitoring", func(t *testing.T) {
+		t.Parallel()
+		db := dbmem.New()
+		job := uuid.New()
+		err := insert(db, job, &sdkproto.Resource{
+			Name: "something",
+			Type: "aws_instance",
+			Agents: []*sdkproto.Agent{{
+				Name:        "dev",
+				DisplayApps: &sdkproto.DisplayApps{},
+				ResourcesMonitoring: &sdkproto.ResourcesMonitoring{
+					Memory: &sdkproto.MemoryResourceMonitor{
+						Enabled:   true,
+						Threshold: 80,
+					},
+					Volumes: []*sdkproto.VolumeResourceMonitor{
+						{
+							Path:      "/volume1",
+							Enabled:   true,
+							Threshold: 90,
+						},
+						{
+							Path:      "/volume2",
+							Enabled:   true,
+							Threshold: 50,
+						},
+					},
+				},
+			}},
+		})
+		require.NoError(t, err)
+		resources, err := db.GetWorkspaceResourcesByJobID(ctx, job)
+		require.NoError(t, err)
+		require.Len(t, resources, 1)
+		agents, err := db.GetWorkspaceAgentsByResourceIDs(ctx, []uuid.UUID{resources[0].ID})
+		require.NoError(t, err)
+		require.Len(t, agents, 1)
+
+		agent := agents[0]
+		memMonitor, err := db.FetchMemoryResourceMonitorsByAgentID(ctx, agent.ID)
+		require.NoError(t, err)
+		volMonitors, err := db.FetchVolumesResourceMonitorsByAgentID(ctx, agent.ID)
+		require.NoError(t, err)
+
+		require.Equal(t, int32(80), memMonitor.Threshold)
+		require.Len(t, volMonitors, 2)
+		require.Equal(t, int32(90), volMonitors[0].Threshold)
+		require.Equal(t, "/volume1", volMonitors[0].Path)
+		require.Equal(t, int32(50), volMonitors[1].Threshold)
+		require.Equal(t, "/volume2", volMonitors[1].Path)
 	})
 }
 
@@ -2272,7 +2588,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 		Version:        buildinfo.Version(),
 		APIVersion:     proto.CurrentVersion.String(),
 		OrganizationID: defOrg.ID,
-		KeyID:          uuid.MustParse(codersdk.ProvisionerKeyIDBuiltIn),
+		KeyID:          codersdk.ProvisionerKeyUUIDBuiltIn,
 	})
 	require.NoError(t, err)
 

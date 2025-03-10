@@ -34,12 +34,12 @@ jobs:
       tailnet-integration: ${{ steps.filter.outputs.tailnet-integration }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 1
       # For pull requests it's not necessary to checkout the code
@@ -122,7 +122,7 @@ jobs:
   #   runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
   #   steps:
   #     - name: Checkout
-  #       uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+  #       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
   #       with:
   #         fetch-depth: 1
   #         # See: https://github.com/stefanzweifel/git-auto-commit-action?tab=readme-ov-file#commits-made-by-this-action-do-not-trigger-new-workflow-runs
@@ -155,12 +155,12 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 1
 
@@ -178,7 +178,7 @@ jobs:
           echo "LINT_CACHE_DIR=$dir" >> $GITHUB_ENV
 
       - name: golangci-lint cache
-        uses: actions/cache@2cdf405574d6ef1f33a1d12acccd3ae82f47b3f2 # v4.1.0
+        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
         with:
           path: |
             ${{ env.LINT_CACHE_DIR }}
@@ -188,7 +188,7 @@ jobs:
 
       # Check for any typos
       - name: Check for typos
-        uses: crate-ci/typos@685eb3d55be2f85191e8c84acb9f44d7756f84ab # v1.29.4
+        uses: crate-ci/typos@db35ee91e80fbb447f33b0e5fbddb24d2a1a884f # v1.29.10
         with:
           config: .github/workflows/typos.toml
 
@@ -201,7 +201,7 @@ jobs:
 
       # Needed for helm chart linting
       - name: Install helm
-        uses: azure/setup-helm@fe7b79cd5ee1e45176fcad797de68ecaf3ca4814 # v4.2.0
+        uses: azure/setup-helm@b9e51907a09c216f16ebe8536097933489208112 # v4.3.0
         with:
           version: v3.9.2
 
@@ -227,12 +227,12 @@ jobs:
     if: always()
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 1
 
@@ -251,16 +251,16 @@ jobs:
       - name: go install tools
         run: |
           go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30
-          go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.33
+          go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.34
           go install golang.org/x/tools/cmd/goimports@latest
-          go install github.com/mikefarah/yq/v4@v4.30.6
-          go install go.uber.org/mock/mockgen@v0.4.0
+          go install github.com/mikefarah/yq/v4@v4.44.3
+          go install go.uber.org/mock/mockgen@v0.5.0
 
       - name: Install Protoc
         run: |
           mkdir -p /tmp/proto
           pushd /tmp/proto
-          curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.3/protoc-23.3-linux-x86_64.zip
+          curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-linux-x86_64.zip
           unzip protoc.zip
           cp -r ./bin/* /usr/local/bin
           cp -r ./include /usr/local/bin/include
@@ -290,12 +290,12 @@ jobs:
     timeout-minutes: 7
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 1
 
@@ -331,12 +331,12 @@ jobs:
           - windows-2022
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 1
 
@@ -391,12 +391,12 @@ jobs:
           - windows-2022
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 1
 
@@ -447,12 +447,12 @@ jobs:
           - ubuntu-latest
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 1
 
@@ -504,12 +504,12 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 1
 
@@ -541,12 +541,12 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 1
 
@@ -579,12 +579,12 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 1
 
@@ -627,12 +627,12 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 1
 
@@ -653,12 +653,12 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 1
 
@@ -685,12 +685,12 @@ jobs:
     name: ${{ matrix.variant.name }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 1
 
@@ -703,6 +703,9 @@ jobs:
       # Assume that the checked-in versions are up-to-date
       - run: make gen/mark-fresh
         name: make gen
+
+      - run: make site/e2e/bin/coder
+        name: make coder
 
       - run: pnpm build
         env:
@@ -730,7 +733,7 @@ jobs:
 
       - name: Upload Playwright Failed Tests
         if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
-        uses: actions/upload-artifact@604373da6381bf24206979c74d06a550515601b9 # v4.4.1
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         with:
           name: failed-test-videos${{ matrix.variant.premium && '-premium' || '' }}
           path: ./site/test-results/**/*.webm
@@ -738,7 +741,7 @@ jobs:
 
       - name: Upload pprof dumps
         if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
-        uses: actions/upload-artifact@604373da6381bf24206979c74d06a550515601b9 # v4.4.1
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         with:
           name: debug-pprof-dumps${{ matrix.variant.premium && '-premium' || ''  }}
           path: ./site/test-results/**/debug-pprof-*.txt
@@ -751,12 +754,12 @@ jobs:
     if: needs.changes.outputs.ts == 'true' || needs.changes.outputs.ci == 'true'
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           # Required by Chromatic for build-over-build history, otherwise we
           # only get 1 commit on shallow checkout.
@@ -828,12 +831,12 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           # 0 is required here for version.sh to work.
           fetch-depth: 0
@@ -847,7 +850,7 @@ jobs:
         run: |
           mkdir -p /tmp/proto
           pushd /tmp/proto
-          curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.3/protoc-23.3-linux-x86_64.zip
+          curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-linux-x86_64.zip
           unzip protoc.zip
           cp -r ./bin/* /usr/local/bin
           cp -r ./include /usr/local/bin/include
@@ -859,10 +862,10 @@ jobs:
       - name: Install go tools
         run: |
           go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30
-          go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.33
+          go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.34
           go install golang.org/x/tools/cmd/goimports@latest
-          go install github.com/mikefarah/yq/v4@v4.30.6
-          go install go.uber.org/mock/mockgen@v0.4.0
+          go install github.com/mikefarah/yq/v4@v4.44.3
+          go install go.uber.org/mock/mockgen@v0.5.0
 
       - name: Setup sqlc
         uses: ./.github/actions/setup-sqlc
@@ -902,7 +905,7 @@ jobs:
     if: always()
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
         with:
           egress-policy: audit
 
@@ -937,13 +940,9 @@ jobs:
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-macos-latest' || 'macos-latest' }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
-        with:
-          egress-policy: audit
-
+      # Harden Runner doesn't work on macOS
       - name: Checkout
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
 
@@ -953,6 +952,11 @@ jobs:
           echo "$(brew --prefix bash)/bin" >> $GITHUB_PATH
           echo "$(brew --prefix gnu-getopt)/bin" >> $GITHUB_PATH
           echo "$(brew --prefix make)/libexec/gnubin" >> $GITHUB_PATH
+
+      - name: Switch XCode Version
+        uses: maxim-lobanov/setup-xcode@60606e260d2fc5762a71e64e74b2174e8ea3c8bd # v1.6.0
+        with:
+          xcode-version: "16.0.0"
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
@@ -996,7 +1000,7 @@ jobs:
 
       - name: Upload build artifacts
         if: ${{ github.repository_owner == 'coder' && github.ref == 'refs/heads/main' }}
-        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         with:
           name: dylibs
           path: |
@@ -1017,19 +1021,22 @@ jobs:
     if: github.ref == 'refs/heads/main' && needs.changes.outputs.docs-only == 'false' && !github.event.pull_request.head.repo.fork
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-22.04' }}
     permissions:
-      packages: write # Needed to push images to ghcr.io
+      # Necessary to push docker images to ghcr.io.
+      packages: write
+      # Necessary for GCP authentication (https://github.com/google-github-actions/setup-gcloud#usage)
+      id-token: write
     env:
       DOCKER_CLI_EXPERIMENTAL: "enabled"
     outputs:
       IMAGE: ghcr.io/coder/coder-preview:${{ steps.build-docker.outputs.tag }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
 
@@ -1046,14 +1053,46 @@ jobs:
       - name: Setup Go
         uses: ./.github/actions/setup-go
 
+      # Necessary for signing Windows binaries.
+      - name: Setup Java
+        uses: actions/setup-java@3a4f6e1af504cf6a31855fa899c6aa5355ba6c12 # v4.7.0
+        with:
+          distribution: "zulu"
+          java-version: "11.0"
+
+      - name: Install go-winres
+        run: go install github.com/tc-hib/go-winres@d743268d7ea168077ddd443c4240562d4f5e8c3e # v0.3.3
+
       - name: Install nfpm
         run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.35.1
 
       - name: Install zstd
         run: sudo apt-get install -y zstd
 
+      - name: Setup Windows EV Signing Certificate
+        run: |
+          set -euo pipefail
+          touch /tmp/ev_cert.pem
+          chmod 600 /tmp/ev_cert.pem
+          echo "$EV_SIGNING_CERT" > /tmp/ev_cert.pem
+          wget https://github.com/ebourg/jsign/releases/download/6.0/jsign-6.0.jar -O /tmp/jsign-6.0.jar
+        env:
+          EV_SIGNING_CERT: ${{ secrets.EV_SIGNING_CERT }}
+
+      # Setup GCloud for signing Windows binaries.
+      - name: Authenticate to Google Cloud
+        id: gcloud_auth
+        uses: google-github-actions/auth@71f986410dfbc7added4569d411d040a91dc6935 # v2.1.8
+        with:
+          workload_identity_provider: ${{ secrets.GCP_CODE_SIGNING_WORKLOAD_ID_PROVIDER }}
+          service_account: ${{ secrets.GCP_CODE_SIGNING_SERVICE_ACCOUNT }}
+          token_format: "access_token"
+
+      - name: Setup GCloud SDK
+        uses: google-github-actions/setup-gcloud@77e7a554d41e2ee56fc945c52dfd3f33d12def9a # v2.1.4
+
       - name: Download dylibs
-        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4.1.9
         with:
           name: dylibs
           path: ./build
@@ -1078,6 +1117,18 @@ jobs:
             build/coder_linux_{amd64,arm64,armv7} \
             build/coder_"$version"_windows_amd64.zip \
             build/coder_"$version"_linux_amd64.{tar.gz,deb}
+        env:
+          # The Windows slim binary must be signed for Coder Desktop to accept
+          # it. The darwin executables don't need to be signed, but the dylibs
+          # do (see above).
+          CODER_SIGN_WINDOWS: "1"
+          CODER_WINDOWS_RESOURCES: "1"
+          EV_KEY: ${{ secrets.EV_KEY }}
+          EV_KEYSTORE: ${{ secrets.EV_KEYSTORE }}
+          EV_TSA_URL: ${{ secrets.EV_TSA_URL }}
+          EV_CERTIFICATE_PATH: /tmp/ev_cert.pem
+          GCLOUD_ACCESS_TOKEN: ${{ steps.gcloud_auth.outputs.access_token }}
+          JSIGN_PATH: /tmp/jsign-6.0.jar
 
       - name: Build Linux Docker images
         id: build-docker
@@ -1136,7 +1187,7 @@ jobs:
 
       - name: Upload build artifacts
         if: github.ref == 'refs/heads/main'
-        uses: actions/upload-artifact@604373da6381bf24206979c74d06a550515601b9 # v4.4.1
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         with:
           name: coder
           path: |
@@ -1160,32 +1211,32 @@ jobs:
       id-token: write
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
 
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@6fc4af4b145ae7821d527454aa9bd537d1f2dc5f # v2.1.7
+        uses: google-github-actions/auth@71f986410dfbc7added4569d411d040a91dc6935 # v2.1.8
         with:
           workload_identity_provider: projects/573722524737/locations/global/workloadIdentityPools/github/providers/github
           service_account: coder-ci@coder-dogfood.iam.gserviceaccount.com
 
       - name: Set up Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@6189d56e4096ee891640bb02ac264be376592d6a # v2.1.2
+        uses: google-github-actions/setup-gcloud@77e7a554d41e2ee56fc945c52dfd3f33d12def9a # v2.1.4
 
       - name: Set up Flux CLI
-        uses: fluxcd/flux2/action@5350425cdcd5fa015337e09fa502153c0275bd4b # v2.4.0
+        uses: fluxcd/flux2/action@8d5f40dca5aa5d3c0fc3414457dda15a0ac92fa4 # v2.5.1
         with:
           # Keep this and the github action up to date with the version of flux installed in dogfood cluster
-          version: "2.2.1"
+          version: "2.5.1"
 
       - name: Get Cluster Credentials
-        uses: google-github-actions/get-gke-credentials@9025e8f90f2d8e0c3dafc3128cc705a26d992a6a # v2.3.0
+        uses: google-github-actions/get-gke-credentials@d0cee45012069b163a631894b98904a9e6723729 # v2.3.3
         with:
           cluster_name: dogfood-v2
           location: us-central1-a
@@ -1215,6 +1266,8 @@ jobs:
           kubectl --namespace coder rollout status deployment/coder
           kubectl --namespace coder rollout restart deployment/coder-provisioner
           kubectl --namespace coder rollout status deployment/coder-provisioner
+          kubectl --namespace coder rollout restart deployment/coder-provisioner-tagged
+          kubectl --namespace coder rollout status deployment/coder-provisioner-tagged
 
   deploy-wsproxies:
     runs-on: ubuntu-latest
@@ -1222,12 +1275,12 @@ jobs:
     if: github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
 
@@ -1257,12 +1310,12 @@ jobs:
     if: needs.changes.outputs.db == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 1
       # We need golang to run the migration main.go

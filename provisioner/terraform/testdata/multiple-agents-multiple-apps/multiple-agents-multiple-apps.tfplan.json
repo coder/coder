@@ -1,6 +1,6 @@
 {
   "format_version": "1.2",
-  "terraform_version": "1.9.8",
+  "terraform_version": "1.11.0",
   "planned_values": {
     "root_module": {
       "resources": [
@@ -10,23 +10,20 @@
           "type": "coder_agent",
           "name": "dev1",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 0,
+          "schema_version": 1,
           "values": {
             "arch": "amd64",
             "auth": "token",
             "connection_timeout": 120,
             "dir": null,
             "env": null,
-            "login_before_ready": true,
             "metadata": [],
             "motd_file": null,
             "order": null,
             "os": "linux",
             "shutdown_script": null,
-            "shutdown_script_timeout": 300,
             "startup_script": null,
-            "startup_script_behavior": null,
-            "startup_script_timeout": 300,
+            "startup_script_behavior": "non-blocking",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -41,23 +38,20 @@
           "type": "coder_agent",
           "name": "dev2",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 0,
+          "schema_version": 1,
           "values": {
             "arch": "amd64",
             "auth": "token",
             "connection_timeout": 120,
             "dir": null,
             "env": null,
-            "login_before_ready": true,
             "metadata": [],
             "motd_file": null,
             "order": null,
             "os": "linux",
             "shutdown_script": null,
-            "shutdown_script_timeout": 300,
             "startup_script": null,
-            "startup_script_behavior": null,
-            "startup_script_timeout": 300,
+            "startup_script_behavior": "non-blocking",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -72,16 +66,16 @@
           "type": "coder_app",
           "name": "app1",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 0,
+          "schema_version": 1,
           "values": {
             "command": null,
             "display_name": null,
             "external": false,
             "healthcheck": [],
+            "hidden": false,
             "icon": null,
-            "name": null,
+            "open_in": "slim-window",
             "order": null,
-            "relative_path": null,
             "share": "owner",
             "slug": "app1",
             "subdomain": null,
@@ -97,7 +91,7 @@
           "type": "coder_app",
           "name": "app2",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 0,
+          "schema_version": 1,
           "values": {
             "command": null,
             "display_name": null,
@@ -109,10 +103,10 @@
                 "url": "http://localhost:13337/healthz"
               }
             ],
+            "hidden": false,
             "icon": null,
-            "name": null,
+            "open_in": "slim-window",
             "order": null,
-            "relative_path": null,
             "share": "owner",
             "slug": "app2",
             "subdomain": true,
@@ -130,16 +124,16 @@
           "type": "coder_app",
           "name": "app3",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 0,
+          "schema_version": 1,
           "values": {
             "command": null,
             "display_name": null,
             "external": false,
             "healthcheck": [],
+            "hidden": false,
             "icon": null,
-            "name": null,
+            "open_in": "slim-window",
             "order": null,
-            "relative_path": null,
             "share": "owner",
             "slug": "app3",
             "subdomain": false,
@@ -194,16 +188,13 @@
           "connection_timeout": 120,
           "dir": null,
           "env": null,
-          "login_before_ready": true,
           "metadata": [],
           "motd_file": null,
           "order": null,
           "os": "linux",
           "shutdown_script": null,
-          "shutdown_script_timeout": 300,
           "startup_script": null,
-          "startup_script_behavior": null,
-          "startup_script_timeout": 300,
+          "startup_script_behavior": "non-blocking",
           "troubleshooting_url": null
         },
         "after_unknown": {
@@ -238,16 +229,13 @@
           "connection_timeout": 120,
           "dir": null,
           "env": null,
-          "login_before_ready": true,
           "metadata": [],
           "motd_file": null,
           "order": null,
           "os": "linux",
           "shutdown_script": null,
-          "shutdown_script_timeout": 300,
           "startup_script": null,
-          "startup_script_behavior": null,
-          "startup_script_timeout": 300,
+          "startup_script_behavior": "non-blocking",
           "troubleshooting_url": null
         },
         "after_unknown": {
@@ -281,10 +269,10 @@
           "display_name": null,
           "external": false,
           "healthcheck": [],
+          "hidden": false,
           "icon": null,
-          "name": null,
+          "open_in": "slim-window",
           "order": null,
-          "relative_path": null,
           "share": "owner",
           "slug": "app1",
           "subdomain": null,
@@ -323,10 +311,10 @@
               "url": "http://localhost:13337/healthz"
             }
           ],
+          "hidden": false,
           "icon": null,
-          "name": null,
+          "open_in": "slim-window",
           "order": null,
-          "relative_path": null,
           "share": "owner",
           "slug": "app2",
           "subdomain": true,
@@ -363,10 +351,10 @@
           "display_name": null,
           "external": false,
           "healthcheck": [],
+          "hidden": false,
           "icon": null,
-          "name": null,
+          "open_in": "slim-window",
           "order": null,
-          "relative_path": null,
           "share": "owner",
           "slug": "app3",
           "subdomain": false,
@@ -431,7 +419,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "0.22.0"
+        "version_constraint": ">= 2.0.0"
       },
       "null": {
         "name": "null",
@@ -454,7 +442,7 @@
               "constant_value": "linux"
             }
           },
-          "schema_version": 0
+          "schema_version": 1
         },
         {
           "address": "coder_agent.dev2",
@@ -470,7 +458,7 @@
               "constant_value": "linux"
             }
           },
-          "schema_version": 0
+          "schema_version": 1
         },
         {
           "address": "coder_app.app1",
@@ -489,7 +477,7 @@
               "constant_value": "app1"
             }
           },
-          "schema_version": 0
+          "schema_version": 1
         },
         {
           "address": "coder_app.app2",
@@ -524,7 +512,7 @@
               "constant_value": true
             }
           },
-          "schema_version": 0
+          "schema_version": 1
         },
         {
           "address": "coder_app.app3",
@@ -546,7 +534,7 @@
               "constant_value": false
             }
           },
-          "schema_version": 0
+          "schema_version": 1
         },
         {
           "address": "null_resource.dev1",
@@ -575,19 +563,19 @@
   },
   "relevant_attributes": [
     {
-      "resource": "coder_agent.dev2",
+      "resource": "coder_agent.dev1",
       "attribute": [
         "id"
       ]
     },
     {
-      "resource": "coder_agent.dev1",
+      "resource": "coder_agent.dev2",
       "attribute": [
         "id"
       ]
     }
   ],
-  "timestamp": "2024-10-28T20:08:05Z",
+  "timestamp": "2025-03-03T20:39:59Z",
   "applyable": true,
   "complete": true,
   "errored": false

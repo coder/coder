@@ -209,7 +209,7 @@ func (r *RootCmd) login() *serpent.Command {
 
 			// nolint: nestif
 			if !hasFirstUser {
-				_, _ = fmt.Fprintf(inv.Stdout, Caret+"Your Coder deployment hasn't been set up!\n")
+				_, _ = fmt.Fprint(inv.Stdout, Caret+"Your Coder deployment hasn't been set up!\n")
 
 				if username == "" {
 					if !isTTYIn(inv) {

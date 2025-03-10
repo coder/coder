@@ -50,6 +50,15 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
       "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
     },
+    "metadata": {
+      "template_display_name": "string",
+      "template_icon": "string",
+      "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+      "template_name": "string",
+      "template_version_name": "string",
+      "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+      "workspace_name": "string"
+    },
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "queue_position": 0,
     "queue_size": 0,
@@ -254,6 +263,15 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
       "error": "string",
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
       "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
+    },
+    "metadata": {
+      "template_display_name": "string",
+      "template_icon": "string",
+      "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+      "template_name": "string",
+      "template_version_name": "string",
+      "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+      "workspace_name": "string"
     },
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "queue_position": 0,
@@ -902,6 +920,15 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
       "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
     },
+    "metadata": {
+      "template_display_name": "string",
+      "template_icon": "string",
+      "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+      "template_name": "string",
+      "template_version_name": "string",
+      "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+      "workspace_name": "string"
+    },
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "queue_position": 0,
     "queue_size": 0,
@@ -1180,6 +1207,15 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
         "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
         "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
       },
+      "metadata": {
+        "template_display_name": "string",
+        "template_icon": "string",
+        "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+        "template_name": "string",
+        "template_version_name": "string",
+        "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+        "workspace_name": "string"
+      },
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "queue_position": 0,
       "queue_size": 0,
@@ -1363,6 +1399,14 @@ Status Code **200**
 | `»»» error`                      | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» template_version_id`        | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» workspace_build_id`         | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»» metadata`                    | [codersdk.ProvisionerJobMetadata](schemas.md#codersdkprovisionerjobmetadata)                           | false    |              |                                                                                                                                                                                                                                                |
+| `»»» template_display_name`      | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» template_icon`              | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» template_id`                | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»»» template_name`              | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» template_version_name`      | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» workspace_id`               | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»»» workspace_name`             | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» organization_id`             | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» queue_position`              | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» queue_size`                  | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
@@ -1604,6 +1648,15 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
       "error": "string",
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
       "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
+    },
+    "metadata": {
+      "template_display_name": "string",
+      "template_icon": "string",
+      "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+      "template_name": "string",
+      "template_version_name": "string",
+      "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+      "workspace_name": "string"
     },
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "queue_position": 0,

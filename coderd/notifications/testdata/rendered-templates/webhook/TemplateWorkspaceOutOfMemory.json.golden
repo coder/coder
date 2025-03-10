@@ -1,0 +1,29 @@
+{
+  "_version": "1.1",
+  "msg_id": "00000000-0000-0000-0000-000000000000",
+  "payload": {
+    "_version": "1.1",
+    "notification_name": "Workspace Out Of Memory",
+    "notification_template_id": "00000000-0000-0000-0000-000000000000",
+    "user_id": "00000000-0000-0000-0000-000000000000",
+    "user_email": "bobby@coder.com",
+    "user_name": "Bobby",
+    "user_username": "bobby",
+    "actions": [
+      {
+        "label": "View workspace",
+        "url": "http://test.com/@bobby/bobby-workspace"
+      }
+    ],
+    "labels": {
+      "threshold": "90%",
+      "workspace": "bobby-workspace"
+    },
+    "data": null,
+    "targets": null
+  },
+  "title": "Your workspace \"bobby-workspace\" is low on memory",
+  "title_markdown": "Your workspace \"bobby-workspace\" is low on memory",
+  "body": "Hi Bobby,\n\nYour workspace bobby-workspace has reached the memory usage threshold set at 90%.",
+  "body_markdown": "Hi Bobby,\n\nYour workspace **bobby-workspace** has reached the memory usage threshold set at **90%**."
+}

@@ -11,46 +11,13 @@ Your OIDC provider will ask you for the following parameter:
 
 ## Step 2: Configure Coder with the OpenID Connect credentials
 
-Navigate to your Coder host and run the following command to start up the Coder
-server:
-
-```shell
-coder server --oidc-issuer-url="https://issuer.corp.com" --oidc-email-domain="your-domain-1,your-domain-2" --oidc-client-id="533...des" --oidc-client-secret="G0CSP...7qSM"
-```
-
-If you are running Coder as a system service, you can achieve the same result as
-the command above by adding the following environment variables to the
-`/etc/coder.d/coder.env` file:
+Set the following environment variables on your Coder deployment and restart Coder:
 
 ```env
 CODER_OIDC_ISSUER_URL="https://issuer.corp.com"
 CODER_OIDC_EMAIL_DOMAIN="your-domain-1,your-domain-2"
 CODER_OIDC_CLIENT_ID="533...des"
 CODER_OIDC_CLIENT_SECRET="G0CSP...7qSM"
-```
-
-Once complete, run `sudo service coder restart` to reboot Coder.
-
-If deploying Coder via Helm, you can set the above environment variables in the
-`values.yaml` file as such:
-
-```yaml
-coder:
-  env:
-    - name: CODER_OIDC_ISSUER_URL
-      value: "https://issuer.corp.com"
-    - name: CODER_OIDC_EMAIL_DOMAIN
-      value: "your-domain-1,your-domain-2"
-    - name: CODER_OIDC_CLIENT_ID
-      value: "533...des"
-    - name: CODER_OIDC_CLIENT_SECRET
-      value: "G0CSP...7qSM"
-```
-
-To upgrade Coder, run:
-
-```shell
-helm upgrade <release-name> coder-v2/coder -n <namespace> -f values.yaml
 ```
 
 ## OIDC Claims

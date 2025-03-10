@@ -1,7 +1,8 @@
 terraform {
   required_providers {
     coder = {
-      source = "coder/coder"
+      source  = "coder/coder"
+      version = "2.2.0-pre0"
     }
     docker = {
       source  = "kreuzwerker/docker"
@@ -82,6 +83,38 @@ data "coder_parameter" "region" {
     name  = "Cape Town"
     value = "za-cpt"
   }
+}
+
+data "coder_parameter" "res_mon_memory_threshold" {
+  type        = "number"
+  name        = "Memory usage threshold"
+  default     = 80
+  description = "The memory usage threshold used in resources monitoring to trigger notifications."
+  mutable     = true
+  validation {
+    min = 0
+    max = 100
+  }
+}
+
+data "coder_parameter" "res_mon_volume_threshold" {
+  type        = "number"
+  name        = "Volume usage threshold"
+  default     = 90
+  description = "The volume usage threshold used in resources monitoring to trigger notifications."
+  mutable     = true
+  validation {
+    min = 0
+    max = 100
+  }
+}
+
+data "coder_parameter" "res_mon_volume_path" {
+  type        = "string"
+  name        = "Volume path"
+  default     = "/home/coder"
+  description = "The path monitored in resources monitoring to trigger notifications."
+  mutable     = true
 }
 
 provider "docker" {
@@ -189,6 +222,13 @@ module "cursor" {
   folder   = local.repo_dir
 }
 
+module "zed" {
+  count    = data.coder_workspace.me.start_count
+  source   = "./zed"
+  agent_id = coder_agent.dev.id
+  folder   = local.repo_dir
+}
+
 resource "coder_agent" "dev" {
   arch = "amd64"
   os   = "linux"
@@ -242,7 +282,7 @@ resource "coder_agent" "dev" {
     key          = "swap_usage_host"
     order        = 4
     script       = <<EOT
-      #!/bin/bash
+      #!/usr/bin/env bash
       echo "$(free -b | awk '/^Swap/ { printf("%.1f/%.1f", $3/1024.0/1024.0/1024.0, $2/1024.0/1024.0/1024.0) }') GiB"
     EOT
     interval     = 10
@@ -255,7 +295,7 @@ resource "coder_agent" "dev" {
     order        = 5
     # get load avg scaled by number of cores
     script   = <<EOT
-      #!/bin/bash
+      #!/usr/bin/env bash
       echo "`cat /proc/loadavg | awk '{ print $1 }'` `nproc`" | awk '{ printf "%0.2f", $1/$2 }'
     EOT
     interval = 60
@@ -276,14 +316,27 @@ resource "coder_agent" "dev" {
     key          = "word"
     order        = 7
     script       = <<EOT
-      #!/bin/bash
+      #!/usr/bin/env bash
       curl -o - --silent https://www.merriam-webster.com/word-of-the-day 2>&1 | awk ' $0 ~ "Word of the Day: [A-z]+" { print $5; exit }'
     EOT
     interval     = 86400
     timeout      = 5
   }
 
+  resources_monitoring {
+    memory {
+      enabled   = true
+      threshold = data.coder_parameter.res_mon_memory_threshold.value
+    }
+    volume {
+      enabled   = true
+      threshold = data.coder_parameter.res_mon_volume_threshold.value
+      path      = data.coder_parameter.res_mon_volume_path.value
+    }
+  }
+
   startup_script = <<-EOT
+    #!/usr/bin/env bash
     set -eux -o pipefail
 
     # Allow synchronization between scripts.
@@ -297,6 +350,7 @@ resource "coder_agent" "dev" {
     while ! [[ -f "${local.repo_dir}/site/package.json" ]]; do
       sleep 1
     done
+    cd "${local.repo_dir}" && make clean
     cd "${local.repo_dir}/site" && pnpm install && pnpm playwright:install
   EOT
 }
@@ -344,7 +398,7 @@ resource "docker_image" "dogfood" {
     data.docker_registry_image.dogfood.sha256_digest,
     sha1(join("", [for f in fileset(path.module, "files/*") : filesha1(f)])),
     filesha1("Dockerfile"),
-    filesha1("Dockerfile.nix"),
+    filesha1("nix.hash"),
   ]
   keep_locally = true
 }
@@ -366,6 +420,7 @@ resource "docker_container" "workspace" {
     "CODER_PROC_PRIO_MGMT=1",
     "CODER_PROC_OOM_SCORE=10",
     "CODER_PROC_NICE_SCORE=1",
+    "CODER_AGENT_DEVCONTAINERS_ENABLE=1",
   ]
   host {
     host = "host.docker.internal"

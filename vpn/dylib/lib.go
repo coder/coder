@@ -39,7 +39,7 @@ func OpenTunnel(cReadFD, cWriteFD int32) int32 {
 		return ErrDupWriteFD
 	}
 
-	conn, err := vpn.NewBidirectionalPipe(uintptr(cReadFD), uintptr(cWriteFD))
+	conn, err := vpn.NewBidirectionalPipe(uintptr(readFD), uintptr(writeFD))
 	if err != nil {
 		unix.Close(readFD)
 		unix.Close(writeFD)
@@ -47,8 +47,7 @@ func OpenTunnel(cReadFD, cWriteFD int32) int32 {
 	}
 
 	_, err = vpn.NewTunnel(ctx, slog.Make(), conn, vpn.NewClient(),
-		vpn.UseAsDNSConfig(),
-		vpn.UseAsRouter(),
+		vpn.UseOSNetworkingStack(),
 		vpn.UseAsLogger(),
 	)
 	if err != nil {

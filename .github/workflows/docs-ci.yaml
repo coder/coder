@@ -15,17 +15,20 @@ on:
       - "**.md"
       - ".github/workflows/docs-ci.yaml"
 
+permissions:
+  contents: read
+
 jobs:
   docs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
 
-      - uses: tj-actions/changed-files@d6e91a2266cdb9d62096cebf1e8546899c6aa18f # v45.0.6
+      - uses: tj-actions/changed-files@dcc7a0cba800f454d79fff4b993e8c3555bcc0a8 # v45.0.7
         id: changed-files
         with:
           files: |

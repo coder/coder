@@ -3,60 +3,56 @@
 Notifications are sent by Coder in response to specific internal events, such as
 a workspace being deleted or a user being created.
 
-## Enable experiment
-
-In order to activate the notifications feature on Coder v2.15.X, you'll need to
-enable the `notifications` experiment. Notifications are enabled by default
-starting in v2.16.0.
-
-```bash
-# Using the CLI flag
-$ coder server --experiments=notifications
-
-# Alternatively, using the `CODER_EXPERIMENTS` environment variable
-$ CODER_EXPERIMENTS=notifications coder server
-```
-
-More information on experiments can be found
-[here](https://coder.com/docs/contributing/feature-stages#experimental-features).
+Available events may differ between versions.
+For a list of all events, visit your Coder deployment's
+`https://coder.example.com/deployment/notifications`.
 
 ## Event Types
 
 Notifications are sent in response to internal events, to alert the affected
-user(s) of this event. Currently we support the following list of events:
+user(s) of the event.
+
+Coder supports the following list of events:
 
 ### Workspace Events
 
-_These notifications are sent to the workspace owner._
+These notifications are sent to the workspace owner:
 
-- Workspace Deleted
-- Workspace Manual Build Failure
-- Workspace Automatic Build Failure
-- Workspace Automatically Updated
-- Workspace Dormant
-- Workspace Marked For Deletion
+- Workspace created
+- Workspace deleted
+- Workspace manual build failure
+- Workspace automatic build failure
+- Workspace manually updated
+- Workspace automatically updated
+- Workspace marked as dormant
+- Workspace marked for deletion
 
 ### User Events
 
-_These notifications are sent to users with **owner** and **user admin** roles._
+These notifications are sent to users with **owner** and **user admin** roles:
 
-- User Account Created
-- User Account Deleted
-- User Account Suspended
-- User Account Activated
-- _(coming soon) User Password Reset_
-- _(coming soon) User Email Verification_
+- User account created
+- User account deleted
+- User account suspended
+- User account activated
 
-_These notifications are sent to the user themselves._
+These notifications are sent to users themselves:
 
-- User Account Suspended
-- User Account Activated
+- User account suspended
+- User account activated
+- User password reset (One-time passcode)
 
 ### Template Events
 
-_These notifications are sent to users with **template admin** roles._
+These notifications are sent to users with **template admin** roles:
 
-- Template Deleted
+- Template deleted
+- Template deprecated
+- Out of memory (OOM) / Out of disk (OOD)
+  - [Configure](#configure-oomood-notifications) in the template `main.tf`.
+- Report: Workspace builds failed for template
+  - This notification is delivered as part of a weekly cron job and summarizes
+    the failed builds for a given template.
 
 ## Configuration
 
@@ -68,6 +64,16 @@ flags.
 |    ✔️    | `--notifications-dispatch-timeout`  | `CODER_NOTIFICATIONS_DISPATCH_TIMEOUT`  | `duration` | How long to wait while a notification is being sent before giving up.                                                 | 1m      |
 |    ✔️    | `--notifications-method`            | `CODER_NOTIFICATIONS_METHOD`            | `string`   | Which delivery method to use (available options: 'smtp', 'webhook'). See [Delivery Methods](#delivery-methods) below. | smtp    |
 |    -️    | `--notifications-max-send-attempts` | `CODER_NOTIFICATIONS_MAX_SEND_ATTEMPTS` | `int`      | The upper limit of attempts to send a notification.                                                                   | 5       |
+
+### Configure OOM/OOD notifications
+
+You can monitor out of memory (OOM) and out of disk (OOD) errors and alert users
+when they overutilize memory and disk.
+
+This can help prevent agent disconnects due to OOM/OOD issues.
+
+To enable OOM/OOD notifications on a template, follow the steps in the
+[resource monitoring guide](../../templates/extending-templates/resource-monitoring.md).
 
 ## Delivery Methods
 
@@ -141,7 +147,7 @@ for more options.
 
 After setting the required fields above:
 
-1. Setup an account on Microsoft 365 or outlook.com
+1. Set up an account on Microsoft 365 or outlook.com
 1. Set the following configuration options:
 
    ```text
@@ -267,12 +273,17 @@ To resume sending notifications, execute
 If notifications are not being delivered, use the following methods to
 troubleshoot:
 
-1. Ensure notifications are being added to the `notification_messages` table
-2. Review any error messages in the `status_reason` column, should an error have
-   occurred
-3. Review the logs (search for the term `notifications`) for diagnostic
-   information<br> _If you do not see any relevant logs, set
-   `CODER_VERBOSE=true` or `--verbose` to output debug logs_
+1. Ensure notifications are being added to the `notification_messages` table.
+1. Review any available error messages in the `status_reason` column
+1. Review the logs. Search for the term `notifications` for diagnostic information.
+
+   - If you do not see any relevant logs, set
+    `CODER_VERBOSE=true` or `--verbose` to output debug logs.
+1. If you are on version 2.15.x, notifications must be enabled using the
+    `notifications`
+    [experiment](../../../about/feature-stages.md#early-access-features).
+
+    Notifications are enabled by default in Coder v2.16.0 and later.
 
 ## Internals
 
@@ -283,7 +294,7 @@ concurrency.
 
 All messages are stored in the `notification_messages` table.
 
-Messages older than 7 days are deleted.
+Messages older than seven days are deleted.
 
 ### Message States
 

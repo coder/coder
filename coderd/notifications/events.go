@@ -15,6 +15,8 @@ var (
 	TemplateWorkspaceAutoUpdated       = uuid.MustParse("c34a0c09-0704-4cac-bd1c-0c0146811c2b")
 	TemplateWorkspaceMarkedForDeletion = uuid.MustParse("51ce2fdf-c9ca-4be1-8d70-628674f9bc42")
 	TemplateWorkspaceManualBuildFailed = uuid.MustParse("2faeee0f-26cb-4e96-821c-85ccb9f71513")
+	TemplateWorkspaceOutOfMemory       = uuid.MustParse("a9d027b4-ac49-4fb1-9f6d-45af15f64e7a")
+	TemplateWorkspaceOutOfDisk         = uuid.MustParse("f047f6a3-5713-40f7-85aa-0394cce9fa3a")
 )
 
 // Account-related events.
@@ -36,4 +38,9 @@ var (
 	TemplateTemplateDeprecated = uuid.MustParse("f40fae84-55a2-42cd-99fa-b41c1ca64894")
 
 	TemplateWorkspaceBuildsFailedReport = uuid.MustParse("34a20db2-e9cc-4a93-b0e4-8569699d7a00")
+)
+
+// Notification-related events.
+var (
+	TemplateTestNotification = uuid.MustParse("c425f63e-716a-4bf4-ae24-78348f706c3f")
 )

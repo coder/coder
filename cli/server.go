@@ -172,6 +172,17 @@ func createOIDCConfig(ctx context.Context, logger slog.Logger, vals *codersdk.De
 		groupAllowList[group] = true
 	}
 
+	secondaryClaimsSrc := coderd.MergedClaimsSourceUserInfo
+	if !vals.OIDC.IgnoreUserInfo && vals.OIDC.UserInfoFromAccessToken {
+		return nil, xerrors.Errorf("to use 'oidc-access-token-claims', 'oidc-ignore-userinfo' must be set to 'false'")
+	}
+	if vals.OIDC.IgnoreUserInfo {
+		secondaryClaimsSrc = coderd.MergedClaimsSourceNone
+	}
+	if vals.OIDC.UserInfoFromAccessToken {
+		secondaryClaimsSrc = coderd.MergedClaimsSourceAccessToken
+	}
+
 	return &coderd.OIDCConfig{
 		OAuth2Config: useCfg,
 		Provider:     oidcProvider,
@@ -187,7 +198,7 @@ func createOIDCConfig(ctx context.Context, logger slog.Logger, vals *codersdk.De
 		NameField:           vals.OIDC.NameField.String(),
 		EmailField:          vals.OIDC.EmailField.String(),
 		AuthURLParams:       vals.OIDC.AuthURLParams.Value,
-		IgnoreUserInfo:      vals.OIDC.IgnoreUserInfo.Value(),
+		SecondaryClaims:     secondaryClaimsSrc,
 		SignInText:          vals.OIDC.SignInText.String(),
 		SignupsDisabledText: vals.OIDC.SignupsDisabledText.String(),
 		IconURL:             vals.OIDC.IconURL.String(),
@@ -513,7 +524,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 
 			accessURL := vals.AccessURL.String()
-			cliui.Infof(inv.Stdout, lipgloss.NewStyle().
+			cliui.Info(inv.Stdout, lipgloss.NewStyle().
 				Border(lipgloss.DoubleBorder()).
 				Align(lipgloss.Center).
 				Padding(0, 3).
@@ -677,24 +688,12 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 			}
 
-			if vals.OAuth2.Github.ClientSecret != "" {
-				options.GithubOAuth2Config, err = configureGithubOAuth2(
-					oauthInstrument,
-					vals.AccessURL.Value(),
-					vals.OAuth2.Github.ClientID.String(),
-					vals.OAuth2.Github.ClientSecret.String(),
-					vals.OAuth2.Github.AllowSignups.Value(),
-					vals.OAuth2.Github.AllowEveryone.Value(),
-					vals.OAuth2.Github.AllowedOrgs,
-					vals.OAuth2.Github.AllowedTeams,
-					vals.OAuth2.Github.EnterpriseBaseURL.String(),
-				)
-				if err != nil {
-					return xerrors.Errorf("configure github oauth2: %w", err)
-				}
-			}
-
-			if vals.OIDC.ClientKeyFile != "" || vals.OIDC.ClientSecret != "" {
+			// As OIDC clients can be confidential or public,
+			// we should only check for a client id being set.
+			// The underlying library handles the case of no
+			// client secrets correctly. For more details on
+			// client types: https://oauth.net/2/client-types/
+			if vals.OIDC.ClientID != "" {
 				if vals.OIDC.IgnoreEmailVerified {
 					logger.Warn(ctx, "coder will not check email_verified for OIDC logins")
 				}
@@ -776,45 +775,61 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("set deployment id: %w", err)
 			}
 
+			githubOAuth2ConfigParams, err := getGithubOAuth2ConfigParams(ctx, options.Database, vals)
+			if err != nil {
+				return xerrors.Errorf("get github oauth2 config params: %w", err)
+			}
+			if githubOAuth2ConfigParams != nil {
+				options.GithubOAuth2Config, err = configureGithubOAuth2(
+					oauthInstrument,
+					githubOAuth2ConfigParams,
+				)
+				if err != nil {
+					return xerrors.Errorf("configure github oauth2: %w", err)
+				}
+			}
+
 			options.RuntimeConfig = runtimeconfig.NewManager()
 
 			// This should be output before the logs start streaming.
 			cliui.Infof(inv.Stdout, "\n==> Logs will stream in below (press ctrl+c to gracefully exit):")
 
-			if vals.Telemetry.Enable {
-				vals, err := vals.WithoutSecrets()
-				if err != nil {
-					return xerrors.Errorf("remove secrets from deployment values: %w", err)
-				}
-				options.Telemetry, err = telemetry.New(telemetry.Options{
-					BuiltinPostgres:  builtinPostgres,
-					DeploymentID:     deploymentID,
-					Database:         options.Database,
-					Logger:           logger.Named("telemetry"),
-					URL:              vals.Telemetry.URL.Value(),
-					Tunnel:           tunnel != nil,
-					DeploymentConfig: vals,
-					ParseLicenseJWT: func(lic *telemetry.License) error {
-						// This will be nil when running in AGPL-only mode.
-						if options.ParseLicenseClaims == nil {
-							return nil
-						}
-
-						email, trial, err := options.ParseLicenseClaims(lic.JWT)
-						if err != nil {
-							return err
-						}
-						if email != "" {
-							lic.Email = &email
-						}
-						lic.Trial = &trial
+			deploymentConfigWithoutSecrets, err := vals.WithoutSecrets()
+			if err != nil {
+				return xerrors.Errorf("remove secrets from deployment values: %w", err)
+			}
+			telemetryReporter, err := telemetry.New(telemetry.Options{
+				Disabled:         !vals.Telemetry.Enable.Value(),
+				BuiltinPostgres:  builtinPostgres,
+				DeploymentID:     deploymentID,
+				Database:         options.Database,
+				Logger:           logger.Named("telemetry"),
+				URL:              vals.Telemetry.URL.Value(),
+				Tunnel:           tunnel != nil,
+				DeploymentConfig: deploymentConfigWithoutSecrets,
+				ParseLicenseJWT: func(lic *telemetry.License) error {
+					// This will be nil when running in AGPL-only mode.
+					if options.ParseLicenseClaims == nil {
 						return nil
-					},
-				})
-				if err != nil {
-					return xerrors.Errorf("create telemetry reporter: %w", err)
-				}
-				defer options.Telemetry.Close()
+					}
+
+					email, trial, err := options.ParseLicenseClaims(lic.JWT)
+					if err != nil {
+						return err
+					}
+					if email != "" {
+						lic.Email = &email
+					}
+					lic.Trial = &trial
+					return nil
+				},
+			})
+			if err != nil {
+				return xerrors.Errorf("create telemetry reporter: %w", err)
+			}
+			defer telemetryReporter.Close()
+			if vals.Telemetry.Enable.Value() {
+				options.Telemetry = telemetryReporter
 			} else {
 				logger.Warn(ctx, fmt.Sprintf(`telemetry disabled, unable to notify of security issues. Read more: %s/admin/setup/telemetry`, vals.DocsURL.String()))
 			}
@@ -931,7 +946,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				notificationReportGenerator := reports.NewReportGenerator(ctx, logger.Named("notifications.report_generator"), options.Database, options.NotificationsEnqueuer, quartz.NewReal())
 				defer notificationReportGenerator.Close()
 			} else {
-				cliui.Info(inv.Stdout, "Notifications are currently disabled as there are no configured delivery methods. See https://coder.com/docs/admin/monitoring/notifications#delivery-methods for more details.")
+				logger.Debug(ctx, "notifications are currently disabled as there are no configured delivery methods. See https://coder.com/docs/admin/monitoring/notifications#delivery-methods for more details")
 			}
 
 			// Since errCh only has one buffered slot, all routines
@@ -1824,23 +1839,103 @@ func configureCAPool(tlsClientCAFile string, tlsConfig *tls.Config) error {
 	return nil
 }
 
+const (
+	// Client ID for https://github.com/apps/coder
+	GithubOAuth2DefaultProviderClientID      = "Iv1.6a2b4b4aec4f4fe7"
+	GithubOAuth2DefaultProviderAllowEveryone = true
+	GithubOAuth2DefaultProviderDeviceFlow    = true
+)
+
+type githubOAuth2ConfigParams struct {
+	accessURL         *url.URL
+	clientID          string
+	clientSecret      string
+	deviceFlow        bool
+	allowSignups      bool
+	allowEveryone     bool
+	allowOrgs         []string
+	rawTeams          []string
+	enterpriseBaseURL string
+}
+
+func getGithubOAuth2ConfigParams(ctx context.Context, db database.Store, vals *codersdk.DeploymentValues) (*githubOAuth2ConfigParams, error) {
+	params := githubOAuth2ConfigParams{
+		accessURL:         vals.AccessURL.Value(),
+		clientID:          vals.OAuth2.Github.ClientID.String(),
+		clientSecret:      vals.OAuth2.Github.ClientSecret.String(),
+		deviceFlow:        vals.OAuth2.Github.DeviceFlow.Value(),
+		allowSignups:      vals.OAuth2.Github.AllowSignups.Value(),
+		allowEveryone:     vals.OAuth2.Github.AllowEveryone.Value(),
+		allowOrgs:         vals.OAuth2.Github.AllowedOrgs.Value(),
+		rawTeams:          vals.OAuth2.Github.AllowedTeams.Value(),
+		enterpriseBaseURL: vals.OAuth2.Github.EnterpriseBaseURL.String(),
+	}
+
+	// If the user manually configured the GitHub OAuth2 provider,
+	// we won't add the default configuration.
+	if params.clientID != "" || params.clientSecret != "" || params.enterpriseBaseURL != "" {
+		return &params, nil
+	}
+
+	// Check if the user manually disabled the default GitHub OAuth2 provider.
+	if !vals.OAuth2.Github.DefaultProviderEnable.Value() {
+		return nil, nil //nolint:nilnil
+	}
+
+	// Check if the deployment is eligible for the default GitHub OAuth2 provider.
+	// We want to enable it only for new deployments, and avoid enabling it
+	// if a deployment was upgraded from an older version.
+	// nolint:gocritic // Requires system privileges
+	defaultEligible, err := db.GetOAuth2GithubDefaultEligible(dbauthz.AsSystemRestricted(ctx))
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, xerrors.Errorf("get github default eligible: %w", err)
+	}
+	defaultEligibleNotSet := errors.Is(err, sql.ErrNoRows)
+
+	if defaultEligibleNotSet {
+		// nolint:gocritic // User count requires system privileges
+		userCount, err := db.GetUserCount(dbauthz.AsSystemRestricted(ctx))
+		if err != nil {
+			return nil, xerrors.Errorf("get user count: %w", err)
+		}
+		// We check if a deployment is new by checking if it has any users.
+		defaultEligible = userCount == 0
+		// nolint:gocritic // Requires system privileges
+		if err := db.UpsertOAuth2GithubDefaultEligible(dbauthz.AsSystemRestricted(ctx), defaultEligible); err != nil {
+			return nil, xerrors.Errorf("upsert github default eligible: %w", err)
+		}
+	}
+
+	if !defaultEligible {
+		return nil, nil //nolint:nilnil
+	}
+
+	params.clientID = GithubOAuth2DefaultProviderClientID
+	params.deviceFlow = GithubOAuth2DefaultProviderDeviceFlow
+	if len(params.allowOrgs) == 0 {
+		params.allowEveryone = GithubOAuth2DefaultProviderAllowEveryone
+	}
+
+	return &params, nil
+}
+
 //nolint:revive // Ignore flag-parameter: parameter 'allowEveryone' seems to be a control flag, avoid control coupling (revive)
-func configureGithubOAuth2(instrument *promoauth.Factory, accessURL *url.URL, clientID, clientSecret string, allowSignups, allowEveryone bool, allowOrgs []string, rawTeams []string, enterpriseBaseURL string) (*coderd.GithubOAuth2Config, error) {
-	redirectURL, err := accessURL.Parse("/api/v2/users/oauth2/github/callback")
+func configureGithubOAuth2(instrument *promoauth.Factory, params *githubOAuth2ConfigParams) (*coderd.GithubOAuth2Config, error) {
+	redirectURL, err := params.accessURL.Parse("/api/v2/users/oauth2/github/callback")
 	if err != nil {
 		return nil, xerrors.Errorf("parse github oauth callback url: %w", err)
 	}
-	if allowEveryone && len(allowOrgs) > 0 {
+	if params.allowEveryone && len(params.allowOrgs) > 0 {
 		return nil, xerrors.New("allow everyone and allowed orgs cannot be used together")
 	}
-	if allowEveryone && len(rawTeams) > 0 {
+	if params.allowEveryone && len(params.rawTeams) > 0 {
 		return nil, xerrors.New("allow everyone and allowed teams cannot be used together")
 	}
-	if !allowEveryone && len(allowOrgs) == 0 {
+	if !params.allowEveryone && len(params.allowOrgs) == 0 {
 		return nil, xerrors.New("allowed orgs is empty: must specify at least one org or allow everyone")
 	}
-	allowTeams := make([]coderd.GithubOAuth2Team, 0, len(rawTeams))
-	for _, rawTeam := range rawTeams {
+	allowTeams := make([]coderd.GithubOAuth2Team, 0, len(params.rawTeams))
+	for _, rawTeam := range params.rawTeams {
 		parts := strings.SplitN(rawTeam, "/", 2)
 		if len(parts) != 2 {
 			return nil, xerrors.Errorf("github team allowlist is formatted incorrectly. got %s; wanted <organization>/<team>", rawTeam)
@@ -1852,8 +1947,8 @@ func configureGithubOAuth2(instrument *promoauth.Factory, accessURL *url.URL, cl
 	}
 
 	endpoint := xgithub.Endpoint
-	if enterpriseBaseURL != "" {
-		enterpriseURL, err := url.Parse(enterpriseBaseURL)
+	if params.enterpriseBaseURL != "" {
+		enterpriseURL, err := url.Parse(params.enterpriseBaseURL)
 		if err != nil {
 			return nil, xerrors.Errorf("parse enterprise base url: %w", err)
 		}
@@ -1872,8 +1967,8 @@ func configureGithubOAuth2(instrument *promoauth.Factory, accessURL *url.URL, cl
 	}
 
 	instrumentedOauth := instrument.NewGithub("github-login", &oauth2.Config{
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
+		ClientID:     params.clientID,
+		ClientSecret: params.clientSecret,
 		Endpoint:     endpoint,
 		RedirectURL:  redirectURL.String(),
 		Scopes: []string{
@@ -1885,17 +1980,28 @@ func configureGithubOAuth2(instrument *promoauth.Factory, accessURL *url.URL, cl
 
 	createClient := func(client *http.Client, source promoauth.Oauth2Source) (*github.Client, error) {
 		client = instrumentedOauth.InstrumentHTTPClient(client, source)
-		if enterpriseBaseURL != "" {
-			return github.NewEnterpriseClient(enterpriseBaseURL, "", client)
+		if params.enterpriseBaseURL != "" {
+			return github.NewEnterpriseClient(params.enterpriseBaseURL, "", client)
 		}
 		return github.NewClient(client), nil
 	}
 
+	var deviceAuth *externalauth.DeviceAuth
+	if params.deviceFlow {
+		deviceAuth = &externalauth.DeviceAuth{
+			Config:   instrumentedOauth,
+			ClientID: params.clientID,
+			TokenURL: endpoint.TokenURL,
+			Scopes:   []string{"read:user", "read:org", "user:email"},
+			CodeURL:  endpoint.DeviceAuthURL,
+		}
+	}
+
 	return &coderd.GithubOAuth2Config{
 		OAuth2Config:       instrumentedOauth,
-		AllowSignups:       allowSignups,
-		AllowEveryone:      allowEveryone,
-		AllowOrganizations: allowOrgs,
+		AllowSignups:       params.allowSignups,
+		AllowEveryone:      params.allowEveryone,
+		AllowOrganizations: params.allowOrgs,
 		AllowTeams:         allowTeams,
 		AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
 			api, err := createClient(client, promoauth.SourceGitAPIAuthUser)
@@ -1934,6 +2040,20 @@ func configureGithubOAuth2(instrument *promoauth.Factory, accessURL *url.URL, cl
 			team, _, err := api.Teams.GetTeamMembershipBySlug(ctx, org, teamSlug, username)
 			return team, err
 		},
+		DeviceFlowEnabled: params.deviceFlow,
+		ExchangeDeviceCode: func(ctx context.Context, deviceCode string) (*oauth2.Token, error) {
+			if !params.deviceFlow {
+				return nil, xerrors.New("device flow is not enabled")
+			}
+			return deviceAuth.ExchangeDeviceCode(ctx, deviceCode)
+		},
+		AuthorizeDevice: func(ctx context.Context) (*codersdk.ExternalAuthDevice, error) {
+			if !params.deviceFlow {
+				return nil, xerrors.New("device flow is not enabled")
+			}
+			return deviceAuth.AuthorizeDevice(ctx)
+		},
+		DefaultProviderConfigured: params.clientID == GithubOAuth2DefaultProviderClientID,
 	}, nil
 }
 
@@ -2015,6 +2135,7 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 			Username("coder").
 			Password(pgPassword).
 			Database("coder").
+			Encoding("UTF8").
 			Port(uint32(pgPort)).
 			Logger(stdlibLogger.Writer()),
 	)
@@ -2558,6 +2679,8 @@ func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]coder
 	return providers, nil
 }
 
+var reInvalidPortAfterHost = regexp.MustCompile(`invalid port ".+" after host`)
+
 // If the user provides a postgres URL with a password that contains special
 // characters, the URL will be invalid. We need to escape the password so that
 // the URL parse doesn't fail at the DB connector level.
@@ -2566,7 +2689,11 @@ func escapePostgresURLUserInfo(v string) (string, error) {
 	// I wish I could use errors.Is here, but this error is not declared as a
 	// variable in net/url. :(
 	if err != nil {
-		if strings.Contains(err.Error(), "net/url: invalid userinfo") {
+		// Warning: The parser may also fail with an "invalid port" error if the password contains special
+		// characters. It does not detect invalid user information but instead incorrectly reports an invalid port.
+		//
+		// See: https://github.com/coder/coder/issues/16319
+		if strings.Contains(err.Error(), "net/url: invalid userinfo") || reInvalidPortAfterHost.MatchString(err.Error()) {
 			// If the URL is invalid, we assume it is because the password contains
 			// special characters that need to be escaped.
 

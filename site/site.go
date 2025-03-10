@@ -19,6 +19,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -29,11 +30,11 @@ import (
 	"github.com/justinas/nosurf"
 	"github.com/klauspost/compress/zstd"
 	"github.com/unrolled/secure"
-	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -41,6 +42,7 @@ import (
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -81,6 +83,8 @@ type Options struct {
 	BuildInfo         codersdk.BuildInfoResponse
 	AppearanceFetcher *atomic.Pointer[appearance.Fetcher]
 	Entitlements      *entitlements.Set
+	Telemetry         telemetry.Reporter
+	Logger            slog.Logger
 }
 
 func New(opts *Options) *Handler {
@@ -162,7 +166,7 @@ func New(opts *Options) *Handler {
 
 	handler.installScript, err = parseInstallScript(opts.SiteFS, opts.BuildInfo)
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "install.sh will be unavailable: %v", err.Error())
+		opts.Logger.Warn(context.Background(), "could not parse install.sh, it will be unavailable", slog.Error(err))
 	}
 
 	return handler
@@ -183,6 +187,8 @@ type Handler struct {
 
 	Entitlements *entitlements.Set
 	Experiments  atomic.Pointer[codersdk.Experiments]
+
+	telemetryHTMLServedOnce sync.Once
 }
 
 func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
@@ -286,13 +292,14 @@ type htmlState struct {
 	ApplicationName string
 	LogoURL         string
 
-	BuildInfo    string
-	User         string
-	Entitlements string
-	Appearance   string
-	Experiments  string
-	Regions      string
-	DocsURL      string
+	BuildInfo      string
+	User           string
+	Entitlements   string
+	Appearance     string
+	UserAppearance string
+	Experiments    string
+	Regions        string
+	DocsURL        string
 }
 
 type csrfState struct {
@@ -321,12 +328,51 @@ func ShouldCacheFile(reqFile string) bool {
 	return true
 }
 
+// reportHTMLFirstServedAt sends a telemetry report when the first HTML is ever served.
+// The purpose is to track the first time the first user opens the site.
+func (h *Handler) reportHTMLFirstServedAt() {
+	// nolint:gocritic // Manipulating telemetry items is system-restricted.
+	// TODO(hugodutka): Add a telemetry context in RBAC.
+	ctx := dbauthz.AsSystemRestricted(context.Background())
+	itemKey := string(telemetry.TelemetryItemKeyHTMLFirstServedAt)
+	_, err := h.opts.Database.GetTelemetryItem(ctx, itemKey)
+	if err == nil {
+		// If the value is already set, then we reported it before.
+		// We don't need to report it again.
+		return
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		h.opts.Logger.Debug(ctx, "failed to get telemetry html first served at", slog.Error(err))
+		return
+	}
+	if err := h.opts.Database.InsertTelemetryItemIfNotExists(ctx, database.InsertTelemetryItemIfNotExistsParams{
+		Key:   string(telemetry.TelemetryItemKeyHTMLFirstServedAt),
+		Value: time.Now().Format(time.RFC3339),
+	}); err != nil {
+		h.opts.Logger.Debug(ctx, "failed to set telemetry html first served at", slog.Error(err))
+		return
+	}
+	item, err := h.opts.Database.GetTelemetryItem(ctx, itemKey)
+	if err != nil {
+		h.opts.Logger.Debug(ctx, "failed to get telemetry html first served at", slog.Error(err))
+		return
+	}
+	h.opts.Telemetry.Report(&telemetry.Snapshot{
+		TelemetryItems: []telemetry.TelemetryItem{telemetry.ConvertTelemetryItem(item)},
+	})
+}
+
 func (h *Handler) serveHTML(resp http.ResponseWriter, request *http.Request, reqPath string, state htmlState) bool {
 	if data, err := h.renderHTMLWithState(request, reqPath, state); err == nil {
 		if reqPath == "" {
 			// Pass "index.html" to the ServeContent so the ServeContent sets the right content headers.
 			reqPath = "index.html"
 		}
+		// `Once` is used to reduce the volume of db calls and telemetry reports.
+		// It's fine to run the enclosed function multiple times, but it's unnecessary.
+		h.telemetryHTMLServedOnce.Do(func() {
+			go h.reportHTMLFirstServedAt()
+		})
 		http.ServeContent(resp, request, reqPath, time.Time{}, bytes.NewReader(data))
 		return true
 	}
@@ -381,10 +427,20 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 
 	var eg errgroup.Group
 	var user database.User
+	var themePreference string
 	orgIDs := []uuid.UUID{}
 	eg.Go(func() error {
 		var err error
 		user, err = h.opts.Database.GetUserByID(ctx, apiKey.UserID)
+		return err
+	})
+	eg.Go(func() error {
+		var err error
+		themePreference, err = h.opts.Database.GetUserAppearanceSettings(ctx, apiKey.UserID)
+		if errors.Is(err, sql.ErrNoRows) {
+			themePreference = ""
+			return nil
+		}
 		return err
 	})
 	eg.Go(func() error {
@@ -407,6 +463,17 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 			user, err := json.Marshal(db2sdk.User(user, orgIDs))
 			if err == nil {
 				state.User = html.EscapeString(string(user))
+			}
+		}()
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			userAppearance, err := json.Marshal(codersdk.UserAppearanceSettings{
+				ThemePreference: themePreference,
+			})
+			if err == nil {
+				state.UserAppearance = html.EscapeString(string(userAppearance))
 			}
 		}()
 

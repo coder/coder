@@ -161,11 +161,11 @@ func TestTemplates(t *testing.T) {
 							Name: "some",
 							Type: "example",
 							Agents: []*proto.Agent{{
-								Id: "something",
+								Id:   "something",
+								Name: "test",
 								Auth: &proto.Agent_Token{
 									Token: uuid.NewString(),
 								},
-								Name: "test",
 							}},
 						}, {
 							Name: "another",
@@ -2018,7 +2018,7 @@ func TestMultipleOrganizationTemplates(t *testing.T) {
 	t.Logf("Second organization: %s", second.ID.String())
 	t.Logf("Third organization: %s", third.ID.String())
 
-	t.Logf("Creating template version in second organization")
+	t.Log("Creating template version in second organization")
 
 	start := time.Now()
 	version := coderdtest.CreateTemplateVersion(t, templateAdmin, second.ID, nil)

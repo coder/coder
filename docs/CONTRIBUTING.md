@@ -72,6 +72,11 @@ the following tools by hand:
 - [`pg_dump`](https://stackoverflow.com/a/49689589)
   - on macOS, run `brew install libpq zstd`
   - on Linux, install [`zstd`](https://github.com/horta/zstd.install)
+- PostgreSQL 13 (optional if Docker is available)
+  - *Note*: If you are using Docker, you can skip this step
+  - on macOS, run `brew install postgresql@13` and `brew services start postgresql@13`
+  - To enable schema generation with non-containerized PostgreSQL, set the following environment variable:
+    - `export DB_DUMP_CONNECTION_URL="postgres://postgres@localhost:5432/postgres?password=postgres&sslmode=disable"`
 - `pkg-config`
   - on macOS, run `brew install pkg-config`
 - `pixman`
@@ -100,6 +105,15 @@ Use the following `make` commands and scripts in development:
 - Access `http://localhost:8080`
 - The default user is `admin@coder.com` and the default password is
   `SomeSecurePassword!`
+
+### Running Coder using docker-compose
+
+This mode is useful for testing HA or validating more complex setups.
+
+- Generate a new image from your HEAD: `make build/coder_$(./scripts/version.sh)_$(go env GOOS)_$(go env GOARCH).tag`
+  - This will output the name of the new image, e.g.: `ghcr.io/coder/coder:v2.19.0-devel-22fa71d15-amd64`
+- Inject this image into docker-compose: `CODER_VERSION=v2.19.0-devel-22fa71d15-amd64 docker-compose up` (*note the prefix `ghcr.io/coder/coder:` was removed*)
+- To use Docker, determine your host's `docker` group ID with `getent group docker | cut -d: -f3`, then update the value of `group_add` and uncomment
 
 ### Deploying a PR
 
@@ -145,16 +159,16 @@ Database migrations are managed with
 To add new migrations, use the following command:
 
 ```shell
-./coderd/database/migrations/create_fixture.sh my name
+./coderd/database/migrations/create_migration.sh my name
 /home/coder/src/coder/coderd/database/migrations/000070_my_name.up.sql
 /home/coder/src/coder/coderd/database/migrations/000070_my_name.down.sql
 ```
 
-Run "make gen" to generate models.
-
 Then write queries into the generated `.up.sql` and `.down.sql` files and commit
 them into the repository. The down script should make a best-effort to retain as
 much data as possible.
+
+Run `make gen` to generate models.
 
 #### Database fixtures (for testing migrations)
 

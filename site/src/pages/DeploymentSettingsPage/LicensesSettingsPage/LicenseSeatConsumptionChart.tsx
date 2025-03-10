@@ -108,7 +108,7 @@ export const LicenseSeatConsumptionChart: FC<
 								</li>
 								<li>
 									<Link asChild>
-										<RouterLink to="/deployment/general">
+										<RouterLink to="/deployment/overview">
 											Daily user activity
 										</RouterLink>
 									</Link>
@@ -177,7 +177,7 @@ export const LicenseSeatConsumptionChart: FC<
 												labelClassName="text-content-primary"
 												labelFormatter={(_, p) => {
 													const item = p[0];
-													return `${item.value} licenses`;
+													return `${item.value} seats`;
 												}}
 												formatter={(v, n, item) => {
 													const date = new Date(item.payload.date);

@@ -1,0 +1,78 @@
+name: "🐞 Bug"
+description: "File a bug report."
+title: "bug: "
+labels: ["needs-triage"]
+body:
+  - type: checkboxes
+    id: existing_issues
+    attributes:
+      label: "Is there an existing issue for this?"
+      description: "Please search to see if an issue already exists for the bug you encountered."
+      options:
+        - label: "I have searched the existing issues"
+          required: true
+
+  - type: textarea
+    id: issue
+    attributes:
+      label: "Current Behavior"
+      description: "A concise description of what you're experiencing."
+      placeholder: "Tell us what you see!"
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: "Relevant Log Output"
+      description: "Please copy and paste any relevant log output. This will be automatically formatted into code, so no need for backticks."
+      render: shell
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: "Expected Behavior"
+      description: "A concise description of what you expected to happen."
+    validations:
+      required: false
+
+  - type: textarea
+    id: steps_to_reproduce
+    attributes:
+      label: "Steps to Reproduce"
+      description: "Provide step-by-step instructions to reproduce the issue."
+      placeholder: |
+        1. First step
+        2. Second step
+        3. Another step
+        4. Issue occurs
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: "Environment"
+      description: |
+        Provide details about your environment:
+        - **Host OS**: (e.g., Ubuntu 24.04, Debian 12)
+        - **Coder Version**: (e.g., v2.18.4)
+      placeholder: |
+        Run `coder version` to get Coder version
+      value: |
+        - Host OS:
+        - Coder version:
+    validations:
+      required: false
+
+  - type: dropdown
+    id: additional_info
+    attributes:
+      label: "Additional Context"
+      description: "Select any applicable options:"
+      multiple: true
+      options:
+        - "The issue occurs consistently"
+        - "The issue is new (previously worked fine)"
+        - "The issue happens on multiple deployments"
+        - "I have tested this on the latest version"

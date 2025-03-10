@@ -1,7 +1,5 @@
 # Organizations - best practices
 
-December 9, 2024
-
 ---
 
 Coder [Organizations](../../admin/users/organizations.md) allow administrators
@@ -80,10 +78,8 @@ cannot access. Instead, the control plane sends simple "provisioner jobs" to the
 provisioner and the provisioner is responsible for executing the Terraform.
 
 There are planned improvements to the troubleshooting provisioners process.
-Follow these GitHub issues for more details:
+Follow this GitHub issue for more details:
 
-- [coder/coder#15048](https://github.com/coder/coder/issues/15048)
-- [coder/coder#15087](https://github.com/coder/coder/issues/15087)
 - [coder/coder#15192](https://github.com/coder/coder/issues/15192)
 
 ## Identity Provider (SSO) Sync
@@ -93,17 +89,6 @@ this is discouraged. Instead, we recommend syncing the state from your identity
 provider such as Okta. A single claim from the identity provider (like
 `memberOf`) can be used to sync site-wide roles, organizations, groups, and
 organization roles.
-
-### Planned enhancements
-
-Site-wide role sync is managed via server flags. We plan on changing this to
-runtime configuration so Coder does not need a re-deploy:
-
-- Issue [coder/internal#86](https://github.com/coder/internal/issues/86)
-
-Make all sync configurable via the dashboard UI:
-
-- [coder/coder#15290](https://github.com/coder/coder/issues/15290)
 
 Regex filters and mapping can be configured to ensure the proper resources are
 allocated in Coder. Learn more about [IDP sync](../../admin/users/idp-sync.md).

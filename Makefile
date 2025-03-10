@@ -116,7 +116,7 @@ endif
 
 clean:
 	rm -rf build/ site/build/ site/out/
-	mkdir -p build/ site/out/bin/
+	mkdir -p build/
 	git restore site/out/
 .PHONY: clean
 
@@ -563,7 +563,8 @@ GEN_FILES := \
 	site/e2e/provisionerGenerated.ts \
 	examples/examples.gen.json \
 	$(TAILNETTEST_MOCKS) \
-	coderd/database/pubsub/psmock/psmock.go
+	coderd/database/pubsub/psmock/psmock.go \
+	agent/agentcontainers/acmock/acmock.go
 
 
 # all gen targets should be added here and to gen/mark-fresh
@@ -598,6 +599,7 @@ gen/mark-fresh:
 		examples/examples.gen.json \
 		$(TAILNETTEST_MOCKS) \
 		coderd/database/pubsub/psmock/psmock.go \
+		agent/agentcontainers/acmock/acmock.go \
 		"
 
 	for file in $$files; do
@@ -628,6 +630,9 @@ coderd/database/dbmock/dbmock.go: coderd/database/db.go coderd/database/querier.
 
 coderd/database/pubsub/psmock/psmock.go: coderd/database/pubsub/pubsub.go
 	go generate ./coderd/database/pubsub/psmock
+
+agent/agentcontainers/acmock/acmock.go: agent/agentcontainers/containers.go
+	go generate ./agent/agentcontainers/acmock/
 
 $(TAILNETTEST_MOCKS): tailnet/coordinator.go tailnet/service.go
 	go generate ./tailnet/tailnettest/
@@ -804,7 +809,7 @@ provisioner/terraform/testdata/version:
 .PHONY: provisioner/terraform/testdata/version
 
 test:
-	$(GIT_FLAGS) gotestsum --format standard-quiet -- -v -short -count=1 ./...
+	$(GIT_FLAGS) gotestsum --format standard-quiet -- -v -short -count=1 ./... $(if $(RUN),-run $(RUN))
 .PHONY: test
 
 test-cli:
@@ -944,7 +949,12 @@ test-clean:
 	go clean -testcache
 .PHONY: test-clean
 
-test-e2e: site/node_modules/.installed site/out/index.html
+site/e2e/bin/coder: go.mod go.sum $(GO_SRC_FILES)
+	go build -o $@ \
+		-tags ts_omit_aws,ts_omit_bird,ts_omit_tap,ts_omit_kube \
+		./enterprise/cmd/coder
+
+test-e2e: site/e2e/bin/coder site/node_modules/.installed site/out/index.html
 	cd site/
 ifdef CI
 	DEBUG=pw:api pnpm playwright:test --forbid-only --workers 1
@@ -952,3 +962,6 @@ else
 	pnpm playwright:test
 endif
 .PHONY: test-e2e
+
+dogfood/contents/nix.hash: flake.nix flake.lock
+	sha256sum flake.nix flake.lock >./dogfood/contents/nix.hash

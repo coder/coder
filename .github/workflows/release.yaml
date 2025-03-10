@@ -36,13 +36,9 @@ jobs:
   build-dylib:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-macos-latest' || 'macos-latest' }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
-        with:
-          egress-policy: audit
-
+      # Harden Runner doesn't work on macOS.
       - name: Checkout
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
 
@@ -60,6 +56,11 @@ jobs:
           echo "$(brew --prefix bash)/bin" >> $GITHUB_PATH
           echo "$(brew --prefix gnu-getopt)/bin" >> $GITHUB_PATH
           echo "$(brew --prefix make)/libexec/gnubin" >> $GITHUB_PATH
+
+      - name: Switch XCode Version
+        uses: maxim-lobanov/setup-xcode@60606e260d2fc5762a71e64e74b2174e8ea3c8bd # v1.6.0
+        with:
+          xcode-version: "16.0.0"
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
@@ -100,7 +101,7 @@ jobs:
           AC_CERTIFICATE_PASSWORD_FILE: /tmp/apple_cert_password.txt
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         with:
           name: dylibs
           path: |
@@ -129,12 +130,12 @@ jobs:
       version: ${{ steps.version.outputs.version }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
 
@@ -217,25 +218,16 @@ jobs:
 
       # Necessary for signing Windows binaries.
       - name: Setup Java
-        uses: actions/setup-java@b36c23c0d998641eff861008f374ee103c25ac73 # v4.4.0
+        uses: actions/setup-java@3a4f6e1af504cf6a31855fa899c6aa5355ba6c12 # v4.7.0
         with:
           distribution: "zulu"
           java-version: "11.0"
 
+      - name: Install go-winres
+        run: go install github.com/tc-hib/go-winres@d743268d7ea168077ddd443c4240562d4f5e8c3e # v0.3.3
+
       - name: Install nsis and zstd
         run: sudo apt-get install -y nsis zstd
-
-      - name: Download dylibs
-        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
-        with:
-          name: dylibs
-          path: ./build
-
-      - name: Insert dylibs
-        run: |
-          mv ./build/*amd64.dylib ./site/out/bin/coder-vpn-darwin-amd64.dylib
-          mv ./build/*arm64.dylib ./site/out/bin/coder-vpn-darwin-arm64.dylib
-          mv ./build/*arm64.h     ./site/out/bin/coder-vpn-darwin-dylib.h
 
       - name: Install nfpm
         run: |
@@ -284,14 +276,26 @@ jobs:
       # Setup GCloud for signing Windows binaries.
       - name: Authenticate to Google Cloud
         id: gcloud_auth
-        uses: google-github-actions/auth@6fc4af4b145ae7821d527454aa9bd537d1f2dc5f # v2.1.7
+        uses: google-github-actions/auth@71f986410dfbc7added4569d411d040a91dc6935 # v2.1.8
         with:
           workload_identity_provider: ${{ secrets.GCP_CODE_SIGNING_WORKLOAD_ID_PROVIDER }}
           service_account: ${{ secrets.GCP_CODE_SIGNING_SERVICE_ACCOUNT }}
           token_format: "access_token"
 
       - name: Setup GCloud SDK
-        uses: google-github-actions/setup-gcloud@6189d56e4096ee891640bb02ac264be376592d6a # v2.1.2
+        uses: google-github-actions/setup-gcloud@77e7a554d41e2ee56fc945c52dfd3f33d12def9a # v2.1.4
+
+      - name: Download dylibs
+        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4.1.9
+        with:
+          name: dylibs
+          path: ./build
+
+      - name: Insert dylibs
+        run: |
+          mv ./build/*amd64.dylib ./site/out/bin/coder-vpn-darwin-amd64.dylib
+          mv ./build/*arm64.dylib ./site/out/bin/coder-vpn-darwin-arm64.dylib
+          mv ./build/*arm64.h     ./site/out/bin/coder-vpn-darwin-dylib.h
 
       - name: Build binaries
         run: |
@@ -309,6 +313,7 @@ jobs:
         env:
           CODER_SIGN_WINDOWS: "1"
           CODER_SIGN_DARWIN: "1"
+          CODER_WINDOWS_RESOURCES: "1"
           AC_CERTIFICATE_FILE: /tmp/apple_cert.p12
           AC_CERTIFICATE_PASSWORD_FILE: /tmp/apple_cert_password.txt
           AC_APIKEY_ISSUER_ID: ${{ secrets.AC_APIKEY_ISSUER_ID }}
@@ -459,13 +464,13 @@ jobs:
           CODER_GPG_RELEASE_KEY_BASE64: ${{ secrets.GPG_RELEASE_KEY_BASE64 }}
 
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@6fc4af4b145ae7821d527454aa9bd537d1f2dc5f # v2.1.7
+        uses: google-github-actions/auth@71f986410dfbc7added4569d411d040a91dc6935 # v2.1.8
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_ID_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
       - name: Setup GCloud SDK
-        uses: google-github-actions/setup-gcloud@6189d56e4096ee891640bb02ac264be376592d6a # 2.1.2
+        uses: google-github-actions/setup-gcloud@77e7a554d41e2ee56fc945c52dfd3f33d12def9a # 2.1.4
 
       - name: Publish Helm Chart
         if: ${{ !inputs.dry_run }}
@@ -484,7 +489,7 @@ jobs:
 
       - name: Upload artifacts to actions (if dry-run)
         if: ${{ inputs.dry_run }}
-        uses: actions/upload-artifact@604373da6381bf24206979c74d06a550515601b9 # v4.4.1
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         with:
           name: release-artifacts
           path: |
@@ -516,7 +521,7 @@ jobs:
       # TODO: skip this if it's not a new release (i.e. a backport). This is
       #       fine right now because it just makes a PR that we can close.
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
         with:
           egress-policy: audit
 
@@ -592,7 +597,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
         with:
           egress-policy: audit
 
@@ -602,7 +607,7 @@ jobs:
           GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
 
       - name: Checkout
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
 
@@ -682,12 +687,12 @@ jobs:
     if: ${{ !inputs.dry_run }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 1
 

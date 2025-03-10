@@ -25,7 +25,6 @@ describe("NavbarView", () => {
 	it("workspaces nav link has the correct href", async () => {
 		renderWithAuth(
 			<NavbarView
-				docsHref="https://docs.coder.com"
 				proxyContextValue={proxyContextValue}
 				user={MockUser}
 				onSignOut={noop}
@@ -43,7 +42,6 @@ describe("NavbarView", () => {
 	it("templates nav link has the correct href", async () => {
 		renderWithAuth(
 			<NavbarView
-				docsHref="https://docs.coder.com"
 				proxyContextValue={proxyContextValue}
 				user={MockUser}
 				onSignOut={noop}
@@ -61,7 +59,6 @@ describe("NavbarView", () => {
 	it("audit nav link has the correct href", async () => {
 		renderWithAuth(
 			<NavbarView
-				docsHref="https://docs.coder.com"
 				proxyContextValue={proxyContextValue}
 				user={MockUser}
 				onSignOut={noop}
@@ -80,7 +77,6 @@ describe("NavbarView", () => {
 	it("deployment nav link has the correct href", async () => {
 		renderWithAuth(
 			<NavbarView
-				docsHref="https://docs.coder.com"
 				proxyContextValue={proxyContextValue}
 				user={MockUser}
 				onSignOut={noop}
@@ -94,6 +90,6 @@ describe("NavbarView", () => {
 		await userEvent.click(deploymentMenu);
 		const deploymentSettingsLink =
 			await screen.findByText<HTMLAnchorElement>(/deployment/i);
-		expect(deploymentSettingsLink.href).toContain("/deployment/general");
+		expect(deploymentSettingsLink.href).toContain("/deployment");
 	});
 });

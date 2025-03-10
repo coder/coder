@@ -80,6 +80,7 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
 				</FormFields>
 			</FormSection>
 			<FormSection
+				data-chromatic="ignore"
 				title="Expiration"
 				description={
 					form.values.lifetime

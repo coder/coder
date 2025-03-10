@@ -3,10 +3,10 @@ package idpsync
 import (
 	"context"
 	"encoding/json"
+	"slices"
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
-	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -42,7 +42,7 @@ func (AGPLIDPSync) SiteRoleSyncEnabled() bool {
 	return false
 }
 
-func (s AGPLIDPSync) UpdateRoleSettings(ctx context.Context, orgID uuid.UUID, db database.Store, settings RoleSyncSettings) error {
+func (s AGPLIDPSync) UpdateRoleSyncSettings(ctx context.Context, orgID uuid.UUID, db database.Store, settings RoleSyncSettings) error {
 	orgResolver := s.Manager.OrganizationResolver(db, orgID)
 	err := s.SyncSettings.Role.SetRuntimeValue(ctx, orgResolver, &settings)
 	if err != nil {

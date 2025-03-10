@@ -20,7 +20,8 @@
       "version": "alpha",
       "workspace": "bobby-workspace"
     },
-    "data": null
+    "data": null,
+    "targets": null
   },
   "title": "Workspace 'bobby-workspace' has been created",
   "title_markdown": "Workspace 'bobby-workspace' has been created",

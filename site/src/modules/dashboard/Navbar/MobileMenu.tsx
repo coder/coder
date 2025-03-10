@@ -13,7 +13,6 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
-import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Latency } from "components/Latency/Latency";
 import type { ProxyContextValue } from "contexts/ProxyContext";
@@ -45,7 +44,6 @@ type MobileMenuProps = MobileMenuPermissions & {
 	proxyContextValue?: ProxyContextValue;
 	user?: TypesGen.User;
 	supportLinks?: readonly TypesGen.LinkConfig[];
-	docsHref: string;
 	onSignOut: () => void;
 	isDefaultOpen?: boolean; // Useful for storybook
 };
@@ -55,7 +53,6 @@ export const MobileMenu: FC<MobileMenuProps> = ({
 	proxyContextValue,
 	user,
 	supportLinks,
-	docsHref,
 	onSignOut,
 	...permissions
 }) => {
@@ -89,12 +86,6 @@ export const MobileMenu: FC<MobileMenuProps> = ({
 						<AdminSettingsSub {...permissions} />
 					</>
 				)}
-				<DropdownMenuSeparator />
-				<DropdownMenuItem asChild className={itemStyles.default}>
-					<a href={docsHref} target="_blank" rel="noreferrer norefereer">
-						Docs
-					</a>
-				</DropdownMenuItem>
 				<DropdownMenuSeparator />
 				<UserSettingsSub
 					user={user}
@@ -228,7 +219,7 @@ const AdminSettingsSub: FC<MobileMenuPermissions> = ({
 						asChild
 						className={cn(itemStyles.default, itemStyles.sub)}
 					>
-						<Link to="/deployment/general">Deployment</Link>
+						<Link to="/deployment">Deployment</Link>
 					</DropdownMenuItem>
 				)}
 				{canViewOrganizations && (
@@ -236,14 +227,7 @@ const AdminSettingsSub: FC<MobileMenuPermissions> = ({
 						asChild
 						className={cn(itemStyles.default, itemStyles.sub)}
 					>
-						<Link to="/organizations">
-							Organizations
-							<FeatureStageBadge
-								contentType="beta"
-								size="sm"
-								showTooltip={false}
-							/>
-						</Link>
+						<Link to="/organizations">Organizations</Link>
 					</DropdownMenuItem>
 				)}
 				{canViewAuditLog && (
@@ -322,7 +306,11 @@ const UserSettingsSub: FC<UserSettingsSubProps> = ({
 								asChild
 								className={cn(itemStyles.default, itemStyles.sub)}
 							>
-								<a href={l.target} target="_blank" rel="noreferrer">
+								<a
+									href={includeOrigin(l.target)}
+									target="_blank"
+									rel="noreferrer"
+								>
 									{l.name}
 								</a>
 							</DropdownMenuItem>
@@ -332,4 +320,12 @@ const UserSettingsSub: FC<UserSettingsSubProps> = ({
 			</CollapsibleContent>
 		</Collapsible>
 	);
+};
+
+export const includeOrigin = (target: string): string => {
+	if (target.startsWith("/")) {
+		const baseUrl = window.location.origin;
+		return `${baseUrl}${target}`;
+	}
+	return target;
 };

@@ -34,7 +34,7 @@ func (AGPLIDPSync) OrganizationSyncEnabled(_ context.Context, _ database.Store) 
 	return false
 }
 
-func (s AGPLIDPSync) UpdateOrganizationSettings(ctx context.Context, db database.Store, settings OrganizationSyncSettings) error {
+func (s AGPLIDPSync) UpdateOrganizationSyncSettings(ctx context.Context, db database.Store, settings OrganizationSyncSettings) error {
 	rlv := s.Manager.Resolver(db)
 	err := s.SyncSettings.Organization.SetRuntimeValue(ctx, rlv, &settings)
 	if err != nil {
@@ -45,6 +45,8 @@ func (s AGPLIDPSync) UpdateOrganizationSettings(ctx context.Context, db database
 }
 
 func (s AGPLIDPSync) OrganizationSyncSettings(ctx context.Context, db database.Store) (*OrganizationSyncSettings, error) {
+	// If this logic is ever updated, make sure to update the corresponding
+	// checkIDPOrgSync in coderd/telemetry/telemetry.go.
 	rlv := s.Manager.Resolver(db)
 	orgSettings, err := s.SyncSettings.Organization.Resolve(ctx, rlv)
 	if err != nil {
@@ -95,7 +97,10 @@ func (s AGPLIDPSync) SyncOrganizations(ctx context.Context, tx database.Store, u
 		return xerrors.Errorf("organization claims: %w", err)
 	}
 
-	existingOrgs, err := tx.GetOrganizationsByUserID(ctx, user.ID)
+	existingOrgs, err := tx.GetOrganizationsByUserID(ctx, database.GetOrganizationsByUserIDParams{
+		UserID:  user.ID,
+		Deleted: false,
+	})
 	if err != nil {
 		return xerrors.Errorf("failed to get user organizations: %w", err)
 	}

@@ -4,7 +4,7 @@ import { mockApiError } from "testHelpers/entities";
 import { CreateGroupPageView } from "./CreateGroupPageView";
 
 const meta: Meta<typeof CreateGroupPageView> = {
-	title: "pages/GroupsPage/CreateGroupPageView",
+	title: "pages/OrganizationGroupsPage/CreateGroupPageView",
 	component: CreateGroupPageView,
 };
 
@@ -19,7 +19,15 @@ export const WithError: Story = {
 			message: "A group named new-group already exists.",
 			validations: [{ field: "name", detail: "Group names must be unique" }],
 		}),
-		initialTouched: { name: true },
+	},
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+
+		await step("Enter name", async () => {
+			const input = canvas.getByLabelText("Name");
+			await userEvent.type(input, "new-group");
+			input.blur();
+		});
 	},
 };
 

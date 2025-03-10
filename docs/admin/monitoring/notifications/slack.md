@@ -17,8 +17,7 @@ consistent between Slack and their Coder login.
 Before setting up Slack notifications, ensure that you have the following:
 
 - Administrator access to the Slack platform to create apps
-- Coder platform v2.15.0 or greater with
-  [notifications enabled](./index.md#enable-experiment) for versions <v2.16.0
+- Coder platform >=v2.16.0
 
 ## Create Slack Application
 
@@ -34,9 +33,9 @@ To integrate Slack with Coder, follow these steps to create a Slack application:
 
 3. Under "OAuth & Permissions", add the following OAuth scopes:
 
-    - `chat:write`: To send messages as the app.
-    - `users:read`: To find the user details.
-    - `users:read.email`: To find user emails.
+   - `chat:write`: To send messages as the app.
+   - `users:read`: To find the user details.
+   - `users:read.email`: To find user emails.
 
 4. Install the app to your workspace and note down the **Bot User OAuth Token**
    from the "OAuth & Permissions" section.
@@ -52,128 +51,130 @@ To build the server to receive webhooks and interact with Slack:
 
 1. Initialize your project by running:
 
-    ```bash
-    npm init -y
-    ```
+   ```bash
+   npm init -y
+   ```
 
 2. Install the Bolt library:
 
-    ```bash
-    npm install @slack/bolt
-    ```
+   ```bash
+   npm install @slack/bolt
+   ```
 
 3. Create and edit the `app.js` file. Below is an example of the basic
    structure:
 
-    ```js
-    const { App, LogLevel, ExpressReceiver } = require("@slack/bolt");
-    const bodyParser = require("body-parser");
+   ```js
+   const { App, LogLevel, ExpressReceiver } = require("@slack/bolt");
+   const bodyParser = require("body-parser");
 
-    const port = process.env.PORT || 6000;
+   const port = process.env.PORT || 6000;
 
-    // Create a Bolt Receiver
-    const receiver = new ExpressReceiver({
-        signingSecret: process.env.SLACK_SIGNING_SECRET,
-    });
-    receiver.router.use(bodyParser.json());
+   // Create a Bolt Receiver
+   const receiver = new ExpressReceiver({
+       signingSecret: process.env.SLACK_SIGNING_SECRET,
+   });
+   receiver.router.use(bodyParser.json());
 
-    // Create the Bolt App, using the receiver
-    const app = new App({
-        token: process.env.SLACK_BOT_TOKEN,
-        logLevel: LogLevel.DEBUG,
-        receiver,
-    });
+   // Create the Bolt App, using the receiver
+   const app = new App({
+       token: process.env.SLACK_BOT_TOKEN,
+       logLevel: LogLevel.DEBUG,
+       receiver,
+   });
 
-    receiver.router.post("/v1/webhook", async (req, res) => {
-        try {
-            if (!req.body) {
-                return res.status(400).send("Error: request body is missing");
-            }
+   receiver.router.post("/v1/webhook", async (req, res) => {
+       try {
+           if (!req.body) {
+               return res.status(400).send("Error: request body is missing");
+           }
 
-            const { title, body } = req.body;
-            if (!title || !body) {
-                return res.status(400).send('Error: missing fields: "title", or "body"');
-            }
+           const { title_markdown, body_markdown } = req.body;
+              if (!title_markdown || !body_markdown) {
+                  return res
+                      .status(400)
+                      .send('Error: missing fields: "title_markdown", or "body_markdown"');
+           }
 
-            const payload = req.body.payload;
-            if (!payload) {
-                return res.status(400).send('Error: missing "payload" field');
-            }
+           const payload = req.body.payload;
+           if (!payload) {
+               return res.status(400).send('Error: missing "payload" field');
+           }
 
-            const { user_email, actions } = payload;
-            if (!user_email || !actions) {
-                return res
-                    .status(400)
-                    .send('Error: missing fields: "user_email", "actions"');
-            }
+           const { user_email, actions } = payload;
+           if (!user_email || !actions) {
+               return res
+                   .status(400)
+                   .send('Error: missing fields: "user_email", "actions"');
+           }
 
-            // Get the user ID using Slack API
-            const userByEmail = await app.client.users.lookupByEmail({
-                email: user_email,
-            });
+           // Get the user ID using Slack API
+           const userByEmail = await app.client.users.lookupByEmail({
+               email: user_email,
+           });
 
-            const slackMessage = {
-                channel: userByEmail.user.id,
-                text: body,
-                blocks: [
-                    {
-                        type: "header",
-                        text: { type: "plain_text", text: title },
-                    },
-                    {
-                        type: "section",
-                        text: { type: "mrkdwn", text: body },
-                    },
-                ],
-            };
+           const slackMessage = {
+               channel: userByEmail.user.id,
+               text: body,
+               blocks: [
+                   {
+                       type: "header",
+                       text: { type: "mrkdwn", text: title_markdown },
+                   },
+                   {
+                       type: "section",
+                       text: { type: "mrkdwn", text: body_markdown },
+                   },
+               ],
+           };
 
-            // Add action buttons if they exist
-            if (actions && actions.length > 0) {
-                slackMessage.blocks.push({
-                    type: "actions",
-                    elements: actions.map((action) => ({
-                        type: "button",
-                        text: { type: "plain_text", text: action.label },
-                        url: action.url,
-                    })),
-                });
-            }
+           // Add action buttons if they exist
+           if (actions && actions.length > 0) {
+               slackMessage.blocks.push({
+                   type: "actions",
+                   elements: actions.map((action) => ({
+                       type: "button",
+                       text: { type: "plain_text", text: action.label },
+                       url: action.url,
+                   })),
+               });
+           }
 
-            // Post message to the user on Slack
-            await app.client.chat.postMessage(slackMessage);
+           // Post message to the user on Slack
+           await app.client.chat.postMessage(slackMessage);
 
-            res.status(204).send();
-        } catch (error) {
-            console.error("Error sending message:", error);
-            res.status(500).send();
-        }
-    });
+           res.status(204).send();
+       } catch (error) {
+           console.error("Error sending message:", error);
+           res.status(500).send();
+       }
+   });
 
-    // Acknowledge clicks on link_button, otherwise Slack UI
-    // complains about missing events.
-    app.action("button_click", async ({ body, ack, say }) => {
-        await ack(); // no specific action needed
-    });
+   // Acknowledge clicks on link_button, otherwise Slack UI
+   // complains about missing events.
+   app.action("button_click", async ({ body, ack, say }) => {
+       await ack(); // no specific action needed
+   });
 
-    // Start the Bolt app
-    (async () => {
-        await app.start(port);
-        console.log("⚡️ Coder Slack bot is running!");
-    })();
-    ```
+   // Start the Bolt app
+   (async () => {
+       await app.start(port);
+       console.log("⚡️ Coder Slack bot is running!");
+   })();
+   ```
 
 4. Set environment variables to identify the Slack app:
 
-    ```bash
-    export SLACK_BOT_TOKEN=xoxb-...
-    export SLACK_SIGNING_SECRET=0da4b...
-    ```
+   ```bash
+   export SLACK_BOT_TOKEN=xoxb-...
+   export SLACK_SIGNING_SECRET=0da4b...
+   ```
 
 5. Start the web application by running:
 
-    ```bash
-    node app.js
-    ```
+   ```bash
+   node app.js
+   ```
 
 ## Enable Interactivity in Slack
 
@@ -192,11 +193,8 @@ must respond appropriately.
 
 ## Enable Webhook Integration in Coder
 
-To enable webhook integration in Coder, ensure the "notifications"
-[experiment is activated](./index.md#enable-experiment) (only required in
-v2.15.X).
-
-Then, define the POST webhook endpoint matching the deployed Slack bot:
+To enable webhook integration in Coder, define the POST webhook endpoint
+matching the deployed Slack bot:
 
 ```bash
 export CODER_NOTIFICATIONS_WEBHOOK_ENDPOINT=http://localhost:6000/v1/webhook`

@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
@@ -21,6 +23,7 @@ func (r *RootCmd) provisionerJobs() *serpent.Command {
 		},
 		Aliases: []string{"job"},
 		Children: []*serpent.Command{
+			r.provisionerJobsCancel(),
 			r.provisionerJobsList(),
 		},
 	}
@@ -38,7 +41,7 @@ func (r *RootCmd) provisionerJobsList() *serpent.Command {
 		client     = new(codersdk.Client)
 		orgContext = NewOrganizationContext()
 		formatter  = cliui.NewOutputFormatter(
-			cliui.TableFormat([]provisionerJobRow{}, []string{"created at", "id", "organization", "status", "type", "queue", "tags"}),
+			cliui.TableFormat([]provisionerJobRow{}, []string{"created at", "id", "type", "template display name", "status", "queue", "tags"}),
 			cliui.JSONFormat(),
 		)
 		status []string
@@ -121,6 +124,61 @@ func (r *RootCmd) provisionerJobsList() *serpent.Command {
 
 	orgContext.AttachOptions(cmd)
 	formatter.AttachOptions(&cmd.Options)
+
+	return cmd
+}
+
+func (r *RootCmd) provisionerJobsCancel() *serpent.Command {
+	var (
+		client     = new(codersdk.Client)
+		orgContext = NewOrganizationContext()
+	)
+	cmd := &serpent.Command{
+		Use:   "cancel <job_id>",
+		Short: "Cancel a provisioner job",
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(1),
+			r.InitClient(client),
+		),
+		Handler: func(inv *serpent.Invocation) error {
+			ctx := inv.Context()
+			org, err := orgContext.Selected(inv, client)
+			if err != nil {
+				return xerrors.Errorf("current organization: %w", err)
+			}
+
+			jobID, err := uuid.Parse(inv.Args[0])
+			if err != nil {
+				return xerrors.Errorf("invalid job ID: %w", err)
+			}
+
+			job, err := client.OrganizationProvisionerJob(ctx, org.ID, jobID)
+			if err != nil {
+				return xerrors.Errorf("get provisioner job: %w", err)
+			}
+
+			switch job.Type {
+			case codersdk.ProvisionerJobTypeTemplateVersionDryRun:
+				_, _ = fmt.Fprintf(inv.Stdout, "Canceling template version dry run job %s...\n", job.ID)
+				err = client.CancelTemplateVersionDryRun(ctx, ptr.NilToEmpty(job.Input.TemplateVersionID), job.ID)
+			case codersdk.ProvisionerJobTypeTemplateVersionImport:
+				_, _ = fmt.Fprintf(inv.Stdout, "Canceling template version import job %s...\n", job.ID)
+				err = client.CancelTemplateVersion(ctx, ptr.NilToEmpty(job.Input.TemplateVersionID))
+			case codersdk.ProvisionerJobTypeWorkspaceBuild:
+				_, _ = fmt.Fprintf(inv.Stdout, "Canceling workspace build job %s...\n", job.ID)
+				err = client.CancelWorkspaceBuild(ctx, ptr.NilToEmpty(job.Input.WorkspaceBuildID))
+			}
+			if err != nil {
+				return xerrors.Errorf("cancel provisioner job: %w", err)
+			}
+
+			_, _ = fmt.Fprintln(inv.Stdout, "Job canceled")
+
+			return nil
+		},
+	}
+
+	orgContext.AttachOptions(cmd)
 
 	return cmd
 }

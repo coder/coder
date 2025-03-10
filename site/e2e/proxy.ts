@@ -1,11 +1,11 @@
 import { type ChildProcess, exec, spawn } from "node:child_process";
-import { coderMain, coderPort, workspaceProxyPort } from "./constants";
+import { coderBinary, coderPort, workspaceProxyPort } from "./constants";
 import { waitUntilUrlIsNotResponding } from "./helpers";
 
 export const startWorkspaceProxy = async (
 	token: string,
 ): Promise<ChildProcess> => {
-	const cp = spawn("go", ["run", coderMain, "wsproxy", "server"], {
+	const cp = spawn(coderBinary, ["wsproxy", "server"], {
 		env: {
 			...process.env,
 			CODER_PRIMARY_ACCESS_URL: `http://127.0.0.1:${coderPort}`,
@@ -26,8 +26,8 @@ export const startWorkspaceProxy = async (
 	return cp;
 };
 
-export const stopWorkspaceProxy = async (cp: ChildProcess, goRun = true) => {
-	exec(goRun ? `pkill -P ${cp.pid}` : `kill ${cp.pid}`, (error) => {
+export const stopWorkspaceProxy = async (cp: ChildProcess) => {
+	exec(`kill ${cp.pid}`, (error) => {
 		if (error) {
 			throw new Error(`exec error: ${JSON.stringify(error)}`);
 		}

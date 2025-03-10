@@ -71,7 +71,7 @@ func TestProvisioners_Golden(t *testing.T) {
 	})
 	owner := coderdtest.CreateFirstUser(t, client)
 	templateAdminClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.ScopedRoleOrgTemplateAdmin(owner.OrganizationID))
-	memberClient, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+	_, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
 	// Create initial resources with a running provisioner.
 	firstProvisioner := coderdtest.NewTaggedProvisionerDaemon(t, coderdAPI, "default-provisioner", map[string]string{"owner": "", "scope": "organization"})
@@ -95,7 +95,7 @@ func TestProvisioners_Golden(t *testing.T) {
 		Name:       "provisioner-1",
 		CreatedAt:  dbtime.Now().Add(1 * time.Second),
 		LastSeenAt: sql.NullTime{Time: coderdAPI.Clock.Now().Add(time.Hour), Valid: true}, // Stale interval can't be adjusted, keep online.
-		KeyID:      uuid.MustParse(codersdk.ProvisionerKeyIDBuiltIn),
+		KeyID:      codersdk.ProvisionerKeyUUIDBuiltIn,
 		Tags:       database.StringMap{"owner": "", "scope": "organization", "foo": "bar"},
 	})
 	w1 := dbgen.Workspace(t, coderdAPI.Database, database.WorkspaceTable{
@@ -122,7 +122,7 @@ func TestProvisioners_Golden(t *testing.T) {
 		Name:       "provisioner-2",
 		CreatedAt:  dbtime.Now().Add(2 * time.Second),
 		LastSeenAt: sql.NullTime{Time: coderdAPI.Clock.Now().Add(-time.Hour), Valid: true},
-		KeyID:      uuid.MustParse(codersdk.ProvisionerKeyIDBuiltIn),
+		KeyID:      codersdk.ProvisionerKeyUUIDBuiltIn,
 		Tags:       database.StringMap{"owner": "", "scope": "organization"},
 	})
 	w2 := dbgen.Workspace(t, coderdAPI.Database, database.WorkspaceTable{
@@ -168,7 +168,7 @@ func TestProvisioners_Golden(t *testing.T) {
 		Name:       "provisioner-3",
 		CreatedAt:  dbtime.Now().Add(3 * time.Second),
 		LastSeenAt: sql.NullTime{Time: coderdAPI.Clock.Now().Add(time.Hour), Valid: true}, // Stale interval can't be adjusted, keep online.
-		KeyID:      uuid.MustParse(codersdk.ProvisionerKeyIDBuiltIn),
+		KeyID:      codersdk.ProvisionerKeyUUIDBuiltIn,
 		Tags:       database.StringMap{"owner": "", "scope": "organization"},
 	})
 
@@ -178,8 +178,9 @@ func TestProvisioners_Golden(t *testing.T) {
 		t.Logf("replace[%q] = %q", id, replaceID)
 	}
 
-	// Test provisioners list with member as members can access
-	// provisioner daemons.
+	// Test provisioners list with template admin as members are currently
+	// unable to access provisioner jobs. In the future (with RBAC
+	// changes), we may allow them to view _their_ jobs.
 	t.Run("list", func(t *testing.T) {
 		t.Parallel()
 
@@ -190,7 +191,7 @@ func TestProvisioners_Golden(t *testing.T) {
 			"--column", "id,created at,last seen at,name,version,tags,key name,status,current job id,current job status,previous job id,previous job status,organization",
 		)
 		inv.Stdout = &got
-		clitest.SetupConfig(t, memberClient, root)
+		clitest.SetupConfig(t, templateAdminClient, root)
 		err := inv.Run()
 		require.NoError(t, err)
 

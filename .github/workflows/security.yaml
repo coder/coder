@@ -27,18 +27,18 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@b6a472f63d85b9c78a3ac5e89422239fc15e9b3c # v3.28.1
+        uses: github/codeql-action/init@6bb031afdd8eb862ea3fc1848194185e076637e5 # v3.28.11
         with:
           languages: go, javascript
 
@@ -48,7 +48,7 @@ jobs:
           rm Makefile
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@b6a472f63d85b9c78a3ac5e89422239fc15e9b3c # v3.28.1
+        uses: github/codeql-action/analyze@6bb031afdd8eb862ea3fc1848194185e076637e5 # v3.28.11
 
       - name: Send Slack notification on failure
         if: ${{ failure() }}
@@ -67,12 +67,12 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
 
@@ -86,13 +86,13 @@ jobs:
         uses: ./.github/actions/setup-sqlc
 
       - name: Install yq
-        run: go run github.com/mikefarah/yq/v4@v4.30.6
+        run: go run github.com/mikefarah/yq/v4@v4.44.3
       - name: Install mockgen
-        run: go install go.uber.org/mock/mockgen@v0.4.0
+        run: go install go.uber.org/mock/mockgen@v0.5.0
       - name: Install protoc-gen-go
         run: go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30
       - name: Install protoc-gen-go-drpc
-        run: go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.33
+        run: go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.34
       - name: Install Protoc
         run: |
           # protoc must be in lockstep with our dogfood Dockerfile or the
@@ -144,13 +144,13 @@ jobs:
           severity: "CRITICAL,HIGH"
 
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@b6a472f63d85b9c78a3ac5e89422239fc15e9b3c # v3.28.1
+        uses: github/codeql-action/upload-sarif@6bb031afdd8eb862ea3fc1848194185e076637e5 # v3.28.11
         with:
           sarif_file: trivy-results.sarif
           category: "Trivy"
 
       - name: Upload Trivy scan results as an artifact
-        uses: actions/upload-artifact@604373da6381bf24206979c74d06a550515601b9 # v4.4.1
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         with:
           name: trivy
           path: trivy-results.sarif

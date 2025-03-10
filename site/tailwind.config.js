@@ -15,6 +15,7 @@ module.exports = {
 			},
 			fontSize: {
 				"2xs": ["0.625rem", "0.875rem"],
+				xs: ["0.75rem", "1.125rem"],
 				sm: ["0.875rem", "1.5rem"],
 				"3xl": ["2rem", "2.5rem"],
 			},
@@ -30,8 +31,9 @@ module.exports = {
 					disabled: "hsl(var(--content-disabled))",
 					invert: "hsl(var(--content-invert))",
 					success: "hsl(var(--content-success))",
-					danger: "hsl(var(--content-danger))",
 					link: "hsl(var(--content-link))",
+					destructive: "hsl(var(--content-destructive))",
+					warning: "hsl(var(--content-warning))",
 				},
 				surface: {
 					primary: "hsl(var(--surface-primary))",
@@ -43,16 +45,23 @@ module.exports = {
 						secondary: "hsl(var(--surface-invert-secondary))",
 					},
 					destructive: "hsl(var(--surface-destructive))",
+					green: "hsl(var(--surface-green))",
+					grey: "hsl(var(--surface-grey))",
+					orange: "hsl(var(--surface-orange))",
+					sky: "hsl(var(--surface-sky))",
 				},
 				border: {
 					DEFAULT: "hsl(var(--border-default))",
 					destructive: "hsl(var(--border-destructive))",
 				},
+				overlay: "hsla(var(--overlay-default))",
 				input: "hsl(var(--input))",
 				ring: "hsl(var(--ring))",
 				highlight: {
 					purple: "hsl(var(--highlight-purple))",
 					green: "hsl(var(--highlight-green))",
+					grey: "hsl(var(--highlight-grey))",
+					sky: "hsl(var(--highlight-sky))",
 				},
 			},
 			keyframes: {

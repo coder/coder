@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -17,7 +18,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
@@ -34,6 +34,7 @@ import (
 	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	maputil "github.com/coder/coder/v2/coderd/util/maps"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -678,6 +679,99 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 	httpapi.Write(ctx, rw, http.StatusOK, portsResponse)
 }
 
+// @Summary Get running containers for workspace agent
+// @ID get-running-containers-for-workspace-agent
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Agents
+// @Param workspaceagent path string true "Workspace agent ID" format(uuid)
+// @Param label query string true "Labels" format(key=value)
+// @Success 200 {object} codersdk.WorkspaceAgentListContainersResponse
+// @Router /workspaceagents/{workspaceagent}/containers [get]
+func (api *API) workspaceAgentListContainers(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	workspaceAgent := httpmw.WorkspaceAgentParam(r)
+
+	labelParam, ok := r.URL.Query()["label"]
+	if !ok {
+		labelParam = []string{}
+	}
+	labels := make(map[string]string, len(labelParam)/2)
+	for _, label := range labelParam {
+		kvs := strings.Split(label, "=")
+		if len(kvs) != 2 {
+			httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid label format",
+				Detail:  "Labels must be in the format key=value",
+			})
+			return
+		}
+		labels[kvs[0]] = kvs[1]
+	}
+
+	// If the agent is unreachable, the request will hang. Assume that if we
+	// don't get a response after 30s that the agent is unreachable.
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	apiAgent, err := db2sdk.WorkspaceAgent(
+		api.DERPMap(),
+		*api.TailnetCoordinator.Load(),
+		workspaceAgent,
+		nil,
+		nil,
+		nil,
+		api.AgentInactiveDisconnectTimeout,
+		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
+	)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error reading workspace agent.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if apiAgent.Status != codersdk.WorkspaceAgentConnected {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Agent state is %q, it must be in the %q state.", apiAgent.Status, codersdk.WorkspaceAgentConnected),
+		})
+		return
+	}
+
+	agentConn, release, err := api.agentProvider.AgentConn(ctx, workspaceAgent.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error dialing workspace agent.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	defer release()
+
+	// Get a list of containers that the agent is able to detect
+	cts, err := agentConn.ListContainers(ctx)
+	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			httpapi.Write(ctx, rw, http.StatusRequestTimeout, codersdk.Response{
+				Message: "Failed to fetch containers from agent.",
+				Detail:  "Request timed out.",
+			})
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching containers.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Filter in-place by labels
+	cts.Containers = slices.DeleteFunc(cts.Containers, func(ct codersdk.WorkspaceAgentDevcontainer) bool {
+		return !maputil.Subset(labels, ct.Labels)
+	})
+
+	httpapi.Write(ctx, rw, http.StatusOK, cts)
+}
+
 // @Summary Get connection info for workspace agent
 // @ID get-connection-info-for-workspace-agent
 // @Security CoderSessionToken
@@ -812,6 +906,7 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 	}
 
 	// This is used by Enterprise code to control the functionality of this route.
+	// Namely, disabling the route using `CODER_BROWSER_ONLY`.
 	override := api.WorkspaceClientCoordinateOverride.Load()
 	if override != nil {
 		overrideFunc := *override
@@ -1481,6 +1576,16 @@ func (api *API) workspaceAgentsExternalAuthListen(ctx context.Context, rw http.R
 // @Router /tailnet [get]
 func (api *API) tailnetRPCConn(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+
+	// This is used by Enterprise code to control the functionality of this route.
+	// Namely, disabling the route using `CODER_BROWSER_ONLY`.
+	override := api.WorkspaceClientCoordinateOverride.Load()
+	if override != nil {
+		overrideFunc := *override
+		if overrideFunc != nil && overrideFunc(rw) {
+			return
+		}
+	}
 
 	version := "2.0"
 	qv := r.URL.Query().Get("version")

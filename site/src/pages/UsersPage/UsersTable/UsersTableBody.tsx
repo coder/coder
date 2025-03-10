@@ -30,7 +30,7 @@ import {
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import type { FC } from "react";
-import { UserRoleCell } from "../../ManagementSettingsPage/UserTable/UserRoleCell";
+import { UserRoleCell } from "../../OrganizationSettingsPage/UserTable/UserRoleCell";
 import { UserGroupsCell } from "./UserGroupsCell";
 
 dayjs.extend(relativeTime);
@@ -176,7 +176,9 @@ export const UsersTableBody: FC<UsersTableBodyProps> = ({
 							]}
 						>
 							<div>{user.status}</div>
-							<LastSeen at={user.last_seen_at} css={{ fontSize: 12 }} />
+							{(user.status === "active" || user.status === "dormant") && (
+								<LastSeen at={user.last_seen_at} css={{ fontSize: 12 }} />
+							)}
 						</TableCell>
 
 						{canEditUsers && (

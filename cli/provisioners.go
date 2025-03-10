@@ -36,9 +36,10 @@ func (r *RootCmd) provisionerList() *serpent.Command {
 		client     = new(codersdk.Client)
 		orgContext = NewOrganizationContext()
 		formatter  = cliui.NewOutputFormatter(
-			cliui.TableFormat([]provisionerDaemonRow{}, []string{"name", "organization", "status", "key name", "created at", "last seen at", "version", "tags"}),
+			cliui.TableFormat([]provisionerDaemonRow{}, []string{"created at", "last seen at", "key name", "name", "version", "status", "tags"}),
 			cliui.JSONFormat(),
 		)
+		limit int64
 	)
 
 	cmd := &serpent.Command{
@@ -57,7 +58,9 @@ func (r *RootCmd) provisionerList() *serpent.Command {
 				return xerrors.Errorf("current organization: %w", err)
 			}
 
-			daemons, err := client.OrganizationProvisionerDaemons(ctx, org.ID, nil)
+			daemons, err := client.OrganizationProvisionerDaemons(ctx, org.ID, &codersdk.OrganizationProvisionerDaemonsOptions{
+				Limit: int(limit),
+			})
 			if err != nil {
 				return xerrors.Errorf("list provisioner daemons: %w", err)
 			}
@@ -85,6 +88,17 @@ func (r *RootCmd) provisionerList() *serpent.Command {
 			return nil
 		},
 	}
+
+	cmd.Options = append(cmd.Options, []serpent.Option{
+		{
+			Flag:          "limit",
+			FlagShorthand: "l",
+			Env:           "CODER_PROVISIONER_LIST_LIMIT",
+			Description:   "Limit the number of provisioners returned.",
+			Default:       "50",
+			Value:         serpent.Int64Of(&limit),
+		},
+	}...)
 
 	orgContext.AttachOptions(cmd)
 	formatter.AttachOptions(&cmd.Options)

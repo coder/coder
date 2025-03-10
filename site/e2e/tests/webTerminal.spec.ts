@@ -16,8 +16,6 @@ test.beforeEach(async ({ page }) => {
 });
 
 test("web terminal", async ({ context, page }) => {
-	test.setTimeout(75_000);
-
 	const token = randomUUID();
 	const template = await createTemplate(page, {
 		apply: [

@@ -27,22 +27,21 @@ var (
 
 	// ResourceAssignOrgRole
 	// Valid Actions
-	//  - "ActionAssign" :: ability to assign org scoped roles
-	//  - "ActionCreate" :: ability to create/delete custom roles within an organization
-	//  - "ActionDelete" :: ability to delete org scoped roles
-	//  - "ActionRead" :: view what roles are assignable
-	//  - "ActionUpdate" :: ability to edit custom roles within an organization
+	//  - "ActionAssign" :: assign org scoped roles
+	//  - "ActionCreate" :: create/delete custom roles within an organization
+	//  - "ActionDelete" :: delete roles within an organization
+	//  - "ActionRead" :: view what roles are assignable within an organization
+	//  - "ActionUnassign" :: unassign org scoped roles
+	//  - "ActionUpdate" :: edit custom roles within an organization
 	ResourceAssignOrgRole = Object{
 		Type: "assign_org_role",
 	}
 
 	// ResourceAssignRole
 	// Valid Actions
-	//  - "ActionAssign" :: ability to assign roles
-	//  - "ActionCreate" :: ability to create/delete/edit custom roles
-	//  - "ActionDelete" :: ability to unassign roles
+	//  - "ActionAssign" :: assign user roles
 	//  - "ActionRead" :: view what roles are assignable
-	//  - "ActionUpdate" :: ability to edit custom roles
+	//  - "ActionUnassign" :: unassign user roles
 	ResourceAssignRole = Object{
 		Type: "assign_role",
 	}
@@ -118,6 +117,15 @@ var (
 	//  - "ActionUpdate" :: update IdP sync settings
 	ResourceIdpsyncSettings = Object{
 		Type: "idpsync_settings",
+	}
+
+	// ResourceInboxNotification
+	// Valid Actions
+	//  - "ActionCreate" :: create inbox notifications
+	//  - "ActionRead" :: read inbox notifications
+	//  - "ActionUpdate" :: update inbox notifications
+	ResourceInboxNotification = Object{
+		Type: "inbox_notification",
 	}
 
 	// ResourceLicense
@@ -206,8 +214,8 @@ var (
 
 	// ResourceProvisionerDaemon
 	// Valid Actions
-	//  - "ActionCreate" :: create a provisioner daemon
-	//  - "ActionDelete" :: delete a provisioner daemon
+	//  - "ActionCreate" :: create a provisioner daemon/key
+	//  - "ActionDelete" :: delete a provisioner daemon/key
 	//  - "ActionRead" :: read provisioner daemon
 	//  - "ActionUpdate" :: update a provisioner daemon
 	ResourceProvisionerDaemon = Object{
@@ -219,15 +227,6 @@ var (
 	//  - "ActionRead" :: read provisioner jobs
 	ResourceProvisionerJobs = Object{
 		Type: "provisioner_jobs",
-	}
-
-	// ResourceProvisionerKeys
-	// Valid Actions
-	//  - "ActionCreate" :: create a provisioner key
-	//  - "ActionDelete" :: delete a provisioner key
-	//  - "ActionRead" :: read provisioner keys
-	ResourceProvisionerKeys = Object{
-		Type: "provisioner_keys",
 	}
 
 	// ResourceReplicas
@@ -295,6 +294,15 @@ var (
 		Type: "workspace",
 	}
 
+	// ResourceWorkspaceAgentResourceMonitor
+	// Valid Actions
+	//  - "ActionCreate" :: create workspace agent resource monitor
+	//  - "ActionRead" :: read workspace agent resource monitor
+	//  - "ActionUpdate" :: update workspace agent resource monitor
+	ResourceWorkspaceAgentResourceMonitor = Object{
+		Type: "workspace_agent_resource_monitor",
+	}
+
 	// ResourceWorkspaceDormant
 	// Valid Actions
 	//  - "ActionApplicationConnect" :: connect to workspace apps via browser
@@ -335,6 +343,7 @@ func AllResources() []Objecter {
 		ResourceGroup,
 		ResourceGroupMember,
 		ResourceIdpsyncSettings,
+		ResourceInboxNotification,
 		ResourceLicense,
 		ResourceNotificationMessage,
 		ResourceNotificationPreference,
@@ -346,13 +355,13 @@ func AllResources() []Objecter {
 		ResourceOrganizationMember,
 		ResourceProvisionerDaemon,
 		ResourceProvisionerJobs,
-		ResourceProvisionerKeys,
 		ResourceReplicas,
 		ResourceSystem,
 		ResourceTailnetCoordinator,
 		ResourceTemplate,
 		ResourceUser,
 		ResourceWorkspace,
+		ResourceWorkspaceAgentResourceMonitor,
 		ResourceWorkspaceDormant,
 		ResourceWorkspaceProxy,
 	}
@@ -367,6 +376,7 @@ func AllActions() []policy.Action {
 		policy.ActionRead,
 		policy.ActionReadPersonal,
 		policy.ActionSSH,
+		policy.ActionUnassign,
 		policy.ActionUpdate,
 		policy.ActionUpdatePersonal,
 		policy.ActionUse,

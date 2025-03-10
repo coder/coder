@@ -38,7 +38,7 @@ RUN apt-get update && \
 	# protoc-gen-go is needed to build sysbox from source
 	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30 && \
 	# drpc support for v2
-	go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.33 && \
+	go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.34 && \
 	# migrate for migration support for v2
 	go install github.com/golang-migrate/migrate/v4/cmd/migrate@v4.15.1 && \
 	# goreleaser for compiling v2 binaries
@@ -57,7 +57,7 @@ RUN apt-get update && \
 	# charts and values files
 	go install github.com/norwoodj/helm-docs/cmd/helm-docs@v1.5.0 && \
 	# sqlc for Go code generation
-	(CGO_ENABLED=1 go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.25.0) && \
+	(CGO_ENABLED=1 go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.27.0) && \
 	# gcr-cleaner-cli used by CI to prune unused images
 	go install github.com/sethvargo/gcr-cleaner/cmd/gcr-cleaner-cli@v0.5.1 && \
 	# ruleguard for checking custom rules, without needing to run all of
@@ -75,9 +75,9 @@ RUN apt-get update && \
 	go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.35.1 && \
 	# yq v4 is used to process yaml files in coder v2. Conflicts with
 	# yq v3 used in v1.
-	go install github.com/mikefarah/yq/v4@v4.30.6 && \
+	go install github.com/mikefarah/yq/v4@v4.44.3 && \
 	mv /tmp/bin/yq /tmp/bin/yq4 && \
-	go install go.uber.org/mock/mockgen@v0.4.0 && \
+	go install go.uber.org/mock/mockgen@v0.5.0 && \
 	# Reduce image size.
 	apt-get remove --yes gcc && \
 	apt-get autoremove --yes && \
@@ -90,7 +90,7 @@ RUN apt-get update && \
 FROM gcr.io/coder-dev-1/alpine:3.18 as proto
 WORKDIR /tmp
 RUN apk add curl unzip
-RUN curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.3/protoc-23.3-linux-x86_64.zip && \
+RUN curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-linux-x86_64.zip && \
 	unzip protoc.zip && \
 	rm protoc.zip
 
@@ -160,6 +160,7 @@ RUN apt-get update --quiet && apt-get install --yes \
 	kubectl \
 	language-pack-en \
 	less \
+	libgbm-dev \
 	libssl-dev \
 	lsb-release \
 	man \
@@ -195,9 +196,9 @@ RUN apt-get update --quiet && apt-get install --yes \
 	# Configure FIPS-compliant policies
 	update-crypto-policies --set FIPS
 
-# NOTE: In scripts/Dockerfile.base we specifically install Terraform version 1.9.8.
+# NOTE: In scripts/Dockerfile.base we specifically install Terraform version 1.10.5.
 # Installing the same version here to match.
-RUN wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.9.8/terraform_1.9.8_linux_amd64.zip" && \
+RUN wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.11.0/terraform_1.11.0_linux_amd64.zip" && \
 	unzip /tmp/terraform.zip -d /usr/local/bin && \
 	rm -f /tmp/terraform.zip && \
 	chmod +x /usr/local/bin/terraform && \
