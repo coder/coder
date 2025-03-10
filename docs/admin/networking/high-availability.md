@@ -32,7 +32,7 @@ connect to the same Postgres endpoint.
 HA brings one configuration variable to set in each Coderd node:
 `CODER_DERP_SERVER_RELAY_URL`. The HA nodes use these URLs to communicate with
 each other. Inter-node communication is only required while using the embedded
-relay (default). If you're using [custom relays](./index.md#custom-relays),
+relay (default). If you're using [custom relays](./more-networking/index.md#custom-relays),
 Coder ignores `CODER_DERP_SERVER_RELAY_URL` since Postgres is the sole
 rendezvous for the Coder nodes.
 
