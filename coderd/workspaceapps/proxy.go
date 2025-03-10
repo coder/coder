@@ -301,6 +301,7 @@ func (s *Server) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request)
 	token, ok := ResolveRequest(rw, r, ResolveRequestOptions{
 		Logger:              s.Logger,
 		SignedTokenProvider: s.SignedTokenProvider,
+		SecureCookie:        s.SecureAuthCookie,
 		DashboardURL:        s.DashboardURL,
 		PathAppBaseURL:      s.AccessURL,
 		AppHostname:         s.Hostname,
@@ -406,6 +407,7 @@ func (s *Server) HandleSubdomain(middlewares ...func(http.Handler) http.Handler)
 				token, ok := ResolveRequest(rw, r, ResolveRequestOptions{
 					Logger:              s.Logger,
 					SignedTokenProvider: s.SignedTokenProvider,
+					SecureCookie:        s.SecureAuthCookie,
 					DashboardURL:        s.DashboardURL,
 					PathAppBaseURL:      s.AccessURL,
 					AppHostname:         s.Hostname,
@@ -631,6 +633,7 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	appToken, ok := ResolveRequest(rw, r, ResolveRequestOptions{
 		Logger:              s.Logger,
 		SignedTokenProvider: s.SignedTokenProvider,
+		SecureCookie:        s.SecureAuthCookie,
 		DashboardURL:        s.DashboardURL,
 		PathAppBaseURL:      s.AccessURL,
 		AppHostname:         s.Hostname,

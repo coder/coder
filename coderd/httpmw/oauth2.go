@@ -40,7 +40,7 @@ func OAuth2(r *http.Request) OAuth2State {
 // a "code" URL parameter will be redirected.
 // AuthURLOpts are passed to the AuthCodeURL function. If this is nil,
 // the default option oauth2.AccessTypeOffline will be used.
-func ExtractOAuth2(config promoauth.OAuth2Config, client *http.Client, authURLOpts map[string]string) func(http.Handler) http.Handler {
+func ExtractOAuth2(config promoauth.OAuth2Config, client *http.Client, authURLOpts map[string]string, secureCookie bool) func(http.Handler) http.Handler {
 	opts := make([]oauth2.AuthCodeOption, 0, len(authURLOpts)+1)
 	opts = append(opts, oauth2.AccessTypeOffline)
 	for k, v := range authURLOpts {
@@ -124,6 +124,7 @@ func ExtractOAuth2(config promoauth.OAuth2Config, client *http.Client, authURLOp
 					Path:     "/",
 					HttpOnly: true,
 					SameSite: http.SameSiteLaxMode,
+					Secure:   secureCookie,
 				})
 				// Redirect must always be specified, otherwise
 				// an old redirect could apply!
@@ -133,6 +134,7 @@ func ExtractOAuth2(config promoauth.OAuth2Config, client *http.Client, authURLOp
 					Path:     "/",
 					HttpOnly: true,
 					SameSite: http.SameSiteLaxMode,
+					Secure:   secureCookie,
 				})
 
 				http.Redirect(rw, r, config.AuthCodeURL(state, opts...), http.StatusTemporaryRedirect)

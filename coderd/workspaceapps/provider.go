@@ -22,6 +22,7 @@ const (
 type ResolveRequestOptions struct {
 	Logger              slog.Logger
 	SignedTokenProvider SignedTokenProvider
+	SecureCookie        bool
 
 	DashboardURL   *url.URL
 	PathAppBaseURL *url.URL
@@ -80,6 +81,7 @@ func ResolveRequest(rw http.ResponseWriter, r *http.Request, opts ResolveRequest
 		Value:   tokenStr,
 		Path:    appReq.BasePath,
 		Expires: token.Expiry.Time(),
+		Secure:  opts.SecureCookie,
 	})
 
 	return token, true
