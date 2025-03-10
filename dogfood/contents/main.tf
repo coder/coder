@@ -351,7 +351,7 @@ resource "coder_agent" "dev" {
       sleep 1
     done
     cd "${local.repo_dir}" && make clean
-    cd "${local.repo_dir}/site" && pnpm install && pnpm playwright:install
+    cd "${local.repo_dir}/site" && pnpm install
   EOT
 }
 
