@@ -4616,6 +4616,21 @@ func (mr *MockStoreMockRecorder) InsertWorkspaceApp(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceApp", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceApp), ctx, arg)
 }
 
+// InsertWorkspaceAppAuditSession mocks base method.
+func (m *MockStore) InsertWorkspaceAppAuditSession(ctx context.Context, arg database.InsertWorkspaceAppAuditSessionParams) (uuid.UUID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertWorkspaceAppAuditSession", ctx, arg)
+	ret0, _ := ret[0].(uuid.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertWorkspaceAppAuditSession indicates an expected call of InsertWorkspaceAppAuditSession.
+func (mr *MockStoreMockRecorder) InsertWorkspaceAppAuditSession(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceAppAuditSession", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceAppAuditSession), ctx, arg)
+}
+
 // InsertWorkspaceAppStats mocks base method.
 func (m *MockStore) InsertWorkspaceAppStats(ctx context.Context, arg database.InsertWorkspaceAppStatsParams) error {
 	m.ctrl.T.Helper()
@@ -5716,6 +5731,21 @@ func (m *MockStore) UpdateWorkspaceAgentStartupByID(ctx context.Context, arg dat
 func (mr *MockStoreMockRecorder) UpdateWorkspaceAgentStartupByID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceAgentStartupByID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceAgentStartupByID), ctx, arg)
+}
+
+// UpdateWorkspaceAppAuditSession mocks base method.
+func (m *MockStore) UpdateWorkspaceAppAuditSession(ctx context.Context, arg database.UpdateWorkspaceAppAuditSessionParams) ([]uuid.UUID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateWorkspaceAppAuditSession", ctx, arg)
+	ret0, _ := ret[0].([]uuid.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateWorkspaceAppAuditSession indicates an expected call of UpdateWorkspaceAppAuditSession.
+func (mr *MockStoreMockRecorder) UpdateWorkspaceAppAuditSession(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceAppAuditSession", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceAppAuditSession), ctx, arg)
 }
 
 // UpdateWorkspaceAppHealthByID mocks base method.
