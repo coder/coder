@@ -79,13 +79,61 @@ dashboard-accessed web apps.
 
 ## Latency
 
-Coder measures and reports several measures of latency, including database latency and the round-trip time between a user and their workspace.
+Coder measures and reports several types of latency, providing insights into the performance of your deployment. Understanding these metrics can help you diagnose issues and optimize the user experience.
 
-A higher latency can lead to lag for the user in how they interact with terminal sessions, file actions, lag within code-server and other browser-based IDEs, and a general experience of a laggy connection.
+There are three main types of latency metrics for your Coder deployment:
 
-You can find latency measurements in
+- Dashboard-to-server latency:
+  
+  The Coder UI measures round-trip time to the Coder server using the browser's Performance API.
+  
+  This appears in the user interface next to your username, showing how responsive the dashboard is.
 
-To lower latency and help improve your users' experience, you can
+- Workspace connection latency:
+  
+  When users connect to workspaces, Coder measures and displays the latency between the user and:
+  - Workspace (direct P2P connection when possible)
+  - DERP relay servers (when P2P isn't possible)
+
+  This latency is visible in workspace cards and resource pages. It shows the round-trip time in milliseconds.
+
+- Database latency:
+  
+  For administrators, Coder monitors and reports database query performance in the health dashboard.
+
+### How latency is classified
+
+Latency measurements are color-coded in the dashboard:
+
+- **Green** (<150ms): Good performance.
+- **Yellow** (150-300ms): Moderate latency that might affect user experience.
+- **Red** (>300ms): High latency that will noticeably affect user experience.
+
+### View latency information
+
+- **Dashboard**: The global latency indicator appears in the top navigation bar.
+- **Workspace list**: Each workspace shows its connection latency.
+- **Health dashboard**: Administrators can view advanced metrics including database latency.
+- **CLI**: Use `coder ping <workspace>` to measure and analyze latency from the command line.
+
+### Factors that affect latency
+
+- **Geographic distance**: Physical distance between users, Coder server, and workspaces.
+- **Network connectivity**: Quality of internet connections and routing.
+- **Infrastructure**: Cloud provider regions and network optimization.
+- **P2P connectivity**: Whether direct connections can be established or relays are needed.
+
+### How to optimize latency
+
+To improve latency and user experience:
+
+- **Deploy workspace proxies**: Place [proxies](./workspace-proxies.md) in regions closer to users.
+- **Use P2P connections**: Ensure network configurations permit direct connections.
+- **Regional deployments**: Place Coder servers in regions where most users work.
+- **Network configuration**: Optimize routing between users and workspaces.
+- **Check firewall rules**: Ensure they don't block necessary Coder connections.
+
+For help troubleshooting connection issues, including latency problems, refer to the [networking troubleshooting guide](./troubleshooting.md).
 
 ## Up next
 
