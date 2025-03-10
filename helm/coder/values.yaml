@@ -196,16 +196,15 @@ coder:
     #   exec:
     #     command: ["/bin/sh","-c","echo preStart"]
 
-  # coder.resources -- The resources to request for Coder. These are optional
-  # and are not set by default.
+  # coder.resources -- The resources to request for Coder. The below values are
+  # defaults and can be overridden.
   resources:
-    {}
-    # limits:
-    #   cpu: 2000m
-    #   memory: 4096Mi
-    # requests:
-    #   cpu: 2000m
-    #   memory: 4096Mi
+    limits:
+      cpu: 2000m
+      memory: 4096Mi
+    requests:
+      cpu: 2000m
+      memory: 4096Mi
 
   # coder.certs -- CA bundles to mount inside the Coder pod.
   certs:
