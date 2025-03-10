@@ -68,7 +68,7 @@ jobs:
           project: b4q6ltmpzh
           token: ${{ secrets.DEPOT_TOKEN }}
           buildx-fallback: true
-          context: "{{defaultContext}}:dogfood/contents"
+          context: "{{defaultContext}}:dogfood/coder/contents"
           pull: true
           save: true
           push: ${{ github.ref == 'refs/heads/main' }}
@@ -113,12 +113,18 @@ jobs:
 
       - name: Terraform init and validate
         run: |
-          cd dogfood
+          pushd dogfood/
           terraform init -upgrade
           terraform validate
-          cd contents
+          popd
+          pushd coder/contents
           terraform init -upgrade
           terraform validate
+          popd
+          pushd coder-envbuilder/contents
+          terraform init -upgrade
+          terraform validate
+          popd
 
       - name: Get short commit SHA
         if: github.ref == 'refs/heads/main'
@@ -133,7 +139,7 @@ jobs:
       - name: "Push template"
         if: github.ref == 'refs/heads/main'
         run: |
-          cd dogfood
+          cd dogfood/
           terraform apply -auto-approve
         env:
           # Consumed by coderd provider
