@@ -1260,7 +1260,7 @@ func (q *FakeQuerier) getProvisionerJobsByIDsWithQueuePositionLockedTagBasedQueu
 
 	// Step 7: Sort results by CreatedAt
 	sort.Slice(results, func(i, j int) bool {
-		return results[i].CreatedAt.Before(results[j].CreatedAt)
+		return results[i].CreatedAt.After(results[j].CreatedAt)
 	})
 
 	return results, nil

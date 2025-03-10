@@ -2166,6 +2166,7 @@ func TestExpectOne(t *testing.T) {
 	})
 }
 
+// defaultQueuePositionTestCases contains shared test cases used across multiple tests.
 var defaultQueuePositionTestCases = []struct {
 	name           string
 	jobTags        []database.StringMap
