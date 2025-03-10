@@ -320,13 +320,14 @@ func runDockerInspect(ctx context.Context, execer agentexec.Execer, ids ...strin
 // To avoid a direct dependency on the Docker API, we use the docker CLI
 // to fetch information about containers.
 type dockerInspect struct {
-	ID         string                  `json:"Id"`
-	Created    time.Time               `json:"Created"`
-	Config     dockerInspectConfig     `json:"Config"`
-	HostConfig dockerInspectHostConfig `json:"HostConfig"`
-	Name       string                  `json:"Name"`
-	Mounts     []dockerInspectMount    `json:"Mounts"`
-	State      dockerInspectState      `json:"State"`
+	ID              string                  `json:"Id"`
+	Created         time.Time               `json:"Created"`
+	Config          dockerInspectConfig     `json:"Config"`
+	HostConfig      dockerInspectHostConfig `json:"HostConfig"`
+	Name            string                  `json:"Name"`
+	Mounts          []dockerInspectMount    `json:"Mounts"`
+	State           dockerInspectState      `json:"State"`
+	NetworkSettings dockerNetworkSettings   `json:"NetworkSettings"`
 }
 
 type dockerInspectConfig struct {
@@ -335,7 +336,16 @@ type dockerInspectConfig struct {
 }
 
 type dockerInspectHostConfig struct {
-	PortBindings map[string]any `json:"PortBindings"`
+	PortBindings map[string][]dockerPortBinding `json:"PortBindings"`
+}
+
+type dockerPortBinding struct {
+	HostIP   string `json:"HostIp"`
+	HostPort string `json:"HostPort"`
+}
+
+type dockerNetworkSettings struct {
+	Ports map[string][]dockerPortBinding `json:"Ports"`
 }
 
 type dockerInspectMount struct {
@@ -382,20 +392,54 @@ func convertDockerInspect(in dockerInspect) (codersdk.WorkspaceAgentDevcontainer
 		Volumes:      make(map[string]string, len(in.Mounts)),
 	}
 
-	if in.HostConfig.PortBindings == nil {
-		in.HostConfig.PortBindings = make(map[string]any)
+	// Use NetworkSettings.Ports for externally accessible ports
+	if in.NetworkSettings.Ports == nil {
+		in.NetworkSettings.Ports = make(map[string][]dockerPortBinding)
 	}
-	portKeys := maps.Keys(in.HostConfig.PortBindings)
-	// Sort the ports for deterministic output.
+
+	// Track host ports to avoid duplicates (same port on multiple interfaces)
+	seenHostPorts := make(map[string]bool)
+
+	// Get all port mappings
+	portKeys := maps.Keys(in.NetworkSettings.Ports)
+	// Sort the ports for deterministic output
 	sort.Strings(portKeys)
-	for _, p := range portKeys {
-		if port, network, err := convertDockerPort(p); err != nil {
-			warns = append(warns, err.Error())
-		} else {
+
+	for containerPortSpec, bindings := range in.NetworkSettings.Ports {
+		// Skip if no bindings exist (don't expose the container port)
+		if len(bindings) == 0 {
+			continue
+		}
+
+		// Parse the containerPortSpec (e.g., "8080/tcp")
+		parts := strings.Split(containerPortSpec, "/")
+
+		// Get the network protocol
+		network := "tcp" // Default to tcp
+		if len(parts) == 2 {
+			network = parts[1]
+		}
+
+		// Process all bindings for this port (usually different interfaces)
+		for _, binding := range bindings {
+			// Skip if we've already seen this host port
+			if seenHostPorts[binding.HostPort] {
+				continue
+			}
+
+			hostPort, err := strconv.Atoi(binding.HostPort)
+			if err != nil {
+				warns = append(warns, fmt.Sprintf("invalid host port format: %s", binding.HostPort))
+				continue
+			}
+
 			out.Ports = append(out.Ports, codersdk.WorkspaceAgentListeningPort{
 				Network: network,
-				Port:    port,
+				Port:    uint16(hostPort),
 			})
+
+			// Mark this host port as seen
+			seenHostPorts[binding.HostPort] = true
 		}
 	}
 
@@ -411,29 +455,4 @@ func convertDockerInspect(in dockerInspect) (codersdk.WorkspaceAgentDevcontainer
 	}
 
 	return out, warns
-}
-
-// convertDockerPort converts a Docker port string to a port number and network
-// example: "8080/tcp" -> 8080, "tcp"
-//
-//	"8080" -> 8080, "tcp"
-func convertDockerPort(in string) (uint16, string, error) {
-	parts := strings.Split(in, "/")
-	switch len(parts) {
-	case 1:
-		// assume it's a TCP port
-		p, err := strconv.Atoi(parts[0])
-		if err != nil {
-			return 0, "", xerrors.Errorf("invalid port format: %s", in)
-		}
-		return uint16(p), "tcp", nil
-	case 2:
-		p, err := strconv.Atoi(parts[0])
-		if err != nil {
-			return 0, "", xerrors.Errorf("invalid port format: %s", in)
-		}
-		return uint16(p), parts[1], nil
-	default:
-		return 0, "", xerrors.Errorf("invalid port format: %s", in)
-	}
 }
