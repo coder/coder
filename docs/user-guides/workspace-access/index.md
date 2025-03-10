@@ -55,6 +55,7 @@ each user to simplify the setup process.
 
    ```shell
    coder config-ssh --dry-run
+   ```
 
 1. Confirm that you want to continue by typing **yes** and pressing enter. If
 successful, you'll see the following message:
