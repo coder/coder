@@ -419,6 +419,11 @@ func (p *DBTokenProvider) auditInitRequest(ctx context.Context, w http.ResponseW
 			return
 		}
 
+		userID := uuid.NullUUID{}
+		if aReq.apiKey != nil {
+			userID = uuid.NullUUID{Valid: true, UUID: aReq.apiKey.UserID}
+		}
+
 		type additionalFields struct {
 			audit.AdditionalFields
 			SlugOrPort string `json:"slug_or_port,omitempty"`
@@ -438,14 +443,17 @@ func (p *DBTokenProvider) auditInitRequest(ctx context.Context, w http.ResponseW
 			appInfo.SlugOrPort = aReq.dbReq.AppSlugOrPort
 		}
 
+		logger := p.Logger.With(
+			slog.F("workspace_id", aReq.dbReq.Workspace.ID),
+			slog.F("agent_id", aReq.dbReq.Agent.ID),
+			slog.F("app_id", aReq.dbReq.App.ID),
+			slog.F("user_id", userID.UUID),
+			slog.F("app_slug_or_port", appInfo.SlugOrPort),
+		)
+
 		appInfoBytes, err := json.Marshal(appInfo)
 		if err != nil {
-			p.Logger.Error(ctx, "marshal additional fields failed", slog.Error(err))
-		}
-
-		userID := uuid.NullUUID{}
-		if aReq.apiKey != nil {
-			userID = uuid.NullUUID{Valid: true, UUID: aReq.apiKey.UserID}
+			logger.Error(ctx, "marshal additional fields failed", slog.Error(err))
 		}
 
 		var (
@@ -489,7 +497,7 @@ func (p *DBTokenProvider) auditInitRequest(ctx context.Context, w http.ResponseW
 			return nil
 		}, nil)
 		if err != nil {
-			p.Logger.Error(ctx, "update workspace app audit session failed", slog.Error(err))
+			logger.Error(ctx, "update workspace app audit session failed", slog.Error(err))
 
 			// Avoid spamming the audit log if deduplication failed, this should
 			// only happen if there are problems communicating with the database.
@@ -528,7 +536,7 @@ func (p *DBTokenProvider) auditInitRequest(ctx context.Context, w http.ResponseW
 		case aReq.dbReq.App.ID != uuid.Nil:
 			audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.WorkspaceApp]{
 				Audit: auditor,
-				Log:   p.Logger,
+				Log:   logger,
 
 				Action:           database.AuditActionOpen,
 				OrganizationID:   aReq.dbReq.Workspace.OrganizationID,
@@ -545,7 +553,7 @@ func (p *DBTokenProvider) auditInitRequest(ctx context.Context, w http.ResponseW
 			// Web terminal, port app, etc.
 			audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.WorkspaceAgent]{
 				Audit: auditor,
-				Log:   p.Logger,
+				Log:   logger,
 
 				Action:           database.AuditActionOpen,
 				OrganizationID:   aReq.dbReq.Workspace.OrganizationID,
