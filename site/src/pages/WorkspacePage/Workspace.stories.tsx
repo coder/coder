@@ -11,7 +11,7 @@ const permissions: WorkspacePermissions = {
 	readWorkspace: true,
 	updateWorkspace: true,
 	updateTemplate: true,
-	viewDeploymentValues: true,
+	viewDeploymentConfig: true,
 };
 
 const meta: Meta<typeof Workspace> = {

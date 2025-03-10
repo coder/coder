@@ -1,15 +1,15 @@
 import { deploymentDAUs } from "api/queries/deployment";
 import { availableExperiments, experiments } from "api/queries/experiments";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
-import { useDeploymentSettings } from "modules/management/DeploymentSettingsProvider";
+import { useDeploymentConfig } from "modules/management/DeploymentConfigProvider";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { pageTitle } from "utils/page";
-import { GeneralSettingsPageView } from "./GeneralSettingsPageView";
+import { OverviewPageView } from "./OverviewPageView";
 
-const GeneralSettingsPage: FC = () => {
-	const { deploymentConfig } = useDeploymentSettings();
+const OverviewPage: FC = () => {
+	const { deploymentConfig } = useDeploymentConfig();
 	const safeExperimentsQuery = useQuery(availableExperiments());
 
 	const { metadata } = useEmbeddedMetadata();
@@ -26,9 +26,9 @@ const GeneralSettingsPage: FC = () => {
 	return (
 		<>
 			<Helmet>
-				<title>{pageTitle("General Settings")}</title>
+				<title>{pageTitle("Overview", "Deployment")}</title>
 			</Helmet>
-			<GeneralSettingsPageView
+			<OverviewPageView
 				deploymentOptions={deploymentConfig.options}
 				dailyActiveUsers={dailyActiveUsers}
 				invalidExperiments={invalidExperiments}
@@ -38,4 +38,4 @@ const GeneralSettingsPage: FC = () => {
 	);
 };
 
-export default GeneralSettingsPage;
+export default OverviewPage;

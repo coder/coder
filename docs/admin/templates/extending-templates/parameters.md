@@ -79,7 +79,8 @@ data "coder_parameter" "security_groups" {
 }
 ```
 
-> [!NOTE] Overriding a `list(string)` on the CLI is tricky because:
+> [!NOTE]
+> Overriding a `list(string)` on the CLI is tricky because:
 >
 > - `--parameter "parameter_name=parameter_value"` is parsed as CSV.
 > - `parameter_value` is parsed as JSON.
@@ -313,7 +314,7 @@ data "coder_parameter" "project_id" {
 }
 ```
 
-## Workspace presets
+## Workspace presets (beta)
 
 Workspace presets allow you to configure commonly used combinations of parameters
 into a single option, which makes it easier for developers to pick one that fits
