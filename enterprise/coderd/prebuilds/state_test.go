@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/quartz"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -62,6 +63,7 @@ var opts = map[uint]options{
 // A new template version with a preset without prebuilds configured should result in no prebuilds being created.
 func TestNoPrebuilds(t *testing.T) {
 	current := opts[optionSet0]
+	clock := quartz.NewMock(t)
 
 	presets := []database.GetTemplatePresetsWithPrebuildsRow{
 		preset(true, 0, current),
@@ -71,7 +73,7 @@ func TestNoPrebuilds(t *testing.T) {
 	ps, err := state.filterByPreset(current.presetID)
 	require.NoError(t, err)
 
-	actions, err := ps.calculateActions(backoffInterval)
+	actions, err := ps.calculateActions(clock, backoffInterval)
 	require.NoError(t, err)
 
 	validateActions(t, reconciliationActions{ /*all zero values*/ }, *actions)
@@ -80,6 +82,7 @@ func TestNoPrebuilds(t *testing.T) {
 // A new template version with a preset with prebuilds configured should result in a new prebuild being created.
 func TestNetNew(t *testing.T) {
 	current := opts[optionSet0]
+	clock := quartz.NewMock(t)
 
 	presets := []database.GetTemplatePresetsWithPrebuildsRow{
 		preset(true, 1, current),
@@ -89,7 +92,7 @@ func TestNetNew(t *testing.T) {
 	ps, err := state.filterByPreset(current.presetID)
 	require.NoError(t, err)
 
-	actions, err := ps.calculateActions(backoffInterval)
+	actions, err := ps.calculateActions(clock, backoffInterval)
 	require.NoError(t, err)
 
 	validateActions(t, reconciliationActions{
@@ -103,6 +106,7 @@ func TestNetNew(t *testing.T) {
 func TestOutdatedPrebuilds(t *testing.T) {
 	outdated := opts[optionSet0]
 	current := opts[optionSet1]
+	clock := quartz.NewMock(t)
 
 	// GIVEN: 2 presets, one outdated and one new.
 	presets := []database.GetTemplatePresetsWithPrebuildsRow{
@@ -112,7 +116,7 @@ func TestOutdatedPrebuilds(t *testing.T) {
 
 	// GIVEN: a running prebuild for the outdated preset.
 	running := []database.GetRunningPrebuildsRow{
-		prebuild(outdated),
+		prebuild(outdated, clock),
 	}
 
 	// GIVEN: no in-progress builds.
@@ -124,7 +128,7 @@ func TestOutdatedPrebuilds(t *testing.T) {
 	require.NoError(t, err)
 
 	// THEN: we should identify that this prebuild is outdated and needs to be deleted.
-	actions, err := ps.calculateActions(backoffInterval)
+	actions, err := ps.calculateActions(clock, backoffInterval)
 	require.NoError(t, err)
 	validateActions(t, reconciliationActions{outdated: 1, deleteIDs: []uuid.UUID{outdated.prebuildID}}, *actions)
 
@@ -133,7 +137,7 @@ func TestOutdatedPrebuilds(t *testing.T) {
 	require.NoError(t, err)
 
 	// THEN: we should not be blocked from creating a new prebuild while the outdate one deletes.
-	actions, err = ps.calculateActions(backoffInterval)
+	actions, err = ps.calculateActions(clock, backoffInterval)
 	require.NoError(t, err)
 	validateActions(t, reconciliationActions{desired: 1, create: 1}, *actions)
 }
@@ -142,6 +146,7 @@ func TestOutdatedPrebuilds(t *testing.T) {
 // the calculated actions should indicate the state correctly.
 func TestInProgressActions(t *testing.T) {
 	current := opts[optionSet0]
+	clock := quartz.NewMock(t)
 
 	cases := []struct {
 		name       string
@@ -264,7 +269,7 @@ func TestInProgressActions(t *testing.T) {
 					TemplateVersionID: current.templateVersionID,
 					CurrentPresetID:   uuid.NullUUID{UUID: current.presetID, Valid: true},
 					Ready:             false,
-					CreatedAt:         time.Now(),
+					CreatedAt:         clock.Now(),
 				})
 			}
 
@@ -284,7 +289,7 @@ func TestInProgressActions(t *testing.T) {
 			require.NoError(t, err)
 
 			// THEN: we should identify that this prebuild is in progress.
-			actions, err := ps.calculateActions(backoffInterval)
+			actions, err := ps.calculateActions(clock, backoffInterval)
 			require.NoError(t, err)
 			require.True(t, tc.checkFn(*actions))
 		})
@@ -294,6 +299,7 @@ func TestInProgressActions(t *testing.T) {
 // Additional prebuilds exist for a given preset configuration; these must be deleted.
 func TestExtraneous(t *testing.T) {
 	current := opts[optionSet0]
+	clock := quartz.NewMock(t)
 
 	// GIVEN: a preset with 1 desired prebuild.
 	presets := []database.GetTemplatePresetsWithPrebuildsRow{
@@ -303,14 +309,14 @@ func TestExtraneous(t *testing.T) {
 	var older uuid.UUID
 	// GIVEN: 2 running prebuilds for the preset.
 	running := []database.GetRunningPrebuildsRow{
-		prebuild(current, func(row database.GetRunningPrebuildsRow) database.GetRunningPrebuildsRow {
+		prebuild(current, clock, func(row database.GetRunningPrebuildsRow) database.GetRunningPrebuildsRow {
 			// The older of the running prebuilds will be deleted in order to maintain freshness.
-			row.CreatedAt = time.Now().Add(-time.Hour)
+			row.CreatedAt = clock.Now().Add(-time.Hour)
 			older = row.WorkspaceID
 			return row
 		}),
-		prebuild(current, func(row database.GetRunningPrebuildsRow) database.GetRunningPrebuildsRow {
-			row.CreatedAt = time.Now()
+		prebuild(current, clock, func(row database.GetRunningPrebuildsRow) database.GetRunningPrebuildsRow {
+			row.CreatedAt = clock.Now()
 			return row
 		}),
 	}
@@ -324,7 +330,7 @@ func TestExtraneous(t *testing.T) {
 	require.NoError(t, err)
 
 	// THEN: an extraneous prebuild is detected and marked for deletion.
-	actions, err := ps.calculateActions(backoffInterval)
+	actions, err := ps.calculateActions(clock, backoffInterval)
 	require.NoError(t, err)
 	validateActions(t, reconciliationActions{
 		actual: 2, desired: 1, extraneous: 1, deleteIDs: []uuid.UUID{older}, eligible: 2,
@@ -334,6 +340,7 @@ func TestExtraneous(t *testing.T) {
 // As above, but no actions will be performed because
 func TestExtraneousInProgress(t *testing.T) {
 	current := opts[optionSet0]
+	clock := quartz.NewMock(t)
 
 	// GIVEN: a preset with 1 desired prebuild.
 	presets := []database.GetTemplatePresetsWithPrebuildsRow{
@@ -343,14 +350,14 @@ func TestExtraneousInProgress(t *testing.T) {
 	var older uuid.UUID
 	// GIVEN: 2 running prebuilds for the preset.
 	running := []database.GetRunningPrebuildsRow{
-		prebuild(current, func(row database.GetRunningPrebuildsRow) database.GetRunningPrebuildsRow {
+		prebuild(current, clock, func(row database.GetRunningPrebuildsRow) database.GetRunningPrebuildsRow {
 			// The older of the running prebuilds will be deleted in order to maintain freshness.
-			row.CreatedAt = time.Now().Add(-time.Hour)
+			row.CreatedAt = clock.Now().Add(-time.Hour)
 			older = row.WorkspaceID
 			return row
 		}),
-		prebuild(current, func(row database.GetRunningPrebuildsRow) database.GetRunningPrebuildsRow {
-			row.CreatedAt = time.Now()
+		prebuild(current, clock, func(row database.GetRunningPrebuildsRow) database.GetRunningPrebuildsRow {
+			row.CreatedAt = clock.Now()
 			return row
 		}),
 	}
@@ -364,7 +371,7 @@ func TestExtraneousInProgress(t *testing.T) {
 	require.NoError(t, err)
 
 	// THEN: an extraneous prebuild is detected and marked for deletion.
-	actions, err := ps.calculateActions(backoffInterval)
+	actions, err := ps.calculateActions(clock, backoffInterval)
 	require.NoError(t, err)
 	validateActions(t, reconciliationActions{
 		actual: 2, desired: 1, extraneous: 1, deleteIDs: []uuid.UUID{older}, eligible: 2,
@@ -374,6 +381,7 @@ func TestExtraneousInProgress(t *testing.T) {
 // A template marked as deprecated will not have prebuilds running.
 func TestDeprecated(t *testing.T) {
 	current := opts[optionSet0]
+	clock := quartz.NewMock(t)
 
 	// GIVEN: a preset with 1 desired prebuild.
 	presets := []database.GetTemplatePresetsWithPrebuildsRow{
@@ -385,7 +393,7 @@ func TestDeprecated(t *testing.T) {
 
 	// GIVEN: 1 running prebuilds for the preset.
 	running := []database.GetRunningPrebuildsRow{
-		prebuild(current),
+		prebuild(current, clock),
 	}
 
 	// GIVEN: NO prebuilds in progress.
@@ -397,7 +405,7 @@ func TestDeprecated(t *testing.T) {
 	require.NoError(t, err)
 
 	// THEN: all running prebuilds should be deleted because the template is deprecated.
-	actions, err := ps.calculateActions(backoffInterval)
+	actions, err := ps.calculateActions(clock, backoffInterval)
 	require.NoError(t, err)
 	validateActions(t, reconciliationActions{
 		actual: 1, deleteIDs: []uuid.UUID{current.prebuildID}, eligible: 1,
@@ -408,6 +416,7 @@ func TestDeprecated(t *testing.T) {
 func TestLatestBuildFailed(t *testing.T) {
 	current := opts[optionSet0]
 	other := opts[optionSet1]
+	clock := quartz.NewMock(t)
 
 	// GIVEN: two presets.
 	presets := []database.GetTemplatePresetsWithPrebuildsRow{
@@ -417,14 +426,14 @@ func TestLatestBuildFailed(t *testing.T) {
 
 	// GIVEN: running prebuilds only for one preset (the other will be failing, as evidenced by the backoffs below).
 	running := []database.GetRunningPrebuildsRow{
-		prebuild(other),
+		prebuild(other, clock),
 	}
 
 	// GIVEN: NO prebuilds in progress.
 	var inProgress []database.GetPrebuildsInProgressRow
 
 	// GIVEN: a backoff entry.
-	lastBuildTime := time.Now()
+	lastBuildTime := clock.Now()
 	numFailed := 1
 	backoffs := []database.GetPresetsBackoffRow{
 		{
@@ -438,25 +447,38 @@ func TestLatestBuildFailed(t *testing.T) {
 
 	// WHEN: calculating the current preset's state.
 	state := newReconciliationState(presets, running, inProgress, backoffs)
-	ps, err := state.filterByPreset(current.presetID)
+	psCurrent, err := state.filterByPreset(current.presetID)
 	require.NoError(t, err)
 
 	// THEN: reconciliation should backoff.
-	actions, err := ps.calculateActions(backoffInterval)
+	actions, err := psCurrent.calculateActions(clock, backoffInterval)
 	require.NoError(t, err)
 	validateActions(t, reconciliationActions{
 		actual: 0, desired: 1, backoffUntil: lastBuildTime.Add(time.Duration(numFailed) * backoffInterval),
 	}, *actions)
 
 	// WHEN: calculating the other preset's state.
-	ps, err = state.filterByPreset(other.presetID)
+	psOther, err := state.filterByPreset(other.presetID)
 	require.NoError(t, err)
 
 	// THEN: it should NOT be in backoff because all is OK.
-	actions, err = ps.calculateActions(backoffInterval)
+	actions, err = psOther.calculateActions(clock, backoffInterval)
 	require.NoError(t, err)
 	validateActions(t, reconciliationActions{
 		actual: 1, desired: 1, eligible: 1, backoffUntil: time.Time{},
+	}, *actions)
+
+	// WHEN: the clock is advanced a backoff interval.
+	clock.Advance(backoffInterval + time.Microsecond)
+
+	// THEN: a new prebuild should be created.
+	psCurrent, err = state.filterByPreset(current.presetID)
+	require.NoError(t, err)
+	actions, err = psCurrent.calculateActions(clock, backoffInterval)
+	require.NoError(t, err)
+	validateActions(t, reconciliationActions{
+		create: 1, // <--- NOTE: we're now able to create a new prebuild because the interval has elapsed.
+		actual: 0, desired: 1, backoffUntil: lastBuildTime.Add(time.Duration(numFailed) * backoffInterval),
 	}, *actions)
 }
 
@@ -478,7 +500,7 @@ func preset(active bool, instances int32, opts options, muts ...func(row databas
 	return entry
 }
 
-func prebuild(opts options, muts ...func(row database.GetRunningPrebuildsRow) database.GetRunningPrebuildsRow) database.GetRunningPrebuildsRow {
+func prebuild(opts options, clock quartz.Clock, muts ...func(row database.GetRunningPrebuildsRow) database.GetRunningPrebuildsRow) database.GetRunningPrebuildsRow {
 	entry := database.GetRunningPrebuildsRow{
 		WorkspaceID:       opts.prebuildID,
 		WorkspaceName:     opts.workspaceName,
@@ -486,7 +508,7 @@ func prebuild(opts options, muts ...func(row database.GetRunningPrebuildsRow) da
 		TemplateVersionID: opts.templateVersionID,
 		CurrentPresetID:   uuid.NullUUID{UUID: opts.presetID, Valid: true},
 		Ready:             true,
-		CreatedAt:         time.Now(),
+		CreatedAt:         clock.Now(),
 	}
 
 	for _, mut := range muts {

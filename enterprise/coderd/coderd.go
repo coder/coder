@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coder/quartz"
+
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/database"
@@ -1184,7 +1186,8 @@ func (api *API) setupPrebuilds(entitled bool) (agplprebuilds.Reconciler, agplpre
 		collector = nil
 	}
 
-	return prebuilds.NewStoreReconciler(api.Database, api.Pubsub, api.DeploymentValues.Prebuilds, api.Logger.Named("prebuilds")),
+	return prebuilds.NewStoreReconciler(api.Database, api.Pubsub, api.DeploymentValues.Prebuilds,
+			api.Logger.Named("prebuilds"), quartz.NewReal()),
 		prebuilds.EnterpriseClaimer{},
 		collector
 }

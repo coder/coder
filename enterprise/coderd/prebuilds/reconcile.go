@@ -11,12 +11,12 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/coder/quartz"
 	"github.com/hashicorp/go-multierror"
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
-	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/prebuilds"
@@ -38,19 +38,21 @@ type storeReconciler struct {
 	store  database.Store
 	cfg    codersdk.PrebuildsConfig
 	pubsub pubsub.Pubsub
+	logger slog.Logger
+	clock  quartz.Clock
 
-	logger   slog.Logger
 	cancelFn context.CancelCauseFunc
 	stopped  atomic.Bool
 	done     chan struct{}
 }
 
-func NewStoreReconciler(store database.Store, pubsub pubsub.Pubsub, cfg codersdk.PrebuildsConfig, logger slog.Logger) prebuilds.Reconciler {
+func NewStoreReconciler(store database.Store, pubsub pubsub.Pubsub, cfg codersdk.PrebuildsConfig, logger slog.Logger, clock quartz.Clock) prebuilds.Reconciler {
 	return &storeReconciler{
 		store:  store,
 		pubsub: pubsub,
 		logger: logger,
 		cfg:    cfg,
+		clock:  clock,
 		done:   make(chan struct{}, 1),
 	}
 }
@@ -63,7 +65,7 @@ func (c *storeReconciler) RunLoop(ctx context.Context) {
 
 	c.logger.Info(ctx, "starting reconciler", slog.F("interval", reconciliationInterval))
 
-	ticker := time.NewTicker(reconciliationInterval)
+	ticker := c.clock.NewTicker(reconciliationInterval)
 	defer ticker.Stop()
 	defer func() {
 		c.done <- struct{}{}
@@ -152,7 +154,7 @@ func (c *storeReconciler) ReconcileAll(ctx context.Context) error {
 	//
 	// This is a read-only tx, so returning an error (i.e. causing a rollback) has no impact.
 	err := c.store.InTx(func(db database.Store) error {
-		start := time.Now()
+		start := c.clock.Now()
 
 		// TODO: use TryAcquireLock here and bail out early.
 		err := db.AcquireLock(ctx, database.LockIDReconcileTemplatePrebuilds)
@@ -161,7 +163,7 @@ func (c *storeReconciler) ReconcileAll(ctx context.Context) error {
 			return nil
 		}
 
-		logger.Debug(ctx, "acquired top-level reconciliation lock", slog.F("acquire_wait_secs", fmt.Sprintf("%.4f", time.Since(start).Seconds())))
+		logger.Debug(ctx, "acquired top-level reconciliation lock", slog.F("acquire_wait_secs", fmt.Sprintf("%.4f", c.clock.Since(start).Seconds())))
 
 		state, err := c.determineState(ctx, db)
 		if err != nil {
@@ -221,7 +223,7 @@ func (c *storeReconciler) determineState(ctx context.Context, store database.Sto
 	var state reconciliationState
 
 	err := store.InTx(func(db database.Store) error {
-		start := time.Now()
+		start := c.clock.Now()
 
 		// TODO: per-template ID lock?
 		err := db.AcquireLock(ctx, database.LockIDDeterminePrebuildsState)
@@ -229,7 +231,7 @@ func (c *storeReconciler) determineState(ctx context.Context, store database.Sto
 			return xerrors.Errorf("failed to acquire state determination lock: %w", err)
 		}
 
-		c.logger.Debug(ctx, "acquired state determination lock", slog.F("acquire_wait_secs", fmt.Sprintf("%.4f", time.Since(start).Seconds())))
+		c.logger.Debug(ctx, "acquired state determination lock", slog.F("acquire_wait_secs", fmt.Sprintf("%.4f", c.clock.Since(start).Seconds())))
 
 		presetsWithPrebuilds, err := db.GetTemplatePresetsWithPrebuilds(ctx, uuid.NullUUID{}) // TODO: implement template-specific reconciliations later
 		if err != nil {
@@ -276,7 +278,7 @@ func (c *storeReconciler) reconcilePrebuildsForPreset(ctx context.Context, ps *p
 	vlogger := logger.With(slog.F("template_version_id", ps.preset.TemplateVersionID), slog.F("preset_id", ps.preset.PresetID))
 
 	// TODO: move log lines up from calculateActions.
-	actions, err := ps.calculateActions(c.cfg.ReconciliationBackoffInterval.Value())
+	actions, err := ps.calculateActions(c.clock, c.cfg.ReconciliationBackoffInterval.Value())
 	if err != nil {
 		vlogger.Error(ctx, "failed to calculate reconciliation actions", slog.Error(err))
 		return xerrors.Errorf("failed to calculate reconciliation actions: %w", err)
@@ -294,7 +296,7 @@ func (c *storeReconciler) reconcilePrebuildsForPreset(ctx context.Context, ps *p
 	if actions.create > 0 || len(actions.deleteIDs) > 0 {
 		// Only log with info level when there's a change that needs to be effected.
 		levelFn = vlogger.Info
-	} else if dbtime.Now().Before(actions.backoffUntil) {
+	} else if c.clock.Now().Before(actions.backoffUntil) {
 		levelFn = vlogger.Warn
 	}
 
@@ -310,11 +312,11 @@ func (c *storeReconciler) reconcilePrebuildsForPreset(ctx context.Context, ps *p
 	// TODO: add quartz
 
 	// If there is anything to backoff for (usually a cycle of failed prebuilds), then log and bail out.
-	if actions.backoffUntil.After(dbtime.Now()) {
+	if actions.backoffUntil.After(c.clock.Now()) {
 		levelFn(ctx, "template prebuild state retrieved, backing off",
 			append(fields,
 				slog.F("backoff_until", actions.backoffUntil.Format(time.RFC3339)),
-				slog.F("backoff_secs", math.Round(actions.backoffUntil.Sub(dbtime.Now()).Seconds())),
+				slog.F("backoff_secs", math.Round(actions.backoffUntil.Sub(c.clock.Now()).Seconds())),
 			)...)
 
 		// return ErrBackoff
@@ -357,7 +359,7 @@ func (c *storeReconciler) createPrebuild(ctx context.Context, prebuildID uuid.UU
 			return xerrors.Errorf("failed to get template: %w", err)
 		}
 
-		now := dbtime.Now()
+		now := c.clock.Now()
 
 		minimumWorkspace, err := db.InsertWorkspace(ctx, database.InsertWorkspaceParams{
 			ID:               prebuildID,
@@ -367,7 +369,7 @@ func (c *storeReconciler) createPrebuild(ctx context.Context, prebuildID uuid.UU
 			OrganizationID:   template.OrganizationID,
 			TemplateID:       template.ID,
 			Name:             name,
-			LastUsedAt:       dbtime.Now(),
+			LastUsedAt:       c.clock.Now(),
 			AutomaticUpdates: database.AutomaticUpdatesNever,
 		})
 		if err != nil {

@@ -9,6 +9,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/quartz"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"tailscale.com/types/ptr"
@@ -38,7 +39,7 @@ func TestNoReconciliationActionsIfNoPresets(t *testing.T) {
 		ReconciliationInterval: serpent.Duration(testutil.WaitLong),
 	}
 	logger := testutil.Logger(t)
-	controller := prebuilds.NewStoreReconciler(db, pubsub, cfg, logger)
+	controller := prebuilds.NewStoreReconciler(db, pubsub, cfg, logger, quartz.NewMock(t))
 
 	// given a template version with no presets
 	org := dbgen.Organization(t, db, database.Organization{})
@@ -82,7 +83,7 @@ func TestNoReconciliationActionsIfNoPrebuilds(t *testing.T) {
 		ReconciliationInterval: serpent.Duration(testutil.WaitLong),
 	}
 	logger := testutil.Logger(t)
-	controller := prebuilds.NewStoreReconciler(db, pubsub, cfg, logger)
+	controller := prebuilds.NewStoreReconciler(db, pubsub, cfg, logger, quartz.NewMock(t))
 
 	// given there are presets, but no prebuilds
 	org := dbgen.Organization(t, db, database.Organization{})
@@ -302,7 +303,7 @@ func TestPrebuildReconciliation(t *testing.T) {
 							t, &slogtest.Options{IgnoreErrors: true},
 						).Leveled(slog.LevelDebug)
 						db, pubsub := dbtestutil.NewDB(t)
-						controller := prebuilds.NewStoreReconciler(db, pubsub, cfg, logger)
+						controller := prebuilds.NewStoreReconciler(db, pubsub, cfg, logger, quartz.NewMock(t))
 
 						orgID, userID, templateID := setupTestDBTemplate(t, db)
 						templateVersionID := setupTestDBTemplateVersion(

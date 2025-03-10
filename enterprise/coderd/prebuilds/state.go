@@ -5,11 +5,11 @@ import (
 	"slices"
 	"time"
 
+	"github.com/coder/quartz"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
@@ -86,7 +86,7 @@ func (s reconciliationState) filterByPreset(presetID uuid.UUID) (*presetState, e
 	}, nil
 }
 
-func (p presetState) calculateActions(backoffInterval time.Duration) (*reconciliationActions, error) {
+func (p presetState) calculateActions(clock quartz.Clock, backoffInterval time.Duration) (*reconciliationActions, error) {
 	// TODO: align workspace states with how we represent them on the FE and the CLI
 	//	     right now there's some slight differences which can lead to additional prebuilds being created
 
@@ -168,7 +168,7 @@ func (p presetState) calculateActions(backoffInterval time.Duration) (*reconcili
 	if p.backoff != nil && p.backoff.NumFailed > 0 {
 		backoffUntil := p.backoff.LastBuildAt.Add(time.Duration(p.backoff.NumFailed) * backoffInterval)
 
-		if dbtime.Now().Before(backoffUntil) {
+		if clock.Now().Before(backoffUntil) {
 			actions.create = 0
 			actions.deleteIDs = nil
 			actions.backoffUntil = backoffUntil
