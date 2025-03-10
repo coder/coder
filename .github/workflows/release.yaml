@@ -361,7 +361,6 @@ jobs:
           file: scripts/Dockerfile.base
           platforms: linux/amd64,linux/arm64,linux/arm/v7
           provenance: true
-          sbom: true
           pull: true
           no-cache: true
           push: true
