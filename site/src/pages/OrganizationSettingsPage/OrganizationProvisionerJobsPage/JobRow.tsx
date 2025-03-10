@@ -1,4 +1,7 @@
 import type { ProvisionerJob } from "api/typesGenerated";
+import { Avatar } from "components/Avatar/Avatar";
+import { Badge } from "components/Badge/Badge";
+import { TableCell, TableRow } from "components/Table/Table";
 import {
 	ChevronDownIcon,
 	ChevronRightIcon,
@@ -10,9 +13,6 @@ import { relativeTime } from "utils/time";
 import { CancelJobButton } from "./CancelJobButton";
 import { JobStatusIndicator } from "./JobStatusIndicator";
 import { Tag, Tags, TruncateTags } from "./Tags";
-import { TableCell, TableRow } from "components/Table/Table";
-import { Avatar } from "components/Avatar/Avatar";
-import { Badge } from "components/Badge/Badge";
 
 type JobRowProps = {
 	job: ProvisionerJob;

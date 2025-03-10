@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { daysAgo } from "utils/time";
-import { userEvent, waitFor, within, expect } from "@storybook/test";
-import { JobRow } from "./JobRow";
+import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { Table, TableBody } from "components/Table/Table";
+import { daysAgo } from "utils/time";
+import { JobRow } from "./JobRow";
 
 const meta: Meta<typeof JobRow> = {
 	title: "pages/OrganizationProvisionerJobsPage/JobRow",
