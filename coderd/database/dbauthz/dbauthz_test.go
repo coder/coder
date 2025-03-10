@@ -996,10 +996,10 @@ func (s *MethodTestSuite) TestOrganization() {
 
 		check.Args(database.PaginatedOrganizationMembersParams{
 			OrganizationID: o.ID,
-			LimitOpt:       1,
+			LimitOpt:       0,
 		}).Asserts(
 			rbac.ResourceOrganizationMember.InOrg(o.ID), policy.ActionRead,
-		)
+		).Returns(mem)
 	}))
 	s.Run("UpdateMemberRoles", s.Subtest(func(db database.Store, check *expects) {
 		o := dbgen.Organization(s.T(), db, database.Organization{})
