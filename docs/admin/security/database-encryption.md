@@ -118,8 +118,8 @@ data:
   This command will re-encrypt all tokens with the specified new encryption key.
   We recommend performing this action during a maintenance window.
 
-  > [!NOTE]
-  > this command requires direct access to the database. If you are using
+  > [!IMPORTANT]
+  > This command requires direct access to the database. If you are using
   > the built-in PostgreSQL database, you can run
   > [`coder server postgres-builtin-url`](../../reference/cli/server_postgres-builtin-url.md)
   > to get the connection URL.

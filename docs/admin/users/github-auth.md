@@ -81,7 +81,7 @@ CODER_OAUTH2_GITHUB_CLIENT_ID="8d1...e05"
 CODER_OAUTH2_GITHUB_CLIENT_SECRET="57ebc9...02c24c"
 ```
 
-> [!NOTE]
+> [!TIP]
 > To allow everyone to sign up using GitHub, set:
 >
 > ```env

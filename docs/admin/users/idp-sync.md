@@ -107,7 +107,7 @@ Below is an example that uses the `groups` claim and maps all groups prefixed by
 }
 ```
 
-> [!NOTE]
+> [!IMPORTANT]
 > You must specify Coder group IDs instead of group names. The fastest way to find
 > the ID for a corresponding group is by visiting
 > `https://coder.example.com/api/v2/groups`.

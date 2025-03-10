@@ -46,16 +46,15 @@ each user to simplify the setup process.
 
 1. Access Coder via SSH:
 
-   ```console
+   ```shell
    coder config-ssh
    ```
 
 1. Run `coder config-ssh --dry-run` if you'd like to see the changes that will be
    before you proceed:
 
-   ```bash
+   ```shell
    coder config-ssh --dry-run
-   ```
 
 1. Confirm that you want to continue by typing **yes** and pressing enter. If
 successful, you'll see the following message:
