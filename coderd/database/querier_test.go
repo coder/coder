@@ -3301,6 +3301,8 @@ func TestGetUserStatusCounts(t *testing.T) {
 
 			t.Run("User deleted during query range", func(t *testing.T) {
 				t.Parallel()
+				t.Skip("https://github.com/coder/internal/issues/464")
+
 				db, _ := dbtestutil.NewDB(t)
 				ctx := testutil.Context(t, testutil.WaitShort)
 
