@@ -41,7 +41,7 @@ func (r *RootCmd) provisionerJobsList() *serpent.Command {
 		client     = new(codersdk.Client)
 		orgContext = NewOrganizationContext()
 		formatter  = cliui.NewOutputFormatter(
-			cliui.TableFormat([]provisionerJobRow{}, []string{"id", "created at", "status", "tags", "type", "organization", "queue"}),
+			cliui.TableFormat([]provisionerJobRow{}, []string{"created at", "id", "type", "template display name", "status", "queue", "tags"}),
 			cliui.JSONFormat(),
 		)
 		status []string
