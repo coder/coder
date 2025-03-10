@@ -96,7 +96,8 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 	//                 // permissions.
 	dangerousSystemCtx := dbauthz.AsSystemRestricted(ctx)
 
-	aReq := p.auditInitAutocommitRequest(ctx, rw, r)
+	aReq, commitAudit := p.auditInitRequest(ctx, rw, r)
+	defer commitAudit()
 
 	appReq := issueReq.AppRequest.Normalize()
 	err := appReq.Check()
@@ -371,14 +372,14 @@ type auditRequest struct {
 	dbReq  *databaseRequest
 }
 
-// auditInitAutocommitRequest creates a new audit session and audit log for the
-// given request, if one does not already exist. If an audit session already
-// exists, it will be updated with the current timestamp. A session is used to
-// reduce the number of audit logs created.
+// auditInitRequest creates a new audit session and audit log for the given
+// request, if one does not already exist. If an audit session already exists,
+// it will be updated with the current timestamp. A session is used to reduce
+// the number of audit logs created.
 //
 // A session is unique to the agent, app, user and users IP. If any of these
 // values change, a new session and audit log is created.
-func (p *DBTokenProvider) auditInitAutocommitRequest(ctx context.Context, w http.ResponseWriter, r *http.Request) (aReq *auditRequest) {
+func (p *DBTokenProvider) auditInitRequest(ctx context.Context, w http.ResponseWriter, r *http.Request) (aReq *auditRequest, commit func()) {
 	// Get the status writer from the request context so we can figure
 	// out the HTTP status and autocommit the audit log.
 	sw, ok := w.(*tracing.StatusWriter)
@@ -393,7 +394,13 @@ func (p *DBTokenProvider) auditInitAutocommitRequest(ctx context.Context, w http
 
 	// Set the commit function on the status writer to create an audit
 	// log, this ensures that the status and response body are available.
-	sw.AddDoneFunc(func() {
+	var committed bool
+	return aReq, func() {
+		if committed {
+			return
+		}
+		committed = true
+
 		if sw.Status == http.StatusSeeOther {
 			// Redirects aren't interesting as we will capture the audit
 			// log after the redirect.
@@ -548,7 +555,5 @@ func (p *DBTokenProvider) auditInitAutocommitRequest(ctx context.Context, w http
 				AdditionalFields: appInfoBytes,
 			})
 		}
-	})
-
-	return aReq
+	}
 }
