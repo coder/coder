@@ -6682,7 +6682,7 @@ FROM
 				ON fj.id = pj.id -- Ensure we retrieve full details from ` + "`" + `provisioner_jobs` + "`" + `.
                                  -- JOIN with pj is required for sqlc.embed(pj) to compile successfully.
 ORDER BY
-	fj.created_at
+	fj.created_at DESC
 `
 
 type GetProvisionerJobsByIDsWithQueuePositionRow struct {
