@@ -166,6 +166,7 @@ You can also reset a password via the CLI:
 coder reset-password <username>
 ```
 
+> [!NOTE]
 > Resetting a user's password, e.g., the initial `owner` role-based user, only
 > works when run on the host running the Coder control plane.
 

@@ -3,9 +3,12 @@
 The workspace process logging feature allows you to log all system-level
 processes executing in the workspace.
 
+This feature is only available on Linux in Kubernetes. There are
+additional requirements outlined further in this document.
+
 > [!NOTE]
-> This feature is only available on Linux in Kubernetes. There are
-> additional requirements outlined further in this document.
+> Workspace process logging is an Enterprise and Premium feature.
+> [Learn more](https://coder.com/pricing#compare-plans).
 
 Workspace process logging adds a sidecar container to workspace pods that will
 log all processes started in the workspace container (e.g., commands executed in
@@ -16,10 +19,6 @@ monitoring stack, such as CloudWatch, for further analysis or long-term storage.
 
 Please note that these logs are not recorded or captured by the Coder
 organization in any way, shape, or form.
-
-> This is an [Premium or Enterprise](https://coder.com/pricing) feature. To
-> learn more about Coder licensing, please
-> [contact sales](https://coder.com/contact).
 
 ## How this works
 

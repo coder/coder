@@ -15,8 +15,8 @@ authenticate the Coder control plane to AWS and create an EC2 workspace. The
 below steps assume your Coder control plane is running in Google Cloud and has
 the relevant service account assigned.
 
-> For steps on assigning a service account to a resource like Coder,
-> [see the Google documentation here](https://cloud.google.com/iam/docs/attach-service-accounts#attaching-new-resource)
+For steps on assigning a service account to a resource like Coder, visit the
+[Google documentation](https://cloud.google.com/iam/docs/attach-service-accounts#attaching-new-resource).
 
 ## 1. Get your Google service account OAuth Client ID
 
@@ -24,8 +24,8 @@ Navigate to the Google Cloud console, and select **IAM & Admin** > **Service
 Accounts**. View the service account you want to use, and copy the **OAuth 2
 Client ID** value shown on the right-hand side of the row.
 
-> (Optional): If you do not yet have a service account,
-> [here is the Google IAM documentation on creating a service account](https://cloud.google.com/iam/docs/service-accounts-create).
+Optionally: If you do not yet have a service account, use the
+[Google IAM documentation on creating a service account](https://cloud.google.com/iam/docs/service-accounts-create) to create one.
 
 ## 2. Create AWS role
 

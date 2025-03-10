@@ -3,8 +3,8 @@
 All Coder features are supported in offline / behind firewalls / in air-gapped
 environments. However, some changes to your configuration are necessary.
 
-> This is a general comparison. Keep reading for a full tutorial running Coder
-> offline with Kubernetes or Docker.
+This is a general comparison. Keep reading for a full tutorial running Coder
+offline with Kubernetes or Docker.
 
 |                    | Public deployments                                                                                                                                                                                                                                                 | Offline deployments                                                                                                                                                                                                                                                                                  |
 |--------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -113,6 +113,7 @@ USER coder
 ENV TF_CLI_CONFIG_FILE=/home/coder/.terraformrc
 ```
 
+> [!NOTE]
 > If you are bundling Terraform providers into your Coder image, be sure the
 > provider version matches any templates or
 > [example templates](https://github.com/coder/coder/tree/main/examples/templates)
@@ -175,10 +176,10 @@ services:
     # ...
 ```
 
-> The
-> [terraform providers mirror](https://www.terraform.io/cli/commands/providers/mirror)
-> command can be used to download the required plugins for a Coder template.
-> This can be uploaded into the `plugins` directory on your offline server.
+The
+[terraform providers mirror](https://www.terraform.io/cli/commands/providers/mirror)
+command can be used to download the required plugins for a Coder template.
+This can be uploaded into the `plugins` directory on your offline server.
 
 ### Kubernetes
 

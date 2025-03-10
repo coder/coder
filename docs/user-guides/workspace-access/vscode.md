@@ -15,6 +15,7 @@ extension, authenticates with Coder, and connects to the workspace.
 
 ![Demo](https://github.com/coder/vscode-coder/raw/main/demo.gif?raw=true)
 
+> [!NOTE]
 > The `VS Code Desktop` button can be hidden by enabling
 > [Browser-only connections](../../admin/networking/index.md#browser-only-connections).
 

@@ -27,8 +27,8 @@ here!
 If you prefer to use Coder on the
 [command line](../../../reference/cli/index.md), `coder templates init`.
 
-> Coder starter templates are also available on our
-> [GitHub repo](https://github.com/coder/coder/tree/main/examples/templates).
+Coder starter templates are also available on our
+[GitHub repo](https://github.com/coder/coder/tree/main/examples/templates).
 
 ## Community Templates
 
@@ -46,6 +46,7 @@ any template's files directly in the Coder dashboard.
 If you'd prefer to use the CLI, use `coder templates pull`, edit the template
 files, then `coder templates push`.
 
+> [!TIP]
 > Even if you are a Terraform expert, we suggest reading our
 > [guided tour of a template](../../../tutorials/template-from-scratch.md).
 

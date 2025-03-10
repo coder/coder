@@ -31,9 +31,9 @@ to consider:
   `docker`, `bash`, `jq`, and/or internal tooling
 - Consider creating (and starting the container with) a non-root user
 
-> See Coder's
-> [example base image](https://github.com/coder/enterprise-images/tree/main/images/minimal)
-> for reference.
+See Coder's
+[example base image](https://github.com/coder/enterprise-images/tree/main/images/minimal)
+for reference.
 
 ## Create general-purpose golden image(s) with standard tooling
 
@@ -54,10 +54,10 @@ purpose images are great for:
   stacks and types of projects, the golden image can be a good starting point
   for those projects.
 
-> This is often referred to as a "sandbox" or "kitchen sink" image. Since large
-> multi-purpose container images can quickly become difficult to maintain, it's
-> important to keep the number of general-purpose images to a minimum (2-3 in
-> most cases) with a well-defined scope.
+This is often referred to as a "sandbox" or "kitchen sink" image. Since large
+multi-purpose container images can quickly become difficult to maintain, it's
+important to keep the number of general-purpose images to a minimum (2-3 in
+most cases) with a well-defined scope.
 
 Examples:
 

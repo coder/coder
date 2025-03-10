@@ -116,9 +116,9 @@ To upgrade Coder, run:
 helm upgrade <release-name> coder-v2/coder -n <namespace> -f values.yaml
 ```
 
-> We recommend requiring and auditing MFA usage for all users in your GitHub
-> organizations. This can be enforced from the organization settings page in the
-> "Authentication security" sidebar tab.
+We recommend requiring and auditing MFA usage for all users in your GitHub
+organizations. This can be enforced from the organization settings page in the
+"Authentication security" sidebar tab.
 
 ## Device Flow
 
