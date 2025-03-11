@@ -25,21 +25,10 @@ export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
 	const defaultMessage =
 		"A workspace is your personal, customizable development environment.";
 	const defaultImage = (
-		<div
-			css={{
-				maxWidth: "50%",
-				height: 272,
-				overflow: "hidden",
-				marginTop: 48,
-				opacity: 0.85,
+		<div className="max-w-[50%] h-[272px] overflow-hidden mt-12 opacity-85">
 
-				"& img": {
-					maxWidth: "100%",
-				},
-			}}
-		>
-			<img src="/featured/workspaces.webp" alt="" />
-		</div>
+		<img src="/featured/workspaces.webp" alt="" className="max-w-full"/>
+	</div>
 	);
 
 	if (isUsingFilter) {
