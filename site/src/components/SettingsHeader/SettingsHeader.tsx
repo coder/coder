@@ -26,7 +26,13 @@ export const SettingsHeader: FC<HeaderProps> = ({
 	const Header = titleHeaderLevel;
 	return (
 		<div className="flex flex-row justify-between align-baseline">
-			<div className="max-w-prose pb-6">
+			{/*
+			 * The text-sm class only adjusts the size of the description, but
+			 * we need to apply it here so that it combines with the max-w-prose
+			 * class and makes sure we have a predictable max width for the
+			 * entire section of text.
+			 */}
+			<div className="text-sm max-w-prose pb-6">
 				<div className="flex flex-row gap-2 align-middle">
 					<Header
 						className={twMerge(
@@ -40,7 +46,7 @@ export const SettingsHeader: FC<HeaderProps> = ({
 				</div>
 
 				{description && (
-					<p className="m-0 text-sm text-content-secondary leading-relaxed">
+					<p className="m-0 text-content-secondary leading-relaxed">
 						{description}
 					</p>
 				)}
