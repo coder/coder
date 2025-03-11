@@ -83,13 +83,6 @@ export function paginatedOrganizationMembers(
 	};
 }
 
-export const organizationMembers = (id: string) => {
-	return {
-		queryFn: () => API.getOrganizationMembers(id),
-		queryKey: organizationMembersKey(id),
-	};
-};
-
 export const addOrganizationMember = (queryClient: QueryClient, id: string) => {
 	return {
 		mutationFn: (userId: string) => {
