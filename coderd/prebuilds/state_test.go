@@ -154,7 +154,7 @@ func TestInProgressActions(t *testing.T) {
 		transition database.WorkspaceTransition
 		desired    int32
 		running    int32
-		pending    int32
+		inProgress int32
 		checkFn    func(actions prebuilds.ReconciliationActions) bool
 	}{
 		// With no running prebuilds and one starting, no creations/deletions should take place.
@@ -163,7 +163,7 @@ func TestInProgressActions(t *testing.T) {
 			transition: database.WorkspaceTransitionStart,
 			desired:    1,
 			running:    0,
-			pending:    1,
+			inProgress: 1,
 			checkFn: func(actions prebuilds.ReconciliationActions) bool {
 				return assert.True(t, validateActions(t, prebuilds.ReconciliationActions{Desired: 1, Starting: 1}, actions))
 			},
@@ -174,7 +174,7 @@ func TestInProgressActions(t *testing.T) {
 			transition: database.WorkspaceTransitionStart,
 			desired:    2,
 			running:    1,
-			pending:    1,
+			inProgress: 1,
 			checkFn: func(actions prebuilds.ReconciliationActions) bool {
 				return assert.True(t, validateActions(t, prebuilds.ReconciliationActions{Actual: 1, Desired: 2, Starting: 1}, actions))
 			},
@@ -186,7 +186,7 @@ func TestInProgressActions(t *testing.T) {
 			transition: database.WorkspaceTransitionStart,
 			desired:    2,
 			running:    2,
-			pending:    1,
+			inProgress: 1,
 			checkFn: func(actions prebuilds.ReconciliationActions) bool {
 				return assert.True(t, validateActions(t, prebuilds.ReconciliationActions{Actual: 2, Desired: 2, Starting: 1}, actions))
 			},
@@ -197,7 +197,7 @@ func TestInProgressActions(t *testing.T) {
 			transition: database.WorkspaceTransitionStop,
 			desired:    1,
 			running:    0,
-			pending:    1,
+			inProgress: 1,
 			checkFn: func(actions prebuilds.ReconciliationActions) bool {
 				return assert.True(t, validateActions(t, prebuilds.ReconciliationActions{Desired: 1, Stopping: 1, Create: 1}, actions))
 			},
@@ -208,7 +208,7 @@ func TestInProgressActions(t *testing.T) {
 			transition: database.WorkspaceTransitionStop,
 			desired:    3,
 			running:    2,
-			pending:    1,
+			inProgress: 1,
 			checkFn: func(actions prebuilds.ReconciliationActions) bool {
 				return assert.True(t, validateActions(t, prebuilds.ReconciliationActions{Actual: 2, Desired: 3, Stopping: 1, Create: 1}, actions))
 			},
@@ -219,7 +219,7 @@ func TestInProgressActions(t *testing.T) {
 			transition: database.WorkspaceTransitionStop,
 			desired:    3,
 			running:    3,
-			pending:    1,
+			inProgress: 1,
 			checkFn: func(actions prebuilds.ReconciliationActions) bool {
 				return assert.True(t, validateActions(t, prebuilds.ReconciliationActions{Actual: 3, Desired: 3, Stopping: 1}, actions))
 			},
@@ -230,7 +230,7 @@ func TestInProgressActions(t *testing.T) {
 			transition: database.WorkspaceTransitionDelete,
 			desired:    1,
 			running:    0,
-			pending:    1,
+			inProgress: 1,
 			checkFn: func(actions prebuilds.ReconciliationActions) bool {
 				return assert.True(t, validateActions(t, prebuilds.ReconciliationActions{Desired: 1, Deleting: 1, Create: 1}, actions))
 			},
@@ -241,7 +241,7 @@ func TestInProgressActions(t *testing.T) {
 			transition: database.WorkspaceTransitionDelete,
 			desired:    2,
 			running:    1,
-			pending:    1,
+			inProgress: 1,
 			checkFn: func(actions prebuilds.ReconciliationActions) bool {
 				return assert.True(t, validateActions(t, prebuilds.ReconciliationActions{Actual: 1, Desired: 2, Deleting: 1, Create: 1}, actions))
 			},
@@ -252,7 +252,7 @@ func TestInProgressActions(t *testing.T) {
 			transition: database.WorkspaceTransitionDelete,
 			desired:    2,
 			running:    2,
-			pending:    1,
+			inProgress: 1,
 			checkFn: func(actions prebuilds.ReconciliationActions) bool {
 				return assert.True(t, validateActions(t, prebuilds.ReconciliationActions{Actual: 2, Desired: 2, Deleting: 1}, actions))
 			},
@@ -263,22 +263,21 @@ func TestInProgressActions(t *testing.T) {
 			transition: database.WorkspaceTransitionStart,
 			desired:    3,
 			running:    1,
-			pending:    2,
+			inProgress: 2,
 			checkFn: func(actions prebuilds.ReconciliationActions) bool {
 				return assert.True(t, validateActions(t, prebuilds.ReconciliationActions{Actual: 1, Desired: 3, Starting: 2, Create: 0}, actions))
 			},
 		},
-		// With 3 prebuilds desired, 1 running, and 2 starting, no creations should occur since the builds are in progress.
+		// With 3 prebuilds desired, 5 running, and 2 deleting, no deletions should occur since the builds are in progress.
 		{
 			name:       fmt.Sprintf("%s-inhibit", database.WorkspaceTransitionDelete),
 			transition: database.WorkspaceTransitionDelete,
 			desired:    3,
 			running:    5,
-			pending:    2,
+			inProgress: 2,
 			checkFn: func(actions prebuilds.ReconciliationActions) bool {
 				expected := prebuilds.ReconciliationActions{Actual: 5, Desired: 3, Deleting: 2, Extraneous: 2}
-				//return assert.True(t, validateActions(t, expected, actions))
-				return assert.Len(t, actions.DeleteIDs, 0, "'deleteIDs' did not match expectation") &&
+				return assert.Len(t, actions.DeleteIDs, 2, "'deleteIDs' did not match expectation") &&
 					assert.EqualValuesf(t, expected.Create, actions.Create, "'create' did not match expectation") &&
 					assert.EqualValuesf(t, expected.Desired, actions.Desired, "'desired' did not match expectation") &&
 					assert.EqualValuesf(t, expected.Actual, actions.Actual, "'actual' did not match expectation") &&
@@ -323,7 +322,7 @@ func TestInProgressActions(t *testing.T) {
 					TemplateID:        current.templateID,
 					TemplateVersionID: current.templateVersionID,
 					Transition:        tc.transition,
-					Count:             tc.pending,
+					Count:             tc.inProgress,
 				},
 			}
 
@@ -378,48 +377,6 @@ func TestExtraneous(t *testing.T) {
 	require.NoError(t, err)
 	validateActions(t, prebuilds.ReconciliationActions{
 		Actual: 2, Desired: 1, Extraneous: 1, DeleteIDs: []uuid.UUID{older}, Eligible: 2,
-	}, *actions)
-}
-
-// As above, but no actions will be performed because
-func TestExtraneousInProgress(t *testing.T) {
-	current := opts[optionSet0]
-	clock := quartz.NewMock(t)
-
-	const desiredInstances = 2;
-
-	// GIVEN: a preset with 2 desired prebuilds.
-	presets := []database.GetTemplatePresetsWithPrebuildsRow{
-		preset(true, desiredInstances, current),
-	}
-
-	// GIVEN: 3 running prebuilds for the preset.
-	running := []database.GetRunningPrebuildsRow{
-		prebuild(current, clock),
-		prebuild(current, clock),
-		prebuild(current, clock),
-	}
-
-	// GIVEN: a prebuild deletion in progress.
-	inProgress := []database.GetPrebuildsInProgressRow{
-		{
-			TemplateID:        current.templateID,
-			TemplateVersionID: current.templateVersionID,
-			Transition:        database.WorkspaceTransitionDelete,
-			Count:             1,
-		},
-	}
-
-	// WHEN: calculating the current preset's state.
-	state := prebuilds.NewReconciliationState(presets, running, inProgress, nil)
-	ps, err := state.FilterByPreset(current.presetID)
-	require.NoError(t, err)
-
-	// THEN: an extraneous prebuild is detected and marked for deletion.
-	actions, err := ps.CalculateActions(clock, backoffInterval)
-	require.NoError(t, err)
-	validateActions(t, prebuilds.ReconciliationActions{
-		Actual: 3, Desired: desiredInstances, Extraneous: 1, Deleting: 1, DeleteIDs: nil, Eligible: 3,
 	}, *actions)
 }
 

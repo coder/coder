@@ -107,8 +107,7 @@ func (p PresetState) CalculateActions(clock quartz.Clock, backoffInterval time.D
 
 	// It's possible that an operator could stop/start prebuilds which interfere with the reconciliation loop, so
 	// we check if there are somehow more prebuilds than we expect, and then pick random victims to be deleted.
-	// There must be no active deletions in order for extraneous prebuilds to be deleted.
-	if extraneous > 0 && deleting == 0 {
+	if extraneous > 0 {
 		// Sort running IDs by creation time so we always delete the oldest prebuilds.
 		// In general, we want fresher prebuilds (imagine a mono-repo is cloned; newer is better).
 		slices.SortFunc(p.Running, func(a, b database.GetRunningPrebuildsRow) int {
