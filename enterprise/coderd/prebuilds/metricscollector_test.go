@@ -182,9 +182,9 @@ func TestMetricsCollector(t *testing.T) {
 									checks := []metricCheck{
 										{"coderd_prebuilds_created", test.shouldIncrementPrebuildsCreated, true},
 										{"coderd_prebuilds_failed", test.shouldIncrementPrebuildsFailed, true},
-										{"coderd_prebuilds_assigned", test.shouldIncrementPrebuildsAssigned, true},
+										{"coderd_prebuilds_claimed", test.shouldIncrementPrebuildsAssigned, true},
 										{"coderd_prebuilds_desired", test.shouldSetDesiredPrebuilds, false},
-										{"coderd_prebuilds_actual", test.shouldSetActualPrebuilds, false},
+										{"coderd_prebuilds_running", test.shouldSetActualPrebuilds, false},
 										{"coderd_prebuilds_eligible", test.shouldSetEligiblePrebuilds, false},
 									}
 
