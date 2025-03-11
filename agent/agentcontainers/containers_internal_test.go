@@ -357,7 +357,7 @@ func TestConvertDockerPort(t *testing.T) {
 			expectError: "invalid port",
 		},
 	} {
-		tc := tc // not needed anymore but makes the linter happy
+		//nolint: paralleltest // variable recapture no longer required
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			actualPort, actualNetwork, actualErr := convertDockerPort(tc.in)
@@ -511,7 +511,7 @@ func TestConvertDockerInspect(t *testing.T) {
 					Ports: []codersdk.WorkspaceAgentListeningPort{
 						{
 							Network: "tcp",
-							Port:    23456,
+							Port:    12345,
 						},
 					},
 					Volumes: map[string]string{},
@@ -548,10 +548,10 @@ func TestConvertDockerInspect(t *testing.T) {
 						"devcontainer.config_file": "/home/coder/src/coder/coder/agent/agentcontainers/testdata/devcontainer_simple.json",
 						"devcontainer.metadata":    "[]",
 					},
-					Running:      true,
-					Status:       "running",
-					Ports:        []codersdk.WorkspaceAgentListeningPort{},
-					Volumes:      map[string]string{},
+					Running: true,
+					Status:  "running",
+					Ports:   []codersdk.WorkspaceAgentListeningPort{},
+					Volumes: map[string]string{},
 				},
 			},
 		},
@@ -567,10 +567,10 @@ func TestConvertDockerInspect(t *testing.T) {
 						"devcontainer.config_file": "/home/coder/src/coder/coder/agent/agentcontainers/testdata/devcontainer_forwardport.json",
 						"devcontainer.metadata":    "[]",
 					},
-					Running:      true,
-					Status:       "running",
-					Ports:        []codersdk.WorkspaceAgentListeningPort{},
-					Volumes:      map[string]string{},
+					Running: true,
+					Status:  "running",
+					Ports:   []codersdk.WorkspaceAgentListeningPort{},
+					Volumes: map[string]string{},
 				},
 			},
 		},
@@ -586,12 +586,13 @@ func TestConvertDockerInspect(t *testing.T) {
 						"devcontainer.config_file": "/home/coder/src/coder/coder/agent/agentcontainers/testdata/devcontainer_appport.json",
 						"devcontainer.metadata":    "[]",
 					},
-					Running:      true,
-					Status:       "running",
+					Running: true,
+					Status:  "running",
 					Ports: []codersdk.WorkspaceAgentListeningPort{
 						{
 							Network: "tcp",
-							Port:    8080,
+							// Container port 8080 is mapped to 32768 on the host.
+							Port: 32768,
 						},
 					},
 					Volumes: map[string]string{},

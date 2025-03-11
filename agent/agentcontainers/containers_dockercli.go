@@ -319,13 +319,13 @@ func runDockerInspect(ctx context.Context, execer agentexec.Execer, ids ...strin
 // To avoid a direct dependency on the Docker API, we use the docker CLI
 // to fetch information about containers.
 type dockerInspect struct {
-	ID         string                  `json:"Id"`
-	Created    time.Time               `json:"Created"`
-	Config     dockerInspectConfig     `json:"Config"`
-	HostConfig dockerInspectHostConfig `json:"HostConfig"`
-	Name       string                  `json:"Name"`
-	Mounts     []dockerInspectMount    `json:"Mounts"`
-	State      dockerInspectState      `json:"State"`
+	ID              string                       `json:"Id"`
+	Created         time.Time                    `json:"Created"`
+	Config          dockerInspectConfig          `json:"Config"`
+	Name            string                       `json:"Name"`
+	Mounts          []dockerInspectMount         `json:"Mounts"`
+	State           dockerInspectState           `json:"State"`
+	NetworkSettings dockerInspectNetworkSettings `json:"NetworkSettings"`
 }
 
 type dockerInspectConfig struct {
@@ -333,8 +333,9 @@ type dockerInspectConfig struct {
 	Labels map[string]string `json:"Labels"`
 }
 
-type dockerInspectHostConfig struct {
-	PortBindings map[string]any `json:"PortBindings"`
+type dockerInspectPort struct {
+	HostIP   string `json:"HostIp"`
+	HostPort string `json:"HostPort"`
 }
 
 type dockerInspectMount struct {
@@ -347,6 +348,10 @@ type dockerInspectState struct {
 	Running  bool   `json:"Running"`
 	ExitCode int    `json:"ExitCode"`
 	Error    string `json:"Error"`
+}
+
+type dockerInspectNetworkSettings struct {
+	Ports map[string][]dockerInspectPort `json:"Ports"`
 }
 
 func (dis dockerInspectState) String() string {
@@ -388,20 +393,41 @@ func convertDockerInspect(raw string) ([]codersdk.WorkspaceAgentDevcontainer, []
 			Volumes:      make(map[string]string, len(in.Mounts)),
 		}
 
-		if in.HostConfig.PortBindings == nil {
-			in.HostConfig.PortBindings = make(map[string]any)
+		if in.NetworkSettings.Ports == nil {
+			in.NetworkSettings.Ports = make(map[string][]dockerInspectPort)
 		}
-		portKeys := maps.Keys(in.HostConfig.PortBindings)
+		portKeys := maps.Keys(in.NetworkSettings.Ports)
 		// Sort the ports for deterministic output.
 		sort.Strings(portKeys)
-		for _, p := range portKeys {
-			if port, network, err := convertDockerPort(p); err != nil {
-				warns = append(warns, err.Error())
-			} else {
+		// Each port binding may have multiple entries mapped to the same interface.
+		// Keep track of the ports we've already seen.
+		seen := make(map[int]struct{}, len(in.NetworkSettings.Ports))
+		for _, pk := range portKeys {
+			for _, p := range in.NetworkSettings.Ports[pk] {
+				_, network, err := convertDockerPort(pk)
+				if err != nil {
+					warns = append(warns, fmt.Sprintf("convert docker port: %s", err.Error()))
+					// Default network to "tcp" if we can't parse it.
+					network = "tcp"
+				}
+				hp, err := strconv.Atoi(p.HostPort)
+				if err != nil {
+					warns = append(warns, fmt.Sprintf("convert docker port: %s", err.Error()))
+					continue
+				}
+				if hp > 65535 || hp < 0 { // invalid port
+					warns = append(warns, fmt.Sprintf("convert docker port: invalid host port %d", hp))
+					continue
+				}
+				if _, ok := seen[hp]; ok {
+					// We've already seen this port, so skip it.
+					continue
+				}
 				out.Ports = append(out.Ports, codersdk.WorkspaceAgentListeningPort{
 					Network: network,
-					Port:    port,
+					Port:    uint16(hp),
 				})
+				seen[hp] = struct{}{}
 			}
 		}
 
