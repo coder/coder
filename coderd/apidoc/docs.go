@@ -1705,31 +1705,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/notifications/inbox/mark-as-read": {
-            "put": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Notifications"
-                ],
-                "summary": "Update read status of a notification",
-                "operationId": "update-inbox-notifications-read-status",
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
-                    }
-                }
-            }
-        },
         "/notifications/inbox/watch": {
             "get": {
                 "security": [
@@ -1770,6 +1745,31 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.GetInboxNotificationResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/notifications/inbox/{id}/read-status": {
+            "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "Update read status of a notification",
+                "operationId": "update-inbox-notifications-read-status",
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 }

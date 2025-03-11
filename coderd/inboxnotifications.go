@@ -334,7 +334,7 @@ func (api *API) listInboxNotifications(rw http.ResponseWriter, r *http.Request) 
 // @Produce json
 // @Tags Notifications
 // @Success 201 {object} codersdk.Response
-// @Router /notifications/inbox/mark-as-read [put]
+// @Router /notifications/inbox/{id}/read-status [put]
 func (api *API) updateInboxNotificationReadStatus(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
