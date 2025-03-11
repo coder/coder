@@ -68,7 +68,7 @@ jobs:
           project: b4q6ltmpzh
           token: ${{ secrets.DEPOT_TOKEN }}
           buildx-fallback: true
-          context: "{{defaultContext}}:dogfood/coder/contents"
+          context: "{{defaultContext}}:dogfood/coder"
           pull: true
           save: true
           push: ${{ github.ref == 'refs/heads/main' }}
@@ -114,15 +114,15 @@ jobs:
       - name: Terraform init and validate
         run: |
           pushd dogfood/
-          terraform init -upgrade
+          terraform init
           terraform validate
           popd
-          pushd coder/contents
-          terraform init -upgrade
+          pushd coder
+          terraform init
           terraform validate
           popd
-          pushd coder-envbuilder/contents
-          terraform init -upgrade
+          pushd coder-envbuilder
+          terraform init
           terraform validate
           popd
 
@@ -148,6 +148,6 @@ jobs:
           # Template source & details
           TF_VAR_CODER_TEMPLATE_NAME: ${{ secrets.CODER_TEMPLATE_NAME }}
           TF_VAR_CODER_TEMPLATE_VERSION: ${{ steps.vars.outputs.sha_short }}
-          TF_VAR_CODER_TEMPLATE_DIR: ./contents
+          TF_VAR_CODER_TEMPLATE_DIR: ./dogfood
           TF_VAR_CODER_TEMPLATE_MESSAGE: ${{ steps.message.outputs.pr_title }}
           TF_LOG: info

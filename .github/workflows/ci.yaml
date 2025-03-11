@@ -172,7 +172,7 @@ jobs:
 
       - name: Get golangci-lint cache dir
         run: |
-          linter_ver=$(egrep -o 'GOLANGCI_LINT_VERSION=\S+' dogfood/coder/contents/Dockerfile | cut -d '=' -f 2)
+          linter_ver=$(egrep -o 'GOLANGCI_LINT_VERSION=\S+' dogfood/coder/Dockerfile | cut -d '=' -f 2)
           go install github.com/golangci/golangci-lint/cmd/golangci-lint@v$linter_ver
           dir=$(golangci-lint cache status | awk '/Dir/ { print $2 }')
           echo "LINT_CACHE_DIR=$dir" >> $GITHUB_ENV
