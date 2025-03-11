@@ -34,7 +34,7 @@ func TestInboxNotifications_List(t *testing.T) {
 		require.NotNil(t, notifs)
 
 		require.Equal(t, 0, notifs.UnreadCount)
-		require.Empty(t, notifs)
+		require.Empty(t, notifs.Notifications)
 	})
 
 	t.Run("OK with pagination", func(t *testing.T) {
