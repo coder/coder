@@ -77,13 +77,24 @@ done
 
 # Sadly, manifests don't seem to support labels.
 log "--- Creating multi-arch Docker image ($target)"
-docker manifest create \
-	"$target" \
-	"${create_args[@]}"
+
+# Create a buildx builder instance if it doesn't exist
+if ! docker buildx inspect multiarch-builder &>/dev/null; then
+    docker buildx create --name multiarch-builder --use
+fi
+
+# Create manifest with buildx imagetools
+log "--- Creating multi-arch manifest with attestations"
+
+# For images with attestations, we preserve the entire structure by using image tags directly,
+# letting Docker handle retrieving both the architecture manifests and attestation manifests
+docker buildx imagetools create --tag "$target" "$@"
 
 if [[ "$push" == 1 ]]; then
-	log "--- Pushing multi-arch Docker image ($target)"
-	docker manifest push "$target"
+    log "--- Verifying multi-arch Docker image ($target)"
+    # The manifest is already created and pushed when using buildx imagetools create
+    # We just need to verify it exists
+    docker buildx imagetools inspect "$target"
 fi
 
 echo "$target"
