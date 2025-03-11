@@ -85,7 +85,7 @@ resource "coderd_template" "envbuilder_dogfood" {
     {
       name      = var.CODER_TEMPLATE_VERSION
       message   = var.CODER_TEMPLATE_MESSAGE
-      directory = "./coder-envbuilder/contents"
+      directory = "./coder-envbuilder"
       active    = true
       tf_vars = [{
         # clusters/dogfood-v2/coder/provisioner/configs/values.yaml#L191-L194
