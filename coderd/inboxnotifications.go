@@ -329,10 +329,11 @@ func (api *API) listInboxNotifications(rw http.ResponseWriter, r *http.Request) 
 
 // updateInboxNotificationReadStatus changes the read status of a notification.
 // @Summary Update read status of a notification
-// @ID update-inbox-notifications-read-status
+// @ID update-read-status-of-a-notification
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Notifications
+// @Param id path string true "id of the notification"
 // @Success 201 {object} codersdk.Response
 // @Router /notifications/inbox/{id}/read-status [put]
 func (api *API) updateInboxNotificationReadStatus(rw http.ResponseWriter, r *http.Request) {
