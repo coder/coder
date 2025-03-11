@@ -20,7 +20,8 @@
       "created_account_user_name": "William Tables",
       "initiator": "rob"
     },
-    "data": null
+    "data": null,
+    "targets": null
   },
   "title": "User account \"bobby\" created",
   "title_markdown": "User account \"bobby\" created",

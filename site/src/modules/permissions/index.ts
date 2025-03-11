@@ -6,6 +6,9 @@ export type Permissions = {
 
 export type PermissionName = keyof typeof permissionChecks;
 
+/**
+ * Site-wide permission checks
+ */
 export const permissionChecks = {
 	viewAllUsers: {
 		object: {
@@ -30,7 +33,7 @@ export const permissionChecks = {
 			resource_type: "template",
 			any_org: true,
 		},
-		action: "update",
+		action: "create",
 	},
 	updateTemplates: {
 		object: {
@@ -44,29 +47,17 @@ export const permissionChecks = {
 		},
 		action: "delete",
 	},
-	viewDeploymentValues: {
+	viewDeploymentConfig: {
 		object: {
 			resource_type: "deployment_config",
 		},
 		action: "read",
 	},
-	editDeploymentValues: {
+	editDeploymentConfig: {
 		object: {
 			resource_type: "deployment_config",
 		},
 		action: "update",
-	},
-	viewUpdateCheck: {
-		object: {
-			resource_type: "deployment_config",
-		},
-		action: "read",
-	},
-	viewExternalAuthConfig: {
-		object: {
-			resource_type: "deployment_config",
-		},
-		action: "read",
 	},
 	viewDeploymentStats: {
 		object: {
@@ -178,7 +169,7 @@ export const canViewDeploymentSettings = (
 ): permissions is Permissions => {
 	return (
 		permissions !== undefined &&
-		(permissions.viewDeploymentValues ||
+		(permissions.viewDeploymentConfig ||
 			permissions.viewAllLicenses ||
 			permissions.viewAllUsers ||
 			permissions.viewAnyGroup ||

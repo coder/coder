@@ -1,7 +1,6 @@
 import TextField from "@mui/material/TextField";
 import type { ProvisionerDaemon } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
-import { Input } from "components/Input/Input";
 import { PlusIcon } from "lucide-react";
 import { ProvisionerTag } from "modules/provisioners/ProvisionerTag";
 import { type FC, useRef, useState } from "react";

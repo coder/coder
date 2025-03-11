@@ -194,7 +194,7 @@ export const baseMeta = {
 			},
 		],
 		user: MockUser,
-		permissions: { viewDeploymentValues: true },
+		permissions: { viewDeploymentConfig: true },
 		deploymentOptions: mockNotificationsDeploymentOptions,
 		deploymentValues: {
 			notifications: {

@@ -985,6 +985,32 @@ func (s *MethodTestSuite) TestOrganization() {
 			mem, policy.ActionRead,
 		)
 	}))
+	s.Run("PaginatedOrganizationMembers", s.Subtest(func(db database.Store, check *expects) {
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		u := dbgen.User(s.T(), db, database.User{})
+		mem := dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{
+			OrganizationID: o.ID,
+			UserID:         u.ID,
+			Roles:          []string{rbac.RoleOrgAdmin()},
+		})
+
+		check.Args(database.PaginatedOrganizationMembersParams{
+			OrganizationID: o.ID,
+			LimitOpt:       0,
+		}).Asserts(
+			rbac.ResourceOrganizationMember.InOrg(o.ID), policy.ActionRead,
+		).Returns([]database.PaginatedOrganizationMembersRow{
+			{
+				OrganizationMember: mem,
+				Username:           u.Username,
+				AvatarURL:          u.AvatarURL,
+				Name:               u.Name,
+				Email:              u.Email,
+				GlobalRoles:        u.RBACRoles,
+				Count:              1,
+			},
+		})
+	}))
 	s.Run("UpdateMemberRoles", s.Subtest(func(db database.Store, check *expects) {
 		o := dbgen.Organization(s.T(), db, database.Organization{})
 		u := dbgen.User(s.T(), db, database.User{})
@@ -1522,13 +1548,26 @@ func (s *MethodTestSuite) TestUser() {
 			[]database.GetUserWorkspaceBuildParametersRow{},
 		)
 	}))
+	s.Run("GetUserAppearanceSettings", s.Subtest(func(db database.Store, check *expects) {
+		ctx := context.Background()
+		u := dbgen.User(s.T(), db, database.User{})
+		db.UpdateUserAppearanceSettings(ctx, database.UpdateUserAppearanceSettingsParams{
+			UserID:          u.ID,
+			ThemePreference: "light",
+		})
+		check.Args(u.ID).Asserts(u, policy.ActionReadPersonal).Returns("light")
+	}))
 	s.Run("UpdateUserAppearanceSettings", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
+		uc := database.UserConfig{
+			UserID: u.ID,
+			Key:    "theme_preference",
+			Value:  "dark",
+		}
 		check.Args(database.UpdateUserAppearanceSettingsParams{
-			ID:              u.ID,
-			ThemePreference: u.ThemePreference,
-			UpdatedAt:       u.UpdatedAt,
-		}).Asserts(u, policy.ActionUpdatePersonal).Returns(u)
+			UserID:          u.ID,
+			ThemePreference: uc.Value,
+		}).Asserts(u, policy.ActionUpdatePersonal).Returns(uc)
 	}))
 	s.Run("UpdateUserStatus", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})

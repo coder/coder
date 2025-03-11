@@ -1,4 +1,4 @@
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import type { Interpolation, Theme } from "@emotion/react";
 import AddIcon from "@mui/icons-material/AddOutlined";
 import AddOutlined from "@mui/icons-material/AddOutlined";
 import Button from "@mui/material/Button";
@@ -34,8 +34,9 @@ interface CustomRolesPageViewProps {
 	builtInRoles: AssignableRoles[] | undefined;
 	customRoles: AssignableRoles[] | undefined;
 	onDeleteRole: (role: Role) => void;
-	canAssignOrgRole: boolean;
 	canCreateOrgRole: boolean;
+	canUpdateOrgRole: boolean;
+	canDeleteOrgRole: boolean;
 	isCustomRolesEnabled: boolean;
 }
 
@@ -43,8 +44,9 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 	builtInRoles,
 	customRoles,
 	onDeleteRole,
-	canAssignOrgRole,
 	canCreateOrgRole,
+	canUpdateOrgRole,
+	canDeleteOrgRole,
 	isCustomRolesEnabled,
 }) => {
 	return (
@@ -77,7 +79,9 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 			<RoleTable
 				roles={customRoles}
 				isCustomRolesEnabled={isCustomRolesEnabled}
-				canAssignOrgRole={canAssignOrgRole}
+				canCreateOrgRole={canCreateOrgRole}
+				canUpdateOrgRole={canUpdateOrgRole}
+				canDeleteOrgRole={canDeleteOrgRole}
 				onDeleteRole={onDeleteRole}
 			/>
 			<span>
@@ -90,7 +94,9 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 			<RoleTable
 				roles={builtInRoles}
 				isCustomRolesEnabled={isCustomRolesEnabled}
-				canAssignOrgRole={canAssignOrgRole}
+				canCreateOrgRole={canCreateOrgRole}
+				canUpdateOrgRole={canUpdateOrgRole}
+				canDeleteOrgRole={canDeleteOrgRole}
 				onDeleteRole={onDeleteRole}
 			/>
 		</Stack>
@@ -100,15 +106,19 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 interface RoleTableProps {
 	roles: AssignableRoles[] | undefined;
 	isCustomRolesEnabled: boolean;
-	canAssignOrgRole: boolean;
+	canCreateOrgRole: boolean;
+	canUpdateOrgRole: boolean;
+	canDeleteOrgRole: boolean;
 	onDeleteRole: (role: Role) => void;
 }
 
 const RoleTable: FC<RoleTableProps> = ({
 	roles,
 	isCustomRolesEnabled,
+	canCreateOrgRole,
+	canUpdateOrgRole,
+	canDeleteOrgRole,
 	onDeleteRole,
-	canAssignOrgRole,
 }) => {
 	const isLoading = roles === undefined;
 	const isEmpty = Boolean(roles && roles.length === 0);
@@ -134,14 +144,14 @@ const RoleTable: FC<RoleTableProps> = ({
 									<EmptyState
 										message="No custom roles yet"
 										description={
-											canAssignOrgRole && isCustomRolesEnabled
+											canCreateOrgRole && isCustomRolesEnabled
 												? "Create your first custom role"
 												: !isCustomRolesEnabled
 													? "Upgrade to a premium license to create a custom role"
 													: "You don't have permission to create a custom role"
 										}
 										cta={
-											canAssignOrgRole &&
+											canCreateOrgRole &&
 											isCustomRolesEnabled && (
 												<Button
 													component={RouterLink}
@@ -165,7 +175,8 @@ const RoleTable: FC<RoleTableProps> = ({
 									<RoleRow
 										key={role.name}
 										role={role}
-										canAssignOrgRole={canAssignOrgRole}
+										canUpdateOrgRole={canUpdateOrgRole}
+										canDeleteOrgRole={canDeleteOrgRole}
 										onDelete={() => onDeleteRole(role)}
 									/>
 								))}
@@ -179,11 +190,17 @@ const RoleTable: FC<RoleTableProps> = ({
 
 interface RoleRowProps {
 	role: AssignableRoles;
+	canUpdateOrgRole: boolean;
+	canDeleteOrgRole: boolean;
 	onDelete: () => void;
-	canAssignOrgRole: boolean;
 }
 
-const RoleRow: FC<RoleRowProps> = ({ role, onDelete, canAssignOrgRole }) => {
+const RoleRow: FC<RoleRowProps> = ({
+	role,
+	onDelete,
+	canUpdateOrgRole,
+	canDeleteOrgRole,
+}) => {
 	const navigate = useNavigate();
 
 	return (
@@ -195,20 +212,22 @@ const RoleRow: FC<RoleRowProps> = ({ role, onDelete, canAssignOrgRole }) => {
 			</TableCell>
 
 			<TableCell>
-				{!role.built_in && (
+				{!role.built_in && (canUpdateOrgRole || canDeleteOrgRole) && (
 					<MoreMenu>
 						<MoreMenuTrigger>
 							<ThreeDotsButton />
 						</MoreMenuTrigger>
 						<MoreMenuContent>
-							<MoreMenuItem
-								onClick={() => {
-									navigate(role.name);
-								}}
-							>
-								Edit
-							</MoreMenuItem>
-							{canAssignOrgRole && (
+							{canUpdateOrgRole && (
+								<MoreMenuItem
+									onClick={() => {
+										navigate(role.name);
+									}}
+								>
+									Edit
+								</MoreMenuItem>
+							)}
+							{canDeleteOrgRole && (
 								<MoreMenuItem danger onClick={onDelete}>
 									Delete&hellip;
 								</MoreMenuItem>

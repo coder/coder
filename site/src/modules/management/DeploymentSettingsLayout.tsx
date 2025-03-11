@@ -7,8 +7,8 @@ import {
 } from "components/Breadcrumb/Breadcrumb";
 import { Loader } from "components/Loader/Loader";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
-import { RequirePermission } from "contexts/auth/RequirePermission";
-import { canViewDeploymentSettings } from "contexts/auth/permissions";
+import { canViewDeploymentSettings } from "modules/permissions";
+import { RequirePermission } from "modules/permissions/RequirePermission";
 import { type FC, Suspense } from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { DeploymentSidebar } from "./DeploymentSidebar";
@@ -21,8 +21,8 @@ const DeploymentSettingsLayout: FC = () => {
 		return (
 			<Navigate
 				to={
-					permissions.viewDeploymentValues
-						? "/deployment/general"
+					permissions.viewDeploymentConfig
+						? "/deployment/overview"
 						: "/deployment/users"
 				}
 				replace

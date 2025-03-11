@@ -6,6 +6,7 @@ import {
 	MockEntitlements,
 	MockExperiments,
 	MockUser,
+	MockUserAppearanceSettings,
 } from "testHelpers/entities";
 import {
 	DEFAULT_METADATA_KEY,
@@ -38,6 +39,7 @@ const mockDataForTags = {
 	entitlements: MockEntitlements,
 	experiments: MockExperiments,
 	user: MockUser,
+	userAppearance: MockUserAppearanceSettings,
 	regions: MockRegions,
 } as const satisfies Record<MetadataKey, MetadataValue>;
 
@@ -63,6 +65,10 @@ const emptyMetadata: RuntimeHtmlMetadata = {
 		value: undefined,
 	},
 	user: {
+		available: false,
+		value: undefined,
+	},
+	userAppearance: {
 		available: false,
 		value: undefined,
 	},
@@ -92,6 +98,10 @@ const populatedMetadata: RuntimeHtmlMetadata = {
 	user: {
 		available: true,
 		value: MockUser,
+	},
+	userAppearance: {
+		available: true,
+		value: MockUserAppearanceSettings,
 	},
 };
 

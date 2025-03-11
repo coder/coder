@@ -256,6 +256,10 @@ func (m OrganizationMembersRow) RBACObject() rbac.Object {
 	return m.OrganizationMember.RBACObject()
 }
 
+func (m PaginatedOrganizationMembersRow) RBACObject() rbac.Object {
+	return m.OrganizationMember.RBACObject()
+}
+
 func (m GetOrganizationIDsByMemberIDsRow) RBACObject() rbac.Object {
 	// TODO: This feels incorrect as we are really returning a list of orgmembers.
 	// This return type should be refactored to return a list of orgmembers, not this
@@ -406,20 +410,19 @@ func ConvertUserRows(rows []GetUsersRow) []User {
 	users := make([]User, len(rows))
 	for i, r := range rows {
 		users[i] = User{
-			ID:              r.ID,
-			Email:           r.Email,
-			Username:        r.Username,
-			Name:            r.Name,
-			HashedPassword:  r.HashedPassword,
-			CreatedAt:       r.CreatedAt,
-			UpdatedAt:       r.UpdatedAt,
-			Status:          r.Status,
-			RBACRoles:       r.RBACRoles,
-			LoginType:       r.LoginType,
-			AvatarURL:       r.AvatarURL,
-			Deleted:         r.Deleted,
-			LastSeenAt:      r.LastSeenAt,
-			ThemePreference: r.ThemePreference,
+			ID:             r.ID,
+			Email:          r.Email,
+			Username:       r.Username,
+			Name:           r.Name,
+			HashedPassword: r.HashedPassword,
+			CreatedAt:      r.CreatedAt,
+			UpdatedAt:      r.UpdatedAt,
+			Status:         r.Status,
+			RBACRoles:      r.RBACRoles,
+			LoginType:      r.LoginType,
+			AvatarURL:      r.AvatarURL,
+			Deleted:        r.Deleted,
+			LastSeenAt:     r.LastSeenAt,
 		}
 	}
 
