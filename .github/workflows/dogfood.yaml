@@ -35,7 +35,26 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Setup Nix
-        uses: DeterminateSystems/nix-installer-action@e50d5f73bfe71c2dd0aa4218de8f4afa59f8f81d # v16
+        uses: nixbuild/nix-quick-install-action@5bb6a3b3abe66fd09bbf250dce8ada94f856a703 # v30
+
+      - uses: nix-community/cache-nix-action@aee88ae5efbbeb38ac5d9862ecbebdb404a19e69 # v6.1.1
+        with:
+          # restore and save a cache using this key
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', '**/flake.lock') }}
+          # if there's no cache hit, restore a cache by this prefix
+          restore-prefixes-first-match: nix-${{ runner.os }}-
+          # collect garbage until Nix store size (in bytes) is at most this number
+          # before trying to save a new cache
+          # 1G = 1073741824
+          gc-max-store-size-linux: 5G
+          # do purge caches
+          purge: true
+          # purge all versions of the cache
+          purge-prefixes: nix-${{ runner.os }}-
+          # created more than this number of seconds ago relative to the start of the `Post Restore` phase
+          purge-created: 0
+          # except the version with the `primary-key`, if it exists
+          purge-primary-key: never
 
       - name: Get branch name
         id: branch-name
@@ -68,7 +87,7 @@ jobs:
           project: b4q6ltmpzh
           token: ${{ secrets.DEPOT_TOKEN }}
           buildx-fallback: true
-          context: "{{defaultContext}}:dogfood/contents"
+          context: "{{defaultContext}}:dogfood/coder"
           pull: true
           save: true
           push: ${{ github.ref == 'refs/heads/main' }}
@@ -113,12 +132,18 @@ jobs:
 
       - name: Terraform init and validate
         run: |
-          cd dogfood
-          terraform init -upgrade
+          pushd dogfood/
+          terraform init
           terraform validate
-          cd contents
-          terraform init -upgrade
+          popd
+          pushd dogfood/coder
+          terraform init
           terraform validate
+          popd
+          pushd dogfood/coder-envbuilder
+          terraform init
+          terraform validate
+          popd
 
       - name: Get short commit SHA
         if: github.ref == 'refs/heads/main'
@@ -142,6 +167,6 @@ jobs:
           # Template source & details
           TF_VAR_CODER_TEMPLATE_NAME: ${{ secrets.CODER_TEMPLATE_NAME }}
           TF_VAR_CODER_TEMPLATE_VERSION: ${{ steps.vars.outputs.sha_short }}
-          TF_VAR_CODER_TEMPLATE_DIR: ./contents
+          TF_VAR_CODER_TEMPLATE_DIR: ./coder
           TF_VAR_CODER_TEMPLATE_MESSAGE: ${{ steps.message.outputs.pr_title }}
           TF_LOG: info

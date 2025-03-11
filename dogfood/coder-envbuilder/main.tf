@@ -1,56 +1,51 @@
 terraform {
   required_providers {
     coder = {
-      source  = "coder/coder"
-      version = "2.2.0-pre0"
+      source = "coder/coder"
     }
     docker = {
       source  = "kreuzwerker/docker"
       version = "~> 3.0.0"
     }
+    envbuilder = {
+      source = "coder/envbuilder"
+    }
   }
 }
 
 locals {
-  // These are cluster service addresses mapped to Tailscale nodes. Ask Dean or
-  // Kyle for help.
+  // These are cluster service addresses mapped to Tailscale nodes.
+  // Ask #dogfood-admins for help.
+  // NOTE: keep these up to date with those in ../dogfood/main.tf!
   docker_host = {
     ""              = "tcp://dogfood-ts-cdr-dev.tailscale.svc.cluster.local:2375"
     "us-pittsburgh" = "tcp://dogfood-ts-cdr-dev.tailscale.svc.cluster.local:2375"
     "eu-helsinki"   = "tcp://reinhard-hel-cdr-dev.tailscale.svc.cluster.local:2375"
     "ap-sydney"     = "tcp://wolfgang-syd-cdr-dev.tailscale.svc.cluster.local:2375"
     "sa-saopaulo"   = "tcp://oberstein-sao-cdr-dev.tailscale.svc.cluster.local:2375"
-    "za-cpt"        = "tcp://schonkopf-cpt-cdr-dev.tailscale.svc.cluster.local:2375"
+    "za-jnb"        = "tcp://greenhill-jnb-cdr-dev.tailscale.svc.cluster.local:2375"
   }
 
-  repo_base_dir  = data.coder_parameter.repo_base_dir.value == "~" ? "/home/coder" : replace(data.coder_parameter.repo_base_dir.value, "/^~\\//", "/home/coder/")
-  repo_dir       = replace(try(module.git-clone[0].repo_dir, ""), "/^~\\//", "/home/coder/")
-  container_name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
+  envbuilder_repo = "ghcr.io/coder/envbuilder-preview"
+  container_name  = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
+  // Envbuilder clones repos to /workspaces by default.
+  repo_dir = "/workspaces/coder"
 }
 
-data "coder_parameter" "repo_base_dir" {
+data "coder_parameter" "devcontainer_repo" {
   type        = "string"
-  name        = "Coder Repository Base Directory"
-  default     = "~"
-  description = "The directory specified will be created (if missing) and [coder/coder](https://github.com/coder/coder) will be automatically cloned into [base directory]/coder 🪄."
+  name        = "Devcontainer Repository"
+  default     = "https://github.com/coder/coder"
+  description = "Repo containing a devcontainer.json. This is only cloned once."
+  mutable     = false
+}
+
+data "coder_parameter" "devcontainer_dir" {
+  type        = "string"
+  name        = "Devcontainer Directory"
+  default     = "dogfood/coder/"
+  description = "Directory containing a devcontainer.json relative to the repository root"
   mutable     = true
-}
-
-data "coder_parameter" "image_type" {
-  type        = "string"
-  name        = "Coder Image"
-  default     = "codercom/oss-dogfood:latest"
-  description = "The Docker image used to run your workspace. Choose between nix and non-nix images."
-  option {
-    icon  = "/icon/coder.svg"
-    name  = "Dogfood (Default)"
-    value = "codercom/oss-dogfood:latest"
-  }
-  option {
-    icon  = "/icon/nix.svg"
-    name  = "Dogfood Nix (Experimental)"
-    value = "codercom/oss-dogfood-nix:latest"
-  }
 }
 
 data "coder_parameter" "region" {
@@ -80,45 +75,24 @@ data "coder_parameter" "region" {
   }
   option {
     icon  = "/emojis/1f1ff-1f1e6.png"
-    name  = "Cape Town"
-    value = "za-cpt"
+    name  = "Johannesburg"
+    value = "za-jnb"
   }
 }
 
-data "coder_parameter" "res_mon_memory_threshold" {
-  type        = "number"
-  name        = "Memory usage threshold"
-  default     = 80
-  description = "The memory usage threshold used in resources monitoring to trigger notifications."
-  mutable     = true
-  validation {
-    min = 0
-    max = 100
-  }
-}
-
-data "coder_parameter" "res_mon_volume_threshold" {
-  type        = "number"
-  name        = "Volume usage threshold"
-  default     = 90
-  description = "The volume usage threshold used in resources monitoring to trigger notifications."
-  mutable     = true
-  validation {
-    min = 0
-    max = 100
-  }
-}
-
-data "coder_parameter" "res_mon_volume_path" {
-  type        = "string"
-  name        = "Volume path"
-  default     = "/home/coder"
-  description = "The path monitored in resources monitoring to trigger notifications."
-  mutable     = true
+# This file is mounted as a Kubernetes secret on provisioner pods.
+# It contains the required credentials for the envbuilder cache repo.
+variable "envbuilder_cache_dockerconfigjson_path" {
+  type      = string
+  sensitive = true
 }
 
 provider "docker" {
   host = lookup(local.docker_host, data.coder_parameter.region.value)
+  registry_auth {
+    address     = "us-central1-docker.pkg.dev"
+    config_file = pathexpand(var.envbuilder_cache_dockerconfigjson_path)
+  }
 }
 
 provider "coder" {}
@@ -129,68 +103,37 @@ data "coder_external_auth" "github" {
 
 data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
-data "coder_workspace_tags" "tags" {
-  tags = {
-    "cluster" : "dogfood-v2"
-    "env" : "gke"
-  }
-}
 
 module "slackme" {
-  count            = data.coder_workspace.me.start_count
-  source           = "dev.registry.coder.com/modules/slackme/coder"
-  version          = ">= 1.0.0"
+  source           = "registry.coder.com/modules/slackme/coder"
+  version          = "1.0.2"
   agent_id         = coder_agent.dev.id
   auth_provider_id = "slack"
 }
 
 module "dotfiles" {
-  count    = data.coder_workspace.me.start_count
-  source   = "dev.registry.coder.com/modules/dotfiles/coder"
-  version  = ">= 1.0.0"
+  source   = "registry.coder.com/modules/dotfiles/coder"
+  version  = "1.0.15"
   agent_id = coder_agent.dev.id
-}
-
-module "git-clone" {
-  count    = data.coder_workspace.me.start_count
-  source   = "dev.registry.coder.com/modules/git-clone/coder"
-  version  = ">= 1.0.0"
-  agent_id = coder_agent.dev.id
-  url      = "https://github.com/coder/coder"
-  base_dir = local.repo_base_dir
 }
 
 module "personalize" {
-  count    = data.coder_workspace.me.start_count
-  source   = "dev.registry.coder.com/modules/personalize/coder"
-  version  = ">= 1.0.0"
+  source   = "registry.coder.com/modules/personalize/coder"
+  version  = "1.0.2"
   agent_id = coder_agent.dev.id
 }
 
 module "code-server" {
-  count                   = data.coder_workspace.me.start_count
-  source                  = "dev.registry.coder.com/modules/code-server/coder"
-  version                 = ">= 1.0.0"
+  source                  = "registry.coder.com/modules/code-server/coder"
+  version                 = "1.0.15"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   auto_install_extensions = true
 }
 
-module "vscode-web" {
-  count                   = data.coder_workspace.me.start_count
-  source                  = "registry.coder.com/modules/vscode-web/coder"
-  version                 = ">= 1.0.0"
-  agent_id                = coder_agent.dev.id
-  folder                  = local.repo_dir
-  extensions              = ["github.copilot"]
-  auto_install_extensions = true # will install extensions from the repos .vscode/extensions.json file
-  accept_license          = true
-}
-
 module "jetbrains_gateway" {
-  count          = data.coder_workspace.me.start_count
-  source         = "dev.registry.coder.com/modules/jetbrains-gateway/coder"
-  version        = ">= 1.0.0"
+  source         = "registry.coder.com/modules/jetbrains-gateway/coder"
+  version        = "1.0.13"
   agent_id       = coder_agent.dev.id
   agent_name     = "dev"
   folder         = local.repo_dir
@@ -200,33 +143,15 @@ module "jetbrains_gateway" {
 }
 
 module "filebrowser" {
-  count      = data.coder_workspace.me.start_count
-  source     = "dev.registry.coder.com/modules/filebrowser/coder"
-  version    = ">= 1.0.0"
-  agent_id   = coder_agent.dev.id
-  agent_name = "dev"
+  source   = "registry.coder.com/modules/filebrowser/coder"
+  version  = "1.0.8"
+  agent_id = coder_agent.dev.id
 }
 
 module "coder-login" {
-  count    = data.coder_workspace.me.start_count
-  source   = "dev.registry.coder.com/modules/coder-login/coder"
-  version  = ">= 1.0.0"
+  source   = "registry.coder.com/modules/coder-login/coder"
+  version  = "1.0.15"
   agent_id = coder_agent.dev.id
-}
-
-module "cursor" {
-  count    = data.coder_workspace.me.start_count
-  source   = "dev.registry.coder.com/modules/cursor/coder"
-  version  = ">= 1.0.0"
-  agent_id = coder_agent.dev.id
-  folder   = local.repo_dir
-}
-
-module "zed" {
-  count    = data.coder_workspace.me.start_count
-  source   = "./zed"
-  agent_id = coder_agent.dev.id
-  folder   = local.repo_dir
 }
 
 resource "coder_agent" "dev" {
@@ -282,7 +207,7 @@ resource "coder_agent" "dev" {
     key          = "swap_usage_host"
     order        = 4
     script       = <<EOT
-      #!/usr/bin/env bash
+      #!/bin/bash
       echo "$(free -b | awk '/^Swap/ { printf("%.1f/%.1f", $3/1024.0/1024.0/1024.0, $2/1024.0/1024.0/1024.0) }') GiB"
     EOT
     interval     = 10
@@ -295,7 +220,7 @@ resource "coder_agent" "dev" {
     order        = 5
     # get load avg scaled by number of cores
     script   = <<EOT
-      #!/usr/bin/env bash
+      #!/bin/bash
       echo "`cat /proc/loadavg | awk '{ print $1 }'` `nproc`" | awk '{ printf "%0.2f", $1/$2 }'
     EOT
     interval = 60
@@ -316,49 +241,43 @@ resource "coder_agent" "dev" {
     key          = "word"
     order        = 7
     script       = <<EOT
-      #!/usr/bin/env bash
+      #!/bin/bash
       curl -o - --silent https://www.merriam-webster.com/word-of-the-day 2>&1 | awk ' $0 ~ "Word of the Day: [A-z]+" { print $5; exit }'
     EOT
     interval     = 86400
     timeout      = 5
   }
 
-  resources_monitoring {
-    memory {
-      enabled   = true
-      threshold = data.coder_parameter.res_mon_memory_threshold.value
-    }
-    volume {
-      enabled   = true
-      threshold = data.coder_parameter.res_mon_volume_threshold.value
-      path      = data.coder_parameter.res_mon_volume_path.value
-    }
-  }
-
   startup_script = <<-EOT
-    #!/usr/bin/env bash
     set -eux -o pipefail
 
     # Allow synchronization between scripts.
     trap 'touch /tmp/.coder-startup-script.done' EXIT
 
+    # BUG: Kaniko does not symlink /run => /var/run properly, resulting in
+    # /var/run/ owned by root:root
+    # WORKAROUND: symlink it manually
+    sudo ln -s /run /var/run
     # Start Docker service
     sudo service docker start
+
+    # Chown /var/run/docker.sock as even though we are a member of the Docker group
+    # it did not exist at the start of the workspace. This can be worked around with
+    # `newgrp docker` but this is annoying to have to do manually.
+    for attempt in $(seq 1 10); do
+      if sudo docker info > /dev/null; then break; fi
+      sleep 1
+    done
+    sudo chmod a+rw /var/run/docker.sock
+
     # Install playwright dependencies
     # We want to use the playwright version from site/package.json
     # Check if the directory exists At workspace creation as the coder_script runs in parallel so clone might not exist yet.
     while ! [[ -f "${local.repo_dir}/site/package.json" ]]; do
       sleep 1
     done
-    cd "${local.repo_dir}" && make clean
     cd "${local.repo_dir}/site" && pnpm install && pnpm playwright:install
   EOT
-}
-
-# Add a cost so we get some quota usage in dev.coder.com
-resource "coder_metadata" "home_volume" {
-  resource_id = docker_volume.home_volume.id
-  daily_cost  = 1
 }
 
 resource "docker_volume" "home_volume" {
@@ -388,40 +307,92 @@ resource "docker_volume" "home_volume" {
   }
 }
 
-data "docker_registry_image" "dogfood" {
-  name = data.coder_parameter.image_type.value
+resource "docker_volume" "workspaces" {
+  name = "coder-${data.coder_workspace.me.id}"
+  # Protect the volume from being deleted due to changes in attributes.
+  lifecycle {
+    ignore_changes = all
+  }
+  # Add labels in Docker to keep track of orphan resources.
+  labels {
+    label = "coder.owner"
+    value = data.coder_workspace_owner.me.name
+  }
+  labels {
+    label = "coder.owner_id"
+    value = data.coder_workspace_owner.me.id
+  }
+  labels {
+    label = "coder.workspace_id"
+    value = data.coder_workspace.me.id
+  }
+  # This field becomes outdated if the workspace is renamed but can
+  # be useful for debugging or cleaning out dangling volumes.
+  labels {
+    label = "coder.workspace_name_at_creation"
+    value = data.coder_workspace.me.name
+  }
 }
 
-resource "docker_image" "dogfood" {
-  name = "${data.coder_parameter.image_type.value}@${data.docker_registry_image.dogfood.sha256_digest}"
-  pull_triggers = [
-    data.docker_registry_image.dogfood.sha256_digest,
-    sha1(join("", [for f in fileset(path.module, "files/*") : filesha1(f)])),
-    filesha1("Dockerfile"),
-    filesha1("nix.hash"),
-  ]
-  keep_locally = true
+# This file is mounted as a Kubernetes secret on provisioner pods.
+# It contains the required credentials for the envbuilder cache repo.
+data "local_sensitive_file" "envbuilder_cache_dockerconfigjson" {
+  filename = var.envbuilder_cache_dockerconfigjson_path
+}
+
+data "docker_registry_image" "envbuilder" {
+  name = "${local.envbuilder_repo}:latest"
+}
+
+resource "docker_image" "envbuilder" {
+  name          = "${local.envbuilder_repo}@${data.docker_registry_image.envbuilder.sha256_digest}"
+  pull_triggers = [data.docker_registry_image.envbuilder.sha256_digest]
+  keep_locally  = true
+}
+
+locals {
+  cache_repo = "us-central1-docker.pkg.dev/coder-dogfood-v2/envbuilder-cache/coder-dogfood"
+  envbuilder_env = {
+    "CODER_AGENT_TOKEN" : coder_agent.dev.token,
+    "CODER_AGENT_URL" : data.coder_workspace.me.access_url,
+    "ENVBUILDER_GIT_USERNAME" : data.coder_external_auth.github.access_token,
+    # "ENVBUILDER_GIT_URL" : data.coder_parameter.devcontainer_repo.value, # The provider sets this via the `git_url` property.
+    "ENVBUILDER_DEVCONTAINER_DIR" : data.coder_parameter.devcontainer_dir.value,
+    "ENVBUILDER_INIT_SCRIPT" : coder_agent.dev.init_script,
+    "ENVBUILDER_FALLBACK_IMAGE" : "codercom/oss-dogfood:latest", # This image runs if builds fail
+    "ENVBUILDER_PUSH_IMAGE" : "true",                            # Push the image to the remote cache
+    # "ENVBUILDER_CACHE_REPO" : local.cache_repo, # The provider sets this via the `cache_repo` property.
+    "ENVBUILDER_DOCKER_CONFIG_BASE64" : data.local_sensitive_file.envbuilder_cache_dockerconfigjson.content_base64,
+    "USE_CAP_NET_ADMIN" : "true",
+    # Set git commit details correctly
+    "GIT_AUTHOR_NAME" : coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name),
+    "GIT_AUTHOR_EMAIL" : data.coder_workspace_owner.me.email,
+    "GIT_COMMITTER_NAME" : coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name),
+    "GIT_COMMITTER_EMAIL" : data.coder_workspace_owner.me.email,
+  }
+}
+
+# Check for the presence of a prebuilt image in the cache repo
+# that we can use instead.
+resource "envbuilder_cached_image" "cached" {
+  count         = data.coder_workspace.me.start_count
+  builder_image = docker_image.envbuilder.name
+  git_url       = data.coder_parameter.devcontainer_repo.value
+  cache_repo    = local.cache_repo
+  extra_env     = local.envbuilder_env
 }
 
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
-  image = docker_image.dogfood.name
+  image = envbuilder_cached_image.cached.0.image
   name  = local.container_name
   # Hostname makes the shell more user friendly: coder@my-workspace:~$
   hostname = data.coder_workspace.me.name
-  # Use the docker gateway if the access URL is 127.0.0.1
-  entrypoint = ["sh", "-c", coder_agent.dev.init_script]
   # CPU limits are unnecessary since Docker will load balance automatically
-  memory  = data.coder_workspace_owner.me.name == "code-asher" ? 65536 : 32768
+  memory  = 32768
   runtime = "sysbox-runc"
-  env = [
-    "CODER_AGENT_TOKEN=${coder_agent.dev.token}",
-    "USE_CAP_NET_ADMIN=true",
-    "CODER_PROC_PRIO_MGMT=1",
-    "CODER_PROC_OOM_SCORE=10",
-    "CODER_PROC_NICE_SCORE=1",
-    "CODER_AGENT_DEVCONTAINERS_ENABLE=1",
-  ]
+  # Use environment computed from the provider
+  env = envbuilder_cached_image.cached.0.env
   host {
     host = "host.docker.internal"
     ip   = "host-gateway"
@@ -429,6 +400,11 @@ resource "docker_container" "workspace" {
   volumes {
     container_path = "/home/coder/"
     volume_name    = docker_volume.home_volume.name
+    read_only      = false
+  }
+  volumes {
+    container_path = local.repo_dir
+    volume_name    = docker_volume.workspaces.name
     read_only      = false
   }
   capabilities {
@@ -455,7 +431,7 @@ resource "docker_container" "workspace" {
 
 resource "coder_metadata" "container_info" {
   count       = data.coder_workspace.me.start_count
-  resource_id = docker_container.workspace[0].id
+  resource_id = coder_agent.dev.id
   item {
     key   = "memory"
     value = docker_container.workspace[0].memory
