@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, fn, userEvent, within } from "@storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "@storybook/test";
 import { MockNotifications, mockApiError } from "testHelpers/entities";
 import { withGlobalSnackbar } from "testHelpers/storybook";
 import { NotificationsInbox } from "./NotificationsInbox";
@@ -51,9 +51,7 @@ export const FailAndRetry: Story = {
 			return fn(async () => {
 				count += 1;
 
-				// Fail on the first 3 attempts
-				// 3 is the maximum number of retries from react-query
-				if (count < 3) {
+				if (count === 1) {
 					throw mockApiError({
 						message: "Failed to load notifications",
 					});
@@ -74,9 +72,11 @@ export const FailAndRetry: Story = {
 
 		const retryButton = body.getByRole("button", { name: /retry/i });
 		await userEvent.click(retryButton);
-		await expect(
-			body.queryByText("Error loading notifications"),
-		).not.toBeInTheDocument();
+		await waitFor(() => {
+			expect(
+				body.queryByText("Error loading notifications"),
+			).not.toBeInTheDocument();
+		});
 	},
 };
 
