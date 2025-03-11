@@ -1709,8 +1709,8 @@ func (*FakeQuerier) BulkMarkNotificationMessagesSent(_ context.Context, arg data
 	return int64(len(arg.IDs)), nil
 }
 
-func (q *FakeQuerier) ClaimPrebuild(ctx context.Context, newOwnerID database.ClaimPrebuildParams) (database.ClaimPrebuildRow, error) {
-	panic("not implemented")
+func (*FakeQuerier) ClaimPrebuild(_ context.Context, _ database.ClaimPrebuildParams) (database.ClaimPrebuildRow, error) {
+	return database.ClaimPrebuildRow{}, ErrUnimplemented
 }
 
 func (*FakeQuerier) CleanTailnetCoordinators(_ context.Context) error {
@@ -4017,12 +4017,12 @@ func (q *FakeQuerier) GetParameterSchemasByJobID(_ context.Context, jobID uuid.U
 	return parameters, nil
 }
 
-func (q *FakeQuerier) GetPrebuildMetrics(ctx context.Context) ([]database.GetPrebuildMetricsRow, error) {
-	panic("not implemented")
+func (*FakeQuerier) GetPrebuildMetrics(_ context.Context) ([]database.GetPrebuildMetricsRow, error) {
+	return nil, ErrUnimplemented
 }
 
-func (q *FakeQuerier) GetPrebuildsInProgress(ctx context.Context) ([]database.GetPrebuildsInProgressRow, error) {
-	panic("not implemented")
+func (*FakeQuerier) GetPrebuildsInProgress(_ context.Context) ([]database.GetPrebuildsInProgressRow, error) {
+	return nil, ErrUnimplemented
 }
 
 func (q *FakeQuerier) GetPresetByWorkspaceBuildID(_ context.Context, workspaceBuildID uuid.UUID) (database.TemplateVersionPreset, error) {
@@ -4067,8 +4067,8 @@ func (q *FakeQuerier) GetPresetParametersByTemplateVersionID(_ context.Context, 
 	return parameters, nil
 }
 
-func (q *FakeQuerier) GetPresetsBackoff(ctx context.Context, period time.Time) ([]database.GetPresetsBackoffRow, error) {
-	panic("not implemented")
+func (*FakeQuerier) GetPresetsBackoff(_ context.Context, _ time.Time) ([]database.GetPresetsBackoffRow, error) {
+	return nil, ErrUnimplemented
 }
 
 func (q *FakeQuerier) GetPresetsByTemplateVersionID(_ context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionPreset, error) {
@@ -4734,8 +4734,8 @@ func (q *FakeQuerier) GetReplicasUpdatedAfter(_ context.Context, updatedAt time.
 	return replicas, nil
 }
 
-func (q *FakeQuerier) GetRunningPrebuilds(ctx context.Context) ([]database.GetRunningPrebuildsRow, error) {
-	panic("not implemented")
+func (*FakeQuerier) GetRunningPrebuilds(_ context.Context) ([]database.GetRunningPrebuildsRow, error) {
+	return nil, ErrUnimplemented
 }
 
 func (q *FakeQuerier) GetRuntimeConfig(_ context.Context, key string) (string, error) {
@@ -5777,8 +5777,8 @@ func (q *FakeQuerier) GetTemplateParameterInsights(ctx context.Context, arg data
 	return rows, nil
 }
 
-func (q *FakeQuerier) GetTemplatePresetsWithPrebuilds(ctx context.Context, templateID uuid.NullUUID) ([]database.GetTemplatePresetsWithPrebuildsRow, error) {
-	panic("not implemented")
+func (*FakeQuerier) GetTemplatePresetsWithPrebuilds(_ context.Context, _ uuid.NullUUID) ([]database.GetTemplatePresetsWithPrebuildsRow, error) {
+	return nil, ErrUnimplemented
 }
 
 func (q *FakeQuerier) GetTemplateUsageStats(_ context.Context, arg database.GetTemplateUsageStatsParams) ([]database.TemplateUsageStat, error) {
@@ -8551,13 +8551,13 @@ func (q *FakeQuerier) InsertPresetParameters(_ context.Context, arg database.Ins
 	return presetParameters, nil
 }
 
-func (q *FakeQuerier) InsertPresetPrebuild(ctx context.Context, arg database.InsertPresetPrebuildParams) (database.TemplateVersionPresetPrebuild, error) {
+func (*FakeQuerier) InsertPresetPrebuild(_ context.Context, arg database.InsertPresetPrebuildParams) (database.TemplateVersionPresetPrebuild, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return database.TemplateVersionPresetPrebuild{}, err
 	}
 
-	panic("not implemented")
+	return database.TemplateVersionPresetPrebuild{}, ErrUnimplemented
 }
 
 func (q *FakeQuerier) InsertProvisionerJob(_ context.Context, arg database.InsertProvisionerJobParams) (database.ProvisionerJob, error) {

@@ -64,6 +64,7 @@ var opts = map[uint]options{
 
 // A new template version with a preset without prebuilds configured should result in no prebuilds being created.
 func TestNoPrebuilds(t *testing.T) {
+	t.Parallel()
 	current := opts[optionSet0]
 	clock := quartz.NewMock(t)
 
@@ -83,6 +84,7 @@ func TestNoPrebuilds(t *testing.T) {
 
 // A new template version with a preset with prebuilds configured should result in a new prebuild being created.
 func TestNetNew(t *testing.T) {
+	t.Parallel()
 	current := opts[optionSet0]
 	clock := quartz.NewMock(t)
 
@@ -106,6 +108,7 @@ func TestNetNew(t *testing.T) {
 // A new template version is created with a preset with prebuilds configured; this outdates the older version and
 // requires the old prebuilds to be destroyed and new prebuilds to be created.
 func TestOutdatedPrebuilds(t *testing.T) {
+	t.Parallel()
 	outdated := opts[optionSet0]
 	current := opts[optionSet1]
 	clock := quartz.NewMock(t)
@@ -147,6 +150,7 @@ func TestOutdatedPrebuilds(t *testing.T) {
 // A new template version is created with a preset with prebuilds configured; while a prebuild is provisioning up or down,
 // the calculated actions should indicate the state correctly.
 func TestInProgressActions(t *testing.T) {
+	t.Parallel()
 	current := opts[optionSet0]
 	clock := quartz.NewMock(t)
 
@@ -294,6 +298,7 @@ func TestInProgressActions(t *testing.T) {
 	}
 
 	for _, tc := range cases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -343,6 +348,7 @@ func TestInProgressActions(t *testing.T) {
 
 // Additional prebuilds exist for a given preset configuration; these must be deleted.
 func TestExtraneous(t *testing.T) {
+	t.Parallel()
 	current := opts[optionSet0]
 	clock := quartz.NewMock(t)
 
@@ -384,6 +390,7 @@ func TestExtraneous(t *testing.T) {
 
 // As above, but no actions will be performed because
 func TestExtraneousInProgress(t *testing.T) {
+	t.Parallel()
 	current := opts[optionSet0]
 	clock := quartz.NewMock(t)
 
@@ -426,6 +433,7 @@ func TestExtraneousInProgress(t *testing.T) {
 
 // A template marked as deprecated will not have prebuilds running.
 func TestDeprecated(t *testing.T) {
+	t.Parallel()
 	current := opts[optionSet0]
 	clock := quartz.NewMock(t)
 
@@ -460,6 +468,7 @@ func TestDeprecated(t *testing.T) {
 
 // If the latest build failed, backoff exponentially with the given interval.
 func TestLatestBuildFailed(t *testing.T) {
+	t.Parallel()
 	current := opts[optionSet0]
 	other := opts[optionSet1]
 	clock := quartz.NewMock(t)

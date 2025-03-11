@@ -1179,6 +1179,16 @@ func PresetParameter(t testing.TB, db database.Store, seed database.InsertPreset
 	return parameters
 }
 
+func PresetPrebuild(t testing.TB, db database.Store, seed database.InsertPresetPrebuildParams) database.TemplateVersionPresetPrebuild {
+	prebuild, err := db.InsertPresetPrebuild(genCtx, database.InsertPresetPrebuildParams{
+		ID:               takeFirst(seed.ID, uuid.New()),
+		PresetID:         takeFirst(seed.PresetID, uuid.New()),
+		DesiredInstances: takeFirst(seed.DesiredInstances, 1),
+	})
+	require.NoError(t, err, "insert preset prebuild")
+	return prebuild
+}
+
 func provisionerJobTiming(t testing.TB, db database.Store, seed database.ProvisionerJobTiming) database.ProvisionerJobTiming {
 	timing, err := db.InsertProvisionerJobTimings(genCtx, database.InsertProvisionerJobTimingsParams{
 		JobID:     takeFirst(seed.JobID, uuid.New()),

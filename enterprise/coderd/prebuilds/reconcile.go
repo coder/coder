@@ -44,10 +44,10 @@ type StoreReconciler struct {
 
 var _ prebuilds.ReconciliationOrchestrator = &StoreReconciler{}
 
-func NewStoreReconciler(store database.Store, pubsub pubsub.Pubsub, cfg codersdk.PrebuildsConfig, logger slog.Logger, clock quartz.Clock) *StoreReconciler {
+func NewStoreReconciler(store database.Store, ps pubsub.Pubsub, cfg codersdk.PrebuildsConfig, logger slog.Logger, clock quartz.Clock) *StoreReconciler {
 	return &StoreReconciler{
 		store:  store,
-		pubsub: pubsub,
+		pubsub: ps,
 		logger: logger,
 		cfg:    cfg,
 		clock:  clock,
@@ -70,7 +70,7 @@ func (c *StoreReconciler) RunLoop(ctx context.Context) {
 		c.done <- struct{}{}
 	}()
 
-	// TODO: create new authz role
+	// nolint:gocritic // TODO: create a new authz role
 	ctx, cancel := context.WithCancelCause(dbauthz.AsSystemRestricted(ctx))
 	c.cancelFn = cancel
 

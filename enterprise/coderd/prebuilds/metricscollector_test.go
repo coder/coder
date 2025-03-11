@@ -116,10 +116,15 @@ func TestMetricsCollector(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
+		test := test // capture for parallel
 		for _, transition := range test.transitions {
+			transition := transition // capture for parallel
 			for _, jobStatus := range test.jobStatuses {
+				jobStatus := jobStatus // capture for parallel
 				for _, initiatorID := range test.initiatorIDs {
+					initiatorID := initiatorID // capture for parallel
 					for _, ownerID := range test.ownerIDs {
+						ownerID := ownerID // capture for parallel
 						t.Run(fmt.Sprintf("transition:%s/jobStatus:%s", transition, jobStatus), func(t *testing.T) {
 							t.Parallel()
 
@@ -156,9 +161,9 @@ func TestMetricsCollector(t *testing.T) {
 							for i := 0; i < numTemplates; i++ {
 								orgID, templateID := setupTestDBTemplate(t, db, ownerID)
 								templateVersionID := setupTestDBTemplateVersion(ctx, t, clock, db, pubsub, orgID, ownerID, templateID)
-								preset := setupTestDBPreset(ctx, t, db, pubsub, templateVersionID, 1, uuid.New().String())
+								preset := setupTestDBPreset(t, db, templateVersionID, 1, uuid.New().String())
 								setupTestDBWorkspace(
-									ctx, t, clock, db, pubsub,
+									t, clock, db, pubsub,
 									transition, jobStatus, orgID, preset, templateID, templateVersionID, initiatorID, ownerID,
 								)
 							}
@@ -171,6 +176,7 @@ func TestMetricsCollector(t *testing.T) {
 							require.Equal(t, numTemplates, len(templates))
 
 							for _, template := range templates {
+								template := template // capture for parallel
 								templateVersions, err := db.GetTemplateVersionsByTemplateID(ctx, database.GetTemplateVersionsByTemplateIDParams{
 									TemplateID: template.ID,
 								})
@@ -182,6 +188,7 @@ func TestMetricsCollector(t *testing.T) {
 								require.Equal(t, 1, len(presets))
 
 								for _, preset := range presets {
+									preset := preset // capture for parallel
 									labels := map[string]string{
 										"template_name": template.Name,
 										"preset_name":   preset.Name,

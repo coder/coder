@@ -146,11 +146,11 @@ func (p PresetState) CalculateActions(clock quartz.Clock, backoffInterval time.D
 
 	actions.Create = int32(toCreate)
 
-	if toDelete > 0 && len(p.Running) != toDelete {
-		// TODO: move up
-		// c.logger.Warn(ctx, "mismatch between running prebuilds and expected deletion count!",
-		//	slog.F("template_id", s.preset.TemplateID.String()), slog.F("running", len(p.Running)), slog.F("to_delete", toDelete))
-	}
+	// if toDelete > 0 && len(p.Running) != toDelete {
+	// TODO: move up
+	// c.logger.Warn(ctx, "mismatch between running prebuilds and expected deletion count!",
+	//	slog.F("template_id", s.preset.TemplateID.String()), slog.F("running", len(p.Running)), slog.F("to_delete", toDelete))
+	// }
 
 	// TODO: implement lookup to not perform same action on workspace multiple times in $period
 	// 		 i.e. a workspace cannot be deleted for some reason, which continually makes it eligible for deletion

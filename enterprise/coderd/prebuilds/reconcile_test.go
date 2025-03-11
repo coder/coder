@@ -272,6 +272,7 @@ func TestPrebuildReconciliation(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
+		tc := tc // capture for parallel
 		for _, templateVersionActive := range tc.templateVersionActive {
 			for _, prebuildLatestTransition := range tc.prebuildLatestTransitions {
 				for _, prebuildJobStatus := range tc.prebuildJobStatuses {
@@ -310,17 +311,14 @@ func TestPrebuildReconciliation(t *testing.T) {
 							templateID,
 						)
 						preset := setupTestDBPreset(
-							ctx,
 							t,
 							db,
-							pubsub,
 							templateVersionID,
 							1,
 							uuid.New().String(),
 						)
 						prebuild := setupTestDBPrebuild(
 							t,
-							ctx,
 							clock,
 							db,
 							pubsub,
@@ -410,9 +408,9 @@ func TestFailedBuildBackoff(t *testing.T) {
 	orgID, templateID := setupTestDBTemplate(t, db, userID)
 	templateVersionID := setupTestDBTemplateVersion(ctx, t, clock, db, ps, orgID, userID, templateID)
 
-	preset := setupTestDBPreset(ctx, t, db, ps, templateVersionID, desiredInstances, "test")
+	preset := setupTestDBPreset(t, db, templateVersionID, desiredInstances, "test")
 	for range desiredInstances {
-		_ = setupTestDBPrebuild(t, ctx, clock, db, ps, database.WorkspaceTransitionStart, database.ProvisionerJobStatusFailed, orgID, preset, templateID, templateVersionID)
+		_ = setupTestDBPrebuild(t, clock, db, ps, database.WorkspaceTransitionStart, database.ProvisionerJobStatusFailed, orgID, preset, templateID, templateVersionID)
 	}
 
 	// When: determining what actions to take next, backoff is calculated because the prebuild is in a failed state.
@@ -470,7 +468,7 @@ func TestFailedBuildBackoff(t *testing.T) {
 		if i == 1 {
 			status = database.ProvisionerJobStatusSucceeded
 		}
-		_ = setupTestDBPrebuild(t, ctx, clock, db, ps, database.WorkspaceTransitionStart, status, orgID, preset, templateID, templateVersionID)
+		_ = setupTestDBPrebuild(t, clock, db, ps, database.WorkspaceTransitionStart, status, orgID, preset, templateID, templateVersionID)
 	}
 
 	// Then: the backoff time is roughly equal to two backoff intervals, since another build has failed.
@@ -544,10 +542,8 @@ func setupTestDBTemplateVersion(
 }
 
 func setupTestDBPreset(
-	ctx context.Context,
 	t *testing.T,
 	db database.Store,
-	ps pubsub.Pubsub,
 	templateVersionID uuid.UUID,
 	desiredInstances int32,
 	presetName string,
@@ -562,18 +558,15 @@ func setupTestDBPreset(
 		Names:                   []string{"test"},
 		Values:                  []string{"test"},
 	})
-	_, err := db.InsertPresetPrebuild(ctx, database.InsertPresetPrebuildParams{
-		ID:               uuid.New(),
+	dbgen.PresetPrebuild(t, db, database.InsertPresetPrebuildParams{
 		PresetID:         preset.ID,
 		DesiredInstances: desiredInstances,
 	})
-	require.NoError(t, err)
 	return preset
 }
 
 func setupTestDBPrebuild(
 	t *testing.T,
-	ctx context.Context,
 	clock quartz.Clock,
 	db database.Store,
 	ps pubsub.Pubsub,
@@ -585,11 +578,10 @@ func setupTestDBPrebuild(
 	templateVersionID uuid.UUID,
 ) database.WorkspaceTable {
 	t.Helper()
-	return setupTestDBWorkspace(ctx, t, clock, db, ps, transition, prebuildStatus, orgID, preset, templateID, templateVersionID, prebuilds.OwnerID, prebuilds.OwnerID)
+	return setupTestDBWorkspace(t, clock, db, ps, transition, prebuildStatus, orgID, preset, templateID, templateVersionID, prebuilds.OwnerID, prebuilds.OwnerID)
 }
 
 func setupTestDBWorkspace(
-	ctx context.Context,
 	t *testing.T,
 	clock quartz.Clock,
 	db database.Store,
