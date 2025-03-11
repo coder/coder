@@ -1,8 +1,7 @@
-import { useTheme } from "@emotion/react";
 import { Button } from "components/Button/Button";
-import { Stack } from "components/Stack/Stack";
 import { SquareArrowOutUpRightIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
+import { twMerge } from "tailwind-merge";
 
 type HeaderHierarchy = "primary" | "secondary";
 
@@ -21,55 +20,37 @@ export const SettingsHeader: FC<HeaderProps> = ({
 	tooltip,
 	hierarchy = "primary",
 }) => {
-	const theme = useTheme();
-
 	return (
-		<Stack alignItems="baseline" direction="row" justifyContent="space-between">
-			<div css={{ maxWidth: 420, marginBottom: 24 }}>
-				<Stack direction="row" spacing={1} alignItems="center">
+		<div className="flex flex-row justify-between align-baseline">
+			<div className="max-w-prose pb-6">
+				<div className="flex flex-row gap-2 align-middle">
 					<h1
-						css={[
-							{
-								fontSize: 32,
-								fontWeight: 700,
-								display: "flex",
-								alignItems: "baseline",
-								lineHeight: "initial",
-								margin: 0,
-								marginBottom: 4,
-								gap: 8,
-							},
-							hierarchy === "secondary" && {
-								fontSize: 24,
-								fontWeight: 500,
-							},
-						]}
+						className={twMerge(
+							"m-0 text-3xl font-bold flex align-baseline leading-relaxed gap-2",
+							hierarchy === "secondary" && "text-2xl font-medium",
+						)}
 					>
 						{title}
 					</h1>
 					{tooltip}
-				</Stack>
+				</div>
 
 				{description && (
-					<span
-						css={{
-							fontSize: 14,
-							color: theme.palette.text.secondary,
-							lineHeight: "160%",
-						}}
-					>
+					<p className="m-0 text-sm text-content-secondary leading-relaxed">
 						{description}
-					</span>
+					</p>
 				)}
 			</div>
+
 			{docsHref && (
 				<Button asChild variant="outline">
 					<a href={docsHref} target="_blank" rel="noreferrer">
 						<SquareArrowOutUpRightIcon />
 						Read the docs
+						<span className="sr-only"> (link opens in new tab)</span>
 					</a>
 				</Button>
 			)}
-		</Stack>
+		</div>
 	);
 };
