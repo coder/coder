@@ -24,6 +24,7 @@ WHERE (b.transition = 'start'::workspace_transition
 SELECT t.id                        AS template_id,
 	   t.name                      AS template_name,
 	   tv.id                       AS template_version_id,
+	   tv.name                     AS template_version_name,
 	   tv.id = t.active_version_id AS using_active_version,
 	   tvpp.preset_id,
 	   tvp.name,

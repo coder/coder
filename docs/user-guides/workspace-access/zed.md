@@ -66,10 +66,7 @@ Use the Coder CLI to log in and configure SSH, then connect to your workspace wi
 
    ![Zed open remote project](../../images/zed/zed-ssh-open-remote.png)
 
-<blockquote class="admonition note">
-
-If you have any suggestions or experience any issues, please
-[create a GitHub issue](https://github.com/coder/coder/issues) or share in
-[our Discord channel](https://discord.gg/coder).
-
-</blockquote>
+> [!NOTE]
+> If you have any suggestions or experience any issues, please
+> [create a GitHub issue](https://github.com/coder/coder/issues) or share in
+> [our Discord channel](https://discord.gg/coder).

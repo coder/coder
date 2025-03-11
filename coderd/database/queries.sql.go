@@ -5270,6 +5270,81 @@ func (q *sqlQuerier) OrganizationMembers(ctx context.Context, arg OrganizationMe
 	return items, nil
 }
 
+const paginatedOrganizationMembers = `-- name: PaginatedOrganizationMembers :many
+SELECT
+	organization_members.user_id, organization_members.organization_id, organization_members.created_at, organization_members.updated_at, organization_members.roles,
+	users.username, users.avatar_url, users.name, users.email, users.rbac_roles as "global_roles",
+	COUNT(*) OVER() AS count
+FROM
+	organization_members
+		INNER JOIN
+	users ON organization_members.user_id = users.id AND users.deleted = false
+WHERE
+	-- Filter by organization id
+	CASE
+		WHEN $1 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			organization_id = $1
+		ELSE true
+	END
+ORDER BY
+	-- Deterministic and consistent ordering of all users. This is to ensure consistent pagination.
+	LOWER(username) ASC OFFSET $2
+LIMIT
+	-- A null limit means "no limit", so 0 means return all
+	NULLIF($3 :: int, 0)
+`
+
+type PaginatedOrganizationMembersParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	OffsetOpt      int32     `db:"offset_opt" json:"offset_opt"`
+	LimitOpt       int32     `db:"limit_opt" json:"limit_opt"`
+}
+
+type PaginatedOrganizationMembersRow struct {
+	OrganizationMember OrganizationMember `db:"organization_member" json:"organization_member"`
+	Username           string             `db:"username" json:"username"`
+	AvatarURL          string             `db:"avatar_url" json:"avatar_url"`
+	Name               string             `db:"name" json:"name"`
+	Email              string             `db:"email" json:"email"`
+	GlobalRoles        pq.StringArray     `db:"global_roles" json:"global_roles"`
+	Count              int64              `db:"count" json:"count"`
+}
+
+func (q *sqlQuerier) PaginatedOrganizationMembers(ctx context.Context, arg PaginatedOrganizationMembersParams) ([]PaginatedOrganizationMembersRow, error) {
+	rows, err := q.db.QueryContext(ctx, paginatedOrganizationMembers, arg.OrganizationID, arg.OffsetOpt, arg.LimitOpt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PaginatedOrganizationMembersRow
+	for rows.Next() {
+		var i PaginatedOrganizationMembersRow
+		if err := rows.Scan(
+			&i.OrganizationMember.UserID,
+			&i.OrganizationMember.OrganizationID,
+			&i.OrganizationMember.CreatedAt,
+			&i.OrganizationMember.UpdatedAt,
+			pq.Array(&i.OrganizationMember.Roles),
+			&i.Username,
+			&i.AvatarURL,
+			&i.Name,
+			&i.Email,
+			&i.GlobalRoles,
+			&i.Count,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateMemberRoles = `-- name: UpdateMemberRoles :one
 UPDATE
 	organization_members
@@ -5946,6 +6021,7 @@ const getTemplatePresetsWithPrebuilds = `-- name: GetTemplatePresetsWithPrebuild
 SELECT t.id                        AS template_id,
 	   t.name                      AS template_name,
 	   tv.id                       AS template_version_id,
+	   tv.name                     AS template_version_name,
 	   tv.id = t.active_version_id AS using_active_version,
 	   tvpp.preset_id,
 	   tvp.name,
@@ -5960,15 +6036,16 @@ WHERE (t.id = $1::uuid OR $1 IS NULL)
 `
 
 type GetTemplatePresetsWithPrebuildsRow struct {
-	TemplateID         uuid.UUID `db:"template_id" json:"template_id"`
-	TemplateName       string    `db:"template_name" json:"template_name"`
-	TemplateVersionID  uuid.UUID `db:"template_version_id" json:"template_version_id"`
-	UsingActiveVersion bool      `db:"using_active_version" json:"using_active_version"`
-	PresetID           uuid.UUID `db:"preset_id" json:"preset_id"`
-	Name               string    `db:"name" json:"name"`
-	DesiredInstances   int32     `db:"desired_instances" json:"desired_instances"`
-	Deleted            bool      `db:"deleted" json:"deleted"`
-	Deprecated         bool      `db:"deprecated" json:"deprecated"`
+	TemplateID          uuid.UUID `db:"template_id" json:"template_id"`
+	TemplateName        string    `db:"template_name" json:"template_name"`
+	TemplateVersionID   uuid.UUID `db:"template_version_id" json:"template_version_id"`
+	TemplateVersionName string    `db:"template_version_name" json:"template_version_name"`
+	UsingActiveVersion  bool      `db:"using_active_version" json:"using_active_version"`
+	PresetID            uuid.UUID `db:"preset_id" json:"preset_id"`
+	Name                string    `db:"name" json:"name"`
+	DesiredInstances    int32     `db:"desired_instances" json:"desired_instances"`
+	Deleted             bool      `db:"deleted" json:"deleted"`
+	Deprecated          bool      `db:"deprecated" json:"deprecated"`
 }
 
 func (q *sqlQuerier) GetTemplatePresetsWithPrebuilds(ctx context.Context, templateID uuid.NullUUID) ([]GetTemplatePresetsWithPrebuildsRow, error) {
@@ -5984,6 +6061,7 @@ func (q *sqlQuerier) GetTemplatePresetsWithPrebuilds(ctx context.Context, templa
 			&i.TemplateID,
 			&i.TemplateName,
 			&i.TemplateVersionID,
+			&i.TemplateVersionName,
 			&i.UsingActiveVersion,
 			&i.PresetID,
 			&i.Name,

@@ -2328,6 +2328,13 @@ func (m queryMetricsStore) OrganizationMembers(ctx context.Context, arg database
 	return r0, r1
 }
 
+func (m queryMetricsStore) PaginatedOrganizationMembers(ctx context.Context, arg database.PaginatedOrganizationMembersParams) ([]database.PaginatedOrganizationMembersRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.PaginatedOrganizationMembers(ctx, arg)
+	m.queryLatencies.WithLabelValues("PaginatedOrganizationMembers").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx, templateID)
