@@ -358,7 +358,7 @@ type DeploymentValues struct {
 	Telemetry                       TelemetryConfig                      `json:"telemetry,omitempty" typescript:",notnull"`
 	TLS                             TLSConfig                            `json:"tls,omitempty" typescript:",notnull"`
 	Trace                           TraceConfig                          `json:"trace,omitempty" typescript:",notnull"`
-	SecureAuthCookie                serpent.Bool                         `json:"secure_auth_cookie,omitempty" typescript:",notnull"`
+	HTTPCookies                     HTTPCookieConfig                     `json:"http_cookies,omitempty" typescript:",notnull"`
 	StrictTransportSecurity         serpent.Int64                        `json:"strict_transport_security,omitempty" typescript:",notnull"`
 	StrictTransportSecurityOptions  serpent.StringArray                  `json:"strict_transport_security_options,omitempty" typescript:",notnull"`
 	SSHKeygenAlgorithm              serpent.String                       `json:"ssh_keygen_algorithm,omitempty" typescript:",notnull"`
@@ -584,6 +584,30 @@ type TraceConfig struct {
 	HoneycombAPIKey serpent.String `json:"honeycomb_api_key" typescript:",notnull"`
 	CaptureLogs     serpent.Bool   `json:"capture_logs" typescript:",notnull"`
 	DataDog         serpent.Bool   `json:"data_dog" typescript:",notnull"`
+}
+
+type HTTPCookieConfig struct {
+	Secure   serpent.Bool `json:"secure_auth_cookie,omitempty" typescript:",notnull"`
+	SameSite string       `json:"same_site,omitempty" typescript:",notnull"`
+}
+
+func (cfg HTTPCookieConfig) Apply(c *http.Cookie) *http.Cookie {
+	c.Secure = cfg.Secure.Value()
+	c.SameSite = cfg.HTTPSameSite()
+	return c
+}
+
+func (cfg HTTPCookieConfig) HTTPSameSite() http.SameSite {
+	switch strings.ToLower(cfg.SameSite) {
+	case "lax":
+		return http.SameSiteLaxMode
+	case "strict":
+		return http.SameSiteStrictMode
+	case "none":
+		return http.SameSiteNoneMode
+	default:
+		return http.SameSiteDefaultMode
+	}
 }
 
 type ExternalAuthConfig struct {
@@ -2376,9 +2400,21 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Description: "Controls if the 'Secure' property is set on browser session cookies.",
 			Flag:        "secure-auth-cookie",
 			Env:         "CODER_SECURE_AUTH_COOKIE",
-			Value:       &c.SecureAuthCookie,
+			Value:       &c.HTTPCookies.Secure,
 			Group:       &deploymentGroupNetworking,
 			YAML:        "secureAuthCookie",
+			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
+		},
+		{
+			Name:        "SameSite Auth Cookie",
+			Description: "Controls the 'SameSite' property is set on browser session cookies.",
+			Flag:        "samesite-auth-cookie",
+			Env:         "CODER_SAMESITE_AUTH_COOKIE",
+			// Do not allow "strict" same-site cookies. That would potentially break workspace apps.
+			Value:       serpent.EnumOf(&c.HTTPCookies.SameSite, "lax", "none"),
+			Default:     "lax",
+			Group:       &deploymentGroupNetworking,
+			YAML:        "sameSiteAuthCookie",
 			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
