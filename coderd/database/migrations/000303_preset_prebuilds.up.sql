@@ -19,3 +19,6 @@ CREATE TABLE template_version_preset_prebuild_schedules
 
 	FOREIGN KEY (preset_prebuild_id) REFERENCES template_version_preset_prebuilds (id) ON DELETE CASCADE
 );
+
+-- We should not be able to have presets with the same name for a particular template version.
+CREATE UNIQUE INDEX idx_unique_preset_name ON template_version_presets (name, template_version_id);
