@@ -117,11 +117,11 @@ jobs:
           terraform init
           terraform validate
           popd
-          pushd coder
+          pushd dogfood/coder
           terraform init
           terraform validate
           popd
-          pushd coder-envbuilder
+          pushd dogfood/coder-envbuilder
           terraform init
           terraform validate
           popd
