@@ -203,7 +203,7 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 		Path:     "/",
 		Value:    token,
 		Expires:  claims.Expiry.Time(),
-		Secure:   api.SecureAuthCookie,
+		Secure:   api.Cookies.Secure.Value(),
 		HttpOnly: true,
 		// Must be SameSite to work on the redirected auth flow from the
 		// oauth provider.
@@ -1911,7 +1911,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			Name:     codersdk.SessionTokenCookie,
 			Path:     "/",
 			MaxAge:   -1,
-			Secure:   api.SecureAuthCookie,
+			Secure:   api.Cookies.Secure.Value(),
 			HttpOnly: true,
 		})
 		// This is intentional setting the key to the deleted old key,

@@ -154,7 +154,7 @@ type Options struct {
 	GithubOAuth2Config             *GithubOAuth2Config
 	OIDCConfig                     *OIDCConfig
 	PrometheusRegistry             *prometheus.Registry
-	SecureAuthCookie               bool
+	Cookies                        codersdk.HTTPCookieConfig
 	StrictTransportSecurityCfg     httpmw.HSTSConfig
 	SSHKeygenAlgorithm             gitsshkey.Algorithm
 	Telemetry                      telemetry.Reporter
@@ -728,7 +728,7 @@ func New(options *Options) *API {
 		StatsCollector:      workspaceapps.NewStatsCollector(options.WorkspaceAppsStatsCollectorOptions),
 
 		DisablePathApps:          options.DeploymentValues.DisablePathApps.Value(),
-		SecureAuthCookie:         options.DeploymentValues.SecureAuthCookie.Value(),
+		Cookies:                  options.DeploymentValues.HTTPCookies,
 		APIKeyEncryptionKeycache: options.AppEncryptionKeyCache,
 	}
 
@@ -816,7 +816,7 @@ func New(options *Options) *API {
 				next.ServeHTTP(w, r)
 			})
 		},
-		httpmw.CSRF(options.SecureAuthCookie),
+		httpmw.CSRF(options.Cookies),
 	)
 
 	// This incurs a performance hit from the middleware, but is required to make sure

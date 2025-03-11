@@ -35,3 +35,18 @@ func AsAuthzSystem(mws ...func(http.Handler) http.Handler) func(http.Handler) ht
 		})
 	}
 }
+<<<<<<< Updated upstream
+=======
+
+// RecordAuthzChecks enables recording all the authorization checks that
+// occurred in the processing of a request. This is mostly helpful for debugging
+// and understanding what permissions are required for a given action without
+// needing to go hunting for checks in the code, where you're quite likely to
+// miss something subtle or a check happening somewhere you didn't expect.
+func RecordAuthzChecks(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		r = r.WithContext(rbac.WithAuthzCheckRecorder(r.Context()))
+		next.ServeHTTP(rw, r)
+	})
+}
+>>>>>>> Stashed changes
