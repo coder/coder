@@ -150,14 +150,13 @@ func ReducedUser(user database.User) codersdk.ReducedUser {
 			Username:  user.Username,
 			AvatarURL: user.AvatarURL,
 		},
-		Email:           user.Email,
-		Name:            user.Name,
-		CreatedAt:       user.CreatedAt,
-		UpdatedAt:       user.UpdatedAt,
-		LastSeenAt:      user.LastSeenAt,
-		Status:          codersdk.UserStatus(user.Status),
-		LoginType:       codersdk.LoginType(user.LoginType),
-		ThemePreference: user.ThemePreference,
+		Email:      user.Email,
+		Name:       user.Name,
+		CreatedAt:  user.CreatedAt,
+		UpdatedAt:  user.UpdatedAt,
+		LastSeenAt: user.LastSeenAt,
+		Status:     codersdk.UserStatus(user.Status),
+		LoginType:  codersdk.LoginType(user.LoginType),
 	}
 }
 
@@ -176,7 +175,6 @@ func UserFromGroupMember(member database.GroupMember) database.User {
 		Deleted:            member.UserDeleted,
 		LastSeenAt:         member.UserLastSeenAt,
 		QuietHoursSchedule: member.UserQuietHoursSchedule,
-		ThemePreference:    member.UserThemePreference,
 		Name:               member.UserName,
 		GithubComUserID:    member.UserGithubComUserID,
 	}

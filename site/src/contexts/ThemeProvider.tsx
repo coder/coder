@@ -7,26 +7,27 @@ import {
 	StyledEngineProvider,
 	// biome-ignore lint/nursery/noRestrictedImports: we extend the MUI theme
 } from "@mui/material/styles";
+import { appearanceSettings } from "api/queries/users";
+import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import {
 	type FC,
 	type PropsWithChildren,
 	type ReactNode,
-	useContext,
 	useEffect,
 	useMemo,
 	useState,
 } from "react";
+import { useQuery } from "react-query";
 import themes, { DEFAULT_THEME, type Theme } from "theme";
-import { AuthContext } from "./auth/AuthProvider";
 
 /**
  *
  */
 export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
-	// We need to use the `AuthContext` directly, rather than the `useAuth` hook,
-	// because Storybook and many tests depend on this component, but do not provide
-	// an `AuthProvider`, and `useAuth` will throw in that case.
-	const user = useContext(AuthContext)?.user;
+	const { metadata } = useEmbeddedMetadata();
+	const appearanceSettingsQuery = useQuery(
+		appearanceSettings(metadata.userAppearance),
+	);
 	const themeQuery = useMemo(
 		() => window.matchMedia?.("(prefers-color-scheme: light)"),
 		[],
@@ -53,7 +54,8 @@ export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 	}, [themeQuery]);
 
 	// We might not be logged in yet, or the `theme_preference` could be an empty string.
-	const themePreference = user?.theme_preference || DEFAULT_THEME;
+	const themePreference =
+		appearanceSettingsQuery.data?.theme_preference || DEFAULT_THEME;
 	// The janky casting here is find because of the much more type safe fallback
 	// We need to support `themePreference` being wrong anyway because the database
 	// value could be anything, like an empty string.

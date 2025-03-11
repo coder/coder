@@ -5,7 +5,6 @@ import (
 	"encoding/base32"
 	"fmt"
 	"strings"
-	"time"
 )
 
 // GenerateName generates a 20-byte prebuild name which should safe to use without truncation in most situations.
@@ -24,10 +23,4 @@ func GenerateName() (string, error) {
 
 	// Encode the bytes to Base32 (A-Z2-7), strip any '=' padding
 	return fmt.Sprintf("prebuild-%s", strings.ToLower(base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(b))), nil
-}
-
-// DurationToInterval converts a given duration to microseconds, which is the unit PG represents intervals in.
-func DurationToInterval(d time.Duration) int32 {
-	// Convert duration to seconds (as an example)
-	return int32(d.Microseconds())
 }

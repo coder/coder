@@ -1,13 +1,8 @@
 import path from "node:path";
-import { type Locator, expect, test } from "@playwright/test";
-import {
-	currentUser,
-	importTemplate,
-	login,
-	randomName,
-	requiresLicense,
-} from "../../helpers";
-import { beforeCoderTest } from "../../hooks";
+import {expect, type Locator, test} from "@playwright/test";
+import {currentUser, importTemplate, login, randomName, requiresLicense,} from "../../helpers";
+import {beforeCoderTest} from "../../hooks";
+import {users} from "../../constants";
 
 test.beforeEach(async ({ page }) => {
 	beforeCoderTest(page);
@@ -22,6 +17,8 @@ const templateFiles = [
 ];
 
 const expectedPrebuilds = 2;
+
+// TODO: update provider version in *.tf
 
 // NOTE: requires the `workspace-prebuilds` experiment enabled!
 test("create template with desired prebuilds", async ({ page, baseURL }) => {
@@ -83,6 +80,9 @@ test("claim prebuild matching selected preset", async ({ page, baseURL }) => {
 	// Wait for the prebuild to become ready so it's eligible to be claimed.
 	await page.getByTestId("agent-status-ready").waitFor({ timeout: 60_000 });
 
+	// Logout as admin, and login as an unprivileged user.
+	await login(page, users.member);
+
 	// Create a new workspace using the same preset as one of the prebuilds.
 	await page.goto(`/templates/coder/${templateName}/workspace`, {
 		waitUntil: "domcontentloaded",
@@ -116,6 +116,9 @@ test("claim prebuild matching selected preset", async ({ page, baseURL }) => {
 	await indicator.waitFor({ timeout: 60_000 });
 	const text = indicator.locator("xpath=..").getByText("Yes");
 	await text.waitFor({ timeout: 30_000 });
+
+	// Logout as unprivileged user, and login as admin.
+	await login(page, users.owner);
 
 	// Navigate back to prebuilds page to see that a new prebuild replaced the claimed one.
 	await page.goto(

@@ -6,10 +6,10 @@ import { hasFirstUserKey, meKey } from "api/queries/users";
 import type { Entitlements } from "api/typesGenerated";
 import { GlobalSnackbar } from "components/GlobalSnackbar/GlobalSnackbar";
 import { AuthProvider } from "contexts/auth/AuthProvider";
-import { permissionChecks } from "contexts/auth/permissions";
 import { DashboardContext } from "modules/dashboard/DashboardProvider";
-import { DeploymentSettingsContext } from "modules/management/DeploymentSettingsProvider";
+import { DeploymentConfigContext } from "modules/management/DeploymentConfigProvider";
 import { OrganizationSettingsContext } from "modules/management/OrganizationSettingsLayout";
+import { permissionChecks } from "modules/permissions";
 import type { FC } from "react";
 import { useQueryClient } from "react-query";
 import {
@@ -168,11 +168,11 @@ export const withOrganizationSettingsProvider = (Story: FC) => {
 				organizationPermissions: MockOrganizationPermissions,
 			}}
 		>
-			<DeploymentSettingsContext.Provider
+			<DeploymentConfigContext.Provider
 				value={{ deploymentConfig: MockDeploymentConfig }}
 			>
 				<Story />
-			</DeploymentSettingsContext.Provider>
+			</DeploymentConfigContext.Provider>
 		</OrganizationSettingsContext.Provider>
 	);
 };

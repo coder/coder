@@ -53,7 +53,7 @@ func TestIntegrationDocker(t *testing.T) {
 		Cmd:        []string{"sleep", "infnity"},
 		Labels: map[string]string{
 			"com.coder.test":        testLabelValue,
-			"devcontainer.metadata": `{"remoteEnv": {"FOO": "bar", "MULTILINE": "foo\nbar\nbaz"}}`,
+			"devcontainer.metadata": `[{"remoteEnv": {"FOO": "bar", "MULTILINE": "foo\nbar\nbaz"}}]`,
 		},
 		Mounts:       []string{testTempDir + ":" + testTempDir},
 		ExposedPorts: []string{fmt.Sprintf("%d/tcp", testRandPort)},
@@ -437,7 +437,7 @@ func TestDockerEnvInfoer(t *testing.T) {
 	}{
 		{
 			image:  "busybox:latest",
-			labels: map[string]string{`devcontainer.metadata`: `{"remoteEnv": {"FOO": "bar", "MULTILINE": "foo\nbar\nbaz"}}`},
+			labels: map[string]string{`devcontainer.metadata`: `[{"remoteEnv": {"FOO": "bar", "MULTILINE": "foo\nbar\nbaz"}}]`},
 
 			expectedEnv:       []string{"FOO=bar", "MULTILINE=foo\nbar\nbaz"},
 			expectedUsername:  "root",
@@ -445,7 +445,7 @@ func TestDockerEnvInfoer(t *testing.T) {
 		},
 		{
 			image:             "busybox:latest",
-			labels:            map[string]string{`devcontainer.metadata`: `{"remoteEnv": {"FOO": "bar", "MULTILINE": "foo\nbar\nbaz"}}`},
+			labels:            map[string]string{`devcontainer.metadata`: `[{"remoteEnv": {"FOO": "bar", "MULTILINE": "foo\nbar\nbaz"}}]`},
 			expectedEnv:       []string{"FOO=bar", "MULTILINE=foo\nbar\nbaz"},
 			containerUser:     "root",
 			expectedUsername:  "root",
@@ -453,14 +453,14 @@ func TestDockerEnvInfoer(t *testing.T) {
 		},
 		{
 			image:             "codercom/enterprise-minimal:ubuntu",
-			labels:            map[string]string{`devcontainer.metadata`: `{"remoteEnv": {"FOO": "bar", "MULTILINE": "foo\nbar\nbaz"}}`},
+			labels:            map[string]string{`devcontainer.metadata`: `[{"remoteEnv": {"FOO": "bar", "MULTILINE": "foo\nbar\nbaz"}}]`},
 			expectedEnv:       []string{"FOO=bar", "MULTILINE=foo\nbar\nbaz"},
 			expectedUsername:  "coder",
 			expectedUserShell: "/bin/bash",
 		},
 		{
 			image:             "codercom/enterprise-minimal:ubuntu",
-			labels:            map[string]string{`devcontainer.metadata`: `{"remoteEnv": {"FOO": "bar", "MULTILINE": "foo\nbar\nbaz"}}`},
+			labels:            map[string]string{`devcontainer.metadata`: `[{"remoteEnv": {"FOO": "bar", "MULTILINE": "foo\nbar\nbaz"}}]`},
 			expectedEnv:       []string{"FOO=bar", "MULTILINE=foo\nbar\nbaz"},
 			containerUser:     "coder",
 			expectedUsername:  "coder",
@@ -468,7 +468,15 @@ func TestDockerEnvInfoer(t *testing.T) {
 		},
 		{
 			image:             "codercom/enterprise-minimal:ubuntu",
-			labels:            map[string]string{`devcontainer.metadata`: `{"remoteEnv": {"FOO": "bar", "MULTILINE": "foo\nbar\nbaz"}}`},
+			labels:            map[string]string{`devcontainer.metadata`: `[{"remoteEnv": {"FOO": "bar", "MULTILINE": "foo\nbar\nbaz"}}]`},
+			expectedEnv:       []string{"FOO=bar", "MULTILINE=foo\nbar\nbaz"},
+			containerUser:     "root",
+			expectedUsername:  "root",
+			expectedUserShell: "/bin/bash",
+		},
+		{
+			image:             "codercom/enterprise-minimal:ubuntu",
+			labels:            map[string]string{`devcontainer.metadata`: `[{"remoteEnv": {"FOO": "bar"}},{"remoteEnv": {"MULTILINE": "foo\nbar\nbaz"}}]`},
 			expectedEnv:       []string{"FOO=bar", "MULTILINE=foo\nbar\nbaz"},
 			containerUser:     "root",
 			expectedUsername:  "root",

@@ -9,53 +9,54 @@
   -->
 
 <head>
-  <meta charset="utf-8" />
-  <title>Coder</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="theme-color" content="#17172E" />
-  <meta name="application-name" content="{{ .ApplicationName }}" />
-  <meta property="og:type" content="website" />
-  <meta property="csrf-token" content="{{ .CSRF.Token }}" />
-  <meta property="build-info" content="{{ .BuildInfo }}" />
-  <meta property="user" content="{{ .User }}" />
-  <meta property="entitlements" content="{{ .Entitlements }}" />
-  <meta property="appearance" content="{{ .Appearance }}" />
-  <meta property="experiments" content="{{ .Experiments }}" />
-  <meta property="regions" content="{{ .Regions }}" />
-  <meta property="docs-url" content="{{ .DocsURL }}" />
-  <meta property="logo-url" content="{{ .LogoURL }}" />
-  <!-- We need to set data-react-helmet to be able to override it in the workspace page -->
-  <link
-    rel="alternate icon"
-    type="image/png"
-    href="/favicons/favicon-light.png"
-    media="(prefers-color-scheme: dark)"
-    data-react-helmet="true"
-  />
-  <link
-    rel="icon"
-    type="image/svg+xml"
-    href="/favicons/favicon-light.svg"
-    media="(prefers-color-scheme: dark)"
-    data-react-helmet="true"
-  />
-  <link
-    rel="alternate icon"
-    type="image/png"
-    href="/favicons/favicon-dark.png"
-    media="(prefers-color-scheme: light)"
-    data-react-helmet="true"
-  />
-  <link
-    rel="icon"
-    type="image/svg+xml"
-    href="/favicons/favicon-dark.svg"
-    media="(prefers-color-scheme: light)"
-    data-react-helmet="true"
-  />
+	<meta charset="utf-8" />
+	<title>Coder</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<meta name="theme-color" content="#17172E" />
+	<meta name="application-name" content="{{ .ApplicationName }}" />
+	<meta property="og:type" content="website" />
+	<meta property="csrf-token" content="{{ .CSRF.Token }}" />
+	<meta property="build-info" content="{{ .BuildInfo }}" />
+	<meta property="user" content="{{ .User }}" />
+	<meta property="entitlements" content="{{ .Entitlements }}" />
+	<meta property="appearance" content="{{ .Appearance }}" />
+	<meta property="userAppearance" content="{{ .UserAppearance }}" />
+	<meta property="experiments" content="{{ .Experiments }}" />
+	<meta property="regions" content="{{ .Regions }}" />
+	<meta property="docs-url" content="{{ .DocsURL }}" />
+	<meta property="logo-url" content="{{ .LogoURL }}" />
+	<!-- We need to set data-react-helmet to be able to override it in the workspace page -->
+	<link
+		rel="alternate icon"
+		type="image/png"
+		href="/favicons/favicon-light.png"
+		media="(prefers-color-scheme: dark)"
+		data-react-helmet="true"
+	/>
+	<link
+		rel="icon"
+		type="image/svg+xml"
+		href="/favicons/favicon-light.svg"
+		media="(prefers-color-scheme: dark)"
+		data-react-helmet="true"
+	/>
+	<link
+		rel="alternate icon"
+		type="image/png"
+		href="/favicons/favicon-dark.png"
+		media="(prefers-color-scheme: light)"
+		data-react-helmet="true"
+	/>
+	<link
+		rel="icon"
+		type="image/svg+xml"
+		href="/favicons/favicon-dark.svg"
+		media="(prefers-color-scheme: light)"
+		data-react-helmet="true"
+	/>
 </head>
 
 <body>
-  <div id="root"></div>
-  <script type="module" src="./src/index.tsx"></script>
+	<div id="root"></div>
+	<script type="module" src="./src/index.tsx"></script>
 </body>

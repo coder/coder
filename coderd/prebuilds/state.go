@@ -48,13 +48,14 @@ func (p PresetState) CalculateActions(clock quartz.Clock, backoffInterval time.D
 	// In-progress builds are common across all presets belonging to a given template.
 	// In other words: these values will be identical across all presets belonging to this template.
 	for _, progress := range p.InProgress {
+		num := progress.Count
 		switch progress.Transition {
 		case database.WorkspaceTransitionStart:
-			starting++
+			starting += num
 		case database.WorkspaceTransitionStop:
-			stopping++
+			stopping += num
 		case database.WorkspaceTransitionDelete:
-			deleting++
+			deleting += num
 		}
 	}
 
@@ -90,6 +91,8 @@ func (p PresetState) CalculateActions(clock quartz.Clock, backoffInterval time.D
 	// We backoff when the last build failed, to give the operator some time to investigate the issue and to not provision
 	// a tonne of prebuilds (_n_ on each reconciliation iteration).
 	if p.Backoff != nil && p.Backoff.NumFailed > 0 {
+		actions.Failed = p.Backoff.NumFailed
+
 		backoffUntil := p.Backoff.LastBuildAt.Add(time.Duration(p.Backoff.NumFailed) * backoffInterval)
 
 		if clock.Now().Before(backoffUntil) {
@@ -104,7 +107,8 @@ func (p PresetState) CalculateActions(clock quartz.Clock, backoffInterval time.D
 
 	// It's possible that an operator could stop/start prebuilds which interfere with the reconciliation loop, so
 	// we check if there are somehow more prebuilds than we expect, and then pick random victims to be deleted.
-	if extraneous > 0 {
+	// There must be no active deletions in order for extraneous prebuilds to be deleted.
+	if extraneous > 0 && deleting == 0 {
 		// Sort running IDs by creation time so we always delete the oldest prebuilds.
 		// In general, we want fresher prebuilds (imagine a mono-repo is cloned; newer is better).
 		slices.SortFunc(p.Running, func(a, b database.GetRunningPrebuildsRow) int {

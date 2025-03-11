@@ -1148,6 +1148,7 @@ func New(options *Options) *API {
 						r.Put("/suspend", api.putSuspendUserAccount())
 						r.Put("/activate", api.putActivateUserAccount())
 					})
+					r.Get("/appearance", api.userAppearanceSettings)
 					r.Put("/appearance", api.putUserAppearanceSettings)
 					r.Route("/password", func(r chi.Router) {
 						r.Use(httpmw.RateLimit(options.LoginRateLimit, time.Minute))

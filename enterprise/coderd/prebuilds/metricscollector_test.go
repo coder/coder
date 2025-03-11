@@ -130,6 +130,7 @@ func TestMetricsCollector(t *testing.T) {
 									t.Logf("ownerID: %s", ownerID)
 								}
 							})
+							clock := quartz.NewMock(t)
 							db, pubsub := dbtestutil.NewDB(t)
 							reconciler := prebuilds.NewStoreReconciler(db, pubsub, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t))
 							ctx := testutil.Context(t, testutil.WaitLong)
@@ -151,11 +152,11 @@ func TestMetricsCollector(t *testing.T) {
 							numTemplates := 2
 							for i := 0; i < numTemplates; i++ {
 								orgID, templateID := setupTestDBTemplate(t, db, ownerID)
-								templateVersionID := setupTestDBTemplateVersion(t, ctx, db, pubsub, orgID, ownerID, templateID)
+								templateVersionID := setupTestDBTemplateVersion(t, ctx, clock, db, pubsub, orgID, ownerID, templateID)
 								preset := setupTestDBPreset(t, ctx, db, pubsub, templateVersionID, 1, uuid.New().String())
-								setupTestDBPrebuild(
-									t, ctx, db, pubsub,
-									transition, jobStatus, orgID, templateID, templateVersionID, preset.ID, initiatorID, ownerID,
+								setupTestDBWorkspace(
+									t, ctx, clock, db, pubsub,
+									transition, jobStatus, orgID, preset, templateID, templateVersionID, initiatorID, ownerID,
 								)
 							}
 

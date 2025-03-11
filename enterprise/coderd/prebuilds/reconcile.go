@@ -61,7 +61,8 @@ func (c *StoreReconciler) RunLoop(ctx context.Context) {
 		reconciliationInterval = 5 * time.Minute
 	}
 
-	c.logger.Info(ctx, "starting reconciler", slog.F("interval", reconciliationInterval))
+	c.logger.Info(ctx, "starting reconciler", slog.F("interval", reconciliationInterval),
+		slog.F("backoff_interval", c.cfg.ReconciliationBackoffInterval.String()), slog.F("backoff_lookback", c.cfg.ReconciliationBackoffLookback.String()))
 
 	ticker := c.clock.NewTicker(reconciliationInterval)
 	defer ticker.Stop()
@@ -256,7 +257,7 @@ func (c *StoreReconciler) SnapshotState(ctx context.Context, store database.Stor
 			return xerrors.Errorf("failed to get prebuilds in progress: %w", err)
 		}
 
-		presetsBackoff, err := db.GetPresetsBackoff(ctx, prebuilds.DurationToInterval(c.cfg.ReconciliationBackoffLookback.Value()))
+		presetsBackoff, err := db.GetPresetsBackoff(ctx, c.clock.Now().Add(-c.cfg.ReconciliationBackoffLookback.Value()))
 		if err != nil {
 			return xerrors.Errorf("failed to get backoffs for presets: %w", err)
 		}
@@ -277,7 +278,7 @@ func (c *StoreReconciler) DetermineActions(ctx context.Context, state prebuilds.
 		return nil, ctx.Err()
 	}
 
-	return state.CalculateActions(c.clock, c.cfg.ReconciliationBackoffLookback.Value())
+	return state.CalculateActions(c.clock, c.cfg.ReconciliationBackoffInterval.Value())
 }
 
 func (c *StoreReconciler) Reconcile(ctx context.Context, ps prebuilds.PresetState, actions prebuilds.ReconciliationActions) error {
@@ -317,6 +318,7 @@ func (c *StoreReconciler) Reconcile(ctx context.Context, ps prebuilds.PresetStat
 	if actions.BackoffUntil.After(c.clock.Now()) {
 		levelFn(ctx, "template prebuild state retrieved, backing off",
 			append(fields,
+				slog.F("failed", actions.Failed),
 				slog.F("backoff_until", actions.BackoffUntil.Format(time.RFC3339)),
 				slog.F("backoff_secs", math.Round(actions.BackoffUntil.Sub(c.clock.Now()).Seconds())),
 			)...)

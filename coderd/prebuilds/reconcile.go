@@ -34,6 +34,7 @@ type ReconciliationActions struct {
 	Outdated                     int32       // Prebuilds which no longer match the active template version.
 	Extraneous                   int32       // Extra running prebuilds for active version (somehow).
 	Starting, Stopping, Deleting int32       // Prebuilds currently being provisioned up or down.
+	Failed                       int32       // Number of prebuilds which have failed in the past CODER_WORKSPACE_PREBUILDS_RECONCILIATION_BACKOFF_LOOKBACK_PERIOD.
 	Create                       int32       // The number of prebuilds required to be created to reconcile required state.
 	DeleteIDs                    []uuid.UUID // IDs of running prebuilds required to be deleted to reconcile required state.
 	BackoffUntil                 time.Time   // The time to wait until before trying to provision a new prebuild.

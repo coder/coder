@@ -7,10 +7,7 @@ import {
 	type UseFilterMenuOptions,
 	useFilterMenu,
 } from "components/Filter/menu";
-import {
-	StatusIndicator,
-	StatusIndicatorDot,
-} from "components/StatusIndicator/StatusIndicator";
+import { StatusIndicatorDot } from "components/StatusIndicator/StatusIndicator";
 import type { FC } from "react";
 import { docs } from "utils/docs";
 
