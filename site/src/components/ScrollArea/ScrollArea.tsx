@@ -1,8 +1,8 @@
-import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 /**
  * Copied from shadc/ui on 03/05/2025
  * @see {@link https://ui.shadcn.com/docs/components/scroll-area}
  */
+import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 import * as React from "react";
 import { cn } from "utils/cn";
 

@@ -20,7 +20,7 @@ export const buttonVariants = cva(
 				default:
 					"bg-surface-invert-primary text-content-invert hover:bg-surface-invert-secondary border-none disabled:bg-surface-secondary font-semibold",
 				outline:
-					"border border-border-default text-content-primary bg-transparent bg-surface-primary hover:bg-surface-secondary",
+					"border border-border-default text-content-primary bg-transparent hover:bg-surface-secondary",
 				subtle:
 					"border-none bg-transparent text-content-secondary hover:text-content-primary",
 				destructive:

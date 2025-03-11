@@ -16,9 +16,7 @@ type NotificationsInboxProps = {
 	defaultOpen?: boolean;
 	fetchNotifications: () => Promise<NotificationsResponse>;
 	markAllAsRead: () => Promise<void>;
-	markNotificationAsRead: (
-		notificationId: string,
-	) => Promise<{ is_read: true }>;
+	markNotificationAsRead: (notificationId: string) => Promise<void>;
 };
 
 export const NotificationsInbox: FC<NotificationsInboxProps> = ({

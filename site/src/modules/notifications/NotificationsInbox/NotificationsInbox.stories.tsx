@@ -24,22 +24,21 @@ type Story = StoryObj<typeof NotificationsInbox>;
 export const Default: Story = {
 	args: {
 		defaultOpen: true,
-		fetchNotifications: fn(() =>
-			Promise.resolve({ notifications: MockNotifications, unread_count: 2 }),
-		),
+		fetchNotifications: fn(async () => ({
+			notifications: MockNotifications,
+			unread_count: 2,
+		})),
 	},
 };
 
 export const Failure: Story = {
 	args: {
 		defaultOpen: true,
-		fetchNotifications: fn(() =>
-			Promise.reject(
-				mockApiError({
-					message: "Failed to load notifications",
-				}),
-			),
-		),
+		fetchNotifications: fn(() => {
+			throw mockApiError({
+				message: "Failed to load notifications",
+			});
+		}),
 	},
 };
 
@@ -49,23 +48,21 @@ export const FailAndRetry: Story = {
 		fetchNotifications: (() => {
 			let count = 0;
 
-			return fn(() => {
+			return fn(async () => {
 				count += 1;
 
 				// Fail on the first 3 attempts
 				// 3 is the maximum number of retries from react-query
 				if (count < 3) {
-					return Promise.reject(
-						mockApiError({
-							message: "Failed to load notifications",
-						}),
-					);
+					throw mockApiError({
+						message: "Failed to load notifications",
+					});
 				}
 
-				return Promise.resolve({
+				return {
 					notifications: MockNotifications,
 					unread_count: 2,
-				});
+				};
 			});
 		})(),
 	},
@@ -86,10 +83,11 @@ export const FailAndRetry: Story = {
 export const MarkAllAsRead: Story = {
 	args: {
 		defaultOpen: true,
-		fetchNotifications: fn(() =>
-			Promise.resolve({ notifications: MockNotifications, unread_count: 2 }),
-		),
-		markAllAsRead: fn(() => Promise.resolve()),
+		fetchNotifications: fn(async () => ({
+			notifications: MockNotifications,
+			unread_count: 2,
+		})),
+		markAllAsRead: fn(),
 	},
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
@@ -109,14 +107,15 @@ export const MarkAllAsReadFailure: Story = {
 	decorators: [withGlobalSnackbar],
 	args: {
 		defaultOpen: true,
-		fetchNotifications: fn(() =>
-			Promise.resolve({ notifications: MockNotifications, unread_count: 2 }),
-		),
-		markAllAsRead: fn(() =>
-			Promise.reject(
-				mockApiError({ message: "Failed to mark all notifications as read" }),
-			),
-		),
+		fetchNotifications: fn(async () => ({
+			notifications: MockNotifications,
+			unread_count: 2,
+		})),
+		markAllAsRead: fn(async () => {
+			throw mockApiError({
+				message: "Failed to mark all notifications as read",
+			});
+		}),
 	},
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
@@ -131,14 +130,11 @@ export const MarkAllAsReadFailure: Story = {
 export const MarkNotificationAsRead: Story = {
 	args: {
 		defaultOpen: true,
-		fetchNotifications: fn(() =>
-			Promise.resolve({ notifications: MockNotifications, unread_count: 2 }),
-		),
-		markNotificationAsRead: fn(() =>
-			// true as true is necessary to solve a really strange TypeScript error
-			// https://stackoverflow.com/questions/75864591/type-boolean-is-not-assignable-to-type-true
-			Promise.resolve({ is_read: true as true }),
-		),
+		fetchNotifications: fn(async () => ({
+			notifications: MockNotifications,
+			unread_count: 2,
+		})),
+		markNotificationAsRead: fn(),
 	},
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
@@ -157,14 +153,13 @@ export const MarkNotificationAsReadFailure: Story = {
 	decorators: [withGlobalSnackbar],
 	args: {
 		defaultOpen: true,
-		fetchNotifications: fn(() =>
-			Promise.resolve({ notifications: MockNotifications, unread_count: 2 }),
-		),
-		markNotificationAsRead: fn(() =>
-			Promise.reject(
-				mockApiError({ message: "Failed to mark notification as read" }),
-			),
-		),
+		fetchNotifications: fn(async () => ({
+			notifications: MockNotifications,
+			unread_count: 2,
+		})),
+		markNotificationAsRead: fn(() => {
+			throw mockApiError({ message: "Failed to mark notification as read" });
+		}),
 	},
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);

@@ -6,6 +6,9 @@ import { InboxPopover } from "./InboxPopover";
 const meta: Meta<typeof InboxPopover> = {
 	title: "modules/notifications/NotificationsInbox/InboxPopover",
 	component: InboxPopover,
+	args: {
+		defaultOpen: true,
+	},
 	render: (args) => {
 		return (
 			<div className="w-full max-w-screen-xl p-6">
@@ -22,7 +25,7 @@ type Story = StoryObj<typeof InboxPopover>;
 
 export const Default: Story = {
 	args: {
-		defaultOpen: true,
+		defaultOpen: false,
 		unreadCount: 2,
 		notifications: MockNotifications.slice(0, 3),
 	},
@@ -30,7 +33,6 @@ export const Default: Story = {
 
 export const Scrollable: Story = {
 	args: {
-		defaultOpen: true,
 		unreadCount: 2,
 		notifications: MockNotifications,
 	},
@@ -38,7 +40,6 @@ export const Scrollable: Story = {
 
 export const Loading: Story = {
 	args: {
-		defaultOpen: true,
 		unreadCount: 0,
 		notifications: undefined,
 	},
@@ -46,7 +47,6 @@ export const Loading: Story = {
 
 export const LoadingFailure: Story = {
 	args: {
-		defaultOpen: true,
 		unreadCount: 0,
 		notifications: undefined,
 		error: new Error("Failed to load notifications"),
@@ -55,7 +55,6 @@ export const LoadingFailure: Story = {
 
 export const Empty: Story = {
 	args: {
-		defaultOpen: true,
 		unreadCount: 0,
 		notifications: [],
 	},
@@ -63,7 +62,6 @@ export const Empty: Story = {
 
 export const OnRetry: Story = {
 	args: {
-		defaultOpen: true,
 		unreadCount: 0,
 		notifications: undefined,
 		error: new Error("Failed to load notifications"),
@@ -104,7 +102,6 @@ export const OnMarkAllAsRead: Story = {
 
 export const OnMarkNotificationAsRead: Story = {
 	args: {
-		defaultOpen: true,
 		unreadCount: 2,
 		notifications: MockNotifications.slice(0, 3),
 		onMarkNotificationAsRead: fn(),

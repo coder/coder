@@ -49,7 +49,7 @@ export const InboxItem: FC<InboxItemProps> = ({
 
 						<Button
 							onClick={() => onMarkNotificationAsRead(notification.id)}
-							className="hidden group-focus:flex group-hover:flex"
+							className="hidden group-focus:flex group-hover:flex bg-surface-primary"
 							variant="outline"
 							size="sm"
 						>

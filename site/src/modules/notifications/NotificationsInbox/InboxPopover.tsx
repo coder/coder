@@ -77,15 +77,13 @@ export const InboxPopover: FC<InboxPopoverProps> = ({
 									"[&>[role=menuitem]]:border-solid [&>[role=menuitem]]:border-border",
 								])}
 							>
-								{notifications.map((notification) => {
-									return (
-										<InboxItem
-											key={notification.id}
-											notification={notification}
-											onMarkNotificationAsRead={onMarkNotificationAsRead}
-										/>
-									);
-								})}
+								{notifications.map((notification) => (
+									<InboxItem
+										key={notification.id}
+										notification={notification}
+										onMarkNotificationAsRead={onMarkNotificationAsRead}
+									/>
+								))}
 							</div>
 						) : (
 							<div className="p-6 flex items-center justify-center min-h-48">
