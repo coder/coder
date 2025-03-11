@@ -900,7 +900,7 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string,
 		cmd.Dir = homedir
 	}
 	cmd.Env = append(ei.Environ(), env...)
-	// Set login variables.
+	// Set login variables (see `man login`).
 	cmd.Env = append(cmd.Env, fmt.Sprintf("USER=%s", username))
 	cmd.Env = append(cmd.Env, fmt.Sprintf("LOGNAME=%s", username))
 	cmd.Env = append(cmd.Env, fmt.Sprintf("SHELL=%s", shell))
