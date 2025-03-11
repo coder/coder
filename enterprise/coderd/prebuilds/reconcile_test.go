@@ -309,6 +309,7 @@ func TestPrebuildReconciliation(t *testing.T) {
 							pubsub,
 							templateVersionID,
 							1,
+							uuid.New().String(),
 						)
 						prebuildID := setupTestDBPrebuild(
 							t,
@@ -439,11 +440,12 @@ func setupTestDBPreset(
 	ps pubsub.Pubsub,
 	templateVersionID uuid.UUID,
 	desiredInstances int32,
+	presetName string,
 ) database.TemplateVersionPreset {
 	t.Helper()
 	preset := dbgen.Preset(t, db, database.InsertPresetParams{
 		TemplateVersionID: templateVersionID,
-		Name:              "test",
+		Name:              presetName,
 	})
 	dbgen.PresetParameter(t, db, database.InsertPresetParametersParams{
 		TemplateVersionPresetID: preset.ID,

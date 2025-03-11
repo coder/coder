@@ -3,7 +3,6 @@ package coderd
 import (
 	"context"
 	"crypto/ed25519"
-	"errors"
 	"fmt"
 	"math"
 	"net/http"

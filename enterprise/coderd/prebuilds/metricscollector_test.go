@@ -22,6 +22,12 @@ import (
 	"github.com/coder/quartz"
 )
 
+type metricCheck struct {
+	name      string
+	value     *float64
+	isCounter bool
+}
+
 func TestMetricsCollector(t *testing.T) {
 	t.Parallel()
 
@@ -35,9 +41,12 @@ func TestMetricsCollector(t *testing.T) {
 		jobStatuses                      []database.ProvisionerJobStatus
 		initiatorIDs                     []uuid.UUID
 		ownerIDs                         []uuid.UUID
-		shouldIncrementPrebuildsCreated  *bool
-		shouldIncrementPrebuildsFailed   *bool
-		shouldIncrementPrebuildsAssigned *bool
+		shouldIncrementPrebuildsCreated  *float64
+		shouldIncrementPrebuildsFailed   *float64
+		shouldIncrementPrebuildsAssigned *float64
+		shouldSetDesiredPrebuilds        *float64
+		shouldSetActualPrebuilds         *float64
+		shouldSetEligiblePrebuilds       *float64
 	}
 
 	tests := []testCase{
@@ -50,7 +59,20 @@ func TestMetricsCollector(t *testing.T) {
 			jobStatuses:                     allJobStatuses,
 			initiatorIDs:                    []uuid.UUID{prebuilds.OwnerID},
 			ownerIDs:                        []uuid.UUID{prebuilds.OwnerID, uuid.New()},
-			shouldIncrementPrebuildsCreated: ptr.To(true),
+			shouldIncrementPrebuildsCreated: ptr.To(1.0),
+			shouldSetDesiredPrebuilds:       ptr.To(1.0),
+			shouldSetEligiblePrebuilds:      ptr.To(0.0),
+		},
+		{
+			name:                            "prebuild running",
+			transitions:                     []database.WorkspaceTransition{database.WorkspaceTransitionStart},
+			jobStatuses:                     []database.ProvisionerJobStatus{database.ProvisionerJobStatusSucceeded},
+			initiatorIDs:                    []uuid.UUID{prebuilds.OwnerID},
+			ownerIDs:                        []uuid.UUID{prebuilds.OwnerID},
+			shouldIncrementPrebuildsCreated: ptr.To(1.0),
+			shouldSetDesiredPrebuilds:       ptr.To(1.0),
+			shouldSetActualPrebuilds:        ptr.To(1.0),
+			shouldSetEligiblePrebuilds:      ptr.To(0.0),
 		},
 		{
 			name:                            "prebuild failed",
@@ -58,8 +80,11 @@ func TestMetricsCollector(t *testing.T) {
 			jobStatuses:                     []database.ProvisionerJobStatus{database.ProvisionerJobStatusFailed},
 			initiatorIDs:                    []uuid.UUID{prebuilds.OwnerID},
 			ownerIDs:                        []uuid.UUID{prebuilds.OwnerID, uuid.New()},
-			shouldIncrementPrebuildsCreated: ptr.To(true),
-			shouldIncrementPrebuildsFailed:  ptr.To(true),
+			shouldIncrementPrebuildsCreated: ptr.To(1.0),
+			shouldIncrementPrebuildsFailed:  ptr.To(1.0),
+			shouldSetDesiredPrebuilds:       ptr.To(1.0),
+			shouldSetActualPrebuilds:        ptr.To(0.0),
+			shouldSetEligiblePrebuilds:      ptr.To(0.0),
 		},
 		{
 			name:                             "prebuild assigned",
@@ -67,8 +92,11 @@ func TestMetricsCollector(t *testing.T) {
 			jobStatuses:                      allJobStatuses,
 			initiatorIDs:                     []uuid.UUID{prebuilds.OwnerID},
 			ownerIDs:                         []uuid.UUID{uuid.New()},
-			shouldIncrementPrebuildsCreated:  ptr.To(true),
-			shouldIncrementPrebuildsAssigned: ptr.To(true),
+			shouldIncrementPrebuildsCreated:  ptr.To(1.0),
+			shouldIncrementPrebuildsAssigned: ptr.To(1.0),
+			shouldSetDesiredPrebuilds:        ptr.To(1.0),
+			shouldSetActualPrebuilds:         ptr.To(0.0),
+			shouldSetEligiblePrebuilds:       ptr.To(0.0),
 		},
 		{
 			name:                             "workspaces that were not created by the prebuilds user are not counted",
@@ -76,9 +104,12 @@ func TestMetricsCollector(t *testing.T) {
 			jobStatuses:                      allJobStatuses,
 			initiatorIDs:                     []uuid.UUID{uuid.New()},
 			ownerIDs:                         []uuid.UUID{uuid.New()},
-			shouldIncrementPrebuildsCreated:  ptr.To(false),
-			shouldIncrementPrebuildsFailed:   ptr.To(false),
-			shouldIncrementPrebuildsAssigned: ptr.To(false),
+			shouldIncrementPrebuildsCreated:  nil,
+			shouldIncrementPrebuildsFailed:   nil,
+			shouldIncrementPrebuildsAssigned: nil,
+			shouldSetDesiredPrebuilds:        ptr.To(1.0),
+			shouldSetActualPrebuilds:         ptr.To(0.0),
+			shouldSetEligiblePrebuilds:       ptr.To(0.0),
 		},
 	}
 	for _, test := range tests {
@@ -121,7 +152,7 @@ func TestMetricsCollector(t *testing.T) {
 							for i := 0; i < numTemplates; i++ {
 								orgID, templateID := setupTestDBTemplate(t, db, ownerID)
 								templateVersionID := setupTestDBTemplateVersion(t, ctx, db, pubsub, orgID, ownerID, templateID)
-								preset := setupTestDBPreset(t, ctx, db, pubsub, templateVersionID, 1)
+								preset := setupTestDBPreset(t, ctx, db, pubsub, templateVersionID, 1, uuid.New().String())
 								setupTestDBPrebuild(
 									t, ctx, db, pubsub,
 									transition, jobStatus, orgID, templateID, templateVersionID, preset.ID, initiatorID, ownerID,
@@ -147,42 +178,31 @@ func TestMetricsCollector(t *testing.T) {
 								require.Equal(t, 1, len(presets))
 
 								for _, preset := range presets {
-									if test.shouldIncrementPrebuildsCreated != nil {
-										metric := findMetric(metricsFamilies, "coderd_prebuilds_created", map[string]string{
-											"template_name": template.Name,
-											"preset_name":   preset.Name,
-										})
-										if *test.shouldIncrementPrebuildsCreated {
-											require.NotNil(t, metric)
-											require.Equal(t, metric.GetCounter().GetValue(), 1.0)
-										} else {
-											require.Nil(t, metric)
-										}
+									checks := []metricCheck{
+										{"coderd_prebuilds_created", test.shouldIncrementPrebuildsCreated, true},
+										{"coderd_prebuilds_failed", test.shouldIncrementPrebuildsFailed, true},
+										{"coderd_prebuilds_assigned", test.shouldIncrementPrebuildsAssigned, true},
+										{"coderd_prebuilds_desired", test.shouldSetDesiredPrebuilds, false},
+										{"coderd_prebuilds_actual", test.shouldSetActualPrebuilds, false},
+										{"coderd_prebuilds_eligible", test.shouldSetEligiblePrebuilds, false},
 									}
 
-									if test.shouldIncrementPrebuildsFailed != nil {
-										metric := findMetric(metricsFamilies, "coderd_prebuilds_failed", map[string]string{
-											"template_name": template.Name,
-											"preset_name":   preset.Name,
-										})
-										if *test.shouldIncrementPrebuildsFailed {
-											require.NotNil(t, metric)
-											require.Equal(t, metric.GetCounter().GetValue(), 1.0)
-										} else {
-											require.Nil(t, metric)
-										}
+									labels := map[string]string{
+										"template_name": template.Name,
+										"preset_name":   preset.Name,
 									}
 
-									if test.shouldIncrementPrebuildsAssigned != nil {
-										metric := findMetric(metricsFamilies, "coderd_prebuilds_assigned", map[string]string{
-											"template_name": template.Name,
-											"preset_name":   preset.Name,
-										})
-										if *test.shouldIncrementPrebuildsAssigned {
-											require.NotNil(t, metric)
-											require.Equal(t, metric.GetCounter().GetValue(), 1.0)
+									for _, check := range checks {
+										metric := findMetric(metricsFamilies, check.name, labels)
+										if check.value == nil {
+											continue
+										}
+
+										require.NotNil(t, metric, "metric %s should exist", check.name)
+										if check.isCounter {
+											require.Equal(t, *check.value, metric.GetCounter().GetValue(), "counter %s value mismatch", check.name)
 										} else {
-											require.Nil(t, metric)
+											require.Equal(t, *check.value, metric.GetGauge().GetValue(), "gauge %s value mismatch", check.name)
 										}
 									}
 								}
