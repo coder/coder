@@ -9,14 +9,17 @@ import (
 	"github.com/stretchr/testify/require"
 	"tailscale.com/types/ptr"
 
-	promtestutil "github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/prometheus/client_golang/prometheus"
+	prometheus_client "github.com/prometheus/client_model/go"
 
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/prebuilds"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestMetricsCollector(t *testing.T) {
@@ -97,6 +100,7 @@ func TestMetricsCollector(t *testing.T) {
 								}
 							})
 							db, pubsub := dbtestutil.NewDB(t)
+							reconciler := prebuilds.NewStoreReconciler(db, pubsub, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t))
 							ctx := testutil.Context(t, testutil.WaitLong)
 
 							createdUsers := []uuid.UUID{prebuilds.OwnerID}
@@ -109,32 +113,79 @@ func TestMetricsCollector(t *testing.T) {
 								}
 							}
 
-							collector := prebuilds.NewMetricsCollector(db, logger)
+							collector := prebuilds.NewMetricsCollector(db, logger, reconciler)
+							registry := prometheus.NewPedanticRegistry()
+							registry.Register(collector)
 
-							iterations := 3
-							for i := 0; i < iterations; i++ {
-								orgID, templateID := setupTestDBTemplate(t, db, createdUsers[0])
-								templateVersionID := setupTestDBTemplateVersion(t, ctx, db, pubsub, orgID, createdUsers[0], templateID)
-								presetID := setupTestDBPreset(t, ctx, db, pubsub, templateVersionID)
+							numTemplates := 2
+							for i := 0; i < numTemplates; i++ {
+								orgID, templateID := setupTestDBTemplate(t, db, ownerID)
+								templateVersionID := setupTestDBTemplateVersion(t, ctx, db, pubsub, orgID, ownerID, templateID)
+								preset := setupTestDBPreset(t, ctx, db, pubsub, templateVersionID, 1)
 								setupTestDBPrebuild(
 									t, ctx, db, pubsub,
-									transition, jobStatus, orgID, templateID, templateVersionID, presetID, initiatorID, ownerID,
+									transition, jobStatus, orgID, templateID, templateVersionID, preset.ID, initiatorID, ownerID,
 								)
 							}
 
-							if test.shouldIncrementPrebuildsCreated != nil {
-								createdCount := promtestutil.CollectAndCount(collector, "coderd_prebuilds_created")
-								require.Equal(t, *test.shouldIncrementPrebuildsCreated, createdCount == iterations, "createdCount: %d", createdCount)
-							}
+							metricsFamilies, err := registry.Gather()
+							require.NoError(t, err)
 
-							if test.shouldIncrementPrebuildsFailed != nil {
-								failedCount := promtestutil.CollectAndCount(collector, "coderd_prebuilds_failed")
-								require.Equal(t, *test.shouldIncrementPrebuildsFailed, failedCount == iterations, "failedCount: %d", failedCount)
-							}
+							templates, err := db.GetTemplates(ctx)
+							require.NoError(t, err)
+							require.Equal(t, numTemplates, len(templates))
 
-							if test.shouldIncrementPrebuildsAssigned != nil {
-								assignedCount := promtestutil.CollectAndCount(collector, "coderd_prebuilds_assigned")
-								require.Equal(t, *test.shouldIncrementPrebuildsAssigned, assignedCount == iterations, "assignedCount: %d", assignedCount)
+							for _, template := range templates {
+								templateVersions, err := db.GetTemplateVersionsByTemplateID(ctx, database.GetTemplateVersionsByTemplateIDParams{
+									TemplateID: template.ID,
+								})
+								require.NoError(t, err)
+								require.Equal(t, 1, len(templateVersions))
+
+								presets, err := db.GetPresetsByTemplateVersionID(ctx, templateVersions[0].ID)
+								require.NoError(t, err)
+								require.Equal(t, 1, len(presets))
+
+								for _, preset := range presets {
+									if test.shouldIncrementPrebuildsCreated != nil {
+										metric := findMetric(metricsFamilies, "coderd_prebuilds_created", map[string]string{
+											"template_name": template.Name,
+											"preset_name":   preset.Name,
+										})
+										if *test.shouldIncrementPrebuildsCreated {
+											require.NotNil(t, metric)
+											require.Equal(t, metric.GetCounter().GetValue(), 1.0)
+										} else {
+											require.Nil(t, metric)
+										}
+									}
+
+									if test.shouldIncrementPrebuildsFailed != nil {
+										metric := findMetric(metricsFamilies, "coderd_prebuilds_failed", map[string]string{
+											"template_name": template.Name,
+											"preset_name":   preset.Name,
+										})
+										if *test.shouldIncrementPrebuildsFailed {
+											require.NotNil(t, metric)
+											require.Equal(t, metric.GetCounter().GetValue(), 1.0)
+										} else {
+											require.Nil(t, metric)
+										}
+									}
+
+									if test.shouldIncrementPrebuildsAssigned != nil {
+										metric := findMetric(metricsFamilies, "coderd_prebuilds_assigned", map[string]string{
+											"template_name": template.Name,
+											"preset_name":   preset.Name,
+										})
+										if *test.shouldIncrementPrebuildsAssigned {
+											require.NotNil(t, metric)
+											require.Equal(t, metric.GetCounter().GetValue(), 1.0)
+										} else {
+											require.Nil(t, metric)
+										}
+									}
+								}
 							}
 						})
 					}
@@ -142,4 +193,35 @@ func TestMetricsCollector(t *testing.T) {
 			}
 		}
 	}
+}
+
+func findMetric(metricsFamilies []*prometheus_client.MetricFamily, name string, labels map[string]string) *prometheus_client.Metric {
+	for _, metricFamily := range metricsFamilies {
+		if metricFamily.GetName() == name {
+			for _, metric := range metricFamily.GetMetric() {
+				matches := true
+				labelPairs := metric.GetLabel()
+
+				// Check if all requested labels match
+				for wantName, wantValue := range labels {
+					found := false
+					for _, label := range labelPairs {
+						if label.GetName() == wantName && label.GetValue() == wantValue {
+							found = true
+							break
+						}
+					}
+					if !found {
+						matches = false
+						break
+					}
+				}
+
+				if matches {
+					return metric
+				}
+			}
+		}
+	}
+	return nil
 }

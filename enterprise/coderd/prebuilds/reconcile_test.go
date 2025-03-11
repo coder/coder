@@ -302,12 +302,13 @@ func TestPrebuildReconciliation(t *testing.T) {
 							ownerID,
 							templateID,
 						)
-						presetID := setupTestDBPreset(
+						preset := setupTestDBPreset(
 							t,
 							ctx,
 							db,
 							pubsub,
 							templateVersionID,
+							1,
 						)
 						prebuildID := setupTestDBPrebuild(
 							t,
@@ -319,7 +320,7 @@ func TestPrebuildReconciliation(t *testing.T) {
 							orgID,
 							templateID,
 							templateVersionID,
-							presetID,
+							preset.ID,
 							prebuilds.OwnerID,
 							prebuilds.OwnerID,
 						)
@@ -437,7 +438,8 @@ func setupTestDBPreset(
 	db database.Store,
 	ps pubsub.Pubsub,
 	templateVersionID uuid.UUID,
-) uuid.UUID {
+	desiredInstances int32,
+) database.TemplateVersionPreset {
 	t.Helper()
 	preset := dbgen.Preset(t, db, database.InsertPresetParams{
 		TemplateVersionID: templateVersionID,
@@ -451,10 +453,10 @@ func setupTestDBPreset(
 	_, err := db.InsertPresetPrebuild(ctx, database.InsertPresetPrebuildParams{
 		ID:               uuid.New(),
 		PresetID:         preset.ID,
-		DesiredInstances: 1,
+		DesiredInstances: desiredInstances,
 	})
 	require.NoError(t, err)
-	return preset.ID
+	return preset
 }
 
 func setupTestDBPrebuild(

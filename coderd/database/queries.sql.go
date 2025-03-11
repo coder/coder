@@ -5945,6 +5945,7 @@ func (q *sqlQuerier) GetRunningPrebuilds(ctx context.Context) ([]GetRunningPrebu
 
 const getTemplatePresetsWithPrebuilds = `-- name: GetTemplatePresetsWithPrebuilds :many
 SELECT t.id                        AS template_id,
+	   t.name                      AS template_name,
 	   tv.id                       AS template_version_id,
 	   tv.id = t.active_version_id AS using_active_version,
 	   tvpp.preset_id,
@@ -5961,6 +5962,7 @@ WHERE (t.id = $1::uuid OR $1 IS NULL)
 
 type GetTemplatePresetsWithPrebuildsRow struct {
 	TemplateID         uuid.UUID `db:"template_id" json:"template_id"`
+	TemplateName       string    `db:"template_name" json:"template_name"`
 	TemplateVersionID  uuid.UUID `db:"template_version_id" json:"template_version_id"`
 	UsingActiveVersion bool      `db:"using_active_version" json:"using_active_version"`
 	PresetID           uuid.UUID `db:"preset_id" json:"preset_id"`
@@ -5981,6 +5983,7 @@ func (q *sqlQuerier) GetTemplatePresetsWithPrebuilds(ctx context.Context, templa
 		var i GetTemplatePresetsWithPrebuildsRow
 		if err := rows.Scan(
 			&i.TemplateID,
+			&i.TemplateName,
 			&i.TemplateVersionID,
 			&i.UsingActiveVersion,
 			&i.PresetID,

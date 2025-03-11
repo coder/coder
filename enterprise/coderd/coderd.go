@@ -674,7 +674,7 @@ func (api *API) Close() error {
 	}
 
 	if api.PrebuildsReconciler != nil {
-		ctx, giveUp := context.WithTimeoutCause(context.Background(), time.Second*30, errors.New("gave up waiting for reconciler to stop"))
+		ctx, giveUp := context.WithTimeoutCause(context.Background(), time.Second*30, xerrors.New("gave up waiting for reconciler to stop"))
 		defer giveUp()
 		api.PrebuildsReconciler.Stop(ctx, xerrors.New("api closed")) // TODO: determine root cause (requires changes up the stack, though).
 	}
@@ -884,9 +884,9 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		if initial, changed, enabled := featureChanged(codersdk.FeatureWorkspacePrebuilds); shouldUpdate(initial, changed, enabled) || api.PrebuildsReconciler == nil {
 			reconciler, claimer, metrics := api.setupPrebuilds(enabled)
 			if api.PrebuildsReconciler != nil {
-				stopCtx, giveUp := context.WithTimeoutCause(context.Background(), time.Second*30, errors.New("gave up waiting for reconciler to stop"))
+				stopCtx, giveUp := context.WithTimeoutCause(context.Background(), time.Second*30, xerrors.New("gave up waiting for reconciler to stop"))
 				defer giveUp()
-				api.PrebuildsReconciler.Stop(stopCtx, errors.New("entitlements change"))
+				api.PrebuildsReconciler.Stop(stopCtx, xerrors.New("entitlements change"))
 			}
 
 			// Only register metrics once.
@@ -1178,16 +1178,18 @@ func (api *API) setupPrebuilds(entitled bool) (agplprebuilds.ReconciliationOrche
 		return agplprebuilds.NewNoopReconciler(), agplprebuilds.DefaultClaimer, nil
 	}
 
+	reconciler := prebuilds.NewStoreReconciler(api.Database, api.Pubsub, api.DeploymentValues.Prebuilds,
+		api.Logger.Named("prebuilds"), quartz.NewReal())
+
 	logger := api.Logger.Named("prebuilds.metrics")
-	collector := prebuilds.NewMetricsCollector(api.Database, logger)
+	collector := prebuilds.NewMetricsCollector(api.Database, logger, reconciler)
 	err := api.PrometheusRegistry.Register(collector)
 	if err != nil {
 		logger.Error(context.Background(), "failed to register prebuilds metrics collector", slog.F("error", err))
 		collector = nil
 	}
 
-	return prebuilds.NewStoreReconciler(api.Database, api.Pubsub, api.DeploymentValues.Prebuilds,
-			api.Logger.Named("prebuilds"), quartz.NewReal()),
+	return reconciler,
 		prebuilds.EnterpriseClaimer{},
 		collector
 }
