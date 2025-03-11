@@ -60,7 +60,8 @@ func (c *StoreReconciler) RunLoop(ctx context.Context) {
 		reconciliationInterval = 5 * time.Minute
 	}
 
-	c.logger.Info(ctx, "starting reconciler", slog.F("interval", reconciliationInterval))
+	c.logger.Info(ctx, "starting reconciler", slog.F("interval", reconciliationInterval),
+		slog.F("backoff_interval", c.cfg.ReconciliationBackoffInterval.String()), slog.F("backoff_lookback", c.cfg.ReconciliationBackoffLookback.String()))
 
 	ticker := c.clock.NewTicker(reconciliationInterval)
 	defer ticker.Stop()
@@ -316,6 +317,7 @@ func (c *StoreReconciler) Reconcile(ctx context.Context, ps prebuilds.PresetStat
 	if actions.BackoffUntil.After(c.clock.Now()) {
 		levelFn(ctx, "template prebuild state retrieved, backing off",
 			append(fields,
+				slog.F("failed", actions.Failed),
 				slog.F("backoff_until", actions.BackoffUntil.Format(time.RFC3339)),
 				slog.F("backoff_secs", math.Round(actions.BackoffUntil.Sub(c.clock.Now()).Seconds())),
 			)...)

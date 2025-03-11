@@ -320,6 +320,7 @@ func TestPrebuildReconciliation(t *testing.T) {
 							orgID,
 							templateID,
 							templateVersionID,
+							1,
 						)
 
 						if !templateVersionActive {
@@ -392,9 +393,13 @@ func TestFailedBuildBackoff(t *testing.T) {
 	reconciler := prebuilds.NewStoreReconciler(db, ps, cfg, logger, clock)
 
 	// Given: an active template version with presets and prebuilds configured.
+	const desiredInstances = 2
 	orgID, userID, templateID := setupTestDBTemplate(t, db)
 	templateVersionID := setupTestDBTemplateVersion(t, ctx, clock, db, ps, orgID, userID, templateID)
-	preset, _ := setupTestDBPrebuild(t, ctx, clock, db, ps, database.WorkspaceTransitionStart, database.ProvisionerJobStatusFailed, orgID, templateID, templateVersionID)
+
+	// TODO: improve; this func only creates 1 prebuild, but because desiredInstances=2, we need to create another.
+	preset, _ := setupTestDBPrebuild(t, ctx, clock, db, ps, database.WorkspaceTransitionStart, database.ProvisionerJobStatusFailed, orgID, templateID, templateVersionID, desiredInstances)
+	_ = setupTestWorkspaceBuild(t, ctx, clock, db, ps, database.WorkspaceTransitionStart, database.ProvisionerJobStatusFailed, orgID, preset, templateID, templateVersionID)
 
 	// When: determining what actions to take next, backoff is calculated because the prebuild is in a failed state.
 	state, err := reconciler.SnapshotState(ctx, db)
@@ -404,18 +409,34 @@ func TestFailedBuildBackoff(t *testing.T) {
 	require.NoError(t, err)
 	actions, err := reconciler.DetermineActions(ctx, *presetState)
 	require.NoError(t, err)
-	// Then: the backoff time is in the future, and no prebuilds are running.
+
+	// Then: the backoff time is in the future, no prebuilds are running, and we won't create any new prebuilds.
 	require.EqualValues(t, 0, actions.Actual)
-	require.EqualValues(t, 1, actions.Desired)
+	require.EqualValues(t, 0, actions.Create)
+	require.EqualValues(t, desiredInstances, actions.Desired)
 	require.True(t, clock.Now().Before(actions.BackoffUntil))
 
-	// Then: the backoff time is roughly equal to one backoff interval, since only one build has failed so far.
+	// Then: the backoff time is as expected based on the number of failed builds.
 	require.NotNil(t, presetState.Backoff)
-	require.EqualValues(t, 1, presetState.Backoff.NumFailed)
+	require.EqualValues(t, desiredInstances, presetState.Backoff.NumFailed)
 	require.EqualValues(t, backoffInterval*time.Duration(presetState.Backoff.NumFailed), clock.Until(actions.BackoffUntil).Truncate(backoffInterval))
 
-	// When: advancing beyond the backoff time.
+	// When: advancing to the next tick which is still within the backoff time.
+	clock.Advance(clock.Until(clock.Now().Add(cfg.ReconciliationInterval.Value())))
 
+	// Then: the backoff interval will not have changed.
+	state, err = reconciler.SnapshotState(ctx, db)
+	require.NoError(t, err)
+	presetState, err = state.FilterByPreset(preset.ID)
+	require.NoError(t, err)
+	newActions, err := reconciler.DetermineActions(ctx, *presetState)
+	require.NoError(t, err)
+	require.EqualValues(t, 0, newActions.Actual)
+	require.EqualValues(t, 0, newActions.Create)
+	require.EqualValues(t, desiredInstances, newActions.Desired)
+	require.EqualValues(t, actions.BackoffUntil, newActions.BackoffUntil)
+
+	// When: advancing beyond the backoff time.
 	clock.Advance(clock.Until(actions.BackoffUntil.Add(time.Second)))
 
 	// Then: we will attempt to create a new prebuild.
@@ -426,11 +447,17 @@ func TestFailedBuildBackoff(t *testing.T) {
 	actions, err = reconciler.DetermineActions(ctx, *presetState)
 	require.NoError(t, err)
 	require.EqualValues(t, 0, actions.Actual)
-	require.EqualValues(t, 1, actions.Desired)
-	require.EqualValues(t, 1, actions.Create)
+	require.EqualValues(t, desiredInstances, actions.Desired)
+	require.EqualValues(t, desiredInstances, actions.Create)
 
-	// When: a new prebuild is provisioned but it fails again.
-	_ = setupTestWorkspaceBuild(t, ctx, clock, db, ps, database.WorkspaceTransitionStart, database.ProvisionerJobStatusFailed, orgID, preset, templateID, templateVersionID)
+	// When: the desired number of new prebuild are provisioned, but one fails again.
+	for i := 0; i < desiredInstances; i++ {
+		status := database.ProvisionerJobStatusFailed
+		if i == 1 {
+			status = database.ProvisionerJobStatusSucceeded
+		}
+		_ = setupTestWorkspaceBuild(t, ctx, clock, db, ps, database.WorkspaceTransitionStart, status, orgID, preset, templateID, templateVersionID)
+	}
 
 	// Then: the backoff time is roughly equal to two backoff intervals, since another build has failed.
 	state, err = reconciler.SnapshotState(ctx, db)
@@ -439,10 +466,10 @@ func TestFailedBuildBackoff(t *testing.T) {
 	require.NoError(t, err)
 	actions, err = reconciler.DetermineActions(ctx, *presetState)
 	require.NoError(t, err)
-	require.EqualValues(t, 0, actions.Actual)
-	require.EqualValues(t, 1, actions.Desired)
+	require.EqualValues(t, 1, actions.Actual)
+	require.EqualValues(t, desiredInstances, actions.Desired)
 	require.EqualValues(t, 0, actions.Create)
-	require.EqualValues(t, 2, presetState.Backoff.NumFailed)
+	require.EqualValues(t, 3, presetState.Backoff.NumFailed)
 	require.EqualValues(t, backoffInterval*time.Duration(presetState.Backoff.NumFailed), clock.Until(actions.BackoffUntil).Truncate(backoffInterval))
 }
 
@@ -515,6 +542,7 @@ func setupTestDBPrebuild(
 	orgID uuid.UUID,
 	templateID uuid.UUID,
 	templateVersionID uuid.UUID,
+	desiredInstances int32,
 ) (
 	preset database.TemplateVersionPreset,
 	prebuild database.WorkspaceTable,
@@ -535,7 +563,7 @@ func setupTestDBPrebuild(
 	_, err = db.InsertPresetPrebuild(ctx, database.InsertPresetPrebuildParams{
 		ID:               uuid.New(),
 		PresetID:         preset.ID,
-		DesiredInstances: 1,
+		DesiredInstances: desiredInstances,
 	})
 	require.NoError(t, err)
 
