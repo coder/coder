@@ -162,9 +162,14 @@ func (dei *DockerEnvInfoer) ModifyCommand(cmd string, args ...string) (string, [
 // devcontainerEnv is a helper function that inspects the container labels to
 // find the required environment variables for running a command in the container.
 func devcontainerEnv(ctx context.Context, execer agentexec.Execer, container string) ([]string, error) {
-	ins, stderr, err := runDockerInspect(ctx, execer, container)
+	stdout, stderr, err := runDockerInspect(ctx, execer, container)
 	if err != nil {
 		return nil, xerrors.Errorf("inspect container: %w: %q", err, stderr)
+	}
+
+	ins, _, err := convertDockerInspect(stdout)
+	if err != nil {
+		return nil, xerrors.Errorf("inspect container: %w", err)
 	}
 
 	if len(ins) != 1 {
@@ -172,13 +177,13 @@ func devcontainerEnv(ctx context.Context, execer agentexec.Execer, container str
 	}
 
 	in := ins[0]
-	if in.Config.Labels == nil {
+	if in.Labels == nil {
 		return nil, nil
 	}
 
 	// We want to look for the devcontainer metadata, which is in the
 	// value of the label `devcontainer.metadata`.
-	rawMeta, ok := in.Config.Labels["devcontainer.metadata"]
+	rawMeta, ok := in.Labels["devcontainer.metadata"]
 	if !ok {
 		return nil, nil
 	}
@@ -279,18 +284,16 @@ func (dcl *DockerCLILister) List(ctx context.Context) (codersdk.WorkspaceAgentLi
 		return codersdk.WorkspaceAgentListContainersResponse{}, xerrors.Errorf("run docker inspect: %w", err)
 	}
 
-	for _, in := range ins {
-		out, warns := convertDockerInspect(in)
-		res.Warnings = append(res.Warnings, warns...)
-		res.Containers = append(res.Containers, out)
-	}
-
-	if dockerPsStderr != "" {
-		res.Warnings = append(res.Warnings, dockerPsStderr)
-	}
 	if dockerInspectStderr != "" {
 		res.Warnings = append(res.Warnings, dockerInspectStderr)
 	}
+
+	outs, warns, err := convertDockerInspect(ins)
+	if err != nil {
+		return codersdk.WorkspaceAgentListContainersResponse{}, xerrors.Errorf("convert docker inspect output: %w", err)
+	}
+	res.Warnings = append(res.Warnings, warns...)
+	res.Containers = append(res.Containers, outs...)
 
 	return res, nil
 }
@@ -298,23 +301,19 @@ func (dcl *DockerCLILister) List(ctx context.Context) (codersdk.WorkspaceAgentLi
 // runDockerInspect is a helper function that runs `docker inspect` on the given
 // container IDs and returns the parsed output.
 // The stderr output is also returned for logging purposes.
-func runDockerInspect(ctx context.Context, execer agentexec.Execer, ids ...string) ([]dockerInspect, string, error) {
+func runDockerInspect(ctx context.Context, execer agentexec.Execer, ids ...string) (stdout, stderr string, err error) {
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd := execer.CommandContext(ctx, "docker", append([]string{"inspect"}, ids...)...)
 	cmd.Stdout = &stdoutBuf
 	cmd.Stderr = &stderrBuf
-	err := cmd.Run()
-	stderr := strings.TrimSpace(stderrBuf.String())
+	err = cmd.Run()
+	stdout = strings.TrimSpace(stdoutBuf.String())
+	stderr = strings.TrimSpace(stderrBuf.String())
 	if err != nil {
-		return nil, stderr, err
+		return stdout, stderr, err
 	}
 
-	var ins []dockerInspect
-	if err := json.NewDecoder(&stdoutBuf).Decode(&ins); err != nil {
-		return nil, stderr, xerrors.Errorf("decode docker inspect output: %w", err)
-	}
-
-	return ins, stderr, nil
+	return stdoutBuf.String(), stderr, nil
 }
 
 // To avoid a direct dependency on the Docker API, we use the docker CLI
@@ -367,50 +366,59 @@ func (dis dockerInspectState) String() string {
 	return sb.String()
 }
 
-func convertDockerInspect(in dockerInspect) (codersdk.WorkspaceAgentDevcontainer, []string) {
+func convertDockerInspect(raw string) ([]codersdk.WorkspaceAgentDevcontainer, []string, error) {
 	var warns []string
-	out := codersdk.WorkspaceAgentDevcontainer{
-		CreatedAt: in.Created,
-		// Remove the leading slash from the container name
-		FriendlyName: strings.TrimPrefix(in.Name, "/"),
-		ID:           in.ID,
-		Image:        in.Config.Image,
-		Labels:       in.Config.Labels,
-		Ports:        make([]codersdk.WorkspaceAgentListeningPort, 0),
-		Running:      in.State.Running,
-		Status:       in.State.String(),
-		Volumes:      make(map[string]string, len(in.Mounts)),
+	var ins []dockerInspect
+	if err := json.NewDecoder(strings.NewReader(raw)).Decode(&ins); err != nil {
+		return nil, nil, xerrors.Errorf("decode docker inspect output: %w", err)
 	}
+	outs := make([]codersdk.WorkspaceAgentDevcontainer, 0, len(ins))
 
-	if in.HostConfig.PortBindings == nil {
-		in.HostConfig.PortBindings = make(map[string]any)
-	}
-	portKeys := maps.Keys(in.HostConfig.PortBindings)
-	// Sort the ports for deterministic output.
-	sort.Strings(portKeys)
-	for _, p := range portKeys {
-		if port, network, err := convertDockerPort(p); err != nil {
-			warns = append(warns, err.Error())
-		} else {
-			out.Ports = append(out.Ports, codersdk.WorkspaceAgentListeningPort{
-				Network: network,
-				Port:    port,
-			})
+	for _, in := range ins {
+		out := codersdk.WorkspaceAgentDevcontainer{
+			CreatedAt: in.Created,
+			// Remove the leading slash from the container name
+			FriendlyName: strings.TrimPrefix(in.Name, "/"),
+			ID:           in.ID,
+			Image:        in.Config.Image,
+			Labels:       in.Config.Labels,
+			Ports:        make([]codersdk.WorkspaceAgentListeningPort, 0),
+			Running:      in.State.Running,
+			Status:       in.State.String(),
+			Volumes:      make(map[string]string, len(in.Mounts)),
 		}
+
+		if in.HostConfig.PortBindings == nil {
+			in.HostConfig.PortBindings = make(map[string]any)
+		}
+		portKeys := maps.Keys(in.HostConfig.PortBindings)
+		// Sort the ports for deterministic output.
+		sort.Strings(portKeys)
+		for _, p := range portKeys {
+			if port, network, err := convertDockerPort(p); err != nil {
+				warns = append(warns, err.Error())
+			} else {
+				out.Ports = append(out.Ports, codersdk.WorkspaceAgentListeningPort{
+					Network: network,
+					Port:    port,
+				})
+			}
+		}
+
+		if in.Mounts == nil {
+			in.Mounts = []dockerInspectMount{}
+		}
+		// Sort the mounts for deterministic output.
+		sort.Slice(in.Mounts, func(i, j int) bool {
+			return in.Mounts[i].Source < in.Mounts[j].Source
+		})
+		for _, k := range in.Mounts {
+			out.Volumes[k.Source] = k.Destination
+		}
+		outs = append(outs, out)
 	}
 
-	if in.Mounts == nil {
-		in.Mounts = []dockerInspectMount{}
-	}
-	// Sort the mounts for deterministic output.
-	sort.Slice(in.Mounts, func(i, j int) bool {
-		return in.Mounts[i].Source < in.Mounts[j].Source
-	})
-	for _, k := range in.Mounts {
-		out.Volumes[k.Source] = k.Destination
-	}
-
-	return out, warns
+	return outs, warns, nil
 }
 
 // convertDockerPort converts a Docker port string to a port number and network
