@@ -17,9 +17,11 @@ func (NoopReconciler) Stop(context.Context, error) {}
 func (NoopReconciler) SnapshotState(context.Context, database.Store) (*ReconciliationState, error) {
 	return &ReconciliationState{}, nil
 }
+
 func (NoopReconciler) DetermineActions(context.Context, PresetState) (*ReconciliationActions, error) {
 	return &ReconciliationActions{}, nil
 }
+
 func (NoopReconciler) Reconcile(context.Context, PresetState, ReconciliationActions) error {
 	return nil
 }
