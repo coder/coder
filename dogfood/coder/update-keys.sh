@@ -15,7 +15,7 @@ gpg_flags=(
 	--yes
 )
 
-pushd "$PROJECT_ROOT/dogfood/coder/contents/files/usr/share/keyrings"
+pushd "$PROJECT_ROOT/dogfood/coder/files/usr/share/keyrings"
 
 # Ansible PPA signing key
 curl "${curl_flags[@]}" "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x6125e2a8c77f2818fb7bd15b93c4a3fd7bb9c367" |
