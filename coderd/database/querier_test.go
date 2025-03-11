@@ -2402,7 +2402,6 @@ func TestGetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisione
 
 			// Create provisioner jobs based on provided tags:
 			allJobs := make([]database.ProvisionerJob, len(tc.jobTags))
-			// daemonOrgIDs := make([]uuid.UUID, len(tc.daemonTags))
 			for idx, tags := range tc.jobTags {
 				// Make sure jobs are stored in correct order, first job should have the earliest createdAt timestamp.
 				// Example for 3 jobs:
