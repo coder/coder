@@ -589,13 +589,14 @@ class ApiMethods {
 	 */
 	getOrganizationPaginatedMembers = async (
 		organization: string,
-		options?: TypesGen.Pagination
+		options?: TypesGen.Pagination,
 	) => {
 		const url = getURLWithSearchParams(
 			`/api/v2/organizations/${organization}/paginated-members`,
-			options
+			options,
 		);
-		const response = await this.axios.get<TypesGen.PaginatedMembersResponse>(url);
+		const response =
+			await this.axios.get<TypesGen.PaginatedMembersResponse>(url);
 
 		return response.data;
 	};

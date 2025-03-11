@@ -39,13 +39,15 @@ const OrganizationMembersPage: FC = () => {
 	);
 
 	const membersQuery = usePaginatedQuery(
-		paginatedOrganizationMembers(organizationName, searchParamsResult[0])
+		paginatedOrganizationMembers(organizationName, searchParamsResult[0]),
 	);
 
-	const members = membersQuery.data?.Members.map((member: OrganizationMemberWithUserData) => {
-		const groups = groupsByUserIdQuery.data?.get(member.user_id) ?? [];
-		return { ...member, groups };
-	});
+	const members = membersQuery.data?.members.map(
+		(member: OrganizationMemberWithUserData) => {
+			const groups = groupsByUserIdQuery.data?.get(member.user_id) ?? [];
+			return { ...member, groups };
+		},
+	);
 
 	const addMemberMutation = useMutation(
 		addOrganizationMember(queryClient, organizationName),
@@ -81,8 +83,8 @@ const OrganizationMembersPage: FC = () => {
 		);
 	}
 
-	const isLoading = 
-		membersQuery.isLoading || 
+	const isLoading =
+		membersQuery.isLoading ||
 		organizationRolesQuery.isLoading ||
 		groupsByUserIdQuery.isLoading;
 

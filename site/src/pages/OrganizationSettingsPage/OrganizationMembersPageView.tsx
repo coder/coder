@@ -11,6 +11,7 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import { Loader } from "components/Loader/Loader";
 import {
 	MoreMenu,
 	MoreMenuContent,
@@ -20,7 +21,6 @@ import {
 } from "components/MoreMenu/MoreMenu";
 import { PaginationContainer } from "components/PaginationWidget/PaginationContainer";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
-import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
 import {
 	Table,
