@@ -4,11 +4,13 @@ import type { FC, ReactNode } from "react";
 import { twMerge } from "tailwind-merge";
 
 type HeaderHierarchy = "primary" | "secondary";
+type HeaderLevel = `h${1 | 2 | 3 | 4 | 5 | 6}`;
 
 type HeaderProps = Readonly<{
 	title: ReactNode;
 	description?: ReactNode;
-	hierarchy?: HeaderHierarchy;
+	titleVisualHierarchy?: HeaderHierarchy;
+	titleHeaderLevel?: HeaderLevel;
 	docsHref?: string;
 	tooltip?: ReactNode;
 }>;
@@ -18,20 +20,22 @@ export const SettingsHeader: FC<HeaderProps> = ({
 	description,
 	docsHref,
 	tooltip,
-	hierarchy = "primary",
+	titleHeaderLevel = "h1",
+	titleVisualHierarchy = "primary",
 }) => {
+	const Header = titleHeaderLevel;
 	return (
 		<div className="flex flex-row justify-between align-baseline">
 			<div className="max-w-prose pb-6">
 				<div className="flex flex-row gap-2 align-middle">
-					<h1
+					<Header
 						className={twMerge(
 							"m-0 text-3xl font-bold flex align-baseline leading-relaxed gap-2",
-							hierarchy === "secondary" && "text-2xl font-medium",
+							titleVisualHierarchy === "secondary" && "text-2xl font-medium",
 						)}
 					>
 						{title}
-					</h1>
+					</Header>
 					{tooltip}
 				</div>
 

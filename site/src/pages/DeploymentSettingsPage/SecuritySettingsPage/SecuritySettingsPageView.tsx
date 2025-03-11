@@ -49,7 +49,8 @@ export const SecuritySettingsPageView: FC<SecuritySettingsPageViewProps> = ({
 			<div>
 				<SettingsHeader
 					title="Browser Only Connections"
-					hierarchy="secondary"
+					titleHeaderLevel="h2"
+					titleVisualHierarchy="secondary"
 					description="Block all workspace access via SSH, port forward, and other non-browser connections."
 					docsHref={docs("/admin/networking#browser-only-connections")}
 				/>
@@ -64,7 +65,8 @@ export const SecuritySettingsPageView: FC<SecuritySettingsPageViewProps> = ({
 				<div>
 					<SettingsHeader
 						title="TLS"
-						hierarchy="secondary"
+						titleHeaderLevel="h2"
+						titleVisualHierarchy="secondary"
 						description="Ensure TLS is properly configured for your Coder deployment."
 					/>
 
