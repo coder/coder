@@ -54,13 +54,13 @@ func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	// nolint:gocritic // just until we get back to this
-	prebuildCounters, err := mc.database.GetPrebuildMetrics(dbauthz.AsSystemRestricted(ctx))
+	prebuildMetrics, err := mc.database.GetPrebuildMetrics(dbauthz.AsSystemRestricted(ctx))
 	if err != nil {
 		mc.logger.Error(ctx, "failed to get prebuild metrics", slog.Error(err))
 		return
 	}
 
-	for _, metric := range prebuildCounters {
+	for _, metric := range prebuildMetrics {
 		metricsCh <- prometheus.MustNewConstMetric(createdPrebuildsDesc, prometheus.CounterValue, float64(metric.CreatedCount), metric.TemplateName, metric.PresetName)
 		metricsCh <- prometheus.MustNewConstMetric(failedPrebuildsDesc, prometheus.CounterValue, float64(metric.FailedCount), metric.TemplateName, metric.PresetName)
 		metricsCh <- prometheus.MustNewConstMetric(claimedPrebuildsDesc, prometheus.CounterValue, float64(metric.ClaimedCount), metric.TemplateName, metric.PresetName)
