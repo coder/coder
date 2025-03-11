@@ -20,7 +20,10 @@ type Story = StoryObj<typeof InboxItem>;
 
 export const Read: Story = {
 	args: {
-		notification: MockNotification,
+		notification: {
+			...MockNotification,
+			read_status: "read",
+		},
 	},
 };
 

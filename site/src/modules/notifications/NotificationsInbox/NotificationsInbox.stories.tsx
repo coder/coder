@@ -9,7 +9,7 @@ const meta: Meta<typeof NotificationsInbox> = {
 	component: NotificationsInbox,
 	render: (args) => {
 		return (
-			<div className="w-full max-w-screen-xl p-6">
+			<div className="w-full max-w-screen-xl p-6 h-[720px]">
 				<header className="flex justify-end">
 					<NotificationsInbox {...args} />
 				</header>

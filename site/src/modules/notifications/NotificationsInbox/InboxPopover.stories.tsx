@@ -11,7 +11,7 @@ const meta: Meta<typeof InboxPopover> = {
 	},
 	render: (args) => {
 		return (
-			<div className="w-full max-w-screen-xl p-6">
+			<div className="w-full max-w-screen-xl p-6 h-[720px]">
 				<header className="flex justify-end">
 					<InboxPopover {...args} />
 				</header>
@@ -25,7 +25,6 @@ type Story = StoryObj<typeof InboxPopover>;
 
 export const Default: Story = {
 	args: {
-		defaultOpen: false,
 		unreadCount: 2,
 		notifications: MockNotifications.slice(0, 3),
 	},
