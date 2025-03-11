@@ -139,7 +139,7 @@ jobs:
       - name: "Push template"
         if: github.ref == 'refs/heads/main'
         run: |
-          cd dogfood/
+          cd dogfood
           terraform apply -auto-approve
         env:
           # Consumed by coderd provider
