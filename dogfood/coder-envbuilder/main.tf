@@ -43,7 +43,7 @@ data "coder_parameter" "devcontainer_repo" {
 data "coder_parameter" "devcontainer_dir" {
   type        = "string"
   name        = "Devcontainer Directory"
-  default     = "dogfood/contents/"
+  default     = "dogfood/coder/"
   description = "Directory containing a devcontainer.json relative to the repository root"
   mutable     = true
 }

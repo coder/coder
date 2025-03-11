@@ -68,7 +68,7 @@ jobs:
           project: b4q6ltmpzh
           token: ${{ secrets.DEPOT_TOKEN }}
           buildx-fallback: true
-          context: "{{defaultContext}}:dogfood/contents"
+          context: "{{defaultContext}}:dogfood/coder"
           pull: true
           save: true
           push: ${{ github.ref == 'refs/heads/main' }}
@@ -113,12 +113,18 @@ jobs:
 
       - name: Terraform init and validate
         run: |
-          cd dogfood
-          terraform init -upgrade
+          pushd dogfood/
+          terraform init
           terraform validate
-          cd contents
-          terraform init -upgrade
+          popd
+          pushd dogfood/coder
+          terraform init
           terraform validate
+          popd
+          pushd dogfood/coder-envbuilder
+          terraform init
+          terraform validate
+          popd
 
       - name: Get short commit SHA
         if: github.ref == 'refs/heads/main'
@@ -142,6 +148,6 @@ jobs:
           # Template source & details
           TF_VAR_CODER_TEMPLATE_NAME: ${{ secrets.CODER_TEMPLATE_NAME }}
           TF_VAR_CODER_TEMPLATE_VERSION: ${{ steps.vars.outputs.sha_short }}
-          TF_VAR_CODER_TEMPLATE_DIR: ./contents
+          TF_VAR_CODER_TEMPLATE_DIR: ./coder
           TF_VAR_CODER_TEMPLATE_MESSAGE: ${{ steps.message.outputs.pr_title }}
           TF_LOG: info
