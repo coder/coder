@@ -177,6 +177,12 @@ curl -X PUT http://coder-server:8080/api/v2/notifications/inbox/{id}/read-status
 
 `PUT /notifications/inbox/{id}/read-status`
 
+### Parameters
+
+| Name | In   | Type   | Required | Description            |
+|------|------|--------|----------|------------------------|
+| `id` | path | string | true     | id of the notification |
+
 ### Example responses
 
 > 201 Response

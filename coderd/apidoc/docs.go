@@ -1764,7 +1764,16 @@ const docTemplate = `{
                     "Notifications"
                 ],
                 "summary": "Update read status of a notification",
-                "operationId": "update-inbox-notifications-read-status",
+                "operationId": "update-read-status-of-a-notification",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "id of the notification",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
                 "responses": {
                     "201": {
                         "description": "Created",
