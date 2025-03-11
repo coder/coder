@@ -2,7 +2,6 @@ import GroupAdd from "@mui/icons-material/GroupAddOutlined";
 import { getErrorMessage } from "api/errors";
 import { groupsByOrganization } from "api/queries/groups";
 import { organizationsPermissions } from "api/queries/organizations";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { displayError } from "components/GlobalSnackbar/utils";
@@ -10,6 +9,7 @@ import { Loader } from "components/Loader/Loader";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
+import { RequirePermission } from "modules/permissions/RequirePermission";
 import { type FC, useEffect } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
@@ -54,16 +54,26 @@ export const GroupsPage: FC = () => {
 		return <Loader />;
 	}
 
+	const helmet = (
+		<Helmet>
+			<title>{pageTitle("Groups")}</title>
+		</Helmet>
+	);
+
 	const permissions = permissionsQuery.data?.[organization.id];
-	if (!permissions) {
-		return <ErrorAlert error={permissionsQuery.error} />;
+
+	if (!permissions?.viewGroups) {
+		return (
+			<>
+				{helmet}
+				<RequirePermission isFeatureVisible={false} />
+			</>
+		);
 	}
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("Groups")}</title>
-			</Helmet>
+			{helmet}
 
 			<Stack
 				alignItems="baseline"

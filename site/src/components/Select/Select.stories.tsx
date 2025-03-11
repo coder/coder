@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { userEvent } from "@storybook/test";
 import {
 	Select,
 	SelectContent,

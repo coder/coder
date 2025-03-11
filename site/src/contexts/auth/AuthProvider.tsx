@@ -10,6 +10,7 @@ import {
 import type { UpdateUserProfileRequest, User } from "api/typesGenerated";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
+import { type Permissions, permissionChecks } from "modules/permissions";
 import {
 	type FC,
 	type PropsWithChildren,
@@ -18,7 +19,6 @@ import {
 	useContext,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { type Permissions, permissionChecks } from "./permissions";
 
 export type AuthContextValue = {
 	isLoading: boolean;

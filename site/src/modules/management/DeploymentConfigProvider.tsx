@@ -6,26 +6,26 @@ import { type FC, createContext, useContext } from "react";
 import { useQuery } from "react-query";
 import { Outlet } from "react-router-dom";
 
-export const DeploymentSettingsContext = createContext<
-	DeploymentSettingsValue | undefined
+export const DeploymentConfigContext = createContext<
+	DeploymentConfigValue | undefined
 >(undefined);
 
-type DeploymentSettingsValue = Readonly<{
+type DeploymentConfigValue = Readonly<{
 	deploymentConfig: DeploymentConfig;
 }>;
 
-export const useDeploymentSettings = (): DeploymentSettingsValue => {
-	const context = useContext(DeploymentSettingsContext);
+export const useDeploymentConfig = (): DeploymentConfigValue => {
+	const context = useContext(DeploymentConfigContext);
 	if (!context) {
 		throw new Error(
-			`${useDeploymentSettings.name} should be used inside of ${DeploymentSettingsProvider.name}`,
+			`${useDeploymentConfig.name} should be used inside of ${DeploymentConfigProvider.name}`,
 		);
 	}
 
 	return context;
 };
 
-const DeploymentSettingsProvider: FC = () => {
+const DeploymentConfigProvider: FC = () => {
 	const deploymentConfigQuery = useQuery(deploymentConfig());
 
 	if (deploymentConfigQuery.error) {
@@ -37,12 +37,12 @@ const DeploymentSettingsProvider: FC = () => {
 	}
 
 	return (
-		<DeploymentSettingsContext.Provider
+		<DeploymentConfigContext.Provider
 			value={{ deploymentConfig: deploymentConfigQuery.data }}
 		>
 			<Outlet />
-		</DeploymentSettingsContext.Provider>
+		</DeploymentConfigContext.Provider>
 	);
 };
 
-export default DeploymentSettingsProvider;
+export default DeploymentConfigProvider;
