@@ -13,6 +13,7 @@ import { TableLoader } from "components/TableLoader/TableLoader";
 import type { ProxyLatencyReport } from "contexts/useProxyLatency";
 import type { FC } from "react";
 import { ProxyRow } from "./WorkspaceProxyRow";
+import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 
 export interface WorkspaceProxyViewProps {
 	proxies?: readonly Region[];
@@ -34,6 +35,10 @@ export const WorkspaceProxyView: FC<WorkspaceProxyViewProps> = ({
 }) => {
 	return (
 		<Stack>
+			<SettingsHeader
+				title="Workspace Proxies"
+				description="Workspace proxies improve terminal and web app connections to workspaces."
+			/>
 			{Boolean(getWorkspaceProxiesError) && (
 				<ErrorAlert error={getWorkspaceProxiesError} />
 			)}
