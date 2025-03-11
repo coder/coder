@@ -4,20 +4,22 @@ import { Stack } from "components/Stack/Stack";
 import { SquareArrowOutUpRightIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
 
-interface HeaderProps {
+type HeaderHierarchy = "primary" | "secondary";
+
+type HeaderProps = Readonly<{
 	title: ReactNode;
 	description?: ReactNode;
-	secondary?: boolean;
+	hierarchy?: HeaderHierarchy;
 	docsHref?: string;
 	tooltip?: ReactNode;
-}
+}>;
 
 export const SettingsHeader: FC<HeaderProps> = ({
 	title,
 	description,
 	docsHref,
-	secondary,
 	tooltip,
+	hierarchy = "primary",
 }) => {
 	const theme = useTheme();
 
@@ -37,7 +39,7 @@ export const SettingsHeader: FC<HeaderProps> = ({
 								marginBottom: 4,
 								gap: 8,
 							},
-							secondary && {
+							hierarchy === "secondary" && {
 								fontSize: 24,
 								fontWeight: 500,
 							},
@@ -60,7 +62,6 @@ export const SettingsHeader: FC<HeaderProps> = ({
 					</span>
 				)}
 			</div>
-
 			{docsHref && (
 				<Button asChild variant="outline">
 					<a href={docsHref} target="_blank" rel="noreferrer">

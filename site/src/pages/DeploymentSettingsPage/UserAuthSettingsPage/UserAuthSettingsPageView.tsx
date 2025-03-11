@@ -31,7 +31,7 @@ export const UserAuthSettingsPageView = ({
 
 					<SettingsHeader
 						title="Login with OpenID Connect"
-						secondary
+						hierarchy="secondary"
 						description="Set up authentication to login with OpenID Connect."
 						docsHref={docs("/admin/users/oidc-auth#openid-connect")}
 					/>
@@ -50,7 +50,7 @@ export const UserAuthSettingsPageView = ({
 				<div>
 					<SettingsHeader
 						title="Login with GitHub"
-						secondary
+						hierarchy="secondary"
 						description="Set up authentication to login with GitHub."
 						docsHref={docs("/admin/users/github-auth")}
 					/>

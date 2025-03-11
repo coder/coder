@@ -33,7 +33,7 @@ export const ObservabilitySettingsPageView: FC<
 					<SettingsHeader title="Observability" />
 					<SettingsHeader
 						title="Audit Logging"
-						secondary
+						hierarchy="secondary"
 						description="Allow auditors to monitor user operations in your deployment."
 						docsHref={docs("/admin/security/audit-logs")}
 					/>
@@ -64,7 +64,7 @@ export const ObservabilitySettingsPageView: FC<
 				<div>
 					<SettingsHeader
 						title="Monitoring"
-						secondary
+						hierarchy="secondary"
 						description="Monitoring your Coder application with logs and metrics."
 					/>
 

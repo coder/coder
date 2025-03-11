@@ -34,7 +34,7 @@ export const NetworkSettingsPageView: FC<NetworkSettingsPageViewProps> = ({
 		<div>
 			<SettingsHeader
 				title="Port Forwarding"
-				secondary
+				hierarchy="secondary"
 				description="Port forwarding lets developers securely access processes on their Coder workspace from a local machine."
 				docsHref={docs("/admin/networking/port-forwarding")}
 			/>
