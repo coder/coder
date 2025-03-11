@@ -249,7 +249,7 @@ func (api *API) listInboxNotifications(rw http.ResponseWriter, r *http.Request) 
 		readStatus = database.InboxNotificationReadStatus(readStatusParam)
 	}
 
-	var startingBefore time.Time
+	startingBefore := dbtime.Now()
 	if startingBeforeParam != "" {
 		lastNotifID, err := uuid.Parse(startingBeforeParam)
 		if err != nil {
@@ -268,7 +268,7 @@ func (api *API) listInboxNotifications(rw http.ResponseWriter, r *http.Request) 
 		startingBefore = lastNotif.CreatedAt
 	}
 
-	notifications, err := api.Database.GetFilteredInboxNotificationsByUserID(ctx, database.GetFilteredInboxNotificationsByUserIDParams{
+	notifs, err := api.Database.GetFilteredInboxNotificationsByUserID(ctx, database.GetFilteredInboxNotificationsByUserIDParams{
 		UserID:       apikey.UserID,
 		Templates:    templates,
 		Targets:      targets,
@@ -294,8 +294,8 @@ func (api *API) listInboxNotifications(rw http.ResponseWriter, r *http.Request) 
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ListInboxNotificationsResponse{
 		Notifications: func() []codersdk.InboxNotification {
-			var notificationsList []codersdk.InboxNotification
-			for _, notification := range notifications {
+			notificationsList := make([]codersdk.InboxNotification, 0, len(notifs))
+			for _, notification := range notifs {
 				notificationsList = append(notificationsList, codersdk.InboxNotification{
 					ID:         notification.ID,
 					UserID:     notification.UserID,

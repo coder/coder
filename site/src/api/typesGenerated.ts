@@ -1160,6 +1160,14 @@ export interface LinkConfig {
 }
 
 // From codersdk/inboxnotification.go
+export interface ListInboxNotificationsRequest {
+	readonly Targets: readonly string[];
+	readonly Templates: readonly string[];
+	readonly ReadStatus: string;
+	readonly StartingBefore: string;
+}
+
+// From codersdk/inboxnotification.go
 export interface ListInboxNotificationsResponse {
 	readonly notifications: readonly InboxNotification[];
 	readonly unread_count: number;
