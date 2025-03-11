@@ -155,10 +155,10 @@ func TestMetricsCollector(t *testing.T) {
 							numTemplates := 2
 							for i := 0; i < numTemplates; i++ {
 								orgID, templateID := setupTestDBTemplate(t, db, ownerID)
-								templateVersionID := setupTestDBTemplateVersion(t, ctx, clock, db, pubsub, orgID, ownerID, templateID)
-								preset := setupTestDBPreset(t, ctx, db, pubsub, templateVersionID, 1, uuid.New().String())
+								templateVersionID := setupTestDBTemplateVersion(ctx, t, clock, db, pubsub, orgID, ownerID, templateID)
+								preset := setupTestDBPreset(ctx, t, db, pubsub, templateVersionID, 1, uuid.New().String())
 								setupTestDBWorkspace(
-									t, ctx, clock, db, pubsub,
+									ctx, t, clock, db, pubsub,
 									transition, jobStatus, orgID, preset, templateID, templateVersionID, initiatorID, ownerID,
 								)
 							}

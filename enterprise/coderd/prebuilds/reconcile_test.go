@@ -36,12 +36,12 @@ func TestNoReconciliationActionsIfNoPresets(t *testing.T) {
 
 	clock := quartz.NewMock(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
-	db, pubsub := dbtestutil.NewDB(t)
+	db, ps := dbtestutil.NewDB(t)
 	cfg := codersdk.PrebuildsConfig{
 		ReconciliationInterval: serpent.Duration(testutil.WaitLong),
 	}
 	logger := testutil.Logger(t)
-	controller := prebuilds.NewStoreReconciler(db, pubsub, cfg, logger, quartz.NewMock(t))
+	controller := prebuilds.NewStoreReconciler(db, ps, cfg, logger, quartz.NewMock(t))
 
 	// given a template version with no presets
 	org := dbgen.Organization(t, db, database.Organization{})
@@ -81,12 +81,12 @@ func TestNoReconciliationActionsIfNoPrebuilds(t *testing.T) {
 
 	clock := quartz.NewMock(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
-	db, pubsub := dbtestutil.NewDB(t)
+	db, ps := dbtestutil.NewDB(t)
 	cfg := codersdk.PrebuildsConfig{
 		ReconciliationInterval: serpent.Duration(testutil.WaitLong),
 	}
 	logger := testutil.Logger(t)
-	controller := prebuilds.NewStoreReconciler(db, pubsub, cfg, logger, quartz.NewMock(t))
+	controller := prebuilds.NewStoreReconciler(db, ps, cfg, logger, quartz.NewMock(t))
 
 	// given there are presets, but no prebuilds
 	org := dbgen.Organization(t, db, database.Organization{})
@@ -300,8 +300,8 @@ func TestPrebuildReconciliation(t *testing.T) {
 						})
 						orgID, templateID := setupTestDBTemplate(t, db, ownerID)
 						templateVersionID := setupTestDBTemplateVersion(
-							t,
 							ctx,
+							t,
 							clock,
 							db,
 							pubsub,
@@ -310,8 +310,8 @@ func TestPrebuildReconciliation(t *testing.T) {
 							templateID,
 						)
 						preset := setupTestDBPreset(
-							t,
 							ctx,
+							t,
 							db,
 							pubsub,
 							templateVersionID,
@@ -335,7 +335,7 @@ func TestPrebuildReconciliation(t *testing.T) {
 						if !templateVersionActive {
 							// Create a new template version and mark it as active
 							// This marks the template version that we care about as inactive
-							setupTestDBTemplateVersion(t, ctx, clock, db, pubsub, orgID, ownerID, templateID)
+							setupTestDBTemplateVersion(ctx, t, clock, db, pubsub, orgID, ownerID, templateID)
 						}
 
 						// Run the reconciliation multiple times to ensure idempotency
@@ -408,9 +408,9 @@ func TestFailedBuildBackoff(t *testing.T) {
 		ID: userID,
 	})
 	orgID, templateID := setupTestDBTemplate(t, db, userID)
-	templateVersionID := setupTestDBTemplateVersion(t, ctx, clock, db, ps, orgID, userID, templateID)
+	templateVersionID := setupTestDBTemplateVersion(ctx, t, clock, db, ps, orgID, userID, templateID)
 
-	preset := setupTestDBPreset(t, ctx, db, ps, templateVersionID, desiredInstances, "test")
+	preset := setupTestDBPreset(ctx, t, db, ps, templateVersionID, desiredInstances, "test")
 	for range desiredInstances {
 		_ = setupTestDBPrebuild(t, ctx, clock, db, ps, database.WorkspaceTransitionStart, database.ProvisionerJobStatusFailed, orgID, preset, templateID, templateVersionID)
 	}
@@ -513,8 +513,8 @@ const (
 )
 
 func setupTestDBTemplateVersion(
-	t *testing.T,
 	ctx context.Context,
+	t *testing.T,
 	clock quartz.Clock,
 	db database.Store,
 	ps pubsub.Pubsub,
@@ -544,8 +544,8 @@ func setupTestDBTemplateVersion(
 }
 
 func setupTestDBPreset(
-	t *testing.T,
 	ctx context.Context,
+	t *testing.T,
 	db database.Store,
 	ps pubsub.Pubsub,
 	templateVersionID uuid.UUID,
@@ -585,12 +585,12 @@ func setupTestDBPrebuild(
 	templateVersionID uuid.UUID,
 ) database.WorkspaceTable {
 	t.Helper()
-	return setupTestDBWorkspace(t, ctx, clock, db, ps, transition, prebuildStatus, orgID, preset, templateID, templateVersionID, prebuilds.OwnerID, prebuilds.OwnerID)
+	return setupTestDBWorkspace(ctx, t, clock, db, ps, transition, prebuildStatus, orgID, preset, templateID, templateVersionID, prebuilds.OwnerID, prebuilds.OwnerID)
 }
 
 func setupTestDBWorkspace(
-	t *testing.T,
 	ctx context.Context,
+	t *testing.T,
 	clock quartz.Clock,
 	db database.Store,
 	ps pubsub.Pubsub,
