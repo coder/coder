@@ -1,6 +1,7 @@
 # Organizations (Premium)
 
-> Note: Organizations requires a
+> [!NOTE]
+> Organizations requires a
 > [Premium license](https://coder.com/pricing#compare-plans). For more details,
 > [contact your account team](https://coder.com/contact).
 

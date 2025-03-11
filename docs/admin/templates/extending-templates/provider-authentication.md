@@ -1,11 +1,7 @@
 # Provider Authentication
 
-<blockquote class="danger">
-  <p>
-  Do not store secrets in templates. Assume every user has cleartext access
-  to every template.
-  </p>
-</blockquote>
+> [!CAUTION]
+> Do not store secrets in templates. Assume every user has cleartext access to every template.
 
 The Coder server's
 [provisioner](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/provisioner)

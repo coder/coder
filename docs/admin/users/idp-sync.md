@@ -1,12 +1,9 @@
 <!-- markdownlint-disable MD024 -->
 # IdP Sync
 
-<blockquote class="info">
-
-IdP sync is an Enterprise and Premium feature.
-[Learn more](https://coder.com/pricing#compare-plans).
-
-</blockquote>
+> [!NOTE]
+> IdP sync is an Enterprise and Premium feature.
+> [Learn more](https://coder.com/pricing#compare-plans).
 
 IdP (Identity provider) sync allows you to use OpenID Connect (OIDC) to
 synchronize Coder groups, roles, and organizations based on claims from your IdP.
@@ -110,13 +107,10 @@ Below is an example that uses the `groups` claim and maps all groups prefixed by
 }
 ```
 
-<blockquote class="admonition note">
-
-You must specify Coder group IDs instead of group names. The fastest way to find
-the ID for a corresponding group is by visiting
-`https://coder.example.com/api/v2/groups`.
-
-</blockquote>
+> [!IMPORTANT]
+> You must specify Coder group IDs instead of group names. The fastest way to find
+> the ID for a corresponding group is by visiting
+> `https://coder.example.com/api/v2/groups`.
 
 Here is another example which maps `coder-admins` from the identity provider to
 two groups in Coder and `coder-users` from the identity provider to another
@@ -151,13 +145,9 @@ Visit the Coder UI to confirm these changes:
 
 ### Server Flags
 
-<blockquote class="admonition note">
-
-Use server flags only with Coder deployments with a single organization.
-
-You can use the dashboard to configure group sync instead.
-
-</blockquote>
+> [!NOTE]
+> Use server flags only with Coder deployments with a single organization.
+> You can use the dashboard to configure group sync instead.
 
 1. Configure the Coder server to read groups from the claim name with the
    [OIDC group field](../../reference/cli/server.md#--oidc-group-field) server
@@ -284,13 +274,9 @@ role:
 }
 ```
 
-<blockquote class="admonition note">
-
-Be sure to use the `name` field for each role, not the display name. Use
-`coder organization roles show --org=<your-org>` to see roles for your
-organization.
-
-</blockquote>
+> [!NOTE]
+> Be sure to use the `name` field for each role, not the display name.
+> Use `coder organization roles show --org=<your-org>` to see roles for your organization.
 
 To set these role sync settings, use the following command:
 
@@ -306,13 +292,9 @@ Visit the Coder UI to confirm these changes:
 
 ### Server Flags
 
-<blockquote class="admonition note">
-
-Use server flags only with Coder deployments with a single organization.
-
-You can use the dashboard to configure role sync instead.
-
-</blockquote>
+> [!NOTE]
+> Use server flags only with Coder deployments with a single organization.
+> You can use the dashboard to configure role sync instead.
 
 1. Configure the Coder server to read groups from the claim name with the
    [OIDC role field](../../reference/cli/server.md#--oidc-user-role-field)
@@ -539,7 +521,8 @@ Below are some details specific to individual OIDC providers.
 
 ### Active Directory Federation Services (ADFS)
 
-> **Note:** Tested on ADFS 4.0, Windows Server 2019
+> [!NOTE]
+> Tested on ADFS 4.0, Windows Server 2019
 
 1. In your Federation Server, create a new application group for Coder.
    Follow the steps as described in the [Windows Server documentation]

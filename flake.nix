@@ -121,6 +121,7 @@
             (pinnedPkgs.golangci-lint)
             gopls
             gotestsum
+            hadolint
             jq
             kubectl
             kubectx
@@ -216,6 +217,14 @@
             '';
           };
       in
+      # "Keep in mind that you need to use the same version of playwright in your node playwright project as in your nixpkgs, or else playwright will try to use browsers versions that aren't installed!"
+      # - https://nixos.wiki/wiki/Playwright
+      assert pkgs.lib.assertMsg
+        (
+          (pkgs.lib.importJSON ./site/package.json).devDependencies."@playwright/test"
+          == pkgs.playwright-driver.version
+        )
+        "There is a mismatch between the playwright versions in the ./nix.flake and the ./site/package.json file. Please make sure that they use the exact same version.";
       rec {
         inherit formatter;
 
@@ -261,12 +270,13 @@
 
               uname = "coder";
               homeDirectory = "/home/${uname}";
+              releaseName = version;
 
               drv = devShells.default.overrideAttrs (oldAttrs: {
                 buildInputs =
                   (with pkgs; [
                     coreutils
-                    nix
+                    nix.out
                     curl.bin # Ensure the actual curl binary is included in the PATH
                     glibc.bin # Ensure the glibc binaries are included in the PATH
                     jq.bin

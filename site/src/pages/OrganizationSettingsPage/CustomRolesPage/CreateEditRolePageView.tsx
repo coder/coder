@@ -43,7 +43,6 @@ export type CreateEditRolePageViewProps = {
 	error?: unknown;
 	isLoading: boolean;
 	organizationName: string;
-	canAssignOrgRole: boolean;
 	allResources?: boolean;
 };
 
@@ -53,7 +52,6 @@ export const CreateEditRolePageView: FC<CreateEditRolePageViewProps> = ({
 	error,
 	isLoading,
 	organizationName,
-	canAssignOrgRole,
 	allResources = false,
 }) => {
 	const navigate = useNavigate();
@@ -84,26 +82,24 @@ export const CreateEditRolePageView: FC<CreateEditRolePageViewProps> = ({
 					title={`${role ? "Edit" : "Create"} Custom Role`}
 					description="Set a name and permissions for this role."
 				/>
-				{canAssignOrgRole && (
-					<div className="flex space-x-2 items-center">
-						<Button
-							variant="outline"
-							onClick={() => {
-								navigate(`/organizations/${organizationName}/roles`);
-							}}
-						>
-							Cancel
-						</Button>
-						<Button
-							onClick={() => {
-								form.handleSubmit();
-							}}
-						>
-							<Spinner loading={isLoading} />
-							{role !== undefined ? "Save" : "Create Role"}
-						</Button>
-					</div>
-				)}
+				<div className="flex space-x-2 items-center">
+					<Button
+						variant="outline"
+						onClick={() => {
+							navigate(`/organizations/${organizationName}/roles`);
+						}}
+					>
+						Cancel
+					</Button>
+					<Button
+						onClick={() => {
+							form.handleSubmit();
+						}}
+					>
+						<Spinner loading={isLoading} />
+						{role !== undefined ? "Save" : "Create Role"}
+					</Button>
+				</div>
 			</Stack>
 
 			<VerticalForm onSubmit={form.handleSubmit}>
@@ -135,18 +131,16 @@ export const CreateEditRolePageView: FC<CreateEditRolePageViewProps> = ({
 						allResources={allResources}
 					/>
 				</FormFields>
-				{canAssignOrgRole && (
-					<FormFooter>
-						<Button onClick={onCancel} variant="outline">
-							Cancel
-						</Button>
+				<FormFooter>
+					<Button onClick={onCancel} variant="outline">
+						Cancel
+					</Button>
 
-						<Button type="submit" disabled={isLoading}>
-							<Spinner loading={isLoading} />
-							{role ? "Save role" : "Create Role"}
-						</Button>
-					</FormFooter>
-				)}
+					<Button type="submit" disabled={isLoading}>
+						<Spinner loading={isLoading} />
+						{role ? "Save role" : "Create Role"}
+					</Button>
+				</FormFooter>
 			</VerticalForm>
 		</>
 	);

@@ -7,7 +7,7 @@ import { organizations } from "api/queries/organizations";
 import type { AuthorizationCheck, Organization } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
-import { type ComponentProps, type FC, useState } from "react";
+import { type ComponentProps, type FC, useEffect, useState } from "react";
 import { useQuery } from "react-query";
 
 export type OrganizationAutocompleteProps = {
@@ -57,11 +57,26 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 			: [];
 	}
 
+	// Unfortunate: this useEffect sets a default org value
+	// if only one is available and is necessary as the autocomplete loads
+	// its own data. Until we refactor, proceed cautiously!
+	useEffect(() => {
+		const org = options[0];
+		if (options.length !== 1 || org === selected) {
+			return;
+		}
+
+		setSelected(org);
+		onChange(org);
+	}, [options, selected, onChange]);
+
 	return (
 		<Autocomplete
 			noOptionsText="No organizations found"
 			className={className}
 			options={options}
+			disabled={options.length === 1}
+			value={selected}
 			loading={organizationsQuery.isLoading}
 			data-testid="organization-autocomplete"
 			open={open}

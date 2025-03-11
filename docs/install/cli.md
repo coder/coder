@@ -22,7 +22,8 @@ alternate installation methods (e.g. standalone binaries, system packages).
 
 ## Windows
 
-> **Important:** If you plan to use the built-in PostgreSQL database, you will
+> [!IMPORTANT]
+> If you plan to use the built-in PostgreSQL database, you will
 > need to ensure that the
 > [Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version)
 > is installed.
@@ -58,11 +59,8 @@ coder login https://coder.example.com
 
 ## Download the CLI from your deployment
 
-<blockquote class="admonition note">
-
-Available in Coder 2.19 and newer.
-
-</blockquote>
+> [!NOTE]
+> Available in Coder 2.19 and newer.
 
 Every Coder server hosts CLI binaries for all supported platforms. You can run a
 script to download the appropriate CLI for your machine from your Coder
