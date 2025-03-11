@@ -5975,7 +5975,9 @@ func (q *sqlQuerier) GetRunningPrebuilds(ctx context.Context) ([]GetRunningPrebu
 
 const getTemplatePresetsWithPrebuilds = `-- name: GetTemplatePresetsWithPrebuilds :many
 SELECT t.id                        AS template_id,
+	   t.name                      AS template_name,
 	   tv.id                       AS template_version_id,
+	   tv.name                     AS template_version_name,
 	   tv.id = t.active_version_id AS using_active_version,
 	   tvpp.preset_id,
 	   tvp.name,
@@ -5990,14 +5992,16 @@ WHERE (t.id = $1::uuid OR $1 IS NULL)
 `
 
 type GetTemplatePresetsWithPrebuildsRow struct {
-	TemplateID         uuid.UUID `db:"template_id" json:"template_id"`
-	TemplateVersionID  uuid.UUID `db:"template_version_id" json:"template_version_id"`
-	UsingActiveVersion bool      `db:"using_active_version" json:"using_active_version"`
-	PresetID           uuid.UUID `db:"preset_id" json:"preset_id"`
-	Name               string    `db:"name" json:"name"`
-	DesiredInstances   int32     `db:"desired_instances" json:"desired_instances"`
-	Deleted            bool      `db:"deleted" json:"deleted"`
-	Deprecated         bool      `db:"deprecated" json:"deprecated"`
+	TemplateID          uuid.UUID `db:"template_id" json:"template_id"`
+	TemplateName        string    `db:"template_name" json:"template_name"`
+	TemplateVersionID   uuid.UUID `db:"template_version_id" json:"template_version_id"`
+	TemplateVersionName string    `db:"template_version_name" json:"template_version_name"`
+	UsingActiveVersion  bool      `db:"using_active_version" json:"using_active_version"`
+	PresetID            uuid.UUID `db:"preset_id" json:"preset_id"`
+	Name                string    `db:"name" json:"name"`
+	DesiredInstances    int32     `db:"desired_instances" json:"desired_instances"`
+	Deleted             bool      `db:"deleted" json:"deleted"`
+	Deprecated          bool      `db:"deprecated" json:"deprecated"`
 }
 
 func (q *sqlQuerier) GetTemplatePresetsWithPrebuilds(ctx context.Context, templateID uuid.NullUUID) ([]GetTemplatePresetsWithPrebuildsRow, error) {
@@ -6011,7 +6015,9 @@ func (q *sqlQuerier) GetTemplatePresetsWithPrebuilds(ctx context.Context, templa
 		var i GetTemplatePresetsWithPrebuildsRow
 		if err := rows.Scan(
 			&i.TemplateID,
+			&i.TemplateName,
 			&i.TemplateVersionID,
+			&i.TemplateVersionName,
 			&i.UsingActiveVersion,
 			&i.PresetID,
 			&i.Name,

@@ -184,7 +184,9 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) error {
 
 			if !preset.UsingActiveVersion && len(ps.Running) == 0 && len(ps.InProgress) == 0 {
 				logger.Debug(ctx, "skipping reconciliation for preset; inactive, no running prebuilds, and no in-progress operations",
-					slog.F("preset_id", preset.PresetID.String()))
+					slog.F("template_id", preset.TemplateID.String()), slog.F("template_name", preset.TemplateName),
+					slog.F("template_version_id", preset.TemplateVersionID.String()), slog.F("template_version_name", preset.TemplateVersionName),
+					slog.F("preset_id", preset.PresetID.String()), slog.F("preset_name", preset.Name))
 				continue
 			}
 
@@ -281,10 +283,11 @@ func (c *StoreReconciler) DetermineActions(ctx context.Context, state prebuilds.
 }
 
 func (c *StoreReconciler) Reconcile(ctx context.Context, ps prebuilds.PresetState, actions prebuilds.ReconciliationActions) error {
-	logger := c.logger.With(slog.F("template_id", ps.Preset.TemplateID.String()))
+	logger := c.logger.With(slog.F("template_id", ps.Preset.TemplateID.String()), slog.F("template_name", ps.Preset.TemplateName))
 
 	var lastErr multierror.Error
-	vlogger := logger.With(slog.F("template_version_id", ps.Preset.TemplateVersionID), slog.F("preset_id", ps.Preset.PresetID))
+	vlogger := logger.With(slog.F("template_version_id", ps.Preset.TemplateVersionID), slog.F("template_version_name", ps.Preset.TemplateVersionName),
+		slog.F("preset_id", ps.Preset.PresetID), slog.F("preset_name", ps.Preset.Name))
 
 	// TODO: authz // Can't use existing profiles (i.e. AsSystemRestricted) because of dbauthz rules
 	ownerCtx := dbauthz.As(ctx, rbac.Subject{
