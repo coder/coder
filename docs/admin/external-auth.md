@@ -33,9 +33,7 @@ CODER_EXTERNAL_AUTH_0_DISPLAY_NAME="Google Calendar"
 CODER_EXTERNAL_AUTH_0_DISPLAY_ICON="https://mycustomicon.com/google.svg"
 ```
 
-The `CODER_EXTERNAL_AUTH_0_ID` environment variable is used for internal
-reference. Set it with a value that helps you identify it. For example, you can use `CODER_EXTERNAL_AUTH_0_ID="primary-github"` for your
-GitHub provider.
+The `CODER_EXTERNAL_AUTH_0_ID` environment variable is used as an identifier for the authentication provider. **This ID is also used as part of the callback URL path** that you must configure in your OAuth provider settings. Set it with a value that helps you identify the provider. For example, you can use `CODER_EXTERNAL_AUTH_0_ID="primary-github"` for your GitHub provider. Your callback URL would then be `https://your-coder-domain.com/external-auth/primary-github/callback`.
 
 Add the following code to any template to add a button to the workspace setup page which will allow you to authenticate with your provider:
 
@@ -154,6 +152,8 @@ CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxx
 CODER_EXTERNAL_AUTH_0_AUTH_URL=https://bitbucket.domain.com/rest/oauth2/latest/authorize
 ```
 
+When configuring your Bitbucket OAuth application, set the Redirect URI to `https://your-coder-domain.com/external-auth/primary-bitbucket-server/callback`. The callback path includes the value of `CODER_EXTERNAL_AUTH_0_ID`.
+
 ### Gitea
 
 ```env
@@ -210,6 +210,9 @@ CODER_EXTERNAL_AUTH_0_TOKEN_URL="https://gitlab.company.org/oauth/token"
 CODER_EXTERNAL_AUTH_0_REGEX=gitlab\.company\.org
 ```
 
+> [!IMPORTANT]
+> When configuring your GitLab OAuth application, set the Redirect URI to `https://your-coder-domain.com/external-auth/primary-gitlab/callback`. Note that the callback URL must include the value of `CODER_EXTERNAL_AUTH_0_ID` (in this example, "primary-gitlab").
+
 ### JFrog Artifactory
 
 Visit the [JFrog Artifactory](../admin/integrations/jfrog-artifactory.md) guide for instructions on how to set up for JFrog Artifactory.
@@ -244,7 +247,8 @@ CODER_EXTERNAL_AUTH_0_SCOPES="repo:read repo:write write:gpg_key"
 1. [Create a GitHub App](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app)
 
    - Set the callback URL to
-     `https://coder.example.com/external-auth/USER_DEFINED_ID/callback`.
+     `https://coder.example.com/external-auth/USER_DEFINED_ID/callback`, where `USER_DEFINED_ID` 
+     is the value you set for `CODER_EXTERNAL_AUTH_0_ID`.
    - Deactivate Webhooks.
    - Enable fine-grained access to specific repositories or a subset of
      permissions for security.
