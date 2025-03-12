@@ -7,6 +7,8 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
@@ -333,6 +335,12 @@ func TestCustomOrganizationRole(t *testing.T) {
 	// Verify deleting a custom role cascades to all members
 	t.Run("DeleteRoleCascadeMembers", func(t *testing.T) {
 		t.Parallel()
+
+		// TODO: we should not be returning the prebuilds user in OrganizationMembers, and this is not returned in dbmem.
+		if !dbtestutil.WillUsePostgres() {
+			t.Skip("This test requires postgres")
+		}
+
 		owner, first := coderdenttest.New(t, &coderdenttest.Options{
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{

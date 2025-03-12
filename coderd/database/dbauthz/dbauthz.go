@@ -18,6 +18,7 @@ import (
 
 	"cdr.dev/slog"
 
+	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/rbac/rolestore"
 
@@ -358,6 +359,27 @@ var (
 		}),
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
+
+	subjectPrebuildsOrchestrator = rbac.Subject{
+		FriendlyName: "Prebuilds Orchestrator",
+		ID:           prebuilds.OwnerID.String(),
+		Roles: rbac.Roles([]rbac.Role{
+			{
+				Identifier:  rbac.RoleIdentifier{Name: "prebuilds-orchestrator"},
+				DisplayName: "Coder",
+				Site: rbac.Permissions(map[string][]policy.Action{
+					// May use template, read template-related info, & insert template-related resources (preset prebuilds).
+					rbac.ResourceTemplate.Type: {policy.ActionRead, policy.ActionUpdate, policy.ActionUse},
+					// May CRUD workspaces, and start/stop them.
+					rbac.ResourceWorkspace.Type: {
+						policy.ActionCreate, policy.ActionDelete, policy.ActionRead, policy.ActionUpdate,
+						policy.ActionWorkspaceStart, policy.ActionWorkspaceStop,
+					},
+				}),
+			},
+		}),
+		Scope: rbac.ScopeAll,
+	}.WithCachedASTValue()
 )
 
 // AsProvisionerd returns a context with an actor that has permissions required
@@ -410,6 +432,12 @@ func AsSystemRestricted(ctx context.Context) context.Context {
 // to read provisioner daemons.
 func AsSystemReadProvisionerDaemons(ctx context.Context) context.Context {
 	return context.WithValue(ctx, authContextKey{}, subjectSystemReadProvisionerDaemons)
+}
+
+// AsPrebuildsOrchestrator returns a context with an actor that has permissions
+// to read orchestrator workspace prebuilds.
+func AsPrebuildsOrchestrator(ctx context.Context) context.Context {
+	return context.WithValue(ctx, authContextKey{}, subjectPrebuildsOrchestrator)
 }
 
 var AsRemoveActor = rbac.Subject{

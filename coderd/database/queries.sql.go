@@ -11451,7 +11451,7 @@ func (q *sqlQuerier) GetUserAppearanceSettings(ctx context.Context, userID uuid.
 
 const getUserByEmailOrUsername = `-- name: GetUserByEmailOrUsername :one
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system
 FROM
 	users
 WHERE
@@ -11487,13 +11487,14 @@ func (q *sqlQuerier) GetUserByEmailOrUsername(ctx context.Context, arg GetUserBy
 		&i.GithubComUserID,
 		&i.HashedOneTimePasscode,
 		&i.OneTimePasscodeExpiresAt,
+		&i.IsSystem,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system
 FROM
 	users
 WHERE
@@ -11523,6 +11524,7 @@ func (q *sqlQuerier) GetUserByID(ctx context.Context, id uuid.UUID) (User, error
 		&i.GithubComUserID,
 		&i.HashedOneTimePasscode,
 		&i.OneTimePasscodeExpiresAt,
+		&i.IsSystem,
 	)
 	return i, err
 }
@@ -11545,7 +11547,7 @@ func (q *sqlQuerier) GetUserCount(ctx context.Context) (int64, error) {
 
 const getUsers = `-- name: GetUsers :many
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, COUNT(*) OVER() AS count
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, COUNT(*) OVER() AS count
 FROM
 	users
 WHERE
@@ -11659,6 +11661,7 @@ type GetUsersRow struct {
 	GithubComUserID          sql.NullInt64  `db:"github_com_user_id" json:"github_com_user_id"`
 	HashedOneTimePasscode    []byte         `db:"hashed_one_time_passcode" json:"hashed_one_time_passcode"`
 	OneTimePasscodeExpiresAt sql.NullTime   `db:"one_time_passcode_expires_at" json:"one_time_passcode_expires_at"`
+	IsSystem                 sql.NullBool   `db:"is_system" json:"is_system"`
 	Count                    int64          `db:"count" json:"count"`
 }
 
@@ -11701,6 +11704,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUse
 			&i.GithubComUserID,
 			&i.HashedOneTimePasscode,
 			&i.OneTimePasscodeExpiresAt,
+			&i.IsSystem,
 			&i.Count,
 		); err != nil {
 			return nil, err
@@ -11717,7 +11721,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUse
 }
 
 const getUsersByIDs = `-- name: GetUsersByIDs :many
-SELECT id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at FROM users WHERE id = ANY($1 :: uuid [ ])
+SELECT id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system FROM users WHERE id = ANY($1 :: uuid [ ])
 `
 
 // This shouldn't check for deleted, because it's frequently used
@@ -11750,6 +11754,7 @@ func (q *sqlQuerier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]User
 			&i.GithubComUserID,
 			&i.HashedOneTimePasscode,
 			&i.OneTimePasscodeExpiresAt,
+			&i.IsSystem,
 		); err != nil {
 			return nil, err
 		}
@@ -11783,7 +11788,7 @@ VALUES
 		-- if the status passed in is empty, fallback to dormant, which is what
 		-- we were doing before.
 		COALESCE(NULLIF($10::text, '')::user_status, 'dormant'::user_status)
-	) RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at
+	) RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system
 `
 
 type InsertUserParams struct {
@@ -11831,6 +11836,7 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 		&i.GithubComUserID,
 		&i.HashedOneTimePasscode,
 		&i.OneTimePasscodeExpiresAt,
+		&i.IsSystem,
 	)
 	return i, err
 }
@@ -11996,7 +12002,7 @@ SET
 	last_seen_at = $2,
 	updated_at = $3
 WHERE
-	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at
+	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system
 `
 
 type UpdateUserLastSeenAtParams struct {
@@ -12026,6 +12032,7 @@ func (q *sqlQuerier) UpdateUserLastSeenAt(ctx context.Context, arg UpdateUserLas
 		&i.GithubComUserID,
 		&i.HashedOneTimePasscode,
 		&i.OneTimePasscodeExpiresAt,
+		&i.IsSystem,
 	)
 	return i, err
 }
@@ -12043,7 +12050,7 @@ SET
 		'':: bytea
 	END
 WHERE
-	id = $2 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at
+	id = $2 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system
 `
 
 type UpdateUserLoginTypeParams struct {
@@ -12072,6 +12079,7 @@ func (q *sqlQuerier) UpdateUserLoginType(ctx context.Context, arg UpdateUserLogi
 		&i.GithubComUserID,
 		&i.HashedOneTimePasscode,
 		&i.OneTimePasscodeExpiresAt,
+		&i.IsSystem,
 	)
 	return i, err
 }
@@ -12087,7 +12095,7 @@ SET
 	name = $6
 WHERE
 	id = $1
-RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system
 `
 
 type UpdateUserProfileParams struct {
@@ -12127,6 +12135,7 @@ func (q *sqlQuerier) UpdateUserProfile(ctx context.Context, arg UpdateUserProfil
 		&i.GithubComUserID,
 		&i.HashedOneTimePasscode,
 		&i.OneTimePasscodeExpiresAt,
+		&i.IsSystem,
 	)
 	return i, err
 }
@@ -12138,7 +12147,7 @@ SET
 	quiet_hours_schedule = $2
 WHERE
 	id = $1
-RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system
 `
 
 type UpdateUserQuietHoursScheduleParams struct {
@@ -12167,6 +12176,7 @@ func (q *sqlQuerier) UpdateUserQuietHoursSchedule(ctx context.Context, arg Updat
 		&i.GithubComUserID,
 		&i.HashedOneTimePasscode,
 		&i.OneTimePasscodeExpiresAt,
+		&i.IsSystem,
 	)
 	return i, err
 }
@@ -12179,7 +12189,7 @@ SET
 	rbac_roles = ARRAY(SELECT DISTINCT UNNEST($1 :: text[]))
 WHERE
 	id = $2
-RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system
 `
 
 type UpdateUserRolesParams struct {
@@ -12208,6 +12218,7 @@ func (q *sqlQuerier) UpdateUserRoles(ctx context.Context, arg UpdateUserRolesPar
 		&i.GithubComUserID,
 		&i.HashedOneTimePasscode,
 		&i.OneTimePasscodeExpiresAt,
+		&i.IsSystem,
 	)
 	return i, err
 }
@@ -12219,7 +12230,7 @@ SET
 	status = $2,
 	updated_at = $3
 WHERE
-	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at
+	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system
 `
 
 type UpdateUserStatusParams struct {
@@ -12249,6 +12260,7 @@ func (q *sqlQuerier) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusP
 		&i.GithubComUserID,
 		&i.HashedOneTimePasscode,
 		&i.OneTimePasscodeExpiresAt,
+		&i.IsSystem,
 	)
 	return i, err
 }
