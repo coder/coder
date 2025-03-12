@@ -56,9 +56,9 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 					<Table>
 						<TableHeader>
 							<TableRow>
-								<TableHead className="w-1/2">Name</TableHead>
-								<TableHead className="w-[49%]">Users</TableHead>
-								<TableHead className="w-[1%]" />
+								<TableHead className="w-2/5">Name</TableHead>
+								<TableHead className="w-3/5">Users</TableHead>
+								<TableHead className="w-auto" />
 							</TableRow>
 						</TableHeader>
 						<TableBody>

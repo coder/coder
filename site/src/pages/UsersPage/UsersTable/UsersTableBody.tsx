@@ -21,10 +21,7 @@ import {
 	MoreMenuTrigger,
 	ThreeDotsButton,
 } from "components/MoreMenu/MoreMenu";
-import {
-	TableCell,
-	TableRow,
-} from "components/Table/Table";
+import { TableCell, TableRow } from "components/Table/Table";
 import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
