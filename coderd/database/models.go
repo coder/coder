@@ -3121,6 +3121,13 @@ type TemplateVersionPresetParameter struct {
 	Value                   string    `db:"value" json:"value"`
 }
 
+type TemplateVersionPresetPrebuild struct {
+	ID                  uuid.UUID     `db:"id" json:"id"`
+	PresetID            uuid.UUID     `db:"preset_id" json:"preset_id"`
+	DesiredInstances    int32         `db:"desired_instances" json:"desired_instances"`
+	InvalidateAfterSecs sql.NullInt32 `db:"invalidate_after_secs" json:"invalidate_after_secs"`
+}
+
 type TemplateVersionTable struct {
 	ID             uuid.UUID     `db:"id" json:"id"`
 	TemplateID     uuid.NullUUID `db:"template_id" json:"template_id"`
@@ -3507,6 +3514,24 @@ type WorkspaceBuildTable struct {
 	TemplateVersionPresetID uuid.NullUUID       `db:"template_version_preset_id" json:"template_version_preset_id"`
 }
 
+type WorkspaceLatestBuild struct {
+	ID                      uuid.UUID           `db:"id" json:"id"`
+	CreatedAt               time.Time           `db:"created_at" json:"created_at"`
+	UpdatedAt               time.Time           `db:"updated_at" json:"updated_at"`
+	WorkspaceID             uuid.UUID           `db:"workspace_id" json:"workspace_id"`
+	TemplateVersionID       uuid.UUID           `db:"template_version_id" json:"template_version_id"`
+	BuildNumber             int32               `db:"build_number" json:"build_number"`
+	Transition              WorkspaceTransition `db:"transition" json:"transition"`
+	InitiatorID             uuid.UUID           `db:"initiator_id" json:"initiator_id"`
+	ProvisionerState        []byte              `db:"provisioner_state" json:"provisioner_state"`
+	JobID                   uuid.UUID           `db:"job_id" json:"job_id"`
+	Deadline                time.Time           `db:"deadline" json:"deadline"`
+	Reason                  BuildReason         `db:"reason" json:"reason"`
+	DailyCost               int32               `db:"daily_cost" json:"daily_cost"`
+	MaxDeadline             time.Time           `db:"max_deadline" json:"max_deadline"`
+	TemplateVersionPresetID uuid.NullUUID       `db:"template_version_preset_id" json:"template_version_preset_id"`
+}
+
 type WorkspaceModule struct {
 	ID         uuid.UUID           `db:"id" json:"id"`
 	JobID      uuid.UUID           `db:"job_id" json:"job_id"`
@@ -3515,6 +3540,47 @@ type WorkspaceModule struct {
 	Version    string              `db:"version" json:"version"`
 	Key        string              `db:"key" json:"key"`
 	CreatedAt  time.Time           `db:"created_at" json:"created_at"`
+}
+
+type WorkspacePrebuild struct {
+	ID                uuid.UUID                        `db:"id" json:"id"`
+	CreatedAt         time.Time                        `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time                        `db:"updated_at" json:"updated_at"`
+	OwnerID           uuid.UUID                        `db:"owner_id" json:"owner_id"`
+	OrganizationID    uuid.UUID                        `db:"organization_id" json:"organization_id"`
+	TemplateID        uuid.UUID                        `db:"template_id" json:"template_id"`
+	Deleted           bool                             `db:"deleted" json:"deleted"`
+	Name              string                           `db:"name" json:"name"`
+	AutostartSchedule sql.NullString                   `db:"autostart_schedule" json:"autostart_schedule"`
+	Ttl               sql.NullInt64                    `db:"ttl" json:"ttl"`
+	LastUsedAt        time.Time                        `db:"last_used_at" json:"last_used_at"`
+	DormantAt         sql.NullTime                     `db:"dormant_at" json:"dormant_at"`
+	DeletingAt        sql.NullTime                     `db:"deleting_at" json:"deleting_at"`
+	AutomaticUpdates  AutomaticUpdates                 `db:"automatic_updates" json:"automatic_updates"`
+	Favorite          bool                             `db:"favorite" json:"favorite"`
+	NextStartAt       sql.NullTime                     `db:"next_start_at" json:"next_start_at"`
+	AgentID           uuid.NullUUID                    `db:"agent_id" json:"agent_id"`
+	LifecycleState    NullWorkspaceAgentLifecycleState `db:"lifecycle_state" json:"lifecycle_state"`
+	ReadyAt           sql.NullTime                     `db:"ready_at" json:"ready_at"`
+	CurrentPresetID   uuid.NullUUID                    `db:"current_preset_id" json:"current_preset_id"`
+}
+
+type WorkspacePrebuildBuild struct {
+	ID                      uuid.UUID           `db:"id" json:"id"`
+	CreatedAt               time.Time           `db:"created_at" json:"created_at"`
+	UpdatedAt               time.Time           `db:"updated_at" json:"updated_at"`
+	WorkspaceID             uuid.UUID           `db:"workspace_id" json:"workspace_id"`
+	TemplateVersionID       uuid.UUID           `db:"template_version_id" json:"template_version_id"`
+	BuildNumber             int32               `db:"build_number" json:"build_number"`
+	Transition              WorkspaceTransition `db:"transition" json:"transition"`
+	InitiatorID             uuid.UUID           `db:"initiator_id" json:"initiator_id"`
+	ProvisionerState        []byte              `db:"provisioner_state" json:"provisioner_state"`
+	JobID                   uuid.UUID           `db:"job_id" json:"job_id"`
+	Deadline                time.Time           `db:"deadline" json:"deadline"`
+	Reason                  BuildReason         `db:"reason" json:"reason"`
+	DailyCost               int32               `db:"daily_cost" json:"daily_cost"`
+	MaxDeadline             time.Time           `db:"max_deadline" json:"max_deadline"`
+	TemplateVersionPresetID uuid.NullUUID       `db:"template_version_preset_id" json:"template_version_preset_id"`
 }
 
 type WorkspaceProxy struct {
