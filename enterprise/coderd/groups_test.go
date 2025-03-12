@@ -1,11 +1,13 @@
 package coderd_test
 
 import (
-	"github.com/coder/coder/v2/enterprise/coderd/prebuilds"
 	"net/http"
 	"sort"
 	"testing"
 	"time"
+
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/enterprise/coderd/prebuilds"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -822,6 +824,11 @@ func TestGroup(t *testing.T) {
 	t.Run("everyoneGroupReturnsEmpty", func(t *testing.T) {
 		// TODO (sasswart): this test seems to have drifted from its original intention. evaluate and remove/fix
 		t.Parallel()
+
+		// TODO: we should not be returning the prebuilds user in Group, and this is not returned in dbmem.
+		if !dbtestutil.WillUsePostgres() {
+			t.Skip("This test requires postgres")
+		}
 
 		client, user := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
