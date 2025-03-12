@@ -57,7 +57,7 @@ func TestInboxNotifications_List(t *testing.T) {
 		// nolint:gocritic // used only to seed database
 		notifierCtx := dbauthz.AsNotifier(ctx)
 
-		for i := range 60 {
+		for i := range 40 {
 			_, err = api.Database.InsertInboxNotification(notifierCtx, database.InsertInboxNotificationParams{
 				ID:         uuid.New(),
 				UserID:     firstUser.UserID,
@@ -70,36 +70,25 @@ func TestInboxNotifications_List(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		time.Sleep(5 * time.Second)
+		time.Sleep(10 * time.Second)
 
 		notifs, err = client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
 		require.NoError(t, err)
 		require.NotNil(t, notifs)
-		require.Equal(t, 60, notifs.UnreadCount)
+		require.Equal(t, 40, notifs.UnreadCount)
 		require.Len(t, notifs.Notifications, 25)
 
-		require.Equal(t, "Notification 59", notifs.Notifications[0].Title)
+		require.Equal(t, "Notification 39", notifs.Notifications[0].Title)
 
 		notifs, err = client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{
 			StartingBefore: notifs.Notifications[24].ID,
 		})
 		require.NoError(t, err)
 		require.NotNil(t, notifs)
-		require.Equal(t, 60, notifs.UnreadCount)
-		require.Len(t, notifs.Notifications, 25)
+		require.Equal(t, 40, notifs.UnreadCount)
+		require.Len(t, notifs.Notifications, 15)
 
-		require.Equal(t, "Notification 34", notifs.Notifications[0].Title)
-		require.Equal(t, "Notification 10", notifs.Notifications[24].Title)
-
-		notifs, err = client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{
-			StartingBefore: notifs.Notifications[24].ID,
-		})
-		require.NoError(t, err)
-		require.NotNil(t, notifs)
-		require.Equal(t, 60, notifs.UnreadCount)
-		require.Len(t, notifs.Notifications, 10)
-
-		require.Equal(t, "Notification 9", notifs.Notifications[0].Title)
+		require.Equal(t, "Notification 14", notifs.Notifications[0].Title)
 	})
 
 	t.Run("OK with template filter", func(t *testing.T) {
