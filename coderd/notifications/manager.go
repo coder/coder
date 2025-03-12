@@ -14,6 +14,7 @@ import (
 	"github.com/coder/quartz"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -75,8 +76,7 @@ func WithTestClock(clock quartz.Clock) ManagerOption {
 //
 // helpers is a map of template helpers which are used to customize notification messages to use global settings like
 // access URL etc.
-func NewManager(cfg codersdk.NotificationsConfig, store Store, helpers template.FuncMap, metrics *Metrics, log slog.Logger, opts ...ManagerOption) (*Manager, error) {
-	// TODO(dannyk): add the ability to use multiple notification methods.
+func NewManager(cfg codersdk.NotificationsConfig, store Store, ps pubsub.Pubsub, helpers template.FuncMap, metrics *Metrics, log slog.Logger, opts ...ManagerOption) (*Manager, error) { // TODO(dannyk): add the ability to use multiple notification methods.
 	var method database.NotificationMethod
 	if err := method.Scan(cfg.Method.String()); err != nil {
 		return nil, xerrors.Errorf("notification method %q is invalid", cfg.Method)
@@ -109,7 +109,7 @@ func NewManager(cfg codersdk.NotificationsConfig, store Store, helpers template.
 		stop: make(chan any),
 		done: make(chan any),
 
-		handlers: defaultHandlers(cfg, log, store),
+		handlers: defaultHandlers(cfg, log, store, ps),
 		helpers:  helpers,
 
 		clock: quartz.NewReal(),
@@ -121,11 +121,11 @@ func NewManager(cfg codersdk.NotificationsConfig, store Store, helpers template.
 }
 
 // defaultHandlers builds a set of known handlers; panics if any error occurs as these handlers should be valid at compile time.
-func defaultHandlers(cfg codersdk.NotificationsConfig, log slog.Logger, store Store) map[database.NotificationMethod]Handler {
+func defaultHandlers(cfg codersdk.NotificationsConfig, log slog.Logger, store Store, ps pubsub.Pubsub) map[database.NotificationMethod]Handler {
 	return map[database.NotificationMethod]Handler{
 		database.NotificationMethodSmtp:    dispatch.NewSMTPHandler(cfg.SMTP, log.Named("dispatcher.smtp")),
 		database.NotificationMethodWebhook: dispatch.NewWebhookHandler(cfg.Webhook, log.Named("dispatcher.webhook")),
-		database.NotificationMethodInbox:   dispatch.NewInboxHandler(log.Named("dispatcher.inbox"), store),
+		database.NotificationMethodInbox:   dispatch.NewInboxHandler(log.Named("dispatcher.inbox"), store, ps),
 	}
 }
 
