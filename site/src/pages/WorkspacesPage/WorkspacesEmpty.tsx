@@ -86,12 +86,13 @@ export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
 									</h4>
 
 									<p
-										className="text-sm text-gray-600 leading-[1.4] m-0 pt-1 break-words"
-
 										// We've had users plug URLs directly into the
 										// descriptions, when those URLS have no hyphens or other
 										// easy semantic breakpoints. Need to set this to ensure
 										// those URLs don't break outside their containing boxes
+										className="text-sm text-gray-600 leading-[1.4] m-0 pt-1 break-words"
+
+
 									>
 										{t.description}
 									</p>
