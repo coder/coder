@@ -145,26 +145,7 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) error {
 
 	logger.Debug(ctx, "starting reconciliation")
 
-	// This tx holds a global lock, which prevents any other coderd replica from starting a reconciliation and
-	// possibly getting an inconsistent view of the state.
-	//
-	// The lock MUST be held until ALL modifications have been effected.
-	//
-	// It is run with RepeatableRead isolation, so it's effectively snapshotting the data at the start of the tx.
-	//
-	// This is a read-only tx, so returning an error (i.e. causing a rollback) has no impact.
-	err := c.store.InTx(func(db database.Store) error {
-		start := c.clock.Now()
-
-		// TODO: use TryAcquireLock here and bail out early.
-		err := db.AcquireLock(ctx, database.LockIDReconcileTemplatePrebuilds)
-		if err != nil {
-			logger.Warn(ctx, "failed to acquire top-level reconciliation lock; likely running on another coderd replica", slog.Error(err))
-			return nil
-		}
-
-		logger.Debug(ctx, "acquired top-level reconciliation lock", slog.F("acquire_wait_secs", fmt.Sprintf("%.4f", c.clock.Since(start).Seconds())))
-
+	err := c.WithReconciliationLock(ctx, logger, func(ctx context.Context, db database.Store) error {
 		state, err := c.SnapshotState(ctx, db)
 		if err != nil {
 			return xerrors.Errorf("determine current state: %w", err)
@@ -209,16 +190,41 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) error {
 		}
 
 		return eg.Wait()
-	}, &database.TxOptions{
-		Isolation:    sql.LevelRepeatableRead,
-		ReadOnly:     true,
-		TxIdentifier: "template_prebuilds",
 	})
 	if err != nil {
 		logger.Error(ctx, "failed to reconcile", slog.Error(err))
 	}
 
 	return err
+}
+
+func (c *StoreReconciler) WithReconciliationLock(ctx context.Context, logger slog.Logger, fn func(ctx context.Context, db database.Store) error) error {
+	// This tx holds a global lock, which prevents any other coderd replica from starting a reconciliation and
+	// possibly getting an inconsistent view of the state.
+	//
+	// The lock MUST be held until ALL modifications have been effected.
+	//
+	// It is run with RepeatableRead isolation, so it's effectively snapshotting the data at the start of the tx.
+	//
+	// This is a read-only tx, so returning an error (i.e. causing a rollback) has no impact.
+	return c.store.InTx(func(db database.Store) error {
+		start := c.clock.Now()
+
+		// TODO: use TryAcquireLock here and bail out early.
+		err := db.AcquireLock(ctx, database.LockIDReconcileTemplatePrebuilds)
+		if err != nil {
+			logger.Warn(ctx, "failed to acquire top-level reconciliation lock; likely running on another coderd replica", slog.Error(err))
+			return nil
+		}
+
+		logger.Debug(ctx, "acquired top-level reconciliation lock", slog.F("acquire_wait_secs", fmt.Sprintf("%.4f", c.clock.Since(start).Seconds())))
+
+		return fn(ctx, db)
+	}, &database.TxOptions{
+		Isolation:    sql.LevelRepeatableRead,
+		ReadOnly:     true,
+		TxIdentifier: "template_prebuilds",
+	})
 }
 
 // SnapshotState determines the current state of prebuilds & the presets which define them.

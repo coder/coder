@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -27,12 +28,12 @@ import (
 )
 
 func TestNoReconciliationActionsIfNoPresets(t *testing.T) {
+	// Scenario: No reconciliation actions are taken if there are no presets
+	t.Parallel()
+
 	if !dbtestutil.WillUsePostgres() {
 		t.Skip("This test requires postgres")
 	}
-
-	// Scenario: No reconciliation actions are taken if there are no presets
-	t.Parallel()
 
 	clock := quartz.NewMock(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -72,12 +73,12 @@ func TestNoReconciliationActionsIfNoPresets(t *testing.T) {
 }
 
 func TestNoReconciliationActionsIfNoPrebuilds(t *testing.T) {
+	// Scenario: No reconciliation actions are taken if there are no prebuilds
+	t.Parallel()
+
 	if !dbtestutil.WillUsePostgres() {
 		t.Skip("This test requires postgres")
 	}
-
-	// Scenario: No reconciliation actions are taken if there are no prebuilds
-	t.Parallel()
 
 	clock := quartz.NewMock(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -483,6 +484,46 @@ func TestFailedBuildBackoff(t *testing.T) {
 	require.EqualValues(t, 0, actions.Create)
 	require.EqualValues(t, 3, presetState.Backoff.NumFailed)
 	require.EqualValues(t, backoffInterval*time.Duration(presetState.Backoff.NumFailed), clock.Until(actions.BackoffUntil).Truncate(backoffInterval))
+}
+
+func TestReconciliationLock(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres")
+	}
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	db, ps := dbtestutil.NewDB(t)
+
+	wg := sync.WaitGroup{}
+	mutex := sync.Mutex{}
+	for i := 0; i < 5; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			reconciler := prebuilds.NewStoreReconciler(
+				db,
+				ps,
+				codersdk.PrebuildsConfig{},
+				slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug),
+				quartz.NewMock(t),
+			)
+			reconciler.WithReconciliationLock(ctx, logger, func(_ context.Context, _ database.Store) error {
+				lockObtained := mutex.TryLock()
+				// As long as the postgres lock is held, this mutex should always be unlocked when we get here.
+				// If this mutex is ever locked at this point, then that means that the postgres lock is not being held while we're
+				// inside WithReconciliationLock, which is meant to hold the lock.
+				require.True(t, lockObtained)
+				// Sleep a bit to give reconcilers more time to contend for the lock
+				time.Sleep(time.Second)
+				defer mutex.Unlock()
+				return nil
+			})
+		}()
+	}
+	wg.Wait()
 }
 
 func setupTestDBTemplate(
