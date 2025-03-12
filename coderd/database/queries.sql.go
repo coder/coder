@@ -4376,12 +4376,9 @@ func (q *sqlQuerier) GetFilteredInboxNotificationsByUserID(ctx context.Context, 
 }
 
 const getInboxNotificationByID = `-- name: GetInboxNotificationByID :one
-
-
 SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at FROM inbox_notifications WHERE id = $1
 `
 
-// (%s IS NULL OR uuid_array @> %s::UUID[]);
 func (q *sqlQuerier) GetInboxNotificationByID(ctx context.Context, id uuid.UUID) (InboxNotification, error) {
 	row := q.db.QueryRowContext(ctx, getInboxNotificationByID, id)
 	var i InboxNotification
