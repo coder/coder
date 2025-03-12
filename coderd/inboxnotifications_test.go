@@ -70,7 +70,7 @@ func TestInboxNotifications_List(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		time.Sleep(1 * time.Second)
+		time.Sleep(5 * time.Second)
 
 		notifs, err = client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
 		require.NoError(t, err)
@@ -139,6 +139,8 @@ func TestInboxNotifications_List(t *testing.T) {
 			require.NoError(t, err)
 		}
 
+		time.Sleep(5 * time.Second)
+
 		notifs, err = client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{
 			Templates: []uuid.UUID{notifications.TemplateWorkspaceOutOfMemory},
 		})
@@ -189,6 +191,8 @@ func TestInboxNotifications_List(t *testing.T) {
 			})
 			require.NoError(t, err)
 		}
+
+		time.Sleep(5 * time.Second)
 
 		notifs, err = client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{
 			Targets: []uuid.UUID{filteredTarget},
@@ -247,6 +251,8 @@ func TestInboxNotifications_List(t *testing.T) {
 			require.NoError(t, err)
 		}
 
+		time.Sleep(5 * time.Second)
+
 		notifs, err = client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{
 			Targets:   []uuid.UUID{filteredTarget},
 			Templates: []uuid.UUID{notifications.TemplateWorkspaceOutOfDisk},
@@ -290,6 +296,8 @@ func TestInboxNotifications_ReadStatus(t *testing.T) {
 		})
 		require.NoError(t, err)
 	}
+
+	time.Sleep(5 * time.Second)
 
 	notifs, err = client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
 	require.NoError(t, err)
