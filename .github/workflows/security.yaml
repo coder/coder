@@ -99,7 +99,7 @@ jobs:
           # version in the comments will differ. This is also defined in
           # ci.yaml.
           set -euxo pipefail
-          cd dogfood/contents
+          cd dogfood/coder
           mkdir -p /usr/local/bin
           mkdir -p /usr/local/include
 

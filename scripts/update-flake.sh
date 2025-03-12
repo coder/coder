@@ -37,6 +37,6 @@ echo "protoc-gen-go version: $PROTOC_GEN_GO_REV"
 PROTOC_GEN_GO_SHA256=$(nix-prefetch-git https://github.com/protocolbuffers/protobuf-go --rev "$PROTOC_GEN_GO_REV" | jq -r .hash)
 sed -i "s#\(sha256 = \"\)[^\"]*#\1${PROTOC_GEN_GO_SHA256}#" ./flake.nix
 
-make dogfood/contents/nix.hash
+make dogfood/coder/nix.hash
 
 echo "Flake updated successfully!"
