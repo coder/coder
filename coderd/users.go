@@ -202,7 +202,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		LoginType:          database.LoginTypePassword,
 		RBACRoles:          []string{rbac.RoleOwner().String()},
 		accountCreatorName: "coder",
-	})
+	}, rw, r)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error creating user.",
@@ -485,7 +485,7 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		CreateUserRequestWithOrgs: req,
 		LoginType:                 loginType,
 		accountCreatorName:        accountCreator.Name,
-	})
+	}, rw, r)
 
 	if dbauthz.IsNotAuthorizedError(err) {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
@@ -1364,7 +1364,7 @@ type CreateUserRequest struct {
 	RBACRoles          []string
 }
 
-func (api *API) CreateUser(ctx context.Context, store database.Store, req CreateUserRequest) (database.User, error) {
+func (api *API) CreateUser(ctx context.Context, store database.Store, req CreateUserRequest, rw http.ResponseWriter, r *http.Request) (database.User, error) {
 	// Ensure the username is valid. It's the caller's responsibility to ensure
 	// the username is valid and unique.
 	if usernameValid := codersdk.NameValid(req.Username); usernameValid != nil {
@@ -1380,8 +1380,6 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 
 	var user database.User
 	err := store.InTx(func(tx database.Store) error {
-		orgRoles := make([]string, 0)
-
 		status := ""
 		if req.UserStatus != nil {
 			status = string(*req.UserStatus)
@@ -1429,13 +1427,21 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 		}
 
 		for _, orgID := range req.OrganizationIDs {
+			aReq, commitAudit := audit.InitRequest[database.AuditableOrganizationMember](rw, &audit.RequestParams{
+				OrganizationID: orgID,
+				Audit:          *api.Auditor.Load(),
+				Log:            api.Logger,
+				Request:        r,
+				Action:         database.AuditActionCreate,
+			})
+			aReq.Old = database.AuditableOrganizationMember{}
+			defer commitAudit()
 			_, err = tx.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
 				OrganizationID: orgID,
 				UserID:         user.ID,
 				CreatedAt:      dbtime.Now(),
 				UpdatedAt:      dbtime.Now(),
-				// By default give them membership to the organization.
-				Roles: orgRoles,
+				Roles:          []string{},
 			})
 			if err != nil {
 				return xerrors.Errorf("create organization member for %q: %w", orgID.String(), err)
