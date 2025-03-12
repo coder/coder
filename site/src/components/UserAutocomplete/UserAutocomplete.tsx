@@ -3,7 +3,10 @@ import Autocomplete from "@mui/material/Autocomplete";
 import CircularProgress from "@mui/material/CircularProgress";
 import TextField from "@mui/material/TextField";
 import { getErrorMessage } from "api/errors";
-import { paginatedOrganizationMembers } from "api/queries/organizations";
+import {
+	organizationMembers,
+	paginatedOrganizationMembers,
+} from "api/queries/organizations";
 import { users } from "api/queries/users";
 import type { OrganizationMemberWithUserData, User } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
@@ -70,13 +73,10 @@ export const MemberAutocomplete: FC<MemberAutocompleteProps> = ({
 }) => {
 	const [filter, setFilter] = useState<string>();
 
-	const searchParams = new URLSearchParams();
-	searchParams.append("limit", "0");
-
-	// Currently this queries all members, as there is no pagination.
-	const membersQuery = usePaginatedQuery({
-		...paginatedOrganizationMembers(organizationId, searchParams),
+	const membersQuery = useQuery({
+		...organizationMembers(organizationId),
 		enabled: filter !== undefined,
+		keepPreviousData: true,
 	});
 	return (
 		<InnerAutocomplete<OrganizationMemberWithUserData>

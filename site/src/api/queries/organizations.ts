@@ -62,10 +62,32 @@ export const organizationMembersKey = (id: string) => [
 	"members",
 ];
 
-export function paginatedOrganizationMembers(
-	organizationName: string,
+/**
+ * Creates a query configuration to fetch all members of an organization.
+ *
+ * Unlike the paginated version, this function sets the `limit` parameter to 0,
+ * which instructs the API to return all organization members in a single request
+ * without pagination.
+ *
+ * @param id - The unique identifier of the organization
+ * @returns A query configuration object for use with React Query
+ *
+ * @see paginatedOrganizationMembers - For fetching members with pagination support
+ */
+export const organizationMembers = (id: string) => {
+	return {
+		queryFn: () => API.getOrganizationPaginatedMembers(id, { limit: 0 }),
+		queryKey: organizationMembersKey(id),
+	};
+};
+
+export const paginatedOrganizationMembers = (
+	id: string,
 	searchParams: URLSearchParams,
-): UsePaginatedQueryOptions<PaginatedMembersResponse, PaginatedMembersRequest> {
+): UsePaginatedQueryOptions<
+	PaginatedMembersResponse,
+	PaginatedMembersRequest
+> => {
 	return {
 		searchParams,
 		queryPayload: ({ limit, offset }) => {
@@ -74,14 +96,10 @@ export function paginatedOrganizationMembers(
 				offset: offset,
 			};
 		},
-		queryKey: ({ payload }) => [
-			...organizationMembersKey(organizationName),
-			payload,
-		],
-		queryFn: ({ payload }) =>
-			API.getOrganizationPaginatedMembers(organizationName, payload),
+		queryKey: ({ payload }) => [...organizationMembersKey(id), payload],
+		queryFn: ({ payload }) => API.getOrganizationPaginatedMembers(id, payload),
 	};
-}
+};
 
 export const addOrganizationMember = (queryClient: QueryClient, id: string) => {
 	return {
