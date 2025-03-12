@@ -1371,14 +1371,6 @@ CREATE TABLE template_version_preset_parameters (
     value text NOT NULL
 );
 
-CREATE TABLE template_version_preset_prebuild_schedules (
-    id uuid NOT NULL,
-    preset_prebuild_id uuid NOT NULL,
-    timezone text NOT NULL,
-    cron_schedule text NOT NULL,
-    desired_instances integer NOT NULL
-);
-
 CREATE TABLE template_version_preset_prebuilds (
     id uuid NOT NULL,
     preset_id uuid NOT NULL,
@@ -2268,9 +2260,6 @@ ALTER TABLE ONLY template_version_parameters
 ALTER TABLE ONLY template_version_preset_parameters
     ADD CONSTRAINT template_version_preset_parameters_pkey PRIMARY KEY (id);
 
-ALTER TABLE ONLY template_version_preset_prebuild_schedules
-    ADD CONSTRAINT template_version_preset_prebuild_schedules_pkey PRIMARY KEY (id);
-
 ALTER TABLE ONLY template_version_preset_prebuilds
     ADD CONSTRAINT template_version_preset_prebuilds_pkey PRIMARY KEY (id);
 
@@ -2772,9 +2761,6 @@ ALTER TABLE ONLY template_version_parameters
 
 ALTER TABLE ONLY template_version_preset_parameters
     ADD CONSTRAINT template_version_preset_paramet_template_version_preset_id_fkey FOREIGN KEY (template_version_preset_id) REFERENCES template_version_presets(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY template_version_preset_prebuild_schedules
-    ADD CONSTRAINT template_version_preset_prebuild_schedu_preset_prebuild_id_fkey FOREIGN KEY (preset_prebuild_id) REFERENCES template_version_preset_prebuilds(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY template_version_preset_prebuilds
     ADD CONSTRAINT template_version_preset_prebuilds_preset_id_fkey FOREIGN KEY (preset_id) REFERENCES template_version_presets(id) ON DELETE CASCADE;
