@@ -311,6 +311,7 @@ func TestContainersHandler(t *testing.T) {
 func TestConvertDockerPort(t *testing.T) {
 	t.Parallel()
 
+	//nolint:paralleltest // variable recapture no longer required
 	for _, tc := range []struct {
 		name          string
 		in            string
@@ -419,6 +420,7 @@ func TestConvertDockerVolume(t *testing.T) {
 func TestConvertDockerInspect(t *testing.T) {
 	t.Parallel()
 
+	//nolint:paralleltest // variable recapture no longer required
 	for _, tt := range []struct {
 		name        string
 		expect      []codersdk.WorkspaceAgentDevcontainer
