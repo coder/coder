@@ -44,13 +44,23 @@ interface OneWayWebSocketApi {
 	close: (closeCode?: number, reason?: string) => void;
 }
 
+type OneWayWebSocketInit = Readonly<{
+	apiRoute: `/${string}`;
+	location?: Location;
+	protocols?: string | string[];
+}>;
+
 // Implementing wrapper around the base WebSocket class instead of doing fancy
 // compile-time type-casts so that we have more runtime assurance that we won't
 // accidentally send a message from the client to the server
 export class OneWayWebSocket implements OneWayWebSocketApi {
 	#socket: WebSocket;
 
-	constructor(url: string | URL, protocols?: string | string[]) {
+	constructor(init: OneWayWebSocketInit) {
+		const { apiRoute, protocols, location = window.location } = init;
+
+		const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+		const url = `${protocol}//${location.host}${apiRoute}`;
 		this.#socket = new WebSocket(url, protocols);
 	}
 
