@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"testing"
@@ -57,20 +58,23 @@ func TestInboxNotifications_List(t *testing.T) {
 		// nolint:gocritic // used only to seed database
 		notifierCtx := dbauthz.AsNotifier(ctx)
 
-		for i := range 40 {
-			_, err = api.Database.InsertInboxNotification(notifierCtx, database.InsertInboxNotificationParams{
-				ID:         uuid.New(),
-				UserID:     firstUser.UserID,
-				TemplateID: notifications.TemplateWorkspaceOutOfMemory,
-				Title:      fmt.Sprintf("Notification %d", i),
-				Actions:    json.RawMessage("[]"),
-				Content:    fmt.Sprintf("Content of the notif %d", i),
-				CreatedAt:  dbtime.Now(),
-			})
-			require.NoError(t, err)
-		}
-
-		time.Sleep(10 * time.Second)
+		api.Database.InTx(func(tx database.Store) error {
+			for i := range 40 {
+				_, err = api.Database.InsertInboxNotification(notifierCtx, database.InsertInboxNotificationParams{
+					ID:         uuid.New(),
+					UserID:     firstUser.UserID,
+					TemplateID: notifications.TemplateWorkspaceOutOfMemory,
+					Title:      fmt.Sprintf("Notification %d", i),
+					Actions:    json.RawMessage("[]"),
+					Content:    fmt.Sprintf("Content of the notif %d", i),
+					CreatedAt:  dbtime.Now(),
+				})
+				require.NoError(t, err)
+			}
+			return nil
+		}, &database.TxOptions{
+			Isolation: sql.LevelReadCommitted,
+		})
 
 		notifs, err = client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
 		require.NoError(t, err)
