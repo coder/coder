@@ -34,10 +34,8 @@ export type OrganizationSettingsValue = Readonly<{
 	organizationPermissions?: OrganizationPermissions;
 }>;
 
-export const useOrganizationSettings = (
-	defaultValues?: OrganizationSettingsValue,
-): OrganizationSettingsValue => {
-	const context = useContext(OrganizationSettingsContext) ?? defaultValues;
+export const useOrganizationSettings = (): OrganizationSettingsValue => {
+	const context = useContext(OrganizationSettingsContext);
 
 	if (!context) {
 		throw new Error(

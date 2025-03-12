@@ -24,16 +24,13 @@ import { pageTitle } from "utils/page";
 import { JobRow } from "./JobRow";
 
 type OrganizationProvisionerJobsPageProps = {
-	defaultOrganizationSettingsValue?: OrganizationSettingsValue;
 	getProvisionerJobs?: typeof API.getProvisionerJobs;
 };
 
 const OrganizationProvisionerJobsPage: FC<
 	OrganizationProvisionerJobsPageProps
-> = ({ defaultOrganizationSettingsValue, getProvisionerJobs }) => {
-	const { organization } = useOrganizationSettings(
-		defaultOrganizationSettingsValue,
-	);
+> = ({ getProvisionerJobs }) => {
+	const { organization } = useOrganizationSettings();
 
 	if (!organization) {
 		return <EmptyState message="Organization not found" />;
