@@ -605,7 +605,7 @@ func TestConvertDockerInspect(t *testing.T) {
 		// nolint:paralleltest // variable recapture no longer required
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			bs, err := os.ReadFile(filepath.Join("testdata", tt.name+".json"))
+			bs, err := os.ReadFile(filepath.Join("testdata", tt.name, "docker_inspect.json"))
 			require.NoError(t, err, "failed to read testdata file")
 			actual, warns, err := convertDockerInspect(string(bs))
 			if len(tt.expectWarns) > 0 {
