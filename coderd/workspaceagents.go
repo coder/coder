@@ -1140,7 +1140,9 @@ func (api *API) workspaceAgentReinit(rw http.ResponseWriter, r *http.Request) {
 					Reason:  agentsdk.ReinitializeReasonPrebuildClaimed,
 				},
 			})
-			log.Warn(ctx, "failed to send SSE response to trigger reinit", slog.Error(err))
+			if err != nil {
+				log.Warn(ctx, "failed to send SSE response to trigger reinit", slog.Error(err))
+			}
 		}
 	}
 }
