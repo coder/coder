@@ -29,6 +29,7 @@ import (
 
 // TestProvisionerJob_MultipleJobsAndProvisioners tests OrganizationProvisionerJob single job endpoint by repeatedly
 // calling it for every jobID and comparing with expected result.
+// nolint:paralleltest
 func TestProvisionerJob_MultipleJobsAndProvisioners(t *testing.T) {
 	t.Parallel()
 
@@ -41,7 +42,6 @@ func TestProvisionerJob_MultipleJobsAndProvisioners(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc // Capture loop variable to avoid data races
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 			now := dbtime.Now()
@@ -159,6 +159,7 @@ func TestProvisionerJob_MultipleJobsAndProvisioners(t *testing.T) {
 
 // TestProvisionerJobs_MultipleJobsAndProvisioners tests OrganizationProvisionerJobs multiple job endpoint by
 // calling it once and comparing with expected result.
+// nolint:paralleltest
 func TestProvisionerJobs_MultipleJobsAndProvisioners(t *testing.T) {
 	t.Parallel()
 
@@ -171,7 +172,6 @@ func TestProvisionerJobs_MultipleJobsAndProvisioners(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc // Capture loop variable to avoid data races
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 			now := dbtime.Now()
