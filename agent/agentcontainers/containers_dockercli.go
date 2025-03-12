@@ -279,16 +279,16 @@ func (dcl *DockerCLILister) List(ctx context.Context) (codersdk.WorkspaceAgentLi
 	// will still contain valid JSON. We will just end up missing
 	// information about the removed container. We could potentially
 	// log this error, but I'm not sure it's worth it.
-	ins, dockerInspectStderr, err := runDockerInspect(ctx, dcl.execer, ids...)
+	dockerInspectStdout, dockerInspectStderr, err := runDockerInspect(ctx, dcl.execer, ids...)
 	if err != nil {
 		return codersdk.WorkspaceAgentListContainersResponse{}, xerrors.Errorf("run docker inspect: %w", err)
 	}
 
-	if dockerInspectStderr != "" {
-		res.Warnings = append(res.Warnings, dockerInspectStderr)
+	if len(dockerInspectStderr) > 0 {
+		res.Warnings = append(res.Warnings, string(dockerInspectStderr))
 	}
 
-	outs, warns, err := convertDockerInspect(ins)
+	outs, warns, err := convertDockerInspect(dockerInspectStdout)
 	if err != nil {
 		return codersdk.WorkspaceAgentListContainersResponse{}, xerrors.Errorf("convert docker inspect output: %w", err)
 	}
@@ -301,19 +301,19 @@ func (dcl *DockerCLILister) List(ctx context.Context) (codersdk.WorkspaceAgentLi
 // runDockerInspect is a helper function that runs `docker inspect` on the given
 // container IDs and returns the parsed output.
 // The stderr output is also returned for logging purposes.
-func runDockerInspect(ctx context.Context, execer agentexec.Execer, ids ...string) (stdout, stderr string, err error) {
+func runDockerInspect(ctx context.Context, execer agentexec.Execer, ids ...string) (stdout, stderr []byte, err error) {
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd := execer.CommandContext(ctx, "docker", append([]string{"inspect"}, ids...)...)
 	cmd.Stdout = &stdoutBuf
 	cmd.Stderr = &stderrBuf
 	err = cmd.Run()
-	stdout = strings.TrimSpace(stdoutBuf.String())
-	stderr = strings.TrimSpace(stderrBuf.String())
+	stdout = bytes.TrimSpace(stdoutBuf.Bytes())
+	stderr = bytes.TrimSpace(stderrBuf.Bytes())
 	if err != nil {
 		return stdout, stderr, err
 	}
 
-	return stdoutBuf.String(), stderr, nil
+	return stdout, stderr, nil
 }
 
 // To avoid a direct dependency on the Docker API, we use the docker CLI
@@ -371,10 +371,10 @@ func (dis dockerInspectState) String() string {
 	return sb.String()
 }
 
-func convertDockerInspect(raw string) ([]codersdk.WorkspaceAgentDevcontainer, []string, error) {
+func convertDockerInspect(raw []byte) ([]codersdk.WorkspaceAgentDevcontainer, []string, error) {
 	var warns []string
 	var ins []dockerInspect
-	if err := json.NewDecoder(strings.NewReader(raw)).Decode(&ins); err != nil {
+	if err := json.NewDecoder(bytes.NewReader(raw)).Decode(&ins); err != nil {
 		return nil, nil, xerrors.Errorf("decode docker inspect output: %w", err)
 	}
 	outs := make([]codersdk.WorkspaceAgentDevcontainer, 0, len(ins))

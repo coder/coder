@@ -607,7 +607,7 @@ func TestConvertDockerInspect(t *testing.T) {
 			t.Parallel()
 			bs, err := os.ReadFile(filepath.Join("testdata", tt.name, "docker_inspect.json"))
 			require.NoError(t, err, "failed to read testdata file")
-			actual, warns, err := convertDockerInspect(string(bs))
+			actual, warns, err := convertDockerInspect(bs)
 			if len(tt.expectWarns) > 0 {
 				assert.Len(t, warns, len(tt.expectWarns), "expected warnings")
 				for _, warn := range tt.expectWarns {
