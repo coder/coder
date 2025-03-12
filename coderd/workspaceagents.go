@@ -1048,15 +1048,13 @@ func (api *API) workspaceAgentPostLogSource(rw http.ResponseWriter, r *http.Requ
 	httpapi.Write(ctx, rw, http.StatusCreated, apiSource)
 }
 
-// TODO @Summary Post workspace agent log source
-// TODO @ID post-workspace-agent-log-source
-// TODO @Security CoderSessionToken
-// TODO @Accept json
-// TODO @Produce json
-// TODO @Tags Agents
-// TODO @Param request body agentsdk.PostLogSourceRequest true "Log source request"
-// TODO @Success 200 {object} codersdk.WorkspaceAgentLogSource
-// TODO @Router /workspaceagents/me/log-source [post]
+// @Summary Get workspace agent reinitialization
+// @ID get-workspace-agent-reinitialization
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Agents
+// @Success 200 {object} agentsdk.ReinitializationResponse
+// @Router /workspaceagents/me/reinit [get]
 func (api *API) workspaceAgentReinit(rw http.ResponseWriter, r *http.Request) {
 	// Allow us to interrupt watch via cancel.
 	ctx, cancel := context.WithCancel(r.Context())

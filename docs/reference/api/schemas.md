@@ -158,6 +158,36 @@
 | `icon`         | string | false    |              |                                                                                                                                                                                                |
 | `id`           | string | false    |              | ID is a unique identifier for the log source. It is scoped to a workspace agent, and can be statically defined inside code to prevent duplicate sources from being created for the same agent. |
 
+## agentsdk.ReinitializationReason
+
+```json
+"prebuild_claimed"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value              |
+|--------------------|
+| `prebuild_claimed` |
+
+## agentsdk.ReinitializationResponse
+
+```json
+{
+  "message": "string",
+  "reason": "prebuild_claimed"
+}
+```
+
+### Properties
+
+| Name      | Type                                                               | Required | Restrictions | Description |
+|-----------|--------------------------------------------------------------------|----------|--------------|-------------|
+| `message` | string                                                             | false    |              |             |
+| `reason`  | [agentsdk.ReinitializationReason](#agentsdkreinitializationreason) | false    |              |             |
+
 ## coderd.SCIMUser
 
 ```json

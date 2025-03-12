@@ -2970,6 +2970,7 @@ Write out the current server config as YAML to stdout.`,
 			Default:     (time.Second * 15).String(),
 			Group:       &deploymentGroupPrebuilds,
 			YAML:        "reconciliation_interval",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
 			Name:        "Reconciliation Backoff Interval",
