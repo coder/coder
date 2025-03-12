@@ -3,16 +3,12 @@ import Autocomplete from "@mui/material/Autocomplete";
 import CircularProgress from "@mui/material/CircularProgress";
 import TextField from "@mui/material/TextField";
 import { getErrorMessage } from "api/errors";
-import {
-	organizationMembers,
-	paginatedOrganizationMembers,
-} from "api/queries/organizations";
+import { organizationMembers } from "api/queries/organizations";
 import { users } from "api/queries/users";
 import type { OrganizationMemberWithUserData, User } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { useDebouncedFunction } from "hooks/debounce";
-import { usePaginatedQuery } from "hooks/usePaginatedQuery";
 import {
 	type ChangeEvent,
 	type ComponentProps,
