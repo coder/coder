@@ -1,6 +1,7 @@
 package coderd_test
 
 import (
+	"github.com/coder/coder/v2/enterprise/coderd/prebuilds"
 	"testing"
 
 	"github.com/google/uuid"
@@ -62,9 +63,9 @@ func TestListMembers(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		members, err := client.OrganizationMembers(ctx, first.OrganizationID)
 		require.NoError(t, err)
-		require.Len(t, members, 2)
+		require.Len(t, members, 3)
 		require.ElementsMatch(t,
-			[]uuid.UUID{first.UserID, user.ID},
+			[]uuid.UUID{first.UserID, user.ID, prebuilds.OwnerID},
 			db2sdk.List(members, onlyIDs))
 	})
 }

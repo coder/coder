@@ -940,7 +940,7 @@ func TestTemplateACL(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Len(t, acl.Groups, 1)
-		require.Len(t, acl.Groups[0].Members, 2)
+		require.Len(t, acl.Groups[0].Members, 3) // orgAdmin + TemplateAdmin + prebuilds user
 		require.Len(t, acl.Users, 0)
 	})
 

@@ -3,6 +3,7 @@ package coderd_test
 import (
 	"bytes"
 	"context"
+	"github.com/coder/coder/v2/enterprise/coderd/prebuilds"
 	"net/http"
 	"slices"
 	"testing"
@@ -360,9 +361,9 @@ func TestCustomOrganizationRole(t *testing.T) {
 		// Verify members have the custom role
 		originalMembers, err := orgAdmin.OrganizationMembers(ctx, first.OrganizationID)
 		require.NoError(t, err)
-		require.Len(t, originalMembers, 5) // 3 members + org admin + owner
+		require.Len(t, originalMembers, 6) // 3 members + org admin + owner + prebuilds user
 		for _, member := range originalMembers {
-			if member.UserID == orgAdminUser.ID || member.UserID == first.UserID {
+			if member.UserID == orgAdminUser.ID || member.UserID == first.UserID || member.UserID == prebuilds.OwnerID {
 				continue
 			}
 
@@ -377,7 +378,7 @@ func TestCustomOrganizationRole(t *testing.T) {
 		// Verify the role was removed from all members
 		members, err := orgAdmin.OrganizationMembers(ctx, first.OrganizationID)
 		require.NoError(t, err)
-		require.Len(t, members, 5) // 3 members + org admin + owner
+		require.Len(t, members, 6) // 3 members + org admin + owner + prebuilds user
 		for _, member := range members {
 			require.False(t, slices.ContainsFunc(member.Roles, func(role codersdk.SlimRole) bool {
 				return role.Name == customRoleIdentifier.Name

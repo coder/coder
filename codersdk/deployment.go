@@ -2981,6 +2981,7 @@ Write out the current server config as YAML to stdout.`,
 			Default:     (time.Second * 15).String(),
 			Group:       &deploymentGroupPrebuilds,
 			YAML:        "reconciliation_backoff_interval",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 			Hidden:      true,
 		},
 		{
@@ -2992,6 +2993,7 @@ Write out the current server config as YAML to stdout.`,
 			Default:     (time.Hour).String(), // TODO: use https://pkg.go.dev/github.com/jackc/pgtype@v1.12.0#Interval
 			Group:       &deploymentGroupPrebuilds,
 			YAML:        "reconciliation_backoff_lookback_period",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 			Hidden:      true,
 		},
 	}
