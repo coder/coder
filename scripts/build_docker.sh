@@ -136,12 +136,10 @@ fi
 
 log "--- Building Docker image for $arch ($image_tag)"
 
-docker buildx build \
+docker build \
 	--platform "$arch" \
 	--build-arg "BASE_IMAGE=$base_image" \
 	--build-arg "CODER_VERSION=$version" \
-	--provenance true \
-	--sbom true \
 	--no-cache \
 	--tag "$image_tag" \
 	-f Dockerfile \
@@ -153,6 +151,19 @@ rm -rf "$temp_dir"
 if [[ "$push" == 1 ]]; then
 	log "--- Pushing Docker image for $arch ($image_tag)"
 	docker push "$image_tag" 1>&2
+fi
+
+log "--- Generating SBOM for Docker image ($image_tag)"
+syft "$image_tag" -o spdx-json >"${image_tag}.spdx.json"
+
+if [[ "$push" == 1 ]]; then
+	log "--- Attesting SBOM to Docker image for $arch ($image_tag)"
+	COSIGN_EXPERIMENTAL=1 cosign clean "$image_tag"
+
+	COSIGN_EXPERIMENTAL=1 cosign attest --type spdxjson \
+		--predicate "${image_tag}.spdx.json" \
+		--yes \
+		"$image_tag"
 fi
 
 echo "$image_tag"

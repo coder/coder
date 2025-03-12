@@ -113,6 +113,7 @@
             bat
             cairo
             curl
+            cosign
             delve
             dive
             drpc.defaultPackage.${system}
@@ -161,6 +162,7 @@
             shellcheck
             (pinnedPkgs.shfmt)
             sqlc
+            syft
             unstablePkgs.terraform
             typos
             which
