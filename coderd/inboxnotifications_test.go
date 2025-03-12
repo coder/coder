@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -68,6 +69,8 @@ func TestInboxNotifications_List(t *testing.T) {
 			})
 			require.NoError(t, err)
 		}
+
+		time.Sleep(1 * time.Second)
 
 		notifs, err = client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
 		require.NoError(t, err)
