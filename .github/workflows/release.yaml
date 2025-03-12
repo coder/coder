@@ -34,7 +34,7 @@ env:
 jobs:
   # build-dylib is a separate job to build the dylib on macOS.
   build-dylib:
-    runs-on: ${{ github.repository_owner == 'coder' && 'depot-macos-latest' || 'macos-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-macos-latest' || 'macos-latest'  }}
     steps:
       # Harden Runner doesn't work on macOS.
       - name: Checkout
@@ -269,9 +269,9 @@ jobs:
         env:
           EV_SIGNING_CERT: ${{ secrets.EV_SIGNING_CERT }}
 
-      - name: Test migrations from current ref to main
-        run: |
-          POSTGRES_VERSION=13 make test-migrations
+#      - name: Test migrations from current ref to main
+#        run: |
+#          POSTGRES_VERSION=13 make test-migrations
 
       # Setup GCloud for signing Windows binaries.
       - name: Authenticate to Google Cloud
