@@ -1043,7 +1043,7 @@ func (a *agent) run() (retErr error) {
 
 	err = connMan.wait()
 	if err != nil {
-		a.logger.Error(context.Background(), "connection manager errored", slog.Error(err))
+		a.logger.Warn(context.Background(), "connection manager errored", slog.Error(err))
 	}
 	return err
 }
