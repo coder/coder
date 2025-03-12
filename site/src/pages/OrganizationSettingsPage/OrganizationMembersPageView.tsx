@@ -24,6 +24,7 @@ import {
 	Table,
 	TableBody,
 	TableCell,
+	TableHead,
 	TableHeader,
 	TableRow,
 } from "components/Table/Table";
@@ -95,20 +96,20 @@ export const OrganizationMembersPageView: FC<
 				<Table>
 					<TableHeader>
 						<TableRow>
-							<TableCell width="33%">User</TableCell>
-							<TableCell width="33%">
+							<TableHead className="w-2/6">User</TableHead>
+							<TableHead className="w-2/6">
 								<Stack direction="row" spacing={1} alignItems="center">
 									<span>Roles</span>
 									<TableColumnHelpTooltip variant="roles" />
 								</Stack>
-							</TableCell>
-							<TableCell width="33%">
+							</TableHead>
+							<TableHead className="w-2/6">
 								<Stack direction="row" spacing={1} alignItems="center">
 									<span>Groups</span>
 									<TableColumnHelpTooltip variant="groups" />
 								</Stack>
-							</TableCell>
-							<TableCell width="1%" />
+							</TableHead>
+							<TableHead className="w-auto" />
 						</TableRow>
 					</TableHeader>
 					<TableBody>
