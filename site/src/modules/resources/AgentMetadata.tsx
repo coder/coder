@@ -64,35 +64,38 @@ export const AgentMetadata: FC<AgentMetadataProps> = ({
 		}
 
 		let timeoutId: number | undefined = undefined;
-		let latestSocket: OneWayWebSocket | undefined = undefined;
+		let activeSocket: OneWayWebSocket | undefined = undefined;
 		let retries = 0;
 
 		const createNewConnection = () => {
 			const socket = watchAgentMetadata(agent.id);
-			latestSocket = socket;
+			activeSocket = socket;
 
 			socket.addEventListener("error", () => {
 				setActiveMetadata(undefined);
 				window.clearTimeout(timeoutId);
 
+				// The error event is supposed to fire when an error happens
+				// with the connection itself, which implies that the connection
+				// would auto-close. Couldn't find a definitive answer on MDN,
+				// though, so closing it manually just to be safe
+				socket.close();
+				activeSocket = undefined;
+
 				retries++;
-				if (retries < maxSocketErrorRetryCount) {
+				if (retries >= maxSocketErrorRetryCount) {
 					displayError(
-						"Unexpected disconnect while watching Metadata changes. Creating new connection...",
+						"Unexpected disconnect while watching Metadata changes. Please try refreshing the page.",
 					);
-					timeoutId = window.setTimeout(() => {
-						createNewConnection();
-					}, 3_000);
 					return;
 				}
 
 				displayError(
-					"Unexpected disconnect while watching Metadata changes. Cannot connect to server",
+					"Unexpected disconnect while watching Metadata changes. Creating new connection...",
 				);
-				// The socket should already be closed by this point, but doing
-				// this just to be thorough
-				socket.close();
-				latestSocket = undefined;
+				timeoutId = window.setTimeout(() => {
+					createNewConnection();
+				}, 3_000);
 			});
 
 			socket.addEventListener("message", (e) => {
@@ -112,7 +115,7 @@ export const AgentMetadata: FC<AgentMetadataProps> = ({
 		createNewConnection();
 		return () => {
 			window.clearTimeout(timeoutId);
-			latestSocket?.close();
+			activeSocket?.close();
 		};
 	}, [agent.id, storybookMetadata]);
 
