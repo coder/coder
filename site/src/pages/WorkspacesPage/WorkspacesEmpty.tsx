@@ -26,9 +26,8 @@ export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
 		"A workspace is your personal, customizable development environment.";
 	const defaultImage = (
 		<div className="max-w-[50%] h-[272px] overflow-hidden mt-12 opacity-85">
-
-		<img src="/featured/workspaces.webp" alt="" className="max-w-full"/>
-	</div>
+			<img src="/featured/workspaces.webp" alt="" className="max-w-full" />
+		</div>
 	);
 
 	if (isUsingFilter) {
@@ -46,7 +45,6 @@ export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
 					</Button>
 				}
 				className="pb-0"
-
 				image={defaultImage}
 			/>
 		);
@@ -87,13 +85,14 @@ export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
 										{t.display_name || t.name}
 									</h4>
 
-									<p className="text-sm text-gray-600 leading-[1.4] m-0 pt-1 break-words"
+									<p
+										className="text-sm text-gray-600 leading-[1.4] m-0 pt-1 break-words"
 
-											// We've had users plug URLs directly into the
-											// descriptions, when those URLS have no hyphens or other
-											// easy semantic breakpoints. Need to set this to ensure
-											// those URLs don't break outside their containing boxes
-										>
+										// We've had users plug URLs directly into the
+										// descriptions, when those URLS have no hyphens or other
+										// easy semantic breakpoints. Need to set this to ensure
+										// those URLs don't break outside their containing boxes
+									>
 										{t.description}
 									</p>
 								</div>
