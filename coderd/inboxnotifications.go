@@ -164,7 +164,7 @@ func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request)
 		case notif := <-notificationCh:
 			unreadCount, err := api.Database.CountUnreadInboxNotificationsByUserID(ctx, apikey.UserID)
 			if err != nil {
-				api.Logger.Error(ctx, "count unread inbox notifications", slog.Error(err))
+				api.Logger.Error(ctx, "failed to count unread inbox notifications", slog.Error(err))
 				return
 			}
 			if err := encoder.Encode(codersdk.GetInboxNotificationResponse{
@@ -261,7 +261,7 @@ func (api *API) listInboxNotifications(rw http.ResponseWriter, r *http.Request) 
 		lastNotif, err := api.Database.GetInboxNotificationByID(ctx, lastNotifID)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Invalid starting before.",
+				Message: "Failed to get notification by id.",
 			})
 			return
 		}
@@ -276,16 +276,16 @@ func (api *API) listInboxNotifications(rw http.ResponseWriter, r *http.Request) 
 		CreatedAtOpt: startingBefore,
 	})
 	if err != nil {
-		api.Logger.Error(ctx, "get filtered inbox notifications", slog.Error(err))
+		api.Logger.Error(ctx, "failed to get filtered inbox notifications", slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get inbox notifications.",
+			Message: "Failed to get filtered inbox notifications.",
 		})
 		return
 	}
 
 	unreadCount, err := api.Database.CountUnreadInboxNotificationsByUserID(ctx, apikey.UserID)
 	if err != nil {
-		api.Logger.Error(ctx, "count unread inbox notifications", slog.Error(err))
+		api.Logger.Error(ctx, "failed to count unread inbox notifications", slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to count unread inbox notifications.",
 		})
@@ -351,7 +351,7 @@ func (api *API) updateInboxNotificationReadStatus(rw http.ResponseWriter, r *htt
 
 	parsedNotifID, err := uuid.Parse(notifID)
 	if err != nil {
-		api.Logger.Error(ctx, "failed to parse uuid", slog.Error(err))
+		api.Logger.Error(ctx, "failed to parse notification uuid", slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to parse notification uuid.",
 		})
@@ -372,27 +372,27 @@ func (api *API) updateInboxNotificationReadStatus(rw http.ResponseWriter, r *htt
 		}(),
 	})
 	if err != nil {
-		api.Logger.Error(ctx, "get filtered inbox notifications", slog.Error(err))
+		api.Logger.Error(ctx, "failed to update inbox notification read status", slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get inbox notifications.",
+			Message: "Failed to update inbox notification read status.",
 		})
 		return
 	}
 
 	unreadCount, err := api.Database.CountUnreadInboxNotificationsByUserID(ctx, apikey.UserID)
 	if err != nil {
-		api.Logger.Error(ctx, "count unread inbox notifications", slog.Error(err))
+		api.Logger.Error(ctx, "failed to call count unread inbox notifications", slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to count unread inbox notifications.",
+			Message: "Failed to call count unread inbox notifications.",
 		})
 		return
 	}
 
 	updatedNotification, err := api.Database.GetInboxNotificationByID(ctx, parsedNotifID)
 	if err != nil {
-		api.Logger.Error(ctx, "count unread inbox notifications", slog.Error(err))
+		api.Logger.Error(ctx, "failed to get notification by id", slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to count unread inbox notifications.",
+			Message: "Failed to get notification by id.",
 		})
 		return
 	}
