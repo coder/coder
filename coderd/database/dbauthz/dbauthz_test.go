@@ -4694,13 +4694,13 @@ func (s *MethodTestSuite) TestPrebuilds() {
 			CreatedBy:      user.ID,
 		})
 		preset := dbgen.Preset(s.T(), db, database.InsertPresetParams{
-			Name: coderdtest.RandomName(s.T()),
+			Name:              coderdtest.RandomName(s.T()),
 			TemplateVersionID: templateVersion.ID,
 		})
 		check.Args(database.InsertPresetPrebuildParams{
-			ID:                  uuid.New(),
-			PresetID:            preset.ID,
-			DesiredInstances:    1,
+			ID:               uuid.New(),
+			PresetID:         preset.ID,
+			DesiredInstances: 1,
 		}).
 			Asserts(rbac.ResourceSystem, policy.ActionCreate).
 			ErrorsWithInMemDB(dbmem.ErrUnimplemented)

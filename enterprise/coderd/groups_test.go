@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
-	"github.com/coder/coder/v2/enterprise/coderd/prebuilds"
+	"github.com/coder/coder/v2/coderd/prebuilds"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
