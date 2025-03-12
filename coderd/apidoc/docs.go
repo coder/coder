@@ -7986,9 +7986,6 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
-                "consumes": [
-                    "application/json"
-                ],
                 "produces": [
                     "application/json"
                 ],
@@ -7996,7 +7993,7 @@ const docTemplate = `{
                     "Agents"
                 ],
                 "summary": "Get workspace agent reinitialization",
-                "operationId": "get-workspace-agent-reinit",
+                "operationId": "get-workspace-agent-reinitialization",
                 "responses": {
                     "200": {
                         "description": "OK",
