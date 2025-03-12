@@ -3,12 +3,6 @@ import AddIcon from "@mui/icons-material/AddOutlined";
 import AddOutlined from "@mui/icons-material/AddOutlined";
 import Button from "@mui/material/Button";
 import Skeleton from "@mui/material/Skeleton";
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
 import type { AssignableRoles, Role } from "api/typesGenerated";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
@@ -21,6 +15,14 @@ import {
 } from "components/MoreMenu/MoreMenu";
 import { Paywall } from "components/Paywall/Paywall";
 import { Stack } from "components/Stack/Stack";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "components/Table/Table";
 import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
@@ -123,68 +125,66 @@ const RoleTable: FC<RoleTableProps> = ({
 	const isLoading = roles === undefined;
 	const isEmpty = Boolean(roles && roles.length === 0);
 	return (
-		<TableContainer>
-			<Table>
-				<TableHead>
-					<TableRow>
-						<TableCell width="40%">Name</TableCell>
-						<TableCell width="59%">Permissions</TableCell>
-						<TableCell width="1%" />
-					</TableRow>
-				</TableHead>
-				<TableBody>
-					<ChooseOne>
-						<Cond condition={isLoading}>
-							<TableLoader />
-						</Cond>
+		<Table>
+			<TableHeader>
+				<TableRow>
+					<TableHead className="w-2/5">Name</TableHead>
+					<TableHead className="w-3/5">Permissions</TableHead>
+					<TableHead className="w-auto" />
+				</TableRow>
+			</TableHeader>
+			<TableBody>
+				<ChooseOne>
+					<Cond condition={isLoading}>
+						<TableLoader />
+					</Cond>
 
-						<Cond condition={isEmpty}>
-							<TableRow>
-								<TableCell colSpan={999}>
-									<EmptyState
-										message="No custom roles yet"
-										description={
-											canCreateOrgRole && isCustomRolesEnabled
-												? "Create your first custom role"
-												: !isCustomRolesEnabled
-													? "Upgrade to a premium license to create a custom role"
-													: "You don't have permission to create a custom role"
-										}
-										cta={
-											canCreateOrgRole &&
-											isCustomRolesEnabled && (
-												<Button
-													component={RouterLink}
-													to="create"
-													startIcon={<AddOutlined />}
-													variant="contained"
-												>
-													Create custom role
-												</Button>
-											)
-										}
-									/>
-								</TableCell>
-							</TableRow>
-						</Cond>
+					<Cond condition={isEmpty}>
+						<TableRow>
+							<TableCell colSpan={999}>
+								<EmptyState
+									message="No custom roles yet"
+									description={
+										canCreateOrgRole && isCustomRolesEnabled
+											? "Create your first custom role"
+											: !isCustomRolesEnabled
+												? "Upgrade to a premium license to create a custom role"
+												: "You don't have permission to create a custom role"
+									}
+									cta={
+										canCreateOrgRole &&
+										isCustomRolesEnabled && (
+											<Button
+												component={RouterLink}
+												to="create"
+												startIcon={<AddOutlined />}
+												variant="contained"
+											>
+												Create custom role
+											</Button>
+										)
+									}
+								/>
+							</TableCell>
+						</TableRow>
+					</Cond>
 
-						<Cond>
-							{roles
-								?.sort((a, b) => a.name.localeCompare(b.name))
-								.map((role) => (
-									<RoleRow
-										key={role.name}
-										role={role}
-										canUpdateOrgRole={canUpdateOrgRole}
-										canDeleteOrgRole={canDeleteOrgRole}
-										onDelete={() => onDeleteRole(role)}
-									/>
-								))}
-						</Cond>
-					</ChooseOne>
-				</TableBody>
-			</Table>
-		</TableContainer>
+					<Cond>
+						{roles
+							?.sort((a, b) => a.name.localeCompare(b.name))
+							.map((role) => (
+								<RoleRow
+									key={role.name}
+									role={role}
+									canUpdateOrgRole={canUpdateOrgRole}
+									canDeleteOrgRole={canDeleteOrgRole}
+									onDelete={() => onDeleteRole(role)}
+								/>
+							))}
+					</Cond>
+				</ChooseOne>
+			</TableBody>
+		</Table>
 	);
 };
 
