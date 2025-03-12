@@ -91,8 +91,6 @@ export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
 										// easy semantic breakpoints. Need to set this to ensure
 										// those URLs don't break outside their containing boxes
 										className="text-sm text-gray-600 leading-[1.4] m-0 pt-1 break-words"
-
-
 									>
 										{t.description}
 									</p>
