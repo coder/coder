@@ -107,7 +107,9 @@ const getMissingParameters = (
  * @returns An EventSource that emits agent metadata event objects
  * (ServerSentEvent)
  */
-export const watchAgentMetadata = (agentId: string): OneWayWebSocket => {
+export const watchAgentMetadata = (
+	agentId: string,
+): OneWayWebSocket<TypesGen.ServerSentEvent> => {
 	return new OneWayWebSocket({
 		apiRoute: `/api/v2/workspaceagents/${agentId}/watch-metadata-ws`,
 	});
@@ -117,7 +119,9 @@ export const watchAgentMetadata = (agentId: string): OneWayWebSocket => {
  * @returns {EventSource} An EventSource that emits workspace event objects
  * (ServerSentEvent)
  */
-export const watchWorkspace = (workspaceId: string): OneWayWebSocket => {
+export const watchWorkspace = (
+	workspaceId: string,
+): OneWayWebSocket<TypesGen.ServerSentEvent> => {
 	return new OneWayWebSocket({
 		apiRoute: `/api/v2/workspaces/${workspaceId}/watch-ws`,
 	});

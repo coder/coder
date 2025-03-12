@@ -85,15 +85,15 @@ export const WorkspacePage: FC = () => {
 
 		const socket = watchWorkspace(workspaceId);
 		socket.addEventListener("message", (event) => {
-			try {
-				const sse = JSON.parse(event.data);
-				if (sse.type === "data") {
-					updateWorkspaceData(sse.data as Workspace);
-				}
-			} catch {
+			if (event.parseError) {
 				displayError(
 					"Unable to process latest data from the server. Please try refreshing the page.",
 				);
+				return;
+			}
+
+			if (event.parsedMessage.type === "data") {
+				updateWorkspaceData(event.parsedMessage.data as Workspace);
 			}
 		});
 		socket.addEventListener("error", () => {

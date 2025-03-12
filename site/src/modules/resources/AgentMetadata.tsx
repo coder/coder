@@ -64,7 +64,7 @@ export const AgentMetadata: FC<AgentMetadataProps> = ({
 		}
 
 		let timeoutId: number | undefined = undefined;
-		let activeSocket: OneWayWebSocket | undefined = undefined;
+		let activeSocket: OneWayWebSocket<ServerSentEvent> | null = null;
 		let retries = 0;
 
 		const createNewConnection = () => {
@@ -80,7 +80,7 @@ export const AgentMetadata: FC<AgentMetadataProps> = ({
 				// would auto-close. Couldn't find a definitive answer on MDN,
 				// though, so closing it manually just to be safe
 				socket.close();
-				activeSocket = undefined;
+				activeSocket = null;
 
 				retries++;
 				if (retries >= maxSocketErrorRetryCount) {
@@ -99,15 +99,16 @@ export const AgentMetadata: FC<AgentMetadataProps> = ({
 			});
 
 			socket.addEventListener("message", (e) => {
-				try {
-					const payload = JSON.parse(e.data) as ServerSentEvent;
-					if (payload.type === "data") {
-						setActiveMetadata(payload.data as WorkspaceAgentMetadata[]);
-					}
-				} catch {
+				if (e.parseError) {
 					displayError(
 						"Unable to process newest response from server. Please try refreshing the page.",
 					);
+					return;
+				}
+
+				const msg = e.parsedMessage;
+				if (msg.type === "data") {
+					setActiveMetadata(msg.data as WorkspaceAgentMetadata[]);
 				}
 			});
 		};
