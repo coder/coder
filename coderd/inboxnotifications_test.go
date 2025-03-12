@@ -23,6 +23,7 @@ func TestInboxNotifications_List(t *testing.T) {
 
 	t.Run("OK empty", func(t *testing.T) {
 		t.Parallel()
+
 		client, _, _ := coderdtest.NewWithAPI(t, &coderdtest.Options{})
 		_ = coderdtest.CreateFirstUser(t, client)
 
@@ -55,7 +56,7 @@ func TestInboxNotifications_List(t *testing.T) {
 		// nolint:gocritic // used only to seed database
 		notifierCtx := dbauthz.AsNotifier(ctx)
 
-		for i := 0; i < 60; i++ {
+		for i := range 60 {
 			_, err = api.Database.InsertInboxNotification(notifierCtx, database.InsertInboxNotificationParams{
 				ID:         uuid.New(),
 				UserID:     firstUser.UserID,
@@ -116,7 +117,7 @@ func TestInboxNotifications_List(t *testing.T) {
 		// nolint:gocritic // used only to seed database
 		notifierCtx := dbauthz.AsNotifier(ctx)
 
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			_, err = api.Database.InsertInboxNotification(notifierCtx, database.InsertInboxNotificationParams{
 				ID:     uuid.New(),
 				UserID: firstUser.UserID,
@@ -166,7 +167,7 @@ func TestInboxNotifications_List(t *testing.T) {
 
 		filteredTarget := uuid.New()
 
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			_, err = api.Database.InsertInboxNotification(notifierCtx, database.InsertInboxNotificationParams{
 				ID:         uuid.New(),
 				UserID:     firstUser.UserID,
@@ -217,7 +218,7 @@ func TestInboxNotifications_List(t *testing.T) {
 
 		filteredTarget := uuid.New()
 
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			_, err = api.Database.InsertInboxNotification(notifierCtx, database.InsertInboxNotificationParams{
 				ID:     uuid.New(),
 				UserID: firstUser.UserID,
@@ -274,7 +275,7 @@ func TestInboxNotifications_ReadStatus(t *testing.T) {
 	// nolint:gocritic // used only to seed database
 	notifierCtx := dbauthz.AsNotifier(ctx)
 
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		_, err = api.Database.InsertInboxNotification(notifierCtx, database.InsertInboxNotificationParams{
 			ID:         uuid.New(),
 			UserID:     firstUser.UserID,

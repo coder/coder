@@ -4310,8 +4310,8 @@ func (q *sqlQuerier) CountUnreadInboxNotificationsByUserID(ctx context.Context, 
 const getFilteredInboxNotificationsByUserID = `-- name: GetFilteredInboxNotificationsByUserID :many
 SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at FROM inbox_notifications WHERE
 	user_id = $1 AND
-	template_id = ANY($2::UUID[]) AND
-	targets @> COALESCE($3, ARRAY[]::UUID[]) AND
+	(template_id = ANY($2::UUID[]) OR $2 IS NULL) AND
+	($3::UUID[] IS NULL OR targets @> $3::UUID[]) AND
 	($4::inbox_notification_read_status = 'all' OR ($4::inbox_notification_read_status = 'unread' AND read_at IS NULL) OR ($4::inbox_notification_read_status = 'read' AND read_at IS NOT NULL)) AND
 	($5::TIMESTAMPTZ = '0001-01-01 00:00:00Z' OR created_at < $5::TIMESTAMPTZ)
 	ORDER BY created_at DESC
@@ -4376,9 +4376,12 @@ func (q *sqlQuerier) GetFilteredInboxNotificationsByUserID(ctx context.Context, 
 }
 
 const getInboxNotificationByID = `-- name: GetInboxNotificationByID :one
+
+
 SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at FROM inbox_notifications WHERE id = $1
 `
 
+// (%s IS NULL OR uuid_array @> %s::UUID[]);
 func (q *sqlQuerier) GetInboxNotificationByID(ctx context.Context, id uuid.UUID) (InboxNotification, error) {
 	row := q.db.QueryRowContext(ctx, getInboxNotificationByID, id)
 	var i InboxNotification
