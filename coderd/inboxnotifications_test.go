@@ -22,6 +22,13 @@ import (
 func TestInboxNotifications_List(t *testing.T) {
 	t.Parallel()
 
+	// I skip these tests specifically on windows as for now they are flaky - only on Windows.
+	// For now the idea is that the runner takes too long to insert the entries, could be worth
+	// investigating a manual Tx.
+	if runtime.GOOS == "windows" {
+		t.Skip("our runners are randomly taking too long to insert entries")
+	}
+
 	t.Run("OK empty", func(t *testing.T) {
 		t.Parallel()
 
@@ -41,13 +48,6 @@ func TestInboxNotifications_List(t *testing.T) {
 
 	t.Run("OK with pagination", func(t *testing.T) {
 		t.Parallel()
-
-		// I skip these tests specifically on windows as for now they are flaky - only on Windows.
-		// For now the idea is that the runner takes too long to insert the entries, could be worth
-		// investigating a manual Tx.
-		if runtime.GOOS == "windows" {
-			t.Skip("our runners are randomly taking too long to insert entries")
-		}
 
 		client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{})
 		firstUser := coderdtest.CreateFirstUser(t, client)
@@ -256,6 +256,13 @@ func TestInboxNotifications_List(t *testing.T) {
 
 func TestInboxNotifications_ReadStatus(t *testing.T) {
 	t.Parallel()
+
+	// I skip these tests specifically on windows as for now they are flaky - only on Windows.
+	// For now the idea is that the runner takes too long to insert the entries, could be worth
+	// investigating a manual Tx.
+	if runtime.GOOS == "windows" {
+		t.Skip("our runners are randomly taking too long to insert entries")
+	}
 
 	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{})
 	firstUser := coderdtest.CreateFirstUser(t, client)
