@@ -45,11 +45,13 @@ interface AgentMetadataProps {
 	storybookMetadata?: WorkspaceAgentMetadata[];
 }
 
+const maxSocketErrorRetryCount = 3;
+
 export const AgentMetadata: FC<AgentMetadataProps> = ({
 	agent,
 	storybookMetadata,
 }) => {
-	const [metadata, setMetadata] = useState<WorkspaceAgentMetadata[]>();
+	const [activeMetadata, setActiveMetadata] = useState(storybookMetadata);
 	useEffect(() => {
 		if (storybookMetadata !== undefined) {
 			return;
@@ -57,25 +59,41 @@ export const AgentMetadata: FC<AgentMetadataProps> = ({
 
 		let timeoutId: number | undefined = undefined;
 		let latestSocket: OneWayWebSocket | undefined = undefined;
+		let retries = 0;
 
 		const createNewConnection = () => {
 			const socket = watchAgentMetadata(agent.id);
 			latestSocket = socket;
 
 			socket.addEventListener("error", () => {
-				displayError("Socket closed unexpectedly. Creating new connection...");
-				setMetadata(undefined);
+				setActiveMetadata(undefined);
 				window.clearTimeout(timeoutId);
-				timeoutId = window.setTimeout(() => {
-					createNewConnection();
-				}, 3_000);
+
+				retries++;
+				if (retries < maxSocketErrorRetryCount) {
+					displayError(
+						"Unexpected disconnect while watching Metadata changes. Creating new connection...",
+					);
+					timeoutId = window.setTimeout(() => {
+						createNewConnection();
+					}, 3_000);
+					return;
+				}
+
+				displayError(
+					"Unexpected disconnect while watching Metadata changes. Cannot connect to server",
+				);
+				// The socket should already be closed by this point, but doing
+				// this just to be thorough
+				socket.close();
+				latestSocket = undefined;
 			});
 
 			socket.addEventListener("message", (e) => {
 				try {
 					const payload = JSON.parse(e.data) as ServerSentEvent;
 					if (payload.type === "data") {
-						setMetadata(payload.data as WorkspaceAgentMetadata[]);
+						setActiveMetadata(payload.data as WorkspaceAgentMetadata[]);
 					}
 				} catch {
 					displayError(
@@ -90,9 +108,16 @@ export const AgentMetadata: FC<AgentMetadataProps> = ({
 			window.clearTimeout(timeoutId);
 			latestSocket?.close();
 		};
+
+		// This is an unfortunate pitfall with this component's testing setup,
+		// but even though we use the value of storybookMetadata as the initial
+		// value of the activeMetadata, we cannot put activeMetadata itself into
+		// the dependency array. If we did, we would destroy and rebuild each
+		// connection every single time a new message comes in from the socket,
+		// because the socket has to be wired up to the state setter
 	}, [agent.id, storybookMetadata]);
 
-	if (metadata === undefined) {
+	if (activeMetadata === undefined) {
 		return (
 			<section css={styles.root}>
 				<AgentMetadataSkeleton />
@@ -100,7 +125,7 @@ export const AgentMetadata: FC<AgentMetadataProps> = ({
 		);
 	}
 
-	return <AgentMetadataView metadata={metadata} />;
+	return <AgentMetadataView metadata={activeMetadata} />;
 };
 
 export const AgentMetadataSkeleton: FC = () => {
