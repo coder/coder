@@ -3128,14 +3128,6 @@ type TemplateVersionPresetPrebuild struct {
 	InvalidateAfterSecs sql.NullInt32 `db:"invalidate_after_secs" json:"invalidate_after_secs"`
 }
 
-type TemplateVersionPresetPrebuildSchedule struct {
-	ID               uuid.UUID `db:"id" json:"id"`
-	PresetPrebuildID uuid.UUID `db:"preset_prebuild_id" json:"preset_prebuild_id"`
-	Timezone         string    `db:"timezone" json:"timezone"`
-	CronSchedule     string    `db:"cron_schedule" json:"cron_schedule"`
-	DesiredInstances int32     `db:"desired_instances" json:"desired_instances"`
-}
-
 type TemplateVersionTable struct {
 	ID             uuid.UUID     `db:"id" json:"id"`
 	TemplateID     uuid.NullUUID `db:"template_id" json:"template_id"`

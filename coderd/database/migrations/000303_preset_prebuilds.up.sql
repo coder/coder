@@ -9,16 +9,5 @@ CREATE TABLE template_version_preset_prebuilds
 	FOREIGN KEY (preset_id) REFERENCES template_version_presets (id) ON DELETE CASCADE
 );
 
-CREATE TABLE template_version_preset_prebuild_schedules
-(
-	id                 UUID PRIMARY KEY,
-	preset_prebuild_id UUID NOT NULL,
-	timezone           TEXT NOT NULL,
-	cron_schedule      TEXT NOT NULL,
-	desired_instances  INT  NOT NULL,
-
-	FOREIGN KEY (preset_prebuild_id) REFERENCES template_version_preset_prebuilds (id) ON DELETE CASCADE
-);
-
 -- We should not be able to have presets with the same name for a particular template version.
 CREATE UNIQUE INDEX idx_unique_preset_name ON template_version_presets (name, template_version_id);

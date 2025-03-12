@@ -1,8 +1,14 @@
 import path from "node:path";
-import {expect, type Locator, test} from "@playwright/test";
-import {currentUser, importTemplate, login, randomName, requiresLicense,} from "../../helpers";
-import {beforeCoderTest} from "../../hooks";
-import {users} from "../../constants";
+import { type Locator, expect, test } from "@playwright/test";
+import { users } from "../../constants";
+import {
+	currentUser,
+	importTemplate,
+	login,
+	randomName,
+	requiresLicense,
+} from "../../helpers";
+import { beforeCoderTest } from "../../hooks";
 
 test.beforeEach(async ({ page }) => {
 	beforeCoderTest(page);

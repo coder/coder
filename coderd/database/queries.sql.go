@@ -5786,54 +5786,25 @@ const getPrebuildMetrics = `-- name: GetPrebuildMetrics :many
 SELECT
     t.name as template_name,
     tvp.name as preset_name,
-		COUNT(*) FILTER ( -- created
-				-- TODO (sasswart): double check which job statuses should be included here
-				WHERE
-					pj.initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
-					AND pj.job_status = 'succeeded'::provisioner_job_status
-		) as created,
-		COUNT(*) FILTER ( -- failed
-				-- TODO (sasswart): should we count cancelled here?
-				WHERE pj.initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
-						AND pj.job_status = 'failed'::provisioner_job_status
-		) as failed,
-		COUNT(*) FILTER ( -- assigned
-				WHERE pj.initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
-						AND NOT w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
-		) as assigned,
-		COUNT(*) FILTER ( -- exhausted
-				-- TODO (sasswart): write a filter to count this
-				-- we should be able to count:
-				-- - workspace builds
-				-- - that have a preset id
-				-- - and that preset has prebuilds enabled
-				-- - and the job for the prebuild was initiated by a user other than the prebuilds user
-				WHERE
-					wb.template_version_preset_id IS NOT NULL
-					AND w.owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
-					AND wb.initiator_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
-		) as exhausted,
-		COUNT(*) FILTER ( -- used_preset
-			WHERE wb.template_version_preset_id IS NOT NULL
-		) as used_preset
-FROM workspace_builds wb
-INNER JOIN provisioner_jobs pj ON wb.job_id = pj.id
-LEFT JOIN workspaces w ON wb.workspace_id = w.id
-LEFT JOIN template_version_presets tvp ON wb.template_version_preset_id = tvp.id
-LEFT JOIN template_versions tv ON tv.id = wb.template_version_id
-LEFT JOIN templates t ON t.id = tv.template_id
-WHERE pj.initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
+    COUNT(*) as created_count,
+    COUNT(*) FILTER (WHERE pj.job_status = 'failed'::provisioner_job_status) as failed_count,
+    COUNT(*) FILTER (WHERE w.owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid) as claimed_count
+FROM workspaces w
+INNER JOIN workspace_prebuild_builds wpb ON wpb.workspace_id = w.id
+INNER JOIN templates t ON t.id = w.template_id
+INNER JOIN template_version_presets tvp ON tvp.id = wpb.template_version_preset_id
+INNER JOIN provisioner_jobs pj ON pj.id = wpb.job_id
+WHERE wpb.build_number = 1
 GROUP BY t.name, tvp.name
+ORDER BY t.name, tvp.name
 `
 
 type GetPrebuildMetricsRow struct {
-	TemplateName sql.NullString `db:"template_name" json:"template_name"`
-	PresetName   sql.NullString `db:"preset_name" json:"preset_name"`
-	Created      int64          `db:"created" json:"created"`
-	Failed       int64          `db:"failed" json:"failed"`
-	Assigned     int64          `db:"assigned" json:"assigned"`
-	Exhausted    int64          `db:"exhausted" json:"exhausted"`
-	UsedPreset   int64          `db:"used_preset" json:"used_preset"`
+	TemplateName string `db:"template_name" json:"template_name"`
+	PresetName   string `db:"preset_name" json:"preset_name"`
+	CreatedCount int64  `db:"created_count" json:"created_count"`
+	FailedCount  int64  `db:"failed_count" json:"failed_count"`
+	ClaimedCount int64  `db:"claimed_count" json:"claimed_count"`
 }
 
 func (q *sqlQuerier) GetPrebuildMetrics(ctx context.Context) ([]GetPrebuildMetricsRow, error) {
@@ -5848,11 +5819,9 @@ func (q *sqlQuerier) GetPrebuildMetrics(ctx context.Context) ([]GetPrebuildMetri
 		if err := rows.Scan(
 			&i.TemplateName,
 			&i.PresetName,
-			&i.Created,
-			&i.Failed,
-			&i.Assigned,
-			&i.Exhausted,
-			&i.UsedPreset,
+			&i.CreatedCount,
+			&i.FailedCount,
+			&i.ClaimedCount,
 		); err != nil {
 			return nil, err
 		}

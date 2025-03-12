@@ -1042,7 +1042,9 @@ func (a *agent) run() (retErr error) {
 	})
 
 	err = connMan.wait()
-	a.logger.Error(context.Background(), "connection manager errored", slog.Error(err))
+	if err != nil {
+		a.logger.Warn(context.Background(), "connection manager errored", slog.Error(err))
+	}
 	return err
 }
 
@@ -1959,7 +1961,7 @@ func (a *apiConnRoutineManager) startAgentAPI(
 	a.eg.Go(func() error {
 		logger.Debug(ctx, "starting agent routine")
 		err := f(ctx, a.aAPI)
-		if xerrors.Is(err, context.Canceled) && ctx.Err() != nil {
+		if errors.Is(err, context.Canceled) && ctx.Err() != nil {
 			logger.Debug(ctx, "swallowing context canceled")
 			// Don't propagate context canceled errors to the error group, because we don't want the
 			// graceful context being canceled to halt the work of routines with
@@ -1996,7 +1998,7 @@ func (a *apiConnRoutineManager) startTailnetAPI(
 	a.eg.Go(func() error {
 		logger.Debug(ctx, "starting tailnet routine")
 		err := f(ctx, a.tAPI)
-		if xerrors.Is(err, context.Canceled) && ctx.Err() != nil {
+		if errors.Is(err, context.Canceled) && ctx.Err() != nil {
 			logger.Debug(ctx, "swallowing context canceled")
 			// Don't propagate context canceled errors to the error group, because we don't want the
 			// graceful context being canceled to halt the work of routines with

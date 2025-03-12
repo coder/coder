@@ -10,42 +10,43 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/prebuilds"
 )
 
 var (
-	CreatedPrebuildsDesc   = prometheus.NewDesc("coderd_prebuilds_created", "The number of prebuilds created.", []string{"template_name", "preset_name"}, nil)
-	FailedPrebuildsDesc    = prometheus.NewDesc("coderd_prebuilds_failed", "The number of prebuilds that failed.", []string{"template_name", "preset_name"}, nil)
-	AssignedPrebuildsDesc  = prometheus.NewDesc("coderd_prebuilds_assigned", "The number of prebuilds that were assigned to a runner.", []string{"template_name", "preset_name"}, nil)
-	UsedPresetsDesc        = prometheus.NewDesc("coderd_presets_used", "The number of times a preset was used.", []string{"template_name", "preset_name"}, nil)
-	ExhaustedPrebuildsDesc = prometheus.NewDesc("coderd_prebuilds_exhausted", "The number of prebuilds that were exhausted.", []string{"template_name", "preset_name"}, nil)
-	DesiredPrebuildsDesc   = prometheus.NewDesc("coderd_prebuilds_desired", "The number of desired prebuilds.", []string{"template_name", "preset_name"}, nil)
-	ActualPrebuildsDesc    = prometheus.NewDesc("coderd_prebuilds_actual", "The number of actual prebuilds.", []string{"template_name", "preset_name"}, nil)
-	EligiblePrebuildsDesc  = prometheus.NewDesc("coderd_prebuilds_eligible", "The number of eligible prebuilds.", []string{"template_name", "preset_name"}, nil)
+	createdPrebuildsDesc  = prometheus.NewDesc("coderd_prebuilds_created", "The number of prebuilds that have been created to meet the desired count set by presets.", []string{"template_name", "preset_name"}, nil)
+	failedPrebuildsDesc   = prometheus.NewDesc("coderd_prebuilds_failed", "The number of prebuilds that failed to build during creation.", []string{"template_name", "preset_name"}, nil)
+	claimedPrebuildsDesc  = prometheus.NewDesc("coderd_prebuilds_claimed", "The number of prebuilds that were claimed by a user. Each count means that a user created a workspace using a preset and was assigned a prebuild instead of a brand new workspace.", []string{"template_name", "preset_name"}, nil)
+	usedPresetsDesc       = prometheus.NewDesc("coderd_prebuilds_used_presets", "The number of times a preset was used to build a prebuild.", []string{"template_name", "preset_name"}, nil)
+	desiredPrebuildsDesc  = prometheus.NewDesc("coderd_prebuilds_desired", "The number of prebuilds desired by each preset of each template.", []string{"template_name", "preset_name"}, nil)
+	runningPrebuildsDesc  = prometheus.NewDesc("coderd_prebuilds_running", "The number of prebuilds that are currently running. Running prebuilds have successfully started, but they may not be ready to be claimed by a user yet.", []string{"template_name", "preset_name"}, nil)
+	eligiblePrebuildsDesc = prometheus.NewDesc("coderd_prebuilds_eligible", "The number of eligible prebuilds. Eligible prebuilds are prebuilds that are ready to be claimed by a user.", []string{"template_name", "preset_name"}, nil)
 )
 
 type MetricsCollector struct {
-	database database.Store
-	logger   slog.Logger
+	database   database.Store
+	logger     slog.Logger
+	reconciler prebuilds.Reconciler
 }
 
 var _ prometheus.Collector = new(MetricsCollector)
 
-func NewMetricsCollector(db database.Store, logger slog.Logger) *MetricsCollector {
+func NewMetricsCollector(db database.Store, logger slog.Logger, reconciler prebuilds.Reconciler) *MetricsCollector {
 	return &MetricsCollector{
-		database: db,
-		logger:   logger.Named("prebuilds_metrics_collector"),
+		database:   db,
+		logger:     logger.Named("prebuilds_metrics_collector"),
+		reconciler: reconciler,
 	}
 }
 
 func (*MetricsCollector) Describe(descCh chan<- *prometheus.Desc) {
-	descCh <- CreatedPrebuildsDesc
-	descCh <- FailedPrebuildsDesc
-	descCh <- AssignedPrebuildsDesc
-	descCh <- UsedPresetsDesc
-	descCh <- ExhaustedPrebuildsDesc
-	descCh <- DesiredPrebuildsDesc
-	descCh <- ActualPrebuildsDesc
-	descCh <- EligiblePrebuildsDesc
+	descCh <- createdPrebuildsDesc
+	descCh <- failedPrebuildsDesc
+	descCh <- claimedPrebuildsDesc
+	descCh <- usedPresetsDesc
+	descCh <- desiredPrebuildsDesc
+	descCh <- runningPrebuildsDesc
+	descCh <- eligiblePrebuildsDesc
 }
 
 func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
@@ -53,19 +54,42 @@ func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	// nolint:gocritic // just until we get back to this
-	metrics, err := mc.database.GetPrebuildMetrics(dbauthz.AsSystemRestricted(ctx))
+	prebuildMetrics, err := mc.database.GetPrebuildMetrics(dbauthz.AsSystemRestricted(ctx))
 	if err != nil {
 		mc.logger.Error(ctx, "failed to get prebuild metrics", slog.Error(err))
 		return
 	}
 
-	for _, metric := range metrics {
-		metricsCh <- prometheus.MustNewConstMetric(CreatedPrebuildsDesc, prometheus.CounterValue, float64(metric.Created), metric.TemplateName.String, metric.PresetName.String)
-		metricsCh <- prometheus.MustNewConstMetric(FailedPrebuildsDesc, prometheus.CounterValue, float64(metric.Failed), metric.TemplateName.String, metric.PresetName.String)
-		metricsCh <- prometheus.MustNewConstMetric(AssignedPrebuildsDesc, prometheus.CounterValue, float64(metric.Assigned), metric.TemplateName.String, metric.PresetName.String)
-		metricsCh <- prometheus.MustNewConstMetric(ExhaustedPrebuildsDesc, prometheus.CounterValue, float64(metric.Exhausted), metric.TemplateName.String, metric.PresetName.String)
-		metricsCh <- prometheus.MustNewConstMetric(UsedPresetsDesc, prometheus.CounterValue, float64(metric.UsedPreset), metric.TemplateName.String, metric.PresetName.String)
+	for _, metric := range prebuildMetrics {
+		metricsCh <- prometheus.MustNewConstMetric(createdPrebuildsDesc, prometheus.CounterValue, float64(metric.CreatedCount), metric.TemplateName, metric.PresetName)
+		metricsCh <- prometheus.MustNewConstMetric(failedPrebuildsDesc, prometheus.CounterValue, float64(metric.FailedCount), metric.TemplateName, metric.PresetName)
+		metricsCh <- prometheus.MustNewConstMetric(claimedPrebuildsDesc, prometheus.CounterValue, float64(metric.ClaimedCount), metric.TemplateName, metric.PresetName)
 	}
 
-	// TODO (sasswart): read gauges from controller
+	state, err := mc.reconciler.SnapshotState(dbauthz.AsSystemRestricted(ctx), mc.database)
+	if err != nil {
+		mc.logger.Error(ctx, "failed to get latest prebuild state", slog.Error(err))
+		return
+	}
+
+	for _, preset := range state.Presets {
+		if !preset.UsingActiveVersion {
+			continue
+		}
+
+		presetState, err := state.FilterByPreset(preset.PresetID)
+		if err != nil {
+			mc.logger.Error(ctx, "failed to filter by preset", slog.Error(err))
+			continue
+		}
+		actions, err := mc.reconciler.DetermineActions(ctx, *presetState)
+		if err != nil {
+			mc.logger.Error(ctx, "failed to determine actions", slog.Error(err))
+			continue
+		}
+
+		metricsCh <- prometheus.MustNewConstMetric(desiredPrebuildsDesc, prometheus.GaugeValue, float64(actions.Desired), preset.TemplateName, preset.Name)
+		metricsCh <- prometheus.MustNewConstMetric(runningPrebuildsDesc, prometheus.GaugeValue, float64(actions.Actual), preset.TemplateName, preset.Name)
+		metricsCh <- prometheus.MustNewConstMetric(eligiblePrebuildsDesc, prometheus.GaugeValue, float64(actions.Eligible), preset.TemplateName, preset.Name)
+	}
 }

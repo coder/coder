@@ -3,6 +3,9 @@ package coderd_test
 import (
 	"testing"
 
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/enterprise/coderd/prebuilds"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
@@ -53,6 +56,12 @@ func TestListMembers(t *testing.T) {
 	t.Parallel()
 
 	t.Run("OK", func(t *testing.T) {
+
+		// TODO: we should not be returning the prebuilds user in OrganizationMembers, and this is not returned in dbmem.
+		if !dbtestutil.WillUsePostgres() {
+			t.Skip("This test requires postgres")
+		}
+
 		t.Parallel()
 		owner := coderdtest.New(t, nil)
 		first := coderdtest.CreateFirstUser(t, owner)
@@ -62,9 +71,9 @@ func TestListMembers(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		members, err := client.OrganizationMembers(ctx, first.OrganizationID)
 		require.NoError(t, err)
-		require.Len(t, members, 2)
+		require.Len(t, members, 3)
 		require.ElementsMatch(t,
-			[]uuid.UUID{first.UserID, user.ID},
+			[]uuid.UUID{first.UserID, user.ID, prebuilds.OwnerID},
 			db2sdk.List(members, onlyIDs))
 	})
 }

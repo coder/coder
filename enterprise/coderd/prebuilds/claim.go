@@ -15,7 +15,7 @@ import (
 
 type EnterpriseClaimer struct{}
 
-func (e EnterpriseClaimer) Claim(ctx context.Context, store database.Store, userID uuid.UUID, name string, presetID uuid.UUID) (*uuid.UUID, error) {
+func (_ EnterpriseClaimer) Claim(ctx context.Context, store database.Store, userID uuid.UUID, name string, presetID uuid.UUID) (*uuid.UUID, error) {
 	var prebuildID *uuid.UUID
 	err := store.InTx(func(db database.Store) error {
 		// TODO: do we need this?
@@ -51,7 +51,7 @@ func (e EnterpriseClaimer) Claim(ctx context.Context, store database.Store, user
 	return prebuildID, err
 }
 
-func (e EnterpriseClaimer) Initiator() uuid.UUID {
+func (_ EnterpriseClaimer) Initiator() uuid.UUID {
 	return OwnerID
 }
 

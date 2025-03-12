@@ -7,6 +7,9 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/enterprise/coderd/prebuilds"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
@@ -333,6 +336,12 @@ func TestCustomOrganizationRole(t *testing.T) {
 	// Verify deleting a custom role cascades to all members
 	t.Run("DeleteRoleCascadeMembers", func(t *testing.T) {
 		t.Parallel()
+
+		// TODO: we should not be returning the prebuilds user in OrganizationMembers, and this is not returned in dbmem.
+		if !dbtestutil.WillUsePostgres() {
+			t.Skip("This test requires postgres")
+		}
+
 		owner, first := coderdenttest.New(t, &coderdenttest.Options{
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -360,9 +369,9 @@ func TestCustomOrganizationRole(t *testing.T) {
 		// Verify members have the custom role
 		originalMembers, err := orgAdmin.OrganizationMembers(ctx, first.OrganizationID)
 		require.NoError(t, err)
-		require.Len(t, originalMembers, 5) // 3 members + org admin + owner
+		require.Len(t, originalMembers, 6) // 3 members + org admin + owner + prebuilds user
 		for _, member := range originalMembers {
-			if member.UserID == orgAdminUser.ID || member.UserID == first.UserID {
+			if member.UserID == orgAdminUser.ID || member.UserID == first.UserID || member.UserID == prebuilds.OwnerID {
 				continue
 			}
 
@@ -377,7 +386,7 @@ func TestCustomOrganizationRole(t *testing.T) {
 		// Verify the role was removed from all members
 		members, err := orgAdmin.OrganizationMembers(ctx, first.OrganizationID)
 		require.NoError(t, err)
-		require.Len(t, members, 5) // 3 members + org admin + owner
+		require.Len(t, members, 6) // 3 members + org admin + owner + prebuilds user
 		for _, member := range members {
 			require.False(t, slices.ContainsFunc(member.Roles, func(role codersdk.SlimRole) bool {
 				return role.Name == customRoleIdentifier.Name

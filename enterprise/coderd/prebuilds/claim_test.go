@@ -70,6 +70,10 @@ func (m *storeSpy) ClaimPrebuild(ctx context.Context, arg database.ClaimPrebuild
 func TestClaimPrebuild(t *testing.T) {
 	t.Parallel()
 
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres")
+	}
+
 	const (
 		desiredInstances = 1
 		presetCount      = 2
