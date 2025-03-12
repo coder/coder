@@ -53,6 +53,12 @@ export const AgentMetadata: FC<AgentMetadataProps> = ({
 }) => {
 	const [activeMetadata, setActiveMetadata] = useState(storybookMetadata);
 	useEffect(() => {
+		// This is an unfortunate pitfall with this component's testing setup,
+		// but even though we use the value of storybookMetadata as the initial
+		// value of the activeMetadata, we cannot put activeMetadata itself into
+		// the dependency array. If we did, we would destroy and rebuild each
+		// connection every single time a new message comes in from the socket,
+		// because the socket has to be wired up to the state setter
 		if (storybookMetadata !== undefined) {
 			return;
 		}
@@ -108,13 +114,6 @@ export const AgentMetadata: FC<AgentMetadataProps> = ({
 			window.clearTimeout(timeoutId);
 			latestSocket?.close();
 		};
-
-		// This is an unfortunate pitfall with this component's testing setup,
-		// but even though we use the value of storybookMetadata as the initial
-		// value of the activeMetadata, we cannot put activeMetadata itself into
-		// the dependency array. If we did, we would destroy and rebuild each
-		// connection every single time a new message comes in from the socket,
-		// because the socket has to be wired up to the state setter
 	}, [agent.id, storybookMetadata]);
 
 	if (activeMetadata === undefined) {
