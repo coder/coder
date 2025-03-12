@@ -635,7 +635,7 @@ agent/agentcontainers/acmock/acmock.go: agent/agentcontainers/containers.go
 	go generate ./agent/agentcontainers/acmock/
 
 agent/agentcontainers/dcspec/dcspec_gen.go:
-	go generate ./agent/agentcontainers/dcspec/
+	./agent/agentcontainers/dcspec/gen.sh
 
 $(TAILNETTEST_MOCKS): tailnet/coordinator.go tailnet/service.go
 	go generate ./tailnet/tailnettest/
