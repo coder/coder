@@ -16,12 +16,11 @@ import { Tag, Tags, TruncateTags } from "./Tags";
 
 type JobRowProps = {
 	job: ProvisionerJob;
-	defaultOpen?: boolean;
 };
 
-export const JobRow: FC<JobRowProps> = ({ job, defaultOpen }) => {
+export const JobRow: FC<JobRowProps> = ({ job }) => {
 	const metadata = job.metadata;
-	const [isOpen, setIsOpen] = useState(defaultOpen);
+	const [isOpen, setIsOpen] = useState(false);
 
 	return (
 		<>

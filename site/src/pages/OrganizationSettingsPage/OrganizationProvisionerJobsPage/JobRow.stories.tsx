@@ -30,12 +30,6 @@ type Story = StoryObj<typeof JobRow>;
 
 export const Close: Story = {};
 
-export const Open: Story = {
-	args: {
-		defaultOpen: true,
-	},
-};
-
 export const OpenOnClick: Story = {
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
@@ -46,29 +40,19 @@ export const OpenOnClick: Story = {
 		const jobId = canvas.getByText(args.job.id);
 		expect(jobId).toBeInTheDocument();
 	},
-	parameters: {
-		chromatic: {
-			disableSnapshot: true,
-		},
-	},
 };
 
 export const HideOnClick: Story = {
-	args: {
-		defaultOpen: true,
-	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
-		const showMoreButton = canvas.getByRole("button", { name: /hide/i });
 
+		const showMoreButton = canvas.getByRole("button", { name: /show more/i });
 		await userEvent.click(showMoreButton);
+
+		const hideButton = canvas.getByRole("button", { name: /hide/i });
+		await userEvent.click(hideButton);
 
 		const jobId = canvas.queryByText(args.job.id);
 		expect(jobId).not.toBeInTheDocument();
-	},
-	parameters: {
-		chromatic: {
-			disableSnapshot: true,
-		},
 	},
 };
