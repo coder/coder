@@ -61,13 +61,12 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 
 	const [isOpen, setIsOpen] = useState(defaultIsOpen);
 
-	// If any of the timings are empty, we are still loading the data. They can be
-	// filled in different moments.
-	const isLoading = [
-		provisionerTimings,
-		agentScriptTimings,
-		agentConnectionTimings,
-	].some((t) => t.length === 0);
+	// If any of the required timing arrays are empty (except agentScriptTimings which
+	// can be empty if no scripts are configured), we are still loading the data.
+	// They can be filled in different moments.
+	const isLoading = 
+		provisionerTimings.length === 0 || 
+		agentConnectionTimings.length === 0; // agentScriptTimings can be empty if no scripts are configured
 
 	// Each agent connection timing is a stage in the timeline to make it easier
 	// to users to see the timing for connection and the other scripts.
@@ -77,9 +76,15 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 		),
 	);
 
+	// Check if there are any startup scripts configured
+	const hasStartupScripts = uniqScriptTimings.some(t => t.stage === "start");
+
 	const stages = [
 		...provisioningStages,
-		...agentStageLabels.flatMap((a) => agentStages(a)),
+		...agentStageLabels.flatMap((a) => 
+			// Filter out the "start" stage if no startup scripts are configured
+			agentStages(a).filter(stage => hasStartupScripts || stage.name !== "start")
+		),
 	];
 
 	const displayProvisioningTime = () => {

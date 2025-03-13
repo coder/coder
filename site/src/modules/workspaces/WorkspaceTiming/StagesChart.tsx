@@ -91,9 +91,12 @@ export const StagesChart: FC<StagesChartProps> = ({
 			<ChartContent>
 				<YAxis>
 					{sections.map((section) => {
-						const stages = timings
+						// Filter out stages without timing data if it's the "start" stage with no visible resources
+						const filteredTimings = timings
 							.filter((t) => t.stage.section === section)
-							.map((t) => t.stage);
+							.filter((t) => !(t.stage.name === "start" && t.visibleResources === 0 && t.range === undefined));
+							
+						const stages = filteredTimings.map((t) => t.stage);
 
 						return (
 							<YAxisSection key={section}>
@@ -126,8 +129,13 @@ export const StagesChart: FC<StagesChartProps> = ({
 						return (
 							<XAxisSection key={section}>
 								{stageTimings.map((t) => {
-									// If the stage has no timing data, we just want to render an empty row
+									// If the stage has no timing data, we need to handle it specially
 									if (t.range === undefined) {
+										// Skip rendering empty "run startup scripts" rows when no scripts are configured
+										if (t.stage.name === "start" && t.visibleResources === 0) {
+											return null;
+										}
+										
 										return (
 											<XAxisRow
 												key={t.stage.name}
