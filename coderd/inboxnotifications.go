@@ -53,20 +53,12 @@ func convertInboxNotificationParameters(ctx context.Context, logger slog.Logger,
 		}
 	}
 
+	readStatus := string(database.InboxNotificationReadStatusAll)
 	if readStatusParam != "" {
-		readOptions := []string{
-			string(database.InboxNotificationReadStatusRead),
-			string(database.InboxNotificationReadStatusUnread),
-			string(database.InboxNotificationReadStatusAll),
-		}
-
-		if !slices.Contains(readOptions, readStatusParam) {
-			logger.Error(ctx, "unable to parse read status")
-			return nil, nil, "", xerrors.New("unable to parse read status")
-		}
+		readStatus = readStatusParam
 	}
 
-	return targets, templates, readStatusParam, nil
+	return targets, templates, readStatus, nil
 }
 
 // convertInboxNotificationResponse works as a util function to transform a database.InboxNotification to codersdk.InboxNotification
@@ -110,16 +102,18 @@ func convertInboxNotificationResponse(ctx context.Context, logger slog.Logger, n
 // @Success 200 {object} codersdk.GetInboxNotificationResponse
 // @Router /notifications/inbox/watch [get]
 func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
 
 	var (
-		apikey          = httpmw.APIKey(r)
-		targetsParam    = r.URL.Query().Get("targets")
-		templatesParam  = r.URL.Query().Get("templates")
-		readStatusParam = r.URL.Query().Get("read_status")
+		ctx    = r.Context()
+		apikey = httpmw.APIKey(r)
 	)
 
-	targets, templates, readStatusParam, err := convertInboxNotificationParameters(ctx, api.Logger, targetsParam, templatesParam, readStatusParam)
+	var req codersdk.WatchInboxNotificationsRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	targets, templates, readStatusParam, err := convertInboxNotificationParameters(ctx, api.Logger, req.Targets, req.Templates, req.Targets)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid query parameter.",
@@ -233,17 +227,17 @@ func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request)
 // @Success 200 {object} codersdk.ListInboxNotificationsResponse
 // @Router /notifications/inbox [get]
 func (api *API) listInboxNotifications(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
 	var (
-		apikey              = httpmw.APIKey(r)
-		targetsParam        = r.URL.Query().Get("targets")
-		templatesParam      = r.URL.Query().Get("templates")
-		readStatusParam     = r.URL.Query().Get("read_status")
-		startingBeforeParam = r.URL.Query().Get("starting_before")
+		ctx    = r.Context()
+		apikey = httpmw.APIKey(r)
 	)
 
-	targets, templates, readStatus, err := convertInboxNotificationParameters(ctx, api.Logger, targetsParam, templatesParam, readStatusParam)
+	var req codersdk.ListInboxNotificationsRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	targets, templates, readStatus, err := convertInboxNotificationParameters(ctx, api.Logger, req.Targets, req.Templates, req.ReadStatus)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid query parameter.",
@@ -253,15 +247,8 @@ func (api *API) listInboxNotifications(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	startingBefore := dbtime.Now()
-	if startingBeforeParam != "" {
-		lastNotifID, err := uuid.Parse(startingBeforeParam)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Invalid starting before.",
-			})
-			return
-		}
-		lastNotif, err := api.Database.GetInboxNotificationByID(ctx, lastNotifID)
+	if req.StartingBefore != uuid.Nil {
+		lastNotif, err := api.Database.GetInboxNotificationByID(ctx, req.StartingBefore)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Failed to get notification by id.",

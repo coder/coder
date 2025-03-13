@@ -30,16 +30,22 @@ type InboxNotificationAction struct {
 	URL   string `json:"url"`
 }
 
+type WatchInboxNotificationsRequest struct {
+	Targets    string `json:"targets,omitempty"`
+	Templates  string `json:"templates,omitempty"`
+	ReadStatus string `json:"read_status,omitempty" validate:"omitempty,oneof=read unread all"`
+}
+
 type GetInboxNotificationResponse struct {
 	Notification InboxNotification `json:"notification"`
 	UnreadCount  int               `json:"unread_count"`
 }
 
 type ListInboxNotificationsRequest struct {
-	Targets        []uuid.UUID
-	Templates      []uuid.UUID
-	ReadStatus     string
-	StartingBefore uuid.UUID
+	Targets        string    `json:"targets,omitempty"`
+	Templates      string    `json:"templates,omitempty"`
+	ReadStatus     string    `json:"read_status,omitempty" validate:"omitempty,oneof=read unread all"`
+	StartingBefore uuid.UUID `json:"starting_before,omitempty" validate:"omitempty" format:"uuid"`
 }
 
 type ListInboxNotificationsResponse struct {
