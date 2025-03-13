@@ -2371,6 +2371,9 @@ func (q *querier) GetTemplateParameterInsights(ctx context.Context, arg database
 }
 
 func (q *querier) GetTemplatePresetsWithPrebuilds(ctx context.Context, templateID uuid.NullUUID) ([]database.GetTemplatePresetsWithPrebuildsRow, error) {
+	// Although this fetches presets. It filters them by prebuilds and is only of use to the prebuild system.
+	// As such, we authorize this in line with other prebuild queries, not with other preset queries.
+
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate); err != nil {
 		return nil, err
 	}

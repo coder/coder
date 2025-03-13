@@ -22,7 +22,9 @@ WHERE
 		WHEN @user_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
 			user_id = @user_id
 		ELSE true
-	END;
+	END
+	-- Filter system users
+	AND (users.is_system IS NULL OR users.is_system = false);
 
 -- name: InsertOrganizationMember :one
 INSERT INTO

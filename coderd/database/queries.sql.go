@@ -5216,6 +5216,8 @@ WHERE
 			user_id = $2
 		ELSE true
 	END
+	-- Filter system users
+	AND (users.is_system IS NULL OR users.is_system = false)
 `
 
 type OrganizationMembersParams struct {
@@ -5788,7 +5790,9 @@ SELECT
     tvp.name as preset_name,
     COUNT(*) as created_count,
     COUNT(*) FILTER (WHERE pj.job_status = 'failed'::provisioner_job_status) as failed_count,
-    COUNT(*) FILTER (WHERE w.owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid) as claimed_count
+    COUNT(*) FILTER (
+			 WHERE w.owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid -- The system user responsible for prebuilds.
+		) as claimed_count
 FROM workspaces w
 INNER JOIN workspace_prebuild_builds wpb ON wpb.workspace_id = w.id
 INNER JOIN templates t ON t.id = w.template_id

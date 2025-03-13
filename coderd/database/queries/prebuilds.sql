@@ -1,3 +1,20 @@
+-- name: GetTemplatePresetsWithPrebuilds :many
+SELECT t.id                        AS template_id,
+	   t.name                      AS template_name,
+	   tv.id                       AS template_version_id,
+	   tv.name                     AS template_version_name,
+	   tv.id = t.active_version_id AS using_active_version,
+	   tvpp.preset_id,
+	   tvp.name,
+	   tvpp.desired_instances      AS desired_instances,
+	   t.deleted,
+	   t.deprecated != ''          AS deprecated
+FROM templates t
+		 INNER JOIN template_versions tv ON tv.template_id = t.id
+		 INNER JOIN template_version_presets tvp ON tvp.template_version_id = tv.id
+		 INNER JOIN template_version_preset_prebuilds tvpp ON tvpp.preset_id = tvp.id
+WHERE (t.id = sqlc.narg('template_id')::uuid OR sqlc.narg('template_id') IS NULL);
+
 -- name: GetRunningPrebuilds :many
 SELECT p.id               AS workspace_id,
 	   p.name             AS workspace_name,
@@ -19,23 +36,6 @@ FROM workspace_prebuilds p
 WHERE (b.transition = 'start'::workspace_transition
 	-- Jobs that are not in terminal states.
 	AND pj.job_status = 'succeeded'::provisioner_job_status);
-
--- name: GetTemplatePresetsWithPrebuilds :many
-SELECT t.id                        AS template_id,
-	   t.name                      AS template_name,
-	   tv.id                       AS template_version_id,
-	   tv.name                     AS template_version_name,
-	   tv.id = t.active_version_id AS using_active_version,
-	   tvpp.preset_id,
-	   tvp.name,
-	   tvpp.desired_instances      AS desired_instances,
-	   t.deleted,
-	   t.deprecated != ''          AS deprecated
-FROM templates t
-		 INNER JOIN template_versions tv ON tv.template_id = t.id
-		 INNER JOIN template_version_presets tvp ON tvp.template_version_id = tv.id
-		 INNER JOIN template_version_preset_prebuilds tvpp ON tvpp.preset_id = tvp.id
-WHERE (t.id = sqlc.narg('template_id')::uuid OR sqlc.narg('template_id') IS NULL);
 
 -- name: GetPrebuildsInProgress :many
 SELECT t.id AS template_id, wpb.template_version_id, wpb.transition, COUNT(wpb.transition)::int AS count
@@ -111,7 +111,9 @@ SELECT
     tvp.name as preset_name,
     COUNT(*) as created_count,
     COUNT(*) FILTER (WHERE pj.job_status = 'failed'::provisioner_job_status) as failed_count,
-    COUNT(*) FILTER (WHERE w.owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid) as claimed_count
+    COUNT(*) FILTER (
+			 WHERE w.owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid -- The system user responsible for prebuilds.
+		) as claimed_count
 FROM workspaces w
 INNER JOIN workspace_prebuild_builds wpb ON wpb.workspace_id = w.id
 INNER JOIN templates t ON t.id = w.template_id
