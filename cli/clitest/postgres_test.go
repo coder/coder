@@ -1,4 +1,4 @@
-package clitest
+package clitest_test
 
 import (
 	"fmt"
@@ -13,14 +13,14 @@ func TestBuildPostgresURLFromComponents(t *testing.T) {
 	t.Parallel()
 
 	testcases := []struct {
-		name           string
-		host           string
-		port           string
-		username       string
-		password       string
-		database       string
-		options        string
-		expectedURL    string
+		name        string
+		host        string
+		port        string
+		username    string
+		password    string
+		database    string
+		options     string
+		expectedURL string
 	}{
 		{
 			name:        "BasicConnectionParams",
