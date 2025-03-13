@@ -10,20 +10,20 @@ import { type FC, useEffect, useRef } from "react";
 
 export type SearchFieldProps = Omit<TextFieldProps, "onChange"> & {
 	onChange: (query: string) => void;
-	autoFocused?: boolean;
+	autoFocus?: boolean;
 };
 
 export const SearchField: FC<SearchFieldProps> = ({
 	value = "",
 	onChange,
-	autoFocused = false,
+	autoFocus = false,
 	InputProps,
 	...textFieldProps
 }) => {
 	const theme = useTheme();
 	const inputRef = useRef<HTMLInputElement>(null);
 
-	if (autoFocused) {
+	if (autoFocus) {
 		useEffect(() => {
 			inputRef.current?.focus();
 		});

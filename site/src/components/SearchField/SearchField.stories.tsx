@@ -22,7 +22,7 @@ export const Empty: Story = {};
 
 export const Focused: Story = {
 	args: {
-		autoFocused: true,
+		autoFocus: true,
 	},
 };
 
