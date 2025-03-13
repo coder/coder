@@ -471,9 +471,6 @@ pgPort: "5432"
 # Username for PostgreSQL authentication. Only used if postgres-url is not set.
 # (default: <unset>, type: string)
 pgUsername: ""
-# Password for PostgreSQL authentication. Only used if postgres-url is not set.
-# (default: <unset>, type: string)
-pgPassword: ""
 # Database name for PostgreSQL. Only used if postgres-url is not set.
 # (default: <unset>, type: string)
 pgDatabase: ""
