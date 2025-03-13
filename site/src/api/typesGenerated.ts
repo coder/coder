@@ -1161,10 +1161,10 @@ export interface LinkConfig {
 
 // From codersdk/inboxnotification.go
 export interface ListInboxNotificationsRequest {
-	readonly Targets: readonly string[];
-	readonly Templates: readonly string[];
-	readonly ReadStatus: string;
-	readonly StartingBefore: string;
+	readonly targets?: string;
+	readonly templates?: string;
+	readonly read_status?: string;
+	readonly starting_before?: string;
 }
 
 // From codersdk/inboxnotification.go

@@ -47,10 +47,10 @@ type ListInboxNotificationsResponse struct {
 
 func ListInboxNotificationsRequestToQueryParams(req ListInboxNotificationsRequest) []RequestOption {
 	var opts []RequestOption
-	if len(req.Targets) > 0 {
+	if req.Targets != "" {
 		opts = append(opts, WithQueryParam("targets", req.Targets))
 	}
-	if len(req.Templates) > 0 {
+	if req.Templates != "" {
 		opts = append(opts, WithQueryParam("templates", req.Templates))
 	}
 	if req.ReadStatus != "" {

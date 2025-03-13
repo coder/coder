@@ -206,8 +206,8 @@ func (api *API) listInboxNotifications(rw http.ResponseWriter, r *http.Request) 
 		ctx    = r.Context()
 		apikey = httpmw.APIKey(r)
 
-		targets        = p.UUIDs(vals, []uuid.UUID{}, "targets")
-		templates      = p.UUIDs(vals, []uuid.UUID{}, "templates")
+		targets        = p.UUIDs(vals, nil, "targets")
+		templates      = p.UUIDs(vals, nil, "templates")
 		readStatus     = p.String(vals, "all", "read_status")
 		startingBefore = p.UUID(vals, uuid.Nil, "starting_before")
 	)
@@ -296,7 +296,7 @@ func (api *API) updateInboxNotificationReadStatus(rw http.ResponseWriter, r *htt
 
 	notificationID, ok := httpmw.ParseUUIDParam(rw, r, "id")
 	if !ok {
-
+		return
 	}
 
 	var body codersdk.UpdateInboxNotificationReadStatusRequest
