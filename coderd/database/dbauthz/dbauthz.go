@@ -1346,6 +1346,7 @@ func (q *querier) DeleteOrganizationMember(ctx context.Context, arg database.Del
 		member, err := database.ExpectOne(q.OrganizationMembers(ctx, database.OrganizationMembersParams{
 			OrganizationID: arg.OrganizationID,
 			UserID:         arg.UserID,
+			IncludeSystem:  false,
 		}))
 		if err != nil {
 			return database.OrganizationMember{}, err
@@ -3776,6 +3777,7 @@ func (q *querier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemb
 	member, err := database.ExpectOne(q.OrganizationMembers(ctx, database.OrganizationMembersParams{
 		OrganizationID: arg.OrgID,
 		UserID:         arg.UserID,
+		IncludeSystem:  false,
 	}))
 	if err != nil {
 		return database.OrganizationMember{}, err
