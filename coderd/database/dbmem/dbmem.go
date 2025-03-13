@@ -234,6 +234,7 @@ type data struct {
 	workspaceAgentScriptTimings          []database.WorkspaceAgentScriptTiming
 	workspaceAgentScripts                []database.WorkspaceAgentScript
 	workspaceAgentStats                  []database.WorkspaceAgentStat
+	workspaceAgentTasks                  []database.WorkspaceAgentTask
 	workspaceAgentMemoryResourceMonitors []database.WorkspaceAgentMemoryResourceMonitor
 	workspaceAgentVolumeResourceMonitors []database.WorkspaceAgentVolumeResourceMonitor
 	workspaceApps                        []database.WorkspaceApp
@@ -7001,6 +7002,19 @@ func (q *FakeQuerier) GetWorkspaceAgentStatsAndLabels(ctx context.Context, creat
 	return stats, nil
 }
 
+func (q *FakeQuerier) GetWorkspaceAgentTasksByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAgentTask, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	tasks := []database.WorkspaceAgentTask{}
+	for _, task := range q.workspaceAgentTasks {
+		if slices.Contains(ids, task.AgentID) {
+			tasks = append(tasks, task)
+		}
+	}
+	return tasks, nil
+}
+
 func (q *FakeQuerier) GetWorkspaceAgentUsageStats(_ context.Context, createdAt time.Time) ([]database.GetWorkspaceAgentUsageStatsRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -9208,6 +9222,28 @@ func (q *FakeQuerier) InsertWorkspaceAgentStats(_ context.Context, arg database.
 	return nil
 }
 
+func (q *FakeQuerier) InsertWorkspaceAgentTask(ctx context.Context, arg database.InsertWorkspaceAgentTaskParams) (database.WorkspaceAgentTask, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.WorkspaceAgentTask{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	task := database.WorkspaceAgentTask{
+		ID:        arg.ID,
+		AgentID:   arg.AgentID,
+		CreatedAt: arg.CreatedAt,
+		Reporter:  arg.Reporter,
+		Summary:   arg.Summary,
+		LinkTo:    arg.LinkTo,
+		Icon:      arg.Icon,
+	}
+	q.workspaceAgentTasks = append(q.workspaceAgentTasks, task)
+	return task, nil
+}
+
 func (q *FakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertWorkspaceAppParams) (database.WorkspaceApp, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.WorkspaceApp{}, err
@@ -10543,6 +10579,15 @@ func (q *FakeQuerier) UpdateUserAppearanceSettings(_ context.Context, arg databa
 	return uc, nil
 }
 
+func (q *FakeQuerier) UpdateUserBrowserNotificationSubscription(ctx context.Context, arg database.UpdateUserBrowserNotificationSubscriptionParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) UpdateUserDeletedByID(_ context.Context, id uuid.UUID) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -11039,6 +11084,29 @@ func (q *FakeQuerier) UpdateWorkspaceAgentStartupByID(_ context.Context, arg dat
 		q.workspaceAgents[index] = agent
 		return nil
 	}
+	return sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateWorkspaceAgentTask(ctx context.Context, arg database.UpdateWorkspaceAgentTaskParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, agent := range q.workspaceAgents {
+		if agent.ID != arg.ID {
+			continue
+		}
+		agent.TaskWaitingForUserInput = arg.TaskWaitingForUserInput
+		agent.TaskCompletedAt = arg.TaskCompletedAt
+		agent.TaskNotifications = arg.TaskNotifications
+		q.workspaceAgents[index] = agent
+		return nil
+	}
+
 	return sql.ErrNoRows
 }
 

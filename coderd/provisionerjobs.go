@@ -253,6 +253,19 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 		return
 	}
 
+	// nolint:gocritic // GetWorkspaceAgentTasksByAgentIDs is a system function.
+	tasks, err := api.Database.GetWorkspaceAgentTasksByAgentIDs(dbauthz.AsSystemRestricted(ctx), resourceAgentIDs)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace agent tasks.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	// nolint:gocritic // GetWorkspaceAgentLogSourcesByAgentIDs is a system function.
 	logSources, err := api.Database.GetWorkspaceAgentLogSourcesByAgentIDs(dbauthz.AsSystemRestricted(ctx), resourceAgentIDs)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -301,10 +314,17 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 					dbLogSources = append(dbLogSources, logSource)
 				}
 			}
+			dbTasks := make([]database.WorkspaceAgentTask, 0)
+			for _, task := range tasks {
+				if task.AgentID == agent.ID {
+					dbTasks = append(dbTasks, task)
+				}
+			}
 
 			apiAgent, err := db2sdk.WorkspaceAgent(
 				api.DERPMap(), *api.TailnetCoordinator.Load(), agent, convertProvisionedApps(dbApps), convertScripts(dbScripts), convertLogSources(dbLogSources), api.AgentInactiveDisconnectTimeout,
 				api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
+				dbTasks,
 			)
 			if err != nil {
 				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

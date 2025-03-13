@@ -25,8 +25,10 @@ import (
 	"cdr.dev/slog/sloggers/slogjson"
 	"cdr.dev/slog/sloggers/slogstackdriver"
 	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agentclaude"
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentexec"
+	"github.com/coder/coder/v2/agent/agentmcp"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/reaper"
 	"github.com/coder/coder/v2/buildinfo"
@@ -53,6 +55,10 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 		blockFileTransfer   bool
 		agentHeaderCommand  string
 		agentHeader         []string
+
+		claudeAPIKey       string
+		claudeSystemPrompt string
+		claudeTaskPrompt   string
 
 		experimentalDevcontainersEnabled bool
 	)
@@ -365,6 +371,39 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 
 			<-ctx.Done()
 			return agnt.Close()
+		},
+		Children: []*serpent.Command{
+			{
+				Use:   "mcp",
+				Short: "Start the MCP server",
+				Handler: func(inv *serpent.Invocation) error {
+					return agentmcp.New(inv.Context())
+				},
+			},
+			{
+				Use:   "claude",
+				Short: "Configure and start the Claude Code agent.",
+				Options: []serpent.Option{
+					{
+						Flag:  "api-key",
+						Env:   "CLAUDE_API_KEY",
+						Value: serpent.StringOf(&claudeAPIKey),
+					},
+					{
+						Flag:  "system-prompt",
+						Env:   "CLAUDE_SYSTEM_PROMPT",
+						Value: serpent.StringOf(&claudeSystemPrompt),
+					},
+					{
+						Flag:  "task-prompt",
+						Env:   "CLAUDE_TASK_PROMPT",
+						Value: serpent.StringOf(&claudeTaskPrompt),
+					},
+				},
+				Handler: func(inv *serpent.Invocation) error {
+					return agentclaude.New(inv.Context(), claudeAPIKey, claudeSystemPrompt, claudeTaskPrompt)
+				},
+			},
 		},
 	}
 

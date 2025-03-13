@@ -330,3 +330,11 @@ SET
 WHERE
     id = $1
 ;
+
+-- name: UpdateUserBrowserNotificationSubscription :exec
+UPDATE
+    users
+SET
+    browser_notification_subscription = $2
+WHERE
+    id = $1;

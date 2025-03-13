@@ -782,3 +782,31 @@ func (c *Client) AuthMethods(ctx context.Context) (AuthMethods, error) {
 	var userAuth AuthMethods
 	return userAuth, json.NewDecoder(res.Body).Decode(&userAuth)
 }
+
+type UpdateUserBrowserNotificationSubscription struct {
+	Subscription *UserBrowserNotificationSubscription `json:"subscription"`
+}
+
+// Keys are the base64 encoded values from PushSubscription.getKey()
+type UserBrowserNotificationKeys struct {
+	Auth   string `json:"auth"`
+	P256dh string `json:"p256dh"`
+}
+
+// Subscription represents a PushSubscription object from the Push API
+type UserBrowserNotificationSubscription struct {
+	Endpoint string                      `json:"endpoint"`
+	Keys     UserBrowserNotificationKeys `json:"keys"`
+}
+
+func (c *Client) UpdateUserBrowserNotificationSubscription(ctx context.Context, user string, req UpdateUserBrowserNotificationSubscription) error {
+	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/browser_notification_subscription", user), req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}

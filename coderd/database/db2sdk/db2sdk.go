@@ -322,6 +322,18 @@ func OAuth2ProviderApp(accessURL *url.URL, dbApp database.OAuth2ProviderApp) cod
 	}
 }
 
+func WorkspaceAgentTask(task database.WorkspaceAgentTask) codersdk.WorkspaceAgentTask {
+	return codersdk.WorkspaceAgentTask{
+		ID:        task.ID,
+		CreatedAt: task.CreatedAt,
+		AgentID:   task.AgentID,
+		Reporter:  task.Reporter,
+		Summary:   task.Summary,
+		LinkTo:    task.LinkTo,
+		Icon:      task.Icon,
+	}
+}
+
 func OAuth2ProviderApps(accessURL *url.URL, dbApps []database.OAuth2ProviderApp) []codersdk.OAuth2ProviderApp {
 	return List(dbApps, func(dbApp database.OAuth2ProviderApp) codersdk.OAuth2ProviderApp {
 		return OAuth2ProviderApp(accessURL, dbApp)
@@ -340,6 +352,12 @@ func convertDisplayApps(apps []database.DisplayApp) []codersdk.DisplayApp {
 	return dapps
 }
 
+func convertWorkspaceAgentTasks(tasks []database.WorkspaceAgentTask) []codersdk.WorkspaceAgentTask {
+	return List(tasks, func(task database.WorkspaceAgentTask) codersdk.WorkspaceAgentTask {
+		return WorkspaceAgentTask(task)
+	})
+}
+
 func WorkspaceAgentEnvironment(workspaceAgent database.WorkspaceAgent) (map[string]string, error) {
 	var envs map[string]string
 	if workspaceAgent.EnvironmentVariables.Valid {
@@ -354,7 +372,7 @@ func WorkspaceAgentEnvironment(workspaceAgent database.WorkspaceAgent) (map[stri
 
 func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 	dbAgent database.WorkspaceAgent, apps []codersdk.WorkspaceApp, scripts []codersdk.WorkspaceAgentScript, logSources []codersdk.WorkspaceAgentLogSource,
-	agentInactiveDisconnectTimeout time.Duration, agentFallbackTroubleshootingURL string,
+	agentInactiveDisconnectTimeout time.Duration, agentFallbackTroubleshootingURL string, tasks []database.WorkspaceAgentTask,
 ) (codersdk.WorkspaceAgent, error) {
 	envs, err := WorkspaceAgentEnvironment(dbAgent)
 	if err != nil {
@@ -380,6 +398,11 @@ func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 		legacyStartupScriptBehavior = codersdk.WorkspaceAgentStartupScriptBehaviorBlocking
 	}
 
+	var taskCompletedAt *time.Time
+	if dbAgent.TaskCompletedAt.Valid {
+		taskCompletedAt = &dbAgent.TaskCompletedAt.Time
+	}
+
 	workspaceAgent := codersdk.WorkspaceAgent{
 		ID:                       dbAgent.ID,
 		CreatedAt:                dbAgent.CreatedAt,
@@ -401,10 +424,14 @@ func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 		ExpandedDirectory:        dbAgent.ExpandedDirectory,
 		Apps:                     apps,
 		ConnectionTimeoutSeconds: dbAgent.ConnectionTimeoutSeconds,
+		TaskWaitingForUserInput:  dbAgent.TaskWaitingForUserInput,
+		TaskNotifications:        dbAgent.TaskNotifications,
+		TaskCompletedAt:          taskCompletedAt,
 		TroubleshootingURL:       troubleshootingURL,
 		LifecycleState:           codersdk.WorkspaceAgentLifecycle(dbAgent.LifecycleState),
 		Subsystems:               subsystems,
 		DisplayApps:              convertDisplayApps(dbAgent.DisplayApps),
+		Tasks:                    convertWorkspaceAgentTasks(tasks),
 	}
 	node := coordinator.Node(dbAgent.ID)
 	if node != nil {

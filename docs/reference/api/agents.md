@@ -527,6 +527,20 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
   "subsystems": [
     "envbox"
   ],
+  "task_completed_at": "string",
+  "task_notifications": true,
+  "task_waiting_for_user_input": true,
+  "tasks": [
+    {
+      "agent_id": "string",
+      "created_at": "string",
+      "icon": "string",
+      "id": "string",
+      "link_to": "string",
+      "reporter": "string",
+      "summary": "string"
+    }
+  ],
   "troubleshooting_url": "string",
   "updated_at": "2019-08-24T14:15:22Z",
   "version": "string"

@@ -5,7 +5,10 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/SherClockHolmes/webpush-go"
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 
@@ -323,6 +326,49 @@ func (api *API) putUserNotificationPreferences(rw http.ResponseWriter, r *http.R
 	httpapi.Write(ctx, rw, http.StatusOK, out)
 }
 
+func (api *API) postUserBrowserNotificationSubscription(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := httpmw.UserParam(r)
+
+	if !api.Authorize(r, policy.ActionUpdatePersonal, user) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	var params codersdk.UpdateUserBrowserNotificationSubscription
+	if !httpapi.Read(ctx, rw, r, &params) {
+		return
+	}
+
+	msg := pqtype.NullRawMessage{
+		Valid: false,
+	}
+
+	if params.Subscription != nil {
+		data, err := json.Marshal(params.Subscription)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error marshalling browser notification subscription.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		msg.RawMessage = data
+		msg.Valid = true
+	}
+	err := api.Database.UpdateUserBrowserNotificationSubscription(ctx, database.UpdateUserBrowserNotificationSubscriptionParams{
+		ID:                              user.ID,
+		BrowserNotificationSubscription: msg,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating browser notification subscription.",
+			Detail:  err.Error(),
+		})
+	}
+	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
+}
+
 func convertNotificationTemplates(in []database.NotificationTemplate) (out []codersdk.NotificationTemplate) {
 	for _, tmpl := range in {
 		out = append(out, codersdk.NotificationTemplate{
@@ -351,4 +397,45 @@ func convertNotificationPreferences(in []database.NotificationPreference) (out [
 	}
 
 	return out
+}
+
+type userBrowserNotification struct {
+	Title   string
+	Body    string
+	Icon    string
+	Actions []userBrowserNotificationAction
+}
+
+type userBrowserNotificationAction struct {
+	Title string
+	Link  string
+}
+
+func (api *API) dispatchUserBrowserNotification(user database.User, notif userBrowserNotification) error {
+	if !user.BrowserNotificationSubscription.Valid {
+		return nil
+	}
+	if api.NotificationsVAPIDPublicKey == "" || api.NotificationsVAPIDPrivateKey == "" {
+		return nil
+	}
+
+	var sub *webpush.Subscription
+	err := json.Unmarshal(user.BrowserNotificationSubscription.RawMessage, &sub)
+	if err != nil {
+		return xerrors.Errorf("unmarshal browser notification subscription: %w", err)
+	}
+
+	msg, err := json.Marshal(notif)
+	if err != nil {
+		return xerrors.Errorf("marshal browser notification: %w", err)
+	}
+
+	_, err = webpush.SendNotification(msg, sub, &webpush.Options{
+		VAPIDPublicKey:  api.NotificationsVAPIDPublicKey,
+		VAPIDPrivateKey: api.NotificationsVAPIDPrivateKey,
+	})
+	if err != nil {
+		return xerrors.Errorf("send browser notification: %w", err)
+	}
+	return nil
 }

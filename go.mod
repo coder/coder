@@ -1,6 +1,8 @@
 module github.com/coder/coder/v2
 
-go 1.22.9
+go 1.23
+
+toolchain go1.23.7
 
 // Required until a v3 of chroma is created to lazily initialize all XML files.
 // None of our dependencies seem to use the registries anyways, so this
@@ -467,4 +469,10 @@ require (
 	howett.net/plist v1.0.0 // indirect
 	kernel.org/pub/linux/libs/security/libcap/psx v1.2.73 // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
+)
+
+require (
+	github.com/SherClockHolmes/webpush-go v1.4.0 // indirect
+	github.com/golang-jwt/jwt/v5 v5.2.1 // indirect
+	github.com/mark3labs/mcp-go v0.13.0 // indirect
 )

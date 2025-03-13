@@ -61,6 +61,7 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 		dbApps     []database.WorkspaceApp
 		scripts    []database.WorkspaceAgentScript
 		logSources []database.WorkspaceAgentLogSource
+		tasks      []database.WorkspaceAgentTask
 	)
 
 	var eg errgroup.Group
@@ -76,6 +77,11 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 	eg.Go(func() (err error) {
 		//nolint:gocritic // TODO: can we make this not require system restricted?
 		logSources, err = api.Database.GetWorkspaceAgentLogSourcesByAgentIDs(dbauthz.AsSystemRestricted(ctx), []uuid.UUID{workspaceAgent.ID})
+		return err
+	})
+	eg.Go(func() (err error) {
+		//nolint:gocritic // TODO: can we make this not require system restricted?
+		tasks, err = api.Database.GetWorkspaceAgentTasksByAgentIDs(dbauthz.AsSystemRestricted(ctx), []uuid.UUID{workspaceAgent.ID})
 		return err
 	})
 	err := eg.Wait()
@@ -126,7 +132,7 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 
 	apiAgent, err := db2sdk.WorkspaceAgent(
 		api.DERPMap(), *api.TailnetCoordinator.Load(), workspaceAgent, db2sdk.Apps(dbApps, workspaceAgent, owner.Username, workspace), convertScripts(scripts), convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
-		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
+		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(), tasks,
 	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -588,7 +594,7 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 
 	apiAgent, err := db2sdk.WorkspaceAgent(
 		api.DERPMap(), *api.TailnetCoordinator.Load(), workspaceAgent, nil, nil, nil, api.AgentInactiveDisconnectTimeout,
-		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
+		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(), nil,
 	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -722,6 +728,7 @@ func (api *API) workspaceAgentListContainers(rw http.ResponseWriter, r *http.Req
 		nil,
 		api.AgentInactiveDisconnectTimeout,
 		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
+		nil,
 	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1045,6 +1052,73 @@ func (api *API) workspaceAgentPostLogSource(rw http.ResponseWriter, r *http.Requ
 	apiSource := convertLogSources(sources)[0]
 
 	httpapi.Write(ctx, rw, http.StatusCreated, apiSource)
+}
+
+func (api *API) postWorkspaceAgentTask(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var req agentsdk.PostTaskRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	workspaceAgent := httpmw.WorkspaceAgent(r)
+
+	task, err := api.Database.InsertWorkspaceAgentTask(ctx, database.InsertWorkspaceAgentTaskParams{
+		ID:        uuid.New(),
+		AgentID:   workspaceAgent.ID,
+		CreatedAt: dbtime.Now(),
+		Reporter:  req.Reporter,
+		Summary:   req.Summary,
+		LinkTo:    req.LinkTo,
+		Icon:      req.Icon,
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	latestBuild := httpmw.LatestBuild(r)
+	workspace, err := api.Database.GetWorkspaceByID(ctx, latestBuild.WorkspaceID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Internal error fetching workspace.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	owner, err := api.Database.GetUserByID(ctx, workspace.OwnerID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Internal error fetching user.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	if workspaceAgent.TaskNotifications {
+		err = api.dispatchUserBrowserNotification(owner, userBrowserNotification{
+			Title: task.Summary,
+			Body:  task.Summary,
+			Icon:  task.Icon,
+		})
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Internal error dispatching browser notification.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
+	api.publishWorkspaceUpdate(ctx, owner.ID, wspubsub.WorkspaceEvent{
+		Kind:        wspubsub.WorkspaceEventKindAgentTaskUpdate,
+		AgentID:     &workspaceAgent.ID,
+		WorkspaceID: workspace.ID,
+	})
+
+	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
 }
 
 // convertProvisionedApps converts applications that are in the middle of provisioning process.

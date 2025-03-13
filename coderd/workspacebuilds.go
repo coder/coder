@@ -88,6 +88,7 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 		data.logSources,
 		data.templateVersions[0],
 		nil,
+		data.tasks,
 	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -204,6 +205,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		data.logSources,
 		data.templateVersions,
 		data.provisionerDaemons,
+		data.tasks,
 	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -294,6 +296,7 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 		data.logSources,
 		data.templateVersions[0],
 		data.provisionerDaemons,
+		data.tasks,
 	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -434,6 +437,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		[]database.WorkspaceAgentLogSource{},
 		database.TemplateVersion{},
 		provisionerDaemons,
+		[]database.WorkspaceAgentTask{},
 	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -764,6 +768,7 @@ type workspaceBuildsData struct {
 	scripts            []database.WorkspaceAgentScript
 	logSources         []database.WorkspaceAgentLogSource
 	provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
+	tasks              []database.WorkspaceAgentTask
 }
 
 func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []database.WorkspaceBuild) (workspaceBuildsData, error) {
@@ -848,6 +853,7 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []datab
 		apps       []database.WorkspaceApp
 		scripts    []database.WorkspaceAgentScript
 		logSources []database.WorkspaceAgentLogSource
+		tasks      []database.WorkspaceAgentTask
 	)
 
 	var eg errgroup.Group
@@ -866,6 +872,11 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []datab
 		logSources, err = api.Database.GetWorkspaceAgentLogSourcesByAgentIDs(dbauthz.AsSystemRestricted(ctx), agentIDs)
 		return err
 	})
+	eg.Go(func() error {
+		// nolint:gocritic // Getting workspace agent tasks by agent IDs is a system function.
+		tasks, err = api.Database.GetWorkspaceAgentTasksByAgentIDs(dbauthz.AsSystemRestricted(ctx), agentIDs)
+		return err
+	})
 	err = eg.Wait()
 	if err != nil {
 		return workspaceBuildsData{}, err
@@ -881,6 +892,7 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []datab
 		scripts:            scripts,
 		logSources:         logSources,
 		provisionerDaemons: pendingJobProvisioners,
+		tasks:              tasks,
 	}, nil
 }
 
@@ -896,6 +908,7 @@ func (api *API) convertWorkspaceBuilds(
 	agentLogSources []database.WorkspaceAgentLogSource,
 	templateVersions []database.TemplateVersion,
 	provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow,
+	agentTasks []database.WorkspaceAgentTask,
 ) ([]codersdk.WorkspaceBuild, error) {
 	workspaceByID := map[uuid.UUID]database.Workspace{}
 	for _, workspace := range workspaces {
@@ -938,6 +951,7 @@ func (api *API) convertWorkspaceBuilds(
 			agentLogSources,
 			templateVersion,
 			provisionerDaemons,
+			agentTasks,
 		)
 		if err != nil {
 			return nil, xerrors.Errorf("converting workspace build: %w", err)
@@ -961,6 +975,7 @@ func (api *API) convertWorkspaceBuild(
 	agentLogSources []database.WorkspaceAgentLogSource,
 	templateVersion database.TemplateVersion,
 	provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow,
+	agentTasks []database.WorkspaceAgentTask,
 ) (codersdk.WorkspaceBuild, error) {
 	resourcesByJobID := map[uuid.UUID][]database.WorkspaceResource{}
 	for _, resource := range workspaceResources {
@@ -985,6 +1000,10 @@ func (api *API) convertWorkspaceBuild(
 	logSourcesByAgentID := map[uuid.UUID][]database.WorkspaceAgentLogSource{}
 	for _, logSource := range agentLogSources {
 		logSourcesByAgentID[logSource.WorkspaceAgentID] = append(logSourcesByAgentID[logSource.WorkspaceAgentID], logSource)
+	}
+	tasksByAgentID := map[uuid.UUID][]database.WorkspaceAgentTask{}
+	for _, task := range agentTasks {
+		tasksByAgentID[task.AgentID] = append(tasksByAgentID[task.AgentID], task)
 	}
 	provisionerDaemonsForThisWorkspaceBuild := []database.ProvisionerDaemon{}
 	for _, provisionerDaemon := range provisionerDaemons {
@@ -1016,9 +1035,11 @@ func (api *API) convertWorkspaceBuild(
 			apps := appsByAgentID[agent.ID]
 			scripts := scriptsByAgentID[agent.ID]
 			logSources := logSourcesByAgentID[agent.ID]
+			tasks := tasksByAgentID[agent.ID]
 			apiAgent, err := db2sdk.WorkspaceAgent(
 				api.DERPMap(), *api.TailnetCoordinator.Load(), agent, db2sdk.Apps(apps, agent, workspace.OwnerUsername, workspace), convertScripts(scripts), convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
 				api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
+				tasks,
 			)
 			if err != nil {
 				return codersdk.WorkspaceBuild{}, xerrors.Errorf("converting workspace agent: %w", err)

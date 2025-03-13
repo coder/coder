@@ -603,6 +603,25 @@ func (c *Client) PostLogSource(ctx context.Context, req PostLogSourceRequest) (c
 	return logSource, json.NewDecoder(res.Body).Decode(&logSource)
 }
 
+type PostTaskRequest struct {
+	Reporter string `json:"reporter"`
+	Summary  string `json:"summary"`
+	LinkTo   string `json:"link_to"`
+	Icon     string `json:"icon"`
+}
+
+func (c *Client) PostTask(ctx context.Context, req PostTaskRequest) error {
+	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/task", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return codersdk.ReadBodyAsError(res)
+	}
+	return nil
+}
+
 type ExternalAuthResponse struct {
 	AccessToken string                 `json:"access_token"`
 	TokenExtra  map[string]interface{} `json:"token_extra"`

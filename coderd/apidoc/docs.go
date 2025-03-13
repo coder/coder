@@ -15962,6 +15962,21 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.AgentSubsystem"
                     }
                 },
+                "task_completed_at": {
+                    "type": "string"
+                },
+                "task_notifications": {
+                    "type": "boolean"
+                },
+                "task_waiting_for_user_input": {
+                    "type": "boolean"
+                },
+                "tasks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceAgentTask"
+                    }
+                },
                 "troubleshooting_url": {
                     "type": "string"
                 },
@@ -16292,6 +16307,32 @@ const docTemplate = `{
                 "WorkspaceAgentDisconnected",
                 "WorkspaceAgentTimeout"
             ]
+        },
+        "codersdk.WorkspaceAgentTask": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "link_to": {
+                    "type": "string"
+                },
+                "reporter": {
+                    "type": "string"
+                },
+                "summary": {
+                    "type": "string"
+                }
+            }
         },
         "codersdk.WorkspaceApp": {
             "type": "object",

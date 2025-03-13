@@ -1030,6 +1030,10 @@ func (q *querier) customRoleCheck(ctx context.Context, role database.CustomRole)
 	return nil
 }
 
+func (q *querier) GetWorkspaceAgentTasks(ctx context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentTask, error) {
+	panic("not implemented")
+}
+
 func (q *querier) AcquireLock(ctx context.Context, id int64) error {
 	return q.db.AcquireLock(ctx, id)
 }
@@ -2733,6 +2737,10 @@ func (q *querier) GetWorkspaceAgentStatsAndLabels(ctx context.Context, createdAf
 	return q.db.GetWorkspaceAgentStatsAndLabels(ctx, createdAfter)
 }
 
+func (q *querier) GetWorkspaceAgentTasksByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAgentTask, error) {
+	panic("not implemented")
+}
+
 func (q *querier) GetWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) ([]database.GetWorkspaceAgentUsageStatsRow, error) {
 	return q.db.GetWorkspaceAgentUsageStats(ctx, createdAt)
 }
@@ -3432,6 +3440,10 @@ func (q *querier) InsertWorkspaceAgentStats(ctx context.Context, arg database.In
 	return q.db.InsertWorkspaceAgentStats(ctx, arg)
 }
 
+func (q *querier) InsertWorkspaceAgentTask(ctx context.Context, arg database.InsertWorkspaceAgentTaskParams) (database.WorkspaceAgentTask, error) {
+	panic("not implemented")
+}
+
 func (q *querier) InsertWorkspaceApp(ctx context.Context, arg database.InsertWorkspaceAppParams) (database.WorkspaceApp, error) {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
 		return database.WorkspaceApp{}, err
@@ -4051,6 +4063,10 @@ func (q *querier) UpdateUserAppearanceSettings(ctx context.Context, arg database
 	return q.db.UpdateUserAppearanceSettings(ctx, arg)
 }
 
+func (q *querier) UpdateUserBrowserNotificationSubscription(ctx context.Context, arg database.UpdateUserBrowserNotificationSubscriptionParams) error {
+	panic("not implemented")
+}
+
 func (q *querier) UpdateUserDeletedByID(ctx context.Context, id uuid.UUID) error {
 	return deleteQ(q.log, q.auth, q.db.GetUserByID, q.db.UpdateUserDeletedByID)(ctx, id)
 }
@@ -4275,6 +4291,10 @@ func (q *querier) UpdateWorkspaceAgentStartupByID(ctx context.Context, arg datab
 	}
 
 	return q.db.UpdateWorkspaceAgentStartupByID(ctx, arg)
+}
+
+func (q *querier) UpdateWorkspaceAgentTask(ctx context.Context, arg database.UpdateWorkspaceAgentTaskParams) error {
+	panic("not implemented")
 }
 
 func (q *querier) UpdateWorkspaceAppHealthByID(ctx context.Context, arg database.UpdateWorkspaceAppHealthByIDParams) error {
