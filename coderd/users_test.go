@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"net/http"
 	"slices"
@@ -13,8 +14,10 @@ import (
 
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
+	"github.com/coder/coder/v2/coderd/database/migrations"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
+	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -2414,4 +2417,93 @@ func BenchmarkUsersMe(b *testing.B) {
 		_, err := client.User(ctx, codersdk.Me)
 		require.NoError(b, err)
 	}
+}
+
+func TestSystemUserBehaviour(t *testing.T) {
+	// Setup.
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB) // coderd/database/migrations/00030*_system_user.up.sql will create a system user.
+	require.NoError(t, err, "migrations")
+	
+	db := database.New(sqlDB)
+
+	// =================================================================================================================
+
+	// When: retrieving users with the include_system flag enabled.
+	other := dbgen.User(t, db, database.User{})
+	users, err := db.GetUsers(ctx, database.GetUsersParams{
+		IncludeSystem: true,
+	})
+
+	// Then: system users are returned, alongside other users.
+	require.NoError(t, err)
+	require.Len(t, users, 2)
+
+	var systemUser, regularUser database.GetUsersRow
+	for _, u := range users {
+		if u.IsSystem.Bool {
+			systemUser = u
+		} else {
+			regularUser = u
+		}
+	}
+	require.NotNil(t, systemUser)
+	require.NotNil(t, regularUser)
+
+	require.True(t, systemUser.IsSystem.Bool)
+	require.Equal(t, systemUser.ID, prebuilds.OwnerID)
+	require.False(t, regularUser.IsSystem.Bool)
+	require.Equal(t, regularUser.ID, other.ID)
+
+	// =================================================================================================================
+
+	// When: retrieving users with the include_system flag disabled.
+	users, err = db.GetUsers(ctx, database.GetUsersParams{
+		IncludeSystem: false,
+	})
+
+	// Then: only regular users are returned.
+	require.NoError(t, err)
+	require.Len(t, users, 1)
+	require.False(t, users[0].IsSystem.Bool)
+
+	// =================================================================================================================
+
+	// When: attempting to update a system user's name.
+	_, err = db.UpdateUserProfile(ctx, database.UpdateUserProfileParams{
+		ID:   systemUser.ID,
+		Name: "not prebuilds",
+	})
+	// Then: the attempt is rejected by a postgres trigger.
+	require.ErrorContains(t, err, "Cannot modify or delete system users")
+
+	// When: attempting to delete a system user.
+	err = db.UpdateUserDeletedByID(ctx, systemUser.ID)
+	// Then: the attempt is rejected by a postgres trigger.
+	require.ErrorContains(t, err, "Cannot modify or delete system users")
+
+	// When: attempting to update a user's roles.
+	_, err = db.UpdateUserRoles(ctx, database.UpdateUserRolesParams{
+		ID: systemUser.ID,
+		GrantedRoles: []string{rbac.RoleAuditor().String()},
+	})
+	// Then: the attempt is rejected by a postgres trigger.
+	require.ErrorContains(t, err, "Cannot modify or delete system users")
+}
+
+func testSQLDB(t testing.TB) *sql.DB {
+	t.Helper()
+
+	connection, err := dbtestutil.Open(t)
+	require.NoError(t, err)
+
+	db, err := sql.Open("postgres", connection)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+
+	return db
 }
