@@ -123,7 +123,10 @@ jobs:
       packages: write
       # Necessary for GCP authentication (https://github.com/google-github-actions/setup-gcloud#usage)
       # Also necessary for keyless cosign (https://docs.sigstore.dev/cosign/signing/overview/)
+      # And for GitHub Actions attestation
       id-token: write
+      # Required for GitHub Actions attestation
+      attestations: write
     env:
       # Necessary for Docker manifest
       DOCKER_CLI_EXPERIMENTAL: "enabled"
@@ -409,7 +412,52 @@ jobs:
           echo "$manifests" | grep -q linux/arm64
           echo "$manifests" | grep -q linux/arm/v7
 
+      # GitHub attestation provides SLSA provenance for Docker images, establishing a verifiable
+      # record that these images were built in GitHub Actions with specific inputs and environment.
+      # This complements our existing cosign attestations (which focus on SBOMs) by adding
+      # GitHub-specific build provenance to enhance our supply chain security.
+      #
+      # TODO: Consider refactoring these attestation steps to use a matrix strategy or composite action
+      # to reduce duplication while maintaining the required functionality for each distinct image tag.
+      - name: GitHub Attestation for Base Docker image
+        id: attest_base
+        if: ${{ !inputs.dry_run && steps.image-base-tag.outputs.tag != '' }}
+        continue-on-error: true
+        uses: actions/attest@a63cfcc7d1aab266ee064c58250cfc2c7d07bc31 # v2.2.1
+        with:
+          subject-name: ${{ steps.image-base-tag.outputs.tag }}
+          predicate-type: "https://slsa.dev/provenance/v1"
+          predicate: |
+            {
+              "buildType": "https://github.com/actions/runner-images/",
+              "builder": {
+                "id": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              },
+              "invocation": {
+                "configSource": {
+                  "uri": "git+https://github.com/${{ github.repository }}@${{ github.ref }}",
+                  "digest": {
+                    "sha1": "${{ github.sha }}"
+                  },
+                  "entryPoint": ".github/workflows/release.yaml"
+                },
+                "environment": {
+                  "github_workflow": "${{ github.workflow }}",
+                  "github_run_id": "${{ github.run_id }}"
+                }
+              },
+              "metadata": {
+                "buildInvocationID": "${{ github.run_id }}",
+                "completeness": {
+                  "environment": true,
+                  "materials": true
+                }
+              }
+            }
+          push-to-registry: true
+
       - name: Build Linux Docker images
+        id: build_docker
         run: |
           set -euxo pipefail
 
@@ -428,17 +476,124 @@ jobs:
           # being pushed so will automatically push them.
           make push/build/coder_"$version"_linux.tag
 
+          # Save multiarch image tag for attestation
+          multiarch_image="$(./scripts/image_tag.sh)"
+          echo "multiarch_image=${multiarch_image}" >> $GITHUB_OUTPUT
+
+          # For debugging, print all docker image tags
+          docker images
+
           # if the current version is equal to the highest (according to semver)
           # version in the repo, also create a multi-arch image as ":latest" and
           # push it
+          created_latest_tag=false
           if [[ "$(git tag | grep '^v' | grep -vE '(rc|dev|-|\+|\/)' | sort -r --version-sort | head -n1)" == "v$(./scripts/version.sh)" ]]; then
             ./scripts/build_docker_multiarch.sh \
               --push \
               --target "$(./scripts/image_tag.sh --version latest)" \
               $(cat build/coder_"$version"_linux_{amd64,arm64,armv7}.tag)
+            created_latest_tag=true
+            echo "created_latest_tag=true" >> $GITHUB_OUTPUT
+          else
+            echo "created_latest_tag=false" >> $GITHUB_OUTPUT
           fi
         env:
           CODER_BASE_IMAGE_TAG: ${{ steps.image-base-tag.outputs.tag }}
+
+      - name: GitHub Attestation for Docker image
+        id: attest_main
+        if: ${{ !inputs.dry_run }}
+        continue-on-error: true
+        uses: actions/attest@a63cfcc7d1aab266ee064c58250cfc2c7d07bc31 # v2.2.1
+        with:
+          subject-name: ${{ steps.build_docker.outputs.multiarch_image }}
+          predicate-type: "https://slsa.dev/provenance/v1"
+          predicate: |
+            {
+              "buildType": "https://github.com/actions/runner-images/",
+              "builder": {
+                "id": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              },
+              "invocation": {
+                "configSource": {
+                  "uri": "git+https://github.com/${{ github.repository }}@${{ github.ref }}",
+                  "digest": {
+                    "sha1": "${{ github.sha }}"
+                  },
+                  "entryPoint": ".github/workflows/release.yaml"
+                },
+                "environment": {
+                  "github_workflow": "${{ github.workflow }}",
+                  "github_run_id": "${{ github.run_id }}"
+                }
+              },
+              "metadata": {
+                "buildInvocationID": "${{ github.run_id }}",
+                "completeness": {
+                  "environment": true,
+                  "materials": true
+                }
+              }
+            }
+          push-to-registry: true
+
+      # Get the latest tag name for attestation
+      - name: Get latest tag name
+        id: latest_tag
+        if: ${{ !inputs.dry_run && steps.build_docker.outputs.created_latest_tag == 'true' }}
+        run: echo "tag=$(./scripts/image_tag.sh --version latest)" >> $GITHUB_OUTPUT
+
+      # If this is the highest version according to semver, also attest the "latest" tag
+      - name: GitHub Attestation for "latest" Docker image
+        id: attest_latest
+        if: ${{ !inputs.dry_run && steps.build_docker.outputs.created_latest_tag == 'true' }}
+        continue-on-error: true
+        uses: actions/attest@a63cfcc7d1aab266ee064c58250cfc2c7d07bc31 # v2.2.1
+        with:
+          subject-name: ${{ steps.latest_tag.outputs.tag }}
+          predicate-type: "https://slsa.dev/provenance/v1"
+          predicate: |
+            {
+              "buildType": "https://github.com/actions/runner-images/",
+              "builder": {
+                "id": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              },
+              "invocation": {
+                "configSource": {
+                  "uri": "git+https://github.com/${{ github.repository }}@${{ github.ref }}",
+                  "digest": {
+                    "sha1": "${{ github.sha }}"
+                  },
+                  "entryPoint": ".github/workflows/release.yaml"
+                },
+                "environment": {
+                  "github_workflow": "${{ github.workflow }}",
+                  "github_run_id": "${{ github.run_id }}"
+                }
+              },
+              "metadata": {
+                "buildInvocationID": "${{ github.run_id }}",
+                "completeness": {
+                  "environment": true,
+                  "materials": true
+                }
+              }
+            }
+          push-to-registry: true
+
+      # Report attestation failures but don't fail the workflow
+      - name: Check attestation status
+        if: ${{ !inputs.dry_run }}
+        run: |
+          if [[ "${{ steps.attest_base.outcome }}" == "failure" && "${{ steps.attest_base.conclusion }}" != "skipped" ]]; then
+            echo "::warning::GitHub attestation for base image failed"
+          fi
+          if [[ "${{ steps.attest_main.outcome }}" == "failure" ]]; then
+            echo "::warning::GitHub attestation for main image failed"
+          fi
+          if [[ "${{ steps.attest_latest.outcome }}" == "failure" && "${{ steps.attest_latest.conclusion }}" != "skipped" ]]; then
+            echo "::warning::GitHub attestation for latest image failed"
+          fi
 
       - name: Generate offline docs
         run: |

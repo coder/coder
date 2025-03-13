@@ -1025,7 +1025,10 @@ jobs:
       packages: write
       # Necessary for GCP authentication (https://github.com/google-github-actions/setup-gcloud#usage)
       # Also necessary for keyless cosign (https://docs.sigstore.dev/cosign/signing/overview/)
+      # And for GitHub Actions attestation
       id-token: write
+      # Required for GitHub Actions attestation
+      attestations: write
     env:
       DOCKER_CLI_EXPERIMENTAL: "enabled"
     outputs:
@@ -1179,6 +1182,138 @@ jobs:
                     --version $version \
                     $(cat build/coder_"$version"_linux_{amd64,arm64,armv7}.tag)
             done
+          fi
+
+      # GitHub attestation provides SLSA provenance for the Docker images, establishing a verifiable
+      # record that these images were built in GitHub Actions with specific inputs and environment.
+      # This complements our existing cosign attestations which focus on SBOMs.
+      #
+      # We attest each tag separately to ensure all tags have proper provenance records.
+      # TODO: Consider refactoring these steps to use a matrix strategy or composite action to reduce duplication
+      # while maintaining the required functionality for each tag.
+      - name: GitHub Attestation for Docker image
+        id: attest_main
+        if: github.ref == 'refs/heads/main'
+        continue-on-error: true
+        uses: actions/attest@a63cfcc7d1aab266ee064c58250cfc2c7d07bc31 # v2.2.1
+        with:
+          subject-name: "ghcr.io/coder/coder-preview:main"
+          predicate-type: "https://slsa.dev/provenance/v1"
+          predicate: |
+            {
+              "buildType": "https://github.com/actions/runner-images/",
+              "builder": {
+                "id": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              },
+              "invocation": {
+                "configSource": {
+                  "uri": "git+https://github.com/${{ github.repository }}@${{ github.ref }}",
+                  "digest": {
+                    "sha1": "${{ github.sha }}"
+                  },
+                  "entryPoint": ".github/workflows/ci.yaml"
+                },
+                "environment": {
+                  "github_workflow": "${{ github.workflow }}",
+                  "github_run_id": "${{ github.run_id }}"
+                }
+              },
+              "metadata": {
+                "buildInvocationID": "${{ github.run_id }}",
+                "completeness": {
+                  "environment": true,
+                  "materials": true
+                }
+              }
+            }
+          push-to-registry: true
+
+      - name: GitHub Attestation for Docker image (latest tag)
+        id: attest_latest
+        if: github.ref == 'refs/heads/main'
+        continue-on-error: true
+        uses: actions/attest@a63cfcc7d1aab266ee064c58250cfc2c7d07bc31 # v2.2.1
+        with:
+          subject-name: "ghcr.io/coder/coder-preview:latest"
+          predicate-type: "https://slsa.dev/provenance/v1"
+          predicate: |
+            {
+              "buildType": "https://github.com/actions/runner-images/",
+              "builder": {
+                "id": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              },
+              "invocation": {
+                "configSource": {
+                  "uri": "git+https://github.com/${{ github.repository }}@${{ github.ref }}",
+                  "digest": {
+                    "sha1": "${{ github.sha }}"
+                  },
+                  "entryPoint": ".github/workflows/ci.yaml"
+                },
+                "environment": {
+                  "github_workflow": "${{ github.workflow }}",
+                  "github_run_id": "${{ github.run_id }}"
+                }
+              },
+              "metadata": {
+                "buildInvocationID": "${{ github.run_id }}",
+                "completeness": {
+                  "environment": true,
+                  "materials": true
+                }
+              }
+            }
+          push-to-registry: true
+
+      - name: GitHub Attestation for version-specific Docker image
+        id: attest_version
+        if: github.ref == 'refs/heads/main'
+        continue-on-error: true
+        uses: actions/attest@a63cfcc7d1aab266ee064c58250cfc2c7d07bc31 # v2.2.1
+        with:
+          subject-name: "ghcr.io/coder/coder-preview:${{ steps.build-docker.outputs.tag }}"
+          predicate-type: "https://slsa.dev/provenance/v1"
+          predicate: |
+            {
+              "buildType": "https://github.com/actions/runner-images/",
+              "builder": {
+                "id": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              },
+              "invocation": {
+                "configSource": {
+                  "uri": "git+https://github.com/${{ github.repository }}@${{ github.ref }}",
+                  "digest": {
+                    "sha1": "${{ github.sha }}"
+                  },
+                  "entryPoint": ".github/workflows/ci.yaml"
+                },
+                "environment": {
+                  "github_workflow": "${{ github.workflow }}",
+                  "github_run_id": "${{ github.run_id }}"
+                }
+              },
+              "metadata": {
+                "buildInvocationID": "${{ github.run_id }}",
+                "completeness": {
+                  "environment": true,
+                  "materials": true
+                }
+              }
+            }
+          push-to-registry: true
+
+      # Report attestation failures but don't fail the workflow
+      - name: Check attestation status
+        if: github.ref == 'refs/heads/main'
+        run: |
+          if [[ "${{ steps.attest_main.outcome }}" == "failure" ]]; then
+            echo "::warning::GitHub attestation for main tag failed"
+          fi
+          if [[ "${{ steps.attest_latest.outcome }}" == "failure" ]]; then
+            echo "::warning::GitHub attestation for latest tag failed"
+          fi
+          if [[ "${{ steps.attest_version.outcome }}" == "failure" ]]; then
+            echo "::warning::GitHub attestation for version-specific tag failed"
           fi
 
       - name: Prune old images
