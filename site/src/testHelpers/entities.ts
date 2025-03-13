@@ -7,6 +7,7 @@ import type { FieldError } from "api/errors";
 import type * as TypesGen from "api/typesGenerated";
 import type { ProxyLatencyReport } from "contexts/useProxyLatency";
 import range from "lodash/range";
+import type { Notification } from "modules/notifications/NotificationsInbox/types";
 import type { Permissions } from "modules/permissions";
 import type { OrganizationPermissions } from "modules/permissions/organizations";
 import type { FileTree } from "utils/filetree";
@@ -4243,3 +4244,31 @@ export const MockNotificationTemplates: TypesGen.NotificationTemplate[] = [
 
 export const MockNotificationMethodsResponse: TypesGen.NotificationMethodsResponse =
 	{ available: ["smtp", "webhook"], default: "smtp" };
+
+export const MockNotification: Notification = {
+	id: "1",
+	read_status: "unread",
+	content:
+		"New user account testuser has been created. This new user account was created for Test User by Kira Pilot.",
+	created_at: mockTwoDaysAgo(),
+	actions: [
+		{
+			label: "View template",
+			url: "https://dev.coder.com/templates/coder/coder",
+		},
+	],
+};
+
+export const MockNotifications: Notification[] = [
+	MockNotification,
+	{ ...MockNotification, id: "2", read_status: "unread" },
+	{ ...MockNotification, id: "3", read_status: "read" },
+	{ ...MockNotification, id: "4", read_status: "read" },
+	{ ...MockNotification, id: "5", read_status: "read" },
+];
+
+function mockTwoDaysAgo() {
+	const date = new Date();
+	date.setDate(date.getDate() - 2);
+	return date.toISOString();
+}
