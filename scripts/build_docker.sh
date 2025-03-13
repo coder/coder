@@ -154,14 +154,14 @@ if [[ "$push" == 1 ]]; then
 fi
 
 log "--- Generating SBOM for Docker image ($image_tag)"
-syft "$image_tag" -o spdx-json >"${image_tag//:/_}.spdx.json"
+syft "$image_tag" -o spdx-json >"${image_tag//[:\/]/_}.spdx.json"
 
 if [[ "$push" == 1 ]]; then
 	log "--- Attesting SBOM to Docker image for $arch ($image_tag)"
 	COSIGN_EXPERIMENTAL=1 cosign clean "$image_tag"
 
 	COSIGN_EXPERIMENTAL=1 cosign attest --type spdxjson \
-		--predicate "${image_tag//:/_}.spdx.json" \
+		--predicate "${image_tag//[:\/]/_}.spdx.json" \
 		--yes \
 		"$image_tag"
 fi
