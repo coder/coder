@@ -8,8 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-
-	utiluuid "github.com/coder/coder/v2/coderd/util/uuid"
 )
 
 type InboxNotification struct {
@@ -28,12 +26,6 @@ type InboxNotification struct {
 type InboxNotificationAction struct {
 	Label string `json:"label"`
 	URL   string `json:"url"`
-}
-
-type WatchInboxNotificationsRequest struct {
-	Targets    string `json:"targets,omitempty"`
-	Templates  string `json:"templates,omitempty"`
-	ReadStatus string `json:"read_status,omitempty" validate:"omitempty,oneof=read unread all"`
 }
 
 type GetInboxNotificationResponse struct {
@@ -56,10 +48,10 @@ type ListInboxNotificationsResponse struct {
 func ListInboxNotificationsRequestToQueryParams(req ListInboxNotificationsRequest) []RequestOption {
 	var opts []RequestOption
 	if len(req.Targets) > 0 {
-		opts = append(opts, WithQueryParam("targets", utiluuid.FromSliceToString(req.Targets, ",")))
+		opts = append(opts, WithQueryParam("targets", req.Targets))
 	}
 	if len(req.Templates) > 0 {
-		opts = append(opts, WithQueryParam("templates", utiluuid.FromSliceToString(req.Templates, ",")))
+		opts = append(opts, WithQueryParam("templates", req.Templates))
 	}
 	if req.ReadStatus != "" {
 		opts = append(opts, WithQueryParam("read_status", req.ReadStatus))

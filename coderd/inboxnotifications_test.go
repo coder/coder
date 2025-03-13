@@ -133,7 +133,7 @@ func TestInboxNotifications_List(t *testing.T) {
 		}
 
 		notifs, err = client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{
-			Templates: []uuid.UUID{notifications.TemplateWorkspaceOutOfMemory},
+			Templates: notifications.TemplateWorkspaceOutOfMemory.String(),
 		})
 		require.NoError(t, err)
 		require.NotNil(t, notifs)
@@ -181,7 +181,7 @@ func TestInboxNotifications_List(t *testing.T) {
 		}
 
 		notifs, err = client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{
-			Targets: []uuid.UUID{filteredTarget},
+			Targets: filteredTarget.String(),
 		})
 		require.NoError(t, err)
 		require.NotNil(t, notifs)
@@ -235,8 +235,8 @@ func TestInboxNotifications_List(t *testing.T) {
 		}
 
 		notifs, err = client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{
-			Targets:   []uuid.UUID{filteredTarget},
-			Templates: []uuid.UUID{notifications.TemplateWorkspaceOutOfDisk},
+			Targets:   filteredTarget.String(),
+			Templates: notifications.TemplateWorkspaceOutOfDisk.String(),
 		})
 		require.NoError(t, err)
 		require.NotNil(t, notifs)
