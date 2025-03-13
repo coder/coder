@@ -5,6 +5,8 @@ import {
 	MockUser,
 } from "testHelpers/entities";
 import { OrganizationMembersPageView } from "./OrganizationMembersPageView";
+import { UsePaginatedQueryResult } from "hooks/usePaginatedQuery";
+import { mockSuccessResult } from "components/PaginationWidget/PaginationContainer.mocks";
 
 const meta: Meta<typeof OrganizationMembersPageView> = {
 	title: "pages/OrganizationMembersPageView",
@@ -14,11 +16,16 @@ const meta: Meta<typeof OrganizationMembersPageView> = {
 		error: undefined,
 		isAddingMember: false,
 		isUpdatingMemberRoles: false,
+		canViewMembers: true,
 		me: MockUser,
 		members: [
 			{ ...MockOrganizationMember, groups: [] },
 			{ ...MockOrganizationMember2, groups: [] },
 		],
+		membersQuery: {
+			...mockSuccessResult,
+			totalRecords: 2,
+		} as UsePaginatedQueryResult,
 		addMember: () => Promise.resolve(),
 		removeMember: () => Promise.resolve(),
 		updateMemberRoles: () => Promise.resolve(),
