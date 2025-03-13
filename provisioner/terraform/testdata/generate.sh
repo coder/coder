@@ -34,7 +34,7 @@ minimize_diff() {
 				key="${key%%\"*}"
 				value="${line#*: }"
 				value="${value#*\"}"
-				value="${value%\"*}"
+				value="\"${value%\"*}\""
 				declare deleted["$key"]="$value"
 			# Added line (new value).
 			elif [[ $line = +\ * ]]; then
@@ -42,7 +42,7 @@ minimize_diff() {
 				key="${key%%\"*}"
 				value="${line#*: }"
 				value="${value#*\"}"
-				value="${value%\"*}"
+				value="\"${value%\"*}\""
 				# Matched key, restore the value.
 				if [[ -v deleted["$key"] ]]; then
 					sed_args+=(-e "s|${value}|${deleted["$key"]}|")
