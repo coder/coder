@@ -36,7 +36,7 @@ export const SettingsHeader: FC<HeaderProps> = ({
 				<div className="flex flex-row gap-2 align-middle">
 					<HeaderTitle
 						className={twMerge(
-							"m-0 text-3xl font-bold flex align-baseline leading-relaxed gap-2",
+							"m-0 pb-1 text-3xl font-bold flex align-baseline gap-2 leading-tight",
 							titleVisualHierarchy === "secondary" && "text-2xl font-medium",
 						)}
 					>
