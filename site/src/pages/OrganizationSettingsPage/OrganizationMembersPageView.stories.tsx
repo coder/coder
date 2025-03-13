@@ -1,12 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { mockSuccessResult } from "components/PaginationWidget/PaginationContainer.mocks";
+import type { UsePaginatedQueryResult } from "hooks/usePaginatedQuery";
 import {
 	MockOrganizationMember,
 	MockOrganizationMember2,
 	MockUser,
 } from "testHelpers/entities";
 import { OrganizationMembersPageView } from "./OrganizationMembersPageView";
-import { UsePaginatedQueryResult } from "hooks/usePaginatedQuery";
-import { mockSuccessResult } from "components/PaginationWidget/PaginationContainer.mocks";
 
 const meta: Meta<typeof OrganizationMembersPageView> = {
 	title: "pages/OrganizationMembersPageView",
