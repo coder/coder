@@ -2387,7 +2387,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Env:         "CODER_PG_PASSWORD",
 			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
 			Value:       &c.PostgresPassword,
-			YAML:        "pgPassword",
+			// Secret values should not have YAML names
 		},
 		{
 			Name:        "Postgres Database",
