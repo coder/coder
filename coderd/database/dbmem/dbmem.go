@@ -1549,7 +1549,7 @@ func (q *FakeQuerier) ActivityBumpWorkspace(ctx context.Context, arg database.Ac
 	return sql.ErrNoRows
 }
 
-func (q *FakeQuerier) AllUserIDs(_ context.Context) ([]uuid.UUID, error) {
+func (q *FakeQuerier) AllUserIDs(_ context.Context, includeSystem bool) ([]uuid.UUID, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 	userIDs := make([]uuid.UUID, 0, len(q.users))
@@ -2644,7 +2644,7 @@ func (q *FakeQuerier) GetAPIKeysLastUsedAfter(_ context.Context, after time.Time
 	return apiKeys, nil
 }
 
-func (q *FakeQuerier) GetActiveUserCount(_ context.Context) (int64, error) {
+func (q *FakeQuerier) GetActiveUserCount(_ context.Context, includeSystem bool) (int64, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -6200,7 +6200,8 @@ func (q *FakeQuerier) GetUserByID(_ context.Context, id uuid.UUID) (database.Use
 	return q.getUserByIDNoLock(id)
 }
 
-func (q *FakeQuerier) GetUserCount(_ context.Context) (int64, error) {
+// nolint:revive // Not a control flag; used for filtering.
+func (q *FakeQuerier) GetUserCount(_ context.Context, includeSystem bool) (int64, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -6208,6 +6209,10 @@ func (q *FakeQuerier) GetUserCount(_ context.Context) (int64, error) {
 	for _, u := range q.users {
 		if !u.Deleted {
 			existing++
+		}
+
+		if !includeSystem && u.IsSystem.Valid && u.IsSystem.Bool {
+			continue
 		}
 	}
 	return existing, nil

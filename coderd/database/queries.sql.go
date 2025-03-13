@@ -5216,11 +5216,18 @@ WHERE
 			user_id = $2
 		ELSE true
 	END
+  -- Filter by system type
+  	AND CASE
+		  WHEN $3::bool THEN TRUE
+		  ELSE
+			  is_system = false
+	END
 `
 
 type OrganizationMembersParams struct {
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	IncludeSystem  bool      `db:"include_system" json:"include_system"`
 }
 
 type OrganizationMembersRow struct {
@@ -5237,7 +5244,7 @@ type OrganizationMembersRow struct {
 //   - Use just 'user_id' to get all orgs a user is a member of
 //   - Use both to get a specific org member row
 func (q *sqlQuerier) OrganizationMembers(ctx context.Context, arg OrganizationMembersParams) ([]OrganizationMembersRow, error) {
-	rows, err := q.db.QueryContext(ctx, organizationMembers, arg.OrganizationID, arg.UserID)
+	rows, err := q.db.QueryContext(ctx, organizationMembers, arg.OrganizationID, arg.UserID, arg.IncludeSystem)
 	if err != nil {
 		return nil, err
 	}
@@ -11325,11 +11332,12 @@ func (q *sqlQuerier) UpdateUserLinkedID(ctx context.Context, arg UpdateUserLinke
 
 const allUserIDs = `-- name: AllUserIDs :many
 SELECT DISTINCT id FROM USERS
+	WHERE CASE WHEN $1::bool THEN TRUE ELSE is_system = false END
 `
 
 // AllUserIDs returns all UserIDs regardless of user status or deletion.
-func (q *sqlQuerier) AllUserIDs(ctx context.Context) ([]uuid.UUID, error) {
-	rows, err := q.db.QueryContext(ctx, allUserIDs)
+func (q *sqlQuerier) AllUserIDs(ctx context.Context, includeSystem bool) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, allUserIDs, includeSystem)
 	if err != nil {
 		return nil, err
 	}
@@ -11358,10 +11366,11 @@ FROM
 	users
 WHERE
 	status = 'active'::user_status AND deleted = false
+	AND CASE WHEN $1::bool THEN TRUE ELSE is_system = false END
 `
 
-func (q *sqlQuerier) GetActiveUserCount(ctx context.Context) (int64, error) {
-	row := q.db.QueryRowContext(ctx, getActiveUserCount)
+func (q *sqlQuerier) GetActiveUserCount(ctx context.Context, includeSystem bool) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getActiveUserCount, includeSystem)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -11536,10 +11545,11 @@ FROM
 	users
 WHERE
 	deleted = false
+  	AND CASE WHEN $1::bool THEN TRUE ELSE is_system = false END
 `
 
-func (q *sqlQuerier) GetUserCount(ctx context.Context) (int64, error) {
-	row := q.db.QueryRowContext(ctx, getUserCount)
+func (q *sqlQuerier) GetUserCount(ctx context.Context, includeSystem bool) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getUserCount, includeSystem)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -11618,16 +11628,21 @@ WHERE
 			created_at >= $8
 		ELSE true
 	END
+  	AND CASE
+  	    WHEN $9::bool THEN TRUE
+  	    ELSE
+			is_system = false
+	END
 	-- End of filters
 
 	-- Authorize Filter clause will be injected below in GetAuthorizedUsers
 	-- @authorize_filter
 ORDER BY
 	-- Deterministic and consistent ordering of all users. This is to ensure consistent pagination.
-	LOWER(username) ASC OFFSET $9
+	LOWER(username) ASC OFFSET $10
 LIMIT
 	-- A null limit means "no limit", so 0 means return all
-	NULLIF($10 :: int, 0)
+	NULLIF($11 :: int, 0)
 `
 
 type GetUsersParams struct {
@@ -11639,6 +11654,7 @@ type GetUsersParams struct {
 	LastSeenAfter  time.Time    `db:"last_seen_after" json:"last_seen_after"`
 	CreatedBefore  time.Time    `db:"created_before" json:"created_before"`
 	CreatedAfter   time.Time    `db:"created_after" json:"created_after"`
+	IncludeSystem  bool         `db:"include_system" json:"include_system"`
 	OffsetOpt      int32        `db:"offset_opt" json:"offset_opt"`
 	LimitOpt       int32        `db:"limit_opt" json:"limit_opt"`
 }
@@ -11676,6 +11692,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUse
 		arg.LastSeenAfter,
 		arg.CreatedBefore,
 		arg.CreatedAfter,
+		arg.IncludeSystem,
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)
