@@ -30,7 +30,6 @@ fi
 
 TMPDIR=$(mktemp -d)
 trap 'rm -rfv "$TMPDIR"' EXIT
-rm -f "${DEST_PATH}"
 pnpm exec quicktype \
 	--src-lang schema \
 	--lang go \
