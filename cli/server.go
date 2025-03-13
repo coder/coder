@@ -420,40 +420,40 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			config := r.createConfig()
 
 			builtinPostgres := false
-			
+
 			// Check if we have individual PostgreSQL connection parameters
-			hasIndividualParams := len(vals.PostgresHost.String()) > 0 && 
-				len(vals.PostgresUsername.String()) > 0 && 
-				len(vals.PostgresPassword.String()) > 0 && 
+			hasIndividualParams := len(vals.PostgresHost.String()) > 0 &&
+				len(vals.PostgresUsername.String()) > 0 &&
+				len(vals.PostgresPassword.String()) > 0 &&
 				len(vals.PostgresDatabase.String()) > 0
-			
+
 			// Build a connection URL from individual components if provided and no connection URL exists
 			if !vals.InMemoryDatabase.Value() && vals.PostgresURL == "" && hasIndividualParams {
 				port := vals.PostgresPort.String()
 				if port == "" {
 					port = "5432" // Default PostgreSQL port
 				}
-				
+
 				// Build the base connection string
-				connURL := fmt.Sprintf("postgres://%s:%s@%s:%s/%s", 
+				connURL := fmt.Sprintf("postgres://%s:%s@%s:%s/%s",
 					vals.PostgresUsername.String(),
 					vals.PostgresPassword.String(),
 					vals.PostgresHost.String(),
 					port,
 					vals.PostgresDatabase.String())
-				
+
 				// Add options if provided
 				if len(vals.PostgresOptions.String()) > 0 {
 					connURL = connURL + "?" + vals.PostgresOptions.String()
 				}
-				
+
 				logger.Debug(ctx, "using individual PostgreSQL connection parameters")
 				err = vals.PostgresURL.Set(connURL)
 				if err != nil {
 					return xerrors.Errorf("set postgres url from components: %w", err)
 				}
 			}
-			
+
 			// Only use built-in if PostgreSQL URL and individual parameters aren't specified!
 			if !vals.InMemoryDatabase.Value() && vals.PostgresURL == "" && !hasIndividualParams {
 				var closeFunc func() error
@@ -2770,7 +2770,7 @@ func getAndMigratePostgresDB(ctx context.Context, logger slog.Logger, postgresUR
 	// The postgresURL is constructed earlier by caller from either the
 	// CODER_PG_CONNECTION_URL or the individual components (host, port, etc.)
 	// So we just validate it here and don't need to reconstruct it
-	
+
 	dbURL, err := escapePostgresURLUserInfo(postgresURL)
 	if err != nil {
 		return nil, "", xerrors.Errorf("escaping postgres URL: %w", err)
