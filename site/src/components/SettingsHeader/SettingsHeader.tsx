@@ -25,7 +25,7 @@ export const SettingsHeader: FC<HeaderProps> = ({
 }) => {
 	const Header = titleHeaderLevel;
 	return (
-		<div className="flex flex-row justify-between align-baseline">
+		<hgroup className="flex flex-row justify-between align-baseline">
 			{/*
 			 * The text-sm class only adjusts the size of the description, but
 			 * we need to apply it here so that it combines with the max-w-prose
@@ -61,6 +61,6 @@ export const SettingsHeader: FC<HeaderProps> = ({
 					</a>
 				</Button>
 			)}
-		</div>
+		</hgroup>
 	);
 };
