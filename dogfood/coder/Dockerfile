@@ -9,7 +9,7 @@ RUN cargo install exa bat ripgrep typos-cli watchexec-cli && \
 FROM ubuntu:jammy@sha256:0e5e4a57c2499249aafc3b40fcd541e9a456aab7296681a3994d631587203f97 AS go
 
 # Install Go manually, so that we can control the version
-ARG GO_VERSION=1.22.8
+ARG GO_VERSION=1.24.1
 
 # Boring Go is needed to build FIPS-compliant binaries.
 RUN apt-get update && \
@@ -320,8 +320,8 @@ RUN curl --silent --show-error --location --output /usr/local/bin/cloud_sql_prox
 	curl --silent --show-error --location "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" | \
 	tar --extract --gzip --directory=/usr/local/bin --file=- trivy && \
 	# Anchore Syft for SBOM generation
-	curl --silent --show-error --location "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_linux-amd64.tar.gz" | \
-	tar --extract --gzip --directory=/usr/local/bin --file=- syft \
+	curl --silent --show-error --location "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_linux_amd64.tar.gz" | \
+	tar --extract --gzip --directory=/usr/local/bin --file=- syft && \
 	# Sigstore Cosign for artifact signing and attestation
 	curl --silent --show-error --location --output /usr/local/bin/cosign "https://github.com/sigstore/cosign/releases/download/v${COSIGN_VERSION}/cosign-linux-amd64" && \
 	chmod a=rx /usr/local/bin/cosign
