@@ -445,6 +445,17 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION prevent_system_user_changes() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+	IF OLD.is_system = true THEN
+		RAISE EXCEPTION 'Cannot modify or delete system users';
+	END IF;
+	RETURN OLD;
+END;
+$$;
+
 CREATE FUNCTION protect_deleting_organizations() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -2616,6 +2627,10 @@ CREATE OR REPLACE VIEW workspace_prebuilds AS
      JOIN current_presets cp ON ((cp.prebuild_id = p.id)));
 
 CREATE TRIGGER inhibit_enqueue_if_disabled BEFORE INSERT ON notification_messages FOR EACH ROW EXECUTE FUNCTION inhibit_enqueue_if_disabled();
+
+CREATE TRIGGER prevent_system_user_deletions BEFORE DELETE ON users FOR EACH ROW WHEN ((old.is_system = true)) EXECUTE FUNCTION prevent_system_user_changes();
+
+CREATE TRIGGER prevent_system_user_updates BEFORE UPDATE ON users FOR EACH ROW WHEN ((old.is_system = true)) EXECUTE FUNCTION prevent_system_user_changes();
 
 CREATE TRIGGER protect_deleting_organizations BEFORE UPDATE ON organizations FOR EACH ROW WHEN (((new.deleted = true) AND (old.deleted = false))) EXECUTE FUNCTION protect_deleting_organizations();
 

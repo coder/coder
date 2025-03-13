@@ -823,6 +823,7 @@ func TestGroup(t *testing.T) {
 
 	t.Run("everyoneGroupReturnsEmpty", func(t *testing.T) {
 		// TODO (sasswart): this test seems to have drifted from its original intention. evaluate and remove/fix
+		// "everyone group returns empty", but it returns 5 members?
 		t.Parallel()
 
 		// TODO: we should not be returning the prebuilds user in Group, and this is not returned in dbmem.
