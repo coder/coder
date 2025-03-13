@@ -19,6 +19,10 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+const (
+	inboxNotificationsPageSize = 25
+)
+
 func TestInboxNotifications_List(t *testing.T) {
 	t.Parallel()
 
@@ -33,7 +37,8 @@ func TestInboxNotifications_List(t *testing.T) {
 		t.Parallel()
 
 		client, _, _ := coderdtest.NewWithAPI(t, &coderdtest.Options{})
-		_ = coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+		client, _ = coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -51,6 +56,7 @@ func TestInboxNotifications_List(t *testing.T) {
 
 		client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{})
 		firstUser := coderdtest.CreateFirstUser(t, client)
+		client, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -64,7 +70,7 @@ func TestInboxNotifications_List(t *testing.T) {
 		for i := range 40 {
 			dbgen.NotificationInbox(t, api.Database, database.InsertInboxNotificationParams{
 				ID:         uuid.New(),
-				UserID:     firstUser.UserID,
+				UserID:     member.ID,
 				TemplateID: notifications.TemplateWorkspaceOutOfMemory,
 				Title:      fmt.Sprintf("Notification %d", i),
 				Actions:    json.RawMessage("[]"),
@@ -77,12 +83,12 @@ func TestInboxNotifications_List(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, notifs)
 		require.Equal(t, 40, notifs.UnreadCount)
-		require.Len(t, notifs.Notifications, 25)
+		require.Len(t, notifs.Notifications, inboxNotificationsPageSize)
 
 		require.Equal(t, "Notification 39", notifs.Notifications[0].Title)
 
 		notifs, err = client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{
-			StartingBefore: notifs.Notifications[24].ID,
+			StartingBefore: notifs.Notifications[inboxNotificationsPageSize-1].ID,
 		})
 		require.NoError(t, err)
 		require.NotNil(t, notifs)
@@ -97,6 +103,7 @@ func TestInboxNotifications_List(t *testing.T) {
 
 		client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{})
 		firstUser := coderdtest.CreateFirstUser(t, client)
+		client, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -110,7 +117,7 @@ func TestInboxNotifications_List(t *testing.T) {
 		for i := range 10 {
 			dbgen.NotificationInbox(t, api.Database, database.InsertInboxNotificationParams{
 				ID:     uuid.New(),
-				UserID: firstUser.UserID,
+				UserID: member.ID,
 				TemplateID: func() uuid.UUID {
 					if i%2 == 0 {
 						return notifications.TemplateWorkspaceOutOfMemory
@@ -141,6 +148,7 @@ func TestInboxNotifications_List(t *testing.T) {
 
 		client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{})
 		firstUser := coderdtest.CreateFirstUser(t, client)
+		client, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -156,7 +164,7 @@ func TestInboxNotifications_List(t *testing.T) {
 		for i := range 10 {
 			dbgen.NotificationInbox(t, api.Database, database.InsertInboxNotificationParams{
 				ID:         uuid.New(),
-				UserID:     firstUser.UserID,
+				UserID:     member.ID,
 				TemplateID: notifications.TemplateWorkspaceOutOfMemory,
 				Targets: func() []uuid.UUID {
 					if i%2 == 0 {
@@ -188,6 +196,7 @@ func TestInboxNotifications_List(t *testing.T) {
 
 		client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{})
 		firstUser := coderdtest.CreateFirstUser(t, client)
+		client, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -203,7 +212,7 @@ func TestInboxNotifications_List(t *testing.T) {
 		for i := range 10 {
 			dbgen.NotificationInbox(t, api.Database, database.InsertInboxNotificationParams{
 				ID:     uuid.New(),
-				UserID: firstUser.UserID,
+				UserID: member.ID,
 				TemplateID: func() uuid.UUID {
 					if i < 5 {
 						return notifications.TemplateWorkspaceOutOfMemory
@@ -250,6 +259,7 @@ func TestInboxNotifications_ReadStatus(t *testing.T) {
 
 	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{})
 	firstUser := coderdtest.CreateFirstUser(t, client)
+	client, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
@@ -263,7 +273,7 @@ func TestInboxNotifications_ReadStatus(t *testing.T) {
 	for i := range 20 {
 		dbgen.NotificationInbox(t, api.Database, database.InsertInboxNotificationParams{
 			ID:         uuid.New(),
-			UserID:     firstUser.UserID,
+			UserID:     member.ID,
 			TemplateID: notifications.TemplateWorkspaceOutOfMemory,
 			Title:      fmt.Sprintf("Notification %d", i),
 			Actions:    json.RawMessage("[]"),

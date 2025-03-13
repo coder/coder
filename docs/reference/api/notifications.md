@@ -185,7 +185,7 @@ curl -X PUT http://coder-server:8080/api/v2/notifications/inbox/{id}/read-status
 
 ### Example responses
 
-> 201 Response
+> 200 Response
 
 ```json
 {
@@ -202,9 +202,9 @@ curl -X PUT http://coder-server:8080/api/v2/notifications/inbox/{id}/read-status
 
 ### Responses
 
-| Status | Meaning                                                      | Description | Schema                                           |
-|--------|--------------------------------------------------------------|-------------|--------------------------------------------------|
-| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.Response](schemas.md#codersdkresponse) |
+| Status | Meaning                                                 | Description | Schema                                           |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

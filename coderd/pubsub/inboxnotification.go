@@ -39,6 +39,5 @@ type InboxNotificationEvent struct {
 type InboxNotificationEventKind string
 
 const (
-	InboxNotificationEventKindNew  InboxNotificationEventKind = "new"
-	InboxNotificationEventKindRead InboxNotificationEventKind = "read"
+	InboxNotificationEventKindNew InboxNotificationEventKind = "new"
 )

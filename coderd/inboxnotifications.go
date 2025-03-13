@@ -140,7 +140,7 @@ func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request)
 	go httpapi.Heartbeat(ctx, conn)
 	defer conn.Close(websocket.StatusNormalClosure, "connection closed")
 
-	notificationCh := make(chan codersdk.InboxNotification, 1)
+	notificationCh := make(chan codersdk.InboxNotification, 10)
 
 	closeInboxNotificationsSubscriber, err := api.Pubsub.SubscribeWithErr(pubsub.InboxNotificationForOwnerEventChannel(apikey.UserID),
 		pubsub.HandleInboxNotificationEvent(
@@ -149,6 +149,10 @@ func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request)
 					api.Logger.Error(ctx, "inbox notification event", slog.Error(err))
 					return
 				}
+
+				// HandleInboxNotificationEvent cb receives all the inbox notifications - without any filters excepted the user_id.
+				// Based on query parameters defined above and filters defined by the client - we then filter out the
+				// notifications we do not want to forward and discard it.
 
 				// filter out notifications that don't match the targets
 				if len(targets) > 0 {
@@ -179,7 +183,11 @@ func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request)
 					}
 				}
 
-				notificationCh <- payload.InboxNotification
+				// keep a safe guard in case of latency to push notifications through websocket
+				select {
+				case notificationCh <- payload.InboxNotification:
+				default:
+				}
 			},
 		))
 	if err != nil {
@@ -306,7 +314,7 @@ func (api *API) listInboxNotifications(rw http.ResponseWriter, r *http.Request) 
 // @Produce json
 // @Tags Notifications
 // @Param id path string true "id of the notification"
-// @Success 201 {object} codersdk.Response
+// @Success 200 {object} codersdk.Response
 // @Router /notifications/inbox/{id}/read-status [put]
 func (api *API) updateInboxNotificationReadStatus(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

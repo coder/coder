@@ -21,7 +21,7 @@ SELECT * FROM inbox_notifications WHERE
 -- param limit_opt: The limit of notifications to fetch. If the limit is not specified, it defaults to 25
 SELECT * FROM inbox_notifications WHERE
 	user_id = @user_id AND
-	(template_id = ANY(@templates::UUID[]) OR @templates IS NULL) AND
+	(@templates::UUID[] IS NULL OR template_id = ANY(@templates::UUID[])) AND
 	(@targets::UUID[] IS NULL OR targets @> @targets::UUID[]) AND
 	(@read_status::inbox_notification_read_status = 'all' OR (@read_status::inbox_notification_read_status = 'unread' AND read_at IS NULL) OR (@read_status::inbox_notification_read_status = 'read' AND read_at IS NOT NULL)) AND
 	(@created_at_opt::TIMESTAMPTZ = '0001-01-01 00:00:00Z' OR created_at < @created_at_opt::TIMESTAMPTZ)

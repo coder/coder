@@ -4310,7 +4310,7 @@ func (q *sqlQuerier) CountUnreadInboxNotificationsByUserID(ctx context.Context, 
 const getFilteredInboxNotificationsByUserID = `-- name: GetFilteredInboxNotificationsByUserID :many
 SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at FROM inbox_notifications WHERE
 	user_id = $1 AND
-	(template_id = ANY($2::UUID[]) OR $2 IS NULL) AND
+	($2::UUID[] IS NULL OR template_id = ANY($2::UUID[])) AND
 	($3::UUID[] IS NULL OR targets @> $3::UUID[]) AND
 	($4::inbox_notification_read_status = 'all' OR ($4::inbox_notification_read_status = 'unread' AND read_at IS NULL) OR ($4::inbox_notification_read_status = 'read' AND read_at IS NOT NULL)) AND
 	($5::TIMESTAMPTZ = '0001-01-01 00:00:00Z' OR created_at < $5::TIMESTAMPTZ)

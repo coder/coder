@@ -3296,6 +3296,7 @@ func (q *FakeQuerier) GetFilteredInboxNotificationsByUserID(_ context.Context, a
 	defer q.mutex.RUnlock()
 
 	notifications := make([]database.InboxNotification, 0)
+	// TODO : after using go version >= 1.23 , we can change this one to https://pkg.go.dev/slices#Backward
 	for idx := len(q.inboxNotifications) - 1; idx >= 0; idx-- {
 		notification := q.inboxNotifications[idx]
 

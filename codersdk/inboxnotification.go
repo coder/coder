@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	utiluuid "github.com/coder/coder/v2/coderd/util/uuid"
 )
 
 type InboxNotification struct {
@@ -33,18 +35,6 @@ type GetInboxNotificationResponse struct {
 	UnreadCount  int               `json:"unread_count"`
 }
 
-func uuidSliceToString(s []uuid.UUID) string {
-	resp := ""
-	for idx, v := range s {
-		resp += v.String()
-		if idx < len(s)-1 {
-			resp += ","
-		}
-	}
-
-	return resp
-}
-
 type ListInboxNotificationsRequest struct {
 	Targets        []uuid.UUID
 	Templates      []uuid.UUID
@@ -60,10 +50,10 @@ type ListInboxNotificationsResponse struct {
 func ListInboxNotificationsRequestToQueryParams(req ListInboxNotificationsRequest) []RequestOption {
 	var opts []RequestOption
 	if len(req.Targets) > 0 {
-		opts = append(opts, WithQueryParam("targets", uuidSliceToString(req.Targets)))
+		opts = append(opts, WithQueryParam("targets", utiluuid.FromSliceToString(req.Targets, ",")))
 	}
 	if len(req.Templates) > 0 {
-		opts = append(opts, WithQueryParam("templates", uuidSliceToString(req.Templates)))
+		opts = append(opts, WithQueryParam("templates", utiluuid.FromSliceToString(req.Templates, ",")))
 	}
 	if req.ReadStatus != "" {
 		opts = append(opts, WithQueryParam("read_status", req.ReadStatus))

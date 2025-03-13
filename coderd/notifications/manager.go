@@ -76,7 +76,7 @@ func WithTestClock(clock quartz.Clock) ManagerOption {
 //
 // helpers is a map of template helpers which are used to customize notification messages to use global settings like
 // access URL etc.
-func NewManager(cfg codersdk.NotificationsConfig, store Store, ps pubsub.Pubsub, helpers template.FuncMap, metrics *Metrics, log slog.Logger, opts ...ManagerOption) (*Manager, error) { // TODO(dannyk): add the ability to use multiple notification methods.
+func NewManager(cfg codersdk.NotificationsConfig, store Store, ps pubsub.Pubsub, helpers template.FuncMap, metrics *Metrics, log slog.Logger, opts ...ManagerOption) (*Manager, error) {
 	var method database.NotificationMethod
 	if err := method.Scan(cfg.Method.String()); err != nil {
 		return nil, xerrors.Errorf("notification method %q is invalid", cfg.Method)
