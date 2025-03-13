@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 
@@ -23,6 +24,78 @@ import (
 	"github.com/coder/coder/v2/codersdk/wsjson"
 	"github.com/coder/websocket"
 )
+
+// convertInboxNotificationParameters parses and validates the common parameters used in get and list endpoints for inbox notifications
+func convertInboxNotificationParameters(ctx context.Context, logger slog.Logger, targetsParam string, templatesParam string, readStatusParam string) ([]uuid.UUID, []uuid.UUID, string, error) {
+	var targets []uuid.UUID
+	if targetsParam != "" {
+		splitTargets := strings.Split(targetsParam, ",")
+		for _, target := range splitTargets {
+			id, err := uuid.Parse(target)
+			if err != nil {
+				logger.Error(ctx, "unable to parse target id", slog.Error(err))
+				return nil, nil, "", xerrors.New("unable to parse target id")
+			}
+			targets = append(targets, id)
+		}
+	}
+
+	var templates []uuid.UUID
+	if templatesParam != "" {
+		splitTemplates := strings.Split(templatesParam, ",")
+		for _, template := range splitTemplates {
+			id, err := uuid.Parse(template)
+			if err != nil {
+				logger.Error(ctx, "unable to parse template id", slog.Error(err))
+				return nil, nil, "", xerrors.New("unable to parse template id")
+			}
+			templates = append(templates, id)
+		}
+	}
+
+	if readStatusParam != "" {
+		readOptions := []string{
+			string(database.InboxNotificationReadStatusRead),
+			string(database.InboxNotificationReadStatusUnread),
+			string(database.InboxNotificationReadStatusAll),
+		}
+
+		if !slices.Contains(readOptions, readStatusParam) {
+			logger.Error(ctx, "unable to parse read status")
+			return nil, nil, "", xerrors.New("unable to parse read status")
+		}
+	}
+
+	return targets, templates, readStatusParam, nil
+}
+
+// convertInboxNotificationResponse works as a util function to transform a database.InboxNotification to codersdk.InboxNotification
+func convertInboxNotificationResponse(ctx context.Context, logger slog.Logger, notif database.InboxNotification) codersdk.InboxNotification {
+	return codersdk.InboxNotification{
+		ID:         notif.ID,
+		UserID:     notif.UserID,
+		TemplateID: notif.TemplateID,
+		Targets:    notif.Targets,
+		Title:      notif.Title,
+		Content:    notif.Content,
+		Icon:       notif.Icon,
+		Actions: func() []codersdk.InboxNotificationAction {
+			var actionsList []codersdk.InboxNotificationAction
+			err := json.Unmarshal([]byte(notif.Actions), &actionsList)
+			if err != nil {
+				logger.Error(ctx, "unmarshal inbox notification actions", slog.Error(err))
+			}
+			return actionsList
+		}(),
+		ReadAt: func() *time.Time {
+			if !notif.ReadAt.Valid {
+				return nil
+			}
+			return &notif.ReadAt.Time
+		}(),
+		CreatedAt: notif.CreatedAt,
+	}
+}
 
 // watchInboxNotifications watches for new inbox notifications and sends them to the client.
 // The client can specify a list of target IDs to filter the notifications.
@@ -46,51 +119,13 @@ func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request)
 		readStatusParam = r.URL.Query().Get("read_status")
 	)
 
-	var targets []uuid.UUID
-	if targetsParam != "" {
-		splitTargets := strings.Split(targetsParam, ",")
-		for _, target := range splitTargets {
-			id, err := uuid.Parse(target)
-			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: "Invalid target ID.",
-					Detail:  err.Error(),
-				})
-				return
-			}
-			targets = append(targets, id)
-		}
-	}
-
-	var templates []uuid.UUID
-	if templatesParam != "" {
-		splitTemplates := strings.Split(templatesParam, ",")
-		for _, template := range splitTemplates {
-			id, err := uuid.Parse(template)
-			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: "Invalid template ID.",
-					Detail:  err.Error(),
-				})
-				return
-			}
-			templates = append(templates, id)
-		}
-	}
-
-	if readStatusParam != "" {
-		readOptions := []string{
-			string(database.InboxNotificationReadStatusRead),
-			string(database.InboxNotificationReadStatusUnread),
-			string(database.InboxNotificationReadStatusAll),
-		}
-
-		if !slices.Contains(readOptions, readStatusParam) {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Invalid read status.",
-			})
-			return
-		}
+	targets, templates, readStatusParam, err := convertInboxNotificationParameters(ctx, api.Logger, targetsParam, templatesParam, readStatusParam)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid query parameter.",
+			Detail:  err.Error(),
+		})
+		return
 	}
 
 	conn, err := websocket.Accept(rw, r, nil)
@@ -200,53 +235,13 @@ func (api *API) listInboxNotifications(rw http.ResponseWriter, r *http.Request) 
 		startingBeforeParam = r.URL.Query().Get("starting_before")
 	)
 
-	var targets []uuid.UUID
-	if targetsParam != "" {
-		splitTargets := strings.Split(targetsParam, ",")
-		for _, target := range splitTargets {
-			id, err := uuid.Parse(target)
-			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: "Invalid target ID.",
-					Detail:  err.Error(),
-				})
-				return
-			}
-			targets = append(targets, id)
-		}
-	}
-
-	var templates []uuid.UUID
-	if templatesParam != "" {
-		splitTemplates := strings.Split(templatesParam, ",")
-		for _, template := range splitTemplates {
-			id, err := uuid.Parse(template)
-			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: "Invalid template ID.",
-					Detail:  err.Error(),
-				})
-				return
-			}
-			templates = append(templates, id)
-		}
-	}
-
-	readStatus := database.InboxNotificationReadStatusAll
-	if readStatusParam != "" {
-		readOptions := []string{
-			string(database.InboxNotificationReadStatusRead),
-			string(database.InboxNotificationReadStatusUnread),
-			string(database.InboxNotificationReadStatusAll),
-		}
-
-		if !slices.Contains(readOptions, readStatusParam) {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Invalid read status.",
-			})
-			return
-		}
-		readStatus = database.InboxNotificationReadStatus(readStatusParam)
+	targets, templates, readStatus, err := convertInboxNotificationParameters(ctx, api.Logger, targetsParam, templatesParam, readStatusParam)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid query parameter.",
+			Detail:  err.Error(),
+		})
+		return
 	}
 
 	startingBefore := dbtime.Now()
@@ -272,7 +267,7 @@ func (api *API) listInboxNotifications(rw http.ResponseWriter, r *http.Request) 
 		UserID:       apikey.UserID,
 		Templates:    templates,
 		Targets:      targets,
-		ReadStatus:   readStatus,
+		ReadStatus:   database.InboxNotificationReadStatus(readStatus),
 		CreatedAtOpt: startingBefore,
 	})
 	if err != nil {
@@ -296,30 +291,7 @@ func (api *API) listInboxNotifications(rw http.ResponseWriter, r *http.Request) 
 		Notifications: func() []codersdk.InboxNotification {
 			notificationsList := make([]codersdk.InboxNotification, 0, len(notifs))
 			for _, notification := range notifs {
-				notificationsList = append(notificationsList, codersdk.InboxNotification{
-					ID:         notification.ID,
-					UserID:     notification.UserID,
-					TemplateID: notification.TemplateID,
-					Targets:    notification.Targets,
-					Title:      notification.Title,
-					Content:    notification.Content,
-					Icon:       notification.Icon,
-					Actions: func() []codersdk.InboxNotificationAction {
-						var actionsList []codersdk.InboxNotificationAction
-						err := json.Unmarshal([]byte(notification.Actions), &actionsList)
-						if err != nil {
-							api.Logger.Error(ctx, "unmarshal inbox notification actions", slog.Error(err))
-						}
-						return actionsList
-					}(),
-					ReadAt: func() *time.Time {
-						if !notification.ReadAt.Valid {
-							return nil
-						}
-						return &notification.ReadAt.Time
-					}(),
-					CreatedAt: notification.CreatedAt,
-				})
+				notificationsList = append(notificationsList, convertInboxNotificationResponse(ctx, api.Logger, notification))
 			}
 			return notificationsList
 		}(),
@@ -352,7 +324,7 @@ func (api *API) updateInboxNotificationReadStatus(rw http.ResponseWriter, r *htt
 	parsedNotifID, err := uuid.Parse(notifID)
 	if err != nil {
 		api.Logger.Error(ctx, "failed to parse notification uuid", slog.Error(err))
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to parse notification uuid.",
 		})
 		return
@@ -398,30 +370,7 @@ func (api *API) updateInboxNotificationReadStatus(rw http.ResponseWriter, r *htt
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UpdateInboxNotificationReadStatusResponse{
-		Notification: codersdk.InboxNotification{
-			ID:         updatedNotification.ID,
-			UserID:     updatedNotification.UserID,
-			TemplateID: updatedNotification.TemplateID,
-			Targets:    updatedNotification.Targets,
-			Title:      updatedNotification.Title,
-			Content:    updatedNotification.Content,
-			Icon:       updatedNotification.Icon,
-			Actions: func() []codersdk.InboxNotificationAction {
-				var actionsList []codersdk.InboxNotificationAction
-				err := json.Unmarshal([]byte(updatedNotification.Actions), &actionsList)
-				if err != nil {
-					api.Logger.Error(ctx, "unmarshal inbox notification actions", slog.Error(err))
-				}
-				return actionsList
-			}(),
-			ReadAt: func() *time.Time {
-				if !updatedNotification.ReadAt.Valid {
-					return nil
-				}
-				return &updatedNotification.ReadAt.Time
-			}(),
-			CreatedAt: updatedNotification.CreatedAt,
-		},
-		UnreadCount: int(unreadCount),
+		Notification: convertInboxNotificationResponse(ctx, api.Logger, updatedNotification),
+		UnreadCount:  int(unreadCount),
 	})
 }

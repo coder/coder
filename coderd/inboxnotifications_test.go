@@ -12,7 +12,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/codersdk"
@@ -61,11 +61,8 @@ func TestInboxNotifications_List(t *testing.T) {
 		require.Equal(t, 0, notifs.UnreadCount)
 		require.Empty(t, notifs.Notifications)
 
-		// nolint:gocritic // used only to seed database
-		notifierCtx := dbauthz.AsNotifier(ctx)
-
 		for i := range 40 {
-			_, err = api.Database.InsertInboxNotification(notifierCtx, database.InsertInboxNotificationParams{
+			dbgen.NotificationInbox(t, api.Database, database.InsertInboxNotificationParams{
 				ID:         uuid.New(),
 				UserID:     firstUser.UserID,
 				TemplateID: notifications.TemplateWorkspaceOutOfMemory,
@@ -74,7 +71,6 @@ func TestInboxNotifications_List(t *testing.T) {
 				Content:    fmt.Sprintf("Content of the notif %d", i),
 				CreatedAt:  dbtime.Now(),
 			})
-			require.NoError(t, err)
 		}
 
 		notifs, err = client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
@@ -111,11 +107,8 @@ func TestInboxNotifications_List(t *testing.T) {
 		require.Equal(t, 0, notifs.UnreadCount)
 		require.Empty(t, notifs.Notifications)
 
-		// nolint:gocritic // used only to seed database
-		notifierCtx := dbauthz.AsNotifier(ctx)
-
 		for i := range 10 {
-			_, err = api.Database.InsertInboxNotification(notifierCtx, database.InsertInboxNotificationParams{
+			dbgen.NotificationInbox(t, api.Database, database.InsertInboxNotificationParams{
 				ID:     uuid.New(),
 				UserID: firstUser.UserID,
 				TemplateID: func() uuid.UUID {
@@ -130,7 +123,6 @@ func TestInboxNotifications_List(t *testing.T) {
 				Content:   fmt.Sprintf("Content of the notif %d", i),
 				CreatedAt: dbtime.Now(),
 			})
-			require.NoError(t, err)
 		}
 
 		notifs, err = client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{
@@ -159,13 +151,10 @@ func TestInboxNotifications_List(t *testing.T) {
 		require.Equal(t, 0, notifs.UnreadCount)
 		require.Empty(t, notifs.Notifications)
 
-		// nolint:gocritic // used only to seed database
-		notifierCtx := dbauthz.AsNotifier(ctx)
-
 		filteredTarget := uuid.New()
 
 		for i := range 10 {
-			_, err = api.Database.InsertInboxNotification(notifierCtx, database.InsertInboxNotificationParams{
+			dbgen.NotificationInbox(t, api.Database, database.InsertInboxNotificationParams{
 				ID:         uuid.New(),
 				UserID:     firstUser.UserID,
 				TemplateID: notifications.TemplateWorkspaceOutOfMemory,
@@ -181,7 +170,6 @@ func TestInboxNotifications_List(t *testing.T) {
 				Content:   fmt.Sprintf("Content of the notif %d", i),
 				CreatedAt: dbtime.Now(),
 			})
-			require.NoError(t, err)
 		}
 
 		notifs, err = client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{
@@ -210,13 +198,10 @@ func TestInboxNotifications_List(t *testing.T) {
 		require.Equal(t, 0, notifs.UnreadCount)
 		require.Empty(t, notifs.Notifications)
 
-		// nolint:gocritic // used only to seed database
-		notifierCtx := dbauthz.AsNotifier(ctx)
-
 		filteredTarget := uuid.New()
 
 		for i := range 10 {
-			_, err = api.Database.InsertInboxNotification(notifierCtx, database.InsertInboxNotificationParams{
+			dbgen.NotificationInbox(t, api.Database, database.InsertInboxNotificationParams{
 				ID:     uuid.New(),
 				UserID: firstUser.UserID,
 				TemplateID: func() uuid.UUID {
@@ -238,7 +223,6 @@ func TestInboxNotifications_List(t *testing.T) {
 				Content:   fmt.Sprintf("Content of the notif %d", i),
 				CreatedAt: dbtime.Now(),
 			})
-			require.NoError(t, err)
 		}
 
 		notifs, err = client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{
@@ -276,11 +260,8 @@ func TestInboxNotifications_ReadStatus(t *testing.T) {
 	require.Equal(t, 0, notifs.UnreadCount)
 	require.Empty(t, notifs.Notifications)
 
-	// nolint:gocritic // used only to seed database
-	notifierCtx := dbauthz.AsNotifier(ctx)
-
 	for i := range 20 {
-		_, err = api.Database.InsertInboxNotification(notifierCtx, database.InsertInboxNotificationParams{
+		dbgen.NotificationInbox(t, api.Database, database.InsertInboxNotificationParams{
 			ID:         uuid.New(),
 			UserID:     firstUser.UserID,
 			TemplateID: notifications.TemplateWorkspaceOutOfMemory,
@@ -289,7 +270,6 @@ func TestInboxNotifications_ReadStatus(t *testing.T) {
 			Content:    fmt.Sprintf("Content of the notif %d", i),
 			CreatedAt:  dbtime.Now(),
 		})
-		require.NoError(t, err)
 	}
 
 	notifs, err = client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
