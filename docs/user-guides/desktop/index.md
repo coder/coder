@@ -34,7 +34,9 @@ You can install Coder Desktop on macOS or Windows.
 
 1. Continue to the [configuration section](#configure).
 
-> [!WARNING]
+> [!IMPORTANT]
+> Do not install more than one copy of Coder Desktop.
+>
 > To avoid system VPN configuration conflicts, only one copy of `Coder Desktop.app` should exist on your Mac, and it must remain in `/Applications`.
 
 ### Windows
