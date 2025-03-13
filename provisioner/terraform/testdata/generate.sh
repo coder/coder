@@ -45,8 +45,8 @@ minimize_diff() {
 				value="${value%\"*}"
 				# Matched key, restore the value.
 				if [[ -v deleted["$key"] ]]; then
-					sed_args+=(-e "s|${value}|${deleted["$key"]}|g")
-					unset deleted["$key"]
+					sed_args+=(-e "s|${value}|${deleted["$key"]}|")
+					unset "deleted[$key]"
 				fi
 			fi
 			if [[ ${#sed_args[@]} -gt 0 ]]; then
