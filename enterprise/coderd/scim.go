@@ -319,7 +319,7 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 		LoginType: database.LoginTypeOIDC,
 		// Do not send notifications to user admins as SCIM endpoint might be called sequentially to all users.
 		SkipNotifications: true,
-	}, rw, r)
+	}, r)
 	if err != nil {
 		_ = handlerutil.WriteError(rw, scim.NewHTTPError(http.StatusInternalServerError, "internalError", xerrors.Errorf("failed to create user: %w", err)))
 		return

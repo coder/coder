@@ -1756,7 +1756,7 @@ func (api *API) oauthLogin(rw http.ResponseWriter, r *http.Request, params *oaut
 				LoginType:          params.LoginType,
 				accountCreatorName: "oauth",
 				RBACRoles:          rbacRoles,
-			}, rw, r)
+			}, r)
 			if err != nil {
 				return xerrors.Errorf("create user: %w", err)
 			}
