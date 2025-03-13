@@ -23,7 +23,7 @@ export const SettingsHeader: FC<HeaderProps> = ({
 	titleHeaderLevel = "h1",
 	titleVisualHierarchy = "primary",
 }) => {
-	const Header = titleHeaderLevel;
+	const HeaderTitle = titleHeaderLevel;
 	return (
 		<hgroup className="flex flex-row justify-between align-baseline">
 			{/*
@@ -34,14 +34,14 @@ export const SettingsHeader: FC<HeaderProps> = ({
 			 */}
 			<div className="text-sm max-w-prose pb-6">
 				<div className="flex flex-row gap-2 align-middle">
-					<Header
+					<HeaderTitle
 						className={twMerge(
 							"m-0 text-3xl font-bold flex align-baseline leading-relaxed gap-2",
 							titleVisualHierarchy === "secondary" && "text-2xl font-medium",
 						)}
 					>
 						{title}
-					</Header>
+					</HeaderTitle>
 					{tooltip}
 				</div>
 
