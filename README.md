@@ -108,7 +108,7 @@ We are always working on new integrations. Please feel free to open an issue and
 
 ### Official
 
-- [**VS Code Extension**](https://marketplace.visualstudio.com/items?itemName=coder.coder-remote): Open any Coder workspace in VS Code with a single click
+- [**VS Code Extension**](https://marketplace.visualstudio.com/items?itemName=coder.coder-remote): Open any Coder workspace in VS Code with a single click (Special thanks to Microsoft for their excellent VS Code platform!)
 - [**JetBrains Gateway Extension**](https://plugins.jetbrains.com/plugin/19620-coder): Open any Coder workspace in JetBrains Gateway with a single click
 - [**Dev Container Builder**](https://github.com/coder/envbuilder): Build development environments using `devcontainer.json` on Docker, Kubernetes, and OpenShift
 - [**Module Registry**](https://registry.coder.com): Extend development environments with common use-cases
