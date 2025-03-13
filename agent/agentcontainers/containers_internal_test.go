@@ -2,6 +2,7 @@ package agentcontainers
 
 import (
 	"fmt"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"slices"
@@ -438,7 +439,7 @@ func TestConvertDockerInspect(t *testing.T) {
 					Labels:       map[string]string{},
 					Running:      true,
 					Status:       "running",
-					Ports:        []codersdk.WorkspaceAgentListeningPort{},
+					Ports:        []codersdk.WorkspaceAgentDevcontainerPort{},
 					Volumes:      map[string]string{},
 				},
 			},
@@ -454,7 +455,7 @@ func TestConvertDockerInspect(t *testing.T) {
 					Labels:       map[string]string{"baz": "zap", "foo": "bar"},
 					Running:      true,
 					Status:       "running",
-					Ports:        []codersdk.WorkspaceAgentListeningPort{},
+					Ports:        []codersdk.WorkspaceAgentDevcontainerPort{},
 					Volumes:      map[string]string{},
 				},
 			},
@@ -470,7 +471,7 @@ func TestConvertDockerInspect(t *testing.T) {
 					Labels:       map[string]string{},
 					Running:      true,
 					Status:       "running",
-					Ports:        []codersdk.WorkspaceAgentListeningPort{},
+					Ports:        []codersdk.WorkspaceAgentDevcontainerPort{},
 					Volumes: map[string]string{
 						"/tmp/test/a": "/var/coder/a",
 						"/tmp/test/b": "/var/coder/b",
@@ -489,10 +490,12 @@ func TestConvertDockerInspect(t *testing.T) {
 					Labels:       map[string]string{},
 					Running:      true,
 					Status:       "running",
-					Ports: []codersdk.WorkspaceAgentListeningPort{
+					Ports: []codersdk.WorkspaceAgentDevcontainerPort{
 						{
-							Network: "tcp",
-							Port:    12345,
+							Network:  "tcp",
+							Port:     12345,
+							HostPort: 12345,
+							HostIP:   "0.0.0.0",
 						},
 					},
 					Volumes: map[string]string{},
@@ -510,15 +513,59 @@ func TestConvertDockerInspect(t *testing.T) {
 					Labels:       map[string]string{},
 					Running:      true,
 					Status:       "running",
-					Ports: []codersdk.WorkspaceAgentListeningPort{
+					Ports: []codersdk.WorkspaceAgentDevcontainerPort{
 						{
-							Network: "tcp",
-							Port:    12345,
+							Network:  "tcp",
+							Port:     23456,
+							HostPort: 12345,
+							HostIP:   "0.0.0.0",
 						},
 					},
 					Volumes: map[string]string{},
 				},
 			},
+		},
+		{
+			name: "container_sameportdiffip",
+			expect: []codersdk.WorkspaceAgentDevcontainer{
+				{
+					CreatedAt:    time.Date(2025, 3, 11, 17, 56, 34, 842164541, time.UTC),
+					ID:           "a",
+					FriendlyName: "a",
+					Image:        "debian:bookworm",
+					Labels:       map[string]string{},
+					Running:      true,
+					Status:       "running",
+					Ports: []codersdk.WorkspaceAgentDevcontainerPort{
+						{
+							Network:  "tcp",
+							Port:     8001,
+							HostPort: 8000,
+							HostIP:   "0.0.0.0",
+						},
+					},
+					Volumes: map[string]string{},
+				},
+				{
+					CreatedAt:    time.Date(2025, 3, 11, 17, 56, 34, 842164541, time.UTC),
+					ID:           "b",
+					FriendlyName: "b",
+					Image:        "debian:bookworm",
+					Labels:       map[string]string{},
+					Running:      true,
+					Status:       "running",
+					Ports: []codersdk.WorkspaceAgentDevcontainerPort{
+						{
+							Network:  "tcp",
+							Port:     8001,
+							HostPort: 8000,
+							HostIP:   "::",
+						},
+					},
+					Volumes: map[string]string{},
+				},
+			},
+			expectWarns: []string{"host port 8000 is mapped to multiple containers on different interfaces: a, b"},
 		},
 		{
 			name: "container_volume",
@@ -531,7 +578,7 @@ func TestConvertDockerInspect(t *testing.T) {
 					Labels:       map[string]string{},
 					Running:      true,
 					Status:       "running",
-					Ports:        []codersdk.WorkspaceAgentListeningPort{},
+					Ports:        []codersdk.WorkspaceAgentDevcontainerPort{},
 					Volumes: map[string]string{
 						"/var/lib/docker/volumes/testvol/_data": "/testvol",
 					},
@@ -552,7 +599,7 @@ func TestConvertDockerInspect(t *testing.T) {
 					},
 					Running: true,
 					Status:  "running",
-					Ports:   []codersdk.WorkspaceAgentListeningPort{},
+					Ports:   []codersdk.WorkspaceAgentDevcontainerPort{},
 					Volumes: map[string]string{},
 				},
 			},
@@ -571,7 +618,7 @@ func TestConvertDockerInspect(t *testing.T) {
 					},
 					Running: true,
 					Status:  "running",
-					Ports:   []codersdk.WorkspaceAgentListeningPort{},
+					Ports:   []codersdk.WorkspaceAgentDevcontainerPort{},
 					Volumes: map[string]string{},
 				},
 			},
@@ -590,11 +637,12 @@ func TestConvertDockerInspect(t *testing.T) {
 					},
 					Running: true,
 					Status:  "running",
-					Ports: []codersdk.WorkspaceAgentListeningPort{
+					Ports: []codersdk.WorkspaceAgentDevcontainerPort{
 						{
-							Network: "tcp",
-							// Container port 8080 is mapped to 32768 on the host.
-							Port: 32768,
+							Network:  "tcp",
+							Port:     8080,
+							HostPort: 32768,
+							HostIP:   "0.0.0.0",
 						},
 					},
 					Volumes: map[string]string{},
@@ -771,10 +819,13 @@ func fakeContainer(t *testing.T, mut ...func(*codersdk.WorkspaceAgentDevcontaine
 			testutil.GetRandomName(t): testutil.GetRandomName(t),
 		},
 		Running: true,
-		Ports: []codersdk.WorkspaceAgentListeningPort{
+		Ports: []codersdk.WorkspaceAgentDevcontainerPort{
 			{
-				Network: "tcp",
-				Port:    testutil.RandomPortNoListen(t),
+				Network:  "tcp",
+				Port:     testutil.RandomPortNoListen(t),
+				HostPort: testutil.RandomPortNoListen(t),
+				//nolint:gosec // this is a test
+				HostIP: []string{"127.0.0.1", "[::1]", "localhost", "0.0.0.0", "[::]", testutil.GetRandomName(t)}[rand.Intn(6)],
 			},
 		},
 		Status:  testutil.MustRandString(t, 10),

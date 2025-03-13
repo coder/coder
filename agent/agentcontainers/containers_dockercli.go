@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os/user"
 	"slices"
 	"sort"
@@ -379,6 +380,19 @@ func convertDockerInspect(raw []byte) ([]codersdk.WorkspaceAgentDevcontainer, []
 	}
 	outs := make([]codersdk.WorkspaceAgentDevcontainer, 0, len(ins))
 
+	// Say you have two containers:
+	//  - Container A with Host IP 127.0.0.1:8000 mapped to container port 8001
+	//  - Container B with Host IP [::1]:8000 mapped to container port 8001
+	// A request to localhost:8000 may be routed to either container.
+	// We don't know which one for sure, so we need to surface this to the user.
+	// Keep track of all host ports we see. If we see the same host port
+	// mapped to multiple containers on different host IPs, we need to
+	// warn the user about this.
+	// Note that we only do this for loopback or unspecified IPs.
+	// We'll assume that the user knows what they're doing if they bind to
+	// a specific IP address.
+	hostPortContainers := make(map[int][]string)
+
 	for _, in := range ins {
 		out := codersdk.WorkspaceAgentDevcontainer{
 			CreatedAt: in.Created,
@@ -387,7 +401,7 @@ func convertDockerInspect(raw []byte) ([]codersdk.WorkspaceAgentDevcontainer, []
 			ID:           in.ID,
 			Image:        in.Config.Image,
 			Labels:       in.Config.Labels,
-			Ports:        make([]codersdk.WorkspaceAgentListeningPort, 0),
+			Ports:        make([]codersdk.WorkspaceAgentDevcontainerPort, 0),
 			Running:      in.State.Running,
 			Status:       in.State.String(),
 			Volumes:      make(map[string]string, len(in.Mounts)),
@@ -399,12 +413,12 @@ func convertDockerInspect(raw []byte) ([]codersdk.WorkspaceAgentDevcontainer, []
 		portKeys := maps.Keys(in.NetworkSettings.Ports)
 		// Sort the ports for deterministic output.
 		sort.Strings(portKeys)
-		// Each port binding may have multiple entries mapped to the same interface.
-		// Keep track of the ports we've already seen.
-		seen := make(map[int]struct{}, len(in.NetworkSettings.Ports))
+		// If we see the same port bound to both ipv4 and ipv6 loopback or unspecified
+		// interfaces to the same container port, there is no point in adding it multiple times.
+		loopbackHostPortContainerPorts := make(map[int]uint16, 0)
 		for _, pk := range portKeys {
 			for _, p := range in.NetworkSettings.Ports[pk] {
-				_, network, err := convertDockerPort(pk)
+				cp, network, err := convertDockerPort(pk)
 				if err != nil {
 					warns = append(warns, fmt.Sprintf("convert docker port: %s", err.Error()))
 					// Default network to "tcp" if we can't parse it.
@@ -412,22 +426,30 @@ func convertDockerInspect(raw []byte) ([]codersdk.WorkspaceAgentDevcontainer, []
 				}
 				hp, err := strconv.Atoi(p.HostPort)
 				if err != nil {
-					warns = append(warns, fmt.Sprintf("convert docker port: %s", err.Error()))
+					warns = append(warns, fmt.Sprintf("convert docker host port: %s", err.Error()))
 					continue
 				}
-				if hp > 65535 || hp < 0 { // invalid port
-					warns = append(warns, fmt.Sprintf("convert docker port: invalid host port %d", hp))
+				if hp > 65535 || hp < 1 { // invalid port
+					warns = append(warns, fmt.Sprintf("convert docker host port: invalid host port %d", hp))
 					continue
 				}
-				if _, ok := seen[hp]; ok {
-					// We've already seen this port, so skip it.
-					continue
+
+				// Deduplicate host ports for loopback and unspecified IPs.
+				if isLoopbackOrUnspecified(p.HostIP) {
+					if found, ok := loopbackHostPortContainerPorts[hp]; ok && found == cp {
+						// We've already seen this port, so skip it.
+						continue
+					}
+					loopbackHostPortContainerPorts[hp] = cp
+					// Also keep track of the host port and the container ID.
+					hostPortContainers[hp] = append(hostPortContainers[hp], in.ID)
 				}
-				out.Ports = append(out.Ports, codersdk.WorkspaceAgentListeningPort{
-					Network: network,
-					Port:    uint16(hp),
+				out.Ports = append(out.Ports, codersdk.WorkspaceAgentDevcontainerPort{
+					Network:  network,
+					Port:     cp,
+					HostPort: uint16(hp),
+					HostIP:   p.HostIP,
 				})
-				seen[hp] = struct{}{}
 			}
 		}
 
@@ -442,6 +464,13 @@ func convertDockerInspect(raw []byte) ([]codersdk.WorkspaceAgentDevcontainer, []
 			out.Volumes[k.Source] = k.Destination
 		}
 		outs = append(outs, out)
+	}
+
+	// Check if any host ports are mapped to multiple containers.
+	for hp, ids := range hostPortContainers {
+		if len(ids) > 1 {
+			warns = append(warns, fmt.Sprintf("host port %d is mapped to multiple containers on different interfaces: %s", hp, strings.Join(ids, ", ")))
+		}
 	}
 
 	return outs, warns, nil
@@ -470,4 +499,13 @@ func convertDockerPort(in string) (uint16, string, error) {
 	default:
 		return 0, "", xerrors.Errorf("invalid port format: %s", in)
 	}
+}
+
+// convenience function to check if an IP address is loopback or unspecified
+func isLoopbackOrUnspecified(ips string) bool {
+	nip := net.ParseIP(ips)
+	if nip == nil {
+		return false // technically correct, I suppose
+	}
+	return nip.IsLoopback() || nip.IsUnspecified()
 }
