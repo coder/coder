@@ -8,3 +8,6 @@ contact_links:
   - name: Coder Discord Community
     url: https://discord.gg/coder
     about: Get in touch with the Coder developers and community for support.
+  - name: Agent Freedom Setting
+    url: https://github.com/coder/coder/wiki/Agent-Freedom-Settings
+    about: Learn more about Agent Freedom settings for Claude and other AI assistants
