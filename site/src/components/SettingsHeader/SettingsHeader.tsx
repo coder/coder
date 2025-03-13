@@ -46,7 +46,7 @@ export const SettingsHeader: FC<HeaderProps> = ({
 				</div>
 
 				{description && (
-					<p className="m-0 text-content-secondary leading-relaxed">
+					<p className="m-0 text-sm text-content-secondary leading-relaxed">
 						{description}
 					</p>
 				)}
