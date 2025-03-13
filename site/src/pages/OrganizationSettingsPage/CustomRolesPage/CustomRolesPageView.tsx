@@ -140,7 +140,7 @@ const RoleTable: FC<RoleTableProps> = ({
 					</Cond>
 
 					<Cond condition={isEmpty}>
-						<TableRow>
+						<TableRow className="h-14">
 							<TableCell colSpan={999}>
 								<EmptyState
 									message="No custom roles yet"
@@ -204,7 +204,7 @@ const RoleRow: FC<RoleRowProps> = ({
 	const navigate = useNavigate();
 
 	return (
-		<TableRow data-testid={`role-${role.name}`}>
+		<TableRow data-testid={`role-${role.name}`} className="h-14">
 			<TableCell>{role.display_name || role.name}</TableCell>
 
 			<TableCell>
