@@ -51,7 +51,7 @@ minimize_diff() {
 			fi
 			if [[ ${#sed_args[@]} -gt 0 ]]; then
 				# Handle macOS compat.
-				if sed -h 2>&1 | grep -q "\[-i extension\]"; then
+				if grep -q -- "\[-i extension\]" < <(sed -h 2>&1); then
 					sed -i '' "${sed_args[@]}" "$f"
 				else
 					sed -i'' "${sed_args[@]}" "$f"
