@@ -180,6 +180,90 @@ func TestServer(t *testing.T) {
 			return err == nil && rawURL != ""
 		}, superDuperLong, testutil.IntervalFast, "failed to get access URL")
 	})
+	
+	t.Run("PostgresConnectionParams", func(t *testing.T) {
+		if testing.Short() {
+			t.SkipNow()
+		}
+		t.Parallel()
+		
+		// Use URL of built-in test database
+		dbURL, err := dbtestutil.Open(t)
+		require.NoError(t, err)
+		
+		// Rather than testing individual parameters directly (which would require access to 
+		// unexported struct fields), test the CLI flags with the actual server
+		
+		// Parse the URL to extract components
+		u, err := url.Parse(dbURL)
+		require.NoError(t, err, "Failed to parse database URL")
+		
+		// Extract components
+		username := u.User.Username()
+		password, _ := u.User.Password()
+		host := u.Hostname()
+		port := u.Port()
+		if port == "" {
+			port = "5432" // Use default PostgreSQL port
+		}
+		database := strings.TrimPrefix(u.Path, "/")
+		
+		// Test with CLI flags
+		t.Run("WithFlags", func(t *testing.T) {
+			t.Parallel()
+			
+			inv, cfg := clitest.New(t,
+				"server",
+				"--http-address", ":0",
+				"--access-url", "http://example.com",
+				"--postgres-host", host,
+				"--postgres-port", port,
+				"--postgres-username", username,
+				"--postgres-password", password,
+				"--postgres-database", database,
+				"--postgres-options", "sslmode=disable",
+			)
+			
+			const longTimeout = testutil.WaitLong * 3
+			ctx := testutil.Context(t, longTimeout)
+			clitest.Start(t, inv.WithContext(ctx))
+			
+			//nolint:gocritic // Test server takes a while to start
+			require.Eventually(t, func() bool {
+				rawURL, err := cfg.URL().Read()
+				return err == nil && rawURL != ""
+			}, longTimeout, testutil.IntervalFast, "failed to get access URL with individual PostgreSQL parameters")
+		})
+		
+		// Test with environment variables
+		t.Run("WithEnvironmentVariables", func(t *testing.T) {
+			t.Parallel()
+			
+			inv, cfg := clitest.New(t,
+				"server",
+				"--http-address", ":0",
+				"--access-url", "http://example.com",
+			)
+			
+			// Set environment variables
+			inv.Environ.Set("CODER_PG_HOST", host)
+			inv.Environ.Set("CODER_PG_PORT", port)
+			inv.Environ.Set("CODER_PG_USERNAME", username)
+			inv.Environ.Set("CODER_PG_PASSWORD", password)
+			inv.Environ.Set("CODER_PG_DATABASE", database)
+			inv.Environ.Set("CODER_PG_OPTIONS", "sslmode=disable")
+			
+			const longTimeout = testutil.WaitLong * 3
+			ctx := testutil.Context(t, longTimeout)
+			clitest.Start(t, inv.WithContext(ctx))
+			
+			//nolint:gocritic // Test server takes a while to start
+			require.Eventually(t, func() bool {
+				rawURL, err := cfg.URL().Read()
+				return err == nil && rawURL != ""
+			}, longTimeout, testutil.IntervalFast, "failed to get access URL with environment variables")
+		})
+	})
 	t.Run("EphemeralDeployment", func(t *testing.T) {
 		t.Parallel()
 		if testing.Short() {

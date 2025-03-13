@@ -353,6 +353,12 @@ type DeploymentValues struct {
 	EphemeralDeployment             serpent.Bool                         `json:"ephemeral_deployment,omitempty" typescript:",notnull"`
 	PostgresURL                     serpent.String                       `json:"pg_connection_url,omitempty" typescript:",notnull"`
 	PostgresAuth                    string                               `json:"pg_auth,omitempty" typescript:",notnull"`
+	PostgresHost                    serpent.String                       `json:"pg_host,omitempty" typescript:",notnull"`
+	PostgresPort                    serpent.String                       `json:"pg_port,omitempty" typescript:",notnull"`
+	PostgresUsername                serpent.String                       `json:"pg_username,omitempty" typescript:",notnull"`
+	PostgresPassword                serpent.String                       `json:"pg_password,omitempty" typescript:",notnull"`
+	PostgresDatabase                serpent.String                       `json:"pg_database,omitempty" typescript:",notnull"`
+	PostgresOptions                 serpent.String                       `json:"pg_options,omitempty" typescript:",notnull"`
 	OAuth2                          OAuth2Config                         `json:"oauth2,omitempty" typescript:",notnull"`
 	OIDC                            OIDCConfig                           `json:"oidc,omitempty" typescript:",notnull"`
 	Telemetry                       TelemetryConfig                      `json:"telemetry,omitempty" typescript:",notnull"`
@@ -2348,6 +2354,56 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Env:         "CODER_PG_CONNECTION_URL",
 			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
 			Value:       &c.PostgresURL,
+		},
+		{
+			Name:        "Postgres Host",
+			Description: "Hostname of a PostgreSQL server. Only used if postgres-url is not set.",
+			Flag:        "postgres-host",
+			Env:         "CODER_PG_HOST",
+			Value:       &c.PostgresHost,
+			YAML:        "pgHost",
+		},
+		{
+			Name:        "Postgres Port",
+			Description: "Port of a PostgreSQL server. Only used if postgres-url is not set.",
+			Flag:        "postgres-port",
+			Env:         "CODER_PG_PORT",
+			Default:     "5432",
+			Value:       &c.PostgresPort,
+			YAML:        "pgPort",
+		},
+		{
+			Name:        "Postgres Username",
+			Description: "Username for PostgreSQL authentication. Only used if postgres-url is not set.",
+			Flag:        "postgres-username",
+			Env:         "CODER_PG_USERNAME",
+			Value:       &c.PostgresUsername,
+			YAML:        "pgUsername",
+		},
+		{
+			Name:        "Postgres Password",
+			Description: "Password for PostgreSQL authentication. Only used if postgres-url is not set.",
+			Flag:        "postgres-password",
+			Env:         "CODER_PG_PASSWORD",
+			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
+			Value:       &c.PostgresPassword,
+			YAML:        "pgPassword",
+		},
+		{
+			Name:        "Postgres Database",
+			Description: "Database name for PostgreSQL. Only used if postgres-url is not set.",
+			Flag:        "postgres-database",
+			Env:         "CODER_PG_DATABASE",
+			Value:       &c.PostgresDatabase,
+			YAML:        "pgDatabase",
+		},
+		{
+			Name:        "Postgres Options",
+			Description: "Additional options for PostgreSQL connection string. Only used if postgres-url is not set.",
+			Flag:        "postgres-options",
+			Env:         "CODER_PG_OPTIONS",
+			Value:       &c.PostgresOptions,
+			YAML:        "pgOptions",
 		},
 		{
 			Name:        "Postgres Auth",

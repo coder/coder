@@ -462,29 +462,29 @@ inMemoryDatabase: false
 # temporary directory and deleted when the server is stopped.
 # (default: <unset>, type: bool)
 ephemeralDeployment: false
+# Hostname of a PostgreSQL server. Only used if postgres-url is not set.
+# (default: <unset>, type: string)
+pgHost: ""
+# Port of a PostgreSQL server. Only used if postgres-url is not set.
+# (default: 5432, type: string)
+pgPort: "5432"
+# Username for PostgreSQL authentication. Only used if postgres-url is not set.
+# (default: <unset>, type: string)
+pgUsername: ""
+# Password for PostgreSQL authentication. Only used if postgres-url is not set.
+# (default: <unset>, type: string)
+pgPassword: ""
+# Database name for PostgreSQL. Only used if postgres-url is not set.
+# (default: <unset>, type: string)
+pgDatabase: ""
+# Additional options for PostgreSQL connection string. Only used if postgres-url
+# is not set.
+# (default: <unset>, type: string)
+pgOptions: ""
 # Type of auth to use when connecting to postgres. For AWS RDS, using IAM
 # authentication (awsiamrds) is recommended.
 # (default: password, type: enum[password\|awsiamrds])
 pgAuth: password
-# PostgreSQL database host. Used as an alternative to postgres-url for providing
-# individual components of the database connection.
-# (default: <unset>, type: string)
-pgHost: ""
-# PostgreSQL database port. Defaults to 5432 if not specified.
-# (default: 5432, type: string)
-pgPort: "5432"
-# PostgreSQL database username. Used as an alternative to postgres-url.
-# (default: <unset>, type: string)
-pgUsername: ""
-# PostgreSQL database password. Used as an alternative to postgres-url.
-# (default: <unset>, type: string)
-pgPassword: ""
-# PostgreSQL database name. Used as an alternative to postgres-url.
-# (default: <unset>, type: string)
-pgDatabase: ""
-# PostgreSQL connection options. Used as an alternative to postgres-url.
-# (default: <unset>, type: string)
-pgOptions: ""
 # A URL to an external Terms of Service that must be accepted by users when
 # logging in.
 # (default: <unset>, type: string)
