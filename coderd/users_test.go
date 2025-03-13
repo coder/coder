@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -2422,6 +2423,10 @@ func BenchmarkUsersMe(b *testing.B) {
 func TestSystemUserBehaviour(t *testing.T) {
 	// Setup.
 	t.Parallel()
+
+	if runtime.GOOS != "linux" {
+		t.Skip("skipping because non-linux platforms are tricky to run the mock db container on, and there's no platform-dependence on these tests")
+	}
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 
