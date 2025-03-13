@@ -924,7 +924,6 @@ func TestTemplateACL(t *testing.T) {
 	t.Run("everyoneGroup", func(t *testing.T) {
 		t.Parallel()
 
-		// TODO: we should not be returning the prebuilds user in TemplateACL, and this is not returned in dbmem.
 		if !dbtestutil.WillUsePostgres() {
 			t.Skip("This test requires postgres")
 		}

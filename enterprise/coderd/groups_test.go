@@ -825,7 +825,6 @@ func TestGroup(t *testing.T) {
 		// TODO (sasswart): this test seems to have drifted from its original intention. evaluate and remove/fix
 		t.Parallel()
 
-		// TODO: we should not be returning the prebuilds user in Group, and this is not returned in dbmem.
 		if !dbtestutil.WillUsePostgres() {
 			t.Skip("This test requires postgres")
 		}
