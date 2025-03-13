@@ -20,6 +20,12 @@ type Story = StoryObj<typeof SearchField>;
 
 export const Empty: Story = {};
 
+export const Focused: Story = {
+	args: {
+		autoFocused: true,
+	},
+};
+
 export const DefaultValue: Story = {
 	args: {
 		value: "owner:me",
