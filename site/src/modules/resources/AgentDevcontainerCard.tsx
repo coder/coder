@@ -1,4 +1,5 @@
 import Link from "@mui/material/Link";
+import Tooltip, { type TooltipProps } from "@mui/material/Tooltip";
 import type {
 	Workspace,
 	WorkspaceAgentDevcontainer,
@@ -10,7 +11,6 @@ import { portForwardURL } from "utils/portForward";
 import { AgentButton } from "./AgentButton";
 import { AgentDevcontainerSSHButton } from "./SSHButton/SSHButton";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
-import Tooltip, { type TooltipProps } from "@mui/material/Tooltip";
 
 type AgentDevcontainerCardProps = {
 	container: WorkspaceAgentDevcontainer;
@@ -52,13 +52,13 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 				/>
 				{wildcardHostname !== "" &&
 					container.ports.map((port) => {
-						let portLabel = `${port.port}/${port.network.toUpperCase()}`;
-						let hasHostBind =
+						const portLabel = `${port.port}/${port.network.toUpperCase()}`;
+						const hasHostBind =
 							port.host_port !== undefined &&
 							port.host_port !== null &&
 							port.host_ip !== undefined &&
 							port.host_ip !== null;
-						let helperText = hasHostBind
+						const helperText = hasHostBind
 							? `${port.host_ip}:${port.host_port}`
 							: "Not bound to host";
 						return (
