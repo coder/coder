@@ -2428,7 +2428,7 @@ func TestSystemUserBehaviour(t *testing.T) {
 	sqlDB := testSQLDB(t)
 	err := migrations.Up(sqlDB) // coderd/database/migrations/00030*_system_user.up.sql will create a system user.
 	require.NoError(t, err, "migrations")
-	
+
 	db := database.New(sqlDB)
 
 	// =================================================================================================================
@@ -2488,7 +2488,7 @@ func TestSystemUserBehaviour(t *testing.T) {
 
 	// When: attempting to update a user's roles.
 	_, err = db.UpdateUserRoles(ctx, database.UpdateUserRolesParams{
-		ID: systemUser.ID,
+		ID:           systemUser.ID,
 		GrantedRoles: []string{rbac.RoleAuditor().String()},
 	})
 	// Then: the attempt is rejected by a postgres trigger.
