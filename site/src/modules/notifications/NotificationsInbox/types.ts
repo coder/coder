@@ -1,12 +1,5 @@
-// TODO: Remove this file when the types from API are available
+// This file uses the official API types
+import type { InboxNotification } from "api/typesGenerated";
 
-export type Notification = {
-	id: string;
-	read_status: "read" | "unread";
-	content: string;
-	created_at: string;
-	actions: {
-		label: string;
-		url: string;
-	}[];
-};
+// Reexport the InboxNotification type for backward compatibility
+export type Notification = InboxNotification;

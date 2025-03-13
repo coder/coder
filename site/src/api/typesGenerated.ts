@@ -1238,6 +1238,24 @@ export interface NotificationMethodsResponse {
 }
 
 // From codersdk/notifications.go
+export interface InboxNotification {
+	readonly id: string;
+	readonly read_status: "read" | "unread";
+	readonly content: string;
+	readonly created_at: string;
+	readonly actions: {
+		readonly label: string;
+		readonly url: string;
+	}[];
+}
+
+// From codersdk/notifications.go
+export interface UserNotificationsResponse {
+	readonly notifications: InboxNotification[];
+	readonly unread_count: number;
+}
+
+// From codersdk/notifications.go
 export interface NotificationPreference {
 	readonly id: string;
 	readonly disabled: boolean;

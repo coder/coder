@@ -2388,6 +2388,22 @@ class ApiMethods {
 			);
 		return res.data;
 	};
+
+	// Notification inbox API methods
+	getUserNotifications = async () => {
+		const response = await this.axios.get<TypesGen.UserNotificationsResponse>(
+			"/api/v2/users/me/notifications"
+		);
+		return response.data;
+	};
+
+	markAllNotificationsAsRead = async (): Promise<void> => {
+		await this.axios.post("/api/v2/users/me/notifications/read");
+	};
+
+	markNotificationAsRead = async (notificationId: string): Promise<void> => {
+		await this.axios.post(`/api/v2/users/me/notifications/${notificationId}/read`);
+	};
 }
 
 // This is a hard coded CSRF token/cookie pair for local development. In prod,

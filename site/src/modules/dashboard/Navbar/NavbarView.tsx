@@ -1,7 +1,9 @@
+import { API } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import type { ProxyContextValue } from "contexts/ProxyContext";
+import { NotificationsInbox } from "modules/notifications/NotificationsInbox/NotificationsInbox";
 import type { FC } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { cn } from "utils/cn";
@@ -56,6 +58,14 @@ export const NavbarView: FC<NavbarViewProps> = ({
 			<div className=" hidden md:flex items-center gap-3 ml-auto">
 				{proxyContextValue && (
 					<ProxyMenu proxyContextValue={proxyContextValue} />
+				)}
+				
+				{user && (
+					<NotificationsInbox
+						fetchNotifications={API.getUserNotifications}
+						markAllAsRead={API.markAllNotificationsAsRead}
+						markNotificationAsRead={API.markNotificationAsRead}
+					/>
 				)}
 
 				<DeploymentDropdown
