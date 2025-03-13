@@ -47,7 +47,7 @@ export const NotificationsPage: FC = () => {
 				title={
 					<>
 						Notifications
-						<span css={{ position: "relative", top: "-6px" }}>
+						<span css={{ position: "relative", top: "2px" }}>
 							<FeatureStageBadge
 								contentType={"beta"}
 								size="lg"
