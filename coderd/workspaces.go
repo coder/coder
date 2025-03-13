@@ -809,16 +809,10 @@ func createWorkspace(
 }
 
 func claimPrebuild(ctx context.Context, claimer prebuilds.Claimer, db database.Store, logger slog.Logger, req codersdk.CreateWorkspaceRequest, owner workspaceOwner) (*database.Workspace, error) {
-	// TODO: authz // Can't use existing profiles (i.e. AsSystemRestricted) because of dbauthz rules
-	ownerCtx := dbauthz.As(ctx, rbac.Subject{
-		ID:     "owner",
-		Roles:  rbac.RoleIdentifiers{rbac.RoleOwner()},
-		Groups: []string{},
-		Scope:  rbac.ExpandableScope(rbac.ScopeAll),
-	})
+	prebuildsCtx := dbauthz.AsPrebuildsOrchestrator(ctx)
 
 	// TODO: do we need a timeout here?
-	claimCtx, cancel := context.WithTimeout(ownerCtx, time.Second*10) // TODO: don't use elevated authz context
+	claimCtx, cancel := context.WithTimeout(prebuildsCtx, time.Second*10)
 	defer cancel()
 
 	claimedID, err := claimer.Claim(claimCtx, db, owner.ID, req.Name, req.TemplateVersionPresetID)
@@ -832,7 +826,7 @@ func claimPrebuild(ctx context.Context, claimer prebuilds.Claimer, db database.S
 		return nil, nil
 	}
 
-	lookup, err := db.GetWorkspaceByID(ownerCtx, *claimedID) // TODO: don't use elevated authz context
+	lookup, err := db.GetWorkspaceByID(prebuildsCtx, *claimedID)
 	if err != nil {
 		logger.Error(ctx, "unable to find claimed workspace by ID", slog.Error(err), slog.F("claimed_prebuild_id", (*claimedID).String()))
 		return nil, xerrors.Errorf("find claimed workspace by ID %q: %w", (*claimedID).String(), err)

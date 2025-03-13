@@ -70,8 +70,7 @@ func (c *StoreReconciler) RunLoop(ctx context.Context) {
 		c.done <- struct{}{}
 	}()
 
-	// nolint:gocritic // TODO: create a new authz role
-	ctx, cancel := context.WithCancelCause(dbauthz.AsSystemRestricted(ctx))
+	ctx, cancel := context.WithCancelCause(dbauthz.AsPrebuildsOrchestrator(ctx))
 	c.cancelFn = cancel
 
 	for {
@@ -296,13 +295,7 @@ func (c *StoreReconciler) Reconcile(ctx context.Context, ps prebuilds.PresetStat
 	vlogger := logger.With(slog.F("template_version_id", ps.Preset.TemplateVersionID), slog.F("template_version_name", ps.Preset.TemplateVersionName),
 		slog.F("preset_id", ps.Preset.PresetID), slog.F("preset_name", ps.Preset.Name))
 
-	// TODO: authz // Can't use existing profiles (i.e. AsSystemRestricted) because of dbauthz rules
-	ownerCtx := dbauthz.As(ctx, rbac.Subject{
-		ID:     "owner",
-		Roles:  rbac.RoleIdentifiers{rbac.RoleOwner()},
-		Groups: []string{},
-		Scope:  rbac.ExpandableScope(rbac.ScopeAll),
-	})
+	prebuildsCtx := dbauthz.AsPrebuildsOrchestrator(ctx)
 
 	levelFn := vlogger.Debug
 	if actions.Create > 0 || len(actions.DeleteIDs) > 0 {
@@ -344,14 +337,14 @@ func (c *StoreReconciler) Reconcile(ctx context.Context, ps prebuilds.PresetStat
 
 	// TODO: i've removed the surrounding tx, but if we restore it then we need to pass down the store to these funcs.
 	for range actions.Create {
-		if err := c.createPrebuild(ownerCtx, uuid.New(), ps.Preset.TemplateID, ps.Preset.PresetID); err != nil {
+		if err := c.createPrebuild(prebuildsCtx, uuid.New(), ps.Preset.TemplateID, ps.Preset.PresetID); err != nil {
 			vlogger.Error(ctx, "failed to create prebuild", slog.Error(err))
 			lastErr.Errors = append(lastErr.Errors, err)
 		}
 	}
 
 	for _, id := range actions.DeleteIDs {
-		if err := c.deletePrebuild(ownerCtx, id, ps.Preset.TemplateID, ps.Preset.PresetID); err != nil {
+		if err := c.deletePrebuild(prebuildsCtx, id, ps.Preset.TemplateID, ps.Preset.PresetID); err != nil {
 			vlogger.Error(ctx, "failed to delete prebuild", slog.Error(err))
 			lastErr.Errors = append(lastErr.Errors, err)
 		}

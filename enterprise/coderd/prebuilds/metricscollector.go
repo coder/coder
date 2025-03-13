@@ -50,11 +50,10 @@ func (*MetricsCollector) Describe(descCh chan<- *prometheus.Desc) {
 }
 
 func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
-	// TODO (sasswart): get a proper actor in here, to deescalate from system
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(dbauthz.AsPrebuildsOrchestrator(context.Background()), 10*time.Second)
 	defer cancel()
 	// nolint:gocritic // just until we get back to this
-	prebuildMetrics, err := mc.database.GetPrebuildMetrics(dbauthz.AsSystemRestricted(ctx))
+	prebuildMetrics, err := mc.database.GetPrebuildMetrics(ctx)
 	if err != nil {
 		mc.logger.Error(ctx, "failed to get prebuild metrics", slog.Error(err))
 		return
@@ -66,7 +65,7 @@ func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
 		metricsCh <- prometheus.MustNewConstMetric(claimedPrebuildsDesc, prometheus.CounterValue, float64(metric.ClaimedCount), metric.TemplateName, metric.PresetName)
 	}
 
-	state, err := mc.reconciler.SnapshotState(dbauthz.AsSystemRestricted(ctx), mc.database)
+	state, err := mc.reconciler.SnapshotState(ctx, mc.database)
 	if err != nil {
 		mc.logger.Error(ctx, "failed to get latest prebuild state", slog.Error(err))
 		return

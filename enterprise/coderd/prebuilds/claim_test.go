@@ -175,7 +175,7 @@ func TestClaimPrebuild(t *testing.T) {
 
 			userClient, user := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleMember())
 
-			ctx = dbauthz.AsSystemRestricted(ctx)
+			ctx = dbauthz.AsPrebuildsOrchestrator(ctx)
 
 			// Given: the reconciliation state is snapshot.
 			state, err := reconciler.SnapshotState(ctx, spy)
