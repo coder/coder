@@ -30,6 +30,7 @@ func TestTokenCRUD(t *testing.T) {
 	client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
 	_ = coderdtest.CreateFirstUser(t, client)
 	numLogs++ // add an audit log for user creation
+	numLogs++ // add an audit log for adding that user to the default org
 
 	keys, err := client.Tokens(ctx, codersdk.Me, codersdk.TokensFilter{})
 	require.NoError(t, err)
