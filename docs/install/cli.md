@@ -49,7 +49,7 @@ To start the Coder server:
 coder server
 ```
 
-![Coder install](../images/install/coder-setup.png)
+![Coder install](../images/install/screenshots/welcome-create-admin-user.png)
 
 To log in to an existing Coder deployment:
 
