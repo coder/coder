@@ -1,15 +1,7 @@
 CREATE VIEW workspace_latest_build AS
-SELECT wb.*
-FROM (SELECT tv.template_id,
-			 wbmax.workspace_id,
-			 MAX(wbmax.build_number) as max_build_number
-	  FROM workspace_builds wbmax
-			   JOIN template_versions tv ON (tv.id = wbmax.template_version_id)
-	  GROUP BY tv.template_id, wbmax.workspace_id) wbmax
-		 JOIN workspace_builds wb ON (
-	wb.workspace_id = wbmax.workspace_id
-		AND wb.build_number = wbmax.max_build_number
-	);
+SELECT DISTINCT ON (workspace_id) *
+FROM workspace_builds
+ORDER BY workspace_id, build_number DESC;
 
 CREATE VIEW workspace_prebuilds AS
 WITH
