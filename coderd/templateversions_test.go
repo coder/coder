@@ -1094,6 +1094,7 @@ func TestPatchActiveTemplateVersion(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		version = coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, nil, template.ID)
 		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		auditor.ResetLogs()
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -1103,8 +1104,8 @@ func TestPatchActiveTemplateVersion(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		require.Len(t, auditor.AuditLogs(), 5)
-		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[4].Action)
+		require.Len(t, auditor.AuditLogs(), 1)
+		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[0].Action)
 	})
 }
 

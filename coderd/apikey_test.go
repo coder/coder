@@ -26,11 +26,9 @@ func TestTokenCRUD(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 	auditor := audit.NewMock()
-	numLogs := len(auditor.AuditLogs())
 	client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
 	_ = coderdtest.CreateFirstUser(t, client)
-	numLogs++ // add an audit log for user creation
-	numLogs++ // add an audit log for adding that user to the default org
+	auditor.ResetLogs()
 
 	keys, err := client.Tokens(ctx, codersdk.Me, codersdk.TokensFilter{})
 	require.NoError(t, err)
@@ -39,7 +37,6 @@ func TestTokenCRUD(t *testing.T) {
 	res, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{})
 	require.NoError(t, err)
 	require.Greater(t, len(res.Key), 2)
-	numLogs++ // add an audit log for token creation
 
 	keys, err = client.Tokens(ctx, codersdk.Me, codersdk.TokensFilter{})
 	require.NoError(t, err)
@@ -54,15 +51,14 @@ func TestTokenCRUD(t *testing.T) {
 
 	err = client.DeleteAPIKey(ctx, codersdk.Me, keys[0].ID)
 	require.NoError(t, err)
-	numLogs++ // add an audit log for token deletion
 	keys, err = client.Tokens(ctx, codersdk.Me, codersdk.TokensFilter{})
 	require.NoError(t, err)
 	require.Empty(t, keys)
 
 	// ensure audit log count is correct
-	require.Len(t, auditor.AuditLogs(), numLogs)
-	require.Equal(t, database.AuditActionCreate, auditor.AuditLogs()[numLogs-2].Action)
-	require.Equal(t, database.AuditActionDelete, auditor.AuditLogs()[numLogs-1].Action)
+	require.Len(t, auditor.AuditLogs(), 2)
+	require.Equal(t, database.AuditActionCreate, auditor.AuditLogs()[0].Action)
+	require.Equal(t, database.AuditActionDelete, auditor.AuditLogs()[1].Action)
 }
 
 func TestTokenScoped(t *testing.T) {

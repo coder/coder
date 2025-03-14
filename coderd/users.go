@@ -1468,7 +1468,7 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 		return nil
 	}, nil)
 	if err != nil || req.SkipNotifications {
-		return user, nil, err
+		return user, memberships, err
 	}
 
 	// Only create audit logs for the created memberships if they were the direct
