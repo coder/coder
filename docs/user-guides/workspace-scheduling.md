@@ -37,13 +37,13 @@ days of the week your workspace is allowed to autostart.
 Use autostop to stop a workspace after a number of hours. Autostop won't stop a
 workspace if you're still using it. It will wait for the user to become inactive
 before checking connections again (1 hour by default). Template admins can
-modify this duration with the "activity bump" template setting.
+modify this duration with the **activity bump** template setting.
 
 ![Autostop UI](../images/workspaces/autostop.png)
 
 ## Activity detection
 
-Workspaces automatically shut down after a period of inactivity. The "activity bump"
+Workspaces automatically shut down after a period of inactivity. The **activity bump**
 duration can be configured at the template level and is visible in the autostop description
 for your workspace.
 
