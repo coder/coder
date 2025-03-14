@@ -57,7 +57,6 @@ RUN mkdir -p /opt/terraform
 # for supported Terraform versions.
 ARG TERRAFORM_VERSION=1.11.0
 RUN apk update && \
-    apk del terraform && \
     curl -LOs https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip \
     && unzip -o terraform_${TERRAFORM_VERSION}_linux_amd64.zip \
     && mv terraform /opt/terraform \
