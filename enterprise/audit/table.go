@@ -342,6 +342,9 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"display_apps":               ActionIgnore,
 		"api_version":                ActionIgnore,
 		"display_order":              ActionIgnore,
+		"task_waiting_for_user_input": ActionIgnore,
+		"task_notifications":          ActionIgnore,
+		"task_completed_at":           ActionIgnore,
 	},
 	&database.WorkspaceApp{}: {
 		"id":                    ActionIgnore,
