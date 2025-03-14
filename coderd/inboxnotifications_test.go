@@ -167,6 +167,17 @@ func TestInboxNotification_Watch(t *testing.T) {
 
 		dispatchFunc(ctx, uuid.New())
 
+		_, message, err := wsConn.Read(ctx)
+		require.NoError(t, err)
+
+		var notif codersdk.GetInboxNotificationResponse
+		err = json.Unmarshal(message, &notif)
+		require.NoError(t, err)
+
+		require.Equal(t, 1, notif.UnreadCount)
+		require.Equal(t, memberClient.ID, notif.Notification.UserID)
+		require.Equal(t, "memory related title", notif.Notification.Title)
+
 		dispatchFunc, err = inboxHandler.Dispatcher(types.MessagePayload{
 			UserID:                 memberClient.ID.String(),
 			NotificationTemplateID: notifications.TemplateWorkspaceOutOfDisk.String(),
@@ -182,17 +193,6 @@ func TestInboxNotification_Watch(t *testing.T) {
 		require.NoError(t, err)
 
 		dispatchFunc(ctx, uuid.New())
-
-		_, message, err := wsConn.Read(ctx)
-		require.NoError(t, err)
-
-		var notif codersdk.GetInboxNotificationResponse
-		err = json.Unmarshal(message, &notif)
-		require.NoError(t, err)
-
-		require.Equal(t, 3, notif.UnreadCount)
-		require.Equal(t, memberClient.ID, notif.Notification.UserID)
-		require.Equal(t, "memory related title", notif.Notification.Title)
 
 		_, message, err = wsConn.Read(ctx)
 		require.NoError(t, err)
@@ -249,6 +249,17 @@ func TestInboxNotification_Watch(t *testing.T) {
 
 		dispatchFunc(ctx, uuid.New())
 
+		_, message, err := wsConn.Read(ctx)
+		require.NoError(t, err)
+
+		var notif codersdk.GetInboxNotificationResponse
+		err = json.Unmarshal(message, &notif)
+		require.NoError(t, err)
+
+		require.Equal(t, 1, notif.UnreadCount)
+		require.Equal(t, memberClient.ID, notif.Notification.UserID)
+		require.Equal(t, "memory related title", notif.Notification.Title)
+
 		dispatchFunc, err = inboxHandler.Dispatcher(types.MessagePayload{
 			UserID:                 memberClient.ID.String(),
 			NotificationTemplateID: notifications.TemplateWorkspaceOutOfMemory.String(),
@@ -266,17 +277,6 @@ func TestInboxNotification_Watch(t *testing.T) {
 		require.NoError(t, err)
 
 		dispatchFunc(ctx, uuid.New())
-
-		_, message, err := wsConn.Read(ctx)
-		require.NoError(t, err)
-
-		var notif codersdk.GetInboxNotificationResponse
-		err = json.Unmarshal(message, &notif)
-		require.NoError(t, err)
-
-		require.Equal(t, 3, notif.UnreadCount)
-		require.Equal(t, memberClient.ID, notif.Notification.UserID)
-		require.Equal(t, "memory related title", notif.Notification.Title)
 
 		_, message, err = wsConn.Read(ctx)
 		require.NoError(t, err)
