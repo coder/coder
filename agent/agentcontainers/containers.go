@@ -1,4 +1,5 @@
 package agentcontainers
+
 import (
 	"fmt"
 	"context"
@@ -6,24 +7,29 @@ import (
 	"net/http"
 	"slices"
 	"time"
+
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
+
 	"github.com/coder/quartz"
 )
 const (
 	defaultGetContainersCacheDuration = 10 * time.Second
 	dockerCreatedAtTimeFormat         = "2006-01-02 15:04:05 -0700 MST"
+
 	getContainersTimeout              = 5 * time.Second
 )
 type devcontainersHandler struct {
 	cacheDuration time.Duration
 	cl            Lister
 	clock         quartz.Clock
+
 	// lockCh protects the below fields. We use a channel instead of a mutex so we
 	// can handle cancellation properly.
 	lockCh     chan struct{}
 	containers *codersdk.WorkspaceAgentListContainersResponse
 	mtime      time.Time
+
 }
 // Option is a functional option for devcontainersHandler.
 type Option func(*devcontainersHandler)
@@ -31,9 +37,11 @@ type Option func(*devcontainersHandler)
 // The default implementation uses the Docker CLI to list containers.
 func WithLister(cl Lister) Option {
 	return func(ch *devcontainersHandler) {
+
 		ch.cl = cl
 	}
 }
+
 // New returns a new devcontainersHandler with the given options applied.
 func New(options ...Option) http.Handler {
 	ch := &devcontainersHandler{
@@ -42,6 +50,7 @@ func New(options ...Option) http.Handler {
 	for _, opt := range options {
 		opt(ch)
 	}
+
 	return ch
 }
 func (ch *devcontainersHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
@@ -53,6 +62,7 @@ func (ch *devcontainersHandler) ServeHTTP(rw http.ResponseWriter, r *http.Reques
 		ct, err := ch.getContainers(r.Context())
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
+
 				httpapi.Write(r.Context(), rw, http.StatusRequestTimeout, codersdk.Response{
 					Message: "Could not get containers.",
 					Detail:  "Took too long to list containers.",
@@ -75,10 +85,12 @@ func (ch *devcontainersHandler) getContainers(ctx context.Context) (codersdk.Wor
 	default:
 		ch.lockCh <- struct{}{}
 	}
+
 	defer func() {
 		<-ch.lockCh
 	}()
 	// make zero-value usable
+
 	if ch.cacheDuration == 0 {
 		ch.cacheDuration = defaultGetContainersCacheDuration
 	}
@@ -90,6 +102,7 @@ func (ch *devcontainersHandler) getContainers(ctx context.Context) (codersdk.Wor
 	}
 	if ch.clock == nil {
 		ch.clock = quartz.NewReal()
+
 	}
 	now := ch.clock.Now()
 	if now.Sub(ch.mtime) < ch.cacheDuration {
@@ -104,6 +117,7 @@ func (ch *devcontainersHandler) getContainers(ctx context.Context) (codersdk.Wor
 	defer timeoutCancel()
 	updated, err := ch.cl.List(timeoutCtx)
 	if err != nil {
+
 		return codersdk.WorkspaceAgentListContainersResponse{}, fmt.Errorf("get containers: %w", err)
 	}
 	ch.containers = &updated
@@ -114,6 +128,7 @@ func (ch *devcontainersHandler) getContainers(ctx context.Context) (codersdk.Wor
 		Containers: slices.Clone(ch.containers.Containers),
 		Warnings:   slices.Clone(ch.containers.Warnings),
 	}
+
 	return cpy, nil
 }
 // Lister is an interface for listing containers visible to the
@@ -123,6 +138,7 @@ type Lister interface {
 	// This should include running and stopped containers.
 	List(ctx context.Context) (codersdk.WorkspaceAgentListContainersResponse, error)
 }
+
 // NoopLister is a Lister interface that never returns any containers.
 type NoopLister struct{}
 var _ Lister = NoopLister{}

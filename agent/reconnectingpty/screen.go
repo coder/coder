@@ -1,4 +1,5 @@
 package reconnectingpty
+
 import (
 	"fmt"
 	"bytes"
@@ -13,20 +14,24 @@ import (
 	"strings"
 	"sync"
 	"time"
+
 	"github.com/gliderlabs/ssh"
 	"github.com/prometheus/client_golang/prometheus"
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/agent/agentexec"
+
 	"github.com/coder/coder/v2/pty"
 )
 // screenReconnectingPTY provides a reconnectable PTY via `screen`.
 type screenReconnectingPTY struct {
 	execer  agentexec.Execer
+
 	command *pty.Cmd
 	// id holds the id of the session for both creating and attaching.  This will
 	// be generated uniquely for each session because without control of the
 	// screen daemon we do not have its PID and without the PID screen will do
 	// partial matching.  Enforcing a unique ID should guarantee we match on the
+
 	// right session.
 	id string
 	// mutex prevents concurrent attaches to the session.  Screen will happily
@@ -34,6 +39,7 @@ type screenReconnectingPTY struct {
 	// in a close enough interval.  We are not able to control the screen daemon
 	// ourselves to prevent this because the daemon will spawn with a hardcoded
 	// 24x80 size which results in confusing padding above the prompt once the
+
 	// attach comes in and resizes.
 	mutex sync.Mutex
 	configFile string
@@ -42,10 +48,13 @@ type screenReconnectingPTY struct {
 	// timer will close the reconnecting pty when it expires.  The timer will be
 	// reset as long as there are active connections.
 	timer   *time.Timer
+
 	timeout time.Duration
 }
+
 // newScreen creates a new screen-backed reconnecting PTY.  It writes config
 // settings and creates the socket directory.  If we could, we would want to
+
 // spawn the daemon here and attach each connection to it but since doing that
 // spawns the daemon with a hardcoded 24x80 size it is not a very good user
 // experience.  Instead we will let the attach command spawn the daemon on its
@@ -53,6 +62,7 @@ type screenReconnectingPTY struct {
 func newScreen(ctx context.Context, logger slog.Logger, execer agentexec.Execer, cmd *pty.Cmd, options *Options) *screenReconnectingPTY {
 	rpty := &screenReconnectingPTY{
 		execer:  execer,
+
 		command: cmd,
 		metrics: options.Metrics,
 		state:   newState(),
@@ -68,6 +78,7 @@ func newScreen(ctx context.Context, logger slog.Logger, execer agentexec.Execer,
 		return rpty
 	}
 	rpty.id = hex.EncodeToString(buf)
+
 	settings := []string{
 		// Disable the startup message that appears for five seconds.
 		"startup_message off",
@@ -79,6 +90,7 @@ func newScreen(ctx context.Context, logger slog.Logger, execer agentexec.Execer,
 		// Tell screen not to handle motion for xterm* terminals which allows
 		// scrolling the terminal via the mouse wheel or scroll bar (by default
 		// screen uses it to cycle through the command history).  There does not
+
 		// seem to be a way to make screen itself scroll on mouse wheel.  tmux can
 		// do it but then there is no scroll bar and it kicks you into copy mode
 		// where keys stop working until you exit copy mode which seems like it
@@ -110,6 +122,7 @@ func newScreen(ctx context.Context, logger slog.Logger, execer agentexec.Execer,
 		return rpty
 	}
 	go rpty.lifecycle(ctx, logger)
+
 	return rpty
 }
 // lifecycle manages the lifecycle of the reconnecting pty.  If the context ends
@@ -117,17 +130,21 @@ func newScreen(ctx context.Context, logger slog.Logger, execer agentexec.Execer,
 func (rpty *screenReconnectingPTY) lifecycle(ctx context.Context, logger slog.Logger) {
 	rpty.timer = time.AfterFunc(attachTimeout, func() {
 		rpty.Close(errors.New("reconnecting pty timeout"))
+
 	})
 	logger.Debug(ctx, "reconnecting pty ready")
 	rpty.state.setState(StateReady, nil)
 	state, reasonErr := rpty.state.waitForStateOrContext(ctx, StateClosing)
 	if state < StateClosing {
 		// If we have not closed yet then the context is what unblocked us (which
+
 		// means the agent is shutting down) so move into the closing phase.
 		rpty.Close(reasonErr)
+
 	}
 	rpty.timer.Stop()
 	// If the command errors that the session is already gone that is fine.
+
 	err := rpty.sendCommand(context.Background(), "quit", []string{"No screen session found"})
 	if err != nil {
 		logger.Error(ctx, "close screen session", slog.Error(err))
@@ -135,9 +152,11 @@ func (rpty *screenReconnectingPTY) lifecycle(ctx context.Context, logger slog.Lo
 	logger.Info(ctx, "closed reconnecting pty")
 	rpty.state.setState(StateDone, reasonErr)
 }
+
 func (rpty *screenReconnectingPTY) Attach(ctx context.Context, _ string, conn net.Conn, height, width uint16, logger slog.Logger) error {
 	logger.Info(ctx, "attach to reconnecting pty")
 	// This will kill the heartbeat once we hit EOF or an error.
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	state, err := rpty.state.waitForStateOrContext(ctx, StateReady)
@@ -146,30 +165,37 @@ func (rpty *screenReconnectingPTY) Attach(ctx context.Context, _ string, conn ne
 	}
 	go heartbeat(ctx, rpty.timer, rpty.timeout)
 	ptty, process, err := rpty.doAttach(ctx, conn, height, width, logger)
+
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			// Likely the process was too short-lived and canceled the version command.
 			// TODO: Is it worth distinguishing between that and a cancel from the
 			//       Attach() caller?  Additionally, since this could also happen if
 			//       the command was invalid, should we check the process's exit code?
+
 			return nil
 		}
 		return err
 	}
+
 	defer func() {
 		// Log only for debugging since the process might have already exited on its
 		// own.
+
 		err := ptty.Close()
 		if err != nil {
 			logger.Debug(ctx, "closed ptty with error", slog.Error(err))
 		}
+
 		err = process.Kill()
 		if err != nil {
 			logger.Debug(ctx, "killed process with error", slog.Error(err))
 		}
 	}()
+
 	// Pipe conn -> pty and block.
 	readConnLoop(ctx, conn, ptty, rpty.metrics, logger)
+
 	return nil
 }
 // doAttach spawns the screen client and starts the heartbeat.  It exists
@@ -182,6 +208,7 @@ func (rpty *screenReconnectingPTY) doAttach(ctx context.Context, conn net.Conn, 
 	logger.Debug(ctx, "spawning screen client", slog.F("screen_id", rpty.id))
 	// Wrap the command with screen and tie it to the connection's context.
 	cmd := rpty.execer.PTYCommandContext(ctx, "screen", append([]string{
+
 		// -S is for setting the session's name.
 		"-S", rpty.id,
 		// -U tells screen to use UTF-8 encoding.
@@ -195,11 +222,13 @@ func (rpty *screenReconnectingPTY) doAttach(ctx context.Context, conn net.Conn, 
 		// pty.Cmd duplicates Path as the first argument so remove it.
 	}, rpty.command.Args[1:]...)...)
 	cmd.Env = append(rpty.command.Env, "TERM=xterm-256color")
+
 	cmd.Dir = rpty.command.Dir
 	ptty, process, err := pty.Start(cmd, pty.WithPTYOption(
 		pty.WithSSHRequest(ssh.Pty{
 			Window: ssh.Window{
 				// Make sure to spawn at the right size because if we resize afterward it
+
 				// leaves confusing padding (screen will resize such that the screen
 				// contents are aligned to the bottom).
 				Height: int(height),
@@ -208,8 +237,10 @@ func (rpty *screenReconnectingPTY) doAttach(ctx context.Context, conn net.Conn, 
 		}),
 	))
 	if err != nil {
+
 		rpty.metrics.WithLabelValues("screen_spawn").Add(1)
 		return nil, nil, err
+
 	}
 	// This context lets us abort the version command if the process dies.
 	versionCtx, versionCancel := context.WithCancel(ctx)
@@ -242,10 +273,12 @@ func (rpty *screenReconnectingPTY) doAttach(ctx context.Context, conn net.Conn, 
 				}
 				// The process might have died because the session itself died or it
 				// might have been separately killed and the session is still up (for
+
 				// example `exit` or we killed it when the connection closed).  If the
 				// session is still up we might leave the reconnecting pty in memory
 				// around longer than it needs to be but it will eventually clean up
 				// with the timer or context, or the next attach will respawn the screen
+
 				// daemon which is fine too.
 				break
 			}
@@ -294,6 +327,7 @@ func (rpty *screenReconnectingPTY) sendCommand(ctx context.Context, command stri
 	var lastErr error
 	run := func() (bool, error) {
 		var stdout bytes.Buffer
+
 		//nolint:gosec
 		cmd := rpty.execer.CommandContext(ctx, "screen",
 			// -x targets an attached session.
@@ -313,9 +347,11 @@ func (rpty *screenReconnectingPTY) sendCommand(ctx context.Context, command stri
 		stdoutStr := stdout.String()
 		for _, se := range successErrors {
 			if strings.Contains(stdoutStr, se) {
+
 				return true, nil
 			}
 		}
+
 		// Things like "exit status 1" are imprecise so include stdout as it may
 		// contain more information ("no screen session found" for example).
 		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
@@ -327,6 +363,7 @@ func (rpty *screenReconnectingPTY) sendCommand(ctx context.Context, command stri
 	done, err := run()
 	if err != nil {
 		return err
+
 	}
 	if done {
 		return nil
@@ -347,6 +384,7 @@ func (rpty *screenReconnectingPTY) sendCommand(ctx context.Context, command stri
 				return err
 			}
 			if done {
+
 				return nil
 			}
 		}
@@ -354,6 +392,7 @@ func (rpty *screenReconnectingPTY) sendCommand(ctx context.Context, command stri
 }
 func (rpty *screenReconnectingPTY) Wait() {
 	_, _ = rpty.state.waitForState(StateClosing)
+
 }
 func (rpty *screenReconnectingPTY) Close(err error) {
 	// The closing state change will be handled by the lifecycle.

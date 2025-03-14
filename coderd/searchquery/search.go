@@ -1,4 +1,5 @@
 package searchquery
+
 import (
 	"errors"
 	"context"
@@ -7,15 +8,19 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
 	"github.com/google/uuid"
 	"github.com/coder/coder/v2/coderd/database"
+
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
+
 )
 // AuditLogs requires the database to fetch an organization by name
 // to convert to organization uuid.
 //
 // Supported query parameters:
+
 //
 //   - request_id: UUID (can be used to search for associated audits e.g. connect/disconnect or open/close)
 //   - resource_id: UUID
@@ -43,6 +48,7 @@ func AuditLogs(ctx context.Context, db database.Store, query string) (database.G
 	filter := database.GetAuditLogsOffsetParams{
 		RequestID:      parser.UUID(values, uuid.Nil, "request_id"),
 		ResourceID:     parser.UUID(values, uuid.Nil, "resource_id"),
+
 		ResourceTarget: parser.String(values, "", "resource_target"),
 		Username:       parser.String(values, "", "username"),
 		Email:          parser.String(values, "", "email"),
@@ -62,10 +68,12 @@ func AuditLogs(ctx context.Context, db database.Store, query string) (database.G
 func Users(query string) (database.GetUsersParams, []codersdk.ValidationError) {
 	// Always lowercase for all searches.
 	query = strings.ToLower(query)
+
 	values, errors := searchTerms(query, func(term string, values url.Values) error {
 		values.Add("search", term)
 		return nil
 	})
+
 	if len(errors) > 0 {
 		return database.GetUsersParams{}, errors
 	}
@@ -77,6 +85,7 @@ func Users(query string) (database.GetUsersParams, []codersdk.ValidationError) {
 		LastSeenAfter:  parser.Time3339Nano(values, time.Time{}, "last_seen_after"),
 		LastSeenBefore: parser.Time3339Nano(values, time.Time{}, "last_seen_before"),
 		CreatedAfter:   parser.Time3339Nano(values, time.Time{}, "created_after"),
+
 		CreatedBefore:  parser.Time3339Nano(values, time.Time{}, "created_before"),
 	}
 	parser.ErrorExcessParams(values)
@@ -91,18 +100,22 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 	if query == "" {
 		return filter, nil
 	}
+
 	// Always lowercase for all searches.
 	query = strings.ToLower(query)
 	values, errors := searchTerms(query, func(term string, values url.Values) error {
 		// It is a workspace name, and maybe includes an owner
+
 		parts := splitQueryParameterByDelimiter(term, '/', false)
 		switch len(parts) {
 		case 1:
 			values.Add("name", parts[0])
+
 		case 2:
 			values.Add("owner", parts[0])
 			values.Add("name", parts[1])
 		default:
+
 			return fmt.Errorf("Query element %q can only contain 1 '/'", term)
 		}
 		return nil
@@ -123,6 +136,7 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 	filter.UsingActive = sql.NullBool{
 		// Invert the value of the query parameter to get the correct value.
 		// UsingActive returns if the workspace is on the latest template active version.
+
 		Bool: !parser.Boolean(values, true, "outdated"),
 		// Only include this search term if it was provided. Otherwise default to omitting it
 		// which will return all workspaces.
@@ -143,6 +157,7 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 		parts := strings.Split(v, "=")
 		if len(parts) == 1 {
 			// Only match on the presence of the parameter
+
 			return paramMatch{name: parts[0], value: nil}, nil
 		}
 		if len(parts) == 2 {
@@ -177,10 +192,12 @@ func Templates(ctx context.Context, db database.Store, query string) (database.G
 		return database.GetTemplatesWithFilterParams{}, errors
 	}
 	parser := httpapi.NewQueryParamParser()
+
 	filter := database.GetTemplatesWithFilterParams{
 		Deleted:        parser.Boolean(values, false, "deleted"),
 		ExactName:      parser.String(values, "", "exact_name"),
 		FuzzyName:      parser.String(values, "", "name"),
+
 		IDs:            parser.UUIDs(values, []uuid.UUID{}, "ids"),
 		Deprecated:     parser.NullableBoolean(values, sql.NullBool{}, "deprecated"),
 		OrganizationID: parseOrganization(ctx, db, parser, values, "organization"),
@@ -193,6 +210,7 @@ func searchTerms(query string, defaultKey func(term string, values url.Values) e
 	// Because we do this in 2 passes, we want to maintain quotes on the first
 	// pass. Further splitting occurs on the second pass and quotes will be
 	// dropped.
+
 	elements := splitQueryParameterByDelimiter(query, ' ', true)
 	for _, element := range elements {
 		if strings.HasPrefix(element, ":") || strings.HasSuffix(element, ":") {
@@ -203,13 +221,16 @@ func searchTerms(query string, defaultKey func(term string, values url.Values) e
 				},
 			}
 		}
+
 		parts := splitQueryParameterByDelimiter(element, ':', false)
 		switch len(parts) {
 		case 1:
 			// No key:value pair. Use default behavior.
+
 			err := defaultKey(element, searchValues)
 			if err != nil {
 				return nil, []codersdk.ValidationError{
+
 					{Field: "q", Detail: err.Error()},
 				}
 			}
@@ -245,9 +266,11 @@ func parseOrganization(ctx context.Context, db database.Store, parser *httpapi.Q
 	})
 }
 // splitQueryParameterByDelimiter takes a query string and splits it into the individual elements
+
 // of the query. Each element is separated by a delimiter. All quoted strings are
 // kept as a single element.
 //
+
 // Although all our names cannot have spaces, that is a validation error.
 // We should still parse the quoted string as a single value so that validation
 // can properly fail on the space. If we do not, a value of `template:"my name"`
@@ -267,5 +290,6 @@ func splitQueryParameterByDelimiter(query string, delimiter rune, maintainQuotes
 			parts[i] = strings.Trim(part, "\"")
 		}
 	}
+
 	return parts
 }

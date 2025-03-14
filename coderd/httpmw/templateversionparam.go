@@ -1,19 +1,24 @@
 package httpmw
+
 import (
 	"errors"
 	"context"
 	"database/sql"
 	"net/http"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
+
 	"github.com/coder/coder/v2/codersdk"
 )
 type templateVersionParamContextKey struct{}
 // TemplateVersionParam returns the template version from the ExtractTemplateVersionParam handler.
 func TemplateVersionParam(r *http.Request) database.TemplateVersion {
+
 	templateVersion, ok := r.Context().Value(templateVersionParamContextKey{}).(database.TemplateVersion)
 	if !ok {
+
 		panic("developer error: template version param middleware not provided")
 	}
 	return templateVersion
@@ -23,6 +28,7 @@ func ExtractTemplateVersionParam(db database.Store) func(http.Handler) http.Hand
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
+
 			templateVersionID, parsed := ParseUUIDParam(rw, r, "templateversion")
 			if !parsed {
 				return
@@ -45,6 +51,7 @@ func ExtractTemplateVersionParam(db database.Store) func(http.Handler) http.Hand
 					Message: "Internal error fetching template.",
 					Detail:  err.Error(),
 				})
+
 				return
 			}
 			ctx = context.WithValue(ctx, templateVersionParamContextKey{}, templateVersion)

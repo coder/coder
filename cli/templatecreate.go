@@ -1,20 +1,25 @@
 package cli
+
 import (
 	"errors"
 	"fmt"
 	"net/http"
 	"time"
 	"unicode/utf8"
+
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
+
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
+
 )
 func (r *RootCmd) templateCreate() *serpent.Command {
 	var (
 		provisioner          string
 		provisionerTags      []string
+
 		variablesFile        string
 		commandLineVariables []string
 		disableEveryone      bool
@@ -24,11 +29,13 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 		dormancyThreshold    time.Duration
 		dormancyAutoDeletion time.Duration
 		uploadFlags templateUploadFlags
+
 		orgContext  = NewOrganizationContext()
 	)
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "create [name]",
+
 		Short: "DEPRECATED: Create a template from the current directory or as specified by flag",
 		Middleware: serpent.Chain(
 			serpent.RequireRangeArgs(0, 1),
@@ -47,6 +54,7 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 				} else if err != nil {
 					return fmt.Errorf("get entitlements: %w", err)
 				}
+
 				if isTemplateSchedulingOptionsSet {
 					if !entitlements.Features[codersdk.FeatureAdvancedTemplateScheduling].Enabled {
 						return fmt.Errorf("your license is not entitled to use advanced template scheduling, so you cannot set --failure-ttl, or --inactivity-ttl")
@@ -55,12 +63,14 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 				if requireActiveVersion {
 					if !entitlements.Features[codersdk.FeatureAccessControl].Enabled {
 						return fmt.Errorf("your license is not entitled to use enterprise access control, so you cannot set --require-active-version")
+
 					}
 				}
 			}
 			organization, err := orgContext.Selected(inv, client)
 			if err != nil {
 				return err
+
 			}
 			templateName, err := uploadFlags.templateName(inv)
 			if err != nil {
@@ -68,32 +78,39 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 			}
 			if utf8.RuneCountInString(templateName) > 32 {
 				return fmt.Errorf("Template name must be no more than 32 characters")
+
 			}
 			_, err = client.TemplateByName(inv.Context(), organization.ID, templateName)
 			if err == nil {
 				return fmt.Errorf("A template already exists named %q!", templateName)
 			}
+
 			err = uploadFlags.checkForLockfile(inv)
 			if err != nil {
 				return fmt.Errorf("check for lockfile: %w", err)
 			}
 			message := uploadFlags.templateMessage(inv)
+
 			var varsFiles []string
 			if !uploadFlags.stdin(inv) {
 				varsFiles, err = codersdk.DiscoverVarsFiles(uploadFlags.directory)
 				if err != nil {
+
 					return err
 				}
 				if len(varsFiles) > 0 {
 					_, _ = fmt.Fprintln(inv.Stdout, "Auto-discovered Terraform tfvars files. Make sure to review and clean up any unused files.")
 				}
+
 			}
 			// Confirm upload of the directory.
 			resp, err := uploadFlags.upload(inv, client)
 			if err != nil {
 				return err
+
 			}
 			tags, err := ParseProvisionerTags(provisionerTags)
+
 			if err != nil {
 				return err
 			}
@@ -101,22 +118,26 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 				varsFiles,
 				variablesFile,
 				commandLineVariables)
+
 			if err != nil {
 				return err
 			}
 			job, err := createValidTemplateVersion(inv, createValidTemplateVersionArgs{
 				Message:            message,
+
 				Client:             client,
 				Organization:       organization,
 				Provisioner:        codersdk.ProvisionerType(provisioner),
 				FileID:             resp.ID,
 				ProvisionerTags:    tags,
 				UserVariableValues: userVariableValues,
+
 			})
 			if err != nil {
 				return err
 			}
 			if !uploadFlags.stdin(inv) {
+
 				_, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text:      "Confirm create?",
 					IsConfirm: true,
@@ -125,6 +146,7 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 					return err
 				}
 			}
+
 			createReq := codersdk.CreateTemplateRequest{
 				Name:                           templateName,
 				VersionID:                      job.ID,
@@ -138,6 +160,7 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 			template, err := client.CreateTemplate(inv.Context(), organization.ID, createReq)
 			if err != nil {
 				return err
+
 			}
 			_, _ = fmt.Fprintln(inv.Stdout, "\n"+pretty.Sprint(cliui.DefaultStyles.Wrap,
 				"The "+pretty.Sprint(
@@ -148,6 +171,7 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 			_, _ = fmt.Fprintln(inv.Stdout)
 			return nil
 		},
+
 	}
 	cmd.Options = serpent.OptionSet{
 		{
@@ -159,20 +183,24 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 		{
 			Flag:        "variables-file",
 			Description: "Specify a file path with values for Terraform-managed variables.",
+
 			Value:       serpent.StringOf(&variablesFile),
 		},
 		{
 			Flag:        "variable",
 			Description: "Specify a set of values for Terraform-managed variables.",
+
 			Value:       serpent.StringArrayOf(&commandLineVariables),
 		},
 		{
 			Flag:        "var",
 			Description: "Alias of --variable.",
 			Value:       serpent.StringArrayOf(&commandLineVariables),
+
 		},
 		{
 			Flag:        "provisioner-tag",
+
 			Description: "Specify a set of tags to target provisioner daemons.",
 			Value:       serpent.StringArrayOf(&provisionerTags),
 		},

@@ -1,4 +1,5 @@
 package cli
+
 import (
 	"errors"
 	"fmt"
@@ -6,13 +7,16 @@ import (
 	"slices"
 	"strings"
 	"time"
+
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+
 	"github.com/coder/serpent"
 )
 func (r *RootCmd) tokens() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "tokens",
+
 		Short: "Manage personal access tokens",
 		Long: "Tokens are used to authenticate automated clients to Coder.\n" + FormatExamples(
 			Example{
@@ -44,6 +48,7 @@ func (r *RootCmd) createToken() *serpent.Command {
 	var (
 		tokenLifetime string
 		name          string
+
 		user          string
 	)
 	client := new(codersdk.Client)
@@ -64,14 +69,17 @@ func (r *RootCmd) createToken() *serpent.Command {
 			tokenConfig, err := client.GetTokenConfig(inv.Context(), userID)
 			if err != nil {
 				return fmt.Errorf("get token config: %w", err)
+
 			}
 			if tokenLifetime == "" {
 				parsedLifetime = tokenConfig.MaxTokenLifetime
+
 			} else {
 				parsedLifetime, err = extendedParseDuration(tokenLifetime)
 				if err != nil {
 					return fmt.Errorf("parse lifetime: %w", err)
 				}
+
 				if parsedLifetime > tokenConfig.MaxTokenLifetime {
 					return fmt.Errorf("lifetime (%s) is greater than the maximum allowed lifetime (%s)", parsedLifetime, tokenConfig.MaxTokenLifetime)
 				}
@@ -80,11 +88,13 @@ func (r *RootCmd) createToken() *serpent.Command {
 				Lifetime:  parsedLifetime,
 				TokenName: name,
 			})
+
 			if err != nil {
 				return fmt.Errorf("create tokens: %w", err)
 			}
 			_, _ = fmt.Fprintln(inv.Stdout, res.Key)
 			return nil
+
 		},
 	}
 	cmd.Options = serpent.OptionSet{
@@ -93,12 +103,15 @@ func (r *RootCmd) createToken() *serpent.Command {
 			Env:         "CODER_TOKEN_LIFETIME",
 			Description: "Specify a duration for the lifetime of the token.",
 			Value:       serpent.StringOf(&tokenLifetime),
+
 		},
 		{
+
 			Flag:          "name",
 			FlagShorthand: "n",
 			Env:           "CODER_TOKEN_NAME",
 			Description:   "Specify a human-readable name.",
+
 			Value:         serpent.StringOf(&name),
 		},
 		{
@@ -122,14 +135,17 @@ type tokenListRow struct {
 	ExpiresAt time.Time `json:"-" table:"expires at"`
 	CreatedAt time.Time `json:"-" table:"created at"`
 	Owner     string    `json:"-" table:"owner"`
+
 }
 func tokenListRowFromToken(token codersdk.APIKeyWithOwner) tokenListRow {
 	return tokenListRow{
+
 		APIKey:    token.APIKey,
 		ID:        token.ID,
 		TokenName: token.TokenName,
 		LastUsed:  token.LastUsed,
 		ExpiresAt: token.ExpiresAt,
+
 		CreatedAt: token.CreatedAt,
 		Owner:     token.Username,
 	}
@@ -139,6 +155,7 @@ func (r *RootCmd) listTokens() *serpent.Command {
 	defaultCols := []string{"id", "name", "last used", "expires at", "created at"}
 	if slices.Contains(os.Args, "-a") || slices.Contains(os.Args, "--all") {
 		defaultCols = append(defaultCols, "owner")
+
 	}
 	var (
 		all           bool
@@ -151,6 +168,7 @@ func (r *RootCmd) listTokens() *serpent.Command {
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:     "list",
+
 		Aliases: []string{"ls"},
 		Short:   "List tokens",
 		Middleware: serpent.Chain(
@@ -158,6 +176,7 @@ func (r *RootCmd) listTokens() *serpent.Command {
 			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+
 			tokens, err := client.Tokens(inv.Context(), codersdk.Me, codersdk.TokensFilter{
 				IncludeAll: all,
 			})
@@ -167,6 +186,7 @@ func (r *RootCmd) listTokens() *serpent.Command {
 			if len(tokens) == 0 {
 				cliui.Infof(
 					inv.Stdout,
+
 					"No tokens found.\n",
 				)
 			}
@@ -184,6 +204,7 @@ func (r *RootCmd) listTokens() *serpent.Command {
 	}
 	cmd.Options = serpent.OptionSet{
 		{
+
 			Flag:          "all",
 			FlagShorthand: "a",
 			Description:   "Specifies whether all users' tokens will be listed or not (must have Owner role to see all tokens).",
@@ -191,22 +212,27 @@ func (r *RootCmd) listTokens() *serpent.Command {
 		},
 	}
 	formatter.AttachOptions(&cmd.Options)
+
 	return cmd
 }
+
 func (r *RootCmd) removeToken() *serpent.Command {
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:     "remove <name|id|token>",
+
 		Aliases: []string{"delete"},
 		Short:   "Delete a token",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
 			r.InitClient(client),
+
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			token, err := client.APIKeyByName(inv.Context(), codersdk.Me, inv.Args[0])
 			if err != nil {
 				// If it's a token, we need to extract the ID
+
 				maybeID := strings.Split(inv.Args[0], "-")[0]
 				token, err = client.APIKeyByID(inv.Context(), codersdk.Me, maybeID)
 				if err != nil {
@@ -216,10 +242,12 @@ func (r *RootCmd) removeToken() *serpent.Command {
 			err = client.DeleteAPIKey(inv.Context(), codersdk.Me, token.ID)
 			if err != nil {
 				return fmt.Errorf("delete api key: %w", err)
+
 			}
 			cliui.Infof(
 				inv.Stdout,
 				"Token has been deleted.",
+
 			)
 			return nil
 		},

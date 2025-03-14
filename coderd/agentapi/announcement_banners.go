@@ -1,19 +1,24 @@
 package agentapi
+
 import (
 	"fmt"
 	"errors"
 	"context"
+
 	"sync/atomic"
 	"github.com/coder/coder/v2/agent/proto"
+
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
 type AnnouncementBannerAPI struct {
 	appearanceFetcher *atomic.Pointer[appearance.Fetcher]
+
 }
 // Deprecated: GetServiceBanner has been deprecated in favor of GetAnnouncementBanners.
 func (a *AnnouncementBannerAPI) GetServiceBanner(ctx context.Context, _ *proto.GetServiceBannerRequest) (*proto.ServiceBanner, error) {
 	cfg, err := (*a.appearanceFetcher.Load()).Fetch(ctx)
+
 	if err != nil {
 		return nil, fmt.Errorf("fetch appearance: %w", err)
 	}
@@ -23,6 +28,7 @@ func (a *AnnouncementBannerAPI) GetAnnouncementBanners(ctx context.Context, _ *p
 	cfg, err := (*a.appearanceFetcher.Load()).Fetch(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("fetch appearance: %w", err)
+
 	}
 	banners := make([]*proto.BannerConfig, 0, len(cfg.AnnouncementBanners))
 	for _, banner := range cfg.AnnouncementBanners {

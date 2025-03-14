@@ -1,26 +1,32 @@
 package cli
+
 import (
 	"errors"
 	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
+
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
 )
 func (r *RootCmd) unarchiveTemplateVersion() *serpent.Command {
 	return r.setArchiveTemplateVersion(false)
 }
+
 func (r *RootCmd) archiveTemplateVersion() *serpent.Command {
 	return r.setArchiveTemplateVersion(true)
 }
 //nolint:revive
+
 func (r *RootCmd) setArchiveTemplateVersion(archive bool) *serpent.Command {
 	presentVerb := "archive"
 	pastVerb := "archived"
 	if !archive {
+
 		presentVerb = "unarchive"
 		pastVerb = "unarchived"
 	}
@@ -30,6 +36,7 @@ func (r *RootCmd) setArchiveTemplateVersion(archive bool) *serpent.Command {
 		Use:   presentVerb + " <template-name> [template-version-names...] ",
 		Short: strings.ToUpper(string(presentVerb[0])) + presentVerb[1:] + " a template version(s).",
 		Middleware: serpent.Chain(
+
 			r.InitClient(client),
 		),
 		Options: serpent.OptionSet{
@@ -47,11 +54,13 @@ func (r *RootCmd) setArchiveTemplateVersion(archive bool) *serpent.Command {
 			if len(inv.Args) == 0 {
 				return fmt.Errorf("missing template name")
 			}
+
 			if len(inv.Args) < 2 {
 				return fmt.Errorf("missing template version name(s)")
 			}
 			templateName := inv.Args[0]
 			template, err := client.TemplateByName(ctx, organization.ID, templateName)
+
 			if err != nil {
 				return fmt.Errorf("get template by name: %w", err)
 			}
@@ -59,6 +68,7 @@ func (r *RootCmd) setArchiveTemplateVersion(archive bool) *serpent.Command {
 				version, err := client.TemplateVersionByOrganizationAndName(ctx, organization.ID, template.Name, versionName)
 				if err != nil {
 					return fmt.Errorf("get template version by name %q: %w", versionName, err)
+
 				}
 				versions = append(versions, version)
 			}
@@ -72,6 +82,7 @@ func (r *RootCmd) setArchiveTemplateVersion(archive bool) *serpent.Command {
 				err := client.SetArchiveTemplateVersion(ctx, version.ID, archive)
 				if err != nil {
 					return fmt.Errorf("%s template version %q: %w", presentVerb, version.Name, err)
+
 				}
 				_, _ = fmt.Fprintln(
 					inv.Stdout, "Version "+pretty.Sprint(cliui.DefaultStyles.Keyword, version.Name)+" "+pastVerb+" at "+cliui.Timestamp(time.Now()),
@@ -80,11 +91,13 @@ func (r *RootCmd) setArchiveTemplateVersion(archive bool) *serpent.Command {
 			return nil
 		},
 	}
+
 	orgContext.AttachOptions(cmd)
 	return cmd
 }
 func (r *RootCmd) archiveTemplateVersions() *serpent.Command {
 	var all serpent.Bool
+
 	client := new(codersdk.Client)
 	orgContext := NewOrganizationContext()
 	cmd := &serpent.Command{
@@ -94,9 +107,11 @@ func (r *RootCmd) archiveTemplateVersions() *serpent.Command {
 			r.InitClient(client),
 		),
 		Options: serpent.OptionSet{
+
 			cliui.SkipPromptOption(),
 			serpent.Option{
 				Name:        "all",
+
 				Description: "Include all unused template versions. By default, only failed template versions are archived.",
 				Flag:        "all",
 				Value:       &all,
@@ -123,14 +138,17 @@ func (r *RootCmd) archiveTemplateVersions() *serpent.Command {
 				}
 			} else {
 				template, err := selectTemplate(inv, client, organization)
+
 				if err != nil {
 					return err
 				}
 				templates = append(templates, template)
 				templateNames = append(templateNames, template.Name)
+
 			}
 			// Confirm archive of the template.
 			_, err = cliui.Prompt(inv, cliui.PromptOptions{
+
 				Text:      fmt.Sprintf("Archive template versions of these templates: %s?", pretty.Sprint(cliui.DefaultStyles.Code, strings.Join(templateNames, ", "))),
 				IsConfirm: true,
 				Default:   cliui.ConfirmNo,
@@ -144,10 +162,12 @@ func (r *RootCmd) archiveTemplateVersions() *serpent.Command {
 					return fmt.Errorf("archive template %q: %w", template.Name, err)
 				}
 				_, _ = fmt.Fprintln(
+
 					inv.Stdout, fmt.Sprintf("Archived %d versions from "+pretty.Sprint(cliui.DefaultStyles.Keyword, template.Name)+" at "+cliui.Timestamp(time.Now()), len(resp.ArchivedIDs)),
 				)
 				if ok, _ := inv.ParsedFlags().GetBool("verbose"); ok {
 					data, err := json.Marshal(resp)
+
 					if err != nil {
 						return fmt.Errorf("marshal verbose response: %w", err)
 					}
@@ -158,6 +178,7 @@ func (r *RootCmd) archiveTemplateVersions() *serpent.Command {
 			}
 			return nil
 		},
+
 	}
 	orgContext.AttachOptions(cmd)
 	return cmd

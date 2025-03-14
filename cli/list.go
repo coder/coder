@@ -1,19 +1,23 @@
 package cli
+
 import (
 	"errors"
 	"context"
 	"fmt"
 	"strconv"
 	"time"
+
 	"github.com/google/uuid"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
 )
 // workspaceListRow is the type provided to the OutputFormatter. This is a bit
 // dodgy but it's the only way to do complex display code for one format vs. the
 // other.
+
 type workspaceListRow struct {
 	// For JSON format:
 	codersdk.Workspace `table:"-"`
@@ -21,6 +25,7 @@ type workspaceListRow struct {
 	Favorite         bool      `json:"-" table:"favorite"`
 	WorkspaceName    string    `json:"-" table:"workspace,default_sort"`
 	OrganizationID   uuid.UUID `json:"-" table:"organization id"`
+
 	OrganizationName string    `json:"-" table:"organization name"`
 	Template         string    `json:"-" table:"template"`
 	Status           string    `json:"-" table:"status"`
@@ -39,12 +44,15 @@ func workspaceListRowFromWorkspace(now time.Time, workspace codersdk.Workspace) 
 	lastBuilt := now.UTC().Sub(workspace.LatestBuild.Job.CreatedAt).Truncate(time.Second)
 	schedRow := scheduleListRowFromWorkspace(now, workspace)
 	healthy := ""
+
 	if status == "Starting" || status == "Started" {
 		healthy = strconv.FormatBool(workspace.Health.Healthy)
 	}
+
 	favIco := " "
 	if workspace.Favorite {
 		favIco = "★"
+
 	}
 	workspaceName := favIco + " " + workspace.OwnerName + "/" + workspace.Name
 	return workspaceListRow{
@@ -74,6 +82,7 @@ func (r *RootCmd) list() *serpent.Command {
 				[]workspaceListRow{},
 				[]string{
 					"workspace",
+
 					"template",
 					"status",
 					"healthy",
@@ -111,6 +120,7 @@ func (r *RootCmd) list() *serpent.Command {
 			}
 			out, err := formatter.Format(inv.Context(), res)
 			if err != nil {
+
 				return err
 			}
 			_, err = fmt.Fprintln(inv.Stdout, out)
@@ -119,11 +129,13 @@ func (r *RootCmd) list() *serpent.Command {
 	}
 	filter.AttachOptions(&cmd.Options)
 	formatter.AttachOptions(&cmd.Options)
+
 	return cmd
 }
 // queryConvertWorkspaces is a helper function for converting
 // codersdk.Workspaces to a different type.
 // It's used by the list command to convert workspaces to
+
 // workspaceListRow, and by the schedule command to
 // convert workspaces to scheduleListRow.
 func queryConvertWorkspaces[T any](ctx context.Context, client *codersdk.Client, filter codersdk.WorkspaceFilter, convertF func(time.Time, codersdk.Workspace) T) ([]T, error) {
@@ -133,6 +145,7 @@ func queryConvertWorkspaces[T any](ctx context.Context, client *codersdk.Client,
 		return empty, fmt.Errorf("query workspaces: %w", err)
 	}
 	converted := make([]T, len(workspaces.Workspaces))
+
 	for i, workspace := range workspaces.Workspaces {
 		converted[i] = convertF(time.Now(), workspace)
 	}

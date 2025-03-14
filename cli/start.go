@@ -1,23 +1,28 @@
 package cli
+
 import (
 	"errors"
 	"fmt"
 	"net/http"
 	"time"
+
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
+
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
 func (r *RootCmd) start() *serpent.Command {
 	var (
 		parameterFlags workspaceParameterFlags
+
 		bflags         buildFlags
 	)
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
 		Use:         "start <workspace>",
+
 		Short:       "Start a workspace",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
@@ -79,11 +84,13 @@ func (r *RootCmd) start() *serpent.Command {
 				return err
 			}
 			_, _ = fmt.Fprintf(
+
 				inv.Stdout, "\nThe %s workspace has been started at %s!\n",
 				cliui.Keyword(workspace.Name), cliui.Timestamp(time.Now()),
 			)
 			return nil
 		},
+
 	}
 	cmd.Options = append(cmd.Options, parameterFlags.allOptions()...)
 	cmd.Options = append(cmd.Options, bflags.cliOptions()...)
@@ -92,15 +99,19 @@ func (r *RootCmd) start() *serpent.Command {
 func buildWorkspaceStartRequest(inv *serpent.Invocation, client *codersdk.Client, workspace codersdk.Workspace, parameterFlags workspaceParameterFlags, buildFlags buildFlags, action WorkspaceCLIAction) (codersdk.CreateWorkspaceBuildRequest, error) {
 	version := workspace.LatestBuild.TemplateVersionID
 	if workspace.AutomaticUpdates == codersdk.AutomaticUpdatesAlways || action == WorkspaceUpdate {
+
 		version = workspace.TemplateActiveVersionID
 		if version != workspace.LatestBuild.TemplateVersionID {
 			action = WorkspaceUpdate
+
 		}
 	}
 	lastBuildParameters, err := client.WorkspaceBuildParameters(inv.Context(), workspace.LatestBuild.ID)
+
 	if err != nil {
 		return codersdk.CreateWorkspaceBuildRequest{}, err
 	}
+
 	ephemeralParameters, err := asWorkspaceBuildParameters(parameterFlags.ephemeralParameters)
 	if err != nil {
 		return codersdk.CreateWorkspaceBuildRequest{}, fmt.Errorf("unable to parse build options: %w", err)
@@ -108,32 +119,38 @@ func buildWorkspaceStartRequest(inv *serpent.Invocation, client *codersdk.Client
 	cliRichParameters, err := asWorkspaceBuildParameters(parameterFlags.richParameters)
 	if err != nil {
 		return codersdk.CreateWorkspaceBuildRequest{}, fmt.Errorf("unable to parse rich parameters: %w", err)
+
 	}
 	cliRichParameterDefaults, err := asWorkspaceBuildParameters(parameterFlags.richParameterDefaults)
 	if err != nil {
 		return codersdk.CreateWorkspaceBuildRequest{}, fmt.Errorf("unable to parse rich parameter defaults: %w", err)
 	}
+
 	buildParameters, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
 		Action:              action,
 		TemplateVersionID:   version,
 		NewWorkspaceName:    workspace.Name,
 		LastBuildParameters: lastBuildParameters,
+
 		PromptEphemeralParameters: parameterFlags.promptEphemeralParameters,
 		EphemeralParameters:       ephemeralParameters,
 		PromptRichParameters:      parameterFlags.promptRichParameters,
 		RichParameters:            cliRichParameters,
 		RichParameterFile:         parameterFlags.richParameterFile,
+
 		RichParameterDefaults:     cliRichParameterDefaults,
 	})
 	if err != nil {
 		return codersdk.CreateWorkspaceBuildRequest{}, err
 	}
+
 	wbr := codersdk.CreateWorkspaceBuildRequest{
 		Transition:          codersdk.WorkspaceTransitionStart,
 		RichParameterValues: buildParameters,
 		TemplateVersionID:   version,
 	}
 	if buildFlags.provisionerLogDebug {
+
 		wbr.LogLevel = codersdk.ProvisionerLogLevelDebug
 	}
 	return wbr, nil
@@ -145,6 +162,7 @@ func startWorkspace(inv *serpent.Invocation, client *codersdk.Client, workspace 
 			Dormant: false,
 		})
 		if err != nil {
+
 			return codersdk.WorkspaceBuild{}, fmt.Errorf("activate workspace: %w", err)
 		}
 	}
@@ -154,8 +172,10 @@ func startWorkspace(inv *serpent.Invocation, client *codersdk.Client, workspace 
 	}
 	build, err := client.CreateWorkspaceBuild(inv.Context(), workspace.ID, req)
 	if err != nil {
+
 		return codersdk.WorkspaceBuild{}, fmt.Errorf("create workspace build: %w", err)
 	}
 	cliutil.WarnMatchedProvisioners(inv.Stderr, build.MatchedProvisioners, build.Job)
+
 	return build, nil
 }

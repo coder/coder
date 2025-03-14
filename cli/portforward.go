@@ -1,4 +1,5 @@
 package cli
+
 import (
 	"errors"
 	"context"
@@ -12,11 +13,14 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/serpent"
 )
@@ -24,6 +28,7 @@ var (
 	// noAddr is the zero-value of netip.Addr, and is not a valid address.  We use it to identify
 	// when the local address is not specified in port-forward flags.
 	noAddr       netip.Addr
+
 	ipv6Loopback = netip.MustParseAddr("::1")
 	ipv4Loopback = netip.MustParseAddr("127.0.0.1")
 )
@@ -32,6 +37,7 @@ func (r *RootCmd) portForward() *serpent.Command {
 		tcpForwards      []string // <port>:<port>
 		udpForwards      []string // <port>:<port>
 		disableAutostart bool
+
 		appearanceConfig codersdk.AppearanceConfig
 	)
 	client := new(codersdk.Client)
@@ -75,6 +81,7 @@ func (r *RootCmd) portForward() *serpent.Command {
 			}
 			if len(specs) == 0 {
 				return errors.New("no port-forwards requested")
+
 			}
 			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, !disableAutostart, inv.Args[0])
 			if err != nil {
@@ -83,6 +90,7 @@ func (r *RootCmd) portForward() *serpent.Command {
 			if workspace.LatestBuild.Transition != codersdk.WorkspaceTransitionStart {
 				return errors.New("workspace must be in start transition to port-forward")
 			}
+
 			if workspace.LatestBuild.Job.CompletedAt == nil {
 				err = cliui.WorkspaceBuild(ctx, inv.Stderr, client, workspace.LatestBuild.ID)
 				if err != nil {
@@ -97,6 +105,7 @@ func (r *RootCmd) portForward() *serpent.Command {
 			if err != nil {
 				return fmt.Errorf("await agent: %w", err)
 			}
+
 			opts := &workspacesdk.DialAgentOptions{}
 			logger := inv.Logger
 			if r.verbose {
@@ -106,13 +115,16 @@ func (r *RootCmd) portForward() *serpent.Command {
 				_, _ = fmt.Fprintln(inv.Stderr, "Direct connections disabled.")
 				opts.BlockEndpoints = true
 			}
+
 			if !r.disableNetworkTelemetry {
 				opts.EnableTelemetry = true
+
 			}
 			conn, err := workspacesdk.New(client).DialAgent(ctx, workspaceAgent.ID, opts)
 			if err != nil {
 				return err
 			}
+
 			defer conn.Close()
 			// Start all listeners.
 			var (
@@ -126,6 +138,7 @@ func (r *RootCmd) portForward() *serpent.Command {
 						}
 						_ = l.Close()
 					}
+
 				}
 			)
 			defer closeAllListeners()
@@ -142,6 +155,7 @@ func (r *RootCmd) portForward() *serpent.Command {
 					}
 					spec.listenHost = ipv4Loopback
 				}
+
 				l, err := listenAndPortForward(ctx, inv, conn, wg, spec, logger)
 				if err != nil {
 					logger.Error(ctx, "failed to listen", slog.F("spec", spec), slog.Error(err))
@@ -163,8 +177,10 @@ func (r *RootCmd) portForward() *serpent.Command {
 					logger.Debug(ctx, "command context expired waiting for signal", slog.Error(ctx.Err()))
 					closeErr = ctx.Err()
 				case sig := <-sigs:
+
 					logger.Debug(ctx, "received signal", slog.F("signal", sig))
 					_, _ = fmt.Fprintln(inv.Stderr, "\nReceived signal, closing all listeners and active connections")
+
 				}
 				cancel()
 				stopUpdating()
@@ -172,9 +188,11 @@ func (r *RootCmd) portForward() *serpent.Command {
 			}()
 			conn.AwaitReachable(ctx)
 			logger.Debug(ctx, "read to accept connections to forward")
+
 			_, _ = fmt.Fprintln(inv.Stderr, "Ready!")
 			wg.Wait()
 			return closeErr
+
 		},
 	}
 	cmd.Options = serpent.OptionSet{
@@ -184,11 +202,13 @@ func (r *RootCmd) portForward() *serpent.Command {
 			Env:           "CODER_PORT_FORWARD_TCP",
 			Description:   "Forward TCP port(s) from the workspace to the local machine.",
 			Value:         serpent.StringArrayOf(&tcpForwards),
+
 		},
 		{
 			Flag:        "udp",
 			Env:         "CODER_PORT_FORWARD_UDP",
 			Description: "Forward UDP port(s) from the workspace to the local machine. The UDP connection has TCP-like semantics to support stateful UDP protocols.",
+
 			Value:       serpent.StringArrayOf(&udpForwards),
 		},
 		sshDisableAutostartOption(serpent.BoolOf(&disableAutostart)),
@@ -197,6 +217,7 @@ func (r *RootCmd) portForward() *serpent.Command {
 }
 func listenAndPortForward(
 	ctx context.Context,
+
 	inv *serpent.Invocation,
 	conn *workspacesdk.AgentConn,
 	wg *sync.WaitGroup,
@@ -214,9 +235,11 @@ func listenAndPortForward(
 		spec.network, listenAddress, spec.network, dialAddress)
 	l, err := inv.Net.Listen(spec.network, listenAddress.String())
 	if err != nil {
+
 		return nil, fmt.Errorf("listen '%s://%s': %w", spec.network, listenAddress.String(), err)
 	}
 	logger.Debug(ctx, "listening")
+
 	wg.Add(1)
 	go func(spec portForwardSpec) {
 		defer wg.Done()
@@ -235,12 +258,14 @@ func listenAndPortForward(
 				return
 			}
 			logger.Debug(ctx, "accepted connection",
+
 				slog.F("remote_addr", netConn.RemoteAddr()))
 			go func(netConn net.Conn) {
 				defer netConn.Close()
 				remoteConn, err := conn.DialContext(ctx, spec.network, dialAddress)
 				if err != nil {
 					_, _ = fmt.Fprintf(inv.Stderr,
+
 						"Failed to dial '%s://%s' in workspace: %s\n",
 						spec.network, dialAddress, err)
 					return
@@ -261,6 +286,7 @@ type portForwardSpec struct {
 	listenHost           netip.Addr
 	listenPort, dialPort uint16
 }
+
 func parsePortForwards(tcpSpecs, udpSpecs []string) ([]portForwardSpec, error) {
 	specs := []portForwardSpec{}
 	for _, specEntry := range tcpSpecs {
@@ -274,6 +300,7 @@ func parsePortForwards(tcpSpecs, udpSpecs []string) ([]portForwardSpec, error) {
 				specs = append(specs, pfSpec)
 			}
 		}
+
 	}
 	for _, specEntry := range udpSpecs {
 		for _, spec := range strings.Split(specEntry, ",") {
@@ -281,18 +308,22 @@ func parsePortForwards(tcpSpecs, udpSpecs []string) ([]portForwardSpec, error) {
 			if err != nil {
 				return nil, fmt.Errorf("failed to parse UDP port-forward specification %q: %w", spec, err)
 			}
+
 			for _, pfSpec := range pfSpecs {
 				pfSpec.network = "udp"
 				specs = append(specs, pfSpec)
+
 			}
 		}
 	}
 	// Check for duplicate entries.
 	locals := map[string]struct{}{}
 	for _, spec := range specs {
+
 		localStr := fmt.Sprintf("%s:%s:%d", spec.network, spec.listenHost, spec.listenPort)
 		if _, ok := locals[localStr]; ok {
 			return nil, fmt.Errorf("local %s host:%s port:%d is specified twice", spec.network, spec.listenHost, spec.listenPort)
+
 		}
 		locals[localStr] = struct{}{}
 	}
@@ -300,6 +331,7 @@ func parsePortForwards(tcpSpecs, udpSpecs []string) ([]portForwardSpec, error) {
 }
 func parsePort(in string) (uint16, error) {
 	port, err := strconv.ParseUint(strings.TrimSpace(in), 10, 16)
+
 	if err != nil {
 		return 0, fmt.Errorf("parse port %q: %w", in, err)
 	}
@@ -307,6 +339,7 @@ func parsePort(in string) (uint16, error) {
 		return 0, errors.New("port cannot be 0")
 	}
 	return uint16(port), nil
+
 }
 // specRegexp matches port specs. It handles all the following formats:
 //
@@ -314,6 +347,7 @@ func parsePort(in string) (uint16, error) {
 // 8888:9999
 // 1-5:6-10
 // 8000-8005
+
 // 127.0.0.1:4000:4000
 // [::1]:8080:8081
 // 127.0.0.1:4000-4005
@@ -321,6 +355,7 @@ func parsePort(in string) (uint16, error) {
 //
 // Important capturing groups:
 //
+
 // 2: local IP address (including [] for IPv6)
 // 3: local port, or start of local port range
 // 5: end of local port range
@@ -331,9 +366,11 @@ func parseSrcDestPorts(in string) ([]portForwardSpec, error) {
 	groups := specRegexp.FindStringSubmatch(in)
 	if len(groups) == 0 {
 		return nil, fmt.Errorf("invalid port specification %q", in)
+
 	}
 	var localAddr netip.Addr
 	if groups[2] != "" {
+
 		parsedAddr, err := netip.ParseAddr(strings.Trim(groups[2], "[]"))
 		if err != nil {
 			return nil, fmt.Errorf("invalid IP address %q", groups[2])
@@ -343,9 +380,11 @@ func parseSrcDestPorts(in string) ([]portForwardSpec, error) {
 	local, err := parsePortRange(groups[3], groups[5])
 	if err != nil {
 		return nil, fmt.Errorf("parse local port range from %q: %w", in, err)
+
 	}
 	remote := local
 	if groups[7] != "" {
+
 		remote, err = parsePortRange(groups[7], groups[9])
 		if err != nil {
 			return nil, fmt.Errorf("parse remote port range from %q: %w", in, err)
@@ -366,12 +405,14 @@ func parseSrcDestPorts(in string) ([]portForwardSpec, error) {
 }
 func parsePortRange(s, e string) ([]uint16, error) {
 	start, err := parsePort(s)
+
 	if err != nil {
 		return nil, fmt.Errorf("parse range start port from %q: %w", s, err)
 	}
 	end := start
 	if len(e) != 0 {
 		end, err = parsePort(e)
+
 		if err != nil {
 			return nil, fmt.Errorf("parse range end port from %q: %w", e, err)
 		}
@@ -381,6 +422,7 @@ func parsePortRange(s, e string) ([]uint16, error) {
 	}
 	var ports []uint16
 	for i := start; i <= end; i++ {
+
 		ports = append(ports, i)
 	}
 	return ports, nil

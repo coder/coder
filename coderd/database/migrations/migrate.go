@@ -1,4 +1,5 @@
 package migrations
+
 import (
 	"context"
 	"crypto/sha256"
@@ -12,20 +13,24 @@ import (
 	"strings"
 	"sync"
 	"github.com/golang-migrate/migrate/v4"
+
 	"github.com/golang-migrate/migrate/v4/source"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 )
 //go:embed *.sql
 var migrations embed.FS
 var (
+
 	migrationsHash     string
 	migrationsHashOnce sync.Once
 )
+
 // A migrations hash is a sha256 hash of the contents and names
 // of the migrations sorted by filename.
 func calculateMigrationsHash(migrationsFs embed.FS) (string, error) {
 	files, err := migrationsFs.ReadDir(".")
 	if err != nil {
+
 		return "", fmt.Errorf("read migrations directory: %w", err)
 	}
 	sortedFiles := make([]fs.DirEntry, len(files))
@@ -39,6 +44,7 @@ func calculateMigrationsHash(migrationsFs embed.FS) (string, error) {
 			return "", fmt.Errorf("write migration file name %q: %w", file.Name(), err)
 		}
 		content, err := migrationsFs.ReadFile(file.Name())
+
 		if err != nil {
 			return "", fmt.Errorf("read migration file %q: %w", file.Name(), err)
 		}
@@ -53,6 +59,7 @@ func calculateMigrationsHash(migrationsFs embed.FS) (string, error) {
 	return fmt.Sprintf("%x", hash.Sum(nil)), nil
 }
 func GetMigrationsHash() string {
+
 	migrationsHashOnce.Do(func() {
 		hash, err := calculateMigrationsHash(migrations)
 		if err != nil {
@@ -60,6 +67,7 @@ func GetMigrationsHash() string {
 		}
 		migrationsHash = hash
 	})
+
 	return migrationsHash
 }
 func setup(db *sql.DB, migs fs.FS) (source.Driver, *migrate.Migrate, error) {
@@ -71,6 +79,7 @@ func setup(db *sql.DB, migs fs.FS) (source.Driver, *migrate.Migrate, error) {
 	if err != nil {
 		return nil, nil, fmt.Errorf("create iofs: %w", err)
 	}
+
 	// migration_cursor is a v1 migration table. If this exists, we're on v1.
 	// Do no run v2 migrations on a v1 database!
 	row := db.QueryRowContext(ctx, "SELECT 1 FROM information_schema.tables WHERE table_schema = current_schema() AND table_name = 'migration_cursor';")
@@ -81,6 +90,7 @@ func setup(db *sql.DB, migs fs.FS) (source.Driver, *migrate.Migrate, error) {
 	dbDriver := &pgTxnDriver{ctx: context.Background(), db: db}
 	err = dbDriver.ensureVersionTable()
 	if err != nil {
+
 		return nil, nil, fmt.Errorf("ensure version table: %w", err)
 	}
 	m, err := migrate.NewWithInstance("", sourceDriver, "", dbDriver)
@@ -89,25 +99,30 @@ func setup(db *sql.DB, migs fs.FS) (source.Driver, *migrate.Migrate, error) {
 	}
 	return sourceDriver, m, nil
 }
+
 // Up runs SQL migrations to ensure the database schema is up-to-date.
 func Up(db *sql.DB) error {
 	return UpWithFS(db, migrations)
 }
 // UpWithFS runs SQL migrations in the given fs.
 func UpWithFS(db *sql.DB, migs fs.FS) (retErr error) {
+
 	_, m, err := setup(db, migs)
 	if err != nil {
 		return fmt.Errorf("migrate setup: %w", err)
 	}
 	defer func() {
+
 		srcErr, dbErr := m.Close()
 		if retErr != nil {
 			return
+
 		}
 		if dbErr != nil {
 			retErr = dbErr
 			return
 		}
+
 		retErr = srcErr
 	}()
 	err = m.Up()
@@ -126,6 +141,7 @@ func Down(db *sql.DB) error {
 	if err != nil {
 		return fmt.Errorf("migrate setup: %w", err)
 	}
+
 	err = m.Down()
 	if err != nil {
 		if errors.Is(err, migrate.ErrNoChange) {
@@ -133,12 +149,15 @@ func Down(db *sql.DB) error {
 			return nil
 		}
 		return fmt.Errorf("down: %w", err)
+
 	}
 	return nil
 }
+
 // EnsureClean checks whether all migrations for the current version have been
 // applied, without making any changes to the database. If not, returns a
 // non-nil error.
+
 func EnsureClean(db *sql.DB) error {
 	sourceDriver, m, err := setup(db, migrations)
 	if err != nil {
@@ -146,6 +165,7 @@ func EnsureClean(db *sql.DB) error {
 	}
 	version, dirty, err := m.Version()
 	if err != nil {
+
 		return fmt.Errorf("get migration version: %w", err)
 	}
 	if dirty {
@@ -153,12 +173,15 @@ func EnsureClean(db *sql.DB) error {
 	}
 	// Verify that the database's migration version is "current" by checking
 	// that a migration with that version exists, but there is no next version.
+
 	err = CheckLatestVersion(sourceDriver, version)
 	if err != nil {
 		return fmt.Errorf("database needs migration: %w", err)
+
 	}
 	return nil
 }
+
 // Returns nil if currentVersion corresponds to the latest available migration,
 // otherwise an error explaining why not.
 func CheckLatestVersion(sourceDriver source.Driver, currentVersion uint) error {
@@ -168,15 +191,18 @@ func CheckLatestVersion(sourceDriver source.Driver, currentVersion uint) error {
 	nextVersion, err := sourceDriver.Next(currentVersion)
 	if err == nil {
 		return fmt.Errorf("current version is %d, but later version %d exists", currentVersion, nextVersion)
+
 	}
 	if !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("get next migration after %d: %w", currentVersion, err)
 	}
 	// Once we reach this point, we know that either currentVersion doesn't
+
 	// exist, or it has no successor (the return value from
 	// sourceDriver.Next() is the same in either case). So we need to check
 	// that either it's the first version, or it has a predecessor.
 	firstVersion, err := sourceDriver.First()
+
 	if err != nil {
 		// the total number of migrations should be non-zero, so this must be
 		// an actual error, not just a missing file
@@ -184,15 +210,18 @@ func CheckLatestVersion(sourceDriver source.Driver, currentVersion uint) error {
 	}
 	if firstVersion == currentVersion {
 		return nil
+
 	}
 	_, err = sourceDriver.Prev(currentVersion)
 	if err != nil {
+
 		return fmt.Errorf("get previous migration: %w", err)
 	}
 	return nil
 }
 // Stepper returns a function that runs SQL migrations one step at a time.
 //
+
 // Stepper cannot be closed pre-emptively, it must be run to completion
 // (or until an error is encountered).
 func Stepper(db *sql.DB) (next func() (version uint, more bool, err error), err error) {
@@ -202,11 +231,13 @@ func Stepper(db *sql.DB) (next func() (version uint, more bool, err error), err 
 	}
 	return func() (version uint, more bool, err error) {
 		defer func() {
+
 			if !more {
 				srcErr, dbErr := m.Close()
 				if err != nil {
 					return
 				}
+
 				if dbErr != nil {
 					err = dbErr
 					return
@@ -217,6 +248,7 @@ func Stepper(db *sql.DB) (next func() (version uint, more bool, err error), err 
 		err = m.Steps(1)
 		if err != nil {
 			switch {
+
 			case errors.Is(err, migrate.ErrNoChange):
 				// It's OK if no changes happened!
 				return 0, false, nil
@@ -224,6 +256,7 @@ func Stepper(db *sql.DB) (next func() (version uint, more bool, err error), err 
 				// This error is encountered at the of Steps when
 				// reading from embed.FS.
 				return 0, false, nil
+
 			}
 			return 0, false, fmt.Errorf("Step: %w", err)
 		}

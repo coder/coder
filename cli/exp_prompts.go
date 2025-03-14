@@ -1,15 +1,19 @@
 package cli
+
 import (
 	"errors"
 	"fmt"
 	"strings"
+
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+
 	"github.com/coder/serpent"
 )
 func (RootCmd) promptExample() *serpent.Command {
 	promptCmd := func(use string, prompt func(inv *serpent.Invocation) error, options ...serpent.Option) *serpent.Command {
 		return &serpent.Command{
+
 			Use:     use,
 			Options: options,
 			Handler: func(inv *serpent.Invocation) error {
@@ -21,6 +25,7 @@ func (RootCmd) promptExample() *serpent.Command {
 		useSearch       bool
 		useSearchOption = serpent.Option{
 			Name:        "search",
+
 			Description: "Show the search.",
 			Required:    false,
 			Flag:        "search",
@@ -31,6 +36,7 @@ func (RootCmd) promptExample() *serpent.Command {
 		useThingsOption   = serpent.Option{
 			Name:        "things",
 			Description: "Tell me what things you want.",
+
 			Flag:        "things",
 			Default:     "",
 			Value:       serpent.StringArrayOf(&multiSelectValues),
@@ -41,6 +47,7 @@ func (RootCmd) promptExample() *serpent.Command {
 			Description: "Enable custom input option in multi-select.",
 			Required:    false,
 			Flag:        "enable-custom-input",
+
 			Value:       serpent.BoolOf(&enableCustomInput),
 		}
 	)

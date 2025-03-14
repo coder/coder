@@ -1,4 +1,5 @@
 package audit
+
 import (
 	"errors"
 	"context"
@@ -10,13 +11,16 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"go.opentelemetry.io/otel/baggage"
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
+
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
+
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/coderd/tracing"
 )
@@ -24,10 +28,12 @@ type RequestParams struct {
 	Audit Auditor
 	Log   slog.Logger
 	// OrganizationID is only provided when possible. If an audit resource extends
+
 	// beyond the org scope, leave this as the nil uuid.
 	OrganizationID   uuid.UUID
 	Request          *http.Request
 	Action           database.AuditAction
+
 	AdditionalFields interface{}
 }
 type Request[T Auditable] struct {
@@ -36,33 +42,40 @@ type Request[T Auditable] struct {
 	New T
 	// UserID is an optional field can be passed in when the userID cannot be
 	// determined from the API Key such as in the case of login, when the audit
+
 	// log is created prior the API Key's existence.
 	UserID uuid.UUID
 	// Action is an optional field can be passed in if the AuditAction must be
+
 	// overridden such as in the case of new user authentication when the Audit
 	// Action is 'register', not 'login'.
 	Action database.AuditAction
+
 }
 // UpdateOrganizationID can be used if the organization ID is not known
 // at the initiation of an audit log request.
 func (r *Request[T]) UpdateOrganizationID(id uuid.UUID) {
 	r.params.OrganizationID = id
+
 }
 type BackgroundAuditParams[T Auditable] struct {
 	Audit Auditor
 	Log   slog.Logger
 	UserID         uuid.UUID
 	RequestID      uuid.UUID
+
 	Time           time.Time
 	Status         int
 	Action         database.AuditAction
 	OrganizationID uuid.UUID
 	IP             string
 	// todo: this should automatically marshal an interface{} instead of accepting a raw message.
+
 	AdditionalFields json.RawMessage
 	New T
 	Old T
 }
+
 func ResourceTarget[T Auditable](tgt T) string {
 	switch typed := any(tgt).(type) {
 	case database.Template:
@@ -73,10 +86,12 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return typed.Username
 	case database.WorkspaceTable:
 		return typed.Name
+
 	case database.WorkspaceBuild:
 		// this isn't used
 		return ""
 	case database.GitSSHKey:
+
 		return typed.PublicKey
 	case database.AuditableGroup:
 		return typed.Group.Name
@@ -138,11 +153,13 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 	case database.WorkspaceTable:
 		return typed.ID
 	case database.WorkspaceBuild:
+
 		return typed.ID
 	case database.GitSSHKey:
 		return typed.UserID
 	case database.AuditableGroup:
 		return typed.Group.ID
+
 	case database.APIKey:
 		return typed.UserID
 	case database.License:
@@ -201,6 +218,7 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 	case database.AuditableGroup:
 		return database.ResourceTypeGroup
 	case database.APIKey:
+
 		return database.ResourceTypeApiKey
 	case database.License:
 		return database.ResourceTypeLicense
@@ -256,6 +274,7 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 	case database.APIKey:
 		return false
 	case database.License:
+
 		return false
 	case database.WorkspaceProxy:
 		return false
@@ -313,6 +332,7 @@ func requireOrgID[T Auditable](ctx context.Context, id uuid.UUID, log slog.Logge
 // InitRequestWithCancel returns a commit function with a boolean arg.
 // If the arg is false, future calls to commit() will not create an audit log
 // entry.
+
 func InitRequestWithCancel[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request[T], func(commit bool)) {
 	req, commitF := InitRequest[T](w, p)
 	canceled := false
@@ -330,6 +350,7 @@ func InitRequestWithCancel[T Auditable](w http.ResponseWriter, p *RequestParams)
 	}
 }
 // InitRequest initializes an audit log for a request. It returns a function
+
 // that should be deferred, causing the audit log to be committed when the
 // handler returns.
 func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request[T], func()) {
@@ -350,6 +371,7 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 			// because a known user fails to login.
 			if req.params.Action != database.AuditActionLogin && req.params.Action != database.AuditActionLogout {
 				return
+
 			}
 		}
 		diffRaw := []byte("{}")
@@ -359,14 +381,17 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 			req.params.Action != database.AuditActionLogin && req.params.Action != database.AuditActionLogout {
 			diff := Diff(p.Audit, req.Old, req.New)
 			var err error
+
 			diffRaw, err = json.Marshal(diff)
 			if err != nil {
 				p.Log.Warn(logCtx, "marshal diff", slog.Error(err))
 				diffRaw = []byte("{}")
+
 			}
 		}
 		additionalFieldsRaw := json.RawMessage("{}")
 		if p.AdditionalFields != nil {
+
 			data, err := json.Marshal(p.AdditionalFields)
 			if err != nil {
 				p.Log.Warn(logCtx, "marshal additional fields", slog.Error(err))
@@ -377,6 +402,7 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 		var userID uuid.UUID
 		key, ok := httpmw.APIKeyOptional(p.Request)
 		if ok {
+
 			userID = key.UserID
 		} else if req.UserID != uuid.Nil {
 			userID = req.UserID
@@ -384,6 +410,7 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 			// if we do not have a user associated with the audit action
 			// we do not want to audit
 			// (this pertains to logins; we don't want to capture non-user login attempts)
+
 			return
 		}
 		action := p.Action
@@ -392,8 +419,10 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 		}
 		ip := parseIP(p.Request.RemoteAddr)
 		auditLog := database.AuditLog{
+
 			ID:               uuid.New(),
 			Time:             dbtime.Now(),
+
 			UserID:           userID,
 			Ip:               ip,
 			UserAgent:        sql.NullString{String: p.Request.UserAgent(), Valid: true},
@@ -403,6 +432,7 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 			Action:           action,
 			Diff:             diffRaw,
 			StatusCode:       int32(sw.Status),
+
 			RequestID:        httpmw.RequestID(p.Request),
 			AdditionalFields: additionalFieldsRaw,
 			OrganizationID:   requireOrgID[T](logCtx, p.OrganizationID, p.Log),
@@ -416,11 +446,13 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 			return
 		}
 	}
+
 }
 // BackgroundAudit creates an audit log for a background event.
 // The audit log is committed upon invocation.
 func BackgroundAudit[T Auditable](ctx context.Context, p *BackgroundAuditParams[T]) {
 	ip := parseIP(p.IP)
+
 	diff := Diff(p.Audit, p.Old, p.New)
 	var err error
 	diffRaw, err := json.Marshal(diff)
@@ -449,11 +481,13 @@ func BackgroundAudit[T Auditable](ctx context.Context, p *BackgroundAuditParams[
 		ResourceTarget:   either(p.Old, p.New, ResourceTarget[T], p.Action),
 		Action:           p.Action,
 		Diff:             diffRaw,
+
 		StatusCode:       int32(p.Status),
 		RequestID:        p.RequestID,
 		AdditionalFields: p.AdditionalFields,
 	}
 	err = p.Audit.Export(ctx, auditLog)
+
 	if err != nil {
 		p.Log.Error(ctx, "export audit log",
 			slog.F("audit_log", auditLog),
@@ -462,6 +496,7 @@ func BackgroundAudit[T Auditable](ctx context.Context, p *BackgroundAuditParams[
 	}
 }
 type WorkspaceBuildBaggage struct {
+
 	IP string
 }
 func (b WorkspaceBuildBaggage) Props() ([]baggage.Property, error) {
@@ -472,6 +507,7 @@ func (b WorkspaceBuildBaggage) Props() ([]baggage.Property, error) {
 	return []baggage.Property{ipProp}, nil
 }
 func WorkspaceBuildBaggageFromRequest(r *http.Request) WorkspaceBuildBaggage {
+
 	return WorkspaceBuildBaggage{IP: r.RemoteAddr}
 }
 type Baggage interface {
@@ -497,37 +533,45 @@ func BaggageFromContext(ctx context.Context) WorkspaceBuildBaggage {
 	b := baggage.FromContext(ctx)
 	props := b.Member("audit").Properties()
 	for _, prop := range props {
+
 		switch prop.Key() {
 		case "ip":
 			d.IP, _ = prop.Value()
 		default:
+
 		}
 	}
 	return d
 }
 func either[T Auditable, R any](old, new T, fn func(T) R, auditAction database.AuditAction) R {
 	if ResourceID(new) != uuid.Nil {
+
 		return fn(new)
 	} else if ResourceID(old) != uuid.Nil {
 		return fn(old)
+
 	} else if auditAction == database.AuditActionLogin || auditAction == database.AuditActionLogout {
 		// If the request action is a login or logout, we always want to audit it even if
 		// there is no diff. See the comment in audit.InitRequest for more detail.
 		return fn(old)
+
 	}
 	panic("both old and new are nil")
 }
 func parseIP(ipStr string) pqtype.Inet {
+
 	ip := net.ParseIP(ipStr)
 	ipNet := net.IPNet{}
 	if ip != nil {
 		ipNet = net.IPNet{
 			IP:   ip,
 			Mask: net.CIDRMask(len(ip)*8, len(ip)*8),
+
 		}
 	}
 	return pqtype.Inet{
 		IPNet: ipNet,
 		Valid: ip != nil,
+
 	}
 }

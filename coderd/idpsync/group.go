@@ -1,13 +1,16 @@
 package idpsync
+
 import (
 	"errors"
 	"context"
 	"encoding/json"
 	"fmt"
+
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
+
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
@@ -18,17 +21,20 @@ import (
 type GroupParams struct {
 	// SyncEntitled if false will skip syncing the user's groups
 	SyncEntitled bool
+
 	MergedClaims jwt.MapClaims
 }
 func (AGPLIDPSync) GroupSyncEntitled() bool {
 	// AGPL does not support syncing groups.
 	return false
 }
+
 func (s AGPLIDPSync) UpdateGroupSyncSettings(ctx context.Context, orgID uuid.UUID, db database.Store, settings GroupSyncSettings) error {
 	orgResolver := s.Manager.OrganizationResolver(db, orgID)
 	err := s.SyncSettings.Group.SetRuntimeValue(ctx, orgResolver, &settings)
 	if err != nil {
 		return fmt.Errorf("update group sync settings: %w", err)
+
 	}
 	return nil
 }
@@ -36,9 +42,11 @@ func (s AGPLIDPSync) GroupSyncSettings(ctx context.Context, orgID uuid.UUID, db 
 	orgResolver := s.Manager.OrganizationResolver(db, orgID)
 	settings, err := s.SyncSettings.Group.Resolve(ctx, orgResolver)
 	if err != nil {
+
 		if !errors.Is(err, runtimeconfig.ErrEntryNotFound) {
 			return nil, fmt.Errorf("resolve group sync settings: %w", err)
 		}
+
 		// Default to not being configured
 		settings = &GroupSyncSettings{}
 		// Check for legacy settings if the default org.
@@ -47,9 +55,11 @@ func (s AGPLIDPSync) GroupSyncSettings(ctx context.Context, orgID uuid.UUID, db 
 			if err != nil {
 				return nil, fmt.Errorf("get default organization: %w", err)
 			}
+
 			if defaultOrganization.ID == orgID {
 				settings = ptr.Ref(GroupSyncSettings(codersdk.GroupSyncSettings{
 					Field:             s.Legacy.GroupField,
+
 					LegacyNameMapping: s.Legacy.GroupMapping,
 					RegexFilter:       s.Legacy.GroupFilter,
 					AutoCreateMissing: s.Legacy.CreateMissingGroups,
@@ -67,24 +77,29 @@ func (s AGPLIDPSync) ParseGroupClaims(_ context.Context, _ jwt.MapClaims) (Group
 func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user database.User, params GroupParams) error {
 	// Nothing happens if sync is not enabled
 	if !params.SyncEntitled {
+
 		return nil
 	}
 	// nolint:gocritic // all syncing is done as a system user
+
 	ctx = dbauthz.AsSystemRestricted(ctx)
 	err := db.InTx(func(tx database.Store) error {
 		userGroups, err := tx.GetGroups(ctx, database.GetGroupsParams{
 			HasMemberID: user.ID,
 		})
 		if err != nil {
+
 			return fmt.Errorf("get user groups: %w", err)
 		}
 		// Figure out which organizations the user is a member of.
 		// The "Everyone" group is always included, so we can infer organization
 		// membership via the groups the user is in.
 		userOrgs := make(map[uuid.UUID][]database.GetGroupsRow)
+
 		for _, g := range userGroups {
 			g := g
 			userOrgs[g.Group.OrganizationID] = append(userOrgs[g.Group.OrganizationID], g)
+
 		}
 		// For each org, we need to fetch the sync settings
 		// This loop also handles any legacy settings for the default
@@ -93,6 +108,7 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 		for orgID := range userOrgs {
 			settings, err := s.GroupSyncSettings(ctx, orgID, tx)
 			if err != nil {
+
 				// TODO: This error is currently silent to org admins.
 				// We need to come up with a way to notify the org admin of this
 				// error.
@@ -102,6 +118,7 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 				)
 				settings = &GroupSyncSettings{}
 			}
+
 			orgSettings[orgID] = *settings
 		}
 		// groupIDsToAdd & groupIDsToRemove are the final group differences
@@ -121,6 +138,7 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 			// expectedGroups is the set of groups the IDP expects the
 			// user to be a member of.
 			expectedGroups, err := settings.ParseClaims(orgID, params.MergedClaims)
+
 			if err != nil {
 				s.Logger.Debug(ctx, "failed to parse claims for groups",
 					slog.F("organization_field", s.GroupField),
@@ -136,6 +154,7 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 			// Everyone group is always implied, so include it.
 			expectedGroups = append(expectedGroups, ExpectedGroup{
 				OrganizationID: orgID,
+
 				GroupID:        &orgID,
 			})
 			// Now we know what groups the user should be in for a given org,
@@ -157,6 +176,7 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 					// This should never happen. All group removals come from the
 					// existing set, which come from the db. All groups from the
 					// database have IDs. This code is purely defensive.
+
 					detail := "user:" + user.Username
 					if r.GroupName != nil {
 						detail += fmt.Sprintf(" from group %s", *r.GroupName)
@@ -169,10 +189,12 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 			// the settings specify. It will convert all group names into uuids
 			// for easier assignment.
 			// TODO: This code should be batched at the end of the for loop.
+
 			// Optimizing this is being pushed because if AutoCreate is disabled,
 			// this code will only add cost on the first login for each user.
 			// AutoCreate is usually disabled for large deployments.
 			// For small deployments, this is less of a problem.
+
 			assignGroups, err := settings.HandleMissingGroups(ctx, tx, orgID, add)
 			if err != nil {
 				return fmt.Errorf("handle missing groups: %w", err)
@@ -187,6 +209,7 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 		}
 		return nil
 	}, nil)
+
 	if err != nil {
 		return err
 	}
@@ -200,9 +223,11 @@ func (s AGPLIDPSync) ApplyGroupDifference(ctx context.Context, tx database.Store
 			GroupIds: removeIDs,
 		})
 		if err != nil {
+
 			return fmt.Errorf("remove user from %d groups: %w", len(removeIDs), err)
 		}
 		if len(removedGroupIDs) != len(removeIDs) {
+
 			s.Logger.Debug(ctx, "user not removed from expected number of groups",
 				slog.F("user_id", user.ID),
 				slog.F("groups_removed_count", len(removedGroupIDs)),
@@ -210,15 +235,18 @@ func (s AGPLIDPSync) ApplyGroupDifference(ctx context.Context, tx database.Store
 			)
 		}
 	}
+
 	if len(add) > 0 {
 		add = slice.Unique(add)
 		// Defensive programming to only insert uniques.
 		assignedGroupIDs, err := tx.InsertUserGroupsByID(ctx, database.InsertUserGroupsByIDParams{
 			UserID:   user.ID,
 			GroupIds: add,
+
 		})
 		if err != nil {
 			return fmt.Errorf("insert user into %d groups: %w", len(add), err)
+
 		}
 		if len(assignedGroupIDs) != len(add) {
 			s.Logger.Debug(ctx, "user not assigned to expected number of groups",
@@ -238,6 +266,7 @@ func (s *GroupSyncSettings) String() string {
 	return runtimeconfig.JSONString(s)
 }
 type ExpectedGroup struct {
+
 	OrganizationID uuid.UUID
 	GroupID        *uuid.UUID
 	GroupName      *string
@@ -257,25 +286,31 @@ func (a ExpectedGroup) Equal(b ExpectedGroup) bool {
 	}
 	if a.GroupName != nil && b.GroupName != nil {
 		return *a.GroupName == *b.GroupName
+
 	}
 	// If everything is nil, it is equal. Although a bit pointless
 	if a.GroupID == nil && b.GroupID == nil &&
+
 		a.GroupName == nil && b.GroupName == nil {
 		return true
+
 	}
 	return false
 }
 // ParseClaims will take the merged claims from the IDP and return the groups
+
 // the user is expected to be a member of. The expected group can either be a
 // name or an ID.
 // It is unfortunate we cannot use exclusively names or exclusively IDs.
 // When configuring though, if a group is mapped from "A" -> "UUID 1234", and
+
 // the group "UUID 1234" is renamed, we want to maintain the mapping.
 // We have to keep names because group sync supports syncing groups by name if
 // the external IDP group name matches the Coder one.
 func (s GroupSyncSettings) ParseClaims(orgID uuid.UUID, mergedClaims jwt.MapClaims) ([]ExpectedGroup, error) {
 	groupsRaw, ok := mergedClaims[s.Field]
 	if !ok {
+
 		return []ExpectedGroup{}, nil
 	}
 	parsedGroups, err := ParseStringSliceClaim(groupsRaw)
@@ -293,6 +328,7 @@ func (s GroupSyncSettings) ParseClaims(orgID uuid.UUID, mergedClaims jwt.MapClai
 		// Only allow through groups that pass the regex
 		if s.RegexFilter != nil {
 			if !s.RegexFilter.MatchString(group) {
+
 				continue
 			}
 		}
@@ -301,6 +337,7 @@ func (s GroupSyncSettings) ParseClaims(orgID uuid.UUID, mergedClaims jwt.MapClai
 			for _, gid := range mappedGroupIDs {
 				gid := gid
 				groups = append(groups, ExpectedGroup{OrganizationID: orgID, GroupID: &gid})
+
 			}
 			continue
 		}
@@ -315,21 +352,25 @@ func (s GroupSyncSettings) ParseClaims(orgID uuid.UUID, mergedClaims jwt.MapClai
 // TODO: Batching this would be better, as this is 1 or 2 db calls per organization.
 func (s GroupSyncSettings) HandleMissingGroups(ctx context.Context, tx database.Store, orgID uuid.UUID, add []ExpectedGroup) ([]uuid.UUID, error) {
 	// All expected that are missing IDs means the group does not exist
+
 	// in the database, or it is a legacy mapping, and we need to do a lookup.
 	var missingGroups []string
 	addIDs := make([]uuid.UUID, 0)
 	for _, expected := range add {
 		if expected.GroupID == nil && expected.GroupName != nil {
+
 			missingGroups = append(missingGroups, *expected.GroupName)
 		} else if expected.GroupID != nil {
 			// Keep the IDs to sync the groups.
 			addIDs = append(addIDs, *expected.GroupID)
+
 		}
 	}
 	if s.AutoCreateMissing && len(missingGroups) > 0 {
 		// Insert any missing groups. If the groups already exist, this is a noop.
 		_, err := tx.InsertMissingGroups(ctx, database.InsertMissingGroupsParams{
 			OrganizationID: orgID,
+
 			Source:         database.GroupSourceOidc,
 			GroupNames:     missingGroups,
 		})
@@ -337,6 +378,7 @@ func (s GroupSyncSettings) HandleMissingGroups(ctx context.Context, tx database.
 			return nil, fmt.Errorf("insert missing groups: %w", err)
 		}
 	}
+
 	// Fetch any missing groups by name. If they exist, their IDs will be
 	// matched and returned.
 	if len(missingGroups) > 0 {
@@ -346,12 +388,15 @@ func (s GroupSyncSettings) HandleMissingGroups(ctx context.Context, tx database.
 			HasMemberID:    uuid.UUID{},
 			GroupNames:     missingGroups,
 		})
+
 		if err != nil {
 			return nil, fmt.Errorf("get groups by names: %w", err)
 		}
+
 		for _, g := range newGroups {
 			addIDs = append(addIDs, g.Group.ID)
 		}
+
 	}
 	return addIDs, nil
 }

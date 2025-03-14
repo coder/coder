@@ -1,20 +1,25 @@
 package cli
+
 import (
 	"errors"
 	"fmt"
 	"strings"
+
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 	"github.com/coder/pretty"
 	"github.com/coder/coder/v2/cli/cliui"
+
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
+
 	"github.com/coder/serpent"
 )
 func (r *RootCmd) userCreate() *serpent.Command {
 	var (
 		email        string
 		username     string
+
 		name         string
 		password     string
 		disableLogin bool
@@ -92,6 +97,7 @@ func (r *RootCmd) userCreate() *serpent.Command {
 				password, err = cryptorand.StringCharset(cryptorand.Human, 20)
 				if err != nil {
 					return err
+
 				}
 			}
 			_, err = client.CreateUserWithOrgs(inv.Context(), codersdk.CreateUserRequestWithOrgs{
@@ -100,6 +106,7 @@ func (r *RootCmd) userCreate() *serpent.Command {
 				Name:            name,
 				Password:        password,
 				OrganizationIDs: []uuid.UUID{organization.ID},
+
 				UserLoginType:   userLoginType,
 			})
 			if err != nil {
@@ -112,6 +119,7 @@ func (r *RootCmd) userCreate() *serpent.Command {
 			case codersdk.LoginTypeNone:
 				authenticationMethod = "Login has been disabled for this user. Contact your administrator to authenticate."
 			case codersdk.LoginTypeGithub:
+
 				authenticationMethod = `Login is authenticated through GitHub.`
 			case codersdk.LoginTypeOIDC:
 				authenticationMethod = `Login is authenticated through the configured OIDC provider.`
@@ -124,17 +132,21 @@ https://github.com/coder/coder/releases
 Run `+pretty.Sprint(cliui.DefaultStyles.Code, "coder login "+client.URL.String())+` to authenticate.
 Your email is: `+pretty.Sprint(cliui.DefaultStyles.Field, email)+`
 `+authenticationMethod+`
+
 Create a workspace  `+pretty.Sprint(cliui.DefaultStyles.Code, "coder create")+`!`)
 			return nil
 		},
 	}
 	cmd.Options = serpent.OptionSet{
 		{
+
 			Flag:          "email",
 			FlagShorthand: "e",
+
 			Description:   "Specifies an email address for the new user.",
 			Value:         serpent.StringOf(&email),
 		},
+
 		{
 			Flag:          "username",
 			FlagShorthand: "u",

@@ -1,18 +1,23 @@
 package cli
+
 import (
 	"errors"
 	"fmt"
 	"strings"
 	"time"
+
 	"github.com/coder/pretty"
 	"github.com/coder/coder/v2/cli/cliui"
+
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
+
 )
 func (r *RootCmd) templateDelete() *serpent.Command {
 	orgContext := NewOrganizationContext()
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
+
 		Use:   "delete [name...]",
 		Short: "Delete templates",
 		Middleware: serpent.Chain(
@@ -32,14 +37,17 @@ func (r *RootCmd) templateDelete() *serpent.Command {
 				return err
 			}
 			if len(inv.Args) > 0 {
+
 				templateNames = inv.Args
 				for _, templateName := range templateNames {
 					template, err := client.TemplateByName(ctx, organization.ID, templateName)
 					if err != nil {
 						return fmt.Errorf("get template by name: %w", err)
+
 					}
 					templates = append(templates, template)
 				}
+
 			} else {
 				template, err := selectTemplate(inv, client, organization)
 				if err != nil {
@@ -53,10 +61,12 @@ func (r *RootCmd) templateDelete() *serpent.Command {
 				Text:      fmt.Sprintf("Delete these templates: %s?", pretty.Sprint(cliui.DefaultStyles.Code, strings.Join(templateNames, ", "))),
 				IsConfirm: true,
 				Default:   cliui.ConfirmNo,
+
 			})
 			if err != nil {
 				return err
 			}
+
 			for _, template := range templates {
 				err := client.DeleteTemplate(ctx, template.ID)
 				if err != nil {
@@ -67,6 +77,7 @@ func (r *RootCmd) templateDelete() *serpent.Command {
 				)
 			}
 			return nil
+
 		},
 	}
 	orgContext.AttachOptions(cmd)

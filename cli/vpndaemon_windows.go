@@ -1,21 +1,26 @@
 //go:build windows
+
 package cli
 import (
+
 	"fmt"
 	"errors"
 	"cdr.dev/slog"
+
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/v2/vpn"
 	"github.com/coder/serpent"
 )
 func (r *RootCmd) vpnDaemonRun() *serpent.Command {
 	var (
+
 		rpcReadHandleInt  int64
 		rpcWriteHandleInt int64
 	)
 	cmd := &serpent.Command{
 		Use:   "run",
 		Short: "Run the VPN daemon on Windows.",
+
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
 		),
@@ -45,6 +50,7 @@ func (r *RootCmd) vpnDaemonRun() *serpent.Command {
 				return fmt.Errorf("rpc-read-handle (%v) and rpc-write-handle (%v) must be positive", rpcReadHandleInt, rpcWriteHandleInt)
 			}
 			if rpcReadHandleInt == rpcWriteHandleInt {
+
 				return fmt.Errorf("rpc-read-handle (%v) and rpc-write-handle (%v) must be different", rpcReadHandleInt, rpcWriteHandleInt)
 			}
 			// We don't need to worry about duplicating the handles on Windows,
@@ -52,6 +58,7 @@ func (r *RootCmd) vpnDaemonRun() *serpent.Command {
 			logger.Info(ctx, "opening bidirectional RPC pipe", slog.F("rpc_read_handle", rpcReadHandleInt), slog.F("rpc_write_handle", rpcWriteHandleInt))
 			pipe, err := vpn.NewBidirectionalPipe(uintptr(rpcReadHandleInt), uintptr(rpcWriteHandleInt))
 			if err != nil {
+
 				return fmt.Errorf("create bidirectional RPC pipe: %w", err)
 			}
 			defer pipe.Close()
@@ -61,6 +68,7 @@ func (r *RootCmd) vpnDaemonRun() *serpent.Command {
 				vpn.UseAsLogger(),
 				vpn.UseCustomLogSinks(sinks...),
 			)
+
 			if err != nil {
 				return fmt.Errorf("create new tunnel for client: %w", err)
 			}

@@ -15,12 +15,15 @@ import (
 
 	"github.com/go-playground/validator/v10"
 
+
 	"github.com/coder/coder/v2/coderd/httpapi/httpapiconstraints"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 )
 
+
 var Validate *validator.Validate
+
 
 // This init is used to create a validator and register validation-specific
 // functionality for the HTTP API.
@@ -35,6 +38,7 @@ func init() {
 		}
 		return name
 	})
+
 
 	nameValidator := func(fl validator.FieldLevel) bool {
 		f := fl.Field().Interface()
@@ -52,6 +56,7 @@ func init() {
 		}
 	}
 
+
 	displayNameValidator := func(fl validator.FieldLevel) bool {
 		f := fl.Field().Interface()
 		str, ok := f.(string)
@@ -68,6 +73,7 @@ func init() {
 		}
 	}
 
+
 	templateVersionNameValidator := func(fl validator.FieldLevel) bool {
 		f := fl.Field().Interface()
 		str, ok := f.(string)
@@ -82,6 +88,7 @@ func init() {
 		panic(err)
 	}
 
+
 	userRealNameValidator := func(fl validator.FieldLevel) bool {
 		f := fl.Field().Interface()
 		str, ok := f.(string)
@@ -95,6 +102,7 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+
 
 	groupNameValidator := func(fl validator.FieldLevel) bool {
 		f := fl.Field().Interface()
@@ -111,6 +119,7 @@ func init() {
 	}
 }
 
+
 // Is404Error returns true if the given error should return a 404 status code.
 // Both actual 404s and unauthorized errors should return 404s to not leak
 // information about the existence of resources.
@@ -119,6 +128,7 @@ func Is404Error(err error) bool {
 		return false
 	}
 
+
 	// This tests for dbauthz.IsNotAuthorizedError and rbac.IsUnauthorizedError.
 	if IsUnauthorizedError(err) {
 		return true
@@ -126,10 +136,12 @@ func Is404Error(err error) bool {
 	return errors.Is(err, sql.ErrNoRows)
 }
 
+
 func IsUnauthorizedError(err error) bool {
 	if err == nil {
 		return false
 	}
+
 
 	// This tests for dbauthz.IsNotAuthorizedError and rbac.IsUnauthorizedError.
 	var unauthorized httpapiconstraints.IsUnauthorizedError
@@ -139,10 +151,13 @@ func IsUnauthorizedError(err error) bool {
 	return false
 }
 
+
 // Convenience error functions don't take contexts since their responses are
 // static, it doesn't make much sense to trace them.
 
+
 var ResourceNotFoundResponse = codersdk.Response{Message: "Resource not found or you do not have access to this resource"}
+
 
 // ResourceNotFound is intentionally vague. All 404 responses should be identical
 // to prevent leaking existence of resources.
@@ -150,14 +165,17 @@ func ResourceNotFound(rw http.ResponseWriter) {
 	Write(context.Background(), rw, http.StatusNotFound, ResourceNotFoundResponse)
 }
 
+
 var ResourceForbiddenResponse = codersdk.Response{
 	Message: "Forbidden.",
 	Detail:  "You don't have permission to view this content. If you believe this is a mistake, please contact your administrator or try signing in with different credentials.",
 }
 
+
 func Forbidden(rw http.ResponseWriter) {
 	Write(context.Background(), rw, http.StatusForbidden, ResourceForbiddenResponse)
 }
+
 
 func InternalServerError(rw http.ResponseWriter, err error) {
 	var details string
@@ -165,17 +183,20 @@ func InternalServerError(rw http.ResponseWriter, err error) {
 		details = err.Error()
 	}
 
+
 	Write(context.Background(), rw, http.StatusInternalServerError, codersdk.Response{
 		Message: "An internal server error occurred.",
 		Detail:  details,
 	})
 }
 
+
 func RouteNotFound(rw http.ResponseWriter) {
 	Write(context.Background(), rw, http.StatusNotFound, codersdk.Response{
 		Message: "Route not found.",
 	})
 }
+
 
 // Write outputs a standardized format to an HTTP response body. ctx is used for
 // tracing and can be nil for tracing to be disabled. Tracing this function is
@@ -191,35 +212,44 @@ func Write(ctx context.Context, rw http.ResponseWriter, status int, response int
 		return
 	}
 
+
 	_, span := tracing.StartSpan(ctx)
 	defer span.End()
+
 
 	rw.Header().Set("Content-Type", "application/json; charset=utf-8")
 	rw.WriteHeader(status)
 
+
 	enc := json.NewEncoder(rw)
 	enc.SetEscapeHTML(true)
+
 
 	// We can't really do much about these errors, it's probably due to a
 	// dropped connection.
 	_ = enc.Encode(response)
 }
+
 
 func WriteIndent(ctx context.Context, rw http.ResponseWriter, status int, response interface{}) {
 	_, span := tracing.StartSpan(ctx)
 	defer span.End()
 
+
 	rw.Header().Set("Content-Type", "application/json; charset=utf-8")
 	rw.WriteHeader(status)
+
 
 	enc := json.NewEncoder(rw)
 	enc.SetEscapeHTML(true)
 	enc.SetIndent("", "\t")
 
+
 	// We can't really do much about these errors, it's probably due to a
 	// dropped connection.
 	_ = enc.Encode(response)
 }
+
 
 // Read decodes JSON from the HTTP request into the value provided. It uses
 // go-validator to validate the incoming request body. ctx is used for tracing
@@ -228,6 +258,7 @@ func WriteIndent(ctx context.Context, rw http.ResponseWriter, status int, respon
 func Read(ctx context.Context, rw http.ResponseWriter, r *http.Request, value interface{}) bool {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
+
 
 	err := json.NewDecoder(r.Body).Decode(value)
 	if err != nil {
@@ -263,12 +294,15 @@ func Read(ctx context.Context, rw http.ResponseWriter, r *http.Request, value in
 	return true
 }
 
+
 const websocketCloseMaxLen = 123
+
 
 // WebsocketCloseSprintf formats a websocket close message and ensures it is
 // truncated to the maximum allowed length.
 func WebsocketCloseSprintf(format string, vars ...any) string {
 	msg := fmt.Sprintf(format, vars...)
+
 
 	// Cap msg length at 123 bytes. coder/websocket only allows close messages
 	// of this length.
@@ -278,8 +312,10 @@ func WebsocketCloseSprintf(format string, vars ...any) string {
 		return strings.ToValidUTF8(msg[:websocketCloseMaxLen], "")
 	}
 
+
 	return msg
 }
+
 
 func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (sendEvent func(ctx context.Context, sse codersdk.ServerSentEvent) error, closed chan struct{}, err error) {
 	h := rw.Header()
@@ -288,10 +324,12 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (sendEvent f
 	h.Set("Connection", "keep-alive")
 	h.Set("X-Accel-Buffering", "no")
 
+
 	f, ok := rw.(http.Flusher)
 	if !ok {
 		panic("http.ResponseWriter is not http.Flusher")
 	}
+
 
 	closed = make(chan struct{})
 	type sseEvent struct {
@@ -300,16 +338,20 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (sendEvent f
 	}
 	eventC := make(chan sseEvent)
 
+
 	// Synchronized handling of events (no guarantee of order).
 	go func() {
 		defer close(closed)
+
 
 		// Send a heartbeat every 15 seconds to avoid the connection being killed.
 		ticker := time.NewTicker(time.Second * 15)
 		defer ticker.Stop()
 
+
 		for {
 			var event sseEvent
+
 
 			select {
 			case <-r.Context().Done():
@@ -320,6 +362,7 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (sendEvent f
 					payload: []byte(fmt.Sprintf("event: %s\n\n", codersdk.ServerSentEventTypePing)),
 				}
 			}
+
 
 			_, err := rw.Write(event.payload)
 			if event.errC != nil {
@@ -332,14 +375,17 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (sendEvent f
 		}
 	}()
 
+
 	sendEvent = func(ctx context.Context, sse codersdk.ServerSentEvent) error {
 		buf := &bytes.Buffer{}
 		enc := json.NewEncoder(buf)
+
 
 		_, err := buf.WriteString(fmt.Sprintf("event: %s\n", sse.Type))
 		if err != nil {
 			return err
 		}
+
 
 		if sse.Data != nil {
 			_, err = buf.WriteString("data: ")
@@ -352,15 +398,18 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (sendEvent f
 			}
 		}
 
+
 		err = buf.WriteByte('\n')
 		if err != nil {
 			return err
 		}
 
+
 		event := sseEvent{
 			payload: buf.Bytes(),
 			errC:    make(chan error, 1), // Buffered to prevent deadlock.
 		}
+
 
 		select {
 		case <-r.Context().Done():
@@ -383,6 +432,7 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (sendEvent f
 			}
 		}
 	}
+
 
 	return sendEvent, closed, nil
 }

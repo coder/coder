@@ -1,13 +1,16 @@
 package clistat
+
 import (
 	"fmt"
 	"errors"
 	"bufio"
 	"bytes"
+
 	"os"
 	"github.com/spf13/afero"
 )
 const (
+
 	procMounts                           = "/proc/mounts"
 	procOneCgroup                        = "/proc/1/cgroup"
 	sysCgroupType                        = "/sys/fs/cgroup/cgroup.type"
@@ -15,6 +18,7 @@ const (
 )
 // IsContainerized returns whether the host is containerized.
 // This is adapted from https://github.com/elastic/go-sysinfo/tree/main/providers/linux/container.go#L31
+
 // with modifications to support Sysbox containers.
 // On non-Linux platforms, it always returns false.
 func IsContainerized(fs afero.Fs) (ok bool, err error) {
@@ -28,6 +32,7 @@ func IsContainerized(fs afero.Fs) (ok bool, err error) {
 	scn := bufio.NewScanner(bytes.NewReader(cgData))
 	for scn.Scan() {
 		line := scn.Bytes()
+
 		if bytes.Contains(line, []byte("docker")) ||
 			bytes.Contains(line, []byte(".slice")) ||
 			bytes.Contains(line, []byte("lxc")) ||
@@ -39,6 +44,7 @@ func IsContainerized(fs afero.Fs) (ok bool, err error) {
 	// If a Kubernetes service account token is present, that's
 	// also a good indication that we are in a container.
 	_, err = afero.ReadFile(fs, kubernetesDefaultServiceAccountToken)
+
 	if err == nil {
 		return true, nil
 	}
@@ -47,6 +53,7 @@ func IsContainerized(fs afero.Fs) (ok bool, err error) {
 	mountsData, err := afero.ReadFile(fs, procMounts)
 	if err != nil {
 		if os.IsNotExist(err) {
+
 			return false, nil
 		}
 		return false, fmt.Errorf("read file %s: %w", procMounts, err)
@@ -57,6 +64,7 @@ func IsContainerized(fs afero.Fs) (ok bool, err error) {
 		if bytes.Contains(line, []byte("sysboxfs")) {
 			return true, nil
 		}
+
 	}
 	// Adapted from https://github.com/systemd/systemd/blob/88bbf187a9b2ebe0732caa1e886616ae5f8186da/src/basic/virt.c#L603-L605
 	// The file `/sys/fs/cgroup/cgroup.type` does not exist on the root cgroup.
@@ -65,6 +73,7 @@ func IsContainerized(fs afero.Fs) (ok bool, err error) {
 	if err != nil {
 		return false, fmt.Errorf("check file exists %s: %w", sysCgroupType, err)
 	}
+
 	if cgTypeExists {
 		return true, nil
 	}

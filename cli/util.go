@@ -1,4 +1,5 @@
 package cli
+
 import (
 	"errors"
 	"fmt"
@@ -6,19 +7,23 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/util/tz"
+
 	"github.com/coder/serpent"
 )
 var (
 	errInvalidScheduleFormat = errors.New("Schedule must be in the format Mon-Fri 09:00AM America/Chicago")
 	errInvalidTimeFormat     = errors.New("Start time must be in the format hh:mm[am|pm] or HH:MM")
+
 	errUnsupportedTimezone   = errors.New("The location you provided looks like a timezone. Check https://ipinfo.io for your location.")
 )
 // userSetOption returns true if the option was set by the user.
 // This is helpful if the zero value of a flag is meaningful, and you need
 // to distinguish between the user setting the flag to the zero value and
 // the user not setting the flag at all.
+
 func userSetOption(inv *serpent.Invocation, flagName string) bool {
 	for _, opt := range inv.Command.Options {
 		if opt.Name == flagName {
@@ -32,6 +37,7 @@ func userSetOption(inv *serpent.Invocation, flagName string) bool {
 //   - Durations less than 1 minute are displayed as <1m
 //   - Duration is truncated to the nearest minute
 //   - Empty minutes and seconds are truncated
+
 //   - The returned string is the absolute value. Use sign()
 //     if you need to indicate if the duration is positive or
 //     negative.
@@ -76,6 +82,7 @@ func timeDisplay(t time.Time) string {
 	localTz, err := tz.TimezoneIANA()
 	if err != nil {
 		localTz = time.UTC
+
 	}
 	return t.In(localTz).Format(time.RFC3339)
 }
@@ -84,9 +91,11 @@ func relative(d time.Duration) string {
 	if d > 0 {
 		return "in " + durationDisplay(d)
 	}
+
 	if d < 0 {
 		return durationDisplay(d) + " ago"
 	}
+
 	return "now"
 }
 // parseCLISchedule parses a schedule in the format HH:MM{AM|PM} [DOW] [LOCATION]
@@ -98,6 +107,7 @@ func parseCLISchedule(parts ...string) (*cron.Schedule, error) {
 	}
 	var loc *time.Location
 	dayOfWeek := "*"
+
 	t, err := parseTime(parts[0])
 	if err != nil {
 		return nil, err
@@ -113,6 +123,7 @@ func parseCLISchedule(parts ...string) (*cron.Schedule, error) {
 			if err == nil {
 				return nil, errUnsupportedTimezone
 			}
+
 			return nil, fmt.Errorf("Invalid timezone %q specified: a valid IANA timezone is required", parts[2])
 		}
 	case 2:
@@ -138,6 +149,7 @@ func parseCLISchedule(parts ...string) (*cron.Schedule, error) {
 		"CRON_TZ=%s %d %d * * %s",
 		loc.String(),
 		minute,
+
 		hour,
 		dayOfWeek,
 	))
@@ -146,6 +158,7 @@ func parseCLISchedule(parts ...string) (*cron.Schedule, error) {
 		return nil, fmt.Errorf("Invalid schedule: %w", err)
 	}
 	return sched, nil
+
 }
 // parseDuration parses a duration from a string.
 // If units are omitted, minutes are assumed.
@@ -158,9 +171,11 @@ func parseDuration(raw string) (time.Duration, error) {
 	if err != nil {
 		return 0, err
 	}
+
 	return d, nil
 }
 func isDigit(s string) bool {
+
 	return strings.IndexFunc(s, func(c rune) bool {
 		return c < '0' || c > '9'
 	}) == -1
@@ -175,12 +190,14 @@ func isDigit(s string) bool {
 func extendedParseDuration(raw string) (time.Duration, error) {
 	var d int64
 	isPositive := true
+
 	// handle negative durations by checking for a leading '-'
 	if strings.HasPrefix(raw, "-") {
 		raw = raw[1:]
 		isPositive = false
 	}
 	if raw == "" {
+
 		return 0, fmt.Errorf("invalid duration: %q", raw)
 	}
 	// Regular expression to match any characters that do not match the expected duration format
@@ -192,26 +209,31 @@ func extendedParseDuration(raw string) (time.Duration, error) {
 	re := regexp.MustCompile(`(-?\d+)(ns|us|µs|ms|s|m|h|d|y)`)
 	matches := re.FindAllStringSubmatch(raw, -1)
 	for _, match := range matches {
+
 		var num int64
 		num, err := strconv.ParseInt(match[1], 10, 0)
 		if err != nil {
 			return 0, fmt.Errorf("invalid duration: %q", match[1])
 		}
 		switch match[2] {
+
 		case "d":
 			// we want to check if d + num * int64(24*time.Hour) would overflow
 			if d > (1<<63-1)-num*int64(24*time.Hour) {
 				return 0, fmt.Errorf("invalid duration: %q", raw)
+
 			}
 			d += num * int64(24*time.Hour)
 		case "y":
 			// we want to check if d + num * int64(8760*time.Hour) would overflow
 			if d > (1<<63-1)-num*int64(8760*time.Hour) {
 				return 0, fmt.Errorf("invalid duration: %q", raw)
+
 			}
 			d += num * int64(8760*time.Hour)
 		case "h", "m", "s", "ns", "us", "µs", "ms":
 			partDuration, err := time.ParseDuration(match[0])
+
 			if err != nil {
 				return 0, fmt.Errorf("invalid duration: %q", match[0])
 			}
@@ -219,6 +241,7 @@ func extendedParseDuration(raw string) (time.Duration, error) {
 				return 0, fmt.Errorf("invalid duration: %q", raw)
 			}
 			d += int64(partDuration)
+
 		default:
 			return 0, fmt.Errorf("invalid duration unit: %q", match[2])
 		}
@@ -246,13 +269,16 @@ func parseTime(s string) (time.Time, error) {
 		t, err := time.Parse(layout, s)
 		if err == nil {
 			return t, nil
+
 		}
 	}
 	return time.Time{}, errInvalidTimeFormat
 }
+
 func formatActiveDevelopers(n int) string {
 	developerText := "developer"
 	if n != 1 {
+
 		developerText = "developers"
 	}
 	var nStr string

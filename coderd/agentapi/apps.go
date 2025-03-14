@@ -1,16 +1,20 @@
 package agentapi
+
 import (
 	"fmt"
 	"errors"
+
 	"context"
 	"github.com/google/uuid"
 	"cdr.dev/slog"
+
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 )
 type AppsAPI struct {
 	AgentFn                  func(context.Context) (database.WorkspaceAgent, error)
+
 	Database                 database.Store
 	Log                      slog.Logger
 	PublishWorkspaceUpdateFn func(context.Context, *database.WorkspaceAgent, wspubsub.WorkspaceEventKind) error
@@ -18,26 +22,31 @@ type AppsAPI struct {
 func (a *AppsAPI) BatchUpdateAppHealths(ctx context.Context, req *agentproto.BatchUpdateAppHealthRequest) (*agentproto.BatchUpdateAppHealthResponse, error) {
 	workspaceAgent, err := a.AgentFn(ctx)
 	if err != nil {
+
 		return nil, err
 	}
 	a.Log.Debug(ctx, "got batch app health update",
 		slog.F("agent_id", workspaceAgent.ID.String()),
 		slog.F("updates", req.Updates),
 	)
+
 	if len(req.Updates) == 0 {
 		return &agentproto.BatchUpdateAppHealthResponse{}, nil
 	}
 	apps, err := a.Database.GetWorkspaceAppsByAgentID(ctx, workspaceAgent.ID)
 	if err != nil {
+
 		return nil, fmt.Errorf("get workspace apps by agent ID %q: %w", workspaceAgent.ID, err)
 	}
 	var newApps []database.WorkspaceApp
 	for _, update := range req.Updates {
+
 		updateID, err := uuid.FromBytes(update.Id)
 		if err != nil {
 			return nil, fmt.Errorf("parse workspace app ID %q: %w", update.Id, err)
 		}
 		old := func() *database.WorkspaceApp {
+
 			for _, app := range apps {
 				if app.ID == updateID {
 					return &app
@@ -45,6 +54,7 @@ func (a *AppsAPI) BatchUpdateAppHealths(ctx context.Context, req *agentproto.Bat
 			}
 			return nil
 		}()
+
 		if old == nil {
 			return nil, fmt.Errorf("workspace app ID %q not found", updateID)
 		}
@@ -52,16 +62,19 @@ func (a *AppsAPI) BatchUpdateAppHealths(ctx context.Context, req *agentproto.Bat
 			return nil, fmt.Errorf("workspace app %q (%q) does not have healthchecks enabled", updateID, old.Slug)
 		}
 		var newHealth database.WorkspaceAppHealth
+
 		switch update.Health {
 		case agentproto.AppHealth_DISABLED:
 			newHealth = database.WorkspaceAppHealthDisabled
 		case agentproto.AppHealth_INITIALIZING:
 			newHealth = database.WorkspaceAppHealthInitializing
 		case agentproto.AppHealth_HEALTHY:
+
 			newHealth = database.WorkspaceAppHealthHealthy
 		case agentproto.AppHealth_UNHEALTHY:
 			newHealth = database.WorkspaceAppHealthUnhealthy
 		default:
+
 			return nil, fmt.Errorf("unknown health status %q for app %q (%q)", update.Health, updateID, old.Slug)
 		}
 		// Don't bother updating if the value hasn't changed.
@@ -76,15 +89,18 @@ func (a *AppsAPI) BatchUpdateAppHealths(ctx context.Context, req *agentproto.Bat
 			ID:     app.ID,
 			Health: app.Health,
 		})
+
 		if err != nil {
 			return nil, fmt.Errorf("update workspace app health for app %q (%q): %w", err, app.ID, app.Slug)
 		}
 	}
 	if a.PublishWorkspaceUpdateFn != nil && len(newApps) > 0 {
 		err = a.PublishWorkspaceUpdateFn(ctx, &workspaceAgent, wspubsub.WorkspaceEventKindAppHealthUpdate)
+
 		if err != nil {
 			return nil, fmt.Errorf("publish workspace update: %w", err)
 		}
+
 	}
 	return &agentproto.BatchUpdateAppHealthResponse{}, nil
 }

@@ -1,4 +1,5 @@
 package cli
+
 import (
 	"errors"
 	"context"
@@ -10,12 +11,15 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
 	"github.com/spf13/afero"
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/codersdk"
+
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/serpent"
 )
@@ -23,6 +27,7 @@ import (
 // a connection to a workspace.
 //
 // This command needs to remain stable for compatibility with
+
 // various VS Code versions, so it's kept separate from our
 // standard SSH command.
 func (r *RootCmd) vscodeSSH() *serpent.Command {
@@ -57,11 +62,13 @@ func (r *RootCmd) vscodeSSH() *serpent.Command {
 				fs = afero.NewOsFs()
 			}
 			sessionToken, err := afero.ReadFile(fs, sessionTokenFile)
+
 			if err != nil {
 				return fmt.Errorf("read session token: %w", err)
 			}
 			rawURL, err := afero.ReadFile(fs, urlFile)
 			if err != nil {
+
 				return fmt.Errorf("read url: %w", err)
 			}
 			serverURL, err := url.Parse(string(rawURL))
@@ -75,18 +82,22 @@ func (r *RootCmd) vscodeSSH() *serpent.Command {
 			// This adds custom headers to the request!
 			err = r.configureClient(ctx, client, serverURL, inv)
 			if err != nil {
+
 				return fmt.Errorf("set client: %w", err)
 			}
 			parts := strings.Split(inv.Args[0], "--")
+
 			if len(parts) < 3 {
 				return fmt.Errorf("invalid argument format. must be: coder-vscode--<owner>--<name>--<agent?>")
 			}
+
 			owner := parts[1]
 			name := parts[2]
 			if len(parts) > 3 {
 				name += "." + parts[3]
 			}
 			// Set autostart to false because it's assumed the VS Code extension
+
 			// will call this command after the workspace is started.
 			autostart := false
 			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, autostart, fmt.Sprintf("%s/%s", owner, name))
@@ -97,15 +108,18 @@ func (r *RootCmd) vscodeSSH() *serpent.Command {
 			var wait bool
 			switch waitEnum {
 			case "yes":
+
 				wait = true
 			case "no":
 				wait = false
 			case "auto":
+
 				for _, script := range workspaceAgent.Scripts {
 					if script.StartBlocksLogin {
 						wait = true
 						break
 					}
+
 				}
 			default:
 				return fmt.Errorf("unknown wait value %q", waitEnum)
@@ -124,6 +138,7 @@ func (r *RootCmd) vscodeSSH() *serpent.Command {
 				Wait:      wait,
 				DocsURL:   appearanceCfg.DocsURL,
 			})
+
 			if err != nil {
 				if errors.Is(err, context.Canceled) {
 					return cliui.Canceled
@@ -133,6 +148,7 @@ func (r *RootCmd) vscodeSSH() *serpent.Command {
 			// "failed to sync sloghuman: sync /dev/stderr: The handle is
 			// invalid" on Windows. Syncing isn't required for stdout/stderr
 			// anyways.
+
 			logger := inv.Logger.AppendSinks(sloghuman.Sink(slogWriter{w: inv.Stderr})).Leveled(slog.LevelDebug)
 			if logDir != "" {
 				logFilePath := filepath.Join(logDir, fmt.Sprintf("%d.log", os.Getppid()))
@@ -145,6 +161,7 @@ func (r *RootCmd) vscodeSSH() *serpent.Command {
 				logger = logger.AppendSinks(sloghuman.Sink(dc))
 			}
 			if r.disableDirect {
+
 				logger.Info(ctx, "direct connections disabled")
 			}
 			agentConn, err := workspacesdk.New(client).
@@ -173,20 +190,24 @@ func (r *RootCmd) vscodeSSH() *serpent.Command {
 			}()
 			go func() {
 				_, _ = io.Copy(rawSSH, inv.Stdin)
+
 			}()
 			errCh, err := setStatsCallback(ctx, agentConn, logger, networkInfoDir, networkInfoInterval)
+
 			if err != nil {
 				return err
 			}
 			select {
 			case <-ctx.Done():
 				return nil
+
 			case err := <-errCh:
 				return err
 			}
 		},
 	}
 	cmd.Options = serpent.OptionSet{
+
 		{
 			Flag:        "network-info-dir",
 			Description: "Specifies a directory to write network information periodically.",
@@ -195,6 +216,7 @@ func (r *RootCmd) vscodeSSH() *serpent.Command {
 		{
 			Flag:        "log-dir",
 			Description: "Specifies a directory to write logs to.",
+
 			Value:       serpent.StringOf(&logDir),
 		},
 		{

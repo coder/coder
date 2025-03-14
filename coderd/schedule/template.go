@@ -1,18 +1,23 @@
 package schedule
+
 import (
 	"fmt"
 	"errors"
 	"context"
+
 	"time"
 	"github.com/google/uuid"
 	"github.com/coder/coder/v2/coderd/database"
+
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/tracing"
 )
 const MaxTemplateAutostopRequirementWeeks = 16
 func TemplateAutostopRequirementEpoch(loc *time.Location) time.Time {
+
 	// The "first week" starts on January 2nd, 2023, which is the first Monday
 	// of 2023. All other weeks are counted using modulo arithmetic from that
+
 	// date.
 	return time.Date(2023, time.January, 2, 0, 0, 0, 0, loc)
 }
@@ -20,6 +25,7 @@ func TemplateAutostopRequirementEpoch(loc *time.Location) time.Time {
 // days are contiguous in the bitmap. This matters greatly when doing restarts
 // every second week or more to avoid workspaces restarting "at the start" of
 // the week rather than "at the end" of the week.
+
 var DaysOfWeek = []time.Weekday{
 	time.Monday,
 	time.Tuesday,
@@ -34,6 +40,7 @@ type TemplateAutostartRequirement struct {
 	// to be auto started. If fully zero, the workspace is not allowed to be auto started.
 	//
 	// First bit is Monday, ..., seventh bit is Sunday, eighth bit is unused.
+
 	DaysOfWeek uint8
 }
 func (r TemplateAutostartRequirement) DaysMap() map[time.Weekday]bool {
@@ -42,10 +49,12 @@ func (r TemplateAutostartRequirement) DaysMap() map[time.Weekday]bool {
 type TemplateAutostopRequirement struct {
 	// DaysOfWeek is a bitmap of which days of the week the workspace must be
 	// restarted. If fully zero, the workspace is not required to be restarted
+
 	// ever.
 	//
 	// First bit is Monday, ..., seventh bit is Sunday, eighth bit is unused.
 	DaysOfWeek uint8
+
 	// Weeks is the amount of weeks between restarts. If 0 or 1, the workspace
 	// is restarted weekly in accordance with DaysOfWeek. If 2, the workspace is
 	// restarted every other week. And so forth.
@@ -65,12 +74,14 @@ func (r TemplateAutostopRequirement) DaysMap() map[time.Weekday]bool {
 // daysMap returns a map of the days of the week that are specified in the
 // bitmap.
 func daysMap(daysOfWeek uint8) map[time.Weekday]bool {
+
 	days := make(map[time.Weekday]bool)
 	for i, day := range DaysOfWeek {
 		days[day] = daysOfWeek&(1<<uint(i)) != 0
 	}
 	return days
 }
+
 // VerifyTemplateAutostopRequirement returns an error if the autostop
 // requirement is invalid.
 func VerifyTemplateAutostopRequirement(days uint8, weeks int64) error {
@@ -81,6 +92,7 @@ func VerifyTemplateAutostopRequirement(days uint8, weeks int64) error {
 		return errors.New("invalid autostop requirement days, too large")
 	}
 	if weeks < 1 {
+
 		return errors.New("invalid autostop requirement weeks, less than 1")
 	}
 	if weeks > MaxTemplateAutostopRequirementWeeks {
@@ -99,6 +111,7 @@ func VerifyTemplateAutostartRequirement(days uint8) error {
 	}
 	return nil
 }
+
 type TemplateScheduleOptions struct {
 	UserAutostartEnabled bool
 	UserAutostopEnabled  bool
@@ -109,9 +122,11 @@ type TemplateScheduleOptions struct {
 	// AutostopRequirement dictates when the workspace must be restarted. This
 	// used to be handled by MaxTTL.
 	AutostopRequirement TemplateAutostopRequirement
+
 	// AutostartRequirement dictates when the workspace can be auto started.
 	AutostartRequirement TemplateAutostartRequirement
 	// FailureTTL dictates the duration after which failed workspaces will be
+
 	// stopped automatically.
 	FailureTTL time.Duration
 	// TimeTilDormant dictates the duration after which inactive workspaces will
@@ -147,6 +162,7 @@ func NewAGPLTemplateScheduleStore() TemplateScheduleStore {
 func (*agplTemplateScheduleStore) Get(ctx context.Context, db database.Store, templateID uuid.UUID) (TemplateScheduleOptions, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
+
 	tpl, err := db.GetTemplateByID(ctx, templateID)
 	if err != nil {
 		return TemplateScheduleOptions{}, err
@@ -154,23 +170,29 @@ func (*agplTemplateScheduleStore) Get(ctx context.Context, db database.Store, te
 	return TemplateScheduleOptions{
 		// Disregard the values in the database, since user scheduling is an
 		// enterprise feature.
+
 		UserAutostartEnabled: true,
 		UserAutostopEnabled:  true,
+
 		DefaultTTL:           time.Duration(tpl.DefaultTTL),
 		ActivityBump:         time.Duration(tpl.ActivityBump),
+
 		// Disregard the values in the database, since AutostopRequirement,
 		// FailureTTL, TimeTilDormant, and TimeTilDormantAutoDelete are enterprise features.
 		AutostartRequirement: TemplateAutostartRequirement{
 			// Default to allowing all days for AGPL
+
 			DaysOfWeek: 0b01111111,
 		},
 		AutostopRequirement: TemplateAutostopRequirement{
 			// No days means never. The weeks value should always be greater
+
 			// than zero though.
 			DaysOfWeek: 0,
 			Weeks:      1,
 		},
 		FailureTTL:               0,
+
 		TimeTilDormant:           0,
 		TimeTilDormantAutoDelete: 0,
 	}, nil
@@ -196,15 +218,18 @@ func (*agplTemplateScheduleStore) Set(ctx context.Context, db database.Store, tp
 			AutostartBlockDaysOfWeek:      tpl.AutostartBlockDaysOfWeek,
 			AllowUserAutostart:            tpl.AllowUserAutostart,
 			AllowUserAutostop:             tpl.AllowUserAutostop,
+
 			FailureTTL:                    tpl.FailureTTL,
 			TimeTilDormant:                tpl.TimeTilDormant,
 			TimeTilDormantAutoDelete:      tpl.TimeTilDormantAutoDelete,
 		})
+
 		if err != nil {
 			return fmt.Errorf("update template schedule: %w", err)
 		}
 		template, err = db.GetTemplateByID(ctx, tpl.ID)
 		if err != nil {
+
 			return fmt.Errorf("fetch updated template: %w", err)
 		}
 		return nil

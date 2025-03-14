@@ -1,24 +1,30 @@
 package workspaceapps
+
 import (
 	"fmt"
 	"errors"
 	"context"
 	"sync"
+
 	"time"
 	"github.com/google/uuid"
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+
 )
 const (
 	DefaultStatsCollectorReportInterval = 30 * time.Second
 	DefaultStatsCollectorRollupWindow   = 1 * time.Minute
+
 	DefaultStatsDBReporterBatchSize     = 1024
 )
 // StatsReport is a report of a workspace app session.
 type StatsReport struct {
 	UserID           uuid.UUID    `json:"user_id"`
 	WorkspaceID      uuid.UUID    `json:"workspace_id"`
+
 	AgentID          uuid.UUID    `json:"agent_id"`
 	AccessMethod     AccessMethod `json:"access_method"`
 	SlugOrPort       string       `json:"slug_or_port"`
@@ -31,9 +37,11 @@ type StatsReport struct {
 func newStatsReportFromSignedToken(token SignedToken) StatsReport {
 	return StatsReport{
 		UserID:           token.UserID,
+
 		WorkspaceID:      token.WorkspaceID,
 		AgentID:          token.AgentID,
 		AccessMethod:     token.AccessMethod,
+
 		SlugOrPort:       token.AppSlugOrPort,
 		SessionID:        uuid.New(),
 		SessionStartedAt: dbtime.Now(),
@@ -47,11 +55,13 @@ type StatsReporter interface {
 // This should match the database unique constraint.
 type statsGroupKey struct {
 	StartTimeTrunc time.Time
+
 	UserID         uuid.UUID
 	WorkspaceID    uuid.UUID
 	AgentID        uuid.UUID
 	AccessMethod   AccessMethod
 	SlugOrPort     string
+
 }
 func (s StatsReport) groupKey(windowSize time.Duration) statsGroupKey {
 	return statsGroupKey{
@@ -62,6 +72,7 @@ func (s StatsReport) groupKey(windowSize time.Duration) statsGroupKey {
 		AccessMethod:   s.AccessMethod,
 		SlugOrPort:     s.SlugOrPort,
 	}
+
 }
 // StatsCollector collects workspace app StatsReports and reports them
 // in batches, stats compaction is performed for short-lived sessions.
@@ -73,21 +84,25 @@ type StatsCollector struct {
 	mu               sync.Mutex                       // Protects following.
 	statsBySessionID map[uuid.UUID]*StatsReport       // Track unique sessions.
 	groupedStats     map[statsGroupKey][]*StatsReport // Rolled up stats for sessions in close proximity.
+
 	backlog          []StatsReport                    // Stats that have not been reported yet (due to error).
 }
 type StatsCollectorOptions struct {
 	Logger   *slog.Logger
 	Reporter StatsReporter
+
 	// ReportInterval is the interval at which stats are reported, both partial
 	// and fully formed stats.
 	ReportInterval time.Duration
 	// RollupWindow is the window size for rolling up stats, session shorter
+
 	// than this will be rolled up and longer than this will be tracked
 	// individually.
 	RollupWindow time.Duration
 	// Options for tests.
 	Flush <-chan chan<- struct{}
 	Now   func() time.Time
+
 }
 func NewStatsCollector(opts StatsCollectorOptions) *StatsCollector {
 	if opts.Logger == nil {
@@ -99,11 +114,13 @@ func NewStatsCollector(opts StatsCollectorOptions) *StatsCollector {
 	if opts.RollupWindow == 0 {
 		opts.RollupWindow = DefaultStatsCollectorRollupWindow
 	}
+
 	if opts.Now == nil {
 		opts.Now = time.Now
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	sc := &StatsCollector{
+
 		ctx:    ctx,
 		cancel: cancel,
 		done:   make(chan struct{}),
@@ -118,6 +135,7 @@ func NewStatsCollector(opts StatsCollectorOptions) *StatsCollector {
 func (sc *StatsCollector) Collect(report StatsReport) {
 	sc.mu.Lock()
 	defer sc.mu.Unlock()
+
 	r := &report
 	if _, ok := sc.statsBySessionID[report.SessionID]; !ok {
 		groupKey := r.groupKey(sc.opts.RollupWindow)
@@ -125,25 +143,30 @@ func (sc *StatsCollector) Collect(report StatsReport) {
 	}
 	if r.SessionEndedAt.IsZero() {
 		sc.statsBySessionID[report.SessionID] = r
+
 	} else {
 		if stat, ok := sc.statsBySessionID[report.SessionID]; ok {
 			// Update in-place.
 			*stat = *r
+
 		}
 		delete(sc.statsBySessionID, report.SessionID)
 	}
 	sc.opts.Logger.Debug(sc.ctx, "collected workspace app stats", slog.F("report", report))
+
 }
 // rollup performs stats rollup for sessions that fall within the
 // configured rollup window. For sessions longer than the window,
 // we report them individually.
 func (sc *StatsCollector) rollup(now time.Time) []StatsReport {
+
 	sc.mu.Lock()
 	defer sc.mu.Unlock()
 	var report []StatsReport
 	for g, group := range sc.groupedStats {
 		if len(group) == 0 {
 			// Safety check, this should not happen.
+
 			sc.opts.Logger.Error(sc.ctx, "empty stats group", "group", g)
 			delete(sc.groupedStats, g)
 			continue
@@ -156,6 +179,7 @@ func (sc *StatsCollector) rollup(now time.Time) []StatsReport {
 			rolledUp = &StatsReport{
 				UserID:           g.UserID,
 				WorkspaceID:      g.WorkspaceID,
+
 				AgentID:          g.AgentID,
 				AccessMethod:     g.AccessMethod,
 				SlugOrPort:       g.SlugOrPort,
@@ -163,8 +187,10 @@ func (sc *StatsCollector) rollup(now time.Time) []StatsReport {
 				SessionEndedAt:   g.StartTimeTrunc.Add(sc.opts.RollupWindow),
 				Requests:         0,
 				rolledUp:         true,
+
 			}
 		}
+
 		rollupChanged := false
 		newGroup := []*StatsReport{rolledUp} // Must be first in slice for future iterations (see group[0] above).
 		for _, stat := range group {
@@ -173,6 +199,7 @@ func (sc *StatsCollector) rollup(now time.Time) []StatsReport {
 				if rolledUp.SessionID == uuid.Nil {
 					rolledUp.SessionID = stat.SessionID // Borrow the first session ID, useful in tests.
 				}
+
 				rolledUp.Requests += stat.Requests
 				rollupChanged = true
 				continue
@@ -208,6 +235,7 @@ func (sc *StatsCollector) rollup(now time.Time) []StatsReport {
 		}
 	}
 	return report
+
 }
 func (sc *StatsCollector) flush(ctx context.Context) (err error) {
 	sc.opts.Logger.Debug(ctx, "flushing workspace app stats")
@@ -226,9 +254,11 @@ func (sc *StatsCollector) flush(ctx context.Context) (err error) {
 	// backlog and the stats we're about to report, but it's not worth
 	// the complexity.
 	if len(sc.backlog) > 0 {
+
 		err = sc.opts.Reporter.ReportAppStats(ctx, sc.backlog)
 		if err != nil {
 			return fmt.Errorf("report workspace app stats from backlog failed: %w", err)
+
 		}
 		sc.backlog = nil
 	}
@@ -236,9 +266,11 @@ func (sc *StatsCollector) flush(ctx context.Context) (err error) {
 	stats := sc.rollup(now)
 	if len(stats) == 0 {
 		return nil
+
 	}
 	err = sc.opts.Reporter.ReportAppStats(ctx, stats)
 	if err != nil {
+
 		sc.backlog = stats
 		return fmt.Errorf("report workspace app stats failed: %w", err)
 	}
@@ -249,6 +281,7 @@ func (sc *StatsCollector) Close() error {
 	<-sc.done
 	return nil
 }
+
 func (sc *StatsCollector) start() {
 	defer func() {
 		close(sc.done)
@@ -264,20 +297,24 @@ func (sc *StatsCollector) start() {
 		case <-sc.ctx.Done():
 			t.Stop()
 			done = true
+
 		case <-t.C:
 		case reportFlushDone = <-sc.opts.Flush:
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		//nolint:gocritic // Inserting app stats is a system function.
 		_ = sc.flush(dbauthz.AsSystemRestricted(ctx))
+
 		cancel()
 		if !done {
 			t.Reset(sc.opts.ReportInterval)
 		}
 		// For tests.
 		if reportFlushDone != nil {
+
 			reportFlushDone <- struct{}{}
 			reportFlushDone = nil
 		}
+
 	}
 }

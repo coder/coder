@@ -26,7 +26,9 @@ import (
 	"go.uber.org/atomic"
 	gossh "golang.org/x/crypto/ssh"
 
+
 	"cdr.dev/slog"
+
 
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentexec"
@@ -36,15 +38,18 @@ import (
 	"github.com/coder/coder/v2/pty"
 )
 
+
 const (
 	// MagicSessionErrorCode indicates that something went wrong with the session, rather than the
 	// command just returning a nonzero exit code, and is chosen as an arbitrary, high number
 	// unlikely to shadow other exit codes, which are typically 1, 2, 3, etc.
 	MagicSessionErrorCode = 229
 
+
 	// MagicProcessCmdlineJetBrains is a string in a process's command line that
 	// uniquely identifies it as JetBrains software.
 	MagicProcessCmdlineJetBrains = "idea.vendor.name=JetBrains"
+
 
 	// BlockedFileTransferErrorCode indicates that SSH server restricted the raw command from performing
 	// the file transfer.
@@ -52,9 +57,11 @@ const (
 	BlockedFileTransferErrorMessage = "File transfer has been disabled."
 )
 
+
 // MagicSessionType is a type that represents the type of session that is being
 // established.
 type MagicSessionType string
+
 
 const (
 	// MagicSessionTypeEnvironmentVariable is used to track the purpose behind an SSH connection.
@@ -70,6 +77,7 @@ const (
 	ContainerUserEnvironmentVariable = "CODER_CONTAINER_USER"
 )
 
+
 // MagicSessionType enums.
 const (
 	// MagicSessionTypeUnknown means the session type could not be determined.
@@ -83,10 +91,13 @@ const (
 	MagicSessionTypeJetBrains MagicSessionType = "jetbrains"
 )
 
+
 // BlockedFileTransferCommands contains a list of restricted file transfer commands.
 var BlockedFileTransferCommands = []string{"nc", "rsync", "scp", "sftp"}
 
+
 type reportConnectionFunc func(id uuid.UUID, sessionType MagicSessionType, ip string) (disconnected func(code int, reason string))
+
 
 // Config sets configuration parameters for the agent SSH server.
 type Config struct {
@@ -117,6 +128,7 @@ type Config struct {
 	ExperimentalDevContainersEnabled bool
 }
 
+
 type Server struct {
 	mu        sync.RWMutex // Protects following.
 	fs        afero.Fs
@@ -128,18 +140,23 @@ type Server struct {
 	// a lock on mu but protected by closing.
 	wg sync.WaitGroup
 
+
 	Execer agentexec.Execer
 	logger slog.Logger
 	srv    *ssh.Server
 
+
 	config *Config
+
 
 	connCountVSCode     atomic.Int64
 	connCountJetBrains  atomic.Int64
 	connCountSSHSession atomic.Int64
 
+
 	metrics *sshServerMetrics
 }
+
 
 func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prometheus.Registry, fs afero.Fs, execer agentexec.Execer, config *Config) (*Server, error) {
 	if config == nil {
@@ -171,8 +188,10 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 		config.ReportConnection = func(uuid.UUID, MagicSessionType, string) func(int, string) { return func(int, string) {} }
 	}
 
+
 	forwardHandler := &ssh.ForwardedTCPHandler{}
 	unixForwardHandler := newForwardedUnixHandler(logger)
+
 
 	metrics := newSSHServerMetrics(prometheusRegistry)
 	s := &Server{
@@ -183,10 +202,13 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 		sessions:  make(map[ssh.Session]struct{}),
 		logger:    logger,
 
+
 		config: config,
+
 
 		metrics: metrics,
 	}
+
 
 	srv := &ssh.Server{
 		ChannelHandlers: map[string]ssh.ChannelHandler{
@@ -249,6 +271,7 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 		},
 	}
 
+
 	// The MaxTimeout functionality has been substituted with the introduction
 	// of the KeepAlive feature. In cases where very short timeouts are set, the
 	// SSH server will automatically switch to the connection timeout for both
@@ -261,15 +284,18 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 		srv.MaxTimeout = config.MaxTimeout
 	}
 
+
 	s.srv = srv
 	return s, nil
 }
+
 
 type ConnStats struct {
 	Sessions  int64
 	VSCode    int64
 	JetBrains int64
 }
+
 
 func (s *Server) ConnStats() ConnStats {
 	return ConnStats{
@@ -279,15 +305,18 @@ func (s *Server) ConnStats() ConnStats {
 	}
 }
 
+
 func extractMagicSessionType(env []string) (magicType MagicSessionType, rawType string, filteredEnv []string) {
 	for _, kv := range env {
 		if !strings.HasPrefix(kv, MagicSessionTypeEnvironmentVariable) {
 			continue
 		}
 
+
 		rawType = strings.TrimPrefix(kv, MagicSessionTypeEnvironmentVariable+"=")
 		// Keep going, we'll use the last instance of the env.
 	}
+
 
 	// Always force lowercase checking to be case-insensitive.
 	switch MagicSessionType(strings.ToLower(rawType)) {
@@ -301,10 +330,12 @@ func extractMagicSessionType(env []string) (magicType MagicSessionType, rawType 
 		magicType = MagicSessionTypeUnknown
 	}
 
+
 	return magicType, rawType, slices.DeleteFunc(env, func(kv string) bool {
 		return strings.HasPrefix(kv, MagicSessionTypeEnvironmentVariable+"=")
 	})
 }
+
 
 // sessionCloseTracker is a wrapper around Session that tracks the exit code.
 type sessionCloseTracker struct {
@@ -313,7 +344,9 @@ type sessionCloseTracker struct {
 	code     atomic.Int64
 }
 
+
 var _ ssh.Session = &sessionCloseTracker{}
+
 
 func (s *sessionCloseTracker) track(code int) {
 	s.exitOnce.Do(func() {
@@ -321,19 +354,23 @@ func (s *sessionCloseTracker) track(code int) {
 	})
 }
 
+
 func (s *sessionCloseTracker) exitCode() int {
 	return int(s.code.Load())
 }
+
 
 func (s *sessionCloseTracker) Exit(code int) error {
 	s.track(code)
 	return s.Session.Exit(code)
 }
 
+
 func (s *sessionCloseTracker) Close() error {
 	s.track(1)
 	return s.Session.Close()
 }
+
 
 func extractContainerInfo(env []string) (container, containerUser string, filteredEnv []string) {
 	for _, kv := range env {
@@ -341,15 +378,18 @@ func extractContainerInfo(env []string) (container, containerUser string, filter
 			container = strings.TrimPrefix(kv, ContainerEnvironmentVariable+"=")
 		}
 
+
 		if strings.HasPrefix(kv, ContainerUserEnvironmentVariable+"=") {
 			containerUser = strings.TrimPrefix(kv, ContainerUserEnvironmentVariable+"=")
 		}
 	}
 
+
 	return container, containerUser, slices.DeleteFunc(env, func(kv string) bool {
 		return strings.HasPrefix(kv, ContainerEnvironmentVariable+"=") || strings.HasPrefix(kv, ContainerUserEnvironmentVariable+"=")
 	})
 }
+
 
 func (s *Server) sessionHandler(session ssh.Session) {
 	ctx := session.Context()
@@ -363,14 +403,17 @@ func (s *Server) sessionHandler(session ssh.Session) {
 	)
 	logger.Info(ctx, "handling ssh session")
 
+
 	env := session.Environ()
 	magicType, magicTypeRaw, env := extractMagicSessionType(env)
+
 
 	if !s.trackSession(session, true) {
 		reason := "unable to accept new session, server is closing"
 		// Report connection attempt even if we couldn't accept it.
 		disconnected := s.config.ReportConnection(id, magicType, session.RemoteAddr().String())
 		defer disconnected(1, reason)
+
 
 		logger.Info(ctx, reason)
 		// See (*Server).Close() for why we call Close instead of Exit.
@@ -379,7 +422,9 @@ func (s *Server) sessionHandler(session ssh.Session) {
 	}
 	defer s.trackSession(session, false)
 
+
 	reportSession := true
+
 
 	switch magicType {
 	case MagicSessionTypeVSCode:
@@ -396,13 +441,16 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		logger.Warn(ctx, "invalid magic ssh session type specified", slog.F("raw_type", magicTypeRaw))
 	}
 
+
 	closeCause := func(string) {}
 	if reportSession {
 		var reason string
 		closeCause = func(r string) { reason = r }
 
+
 		scr := &sessionCloseTracker{Session: session}
 		session = scr
+
 
 		disconnected := s.config.ReportConnection(id, magicType, session.RemoteAddr().String())
 		defer func() {
@@ -410,8 +458,10 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		}()
 	}
 
+
 	if s.fileTransferBlocked(session) {
 		s.logger.Warn(ctx, "file transfer blocked", slog.F("session_subsystem", session.Subsystem()), slog.F("raw_command", session.RawCommand()))
+
 
 		if session.Subsystem() == "" { // sftp does not expect error, otherwise it fails with "package too long"
 			// Response format: <status_code><message body>\n
@@ -423,6 +473,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		return
 	}
 
+
 	container, containerUser, env := extractContainerInfo(env)
 	if container != "" {
 		s.logger.Debug(ctx, "container info",
@@ -430,6 +481,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 			slog.F("container_user", containerUser),
 		)
 	}
+
 
 	switch ss := session.Subsystem(); ss {
 	case "":
@@ -451,6 +503,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		return
 	}
 
+
 	x11, hasX11 := session.X11()
 	if hasX11 {
 		display, handled := s.x11Handler(session.Context(), x11)
@@ -462,6 +515,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		}
 		env = append(env, fmt.Sprintf("DISPLAY=localhost:%d.%d", display, x11.ScreenNumber))
 	}
+
 
 	err := s.sessionStart(logger, session, env, magicType, container, containerUser)
 	var exitError *exec.ExitError
@@ -484,7 +538,9 @@ func (s *Server) sessionHandler(session ssh.Session) {
 			slog.F("exit_code", code),
 		)
 
+
 		closeCause(fmt.Sprintf("process exited with error status: %d", exitError.ExitCode()))
+
 
 		// TODO(mafredri): For signal exit, there's also an "exit-signal"
 		// request (session.Exit sends "exit-status"), however, since it's
@@ -505,6 +561,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 	_ = session.Exit(0)
 }
 
+
 // fileTransferBlocked method checks if the file transfer commands should be blocked.
 //
 // Warning: consider this mechanism as "Do not trespass" sign, as a violator can still ssh to the host,
@@ -516,17 +573,21 @@ func (s *Server) fileTransferBlocked(session ssh.Session) bool {
 	}
 	// File transfers are restricted.
 
+
 	if session.Subsystem() == "sftp" {
 		return true
 	}
+
 
 	cmd := session.Command()
 	if len(cmd) == 0 {
 		return false // no command?
 	}
 
+
 	c := cmd[0]
 	c = filepath.Base(c) // in case the binary is absolute path, /usr/sbin/scp
+
 
 	for _, cmd := range BlockedFileTransferCommands {
 		if cmd == c {
@@ -536,8 +597,10 @@ func (s *Server) fileTransferBlocked(session ssh.Session) bool {
 	return false
 }
 
+
 func (s *Server) sessionStart(logger slog.Logger, session ssh.Session, env []string, magicType MagicSessionType, container, containerUser string) (retErr error) {
 	ctx := session.Context()
+
 
 	magicTypeLabel := magicTypeMetricLabel(magicType)
 	sshPty, windowSize, isPty := session.Pty()
@@ -545,6 +608,7 @@ func (s *Server) sessionStart(logger slog.Logger, session ssh.Session, env []str
 	if isPty {
 		ptyLabel = "yes"
 	}
+
 
 	var ei usershell.EnvInfoer
 	var err error
@@ -561,6 +625,7 @@ func (s *Server) sessionStart(logger slog.Logger, session ssh.Session, env []str
 		return err
 	}
 
+
 	if ssh.AgentRequested(session) {
 		l, err := ssh.NewAgentListener()
 		if err != nil {
@@ -572,14 +637,17 @@ func (s *Server) sessionStart(logger slog.Logger, session ssh.Session, env []str
 		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", "SSH_AUTH_SOCK", l.Addr().String()))
 	}
 
+
 	if isPty {
 		return s.startPTYSession(logger, session, magicTypeLabel, cmd, sshPty, windowSize)
 	}
 	return s.startNonPTYSession(logger, session, magicTypeLabel, cmd.AsExec())
 }
 
+
 func (s *Server) startNonPTYSession(logger slog.Logger, session ssh.Session, magicTypeLabel string, cmd *exec.Cmd) error {
 	s.metrics.sessionsTotal.WithLabelValues(magicTypeLabel, "no").Add(1)
+
 
 	cmd.Stdout = session
 	cmd.Stderr = session.Stderr()
@@ -616,6 +684,7 @@ func (s *Server) startNonPTYSession(logger slog.Logger, session ssh.Session, mag
 	return cmd.Wait()
 }
 
+
 // ptySession is the interface to the ssh.Session that startPTYSession uses
 // we use an interface here so that we can fake it in tests.
 type ptySession interface {
@@ -626,13 +695,16 @@ type ptySession interface {
 	Signals(chan<- ssh.Signal)
 }
 
+
 func (s *Server) startPTYSession(logger slog.Logger, session ptySession, magicTypeLabel string, cmd *pty.Cmd, sshPty ssh.Pty, windowSize <-chan ssh.Window) (retErr error) {
 	s.metrics.sessionsTotal.WithLabelValues(magicTypeLabel, "yes").Add(1)
+
 
 	ctx := session.Context()
 	// Disable minimal PTY emulation set by gliderlabs/ssh (NL-to-CRNL).
 	// See https://github.com/coder/coder/issues/3371.
 	session.DisablePTYEmulation()
+
 
 	if isLoginShell(session.RawCommand()) {
 		banners := s.config.AnnouncementBanners()
@@ -648,6 +720,7 @@ func (s *Server) startPTYSession(logger slog.Logger, session ptySession, magicTy
 		}
 	}
 
+
 	if !isQuietLogin(s.fs, session.RawCommand()) {
 		err := showMOTD(s.fs, session, s.config.MOTDFile())
 		if err != nil {
@@ -656,7 +729,9 @@ func (s *Server) startPTYSession(logger slog.Logger, session ptySession, magicTy
 		}
 	}
 
+
 	cmd.Env = append(cmd.Env, fmt.Sprintf("TERM=%s", sshPty.Term))
+
 
 	// The pty package sets `SSH_TTY` on supported platforms.
 	ptty, process, err := pty.Start(cmd, pty.WithPTYOption(
@@ -689,6 +764,7 @@ func (s *Server) startPTYSession(logger slog.Logger, session ptySession, magicTy
 				return
 			}
 
+
 			select {
 			case sig, ok := <-sigs:
 				if !ok {
@@ -711,12 +787,14 @@ func (s *Server) startPTYSession(logger slog.Logger, session ptySession, magicTy
 		}
 	}()
 
+
 	go func() {
 		_, err := io.Copy(ptty.InputWriter(), session)
 		if err != nil {
 			s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "input_io_copy").Add(1)
 		}
 	}()
+
 
 	// We need to wait for the command output to finish copying.  It's safe to
 	// just do this copy on the main handler goroutine because one of two things
@@ -749,6 +827,7 @@ func (s *Server) startPTYSession(logger slog.Logger, session ptySession, magicTy
 	return nil
 }
 
+
 func handleSignal(logger slog.Logger, ssig ssh.Signal, signaler interface{ Signal(os.Signal) error }, metrics *sshServerMetrics, magicTypeLabel string) {
 	ctx := context.Background()
 	sig := osSignalFrom(ssig)
@@ -761,16 +840,20 @@ func handleSignal(logger slog.Logger, ssig ssh.Signal, signaler interface{ Signa
 	}
 }
 
+
 func (s *Server) sftpHandler(logger slog.Logger, session ssh.Session) error {
 	s.metrics.sftpConnectionsTotal.Add(1)
 
+
 	ctx := session.Context()
+
 
 	// Typically sftp sessions don't request a TTY, but if they do,
 	// we must ensure the gliderlabs/ssh CRLF emulation is disabled.
 	// Otherwise sftp will be broken. This can happen if a user sets
 	// `RequestTTY force` in their SSH config.
 	session.DisablePTYEmulation()
+
 
 	var opts []sftp.ServerOption
 	// Change current working directory to the users home
@@ -782,12 +865,14 @@ func (s *Server) sftpHandler(logger slog.Logger, session ssh.Session) error {
 		opts = append(opts, sftp.WithServerWorkingDirectory(homedir))
 	}
 
+
 	server, err := sftp.NewServer(session, opts...)
 	if err != nil {
 		logger.Debug(ctx, "initialize sftp server", slog.Error(err))
 		return fmt.Errorf("initialize sftp server: %w", err)
 	}
 	defer server.Close()
+
 
 	err = server.Serve()
 	if err == nil || errors.Is(err, io.EOF) {
@@ -808,6 +893,7 @@ func (s *Server) sftpHandler(logger slog.Logger, session ssh.Session) error {
 	return fmt.Errorf("sftp server closed with error: %w", err)
 }
 
+
 // CreateCommand processes raw command input with OpenSSH-like behavior.
 // If the script provided is empty, it will default to the users shell.
 // This injects environment variables specified by the user at launch too.
@@ -825,10 +911,12 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string,
 	}
 	username := currentUser.Username
 
+
 	shell, err := ei.Shell(username)
 	if err != nil {
 		return nil, fmt.Errorf("get user shell: %w", err)
 	}
+
 
 	// OpenSSH executes all commands with the users current shell.
 	// We replicate that behavior for IDE support.
@@ -838,6 +926,7 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string,
 	}
 	name := shell
 	args := []string{caller, script}
+
 
 	// A preceding space is generally not idiomatic for a shebang,
 	// but in Terraform it's quite standard to use <<EOF for a multi-line
@@ -862,6 +951,7 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string,
 		args = append(args, caller, script)
 	}
 
+
 	// gliderlabs/ssh returns a command slice of zero
 	// when a shell is requested.
 	if len(script) == 0 {
@@ -872,6 +962,7 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string,
 			args = append(args, "-l")
 		}
 	}
+
 
 	// Modify command prior to execution. This will usually be a no-op, but not
 	// always. For example, to run a command in a Docker container, we need to
@@ -886,6 +977,7 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string,
 	}
 	cmd := s.Execer.PTYCommandContext(ctx, modifiedName, modifiedArgs...)
 	cmd.Dir = s.config.WorkingDirectory()
+
 
 	// If the metadata directory doesn't exist, we run the command
 	// in the users home directory.
@@ -904,6 +996,7 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string,
 	cmd.Env = append(cmd.Env, fmt.Sprintf("LOGNAME=%s", username))
 	cmd.Env = append(cmd.Env, fmt.Sprintf("SHELL=%s", shell))
 
+
 	// Set SSH connection environment variables (these are also set by OpenSSH
 	// and thus expected to be present by SSH clients). Since the agent does
 	// networking in-memory, trying to provide accurate values here would be
@@ -913,13 +1006,16 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string,
 	cmd.Env = append(cmd.Env, fmt.Sprintf("SSH_CLIENT=%s %s %s", srcAddr, srcPort, dstPort))
 	cmd.Env = append(cmd.Env, fmt.Sprintf("SSH_CONNECTION=%s %s %s %s", srcAddr, srcPort, dstAddr, dstPort))
 
+
 	cmd.Env, err = s.config.UpdateEnv(cmd.Env)
 	if err != nil {
 		return nil, fmt.Errorf("apply env: %w", err)
 	}
 
+
 	return cmd, nil
 }
+
 
 // Serve starts the server to handle incoming connections on the provided listener.
 // It returns an error if no host keys are set or if there is an issue accepting connections.
@@ -928,12 +1024,14 @@ func (s *Server) Serve(l net.Listener) (retErr error) {
 		return errors.New("no host keys set")
 	}
 
+
 	s.logger.Info(context.Background(), "started serving listener", slog.F("listen_addr", l.Addr()))
 	defer func() {
 		s.logger.Info(context.Background(), "stopped serving listener",
 			slog.F("listen_addr", l.Addr()), slog.Error(retErr))
 	}()
 	defer l.Close()
+
 
 	s.trackListener(l, true)
 	defer s.trackListener(l, false)
@@ -946,12 +1044,14 @@ func (s *Server) Serve(l net.Listener) (retErr error) {
 	}
 }
 
+
 func (s *Server) handleConn(l net.Listener, c net.Conn) {
 	logger := s.logger.With(
 		slog.F("remote_addr", c.RemoteAddr()),
 		slog.F("local_addr", c.LocalAddr()),
 		slog.F("listen_addr", l.Addr()))
 	defer c.Close()
+
 
 	if !s.trackConn(l, c, true) {
 		// Server is closed or we no longer want
@@ -964,6 +1064,7 @@ func (s *Server) handleConn(l net.Listener, c net.Conn) {
 	// note: srv.ConnectionCompleteCallback logs completion of the connection
 	s.srv.HandleConn(c)
 }
+
 
 // trackListener registers the listener with the server. If the server is
 // closing, the function will block until the server is closed.
@@ -988,6 +1089,7 @@ func (s *Server) trackListener(l net.Listener, add bool) {
 	s.wg.Done()
 	delete(s.listeners, l)
 }
+
 
 // trackConn registers the connection with the server. If the server is
 // closed or the listener is closed, the connection is not registered
@@ -1018,6 +1120,7 @@ func (s *Server) trackConn(l net.Listener, c net.Conn, add bool) (ok bool) {
 	return true
 }
 
+
 // trackSession registers the session with the server. If the server is
 // closing, the session is not registered and should be closed.
 //
@@ -1039,10 +1142,12 @@ func (s *Server) trackSession(ss ssh.Session, add bool) (ok bool) {
 	return true
 }
 
+
 // Close the server and all active connections. Server can be re-used
 // after Close is done.
 func (s *Server) Close() error {
 	s.mu.Lock()
+
 
 	// Guard against multiple calls to Close and
 	// accepting new connections during close.
@@ -1051,6 +1156,7 @@ func (s *Server) Close() error {
 		return errors.New("server is closing")
 	}
 	s.closing = make(chan struct{})
+
 
 	// Close all active sessions to gracefully
 	// terminate client connections.
@@ -1061,6 +1167,7 @@ func (s *Server) Close() error {
 		_ = ss.Close()
 	}
 
+
 	// Close all active listeners and connections.
 	for l := range s.listeners {
 		_ = l.Close()
@@ -1069,19 +1176,24 @@ func (s *Server) Close() error {
 		_ = c.Close()
 	}
 
+
 	// Close the underlying SSH server.
 	err := s.srv.Close()
 
+
 	s.mu.Unlock()
 	s.wg.Wait() // Wait for all goroutines to exit.
+
 
 	s.mu.Lock()
 	close(s.closing)
 	s.closing = nil
 	s.mu.Unlock()
 
+
 	return err
 }
+
 
 // Shutdown gracefully closes all active SSH connections and stops
 // accepting new connections.
@@ -1092,9 +1204,11 @@ func (*Server) Shutdown(_ context.Context) error {
 	return nil
 }
 
+
 func isLoginShell(rawCommand string) bool {
 	return len(rawCommand) == 0
 }
+
 
 // isQuietLogin checks if the SSH server should perform a quiet login or not.
 //
@@ -1105,6 +1219,7 @@ func isQuietLogin(fs afero.Fs, rawCommand string) bool {
 		return true
 	}
 
+
 	// Best effort, if we can't get the home directory,
 	// we can't lookup .hushlogin.
 	homedir, err := userHomeDir()
@@ -1112,9 +1227,11 @@ func isQuietLogin(fs afero.Fs, rawCommand string) bool {
 		return false
 	}
 
+
 	_, err = fs.Stat(filepath.Join(homedir, ".hushlogin"))
 	return err == nil
 }
+
 
 // showAnnouncementBanner will write the service banner if enabled and not blank
 // along with a blank line for spacing.
@@ -1128,6 +1245,7 @@ func showAnnouncementBanner(session io.Writer, banner codersdk.BannerConfig) err
 	return nil
 }
 
+
 // showMOTD will output the message of the day from
 // the given filename to dest, if the file exists.
 //
@@ -1136,6 +1254,7 @@ func showMOTD(fs afero.Fs, dest io.Writer, filename string) error {
 	if filename == "" {
 		return nil
 	}
+
 
 	f, err := fs.Open(filename)
 	if err != nil {
@@ -1147,8 +1266,10 @@ func showMOTD(fs afero.Fs, dest io.Writer, filename string) error {
 	}
 	defer f.Close()
 
+
 	return writeWithCarriageReturn(f, dest)
 }
+
 
 // writeWithCarriageReturn writes each line with a carriage return to ensure
 // that each line starts at the beginning of the terminal.
@@ -1166,6 +1287,7 @@ func writeWithCarriageReturn(src io.Reader, dest io.Writer) error {
 	return nil
 }
 
+
 // userHomeDir returns the home directory of the current user, giving
 // priority to the $HOME environment variable.
 func userHomeDir() (string, error) {
@@ -1175,6 +1297,7 @@ func userHomeDir() (string, error) {
 		return homedir, nil
 	}
 
+
 	// As a fallback, we try the user information.
 	u, err := user.Current()
 	if err != nil {
@@ -1182,6 +1305,7 @@ func userHomeDir() (string, error) {
 	}
 	return u.HomeDir, nil
 }
+
 
 // UpdateHostSigner updates the host signer with a new key generated from the provided seed.
 // If an existing host key exists with the same algorithm, it is overwritten
@@ -1191,13 +1315,17 @@ func (s *Server) UpdateHostSigner(seed int64) error {
 		return err
 	}
 
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+
 	s.srv.AddHostKey(key)
+
 
 	return nil
 }
+
 
 // CoderSigner generates a deterministic SSH signer based on the provided seed.
 // It uses RSA with a key size of 2048 bits.
@@ -1206,6 +1334,7 @@ func CoderSigner(seed int64) (gossh.Signer, error) {
 	// The agent needs to authenticate with coderd to SSH,
 	// so SSH authentication doesn't improve security.
 	coderHostKey := agentrsa.GenerateDeterministicKey(seed)
+
 
 	coderSigner, err := gossh.NewSignerFromKey(coderHostKey)
 	return coderSigner, err

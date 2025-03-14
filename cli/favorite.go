@@ -1,13 +1,17 @@
 package cli
+
 import (
 	"errors"
 	"fmt"
+
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
+
 )
 func (r *RootCmd) favorite() *serpent.Command {
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
+
 		Aliases:     []string{"fav", "favou" + "rite"},
 		Annotations: workspaceCommand,
 		Use:         "favorite <workspace>",
@@ -25,6 +29,7 @@ func (r *RootCmd) favorite() *serpent.Command {
 				return fmt.Errorf("favorite workspace: %w", err)
 			}
 			_, _ = fmt.Fprintf(inv.Stdout, "Workspace %q added to favorites.\n", ws.Name)
+
 			return nil
 		},
 	}
@@ -35,6 +40,7 @@ func (r *RootCmd) unfavorite() *serpent.Command {
 	cmd := &serpent.Command{
 		Aliases:     []string{"unfav", "unfavou" + "rite"},
 		Annotations: workspaceCommand,
+
 		Use:         "unfavorite <workspace>",
 		Short:       "Remove a workspace from your favorites",
 		Middleware: serpent.Chain(
@@ -52,6 +58,7 @@ func (r *RootCmd) unfavorite() *serpent.Command {
 			_, _ = fmt.Fprintf(inv.Stdout, "Workspace %q removed from favorites.\n", ws.Name)
 			return nil
 		},
+
 	}
 	return cmd
 }

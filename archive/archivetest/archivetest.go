@@ -1,4 +1,5 @@
 package archivetest
+
 import (
 	"errors"
 	"archive/tar"
@@ -8,30 +9,37 @@ import (
 	"io"
 	"testing"
 	"time"
+
 	"github.com/stretchr/testify/require"
 )
 //go:embed testdata/test.tar
 var testTarFileBytes []byte
+
 //go:embed testdata/test.zip
 var testZipFileBytes []byte
 // TestTarFileBytes returns the content of testdata/test.tar
+
 func TestTarFileBytes() []byte {
 	return append([]byte{}, testTarFileBytes...)
 }
+
 // TestZipFileBytes returns the content of testdata/test.zip
 func TestZipFileBytes() []byte {
 	return append([]byte{}, testZipFileBytes...)
 }
 // AssertSampleTarfile compares the content of tarBytes against testdata/test.tar.
+
 func AssertSampleTarFile(t *testing.T, tarBytes []byte) {
 	t.Helper()
 	tr := tar.NewReader(bytes.NewReader(tarBytes))
 	for {
 		hdr, err := tr.Next()
+
 		if err != nil {
 			if err == io.EOF {
 				return
 			}
+
 			require.NoError(t, err)
 		}
 		// Note: ignoring timezones here.
@@ -42,9 +50,11 @@ func AssertSampleTarFile(t *testing.T, tarBytes []byte) {
 		case "test/hello.txt":
 			require.Equal(t, hdr.Typeflag, byte(tar.TypeReg))
 			bs, err := io.ReadAll(tr)
+
 			if err != nil && !errors.Is(err, io.EOF) {
 				require.NoError(t, err)
 			}
+
 			require.Equal(t, "hello", string(bs))
 		case "test/dir/":
 			require.Equal(t, hdr.Typeflag, byte(tar.TypeDir))
@@ -70,13 +80,16 @@ func AssertSampleZipFile(t *testing.T, zipBytes []byte) {
 		require.Equal(t, ArchiveRefTime(t).UTC(), f.Modified.UTC())
 		switch f.Name {
 		case "test/", "test/dir/":
+
 			// directory
 		case "test/hello.txt":
 			rc, err := f.Open()
 			require.NoError(t, err)
+
 			bs, err := io.ReadAll(rc)
 			_ = rc.Close()
 			require.NoError(t, err)
+
 			require.Equal(t, "hello", string(bs))
 		case "test/dir/world.txt":
 			rc, err := f.Open()

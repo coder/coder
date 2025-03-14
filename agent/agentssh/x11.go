@@ -1,4 +1,5 @@
 package agentssh
+
 import (
 	"context"
 	"encoding/binary"
@@ -13,15 +14,18 @@ import (
 	"strconv"
 	"time"
 	"github.com/gliderlabs/ssh"
+
 	"github.com/gofrs/flock"
 	"github.com/spf13/afero"
 	gossh "golang.org/x/crypto/ssh"
 	"cdr.dev/slog"
 )
 const (
+
 	// X11StartPort is the starting port for X11 forwarding, this is the
 	// port used for "DISPLAY=localhost:0".
 	X11StartPort = 6000
+
 	// X11DefaultDisplayOffset is the default offset for X11 forwarding.
 	X11DefaultDisplayOffset = 10
 )
@@ -30,12 +34,14 @@ func (*Server) x11Callback(_ ssh.Context, _ ssh.X11) bool {
 	// Always allow.
 	return true
 }
+
 // x11Handler is called when a session has requested X11 forwarding.
 // It listens for X11 connections and forwards them to the client.
 func (s *Server) x11Handler(ctx ssh.Context, x11 ssh.X11) (displayNumber int, handled bool) {
 	serverConn, valid := ctx.Value(ssh.ContextKeyConn).(*gossh.ServerConn)
 	if !valid {
 		s.logger.Warn(ctx, "failed to get server connection")
+
 		return -1, false
 	}
 	hostname, err := os.Hostname()
@@ -45,6 +51,7 @@ func (s *Server) x11Handler(ctx ssh.Context, x11 ssh.X11) (displayNumber int, ha
 		return -1, false
 	}
 	ln, display, err := createX11Listener(ctx, *s.config.X11DisplayOffset)
+
 	if err != nil {
 		s.logger.Warn(ctx, "failed to create X11 listener", slog.Error(err))
 		s.metrics.x11HandlerErrors.WithLabelValues("listen").Add(1)
@@ -52,6 +59,7 @@ func (s *Server) x11Handler(ctx ssh.Context, x11 ssh.X11) (displayNumber int, ha
 	}
 	s.trackListener(ln, true)
 	defer func() {
+
 		if !handled {
 			s.trackListener(ln, false)
 			_ = ln.Close()
@@ -66,6 +74,7 @@ func (s *Server) x11Handler(ctx ssh.Context, x11 ssh.X11) (displayNumber int, ha
 	go func() {
 		// Don't leave the listener open after the session is gone.
 		<-ctx.Done()
+
 		_ = ln.Close()
 	}()
 	go func() {
@@ -73,16 +82,19 @@ func (s *Server) x11Handler(ctx ssh.Context, x11 ssh.X11) (displayNumber int, ha
 		defer s.trackListener(ln, false)
 		for {
 			conn, err := ln.Accept()
+
 			if err != nil {
 				if errors.Is(err, net.ErrClosed) {
 					return
 				}
 				s.logger.Warn(ctx, "failed to accept X11 connection", slog.Error(err))
 				return
+
 			}
 			if x11.SingleConnection {
 				s.logger.Debug(ctx, "single connection requested, closing X11 listener")
 				_ = ln.Close()
+
 			}
 			tcpConn, ok := conn.(*net.TCPConn)
 			if !ok {
@@ -97,6 +109,7 @@ func (s *Server) x11Handler(ctx ssh.Context, x11 ssh.X11) (displayNumber int, ha
 				continue
 			}
 			channel, reqs, err := serverConn.OpenChannel("x11", gossh.Marshal(struct {
+
 				OriginatorAddress string
 				OriginatorPort    uint32
 			}{
@@ -110,6 +123,7 @@ func (s *Server) x11Handler(ctx ssh.Context, x11 ssh.X11) (displayNumber int, ha
 			}
 			go gossh.DiscardRequests(reqs)
 			if !s.trackConn(ln, conn, true) {
+
 				s.logger.Warn(ctx, "failed to track X11 connection")
 				_ = conn.Close()
 				continue
@@ -124,6 +138,7 @@ func (s *Server) x11Handler(ctx ssh.Context, x11 ssh.X11) (displayNumber int, ha
 }
 // createX11Listener creates a listener for X11 forwarding, it will use
 // the next available port starting from X11StartPort and displayOffset.
+
 func createX11Listener(ctx context.Context, displayOffset int) (ln net.Listener, display int, err error) {
 	var lc net.ListenConfig
 	// Look for an open port to listen on.
@@ -136,9 +151,11 @@ func createX11Listener(ctx context.Context, displayOffset int) (ln net.Listener,
 	}
 	return nil, -1, fmt.Errorf("failed to find open port for X11 listener: %w", err)
 }
+
 // addXauthEntry adds an Xauthority entry to the Xauthority file.
 // The Xauthority file is located at ~/.Xauthority.
 func addXauthEntry(ctx context.Context, fs afero.Fs, host string, display string, authProtocol string, authCookie string) error {
+
 	// Get the Xauthority file path
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -154,6 +171,7 @@ func addXauthEntry(ctx context.Context, fs afero.Fs, host string, display string
 	if err != nil {
 		return fmt.Errorf("failed to lock Xauthority file: %w", err)
 	}
+
 	// Open or create the Xauthority file
 	file, err := fs.OpenFile(xauthPath, os.O_RDWR|os.O_CREATE, 0o600)
 	if err != nil {
@@ -163,8 +181,10 @@ func addXauthEntry(ctx context.Context, fs afero.Fs, host string, display string
 	// Convert the authCookie from hex string to byte slice
 	authCookieBytes, err := hex.DecodeString(authCookie)
 	if err != nil {
+
 		return fmt.Errorf("failed to decode auth cookie: %w", err)
 	}
+
 	// Read the Xauthority file and look for an existing entry for the host,
 	// display, and auth protocol. If an entry is found, overwrite the auth
 	// cookie (if it fits). Otherwise, mark the entry for deletion.
@@ -175,6 +195,7 @@ func addXauthEntry(ctx context.Context, fs afero.Fs, host string, display string
 	pos := 0
 	updated := false
 	for {
+
 		entry, err := readXauthEntry(file)
 		if err != nil {
 			if errors.Is(err, io.EOF) {
@@ -182,12 +203,14 @@ func addXauthEntry(ctx context.Context, fs afero.Fs, host string, display string
 			}
 			return fmt.Errorf("failed to read Xauthority entry: %w", err)
 		}
+
 		nextPos := pos + entry.Len()
 		cookieStartPos := nextPos - len(entry.authCookie)
 		if entry.family == 0x0100 && entry.address == host && entry.display == display && entry.authProtocol == authProtocol {
 			if !updated && len(entry.authCookie) == len(authCookieBytes) {
 				// Overwrite the auth cookie
 				_, err := file.WriteAt(authCookieBytes, int64(cookieStartPos))
+
 				if err != nil {
 					return fmt.Errorf("failed to write auth cookie: %w", err)
 				}
@@ -206,9 +229,11 @@ func addXauthEntry(ctx context.Context, fs afero.Fs, host string, display string
 		}
 		pos = nextPos
 	}
+
 	// In case the magic cookie changed, or we've previously bloated the
 	// Xauthority file, we may have to delete entries.
 	if len(deleteEntries) > 0 {
+
 		// Read the entire file into memory. This is not ideal, but it's the
 		// simplest way to delete entries from the middle of the file. The
 		// Xauthority file is small, so this should be fine.
@@ -230,9 +255,11 @@ func addXauthEntry(ctx context.Context, fs afero.Fs, host string, display string
 			data = append(data[:entry.start], data[entry.end:]...)
 		}
 		// Write the data back to the file.
+
 		_, err = file.Seek(0, io.SeekStart)
 		if err != nil {
 			return fmt.Errorf("failed to seek Xauthority file: %w", err)
+
 		}
 		_, err = file.Write(data)
 		if err != nil {
@@ -248,6 +275,7 @@ func addXauthEntry(ctx context.Context, fs afero.Fs, host string, display string
 	if updated {
 		return nil
 	}
+
 	// Ensure we're at the end (append).
 	_, err = file.Seek(0, io.SeekEnd)
 	if err != nil {
@@ -258,6 +286,7 @@ func addXauthEntry(ctx context.Context, fs afero.Fs, host string, display string
 	err = binary.Write(file, binary.BigEndian, family)
 	if err != nil {
 		return fmt.Errorf("failed to write family: %w", err)
+
 	}
 	err = binary.Write(file, binary.BigEndian, uint16(len(host)))
 	if err != nil {
@@ -268,6 +297,7 @@ func addXauthEntry(ctx context.Context, fs afero.Fs, host string, display string
 		return fmt.Errorf("failed to write host: %w", err)
 	}
 	err = binary.Write(file, binary.BigEndian, uint16(len(display)))
+
 	if err != nil {
 		return fmt.Errorf("failed to write display length: %w", err)
 	}
@@ -275,17 +305,20 @@ func addXauthEntry(ctx context.Context, fs afero.Fs, host string, display string
 	if err != nil {
 		return fmt.Errorf("failed to write display: %w", err)
 	}
+
 	err = binary.Write(file, binary.BigEndian, uint16(len(authProtocol)))
 	if err != nil {
 		return fmt.Errorf("failed to write auth protocol length: %w", err)
 	}
 	_, err = file.WriteString(authProtocol)
+
 	if err != nil {
 		return fmt.Errorf("failed to write auth protocol: %w", err)
 	}
 	err = binary.Write(file, binary.BigEndian, uint16(len(authCookieBytes)))
 	if err != nil {
 		return fmt.Errorf("failed to write auth cookie length: %w", err)
+
 	}
 	_, err = file.Write(authCookieBytes)
 	if err != nil {
@@ -293,6 +326,7 @@ func addXauthEntry(ctx context.Context, fs afero.Fs, host string, display string
 	}
 	return nil
 }
+
 // xauthEntry is an representation of an Xauthority entry.
 //
 // The Xauthority file format is as follows:
@@ -302,6 +336,7 @@ func addXauthEntry(ctx context.Context, fs afero.Fs, host string, display string
 // - address
 // - 16-bit display length
 // - display
+
 // - 16-bit auth protocol length
 // - auth protocol
 // - 16-bit auth cookie length
@@ -311,6 +346,7 @@ type xauthEntry struct {
 	address      string
 	display      string
 	authProtocol string
+
 	authCookie   []byte
 }
 func (e xauthEntry) Len() int {
@@ -320,6 +356,7 @@ func (e xauthEntry) Len() int {
 func readXauthEntry(r io.Reader) (xauthEntry, error) {
 	var entry xauthEntry
 	// Read family
+
 	err := binary.Read(r, binary.BigEndian, &entry.family)
 	if err != nil {
 		return xauthEntry{}, fmt.Errorf("failed to read family: %w", err)
@@ -329,9 +366,11 @@ func readXauthEntry(r io.Reader) (xauthEntry, error) {
 	err = binary.Read(r, binary.BigEndian, &addressLength)
 	if err != nil {
 		return xauthEntry{}, fmt.Errorf("failed to read address length: %w", err)
+
 	}
 	addressBytes := make([]byte, addressLength)
 	_, err = r.Read(addressBytes)
+
 	if err != nil {
 		return xauthEntry{}, fmt.Errorf("failed to read address: %w", err)
 	}
@@ -353,20 +392,24 @@ func readXauthEntry(r io.Reader) (xauthEntry, error) {
 	err = binary.Read(r, binary.BigEndian, &authProtocolLength)
 	if err != nil {
 		return xauthEntry{}, fmt.Errorf("failed to read auth protocol length: %w", err)
+
 	}
 	authProtocolBytes := make([]byte, authProtocolLength)
 	_, err = r.Read(authProtocolBytes)
 	if err != nil {
 		return xauthEntry{}, fmt.Errorf("failed to read auth protocol: %w", err)
+
 	}
 	entry.authProtocol = string(authProtocolBytes)
 	// Read auth cookie
+
 	var authCookieLength uint16
 	err = binary.Read(r, binary.BigEndian, &authCookieLength)
 	if err != nil {
 		return xauthEntry{}, fmt.Errorf("failed to read auth cookie length: %w", err)
 	}
 	entry.authCookie = make([]byte, authCookieLength)
+
 	_, err = r.Read(entry.authCookie)
 	if err != nil {
 		return xauthEntry{}, fmt.Errorf("failed to read auth cookie: %w", err)

@@ -9,9 +9,11 @@ import (
 	"github.com/open-policy-agent/opa/topdown"
 	"github.com/open-policy-agent/opa/v1/rego"
 
+
 	"github.com/coder/coder/v2/coderd/httpapi/httpapiconstraints"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 )
+
 
 const (
 	// errUnauthorized is the error message that should be returned to
@@ -20,11 +22,13 @@ const (
 	errUnauthorized = "rbac: forbidden"
 )
 
+
 // UnauthorizedError is the error type for authorization errors
 type UnauthorizedError struct {
 	// internal is the internal error that should never be shown to the client.
 	// It is only for debugging purposes.
 	internal error
+
 
 	// These fields are for debugging purposes.
 	subject Subject
@@ -32,22 +36,27 @@ type UnauthorizedError struct {
 	// Note only the object type is set for partial execution.
 	object Object
 
+
 	output rego.ResultSet
 }
 
+
 // Ensure we implement the IsUnauthorized interface.
 var _ httpapiconstraints.IsUnauthorizedError = (*UnauthorizedError)(nil)
+
 
 // IsUnauthorized implements the IsUnauthorized interface.
 func (UnauthorizedError) IsUnauthorized() bool {
 	return true
 }
 
+
 // IsUnauthorizedError is a convenience function to check if err is UnauthorizedError.
 // It is equivalent to errors.As(err, &UnauthorizedError{}).
 func IsUnauthorizedError(err error) bool {
 	return errors.As(err, &UnauthorizedError{})
 }
+
 
 // ForbiddenWithInternal creates a new error that will return a simple
 // "forbidden" to the client, logging internally the more detailed message
@@ -62,9 +71,11 @@ func ForbiddenWithInternal(internal error, subject Subject, action policy.Action
 	}
 }
 
+
 func (e UnauthorizedError) Unwrap() error {
 	return e.internal
 }
+
 
 func (e *UnauthorizedError) longError() string {
 	return fmt.Sprintf(
@@ -72,6 +83,7 @@ func (e *UnauthorizedError) longError() string {
 		errUnauthorized, e.subject, e.action, e.object, e.output,
 	)
 }
+
 
 // Error implements the error interface.
 func (e UnauthorizedError) Error() string {
@@ -81,14 +93,17 @@ func (e UnauthorizedError) Error() string {
 	return errUnauthorized
 }
 
+
 // Internal allows the internal error message to be logged.
 func (e *UnauthorizedError) Internal() error {
 	return e.internal
 }
 
+
 func (e *UnauthorizedError) SetInternal(err error) {
 	e.internal = err
 }
+
 
 func (e *UnauthorizedError) Input() map[string]interface{} {
 	return map[string]interface{}{
@@ -98,10 +113,12 @@ func (e *UnauthorizedError) Input() map[string]interface{} {
 	}
 }
 
+
 // Output contains the results of the Rego query for debugging.
 func (e *UnauthorizedError) Output() rego.ResultSet {
 	return e.output
 }
+
 
 // As implements the errors.As interface.
 func (*UnauthorizedError) As(target interface{}) bool {
@@ -110,6 +127,7 @@ func (*UnauthorizedError) As(target interface{}) bool {
 	}
 	return false
 }
+
 
 // correctCancelError will return the correct error for a canceled context. This
 // is because rego changes a canceled context to a topdown.CancelErr. This error

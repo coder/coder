@@ -1,4 +1,5 @@
 package coderd
+
 import (
 	"errors"
 	"context"
@@ -8,10 +9,12 @@ import (
 	"slices"
 	"strings"
 	"time"
+
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -22,9 +25,11 @@ import (
 // Duplicated in codersdk.
 const insightsTimeLayout = time.RFC3339
 // @Summary Get deployment DAUs
+
 // @ID get-deployment-daus
 // @Security CoderSessionToken
 // @Produce json
+
 // @Tags Insights
 // @Param tz_offset query int true "Time-zone offset (e.g. -2)"
 // @Success 200 {object} codersdk.DAUsResponse
@@ -39,12 +44,15 @@ func (api *API) deploymentDAUs(rw http.ResponseWriter, r *http.Request) {
 func (api *API) returnDAUsInternal(rw http.ResponseWriter, r *http.Request, templateIDs []uuid.UUID) {
 	ctx := r.Context()
 	p := httpapi.NewQueryParamParser()
+
 	vals := r.URL.Query()
 	tzOffset := p.Int(vals, 0, "tz_offset")
 	p.ErrorExcessParams(vals)
+
 	if len(p.Errors) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Query parameters have invalid values.",
+
 			Validations: p.Errors,
 		})
 		return
@@ -57,6 +65,7 @@ func (api *API) returnDAUsInternal(rw http.ResponseWriter, r *http.Request, temp
 	// Always return 60 days of data (2 months).
 	sixtyDaysAgo := nextHourInLoc.In(loc).Truncate(24*time.Hour).AddDate(0, 0, -60)
 	rows, err := api.Database.GetTemplateInsightsByInterval(ctx, database.GetTemplateInsightsByIntervalParams{
+
 		StartTime:    sixtyDaysAgo,
 		EndTime:      nextHourInLoc,
 		IntervalDays: 1,
@@ -65,6 +74,7 @@ func (api *API) returnDAUsInternal(rw http.ResponseWriter, r *http.Request, temp
 	if err != nil {
 		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
+
 			return
 		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -77,12 +87,14 @@ func (api *API) returnDAUsInternal(rw http.ResponseWriter, r *http.Request, temp
 		Entries:      make([]codersdk.DAUEntry, 0, len(rows)),
 	}
 	for _, row := range rows {
+
 		resp.Entries = append(resp.Entries, codersdk.DAUEntry{
 			Date:   row.StartTime.In(loc).Format(time.DateOnly),
 			Amount: int(row.ActiveUsers),
 		})
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
+
 }
 // @Summary Get insights about user activity
 // @ID get-insights-about-user-activity
@@ -96,6 +108,7 @@ func (api *API) returnDAUsInternal(rw http.ResponseWriter, r *http.Request, temp
 // @Router /insights/user-activity [get]
 func (api *API) insightsUserActivity(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+
 	p := httpapi.NewQueryParamParser().
 		RequiredNotEmpty("start_time").
 		RequiredNotEmpty("end_time")
@@ -109,6 +122,7 @@ func (api *API) insightsUserActivity(rw http.ResponseWriter, r *http.Request) {
 	)
 	p.ErrorExcessParams(vals)
 	if len(p.Errors) > 0 {
+
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Query parameters have invalid values.",
 			Validations: p.Errors,
@@ -129,11 +143,13 @@ func (api *API) insightsUserActivity(rw http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, sql.ErrNoRows) {
 			httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserActivityInsightsResponse{
 				Report: codersdk.UserActivityInsightsReport{
+
 					StartTime:   startTime,
 					EndTime:     endTime,
 					TemplateIDs: []uuid.UUID{},
 					Users:       []codersdk.UserActivity{},
 				},
+
 			})
 			return
 		}
@@ -164,6 +180,7 @@ func (api *API) insightsUserActivity(rw http.ResponseWriter, r *http.Request) {
 	}
 	// TemplateIDs that contributed to the data.
 	seenTemplateIDs := make([]uuid.UUID, 0, len(templateIDSet))
+
 	for templateID := range templateIDSet {
 		seenTemplateIDs = append(seenTemplateIDs, templateID)
 	}
@@ -179,6 +196,7 @@ func (api *API) insightsUserActivity(rw http.ResponseWriter, r *http.Request) {
 		},
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
+
 }
 // @Summary Get insights about user latency
 // @ID get-insights-about-user-latency
@@ -188,6 +206,7 @@ func (api *API) insightsUserActivity(rw http.ResponseWriter, r *http.Request) {
 // @Param start_time query string true "Start time" format(date-time)
 // @Param end_time query string true "End time" format(date-time)
 // @Param template_ids query []string false "Template IDs" collectionFormat(csv)
+
 // @Success 200 {object} codersdk.UserLatencyInsightsResponse
 // @Router /insights/user-latency [get]
 func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
@@ -199,6 +218,7 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 	var (
 		// The QueryParamParser does not preserve timezone, so we need
 		// to parse the time ourselves.
+
 		startTimeString = p.String(vals, "", "start_time")
 		endTimeString   = p.String(vals, "", "end_time")
 		templateIDs     = p.UUIDs(vals, []uuid.UUID{}, "template_ids")
@@ -212,6 +232,7 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	startTime, endTime, ok := parseInsightsStartAndEndTime(ctx, rw, time.Now(), startTimeString, endTimeString)
+
 	if !ok {
 		return
 	}
@@ -232,11 +253,13 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	templateIDSet := make(map[uuid.UUID]struct{})
+
 	userLatencies := make([]codersdk.UserLatency, 0, len(rows))
 	for _, row := range rows {
 		for _, templateID := range row.TemplateIDs {
 			templateIDSet[templateID] = struct{}{}
 		}
+
 		userLatencies = append(userLatencies, codersdk.UserLatency{
 			TemplateIDs: row.TemplateIDs,
 			UserID:      row.UserID,
@@ -254,6 +277,7 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 		seenTemplateIDs = append(seenTemplateIDs, templateID)
 	}
 	slices.SortFunc(seenTemplateIDs, func(a, b uuid.UUID) int {
+
 		return slice.Ascending(a.String(), b.String())
 	})
 	resp := codersdk.UserLatencyInsightsResponse{
@@ -272,6 +296,7 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Insights
 // @Param tz_offset query int true "Time-zone offset (e.g. -2)"
+
 // @Success 200 {object} codersdk.GetUserStatusCountsResponse
 // @Router /insights/user-status-counts [get]
 func (api *API) insightsUserStatusCounts(rw http.ResponseWriter, r *http.Request) {
@@ -281,6 +306,7 @@ func (api *API) insightsUserStatusCounts(rw http.ResponseWriter, r *http.Request
 	tzOffset := p.Int(vals, 0, "tz_offset")
 	interval := p.Int(vals, int((24 * time.Hour).Seconds()), "interval")
 	p.ErrorExcessParams(vals)
+
 	if len(p.Errors) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Query parameters have invalid values.",
@@ -292,6 +318,7 @@ func (api *API) insightsUserStatusCounts(rw http.ResponseWriter, r *http.Request
 	nextHourInLoc := dbtime.Now().Truncate(time.Hour).Add(time.Hour).In(loc)
 	sixtyDaysAgo := dbtime.StartOfDay(nextHourInLoc).AddDate(0, 0, -60)
 	rows, err := api.Database.GetUserStatusCounts(ctx, database.GetUserStatusCountsParams{
+
 		StartTime: sixtyDaysAgo,
 		EndTime:   nextHourInLoc,
 		Interval:  int32(interval),
@@ -303,12 +330,14 @@ func (api *API) insightsUserStatusCounts(rw http.ResponseWriter, r *http.Request
 		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching user status counts over time.",
+
 			Detail:  err.Error(),
 		})
 		return
 	}
 	resp := codersdk.GetUserStatusCountsResponse{
 		StatusCounts: make(map[codersdk.UserStatus][]codersdk.UserStatusChangeCount),
+
 	}
 	for _, row := range rows {
 		status := codersdk.UserStatus(row.Status)
@@ -317,10 +346,12 @@ func (api *API) insightsUserStatusCounts(rw http.ResponseWriter, r *http.Request
 			Count: row.Count,
 		})
 	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 // @Summary Get insights about templates
 // @ID get-insights-about-templates
+
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Insights
@@ -338,10 +369,12 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	vals := r.URL.Query()
 	var (
 		// The QueryParamParser does not preserve timezone, so we need
+
 		// to parse the time ourselves.
 		startTimeString = p.String(vals, "", "start_time")
 		endTimeString   = p.String(vals, "", "end_time")
 		intervalString  = p.String(vals, "", "interval")
+
 		templateIDs     = p.UUIDs(vals, []uuid.UUID{}, "template_ids")
 		sectionStrings  = p.Strings(vals, templateInsightsSectionAsStrings(codersdk.TemplateInsightsSectionIntervalReports, codersdk.TemplateInsightsSectionReport), "sections")
 	)
@@ -350,9 +383,11 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Query parameters have invalid values.",
 			Validations: p.Errors,
+
 		})
 		return
 	}
+
 	startTime, endTime, ok := parseInsightsStartAndEndTime(ctx, rw, time.Now(), startTimeString, endTimeString)
 	if !ok {
 		return
@@ -367,6 +402,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	}
 	var usage database.GetTemplateInsightsRow
 	var appUsage []database.GetTemplateAppInsightsRow
+
 	var dailyUsage []database.GetTemplateInsightsByIntervalRow
 	var parameterRows []database.GetTemplateParameterInsightsRow
 	eg, egCtx := errgroup.WithContext(ctx)
@@ -389,6 +425,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 		}
 		return nil
 	})
+
 	eg.Go(func() error {
 		if !slices.Contains(sections, codersdk.TemplateInsightsSectionReport) {
 			return nil
@@ -402,14 +439,17 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return fmt.Errorf("get template insights: %w", err)
 		}
+
 		return nil
 	})
 	eg.Go(func() error {
 		if !slices.Contains(sections, codersdk.TemplateInsightsSectionReport) {
 			return nil
+
 		}
 		var err error
 		appUsage, err = api.Database.GetTemplateAppInsights(egCtx, database.GetTemplateAppInsightsParams{
+
 			StartTime:   startTime,
 			EndTime:     endTime,
 			TemplateIDs: templateIDs,
@@ -433,6 +473,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 		})
 		if err != nil {
 			return fmt.Errorf("get template parameter insights: %w", err)
+
 		}
 		return nil
 	})
@@ -449,6 +490,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	parametersUsage, err := db2sdk.TemplateInsightsParameters(parameterRows)
+
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error converting template parameter insights.",
@@ -461,6 +503,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	}
 	if slices.Contains(sections, codersdk.TemplateInsightsSectionReport) {
 		resp.Report = &codersdk.TemplateInsightsReport{
+
 			StartTime:       startTime,
 			EndTime:         endTime,
 			TemplateIDs:     usage.TemplateIDs,
@@ -468,6 +511,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 			AppsUsage:       convertTemplateInsightsApps(usage, appUsage),
 			ParametersUsage: parametersUsage,
 		}
+
 	}
 	for _, row := range dailyUsage {
 		resp.IntervalReports = append(resp.IntervalReports, codersdk.TemplateInsightsIntervalReport{
@@ -480,6 +524,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 			ActiveUsers: row.ActiveUsers,
 		})
 	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 // convertTemplateInsightsApps builds the list of builtin apps and template apps
@@ -493,6 +538,7 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 			Type:        codersdk.TemplateAppsTypeBuiltin,
 			DisplayName: codersdk.TemplateBuiltinAppDisplayNameVSCode,
 			Slug:        "vscode",
+
 			Icon:        "/icon/code.svg",
 			Seconds:     usage.UsageVscodeSeconds,
 		},
@@ -502,10 +548,12 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 			DisplayName: codersdk.TemplateBuiltinAppDisplayNameJetBrains,
 			Slug:        "jetbrains",
 			Icon:        "/icon/intellij.svg",
+
 			Seconds:     usage.UsageJetbrainsSeconds,
 		},
 		// TODO(mafredri): We could take Web Terminal usage from appUsage since
 		// that should be more accurate. The difference is that this reflects
+
 		// the rpty session as seen by the agent (can live past the connection),
 		// whereas appUsage reflects the lifetime of the client connection. The
 		// condition finding the corresponding app entry in appUsage is:
@@ -517,6 +565,7 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 			Slug:        "reconnecting-pty",
 			Icon:        "/icon/terminal.svg",
 			Seconds:     usage.UsageReconnectingPtySeconds,
+
 		},
 		{
 			TemplateIDs: usage.SshTemplateIds,
@@ -531,6 +580,7 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 			Type:        codersdk.TemplateAppsTypeBuiltin,
 			DisplayName: codersdk.TemplateBuiltinAppDisplayNameSFTP,
 			Slug:        "sftp",
+
 			Icon:        "/icon/terminal.svg",
 			Seconds:     usage.UsageSftpSeconds,
 		},
@@ -585,6 +635,7 @@ func parseInsightsStartAndEndTime(ctx context.Context, rw http.ResponseWriter, n
 					{
 						Field:  qp.name,
 						Detail: fmt.Sprintf("Query param %q must be a valid date format (%s): %s", qp.name, insightsTimeLayout, err.Error()),
+
 					},
 				},
 			})
@@ -600,6 +651,7 @@ func parseInsightsStartAndEndTime(ctx context.Context, rw http.ResponseWriter, n
 						Field:  qp.name,
 						Detail: fmt.Sprintf("Query param %q must not be zero", qp.name),
 					},
+
 				},
 			})
 			return time.Time{}, time.Time{}, false
@@ -613,9 +665,11 @@ func parseInsightsStartAndEndTime(ctx context.Context, rw http.ResponseWriter, n
 						Field:  qp.name,
 						Detail: fmt.Sprintf("Query param %q must not be in the future", qp.name),
 					},
+
 				},
 			})
 			return time.Time{}, time.Time{}, false
+
 		}
 		ensureZeroHour := true
 		if qp.name == "end_time" {
@@ -644,9 +698,11 @@ func parseInsightsStartAndEndTime(ctx context.Context, rw http.ResponseWriter, n
 						Detail: fmt.Sprintf("Query param %q must have the clock set to %02d:00:00, got %s", qp.name, h, qp.value),
 					},
 				},
+
 			})
 			return time.Time{}, time.Time{}, false
 		}
+
 		*qp.dest = t
 	}
 	if endTime.Before(startTime) {
@@ -660,6 +716,7 @@ func parseInsightsStartAndEndTime(ctx context.Context, rw http.ResponseWriter, n
 			},
 		})
 		return time.Time{}, time.Time{}, false
+
 	}
 	return startTime, endTime, true
 }
@@ -674,11 +731,13 @@ func parseInsightsInterval(ctx context.Context, rw http.ResponseWriter, interval
 				Detail:  "Last report interval should have at least 6 days.",
 			})
 			return "", false
+
 		}
 		return v, true
 	default:
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Query parameter has invalid value.",
+
 			Validations: []codersdk.ValidationError{
 				{
 					Field:  "interval",
@@ -720,9 +779,11 @@ func parseTemplateInsightsSections(ctx context.Context, rw http.ResponseWriter, 
 						Detail: fmt.Sprintf("must be one of %v", []codersdk.TemplateInsightsSection{codersdk.TemplateInsightsSectionIntervalReports, codersdk.TemplateInsightsSectionReport}),
 					},
 				},
+
 			})
 			return nil, false
 		}
+
 	}
 	return t, true
 }

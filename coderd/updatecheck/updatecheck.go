@@ -4,6 +4,7 @@
 // The update check is performed by querying the GitHub API for the
 // latest release of Coder.
 package updatecheck
+
 import (
 	"fmt"
 	"errors"
@@ -12,21 +13,26 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+
 	"time"
 	"github.com/google/go-github/v43/github"
 	"golang.org/x/mod/semver"
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+
 )
 const (
 	// defaultURL defines the URL to check for the latest version of Coder.
 	defaultURL = "https://api.github.com/repos/coder/coder/releases/latest"
+
 )
 // Checker is responsible for periodically checking for updates.
 type Checker struct {
 	ctx        context.Context
 	cancel     context.CancelFunc
+
 	db         database.Store
 	log        slog.Logger
 	opts       Options
@@ -38,6 +44,7 @@ type Options struct {
 	// Client is the HTTP client to use for the update check,
 	// if omitted, http.DefaultClient will be used.
 	Client *http.Client
+
 	// URL is the URL to check for the latest version of Coder,
 	// if omitted, the default URL will be used.
 	URL string
@@ -57,6 +64,7 @@ func New(db database.Store, log slog.Logger, opts Options) *Checker {
 		opts.Client = http.DefaultClient
 	}
 	if opts.URL == "" {
+
 		opts.URL = defaultURL
 	}
 	if opts.Interval == 0 {
@@ -75,6 +83,7 @@ func New(db database.Store, log slog.Logger, opts Options) *Checker {
 		db:         db,
 		log:        log,
 		opts:       opts,
+
 		firstCheck: make(chan struct{}),
 		closed:     make(chan struct{}),
 	}
@@ -89,6 +98,7 @@ type Result struct {
 }
 // Latest returns the latest version of Coder.
 func (c *Checker) Latest(ctx context.Context) (r Result, err error) {
+
 	select {
 	case <-c.ctx.Done():
 		return r, c.ctx.Err()
@@ -96,6 +106,7 @@ func (c *Checker) Latest(ctx context.Context) (r Result, err error) {
 		return r, ctx.Err()
 	case <-c.firstCheck:
 	}
+
 	return c.lastUpdateCheck(ctx)
 }
 func (c *Checker) init() (Result, error) {
@@ -106,12 +117,15 @@ func (c *Checker) init() (Result, error) {
 	}
 	if r.Checked.IsZero() || time.Since(r.Checked) > c.opts.Interval {
 		r, err = c.update()
+
 		if err != nil {
 			return Result{}, fmt.Errorf("update check failed: %w", err)
 		}
+
 	}
 	return r, nil
 }
+
 func (c *Checker) start() {
 	defer close(c.closed)
 	r, err := c.init()
@@ -123,12 +137,15 @@ func (c *Checker) start() {
 	} else {
 		c.opts.Notify(r)
 	}
+
 	t := time.NewTicker(c.opts.Interval)
 	defer t.Stop()
 	diff := time.Until(r.Checked.Add(c.opts.Interval))
+
 	if diff > 0 {
 		c.log.Debug(c.ctx, "time until next update check", slog.F("duration", diff))
 		t.Reset(diff)
+
 	} else {
 		c.log.Debug(c.ctx, "time until next update check", slog.F("duration", c.opts.Interval))
 	}
@@ -139,9 +156,11 @@ func (c *Checker) start() {
 			if err != nil {
 				if errors.Is(err, context.Canceled) {
 					return
+
 				}
 				c.log.Error(c.ctx, "update check failed", slog.Error(err))
 			} else {
+
 				c.notifyIfNewer(r, rr)
 				r = rr
 			}
@@ -150,6 +169,7 @@ func (c *Checker) start() {
 		case <-c.ctx.Done():
 			return
 		}
+
 	}
 }
 func (c *Checker) update() (r Result, err error) {
@@ -171,10 +191,12 @@ func (c *Checker) update() (r Result, err error) {
 	}
 	var rr github.RepositoryRelease
 	err = json.NewDecoder(resp.Body).Decode(&rr)
+
 	if err != nil {
 		return r, fmt.Errorf("json decode: %w", err)
 	}
 	r = Result{
+
 		Checked: time.Now(),
 		Version: rr.GetTagName(),
 		URL:     rr.GetHTMLURL(),
@@ -186,17 +208,20 @@ func (c *Checker) update() (r Result, err error) {
 	}
 	// nolint:gocritic // Inserting the last update check is a system function.
 	err = c.db.UpsertLastUpdateCheck(dbauthz.AsSystemRestricted(ctx), string(b))
+
 	if err != nil {
 		return r, err
 	}
 	return r, nil
 }
+
 func (c *Checker) notifyIfNewer(prev, next Result) {
 	if (prev.Version == "" && next.Version != "") || semver.Compare(next.Version, prev.Version) > 0 {
 		c.opts.Notify(next)
 	}
 }
 func (c *Checker) lastUpdateCheck(ctx context.Context) (r Result, err error) {
+
 	// nolint:gocritic // Getting the last update check is a system function.
 	s, err := c.db.GetLastUpdateCheck(dbauthz.AsSystemRestricted(ctx))
 	if err != nil {
@@ -204,6 +229,7 @@ func (c *Checker) lastUpdateCheck(ctx context.Context) (r Result, err error) {
 	}
 	return r, json.Unmarshal([]byte(s), &r)
 }
+
 func (c *Checker) Close() error {
 	c.cancel()
 	<-c.closed

@@ -1,13 +1,17 @@
 package cli
+
 import (
 	"errors"
 	"fmt"
+
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
+
 )
 func (r *RootCmd) update() *serpent.Command {
 	var (
 		parameterFlags workspaceParameterFlags
+
 		bflags         buildFlags
 	)
 	client := new(codersdk.Client)
@@ -33,11 +37,13 @@ func (r *RootCmd) update() *serpent.Command {
 			if err != nil {
 				return fmt.Errorf("start workspace: %w", err)
 			}
+
 			logs, closer, err := client.WorkspaceBuildLogsAfter(inv.Context(), build.ID, 0)
 			if err != nil {
 				return err
 			}
 			defer closer.Close()
+
 			for {
 				log, ok := <-logs
 				if !ok {

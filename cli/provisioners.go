@@ -1,14 +1,18 @@
 package cli
+
 import (
 	"errors"
 	"fmt"
+
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+
 	"github.com/coder/serpent"
 )
 func (r *RootCmd) Provisioners() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "provisioner",
+
 		Short: "View and manage provisioner daemons and jobs",
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
@@ -23,9 +27,11 @@ func (r *RootCmd) Provisioners() *serpent.Command {
 }
 func (r *RootCmd) provisionerList() *serpent.Command {
 	type provisionerDaemonRow struct {
+
 		codersdk.ProvisionerDaemon `table:"provisioner_daemon,recursive_inline"`
 		OrganizationName           string `json:"organization_name" table:"organization"`
 	}
+
 	var (
 		client     = new(codersdk.Client)
 		orgContext = NewOrganizationContext()
@@ -41,6 +47,7 @@ func (r *RootCmd) provisionerList() *serpent.Command {
 		Aliases: []string{"ls"},
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
+
 			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
@@ -52,11 +59,13 @@ func (r *RootCmd) provisionerList() *serpent.Command {
 			daemons, err := client.OrganizationProvisionerDaemons(ctx, org.ID, &codersdk.OrganizationProvisionerDaemonsOptions{
 				Limit: int(limit),
 			})
+
 			if err != nil {
 				return fmt.Errorf("list provisioner daemons: %w", err)
 			}
 			if len(daemons) == 0 {
 				_, _ = fmt.Fprintln(inv.Stdout, "No provisioner daemons found")
+
 				return nil
 			}
 			var rows []provisionerDaemonRow
@@ -64,11 +73,13 @@ func (r *RootCmd) provisionerList() *serpent.Command {
 				rows = append(rows, provisionerDaemonRow{
 					ProvisionerDaemon: daemon,
 					OrganizationName:  org.HumanName(),
+
 				})
 			}
 			out, err := formatter.Format(ctx, rows)
 			if err != nil {
 				return fmt.Errorf("display provisioner daemons: %w", err)
+
 			}
 			_, _ = fmt.Fprintln(inv.Stdout, out)
 			return nil
@@ -77,13 +88,16 @@ func (r *RootCmd) provisionerList() *serpent.Command {
 	cmd.Options = append(cmd.Options, []serpent.Option{
 		{
 			Flag:          "limit",
+
 			FlagShorthand: "l",
 			Env:           "CODER_PROVISIONER_LIST_LIMIT",
 			Description:   "Limit the number of provisioners returned.",
 			Default:       "50",
 			Value:         serpent.Int64Of(&limit),
+
 		},
 	}...)
+
 	orgContext.AttachOptions(cmd)
 	formatter.AttachOptions(&cmd.Options)
 	return cmd

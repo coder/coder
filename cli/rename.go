@@ -1,16 +1,21 @@
 package cli
+
 import (
 	"errors"
 	"fmt"
+
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
+
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 )
+
 func (r *RootCmd) rename() *serpent.Command {
 	var appearanceConfig codersdk.AppearanceConfig
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
+
 		Annotations: workspaceCommand,
 		Use:         "rename <workspace> <new name>",
 		Short:       "Rename a workspace",
@@ -29,6 +34,7 @@ func (r *RootCmd) rename() *serpent.Command {
 			)
 			_, _ = fmt.Fprintf(inv.Stdout, "See: %s%s\n\n", appearanceConfig.DocsURL, "/templates/resource-persistence#%EF%B8%8F-persistence-pitfalls")
 			_, err = cliui.Prompt(inv, cliui.PromptOptions{
+
 				Text: fmt.Sprintf("Type %q to confirm rename:", workspace.Name),
 				Validate: func(s string) error {
 					if s == workspace.Name {
@@ -46,6 +52,7 @@ func (r *RootCmd) rename() *serpent.Command {
 			if err != nil {
 				return fmt.Errorf("rename workspace: %w", err)
 			}
+
 			_, _ = fmt.Fprintf(inv.Stdout, "Workspace %q renamed to %q\n", workspace.Name, inv.Args[1])
 			return nil
 		},

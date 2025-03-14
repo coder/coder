@@ -1,14 +1,17 @@
 package cli
+
 import (
 	"errors"
 	"context"
 	"fmt"
 	"os"
 	"time"
+
 	tsspeedtest "tailscale.com/net/speedtest"
 	"tailscale.com/wgengine/capture"
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -17,22 +20,26 @@ import (
 type SpeedtestResult struct {
 	Overall   SpeedtestResultInterval   `json:"overall"`
 	Intervals []SpeedtestResultInterval `json:"intervals"`
+
 }
 type SpeedtestResultInterval struct {
 	StartTimeSeconds float64 `json:"start_time_seconds"`
 	EndTimeSeconds   float64 `json:"end_time_seconds"`
 	ThroughputMbits  float64 `json:"throughput_mbits"`
+
 }
 type speedtestTableItem struct {
 	Interval   string `table:"Interval,nosort"`
 	Throughput string `table:"Throughput"`
 }
 func (r *RootCmd) speedtest() *serpent.Command {
+
 	var (
 		direct           bool
 		duration         time.Duration
 		direction        string
 		pcapFile         string
+
 		appearanceConfig codersdk.AppearanceConfig
 		formatter        = cliui.NewOutputFormatter(
 			cliui.ChangeFormatterData(cliui.TableFormat([]speedtestTableItem{}, []string{"Interval", "Throughput"}), func(data any) (any, error) {
@@ -78,15 +85,18 @@ func (r *RootCmd) speedtest() *serpent.Command {
 			if err != nil {
 				return err
 			}
+
 			err = cliui.Agent(ctx, inv.Stderr, workspaceAgent.ID, cliui.AgentOptions{
 				Fetch:   client.WorkspaceAgent,
 				Wait:    false,
 				DocsURL: appearanceConfig.DocsURL,
+
 			})
 			if err != nil {
 				return fmt.Errorf("await agent: %w", err)
 			}
 			opts := &workspacesdk.DialAgentOptions{}
+
 			if r.verbose {
 				opts.Logger = inv.Logger.AppendSinks(sloghuman.Sink(inv.Stderr)).Leveled(slog.LevelDebug)
 			}
@@ -96,6 +106,7 @@ func (r *RootCmd) speedtest() *serpent.Command {
 			}
 			if !r.disableNetworkTelemetry {
 				opts.EnableTelemetry = true
+
 			}
 			if pcapFile != "" {
 				s := capture.New()
@@ -125,6 +136,7 @@ func (r *RootCmd) speedtest() *serpent.Command {
 					}
 					dur, p2p, _, err := conn.Ping(ctx)
 					if err != nil {
+
 						continue
 					}
 					status := conn.Status()
@@ -158,6 +170,7 @@ func (r *RootCmd) speedtest() *serpent.Command {
 			cliui.Infof(inv.Stderr, "Starting a %ds %s test...", int(duration.Seconds()), tsDir)
 			results, err := conn.Speedtest(ctx, tsDir, duration)
 			if err != nil {
+
 				return err
 			}
 			var outputResult SpeedtestResult
@@ -203,6 +216,7 @@ func (r *RootCmd) speedtest() *serpent.Command {
 			Flag:          "time",
 			FlagShorthand: "t",
 			Default:       tsspeedtest.DefaultDuration.String(),
+
 			Value:         serpent.DurationOf(&duration),
 		},
 		{

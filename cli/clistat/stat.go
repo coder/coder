@@ -1,4 +1,5 @@
 package clistat
+
 import (
 	"fmt"
 	"errors"
@@ -6,18 +7,22 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+
 	"time"
 	"github.com/elastic/go-sysinfo"
 	"github.com/spf13/afero"
 	"tailscale.com/types/ptr"
 	sysinfotypes "github.com/elastic/go-sysinfo/types"
+
 )
 // Prefix is a scale multiplier for a result.
 // Used when creating a human-readable representation.
+
 type Prefix float64
 const (
 	PrefixDefault = 1.0
 	PrefixKibi    = 1024.0
+
 	PrefixMebi    = PrefixKibi * 1024.0
 	PrefixGibi    = PrefixMebi * 1024.0
 	PrefixTebi    = PrefixGibi * 1024.0
@@ -26,6 +31,7 @@ var (
 	PrefixHumanKibi = "Ki"
 	PrefixHumanMebi = "Mi"
 	PrefixHumanGibi = "Gi"
+
 	PrefixHumanTebi = "Ti"
 )
 func (s *Prefix) String() string {
@@ -33,6 +39,7 @@ func (s *Prefix) String() string {
 	case PrefixKibi:
 		return "Ki"
 	case PrefixMebi:
+
 		return "Mi"
 	case PrefixGibi:
 		return "Gi"
@@ -48,6 +55,7 @@ func ParsePrefix(s string) Prefix {
 		return PrefixKibi
 	case PrefixHumanMebi:
 		return PrefixMebi
+
 	case PrefixHumanGibi:
 		return PrefixGibi
 	case PrefixHumanTebi:
@@ -63,6 +71,7 @@ func ParsePrefix(s string) Prefix {
 // Used is the amount of the resource used.
 type Result struct {
 	Total  *float64 `json:"total"`
+
 	Unit   string   `json:"unit"`
 	Used   float64  `json:"used"`
 	Prefix Prefix   `json:"-"`
@@ -75,17 +84,20 @@ func (r *Result) String() string {
 	scale := 1.0
 	if r.Prefix != 0.0 {
 		scale = float64(r.Prefix)
+
 	}
 	var sb strings.Builder
 	var usedScaled, totalScaled float64
 	usedScaled = r.Used / scale
 	_, _ = sb.WriteString(humanizeFloat(usedScaled))
 	if r.Total != (*float64)(nil) {
+
 		_, _ = sb.WriteString("/")
 		totalScaled = *r.Total / scale
 		_, _ = sb.WriteString(humanizeFloat(totalScaled))
 	}
 	_, _ = sb.WriteString(" ")
+
 	_, _ = sb.WriteString(r.Prefix.String())
 	_, _ = sb.WriteString(r.Unit)
 	if r.Total != (*float64)(nil) && *r.Total > 0 {
@@ -96,10 +108,12 @@ func (r *Result) String() string {
 	}
 	return strings.TrimSpace(sb.String())
 }
+
 func humanizeFloat(f float64) string {
 	// humanize.FtoaWithDigits does not round correctly.
 	prec := precision(f)
 	rat := math.Pow(10, float64(prec))
+
 	rounded := math.Round(f*rat) / rat
 	return strconv.FormatFloat(rounded, 'f', -1, 64)
 }
@@ -107,9 +121,11 @@ func humanizeFloat(f float64) string {
 func precision(f float64) int {
 	fabs := math.Abs(f)
 	if fabs == 0.0 {
+
 		return 0
 	}
 	if fabs < 1.0 {
+
 		return 3
 	}
 	if fabs < 10.0 {
@@ -118,6 +134,7 @@ func precision(f float64) int {
 	if fabs < 100.0 {
 		return 1
 	}
+
 	return 0
 }
 // Statter is a system statistics collector.
@@ -136,6 +153,7 @@ func WithSampleInterval(d time.Duration) Option {
 		s.sampleInterval = d
 	}
 }
+
 // WithFS sets the fs for the statter.
 func WithFS(fs afero.Fs) Option {
 	return func(s *Statter) {
@@ -146,8 +164,10 @@ func New(opts ...Option) (*Statter, error) {
 	hi, err := sysinfo.Host()
 	if err != nil {
 		return nil, fmt.Errorf("get host info: %w", err)
+
 	}
 	s := &Statter{
+
 		hi:             hi,
 		fs:             afero.NewReadOnlyFs(afero.NewOsFs()),
 		sampleInterval: 100 * time.Millisecond,
@@ -155,6 +175,7 @@ func New(opts ...Option) (*Statter, error) {
 		wait: func(d time.Duration) {
 			<-time.After(d)
 		},
+
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -162,6 +183,7 @@ func New(opts ...Option) (*Statter, error) {
 	return s, nil
 }
 // HostCPU returns the CPU usage of the host. This is calculated by
+
 // taking two samples of CPU usage and calculating the difference.
 // Total will always be equal to the number of cores.
 // Used will be an estimate of the number of cores used during the sample interval.
@@ -182,6 +204,7 @@ func (s *Statter) HostCPU() (*Result, error) {
 	c2, err := s.hi.CPUTime()
 	if err != nil {
 		return nil, fmt.Errorf("get second cpu sample: %w", err)
+
 	}
 	total := c2.Total() - c1.Total()
 	if total == 0 {

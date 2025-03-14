@@ -1,18 +1,23 @@
 package cli
+
 import (
 	"errors"
 	"fmt"
 	"strings"
+
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+
 	"github.com/coder/serpent"
 )
 func (r *RootCmd) organizations() *serpent.Command {
 	orgContext := NewOrganizationContext()
 	cmd := &serpent.Command{
+
 		Use:     "organizations [subcommand]",
 		Short:   "Organization related commands",
 		Aliases: []string{"organization", "org", "orgs"},
+
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
@@ -29,10 +34,12 @@ func (r *RootCmd) organizations() *serpent.Command {
 }
 func (r *RootCmd) showOrganization(orgContext *OrganizationContext) *serpent.Command {
 	var (
+
 		stringFormat func(orgs []codersdk.Organization) (string, error)
 		client       = new(codersdk.Client)
 		formatter    = cliui.NewOutputFormatter(
 			cliui.ChangeFormatterData(cliui.TextFormat(), func(data any) (any, error) {
+
 				typed, ok := data.([]codersdk.Organization)
 				if !ok {
 					// This should never happen
@@ -94,6 +101,7 @@ func (r *RootCmd) showOrganization(orgContext *OrganizationContext) *serpent.Com
 				stringFormat = func(orgs []codersdk.Organization) (string, error) {
 					if len(orgs) != 1 {
 						return "", fmt.Errorf("expected 1 organization, got %d", len(orgs))
+
 					}
 					return fmt.Sprintf("Current CLI Organization: %s (%s)\n", orgs[0].Name, orgs[0].ID.String()), nil
 				}
@@ -137,6 +145,7 @@ func (r *RootCmd) showOrganization(orgContext *OrganizationContext) *serpent.Com
 				out, err := formatter.Format(inv.Context(), orgs)
 				if err != nil {
 					return err
+
 				}
 				_, _ = fmt.Fprint(inv.Stdout, out)
 			}

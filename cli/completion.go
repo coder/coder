@@ -1,14 +1,18 @@
 package cli
+
 import (
 	"errors"
 	"fmt"
+
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/serpent"
+
 	"github.com/coder/serpent/completion"
 )
 func (*RootCmd) completion() *serpent.Command {
 	var shellName string
 	var printOutput bool
+
 	shellOptions := completion.ShellOptions(&shellName)
 	return &serpent.Command{
 		Use:   "completion",
@@ -28,6 +32,7 @@ func (*RootCmd) completion() *serpent.Command {
 			},
 		},
 		Handler: func(inv *serpent.Invocation) error {
+
 			if shellName != "" {
 				shell, err := completion.ShellByName(shellName, inv.Command.Parent.Name())
 				if err != nil {
@@ -69,6 +74,7 @@ func installCompletion(inv *serpent.Invocation, shell completion.Shell) error {
 	if err != nil {
 		cliui.Error(inv.Stderr, fmt.Sprintf("Failed to determine completion path %v", err))
 		return shell.WriteCompletion(inv.Stdout)
+
 	}
 	if !isTTYOut(inv) {
 		return shell.WriteCompletion(inv.Stdout)

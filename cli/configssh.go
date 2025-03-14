@@ -1,4 +1,5 @@
 package cli
+
 import (
 	"bufio"
 	"bytes"
@@ -14,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"github.com/cli/safeexec"
+
 	"github.com/natefinch/atomic"
 	"github.com/pkg/diff"
 	"github.com/pkg/diff/write"
@@ -21,11 +23,13 @@ import (
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
+
 )
 const (
 	sshDefaultConfigFileName = "~/.ssh/config"
 	sshStartToken            = "# ------------START-CODER-----------"
 	sshEndToken              = "# ------------END-CODER------------"
+
 	sshConfigSectionHeader   = "# This section is managed by coder. DO NOT EDIT."
 	sshConfigDocsHeader      = `
 #
@@ -41,6 +45,7 @@ const (
 type sshConfigOptions struct {
 	waitEnum         string
 	userHostPrefix   string
+
 	sshOptions       []string
 	disableAutostart bool
 	header           []string
@@ -53,6 +58,7 @@ type sshConfigOptions struct {
 func (o *sshConfigOptions) addOptions(options ...string) error {
 	for _, option := range options {
 		err := o.addOption(option)
+
 		if err != nil {
 			return err
 		}
@@ -66,6 +72,7 @@ func (o *sshConfigOptions) addOption(option string) error {
 	}
 	lowerKey := strings.ToLower(key)
 	if o.removedKeys != nil && o.removedKeys[lowerKey] {
+
 		// Key marked as removed, skip.
 		return nil
 	}
@@ -89,6 +96,7 @@ func (o sshConfigOptions) equal(other sshConfigOptions) bool {
 		return false
 	}
 	return o.waitEnum == other.waitEnum && o.userHostPrefix == other.userHostPrefix && o.disableAutostart == other.disableAutostart && o.headerCommand == other.headerCommand
+
 }
 // slicesSortedEqual compares two slices without side-effects or regard to order.
 func slicesSortedEqual[S ~[]E, E constraints.Ordered](a, b S) bool {
@@ -99,6 +107,7 @@ func slicesSortedEqual[S ~[]E, E constraints.Ordered](a, b S) bool {
 	slices.Sort(a)
 	b = slices.Clone(b)
 	slices.Sort(b)
+
 	return slices.Equal(a, b)
 }
 func (o sshConfigOptions) asList() (list []string) {
@@ -111,6 +120,7 @@ func (o sshConfigOptions) asList() (list []string) {
 	if o.disableAutostart {
 		list = append(list, fmt.Sprintf("disable-autostart: %v", o.disableAutostart))
 	}
+
 	for _, opt := range o.sshOptions {
 		list = append(list, fmt.Sprintf("ssh-option: %s", opt))
 	}
@@ -131,9 +141,11 @@ func (r *RootCmd) configSSH() *serpent.Command {
 		skipProxyCommand    bool
 		forceUnixSeparators bool
 		coderCliPath        string
+
 	)
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
+
 		Annotations: workspaceCommand,
 		Use:         "config-ssh",
 		Short:       "Add an SSH Host entry for your workspaces \"ssh coder.workspace\"",
@@ -166,6 +178,7 @@ func (r *RootCmd) configSSH() *serpent.Command {
 			// by sshPrepareWorkspaceConfigs may otherwise trigger the
 			// warning at any time.
 			_, _ = client.BuildInfo(ctx)
+
 			out := inv.Stdout
 			if dryRun {
 				// Print everything except diff to stderr so
@@ -174,6 +187,7 @@ func (r *RootCmd) configSSH() *serpent.Command {
 			}
 			var err error
 			coderBinary := coderCliPath
+
 			if coderBinary == "" {
 				coderBinary, err = currentBinPath(out)
 				if err != nil {
@@ -181,6 +195,7 @@ func (r *RootCmd) configSSH() *serpent.Command {
 				}
 			}
 			escapedCoderBinary, err := sshConfigExecEscape(coderBinary, forceUnixSeparators)
+
 			if err != nil {
 				return fmt.Errorf("escape coder binary for ssh failed: %w", err)
 			}
@@ -188,6 +203,7 @@ func (r *RootCmd) configSSH() *serpent.Command {
 			escapedGlobalConfig, err := sshConfigExecEscape(string(root), forceUnixSeparators)
 			if err != nil {
 				return fmt.Errorf("escape global config for ssh failed: %w", err)
+
 			}
 			homedir, err := os.UserHomeDir()
 			if err != nil {
@@ -197,26 +213,31 @@ func (r *RootCmd) configSSH() *serpent.Command {
 				sshConfigFile = filepath.Join(homedir, sshConfigFile[2:])
 			}
 			// Only allow not-exist errors to avoid trashing
+
 			// the users SSH config.
 			configRaw, err := os.ReadFile(sshConfigFile)
 			if err != nil && !errors.Is(err, fs.ErrNotExist) {
 				return fmt.Errorf("read ssh config failed: %w", err)
 			}
+
 			// Keep track of changes we are making.
 			var changes []string
 			// Parse the previous configuration only if config-ssh
 			// has been run previously.
 			var lastConfig *sshConfigOptions
 			section, ok, err := sshConfigGetCoderSection(configRaw)
+
 			if err != nil {
 				return err
 			}
 			if ok {
 				c := sshConfigParseLastOptions(bytes.NewReader(section))
+
 				lastConfig = &c
 			}
 			// Avoid prompting in diff mode (unexpected behavior)
 			// or when a previous config does not exist.
+
 			if usePreviousOpts && lastConfig != nil {
 				sshConfigOpts = *lastConfig
 			} else if lastConfig != nil && !sshConfigOpts.equal(*lastConfig) {
@@ -224,9 +245,11 @@ func (r *RootCmd) configSSH() *serpent.Command {
 					// If the user passes an invalid option, we should catch
 					// this early.
 					if _, _, err := codersdk.ParseSSHConfigOption(v); err != nil {
+
 						return fmt.Errorf("invalid option from flag: %w", err)
 					}
 				}
+
 				newOpts := sshConfigOpts.asList()
 				newOptsMsg := "\n\n  New options: none"
 				if len(newOpts) > 0 {
@@ -239,6 +262,7 @@ func (r *RootCmd) configSSH() *serpent.Command {
 				}
 				line, err := cliui.Prompt(inv, cliui.PromptOptions{
 					Text:      fmt.Sprintf("New options differ from previous options:%s%s\n\n  Use new options?", newOptsMsg, oldOptsMsg),
+
 					IsConfirm: true,
 				})
 				if err != nil {
@@ -262,6 +286,7 @@ func (r *RootCmd) configSSH() *serpent.Command {
 				return err
 			}
 			// Write the first half of the users config file to buf.
+
 			_, _ = buf.Write(before)
 			// Write comment and store the provided options as part
 			// of the config for future (re)use.
@@ -281,8 +306,10 @@ func (r *RootCmd) configSSH() *serpent.Command {
 			}
 			if sshConfigOpts.userHostPrefix != "" {
 				// Override with user flag.
+
 				coderdConfig.HostnamePrefix = sshConfigOpts.userHostPrefix
 			}
+
 			// Write agent configuration.
 			defaultOptions := []string{
 				"ConnectTimeout=0",
@@ -291,11 +318,13 @@ func (r *RootCmd) configSSH() *serpent.Command {
 				// message will appear.
 				"UserKnownHostsFile=/dev/null",
 				// This disables the "Warning: Permanently added 'hostname' (RSA) to the list of known hosts."
+
 				// message from appearing on every SSH. This happens because we ignore the known hosts.
 				"LogLevel ERROR",
 			}
 			if !skipProxyCommand {
 				rootFlags := fmt.Sprintf("--global-config %s", escapedGlobalConfig)
+
 				for _, h := range sshConfigOpts.header {
 					rootFlags += fmt.Sprintf(" --header %q", h)
 				}
@@ -309,11 +338,13 @@ func (r *RootCmd) configSSH() *serpent.Command {
 				if sshConfigOpts.disableAutostart {
 					flags += " --disable-autostart=true"
 				}
+
 				defaultOptions = append(defaultOptions, fmt.Sprintf(
 					"ProxyCommand %s %s ssh --stdio%s --ssh-host-prefix %s %%h",
 					escapedCoderBinary, rootFlags, flags, coderdConfig.HostnamePrefix,
 				))
 			}
+
 			// Create a copy of the options so we can modify them.
 			configOptions := sshConfigOpts
 			configOptions.sshOptions = nil
@@ -326,6 +357,7 @@ func (r *RootCmd) configSSH() *serpent.Command {
 				}
 			}
 			// Deployment options second, allow them to
+
 			// override standard options.
 			for k, v := range coderdConfig.SSHConfigOptions {
 				opt := fmt.Sprintf("%s %s", k, v)
@@ -335,6 +367,7 @@ func (r *RootCmd) configSSH() *serpent.Command {
 				}
 			}
 			// Finally, add the standard options.
+
 			if err := configOptions.addOptions(defaultOptions...); err != nil {
 				return err
 			}
@@ -348,10 +381,12 @@ func (r *RootCmd) configSSH() *serpent.Command {
 			_, _ = buf.WriteString(strings.Join(hostBlock, "\n"))
 			_ = buf.WriteByte('\n')
 			sshConfigWriteSectionEnd(buf)
+
 			// Write the remainder of the users config file to buf.
 			_, _ = buf.Write(after)
 			if !bytes.Equal(configModified, buf.Bytes()) {
 				changes = append(changes, fmt.Sprintf("Update the coder section in %s", sshConfigFile))
+
 				configModified = buf.Bytes()
 			}
 			if len(changes) == 0 {
@@ -361,6 +396,7 @@ func (r *RootCmd) configSSH() *serpent.Command {
 			if dryRun {
 				_, _ = fmt.Fprintf(out, "Dry run, the following changes would be made to your SSH configuration:\n\n  * %s\n\n", strings.Join(changes, "\n  * "))
 				color := isTTYOut(inv)
+
 				diff, err := diffBytes(sshConfigFile, configRaw, configModified, color)
 				if err != nil {
 					return fmt.Errorf("diff failed: %w", err)
@@ -371,11 +407,13 @@ func (r *RootCmd) configSSH() *serpent.Command {
 				}
 				return nil
 			}
+
 			if len(changes) > 0 {
 				_, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text:      fmt.Sprintf("The following changes will be made to your SSH configuration:\n\n    * %s\n\n  Continue?", strings.Join(changes, "\n    * ")),
 					IsConfirm: true,
 				})
+
 				if err != nil {
 					return nil
 				}
@@ -384,27 +422,34 @@ func (r *RootCmd) configSSH() *serpent.Command {
 					_, _ = fmt.Fprint(out, "\n")
 				}
 			}
+
 			if !bytes.Equal(configRaw, configModified) {
 				err = atomic.WriteFile(sshConfigFile, bytes.NewReader(configModified))
 				if err != nil {
+
 					return fmt.Errorf("write ssh config failed: %w", err)
 				}
+
 				_, _ = fmt.Fprintf(out, "Updated %q\n", sshConfigFile)
 			}
 			res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+
 				Owner: codersdk.Me,
 				Limit: 1,
 			})
 			if err != nil {
 				return fmt.Errorf("fetch workspaces failed: %w", err)
+
 			}
 			if len(res.Workspaces) > 0 {
 				_, _ = fmt.Fprintln(out, "You should now be able to ssh into your workspace.")
 				_, _ = fmt.Fprintf(out, "For example, try running:\n\n\t$ ssh %s%s\n", coderdConfig.HostnamePrefix, res.Workspaces[0].Name)
 			} else {
+
 				_, _ = fmt.Fprint(out, "You don't have any workspaces yet, try creating one with:\n\n\t$ coder create <workspace>\n")
 			}
 			return nil
+
 		},
 	}
 	cmd.Options = serpent.OptionSet{
@@ -415,9 +460,11 @@ func (r *RootCmd) configSSH() *serpent.Command {
 			Description: "Specifies the path to an SSH config.",
 			Value:       serpent.StringOf(&sshConfigFile),
 		},
+
 		{
 			Flag:    "coder-binary-path",
 			Env:     "CODER_SSH_CONFIG_BINARY_PATH",
+
 			Default: "",
 			Description: "Optionally specify the absolute path to the coder binary used in ProxyCommand. " +
 				"By default, the binary invoking this command ('config ssh') is used.",
@@ -432,6 +479,7 @@ func (r *RootCmd) configSSH() *serpent.Command {
 				}
 				return nil
 			}),
+
 		},
 		{
 			Flag:          "ssh-option",
@@ -440,6 +488,7 @@ func (r *RootCmd) configSSH() *serpent.Command {
 			Description:   "Specifies additional SSH options to embed in each host stanza.",
 			Value:         serpent.StringArrayOf(&sshConfigOpts.sshOptions),
 		},
+
 		{
 			Flag:          "dry-run",
 			FlagShorthand: "n",
@@ -448,6 +497,7 @@ func (r *RootCmd) configSSH() *serpent.Command {
 			Value:         serpent.BoolOf(&dryRun),
 		},
 		{
+
 			Flag:        "skip-proxy-command",
 			Env:         "CODER_SSH_SKIP_PROXY_COMMAND",
 			Description: "Specifies whether the ProxyCommand option should be skipped. Useful for testing.",
@@ -458,6 +508,7 @@ func (r *RootCmd) configSSH() *serpent.Command {
 			Flag:        "use-previous-options",
 			Env:         "CODER_SSH_USE_PREVIOUS_OPTIONS",
 			Description: "Specifies whether or not to keep options from previous run of config-ssh.",
+
 			Value:       serpent.BoolOf(&usePreviousOpts),
 		},
 		{
@@ -547,9 +598,11 @@ func sshConfigParseLastOptions(r io.Reader) (o sshConfigOptions) {
 			case "wait":
 				o.waitEnum = parts[1]
 			case "ssh-host-prefix":
+
 				o.userHostPrefix = parts[1]
 			case "ssh-option":
 				o.sshOptions = append(o.sshOptions, parts[1])
+
 			case "disable-autostart":
 				o.disableAutostart, _ = strconv.ParseBool(parts[1])
 			case "header":
@@ -560,6 +613,7 @@ func sshConfigParseLastOptions(r io.Reader) (o sshConfigOptions) {
 				// Unknown option, ignore.
 			}
 		}
+
 	}
 	if err := s.Err(); err != nil {
 		panic(err)
@@ -584,17 +638,21 @@ func sshConfigSplitOnCoderSection(data []byte) (before, section []byte, after []
 	if startCount > 1 || endCount > 1 {
 		return nil, nil, nil, errors.New("Malformed config: ssh config has multiple coder sections, please remove all but one")
 	}
+
 	startIndex := bytes.Index(data, []byte(sshStartToken))
 	endIndex := bytes.Index(data, []byte(sshEndToken))
 	if startIndex == -1 && endIndex != -1 {
+
 		return nil, nil, nil, errors.New("Malformed config: ssh config has end header, but missing start header")
 	}
 	if startIndex != -1 && endIndex == -1 {
 		return nil, nil, nil, errors.New("Malformed config: ssh config has start header, but missing end header")
+
 	}
 	if startIndex != -1 && endIndex != -1 {
 		if startIndex > endIndex {
 			return nil, nil, nil, errors.New("Malformed config: ssh config has coder section, but it is malformed and the END header is before the START header")
+
 		}
 		// We use -1 and +1 here to also include the preceding
 		// and trailing newline, where applicable.
@@ -623,9 +681,11 @@ func sshConfigSplitOnCoderSection(data []byte) (before, section []byte, after []
 // Given the following ProxyCommand:
 //
 //	ProxyCommand "/path/with space/coder" ssh --stdio work
+
 //
 // This is ~what OpenSSH would execute:
 //
+
 //	/bin/bash -c '"/path/with space/to/coder" ssh --stdio workspace'
 //
 // However, since it's actually an arg in C, the contents inside the
@@ -634,9 +694,11 @@ func sshConfigSplitOnCoderSection(data []byte) (before, section []byte, after []
 //
 // See:
 //   - https://github.com/coder/coder/issues/2853
+
 //   - https://github.com/openssh/openssh-portable/blob/V_9_0_P1/sshconnect.c#L158-L167
 //   - https://github.com/PowerShell/openssh-portable/blob/v8.1.0.0/sshconnect.c#L231-L293
 //   - https://github.com/PowerShell/openssh-portable/blob/v8.1.0.0/contrib/win32/win32compat/w32fd.c#L1075-L1100
+
 //
 // Additional Windows-specific notes:
 //
@@ -647,6 +709,7 @@ func sshConfigSplitOnCoderSection(data []byte) (before, section []byte, after []
 // takes the argument 'forceUnixPath' to force the filepath to be unix-like.
 //
 // On actual unix machines, this is **always** a noop. Even if a windows
+
 // path is provided.
 //
 // Passing a "false" for forceUnixPath will result in the filepath separator
@@ -672,9 +735,11 @@ func sshConfigExecEscape(path string, forceUnixPath bool) (string, error) {
 		path = strings.ReplaceAll(path, "\"", "\\\"")
 	}
 	// A space or a tab requires quoting, but tabs must not be escaped
+
 	// (\t) since OpenSSH interprets it as a literal \t, not a tab.
 	if strings.ContainsAny(path, " \t") {
 		path = fmt.Sprintf("\"%s\"", path) //nolint:gocritic // We don't want %q here.
+
 	}
 	return path, nil
 }
@@ -727,6 +792,7 @@ func diffBytes(name string, b1, b2 []byte, color bool) ([]byte, error) {
 		opts = append(opts, write.TerminalColor())
 	}
 	err := diff.Text(name, name, b1, b2, &buf, opts...)
+
 	if err != nil {
 		return nil, err
 	}

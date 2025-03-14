@@ -1,4 +1,5 @@
 package httpapi_test
+
 import (
 	"bytes"
 	"context"
@@ -9,22 +10,27 @@ import (
 	"strings"
 	"testing"
 	"github.com/stretchr/testify/assert"
+
 	"github.com/stretchr/testify/require"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 )
+
 func TestInternalServerError(t *testing.T) {
 	t.Parallel()
 	t.Run("NoError", func(t *testing.T) {
 		t.Parallel()
+
 		w := httptest.NewRecorder()
 		httpapi.InternalServerError(w, nil)
 		var resp codersdk.Response
+
 		err := json.NewDecoder(w.Body).Decode(&resp)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusInternalServerError, w.Code)
 		require.NotEmpty(t, resp.Message)
 		require.Empty(t, resp.Detail)
+
 	})
 	t.Run("WithError", func(t *testing.T) {
 		t.Parallel()
@@ -33,6 +39,7 @@ func TestInternalServerError(t *testing.T) {
 			httpErr = errors.New("error!")
 		)
 		httpapi.InternalServerError(w, httpErr)
+
 		var resp codersdk.Response
 		err := json.NewDecoder(w.Body).Decode(&resp)
 		require.NoError(t, err)
@@ -40,8 +47,10 @@ func TestInternalServerError(t *testing.T) {
 		require.NotEmpty(t, resp.Message)
 		require.Equal(t, httpErr.Error(), resp.Detail)
 	})
+
 }
 func TestWrite(t *testing.T) {
+
 	t.Parallel()
 	t.Run("NoErrors", func(t *testing.T) {
 		t.Parallel()
@@ -51,6 +60,7 @@ func TestWrite(t *testing.T) {
 			Message: "Wow.",
 		})
 		var m map[string]interface{}
+
 		err := json.NewDecoder(rw.Body).Decode(&m)
 		require.NoError(t, err)
 		_, ok := m["errors"]
@@ -68,6 +78,7 @@ func TestRead(t *testing.T) {
 		require.True(t, httpapi.Read(ctx, rw, r, &v))
 	})
 	t.Run("NoBody", func(t *testing.T) {
+
 		t.Parallel()
 		ctx := context.Background()
 		rw := httptest.NewRecorder()
@@ -79,6 +90,7 @@ func TestRead(t *testing.T) {
 		t.Parallel()
 		type toValidate struct {
 			Value string `json:"value" validate:"required"`
+
 		}
 		ctx := context.Background()
 		rw := httptest.NewRecorder()
@@ -88,6 +100,7 @@ func TestRead(t *testing.T) {
 		require.Equal(t, "hi", validate.Value)
 	})
 	t.Run("ValidateFailure", func(t *testing.T) {
+
 		t.Parallel()
 		type toValidate struct {
 			Value string `json:"value" validate:"required"`
@@ -97,11 +110,13 @@ func TestRead(t *testing.T) {
 		r := httptest.NewRequest("POST", "/", bytes.NewBufferString("{}"))
 		var validate toValidate
 		require.False(t, httpapi.Read(ctx, rw, r, &validate))
+
 		var v codersdk.Response
 		err := json.NewDecoder(rw.Body).Decode(&v)
 		require.NoError(t, err)
 		require.Len(t, v.Validations, 1)
 		require.Equal(t, "value", v.Validations[0].Field)
+
 		require.Equal(t, "Validation failed for tag \"required\" with value: \"\"", v.Validations[0].Detail)
 	})
 }
@@ -111,6 +126,7 @@ func TestWebsocketCloseMsg(t *testing.T) {
 		t.Parallel()
 		var (
 			msg  = "this is my message %q %q"
+
 			opts = []any{"colin", "kyle"}
 		)
 		expected := fmt.Sprintf(msg, opts...)
@@ -122,11 +138,14 @@ func TestWebsocketCloseMsg(t *testing.T) {
 		msg := strings.Repeat("d", 255)
 		trunc := httpapi.WebsocketCloseSprintf("%s", msg)
 		assert.Equal(t, len(trunc), 123)
+
 	})
 	t.Run("TruncateMultiByteCharacters", func(t *testing.T) {
 		t.Parallel()
+
 		msg := strings.Repeat("こんにちは", 10)
 		trunc := httpapi.WebsocketCloseSprintf("%s", msg)
 		assert.Equal(t, len(trunc), 123)
+
 	})
 }

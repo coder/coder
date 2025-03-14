@@ -2,6 +2,7 @@ package database
 
 import (
 	"database/sql"
+
 	"errors"
 
 	"github.com/lib/pq"

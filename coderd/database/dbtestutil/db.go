@@ -1,4 +1,5 @@
 package dbtestutil
+
 import (
 	"errors"
 	"bytes"
@@ -14,9 +15,11 @@ import (
 	"strings"
 	"testing"
 	"time"
+
 	"github.com/stretchr/testify/require"
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
+
 	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/testutil"
@@ -24,11 +27,13 @@ import (
 // WillUsePostgres returns true if a call to NewDB() will return a real, postgres-backed Store and Pubsub.
 func WillUsePostgres() bool {
 	return os.Getenv("DB") != ""
+
 }
 type options struct {
 	fixedTimezone string
 	dumpOnFailure bool
 	returnSQLDB   func(*sql.DB)
+
 	logger        slog.Logger
 	url           string
 }
@@ -37,8 +42,10 @@ type Option func(*options)
 func WithTimezone(tz string) Option {
 	return func(o *options) {
 		o.fixedTimezone = tz
+
 	}
 }
+
 // WithDumpOnFailure will dump the entire database on test failure.
 func WithDumpOnFailure() Option {
 	return func(o *options) {
@@ -46,6 +53,7 @@ func WithDumpOnFailure() Option {
 	}
 }
 func WithLogger(logger slog.Logger) Option {
+
 	return func(o *options) {
 		o.logger = logger
 	}
@@ -53,31 +61,37 @@ func WithLogger(logger slog.Logger) Option {
 func WithURL(u string) Option {
 	return func(o *options) {
 		o.url = u
+
 	}
 }
 func withReturnSQLDB(f func(*sql.DB)) Option {
 	return func(o *options) {
 		o.returnSQLDB = f
 	}
+
 }
 func NewDBWithSQLDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub, *sql.DB) {
 	t.Helper()
 	if !WillUsePostgres() {
 		t.Fatal("cannot use NewDBWithSQLDB without PostgreSQL, consider adding `if !dbtestutil.WillUsePostgres() { t.Skip() }` to this test")
 	}
+
 	var sqlDB *sql.DB
 	opts = append(opts, withReturnSQLDB(func(db *sql.DB) {
 		sqlDB = db
 	}))
 	db, ps := NewDB(t, opts...)
 	return db, ps, sqlDB
+
 }
 var DefaultTimezone = "Canada/Newfoundland"
 // NowInDefaultTimezone returns the current time rounded to the nearest microsecond in the default timezone
+
 // used by postgres in tests. Useful for object equality checks.
 func NowInDefaultTimezone() time.Time {
 	loc, err := time.LoadLocation(DefaultTimezone)
 	if err != nil {
+
 		panic(err)
 	}
 	return time.Now().In(loc).Round(time.Microsecond)
@@ -86,8 +100,10 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 	t.Helper()
 	o := options{logger: testutil.Logger(t).Named("pubsub")}
 	for _, opt := range opts {
+
 		opt(&o)
 	}
+
 	var db database.Store
 	var ps pubsub.Pubsub
 	if WillUsePostgres() {
@@ -98,14 +114,17 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 		if connectionURL == "" {
 			var err error
 			connectionURL, err = Open(t)
+
 			require.NoError(t, err)
 		}
 		if o.fixedTimezone == "" {
+
 			// To make sure we find timezone-related issues, we set the timezone
 			// of the database to a non-UTC one.
 			// The below was picked due to the following properties:
 			// - It has a non-UTC offset
 			// - It has a fractional hour UTC offset
+
 			// - It includes a daylight savings time component
 			o.fixedTimezone = DefaultTimezone
 		}
@@ -119,6 +138,7 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 		if o.returnSQLDB != nil {
 			o.returnSQLDB(sqlDB)
 		}
+
 		if o.dumpOnFailure {
 			t.Cleanup(func() { DumpOnFailure(t, connectionURL) })
 		}
@@ -131,6 +151,7 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 		})
 	} else {
 		db = dbmem.New()
+
 		ps = pubsub.NewInMemory()
 	}
 	return db, ps
@@ -145,6 +166,7 @@ func setDBTimezone(t testing.TB, dbURL, dbname, tz string) {
 	defer func() {
 		_ = sqlDB.Close()
 	}()
+
 	// nolint: gosec // This unfortunately does not work with placeholders.
 	_, err = sqlDB.Exec(fmt.Sprintf("ALTER DATABASE %s SET TIMEZONE TO %q", dbname, tz))
 	require.NoError(t, err, "failed to set timezone for database")
@@ -155,26 +177,31 @@ func dbNameFromConnectionURL(t testing.TB, connectionURL string) string {
 	u, err := url.Parse(connectionURL)
 	require.NoError(t, err)
 	return strings.TrimPrefix(u.Path, "/")
+
 }
 // DumpOnFailure exports the database referenced by connectionURL to a file
 // corresponding to the current test, with a suffix indicating the time the
+
 // test was run.
 // To import this into a new database (assuming you have already run make test-postgres-docker):
 //   - Create a new test database:
 //     go run ./scripts/migrate-ci/main.go and note the database name it outputs
 //   - Import the file into the above database:
 //     psql 'postgres://postgres:postgres@127.0.0.1:5432/<dbname>?sslmode=disable' -f <path to file.test.sql>
+
 //   - Run a dev server against that database:
 //     ./scripts/coder-dev.sh server --postgres-url='postgres://postgres:postgres@127.0.0.1:5432/<dbname>?sslmode=disable'
 func DumpOnFailure(t testing.TB, connectionURL string) {
 	if !t.Failed() {
 		return
 	}
+
 	cwd, err := filepath.Abs(".")
 	if err != nil {
 		t.Errorf("dump on failure: cannot determine current working directory")
 		return
 	}
+
 	snakeCaseName := regexp.MustCompile("[^a-zA-Z0-9-_]+").ReplaceAllString(t.Name(), "_")
 	now := time.Now()
 	timeSuffix := fmt.Sprintf("%d%d%d%d%d%d", now.Year(), now.Month(), now.Day(), now.Hour(), now.Minute(), now.Second())
@@ -183,6 +210,7 @@ func DumpOnFailure(t testing.TB, connectionURL string) {
 	if err != nil {
 		t.Errorf("dump on failure: failed to run pg_dump")
 		return
+
 	}
 	if err := os.WriteFile(outPath, normalizeDump(dump), 0o600); err != nil {
 		t.Errorf("dump on failure: failed to write: %s", err.Error())
@@ -218,6 +246,7 @@ func PGDump(dbURL string) ([]byte, error) {
 		"PGDATABASE=", // we should always specify the database name in the connection string
 	}
 	var stdout bytes.Buffer
+
 	cmd.Stdout = &stdout
 	if err := cmd.Run(); err != nil {
 		return nil, fmt.Errorf("exec pg_dump: %w", err)
@@ -253,8 +282,10 @@ func PGDumpSchemaOnly(dbURL string) ([]byte, error) {
 		"--no-publication",
 		"--no-security-labels",
 		"--no-subscriptions",
+
 		"--no-tablespaces",
 		// We never want to manually generate
+
 		// queries executing against this table.
 		"--exclude-table=schema_migrations",
 	}
@@ -274,6 +305,7 @@ func PGDumpSchemaOnly(dbURL string) ([]byte, error) {
 	}...)
 	var output bytes.Buffer
 	cmd.Stdout = &output
+
 	cmd.Stderr = os.Stderr
 	err := cmd.Run()
 	if err != nil {
@@ -286,11 +318,13 @@ func normalizeDump(schema []byte) []byte {
 	schema = regexp.MustCompile(`(?im)^(--.*)$`).ReplaceAll(schema, []byte{})
 	// Public is implicit in the schema.
 	schema = regexp.MustCompile(`(?im)( |::|'|\()public\.`).ReplaceAll(schema, []byte(`$1`))
+
 	// Remove database settings.
 	schema = regexp.MustCompile(`(?im)^(SET.*;)`).ReplaceAll(schema, []byte(``))
 	// Remove select statements
 	schema = regexp.MustCompile(`(?im)^(SELECT.*;)`).ReplaceAll(schema, []byte(``))
 	// Removes multiple newlines.
+
 	schema = regexp.MustCompile(`(?im)\n{3,}`).ReplaceAll(schema, []byte("\n\n"))
 	return schema
 }

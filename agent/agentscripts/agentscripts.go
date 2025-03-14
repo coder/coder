@@ -20,7 +20,9 @@ import (
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+
 	"cdr.dev/slog"
+
 
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/proto"
@@ -28,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
+
 
 var (
 	// ErrTimeout is returned when a script times out.
@@ -41,13 +44,16 @@ var (
 	// 2. Improved command cancellation on timeout
 	ErrOutputPipesOpen = errors.New("script exited without closing output pipes")
 
+
 	parser = cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.DowOptional)
 )
+
 
 type ScriptLogger interface {
 	Send(ctx context.Context, log ...agentsdk.Log) error
 	Flush(context.Context) error
 }
+
 
 // Options are a set of options for the runner.
 type Options struct {
@@ -58,6 +64,7 @@ type Options struct {
 	Filesystem      afero.Fs
 	GetScriptLogger func(logSourceID uuid.UUID) ScriptLogger
 }
+
 
 // New creates a runner for the provided scripts.
 func New(opts Options) *Runner {
@@ -77,10 +84,13 @@ func New(opts Options) *Runner {
 	}
 }
 
+
 type ScriptCompletedFunc func(context.Context, *proto.WorkspaceAgentScriptCompletedRequest) (*proto.WorkspaceAgentScriptCompletedResponse, error)
+
 
 type Runner struct {
 	Options
+
 
 	cronCtx         context.Context
 	cronCtxCancel   context.CancelFunc
@@ -93,22 +103,26 @@ type Runner struct {
 	dataDir         string
 	scriptCompleted ScriptCompletedFunc
 
+
 	// scriptsExecuted includes all scripts executed by the workspace agent. Agents
 	// execute startup scripts, and scripts on a cron schedule. Both will increment
 	// this counter.
 	scriptsExecuted *prometheus.CounterVec
 }
 
+
 // DataDir returns the directory where scripts data is stored.
 func (r *Runner) DataDir() string {
 	return r.dataDir
 }
+
 
 // ScriptBinDir returns the directory where scripts can store executable
 // binaries.
 func (r *Runner) ScriptBinDir() string {
 	return filepath.Join(r.dataDir, "bin")
 }
+
 
 func (r *Runner) RegisterMetrics(reg prometheus.Registerer) {
 	if reg == nil {
@@ -117,6 +131,7 @@ func (r *Runner) RegisterMetrics(reg prometheus.Registerer) {
 	}
 	reg.MustRegister(r.scriptsExecuted)
 }
+
 
 // Init initializes the runner with the provided scripts.
 // It also schedules any scripts that have a schedule.
@@ -130,10 +145,12 @@ func (r *Runner) Init(scripts []codersdk.WorkspaceAgentScript, scriptCompleted S
 	r.scriptCompleted = scriptCompleted
 	r.Logger.Info(r.cronCtx, "initializing agent scripts", slog.F("script_count", len(scripts)), slog.F("log_dir", r.LogDir))
 
+
 	err := r.Filesystem.MkdirAll(r.ScriptBinDir(), 0o700)
 	if err != nil {
 		return fmt.Errorf("create script bin dir: %w", err)
 	}
+
 
 	for _, script := range scripts {
 		if script.Cron == "" {
@@ -152,6 +169,7 @@ func (r *Runner) Init(scripts []codersdk.WorkspaceAgentScript, scriptCompleted S
 	}
 	return nil
 }
+
 
 // StartCron starts the cron scheduler.
 // This is done async to allow for the caller to execute scripts prior.
@@ -178,8 +196,10 @@ func (r *Runner) StartCron() {
 	}
 }
 
+
 // ExecuteOption describes what scripts we want to execute.
 type ExecuteOption int
+
 
 // ExecuteOption enums.
 const (
@@ -188,6 +208,7 @@ const (
 	ExecuteStopScripts
 	ExecuteCronScripts
 )
+
 
 // Execute runs a set of scripts according to a filter.
 func (r *Runner) Execute(ctx context.Context, option ExecuteOption) error {
@@ -198,9 +219,11 @@ func (r *Runner) Execute(ctx context.Context, option ExecuteOption) error {
 			(option == ExecuteCronScripts && script.Cron != "") ||
 			option == ExecuteAllScripts
 
+
 		if !runScript {
 			continue
 		}
+
 
 		script := script
 		eg.Go(func() error {
@@ -214,6 +237,7 @@ func (r *Runner) Execute(ctx context.Context, option ExecuteOption) error {
 	return eg.Wait()
 }
 
+
 // trackRun wraps "run" with metrics.
 func (r *Runner) trackRun(ctx context.Context, script codersdk.WorkspaceAgentScript, option ExecuteOption) error {
 	err := r.run(ctx, script, option)
@@ -224,6 +248,7 @@ func (r *Runner) trackRun(ctx context.Context, script codersdk.WorkspaceAgentScr
 	}
 	return err
 }
+
 
 // run executes the provided script with the timeout.
 // If the timeout is exceeded, the process is sent an interrupt signal.
@@ -251,11 +276,13 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 		logPath = filepath.Join(r.LogDir, logPath)
 	}
 
+
 	scriptDataDir := filepath.Join(r.DataDir(), script.LogSourceID.String())
 	err := r.Filesystem.MkdirAll(scriptDataDir, 0o700)
 	if err != nil {
 		return fmt.Errorf("%s script: create script temp dir: %w", scriptDataDir, err)
 	}
+
 
 	logger := r.Logger.With(
 		slog.F("log_source_id", script.LogSourceID),
@@ -263,6 +290,7 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 		slog.F("script_data_dir", scriptDataDir),
 	)
 	logger.Info(ctx, "running agent script", slog.F("script", script.Script))
+
 
 	fileWriter, err := r.Filesystem.OpenFile(logPath, os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
@@ -274,6 +302,7 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 			logger.Warn(ctx, fmt.Sprintf("close %s script log file", logPath), slog.Error(err))
 		}
 	}()
+
 
 	var cmd *exec.Cmd
 	cmdCtx := ctx
@@ -291,12 +320,14 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 	cmd.WaitDelay = 10 * time.Second
 	cmd.Cancel = cmdCancel(ctx, logger, cmd)
 
+
 	// Expose env vars that can be used in the script for storing data
 	// and binaries. In the future, we may want to expose more env vars
 	// for the script to use, like CODER_SCRIPT_DATA_DIR for persistent
 	// storage.
 	cmd.Env = append(cmd.Env, "CODER_SCRIPT_DATA_DIR="+scriptDataDir)
 	cmd.Env = append(cmd.Env, "CODER_SCRIPT_BIN_DIR="+r.ScriptBinDir())
+
 
 	scriptLogger := r.GetScriptLogger(script.LogSourceID)
 	// If ctx is canceled here (or in a writer below), we may be
@@ -309,12 +340,14 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 		}
 	}()
 
+
 	infoW := agentsdk.LogsWriter(ctx, scriptLogger.Send, script.LogSourceID, codersdk.LogLevelInfo)
 	defer infoW.Close()
 	errW := agentsdk.LogsWriter(ctx, scriptLogger.Send, script.LogSourceID, codersdk.LogLevelError)
 	defer errW.Close()
 	cmd.Stdout = io.MultiWriter(fileWriter, infoW)
 	cmd.Stderr = io.MultiWriter(fileWriter, errW)
+
 
 	start := dbtime.Now()
 	defer func() {
@@ -332,14 +365,17 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 			logger.Info(ctx, fmt.Sprintf("%s script completed", logPath), slog.F("execution_time", execTime), slog.F("exit_code", exitCode))
 		}
 
+
 		if r.scriptCompleted == nil {
 			logger.Debug(ctx, "r.scriptCompleted unexpectedly nil")
 			return
 		}
 
+
 		// We want to check this outside of the goroutine to avoid a race condition
 		timedOut := errors.Is(err, ErrTimeout)
 		pipesLeftOpen := errors.Is(err, ErrOutputPipesOpen)
+
 
 		err = r.trackCommandGoroutine(func() {
 			var stage proto.Timing_Stage
@@ -351,6 +387,7 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 			case ExecuteCronScripts:
 				stage = proto.Timing_CRON
 			}
+
 
 			var status proto.Timing_Status
 			switch {
@@ -364,9 +401,11 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 				status = proto.Timing_OK
 			}
 
+
 			reportTimeout := 30 * time.Second
 			reportCtx, cancel := context.WithTimeout(context.Background(), reportTimeout)
 			defer cancel()
+
 
 			_, err := r.scriptCompleted(reportCtx, &proto.WorkspaceAgentScriptCompletedRequest{
 				Timing: &proto.Timing{
@@ -387,6 +426,7 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 		}
 	}()
 
+
 	err = cmd.Start()
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
@@ -394,6 +434,7 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 		}
 		return fmt.Errorf("%s script: start command: %w", logPath, err)
 	}
+
 
 	cmdDone := make(chan error, 1)
 	err = r.trackCommandGoroutine(func() {
@@ -427,11 +468,13 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 		// Also log to agent logs for ease of debugging.
 		r.Logger.Warn(ctx, message, slog.F("details", details), slog.Error(err))
 
+
 	case errors.Is(err, context.DeadlineExceeded):
 		err = ErrTimeout
 	}
 	return err
 }
+
 
 func (r *Runner) Close() error {
 	r.closeMutex.Lock()
@@ -447,6 +490,7 @@ func (r *Runner) Close() error {
 	return nil
 }
 
+
 func (r *Runner) trackCommandGoroutine(fn func()) error {
 	r.closeMutex.Lock()
 	defer r.closeMutex.Unlock()
@@ -460,6 +504,7 @@ func (r *Runner) trackCommandGoroutine(fn func()) error {
 	}()
 	return nil
 }
+
 
 func (r *Runner) isClosed() bool {
 	select {

@@ -1,18 +1,23 @@
 package cli
+
 import (
 	"errors"
 	"fmt"
 	"net/http"
 	"time"
+
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
+
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 )
+
 func (r *RootCmd) templateEdit() *serpent.Command {
 	const deprecatedFlagName = "deprecated"
 	var (
 		name                           string
+
 		displayName                    string
 		description                    string
 		icon                           string
@@ -38,6 +43,7 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
 			r.InitClient(client),
+
 		),
 		Short: "Edit the metadata of a template by name.",
 		Handler: func(inv *serpent.Invocation) error {
@@ -56,6 +62,7 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 				if cerr, ok := codersdk.AsError(err); ok && cerr.StatusCode() == http.StatusNotFound {
 					return fmt.Errorf("your deployment appears to be an AGPL deployment, so you cannot set enterprise-only flags")
 				} else if err != nil {
+
 					return fmt.Errorf("get entitlements: %w", err)
 				}
 				if requiresScheduling && !entitlements.Features[codersdk.FeatureAdvancedTemplateScheduling].Enabled {
@@ -65,10 +72,12 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 					if !entitlements.Features[codersdk.FeatureAccessControl].Enabled {
 						return fmt.Errorf("your license is not entitled to use enterprise access control, so you cannot set --require-active-version")
 					}
+
 				}
 			}
 			organization, err := orgContext.Selected(inv, client)
 			if err != nil {
+
 				return fmt.Errorf("get current organization: %w", err)
 			}
 			template, err := client.TemplateByName(inv.Context(), organization.ID, inv.Args[0])
@@ -76,6 +85,7 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 				return fmt.Errorf("get workspace template: %w", err)
 			}
 			// Default values
+
 			if !userSetOption(inv, "description") {
 				description = template.Description
 			}
@@ -85,67 +95,83 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 			if !userSetOption(inv, "display-name") {
 				displayName = template.DisplayName
 			}
+
 			if !userSetOption(inv, "default-ttl") {
 				defaultTTL = time.Duration(template.DefaultTTLMillis) * time.Millisecond
 			}
 			if !userSetOption(inv, "activity-bump") {
 				activityBump = time.Duration(template.ActivityBumpMillis) * time.Millisecond
+
 			}
 			if !userSetOption(inv, "allow-user-autostop") {
 				allowUserAutostop = template.AllowUserAutostop
 			}
+
 			if !userSetOption(inv, "allow-user-autostart") {
 				allowUserAutostart = template.AllowUserAutostart
 			}
 			if !userSetOption(inv, "allow-user-cancel-workspace-jobs") {
+
 				allowUserCancelWorkspaceJobs = template.AllowUserCancelWorkspaceJobs
 			}
 			if !userSetOption(inv, "failure-ttl") {
 				failureTTL = time.Duration(template.FailureTTLMillis) * time.Millisecond
+
 			}
 			if !userSetOption(inv, "dormancy-threshold") {
 				dormancyThreshold = time.Duration(template.TimeTilDormantMillis) * time.Millisecond
 			}
+
 			if !userSetOption(inv, "dormancy-auto-deletion") {
 				dormancyAutoDeletion = time.Duration(template.TimeTilDormantAutoDeleteMillis) * time.Millisecond
 			}
 			if !userSetOption(inv, "require-active-version") {
+
 				requireActiveVersion = template.RequireActiveVersion
 			}
 			if !userSetOption(inv, "autostop-requirement-weekdays") {
 				autostopRequirementDaysOfWeek = template.AutostopRequirement.DaysOfWeek
+
 			}
 			if unsetAutostopRequirementDaysOfWeek {
 				autostopRequirementDaysOfWeek = []string{}
 			}
+
 			if !userSetOption(inv, "autostop-requirement-weeks") {
 				autostopRequirementWeeks = template.AutostopRequirement.Weeks
 			}
 			if len(autostartRequirementDaysOfWeek) == 1 && autostartRequirementDaysOfWeek[0] == "all" {
+
 				// Set it to every day of the week
 				autostartRequirementDaysOfWeek = []string{"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}
 			} else if !userSetOption(inv, "autostart-requirement-weekdays") {
 				autostartRequirementDaysOfWeek = template.AutostartRequirement.DaysOfWeek
+
 			} else if len(autostartRequirementDaysOfWeek) == 0 {
 				autostartRequirementDaysOfWeek = []string{}
 			}
 			var deprecated *string
+
 			if userSetOption(inv, "deprecated") {
 				deprecated = &deprecationMessage
 			}
 			var disableEveryoneGroup bool
+
 			if userSetOption(inv, "private") {
 				disableEveryoneGroup = disableEveryone
 			}
 			req := codersdk.UpdateTemplateMeta{
+
 				Name:               name,
 				DisplayName:        displayName,
 				Description:        description,
 				Icon:               icon,
+
 				DefaultTTLMillis:   defaultTTL.Milliseconds(),
 				ActivityBumpMillis: activityBump.Milliseconds(),
 				AutostopRequirement: &codersdk.TemplateAutostopRequirement{
 					DaysOfWeek: autostopRequirementDaysOfWeek,
+
 					Weeks:      autostopRequirementWeeks,
 				},
 				AutostartRequirement: &codersdk.TemplateAutostartRequirement{
@@ -155,16 +181,19 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 				TimeTilDormantMillis:           dormancyThreshold.Milliseconds(),
 				TimeTilDormantAutoDeleteMillis: dormancyAutoDeletion.Milliseconds(),
 				AllowUserCancelWorkspaceJobs:   allowUserCancelWorkspaceJobs,
+
 				AllowUserAutostart:             allowUserAutostart,
 				AllowUserAutostop:              allowUserAutostop,
 				RequireActiveVersion:           requireActiveVersion,
 				DeprecationMessage:             deprecated,
 				DisableEveryoneGroupAccess:     disableEveryoneGroup,
+
 			}
 			_, err = client.UpdateTemplateMeta(inv.Context(), template.ID, req)
 			if err != nil {
 				return fmt.Errorf("update template metadata: %w", err)
 			}
+
 			_, _ = fmt.Fprintf(inv.Stdout, "Updated template metadata at %s!\n", pretty.Sprint(cliui.DefaultStyles.DateTimeStamp, time.Now().Format(time.Stamp)))
 			return nil
 		},
@@ -190,6 +219,7 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 			Flag:        "deprecated",
 			Description: "Sets the template as deprecated. Must be a message explaining why the template is deprecated.",
 			Value:       serpent.StringOf(&deprecationMessage),
+
 		},
 		{
 			Flag:        "icon",
@@ -199,6 +229,7 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 		{
 			Flag:        "default-ttl",
 			Description: "Edit the template default time before shutdown - workspaces created from this template default to this value. Maps to \"Default autostop\" in the UI.",
+
 			Value:       serpent.DurationOf(&defaultTTL),
 		},
 		{

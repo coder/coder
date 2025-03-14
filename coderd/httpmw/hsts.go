@@ -1,27 +1,33 @@
 package httpmw
+
 import (
 	"errors"
 	"fmt"
 	"net/http"
 	"strings"
+
 )
 const (
 	hstsHeader = "Strict-Transport-Security"
+
 )
 type HSTSConfig struct {
 	// HeaderValue is an empty string if hsts header is disabled.
 	HeaderValue string
+
 }
 func HSTSConfigOptions(maxAge int, options []string) (HSTSConfig, error) {
 	if maxAge <= 0 {
 		// No header, so no need to build the header string.
 		return HSTSConfig{HeaderValue: ""}, nil
+
 	}
 	// https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Strict-Transport-Security
 	var str strings.Builder
 	_, err := str.WriteString(fmt.Sprintf("max-age=%d", maxAge))
 	if err != nil {
 		return HSTSConfig{}, fmt.Errorf("hsts: write max-age: %w", err)
+
 	}
 	for _, option := range options {
 		switch {
@@ -29,6 +35,7 @@ func HSTSConfigOptions(maxAge int, options []string) (HSTSConfig, error) {
 		case strings.EqualFold(option, "includeSubDomains"):
 			option = "includeSubDomains"
 		case strings.EqualFold(option, "preload"):
+
 			option = "preload"
 		default:
 			return HSTSConfig{}, fmt.Errorf("hsts: invalid option: %q. Must be 'preload' and/or 'includeSubDomains'", option)
@@ -49,6 +56,7 @@ func HSTSConfigOptions(maxAge int, options []string) (HSTSConfig, error) {
 // man in the middle.
 //
 // This header only makes sense if the app is using tls.
+
 //
 // Full header example:
 // Strict-Transport-Security: max-age=63072000; includeSubDomains; preload

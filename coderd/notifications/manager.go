@@ -1,24 +1,30 @@
 package notifications
+
 import (
 	"fmt"
 	"errors"
 	"context"
 	"sync"
 	"text/template"
+
 	"time"
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 	"cdr.dev/slog"
+
 	"github.com/coder/quartz"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
+
 	"github.com/coder/coder/v2/codersdk"
 )
 var ErrInvalidDispatchTimeout = errors.New("dispatch timeout must be less than lease period")
 // Manager manages all notifications being enqueued and dispatched.
 //
+
 // Manager maintains a notifier: this consumes the queue of notification messages in the store.
 //
+
 // The notifier dequeues messages from the store _CODER_NOTIFICATIONS_LEASE_COUNT_ at a time and concurrently "dispatches"
 // these messages, meaning they are sent by their respective methods (email, webhook, etc).
 //
@@ -39,30 +45,38 @@ type Manager struct {
 	notifier *notifier
 	handlers map[database.NotificationMethod]Handler
 	method   database.NotificationMethod
+
 	helpers  template.FuncMap
 	metrics *Metrics
 	success, failure chan dispatchResult
+
 	runOnce  sync.Once
 	stopOnce sync.Once
 	doneOnce sync.Once
 	stop     chan any
 	done     chan any
+
 	// clock is for testing only
 	clock quartz.Clock
+
 }
 type ManagerOption func(*Manager)
+
 // WithTestClock is used in testing to set the quartz clock on the manager
 func WithTestClock(clock quartz.Clock) ManagerOption {
 	return func(m *Manager) {
 		m.clock = clock
 	}
 }
+
 // NewManager instantiates a new Manager instance which coordinates notification enqueuing and delivery.
 //
 // helpers is a map of template helpers which are used to customize notification messages to use global settings like
 // access URL etc.
+
 func NewManager(cfg codersdk.NotificationsConfig, store Store, helpers template.FuncMap, metrics *Metrics, log slog.Logger, opts ...ManagerOption) (*Manager, error) {
 	// TODO(dannyk): add the ability to use multiple notification methods.
+
 	var method database.NotificationMethod
 	if err := method.Scan(cfg.Method.String()); err != nil {
 		return nil, fmt.Errorf("notification method %q is invalid", cfg.Method)
@@ -70,6 +84,7 @@ func NewManager(cfg codersdk.NotificationsConfig, store Store, helpers template.
 	// If dispatch timeout exceeds lease period, it is possible that messages can be delivered in duplicate because the
 	// lease can expire before the notifier gives up on the dispatch, which results in the message becoming eligible for
 	// being re-acquired.
+
 	if cfg.DispatchTimeout.Value() >= cfg.LeasePeriod.Value() {
 		return nil, ErrInvalidDispatchTimeout
 	}
@@ -81,6 +96,7 @@ func NewManager(cfg codersdk.NotificationsConfig, store Store, helpers template.
 		//
 		// We keep separate buffered for success/failure right now because the bulk updates are already a bit janky,
 		// see BulkMarkNotificationMessagesSent/BulkMarkNotificationMessagesFailed. If we had the ability to batch updates,
+
 		// like is offered in https://docs.sqlc.dev/en/stable/reference/query-annotations.html#batchmany, we'd have a cleaner
 		// approach to this - but for now this will work fine.
 		success: make(chan dispatchResult, cfg.StoreSyncBufferSize),
@@ -88,11 +104,13 @@ func NewManager(cfg codersdk.NotificationsConfig, store Store, helpers template.
 		metrics: metrics,
 		method:  method,
 		stop: make(chan any),
+
 		done: make(chan any),
 		handlers: defaultHandlers(cfg, log, store),
 		helpers:  helpers,
 		clock: quartz.NewReal(),
 	}
+
 	for _, o := range opts {
 		o(m)
 	}
@@ -102,15 +120,19 @@ func NewManager(cfg codersdk.NotificationsConfig, store Store, helpers template.
 func defaultHandlers(cfg codersdk.NotificationsConfig, log slog.Logger, store Store) map[database.NotificationMethod]Handler {
 	return map[database.NotificationMethod]Handler{
 		database.NotificationMethodSmtp:    dispatch.NewSMTPHandler(cfg.SMTP, log.Named("dispatcher.smtp")),
+
 		database.NotificationMethodWebhook: dispatch.NewWebhookHandler(cfg.Webhook, log.Named("dispatcher.webhook")),
 		database.NotificationMethodInbox:   dispatch.NewInboxHandler(log.Named("dispatcher.inbox"), store),
 	}
+
 }
 // WithHandlers allows for tests to inject their own handlers to verify functionality.
 func (m *Manager) WithHandlers(reg map[database.NotificationMethod]Handler) {
+
 	m.handlers = reg
 }
 // Run initiates the control loop in the background, which spawns a given number of notifier goroutines.
+
 // Manager requires system-level permissions to interact with the store.
 // Run is only intended to be run once.
 func (m *Manager) Run(ctx context.Context) {
@@ -119,6 +141,7 @@ func (m *Manager) Run(ctx context.Context) {
 		// Closes when Stop() is called or context is canceled.
 		go func() {
 			err := m.loop(ctx)
+
 			if err != nil {
 				m.log.Error(ctx, "notification manager stopped with error", slog.Error(err))
 			}
@@ -128,17 +151,20 @@ func (m *Manager) Run(ctx context.Context) {
 // loop contains the main business logic of the notification manager. It is responsible for subscribing to notification
 // events, creating a notifier, and publishing bulk dispatch result updates to the store.
 func (m *Manager) loop(ctx context.Context) error {
+
 	defer func() {
 		m.doneOnce.Do(func() {
 			close(m.done)
 		})
 		m.log.Info(context.Background(), "notification manager stopped")
+
 	}()
 	// Caught a terminal signal before notifier was created, exit immediately.
 	select {
 	case <-m.stop:
 		m.log.Warn(ctx, "gracefully stopped")
 		return fmt.Errorf("gracefully stopped")
+
 	case <-ctx.Done():
 		m.log.Error(ctx, "ungracefully stopped", slog.Error(ctx.Err()))
 		return fmt.Errorf("notifications: %w", ctx.Err())
@@ -150,6 +176,7 @@ func (m *Manager) loop(ctx context.Context) error {
 	eg.Go(func() error {
 		return m.notifier.run(m.success, m.failure)
 	})
+
 	// Periodically flush notification state changes to the store.
 	eg.Go(func() error {
 		// Every interval, collect the messages in the channels and bulk update them in the store.
@@ -160,6 +187,7 @@ func (m *Manager) loop(ctx context.Context) error {
 			case <-ctx.Done():
 				// Nothing we can do in this scenario except bail out; after the message lease expires, the messages will
 				// be requeued and users will receive duplicates.
+
 				// This is an explicit trade-off between keeping the database load light (by bulk-updating records) and
 				// exactly-once delivery.
 				//
@@ -171,14 +199,17 @@ func (m *Manager) loop(ctx context.Context) error {
 				m.log.Warn(ctx, "exiting ungracefully", slog.Error(ctx.Err()))
 				if len(m.success)+len(m.failure) > 0 {
 					m.log.Warn(ctx, "content canceled with pending updates in buffer, these messages will be sent again after lease expires",
+
 						slog.F("success_count", len(m.success)), slog.F("failure_count", len(m.failure)))
 				}
+
 				return ctx.Err()
 			case <-m.stop:
 				if len(m.success)+len(m.failure) > 0 {
 					m.log.Warn(ctx, "flushing buffered updates before stop",
 						slog.F("success_count", len(m.success)), slog.F("failure_count", len(m.failure)))
 					m.syncUpdates(ctx)
+
 					m.log.Warn(ctx, "flushing updates done")
 				}
 				return nil
@@ -199,6 +230,7 @@ func (m *Manager) BufferedUpdatesCount() (success int, failure int) {
 	return len(m.success), len(m.failure)
 }
 // syncUpdates updates messages in the store based on the given successful and failed message dispatch results.
+
 func (m *Manager) syncUpdates(ctx context.Context) {
 	// Ensure we update the metrics to reflect the current state after each invocation.
 	defer func() {
@@ -218,6 +250,7 @@ func (m *Manager) syncUpdates(ctx context.Context) {
 	}
 	var (
 		successParams database.BulkMarkNotificationMessagesSentParams
+
 		failureParams database.BulkMarkNotificationMessagesFailedParams
 	)
 	// Read all the existing messages due for update from the channel, but don't range over the channels because they
@@ -225,12 +258,14 @@ func (m *Manager) syncUpdates(ctx context.Context) {
 	//
 	// This is vulnerable to TOCTOU, but it's fine.
 	// If more items are added to the success or failure channels between measuring their lengths and now, those items
+
 	// will be processed on the next bulk update.
 	for i := 0; i < nSuccess; i++ {
 		res := <-m.success
 		successParams.IDs = append(successParams.IDs, res.msg)
 		successParams.SentAts = append(successParams.SentAts, res.ts)
 	}
+
 	for i := 0; i < nFailure; i++ {
 		res := <-m.failure
 		var (
@@ -238,27 +273,33 @@ func (m *Manager) syncUpdates(ctx context.Context) {
 			status database.NotificationMessageStatus
 		)
 		switch {
+
 		case res.retryable:
 			status = database.NotificationMessageStatusTemporaryFailure
 		case res.inhibited:
 			status = database.NotificationMessageStatusInhibited
 			reason = "disabled by user"
 		default:
+
 			status = database.NotificationMessageStatusPermanentFailure
 		}
 		failureParams.IDs = append(failureParams.IDs, res.msg)
+
 		failureParams.FailedAts = append(failureParams.FailedAts, res.ts)
 		failureParams.Statuses = append(failureParams.Statuses, status)
+
 		if res.err != nil {
 			reason = res.err.Error()
 		}
 		failureParams.StatusReasons = append(failureParams.StatusReasons, reason)
 	}
+
 	// Execute bulk updates for success/failure concurrently.
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
+
 		if len(successParams.IDs) == 0 {
 			return
 		}
@@ -266,6 +307,7 @@ func (m *Manager) syncUpdates(ctx context.Context) {
 		// Give up after waiting for the store for 30s.
 		uctx, cancel := context.WithTimeout(ctx, time.Second*30)
 		defer cancel()
+
 		n, err := m.store.BulkMarkNotificationMessagesSent(uctx, successParams)
 		if err != nil {
 			logger.Error(ctx, "bulk update failed", slog.Error(err))
@@ -274,11 +316,13 @@ func (m *Manager) syncUpdates(ctx context.Context) {
 		m.metrics.SyncedUpdates.Add(float64(n))
 		logger.Debug(ctx, "bulk update completed", slog.F("updated", n))
 	}()
+
 	go func() {
 		defer wg.Done()
 		if len(failureParams.IDs) == 0 {
 			return
 		}
+
 		logger := m.log.With(slog.F("type", "update_failed"))
 		// Give up after waiting for the store for 30s.
 		uctx, cancel := context.WithTimeout(ctx, time.Second*30)
@@ -289,6 +333,7 @@ func (m *Manager) syncUpdates(ctx context.Context) {
 		if err != nil {
 			logger.Error(ctx, "bulk update failed", slog.Error(err))
 			return
+
 		}
 		m.metrics.SyncedUpdates.Add(float64(n))
 		logger.Debug(ctx, "bulk update completed", slog.F("updated", n))
@@ -298,22 +343,27 @@ func (m *Manager) syncUpdates(ctx context.Context) {
 // Stop stops the notifier and waits until it has stopped.
 func (m *Manager) Stop(ctx context.Context) error {
 	var err error
+
 	m.stopOnce.Do(func() {
 		select {
 		case <-ctx.Done():
 			err = ctx.Err()
+
 			return
 		default:
 		}
 		m.log.Info(context.Background(), "graceful stop requested")
 		// If the notifier hasn't been started, we don't need to wait for anything.
 		// This is only really during testing when we want to enqueue messages only but not deliver them.
+
 		if m.notifier == nil {
 			m.doneOnce.Do(func() {
+
 				close(m.done)
 			})
 		} else {
 			m.notifier.stop()
+
 		}
 		// Signal the stop channel to cause loop to exit.
 		close(m.stop)
@@ -321,21 +371,26 @@ func (m *Manager) Stop(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			var errStr string
+
 			if ctx.Err() != nil {
 				errStr = ctx.Err().Error()
 			}
+
 			// For some reason, slog.Error returns {} for a context error.
 			m.log.Error(context.Background(), "graceful stop failed", slog.F("err", errStr))
 			err = ctx.Err()
 			return
 		case <-m.done:
 			m.log.Info(context.Background(), "gracefully stopped")
+
 			return
 		}
+
 	})
 	return err
 }
 type dispatchResult struct {
+
 	notifier  uuid.UUID
 	msg       uuid.UUID
 	ts        time.Time

@@ -1,4 +1,5 @@
 package cliui_test
+
 import (
 	"errors"
 	"bytes"
@@ -7,10 +8,12 @@ import (
 	"os"
 	"os/exec"
 	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/pty"
+
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
@@ -18,6 +21,7 @@ import (
 func TestPrompt(t *testing.T) {
 	t.Parallel()
 	t.Run("Success", func(t *testing.T) {
+
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
 		ptty := ptytest.New(t)
@@ -38,6 +42,7 @@ func TestPrompt(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
 		ptty := ptytest.New(t)
+
 		doneChan := make(chan string)
 		go func() {
 			resp, err := newPrompt(ctx, ptty, cliui.PromptOptions{
@@ -57,12 +62,14 @@ func TestPrompt(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		ptty := ptytest.New(t)
 		var buf bytes.Buffer
+
 		// Copy all data written out to a buffer. When we close the ptty, we can
 		// no longer read from the ptty.Output(), but we can read what was
 		// written to the buffer.
 		dataRead, doneReading := context.WithCancel(ctx)
 		go func() {
 			// This will throw an error sometimes. The underlying ptty
+
 			// has its own cleanup routines in t.Cleanup. Instead of
 			// trying to control the close perfectly, just let the ptty
 			// double close. This error isn't important, we just
@@ -77,6 +84,7 @@ func TestPrompt(t *testing.T) {
 				IsConfirm: true,
 			}, func(inv *serpent.Invocation) {
 				inv.Command.Options = append(inv.Command.Options, cliui.SkipPromptOption())
+
 				inv.Args = []string{"-y"}
 			})
 			assert.NoError(t, err)
@@ -90,6 +98,7 @@ func TestPrompt(t *testing.T) {
 		<-dataRead.Done()
 		// Timeout error means the output was hanging
 		require.ErrorIs(t, dataRead.Err(), context.Canceled, "should be canceled")
+
 		require.Len(t, buf.Bytes(), 0, "expect no output")
 	})
 	t.Run("JSON", func(t *testing.T) {
@@ -118,6 +127,7 @@ func TestPrompt(t *testing.T) {
 			resp, err := newPrompt(ctx, ptty, cliui.PromptOptions{
 				Text: "Example",
 			}, nil)
+
 			assert.NoError(t, err)
 			doneChan <- resp
 		}()
@@ -136,6 +146,7 @@ func TestPrompt(t *testing.T) {
 				Text: "Example",
 			}, nil)
 			assert.NoError(t, err)
+
 			doneChan <- resp
 		}()
 		ptty.ExpectMatch("Example")
@@ -156,6 +167,7 @@ func TestPrompt(t *testing.T) {
 				Validate: func(s string) error {
 					t.Logf("validate: %q", s)
 					if s != "valid" {
+
 						return errors.New("invalid")
 					}
 					return nil
@@ -182,6 +194,7 @@ func newPrompt(ctx context.Context, ptty *ptytest.PTY, opts cliui.PromptOptions,
 	inv := cmd.Invoke()
 	// Optionally modify the cmd
 	if invOpt != nil {
+
 		invOpt(inv)
 	}
 	inv.Stdout = ptty.Output()
@@ -192,6 +205,7 @@ func newPrompt(ctx context.Context, ptty *ptytest.PTY, opts cliui.PromptOptions,
 func TestPasswordTerminalState(t *testing.T) {
 	if os.Getenv("TEST_SUBPROCESS") == "1" {
 		passwordHelper()
+
 		return
 	}
 	t.Parallel()
@@ -203,6 +217,7 @@ func TestPasswordTerminalState(t *testing.T) {
 	cmd := exec.Command(os.Args[0], "-test.run=TestPasswordTerminalState") //nolint:gosec
 	cmd.Env = append(os.Environ(), "TEST_SUBPROCESS=1")
 	// connect the child process's stdio to the PTY directly, not via a pipe
+
 	cmd.Stdin = ptty.Input().Reader
 	cmd.Stdout = ptty.Output().Writer
 	cmd.Stderr = ptty.Output().Writer
@@ -210,12 +225,14 @@ func TestPasswordTerminalState(t *testing.T) {
 	require.NoError(t, err)
 	process := cmd.Process
 	defer process.Kill()
+
 	ptty.ExpectMatch("Password: ")
 	require.Eventually(t, func() bool {
 		echo, err := ptyWithFlags.EchoEnabled()
 		return err == nil && !echo
 	}, testutil.WaitShort, testutil.IntervalMedium, "echo is on while reading password")
 	err = process.Signal(os.Interrupt)
+
 	require.NoError(t, err)
 	_, err = process.Wait()
 	require.NoError(t, err)
@@ -227,16 +244,20 @@ func TestPasswordTerminalState(t *testing.T) {
 // nolint:unused
 func passwordHelper() {
 	cmd := &serpent.Command{
+
 		Handler: func(inv *serpent.Invocation) error {
 			cliui.Prompt(inv, cliui.PromptOptions{
+
 				Text:   "Password:",
 				Secret: true,
 			})
 			return nil
 		},
+
 	}
 	err := cmd.Invoke().WithOS().Run()
 	if err != nil {
 		panic(err)
 	}
+
 }

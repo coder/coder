@@ -1,4 +1,5 @@
 package coderdtest
+
 import (
 	"errors"
 	"context"
@@ -9,12 +10,14 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/database"
+
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -25,15 +28,18 @@ import (
 // RBACAsserter is a helper for asserting that the correct RBAC checks are
 // performed. This struct is tied to a given user, and only authorizes calls
 // for this user are checked.
+
 type RBACAsserter struct {
 	Subject rbac.Subject
 	Recorder *RecordingAuthorizer
 }
 // AssertRBAC returns an RBACAsserter for the given user. This asserter will
 // allow asserting that the correct RBAC checks are performed for the given user.
+
 // All checks that are not run against this user will be ignored.
 func AssertRBAC(t *testing.T, api *coderd.API, client *codersdk.Client) RBACAsserter {
 	if client.SessionToken() == "" {
+
 		t.Fatal("client must be logged in")
 	}
 	recorder, ok := api.Authorizer.(*RecordingAuthorizer)
@@ -46,6 +52,7 @@ func AssertRBAC(t *testing.T, api *coderd.API, client *codersdk.Client) RBACAsse
 	// nolint:gocritic
 	ctx := dbauthz.AsSystemRestricted(context.Background())
 	token := client.SessionToken()
+
 	parts := strings.Split(token, "-")
 	key, err := api.Database.GetAPIKeyByID(ctx, parts[0])
 	require.NoError(t, err, "fetch client api key")
@@ -56,12 +63,15 @@ func AssertRBAC(t *testing.T, api *coderd.API, client *codersdk.Client) RBACAsse
 	return RBACAsserter{
 		Subject: rbac.Subject{
 			ID:     key.UserID.String(),
+
 			Roles:  rbac.RoleIdentifiers(roleNames),
 			Groups: roles.Groups,
 			Scope:  rbac.ScopeName(key.Scope),
+
 		},
 		Recorder: recorder,
 	}
+
 }
 // AllCalls is for debugging. If you are not sure where calls are coming from,
 // call this and use a debugger or print them. They have small callstacks
@@ -73,6 +83,7 @@ func AssertRBAC(t *testing.T, api *coderd.API, client *codersdk.Client) RBACAsse
 func (a RBACAsserter) AllCalls() []AuthCall {
 	return a.Recorder.AllCalls(&a.Subject)
 }
+
 // AssertChecked will assert a given rbac check was performed. It does not care
 // about order of checks, or any other checks. This is useful when you do not
 // care about asserting every check that was performed.
@@ -84,6 +95,7 @@ func (a RBACAsserter) AssertChecked(t *testing.T, action policy.Action, objects 
 	}
 	a.Recorder.AssertOutOfOrder(t, a.Subject, pairs...)
 }
+
 // AssertInOrder must be called in the correct order of authz checks. If the objects
 // or actions are not in the correct order, the test will fail.
 func (a RBACAsserter) AssertInOrder(t *testing.T, action policy.Action, objects ...interface{}) {
@@ -96,6 +108,7 @@ func (a RBACAsserter) AssertInOrder(t *testing.T, action policy.Action, objects 
 }
 // convertObjects converts the codersdk types to rbac.Object. Unfortunately
 // does not have type safety, and instead uses a t.Fatal to enforce types.
+
 func (RBACAsserter) convertObjects(t *testing.T, objs ...interface{}) []rbac.Object {
 	converted := make([]rbac.Object, 0, len(objs))
 	for _, obj := range objs {
@@ -107,6 +120,7 @@ func (RBACAsserter) convertObjects(t *testing.T, objs ...interface{}) []rbac.Obj
 			robj = obj.RBACObject()
 		case codersdk.TemplateVersion:
 			robj = rbac.ResourceTemplate.InOrg(obj.OrganizationID)
+
 		case codersdk.User:
 			robj = rbac.ResourceUserObject(obj.ID)
 		case codersdk.Workspace:
@@ -132,6 +146,7 @@ type AuthCall struct {
 }
 var _ rbac.Authorizer = (*RecordingAuthorizer)(nil)
 // RecordingAuthorizer wraps any rbac.Authorizer and records all Authorize()
+
 // calls made. This is useful for testing as these calls can later be asserted.
 type RecordingAuthorizer struct {
 	sync.RWMutex
@@ -139,16 +154,20 @@ type RecordingAuthorizer struct {
 	Wrapped rbac.Authorizer
 }
 type ActionObjectPair struct {
+
 	Action policy.Action
 	Object rbac.Object
 }
+
 // Pair is on the RecordingAuthorizer to be easy to find and keep the pkg
 // interface smaller.
 func (*RecordingAuthorizer) Pair(action policy.Action, object rbac.Objecter) ActionObjectPair {
 	return ActionObjectPair{
 		Action: action,
+
 		Object: object.RBACObject(),
 	}
+
 }
 // AllAsserted returns an error if all calls to Authorize() have not been
 // asserted and checked. This is useful for testing to ensure that all
@@ -157,11 +176,13 @@ func (r *RecordingAuthorizer) AllAsserted() error {
 	r.RLock()
 	defer r.RUnlock()
 	missed := []AuthCall{}
+
 	for _, c := range r.Called {
 		if !c.asserted {
 			missed = append(missed, c)
 		}
 	}
+
 	if len(missed) > 0 {
 		return fmt.Errorf("missed calls: %+v", missed)
 	}
@@ -171,6 +192,7 @@ func (r *RecordingAuthorizer) AllAsserted() error {
 func (r *RecordingAuthorizer) AllCalls(actor *rbac.Subject) []AuthCall {
 	r.RLock()
 	defer r.RUnlock()
+
 	called := make([]AuthCall, 0, len(r.Called))
 	for _, c := range r.Called {
 		if actor != nil && !c.Actor.Equal(*actor) {
@@ -184,17 +206,20 @@ func (r *RecordingAuthorizer) AllCalls(actor *rbac.Subject) []AuthCall {
 // on the given objects. It does not care about the order of the calls.
 // When marking authz calls as asserted, it will mark the first matching
 // calls first.
+
 func (r *RecordingAuthorizer) AssertOutOfOrder(t *testing.T, actor rbac.Subject, did ...ActionObjectPair) {
 	r.Lock()
 	defer r.Unlock()
 	for _, do := range did {
 		found := false
 		// Find the first non-asserted call that matches the actor, action, and object.
+
 		for i, call := range r.Called {
 			if !call.asserted && call.Actor.Equal(actor) && call.Action == do.Action && call.Object.Equal(do.Object) {
 				r.Called[i].asserted = true
 				found = true
 				break
+
 			}
 		}
 		require.True(t, found, "assertion missing: %s %s %s", actor, do.Action, do.Object)
@@ -205,6 +230,7 @@ func (r *RecordingAuthorizer) AssertOutOfOrder(t *testing.T, actor rbac.Subject,
 func (r *RecordingAuthorizer) AssertActor(t *testing.T, actor rbac.Subject, did ...ActionObjectPair) {
 	r.Lock()
 	defer r.Unlock()
+
 	ptr := 0
 	for i, call := range r.Called {
 		if ptr == len(did) {
@@ -213,6 +239,7 @@ func (r *RecordingAuthorizer) AssertActor(t *testing.T, actor rbac.Subject, did 
 		}
 		if call.Actor.ID == actor.ID {
 			action, object := did[ptr].Action, did[ptr].Object
+
 			assert.Equalf(t, action, call.Action, "assert action %d", ptr)
 			assert.Equalf(t, object, call.Object, "assert object %d", ptr)
 			r.Called[i].asserted = true
@@ -227,6 +254,7 @@ func (r *RecordingAuthorizer) recordAuthorize(subject rbac.Subject, action polic
 	defer r.Unlock()
 	r.Called = append(r.Called, AuthCall{
 		AuthCall: rbac.AuthCall{
+
 			Actor:  subject,
 			Action: action,
 			Object: object,
@@ -247,14 +275,17 @@ func caller(skip int) string {
 	if i >= 0 {
 		file = file[i:]
 	}
+
 	str := fmt.Sprintf("%s:%d", file, line)
 	if ok {
 		f := runtime.FuncForPC(pc)
+
 		str += " | " + filepath.Base(f.Name())
 	}
 	return str
 }
 func (r *RecordingAuthorizer) Authorize(ctx context.Context, subject rbac.Subject, action policy.Action, object rbac.Object) error {
+
 	r.recordAuthorize(subject, action, object)
 	if r.Wrapped == nil {
 		panic("Developer error: RecordingAuthorizer.Wrapped is nil")
@@ -272,6 +303,7 @@ func (r *RecordingAuthorizer) Prepare(ctx context.Context, subject rbac.Subject,
 		return nil, err
 	}
 	return &PreparedRecorder{
+
 		rec:     r,
 		prepped: prep,
 		subject: subject,
@@ -286,6 +318,7 @@ func (r *RecordingAuthorizer) Reset() {
 }
 // PreparedRecorder is the prepared version of the RecordingAuthorizer.
 // It records the Authorize() calls to the original recorder. If the caller
+
 // uses CompileToSQL, all recording stops. This is to support parity between
 // memory and SQL backed dbs.
 type PreparedRecorder struct {
@@ -294,6 +327,7 @@ type PreparedRecorder struct {
 	subject rbac.Subject
 	action  policy.Action
 	rw       sync.Mutex
+
 	usingSQL bool
 }
 func (s *PreparedRecorder) Authorize(ctx context.Context, object rbac.Object) error {
@@ -301,6 +335,7 @@ func (s *PreparedRecorder) Authorize(ctx context.Context, object rbac.Object) er
 	defer s.rw.Unlock()
 	if !s.usingSQL {
 		s.rec.recordAuthorize(s.subject, s.action, object)
+
 	}
 	return s.prepped.Authorize(ctx, object)
 }
@@ -313,6 +348,7 @@ func (s *PreparedRecorder) CompileToSQL(ctx context.Context, cfg regosql.Convert
 // FakeAuthorizer is an Authorizer that will return an error based on the
 // "ConditionalReturn" function. By default, **no error** is returned.
 // Meaning 'FakeAuthorizer' by default will never return "unauthorized".
+
 type FakeAuthorizer struct {
 	ConditionalReturn func(context.Context, rbac.Subject, policy.Action, rbac.Object) error
 	sqlFilter         string
@@ -320,6 +356,7 @@ type FakeAuthorizer struct {
 var _ rbac.Authorizer = (*FakeAuthorizer)(nil)
 // AlwaysReturn is the error that will be returned by Authorize.
 func (d *FakeAuthorizer) AlwaysReturn(err error) *FakeAuthorizer {
+
 	d.ConditionalReturn = func(_ context.Context, _ rbac.Subject, _ policy.Action, _ rbac.Object) error {
 		return err
 	}
@@ -330,28 +367,34 @@ func (d *FakeAuthorizer) OverrideSQLFilter(filter string) *FakeAuthorizer {
 	d.sqlFilter = filter
 	return d
 }
+
 func (d *FakeAuthorizer) Authorize(ctx context.Context, subject rbac.Subject, action policy.Action, object rbac.Object) error {
 	if d.ConditionalReturn != nil {
 		return d.ConditionalReturn(ctx, subject, action, object)
 	}
+
 	return nil
 }
 func (d *FakeAuthorizer) Prepare(_ context.Context, subject rbac.Subject, action policy.Action, _ string) (rbac.PreparedAuthorized, error) {
 	return &fakePreparedAuthorizer{
+
 		Original: d,
 		Subject:  subject,
 		Action:   action,
 	}, nil
 }
 var _ rbac.PreparedAuthorized = (*fakePreparedAuthorizer)(nil)
+
 // fakePreparedAuthorizer is the prepared version of a FakeAuthorizer. It will
 // return the same error as the original FakeAuthorizer.
 type fakePreparedAuthorizer struct {
 	sync.RWMutex
+
 	Original *FakeAuthorizer
 	Subject  rbac.Subject
 	Action   policy.Action
 }
+
 func (f *fakePreparedAuthorizer) Authorize(ctx context.Context, object rbac.Object) error {
 	return f.Original.Authorize(ctx, f.Subject, f.Action, object)
 }
@@ -360,8 +403,10 @@ func (f *fakePreparedAuthorizer) CompileToSQL(_ context.Context, _ regosql.Conve
 		return f.Original.sqlFilter, nil
 	}
 	// By default, allow all SQL queries.
+
 	return "TRUE", nil
 }
+
 // Random rbac helper funcs
 func RandomRBACAction() policy.Action {
 	all := rbac.AllActions()
@@ -370,12 +415,14 @@ func RandomRBACAction() policy.Action {
 func RandomRBACObject() rbac.Object {
 	return rbac.Object{
 		ID:    uuid.NewString(),
+
 		Owner: uuid.NewString(),
 		OrgID: uuid.NewString(),
 		Type:  randomRBACType(),
 		ACLUserList: map[string][]policy.Action{
 			namesgenerator.GetRandomName(1): {RandomRBACAction()},
 		},
+
 		ACLGroupList: map[string][]policy.Action{
 			namesgenerator.GetRandomName(1): {RandomRBACAction()},
 		},
@@ -383,6 +430,7 @@ func RandomRBACObject() rbac.Object {
 }
 func randomRBACType() string {
 	all := []string{
+
 		rbac.ResourceWorkspace.Type,
 		rbac.ResourceAuditLog.Type,
 		rbac.ResourceTemplate.Type,
@@ -391,8 +439,10 @@ func randomRBACType() string {
 		rbac.ResourceProvisionerDaemon.Type,
 		rbac.ResourceOrganization.Type,
 		rbac.ResourceUser.Type,
+
 		rbac.ResourceOrganizationMember.Type,
 		rbac.ResourceWildcard.Type,
+
 		rbac.ResourceLicense.Type,
 		rbac.ResourceReplicas.Type,
 		rbac.ResourceDebugInfo.Type,
@@ -402,10 +452,12 @@ func randomRBACType() string {
 func RandomRBACSubject() rbac.Subject {
 	return rbac.Subject{
 		ID:     uuid.NewString(),
+
 		Roles:  rbac.RoleIdentifiers{rbac.RoleMember()},
 		Groups: []string{namesgenerator.GetRandomName(1)},
 		Scope:  rbac.ScopeAll,
 	}
+
 }
 func must[T any](value T, err error) T {
 	if err != nil {
@@ -414,13 +466,16 @@ func must[T any](value T, err error) T {
 	return value
 }
 type FakeAccessControlStore struct{}
+
 func (FakeAccessControlStore) GetTemplateAccessControl(t database.Template) dbauthz.TemplateAccessControl {
 	return dbauthz.TemplateAccessControl{
+
 		RequireActiveVersion: t.RequireActiveVersion,
 	}
 }
 func (FakeAccessControlStore) SetTemplateAccessControl(context.Context, database.Store, uuid.UUID, dbauthz.TemplateAccessControl) error {
 	panic("not implemented")
+
 }
 func AccessControlStorePointer() *atomic.Pointer[dbauthz.AccessControlStore] {
 	acs := &atomic.Pointer[dbauthz.AccessControlStore]{}

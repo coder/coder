@@ -1,4 +1,5 @@
 package cli
+
 import (
 	"errors"
 	"bytes"
@@ -6,13 +7,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+
 	"github.com/google/uuid"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
+
 )
 func (r *RootCmd) organizationSettings(orgContext *OrganizationContext) *serpent.Command {
 	settings := []organizationSetting{
 		{
+
 			Name:    "group-sync",
 			Aliases: []string{"groupsync"},
 			Short:   "Group sync settings to sync groups from an IdP.",
@@ -80,6 +84,7 @@ type organizationSetting struct {
 	Name    string
 	Aliases []string
 	Short   string
+
 	// DisableOrgContext is kinda a kludge. It tells the command constructor
 	// to not require an organization context. This is used for the organization
 	// sync settings which are not tied to a specific organization.
@@ -93,6 +98,7 @@ func (r *RootCmd) setOrganizationSettings(orgContext *OrganizationContext, setti
 	cmd := &serpent.Command{
 		Use:   "set",
 		Short: "Update specified organization setting.",
+
 		Long: FormatExamples(
 			Example{
 				Description: "Update group sync settings.",
@@ -114,6 +120,7 @@ func (r *RootCmd) setOrganizationSettings(orgContext *OrganizationContext, setti
 		cmd.Children = append(cmd.Children, &serpent.Command{
 			Use:     set.Name,
 			Aliases: set.Aliases,
+
 			Short:   set.Short,
 			Options: []serpent.Option{},
 			Middleware: serpent.Chain(
@@ -131,6 +138,7 @@ func (r *RootCmd) setOrganizationSettings(orgContext *OrganizationContext, setti
 					}
 				}
 				// Read in the json
+
 				inputData, err := io.ReadAll(inv.Stdin)
 				if err != nil {
 					return fmt.Errorf("reading stdin: %w", err)
@@ -138,37 +146,44 @@ func (r *RootCmd) setOrganizationSettings(orgContext *OrganizationContext, setti
 				output, err := patch(ctx, client, org.ID, inputData)
 				if err != nil {
 					return fmt.Errorf("patching %q: %w", set.Name, err)
+
 				}
 				settingJSON, err := json.Marshal(output)
 				if err != nil {
 					return fmt.Errorf("failed to marshal organization setting %s: %w", inv.Args[0], err)
 				}
 				var dst bytes.Buffer
+
 				err = json.Indent(&dst, settingJSON, "", "\t")
 				if err != nil {
 					return fmt.Errorf("failed to indent organization setting as json %s: %w", inv.Args[0], err)
 				}
 				_, err = fmt.Fprintln(inv.Stdout, dst.String())
+
 				return err
 			},
 		})
 	}
 	return cmd
+
 }
 func (r *RootCmd) printOrganizationSetting(orgContext *OrganizationContext, settings []organizationSetting) *serpent.Command {
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "show",
 		Short: "Outputs specified organization setting.",
+
 		Long: FormatExamples(
 			Example{
 				Description: "Output group sync settings.",
 				Command:     "coder organization settings show groupsync",
 			},
 		),
+
 		Options: []serpent.Option{},
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
+
 			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
@@ -190,6 +205,7 @@ func (r *RootCmd) printOrganizationSetting(orgContext *OrganizationContext, sett
 			Handler: func(inv *serpent.Invocation) error {
 				ctx := inv.Context()
 				var org codersdk.Organization
+
 				var err error
 				if !set.DisableOrgContext {
 					org, err = orgContext.Selected(inv, client)
@@ -207,6 +223,7 @@ func (r *RootCmd) printOrganizationSetting(orgContext *OrganizationContext, sett
 				}
 				var dst bytes.Buffer
 				err = json.Indent(&dst, settingJSON, "", "\t")
+
 				if err != nil {
 					return fmt.Errorf("failed to indent organization setting as json %s: %w", inv.Args[0], err)
 				}
@@ -214,6 +231,7 @@ func (r *RootCmd) printOrganizationSetting(orgContext *OrganizationContext, sett
 				return err
 			},
 		})
+
 	}
 	return cmd
 }

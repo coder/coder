@@ -1,32 +1,39 @@
 package devtunnel
+
 import (
 	"errors"
 	"runtime"
 	"slices"
 	"sync"
 	"time"
+
 	ping "github.com/prometheus-community/pro-bing"
 	"golang.org/x/sync/errgroup"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/cryptorand"
+
 )
 type Region struct {
 	ID           int
 	LocationName string
+
 	Nodes        []Node
 }
 type Node struct {
 	ID            int    `json:"id"`
 	RegionID      int    `json:"region_id"`
 	HostnameHTTPS string `json:"hostname_https"`
+
 	AvgLatency time.Duration `json:"-"`
 }
 var Regions = []Region{
 	{
 		ID:           0,
+
 		LocationName: "US East Pittsburgh",
 		Nodes: []Node{
 			{
+
 				ID:            1,
 				RegionID:      0,
 				HostnameHTTPS: "pit-1.try.coder.app",
@@ -41,6 +48,7 @@ var Regions = []Region{
 // 9999.
 func Nodes(customTunnelHost string) ([]Node, error) {
 	nodes := []Node{}
+
 	if customTunnelHost != "" {
 		return []Node{
 			{
@@ -49,6 +57,7 @@ func Nodes(customTunnelHost string) ([]Node, error) {
 				HostnameHTTPS: customTunnelHost,
 			},
 		}, nil
+
 	}
 	for _, region := range Regions {
 		// Pick a random node from each region.
@@ -59,6 +68,7 @@ func Nodes(customTunnelHost string) ([]Node, error) {
 		nodes = append(nodes, region.Nodes[i])
 	}
 	return nodes, nil
+
 }
 // FindClosestNode pings each node and returns the one with the lowest latency.
 func FindClosestNode(nodes []Node) (Node, error) {
@@ -68,18 +78,22 @@ func FindClosestNode(nodes []Node) (Node, error) {
 	// Copy the nodes so we don't mutate the original.
 	nodes = append([]Node{}, nodes...)
 	var (
+
 		nodesMu sync.Mutex
 		eg      = errgroup.Group{}
 	)
+
 	for i, node := range nodes {
 		i, node := i, node
 		eg.Go(func() error {
 			pinger, err := ping.NewPinger(node.HostnameHTTPS)
 			if err != nil {
 				return err
+
 			}
 			if runtime.GOOS == "windows" {
 				pinger.SetPrivileged(true)
+
 			}
 			pinger.Count = 5
 			pinger.Timeout = 5 * time.Second
@@ -92,10 +106,12 @@ func FindClosestNode(nodes []Node) (Node, error) {
 			nodesMu.Unlock()
 			return nil
 		})
+
 	}
 	err := eg.Wait()
 	if err != nil {
 		return Node{}, err
+
 	}
 	slices.SortFunc(nodes, func(a, b Node) int {
 		return slice.Ascending(a.AvgLatency, b.AvgLatency)

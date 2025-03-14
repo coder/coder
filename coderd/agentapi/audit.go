@@ -1,16 +1,20 @@
 package agentapi
+
 import (
 	"fmt"
 	"errors"
 	"context"
 	"encoding/json"
 	"strconv"
+
 	"sync/atomic"
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"cdr.dev/slog"
+
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/audit"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -18,6 +22,7 @@ import (
 type AuditAPI struct {
 	AgentFn  func(context.Context) (database.WorkspaceAgent, error)
 	Auditor  *atomic.Pointer[audit.Auditor]
+
 	Database database.Store
 	Log      slog.Logger
 }
@@ -25,6 +30,7 @@ func (a *AuditAPI) ReportConnection(ctx context.Context, req *agentproto.ReportC
 	// We will use connection ID as request ID, typically this is the
 	// SSH session ID as reported by the agent.
 	connectionID, err := uuid.FromBytes(req.GetConnection().GetId())
+
 	if err != nil {
 		return nil, fmt.Errorf("connection id from bytes: %w", err)
 	}
@@ -33,6 +39,7 @@ func (a *AuditAPI) ReportConnection(ctx context.Context, req *agentproto.ReportC
 		return nil, err
 	}
 	connectionType, err := agentsdk.ConnectionTypeFromProto(req.GetConnection().GetType())
+
 	if err != nil {
 		return nil, err
 	}
@@ -42,6 +49,7 @@ func (a *AuditAPI) ReportConnection(ctx context.Context, req *agentproto.ReportC
 		return nil, fmt.Errorf("get agent: %w", err)
 	}
 	workspace, err := a.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
+
 	if err != nil {
 		return nil, fmt.Errorf("get workspace by agent id: %w", err)
 	}
@@ -56,11 +64,13 @@ func (a *AuditAPI) ReportConnection(ctx context.Context, req *agentproto.ReportC
 		ConnectionType agentsdk.ConnectionType `json:"connection_type"`
 		Reason         string                  `json:"reason,omitempty"`
 	}
+
 	resourceInfo := additionalFields{
 		AdditionalFields: audit.AdditionalFields{
 			WorkspaceID:    workspace.ID,
 			WorkspaceName:  workspace.Name,
 			WorkspaceOwner: workspace.OwnerUsername,
+
 			BuildNumber:    strconv.FormatInt(int64(build.BuildNumber), 10),
 			BuildReason:    database.BuildReason(string(build.Reason)),
 		},
@@ -76,12 +86,14 @@ func (a *AuditAPI) ReportConnection(ctx context.Context, req *agentproto.ReportC
 		Audit:            *a.Auditor.Load(),
 		Log:              a.Log,
 		Time:             req.GetConnection().GetTimestamp().AsTime(),
+
 		OrganizationID:   workspace.OrganizationID,
 		RequestID:        connectionID,
 		Action:           action,
 		New:              workspaceAgent,
 		Old:              workspaceAgent,
 		IP:               req.GetConnection().GetIp(),
+
 		Status:           int(req.GetConnection().GetStatusCode()),
 		AdditionalFields: riBytes,
 		// It's not possible to tell which user connected. Once we have

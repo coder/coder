@@ -1,13 +1,16 @@
 package usershell
+
 import (
 	"fmt"
 	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
+
 	"strings"
 )
 // Get returns the $SHELL environment variable.
+
 // Deprecated: use SystemEnvInfo.UserShell instead.
 func Get(username string) (string, error) {
 	// This command will output "UserShell: /bin/zsh" if successful, we

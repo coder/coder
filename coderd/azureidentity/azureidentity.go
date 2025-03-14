@@ -1,4 +1,5 @@
 package azureidentity
+
 import (
 	"fmt"
 	"context"
@@ -12,27 +13,33 @@ import (
 	"regexp"
 	"sync"
 	"time"
+
 	"go.mozilla.org/pkcs7"
 )
 // allowedSigners matches valid common names listed here:
 // https://docs.microsoft.com/en-us/azure/virtual-machines/windows/instance-metadata-service?tabs=linux#tabgroup_14
+
 var allowedSigners = regexp.MustCompile(`^(.*\.)?metadata\.(azure\.(com|us|cn)|microsoftazure\.de)$`)
 // The pkcs7 library has a global variable that is incremented
 // each time a parse occurs.
 var pkcs7Mutex sync.Mutex
+
 type metadata struct {
 	VMID string `json:"vmId"`
 }
 type Options struct {
+
 	x509.VerifyOptions
 	Offline bool
 }
 // Validate ensures the signature was signed by an Azure certificate.
+
 // It returns the associated VM ID if successful.
 func Validate(ctx context.Context, signature string, options Options) (string, error) {
 	data, err := base64.StdEncoding.DecodeString(signature)
 	if err != nil {
 		return "", fmt.Errorf("decode base64: %w", err)
+
 	}
 	pkcs7Mutex.Lock()
 	pkcs7Data, err := pkcs7.Parse(data)
@@ -68,6 +75,7 @@ func Validate(ctx context.Context, signature string, options Options) (string, e
 		}
 		if options.Offline {
 			return "", fmt.Errorf("certificate from %v is not cached: %w", signer.IssuingCertificateURL, err)
+
 		}
 		ctx, cancelFunc := context.WithTimeout(ctx, 5*time.Second)
 		defer cancelFunc()
@@ -77,6 +85,7 @@ func Validate(ctx context.Context, signature string, options Options) (string, e
 				return "", fmt.Errorf("new request %q: %w", certURL, err)
 			}
 			res, err := http.DefaultClient.Do(req)
+
 			if err != nil {
 				return "", fmt.Errorf("no cached certificate for %q found. error fetching: %w", certURL, err)
 			}
@@ -106,6 +115,7 @@ func Validate(ctx context.Context, signature string, options Options) (string, e
 }
 // Certificates are manually downloaded from Azure, then processed with OpenSSL
 // and added here. See: https://learn.microsoft.com/en-us/azure/security/fundamentals/azure-ca-details
+
 //
 // 1. Download the certificate
 // 2. Convert to PEM format: `openssl x509 -in cert.pem -text`
@@ -114,6 +124,7 @@ var Certificates = []string{
 	// Microsoft RSA TLS CA 01
 	`-----BEGIN CERTIFICATE-----
 MIIFWjCCBEKgAwIBAgIQDxSWXyAgaZlP1ceseIlB4jANBgkqhkiG9w0BAQsFADBa
+
 MQswCQYDVQQGEwJJRTESMBAGA1UEChMJQmFsdGltb3JlMRMwEQYDVQQLEwpDeWJl
 clRydXN0MSIwIAYDVQQDExlCYWx0aW1vcmUgQ3liZXJUcnVzdCBSb290MB4XDTIw
 MDcyMTIzMDAwMFoXDTI0MTAwODA3MDAwMFowTzELMAkGA1UEBhMCVVMxHjAcBgNV

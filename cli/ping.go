@@ -1,4 +1,5 @@
 package cli
+
 import (
 	"context"
 	"errors"
@@ -9,19 +10,25 @@ import (
 	"strings"
 	"time"
 	"tailscale.com/ipn/ipnstate"
+
 	"tailscale.com/tailcfg"
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/briandowns/spinner"
+
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
 	"github.com/coder/coder/v2/cli/cliui"
+
 	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
+
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
+
 type pingSummary struct {
 	Workspace  string         `table:"workspace,nosort"`
 	Total      int            `table:"total"`
@@ -30,6 +37,7 @@ type pingSummary struct {
 	Avg        *time.Duration `table:"avg"`
 	Max        *time.Duration `table:"max"`
 	Variance   *time.Duration `table:"variance"`
+
 	latencySum float64
 	runningAvg float64
 	m2         float64
@@ -43,6 +51,7 @@ func (s *pingSummary) addResult(r *ipnstate.PingResult) {
 	if s.Min == nil || r.LatencySeconds < s.Min.Seconds() {
 		s.Min = ptr.Ref(time.Duration(r.LatencySeconds * float64(time.Second)))
 	}
+
 	if s.Max == nil || r.LatencySeconds > s.Min.Seconds() {
 		s.Max = ptr.Ref(time.Duration(r.LatencySeconds * float64(time.Second)))
 	}
@@ -57,12 +66,14 @@ func (s *pingSummary) Write(w io.Writer) {
 	if s.Successful > 0 {
 		s.Avg = ptr.Ref(time.Duration(s.latencySum / float64(s.Successful) * float64(time.Second)))
 	}
+
 	if s.Successful > 1 {
 		s.Variance = ptr.Ref(time.Duration((s.m2 / float64(s.Successful-1)) * float64(time.Second)))
 	}
 	out, err := cliui.DisplayTable([]*pingSummary{s}, "", nil)
 	if err != nil {
 		_, _ = fmt.Fprintf(w, "Failed to display ping summary: %v\n", err)
+
 		return
 	}
 	width := len(strings.Split(out, "\n")[0])
@@ -81,6 +92,7 @@ func (r *RootCmd) ping() *serpent.Command {
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
+
 		Use:         "ping <workspace>",
 		Short:       "Ping a workspace",
 		Middleware: serpent.Chain(
@@ -91,6 +103,7 @@ func (r *RootCmd) ping() *serpent.Command {
 		Handler: func(inv *serpent.Invocation) error {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
+
 			notifyCtx, notifyCancel := inv.SignalNotifyContext(ctx, StopSignals...)
 			defer notifyCancel()
 			workspaceName := inv.Args[0]
@@ -105,9 +118,11 @@ func (r *RootCmd) ping() *serpent.Command {
 			// Start spinner after any build logs have finished streaming
 			spin := spinner.New(spinner.CharSets[5], 100*time.Millisecond)
 			spin.Writer = inv.Stderr
+
 			spin.Suffix = pretty.Sprint(cliui.DefaultStyles.Keyword, " Collecting diagnostics...")
 			if !r.verbose {
 				spin.Start()
+
 			}
 			opts := &workspacesdk.DialAgentOptions{}
 			if r.verbose {
@@ -118,6 +133,7 @@ func (r *RootCmd) ping() *serpent.Command {
 			}
 			if !r.disableNetworkTelemetry {
 				opts.EnableTelemetry = true
+
 			}
 			wsClient := workspacesdk.New(client)
 			conn, err := wsClient.DialAgent(ctx, workspaceAgent.ID, opts)
@@ -126,12 +142,15 @@ func (r *RootCmd) ping() *serpent.Command {
 				return err
 			}
 			defer conn.Close()
+
 			derpMap := conn.DERPMap()
 			diagCtx, diagCancel := context.WithTimeout(inv.Context(), 30*time.Second)
+
 			defer diagCancel()
 			diags := conn.GetPeerDiagnostics()
 			// Silent ping to determine whether we should show diags
 			_, didP2p, _, _ := conn.Ping(ctx)
+
 			ni := conn.GetNetInfo()
 			connDiags := cliui.ConnDiags{
 				DisableDirect:      r.disableDirect,
@@ -146,15 +165,19 @@ func (r *RootCmd) ping() *serpent.Command {
 			}
 			connDiags.ClientIPIsAWS = isAWSIP(awsRanges, ni)
 			connInfo, err := wsClient.AgentConnectionInfoGeneric(diagCtx)
+
 			if err != nil || connInfo.DERPMap == nil {
 				spin.Stop()
+
 				return fmt.Errorf("Failed to retrieve connection info from server: %w\n", err)
 			}
 			connDiags.ConnInfo = connInfo
 			ifReport, err := healthsdk.RunInterfacesReport()
+
 			if err == nil {
 				connDiags.LocalInterfaces = &ifReport
 			} else {
+
 				_, _ = fmt.Fprintf(inv.Stdout, "Failed to retrieve local interfaces report: %v\n", err)
 			}
 			agentNetcheck, err := conn.Netcheck(diagCtx)
@@ -164,13 +187,16 @@ func (r *RootCmd) ping() *serpent.Command {
 			} else {
 				var sdkErr *codersdk.Error
 				if errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
+
 					_, _ = fmt.Fprint(inv.Stdout, "Could not generate full connection report as the workspace agent is outdated\n")
 				} else {
 					_, _ = fmt.Fprintf(inv.Stdout, "Failed to retrieve connection report from agent: %v\n", err)
 				}
 			}
+
 			spin.Stop()
 			cliui.PeerDiagnostics(inv.Stderr, diags)
+
 			connDiags.Write(inv.Stderr)
 			results := &pingSummary{
 				Workspace: workspaceName,
@@ -184,6 +210,7 @@ func (r *RootCmd) ping() *serpent.Command {
 			start := time.Now()
 		pingLoop:
 			for {
+
 				if n > 0 {
 					time.Sleep(pingWait)
 				}
@@ -197,6 +224,7 @@ func (r *RootCmd) ping() *serpent.Command {
 				cancel()
 				results.addResult(pong)
 				if err != nil {
+
 					if errors.Is(err, context.DeadlineExceeded) {
 						_, _ = fmt.Fprintf(inv.Stdout, "ping to %q timed out \n", workspaceName)
 						if n == int(pingNum) {
@@ -217,6 +245,7 @@ func (r *RootCmd) ping() *serpent.Command {
 					continue
 				}
 				dur = dur.Round(time.Millisecond)
+
 				var via string
 				if p2p {
 					if !didP2p {
@@ -237,10 +266,12 @@ func (r *RootCmd) ping() *serpent.Command {
 					}
 					via = fmt.Sprintf("%s via %s",
 						pretty.Sprint(cliui.DefaultStyles.Fuchsia, "proxied"),
+
 						pretty.Sprint(cliui.DefaultStyles.Code, fmt.Sprintf("DERP(%s)", derpName)),
 					)
 				}
 				var displayTime string
+
 				if pingTimeLocal || pingTimeUTC {
 					displayTime = pretty.Sprintf(cliui.DefaultStyles.DateTimeStamp, "[%s] ", pongTime.Format(time.RFC3339))
 				}
@@ -248,6 +279,7 @@ func (r *RootCmd) ping() *serpent.Command {
 					displayTime,
 					pretty.Sprint(cliui.DefaultStyles.Keyword, workspaceName),
 					via,
+
 					pretty.Sprint(cliui.DefaultStyles.DateTimeStamp, dur.String()),
 				)
 				select {
@@ -258,6 +290,7 @@ func (r *RootCmd) ping() *serpent.Command {
 						break pingLoop
 					}
 				}
+
 			}
 			if p2p {
 				msg := "✔ You are connected directly (p2p)"
@@ -274,11 +307,13 @@ func (r *RootCmd) ping() *serpent.Command {
 		},
 	}
 	cmd.Options = serpent.OptionSet{
+
 		{
 			Flag:        "wait",
 			Description: "Specifies how long to wait between pings.",
 			Default:     "1s",
 			Value:       serpent.DurationOf(&pingWait),
+
 		},
 		{
 			Flag:          "timeout",
@@ -286,6 +321,7 @@ func (r *RootCmd) ping() *serpent.Command {
 			Default:       "5s",
 			Description:   "Specifies how long to wait for a ping to complete.",
 			Value:         serpent.DurationOf(&pingTimeout),
+
 		},
 		{
 			Flag:          "num",
@@ -296,6 +332,7 @@ func (r *RootCmd) ping() *serpent.Command {
 		{
 			Flag:        "time",
 			Description: "Show the response time of each pong in local time.",
+
 			Value:       serpent.BoolOf(&pingTimeLocal),
 		},
 		{
@@ -307,12 +344,15 @@ func (r *RootCmd) ping() *serpent.Command {
 	return cmd
 }
 func isAWSIP(awsRanges *cliutil.AWSIPRanges, ni *tailcfg.NetInfo) bool {
+
 	if awsRanges == nil {
 		return false
+
 	}
 	if ni.GlobalV4 != "" {
 		ip, err := netip.ParseAddr(ni.GlobalV4)
 		if err == nil && awsRanges.CheckIP(ip) {
+
 			return true
 		}
 	}

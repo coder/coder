@@ -1,4 +1,5 @@
 package workspaceapps
+
 import (
 	"context"
 	"database/sql"
@@ -8,19 +9,25 @@ import (
 	"strconv"
 	"strings"
 	"github.com/google/uuid"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
+
 	"github.com/coder/coder/v2/codersdk"
 )
+
 var errWorkspaceStopped = errors.New("stopped workspace")
 type AccessMethod string
 const (
 	AccessMethodPath      AccessMethod = "path"
 	AccessMethodSubdomain AccessMethod = "subdomain"
+
 	// AccessMethodTerminal is special since it's not a real app and only
 	// applies to the PTY endpoint on the API.
+
 	AccessMethodTerminal AccessMethod = "terminal"
 )
+
 type IssueTokenRequest struct {
 	AppRequest Request `json:"app_request"`
 	// PathAppBaseURL is required.
@@ -29,6 +36,7 @@ type IssueTokenRequest struct {
 	// proxy. It must start with an asterisk.
 	AppHostname string `json:"app_hostname"`
 	// AppPath is the path of the user underneath the app base path.
+
 	AppPath string `json:"app_path"`
 	// AppQuery is the query parameters the user provided in the app request.
 	AppQuery string `json:"app_query"`
@@ -44,6 +52,7 @@ func (r IssueTokenRequest) AppBaseURL() (*url.URL, error) {
 		return nil, fmt.Errorf("parse path app base URL: %w", err)
 	}
 	switch r.AppRequest.AccessMethod {
+
 	case AccessMethodPath, AccessMethodTerminal:
 		u.Path = r.AppRequest.BasePath
 		if !strings.HasSuffix(u.Path, "/") {
@@ -53,6 +62,7 @@ func (r IssueTokenRequest) AppBaseURL() (*url.URL, error) {
 	case AccessMethodSubdomain:
 		if r.AppHostname == "" {
 			return nil, errors.New("subdomain app hostname is required to generate subdomain app URL")
+
 		}
 		appHost := appurl.ApplicationURL{
 			Prefix:        r.AppRequest.Prefix,
@@ -65,6 +75,7 @@ func (r IssueTokenRequest) AppBaseURL() (*url.URL, error) {
 		u.Path = r.AppRequest.BasePath
 		return u, nil
 	default:
+
 		return nil, fmt.Errorf("invalid access method: %q", r.AppRequest.AccessMethod)
 	}
 }
@@ -80,6 +91,7 @@ type Request struct {
 	// For the following fields, if the AccessMethod is AccessMethodTerminal,
 	// then only AgentNameOrID may be set and it must be a UUID. The other
 	// fields must be left blank.
+
 	UsernameOrID string `json:"username_or_id"`
 	// WorkspaceAndAgent xor WorkspaceNameOrID are required.
 	WorkspaceAndAgent string `json:"-"` // "workspace" or "workspace.agent"
@@ -90,6 +102,7 @@ type Request struct {
 }
 // Normalize replaces WorkspaceAndAgent with WorkspaceNameOrID and
 // AgentNameOrID. This must be called before Validate.
+
 func (r Request) Normalize() Request {
 	req := r
 	if req.WorkspaceAndAgent != "" {
@@ -102,6 +115,7 @@ func (r Request) Normalize() Request {
 		}
 	}
 	if !strings.HasSuffix(req.BasePath, "/") {
+
 		req.BasePath += "/"
 	}
 	return req
@@ -116,13 +130,16 @@ func (r Request) Check() error {
 	}
 	if r.BasePath == "" {
 		return errors.New("base path is required")
+
 	}
 	if r.WorkspaceAndAgent != "" {
 		return errors.New("dev error: appReq.Validate() called before appReq.Normalize()")
 	}
+
 	if r.AccessMethod == AccessMethodTerminal {
 		if r.UsernameOrID != "" || r.WorkspaceNameOrID != "" || r.AppSlugOrPort != "" {
 			return errors.New("dev error: cannot specify any fields other than r.AccessMethod, r.BasePath and r.AgentNameOrID for terminal access method")
+
 		}
 		if r.AgentNameOrID == "" {
 			return errors.New("agent name or ID is required")
@@ -135,15 +152,18 @@ func (r Request) Check() error {
 	if r.UsernameOrID == "" {
 		return errors.New("username or ID is required")
 	}
+
 	if r.UsernameOrID == codersdk.Me {
 		// We block "me" for workspace app auth to avoid any security issues
 		// caused by having an identical workspace name on yourself and a
 		// different user and potentially reusing a token.
+
 		//
 		// This is also mitigated by storing the workspace/agent ID in the
 		// token, but we block it here to be double safe.
 		//
 		// Subdomain apps have never been used with "me" from our code, and path
+
 		// apps now have a redirect to remove the "me" from the URL.
 		return errors.New(`username cannot be "me" in app requests`)
 	}
@@ -151,9 +171,11 @@ func (r Request) Check() error {
 		return errors.New("workspace name or ID is required")
 	}
 	if r.AppSlugOrPort == "" {
+
 		return errors.New("app slug or port is required")
 	}
 	if r.Prefix != "" && r.AccessMethod != AccessMethodSubdomain {
+
 		return errors.New("prefix is only valid for subdomain apps")
 	}
 	if r.Prefix != "" && !strings.HasSuffix(r.Prefix, "---") {
@@ -176,6 +198,7 @@ type databaseRequest struct {
 	// to AppSharingLevelOwner if the access method is terminal.
 	AppSharingLevel database.AppSharingLevel
 }
+
 // getDatabase does queries to get the owner user, workspace and agent
 // associated with the app in the request. This will correctly perform the
 // queries in the correct order based on the access method and what fields are
@@ -183,9 +206,11 @@ type databaseRequest struct {
 //
 // If any of the queries don't return any rows, the error will wrap
 // sql.ErrNoRows. All other errors should be considered internal server errors.
+
 func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseRequest, error) {
 	// If the AccessMethod is AccessMethodTerminal, then we need to get the
 	// agent first since that's the only info we have.
+
 	if r.AccessMethod == AccessMethodTerminal {
 		return r.getDatabaseTerminal(ctx, db)
 	}
@@ -195,6 +220,7 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 	var (
 		user    database.User
 		userErr error
+
 	)
 	if userID, uuidErr := uuid.Parse(r.UsernameOrID); uuidErr == nil {
 		user, userErr = db.GetUserByID(ctx, userID)
@@ -203,6 +229,7 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 			Username: r.UsernameOrID,
 		})
 	}
+
 	if userErr != nil {
 		return nil, fmt.Errorf("get user %q: %w", r.UsernameOrID, userErr)
 	}
@@ -217,9 +244,11 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 		workspace, workspaceErr = db.GetWorkspaceByOwnerIDAndName(ctx, database.GetWorkspaceByOwnerIDAndNameParams{
 			OwnerID: user.ID,
 			Name:    r.WorkspaceNameOrID,
+
 			Deleted: false,
 		})
 	}
+
 	if workspaceErr != nil {
 		return nil, fmt.Errorf("get workspace %q: %w", r.WorkspaceNameOrID, workspaceErr)
 	}
@@ -236,6 +265,7 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 		return nil, errWorkspaceStopped
 	}
 	if len(agents) == 0 {
+
 		// TODO(@deansheather): return a 404 if there are no agents in the
 		// workspace, requires a different error type.
 		return nil, fmt.Errorf("no agents in workspace: %w", sql.ErrNoRows)
@@ -254,6 +284,7 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 	// in the workspace or not.
 	var (
 		agentNameOrID   = r.AgentNameOrID
+
 		appURL          string
 		appSharingLevel database.AppSharingLevel
 		// First check if it's a port-based URL with an optional "s" suffix for HTTPS.
@@ -272,6 +303,7 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 		}
 		// If the user specified a port, then they must specify the agent if
 		// there are multiple agents in the workspace. App names are unique per
+
 		// workspace.
 		if agentNameOrID == "" {
 			if len(agents) != 1 {
@@ -282,6 +314,7 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 		// If the app slug is a port number, then route to the port as an
 		// "anonymous app".
 		//
+
 		// This is only supported for subdomain-based applications.
 		appURL = fmt.Sprintf("%s://127.0.0.1:%d", protocol, portUint)
 		appSharingLevel = database.AppSharingLevelOwner
@@ -300,11 +333,13 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 			}
 		}
 		// First check if there is a port share for the port
+
 		ps, err := db.GetWorkspaceAgentPortShare(ctx, database.GetWorkspaceAgentPortShareParams{
 			WorkspaceID: workspace.ID,
 			AgentName:   agentName,
 			Port:        int32(portUint),
 		})
+
 		if err != nil {
 			if !errors.Is(err, sql.ErrNoRows) {
 				return nil, fmt.Errorf("get workspace agent port share: %w", err)
@@ -315,6 +350,7 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 		}
 	} else {
 		for _, app := range apps {
+
 			if app.Slug == r.AppSlugOrPort {
 				if !app.Url.Valid {
 					return nil, fmt.Errorf("app URL is not valid")
@@ -322,6 +358,7 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 				agentNameOrID = app.AgentID.String()
 				if app.SharingLevel != "" {
 					appSharingLevel = app.SharingLevel
+
 				} else {
 					appSharingLevel = database.AppSharingLevelOwner
 				}
@@ -337,6 +374,7 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 	var agent database.WorkspaceAgent
 	if agentID, uuidErr := uuid.Parse(agentNameOrID); uuidErr == nil {
 		for _, a := range agents {
+
 			if a.ID == agentID {
 				agent = a
 				break
@@ -358,6 +396,7 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 		}
 	}
 	appURLParsed, err := url.Parse(appURL)
+
 	if err != nil {
 		return nil, fmt.Errorf("parse app URL %q: %w", appURL, err)
 	}
@@ -373,6 +412,7 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 // getDatabaseTerminal is called by getDatabase for AccessMethodTerminal
 // requests.
 func (r Request) getDatabaseTerminal(ctx context.Context, db database.Store) (*databaseRequest, error) {
+
 	if r.AccessMethod != AccessMethodTerminal {
 		return nil, fmt.Errorf("invalid access method %q for terminal request", r.AccessMethod)
 	}
@@ -394,16 +434,19 @@ func (r Request) getDatabaseTerminal(ctx context.Context, db database.Store) (*d
 	build, err := db.GetWorkspaceBuildByJobID(ctx, res.JobID)
 	if err != nil {
 		return nil, fmt.Errorf("get workspace build by job ID %q: %w", res.JobID, err)
+
 	}
 	// Get the corresponding workspace.
 	workspace, err := db.GetWorkspaceByID(ctx, build.WorkspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("get workspace %q: %w", build.WorkspaceID, err)
+
 	}
 	// Get the workspace's owner.
 	user, err := db.GetUserByID(ctx, workspace.OwnerID)
 	if err != nil {
 		return nil, fmt.Errorf("get user %q: %w", workspace.OwnerID, err)
+
 	}
 	return &databaseRequest{
 		Request:         r,

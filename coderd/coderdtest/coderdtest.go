@@ -1,4 +1,5 @@
 package coderdtest
+
 import (
 	"bytes"
 	"context"
@@ -30,6 +31,7 @@ import (
 	"time"
 	"unicode"
 	"cloud.google.com/go/compute/metadata"
+
 	"github.com/fullsailor/pkcs7"
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v4"
@@ -48,6 +50,7 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/autobuild"
@@ -93,6 +96,7 @@ type Options struct {
 	// AccessURL denotes a custom access URL. By default we use the httptest
 	// server's URL. Setting this may result in unexpected behavior (especially
 	// with running agents).
+
 	AccessURL                      *url.URL
 	AppHostname                    string
 	AWSCertificates                awsidentity.Certificates
@@ -118,18 +122,22 @@ type Options struct {
 	HealthcheckRefresh time.Duration
 	// All rate limits default to -1 (unlimited) in tests if not set.
 	APIRateLimit   int
+
 	LoginRateLimit int
 	FilesRateLimit int
 	// OneTimePasscodeValidityPeriod specifies how long a one time passcode should be valid for.
 	OneTimePasscodeValidityPeriod time.Duration
+
 	// IncludeProvisionerDaemon when true means to start an in-memory provisionerD
 	IncludeProvisionerDaemon    bool
 	ProvisionerDaemonTags       map[string]string
 	MetricsCacheRefreshInterval time.Duration
 	AgentStatsRefreshInterval   time.Duration
+
 	DeploymentValues            *codersdk.DeploymentValues
 	// Set update check options to enable update check.
 	UpdateCheckOptions *updatecheck.Options
+
 	// Overriding the database is heavily discouraged.
 	// It should only be used in cases where multiple Coder
 	// test instances are running against the same database.
@@ -137,28 +145,34 @@ type Options struct {
 	Pubsub   pubsub.Pubsub
 	// APIMiddleware inserts middleware before api.RootHandler, this can be
 	// useful in certain tests where you want to intercept requests before
+
 	// passing them on to the API, e.g. for synchronization of execution.
 	APIMiddleware func(http.Handler) http.Handler
 	ConfigSSH codersdk.SSHConfigResponse
+
 	SwaggerEndpoint bool
 	// Logger should only be overridden if you expect errors
 	// as part of your test.
 	Logger       *slog.Logger
 	StatsBatcher workspacestats.Batcher
 	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions
+
 	AllowWorkspaceRenames              bool
 	NewTicker                          func(duration time.Duration) (<-chan time.Time, func())
 	DatabaseRolluper                   *dbrollup.Rolluper
 	WorkspaceUsageTrackerFlush         chan int
 	WorkspaceUsageTrackerTick          chan time.Time
+
 	NotificationsEnqueuer              notifications.Enqueuer
 	APIKeyEncryptionCache              cryptokeys.EncryptionKeycache
+
 	OIDCConvertKeyCache                cryptokeys.SigningKeycache
 	Clock                              quartz.Clock
 }
 // New constructs a codersdk client connected to an in-memory API instance.
 func New(t testing.TB, options *Options) *codersdk.Client {
 	client, _ := newWithCloser(t, options)
+
 	return client
 }
 // NewWithDatabase constructs a codersdk client connected to an in-memory API instance.
@@ -171,12 +185,14 @@ func NewWithDatabase(t testing.TB, options *Options) (*codersdk.Client, database
 // the provisioner. This is a temporary function while work is done to
 // standardize how provisioners are registered with coderd. The option
 // to include a provisioner is set to true for convenience.
+
 func NewWithProvisionerCloser(t testing.TB, options *Options) (*codersdk.Client, io.Closer) {
 	if options == nil {
 		options = &Options{}
 	}
 	options.IncludeProvisionerDaemon = true
 	client, closer := newWithCloser(t, options)
+
 	return client, closer
 }
 // newWithCloser constructs a codersdk client connected to an in-memory API instance.
@@ -184,6 +200,7 @@ func NewWithProvisionerCloser(t testing.TB, options *Options) (*codersdk.Client,
 // The API is intentionally not returned here because coderd tests should not
 // require a handle to the API. Do not expose the API or wrath shall descend
 // upon thee. Even the io.Closer that is exposed here shouldn't be exposed
+
 // and is a temporary measure while the API to register provisioners is ironed
 // out.
 func newWithCloser(t testing.TB, options *Options) (*codersdk.Client, io.Closer) {
@@ -197,6 +214,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	}
 	if options.Logger == nil {
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug).Named("coderd")
+
 		options.Logger = &logger
 	}
 	if options.GoogleTokenValidator == nil {
@@ -209,9 +227,11 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	if options.AutobuildTicker == nil {
 		ticker := make(chan time.Time)
 		options.AutobuildTicker = ticker
+
 		t.Cleanup(func() { close(ticker) })
 	}
 	if options.AutobuildStats != nil {
+
 		t.Cleanup(func() {
 			close(options.AutobuildStats)
 		})
@@ -237,6 +257,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		options.NotificationsEnqueuer = &notificationstest.FakeEnqueuer{}
 	}
 	accessControlStore := &atomic.Pointer[dbauthz.AccessControlStore]{}
+
 	var acs dbauthz.AccessControlStore = dbauthz.AGPLTemplateAccessControlStore{}
 	accessControlStore.Store(&acs)
 	runtimeManager := runtimeconfig.NewManager()
@@ -249,6 +270,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		// nolint:gocritic // Setting up unit test data inside test helper
 		err := options.Database.InsertDeploymentID(dbauthz.AsSystemRestricted(context.Background()), uuid.NewString())
 		require.NoError(t, err, "insert a deployment id")
+
 	}
 	if options.DeploymentValues == nil {
 		options.DeploymentValues = DeploymentValues(t)
@@ -256,17 +278,21 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	// DisableOwnerWorkspaceExec modifies the 'global' RBAC roles. Fast-fail tests if we detect this.
 	if !options.DeploymentValues.DisableOwnerWorkspaceExec.Value() {
 		ownerSubj := rbac.Subject{
+
 			Roles: rbac.RoleIdentifiers{rbac.RoleOwner()},
 			Scope: rbac.ScopeAll,
 		}
 		if err := options.Authorizer.Authorize(context.Background(), ownerSubj, policy.ActionSSH, rbac.ResourceWorkspace); err != nil {
+
 			if rbac.IsUnauthorizedError(err) {
 				t.Fatal("Side-effect of DisableOwnerWorkspaceExec detected in unrelated test. Please move the test that requires DisableOwnerWorkspaceExec to its own package so that it does not impact other tests!")
 			}
 			require.NoError(t, err)
+
 		}
 	}
 	// If no ratelimits are set, disable all rate limiting for tests.
+
 	if options.APIRateLimit == 0 {
 		options.APIRateLimit = -1
 	}
@@ -277,6 +303,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		options.FilesRateLimit = -1
 	}
 	if options.StatsBatcher == nil {
+
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		batcher, closeBatcher, err := workspacestats.NewBatcher(ctx,
@@ -294,6 +321,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	if options.OneTimePasscodeValidityPeriod == 0 {
 		options.OneTimePasscodeValidityPeriod = testutil.WaitLong
 	}
+
 	var templateScheduleStore atomic.Pointer[schedule.TemplateScheduleStore]
 	if options.TemplateScheduleStore == nil {
 		options.TemplateScheduleStore = schedule.NewAGPLTemplateScheduleStore()
@@ -320,22 +348,26 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	lifecycleExecutor.Run()
 	hangDetectorTicker := time.NewTicker(options.DeploymentValues.JobHangDetectorInterval.Value())
 	defer hangDetectorTicker.Stop()
+
 	hangDetector := unhanger.New(ctx, options.Database, options.Pubsub, options.Logger.Named("unhanger.detector"), hangDetectorTicker.C)
 	hangDetector.Start()
 	t.Cleanup(hangDetector.Close)
 	// Did last_used_at not update? Scratching your noggin? Here's why.
+
 	// Workspace usage tracking must be triggered manually in tests.
 	// The vast majority of existing tests do not depend on last_used_at
 	// and adding an extra time-based background goroutine to all existing
 	// tests may lead to future flakes and goleak complaints.
 	// Instead, pass in your own flush and ticker like so:
 	//
+
 	//   tickCh = make(chan time.Time)
 	//   flushCh = make(chan int, 1)
 	//   client  = coderdtest.New(t, &coderdtest.Options{
 	//     WorkspaceUsageTrackerFlush: flushCh,
 	//     WorkspaceUsageTrackerTick: tickCh
 	//   })
+
 	//
 	// Now to trigger a tick, just write to `tickCh`.
 	// Reading from `flushCh` will ensure that workspaceusage.Tracker flushed.
@@ -351,12 +383,14 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		options.Database,
 		workspacestats.TrackerWithLogger(options.Logger.Named("workspace_usage_tracker")),
 		workspacestats.TrackerWithTickFlush(options.WorkspaceUsageTrackerTick, options.WorkspaceUsageTrackerFlush),
+
 	)
 	var mutex sync.RWMutex
 	var handler http.Handler
 	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mutex.RLock()
 		handler := handler
+
 		mutex.RUnlock()
 		if handler != nil {
 			handler.ServeHTTP(w, r)
@@ -387,6 +421,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		accessURL = serverURL
 	}
 	// If the STUNAddresses setting is empty or the default, start a STUN
+
 	// server. Otherwise, use the value as is.
 	var (
 		stunAddresses   []string
@@ -411,21 +446,26 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	if options.AppHostname != "" {
 		var err error
 		appHostnameRegex, err = appurl.CompileHostnamePattern(options.AppHostname)
+
 		require.NoError(t, err)
 	}
 	region := &tailcfg.DERPRegion{
+
 		EmbeddedRelay: true,
 		RegionID:      int(options.DeploymentValues.DERP.Server.RegionID.Value()),
 		RegionCode:    options.DeploymentValues.DERP.Server.RegionCode.String(),
 		RegionName:    options.DeploymentValues.DERP.Server.RegionName.String(),
+
 		Nodes: []*tailcfg.DERPNode{{
 			Name:     fmt.Sprintf("%db", options.DeploymentValues.DERP.Server.RegionID),
 			RegionID: int(options.DeploymentValues.DERP.Server.RegionID.Value()),
+
 			IPv4:     "127.0.0.1",
 			DERPPort: derpPort,
 			// STUN port is added as a separate node by tailnet.NewDERPMap() if
 			// direct connections are enabled.
 			STUNPort:         -1,
+
 			InsecureForTests: true,
 			ForceHTTP:        options.TLSCertificates == nil,
 		}},
@@ -442,14 +482,17 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	return func(h http.Handler) {
 			mutex.Lock()
 			defer mutex.Unlock()
+
 			handler = h
 		}, cancelFunc, serverURL, &coderd.Options{
 			AgentConnectionUpdateFrequency: 150 * time.Millisecond,
+
 			// Force a long disconnection timeout to ensure
 			// agents are not marked as disconnected during slow tests.
 			AgentInactiveDisconnectTimeout: testutil.WaitShort,
 			AccessURL:                      accessURL,
 			AppHostname:                    options.AppHostname,
+
 			AppHostnameRegex:               appHostnameRegex,
 			Logger:                         *options.Logger,
 			CacheDir:                       t.TempDir(),
@@ -457,6 +500,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			Database:                       options.Database,
 			Pubsub:                         options.Pubsub,
 			ExternalAuthConfigs:            options.ExternalAuthConfigs,
+
 			Auditor:                            options.Auditor,
 			AWSCertificates:                    options.AWSCertificates,
 			AzureCertificates:                  options.AzureCertificates,
@@ -484,6 +528,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			AgentStatsRefreshInterval:          options.AgentStatsRefreshInterval,
 			DeploymentValues:                   options.DeploymentValues,
 			DeploymentOptions:                  codersdk.DeploymentOptionsWithoutSecrets(options.DeploymentValues.Options()),
+
 			UpdateCheckOptions:                 options.UpdateCheckOptions,
 			SwaggerEndpoint:                    options.SwaggerEndpoint,
 			SSHConfig:                          options.ConfigSSH,
@@ -503,6 +548,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			OIDCConvertKeyCache:                options.OIDCConvertKeyCache,
 		}
 }
+
 // NewWithAPI constructs an in-memory API instance and returns a client to talk to it.
 // Most tests never need a reference to the API, but AuthorizationTest in this module uses it.
 // Do not expose the API or wrath shall descend upon thee.
@@ -550,6 +596,7 @@ func (c *ProvisionerdCloser) Close() error {
 		return nil
 	}
 	c.closed = true
+
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
 	shutdownErr := c.d.Shutdown(ctx, true)
@@ -582,6 +629,7 @@ func NewTaggedProvisionerDaemon(t testing.TB, coderAPI *coderd.API, name string,
 	go func() {
 		err := echo.Serve(ctx, &provisionersdk.ServeOptions{
 			Listener:      echoServer,
+
 			WorkDirectory: workDir,
 			Logger:        coderAPI.Logger.Named("echo").Leveled(slog.LevelDebug),
 		})
@@ -589,10 +637,12 @@ func NewTaggedProvisionerDaemon(t testing.TB, coderAPI *coderd.API, name string,
 	}()
 	connectedCh := make(chan struct{})
 	daemon := provisionerd.New(func(dialCtx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
+
 		return coderAPI.CreateInMemoryTaggedProvisionerDaemon(dialCtx, name, []codersdk.ProvisionerType{codersdk.ProvisionerTypeEcho}, provisionerTags)
 	}, &provisionerd.Options{
 		Logger:              coderAPI.Logger.Named("provisionerd").Leveled(slog.LevelDebug),
 		UpdateInterval:      250 * time.Millisecond,
+
 		ForceCancelInterval: 5 * time.Second,
 		Connector: provisionerd.LocalProvisioners{
 			string(database.ProvisionerTypeEcho): sdkproto.NewDRPCProvisionerClient(echoClient),
@@ -610,6 +660,7 @@ func NewTaggedProvisionerDaemon(t testing.TB, coderAPI *coderd.API, name string,
 	return closer
 }
 var FirstUserParams = codersdk.CreateFirstUserRequest{
+
 	Email:    "testuser@coder.com",
 	Username: "testuser",
 	Password: "SomeSecurePassword!",
@@ -617,15 +668,18 @@ var FirstUserParams = codersdk.CreateFirstUserRequest{
 }
 var TrialUserParams = codersdk.CreateFirstUserTrialInfo{
 	FirstName:   "John",
+
 	LastName:    "Doe",
 	PhoneNumber: "9999999999",
 	JobTitle:    "Engineer",
+
 	CompanyName: "Acme Inc",
 	Country:     "United States",
 	Developers:  "10-50",
 }
 // CreateFirstUser creates a user with preset credentials and authenticates
 // with the passed in codersdk client.
+
 func CreateFirstUser(t testing.TB, client *codersdk.Client) codersdk.CreateFirstUserResponse {
 	resp, err := client.CreateFirstUser(context.Background(), FirstUserParams)
 	require.NoError(t, err)
@@ -634,6 +688,7 @@ func CreateFirstUser(t testing.TB, client *codersdk.Client) codersdk.CreateFirst
 		Password: FirstUserParams.Password,
 	})
 	require.NoError(t, err)
+
 	client.SetSessionToken(login.SessionToken)
 	return resp
 }
@@ -643,6 +698,7 @@ func CreateAnotherUser(t testing.TB, client *codersdk.Client, organizationID uui
 	return createAnotherUserRetry(t, client, []uuid.UUID{organizationID}, 5, roles)
 }
 func CreateAnotherUserMutators(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, roles []rbac.RoleIdentifier, mutators ...func(r *codersdk.CreateUserRequestWithOrgs)) (*codersdk.Client, codersdk.User) {
+
 	return createAnotherUserRetry(t, client, []uuid.UUID{organizationID}, 5, roles, mutators...)
 }
 // AuthzUserSubject does not include the user's groups.
@@ -666,6 +722,7 @@ func AuthzUserSubject(user codersdk.User, orgID uuid.UUID) rbac.Subject {
 		Scope:  rbac.ScopeAll,
 	}
 }
+
 func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationIDs []uuid.UUID, retries int, roles []rbac.RoleIdentifier, mutators ...func(r *codersdk.CreateUserRequestWithOrgs)) (*codersdk.Client, codersdk.User) {
 	req := codersdk.CreateUserRequestWithOrgs{
 		Email:           namesgenerator.GetRandomName(10) + "@coder.com",
@@ -673,6 +730,7 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 		Name:            RandomName(t),
 		Password:        "SomeSecurePassword!",
 		OrganizationIDs: organizationIDs,
+
 		// Always create users as active in tests to ignore an extra audit log
 		// when logging in.
 		UserStatus: ptr.Ref(codersdk.UserStatusActive),
@@ -683,12 +741,14 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 	user, err := client.CreateUserWithOrgs(context.Background(), req)
 	var apiError *codersdk.Error
 	// If the user already exists by username or email conflict, try again up to "retries" times.
+
 	if err != nil && retries >= 0 && errors.As(err, &apiError) {
 		if apiError.StatusCode() == http.StatusConflict {
 			retries--
 			return createAnotherUserRetry(t, client, organizationIDs, retries, roles)
 		}
 	}
+
 	require.NoError(t, err)
 	var sessionToken string
 	if req.UserLoginType == codersdk.LoginTypeNone {
@@ -698,16 +758,19 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 			Lifetime:  time.Hour * 24,
 			Scope:     codersdk.APIKeyScopeAll,
 			TokenName: "no-password-user-token",
+
 		})
 		require.NoError(t, err)
 		sessionToken = token.Key
 	} else {
 		login, err := client.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
 			Email:    req.Email,
+
 			Password: req.Password,
 		})
 		require.NoError(t, err)
 		sessionToken = login.SessionToken
+
 	}
 	if user.Status == codersdk.UserStatusDormant {
 		// Use admin client so that user's LastSeenAt is not updated.
@@ -723,6 +786,7 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 	})
 	if len(roles) > 0 {
 		// Find the roles for the org vs the site wide roles
+
 		orgRoles := make(map[uuid.UUID][]rbac.RoleIdentifier)
 		var siteRoles []rbac.RoleIdentifier
 		for _, roleName := range roles {
@@ -731,6 +795,7 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 				orgRoles[roleName.OrganizationID] = append(orgRoles[roleName.OrganizationID], roleName)
 			} else {
 				siteRoles = append(siteRoles, roleName)
+
 			}
 		}
 		// Update the roles
@@ -746,6 +811,7 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 		}
 		user, err = client.UpdateUserRoles(context.Background(), user.ID.String(), codersdk.UpdateRoles{Roles: db2sdk.List(siteRoles, onlyName)})
 		require.NoError(t, err, "update site roles")
+
 		// isMember keeps track of which orgs the user was added to as a member
 		isMember := make(map[uuid.UUID]bool)
 		for _, orgID := range organizationIDs {
@@ -757,6 +823,7 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 			// the organization member, then assign the roles.
 			if !isMember[orgID] {
 				_, err = client.PostOrganizationMember(context.Background(), orgID, user.ID.String())
+
 				require.NoError(t, err, "add user to organization as member")
 			}
 			_, err = client.UpdateOrganizationMemberRoles(context.Background(), orgID, user.ID.String(),
@@ -777,6 +844,7 @@ func CreateTemplateVersion(t testing.TB, client *codersdk.Client, organizationID
 	data, err := echo.TarWithOptions(context.Background(), client.Logger(), res)
 	require.NoError(t, err)
 	file, err := client.Upload(context.Background(), codersdk.ContentTypeTar, bytes.NewReader(data))
+
 	require.NoError(t, err)
 	req := codersdk.CreateTemplateVersionRequest{
 		FileID:        file.ID,
@@ -785,17 +853,20 @@ func CreateTemplateVersion(t testing.TB, client *codersdk.Client, organizationID
 	}
 	for _, mut := range mutators {
 		mut(&req)
+
 	}
 	templateVersion, err := client.CreateTemplateVersion(context.Background(), organizationID, req)
 	require.NoError(t, err)
 	return templateVersion
 }
 // CreateWorkspaceBuild creates a workspace build for the given workspace and transition.
+
 func CreateWorkspaceBuild(
 	t *testing.T,
 	client *codersdk.Client,
 	workspace codersdk.Workspace,
 	transition database.WorkspaceTransition,
+
 	mutators ...func(*codersdk.CreateWorkspaceBuildRequest),
 ) codersdk.WorkspaceBuild {
 	t.Helper()
@@ -813,19 +884,23 @@ func CreateWorkspaceBuild(
 // compatibility with testing. The name assigned is randomly generated.
 func CreateTemplate(t testing.TB, client *codersdk.Client, organization uuid.UUID, version uuid.UUID, mutators ...func(*codersdk.CreateTemplateRequest)) codersdk.Template {
 	req := codersdk.CreateTemplateRequest{
+
 		Name:      RandomUsername(t),
 		VersionID: version,
 	}
 	for _, mut := range mutators {
+
 		mut(&req)
 	}
 	template, err := client.CreateTemplate(context.Background(), organization, req)
+
 	require.NoError(t, err)
 	return template
 }
 // CreateGroup creates a group with the given name and members.
 func CreateGroup(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, name string, members ...codersdk.User) codersdk.Group {
 	t.Helper()
+
 	group, err := client.CreateGroup(context.Background(), organizationID, codersdk.CreateGroupRequest{
 		Name: name,
 	})
@@ -835,6 +910,7 @@ func CreateGroup(t testing.TB, client *codersdk.Client, organizationID uuid.UUID
 		memberIDs = append(memberIDs, member.ID.String())
 	}
 	group, err = client.PatchGroup(context.Background(), group.ID, codersdk.PatchGroupRequest{
+
 		AddUsers: memberIDs,
 	})
 	require.NoError(t, err, "failed to add members to group")
@@ -842,12 +918,15 @@ func CreateGroup(t testing.TB, client *codersdk.Client, organizationID uuid.UUID
 }
 // UpdateTemplateVersion creates a new template version with the "echo" provisioner
 // and associates it with the given templateID.
+
 func UpdateTemplateVersion(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, res *echo.Responses, templateID uuid.UUID) codersdk.TemplateVersion {
 	ctx := context.Background()
 	data, err := echo.Tar(res)
+
 	require.NoError(t, err)
 	file, err := client.Upload(ctx, codersdk.ContentTypeTar, bytes.NewReader(data))
 	require.NoError(t, err)
+
 	templateVersion, err := client.CreateTemplateVersion(ctx, organizationID, codersdk.CreateTemplateVersionRequest{
 		TemplateID:    templateID,
 		FileID:        file.ID,
@@ -858,6 +937,7 @@ func UpdateTemplateVersion(t testing.TB, client *codersdk.Client, organizationID
 	return templateVersion
 }
 func UpdateActiveTemplateVersion(t testing.TB, client *codersdk.Client, templateID, versionID uuid.UUID) {
+
 	err := client.UpdateActiveTemplateVersion(context.Background(), templateID, codersdk.UpdateActiveTemplateVersion{
 		ID: versionID,
 	})
@@ -867,11 +947,13 @@ func UpdateActiveTemplateVersion(t testing.TB, client *codersdk.Client, template
 func UpdateTemplateMeta(t testing.TB, client *codersdk.Client, templateID uuid.UUID, meta codersdk.UpdateTemplateMeta) codersdk.Template {
 	t.Helper()
 	updated, err := client.UpdateTemplateMeta(context.Background(), templateID, meta)
+
 	require.NoError(t, err)
 	return updated
 }
 // AwaitTemplateVersionJobRunning waits for the build to be picked up by a provisioner.
 func AwaitTemplateVersionJobRunning(t testing.TB, client *codersdk.Client, version uuid.UUID) codersdk.TemplateVersion {
+
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
@@ -882,6 +964,7 @@ func AwaitTemplateVersionJobRunning(t testing.TB, client *codersdk.Client, versi
 		templateVersion, err = client.TemplateVersion(ctx, version)
 		if err != nil {
 			return false
+
 		}
 		t.Logf("template version job status: %s", templateVersion.Job.Status)
 		switch templateVersion.Job.Status {
@@ -893,6 +976,7 @@ func AwaitTemplateVersionJobRunning(t testing.TB, client *codersdk.Client, versi
 			t.FailNow()
 			return false
 		}
+
 	}, testutil.WaitShort, testutil.IntervalFast, "make sure you set `IncludeProvisionerDaemon`!")
 	t.Logf("template version %s job has started", version)
 	return templateVersion
@@ -908,6 +992,7 @@ func AwaitTemplateVersionJobCompleted(t testing.TB, client *codersdk.Client, ver
 	require.Eventually(t, func() bool {
 		var err error
 		templateVersion, err = client.TemplateVersion(ctx, version)
+
 		t.Logf("template version job status: %s", templateVersion.Job.Status)
 		return assert.NoError(t, err) && templateVersion.Job.CompletedAt != nil
 	}, testutil.WaitLong, testutil.IntervalMedium, "make sure you set `IncludeProvisionerDaemon`!")
@@ -923,10 +1008,12 @@ func AwaitWorkspaceBuildJobCompleted(t testing.TB, client *codersdk.Client, buil
 	var workspaceBuild codersdk.WorkspaceBuild
 	require.Eventually(t, func() bool {
 		var err error
+
 		workspaceBuild, err = client.WorkspaceBuild(ctx, build)
 		return assert.NoError(t, err) && workspaceBuild.Job.CompletedAt != nil
 	}, testutil.WaitMedium, testutil.IntervalMedium)
 	t.Logf("got workspace build job %s", build)
+
 	return workspaceBuild
 }
 // AwaitWorkspaceAgents waits for all resources with agents to be connected. If
@@ -945,6 +1032,7 @@ type WorkspaceAgentWaiter struct {
 	client           *codersdk.Client
 	workspaceID      uuid.UUID
 	agentNames       []string
+
 	resourcesMatcher func([]codersdk.WorkspaceResource) bool
 }
 // NewWorkspaceAgentWaiter returns an object that waits for agents to connect when
@@ -952,6 +1040,7 @@ type WorkspaceAgentWaiter struct {
 func NewWorkspaceAgentWaiter(t testing.TB, client *codersdk.Client, workspaceID uuid.UUID) WorkspaceAgentWaiter {
 	return WorkspaceAgentWaiter{
 		t:           t,
+
 		client:      client,
 		workspaceID: workspaceID,
 	}
@@ -960,13 +1049,16 @@ func NewWorkspaceAgentWaiter(t testing.TB, client *codersdk.Client, workspaceID 
 // return even if other agents are not connected.
 func (w WorkspaceAgentWaiter) AgentNames(names []string) WorkspaceAgentWaiter {
 	//nolint: revive // returns modified struct
+
 	w.agentNames = names
 	return w
 }
 // MatchResources instructs the waiter to wait until the workspace has resources that cause the
+
 // provided matcher function to return true.
 func (w WorkspaceAgentWaiter) MatchResources(m func([]codersdk.WorkspaceResource) bool) WorkspaceAgentWaiter {
 	//nolint: revive // returns modified struct
+
 	w.resourcesMatcher = m
 	return w
 }
@@ -990,14 +1082,17 @@ func (w WorkspaceAgentWaiter) Wait() []codersdk.WorkspaceResource {
 		if workspace.LatestBuild.Job.CompletedAt == nil {
 			return false
 		}
+
 		if workspace.LatestBuild.Job.CompletedAt.IsZero() {
 			return false
 		}
 		for _, resource := range workspace.LatestBuild.Resources {
 			for _, agent := range resource.Agents {
+
 				if len(w.agentNames) > 0 {
 					if _, ok := agentNamesMap[agent.Name]; !ok {
 						continue
+
 					}
 				}
 				if agent.Status != codersdk.WorkspaceAgentConnected {
@@ -1010,13 +1105,16 @@ func (w WorkspaceAgentWaiter) Wait() []codersdk.WorkspaceResource {
 		if w.resourcesMatcher == nil {
 			return true
 		}
+
 		return w.resourcesMatcher(resources)
 	}, testutil.WaitLong, testutil.IntervalMedium)
 	w.t.Logf("got workspace agents (workspace %s)", w.workspaceID)
 	return resources
+
 }
 // CreateWorkspace creates a workspace for the user and template provided.
 // A random name is generated for it.
+
 // To customize the defaults, pass a mutator func.
 func CreateWorkspace(t testing.TB, client *codersdk.Client, templateID uuid.UUID, mutators ...func(*codersdk.CreateWorkspaceRequest)) codersdk.Workspace {
 	t.Helper()
@@ -1028,6 +1126,7 @@ func CreateWorkspace(t testing.TB, client *codersdk.Client, templateID uuid.UUID
 		AutomaticUpdates:  codersdk.AutomaticUpdatesNever,
 	}
 	for _, mutator := range mutators {
+
 		mutator(&req)
 	}
 	workspace, err := client.CreateUserWorkspace(context.Background(), codersdk.Me, req)
@@ -1037,6 +1136,7 @@ func CreateWorkspace(t testing.TB, client *codersdk.Client, templateID uuid.UUID
 // TransitionWorkspace is a convenience method for transitioning a workspace from one state to another.
 func MustTransitionWorkspace(t testing.TB, client *codersdk.Client, workspaceID uuid.UUID, from, to database.WorkspaceTransition, muts ...func(req *codersdk.CreateWorkspaceBuildRequest)) codersdk.Workspace {
 	t.Helper()
+
 	ctx := context.Background()
 	workspace, err := client.Workspace(ctx, workspaceID)
 	require.NoError(t, err, "unexpected error fetching workspace")
@@ -1048,6 +1148,7 @@ func MustTransitionWorkspace(t testing.TB, client *codersdk.Client, workspaceID 
 	for _, mut := range muts {
 		mut(&req)
 	}
+
 	build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, req)
 	require.NoError(t, err, "unexpected error transitioning workspace to %s", to)
 	_ = AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
@@ -1058,6 +1159,7 @@ func MustTransitionWorkspace(t testing.TB, client *codersdk.Client, workspaceID 
 // MustWorkspace is a convenience method for fetching a workspace that should exist.
 func MustWorkspace(t testing.TB, client *codersdk.Client, workspaceID uuid.UUID) codersdk.Workspace {
 	t.Helper()
+
 	ctx := context.Background()
 	ws, err := client.Workspace(ctx, workspaceID)
 	if err != nil && strings.Contains(err.Error(), "status code 410") {
@@ -1066,6 +1168,7 @@ func MustWorkspace(t testing.TB, client *codersdk.Client, workspaceID uuid.UUID)
 	require.NoError(t, err, "no workspace found with id %s", workspaceID)
 	return ws
 }
+
 // RequestExternalAuthCallback makes a request with the proper OAuth2 state cookie
 // to the external auth callback endpoint.
 func RequestExternalAuthCallback(t testing.TB, providerID string, client *codersdk.Client, opts ...func(*http.Request)) *http.Response {
@@ -1074,18 +1177,22 @@ func RequestExternalAuthCallback(t testing.TB, providerID string, client *coders
 	}
 	state := "somestate"
 	oauthURL, err := client.URL.Parse(fmt.Sprintf("/external-auth/%s/callback?code=asd&state=%s", providerID, state))
+
 	require.NoError(t, err)
 	req, err := http.NewRequestWithContext(context.Background(), "GET", oauthURL.String(), nil)
 	require.NoError(t, err)
 	req.AddCookie(&http.Cookie{
+
 		Name:  codersdk.OAuth2StateCookie,
 		Value: state,
 	})
 	req.AddCookie(&http.Cookie{
 		Name:  codersdk.SessionTokenCookie,
+
 		Value: client.SessionToken(),
 	})
 	for _, opt := range opts {
+
 		opt(req)
 	}
 	res, err := client.HTTPClient.Do(req)
@@ -1101,6 +1208,7 @@ func RequestExternalAuthCallback(t testing.TB, providerID string, client *coders
 func NewGoogleInstanceIdentity(t testing.TB, instanceID string, expired bool) (*idtoken.Validator, *metadata.Client) {
 	keyID, err := cryptorand.String(12)
 	require.NoError(t, err)
+
 	claims := jwt.MapClaims{
 		"google": map[string]interface{}{
 			"compute_engine": map[string]string{
@@ -1109,6 +1217,7 @@ func NewGoogleInstanceIdentity(t testing.TB, instanceID string, expired bool) (*
 		},
 	}
 	if !expired {
+
 		claims["exp"] = time.Now().AddDate(1, 0, 0).Unix()
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
@@ -1125,6 +1234,7 @@ func NewGoogleInstanceIdentity(t testing.TB, instanceID string, expired bool) (*
 	}
 	type certResponse struct {
 		Keys []jwk `json:"keys"`
+
 	}
 	validator, err := idtoken.NewValidator(context.Background(), option.WithHTTPClient(&http.Client{
 		Transport: roundTripper(func(r *http.Request) (*http.Response, error) {
@@ -1145,6 +1255,7 @@ func NewGoogleInstanceIdentity(t testing.TB, instanceID string, expired bool) (*
 	}))
 	require.NoError(t, err)
 	return validator, metadata.NewClient(&http.Client{
+
 		Transport: roundTripper(func(r *http.Request) (*http.Response, error) {
 			return &http.Response{
 				StatusCode: http.StatusOK,
@@ -1153,25 +1264,31 @@ func NewGoogleInstanceIdentity(t testing.TB, instanceID string, expired bool) (*
 			}, nil
 		}),
 	})
+
 }
 // NewAWSInstanceIdentity returns a metadata client and ID token validator for faking
 // instance authentication for AWS.
 func NewAWSInstanceIdentity(t testing.TB, instanceID string) (awsidentity.Certificates, *http.Client) {
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+
 	require.NoError(t, err)
 	document := []byte(`{"instanceId":"` + instanceID + `"}`)
 	hashedDocument := sha256.Sum256(document)
 	signatureRaw, err := rsa.SignPKCS1v15(rand.Reader, privateKey, crypto.SHA256, hashedDocument[:])
+
 	require.NoError(t, err)
 	signature := make([]byte, base64.StdEncoding.EncodedLen(len(signatureRaw)))
 	base64.StdEncoding.Encode(signature, signatureRaw)
+
 	certificate, err := x509.CreateCertificate(rand.Reader, &x509.Certificate{
 		SerialNumber: big.NewInt(2022),
+
 	}, &x509.Certificate{}, &privateKey.PublicKey, privateKey)
 	require.NoError(t, err)
 	certificatePEM := bytes.Buffer{}
 	err = pem.Encode(&certificatePEM, &pem.Block{
 		Type:  "CERTIFICATE",
+
 		Bytes: certificate,
 	})
 	require.NoError(t, err)
@@ -1184,6 +1301,7 @@ func NewAWSInstanceIdentity(t testing.TB, instanceID string) (awsidentity.Certif
 					return http.DefaultTransport.RoundTrip(r)
 				}
 				switch r.URL.Path {
+
 				case "/latest/api/token":
 					return &http.Response{
 						StatusCode: http.StatusOK,
@@ -1214,6 +1332,7 @@ func NewAzureInstanceIdentity(t testing.TB, instanceID string) (x509.VerifyOptio
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
 	rawCertificate, err := x509.CreateCertificate(rand.Reader, &x509.Certificate{
+
 		SerialNumber: big.NewInt(2022),
 		NotAfter:     time.Now().AddDate(1, 0, 0),
 		Subject: pkix.Name{
@@ -1237,6 +1356,7 @@ func NewAzureInstanceIdentity(t testing.TB, instanceID string) (x509.VerifyOptio
 	})
 	require.NoError(t, err)
 	certPool := x509.NewCertPool()
+
 	certPool.AddCert(certificate)
 	return x509.VerifyOptions{
 			Intermediates: certPool,
@@ -1247,6 +1367,7 @@ func NewAzureInstanceIdentity(t testing.TB, instanceID string) (x509.VerifyOptio
 				if r.URL.Host != "169.254.169.254" {
 					return http.DefaultTransport.RoundTrip(r)
 				}
+
 				switch r.URL.Path {
 				case "/metadata/attested/document":
 					return &http.Response{
@@ -1266,6 +1387,7 @@ func RandomUsername(t testing.TB) string {
 	suffix = "-" + suffix
 	n := strings.ReplaceAll(namesgenerator.GetRandomName(10), "_", "-") + suffix
 	if len(n) > 32 {
+
 		n = n[:32-len(suffix)] + suffix
 	}
 	return n
@@ -1277,25 +1399,30 @@ func RandomName(t testing.TB) string {
 	for si, s := range ss {
 		for ri, r := range s {
 			if ri == 0 {
+
 				_, err = sb.WriteRune(unicode.ToTitle(r))
 				require.NoError(t, err)
 			} else {
 				_, err = sb.WriteRune(r)
 				require.NoError(t, err)
 			}
+
 		}
 		if si < len(ss)-1 {
 			_, err = sb.WriteRune(' ')
+
 			require.NoError(t, err)
 		}
 	}
 	return sb.String()
 }
+
 // Used to easily create an HTTP transport!
 type roundTripper func(req *http.Request) (*http.Response, error)
 func (r roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	return r(req)
 }
+
 type nopcloser struct{}
 func (nopcloser) Close() error { return nil }
 // SDKError coerces err into an SDK error.
@@ -1303,6 +1430,7 @@ func SDKError(t testing.TB, err error) *codersdk.Error {
 	var cerr *codersdk.Error
 	require.True(t, errors.As(err, &cerr))
 	return cerr
+
 }
 func DeploymentValues(t testing.TB, mut ...func(*codersdk.DeploymentValues)) *codersdk.DeploymentValues {
 	cfg := &codersdk.DeploymentValues{}

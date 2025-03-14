@@ -1,4 +1,5 @@
 package cli
+
 import (
 	"errors"
 	"context"
@@ -8,14 +9,17 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+
 	"github.com/skratchdot/open-golang/open"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+
 	"github.com/coder/serpent"
 )
 func (r *RootCmd) open() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "open",
+
 		Short: "Open a workspace",
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
@@ -30,8 +34,10 @@ const vscodeDesktopName = "VS Code Desktop"
 func (r *RootCmd) openVSCode() *serpent.Command {
 	var (
 		generateToken    bool
+
 		testOpenError    bool
 		appearanceConfig codersdk.AppearanceConfig
+
 	)
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
@@ -39,6 +45,7 @@ func (r *RootCmd) openVSCode() *serpent.Command {
 		Use:         "vscode <workspace> [<directory in workspace>]",
 		Short:       fmt.Sprintf("Open a workspace in %s", vscodeDesktopName),
 		Middleware: serpent.Chain(
+
 			serpent.RequireRangeArgs(1, 2),
 			r.InitClient(client),
 			initAppearance(client, &appearanceConfig),
@@ -53,12 +60,14 @@ func (r *RootCmd) openVSCode() *serpent.Command {
 			inWorkspaceName := inv.Environ.Get("CODER_WORKSPACE_NAME") + "." + inv.Environ.Get("CODER_WORKSPACE_AGENT_NAME")
 			// We need a started workspace to figure out e.g. expanded directory.
 			// Pehraps the vscode-coder extension could handle this by accepting
+
 			// default_directory=true, then probing the agent. Then we wouldn't
 			// need to wait for the agent to start.
 			workspaceQuery := inv.Args[0]
 			autostart := true
 			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, autostart, workspaceQuery)
 			if err != nil {
+
 				return fmt.Errorf("get workspace and agent: %w", err)
 			}
 			workspaceName := workspace.Name + "." + workspaceAgent.Name
@@ -70,9 +79,11 @@ func (r *RootCmd) openVSCode() *serpent.Command {
 					Fetch:     client.WorkspaceAgent,
 					FetchLogs: nil,
 					Wait:      false,
+
 					DocsURL:   appearanceConfig.DocsURL,
 				})
 				if err != nil {
+
 					if errors.Is(err, context.Canceled) {
 						return cliui.Canceled
 					}
@@ -89,6 +100,7 @@ func (r *RootCmd) openVSCode() *serpent.Command {
 					if err != nil {
 						return fmt.Errorf("wait for agent: %w", err)
 					}
+
 				}
 			}
 			var directory string
@@ -103,6 +115,7 @@ func (r *RootCmd) openVSCode() *serpent.Command {
 				Scheme: "vscode",
 				Host:   "coder.coder-remote",
 				Path:   "/open",
+
 			}
 			qp := url.Values{}
 			qp.Add("url", client.URL.String())
@@ -112,14 +125,17 @@ func (r *RootCmd) openVSCode() *serpent.Command {
 			if directory != "" {
 				qp.Add("folder", directory)
 			}
+
 			// We always set the token if we believe we can open without
 			// printing the URI, otherwise the token must be explicitly
 			// requested as it will be printed in plain text.
 			if !insideAWorkspace || generateToken {
 				// Prepare an API key. This is for automagical configuration of
 				// VS Code, however, if running on a local machine we could try
+
 				// to probe VS Code settings to see if the current configuration
 				// is valid. Future improvement idea.
+
 				apiKey, err := client.CreateAPIKey(ctx, codersdk.Me)
 				if err != nil {
 					return fmt.Errorf("create API key: %w", err)
@@ -128,6 +144,7 @@ func (r *RootCmd) openVSCode() *serpent.Command {
 			}
 			u.RawQuery = qp.Encode()
 			openingPath := workspaceName
+
 			if directory != "" {
 				openingPath += ":" + directory
 			}
@@ -143,13 +160,16 @@ func (r *RootCmd) openVSCode() *serpent.Command {
 				err = errors.New("test.open-error")
 			}
 			if err != nil {
+
 				if !generateToken {
 					// This is not an important step, so we don't want
+
 					// to block the user here.
 					token := qp.Get("token")
 					wait := doAsync(func() {
 						// Best effort, we don't care if this fails.
 						apiKeyID := strings.SplitN(token, "-", 2)[0]
+
 						_ = client.DeleteAPIKey(ctx, codersdk.Me, apiKeyID)
 					})
 					defer wait()
@@ -157,6 +177,7 @@ func (r *RootCmd) openVSCode() *serpent.Command {
 					u.RawQuery = qp.Encode()
 				}
 				_, _ = fmt.Fprintf(inv.Stderr, "Could not automatically open %s in %s: %s\n", openingPath, vscodeDesktopName, err)
+
 				_, _ = fmt.Fprintf(inv.Stderr, "Please open the following URI instead:\n\n")
 				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", u.String())
 				return nil
@@ -174,20 +195,24 @@ func (r *RootCmd) openVSCode() *serpent.Command {
 				vscodeDesktopName,
 			),
 			Value: serpent.BoolOf(&generateToken),
+
 		},
 		{
 			Flag:        "test.open-error",
 			Description: "Don't run the open command.",
+
 			Value:       serpent.BoolOf(&testOpenError),
 			Hidden:      true, // This is for testing!
 		},
 	}
 	return cmd
 }
+
 // waitForAgentCond uses the watch workspace API to update the agent information
 // until the condition is met.
 func waitForAgentCond(ctx context.Context, client *codersdk.Client, workspace codersdk.Workspace, workspaceAgent codersdk.WorkspaceAgent, cond func(codersdk.WorkspaceAgent) bool) (codersdk.Workspace, codersdk.WorkspaceAgent, error) {
 	ctx, cancel := context.WithCancel(ctx)
+
 	defer cancel()
 	if cond(workspaceAgent) {
 		return workspace, workspaceAgent, nil
@@ -207,24 +232,29 @@ func waitForAgentCond(ctx context.Context, client *codersdk.Client, workspace co
 	}
 	return workspace, workspaceAgent, errors.New("watch workspace: unexpected closed channel")
 }
+
 // isWindowsAbsPath does a simplistic check for if the path is an absolute path
 // on Windows. Drive letter or preceding `\` is interpreted as absolute.
 func isWindowsAbsPath(p string) bool {
+
 	// Remove the drive letter, if present.
 	if len(p) >= 2 && p[1] == ':' {
 		p = p[2:]
 	}
 	switch {
 	case len(p) == 0:
+
 		return false
 	case p[0] == '\\':
 		return true
 	default:
+
 		return false
 	}
 }
 // windowsJoinPath joins the elements into a path, using Windows path separator
 // and converting forward slashes to backslashes.
+
 func windowsJoinPath(elem ...string) string {
 	if runtime.GOOS == "windows" {
 		return filepath.Join(elem...)
@@ -235,9 +265,11 @@ func windowsJoinPath(elem ...string) string {
 		if e == "" {
 			continue
 		}
+
 		if s == "" {
 			s = e
 			continue
+
 		}
 		s += "\\" + strings.TrimSuffix(e, "\\")
 	}
@@ -246,6 +278,7 @@ func windowsJoinPath(elem ...string) string {
 func unixToWindowsPath(p string) string {
 	return strings.ReplaceAll(p, "/", "\\")
 }
+
 // resolveAgentAbsPath resolves the absolute path to a file or directory in the
 // workspace. If the path is relative, it will be resolved relative to the
 // workspace's expanded directory. If the path is absolute, it will be returned
@@ -256,6 +289,7 @@ func unixToWindowsPath(p string) string {
 // relative to the current working directory.
 func resolveAgentAbsPath(workingDirectory, relOrAbsPath, agentOS string, local bool) (string, error) {
 	switch {
+
 	case relOrAbsPath == "":
 		return workingDirectory, nil
 	case relOrAbsPath == "~" || strings.HasPrefix(relOrAbsPath, "~/"):
@@ -263,6 +297,7 @@ func resolveAgentAbsPath(workingDirectory, relOrAbsPath, agentOS string, local b
 	case local:
 		p, err := filepath.Abs(relOrAbsPath)
 		if err != nil {
+
 			return "", fmt.Errorf("expand path: %w", err)
 		}
 		return p, nil
@@ -278,10 +313,12 @@ func resolveAgentAbsPath(workingDirectory, relOrAbsPath, agentOS string, local b
 		}
 	// Note that we use `path` instead of `filepath` since we want Unix behavior.
 	case workingDirectory != "" && !path.IsAbs(relOrAbsPath):
+
 		return path.Join(workingDirectory, relOrAbsPath), nil
 	case path.IsAbs(relOrAbsPath):
 		return relOrAbsPath, nil
 	default:
+
 		return "", fmt.Errorf("path %q not supported, use an absolute path instead", relOrAbsPath)
 	}
 }

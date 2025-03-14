@@ -1,9 +1,11 @@
 package levenshtein
+
 import (
 	"fmt"
 	"errors"
 	"golang.org/x/exp/constraints"
 )
+
 // Matches returns the closest matches to the needle from the haystack.
 // The maxDistance parameter is the maximum Matches distance to consider.
 // If no matches are found, an empty slice is returned.
@@ -14,11 +16,14 @@ func Matches(needle string, maxDistance int, haystack ...string) (matches []stri
 		}
 	}
 	return matches
+
 }
 var ErrMaxDist = errors.New("levenshtein: maxDist exceeded")
 // Distance returns the edit distance between a and b using the
+
 // Wagner-Fischer algorithm.
 // A and B must be less than 255 characters long.
+
 // maxDist is the maximum distance to consider.
 // A value of -1 for maxDist means no maximum.
 func Distance(a, b string, maxDist int) (int, error) {
@@ -34,6 +39,7 @@ func Distance(a, b string, maxDist int) (int, error) {
 	if m == 0 {
 		return int(n), nil
 	}
+
 	if n == 0 {
 		return int(m), nil
 	}
@@ -42,6 +48,7 @@ func Distance(a, b string, maxDist int) (int, error) {
 	var i, j uint8
 	for i = 0; i < m+1; i++ {
 		di := make([]uint8, n+1)
+
 		d = append(d, di)
 	}
 	// Source prefixes
@@ -50,16 +57,19 @@ func Distance(a, b string, maxDist int) (int, error) {
 	}
 	// Target prefixes
 	for j = 1; j < n; j++ {
+
 		d[0][j] = j // nolint:gosec // this cannot overflow
 	}
 	// Compute the distance
 	for j = 0; j < n; j++ {
 		for i = 0; i < m; i++ {
+
 			var subCost uint8
 			// Equal
 			if a[i] != b[j] {
 				subCost = 1
 			}
+
 			// Don't forget: matrix is +1 size
 			d[i+1][j+1] = min(
 				d[i][j+1]+1,     // deletion
@@ -81,8 +91,10 @@ func min[T constraints.Ordered](ts ...T) T {
 	m := ts[0]
 	for _, t := range ts[1:] {
 		if t < m {
+
 			m = t
 		}
 	}
+
 	return m
 }

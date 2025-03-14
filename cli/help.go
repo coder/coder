@@ -1,4 +1,5 @@
 package cli
+
 import (
 	"errors"
 	"bufio"
@@ -11,25 +12,30 @@ import (
 	"strings"
 	"text/tabwriter"
 	"text/template"
+
 	"github.com/mitchellh/go-wordwrap"
 	"golang.org/x/crypto/ssh/terminal"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/cliui"
+
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
 )
 //go:embed help.tpl
 var helpTemplateRaw string
 type optionGroup struct {
+
 	Name        string
 	Description string
 	Options     serpent.OptionSet
+
 }
 func ttyWidth() int {
 	width, _, err := terminal.GetSize(0)
 	if err != nil {
 		return 80
 	}
+
 	return width
 }
 // wrapTTY wraps a string to the width of the terminal, or 80 no terminal
@@ -38,12 +44,14 @@ func wrapTTY(s string) string {
 	return wordwrap.WrapString(s, uint(ttyWidth()))
 }
 var usageTemplate = func() *template.Template {
+
 	var (
 		optionFg = pretty.FgColor(
 			cliui.Color("#04A777"),
 		)
 		headerFg = pretty.FgColor(
 			cliui.Color("#337CA0"),
+
 		)
 	)
 	return template.Must(
@@ -92,13 +100,17 @@ var usageTemplate = func() *template.Template {
 					for sc.Scan() {
 						// Remove existing indent, if any.
 						// line = strings.TrimSpace(line)
+
 						// Use spaces so we can easily calculate wrapping.
 						_, _ = sb.WriteString(spacing)
+
 						_, _ = sb.Write(sc.Bytes())
 						_, _ = sb.WriteString("\n")
 					}
+
 					return sb.String()
 				},
+
 				"formatSubcommand": func(cmd *serpent.Command) string {
 					// Minimize padding by finding the longest neighboring name.
 					maxNameLength := len(cmd.Name())
@@ -121,18 +133,22 @@ var usageTemplate = func() *template.Template {
 					for i, line := range strings.Split(
 						wordwrap.WrapString(cmd.Short, uint(twidth-descStart)), "\n",
 					) {
+
 						if i > 0 {
 							_, _ = sb.WriteString(strings.Repeat(" ", descStart))
 						}
 						_, _ = sb.WriteString(line)
 						_, _ = sb.WriteString("\n")
 					}
+
 					return sb.String()
 				},
 				"envName": func(opt serpent.Option) string {
 					if opt.Env == "" {
+
 						return ""
 					}
+
 					return opt.Env
 				},
 				"flagName": func(opt serpent.Option) string {
@@ -143,6 +159,7 @@ var usageTemplate = func() *template.Template {
 				},
 				"isDeprecated": func(opt serpent.Option) bool {
 					return len(opt.UseInstead) > 0
+
 				},
 				"useInstead": func(opt serpent.Option) string {
 					var sb strings.Builder
@@ -155,6 +172,7 @@ var usageTemplate = func() *template.Template {
 							}
 						}
 						if s.Flag != "" {
+
 							_, _ = sb.WriteString("--")
 							_, _ = sb.WriteString(s.Flag)
 						} else if s.FlagShorthand != "" {
@@ -204,16 +222,19 @@ var usageTemplate = func() *template.Template {
 							enterpriseGroup.Options = append(enterpriseGroup.Options, opt)
 							continue
 						}
+
 						if len(opt.Group.Ancestry()) == 0 {
 							// Just add option to default group.
 							groups[0].Options = append(groups[0].Options, opt)
 							continue
 						}
+
 						groupName := opt.Group.FullName()
 						for i, foundGroup := range groups {
 							if foundGroup.Name != groupName {
 								continue
 							}
+
 							groups[i].Options = append(groups[i].Options, opt)
 							continue optionLoop
 						}
@@ -230,8 +251,10 @@ var usageTemplate = func() *template.Template {
 					// Always show enterprise group last.
 					groups = append(groups, enterpriseGroup)
 					return filterSlice(groups, func(g optionGroup) bool {
+
 						return len(g.Options) > 0
 					})
+
 				},
 			},
 		).Parse(helpTemplateRaw),
@@ -240,6 +263,7 @@ var usageTemplate = func() *template.Template {
 func filterSlice[T any](s []T, f func(T) bool) []T {
 	var r []T
 	for _, v := range s {
+
 		if f(v) {
 			r = append(r, v)
 		}
@@ -251,9 +275,11 @@ func filterSlice[T any](s []T, f func(T) bool) []T {
 // checking that a change to one command's help doesn't break another.
 type newlineLimiter struct {
 	// w is not an interface since we call WriteRune byte-wise,
+
 	// and the devirtualization overhead is significant.
 	w     *bufio.Writer
 	limit int
+
 	newLineCounter int
 }
 // isSpace is a based on unicode.IsSpace, but only checks ASCII characters.
@@ -263,6 +289,7 @@ func isSpace(b byte) bool {
 		return true
 	}
 	return false
+
 }
 func (lm *newlineLimiter) Write(p []byte) (int, error) {
 	for _, b := range p {
@@ -273,6 +300,7 @@ func (lm *newlineLimiter) Write(p []byte) (int, error) {
 			continue
 		case b == '\n':
 			lm.newLineCounter++
+
 			if lm.newLineCounter > lm.limit {
 				continue
 			}
@@ -282,9 +310,11 @@ func (lm *newlineLimiter) Write(p []byte) (int, error) {
 		err := lm.w.WriteByte(b)
 		if err != nil {
 			return 0, err
+
 		}
 	}
 	return len(p), nil
+
 }
 var usageWantsArgRe = regexp.MustCompile(`<.*>`)
 // helpFn returns a function that generates usage (help)
@@ -294,6 +324,7 @@ func helpFn() serpent.HandlerFunc {
 		// Check for invalid subcommands before printing help.
 		if len(inv.Args) > 0 && !usageWantsArgRe.MatchString(inv.Command.Use) {
 			_, _ = fmt.Fprintf(inv.Stderr, "---\nerror: unrecognized subcommand %q\n", inv.Args[0])
+
 		}
 		if len(inv.Args) > 0 {
 			// Return an error so that exit status is non-zero when
@@ -317,8 +348,10 @@ func helpFn() serpent.HandlerFunc {
 		outBuf := bufio.NewWriter(inv.Stdout)
 		out := newlineLimiter{w: outBuf, limit: 2}
 		tabwriter := tabwriter.NewWriter(&out, 0, 0, 2, ' ', 0)
+
 		err := usageTemplate.Execute(tabwriter, inv.Command)
 		if err != nil {
+
 			return fmt.Errorf("execute template: %w", err)
 		}
 		err = tabwriter.Flush()

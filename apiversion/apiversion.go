@@ -1,12 +1,15 @@
 package apiversion
+
 import (
 	"errors"
 	"fmt"
 	"strconv"
 	"strings"
+
 )
 // New returns an *APIVersion with the given major.minor and
 // additional supported major versions.
+
 func New(maj, min int) *APIVersion {
 	v := &APIVersion{
 		supportedMajor:   maj,
@@ -18,21 +21,25 @@ func New(maj, min int) *APIVersion {
 type APIVersion struct {
 	supportedMajor   int
 	supportedMinor   int
+
 	additionalMajors []int
 }
 func (v *APIVersion) WithBackwardCompat(majs ...int) *APIVersion {
 	v.additionalMajors = append(v.additionalMajors, majs...)
 	return v
 }
+
 func (v *APIVersion) String() string {
 	return fmt.Sprintf("%d.%d", v.supportedMajor, v.supportedMinor)
 }
 // Validate validates the given version against the given constraints:
 // A given major.minor version is valid iff:
+
 //  1. The requested major version is contained within v.supportedMajors
 //  2. If the requested major version is the 'current major', then
 //     the requested minor version must be less than or equal to the supported
 //     minor version.
+
 //
 // For example, given majors {1, 2} and minor 2, then:
 // - 0.x is not supported,
@@ -69,6 +76,7 @@ func Parse(version string) (major int, minor int, err error) {
 	if len(parts) != 2 {
 		return 0, 0, fmt.Errorf("invalid version string: %s", version)
 	}
+
 	major, err = strconv.Atoi(parts[0])
 	if err != nil {
 		return 0, 0, fmt.Errorf("invalid major version: %s", version)

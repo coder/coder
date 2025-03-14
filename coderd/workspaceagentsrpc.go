@@ -1,4 +1,5 @@
 package coderd
+
 import (
 	"errors"
 	"context"
@@ -10,10 +11,12 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/agent/proto"
+
 	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -31,6 +34,7 @@ import (
 // @Summary Workspace agent RPC API
 // @ID workspace-agent-rpc-api
 // @Security CoderSessionToken
+
 // @Tags Agents
 // @Success 101
 // @Router /workspaceagents/me/rpc [get]
@@ -42,6 +46,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 	if version == "" {
 		// The initial version on this HTTP endpoint was 2.0, so assume this version if unspecified.
 		// Coder v2.7.1 (not to be confused with the Agent API version) calls this endpoint without
+
 		// a version parameter and wants Agent API version 2.0.
 		version = "2.0"
 	}
@@ -59,6 +64,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 	api.WebsocketWaitMutex.Unlock()
 	defer api.WebsocketWaitGroup.Done()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
+
 	build := httpmw.LatestBuild(r)
 	workspace, err := api.Database.GetWorkspaceByID(ctx, build.WorkspaceID)
 	if err != nil {
@@ -66,6 +72,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 			Message: "Internal error fetching workspace.",
 			Detail:  err.Error(),
 		})
+
 		return
 	}
 	owner, err := api.Database.GetUserByID(ctx, workspace.OwnerID)
@@ -75,6 +82,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 			Detail:  err.Error(),
 		})
 		return
+
 	}
 	logger = logger.With(
 		slog.F("owner", owner.Username),
@@ -84,12 +92,14 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 	conn, err := websocket.Accept(rw, r, nil)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+
 			Message: "Failed to accept websocket.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageBinary)
+
 	defer wsNetConn.Close()
 	ycfg := yamux.DefaultConfig()
 	ycfg.LogOutput = nil
@@ -99,13 +109,16 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to start yamux over websocket.",
 			Detail:  err.Error(),
+
 		})
 		return
 	}
+
 	defer mux.Close()
 	logger.Debug(ctx, "accepting agent RPC connection",
 		slog.F("agent_id", workspaceAgent.ID),
 		slog.F("agent_created_at", workspaceAgent.CreatedAt),
+
 		slog.F("agent_updated_at", workspaceAgent.UpdatedAt),
 		slog.F("agent_name", workspaceAgent.Name),
 		slog.F("agent_first_connected_at", workspaceAgent.FirstConnectedAt.Time),
@@ -116,6 +129,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		slog.F("agent_connection_timeout_seconds", workspaceAgent.ConnectionTimeoutSeconds),
 		slog.F("agent_api_version", workspaceAgent.APIVersion),
 		slog.F("agent_resource_id", workspaceAgent.ResourceID))
+
 	closeCtx, closeCtxCancel := context.WithCancel(ctx)
 	defer closeCtxCancel()
 	monitor := api.startAgentYamuxMonitor(closeCtx, workspace, workspaceAgent, build, mux)
@@ -130,16 +144,19 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		Database:                          api.Database,
 		NotificationsEnqueuer:             api.NotificationsEnqueuer,
 		Pubsub:                            api.Pubsub,
+
 		Auditor:                           &api.Auditor,
 		DerpMapFn:                         api.DERPMap,
 		TailnetCoordinator:                &api.TailnetCoordinator,
 		AppearanceFetcher:                 &api.AppearanceFetcher,
 		StatsReporter:                     api.statsReporter,
+
 		PublishWorkspaceUpdateFn:          api.publishWorkspaceUpdate,
 		PublishWorkspaceAgentLogsUpdateFn: api.publishWorkspaceAgentLogsUpdate,
 		NetworkTelemetryHandler:           api.NetworkTelemetryBatcher.Handler,
 		AccessURL:                 api.AccessURL,
 		AppHostname:               api.AppHostname,
+
 		AgentStatsRefreshInterval: api.AgentStatsRefreshInterval,
 		DisableDirectConnections:  api.DeploymentValues.DERP.Config.BlockDirect.Value(),
 		DerpForceWebSockets:       api.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
@@ -155,6 +172,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		Auth: tailnet.AgentCoordinateeAuth{ID: workspaceAgent.ID},
 	}
 	ctx = tailnet.WithStreamID(ctx, streamID)
+
 	ctx = agentapi.WithAPIVersion(ctx, version)
 	err = agentAPI.Serve(ctx, mux)
 	if err != nil && !errors.Is(err, yamux.ErrSessionShutdown) && !errors.Is(err, io.EOF) {
@@ -164,10 +182,12 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 func (api *API) handleNetworkTelemetry(batch []*tailnetproto.TelemetryEvent) {
+
 	var (
 		telemetryEvents = make([]telemetry.NetworkEvent, 0, len(batch))
 		didLogErr       = false
 	)
+
 	for _, pEvent := range batch {
 		tEvent, err := telemetry.NetworkEventFromProto(pEvent)
 		if err != nil {
@@ -183,6 +203,7 @@ func (api *API) handleNetworkTelemetry(batch []*tailnetproto.TelemetryEvent) {
 	api.Telemetry.Report(&telemetry.Snapshot{
 		NetworkEvents: telemetryEvents,
 	})
+
 }
 type yamuxPingerCloser struct {
 	mux *yamux.Session
@@ -201,19 +222,23 @@ func (y *yamuxPingerCloser) Ping(ctx context.Context) error {
 		return ctx.Err()
 	case err := <-errCh:
 		return err
+
 	}
 }
 func (api *API) startAgentYamuxMonitor(ctx context.Context,
 	workspace database.Workspace,
 	workspaceAgent database.WorkspaceAgent,
+
 	workspaceBuild database.WorkspaceBuild,
 	mux *yamux.Session,
 ) *agentConnectionMonitor {
 	monitor := &agentConnectionMonitor{
+
 		apiCtx:            api.ctx,
 		workspace:         workspace,
 		workspaceAgent:    workspaceAgent,
 		workspaceBuild:    workspaceBuild,
+
 		conn:              &yamuxPingerCloser{mux: mux},
 		pingPeriod:        api.AgentConnectionUpdateFrequency,
 		db:                api.Database,
@@ -228,6 +253,7 @@ func (api *API) startAgentYamuxMonitor(ctx context.Context,
 	monitor.init()
 	monitor.start(ctx)
 	return monitor
+
 }
 type workspaceUpdater interface {
 	publishWorkspaceUpdate(ctx context.Context, ownerID uuid.UUID, event wspubsub.WorkspaceEvent)
@@ -253,18 +279,22 @@ type agentConnectionMonitor struct {
 	lastPing atomic.Pointer[time.Time]
 	// state manipulated only by monitor() goroutine: does not need to be threadsafe
 	firstConnectedAt  sql.NullTime
+
 	lastConnectedAt   sql.NullTime
 	disconnectedAt    sql.NullTime
 	disconnectTimeout time.Duration
+
 }
 // sendPings sends websocket pings.
 //
 // We use a custom heartbeat routine here instead of `httpapi.Heartbeat`
+
 // because we want to log the agent's last ping time.
 func (m *agentConnectionMonitor) sendPings(ctx context.Context) {
 	t := time.NewTicker(m.pingPeriod)
 	defer t.Stop()
 	for {
+
 		select {
 		case <-t.C:
 		case <-ctx.Done():
@@ -279,9 +309,11 @@ func (m *agentConnectionMonitor) sendPings(ctx context.Context) {
 			return
 		}
 		m.lastPing.Store(ptr.Ref(time.Now()))
+
 	}
 }
 func (m *agentConnectionMonitor) updateConnectionTimes(ctx context.Context) error {
+
 	//nolint:gocritic // We only update the agent we are minding.
 	err := m.db.UpdateWorkspaceAgentConnectionByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAgentConnectionByIDParams{
 		ID:               m.workspaceAgent.ID,
@@ -289,6 +321,7 @@ func (m *agentConnectionMonitor) updateConnectionTimes(ctx context.Context) erro
 		LastConnectedAt:  m.lastConnectedAt,
 		DisconnectedAt:   m.disconnectedAt,
 		UpdatedAt:        dbtime.Now(),
+
 		LastConnectedReplicaID: uuid.NullUUID{
 			UUID:  m.replicaID,
 			Valid: true,
@@ -297,6 +330,7 @@ func (m *agentConnectionMonitor) updateConnectionTimes(ctx context.Context) erro
 	if err != nil {
 		return fmt.Errorf("failed to update workspace agent connection times: %w", err)
 	}
+
 	return nil
 }
 func (m *agentConnectionMonitor) init() {
@@ -304,6 +338,7 @@ func (m *agentConnectionMonitor) init() {
 	m.firstConnectedAt = m.workspaceAgent.FirstConnectedAt
 	if !m.firstConnectedAt.Valid {
 		m.firstConnectedAt = sql.NullTime{
+
 			Time:  now,
 			Valid: true,
 		}
@@ -316,6 +351,7 @@ func (m *agentConnectionMonitor) init() {
 	m.lastPing.Store(ptr.Ref(time.Now())) // Since the agent initiated the request, assume it's alive.
 }
 func (m *agentConnectionMonitor) start(ctx context.Context) {
+
 	ctx, m.cancel = context.WithCancel(ctx)
 	m.wg.Add(2)
 	go pprof.Do(ctx, pprof.Labels("agent", m.workspaceAgent.ID.String()),
@@ -335,6 +371,7 @@ func (m *agentConnectionMonitor) monitor(ctx context.Context) {
 		// ensure our final update is sent. By waiting at most the agent
 		// inactive disconnect timeout we ensure that we don't block but
 		// also guarantee that the agent will be considered disconnected
+
 		// by normal status check.
 		//
 		// Use a system context as the agent has disconnected and that token
@@ -352,6 +389,7 @@ func (m *agentConnectionMonitor) monitor(ctx context.Context) {
 		err := m.updateConnectionTimes(finalCtx)
 		if err != nil {
 			// This is a bug with unit tests that cancel the app context and
+
 			// cause this error log to be generated. We should fix the unit tests
 			// as this is a valid log.
 			//
@@ -367,6 +405,7 @@ func (m *agentConnectionMonitor) monitor(ctx context.Context) {
 			WorkspaceID: m.workspaceBuild.WorkspaceID,
 			AgentID:     &m.workspaceAgent.ID,
 		})
+
 	}()
 	reason := "disconnect"
 	defer func() {
@@ -381,6 +420,7 @@ func (m *agentConnectionMonitor) monitor(ctx context.Context) {
 	}
 	m.updater.publishWorkspaceUpdate(ctx, m.workspace.OwnerID, wspubsub.WorkspaceEvent{
 		Kind:        wspubsub.WorkspaceEventKindAgentConnectionUpdate,
+
 		WorkspaceID: m.workspaceBuild.WorkspaceID,
 		AgentID:     &m.workspaceAgent.ID,
 	})
@@ -414,6 +454,7 @@ func (m *agentConnectionMonitor) monitor(ctx context.Context) {
 			return
 		}
 		if connectionStatusChanged {
+
 			m.updater.publishWorkspaceUpdate(ctx, m.workspace.OwnerID, wspubsub.WorkspaceEvent{
 				Kind:        wspubsub.WorkspaceEventKindAgentConnectionUpdate,
 				WorkspaceID: m.workspaceBuild.WorkspaceID,
@@ -425,6 +466,7 @@ func (m *agentConnectionMonitor) monitor(ctx context.Context) {
 			reason = err.Error()
 			m.logger.Info(ctx, "disconnected possibly outdated agent", slog.Error(err))
 			return
+
 		}
 	}
 }
@@ -435,6 +477,7 @@ func (m *agentConnectionMonitor) close() {
 func checkBuildIsLatest(ctx context.Context, db database.Store, build database.WorkspaceBuild) error {
 	latestBuild, err := db.GetLatestWorkspaceBuildByWorkspaceID(ctx, build.WorkspaceID)
 	if err != nil {
+
 		return err
 	}
 	if build.ID != latestBuild.ID {

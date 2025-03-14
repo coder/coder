@@ -1,12 +1,15 @@
 package cli
+
 import (
 	"errors"
 	"fmt"
 	"net/http"
 	"time"
 	"github.com/coder/coder/v2/cli/cliui"
+
 	"github.com/coder/coder/v2/cli/gitauth"
 	"github.com/coder/coder/v2/codersdk"
+
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/retry"
 	"github.com/coder/serpent"
@@ -15,6 +18,7 @@ import (
 // with Git providers based on a hostname.
 func (r *RootCmd) gitAskpass() *serpent.Command {
 	return &serpent.Command{
+
 		Use:    "gitaskpass",
 		Hidden: true,
 		Handler: func(inv *serpent.Invocation) error {
@@ -24,19 +28,23 @@ func (r *RootCmd) gitAskpass() *serpent.Command {
 			user, host, err := gitauth.ParseAskpass(inv.Args[0])
 			if err != nil {
 				return fmt.Errorf("parse host: %w", err)
+
 			}
 			client, err := r.createAgentClient()
 			if err != nil {
+
 				return fmt.Errorf("create agent client: %w", err)
 			}
 			token, err := client.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{
 				Match: host,
 			})
+
 			if err != nil {
 				var apiError *codersdk.Error
 				if errors.As(err, &apiError) && apiError.StatusCode() == http.StatusNotFound {
 					// This prevents the "Run 'coder --help' for usage"
 					// message from occurring.
+
 					lines := []string{apiError.Message}
 					if apiError.Detail != "" {
 						lines = append(lines, apiError.Detail)
@@ -63,6 +71,7 @@ func (r *RootCmd) gitAskpass() *serpent.Command {
 						continue
 					}
 					cliui.Infof(inv.Stderr, "You've been authenticated with Git!")
+
 					break
 				}
 			}
@@ -76,6 +85,7 @@ func (r *RootCmd) gitAskpass() *serpent.Command {
 				_, _ = fmt.Fprintln(inv.Stdout, token.Username)
 			}
 			return nil
+
 		},
 	}
 }

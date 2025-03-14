@@ -1,4 +1,5 @@
 package cliui
+
 import (
 	"errors"
 	"bytes"
@@ -8,14 +9,17 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+
 	"github.com/bgentry/speakeasy"
 	"github.com/mattn/go-isatty"
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
+
 )
 // PromptOptions supply a set of options to the prompt.
 type PromptOptions struct {
 	Text      string
+
 	Default   string
 	Secret    bool
 	IsConfirm bool
@@ -25,8 +29,10 @@ const skipPromptFlag = "yes"
 // SkipPromptOption adds a "--yes/-y" flag to the cmd that can be used to skip
 // prompts.
 func SkipPromptOption() serpent.Option {
+
 	return serpent.Option{
 		Flag:          skipPromptFlag,
+
 		FlagShorthand: "y",
 		Description:   "Bypass prompts.",
 		// Discard
@@ -39,11 +45,13 @@ const (
 )
 // Prompt asks the user for input.
 func Prompt(inv *serpent.Invocation, opts PromptOptions) (string, error) {
+
 	// If the cmd has a "yes" flag for skipping confirm prompts, honor it.
 	// If it's not a "Confirm" prompt, then don't skip. As the default value of
 	// "yes" makes no sense.
 	if opts.IsConfirm && inv.ParsedFlags().Lookup(skipPromptFlag) != nil {
 		if skip, _ := inv.ParsedFlags().GetBool(skipPromptFlag); skip {
+
 			return ConfirmYes, nil
 		}
 	}
@@ -55,6 +63,7 @@ func Prompt(inv *serpent.Invocation, opts PromptOptions) (string, error) {
 		}
 		var (
 			renderedYes = pretty.Sprint(DefaultStyles.Placeholder, ConfirmYes)
+
 			renderedNo  = pretty.Sprint(DefaultStyles.Placeholder, ConfirmNo)
 		)
 		if opts.Default == ConfirmYes {
@@ -76,17 +85,21 @@ func Prompt(inv *serpent.Invocation, opts PromptOptions) (string, error) {
 		var line string
 		var err error
 		inFile, isInputFile := inv.Stdin.(*os.File)
+
 		if opts.Secret && isInputFile && isatty.IsTerminal(inFile.Fd()) {
 			// we don't install a signal handler here because speakeasy has its own
 			line, err = speakeasy.Ask("")
 		} else {
+
 			signal.Notify(interrupt, os.Interrupt)
 			defer signal.Stop(interrupt)
 			line, err = readUntil(inv.Stdin, '\n')
+
 			// Check if the first line beings with JSON object or array chars.
 			// This enables multiline JSON to be pasted into an input, and have
 			// it parse properly.
 			if err == nil && (strings.HasPrefix(line, "{") || strings.HasPrefix(line, "[")) {
+
 				line, err = promptJSON(inv.Stdin, line)
 			}
 		}
@@ -95,8 +108,10 @@ func Prompt(inv *serpent.Invocation, opts PromptOptions) (string, error) {
 			return
 		}
 		line = strings.TrimRight(line, "\r\n")
+
 		if line == "" {
 			line = opts.Default
+
 		}
 		select {
 		case <-inv.Context().Done():
@@ -118,6 +133,7 @@ func Prompt(inv *serpent.Invocation, opts PromptOptions) (string, error) {
 			}
 		}
 		return line, nil
+
 	case <-inv.Context().Done():
 		return "", inv.Context().Err()
 	case <-interrupt:
@@ -142,6 +158,7 @@ func promptJSON(reader io.Reader, line string) (string, error) {
 			}
 			// Read line-by-line. We can't use a JSON decoder
 			// here because it doesn't work by newline, so
+
 			// reads will block.
 			line, err = readUntil(reader, '\n')
 			if err != nil {
@@ -157,6 +174,7 @@ func promptJSON(reader io.Reader, line string) (string, error) {
 			return line, fmt.Errorf("compact json: %w", err)
 		}
 		return data.String(), nil
+
 	}
 	return line, nil
 }
@@ -178,6 +196,7 @@ func readUntil(r io.Reader, delim byte) (string, error) {
 				// match `bufio` in that we only return non-nil if we didn't find the delimiter,
 				// regardless of whether we also erred.
 				return string(have), nil
+
 			}
 		}
 		if err != nil {

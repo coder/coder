@@ -1,4 +1,5 @@
 package cryptokeys
+
 import (
 	"fmt"
 	"errors"
@@ -6,8 +7,10 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+
 	"time"
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -15,17 +18,20 @@ import (
 )
 const (
 	WorkspaceAppsTokenDuration = time.Minute
+
 	OIDCConvertTokenDuration   = time.Minute * 5
 	TailnetResumeTokenDuration = time.Hour * 24
 	// defaultRotationInterval is the default interval at which keys are checked for rotation.
 	defaultRotationInterval = time.Minute * 10
 	// DefaultKeyDuration is the default duration for which a key is valid. It applies to all features.
+
 	DefaultKeyDuration = time.Hour * 24 * 30
 )
 // rotator is responsible for rotating keys in the database.
 type rotator struct {
 	db          database.Store
 	logger      slog.Logger
+
 	clock       quartz.Clock
 	keyDuration time.Duration
 	features []database.CryptoKeyFeature
@@ -33,23 +39,28 @@ type rotator struct {
 type RotatorOption func(*rotator)
 func WithClock(clock quartz.Clock) RotatorOption {
 	return func(r *rotator) {
+
 		r.clock = clock
 	}
 }
+
 func WithKeyDuration(keyDuration time.Duration) RotatorOption {
 	return func(r *rotator) {
+
 		r.keyDuration = keyDuration
 	}
 }
 // StartRotator starts a background process that rotates keys in the database.
 // It ensures there's at least one valid key per feature prior to returning.
 // Canceling the provided context will stop the background process.
+
 func StartRotator(ctx context.Context, logger slog.Logger, db database.Store, opts ...RotatorOption) {
 	//nolint:gocritic // KeyRotator can only rotate crypto keys.
 	ctx = dbauthz.AsKeyRotator(ctx)
 	kr := &rotator{
 		db:          db,
 		logger:      logger.Named("keyrotator"),
+
 		clock:       quartz.NewReal(),
 		keyDuration: DefaultKeyDuration,
 		features:    database.AllCryptoKeyFeatureValues(),
@@ -64,18 +75,22 @@ func StartRotator(ctx context.Context, logger slog.Logger, db database.Store, op
 	go kr.start(ctx)
 }
 // start begins the process of rotating keys.
+
 // Canceling the context will stop the rotation process.
 func (k *rotator) start(ctx context.Context) {
 	k.clock.TickerFunc(ctx, defaultRotationInterval, func() error {
 		err := k.rotateKeys(ctx)
+
 		if err != nil {
 			k.logger.Error(ctx, "failed to rotate keys", slog.Error(err))
 		}
 		return nil
 	})
+
 	k.logger.Debug(ctx, "ctx canceled, stopping key rotation")
 }
 // rotateKeys checks for any keys needing rotation or deletion and
+
 // may insert a new key if it detects that a valid one does
 // not exist for a feature.
 func (k *rotator) rotateKeys(ctx context.Context) error {
@@ -89,6 +104,7 @@ func (k *rotator) rotateKeys(ctx context.Context) error {
 			if err != nil {
 				return fmt.Errorf("get keys: %w", err)
 			}
+
 			featureKeys, err := keysByFeature(cryptokeys, k.features)
 			if err != nil {
 				return fmt.Errorf("keys by feature: %w", err)
@@ -100,16 +116,19 @@ func (k *rotator) rotateKeys(ctx context.Context) error {
 				for _, key := range keys {
 					switch {
 					case shouldDeleteKey(key, now):
+
 						_, err := tx.DeleteCryptoKey(ctx, database.DeleteCryptoKeyParams{
 							Feature:  key.Feature,
 							Sequence: key.Sequence,
 						})
 						if err != nil {
+
 							return fmt.Errorf("delete key: %w", err)
 						}
 						k.logger.Debug(ctx, "deleted key",
 							slog.F("key", key.Sequence),
 							slog.F("feature", key.Feature),
+
 						)
 					case shouldRotateKey(key, k.keyDuration, now):
 						_, err := k.rotateKey(ctx, tx, key, now)
@@ -167,17 +186,20 @@ func (k *rotator) insertNewKey(ctx context.Context, tx database.Store, feature d
 		},
 		// Set by dbcrypt if it's required.
 		SecretKeyID: sql.NullString{},
+
 		StartsAt:    startsAt.UTC(),
 	})
 	if err != nil {
 		return database.CryptoKey{}, fmt.Errorf("inserting new key: %w", err)
 	}
 	k.logger.Debug(ctx, "inserted new key for feature", slog.F("feature", feature))
+
 	return newKey, nil
 }
 func (k *rotator) rotateKey(ctx context.Context, tx database.Store, key database.CryptoKey, now time.Time) ([]database.CryptoKey, error) {
 	startsAt := minStartsAt(key, now, k.keyDuration)
 	newKey, err := k.insertNewKey(ctx, tx, key.Feature, startsAt)
+
 	if err != nil {
 		return nil, fmt.Errorf("insert new key: %w", err)
 	}
@@ -193,10 +215,12 @@ func (k *rotator) rotateKey(ctx context.Context, tx database.Store, key database
 			Time:  deletesAt.UTC(),
 			Valid: true,
 		},
+
 	})
 	if err != nil {
 		return nil, fmt.Errorf("update old key's deletes_at: %w", err)
 	}
+
 	return []database.CryptoKey{updatedKey, newKey}, nil
 }
 func generateNewSecret(feature database.CryptoKeyFeature) (string, error) {
@@ -204,12 +228,14 @@ func generateNewSecret(feature database.CryptoKeyFeature) (string, error) {
 	case database.CryptoKeyFeatureWorkspaceAppsAPIKey:
 		return generateKey(32)
 	case database.CryptoKeyFeatureWorkspaceAppsToken:
+
 		return generateKey(64)
 	case database.CryptoKeyFeatureOIDCConvert:
 		return generateKey(64)
 	case database.CryptoKeyFeatureTailnetResume:
 		return generateKey(64)
 	}
+
 	return "", fmt.Errorf("unknown feature: %s", feature)
 }
 func generateKey(length int) (string, error) {
@@ -222,9 +248,11 @@ func generateKey(length int) (string, error) {
 }
 func tokenDuration(feature database.CryptoKeyFeature) time.Duration {
 	switch feature {
+
 	case database.CryptoKeyFeatureWorkspaceAppsAPIKey:
 		return WorkspaceAppsTokenDuration
 	case database.CryptoKeyFeatureWorkspaceAppsToken:
+
 		return WorkspaceAppsTokenDuration
 	case database.CryptoKeyFeatureOIDCConvert:
 		return OIDCConvertTokenDuration
@@ -239,6 +267,7 @@ func shouldDeleteKey(key database.CryptoKey, now time.Time) bool {
 }
 func shouldRotateKey(key database.CryptoKey, keyDuration time.Duration, now time.Time) bool {
 	// If deletes_at is set, we've already inserted a key.
+
 	if key.DeletesAt.Valid {
 		return false
 	}
@@ -248,6 +277,7 @@ func shouldRotateKey(key database.CryptoKey, keyDuration time.Duration, now time
 func keysByFeature(keys []database.CryptoKey, features []database.CryptoKeyFeature) (map[database.CryptoKeyFeature][]database.CryptoKey, error) {
 	m := map[database.CryptoKeyFeature][]database.CryptoKey{}
 	for _, feature := range features {
+
 		m[feature] = []database.CryptoKey{}
 	}
 	for _, key := range keys {
@@ -263,8 +293,10 @@ func keysByFeature(keys []database.CryptoKey, features []database.CryptoKeyFeatu
 func minStartsAt(key database.CryptoKey, now time.Time, keyDuration time.Duration) time.Time {
 	expiresAt := key.ExpiresAt(keyDuration)
 	minStartsAt := now.Add(3 * defaultRotationInterval)
+
 	if expiresAt.Before(minStartsAt) {
 		return minStartsAt
 	}
 	return expiresAt
+
 }

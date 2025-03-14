@@ -1,6 +1,7 @@
 // Package wsbuilder provides the Builder object, which encapsulates the common business logic of inserting a new
 // workspace build into the database.
 package wsbuilder
+
 import (
 	"errors"
 	"context"
@@ -9,17 +10,21 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+
 	"github.com/coder/coder/v2/provisioner/terraform/tfparse"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
+
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
@@ -32,6 +37,7 @@ import (
 // Builder follows the so-called "Builder" pattern where options that customize the kind of build you get return
 // a new instance of the Builder with the option applied.
 //
+
 // Example:
 //
 // b = wsbuilder.New(workspace, transition).VersionID(vID).Initiator(me)
@@ -50,14 +56,17 @@ type Builder struct {
 	// used during build, makes function arguments less verbose
 	ctx   context.Context
 	store database.Store
+
 	// cache of objects, so we only fetch once
 	template                     *database.Template
 	templateVersion              *database.TemplateVersion
 	templateVersionJob           *database.ProvisionerJob
+
 	templateVersionParameters    *[]database.TemplateVersionParameter
 	templateVersionVariables     *[]database.TemplateVersionVariable
 	templateVersionWorkspaceTags *[]database.TemplateVersionWorkspaceTag
 	lastBuild                    *database.WorkspaceBuild
+
 	lastBuildErr                 *error
 	lastBuildParameters          *[]database.WorkspaceBuildParameter
 	lastBuildJob                 *database.ProvisionerJob
@@ -72,11 +81,14 @@ type Option func(Builder) Builder
 // the build will fail.
 //
 // setting active: true means to use the active version from the template.
+
 //
 // setting specific to a non-nil value means to use the provided template version ID.
 //
+
 // active and specific are mutually exclusive and setting them both results in undefined behavior.
 type versionTarget struct {
+
 	active   bool
 	specific *uuid.UUID
 }
@@ -92,6 +104,7 @@ type versionTarget struct {
 // orphan and explicit are mutually exclusive and setting them both results in undefined behavior.
 type stateTarget struct {
 	orphan   bool
+
 	explicit *[]byte
 }
 func New(w database.Workspace, t database.WorkspaceTransition) Builder {
@@ -107,66 +120,78 @@ func (b Builder) ActiveVersion() Builder {
 	// nolint: revive
 	b.version = versionTarget{active: true}
 	return b
+
 }
 func (b Builder) State(state []byte) Builder {
 	// nolint: revive
 	b.state = stateTarget{explicit: &state}
+
 	return b
 }
+
 func (b Builder) Orphan() Builder {
 	// nolint: revive
 	b.state = stateTarget{orphan: true}
 	return b
 }
 func (b Builder) LogLevel(l string) Builder {
+
 	// nolint: revive
 	b.logLevel = l
 	return b
 }
 func (b Builder) DeploymentValues(dv *codersdk.DeploymentValues) Builder {
 	// nolint: revive
+
 	b.deploymentValues = dv
 	return b
 }
 func (b Builder) Initiator(u uuid.UUID) Builder {
 	// nolint: revive
 	b.initiator = u
+
 	return b
 }
 func (b Builder) Reason(r database.BuildReason) Builder {
 	// nolint: revive
 	b.reason = r
 	return b
+
 }
 func (b Builder) RichParameterValues(p []codersdk.WorkspaceBuildParameter) Builder {
 	// nolint: revive
 	b.richParameterValues = p
 	return b
 }
+
 // SetLastWorkspaceBuildInTx prepopulates the Builder's cache with the last workspace build.  This allows us
 // to avoid a repeated database query when the Builder's caller also needs the workspace build, e.g. auto-start &
 // auto-stop.
 //
 // CAUTION: only call this method from within a database transaction with RepeatableRead isolation.  This transaction
 // MUST be the database.Store you call Build() with.
+
 func (b Builder) SetLastWorkspaceBuildInTx(build *database.WorkspaceBuild) Builder {
 	// nolint: revive
 	b.lastBuild = build
 	return b
 }
 // SetLastWorkspaceBuildJobInTx prepopulates the Builder's cache with the last workspace build job.  This allows us
+
 // to avoid a repeated database query when the Builder's caller also needs the workspace build job, e.g. auto-start &
 // auto-stop.
 //
 // CAUTION: only call this method from within a database transaction with RepeatableRead isolation.  This transaction
 // MUST be the database.Store you call Build() with.
 func (b Builder) SetLastWorkspaceBuildJobInTx(job *database.ProvisionerJob) Builder {
+
 	// nolint: revive
 	b.lastBuildJob = job
 	return b
 }
 type BuildError struct {
 	// Status is a suitable HTTP status code
+
 	Status  int
 	Message string
 	Wrapped error
@@ -179,6 +204,7 @@ func (e BuildError) Unwrap() error {
 }
 // Build computes and inserts a new workspace build into the database.  If authFunc is provided, it also performs
 // authorization preflight checks.
+
 func (b *Builder) Build(
 	ctx context.Context,
 	store database.Store,
@@ -191,6 +217,7 @@ func (b *Builder) Build(
 	b.ctx, err = audit.BaggageToContext(ctx, auditBaggage)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("create audit baggage: %w", err)
+
 	}
 	// Run the build in a transaction with RepeatableRead isolation, and retries.
 	// RepeatableRead isolation ensures that we get a consistent view of the database while
@@ -198,14 +225,17 @@ func (b *Builder) Build(
 	// later reads are consistent with earlier ones.
 	var workspaceBuild *database.WorkspaceBuild
 	var provisionerJob *database.ProvisionerJob
+
 	var provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
 	err = database.ReadModifyUpdate(store, func(tx database.Store) error {
 		var err error
 		b.store = tx
+
 		workspaceBuild, provisionerJob, provisionerDaemons, err = b.buildTx(authFunc)
 		return err
 	})
 	if err != nil {
+
 		return nil, nil, nil, fmt.Errorf("build tx: %w", err)
 	}
 	return workspaceBuild, provisionerJob, provisionerDaemons, nil
@@ -222,6 +252,7 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 	if authFunc != nil {
 		err := b.authorize(authFunc)
 		if err != nil {
+
 			return nil, nil, nil, err
 		}
 	}
@@ -241,6 +272,7 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 	if err != nil {
 		return nil, nil, nil, BuildError{http.StatusInternalServerError, "failed to fetch template", err}
 	}
+
 	templateVersionJob, err := b.getTemplateVersionJob()
 	if err != nil {
 		return nil, nil, nil, BuildError{
@@ -269,11 +301,13 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 	}
 	traceMetadataRaw, err := json.Marshal(tracing.MetadataFromContext(b.ctx))
 	if err != nil {
+
 		return nil, nil, nil, BuildError{http.StatusInternalServerError, "marshal metadata", err}
 	}
 	tags, err := b.getProvisionerTags()
 	if err != nil {
 		return nil, nil, nil, err // already wrapped BuildError
+
 	}
 	now := dbtime.Now()
 	provisionerJob, err := b.store.InsertProvisionerJob(b.ctx, database.InsertProvisionerJobParams{
@@ -281,6 +315,7 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 		CreatedAt:      now,
 		UpdatedAt:      now,
 		InitiatorID:    b.initiator,
+
 		OrganizationID: template.OrganizationID,
 		Provisioner:    template.Provisioner,
 		Type:           database.ProvisionerJobTypeWorkspaceBuild,
@@ -290,6 +325,7 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 		Tags:           tags,
 		TraceMetadata: pqtype.NullRawMessage{
 			Valid:      true,
+
 			RawMessage: traceMetadataRaw,
 		},
 	})
@@ -307,11 +343,13 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 		// is no matching provisioner daemon for the job.
 		provisionerDaemons = []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow{}
 	}
+
 	templateVersionID, err := b.getTemplateVersionID()
 	if err != nil {
 		return nil, nil, nil, BuildError{http.StatusInternalServerError, "compute template version ID", err}
 	}
 	buildNum, err := b.getBuildNumber()
+
 	if err != nil {
 		return nil, nil, nil, BuildError{http.StatusInternalServerError, "compute build number", err}
 	}
@@ -334,6 +372,7 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 			JobID:                   provisionerJob.ID,
 			Reason:                  b.reason,
 			Deadline:                time.Time{},     // set by provisioner upon completion
+
 			MaxDeadline:             time.Time{},     // set by provisioner upon completion
 			TemplateVersionPresetID: uuid.NullUUID{}, // TODO (sasswart): add this in from the caller
 		})
@@ -346,6 +385,7 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 				// workspace_builds_workspace_id_build_number_key.
 				code = http.StatusConflict
 			}
+
 			return BuildError{code, "insert workspace build", err}
 		}
 		names, values, err := b.getParameters()
@@ -359,6 +399,7 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 			Value:            values,
 		})
 		if err != nil {
+
 			return BuildError{http.StatusInternalServerError, "insert workspace build parameters: %w", err}
 		}
 		workspaceBuild, err = store.GetWorkspaceBuildByID(b.ctx, workspaceBuildID)
@@ -389,12 +430,14 @@ func (b *Builder) getTemplateVersionJob() (*database.ProvisionerJob, error) {
 	}
 	v, err := b.getTemplateVersion()
 	if err != nil {
+
 		return nil, fmt.Errorf("get template version so we can get provisioner job: %w", err)
 	}
 	j, err := b.store.GetProvisionerJobByID(b.ctx, v.JobID)
 	if err != nil {
 		return nil, fmt.Errorf("get template provisioner job %s: %w", v.JobID, err)
 	}
+
 	b.templateVersionJob = &j
 	return b.templateVersionJob, err
 }
@@ -404,20 +447,24 @@ func (b *Builder) getTemplateVersion() (*database.TemplateVersion, error) {
 	}
 	id, err := b.getTemplateVersionID()
 	if err != nil {
+
 		return nil, fmt.Errorf("get template version ID so we can get version: %w", err)
 	}
 	v, err := b.store.GetTemplateVersionByID(b.ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("get template version %s: %w", id, err)
+
 	}
 	b.templateVersion = &v
 	return b.templateVersion, err
 }
 func (b *Builder) getTemplateVersionID() (uuid.UUID, error) {
 	if b.version.specific != nil {
+
 		return *b.version.specific, nil
 	}
 	if b.version.active {
+
 		t, err := b.getTemplate()
 		if err != nil {
 			return uuid.Nil, fmt.Errorf("get template so we can get active version: %w", err)
@@ -430,6 +477,7 @@ func (b *Builder) getTemplateVersionID() (uuid.UUID, error) {
 		return uuid.Nil, fmt.Errorf("get last build so we can get version: %w", err)
 	}
 	return bld.TemplateVersionID, nil
+
 }
 func (b *Builder) getLastBuild() (*database.WorkspaceBuild, error) {
 	if b.lastBuild != nil {
@@ -446,6 +494,7 @@ func (b *Builder) getLastBuild() (*database.WorkspaceBuild, error) {
 		b.lastBuildErr = &err
 		return nil, err
 	}
+
 	b.lastBuild = &bld
 	return b.lastBuild, nil
 }
@@ -462,6 +511,7 @@ func (b *Builder) getBuildNumber() (int32, error) {
 }
 func (b *Builder) getState() ([]byte, error) {
 	if b.state.orphan {
+
 		// Orphan means empty state.
 		return nil, nil
 	}
@@ -481,6 +531,7 @@ func (b *Builder) getState() ([]byte, error) {
 }
 func (b *Builder) getParameters() (names, values []string, err error) {
 	if b.parameterNames != nil {
+
 		return *b.parameterNames, *b.parameterValues, nil
 	}
 	templateVersionParameters, err := b.getTemplateVersionParameters()
@@ -500,6 +551,7 @@ func (b *Builder) getParameters() (names, values []string, err error) {
 	}
 	for _, templateVersionParameter := range templateVersionParameters {
 		tvp, err := db2sdk.TemplateVersionParameter(templateVersionParameter)
+
 		if err != nil {
 			return nil, nil, BuildError{http.StatusInternalServerError, "failed to convert template version parameter", err}
 		}
@@ -512,6 +564,7 @@ func (b *Builder) getParameters() (names, values []string, err error) {
 			// so the only errors are problems with the request (missing data, failed
 			// validation, immutable parameters, etc.)
 			return nil, nil, BuildError{http.StatusBadRequest, fmt.Sprintf("Unable to validate parameter %q", templateVersionParameter.Name), err}
+
 		}
 		names = append(names, templateVersionParameter.Name)
 		values = append(values, value)
@@ -532,11 +585,13 @@ func (b *Builder) getLastBuildParameters() ([]database.WorkspaceBuildParameter, 
 	if b.lastBuildParameters != nil {
 		return *b.lastBuildParameters, nil
 	}
+
 	bld, err := b.getLastBuild()
 	if errors.Is(err, sql.ErrNoRows) {
 		// if the build doesn't exist, then clearly there can be no parameters.
 		b.lastBuildParameters = &[]database.WorkspaceBuildParameter{}
 		return *b.lastBuildParameters, nil
+
 	}
 	if err != nil {
 		return nil, fmt.Errorf("get last build to get parameters: %w", err)
@@ -571,11 +626,13 @@ func (b *Builder) getTemplateVersionVariables() ([]database.TemplateVersionVaria
 	if err != nil {
 		return nil, fmt.Errorf("get template version ID to get variables: %w", err)
 	}
+
 	tvs, err := b.store.GetTemplateVersionVariables(b.ctx, tvID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("get template version %s variables: %w", tvID, err)
 	}
 	b.templateVersionVariables = &tvs
+
 	return tvs, nil
 }
 // verifyNoLegacyParameters verifies that initiator can't start the workspace build
@@ -585,6 +642,7 @@ func (b *Builder) verifyNoLegacyParameters() error {
 		return nil
 	}
 	b.verifyNoLegacyParametersOnce = true
+
 	// Block starting the workspace with legacy parameters.
 	if b.trans != database.WorkspaceTransitionStart {
 		return nil
@@ -606,6 +664,7 @@ func (b *Builder) verifyNoLegacyParameters() error {
 	return nil
 }
 func (b *Builder) getLastBuildJob() (*database.ProvisionerJob, error) {
+
 	if b.lastBuildJob != nil {
 		return b.lastBuildJob, nil
 	}
@@ -622,6 +681,7 @@ func (b *Builder) getLastBuildJob() (*database.ProvisionerJob, error) {
 }
 func (b *Builder) getProvisionerTags() (map[string]string, error) {
 	// Step 1: Mutate template version tags
+
 	templateVersionJob, err := b.getTemplateVersionJob()
 	if err != nil {
 		return nil, BuildError{http.StatusInternalServerError, "failed to fetch template version job", err}
@@ -638,6 +698,7 @@ func (b *Builder) getProvisionerTags() (map[string]string, error) {
 	// - Get parameters from the workspace build as they can also be referenced
 	//   in workspace tags
 	// - Evaluate workspace tags given the above inputs
+
 	workspaceTags, err := b.getTemplateVersionWorkspaceTags()
 	if err != nil {
 		return nil, BuildError{http.StatusInternalServerError, "failed to fetch template version workspace tags", err}
@@ -646,16 +707,19 @@ func (b *Builder) getProvisionerTags() (map[string]string, error) {
 	if err != nil {
 		return nil, BuildError{http.StatusInternalServerError, "failed to fetch template version variables", err}
 	}
+
 	varsM := make(map[string]string)
 	for _, tv := range tvs {
 		// FIXME: do this in Terraform? This is a bit of a hack.
 		if tv.Value == "" {
 			varsM[tv.Name] = tv.DefaultValue
+
 		} else {
 			varsM[tv.Name] = tv.Value
 		}
 	}
 	parameterNames, parameterValues, err := b.getParameters()
+
 	if err != nil {
 		return nil, err // already wrapped BuildError
 	}
@@ -664,12 +728,14 @@ func (b *Builder) getProvisionerTags() (map[string]string, error) {
 		paramsM[name] = parameterValues[i]
 	}
 	evalCtx := tfparse.BuildEvalContext(varsM, paramsM)
+
 	for _, workspaceTag := range workspaceTags {
 		expr, diags := hclsyntax.ParseExpression([]byte(workspaceTag.Value), "expression.hcl", hcl.InitialPos)
 		if diags.HasErrors() {
 			return nil, BuildError{http.StatusBadRequest, "failed to parse workspace tag value", fmt.Errorf(diags.Error())}
 		}
 		val, diags := expr.Value(evalCtx)
+
 		if diags.HasErrors() {
 			return nil, BuildError{http.StatusBadRequest, "failed to evaluate workspace tag value", fmt.Errorf(diags.Error())}
 		}
@@ -686,6 +752,7 @@ func (b *Builder) getTemplateVersionWorkspaceTags() ([]database.TemplateVersionW
 	if b.templateVersionWorkspaceTags != nil {
 		return *b.templateVersionWorkspaceTags, nil
 	}
+
 	templateVersion, err := b.getTemplateVersion()
 	if err != nil {
 		return nil, fmt.Errorf("get template version: %w", err)
@@ -694,11 +761,13 @@ func (b *Builder) getTemplateVersionWorkspaceTags() ([]database.TemplateVersionW
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("get template version workspace tags: %w", err)
 	}
+
 	b.templateVersionWorkspaceTags = &workspaceTags
 	return *b.templateVersionWorkspaceTags, nil
 }
 // authorize performs build authorization pre-checks using the provided authFunc
 func (b *Builder) authorize(authFunc func(action policy.Action, object rbac.Objecter) bool) error {
+
 	// Doing this up front saves a lot of work if the user doesn't have permission.
 	// This is checked again in the dbauthz layer, but the check is cached
 	// and will be a noop later.
@@ -732,6 +801,7 @@ func (b *Builder) authorize(authFunc func(action policy.Action, object rbac.Obje
 	// If custom state, deny request since user could be corrupting or leaking
 	// cloud state.
 	if b.state.explicit != nil || b.state.orphan {
+
 		if !authFunc(policy.ActionUpdate, template.RBACObject()) {
 			return BuildError{http.StatusForbidden, "Only template managers may provide custom state", errors.New("Only template managers may provide custom state")}
 		}
@@ -739,11 +809,13 @@ func (b *Builder) authorize(authFunc func(action policy.Action, object rbac.Obje
 	if b.logLevel != "" && !authFunc(policy.ActionRead, rbac.ResourceDeploymentConfig) {
 		return BuildError{
 			http.StatusBadRequest,
+
 			"Workspace builds with a custom log level are restricted to administrators only.",
 			errors.New("Workspace builds with a custom log level are restricted to administrators only."),
 		}
 	}
 	if b.logLevel != "" && b.deploymentValues != nil && !b.deploymentValues.EnableTerraformDebugMode {
+
 		return BuildError{
 			http.StatusBadRequest,
 			"Terraform debug mode is disabled in the deployment configuration.",
@@ -754,25 +826,30 @@ func (b *Builder) authorize(authFunc func(action policy.Action, object rbac.Obje
 }
 func (b *Builder) checkTemplateVersionMatchesTemplate() error {
 	template, err := b.getTemplate()
+
 	if err != nil {
 		return BuildError{http.StatusInternalServerError, "failed to fetch template", err}
 	}
 	templateVersion, err := b.getTemplateVersion()
 	if errors.Is(err, sql.ErrNoRows) {
+
 		return BuildError{http.StatusBadRequest, "template version does not exist", err}
 	}
 	if err != nil {
 		return BuildError{http.StatusInternalServerError, "failed to fetch template version", err}
 	}
+
 	if !templateVersion.TemplateID.Valid || templateVersion.TemplateID.UUID != template.ID {
 		return BuildError{
 			http.StatusBadRequest,
 			"template version doesn't match template",
 			fmt.Errorf("templateVersion.TemplateID = %+v, template.ID = %s",
+
 				templateVersion.TemplateID, template.ID),
 		}
 	}
 	return nil
+
 }
 func (b *Builder) checkTemplateJobStatus() error {
 	templateVersion, err := b.getTemplateVersion()
@@ -802,11 +879,13 @@ func (b *Builder) checkTemplateJobStatus() error {
 			errors.New(msg),
 		}
 	case codersdk.ProvisionerJobCanceled:
+
 		msg := fmt.Sprintf("The provided template version %q has failed to import: %q. You cannot build workspaces with it!", templateVersion.Name, templateVersionJob.Error.String)
 		return BuildError{
 			http.StatusBadRequest,
 			msg,
 			errors.New(msg),
+
 		}
 	}
 	return nil
@@ -815,6 +894,7 @@ func (b *Builder) checkRunningBuild() error {
 	job, err := b.getLastBuildJob()
 	if errors.Is(err, sql.ErrNoRows) {
 		// no prior build, so it can't be running!
+
 		return nil
 	}
 	if err != nil {
@@ -823,6 +903,7 @@ func (b *Builder) checkRunningBuild() error {
 	if codersdk.ProvisionerJobStatus(job.JobStatus).Active() {
 		msg := "A workspace build is already active."
 		return BuildError{
+
 			http.StatusConflict,
 			msg,
 			errors.New(msg),

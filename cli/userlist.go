@@ -1,17 +1,21 @@
 package cli
+
 import (
 	"errors"
 	"context"
 	"fmt"
 	"time"
+
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+
 	"github.com/coder/serpent"
 )
 func (r *RootCmd) userList() *serpent.Command {
 	formatter := cliui.NewOutputFormatter(
 		cliui.TableFormat([]codersdk.User{}, []string{"username", "email", "created at", "status"}),
+
 		cliui.JSONFormat(),
 	)
 	client := new(codersdk.Client)
@@ -19,6 +23,7 @@ func (r *RootCmd) userList() *serpent.Command {
 		Use:     "list",
 		Aliases: []string{"ls"},
 		Middleware: serpent.Chain(
+
 			serpent.RequireNArgs(0),
 			r.InitClient(client),
 		),
@@ -32,20 +37,24 @@ func (r *RootCmd) userList() *serpent.Command {
 				return err
 			}
 			_, err = fmt.Fprintln(inv.Stdout, out)
+
 			return err
 		},
 	}
 	formatter.AttachOptions(&cmd.Options)
 	return cmd
+
 }
 func (r *RootCmd) userSingle() *serpent.Command {
 	formatter := cliui.NewOutputFormatter(
 		&userShowFormat{},
 		cliui.JSONFormat(),
+
 	)
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "show <username|user_id|'me'>",
+
 		Short: "Show a single user. Use 'me' to indicate the currently authenticated user.",
 		Long: FormatExamples(
 			Example{
@@ -53,6 +62,7 @@ func (r *RootCmd) userSingle() *serpent.Command {
 			},
 		),
 		Middleware: serpent.Chain(
+
 			serpent.RequireNArgs(1),
 			r.InitClient(client),
 		),
@@ -71,6 +81,7 @@ func (r *RootCmd) userSingle() *serpent.Command {
 			}
 			out, err := formatter.Format(inv.Context(), userWithOrgNames{
 				User:              user,
+
 				OrganizationNames: orgNames,
 			})
 			if err != nil {
@@ -78,9 +89,11 @@ func (r *RootCmd) userSingle() *serpent.Command {
 			}
 			_, err = fmt.Fprintln(inv.Stdout, out)
 			return err
+
 		},
 	}
 	formatter.AttachOptions(&cmd.Options)
+
 	return cmd
 }
 type userWithOrgNames struct {
@@ -89,32 +102,40 @@ type userWithOrgNames struct {
 }
 type userShowFormat struct{}
 var _ cliui.OutputFormat = &userShowFormat{}
+
 // ID implements OutputFormat.
 func (*userShowFormat) ID() string {
 	return "table"
 }
 // AttachOptions implements OutputFormat.
+
 func (*userShowFormat) AttachOptions(_ *serpent.OptionSet) {}
 // Format implements OutputFormat.
 func (*userShowFormat) Format(_ context.Context, out interface{}) (string, error) {
 	user, ok := out.(userWithOrgNames)
+
 	if !ok {
 		return "", fmt.Errorf("expected type %T, got %T", user, out)
 	}
 	tw := cliui.Table()
 	addRow := func(name string, value interface{}) {
+
 		key := ""
 		if name != "" {
+
 			key = name + ":"
 		}
+
 		tw.AppendRow(table.Row{
 			key, value,
 		})
 	}
 	// Add rows for each of the user's fields.
+
 	addRow("ID", user.ID.String())
 	addRow("Username", user.Username)
 	addRow("Full name", user.Name)
+
 	addRow("Email", user.Email)
 	addRow("Status", user.Status)
 	addRow("Created At", user.CreatedAt.Format(time.Stamp))
@@ -122,6 +143,7 @@ func (*userShowFormat) Format(_ context.Context, out interface{}) (string, error
 	firstRole := true
 	for _, role := range user.Roles {
 		if role.DisplayName == "" {
+
 			// Skip roles with no display name.
 			continue
 		}
@@ -133,6 +155,7 @@ func (*userShowFormat) Format(_ context.Context, out interface{}) (string, error
 		addRow(key, role.DisplayName)
 	}
 	if firstRole {
+
 		addRow("Roles", "(none)")
 	}
 	addRow("", "")
@@ -141,6 +164,7 @@ func (*userShowFormat) Format(_ context.Context, out interface{}) (string, error
 		key := ""
 		if firstOrg {
 			key = "Organizations"
+
 			firstOrg = false
 		}
 		addRow(key, orgName)
@@ -149,4 +173,5 @@ func (*userShowFormat) Format(_ context.Context, out interface{}) (string, error
 		addRow("Organizations", "(none)")
 	}
 	return tw.Render(), nil
+
 }

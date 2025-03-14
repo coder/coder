@@ -1,12 +1,15 @@
 package cli
+
 import (
 	"errors"
 	"fmt"
 	"io"
 	"strings"
 	"time"
+
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
+
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/tz"
 	"github.com/coder/coder/v2/codersdk"
@@ -15,6 +18,7 @@ import (
 const (
 	scheduleShowDescriptionLong = `Shows the following information for the given workspace(s):
   * The automatic start schedule
+
   * The next scheduled start time
   * The duration after which it will stop
   * The next scheduled stop time
@@ -39,6 +43,7 @@ When enabling scheduled stop, enter a duration in one of the following formats:
   * 3h2m (3 hours and two minutes)
   * 3h   (3 hours)
   * 2m   (2 minutes)
+
   * 2    (2 minutes)
 `
 	scheduleExtendDescriptionLong = `
@@ -52,6 +57,7 @@ func (r *RootCmd) schedules() *serpent.Command {
 		Annotations: workspaceCommand,
 		Use:         "schedule { show | start | stop | extend } <workspace>",
 		Short:       "Schedule automated start and stop times for workspaces",
+
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
@@ -68,9 +74,11 @@ func (r *RootCmd) schedules() *serpent.Command {
 func (r *RootCmd) scheduleShow() *serpent.Command {
 	var (
 		filter    cliui.WorkspaceFilter
+
 		formatter = cliui.NewOutputFormatter(
 			cliui.TableFormat(
 				[]scheduleListRow{},
+
 				[]string{
 					"workspace",
 					"starts at",
@@ -121,11 +129,13 @@ func (r *RootCmd) scheduleShow() *serpent.Command {
 			return err
 		},
 	}
+
 	filter.AttachOptions(&showCmd.Options)
 	formatter.AttachOptions(&showCmd.Options)
 	return showCmd
 }
 func (r *RootCmd) scheduleStart() *serpent.Command {
+
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use: "start <workspace-name> { <start-time> [day-of-week] [location] | manual }",
@@ -135,6 +145,7 @@ func (r *RootCmd) scheduleStart() *serpent.Command {
 				Command:     "coder schedule start my-workspace 9:30AM Mon-Fri Europe/Dublin",
 			},
 		),
+
 		Short: "Edit workspace start schedule",
 		Middleware: serpent.Chain(
 			serpent.RequireRangeArgs(2, 4),
@@ -156,6 +167,7 @@ func (r *RootCmd) scheduleStart() *serpent.Command {
 			err = client.UpdateWorkspaceAutostart(inv.Context(), workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
 				Schedule: schedStr,
 			})
+
 			if err != nil {
 				return err
 			}
@@ -163,9 +175,11 @@ func (r *RootCmd) scheduleStart() *serpent.Command {
 			if err != nil {
 				return err
 			}
+
 			return displaySchedule(updated, inv.Stdout)
 		},
 	}
+
 	return cmd
 }
 func (r *RootCmd) scheduleStop() *serpent.Command {
@@ -173,6 +187,7 @@ func (r *RootCmd) scheduleStop() *serpent.Command {
 	return &serpent.Command{
 		Use: "stop <workspace-name> { <duration> | manual }",
 		Long: scheduleStopDescriptionLong + "\n" + FormatExamples(
+
 			Example{
 				Command: "coder schedule stop my-workspace 2h30m",
 			},
@@ -181,9 +196,11 @@ func (r *RootCmd) scheduleStop() *serpent.Command {
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(2),
 			r.InitClient(client),
+
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
+
 			if err != nil {
 				return err
 			}
@@ -204,6 +221,7 @@ func (r *RootCmd) scheduleStop() *serpent.Command {
 			if err != nil {
 				return err
 			}
+
 			return displaySchedule(updated, inv.Stdout)
 		},
 	}
@@ -213,12 +231,14 @@ func (r *RootCmd) scheduleExtend() *serpent.Command {
 	extendCmd := &serpent.Command{
 		Use:     "extend <workspace-name> <duration from now>",
 		Aliases: []string{"override-stop"},
+
 		Short:   "Extend the stop time of a currently running workspace instance.",
 		Long: scheduleExtendDescriptionLong + "\n" + FormatExamples(
 			Example{
 				Command: "coder schedule extend my-workspace 90m",
 			},
 		),
+
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(2),
 			r.InitClient(client),
@@ -228,6 +248,7 @@ func (r *RootCmd) scheduleExtend() *serpent.Command {
 			if err != nil {
 				return err
 			}
+
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return fmt.Errorf("get workspace: %w", err)
@@ -249,16 +270,19 @@ func (r *RootCmd) scheduleExtend() *serpent.Command {
 			}); err != nil {
 				return err
 			}
+
 			updated, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err
 			}
 			return displaySchedule(updated, inv.Stdout)
+
 		},
 	}
 	return extendCmd
 }
 func displaySchedule(ws codersdk.Workspace, out io.Writer) error {
+
 	rows := []workspaceListRow{workspaceListRowFromWorkspace(time.Now(), ws)}
 	rendered, err := cliui.DisplayTable(rows, "workspace", []string{
 		"workspace", "starts at", "starts next", "stops after", "stops next",
@@ -267,6 +291,7 @@ func displaySchedule(ws codersdk.Workspace, out io.Writer) error {
 		return err
 	}
 	_, err = fmt.Fprintln(out, rendered)
+
 	return err
 }
 // scheduleListRow is a row in the schedule list.
@@ -274,6 +299,7 @@ func displaySchedule(ws codersdk.Workspace, out io.Writer) error {
 type scheduleListRow struct {
 	WorkspaceName string `json:"workspace" table:"workspace,default_sort"`
 	StartsAt      string `json:"starts_at" table:"starts at"`
+
 	StartsNext    string `json:"starts_next" table:"starts next"`
 	StopsAfter    string `json:"stops_after" table:"stops after"`
 	StopsNext     string `json:"stops_next" table:"stops next"`
@@ -284,6 +310,7 @@ func scheduleListRowFromWorkspace(now time.Time, workspace codersdk.Workspace) s
 	if !ptr.NilOrEmpty(workspace.AutostartSchedule) {
 		if sched, err := cron.Weekly(*workspace.AutostartSchedule); err == nil {
 			autostartDisplay = sched.Humanize()
+
 			nextStartDisplay = timeDisplay(sched.Next(now))
 		}
 	}
@@ -296,6 +323,7 @@ func scheduleListRowFromWorkspace(now time.Time, workspace codersdk.Workspace) s
 			nextStopDisplay = timeDisplay(workspace.LatestBuild.Deadline.Time)
 		}
 	}
+
 	return scheduleListRow{
 		WorkspaceName: workspace.OwnerName + "/" + workspace.Name,
 		StartsAt:      autostartDisplay,

@@ -1,19 +1,24 @@
 package rbac
+
 import (
 	"fmt"
 	"encoding/json"
 	"errors"
 	"sort"
 	"strings"
+
 	"github.com/google/uuid"
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+
 	"github.com/coder/coder/v2/coderd/util/slice"
 )
+
 const (
 	owner         string = "owner"
 	member        string = "member"
 	templateAdmin string = "template-admin"
+
 	userAdmin     string = "user-admin"
 	auditor       string = "auditor"
 	// customSiteRole is a placeholder for all custom site roles.
@@ -26,6 +31,7 @@ const (
 	orgAuditor              string = "organization-auditor"
 	orgUserAdmin            string = "organization-user-admin"
 	orgTemplateAdmin        string = "organization-template-admin"
+
 	orgWorkspaceCreationBan string = "organization-workspace-creation-ban"
 )
 func init() {
@@ -34,24 +40,29 @@ func init() {
 }
 // RoleIdentifiers is a list of user assignable role names. The role names must be
 // in the builtInRoles map. Any non-user assignable roles will generate an
+
 // error on Expand.
 type RoleIdentifiers []RoleIdentifier
 func (names RoleIdentifiers) Expand() ([]Role, error) {
 	return rolesByNames(names)
 }
+
 func (names RoleIdentifiers) Names() []RoleIdentifier {
 	return names
 }
 // RoleIdentifier contains both the name of the role, and any organizational scope.
 // Both fields are required to be globally unique and identifiable.
+
 type RoleIdentifier struct {
 	Name string
 	// OrganizationID is uuid.Nil for unscoped roles (aka deployment wide)
 	OrganizationID uuid.UUID
+
 }
 func (r RoleIdentifier) IsOrgRole() bool {
 	return r.OrganizationID != uuid.Nil
 }
+
 // RoleNameFromString takes a formatted string '<role_name>[:org_id]'.
 func RoleNameFromString(input string) (RoleIdentifier, error) {
 	var role RoleIdentifier
@@ -60,29 +71,36 @@ func RoleNameFromString(input string) (RoleIdentifier, error) {
 		return role, fmt.Errorf("too many colons in role name")
 	}
 	if len(arr) == 0 {
+
 		return role, fmt.Errorf("empty string not a valid role")
 	}
 	if arr[0] == "" {
 		return role, fmt.Errorf("role cannot be the empty string")
+
 	}
 	role.Name = arr[0]
 	if len(arr) == 2 {
 		orgID, err := uuid.Parse(arr[1])
+
 		if err != nil {
 			return role, fmt.Errorf("%q not a valid uuid: %w", arr[1], err)
 		}
 		role.OrganizationID = orgID
 	}
+
 	return role, nil
 }
 func (r RoleIdentifier) String() string {
 	if r.OrganizationID != uuid.Nil {
+
 		return r.Name + ":" + r.OrganizationID.String()
 	}
 	return r.Name
 }
+
 func (r RoleIdentifier) UniqueName() string {
 	return r.String()
+
 }
 func (r *RoleIdentifier) MarshalJSON() ([]byte, error) {
 	return json.Marshal(r.String())
@@ -93,6 +111,7 @@ func (r *RoleIdentifier) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return err
 	}
+
 	v, err := RoleNameFromString(str)
 	if err != nil {
 		return err
@@ -100,14 +119,17 @@ func (r *RoleIdentifier) UnmarshalJSON(data []byte) error {
 	*r = v
 	return nil
 }
+
 // The functions below ONLY need to exist for roles that are "defaulted" in some way.
 // Any other roles (like auditor), can be listed and let the user select/assigned.
 // Once we have a database implementation, the "default" roles can be defined on the
 // site and orgs, and these functions can be removed.
+
 func RoleOwner() RoleIdentifier      { return RoleIdentifier{Name: owner} }
 func CustomSiteRole() RoleIdentifier { return RoleIdentifier{Name: customSiteRole} }
 func CustomOrganizationRole(orgID uuid.UUID) RoleIdentifier {
 	return RoleIdentifier{Name: customOrganizationRole, OrganizationID: orgID}
+
 }
 func RoleTemplateAdmin() RoleIdentifier { return RoleIdentifier{Name: templateAdmin} }
 func RoleUserAdmin() RoleIdentifier     { return RoleIdentifier{Name: userAdmin} }
@@ -115,20 +137,24 @@ func RoleMember() RoleIdentifier        { return RoleIdentifier{Name: member} }
 func RoleAuditor() RoleIdentifier       { return RoleIdentifier{Name: auditor} }
 func RoleOrgAdmin() string {
 	return orgAdmin
+
 }
 func RoleOrgMember() string {
 	return orgMember
 }
 func RoleOrgAuditor() string {
+
 	return orgAuditor
 }
 func RoleOrgUserAdmin() string {
 	return orgUserAdmin
+
 }
 func RoleOrgTemplateAdmin() string {
 	return orgTemplateAdmin
 }
 func RoleOrgWorkspaceCreationBan() string {
+
 	return orgWorkspaceCreationBan
 }
 // ScopedRoleOrgAdmin is the org role with the organization ID
@@ -139,56 +165,69 @@ func ScopedRoleOrgAdmin(organizationID uuid.UUID) RoleIdentifier {
 func ScopedRoleOrgMember(organizationID uuid.UUID) RoleIdentifier {
 	return RoleIdentifier{Name: RoleOrgMember(), OrganizationID: organizationID}
 }
+
 func ScopedRoleOrgAuditor(organizationID uuid.UUID) RoleIdentifier {
 	return RoleIdentifier{Name: RoleOrgAuditor(), OrganizationID: organizationID}
 }
 func ScopedRoleOrgUserAdmin(organizationID uuid.UUID) RoleIdentifier {
+
 	return RoleIdentifier{Name: RoleOrgUserAdmin(), OrganizationID: organizationID}
 }
 func ScopedRoleOrgTemplateAdmin(organizationID uuid.UUID) RoleIdentifier {
 	return RoleIdentifier{Name: RoleOrgTemplateAdmin(), OrganizationID: organizationID}
+
 }
 func ScopedRoleOrgWorkspaceCreationBan(organizationID uuid.UUID) RoleIdentifier {
 	return RoleIdentifier{Name: RoleOrgWorkspaceCreationBan(), OrganizationID: organizationID}
 }
+
 func allPermsExcept(excepts ...Objecter) []Permission {
 	resources := AllResources()
 	var perms []Permission
 	skip := make(map[string]bool)
+
 	for _, e := range excepts {
 		skip[e.RBACObject().Type] = true
 	}
 	for _, r := range resources {
+
 		// Exceptions
 		if skip[r.RBACObject().Type] {
 			continue
 		}
+
 		// This should always be skipped.
 		if r.RBACObject().Type == ResourceWildcard.Type {
 			continue
 		}
 		// Owners can do everything else
+
 		perms = append(perms, Permission{
 			Negate:       false,
 			ResourceType: r.RBACObject().Type,
 			Action:       policy.WildcardSymbol,
 		})
+
 	}
 	return perms
 }
 // builtInRoles are just a hard coded set for now. Ideally we store these in
+
 // the database. Right now they are functions because the org id should scope
 // certain roles. When we store them in the database, each organization should
 // create the roles that are assignable in the org. This isn't a hard problem to solve,
 // it's just easier as a function right now.
+
 //
 // This map will be replaced by database storage defined by this ticket.
 // https://github.com/coder/coder/issues/1194
 var builtInRoles map[string]func(orgID uuid.UUID) Role
+
 type RoleOptions struct {
 	NoOwnerWorkspaceExec bool
 }
 // ReservedRoleName exists because the database should only allow unique role
+
 // names, but some roles are built in. So these names are reserved
 func ReservedRoleName(name string) bool {
 	_, ok := builtInRoles[name]
@@ -197,6 +236,7 @@ func ReservedRoleName(name string) bool {
 // ReloadBuiltinRoles loads the static roles into the builtInRoles map.
 // This can be called again with a different config to change the behavior.
 //
+
 // TODO: @emyrk This would be great if it was instanced to a coderd rather
 // than a global. But that is a much larger refactor right now.
 // Essentially we did not foresee different deployments needing slightly
@@ -216,6 +256,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 	// This is to ensure these data structures are only allocated once and not
 	// on every authorize call. 'withCachedRegoValue' can be used as well to
 	// preallocate the rego value that is used by the rego eval engine.
+
 	ownerRole := Role{
 		Identifier:  RoleOwner(),
 		DisplayName: "Owner",
@@ -226,10 +267,12 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			// This adds back in the Workspace permissions.
 			Permissions(map[string][]policy.Action{
 				ResourceWorkspace.Type:        ownerWorkspaceActions,
+
 				ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop},
 			})...),
 		Org:  map[string][]Permission{},
 		User: []Permission{},
+
 	}.withCachedRegoValue()
 	memberRole := Role{
 		Identifier:  RoleMember(),
@@ -237,6 +280,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		Site: Permissions(map[string][]policy.Action{
 			ResourceAssignRole.Type: {policy.ActionRead},
 			// All users can see OAuth2 provider applications.
+
 			ResourceOauth2App.Type:      {policy.ActionRead},
 			ResourceWorkspaceProxy.Type: {policy.ActionRead},
 		}),
@@ -249,6 +293,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				// can read their own details.
 				ResourceUser.Type: {policy.ActionRead, policy.ActionReadPersonal, policy.ActionUpdatePersonal},
 				// Can read their own organization member record
+
 				ResourceOrganizationMember.Type: {policy.ActionRead},
 				// Users can create provisioner daemons scoped to themselves.
 				ResourceProvisionerDaemon.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
@@ -257,6 +302,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 	}.withCachedRegoValue()
 	auditorRole := Role{
 		Identifier:  RoleAuditor(),
+
 		DisplayName: "Auditor",
 		Site: Permissions(map[string][]policy.Action{
 			ResourceAssignOrgRole.Type: {policy.ActionRead},
@@ -277,6 +323,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 	}.withCachedRegoValue()
 	templateAdminRole := Role{
 		Identifier:  RoleTemplateAdmin(),
+
 		DisplayName: "Template Admin",
 		Site: Permissions(map[string][]policy.Action{
 			ResourceAssignOrgRole.Type: {policy.ActionRead},
@@ -302,6 +349,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		Site: Permissions(map[string][]policy.Action{
 			ResourceAssignRole.Type: {policy.ActionAssign, policy.ActionUnassign, policy.ActionRead},
 			// Need organization assign as well to create users. At present, creating a user
+
 			// will always assign them to some organization.
 			ResourceAssignOrgRole.Type: {policy.ActionAssign, policy.ActionUnassign, policy.ActionRead},
 			ResourceUser.Type: {
@@ -323,6 +371,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		// admin grants all actions to all resources.
 		owner: func(_ uuid.UUID) Role {
 			return ownerRole
+
 		},
 		// member grants all actions to all resources owned by the user
 		member: func(_ uuid.UUID) Role {
@@ -345,6 +394,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		orgAdmin: func(organizationID uuid.UUID) Role {
 			return Role{
 				Identifier:  RoleIdentifier{Name: orgAdmin, OrganizationID: organizationID},
+
 				DisplayName: "Organization Admin",
 				Site: Permissions(map[string][]policy.Action{
 					// To assign organization members, we need to be able to read
@@ -369,17 +419,20 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				Site:        []Permission{},
 				Org: map[string][]Permission{
 					organizationID.String(): Permissions(map[string][]policy.Action{
+
 						// All users can see the provisioner daemons for workspace
 						// creation.
 						ResourceProvisionerDaemon.Type: {policy.ActionRead},
 						// All org members can read the organization
 						ResourceOrganization.Type: {policy.ActionRead},
 						// Can read available roles.
+
 						ResourceAssignOrgRole.Type: {policy.ActionRead},
 					}),
 				},
 				User: []Permission{},
 			}
+
 		},
 		orgAuditor: func(organizationID uuid.UUID) Role {
 			return Role{
@@ -387,14 +440,17 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				DisplayName: "Organization Auditor",
 				Site:        []Permission{},
 				Org: map[string][]Permission{
+
 					organizationID.String(): Permissions(map[string][]policy.Action{
 						ResourceAuditLog.Type: {policy.ActionRead},
 						// Allow auditors to see the resources that audit logs reflect.
 						ResourceTemplate.Type:           {policy.ActionRead, policy.ActionViewInsights},
+
 						ResourceGroup.Type:              {policy.ActionRead},
 						ResourceGroupMember.Type:        {policy.ActionRead},
 						ResourceOrganization.Type:       {policy.ActionRead},
 						ResourceOrganizationMember.Type: {policy.ActionRead},
+
 					}),
 				},
 				User: []Permission{},
@@ -417,6 +473,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 						ResourceOrganization.Type:       {policy.ActionRead},
 						ResourceOrganizationMember.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 						ResourceGroup.Type:              ResourceGroup.AvailableActions(),
+
 						ResourceGroupMember.Type:        ResourceGroupMember.AvailableActions(),
 						ResourceIdpsyncSettings.Type:    {policy.ActionRead, policy.ActionUpdate},
 					}),
@@ -534,6 +591,7 @@ var assignRoles = map[string]map[string]bool{
 // as an interface so we can have RoleIdentifiers for user defined roles, and implement
 // custom ExpandableRoles for system type users (eg autostart/autostop system role).
 // We want a clear divide between the two types of roles so users have no codepath
+
 // to interact or assign system roles.
 //
 // Note: We may also want to do the same thing with scopes to allow custom scope
@@ -588,6 +646,7 @@ type Role struct {
 	// roles.
 	Org  map[string][]Permission `json:"org"`
 	User []Permission            `json:"user"`
+
 	// cachedRegoValue can be used to cache the rego value for this role.
 	// This is helpful for static roles that never change.
 	cachedRegoValue ast.Value
@@ -603,6 +662,7 @@ func (role Role) Valid() error {
 		}
 	}
 	for orgID, permissions := range role.Org {
+
 		for _, perm := range permissions {
 			if err := perm.Valid(); err != nil {
 				errs = append(errs, fmt.Errorf("org=%q: %w", orgID, err))
@@ -611,30 +671,36 @@ func (role Role) Valid() error {
 	}
 	for _, perm := range role.User {
 		if err := perm.Valid(); err != nil {
+
 			errs = append(errs, fmt.Errorf("user: %w", err))
 		}
 	}
 	return errors.Join(errs...)
 }
 type Roles []Role
+
 func (roles Roles) Expand() ([]Role, error) {
 	return roles, nil
 }
 func (roles Roles) Names() []RoleIdentifier {
 	names := make([]RoleIdentifier, 0, len(roles))
+
 	for _, r := range roles {
 		names = append(names, r.Identifier)
 	}
 	return names
 }
+
 // CanAssignRole is a helper function that returns true if the user can assign
 // the specified role. This also can be used for removing a role.
 // This is a simple implementation for now.
 func CanAssignRole(subjectHasRoles ExpandableRoles, assignedRole RoleIdentifier) bool {
 	// For CanAssignRole, we only care about the names of the roles.
+
 	roles := subjectHasRoles.Names()
 	for _, myRole := range roles {
 		if myRole.OrganizationID != uuid.Nil && myRole.OrganizationID != assignedRole.OrganizationID {
+
 			// Org roles only apply to the org they are assigned to.
 			continue
 		}
@@ -654,11 +720,13 @@ func CanAssignRole(subjectHasRoles ExpandableRoles, assignedRole RoleIdentifier)
 // This function is exported so that the Display name can be returned to the
 // api. We should maybe make an exported function that returns just the
 // human-readable content of the Role struct (name + display name).
+
 func RoleByName(name RoleIdentifier) (Role, error) {
 	roleFunc, ok := builtInRoles[name.Name]
 	if !ok {
 		// No role found
 		return Role{}, fmt.Errorf("role %q not found", name.String())
+
 	}
 	// Ensure all org roles are properly scoped a non-empty organization id.
 	// This is just some defensive programming.
@@ -670,6 +738,7 @@ func RoleByName(name RoleIdentifier) (Role, error) {
 	// You could make an org role called "owner", and we should not return the
 	// owner role itself.
 	if name.OrganizationID != role.Identifier.OrganizationID {
+
 		return Role{}, fmt.Errorf("role %q not found", name.String())
 	}
 	return role, nil
@@ -678,21 +747,26 @@ func rolesByNames(roleNames []RoleIdentifier) ([]Role, error) {
 	roles := make([]Role, 0, len(roleNames))
 	for _, n := range roleNames {
 		r, err := RoleByName(n)
+
 		if err != nil {
 			return nil, fmt.Errorf("get role permissions: %w", err)
 		}
 		roles = append(roles, r)
 	}
 	return roles, nil
+
 }
 // OrganizationRoles lists all roles that can be applied to an organization user
 // in the given organization. This is the list of available roles,
+
 // and specific to an organization.
 //
+
 // This should be a list in a database, but until then we build
 // the list from the builtins.
 func OrganizationRoles(organizationID uuid.UUID) []Role {
 	var roles []Role
+
 	for _, roleF := range builtInRoles {
 		role := roleF(organizationID)
 		if role.Identifier.OrganizationID == organizationID {
@@ -701,6 +775,7 @@ func OrganizationRoles(organizationID uuid.UUID) []Role {
 	}
 	return roles
 }
+
 // SiteRoles lists all roles that can be applied to a user.
 // This is the list of available roles, and not specific to a user
 //
@@ -708,17 +783,20 @@ func OrganizationRoles(organizationID uuid.UUID) []Role {
 // the list from the builtins.
 func SiteRoles() []Role {
 	var roles []Role
+
 	for _, roleF := range builtInRoles {
 		// Must provide some non-nil uuid to filter out org roles.
 		role := roleF(uuid.New())
 		if !role.Identifier.IsOrgRole() {
 			roles = append(roles, role)
 		}
+
 	}
 	return roles
 }
 // ChangeRoleSet is a helper function that finds the difference of 2 sets of
 // roles. When setting a user's new roles, it is equivalent to adding and
+
 // removing roles. This set determines the changes, so that the appropriate
 // RBAC checks can be applied using "ActionCreate" and "ActionDelete" for
 // "added" and "removed" roles respectively.
@@ -726,6 +804,7 @@ func ChangeRoleSet(from []RoleIdentifier, to []RoleIdentifier) (added []RoleIden
 	return slice.SymmetricDifferenceFunc(from, to, func(a, b RoleIdentifier) bool {
 		return a.Name == b.Name && a.OrganizationID == b.OrganizationID
 	})
+
 }
 // Permissions is just a helper function to make building roles that list out resources
 // and actions a bit easier.
@@ -739,6 +818,7 @@ func Permissions(perms map[string][]policy.Action) []Permission {
 				ResourceType: k,
 				Action:       act,
 			})
+
 		}
 	}
 	// Deterministic ordering of permissions
@@ -746,4 +826,5 @@ func Permissions(perms map[string][]policy.Action) []Permission {
 		return list[i].ResourceType < list[j].ResourceType
 	})
 	return list
+
 }

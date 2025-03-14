@@ -1,12 +1,15 @@
 package coderd
+
 import (
 	"fmt"
 	"errors"
 	"context"
 	"database/sql"
+
 	"net/http"
 	"github.com/google/uuid"
 	"github.com/coder/coder/v2/coderd/database"
+
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
@@ -14,6 +17,7 @@ import (
 )
 // PrimaryRegion exposes the user facing values of a workspace proxy to
 // be used by a user.
+
 func (api *API) PrimaryRegion(ctx context.Context) (codersdk.Region, error) {
 	deploymentIDStr, err := api.Database.GetDeploymentID(ctx)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -31,11 +35,13 @@ func (api *API) PrimaryRegion(ctx context.Context) (codersdk.Region, error) {
 	proxy, err := api.Database.GetDefaultProxyConfig(ctx)
 	if err != nil {
 		return codersdk.Region{}, fmt.Errorf("get default proxy config: %w", err)
+
 	}
 	return codersdk.Region{
 		ID:               deploymentID,
 		Name:             "primary",
 		DisplayName:      proxy.DisplayName,
+
 		IconURL:          proxy.IconUrl,
 		Healthy:          true,
 		PathAppURL:       api.AccessURL.String(),
@@ -47,6 +53,7 @@ func (api *API) PrimaryWorkspaceProxy(ctx context.Context) (database.WorkspacePr
 	region, err := api.PrimaryRegion(ctx)
 	if err != nil {
 		return database.WorkspaceProxy{}, err
+
 	}
 	// The default proxy is an edge case because these values are computed
 	// rather then being stored in the database.
@@ -54,6 +61,7 @@ func (api *API) PrimaryWorkspaceProxy(ctx context.Context) (database.WorkspacePr
 		ID:               region.ID,
 		Name:             region.Name,
 		DisplayName:      region.DisplayName,
+
 		Icon:             region.IconURL,
 		Url:              region.PathAppURL,
 		WildcardHostname: region.WildcardHostname,
@@ -67,6 +75,7 @@ func (api *API) PrimaryWorkspaceProxy(ctx context.Context) (database.WorkspacePr
 // @Tags WorkspaceProxies
 // @Success 200 {object} codersdk.RegionsResponse[codersdk.Region]
 // @Router /regions [get]
+
 func (api *API) regions(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	//nolint:gocritic // this route intentionally requests resources that users
@@ -81,4 +90,5 @@ func (api *API) regions(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.RegionsResponse[codersdk.Region]{
 		Regions: []codersdk.Region{region},
 	})
+
 }

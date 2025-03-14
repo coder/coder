@@ -1,14 +1,19 @@
 package cli
+
 import (
 	"errors"
 	"fmt"
+
 	"github.com/coder/serpent"
 	"github.com/coder/coder/v2/codersdk"
+
 )
 func (r *RootCmd) notifications() *serpent.Command {
+
 	cmd := &serpent.Command{
 		Use:   "notifications",
 		Short: "Manage Coder notifications",
+
 		Long: "Administrators can use these commands to change notification settings.\n" + FormatExamples(
 			Example{
 				Description: "Pause Coder notifications. Administrators can temporarily stop notifiers from dispatching messages in case of the target outage (for example: unavailable SMTP server or Webhook not responding).",
@@ -40,6 +45,7 @@ func (r *RootCmd) pauseNotifications() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "pause",
 		Short: "Pause notifications",
+
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
 			r.InitClient(client),
@@ -57,6 +63,7 @@ func (r *RootCmd) pauseNotifications() *serpent.Command {
 	}
 	return cmd
 }
+
 func (r *RootCmd) resumeNotifications() *serpent.Command {
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
@@ -64,6 +71,7 @@ func (r *RootCmd) resumeNotifications() *serpent.Command {
 		Short: "Resume notifications",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
+
 			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
@@ -81,6 +89,7 @@ func (r *RootCmd) resumeNotifications() *serpent.Command {
 }
 func (r *RootCmd) testNotifications() *serpent.Command {
 	client := new(codersdk.Client)
+
 	cmd := &serpent.Command{
 		Use:   "test",
 		Short: "Send a test notification",
@@ -88,6 +97,7 @@ func (r *RootCmd) testNotifications() *serpent.Command {
 			serpent.RequireNArgs(0),
 			r.InitClient(client),
 		),
+
 		Handler: func(inv *serpent.Invocation) error {
 			if err := client.PostTestNotification(inv.Context()); err != nil {
 				return fmt.Errorf("unable to post test notification: %w", err)

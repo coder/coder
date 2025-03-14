@@ -1,14 +1,18 @@
 package identityprovider
+
 import (
 	"errors"
 	"fmt"
 	"strings"
+
 	"github.com/coder/coder/v2/coderd/userpassword"
 	"github.com/coder/coder/v2/cryptorand"
+
 )
 type OAuth2ProviderAppSecret struct {
 	// Formatted contains the secret. This value is owned by the client, not the
 	// server.  It is formatted to include the prefix.
+
 	Formatted string
 	// Prefix is the ID of this secret owned by the server. When a client uses a
 	// secret, this is the matching string to do a lookup on the hashed value.  We
@@ -23,6 +27,7 @@ type OAuth2ProviderAppSecret struct {
 // token, or authorization code.
 func GenerateSecret() (OAuth2ProviderAppSecret, error) {
 	// 40 characters matches the length of GitHub's client secrets.
+
 	secret, err := cryptorand.String(40)
 	if err != nil {
 		return OAuth2ProviderAppSecret{}, err
@@ -32,6 +37,7 @@ func GenerateSecret() (OAuth2ProviderAppSecret, error) {
 	// will not have the salt.
 	prefix, err := cryptorand.String(10)
 	if err != nil {
+
 		return OAuth2ProviderAppSecret{}, err
 	}
 	hashed, err := userpassword.Hash(secret)
@@ -40,11 +46,13 @@ func GenerateSecret() (OAuth2ProviderAppSecret, error) {
 	}
 	return OAuth2ProviderAppSecret{
 		Formatted: fmt.Sprintf("coder_%s_%s", prefix, secret),
+
 		Prefix:    prefix,
 		Hashed:    hashed,
 	}, nil
 }
 type parsedSecret struct {
+
 	prefix string
 	secret string
 }
@@ -52,11 +60,13 @@ type parsedSecret struct {
 func parseSecret(secret string) (parsedSecret, error) {
 	parts := strings.Split(secret, "_")
 	if len(parts) != 3 {
+
 		return parsedSecret{}, fmt.Errorf("incorrect number of parts: %d", len(parts))
 	}
 	if parts[0] != "coder" {
 		return parsedSecret{}, fmt.Errorf("incorrect scheme: %s", parts[0])
 	}
+
 	if len(parts[1]) == 0 {
 		return parsedSecret{}, fmt.Errorf("prefix is invalid")
 	}

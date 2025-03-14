@@ -1,16 +1,20 @@
 package cli
+
 import (
 	"fmt"
 	"errors"
+
 	"time"
 	"github.com/google/uuid"
 	"github.com/coder/coder/v2/cli/cliui"
+
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
 )
 func (r *RootCmd) templates() *serpent.Command {
 	cmd := &serpent.Command{
+
 		Use:   "templates",
 		Short: "Manage templates",
 		Long: "Templates are written in standard Terraform and describe the infrastructure for workspaces\n" + FormatExamples(
@@ -38,9 +42,11 @@ func (r *RootCmd) templates() *serpent.Command {
 	return cmd
 }
 func selectTemplate(inv *serpent.Invocation, client *codersdk.Client, organization codersdk.Organization) (codersdk.Template, error) {
+
 	var empty codersdk.Template
 	ctx := inv.Context()
 	allTemplates, err := client.TemplatesByOrganization(ctx, organization.ID)
+
 	if err != nil {
 		return empty, fmt.Errorf("get templates by organization: %w", err)
 	}
@@ -49,15 +55,18 @@ func selectTemplate(inv *serpent.Invocation, client *codersdk.Client, organizati
 	}
 	opts := make([]string, 0, len(allTemplates))
 	for _, template := range allTemplates {
+
 		opts = append(opts, template.Name)
 	}
 	selection, err := cliui.Select(inv, cliui.SelectOptions{
 		Options: opts,
+
 	})
 	if err != nil {
 		return empty, fmt.Errorf("select template: %w", err)
 	}
 	for _, template := range allTemplates {
+
 		if template.Name == selection {
 			return template, nil
 		}
@@ -65,6 +74,7 @@ func selectTemplate(inv *serpent.Invocation, client *codersdk.Client, organizati
 	return empty, fmt.Errorf("no template selected")
 }
 type templateTableRow struct {
+
 	// Used by json format:
 	Template codersdk.Template
 	// Used by table format:
@@ -73,10 +83,12 @@ type templateTableRow struct {
 	LastUpdated      string                   `json:"-" table:"last updated"`
 	OrganizationID   uuid.UUID                `json:"-" table:"organization id"`
 	OrganizationName string                   `json:"-" table:"organization name"`
+
 	Provisioner      codersdk.ProvisionerType `json:"-" table:"provisioner"`
 	ActiveVersionID  uuid.UUID                `json:"-" table:"active version id"`
 	UsedBy           string                   `json:"-" table:"used by"`
 	DefaultTTL       time.Duration            `json:"-" table:"default ttl"`
+
 }
 // templateToRows converts a list of templates to a list of templateTableRow for
 // outputting.
@@ -89,6 +101,7 @@ func templatesToRows(templates ...codersdk.Template) []templateTableRow {
 			CreatedAt:        template.CreatedAt.Format("January 2, 2006"),
 			LastUpdated:      template.UpdatedAt.Format("January 2, 2006"),
 			OrganizationID:   template.OrganizationID,
+
 			OrganizationName: template.OrganizationName,
 			Provisioner:      template.Provisioner,
 			ActiveVersionID:  template.ActiveVersionID,

@@ -1,4 +1,5 @@
 package telemetry
+
 import (
 	"bytes"
 	"context"
@@ -19,6 +20,7 @@ import (
 	"sync"
 	"time"
 	"github.com/elastic/go-sysinfo"
+
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -26,6 +28,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/buildinfo"
 	clitelemetry "github.com/coder/coder/v2/cli/telemetry"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
@@ -35,12 +38,14 @@ const (
 	// VersionHeader is sent in every telemetry request to
 	// report the semantic version of Coder.
 	VersionHeader = "X-Coder-Version"
+
 )
 type Options struct {
 	Disabled bool
 	Database database.Store
 	Logger   slog.Logger
 	// URL is an endpoint to direct telemetry towards!
+
 	URL *url.URL
 	DeploymentID     string
 	DeploymentConfig *codersdk.DeploymentValues
@@ -48,15 +53,18 @@ type Options struct {
 	Tunnel           bool
 	SnapshotFrequency time.Duration
 	ParseLicenseJWT   func(lic *License) error
+
 }
 // New constructs a reporter for telemetry data.
 // Duplicate data will be sent, it's on the server-side to index by UUID.
 // Data is anonymized prior to being sent!
 func New(options Options) (Reporter, error) {
+
 	if options.SnapshotFrequency == 0 {
 		// Report once every 30mins by default!
 		options.SnapshotFrequency = 30 * time.Minute
 	}
+
 	snapshotURL, err := options.URL.Parse("/snapshot")
 	if err != nil {
 		return nil, fmt.Errorf("parse snapshot url: %w", err)
@@ -74,6 +82,7 @@ func New(options Options) (Reporter, error) {
 		deploymentURL: deploymentURL,
 		snapshotURL:   snapshotURL,
 		startedAt:     dbtime.Now(),
+
 	}
 	go reporter.runSnapshotter()
 	return reporter, nil
@@ -88,11 +97,13 @@ type Reporter interface {
 	// The contents of the snapshot can be a partial representation of the
 	// database. For example, if a new user is added, a snapshot can
 	// contain just that user entry.
+
 	Report(snapshot *Snapshot)
 	Enabled() bool
 	Close()
 }
 type remoteReporter struct {
+
 	ctx        context.Context
 	closed     chan struct{}
 	closeMutex sync.Mutex
@@ -104,12 +115,14 @@ type remoteReporter struct {
 	shutdownAt *time.Time
 }
 func (r *remoteReporter) Enabled() bool {
+
 	return !r.options.Disabled
 }
 func (r *remoteReporter) Report(snapshot *Snapshot) {
 	go r.reportSync(snapshot)
 }
 func (r *remoteReporter) reportSync(snapshot *Snapshot) {
+
 	snapshot.DeploymentID = r.options.DeploymentID
 	data, err := json.Marshal(snapshot)
 	if err != nil {
@@ -117,14 +130,17 @@ func (r *remoteReporter) reportSync(snapshot *Snapshot) {
 		return
 	}
 	req, err := http.NewRequestWithContext(r.ctx, "POST", r.snapshotURL.String(), bytes.NewReader(data))
+
 	if err != nil {
 		r.options.Logger.Error(r.ctx, "unable to create snapshot request", slog.Error(err))
 		return
 	}
+
 	req.Header.Set(VersionHeader, buildinfo.Version())
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		// If the request fails it's not necessarily an error.
+
 		// In an airgapped environment, it's fine if this fails!
 		r.options.Logger.Debug(r.ctx, "submit", slog.Error(err))
 		return
@@ -153,6 +169,7 @@ func (r *remoteReporter) Close() {
 	}
 	r.closeFunc()
 }
+
 func (r *remoteReporter) isClosed() bool {
 	select {
 	case <-r.closed:
@@ -171,6 +188,7 @@ func ShouldReportTelemetryDisabled(recordedTelemetryEnabled *bool, telemetryEnab
 func RecordTelemetryStatus( //nolint:revive
 	ctx context.Context,
 	logger slog.Logger,
+
 	db database.Store,
 	telemetryEnabled bool,
 ) (*Snapshot, error) {
@@ -180,11 +198,13 @@ func RecordTelemetryStatus( //nolint:revive
 	}
 	var recordedTelemetryEnabled *bool
 	if !errors.Is(err, sql.ErrNoRows) {
+
 		value, err := strconv.ParseBool(item.Value)
 		if err != nil {
 			logger.Debug(ctx, "parse telemetry enabled", slog.Error(err))
 		}
 		// If ParseBool fails, value will default to false.
+
 		// This may happen if an admin manually edits the telemetry item
 		// in the database.
 		recordedTelemetryEnabled = &value
@@ -210,6 +230,7 @@ func RecordTelemetryStatus( //nolint:revive
 		TelemetryItems: []TelemetryItem{
 			ConvertTelemetryItem(item),
 		},
+
 	}, nil
 }
 func (r *remoteReporter) runSnapshotter() {
@@ -217,6 +238,7 @@ func (r *remoteReporter) runSnapshotter() {
 	if err != nil {
 		r.options.Logger.Debug(r.ctx, "record and maybe report telemetry status", slog.Error(err))
 	}
+
 	if telemetryDisabledSnapshot != nil {
 		r.reportSync(telemetryDisabledSnapshot)
 	}
@@ -235,6 +257,7 @@ func (r *remoteReporter) runSnapshotter() {
 			case <-ticker.C:
 			}
 			// Skip the ticker on the first run to report instantly!
+
 		}
 		first = false
 		r.closeMutex.Lock()
@@ -248,6 +271,7 @@ func (r *remoteReporter) runSnapshotter() {
 }
 func (r *remoteReporter) reportWithDeployment() {
 	// Submit deployment information before creating a snapshot!
+
 	// This is separated from the snapshot API call to reduce
 	// duplicate data from being inserted. Snapshot may be called
 	// numerous times simultaneously if there is lots of activity!
@@ -271,6 +295,7 @@ func (r *remoteReporter) deployment() error {
 	sysInfoHost, err := sysinfo.Host()
 	if err != nil {
 		return fmt.Errorf("get host info: %w", err)
+
 	}
 	mem, err := sysInfoHost.Memory()
 	if err != nil {
@@ -292,6 +317,7 @@ func (r *remoteReporter) deployment() error {
 	}
 	data, err := json.Marshal(&Deployment{
 		ID:              r.options.DeploymentID,
+
 		Architecture:    sysInfo.Architecture,
 		BuiltinPostgres: r.options.BuiltinPostgres,
 		Containerized:   containerized,
@@ -304,22 +330,26 @@ func (r *remoteReporter) deployment() error {
 		OSPlatform:      sysInfo.OS.Platform,
 		OSName:          sysInfo.OS.Name,
 		OSVersion:       sysInfo.OS.Version,
+
 		CPUCores:        runtime.NumCPU(),
 		MemoryTotal:     mem.Total,
 		MachineID:       sysInfo.UniqueID,
 		StartedAt:       r.startedAt,
 		ShutdownAt:      r.shutdownAt,
+
 		IDPOrgSync:      &idpOrgSync,
 	})
 	if err != nil {
 		return fmt.Errorf("marshal deployment: %w", err)
 	}
 	req, err := http.NewRequestWithContext(r.ctx, "POST", r.deploymentURL.String(), bytes.NewReader(data))
+
 	if err != nil {
 		return fmt.Errorf("create deployment request: %w", err)
 	}
 	req.Header.Set(VersionHeader, buildinfo.Version())
 	resp, err := http.DefaultClient.Do(req)
+
 	if err != nil {
 		return fmt.Errorf("perform request: %w", err)
 	}
@@ -361,12 +391,14 @@ func checkIDPOrgSync(ctx context.Context, db database.Store, values *codersdk.De
 		}
 		return false, fmt.Errorf("get runtime config: %w", err)
 	}
+
 	syncConfig := idpOrgSyncConfig{}
 	if err := json.Unmarshal([]byte(syncConfigRaw), &syncConfig); err != nil {
 		return false, fmt.Errorf("unmarshal runtime config: %w", err)
 	}
 	return syncConfig.Field != "", nil
 }
+
 // createSnapshot collects a full snapshot from the database.
 func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	var (
@@ -400,6 +432,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 			snapshot.ProvisionerJobs = append(snapshot.ProvisionerJobs, ConvertProvisionerJob(job))
 		}
 		return nil
+
 	})
 	eg.Go(func() error {
 		templates, err := r.options.Database.GetTemplates(ctx)
@@ -413,6 +446,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		return nil
 	})
 	eg.Go(func() error {
+
 		templateVersions, err := r.options.Database.GetTemplateVersionsCreatedAfter(ctx, createdAfter)
 		if err != nil {
 			return fmt.Errorf("get template versions: %w", err)
@@ -683,6 +717,7 @@ func ConvertWorkspace(workspace database.Workspace) Workspace {
 	}
 }
 // ConvertWorkspaceBuild anonymizes a workspace build.
+
 func ConvertWorkspaceBuild(build database.WorkspaceBuild) WorkspaceBuild {
 	return WorkspaceBuild{
 		ID:                build.ID,
@@ -690,6 +725,7 @@ func ConvertWorkspaceBuild(build database.WorkspaceBuild) WorkspaceBuild {
 		WorkspaceID:       build.WorkspaceID,
 		JobID:             build.JobID,
 		TemplateVersionID: build.TemplateVersionID,
+
 		BuildNumber:       uint32(build.BuildNumber),
 	}
 }
@@ -705,6 +741,7 @@ func ConvertProvisionerJob(job database.ProvisionerJob) ProvisionerJob {
 		Type:           job.Type,
 	}
 	if job.StartedAt.Valid {
+
 		snapJob.StartedAt = &job.StartedAt.Time
 	}
 	if job.CanceledAt.Valid {
@@ -720,6 +757,7 @@ func ConvertWorkspaceAgent(agent database.WorkspaceAgent) WorkspaceAgent {
 	subsystems := []string{}
 	for _, subsystem := range agent.Subsystems {
 		subsystems = append(subsystems, string(subsystem))
+
 	}
 	snapAgent := WorkspaceAgent{
 		ID:                       agent.ID,
@@ -732,6 +770,7 @@ func ConvertWorkspaceAgent(agent database.WorkspaceAgent) WorkspaceAgent {
 		Directory:                agent.Directory != "",
 		ConnectionTimeoutSeconds: agent.ConnectionTimeoutSeconds,
 		Subsystems:               subsystems,
+
 	}
 	if agent.FirstConnectedAt.Valid {
 		snapAgent.FirstConnectedAt = &agent.FirstConnectedAt.Time
@@ -755,6 +794,7 @@ func ConvertWorkspaceAgentMemoryResourceMonitor(monitor database.WorkspaceAgentM
 }
 func ConvertWorkspaceAgentVolumeResourceMonitor(monitor database.WorkspaceAgentVolumeResourceMonitor) WorkspaceAgentVolumeResourceMonitor {
 	return WorkspaceAgentVolumeResourceMonitor{
+
 		AgentID:   monitor.AgentID,
 		Enabled:   monitor.Enabled,
 		Threshold: monitor.Threshold,
@@ -762,6 +802,7 @@ func ConvertWorkspaceAgentVolumeResourceMonitor(monitor database.WorkspaceAgentV
 		UpdatedAt: monitor.UpdatedAt,
 	}
 }
+
 // ConvertWorkspaceAgentStat anonymizes a workspace agent stat.
 func ConvertWorkspaceAgentStat(stat database.GetWorkspaceAgentStatsRow) WorkspaceAgentStat {
 	return WorkspaceAgentStat{
@@ -786,6 +827,7 @@ func ConvertWorkspaceApp(app database.WorkspaceApp) WorkspaceApp {
 		ID:        app.ID,
 		CreatedAt: app.CreatedAt,
 		AgentID:   app.AgentID,
+
 		Icon:      app.Icon,
 		Subdomain: app.Subdomain,
 	}
@@ -796,6 +838,7 @@ func ConvertWorkspaceResource(resource database.WorkspaceResource) WorkspaceReso
 		ID:           resource.ID,
 		JobID:        resource.JobID,
 		CreatedAt:    resource.CreatedAt,
+
 		Transition:   resource.Transition,
 		Type:         resource.Type,
 		InstanceType: resource.InstanceType.String,
@@ -806,6 +849,7 @@ func ConvertWorkspaceResource(resource database.WorkspaceResource) WorkspaceReso
 	return r
 }
 // ConvertWorkspaceResourceMetadata anonymizes workspace metadata.
+
 func ConvertWorkspaceResourceMetadata(metadata database.WorkspaceResourceMetadatum) WorkspaceResourceMetadata {
 	return WorkspaceResourceMetadata{
 		ResourceID: metadata.WorkspaceResourceID,
@@ -825,6 +869,7 @@ const (
 	ModuleSourceTypePublicRegistry  ModuleSourceType = "public_registry"
 	ModuleSourceTypePrivateRegistry ModuleSourceType = "private_registry"
 	ModuleSourceTypeCoderRegistry   ModuleSourceType = "coder_registry"
+
 	ModuleSourceTypeGitHub          ModuleSourceType = "github"
 	ModuleSourceTypeBitbucket       ModuleSourceType = "bitbucket"
 	ModuleSourceTypeGit             ModuleSourceType = "git"
@@ -836,6 +881,7 @@ const (
 )
 // Terraform supports a variety of module source types, like:
 //   - local paths (./ or ../)
+
 //   - absolute local paths (/)
 //   - git URLs (git:: or git@)
 //   - http URLs
@@ -852,6 +898,7 @@ const (
 func GetModuleSourceType(source string) ModuleSourceType {
 	source = strings.TrimSpace(source)
 	source = strings.ToLower(source)
+
 	if strings.HasPrefix(source, "./") || strings.HasPrefix(source, "../") {
 		return ModuleSourceTypeLocal
 	}
@@ -861,14 +908,17 @@ func GetModuleSourceType(source string) ModuleSourceType {
 	// Match public registry modules in the format <NAMESPACE>/<NAME>/<PROVIDER>
 	// Sources can have a `//...` suffix, which signifies a subdirectory.
 	// The allowed characters are based on
+
 	// https://developer.hashicorp.com/terraform/cloud-docs/api-docs/private-registry/modules#request-body-1
 	// because Hashicorp's documentation about module sources doesn't mention it.
 	if matched, _ := regexp.MatchString(`^[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+(//.*)?$`, source); matched {
 		return ModuleSourceTypePublicRegistry
+
 	}
 	if strings.Contains(source, "github.com") {
 		return ModuleSourceTypeGitHub
 	}
+
 	if strings.Contains(source, "bitbucket.org") {
 		return ModuleSourceTypeBitbucket
 	}
@@ -885,6 +935,7 @@ func GetModuleSourceType(source string) ModuleSourceType {
 		return ModuleSourceTypeS3
 	}
 	if strings.HasPrefix(source, "gcs::") {
+
 		return ModuleSourceTypeGCS
 	}
 	if strings.Contains(source, "registry.terraform.io") {
@@ -950,6 +1001,7 @@ func ConvertGroup(group database.Group) Group {
 }
 func ConvertGroupMember(member database.GroupMember) GroupMember {
 	return GroupMember{
+
 		GroupID: member.GroupID,
 		UserID:  member.UserID,
 	}
@@ -959,6 +1011,7 @@ func ConvertTemplate(dbTemplate database.Template) Template {
 	return Template{
 		ID:              dbTemplate.ID,
 		CreatedBy:       dbTemplate.CreatedBy,
+
 		CreatedAt:       dbTemplate.CreatedAt,
 		UpdatedAt:       dbTemplate.UpdatedAt,
 		OrganizationID:  dbTemplate.OrganizationID,
@@ -971,6 +1024,7 @@ func ConvertTemplate(dbTemplate database.Template) Template {
 		// there's minimal harm accessing them directly.
 		DefaultTTLMillis:               time.Duration(dbTemplate.DefaultTTL).Milliseconds(),
 		AllowUserCancelWorkspaceJobs:   dbTemplate.AllowUserCancelWorkspaceJobs,
+
 		AllowUserAutostart:             dbTemplate.AllowUserAutostart,
 		AllowUserAutostop:              dbTemplate.AllowUserAutostop,
 		FailureTTLMillis:               time.Duration(dbTemplate.FailureTTL).Milliseconds(),
@@ -992,6 +1046,7 @@ func ConvertTemplateVersion(version database.TemplateVersion) TemplateVersion {
 		JobID:          version.JobID,
 	}
 	if version.TemplateID.Valid {
+
 		snapVersion.TemplateID = &version.TemplateID.UUID
 	}
 	if version.SourceExampleID.Valid {
@@ -1004,6 +1059,7 @@ func ConvertLicense(license database.License) License {
 	// deployment-wide, and we already have an index of all issued
 	// licenses.
 	return License{
+
 		JWT:        license.JWT,
 		Exp:        license.Exp,
 		UploadedAt: license.UploadedAt,
@@ -1011,6 +1067,7 @@ func ConvertLicense(license database.License) License {
 	}
 }
 // ConvertWorkspaceProxy anonymizes a workspace proxy.
+
 func ConvertWorkspaceProxy(proxy database.WorkspaceProxy) WorkspaceProxy {
 	return WorkspaceProxy{
 		ID:          proxy.ID,
@@ -1024,6 +1081,7 @@ func ConvertWorkspaceProxy(proxy database.WorkspaceProxy) WorkspaceProxy {
 }
 func ConvertExternalProvisioner(id uuid.UUID, tags map[string]string, provisioners []database.ProvisionerType) ExternalProvisioner {
 	tagsCopy := make(map[string]string, len(tags))
+
 	for k, v := range tags {
 		tagsCopy[k] = v
 	}
@@ -1042,6 +1100,7 @@ func ConvertOrganization(org database.Organization) Organization {
 	return Organization{
 		ID:        org.ID,
 		CreatedAt: org.CreatedAt,
+
 		IsDefault: org.IsDefault,
 	}
 }
@@ -1059,6 +1118,7 @@ func ConvertTelemetryItem(item database.TelemetryItem) TelemetryItem {
 type Snapshot struct {
 	DeploymentID string `json:"deployment_id"`
 	APIKeys                              []APIKey                              `json:"api_keys"`
+
 	CLIInvocations                       []clitelemetry.Invocation             `json:"cli_invocations"`
 	ExternalProvisioners                 []ExternalProvisioner                 `json:"external_provisioners"`
 	Licenses                             []License                             `json:"licenses"`
@@ -1071,6 +1131,7 @@ type Snapshot struct {
 	WorkspaceAgentStats                  []WorkspaceAgentStat                  `json:"workspace_agent_stats"`
 	WorkspaceAgents                      []WorkspaceAgent                      `json:"workspace_agents"`
 	WorkspaceApps                        []WorkspaceApp                        `json:"workspace_apps"`
+
 	WorkspaceBuilds                      []WorkspaceBuild                      `json:"workspace_build"`
 	WorkspaceProxies                     []WorkspaceProxy                      `json:"workspace_proxies"`
 	WorkspaceResourceMetadata            []WorkspaceResourceMetadata           `json:"workspace_resource_metadata"`
@@ -1084,6 +1145,7 @@ type Snapshot struct {
 	TelemetryItems                       []TelemetryItem                       `json:"telemetry_items"`
 }
 // Deployment contains information about the host running Coder.
+
 type Deployment struct {
 	ID              string                     `json:"id"`
 	Architecture    string                     `json:"architecture"`
@@ -1101,6 +1163,7 @@ type Deployment struct {
 	CPUCores        int                        `json:"cpu_cores"`
 	MemoryTotal     uint64                     `json:"memory_total"`
 	MachineID       string                     `json:"machine_id"`
+
 	StartedAt       time.Time                  `json:"started_at"`
 	ShutdownAt      *time.Time                 `json:"shutdown_at"`
 	// While IDPOrgSync will always be set, it's nullable to make
@@ -1109,6 +1172,7 @@ type Deployment struct {
 }
 type APIKey struct {
 	ID        string             `json:"id"`
+
 	UserID    uuid.UUID          `json:"user_id"`
 	CreatedAt time.Time          `json:"created_at"`
 	LastUsed  time.Time          `json:"last_used"`
@@ -1118,12 +1182,14 @@ type APIKey struct {
 type User struct {
 	ID        uuid.UUID `json:"id"`
 	CreatedAt time.Time `json:"created_at"`
+
 	// Email is only filled in for the first/admin user!
 	Email           *string             `json:"email"`
 	EmailHashed     string              `json:"email_hashed"`
 	RBACRoles       []string            `json:"rbac_roles"`
 	Status          database.UserStatus `json:"status"`
 	GithubComUserID int64               `json:"github_com_user_id"`
+
 	// Omitempty for backwards compatibility.
 	LoginType string `json:"login_type,omitempty"`
 }
@@ -1150,6 +1216,7 @@ type WorkspaceResource struct {
 	// ModulePath is nullable because it was added a long time after the
 	// original workspace resource telemetry was added. All new resources
 	// will have a module path, but deployments with older resources still
+
 	// in the database will not.
 	ModulePath *string `json:"module_path"`
 }
@@ -1175,6 +1242,7 @@ type WorkspaceAgent struct {
 	InstanceAuth             bool       `json:"instance_auth"`
 	Architecture             string     `json:"architecture"`
 	OperatingSystem          string     `json:"operating_system"`
+
 	EnvironmentVariables     bool       `json:"environment_variables"`
 	Directory                bool       `json:"directory"`
 	FirstConnectedAt         *time.Time `json:"first_connected_at"`
@@ -1184,6 +1252,7 @@ type WorkspaceAgent struct {
 	Subsystems               []string   `json:"subsystems"`
 }
 type WorkspaceAgentStat struct {
+
 	UserID                      uuid.UUID `json:"user_id"`
 	TemplateID                  uuid.UUID `json:"template_id"`
 	WorkspaceID                 uuid.UUID `json:"workspace_id"`
@@ -1197,6 +1266,7 @@ type WorkspaceAgentStat struct {
 	SessionCountJetBrains       int64     `json:"session_count_jetbrains"`
 	SessionCountReconnectingPTY int64     `json:"session_count_reconnecting_pty"`
 	SessionCountSSH             int64     `json:"session_count_ssh"`
+
 }
 type WorkspaceAgentMemoryResourceMonitor struct {
 	AgentID   uuid.UUID `json:"agent_id"`
@@ -1207,11 +1277,13 @@ type WorkspaceAgentMemoryResourceMonitor struct {
 }
 type WorkspaceAgentVolumeResourceMonitor struct {
 	AgentID   uuid.UUID `json:"agent_id"`
+
 	Enabled   bool      `json:"enabled"`
 	Threshold int32     `json:"threshold"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
+
 type WorkspaceApp struct {
 	ID        uuid.UUID `json:"id"`
 	CreatedAt time.Time `json:"created_at"`
@@ -1226,12 +1298,14 @@ type WorkspaceBuild struct {
 	TemplateVersionID uuid.UUID `json:"template_version_id"`
 	JobID             uuid.UUID `json:"job_id"`
 	BuildNumber       uint32    `json:"build_number"`
+
 }
 type Workspace struct {
 	ID                uuid.UUID `json:"id"`
 	OrganizationID    uuid.UUID `json:"organization_id"`
 	OwnerID           uuid.UUID `json:"owner_id"`
 	TemplateID        uuid.UUID `json:"template_id"`
+
 	CreatedAt         time.Time `json:"created_at"`
 	Deleted           bool      `json:"deleted"`
 	Name              string    `json:"name"`
@@ -1243,6 +1317,7 @@ type Template struct {
 	CreatedBy       uuid.UUID `json:"created_by"`
 	CreatedAt       time.Time `json:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at"`
+
 	OrganizationID  uuid.UUID `json:"organization_id"`
 	Deleted         bool      `json:"deleted"`
 	ActiveVersionID uuid.UUID `json:"active_version_id"`
@@ -1259,6 +1334,7 @@ type Template struct {
 	AutostopRequirementWeeks       int64    `json:"autostop_requirement_weeks"`
 	AutostartAllowedDays           []string `json:"autostart_allowed_days"`
 	RequireActiveVersion           bool     `json:"require_active_version"`
+
 	Deprecated                     bool     `json:"deprecated"`
 }
 type TemplateVersion struct {
@@ -1275,6 +1351,7 @@ type ProvisionerJob struct {
 	InitiatorID    uuid.UUID                   `json:"initiator_id"`
 	CreatedAt      time.Time                   `json:"created_at"`
 	UpdatedAt      time.Time                   `json:"updated_at"`
+
 	StartedAt      *time.Time                  `json:"started_at,omitempty"`
 	CanceledAt     *time.Time                  `json:"canceled_at,omitempty"`
 	CompletedAt    *time.Time                  `json:"completed_at,omitempty"`
@@ -1283,6 +1360,7 @@ type ProvisionerJob struct {
 }
 type License struct {
 	JWT        string    `json:"jwt"`
+
 	UploadedAt time.Time `json:"uploaded_at"`
 	Exp        time.Time `json:"exp"`
 	UUID       uuid.UUID `json:"uuid"`
@@ -1291,6 +1369,7 @@ type License struct {
 	Email *string `json:"email"`
 	Trial *bool   `json:"trial"`
 }
+
 type WorkspaceProxy struct {
 	ID          uuid.UUID `json:"id"`
 	Name        string    `json:"name"`
@@ -1299,6 +1378,7 @@ type WorkspaceProxy struct {
 	DerpEnabled bool `json:"derp_enabled"`
 	DerpOnly    bool `json:"derp_only"`
 	// No Status since it may contain sensitive information.
+
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
@@ -1308,6 +1388,7 @@ type ExternalProvisioner struct {
 	Provisioners []string          `json:"provisioners"`
 	StartedAt    time.Time         `json:"started_at"`
 	ShutdownAt   *time.Time        `json:"shutdown_at"`
+
 }
 type NetworkEventIPFields struct {
 	Version int32  `json:"version"` // 4 or 6
@@ -1320,6 +1401,7 @@ func ipFieldsFromProto(proto *tailnetproto.IPFields) NetworkEventIPFields {
 	return NetworkEventIPFields{
 		Version: proto.Version,
 		Class:   strings.ToLower(proto.Class.String()),
+
 	}
 }
 type NetworkEventP2PEndpoint struct {
@@ -1331,6 +1413,7 @@ func p2pEndpointFromProto(proto *tailnetproto.TelemetryEvent_P2PEndpoint) Networ
 	if proto == nil {
 		return NetworkEventP2PEndpoint{}
 	}
+
 	return NetworkEventP2PEndpoint{
 		Hash:   proto.Hash,
 		Port:   int(proto.Port),
@@ -1345,6 +1428,7 @@ func derpMapHomeParamsFromProto(proto *tailnetproto.DERPMap_HomeParams) DERPMapH
 		return DERPMapHomeParams{}
 	}
 	out := DERPMapHomeParams{
+
 		RegionScore: make(map[int64]float64, len(proto.RegionScore)),
 	}
 	for k, v := range proto.RegionScore {
@@ -1354,6 +1438,7 @@ func derpMapHomeParamsFromProto(proto *tailnetproto.DERPMap_HomeParams) DERPMapH
 }
 type DERPRegion struct {
 	RegionID      int64 `json:"region_id"`
+
 	EmbeddedRelay bool  `json:"embedded_relay"`
 	RegionCode    string
 	RegionName    string
@@ -1367,6 +1452,7 @@ func derpRegionFromProto(proto *tailnetproto.DERPMap_Region) DERPRegion {
 	nodes := make([]DERPNode, 0, len(proto.Nodes))
 	for _, node := range proto.Nodes {
 		nodes = append(nodes, derpNodeFromProto(node))
+
 	}
 	return DERPRegion{
 		RegionID:      proto.RegionId,
@@ -1378,6 +1464,7 @@ func derpRegionFromProto(proto *tailnetproto.DERPMap_Region) DERPRegion {
 	}
 }
 type DERPNode struct {
+
 	Name             string `json:"name"`
 	RegionID         int64  `json:"region_id"`
 	HostName         string `json:"host_name"`
@@ -1390,6 +1477,7 @@ type DERPNode struct {
 	InsecureForTests bool   `json:"insecure_for_tests"`
 	ForceHTTP        bool   `json:"force_http"`
 	STUNTestIP       string `json:"stun_test_ip"`
+
 	CanPort80        bool   `json:"can_port_80"`
 }
 func derpNodeFromProto(proto *tailnetproto.DERPMap_Region_Node) DERPNode {
@@ -1398,11 +1486,13 @@ func derpNodeFromProto(proto *tailnetproto.DERPMap_Region_Node) DERPNode {
 	}
 	return DERPNode{
 		Name:             proto.Name,
+
 		RegionID:         proto.RegionId,
 		HostName:         proto.HostName,
 		CertName:         proto.CertName,
 		IPv4:             proto.Ipv4,
 		IPv6:             proto.Ipv6,
+
 		STUNPort:         proto.StunPort,
 		STUNOnly:         proto.StunOnly,
 		DERPPort:         proto.DerpPort,
@@ -1413,12 +1503,14 @@ func derpNodeFromProto(proto *tailnetproto.DERPMap_Region_Node) DERPNode {
 	}
 }
 type DERPMap struct {
+
 	HomeParams DERPMapHomeParams `json:"home_params"`
 	Regions    map[int64]DERPRegion
 }
 func derpMapFromProto(proto *tailnetproto.DERPMap) DERPMap {
 	if proto == nil {
 		return DERPMap{}
+
 	}
 	regionMap := make(map[int64]DERPRegion, len(proto.Regions))
 	for k, v := range proto.Regions {
@@ -1430,10 +1522,12 @@ func derpMapFromProto(proto *tailnetproto.DERPMap) DERPMap {
 	}
 }
 type NetcheckIP struct {
+
 	Hash   string               `json:"hash"`
 	Fields NetworkEventIPFields `json:"fields"`
 }
 func netcheckIPFromProto(proto *tailnetproto.Netcheck_NetcheckIP) NetcheckIP {
+
 	if proto == nil {
 		return NetcheckIP{}
 	}
@@ -1447,6 +1541,7 @@ type Netcheck struct {
 	IPv6        bool `json:"ipv6"`
 	IPv4        bool `json:"ipv4"`
 	IPv6CanSend bool `json:"ipv6_can_send"`
+
 	IPv4CanSend bool `json:"ipv4_can_send"`
 	ICMPv4      bool `json:"icmpv4"`
 	OSHasIPv6             *bool `json:"os_has_ipv6"`
@@ -1456,6 +1551,7 @@ type Netcheck struct {
 	PMP                   *bool `json:"pmp"`
 	PCP                   *bool `json:"pcp"`
 	PreferredDERP int64 `json:"preferred_derp"`
+
 	RegionV4Latency map[int64]time.Duration `json:"region_v4_latency"`
 	RegionV6Latency map[int64]time.Duration `json:"region_v6_latency"`
 	GlobalV4 NetcheckIP `json:"global_v4"`
@@ -1474,6 +1570,7 @@ func netcheckFromProto(proto *tailnetproto.Netcheck) Netcheck {
 	durationMapFromProto := func(m map[int64]*durationpb.Duration) map[int64]time.Duration {
 		out := make(map[int64]time.Duration, len(m))
 		for k, v := range m {
+
 			out[k] = v.AsDuration()
 		}
 		return out
@@ -1490,6 +1587,7 @@ func netcheckFromProto(proto *tailnetproto.Netcheck) Netcheck {
 		HairPinning:           protoBool(proto.HairPinning),
 		UPnP:                  protoBool(proto.UPnP),
 		PMP:                   protoBool(proto.PMP),
+
 		PCP:                   protoBool(proto.PCP),
 		PreferredDERP: proto.PreferredDERP,
 		RegionV4Latency: durationMapFromProto(proto.RegionV4Latency),
@@ -1511,11 +1609,13 @@ type NetworkEvent struct {
 	P2PEndpoint    NetworkEventP2PEndpoint `json:"p2p_endpoint"`
 	HomeDERP       int                     `json:"home_derp"`
 	DERPMap        DERPMap                 `json:"derp_map"`
+
 	LatestNetcheck Netcheck                `json:"latest_netcheck"`
 	ConnectionAge   *time.Duration `json:"connection_age"`
 	ConnectionSetup *time.Duration `json:"connection_setup"`
 	P2PSetup        *time.Duration `json:"p2p_setup"`
 	DERPLatency     *time.Duration `json:"derp_latency"`
+
 	P2PLatency      *time.Duration `json:"p2p_latency"`
 	ThroughputMbits *float32       `json:"throughput_mbits"`
 }
@@ -1530,11 +1630,13 @@ func protoDurationNil(d *durationpb.Duration) *time.Duration {
 		return nil
 	}
 	dur := d.AsDuration()
+
 	return &dur
 }
 func NetworkEventFromProto(proto *tailnetproto.TelemetryEvent) (NetworkEvent, error) {
 	if proto == nil {
 		return NetworkEvent{}, errors.New("nil event")
+
 	}
 	id, err := uuid.FromBytes(proto.Id)
 	if err != nil {
@@ -1545,6 +1647,7 @@ func NetworkEventFromProto(proto *tailnetproto.TelemetryEvent) (NetworkEvent, er
 		Time:           proto.Time.AsTime(),
 		Application:    proto.Application,
 		Status:         strings.ToLower(proto.Status.String()),
+
 		ClientType:     strings.ToLower(proto.ClientType.String()),
 		ClientVersion:  proto.ClientVersion,
 		NodeIDSelf:     proto.NodeIdSelf,
@@ -1553,6 +1656,7 @@ func NetworkEventFromProto(proto *tailnetproto.TelemetryEvent) (NetworkEvent, er
 		HomeDERP:       int(proto.HomeDerp),
 		DERPMap:        derpMapFromProto(proto.DerpMap),
 		LatestNetcheck: netcheckFromProto(proto.LatestNetcheck),
+
 		ConnectionAge:   protoDurationNil(proto.ConnectionAge),
 		ConnectionSetup: protoDurationNil(proto.ConnectionSetup),
 		P2PSetup:        protoDurationNil(proto.P2PSetup),
@@ -1560,15 +1664,19 @@ func NetworkEventFromProto(proto *tailnetproto.TelemetryEvent) (NetworkEvent, er
 		P2PLatency:      protoDurationNil(proto.P2PLatency),
 		ThroughputMbits: protoFloat(proto.ThroughputMbits),
 	}, nil
+
 }
 type Organization struct {
+
 	ID        uuid.UUID `json:"id"`
 	IsDefault bool      `json:"is_default"`
 	CreatedAt time.Time `json:"created_at"`
+
 }
 type telemetryItemKey string
 // The comment below gets rid of the warning that the name "TelemetryItemKey" has
 // the "Telemetry" prefix, and that stutters when you use it outside the package
+
 // (telemetry.TelemetryItemKey...). "TelemetryItem" is the name of a database table,
 // so it makes sense to use the "Telemetry" prefix.
 //
@@ -1576,11 +1684,13 @@ type telemetryItemKey string
 const (
 	TelemetryItemKeyHTMLFirstServedAt telemetryItemKey = "html_first_served_at"
 	TelemetryItemKeyTelemetryEnabled  telemetryItemKey = "telemetry_enabled"
+
 )
 type TelemetryItem struct {
 	Key       string    `json:"key"`
 	Value     string    `json:"value"`
 	CreatedAt time.Time `json:"created_at"`
+
 	UpdatedAt time.Time `json:"updated_at"`
 }
 type noopReporter struct{}

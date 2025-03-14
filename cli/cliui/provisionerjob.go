@@ -1,4 +1,5 @@
 package cliui
+
 import (
 	"errors"
 	"bytes"
@@ -10,13 +11,16 @@ import (
 	"strings"
 	"sync"
 	"time"
+
 	"github.com/google/uuid"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/pretty"
+
 )
 func WorkspaceBuild(ctx context.Context, writer io.Writer, client *codersdk.Client, build uuid.UUID) error {
 	return ProvisionerJob(ctx, writer, ProvisionerJobOptions{
 		Fetch: func() (codersdk.ProvisionerJob, error) {
+
 			build, err := client.WorkspaceBuild(ctx, build)
 			return build.Job, err
 		},
@@ -29,11 +33,13 @@ type ProvisionerJobOptions struct {
 	Fetch  func() (codersdk.ProvisionerJob, error)
 	Cancel func() error
 	Logs   func() (<-chan codersdk.ProvisionerJobLog, io.Closer, error)
+
 	FetchInterval time.Duration
 	// Verbose determines whether debug and trace logs will be shown.
 	Verbose bool
 	// Silent determines whether log output will be shown unless there is an
 	// error.
+
 	Silent bool
 }
 type ProvisionerJobError struct {
@@ -42,22 +48,27 @@ type ProvisionerJobError struct {
 }
 var _ error = new(ProvisionerJobError)
 func (err *ProvisionerJobError) Error() string {
+
 	return err.Message
 }
 const (
 	ProvisioningStateQueued  = "Queued"
 	ProvisioningStateRunning = "Running"
+
 )
 // ProvisionerJob renders a provisioner job with interactive cancellation.
+
 func ProvisionerJob(ctx context.Context, wr io.Writer, opts ProvisionerJobOptions) error {
 	if opts.FetchInterval == 0 {
 		opts.FetchInterval = time.Second
 	}
+
 	ctx, cancelFunc := context.WithCancel(ctx)
 	defer cancelFunc()
 	var (
 		currentStage          = ProvisioningStateQueued
 		currentStageStartedAt = time.Now().UTC()
+
 		currentQueuePos       = -1
 		errChan  = make(chan error, 1)
 		job      codersdk.ProvisionerJob
@@ -66,21 +77,26 @@ func ProvisionerJob(ctx context.Context, wr io.Writer, opts ProvisionerJobOption
 	sw := &stageWriter{w: wr, verbose: opts.Verbose, silentLogs: opts.Silent}
 	printStage := func() {
 		out := currentStage
+
 		if currentStage == ProvisioningStateQueued && currentQueuePos > 0 {
 			var queuePos string
 			if currentQueuePos == 1 {
 				queuePos = "next"
 			} else {
+
 				queuePos = fmt.Sprintf("position: %d", currentQueuePos)
 			}
 			out = pretty.Sprintf(DefaultStyles.Warn, "%s (%s)", currentStage, queuePos)
 		}
 		sw.Start(out)
+
 	}
 	updateStage := func(stage string, startedAt time.Time) {
+
 		if currentStage != "" {
 			duration := startedAt.Sub(currentStageStartedAt)
 			if job.CompletedAt != nil && job.Status != codersdk.ProvisionerJobSucceeded {
+
 				sw.Fail(currentStage, duration)
 			} else {
 				sw.Complete(currentStage, duration)
@@ -89,12 +105,15 @@ func ProvisionerJob(ctx context.Context, wr io.Writer, opts ProvisionerJobOption
 		if stage == "" {
 			return
 		}
+
 		currentStage = stage
 		currentStageStartedAt = startedAt
 		printStage()
+
 	}
 	updateJob := func() {
 		var err error
+
 		jobMutex.Lock()
 		defer jobMutex.Unlock()
 		job, err = opts.Fetch()
@@ -112,6 +131,7 @@ func ProvisionerJob(ctx context.Context, wr io.Writer, opts ProvisionerJobOption
 				printStage()
 			}
 		}
+
 		if job.StartedAt == nil {
 			return
 		}
@@ -124,6 +144,7 @@ func ProvisionerJob(ctx context.Context, wr io.Writer, opts ProvisionerJobOption
 	}
 	if opts.Cancel != nil {
 		// Handles ctrl+c to cancel a job.
+
 		stopChan := make(chan os.Signal, 1)
 		signal.Notify(stopChan, os.Interrupt)
 		go func() {
@@ -143,6 +164,7 @@ func ProvisionerJob(ctx context.Context, wr io.Writer, opts ProvisionerJobOption
 			)
 			err := opts.Cancel()
 			if err != nil {
+
 				errChan <- fmt.Errorf("cancel: %w", err)
 				return
 			}
@@ -171,16 +193,19 @@ func ProvisionerJob(ctx context.Context, wr io.Writer, opts ProvisionerJobOption
 			updateJob()
 		case log, ok := <-logs:
 			if !ok {
+
 				updateJob()
 				jobMutex.Lock()
 				if job.CompletedAt != nil {
 					updateStage("", *job.CompletedAt)
+
 				}
 				switch job.Status {
 				case codersdk.ProvisionerJobCanceled:
 					jobMutex.Unlock()
 					return Canceled
 				case codersdk.ProvisionerJobSucceeded:
+
 					jobMutex.Unlock()
 					return nil
 				case codersdk.ProvisionerJobFailed:
@@ -218,6 +243,7 @@ func (s *stageWriter) Complete(stage string, duration time.Duration) {
 }
 func (s *stageWriter) Fail(stage string, duration time.Duration) {
 	s.flushLogs()
+
 	s.end(stage, duration, false)
 }
 //nolint:revive
@@ -230,6 +256,7 @@ func (s *stageWriter) end(stage string, duration time.Duration, ok bool) {
 	if duration < 0 {
 		duration = 0
 	}
+
 	_, _ = fmt.Fprintf(s.w, "=== %s %s [%dms]\n", mark, stage, duration.Milliseconds())
 }
 func (s *stageWriter) Log(createdAt time.Time, level codersdk.LogLevel, line string) {
@@ -237,23 +264,28 @@ func (s *stageWriter) Log(createdAt time.Time, level codersdk.LogLevel, line str
 	if s.silentLogs {
 		w = &s.logBuf
 	}
+
 	var style pretty.Style
 	var lines []string
 	if !createdAt.IsZero() {
 		lines = append(lines, createdAt.Local().Format("2006-01-02 15:04:05.000Z07:00"))
+
 	}
 	lines = append(lines, line)
 	switch level {
 	case codersdk.LogLevelTrace, codersdk.LogLevelDebug:
+
 		if !s.verbose {
 			return
 		}
 		style = DefaultStyles.Placeholder
 	case codersdk.LogLevelError:
+
 		style = DefaultStyles.Error
 	case codersdk.LogLevelWarn:
 		style = DefaultStyles.Warn
 	case codersdk.LogLevelInfo:
+
 	}
 	pretty.Fprintf(w, style, "%s\n", strings.Join(lines, " "))
 }

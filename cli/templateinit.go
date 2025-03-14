@@ -1,4 +1,5 @@
 package cli
+
 import (
 	"bytes"
 	"errors"
@@ -8,9 +9,11 @@ import (
 	"path/filepath"
 	"sort"
 	"golang.org/x/exp/maps"
+
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/examples"
+
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
@@ -19,6 +22,7 @@ func (*RootCmd) templateInit() *serpent.Command {
 	var templateID string
 	exampleList, err := examples.List()
 	if err != nil {
+
 		// This should not happen. If it does, something is very wrong.
 		panic(err)
 	}
@@ -73,6 +77,7 @@ func (*RootCmd) templateInit() *serpent.Command {
 				// serpent.EnumOf would normally handle this.
 				return fmt.Errorf("template not found: %q", templateID)
 			}
+
 			archive, err := examples.Archive(selectedTemplate.ID)
 			if err != nil {
 				return err
@@ -119,6 +124,7 @@ func (*RootCmd) templateInit() *serpent.Command {
 			Description: "Specify a given example template by ID.",
 			Value:       serpent.EnumOf(&templateID, templateIDs...),
 		},
+
 	}
 	return cmd
 }
@@ -127,6 +133,7 @@ func templateByID(templateID string, tes []codersdk.TemplateExample) (codersdk.T
 		if te.ID == templateID {
 			return te, true
 		}
+
 	}
 	return codersdk.TemplateExample{}, false
 }

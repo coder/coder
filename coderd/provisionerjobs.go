@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 
+
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -28,6 +29,7 @@ import (
 	"github.com/coder/websocket"
 )
 
+
 // @Summary Get provisioner job
 // @ID get-provisioner-job
 // @Security CoderSessionToken
@@ -40,10 +42,12 @@ import (
 func (api *API) provisionerJob(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+
 	jobID, ok := httpmw.ParseUUIDParam(rw, r, "job")
 	if !ok {
 		return
 	}
+
 
 	jobs, ok := api.handleAuthAndFetchProvisionerJobs(rw, r, []uuid.UUID{jobID})
 	if !ok {
@@ -61,8 +65,10 @@ func (api *API) provisionerJob(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+
 	httpapi.Write(ctx, rw, http.StatusOK, convertProvisionerJobWithQueuePosition(jobs[0]))
 }
+
 
 // @Summary Get provisioner jobs
 // @ID get-provisioner-jobs
@@ -79,13 +85,16 @@ func (api *API) provisionerJob(rw http.ResponseWriter, r *http.Request) {
 func (api *API) provisionerJobs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+
 	jobs, ok := api.handleAuthAndFetchProvisionerJobs(rw, r, nil)
 	if !ok {
 		return
 	}
 
+
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.List(jobs, convertProvisionerJobWithQueuePosition))
 }
+
 
 // handleAuthAndFetchProvisionerJobs is an internal method shared by
 // provisionerJob and provisionerJobs. If ok is false the caller should
@@ -94,11 +103,13 @@ func (api *API) handleAuthAndFetchProvisionerJobs(rw http.ResponseWriter, r *htt
 	ctx := r.Context()
 	org := httpmw.OrganizationParam(r)
 
+
 	// For now, only owners and template admins can access provisioner jobs.
 	if !api.Authorize(r, policy.ActionRead, rbac.ResourceProvisionerJobs.InOrg(org.ID)) {
 		httpapi.ResourceNotFound(rw)
 		return nil, false
 	}
+
 
 	qp := r.URL.Query()
 	p := httpapi.NewQueryParamParser()
@@ -117,6 +128,7 @@ func (api *API) handleAuthAndFetchProvisionerJobs(rw http.ResponseWriter, r *htt
 		return nil, false
 	}
 
+
 	jobs, err := api.Database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(ctx, database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams{
 		OrganizationID: org.ID,
 		Status:         slice.StringEnums[database.ProvisionerJobStatus](status),
@@ -130,6 +142,7 @@ func (api *API) handleAuthAndFetchProvisionerJobs(rw http.ResponseWriter, r *htt
 			return nil, false
 		}
 
+
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner jobs.",
 			Detail:  err.Error(),
@@ -137,8 +150,10 @@ func (api *API) handleAuthAndFetchProvisionerJobs(rw http.ResponseWriter, r *htt
 		return nil, false
 	}
 
+
 	return jobs, true
 }
+
 
 // Returns provisioner logs based on query parameters.
 // The intended usage for a client to stream all logs (with JS API):
@@ -153,6 +168,7 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 		follow   = r.URL.Query().Has("follow")
 		afterRaw = r.URL.Query().Get("after")
 	)
+
 
 	var after int64
 	// Only fetch logs created after the time provided.
@@ -170,10 +186,12 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 		}
 	}
 
+
 	if !follow {
 		fetchAndWriteLogs(ctx, api.Database, job.ID, after, rw)
 		return
 	}
+
 
 	follower := newLogFollower(ctx, logger, api.Database, api.Pubsub, rw, r, job, after)
 	api.WebsocketWaitMutex.Lock()
@@ -183,6 +201,7 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 	follower.follow()
 }
 
+
 func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request, job database.ProvisionerJob) {
 	ctx := r.Context()
 	if !job.CompletedAt.Valid {
@@ -191,6 +210,7 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 		})
 		return
 	}
+
 
 	// nolint:gocritic // GetWorkspaceResourcesByJobID is a system function.
 	resources, err := api.Database.GetWorkspaceResourcesByJobID(dbauthz.AsSystemRestricted(ctx), job.ID)
@@ -209,6 +229,7 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 		resourceIDs = append(resourceIDs, resource.ID)
 	}
 
+
 	// nolint:gocritic // GetWorkspaceAgentsByResourceIDs is a system function.
 	resourceAgents, err := api.Database.GetWorkspaceAgentsByResourceIDs(dbauthz.AsSystemRestricted(ctx), resourceIDs)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -226,6 +247,7 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 		resourceAgentIDs = append(resourceAgentIDs, agent.ID)
 	}
 
+
 	// nolint:gocritic // GetWorkspaceAppsByAgentIDs is a system function.
 	apps, err := api.Database.GetWorkspaceAppsByAgentIDs(dbauthz.AsSystemRestricted(ctx), resourceAgentIDs)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -238,6 +260,7 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 		})
 		return
 	}
+
 
 	// nolint:gocritic // GetWorkspaceAgentScriptsByAgentIDs is a system function.
 	scripts, err := api.Database.GetWorkspaceAgentScriptsByAgentIDs(dbauthz.AsSystemRestricted(ctx), resourceAgentIDs)
@@ -252,6 +275,7 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 		return
 	}
 
+
 	// nolint:gocritic // GetWorkspaceAgentLogSourcesByAgentIDs is a system function.
 	logSources, err := api.Database.GetWorkspaceAgentLogSourcesByAgentIDs(dbauthz.AsSystemRestricted(ctx), resourceAgentIDs)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -265,6 +289,7 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 		return
 	}
 
+
 	// nolint:gocritic // GetWorkspaceResourceMetadataByResourceIDs is a system function.
 	resourceMetadata, err := api.Database.GetWorkspaceResourceMetadataByResourceIDs(dbauthz.AsSystemRestricted(ctx), resourceIDs)
 	if err != nil {
@@ -274,6 +299,7 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 		})
 		return
 	}
+
 
 	apiResources := make([]codersdk.WorkspaceResource, 0)
 	for _, resource := range resources {
@@ -301,6 +327,7 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 				}
 			}
 
+
 			apiAgent, err := db2sdk.WorkspaceAgent(
 				api.DERPMap(), *api.TailnetCoordinator.Load(), agent, convertProvisionedApps(dbApps), convertScripts(dbScripts), convertLogSources(dbLogSources), api.AgentInactiveDisconnectTimeout,
 				api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
@@ -326,8 +353,10 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 		return apiResources[i].Name < apiResources[j].Name
 	})
 
+
 	httpapi.Write(ctx, rw, http.StatusOK, apiResources)
 }
+
 
 func convertProvisionerJobLogs(provisionerJobLogs []database.ProvisionerJobLog) []codersdk.ProvisionerJobLog {
 	sdk := make([]codersdk.ProvisionerJobLog, 0, len(provisionerJobLogs))
@@ -336,6 +365,7 @@ func convertProvisionerJobLogs(provisionerJobLogs []database.ProvisionerJobLog) 
 	}
 	return sdk
 }
+
 
 func convertProvisionerJobLog(provisionerJobLog database.ProvisionerJobLog) codersdk.ProvisionerJobLog {
 	return codersdk.ProvisionerJobLog{
@@ -347,6 +377,7 @@ func convertProvisionerJobLog(provisionerJobLog database.ProvisionerJobLog) code
 		Output:    provisionerJobLog.Output,
 	}
 }
+
 
 func convertProvisionerJob(pj database.GetProvisionerJobsByIDsWithQueuePositionRow) codersdk.ProvisionerJob {
 	provisionerJob := pj.ProvisionerJob
@@ -377,6 +408,7 @@ func convertProvisionerJob(pj database.GetProvisionerJobsByIDsWithQueuePositionR
 	}
 	job.Status = codersdk.ProvisionerJobStatus(pj.ProvisionerJob.JobStatus)
 
+
 	// Only unmarshal input if it exists, this should only be zero in testing.
 	if len(provisionerJob.Input) > 0 {
 		if err := json.Unmarshal(provisionerJob.Input, &job.Input); err != nil {
@@ -384,8 +416,10 @@ func convertProvisionerJob(pj database.GetProvisionerJobsByIDsWithQueuePositionR
 		}
 	}
 
+
 	return job
 }
+
 
 func convertProvisionerJobWithQueuePosition(pj database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow) codersdk.ProvisionerJob {
 	job := convertProvisionerJob(database.GetProvisionerJobsByIDsWithQueuePositionRow{
@@ -408,6 +442,7 @@ func convertProvisionerJobWithQueuePosition(pj database.GetProvisionerJobsByOrga
 	return job
 }
 
+
 func fetchAndWriteLogs(ctx context.Context, db database.Store, jobID uuid.UUID, after int64, rw http.ResponseWriter) {
 	logs, err := db.GetProvisionerLogsAfterID(ctx, database.GetProvisionerLogsAfterIDParams{
 		JobID:        jobID,
@@ -425,6 +460,7 @@ func fetchAndWriteLogs(ctx context.Context, db database.Store, jobID uuid.UUID, 
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, convertProvisionerJobLogs(logs))
 }
+
 
 func jobIsComplete(logger slog.Logger, job database.ProvisionerJob) bool {
 	status := codersdk.ProvisionerJobStatus(job.JobStatus)
@@ -449,6 +485,7 @@ func jobIsComplete(logger slog.Logger, job database.ProvisionerJob) bool {
 	}
 }
 
+
 type logFollower struct {
 	ctx    context.Context
 	logger slog.Logger
@@ -459,12 +496,14 @@ type logFollower struct {
 	conn   *websocket.Conn
 	enc    *wsjson.Encoder[codersdk.ProvisionerJobLog]
 
+
 	jobID         uuid.UUID
 	after         int64
 	complete      bool
 	notifications chan provisionersdk.ProvisionerJobLogsNotifyMessage
 	errors        chan error
 }
+
 
 func newLogFollower(
 	ctx context.Context, logger slog.Logger, db database.Store, ps pubsub.Pubsub,
@@ -484,6 +523,7 @@ func newLogFollower(
 		errors:        make(chan error),
 	}
 }
+
 
 func (f *logFollower) follow() {
 	var cancel context.CancelFunc
@@ -509,6 +549,7 @@ func (f *logFollower) follow() {
 		// in-memory pubsub does mutex locking on send/unsubscribe.
 		defer cancel()
 
+
 		// we were provided `complete` prior to starting this subscription, so
 		// we also need to check whether the job is now complete, in case the
 		// job completed between the last time we queried the job and the start
@@ -526,6 +567,7 @@ func (f *logFollower) follow() {
 		f.logger.Debug(f.ctx, "queried job after subscribe", slog.F("complete", f.complete))
 	}
 
+
 	var err error
 	f.conn, err = websocket.Accept(f.rw, f.r, nil)
 	if err != nil {
@@ -538,6 +580,7 @@ func (f *logFollower) follow() {
 	defer f.conn.Close(websocket.StatusNormalClosure, "done")
 	go httpapi.Heartbeat(f.ctx, f.conn)
 	f.enc = wsjson.NewEncoder[codersdk.ProvisionerJobLog](f.conn, websocket.MessageText)
+
 
 	// query for logs once right away, so we can get historical data from before
 	// subscription
@@ -552,6 +595,7 @@ func (f *logFollower) follow() {
 		}
 		return
 	}
+
 
 	// no need to wait if the job is done
 	if f.complete {
@@ -598,6 +642,7 @@ func (f *logFollower) follow() {
 	}
 }
 
+
 func (f *logFollower) listener(_ context.Context, message []byte, err error) {
 	// in this function we always pair writes to channels with a select on the context
 	// otherwise we could block a goroutine if the follow() method exits.
@@ -622,6 +667,7 @@ func (f *logFollower) listener(_ context.Context, message []byte, err error) {
 	case f.notifications <- n:
 	}
 }
+
 
 // query fetches the latest job logs from the database and writes them to the
 // connection.

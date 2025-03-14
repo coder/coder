@@ -1,4 +1,5 @@
 package awsidentity
+
 import (
 	"fmt"
 	"errors"
@@ -8,12 +9,15 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+
 	"encoding/pem"
 )
 // Region represents the AWS locations a public-key covers.
+
 type Region string
 const (
 	Other     Region = "other"
+
 	CapeTown  Region = "capetown"
 	HongKong  Region = "hongkong"
 	Hyderabad Region = "hyderabad"
@@ -31,22 +35,27 @@ const (
 var All = []Region{Other, CapeTown, HongKong, Hyderabad, Jakarta, Melbourne, China, Milan, Spain, Zurich, TelAviv, Bahrain, UAE, GovCloud}
 // Certificates hold public keys for various AWS regions. See:
 type Certificates map[Region]string
+
 // Identity represents a validated document and signature.
 type Identity struct {
+
 	InstanceID string
 	Region     Region
 }
+
 // https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-identity-documents.html
 type awsInstanceIdentityDocument struct {
 	InstanceID string `json:"instanceId"`
 }
 // Validate ensures the document was signed by an AWS public key.
 // Regions that aren't provided in certificates will use defaults.
+
 func Validate(signature, document string, certificates Certificates) (Identity, error) {
 	if certificates == nil {
 		certificates = Certificates{}
 	}
 	for _, region := range All {
+
 		if _, ok := certificates[region]; ok {
 			continue
 		}
@@ -64,6 +73,7 @@ func Validate(signature, document string, certificates Certificates) (Identity, 
 	rawSignature, err := base64.StdEncoding.DecodeString(signature)
 	if err != nil {
 		return Identity{}, fmt.Errorf("decode signature: %w", err)
+
 	}
 	hashedDocument := sha256.Sum256([]byte(document))
 	for region, certificate := range certificates {
@@ -75,6 +85,7 @@ func Validate(signature, document string, certificates Certificates) (Identity, 
 		if err != nil {
 			return Identity{}, fmt.Errorf("parse certificate: %w", err)
 		}
+
 		regionPublicKey, valid := regionCert.PublicKey.(*rsa.PublicKey)
 		if !valid {
 			return Identity{}, fmt.Errorf("certificate for %q was not an rsa key", region)
@@ -100,6 +111,7 @@ FgYDVQQKEw9BbWF6b24uY29tIEluYy4xGjAYBgNVBAMTEWVjMi5hbWF6b25hd3Mu
 Y29tMB4XDTE0MDYwNTE0MjgwMloXDTI0MDYwNTE0MjgwMlowajELMAkGA1UEBhMC
 VVMxEzARBgNVBAgTCldhc2hpbmd0b24xEDAOBgNVBAcTB1NlYXR0bGUxGDAWBgNV
 BAoTD0FtYXpvbi5jb20gSW5jLjEaMBgGA1UEAxMRZWMyLmFtYXpvbmF3cy5jb20w
+
 gZ8wDQYJKoZIhvcNAQEBBQADgY0AMIGJAoGBAIe9GN//SRK2knbjySG0ho3yqQM3
 e2TDhWO8D2e8+XZqck754gFSo99AbT2RmXClambI7xsYHZFapbELC4H91ycihvrD
 jbST1ZjkLQgga0NE1q43eS68ZeTDccScXQSNivSlzJZS8HJZjgqzBlXjZftjtdJL

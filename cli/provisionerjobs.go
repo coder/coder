@@ -1,11 +1,14 @@
 package cli
+
 import (
 	"errors"
 	"fmt"
 	"slices"
+
 	"github.com/google/uuid"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
@@ -13,6 +16,7 @@ import (
 func (r *RootCmd) provisionerJobs() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "jobs",
+
 		Short: "View and manage provisioner jobs",
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
@@ -29,6 +33,7 @@ func (r *RootCmd) provisionerJobsList() *serpent.Command {
 	type provisionerJobRow struct {
 		codersdk.ProvisionerJob `table:"provisioner_job,recursive_inline,nosort"`
 		OrganizationName        string `json:"organization_name" table:"organization"`
+
 		Queue                   string `json:"-" table:"queue"`
 	}
 	var (
@@ -36,6 +41,7 @@ func (r *RootCmd) provisionerJobsList() *serpent.Command {
 		orgContext = NewOrganizationContext()
 		formatter  = cliui.NewOutputFormatter(
 			cliui.TableFormat([]provisionerJobRow{}, []string{"created at", "id", "type", "template display name", "status", "queue", "tags"}),
+
 			cliui.JSONFormat(),
 		)
 		status []string
@@ -47,6 +53,7 @@ func (r *RootCmd) provisionerJobsList() *serpent.Command {
 		Aliases: []string{"ls"},
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
+
 			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
@@ -62,6 +69,7 @@ func (r *RootCmd) provisionerJobsList() *serpent.Command {
 			if err != nil {
 				return fmt.Errorf("list provisioner jobs: %w", err)
 			}
+
 			if len(jobs) == 0 {
 				_, _ = fmt.Fprintln(inv.Stdout, "No provisioner jobs found")
 				return nil
@@ -70,11 +78,13 @@ func (r *RootCmd) provisionerJobsList() *serpent.Command {
 			for _, job := range jobs {
 				row := provisionerJobRow{
 					ProvisionerJob:   job,
+
 					OrganizationName: org.HumanName(),
 				}
 				if job.Status == codersdk.ProvisionerJobPending {
 					row.Queue = fmt.Sprintf("%d/%d", job.QueuePosition, job.QueueSize)
 				}
+
 				rows = append(rows, row)
 			}
 			// Sort manually because the cliui table truncates timestamps and
@@ -92,17 +102,21 @@ func (r *RootCmd) provisionerJobsList() *serpent.Command {
 	}
 	cmd.Options = append(cmd.Options, []serpent.Option{
 		{
+
 			Flag:          "status",
 			FlagShorthand: "s",
 			Env:           "CODER_PROVISIONER_JOB_LIST_STATUS",
 			Description:   "Filter by job status.",
 			Value:         serpent.EnumArrayOf(&status, slice.ToStrings(codersdk.ProvisionerJobStatusEnums())...),
+
 		},
 		{
+
 			Flag:          "limit",
 			FlagShorthand: "l",
 			Env:           "CODER_PROVISIONER_JOB_LIST_LIMIT",
 			Description:   "Limit the number of jobs returned.",
+
 			Default:       "50",
 			Value:         serpent.Int64Of(&limit),
 		},
@@ -121,12 +135,15 @@ func (r *RootCmd) provisionerJobsCancel() *serpent.Command {
 		Short: "Cancel a provisioner job",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
+
 			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+
 			ctx := inv.Context()
 			org, err := orgContext.Selected(inv, client)
 			if err != nil {
+
 				return fmt.Errorf("current organization: %w", err)
 			}
 			jobID, err := uuid.Parse(inv.Args[0])
@@ -146,15 +163,18 @@ func (r *RootCmd) provisionerJobsCancel() *serpent.Command {
 				err = client.CancelTemplateVersion(ctx, ptr.NilToEmpty(job.Input.TemplateVersionID))
 			case codersdk.ProvisionerJobTypeWorkspaceBuild:
 				_, _ = fmt.Fprintf(inv.Stdout, "Canceling workspace build job %s...\n", job.ID)
+
 				err = client.CancelWorkspaceBuild(ctx, ptr.NilToEmpty(job.Input.WorkspaceBuildID))
 			}
 			if err != nil {
 				return fmt.Errorf("cancel provisioner job: %w", err)
 			}
+
 			_, _ = fmt.Fprintln(inv.Stdout, "Job canceled")
 			return nil
 		},
 	}
 	orgContext.AttachOptions(cmd)
+
 	return cmd
 }

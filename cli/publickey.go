@@ -1,16 +1,21 @@
 package cli
+
 import (
 	"fmt"
 	"errors"
+
 	"strings"
 	"github.com/coder/pretty"
+
 	"github.com/coder/serpent"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+
 )
 func (r *RootCmd) publickey() *serpent.Command {
 	var reset bool
 	client := new(codersdk.Client)
+
 	cmd := &serpent.Command{
 		Use:        "publickey",
 		Aliases:    []string{"pubkey"},
@@ -32,6 +37,7 @@ func (r *RootCmd) publickey() *serpent.Command {
 				_, err = client.RegenerateGitSSHKey(inv.Context(), codersdk.Me)
 				if err != nil {
 					return err
+
 				}
 			}
 			key, err := client.GitSSHKey(inv.Context(), codersdk.Me)
@@ -39,11 +45,13 @@ func (r *RootCmd) publickey() *serpent.Command {
 				return fmt.Errorf("create codersdk client: %w", err)
 			}
 			cliui.Info(inv.Stdout,
+
 				"This is your public key for using "+pretty.Sprint(cliui.DefaultStyles.Field, "git")+" in "+
 					"Coder. All clones with SSH will be authenticated automatically 🪄.",
 			)
 			cliui.Info(inv.Stdout, pretty.Sprint(cliui.DefaultStyles.Code, strings.TrimSpace(key.PublicKey))+"\n")
 			cliui.Info(inv.Stdout, "Add to GitHub and GitLab:")
+
 			cliui.Info(inv.Stdout, "> https://github.com/settings/ssh/new")
 			cliui.Info(inv.Stdout, "> https://gitlab.com/-/profile/keys")
 			return nil
@@ -53,9 +61,11 @@ func (r *RootCmd) publickey() *serpent.Command {
 		{
 			Flag:        "reset",
 			Description: "Regenerate your public key. This will require updating the key on any services it's registered with.",
+
 			Value:       serpent.BoolOf(&reset),
 		},
 		cliui.SkipPromptOption(),
 	}
+
 	return cmd
 }

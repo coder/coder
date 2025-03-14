@@ -1,4 +1,5 @@
 package metricscache
+
 import (
 	"fmt"
 	"errors"
@@ -6,9 +7,11 @@ import (
 	"database/sql"
 	"sync"
 	"sync/atomic"
+
 	"time"
 	"github.com/google/uuid"
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -18,6 +21,7 @@ import (
 )
 // Cache holds the template metrics.
 // The aggregation queries responsible for these values can take up to a minute
+
 // on large deployments. Even in small deployments, aggregation queries can
 // take a few hundred milliseconds, which would ruin page load times and
 // database performance if in the hot path.
@@ -29,23 +33,28 @@ type Cache struct {
 	templateWorkspaceOwners  atomic.Pointer[map[uuid.UUID]int]
 	templateAverageBuildTime atomic.Pointer[map[uuid.UUID]database.GetTemplateAverageBuildTimeRow]
 	deploymentStatsResponse  atomic.Pointer[codersdk.DeploymentStats]
+
 	done   chan struct{}
 	cancel func()
 	// usage is a experiment flag to enable new workspace usage tracking behavior and will be
 	// removed when the experiment is complete.
+
 	usage bool
 }
 type Intervals struct {
+
 	TemplateBuildTimes time.Duration
 	DeploymentStats    time.Duration
 }
 func New(db database.Store, log slog.Logger, clock quartz.Clock, intervals Intervals, usage bool) *Cache {
 	if intervals.TemplateBuildTimes <= 0 {
+
 		intervals.TemplateBuildTimes = time.Hour
 	}
 	if intervals.DeploymentStats <= 0 {
 		intervals.DeploymentStats = time.Minute
 	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	c := &Cache{
 		clock:     clock,
@@ -55,6 +64,7 @@ func New(db database.Store, log slog.Logger, clock quartz.Clock, intervals Inter
 		done:      make(chan struct{}),
 		cancel:    cancel,
 		usage:     usage,
+
 	}
 	go func() {
 		var wg sync.WaitGroup
@@ -82,24 +92,29 @@ func (c *Cache) refreshTemplateBuildTimes(ctx context.Context) error {
 	}
 	var (
 		templateWorkspaceOwners   = make(map[uuid.UUID]int)
+
 		templateAverageBuildTimes = make(map[uuid.UUID]database.GetTemplateAverageBuildTimeRow)
 	)
 	ids := make([]uuid.UUID, 0, len(templates))
 	for _, template := range templates {
+
 		ids = append(ids, template.ID)
 		templateAvgBuildTime, err := c.database.GetTemplateAverageBuildTime(ctx, database.GetTemplateAverageBuildTimeParams{
 			TemplateID: uuid.NullUUID{
 				UUID:  template.ID,
 				Valid: true,
+
 			},
 			StartTime: sql.NullTime{
 				Time:  dbtime.Time(c.clock.Now().AddDate(0, 0, -30)),
 				Valid: true,
 			},
+
 		})
 		if err != nil {
 			return err
 		}
+
 		templateAverageBuildTimes[template.ID] = templateAvgBuildTime
 	}
 	owners, err := c.database.GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx, ids)
@@ -116,21 +131,26 @@ func (c *Cache) refreshTemplateBuildTimes(ctx context.Context) error {
 func (c *Cache) refreshDeploymentStats(ctx context.Context) error {
 	var (
 		from       = c.clock.Now().Add(-15 * time.Minute)
+
 		agentStats database.GetDeploymentWorkspaceAgentStatsRow
 		err        error
 	)
 	if c.usage {
 		agentUsageStats, err := c.database.GetDeploymentWorkspaceAgentUsageStats(ctx, from)
+
 		if err != nil {
 			return err
 		}
 		agentStats = database.GetDeploymentWorkspaceAgentStatsRow(agentUsageStats)
+
 	} else {
 		agentStats, err = c.database.GetDeploymentWorkspaceAgentStats(ctx, from)
 		if err != nil {
+
 			return err
 		}
 	}
+
 	workspaceStats, err := c.database.GetDeploymentWorkspaceStats(ctx)
 	if err != nil {
 		return err
@@ -138,6 +158,7 @@ func (c *Cache) refreshDeploymentStats(ctx context.Context) error {
 	c.deploymentStatsResponse.Store(&codersdk.DeploymentStats{
 		AggregatedFrom: from,
 		CollectedAt:    dbtime.Time(c.clock.Now()),
+
 		NextUpdateAt:   dbtime.Time(c.clock.Now().Add(c.intervals.DeploymentStats)),
 		Workspaces: codersdk.WorkspaceDeploymentStats{
 			Pending:  workspaceStats.PendingWorkspaces,
@@ -151,6 +172,7 @@ func (c *Cache) refreshDeploymentStats(ctx context.Context) error {
 			},
 			RxBytes: agentStats.WorkspaceRxBytes,
 			TxBytes: agentStats.WorkspaceTxBytes,
+
 		},
 		SessionCount: codersdk.SessionCountDeploymentStats{
 			VSCode:          agentStats.SessionCountVSCode,
@@ -182,11 +204,13 @@ func (c *Cache) run(ctx context.Context, name string, interval time.Duration, re
 			logger.Debug(ctx, "metrics refreshed", slog.F("took", time.Since(start)))
 			break
 		}
+
 		select {
 		case <-ticker.C:
 		case <-c.done:
 			return
 		case <-ctx.Done():
+
 			return
 		}
 	}
@@ -205,6 +229,7 @@ func (c *Cache) TemplateBuildTimeStats(id uuid.UUID) codersdk.TemplateBuildTimeS
 	m := c.templateAverageBuildTime.Load()
 	if m == nil {
 		// Data loading.
+
 		return unknown
 	}
 	resp, ok := (*m)[id]
@@ -215,12 +240,14 @@ func (c *Cache) TemplateBuildTimeStats(id uuid.UUID) codersdk.TemplateBuildTimeS
 	convertMillis := func(m float64) *int64 {
 		if m <= 0 {
 			return nil
+
 		}
 		i := int64(m * 1000)
 		return &i
 	}
 	return codersdk.TemplateBuildTimeStats{
 		codersdk.WorkspaceTransitionStart: {
+
 			P50: convertMillis(resp.Start50),
 			P95: convertMillis(resp.Start95),
 		},
@@ -228,18 +255,21 @@ func (c *Cache) TemplateBuildTimeStats(id uuid.UUID) codersdk.TemplateBuildTimeS
 			P50: convertMillis(resp.Stop50),
 			P95: convertMillis(resp.Stop95),
 		},
+
 		codersdk.WorkspaceTransitionDelete: {
 			P50: convertMillis(resp.Delete50),
 			P95: convertMillis(resp.Delete95),
 		},
 	}
 }
+
 func (c *Cache) TemplateWorkspaceOwners(id uuid.UUID) (int, bool) {
 	m := c.templateWorkspaceOwners.Load()
 	if m == nil {
 		// Data loading.
 		return -1, false
 	}
+
 	resp, ok := (*m)[id]
 	if !ok {
 		// Probably no data.
@@ -248,6 +278,7 @@ func (c *Cache) TemplateWorkspaceOwners(id uuid.UUID) (int, bool) {
 	return resp, true
 }
 func (c *Cache) DeploymentStats() (codersdk.DeploymentStats, bool) {
+
 	deploymentStats := c.deploymentStatsResponse.Load()
 	if deploymentStats == nil {
 		return codersdk.DeploymentStats{}, false

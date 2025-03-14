@@ -1,14 +1,18 @@
 package coderd
+
 import (
 	"errors"
 	"context"
 	"fmt"
 	"sync"
+
 	"github.com/google/uuid"
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
+
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/wspubsub"
@@ -20,47 +24,57 @@ type UpdatesQuerier interface {
 	// GetAuthorizedWorkspacesAndAgentsByOwnerID requires a context with an actor set
 	GetWorkspacesAndAgentsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.GetWorkspacesAndAgentsByOwnerIDRow, error)
 	GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUID) (database.Workspace, error)
+
 }
 type workspacesByID = map[uuid.UUID]ownedWorkspace
 type ownedWorkspace struct {
 	WorkspaceName string
 	Status        proto.Workspace_Status
 	Agents        []database.AgentIDNamePair
+
 }
 // Equal does not compare agents
+
 func (w ownedWorkspace) Equal(other ownedWorkspace) bool {
 	return w.WorkspaceName == other.WorkspaceName &&
 		w.Status == other.Status
 }
 type sub struct {
 	// ALways contains an actor
+
 	ctx      context.Context
 	cancelFn context.CancelFunc
 	mu     sync.RWMutex
 	userID uuid.UUID
 	ch     chan *proto.WorkspaceUpdate
 	prev   workspacesByID
+
 	db     UpdatesQuerier
 	ps     pubsub.Pubsub
 	logger slog.Logger
 	psCancelFn func()
 }
+
 func (s *sub) handleEvent(ctx context.Context, event wspubsub.WorkspaceEvent, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	switch event.Kind {
 	case wspubsub.WorkspaceEventKindStateChange:
+
 	case wspubsub.WorkspaceEventKindAgentConnectionUpdate:
 	case wspubsub.WorkspaceEventKindAgentTimeout:
 	case wspubsub.WorkspaceEventKindAgentLifecycleUpdate:
 	default:
+
 		if err == nil {
 			return
 		} else {
+
 			// Always attempt an update if the pubsub lost connection
 			s.logger.Warn(ctx, "failed to handle workspace event", slog.Error(err))
 		}
 	}
+
 	// Use context containing actor
 	rows, err := s.db.GetWorkspacesAndAgentsByOwnerID(s.ctx, s.userID)
 	if err != nil {
@@ -75,6 +89,7 @@ func (s *sub) handleEvent(ctx context.Context, event wspubsub.WorkspaceEvent, er
 	s.prev = latest
 	select {
 	case <-s.ctx.Done():
+
 		return
 	case s.ch <- out:
 	}
@@ -83,11 +98,13 @@ func (s *sub) start(ctx context.Context) (err error) {
 	rows, err := s.db.GetWorkspacesAndAgentsByOwnerID(ctx, s.userID)
 	if err != nil {
 		return fmt.Errorf("get workspaces and agents by owner ID: %w", err)
+
 	}
 	latest := convertRows(rows)
 	initUpdate, _ := produceUpdate(workspacesByID{}, latest)
 	s.ch <- initUpdate
 	s.prev = latest
+
 	cancel, err := s.ps.SubscribeWithErr(wspubsub.WorkspaceEventChannel(s.userID), wspubsub.HandleWorkspaceEvent(s.handleEvent))
 	if err != nil {
 		return fmt.Errorf("subscribe to workspace event channel: %w", err)
@@ -96,55 +113,68 @@ func (s *sub) start(ctx context.Context) (err error) {
 	return nil
 }
 func (s *sub) Close() error {
+
 	s.cancelFn()
 	if s.psCancelFn != nil {
 		s.psCancelFn()
 	}
 	close(s.ch)
 	return nil
+
 }
 func (s *sub) Updates() <-chan *proto.WorkspaceUpdate {
 	return s.ch
 }
 var _ tailnet.Subscription = (*sub)(nil)
+
 type updatesProvider struct {
 	ps     pubsub.Pubsub
 	logger slog.Logger
 	db     UpdatesQuerier
 	auth   rbac.Authorizer
+
 	ctx      context.Context
 	cancelFn func()
 }
 var _ tailnet.WorkspaceUpdatesProvider = (*updatesProvider)(nil)
+
 func NewUpdatesProvider(
 	logger slog.Logger,
 	ps pubsub.Pubsub,
+
 	db UpdatesQuerier,
 	auth rbac.Authorizer,
 ) tailnet.WorkspaceUpdatesProvider {
 	ctx, cancel := context.WithCancel(context.Background())
+
 	out := &updatesProvider{
 		auth:     auth,
 		db:       db,
 		ps:       ps,
+
 		logger:   logger,
 		ctx:      ctx,
 		cancelFn: cancel,
 	}
+
 	return out
 }
+
 func (u *updatesProvider) Close() error {
 	u.cancelFn()
 	return nil
 }
 // Subscribe subscribes to workspace updates for a user, for the workspaces
 // that user is authorized to `ActionRead` on. The provided context must have
+
 // a dbauthz actor set.
 func (u *updatesProvider) Subscribe(ctx context.Context, userID uuid.UUID) (tailnet.Subscription, error) {
 	actor, ok := dbauthz.ActorFromContext(ctx)
 	if !ok {
+
 		return nil, fmt.Errorf("actor not found in context")
 	}
+
 	ctx, cancel := context.WithCancel(u.ctx)
 	ctx = dbauthz.As(ctx, actor)
 	ch := make(chan *proto.WorkspaceUpdate, 1)
@@ -163,11 +193,13 @@ func (u *updatesProvider) Subscribe(ctx context.Context, userID uuid.UUID) (tail
 		_ = sub.Close()
 		return nil, err
 	}
+
 	return sub, nil
 }
 func produceUpdate(old, new workspacesByID) (out *proto.WorkspaceUpdate, updated bool) {
 	out = &proto.WorkspaceUpdate{
 		UpsertedWorkspaces: []*proto.Workspace{},
+
 		UpsertedAgents:     []*proto.Agent{},
 		DeletedWorkspaces:  []*proto.Workspace{},
 		DeletedAgents:      []*proto.Agent{},
@@ -195,9 +227,11 @@ func produceUpdate(old, new workspacesByID) (out *proto.WorkspaceUpdate, updated
 		if !newWorkspace.Equal(oldWorkspace) {
 			out.UpsertedWorkspaces = append(out.UpsertedWorkspaces, &proto.Workspace{
 				Id:     tailnet.UUIDToByteSlice(wsID),
+
 				Name:   newWorkspace.WorkspaceName,
 				Status: newWorkspace.Status,
 			})
+
 			updated = true
 		}
 		add, remove := slice.SymmetricDifference(oldWorkspace.Agents, newWorkspace.Agents)
@@ -206,6 +240,7 @@ func produceUpdate(old, new workspacesByID) (out *proto.WorkspaceUpdate, updated
 				Id:          tailnet.UUIDToByteSlice(agent.ID),
 				Name:        agent.Name,
 				WorkspaceId: tailnet.UUIDToByteSlice(wsID),
+
 			})
 			updated = true
 		}
@@ -235,6 +270,7 @@ func produceUpdate(old, new workspacesByID) (out *proto.WorkspaceUpdate, updated
 			}
 			updated = true
 		}
+
 	}
 	return out, updated
 }
@@ -254,6 +290,7 @@ func convertRows(rows []database.GetWorkspacesAndAgentsByOwnerIDRow) workspacesB
 			Agents:        agents,
 		}
 	}
+
 	return out
 }
 type rbacAuthorizer struct {

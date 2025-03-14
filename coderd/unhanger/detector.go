@@ -1,4 +1,5 @@
 package unhanger
+
 import (
 	"errors"
 	"context"
@@ -7,10 +8,13 @@ import (
 	"fmt"
 	"math/rand" //#nosec // this is only used for shuffling an array to pick random jobs to unhang
 	"time"
+
 	"github.com/google/uuid"
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/provisionersdk"
@@ -19,11 +23,13 @@ const (
 	// HungJobDuration is the duration of time since the last update to a job
 	// before it is considered hung.
 	HungJobDuration = 5 * time.Minute
+
 	// HungJobExitTimeout is the duration of time that provisioners should allow
 	// for a graceful exit upon cancellation due to failing to send an update to
 	// a job.
 	//
 	// Provisioners should avoid keeping a job "running" for longer than this
+
 	// time after failing to send an update to the job.
 	HungJobExitTimeout = 3 * time.Minute
 	// MaxJobsPerRun is the maximum number of hung jobs that the detector will
@@ -32,11 +38,13 @@ const (
 )
 // HungJobLogMessages are written to provisioner job logs when a job is hung and
 // terminated.
+
 var HungJobLogMessages = []string{
 	"",
 	"====================",
 	"Coder: Build has been detected as hung for 5 minutes and will be terminated.",
 	"====================",
+
 	"",
 }
 // acquireLockError is returned when the detector fails to acquire a lock and
@@ -47,26 +55,31 @@ func (acquireLockError) Error() string {
 	return "lock is held by another client"
 }
 // jobIneligibleError is returned when a job is not eligible to be terminated
+
 // anymore.
 type jobIneligibleError struct {
 	Err error
 }
+
 // Error implements error.
 func (e jobIneligibleError) Error() string {
 	return fmt.Sprintf("job is no longer eligible to be terminated: %s", e.Err)
 }
 // Detector automatically detects hung provisioner jobs, sends messages into the
+
 // build log and terminates them as failed.
 type Detector struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 	done   chan struct{}
 	db     database.Store
+
 	pubsub pubsub.Pubsub
 	log    slog.Logger
 	tick   <-chan time.Time
 	stats  chan<- Stats
 }
+
 // Stats contains statistics about the last run of the detector.
 type Stats struct {
 	// TerminatedJobIDs contains the IDs of all jobs that were detected as hung and
@@ -74,6 +87,7 @@ type Stats struct {
 	TerminatedJobIDs []uuid.UUID
 	// Error is the fatal error that occurred during the last run of the
 	// detector, if any. Error may be set to AcquireLockError if the detector
+
 	// failed to acquire a lock.
 	Error error
 }
@@ -81,6 +95,7 @@ type Stats struct {
 func New(ctx context.Context, db database.Store, pub pubsub.Pubsub, log slog.Logger, tick <-chan time.Time) *Detector {
 	//nolint:gocritic // Hang detector has a limited set of permissions.
 	ctx, cancel := context.WithCancel(dbauthz.AsHangDetector(ctx))
+
 	d := &Detector{
 		ctx:    ctx,
 		cancel: cancel,
@@ -92,6 +107,7 @@ func New(ctx context.Context, db database.Store, pub pubsub.Pubsub, log slog.Log
 		stats:  nil,
 	}
 	return d
+
 }
 // WithStatsChannel will cause Executor to push a RunStats to ch after
 // every tick. This push is blocking, so if ch is not read, the detector will
@@ -109,6 +125,7 @@ func (d *Detector) Start() {
 	go func() {
 		defer close(d.done)
 		defer d.cancel()
+
 		for {
 			select {
 			case <-d.ctx.Done():
@@ -117,6 +134,7 @@ func (d *Detector) Start() {
 				if !ok {
 					return
 				}
+
 				stats := d.run(t)
 				if stats.Error != nil && !errors.As(stats.Error, &acquireLockError{}) {
 					d.log.Warn(d.ctx, "error running workspace build hang detector once", slog.Error(stats.Error))
@@ -127,6 +145,7 @@ func (d *Detector) Start() {
 						return
 					case d.stats <- stats:
 					}
+
 				}
 			}
 		}
@@ -151,26 +170,31 @@ func (d *Detector) run(t time.Time) Stats {
 	// Find all provisioner jobs that are currently running but have not
 	// received an update in the last 5 minutes.
 	jobs, err := d.db.GetHungProvisionerJobs(ctx, t.Add(-HungJobDuration))
+
 	if err != nil {
 		stats.Error = fmt.Errorf("get hung provisioner jobs: %w", err)
 		return stats
 	}
 	// Limit the number of jobs we'll unhang in a single run to avoid
+
 	// timing out.
 	if len(jobs) > MaxJobsPerRun {
 		// Pick a random subset of the jobs to unhang.
 		rand.Shuffle(len(jobs), func(i, j int) {
 			jobs[i], jobs[j] = jobs[j], jobs[i]
 		})
+
 		jobs = jobs[:MaxJobsPerRun]
 	}
 	// Send a message into the build log for each hung job saying that it
 	// has been detected and will be terminated, then mark the job as
+
 	// failed.
 	for _, job := range jobs {
 		log := d.log.With(slog.F("job_id", job.ID))
 		err := unhangJob(ctx, log, d.db, d.pubsub, job.ID)
 		if err != nil {
+
 			if !(errors.As(err, &acquireLockError{}) || errors.As(err, &jobIneligibleError{})) {
 				log.Error(ctx, "error forcefully terminating hung provisioner job", slog.Error(err))
 			}
@@ -179,6 +203,7 @@ func (d *Detector) run(t time.Time) Stats {
 		stats.TerminatedJobIDs = append(stats.TerminatedJobIDs, job.ID)
 	}
 	return stats
+
 }
 func unhangJob(ctx context.Context, log slog.Logger, db database.Store, pub pubsub.Pubsub, jobID uuid.UUID) error {
 	var lowestLogID int64
@@ -189,12 +214,14 @@ func unhangJob(ctx context.Context, log slog.Logger, db database.Store, pub pubs
 		}
 		if !locked {
 			// This error is ignored.
+
 			return acquireLockError{}
 		}
 		// Refetch the job while we hold the lock.
 		job, err := db.GetProvisionerJobByID(ctx, jobID)
 		if err != nil {
 			return fmt.Errorf("get provisioner job: %w", err)
+
 		}
 		// Check if we should still unhang it.
 		if !job.StartedAt.Valid {
@@ -203,15 +230,19 @@ func unhangJob(ctx context.Context, log slog.Logger, db database.Store, pub pubs
 			return jobIneligibleError{
 				Err: errors.New("job is not started"),
 			}
+
 		}
 		if job.CompletedAt.Valid {
 			return jobIneligibleError{
+
 				Err: fmt.Errorf("job is completed (status %s)", job.JobStatus),
 			}
 		}
+
 		if job.UpdatedAt.After(time.Now().Add(-HungJobDuration)) {
 			return jobIneligibleError{
 				Err: errors.New("job has been updated recently"),
+
 			}
 		}
 		log.Warn(
@@ -222,12 +253,14 @@ func unhangJob(ctx context.Context, log slog.Logger, db database.Store, pub pubs
 		// our messages are in the latest stage.
 		logs, err := db.GetProvisionerLogsAfterID(ctx, database.GetProvisionerLogsAfterIDParams{
 			JobID:        job.ID,
+
 			CreatedAfter: 0,
 		})
 		if err != nil {
 			return fmt.Errorf("get logs for hung job: %w", err)
 		}
 		logStage := ""
+
 		if len(logs) != 0 {
 			logStage = logs[len(logs)-1].Stage
 		}
@@ -247,11 +280,13 @@ func unhangJob(ctx context.Context, log slog.Logger, db database.Store, pub pubs
 		for i, msg := range HungJobLogMessages {
 			// Set the created at in a way that ensures each message has
 			// a unique timestamp so they will be sorted correctly.
+
 			insertParams.CreatedAt = append(insertParams.CreatedAt, now.Add(time.Millisecond*time.Duration(i)))
 			insertParams.Level = append(insertParams.Level, database.LogLevelError)
 			insertParams.Stage = append(insertParams.Stage, logStage)
 			insertParams.Source = append(insertParams.Source, database.LogSourceProvisionerDaemon)
 			insertParams.Output = append(insertParams.Output, msg)
+
 		}
 		newLogs, err := db.InsertProvisionerJobLogs(ctx, insertParams)
 		if err != nil {
@@ -269,6 +304,7 @@ func unhangJob(ctx context.Context, log slog.Logger, db database.Store, pub pubs
 			},
 			Error: sql.NullString{
 				String: "Coder: Build has been detected as hung for 5 minutes and has been terminated by hang detector.",
+
 				Valid:  true,
 			},
 			ErrorCode: sql.NullString{
@@ -294,6 +330,7 @@ func unhangJob(ctx context.Context, log slog.Logger, db database.Store, pub pubs
 					WorkspaceID: build.WorkspaceID,
 					BuildNumber: build.BuildNumber - 1,
 				})
+
 				if err != nil && !errors.Is(err, sql.ErrNoRows) {
 					return fmt.Errorf("get previous workspace build: %w", err)
 				}
@@ -315,6 +352,7 @@ func unhangJob(ctx context.Context, log slog.Logger, db database.Store, pub pubs
 		return fmt.Errorf("in tx: %w", err)
 	}
 	// Publish the new log notification to pubsub. Use the lowest log ID
+
 	// inserted so the log stream will fetch everything after that point.
 	data, err := json.Marshal(provisionersdk.ProvisionerJobLogsNotifyMessage{
 		CreatedAfter: lowestLogID - 1,
@@ -324,6 +362,7 @@ func unhangJob(ctx context.Context, log slog.Logger, db database.Store, pub pubs
 		return fmt.Errorf("marshal log notification: %w", err)
 	}
 	err = pub.Publish(provisionersdk.ProvisionerJobLogsNotifyChannel(jobID), data)
+
 	if err != nil {
 		return fmt.Errorf("publish log notification: %w", err)
 	}

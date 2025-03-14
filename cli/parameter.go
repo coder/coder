@@ -1,36 +1,45 @@
 package cli
+
 import (
 	"errors"
 	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
+
 	"gopkg.in/yaml.v3"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
+
 )
 // workspaceParameterFlags are used by commands processing rich parameters and/or build options.
 type workspaceParameterFlags struct {
 	promptEphemeralParameters bool
+
 	ephemeralParameters []string
 	richParameterFile     string
 	richParameters        []string
 	richParameterDefaults []string
+
 	promptRichParameters bool
 }
+
 func (wpf *workspaceParameterFlags) allOptions() []serpent.Option {
 	options := append(wpf.cliEphemeralParameters(), wpf.cliParameters()...)
 	options = append(options, wpf.cliParameterDefaults()...)
 	return append(options, wpf.alwaysPrompt())
+
 }
 func (wpf *workspaceParameterFlags) cliEphemeralParameters() []serpent.Option {
 	return serpent.OptionSet{
+
 		// Deprecated - replaced with ephemeral-parameter
 		{
 			Flag:        "build-option",
 			Env:         "CODER_BUILD_OPTION",
 			Description: `Build option value in the format "name=value".`,
 			UseInstead:  []serpent.Option{{Flag: "ephemeral-parameter"}},
+
 			Value:       serpent.StringArrayOf(&wpf.ephemeralParameters),
 		},
 		// Deprecated - replaced with prompt-ephemeral-parameters
@@ -63,6 +72,7 @@ func (wpf *workspaceParameterFlags) cliParameters() []serpent.Option {
 			Value:       serpent.StringArrayOf(&wpf.richParameters),
 		},
 		serpent.Option{
+
 			Flag:        "rich-parameter-file",
 			Env:         "CODER_RICH_PARAMETER_FILE",
 			Description: "Specify a file path with values for rich parameters defined in the template. The file should be in YAML format, containing key-value pairs for the parameters.",
@@ -80,6 +90,7 @@ func (wpf *workspaceParameterFlags) cliParameterDefaults() []serpent.Option {
 		},
 	}
 }
+
 func (wpf *workspaceParameterFlags) alwaysPrompt() serpent.Option {
 	return serpent.Option{
 		Flag:        "always-prompt",
@@ -91,6 +102,7 @@ func asWorkspaceBuildParameters(nameValuePairs []string) ([]codersdk.WorkspaceBu
 	var params []codersdk.WorkspaceBuildParameter
 	for _, nameValue := range nameValuePairs {
 		split := strings.SplitN(nameValue, "=", 2)
+
 		if len(split) < 2 {
 			return nil, fmt.Errorf("format key=value expected, but got %s", nameValue)
 		}
@@ -99,6 +111,7 @@ func asWorkspaceBuildParameters(nameValuePairs []string) ([]codersdk.WorkspaceBu
 			Value: split[1],
 		})
 	}
+
 	return params, nil
 }
 func parseParameterMapFile(parameterFile string) (map[string]string, error) {
@@ -114,18 +127,21 @@ func parseParameterMapFile(parameterFile string) (map[string]string, error) {
 	parameterMap := map[string]string{}
 	for k, v := range mapStringInterface {
 		switch val := v.(type) {
+
 		case string, bool, int:
 			parameterMap[k] = fmt.Sprintf("%v", val)
 		case []interface{}:
 			b, err := json.Marshal(&val)
 			if err != nil {
 				return nil, err
+
 			}
 			parameterMap[k] = string(b)
 		default:
 			return nil, fmt.Errorf("invalid parameter type: %T", v)
 		}
 	}
+
 	return parameterMap, nil
 }
 // buildFlags contains options relating to troubleshooting provisioner jobs.

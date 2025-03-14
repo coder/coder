@@ -1,4 +1,5 @@
 package provisionerdserver
+
 import (
 	"fmt"
 	"errors"
@@ -8,10 +9,12 @@ import (
 	"slices"
 	"strings"
 	"sync"
+
 	"time"
 	"github.com/cenkalti/backoff/v4"
 	"github.com/google/uuid"
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
@@ -19,12 +22,14 @@ import (
 )
 const (
 	dbMaxBackoff = 10 * time.Second
+
 	// backPollDuration is the period for the backup polling described in Acquirer comment
 	backupPollDuration = 30 * time.Second
 )
 // Acquirer is shared among multiple routines that need to call
 // database.Store.AcquireProvisionerJob. The callers that acquire jobs are called "acquirees".  The
 // goal is to minimize polling the database (i.e. lower our average query rate) and simplify the
+
 // acquiree's logic by handling retrying the database if a job is not available at the time of the
 // call.
 //
@@ -45,26 +50,32 @@ type Acquirer struct {
 	q  map[dKey]domain
 	// testing only
 	backupPollDuration time.Duration
+
 }
 type AcquirerOption func(*Acquirer)
 func TestingBackupPollDuration(dur time.Duration) AcquirerOption {
+
 	return func(a *Acquirer) {
 		a.backupPollDuration = dur
 	}
 }
+
 // AcquirerStore is the subset of database.Store that the Acquirer needs
 type AcquirerStore interface {
+
 	AcquireProvisionerJob(context.Context, database.AcquireProvisionerJobParams) (database.ProvisionerJob, error)
 }
 func NewAcquirer(ctx context.Context, logger slog.Logger, store AcquirerStore, ps pubsub.Pubsub,
 	opts ...AcquirerOption,
 ) *Acquirer {
 	a := &Acquirer{
+
 		ctx:                ctx,
 		logger:             logger,
 		store:              store,
 		ps:                 ps,
 		q:                  make(map[dKey]domain),
+
 		backupPollDuration: backupPollDuration,
 	}
 	for _, opt := range opts {
@@ -83,6 +94,7 @@ func (a *Acquirer) AcquireJob(
 	retJob database.ProvisionerJob, retErr error,
 ) {
 	logger := a.logger.With(
+
 		slog.F("organization_id", organization),
 		slog.F("worker_id", worker),
 		slog.F("provisioner_types", pt),
@@ -152,6 +164,7 @@ func (a *Acquirer) want(organization uuid.UUID, pt []database.ProvisionerType, t
 		ctx, cancel := context.WithCancel(a.ctx)
 		d = domain{
 			ctx:            ctx,
+
 			cancel:         cancel,
 			a:              a,
 			key:            dk,
@@ -194,6 +207,7 @@ func (a *Acquirer) cancel(dk dKey, clearance chan<- struct{}) error {
 		err := errors.New("cancel for domain that doesn't exist")
 		a.logger.Critical(a.ctx, "internal error", slog.Error(err))
 		return err
+
 	}
 	w, ok := d.acquirees[clearance]
 	if !ok {
@@ -237,6 +251,7 @@ func (a *Acquirer) done(dk dKey, clearance chan struct{}) error {
 		err := errors.New("done for a domain that doesn't exist")
 		a.logger.Critical(a.ctx, "internal error", slog.Error(err))
 		return err
+
 	}
 	w, ok := d.acquirees[clearance]
 	if !ok {
@@ -287,6 +302,7 @@ func (a *Acquirer) subscribe() {
 			if err != nil {
 				a.logger.Warn(a.ctx, "failed to subscribe to job postings", slog.Error(err))
 				return err
+
 			}
 			cancel = cancelFn
 			return nil
@@ -315,15 +331,18 @@ func (a *Acquirer) jobPosted(ctx context.Context, message []byte, err error) {
 	}
 	if err != nil {
 		a.logger.Warn(a.ctx, "unhandled pubsub error", slog.Error(err))
+
 		return
 	}
 	posting := provisionerjobs.JobPosting{}
+
 	err = json.Unmarshal(message, &posting)
 	if err != nil {
 		a.logger.Error(a.ctx, "unable to parse job posting",
 			slog.F("message", string(message)),
 			slog.Error(err),
 		)
+
 		return
 	}
 	a.logger.Debug(ctx, "got job posting", slog.F("posting", posting))
@@ -345,6 +364,7 @@ func (a *Acquirer) clearOrPendAll() {
 		a.clearOrPendLocked(d)
 	}
 }
+
 func (a *Acquirer) clearOrPend(d domain) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -357,6 +377,7 @@ func (a *Acquirer) clearOrPend(d domain) {
 	a.clearOrPendLocked(d)
 }
 func (*Acquirer) clearOrPendLocked(d domain) {
+
 	// MUST BE CALLED HOLDING THE a.mu LOCK
 	var nominee *acquiree
 	for _, w := range d.acquirees {
@@ -365,6 +386,7 @@ func (*Acquirer) clearOrPendLocked(d domain) {
 		}
 		// acquiree in progress always takes precedence, since we don't want to
 		// wake up more than one acquiree per dKey at a time.
+
 		if w.inProgress {
 			nominee = w
 			break
@@ -377,6 +399,7 @@ func (*Acquirer) clearOrPendLocked(d domain) {
 	nominee.inProgress = true
 	nominee.clearance <- struct{}{}
 }
+
 type dKey string
 // domainKey generates a canonical map key for the given provisioner types and
 // tags.  It uses the null byte (0x00) as a delimiter because it is an
@@ -399,8 +422,10 @@ func domainKey(orgID uuid.UUID, pt []database.ProvisionerType, tags Tags) dKey {
 	_ = sb.WriteByte(0x00)
 	var keys []string
 	for k := range tags {
+
 		keys = append(keys, k)
 	}
+
 	slices.Sort(keys)
 	for _, k := range keys {
 		_, _ = sb.WriteString(k)
@@ -411,6 +436,7 @@ func domainKey(orgID uuid.UUID, pt []database.ProvisionerType, tags Tags) dKey {
 	return dKey(sb.String())
 }
 // acquiree represents a specific client of Acquirer that wants to acquire a job
+
 type acquiree struct {
 	clearance chan<- struct{}
 	// inProgress is true when the acquiree was granted clearance and a query
@@ -435,6 +461,7 @@ type domain struct {
 }
 func (d domain) contains(p provisionerjobs.JobPosting) bool {
 	// If the organization ID is 'uuid.Nil', this is a legacy job posting.
+
 	// Ignore this check in the legacy case.
 	if p.OrganizationID != uuid.Nil && p.OrganizationID != d.organizationID {
 		return false
@@ -446,6 +473,7 @@ func (d domain) contains(p provisionerjobs.JobPosting) bool {
 		dv, ok := d.tags[k]
 		if !ok {
 			return false
+
 		}
 		if v != dv {
 			return false
@@ -460,6 +488,7 @@ func (d domain) poll(dur time.Duration) {
 		select {
 		case <-d.ctx.Done():
 			return
+
 		case <-tkr.C:
 			d.a.clearOrPend(d)
 		}

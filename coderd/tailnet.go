@@ -1,4 +1,5 @@
 package coderd
+
 import (
 	"bufio"
 	"context"
@@ -15,6 +16,7 @@ import (
 	"sync/atomic"
 	"time"
 	"github.com/google/uuid"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/trace"
 	"tailscale.com/derp"
@@ -22,6 +24,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
+
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/site"
@@ -32,8 +35,10 @@ var tailnetTransport *http.Transport
 func init() {
 	tp, valid := http.DefaultTransport.(*http.Transport)
 	if !valid {
+
 		panic("dev error: default transport is the wrong type")
 	}
+
 	tailnetTransport = tp.Clone()
 	// We do not want to respect the proxy settings from the environment, since
 	// all network traffic happens over wireguard.
@@ -45,8 +50,10 @@ func NewServerTailnet(
 	ctx context.Context,
 	logger slog.Logger,
 	derpServer *derp.Server,
+
 	dialer tailnet.ControlProtocolDialer,
 	derpForceWebSockets bool,
+
 	blockEndpoints bool,
 	traceProvider trace.TracerProvider,
 ) (*ServerTailnet, error) {
@@ -69,6 +76,7 @@ func NewServerTailnet(
 			// Don't set up the embedded relay if we're shutting down
 			if !region.EmbeddedRelay || ctx.Err() != nil {
 				return nil
+
 			}
 			logger.Debug(ctx, "connecting to embedded DERP via in-memory pipe")
 			left, right := net.Pipe()
@@ -90,8 +98,10 @@ func NewServerTailnet(
 	controller.CoordCtrl = coordCtrl
 	// TODO: support controller.TelemetryCtrl
 	tn := &ServerTailnet{
+
 		ctx:         serverCtx,
 		cancel:      cancel,
+
 		logger:      logger,
 		tracer:      tracer,
 		conn:        conn,
@@ -100,6 +110,7 @@ func NewServerTailnet(
 		coordCtrl:   coordCtrl,
 		transport:   tailnetTransport.Clone(),
 		connsPerAgent: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+
 			Namespace: "coder",
 			Subsystem: "servertailnet",
 			Name:      "open_connections",
@@ -143,47 +154,58 @@ func (s *ServerTailnet) Describe(descs chan<- *prometheus.Desc) {
 	s.connsPerAgent.Describe(descs)
 	s.totalConns.Describe(descs)
 }
+
 func (s *ServerTailnet) Collect(metrics chan<- prometheus.Metric) {
 	s.connsPerAgent.Collect(metrics)
 	s.totalConns.Collect(metrics)
 }
+
 type ServerTailnet struct {
 	ctx    context.Context
 	cancel func()
 	logger slog.Logger
 	tracer trace.Tracer
 	// in prod, these are the same, but coordinatee is a subset of Conn's
+
 	// methods which makes some tests easier.
 	conn        *tailnet.Conn
 	coordinatee tailnet.Coordinatee
 	controller *tailnet.Controller
 	coordCtrl  *MultiAgentController
+
 	transport *http.Transport
 	connsPerAgent *prometheus.GaugeVec
 	totalConns    *prometheus.CounterVec
 }
 func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID uuid.UUID, app appurl.ApplicationURL, wildcardHostname string) *httputil.ReverseProxy {
+
 	// Rewrite the targetURL's Host to point to the agent's IP. This is
 	// necessary because due to TCP connection caching, each agent needs to be
 	// addressed invidivually. Otherwise, all connections get dialed as
 	// "localhost:port", causing connections to be shared across agents.
+
 	tgt := *targetURL
 	_, port, _ := net.SplitHostPort(tgt.Host)
 	tgt.Host = net.JoinHostPort(tailnet.TailscaleServicePrefix.AddrFromUUID(agentID).String(), port)
+
 	proxy := httputil.NewSingleHostReverseProxy(&tgt)
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, theErr error) {
 		var (
 			desc                 = "Failed to proxy request to application: " + theErr.Error()
 			additionalInfo       = ""
+
 			additionalButtonLink = ""
 			additionalButtonText = ""
 		)
+
 		var tlsError tls.RecordHeaderError
 		if (errors.As(theErr, &tlsError) && tlsError.Msg == "first record does not look like a TLS handshake") ||
+
 			errors.Is(theErr, http.ErrSchemeMismatch) {
 			// If the error is due to an HTTP/HTTPS mismatch, we can provide a
 			// more helpful error message with redirect buttons.
 			switchURL := url.URL{
+
 				Scheme: dashboardURL.Scheme,
 			}
 			_, protocol, isPort := app.PortInfo()
@@ -193,6 +215,7 @@ func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID u
 					targetProtocol = "http"
 				}
 				app = app.ChangePortProtocol(targetProtocol)
+
 				switchURL.Host = fmt.Sprintf("%s%s", app.String(), strings.TrimPrefix(wildcardHostname, "*"))
 				additionalButtonLink = switchURL.String()
 				additionalButtonText = fmt.Sprintf("Switch to %s", strings.ToUpper(targetProtocol))
@@ -202,6 +225,7 @@ func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID u
 		site.RenderStaticErrorPage(w, r, site.ErrorPageData{
 			Status:               http.StatusBadGateway,
 			Title:                "Bad Gateway",
+
 			Description:          desc,
 			RetryEnabled:         true,
 			DashboardURL:         dashboardURL.String(),
@@ -218,6 +242,7 @@ type agentIDKey struct{}
 // director makes sure agentIDKey is set on the context in the reverse proxy.
 // This allows the transport to correctly identify which agent to dial to.
 func (*ServerTailnet) director(agentID uuid.UUID, prev func(req *http.Request)) func(req *http.Request) {
+
 	return func(req *http.Request) {
 		ctx := context.WithValue(req.Context(), agentIDKey{}, agentID)
 		*req = *req.WithContext(ctx)
@@ -225,6 +250,7 @@ func (*ServerTailnet) director(agentID uuid.UUID, prev func(req *http.Request)) 
 	}
 }
 func (s *ServerTailnet) dialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+
 	agentID, ok := ctx.Value(agentIDKey{}).(uuid.UUID)
 	if !ok {
 		return nil, fmt.Errorf("no agent id attached")
@@ -239,11 +265,14 @@ func (s *ServerTailnet) dialContext(ctx context.Context, network, addr string) (
 		Conn:          nc,
 		agentID:       agentID,
 		connsPerAgent: s.connsPerAgent,
+
 	}, nil
 }
 func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (*workspacesdk.AgentConn, func(), error) {
+
 	var (
 		conn *workspacesdk.AgentConn
+
 		ret  func()
 	)
 	s.logger.Debug(s.ctx, "acquiring agent", slog.F("agent_id", agentID))
@@ -254,17 +283,20 @@ func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (*work
 	ret = s.coordCtrl.acquireTicket(agentID)
 	conn = workspacesdk.NewAgentConn(s.conn, workspacesdk.AgentConnOptions{
 		AgentID:   agentID,
+
 		CloseFunc: func() error { return workspacesdk.ErrSkipClose },
 	})
 	// Since we now have an open conn, be careful to close it if we error
 	// without returning it to the user.
 	reachable := conn.AwaitReachable(ctx)
 	if !reachable {
+
 		ret()
 		return nil, nil, errors.New("agent is unreachable")
 	}
 	return conn, ret, nil
 }
+
 func (s *ServerTailnet) DialAgentNetConn(ctx context.Context, agentID uuid.UUID, network, addr string) (net.Conn, error) {
 	conn, release, err := s.AgentConn(ctx, agentID)
 	if err != nil {
@@ -274,12 +306,14 @@ func (s *ServerTailnet) DialAgentNetConn(ctx context.Context, agentID uuid.UUID,
 	// without returning it to the user.
 	nc, err := conn.DialContext(ctx, network, addr)
 	if err != nil {
+
 		release()
 		return nil, fmt.Errorf("dial context: %w", err)
 	}
 	return &netConnCloser{Conn: nc, close: func() {
 		release()
 	}}, err
+
 }
 func (s *ServerTailnet) ServeHTTPDebug(w http.ResponseWriter, r *http.Request) {
 	s.conn.MagicsockServeHTTPDebug(w, r)
@@ -287,57 +321,69 @@ func (s *ServerTailnet) ServeHTTPDebug(w http.ResponseWriter, r *http.Request) {
 type netConnCloser struct {
 	net.Conn
 	close func()
+
 }
 func (c *netConnCloser) Close() error {
 	c.close()
 	return c.Conn.Close()
 }
+
 func (s *ServerTailnet) Close() error {
 	s.logger.Info(s.ctx, "closing server tailnet")
 	defer s.logger.Debug(s.ctx, "server tailnet close complete")
+
 	s.cancel()
 	_ = s.conn.Close()
 	s.transport.CloseIdleConnections()
 	s.coordCtrl.Close()
 	<-s.controller.Closed()
 	return nil
+
 }
 type instrumentedConn struct {
 	net.Conn
+
 	agentID       uuid.UUID
 	closeOnce     sync.Once
 	connsPerAgent *prometheus.GaugeVec
 }
 func (c *instrumentedConn) Close() error {
 	c.closeOnce.Do(func() {
+
 		c.connsPerAgent.WithLabelValues("tcp").Dec()
 	})
 	return c.Conn.Close()
+
 }
 // MultiAgentController is a tailnet.CoordinationController for connecting to multiple workspace
 // agents.  It keeps track of connection times to the agents, and removes them on a timer if they
 // have no active connections and haven't been used in a while.
 type MultiAgentController struct {
 	*tailnet.BasicCoordinationController
+
 	logger slog.Logger
 	tracer trace.Tracer
 	mu sync.Mutex
 	// connectionTimes is a map of agents the server wants to keep a connection to. It
 	// contains the last time the agent was connected to.
+
 	connectionTimes map[uuid.UUID]time.Time
 	// tickets is a map of destinations to a set of connection tickets, representing open
 	// connections to the destination
 	tickets      map[uuid.UUID]map[uuid.UUID]struct{}
+
 	coordination *tailnet.BasicCoordination
 	cancel              context.CancelFunc
 	expireOldAgentsDone chan struct{}
 }
 func (m *MultiAgentController) New(client tailnet.CoordinatorClient) tailnet.CloserWaiter {
+
 	b := m.BasicCoordinationController.NewCoordination(client)
 	// resync all destinations
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.coordination = b
+
 	for agentID := range m.connectionTimes {
 		err := client.Send(&proto.CoordinateRequest{
 			AddTunnel: &proto.CoordinateRequest_Tunnel{Id: agentID[:]},
@@ -349,14 +395,17 @@ func (m *MultiAgentController) New(client tailnet.CoordinatorClient) tailnet.Clo
 			_ = client.Close()
 			m.coordination = nil
 			break
+
 		}
 	}
 	return b
+
 }
 func (m *MultiAgentController) ensureAgent(agentID uuid.UUID) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	_, ok := m.connectionTimes[agentID]
+
 	// If we don't have the agent, subscribe.
 	if !ok {
 		m.logger.Debug(context.Background(),
@@ -364,15 +413,18 @@ func (m *MultiAgentController) ensureAgent(agentID uuid.UUID) error {
 		if m.coordination != nil {
 			err := m.coordination.Client.Send(&proto.CoordinateRequest{
 				AddTunnel: &proto.CoordinateRequest_Tunnel{Id: agentID[:]},
+
 			})
 			if err != nil {
 				err = fmt.Errorf("subscribe agent: %w", err)
 				m.coordination.SendErr(err)
 				_ = m.coordination.Client.Close()
 				m.coordination = nil
+
 				return err
 			}
 		}
+
 		m.tickets[agentID] = map[uuid.UUID]struct{}{}
 	}
 	m.connectionTimes[agentID] = time.Now()
@@ -382,10 +434,12 @@ func (m *MultiAgentController) acquireTicket(agentID uuid.UUID) (release func())
 	id := uuid.New()
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
 	m.tickets[agentID][id] = struct{}{}
 	return func() {
 		m.mu.Lock()
 		defer m.mu.Unlock()
+
 		delete(m.tickets[agentID], id)
 	}
 }
@@ -408,10 +462,12 @@ func (m *MultiAgentController) expireOldAgents(ctx context.Context) {
 	}
 }
 func (m *MultiAgentController) doExpireOldAgents(ctx context.Context, cutoff time.Duration) {
+
 	// TODO: add some attrs to this.
 	ctx, span := m.tracer.Start(ctx, tracing.FuncName())
 	defer span.End()
 	start := time.Now()
+
 	deletedCount := 0
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -435,12 +491,14 @@ func (m *MultiAgentController) doExpireOldAgents(ctx context.Context, cutoff tim
 					// re-establishing tunnels to expired agents when we eventually reconnect.
 				}
 			}
+
 			deletedCount++
 			delete(m.connectionTimes, agentID)
 		}
 	}
 	m.logger.Debug(ctx, "pruned inactive agents",
 		slog.F("deleted", deletedCount),
+
 		slog.F("took", time.Since(start)),
 	)
 }
@@ -448,6 +506,7 @@ func (m *MultiAgentController) Close() {
 	m.cancel()
 	<-m.expireOldAgentsDone
 }
+
 func NewMultiAgentController(ctx context.Context, logger slog.Logger, tracer trace.Tracer, coordinatee tailnet.Coordinatee) *MultiAgentController {
 	m := &MultiAgentController{
 		BasicCoordinationController: &tailnet.BasicCoordinationController{
@@ -456,9 +515,11 @@ func NewMultiAgentController(ctx context.Context, logger slog.Logger, tracer tra
 			SendAcks:    false, // we are a client, connecting to multiple agents
 		},
 		logger:              logger,
+
 		tracer:              tracer,
 		connectionTimes:     make(map[uuid.UUID]time.Time),
 		tickets:             make(map[uuid.UUID]map[uuid.UUID]struct{}),
+
 		expireOldAgentsDone: make(chan struct{}),
 	}
 	ctx, m.cancel = context.WithCancel(ctx)
@@ -466,18 +527,22 @@ func NewMultiAgentController(ctx context.Context, logger slog.Logger, tracer tra
 	return m
 }
 // InmemTailnetDialer is a tailnet.ControlProtocolDialer that connects to a Coordinator and DERPMap
+
 // service running in the same memory space.
 type InmemTailnetDialer struct {
 	CoordPtr *atomic.Pointer[tailnet.Coordinator]
 	DERPFn   func() *tailcfg.DERPMap
+
 	Logger   slog.Logger
 	ClientID uuid.UUID
 }
 func (a *InmemTailnetDialer) Dial(_ context.Context, _ tailnet.ResumeTokenController) (tailnet.ControlProtocolClients, error) {
 	coord := a.CoordPtr.Load()
+
 	if coord == nil {
 		return tailnet.ControlProtocolClients{}, fmt.Errorf("tailnet coordinator not initialized")
 	}
+
 	coordClient := tailnet.NewInMemoryCoordinatorClient(
 		a.Logger, a.ClientID, tailnet.SingleTailnetCoordinateeAuth{}, *coord)
 	derpClient := newPollingDERPClient(a.DERPFn, a.Logger)
@@ -510,11 +575,13 @@ type pollingDERPClient struct {
 	loopDone    chan struct{}
 	lastDERPMap *tailcfg.DERPMap
 	ch          chan *tailcfg.DERPMap
+
 }
 // Close the DERP client
 func (a *pollingDERPClient) Close() error {
 	a.cancel()
 	<-a.loopDone
+
 	return nil
 }
 func (a *pollingDERPClient) Recv() (*tailcfg.DERPMap, error) {
@@ -533,6 +600,7 @@ func (a *pollingDERPClient) pollDERP() {
 	for {
 		select {
 		case <-a.ctx.Done():
+
 			return
 		case <-ticker.C:
 		}
@@ -542,6 +610,7 @@ func (a *pollingDERPClient) pollDERP() {
 			case <-a.ctx.Done():
 				return
 			case a.ch <- newDerpMap:
+
 			}
 		}
 	}
@@ -557,4 +626,5 @@ func (c closeAll) Close() error {
 		return cErr
 	}
 	return dErr
+
 }

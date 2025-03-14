@@ -1,12 +1,15 @@
 package coderd
+
 import (
 	"errors"
 	"context"
 	"fmt"
 	"net/http"
+
 	"github.com/google/uuid"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
+
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -18,6 +21,7 @@ import (
 // @Summary Add organization member
 // @ID add-organization-member
 // @Security CoderSessionToken
+
 // @Produce json
 // @Tags Members
 // @Param organization path string true "Organization ID"
@@ -44,10 +48,12 @@ func (api *API) postOrganizationMember(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 	member, err := api.Database.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
+
 		OrganizationID: organization.ID,
 		UserID:         user.ID,
 		CreatedAt:      dbtime.Now(),
 		UpdatedAt:      dbtime.Now(),
+
 		Roles:          []string{},
 	})
 	if httpapi.Is404Error(err) {
@@ -70,6 +76,7 @@ func (api *API) postOrganizationMember(rw http.ResponseWriter, r *http.Request) 
 		httpapi.InternalServerError(rw, err)
 		return
 	}
+
 	if len(resp) == 0 {
 		httpapi.InternalServerError(rw, fmt.Errorf("marshal member"))
 		return
@@ -77,14 +84,17 @@ func (api *API) postOrganizationMember(rw http.ResponseWriter, r *http.Request) 
 	httpapi.Write(ctx, rw, http.StatusOK, resp[0])
 }
 // @Summary Remove organization member
+
 // @ID remove-organization-member
 // @Security CoderSessionToken
 // @Tags Members
 // @Param organization path string true "Organization ID"
 // @Param user path string true "User ID, name, or me"
+
 // @Success 204
 // @Router /organizations/{organization}/members/{user} [delete]
 func (api *API) deleteOrganizationMember(rw http.ResponseWriter, r *http.Request) {
+
 	var (
 		ctx               = r.Context()
 		apiKey            = httpmw.APIKey(r)
@@ -111,6 +121,7 @@ func (api *API) deleteOrganizationMember(rw http.ResponseWriter, r *http.Request
 	if member.UserID == apiKey.UserID {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "cannot remove self from an organization"})
 		return
+
 	}
 	err := api.Database.DeleteOrganizationMember(ctx, database.DeleteOrganizationMemberParams{
 		OrganizationID: organization.ID,
@@ -119,11 +130,13 @@ func (api *API) deleteOrganizationMember(rw http.ResponseWriter, r *http.Request
 	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
 		return
+
 	}
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
+
 	aReq.New = database.AuditableOrganizationMember{}
 	rw.WriteHeader(http.StatusNoContent)
 }
@@ -137,10 +150,12 @@ func (api *API) deleteOrganizationMember(rw http.ResponseWriter, r *http.Request
 // @Success 200 {object} []codersdk.OrganizationMemberWithUserData
 // @Router /organizations/{organization}/members [get]
 func (api *API) listMembers(rw http.ResponseWriter, r *http.Request) {
+
 	var (
 		ctx          = r.Context()
 		organization = httpmw.OrganizationParam(r)
 	)
+
 	members, err := api.Database.OrganizationMembers(ctx, database.OrganizationMembersParams{
 		OrganizationID: organization.ID,
 		UserID:         uuid.Nil,
@@ -156,6 +171,7 @@ func (api *API) listMembers(rw http.ResponseWriter, r *http.Request) {
 	resp, err := convertOrganizationMembersWithUserData(ctx, api.Database, members)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
+
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
@@ -169,15 +185,18 @@ func (api *API) listMembers(rw http.ResponseWriter, r *http.Request) {
 // @Param limit query int false "Page limit, if 0 returns all members"
 // @Param offset query int false "Page offset"
 // @Success 200 {object} []codersdk.PaginatedMembersResponse
+
 // @Router /organizations/{organization}/paginated-members [get]
 func (api *API) paginatedMembers(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx                  = r.Context()
 		organization         = httpmw.OrganizationParam(r)
 		paginationParams, ok = parsePagination(rw, r)
+
 	)
 	if !ok {
 		return
+
 	}
 	paginatedMemberRows, err := api.Database.PaginatedOrganizationMembers(ctx, database.PaginatedOrganizationMembersParams{
 		OrganizationID: organization.ID,
@@ -198,6 +217,7 @@ func (api *API) paginatedMembers(rw http.ResponseWriter, r *http.Request) {
 			OrganizationMember: pRow.OrganizationMember,
 			Username:           pRow.Username,
 			AvatarURL:          pRow.AvatarURL,
+
 			Name:               pRow.Name,
 			Email:              pRow.Email,
 			GlobalRoles:        pRow.GlobalRoles,
@@ -212,6 +232,7 @@ func (api *API) paginatedMembers(rw http.ResponseWriter, r *http.Request) {
 		Members: members,
 		Count:   int(paginatedMemberRows[0].Count),
 	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 // @Summary Assign role to organization member
@@ -223,14 +244,17 @@ func (api *API) paginatedMembers(rw http.ResponseWriter, r *http.Request) {
 // @Param organization path string true "Organization ID"
 // @Param user path string true "User ID, name, or me"
 // @Param request body codersdk.UpdateRoles true "Update roles request"
+
 // @Success 200 {object} codersdk.OrganizationMember
 // @Router /organizations/{organization}/members/{user}/roles [put]
 func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
+
 	var (
 		ctx               = r.Context()
 		organization      = httpmw.OrganizationParam(r)
 		member            = httpmw.OrganizationMemberParam(r)
 		apiKey            = httpmw.APIKey(r)
+
 		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.AuditableOrganizationMember](rw, &audit.RequestParams{
 			OrganizationID: organization.ID,
@@ -238,6 +262,7 @@ func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 			Log:            api.Logger,
 			Request:        r,
 			Action:         database.AuditActionWrite,
+
 		})
 	)
 	aReq.Old = member.OrganizationMember.Auditable(member.Username)
@@ -267,11 +292,13 @@ func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
+
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: err.Error(),
 		})
 		return
 	}
+
 	aReq.New = database.AuditableOrganizationMember{
 		OrganizationMember: updatedUser,
 		Username:           member.Username,
@@ -280,11 +307,13 @@ func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
+
 	}
 	if len(resp) != 1 {
 		httpapi.InternalServerError(rw, fmt.Errorf("failed to serialize member to response, update still succeeded"))
 		return
 	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, resp[0])
 }
 func (api *API) allowChangingMemberRoles(ctx context.Context, rw http.ResponseWriter, member httpmw.OrganizationMember, organization database.Organization) bool {
@@ -305,6 +334,7 @@ func (api *API) allowChangingMemberRoles(ctx context.Context, rw http.ResponseWr
 		}
 		if orgSync {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+
 				Message: "Cannot modify roles for OIDC users when role sync is enabled. This organization member's roles are managed by the identity provider. Have the user re-login to refresh their roles.",
 				Detail:  "'User Role Field' is set in the organization settings. Ask an administrator to adjust or disable these settings.",
 			})
@@ -317,6 +347,7 @@ func (api *API) allowChangingMemberRoles(ctx context.Context, rw http.ResponseWr
 // We
 func convertOrganizationMembers(ctx context.Context, db database.Store, mems []database.OrganizationMember) ([]codersdk.OrganizationMember, error) {
 	converted := make([]codersdk.OrganizationMember, 0, len(mems))
+
 	roleLookup := make([]database.NameOrganizationPair, 0)
 	for _, m := range mems {
 		converted = append(converted, codersdk.OrganizationMember{
@@ -327,6 +358,7 @@ func convertOrganizationMembers(ctx context.Context, db database.Store, mems []d
 			Roles: db2sdk.List(m.Roles, func(r string) codersdk.SlimRole {
 				// If it is a built-in role, no lookups are needed.
 				rbacRole, err := rbac.RoleByName(rbac.RoleIdentifier{Name: r, OrganizationID: m.OrganizationID})
+
 				if err == nil {
 					return db2sdk.SlimRole(rbacRole)
 				}
@@ -343,15 +375,18 @@ func convertOrganizationMembers(ctx context.Context, db database.Store, mems []d
 				}
 			}),
 		})
+
 	}
 	customRoles, err := db.CustomRoles(ctx, database.CustomRolesParams{
 		LookupRoles:     roleLookup,
+
 		ExcludeOrgRoles: false,
 		OrganizationID:  uuid.Nil,
 	})
 	if err != nil {
 		// We are missing the display names, but that is not absolutely required. So just
 		// return the converted and the names will be used instead of the display names.
+
 		return converted, fmt.Errorf("lookup custom roles: %w", err)
 	}
 	// Now map the customRoles back to the slimRoles for their display name.
@@ -365,6 +400,7 @@ func convertOrganizationMembers(ctx context.Context, db database.Store, mems []d
 				converted[i].Roles[j].DisplayName = cr.DisplayName
 			}
 		}
+
 	}
 	return converted, nil
 }
@@ -380,6 +416,7 @@ func convertOrganizationMembersWithUserData(ctx context.Context, db database.Sto
 	if len(convertedMembers) != len(rows) {
 		return nil, fmt.Errorf("conversion failed, mismatch slice lengths")
 	}
+
 	converted := make([]codersdk.OrganizationMemberWithUserData, 0)
 	for i := range convertedMembers {
 		converted = append(converted, codersdk.OrganizationMemberWithUserData{
@@ -391,12 +428,14 @@ func convertOrganizationMembersWithUserData(ctx context.Context, db database.Sto
 			OrganizationMember: convertedMembers[i],
 		})
 	}
+
 	return converted, nil
 }
 // manualOrganizationMembership checks if the user is an OIDC user and if organization sync is enabled.
 // If organization sync is enabled, manual organization assignment is not allowed,
 // since all organization membership is controlled by the external IDP.
 func (api *API) manualOrganizationMembership(ctx context.Context, rw http.ResponseWriter, user database.User) bool {
+
 	if user.LoginType == database.LoginTypeOIDC && api.IDPSync.OrganizationSyncEnabled(ctx, api.Database) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Organization sync is enabled for OIDC users, meaning manual organization assignment is not allowed for this user. Have the user re-login to refresh their organizations.",
@@ -405,4 +444,5 @@ func (api *API) manualOrganizationMembership(ctx context.Context, rw http.Respon
 		return false
 	}
 	return true
+
 }

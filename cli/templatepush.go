@@ -1,4 +1,5 @@
 package cli
+
 import (
 	"bufio"
 	"errors"
@@ -10,10 +11,12 @@ import (
 	"strings"
 	"time"
 	"github.com/briandowns/spinner"
+
 	"github.com/google/uuid"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/codersdk"
+
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
@@ -22,6 +25,7 @@ func (r *RootCmd) templatePush() *serpent.Command {
 	var (
 		versionName          string
 		provisioner          string
+
 		workdir              string
 		variablesFile        string
 		commandLineVariables []string
@@ -46,21 +50,25 @@ func (r *RootCmd) templatePush() *serpent.Command {
 				return err
 			}
 			name, err := uploadFlags.templateName(inv)
+
 			if err != nil {
 				return err
 			}
 			err = codersdk.NameValid(name)
 			if err != nil {
+
 				return fmt.Errorf("template name %q is invalid: %w", name, err)
 			}
 			if versionName != "" {
 				err = codersdk.TemplateVersionNameValid(versionName)
 				if err != nil {
+
 					return fmt.Errorf("template version name %q is invalid: %w", versionName, err)
 				}
 			}
 			var createTemplate bool
 			template, err := client.TemplateByName(inv.Context(), organization.ID, name)
+
 			if err != nil {
 				var apiError *codersdk.Error
 				if errors.As(err, &apiError) && apiError.StatusCode() != http.StatusNotFound {
@@ -68,6 +76,7 @@ func (r *RootCmd) templatePush() *serpent.Command {
 				}
 				// Template doesn't exist, create it.
 				createTemplate = true
+
 			}
 			err = uploadFlags.checkForLockfile(inv)
 			if err != nil {
@@ -79,13 +88,16 @@ func (r *RootCmd) templatePush() *serpent.Command {
 				varsFiles, err = codersdk.DiscoverVarsFiles(uploadFlags.directory)
 				if err != nil {
 					return err
+
 				}
 				if len(varsFiles) > 0 {
 					_, _ = fmt.Fprintln(inv.Stdout, "Auto-discovered Terraform tfvars files. Make sure to review and clean up any unused files.")
 				}
 			}
+
 			resp, err := uploadFlags.upload(inv, client)
 			if err != nil {
+
 				return err
 			}
 			tags, err := ParseProvisionerTags(provisionerTags)
@@ -93,21 +105,25 @@ func (r *RootCmd) templatePush() *serpent.Command {
 				return err
 			}
 			// If user hasn't provided new provisioner tags, inherit ones from the active template version.
+
 			if len(tags) == 0 && template.ActiveVersionID != uuid.Nil {
 				templateVersion, err := client.TemplateVersion(inv.Context(), template.ActiveVersionID)
 				if err != nil {
 					return err
 				}
+
 				tags = templateVersion.Job.Tags
 				inv.Logger.Info(inv.Context(), "reusing existing provisioner tags", "tags", tags)
 			}
 			userVariableValues, err := codersdk.ParseUserVariableValues(
 				varsFiles,
+
 				variablesFile,
 				commandLineVariables)
 			if err != nil {
 				return err
 			}
+
 			args := createValidTemplateVersionArgs{
 				Message:            message,
 				Client:             client,
@@ -118,6 +134,7 @@ func (r *RootCmd) templatePush() *serpent.Command {
 				UserVariableValues: userVariableValues,
 			}
 			if !createTemplate {
+
 				args.Name = versionName
 				args.Template = &template
 				args.ReuseParameters = !alwaysPrompt
@@ -126,6 +143,7 @@ func (r *RootCmd) templatePush() *serpent.Command {
 			if err != nil {
 				return err
 			}
+
 			if job.Job.Status != codersdk.ProvisionerJobSucceeded {
 				return fmt.Errorf("job failed: %s", job.Job.Status)
 			}
@@ -136,21 +154,25 @@ func (r *RootCmd) templatePush() *serpent.Command {
 				})
 				if err != nil {
 					return err
+
 				}
 				_, _ = fmt.Fprintln(
 					inv.Stdout, "\n"+cliui.Wrap(
 						"The "+cliui.Keyword(name)+" template has been created at "+cliui.Timestamp(time.Now())+"! "+
 							"Developers can provision a workspace with this template using:")+"\n")
 			} else if activate {
+
 				err = client.UpdateActiveTemplateVersion(inv.Context(), template.ID, codersdk.UpdateActiveTemplateVersion{
 					ID: job.ID,
 				})
 				if err != nil {
 					return err
+
 				}
 			}
 			_, _ = fmt.Fprintf(inv.Stdout, "Updated version at %s!\n", pretty.Sprint(cliui.DefaultStyles.DateTimeStamp, time.Now().Format(time.Stamp)))
 			return nil
+
 		},
 	}
 	cmd.Options = serpent.OptionSet{
@@ -160,6 +182,7 @@ func (r *RootCmd) templatePush() *serpent.Command {
 			Default:     "terraform",
 			Value:       serpent.StringOf(&provisioner),
 			// This is for testing!
+
 			Hidden: true,
 		},
 		{
@@ -173,11 +196,13 @@ func (r *RootCmd) templatePush() *serpent.Command {
 		{
 			Flag:        "variables-file",
 			Description: "Specify a file path with values for Terraform-managed variables.",
+
 			Value:       serpent.StringOf(&variablesFile),
 		},
 		{
 			Flag:        "variable",
 			Description: "Specify a set of values for Terraform-managed variables.",
+
 			Value:       serpent.StringArrayOf(&commandLineVariables),
 		},
 		{
@@ -238,12 +263,14 @@ func (pf *templateUploadFlags) options() []serpent.Option {
 }
 func (pf *templateUploadFlags) setWorkdir(wd string) {
 	if wd == "" {
+
 		return
 	}
 	if pf.directory == "" || pf.directory == "." {
 		pf.directory = wd
 	} else if !filepath.IsAbs(pf.directory) {
 		pf.directory = filepath.Join(wd, pf.directory)
+
 	}
 }
 func (pf *templateUploadFlags) stdin(inv *serpent.Invocation) (out bool) {
@@ -264,6 +291,7 @@ func (pf *templateUploadFlags) upload(inv *serpent.Invocation, client *codersdk.
 		_, err := cliui.Prompt(inv, cliui.PromptOptions{
 			Text:      fmt.Sprintf("Upload %q?", prettyDir),
 			IsConfirm: true,
+
 			Default:   cliui.ConfirmYes,
 		})
 		if err != nil {
@@ -275,6 +303,7 @@ func (pf *templateUploadFlags) upload(inv *serpent.Invocation, client *codersdk.
 			_ = pipeWriter.CloseWithError(err)
 		}()
 		defer pipeReader.Close()
+
 		content = pipeReader
 	}
 	spin := spinner.New(spinner.CharSets[5], 100*time.Millisecond)
@@ -285,6 +314,7 @@ func (pf *templateUploadFlags) upload(inv *serpent.Invocation, client *codersdk.
 	resp, err := client.Upload(inv.Context(), codersdk.ContentTypeTar, bufio.NewReader(content))
 	if err != nil {
 		return nil, fmt.Errorf("upload: %w", err)
+
 	}
 	return &resp, nil
 }
@@ -300,6 +330,7 @@ func (pf *templateUploadFlags) checkForLockfile(inv *serpent.Invocation) error {
 	if !hasLockfile {
 		cliui.Warn(inv.Stdout, "No .terraform.lock.hcl file found",
 			"When provisioning, Coder will be unable to cache providers without a lockfile and must download them from the internet each time.",
+
 			"Create one by running "+pretty.Sprint(cliui.DefaultStyles.Code, "terraform init")+" in your template directory.",
 		)
 	}
@@ -309,12 +340,14 @@ func (pf *templateUploadFlags) templateMessage(inv *serpent.Invocation) string {
 	title := strings.SplitN(pf.message, "\n", 2)[0]
 	if len(title) > 72 {
 		cliui.Warn(inv.Stdout, "Template message is longer than 72 characters, it will be displayed as truncated.")
+
 	}
 	if title != pf.message {
 		cliui.Warn(inv.Stdout, "Template message contains newlines, only the first line will be displayed.")
 	}
 	if pf.message != "" {
 		return pf.message
+
 	}
 	return "Uploaded from the CLI"
 }
@@ -322,17 +355,20 @@ func (pf *templateUploadFlags) templateName(inv *serpent.Invocation) (string, er
 	args := inv.Args
 	if pf.stdin(inv) {
 		// Can't infer name from directory if none provided.
+
 		if len(args) == 0 {
 			return "", errors.New("template name argument must be provided")
 		}
 		return args[0], nil
 	}
 	if len(args) > 0 {
+
 		return args[0], nil
 	}
 	// Have to take absPath to resolve "." and "..".
 	absPath, err := filepath.Abs(pf.directory)
 	if err != nil {
+
 		return "", err
 	}
 	// If no name is provided, use the directory name.
@@ -342,6 +378,7 @@ type createValidTemplateVersionArgs struct {
 	Name         string
 	Message      string
 	Client       *codersdk.Client
+
 	Organization codersdk.Organization
 	Provisioner  codersdk.ProvisionerType
 	FileID       uuid.UUID
@@ -356,6 +393,7 @@ type createValidTemplateVersionArgs struct {
 }
 func createValidTemplateVersion(inv *serpent.Invocation, args createValidTemplateVersionArgs) (*codersdk.TemplateVersion, error) {
 	client := args.Client
+
 	req := codersdk.CreateTemplateVersionRequest{
 		Name:               args.Name,
 		Message:            args.Message,
@@ -366,6 +404,7 @@ func createValidTemplateVersion(inv *serpent.Invocation, args createValidTemplat
 		UserVariableValues: args.UserVariableValues,
 	}
 	if args.Template != nil {
+
 		req.TemplateID = args.Template.ID
 	}
 	version, err := client.CreateTemplateVersion(inv.Context(), args.Organization.ID, req)
@@ -378,6 +417,7 @@ func createValidTemplateVersion(inv *serpent.Invocation, args createValidTemplat
 			version, err := client.TemplateVersion(inv.Context(), version.ID)
 			return version.Job, err
 		},
+
 		Cancel: func() error {
 			return client.CancelTemplateVersion(inv.Context(), version.ID)
 		},
@@ -386,6 +426,7 @@ func createValidTemplateVersion(inv *serpent.Invocation, args createValidTemplat
 		},
 	})
 	if err != nil {
+
 		var jobErr *cliui.ProvisionerJobError
 		if errors.As(err, &jobErr) && !codersdk.JobIsMissingParameterErrorCode(jobErr.Code) {
 			return nil, err
@@ -396,9 +437,11 @@ func createValidTemplateVersion(inv *serpent.Invocation, args createValidTemplat
 	if err != nil {
 		return nil, err
 	}
+
 	if version.Job.Status != codersdk.ProvisionerJobSucceeded {
 		return nil, errors.New(version.Job.Error)
 	}
+
 	resources, err := client.TemplateVersionResources(inv.Context(), version.ID)
 	if err != nil {
 		return nil, err
@@ -434,6 +477,7 @@ func ParseProvisionerTags(rawTags []string) (map[string]string, error) {
 // prettyDirectoryPath returns a prettified path when inside the users
 // home directory. Falls back to dir if the users home directory cannot
 // discerned. This function calls filepath.Clean on the result.
+
 func prettyDirectoryPath(dir string) string {
 	dir = filepath.Clean(dir)
 	homeDir, err := os.UserHomeDir()
@@ -441,9 +485,11 @@ func prettyDirectoryPath(dir string) string {
 		return dir
 	}
 	prettyDir := dir
+
 	if strings.HasPrefix(prettyDir, homeDir) {
 		prettyDir = strings.TrimPrefix(prettyDir, homeDir)
 		prettyDir = "~" + prettyDir
 	}
+
 	return prettyDir
 }

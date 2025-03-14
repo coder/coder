@@ -1,18 +1,22 @@
 package agentsdk
+
 import (
 	"fmt"
 	"errors"
 	"strings"
+
 	"time"
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"github.com/coder/coder/v2/agent/proto"
+
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
 )
 func ManifestFromProto(manifest *proto.Manifest) (Manifest, error) {
 	apps, err := AppsFromProto(manifest.Apps)
+
 	if err != nil {
 		return Manifest{}, fmt.Errorf("error converting workspace agent apps: %w", err)
 	}
@@ -50,6 +54,7 @@ func ManifestFromProto(manifest *proto.Manifest) (Manifest, error) {
 func ProtoFromManifest(manifest Manifest) (*proto.Manifest, error) {
 	apps, err := ProtoFromApps(manifest.Apps)
 	if err != nil {
+
 		return nil, fmt.Errorf("convert workspace apps: %w", err)
 	}
 	return &proto.Manifest{
@@ -75,6 +80,7 @@ func MetadataDescriptionsFromProto(descriptions []*proto.WorkspaceAgentMetadata_
 	ret := make([]codersdk.WorkspaceAgentMetadataDescription, len(descriptions))
 	for i, description := range descriptions {
 		ret[i] = MetadataDescriptionFromProto(description)
+
 	}
 	return ret
 }
@@ -83,6 +89,7 @@ func ProtoFromMetadataDescriptions(descriptions []codersdk.WorkspaceAgentMetadat
 	for i, d := range descriptions {
 		ret[i] = ProtoFromMetadataDescription(d)
 	}
+
 	return ret
 }
 func MetadataDescriptionFromProto(description *proto.WorkspaceAgentMetadata_Description) codersdk.WorkspaceAgentMetadataDescription {
@@ -91,6 +98,7 @@ func MetadataDescriptionFromProto(description *proto.WorkspaceAgentMetadata_Desc
 		Key:         description.Key,
 		Script:      description.Script,
 		Interval:    int64(description.Interval.AsDuration()),
+
 		Timeout:     int64(description.Timeout.AsDuration()),
 	}
 }
@@ -101,6 +109,7 @@ func ProtoFromMetadataDescription(d codersdk.WorkspaceAgentMetadataDescription) 
 		Script:      d.Script,
 		Interval:    durationpb.New(time.Duration(d.Interval)),
 		Timeout:     durationpb.New(time.Duration(d.Timeout)),
+
 	}
 }
 func ProtoFromMetadataResult(r codersdk.WorkspaceAgentMetadataResult) *proto.WorkspaceAgentMetadata_Result {
@@ -111,6 +120,7 @@ func ProtoFromMetadataResult(r codersdk.WorkspaceAgentMetadataResult) *proto.Wor
 		Error:       r.Error,
 	}
 }
+
 func MetadataResultFromProto(r *proto.WorkspaceAgentMetadata_Result) codersdk.WorkspaceAgentMetadataResult {
 	return codersdk.WorkspaceAgentMetadataResult{
 		CollectedAt: r.GetCollectedAt().AsTime(),
@@ -120,6 +130,7 @@ func MetadataResultFromProto(r *proto.WorkspaceAgentMetadata_Result) codersdk.Wo
 	}
 }
 func MetadataFromProto(m *proto.Metadata) Metadata {
+
 	return Metadata{
 		Key:                          m.GetKey(),
 		WorkspaceAgentMetadataResult: MetadataResultFromProto(m.GetResult()),
@@ -129,6 +140,7 @@ func AgentScriptsFromProto(protoScripts []*proto.WorkspaceAgentScript) ([]coders
 	ret := make([]codersdk.WorkspaceAgentScript, len(protoScripts))
 	for i, protoScript := range protoScripts {
 		app, err := AgentScriptFromProto(protoScript)
+
 		if err != nil {
 			return nil, fmt.Errorf("parse script %v: %w", i, err)
 		}
@@ -136,6 +148,7 @@ func AgentScriptsFromProto(protoScripts []*proto.WorkspaceAgentScript) ([]coders
 	}
 	return ret, nil
 }
+
 func ProtoFromScripts(scripts []codersdk.WorkspaceAgentScript) []*proto.WorkspaceAgentScript {
 	ret := make([]*proto.WorkspaceAgentScript, len(scripts))
 	for i, script := range scripts {
@@ -148,6 +161,7 @@ func AgentScriptFromProto(protoScript *proto.WorkspaceAgentScript) (codersdk.Wor
 	if err != nil {
 		return codersdk.WorkspaceAgentScript{}, fmt.Errorf("parse id: %w", err)
 	}
+
 	logSourceID, err := uuid.FromBytes(protoScript.LogSourceId)
 	if err != nil {
 		return codersdk.WorkspaceAgentScript{}, fmt.Errorf("parse log source id: %w", err)
@@ -156,17 +170,20 @@ func AgentScriptFromProto(protoScript *proto.WorkspaceAgentScript) (codersdk.Wor
 		ID:               id,
 		LogSourceID:      logSourceID,
 		LogPath:          protoScript.LogPath,
+
 		Script:           protoScript.Script,
 		Cron:             protoScript.Cron,
 		RunOnStart:       protoScript.RunOnStart,
 		RunOnStop:        protoScript.RunOnStop,
 		StartBlocksLogin: protoScript.StartBlocksLogin,
 		Timeout:          protoScript.Timeout.AsDuration(),
+
 		DisplayName:      protoScript.DisplayName,
 	}, nil
 }
 func ProtoFromScript(s codersdk.WorkspaceAgentScript) *proto.WorkspaceAgentScript {
 	return &proto.WorkspaceAgentScript{
+
 		Id:               s.ID[:],
 		LogSourceId:      s.LogSourceID[:],
 		LogPath:          s.LogPath,
@@ -181,6 +198,7 @@ func ProtoFromScript(s codersdk.WorkspaceAgentScript) *proto.WorkspaceAgentScrip
 }
 func AppsFromProto(protoApps []*proto.WorkspaceApp) ([]codersdk.WorkspaceApp, error) {
 	ret := make([]codersdk.WorkspaceApp, len(protoApps))
+
 	for i, protoApp := range protoApps {
 		app, err := AppFromProto(protoApp)
 		if err != nil {
@@ -196,6 +214,7 @@ func ProtoFromApps(apps []codersdk.WorkspaceApp) ([]*proto.WorkspaceApp, error) 
 	for i, a := range apps {
 		ret[i], err = ProtoFromApp(a)
 		if err != nil {
+
 			return nil, err
 		}
 	}
@@ -208,6 +227,7 @@ func AppFromProto(protoApp *proto.WorkspaceApp) (codersdk.WorkspaceApp, error) {
 	}
 	sharingLevel := codersdk.WorkspaceAppSharingLevel(strings.ToLower(protoApp.SharingLevel.String()))
 	if _, ok := codersdk.MapWorkspaceAppSharingLevels[sharingLevel]; !ok {
+
 		return codersdk.WorkspaceApp{}, fmt.Errorf("unknown app sharing level: %v (%q)", protoApp.SharingLevel, protoApp.SharingLevel.String())
 	}
 	health := codersdk.WorkspaceAppHealth(strings.ToLower(protoApp.Health.String()))
@@ -220,22 +240,26 @@ func AppFromProto(protoApp *proto.WorkspaceApp) (codersdk.WorkspaceApp, error) {
 		External:      protoApp.External,
 		Slug:          protoApp.Slug,
 		DisplayName:   protoApp.DisplayName,
+
 		Command:       protoApp.Command,
 		Icon:          protoApp.Icon,
 		Subdomain:     protoApp.Subdomain,
 		SubdomainName: protoApp.SubdomainName,
 		SharingLevel:  sharingLevel,
 		Healthcheck: codersdk.Healthcheck{
+
 			URL:       protoApp.Healthcheck.Url,
 			Interval:  int32(protoApp.Healthcheck.Interval.AsDuration().Seconds()),
 			Threshold: protoApp.Healthcheck.Threshold,
 		},
 		Health: health,
+
 		Hidden: protoApp.Hidden,
 	}, nil
 }
 func ProtoFromApp(a codersdk.WorkspaceApp) (*proto.WorkspaceApp, error) {
 	sharingLevel, ok := proto.WorkspaceApp_SharingLevel_value[strings.ToUpper(string(a.SharingLevel))]
+
 	if !ok {
 		return nil, fmt.Errorf("unknown sharing level %s", a.SharingLevel)
 	}
@@ -257,6 +281,7 @@ func ProtoFromApp(a codersdk.WorkspaceApp) (*proto.WorkspaceApp, error) {
 		Healthcheck: &proto.WorkspaceApp_Healthcheck{
 			Url:       a.Healthcheck.URL,
 			Interval:  durationpb.New(time.Duration(a.Healthcheck.Interval) * time.Second),
+
 			Threshold: a.Healthcheck.Threshold,
 		},
 		Health: proto.WorkspaceApp_Health(health),
@@ -287,6 +312,7 @@ func BannerConfigFromProto(sbp *proto.BannerConfig) codersdk.BannerConfig {
 func ProtoFromBannerConfig(sb codersdk.BannerConfig) *proto.BannerConfig {
 	return &proto.BannerConfig{
 		Enabled:         sb.Enabled,
+
 		Message:         sb.Message,
 		BackgroundColor: sb.BackgroundColor,
 	}
@@ -295,6 +321,7 @@ func ProtoFromSubsystems(ss []codersdk.AgentSubsystem) ([]proto.Startup_Subsyste
 	ret := make([]proto.Startup_Subsystem, len(ss))
 	for i, s := range ss {
 		pi, ok := proto.Startup_Subsystem_value[strings.ToUpper(string(s))]
+
 		if !ok {
 			return nil, fmt.Errorf("unknown subsystem: %s", s)
 		}
@@ -303,6 +330,7 @@ func ProtoFromSubsystems(ss []codersdk.AgentSubsystem) ([]proto.Startup_Subsyste
 	return ret, nil
 }
 func ProtoFromAppHealthsRequest(req PostAppHealthsRequest) (*proto.BatchUpdateAppHealthRequest, error) {
+
 	pReq := &proto.BatchUpdateAppHealthRequest{}
 	for id, h := range req.Healths {
 		hp, ok := proto.AppHealth_value[strings.ToUpper(string(h))]
@@ -311,6 +339,7 @@ func ProtoFromAppHealthsRequest(req PostAppHealthsRequest) (*proto.BatchUpdateAp
 		}
 		// Copy the ID, otherwise all updates will have the same ID (the last
 		// one in the list).
+
 		var idCopy uuid.UUID
 		copy(idCopy[:], id[:])
 		pReq.Updates = append(pReq.Updates, &proto.BatchUpdateAppHealthRequest_HealthUpdate{
@@ -319,6 +348,7 @@ func ProtoFromAppHealthsRequest(req PostAppHealthsRequest) (*proto.BatchUpdateAp
 		})
 	}
 	return pReq, nil
+
 }
 func ProtoFromLog(log Log) (*proto.Log, error) {
 	lvl, ok := proto.Log_Level_value[strings.ToUpper(string(log.Level))]
@@ -331,6 +361,7 @@ func ProtoFromLog(log Log) (*proto.Log, error) {
 		Level:     proto.Log_Level(lvl),
 	}, nil
 }
+
 func ProtoFromLifecycle(req PostLifecycleRequest) (*proto.Lifecycle, error) {
 	s, ok := proto.Lifecycle_State_value[strings.ToUpper(string(req.State))]
 	if !ok {
@@ -339,6 +370,7 @@ func ProtoFromLifecycle(req PostLifecycleRequest) (*proto.Lifecycle, error) {
 	return &proto.Lifecycle{
 		State:     proto.Lifecycle_State(s),
 		ChangedAt: timestamppb.New(req.ChangedAt),
+
 	}, nil
 }
 func LifecycleStateFromProto(s proto.Lifecycle_State) (codersdk.WorkspaceAgentLifecycle, error) {
@@ -351,6 +383,7 @@ func LifecycleStateFromProto(s proto.Lifecycle_State) (codersdk.WorkspaceAgentLi
 func ProtoFromLifecycleState(s codersdk.WorkspaceAgentLifecycle) (proto.Lifecycle_State, error) {
 	caps, ok := proto.Lifecycle_State_value[strings.ToUpper(string(s))]
 	if !ok {
+
 		return 0, fmt.Errorf("unknown lifecycle state: %s", s)
 	}
 	return proto.Lifecycle_State(caps), nil
@@ -363,6 +396,7 @@ func ConnectionTypeFromProto(typ proto.Connection_Type) (ConnectionType, error) 
 		return ConnectionTypeSSH, nil
 	case proto.Connection_VSCODE:
 		return ConnectionTypeVSCode, nil
+
 	case proto.Connection_JETBRAINS:
 		return ConnectionTypeJetBrains, nil
 	case proto.Connection_RECONNECTING_PTY:
@@ -374,6 +408,7 @@ func ConnectionTypeFromProto(typ proto.Connection_Type) (ConnectionType, error) 
 func ProtoFromConnectionType(typ ConnectionType) (proto.Connection_Type, error) {
 	switch typ {
 	case ConnectionTypeUnspecified:
+
 		return proto.Connection_TYPE_UNSPECIFIED, nil
 	case ConnectionTypeSSH:
 		return proto.Connection_SSH, nil
@@ -382,6 +417,7 @@ func ProtoFromConnectionType(typ ConnectionType) (proto.Connection_Type, error) 
 	case ConnectionTypeJetBrains:
 		return proto.Connection_JETBRAINS, nil
 	case ConnectionTypeReconnectingPTY:
+
 		return proto.Connection_RECONNECTING_PTY, nil
 	default:
 		return 0, fmt.Errorf("unknown connection type %q", typ)

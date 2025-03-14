@@ -1,4 +1,5 @@
 package main
+
 import (
 	"context"
 	"errors"
@@ -11,9 +12,11 @@ import (
 	"sync/atomic"
 	"time"
 	"github.com/google/uuid"
+
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
+
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
 )
@@ -21,6 +24,7 @@ func main() {
 	var root *serpent.Command
 	root = &serpent.Command{
 		Use:   "cliui",
+
 		Short: "Used for visually testing UI components for the CLI.",
 		HelpHandler: func(inv *serpent.Invocation) error {
 			_, _ = fmt.Fprintln(inv.Stdout, "This command is used for visually testing UI components for the CLI.")
@@ -37,6 +41,7 @@ func main() {
 		Hidden: true,
 		Handler: func(inv *serpent.Invocation) error {
 			pretty.Fprintf(inv.Stdout, cliui.DefaultStyles.Code, "This is a code message")
+
 			_, _ = fmt.Fprintln(inv.Stdout)
 			pretty.Fprintf(inv.Stdout, cliui.DefaultStyles.DateTimeStamp, "This is a datetimestamp message")
 			_, _ = fmt.Fprintln(inv.Stdout)
@@ -44,37 +49,48 @@ func main() {
 			_, _ = fmt.Fprintln(inv.Stdout)
 			pretty.Fprintf(inv.Stdout, cliui.DefaultStyles.Field, "This is a field message")
 			_, _ = fmt.Fprintln(inv.Stdout)
+
 			pretty.Fprintf(inv.Stdout, cliui.DefaultStyles.Keyword, "This is a keyword message")
 			_, _ = fmt.Fprintln(inv.Stdout)
 			pretty.Fprintf(inv.Stdout, cliui.DefaultStyles.Placeholder, "This is a placeholder message")
+
 			_, _ = fmt.Fprintln(inv.Stdout)
 			pretty.Fprintf(inv.Stdout, cliui.DefaultStyles.Prompt, "This is a prompt message")
 			_, _ = fmt.Fprintln(inv.Stdout)
+
 			pretty.Fprintf(inv.Stdout, cliui.DefaultStyles.FocusedPrompt, "This is a focused prompt message")
 			_, _ = fmt.Fprintln(inv.Stdout)
 			pretty.Fprintf(inv.Stdout, cliui.DefaultStyles.Fuchsia, "This is a fuchsia message")
+
 			_, _ = fmt.Fprintln(inv.Stdout)
 			pretty.Fprintf(inv.Stdout, cliui.DefaultStyles.Warn, "This is a warning message")
 			_, _ = fmt.Fprintln(inv.Stdout)
+
 			return nil
 		},
 	})
+
 	root.Children = append(root.Children, &serpent.Command{
 		Use: "prompt",
 		Handler: func(inv *serpent.Invocation) error {
+
 			_, err := cliui.Prompt(inv, cliui.PromptOptions{
 				Text:    "What is our " + cliui.Field("company name") + "?",
 				Default: "acme-corp",
+
 				Validate: func(s string) error {
 					if !strings.EqualFold(s, "coder") {
 						return errors.New("Err... nope!")
+
 					}
 					return nil
 				},
+
 			})
 			if errors.Is(err, cliui.Canceled) {
 				return nil
 			}
+
 			if err != nil {
 				return err
 			}
@@ -113,6 +129,7 @@ func main() {
 			job := codersdk.ProvisionerJob{
 				Status:    codersdk.ProvisionerJobPending,
 				CreatedAt: dbtime.Now(),
+
 			}
 			go func() {
 				time.Sleep(time.Second)
@@ -125,6 +142,7 @@ func main() {
 				time.Sleep(3 * time.Second)
 				if job.Status != codersdk.ProvisionerJobRunning {
 					return
+
 				}
 				completed := dbtime.Now()
 				job.CompletedAt = &completed
@@ -149,6 +167,7 @@ func main() {
 								if job.Status == codersdk.ProvisionerJobSucceeded || job.Status == codersdk.ProvisionerJobCanceled {
 									return
 								}
+
 								log := codersdk.ProvisionerJobLog{
 									CreatedAt: time.Now(),
 									Output:    fmt.Sprintf("Some log %d", count),
@@ -211,12 +230,14 @@ func main() {
 				},
 				func() {
 					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleStarting
+
 					startingAt := time.Now()
 					agent.StartedAt = &startingAt
 					for i := 0; i < 10; i++ {
 						level := codersdk.LogLevelInfo
 						if rand.Float64() > 0.75 { //nolint:gosec
 							level = codersdk.LogLevelError
+
 						}
 						logs = append(logs, codersdk.WorkspaceAgentLog{
 							CreatedAt: time.Now().Add(-time.Duration(10-i) * 144 * time.Millisecond),
@@ -303,6 +324,7 @@ func main() {
 					LifecycleState:  codersdk.WorkspaceAgentLifecycleCreated,
 					Name:            "dev",
 					OperatingSystem: "linux",
+
 					Architecture:    "amd64",
 				}},
 			}, {
@@ -353,6 +375,7 @@ func main() {
 						ID:              "github",
 						Type:            codersdk.EnhancedExternalAuthProviderGitHub.String(),
 						Authenticated:   githubAuthed.Load(),
+
 						AuthenticateURL: "https://example.com/gitauth/github?redirect=" + url.QueryEscape("/gitauth?notify"),
 					}, {
 						ID:              "gitlab",

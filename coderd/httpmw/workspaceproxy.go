@@ -1,4 +1,5 @@
 package httpmw
+
 import (
 	"errors"
 	"context"
@@ -7,16 +8,19 @@ import (
 	"database/sql"
 	"net/http"
 	"strings"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 )
 const (
 	// WorkspaceProxyAuthTokenHeader is the auth header used for requests from
 	// external workspace proxies.
+
 	//
 	// The format of an external proxy token is:
 	//     <proxy id>:<proxy secret>
@@ -28,8 +32,10 @@ type workspaceProxyContextKey struct{}
 // WorkspaceProxyOptional may return the workspace proxy from the ExtractWorkspaceProxy
 // middleware.
 func WorkspaceProxyOptional(r *http.Request) (database.WorkspaceProxy, bool) {
+
 	proxy, ok := r.Context().Value(workspaceProxyContextKey{}).(database.WorkspaceProxy)
 	return proxy, ok
+
 }
 // WorkspaceProxy returns the workspace proxy from the ExtractWorkspaceProxy
 // middleware.
@@ -37,6 +43,7 @@ func WorkspaceProxy(r *http.Request) database.WorkspaceProxy {
 	proxy, ok := WorkspaceProxyOptional(r)
 	if !ok {
 		panic("developer error: ExtractWorkspaceProxy middleware not provided")
+
 	}
 	return proxy
 }
@@ -47,6 +54,7 @@ type ExtractWorkspaceProxyConfig struct {
 	// allowed to continue and no workspace proxy will be set on the request
 	// context.
 	Optional bool
+
 }
 // ExtractWorkspaceProxy extracts the external workspace proxy from the request
 // using the external proxy auth token header.
@@ -56,6 +64,7 @@ func ExtractWorkspaceProxy(opts ExtractWorkspaceProxyConfig) func(http.Handler) 
 			ctx := r.Context()
 			token := r.Header.Get(WorkspaceProxyAuthTokenHeader)
 			if token == "" {
+
 				if opts.Optional {
 					next.ServeHTTP(w, r)
 					return
@@ -63,6 +72,7 @@ func ExtractWorkspaceProxy(opts ExtractWorkspaceProxyConfig) func(http.Handler) 
 				httpapi.Write(ctx, w, http.StatusUnauthorized, codersdk.Response{
 					Message: "Missing required external proxy token",
 				})
+
 				return
 			}
 			// Split the token and lookup the corresponding workspace proxy.
@@ -70,12 +80,14 @@ func ExtractWorkspaceProxy(opts ExtractWorkspaceProxyConfig) func(http.Handler) 
 			if len(parts) != 2 {
 				httpapi.Write(ctx, w, http.StatusUnauthorized, codersdk.Response{
 					Message: "Invalid external proxy token",
+
 				})
 				return
 			}
 			proxyID, err := uuid.Parse(parts[0])
 			if err != nil {
 				httpapi.Write(ctx, w, http.StatusUnauthorized, codersdk.Response{
+
 					Message: "Invalid external proxy token",
 				})
 				return
@@ -99,6 +111,7 @@ func ExtractWorkspaceProxy(opts ExtractWorkspaceProxyConfig) func(http.Handler) 
 				})
 				return
 			}
+
 			if err != nil {
 				httpapi.InternalServerError(w, err)
 				return
@@ -123,6 +136,7 @@ func ExtractWorkspaceProxy(opts ExtractWorkspaceProxyConfig) func(http.Handler) 
 			ctx = context.WithValue(ctx, workspaceProxyContextKey{}, proxy)
 			//nolint:gocritic // Workspace proxies have full permissions. The
 			// workspace proxy auth middleware is not mounted to every route, so
+
 			// they can still only access the routes that the middleware is
 			// mounted to.
 			ctx = dbauthz.AsSystemRestricted(ctx)
@@ -133,6 +147,7 @@ func ExtractWorkspaceProxy(opts ExtractWorkspaceProxyConfig) func(http.Handler) 
 type workspaceProxyParamContextKey struct{}
 // WorkspaceProxyParam returns the workspace proxy from the ExtractWorkspaceProxyParam handler.
 func WorkspaceProxyParam(r *http.Request) database.WorkspaceProxy {
+
 	user, ok := r.Context().Value(workspaceProxyParamContextKey{}).(database.WorkspaceProxy)
 	if !ok {
 		panic("developer error: workspace proxy parameter middleware not provided")
@@ -145,8 +160,10 @@ func WorkspaceProxyParam(r *http.Request) database.WorkspaceProxy {
 //nolint:revive
 func ExtractWorkspaceProxyParam(db database.Store, deploymentID string, fetchPrimaryProxy func(ctx context.Context) (database.WorkspaceProxy, error)) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
+
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
+
 			proxyQuery := chi.URLParam(r, "workspaceproxy")
 			if proxyQuery == "" {
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -156,6 +173,7 @@ func ExtractWorkspaceProxyParam(db database.Store, deploymentID string, fetchPri
 			}
 			var proxy database.WorkspaceProxy
 			var dbErr error
+
 			if proxyQuery == "primary" || proxyQuery == deploymentID {
 				// Requesting primary proxy
 				proxy, dbErr = fetchPrimaryProxy(ctx)
@@ -165,6 +183,7 @@ func ExtractWorkspaceProxyParam(db database.Store, deploymentID string, fetchPri
 			} else {
 				// Request proxy by name
 				proxy, dbErr = db.GetWorkspaceProxyByName(ctx, proxyQuery)
+
 			}
 			if httpapi.Is404Error(dbErr) {
 				httpapi.ResourceNotFound(rw)
@@ -173,6 +192,7 @@ func ExtractWorkspaceProxyParam(db database.Store, deploymentID string, fetchPri
 			if dbErr != nil {
 				httpapi.InternalServerError(rw, dbErr)
 				return
+
 			}
 			ctx = context.WithValue(ctx, workspaceProxyParamContextKey{}, proxy)
 			next.ServeHTTP(rw, r.WithContext(ctx))

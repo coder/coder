@@ -36,14 +36,17 @@ import (
 	"tailscale.com/types/key"
 	"tailscale.com/util/singleflight"
 
+
 	"cdr.dev/slog"
 	"github.com/coder/quartz"
 	"github.com/coder/serpent"
+
 
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
+
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/buildinfo"
@@ -86,12 +89,14 @@ import (
 	"github.com/coder/coder/v2/tailnet"
 )
 
+
 // We must only ever instantiate one httpSwagger.Handler because of a data race
 // inside the handler. This issue is triggered by tests that create multiple
 // coderd instances.
 //
 // See https://github.com/swaggo/http-swagger/issues/78
 var globalHTTPSwaggerHandler http.HandlerFunc
+
 
 func init() {
 	globalHTTPSwaggerHandler = httpSwagger.Handler(
@@ -121,7 +126,9 @@ func init() {
 		}))
 }
 
+
 var expDERPOnce = sync.Once{}
+
 
 // Options are requires parameters for Coder to start.
 type Options struct {
@@ -140,8 +147,10 @@ type Options struct {
 	Pubsub           pubsub.Pubsub
 	RuntimeConfig    *runtimeconfig.Manager
 
+
 	// CacheDir is used for caching files served by the API.
 	CacheDir string
+
 
 	Auditor                        audit.Auditor
 	AgentConnectionUpdateFrequency time.Duration
@@ -172,6 +181,7 @@ type Options struct {
 	// for all authenticated users under a condition, only in Enterprise.
 	PostAuthAdditionalHeadersFunc func(auth rbac.Subject, header http.Header)
 
+
 	// TLSCertificates is used to mesh DERP servers securely.
 	TLSCertificates    []tls.Certificate
 	TailnetCoordinator tailnet.Coordinator
@@ -190,15 +200,18 @@ type Options struct {
 	// tokens issued by and passed to the coordinator DRPC API.
 	CoordinatorResumeTokenProvider tailnet.ResumeTokenProvider
 
+
 	HealthcheckFunc              func(ctx context.Context, apiKey string) *healthsdk.HealthcheckReport
 	HealthcheckTimeout           time.Duration
 	HealthcheckRefresh           time.Duration
 	WorkspaceProxiesFetchUpdater *atomic.Pointer[healthcheck.WorkspaceProxiesFetchUpdater]
 
+
 	// OAuthSigningKey is the crypto key used to sign and encrypt state strings
 	// related to OAuth. This is a symmetric secret key using hmac to sign payloads.
 	// So this secret should **never** be exposed to the client.
 	OAuthSigningKey [32]byte
+
 
 	// APIRateLimit is the minutely throughput rate limit per user or ip.
 	// Setting a rate limit <0 will disable the rate limiter across the entire
@@ -206,6 +219,7 @@ type Options struct {
 	APIRateLimit   int
 	LoginRateLimit int
 	FilesRateLimit int
+
 
 	MetricsCacheRefreshInterval time.Duration
 	AgentStatsRefreshInterval   time.Duration
@@ -217,15 +231,20 @@ type Options struct {
 	DeploymentOptions  serpent.OptionSet
 	UpdateCheckOptions *updatecheck.Options // Set non-nil to enable update checking.
 
+
 	// SSHConfig is the response clients use to configure config-ssh locally.
 	SSHConfig codersdk.SSHConfigResponse
 
+
 	HTTPClient *http.Client
+
 
 	UpdateAgentMetrics func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 	StatsBatcher       workspacestats.Batcher
 
+
 	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions
+
 
 	// This janky function is used in telemetry to parse fields out of the raw
 	// JWT. It needs to be passed through like this because license parsing is
@@ -233,8 +252,10 @@ type Options struct {
 	ParseLicenseClaims    func(rawJWT string) (email string, trial bool, err error)
 	AllowWorkspaceRenames bool
 
+
 	// NewTicker is used for unit tests to replace "time.NewTicker".
 	NewTicker func(duration time.Duration) (tick <-chan time.Time, done func())
+
 
 	// DatabaseRolluper rolls up template usage stats from raw agent and app
 	// stats. This is used to provide insights in the WebUI.
@@ -244,11 +265,14 @@ type Options struct {
 	// NotificationsEnqueuer handles enqueueing notifications for delivery by SMTP, webhook, etc.
 	NotificationsEnqueuer notifications.Enqueuer
 
+
 	// IDPSync holds all configured values for syncing external IDP users into Coder.
 	IDPSync idpsync.IDPSync
 
+
 	// OneTimePasscodeValidityPeriod specifies how long a one time passcode should be valid for.
 	OneTimePasscodeValidityPeriod time.Duration
+
 
 	// Keycaches
 	AppSigningKeyCache    cryptokeys.SigningKeycache
@@ -257,23 +281,29 @@ type Options struct {
 	Clock                 quartz.Clock
 }
 
+
 // @title Coder API
 // @version 2.0
 // @description Coderd is the service created by running coder server. It is a thin API that connects workspaces, provisioners and users. coderd stores its state in Postgres and is the only service that communicates with Postgres.
 // @termsOfService https://coder.com/legal/terms-of-service
 
+
 // @contact.name API Support
 // @contact.url https://coder.com
 // @contact.email support@coder.com
 
+
 // @license.name AGPL-3.0
 // @license.url https://github.com/coder/coder/blob/main/LICENSE
 
+
 // @BasePath /api/v2
+
 
 // @securitydefinitions.apiKey Authorization
 // @in header
 // @name Authorizaiton
+
 
 // @securitydefinitions.apiKey CoderSessionToken
 // @in header
@@ -293,10 +323,12 @@ func New(options *Options) *API {
 		}
 	}
 
+
 	// Safety check: if we're not running a unit test, we *must* have a Prometheus registry.
 	if options.PrometheusRegistry == nil && flag.Lookup("test.v") == nil {
 		panic("developer error: options.PrometheusRegistry is nil and not running a unit test")
 	}
+
 
 	if options.DeploymentValues.DisableOwnerWorkspaceExec {
 		rbac.ReloadBuiltinRoles(&rbac.RoleOptions{
@@ -304,15 +336,18 @@ func New(options *Options) *API {
 		})
 	}
 
+
 	if options.Authorizer == nil {
 		options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
 	}
+
 
 	if options.AccessControlStore == nil {
 		options.AccessControlStore = &atomic.Pointer[dbauthz.AccessControlStore]{}
 		var tacs dbauthz.AccessControlStore = dbauthz.AGPLTemplateAccessControlStore{}
 		options.AccessControlStore.Store(&tacs)
 	}
+
 
 	options.Database = dbauthz.New(
 		options.Database,
@@ -321,9 +356,11 @@ func New(options *Options) *API {
 		options.AccessControlStore,
 	)
 
+
 	if options.IDPSync == nil {
 		options.IDPSync = idpsync.NewAGPLSync(options.Logger, options.RuntimeConfig, idpsync.FromDeploymentValues(options.DeploymentValues))
 	}
+
 
 	experiments := ReadExperiments(
 		options.Logger, options.DeploymentValues.Experiments.Value(),
@@ -405,9 +442,11 @@ func New(options *Options) *API {
 		options.OneTimePasscodeValidityPeriod = 20 * time.Minute
 	}
 
+
 	if options.StatsBatcher == nil {
 		panic("developer error: options.StatsBatcher is nil")
 	}
+
 
 	siteCacheDir := options.CacheDir
 	if siteCacheDir != "" {
@@ -417,6 +456,7 @@ func New(options *Options) *API {
 	if err != nil {
 		panic(fmt.Errorf("read site bin failed: %w", err))
 	}
+
 
 	metricsCache := metricscache.New(
 		options.Database,
@@ -429,14 +469,17 @@ func New(options *Options) *API {
 		experiments.Enabled(codersdk.ExperimentWorkspaceUsage),
 	)
 
+
 	oauthConfigs := &httpmw.OAuth2Configs{
 		Github: options.GithubOAuth2Config,
 		OIDC:   options.OIDCConfig,
 	}
 
+
 	if options.DatabaseRolluper == nil {
 		options.DatabaseRolluper = dbrollup.New(options.Logger.Named("dbrollup"), options.Database)
 	}
+
 
 	if options.WorkspaceUsageTracker == nil {
 		options.WorkspaceUsageTracker = workspacestats.NewTracker(options.Database,
@@ -444,12 +487,15 @@ func New(options *Options) *API {
 		)
 	}
 
+
 	if options.NotificationsEnqueuer == nil {
 		options.NotificationsEnqueuer = notifications.NewNoopEnqueuer()
 	}
 
+
 	ctx, cancel := context.WithCancel(context.Background())
 	r := chi.NewRouter()
+
 
 	// nolint:gocritic // Load deployment ID. This never changes
 	depID, err := options.Database.GetDeploymentID(dbauthz.AsSystemRestricted(ctx))
@@ -457,9 +503,11 @@ func New(options *Options) *API {
 		panic(fmt.Errorf("get deployment ID: %w", err))
 	}
 
+
 	fetcher := &cryptokeys.DBFetcher{
 		DB: options.Database,
 	}
+
 
 	if options.OIDCConvertKeyCache == nil {
 		options.OIDCConvertKeyCache, err = cryptokeys.NewSigningCache(ctx,
@@ -472,6 +520,7 @@ func New(options *Options) *API {
 		}
 	}
 
+
 	if options.AppSigningKeyCache == nil {
 		options.AppSigningKeyCache, err = cryptokeys.NewSigningCache(ctx,
 			options.Logger.Named("app_signing_keycache"),
@@ -482,6 +531,7 @@ func New(options *Options) *API {
 			options.Logger.Fatal(ctx, "failed to properly instantiate app signing key cache", slog.Error(err))
 		}
 	}
+
 
 	if options.AppEncryptionKeyCache == nil {
 		options.AppEncryptionKeyCache, err = cryptokeys.NewEncryptionCache(ctx,
@@ -494,10 +544,12 @@ func New(options *Options) *API {
 		}
 	}
 
+
 	if options.CoordinatorResumeTokenProvider == nil {
 		fetcher := &cryptokeys.DBFetcher{
 			DB: options.Database,
 		}
+
 
 		resumeKeycache, err := cryptokeys.NewSigningCache(ctx,
 			options.Logger,
@@ -514,17 +566,21 @@ func New(options *Options) *API {
 		)
 	}
 
+
 	updatesProvider := NewUpdatesProvider(options.Logger.Named("workspace_updates"), options.Pubsub, options.Database, options.Authorizer)
+
 
 	// Start a background process that rotates keys. We intentionally start this after the caches
 	// are created to force initial requests for a key to populate the caches. This helps catch
 	// bugs that may only occur when a key isn't precached in tests and the latency cost is minimal.
 	cryptokeys.StartRotator(ctx, options.Logger, options.Database)
 
+
 	api := &API{
 		ctx:          ctx,
 		cancel:       cancel,
 		DeploymentID: depID,
+
 
 		ID:          uuid.New(),
 		Options:     options,
@@ -561,6 +617,7 @@ func New(options *Options) *API {
 		dbRolluper: options.DatabaseRolluper,
 	}
 
+
 	f := appearance.NewDefaultFetcher(api.DeploymentValues.DocsURL.String())
 	api.AppearanceFetcher.Store(&f)
 	api.PortSharer.Store(&portsharing.DefaultPortSharer)
@@ -590,6 +647,7 @@ func New(options *Options) *API {
 	})
 	api.SiteHandler.Experiments.Store(&experiments)
 
+
 	if options.UpdateCheckOptions != nil {
 		api.updateChecker = updatecheck.New(
 			options.Database,
@@ -598,11 +656,13 @@ func New(options *Options) *API {
 		)
 	}
 
+
 	if options.WorkspaceProxiesFetchUpdater == nil {
 		options.WorkspaceProxiesFetchUpdater = &atomic.Pointer[healthcheck.WorkspaceProxiesFetchUpdater]{}
 		var wpfu healthcheck.WorkspaceProxiesFetchUpdater = &healthcheck.AGPLWorkspaceProxiesFetchUpdater{}
 		options.WorkspaceProxiesFetchUpdater.Store(&wpfu)
 	}
+
 
 	if options.HealthcheckFunc == nil {
 		options.HealthcheckFunc = func(ctx context.Context, apiKey string) *healthsdk.HealthcheckReport {
@@ -637,6 +697,7 @@ func New(options *Options) *API {
 		}
 	}
 
+
 	if options.HealthcheckTimeout == 0 {
 		options.HealthcheckTimeout = 30 * time.Second
 	}
@@ -644,10 +705,12 @@ func New(options *Options) *API {
 		options.HealthcheckRefresh = options.DeploymentValues.Healthcheck.Refresh.Value()
 	}
 
+
 	var oidcAuthURLParams map[string]string
 	if options.OIDCConfig != nil {
 		oidcAuthURLParams = options.OIDCConfig.AuthURLParams
 	}
+
 
 	api.Auditor.Store(&options.Auditor)
 	api.TailnetCoordinator.Store(&options.TailnetCoordinator)
@@ -694,6 +757,7 @@ func New(options *Options) *API {
 		api.Logger.Fatal(context.Background(), "failed to initialize tailnet client service", slog.Error(err))
 	}
 
+
 	api.statsReporter = workspacestats.NewReporter(workspacestats.ReporterOptions{
 		Database:              options.Database,
 		Logger:                options.Logger.Named("workspacestats"),
@@ -713,8 +777,10 @@ func New(options *Options) *API {
 		options.WorkspaceAppsStatsCollectorOptions.Reporter = api.statsReporter
 	}
 
+
 	api.workspaceAppServer = &workspaceapps.Server{
 		Logger: workspaceAppsLogger,
+
 
 		DashboardURL:  api.AccessURL,
 		AccessURL:     api.AccessURL,
@@ -722,14 +788,17 @@ func New(options *Options) *API {
 		HostnameRegex: api.AppHostnameRegex,
 		RealIPConfig:  options.RealIPConfig,
 
+
 		SignedTokenProvider: api.WorkspaceAppsProvider,
 		AgentProvider:       api.agentProvider,
 		StatsCollector:      workspaceapps.NewStatsCollector(options.WorkspaceAppsStatsCollectorOptions),
+
 
 		DisablePathApps:          options.DeploymentValues.DisablePathApps.Value(),
 		SecureAuthCookie:         options.DeploymentValues.SecureAuthCookie.Value(),
 		APIKeyEncryptionKeycache: options.AppEncryptionKeyCache,
 	}
+
 
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 		DB:                            options.Database,
@@ -762,9 +831,11 @@ func New(options *Options) *API {
 		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
 	})
 
+
 	// API rate limit middleware. The counter is local and not shared between
 	// replicas or instances of this middleware.
 	apiRateLimiter := httpmw.RateLimit(options.APIRateLimit, time.Minute)
+
 
 	// Register DERP on expvar HTTP handler, which we serve below in the router, c.f. expvar.Handler()
 	// These are the metrics the DERP server exposes.
@@ -780,6 +851,7 @@ func New(options *Options) *API {
 	})
 	cors := httpmw.Cors(options.DeploymentValues.Dangerous.AllowAllCors.Value())
 	prometheusMW := httpmw.Prometheus(options.PrometheusRegistry)
+
 
 	r.Use(
 		httpmw.Recover(api.Logger),
@@ -818,11 +890,14 @@ func New(options *Options) *API {
 		httpmw.CSRF(options.SecureAuthCookie),
 	)
 
+
 	// This incurs a performance hit from the middleware, but is required to make sure
 	// we do not override subdomain app routes.
 	r.Get("/latency-check", tracing.StatusWriterMiddleware(prometheusMW(LatencyCheck())).ServeHTTP)
 
+
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("OK")) })
+
 
 	// Attach workspace apps routes.
 	r.Group(func(r chi.Router) {
@@ -830,9 +905,11 @@ func New(options *Options) *API {
 		api.workspaceAppServer.Attach(r)
 	})
 
+
 	if options.DERPServer != nil {
 		derpHandler := derphttp.Handler(api.DERPServer)
 		derpHandler, api.derpCloseFunc = tailnet.WithWebsocketSupport(api.DERPServer, derpHandler)
+
 
 		r.Route("/derp", func(r chi.Router) {
 			r.Get("/", derpHandler.ServeHTTP)
@@ -842,6 +919,7 @@ func New(options *Options) *API {
 			})
 		})
 	}
+
 
 	// Register callback handlers for each OAuth2 provider.
 	// We must support gitauth and externalauth for backwards compatibility.
@@ -862,6 +940,7 @@ func New(options *Options) *API {
 			}
 		})
 	}
+
 
 	// OAuth2 linking routes do not make sense under the /api/v2 path.  These are
 	// for an external application to use Coder as an OAuth2 provider, not for
@@ -891,8 +970,10 @@ func New(options *Options) *API {
 		})
 	})
 
+
 	r.Route("/api/v2", func(r chi.Router) {
 		api.APIHandler = r
+
 
 		r.NotFound(func(rw http.ResponseWriter, r *http.Request) { httpapi.RouteNotFound(rw) })
 		r.Use(
@@ -904,6 +985,7 @@ func New(options *Options) *API {
 		r.Get("/", apiRoot)
 		// All CSP errors will be logged
 		r.Post("/csp/reports", api.logReportCSPViolations)
+
 
 		r.Get("/buildinfo", buildInfoHandler(buildInfo))
 		// /regions is overridden in the enterprise version
@@ -941,15 +1023,18 @@ func New(options *Options) *API {
 							return
 						}
 
+
 						if api.Authorize(r, policy.ActionRead, rbac.ResourceAuditLog.AnyOrganization()) {
 							next.ServeHTTP(rw, r)
 							return
 						}
 
+
 						httpapi.Forbidden(rw)
 					})
 				},
 			)
+
 
 			r.Get("/", api.auditLogs)
 			r.Post("/testgenerate", api.generateFakeAuditLog)
@@ -1008,6 +1093,7 @@ func New(options *Options) *API {
 						r.Get("/", api.assignableOrgRoles)
 					})
 
+
 					r.Route("/{user}", func(r chi.Router) {
 						r.Group(func(r chi.Router) {
 							r.Use(
@@ -1019,6 +1105,7 @@ func New(options *Options) *API {
 							)
 							r.Post("/", api.postOrganizationMember)
 						})
+
 
 						r.Group(func(r chi.Router) {
 							r.Use(
@@ -1095,6 +1182,7 @@ func New(options *Options) *API {
 			r.Post("/first", api.postFirstUser)
 			r.Get("/authmethods", api.userAuthMethods)
 
+
 			r.Group(func(r chi.Router) {
 				// We use a tight limit for password login to protect against
 				// audit-log write DoS, pbkdf2 DoS, and simple brute-force
@@ -1155,6 +1243,7 @@ func New(options *Options) *API {
 					r.Put("/roles", api.putUserRoles)
 					r.Get("/roles", api.userRoles)
 
+
 					r.Route("/keys", func(r chi.Router) {
 						r.Post("/", api.postAPIKey)
 						r.Route("/tokens", func(r chi.Router) {
@@ -1170,6 +1259,7 @@ func New(options *Options) *API {
 							r.Delete("/", api.deleteAPIKey)
 						})
 					})
+
 
 					r.Route("/organizations", func(r chi.Router) {
 						r.Get("/", api.organizationsByUser)
@@ -1226,6 +1316,7 @@ func New(options *Options) *API {
 					}),
 					httpmw.RequireAPIKeyOrWorkspaceProxyAuth(),
 
+
 					httpmw.ExtractWorkspaceAgentParam(options.Database),
 					httpmw.ExtractWorkspaceParam(options.Database),
 				)
@@ -1237,6 +1328,7 @@ func New(options *Options) *API {
 				r.Get("/connection", api.workspaceAgentConnection)
 				r.Get("/containers", api.workspaceAgentListContainers)
 				r.Get("/coordinate", api.workspaceAgentClientCoordinate)
+
 
 				// PTY is part of workspaceAppServer.
 			})
@@ -1306,6 +1398,7 @@ func New(options *Options) *API {
 				// We want to redirect to login if they are not authenticated.
 				r.Use(apiKeyMiddlewareRedirect)
 
+
 				// This is a GET request as it's redirected to by the subdomain app
 				// handler and the login page.
 				r.Get("/", api.workspaceApplicationAuth)
@@ -1330,10 +1423,12 @@ func New(options *Options) *API {
 							return
 						}
 
+
 						next.ServeHTTP(rw, r)
 					})
 				},
 			)
+
 
 			r.Get("/coordinator", api.debugCoordinator)
 			r.Get("/tailnet", api.debugTailnet)
@@ -1366,15 +1461,18 @@ func New(options *Options) *API {
 				r.Get("/", api.oAuth2ProviderApps)
 				r.Post("/", api.postOAuth2ProviderApp)
 
+
 				r.Route("/{app}", func(r chi.Router) {
 					r.Use(httpmw.ExtractOAuth2ProviderApp(options.Database))
 					r.Get("/", api.oAuth2ProviderApp)
 					r.Put("/", api.putOAuth2ProviderApp)
 					r.Delete("/", api.deleteOAuth2ProviderApp)
 
+
 					r.Route("/secrets", func(r chi.Router) {
 						r.Get("/", api.oAuth2ProviderAppSecrets)
 						r.Post("/", api.postOAuth2ProviderAppSecret)
+
 
 						r.Route("/{secretID}", func(r chi.Router) {
 							r.Use(httpmw.ExtractOAuth2ProviderAppSecret(options.Database))
@@ -1400,6 +1498,7 @@ func New(options *Options) *API {
 		})
 	})
 
+
 	if options.SwaggerEndpoint {
 		// Swagger UI requires the URL trailing slash. Otherwise, the browser tries to load /assets
 		// from http://localhost:8080/assets instead of http://localhost:8080/swagger/assets.
@@ -1417,6 +1516,7 @@ func New(options *Options) *API {
 		r.Get("/swagger/*", swaggerDisabled)
 	}
 
+
 	additionalCSPHeaders := make(map[httpmw.CSPFetchDirective][]string, len(api.DeploymentValues.AdditionalCSPPolicy))
 	var cspParseErrors error
 	for _, v := range api.DeploymentValues.AdditionalCSPPolicy {
@@ -1430,12 +1530,14 @@ func New(options *Options) *API {
 		additionalCSPHeaders[httpmw.CSPFetchDirective(strings.ToLower(parts[0]))] = parts[1:]
 	}
 
+
 	if cspParseErrors != nil {
 		// Do not fail Coder deployment startup because of this. Just log an error
 		// and continue
 		api.Logger.Error(context.Background(),
 			"parsing additional CSP headers", slog.Error(cspParseErrors))
 	}
+
 
 	// Add CSP headers to all static assets and pages. CSP headers only affect
 	// browsers, so these don't make sense on api routes.
@@ -1451,15 +1553,19 @@ func New(options *Options) *API {
 		return []string{}
 	}, additionalCSPHeaders)
 
+
 	// Static file handler must be wrapped with HSTS handler if the
 	// StrictTransportSecurityAge is set. We only need to set this header on
 	// static files since it only affects browsers.
 	r.NotFound(cspMW(compressHandler(httpmw.HSTS(api.SiteHandler, options.StrictTransportSecurityCfg))).ServeHTTP)
 
+
 	api.RootHandler = r
+
 
 	return api
 }
+
 
 type API struct {
 	// ctx is canceled immediately on shutdown, it can be used to abort
@@ -1467,8 +1573,10 @@ type API struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
+
 	// DeploymentID is loaded from the database on startup.
 	DeploymentID string
+
 
 	*Options
 	// ID is a uniquely generated ID on initialization.
@@ -1499,21 +1607,27 @@ type API struct {
 	AccessControlStore *atomic.Pointer[dbauthz.AccessControlStore]
 	PortSharer         atomic.Pointer[portsharing.PortSharer]
 
+
 	UpdatesProvider tailnet.WorkspaceUpdatesProvider
 
+
 	HTTPAuth *HTTPAuthorizer
+
 
 	// APIHandler serves "/api/v2"
 	APIHandler chi.Router
 	// RootHandler serves "/"
 	RootHandler chi.Router
 
+
 	// SiteHandler serves static files for the dashboard.
 	SiteHandler *site.Handler
+
 
 	WebsocketWaitMutex sync.Mutex
 	WebsocketWaitGroup sync.WaitGroup
 	derpCloseFunc      func()
+
 
 	metricsCache          *metricscache.Cache
 	updateChecker         *updatecheck.Checker
@@ -1521,20 +1635,25 @@ type API struct {
 	workspaceAppServer    *workspaceapps.Server
 	agentProvider         workspaceapps.AgentProvider
 
+
 	// Experiments contains the list of experiments currently enabled.
 	// This is used to gate features that are not yet ready for production.
 	Experiments codersdk.Experiments
 
+
 	healthCheckGroup *singleflight.Group[string, *healthsdk.HealthcheckReport]
 	healthCheckCache atomic.Pointer[healthsdk.HealthcheckReport]
 
+
 	statsReporter *workspacestats.Reporter
+
 
 	Acquirer *provisionerdserver.Acquirer
 	// dbRolluper rolls up template usage stats from raw agent and app
 	// stats. This is used to provide insights in the WebUI.
 	dbRolluper *dbrollup.Rolluper
 }
+
 
 // Close waits for all WebSocket connections to drain before returning.
 func (api *API) Close() error {
@@ -1544,6 +1663,7 @@ func (api *API) Close() error {
 	default:
 		api.cancel()
 	}
+
 
 	wsDone := make(chan struct{})
 	timer := time.NewTimer(10 * time.Second)
@@ -1562,6 +1682,7 @@ func (api *API) Close() error {
 	case <-timer.C:
 		api.Logger.Warn(api.ctx, "websocket shutdown timed out after 10 seconds")
 	}
+
 
 	api.dbRolluper.Close()
 	api.metricsCache.Close()
@@ -1588,11 +1709,13 @@ func (api *API) Close() error {
 	return nil
 }
 
+
 func compressHandler(h http.Handler) http.Handler {
 	level := 5
 	if flag.Lookup("test.v") != nil {
 		level = 1
 	}
+
 
 	cmp := middleware.NewCompressor(level,
 		"text/*",
@@ -1610,14 +1733,17 @@ func compressHandler(h http.Handler) http.Handler {
 		return zw
 	})
 
+
 	return cmp.Handler(h)
 }
+
 
 // CreateInMemoryProvisionerDaemon is an in-memory connection to a provisionerd.
 // Useful when starting coderd and provisionerd in the same process.
 func (api *API) CreateInMemoryProvisionerDaemon(dialCtx context.Context, name string, provisionerTypes []codersdk.ProvisionerType) (client proto.DRPCProvisionerDaemonClient, err error) {
 	return api.CreateInMemoryTaggedProvisionerDaemon(dialCtx, name, provisionerTypes, nil)
 }
+
 
 func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, name string, provisionerTypes []codersdk.ProvisionerType, provisionerTags map[string]string) (client proto.DRPCProvisionerDaemonClient, err error) {
 	tracer := api.TracerProvider.Tracer(tracing.TracerName)
@@ -1629,6 +1755,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 		}
 	}()
 
+
 	// All in memory provisioners will be part of the default org for now.
 	//nolint:gocritic // in-memory provisioners are owned by system
 	defaultOrg, err := api.Database.GetDefaultOrganization(dbauthz.AsSystemRestricted(dialCtx))
@@ -1636,15 +1763,18 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 		return nil, fmt.Errorf("unable to fetch default org for in memory provisioner: %w", err)
 	}
 
+
 	dbTypes := make([]database.ProvisionerType, 0, len(provisionerTypes))
 	for _, tp := range provisionerTypes {
 		dbTypes = append(dbTypes, database.ProvisionerType(tp))
 	}
 
+
 	keyID, err := uuid.Parse(string(codersdk.ProvisionerKeyIDBuiltIn))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse built-in provisioner key ID: %w", err)
 	}
+
 
 	//nolint:gocritic // in-memory provisioners are owned by system
 	daemon, err := api.Database.UpsertProvisionerDaemon(dbauthz.AsSystemRestricted(dialCtx), database.UpsertProvisionerDaemonParams{
@@ -1661,6 +1791,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 	if err != nil {
 		return nil, fmt.Errorf("failed to create in-memory provisioner daemon: %w", err)
 	}
+
 
 	mux := drpcmux.New()
 	api.Logger.Debug(dialCtx, "starting in-memory provisioner daemon", slog.F("name", name))
@@ -1727,8 +1858,10 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 		_ = serverSession.Close()
 	}()
 
+
 	return proto.NewDRPCProvisionerDaemonClient(clientSession), nil
 }
+
 
 func (api *API) DERPMap() *tailcfg.DERPMap {
 	fn := api.DERPMapper.Load()
@@ -1736,8 +1869,10 @@ func (api *API) DERPMap() *tailcfg.DERPMap {
 		return (*fn)(api.Options.BaseDERPMap)
 	}
 
+
 	return api.Options.BaseDERPMap
 }
+
 
 // nolint:revive
 func ReadExperiments(log slog.Logger, raw []string) codersdk.Experiments {
@@ -1757,7 +1892,9 @@ func ReadExperiments(log slog.Logger, raw []string) codersdk.Experiments {
 	return exps
 }
 
+
 var multipleSlashesRe = regexp.MustCompile(`/+`)
+
 
 func singleSlashMW(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
@@ -1769,8 +1906,10 @@ func singleSlashMW(next http.Handler) http.Handler {
 			path = r.URL.Path
 		}
 
+
 		// Normalize multiple slashes to a single slash
 		newPath := multipleSlashesRe.ReplaceAllString(path, "/")
+
 
 		// Apply the cleaned path
 		// The approach is consistent with: https://github.com/go-chi/chi/blob/e846b8304c769c4f1a51c9de06bebfaa4576bd88/middleware/strip.go#L24-L28
@@ -1779,6 +1918,7 @@ func singleSlashMW(next http.Handler) http.Handler {
 		} else {
 			r.URL.Path = newPath
 		}
+
 
 		next.ServeHTTP(w, r)
 	}

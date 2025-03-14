@@ -1,4 +1,5 @@
 package cli
+
 import (
 	"errors"
 	"context"
@@ -13,12 +14,15 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
 	"cloud.google.com/go/compute/metadata"
 	"gopkg.in/natefinch/lumberjack.v2"
 	"github.com/prometheus/client_golang/prometheus"
 	"cdr.dev/slog"
+
 	"cdr.dev/slog/sloggers/sloghuman"
 	"cdr.dev/slog/sloggers/slogjson"
+
 	"cdr.dev/slog/sloggers/slogstackdriver"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agentcontainers"
@@ -35,6 +39,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 	var (
 		auth                string
 		logDir              string
+
 		scriptDataDir       string
 		pprofAddress        string
 		noReap              bool
@@ -53,6 +58,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "agent",
 		Short: `Starts the Coder workspace agent.`,
+
 		// This command isn't useful to manually execute.
 		Hidden: true,
 		Handler: func(inv *serpent.Invocation) error {
@@ -64,10 +70,12 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 				sinks      = []slog.Sink{}
 				logClosers = []func() error{}
 			)
+
 			defer func() {
 				for _, closer := range logClosers {
 					_ = closer()
 				}
+
 			}()
 			addSinkIfProvided := func(sinkFn func(io.Writer) slog.Sink, loc string) error {
 				switch loc {
@@ -77,17 +85,21 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 					sinks = append(sinks, sinkFn(inv.Stderr))
 				case "/dev/stdout":
 					sinks = append(sinks, sinkFn(inv.Stdout))
+
 				default:
 					fi, err := os.OpenFile(loc, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o644)
 					if err != nil {
 						return fmt.Errorf("open log file %q: %w", loc, err)
 					}
+
 					sinks = append(sinks, sinkFn(fi))
 					logClosers = append(logClosers, fi.Close)
 				}
+
 				return nil
 			}
 			if err := addSinkIfProvided(sloghuman.Sink, slogHumanPath); err != nil {
+
 				return fmt.Errorf("add human sink: %w", err)
 			}
 			if err := addSinkIfProvided(slogjson.Sink, slogJSONPath); err != nil {
@@ -99,6 +111,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			// Spawn a reaper so that we don't accumulate a ton
 			// of zombie processes.
 			if reaper.IsInitProcess() && !noReap && isLinux {
+
 				logWriter := &clilog.LumberjackWriteCloseFixer{Writer: &lumberjack.Logger{
 					Filename: filepath.Join(logDir, "coder-agent-init.log"),
 					MaxSize:  5, // MB
@@ -109,6 +122,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 				sinks = append(sinks, sloghuman.Sink(logWriter))
 				logger := inv.Logger.AppendSinks(sinks...).Leveled(slog.LevelDebug)
 				logger.Info(ctx, "spawning reaper process")
+
 				// Do not start a reaper on the child process. It's important
 				// to do this else we fork bomb ourselves.
 				args := append(os.Args, "--no-reap")
@@ -120,9 +134,11 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 					logger.Error(ctx, "agent process reaper unable to fork", slog.Error(err))
 					return fmt.Errorf("fork reap: %w", err)
 				}
+
 				logger.Info(ctx, "reaper process exiting")
 				return nil
 			}
+
 			// Handle interrupt signals to allow for graceful shutdown,
 			// note that calling stopNotify disables the signal handler
 			// and the next interrupt will terminate the program (you
@@ -136,10 +152,12 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			// DumpHandler does signal handling, so we call it after the
 			// reaper.
 			go DumpHandler(ctx, "agent")
+
 			logWriter := &clilog.LumberjackWriteCloseFixer{Writer: &lumberjack.Logger{
 				Filename: filepath.Join(logDir, "coder-agent.log"),
 				MaxSize:  5, // MB
 				// Per customer incident on November 17th, 2023, its helpful
+
 				// to have the log of the last few restarts to debug a failing agent.
 				MaxBackups: 10,
 			}}
@@ -151,10 +169,12 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 				slog.F("url", r.agentURL),
 				slog.F("auth", auth),
 				slog.F("version", version),
+
 			)
 			client := agentsdk.New(r.agentURL)
 			client.SDK.SetLogger(logger)
 			// Set a reasonable timeout so requests can't hang forever!
+
 			// The timeout needs to be reasonably long, because requests
 			// with large payloads can take a bit. e.g. startup scripts
 			// may take a while to insert.
@@ -164,9 +184,11 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			headerTransport, err := headerTransport(ctx, r.agentURL, agentHeader, agentHeaderCommand)
 			if err != nil {
 				return fmt.Errorf("configure header transport: %w", err)
+
 			}
 			headerTransport.Transport = client.SDK.HTTPClient.Transport
 			client.SDK.HTTPClient.Transport = headerTransport
+
 			// Enable pprof handler
 			// This prevents the pprof import from being accidentally deleted.
 			_ = pprof.Handler
@@ -174,6 +196,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			defer pprofSrvClose()
 			if port, err := extractPort(pprofAddress); err == nil {
 				ignorePorts[port] = "pprof"
+
 			}
 			if port, err := extractPort(prometheusAddress); err == nil {
 				ignorePorts[port] = "prometheus"
@@ -190,6 +213,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 				token, _ := inv.ParsedFlags().GetString(varAgentToken)
 				if token == "" {
 					tokenFile, _ := inv.ParsedFlags().GetString(varAgentTokenFile)
+
 					if tokenFile != "" {
 						tokenBytes, err := os.ReadFile(tokenFile)
 						if err != nil {
@@ -199,14 +223,17 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 					}
 				}
 				if token == "" {
+
 					return fmt.Errorf("CODER_AGENT_TOKEN or CODER_AGENT_TOKEN_FILE must be set for token auth")
 				}
 				client.SetSessionToken(token)
 			case "google-instance-identity":
+
 				// This is *only* done for testing to mock client authentication.
 				// This will never be set in a production scenario.
 				var gcpClient *metadata.Client
 				gcpClientRaw := ctx.Value("gcp-client")
+
 				if gcpClientRaw != nil {
 					gcpClient, _ = gcpClientRaw.(*metadata.Client)
 				}
@@ -269,6 +296,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			enabled := os.Getenv(agentexec.EnvProcPrioMgmt)
 			if enabled != "" && runtime.GOOS == "linux" {
 				logger.Info(ctx, "process priority management enabled",
+
 					slog.F("env_var", agentexec.EnvProcPrioMgmt),
 					slog.F("enabled", enabled),
 					slog.F("os", runtime.GOOS),
@@ -278,6 +306,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 					slog.F("env_var", agentexec.EnvProcPrioMgmt),
 					slog.F("enabled", enabled),
 					slog.F("os", runtime.GOOS),
+
 				)
 			}
 			execer, err := agentexec.NewExecer()
@@ -292,10 +321,12 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 				logger.Info(ctx, "agent devcontainer detection enabled")
 				containerLister = agentcontainers.NewDocker(execer)
 			}
+
 			agnt := agent.New(agent.Options{
 				Client:            client,
 				Logger:            logger,
 				LogDir:            logDir,
+
 				ScriptDataDir:     scriptDataDir,
 				TailnetListenPort: uint16(tailnetListenPort),
 				ExchangeToken: func(ctx context.Context) (string, error) {
@@ -311,11 +342,13 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 				},
 				EnvironmentVariables: environmentVariables,
 				IgnorePorts:          ignorePorts,
+
 				SSHMaxTimeout:        sshMaxTimeout,
 				Subsystems:           subsystems,
 				PrometheusRegistry: prometheusRegistry,
 				BlockFileTransfer:  blockFileTransfer,
 				Execer:             execer,
+
 				ContainerLister:    containerLister,
 				ExperimentalDevcontainersEnabled: experimentalDevcontainersEnabled,
 			})
@@ -325,6 +358,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			debugSrvClose := ServeHandler(ctx, logger, agnt.HTTPDebug(), debugAddress, "debug")
 			defer debugSrvClose()
 			<-ctx.Done()
+
 			return agnt.Close()
 		},
 	}
@@ -347,26 +381,32 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			Flag:        "script-data-dir",
 			Default:     os.TempDir(),
 			Description: "Specify the location for storing script data.",
+
 			Env:         "CODER_AGENT_SCRIPT_DATA_DIR",
 			Value:       serpent.StringOf(&scriptDataDir),
 		},
 		{
 			Flag:        "pprof-address",
+
 			Default:     "127.0.0.1:6060",
 			Env:         "CODER_AGENT_PPROF_ADDRESS",
 			Value:       serpent.StringOf(&pprofAddress),
+
 			Description: "The address to serve pprof.",
 		},
 		{
 			Flag:        "agent-header-command",
+
 			Env:         "CODER_AGENT_HEADER_COMMAND",
 			Value:       serpent.StringOf(&agentHeaderCommand),
 			Description: "An external command that outputs additional HTTP headers added to all requests. The command must output each header as `key=value` on its own line.",
+
 		},
 		{
 			Flag:        "agent-header",
 			Env:         "CODER_AGENT_HEADER",
 			Value:       serpent.StringArrayOf(&agentHeader),
+
 			Description: "Additional HTTP headers added to all requests. Provide as " + `key=value` + ". Can be specified multiple times.",
 		},
 		{
@@ -411,6 +451,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			Env:         "CODER_AGENT_LOGGING_HUMAN",
 			Default:     "/dev/stderr",
 			Value:       serpent.StringOf(&slogHumanPath),
+
 		},
 		{
 			Name:        "JSON Log Location",
@@ -484,12 +525,15 @@ func extractPort(u string) (int, error) {
 func urlPort(u string) (int, error) {
 	parsed, err := url.Parse(u)
 	if err != nil {
+
 		return -1, fmt.Errorf("invalid url %q: %w", u, err)
 	}
 	if parsed.Port() != "" {
+
 		port, err := strconv.ParseUint(parsed.Port(), 10, 16)
 		if err == nil && port > 0 && port < 1<<16 {
 			return int(port), nil
+
 		}
 	}
 	return -1, fmt.Errorf("invalid port: %s", u)

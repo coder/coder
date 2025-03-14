@@ -1,17 +1,21 @@
 package cliui
+
 import (
 	"errors"
 	"fmt"
 	"reflect"
 	"strings"
 	"time"
+
 	"github.com/fatih/structtag"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/coder/coder/v2/codersdk"
 )
+
 // Table creates a new table with standardized styles.
 func Table() table.Writer {
 	tableWriter := table.NewWriter()
+
 	tableWriter.Style().Box.PaddingLeft = ""
 	tableWriter.Style().Box.PaddingRight = "  "
 	tableWriter.Style().Options.DrawBorder = false
@@ -23,6 +27,7 @@ func Table() table.Writer {
 // or to a `TableFormat` `Format` call to render a separator.
 // Leading separators are not supported and trailing separators
 // are ignored by the table formatter.
+
 // e.g. `[]any{someRow, TableSeparator, someRow}`
 type TableSeparator struct{}
 // filterHeaders filters the headers to only include the columns
@@ -30,6 +35,7 @@ type TableSeparator struct{}
 // headers are included.
 func filterHeaders(header table.Row, columns []string) table.Row {
 	if len(columns) == 0 {
+
 		return header
 	}
 	filteredHeaders := make(table.Row, len(columns))
@@ -38,10 +44,12 @@ func filterHeaders(header table.Row, columns []string) table.Row {
 		for _, headerTextRaw := range header {
 			headerText, _ := headerTextRaw.(string)
 			if strings.EqualFold(column, headerText) {
+
 				filteredHeaders[i] = headerText
 				break
 			}
 		}
+
 	}
 	return filteredHeaders
 }
@@ -53,6 +61,7 @@ func createColumnConfigs(header table.Row, columns []string) []table.ColumnConfi
 		return nil
 	}
 	columnConfigs := make([]table.ColumnConfig, 0)
+
 	for _, headerTextRaw := range header {
 		headerText, _ := headerTextRaw.(string)
 		hidden := true
@@ -78,6 +87,7 @@ func createColumnConfigs(header table.Row, columns []string) []table.ColumnConfi
 // containing the name of the column in the outputted table.
 //
 // If `sort` is not specified, the field with the `table:"$NAME,default_sort"`
+
 // tag will be used to sort. An error will be returned if no field has this tag.
 //
 // Nested structs are processed if the field has the `table:"$NAME,recursive"`
@@ -100,6 +110,7 @@ func DisplayTable(out any, sort string, filterColumns []string) (string, error) 
 		}
 		tableType = reflect.Indirect(reflect.ValueOf(v.Index(0).Interface())).Type()
 	} else {
+
 		tableType = v.Type().Elem()
 	}
 	// Get the list of table column headers.
@@ -113,6 +124,7 @@ func DisplayTable(out any, sort string, filterColumns []string) (string, error) 
 	if sort == "" {
 		sort = defaultSort
 	}
+
 	headers := make(table.Row, len(headersRaw))
 	for i, header := range headersRaw {
 		headers[i] = strings.ReplaceAll(header, "_", " ")
@@ -135,6 +147,7 @@ func DisplayTable(out any, sort string, filterColumns []string) (string, error) 
 		for i, column := range filterColumns {
 			column := strings.ToLower(strings.ReplaceAll(column, "_", " "))
 			h, ok := headersMap[column]
+
 			if !ok {
 				return "", fmt.Errorf(`specified filter column %q not found in table headers, available columns are "%v"`, column, strings.Join(headersRaw, `", "`))
 			}
@@ -142,10 +155,12 @@ func DisplayTable(out any, sort string, filterColumns []string) (string, error) 
 			filterColumns[i] = h
 		}
 	}
+
 	// Verify that the given sort column is valid.
 	if sort != "" {
 		sort = strings.ReplaceAll(sort, "_", " ")
 		found := false
+
 		for _, header := range headersRaw {
 			if strings.EqualFold(sort, header) {
 				found = true
@@ -153,11 +168,13 @@ func DisplayTable(out any, sort string, filterColumns []string) (string, error) 
 				break
 			}
 		}
+
 		if !found {
 			return "", fmt.Errorf("specified sort column %q not found in table headers, available columns are %q", sort, strings.Join(headersRaw, `", "`))
 		}
 	}
 	return renderTable(out, sort, headers, filterColumns)
+
 }
 func renderTable(out any, sort string, headers table.Row, filterColumns []string) (string, error) {
 	v := reflect.Indirect(reflect.ValueOf(out))
@@ -176,12 +193,15 @@ func renderTable(out any, sort string, headers table.Row, filterColumns []string
 	for i := 0; i < v.Len(); i++ {
 		cur := v.Index(i).Interface()
 		_, ok := cur.(TableSeparator)
+
 		if ok {
 			tw.AppendSeparator()
 			continue
+
 		}
 		// Format the row as a slice.
 		// ValueToTableMap does what `reflect.Indirect` does
+
 		rowMap, err := valueToTableMap(reflect.ValueOf(cur))
 		if err != nil {
 			return "", fmt.Errorf("get table row map %v: %w", i, err)
@@ -192,6 +212,7 @@ func renderTable(out any, sort string, headers table.Row, filterColumns []string
 			if !ok {
 				v = nil
 			}
+
 			// Special type formatting.
 			switch val := v.(type) {
 			case time.Time:
@@ -207,6 +228,7 @@ func renderTable(out any, sort string, headers table.Row, filterColumns []string
 					v = nil
 				}
 			case *string:
+
 				if val != nil {
 					v = *val
 				}
@@ -214,6 +236,7 @@ func renderTable(out any, sort string, headers table.Row, filterColumns []string
 				if val != nil {
 					v = *val
 				}
+
 			case *time.Duration:
 				if val != nil {
 					v = val.String()
@@ -251,6 +274,7 @@ func renderTable(out any, sort string, headers table.Row, filterColumns []string
 			// the string value, not the pointer.
 			if v != nil {
 				vv := reflect.ValueOf(v)
+
 				for vv.Kind() == reflect.Ptr && !vv.IsNil() {
 					vv = vv.Elem()
 				}
@@ -269,6 +293,7 @@ func renderTable(out any, sort string, headers table.Row, filterColumns []string
 // The returned name is transformed from "snake_case" to "normal text".
 func parseTableStructTag(field reflect.StructField) (name string, defaultSort, noSortOpt, recursive, skipParentName bool, err error) {
 	tags, err := structtag.Parse(string(field.Tag))
+
 	if err != nil {
 		return "", false, false, false, false, fmt.Errorf("parse struct field tag %q: %w", string(field.Tag), err)
 	}
@@ -281,15 +306,19 @@ func parseTableStructTag(field reflect.StructField) (name string, defaultSort, n
 	noSortOpt = false
 	recursiveOpt := false
 	skipParentNameOpt := false
+
 	for _, opt := range tag.Options {
 		switch opt {
 		case "default_sort":
+
 			defaultSortOpt = true
 		case "nosort":
 			noSortOpt = true
+
 		case "recursive":
 			recursiveOpt = true
 		case "recursive_inline":
+
 			// recursive_inline is a helper to make recursive tables look nicer.
 			// It skips prefixing the parent name to the child name. If you do this,
 			// make sure the child name is unique across all nested structs in the parent.
@@ -301,12 +330,14 @@ func parseTableStructTag(field reflect.StructField) (name string, defaultSort, n
 	}
 	return strings.ReplaceAll(tag.Name, "_", " "), defaultSortOpt, noSortOpt, recursiveOpt, skipParentNameOpt, nil
 }
+
 func isStructOrStructPointer(t reflect.Type) bool {
 	return t.Kind() == reflect.Struct || (t.Kind() == reflect.Pointer && t.Elem().Kind() == reflect.Struct)
 }
 // typeToTableHeaders converts a type to a slice of column names. If the given
 // type is invalid (not a struct or a pointer to a struct, has invalid table
 // tags, etc.), an error is returned.
+
 //
 // requireDefault is only needed for the root call. This is recursive, so nested
 // structs do not need the default sort name.
@@ -330,13 +361,16 @@ func typeToTableHeaders(t reflect.Type, requireDefault bool) ([]string, string, 
 		if requireDefault && noSort {
 			noSortOpt = true
 		}
+
 		if name == "" && (recursive && skip) {
 			return nil, "", fmt.Errorf("a name is required for the field %q. "+
 				"recursive_line will ensure this is never shown to the user, but is still needed", field.Name)
+
 		}
 		// If recurse and skip is set, the name is intentionally empty.
 		if name == "" {
 			continue
+
 		}
 		if defaultSort {
 			if defaultSortName != "" {
@@ -352,6 +386,7 @@ func typeToTableHeaders(t reflect.Type, requireDefault bool) ([]string, string, 
 			childNames, defaultSort, err := typeToTableHeaders(fieldType, false)
 			if err != nil {
 				return nil, "", fmt.Errorf("get child field header names for field %q in type %q: %w", field.Name, fieldType.String(), err)
+
 			}
 			for _, childName := range childNames {
 				fullName := fmt.Sprintf("%s %s", name, childName)
@@ -365,6 +400,7 @@ func typeToTableHeaders(t reflect.Type, requireDefault bool) ([]string, string, 
 			}
 			continue
 		}
+
 		headers = append(headers, name)
 	}
 	if defaultSortName == "" && requireDefault && !noSortOpt {
@@ -380,12 +416,14 @@ func valueToTableMap(val reflect.Value) (map[string]any, error) {
 		return nil, fmt.Errorf("valueToTableMap called with a non-struct or a non-pointer-to-a-struct type")
 	}
 	if val.Kind() == reflect.Pointer {
+
 		if val.IsNil() {
 			// No data for this struct, so return an empty map. All values will
 			// be rendered as nil in the resulting table.
 			return map[string]any{}, nil
 		}
 		val = val.Elem()
+
 	}
 	row := map[string]any{}
 	for i := 0; i < val.NumField(); i++ {
@@ -403,16 +441,20 @@ func valueToTableMap(val reflect.Value) (map[string]any, error) {
 		if recursive {
 			if !isStructOrStructPointer(fieldType) {
 				return nil, fmt.Errorf("field %q in type %q is marked as recursive but does not contain a struct or a pointer to a struct", field.Name, fieldType.String())
+
 			}
 			// valueToTableMap does nothing on pointers so we don't need to
 			// filter here.
+
 			childMap, err := valueToTableMap(fieldVal)
 			if err != nil {
 				return nil, fmt.Errorf("get child field values for field %q in type %q: %w", field.Name, fieldType.String(), err)
 			}
+
 			for childName, childValue := range childMap {
 				fullName := fmt.Sprintf("%s %s", name, childName)
 				if skip {
+
 					fullName = childName
 				}
 				row[fullName] = childValue

@@ -1,4 +1,5 @@
 package cliui
+
 import (
 	"errors"
 	"context"
@@ -7,18 +8,22 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
 	"github.com/google/uuid"
 	"tailscale.com/tailcfg"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
+
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/tailnet"
 )
 var errAgentShuttingDown = errors.New("agent is shutting down")
 type AgentOptions struct {
 	FetchInterval time.Duration
+
 	Fetch         func(ctx context.Context, agentID uuid.UUID) (codersdk.WorkspaceAgent, error)
 	FetchLogs     func(ctx context.Context, agentID uuid.UUID, after int64, follow bool) (<-chan []codersdk.WorkspaceAgentLog, io.Closer, error)
+
 	Wait          bool // If true, wait for the agent to be ready (startup script).
 	DocsURL       string
 }
@@ -27,11 +32,13 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	if opts.FetchInterval == 0 {
+
 		opts.FetchInterval = 500 * time.Millisecond
 	}
 	if opts.FetchLogs == nil {
 		opts.FetchLogs = func(_ context.Context, _ uuid.UUID, _ int64, _ bool) (<-chan []codersdk.WorkspaceAgentLog, io.Closer, error) {
 			c := make(chan []codersdk.WorkspaceAgentLog)
+
 			close(c)
 			return c, closeFunc(func() error { return nil }), nil
 		}
@@ -43,6 +50,7 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 	fetchedAgent := make(chan fetchAgent, 1)
 	go func() {
 		t := time.NewTimer(0)
+
 		defer t.Stop()
 		for {
 			select {
@@ -52,6 +60,7 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 				agent, err := opts.Fetch(ctx, agentID)
 				select {
 				case <-fetchedAgent:
+
 				default:
 				}
 				if err != nil {
@@ -83,6 +92,7 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 		logSources[source.ID] = source
 	}
 	sw := &stageWriter{w: writer}
+
 	showStartupLogs := false
 	for {
 		// It doesn't matter if we're connected or not, if the agent is
@@ -92,8 +102,10 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 		}
 		switch agent.Status {
 		case codersdk.WorkspaceAgentConnecting, codersdk.WorkspaceAgentTimeout:
+
 			// Since we were waiting for the agent to connect, also show
 			// startup logs if applicable.
+
 			showStartupLogs = true
 			stage := "Waiting for the workspace agent to connect"
 			sw.Start(stage)
@@ -102,12 +114,14 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 					return fmt.Errorf("fetch: %w", err)
 				}
 			}
+
 			if agent.Status == codersdk.WorkspaceAgentTimeout {
 				now := time.Now()
 				sw.Log(now, codersdk.LogLevelInfo, "The workspace agent is having trouble connecting, wait for it to connect or restart your workspace.")
 				sw.Log(now, codersdk.LogLevelInfo, troubleshootingMessage(agent, fmt.Sprintf("%s/admin/templates/troubleshooting#agent-connection-issues", opts.DocsURL)))
 				for agent.Status == codersdk.WorkspaceAgentTimeout {
 					if agent, err = fetch(); err != nil {
+
 						return fmt.Errorf("fetch: %w", err)
 					}
 				}
@@ -116,6 +130,7 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 		case codersdk.WorkspaceAgentConnected:
 			if !showStartupLogs && agent.LifecycleState == codersdk.WorkspaceAgentLifecycleReady {
 				// The workspace is ready, there's nothing to do but connect.
+
 				return nil
 			}
 			stage := "Running workspace agent startup scripts"
@@ -128,12 +143,14 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 				sw.Log(time.Time{}, codersdk.LogLevelInfo, "==> ℹ︎ To connect immediately, reconnect with --wait=no or CODER_SSH_WAIT=no, see --help for more information.")
 			}
 			err = func() error { // Use func because of defer in for loop.
+
 				logStream, logsCloser, err := opts.FetchLogs(ctx, agent.ID, 0, follow)
 				if err != nil {
 					return fmt.Errorf("fetch workspace agent startup logs: %w", err)
 				}
 				defer logsCloser.Close()
 				var lastLog codersdk.WorkspaceAgentLog
+
 				fetchedAgentWhileFollowing := fetchedAgent
 				if !follow {
 					fetchedAgentWhileFollowing = nil
@@ -144,6 +161,7 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 					case <-ctx.Done():
 						return ctx.Err()
 					case f := <-fetchedAgentWhileFollowing:
+
 						if f.err != nil {
 							return fmt.Errorf("fetch: %w", f.err)
 						}
@@ -151,6 +169,7 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 						// If the agent is no longer starting, stop following
 						// logs because FetchLogs will keep streaming forever.
 						// We do one last non-follow request to ensure we have
+
 						// fetched all logs.
 						if !agent.LifecycleState.Starting() {
 							_ = logsCloser.Close()
@@ -167,6 +186,7 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 							return nil
 						}
 						for _, log := range logs {
+
 							source, hasSource := logSources[log.SourceID]
 							output := log.Output
 							if hasSource && source.DisplayName != "" {
@@ -175,6 +195,7 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 							sw.Log(log.CreatedAt, log.Level, output)
 							lastLog = log
 						}
+
 					}
 				}
 			}()
@@ -202,12 +223,14 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 				sw.Fail(stage, safeDuration(sw, agent.ReadyAt, agent.StartedAt))
 				// Use zero time (omitted) to separate these from the startup logs.
 				sw.Log(time.Time{}, codersdk.LogLevelWarn, "Warning: A startup script exited with an error and your workspace may be incomplete.")
+
 				sw.Log(time.Time{}, codersdk.LogLevelWarn, troubleshootingMessage(agent, fmt.Sprintf("%s/admin/templates/troubleshooting#startup-script-exited-with-an-error", opts.DocsURL)))
 			default:
 				switch {
 				case agent.LifecycleState.Starting():
 					// Use zero time (omitted) to separate these from the startup logs.
 					sw.Log(time.Time{}, codersdk.LogLevelWarn, "Notice: The startup scripts are still running and your workspace may be incomplete.")
+
 					sw.Log(time.Time{}, codersdk.LogLevelWarn, troubleshootingMessage(agent, fmt.Sprintf("%s/admin/templates/troubleshooting#your-workspace-may-be-incomplete", opts.DocsURL)))
 					// Note: We don't complete or fail the stage here, it's
 					// intentionally left open to indicate this stage didn't
@@ -242,18 +265,22 @@ func troubleshootingMessage(agent codersdk.WorkspaceAgent, url string) string {
 	m := "For more information and troubleshooting, see " + url
 	if agent.TroubleshootingURL != "" {
 		m += " and " + agent.TroubleshootingURL
+
 	}
 	return m
+
 }
 // safeDuration returns a-b. If a or b is nil, it returns 0.
 // This is because we often dereference a time pointer, which can
 // cause a panic. These dereferences are used to calculate durations,
 // which are not critical, and therefor should not break things
+
 // when it fails.
 // A panic has been observed in a test.
 func safeDuration(sw *stageWriter, a, b *time.Time) time.Duration {
 	if a == nil || b == nil {
 		if sw != nil {
+
 			// Ideally the message includes which fields are <nil>, but you can
 			// use the surrounding log lines to figure that out. And passing more
 			// params makes this unwieldy.
@@ -265,6 +292,7 @@ func safeDuration(sw *stageWriter, a, b *time.Time) time.Duration {
 }
 type closeFunc func() error
 func (c closeFunc) Close() error {
+
 	return c()
 }
 func PeerDiagnostics(w io.Writer, d tailnet.PeerDiagnostics) {
@@ -273,6 +301,7 @@ func PeerDiagnostics(w io.Writer, d tailnet.PeerDiagnostics) {
 		if !ok {
 			rn = "unknown"
 		}
+
 		_, _ = fmt.Fprintf(w, "✔ preferred DERP region: %d (%s)\n", d.PreferredDERP, rn)
 	} else {
 		_, _ = fmt.Fprint(w, "✘ not connected to DERP\n")
@@ -292,12 +321,15 @@ func PeerDiagnostics(w io.Writer, d tailnet.PeerDiagnostics) {
 			di, err := strconv.Atoi(dp)
 			if err == nil {
 				var ok bool
+
 				dn, ok = d.DERPRegionNames[di]
 				if ok {
+
 					dn = fmt.Sprintf("(%s)", dn)
 				} else {
 					dn = "(unknown)"
 				}
+
 			}
 		}
 		_, _ = fmt.Fprintf(w,
@@ -350,6 +382,7 @@ func (d ConnDiags) Write(w io.Writer) {
 		for _, msg := range agent {
 			_, _ = fmt.Fprintf(w, " - %s\n\n", msg)
 		}
+
 	}
 }
 func (d ConnDiags) splitDiagnostics() (general, client, agent []string) {
@@ -363,6 +396,7 @@ func (d ConnDiags) splitDiagnostics() (general, client, agent []string) {
 	}
 	if d.LocalInterfaces != nil {
 		for _, msg := range d.LocalInterfaces.Warnings {
+
 			client = append(client, msg.Message)
 		}
 		if len(d.LocalInterfaces.Warnings) > 0 {
@@ -386,6 +420,7 @@ func (d ConnDiags) splitDiagnostics() (general, client, agent []string) {
 			return general, client, agent
 		}
 	}
+
 	if !d.ConnInfo.DERPMap.HasSTUN() {
 		general = append(general,
 			fmt.Sprintf("❗ The DERP map is not configured to use STUN\n   %s#no-stun-servers", d.TroubleshootingURL))
@@ -396,6 +431,7 @@ func (d ConnDiags) splitDiagnostics() (general, client, agent []string) {
 	if d.LocalNetInfo != nil && d.LocalNetInfo.MappingVariesByDestIP.EqualBool(true) {
 		client = append(client,
 			fmt.Sprintf("Client is potentially behind a hard NAT, as multiple endpoints were retrieved from different STUN servers\n  %s#endpoint-dependent-nat-hard-nat", d.TroubleshootingURL))
+
 	}
 	if d.AgentNetcheck != nil && d.AgentNetcheck.NetInfo != nil {
 		if d.AgentNetcheck.NetInfo.MappingVariesByDestIP.EqualBool(true) {
@@ -405,10 +441,12 @@ func (d ConnDiags) splitDiagnostics() (general, client, agent []string) {
 		if !d.AgentNetcheck.NetInfo.UDP {
 			agent = append(agent,
 				fmt.Sprintf("Agent could not connect to STUN over UDP\n   %s#udp-blocked", d.TroubleshootingURL))
+
 		}
 	}
 	if d.ClientIPIsAWS {
 		client = append(client,
+
 			fmt.Sprintf("Client IP address is within an AWS range (AWS uses hard NAT)\n   %s#endpoint-dependent-nat-hard-nat", d.TroubleshootingURL))
 	}
 	if d.AgentIPIsAWS {

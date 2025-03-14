@@ -1,15 +1,19 @@
 package regosql
+
 import (
 	"fmt"
 	"errors"
 	"encoding/json"
+
 	"strings"
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/v1/rego"
 	"github.com/coder/coder/v2/coderd/rbac/regosql/sqltypes"
+
 )
 // ConvertConfig is required to generate SQL from the rego queries.
 type ConvertConfig struct {
+
 	// VariableConverter is called each time a var is encountered. This creates
 	// the SQL ast for the variable. Without this, the SQL generator does not
 	// know how to convert rego variables into SQL columns.
@@ -18,6 +22,7 @@ type ConvertConfig struct {
 // ConvertRegoAst converts partial rego queries into a single SQL where
 // clause. If the query equates to "true" then the user should have access.
 func ConvertRegoAst(cfg ConvertConfig, partial *rego.PartialQueries) (sqltypes.BooleanNode, error) {
+
 	if len(partial.Queries) == 0 {
 		// Always deny if there are no queries. This means there is no possible
 		// way this user can access these resources.
@@ -27,6 +32,7 @@ func ConvertRegoAst(cfg ConvertConfig, partial *rego.PartialQueries) (sqltypes.B
 		// An empty query in rego means "true". If any query in the set is
 		// empty, then the user should have access.
 		if len(q) == 0 {
+
 			// Always allow
 			return sqltypes.Bool(true), nil
 		}
@@ -36,6 +42,7 @@ func ConvertRegoAst(cfg ConvertConfig, partial *rego.PartialQueries) (sqltypes.B
 	for i, q := range partial.Queries {
 		converted, err := convertQuery(cfg, q)
 		if err != nil {
+
 			return nil, fmt.Errorf("query %s: %w", q.String(), err)
 		}
 		if i != 0 {
@@ -44,6 +51,7 @@ func ConvertRegoAst(cfg ConvertConfig, partial *rego.PartialQueries) (sqltypes.B
 		_, _ = builder.WriteString(q.String())
 		queries = append(queries, converted)
 	}
+
 	// All queries are OR'd together. This means that if any query is true,
 	// then the user should have access.
 	sqlClause := sqltypes.Or(sqltypes.RegoSource(builder.String()), queries...)
@@ -51,6 +59,7 @@ func ConvertRegoAst(cfg ConvertConfig, partial *rego.PartialQueries) (sqltypes.B
 	// SQL clauses.
 	return sqltypes.BoolParenthesis(sqlClause), nil
 }
+
 func convertQuery(cfg ConvertConfig, q ast.Body) (sqltypes.BooleanNode, error) {
 	var expressions []sqltypes.BooleanNode
 	for _, e := range q {
@@ -59,6 +68,7 @@ func convertQuery(cfg ConvertConfig, q ast.Body) (sqltypes.BooleanNode, error) {
 			return nil, fmt.Errorf("expression %s: %w", e.String(), err)
 		}
 		expressions = append(expressions, exp)
+
 	}
 	// All expressions in a single query are AND'd together. This means that
 	// all expressions must be true for the user to have access.
@@ -67,14 +77,17 @@ func convertQuery(cfg ConvertConfig, q ast.Body) (sqltypes.BooleanNode, error) {
 func convertExpression(cfg ConvertConfig, e *ast.Expr) (sqltypes.BooleanNode, error) {
 	if e.IsCall() {
 		n, err := convertCall(cfg, e.Terms.([]*ast.Term))
+
 		if err != nil {
 			return nil, fmt.Errorf("call: %w", err)
 		}
+
 		boolN, ok := n.(sqltypes.BooleanNode)
 		if !ok {
 			return nil, fmt.Errorf("call %q: not a boolean expression", e.String())
 		}
 		return boolN, nil
+
 	}
 	// If it's not a call, it is a single term
 	if term, ok := e.Terms.(*ast.Term); ok {
@@ -82,6 +95,7 @@ func convertExpression(cfg ConvertConfig, e *ast.Expr) (sqltypes.BooleanNode, er
 		if err != nil {
 			return nil, fmt.Errorf("convert term %s: %w", term.String(), err)
 		}
+
 		tyBool, ok := ty.(sqltypes.BooleanNode)
 		if !ok {
 			return nil, fmt.Errorf("convert term %s is not a boolean: %w", term.String(), err)
@@ -89,6 +103,7 @@ func convertExpression(cfg ConvertConfig, e *ast.Expr) (sqltypes.BooleanNode, er
 		return tyBool, nil
 	}
 	return nil, fmt.Errorf("expression %s not supported", e.String())
+
 }
 // convertCall converts a function call to a SQL expression.
 func convertCall(cfg ConvertConfig, call ast.Call) (sqltypes.Node, error) {
@@ -96,23 +111,28 @@ func convertCall(cfg ConvertConfig, call ast.Call) (sqltypes.Node, error) {
 		return nil, fmt.Errorf("empty call")
 	}
 	// Operator is the first term
+
 	op := call[0]
 	var args []*ast.Term
 	if len(call) > 1 {
 		args = call[1:]
 	}
+
 	opString := op.String()
 	// Supported operators.
 	switch op.String() {
+
 	case "neq", "eq", "equals", "equal":
 		args, err := convertTerms(cfg, args, 2)
 		if err != nil {
+
 			return nil, fmt.Errorf("arguments: %w", err)
 		}
 		not := false
 		if opString == "neq" || opString == "notequals" || opString == "notequal" {
 			not = true
 		}
+
 		equality := sqltypes.Equality(not, args[0], args[1])
 		return sqltypes.BoolParenthesis(equality), nil
 	case "internal.member_2":
@@ -120,6 +140,7 @@ func convertCall(cfg ConvertConfig, call ast.Call) (sqltypes.Node, error) {
 		if err != nil {
 			return nil, fmt.Errorf("arguments: %w", err)
 		}
+
 		member := sqltypes.MemberOf(args[0], args[1])
 		return sqltypes.BoolParenthesis(member), nil
 	default:
@@ -129,11 +150,13 @@ func convertCall(cfg ConvertConfig, call ast.Call) (sqltypes.Node, error) {
 func convertTerms(cfg ConvertConfig, terms []*ast.Term, expected int) ([]sqltypes.Node, error) {
 	if len(terms) != expected {
 		return nil, fmt.Errorf("expected %d terms, got %d", expected, len(terms))
+
 	}
 	result := make([]sqltypes.Node, 0, len(terms))
 	for _, t := range terms {
 		term, err := convertTerm(cfg, t)
 		if err != nil {
+
 			return nil, fmt.Errorf("term: %w", err)
 		}
 		result = append(result, term)
@@ -142,6 +165,7 @@ func convertTerms(cfg ConvertConfig, terms []*ast.Term, expected int) ([]sqltype
 }
 func convertTerm(cfg ConvertConfig, term *ast.Term) (sqltypes.Node, error) {
 	source := sqltypes.RegoSource(term.String())
+
 	switch t := term.Value.(type) {
 	case ast.Var:
 		// All vars should be contained in ast.Ref's.
@@ -149,11 +173,13 @@ func convertTerm(cfg ConvertConfig, term *ast.Term) (sqltypes.Node, error) {
 	case ast.Ref:
 		if len(t) == 0 {
 			// A reference with no text is a variable with no name?
+
 			// This makes no sense.
 			return nil, errors.New("empty ref not supported")
 		}
 		if cfg.VariableConverter == nil {
 			return nil, errors.New("no variable converter provided to handle variables")
+
 		}
 		// The structure of references is as follows:
 		// 1. All variables start with a regoAst.Var as the first term.
@@ -163,9 +189,11 @@ func convertTerm(cfg ConvertConfig, term *ast.Term) (sqltypes.Node, error) {
 		//    the wildcard "[_]"
 		// 3. Repeat 1-2 until the end of the reference.
 		node, ok := cfg.VariableConverter.ConvertVariable(t)
+
 		if !ok {
 			return nil, fmt.Errorf("variable %q cannot be converted", t.String())
 		}
+
 		return node, nil
 	case ast.String:
 		return sqltypes.String(string(t)), nil
@@ -179,10 +207,12 @@ func convertTerm(cfg ConvertConfig, term *ast.Term) (sqltypes.Node, error) {
 			value, err := convertTerm(cfg, t.Elem(i))
 			if err != nil {
 				return nil, fmt.Errorf("array element %d in %q: %w", i, t.String(), err)
+
 			}
 			elems = append(elems, value)
 		}
 		return sqltypes.Array(source, elems...)
+
 	case ast.Object:
 		return nil, errors.New("object not yet supported")
 	case ast.Set:

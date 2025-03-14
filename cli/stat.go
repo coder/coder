@@ -1,16 +1,20 @@
 package cli
+
 import (
 	"errors"
 	"fmt"
 	"os"
+
 	"github.com/spf13/afero"
 	"github.com/coder/coder/v2/cli/clistat"
 	"github.com/coder/coder/v2/cli/cliui"
+
 	"github.com/coder/serpent"
 )
 func initStatterMW(tgt **clistat.Statter, fs afero.Fs) serpent.MiddlewareFunc {
 	return func(next serpent.HandlerFunc) serpent.HandlerFunc {
 		return func(i *serpent.Invocation) error {
+
 			var err error
 			stat, err := clistat.New(clistat.WithFS(fs))
 			if err != nil {
@@ -25,6 +29,7 @@ func (r *RootCmd) stat() *serpent.Command {
 	var (
 		st        *clistat.Statter
 		fs        = afero.NewReadOnlyFs(afero.NewOsFs())
+
 		formatter = cliui.NewOutputFormatter(
 			cliui.TableFormat([]statsRow{}, []string{
 				"host cpu",
@@ -52,6 +57,7 @@ func (r *RootCmd) stat() *serpent.Command {
 			containerErr := make(chan error, 1)
 			go func() {
 				defer close(hostErr)
+
 				cs, err := st.HostCPU()
 				if err != nil {
 					hostErr <- err
@@ -78,6 +84,7 @@ func (r *RootCmd) stat() *serpent.Command {
 			if err := <-containerErr; err != nil {
 				return err
 			}
+
 			// Host-level stats
 			ms, err := st.HostMemory(clistat.PrefixGibi)
 			if err != nil {
@@ -85,6 +92,7 @@ func (r *RootCmd) stat() *serpent.Command {
 			}
 			sr.HostMemory = ms
 			home, err := os.UserHomeDir()
+
 			if err != nil {
 				return err
 			}
@@ -92,6 +100,7 @@ func (r *RootCmd) stat() *serpent.Command {
 			if err != nil {
 				return err
 			}
+
 			sr.Disk = ds
 			// Container-only stats.
 			if ok, err := clistat.IsContainerized(fs); err == nil && ok {
@@ -102,6 +111,7 @@ func (r *RootCmd) stat() *serpent.Command {
 				sr.ContainerCPU = cs
 				ms, err := st.ContainerMemory(clistat.PrefixGibi)
 				if err != nil {
+
 					return err
 				}
 				sr.ContainerMemory = ms
@@ -110,6 +120,7 @@ func (r *RootCmd) stat() *serpent.Command {
 			if err != nil {
 				return err
 			}
+
 			_, err = fmt.Fprintln(inv.Stdout, out)
 			return err
 		},
@@ -117,6 +128,7 @@ func (r *RootCmd) stat() *serpent.Command {
 	formatter.AttachOptions(&cmd.Options)
 	return cmd
 }
+
 func (*RootCmd) statCPU(fs afero.Fs) *serpent.Command {
 	var (
 		hostArg   bool
@@ -129,6 +141,7 @@ func (*RootCmd) statCPU(fs afero.Fs) *serpent.Command {
 		Middleware: initStatterMW(&st, fs),
 		Options: serpent.OptionSet{
 			{
+
 				Flag:        "host",
 				Value:       serpent.BoolOf(&hostArg),
 				Description: "Force host CPU measurement.",
@@ -167,9 +180,11 @@ func (*RootCmd) statMem(fs afero.Fs) *serpent.Command {
 		Use:        "mem",
 		Short:      "Show memory usage, in gigabytes.",
 		Middleware: initStatterMW(&st, fs),
+
 		Options: serpent.OptionSet{
 			{
 				Flag:        "host",
+
 				Value:       serpent.BoolOf(&hostArg),
 				Description: "Force host memory measurement.",
 			},
@@ -220,10 +235,12 @@ func (*RootCmd) statDisk(fs afero.Fs) *serpent.Command {
 		Short:      "Show disk usage, in gigabytes.",
 		Middleware: initStatterMW(&st, fs),
 		Options: serpent.OptionSet{
+
 			{
 				Flag:        "path",
 				Value:       serpent.StringOf(&pathArg),
 				Description: "Path for which to check disk usage.",
+
 				Default:     "/",
 			},
 			{
@@ -269,4 +286,5 @@ type statsRow struct {
 	Disk            *clistat.Result `json:"home_disk" table:"home disk"`
 	ContainerCPU    *clistat.Result `json:"container_cpu" table:"container cpu"`
 	ContainerMemory *clistat.Result `json:"container_memory" table:"container memory"`
+
 }

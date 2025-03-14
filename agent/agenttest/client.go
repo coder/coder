@@ -19,6 +19,7 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
+
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
@@ -29,7 +30,9 @@ import (
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/testutil"
+
 )
+
 
 const statsInterval = 500 * time.Millisecond
 
@@ -76,6 +79,7 @@ func NewClient(t testing.TB,
 		fakeAgentAPI:   fakeAAPI,
 		derpMapUpdates: derpMapUpdates,
 	}
+
 }
 
 type Client struct {
@@ -84,18 +88,22 @@ type Client struct {
 	agentID            uuid.UUID
 	server             *drpcserver.Server
 	fakeAgentAPI       *FakeAgentAPI
+
 	LastWorkspaceAgent func()
 
 	mu             sync.Mutex // Protects following.
 	logs           []agentsdk.Log
 	derpMapUpdates chan *tailcfg.DERPMap
 	derpMapOnce    sync.Once
+
 }
+
 
 func (*Client) RewriteDERPMap(*tailcfg.DERPMap) {}
 
 func (c *Client) Close() {
 	c.derpMapOnce.Do(func() { close(c.derpMapUpdates) })
+
 }
 
 func (c *Client) ConnectRPC24(ctx context.Context) (
@@ -119,28 +127,34 @@ func (c *Client) ConnectRPC24(ctx context.Context) (
 		_ = c.server.Serve(serveCtx, lis)
 	}()
 	return agentproto.NewDRPCAgentClient(conn), proto.NewDRPCTailnetClient(conn), nil
+
 }
 
 func (c *Client) GetLifecycleStates() []codersdk.WorkspaceAgentLifecycle {
 	return c.fakeAgentAPI.GetLifecycleStates()
+
 }
 
 func (c *Client) GetStartup() <-chan *agentproto.Startup {
 	return c.fakeAgentAPI.startupCh
+
 }
 
 func (c *Client) GetMetadata() map[string]agentsdk.Metadata {
 	return c.fakeAgentAPI.GetMetadata()
+
 }
 
 func (c *Client) GetStartupLogs() []agentsdk.Log {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.logs
+
 }
 
 func (c *Client) SetAnnouncementBannersFunc(f func() ([]codersdk.BannerConfig, error)) {
 	c.fakeAgentAPI.SetAnnouncementBannersFunc(f)
+
 }
 
 func (c *Client) PushDERPMapUpdate(update *tailcfg.DERPMap) error {
@@ -150,22 +164,27 @@ func (c *Client) PushDERPMapUpdate(update *tailcfg.DERPMap) error {
 	case c.derpMapUpdates <- update:
 	case <-timer.C:
 		return errors.New("timeout waiting to push derp map update")
+
 	}
 
 	return nil
+
 }
 
 func (c *Client) SetLogsChannel(ch chan<- *agentproto.BatchCreateLogsRequest) {
 	c.fakeAgentAPI.SetLogsChannel(ch)
+
 }
 
 func (c *Client) GetConnectionReports() []*agentproto.ReportConnectionRequest {
 	return c.fakeAgentAPI.GetConnectionReports()
+
 }
 
 type FakeAgentAPI struct {
 	sync.Mutex
 	t      testing.TB
+
 	logger slog.Logger
 
 	manifest          *agentproto.Manifest
@@ -176,25 +195,30 @@ type FakeAgentAPI struct {
 	lifecycleStates   []codersdk.WorkspaceAgentLifecycle
 	metadata          map[string]agentsdk.Metadata
 	timings           []*agentproto.Timing
+
 	connectionReports []*agentproto.ReportConnectionRequest
 
 	getAnnouncementBannersFunc              func() ([]codersdk.BannerConfig, error)
 	getResourcesMonitoringConfigurationFunc func() (*agentproto.GetResourcesMonitoringConfigurationResponse, error)
 	pushResourcesMonitoringUsageFunc        func(*agentproto.PushResourcesMonitoringUsageRequest) (*agentproto.PushResourcesMonitoringUsageResponse, error)
+
 }
 
 func (f *FakeAgentAPI) GetManifest(context.Context, *agentproto.GetManifestRequest) (*agentproto.Manifest, error) {
 	return f.manifest, nil
+
 }
 
 func (*FakeAgentAPI) GetServiceBanner(context.Context, *agentproto.GetServiceBannerRequest) (*agentproto.ServiceBanner, error) {
 	return &agentproto.ServiceBanner{}, nil
+
 }
 
 func (f *FakeAgentAPI) GetTimings() []*agentproto.Timing {
 	f.Lock()
 	defer f.Unlock()
 	return slices.Clone(f.timings)
+
 }
 
 func (f *FakeAgentAPI) SetAnnouncementBannersFunc(fn func() ([]codersdk.BannerConfig, error)) {
@@ -202,6 +226,7 @@ func (f *FakeAgentAPI) SetAnnouncementBannersFunc(fn func() ([]codersdk.BannerCo
 	defer f.Unlock()
 	f.getAnnouncementBannersFunc = fn
 	f.logger.Info(context.Background(), "updated notification banners")
+
 }
 
 func (f *FakeAgentAPI) GetAnnouncementBanners(context.Context, *agentproto.GetAnnouncementBannersRequest) (*agentproto.GetAnnouncementBannersResponse, error) {
@@ -219,10 +244,12 @@ func (f *FakeAgentAPI) GetAnnouncementBanners(context.Context, *agentproto.GetAn
 		bannersProto = append(bannersProto, agentsdk.ProtoFromBannerConfig(banner))
 	}
 	return &agentproto.GetAnnouncementBannersResponse{AnnouncementBanners: bannersProto}, nil
+
 }
 
 func (f *FakeAgentAPI) GetResourcesMonitoringConfiguration(_ context.Context, _ *agentproto.GetResourcesMonitoringConfigurationRequest) (*agentproto.GetResourcesMonitoringConfigurationResponse, error) {
 	f.Lock()
+
 	defer f.Unlock()
 
 	if f.getResourcesMonitoringConfigurationFunc == nil {
@@ -232,20 +259,25 @@ func (f *FakeAgentAPI) GetResourcesMonitoringConfiguration(_ context.Context, _ 
 				NumDatapoints:             20,
 			},
 		}, nil
+
 	}
 
 	return f.getResourcesMonitoringConfigurationFunc()
+
 }
 
 func (f *FakeAgentAPI) PushResourcesMonitoringUsage(_ context.Context, req *agentproto.PushResourcesMonitoringUsageRequest) (*agentproto.PushResourcesMonitoringUsageResponse, error) {
 	f.Lock()
+
 	defer f.Unlock()
 
 	if f.pushResourcesMonitoringUsageFunc == nil {
 		return &agentproto.PushResourcesMonitoringUsageResponse{}, nil
+
 	}
 
 	return f.pushResourcesMonitoringUsageFunc(req)
+
 }
 
 func (f *FakeAgentAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsRequest) (*agentproto.UpdateStatsResponse, error) {
@@ -260,12 +292,14 @@ func (f *FakeAgentAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateSt
 		}
 	}
 	return &agentproto.UpdateStatsResponse{ReportInterval: durationpb.New(statsInterval)}, nil
+
 }
 
 func (f *FakeAgentAPI) GetLifecycleStates() []codersdk.WorkspaceAgentLifecycle {
 	f.Lock()
 	defer f.Unlock()
 	return slices.Clone(f.lifecycleStates)
+
 }
 
 func (f *FakeAgentAPI) UpdateLifecycle(_ context.Context, req *agentproto.UpdateLifecycleRequest) (*agentproto.Lifecycle, error) {
@@ -276,6 +310,7 @@ func (f *FakeAgentAPI) UpdateLifecycle(_ context.Context, req *agentproto.Update
 		f.lifecycleStates = append(f.lifecycleStates, s)
 	}
 	return req.GetLifecycle(), nil
+
 }
 
 func (f *FakeAgentAPI) BatchUpdateAppHealths(ctx context.Context, req *agentproto.BatchUpdateAppHealthRequest) (*agentproto.BatchUpdateAppHealthResponse, error) {
@@ -286,10 +321,12 @@ func (f *FakeAgentAPI) BatchUpdateAppHealths(ctx context.Context, req *agentprot
 	case f.appHealthCh <- req:
 		return &agentproto.BatchUpdateAppHealthResponse{}, nil
 	}
+
 }
 
 func (f *FakeAgentAPI) AppHealthCh() <-chan *agentproto.BatchUpdateAppHealthRequest {
 	return f.appHealthCh
+
 }
 
 func (f *FakeAgentAPI) UpdateStartup(ctx context.Context, req *agentproto.UpdateStartupRequest) (*agentproto.Startup, error) {
@@ -299,12 +336,14 @@ func (f *FakeAgentAPI) UpdateStartup(ctx context.Context, req *agentproto.Update
 	case f.startupCh <- req.GetStartup():
 		return req.GetStartup(), nil
 	}
+
 }
 
 func (f *FakeAgentAPI) GetMetadata() map[string]agentsdk.Metadata {
 	f.Lock()
 	defer f.Unlock()
 	return maps.Clone(f.metadata)
+
 }
 
 func (f *FakeAgentAPI) BatchUpdateMetadata(ctx context.Context, req *agentproto.BatchUpdateMetadataRequest) (*agentproto.BatchUpdateMetadataResponse, error) {
@@ -319,12 +358,14 @@ func (f *FakeAgentAPI) BatchUpdateMetadata(ctx context.Context, req *agentproto.
 		f.logger.Debug(ctx, "post metadata", slog.F("key", md.Key), slog.F("md", md))
 	}
 	return &agentproto.BatchUpdateMetadataResponse{}, nil
+
 }
 
 func (f *FakeAgentAPI) SetLogsChannel(ch chan<- *agentproto.BatchCreateLogsRequest) {
 	f.Lock()
 	defer f.Unlock()
 	f.logsCh = ch
+
 }
 
 func (f *FakeAgentAPI) BatchCreateLogs(ctx context.Context, req *agentproto.BatchCreateLogsRequest) (*agentproto.BatchCreateLogsResponse, error) {
@@ -341,28 +382,34 @@ func (f *FakeAgentAPI) BatchCreateLogs(ctx context.Context, req *agentproto.Batc
 		}
 	}
 	return &agentproto.BatchCreateLogsResponse{}, nil
+
 }
 
 func (f *FakeAgentAPI) ScriptCompleted(_ context.Context, req *agentproto.WorkspaceAgentScriptCompletedRequest) (*agentproto.WorkspaceAgentScriptCompletedResponse, error) {
 	f.Lock()
 	f.timings = append(f.timings, req.GetTiming())
+
 	f.Unlock()
 
 	return &agentproto.WorkspaceAgentScriptCompletedResponse{}, nil
+
 }
 
 func (f *FakeAgentAPI) ReportConnection(_ context.Context, req *agentproto.ReportConnectionRequest) (*emptypb.Empty, error) {
 	f.Lock()
 	f.connectionReports = append(f.connectionReports, req)
+
 	f.Unlock()
 
 	return &emptypb.Empty{}, nil
+
 }
 
 func (f *FakeAgentAPI) GetConnectionReports() []*agentproto.ReportConnectionRequest {
 	f.Lock()
 	defer f.Unlock()
 	return slices.Clone(f.connectionReports)
+
 }
 
 func NewFakeAgentAPI(t testing.TB, logger slog.Logger, manifest *agentproto.Manifest, statsCh chan *agentproto.Stats) *FakeAgentAPI {

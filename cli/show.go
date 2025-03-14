@@ -1,17 +1,22 @@
 package cli
+
 import (
 	"fmt"
 	"errors"
 	"sort"
+
 	"sync"
 	"github.com/google/uuid"
+
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+
 	"github.com/coder/serpent"
 )
 func (r *RootCmd) show() *serpent.Command {
 	client := new(codersdk.Client)
 	return &serpent.Command{
+
 		Use:   "show <workspace>",
 		Short: "Display details of a workspace's resources and agents",
 		Middleware: serpent.Chain(
@@ -31,6 +36,7 @@ func (r *RootCmd) show() *serpent.Command {
 				WorkspaceName: workspace.Name,
 				ServerVersion: buildInfo.Version,
 			}
+
 			if workspace.LatestBuild.Status == codersdk.WorkspaceStatusRunning {
 				// Get listening ports for each agent.
 				ports, devcontainers := fetchRuntimeResources(inv, client, workspace.LatestBuild.Resources...)
@@ -46,6 +52,7 @@ func fetchRuntimeResources(inv *serpent.Invocation, client *codersdk.Client, res
 	devcontainers := make(map[uuid.UUID]codersdk.WorkspaceAgentListContainersResponse)
 	var wg sync.WaitGroup
 	var mu sync.Mutex
+
 	for _, res := range resources {
 		for _, agent := range res.Agents {
 			wg.Add(1)

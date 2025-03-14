@@ -1,14 +1,17 @@
 package idpsync
+
 import (
 	"fmt"
 	"errors"
 	"context"
 	"net/http"
 	"regexp"
+
 	"strings"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
@@ -17,6 +20,7 @@ import (
 )
 // IDPSync is an interface, so we can implement this as AGPL and as enterprise,
 // and just swap the underlying implementation.
+
 // IDPSync exists to contain all the logic for mapping a user's external IDP
 // claims to the internal representation of a user in Coder.
 // TODO: Move group + role sync into this interface.
@@ -37,6 +41,7 @@ type IDPSync interface {
 	GroupSyncEntitled() bool
 	// ParseGroupClaims takes claims from an OIDC provider, and returns the params
 	// for group syncing. Most of the logic happens in SyncGroups.
+
 	ParseGroupClaims(ctx context.Context, mergedClaims jwt.MapClaims) (GroupParams, *HTTPError)
 	// SyncGroups assigns and removes users from groups based on the provided params.
 	SyncGroups(ctx context.Context, db database.Store, user database.User, params GroupParams) error
@@ -49,6 +54,7 @@ type IDPSync interface {
 	RoleSyncEntitled() bool
 	// OrganizationRoleSyncEnabled returns true if the organization has role sync
 	// enabled.
+
 	OrganizationRoleSyncEnabled(ctx context.Context, db database.Store, org uuid.UUID) (bool, error)
 	// SiteRoleSyncEnabled returns true if the deployment has role sync enabled
 	// at the site level.
@@ -69,18 +75,22 @@ var _ IDPSync = AGPLIDPSync{}
 // AGPLIDPSync is the configuration for syncing user information from an external
 // IDP. All related code to syncing user information should be in this package.
 type AGPLIDPSync struct {
+
 	Logger  slog.Logger
 	Manager *runtimeconfig.Manager
 	SyncSettings
+
 }
 // DeploymentSyncSettings are static and are sourced from the deployment config.
 type DeploymentSyncSettings struct {
 	// OrganizationField selects the claim field to be used as the created user's
 	// organizations. If the field is the empty string, then no organization updates
 	// will ever come from the OIDC provider.
+
 	OrganizationField string
 	// OrganizationMapping controls how organizations returned by the OIDC provider get mapped
 	OrganizationMapping map[string][]uuid.UUID
+
 	// OrganizationAssignDefault will ensure all users that authenticate will be
 	// placed into the default organization. This is mostly a hack to support
 	// legacy deployments.
@@ -94,6 +104,7 @@ type DeploymentSyncSettings struct {
 	GroupAllowList map[string]struct{}
 	// Legacy deployment settings that only apply to the default org.
 	Legacy DefaultOrgLegacySettings
+
 	// SiteRoleField selects the claim field to be used as the created user's
 	// roles. If the field is the empty string, then no site role updates
 	// will ever come from the OIDC provider.
@@ -104,6 +115,7 @@ type DeploymentSyncSettings struct {
 	SiteRoleMapping map[string][]string
 	// SiteDefaultRoles is the default set of site roles to assign to a user if role sync
 	// is enabled.
+
 	SiteDefaultRoles []string
 }
 type DefaultOrgLegacySettings struct {
@@ -117,6 +129,7 @@ func FromDeploymentValues(dv *codersdk.DeploymentValues) DeploymentSyncSettings 
 		panic("Developer error: DeploymentValues should not be nil")
 	}
 	return DeploymentSyncSettings{
+
 		OrganizationField:         dv.OIDC.OrganizationField.Value(),
 		OrganizationMapping:       dv.OIDC.OrganizationMapping.Value,
 		OrganizationAssignDefault: dv.OIDC.OrganizationAssignDefault.Value(),
@@ -124,6 +137,7 @@ func FromDeploymentValues(dv *codersdk.DeploymentValues) DeploymentSyncSettings 
 		SiteRoleMapping:  dv.OIDC.UserRoleMapping.Value,
 		SiteDefaultRoles: dv.OIDC.UserRolesDefault.Value(),
 		// TODO: Separate group field for allow list from default org.
+
 		// Right now you cannot disable group sync from the default org and
 		// configure an allow list.
 		GroupField:     dv.OIDC.GroupField.Value(),
@@ -133,10 +147,12 @@ func FromDeploymentValues(dv *codersdk.DeploymentValues) DeploymentSyncSettings 
 			GroupMapping:        dv.OIDC.GroupMapping.Value,
 			GroupFilter:         dv.OIDC.GroupRegexFilter.Value(),
 			CreateMissingGroups: dv.OIDC.GroupAutoCreate.Value(),
+
 		},
 	}
 }
 type SyncSettings struct {
+
 	DeploymentSyncSettings
 	Group        runtimeconfig.RuntimeEntry[*GroupSyncSettings]
 	Role         runtimeconfig.RuntimeEntry[*RoleSyncSettings]
@@ -151,14 +167,17 @@ func NewAGPLSync(logger slog.Logger, manager *runtimeconfig.Manager, settings De
 			Group:                  runtimeconfig.MustNew[*GroupSyncSettings]("group-sync-settings"),
 			Role:                   runtimeconfig.MustNew[*RoleSyncSettings]("role-sync-settings"),
 			Organization:           runtimeconfig.MustNew[*OrganizationSyncSettings]("organization-sync-settings"),
+
 		},
 	}
 }
+
 // ParseStringSliceClaim parses the claim for groups and roles, expected []string.
 //
 // Some providers like ADFS return a single string instead of an array if there
 // is only 1 element. So this function handles the edge cases.
 func ParseStringSliceClaim(claim interface{}) ([]string, error) {
+
 	groups := make([]string, 0)
 	if claim == nil {
 		return groups, nil
@@ -172,6 +191,7 @@ func ParseStringSliceClaim(claim interface{}) ([]string, error) {
 	if ok {
 		for i, item := range asArray {
 			asString, ok := item.(string)
+
 			if !ok {
 				return nil, fmt.Errorf("invalid claim type. Element %d expected a string, got: %T", i, item)
 			}
@@ -182,12 +202,14 @@ func ParseStringSliceClaim(claim interface{}) ([]string, error) {
 	asString, ok := claim.(string)
 	if ok {
 		if asString == "" {
+
 			// Empty string should be 0 groups.
 			return []string{}, nil
 		}
 		// If it is a single string, first check if it is a csv.
 		// If a user hits this, it is likely a misconfiguration and they need
 		// to reconfigure their IDP to send an array instead.
+
 		if strings.Contains(asString, ",") {
 			return nil, fmt.Errorf("invalid claim type. Got a csv string (%q), change this claim to return an array of strings instead.", asString)
 		}
@@ -200,6 +222,7 @@ func ParseStringSliceClaim(claim interface{}) ([]string, error) {
 // pointers.
 func IsHTTPError(err error) *HTTPError {
 	var httpErr HTTPError
+
 	if errors.As(err, &httpErr) {
 		return &httpErr
 	}
@@ -215,10 +238,12 @@ func IsHTTPError(err error) *HTTPError {
 type HTTPError struct {
 	Code                 int
 	Msg                  string
+
 	Detail               string
 	RenderStaticPage     bool
 	RenderDetailMarkdown bool
 }
+
 func (e HTTPError) Write(rw http.ResponseWriter, r *http.Request) {
 	if e.RenderStaticPage {
 		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
@@ -227,6 +252,7 @@ func (e HTTPError) Write(rw http.ResponseWriter, r *http.Request) {
 			Title:        e.Msg,
 			Description:  e.Detail,
 			RetryEnabled: false,
+
 			DashboardURL: "/login",
 			RenderDescriptionMarkdown: e.RenderDetailMarkdown,
 		})
@@ -234,6 +260,7 @@ func (e HTTPError) Write(rw http.ResponseWriter, r *http.Request) {
 	}
 	httpapi.Write(r.Context(), rw, e.Code, codersdk.Response{
 		Message: e.Msg,
+
 		Detail:  e.Detail,
 	})
 }

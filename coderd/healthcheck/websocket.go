@@ -1,4 +1,5 @@
 package healthcheck
+
 import (
 	"errors"
 	"context"
@@ -8,31 +9,39 @@ import (
 	"net/url"
 	"strconv"
 	"time"
+
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
+
 	"github.com/coder/websocket"
 )
 type WebsocketReport healthsdk.WebsocketReport
 type WebsocketReportOptions struct {
 	APIKey     string
+
 	AccessURL  *url.URL
 	HTTPClient *http.Client
+
 	Dismissed bool
 }
 func (r *WebsocketReport) Run(ctx context.Context, opts *WebsocketReportOptions) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
+
 	r.Severity = health.SeverityOK
 	r.Warnings = []health.Message{}
 	r.Dismissed = opts.Dismissed
+
 	u, err := opts.AccessURL.Parse("/api/v2/debug/ws")
 	if err != nil {
 		r.Error = convertError(fmt.Errorf("parse access url: %w", err))
 		r.Severity = health.SeverityError
+
 		return
 	}
 	if u.Scheme == "https" {
 		u.Scheme = "wss"
+
 	} else {
 		u.Scheme = "ws"
 	}
@@ -45,6 +54,7 @@ func (r *WebsocketReport) Run(ctx context.Context, opts *WebsocketReportOptions)
 		var body string
 		if res.Body != nil {
 			b, err := io.ReadAll(res.Body)
+
 			if err == nil {
 				body = string(b)
 			}
@@ -59,6 +69,7 @@ func (r *WebsocketReport) Run(ctx context.Context, opts *WebsocketReportOptions)
 		return
 	}
 	defer c.Close(websocket.StatusGoingAway, "goodbye")
+
 	for i := 0; i < 3; i++ {
 		msg := strconv.Itoa(i)
 		err := c.Write(ctx, websocket.MessageText, []byte(msg))
@@ -70,6 +81,7 @@ func (r *WebsocketReport) Run(ctx context.Context, opts *WebsocketReportOptions)
 		ty, got, err := c.Read(ctx)
 		if err != nil {
 			r.Error = health.Errorf(health.CodeWebsocketEcho, "read message: %s", err)
+
 			r.Severity = health.SeverityError
 			return
 		}
@@ -79,6 +91,7 @@ func (r *WebsocketReport) Run(ctx context.Context, opts *WebsocketReportOptions)
 			return
 		}
 		if string(got) != msg {
+
 			r.Error = health.Errorf(health.CodeWebsocketMsg, "received incorrect message: wanted %q, got %q", msg, string(got))
 			r.Severity = health.SeverityError
 			return
@@ -86,12 +99,14 @@ func (r *WebsocketReport) Run(ctx context.Context, opts *WebsocketReportOptions)
 	}
 	c.Close(websocket.StatusGoingAway, "goodbye")
 	r.Healthy = true
+
 }
 type WebsocketEchoServer struct {
 	Error error
 	Code  int
 }
 func (s *WebsocketEchoServer) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
+
 	if s.Error != nil {
 		rw.WriteHeader(s.Code)
 		_, _ = rw.Write([]byte(s.Error.Error()))
@@ -99,15 +114,18 @@ func (s *WebsocketEchoServer) ServeHTTP(rw http.ResponseWriter, r *http.Request)
 	}
 	ctx := r.Context()
 	c, err := websocket.Accept(rw, r, &websocket.AcceptOptions{})
+
 	if err != nil {
 		rw.WriteHeader(http.StatusBadRequest)
 		_, _ = rw.Write([]byte(fmt.Sprint("unable to accept:", err)))
 		return
+
 	}
 	defer c.Close(websocket.StatusGoingAway, "goodbye")
 	echo := func() error {
 		ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 		defer cancel()
+
 		typ, r, err := c.Reader(ctx)
 		if err != nil {
 			return fmt.Errorf("get reader: %w", err)
@@ -115,6 +133,7 @@ func (s *WebsocketEchoServer) ServeHTTP(rw http.ResponseWriter, r *http.Request)
 		w, err := c.Writer(ctx, typ)
 		if err != nil {
 			return fmt.Errorf("get writer: %w", err)
+
 		}
 		_, err = io.Copy(w, r)
 		if err != nil {
@@ -124,9 +143,11 @@ func (s *WebsocketEchoServer) ServeHTTP(rw http.ResponseWriter, r *http.Request)
 		return err
 	}
 	for {
+
 		err := echo()
 		if err != nil {
 			return
 		}
+
 	}
 }

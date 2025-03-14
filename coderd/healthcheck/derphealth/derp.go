@@ -1,4 +1,5 @@
 package derphealth
+
 import (
 	"errors"
 	"context"
@@ -11,6 +12,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
 	"tailscale.com/derp"
 	"tailscale.com/derp/derphttp"
 	"tailscale.com/net/netcheck"
@@ -21,12 +23,14 @@ import (
 	tslogger "tailscale.com/types/logger"
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
 )
 const (
 	warningNodeUsesWebsocket = `Node uses WebSockets because the "Upgrade: DERP" header may be blocked on the load balancer.`
 	oneNodeUnhealthy         = "Region is operational, but performance might be degraded as one node is unhealthy."
+
 	missingNodeReport        = "Missing node health report, probably a developer error."
 	noSTUN                   = "No STUN servers are available."
 	stunMapVaryDest          = "STUN returned different addresses; you may be behind a hard NAT."
@@ -35,36 +39,45 @@ type ReportOptions struct {
 	Dismissed bool
 	DERPMap *tailcfg.DERPMap
 }
+
 type Report healthsdk.DERPHealthReport
 type RegionReport struct {
 	healthsdk.DERPRegionReport
+
 	mu sync.Mutex
 }
 type NodeReport struct {
+
 	healthsdk.DERPNodeReport
 	mu            sync.Mutex
+
 	clientCounter int
 }
 func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 	r.Healthy = true
 	r.Severity = health.SeverityOK
+
 	r.Warnings = []health.Message{}
 	r.Dismissed = opts.Dismissed
 	r.Regions = map[int]*healthsdk.DERPRegionReport{}
 	wg := &sync.WaitGroup{}
 	mu := sync.Mutex{}
 	wg.Add(len(opts.DERPMap.Regions))
+
 	for _, region := range opts.DERPMap.Regions {
 		var (
 			region       = region
 			regionReport = RegionReport{
 				DERPRegionReport: healthsdk.DERPRegionReport{
 					Region: region,
+
 				},
 			}
+
 		)
 		go func() {
 			defer wg.Done()
+
 			defer func() {
 				if err := recover(); err != nil {
 					regionReport.Error = ptr.Ref(fmt.Sprint(err))
@@ -83,19 +96,23 @@ func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 	ncLogf := func(format string, args ...interface{}) {
 		mu.Lock()
 		r.NetcheckLogs = append(r.NetcheckLogs, fmt.Sprintf(format, args...))
+
 		mu.Unlock()
 	}
+
 	nc := &netcheck.Client{
 		PortMapper: portmapper.NewClient(tslogger.WithPrefix(ncLogf, "portmap: "), nil, nil, nil),
 		Logf:       tslogger.WithPrefix(ncLogf, "netcheck: "),
 	}
 	ncReport, netcheckErr := nc.GetReport(ctx, opts.DERPMap)
 	r.Netcheck = ncReport
+
 	r.NetcheckErr = convertError(netcheckErr)
 	if mapVaryDest, _ := r.Netcheck.MappingVariesByDestIP.Get(); mapVaryDest {
 		r.Warnings = append(r.Warnings, health.Messagef(health.CodeSTUNMapVaryDest, stunMapVaryDest))
 	}
 	wg.Wait()
+
 	// Count the number of STUN-capable nodes.
 	var stunCapableNodes int
 	var stunTotalNodes int
@@ -112,8 +129,10 @@ func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 	if stunCapableNodes == 0 && stunTotalNodes > 0 {
 		r.Severity = health.SeverityWarning
 		r.Warnings = append(r.Warnings, health.Messagef(health.CodeSTUNNoNodes, noSTUN))
+
 	}
 	// Review region reports and select the highest severity.
+
 	for _, regionReport := range r.Regions {
 		if regionReport.Severity.Value() > r.Severity.Value() {
 			r.Severity = regionReport.Severity
@@ -132,6 +151,7 @@ func (r *RegionReport) Run(ctx context.Context) {
 		var (
 			node       = node
 			nodeReport = NodeReport{
+
 				DERPNodeReport: healthsdk.DERPNodeReport{
 					Healthy: true,
 					Node:    node,
@@ -140,15 +160,18 @@ func (r *RegionReport) Run(ctx context.Context) {
 		)
 		go func() {
 			defer wg.Done()
+
 			defer func() {
 				if err := recover(); err != nil {
 					nodeReport.Error = ptr.Ref(fmt.Sprint(err))
 					nodeReport.Severity = health.SeverityError
 				}
 			}()
+
 			nodeReport.Run(ctx)
 			r.mu.Lock()
 			r.NodeReports = append(r.NodeReports, &nodeReport.DERPNodeReport)
+
 			if nodeReport.Severity != health.SeverityOK {
 				unhealthyNodes++
 			}
@@ -161,6 +184,7 @@ func (r *RegionReport) Run(ctx context.Context) {
 	defer r.mu.Unlock()
 	sortNodeReports(r.NodeReports)
 	if len(r.Region.Nodes) != len(r.NodeReports) {
+
 		r.Healthy = false
 		r.Severity = health.SeverityError
 		r.Error = ptr.Ref(missingNodeReport)
@@ -170,25 +194,31 @@ func (r *RegionReport) Run(ctx context.Context) {
 		r.Healthy = r.NodeReports[0].Severity != health.SeverityError
 		r.Severity = r.NodeReports[0].Severity
 	} else if unhealthyNodes == 1 {
+
 		// r.Healthy = true (by default)
 		r.Severity = health.SeverityWarning
+
 		r.Warnings = append(r.Warnings, health.Messagef(health.CodeDERPOneNodeUnhealthy, oneNodeUnhealthy))
 	} else if unhealthyNodes > 1 {
 		r.Healthy = false
 		// Review node reports and select the highest severity.
 		for _, nodeReport := range r.NodeReports {
 			if nodeReport.Severity.Value() > r.Severity.Value() {
+
 				r.Severity = nodeReport.Severity
 			}
 		}
 	}
 }
 func (r *NodeReport) derpURL() *url.URL {
+
 	derpURL := &url.URL{
 		Scheme: "https",
 		Host:   r.Node.HostName,
+
 		Path:   "/derp",
 	}
+
 	if r.Node.ForceHTTP {
 		derpURL.Scheme = "http"
 	}
@@ -196,6 +226,7 @@ func (r *NodeReport) derpURL() *url.URL {
 		derpURL.Host = r.Node.IPv4
 	}
 	if r.Node.DERPPort != 0 && !(r.Node.DERPPort == 443 && derpURL.Scheme == "https") && !(r.Node.DERPPort == 80 && derpURL.Scheme == "http") {
+
 		derpURL.Host = fmt.Sprintf("%s:%d", derpURL.Host, r.Node.DERPPort)
 	}
 	return derpURL
@@ -206,6 +237,7 @@ func (r *NodeReport) Run(ctx context.Context) {
 		dCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
 		ctx = dCtx
+
 	}
 	r.Severity = health.SeverityOK
 	r.ClientLogs = [][]string{}
@@ -215,6 +247,7 @@ func (r *NodeReport) Run(ctx context.Context) {
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
+
 		r.doExchangeMessage(ctx)
 	}()
 	go func() {
@@ -231,9 +264,11 @@ func (r *NodeReport) Run(ctx context.Context) {
 	}
 	if r.UsesWebsocket {
 		r.Warnings = append(r.Warnings, health.Messagef(health.CodeDERPNodeUsesWebsocket, warningNodeUsesWebsocket))
+
 		r.Severity = health.SeverityWarning
 	}
 }
+
 func (r *NodeReport) doExchangeMessage(ctx context.Context) {
 	if r.Node.STUNOnly {
 		return
@@ -242,13 +277,16 @@ func (r *NodeReport) doExchangeMessage(ctx context.Context) {
 		peerKey  atomic.Pointer[key.NodePublic]
 		lastSent atomic.Pointer[time.Time]
 	)
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	wg := &sync.WaitGroup{}
 	receive, receiveID, err := r.derpClient(ctx, r.derpURL())
 	if err != nil {
+
 		return
 	}
+
 	defer receive.Close()
 	wg.Add(2)
 	go func() {
@@ -259,8 +297,10 @@ func (r *NodeReport) doExchangeMessage(ctx context.Context) {
 			r.writeClientErr(receiveID, fmt.Errorf("recv derp message: %w", err))
 			return
 		}
+
 		if *peerKey.Load() != pkt.Source {
 			r.writeClientErr(receiveID, fmt.Errorf("received pkt from unknown peer: %s", pkt.Source.ShortString()))
+
 			return
 		}
 		t := lastSent.Load()
@@ -269,17 +309,20 @@ func (r *NodeReport) doExchangeMessage(ctx context.Context) {
 		rtt := time.Since(*t)
 		r.RoundTripPing = rtt.String()
 		r.RoundTripPingMs = int(rtt.Milliseconds())
+
 		r.mu.Unlock()
 		cancel()
 	}()
 	go func() {
 		defer wg.Done()
 		send, sendID, err := r.derpClient(ctx, r.derpURL())
+
 		if err != nil {
 			return
 		}
 		defer send.Close()
 		pk := send.SelfPublicKey()
+
 		peerKey.Store(&pk)
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
@@ -288,30 +331,36 @@ func (r *NodeReport) doExchangeMessage(ctx context.Context) {
 			lastSent.Store(ptr.Ref(time.Now()))
 			err = send.Send(receive.SelfPublicKey(), []byte{iter})
 			if err != nil {
+
 				r.writeClientErr(sendID, fmt.Errorf("send derp message: %w", err))
 				return
 			}
 			iter++
 			select {
 			case <-ctx.Done():
+
 				return
 			case <-ticker.C:
 			}
 		}
 	}()
+
 	wg.Wait()
 }
 func (r *NodeReport) doSTUNTest(ctx context.Context) {
 	if r.Node.STUNPort == -1 {
 		return
 	}
+
 	r.mu.Lock()
 	r.STUN.Enabled = true
 	r.mu.Unlock()
 	addr, port, err := r.stunAddr(ctx)
 	if err != nil {
+
 		r.STUN.Error = convertError(fmt.Errorf("get stun addr: %w", err))
 		return
+
 	}
 	// We only create a prober to call ProbeUDP manually.
 	p, err := prober.DERP(prober.New(), "", time.Second, time.Second, time.Second)
@@ -319,6 +368,7 @@ func (r *NodeReport) doSTUNTest(ctx context.Context) {
 		r.STUN.Error = convertError(fmt.Errorf("create prober: %w", err))
 		return
 	}
+
 	err = p.ProbeUDP(addr, port)(ctx)
 	if err != nil {
 		r.STUN.Error = convertError(fmt.Errorf("probe stun: %w", err))
@@ -329,12 +379,15 @@ func (r *NodeReport) doSTUNTest(ctx context.Context) {
 	r.mu.Unlock()
 }
 func (r *NodeReport) stunAddr(ctx context.Context) (string, int, error) {
+
 	port := r.Node.STUNPort
 	if port == 0 {
 		port = 3478
+
 	}
 	if port < 0 || port > 1<<16-1 {
 		return "", 0, fmt.Errorf("invalid stun port %d", port)
+
 	}
 	if r.Node.STUNTestIP != "" {
 		ip, err := netip.ParseAddr(r.Node.STUNTestIP)
@@ -345,6 +398,7 @@ func (r *NodeReport) stunAddr(ctx context.Context) (string, int, error) {
 	}
 	if r.Node.HostName != "" {
 		addrs, err := net.DefaultResolver.LookupIPAddr(ctx, r.Node.HostName)
+
 		if err != nil {
 			return "", 0, fmt.Errorf("lookup ip addr: %w", err)
 		}
@@ -353,9 +407,11 @@ func (r *NodeReport) stunAddr(ctx context.Context) (string, int, error) {
 		}
 	}
 	if r.Node.IPv4 != "" {
+
 		ip, err := netip.ParseAddr(r.Node.IPv4)
 		if err != nil {
 			return "", 0, fmt.Errorf("invalid ipv4 %q: %w", r.Node.IPv4, err)
+
 		}
 		if !ip.Is4() {
 			return "", 0, fmt.Errorf("provided node ipv4 is not v4 %q: %w", r.Node.IPv4, err)
@@ -364,12 +420,14 @@ func (r *NodeReport) stunAddr(ctx context.Context) (string, int, error) {
 	}
 	if r.Node.IPv6 != "" {
 		ip, err := netip.ParseAddr(r.Node.IPv6)
+
 		if err != nil {
 			return "", 0, fmt.Errorf("invalid ipv6 %q: %w", r.Node.IPv6, err)
 		}
 		if !ip.Is6() {
 			return "", 0, fmt.Errorf("provided node ipv6 is not v6 %q: %w", r.Node.IPv6, err)
 		}
+
 		return ip.String(), port, nil
 	}
 	return "", 0, errors.New("no stun ips provided")
@@ -377,17 +435,20 @@ func (r *NodeReport) stunAddr(ctx context.Context) (string, int, error) {
 func (r *NodeReport) writeClientErr(clientID int, err error) {
 	r.mu.Lock()
 	r.ClientErrs[clientID] = append(r.ClientErrs[clientID], err.Error())
+
 	r.mu.Unlock()
 }
 func (r *NodeReport) derpClient(ctx context.Context, derpURL *url.URL) (*derphttp.Client, int, error) {
 	r.mu.Lock()
 	id := r.clientCounter
 	r.clientCounter++
+
 	r.ClientLogs = append(r.ClientLogs, []string{})
 	r.ClientErrs = append(r.ClientErrs, []string{})
 	r.mu.Unlock()
 	client, err := derphttp.NewClient(key.NewNode(), derpURL.String(), func(format string, args ...any) {
 		r.mu.Lock()
+
 		defer r.mu.Unlock()
 		msg := fmt.Sprintf(format, args...)
 		if strings.Contains(msg, "We'll use WebSockets on the next connection attempt") {
@@ -397,15 +458,18 @@ func (r *NodeReport) derpClient(ctx context.Context, derpURL *url.URL) (*derphtt
 	})
 	if err != nil {
 		err := fmt.Errorf("create derp client: %w", err)
+
 		r.writeClientErr(id, err)
 		return nil, id, err
 	}
 	go func() {
 		<-ctx.Done()
 		_ = client.Close()
+
 	}()
 	i := 0
 	for ; i < 5; i++ {
+
 		err = client.Connect(ctx)
 		if err != nil {
 			r.writeClientErr(id, fmt.Errorf("connect to derp: %w", err))
@@ -416,16 +480,19 @@ func (r *NodeReport) derpClient(ctx context.Context, derpURL *url.URL) (*derphtt
 	if i == 5 {
 		err := fmt.Errorf("couldn't connect after 5 tries, last error: %w", err)
 		r.writeClientErr(id, fmt.Errorf("couldn't connect after 5 tries, last error: %w", err))
+
 		return nil, id, err
 	}
 	return client, id, nil
 }
 func (r *NodeReport) recvData(client *derphttp.Client) (derp.ReceivedPacket, error) {
 	for {
+
 		msg, err := client.Recv()
 		if err != nil {
 			return derp.ReceivedPacket{}, err
 		}
+
 		switch msg := msg.(type) {
 		case derp.ReceivedPacket:
 			return msg, nil
@@ -434,16 +501,20 @@ func (r *NodeReport) recvData(client *derphttp.Client) (derp.ReceivedPacket, err
 			r.ServerInfo = msg
 			r.mu.Unlock()
 		default:
+
 			// Drop all others!
 		}
 	}
 }
+
 func convertError(err error) *string {
 	if err != nil {
 		return ptr.Ref(err.Error())
+
 	}
 	return nil
 }
+
 func sortNodeReports(reports []*healthsdk.DERPNodeReport) {
 	slices.SortFunc(reports, func(a, b *healthsdk.DERPNodeReport) int {
 		return slice.Ascending(a.Node.Name, b.Node.Name)

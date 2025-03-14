@@ -1,4 +1,5 @@
 package oauthpki
+
 import (
 	"fmt"
 	"errors"
@@ -13,15 +14,18 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
 	"time"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/jws"
 	"github.com/coder/coder/v2/coderd/promoauth"
+
 )
 // Config uses jwt assertions over client_secret for oauth2 authentication of
 // the application. This implementation was made specifically for Azure AD.
+
 //
 //	https://learn.microsoft.com/en-us/azure/active-directory/develop/certificate-credentials
 //
@@ -34,6 +38,7 @@ type Config struct {
 	// These values should match those provided in the oauth2.Config.
 	// Because the inner config is an interface, we need to duplicate these
 	// values here.
+
 	scopes   []string
 	clientID string
 	tokenURL string
@@ -41,6 +46,7 @@ type Config struct {
 	// Azure AD only supports RS256 signing algorithm.
 	clientKey *rsa.PrivateKey
 	// Base64url-encoded SHA-1 thumbprint of the X.509 certificate's DER encoding.
+
 	// This is specific to Azure AD
 	x5t string
 }
@@ -49,6 +55,7 @@ type ConfigParams struct {
 	TokenURL       string
 	Scopes         []string
 	PemEncodedKey  []byte
+
 	PemEncodedCert []byte
 	Config promoauth.OAuth2Config
 }
@@ -56,9 +63,11 @@ type ConfigParams struct {
 // The values should be passed in as PEM encoded values, which is the standard encoding for x509 certs saved to disk.
 // It should look like:
 //
+
 // -----BEGIN RSA PRIVATE KEY----
 // ...
 // -----END RSA PRIVATE KEY-----
+
 //
 // -----BEGIN CERTIFICATE-----
 // ...
@@ -78,22 +87,26 @@ func NewOauth2PKIConfig(params ConfigParams) (*Config, error) {
 	// This is not required in the general specification.
 	if strings.Contains(strings.ToLower(params.TokenURL), "microsoftonline") && len(params.PemEncodedCert) == 0 {
 		return nil, fmt.Errorf("oidc client certificate is required and missing")
+
 	}
 	block, _ := pem.Decode(params.PemEncodedCert)
 	// Used as an identifier, not an actual cryptographic hash.
 	//nolint:gosec
 	hashed := sha1.Sum(block.Bytes)
+
 	return &Config{
 		clientID:  params.ClientID,
 		tokenURL:  params.TokenURL,
 		scopes:    params.Scopes,
 		cfg:       params.Config,
 		clientKey: rsaKey,
+
 		x5t:       base64.StdEncoding.EncodeToString(hashed[:]),
 	}, nil
 }
 // decodeClientKey decodes a PEM encoded rsa secret.
 func decodeClientKey(pemEncoded []byte) (*rsa.PrivateKey, error) {
+
 	block, _ := pem.Decode(pemEncoded)
 	key, err := x509.ParsePKCS1PrivateKey(block.Bytes)
 	if err != nil {
@@ -104,6 +117,7 @@ func decodeClientKey(pemEncoded []byte) (*rsa.PrivateKey, error) {
 func (ja *Config) AuthCodeURL(state string, opts ...oauth2.AuthCodeOption) string {
 	return ja.cfg.AuthCodeURL(state, opts...)
 }
+
 // Exchange includes the client_assertion signed JWT.
 func (ja *Config) Exchange(ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
 	signed, err := ja.jwtToken()
@@ -112,13 +126,16 @@ func (ja *Config) Exchange(ctx context.Context, code string, opts ...oauth2.Auth
 	}
 	opts = append(opts,
 		oauth2.SetAuthURLParam("client_assertion_type", "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"),
+
 		oauth2.SetAuthURLParam("client_assertion", signed),
 	)
 	return ja.cfg.Exchange(ctx, code, opts...)
+
 }
 func (ja *Config) jwtToken() (string, error) {
 	now := time.Now()
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
+
 		"iss": ja.clientID,
 		"sub": ja.clientID,
 		"aud": ja.tokenURL,
@@ -132,6 +149,7 @@ func (ja *Config) jwtToken() (string, error) {
 	token.Header["x5t"] = ja.x5t
 	signed, err := token.SignedString(ja.clientKey)
 	if err != nil {
+
 		return "", fmt.Errorf("sign jwt assertion: %w", err)
 	}
 	return signed, nil
@@ -147,6 +165,7 @@ type jwtTokenSource struct {
 	cfg          *Config
 	ctx          context.Context
 	refreshToken string
+
 }
 // Token must be safe for concurrent use by multiple go routines
 // Very similar to the RetrieveToken implementation by the oauth2 package.
@@ -154,6 +173,7 @@ type jwtTokenSource struct {
 // Oauth2 package keeps this code unexported or in an /internal package,
 // so we have to copy the implementation :(
 func (src *jwtTokenSource) Token() (*oauth2.Token, error) {
+
 	if src.refreshToken == "" {
 		return nil, errors.New("oauth2: token expired and refresh token is not set")
 	}
@@ -162,12 +182,14 @@ func (src *jwtTokenSource) Token() (*oauth2.Token, error) {
 		// This client should be the instrumented client already. So no need to
 		// handle this manually.
 		cli = v
+
 	}
 	token, err := src.cfg.jwtToken()
 	if err != nil {
 		return nil, fmt.Errorf("failed jwt assertion: %w", err)
 	}
 	v := url.Values{
+
 		"client_assertion":      {token},
 		"client_assertion_type": {"urn:ietf:params:oauth:client-assertion-type:jwt-bearer"},
 		"client_id":             {src.cfg.clientID},
@@ -184,11 +206,13 @@ func (src *jwtTokenSource) Token() (*oauth2.Token, error) {
 	req = req.WithContext(src.ctx)
 	resp, err := cli.Do(req)
 	if err != nil {
+
 		return nil, fmt.Errorf("oauth2: cannot get token: %w", err)
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
+
 		return nil, fmt.Errorf("oauth2: cannot fetch token reading response body: %w", err)
 	}
 	var tokenRes struct {
@@ -209,17 +233,20 @@ func (src *jwtTokenSource) Token() (*oauth2.Token, error) {
 		// Return a standard oauth2 error. Attempt to read some error fields. The error fields
 		// can be encoded in a few places, so this does not catch all of them.
 		return nil, &oauth2.RetrieveError{
+
 			Response: resp,
 			Body:     body,
 			// Best effort for error fields
 			ErrorCode:        tokenRes.ErrorCode,
 			ErrorDescription: tokenRes.ErrorDescription,
 			ErrorURI:         tokenRes.ErrorURI,
+
 		}
 	}
 	if unmarshalError != nil {
 		return nil, fmt.Errorf("oauth2: cannot unmarshal token: %w", err)
 	}
+
 	newToken := &oauth2.Token{
 		AccessToken:  tokenRes.AccessToken,
 		TokenType:    tokenRes.TokenType,
@@ -230,8 +257,10 @@ func (src *jwtTokenSource) Token() (*oauth2.Token, error) {
 	}
 	// ID token is a JWT token. We can decode it to get the expiry.
 	// Not really sure what to do if the ExpiresIn and JWT expiry differ,
+
 	// but this one is attached in the JWT and guaranteed to be right for local
 	// validation. So use this one if found.
+
 	if v := tokenRes.IDToken; v != "" {
 		// decode returned id token to get expiry
 		claimSet, err := jws.Decode(v)

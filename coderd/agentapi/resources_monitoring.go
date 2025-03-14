@@ -1,4 +1,5 @@
 package agentapi
+
 import (
 	"context"
 	"database/sql"
@@ -6,12 +7,16 @@ import (
 	"fmt"
 	"time"
 	"cdr.dev/slog"
+
 	"github.com/google/uuid"
 	"github.com/coder/coder/v2/agent/proto"
+
 	"github.com/coder/coder/v2/coderd/agentapi/resourcesmonitor"
 	"github.com/coder/coder/v2/coderd/database"
+
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/quartz"
 )
@@ -21,30 +26,36 @@ type ResourcesMonitoringAPI struct {
 	Log                   slog.Logger
 	Clock                 quartz.Clock
 	Database              database.Store
+
 	NotificationsEnqueuer notifications.Enqueuer
 	Debounce time.Duration
 	Config   resourcesmonitor.Config
 }
+
 func (a *ResourcesMonitoringAPI) GetResourcesMonitoringConfiguration(ctx context.Context, _ *proto.GetResourcesMonitoringConfigurationRequest) (*proto.GetResourcesMonitoringConfigurationResponse, error) {
 	memoryMonitor, memoryErr := a.Database.FetchMemoryResourceMonitorsByAgentID(ctx, a.AgentID)
 	if memoryErr != nil && !errors.Is(memoryErr, sql.ErrNoRows) {
 		return nil, fmt.Errorf("failed to fetch memory resource monitor: %w", memoryErr)
 	}
+
 	volumeMonitors, err := a.Database.FetchVolumesResourceMonitorsByAgentID(ctx, a.AgentID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch volume resource monitors: %w", err)
 	}
+
 	return &proto.GetResourcesMonitoringConfigurationResponse{
 		Config: &proto.GetResourcesMonitoringConfigurationResponse_Config{
 			CollectionIntervalSeconds: int32(a.Config.CollectionInterval.Seconds()),
 			NumDatapoints:             a.Config.NumDatapoints,
 		},
 		Memory: func() *proto.GetResourcesMonitoringConfigurationResponse_Memory {
+
 			if memoryErr != nil {
 				return nil
 			}
 			return &proto.GetResourcesMonitoringConfigurationResponse_Memory{
 				Enabled: memoryMonitor.Enabled,
+
 			}
 		}(),
 		Volumes: func() []*proto.GetResourcesMonitoringConfigurationResponse_Volume {
@@ -55,6 +66,7 @@ func (a *ResourcesMonitoringAPI) GetResourcesMonitoringConfiguration(ctx context
 					Path:    monitor.Path,
 				})
 			}
+
 			return volumes
 		}(),
 	}, nil
@@ -68,25 +80,31 @@ func (a *ResourcesMonitoringAPI) PushResourcesMonitoringUsage(ctx context.Contex
 		err = errors.Join(err, fmt.Errorf("monitor volume: %w", volumeErr))
 	}
 	return &proto.PushResourcesMonitoringUsageResponse{}, err
+
 }
 func (a *ResourcesMonitoringAPI) monitorMemory(ctx context.Context, datapoints []*proto.PushResourcesMonitoringUsageRequest_Datapoint) error {
 	monitor, err := a.Database.FetchMemoryResourceMonitorsByAgentID(ctx, a.AgentID)
 	if err != nil {
 		// It is valid for an agent to not have a memory monitor, so we
+
 		// do not want to treat it as an error.
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil
+
 		}
 		return fmt.Errorf("fetch memory resource monitor: %w", err)
 	}
 	if !monitor.Enabled {
+
 		return nil
 	}
 	usageDatapoints := make([]*proto.PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage, 0, len(datapoints))
 	for _, datapoint := range datapoints {
+
 		usageDatapoints = append(usageDatapoints, datapoint.Memory)
 	}
 	usageStates := resourcesmonitor.CalculateMemoryUsageStates(monitor, usageDatapoints)
+
 	oldState := monitor.State
 	newState := resourcesmonitor.NextState(a.Config, oldState, usageStates)
 	debouncedUntil, shouldNotify := monitor.Debounce(a.Debounce, a.Clock.Now(), oldState, newState)
@@ -96,25 +114,32 @@ func (a *ResourcesMonitoringAPI) monitorMemory(ctx context.Context, datapoints [
 		State:          newState,
 		UpdatedAt:      dbtime.Time(a.Clock.Now()),
 		DebouncedUntil: dbtime.Time(debouncedUntil),
+
 	})
 	if err != nil {
 		return fmt.Errorf("update workspace monitor: %w", err)
+
 	}
 	if !shouldNotify {
 		return nil
 	}
+
 	workspace, err := a.Database.GetWorkspaceByID(ctx, a.WorkspaceID)
 	if err != nil {
 		return fmt.Errorf("get workspace by id: %w", err)
 	}
 	_, err = a.NotificationsEnqueuer.EnqueueWithData(
+
 		// nolint:gocritic // We need to be able to send the notification.
 		dbauthz.AsNotifier(ctx),
+
 		workspace.OwnerID,
 		notifications.TemplateWorkspaceOutOfMemory,
 		map[string]string{
+
 			"workspace": workspace.Name,
 			"threshold": fmt.Sprintf("%d%%", monitor.Threshold),
+
 		},
 		map[string]any{
 			// NOTE(DanielleMaywood):
@@ -126,15 +151,18 @@ func (a *ResourcesMonitoringAPI) monitorMemory(ctx context.Context, datapoints [
 			// notifications appear different enough to circumvent this
 			// deduplication logic.
 			"timestamp": a.Clock.Now(),
+
 		},
 		"workspace-monitor-memory",
 	)
 	if err != nil {
+
 		return fmt.Errorf("notify workspace OOM: %w", err)
 	}
 	return nil
 }
 func (a *ResourcesMonitoringAPI) monitorVolumes(ctx context.Context, datapoints []*proto.PushResourcesMonitoringUsageRequest_Datapoint) error {
+
 	volumeMonitors, err := a.Database.FetchVolumesResourceMonitorsByAgentID(ctx, a.AgentID)
 	if err != nil {
 		return fmt.Errorf("get or insert volume monitor: %w", err)
@@ -161,26 +189,32 @@ func (a *ResourcesMonitoringAPI) monitorVolumes(ctx context.Context, datapoints 
 		debouncedUntil, shouldNotify := monitor.Debounce(a.Debounce, a.Clock.Now(), oldState, newState)
 		if shouldNotify {
 			outOfDiskVolumes = append(outOfDiskVolumes, map[string]any{
+
 				"path":      monitor.Path,
 				"threshold": fmt.Sprintf("%d%%", monitor.Threshold),
 			})
+
 		}
 		//nolint:gocritic // We need to be able to update the resource monitor here.
 		if err := a.Database.UpdateVolumeResourceMonitor(dbauthz.AsResourceMonitor(ctx), database.UpdateVolumeResourceMonitorParams{
 			AgentID:        a.AgentID,
 			Path:           monitor.Path,
 			State:          newState,
+
 			UpdatedAt:      dbtime.Time(a.Clock.Now()),
 			DebouncedUntil: dbtime.Time(debouncedUntil),
+
 		}); err != nil {
 			return fmt.Errorf("update workspace monitor: %w", err)
 		}
 	}
 	if len(outOfDiskVolumes) == 0 {
+
 		return nil
 	}
 	workspace, err := a.Database.GetWorkspaceByID(ctx, a.WorkspaceID)
 	if err != nil {
+
 		return fmt.Errorf("get workspace by id: %w", err)
 	}
 	if _, err := a.NotificationsEnqueuer.EnqueueWithData(
@@ -188,16 +222,21 @@ func (a *ResourcesMonitoringAPI) monitorVolumes(ctx context.Context, datapoints 
 		dbauthz.AsNotifier(ctx),
 		workspace.OwnerID,
 		notifications.TemplateWorkspaceOutOfDisk,
+
 		map[string]string{
 			"workspace": workspace.Name,
 		},
+
 		map[string]any{
 			"volumes": outOfDiskVolumes,
+
 			// NOTE(DanielleMaywood):
 			// When notifications are enqueued, they are checked to be
 			// unique within a single day. This means that if we attempt
+
 			// to send two OOM notifications for the same workspace on
 			// the same day, the enqueuer will prevent us from sending
+
 			// a second one. We are inject a timestamp to make the
 			// notifications appear different enough to circumvent this
 			// deduplication logic.
@@ -205,6 +244,7 @@ func (a *ResourcesMonitoringAPI) monitorVolumes(ctx context.Context, datapoints 
 		},
 		"workspace-monitor-volumes",
 	); err != nil {
+
 		return fmt.Errorf("notify workspace OOD: %w", err)
 	}
 	return nil

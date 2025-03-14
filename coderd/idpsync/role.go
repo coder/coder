@@ -1,13 +1,16 @@
 package idpsync
+
 import (
 	"fmt"
 	"errors"
 	"context"
 	"encoding/json"
+
 	"slices"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -18,6 +21,7 @@ import (
 )
 type RoleParams struct {
 	// SyncEntitled if false will skip syncing the user's roles at
+
 	// all levels.
 	SyncEntitled  bool
 	SyncSiteWide  bool
@@ -28,19 +32,23 @@ type RoleParams struct {
 func (AGPLIDPSync) RoleSyncEntitled() bool {
 	// AGPL does not support syncing groups.
 	return false
+
 }
 func (AGPLIDPSync) OrganizationRoleSyncEnabled(_ context.Context, _ database.Store, _ uuid.UUID) (bool, error) {
 	return false, nil
 }
 func (AGPLIDPSync) SiteRoleSyncEnabled() bool {
+
 	return false
 }
 func (s AGPLIDPSync) UpdateRoleSyncSettings(ctx context.Context, orgID uuid.UUID, db database.Store, settings RoleSyncSettings) error {
 	orgResolver := s.Manager.OrganizationResolver(db, orgID)
+
 	err := s.SyncSettings.Role.SetRuntimeValue(ctx, orgResolver, &settings)
 	if err != nil {
 		return fmt.Errorf("update role sync settings: %w", err)
 	}
+
 	return nil
 }
 func (s AGPLIDPSync) RoleSyncSettings(ctx context.Context, orgID uuid.UUID, db database.Store) (*RoleSyncSettings, error) {
@@ -48,9 +56,11 @@ func (s AGPLIDPSync) RoleSyncSettings(ctx context.Context, orgID uuid.UUID, db d
 	settings, err := s.Role.Resolve(ctx, rlv)
 	if err != nil {
 		if !errors.Is(err, runtimeconfig.ErrEntryNotFound) {
+
 			return nil, fmt.Errorf("resolve role sync settings: %w", err)
 		}
 		return &RoleSyncSettings{}, nil
+
 	}
 	return settings, nil
 }
@@ -63,6 +73,7 @@ func (s AGPLIDPSync) ParseRoleClaims(_ context.Context, _ jwt.MapClaims) (RolePa
 func (s AGPLIDPSync) SyncRoles(ctx context.Context, db database.Store, user database.User, params RoleParams) error {
 	// Nothing happens if sync is not enabled
 	if !params.SyncEntitled {
+
 		return nil
 	}
 	// nolint:gocritic // all syncing is done as a system user
@@ -70,15 +81,18 @@ func (s AGPLIDPSync) SyncRoles(ctx context.Context, db database.Store, user data
 	err := db.InTx(func(tx database.Store) error {
 		if params.SyncSiteWide {
 			if err := s.syncSiteWideRoles(ctx, tx, user, params); err != nil {
+
 				return err
 			}
 		}
 		// sync roles per organization
 		orgMemberships, err := tx.OrganizationMembers(ctx, database.OrganizationMembersParams{
 			OrganizationID: uuid.Nil,
+
 			UserID:         user.ID,
 		})
 		if err != nil {
+
 			return fmt.Errorf("get organizations by user id: %w", err)
 		}
 		// Sync for each organization
@@ -86,6 +100,7 @@ func (s AGPLIDPSync) SyncRoles(ctx context.Context, db database.Store, user data
 		// updated to the value of that key.
 		expectedRoles := make(map[uuid.UUID][]rbac.RoleIdentifier)
 		existingRoles := make(map[uuid.UUID][]string)
+
 		allExpected := make([]rbac.RoleIdentifier, 0)
 		for _, member := range orgMemberships {
 			orgID := member.OrganizationMember.OrganizationID
@@ -95,6 +110,7 @@ func (s AGPLIDPSync) SyncRoles(ctx context.Context, db database.Store, user data
 				continue
 			}
 			if settings.Field == "" {
+
 				// Explicitly disabled role sync for this organization
 				continue
 			}
@@ -109,11 +125,13 @@ func (s AGPLIDPSync) SyncRoles(ctx context.Context, db database.Store, user data
 					slog.Error(err),
 				)
 				// TODO: If rolesync fails, we might want to reset a user's
+
 				// roles to prevent stale roles from existing.
 				// Eg: `expectedRoles[orgID] = []rbac.RoleIdentifier{}`
 				// However, implementing this could lock an org admin out
 				// of fixing their configuration.
 				// There is also no current method to notify an org admin of
+
 				// a configuration issue.
 				// So until org admins can be notified of configuration issues,
 				// and they will not be locked out, this code will do nothing to
@@ -125,6 +143,7 @@ func (s AGPLIDPSync) SyncRoles(ctx context.Context, db database.Store, user data
 			}
 			expected := make([]rbac.RoleIdentifier, 0, len(orgRoleClaims))
 			for _, role := range orgRoleClaims {
+
 				if mappedRoles, ok := settings.Mapping[role]; ok {
 					for _, mappedRole := range mappedRoles {
 						expected = append(expected, rbac.RoleIdentifier{OrganizationID: orgID, Name: mappedRole})
@@ -136,12 +155,14 @@ func (s AGPLIDPSync) SyncRoles(ctx context.Context, db database.Store, user data
 			expectedRoles[orgID] = expected
 			allExpected = append(allExpected, expected...)
 		}
+
 		// Now mass sync the user's org membership roles.
 		validRoles, err := rolestore.Expand(ctx, tx, allExpected)
 		if err != nil {
 			return fmt.Errorf("expand roles: %w", err)
 		}
 		validMap := make(map[string]struct{}, len(validRoles))
+
 		for _, validRole := range validRoles {
 			validMap[validRole.Identifier.UniqueName()] = struct{}{}
 		}
@@ -153,10 +174,12 @@ func (s AGPLIDPSync) SyncRoles(ctx context.Context, db database.Store, user data
 				if _, ok := validMap[role.UniqueName()]; ok {
 					validExpected = append(validExpected, role.Name)
 				}
+
 			}
 			// Ignore the implied member role
 			validExpected = slices.DeleteFunc(validExpected, func(s string) bool {
 				return s == rbac.RoleOrgMember()
+
 			})
 			existingFound := existingRoles[orgID]
 			existingFound = slices.DeleteFunc(existingFound, func(s string) bool {
@@ -167,6 +190,7 @@ func (s AGPLIDPSync) SyncRoles(ctx context.Context, db database.Store, user data
 			validExpected = slice.Unique(validExpected)
 			// A sort is required for the equality check
 			slices.Sort(existingFound)
+
 			slices.Sort(validExpected)
 			// Is there a difference between the expected roles and the existing roles?
 			if !slices.Equal(existingFound, validExpected) {
@@ -181,11 +205,13 @@ func (s AGPLIDPSync) SyncRoles(ctx context.Context, db database.Store, user data
 				}
 			}
 		}
+
 		return nil
 	}, nil)
 	if err != nil {
 		return fmt.Errorf("sync user roles(%s): %w", user.ID.String(), err)
 	}
+
 	return nil
 }
 func (s AGPLIDPSync) syncSiteWideRoles(ctx context.Context, tx database.Store, user database.User, params RoleParams) error {
@@ -211,9 +237,11 @@ func (s AGPLIDPSync) syncSiteWideRoles(ctx context.Context, tx database.Store, u
 			slog.F("assigned", filtered),
 			slog.F("user_id", user.ID),
 			slog.F("username", user.Username),
+
 		)
 	}
 	filtered = slice.Unique(filtered)
+
 	slices.Sort(filtered)
 	existing := slice.Unique(user.RBACRoles)
 	slices.Sort(existing)
@@ -240,9 +268,11 @@ func (AGPLIDPSync) RolesFromClaim(field string, claims jwt.MapClaims) ([]string,
 	}
 	parsedRoles, err := ParseStringSliceClaim(rolesRow)
 	if err != nil {
+
 		return nil, fmt.Errorf("failed to parse roles from claim: %w", err)
 	}
 	return parsedRoles, nil
+
 }
 type RoleSyncSettings codersdk.RoleSyncSettings
 func (s *RoleSyncSettings) Set(v string) error {

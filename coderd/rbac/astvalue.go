@@ -1,11 +1,14 @@
 package rbac
+
 import (
 	"fmt"
 	"errors"
 	"github.com/open-policy-agent/opa/ast"
+
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 )
 // regoInputValue returns a rego input value for the given subject, action, and
+
 // object. This rego input is already parsed and can be used directly in a
 // rego query.
 func regoInputValue(subject Subject, action policy.Action, object Object) (ast.Value, error) {
@@ -15,6 +18,7 @@ func regoInputValue(subject Subject, action policy.Action, object Object) (ast.V
 	}
 	s := [2]*ast.Term{
 		ast.StringTerm("subject"),
+
 		ast.NewTerm(regoSubj),
 	}
 	a := [2]*ast.Term{
@@ -28,11 +32,14 @@ func regoInputValue(subject Subject, action policy.Action, object Object) (ast.V
 	input := ast.NewObject(s, a, o)
 	return input, nil
 }
+
 // regoPartialInputValue is the same as regoInputValue but only includes the
 // object type. This is for partial evaluations.
+
 func regoPartialInputValue(subject Subject, action policy.Action, objectType string) (ast.Value, error) {
 	regoSubj, err := subject.regoValue()
 	if err != nil {
+
 		return nil, fmt.Errorf("subject: %w", err)
 	}
 	s := [2]*ast.Term{
@@ -41,6 +48,7 @@ func regoPartialInputValue(subject Subject, action policy.Action, objectType str
 	}
 	a := [2]*ast.Term{
 		ast.StringTerm("action"),
+
 		ast.StringTerm(string(action)),
 	}
 	o := [2]*ast.Term{
@@ -59,22 +67,27 @@ func regoPartialInputValue(subject Subject, action policy.Action, objectType str
 func (s Subject) regoValue() (ast.Value, error) {
 	if s.cachedASTValue != nil {
 		return s.cachedASTValue, nil
+
 	}
 	subjRoles, err := s.Roles.Expand()
+
 	if err != nil {
 		return nil, fmt.Errorf("expand roles: %w", err)
 	}
+
 	subjScope, err := s.Scope.Expand()
 	if err != nil {
 		return nil, fmt.Errorf("expand scope: %w", err)
 	}
 	subj := ast.NewObject(
 		[2]*ast.Term{
+
 			ast.StringTerm("id"),
 			ast.StringTerm(s.ID),
 		},
 		[2]*ast.Term{
 			ast.StringTerm("roles"),
+
 			ast.NewTerm(regoSlice(subjRoles)),
 		},
 		[2]*ast.Term{
@@ -98,9 +111,11 @@ func (z Object) regoValue() ast.Value {
 		grpACL.Insert(ast.StringTerm(k), ast.NewTerm(regoSliceString(v...)))
 	}
 	return ast.NewObject(
+
 		[2]*ast.Term{
 			ast.StringTerm("id"),
 			ast.StringTerm(z.ID),
+
 		},
 		[2]*ast.Term{
 			ast.StringTerm("owner"),
@@ -142,6 +157,7 @@ func (role Role) regoValue() ast.Value {
 		return role.cachedRegoValue
 	}
 	orgMap := ast.NewObject()
+
 	for k, p := range role.Org {
 		orgMap.Insert(ast.StringTerm(k), ast.NewTerm(regoSlice(p)))
 	}
@@ -152,6 +168,7 @@ func (role Role) regoValue() ast.Value {
 		},
 		[2]*ast.Term{
 			ast.StringTerm("org"),
+
 			ast.NewTerm(orgMap),
 		},
 		[2]*ast.Term{
@@ -176,6 +193,7 @@ func (perm Permission) regoValue() ast.Value {
 		[2]*ast.Term{
 			ast.StringTerm("negate"),
 			ast.BooleanTerm(perm.Negate),
+
 		},
 		[2]*ast.Term{
 			ast.StringTerm("resource_type"),
@@ -188,6 +206,7 @@ func (perm Permission) regoValue() ast.Value {
 	)
 }
 type regoValue interface {
+
 	regoValue() ast.Value
 }
 // regoSlice returns the ast.Array representation of the slice.
@@ -205,4 +224,5 @@ func regoSliceString[T ~string](slice ...T) *ast.Array {
 		terms[i] = ast.StringTerm(string(v))
 	}
 	return ast.NewArray(terms...)
+
 }

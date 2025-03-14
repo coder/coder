@@ -1,4 +1,5 @@
 package httpapi
+
 import (
 	"database/sql"
 	"encoding/json"
@@ -9,12 +10,15 @@ import (
 	"strings"
 	"time"
 	"github.com/google/uuid"
+
 	"github.com/coder/coder/v2/codersdk"
 )
 // QueryParamParser is a helper for parsing all query params and gathering all
+
 // errors in 1 sweep. This means all invalid fields are returned at once,
 // rather than only returning the first error
 type QueryParamParser struct {
+
 	// Errors is the set of errors to return via the API. If the length
 	// of this set is 0, there are no errors!.
 	Errors []codersdk.ValidationError
@@ -30,6 +34,7 @@ func NewQueryParamParser() *QueryParamParser {
 		Errors:                 []codersdk.ValidationError{},
 		Parsed:                 map[string]bool{},
 		RequiredNotEmptyParams: map[string]bool{},
+
 	}
 }
 // ErrorExcessParams checks if any query params were passed in that were not
@@ -38,6 +43,7 @@ func NewQueryParamParser() *QueryParamParser {
 func (p *QueryParamParser) ErrorExcessParams(values url.Values) {
 	for k := range values {
 		if _, ok := p.Parsed[k]; !ok {
+
 			p.Errors = append(p.Errors, codersdk.ValidationError{
 				Field:  k,
 				Detail: fmt.Sprintf("%q is not a valid query param", k),
@@ -52,10 +58,12 @@ func (p *QueryParamParser) UInt(vals url.Values, def uint64, queryParam string) 
 	v, err := parseQueryParam(p, vals, func(v string) (uint64, error) {
 		return strconv.ParseUint(v, 10, 64)
 	}, def, queryParam)
+
 	if err != nil {
 		p.Errors = append(p.Errors, codersdk.ValidationError{
 			Field:  queryParam,
 			Detail: fmt.Sprintf("Query param %q must be a valid positive integer: %s", queryParam, err.Error()),
+
 		})
 		return 0
 	}
@@ -70,6 +78,7 @@ func (p *QueryParamParser) Int(vals url.Values, def int, queryParam string) int 
 		})
 	}
 	return v
+
 }
 // PositiveInt32 function checks if the given value is 32-bit and positive.
 //
@@ -81,6 +90,7 @@ func (p *QueryParamParser) PositiveInt32(vals url.Values, def int32, queryParam 
 		if err != nil {
 			return 0, err
 		}
+
 		if intValue < 0 {
 			return 0, fmt.Errorf("value is negative")
 		}
@@ -105,6 +115,7 @@ func (p *QueryParamParser) NullableBoolean(vals url.Values, def sql.NullBool, qu
 	if err != nil {
 		p.Errors = append(p.Errors, codersdk.ValidationError{
 			Field:  queryParam,
+
 			Detail: fmt.Sprintf("Query param %q must be a valid boolean: %s", queryParam, err.Error()),
 		})
 	}
@@ -120,12 +131,14 @@ func (p *QueryParamParser) Boolean(vals url.Values, def bool, queryParam string)
 			Field:  queryParam,
 			Detail: fmt.Sprintf("Query param %q must be a valid boolean: %s", queryParam, err.Error()),
 		})
+
 	}
 	return v
 }
 func (p *QueryParamParser) RequiredNotEmpty(queryParam ...string) *QueryParamParser {
 	for _, q := range queryParam {
 		p.RequiredNotEmptyParams[q] = true
+
 	}
 	return p
 }
@@ -137,6 +150,7 @@ func (p *QueryParamParser) UUIDorName(vals url.Values, def uuid.UUID, queryParam
 		id, err := uuid.Parse(v)
 		if err == nil {
 			return id, nil
+
 		}
 		return fetchByName(v)
 	})
@@ -144,6 +158,7 @@ func (p *QueryParamParser) UUIDorName(vals url.Values, def uuid.UUID, queryParam
 func (p *QueryParamParser) UUIDorMe(vals url.Values, def uuid.UUID, me uuid.UUID, queryParam string) uuid.UUID {
 	return ParseCustom(p, vals, def, queryParam, func(v string) (uuid.UUID, error) {
 		if v == "me" {
+
 			return me, nil
 		}
 		return uuid.Parse(v)
@@ -157,6 +172,7 @@ func (p *QueryParamParser) UUID(vals url.Values, def uuid.UUID, queryParam strin
 			Detail: fmt.Sprintf("Query param %q must be a valid uuid", queryParam),
 		})
 	}
+
 	return v
 }
 func (p *QueryParamParser) UUIDs(vals url.Values, def []uuid.UUID, queryParam string) []uuid.UUID {
@@ -166,6 +182,7 @@ func (p *QueryParamParser) UUIDs(vals url.Values, def []uuid.UUID, queryParam st
 }
 func (p *QueryParamParser) RedirectURL(vals url.Values, base *url.URL, queryParam string) *url.URL {
 	v, err := parseQueryParam(p, vals, url.Parse, base, queryParam)
+
 	if err != nil {
 		p.Errors = append(p.Errors, codersdk.ValidationError{
 			Field:  queryParam,
@@ -177,12 +194,14 @@ func (p *QueryParamParser) RedirectURL(vals url.Values, base *url.URL, queryPara
 	if v.Host != base.Host || !strings.HasPrefix(v.Path, base.Path) {
 		p.Errors = append(p.Errors, codersdk.ValidationError{
 			Field:  queryParam,
+
 			Detail: fmt.Sprintf("Query param %q must be a subset of %s", queryParam, base),
 		})
 	}
 	return v
 }
 func (p *QueryParamParser) Time(vals url.Values, def time.Time, queryParam, layout string) time.Time {
+
 	return p.timeWithMutate(vals, def, queryParam, layout, nil)
 }
 // Time uses the default time format of RFC3339Nano and always returns a UTC time.
@@ -192,6 +211,7 @@ func (p *QueryParamParser) Time3339Nano(vals url.Values, def time.Time, queryPar
 		// All search queries are forced to lowercase. But the RFC format requires
 		// upper case letters. So just uppercase the term.
 		return strings.ToUpper(term)
+
 	})
 }
 func (p *QueryParamParser) timeWithMutate(vals url.Values, def time.Time, queryParam, layout string, mutate func(term string) string) time.Time {
@@ -201,13 +221,16 @@ func (p *QueryParamParser) timeWithMutate(vals url.Values, def time.Time, queryP
 		}
 		t, err := time.Parse(layout, term)
 		if err != nil {
+
 			return time.Time{}, err
 		}
 		return t.UTC(), nil
+
 	}, def, queryParam)
 	if err != nil {
 		p.Errors = append(p.Errors, codersdk.ValidationError{
 			Field:  queryParam,
+
 			Detail: fmt.Sprintf("Query param %q must be a valid date format (%s): %s", queryParam, layout, err.Error()),
 		})
 	}
@@ -218,6 +241,7 @@ func (p *QueryParamParser) String(vals url.Values, def string, queryParam string
 		return v, nil
 	}, def, queryParam)
 	if err != nil {
+
 		p.Errors = append(p.Errors, codersdk.ValidationError{
 			Field:  queryParam,
 			Detail: fmt.Sprintf("Query param %q must be a valid string: %s", queryParam, err.Error()),
@@ -238,6 +262,7 @@ func (p *QueryParamParser) JSONStringMap(vals url.Values, def map[string]string,
 		}
 		return m, nil
 	}, def, queryParam)
+
 	if err != nil {
 		p.Errors = append(p.Errors, codersdk.ValidationError{
 			Field:  queryParam,
@@ -251,12 +276,14 @@ type ValidEnum interface {
 	// Add more types as needed (avoid importing large dependency trees).
 	~string
 	// Valid is required on the enum type to be used with ParseEnum.
+
 	Valid() bool
 }
 // ParseEnum is a function that can be passed into ParseCustom that handles enum
 // validation.
 func ParseEnum[T ValidEnum](term string) (T, error) {
 	enum := T(term)
+
 	if enum.Valid() {
 		return enum, nil
 	}
@@ -274,15 +301,18 @@ func ParseCustom[T any](parser *QueryParamParser, vals url.Values, def T, queryP
 		})
 	}
 	return v
+
 }
 // ParseCustomList is a function that handles csv query params or multiple values
 // for a query param.
 // Csv is supported as it is a common way to pass multiple values in a query param.
 // Multiple values is supported (key=value&key=value2) for feature parity with GitHub issue search.
+
 func ParseCustomList[T any](parser *QueryParamParser, vals url.Values, def []T, queryParam string, parseFunc func(v string) (T, error)) []T {
 	v, err := parseQueryParamSet(parser, vals, func(set []string) ([]T, error) {
 		// Gather all terms.
 		allTerms := make([]string, 0, len(set))
+
 		for _, s := range set {
 			// If a term is a csv, break it out into individual terms.
 			terms := strings.Split(s, ",")
@@ -294,6 +324,7 @@ func ParseCustomList[T any](parser *QueryParamParser, vals url.Values, def []T, 
 			good, err := parseFunc(s)
 			if err != nil {
 				badErrors = errors.Join(badErrors, err)
+
 				continue
 			}
 			output = append(output, good)
@@ -307,6 +338,7 @@ func ParseCustomList[T any](parser *QueryParamParser, vals url.Values, def []T, 
 		parser.Errors = append(parser.Errors, codersdk.ValidationError{
 			Field:  queryParam,
 			Detail: fmt.Sprintf("Query param %q has invalid values: %s", queryParam, err.Error()),
+
 		})
 	}
 	return v
@@ -321,6 +353,7 @@ func parseNullableQueryParam[T any](parser *QueryParamParser, vals url.Values, p
 		}
 		value, err := setParse(set)
 		if err != nil {
+
 			return sql.Null[T]{}, err
 		}
 		return sql.Null[T]{
@@ -335,6 +368,7 @@ func parseQueryParam[T any](parser *QueryParamParser, vals url.Values, parse fun
 	return parseQueryParamSet(parser, vals, setParse, def, queryParam)
 }
 func parseSingle[T any](parser *QueryParamParser, parse func(v string) (T, error), def T, queryParam string) func(set []string) (T, error) {
+
 	return func(set []string) (T, error) {
 		if len(set) > 1 {
 			// Set as a parser.Error rather than return an error.
@@ -346,6 +380,7 @@ func parseSingle[T any](parser *QueryParamParser, parse func(v string) (T, error
 				Field:  queryParam,
 				Detail: fmt.Sprintf("Query param %q provided more than once, found %d times. Only provide 1 instance of this query param.", queryParam, len(set)),
 			})
+
 			return def, nil
 		}
 		return parse(set[0])
@@ -355,6 +390,7 @@ func parseQueryParamSet[T any](parser *QueryParamParser, vals url.Values, parse 
 	parser.addParsed(queryParam)
 	// If the query param is required and not present, return an error.
 	if parser.RequiredNotEmptyParams[queryParam] && (!vals.Has(queryParam) || vals.Get(queryParam) == "") {
+
 		parser.Errors = append(parser.Errors, codersdk.ValidationError{
 			Field:  queryParam,
 			Detail: fmt.Sprintf("Query param %q is required and cannot be empty", queryParam),
@@ -366,4 +402,5 @@ func parseQueryParamSet[T any](parser *QueryParamParser, vals url.Values, parse 
 		return def, nil
 	}
 	return parse(vals[queryParam])
+
 }

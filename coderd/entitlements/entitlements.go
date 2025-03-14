@@ -1,4 +1,5 @@
 package entitlements
+
 import (
 	"errors"
 	"context"
@@ -7,11 +8,14 @@ import (
 	"slices"
 	"sync"
 	"time"
+
 	"github.com/coder/coder/v2/codersdk"
 )
+
 type Set struct {
 	entitlementsMu sync.RWMutex
 	entitlements   codersdk.Entitlements
+
 	// right2Update works like a semaphore. Reading from the chan gives the right to update the set,
 	// and you send on the chan when you are done. We only allow one simultaneous update, so this
 	// serve to serialize them.  You MUST NOT attempt to read from this channel while holding the
@@ -23,6 +27,7 @@ func New() *Set {
 	s := &Set{
 		// Some defaults for an unlicensed instance.
 		// These will be updated when coderd is initialized.
+
 		entitlements: codersdk.Entitlements{
 			Features:         map[codersdk.FeatureName]codersdk.Feature{},
 			Warnings:         []string{},
@@ -50,10 +55,12 @@ func New() *Set {
 var ErrLicenseRequiresTelemetry = errors.New(codersdk.LicenseTelemetryRequiredErrorText)
 func (l *Set) Update(ctx context.Context, fetch func(context.Context) (codersdk.Entitlements, error)) error {
 	select {
+
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-l.right2Update:
 		defer func() {
+
 			l.right2Update <- struct{}{}
 		}()
 	}
@@ -84,6 +91,7 @@ func (l *Set) AllowRefresh(now time.Time) (bool, time.Duration) {
 	l.entitlementsMu.RLock()
 	defer l.entitlementsMu.RUnlock()
 	diff := now.Sub(l.entitlements.RefreshedAt)
+
 	if diff < time.Minute {
 		return false, time.Minute - diff
 	}
@@ -91,26 +99,32 @@ func (l *Set) AllowRefresh(now time.Time) (bool, time.Duration) {
 }
 func (l *Set) Feature(name codersdk.FeatureName) (codersdk.Feature, bool) {
 	l.entitlementsMu.RLock()
+
 	defer l.entitlementsMu.RUnlock()
 	f, ok := l.entitlements.Features[name]
 	return f, ok
 }
 func (l *Set) Enabled(feature codersdk.FeatureName) bool {
+
 	l.entitlementsMu.RLock()
 	defer l.entitlementsMu.RUnlock()
 	f, ok := l.entitlements.Features[feature]
+
 	if !ok {
 		return false
 	}
 	return f.Enabled
+
 }
 // AsJSON is used to return this to the api without exposing the entitlements for
 // mutation.
 func (l *Set) AsJSON() json.RawMessage {
+
 	l.entitlementsMu.RLock()
 	defer l.entitlementsMu.RUnlock()
 	b, _ := json.Marshal(l.entitlements)
 	return b
+
 }
 func (l *Set) Modify(do func(entitlements *codersdk.Entitlements)) {
 	l.entitlementsMu.Lock()
@@ -118,23 +132,28 @@ func (l *Set) Modify(do func(entitlements *codersdk.Entitlements)) {
 	do(&l.entitlements)
 }
 func (l *Set) FeatureChanged(featureName codersdk.FeatureName, newFeature codersdk.Feature) (initial, changed, enabled bool) {
+
 	l.entitlementsMu.RLock()
 	defer l.entitlementsMu.RUnlock()
 	oldFeature := l.entitlements.Features[featureName]
 	if oldFeature.Enabled != newFeature.Enabled {
 		return false, true, newFeature.Enabled
 	}
+
 	return false, false, newFeature.Enabled
 }
 func (l *Set) WriteEntitlementWarningHeaders(header http.Header) {
 	l.entitlementsMu.RLock()
+
 	defer l.entitlementsMu.RUnlock()
 	for _, warning := range l.entitlements.Warnings {
 		header.Add(codersdk.EntitlementsWarningHeader, warning)
 	}
+
 }
 func (l *Set) Errors() []string {
 	l.entitlementsMu.RLock()
+
 	defer l.entitlementsMu.RUnlock()
 	return slices.Clone(l.entitlements.Errors)
 }

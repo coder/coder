@@ -14,8 +14,10 @@ import (
 	"github.com/gliderlabs/ssh"
 	gossh "golang.org/x/crypto/ssh"
 
+
 	"cdr.dev/slog"
 )
+
 
 // streamLocalForwardPayload describes the extra data sent in a
 // streamlocal-forward@openssh.com containing the socket path to bind to.
@@ -23,12 +25,14 @@ type streamLocalForwardPayload struct {
 	SocketPath string
 }
 
+
 // forwardedStreamLocalPayload describes the data sent as the payload in the new
 // channel request when a Unix connection is accepted by the listener.
 type forwardedStreamLocalPayload struct {
 	SocketPath string
 	Reserved   uint32
 }
+
 
 // forwardedUnixHandler is a clone of ssh.ForwardedTCPHandler that does
 // streamlocal forwarding (aka. unix forwarding) instead of TCP forwarding.
@@ -38,10 +42,12 @@ type forwardedUnixHandler struct {
 	forwards map[forwardKey]net.Listener
 }
 
+
 type forwardKey struct {
 	sessionID string
 	addr      string
 }
+
 
 func newForwardedUnixHandler(log slog.Logger) *forwardedUnixHandler {
 	return &forwardedUnixHandler{
@@ -49,6 +55,7 @@ func newForwardedUnixHandler(log slog.Logger) *forwardedUnixHandler {
 		forwards: make(map[forwardKey]net.Listener),
 	}
 }
+
 
 func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, req *gossh.Request) (bool, []byte) {
 	h.log.Debug(ctx, "handling SSH unix forward")
@@ -59,6 +66,7 @@ func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, 
 	}
 	log := h.log.With(slog.F("session_id", ctx.SessionID()), slog.F("remote_addr", conn.RemoteAddr()))
 
+
 	switch req.Type {
 	case "streamlocal-forward@openssh.com":
 		var reqPayload streamLocalForwardPayload
@@ -68,14 +76,17 @@ func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, 
 			return false, nil
 		}
 
+
 		addr := reqPayload.SocketPath
 		log = log.With(slog.F("socket_path", addr))
 		log.Debug(ctx, "request begin SSH unix forward")
+
 
 		key := forwardKey{
 			sessionID: ctx.SessionID(),
 			addr:      addr,
 		}
+
 
 		h.Lock()
 		_, ok := h.forwards[key]
@@ -89,6 +100,7 @@ func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, 
 			return true, nil
 		}
 
+
 		// Create socket parent dir if not exists.
 		parentDir := filepath.Dir(addr)
 		err = os.MkdirAll(parentDir, 0o700)
@@ -100,6 +112,7 @@ func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, 
 			return false, nil
 		}
 
+
 		// Remove existing socket if it exists. We do not use os.Remove() here
 		// so that directories are kept. Note that it's possible that we will
 		// overwrite a regular file here. Both of these behaviors match OpenSSH,
@@ -110,6 +123,7 @@ func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, 
 			return false, nil
 		}
 
+
 		lc := &net.ListenConfig{}
 		ln, err := lc.Listen(ctx, "unix", addr)
 		if err != nil {
@@ -117,6 +131,7 @@ func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, 
 			return false, nil
 		}
 		log.Debug(ctx, "SSH unix forward listening on socket")
+
 
 		// The listener needs to successfully start before it can be added to
 		// the map, so we don't have to worry about checking for an existing
@@ -128,6 +143,7 @@ func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, 
 		h.Unlock()
 		log.Debug(ctx, "SSH unix forward added to cache")
 
+
 		ctx, cancel := context.WithCancel(ctx)
 		go func() {
 			<-ctx.Done()
@@ -135,6 +151,7 @@ func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, 
 		}()
 		go func() {
 			defer cancel()
+
 
 			for {
 				c, err := ln.Accept()
@@ -151,6 +168,7 @@ func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, 
 					SocketPath: addr,
 				})
 
+
 				go func() {
 					ch, reqs, err := conn.OpenChannel("forwarded-streamlocal@openssh.com", payload)
 					if err != nil {
@@ -163,6 +181,7 @@ func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, 
 				}()
 			}
 
+
 			h.Lock()
 			if ln2, ok := h.forwards[key]; ok && ln2 == ln {
 				delete(h.forwards, key)
@@ -172,7 +191,9 @@ func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, 
 			_ = ln.Close()
 		}()
 
+
 		return true, nil
+
 
 	case "cancel-streamlocal-forward@openssh.com":
 		var reqPayload streamLocalForwardPayload
@@ -183,10 +204,12 @@ func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, 
 		}
 		log.Debug(ctx, "request to cancel SSH unix forward", slog.F("socket_path", reqPayload.SocketPath))
 
+
 		key := forwardKey{
 			sessionID: ctx.SessionID(),
 			addr:      reqPayload.SocketPath,
 		}
+
 
 		h.Lock()
 		ln, ok := h.forwards[key]
@@ -199,19 +222,23 @@ func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, 
 		_ = ln.Close()
 		return true, nil
 
+
 	default:
 		return false, nil
 	}
 }
+
 
 // directStreamLocalPayload describes the extra data sent in a
 // direct-streamlocal@openssh.com channel request containing the socket path.
 type directStreamLocalPayload struct {
 	SocketPath string
 
+
 	Reserved1 string
 	Reserved2 uint32
 }
+
 
 func directStreamLocalHandler(_ *ssh.Server, _ *gossh.ServerConn, newChan gossh.NewChannel, ctx ssh.Context) {
 	var reqPayload directStreamLocalPayload
@@ -221,12 +248,14 @@ func directStreamLocalHandler(_ *ssh.Server, _ *gossh.ServerConn, newChan gossh.
 		return
 	}
 
+
 	var dialer net.Dialer
 	dconn, err := dialer.DialContext(ctx, "unix", reqPayload.SocketPath)
 	if err != nil {
 		_ = newChan.Reject(gossh.ConnectionFailed, fmt.Sprintf("dial unix socket %q: %+v", reqPayload.SocketPath, err.Error()))
 		return
 	}
+
 
 	ch, reqs, err := newChan.Accept()
 	if err != nil {
@@ -235,8 +264,10 @@ func directStreamLocalHandler(_ *ssh.Server, _ *gossh.ServerConn, newChan gossh.
 	}
 	go gossh.DiscardRequests(reqs)
 
+
 	Bicopy(ctx, ch, dconn)
 }
+
 
 // unlink removes files and unlike os.Remove, directories are kept.
 func unlink(path string) error {

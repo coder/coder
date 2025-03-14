@@ -1,16 +1,20 @@
 package cli
+
 import (
 	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"github.com/coder/coder/v2/codersdk"
+
 	"github.com/coder/serpent"
 )
+
 func (RootCmd) errorExample() *serpent.Command {
 	errorCmd := func(use string, err error) *serpent.Command {
 		return &serpent.Command{
 			Use: use,
+
 			Handler: func(inv *serpent.Invocation) error {
 				return err
 			},
@@ -21,6 +25,7 @@ func (RootCmd) errorExample() *serpent.Command {
 	recorder.WriteHeader(http.StatusBadRequest)
 	resp := recorder.Result()
 	_ = resp.Body.Close()
+
 	resp.Request, _ = http.NewRequest(http.MethodPost, "http://example.com", nil)
 	apiError := codersdk.ReadBodyAsError(resp)
 	//nolint:errorlint,forcetypeassert
@@ -42,14 +47,17 @@ func (RootCmd) errorExample() *serpent.Command {
 	apiErrorNoHelper.Helper = ""
 	// Some flags
 	var magicWord serpent.String
+
 	cmd := &serpent.Command{
 		Use:   "example-error",
 		Short: "Shows what different error messages look like",
 		Long: "This command is pretty pointless, but without it testing errors is" +
 			"difficult to visually inspect. Error message formatting is inherently" +
+
 			"visual, so we need a way to quickly see what they look like.",
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
+
 		},
 		Children: []*serpent.Command{
 			// Typical codersdk api error
@@ -63,9 +71,11 @@ func (RootCmd) errorExample() *serpent.Command {
 					return fmt.Errorf("wrapped: %w", errors.Join(
 						fmt.Errorf("first error: %w", errorWithStackTrace()),
 						fmt.Errorf("second error: %w", errorWithStackTrace()),
+
 						fmt.Errorf("wrapped api error: %w", apiErrorNoHelper),
 					))
 				},
+
 			},
 			{
 				Use:   "multi-multi-error",

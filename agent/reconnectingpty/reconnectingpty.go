@@ -12,18 +12,21 @@ import (
 
 	"errors"
 	"fmt"
+
 	"github.com/prometheus/client_golang/prometheus"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/pty"
+
 )
 
 // attachTimeout is the initial timeout for attaching and will probably be far
 // shorter than the reconnect timeout in most cases; in tests it might be
 // longer.  It should be at least long enough for the first screen attach to be
 // able to start up the daemon and for the buffered pty to start.
+
 const attachTimeout = 30 * time.Second
 
 // Options allows configuring the reconnecting pty.
@@ -33,6 +36,7 @@ type Options struct {
 	Timeout time.Duration
 	// Metrics tracks various error counters.
 	Metrics *prometheus.CounterVec
+
 }
 
 // ReconnectingPTY is a pty that can be reconnected within a timeout and to
@@ -50,6 +54,7 @@ type ReconnectingPTY interface {
 	Wait()
 	// Close kills the reconnecting pty process.
 	Close(err error)
+
 }
 
 // New sets up a new reconnecting pty that wraps the provided command.  Any
@@ -71,7 +76,9 @@ func New(ctx context.Context, logger slog.Logger, execer agentexec.Execer, cmd *
 		if err == nil {
 			backendType = "screen"
 		}
+
 	}
+
 
 	logger.Info(ctx, "start reconnecting pty", slog.F("backend_type", backendType))
 
@@ -81,18 +88,22 @@ func New(ctx context.Context, logger slog.Logger, execer agentexec.Execer, cmd *
 	default:
 		return newBuffered(ctx, logger, execer, cmd, options)
 	}
+
 }
 
 // heartbeat resets timer before timeout elapses and blocks until ctx ends.
 func heartbeat(ctx context.Context, timer *time.Timer, timeout time.Duration) {
 	// Reset now in case it is near the end.
+
 	timer.Reset(timeout)
 
 	// Reset when the context ends to ensure the pty stays up for the full
 	// timeout.
+
 	defer timer.Reset(timeout)
 
 	heartbeat := time.NewTicker(timeout / 2)
+
 	defer heartbeat.Stop()
 
 	for {
@@ -103,10 +114,12 @@ func heartbeat(ctx context.Context, timer *time.Timer, timeout time.Duration) {
 			timer.Reset(timeout)
 		}
 	}
+
 }
 
 // State represents the current state of the reconnecting pty.  States are
 // sequential and will only move forward.
+
 type State int
 
 const (
@@ -121,6 +134,7 @@ const (
 	// StateDone means the reconnecting pty has completely shut down and the
 	// process has exited.  Attaching will result in an error.
 	StateDone
+
 )
 
 // ptyState is a helper for tracking the reconnecting PTY's state.
@@ -133,6 +147,7 @@ type ptyState struct {
 	// state holds the current reconnecting pty state.  It is not safe to access
 	// this outside of cond.L.
 	state State
+
 }
 
 func newState() *ptyState {
@@ -140,6 +155,7 @@ func newState() *ptyState {
 		cond:  sync.NewCond(&sync.Mutex{}),
 		state: StateStarting,
 	}
+
 }
 
 // setState sets and broadcasts the provided state if it is greater than the
@@ -155,6 +171,7 @@ func (s *ptyState) setState(state State, err error) {
 	s.error = err
 	s.state = state
 	s.cond.Broadcast()
+
 }
 
 // waitForState blocks until the state or a greater one is reached.
@@ -165,12 +182,14 @@ func (s *ptyState) waitForState(state State) (State, error) {
 		s.cond.Wait()
 	}
 	return s.state, s.error
+
 }
 
 // waitForStateOrContext blocks until the state or a greater one is reached or
 // the provided context ends.
 func (s *ptyState) waitForStateOrContext(ctx context.Context, state State) (State, error) {
 	s.cond.L.Lock()
+
 	defer s.cond.L.Unlock()
 
 	nevermind := make(chan struct{})
@@ -182,6 +201,7 @@ func (s *ptyState) waitForStateOrContext(ctx context.Context, state State) (Stat
 			s.cond.Broadcast()
 		case <-nevermind:
 		}
+
 	}()
 
 	for ctx.Err() == nil && state > s.state {
@@ -191,6 +211,7 @@ func (s *ptyState) waitForStateOrContext(ctx context.Context, state State) (Stat
 		return s.state, ctx.Err()
 	}
 	return s.state, s.error
+
 }
 
 // readConnLoop reads messages from conn and writes to ptty as needed.  Blocks

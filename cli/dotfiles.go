@@ -1,4 +1,5 @@
 package cli
+
 import (
 	"bytes"
 	"errors"
@@ -10,19 +11,24 @@ import (
 	"strings"
 	"time"
 	"github.com/coder/pretty"
+
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/serpent"
+
 )
 func (r *RootCmd) dotfiles() *serpent.Command {
+
 	var symlinkDir string
 	var gitbranch string
 	var dotfilesRepoDir string
 	cmd := &serpent.Command{
+
 		Use:        "dotfiles <git_repo_url>",
 		Middleware: serpent.RequireNArgs(1),
 		Short:      "Personalize your workspace by applying a canonical dotfiles repository",
 		Long: FormatExamples(
 			Example{
+
 				Description: "Check out and install a dotfiles repository without prompts",
 				Command:     "coder dotfiles --yes git@github.com:example/dotfiles.git",
 			},
@@ -44,16 +50,19 @@ func (r *RootCmd) dotfiles() *serpent.Command {
 			dotfilesExists, err := dirExists(dotfilesDir)
 			if err != nil {
 				return fmt.Errorf("checking dir %s: %w", dotfilesDir, err)
+
 			}
 			moved := false
 			if dotfilesExists {
 				du, err := cfg.DotfilesURL().Read()
+
 				if err != nil && !errors.Is(err, os.ErrNotExist) {
 					return fmt.Errorf("reading dotfiles url config: %w", err)
 				}
 				// if the git url has changed we create a backup and clone fresh
 				if gitRepo != du {
 					backupDir := fmt.Sprintf("%s_backup_%s", dotfilesDir, time.Now().Format(time.RFC3339))
+
 					_, err = cliui.Prompt(inv, cliui.PromptOptions{
 						Text:      fmt.Sprintf("The dotfiles URL has changed from %q to %q.\n  Coder will backup the existing repo to %s.\n\n  Continue?", du, gitRepo, backupDir),
 						IsConfirm: true,
@@ -71,6 +80,7 @@ func (r *RootCmd) dotfiles() *serpent.Command {
 				}
 			}
 			var (
+
 				gitCmdDir   string
 				subcommands []string
 				promptText  string
@@ -81,6 +91,7 @@ func (r *RootCmd) dotfiles() *serpent.Command {
 				subcommands = []string{"pull", "--ff-only"}
 				promptText = fmt.Sprintf("Pulling latest from %s into directory %s.\n  Continue?", gitRepo, dotfilesDir)
 			} else {
+
 				if !moved {
 					_, _ = fmt.Fprintf(inv.Stdout, "Did not find dotfiles repository at %s\n", dotfilesDir)
 				}
@@ -103,6 +114,7 @@ func (r *RootCmd) dotfiles() *serpent.Command {
 			if err != nil {
 				return fmt.Errorf("ensuring dir at %q: %w", gitCmdDir, err)
 			}
+
 			// check if git ssh command already exists so we can just wrap it
 			gitsshCmd := os.Getenv("GIT_SSH_COMMAND")
 			if gitsshCmd == "" {
@@ -111,18 +123,21 @@ func (r *RootCmd) dotfiles() *serpent.Command {
 			// clone or pull repo
 			c := exec.CommandContext(inv.Context(), "git", subcommands...)
 			c.Dir = gitCmdDir
+
 			c.Env = append(inv.Environ.ToOS(), fmt.Sprintf(`GIT_SSH_COMMAND=%s -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no`, gitsshCmd))
 			c.Stdout = inv.Stdout
 			c.Stderr = inv.Stderr
 			err = c.Run()
 			if err != nil {
 				if !dotfilesExists {
+
 					return err
 				}
 				// if the repo exists we soft fail the update operation and try to continue
 				_, _ = fmt.Fprintln(inv.Stdout, pretty.Sprint(cliui.DefaultStyles.Error, "Failed to update repo, continuing..."))
 			}
 			if dotfilesExists && gitbranch != "" {
+
 				// If the repo exists and the git-branch is specified, we need to check out the branch. We do this after
 				// git pull to make sure the branch was pulled down locally. If we do this before the pull, we could be
 				// trying to checkout a branch that does not yet exist locally and get a git error.
@@ -138,6 +153,7 @@ func (r *RootCmd) dotfiles() *serpent.Command {
 						pretty.Sprint(cliui.DefaultStyles.Error, fmt.Sprintf("Failed to use branch %q (%s), continuing...", err.Error(), gitbranch)))
 				}
 			}
+
 			// save git repo url so we can detect changes next time
 			err = cfg.DotfilesURL().Write(gitRepo)
 			if err != nil {
@@ -155,17 +171,20 @@ func (r *RootCmd) dotfiles() *serpent.Command {
 				}
 			}
 			script := findScript(installScriptSet, dotfilesDir)
+
 			if script != "" {
 				_, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text:      fmt.Sprintf("Running install script %s.\n\n  Continue?", script),
 					IsConfirm: true,
 				})
 				if err != nil {
+
 					return err
 				}
 				_, _ = fmt.Fprintf(inv.Stdout, "Running %s...\n", script)
 				scriptPath := filepath.Join(dotfilesDir, script)
 				// Permissions checks will always fail on Windows, since it doesn't have
+
 				// conventional Unix file system permissions.
 				if runtime.GOOS != "windows" {
 					// Check if the script is executable and notify on error
@@ -174,6 +193,7 @@ func (r *RootCmd) dotfiles() *serpent.Command {
 						return fmt.Errorf("stat %s: %w", scriptPath, err)
 					}
 					if fi.Mode()&0o111 == 0 {
+
 						return fmt.Errorf("script %q does not have execute permissions", script)
 					}
 				}
@@ -184,10 +204,13 @@ func (r *RootCmd) dotfiles() *serpent.Command {
 				if runtime.GOOS == "windows" {
 					scriptCmd = exec.CommandContext(inv.Context(), "powershell", "-NoLogo", scriptPath)
 				}
+
 				scriptCmd.Dir = dotfilesDir
 				scriptCmd.Stdout = inv.Stdout
+
 				scriptCmd.Stderr = inv.Stderr
 				err = scriptCmd.Run()
+
 				if err != nil {
 					return fmt.Errorf("running %s: %w", script, err)
 				}
@@ -201,6 +224,7 @@ func (r *RootCmd) dotfiles() *serpent.Command {
 			_, err = cliui.Prompt(inv, cliui.PromptOptions{
 				Text:      "No install scripts found, symlinking dotfiles to home directory.\n\n  Continue?",
 				IsConfirm: true,
+
 			})
 			if err != nil {
 				return err
@@ -216,15 +240,18 @@ func (r *RootCmd) dotfiles() *serpent.Command {
 				to := filepath.Join(symlinkDir, df)
 				_, _ = fmt.Fprintf(inv.Stdout, "Symlinking %s to %s...\n", from, to)
 				isRegular, err := isRegular(to)
+
 				if err != nil {
 					return fmt.Errorf("checking symlink for %s: %w", to, err)
 				}
 				// move conflicting non-symlink files to file.ext.bak
+
 				if isRegular {
 					backup := fmt.Sprintf("%s.bak", to)
 					_, _ = fmt.Fprintf(inv.Stdout, "Moving %s to %s...\n", to, backup)
 					err = os.Rename(to, backup)
 					if err != nil {
+
 						return fmt.Errorf("renaming dir %s: %w", to, err)
 					}
 				}
@@ -233,6 +260,7 @@ func (r *RootCmd) dotfiles() *serpent.Command {
 				// ignore errors because the symlink may or may not exist.  Any regular files are backed up above.
 				_ = os.Remove(to)
 				err = os.Symlink(from, to)
+
 				if err != nil {
 					return fmt.Errorf("symlinking %s to %s: %w", from, to, err)
 				}
@@ -240,11 +268,13 @@ func (r *RootCmd) dotfiles() *serpent.Command {
 			_, _ = fmt.Fprintln(inv.Stdout, "Dotfiles installation complete.")
 			return nil
 		},
+
 	}
 	cmd.Options = serpent.OptionSet{
 		{
 			Flag:        "symlink-dir",
 			Env:         "CODER_SYMLINK_DIR",
+
 			Description: "Specifies the directory for the dotfiles symlink destinations. If empty, will use $HOME.",
 			Value:       serpent.StringOf(&symlinkDir),
 		},
@@ -259,6 +289,7 @@ func (r *RootCmd) dotfiles() *serpent.Command {
 			Flag:        "repo-dir",
 			Default:     "dotfiles",
 			Env:         "CODER_DOTFILES_REPO_DIR",
+
 			Description: "Specifies the directory for the dotfiles repository, relative to global config directory.",
 			Value:       serpent.StringOf(&dotfilesRepoDir),
 		},
@@ -269,6 +300,7 @@ func (r *RootCmd) dotfiles() *serpent.Command {
 type ensureCorrectGitBranchParams struct {
 	repoDir       string
 	gitSSHCommand string
+
 	gitBranch     string
 }
 func ensureCorrectGitBranch(baseInv *serpent.Invocation, params ensureCorrectGitBranchParams) error {
@@ -299,12 +331,14 @@ func ensureCorrectGitBranch(baseInv *serpent.Invocation, params ensureCorrectGit
 		err = c.Run()
 		if err != nil {
 			return fmt.Errorf("pull git branch %q: %w", params.gitBranch, err)
+
 		}
 	}
 	return nil
 }
 // dirExists checks if the path exists and is a directory.
 func dirExists(name string) (bool, error) {
+
 	fi, err := os.Stat(name)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -323,6 +357,7 @@ func findScript(scriptSet []string, directory string) string {
 		if _, err := os.Stat(filepath.Join(directory, i)); err == nil {
 			return i
 		}
+
 	}
 	return ""
 }
@@ -331,6 +366,7 @@ func isRegular(to string) (bool, error) {
 	fi, err := os.Lstat(to)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
+
 			return false, nil
 		}
 		return false, fmt.Errorf("lstat %s: %w", to, err)

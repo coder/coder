@@ -1,16 +1,20 @@
 package notifications
+
 import (
 	"fmt"
 	"errors"
 	"context"
 	"encoding/json"
 	"strings"
+
 	"text/template"
 	"github.com/google/uuid"
 	"cdr.dev/slog"
+
 	"github.com/coder/quartz"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+
 	"github.com/coder/coder/v2/coderd/notifications/render"
 	"github.com/coder/coder/v2/coderd/notifications/types"
 	"github.com/coder/coder/v2/codersdk"
@@ -18,15 +22,18 @@ import (
 var (
 	ErrCannotEnqueueDisabledNotification = errors.New("notification is not enabled")
 	ErrDuplicate                         = errors.New("duplicate notification")
+
 )
 type StoreEnqueuer struct {
 	store Store
 	log   slog.Logger
 	defaultMethod database.NotificationMethod
+
 	// helpers holds a map of template funcs which are used when rendering templates. These need to be passed in because
 	// the template funcs will return values which are inappropriately encapsulated in this struct.
 	helpers template.FuncMap
 	// Used to manipulate time in tests.
+
 	clock quartz.Clock
 }
 // NewStoreEnqueuer creates an Enqueuer implementation which can persist notification messages in the store.
@@ -35,6 +42,7 @@ func NewStoreEnqueuer(cfg codersdk.NotificationsConfig, store Store, helpers tem
 	if err := method.Scan(cfg.Method.String()); err != nil {
 		return nil, fmt.Errorf("given notification method %q is invalid", cfg.Method)
 	}
+
 	return &StoreEnqueuer{
 		store:         store,
 		log:           log,
@@ -42,6 +50,7 @@ func NewStoreEnqueuer(cfg codersdk.NotificationsConfig, store Store, helpers tem
 		helpers:       helpers,
 		clock:         clock,
 	}, nil
+
 }
 // Enqueue queues a notification message for later delivery, assumes no structured input data.
 func (s *StoreEnqueuer) Enqueue(ctx context.Context, userID, templateID uuid.UUID, labels map[string]string, createdBy string, targets ...uuid.UUID) ([]uuid.UUID, error) {
@@ -51,11 +60,13 @@ func (s *StoreEnqueuer) Enqueue(ctx context.Context, userID, templateID uuid.UUI
 // Messages will be dequeued by a notifier later and dispatched.
 func (s *StoreEnqueuer) EnqueueWithData(ctx context.Context, userID, templateID uuid.UUID, labels map[string]string, data map[string]any, createdBy string, targets ...uuid.UUID) ([]uuid.UUID, error) {
 	metadata, err := s.store.FetchNewMessageMetadata(ctx, database.FetchNewMessageMetadataParams{
+
 		UserID:                 userID,
 		NotificationTemplateID: templateID,
 	})
 	if err != nil {
 		s.log.Warn(ctx, "failed to fetch message metadata", slog.F("template_id", templateID), slog.F("user_id", userID), slog.Error(err))
+
 		return nil, fmt.Errorf("new message metadata: %w", err)
 	}
 	dispatchMethod := s.defaultMethod
@@ -68,22 +79,26 @@ func (s *StoreEnqueuer) EnqueueWithData(ctx context.Context, userID, templateID 
 		return nil, fmt.Errorf("enqueue notification (payload build): %w", err)
 	}
 	input, err := json.Marshal(payload)
+
 	if err != nil {
 		return nil, fmt.Errorf("failed encoding input labels: %w", err)
 	}
 	uuids := make([]uuid.UUID, 0, 2)
 	// All the enqueued messages are enqueued both on the dispatch method set by the user (or default one) and the inbox.
+
 	// As the inbox is not configurable per the user and is always enabled, we always enqueue the message on the inbox.
 	// The logic is done here in order to have two completely separated processing and retries are handled separately.
 	for _, method := range []database.NotificationMethod{dispatchMethod, database.NotificationMethodInbox} {
 		id := uuid.New()
 		err = s.store.EnqueueNotificationMessage(ctx, database.EnqueueNotificationMessageParams{
 			ID:                     id,
+
 			UserID:                 userID,
 			NotificationTemplateID: templateID,
 			Method:                 method,
 			Payload:                input,
 			Targets:                targets,
+
 			CreatedBy:              createdBy,
 			CreatedAt:              dbtime.Time(s.clock.Now().UTC()),
 		})
@@ -110,6 +125,7 @@ func (s *StoreEnqueuer) EnqueueWithData(ctx context.Context, userID, templateID 
 	s.log.Debug(ctx, "enqueued notification", slog.F("msg_ids", uuids))
 	return uuids, nil
 }
+
 // buildPayload creates the payload that the notification will for variable substitution and/or routing.
 // The payload contains information about the recipient, the event that triggered the notification, and any subsequent
 // actions which can be taken by the recipient.
@@ -117,17 +133,21 @@ func (s *StoreEnqueuer) buildPayload(metadata database.FetchNewMessageMetadataRo
 	payload := types.MessagePayload{
 		Version: "1.1",
 		NotificationName:       metadata.NotificationName,
+
 		NotificationTemplateID: metadata.NotificationTemplateID.String(),
 		UserID:       metadata.UserID.String(),
 		UserEmail:    metadata.UserEmail,
 		UserName:     metadata.UserName,
+
 		UserUsername: metadata.UserUsername,
 		Labels: labels,
 		Data:   data,
+
 		// No actions yet
 	}
 	// Execute any templates in actions.
 	out, err := render.GoTemplate(string(metadata.Actions), payload, s.helpers)
+
 	if err != nil {
 		return nil, fmt.Errorf("render actions: %w", err)
 	}
@@ -135,20 +155,25 @@ func (s *StoreEnqueuer) buildPayload(metadata database.FetchNewMessageMetadataRo
 	var actions []types.TemplateAction
 	if err = json.Unmarshal(metadata.Actions, &actions); err != nil {
 		return nil, fmt.Errorf("new message metadata: parse template actions: %w", err)
+
 	}
 	payload.Actions = actions
 	return &payload, nil
+
 }
 // NoopEnqueuer implements the Enqueuer interface but performs a noop.
 type NoopEnqueuer struct{}
 // NewNoopEnqueuer builds a NoopEnqueuer which is used to fulfill the contract for enqueuing notifications, if ExperimentNotifications is not set.
 func NewNoopEnqueuer() *NoopEnqueuer {
+
 	return &NoopEnqueuer{}
 }
 func (*NoopEnqueuer) Enqueue(context.Context, uuid.UUID, uuid.UUID, map[string]string, string, ...uuid.UUID) ([]uuid.UUID, error) {
+
 	// nolint:nilnil // irrelevant.
 	return nil, nil
 }
+
 func (*NoopEnqueuer) EnqueueWithData(context.Context, uuid.UUID, uuid.UUID, map[string]string, map[string]any, string, ...uuid.UUID) ([]uuid.UUID, error) {
 	// nolint:nilnil // irrelevant.
 	return nil, nil

@@ -1,4 +1,5 @@
 package dispatch
+
 import (
 	"errors"
 	"bytes"
@@ -18,32 +19,38 @@ import (
 	"sync"
 	"text/template"
 	"time"
+
 	"github.com/emersion/go-sasl"
 	smtp "github.com/emersion/go-smtp"
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/notifications/render"
+
 	"github.com/coder/coder/v2/coderd/notifications/types"
 	markdown "github.com/coder/coder/v2/coderd/render"
+
 	"github.com/coder/coder/v2/codersdk"
 )
 var (
 	ValidationNoFromAddressErr = errors.New("'from' address not defined")
 	ValidationNoToAddressErr   = errors.New("'to' address(es) not defined")
 	ValidationNoSmarthostErr   = errors.New("'smarthost' address not defined")
+
 	ValidationNoHelloErr       = errors.New("'hello' not defined")
 	//go:embed smtp/html.gotmpl
 	htmlTemplate string
 	//go:embed smtp/plaintext.gotmpl
 	plainTemplate string
 )
+
 // SMTPHandler is responsible for dispatching notification messages via SMTP.
 // NOTE: auth and TLS is currently *not* enabled in this initial thin slice.
 // TODO: implement DKIM/SPF/DMARC? https://github.com/emersion/go-msgauth
 type SMTPHandler struct {
 	cfg codersdk.NotificationsEmailConfig
 	log slog.Logger
+
 	noAuthWarnOnce sync.Once
 	loginWarnOnce  sync.Once
 }
@@ -51,14 +58,17 @@ func NewSMTPHandler(cfg codersdk.NotificationsEmailConfig, log slog.Logger) *SMT
 	return &SMTPHandler{cfg: cfg, log: log}
 }
 func (s *SMTPHandler) Dispatcher(payload types.MessagePayload, titleTmpl, bodyTmpl string, helpers template.FuncMap) (DeliveryFunc, error) {
+
 	// First render the subject & body into their own discrete strings.
 	subject, err := markdown.PlaintextFromMarkdown(titleTmpl)
 	if err != nil {
 		return nil, fmt.Errorf("render subject: %w", err)
+
 	}
 	htmlBody := markdown.HTMLFromMarkdown(bodyTmpl)
 	plainBody, err := markdown.PlaintextFromMarkdown(bodyTmpl)
 	if err != nil {
+
 		return nil, fmt.Errorf("render plaintext body: %w", err)
 	}
 	// Then, reuse these strings in the HTML & plain body templates.
@@ -66,12 +76,14 @@ func (s *SMTPHandler) Dispatcher(payload types.MessagePayload, titleTmpl, bodyTm
 	payload.Labels["_body"] = htmlBody
 	htmlBody, err = render.GoTemplate(htmlTemplate, payload, helpers)
 	if err != nil {
+
 		return nil, fmt.Errorf("render full html template: %w", err)
 	}
 	payload.Labels["_body"] = plainBody
 	plainBody, err = render.GoTemplate(plainTemplate, payload, helpers)
 	if err != nil {
 		return nil, fmt.Errorf("render full plaintext template: %w", err)
+
 	}
 	return s.dispatch(subject, htmlBody, plainBody, payload.UserEmail), nil
 }
@@ -85,9 +97,11 @@ func (s *SMTPHandler) Dispatcher(payload types.MessagePayload, titleTmpl, bodyTm
 // https://github.com/prometheus/alertmanager/blob/342f6a599ce16c138663f18ed0b880e777c3017d/notify/email/email.go
 func (s *SMTPHandler) dispatch(subject, htmlBody, plainBody, to string) DeliveryFunc {
 	return func(ctx context.Context, msgID uuid.UUID) (bool, error) {
+
 		select {
 		case <-ctx.Done():
 			return false, ctx.Err()
+
 		default:
 		}
 		s.log.Debug(ctx, "dispatching via SMTP", slog.F("msg_id", msgID))
@@ -104,19 +118,23 @@ func (s *SMTPHandler) dispatch(subject, htmlBody, plainBody, to string) Delivery
 		// Create an SMTP client for communication with the smarthost.
 		c, err := s.client(ctx, smarthost, smarthostPort)
 		if err != nil {
+
 			return true, fmt.Errorf("SMTP client creation: %w", err)
 		}
+
 		// Cleanup.
 		defer func() {
 			if err := c.Quit(); err != nil {
 				s.log.Warn(ctx, "failed to close SMTP connection", slog.Error(err))
 			}
 		}()
+
 		// Check for authentication capabilities.
 		if ok, avail := c.Extension("AUTH"); ok {
 			// Ensure the auth mechanisms available are ones we can use, and create a SASL client.
 			auth, err := s.auth(ctx, avail)
 			if err != nil {
+
 				return true, fmt.Errorf("determine auth mechanism: %w", err)
 			}
 			if auth == nil {
@@ -124,6 +142,7 @@ func (s *SMTPHandler) dispatch(subject, htmlBody, plainBody, to string) Delivery
 				// This is expected if auth is supported by the smarthost BUT no authentication details were configured.
 				s.noAuthWarnOnce.Do(func() {
 					s.log.Warn(ctx, "skipping auth; no authentication client created")
+
 				})
 			} else {
 				// We have a SASL client, use it to authenticate.
@@ -131,6 +150,7 @@ func (s *SMTPHandler) dispatch(subject, htmlBody, plainBody, to string) Delivery
 					return true, fmt.Errorf("%T auth: %w", auth, err)
 				}
 			}
+
 		} else if !s.cfg.Auth.Empty() {
 			return false, errors.New("no authentication mechanisms supported by server")
 		}
@@ -139,6 +159,7 @@ func (s *SMTPHandler) dispatch(subject, htmlBody, plainBody, to string) Delivery
 		if err != nil {
 			return false, fmt.Errorf("'from' validation: %w", err)
 		}
+
 		err = c.Mail(from, &smtp.MailOptions{})
 		if err != nil {
 			// This is retryable because the server may be temporarily down.
@@ -155,6 +176,7 @@ func (s *SMTPHandler) dispatch(subject, htmlBody, plainBody, to string) Delivery
 				// This is a retryable case because the server may be temporarily down.
 				// The addresses are already validated, although it is possible that the server might disagree - in which case
 				// this will lead to some spurious retries, but that's not a big deal.
+
 				return true, fmt.Errorf("recipient designation: %w", err)
 			}
 		}
@@ -166,6 +188,7 @@ func (s *SMTPHandler) dispatch(subject, htmlBody, plainBody, to string) Delivery
 		closeOnce := sync.OnceValue(func() error {
 			return message.Close()
 		})
+
 		// Close the message when this method exits in order to not leak resources. Even though we're calling this explicitly
 		// further down, the method may exit before then.
 		defer func() {
@@ -181,6 +204,7 @@ func (s *SMTPHandler) dispatch(subject, htmlBody, plainBody, to string) Delivery
 		_, _ = fmt.Fprintf(msg, "Subject: %s\r\n", subject)
 		_, _ = fmt.Fprintf(msg, "Message-Id: %s@%s\r\n", msgID, s.hostname())
 		_, _ = fmt.Fprintf(msg, "Date: %s\r\n", time.Now().Format(time.RFC1123Z))
+
 		_, _ = fmt.Fprintf(msg, "Content-Type: multipart/alternative;  boundary=%s\r\n", multipartWriter.Boundary())
 		_, _ = fmt.Fprintf(msg, "MIME-Version: 1.0\r\n\r\n")
 		_, err = message.Write(msg.Bytes())
@@ -196,6 +220,7 @@ func (s *SMTPHandler) dispatch(subject, htmlBody, plainBody, to string) Delivery
 		if err != nil {
 			return false, fmt.Errorf("create part for text body: %w", err)
 		}
+
 		qw := quotedprintable.NewWriter(w)
 		_, err = qw.Write([]byte(plainBody))
 		if err != nil {
@@ -212,8 +237,10 @@ func (s *SMTPHandler) dispatch(subject, htmlBody, plainBody, to string) Delivery
 			"Content-Transfer-Encoding": {"quoted-printable"},
 			"Content-Type":              {"text/html; charset=UTF-8"},
 		})
+
 		if err != nil {
 			return false, fmt.Errorf("create part for HTML body: %w", err)
+
 		}
 		qw = quotedprintable.NewWriter(w)
 		_, err = qw.Write([]byte(htmlBody))
@@ -232,6 +259,7 @@ func (s *SMTPHandler) dispatch(subject, htmlBody, plainBody, to string) Delivery
 		if err != nil {
 			return false, fmt.Errorf("write body buffer: %w", err)
 		}
+
 		if err = closeOnce(); err != nil {
 			return true, fmt.Errorf("delivery failure: %w", err)
 		}
@@ -252,25 +280,30 @@ func (s *SMTPHandler) client(ctx context.Context, host string, port string) (*sm
 	if !ok {
 		return nil, fmt.Errorf("context has no deadline")
 	}
+
 	// Align with context deadline.
 	d.Deadline = deadline
 	tlsCfg, err := s.tlsConfig()
 	if err != nil {
 		return nil, fmt.Errorf("build TLS config: %w", err)
+
 	}
 	smarthost := fmt.Sprintf("%s:%s", host, port)
 	useTLS := false
 	// Use TLS if known TLS port(s) are used or TLS is forced.
 	if port == "465" || s.cfg.ForceTLS {
+
 		useTLS = true
 		// STARTTLS is only used on plain connections to upgrade.
 		if s.cfg.TLS.StartTLS {
 			s.log.Warn(ctx, "STARTTLS is not allowed on TLS connections; disabling STARTTLS")
+
 			s.cfg.TLS.StartTLS = false
 		}
 	}
 	// Dial a TLS or plain connection to the smarthost.
 	if useTLS {
+
 		conn, err = tls.DialWithDialer(&d, "tcp", smarthost, tlsCfg)
 		if err != nil {
 			return nil, fmt.Errorf("establish TLS connection to server: %w", err)
@@ -280,6 +313,7 @@ func (s *SMTPHandler) client(ctx context.Context, host string, port string) (*sm
 		if err != nil {
 			return nil, fmt.Errorf("establish plain connection to server: %w", err)
 		}
+
 	}
 	// If the connection is plain, and STARTTLS is configured, try to upgrade the connection.
 	if s.cfg.TLS.StartTLS {
@@ -288,18 +322,22 @@ func (s *SMTPHandler) client(ctx context.Context, host string, port string) (*sm
 			return nil, fmt.Errorf("upgrade connection with STARTTLS: %w", err)
 		}
 	} else {
+
 		c = smtp.NewClient(conn)
 		// HELO is performed here and not always because smtp.NewClientStartTLS greets the server already to establish
 		// whether STARTTLS is allowed.
 		var hello string
 		// Server handshake.
+
 		hello, err = s.hello()
 		if err != nil {
 			return nil, fmt.Errorf("'hello' validation: %w", err)
+
 		}
 		err = c.Hello(hello)
 		if err != nil {
 			return nil, fmt.Errorf("server handshake: %w", err)
+
 		}
 	}
 	// Align with context deadline.
@@ -307,6 +345,7 @@ func (s *SMTPHandler) client(ctx context.Context, host string, port string) (*sm
 	c.SubmissionTimeout = time.Until(deadline)
 	return c, nil
 }
+
 func (s *SMTPHandler) tlsConfig() (*tls.Config, error) {
 	host, _, err := s.smarthost()
 	if err != nil {
@@ -320,6 +359,7 @@ func (s *SMTPHandler) tlsConfig() (*tls.Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("load CA: %w", err)
 	}
+
 	var certs []tls.Certificate
 	cert, err := s.loadCertificate()
 	if err != nil {
@@ -329,9 +369,11 @@ func (s *SMTPHandler) tlsConfig() (*tls.Config, error) {
 		certs = append(certs, *cert)
 	}
 	return &tls.Config{
+
 		ServerName: srvName,
 		// nolint:gosec // Users may choose to enable this.
 		InsecureSkipVerify: s.cfg.TLS.InsecureSkipVerify.Value(),
+
 		RootCAs:      ca,
 		Certificates: certs,
 		ClientAuth:   tls.RequireAndVerifyClientCert,
@@ -344,75 +386,90 @@ func (s *SMTPHandler) loadCAFile() (*x509.CertPool, error) {
 	}
 	ca, err := os.ReadFile(s.cfg.TLS.CAFile.String())
 	if err != nil {
+
 		return nil, fmt.Errorf("load CA file: %w", err)
 	}
 	pool := x509.NewCertPool()
 	if !pool.AppendCertsFromPEM(ca) {
+
 		return nil, fmt.Errorf("build cert pool: %w", err)
 	}
 	return pool, nil
+
 }
 func (s *SMTPHandler) loadCertificate() (*tls.Certificate, error) {
 	if len(s.cfg.TLS.CertFile) == 0 && len(s.cfg.TLS.KeyFile) == 0 {
 		// nolint:nilnil // A nil certificate is a valid response.
 		return nil, nil
 	}
+
 	cert, err := os.ReadFile(s.cfg.TLS.CertFile.Value())
 	if err != nil {
 		return nil, fmt.Errorf("load cert: %w", err)
 	}
 	key, err := os.ReadFile(s.cfg.TLS.KeyFile.String())
+
 	if err != nil {
 		return nil, fmt.Errorf("load key: %w", err)
 	}
 	pair, err := tls.X509KeyPair(cert, key)
 	if err != nil {
+
 		return nil, fmt.Errorf("invalid or unusable keypair: %w", err)
 	}
 	return &pair, nil
 }
 // auth returns a value which implements the smtp.Auth based on the available auth mechanisms.
 func (s *SMTPHandler) auth(ctx context.Context, mechs string) (sasl.Client, error) {
+
 	username := s.cfg.Auth.Username.String()
 	// All auth mechanisms require username, so if one is not defined then don't return an auth client.
 	if username == "" {
 		// nolint:nilnil // This is a valid response.
+
 		return nil, nil
 	}
 	var errs error
 	list := strings.Split(mechs, " ")
 	for _, mech := range list {
+
 		switch mech {
 		case sasl.Plain:
 			password, err := s.password()
 			if err != nil {
 				errs = multierror.Append(errs, err)
 				continue
+
 			}
 			if password == "" {
 				errs = multierror.Append(errs, errors.New("cannot use PLAIN auth, password not defined (see CODER_EMAIL_AUTH_PASSWORD)"))
 				continue
 			}
 			return sasl.NewPlainClient(s.cfg.Auth.Identity.String(), username, password), nil
+
 		case sasl.Login:
 			if slices.Contains(list, sasl.Plain) {
 				// Prefer PLAIN over LOGIN.
 				continue
 			}
+
 			// Warn that LOGIN is obsolete, but don't do it every time we dispatch a notification.
 			s.loginWarnOnce.Do(func() {
 				s.log.Warn(ctx, "LOGIN auth is obsolete and should be avoided (use PLAIN instead): https://www.ietf.org/archive/id/draft-murchison-sasl-login-00.txt")
 			})
 			password, err := s.password()
+
 			if err != nil {
 				errs = multierror.Append(errs, err)
 				continue
+
 			}
 			if password == "" {
 				errs = multierror.Append(errs, errors.New("cannot use LOGIN auth, password not defined (see CODER_EMAIL_AUTH_PASSWORD)"))
 				continue
 			}
 			return sasl.NewLoginClient(username, password), nil
+
 		default:
 			return nil, fmt.Errorf("unsupported auth mechanism: %q (supported: %v)", mechs, []string{sasl.Plain, sasl.Login})
 		}
@@ -422,24 +479,29 @@ func (s *SMTPHandler) auth(ctx context.Context, mechs string) (sasl.Client, erro
 func (*SMTPHandler) validateFromAddr(from string) (string, error) {
 	addrs, err := mail.ParseAddressList(from)
 	if err != nil {
+
 		return "", fmt.Errorf("parse 'from' address: %w", err)
 	}
 	if len(addrs) != 1 {
 		return "", ValidationNoFromAddressErr
 	}
+
 	return from, nil
 }
 func (s *SMTPHandler) validateToAddrs(to string) ([]string, error) {
+
 	addrs, err := mail.ParseAddressList(to)
 	if err != nil {
 		return nil, fmt.Errorf("parse 'to' addresses: %w", err)
 	}
+
 	if len(addrs) == 0 {
 		s.log.Warn(context.Background(), "no valid 'to' address(es) defined; some may be invalid", slog.F("defined", to))
 		return nil, ValidationNoToAddressErr
 	}
 	var out []string
 	for _, addr := range addrs {
+
 		out = append(out, addr.Address)
 	}
 	return out, nil
@@ -455,6 +517,7 @@ func (s *SMTPHandler) smarthost() (string, string, error) {
 	host, port, err := net.SplitHostPort(string(s.cfg.Smarthost))
 	if err != nil {
 		return "", "", fmt.Errorf("split host port: %w", err)
+
 	}
 	return host, port, nil
 }
@@ -462,11 +525,13 @@ func (s *SMTPHandler) smarthost() (string, string, error) {
 // Does not allow overriding.
 func (s *SMTPHandler) hello() (string, error) {
 	val := s.cfg.Hello.String()
+
 	if val == "" {
 		return "", ValidationNoHelloErr
 	}
 	return val, nil
 }
+
 func (*SMTPHandler) hostname() string {
 	h, err := os.Hostname()
 	// If we can't get the hostname, we'll use localhost
@@ -477,13 +542,16 @@ func (*SMTPHandler) hostname() string {
 }
 // password returns either the configured password, or reads it from the configured file (if possible).
 func (s *SMTPHandler) password() (string, error) {
+
 	file := s.cfg.Auth.PasswordFile.String()
 	if len(file) > 0 {
 		content, err := os.ReadFile(file)
 		if err != nil {
 			return "", fmt.Errorf("could not read %s: %w", file, err)
 		}
+
 		return string(content), nil
 	}
 	return s.cfg.Auth.Password.String(), nil
+
 }

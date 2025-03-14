@@ -1,4 +1,5 @@
 package cli
+
 import (
 	"bufio"
 	"bytes"
@@ -23,13 +24,16 @@ import (
 	"text/tabwriter"
 	"time"
 	"github.com/mattn/go-isatty"
+
 	"github.com/mitchellh/go-wordwrap"
 	"golang.org/x/mod/semver"
 	"github.com/coder/pretty"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/cliui"
+
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/cli/gitauth"
+
 	"github.com/coder/coder/v2/cli/telemetry"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -40,9 +44,11 @@ var (
 	// Applied as annotations to workspace commands
 	// so they display in a separated "help" section.
 	workspaceCommand = map[string]string{
+
 		"workspaces": "",
 	}
 )
+
 const (
 	varURL                     = "url"
 	varToken                   = "token"
@@ -50,6 +56,7 @@ const (
 	varAgentTokenFile          = "agent-token-file"
 	varAgentURL                = "agent-url"
 	varHeader                  = "header"
+
 	varHeaderCommand           = "header-command"
 	varNoOpen                  = "no-open"
 	varNoVersionCheck          = "no-version-warning"
@@ -66,8 +73,10 @@ const (
 	envAgentToken = "CODER_AGENT_TOKEN"
 	//nolint:gosec
 	envAgentTokenFile = "CODER_AGENT_TOKEN_FILE"
+
 	envURL            = "CODER_URL"
 )
+
 func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 	// Please re-sort this list alphabetically if you change it!
 	return []*serpent.Command{
@@ -78,6 +87,7 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 		r.logout(),
 		r.netcheck(),
 		r.notifications(),
+
 		r.organizations(),
 		r.portForward(),
 		r.publickey(),
@@ -98,6 +108,7 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 		r.ping(),
 		r.rename(),
 		r.restart(),
+
 		r.schedules(),
 		r.show(),
 		r.speedtest(),
@@ -120,6 +131,7 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 func (r *RootCmd) AGPL() []*serpent.Command {
 	all := append(
 		r.CoreSubcommands(),
+
 		r.Server( /* Do not import coderd here. */ nil),
 		r.Provisioners(),
 	)
@@ -130,6 +142,7 @@ func (r *RootCmd) AGPL() []*serpent.Command {
 func (r *RootCmd) RunWithSubcommands(subcommands []*serpent.Command) {
 	// This configuration is not available as a standard option because we
 	// want to trace the entire program, including Options parsing.
+
 	goTraceFilePath, ok := os.LookupEnv("CODER_GO_TRACE")
 	if ok {
 		traceFile, err := os.OpenFile(goTraceFilePath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
@@ -139,6 +152,7 @@ func (r *RootCmd) RunWithSubcommands(subcommands []*serpent.Command) {
 		defer traceFile.Close()
 		if err := trace.Start(traceFile); err != nil {
 			panic(fmt.Sprintf("failed to start trace: %v", err))
+
 		}
 		defer trace.Stop()
 	}
@@ -152,12 +166,14 @@ func (r *RootCmd) RunWithSubcommands(subcommands []*serpent.Command) {
 		var exitErr *exitError
 		if errors.As(err, &exitErr) {
 			code = exitErr.code
+
 			err = exitErr.err
 		}
 		if errors.Is(err, cliui.Canceled) {
 			//nolint:revive
 			os.Exit(code)
 		}
+
 		f := PrettyErrorFormatter{w: os.Stderr, verbose: r.verbose}
 		if err != nil {
 			f.Format(err)
@@ -183,6 +199,7 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 		),
 		Handler: func(i *serpent.Invocation) error {
 			if r.versionFlag {
+
 				return r.version(defaultVersionInfo).Handler(i)
 			}
 			// The GIT_ASKPASS environment variable must point at
@@ -214,8 +231,10 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 					"command %q shouldn't have %q in usage since it's automatically populated",
 					cmd.FullUsage(),
 					flags,
+
 				),
 			)
+
 			return
 		}
 		var hasFlag bool
@@ -223,6 +242,7 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 			if opt.Flag != "" {
 				hasFlag = true
 				break
+
 			}
 		}
 		if !hasFlag {
@@ -239,6 +259,7 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 	// Add aliases when appropriate.
 	cmd.Walk(func(cmd *serpent.Command) {
 		// TODO: we should really be consistent about naming.
+
 		if cmd.Name() == "delete" || cmd.Name() == "remove" {
 			if slices.Contains(cmd.Aliases, "rm") {
 				merr = errors.Join(
@@ -247,10 +268,12 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 				)
 				return
 			}
+
 			cmd.Aliases = append(cmd.Aliases, "rm")
 		}
 	})
 	// Sanity-check command options.
+
 	cmd.Walk(func(cmd *serpent.Command) {
 		for _, opt := range cmd.Options {
 			// Verify that every option is configurable.
@@ -260,6 +283,7 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 					// support links.
 					return
 				}
+
 				merr = errors.Join(
 					merr,
 					fmt.Errorf("option %q in %q should have a flag or env", opt.Name, cmd.FullName()),
@@ -275,6 +299,7 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 	cmd.Walk(func(cmd *serpent.Command) {
 		h := cmd.Handler
 		if h == nil {
+
 			// We should never have a nil handler, but if we do, do not
 			// wrap it. Wrapping it just hides a nil pointer dereference.
 			// If a nil handler exists, this is a developer bug. If no handler
@@ -296,8 +321,10 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 				_, _ = fmt.Fprintf(tw, "%q\t%v\n", opt.Name, opt.ValueSource)
 			}
 			tw.Flush()
+
 			return nil
 		}
+
 	})
 	// Add the PrintDeprecatedOptions middleware to all commands.
 	cmd.Walk(func(cmd *serpent.Command) {
@@ -318,6 +345,7 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 		Description: `Global options are applied to all commands. They can be set using environment variables or flags.`,
 	}
 	cmd.Options = serpent.OptionSet{
+
 		{
 			Flag:        varURL,
 			Env:         envURL,
@@ -328,6 +356,7 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 		{
 			Flag:        "debug-options",
 			Description: "Print all options, how they're set, then exit.",
+
 			Value:       serpent.BoolOf(&debugOptions),
 			Group:       globalGroup,
 		},
@@ -337,6 +366,7 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 			Description: fmt.Sprintf("Specify an authentication token. For security reasons setting %s is preferred.", envSessionToken),
 			Value:       serpent.StringOf(&r.token),
 			Group:       globalGroup,
+
 		},
 		{
 			Flag:        varAgentToken,
@@ -344,6 +374,7 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 			Description: "An agent authentication token.",
 			Value:       serpent.StringOf(&r.agentToken),
 			Hidden:      true,
+
 			Group:       globalGroup,
 		},
 		{
@@ -485,9 +516,11 @@ func (r *RootCmd) InitClient(client *codersdk.Client) serpent.MiddlewareFunc {
 			var err error
 			// Read the client URL stored on disk.
 			if r.clientURL == nil || r.clientURL.String() == "" {
+
 				rawURL, err := conf.URL().Read()
 				// If the configuration files are absent, the user is logged out
 				if os.IsNotExist(err) {
+
 					return errors.New(notLoggedInMessage)
 				}
 				if err != nil {
@@ -505,11 +538,13 @@ func (r *RootCmd) InitClient(client *codersdk.Client) serpent.MiddlewareFunc {
 				// Some API routes can be unauthenticated.
 				if err != nil && !os.IsNotExist(err) {
 					return err
+
 				}
 			}
 			err = r.configureClient(inv.Context(), client, r.clientURL, inv)
 			if err != nil {
 				return err
+
 			}
 			client.SetSessionToken(r.token)
 			if r.debugHTTP {
@@ -529,6 +564,7 @@ func (r *RootCmd) HeaderTransport(ctx context.Context, serverURL *url.URL) (*cod
 func (r *RootCmd) configureClient(ctx context.Context, client *codersdk.Client, serverURL *url.URL, inv *serpent.Invocation) error {
 	transport := http.DefaultTransport
 	transport = wrapTransportWithTelemetryHeader(transport, inv)
+
 	if !r.noVersionCheck {
 		transport = wrapTransportWithVersionMismatchCheck(transport, inv, buildinfo.Version(), func(ctx context.Context) (codersdk.BuildInfoResponse, error) {
 			// Create a new client without any wrapped transport
@@ -544,12 +580,14 @@ func (r *RootCmd) configureClient(ctx context.Context, client *codersdk.Client, 
 	if err != nil {
 		return fmt.Errorf("create header transport: %w", err)
 	}
+
 	// The header transport has to come last.
 	// codersdk checks for the header transport to get headers
 	// to clone on the DERP client.
 	headerTransport.Transport = transport
 	client.HTTPClient = &http.Client{
 		Transport: headerTransport,
+
 	}
 	client.URL = serverURL
 	return nil
@@ -560,12 +598,14 @@ func (r *RootCmd) createUnauthenticatedClient(ctx context.Context, serverURL *ur
 	return &client, err
 }
 // createAgentClient returns a new client from the command context.
+
 // It works just like CreateClient, but uses the agent token and URL instead.
 func (r *RootCmd) createAgentClient() (*agentsdk.Client, error) {
 	client := agentsdk.New(r.agentURL)
 	client.SetSessionToken(r.agentToken)
 	return client, nil
 }
+
 type OrganizationContext struct {
 	// FlagSelect is the value passed in via the --org flag
 	FlagSelect string
@@ -595,12 +635,14 @@ func (o *OrganizationContext) ValueSource(inv *serpent.Invocation) (string, serp
 	return o.FlagSelect, opt.ValueSource
 }
 func (o *OrganizationContext) Selected(inv *serpent.Invocation, client *codersdk.Client) (codersdk.Organization, error) {
+
 	// Fetch the set of organizations the user is a member of.
 	orgs, err := client.OrganizationsByUser(inv.Context(), codersdk.Me)
 	if err != nil {
 		return codersdk.Organization{}, fmt.Errorf("get organizations: %w", err)
 	}
 	// User manually selected an organization
+
 	if o.FlagSelect != "" {
 		index := slices.IndexFunc(orgs, func(org codersdk.Organization) bool {
 			return org.Name == o.FlagSelect || org.ID.String() == o.FlagSelect
@@ -609,15 +651,18 @@ func (o *OrganizationContext) Selected(inv *serpent.Invocation, client *codersdk
 			var names []string
 			for _, org := range orgs {
 				names = append(names, org.Name)
+
 			}
 			return codersdk.Organization{}, fmt.Errorf("organization %q not found, are you sure you are a member of this organization? "+
 				"Valid options for '--org=' are [%s].", o.FlagSelect, strings.Join(names, ", "))
 		}
 		return orgs[index], nil
+
 	}
 	if len(orgs) == 1 {
 		return orgs[0], nil
 	}
+
 	// No org selected, and we are more than 1? Return an error.
 	validOrgs := make([]string, 0, len(orgs))
 	for _, org := range orgs {
@@ -633,6 +678,7 @@ func splitNamedWorkspace(identifier string) (owner string, workspaceName string,
 		workspaceName = parts[0]
 	case 2:
 		owner = parts[0]
+
 		workspaceName = parts[1]
 	default:
 		return "", "", fmt.Errorf("invalid workspace name: %q", identifier)
@@ -641,6 +687,7 @@ func splitNamedWorkspace(identifier string) (owner string, workspaceName string,
 }
 // namedWorkspace fetches and returns a workspace by an identifier, which may be either
 // a bare name (for a workspace owned by the current user) or a "user/workspace" combination,
+
 // where user is either a username or UUID.
 func namedWorkspace(ctx context.Context, client *codersdk.Client, identifier string) (codersdk.Workspace, error) {
 	owner, name, err := splitNamedWorkspace(identifier)
@@ -648,12 +695,14 @@ func namedWorkspace(ctx context.Context, client *codersdk.Client, identifier str
 		return codersdk.Workspace{}, err
 	}
 	return client.WorkspaceByOwnerAndName(ctx, owner, name, codersdk.WorkspaceOptions{})
+
 }
 func initAppearance(client *codersdk.Client, outConfig *codersdk.AppearanceConfig) serpent.MiddlewareFunc {
 	return func(next serpent.HandlerFunc) serpent.HandlerFunc {
 		return func(inv *serpent.Invocation) error {
 			cfg, _ := client.Appearance(inv.Context())
 			if cfg.DocsURL == "" {
+
 				cfg.DocsURL = codersdk.DefaultDocsURL()
 			}
 			*outConfig = cfg
@@ -665,22 +714,27 @@ func initAppearance(client *codersdk.Client, outConfig *codersdk.AppearanceConfi
 func (r *RootCmd) createConfig() config.Root {
 	return config.Root(r.globalConfig)
 }
+
 // isTTYIn returns whether the passed invocation is having stdin read from a TTY
 func isTTYIn(inv *serpent.Invocation) bool {
 	// If the `--force-tty` command is available, and set,
 	// assume we're in a tty. This is primarily for cases on Windows
+
 	// where we may not be able to reliably detect this automatically (ie, tests)
 	forceTty, err := inv.ParsedFlags().GetBool(varForceTty)
 	if forceTty && err == nil {
 		return true
 	}
 	file, ok := inv.Stdin.(*os.File)
+
 	if !ok {
 		return false
 	}
+
 	return isatty.IsTerminal(file.Fd())
 }
 // isTTYOut returns whether the passed invocation is having stdout written to a TTY
+
 func isTTYOut(inv *serpent.Invocation) bool {
 	return isTTYWriter(inv, inv.Stdout)
 }
@@ -694,6 +748,7 @@ func isTTYWriter(inv *serpent.Invocation, writer io.Writer) bool {
 	// where we may not be able to reliably detect this automatically (ie, tests)
 	forceTty, err := inv.ParsedFlags().GetBool(varForceTty)
 	if forceTty && err == nil {
+
 		return true
 	}
 	file, ok := writer.(*os.File)
@@ -705,6 +760,7 @@ func isTTYWriter(inv *serpent.Invocation, writer io.Writer) bool {
 // Example represents a standard example for command usage, to be used
 // with FormatExamples.
 type Example struct {
+
 	Description string
 	Command     string
 }
@@ -718,11 +774,13 @@ func FormatExamples(examples ...Example) string {
 			wordwrap.WrapString(e.Description, 80)
 			_, _ = sb.WriteString(
 				"  - " + pretty.Sprint(padStyle, e.Description+":")[4:] + "\n\n    ",
+
 			)
 		}
 		// We add 1 space here because `cliui.DefaultStyles.Code` adds an extra
 		// space. This makes the code block align at an even 2 or 6
 		// spaces for symmetry.
+
 		_, _ = sb.WriteString(" " + pretty.Sprint(cliui.DefaultStyles.Code, fmt.Sprintf("$ %s", e.Command)))
 		if i < len(examples)-1 {
 			_, _ = sb.WriteString("\n\n")
@@ -739,16 +797,19 @@ func (r *RootCmd) Verbosef(inv *serpent.Invocation, fmtStr string, args ...inter
 // DumpHandler provides a custom SIGQUIT and SIGTRAP handler that dumps the
 // stacktrace of all goroutines to stderr and a well-known file in the home
 // directory. This is useful for debugging deadlock issues that may occur in
+
 // production in workspaces, since the default Go runtime will only dump to
 // stderr (which is often difficult/impossible to read in a workspace).
 //
 // SIGQUITs will still cause the program to exit (similarly to the default Go
 // runtime behavior).
+
 //
 // A SIGQUIT handler will not be registered if GOTRACEBACK=crash.
 //
 // On Windows this immediately returns.
 func DumpHandler(ctx context.Context, name string) {
+
 	if runtime.GOOS == "windows" {
 		// free up the goroutine since it'll be permanently blocked anyways
 		return
@@ -764,6 +825,7 @@ func DumpHandler(ctx context.Context, name string) {
 		sigStr := ""
 		select {
 		case <-ctx.Done():
+
 			return
 		case sig := <-sigs:
 			switch sig {
@@ -771,11 +833,13 @@ func DumpHandler(ctx context.Context, name string) {
 				sigStr = "SIGQUIT"
 			case syscall.SIGTRAP:
 				sigStr = "SIGTRAP"
+
 			}
 		}
 		// Start with a 1MB buffer and keep doubling it until we can fit the
 		// entire stacktrace, stopping early once we reach 64MB.
 		buf := make([]byte, 1_000_000)
+
 		stacklen := 0
 		for {
 			stacklen = runtime.Stack(buf, true)
@@ -795,6 +859,7 @@ func DumpHandler(ctx context.Context, name string) {
 		// Write to a well-known file.
 		dir, err := os.UserHomeDir()
 		if err != nil {
+
 			dir = os.TempDir()
 		}
 		// Make the time filesystem-safe, for example ":" is not
@@ -802,6 +867,7 @@ func DumpHandler(ctx context.Context, name string) {
 		// Z to the string, it does not actually change the time zone.
 		filesystemSafeTime := time.Now().UTC().Format("2006-01-02T15-04-05.000Z")
 		fpath := filepath.Join(dir, fmt.Sprintf("coder-%s-%s.dump", name, filesystemSafeTime))
+
 		_, _ = fmt.Fprintf(os.Stderr, "writing dump to %q\n", fpath)
 		f, err := os.Create(fpath)
 		if err != nil {
@@ -820,15 +886,18 @@ func DumpHandler(ctx context.Context, name string) {
 			os.Exit(1)
 		}
 	}
+
 }
 type exitError struct {
 	code int
 	err  error
 }
+
 var _ error = (*exitError)(nil)
 func (e *exitError) Error() string {
 	if e.err != nil {
 		return fmt.Sprintf("exit code %d: %v", e.code, e.err)
+
 	}
 	return fmt.Sprintf("exit code %d", e.code)
 }
@@ -843,6 +912,7 @@ func ExitError(code int, err error) error {
 // NewPrettyErrorFormatter creates a new PrettyErrorFormatter.
 func NewPrettyErrorFormatter(w io.Writer, verbose bool) *PrettyErrorFormatter {
 	return &PrettyErrorFormatter{
+
 		w:       w,
 		verbose: verbose,
 	}
@@ -862,8 +932,10 @@ func (p *PrettyErrorFormatter) Format(err error) {
 	_, _ = p.w.Write([]byte(output + "\n"))
 }
 type formatOpts struct {
+
 	Verbose bool
 }
+
 const indent = "    "
 // cliHumanFormatError formats an error for the CLI. Newlines and styling are
 // included. The second return value is true if the error is special and the error
@@ -876,6 +948,7 @@ const indent = "    "
 //	       go run main.go exp example-error api
 //	       go run main.go exp example-error cmd
 //	       go run main.go exp example-error multi-error
+
 //	       go run main.go exp example-error validation
 //
 //nolint:errorlint
@@ -888,6 +961,7 @@ func cliHumanFormatError(from string, err error, opts *formatOpts) (string, bool
 	}
 	if multi, ok := err.(interface{ Unwrap() []error }); ok {
 		multiErrors := multi.Unwrap()
+
 		if len(multiErrors) == 1 {
 			// Format as a single error
 			return cliHumanFormatError(from, multiErrors[0], opts)
@@ -896,13 +970,16 @@ func cliHumanFormatError(from string, err error, opts *formatOpts) (string, bool
 	}
 	// First check for sentinel errors that we want to handle specially.
 	// Order does matter! We want to check for the most specific errors first.
+
 	if sdkError, ok := err.(*codersdk.Error); ok {
 		return formatCoderSDKError(from, sdkError, opts), true
 	}
 	if cmdErr, ok := err.(*serpent.RunCommandError); ok {
 		// no need to pass the "from" context to this since it is always
+
 		// top level. We care about what is below this.
 		return formatRunCommandError(cmdErr, opts), true
+
 	}
 	uw, ok := err.(interface{ Unwrap() error })
 	if ok {
@@ -910,16 +987,19 @@ func cliHumanFormatError(from string, err error, opts *formatOpts) (string, bool
 		if special {
 			return msg, special
 		}
+
 	}
 	// If we got here, that means that the wrapped error chain does not have
 	// any special formatting below it. So we want to return the topmost non-special
 	// error (which is 'err')
+
 	// Default just printing the error. Use +v for verbose to handle stack traces.
 	if opts.Verbose {
 		return pretty.Sprint(headLineStyle(), fmt.Sprintf("%+v", err)), false
 	}
 	return pretty.Sprint(headLineStyle(), fmt.Sprintf("%v", err)), false
 }
+
 // formatMultiError formats a multi-error. It formats it as a list of errors.
 //
 //	Multiple Errors:
@@ -928,12 +1008,14 @@ func cliHumanFormatError(from string, err error, opts *formatOpts) (string, bool
 //		   <verbose error message>
 //		2. <heading error message>
 //		   <verbose error message>
+
 func formatMultiError(from string, multi []error, opts *formatOpts) string {
 	var errorStrings []string
 	for _, err := range multi {
 		msg, _ := cliHumanFormatError("", err, opts)
 		errorStrings = append(errorStrings, msg)
 	}
+
 	// Write errors out
 	var str strings.Builder
 	var traceMsg string
@@ -944,12 +1026,15 @@ func formatMultiError(from string, multi []error, opts *formatOpts) string {
 	for i, errStr := range errorStrings {
 		// Indent each error
 		errStr = strings.ReplaceAll(errStr, "\n", "\n"+indent)
+
 		// Error now looks like
 		// |  <line>
 		// |  <line>
 		prefix := fmt.Sprintf("%d. ", i+1)
+
 		if len(prefix) < len(indent) {
 			// Indent the prefix to match the indent
+
 			prefix = prefix + strings.Repeat(" ", len(indent)-len(prefix))
 		}
 		errStr = prefix + errStr
@@ -972,6 +1057,7 @@ func formatRunCommandError(err *serpent.RunCommandError, opts *formatOpts) strin
 			err.Cmd.FullName(), err.Cmd.FullName())))
 	_, _ = str.WriteString(pretty.Sprint(headLineStyle(), "\nerror: "))
 	msgString, special := cliHumanFormatError("", err.Err, opts)
+
 	if special {
 		_, _ = str.WriteString(msgString)
 	} else {
@@ -981,18 +1067,21 @@ func formatRunCommandError(err *serpent.RunCommandError, opts *formatOpts) strin
 }
 // formatCoderSDKError come from API requests. In verbose mode, add the
 // request debug information.
+
 func formatCoderSDKError(from string, err *codersdk.Error, opts *formatOpts) string {
 	var str strings.Builder
 	if opts.Verbose {
 		// If all these fields are empty, then do not print this information.
 		// This can occur if the error is being used outside the api.
 		if !(err.Method() == "" && err.URL() == "" && err.StatusCode() == 0) {
+
 			_, _ = str.WriteString(pretty.Sprint(headLineStyle(), fmt.Sprintf("API request error to \"%s:%s\". Status code %d", err.Method(), err.URL(), err.StatusCode())))
 			_, _ = str.WriteString("\n")
 		}
 	}
 	// Always include this trace. Users can ignore this.
 	if from != "" {
+
 		_, _ = str.WriteString(pretty.Sprint(headLineStyle(), fmt.Sprintf("Trace=[%s]", from)))
 		_, _ = str.WriteString("\n")
 	}
@@ -1004,15 +1093,18 @@ func formatCoderSDKError(from string, err *codersdk.Error, opts *formatOpts) str
 		_, _ = str.WriteString(pretty.Sprint(tailLineStyle(), fmt.Sprintf("%d validation error(s) found", len(err.Validations))))
 		for _, e := range err.Validations {
 			_, _ = str.WriteString("\n\t")
+
 			_, _ = str.WriteString(pretty.Sprint(cliui.DefaultStyles.Field, e.Field))
 			_, _ = str.WriteString(pretty.Sprintf(cliui.DefaultStyles.Warn, ": %s", e.Detail))
 		}
 	}
 	if err.Helper != "" {
 		_, _ = str.WriteString("\n")
+
 		_, _ = str.WriteString(pretty.Sprintf(tailLineStyle(), "Suggestion: %s", err.Helper))
 	}
 	// By default we do not show the Detail with the helper.
+
 	if opts.Verbose || (err.Helper == "" && err.Detail != "") {
 		_, _ = str.WriteString("\n")
 		_, _ = str.WriteString(pretty.Sprint(tailLineStyle(), err.Detail))
@@ -1028,6 +1120,7 @@ func formatCoderSDKError(from string, err *codersdk.Error, opts *formatOpts) str
 func traceError(err error) string {
 	if uw, ok := err.(interface{ Unwrap() error }); ok {
 		var a, b string
+
 		if err != nil {
 			a = err.Error()
 		}
@@ -1055,6 +1148,7 @@ func SlimUnsupported(w io.Writer, cmd string) {
 	_, _ = fmt.Fprintln(w, "")
 	_, _ = fmt.Fprintln(w, "Please use a build of Coder from GitHub releases:")
 	_, _ = fmt.Fprintln(w, "  https://github.com/coder/coder/releases")
+
 	//nolint:revive
 	os.Exit(1)
 }
@@ -1067,6 +1161,7 @@ func defaultUpgradeMessage(version string) string {
 	}
 	return fmt.Sprintf("download the server version with: 'curl -L https://coder.com/install.sh | sh -s -- --version %s'", version)
 }
+
 // wrapTransportWithEntitlementsCheck adds a middleware to the HTTP transport
 // that checks for entitlement warnings and prints them to the user.
 func wrapTransportWithEntitlementsCheck(rt http.RoundTripper, w io.Writer) http.RoundTripper {
@@ -1074,9 +1169,11 @@ func wrapTransportWithEntitlementsCheck(rt http.RoundTripper, w io.Writer) http.
 	return roundTripper(func(req *http.Request) (*http.Response, error) {
 		res, err := rt.RoundTrip(req)
 		if err != nil {
+
 			return res, err
 		}
 		once.Do(func() {
+
 			for _, warning := range res.Header.Values(codersdk.EntitlementsWarningHeader) {
 				_, _ = fmt.Fprintln(w, pretty.Sprint(cliui.DefaultStyles.Warn, warning))
 			}
@@ -1095,9 +1192,11 @@ func wrapTransportWithVersionMismatchCheck(rt http.RoundTripper, inv *serpent.In
 			return res, err
 		}
 		once.Do(func() {
+
 			serverVersion := res.Header.Get(codersdk.BuildVersionHeader)
 			if serverVersion == "" {
 				return
+
 			}
 			if buildinfo.VersionsMatch(clientVersion, serverVersion) {
 				return
@@ -1109,6 +1208,7 @@ func wrapTransportWithVersionMismatchCheck(rt http.RoundTripper, inv *serpent.In
 					upgradeMessage = serverInfo.UpgradeMessage
 				// The site-local `install.sh` was introduced in v2.19.0
 				case serverInfo.DashboardURL != "" && semver.Compare(semver.MajorMinor(serverVersion), "v2.19") >= 0:
+
 					upgradeMessage = fmt.Sprintf("download %s with: 'curl -fsSL %s/install.sh | sh'", serverVersion, serverInfo.DashboardURL)
 				}
 			}
@@ -1121,6 +1221,7 @@ func wrapTransportWithVersionMismatchCheck(rt http.RoundTripper, inv *serpent.In
 	})
 }
 // wrapTransportWithTelemetryHeader adds telemetry headers to report command usage
+
 // to an HTTP transport.
 func wrapTransportWithTelemetryHeader(transport http.RoundTripper, inv *serpent.Invocation) http.RoundTripper {
 	var (
@@ -1145,15 +1246,18 @@ func wrapTransportWithTelemetryHeader(transport http.RoundTripper, inv *serpent.
 				Command:   inv.Command.FullName(),
 				Options:   topts,
 				InvokedAt: time.Now(),
+
 			}
 			byt, err := json.Marshal(ti)
 			if err != nil {
 				// Should be impossible
 				panic(err)
+
 			}
 			s := base64.StdEncoding.EncodeToString(byt)
 			// Don't send the header if it's too long!
 			if len(s) <= 4096 {
+
 				value = s
 			}
 		})
@@ -1161,10 +1265,12 @@ func wrapTransportWithTelemetryHeader(transport http.RoundTripper, inv *serpent.
 			req.Header.Add(codersdk.CLITelemetryHeader, value)
 		}
 		return transport.RoundTrip(req)
+
 	})
 }
 type roundTripper func(req *http.Request) (*http.Response, error)
 func (r roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+
 	return r(req)
 }
 // HeaderTransport creates a new transport that executes `--header-command`
@@ -1175,6 +1281,7 @@ func headerTransport(ctx context.Context, serverURL *url.URL, header []string, h
 		Header:    http.Header{},
 	}
 	headers := header
+
 	if headerCommand != "" {
 		shell := "sh"
 		caller := "-c"
@@ -1193,6 +1300,7 @@ func headerTransport(ctx context.Context, serverURL *url.URL, header []string, h
 			return nil, fmt.Errorf("failed to run %v: %w", cmd.Args, err)
 		}
 		scanner := bufio.NewScanner(&outBuf)
+
 		for scanner.Scan() {
 			headers = append(headers, scanner.Text())
 		}
@@ -1225,12 +1333,14 @@ func PrintDeprecatedOptions() serpent.MiddlewareFunc {
 				}
 				var warnStr strings.Builder
 				_, _ = warnStr.WriteString(translateSource(opt.ValueSource, opt))
+
 				_, _ = warnStr.WriteString(" is deprecated, please use ")
 				for i, use := range opt.UseInstead {
 					_, _ = warnStr.WriteString(translateSource(opt.ValueSource, use))
 					if i != len(opt.UseInstead)-1 {
 						_, _ = warnStr.WriteString(" and ")
 					}
+
 				}
 				_, _ = warnStr.WriteString(" instead.\n")
 				cliui.Warn(inv.Stderr,
@@ -1258,6 +1368,7 @@ func translateSource(target serpent.ValueSource, opt serpent.Option) string {
 func fullYamlName(opt serpent.Option) string {
 	var full strings.Builder
 	for _, name := range opt.Group.Ancestry() {
+
 		_, _ = full.WriteString(name.YAML)
 		_, _ = full.WriteString(".")
 	}

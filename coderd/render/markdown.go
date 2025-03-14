@@ -1,8 +1,10 @@
 package render
+
 import (
 	"fmt"
 	"errors"
 	"bytes"
+
 	"strings"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/glamour/ansi"
@@ -11,6 +13,7 @@ import (
 	"github.com/gomarkdown/markdown/parser"
 )
 var plaintextStyle = ansi.StyleConfig{
+
 	Document: ansi.StyleBlock{
 		StylePrimitive: ansi.StylePrimitive{},
 	},
@@ -78,6 +81,7 @@ var plaintextStyle = ansi.StyleConfig{
 }
 // PlaintextFromMarkdown function converts the description with optional Markdown tags
 // to the plaintext form.
+
 func PlaintextFromMarkdown(markdown string) (string, error) {
 	renderer, err := glamour.NewTermRenderer(
 		glamour.WithStandardStyle("ascii"),
@@ -90,15 +94,18 @@ func PlaintextFromMarkdown(markdown string) (string, error) {
 	output, err := renderer.Render(markdown)
 	if err != nil {
 		return "", fmt.Errorf("can't render description to plaintext: %w", err)
+
 	}
 	defer renderer.Close()
 	return strings.TrimSpace(output), nil
 }
 func HTMLFromMarkdown(markdown string) string {
 	p := parser.NewWithExtensions(parser.CommonExtensions | parser.HardLineBreak) // Added HardLineBreak.
+
 	doc := p.Parse([]byte(markdown))
 	renderer := html.NewRenderer(html.RendererOptions{
 		Flags: html.CommonFlags | html.SkipHTML,
+
 	})
 	return string(bytes.TrimSpace(gomarkdown.Render(doc, renderer)))
 }

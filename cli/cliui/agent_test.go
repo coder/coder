@@ -1,4 +1,5 @@
 package cliui_test
+
 import (
 	"fmt"
 	"errors"
@@ -11,12 +12,14 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+
 	"time"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"tailscale.com/tailcfg"
 	"github.com/coder/coder/v2/cli/clitest"
+
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -29,12 +32,15 @@ import (
 )
 func TestAgent(t *testing.T) {
 	t.Parallel()
+
 	waitLines := func(t *testing.T, output <-chan string, lines ...string) error {
 		t.Helper()
 		var got []string
+
 	outerLoop:
 		for _, want := range lines {
 			for {
+
 				select {
 				case line := <-output:
 					got = append(got, line)
@@ -54,6 +60,7 @@ func TestAgent(t *testing.T) {
 		iter    []func(context.Context, *testing.T, *codersdk.WorkspaceAgent, <-chan string, chan []codersdk.WorkspaceAgentLog) error
 		logs    chan []codersdk.WorkspaceAgentLog
 		opts    cliui.AgentOptions
+
 		want    []string
 		wantErr bool
 	}{
@@ -372,14 +379,17 @@ func TestAgent(t *testing.T) {
 			require.NoError(t, err, "create pipe failed")
 			defer r.Close()
 			defer w.Close()
+
 			agent := codersdk.WorkspaceAgent{
 				ID:             uuid.New(),
 				Status:         codersdk.WorkspaceAgentConnecting,
+
 				CreatedAt:      time.Now(),
 				LifecycleState: codersdk.WorkspaceAgentLifecycleCreated,
 			}
 			output := make(chan string, 100) // Buffered to avoid blocking, overflow is discarded.
 			logs := make(chan []codersdk.WorkspaceAgentLog, 1)
+
 			cmd := &serpent.Command{
 				Handler: func(inv *serpent.Invocation) error {
 					tc.opts.Fetch = func(_ context.Context, _ uuid.UUID) (codersdk.WorkspaceAgent, error) {
@@ -389,6 +399,7 @@ func TestAgent(t *testing.T) {
 							err = tc.iter[0](ctx, t, &agent, output, logs)
 							tc.iter = tc.iter[1:]
 						}
+
 						return agent, err
 					}
 					tc.opts.FetchLogs = func(ctx context.Context, _ uuid.UUID, _ int64, follow bool) (<-chan []codersdk.WorkspaceAgentLog, io.Closer, error) {
@@ -405,6 +416,7 @@ func TestAgent(t *testing.T) {
 						}
 						close(fetchLogs)
 						return fetchLogs, closeFunc(func() error { return nil }), nil
+
 					}
 					err := cliui.Agent(inv.Context(), w, uuid.Nil, tc.opts)
 					_ = w.Close()
@@ -423,8 +435,10 @@ func TestAgent(t *testing.T) {
 					t.Logf("output overflow: %s", line)
 				}
 				if len(tc.want) == 0 {
+
 					require.Fail(t, "unexpected line", line)
 				}
+
 				require.Contains(t, line, tc.want[0])
 				tc.want = tc.want[1:]
 			}
@@ -445,6 +459,7 @@ func TestAgent(t *testing.T) {
 		cmd := &serpent.Command{
 			Handler: func(inv *serpent.Invocation) error {
 				buf := bytes.Buffer{}
+
 				err := cliui.Agent(inv.Context(), &buf, uuid.Nil, cliui.AgentOptions{
 					FetchInterval: 10 * time.Millisecond,
 					Fetch: func(ctx context.Context, agentID uuid.UUID) (codersdk.WorkspaceAgent, error) {
@@ -453,10 +468,12 @@ func TestAgent(t *testing.T) {
 							Status:         codersdk.WorkspaceAgentConnected,
 							LifecycleState: codersdk.WorkspaceAgentLifecycleReady,
 						}, nil
+
 					},
 				})
 				if err != nil {
 					return err
+
 				}
 				require.Never(t, func() bool {
 					called := atomic.LoadUint64(&fetchCalled)
@@ -465,6 +482,7 @@ func TestAgent(t *testing.T) {
 				return nil
 			},
 		}
+
 		require.NoError(t, cmd.Invoke().Run())
 	})
 }
@@ -475,11 +493,13 @@ func TestPeerDiagnostics(t *testing.T) {
 		diags tailnet.PeerDiagnostics
 		want  []*regexp.Regexp // must be ordered, can omit lines
 	}{
+
 		{
 			name: "noPreferredDERP",
 			diags: tailnet.PeerDiagnostics{
 				PreferredDERP:          0,
 				DERPRegionNames:        make(map[int]string),
+
 				SentNode:               true,
 				ReceivedNode:           &tailcfg.Node{DERP: "127.3.3.40:999"},
 				LastWireguardHandshake: time.Now(),
@@ -487,6 +507,7 @@ func TestPeerDiagnostics(t *testing.T) {
 			want: []*regexp.Regexp{
 				regexp.MustCompile("^✘ not connected to DERP$"),
 			},
+
 		},
 		{
 			name: "preferredDERP",
@@ -675,6 +696,7 @@ func TestConnDiagnostics(t *testing.T) {
 			},
 		},
 		{
+
 			name: "NoStun",
 			diags: cliui.ConnDiags{
 				ConnInfo: workspacesdk.AgentConnectionInfo{

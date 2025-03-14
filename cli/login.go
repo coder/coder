@@ -1,4 +1,5 @@
 package cli
+
 import (
 	"errors"
 	"fmt"
@@ -11,23 +12,28 @@ import (
 	"runtime"
 	"strings"
 	"github.com/go-playground/validator/v10"
+
 	"github.com/pkg/browser"
 	"github.com/coder/pretty"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/userpassword"
+
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
+
 )
 const (
 	goosWindows = "windows"
 	goosDarwin  = "darwin"
 )
 func init() {
+
 	// Hide output from the browser library,
 	// otherwise we can get really verbose and non-actionable messages
 	// when in SSH or another type of headless session
 	// NOTE: This needs to be in `init` to prevent data races
 	// (multiple threads trying to set the global browser.Std* variables)
+
 	browser.Stderr = io.Discard
 	browser.Stdout = io.Discard
 }
@@ -38,6 +44,7 @@ func promptFirstUsername(inv *serpent.Invocation) (string, error) {
 	}
 	username, err := cliui.Prompt(inv, cliui.PromptOptions{
 		Text:    "What " + pretty.Sprint(cliui.DefaultStyles.Field, "username") + " would you like?",
+
 		Default: currentUser.Username,
 	})
 	if errors.Is(err, cliui.Canceled) {
@@ -54,9 +61,11 @@ func promptFirstName(inv *serpent.Invocation) (string, error) {
 		Default: "",
 	})
 	if err != nil {
+
 		if errors.Is(err, cliui.Canceled) {
 			return "", nil
 		}
+
 		return "", err
 	}
 	return name, nil
@@ -69,9 +78,11 @@ retry:
 		Validate: func(s string) error {
 			return userpassword.Validate(s)
 		},
+
 	})
 	if err != nil {
 		return "", fmt.Errorf("specify password prompt: %w", err)
+
 	}
 	confirm, err := cliui.Prompt(inv, cliui.PromptOptions{
 		Text:     "Confirm " + pretty.Sprint(cliui.DefaultStyles.Field, "password") + ":",
@@ -93,14 +104,17 @@ func (r *RootCmd) loginWithPassword(
 	email, password string,
 ) error {
 	resp, err := client.LoginWithPassword(inv.Context(), codersdk.LoginWithPasswordRequest{
+
 		Email:    email,
 		Password: password,
 	})
 	if err != nil {
 		return fmt.Errorf("login with password: %w", err)
+
 	}
 	sessionToken := resp.SessionToken
 	config := r.createConfig()
+
 	err = config.Session().Write(sessionToken)
 	if err != nil {
 		return fmt.Errorf("write session token: %w", err)
@@ -114,6 +128,7 @@ func (r *RootCmd) loginWithPassword(
 	_, _ = fmt.Fprintf(
 		inv.Stdout,
 		"Welcome to Coder, %s! You're authenticated.",
+
 		pretty.Sprint(cliui.DefaultStyles.Keyword, u.Username),
 	)
 	return nil
@@ -121,26 +136,32 @@ func (r *RootCmd) loginWithPassword(
 func (r *RootCmd) login() *serpent.Command {
 	const firstUserTrialEnv = "CODER_FIRST_USER_TRIAL"
 	var (
+
 		email              string
 		username           string
+
 		name               string
 		password           string
 		trial              bool
 		useTokenForSession bool
 	)
 	cmd := &serpent.Command{
+
 		Use:        "login [<url>]",
 		Short:      "Authenticate with Coder deployment",
 		Middleware: serpent.RequireRangeArgs(0, 1),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
 			rawURL := ""
+
 			var urlSource string
 			if len(inv.Args) == 0 {
 				rawURL = r.clientURL.String()
+
 				urlSource = "flag"
 				if rawURL != "" && rawURL == inv.Environ.Get(envURL) {
 					urlSource = "environment"
+
 				}
 			} else {
 				rawURL = inv.Args[0]
@@ -158,6 +179,7 @@ func (r *RootCmd) login() *serpent.Command {
 				if strings.HasPrefix(rawURL, "localhost") {
 					scheme = "http"
 				}
+
 				rawURL = fmt.Sprintf("%s://%s", scheme, rawURL)
 			}
 			serverURL, err := url.Parse(rawURL)
@@ -169,15 +191,18 @@ func (r *RootCmd) login() *serpent.Command {
 				serverURL.Scheme = "https"
 			}
 			client, err := r.createUnauthenticatedClient(ctx, serverURL, inv)
+
 			if err != nil {
 				return err
 			}
 			hasFirstUser, err := client.HasFirstUser(ctx)
 			if err != nil {
+
 				return fmt.Errorf("Failed to check server %q for first user, is the URL correct and is coder accessible from your browser? Error - has initial user: %w", serverURL.String(), err)
 			}
 			_, _ = fmt.Fprintf(inv.Stdout, "Attempting to authenticate with %s URL: '%s'\n", urlSource, serverURL)
 			// nolint: nestif
+
 			if !hasFirstUser {
 				_, _ = fmt.Fprint(inv.Stdout, Caret+"Your Coder deployment hasn't been set up!\n")
 				if username == "" {
@@ -194,27 +219,33 @@ func (r *RootCmd) login() *serpent.Command {
 					}
 					username, err = promptFirstUsername(inv)
 					if err != nil {
+
 						return err
 					}
 					name, err = promptFirstName(inv)
 					if err != nil {
 						return err
+
 					}
 				}
 				if email == "" {
 					email, err = cliui.Prompt(inv, cliui.PromptOptions{
 						Text: "What's your " + pretty.Sprint(cliui.DefaultStyles.Field, "email") + "?",
+
 						Validate: func(s string) error {
 							err := validator.New().Var(s, "email")
+
 							if err != nil {
 								return errors.New("That's not a valid email address!")
 							}
 							return err
+
 						},
 					})
 					if err != nil {
 						return err
 					}
+
 				}
 				if password == "" {
 					password, err = promptFirstPassword(inv)
@@ -224,6 +255,7 @@ func (r *RootCmd) login() *serpent.Command {
 				}
 				if !inv.ParsedFlags().Changed("first-user-trial") && os.Getenv(firstUserTrialEnv) == "" {
 					v, _ := cliui.Prompt(inv, cliui.PromptOptions{
+
 						Text:      "Start a trial of Enterprise?",
 						IsConfirm: true,
 						Default:   "yes",
@@ -234,6 +266,7 @@ func (r *RootCmd) login() *serpent.Command {
 				if trial {
 					if trialInfo.FirstName == "" {
 						trialInfo.FirstName, err = promptTrialInfo(inv, "firstName")
+
 						if err != nil {
 							return err
 						}
@@ -250,6 +283,7 @@ func (r *RootCmd) login() *serpent.Command {
 							return err
 						}
 					}
+
 					if trialInfo.JobTitle == "" {
 						trialInfo.JobTitle, err = promptTrialInfo(inv, "jobTitle")
 						if err != nil {
@@ -257,6 +291,7 @@ func (r *RootCmd) login() *serpent.Command {
 						}
 					}
 					if trialInfo.CompanyName == "" {
+
 						trialInfo.CompanyName, err = promptTrialInfo(inv, "companyName")
 						if err != nil {
 							return err
@@ -266,6 +301,7 @@ func (r *RootCmd) login() *serpent.Command {
 						trialInfo.Country, err = promptCountry(inv)
 						if err != nil {
 							return err
+
 						}
 					}
 					if trialInfo.Developers == "" {
@@ -312,6 +348,7 @@ func (r *RootCmd) login() *serpent.Command {
 				} else {
 					_, _ = fmt.Fprintf(inv.Stdout, "Your browser has been opened to visit:\n\n\t%s\n\n", authURL.String())
 				}
+
 				sessionToken, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text:   "Paste your token here:",
 					Secret: true,
@@ -324,16 +361,19 @@ func (r *RootCmd) login() *serpent.Command {
 						return err
 					},
 				})
+
 				if err != nil {
 					return fmt.Errorf("paste token prompt: %w", err)
 				}
 			} else if !useTokenForSession {
 				// If a session token is provided on the cli, use it to generate
+
 				// a new one. This is because the cli `--token` flag provides
 				// a token for the command being invoked. We should not store
 				// this token, and `/logout` should not delete it.
 				// /login should generate a new token and store that.
 				client.SetSessionToken(sessionToken)
+
 				// Use CreateAPIKey over CreateToken because this is a session
 				// key that should not show on the `tokens` page. This should
 				// match the same behavior of the `/cli-auth` page for generating
@@ -342,6 +382,7 @@ func (r *RootCmd) login() *serpent.Command {
 				if err != nil {
 					return fmt.Errorf("create api key: %w", err)
 				}
+
 				sessionToken = key.Key
 			}
 			// Login to get user data - verify it is OK before persisting
@@ -354,6 +395,7 @@ func (r *RootCmd) login() *serpent.Command {
 			err = config.Session().Write(sessionToken)
 			if err != nil {
 				return fmt.Errorf("write session token: %w", err)
+
 			}
 			err = config.URL().Write(serverURL.String())
 			if err != nil {
@@ -387,6 +429,7 @@ func (r *RootCmd) login() *serpent.Command {
 			Env:         "CODER_FIRST_USER_PASSWORD",
 			Description: "Specifies a password to use if creating the first user for the deployment.",
 			Value:       serpent.StringOf(&password),
+
 		},
 		{
 			Flag:        "first-user-trial",
@@ -394,6 +437,7 @@ func (r *RootCmd) login() *serpent.Command {
 			Description: "Specifies whether a trial license should be provisioned for the Coder deployment or not.",
 			Value:       serpent.BoolOf(&trial),
 		},
+
 		{
 			Flag:        "use-token-as-session",
 			Description: "By default, the CLI will generate a new session token when logging in. This flag will instead use the provided token as the session token.",
@@ -404,6 +448,7 @@ func (r *RootCmd) login() *serpent.Command {
 }
 // isWSL determines if coder-cli is running within Windows Subsystem for Linux
 func isWSL() (bool, error) {
+
 	if runtime.GOOS == goosDarwin || runtime.GOOS == goosWindows {
 		return false, nil
 	}
@@ -448,6 +493,7 @@ func openURL(inv *serpent.Invocation, urlToOpen string) error {
 func promptTrialInfo(inv *serpent.Invocation, fieldName string) (string, error) {
 	value, err := cliui.Prompt(inv, cliui.PromptOptions{
 		Text: fmt.Sprintf("Please enter %s:", pretty.Sprint(cliui.DefaultStyles.Field, fieldName)),
+
 		Validate: func(s string) error {
 			if strings.TrimSpace(s) == "" {
 				return fmt.Errorf("%s is required", fieldName)
@@ -460,6 +506,7 @@ func promptTrialInfo(inv *serpent.Invocation, fieldName string) (string, error) 
 			return "", nil
 		}
 		return "", err
+
 	}
 	return value, nil
 }
@@ -477,11 +524,13 @@ func promptDevelopers(inv *serpent.Invocation) (string, error) {
 }
 func promptCountry(inv *serpent.Invocation) (string, error) {
 	options := make([]string, len(codersdk.Countries))
+
 	for i, country := range codersdk.Countries {
 		options[i] = country.Name
 	}
 	selection, err := cliui.Select(inv, cliui.SelectOptions{
 		Options:    options,
+
 		Message:    "Select the country:",
 		HideSearch: false,
 	})

@@ -1,13 +1,17 @@
 //go:build !slim
+
 package cli
 import (
+
 	"errors"
 	"fmt"
 	"sort"
 	"github.com/google/uuid"
+
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/v2/cli/cliui"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/awsiamrds"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -22,6 +26,7 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 	var (
 		newUserDBURL              string
 		newUserPgAuth             string
+
 		newUserSSHKeygenAlgorithm string
 		newUserUsername           string
 		newUserEmail              string
@@ -37,20 +42,24 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 				return fmt.Errorf("parse ssh keygen algorithm %q: %w", newUserSSHKeygenAlgorithm, err)
 			}
 			cfg := r.createConfig()
+
 			logger := inv.Logger.AppendSinks(sloghuman.Sink(inv.Stderr))
 			if r.verbose {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
 			ctx, cancel := inv.SignalNotifyContext(ctx, StopSignals...)
+
 			defer cancel()
 			if newUserDBURL == "" {
 				cliui.Infof(inv.Stdout, "Using built-in PostgreSQL (%s)", cfg.PostgresPath())
 				url, closePg, err := startBuiltinPostgres(ctx, cfg, logger, "")
 				if err != nil {
 					return err
+
 				}
 				defer func() {
 					_ = closePg()
+
 				}()
 				newUserDBURL = url
 			}
@@ -63,6 +72,7 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 			}
 			sqlDB, err := ConnectToPostgres(ctx, logger, sqlDriver, newUserDBURL, nil)
 			if err != nil {
+
 				return fmt.Errorf("connect to postgres: %w", err)
 			}
 			defer func() {
@@ -71,6 +81,7 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 			db := database.New(sqlDB)
 			validateInputs := func(username, email, password string) error {
 				// Use the validator tags so we match the API's validation.
+
 				req := codersdk.CreateUserRequestWithOrgs{
 					Username:        "username",
 					Name:            "Admin User",
@@ -80,6 +91,7 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 				}
 				if username != "" {
 					req.Username = username
+
 				}
 				if email != "" {
 					req.Email = email
@@ -99,9 +111,11 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 						return validateInputs(val, "", "")
 					},
 				})
+
 				if err != nil {
 					return err
 				}
+
 			}
 			if newUserEmail == "" {
 				newUserEmail, err = cliui.Prompt(inv, cliui.PromptOptions{
@@ -117,6 +131,7 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 					return err
 				}
 			}
+
 			if newUserPassword == "" {
 				newUserPassword, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text:   "Password",
@@ -146,6 +161,7 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 					return err
 				}
 			}
+
 			err = validateInputs(newUserUsername, newUserEmail, newUserPassword)
 			if err != nil {
 				return fmt.Errorf("validate inputs: %w", err)
@@ -162,16 +178,19 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 					return fmt.Errorf("get organizations: %w", err)
 				}
 				// Sort organizations by name so that test output is consistent.
+
 				sort.Slice(orgs, func(i, j int) bool {
 					return orgs[i].Name < orgs[j].Name
 				})
 				_, _ = fmt.Fprintln(inv.Stderr, "Creating user...")
 				newUser, err = tx.InsertUser(ctx, database.InsertUserParams{
+
 					ID:             uuid.New(),
 					Email:          newUserEmail,
 					Username:       newUserUsername,
 					Name:           "Admin User",
 					HashedPassword: []byte(hashedPassword),
+
 					CreatedAt:      dbtime.Now(),
 					UpdatedAt:      dbtime.Now(),
 					RBACRoles:      []string{rbac.RoleOwner().String()},
@@ -180,11 +199,13 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 				})
 				if err != nil {
 					return fmt.Errorf("insert user: %w", err)
+
 				}
 				_, _ = fmt.Fprintln(inv.Stderr, "Generating user SSH key...")
 				privateKey, publicKey, err := gitsshkey.Generate(sshKeygenAlgorithm)
 				if err != nil {
 					return fmt.Errorf("generate user gitsshkey: %w", err)
+
 				}
 				_, err = tx.InsertGitSSHKey(ctx, database.InsertGitSSHKeyParams{
 					UserID:     newUser.ID,
@@ -202,6 +223,7 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 						OrganizationID: org.ID,
 						UserID:         newUser.ID,
 						CreatedAt:      dbtime.Now(),
+
 						UpdatedAt:      dbtime.Now(),
 						Roles:          []string{rbac.RoleOrgAdmin()},
 					})
@@ -218,6 +240,7 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 			_, _ = fmt.Fprintln(inv.Stderr, "User created successfully.")
 			_, _ = fmt.Fprintln(inv.Stderr, "ID:       "+newUser.ID.String())
 			_, _ = fmt.Fprintln(inv.Stderr, "Username: "+newUser.Username)
+
 			_, _ = fmt.Fprintln(inv.Stderr, "Email:    "+newUser.Email)
 			_, _ = fmt.Fprintln(inv.Stderr, "Password: ********")
 			return nil
@@ -232,12 +255,14 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 		},
 		serpent.Option{
 			Name:        "Postgres Connection Auth",
+
 			Description: "Type of auth to use when connecting to postgres.",
 			Flag:        "postgres-connection-auth",
 			Env:         "CODER_PG_CONNECTION_AUTH",
 			Default:     "password",
 			Value:       serpent.EnumOf(&newUserPgAuth, codersdk.PostgresAuthDrivers...),
 		},
+
 		serpent.Option{
 			Env:         "CODER_SSH_KEYGEN_ALGORITHM",
 			Flag:        "ssh-keygen-algorithm",
@@ -245,10 +270,12 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 			Default:     "ed25519",
 			Value:       serpent.StringOf(&newUserSSHKeygenAlgorithm),
 		},
+
 		serpent.Option{
 			Env:         "CODER_USERNAME",
 			Flag:        "username",
 			Description: "The username of the new user. If not specified, you will be prompted via stdin.",
+
 			Value:       serpent.StringOf(&newUserUsername),
 		},
 		serpent.Option{

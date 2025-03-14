@@ -1,4 +1,5 @@
 package cli
+
 import (
 	"errors"
 	"archive/zip"
@@ -12,9 +13,11 @@ import (
 	"strings"
 	"text/tabwriter"
 	"time"
+
 	"github.com/google/uuid"
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/support"
@@ -23,6 +26,7 @@ import (
 func (r *RootCmd) support() *serpent.Command {
 	supportCmd := &serpent.Command{
 		Use:   "support",
+
 		Short: "Commands for troubleshooting issues with a Coder deployment.",
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
@@ -37,6 +41,7 @@ var supportBundleBlurb = cliui.Bold("This will collect the following information
 	`  - Coder deployment version
   - Coder deployment Configuration (sanitized), including enabled experiments
   - Coder deployment health snapshot
+
   - Coder deployment Network troubleshooting information
   - Workspace configuration, parameters, and build logs
   - Template version and source code for the given workspace
@@ -54,6 +59,7 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 	var coderURLOverride string
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
+
 		Use:   "bundle <workspace> [<agent>]",
 		Short: "Generate a support bundle to troubleshoot issues connecting to a workspace.",
 		Long:  `This command generates a file containing detailed troubleshooting information about the Coder deployment and workspace connections. You must specify a single workspace (and optionally an agent name).`,
@@ -87,6 +93,7 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 				slog.F("build_time", vi.BuildTime),
 				slog.F("external_url", vi.ExternalURL),
 				slog.F("slim", vi.Slim),
+
 				slog.F("agpl", vi.AGPL),
 				slog.F("boring_crypto", vi.BoringCrypto),
 			)
@@ -98,12 +105,14 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 			}
 			if coderURLOverride != "" && coderURLOverride != client.URL.String() {
 				u, err := url.Parse(coderURLOverride)
+
 				if err != nil {
 					return fmt.Errorf("invalid value for Coder URL override: %w", err)
 				}
 				_, _ = fmt.Fprintf(inv.Stderr, "Overrode Coder URL to %q; this can affect results!\n", coderURLOverride)
 				cliLog.Debug(inv.Context(), "coder url overridden", slog.F("url", coderURLOverride))
 				client.URL = u
+
 			}
 			var (
 				wsID  uuid.UUID
@@ -114,11 +123,13 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 				cliui.Warn(inv.Stderr, "No workspace specified. This will result in incomplete information.")
 			} else {
 				ws, err := namedWorkspace(inv.Context(), client, inv.Args[0])
+
 				if err != nil {
 					return fmt.Errorf("invalid workspace: %w", err)
 				}
 				cliLog.Debug(inv.Context(), "found workspace",
 					slog.F("workspace_name", ws.Name),
+
 					slog.F("workspace_id", ws.ID),
 				)
 				wsID = ws.ID
@@ -137,6 +148,7 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 					agtID = agt.ID
 				}
 			}
+
 			if outputPath == "" {
 				cwd, err := filepath.Abs(".")
 				if err != nil {
@@ -149,6 +161,7 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 			w, err := os.Create(outputPath)
 			if err != nil {
 				return fmt.Errorf("create output file: %w", err)
+
 			}
 			zwr := zip.NewWriter(w)
 			defer zwr.Close()
@@ -159,6 +172,7 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 			deps := support.Deps{
 				Client: client,
 				// Support adds a sink so we don't need to supply one ourselves.
+
 				Log:         clientLog,
 				WorkspaceID: wsID,
 				AgentID:     agtID,
@@ -166,6 +180,7 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 			bun, err := support.Run(inv.Context(), &deps)
 			if err != nil {
 				_ = os.Remove(outputPath) // best effort
+
 				return fmt.Errorf("create support bundle: %w", err)
 			}
 			summarizeBundle(inv, bun)
@@ -178,21 +193,25 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 			return nil
 		},
 	}
+
 	cmd.Options = serpent.OptionSet{
 		cliui.SkipPromptOption(),
 		{
 			Flag:          "output-file",
 			FlagShorthand: "O",
 			Env:           "CODER_SUPPORT_BUNDLE_OUTPUT_FILE",
+
 			Description:   "File path for writing the generated support bundle. Defaults to coder-support-$(date +%s).zip.",
 			Value:         serpent.StringOf(&outputPath),
 		},
+
 		{
 			Flag:        "url-override",
 			Env:         "CODER_SUPPORT_BUNDLE_URL_OVERRIDE",
 			Description: "Override the URL to your Coder deployment. This may be useful, for example, if you need to troubleshoot a specific Coder replica.",
 			Value:       serpent.StringOf(&coderURLOverride),
 		},
+
 	}
 	return cmd
 }
@@ -213,9 +232,11 @@ func summarizeBundle(inv *serpent.Invocation, bun *support.Bundle) {
 		return
 	}
 	deployHealthSummary := bun.Deployment.HealthReport.Summarize(docsURL)
+
 	if len(deployHealthSummary) > 0 {
 		cliui.Warn(inv.Stdout, "Deployment health issues detected:", deployHealthSummary...)
 	}
+
 	if bun.Network.Netcheck == nil {
 		cliui.Error(inv.Stdout, "No network troubleshooting information available!")
 		return
@@ -224,11 +245,13 @@ func summarizeBundle(inv *serpent.Invocation, bun *support.Bundle) {
 	if len(clientNetcheckSummary) > 0 {
 		cliui.Warn(inv.Stdout, "Networking issues detected:", deployHealthSummary...)
 	}
+
 }
 func findAgent(agentName string, haystack []codersdk.WorkspaceResource) (*codersdk.WorkspaceAgent, bool) {
 	for _, res := range haystack {
 		for _, agt := range res.Agents {
 			if agentName == "" {
+
 				// just return the first
 				return &agt, true
 			}
@@ -239,17 +262,20 @@ func findAgent(agentName string, haystack []codersdk.WorkspaceResource) (*coders
 	}
 	return nil, false
 }
+
 func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 	// We JSON-encode the following:
 	for k, v := range map[string]any{
 		"agent/agent.json":                src.Agent.Agent,
 		"agent/listening_ports.json":      src.Agent.ListeningPorts,
+
 		"agent/manifest.json":             src.Agent.Manifest,
 		"agent/peer_diagnostics.json":     src.Agent.PeerDiagnostics,
 		"agent/ping_result.json":          src.Agent.PingResult,
 		"deployment/buildinfo.json":       src.Deployment.BuildInfo,
 		"deployment/config.json":          src.Deployment.Config,
 		"deployment/experiments.json":     src.Deployment.Experiments,
+
 		"deployment/health.json":          src.Deployment.HealthReport,
 		"network/connection_info.json":    src.Network.ConnectionInfo,
 		"network/netcheck.json":           src.Network.Netcheck,
@@ -265,6 +291,7 @@ func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 		}
 		enc := json.NewEncoder(f)
 		enc.SetIndent("", "    ")
+
 		if err := enc.Encode(v); err != nil {
 			return fmt.Errorf("write json to %q: %w", k, err)
 		}
@@ -296,11 +323,13 @@ func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 		}
 	}
 	if err := dest.Close(); err != nil {
+
 		return fmt.Errorf("close zip file: %w", err)
 	}
 	return nil
 }
 func humanizeAgentLogs(ls []codersdk.WorkspaceAgentLog) string {
+
 	var buf bytes.Buffer
 	tw := tabwriter.NewWriter(&buf, 0, 2, 1, ' ', 0)
 	for _, l := range ls {

@@ -1,15 +1,18 @@
 package cli
+
 import (
 	"errors"
 	"bytes"
 	"context"
 	"crypto/tls"
 	"testing"
+
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
@@ -17,6 +20,7 @@ import (
 func Test_configureServerTLS(t *testing.T) {
 	t.Parallel()
 	t.Run("DefaultNoInsecureCiphers", func(t *testing.T) {
+
 		t.Parallel()
 		logger := testutil.Logger(t)
 		cfg, err := configureServerTLS(context.Background(), logger, "tls12", "none", nil, nil, "", nil, false)
@@ -25,8 +29,10 @@ func Test_configureServerTLS(t *testing.T) {
 		insecureCiphers := tls.InsecureCipherSuites()
 		for _, cipher := range cfg.CipherSuites {
 			for _, insecure := range insecureCiphers {
+
 				if cipher == insecure.ID {
 					t.Logf("Insecure cipher found by default: %s", insecure.Name)
+
 					t.Fail()
 				}
 			}
@@ -39,9 +45,11 @@ func Test_configureCipherSuites(t *testing.T) {
 		var names []string
 		for _, c := range ciphers {
 			names = append(names, c.Name)
+
 		}
 		return names
 	}
+
 	cipherIDs := func(ciphers []*tls.CipherSuite) []uint16 {
 		var ids []uint16
 		for _, c := range ciphers {
@@ -50,6 +58,7 @@ func Test_configureCipherSuites(t *testing.T) {
 		return ids
 	}
 	cipherByName := func(cipher string) *tls.CipherSuite {
+
 		for _, c := range append(tls.CipherSuites(), tls.InsecureCipherSuites()...) {
 			if cipher == c.Name {
 				c := c
@@ -58,6 +67,7 @@ func Test_configureCipherSuites(t *testing.T) {
 		}
 		return nil
 	}
+
 	tests := []struct {
 		name          string
 		wantErr       string
@@ -68,6 +78,7 @@ func Test_configureCipherSuites(t *testing.T) {
 		allowInsecure bool
 		expectCiphers []uint16
 	}{
+
 		{
 			name:          "AllSecure",
 			minTLS:        tls.VersionTLS10,
@@ -179,6 +190,7 @@ func Test_configureCipherSuites(t *testing.T) {
 					for _, w := range tt.wantWarnings {
 						assert.Contains(t, out.String(), w, "expected warning")
 					}
+
 				}
 			}
 		})
@@ -196,9 +208,11 @@ func TestRedirectHTTPToHTTPSDeprecation(t *testing.T) {
 			name:     "AllUnset",
 			environ:  serpent.Environ{},
 			flags:    []string{},
+
 			expected: false,
 		},
 		{
+
 			name:     "CODER_TLS_REDIRECT_HTTP=true",
 			environ:  serpent.Environ{{Name: "CODER_TLS_REDIRECT_HTTP", Value: "true"}},
 			flags:    []string{},
@@ -243,6 +257,7 @@ func TestRedirectHTTPToHTTPSDeprecation(t *testing.T) {
 			cfg := &codersdk.DeploymentValues{}
 			opts := cfg.Options()
 			err = opts.SetDefaults()
+
 			require.NoError(t, err)
 			redirectHTTPToHTTPSDeprecation(ctx, logger, inv, cfg)
 			require.Equal(t, tc.expected, cfg.RedirectToAccessURL.Value())
@@ -264,9 +279,11 @@ func TestIsDERPPath(t *testing.T) {
 			expected: true,
 		},
 		{
+
 			path:     "/derp/latency-check",
 			expected: true,
 		},
+
 		{
 			path:     "/derp/latency-check/",
 			expected: true,
@@ -317,9 +334,11 @@ func TestEscapePostgresURLUserInfo(t *testing.T) {
 			output: "postgres://coder:co%7Bder@localhost:5432/coder",
 			err:    nil,
 		},
+
 		{
 			input:  "postgres://coder:co:der@localhost:5432/coder",
 			output: "postgres://coder:co:der@localhost:5432/coder",
+
 			err:    nil,
 		},
 		{

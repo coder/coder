@@ -1,4 +1,5 @@
 package database
+
 import (
 	"errors"
 	"context"
@@ -6,18 +7,22 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/regosql"
+
 )
 const (
 	authorizedQueryPlaceholder = "-- @authorize_filter"
 )
+
 // ExpectOne can be used to convert a ':many:' query into a ':one'
 // query. To reduce the quantity of SQL queries, a :many with a filter is used.
 // These filters sometimes are expected to return just 1 row.
 //
+
 // A :many query will never return a sql.ErrNoRows, but a :one does.
 // This function will correct the error for the empty set.
 func ExpectOne[T any](ret []T, err error) (T, error) {
@@ -30,17 +35,21 @@ func ExpectOne[T any](ret []T, err error) (T, error) {
 	}
 	if len(ret) > 1 {
 		return empty, fmt.Errorf("too many rows returned, expected 1")
+
 	}
 	return ret[0], nil
 }
 // customQuerier encompasses all non-generated queries.
+
 // It provides a flexible way to write queries for cases
 // where sqlc proves inadequate.
 type customQuerier interface {
 	templateQuerier
+
 	workspaceQuerier
 	userQuerier
 	auditLogQuerier
+
 }
 type templateQuerier interface {
 	GetAuthorizedTemplates(ctx context.Context, arg GetTemplatesWithFilterParams, prepared rbac.PreparedAuthorized) ([]Template, error)
@@ -51,12 +60,14 @@ func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplate
 	authorizedFilter, err := prepared.CompileToSQL(ctx, regosql.ConvertConfig{
 		VariableConverter: regosql.TemplateConverter(),
 	})
+
 	if err != nil {
 		return nil, fmt.Errorf("compile authorized filter: %w", err)
 	}
 	filtered, err := insertAuthorizedFilter(getTemplatesWithFilter, fmt.Sprintf(" AND %s", authorizedFilter))
 	if err != nil {
 		return nil, fmt.Errorf("insert authorized filter: %w", err)
+
 	}
 	// The name comment is for metric tracking
 	query := fmt.Sprintf("-- name: GetAuthorizedTemplates :many\n%s", filtered)
@@ -65,11 +76,13 @@ func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplate
 		arg.OrganizationID,
 		arg.ExactName,
 		arg.FuzzyName,
+
 		pq.Array(arg.IDs),
 		arg.Deprecated,
 	)
 	if err != nil {
 		return nil, err
+
 	}
 	defer rows.Close()
 	var items []Template
@@ -135,11 +148,13 @@ func (q *sqlQuerier) GetTemplateUserRoles(ctx context.Context, id uuid.UUID) ([]
 	JOIN
 		(
 			SELECT
+
 				*
 			FROM
 				jsonb_each_text(
 					(
 						SELECT
+
 							templates.user_acl
 						FROM
 							templates
@@ -170,20 +185,24 @@ func (q *sqlQuerier) GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([
 	const query = `
 	SELECT
 		perms.value as actions, groups.*
+
 	FROM
 		groups
 	JOIN
 		(
 			SELECT
 				*
+
 			FROM
 				jsonb_each_text(
 					(
+
 						SELECT
 							templates.group_acl
 						FROM
 							templates
 						WHERE
+
 							id = $1
 					)
 				)
@@ -210,20 +229,24 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 	if err != nil {
 		return nil, fmt.Errorf("compile authorized filter: %w", err)
 	}
+
 	// In order to properly use ORDER BY, OFFSET, and LIMIT, we need to inject the
 	// authorizedFilter between the end of the where clause and those statements.
 	filtered, err := insertAuthorizedFilter(getWorkspaces, fmt.Sprintf(" AND %s", authorizedFilter))
 	if err != nil {
 		return nil, fmt.Errorf("insert authorized filter: %w", err)
 	}
+
 	// The name comment is for metric tracking
 	query := fmt.Sprintf("-- name: GetAuthorizedWorkspaces :many\n%s", filtered)
 	rows, err := q.db.QueryContext(ctx, query,
+
 		pq.Array(arg.ParamNames),
 		pq.Array(arg.ParamValues),
 		arg.Deleted,
 		arg.Status,
 		arg.OwnerID,
+
 		arg.OrganizationID,
 		pq.Array(arg.HasParam),
 		arg.OwnerUsername,
@@ -233,6 +256,7 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 		arg.Name,
 		arg.HasAgent,
 		arg.AgentInactiveDisconnectTimeoutSeconds,
+
 		arg.Dormant,
 		arg.LastUsedBefore,
 		arg.LastUsedAfter,
@@ -240,6 +264,7 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 		arg.RequesterID,
 		arg.Offset,
 		arg.Limit,
+
 		arg.WithSummary,
 	)
 	if err != nil {
@@ -322,12 +347,14 @@ func (q *sqlQuerier) GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx context.Conte
 			&i.ID,
 			&i.Name,
 			&i.JobStatus,
+
 			&i.Transition,
 			pq.Array(&i.Agents),
 		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
+
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
@@ -335,6 +362,7 @@ func (q *sqlQuerier) GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx context.Conte
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+
 	return items, nil
 }
 type userQuerier interface {
@@ -365,10 +393,12 @@ func (q *sqlQuerier) GetAuthorizedUsers(ctx context.Context, arg GetUsersParams,
 		arg.LimitOpt,
 	)
 	if err != nil {
+
 		return nil, err
 	}
 	defer rows.Close()
 	var items []GetUsersRow
+
 	for rows.Next() {
 		var i GetUsersRow
 		if err := rows.Scan(
@@ -377,11 +407,13 @@ func (q *sqlQuerier) GetAuthorizedUsers(ctx context.Context, arg GetUsersParams,
 			&i.Username,
 			&i.HashedPassword,
 			&i.CreatedAt,
+
 			&i.UpdatedAt,
 			&i.Status,
 			&i.RBACRoles,
 			&i.LoginType,
 			&i.AvatarURL,
+
 			&i.Deleted,
 			&i.LastSeenAt,
 			&i.QuietHoursSchedule,
@@ -435,10 +467,12 @@ func (q *sqlQuerier) GetAuthorizedAuditLogsOffset(ctx context.Context, arg GetAu
 		arg.LimitOpt,
 	)
 	if err != nil {
+
 		return nil, err
 	}
 	defer rows.Close()
 	var items []GetAuditLogsOffsetRow
+
 	for rows.Next() {
 		var i GetAuditLogsOffsetRow
 		if err := rows.Scan(
@@ -447,11 +481,13 @@ func (q *sqlQuerier) GetAuthorizedAuditLogsOffset(ctx context.Context, arg GetAu
 			&i.AuditLog.UserID,
 			&i.AuditLog.OrganizationID,
 			&i.AuditLog.Ip,
+
 			&i.AuditLog.UserAgent,
 			&i.AuditLog.ResourceType,
 			&i.AuditLog.ResourceID,
 			&i.AuditLog.ResourceTarget,
 			&i.AuditLog.Action,
+
 			&i.AuditLog.Diff,
 			&i.AuditLog.StatusCode,
 			&i.AuditLog.AdditionalFields,

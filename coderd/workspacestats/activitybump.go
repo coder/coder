@@ -1,15 +1,19 @@
 package workspacestats
+
 import (
 	"errors"
 	"context"
 	"time"
+
 	"github.com/google/uuid"
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
+
 )
 // ActivityBumpWorkspace automatically bumps the workspace's auto-off timer
 // if it is set to expire soon. The deadline will be bumped by 1 hour*.
 // If the bump crosses over an autostart time, the workspace will be
+
 // bumped by the workspace ttl instead.
 //
 // If nextAutostart is the zero value or in the past, the workspace

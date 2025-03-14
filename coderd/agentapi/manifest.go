@@ -1,4 +1,5 @@
 package agentapi
+
 import (
 	"fmt"
 	"errors"
@@ -6,12 +7,14 @@ import (
 	"database/sql"
 	"net/url"
 	"strings"
+
 	"time"
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"tailscale.com/tailcfg"
 	agentproto "github.com/coder/coder/v2/agent/proto"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -22,6 +25,7 @@ import (
 )
 type ManifestAPI struct {
 	AccessURL                *url.URL
+
 	AppHostname              string
 	ExternalAuthConfigs      []*externalauth.Config
 	DisableDirectConnections bool
@@ -30,11 +34,13 @@ type ManifestAPI struct {
 	AgentFn   func(context.Context) (database.WorkspaceAgent, error)
 	Database  database.Store
 	DerpMapFn func() *tailcfg.DERPMap
+
 }
 func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifestRequest) (*agentproto.Manifest, error) {
 	workspaceAgent, err := a.AgentFn(ctx)
 	if err != nil {
 		return nil, err
+
 	}
 	var (
 		dbApps    []database.WorkspaceApp
@@ -48,6 +54,7 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		dbApps, err = a.Database.GetWorkspaceAppsByAgentID(ctx, workspaceAgent.ID)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return err
+
 		}
 		return nil
 	})
@@ -84,6 +91,7 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		WorkspaceName: workspace.Name,
 		Username:      owner.Username,
 	}
+
 	vscodeProxyURI := vscodeProxyURI(appSlug, a.AccessURL, a.AppHostname)
 	envs, err := db2sdk.WorkspaceAgentEnvironment(workspaceAgent)
 	if err != nil {
@@ -91,13 +99,16 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 	}
 	var gitAuthConfigs uint32
 	for _, cfg := range a.ExternalAuthConfigs {
+
 		if codersdk.EnhancedExternalAuthProvider(cfg.Type).Git() {
 			gitAuthConfigs++
+
 		}
 	}
 	apps, err := dbAppsToProto(dbApps, workspaceAgent, owner.Username, workspace)
 	if err != nil {
 		return nil, fmt.Errorf("converting workspace apps: %w", err)
+
 	}
 	return &agentproto.Manifest{
 		AgentId:                  workspaceAgent.ID[:],
@@ -105,11 +116,13 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		OwnerUsername:            owner.Username,
 		WorkspaceId:              workspace.ID[:],
 		WorkspaceName:            workspace.Name,
+
 		GitAuthConfigs:           gitAuthConfigs,
 		EnvironmentVariables:     envs,
 		Directory:                workspaceAgent.Directory,
 		VsCodePortProxyUri:       vscodeProxyURI,
 		MotdPath:                 workspaceAgent.MOTDFile,
+
 		DisableDirectConnections: a.DisableDirectConnections,
 		DerpForceWebsockets:      a.DerpForceWebSockets,
 		DerpMap:  tailnet.DERPMapToProto(a.DerpMapFn()),
@@ -124,6 +137,7 @@ func vscodeProxyURI(app appurl.ApplicationURL, accessURL *url.URL, appHost strin
 	if appHost == "" {
 		return ""
 	}
+
 	// This will handle the ports from the accessURL or appHost.
 	appHost = appurl.SubdomainAppHost(appHost, accessURL)
 	// Return the url with a scheme and any wildcards replaced with the app slug.
@@ -131,6 +145,7 @@ func vscodeProxyURI(app appurl.ApplicationURL, accessURL *url.URL, appHost strin
 }
 func dbAgentMetadataToProtoDescription(metadata []database.WorkspaceAgentMetadatum) []*agentproto.WorkspaceAgentMetadata_Description {
 	ret := make([]*agentproto.WorkspaceAgentMetadata_Description, len(metadata))
+
 	for i, metadatum := range metadata {
 		ret[i] = dbAgentMetadatumToProtoDescription(metadatum)
 	}
@@ -138,12 +153,14 @@ func dbAgentMetadataToProtoDescription(metadata []database.WorkspaceAgentMetadat
 }
 func dbAgentMetadatumToProtoDescription(metadatum database.WorkspaceAgentMetadatum) *agentproto.WorkspaceAgentMetadata_Description {
 	return &agentproto.WorkspaceAgentMetadata_Description{
+
 		DisplayName: metadatum.DisplayName,
 		Key:         metadatum.Key,
 		Script:      metadatum.Script,
 		Interval:    durationpb.New(time.Duration(metadatum.Interval)),
 		Timeout:     durationpb.New(time.Duration(metadatum.Timeout)),
 	}
+
 }
 func dbAgentScriptsToProto(scripts []database.WorkspaceAgentScript) []*agentproto.WorkspaceAgentScript {
 	ret := make([]*agentproto.WorkspaceAgentScript, len(scripts))
@@ -152,6 +169,7 @@ func dbAgentScriptsToProto(scripts []database.WorkspaceAgentScript) []*agentprot
 	}
 	return ret
 }
+
 func dbAgentScriptToProto(script database.WorkspaceAgentScript) *agentproto.WorkspaceAgentScript {
 	return &agentproto.WorkspaceAgentScript{
 		Id:               script.ID[:],
@@ -162,6 +180,7 @@ func dbAgentScriptToProto(script database.WorkspaceAgentScript) *agentproto.Work
 		RunOnStart:       script.RunOnStart,
 		RunOnStop:        script.RunOnStop,
 		StartBlocksLogin: script.StartBlocksLogin,
+
 		Timeout:          durationpb.New(time.Duration(script.TimeoutSeconds) * time.Second),
 	}
 }
@@ -170,6 +189,7 @@ func dbAppsToProto(dbApps []database.WorkspaceApp, agent database.WorkspaceAgent
 	for i, dbApp := range dbApps {
 		var err error
 		ret[i], err = dbAppToProto(dbApp, agent, ownerName, workspace)
+
 		if err != nil {
 			return nil, fmt.Errorf("parse app %v (%q): %w", i, dbApp.Slug, err)
 		}
@@ -184,6 +204,7 @@ func dbAppToProto(dbApp database.WorkspaceApp, agent database.WorkspaceAgent, ow
 	healthRaw, ok := agentproto.WorkspaceApp_Health_value[strings.ToUpper(string(dbApp.Health))]
 	if !ok {
 		return nil, fmt.Errorf("unknown app health: %q", dbApp.SharingLevel)
+
 	}
 	return &agentproto.WorkspaceApp{
 		Id:            dbApp.ID[:],
@@ -196,12 +217,14 @@ func dbAppToProto(dbApp database.WorkspaceApp, agent database.WorkspaceAgent, ow
 		Subdomain:     dbApp.Subdomain,
 		SubdomainName: db2sdk.AppSubdomain(dbApp, agent.Name, workspace.Name, ownerName),
 		SharingLevel:  agentproto.WorkspaceApp_SharingLevel(sharingLevelRaw),
+
 		Healthcheck: &agentproto.WorkspaceApp_Healthcheck{
 			Url:       dbApp.HealthcheckUrl,
 			Interval:  durationpb.New(time.Duration(dbApp.HealthcheckInterval) * time.Second),
 			Threshold: dbApp.HealthcheckThreshold,
 		},
 		Health: agentproto.WorkspaceApp_Health(healthRaw),
+
 		Hidden: dbApp.Hidden,
 	}, nil
 }
