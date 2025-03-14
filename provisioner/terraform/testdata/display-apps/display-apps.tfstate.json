@@ -32,6 +32,7 @@
             "motd_file": null,
             "order": null,
             "os": "linux",
+            "resources_monitoring": [],
             "shutdown_script": null,
             "startup_script": null,
             "startup_script_behavior": "non-blocking",
@@ -43,6 +44,7 @@
               {}
             ],
             "metadata": [],
+            "resources_monitoring": [],
             "token": true
           }
         },

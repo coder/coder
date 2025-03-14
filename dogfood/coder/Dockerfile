@@ -9,7 +9,7 @@ RUN cargo install exa bat ripgrep typos-cli watchexec-cli && \
 FROM ubuntu:jammy@sha256:0e5e4a57c2499249aafc3b40fcd541e9a456aab7296681a3994d631587203f97 AS go
 
 # Install Go manually, so that we can control the version
-ARG GO_VERSION=1.22.8
+ARG GO_VERSION=1.24.1
 
 # Boring Go is needed to build FIPS-compliant binaries.
 RUN apt-get update && \
@@ -278,7 +278,9 @@ ARG CLOUD_SQL_PROXY_VERSION=2.2.0 \
 	KUBECTX_VERSION=0.9.4 \
 	STRIPE_VERSION=1.14.5 \
 	TERRAGRUNT_VERSION=0.45.11 \
-	TRIVY_VERSION=0.41.0
+	TRIVY_VERSION=0.41.0 \
+	SYFT_VERSION=1.20.0 \
+	COSIGN_VERSION=2.4.3
 
 # cloud_sql_proxy, for connecting to cloudsql instances
 # the upstream go.mod prevents this from being installed with go install
@@ -316,7 +318,13 @@ RUN curl --silent --show-error --location --output /usr/local/bin/cloud_sql_prox
 	chmod a=rx /usr/local/bin/terragrunt && \
 	# AquaSec Trivy for scanning container images for security issues
 	curl --silent --show-error --location "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" | \
-	tar --extract --gzip --directory=/usr/local/bin --file=- trivy
+	tar --extract --gzip --directory=/usr/local/bin --file=- trivy && \
+	# Anchore Syft for SBOM generation
+	curl --silent --show-error --location "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_linux_amd64.tar.gz" | \
+	tar --extract --gzip --directory=/usr/local/bin --file=- syft && \
+	# Sigstore Cosign for artifact signing and attestation
+	curl --silent --show-error --location --output /usr/local/bin/cosign "https://github.com/sigstore/cosign/releases/download/v${COSIGN_VERSION}/cosign-linux-amd64" && \
+	chmod a=rx /usr/local/bin/cosign
 
 # We use yq during "make deploy" to manually substitute out fields in
 # our helm values.yaml file. See https://github.com/helm/helm/issues/3141

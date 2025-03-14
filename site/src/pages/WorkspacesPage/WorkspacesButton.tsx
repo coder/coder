@@ -69,6 +69,7 @@ export const WorkspacesButton: FC<WorkspacesButtonProps> = ({
 			>
 				<MenuSearch
 					value={searchTerm}
+					autoFocus={true}
 					onChange={setSearchTerm}
 					placeholder="Type/select a workspace template"
 					aria-label="Template select for workspace"

@@ -21,6 +21,7 @@
             "motd_file": null,
             "order": null,
             "os": "linux",
+            "resources_monitoring": [],
             "shutdown_script": null,
             "startup_script": null,
             "startup_script_behavior": "non-blocking",
@@ -29,6 +30,7 @@
           "sensitive_values": {
             "display_apps": [],
             "metadata": [],
+            "resources_monitoring": [],
             "token": true
           }
         },
@@ -121,6 +123,7 @@
           "motd_file": null,
           "order": null,
           "os": "linux",
+          "resources_monitoring": [],
           "shutdown_script": null,
           "startup_script": null,
           "startup_script_behavior": "non-blocking",
@@ -131,12 +134,14 @@
           "id": true,
           "init_script": true,
           "metadata": [],
+          "resources_monitoring": [],
           "token": true
         },
         "before_sensitive": false,
         "after_sensitive": {
           "display_apps": [],
           "metadata": [],
+          "resources_monitoring": [],
           "token": true
         }
       }

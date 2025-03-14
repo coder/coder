@@ -6,19 +6,28 @@ import InputAdornment from "@mui/material/InputAdornment";
 import TextField, { type TextFieldProps } from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
 import visuallyHidden from "@mui/utils/visuallyHidden";
-import type { FC } from "react";
+import { type FC, useEffect, useRef } from "react";
 
 export type SearchFieldProps = Omit<TextFieldProps, "onChange"> & {
 	onChange: (query: string) => void;
+	autoFocus?: boolean;
 };
 
 export const SearchField: FC<SearchFieldProps> = ({
 	value = "",
 	onChange,
+	autoFocus = false,
 	InputProps,
 	...textFieldProps
 }) => {
 	const theme = useTheme();
+	const inputRef = useRef<HTMLInputElement>(null);
+
+	if (autoFocus) {
+		useEffect(() => {
+			inputRef.current?.focus();
+		});
+	}
 	return (
 		<TextField
 			// Specifying `minWidth` so that the text box can't shrink so much
@@ -27,6 +36,7 @@ export const SearchField: FC<SearchFieldProps> = ({
 			size="small"
 			value={value}
 			onChange={(e) => onChange(e.target.value)}
+			inputRef={inputRef}
 			InputProps={{
 				startAdornment: (
 					<InputAdornment position="start">

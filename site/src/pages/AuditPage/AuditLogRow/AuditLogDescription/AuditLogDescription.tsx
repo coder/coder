@@ -19,7 +19,9 @@ export const AuditLogDescription: FC<AuditLogDescriptionProps> = ({
 	}
 
 	let target = auditLog.resource_target.trim();
-	let user = auditLog.user?.username.trim();
+	let user = auditLog.user
+		? auditLog.user.username.trim()
+		: "Unauthenticated user";
 
 	// SSH key entries have no links
 	if (auditLog.resource_type === "git_ssh_key") {
