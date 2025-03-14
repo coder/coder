@@ -1076,7 +1076,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	}).SetInitAuditRequest(func(params *audit.RequestParams) (*audit.Request[database.User], func()) {
 		return audit.InitRequest[database.User](rw, params)
 	})
-	cookies, user, key, err := api.oauthLogin(rw, r, params)
+	cookies, user, key, err := api.oauthLogin(r, params)
 	defer params.CommitAuditLogs()
 	if err != nil {
 		if httpErr := idpsync.IsHTTPError(err); httpErr != nil {
@@ -1448,7 +1448,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	}).SetInitAuditRequest(func(params *audit.RequestParams) (*audit.Request[database.User], func()) {
 		return audit.InitRequest[database.User](rw, params)
 	})
-	cookies, user, key, err := api.oauthLogin(rw, r, params)
+	cookies, user, key, err := api.oauthLogin(r, params)
 	defer params.CommitAuditLogs()
 	if err != nil {
 		if hErr := idpsync.IsHTTPError(err); hErr != nil {
@@ -1621,7 +1621,7 @@ func (p *oauthLoginParams) CommitAuditLogs() {
 	}
 }
 
-func (api *API) oauthLogin(rw http.ResponseWriter, r *http.Request, params *oauthLoginParams) ([]*http.Cookie, database.User, database.APIKey, error) {
+func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.Cookie, database.User, database.APIKey, error) {
 	var (
 		ctx                  = r.Context()
 		user                 database.User

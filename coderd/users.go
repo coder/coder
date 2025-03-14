@@ -1447,14 +1447,15 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 		return user, err
 	}
 
+	actorID := httpmw.APIKey(r).UserID
 	for _, member := range memberships {
 		audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.AuditableOrganizationMember]{
 			Audit:          *api.Auditor.Load(),
 			Log:            api.Logger,
 			Action:         database.AuditActionCreate,
 			IP:             r.RemoteAddr,
+			UserID:         actorID,
 			OrganizationID: member.OrganizationID,
-			UserID:         member.UserID,
 			New:            member,
 		})
 	}
