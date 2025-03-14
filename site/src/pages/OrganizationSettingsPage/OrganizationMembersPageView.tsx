@@ -11,7 +11,6 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import { Loader } from "components/Loader/Loader";
 import {
 	MoreMenu,
 	MoreMenuContent,
@@ -26,6 +25,7 @@ import {
 	Table,
 	TableBody,
 	TableCell,
+	TableHead,
 	TableHeader,
 	TableRow,
 } from "components/Table/Table";
@@ -44,7 +44,6 @@ interface OrganizationMembersPageViewProps {
 	error: unknown;
 	isAddingMember: boolean;
 	isUpdatingMemberRoles: boolean;
-	isLoading: boolean;
 	me: User;
 	members: Array<OrganizationMemberTableEntry> | undefined;
 	membersQuery: PaginationResultInfo & {
@@ -71,10 +70,9 @@ export const OrganizationMembersPageView: FC<
 	error,
 	isAddingMember,
 	isUpdatingMemberRoles,
-	isLoading,
 	me,
-	members,
 	membersQuery,
+	members,
 	addMember,
 	removeMember,
 	updateMemberRoles,
@@ -100,90 +98,82 @@ export const OrganizationMembersPageView: FC<
 						</p>
 					</div>
 				)}
-
-				{isLoading ? (
-					<Loader />
-				) : (
-					<PaginationContainer
-						query={membersQuery}
-						paginationUnitLabel="members"
-					>
-						<Table>
-							<TableHeader>
-								<TableRow>
-									<TableCell width="33%">User</TableCell>
-									<TableCell width="33%">
-										<Stack direction="row" spacing={1} alignItems="center">
-											<span>Roles</span>
-											<TableColumnHelpTooltip variant="roles" />
-										</Stack>
-									</TableCell>
-									<TableCell width="33%">
-										<Stack direction="row" spacing={1} alignItems="center">
-											<span>Groups</span>
-											<TableColumnHelpTooltip variant="groups" />
-										</Stack>
-									</TableCell>
-									<TableCell width="1%" />
-								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{members?.map((member) => (
-									<TableRow key={member.user_id} className="align-baseline">
-										<TableCell>
-											<AvatarData
-												avatar={
-													<Avatar
-														fallback={member.username}
-														src={member.avatar_url}
-													/>
-												}
-												title={member.name || member.username}
-												subtitle={member.email}
-											/>
-										</TableCell>
-										<UserRoleCell
-											inheritedRoles={member.global_roles}
-											roles={member.roles}
-											allAvailableRoles={allAvailableRoles}
-											oidcRoleSyncEnabled={false}
-											isLoading={isUpdatingMemberRoles}
-											canEditUsers={canEditMembers}
-											onEditRoles={async (roles) => {
-												try {
-													await updateMemberRoles(member, roles);
-													displaySuccess("Roles updated successfully.");
-												} catch (error) {
-													displayError(
-														getErrorMessage(error, "Failed to update roles."),
-													);
-												}
-											}}
+				<PaginationContainer query={membersQuery} paginationUnitLabel="members">
+					<Table>
+						<TableHeader>
+							<TableRow>
+								<TableHead className="w-2/6">User</TableHead>
+								<TableHead className="w-2/6">
+									<Stack direction="row" spacing={1} alignItems="center">
+										<span>Roles</span>
+										<TableColumnHelpTooltip variant="roles" />
+									</Stack>
+								</TableHead>
+								<TableHead className="w-2/6">
+									<Stack direction="row" spacing={1} alignItems="center">
+										<span>Groups</span>
+										<TableColumnHelpTooltip variant="groups" />
+									</Stack>
+								</TableHead>
+								<TableHead className="w-auto" />
+							</TableRow>
+						</TableHeader>
+						<TableBody>
+							{members?.map((member) => (
+								<TableRow key={member.user_id} className="align-baseline">
+									<TableCell>
+										<AvatarData
+											avatar={
+												<Avatar
+													fallback={member.username}
+													src={member.avatar_url}
+												/>
+											}
+											title={member.name || member.username}
+											subtitle={member.email}
 										/>
-										<UserGroupsCell userGroups={member.groups} />
-										<TableCell>
-											{member.user_id !== me.id && canEditMembers && (
-												<MoreMenu>
-													<MoreMenuTrigger>
-														<ThreeDotsButton />
-													</MoreMenuTrigger>
-													<MoreMenuContent>
-														<MoreMenuItem
-															danger
-															onClick={() => removeMember(member)}
-														>
-															Remove
-														</MoreMenuItem>
-													</MoreMenuContent>
-												</MoreMenu>
-											)}
-										</TableCell>
-									</TableRow>
-								))}
-							</TableBody>
-						</Table>
-					</PaginationContainer>
-				)}
+									</TableCell>
+									<UserRoleCell
+										inheritedRoles={member.global_roles}
+										roles={member.roles}
+										allAvailableRoles={allAvailableRoles}
+										oidcRoleSyncEnabled={false}
+										isLoading={isUpdatingMemberRoles}
+										canEditUsers={canEditMembers}
+										onEditRoles={async (roles) => {
+											try {
+												await updateMemberRoles(member, roles);
+												displaySuccess("Roles updated successfully.");
+											} catch (error) {
+												displayError(
+													getErrorMessage(error, "Failed to update roles."),
+												);
+											}
+										}}
+									/>
+									<UserGroupsCell userGroups={member.groups} />
+									<TableCell>
+										{member.user_id !== me.id && canEditMembers && (
+											<MoreMenu>
+												<MoreMenuTrigger>
+													<ThreeDotsButton />
+												</MoreMenuTrigger>
+												<MoreMenuContent>
+													<MoreMenuItem
+														danger
+														onClick={() => removeMember(member)}
+													>
+														Remove
+													</MoreMenuItem>
+												</MoreMenuContent>
+											</MoreMenu>
+										)}
+									</TableCell>
+								</TableRow>
+							))}
+						</TableBody>
+					</Table>
+				</PaginationContainer>
 			</div>
 		</div>
 	);

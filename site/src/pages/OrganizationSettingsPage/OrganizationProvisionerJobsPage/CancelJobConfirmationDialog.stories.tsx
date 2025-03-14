@@ -6,8 +6,7 @@ import { withGlobalSnackbar } from "testHelpers/storybook";
 import { CancelJobConfirmationDialog } from "./CancelJobConfirmationDialog";
 
 const meta: Meta<typeof CancelJobConfirmationDialog> = {
-	title:
-		"pages/OrganizationSettingsPage/ProvisionersPage/CancelJobConfirmationDialog",
+	title: "pages/OrganizationProvisionerJobsPage/CancelJobConfirmationDialog",
 	component: CancelJobConfirmationDialog,
 	args: {
 		open: true,
@@ -40,7 +39,7 @@ export const OnCancel: Story = {
 	},
 };
 
-export const onConfirmSuccess: Story = {
+export const OnConfirmSuccess: Story = {
 	parameters: {
 		chromatic: { disableSnapshot: true },
 	},
@@ -60,7 +59,7 @@ export const onConfirmSuccess: Story = {
 	},
 };
 
-export const onConfirmFailure: Story = {
+export const OnConfirmFailure: Story = {
 	parameters: {
 		chromatic: { disableSnapshot: true },
 	},

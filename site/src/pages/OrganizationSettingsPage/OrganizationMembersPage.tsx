@@ -83,11 +83,6 @@ const OrganizationMembersPage: FC = () => {
 		);
 	}
 
-	const isLoading =
-		membersQuery.isLoading ||
-		organizationRolesQuery.isLoading ||
-		groupsByUserIdQuery.isLoading;
-
 	return (
 		<>
 			{helmet}
@@ -107,7 +102,6 @@ const OrganizationMembersPage: FC = () => {
 				isUpdatingMemberRoles={updateMemberRolesMutation.isLoading}
 				me={me}
 				members={members}
-				isLoading={isLoading}
 				membersQuery={membersQuery}
 				addMember={async (user: User) => {
 					await addMemberMutation.mutateAsync(user.id);

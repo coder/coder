@@ -1,105 +1,24 @@
-import { provisionerJobs } from "api/queries/organizations";
 import type { ProvisionerJob } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { Badge } from "components/Badge/Badge";
-import { Button } from "components/Button/Button";
-import { EmptyState } from "components/EmptyState/EmptyState";
-import { Link } from "components/Link/Link";
-import { Loader } from "components/Loader/Loader";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "components/Table/Table";
+import { TableCell, TableRow } from "components/Table/Table";
 import {
 	ChevronDownIcon,
 	ChevronRightIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
 import { type FC, useState } from "react";
-import { useQuery } from "react-query";
 import { cn } from "utils/cn";
-import { docs } from "utils/docs";
 import { relativeTime } from "utils/time";
 import { CancelJobButton } from "./CancelJobButton";
-import { DataGrid } from "./DataGrid";
 import { JobStatusIndicator } from "./JobStatusIndicator";
 import { Tag, Tags, TruncateTags } from "./Tags";
-
-type ProvisionerJobsPageProps = {
-	orgId: string;
-};
-
-export const ProvisionerJobsPage: FC<ProvisionerJobsPageProps> = ({
-	orgId,
-}) => {
-	const {
-		data: jobs,
-		isLoadingError,
-		refetch,
-	} = useQuery(provisionerJobs(orgId));
-
-	return (
-		<section className="flex flex-col gap-8">
-			<h2 className="sr-only">Provisioner jobs</h2>
-			<p className="text-sm text-content-secondary m-0 mt-2">
-				Provisioner Jobs are the individual tasks assigned to Provisioners when
-				the workspaces are being built.{" "}
-				<Link href={docs("/admin/provisioners")}>View docs</Link>
-			</p>
-
-			<Table>
-				<TableHeader>
-					<TableRow>
-						<TableHead>Created</TableHead>
-						<TableHead>Type</TableHead>
-						<TableHead>Template</TableHead>
-						<TableHead>Tags</TableHead>
-						<TableHead>Status</TableHead>
-						<TableHead />
-					</TableRow>
-				</TableHeader>
-				<TableBody>
-					{jobs ? (
-						jobs.length > 0 ? (
-							jobs.map((j) => <JobRow key={j.id} job={j} />)
-						) : (
-							<TableRow>
-								<TableCell colSpan={999}>
-									<EmptyState message="No provisioner jobs found" />
-								</TableCell>
-							</TableRow>
-						)
-					) : isLoadingError ? (
-						<TableRow>
-							<TableCell colSpan={999}>
-								<EmptyState
-									message="Error loading the provisioner jobs"
-									cta={<Button onClick={() => refetch()}>Retry</Button>}
-								/>
-							</TableCell>
-						</TableRow>
-					) : (
-						<TableRow>
-							<TableCell colSpan={999}>
-								<Loader />
-							</TableCell>
-						</TableRow>
-					)}
-				</TableBody>
-			</Table>
-		</section>
-	);
-};
 
 type JobRowProps = {
 	job: ProvisionerJob;
 };
 
-const JobRow: FC<JobRowProps> = ({ job }) => {
+export const JobRow: FC<JobRowProps> = ({ job }) => {
 	const metadata = job.metadata;
 	const [isOpen, setIsOpen] = useState(false);
 
@@ -133,20 +52,16 @@ const JobRow: FC<JobRowProps> = ({ job }) => {
 					<Badge size="sm">{job.type}</Badge>
 				</TableCell>
 				<TableCell>
-					{job.metadata.template_name ? (
-						<div className="flex items-center gap-1 whitespace-nowrap">
-							<Avatar
-								variant="icon"
-								src={metadata.template_icon}
-								fallback={
-									metadata.template_display_name || metadata.template_name
-								}
-							/>
-							{metadata.template_display_name ?? metadata.template_name}
-						</div>
-					) : (
-						<span className="whitespace-nowrap">Not linked</span>
-					)}
+					<div className="flex items-center gap-1 whitespace-nowrap">
+						<Avatar
+							variant="icon"
+							src={metadata.template_icon}
+							fallback={
+								metadata.template_display_name || metadata.template_name
+							}
+						/>
+						{metadata.template_display_name || metadata.template_name}
+					</div>
 				</TableCell>
 				<TableCell>
 					<TruncateTags tags={job.tags} />
@@ -173,7 +88,13 @@ const JobRow: FC<JobRowProps> = ({ job }) => {
 								<span className="[&:first-letter]:uppercase">{job.error}</span>
 							</div>
 						)}
-						<DataGrid>
+						<dl
+							className={cn([
+								"text-xs text-content-secondary",
+								"m-0 grid grid-cols-[auto_1fr] gap-x-4 items-center",
+								"[&_dd]:text-content-primary [&_dd]:font-mono [&_dd]:leading-[22px] [&_dt]:font-medium",
+							])}
+						>
 							<dt>Job ID:</dt>
 							<dd>{job.id}</dd>
 
@@ -206,7 +127,7 @@ const JobRow: FC<JobRowProps> = ({ job }) => {
 									))}
 								</Tags>
 							</dd>
-						</DataGrid>
+						</dl>
 					</TableCell>
 				</TableRow>
 			)}
