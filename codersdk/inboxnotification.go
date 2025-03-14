@@ -34,10 +34,10 @@ type GetInboxNotificationResponse struct {
 }
 
 type ListInboxNotificationsRequest struct {
-	Targets        string    `json:"targets,omitempty"`
-	Templates      string    `json:"templates,omitempty"`
-	ReadStatus     string    `json:"read_status,omitempty" validate:"omitempty,oneof=read unread all"`
-	StartingBefore uuid.UUID `json:"starting_before,omitempty" validate:"omitempty" format:"uuid"`
+	Targets        string `json:"targets,omitempty"`
+	Templates      string `json:"templates,omitempty"`
+	ReadStatus     string `json:"read_status,omitempty"`
+	StartingBefore string `json:"starting_before,omitempty"`
 }
 
 type ListInboxNotificationsResponse struct {
@@ -56,11 +56,26 @@ func ListInboxNotificationsRequestToQueryParams(req ListInboxNotificationsReques
 	if req.ReadStatus != "" {
 		opts = append(opts, WithQueryParam("read_status", req.ReadStatus))
 	}
-	if req.StartingBefore != uuid.Nil {
-		opts = append(opts, WithQueryParam("starting_before", req.StartingBefore.String()))
+	if req.StartingBefore != "" {
+		opts = append(opts, WithQueryParam("starting_before", req.StartingBefore))
 	}
 
 	return opts
+}
+
+func (c *Client) WatchInboxNotificationx(ctx context.Context) error {
+	res, err := c.Request(
+		ctx, http.MethodGet,
+		"/api/v2/notifications/watch",
+		nil, nil,
+	)
+	if err != nil {
+		return err
+	}
+
+	defer res.Body.Close()
+
+	return nil
 }
 
 func (c *Client) ListInboxNotifications(ctx context.Context, req ListInboxNotificationsRequest) (ListInboxNotificationsResponse, error) {
@@ -91,7 +106,7 @@ type UpdateInboxNotificationReadStatusResponse struct {
 	UnreadCount  int               `json:"unread_count"`
 }
 
-func (c *Client) UpdateInboxNotificationReadStatus(ctx context.Context, notifID uuid.UUID, req UpdateInboxNotificationReadStatusRequest) (UpdateInboxNotificationReadStatusResponse, error) {
+func (c *Client) UpdateInboxNotificationReadStatus(ctx context.Context, notifID string, req UpdateInboxNotificationReadStatusRequest) (UpdateInboxNotificationReadStatusResponse, error) {
 	res, err := c.Request(
 		ctx, http.MethodPut,
 		fmt.Sprintf("/api/v2/notifications/inbox/%v/read-status", notifID),

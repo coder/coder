@@ -153,6 +153,7 @@ func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request)
 				select {
 				case notificationCh <- payload.InboxNotification:
 				default:
+					api.Logger.Error(ctx, "unable to push notification in channel")
 				}
 			},
 		))
