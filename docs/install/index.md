@@ -78,7 +78,7 @@ When you query `ContainerMemory` and encounter the error:
 open /sys/fs/cgroup/memory.max: no such file or directory
 ```
 
-This error mostly affects Raspbery Pi OS, but might also affect older Debian-based systems as well.
+This error mostly affects Raspberry Pi OS, but might also affect older Debian-based systems as well.
 
 <details><summary>Add `cgroup_memory=1 cgroup_enable=memory` to `cmdline.txt`:</summary>
 
