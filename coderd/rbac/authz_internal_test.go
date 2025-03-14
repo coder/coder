@@ -3,6 +3,7 @@ package rbac
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"testing"
@@ -11,7 +12,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/rbac/regosql"
@@ -1103,7 +1103,7 @@ func testAuthorize(t *testing.T, name string, subject Subject, sets ...[]authTes
 					t.Logf("input: %s", string(d))
 					if authError != nil {
 						var uerr *UnauthorizedError
-						if xerrors.As(authError, &uerr) {
+						if errors.As(authError, &uerr) {
 							t.Logf("internal error: %+v", uerr.Internal().Error())
 							t.Logf("output: %+v", uerr.Output())
 						}

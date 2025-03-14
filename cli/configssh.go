@@ -304,7 +304,7 @@ func (r *RootCmd) configSSH() *serpent.Command {
 				// TODO: Remove this in 2 months (May 31, 2023). Just return the error
 				// 	and remove this 404 check.
 				var sdkErr *codersdk.Error
-				if !(xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound) {
+				if !(errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound) {
 					return xerrors.Errorf("fetch coderd config failed: %w", err)
 				}
 				coderdConfig.HostnamePrefix = "coder."

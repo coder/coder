@@ -214,7 +214,7 @@ func connectSSH(ctx context.Context, client *codersdk.Client, agentID uuid.UUID,
 		case err := <-waitErr:
 			if err != nil {
 				var exitErr *gossh.ExitError
-				if xerrors.As(err, &exitErr) {
+				if errors.As(err, &exitErr) {
 					// The exit status is 255 when the command is
 					// interrupted by a signal. This is expected.
 					if exitErr.ExitStatus() != 255 {

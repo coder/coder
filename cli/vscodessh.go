@@ -129,7 +129,7 @@ func (r *RootCmd) vscodeSSH() *serpent.Command {
 			appearanceCfg, err := client.Appearance(ctx)
 			if err != nil {
 				var sdkErr *codersdk.Error
-				if !(xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound) {
+				if !(errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound) {
 					return xerrors.Errorf("get appearance config: %w", err)
 				}
 				appearanceCfg.DocsURL = codersdk.DefaultDocsURL()

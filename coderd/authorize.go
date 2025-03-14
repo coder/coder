@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -71,7 +72,7 @@ func (h *HTTPAuthorizer) Authorize(r *http.Request, action policy.Action, object
 		// Log the errors for debugging
 		internalError := new(rbac.UnauthorizedError)
 		logger := h.Logger
-		if xerrors.As(err, internalError) {
+		if errors.As(err, internalError) {
 			logger = h.Logger.With(slog.F("internal_error", internalError.Internal()))
 		}
 		// Log information for debugging. This will be very helpful

@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -237,7 +238,7 @@ func (e *executor) init(ctx, killCtx context.Context, logr logSink) error {
 
 	err := e.execWriteOutput(ctx, killCtx, args, e.basicEnv(), outWriter, errBuf)
 	var exitErr *exec.ExitError
-	if xerrors.As(err, &exitErr) {
+	if errors.As(err, &exitErr) {
 		if bytes.Contains(errBuf.b.Bytes(), []byte("text file busy")) {
 			return &textFileBusyError{exitErr: exitErr, stderr: errBuf.b.String()}
 		}

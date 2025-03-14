@@ -3,6 +3,7 @@ package license
 import (
 	"context"
 	"crypto/ed25519"
+	"errors"
 	"fmt"
 	"math"
 	"time"
@@ -101,7 +102,7 @@ func LicensesEntitlements(
 	for _, license := range licenses {
 		claims, err := ParseClaims(license.JWT, keys)
 		var vErr *jwt.ValidationError
-		if xerrors.As(err, &vErr) && vErr.Is(jwt.ErrTokenNotValidYet) {
+		if errors.As(err, &vErr) && vErr.Is(jwt.ErrTokenNotValidYet) {
 			// The license isn't valid yet.  We don't consider any entitlements contained in it, but
 			// it's also not an error.  Just skip it silently.  This can happen if an administrator
 			// uploads a license for a new term that hasn't started yet.
@@ -387,7 +388,7 @@ func ParseClaimsIgnoreNbf(rawJWT string, keys map[string]ed25519.PublicKey) (*Cl
 		jwt.WithValidMethods(ValidMethods),
 	)
 	var vErr *jwt.ValidationError
-	if xerrors.As(err, &vErr) {
+	if errors.As(err, &vErr) {
 		// zero out the NotValidYet error to check if there were other problems
 		vErr.Errors = vErr.Errors & (^jwt.ValidationErrorNotValidYet)
 		if vErr.Errors != 0 {

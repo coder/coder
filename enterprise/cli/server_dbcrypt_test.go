@@ -4,12 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"encoding/base64"
+	"errors"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -128,7 +128,7 @@ func TestServerDBCrypt(t *testing.T) {
 	err = db.RevokeDBCryptKey(ctx, cipherBA[0].HexDigest())
 	require.Error(t, err, "expected to fail to revoke the new key")
 	var pgErr *pq.Error
-	require.True(t, xerrors.As(err, &pgErr), "expected a pg error")
+	require.True(t, errors.As(err, &pgErr), "expected a pg error")
 	require.EqualValues(t, "23503", pgErr.Code, "expected a foreign key constraint violation error")
 
 	// Decrypt the data using only cipher B. This should result in the key being revoked.

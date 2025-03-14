@@ -3,6 +3,7 @@ package migrations
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -82,7 +83,7 @@ func (d *pgTxnDriver) runStatement(statement []byte) error {
 	}
 	if _, err := d.tx.ExecContext(ctx, query); err != nil {
 		var pgErr *pq.Error
-		if xerrors.As(err, &pgErr) {
+		if errors.As(err, &pgErr) {
 			var line uint
 			message := fmt.Sprintf("migration failed: %s", pgErr.Message)
 			if pgErr.Detail != "" {
@@ -132,7 +133,7 @@ func (d *pgTxnDriver) Version() (version int, dirty bool, err error) {
 
 	case err != nil:
 		var pgErr *pq.Error
-		if xerrors.As(err, &pgErr) {
+		if errors.As(err, &pgErr) {
 			if pgErr.Code.Name() == "undefined_table" {
 				return database.NilVersion, false, nil
 			}

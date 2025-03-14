@@ -2,6 +2,7 @@ package idpsync
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"regexp"
 	"strings"
@@ -224,12 +225,12 @@ func ParseStringSliceClaim(claim interface{}) ([]string, error) {
 // pointers.
 func IsHTTPError(err error) *HTTPError {
 	var httpErr HTTPError
-	if xerrors.As(err, &httpErr) {
+	if errors.As(err, &httpErr) {
 		return &httpErr
 	}
 
 	var httpErrPtr *HTTPError
-	if xerrors.As(err, &httpErrPtr) {
+	if errors.As(err, &httpErrPtr) {
 		return httpErrPtr
 	}
 	return nil

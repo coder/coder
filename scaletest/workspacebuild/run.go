@@ -2,6 +2,7 @@ package workspacebuild
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -139,7 +140,7 @@ func (r *CleanupRunner) Run(ctx context.Context, _ string, logs io.Writer) error
 	ws, err := r.client.Workspace(ctx, r.workspaceID)
 	if err != nil {
 		var sdkErr *codersdk.Error
-		if xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
+		if errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
 			logger.Info(ctx, "workspace not found, skipping delete", slog.F("workspace_id", r.workspaceID))
 			return nil
 		}

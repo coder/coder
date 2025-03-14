@@ -3,6 +3,7 @@ package terraform
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -130,7 +131,7 @@ func (s *server) Plan(
 		// notice, and also because it indicates this provisioner could be permanently broken and
 		// require a restart.
 		var errTFB *textFileBusyError
-		if xerrors.As(err, &errTFB) {
+		if errors.As(err, &errTFB) {
 			stacktrace := tryGettingCoderProviderStacktrace(sess)
 			s.logger.Critical(ctx, "init: text file busy",
 				slog.Error(errTFB),

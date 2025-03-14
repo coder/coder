@@ -40,7 +40,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
 	"google.golang.org/api/option"
 	"tailscale.com/derp"
@@ -750,7 +749,7 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 	user, err := client.CreateUserWithOrgs(context.Background(), req)
 	var apiError *codersdk.Error
 	// If the user already exists by username or email conflict, try again up to "retries" times.
-	if err != nil && retries >= 0 && xerrors.As(err, &apiError) {
+	if err != nil && retries >= 0 && errors.As(err, &apiError) {
 		if apiError.StatusCode() == http.StatusConflict {
 			retries--
 			return createAnotherUserRetry(t, client, organizationIDs, retries, roles)

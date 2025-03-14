@@ -8,8 +8,6 @@ import (
 	"net/url"
 	"slices"
 
-	"golang.org/x/xerrors"
-
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/codersdk"
@@ -82,7 +80,7 @@ func (w *WebsocketDialer) Dial(ctx context.Context, r tailnet.ResumeTokenControl
 			err = codersdk.ReadBodyAsError(res)
 			// A bit more human-readable help in the case the API version was rejected
 			var sdkErr *codersdk.Error
-			if xerrors.As(err, &sdkErr) {
+			if errors.As(err, &sdkErr) {
 				if sdkErr.Message == AgentAPIMismatchMessage &&
 					sdkErr.StatusCode() == http.StatusBadRequest {
 					sdkErr.Helper = fmt.Sprintf(
@@ -99,7 +97,7 @@ func (w *WebsocketDialer) Dial(ctx context.Context, r tailnet.ResumeTokenControl
 	if err != nil {
 		bodyErr := codersdk.ReadBodyAsError(res)
 		var sdkErr *codersdk.Error
-		if xerrors.As(bodyErr, &sdkErr) {
+		if errors.As(bodyErr, &sdkErr) {
 			for _, v := range sdkErr.Validations {
 				if v.Field == "resume_token" {
 					// Unset the resume token for the next attempt

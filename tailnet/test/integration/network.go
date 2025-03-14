@@ -5,6 +5,7 @@ package integration
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -757,7 +758,7 @@ func wrapExitErr(err error) error {
 	}
 
 	var exitErr *exec.ExitError
-	if xerrors.As(err, &exitErr) {
+	if errors.As(err, &exitErr) {
 		return xerrors.Errorf("output: %s\n\n%w", bytes.TrimSpace(exitErr.Stderr), exitErr)
 	}
 	return err

@@ -2,6 +2,7 @@ package database
 
 import (
 	"database/sql"
+	"errors"
 
 	"github.com/lib/pq"
 	"golang.org/x/xerrors"
@@ -37,7 +38,7 @@ func ReadModifyUpdate(db Store, f func(tx Store) error,
 			Isolation: sql.LevelRepeatableRead,
 		})
 		var pqe *pq.Error
-		if xerrors.As(err, &pqe) {
+		if errors.As(err, &pqe) {
 			if pqe.Code == "40001" {
 				// serialization error, retry
 				continue

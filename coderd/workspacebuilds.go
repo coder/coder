@@ -388,9 +388,9 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return err
 	}, nil)
 	var buildErr wsbuilder.BuildError
-	if xerrors.As(err, &buildErr) {
+	if errors.As(err, &buildErr) {
 		var authErr dbauthz.NotAuthorizedError
-		if xerrors.As(err, &authErr) {
+		if errors.As(err, &authErr) {
 			buildErr.Status = http.StatusForbidden
 		}
 

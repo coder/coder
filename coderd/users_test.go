@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"slices"
@@ -21,7 +22,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -1208,7 +1208,7 @@ func TestUpdateUserPassword(t *testing.T) {
 
 		require.Error(t, err, "auditors shouldn't be able to update passwords")
 		var httpErr *codersdk.Error
-		require.True(t, xerrors.As(err, &httpErr))
+		require.True(t, errors.As(err, &httpErr))
 		// ensure that the error we get is "not found" and not "bad request"
 		require.Equal(t, http.StatusNotFound, httpErr.StatusCode())
 

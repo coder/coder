@@ -1365,7 +1365,7 @@ func (c *Controller) Run(ctx context.Context) {
 				}
 				errF := slog.Error(err)
 				var sdkErr *codersdk.Error
-				if xerrors.As(err, &sdkErr) {
+				if errors.As(err, &sdkErr) {
 					errF = slog.Error(sdkErr)
 				}
 				c.logger.Error(c.ctx, "failed to dial tailnet v2+ API", errF)

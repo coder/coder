@@ -466,7 +466,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 
 	err := s.sessionStart(logger, session, env, magicType, container, containerUser)
 	var exitError *exec.ExitError
-	if xerrors.As(err, &exitError) {
+	if errors.As(err, &exitError) {
 		code := exitError.ExitCode()
 		if code == -1 {
 			// If we return -1 here, it will be transmitted as an
@@ -740,7 +740,7 @@ func (s *Server) startPTYSession(logger slog.Logger, session ptySession, magicTy
 	var exitErr *exec.ExitError
 	// ExitErrors just mean the command we run returned a non-zero exit code, which is normal
 	// and not something to be concerned about.  But, if it's something else, we should log it.
-	if err != nil && !xerrors.As(err, &exitErr) {
+	if err != nil && !errors.As(err, &exitErr) {
 		logger.Warn(ctx, "process wait exited with error", slog.Error(err))
 		s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "wait").Add(1)
 	}

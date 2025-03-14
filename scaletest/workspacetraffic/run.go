@@ -231,7 +231,7 @@ func drain(src io.Reader) error {
 		if errors.Is(err, context.DeadlineExceeded) {
 			return nil
 		}
-		if xerrors.As(err, &websocket.CloseError{}) {
+		if errors.As(err, &websocket.CloseError{}) {
 			return nil
 		}
 		return err
@@ -266,7 +266,7 @@ func writeRandomData(dst io.Writer, size int64, tick <-chan time.Time) error {
 			if errors.Is(err, context.DeadlineExceeded) {
 				return nil
 			}
-			if xerrors.As(err, &websocket.CloseError{}) {
+			if errors.As(err, &websocket.CloseError{}) {
 				return nil
 			}
 			return err

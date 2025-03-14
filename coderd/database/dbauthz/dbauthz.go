@@ -73,15 +73,15 @@ func IsNotAuthorizedError(err error) bool {
 		return true
 	}
 
-	return xerrors.As(err, &NotAuthorizedError{})
+	return errors.As(err, &NotAuthorizedError{})
 }
 
 func logNotAuthorizedError(ctx context.Context, logger slog.Logger, err error) error {
 	// Only log the errors if it is an UnauthorizedError error.
 	internalError := new(rbac.UnauthorizedError)
-	if err != nil && xerrors.As(err, &internalError) {
+	if err != nil && errors.As(err, &internalError) {
 		e := new(topdown.Error)
-		if xerrors.As(err, &e) || e.Code == topdown.CancelErr {
+		if errors.As(err, &e) || e.Code == topdown.CancelErr {
 			// For some reason rego changes a canceled context to a topdown.CancelErr. We
 			// expect to check for canceled context errors if the user cancels the request,
 			// so we should change the error to a context.Canceled error.
