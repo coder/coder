@@ -3,6 +3,7 @@
 package tz
 
 import (
+	"errors"
 	"os/exec"
 	"strings"
 	"time"
