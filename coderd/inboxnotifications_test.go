@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/http/httptest"
 	"runtime"
 	"testing"
 
@@ -37,23 +36,60 @@ var (
 func TestInboxNotification_Watch(t *testing.T) {
 	t.Parallel()
 
+	tests := []struct {
+		name               string
+		expectedError      string
+		listTemplate       string
+		listTarget         string
+		listReadStatus     string
+		listStartingBefore string
+	}{
+		{"nok - wrong targets", `Query param "targets" has invalid values`, "", "wrong_target", "", ""},
+		{"nok - wrong templates", `Query param "templates" has invalid values`, "wrong_template", "", "", ""},
+		{"nok - wrong read status", "starting_before query parameter should be any of 'all', 'read', 'unread'", "", "", "erroneous", ""},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			client, _, _ := coderdtest.NewWithAPI(t, &coderdtest.Options{})
+			firstUser := coderdtest.CreateFirstUser(t, client)
+			client, _ = coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			resp, err := client.Request(ctx, http.MethodGet, "/api/v2/notifications/inbox/watch", nil,
+				codersdk.ListInboxNotificationsRequestToQueryParams(codersdk.ListInboxNotificationsRequest{
+					Targets:        tt.listTarget,
+					Templates:      tt.listTemplate,
+					ReadStatus:     tt.listReadStatus,
+					StartingBefore: tt.listStartingBefore,
+				})...)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			err = codersdk.ReadBodyAsError(resp)
+			require.ErrorContains(t, err, tt.expectedError)
+		})
+	}
+
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
-		logger := testutil.Logger(t)
 		ctx := testutil.Context(t, testutil.WaitLong)
+		logger := testutil.Logger(t)
 
 		db, ps := dbtestutil.NewDB(t)
-		db.DisableForeignKeysAndTriggers(ctx)
 
-		firstClient, _, _ := coderdtest.NewWithAPI(t, &coderdtest.Options{})
+		firstClient, _, _ := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			Pubsub:   ps,
+			Database: db,
+		})
 		firstUser := coderdtest.CreateFirstUser(t, firstClient)
 		member, memberClient := coderdtest.CreateAnotherUser(t, firstClient, firstUser.OrganizationID, rbac.RoleTemplateAdmin())
-
-		srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			member.WatchInboxNotificationx(ctx)
-		}))
-		defer srv.Close()
 
 		u, err := member.URL.Parse("/api/v2/notifications/inbox/watch")
 		require.NoError(t, err)
@@ -71,7 +107,6 @@ func TestInboxNotification_Watch(t *testing.T) {
 			require.NoError(t, err)
 		}
 		defer wsConn.Close(websocket.StatusNormalClosure, "done")
-		_, cnc := codersdk.WebsocketNetConn(ctx, wsConn, websocket.MessageBinary)
 
 		inboxHandler := dispatch.NewInboxHandler(logger, db, ps)
 		dispatchFunc, err := inboxHandler.Dispatcher(types.MessagePayload{
@@ -80,14 +115,180 @@ func TestInboxNotification_Watch(t *testing.T) {
 		}, "notification title", "notification content", nil)
 		require.NoError(t, err)
 
-		msgID := uuid.New()
-		_, err = dispatchFunc(ctx, msgID)
+		dispatchFunc(ctx, uuid.New())
+
+		_, message, err := wsConn.Read(ctx)
 		require.NoError(t, err)
 
-		op := make([]byte, 1024)
-		mt, err := cnc.Read(op)
+		var notif codersdk.GetInboxNotificationResponse
+		err = json.Unmarshal(message, &notif)
 		require.NoError(t, err)
-		require.Equal(t, websocket.MessageText, mt)
+
+		require.Equal(t, 1, notif.UnreadCount)
+		require.Equal(t, memberClient.ID, notif.Notification.UserID)
+	})
+
+	t.Run("OK - filters on templates", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		logger := testutil.Logger(t)
+
+		db, ps := dbtestutil.NewDB(t)
+
+		firstClient, _, _ := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			Pubsub:   ps,
+			Database: db,
+		})
+		firstUser := coderdtest.CreateFirstUser(t, firstClient)
+		member, memberClient := coderdtest.CreateAnotherUser(t, firstClient, firstUser.OrganizationID, rbac.RoleTemplateAdmin())
+
+		u, err := member.URL.Parse(fmt.Sprintf("/api/v2/notifications/inbox/watch?templates=%v", notifications.TemplateWorkspaceOutOfMemory))
+		require.NoError(t, err)
+
+		// nolint: bodyclose
+		wsConn, resp, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{
+			HTTPHeader: http.Header{
+				"Coder-Session-Token": []string{member.SessionToken()},
+			},
+		})
+		if err != nil {
+			if resp.StatusCode != http.StatusSwitchingProtocols {
+				err = codersdk.ReadBodyAsError(resp)
+			}
+			require.NoError(t, err)
+		}
+		defer wsConn.Close(websocket.StatusNormalClosure, "done")
+
+		inboxHandler := dispatch.NewInboxHandler(logger, db, ps)
+		dispatchFunc, err := inboxHandler.Dispatcher(types.MessagePayload{
+			UserID:                 memberClient.ID.String(),
+			NotificationTemplateID: notifications.TemplateWorkspaceOutOfMemory.String(),
+		}, "memory related title", "memory related content", nil)
+		require.NoError(t, err)
+
+		dispatchFunc(ctx, uuid.New())
+
+		dispatchFunc, err = inboxHandler.Dispatcher(types.MessagePayload{
+			UserID:                 memberClient.ID.String(),
+			NotificationTemplateID: notifications.TemplateWorkspaceOutOfDisk.String(),
+		}, "disk related title", "disk related title", nil)
+		require.NoError(t, err)
+
+		dispatchFunc(ctx, uuid.New())
+
+		dispatchFunc, err = inboxHandler.Dispatcher(types.MessagePayload{
+			UserID:                 memberClient.ID.String(),
+			NotificationTemplateID: notifications.TemplateWorkspaceOutOfMemory.String(),
+		}, "second memory related title", "second memory related title", nil)
+		require.NoError(t, err)
+
+		dispatchFunc(ctx, uuid.New())
+
+		_, message, err := wsConn.Read(ctx)
+		require.NoError(t, err)
+
+		var notif codersdk.GetInboxNotificationResponse
+		err = json.Unmarshal(message, &notif)
+		require.NoError(t, err)
+
+		require.Equal(t, 3, notif.UnreadCount)
+		require.Equal(t, memberClient.ID, notif.Notification.UserID)
+		require.Equal(t, "memory related title", notif.Notification.Title)
+
+		_, message, err = wsConn.Read(ctx)
+		require.NoError(t, err)
+
+		err = json.Unmarshal(message, &notif)
+		require.NoError(t, err)
+
+		require.Equal(t, 3, notif.UnreadCount)
+		require.Equal(t, memberClient.ID, notif.Notification.UserID)
+		require.Equal(t, "second memory related title", notif.Notification.Title)
+	})
+
+	t.Run("OK - filters on targets", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		logger := testutil.Logger(t)
+
+		db, ps := dbtestutil.NewDB(t)
+
+		firstClient, _, _ := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			Pubsub:   ps,
+			Database: db,
+		})
+		firstUser := coderdtest.CreateFirstUser(t, firstClient)
+		member, memberClient := coderdtest.CreateAnotherUser(t, firstClient, firstUser.OrganizationID, rbac.RoleTemplateAdmin())
+
+		correctTarget := uuid.New()
+
+		u, err := member.URL.Parse(fmt.Sprintf("/api/v2/notifications/inbox/watch?targets=%v", correctTarget.String()))
+		require.NoError(t, err)
+
+		// nolint: bodyclose
+		wsConn, resp, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{
+			HTTPHeader: http.Header{
+				"Coder-Session-Token": []string{member.SessionToken()},
+			},
+		})
+		if err != nil {
+			if resp.StatusCode != http.StatusSwitchingProtocols {
+				err = codersdk.ReadBodyAsError(resp)
+			}
+			require.NoError(t, err)
+		}
+		defer wsConn.Close(websocket.StatusNormalClosure, "done")
+
+		inboxHandler := dispatch.NewInboxHandler(logger, db, ps)
+		dispatchFunc, err := inboxHandler.Dispatcher(types.MessagePayload{
+			UserID:                 memberClient.ID.String(),
+			NotificationTemplateID: notifications.TemplateWorkspaceOutOfMemory.String(),
+			Targets:                []uuid.UUID{correctTarget},
+		}, "memory related title", "memory related content", nil)
+		require.NoError(t, err)
+
+		dispatchFunc(ctx, uuid.New())
+
+		dispatchFunc, err = inboxHandler.Dispatcher(types.MessagePayload{
+			UserID:                 memberClient.ID.String(),
+			NotificationTemplateID: notifications.TemplateWorkspaceOutOfMemory.String(),
+			Targets:                []uuid.UUID{uuid.New()},
+		}, "second memory related title", "second memory related title", nil)
+		require.NoError(t, err)
+
+		dispatchFunc(ctx, uuid.New())
+
+		dispatchFunc, err = inboxHandler.Dispatcher(types.MessagePayload{
+			UserID:                 memberClient.ID.String(),
+			NotificationTemplateID: notifications.TemplateWorkspaceOutOfMemory.String(),
+			Targets:                []uuid.UUID{correctTarget},
+		}, "another memory related title", "another memory related title", nil)
+		require.NoError(t, err)
+
+		dispatchFunc(ctx, uuid.New())
+
+		_, message, err := wsConn.Read(ctx)
+		require.NoError(t, err)
+
+		var notif codersdk.GetInboxNotificationResponse
+		err = json.Unmarshal(message, &notif)
+		require.NoError(t, err)
+
+		require.Equal(t, 3, notif.UnreadCount)
+		require.Equal(t, memberClient.ID, notif.Notification.UserID)
+		require.Equal(t, "memory related title", notif.Notification.Title)
+
+		_, message, err = wsConn.Read(ctx)
+		require.NoError(t, err)
+
+		err = json.Unmarshal(message, &notif)
+		require.NoError(t, err)
+
+		require.Equal(t, 3, notif.UnreadCount)
+		require.Equal(t, memberClient.ID, notif.Notification.UserID)
+		require.Equal(t, "another memory related title", notif.Notification.Title)
 	})
 }
 

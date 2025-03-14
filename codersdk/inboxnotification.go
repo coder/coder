@@ -63,21 +63,6 @@ func ListInboxNotificationsRequestToQueryParams(req ListInboxNotificationsReques
 	return opts
 }
 
-func (c *Client) WatchInboxNotificationx(ctx context.Context) error {
-	res, err := c.Request(
-		ctx, http.MethodGet,
-		"/api/v2/notifications/watch",
-		nil, nil,
-	)
-	if err != nil {
-		return err
-	}
-
-	defer res.Body.Close()
-
-	return nil
-}
-
 func (c *Client) ListInboxNotifications(ctx context.Context, req ListInboxNotificationsRequest) (ListInboxNotificationsResponse, error) {
 	res, err := c.Request(
 		ctx, http.MethodGet,
