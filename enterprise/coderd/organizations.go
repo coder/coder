@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -223,7 +224,7 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if !xerrors.Is(err, sql.ErrNoRows) {
+	if !errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: fmt.Sprintf("Internal error fetching organization %q.", req.Name),
 			Detail:  err.Error(),

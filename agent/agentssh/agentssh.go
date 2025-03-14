@@ -1140,7 +1140,7 @@ func showMOTD(fs afero.Fs, dest io.Writer, filename string) error {
 
 	f, err := fs.Open(filename)
 	if err != nil {
-		if xerrors.Is(err, os.ErrNotExist) {
+		if errors.Is(err, os.ErrNotExist) {
 			// This is not an error, there simply isn't a MOTD to show.
 			return nil
 		}

@@ -3,6 +3,7 @@ package reports
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"io"
 	"slices"
 	"sort"
@@ -108,10 +109,10 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 
 	// Firstly, check if this is the first run of the job ever
 	reportLog, err := db.GetNotificationReportGeneratorLogByTemplate(ctx, notifications.TemplateWorkspaceBuildsFailedReport)
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return xerrors.Errorf("unable to read report generator log: %w", err)
 	}
-	if xerrors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, sql.ErrNoRows) {
 		// First run? Check-in the job, and get back after one week.
 		logger.Info(ctx, "report generator is executing the job for the first time", slog.F("notification_template_id", notifications.TemplateWorkspaceBuildsFailedReport))
 
@@ -195,7 +196,7 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 		}
 	}
 
-	if xerrors.Is(ctx.Err(), context.Canceled) {
+	if errors.Is(ctx.Err(), context.Canceled) {
 		logger.Error(ctx, "report generator job is canceled")
 		return ctx.Err()
 	}

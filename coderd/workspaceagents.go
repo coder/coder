@@ -490,8 +490,8 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 			}
 
 			agents, err := api.Database.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
-			if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-				if xerrors.Is(err, context.Canceled) {
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				if errors.Is(err, context.Canceled) {
 					return
 				}
 				logger.Warn(ctx, "failed to get workspace agents in latest build", slog.Error(err))
@@ -520,7 +520,7 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 				CreatedAfter: lastSentLogID,
 			})
 			if err != nil {
-				if xerrors.Is(err, context.Canceled) {
+				if errors.Is(err, context.Canceled) {
 					return
 				}
 				logger.Warn(ctx, "failed to get workspace agent logs after", slog.Error(err))
@@ -625,7 +625,7 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 
 	// Get a list of ports that are in-use by applications.
 	apps, err := api.Database.GetWorkspaceAppsByAgentID(ctx, workspaceAgent.ID)
-	if xerrors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, sql.ErrNoRows) {
 		apps = []database.WorkspaceApp{}
 		err = nil
 	}
@@ -963,7 +963,7 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 			AgentID: workspaceAgent.ID,
 		},
 	})
-	if err != nil && !xerrors.Is(err, io.EOF) && !xerrors.Is(err, context.Canceled) {
+	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, context.Canceled) {
 		_ = conn.Close(websocket.StatusInternalError, err.Error())
 		return
 	}
@@ -977,7 +977,7 @@ func (api *API) handleResumeToken(ctx context.Context, rw http.ResponseWriter, r
 		peerID, err = api.Options.CoordinatorResumeTokenProvider.VerifyResumeToken(ctx, resumeToken)
 		// If the token is missing the key ID, it's probably an old token in which
 		// case we just want to generate a new peer ID.
-		if xerrors.Is(err, jwtutils.ErrMissingKeyID) {
+		if errors.Is(err, jwtutils.ErrMissingKeyID) {
 			peerID = uuid.New()
 			err = nil
 		} else if err != nil {
@@ -1646,7 +1646,7 @@ func (api *API) tailnetRPCConn(rw http.ResponseWriter, r *http.Request) {
 			},
 		},
 	})
-	if err != nil && !xerrors.Is(err, io.EOF) && !xerrors.Is(err, context.Canceled) {
+	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, context.Canceled) {
 		_ = conn.Close(websocket.StatusInternalError, err.Error())
 		return
 	}

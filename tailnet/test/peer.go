@@ -2,6 +2,7 @@ package test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -234,7 +235,7 @@ func (p *Peer) AssertEventuallyResponsesClosed() {
 	p.t.Helper()
 	for {
 		err := p.readOneResp()
-		if xerrors.Is(err, responsesClosed) {
+		if errors.Is(err, responsesClosed) {
 			return
 		}
 		if !assert.NoError(p.t, err) {
@@ -278,7 +279,7 @@ func (p *Peer) AssertEventuallyReadyForHandshake(other uuid.UUID) {
 		}
 
 		err := p.readOneResp()
-		if xerrors.Is(err, responsesClosed) {
+		if errors.Is(err, responsesClosed) {
 			return
 		}
 	}
@@ -288,7 +289,7 @@ func (p *Peer) AssertEventuallyGetsError(match string) {
 	p.t.Helper()
 	for {
 		err := p.readOneResp()
-		if xerrors.Is(err, responsesClosed) {
+		if errors.Is(err, responsesClosed) {
 			p.t.Error("closed before target error")
 			return
 		}

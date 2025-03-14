@@ -759,7 +759,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 
 				deploymentID, err = tx.GetDeploymentID(ctx)
-				if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+				if err != nil && !errors.Is(err, sql.ErrNoRows) {
 					return xerrors.Errorf("get deployment id: %w", err)
 				}
 				if deploymentID == "" {
@@ -1095,7 +1095,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				exitErr = xerrors.New("pubsub Watchdog timed out")
 			case exitErr = <-errCh:
 			}
-			if exitErr != nil && !xerrors.Is(exitErr, context.Canceled) {
+			if exitErr != nil && !errors.Is(exitErr, context.Canceled) {
 				cliui.Errorf(inv.Stderr, "Unexpected error, shutting down server: %s\n", exitErr)
 			}
 
@@ -1193,11 +1193,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			cancel()
 
 			switch {
-			case xerrors.Is(exitErr, context.DeadlineExceeded):
+			case errors.Is(exitErr, context.DeadlineExceeded):
 				cliui.Warnf(inv.Stderr, "Graceful shutdown timed out")
 				// Errors here cause a significant number of benign CI failures.
 				return nil
-			case xerrors.Is(exitErr, context.Canceled):
+			case errors.Is(exitErr, context.Canceled):
 				return nil
 			case exitErr != nil:
 				return xerrors.Errorf("graceful shutdown: %w", exitErr)
@@ -1445,7 +1445,7 @@ func newProvisionerDaemon(
 					CachePath: tfDir,
 					Tracer:    tracer,
 				})
-				if err != nil && !xerrors.Is(err, context.Canceled) {
+				if err != nil && !errors.Is(err, context.Canceled) {
 					select {
 					case errCh <- err:
 					default:

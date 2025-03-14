@@ -3,6 +3,7 @@ package schedule
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"sync/atomic"
 	"time"
 
@@ -299,7 +300,7 @@ func (s *EnterpriseTemplateScheduleStore) updateWorkspaceBuilds(ctx context.Cont
 	ctx = dbauthz.AsSystemRestricted(ctx)
 
 	builds, err := db.GetActiveWorkspaceBuildsByTemplateID(ctx, template.ID)
-	if xerrors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil
 	}
 	if err != nil {

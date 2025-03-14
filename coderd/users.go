@@ -257,7 +257,7 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 		userIDs = append(userIDs, user.ID)
 	}
 	organizationIDsByMemberIDsRows, err := api.Database.GetOrganizationIDsByMemberIDs(ctx, userIDs)
-	if xerrors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
 	}
 	if err != nil {

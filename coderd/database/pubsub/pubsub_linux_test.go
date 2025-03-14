@@ -276,7 +276,7 @@ func TestPubsub_Disconnect(t *testing.T) {
 	gotDroppedErr := false
 	for {
 		m, err := readOne()
-		if xerrors.Is(err, pubsub.ErrDroppedMessages) {
+		if errors.Is(err, pubsub.ErrDroppedMessages) {
 			gotDroppedErr = true
 			continue
 		}

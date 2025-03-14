@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/rand" //#nosec // this is only used for shuffling an array to pick random jobs to unhang
 	"time"
@@ -333,7 +334,7 @@ func unhangJob(ctx context.Context, log slog.Logger, db database.Store, pub pubs
 					WorkspaceID: build.WorkspaceID,
 					BuildNumber: build.BuildNumber - 1,
 				})
-				if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+				if err != nil && !errors.Is(err, sql.ErrNoRows) {
 					return xerrors.Errorf("get previous workspace build: %w", err)
 				}
 				if err == nil {

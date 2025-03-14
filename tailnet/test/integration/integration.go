@@ -5,6 +5,7 @@ package integration
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -289,7 +290,7 @@ func (o SimpleServerOptions) Router(t *testing.T, logger slog.Logger) *chi.Mux {
 			ID:   id,
 			Auth: tailnet.SingleTailnetCoordinateeAuth{},
 		})
-		if err != nil && !xerrors.Is(err, io.EOF) && !xerrors.Is(err, context.Canceled) {
+		if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, context.Canceled) {
 			logger.Warn(ctx, "failed to serve conn", slog.Error(err))
 			_ = conn.Close(websocket.StatusInternalError, err.Error())
 			return
@@ -309,7 +310,7 @@ func (o SimpleServerOptions) StartServer(t *testing.T, logger slog.Logger, liste
 	go func() {
 		defer close(serveDone)
 		err := srv.ListenAndServe()
-		if err != nil && !xerrors.Is(err, http.ErrServerClosed) {
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			t.Error("HTTP server error:", err)
 		}
 	}()

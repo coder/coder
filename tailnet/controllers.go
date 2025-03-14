@@ -2,6 +2,7 @@ package tailnet
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"maps"
@@ -239,7 +240,7 @@ func (c *BasicCoordination) Close(ctx context.Context) (retErr error) {
 		}
 	}()
 	err := c.Client.Send(&proto.CoordinateRequest{Disconnect: &proto.CoordinateRequest_Disconnect{}})
-	if err != nil && !xerrors.Is(err, io.EOF) {
+	if err != nil && !errors.Is(err, io.EOF) {
 		// Coordinator RPC hangs up when it gets disconnect, so EOF is expected.
 		return xerrors.Errorf("send disconnect: %w", err)
 	}
@@ -815,7 +816,7 @@ func (r *basicResumeTokenRefresher) refresh() {
 		return // context done, no need to refresh
 	}
 	res, err := r.client.RefreshResumeToken(r.ctx, &proto.RefreshResumeTokenRequest{})
-	if xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		// these can only come from being closed, no need to log
 		select {
 		case r.errCh <- nil:
@@ -1359,7 +1360,7 @@ func (c *Controller) Run(ctx context.Context) {
 
 			tailnetClients, err := c.Dialer.Dial(c.ctx, c.ResumeTokenCtrl)
 			if err != nil {
-				if xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) {
+				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 					return
 				}
 				errF := slog.Error(err)
@@ -1420,9 +1421,9 @@ func (c *Controller) runControllersOnce(clients ControlProtocolClients) {
 		closeOnce.Do(func() {
 			closeErr := clients.Closer.Close()
 			if closeErr != nil &&
-				!xerrors.Is(closeErr, io.EOF) &&
-				!xerrors.Is(closeErr, context.Canceled) &&
-				!xerrors.Is(closeErr, context.DeadlineExceeded) {
+				!errors.Is(closeErr, io.EOF) &&
+				!errors.Is(closeErr, context.Canceled) &&
+				!errors.Is(closeErr, context.DeadlineExceeded) {
 				c.logger.Error(c.ctx, "error closing tailnet clients", slog.Error(closeErr))
 			}
 		})
@@ -1512,9 +1513,9 @@ func (c *Controller) coordinate(client CoordinatorClient) {
 		}
 	case err := <-coordination.Wait():
 		if err != nil &&
-			!xerrors.Is(err, io.EOF) &&
-			!xerrors.Is(err, context.Canceled) &&
-			!xerrors.Is(err, context.DeadlineExceeded) {
+			!errors.Is(err, io.EOF) &&
+			!errors.Is(err, context.Canceled) &&
+			!errors.Is(err, context.DeadlineExceeded) {
 			c.logger.Error(c.ctx, "remote coordination error", slog.Error(err))
 		}
 	}
@@ -1536,10 +1537,10 @@ func (c *Controller) derpMap(client DERPClient) error {
 		}
 		return nil
 	case err := <-cw.Wait():
-		if xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			return nil
 		}
-		if err != nil && !xerrors.Is(err, io.EOF) {
+		if err != nil && !errors.Is(err, io.EOF) {
 			c.logger.Error(c.ctx, "error receiving DERP Map", slog.Error(err))
 		}
 		return err
@@ -1562,9 +1563,9 @@ func (c *Controller) workspaceUpdates(client WorkspaceUpdatesClient) {
 	case err := <-cw.Wait():
 		c.logger.Debug(c.ctx, "workspaceUpdates: wait done")
 		if err != nil &&
-			!xerrors.Is(err, io.EOF) &&
-			!xerrors.Is(err, context.Canceled) &&
-			!xerrors.Is(err, context.DeadlineExceeded) {
+			!errors.Is(err, io.EOF) &&
+			!errors.Is(err, context.Canceled) &&
+			!errors.Is(err, context.DeadlineExceeded) {
 			c.logger.Error(c.ctx, "workspace updates stream error", slog.Error(err))
 		}
 	}
@@ -1581,7 +1582,7 @@ func (c *Controller) refreshToken(ctx context.Context, client ResumeTokenClient)
 	}()
 
 	err := <-cw.Wait()
-	if err != nil && !xerrors.Is(err, context.Canceled) && !xerrors.Is(err, context.DeadlineExceeded) {
+	if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
 		c.logger.Error(c.ctx, "error receiving refresh token", slog.Error(err))
 	}
 }

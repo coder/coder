@@ -3,6 +3,7 @@ package notifications
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"text/template"
@@ -185,7 +186,7 @@ func (n *notifier) process(ctx context.Context, success chan<- dispatchResult, f
 			} else {
 				n.log.Error(ctx, "dispatcher construction failed", slog.F("msg_id", msg.ID), slog.Error(err))
 			}
-			failure <- n.newFailedDispatch(msg, err, xerrors.Is(err, decorateHelpersError{}))
+			failure <- n.newFailedDispatch(msg, err, errors.Is(err, decorateHelpersError{}))
 			n.metrics.PendingUpdates.Set(float64(len(success) + len(failure)))
 			continue
 		}
@@ -296,7 +297,7 @@ func (n *notifier) deliver(ctx context.Context, msg database.AcquireNotification
 		//
 		// In the case of backpressure (i.e. the success/failure channels are full because the database is slow),
 		// we can't append any more updates to the channels otherwise this, too, will block.
-		if xerrors.Is(err, context.Canceled) {
+		if errors.Is(err, context.Canceled) {
 			return err
 		}
 

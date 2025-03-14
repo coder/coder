@@ -2,11 +2,11 @@ package coderd
 
 import (
 	"database/sql"
+	"errors"
 	"net/http"
 	"strings"
 
 	"golang.org/x/mod/semver"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -37,7 +37,7 @@ func (api *API) updateCheck(rw http.ResponseWriter, r *http.Request) {
 
 	uc, err := api.updateChecker.Latest(ctx)
 	if err != nil {
-		if xerrors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) {
 			// Update checking is enabled, but has never
 			// succeeded, reproduce behavior as if disabled.
 			httpapi.Write(ctx, rw, http.StatusOK, currentVersion)

@@ -69,7 +69,7 @@ func IsNotAuthorizedError(err error) bool {
 	if err == nil {
 		return false
 	}
-	if xerrors.Is(err, NoActorError) {
+	if errors.Is(err, NoActorError) {
 		return true
 	}
 

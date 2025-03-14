@@ -3,10 +3,9 @@ package dormancy
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"net/http"
 	"time"
-
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 
@@ -44,7 +43,7 @@ func CheckInactiveUsersWithOptions(ctx context.Context, logger slog.Logger, clk 
 			LastSeenAfter: lastSeenAfter,
 			UpdatedAt:     dbtime.Now(),
 		})
-		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			logger.Error(ctx, "can't mark inactive users as dormant", slog.Error(err))
 			return nil
 		}

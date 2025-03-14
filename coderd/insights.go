@@ -3,6 +3,7 @@ package coderd
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 	"slices"
@@ -142,7 +143,7 @@ func (api *API) insightsUserActivity(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		// No data is not an error.
-		if xerrors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) {
 			httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserActivityInsightsResponse{
 				Report: codersdk.UserActivityInsightsReport{
 					StartTime:   startTime,

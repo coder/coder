@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -44,7 +45,7 @@ var whitelistedCryptoKeyFeatures = []database.CryptoKeyFeature{
 // forceWorkspaceProxyHealthUpdate forces an update of the proxy health.
 // This is useful when a proxy is created or deleted. Errors will be logged.
 func (api *API) forceWorkspaceProxyHealthUpdate(ctx context.Context) {
-	if err := api.ProxyHealth.ForceUpdate(ctx); err != nil && !database.IsQueryCanceledError(err) && !xerrors.Is(err, context.Canceled) {
+	if err := api.ProxyHealth.ForceUpdate(ctx); err != nil && !database.IsQueryCanceledError(err) && !errors.Is(err, context.Canceled) {
 		api.Logger.Error(ctx, "force proxy health update", slog.Error(err))
 	}
 }
@@ -437,13 +438,13 @@ func (api *API) workspaceProxies(rw http.ResponseWriter, r *http.Request) {
 
 func (api *API) fetchWorkspaceProxies(ctx context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error) {
 	proxies, err := api.Database.GetWorkspaceProxies(ctx)
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return codersdk.RegionsResponse[codersdk.WorkspaceProxy]{}, err
 	}
 
 	// Add the primary as well
 	primaryProxy, err := api.AGPL.PrimaryWorkspaceProxy(ctx)
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return codersdk.RegionsResponse[codersdk.WorkspaceProxy]{}, err
 	}
 	proxies = append([]database.WorkspaceProxy{primaryProxy}, proxies...)
@@ -650,7 +651,7 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 			if err != nil {
 				return xerrors.Errorf("update replica: %w", err)
 			}
-		} else if xerrors.Is(err, sql.ErrNoRows) {
+		} else if errors.Is(err, sql.ErrNoRows) {
 			// Replica doesn't exist, create it.
 			replica, err = db.InsertReplica(ctx, database.InsertReplicaParams{
 				ID:              req.ReplicaID,

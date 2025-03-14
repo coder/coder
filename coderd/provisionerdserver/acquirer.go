@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"slices"
 	"strings"
 	"sync"
@@ -133,7 +134,7 @@ func (a *Acquirer) AcquireJob(
 				Types:           pt,
 				ProvisionerTags: dbTags,
 			})
-			if xerrors.Is(err, sql.ErrNoRows) {
+			if errors.Is(err, sql.ErrNoRows) {
 				logger.Debug(ctx, "no job available")
 				continue
 			}
@@ -326,7 +327,7 @@ func (a *Acquirer) subscribe() {
 }
 
 func (a *Acquirer) jobPosted(ctx context.Context, message []byte, err error) {
-	if xerrors.Is(err, pubsub.ErrDroppedMessages) {
+	if errors.Is(err, pubsub.ErrDroppedMessages) {
 		a.logger.Warn(a.ctx, "pubsub may have dropped job postings")
 		a.clearOrPendAll()
 		return

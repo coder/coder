@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"errors"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -175,7 +176,7 @@ func (k *rotator) insertNewKey(ctx context.Context, tx database.Store, feature d
 	}
 
 	latestKey, err := tx.GetLatestCryptoKeyByFeature(ctx, feature)
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return database.CryptoKey{}, xerrors.Errorf("get latest key: %w", err)
 	}
 

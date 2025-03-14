@@ -135,7 +135,7 @@ func TestClientService_ServeClient_V2(t *testing.T) {
 	err = c.Close()
 	require.NoError(t, err)
 	err = testutil.RequireRecvCtx(ctx, t, errCh)
-	require.True(t, xerrors.Is(err, io.EOF) || xerrors.Is(err, io.ErrClosedPipe))
+	require.True(t, errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe))
 }
 
 func TestClientService_ServeClient_V1(t *testing.T) {
@@ -355,7 +355,7 @@ func createUpdateService(t *testing.T, ctx context.Context, clientID uuid.UUID, 
 		err = c.Close()
 		require.NoError(t, err)
 		err = testutil.RequireRecvCtx(ctx, t, errCh)
-		require.True(t, xerrors.Is(err, io.EOF) || xerrors.Is(err, io.ErrClosedPipe))
+		require.True(t, errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe))
 	})
 	return fCoord, client
 }

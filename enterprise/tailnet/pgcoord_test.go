@@ -53,7 +53,7 @@ func TestPGCoordinatorSingle_ClientWithoutAgent(t *testing.T) {
 	client.UpdateDERP(10)
 	require.Eventually(t, func() bool {
 		clients, err := store.GetTailnetTunnelPeerBindings(ctx, agentID)
-		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			t.Fatalf("database error: %v", err)
 		}
 		if len(clients) == 0 {
@@ -87,7 +87,7 @@ func TestPGCoordinatorSingle_AgentWithoutClients(t *testing.T) {
 	agent.UpdateDERP(10)
 	require.Eventually(t, func() bool {
 		agents, err := store.GetTailnetPeers(ctx, agent.ID)
-		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			t.Fatalf("database error: %v", err)
 		}
 		if len(agents) == 0 {
@@ -180,7 +180,7 @@ func TestPGCoordinatorSingle_AgentValidIP(t *testing.T) {
 	})
 	require.Eventually(t, func() bool {
 		agents, err := store.GetTailnetPeers(ctx, agent.ID)
-		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			t.Fatalf("database error: %v", err)
 		}
 		if len(agents) == 0 {
@@ -952,7 +952,7 @@ func assertEventuallyStatus(ctx context.Context, t *testing.T, store database.St
 	t.Helper()
 	assert.Eventually(t, func() bool {
 		peers, err := store.GetTailnetPeers(ctx, agentID)
-		if xerrors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) {
 			return false
 		}
 		if err != nil {
@@ -976,7 +976,7 @@ func assertEventuallyNoClientsForAgent(ctx context.Context, t *testing.T, store 
 	t.Helper()
 	assert.Eventually(t, func() bool {
 		clients, err := store.GetTailnetTunnelPeerIDs(ctx, agentID)
-		if xerrors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) {
 			return true
 		}
 		if err != nil {

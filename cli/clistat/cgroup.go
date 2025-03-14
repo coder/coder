@@ -3,6 +3,7 @@ package clistat
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"strconv"
 	"strings"
 
@@ -146,7 +147,7 @@ func (s *Statter) cGroupV2CPUTotal() (total float64, err error) {
 
 	quotaUs, err = readInt64SepIdx(s.fs, cgroupV2CPUMax, " ", 0)
 	if err != nil {
-		if xerrors.Is(err, strconv.ErrSyntax) {
+		if errors.Is(err, strconv.ErrSyntax) {
 			// If the value is not a valid integer, assume it is the string
 			// 'max' and that there is no limit set.
 			return -1, nil
@@ -241,7 +242,7 @@ func (s *Statter) cGroupV2Memory(p Prefix) (*Result, error) {
 	}
 	maxUsageBytes, err := readInt64(s.fs, cgroupV2MemoryMaxBytes)
 	if err != nil {
-		if !xerrors.Is(err, strconv.ErrSyntax) {
+		if !errors.Is(err, strconv.ErrSyntax) {
 			return nil, xerrors.Errorf("read memory total: %w", err)
 		}
 		// If the value is not a valid integer, assume it is the string
@@ -271,7 +272,7 @@ func (s *Statter) cGroupV1Memory(p Prefix) (*Result, error) {
 	}
 	maxUsageBytes, err := readInt64(s.fs, cgroupV1MemoryMaxUsageBytes)
 	if err != nil {
-		if !xerrors.Is(err, strconv.ErrSyntax) {
+		if !errors.Is(err, strconv.ErrSyntax) {
 			return nil, xerrors.Errorf("read memory total: %w", err)
 		}
 		// I haven't found an instance where this isn't a valid integer.

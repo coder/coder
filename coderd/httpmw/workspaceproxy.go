@@ -5,12 +5,12 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"database/sql"
+	"errors"
 	"net/http"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -103,7 +103,7 @@ func ExtractWorkspaceProxy(opts ExtractWorkspaceProxyConfig) func(http.Handler) 
 			// Get the proxy.
 			// nolint:gocritic // Get proxy by ID to check auth token
 			proxy, err := opts.DB.GetWorkspaceProxyByID(dbauthz.AsSystemRestricted(ctx), proxyID)
-			if xerrors.Is(err, sql.ErrNoRows) {
+			if errors.Is(err, sql.ErrNoRows) {
 				// Proxy IDs are public so we don't care about leaking them via
 				// timing attacks.
 				httpapi.Write(ctx, w, http.StatusUnauthorized, codersdk.Response{

@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"hash/crc32"
 	"io"
@@ -212,7 +213,7 @@ func (s *Session) extractArchive() error {
 	for {
 		header, err := reader.Next()
 		if err != nil {
-			if xerrors.Is(err, io.EOF) {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 			return xerrors.Errorf("read template source archive: %w", err)
@@ -264,7 +265,7 @@ func (s *Session) extractArchive() error {
 			hashReader := io.TeeReader(reader, hash)
 			// Max file size of 10MiB.
 			size, err := io.CopyN(file, hashReader, 10<<20)
-			if xerrors.Is(err, io.EOF) {
+			if errors.Is(err, io.EOF) {
 				err = nil
 			}
 			if err != nil {

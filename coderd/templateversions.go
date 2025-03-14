@@ -144,7 +144,7 @@ func (api *API) patchTemplateVersion(rw http.ResponseWriter, r *http.Request) {
 				TemplateID: templateVersion.TemplateID,
 				Name:       updateParams.Name,
 			})
-			if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
 				return xerrors.Errorf("error on retrieving conflicting template version: %v", err)
 			}
 			if err == nil {
@@ -817,7 +817,7 @@ func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 			// See if the record exists first. If the record does not exist, the pagination
 			// query will not work.
 			_, err := store.GetTemplateVersionByID(ctx, paginationParams.AfterID)
-			if err != nil && xerrors.Is(err, sql.ErrNoRows) {
+			if err != nil && errors.Is(err, sql.ErrNoRows) {
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 					Message: fmt.Sprintf("Record at \"after_id\" (%q) does not exists.", paginationParams.AfterID.String()),
 				})
@@ -1486,7 +1486,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		// lookup template tar from embedded examples
 		tar, err := examples.Archive(req.ExampleID)
 		if err != nil {
-			if xerrors.Is(err, examples.ErrNotFound) {
+			if errors.Is(err, examples.ErrNotFound) {
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 					Message: "Example not found.",
 					Detail:  err.Error(),

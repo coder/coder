@@ -2,12 +2,12 @@ package enidpsync
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
@@ -27,7 +27,7 @@ func (e EnterpriseIDPSync) OrganizationRoleSyncEnabled(ctx context.Context, db d
 	}
 	roleSyncSettings, err := e.Role.Resolve(ctx, e.Manager.OrganizationResolver(db, orgID))
 	if err != nil {
-		if xerrors.Is(err, runtimeconfig.ErrEntryNotFound) {
+		if errors.Is(err, runtimeconfig.ErrEntryNotFound) {
 			return false, nil
 		}
 		return false, err

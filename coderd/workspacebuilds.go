@@ -144,7 +144,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			// See if the record exists first. If the record does not exist, the pagination
 			// query will not work.
 			_, err := store.GetWorkspaceBuildByID(ctx, paginationParams.AfterID)
-			if err != nil && xerrors.Is(err, sql.ErrNoRows) {
+			if err != nil && errors.Is(err, sql.ErrNoRows) {
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 					Message: fmt.Sprintf("Record at \"after_id\" (%q) does not exist.", paginationParams.AfterID.String()),
 				})
@@ -166,7 +166,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			Since:       dbtime.Time(since),
 		}
 		workspaceBuilds, err = store.GetWorkspaceBuildsByWorkspaceID(ctx, req)
-		if xerrors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) {
 			err = nil
 		}
 		if err != nil {
@@ -345,7 +345,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		var err error
 
 		previousWorkspaceBuild, err = tx.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
-		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			api.Logger.Error(ctx, "failed fetching previous workspace build", slog.F("workspace_id", workspace.ID), slog.Error(err))
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error fetching previous workspace build",

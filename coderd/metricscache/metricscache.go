@@ -3,6 +3,7 @@ package metricscache
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -196,7 +197,7 @@ func (c *Cache) run(ctx context.Context, name string, interval time.Duration, re
 				if ctx.Err() != nil {
 					return
 				}
-				if xerrors.Is(err, sql.ErrNoRows) {
+				if errors.Is(err, sql.ErrNoRows) {
 					break
 				}
 				logger.Error(ctx, "refresh metrics failed", slog.Error(err))

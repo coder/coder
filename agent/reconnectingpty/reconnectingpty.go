@@ -3,6 +3,7 @@ package reconnectingpty
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net"
 	"os/exec"
@@ -11,7 +12,6 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/agent/agentexec"
@@ -199,7 +199,7 @@ func readConnLoop(ctx context.Context, conn net.Conn, ptty pty.PTYCmd, metrics *
 	for {
 		var req workspacesdk.ReconnectingPTYRequest
 		err := decoder.Decode(&req)
-		if xerrors.Is(err, io.EOF) {
+		if errors.Is(err, io.EOF) {
 			return
 		}
 		if err != nil {

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"path"
@@ -84,7 +85,7 @@ func (r *RootCmd) openVSCode() *serpent.Command {
 					DocsURL:   appearanceConfig.DocsURL,
 				})
 				if err != nil {
-					if xerrors.Is(err, context.Canceled) {
+					if errors.Is(err, context.Canceled) {
 						return cliui.Canceled
 					}
 					return xerrors.Errorf("agent: %w", err)

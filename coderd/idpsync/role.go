@@ -3,6 +3,7 @@ package idpsync
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"slices"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -56,7 +57,7 @@ func (s AGPLIDPSync) RoleSyncSettings(ctx context.Context, orgID uuid.UUID, db d
 	rlv := s.Manager.OrganizationResolver(db, orgID)
 	settings, err := s.Role.Resolve(ctx, rlv)
 	if err != nil {
-		if !xerrors.Is(err, runtimeconfig.ErrEntryNotFound) {
+		if !errors.Is(err, runtimeconfig.ErrEntryNotFound) {
 			return nil, xerrors.Errorf("resolve role sync settings: %w", err)
 		}
 		return &RoleSyncSettings{}, nil

@@ -3,6 +3,7 @@ package coderd
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -275,7 +276,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		KeyID:          authRes.keyID,
 	})
 	if err != nil {
-		if !xerrors.Is(err, context.Canceled) {
+		if !errors.Is(err, context.Canceled) {
 			log.Error(ctx, "create provisioner daemon", slog.Error(err))
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error creating provisioner daemon.",
@@ -302,7 +303,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		CompressionMode: websocket.CompressionDisabled,
 	})
 	if err != nil {
-		if !xerrors.Is(err, context.Canceled) {
+		if !errors.Is(err, context.Canceled) {
 			log.Error(ctx, "accept provisioner websocket conn", slog.Error(err))
 		}
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -357,7 +358,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		api.NotificationsEnqueuer,
 	)
 	if err != nil {
-		if !xerrors.Is(err, context.Canceled) {
+		if !errors.Is(err, context.Canceled) {
 			log.Error(ctx, "create provisioner daemon server", slog.Error(err))
 		}
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("create provisioner daemon server: %s", err))
@@ -370,7 +371,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 	}
 	server := drpcserver.NewWithOptions(mux, drpcserver.Options{
 		Log: func(err error) {
-			if xerrors.Is(err, io.EOF) {
+			if errors.Is(err, io.EOF) {
 				return
 			}
 			logger.Debug(ctx, "drpc server error", slog.Error(err))
@@ -379,7 +380,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 	err = server.Serve(ctx, session)
 	srvCancel()
 	logger.Info(ctx, "provisioner daemon disconnected", slog.Error(err))
-	if err != nil && !xerrors.Is(err, io.EOF) {
+	if err != nil && !errors.Is(err, io.EOF) {
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("serve: %s", err))
 		return
 	}

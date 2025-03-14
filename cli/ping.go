@@ -227,14 +227,14 @@ func (r *RootCmd) ping() *serpent.Command {
 				cancel()
 				results.addResult(pong)
 				if err != nil {
-					if xerrors.Is(err, context.DeadlineExceeded) {
+					if errors.Is(err, context.DeadlineExceeded) {
 						_, _ = fmt.Fprintf(inv.Stdout, "ping to %q timed out \n", workspaceName)
 						if n == int(pingNum) {
 							return nil
 						}
 						continue
 					}
-					if xerrors.Is(err, context.Canceled) {
+					if errors.Is(err, context.Canceled) {
 						return nil
 					}
 

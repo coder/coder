@@ -132,7 +132,7 @@ func New(opts *Options) *Handler {
 			return
 		}
 		hash, err := binHashCache.getHash(name)
-		if xerrors.Is(err, os.ErrNotExist) {
+		if errors.Is(err, os.ErrNotExist) {
 			http.NotFound(rw, r)
 			return
 		}
@@ -671,10 +671,10 @@ func ExtractOrReadBinFS(dest string, siteFS fs.FS) (http.FileSystem, map[string]
 
 	archive, err := siteFS.Open("bin/coder.tar.zst")
 	if err != nil {
-		if xerrors.Is(err, fs.ErrNotExist) {
+		if errors.Is(err, fs.ErrNotExist) {
 			files, err := fs.ReadDir(siteFS, "bin")
 			if err != nil {
-				if xerrors.Is(err, fs.ErrNotExist) {
+				if errors.Is(err, fs.ErrNotExist) {
 					// Given fs does not have a bin directory, serve from cache
 					// directory without extracting anything.
 					binFS, err := mkdest()
@@ -776,7 +776,7 @@ func verifyBinSha1IsCurrent(dest string, siteFS fs.FS, shaFiles map[string]strin
 	}
 	b2, err := os.ReadFile(filepath.Join(dest, "coder.sha1"))
 	if err != nil {
-		if xerrors.Is(err, fs.ErrNotExist) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return false, nil
 		}
 		return false, xerrors.Errorf("read coder sha1 failed: %w", err)
@@ -801,7 +801,7 @@ func verifyBinSha1IsCurrent(dest string, siteFS fs.FS, shaFiles map[string]strin
 		eg.Go(func() error {
 			hash2, err := sha1HashFile(filepath.Join(dest, file))
 			if err != nil {
-				if xerrors.Is(err, fs.ErrNotExist) {
+				if errors.Is(err, fs.ErrNotExist) {
 					return errHashMismatch
 				}
 				return xerrors.Errorf("hash file failed: %w", err)
@@ -814,7 +814,7 @@ func verifyBinSha1IsCurrent(dest string, siteFS fs.FS, shaFiles map[string]strin
 	}
 	err = eg.Wait()
 	if err != nil {
-		if xerrors.Is(err, errHashMismatch) {
+		if errors.Is(err, errHashMismatch) {
 			return false, nil
 		}
 		return false, err

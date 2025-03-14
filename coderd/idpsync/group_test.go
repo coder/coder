@@ -734,7 +734,7 @@ func SetupOrganization(t *testing.T, s *idpsync.AGPLIDPSync, db database.Store, 
 
 	// Account that the org might be the default organization
 	org, err := db.GetOrganizationByID(context.Background(), orgID)
-	if xerrors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, sql.ErrNoRows) {
 		org = dbgen.Organization(t, db, database.Organization{
 			ID: orgID,
 		})

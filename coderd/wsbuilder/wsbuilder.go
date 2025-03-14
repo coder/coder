@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -503,7 +504,7 @@ func (b *Builder) getLastBuild() (*database.WorkspaceBuild, error) {
 
 func (b *Builder) getBuildNumber() (int32, error) {
 	bld, err := b.getLastBuild()
-	if xerrors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, sql.ErrNoRows) {
 		// first build!
 		return 1, nil
 	}
@@ -523,7 +524,7 @@ func (b *Builder) getState() ([]byte, error) {
 	}
 	// Default is to use state from prior build
 	bld, err := b.getLastBuild()
-	if xerrors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, sql.ErrNoRows) {
 		// last build does not exist, which implies empty state
 		return nil, nil
 	}
@@ -591,7 +592,7 @@ func (b *Builder) getLastBuildParameters() ([]database.WorkspaceBuildParameter, 
 		return *b.lastBuildParameters, nil
 	}
 	bld, err := b.getLastBuild()
-	if xerrors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, sql.ErrNoRows) {
 		// if the build doesn't exist, then clearly there can be no parameters.
 		b.lastBuildParameters = &[]database.WorkspaceBuildParameter{}
 		return *b.lastBuildParameters, nil
@@ -600,7 +601,7 @@ func (b *Builder) getLastBuildParameters() ([]database.WorkspaceBuildParameter, 
 		return nil, xerrors.Errorf("get last build to get parameters: %w", err)
 	}
 	values, err := b.store.GetWorkspaceBuildParameters(b.ctx, bld.ID)
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, xerrors.Errorf("get last build %s parameters: %w", bld.ID, err)
 	}
 	b.lastBuildParameters = &values
@@ -616,7 +617,7 @@ func (b *Builder) getTemplateVersionParameters() ([]database.TemplateVersionPara
 		return nil, xerrors.Errorf("get template version ID to get parameters: %w", err)
 	}
 	tvp, err := b.store.GetTemplateVersionParameters(b.ctx, tvID)
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, xerrors.Errorf("get template version %s parameters: %w", tvID, err)
 	}
 	b.templateVersionParameters = &tvp
@@ -632,7 +633,7 @@ func (b *Builder) getTemplateVersionVariables() ([]database.TemplateVersionVaria
 		return nil, xerrors.Errorf("get template version ID to get variables: %w", err)
 	}
 	tvs, err := b.store.GetTemplateVersionVariables(b.ctx, tvID)
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, xerrors.Errorf("get template version %s variables: %w", tvID, err)
 	}
 	b.templateVersionVariables = &tvs
@@ -658,7 +659,7 @@ func (b *Builder) verifyNoLegacyParameters() error {
 	}
 
 	parameterSchemas, err := b.store.GetParameterSchemasByJobID(b.ctx, templateVersionJob.ID)
-	if xerrors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil
 	}
 	if err != nil {
@@ -766,7 +767,7 @@ func (b *Builder) getTemplateVersionWorkspaceTags() ([]database.TemplateVersionW
 	}
 
 	workspaceTags, err := b.store.GetTemplateVersionWorkspaceTags(b.ctx, templateVersion.ID)
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, xerrors.Errorf("get template version workspace tags: %w", err)
 	}
 
@@ -840,7 +841,7 @@ func (b *Builder) checkTemplateVersionMatchesTemplate() error {
 		return BuildError{http.StatusInternalServerError, "failed to fetch template", err}
 	}
 	templateVersion, err := b.getTemplateVersion()
-	if xerrors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, sql.ErrNoRows) {
 		return BuildError{http.StatusBadRequest, "template version does not exist", err}
 	}
 	if err != nil {
@@ -900,7 +901,7 @@ func (b *Builder) checkTemplateJobStatus() error {
 
 func (b *Builder) checkRunningBuild() error {
 	job, err := b.getLastBuildJob()
-	if xerrors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, sql.ErrNoRows) {
 		// no prior build, so it can't be running!
 		return nil
 	}

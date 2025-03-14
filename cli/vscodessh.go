@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -141,7 +142,7 @@ func (r *RootCmd) vscodeSSH() *serpent.Command {
 				DocsURL:   appearanceCfg.DocsURL,
 			})
 			if err != nil {
-				if xerrors.Is(err, context.Canceled) {
+				if errors.Is(err, context.Canceled) {
 					return cliui.Canceled
 				}
 			}

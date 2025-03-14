@@ -263,7 +263,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 				DocsURL:       appearanceConfig.DocsURL,
 			})
 			if err != nil {
-				if xerrors.Is(err, context.Canceled) {
+				if errors.Is(err, context.Canceled) {
 					return cliui.Canceled
 				}
 				return err

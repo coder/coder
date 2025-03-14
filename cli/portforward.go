@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/netip"
@@ -249,7 +250,7 @@ func listenAndPortForward(
 			netConn, err := l.Accept()
 			if err != nil {
 				// Silently ignore net.ErrClosed errors.
-				if xerrors.Is(err, net.ErrClosed) {
+				if errors.Is(err, net.ErrClosed) {
 					logger.Debug(ctx, "listener closed")
 					return
 				}

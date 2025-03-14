@@ -3,6 +3,7 @@ package workspacetraffic
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -218,16 +219,16 @@ func (*Runner) Cleanup(context.Context, string, io.Writer) error {
 // drain drains from src until it returns io.EOF or ctx times out.
 func drain(src io.Reader) error {
 	if _, err := io.Copy(io.Discard, src); err != nil {
-		if xerrors.Is(err, io.EOF) {
+		if errors.Is(err, io.EOF) {
 			return nil
 		}
-		if xerrors.Is(err, io.ErrClosedPipe) {
+		if errors.Is(err, io.ErrClosedPipe) {
 			return nil
 		}
-		if xerrors.Is(err, context.Canceled) {
+		if errors.Is(err, context.Canceled) {
 			return nil
 		}
-		if xerrors.Is(err, context.DeadlineExceeded) {
+		if errors.Is(err, context.DeadlineExceeded) {
 			return nil
 		}
 		if xerrors.As(err, &websocket.CloseError{}) {
@@ -253,16 +254,16 @@ func writeRandomData(dst io.Writer, size int64, tick <-chan time.Time) error {
 		}
 		_, _ = b.WriteString("\n")
 		if _, err := b.WriteTo(dst); err != nil {
-			if xerrors.Is(err, io.EOF) {
+			if errors.Is(err, io.EOF) {
 				return nil
 			}
-			if xerrors.Is(err, io.ErrClosedPipe) {
+			if errors.Is(err, io.ErrClosedPipe) {
 				return nil
 			}
-			if xerrors.Is(err, context.Canceled) {
+			if errors.Is(err, context.Canceled) {
 				return nil
 			}
-			if xerrors.Is(err, context.DeadlineExceeded) {
+			if errors.Is(err, context.DeadlineExceeded) {
 				return nil
 			}
 			if xerrors.As(err, &websocket.CloseError{}) {

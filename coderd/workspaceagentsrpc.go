@@ -3,6 +3,7 @@ package coderd
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -177,7 +178,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 	ctx = tailnet.WithStreamID(ctx, streamID)
 	ctx = agentapi.WithAPIVersion(ctx, version)
 	err = agentAPI.Serve(ctx, mux)
-	if err != nil && !xerrors.Is(err, yamux.ErrSessionShutdown) && !xerrors.Is(err, io.EOF) {
+	if err != nil && !errors.Is(err, yamux.ErrSessionShutdown) && !errors.Is(err, io.EOF) {
 		logger.Warn(ctx, "workspace agent RPC listen error", slog.Error(err))
 		_ = conn.Close(websocket.StatusInternalError, err.Error())
 		return
@@ -396,7 +397,7 @@ func (m *agentConnectionMonitor) monitor(ctx context.Context) {
 			// as this is a valid log.
 			//
 			// The pq error occurs when the server is shutting down.
-			if !xerrors.Is(err, context.Canceled) && !database.IsQueryCanceledError(err) {
+			if !errors.Is(err, context.Canceled) && !database.IsQueryCanceledError(err) {
 				m.logger.Error(finalCtx, "failed to update agent disconnect time",
 					slog.Error(err),
 				)

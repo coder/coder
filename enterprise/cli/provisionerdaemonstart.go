@@ -192,7 +192,7 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 					},
 					CachePath: cacheDir,
 				})
-				if err != nil && !xerrors.Is(err, context.Canceled) {
+				if err != nil && !errors.Is(err, context.Canceled) {
 					select {
 					case errCh <- err:
 					default:
@@ -258,7 +258,7 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 				))
 			case exitErr = <-errCh:
 			}
-			if exitErr != nil && !xerrors.Is(exitErr, context.Canceled) {
+			if exitErr != nil && !errors.Is(exitErr, context.Canceled) {
 				cliui.Errorf(inv.Stderr, "Unexpected error, shutting down server: %s\n", exitErr)
 			}
 
@@ -274,7 +274,7 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 			}
 
 			cancel()
-			if xerrors.Is(exitErr, context.Canceled) {
+			if errors.Is(exitErr, context.Canceled) {
 				return nil
 			}
 			return exitErr

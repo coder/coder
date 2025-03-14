@@ -268,7 +268,7 @@ func (r *RootCmd) configSSH() *serpent.Command {
 					IsConfirm: true,
 				})
 				if err != nil {
-					if line == "" && xerrors.Is(err, cliui.Canceled) {
+					if line == "" && errors.Is(err, cliui.Canceled) {
 						return nil
 					}
 					// Selecting "no" will use the last config.

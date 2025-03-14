@@ -3,6 +3,7 @@ package audit
 import (
 	"context"
 	"database/sql"
+	"errors"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -57,7 +58,7 @@ func (a *auditor) Export(ctx context.Context, alog database.AuditLog) error {
 	}
 
 	actor, err := a.db.GetUserByID(dbauthz.AsSystemRestricted(ctx), alog.UserID) //nolint
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return err
 	}
 

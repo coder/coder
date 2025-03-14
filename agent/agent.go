@@ -936,7 +936,7 @@ func (a *agent) run() (retErr error) {
 	connMan.startAgentAPI("send logs", gracefulShutdownBehaviorRemain,
 		func(ctx context.Context, aAPI proto.DRPCAgentClient24) error {
 			err := a.logSender.SendLoop(ctx, aAPI)
-			if xerrors.Is(err, agentsdk.LogLimitExceededError) {
+			if errors.Is(err, agentsdk.LogLimitExceededError) {
 				// we don't want this error to tear down the API connection and propagate to the
 				// other routines that use the API.  The LogSender has already dropped a warning
 				// log, so just return nil here.
@@ -1467,7 +1467,7 @@ func (a *agent) createTailnet(
 		}()
 
 		apiServErr := server.Serve(apiListener)
-		if apiServErr != nil && !xerrors.Is(apiServErr, http.ErrServerClosed) && !strings.Contains(apiServErr.Error(), "use of closed network connection") {
+		if apiServErr != nil && !errors.Is(apiServErr, http.ErrServerClosed) && !strings.Contains(apiServErr.Error(), "use of closed network connection") {
 			a.logger.Critical(ctx, "serve HTTP API server", slog.Error(apiServErr))
 		}
 	}); err != nil {
@@ -1953,7 +1953,7 @@ func (a *apiConnRoutineManager) startAgentAPI(
 	a.eg.Go(func() error {
 		logger.Debug(ctx, "starting agent routine")
 		err := f(ctx, a.aAPI)
-		if xerrors.Is(err, context.Canceled) && ctx.Err() != nil {
+		if errors.Is(err, context.Canceled) && ctx.Err() != nil {
 			logger.Debug(ctx, "swallowing context canceled")
 			// Don't propagate context canceled errors to the error group, because we don't want the
 			// graceful context being canceled to halt the work of routines with
@@ -1990,7 +1990,7 @@ func (a *apiConnRoutineManager) startTailnetAPI(
 	a.eg.Go(func() error {
 		logger.Debug(ctx, "starting tailnet routine")
 		err := f(ctx, a.tAPI)
-		if xerrors.Is(err, context.Canceled) && ctx.Err() != nil {
+		if errors.Is(err, context.Canceled) && ctx.Err() != nil {
 			logger.Debug(ctx, "swallowing context canceled")
 			// Don't propagate context canceled errors to the error group, because we don't want the
 			// graceful context being canceled to halt the work of routines with
