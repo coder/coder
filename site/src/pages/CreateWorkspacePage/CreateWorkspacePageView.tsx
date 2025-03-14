@@ -179,31 +179,33 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 
 		if (!selectedPreset || !selectedPreset.Parameters) {
 			setPresetParameterNames([]);
+			if (selectedPresetOption.value === "") {
+				parameters.forEach((_, index) => {
+					const parameterField = `rich_parameter_values.${index}`;
+					form.setFieldValue(parameterField, {
+						name: parameters[index].name,
+						value: "",
+					});
+				});
+			}
 			return;
 		}
 
-		setPresetParameterNames(selectedPreset.Parameters.map((p) => p.Name));
+		const newPresetParameterNames = selectedPreset.Parameters.map((p) => p.Name);
+		setPresetParameterNames(newPresetParameterNames);
 
-		for (const presetParameter of selectedPreset.Parameters) {
-			const parameterIndex = parameters.findIndex(
-				(p) => p.name === presetParameter.Name,
+		parameters.forEach((parameter, index) => {
+			const parameterField = `rich_parameter_values.${index}`;
+			const presetParameter = selectedPreset?.Parameters?.find(
+				(p) => p.Name === parameter.name,
 			);
-			if (parameterIndex === -1) continue;
-
-			const parameterField = `rich_parameter_values.${parameterIndex}`;
 
 			form.setFieldValue(parameterField, {
-				name: presetParameter.Name,
-				value: presetParameter.Value,
+				name: parameter.name,
+				value: presetParameter?.Value ?? "",
 			});
-		}
-	}, [
-		presetOptions,
-		selectedPresetIndex,
-		presets,
-		parameters,
-		form.setFieldValue,
-	]);
+		});
+	}, [selectedPresetIndex, presetOptions, parameters, form.setFieldValue, presets]);
 
 	return (
 		<Margins size="medium">
@@ -286,10 +288,8 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 										label="Preset"
 										options={presetOptions}
 										onSelect={(option) => {
-											setSelectedPresetIndex(
-												presetOptions.findIndex(
-													(preset) => preset.value === option?.value,
-												),
+											const newIndex = presetOptions.findIndex(
+												(preset) => preset.value === option?.value,
 											);
 										}}
 										placeholder="Select a preset"
@@ -390,7 +390,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 												value,
 											});
 										}}
-										key={parameter.name}
+										key={`${parameter.name}-${selectedPresetIndex}`}
 										parameter={parameter}
 										parameterAutofill={autofillByName[parameter.name]}
 										disabled={isDisabled}

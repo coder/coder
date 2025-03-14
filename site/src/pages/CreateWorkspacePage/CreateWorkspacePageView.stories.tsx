@@ -159,6 +159,19 @@ export const PresetSelected: Story = {
 	},
 };
 
+export const PresetReselected: Story = {
+	args: PresetsButNoneSelected.args,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Select Preset 1
+		await userEvent.click(canvas.getByLabelText("Preset"));
+		await userEvent.click(canvas.getByText("Preset 1"));
+		// Select Preset 1 again
+		await userEvent.click(canvas.getByLabelText("Preset"));
+		await userEvent.click(canvas.getByText("Preset 1"));
+	},
+};
+
 export const ExternalAuth: Story = {
 	args: {
 		externalAuth: [
