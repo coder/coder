@@ -20,7 +20,12 @@ const OrganizationProvisionersPage: FC = () => {
 	const { entitlements } = useDashboard();
 	const { metadata } = useEmbeddedMetadata();
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
-	const provisionersQuery = useQuery(provisionerDaemonGroups(organizationName));
+	
+	// Only query for provisioners if we have a valid organization
+	const provisionersQuery = useQuery({
+		...provisionerDaemonGroups(organizationName),
+		enabled: !!organization
+	});
 
 	if (!organization) {
 		return <EmptyState message="Organization not found" />;
@@ -46,11 +51,14 @@ const OrganizationProvisionersPage: FC = () => {
 		);
 	}
 
+	// In OSS mode, we should always show the provisioners page without a paywall
+	const showPaywall = entitlements.has_license && !entitlements.features.multiple_organizations.enabled;
+
 	return (
 		<>
 			{helmet}
 			<OrganizationProvisionersPageView
-				showPaywall={!entitlements.features.multiple_organizations.enabled}
+				showPaywall={showPaywall}
 				error={provisionersQuery.error}
 				buildInfo={buildInfoQuery.data}
 				provisioners={provisionersQuery.data}
