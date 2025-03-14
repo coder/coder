@@ -7001,6 +7001,10 @@ func (q *FakeQuerier) GetWorkspaceAgentStatsAndLabels(ctx context.Context, creat
 	return stats, nil
 }
 
+func (q *FakeQuerier) GetWorkspaceAgentTasksByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAgentTask, error) {
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) GetWorkspaceAgentUsageStats(_ context.Context, createdAt time.Time) ([]database.GetWorkspaceAgentUsageStatsRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -9208,6 +9212,15 @@ func (q *FakeQuerier) InsertWorkspaceAgentStats(_ context.Context, arg database.
 	return nil
 }
 
+func (q *FakeQuerier) InsertWorkspaceAgentTask(ctx context.Context, arg database.InsertWorkspaceAgentTaskParams) (database.WorkspaceAgentTask, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.WorkspaceAgentTask{}, err
+	}
+
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertWorkspaceAppParams) (database.WorkspaceApp, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.WorkspaceApp{}, err
@@ -11040,6 +11053,15 @@ func (q *FakeQuerier) UpdateWorkspaceAgentStartupByID(_ context.Context, arg dat
 		return nil
 	}
 	return sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateWorkspaceAgentTask(ctx context.Context, arg database.UpdateWorkspaceAgentTaskParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	panic("not implemented")
 }
 
 func (q *FakeQuerier) UpdateWorkspaceAppHealthByID(_ context.Context, arg database.UpdateWorkspaceAppHealthByIDParams) error {

@@ -3185,7 +3185,8 @@ type User struct {
 	// A hash of the one-time-passcode given to the user.
 	HashedOneTimePasscode []byte `db:"hashed_one_time_passcode" json:"hashed_one_time_passcode"`
 	// The time when the one-time-passcode expires.
-	OneTimePasscodeExpiresAt sql.NullTime `db:"one_time_passcode_expires_at" json:"one_time_passcode_expires_at"`
+	OneTimePasscodeExpiresAt        sql.NullTime          `db:"one_time_passcode_expires_at" json:"one_time_passcode_expires_at"`
+	BrowserNotificationSubscription pqtype.NullRawMessage `db:"browser_notification_subscription" json:"browser_notification_subscription"`
 }
 
 type UserConfig struct {
@@ -3303,7 +3304,10 @@ type WorkspaceAgent struct {
 	DisplayApps []DisplayApp              `db:"display_apps" json:"display_apps"`
 	APIVersion  string                    `db:"api_version" json:"api_version"`
 	// Specifies the order in which to display agents in user interfaces.
-	DisplayOrder int32 `db:"display_order" json:"display_order"`
+	DisplayOrder            int32        `db:"display_order" json:"display_order"`
+	TaskWaitingForUserInput bool         `db:"task_waiting_for_user_input" json:"task_waiting_for_user_input"`
+	TaskCompletedAt         sql.NullTime `db:"task_completed_at" json:"task_completed_at"`
+	TaskNotifications       bool         `db:"task_notifications" json:"task_notifications"`
 }
 
 type WorkspaceAgentLog struct {
@@ -3398,6 +3402,16 @@ type WorkspaceAgentStat struct {
 	SessionCountReconnectingPTY int64           `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
 	SessionCountSSH             int64           `db:"session_count_ssh" json:"session_count_ssh"`
 	Usage                       bool            `db:"usage" json:"usage"`
+}
+
+type WorkspaceAgentTask struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	AgentID   uuid.UUID `db:"agent_id" json:"agent_id"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	Reporter  string    `db:"reporter" json:"reporter"`
+	Summary   string    `db:"summary" json:"summary"`
+	LinkTo    string    `db:"link_to" json:"link_to"`
+	Icon      string    `db:"icon" json:"icon"`
 }
 
 type WorkspaceAgentVolumeResourceMonitor struct {

@@ -3004,6 +3004,10 @@ export interface WorkspaceAgent {
 	readonly display_apps: readonly DisplayApp[];
 	readonly log_sources: readonly WorkspaceAgentLogSource[];
 	readonly scripts: readonly WorkspaceAgentScript[];
+	readonly task_waiting_for_user_input: boolean;
+	readonly task_notifications: boolean;
+	readonly task_completed_at?: string;
+	readonly tasks: readonly WorkspaceAgentTask[];
 	readonly startup_script_behavior: WorkspaceAgentStartupScriptBehavior;
 }
 
@@ -3171,6 +3175,17 @@ export const WorkspaceAgentStatuses: WorkspaceAgentStatus[] = [
 	"disconnected",
 	"timeout",
 ];
+
+// From codersdk/workspaceagents.go
+export interface WorkspaceAgentTask {
+	readonly id: string;
+	readonly agent_id: string;
+	readonly created_at: string;
+	readonly reporter: string;
+	readonly summary: string;
+	readonly link_to: string;
+	readonly icon: string;
+}
 
 // From codersdk/workspaceapps.go
 export interface WorkspaceApp {
