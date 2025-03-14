@@ -9596,7 +9596,7 @@ func (q *FakeQuerier) PaginatedOrganizationMembers(_ context.Context, arg databa
 	// All of the members in the organization
 	orgMembers := make([]database.OrganizationMember, 0)
 	for _, mem := range q.organizationMembers {
-		if arg.OrganizationID != uuid.Nil && mem.OrganizationID != arg.OrganizationID {
+		if mem.OrganizationID != arg.OrganizationID {
 			continue
 		}
 
@@ -9606,7 +9606,7 @@ func (q *FakeQuerier) PaginatedOrganizationMembers(_ context.Context, arg databa
 	selectedMembers := make([]database.PaginatedOrganizationMembersRow, 0)
 
 	skippedMembers := 0
-	for _, organizationMember := range q.organizationMembers {
+	for _, organizationMember := range orgMembers {
 		if skippedMembers < int(arg.OffsetOpt) {
 			skippedMembers++
 			continue
