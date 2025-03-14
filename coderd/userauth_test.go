@@ -28,6 +28,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -304,7 +305,7 @@ func TestUserOAuth2Github(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// nolint:gocritic // Unit test
-		count, err := db.GetUserCount(dbauthz.AsSystemRestricted(ctx))
+		count, err := db.GetUserCount(dbauthz.AsSystemRestricted(ctx), false)
 		require.NoError(t, err)
 		require.Equal(t, int64(1), count)
 

@@ -116,9 +116,9 @@ func (m queryMetricsStore) ActivityBumpWorkspace(ctx context.Context, arg databa
 	return r0
 }
 
-func (m queryMetricsStore) AllUserIDs(ctx context.Context) ([]uuid.UUID, error) {
+func (m queryMetricsStore) AllUserIDs(ctx context.Context, includeSystem bool) ([]uuid.UUID, error) {
 	start := time.Now()
-	r0, r1 := m.s.AllUserIDs(ctx)
+	r0, r1 := m.s.AllUserIDs(ctx, includeSystem)
 	m.queryLatencies.WithLabelValues("AllUserIDs").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
@@ -522,9 +522,9 @@ func (m queryMetricsStore) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed
 	return apiKeys, err
 }
 
-func (m queryMetricsStore) GetActiveUserCount(ctx context.Context) (int64, error) {
+func (m queryMetricsStore) GetActiveUserCount(ctx context.Context, includeSystem bool) (int64, error) {
 	start := time.Now()
-	count, err := m.s.GetActiveUserCount(ctx)
+	count, err := m.s.GetActiveUserCount(ctx, includeSystem)
 	m.queryLatencies.WithLabelValues("GetActiveUserCount").Observe(time.Since(start).Seconds())
 	return count, err
 }
@@ -1467,9 +1467,9 @@ func (m queryMetricsStore) GetUserByID(ctx context.Context, id uuid.UUID) (datab
 	return user, err
 }
 
-func (m queryMetricsStore) GetUserCount(ctx context.Context) (int64, error) {
+func (m queryMetricsStore) GetUserCount(ctx context.Context, includeSystem bool) (int64, error) {
 	start := time.Now()
-	count, err := m.s.GetUserCount(ctx)
+	count, err := m.s.GetUserCount(ctx, includeSystem)
 	m.queryLatencies.WithLabelValues("GetUserCount").Observe(time.Since(start).Seconds())
 	return count, err
 }

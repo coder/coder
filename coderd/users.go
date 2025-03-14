@@ -85,7 +85,7 @@ func (api *API) userDebugOIDC(rw http.ResponseWriter, r *http.Request) {
 func (api *API) firstUser(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	// nolint:gocritic // Getting user count is a system function.
-	userCount, err := api.Database.GetUserCount(dbauthz.AsSystemRestricted(ctx))
+	userCount, err := api.Database.GetUserCount(dbauthz.AsSystemRestricted(ctx), false)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching user count.",
@@ -128,7 +128,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 
 	// This should only function for the first user.
 	// nolint:gocritic // Getting user count is a system function.
-	userCount, err := api.Database.GetUserCount(dbauthz.AsSystemRestricted(ctx))
+	userCount, err := api.Database.GetUserCount(dbauthz.AsSystemRestricted(ctx), false)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching user count.",
@@ -1191,6 +1191,7 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 	memberships, err := api.Database.OrganizationMembers(ctx, database.OrganizationMembersParams{
 		UserID:         user.ID,
 		OrganizationID: uuid.Nil,
+		IncludeSystem:  false,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

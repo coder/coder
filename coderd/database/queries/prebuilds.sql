@@ -21,8 +21,6 @@ SELECT p.id               AS workspace_id,
 	   p.template_id,
 	   b.template_version_id,
 	   tvp_curr.id        AS current_preset_id,
-	   -- TODO: just because a prebuild is in a ready state doesn't mean it's eligible; if the prebuild is due to be
-	   --       deleted to reconcile state then it MUST NOT be eligible for claiming. We'll need some kind of lock here.
 	   CASE
 		   WHEN p.lifecycle_state = 'ready'::workspace_agent_lifecycle_state THEN TRUE
 		   ELSE FALSE END AS ready,
@@ -34,7 +32,6 @@ FROM workspace_prebuilds p
 		 LEFT JOIN template_version_presets tvp_curr
 				   ON tvp_curr.id = p.current_preset_id -- See https://github.com/coder/internal/issues/398.
 WHERE (b.transition = 'start'::workspace_transition
-	-- Jobs that are not in terminal states.
 	AND pj.job_status = 'succeeded'::provisioner_job_status);
 
 -- name: GetPrebuildsInProgress :many
@@ -81,7 +78,6 @@ WHERE lb.rn <= lb.desired_instances -- Fetch the last N builds, where N is the n
 GROUP BY lb.template_version_id, lb.preset_id, lb.job_status;
 
 -- name: ClaimPrebuild :one
--- TODO: rewrite to use named CTE instead?
 UPDATE workspaces w
 SET owner_id   = @new_user_id::uuid,
 	name       = @new_name::text,
@@ -97,7 +93,7 @@ WHERE w.id IN (SELECT p.id
 				 AND b.template_version_preset_id = @preset_id::uuid
 				 AND p.lifecycle_state = 'ready'::workspace_agent_lifecycle_state
 			   ORDER BY random()
-			   LIMIT 1 FOR UPDATE OF p SKIP LOCKED)
+			   LIMIT 1 FOR UPDATE OF p SKIP LOCKED) -- Ensure that a concurrent request will not select the same prebuild.
 RETURNING w.id, w.name;
 
 -- name: InsertPresetPrebuild :one

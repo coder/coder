@@ -47,7 +47,7 @@ FROM
 	users
 WHERE
 	deleted = false
-	AND is_system = false;
+  	AND CASE WHEN @include_system::bool THEN TRUE ELSE is_system = false END;
 
 -- name: GetActiveUserCount :one
 SELECT
@@ -56,7 +56,7 @@ FROM
 	users
 WHERE
 	status = 'active'::user_status AND deleted = false
-  	AND is_system = false;
+	AND CASE WHEN @include_system::bool THEN TRUE ELSE is_system = false END;
 
 -- name: InsertUser :one
 INSERT INTO
@@ -159,7 +159,6 @@ FROM
 	users
 WHERE
 	users.deleted = false
-  	AND is_system = false
 	AND CASE
 		-- This allows using the last element on a page as effectively a cursor.
 		-- This is an important option for scripts that need to paginate without
@@ -225,6 +224,11 @@ WHERE
 		WHEN @created_after :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
 			created_at >= @created_after
 		ELSE true
+	END
+  	AND CASE
+  	    WHEN @include_system::bool THEN TRUE
+  	    ELSE
+			is_system = false
 	END
 	-- End of filters
 
@@ -318,13 +322,12 @@ SET
 WHERE
     last_seen_at < @last_seen_after :: timestamp
     AND status = 'active'::user_status
-  	AND is_system = false
 RETURNING id, email, username, last_seen_at;
 
 -- AllUserIDs returns all UserIDs regardless of user status or deletion.
 -- name: AllUserIDs :many
 SELECT DISTINCT id FROM USERS
-	WHERE is_system = false;
+	WHERE CASE WHEN @include_system::bool THEN TRUE ELSE is_system = false END;
 
 -- name: UpdateUserHashedOneTimePasscode :exec
 UPDATE

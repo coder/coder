@@ -23,8 +23,12 @@ WHERE
 			user_id = @user_id
 		ELSE true
 	END
-	-- Filter system users
-	AND (users.is_system IS NULL OR users.is_system = false);
+  -- Filter by system type
+  	AND CASE
+		  WHEN @include_system::bool THEN TRUE
+		  ELSE
+			  is_system = false
+	END;
 
 -- name: InsertOrganizationMember :one
 INSERT INTO

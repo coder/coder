@@ -160,6 +160,7 @@ func (api *API) listMembers(rw http.ResponseWriter, r *http.Request) {
 	members, err := api.Database.OrganizationMembers(ctx, database.OrganizationMembersParams{
 		OrganizationID: organization.ID,
 		UserID:         uuid.Nil,
+		IncludeSystem:  false,
 	})
 	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)

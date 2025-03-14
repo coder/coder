@@ -1664,7 +1664,7 @@ func (s *MethodTestSuite) TestUser() {
 	s.Run("AllUserIDs", s.Subtest(func(db database.Store, check *expects) {
 		a := dbgen.User(s.T(), db, database.User{})
 		b := dbgen.User(s.T(), db, database.User{})
-		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(slice.New(a.ID, b.ID))
+		check.Args(false).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(slice.New(a.ID, b.ID))
 	}))
 	s.Run("CustomRoles", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.CustomRolesParams{}).Asserts(rbac.ResourceAssignRole, policy.ActionRead).Returns([]database.CustomRole{})
@@ -3649,7 +3649,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetActiveUserCount", s.Subtest(func(db database.Store, check *expects) {
-		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(int64(0))
+		check.Args(false).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(int64(0))
 	}))
 	s.Run("GetUnexpiredLicenses", s.Subtest(func(db database.Store, check *expects) {
 		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead)
@@ -3692,7 +3692,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args(time.Now().Add(time.Hour*-1)).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetUserCount", s.Subtest(func(db database.Store, check *expects) {
-		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(int64(0))
+		check.Args(false).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(int64(0))
 	}))
 	s.Run("GetTemplates", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
@@ -4648,38 +4648,32 @@ func (s *MethodTestSuite) TestPrebuilds() {
 			Asserts(rbac.ResourceWorkspace, policy.ActionUpdate).
 			ErrorsWithInMemDB(dbmem.ErrUnimplemented).
 			ErrorsWithPG(sql.ErrNoRows)
-
 	}))
 	s.Run("GetPrebuildMetrics", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args().
 			Asserts(rbac.ResourceTemplate, policy.ActionRead).
 			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
-
 	}))
 	s.Run("GetPrebuildsInProgress", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args().
 			Asserts(rbac.ResourceTemplate, policy.ActionRead).
 			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
-
 	}))
 	s.Run("GetPresetsBackoff", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args(time.Time{}).
 			Asserts(rbac.ResourceTemplate, policy.ActionRead).
 			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
-
 	}))
 	s.Run("GetRunningPrebuilds", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args().
 			Asserts(rbac.ResourceTemplate, policy.ActionRead).
 			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
-
 	}))
 	s.Run("GetTemplatePresetsWithPrebuilds", s.Subtest(func(db database.Store, check *expects) {
 		user := dbgen.User(s.T(), db, database.User{})
 		check.Args(uuid.NullUUID{UUID: user.ID, Valid: true}).
 			Asserts(rbac.ResourceTemplate, policy.ActionRead).
 			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
-
 	}))
 	s.Run("InsertPresetPrebuild", s.Subtest(func(db database.Store, check *expects) {
 		org := dbgen.Organization(s.T(), db, database.Organization{})
@@ -4704,7 +4698,6 @@ func (s *MethodTestSuite) TestPrebuilds() {
 		}).
 			Asserts(rbac.ResourceSystem, policy.ActionCreate).
 			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
-
 	}))
 }
 

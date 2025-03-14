@@ -823,10 +823,8 @@ func TestGroup(t *testing.T) {
 
 	t.Run("everyoneGroupReturnsEmpty", func(t *testing.T) {
 		// TODO (sasswart): this test seems to have drifted from its original intention. evaluate and remove/fix
-		// "everyone group returns empty", but it returns 5 members?
 		t.Parallel()
 
-		// TODO: we should not be returning the prebuilds user in Group, and this is not returned in dbmem.
 		if !dbtestutil.WillUsePostgres() {
 			t.Skip("This test requires postgres")
 		}
@@ -841,6 +839,7 @@ func TestGroup(t *testing.T) {
 		_, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
+		// nolint:gocritic // "This client is operating as the owner user" is fine in this case.
 		prebuildsUser, err := client.User(ctx, prebuilds.OwnerID.String())
 		require.NoError(t, err)
 		// The 'Everyone' group always has an ID that matches the organization ID.
