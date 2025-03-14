@@ -1,3 +1,4 @@
+import type { Organization, ProvisionerJob } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Link } from "components/Link/Link";
@@ -15,7 +16,6 @@ import { Helmet } from "react-helmet-async";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import { JobRow } from "./JobRow";
-import type { ProvisionerJob, Organization } from "api/typesGenerated";
 
 type OrganizationProvisionerJobsPageViewProps = {
 	jobs: ProvisionerJob[] | undefined;
