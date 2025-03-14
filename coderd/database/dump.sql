@@ -1900,28 +1900,23 @@ CREATE VIEW workspace_build_with_user AS
 COMMENT ON VIEW workspace_build_with_user IS 'Joins in the username + avatar url of the initiated by user.';
 
 CREATE VIEW workspace_latest_build AS
- SELECT wb.id,
-    wb.created_at,
-    wb.updated_at,
-    wb.workspace_id,
-    wb.template_version_id,
-    wb.build_number,
-    wb.transition,
-    wb.initiator_id,
-    wb.provisioner_state,
-    wb.job_id,
-    wb.deadline,
-    wb.reason,
-    wb.daily_cost,
-    wb.max_deadline,
-    wb.template_version_preset_id
-   FROM (( SELECT tv.template_id,
-            wbmax_1.workspace_id,
-            max(wbmax_1.build_number) AS max_build_number
-           FROM (workspace_builds wbmax_1
-             JOIN template_versions tv ON ((tv.id = wbmax_1.template_version_id)))
-          GROUP BY tv.template_id, wbmax_1.workspace_id) wbmax
-     JOIN workspace_builds wb ON (((wb.workspace_id = wbmax.workspace_id) AND (wb.build_number = wbmax.max_build_number))));
+ SELECT DISTINCT ON (workspace_builds.workspace_id) workspace_builds.id,
+    workspace_builds.created_at,
+    workspace_builds.updated_at,
+    workspace_builds.workspace_id,
+    workspace_builds.template_version_id,
+    workspace_builds.build_number,
+    workspace_builds.transition,
+    workspace_builds.initiator_id,
+    workspace_builds.provisioner_state,
+    workspace_builds.job_id,
+    workspace_builds.deadline,
+    workspace_builds.reason,
+    workspace_builds.daily_cost,
+    workspace_builds.max_deadline,
+    workspace_builds.template_version_preset_id
+   FROM workspace_builds
+  ORDER BY workspace_builds.workspace_id, workspace_builds.build_number DESC;
 
 CREATE TABLE workspace_modules (
     id uuid NOT NULL,
