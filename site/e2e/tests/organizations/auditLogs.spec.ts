@@ -1,11 +1,11 @@
-import { type Page, expect, test } from "@playwright/test";
+import { chromium, expect, type Page, test } from "@playwright/test";
 import {
 	createOrganization,
 	createOrganizationMember,
 	createUser,
 	setupApiCalls,
 } from "../../api";
-import { defaultPassword } from "../../constants";
+import { defaultPassword, users } from "../../constants";
 import {
 	createTemplate,
 	createWorkspace,
@@ -26,20 +26,8 @@ const orgAuditor = {
 	email: `org-auditor-${orgName}@coder.com`,
 };
 
-test.beforeAll(async ({ page }) => {
+test.beforeEach(({ page }) => {
 	beforeCoderTest(page);
-	await login(page);
-	await setupApiCalls(page);
-
-	const org = await createOrganization(orgName);
-	await createOrganizationMember({
-		...orgAuditor,
-		orgRoles: {
-			[org.id]: ["organization-auditor"],
-		},
-	});
-
-	await page.context().clearCookies();
 });
 
 async function resetSearch(page: Page, username: string) {
@@ -54,89 +42,97 @@ async function resetSearch(page: Page, username: string) {
 	await expect(page.getByText("All users")).not.toBeVisible();
 }
 
-test("organization auditors cannot see logins", async ({ page }) => {
+test.describe("organization scoped audit logs", () => {
 	requiresLicense();
 
-	// Go to the audit history
-	await login(page, orgAuditor);
-	await page.goto("/audit");
-	const username = orgAuditor.username;
+	test.beforeAll(async ({ browser }) => {
+		const context = await browser.newContext();
+		const page = await context.newPage();
 
-	const loginMessage = `${username} logged in`;
-	// Make sure those things we did all actually show up
-	await resetSearch(page, username);
-	await expect(page.getByText(loginMessage).first()).not.toBeVisible();
-});
+		await login(page);
+		await setupApiCalls(page);
 
-test("creating users as organization members is logged", async ({ page }) => {
-	requiresLicense();
+		const org = await createOrganization(orgName);
+		await createOrganizationMember({
+			...orgAuditor,
+			orgRoles: {
+				[org.id]: ["organization-auditor"],
+			},
+		});
 
-	// Do some stuff that should show up in the audit logs
-	await login(page, orgAuditor);
-	const username = orgAuditor.username;
+		await context.close();
+	});
 
-	// Go to the audit history
-	await page.goto("/audit", { waitUntil: "domcontentloaded" });
+	test("organization auditors cannot see logins", async ({ page }) => {
+		// Go to the audit history
+		await login(page, orgAuditor);
+		await page.goto("/audit");
+		const username = orgAuditor.username;
 
-	// Make sure those things we did all actually show up
-	await resetSearch(page, username);
-	// await expect(
-	// 	page.getByText(`${username} created template ${templateName}`),
-	// ).toBeVisible();
-	// await expect(
-	// 	page.getByText(`${username} created workspace ${workspaceName}`),
-	// ).toBeVisible();
-	// await expect(
-	// 	page.getByText(`${username} started workspace ${workspaceName}`),
-	// ).toBeVisible();
+		const loginMessage = `${username} logged in`;
+		// Make sure those things we did all actually show up
+		await resetSearch(page, username);
+		await expect(page.getByText(loginMessage).first()).not.toBeVisible();
+	});
 
-	// Make sure we can inspect the details of the log item
-	// const createdWorkspace = page.locator(".MuiTableRow-root", {
-	// 	hasText: `${username} created workspace ${workspaceName}`,
+	test("creating organization members is logged", async ({ page }) => {
+		await login(page, orgAuditor);
+
+		test.setTimeout(99999999);
+		await page.waitForTimeout(99999999);
+
+		// Go to the audit history
+		await page.goto("/audit", { waitUntil: "domcontentloaded" });
+		await resetSearch(page, users.owner.username);
+
+		const auditLogText = `${users.owner.username} created organization member ${orgAuditor.username}`;
+		const member = page.locator(".MuiTableRow-root", {
+			hasText: auditLogText,
+		});
+		await member.scrollIntoViewIfNeeded();
+		await expect(member).toBeVisible();
+
+		await member.getByLabel("open-dropdown").click();
+		await expect(
+			member.getByText(`username: "${orgAuditor.username}"`),
+		).toBeVisible();
+	});
+
+	// test("inspecting and filtering audit logs", async ({ page }) => {
+	// 	requiresLicense();
+
+	// 	// Do some stuff that should show up in the audit logs
+	// 	await login(page, users.templateAdmin);
+	// 	const username = users.templateAdmin.username;
+	// 	const templateName = await createTemplate(page);
+	// 	const workspaceName = await createWorkspace(page, templateName);
+
+	// 	// Go to the audit history
+	// 	await login(page, users.auditor);
+	// 	await page.goto("/audit");
+	// 	const loginMessage = `${username} logged in`;
+	// 	const startedWorkspaceMessage = `${username} started workspace ${workspaceName}`;
+
+	// 	// Filter by resource type
+	// 	await resetSearch(page, username);
+	// 	await page.getByText("All resource types").click();
+	// 	const workspaceBuildsOption = page.getByText("Workspace Build");
+	// 	await workspaceBuildsOption.scrollIntoViewIfNeeded({ timeout: 5000 });
+	// 	await workspaceBuildsOption.click();
+	// 	// Our workspace build should be visible
+	// 	await expect(page.getByText(startedWorkspaceMessage)).toBeVisible();
+	// 	// Logins should no longer be visible
+	// 	await expect(page.getByText(loginMessage)).not.toBeVisible();
+	// 	await page.getByLabel("Clear search").click();
+	// 	await expect(page.getByText("All resource types")).toBeVisible();
+
+	// 	// Filter by action type
+	// 	await resetSearch(page, username);
+	// 	await page.getByText("All actions").click();
+	// 	await page.getByText("Login", { exact: true }).click();
+	// 	// Logins should be visible
+	// 	await expect(page.getByText(loginMessage).first()).toBeVisible();
+	// 	// Our workspace build should no longer be visible
+	// 	await expect(page.getByText(startedWorkspaceMessage)).not.toBeVisible();
 	// });
-	// await createdWorkspace.getByLabel("open-dropdown").click();
-	// await expect(
-	// 	createdWorkspace.getByText(`automatic_updates: "never"`),
-	// ).toBeVisible();
-	// await expect(
-	// 	createdWorkspace.getByText(`name: "${workspaceName}"`),
-	// ).toBeVisible();
 });
-
-// test("inspecting and filtering audit logs", async ({ page }) => {
-// 	requiresLicense();
-
-// 	// Do some stuff that should show up in the audit logs
-// 	await login(page, users.templateAdmin);
-// 	const username = users.templateAdmin.username;
-// 	const templateName = await createTemplate(page);
-// 	const workspaceName = await createWorkspace(page, templateName);
-
-// 	// Go to the audit history
-// 	await login(page, users.auditor);
-// 	await page.goto("/audit");
-// 	const loginMessage = `${username} logged in`;
-// 	const startedWorkspaceMessage = `${username} started workspace ${workspaceName}`;
-
-// 	// Filter by resource type
-// 	await resetSearch(page, username);
-// 	await page.getByText("All resource types").click();
-// 	const workspaceBuildsOption = page.getByText("Workspace Build");
-// 	await workspaceBuildsOption.scrollIntoViewIfNeeded({ timeout: 5000 });
-// 	await workspaceBuildsOption.click();
-// 	// Our workspace build should be visible
-// 	await expect(page.getByText(startedWorkspaceMessage)).toBeVisible();
-// 	// Logins should no longer be visible
-// 	await expect(page.getByText(loginMessage)).not.toBeVisible();
-// 	await page.getByLabel("Clear search").click();
-// 	await expect(page.getByText("All resource types")).toBeVisible();
-
-// 	// Filter by action type
-// 	await resetSearch(page, username);
-// 	await page.getByText("All actions").click();
-// 	await page.getByText("Login", { exact: true }).click();
-// 	// Logins should be visible
-// 	await expect(page.getByText(loginMessage).first()).toBeVisible();
-// 	// Our workspace build should no longer be visible
-// 	await expect(page.getByText(startedWorkspaceMessage)).not.toBeVisible();
-// });
