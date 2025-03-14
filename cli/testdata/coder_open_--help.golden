@@ -6,7 +6,11 @@ USAGE:
   Open a workspace
 
 SUBCOMMANDS:
-    vscode    Open a workspace in VS Code Desktop
+    cursor      Open a workspace in Cursor Desktop
+    fleet       Open a workspace in JetBrains Fleet
+    vscode      Open a workspace in VS Code Desktop
+    windsurf    Open a workspace in Windsurf Desktop
+    zed         Open a workspace in Zed
 
 ———
 Run `coder --help` for a list of global options.

@@ -1,0 +1,16 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder open windsurf [flags] <workspace> [<directory in workspace>]
+
+  Open a workspace in Windsurf Desktop
+
+OPTIONS:
+      --generate-token bool, $CODER_OPEN_WINDSURF_GENERATE_TOKEN
+          Generate an auth token and include it in the windsurf:// URI. This is
+          for automagical configuration of Windsurf Desktop and not needed if
+          already configured. This flag does not need to be specified when
+          running this command on a local machine unless automatic open fails.
+
+———
+Run `coder --help` for a list of global options.

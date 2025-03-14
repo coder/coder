@@ -1,0 +1,9 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder open fleet [flags] <workspace> [<directory in workspace>]
+
+  Open a workspace in JetBrains Fleet
+
+———
+Run `coder --help` for a list of global options.
