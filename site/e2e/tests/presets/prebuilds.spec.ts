@@ -11,8 +11,16 @@ import {
 import { beforeCoderTest } from "../../hooks";
 
 test.beforeEach(async ({ page }) => {
+	// TODO: we can improve things here by supporting using the standard web server BUT:
+	// 		 1. we can't use the in-memory db because we didn't implement many dbmem functions
+	//		 2. we'd have to require terraform provisioners are setup (see requireTerraformTests)
+	if(!test.info().config.webServer?.reuseExistingServer) {
+		console.warn('test requires existing server with terraform provisioners');
+		test.skip()
+	}
+
 	beforeCoderTest(page);
-	await login(page);
+	await login(page, users.admin);
 });
 
 const waitForBuildTimeout = 120_000; // Builds can take a while, let's give them at most 2m.
@@ -28,6 +36,8 @@ const expectedPrebuilds = 2;
 
 // NOTE: requires the `workspace-prebuilds` experiment enabled!
 test("create template with desired prebuilds", async ({ page, baseURL }) => {
+	test.setTimeout(300_000);
+
 	requiresLicense();
 
 	// Create new template.
@@ -124,7 +134,7 @@ test("claim prebuild matching selected preset", async ({ page, baseURL }) => {
 	await text.waitFor({ timeout: 30_000 });
 
 	// Logout as unprivileged user, and login as admin.
-	await login(page, users.owner);
+	await login(page, users.admin);
 
 	// Navigate back to prebuilds page to see that a new prebuild replaced the claimed one.
 	await page.goto(

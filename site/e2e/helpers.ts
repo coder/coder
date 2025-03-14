@@ -1204,7 +1204,7 @@ export async function importTemplate(
 	// organization.
 	const orgPicker = page.getByLabel("Belongs to *");
 	const organizationsEnabled = await orgPicker.isVisible();
-	if (organizationsEnabled) {
+	if (organizationsEnabled && await orgPicker.isEnabled()) { // The org picker is disabled if there is only one org.
 		if (orgName !== defaultOrganizationName) {
 			throw new Error(
 				`No provisioners registered for ${orgName}, creating this template will fail`,

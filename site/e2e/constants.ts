@@ -25,6 +25,11 @@ export const users = {
 		password: defaultPassword,
 		email: "owner@coder.com",
 	},
+	admin: {
+		username: "admin",
+		password: defaultPassword,
+		email: "admin@coder.com",
+	},
 	templateAdmin: {
 		username: "template-admin",
 		password: defaultPassword,
