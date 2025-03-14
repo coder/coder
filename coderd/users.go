@@ -202,7 +202,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		LoginType:          database.LoginTypePassword,
 		RBACRoles:          []string{rbac.RoleOwner().String()},
 		accountCreatorName: "coder",
-	}, r)
+	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error creating user.",
@@ -496,7 +496,7 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		CreateUserRequestWithOrgs: req,
 		LoginType:                 loginType,
 		accountCreatorName:        accountCreator.Name,
-	}, r)
+	})
 
 	if dbauthz.IsNotAuthorizedError(err) {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
@@ -1388,7 +1388,7 @@ type CreateUserRequest struct {
 	RBACRoles          []string
 }
 
-func (api *API) CreateUser(ctx context.Context, store database.Store, req CreateUserRequest, r *http.Request) (database.User, []database.AuditableOrganizationMember, error) {
+func (api *API) CreateUser(ctx context.Context, store database.Store, req CreateUserRequest) (database.User, []database.AuditableOrganizationMember, error) {
 	// Ensure the username is valid. It's the caller's responsibility to ensure
 	// the username is valid and unique.
 	if usernameValid := codersdk.NameValid(req.Username); usernameValid != nil {

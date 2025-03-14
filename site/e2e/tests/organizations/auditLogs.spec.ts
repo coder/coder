@@ -1,20 +1,20 @@
 import { type Page, expect, test } from "@playwright/test";
-import { defaultPassword } from "../../constants";
-import {
-	createTemplate,
-	createWorkspace,
-	currentUser,
-	login,
-	requiresLicense,
-	randomName,
-} from "../../helpers";
-import { beforeCoderTest } from "../../hooks";
 import {
 	createOrganization,
 	createOrganizationMember,
 	createUser,
 	setupApiCalls,
 } from "../../api";
+import { defaultPassword } from "../../constants";
+import {
+	createTemplate,
+	createWorkspace,
+	currentUser,
+	login,
+	randomName,
+	requiresLicense,
+} from "../../helpers";
+import { beforeCoderTest } from "../../hooks";
 
 test.describe.configure({ mode: "parallel" });
 
