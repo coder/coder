@@ -1,6 +1,6 @@
 package coderd
-
 import (
+	"errors"
 	"context"
 	"database/sql"
 	"fmt"
@@ -8,16 +8,13 @@ import (
 	"net/http"
 	"strings"
 	"time"
-
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/exp/maps"
-	"golang.org/x/xerrors"
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
-
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -34,7 +31,6 @@ import (
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/websocket"
 )
-
 func (api *API) provisionerDaemonsEnabledMW(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		if !api.Entitlements.Enabled(codersdk.FeatureExternalProvisionerDaemons) {
@@ -43,23 +39,19 @@ func (api *API) provisionerDaemonsEnabledMW(next http.Handler) http.Handler {
 			})
 			return
 		}
-
 		next.ServeHTTP(rw, r)
 	})
 }
-
 type provisiionerDaemonAuthResponse struct {
 	keyID uuid.UUID
 	orgID uuid.UUID
 	tags  map[string]string
 }
-
 type provisionerDaemonAuth struct {
 	psk        string
 	db         database.Store
 	authorizer rbac.Authorizer
 }
-
 // authorize returns mutated tags if the given HTTP request is authorized to access the provisioner daemon
 // protobuf API, and returns nil, err otherwise.
 func (p *provisionerDaemonAuth) authorize(r *http.Request, org database.Organization, tags map[string]string) (provisiionerDaemonAuthResponse, error) {
@@ -68,18 +60,16 @@ func (p *provisionerDaemonAuth) authorize(r *http.Request, org database.Organiza
 	pk, pkOK := httpmw.ProvisionerKeyAuthOptional(r)
 	provAuth := httpmw.ProvisionerDaemonAuthenticated(r)
 	if !provAuth && !apiKeyOK {
-		return provisiionerDaemonAuthResponse{}, xerrors.New("no API key or provisioner key provided")
+		return provisiionerDaemonAuthResponse{}, errors.New("no API key or provisioner key provided")
 	}
 	if apiKeyOK && pkOK {
-		return provisiionerDaemonAuthResponse{}, xerrors.New("Both API key and provisioner key authentication provided. Only one is allowed.")
+		return provisiionerDaemonAuthResponse{}, errors.New("Both API key and provisioner key authentication provided. Only one is allowed.")
 	}
-
 	// Provisioner Key Auth
 	if pkOK {
 		if tags != nil && !maps.Equal(tags, map[string]string{}) {
-			return provisiionerDaemonAuthResponse{}, xerrors.New("tags are not allowed when using a provisioner key")
+			return provisiionerDaemonAuthResponse{}, errors.New("tags are not allowed when using a provisioner key")
 		}
-
 		// If using provisioner key / PSK auth, the daemon is, by definition, scoped to the organization.
 		// Use the provisioner key tags here.
 		tags = provisionersdk.MutateTags(uuid.Nil, pk.Tags)
@@ -89,37 +79,30 @@ func (p *provisionerDaemonAuth) authorize(r *http.Request, org database.Organiza
 			tags:  tags,
 		}, nil
 	}
-
 	// PSK Auth
 	if provAuth {
 		if !org.IsDefault {
-			return provisiionerDaemonAuthResponse{}, xerrors.Errorf("PSK auth is only allowed for the default organization '%s'", org.Name)
+			return provisiionerDaemonAuthResponse{}, fmt.Errorf("PSK auth is only allowed for the default organization '%s'", org.Name)
 		}
-
 		pskKey, err := uuid.Parse(codersdk.ProvisionerKeyIDPSK)
 		if err != nil {
-			return provisiionerDaemonAuthResponse{}, xerrors.Errorf("parse psk provisioner key id: %w", err)
+			return provisiionerDaemonAuthResponse{}, fmt.Errorf("parse psk provisioner key id: %w", err)
 		}
-
 		tags = provisionersdk.MutateTags(uuid.Nil, tags)
-
 		return provisiionerDaemonAuthResponse{
 			keyID: pskKey,
 			orgID: org.ID,
 			tags:  tags,
 		}, nil
 	}
-
 	// User Auth
 	if !apiKeyOK {
-		return provisiionerDaemonAuthResponse{}, xerrors.New("no API key provided")
+		return provisiionerDaemonAuthResponse{}, errors.New("no API key provided")
 	}
-
 	userKey, err := uuid.Parse(codersdk.ProvisionerKeyIDUserAuth)
 	if err != nil {
-		return provisiionerDaemonAuthResponse{}, xerrors.Errorf("parse user provisioner key id: %w", err)
+		return provisiionerDaemonAuthResponse{}, fmt.Errorf("parse user provisioner key id: %w", err)
 	}
-
 	tags = provisionersdk.MutateTags(apiKey.UserID, tags)
 	if tags[provisionersdk.TagScope] == provisionersdk.ScopeUser {
 		// Any authenticated user can create provisioner daemons scoped
@@ -133,16 +116,14 @@ func (p *provisionerDaemonAuth) authorize(r *http.Request, org database.Organiza
 	ua := httpmw.UserAuthorization(r)
 	err = p.authorizer.Authorize(ctx, ua, policy.ActionCreate, rbac.ResourceProvisionerDaemon.InOrg(org.ID))
 	if err != nil {
-		return provisiionerDaemonAuthResponse{}, xerrors.New("user unauthorized")
+		return provisiionerDaemonAuthResponse{}, errors.New("user unauthorized")
 	}
-
 	return provisiionerDaemonAuthResponse{
 		keyID: userKey,
 		orgID: org.ID,
 		tags:  tags,
 	}, nil
 }
-
 // Serves the provisioner daemon protobuf API over a WebSocket.
 //
 // @Summary Serve provisioner daemon
@@ -154,7 +135,6 @@ func (p *provisionerDaemonAuth) authorize(r *http.Request, org database.Organiza
 // @Router /organizations/{organization}/provisionerdaemons/serve [get]
 func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
 	tags := map[string]string{}
 	if r.URL.Query().Has("tag") {
 		for _, tag := range r.URL.Query()["tag"] {
@@ -174,7 +154,6 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		})
 		return
 	}
-
 	provisionersMap := map[codersdk.ProvisionerType]struct{}{}
 	for _, provisioner := range r.URL.Query()["provisioner"] {
 		switch provisioner {
@@ -189,14 +168,12 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 			return
 		}
 	}
-
 	name := namesgenerator.GetRandomName(10)
 	if vals, ok := r.URL.Query()["name"]; ok && len(vals) > 0 {
 		name = vals[0]
 	} else {
 		api.Logger.Warn(ctx, "unnamed provisioner daemon")
 	}
-
 	authRes, err := api.provisionerDaemonAuth.authorize(r, httpmw.OrganizationParam(r), tags)
 	if err != nil {
 		api.Logger.Warn(ctx, "unauthorized provisioner daemon serve request", slog.F("tags", tags), slog.Error(err))
@@ -209,7 +186,6 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 	tags = authRes.tags
-
 	api.Logger.Debug(ctx, "provisioner authorized", slog.F("tags", tags))
 	if err := provisionerdserver.Tags(tags).Valid(); err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -220,7 +196,6 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		})
 		return
 	}
-
 	provisioners := make([]database.ProvisionerType, 0, len(provisionersMap))
 	for p := range provisionersMap {
 		switch p {
@@ -230,27 +205,22 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 			provisioners = append(provisioners, database.ProvisionerTypeEcho)
 		}
 	}
-
 	log := api.Logger.With(
 		slog.F("name", name),
 		slog.F("provisioners", provisioners),
 		slog.F("tags", tags),
 	)
-
 	authCtx := ctx
 	if r.Header.Get(codersdk.ProvisionerDaemonPSK) != "" || r.Header.Get(codersdk.ProvisionerDaemonKey) != "" {
 		//nolint:gocritic // PSK auth means no actor in request,
 		// so use system restricted.
 		authCtx = dbauthz.AsSystemRestricted(ctx)
 	}
-
 	versionHdrVal := r.Header.Get(codersdk.BuildVersionHeader)
-
 	apiVersion := "1.0"
 	if qv := r.URL.Query().Get("version"); qv != "" {
 		apiVersion = qv
 	}
-
 	if err := proto.CurrentVersion.Validate(apiVersion); err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Incompatible or unparsable version",
@@ -260,7 +230,6 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		})
 		return
 	}
-
 	// Create the daemon in the database.
 	now := dbtime.Now()
 	daemon, err := api.Database.UpsertProvisionerDaemon(authCtx, database.UpsertProvisionerDaemonParams{
@@ -275,7 +244,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		KeyID:          authRes.keyID,
 	})
 	if err != nil {
-		if !xerrors.Is(err, context.Canceled) {
+		if !errors.Is(err, context.Canceled) {
 			log.Error(ctx, "create provisioner daemon", slog.Error(err))
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error creating provisioner daemon.",
@@ -284,25 +253,22 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		}
 		return
 	}
-
 	api.AGPL.WebsocketWaitMutex.Lock()
 	api.AGPL.WebsocketWaitGroup.Add(1)
 	api.AGPL.WebsocketWaitMutex.Unlock()
 	defer api.AGPL.WebsocketWaitGroup.Done()
-
 	tep := telemetry.ConvertExternalProvisioner(daemon.ID, tags, provisioners)
 	api.Telemetry.Report(&telemetry.Snapshot{ExternalProvisioners: []telemetry.ExternalProvisioner{tep}})
 	defer func() {
 		tep.ShutdownAt = ptr.Ref(time.Now())
 		api.Telemetry.Report(&telemetry.Snapshot{ExternalProvisioners: []telemetry.ExternalProvisioner{tep}})
 	}()
-
 	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
 		// Need to disable compression to avoid a data-race.
 		CompressionMode: websocket.CompressionDisabled,
 	})
 	if err != nil {
-		if !xerrors.Is(err, context.Canceled) {
+		if !errors.Is(err, context.Canceled) {
 			log.Error(ctx, "accept provisioner websocket conn", slog.Error(err))
 		}
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -313,7 +279,6 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 	}
 	// Align with the frame size of yamux.
 	conn.SetReadLimit(256 * 1024)
-
 	// Multiplexes the incoming connection using yamux.
 	// This allows multiple function calls to occur over
 	// the same connection.
@@ -357,7 +322,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		api.NotificationsEnqueuer,
 	)
 	if err != nil {
-		if !xerrors.Is(err, context.Canceled) {
+		if !errors.Is(err, context.Canceled) {
 			log.Error(ctx, "create provisioner daemon server", slog.Error(err))
 		}
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("create provisioner daemon server: %s", err))
@@ -370,7 +335,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 	}
 	server := drpcserver.NewWithOptions(mux, drpcserver.Options{
 		Log: func(err error) {
-			if xerrors.Is(err, io.EOF) {
+			if errors.Is(err, io.EOF) {
 				return
 			}
 			logger.Debug(ctx, "drpc server error", slog.Error(err))
@@ -379,7 +344,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 	err = server.Serve(ctx, session)
 	srvCancel()
 	logger.Info(ctx, "provisioner daemon disconnected", slog.Error(err))
-	if err != nil && !xerrors.Is(err, io.EOF) {
+	if err != nil && !errors.Is(err, io.EOF) {
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("serve: %s", err))
 		return
 	}

@@ -1,19 +1,15 @@
 package cli
-
 import (
+	"errors"
 	"fmt"
 	"slices"
-
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
-
 func (r *RootCmd) provisionerJobs() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "jobs",
@@ -29,14 +25,12 @@ func (r *RootCmd) provisionerJobs() *serpent.Command {
 	}
 	return cmd
 }
-
 func (r *RootCmd) provisionerJobsList() *serpent.Command {
 	type provisionerJobRow struct {
 		codersdk.ProvisionerJob `table:"provisioner_job,recursive_inline,nosort"`
 		OrganizationName        string `json:"organization_name" table:"organization"`
 		Queue                   string `json:"-" table:"queue"`
 	}
-
 	var (
 		client     = new(codersdk.Client)
 		orgContext = NewOrganizationContext()
@@ -47,7 +41,6 @@ func (r *RootCmd) provisionerJobsList() *serpent.Command {
 		status []string
 		limit  int64
 	)
-
 	cmd := &serpent.Command{
 		Use:     "list",
 		Short:   "List provisioner jobs",
@@ -60,22 +53,19 @@ func (r *RootCmd) provisionerJobsList() *serpent.Command {
 			ctx := inv.Context()
 			org, err := orgContext.Selected(inv, client)
 			if err != nil {
-				return xerrors.Errorf("current organization: %w", err)
+				return fmt.Errorf("current organization: %w", err)
 			}
-
 			jobs, err := client.OrganizationProvisionerJobs(ctx, org.ID, &codersdk.OrganizationProvisionerJobsOptions{
 				Status: slice.StringEnums[codersdk.ProvisionerJobStatus](status),
 				Limit:  int(limit),
 			})
 			if err != nil {
-				return xerrors.Errorf("list provisioner jobs: %w", err)
+				return fmt.Errorf("list provisioner jobs: %w", err)
 			}
-
 			if len(jobs) == 0 {
 				_, _ = fmt.Fprintln(inv.Stdout, "No provisioner jobs found")
 				return nil
 			}
-
 			var rows []provisionerJobRow
 			for _, job := range jobs {
 				row := provisionerJobRow{
@@ -92,18 +82,14 @@ func (r *RootCmd) provisionerJobsList() *serpent.Command {
 			slices.SortStableFunc(rows, func(a provisionerJobRow, b provisionerJobRow) int {
 				return a.CreatedAt.Compare(b.CreatedAt)
 			})
-
 			out, err := formatter.Format(ctx, rows)
 			if err != nil {
-				return xerrors.Errorf("display provisioner daemons: %w", err)
+				return fmt.Errorf("display provisioner daemons: %w", err)
 			}
-
 			_, _ = fmt.Fprintln(inv.Stdout, out)
-
 			return nil
 		},
 	}
-
 	cmd.Options = append(cmd.Options, []serpent.Option{
 		{
 			Flag:          "status",
@@ -121,13 +107,10 @@ func (r *RootCmd) provisionerJobsList() *serpent.Command {
 			Value:         serpent.Int64Of(&limit),
 		},
 	}...)
-
 	orgContext.AttachOptions(cmd)
 	formatter.AttachOptions(&cmd.Options)
-
 	return cmd
 }
-
 func (r *RootCmd) provisionerJobsCancel() *serpent.Command {
 	var (
 		client     = new(codersdk.Client)
@@ -144,19 +127,16 @@ func (r *RootCmd) provisionerJobsCancel() *serpent.Command {
 			ctx := inv.Context()
 			org, err := orgContext.Selected(inv, client)
 			if err != nil {
-				return xerrors.Errorf("current organization: %w", err)
+				return fmt.Errorf("current organization: %w", err)
 			}
-
 			jobID, err := uuid.Parse(inv.Args[0])
 			if err != nil {
-				return xerrors.Errorf("invalid job ID: %w", err)
+				return fmt.Errorf("invalid job ID: %w", err)
 			}
-
 			job, err := client.OrganizationProvisionerJob(ctx, org.ID, jobID)
 			if err != nil {
-				return xerrors.Errorf("get provisioner job: %w", err)
+				return fmt.Errorf("get provisioner job: %w", err)
 			}
-
 			switch job.Type {
 			case codersdk.ProvisionerJobTypeTemplateVersionDryRun:
 				_, _ = fmt.Fprintf(inv.Stdout, "Canceling template version dry run job %s...\n", job.ID)
@@ -169,16 +149,12 @@ func (r *RootCmd) provisionerJobsCancel() *serpent.Command {
 				err = client.CancelWorkspaceBuild(ctx, ptr.NilToEmpty(job.Input.WorkspaceBuildID))
 			}
 			if err != nil {
-				return xerrors.Errorf("cancel provisioner job: %w", err)
+				return fmt.Errorf("cancel provisioner job: %w", err)
 			}
-
 			_, _ = fmt.Fprintln(inv.Stdout, "Job canceled")
-
 			return nil
 		},
 	}
-
 	orgContext.AttachOptions(cmd)
-
 	return cmd
 }

@@ -1,6 +1,6 @@
 package azureidentity
-
 import (
+	"fmt"
 	"context"
 	"crypto/x509"
 	"encoding/base64"
@@ -12,92 +12,83 @@ import (
 	"regexp"
 	"sync"
 	"time"
-
 	"go.mozilla.org/pkcs7"
-	"golang.org/x/xerrors"
 )
-
 // allowedSigners matches valid common names listed here:
 // https://docs.microsoft.com/en-us/azure/virtual-machines/windows/instance-metadata-service?tabs=linux#tabgroup_14
 var allowedSigners = regexp.MustCompile(`^(.*\.)?metadata\.(azure\.(com|us|cn)|microsoftazure\.de)$`)
-
 // The pkcs7 library has a global variable that is incremented
 // each time a parse occurs.
 var pkcs7Mutex sync.Mutex
-
 type metadata struct {
 	VMID string `json:"vmId"`
 }
-
 type Options struct {
 	x509.VerifyOptions
 	Offline bool
 }
-
 // Validate ensures the signature was signed by an Azure certificate.
 // It returns the associated VM ID if successful.
 func Validate(ctx context.Context, signature string, options Options) (string, error) {
 	data, err := base64.StdEncoding.DecodeString(signature)
 	if err != nil {
-		return "", xerrors.Errorf("decode base64: %w", err)
+		return "", fmt.Errorf("decode base64: %w", err)
 	}
 	pkcs7Mutex.Lock()
 	pkcs7Data, err := pkcs7.Parse(data)
 	pkcs7Mutex.Unlock()
 	if err != nil {
-		return "", xerrors.Errorf("parse pkcs7: %w", err)
+		return "", fmt.Errorf("parse pkcs7: %w", err)
 	}
 	signer := pkcs7Data.GetOnlySigner()
 	if signer == nil {
-		return "", xerrors.New("no signers for signature")
+		return "", errors.New("no signers for signature")
 	}
 	if !allowedSigners.MatchString(signer.Subject.CommonName) {
-		return "", xerrors.Errorf("unmatched common name of signer: %q", signer.Subject.CommonName)
+		return "", fmt.Errorf("unmatched common name of signer: %q", signer.Subject.CommonName)
 	}
 	if options.Intermediates == nil {
 		options.Intermediates = x509.NewCertPool()
 		for _, cert := range Certificates {
 			block, rest := pem.Decode([]byte(cert))
 			if len(rest) != 0 {
-				return "", xerrors.Errorf("invalid certificate. %d bytes remain", len(rest))
+				return "", fmt.Errorf("invalid certificate. %d bytes remain", len(rest))
 			}
 			cert, err := x509.ParseCertificate(block.Bytes)
 			if err != nil {
-				return "", xerrors.Errorf("parse certificate: %w", err)
+				return "", fmt.Errorf("parse certificate: %w", err)
 			}
 			options.Intermediates.AddCert(cert)
 		}
 	}
-
 	_, err = signer.Verify(options.VerifyOptions)
 	if err != nil {
 		if !errors.As(err, &x509.UnknownAuthorityError{}) {
-			return "", xerrors.Errorf("verify signature: %w", err)
+			return "", fmt.Errorf("verify signature: %w", err)
 		}
 		if options.Offline {
-			return "", xerrors.Errorf("certificate from %v is not cached: %w", signer.IssuingCertificateURL, err)
+			return "", fmt.Errorf("certificate from %v is not cached: %w", signer.IssuingCertificateURL, err)
 		}
-
 		ctx, cancelFunc := context.WithTimeout(ctx, 5*time.Second)
 		defer cancelFunc()
 		for _, certURL := range signer.IssuingCertificateURL {
 			req, err := http.NewRequestWithContext(ctx, "GET", certURL, nil)
 			if err != nil {
-				return "", xerrors.Errorf("new request %q: %w", certURL, err)
+				return "", fmt.Errorf("new request %q: %w", certURL, err)
 			}
 			res, err := http.DefaultClient.Do(req)
 			if err != nil {
-				return "", xerrors.Errorf("no cached certificate for %q found. error fetching: %w", certURL, err)
+				return "", fmt.Errorf("no cached certificate for %q found. error fetching: %w", certURL, err)
 			}
 			data, err := io.ReadAll(res.Body)
 			if err != nil {
 				_ = res.Body.Close()
-				return "", xerrors.Errorf("read body %q: %w", certURL, err)
+				return "", fmt.Errorf("read body %q: %w", certURL, err)
 			}
 			_ = res.Body.Close()
 			cert, err := x509.ParseCertificate(data)
 			if err != nil {
-				return "", xerrors.Errorf("parse certificate %q: %w", certURL, err)
+				return "", fmt.Errorf("parse certificate %q: %w", certURL, err)
 			}
 			options.Intermediates.AddCert(cert)
 		}
@@ -106,15 +97,13 @@ func Validate(ctx context.Context, signature string, options Options) (string, e
 			return "", err
 		}
 	}
-
 	var metadata metadata
 	err = json.Unmarshal(pkcs7Data.Content, &metadata)
 	if err != nil {
-		return "", xerrors.Errorf("unmarshal metadata: %w", err)
+		return "", fmt.Errorf("unmarshal metadata: %w", err)
 	}
 	return metadata.VMID, nil
 }
-
 // Certificates are manually downloaded from Azure, then processed with OpenSSL
 // and added here. See: https://learn.microsoft.com/en-us/azure/security/fundamentals/azure-ca-details
 //

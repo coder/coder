@@ -1,19 +1,15 @@
 package coderd
-
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
-
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
 )
-
 // @Summary Update notification template dispatch method
 // @ID update-notification-template-dispatch-method
 // @Security CoderSessionToken
@@ -35,12 +31,10 @@ func (api *API) updateNotificationTemplateMethod(rw http.ResponseWriter, r *http
 			Action:  database.AuditActionWrite,
 		})
 	)
-
 	var req codersdk.UpdateNotificationTemplateMethod
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-
 	var nm database.NullNotificationMethod
 	if err := nm.Scan(req.Method); err != nil || !nm.Valid || !nm.NotificationMethod.Valid() {
 		vals := database.AllNotificationMethodValues()
@@ -48,7 +42,6 @@ func (api *API) updateNotificationTemplateMethod(rw http.ResponseWriter, r *http
 		for i, v := range vals {
 			acceptable[i] = string(v)
 		}
-
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid request to update notification template method",
 			Validations: []codersdk.ValidationError{
@@ -62,17 +55,14 @@ func (api *API) updateNotificationTemplateMethod(rw http.ResponseWriter, r *http
 		})
 		return
 	}
-
 	if template.Method == nm {
 		httpapi.Write(ctx, rw, http.StatusNotModified, codersdk.Response{
 			Message: "Notification template method unchanged.",
 		})
 		return
 	}
-
 	defer commitAudit()
 	aReq.Old = template
-
 	err := api.Database.InTx(func(tx database.Store) error {
 		var err error
 		template, err = api.Database.UpdateNotificationTemplateMethodByID(r.Context(), database.UpdateNotificationTemplateMethodByIDParams{
@@ -80,18 +70,15 @@ func (api *API) updateNotificationTemplateMethod(rw http.ResponseWriter, r *http
 			Method: nm,
 		})
 		if err != nil {
-			return xerrors.Errorf("failed to update notification template ID: %w", err)
+			return fmt.Errorf("failed to update notification template ID: %w", err)
 		}
-
 		return err
 	}, nil)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-
 	aReq.New = template
-
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
 		Message: "Successfully updated notification template method.",
 	})

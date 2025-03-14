@@ -1,65 +1,51 @@
 package cli
-
 import (
+	"errors"
 	"fmt"
 	"strings"
-
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil/levenshtein"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
 )
-
 type WorkspaceCLIAction int
-
 const (
 	WorkspaceCreate WorkspaceCLIAction = iota
 	WorkspaceStart
 	WorkspaceUpdate
 	WorkspaceRestart
 )
-
 type ParameterResolver struct {
 	lastBuildParameters       []codersdk.WorkspaceBuildParameter
 	sourceWorkspaceParameters []codersdk.WorkspaceBuildParameter
-
 	richParameters         []codersdk.WorkspaceBuildParameter
 	richParametersDefaults map[string]string
 	richParametersFile     map[string]string
 	ephemeralParameters    []codersdk.WorkspaceBuildParameter
-
 	promptRichParameters      bool
 	promptEphemeralParameters bool
 }
-
 func (pr *ParameterResolver) WithLastBuildParameters(params []codersdk.WorkspaceBuildParameter) *ParameterResolver {
 	pr.lastBuildParameters = params
 	return pr
 }
-
 func (pr *ParameterResolver) WithSourceWorkspaceParameters(params []codersdk.WorkspaceBuildParameter) *ParameterResolver {
 	pr.sourceWorkspaceParameters = params
 	return pr
 }
-
 func (pr *ParameterResolver) WithRichParameters(params []codersdk.WorkspaceBuildParameter) *ParameterResolver {
 	pr.richParameters = params
 	return pr
 }
-
 func (pr *ParameterResolver) WithEphemeralParameters(params []codersdk.WorkspaceBuildParameter) *ParameterResolver {
 	pr.ephemeralParameters = params
 	return pr
 }
-
 func (pr *ParameterResolver) WithRichParametersFile(fileMap map[string]string) *ParameterResolver {
 	pr.richParametersFile = fileMap
 	return pr
 }
-
 func (pr *ParameterResolver) WithRichParametersDefaults(params []codersdk.WorkspaceBuildParameter) *ParameterResolver {
 	if pr.richParametersDefaults == nil {
 		pr.richParametersDefaults = make(map[string]string)
@@ -69,21 +55,17 @@ func (pr *ParameterResolver) WithRichParametersDefaults(params []codersdk.Worksp
 	}
 	return pr
 }
-
 func (pr *ParameterResolver) WithPromptRichParameters(promptRichParameters bool) *ParameterResolver {
 	pr.promptRichParameters = promptRichParameters
 	return pr
 }
-
 func (pr *ParameterResolver) WithPromptEphemeralParameters(promptEphemeralParameters bool) *ParameterResolver {
 	pr.promptEphemeralParameters = promptEphemeralParameters
 	return pr
 }
-
 func (pr *ParameterResolver) Resolve(inv *serpent.Invocation, action WorkspaceCLIAction, templateVersionParameters []codersdk.TemplateVersionParameter) ([]codersdk.WorkspaceBuildParameter, error) {
 	var staged []codersdk.WorkspaceBuildParameter
 	var err error
-
 	staged = pr.resolveWithParametersMapFile(staged)
 	staged = pr.resolveWithCommandLineOrEnv(staged)
 	staged = pr.resolveWithSourceBuildParameters(staged, templateVersionParameters)
@@ -96,7 +78,6 @@ func (pr *ParameterResolver) Resolve(inv *serpent.Invocation, action WorkspaceCL
 	}
 	return staged, nil
 }
-
 func (pr *ParameterResolver) resolveWithParametersMapFile(resolved []codersdk.WorkspaceBuildParameter) []codersdk.WorkspaceBuildParameter {
 next:
 	for name, value := range pr.richParametersFile {
@@ -106,7 +87,6 @@ next:
 				continue next
 			}
 		}
-
 		resolved = append(resolved, codersdk.WorkspaceBuildParameter{
 			Name:  name,
 			Value: value,
@@ -114,7 +94,6 @@ next:
 	}
 	return resolved
 }
-
 func (pr *ParameterResolver) resolveWithCommandLineOrEnv(resolved []codersdk.WorkspaceBuildParameter) []codersdk.WorkspaceBuildParameter {
 nextRichParameter:
 	for _, richParameter := range pr.richParameters {
@@ -124,10 +103,8 @@ nextRichParameter:
 				continue nextRichParameter
 			}
 		}
-
 		resolved = append(resolved, richParameter)
 	}
-
 nextEphemeralParameter:
 	for _, ephemeralParameter := range pr.ephemeralParameters {
 		for i, r := range resolved {
@@ -136,48 +113,39 @@ nextEphemeralParameter:
 				continue nextEphemeralParameter
 			}
 		}
-
 		resolved = append(resolved, ephemeralParameter)
 	}
 	return resolved
 }
-
 func (pr *ParameterResolver) resolveWithLastBuildParameters(resolved []codersdk.WorkspaceBuildParameter, templateVersionParameters []codersdk.TemplateVersionParameter) []codersdk.WorkspaceBuildParameter {
 	if pr.promptRichParameters {
 		return resolved // don't pull parameters from last build
 	}
-
 next:
 	for _, buildParameter := range pr.lastBuildParameters {
 		tvp := findTemplateVersionParameter(buildParameter, templateVersionParameters)
 		if tvp == nil {
 			continue // it looks like this parameter is not present anymore
 		}
-
 		if tvp.Ephemeral {
 			continue // ephemeral parameters should not be passed to consecutive builds
 		}
-
 		if !tvp.Mutable {
 			continue // immutables should not be passed to consecutive builds
 		}
-
 		if len(tvp.Options) > 0 && !isValidTemplateParameterOption(buildParameter, tvp.Options) {
 			continue // do not propagate invalid options
 		}
-
 		for i, r := range resolved {
 			if r.Name == buildParameter.Name {
 				resolved[i].Value = buildParameter.Value
 				continue next
 			}
 		}
-
 		resolved = append(resolved, buildParameter)
 	}
 	return resolved
 }
-
 func (pr *ParameterResolver) resolveWithSourceBuildParameters(resolved []codersdk.WorkspaceBuildParameter, templateVersionParameters []codersdk.TemplateVersionParameter) []codersdk.WorkspaceBuildParameter {
 next:
 	for _, buildParameter := range pr.sourceWorkspaceParameters {
@@ -185,41 +153,34 @@ next:
 		if tvp == nil {
 			continue // it looks like this parameter is not present anymore
 		}
-
 		if tvp.Ephemeral {
 			continue // ephemeral parameters should not be passed to consecutive builds
 		}
-
 		for i, r := range resolved {
 			if r.Name == buildParameter.Name {
 				resolved[i].Value = buildParameter.Value
 				continue next
 			}
 		}
-
 		resolved = append(resolved, buildParameter)
 	}
 	return resolved
 }
-
 func (pr *ParameterResolver) verifyConstraints(resolved []codersdk.WorkspaceBuildParameter, action WorkspaceCLIAction, templateVersionParameters []codersdk.TemplateVersionParameter) error {
 	for _, r := range resolved {
 		tvp := findTemplateVersionParameter(r, templateVersionParameters)
 		if tvp == nil {
 			return templateVersionParametersNotFound(r.Name, templateVersionParameters)
 		}
-
 		if tvp.Ephemeral && !pr.promptEphemeralParameters && findWorkspaceBuildParameter(tvp.Name, pr.ephemeralParameters) == nil {
-			return xerrors.Errorf("ephemeral parameter %q can be used only with --prompt-ephemeral-parameters or --ephemeral-parameter flag", r.Name)
+			return fmt.Errorf("ephemeral parameter %q can be used only with --prompt-ephemeral-parameters or --ephemeral-parameter flag", r.Name)
 		}
-
 		if !tvp.Mutable && action != WorkspaceCreate {
-			return xerrors.Errorf("parameter %q is immutable and cannot be updated", r.Name)
+			return fmt.Errorf("parameter %q is immutable and cannot be updated", r.Name)
 		}
 	}
 	return nil
 }
-
 func (pr *ParameterResolver) resolveWithInput(resolved []codersdk.WorkspaceBuildParameter, inv *serpent.Invocation, action WorkspaceCLIAction, templateVersionParameters []codersdk.TemplateVersionParameter) ([]codersdk.WorkspaceBuildParameter, error) {
 	for _, tvp := range templateVersionParameters {
 		p := findWorkspaceBuildParameter(tvp.Name, resolved)
@@ -227,10 +188,8 @@ func (pr *ParameterResolver) resolveWithInput(resolved []codersdk.WorkspaceBuild
 			continue
 		}
 		// Parameter has not been resolved yet, so CLI needs to determine if user should input it.
-
 		firstTimeUse := pr.isFirstTimeUse(tvp.Name)
 		promptParameterOption := pr.isLastBuildParameterInvalidOption(tvp)
-
 		if (tvp.Ephemeral && pr.promptEphemeralParameters) ||
 			(action == WorkspaceCreate && tvp.Required) ||
 			(action == WorkspaceCreate && !tvp.Ephemeral) ||
@@ -242,7 +201,6 @@ func (pr *ParameterResolver) resolveWithInput(resolved []codersdk.WorkspaceBuild
 			if err != nil {
 				return nil, err
 			}
-
 			resolved = append(resolved, codersdk.WorkspaceBuildParameter{
 				Name:  tvp.Name,
 				Value: parameterValue,
@@ -253,16 +211,13 @@ func (pr *ParameterResolver) resolveWithInput(resolved []codersdk.WorkspaceBuild
 	}
 	return resolved, nil
 }
-
 func (pr *ParameterResolver) isFirstTimeUse(parameterName string) bool {
 	return findWorkspaceBuildParameter(parameterName, pr.lastBuildParameters) == nil
 }
-
 func (pr *ParameterResolver) isLastBuildParameterInvalidOption(templateVersionParameter codersdk.TemplateVersionParameter) bool {
 	if len(templateVersionParameter.Options) == 0 {
 		return false
 	}
-
 	for _, buildParameter := range pr.lastBuildParameters {
 		if buildParameter.Name == templateVersionParameter.Name {
 			return !isValidTemplateParameterOption(buildParameter, templateVersionParameter.Options)
@@ -270,7 +225,6 @@ func (pr *ParameterResolver) isLastBuildParameterInvalidOption(templateVersionPa
 	}
 	return false
 }
-
 func findTemplateVersionParameter(workspaceBuildParameter codersdk.WorkspaceBuildParameter, templateVersionParameters []codersdk.TemplateVersionParameter) *codersdk.TemplateVersionParameter {
 	for _, tvp := range templateVersionParameters {
 		if tvp.Name == workspaceBuildParameter.Name {
@@ -279,7 +233,6 @@ func findTemplateVersionParameter(workspaceBuildParameter codersdk.WorkspaceBuil
 	}
 	return nil
 }
-
 func findWorkspaceBuildParameter(parameterName string, params []codersdk.WorkspaceBuildParameter) *codersdk.WorkspaceBuildParameter {
 	for _, p := range params {
 		if p.Name == parameterName {
@@ -288,7 +241,6 @@ func findWorkspaceBuildParameter(parameterName string, params []codersdk.Workspa
 	}
 	return nil
 }
-
 func isValidTemplateParameterOption(buildParameter codersdk.WorkspaceBuildParameter, options []codersdk.TemplateVersionParameterOption) bool {
 	for _, opt := range options {
 		if opt.Value == buildParameter.Value {
@@ -297,7 +249,6 @@ func isValidTemplateParameterOption(buildParameter codersdk.WorkspaceBuildParame
 	}
 	return false
 }
-
 func templateVersionParametersNotFound(unknown string, params []codersdk.TemplateVersionParameter) error {
 	var sb strings.Builder
 	_, _ = sb.WriteString(fmt.Sprintf("parameter %q is not present in the template.", unknown))
@@ -311,5 +262,5 @@ func templateVersionParametersNotFound(unknown string, params []codersdk.Templat
 	if len(matches) > 0 {
 		_, _ = sb.WriteString(fmt.Sprintf("\nDid you mean: %s", strings.Join(matches, ", ")))
 	}
-	return xerrors.Errorf(sb.String())
+	return fmt.Errorf(sb.String())
 }

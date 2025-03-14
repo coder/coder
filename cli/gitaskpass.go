@@ -1,13 +1,9 @@
 package cli
-
 import (
 	"errors"
 	"fmt"
 	"net/http"
 	"time"
-
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/gitauth"
 	"github.com/coder/coder/v2/codersdk"
@@ -15,7 +11,6 @@ import (
 	"github.com/coder/retry"
 	"github.com/coder/serpent"
 )
-
 // gitAskpass is used by the Coder agent to automatically authenticate
 // with Git providers based on a hostname.
 func (r *RootCmd) gitAskpass() *serpent.Command {
@@ -24,20 +19,16 @@ func (r *RootCmd) gitAskpass() *serpent.Command {
 		Hidden: true,
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
-
 			ctx, stop := inv.SignalNotifyContext(ctx, StopSignals...)
 			defer stop()
-
 			user, host, err := gitauth.ParseAskpass(inv.Args[0])
 			if err != nil {
-				return xerrors.Errorf("parse host: %w", err)
+				return fmt.Errorf("parse host: %w", err)
 			}
-
 			client, err := r.createAgentClient()
 			if err != nil {
-				return xerrors.Errorf("create agent client: %w", err)
+				return fmt.Errorf("create agent client: %w", err)
 			}
-
 			token, err := client.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{
 				Match: host,
 			})
@@ -55,7 +46,7 @@ func (r *RootCmd) gitAskpass() *serpent.Command {
 					)
 					return cliui.Canceled
 				}
-				return xerrors.Errorf("get git token: %w", err)
+				return fmt.Errorf("get git token: %w", err)
 			}
 			if token.URL != "" {
 				if err := openURL(inv, token.URL); err == nil {
@@ -63,7 +54,6 @@ func (r *RootCmd) gitAskpass() *serpent.Command {
 				} else {
 					cliui.Infof(inv.Stderr, "Open the following URL to authenticate with Git:\n%s", token.URL)
 				}
-
 				for r := retry.New(250*time.Millisecond, 10*time.Second); r.Wait(ctx); {
 					token, err = client.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{
 						Match:  host,
@@ -76,7 +66,6 @@ func (r *RootCmd) gitAskpass() *serpent.Command {
 					break
 				}
 			}
-
 			if token.Password != "" {
 				if user == "" {
 					_, _ = fmt.Fprintln(inv.Stdout, token.Username)
@@ -86,7 +75,6 @@ func (r *RootCmd) gitAskpass() *serpent.Command {
 			} else {
 				_, _ = fmt.Fprintln(inv.Stdout, token.Username)
 			}
-
 			return nil
 		},
 	}

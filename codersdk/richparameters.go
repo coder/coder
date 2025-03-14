@@ -1,30 +1,23 @@
 package codersdk
-
 import (
+	"fmt"
+	"errors"
 	"strconv"
-
-	"golang.org/x/xerrors"
-
 	"github.com/coder/terraform-provider-coder/v2/provider"
 )
-
 func ValidateNewWorkspaceParameters(richParameters []TemplateVersionParameter, buildParameters []WorkspaceBuildParameter) error {
 	return ValidateWorkspaceBuildParameters(richParameters, buildParameters, nil)
 }
-
 func ValidateWorkspaceBuildParameters(richParameters []TemplateVersionParameter, buildParameters, lastBuildParameters []WorkspaceBuildParameter) error {
 	for _, richParameter := range richParameters {
 		buildParameter, foundBuildParameter := findBuildParameter(buildParameters, richParameter.Name)
 		lastBuildParameter, foundLastBuildParameter := findBuildParameter(lastBuildParameters, richParameter.Name)
-
 		if richParameter.Required && !foundBuildParameter && !foundLastBuildParameter {
-			return xerrors.Errorf("workspace build parameter %q is required", richParameter.Name)
+			return fmt.Errorf("workspace build parameter %q is required", richParameter.Name)
 		}
-
 		if !foundBuildParameter && foundLastBuildParameter {
 			continue // previous build parameters have been validated before the last build
 		}
-
 		err := ValidateWorkspaceBuildParameter(richParameter, buildParameter, lastBuildParameter)
 		if err != nil {
 			return err
@@ -32,7 +25,6 @@ func ValidateWorkspaceBuildParameters(richParameters []TemplateVersionParameter,
 	}
 	return nil
 }
-
 func ValidateWorkspaceBuildParameter(richParameter TemplateVersionParameter, buildParameter *WorkspaceBuildParameter, lastBuildParameter *WorkspaceBuildParameter) error {
 	err := validateBuildParameter(richParameter, buildParameter, lastBuildParameter)
 	if err != nil {
@@ -40,49 +32,41 @@ func ValidateWorkspaceBuildParameter(richParameter TemplateVersionParameter, bui
 		if richParameter.DisplayName != "" {
 			name = richParameter.DisplayName
 		}
-		return xerrors.Errorf("can't validate build parameter %q: %w", name, err)
+		return fmt.Errorf("can't validate build parameter %q: %w", name, err)
 	}
 	return nil
 }
-
 func validateBuildParameter(richParameter TemplateVersionParameter, buildParameter *WorkspaceBuildParameter, lastBuildParameter *WorkspaceBuildParameter) error {
 	var value string
-
 	if buildParameter != nil {
 		value = buildParameter.Value
 	}
-
 	if richParameter.Required && value == "" {
-		return xerrors.Errorf("parameter value is required")
+		return fmt.Errorf("parameter value is required")
 	}
-
 	if value == "" { // parameter is optional, so take the default value
 		value = richParameter.DefaultValue
 	}
-
 	if lastBuildParameter != nil && lastBuildParameter.Value != "" && richParameter.Type == "number" && len(richParameter.ValidationMonotonic) > 0 {
 		prev, err := strconv.Atoi(lastBuildParameter.Value)
 		if err != nil {
-			return xerrors.Errorf("previous parameter value is not a number: %s", lastBuildParameter.Value)
+			return fmt.Errorf("previous parameter value is not a number: %s", lastBuildParameter.Value)
 		}
-
 		current, err := strconv.Atoi(buildParameter.Value)
 		if err != nil {
-			return xerrors.Errorf("current parameter value is not a number: %s", buildParameter.Value)
+			return fmt.Errorf("current parameter value is not a number: %s", buildParameter.Value)
 		}
-
 		switch richParameter.ValidationMonotonic {
 		case MonotonicOrderIncreasing:
 			if prev > current {
-				return xerrors.Errorf("parameter value must be equal or greater than previous value: %d", prev)
+				return fmt.Errorf("parameter value must be equal or greater than previous value: %d", prev)
 			}
 		case MonotonicOrderDecreasing:
 			if prev < current {
-				return xerrors.Errorf("parameter value must be equal or lower than previous value: %d", prev)
+				return fmt.Errorf("parameter value must be equal or lower than previous value: %d", prev)
 			}
 		}
 	}
-
 	if len(richParameter.Options) > 0 {
 		var matched bool
 		for _, opt := range richParameter.Options {
@@ -91,17 +75,14 @@ func validateBuildParameter(richParameter TemplateVersionParameter, buildParamet
 				break
 			}
 		}
-
 		if !matched {
-			return xerrors.Errorf("parameter value must match one of options: %s", parameterValuesAsArray(richParameter.Options))
+			return fmt.Errorf("parameter value must match one of options: %s", parameterValuesAsArray(richParameter.Options))
 		}
 		return nil
 	}
-
 	if !validationEnabled(richParameter) {
 		return nil
 	}
-
 	var min, max int
 	if richParameter.ValidationMin != nil {
 		min = int(*richParameter.ValidationMin)
@@ -109,7 +90,6 @@ func validateBuildParameter(richParameter TemplateVersionParameter, buildParamet
 	if richParameter.ValidationMax != nil {
 		max = int(*richParameter.ValidationMax)
 	}
-
 	validation := &provider.Validation{
 		Min:         min,
 		Max:         max,
@@ -121,12 +101,10 @@ func validateBuildParameter(richParameter TemplateVersionParameter, buildParamet
 	}
 	return validation.Valid(richParameter.Type, value)
 }
-
 func findBuildParameter(params []WorkspaceBuildParameter, parameterName string) (*WorkspaceBuildParameter, bool) {
 	if params == nil {
 		return nil, false
 	}
-
 	for _, p := range params {
 		if p.Name == parameterName {
 			return &p, true
@@ -134,7 +112,6 @@ func findBuildParameter(params []WorkspaceBuildParameter, parameterName string) 
 	}
 	return nil, false
 }
-
 func parameterValuesAsArray(options []TemplateVersionParameterOption) []string {
 	var arr []string
 	for _, opt := range options {
@@ -142,7 +119,6 @@ func parameterValuesAsArray(options []TemplateVersionParameterOption) []string {
 	}
 	return arr
 }
-
 func validationEnabled(param TemplateVersionParameter) bool {
 	return len(param.ValidationRegex) > 0 ||
 		param.ValidationMin != nil ||
@@ -151,7 +127,6 @@ func validationEnabled(param TemplateVersionParameter) bool {
 		param.Type == "bool" || // boolean type doesn't have any custom validation rules, but the value must be checked (true/false).
 		param.Type == "list(string)" // list(string) type doesn't have special validation, but we need to check if this is a correct list.
 }
-
 // ParameterResolver should be populated with legacy workload and rich parameter values from the previous build.  It then
 // supports queries against a current TemplateVersionParameter to determine whether a new value is required, or a value
 // correctly validates.
@@ -159,16 +134,15 @@ func validationEnabled(param TemplateVersionParameter) bool {
 type ParameterResolver struct {
 	Rich []WorkspaceBuildParameter
 }
-
 // ValidateResolve checks the provided value, v, against the parameter, p, and the previous build.  If v is nil, it also
 // resolves the correct value.  It returns the value of the parameter, if valid, and an error if invalid.
 func (r *ParameterResolver) ValidateResolve(p TemplateVersionParameter, v *WorkspaceBuildParameter) (value string, err error) {
 	prevV := r.findLastValue(p)
 	if !p.Mutable && v != nil && prevV != nil {
-		return "", xerrors.Errorf("Parameter %q is not mutable, so it can't be updated after creating a workspace.", p.Name)
+		return "", fmt.Errorf("Parameter %q is not mutable, so it can't be updated after creating a workspace.", p.Name)
 	}
 	if p.Required && v == nil && prevV == nil {
-		return "", xerrors.Errorf("Parameter %q is required but not provided", p.Name)
+		return "", fmt.Errorf("Parameter %q is required but not provided", p.Name)
 	}
 	// First, the provided value
 	resolvedValue := v
@@ -189,7 +163,6 @@ func (r *ParameterResolver) ValidateResolve(p TemplateVersionParameter, v *Works
 	}
 	return resolvedValue.Value, nil
 }
-
 // findLastValue finds the value from the previous build and returns it, or nil if the parameter had no value in the
 // last build.
 func (r *ParameterResolver) findLastValue(p TemplateVersionParameter) *WorkspaceBuildParameter {

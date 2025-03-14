@@ -1,5 +1,4 @@
 package coderd
-
 import (
 	"context"
 	"database/sql"
@@ -13,7 +12,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
@@ -21,15 +19,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/oauth2"
-	"golang.org/x/xerrors"
-
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/util/ptr"
-
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -46,34 +41,27 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 )
-
 type MergedClaimsSource string
-
 var (
 	MergedClaimsSourceNone        MergedClaimsSource = "none"
 	MergedClaimsSourceUserInfo    MergedClaimsSource = "user_info"
 	MergedClaimsSourceAccessToken MergedClaimsSource = "access_token"
 )
-
 const (
 	userAuthLoggerName      = "userauth"
 	OAuthConvertCookieValue = "coder_oauth_convert_jwt"
 	mergeStateStringPrefix  = "convert-"
 )
-
 type OAuthConvertStateClaims struct {
 	jwtutils.RegisteredClaims
-
 	UserID        uuid.UUID          `json:"user_id"`
 	State         string             `json:"state"`
 	FromLoginType codersdk.LoginType `json:"from_login_type"`
 	ToLoginType   codersdk.LoginType `json:"to_login_type"`
 }
-
 func (o *OAuthConvertStateClaims) Validate(e jwt.Expected) error {
 	return o.RegisteredClaims.Validate(e)
 }
-
 // postConvertLoginType replies with an oauth state token capable of converting
 // the user to an oauth user.
 //
@@ -101,12 +89,10 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 	)
 	aReq.Old = database.AuditOAuthConvertState{}
 	defer commitAudit()
-
 	var req codersdk.ConvertLoginRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-
 	switch req.ToType {
 	case codersdk.LoginTypeGithub, codersdk.LoginTypeOIDC:
 		// Allowed!
@@ -122,7 +108,6 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	// This handles the email/pass checking.
 	user, _, ok := api.loginRequest(ctx, rw, codersdk.LoginWithPasswordRequest{
 		Email:    user.Email,
@@ -131,7 +116,6 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-
 	// Only support converting from password auth.
 	if user.LoginType != database.LoginTypePassword {
 		// This is checked in loginRequest, but checked again here in case that shared
@@ -143,7 +127,6 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	stateString, err := cryptorand.String(32)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -155,7 +138,6 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 	// The prefix is used to identify this state string as a conversion state
 	// without needing to hit the database. The random string is the CSRF protection.
 	stateString = fmt.Sprintf("%s%s", mergeStateStringPrefix, stateString)
-
 	// This JWT is the signed payload to authorize the convert to oauth request.
 	// When the user does the oauth flow, this jwt will be sent back to coderd.
 	// The included information in this payload links it to a state string, so
@@ -180,7 +162,6 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 		FromLoginType: codersdk.LoginType(user.LoginType),
 		ToLoginType:   req.ToType,
 	}
-
 	token, err := jwtutils.Sign(ctx, api.OIDCConvertKeyCache, claims)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -189,7 +170,6 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	aReq.New = database.AuditOAuthConvertState{
 		CreatedAt:     claims.IssuedAt.Time(),
 		ExpiresAt:     claims.Expiry.Time(),
@@ -197,7 +177,6 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 		ToLoginType:   database.LoginType(claims.ToLoginType),
 		UserID:        claims.UserID,
 	}
-
 	http.SetCookie(rw, &http.Cookie{
 		Name:     OAuthConvertCookieValue,
 		Path:     "/",
@@ -216,7 +195,6 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 		UserID:      claims.UserID,
 	})
 }
-
 // Requests a one-time passcode for a user.
 //
 // @Summary Request one-time passcode
@@ -239,25 +217,21 @@ func (api *API) postRequestOneTimePasscode(rw http.ResponseWriter, r *http.Reque
 		})
 	)
 	defer commitAudit()
-
 	if api.DeploymentValues.DisablePasswordAuth {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Password authentication is disabled.",
 		})
 		return
 	}
-
 	var req codersdk.RequestOneTimePasscodeRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-
 	defer func() {
 		// We always send the same response. If we give a more detailed response
 		// it would open us up to an enumeration attack.
 		rw.WriteHeader(http.StatusNoContent)
 	}()
-
 	//nolint:gocritic // In order to request a one-time passcode, we need to get the user first - and can only do that in the system auth context.
 	user, err := api.Database.GetUserByEmailOrUsername(dbauthz.AsSystemRestricted(ctx), database.GetUserByEmailOrUsernameParams{
 		Email: req.Email,
@@ -269,16 +243,13 @@ func (api *API) postRequestOneTimePasscode(rw http.ResponseWriter, r *http.Reque
 	// We continue if err == sql.ErrNoRows to help prevent a timing-based attack.
 	aReq.Old = user
 	aReq.UserID = user.ID
-
 	passcode := uuid.New()
 	passcodeExpiresAt := dbtime.Now().Add(api.OneTimePasscodeValidityPeriod)
-
 	hashedPasscode, err := userpassword.Hash(passcode.String())
 	if err != nil {
 		logger.Error(ctx, "unable to hash passcode", slog.Error(err))
 		return
 	}
-
 	//nolint:gocritic // We need the system auth context to be able to save the one-time passcode.
 	err = api.Database.UpdateUserHashedOneTimePasscode(dbauthz.AsSystemRestricted(ctx), database.UpdateUserHashedOneTimePasscodeParams{
 		ID:                       user.ID,
@@ -289,12 +260,10 @@ func (api *API) postRequestOneTimePasscode(rw http.ResponseWriter, r *http.Reque
 		logger.Error(ctx, "unable to set user hashed one-time passcode", slog.Error(err))
 		return
 	}
-
 	auditUser := user
 	auditUser.HashedOneTimePasscode = []byte(hashedPasscode)
 	auditUser.OneTimePasscodeExpiresAt = sql.NullTime{Time: passcodeExpiresAt, Valid: true}
 	aReq.New = auditUser
-
 	if user.ID != uuid.Nil {
 		// Send the one-time passcode to the user.
 		err = api.notifyUserRequestedOneTimePasscode(ctx, user, passcode.String())
@@ -305,7 +274,6 @@ func (api *API) postRequestOneTimePasscode(rw http.ResponseWriter, r *http.Reque
 		logger.Warn(ctx, "password reset requested for account that does not exist", slog.F("email", req.Email))
 	}
 }
-
 func (api *API) notifyUserRequestedOneTimePasscode(ctx context.Context, user database.User, passcode string) error {
 	_, err := api.NotificationsEnqueuer.Enqueue(
 		//nolint:gocritic // We need the notifier auth context to be able to send the user their one-time passcode.
@@ -317,12 +285,10 @@ func (api *API) notifyUserRequestedOneTimePasscode(ctx context.Context, user dat
 		user.ID,
 	)
 	if err != nil {
-		return xerrors.Errorf("enqueue notification: %w", err)
+		return fmt.Errorf("enqueue notification: %w", err)
 	}
-
 	return nil
 }
-
 // Change a users password with a one-time passcode.
 //
 // @Summary Change password with a one-time passcode
@@ -346,19 +312,16 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 		})
 	)
 	defer commitAudit()
-
 	if api.DeploymentValues.DisablePasswordAuth {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Password authentication is disabled.",
 		})
 		return
 	}
-
 	var req codersdk.ChangePasswordWithOneTimePasscodeRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-
 	if err := userpassword.Validate(req.Password); err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid password.",
@@ -371,7 +334,6 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 		})
 		return
 	}
-
 	err = api.Database.InTx(func(tx database.Store) error {
 		//nolint:gocritic // In order to change a user's password, we need to get the user first - and can only do that in the system auth context.
 		user, err := tx.GetUserByEmailOrUsername(dbauthz.AsSystemRestricted(ctx), database.GetUserByEmailOrUsernameParams{
@@ -379,18 +341,16 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 		})
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			logger.Error(ctx, "unable to fetch user by email", slog.F("email", req.Email), slog.Error(err))
-			return xerrors.Errorf("get user by email: %w", err)
+			return fmt.Errorf("get user by email: %w", err)
 		}
 		// We continue if err == sql.ErrNoRows to help prevent a timing-based attack.
 		aReq.Old = user
 		aReq.UserID = user.ID
-
 		equal, err := userpassword.Compare(string(user.HashedOneTimePasscode), req.OneTimePasscode)
 		if err != nil {
 			logger.Error(ctx, "unable to compare one-time passcode", slog.Error(err))
-			return xerrors.Errorf("compare one-time passcode: %w", err)
+			return fmt.Errorf("compare one-time passcode: %w", err)
 		}
-
 		now := dbtime.Now()
 		if !equal || now.After(user.OneTimePasscodeExpiresAt.Time) {
 			logger.Warn(ctx, "password reset attempted with invalid or expired one-time passcode", slog.F("email", req.Email))
@@ -399,26 +359,22 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 			})
 			return nil
 		}
-
 		equal, err = userpassword.Compare(string(user.HashedPassword), req.Password)
 		if err != nil {
 			logger.Error(ctx, "unable to compare password", slog.Error(err))
-			return xerrors.Errorf("compare password: %w", err)
+			return fmt.Errorf("compare password: %w", err)
 		}
-
 		if equal {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "New password cannot match old password.",
 			})
 			return nil
 		}
-
 		newHashedPassword, err := userpassword.Hash(req.Password)
 		if err != nil {
 			logger.Error(ctx, "unable to hash user's password", slog.Error(err))
-			return xerrors.Errorf("hash user password: %w", err)
+			return fmt.Errorf("hash user password: %w", err)
 		}
-
 		//nolint:gocritic // We need the system auth context to be able to update the user's password.
 		err = tx.UpdateUserHashedPassword(dbauthz.AsSystemRestricted(ctx), database.UpdateUserHashedPasswordParams{
 			ID:             user.ID,
@@ -426,24 +382,20 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 		})
 		if err != nil {
 			logger.Error(ctx, "unable to delete user's hashed password", slog.Error(err))
-			return xerrors.Errorf("update user hashed password: %w", err)
+			return fmt.Errorf("update user hashed password: %w", err)
 		}
-
 		//nolint:gocritic // We need the system auth context to be able to delete all API keys for the user.
 		err = tx.DeleteAPIKeysByUserID(dbauthz.AsSystemRestricted(ctx), user.ID)
 		if err != nil {
 			logger.Error(ctx, "unable to delete user's api keys", slog.Error(err))
-			return xerrors.Errorf("delete api keys for user: %w", err)
+			return fmt.Errorf("delete api keys for user: %w", err)
 		}
-
 		auditUser := user
 		auditUser.HashedPassword = []byte(newHashedPassword)
 		auditUser.OneTimePasscodeExpiresAt = sql.NullTime{}
 		auditUser.HashedOneTimePasscode = nil
 		aReq.New = auditUser
-
 		rw.WriteHeader(http.StatusNoContent)
-
 		return nil
 	}, nil)
 	if err != nil {
@@ -454,7 +406,6 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 		return
 	}
 }
-
 // ValidateUserPassword validates the complexity of a user password and that it is secured enough.
 //
 // @Summary Validate user password
@@ -472,24 +423,20 @@ func (*API) validateUserPassword(rw http.ResponseWriter, r *http.Request) {
 		valid   = true
 		details = ""
 	)
-
 	var req codersdk.ValidateUserPasswordRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-
 	err := userpassword.Validate(req.Password)
 	if err != nil {
 		valid = false
 		details = err.Error()
 	}
-
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ValidateUserPasswordResponse{
 		Valid:   valid,
 		Details: details,
 	})
 }
-
 // Authenticates the user with an email and password.
 //
 // @Summary Log in user
@@ -514,12 +461,10 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 	)
 	aReq.Old = database.APIKey{}
 	defer commitAudit()
-
 	var loginWithPassword codersdk.LoginWithPasswordRequest
 	if !httpapi.Read(ctx, rw, r, &loginWithPassword) {
 		return
 	}
-
 	user, actor, ok := api.loginRequest(ctx, rw, loginWithPassword)
 	// 'user.ID' will be empty, or will be an actual value. Either is correct
 	// here.
@@ -528,7 +473,6 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		// user failed to login
 		return
 	}
-
 	//nolint:gocritic // Creating the API key as the user instead of as system.
 	cookie, key, err := api.createAPIKey(dbauthz.As(ctx, actor), apikey.CreateParams{
 		UserID:          user.ID,
@@ -544,16 +488,12 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	aReq.New = *key
-
 	http.SetCookie(rw, cookie)
-
 	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.LoginWithPasswordResponse{
 		SessionToken: cookie.Value,
 	})
 }
-
 // loginRequest will process a LoginWithPasswordRequest and return the user if
 // the credentials are correct. If 'false' is returned, the authentication failed
 // and the appropriate error will be written to the ResponseWriter.
@@ -562,19 +502,17 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 // to support knowing what user attempted to login.
 func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req codersdk.LoginWithPasswordRequest) (database.User, rbac.Subject, bool) {
 	logger := api.Logger.Named(userAuthLoggerName)
-
 	//nolint:gocritic // In order to login, we need to get the user first!
 	user, err := api.Database.GetUserByEmailOrUsername(dbauthz.AsSystemRestricted(ctx), database.GetUserByEmailOrUsernameParams{
 		Email: req.Email,
 	})
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		logger.Error(ctx, "unable to fetch user by email", slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error.",
 		})
 		return user, rbac.Subject{}, false
 	}
-
 	// If the user doesn't exist, it will be a default struct.
 	equal, err := userpassword.Compare(string(user.HashedPassword), req.Password)
 	if err != nil {
@@ -584,7 +522,6 @@ func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req co
 		})
 		return user, rbac.Subject{}, false
 	}
-
 	if !equal {
 		// This message is the same as above to remove ease in detecting whether
 		// users are registered or not. Attackers still could with a timing attack.
@@ -593,7 +530,6 @@ func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req co
 		})
 		return user, rbac.Subject{}, false
 	}
-
 	// If password authentication is disabled and the user does not have the
 	// owner role, block the request.
 	if api.DeploymentValues.DisablePasswordAuth {
@@ -602,14 +538,12 @@ func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req co
 		})
 		return user, rbac.Subject{}, false
 	}
-
 	if user.LoginType != database.LoginTypePassword {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: fmt.Sprintf("Incorrect login type, attempting to use %q but user is of login type %q", database.LoginTypePassword, user.LoginType),
 		})
 		return user, rbac.Subject{}, false
 	}
-
 	user, err = ActivateDormantUser(api.Logger, &api.Auditor, api.Database)(ctx, user)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -618,7 +552,6 @@ func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req co
 		})
 		return user, rbac.Subject{}, false
 	}
-
 	subject, userStatus, err := httpmw.UserRBACSubject(ctx, api.Database, user.ID, rbac.ScopeAll)
 	if err != nil {
 		logger.Error(ctx, "unable to fetch authorization user roles", slog.Error(err))
@@ -627,7 +560,6 @@ func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req co
 		})
 		return user, rbac.Subject{}, false
 	}
-
 	// If the user logged into a suspended account, reject the login request.
 	if userStatus != database.UserStatusActive {
 		httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
@@ -635,16 +567,13 @@ func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req co
 		})
 		return user, rbac.Subject{}, false
 	}
-
 	return user, subject, true
 }
-
 func ActivateDormantUser(logger slog.Logger, auditor *atomic.Pointer[audit.Auditor], db database.Store) func(ctx context.Context, user database.User) (database.User, error) {
 	return func(ctx context.Context, user database.User) (database.User, error) {
 		if user.ID == uuid.Nil || user.Status != database.UserStatusDormant {
 			return user, nil
 		}
-
 		//nolint:gocritic // System needs to update status of the user account (dormant -> active).
 		newUser, err := db.UpdateUserStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateUserStatusParams{
 			ID:        user.ID,
@@ -653,13 +582,11 @@ func ActivateDormantUser(logger slog.Logger, auditor *atomic.Pointer[audit.Audit
 		})
 		if err != nil {
 			logger.Error(ctx, "unable to update user status to active", slog.Error(err))
-			return user, xerrors.Errorf("update user status: %w", err)
+			return user, fmt.Errorf("update user status: %w", err)
 		}
-
 		oldAuditUser := user
 		newAuditUser := user
 		newAuditUser.Status = database.UserStatusActive
-
 		audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.User]{
 			Audit:            *auditor.Load(),
 			Log:              logger,
@@ -670,11 +597,9 @@ func ActivateDormantUser(logger slog.Logger, auditor *atomic.Pointer[audit.Audit
 			Status:           http.StatusOK,
 			AdditionalFields: audit.BackgroundTaskFieldsBytes(ctx, logger, audit.BackgroundSubsystemDormancy),
 		})
-
 		return newUser, nil
 	}
 }
-
 // Clear the user's session cookie.
 //
 // @Summary Log out user
@@ -696,7 +621,6 @@ func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 		})
 	)
 	defer commitAudit()
-
 	// Get a blank token cookie.
 	cookie := &http.Cookie{
 		// MaxAge < 0 means to delete the cookie now.
@@ -705,13 +629,10 @@ func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 		Path:   "/",
 	}
 	http.SetCookie(rw, cookie)
-
 	// Delete the session token from database.
 	apiKey := httpmw.APIKey(r)
 	aReq.Old = apiKey
-
 	logger := api.Logger.Named(userAuthLoggerName)
-
 	err := api.Database.DeleteAPIKeyByID(ctx, apiKey.ID)
 	if err != nil {
 		logger.Error(ctx, "unable to delete API key", slog.F("api_key", apiKey.ID), slog.Error(err))
@@ -721,7 +642,6 @@ func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	// Invalidate all subdomain app tokens. This saves us from having to
 	// track which app tokens are associated which this browser session and
 	// doesn't inconvenience the user as they'll just get redirected if they try
@@ -735,20 +655,16 @@ func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	aReq.New = database.APIKey{}
-
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
 		Message: "Logged out!",
 	})
 }
-
 // GithubOAuth2Team represents a team scoped to an organization.
 type GithubOAuth2Team struct {
 	Organization string
 	Slug         string
 }
-
 // GithubOAuth2Provider exposes required functions for the Github authentication flow.
 type GithubOAuth2Config struct {
 	promoauth.OAuth2Config
@@ -756,26 +672,21 @@ type GithubOAuth2Config struct {
 	ListEmails                  func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error)
 	ListOrganizationMemberships func(ctx context.Context, client *http.Client) ([]*github.Membership, error)
 	TeamMembership              func(ctx context.Context, client *http.Client, org, team, username string) (*github.Membership, error)
-
 	DeviceFlowEnabled  bool
 	ExchangeDeviceCode func(ctx context.Context, deviceCode string) (*oauth2.Token, error)
 	AuthorizeDevice    func(ctx context.Context) (*codersdk.ExternalAuthDevice, error)
-
 	AllowSignups       bool
 	AllowEveryone      bool
 	AllowOrganizations []string
 	AllowTeams         []GithubOAuth2Team
-
 	DefaultProviderConfigured bool
 }
-
 func (c *GithubOAuth2Config) Exchange(ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
 	if !c.DeviceFlowEnabled {
 		return c.OAuth2Config.Exchange(ctx, code, opts...)
 	}
 	return c.ExchangeDeviceCode(ctx, code)
 }
-
 func (c *GithubOAuth2Config) AuthCodeURL(state string, opts ...oauth2.AuthCodeOption) string {
 	if !c.DeviceFlowEnabled {
 		return c.OAuth2Config.AuthCodeURL(state, opts...)
@@ -784,7 +695,6 @@ func (c *GithubOAuth2Config) AuthCodeURL(state string, opts ...oauth2.AuthCodeOp
 	// by the Coder frontend, so we need to redirect the user to the device flow page.
 	return "/login/device?state=" + state
 }
-
 // @Summary Get authentication methods
 // @ID get-authentication-methods
 // @Security CoderSessionToken
@@ -795,14 +705,12 @@ func (c *GithubOAuth2Config) AuthCodeURL(state string, opts ...oauth2.AuthCodeOp
 func (api *API) userAuthMethods(rw http.ResponseWriter, r *http.Request) {
 	var signInText string
 	var iconURL string
-
 	if api.OIDCConfig != nil {
 		signInText = api.OIDCConfig.SignInText
 	}
 	if api.OIDCConfig != nil {
 		iconURL = api.OIDCConfig.IconURL
 	}
-
 	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.AuthMethods{
 		TermsOfServiceURL: api.DeploymentValues.TermsOfServiceURL.Value(),
 		Password: codersdk.AuthMethod{
@@ -819,7 +727,6 @@ func (api *API) userAuthMethods(rw http.ResponseWriter, r *http.Request) {
 		},
 	})
 }
-
 // @Summary Get Github device auth.
 // @ID get-github-device-auth
 // @Security CoderSessionToken
@@ -840,21 +747,18 @@ func (api *API) userOAuth2GithubDevice(rw http.ResponseWriter, r *http.Request) 
 	)
 	aReq.Old = database.APIKey{}
 	defer commitAudit()
-
 	if api.GithubOAuth2Config == nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Github OAuth2 is not enabled.",
 		})
 		return
 	}
-
 	if !api.GithubOAuth2Config.DeviceFlowEnabled {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Device flow is not enabled for Github OAuth2.",
 		})
 		return
 	}
-
 	deviceAuth, err := api.GithubOAuth2Config.AuthorizeDevice(ctx)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -863,10 +767,8 @@ func (api *API) userOAuth2GithubDevice(rw http.ResponseWriter, r *http.Request) 
 		})
 		return
 	}
-
 	httpapi.Write(ctx, rw, http.StatusOK, deviceAuth)
 }
-
 // @Summary OAuth 2.0 GitHub Callback
 // @ID oauth-20-github-callback
 // @Security CoderSessionToken
@@ -889,11 +791,8 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	)
 	aReq.Old = database.APIKey{}
 	defer commitAudit()
-
 	oauthClient := oauth2.NewClient(ctx, oauth2.StaticTokenSource(state.Token))
-
 	logger := api.Logger.Named(userAuthLoggerName)
-
 	var selectedMemberships []*github.Membership
 	var organizationNames []string
 	redirect := state.Redirect
@@ -907,7 +806,6 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-
 		for _, membership := range memberships {
 			if membership.GetState() != "active" {
 				continue
@@ -936,7 +834,6 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-
 	ghUser, err := api.GithubOAuth2Config.AuthenticatedUser(ctx, oauthClient)
 	if err != nil {
 		logger.Error(ctx, "oauth2: unable to fetch authenticated user", slog.Error(err))
@@ -946,7 +843,6 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	// The default if no teams are specified is to allow all.
 	if !api.GithubOAuth2Config.AllowEveryone && len(api.GithubOAuth2Config.AllowTeams) > 0 {
 		var allowedTeam *github.Membership
@@ -960,7 +856,6 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 					// could exist in the allow/team listings.
 					continue
 				}
-
 				allowedTeam, err = api.GithubOAuth2Config.TeamMembership(ctx, oauthClient, allowTeam.Organization, allowTeam.Slug, *ghUser.Login)
 				// The calling user may not have permission to the requested team!
 				if err != nil {
@@ -983,7 +878,6 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-
 	emails, err := api.GithubOAuth2Config.ListEmails(ctx, oauthClient)
 	if err != nil {
 		logger.Error(ctx, "oauth2: unable to list emails", slog.Error(err))
@@ -993,7 +887,6 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	var verifiedEmail *github.UserEmail
 	for _, email := range emails {
 		if email.GetVerified() && email.GetPrimary() {
@@ -1001,17 +894,14 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
-
 	if verifiedEmail == nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Your primary email must be verified on GitHub!",
 		})
 		return
 	}
-
 	ghName := ghUser.GetName()
 	normName := codersdk.NormalizeRealUsername(ghName)
-
 	// If we have a nil GitHub ID, that is a big problem. That would mean we link
 	// this user and all other users with this bug to the same uuid.
 	// We should instead throw an error. This should never occur in production.
@@ -1040,7 +930,6 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	// If a new user is authenticating for the first time
 	// the audit action is 'register', not 'login'
 	if user.ID == uuid.Nil {
@@ -1115,11 +1004,9 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	}
 	aReq.New = key
 	aReq.UserID = key.UserID
-
 	for _, cookie := range cookies {
 		http.SetCookie(rw, cookie)
 	}
-
 	redirect = uriFromURL(redirect)
 	if api.GithubOAuth2Config.DeviceFlowEnabled {
 		// In the device flow, the redirect is handled client-side.
@@ -1130,10 +1017,8 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		http.Redirect(rw, r, redirect, http.StatusTemporaryRedirect)
 	}
 }
-
 type OIDCConfig struct {
 	promoauth.OAuth2Config
-
 	Provider *oidc.Provider
 	Verifier *oidc.IDTokenVerifier
 	// EmailDomains are the domains to enforce when a user authenticates.
@@ -1168,7 +1053,6 @@ type OIDCConfig struct {
 	// SignupsDisabledText is the text do display on the static error page.
 	SignupsDisabledText string
 }
-
 // @Summary OpenID Connect Callback
 // @ID openid-connect-callback
 // @Security CoderSessionToken
@@ -1191,7 +1075,6 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	)
 	aReq.Old = database.APIKey{}
 	defer commitAudit()
-
 	// See the example here: https://github.com/coreos/go-oidc
 	rawIDToken, ok := state.Token.Extra("id_token").(string)
 	if !ok {
@@ -1200,7 +1083,6 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	idToken, err := api.OIDCConfig.Verifier.Verify(ctx, rawIDToken)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -1209,9 +1091,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	logger := api.Logger.Named(userAuthLoggerName)
-
 	// "email_verified" is an optional claim that changes the behavior
 	// of our OIDC handler, so each property must be pulled manually out
 	// of the claim mapping.
@@ -1225,7 +1105,6 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	if idToken.Subject == "" {
 		logger.Error(ctx, "oauth2: missing 'sub' claim field in OIDC token",
 			slog.F("source", "id_token"),
@@ -1239,13 +1118,11 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	logger.Debug(ctx, "got oidc claims",
 		slog.F("source", "id_token"),
 		slog.F("claim_fields", claimFields(idtokenClaims)),
 		slog.F("blank", blankFields(idtokenClaims)),
 	)
-
 	// Not all claims are necessarily embedded in the `id_token`.
 	// In GitLab, the username is left empty and must be fetched in UserInfo.
 	//
@@ -1266,7 +1143,6 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		if !ok {
 			return
 		}
-
 		// The precedence ordering is userInfoClaims > idTokenClaims.
 		// Note: Unsure why exactly this is the case. idTokenClaims feels more
 		// important?
@@ -1290,13 +1166,11 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		})
 		return // Invalid MergedClaimsSource
 	}
-
 	usernameRaw, ok := mergedClaims[api.OIDCConfig.UsernameField]
 	var username string
 	if ok {
 		username, _ = usernameRaw.(string)
 	}
-
 	emailRaw, ok := mergedClaims[api.OIDCConfig.EmailField]
 	if !ok {
 		// Email is an optional claim in OIDC and
@@ -1312,7 +1186,6 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		}
 		emailRaw = username
 	}
-
 	email, ok := emailRaw.(string)
 	if !ok {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -1320,7 +1193,6 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	verifiedRaw, ok := mergedClaims["email_verified"]
 	if ok {
 		verified, ok := verifiedRaw.(bool)
@@ -1334,7 +1206,6 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 			logger.Warn(ctx, "allowing unverified oidc email %q")
 		}
 	}
-
 	// The username is a required property in Coder. We make a best-effort
 	// attempt at using what the claims provide, but if that fails we will
 	// generate a random username.
@@ -1348,7 +1219,6 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		}
 		username = codersdk.UsernameFrom(username)
 	}
-
 	if len(api.OIDCConfig.EmailDomain) > 0 {
 		ok = false
 		emailSp := strings.Split(email, "@")
@@ -1374,7 +1244,6 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-
 	// The 'name' is an optional property in Coder. If not specified,
 	// it will be left blank.
 	var name string
@@ -1383,15 +1252,12 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		name, _ = nameRaw.(string)
 		name = codersdk.NormalizeRealUsername(name)
 	}
-
 	var picture string
 	pictureRaw, ok := mergedClaims["picture"]
 	if ok {
 		picture, _ = pictureRaw.(string)
 	}
-
 	ctx = slog.With(ctx, slog.F("email", email), slog.F("username", username), slog.F("name", name))
-
 	user, link, err := findLinkedUser(ctx, api.Database, oidcLinkedID(idToken), email)
 	if err != nil {
 		logger.Error(ctx, "oauth2: unable to find linked user", slog.F("email", email), slog.Error(err))
@@ -1401,31 +1267,26 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	orgSync, orgSyncErr := api.IDPSync.ParseOrganizationClaims(ctx, mergedClaims)
 	if orgSyncErr != nil {
 		orgSyncErr.Write(rw, r)
 		return
 	}
-
 	groupSync, groupSyncErr := api.IDPSync.ParseGroupClaims(ctx, mergedClaims)
 	if groupSyncErr != nil {
 		groupSyncErr.Write(rw, r)
 		return
 	}
-
 	roleSync, roleSyncErr := api.IDPSync.ParseRoleClaims(ctx, mergedClaims)
 	if roleSyncErr != nil {
 		roleSyncErr.Write(rw, r)
 		return
 	}
-
 	// If a new user is authenticating for the first time
 	// the audit action is 'register', not 'login'
 	if user.ID == uuid.Nil {
 		aReq.Action = database.AuditActionRegister
 	}
-
 	params := (&oauthLoginParams{
 		User:             user,
 		Link:             link,
@@ -1464,18 +1325,15 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	}
 	aReq.New = key
 	aReq.UserID = key.UserID
-
 	for i := range cookies {
 		http.SetCookie(rw, cookies[i])
 	}
-
 	redirect := state.Redirect
 	// Strip the host if it exists on the URL to prevent
 	// any nefarious redirects.
 	redirect = uriFromURL(redirect)
 	http.Redirect(rw, r, redirect, http.StatusTemporaryRedirect)
 }
-
 func (api *API) accessTokenClaims(ctx context.Context, rw http.ResponseWriter, state httpmw.OAuth2State, logger slog.Logger) (accessTokenClaims map[string]interface{}, ok bool) {
 	// Assume the access token is a jwt, and signed by the provider.
 	accessToken, err := api.OIDCConfig.Verifier.Verify(ctx, state.Token.AccessToken)
@@ -1487,7 +1345,6 @@ func (api *API) accessTokenClaims(ctx context.Context, rw http.ResponseWriter, s
 		})
 		return nil, false
 	}
-
 	rawClaims := make(map[string]any)
 	err = accessToken.Claims(&rawClaims)
 	if err != nil {
@@ -1498,10 +1355,8 @@ func (api *API) accessTokenClaims(ctx context.Context, rw http.ResponseWriter, s
 		})
 		return nil, false
 	}
-
 	return rawClaims, true
 }
-
 func (api *API) userInfoClaims(ctx context.Context, rw http.ResponseWriter, state httpmw.OAuth2State, logger slog.Logger) (userInfoClaims map[string]interface{}, ok bool) {
 	userInfoClaims = make(map[string]interface{})
 	userInfo, err := api.OIDCConfig.Provider.UserInfo(ctx, oauth2.StaticTokenSource(state.Token))
@@ -1537,7 +1392,6 @@ func (api *API) userInfoClaims(ctx context.Context, rw http.ResponseWriter, stat
 	}
 	return userInfoClaims, true
 }
-
 // claimFields returns the sorted list of fields in the claims map.
 func claimFields(claims map[string]interface{}) []string {
 	fields := []string{}
@@ -1547,7 +1401,6 @@ func claimFields(claims map[string]interface{}) []string {
 	sort.Strings(fields)
 	return fields
 }
-
 // blankFields returns the list of fields in the claims map that are
 // an empty string.
 func blankFields(claims map[string]interface{}) []string {
@@ -1560,7 +1413,6 @@ func blankFields(claims map[string]interface{}) []string {
 	sort.Strings(fields)
 	return fields
 }
-
 // mergeClaims merges the claims from a and b and returns the merged set.
 // claims from b take precedence over claims from a.
 func mergeClaims(a, b map[string]interface{}) map[string]interface{} {
@@ -1573,14 +1425,12 @@ func mergeClaims(a, b map[string]interface{}) map[string]interface{} {
 	}
 	return c
 }
-
 type oauthLoginParams struct {
 	User      database.User
 	Link      database.UserLink
 	State     httpmw.OAuth2State
 	LinkedID  string
 	LoginType database.LoginType
-
 	// The following are necessary in order to
 	// create new users.
 	AllowSignups bool
@@ -1592,16 +1442,13 @@ type oauthLoginParams struct {
 	OrganizationSync idpsync.OrganizationParams
 	GroupSync        idpsync.GroupParams
 	RoleSync         idpsync.RoleParams
-
 	// UserClaims should only be populated for OIDC logins.
 	// It is used to save the user's claims on login.
 	UserClaims database.UserLinkClaims
-
 	commitLock       sync.Mutex
 	initAuditRequest func(params *audit.RequestParams) *audit.Request[database.User]
 	commits          []func()
 }
-
 func (p *oauthLoginParams) SetInitAuditRequest(f func(params *audit.RequestParams) (*audit.Request[database.User], func())) *oauthLoginParams {
 	p.initAuditRequest = func(params *audit.RequestParams) *audit.Request[database.User] {
 		p.commitLock.Lock()
@@ -1612,7 +1459,6 @@ func (p *oauthLoginParams) SetInitAuditRequest(f func(params *audit.RequestParam
 	}
 	return p
 }
-
 func (p *oauthLoginParams) CommitAuditLogs() {
 	p.commitLock.Lock()
 	defer p.commitLock.Unlock()
@@ -1620,7 +1466,6 @@ func (p *oauthLoginParams) CommitAuditLogs() {
 		f()
 	}
 }
-
 func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.Cookie, database.User, database.APIKey, error) {
 	var (
 		ctx                  = r.Context()
@@ -1640,7 +1485,6 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			})
 		})
 	)
-
 	var isConvertLoginType bool
 	err := api.Database.InTx(func(tx database.Store) error {
 		var (
@@ -1649,7 +1493,6 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 		)
 		user = params.User
 		link = params.Link
-
 		// If you do a convert to OIDC and your email does not match, we need to
 		// catch this and not make a new account.
 		if isMergeStateString(params.State.StateString) {
@@ -1663,17 +1506,14 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			params.User = user
 			isConvertLoginType = true
 		}
-
 		// nolint:gocritic // Getting user count is a system function.
 		userCount, err := tx.GetUserCount(dbauthz.AsSystemRestricted(ctx))
 		if err != nil {
-			return xerrors.Errorf("unable to fetch user count: %w", err)
+			return fmt.Errorf("unable to fetch user count: %w", err)
 		}
-
 		// Allow the first user to sign up with OIDC, regardless of
 		// whether signups are enabled or not.
 		allowSignup := userCount == 0 || params.AllowSignups
-
 		if user.ID == uuid.Nil && !allowSignup {
 			signupsDisabledText := "Please contact your Coder administrator to request access."
 			if api.OIDCConfig != nil && api.OIDCConfig.SignupsDisabledText != "" {
@@ -1687,11 +1527,9 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 				RenderDetailMarkdown: true,
 			}
 		}
-
 		if user.ID != uuid.Nil && user.LoginType != params.LoginType {
 			return wrongLoginTypeHTTPError(user.LoginType, params.LoginType)
 		}
-
 		// This can happen if a user is a built-in user but is signing in
 		// with OIDC for the first time.
 		if user.ID == uuid.Nil {
@@ -1706,19 +1544,17 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 				)
 				for i := 0; i < 10; i++ {
 					alternate := fmt.Sprintf("%s-%s", original, namesgenerator.GetRandomName(1))
-
 					params.Username = codersdk.UsernameFrom(alternate)
-
 					//nolint:gocritic
 					_, err := tx.GetUserByEmailOrUsername(dbauthz.AsSystemRestricted(ctx), database.GetUserByEmailOrUsernameParams{
 						Username: params.Username,
 					})
-					if xerrors.Is(err, sql.ErrNoRows) {
+					if errors.Is(err, sql.ErrNoRows) {
 						validUsername = true
 						break
 					}
 					if err != nil {
-						return xerrors.Errorf("get user by email/username: %w", err)
+						return fmt.Errorf("get user by email/username: %w", err)
 					}
 				}
 				if !validUsername {
@@ -1728,19 +1564,16 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 					}
 				}
 			}
-
 			//nolint:gocritic
 			defaultOrganization, err := tx.GetDefaultOrganization(dbauthz.AsSystemRestricted(ctx))
 			if err != nil {
-				return xerrors.Errorf("unable to fetch default organization: %w", err)
+				return fmt.Errorf("unable to fetch default organization: %w", err)
 			}
-
 			rbacRoles := []string{}
 			// If this is the first user, add the owner role.
 			if userCount == 0 {
 				rbacRoles = append(rbacRoles, rbac.RoleOwner().String())
 			}
-
 			//nolint:gocritic
 			user, err = api.CreateUser(dbauthz.AsSystemRestricted(ctx), tx, CreateUserRequest{
 				CreateUserRequestWithOrgs: codersdk.CreateUserRequestWithOrgs{
@@ -1758,9 +1591,8 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 				RBACRoles:          rbacRoles,
 			})
 			if err != nil {
-				return xerrors.Errorf("create user: %w", err)
+				return fmt.Errorf("create user: %w", err)
 			}
-
 			if userCount == 0 {
 				telemetryUser := telemetry.ConvertUser(user)
 				// The email is not anonymized for the first user.
@@ -1770,7 +1602,6 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 				})
 			}
 		}
-
 		// Activate dormant user on sign-in
 		if user.Status == database.UserStatusDormant {
 			// This is necessary because transactions can be retried, and we
@@ -1786,11 +1617,10 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			})
 			if err != nil {
 				logger.Error(ctx, "unable to update user status to active", slog.Error(err))
-				return xerrors.Errorf("update user status: %w", err)
+				return fmt.Errorf("update user status: %w", err)
 			}
 			dormantConvertAudit.New = user
 		}
-
 		if link.UserID == uuid.Nil {
 			//nolint:gocritic // System needs to insert the user link (linked_id, oauth_token, oauth_expiry).
 			link, err = tx.InsertUserLink(dbauthz.AsSystemRestricted(ctx), database.InsertUserLinkParams{
@@ -1805,10 +1635,9 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 				Claims:                 params.UserClaims,
 			})
 			if err != nil {
-				return xerrors.Errorf("insert user link: %w", err)
+				return fmt.Errorf("insert user link: %w", err)
 			}
 		}
-
 		if link.UserID != uuid.Nil {
 			//nolint:gocritic // System needs to update the user link (linked_id, oauth_token, oauth_expiry).
 			link, err = tx.UpdateUserLink(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLinkParams{
@@ -1822,28 +1651,24 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 				Claims:                 params.UserClaims,
 			})
 			if err != nil {
-				return xerrors.Errorf("update user link: %w", err)
+				return fmt.Errorf("update user link: %w", err)
 			}
 		}
-
 		err = api.IDPSync.SyncOrganizations(ctx, tx, user, params.OrganizationSync)
 		if err != nil {
-			return xerrors.Errorf("sync organizations: %w", err)
+			return fmt.Errorf("sync organizations: %w", err)
 		}
-
 		// Group sync needs to occur after org sync, since a user can join an org,
 		// then have their groups sync to said org.
 		err = api.IDPSync.SyncGroups(ctx, tx, user, params.GroupSync)
 		if err != nil {
-			return xerrors.Errorf("sync groups: %w", err)
+			return fmt.Errorf("sync groups: %w", err)
 		}
-
 		// Role sync needs to occur after org sync.
 		err = api.IDPSync.SyncRoles(ctx, tx, user, params.RoleSync)
 		if err != nil {
-			return xerrors.Errorf("sync roles: %w", err)
+			return fmt.Errorf("sync roles: %w", err)
 		}
-
 		needsUpdate := false
 		if user.AvatarURL != params.AvatarURL {
 			user.AvatarURL = params.AvatarURL
@@ -1853,7 +1678,6 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			user.Name = params.Name
 			needsUpdate = true
 		}
-
 		// If the upstream email or username has changed we should mirror
 		// that in Coder. Many enterprises use a user's email/username as
 		// security auditing fields so they need to stay synced.
@@ -1864,7 +1688,6 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			user.Email = params.Email
 			needsUpdate = true
 		}
-
 		if needsUpdate {
 			// TODO(JonA): Since we're processing updates to a user's upstream
 			// email/username, it's possible for a different built-in user to
@@ -1882,16 +1705,14 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 				AvatarURL: user.AvatarURL,
 			})
 			if err != nil {
-				return xerrors.Errorf("update user profile: %w", err)
+				return fmt.Errorf("update user profile: %w", err)
 			}
 		}
-
 		return nil
 	}, nil)
 	if err != nil {
-		return nil, database.User{}, database.APIKey{}, xerrors.Errorf("in tx: %w", err)
+		return nil, database.User{}, database.APIKey{}, fmt.Errorf("in tx: %w", err)
 	}
-
 	var key database.APIKey
 	oldKey, _, ok := httpmw.APIKeyFromRequest(ctx, api.Database, nil, r)
 	if ok && oldKey != nil && isConvertLoginType {
@@ -1926,20 +1747,17 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			RemoteAddr:      r.RemoteAddr,
 		})
 		if err != nil {
-			return nil, database.User{}, database.APIKey{}, xerrors.Errorf("create API key: %w", err)
+			return nil, database.User{}, database.APIKey{}, fmt.Errorf("create API key: %w", err)
 		}
 		cookies = append(cookies, cookie)
 		key = *newKey
 	}
-
 	return cookies, user, key, nil
 }
-
 // convertUserToOauth will convert a user from password base loginType to
 // an oauth login type. If it fails, it will return a httpError
 func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db database.Store, params *oauthLoginParams) (database.User, error) {
 	user := params.User
-
 	// Trying to convert to OIDC, but the email does not match.
 	// So do not make a new user, just block the request.
 	if user.ID == uuid.Nil {
@@ -1948,7 +1766,6 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 			Msg:  fmt.Sprintf("The oidc account with the email %q does not match the email of the account you are trying to convert. Contact your administrator to resolve this issue.", params.Email),
 		}
 	}
-
 	jwtCookie, err := r.Cookie(OAuthConvertCookieValue)
 	if err != nil {
 		return database.User{}, idpsync.HTTPError{
@@ -1958,9 +1775,8 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 		}
 	}
 	var claims OAuthConvertStateClaims
-
 	err = jwtutils.Verify(ctx, api.OIDCConvertKeyCache, jwtCookie.Value, &claims)
-	if xerrors.Is(err, cryptokeys.ErrKeyNotFound) || xerrors.Is(err, cryptokeys.ErrKeyInvalid) || xerrors.Is(err, jose.ErrCryptoFailure) || xerrors.Is(err, jwtutils.ErrMissingKeyID) {
+	if errors.Is(err, cryptokeys.ErrKeyNotFound) || errors.Is(err, cryptokeys.ErrKeyInvalid) || errors.Is(err, jose.ErrCryptoFailure) || errors.Is(err, jwtutils.ErrMissingKeyID) {
 		// These errors are probably because the user is mixing 2 coder deployments.
 		return database.User{}, idpsync.HTTPError{
 			Code: http.StatusBadRequest,
@@ -1973,7 +1789,6 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 			Msg:  fmt.Sprintf("Error parsing jwt: %v", err),
 		}
 	}
-
 	// At this point, this request could be an attempt to convert from
 	// password auth to oauth auth. Always log these attempts.
 	var (
@@ -1985,24 +1800,20 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 			Action:  database.AuditActionWrite,
 		})
 	)
-
 	oauthConvertAudit.UserID = claims.UserID
 	oauthConvertAudit.Old = user
-
 	if claims.Issuer != api.DeploymentID {
 		return database.User{}, idpsync.HTTPError{
 			Code: http.StatusForbidden,
 			Msg:  "Request to convert login type failed. Issuer mismatch. Found a cookie from another coder deployment, please try again.",
 		}
 	}
-
 	if params.State.StateString != claims.State {
 		return database.User{}, idpsync.HTTPError{
 			Code: http.StatusForbidden,
 			Msg:  "Request to convert login type failed. State mismatch.",
 		}
 	}
-
 	// Make sure the merge state generated matches this OIDC login request.
 	// It needs to have the correct login type information for this
 	// user.
@@ -2014,7 +1825,6 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 			Msg:  fmt.Sprintf("Request to convert login type from %s to %s failed", user.LoginType, params.LoginType),
 		}
 	}
-
 	// Convert the user and default to the normal login flow.
 	// If the login succeeds, this transaction will commit and the user
 	// will be converted.
@@ -2033,18 +1843,15 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 	oauthConvertAudit.New = user
 	return user, nil
 }
-
 // githubLinkedID returns the unique ID for a GitHub user.
 func githubLinkedID(u *github.User) string {
 	return strconv.FormatInt(u.GetID(), 10)
 }
-
 // oidcLinkedID returns the uniqued ID for an OIDC user.
 // See https://openid.net/specs/openid-connect-core-1_0.html#ClaimStability .
 func oidcLinkedID(tok *oidc.IDToken) string {
 	return strings.Join([]string{tok.Issuer, tok.Subject}, "||")
 }
-
 // findLinkedUser tries to find a user by their unique OAuth-linked ID.
 // If it doesn't not find it, it returns the user by their email.
 func findLinkedUser(ctx context.Context, db database.Store, linkedID string, emails ...string) (database.User, database.UserLink, error) {
@@ -2054,13 +1861,12 @@ func findLinkedUser(ctx context.Context, db database.Store, linkedID string, ema
 	)
 	link, err := db.GetUserLinkByLinkedID(ctx, linkedID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return user, link, xerrors.Errorf("get user auth by linked ID: %w", err)
+		return user, link, fmt.Errorf("get user auth by linked ID: %w", err)
 	}
-
 	if err == nil {
 		user, err = db.GetUserByID(ctx, link.UserID)
 		if err != nil {
-			return database.User{}, database.UserLink{}, xerrors.Errorf("get user by id: %w", err)
+			return database.User{}, database.UserLink{}, fmt.Errorf("get user by id: %w", err)
 		}
 		if !user.Deleted {
 			return user, link, nil
@@ -2068,25 +1874,22 @@ func findLinkedUser(ctx context.Context, db database.Store, linkedID string, ema
 		// If the user was deleted, act as if no account link exists.
 		user = database.User{}
 	}
-
 	for _, email := range emails {
 		user, err = db.GetUserByEmailOrUsername(ctx, database.GetUserByEmailOrUsernameParams{
 			Email: email,
 		})
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return user, link, xerrors.Errorf("get user by email: %w", err)
+			return user, link, fmt.Errorf("get user by email: %w", err)
 		}
 		if errors.Is(err, sql.ErrNoRows) {
 			continue
 		}
 		break
 	}
-
 	if user.ID == uuid.Nil {
 		// No user found.
 		return database.User{}, database.UserLink{}, nil
 	}
-
 	// LEGACY: This is annoying but we have to search for the user_link
 	// again except this time we search by user_id and login_type. It's
 	// possible that a user_link exists without a populated 'linked_id'.
@@ -2095,16 +1898,13 @@ func findLinkedUser(ctx context.Context, db database.Store, linkedID string, ema
 		LoginType: user.LoginType,
 	})
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return database.User{}, database.UserLink{}, xerrors.Errorf("get user link by user id and login type: %w", err)
+		return database.User{}, database.UserLink{}, fmt.Errorf("get user link by user id and login type: %w", err)
 	}
-
 	return user, link, nil
 }
-
 func isMergeStateString(state string) bool {
 	return strings.HasPrefix(state, mergeStateStringPrefix)
 }
-
 func clearOAuthConvertCookie() *http.Cookie {
 	return &http.Cookie{
 		Name:   OAuthConvertCookieValue,
@@ -2112,7 +1912,6 @@ func clearOAuthConvertCookie() *http.Cookie {
 		MaxAge: -1,
 	}
 }
-
 func wrongLoginTypeHTTPError(user database.LoginType, params database.LoginType) idpsync.HTTPError {
 	addedMsg := ""
 	if user == database.LoginTypePassword {

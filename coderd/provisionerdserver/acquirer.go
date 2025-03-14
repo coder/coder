@@ -1,6 +1,7 @@
 package provisionerdserver
-
 import (
+	"fmt"
+	"errors"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -8,24 +9,19 @@ import (
 	"strings"
 	"sync"
 	"time"
-
 	"github.com/cenkalti/backoff/v4"
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
-
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 )
-
 const (
 	dbMaxBackoff = 10 * time.Second
 	// backPollDuration is the period for the backup polling described in Acquirer comment
 	backupPollDuration = 30 * time.Second
 )
-
 // Acquirer is shared among multiple routines that need to call
 // database.Store.AcquireProvisionerJob. The callers that acquire jobs are called "acquirees".  The
 // goal is to minimize polling the database (i.e. lower our average query rate) and simplify the
@@ -45,27 +41,21 @@ type Acquirer struct {
 	logger slog.Logger
 	store  AcquirerStore
 	ps     pubsub.Pubsub
-
 	mu sync.Mutex
 	q  map[dKey]domain
-
 	// testing only
 	backupPollDuration time.Duration
 }
-
 type AcquirerOption func(*Acquirer)
-
 func TestingBackupPollDuration(dur time.Duration) AcquirerOption {
 	return func(a *Acquirer) {
 		a.backupPollDuration = dur
 	}
 }
-
 // AcquirerStore is the subset of database.Store that the Acquirer needs
 type AcquirerStore interface {
 	AcquireProvisionerJob(context.Context, database.AcquireProvisionerJobParams) (database.ProvisionerJob, error)
 }
-
 func NewAcquirer(ctx context.Context, logger slog.Logger, store AcquirerStore, ps pubsub.Pubsub,
 	opts ...AcquirerOption,
 ) *Acquirer {
@@ -83,7 +73,6 @@ func NewAcquirer(ctx context.Context, logger slog.Logger, store AcquirerStore, p
 	a.subscribe()
 	return a
 }
-
 // AcquireJob acquires a job with one of the given provisioner types and compatible
 // tags from the database.  The call blocks until a job is acquired, the context is
 // done, or the database returns an error _other_ than that no jobs are available.
@@ -133,7 +122,7 @@ func (a *Acquirer) AcquireJob(
 				Types:           pt,
 				ProvisionerTags: dbTags,
 			})
-			if xerrors.Is(err, sql.ErrNoRows) {
+			if errors.Is(err, sql.ErrNoRows) {
 				logger.Debug(ctx, "no job available")
 				continue
 			}
@@ -145,14 +134,13 @@ func (a *Acquirer) AcquireJob(
 			}
 			if err != nil {
 				logger.Warn(ctx, "error attempting to acquire job", slog.Error(err))
-				return database.ProvisionerJob{}, xerrors.Errorf("failed to acquire job: %w", err)
+				return database.ProvisionerJob{}, fmt.Errorf("failed to acquire job: %w", err)
 			}
 			logger.Debug(ctx, "successfully acquired job")
 			return job, nil
 		}
 	}
 }
-
 // want signals that an acquiree wants clearance to query for a job with the given dKey.
 func (a *Acquirer) want(organization uuid.UUID, pt []database.ProvisionerType, tags Tags, clearance chan<- struct{}) {
 	dk := domainKey(organization, pt, tags)
@@ -194,7 +182,6 @@ func (a *Acquirer) want(organization uuid.UUID, pt []database.ProvisionerType, t
 		clearance <- struct{}{}
 	}
 }
-
 // cancel signals that an acquiree no longer wants clearance to query.  Any error returned is a serious internal error
 // indicating that integrity of the internal state is corrupted by a code bug.
 func (a *Acquirer) cancel(dk dKey, clearance chan<- struct{}) error {
@@ -204,7 +191,7 @@ func (a *Acquirer) cancel(dk dKey, clearance chan<- struct{}) error {
 	if !ok {
 		// this is a code error, as something removed the domain early, or cancel
 		// was called twice.
-		err := xerrors.New("cancel for domain that doesn't exist")
+		err := errors.New("cancel for domain that doesn't exist")
 		a.logger.Critical(a.ctx, "internal error", slog.Error(err))
 		return err
 	}
@@ -212,7 +199,7 @@ func (a *Acquirer) cancel(dk dKey, clearance chan<- struct{}) error {
 	if !ok {
 		// this is a code error, as something removed the acquiree early, or cancel
 		// was called twice.
-		err := xerrors.New("cancel for an acquiree that doesn't exist")
+		err := errors.New("cancel for an acquiree that doesn't exist")
 		a.logger.Critical(a.ctx, "internal error", slog.Error(err))
 		return err
 	}
@@ -222,7 +209,7 @@ func (a *Acquirer) cancel(dk dKey, clearance chan<- struct{}) error {
 		// instead
 		for _, other := range d.acquirees {
 			if other.inProgress {
-				err := xerrors.New("more than one acquiree in progress for same key")
+				err := errors.New("more than one acquiree in progress for same key")
 				a.logger.Critical(a.ctx, "internal error", slog.Error(err))
 				return err
 			}
@@ -237,7 +224,6 @@ func (a *Acquirer) cancel(dk dKey, clearance chan<- struct{}) error {
 	}
 	return nil
 }
-
 // done signals that the acquiree has completed acquiring a job (usually successfully, but we also get this call if
 // there is a database error other than ErrNoRows).  Any error returned is a serious internal error indicating that
 // integrity of the internal state is corrupted by a code bug.
@@ -248,7 +234,7 @@ func (a *Acquirer) done(dk dKey, clearance chan struct{}) error {
 	if !ok {
 		// this is a code error, as something removed the domain early, or done
 		// was called twice.
-		err := xerrors.New("done for a domain that doesn't exist")
+		err := errors.New("done for a domain that doesn't exist")
 		a.logger.Critical(a.ctx, "internal error", slog.Error(err))
 		return err
 	}
@@ -256,12 +242,12 @@ func (a *Acquirer) done(dk dKey, clearance chan struct{}) error {
 	if !ok {
 		// this is a code error, as something removed the dKey early, or done
 		// was called twice.
-		err := xerrors.New("done for an acquiree that doesn't exist")
+		err := errors.New("done for an acquiree that doesn't exist")
 		a.logger.Critical(a.ctx, "internal error", slog.Error(err))
 		return err
 	}
 	if !w.inProgress {
-		err := xerrors.New("done acquiree was not in progress")
+		err := errors.New("done acquiree was not in progress")
 		a.logger.Critical(a.ctx, "internal error", slog.Error(err))
 		return err
 	}
@@ -277,7 +263,7 @@ func (a *Acquirer) done(dk dKey, clearance chan struct{}) error {
 	// is empty of jobs meeting our criteria
 	for _, other := range d.acquirees {
 		if other.inProgress {
-			err := xerrors.New("more than one acquiree in progress for same key")
+			err := errors.New("more than one acquiree in progress for same key")
 			a.logger.Critical(a.ctx, "internal error", slog.Error(err))
 			return err
 		}
@@ -287,7 +273,6 @@ func (a *Acquirer) done(dk dKey, clearance chan struct{}) error {
 	}
 	return nil
 }
-
 func (a *Acquirer) subscribe() {
 	subscribed := make(chan struct{})
 	go func() {
@@ -315,18 +300,15 @@ func (a *Acquirer) subscribe() {
 		defer cancel()
 		bkoff.Reset()
 		a.logger.Debug(a.ctx, "subscribed to job postings")
-
 		// unblock the outer function from returning
 		subscribed <- struct{}{}
-
 		// hold subscriptions open until context is canceled
 		<-a.ctx.Done()
 	}()
 	<-subscribed
 }
-
 func (a *Acquirer) jobPosted(ctx context.Context, message []byte, err error) {
-	if xerrors.Is(err, pubsub.ErrDroppedMessages) {
+	if errors.Is(err, pubsub.ErrDroppedMessages) {
 		a.logger.Warn(a.ctx, "pubsub may have dropped job postings")
 		a.clearOrPendAll()
 		return
@@ -345,7 +327,6 @@ func (a *Acquirer) jobPosted(ctx context.Context, message []byte, err error) {
 		return
 	}
 	a.logger.Debug(ctx, "got job posting", slog.F("posting", posting))
-
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	for _, d := range a.q {
@@ -357,7 +338,6 @@ func (a *Acquirer) jobPosted(ctx context.Context, message []byte, err error) {
 		}
 	}
 }
-
 func (a *Acquirer) clearOrPendAll() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -365,7 +345,6 @@ func (a *Acquirer) clearOrPendAll() {
 		a.clearOrPendLocked(d)
 	}
 }
-
 func (a *Acquirer) clearOrPend(d domain) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -377,7 +356,6 @@ func (a *Acquirer) clearOrPend(d domain) {
 	}
 	a.clearOrPendLocked(d)
 }
-
 func (*Acquirer) clearOrPendLocked(d domain) {
 	// MUST BE CALLED HOLDING THE a.mu LOCK
 	var nominee *acquiree
@@ -399,9 +377,7 @@ func (*Acquirer) clearOrPendLocked(d domain) {
 	nominee.inProgress = true
 	nominee.clearance <- struct{}{}
 }
-
 type dKey string
-
 // domainKey generates a canonical map key for the given provisioner types and
 // tags.  It uses the null byte (0x00) as a delimiter because it is an
 // unprintable control character and won't show up in any "reasonable" set of
@@ -411,7 +387,6 @@ func domainKey(orgID uuid.UUID, pt []database.ProvisionerType, tags Tags) dKey {
 	sb := strings.Builder{}
 	_, _ = sb.WriteString(orgID.String())
 	_ = sb.WriteByte(0x00)
-
 	// make a copy of pt before sorting, so that we don't mutate the original
 	// slice or underlying array.
 	pts := make([]database.ProvisionerType, len(pt))
@@ -435,7 +410,6 @@ func domainKey(orgID uuid.UUID, pt []database.ProvisionerType, tags Tags) dKey {
 	}
 	return dKey(sb.String())
 }
-
 // acquiree represents a specific client of Acquirer that wants to acquire a job
 type acquiree struct {
 	clearance chan<- struct{}
@@ -446,7 +420,6 @@ type acquiree struct {
 	// that we know to try again, even if we didn't get a job on the query.
 	pending bool
 }
-
 // domain represents a set of acquirees with the same provisioner types and
 // tags.  Acquirees in the same domain are restricted such that only one queries
 // the database at a time.
@@ -460,7 +433,6 @@ type domain struct {
 	organizationID uuid.UUID
 	acquirees      map[chan<- struct{}]*acquiree
 }
-
 func (d domain) contains(p provisionerjobs.JobPosting) bool {
 	// If the organization ID is 'uuid.Nil', this is a legacy job posting.
 	// Ignore this check in the legacy case.
@@ -481,7 +453,6 @@ func (d domain) contains(p provisionerjobs.JobPosting) bool {
 	}
 	return true
 }
-
 func (d domain) poll(dur time.Duration) {
 	tkr := time.NewTicker(dur)
 	defer tkr.Stop()

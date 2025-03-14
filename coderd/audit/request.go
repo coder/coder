@@ -1,6 +1,6 @@
 package audit
-
 import (
+	"errors"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -10,25 +10,19 @@ import (
 	"net/http"
 	"strconv"
 	"time"
-
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"go.opentelemetry.io/otel/baggage"
-	"golang.org/x/xerrors"
-
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/coderd/tracing"
 )
-
 type RequestParams struct {
 	Audit Auditor
 	Log   slog.Logger
-
 	// OrganizationID is only provided when possible. If an audit resource extends
 	// beyond the org scope, leave this as the nil uuid.
 	OrganizationID   uuid.UUID
@@ -36,34 +30,27 @@ type RequestParams struct {
 	Action           database.AuditAction
 	AdditionalFields interface{}
 }
-
 type Request[T Auditable] struct {
 	params *RequestParams
-
 	Old T
 	New T
-
 	// UserID is an optional field can be passed in when the userID cannot be
 	// determined from the API Key such as in the case of login, when the audit
 	// log is created prior the API Key's existence.
 	UserID uuid.UUID
-
 	// Action is an optional field can be passed in if the AuditAction must be
 	// overridden such as in the case of new user authentication when the Audit
 	// Action is 'register', not 'login'.
 	Action database.AuditAction
 }
-
 // UpdateOrganizationID can be used if the organization ID is not known
 // at the initiation of an audit log request.
 func (r *Request[T]) UpdateOrganizationID(id uuid.UUID) {
 	r.params.OrganizationID = id
 }
-
 type BackgroundAuditParams[T Auditable] struct {
 	Audit Auditor
 	Log   slog.Logger
-
 	UserID         uuid.UUID
 	RequestID      uuid.UUID
 	Time           time.Time
@@ -73,11 +60,9 @@ type BackgroundAuditParams[T Auditable] struct {
 	IP             string
 	// todo: this should automatically marshal an interface{} instead of accepting a raw message.
 	AdditionalFields json.RawMessage
-
 	New T
 	Old T
 }
-
 func ResourceTarget[T Auditable](tgt T) string {
 	switch typed := any(tgt).(type) {
 	case database.Template:
@@ -138,12 +123,10 @@ func ResourceTarget[T Auditable](tgt T) string {
 		panic(fmt.Sprintf("unknown resource %T for ResourceTarget", tgt))
 	}
 }
-
 // noID can be used for resources that do not have an uuid.
 // An example is singleton configuration resources.
 // 51A51C = "Static"
 var noID = uuid.MustParse("51A51C00-0000-0000-0000-000000000000")
-
 func ResourceID[T Auditable](tgt T) uuid.UUID {
 	switch typed := any(tgt).(type) {
 	case database.Template:
@@ -201,7 +184,6 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		panic(fmt.Sprintf("unknown resource %T for ResourceID", tgt))
 	}
 }
-
 func ResourceType[T Auditable](tgt T) database.ResourceType {
 	switch typed := any(tgt).(type) {
 	case database.Template:
@@ -256,7 +238,6 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		panic(fmt.Sprintf("unknown resource %T for ResourceType", typed))
 	}
 }
-
 // ResourceRequiresOrgID will ensure given resources are always audited with an
 // organization ID.
 func ResourceRequiresOrgID[T Auditable]() bool {
@@ -313,7 +294,6 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 		panic(fmt.Sprintf("unknown resource %T for ResourceRequiresOrgID", tgt))
 	}
 }
-
 // requireOrgID will either panic (in unit tests) or log an error (in production)
 // if the given resource requires an organization ID and the provided ID is nil.
 func requireOrgID[T Auditable](ctx context.Context, id uuid.UUID, log slog.Logger) uuid.UUID {
@@ -330,7 +310,6 @@ func requireOrgID[T Auditable](ctx context.Context, id uuid.UUID, log slog.Logge
 	}
 	return id
 }
-
 // InitRequestWithCancel returns a commit function with a boolean arg.
 // If the arg is false, future calls to commit() will not create an audit log
 // entry.
@@ -350,7 +329,6 @@ func InitRequestWithCancel[T Auditable](w http.ResponseWriter, p *RequestParams)
 		}
 	}
 }
-
 // InitRequest initializes an audit log for a request. It returns a function
 // that should be deferred, causing the audit log to be committed when the
 // handler returns.
@@ -359,15 +337,12 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 	if !ok {
 		panic("dev error: http.ResponseWriter is not *tracing.StatusWriter")
 	}
-
 	req := &Request[T]{
 		params: p,
 	}
-
 	return req, func() {
 		ctx := context.Background()
 		logCtx := p.Request.Context()
-
 		// If no resources were provided, there's nothing we can audit.
 		if ResourceID(req.Old) == uuid.Nil && ResourceID(req.New) == uuid.Nil {
 			// If the request action is a login or logout, we always want to audit it even if
@@ -377,14 +352,12 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 				return
 			}
 		}
-
 		diffRaw := []byte("{}")
 		// Only generate diffs if the request succeeded
 		// and only if we aren't auditing authentication actions
 		if sw.Status < 400 &&
 			req.params.Action != database.AuditActionLogin && req.params.Action != database.AuditActionLogout {
 			diff := Diff(p.Audit, req.Old, req.New)
-
 			var err error
 			diffRaw, err = json.Marshal(diff)
 			if err != nil {
@@ -392,9 +365,7 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 				diffRaw = []byte("{}")
 			}
 		}
-
 		additionalFieldsRaw := json.RawMessage("{}")
-
 		if p.AdditionalFields != nil {
 			data, err := json.Marshal(p.AdditionalFields)
 			if err != nil {
@@ -403,7 +374,6 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 				additionalFieldsRaw = json.RawMessage(data)
 			}
 		}
-
 		var userID uuid.UUID
 		key, ok := httpmw.APIKeyOptional(p.Request)
 		if ok {
@@ -416,12 +386,10 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 			// (this pertains to logins; we don't want to capture non-user login attempts)
 			return
 		}
-
 		action := p.Action
 		if req.Action != "" {
 			action = req.Action
 		}
-
 		ip := parseIP(p.Request.RemoteAddr)
 		auditLog := database.AuditLog{
 			ID:               uuid.New(),
@@ -449,12 +417,10 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 		}
 	}
 }
-
 // BackgroundAudit creates an audit log for a background event.
 // The audit log is committed upon invocation.
 func BackgroundAudit[T Auditable](ctx context.Context, p *BackgroundAuditParams[T]) {
 	ip := parseIP(p.IP)
-
 	diff := Diff(p.Audit, p.Old, p.New)
 	var err error
 	diffRaw, err := json.Marshal(diff)
@@ -462,7 +428,6 @@ func BackgroundAudit[T Auditable](ctx context.Context, p *BackgroundAuditParams[
 		p.Log.Warn(ctx, "marshal diff", slog.Error(err))
 		diffRaw = []byte("{}")
 	}
-
 	if p.Time.IsZero() {
 		p.Time = dbtime.Now()
 	} else {
@@ -472,7 +437,6 @@ func BackgroundAudit[T Auditable](ctx context.Context, p *BackgroundAuditParams[
 	if p.AdditionalFields == nil {
 		p.AdditionalFields = json.RawMessage("{}")
 	}
-
 	auditLog := database.AuditLog{
 		ID:               uuid.New(),
 		Time:             p.Time,
@@ -497,47 +461,37 @@ func BackgroundAudit[T Auditable](ctx context.Context, p *BackgroundAuditParams[
 		)
 	}
 }
-
 type WorkspaceBuildBaggage struct {
 	IP string
 }
-
 func (b WorkspaceBuildBaggage) Props() ([]baggage.Property, error) {
 	ipProp, err := baggage.NewKeyValueProperty("ip", b.IP)
 	if err != nil {
-		return nil, xerrors.Errorf("create ip kv property: %w", err)
+		return nil, fmt.Errorf("create ip kv property: %w", err)
 	}
-
 	return []baggage.Property{ipProp}, nil
 }
-
 func WorkspaceBuildBaggageFromRequest(r *http.Request) WorkspaceBuildBaggage {
 	return WorkspaceBuildBaggage{IP: r.RemoteAddr}
 }
-
 type Baggage interface {
 	Props() ([]baggage.Property, error)
 }
-
 func BaggageToContext(ctx context.Context, d Baggage) (context.Context, error) {
 	props, err := d.Props()
 	if err != nil {
-		return ctx, xerrors.Errorf("create baggage properties: %w", err)
+		return ctx, fmt.Errorf("create baggage properties: %w", err)
 	}
-
 	m, err := baggage.NewMember("audit", "baggage", props...)
 	if err != nil {
-		return ctx, xerrors.Errorf("create new baggage member: %w", err)
+		return ctx, fmt.Errorf("create new baggage member: %w", err)
 	}
-
 	b, err := baggage.New(m)
 	if err != nil {
-		return ctx, xerrors.Errorf("create new baggage carrier: %w", err)
+		return ctx, fmt.Errorf("create new baggage carrier: %w", err)
 	}
-
 	return baggage.ContextWithBaggage(ctx, b), nil
 }
-
 func BaggageFromContext(ctx context.Context) WorkspaceBuildBaggage {
 	d := WorkspaceBuildBaggage{}
 	b := baggage.FromContext(ctx)
@@ -549,10 +503,8 @@ func BaggageFromContext(ctx context.Context) WorkspaceBuildBaggage {
 		default:
 		}
 	}
-
 	return d
 }
-
 func either[T Auditable, R any](old, new T, fn func(T) R, auditAction database.AuditAction) R {
 	if ResourceID(new) != uuid.Nil {
 		return fn(new)
@@ -565,7 +517,6 @@ func either[T Auditable, R any](old, new T, fn func(T) R, auditAction database.A
 	}
 	panic("both old and new are nil")
 }
-
 func parseIP(ipStr string) pqtype.Inet {
 	ip := net.ParseIP(ipStr)
 	ipNet := net.IPNet{}
@@ -575,7 +526,6 @@ func parseIP(ipStr string) pqtype.Inet {
 			Mask: net.CIDRMask(len(ip)*8, len(ip)*8),
 		}
 	}
-
 	return pqtype.Inet{
 		IPNet: ipNet,
 		Valid: ip != nil,

@@ -1,6 +1,7 @@
 package awsidentity
-
 import (
+	"fmt"
+	"errors"
 	"crypto"
 	"crypto/rsa"
 	"crypto/sha256"
@@ -8,13 +9,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
-
-	"golang.org/x/xerrors"
 )
-
 // Region represents the AWS locations a public-key covers.
 type Region string
-
 const (
 	Other     Region = "other"
 	CapeTown  Region = "capetown"
@@ -31,23 +28,18 @@ const (
 	UAE       Region = "uae"
 	GovCloud  Region = "govcloud"
 )
-
 var All = []Region{Other, CapeTown, HongKong, Hyderabad, Jakarta, Melbourne, China, Milan, Spain, Zurich, TelAviv, Bahrain, UAE, GovCloud}
-
 // Certificates hold public keys for various AWS regions. See:
 type Certificates map[Region]string
-
 // Identity represents a validated document and signature.
 type Identity struct {
 	InstanceID string
 	Region     Region
 }
-
 // https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-identity-documents.html
 type awsInstanceIdentityDocument struct {
 	InstanceID string `json:"instanceId"`
 }
-
 // Validate ensures the document was signed by an AWS public key.
 // Regions that aren't provided in certificates will use defaults.
 func Validate(signature, document string, certificates Certificates) (Identity, error) {
@@ -64,30 +56,28 @@ func Validate(signature, document string, certificates Certificates) (Identity, 
 		}
 		certificates[region] = defaultCertificate
 	}
-
 	var instanceIdentity awsInstanceIdentityDocument
 	err := json.Unmarshal([]byte(document), &instanceIdentity)
 	if err != nil {
-		return Identity{}, xerrors.Errorf("parse document: %w", err)
+		return Identity{}, fmt.Errorf("parse document: %w", err)
 	}
 	rawSignature, err := base64.StdEncoding.DecodeString(signature)
 	if err != nil {
-		return Identity{}, xerrors.Errorf("decode signature: %w", err)
+		return Identity{}, fmt.Errorf("decode signature: %w", err)
 	}
 	hashedDocument := sha256.Sum256([]byte(document))
-
 	for region, certificate := range certificates {
 		regionBlock, rest := pem.Decode([]byte(certificate))
 		if len(rest) != 0 {
-			return Identity{}, xerrors.Errorf("invalid certificate for %q. %d bytes remain", region, len(rest))
+			return Identity{}, fmt.Errorf("invalid certificate for %q. %d bytes remain", region, len(rest))
 		}
 		regionCert, err := x509.ParseCertificate(regionBlock.Bytes)
 		if err != nil {
-			return Identity{}, xerrors.Errorf("parse certificate: %w", err)
+			return Identity{}, fmt.Errorf("parse certificate: %w", err)
 		}
 		regionPublicKey, valid := regionCert.PublicKey.(*rsa.PublicKey)
 		if !valid {
-			return Identity{}, xerrors.Errorf("certificate for %q was not an rsa key", region)
+			return Identity{}, fmt.Errorf("certificate for %q was not an rsa key", region)
 		}
 		err = rsa.VerifyPKCS1v15(regionPublicKey, crypto.SHA256, hashedDocument[:], rawSignature)
 		if err != nil {
@@ -100,7 +90,6 @@ func Validate(signature, document string, certificates Certificates) (Identity, 
 	}
 	return Identity{}, rsa.ErrVerification
 }
-
 // Default AWS certificates for regions.
 // https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/verify-signature.html
 var defaultCertificates = Certificates{

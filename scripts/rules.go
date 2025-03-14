@@ -14,12 +14,10 @@
 //
 // Note: don't forget to run `golangci-lint cache clean`!
 package gorules
-
 import (
 	"github.com/quasilyte/go-ruleguard/dsl"
 	"github.com/quasilyte/go-ruleguard/dsl/types"
 )
-
 // dbauthzAuthorizationContext is a lint rule that protects the usage of
 // system contexts. This is a dangerous pattern that can lead to
 // leaking database information as a system context can be essentially
@@ -30,7 +28,6 @@ import (
 func dbauthzAuthorizationContext(m dsl.Matcher) {
 	m.Import("context")
 	m.Import("github.com/coder/coder/v2/coderd/database/dbauthz")
-
 	m.Match(
 		`dbauthz.$f($c)`,
 	).
@@ -42,7 +39,6 @@ func dbauthzAuthorizationContext(m dsl.Matcher) {
 		// Instructions for fixing the lint error should be included on the dangerous function.
 		Report("Using '$f' is dangerous and should be accompanied by a comment explaining why it's ok and a nolint.")
 }
-
 // testingWithOwnerUser is a lint rule that detects potential permission bugs.
 // Calling clitest.SetupConfig with a client authenticated as the Owner user
 // can be a problem, since the CLI will be operating as that user and we may
@@ -53,7 +49,6 @@ func testingWithOwnerUser(m dsl.Matcher) {
 	m.Import("testing")
 	m.Import("github.com/coder/coder/v2/cli/clitest")
 	m.Import("github.com/coder/coder/v2/enterprise/coderd/coderenttest")
-
 	// For both AGPL and enterprise code, we check for SetupConfig being called with a
 	// client authenticated as the Owner user.
 	m.Match(`
@@ -66,7 +61,6 @@ func testingWithOwnerUser(m dsl.Matcher) {
 			m.File().Name.Matches(`_test\.go$`)).
 		At(m["SetupConfig"]).
 		Report(`The CLI will be operating as the owner user, which has unrestricted permissions. Consider creating a different user.`)
-
 	m.Match(`
 		$client, $_ := coderdenttest.New($t, $*_)
 		$*_
@@ -76,7 +70,6 @@ func testingWithOwnerUser(m dsl.Matcher) {
 		m.File().Name.Matches(`_test\.go$`)).
 		At(m["SetupConfig"]).
 		Report(`The CLI will be operating as the owner user, which has unrestricted permissions. Consider creating a different user.`)
-
 	// For the enterprise code, we check for any method called on the client.
 	// While we want to be a bit stricter here, some methods are known to require
 	// the owner user, so we exclude them.
@@ -89,7 +82,6 @@ func testingWithOwnerUser(m dsl.Matcher) {
 		!m["Method"].Text.Matches(`^(UpdateAppearance|Licenses|AddLicense|InsertLicense|DeleteLicense|CreateWorkspaceProxy|Replicas|Regions)$`)).
 		At(m["Method"]).
 		Report(`This client is operating as the owner user, which has unrestricted permissions. Consider creating a different user.`)
-
 	// Sadly, we need to match both one- and two-valued assignments separately.
 	m.Match(`
 		$client, $_ := coderdenttest.New($t, $*_)
@@ -101,29 +93,13 @@ func testingWithOwnerUser(m dsl.Matcher) {
 		At(m["Method"]).
 		Report(`This client is operating as the owner user, which has unrestricted permissions. Consider creating a different user.`)
 }
-
-// Use xerrors everywhere! It provides additional stacktrace info!
+// Use standard errors library
 //
 //nolint:unused,deadcode,varnamelen
-func xerrors(m dsl.Matcher) {
-	m.Import("errors")
-	m.Import("fmt")
-	m.Import("golang.org/x/xerrors")
-
-	m.Match("fmt.Errorf($arg)").
-		Suggest("xerrors.New($arg)").
-		Report("Use xerrors to provide additional stacktrace information!")
-
-	m.Match("fmt.Errorf($arg1, $*args)").
-		Suggest("xerrors.Errorf($arg1, $args)").
-		Report("Use xerrors to provide additional stacktrace information!")
-
-	m.Match("errors.$_($msg)").
-		Where(m["msg"].Type.Is("string")).
-		Suggest("xerrors.New($msg)").
-		Report("Use xerrors to provide additional stacktrace information!")
+func standardErrors(m dsl.Matcher) {
+	// This function used to enforce the use of xerrors for stacktrace info
+	// Now we use the standard library errors and fmt packages instead
 }
-
 // databaseImport enforces not importing any database types into /codersdk.
 //
 //nolint:unused,deadcode,varnamelen
@@ -133,7 +109,6 @@ func databaseImport(m dsl.Matcher) {
 		Report("Do not import any database types into codersdk").
 		Where(m.File().PkgPath.Matches("github.com/coder/coder/v2/codersdk"))
 }
-
 // doNotCallTFailNowInsideGoroutine enforces not calling t.FailNow or
 // functions that may themselves call t.FailNow in goroutines outside
 // the main test goroutine. See testing.go:834 for why.
@@ -150,7 +125,6 @@ func doNotCallTFailNowInsideGoroutine(m dsl.Matcher) {
 		At(m["require"]).
 		Where(m["require"].Text == "require").
 		Report("Do not call functions that may call t.FailNow in a goroutine, as this can cause data races (see testing.go:834)")
-
 	// require.Eventually runs the function in a goroutine.
 	m.Match(`
 	require.Eventually(t, func() bool {
@@ -161,7 +135,6 @@ func doNotCallTFailNowInsideGoroutine(m dsl.Matcher) {
 		At(m["require"]).
 		Where(m["require"].Text == "require").
 		Report("Do not call functions that may call t.FailNow in a goroutine, as this can cause data races (see testing.go:834)")
-
 	m.Match(`
 	go func($*_){
 		$*_
@@ -172,7 +145,6 @@ func doNotCallTFailNowInsideGoroutine(m dsl.Matcher) {
 		Where(m["t"].Type.Implements("testing.TB") && m["fail"].Text.Matches("^(FailNow|Fatal|Fatalf)$")).
 		Report("Do not call functions that may call t.FailNow in a goroutine, as this can cause data races (see testing.go:834)")
 }
-
 // useStandardTimeoutsAndDelaysInTests ensures all tests use common
 // constants for timeouts and delays in usual scenarios, this allows us
 // to tweak them based on platform (important to avoid CI flakes).
@@ -182,12 +154,10 @@ func useStandardTimeoutsAndDelaysInTests(m dsl.Matcher) {
 	m.Import("github.com/stretchr/testify/require")
 	m.Import("github.com/stretchr/testify/assert")
 	m.Import("github.com/coder/coder/v2/testutil")
-
 	m.Match(`context.WithTimeout($ctx, $duration)`).
 		Where(m.File().Imports("testing") && !m.File().PkgPath.Matches("testutil$") && !m["duration"].Text.Matches("^testutil\\.")).
 		At(m["duration"]).
 		Report("Do not use magic numbers in test timeouts and delays. Use the standard testutil.Wait* or testutil.Interval* constants instead.")
-
 	m.Match(`
 		$testify.$Eventually($t, func() bool {
 			$*_
@@ -198,7 +168,6 @@ func useStandardTimeoutsAndDelaysInTests(m dsl.Matcher) {
 			!m["timeout"].Text.Matches("^testutil\\.")).
 		At(m["timeout"]).
 		Report("Do not use magic numbers in test timeouts and delays. Use the standard testutil.Wait* or testutil.Interval* constants instead.")
-
 	m.Match(`
 		$testify.$Eventually($t, func() bool {
 			$*_
@@ -210,7 +179,6 @@ func useStandardTimeoutsAndDelaysInTests(m dsl.Matcher) {
 		At(m["interval"]).
 		Report("Do not use magic numbers in test timeouts and delays. Use the standard testutil.Wait* or testutil.Interval* constants instead.")
 }
-
 // InTx checks to ensure the database used inside the transaction closure is the transaction
 // database, and not the original database that creates the tx.
 func InTx(m dsl.Matcher) {
@@ -230,7 +198,6 @@ func InTx(m dsl.Matcher) {
 	`).Where(m["x"].Text != m["y"].Text).
 		At(m["f"]).
 		Report("Do not use the database directly within the InTx closure. Use '$y' instead of '$x'.")
-
 	// When using a tx closure, ensure that if you pass the db to another
 	// function inside the closure, it is the tx.
 	// This will miss more complex cases such as passing the db as apart
@@ -256,14 +223,12 @@ func InTx(m dsl.Matcher) {
 	`).Where(m["x"].Text != m["y"].Text).
 		At(m["f"]).Report("Pass the tx database into the '$f' function inside the closure. Use '$y' over $x'")
 }
-
 // HttpAPIErrorMessage intends to enforce constructing proper sentences as
 // error messages for the api. A proper sentence includes proper capitalization
 // and ends with punctuation.
 // There are ways around the linter, but this should work in the common cases.
 func HttpAPIErrorMessage(m dsl.Matcher) {
 	m.Import("github.com/coder/coder/v2/coderd/httpapi")
-
 	isNotProperError := func(v dsl.Var) bool {
 		return v.Type.Is("string") &&
 			// Either starts with a lowercase, or ends without punctuation.
@@ -273,7 +238,6 @@ func HttpAPIErrorMessage(m dsl.Matcher) {
 			(m["m"].Text.Matches(`^"[a-z].*`) ||
 				m["m"].Text.Matches(`.*[^.!?]"$`))
 	}
-
 	m.Match(`
 	httpapi.Write($_, $_, $s, httpapi.Response{
 		$*_,
@@ -291,12 +255,10 @@ func HttpAPIErrorMessage(m dsl.Matcher) {
 		At(m["m"]).
 		Report("Field \"Message\" should be a proper sentence with a capitalized first letter and ending in punctuation. $m")
 }
-
 // HttpAPIReturn will report a linter violation if the http function is not
 // returned after writing a response to the client.
 func HttpAPIReturn(m dsl.Matcher) {
 	m.Import("github.com/coder/coder/v2/coderd/httpapi")
-
 	// Manually enumerate the httpapi function rather then a 'Where' condition
 	// as this is a bit more efficient.
 	m.Match(`
@@ -314,7 +276,6 @@ func HttpAPIReturn(m dsl.Matcher) {
 	`).At(m["a"]).
 		Report("Forgot to return early after writing to the http response writer.")
 }
-
 // ProperRBACReturn ensures we always write to the response writer after a
 // call to Authorize. If we just do a return, the client will get a status code
 // 200, which is incorrect.
@@ -325,7 +286,6 @@ func ProperRBACReturn(m dsl.Matcher) {
 	}
 	`).Report("Must write to 'ResponseWriter' before returning'")
 }
-
 // FullResponseWriter ensures that any overridden response writer has full
 // functionality. Mainly is hijackable and flushable.
 func FullResponseWriter(m dsl.Matcher) {
@@ -340,7 +300,6 @@ func FullResponseWriter(m dsl.Matcher) {
 		Where(m["w"].Filter(notImplementsFullResponseWriter)).
 		Report("ResponseWriter \"$w\" must implement http.Flusher and http.Hijacker")
 }
-
 // notImplementsFullResponseWriter returns false if the type does not implement
 // http.Flusher, http.Hijacker, and http.ResponseWriter.
 func notImplementsFullResponseWriter(ctx *dsl.VarFilterContext) bool {
@@ -352,7 +311,6 @@ func notImplementsFullResponseWriter(ctx *dsl.VarFilterContext) bool {
 		!(types.Implements(p, flusher) || types.Implements(ctx.Type, flusher)) ||
 		!(types.Implements(p, hijacker) || types.Implements(ctx.Type, hijacker))
 }
-
 // slogFieldNameSnakeCase is a lint rule that ensures naming consistency
 // of logged field names.
 func slogFieldNameSnakeCase(m dsl.Matcher) {
@@ -363,7 +321,6 @@ func slogFieldNameSnakeCase(m dsl.Matcher) {
 		Where(m["name"].Const && !m["name"].Text.Matches(`^"[a-z]+(_[a-z]+)*"$`)).
 		Report("Field name $name must be snake_case.")
 }
-
 // slogUUIDFieldNameHasIDSuffix ensures that "uuid.UUID" field has ID prefix
 // in the field name.
 func slogUUIDFieldNameHasIDSuffix(m dsl.Matcher) {
@@ -375,7 +332,6 @@ func slogUUIDFieldNameHasIDSuffix(m dsl.Matcher) {
 		Where(m["value"].Type.Is("uuid.UUID") && !m["name"].Text.Matches(`_id"$`)).
 		Report(`uuid.UUID field $name must have "_id" suffix.`)
 }
-
 // slogMessageFormat ensures that the log message starts with lowercase, and does not
 // end with special character.
 func slogMessageFormat(m dsl.Matcher) {
@@ -385,17 +341,14 @@ func slogMessageFormat(m dsl.Matcher) {
 		`logger.Warn($ctx, $message, $*args)`,
 		`logger.Info($ctx, $message, $*args)`,
 		`logger.Debug($ctx, $message, $*args)`,
-
 		`$foo.logger.Error($ctx, $message, $*args)`,
 		`$foo.logger.Warn($ctx, $message, $*args)`,
 		`$foo.logger.Info($ctx, $message, $*args)`,
 		`$foo.logger.Debug($ctx, $message, $*args)`,
-
 		`Logger.Error($ctx, $message, $*args)`,
 		`Logger.Warn($ctx, $message, $*args)`,
 		`Logger.Info($ctx, $message, $*args)`,
 		`Logger.Debug($ctx, $message, $*args)`,
-
 		`$foo.Logger.Error($ctx, $message, $*args)`,
 		`$foo.Logger.Warn($ctx, $message, $*args)`,
 		`$foo.Logger.Info($ctx, $message, $*args)`,
@@ -414,7 +367,6 @@ func slogMessageFormat(m dsl.Matcher) {
 					!m["message"].Text.Matches(`^"OIDC`))).
 		Report(`Message $message must start with lowercase, and does not end with a special characters.`)
 }
-
 // slogMessageLength ensures that important log messages are meaningful, and must be at least 16 characters long.
 func slogMessageLength(m dsl.Matcher) {
 	m.Import("cdr.dev/slog")
@@ -422,19 +374,15 @@ func slogMessageLength(m dsl.Matcher) {
 		`logger.Error($ctx, $message, $*args)`,
 		`logger.Warn($ctx, $message, $*args)`,
 		`logger.Info($ctx, $message, $*args)`,
-
 		`$foo.logger.Error($ctx, $message, $*args)`,
 		`$foo.logger.Warn($ctx, $message, $*args)`,
 		`$foo.logger.Info($ctx, $message, $*args)`,
-
 		`Logger.Error($ctx, $message, $*args)`,
 		`Logger.Warn($ctx, $message, $*args)`,
 		`Logger.Info($ctx, $message, $*args)`,
-
 		`$foo.Logger.Error($ctx, $message, $*args)`,
 		`$foo.Logger.Warn($ctx, $message, $*args)`,
 		`$foo.Logger.Info($ctx, $message, $*args)`,
-
 		// no debug
 	).
 		Where(
@@ -444,7 +392,6 @@ func slogMessageLength(m dsl.Matcher) {
 				!m["message"].Text.Matches(`^"command exit"$`)).
 		Report(`Message $message is too short, it must be at least 16 characters long.`)
 }
-
 // slogErr ensures that errors are logged with "slog.Error" instead of "slog.F"
 func slogError(m dsl.Matcher) {
 	m.Import("cdr.dev/slog")
@@ -454,7 +401,6 @@ func slogError(m dsl.Matcher) {
 		Where(m["name"].Const && m["value"].Type.Is("error") && !m["name"].Text.Matches(`^"internal_error"$`)).
 		Report(`Error should be logged using "slog.Error" instead.`)
 }
-
 // withTimezoneUTC ensures that we don't just sprinkle dbtestutil.WithTimezone("UTC") about
 // to work around real timezone bugs in our code.
 //
@@ -467,7 +413,6 @@ func withTimezoneUTC(m dsl.Matcher) {
 	).Report(`Setting database timezone to UTC may mask timezone-related bugs.`).
 		At(m["tz"])
 }
-
 // workspaceActivity ensures that updating workspace activity is only done in the workspacestats package.
 //
 //nolint:unused,deadcode,varnamelen
@@ -487,7 +432,6 @@ func workspaceActivity(m dsl.Matcher) {
 			!m.File().Name.Matches(`_test\.go$`),
 	).Report("Updating workspace activity should always be done in the workspacestats package.")
 }
-
 // noExecInAgent ensures that packages under agent/ don't use exec.Command or
 // exec.CommandContext directly.
 //
@@ -505,7 +449,6 @@ func noExecInAgent(m dsl.Matcher) {
 		).
 		Report("The agent and its subpackages should not use exec.Command or exec.CommandContext directly. Consider using an agentexec.Execer instead.")
 }
-
 // noPTYInAgent ensures that packages under agent/ don't use pty.Command or
 // pty.CommandContext directly.
 //

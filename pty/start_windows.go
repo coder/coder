@@ -1,20 +1,16 @@
 //go:build windows
 // +build windows
-
 package pty
-
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"strings"
 	"unicode/utf16"
 	"unsafe"
-
 	"golang.org/x/sys/windows"
-	"golang.org/x/xerrors"
 )
-
 // Allocates a PTY and starts the specified command attached to it.
 // See: https://docs.microsoft.com/en-us/windows/console/creating-a-pseudoconsole-session#creating-the-hosted-process
 func startPty(cmd *Cmd, opt ...StartOption) (_ PTYCmd, _ Process, retErr error) {
@@ -22,7 +18,6 @@ func startPty(cmd *Cmd, opt ...StartOption) (_ PTYCmd, _ Process, retErr error) 
 	for _, o := range opt {
 		o(&opts)
 	}
-
 	fullPath, err := exec.LookPath(cmd.Path)
 	if err != nil {
 		return nil, nil, err
@@ -45,7 +40,6 @@ func startPty(cmd *Cmd, opt ...StartOption) (_ PTYCmd, _ Process, retErr error) 
 	if err != nil {
 		return nil, nil, err
 	}
-
 	winPty, err := newPty(opts.ptyOpts...)
 	if err != nil {
 		return nil, nil, err
@@ -60,7 +54,6 @@ func startPty(cmd *Cmd, opt ...StartOption) (_ PTYCmd, _ Process, retErr error) 
 	if winPty.opts.sshReq != nil {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("SSH_TTY=%s", winPty.Name()))
 	}
-
 	attrs, err := windows.NewProcThreadAttributeList(1)
 	if err != nil {
 		return nil, nil, err
@@ -70,7 +63,6 @@ func startPty(cmd *Cmd, opt ...StartOption) (_ PTYCmd, _ Process, retErr error) 
 	if err != nil {
 		return nil, nil, err
 	}
-
 	startupInfo := &windows.StartupInfoEx{}
 	startupInfo.ProcThreadAttributeList = attrs.List()
 	startupInfo.StartupInfo.Flags = windows.STARTF_USESTDHANDLES
@@ -94,10 +86,9 @@ func startPty(cmd *Cmd, opt ...StartOption) (_ PTYCmd, _ Process, retErr error) 
 	}
 	defer windows.CloseHandle(processInfo.Thread)
 	defer windows.CloseHandle(processInfo.Process)
-
 	process, err := os.FindProcess(int(processInfo.ProcessId))
 	if err != nil {
-		return nil, nil, xerrors.Errorf("find process %d: %w", processInfo.ProcessId, err)
+		return nil, nil, fmt.Errorf("find process %d: %w", processInfo.ProcessId, err)
 	}
 	wp := &windowsProcess{
 		cmdDone: make(chan any),
@@ -111,7 +102,6 @@ func startPty(cmd *Cmd, opt ...StartOption) (_ PTYCmd, _ Process, retErr error) 
 			_ = process.Kill()
 		}
 	}()
-
 	// Now that we've started the command, and passed the pseudoconsole to it,
 	// close the output write and input read files, so that the other process
 	// has the only handles to them.  Once the process closes the console, there
@@ -134,7 +124,6 @@ func startPty(cmd *Cmd, opt ...StartOption) (_ PTYCmd, _ Process, retErr error) 
 	}
 	return winPty, wp, nil
 }
-
 // Taken from: https://github.com/microsoft/hcsshim/blob/7fbdca16f91de8792371ba22b7305bf4ca84170a/internal/exec/exec.go#L476
 func createEnvBlock(envv []string) *uint16 {
 	if len(envv) == 0 {
@@ -145,7 +134,6 @@ func createEnvBlock(envv []string) *uint16 {
 		length += len(s) + 1
 	}
 	length += 1
-
 	b := make([]byte, length)
 	i := 0
 	for _, s := range envv {
@@ -155,10 +143,8 @@ func createEnvBlock(envv []string) *uint16 {
 		i = i + l + 1
 	}
 	copy(b[i:i+1], []byte{0})
-
 	return &utf16.Encode([]rune(string(b)))[0]
 }
-
 // dedupEnvCase is dedupEnv with a case option for testing.
 // If caseInsensitive is true, the case of keys is ignored.
 func dedupEnvCase(caseInsensitive bool, env []string) []string {
@@ -183,7 +169,6 @@ func dedupEnvCase(caseInsensitive bool, env []string) []string {
 	}
 	return out
 }
-
 // addCriticalEnv adds any critical environment variables that are required
 // (or at least almost always required) on the operating system.
 // Currently this is only used for Windows.

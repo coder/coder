@@ -1,22 +1,18 @@
 package identityprovider
-
 import (
+	"fmt"
 	"database/sql"
 	"errors"
 	"net/http"
 	"net/url"
 	"time"
-
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
 )
-
 type authorizeParams struct {
 	clientID     string
 	redirectURL  *url.URL
@@ -24,13 +20,10 @@ type authorizeParams struct {
 	scope        []string
 	state        string
 }
-
 func extractAuthorizeParams(r *http.Request, callbackURL *url.URL) (authorizeParams, []codersdk.ValidationError, error) {
 	p := httpapi.NewQueryParamParser()
 	vals := r.URL.Query()
-
 	p.RequiredNotEmpty("state", "response_type", "client_id")
-
 	params := authorizeParams{
 		clientID:     p.String(vals, "", "client_id"),
 		redirectURL:  p.RedirectURL(vals, callbackURL, "redirect_uri"),
@@ -38,17 +31,14 @@ func extractAuthorizeParams(r *http.Request, callbackURL *url.URL) (authorizePar
 		scope:        p.Strings(vals, []string{}, "scope"),
 		state:        p.String(vals, "", "state"),
 	}
-
 	// We add "redirected" when coming from the authorize page.
 	_ = p.String(vals, "", "redirected")
-
 	p.ErrorExcessParams(vals)
 	if len(p.Errors) > 0 {
-		return authorizeParams{}, p.Errors, xerrors.Errorf("invalid query params: %w", p.Errors)
+		return authorizeParams{}, p.Errors, fmt.Errorf("invalid query params: %w", p.Errors)
 	}
 	return params, nil, nil
 }
-
 // Authorize displays an HTML page for authorizing an application when the user
 // has first been redirected to this path and generates a code and redirects to
 // the app's callback URL after the user clicks "allow" on that page, which is
@@ -58,7 +48,6 @@ func Authorize(db database.Store, accessURL *url.URL) http.HandlerFunc {
 		ctx := r.Context()
 		apiKey := httpmw.APIKey(r)
 		app := httpmw.OAuth2ProviderApp(r)
-
 		callbackURL, err := url.Parse(app.CallbackURL)
 		if err != nil {
 			httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
@@ -67,7 +56,6 @@ func Authorize(db database.Store, accessURL *url.URL) http.HandlerFunc {
 			})
 			return
 		}
-
 		params, validationErrs, err := extractAuthorizeParams(r, callbackURL)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -77,7 +65,6 @@ func Authorize(db database.Store, accessURL *url.URL) http.HandlerFunc {
 			})
 			return
 		}
-
 		// TODO: Ignoring scope for now, but should look into implementing.
 		code, err := GenerateSecret()
 		if err != nil {
@@ -93,9 +80,8 @@ func Authorize(db database.Store, accessURL *url.URL) http.HandlerFunc {
 				UserID: apiKey.UserID,
 			})
 			if err != nil && !errors.Is(err, sql.ErrNoRows) {
-				return xerrors.Errorf("delete oauth2 app codes: %w", err)
+				return fmt.Errorf("delete oauth2 app codes: %w", err)
 			}
-
 			// Insert the new code.
 			_, err = tx.InsertOAuth2ProviderAppCode(ctx, database.InsertOAuth2ProviderAppCodeParams{
 				ID:        uuid.New(),
@@ -114,9 +100,8 @@ func Authorize(db database.Store, accessURL *url.URL) http.HandlerFunc {
 				UserID:       apiKey.UserID,
 			})
 			if err != nil {
-				return xerrors.Errorf("insert oauth2 authorization code: %w", err)
+				return fmt.Errorf("insert oauth2 authorization code: %w", err)
 			}
-
 			return nil
 		}, nil)
 		if err != nil {
@@ -126,15 +111,12 @@ func Authorize(db database.Store, accessURL *url.URL) http.HandlerFunc {
 			})
 			return
 		}
-
 		newQuery := params.redirectURL.Query()
 		newQuery.Add("code", code.Formatted)
 		newQuery.Add("state", params.state)
 		params.redirectURL.RawQuery = newQuery.Encode()
-
 		http.Redirect(rw, r, params.redirectURL.String(), http.StatusTemporaryRedirect)
 	}
-
 	// Always wrap with its custom mw.
 	return authorizeMW(accessURL)(http.HandlerFunc(handler)).ServeHTTP
 }

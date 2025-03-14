@@ -1,17 +1,12 @@
 package schedule
-
 import (
+	"errors"
 	"context"
-
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 )
-
-var ErrUserCannotSetQuietHoursSchedule = xerrors.New("user cannot set custom quiet hours schedule due to deployment configuration")
-
+var ErrUserCannotSetQuietHoursSchedule = errors.New("user cannot set custom quiet hours schedule due to deployment configuration")
 type UserQuietHoursScheduleOptions struct {
 	// Schedule is the cron schedule to use for quiet hours windows for all
 	// workspaces owned by the user.
@@ -30,7 +25,6 @@ type UserQuietHoursScheduleOptions struct {
 	// will always be used.
 	UserCanSet bool
 }
-
 type UserQuietHoursScheduleStore interface {
 	// Get retrieves the quiet hours schedule for the given user. If the user
 	// has not set a custom schedule, the default schedule will be returned. If
@@ -44,15 +38,11 @@ type UserQuietHoursScheduleStore interface {
 	// nothing and return a nil schedule.
 	Set(ctx context.Context, db database.Store, userID uuid.UUID, rawSchedule string) (UserQuietHoursScheduleOptions, error)
 }
-
 type agplUserQuietHoursScheduleStore struct{}
-
 var _ UserQuietHoursScheduleStore = &agplUserQuietHoursScheduleStore{}
-
 func NewAGPLUserQuietHoursScheduleStore() UserQuietHoursScheduleStore {
 	return &agplUserQuietHoursScheduleStore{}
 }
-
 func (*agplUserQuietHoursScheduleStore) Get(_ context.Context, _ database.Store, _ uuid.UUID) (UserQuietHoursScheduleOptions, error) {
 	// User quiet hours windows are not supported in AGPL.
 	return UserQuietHoursScheduleOptions{
@@ -61,7 +51,6 @@ func (*agplUserQuietHoursScheduleStore) Get(_ context.Context, _ database.Store,
 		UserCanSet: false,
 	}, nil
 }
-
 func (*agplUserQuietHoursScheduleStore) Set(_ context.Context, _ database.Store, _ uuid.UUID, _ string) (UserQuietHoursScheduleOptions, error) {
 	return UserQuietHoursScheduleOptions{}, ErrUserCannotSetQuietHoursSchedule
 }

@@ -1,19 +1,15 @@
 package rolestore
-
 import (
+	"fmt"
+	"errors"
 	"context"
 	"net/http"
-
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/syncmap"
 )
-
 type customRoleCtxKey struct{}
-
 // CustomRoleMW adds a custom role cache on the ctx to prevent duplicate
 // db fetches.
 func CustomRoleMW(next http.Handler) http.Handler {
@@ -22,14 +18,12 @@ func CustomRoleMW(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 	})
 }
-
 // CustomRoleCacheContext prevents needing to lookup custom roles within the
 // same request lifecycle. Optimizing this to span requests should be done
 // in the future.
 func CustomRoleCacheContext(ctx context.Context) context.Context {
 	return context.WithValue(ctx, customRoleCtxKey{}, syncmap.New[string, rbac.Role]())
 }
-
 func roleCache(ctx context.Context) *syncmap.Map[string, rbac.Role] {
 	c, ok := ctx.Value(customRoleCtxKey{}).(*syncmap.Map[string, rbac.Role])
 	if !ok {
@@ -37,7 +31,6 @@ func roleCache(ctx context.Context) *syncmap.Map[string, rbac.Role] {
 	}
 	return c
 }
-
 // Expand will expand built in roles, and fetch custom roles from the database.
 // If a custom role is defined, but does not exist, the role will be omitted on
 // the response. This means deleted roles are silently dropped.
@@ -46,11 +39,9 @@ func Expand(ctx context.Context, db database.Store, names []rbac.RoleIdentifier)
 		// That was easy
 		return []rbac.Role{}, nil
 	}
-
 	cache := roleCache(ctx)
 	lookup := make([]rbac.RoleIdentifier, 0)
 	roles := make([]rbac.Role, 0, len(names))
-
 	for _, name := range names {
 		// Remove any built in roles
 		expanded, err := rbac.RoleByName(name)
@@ -58,18 +49,15 @@ func Expand(ctx context.Context, db database.Store, names []rbac.RoleIdentifier)
 			roles = append(roles, expanded)
 			continue
 		}
-
 		// Check custom role cache
 		customRole, ok := cache.Load(name.String())
 		if ok {
 			roles = append(roles, customRole)
 			continue
 		}
-
 		// Defer custom role lookup
 		lookup = append(lookup, name)
 	}
-
 	if len(lookup) > 0 {
 		lookupArgs := make([]database.NameOrganizationPair, 0, len(lookup))
 		for _, name := range lookup {
@@ -78,7 +66,6 @@ func Expand(ctx context.Context, db database.Store, names []rbac.RoleIdentifier)
 				OrganizationID: name.OrganizationID,
 			})
 		}
-
 		// If some roles are missing from the database, they are omitted from
 		// the expansion. These roles are no-ops. Should we raise some kind of
 		// warning when this happens?
@@ -88,23 +75,20 @@ func Expand(ctx context.Context, db database.Store, names []rbac.RoleIdentifier)
 			OrganizationID:  uuid.Nil,
 		})
 		if err != nil {
-			return nil, xerrors.Errorf("fetch custom roles: %w", err)
+			return nil, fmt.Errorf("fetch custom roles: %w", err)
 		}
-
 		// convert dbroles -> roles
 		for _, dbrole := range dbroles {
 			converted, err := ConvertDBRole(dbrole)
 			if err != nil {
-				return nil, xerrors.Errorf("convert db role %q: %w", dbrole.Name, err)
+				return nil, fmt.Errorf("convert db role %q: %w", dbrole.Name, err)
 			}
 			roles = append(roles, converted)
 			cache.Store(dbrole.RoleIdentifier().String(), converted)
 		}
 	}
-
 	return roles, nil
 }
-
 func convertPermissions(dbPerms []database.CustomRolePermission) []rbac.Permission {
 	n := make([]rbac.Permission, 0, len(dbPerms))
 	for _, dbPerm := range dbPerms {
@@ -116,7 +100,6 @@ func convertPermissions(dbPerms []database.CustomRolePermission) []rbac.Permissi
 	}
 	return n
 }
-
 // ConvertDBRole should not be used by any human facing apis. It is used
 // for authz purposes.
 func ConvertDBRole(dbRole database.CustomRole) (rbac.Role, error) {
@@ -127,17 +110,14 @@ func ConvertDBRole(dbRole database.CustomRole) (rbac.Role, error) {
 		Org:         nil,
 		User:        convertPermissions(dbRole.UserPermissions),
 	}
-
 	// Org permissions only make sense if an org id is specified.
 	if len(dbRole.OrgPermissions) > 0 && dbRole.OrganizationID.UUID == uuid.Nil {
-		return rbac.Role{}, xerrors.Errorf("role has organization perms without an org id specified")
+		return rbac.Role{}, fmt.Errorf("role has organization perms without an org id specified")
 	}
-
 	if dbRole.OrganizationID.UUID != uuid.Nil {
 		role.Org = map[string][]rbac.Permission{
 			dbRole.OrganizationID.UUID.String(): convertPermissions(dbRole.OrgPermissions),
 		}
 	}
-
 	return role, nil
 }

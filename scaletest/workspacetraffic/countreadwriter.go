@@ -1,27 +1,20 @@
 package workspacetraffic
-
 import (
 	"context"
 	"errors"
 	"io"
 	"time"
-
-	"golang.org/x/xerrors"
-
 	"github.com/coder/websocket"
 )
-
 // countReadWriteCloser wraps an io.ReadWriteCloser and counts the number of bytes read and written.
 type countReadWriteCloser struct {
 	rwc          io.ReadWriteCloser
 	readMetrics  ConnMetrics
 	writeMetrics ConnMetrics
 }
-
 func (w *countReadWriteCloser) Close() error {
 	return w.rwc.Close()
 }
-
 func (w *countReadWriteCloser) Read(p []byte) (int, error) {
 	start := time.Now()
 	n, err := w.rwc.Read(p)
@@ -35,7 +28,6 @@ func (w *countReadWriteCloser) Read(p []byte) (int, error) {
 	}
 	return n, err
 }
-
 func (w *countReadWriteCloser) Write(p []byte) (int, error) {
 	start := time.Now()
 	n, err := w.rwc.Write(p)
@@ -49,17 +41,16 @@ func (w *countReadWriteCloser) Write(p []byte) (int, error) {
 	}
 	return n, err
 }
-
 // some errors we want to report in metrics; others we want to ignore
 // such as websocket.StatusNormalClosure or context.Canceled
 func reportableErr(err error) bool {
 	if err == nil {
 		return false
 	}
-	if xerrors.Is(err, io.EOF) {
+	if errors.Is(err, io.EOF) {
 		return false
 	}
-	if xerrors.Is(err, context.Canceled) {
+	if errors.Is(err, context.Canceled) {
 		return false
 	}
 	var wsErr websocket.CloseError

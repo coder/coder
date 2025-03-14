@@ -1,6 +1,6 @@
 package cli
-
 import (
+	"errors"
 	"bufio"
 	_ "embed"
 	"fmt"
@@ -11,26 +11,20 @@ import (
 	"strings"
 	"text/tabwriter"
 	"text/template"
-
 	"github.com/mitchellh/go-wordwrap"
 	"golang.org/x/crypto/ssh/terminal"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
 )
-
 //go:embed help.tpl
 var helpTemplateRaw string
-
 type optionGroup struct {
 	Name        string
 	Description string
 	Options     serpent.OptionSet
 }
-
 func ttyWidth() int {
 	width, _, err := terminal.GetSize(0)
 	if err != nil {
@@ -38,13 +32,11 @@ func ttyWidth() int {
 	}
 	return width
 }
-
 // wrapTTY wraps a string to the width of the terminal, or 80 no terminal
 // is detected.
 func wrapTTY(s string) string {
 	return wordwrap.WrapString(s, uint(ttyWidth()))
 }
-
 var usageTemplate = func() *template.Template {
 	var (
 		optionFg = pretty.FgColor(
@@ -92,14 +84,10 @@ var usageTemplate = func() *template.Template {
 				},
 				"indent": func(body string, spaces int) string {
 					twidth := ttyWidth()
-
 					spacing := strings.Repeat(" ", spaces)
-
 					wrapLim := twidth - len(spacing)
 					body = wordwrap.WrapString(body, uint(wrapLim))
-
 					sc := bufio.NewScanner(strings.NewReader(body))
-
 					var sb strings.Builder
 					for sc.Scan() {
 						// Remove existing indent, if any.
@@ -121,19 +109,15 @@ var usageTemplate = func() *template.Template {
 							}
 						}
 					}
-
 					var sb strings.Builder
 					_, _ = fmt.Fprintf(
 						&sb, "%s%s%s",
 						strings.Repeat(" ", 4), cmd.Name(), strings.Repeat(" ", maxNameLength-len(cmd.Name())+4),
 					)
-
 					// This is the point at which indentation begins if there's a
 					// next line.
 					descStart := sb.Len()
-
 					twidth := ttyWidth()
-
 					for i, line := range strings.Split(
 						wordwrap.WrapString(cmd.Short, uint(twidth-descStart)), "\n",
 					) {
@@ -143,7 +127,6 @@ var usageTemplate = func() *template.Template {
 						_, _ = sb.WriteString(line)
 						_, _ = sb.WriteString("\n")
 					}
-
 					return sb.String()
 				},
 				"envName": func(opt serpent.Option) string {
@@ -155,7 +138,6 @@ var usageTemplate = func() *template.Template {
 				"flagName": func(opt serpent.Option) string {
 					return opt.Flag
 				},
-
 				"isEnterprise": func(opt serpent.Option) bool {
 					return opt.Annotations.IsSet("enterprise")
 				},
@@ -204,17 +186,14 @@ var usageTemplate = func() *template.Template {
 						Name:        "",
 						Description: "",
 					}}
-
 					enterpriseGroup := optionGroup{
 						Name:        "Enterprise",
 						Description: `These options are only available in the Enterprise Edition.`,
 					}
-
 					// Sort options lexicographically.
 					sort.Slice(cmd.Options, func(i, j int) bool {
 						return cmd.Options[i].Name < cmd.Options[j].Name
 					})
-
 				optionLoop:
 					for _, opt := range cmd.Options {
 						if opt.Hidden {
@@ -230,9 +209,7 @@ var usageTemplate = func() *template.Template {
 							groups[0].Options = append(groups[0].Options, opt)
 							continue
 						}
-
 						groupName := opt.Group.FullName()
-
 						for i, foundGroup := range groups {
 							if foundGroup.Name != groupName {
 								continue
@@ -240,7 +217,6 @@ var usageTemplate = func() *template.Template {
 							groups[i].Options = append(groups[i].Options, opt)
 							continue optionLoop
 						}
-
 						groups = append(groups, optionGroup{
 							Name:        groupName,
 							Description: opt.Group.Description,
@@ -251,10 +227,8 @@ var usageTemplate = func() *template.Template {
 						// Sort groups lexicographically.
 						return groups[i].Name < groups[j].Name
 					})
-
 					// Always show enterprise group last.
 					groups = append(groups, enterpriseGroup)
-
 					return filterSlice(groups, func(g optionGroup) bool {
 						return len(g.Options) > 0
 					})
@@ -263,7 +237,6 @@ var usageTemplate = func() *template.Template {
 		).Parse(helpTemplateRaw),
 	)
 }()
-
 func filterSlice[T any](s []T, f func(T) bool) []T {
 	var r []T
 	for _, v := range s {
@@ -273,7 +246,6 @@ func filterSlice[T any](s []T, f func(T) bool) []T {
 	}
 	return r
 }
-
 // newLineLimiter makes working with Go templates more bearable. Without this,
 // modifying the template is a slow toil of counting newlines and constantly
 // checking that a change to one command's help doesn't break another.
@@ -282,10 +254,8 @@ type newlineLimiter struct {
 	// and the devirtualization overhead is significant.
 	w     *bufio.Writer
 	limit int
-
 	newLineCounter int
 }
-
 // isSpace is a based on unicode.IsSpace, but only checks ASCII characters.
 func isSpace(b byte) bool {
 	switch b {
@@ -294,7 +264,6 @@ func isSpace(b byte) bool {
 	}
 	return false
 }
-
 func (lm *newlineLimiter) Write(p []byte) (int, error) {
 	for _, b := range p {
 		switch {
@@ -317,9 +286,7 @@ func (lm *newlineLimiter) Write(p []byte) (int, error) {
 	}
 	return len(p), nil
 }
-
 var usageWantsArgRe = regexp.MustCompile(`<.*>`)
-
 // helpFn returns a function that generates usage (help)
 // output for a given command.
 func helpFn() serpent.HandlerFunc {
@@ -331,7 +298,7 @@ func helpFn() serpent.HandlerFunc {
 		if len(inv.Args) > 0 {
 			// Return an error so that exit status is non-zero when
 			// a subcommand is not found.
-			err := xerrors.Errorf("unrecognized subcommand %q", strings.Join(inv.Args, " "))
+			err := fmt.Errorf("unrecognized subcommand %q", strings.Join(inv.Args, " "))
 			if slices.Contains(os.Args, "--help") {
 				// Subcommand error is not wrapped in RunCommandErr if command
 				// is invoked with --help with no HelpHandler
@@ -342,7 +309,6 @@ func helpFn() serpent.HandlerFunc {
 			}
 			return err
 		}
-
 		// We use stdout for help and not stderr since there's no straightforward
 		// way to distinguish between a user error and a help request.
 		//
@@ -353,7 +319,7 @@ func helpFn() serpent.HandlerFunc {
 		tabwriter := tabwriter.NewWriter(&out, 0, 0, 2, ' ', 0)
 		err := usageTemplate.Execute(tabwriter, inv.Command)
 		if err != nil {
-			return xerrors.Errorf("execute template: %w", err)
+			return fmt.Errorf("execute template: %w", err)
 		}
 		err = tabwriter.Flush()
 		if err != nil {

@@ -1,6 +1,6 @@
 package coderd
-
 import (
+	"errors"
 	"context"
 	"crypto/ed25519"
 	"fmt"
@@ -11,7 +11,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/database"
@@ -21,16 +20,11 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/enterprise/coderd/enidpsync"
 	"github.com/coder/coder/v2/enterprise/coderd/portsharing"
-
-	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
-
 	"github.com/cenkalti/backoff/v4"
 	"github.com/go-chi/chi/v5"
 	"github.com/prometheus/client_golang/prometheus"
-
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/v2/coderd"
 	agplaudit "github.com/coder/coder/v2/coderd/audit"
 	agpldbauthz "github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -52,7 +46,6 @@ import (
 	"github.com/coder/coder/v2/provisionerd/proto"
 	agpltailnet "github.com/coder/coder/v2/tailnet"
 )
-
 // New constructs an Enterprise coderd API instance.
 // This handler is designed to wrap the AGPL Coder code and
 // layer Enterprise functionality on top as much as possible.
@@ -80,9 +73,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	if options.Entitlements == nil {
 		options.Entitlements = entitlements.New()
 	}
-
 	ctx, cancelFunc := context.WithCancel(ctx)
-
 	if options.ExternalTokenEncryption == nil {
 		options.ExternalTokenEncryption = make([]dbcrypt.Cipher, 0)
 	}
@@ -96,7 +87,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		}
 		options.Logger.Info(ctx, "database encryption enabled", slog.F("keys", keyDigests))
 	}
-
 	cryptDB, err := dbcrypt.New(ctx, options.Database, options.ExternalTokenEncryption...)
 	if err != nil {
 		cancelFunc()
@@ -104,18 +94,15 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		// database is encrypted with an unknown external token encryption key.
 		// This is a fatal error.
 		var derr *dbcrypt.DecryptFailedError
-		if xerrors.As(err, &derr) {
-			return nil, xerrors.Errorf("database encrypted with unknown key, either add the key or see https://coder.com/docs/admin/encryption#disabling-encryption: %w", derr)
+		if errors.As(err, &derr) {
+			return nil, fmt.Errorf("database encrypted with unknown key, either add the key or see https://coder.com/docs/admin/encryption#disabling-encryption: %w", derr)
 		}
-		return nil, xerrors.Errorf("init database encryption: %w", err)
+		return nil, fmt.Errorf("init database encryption: %w", err)
 	}
-
 	options.Database = cryptDB
-
 	if options.IDPSync == nil {
 		options.IDPSync = enidpsync.NewSync(options.Logger, options.RuntimeConfig, options.Entitlements, idpsync.FromDeploymentValues(options.DeploymentValues))
 	}
-
 	api := &API{
 		ctx:     ctx,
 		cancel:  cancelFunc,
@@ -137,7 +124,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			_ = api.Close()
 		}
 	}()
-
 	api.AGPL.Options.ParseLicenseClaims = func(rawJWT string) (email string, trial bool, err error) {
 		c, err := license.ParseClaims(rawJWT, Keys)
 		if err != nil {
@@ -165,7 +151,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	if err != nil {
 		api.Logger.Fatal(api.ctx, "failed to initialize tailnet client service", slog.Error(err))
 	}
-
 	oauthConfigs := &httpmw.OAuth2Configs{
 		Github: options.GithubOAuth2Config,
 		OIDC:   options.OIDCConfig,
@@ -189,16 +174,13 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		SessionTokenFunc:              nil, // Default behavior
 		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
 	})
-
 	deploymentID, err := options.Database.GetDeploymentID(ctx)
 	if err != nil {
-		return nil, xerrors.Errorf("failed to get deployment ID: %w", err)
+		return nil, fmt.Errorf("failed to get deployment ID: %w", err)
 	}
-
 	api.AGPL.RefreshEntitlements = func(ctx context.Context) error {
 		return api.refreshEntitlements(ctx)
 	}
-
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
 		r.Get("/entitlements", api.serveEntitlements)
 		// /regions overrides the AGPL /regions endpoint
@@ -251,13 +233,11 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 					apiKeyMiddleware,
 					httpmw.ExtractWorkspaceProxyParam(api.Database, deploymentID, api.AGPL.PrimaryWorkspaceProxy),
 				)
-
 				r.Get("/", api.workspaceProxy)
 				r.Patch("/", api.patchWorkspaceProxy)
 				r.Delete("/", api.deleteWorkspaceProxy)
 			})
 		})
-
 		r.Group(func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -265,7 +245,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			)
 			r.Post("/organizations", api.postOrganizations)
 		})
-
 		r.Group(func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -275,7 +254,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Patch("/organizations/{organization}", api.patchOrganization)
 			r.Delete("/organizations/{organization}", api.deleteOrganization)
 		})
-
 		r.Group(func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -286,7 +264,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Put("/organizations/{organization}/members/roles", api.putOrgRoles)
 			r.Delete("/organizations/{organization}/members/roles/{roleName}", api.deleteOrgRole)
 		})
-
 		r.Group(func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -298,12 +275,10 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 					r.Patch("/config", api.patchOrganizationIDPSyncConfig)
 					r.Patch("/mapping", api.patchOrganizationIDPSyncMapping)
 				})
-
 				r.Get("/available-fields", api.deploymentIDPSyncClaimFields)
 				r.Get("/field-values", api.deploymentIDPSyncClaimFieldValues)
 			})
 		})
-
 		r.Group(func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -314,17 +289,14 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				r.Patch("/idpsync/groups", api.patchGroupIDPSyncSettings)
 				r.Patch("/idpsync/groups/config", api.patchGroupIDPSyncConfig)
 				r.Patch("/idpsync/groups/mapping", api.patchGroupIDPSyncMapping)
-
 				r.Get("/idpsync/roles", api.roleIDPSyncSettings)
 				r.Patch("/idpsync/roles", api.patchRoleIDPSyncSettings)
 				r.Patch("/idpsync/roles/config", api.patchRoleIDPSyncConfig)
 				r.Patch("/idpsync/roles/mapping", api.patchRoleIDPSyncMapping)
-
 				r.Get("/idpsync/available-fields", api.organizationIDPSyncClaimFields)
 				r.Get("/idpsync/field-values", api.organizationIDPSyncClaimFieldValues)
 			})
 		})
-
 		r.Group(func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -337,7 +309,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			)
 			r.Get("/organizations/{organization}/members/{user}/workspace-quota", api.workspaceQuota)
 		})
-
 		r.Route("/organizations/{organization}/groups", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -350,7 +321,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				r.Use(
 					httpmw.ExtractGroupByNameParam(api.Database),
 				)
-
 				r.Get("/", api.groupByOrganization)
 			})
 		})
@@ -463,7 +433,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				apiKeyMiddleware,
 				httpmw.ExtractUserParam(options.Database),
 			)
-
 			r.Get("/", api.userQuietHoursSchedule)
 			r.Put("/", api.putUserQuietHoursSchedule)
 		})
@@ -472,11 +441,9 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				apiKeyMiddleware,
 				api.jfrogEnabledMW,
 			)
-
 			r.Post("/jfrog/xray-scan", api.postJFrogXrayScan)
 			r.Get("/jfrog/xray-scan", api.jFrogXrayScan)
 		})
-
 		// The /notifications base route is mounted by the AGPL router, so we can't group it here.
 		// Additionally, because we have a static route for /notifications/templates/system which conflicts
 		// with the below route, we need to register this route without any mounts or groups to make both work.
@@ -485,7 +452,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			httpmw.ExtractNotificationTemplateParam(options.Database),
 		).Put("/notifications/templates/{notification_template}/method", api.updateNotificationTemplateMethod)
 	})
-
 	if len(options.SCIMAPIKey) != 0 {
 		api.AGPL.RootHandler.Route("/scim/v2", func(r chi.Router) {
 			r.Use(
@@ -521,10 +487,9 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			})
 		})))
 	}
-
 	meshTLSConfig, err := replicasync.CreateDERPMeshTLSConfig(options.AccessURL.Hostname(), options.TLSCertificates)
 	if err != nil {
-		return nil, xerrors.Errorf("create DERP mesh TLS config: %w", err)
+		return nil, fmt.Errorf("create DERP mesh TLS config: %w", err)
 	}
 	// We always want to run the replica manager even if we don't have DERP
 	// enabled, since it's used to detect other coder servers for licensing.
@@ -536,12 +501,11 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		UpdateInterval: options.ReplicaSyncUpdateInterval,
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("initialize replica: %w", err)
+		return nil, fmt.Errorf("initialize replica: %w", err)
 	}
 	if api.DERPServer != nil {
 		api.derpMesh = derpmesh.New(options.Logger.Named("derpmesh"), api.DERPServer, meshTLSConfig)
 	}
-
 	// Moon feature init. Proxyhealh is a go routine to periodically check
 	// the health of all workspace proxies.
 	api.ProxyHealth, err = proxyhealth.New(&proxyhealth.Options{
@@ -552,90 +516,71 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		Prometheus: api.PrometheusRegistry,
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("initialize proxy health: %w", err)
+		return nil, fmt.Errorf("initialize proxy health: %w", err)
 	}
 	go api.ProxyHealth.Run(ctx)
 	// Force the initial loading of the cache. Do this in a go routine in case
 	// the calls to the workspace proxies hang and this takes some time.
 	go api.forceWorkspaceProxyHealthUpdate(ctx)
-
 	// Use proxy health to return the healthy workspace proxy hostnames.
 	f := api.ProxyHealth.ProxyHosts
 	api.AGPL.WorkspaceProxyHostsFn.Store(&f)
-
 	// Wire this up to healthcheck.
 	var fetchUpdater healthcheck.WorkspaceProxiesFetchUpdater = &workspaceProxiesFetchUpdater{
 		fetchFunc:  api.fetchWorkspaceProxies,
 		updateFunc: api.ProxyHealth.ForceUpdate,
 	}
 	api.AGPL.WorkspaceProxiesFetchUpdater.Store(&fetchUpdater)
-
 	err = api.PrometheusRegistry.Register(api.licenseMetricsCollector)
 	if err != nil {
-		return nil, xerrors.Errorf("unable to register license metrics collector")
+		return nil, fmt.Errorf("unable to register license metrics collector")
 	}
-
 	err = api.updateEntitlements(ctx)
 	if err != nil {
-		return nil, xerrors.Errorf("update entitlements: %w", err)
+		return nil, fmt.Errorf("update entitlements: %w", err)
 	}
 	go api.runEntitlementsLoop(ctx)
-
 	return api, nil
 }
-
 type Options struct {
 	*coderd.Options
-
 	RBAC         bool
 	AuditLogging bool
 	// Whether to block non-browser connections.
 	BrowserOnly bool
 	SCIMAPIKey  []byte
-
 	ExternalTokenEncryption []dbcrypt.Cipher
-
 	// Used for high availability.
 	ReplicaSyncUpdateInterval time.Duration
 	ReplicaErrorGracePeriod   time.Duration
 	DERPServerRelayAddress    string
 	DERPServerRegionID        int
-
 	// Used for user quiet hours schedules.
 	DefaultQuietHoursSchedule string // cron schedule, if empty user quiet hours schedules are disabled
-
 	EntitlementsUpdateInterval time.Duration
 	ProxyHealthInterval        time.Duration
 	LicenseKeys                map[string]ed25519.PublicKey
-
 	// optional pre-shared key for authentication of external provisioner daemons
 	ProvisionerDaemonPSK string
-
 	CheckInactiveUsersCancelFunc func()
 }
-
 type API struct {
 	AGPL *coderd.API
 	*Options
-
 	// ctx is canceled immediately on shutdown, it can be used to abort
 	// interruptible tasks.
 	ctx    context.Context
 	cancel context.CancelFunc
-
 	// Detects multiple Coder replicas running at the same time.
 	replicaManager *replicasync.Manager
 	// Meshes DERP connections from multiple replicas.
 	derpMesh *derpmesh.Mesh
 	// ProxyHealth checks the reachability of all workspace proxies.
 	ProxyHealth *proxyhealth.ProxyHealth
-
 	provisionerDaemonAuth *provisionerDaemonAuth
-
 	licenseMetricsCollector *license.MetricsCollector
 	tailnetService          *tailnet.ClientService
 }
-
 // writeEntitlementWarningsHeader writes the entitlement warnings to the response header
 // for all authenticated users with roles. If there are no warnings, this header will not be written.
 //
@@ -648,7 +593,6 @@ func (api *API) writeEntitlementWarningsHeader(a rbac.Subject, header http.Heade
 	}
 	api.Entitlements.WriteEntitlementWarningHeaders(header)
 }
-
 func (api *API) Close() error {
 	// Replica manager should be closed first. This is because the replica
 	// manager updates the replica's table in the database when it closes.
@@ -660,13 +604,11 @@ func (api *API) Close() error {
 	if api.derpMesh != nil {
 		_ = api.derpMesh.Close()
 	}
-
 	if api.Options.CheckInactiveUsersCancelFunc != nil {
 		api.Options.CheckInactiveUsersCancelFunc()
 	}
 	return api.AGPL.Close()
 }
-
 func (api *API) updateEntitlements(ctx context.Context) error {
 	return api.Entitlements.Update(ctx, func(ctx context.Context) (codersdk.Entitlements, error) {
 		replicas := api.replicaManager.AllPrimary()
@@ -683,7 +625,6 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			}
 			agedReplicas = append(agedReplicas, replica)
 		}
-
 		reloadedEntitlements, err := license.Entitlements(
 			ctx, api.Database,
 			len(agedReplicas), len(api.ExternalAuthConfigs), api.LicenseKeys, map[codersdk.FeatureName]bool{
@@ -703,21 +644,17 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		if err != nil {
 			return codersdk.Entitlements{}, err
 		}
-
 		if reloadedEntitlements.RequireTelemetry && !api.DeploymentValues.Telemetry.Enable.Value() {
 			api.Logger.Error(ctx, "license requires telemetry enabled")
 			return codersdk.Entitlements{}, entitlements.ErrLicenseRequiresTelemetry
 		}
-
 		featureChanged := func(featureName codersdk.FeatureName) (initial, changed, enabled bool) {
 			return api.Entitlements.FeatureChanged(featureName, reloadedEntitlements.Features[featureName])
 		}
-
 		shouldUpdate := func(initial, changed, enabled bool) bool {
 			// Avoid an initial tick on startup unless the feature is enabled.
 			return changed || (initial && enabled)
 		}
-
 		if initial, changed, enabled := featureChanged(codersdk.FeatureAuditLog); shouldUpdate(initial, changed, enabled) {
 			auditor := agplaudit.NewNop()
 			if enabled {
@@ -725,7 +662,6 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			}
 			api.AGPL.Auditor.Store(&auditor)
 		}
-
 		if initial, changed, enabled := featureChanged(codersdk.FeatureBrowserOnly); shouldUpdate(initial, changed, enabled) {
 			var handler func(rw http.ResponseWriter) bool
 			if enabled {
@@ -733,7 +669,6 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			}
 			api.AGPL.WorkspaceClientCoordinateOverride.Store(&handler)
 		}
-
 		if initial, changed, enabled := featureChanged(codersdk.FeatureTemplateRBAC); shouldUpdate(initial, changed, enabled) {
 			if enabled {
 				committer := committer{
@@ -746,13 +681,11 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				api.AGPL.QuotaCommitter.Store(nil)
 			}
 		}
-
 		if initial, changed, enabled := featureChanged(codersdk.FeatureAdvancedTemplateScheduling); shouldUpdate(initial, changed, enabled) {
 			if enabled {
 				templateStore := schedule.NewEnterpriseTemplateScheduleStore(api.AGPL.UserQuietHoursScheduleStore, api.NotificationsEnqueuer, api.Logger.Named("template.schedule-store"), api.Clock)
 				templateStoreInterface := agplschedule.TemplateScheduleStore(templateStore)
 				api.AGPL.TemplateScheduleStore.Store(&templateStoreInterface)
-
 				if api.DefaultQuietHoursSchedule == "" {
 					api.Logger.Warn(ctx, "template autostop requirement will default to UTC midnight as the default user quiet hours schedule. Set a custom default quiet hours schedule using CODER_QUIET_HOURS_DEFAULT_SCHEDULE to avoid this warning")
 					api.DefaultQuietHoursSchedule = "CRON_TZ=UTC 0 0 * * *"
@@ -770,7 +703,6 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				api.AGPL.UserQuietHoursScheduleStore.Store(&quietHoursStore)
 			}
 		}
-
 		if initial, changed, enabled := featureChanged(codersdk.FeatureHighAvailability); shouldUpdate(initial, changed, enabled) {
 			var coordinator agpltailnet.Coordinator
 			// If HA is enabled, but the database is in-memory, we can't actually
@@ -788,7 +720,6 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				} else {
 					coordinator = haCoordinator
 				}
-
 				api.replicaManager.SetCallback(func() {
 					// Only update DERP mesh if the built-in server is enabled.
 					if api.Options.DeploymentValues.DERP.Server.Enable {
@@ -815,7 +746,6 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 					_ = api.updateEntitlements(ctx)
 				})
 			}
-
 			// Recheck changed in case the HA coordinator failed to set up.
 			if coordinator != nil {
 				oldCoordinator := *api.AGPL.TailnetCoordinator.Swap(&coordinator)
@@ -825,7 +755,6 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				}
 			}
 		}
-
 		if initial, changed, enabled := featureChanged(codersdk.FeatureWorkspaceProxy); shouldUpdate(initial, changed, enabled) {
 			if enabled {
 				fn := derpMapper(api.Logger, api.ProxyHealth)
@@ -834,7 +763,6 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				api.AGPL.DERPMapper.Store(nil)
 			}
 		}
-
 		if initial, changed, enabled := featureChanged(codersdk.FeatureAccessControl); shouldUpdate(initial, changed, enabled) {
 			var acs agpldbauthz.AccessControlStore = agpldbauthz.AGPLTemplateAccessControlStore{}
 			if enabled {
@@ -842,7 +770,6 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			}
 			api.AGPL.AccessControlStore.Store(&acs)
 		}
-
 		if initial, changed, enabled := featureChanged(codersdk.FeatureAppearance); shouldUpdate(initial, changed, enabled) {
 			if enabled {
 				f := newAppearanceFetcher(
@@ -857,7 +784,6 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				api.AGPL.AppearanceFetcher.Store(&f)
 			}
 		}
-
 		if initial, changed, enabled := featureChanged(codersdk.FeatureControlSharedPorts); shouldUpdate(initial, changed, enabled) {
 			var ps agplportsharing.PortSharer = agplportsharing.DefaultPortSharer
 			if enabled {
@@ -865,7 +791,6 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			}
 			api.AGPL.PortSharer.Store(&ps)
 		}
-
 		// External token encryption is soft-enforced
 		featureExternalTokenEncryption := reloadedEntitlements.Features[codersdk.FeatureExternalTokenEncryption]
 		featureExternalTokenEncryption.Enabled = len(api.ExternalTokenEncryption) > 0
@@ -878,7 +803,6 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		return reloadedEntitlements, nil
 	})
 }
-
 // getProxyDERPStartingRegionID returns the starting region ID that should be
 // used for workspace proxies. A proxy's actual region ID is the return value
 // from this function + it's RegionID field.
@@ -896,7 +820,6 @@ func getProxyDERPStartingRegionID(derpMap *tailcfg.DERPMap) (sID int64, mID int6
 	if maxRegionID < 0 {
 		maxRegionID = 0
 	}
-
 	// Round to the nearest 10,000 with a sufficient buffer of at least 2,000.
 	// The buffer allows for future "fixed" regions to be added to the base DERP
 	// map without conflicting with proxy region IDs (standard DERP maps usually
@@ -920,19 +843,15 @@ func getProxyDERPStartingRegionID(derpMap *tailcfg.DERPMap) (sID int64, mID int6
 	if startingRegionID < roundStartingRegionID {
 		startingRegionID = roundStartingRegionID
 	}
-
 	return startingRegionID, maxRegionID
 }
-
 var (
 	lastDerpConflictMutex sync.Mutex
 	lastDerpConflictLog   time.Time
 )
-
 func derpMapper(logger slog.Logger, proxyHealth *proxyhealth.ProxyHealth) func(*tailcfg.DERPMap) *tailcfg.DERPMap {
 	return func(derpMap *tailcfg.DERPMap) *tailcfg.DERPMap {
 		derpMap = derpMap.Clone()
-
 		// Find the starting region ID that we'll use for proxies. This must be
 		// deterministic based on the derp map.
 		startingRegionID, largestRegionID := getProxyDERPStartingRegionID(derpMap)
@@ -955,7 +874,6 @@ func derpMapper(logger slog.Logger, proxyHealth *proxyhealth.ProxyHealth) func(*
 				return derpMap
 			}
 		}
-
 		// Add all healthy proxies to the DERP map.
 		statusMap := proxyHealth.HealthStatus()
 	statusLoop:
@@ -964,7 +882,6 @@ func derpMapper(logger slog.Logger, proxyHealth *proxyhealth.ProxyHealth) func(*
 				// Only add healthy proxies with DERP enabled to the DERP map.
 				continue
 			}
-
 			u, err := url.Parse(status.Proxy.Url)
 			if err != nil {
 				// Not really any need to log, the proxy should be unreachable
@@ -984,7 +901,6 @@ func derpMapper(logger slog.Logger, proxyHealth *proxyhealth.ProxyHealth) func(*
 				// anyways and filtered out by the above condition.
 				continue
 			}
-
 			// Sanity check that the region ID and code is unique.
 			//
 			// This should be impossible to hit as the IDs are enforced to be
@@ -1018,11 +934,9 @@ func derpMapper(logger slog.Logger, proxyHealth *proxyhealth.ProxyHealth) func(*
 							slog.F("proxy_computed_region_code", regionCode),
 						)
 					}
-
 					continue statusLoop
 				}
 			}
-
 			derpMap.Regions[regionID] = &tailcfg.DERPRegion{
 				// EmbeddedRelay ONLY applies to the primary.
 				EmbeddedRelay: false,
@@ -1041,11 +955,9 @@ func derpMapper(logger slog.Logger, proxyHealth *proxyhealth.ProxyHealth) func(*
 				},
 			}
 		}
-
 		return derpMap
 	}
 }
-
 // @Summary Get entitlements
 // @ID get-entitlements
 // @Security CoderSessionToken
@@ -1057,14 +969,12 @@ func (api *API) serveEntitlements(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	httpapi.Write(ctx, rw, http.StatusOK, api.Entitlements.AsJSON())
 }
-
 func (api *API) runEntitlementsLoop(ctx context.Context) {
 	eb := backoff.NewExponentialBackOff()
 	eb.MaxElapsedTime = 0 // retry indefinitely
 	b := backoff.WithContext(eb, ctx)
 	updates := make(chan struct{}, 1)
 	subscribed := false
-
 	defer func() {
 		// If this function ends, it means the context was canceled and this
 		// coderd is shutting down. In this case, post a pubsub message to
@@ -1108,7 +1018,6 @@ func (api *API) runEntitlementsLoop(ctx context.Context) {
 			subscribed = true
 			api.Logger.Debug(ctx, "successfully subscribed to pubsub")
 		}
-
 		api.Logger.Debug(ctx, "syncing licensed entitlements")
 		err := api.updateEntitlements(ctx)
 		if err != nil {
@@ -1118,7 +1027,6 @@ func (api *API) runEntitlementsLoop(ctx context.Context) {
 		}
 		b.Reset()
 		api.Logger.Debug(ctx, "synced licensed entitlements")
-
 		select {
 		case <-ctx.Done():
 			return
@@ -1130,7 +1038,6 @@ func (api *API) runEntitlementsLoop(ctx context.Context) {
 		}
 	}
 }
-
 func (api *API) Authorize(r *http.Request, action policy.Action, object rbac.Objecter) bool {
 	return api.AGPL.HTTPAuth.Authorize(r, action, object)
 }

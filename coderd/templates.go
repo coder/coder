@@ -1,5 +1,4 @@
 package coderd
-
 import (
 	"context"
 	"database/sql"
@@ -8,14 +7,10 @@ import (
 	"net/http"
 	"sort"
 	"time"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
-
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
-
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -33,7 +28,6 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/examples"
 )
-
 // Returns a single template.
 //
 // @Summary Get template metadata by ID
@@ -47,10 +41,8 @@ import (
 func (api *API) template(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	template := httpmw.TemplateParam(r)
-
 	httpapi.Write(ctx, rw, http.StatusOK, api.convertTemplate(template))
 }
-
 // @Summary Delete template by ID
 // @ID delete-template-by-id
 // @Security CoderSessionToken
@@ -75,7 +67,6 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 	)
 	defer commitAudit()
 	aReq.Old = template
-
 	// This is just to get the workspace count, so we use a system context to
 	// return ALL workspaces. Not just workspaces the user can view.
 	// nolint:gocritic
@@ -107,7 +98,6 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	admins, err := findTemplateAdmins(ctx, api.Database)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -123,24 +113,20 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 		}
 		api.notifyTemplateDeleted(ctx, template, apiKey.UserID, admin.ID)
 	}
-
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
 		Message: "Template has been deleted!",
 	})
 }
-
 func (api *API) notifyTemplateDeleted(ctx context.Context, template database.Template, initiatorID uuid.UUID, receiverID uuid.UUID) {
 	initiator, err := api.Database.GetUserByID(ctx, initiatorID)
 	if err != nil {
 		api.Logger.Warn(ctx, "failed to fetch initiator for template deletion notification", slog.F("initiator_id", initiatorID), slog.Error(err))
 		return
 	}
-
 	templateNameLabel := template.DisplayName
 	if templateNameLabel == "" {
 		templateNameLabel = template.Name
 	}
-
 	// nolint:gocritic // Need notifier actor to enqueue notifications
 	if _, err := api.NotificationsEnqueuer.Enqueue(dbauthz.AsNotifier(ctx), receiverID, notifications.TemplateTemplateDeleted,
 		map[string]string{
@@ -153,7 +139,6 @@ func (api *API) notifyTemplateDeleted(ctx context.Context, template database.Tem
 		api.Logger.Warn(ctx, "failed to notify of template deletion", slog.F("deleted_template_id", template.ID), slog.Error(err))
 	}
 }
-
 // Create a new template in an organization.
 // Returns a single template.
 //
@@ -192,11 +177,9 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	)
 	defer commitTemplateAudit()
 	defer commitTemplateVersionAudit()
-
 	if !httpapi.Read(ctx, rw, r, &createTemplate) {
 		return
 	}
-
 	// Make a temporary struct to represent the template. This is used for
 	// auditing if any of the following checks fail. It will be overwritten when
 	// the template is inserted into the db.
@@ -208,7 +191,6 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		Icon:           createTemplate.Icon,
 		DisplayName:    createTemplate.DisplayName,
 	}
-
 	_, err := api.Database.GetTemplateByOrganizationAndName(ctx, database.GetTemplateByOrganizationAndNameParams{
 		OrganizationID: organization.ID,
 		Name:           createTemplate.Name,
@@ -230,7 +212,6 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		})
 		return
 	}
-
 	templateVersion, err := api.Database.GetTemplateVersionByID(ctx, createTemplate.VersionID)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
@@ -267,7 +248,6 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		})
 		return
 	}
-
 	importJob, err := api.Database.GetProvisionerJobByID(ctx, templateVersion.JobID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -276,7 +256,6 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		})
 		return
 	}
-
 	var (
 		defaultTTL                     time.Duration
 		activityBump                   = time.Hour // default
@@ -312,7 +291,6 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	if createTemplate.TimeTilDormantAutoDeleteMillis != nil {
 		dormantAutoDeletionTTL = time.Duration(*createTemplate.TimeTilDormantAutoDeleteMillis) * time.Millisecond
 	}
-
 	var (
 		validErrs                            []codersdk.ValidationError
 		autostopRequirementDaysOfWeekParsed  uint8
@@ -325,7 +303,6 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	if activityBump < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "activity_bump_ms", Detail: "Must be a positive integer."})
 	}
-
 	if len(autostopRequirementDaysOfWeek) > 0 {
 		autostopRequirementDaysOfWeekParsed, err = codersdk.WeekdaysToBitmap(autostopRequirementDaysOfWeek)
 		if err != nil {
@@ -346,7 +323,6 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			maxPortShareLevel = database.AppSharingLevel(*createTemplate.MaxPortShareLevel)
 		}
 	}
-
 	if autostopRequirementWeeks < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "autostop_requirement.weeks", Detail: "Must be a positive integer."})
 	}
@@ -362,7 +338,6 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	if dormantAutoDeletionTTL < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "time_til_dormant_autodeletion_ms", Detail: "Must be a positive integer."})
 	}
-
 	if len(validErrs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid create template request.",
@@ -370,15 +345,12 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		})
 		return
 	}
-
 	var (
 		dbTemplate database.Template
-
 		allowUserCancelWorkspaceJobs = ptr.NilToDefault(createTemplate.AllowUserCancelWorkspaceJobs, false)
 		allowUserAutostart           = ptr.NilToDefault(createTemplate.AllowUserAutostart, true)
 		allowUserAutostop            = ptr.NilToDefault(createTemplate.AllowUserAutostop, true)
 	)
-
 	defaultsGroups := database.TemplateACL{}
 	if !createTemplate.DisableEveryoneGroupAccess {
 		// The organization ID is used as the group ID for the everyone group
@@ -406,23 +378,20 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			MaxPortSharingLevel:          maxPortShareLevel,
 		})
 		if err != nil {
-			return xerrors.Errorf("insert template: %s", err)
+			return fmt.Errorf("insert template: %s", err)
 		}
-
 		if createTemplate.RequireActiveVersion {
 			err = (*api.AccessControlStore.Load()).SetTemplateAccessControl(ctx, tx, id, dbauthz.TemplateAccessControl{
 				RequireActiveVersion: createTemplate.RequireActiveVersion,
 			})
 			if err != nil {
-				return xerrors.Errorf("set template access control: %w", err)
+				return fmt.Errorf("set template access control: %w", err)
 			}
 		}
-
 		dbTemplate, err = tx.GetTemplateByID(ctx, id)
 		if err != nil {
-			return xerrors.Errorf("get template by id: %s", err)
+			return fmt.Errorf("get template by id: %s", err)
 		}
-
 		dbTemplate, err = (*api.TemplateScheduleStore.Load()).Set(ctx, tx, dbTemplate, schedule.TemplateScheduleOptions{
 			UserAutostartEnabled: allowUserAutostart,
 			UserAutostopEnabled:  allowUserAutostop,
@@ -443,11 +412,9 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			TimeTilDormantAutoDelete: dormantAutoDeletionTTL,
 		})
 		if err != nil {
-			return xerrors.Errorf("set template schedule options: %s", err)
+			return fmt.Errorf("set template schedule options: %s", err)
 		}
-
 		templateAudit.New = dbTemplate
-
 		err = tx.UpdateTemplateVersionByID(ctx, database.UpdateTemplateVersionByIDParams{
 			ID: templateVersion.ID,
 			TemplateID: uuid.NullUUID{
@@ -459,7 +426,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			Message:   templateVersion.Message,
 		})
 		if err != nil {
-			return xerrors.Errorf("insert template version: %s", err)
+			return fmt.Errorf("insert template version: %s", err)
 		}
 		newTemplateVersion := templateVersion
 		newTemplateVersion.TemplateID = uuid.NullUUID{
@@ -467,7 +434,6 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			Valid: true,
 		}
 		templateVersionAudit.New = newTemplateVersion
-
 		return nil
 	}, database.DefaultTXOptions().WithID("postTemplate"))
 	if err != nil {
@@ -477,15 +443,12 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		})
 		return
 	}
-
 	api.Telemetry.Report(&telemetry.Snapshot{
 		Templates:        []telemetry.Template{telemetry.ConvertTemplate(dbTemplate)},
 		TemplateVersions: []telemetry.TemplateVersion{telemetry.ConvertTemplateVersion(templateVersion)},
 	})
-
 	httpapi.Write(ctx, rw, http.StatusCreated, api.convertTemplate(dbTemplate))
 }
-
 // @Summary Get templates by organization
 // @ID get-templates-by-organization
 // @Security CoderSessionToken
@@ -504,7 +467,6 @@ func (api *API) templatesByOrganization() http.HandlerFunc {
 		arg.OrganizationID = organization.ID
 	})
 }
-
 // @Summary Get all templates
 // @ID get-all-templates
 // @Security CoderSessionToken
@@ -515,7 +477,6 @@ func (api *API) templatesByOrganization() http.HandlerFunc {
 func (api *API) fetchTemplates(mutate func(r *http.Request, arg *database.GetTemplatesWithFilterParams)) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
-
 		queryStr := r.URL.Query().Get("q")
 		filter, errs := searchquery.Templates(ctx, api.Database, queryStr)
 		if len(errs) > 0 {
@@ -525,7 +486,6 @@ func (api *API) fetchTemplates(mutate func(r *http.Request, arg *database.GetTem
 			})
 			return
 		}
-
 		prepared, err := api.HTTPAuth.AuthorizeSQLFilter(r, policy.ActionRead, rbac.ResourceTemplate.Type)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -534,18 +494,15 @@ func (api *API) fetchTemplates(mutate func(r *http.Request, arg *database.GetTem
 			})
 			return
 		}
-
 		args := filter
 		if mutate != nil {
 			mutate(r, &args)
 		}
-
 		// Filter templates based on rbac permissions
 		templates, err := api.Database.GetAuthorizedTemplates(ctx, args, prepared)
 		if errors.Is(err, sql.ErrNoRows) {
 			err = nil
 		}
-
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error fetching templates in organization.",
@@ -553,11 +510,9 @@ func (api *API) fetchTemplates(mutate func(r *http.Request, arg *database.GetTem
 			})
 			return
 		}
-
 		httpapi.Write(ctx, rw, http.StatusOK, api.convertTemplates(templates))
 	}
 }
-
 // @Summary Get templates by organization and template name
 // @ID get-templates-by-organization-and-template-name
 // @Security CoderSessionToken
@@ -580,17 +535,14 @@ func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 			httpapi.ResourceNotFound(rw)
 			return
 		}
-
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching template.",
 			Detail:  err.Error(),
 		})
 		return
 	}
-
 	httpapi.Write(ctx, rw, http.StatusOK, api.convertTemplate(template))
 }
-
 // @Summary Update template metadata by ID
 // @ID update-template-metadata-by-id
 // @Security CoderSessionToken
@@ -615,7 +567,6 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	)
 	defer commitAudit()
 	aReq.Old = template
-
 	scheduleOpts, err := (*api.TemplateScheduleStore.Load()).Get(ctx, api.Database, template.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -624,12 +575,10 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	var req codersdk.UpdateTemplateMeta
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-
 	var (
 		validErrs                            []codersdk.ValidationError
 		autostopRequirementDaysOfWeekParsed  uint8
@@ -641,7 +590,6 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	if req.ActivityBumpMillis < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "activity_bump_ms", Detail: "Must be a positive integer."})
 	}
-
 	if req.AutostopRequirement == nil {
 		req.AutostopRequirement = &codersdk.TemplateAutostopRequirement{
 			DaysOfWeek: codersdk.BitmapToWeekdays(scheduleOpts.AutostopRequirement.DaysOfWeek),
@@ -682,7 +630,6 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	if req.DeprecationMessage != nil {
 		deprecationMessage = *req.DeprecationMessage
 	}
-
 	// The minimum valid value for a dormant TTL is 1 minute. This is
 	// to ensure an uninformed user does not send an unintentionally
 	// small number resulting in potentially catastrophic consequences.
@@ -705,7 +652,6 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			maxPortShareLevel = database.AppSharingLevel(*req.MaxPortShareLevel)
 		}
 	}
-
 	if len(validErrs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid request to update template metadata!",
@@ -713,7 +659,6 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	var updated database.Template
 	err = api.Database.InTx(func(tx database.Store) error {
 		if req.Name == template.Name &&
@@ -736,33 +681,29 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			maxPortShareLevel == template.MaxPortSharingLevel {
 			return nil
 		}
-
 		// Users should not be able to clear the template name in the UI
 		name := req.Name
 		if name == "" {
 			name = template.Name
 		}
-
 		groupACL := template.GroupACL
 		if req.DisableEveryoneGroupAccess {
 			delete(groupACL, template.OrganizationID.String())
 		}
-
 		if template.MaxPortSharingLevel != maxPortShareLevel {
 			switch maxPortShareLevel {
 			case database.AppSharingLevelOwner:
 				err = tx.DeleteWorkspaceAgentPortSharesByTemplate(ctx, template.ID)
 				if err != nil {
-					return xerrors.Errorf("delete workspace agent port shares by template: %w", err)
+					return fmt.Errorf("delete workspace agent port shares by template: %w", err)
 				}
 			case database.AppSharingLevelAuthenticated:
 				err = tx.ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx, template.ID)
 				if err != nil {
-					return xerrors.Errorf("reduce workspace agent share level to authenticated by template: %w", err)
+					return fmt.Errorf("reduce workspace agent share level to authenticated by template: %w", err)
 				}
 			}
 		}
-
 		var err error
 		err = tx.UpdateTemplateMetaByID(ctx, database.UpdateTemplateMetaByIDParams{
 			ID:                           template.ID,
@@ -776,24 +717,21 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			MaxPortSharingLevel:          maxPortShareLevel,
 		})
 		if err != nil {
-			return xerrors.Errorf("update template metadata: %w", err)
+			return fmt.Errorf("update template metadata: %w", err)
 		}
-
 		if template.RequireActiveVersion != req.RequireActiveVersion || deprecationMessage != template.Deprecated {
 			err = (*api.AccessControlStore.Load()).SetTemplateAccessControl(ctx, tx, template.ID, dbauthz.TemplateAccessControl{
 				RequireActiveVersion: req.RequireActiveVersion,
 				Deprecated:           deprecationMessage,
 			})
 			if err != nil {
-				return xerrors.Errorf("set template access control: %w", err)
+				return fmt.Errorf("set template access control: %w", err)
 			}
 		}
-
 		updated, err = tx.GetTemplateByID(ctx, template.ID)
 		if err != nil {
-			return xerrors.Errorf("fetch updated template metadata: %w", err)
+			return fmt.Errorf("fetch updated template metadata: %w", err)
 		}
-
 		defaultTTL := time.Duration(req.DefaultTTLMillis) * time.Millisecond
 		activityBump := time.Duration(req.ActivityBumpMillis) * time.Millisecond
 		failureTTL := time.Duration(req.FailureTTLMillis) * time.Millisecond
@@ -803,7 +741,6 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		if req.UpdateWorkspaceLastUsedAt {
 			updateWorkspaceLastUsedAt = workspacestats.UpdateTemplateWorkspacesLastUsedAt
 		}
-
 		if defaultTTL != time.Duration(template.DefaultTTL) ||
 			activityBump != time.Duration(template.ActivityBump) ||
 			autostopRequirementDaysOfWeekParsed != scheduleOpts.AutostopRequirement.DaysOfWeek ||
@@ -836,10 +773,9 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 				UpdateWorkspaceDormantAt:  req.UpdateWorkspaceDormantAt,
 			})
 			if err != nil {
-				return xerrors.Errorf("set template schedule options: %w", err)
+				return fmt.Errorf("set template schedule options: %w", err)
 			}
 		}
-
 		return nil
 	}, nil)
 	if err != nil {
@@ -856,38 +792,31 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-
 	if template.Deprecated != updated.Deprecated && updated.Deprecated != "" {
 		if err := api.notifyUsersOfTemplateDeprecation(ctx, updated); err != nil {
 			api.Logger.Error(ctx, "failed to notify users of template deprecation", slog.Error(err))
 		}
 	}
-
 	if updated.UpdatedAt.IsZero() {
 		aReq.New = template
 		rw.WriteHeader(http.StatusNotModified)
 		return
 	}
 	aReq.New = updated
-
 	httpapi.Write(ctx, rw, http.StatusOK, api.convertTemplate(updated))
 }
-
 func (api *API) notifyUsersOfTemplateDeprecation(ctx context.Context, template database.Template) error {
 	workspaces, err := api.Database.GetWorkspaces(ctx, database.GetWorkspacesParams{
 		TemplateIDs: []uuid.UUID{template.ID},
 	})
 	if err != nil {
-		return xerrors.Errorf("get workspaces by template id: %w", err)
+		return fmt.Errorf("get workspaces by template id: %w", err)
 	}
-
 	users := make(map[uuid.UUID]struct{})
 	for _, workspace := range workspaces {
 		users[workspace.OwnerID] = struct{}{}
 	}
-
 	errs := []error{}
-
 	for userID := range users {
 		_, err = api.NotificationsEnqueuer.Enqueue(
 			//nolint:gocritic // We need the notifier auth context to be able to send the deprecation notification.
@@ -902,13 +831,11 @@ func (api *API) notifyUsersOfTemplateDeprecation(ctx context.Context, template d
 			"notify-users-of-template-deprecation",
 		)
 		if err != nil {
-			errs = append(errs, xerrors.Errorf("enqueue notification: %w", err))
+			errs = append(errs, fmt.Errorf("enqueue notification: %w", err))
 		}
 	}
-
 	return errors.Join(errs...)
 }
-
 // @Summary Get template DAUs by ID
 // @ID get-template-daus-by-id
 // @Security CoderSessionToken
@@ -919,10 +846,8 @@ func (api *API) notifyUsersOfTemplateDeprecation(ctx context.Context, template d
 // @Router /templates/{template}/daus [get]
 func (api *API) templateDAUs(rw http.ResponseWriter, r *http.Request) {
 	template := httpmw.TemplateParam(r)
-
 	api.returnDAUsInternal(rw, r, []uuid.UUID{template.ID})
 }
-
 // @Summary Get template examples by organization
 // @ID get-template-examples-by-organization
 // @Security CoderSessionToken
@@ -937,12 +862,10 @@ func (api *API) templateExamplesByOrganization(rw http.ResponseWriter, r *http.R
 		ctx          = r.Context()
 		organization = httpmw.OrganizationParam(r)
 	)
-
 	if !api.Authorize(r, policy.ActionRead, rbac.ResourceTemplate.InOrg(organization.ID)) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
-
 	ex, err := examples.List()
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -951,10 +874,8 @@ func (api *API) templateExamplesByOrganization(rw http.ResponseWriter, r *http.R
 		})
 		return
 	}
-
 	httpapi.Write(ctx, rw, http.StatusOK, ex)
 }
-
 // @Summary Get template examples
 // @ID get-template-examples
 // @Security CoderSessionToken
@@ -964,12 +885,10 @@ func (api *API) templateExamplesByOrganization(rw http.ResponseWriter, r *http.R
 // @Router /templates/examples [get]
 func (api *API) templateExamples(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
 	if !api.Authorize(r, policy.ActionRead, rbac.ResourceTemplate.AnyOrganization()) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
-
 	ex, err := examples.List()
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -978,46 +897,35 @@ func (api *API) templateExamples(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	httpapi.Write(ctx, rw, http.StatusOK, ex)
 }
-
 func (api *API) convertTemplates(templates []database.Template) []codersdk.Template {
 	apiTemplates := make([]codersdk.Template, 0, len(templates))
-
 	for _, template := range templates {
 		apiTemplates = append(apiTemplates, api.convertTemplate(template))
 	}
-
 	// Sort templates by ActiveUserCount DESC
 	sort.SliceStable(apiTemplates, func(i, j int) bool {
 		return apiTemplates[i].ActiveUserCount > apiTemplates[j].ActiveUserCount
 	})
-
 	return apiTemplates
 }
-
 func (api *API) convertTemplate(
 	template database.Template,
 ) codersdk.Template {
 	templateAccessControl := (*(api.Options.AccessControlStore.Load())).GetTemplateAccessControl(template)
-
 	owners := 0
 	o, ok := api.metricsCache.TemplateWorkspaceOwners(template.ID)
 	if ok {
 		owners = o
 	}
-
 	buildTimeStats := api.metricsCache.TemplateBuildTimeStats(template.ID)
-
 	autostopRequirementWeeks := template.AutostopRequirementWeeks
 	if autostopRequirementWeeks < 1 {
 		autostopRequirementWeeks = 1
 	}
-
 	portSharer := *(api.PortSharer.Load())
 	maxPortShareLevel := portSharer.ConvertMaxLevel(template.MaxPortSharingLevel)
-
 	return codersdk.Template{
 		ID:                             template.ID,
 		CreatedAt:                      template.CreatedAt,
@@ -1058,7 +966,6 @@ func (api *API) convertTemplate(
 		MaxPortShareLevel:    maxPortShareLevel,
 	}
 }
-
 // findTemplateAdmins fetches all users with template admin permission including owners.
 func findTemplateAdmins(ctx context.Context, store database.Store) ([]database.GetUsersRow, error) {
 	// Notice: we can't scrape the user information in parallel as pq
@@ -1067,13 +974,13 @@ func findTemplateAdmins(ctx context.Context, store database.Store) ([]database.G
 		RbacRole: []string{codersdk.RoleOwner},
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("get owners: %w", err)
+		return nil, fmt.Errorf("get owners: %w", err)
 	}
 	templateAdmins, err := store.GetUsers(ctx, database.GetUsersParams{
 		RbacRole: []string{codersdk.RoleTemplateAdmin},
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("get template admins: %w", err)
+		return nil, fmt.Errorf("get template admins: %w", err)
 	}
 	return append(owners, templateAdmins...), nil
 }

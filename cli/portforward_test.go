@@ -1,6 +1,6 @@
 package cli_test
-
 import (
+	"errors"
 	"context"
 	"fmt"
 	"io"
@@ -8,13 +8,10 @@ import (
 	"sync"
 	"testing"
 	"time"
-
 	"github.com/google/uuid"
 	"github.com/pion/udp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/cli/clitest"
@@ -26,22 +23,17 @@ import (
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
 )
-
 func TestPortForward_None(t *testing.T) {
 	t.Parallel()
-
 	client := coderdtest.New(t, nil)
 	owner := coderdtest.CreateFirstUser(t, client)
 	member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-
 	inv, root := clitest.New(t, "port-forward", "blah")
 	clitest.SetupConfig(t, member, root)
-
 	err := inv.Run()
 	require.Error(t, err)
 	require.ErrorContains(t, err, "no port-forwards")
 }
-
 func TestPortForward(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -129,7 +121,6 @@ func TestPortForward(t *testing.T) {
 			localAddress: []string{"[fe80::99]:9999", "[fe80::10]:1010"},
 		},
 	}
-
 	// Setup agent once to be shared between test-cases (avoid expensive
 	// non-parallel setup).
 	var (
@@ -143,16 +134,13 @@ func TestPortForward(t *testing.T) {
 		member, memberUser = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 		workspace          = runAgent(t, client, memberUser.ID, db)
 	)
-
 	for _, c := range cases {
 		c := c
 		t.Run(c.name+"_OnePort", func(t *testing.T) {
 			t.Parallel()
 			p1 := setupTestListener(t, c.setupRemote(t))
-
 			// Create a flag that forwards from local to listener 1.
 			flag := fmt.Sprintf(c.flag[0], p1)
-
 			// Launch port-forward in a goroutine so we can start dialing
 			// the "local" listener.
 			inv, root := clitest.New(t, "-v", "port-forward", workspace.Name, flag)
@@ -161,7 +149,6 @@ func TestPortForward(t *testing.T) {
 			inv.Stdin = pty.Input()
 			inv.Stdout = pty.Output()
 			inv.Stderr = pty.Output()
-
 			iNet := newInProcNet()
 			inv.Net = iNet
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -173,7 +160,6 @@ func TestPortForward(t *testing.T) {
 				errC <- err
 			}()
 			pty.ExpectMatchContext(ctx, "Ready!")
-
 			// Open two connections simultaneously and test them out of
 			// sync.
 			dialCtx, dialCtxCancel := context.WithTimeout(ctx, testutil.WaitShort)
@@ -186,11 +172,9 @@ func TestPortForward(t *testing.T) {
 			defer c2.Close()
 			testDial(t, c2)
 			testDial(t, c1)
-
 			cancel()
 			err = <-errC
 			require.ErrorIs(t, err, context.Canceled)
-
 			flushCtx := testutil.Context(t, testutil.WaitShort)
 			testutil.RequireSendCtx(flushCtx, t, wuTick, dbtime.Now())
 			_ = testutil.RequireRecvCtx(flushCtx, t, wuFlush)
@@ -198,18 +182,15 @@ func TestPortForward(t *testing.T) {
 			require.NoError(t, err)
 			require.Greater(t, updated.LastUsedAt, workspace.LastUsedAt)
 		})
-
 		t.Run(c.name+"_TwoPorts", func(t *testing.T) {
 			t.Parallel()
 			var (
 				p1 = setupTestListener(t, c.setupRemote(t))
 				p2 = setupTestListener(t, c.setupRemote(t))
 			)
-
 			// Create a flags for listener 1 and listener 2.
 			flag1 := fmt.Sprintf(c.flag[0], p1)
 			flag2 := fmt.Sprintf(c.flag[1], p2)
-
 			// Launch port-forward in a goroutine so we can start dialing
 			// the "local" listeners.
 			inv, root := clitest.New(t, "-v", "port-forward", workspace.Name, flag1, flag2)
@@ -218,7 +199,6 @@ func TestPortForward(t *testing.T) {
 			inv.Stdin = pty.Input()
 			inv.Stdout = pty.Output()
 			inv.Stderr = pty.Output()
-
 			iNet := newInProcNet()
 			inv.Net = iNet
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -228,7 +208,6 @@ func TestPortForward(t *testing.T) {
 				errC <- inv.WithContext(ctx).Run()
 			}()
 			pty.ExpectMatchContext(ctx, "Ready!")
-
 			// Open a connection to both listener 1 and 2 simultaneously and
 			// then test them out of order.
 			dialCtx, dialCtxCancel := context.WithTimeout(ctx, testutil.WaitShort)
@@ -241,11 +220,9 @@ func TestPortForward(t *testing.T) {
 			defer c2.Close()
 			testDial(t, c2)
 			testDial(t, c1)
-
 			cancel()
 			err = <-errC
 			require.ErrorIs(t, err, context.Canceled)
-
 			flushCtx := testutil.Context(t, testutil.WaitShort)
 			testutil.RequireSendCtx(flushCtx, t, wuTick, dbtime.Now())
 			_ = testutil.RequireRecvCtx(flushCtx, t, wuFlush)
@@ -254,32 +231,27 @@ func TestPortForward(t *testing.T) {
 			require.Greater(t, updated.LastUsedAt, workspace.LastUsedAt)
 		})
 	}
-
 	t.Run("All", func(t *testing.T) {
 		t.Parallel()
 		var (
 			dials = []addr{}
 			flags = []string{}
 		)
-
 		// Start listeners and populate arrays with the cases.
 		for _, c := range cases {
 			p := setupTestListener(t, c.setupRemote(t))
-
 			dials = append(dials, addr{
 				network: c.network,
 				addr:    c.localAddress[0],
 			})
 			flags = append(flags, fmt.Sprintf(c.flag[0], p))
 		}
-
 		// Launch port-forward in a goroutine so we can start dialing
 		// the "local" listeners.
 		inv, root := clitest.New(t, append([]string{"-v", "port-forward", workspace.Name}, flags...)...)
 		clitest.SetupConfig(t, member, root)
 		pty := ptytest.New(t).Attach(inv)
 		inv.Stderr = pty.Output()
-
 		iNet := newInProcNet()
 		inv.Net = iNet
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -289,7 +261,6 @@ func TestPortForward(t *testing.T) {
 			errC <- inv.WithContext(ctx).Run()
 		}()
 		pty.ExpectMatchContext(ctx, "Ready!")
-
 		// Open connections to all items in the "dial" array.
 		var (
 			dialCtx, dialCtxCancel = context.WithTimeout(ctx, testutil.WaitShort)
@@ -304,16 +275,13 @@ func TestPortForward(t *testing.T) {
 			})
 			conns[i] = c
 		}
-
 		// Test each connection in reverse order.
 		for i := len(conns) - 1; i >= 0; i-- {
 			testDial(t, conns[i])
 		}
-
 		cancel()
 		err := <-errC
 		require.ErrorIs(t, err, context.Canceled)
-
 		flushCtx := testutil.Context(t, testutil.WaitShort)
 		testutil.RequireSendCtx(flushCtx, t, wuTick, dbtime.Now())
 		_ = testutil.RequireRecvCtx(flushCtx, t, wuFlush)
@@ -321,17 +289,13 @@ func TestPortForward(t *testing.T) {
 		require.NoError(t, err)
 		require.Greater(t, updated.LastUsedAt, workspace.LastUsedAt)
 	})
-
 	t.Run("IPv6Busy", func(t *testing.T) {
 		t.Parallel()
-
 		remoteLis, err := net.Listen("tcp", "127.0.0.1:0")
 		require.NoError(t, err, "create TCP listener")
 		p1 := setupTestListener(t, remoteLis)
-
 		// Create a flag that forwards from local 5555 to remote listener port.
 		flag := fmt.Sprintf("--tcp=5555:%v", p1)
-
 		// Launch port-forward in a goroutine so we can start dialing
 		// the "local" listener.
 		inv, root := clitest.New(t, "-v", "port-forward", workspace.Name, flag)
@@ -340,15 +304,12 @@ func TestPortForward(t *testing.T) {
 		inv.Stdin = pty.Input()
 		inv.Stdout = pty.Output()
 		inv.Stderr = pty.Output()
-
 		iNet := newInProcNet()
 		inv.Net = iNet
-
 		// listen on port 5555 on IPv6 so it's busy when we try to port forward
 		busyLis, err := iNet.Listen("tcp", "[::1]:5555")
 		require.NoError(t, err)
 		defer busyLis.Close()
-
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 		errC := make(chan error)
@@ -358,7 +319,6 @@ func TestPortForward(t *testing.T) {
 			errC <- err
 		}()
 		pty.ExpectMatchContext(ctx, "Ready!")
-
 		// Test IPv4 still works
 		dialCtx, dialCtxCancel := context.WithTimeout(ctx, testutil.WaitShort)
 		defer dialCtxCancel()
@@ -366,11 +326,9 @@ func TestPortForward(t *testing.T) {
 		require.NoError(t, err, "open connection 1 to 'local' listener")
 		defer c1.Close()
 		testDial(t, c1)
-
 		cancel()
 		err = <-errC
 		require.ErrorIs(t, err, context.Canceled)
-
 		flushCtx := testutil.Context(t, testutil.WaitShort)
 		testutil.RequireSendCtx(flushCtx, t, wuTick, dbtime.Now())
 		_ = testutil.RequireRecvCtx(flushCtx, t, wuFlush)
@@ -379,7 +337,6 @@ func TestPortForward(t *testing.T) {
 		require.Greater(t, updated.LastUsedAt, workspace.LastUsedAt)
 	})
 }
-
 // runAgent creates a fake workspace and starts an agent locally for that
 // workspace. The agent will be cleaned up on test completion.
 // nolint:unused
@@ -392,7 +349,6 @@ func runAgent(t *testing.T, client *codersdk.Client, owner uuid.UUID, db databas
 		OrganizationID: orgID,
 		OwnerID:        owner,
 	}).WithAgent().Do()
-
 	_ = agenttest.New(t, client.URL, r.AgentToken,
 		func(o *agent.Options) {
 			o.SSHMaxTimeout = 60 * time.Second
@@ -401,12 +357,10 @@ func runAgent(t *testing.T, client *codersdk.Client, owner uuid.UUID, db databas
 	coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
 	return r.Workspace
 }
-
 // setupTestListener starts accepting connections and echoing a single packet.
 // Returns the listener and the listen port.
 func setupTestListener(t *testing.T, l net.Listener) string {
 	t.Helper()
-
 	// Wait for listener to completely exit before releasing.
 	done := make(chan struct{})
 	t.Cleanup(func() {
@@ -418,14 +372,12 @@ func setupTestListener(t *testing.T, l net.Listener) string {
 		// Guard against testAccept running require after test completion.
 		var wg sync.WaitGroup
 		defer wg.Wait()
-
 		for {
 			c, err := l.Accept()
 			if err != nil {
 				_ = l.Close()
 				return
 			}
-
 			wg.Add(1)
 			go func() {
 				testAccept(t, c)
@@ -433,32 +385,24 @@ func setupTestListener(t *testing.T, l net.Listener) string {
 			}()
 		}
 	}()
-
 	addr := l.Addr().String()
 	_, port, err := net.SplitHostPort(addr)
 	require.NoErrorf(t, err, "split non-Unix listen path %q", addr)
 	addr = port
-
 	return addr
 }
-
 var dialTestPayload = []byte("dean-was-here123")
-
 func testDial(t *testing.T, c net.Conn) {
 	t.Helper()
-
 	assertWritePayload(t, c, dialTestPayload)
 	assertReadPayload(t, c, dialTestPayload)
 }
-
 func testAccept(t *testing.T, c net.Conn) {
 	t.Helper()
 	defer c.Close()
-
 	assertReadPayload(t, c, dialTestPayload)
 	assertWritePayload(t, c, dialTestPayload)
 }
-
 func assertReadPayload(t *testing.T, r io.Reader, payload []byte) {
 	t.Helper()
 	b := make([]byte, len(payload)+16)
@@ -467,66 +411,55 @@ func assertReadPayload(t *testing.T, r io.Reader, payload []byte) {
 	assert.Equal(t, len(payload), n, "read payload length does not match")
 	assert.Equal(t, payload, b[:n])
 }
-
 func assertWritePayload(t *testing.T, w io.Writer, payload []byte) {
 	t.Helper()
 	n, err := w.Write(payload)
 	assert.NoError(t, err, "write payload")
 	assert.Equal(t, len(payload), n, "payload length does not match")
 }
-
 type addr struct {
 	network string
 	addr    string
 }
-
 func (a addr) Network() string {
 	return a.network
 }
-
 func (a addr) Address() string {
 	return a.addr
 }
-
 func (a addr) String() string {
 	return a.network + "|" + a.addr
 }
-
 type inProcNet struct {
 	sync.Mutex
-
 	listeners map[addr]*inProcListener
 }
-
 type inProcListener struct {
 	c chan net.Conn
 	n *inProcNet
 	a addr
 	o sync.Once
 }
-
 func newInProcNet() *inProcNet {
 	return &inProcNet{listeners: make(map[addr]*inProcListener)}
 }
-
 func (n *inProcNet) Listen(network, address string) (net.Listener, error) {
 	a := addr{network, address}
 	n.Lock()
 	defer n.Unlock()
 	if _, ok := n.listeners[a]; ok {
-		return nil, xerrors.New("busy")
+		return nil, errors.New("busy")
 	}
 	l := newInProcListener(n, a)
 	n.listeners[a] = l
 	return l, nil
 }
-
 func (n *inProcNet) dial(ctx context.Context, a addr) (net.Conn, error) {
 	n.Lock()
 	defer n.Unlock()
 	l, ok := n.listeners[a]
 	if !ok {
-		return nil, xerrors.Errorf("nothing listening on %s", a)
+		return nil, fmt.Errorf("nothing listening on %s", a)
 	}
 	x, y := net.Pipe()
 	select {
@@ -536,7 +469,6 @@ func (n *inProcNet) dial(ctx context.Context, a addr) (net.Conn, error) {
 		return y, nil
 	}
 }
-
 func newInProcListener(n *inProcNet, a addr) *inProcListener {
 	return &inProcListener{
 		c: make(chan net.Conn),
@@ -544,7 +476,6 @@ func newInProcListener(n *inProcNet, a addr) *inProcListener {
 		a: a,
 	}
 }
-
 func (l *inProcListener) Accept() (net.Conn, error) {
 	c, ok := <-l.c
 	if !ok {
@@ -552,7 +483,6 @@ func (l *inProcListener) Accept() (net.Conn, error) {
 	}
 	return c, nil
 }
-
 func (l *inProcListener) Close() error {
 	l.o.Do(func() {
 		l.n.Lock()
@@ -562,7 +492,6 @@ func (l *inProcListener) Close() error {
 	})
 	return nil
 }
-
 func (l *inProcListener) Addr() net.Addr {
 	return l.a
 }

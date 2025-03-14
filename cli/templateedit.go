@@ -1,19 +1,14 @@
 package cli
-
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
-
-	"golang.org/x/xerrors"
-
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
-
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 )
-
 func (r *RootCmd) templateEdit() *serpent.Command {
 	const deprecatedFlagName = "deprecated"
 	var (
@@ -38,7 +33,6 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 		orgContext                     = NewOrganizationContext()
 	)
 	client := new(codersdk.Client)
-
 	cmd := &serpent.Command{
 		Use: "edit <template>",
 		Middleware: serpent.Chain(
@@ -56,97 +50,77 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 				dormancyThreshold != 0 ||
 				dormancyAutoDeletion != 0 ||
 				len(autostartRequirementDaysOfWeek) > 0
-
 			requiresEntitlement := requiresScheduling || requireActiveVersion
 			if requiresEntitlement {
 				entitlements, err := client.Entitlements(inv.Context())
 				if cerr, ok := codersdk.AsError(err); ok && cerr.StatusCode() == http.StatusNotFound {
-					return xerrors.Errorf("your deployment appears to be an AGPL deployment, so you cannot set enterprise-only flags")
+					return fmt.Errorf("your deployment appears to be an AGPL deployment, so you cannot set enterprise-only flags")
 				} else if err != nil {
-					return xerrors.Errorf("get entitlements: %w", err)
+					return fmt.Errorf("get entitlements: %w", err)
 				}
-
 				if requiresScheduling && !entitlements.Features[codersdk.FeatureAdvancedTemplateScheduling].Enabled {
-					return xerrors.Errorf("your license is not entitled to use advanced template scheduling, so you cannot set --failure-ttl, --inactivityTTL, --allow-user-autostart=false or --allow-user-autostop=false")
+					return fmt.Errorf("your license is not entitled to use advanced template scheduling, so you cannot set --failure-ttl, --inactivityTTL, --allow-user-autostart=false or --allow-user-autostop=false")
 				}
-
 				if requireActiveVersion {
 					if !entitlements.Features[codersdk.FeatureAccessControl].Enabled {
-						return xerrors.Errorf("your license is not entitled to use enterprise access control, so you cannot set --require-active-version")
+						return fmt.Errorf("your license is not entitled to use enterprise access control, so you cannot set --require-active-version")
 					}
 				}
 			}
-
 			organization, err := orgContext.Selected(inv, client)
 			if err != nil {
-				return xerrors.Errorf("get current organization: %w", err)
+				return fmt.Errorf("get current organization: %w", err)
 			}
 			template, err := client.TemplateByName(inv.Context(), organization.ID, inv.Args[0])
 			if err != nil {
-				return xerrors.Errorf("get workspace template: %w", err)
+				return fmt.Errorf("get workspace template: %w", err)
 			}
-
 			// Default values
 			if !userSetOption(inv, "description") {
 				description = template.Description
 			}
-
 			if !userSetOption(inv, "icon") {
 				icon = template.Icon
 			}
-
 			if !userSetOption(inv, "display-name") {
 				displayName = template.DisplayName
 			}
-
 			if !userSetOption(inv, "default-ttl") {
 				defaultTTL = time.Duration(template.DefaultTTLMillis) * time.Millisecond
 			}
-
 			if !userSetOption(inv, "activity-bump") {
 				activityBump = time.Duration(template.ActivityBumpMillis) * time.Millisecond
 			}
-
 			if !userSetOption(inv, "allow-user-autostop") {
 				allowUserAutostop = template.AllowUserAutostop
 			}
-
 			if !userSetOption(inv, "allow-user-autostart") {
 				allowUserAutostart = template.AllowUserAutostart
 			}
-
 			if !userSetOption(inv, "allow-user-cancel-workspace-jobs") {
 				allowUserCancelWorkspaceJobs = template.AllowUserCancelWorkspaceJobs
 			}
-
 			if !userSetOption(inv, "failure-ttl") {
 				failureTTL = time.Duration(template.FailureTTLMillis) * time.Millisecond
 			}
-
 			if !userSetOption(inv, "dormancy-threshold") {
 				dormancyThreshold = time.Duration(template.TimeTilDormantMillis) * time.Millisecond
 			}
-
 			if !userSetOption(inv, "dormancy-auto-deletion") {
 				dormancyAutoDeletion = time.Duration(template.TimeTilDormantAutoDeleteMillis) * time.Millisecond
 			}
-
 			if !userSetOption(inv, "require-active-version") {
 				requireActiveVersion = template.RequireActiveVersion
 			}
-
 			if !userSetOption(inv, "autostop-requirement-weekdays") {
 				autostopRequirementDaysOfWeek = template.AutostopRequirement.DaysOfWeek
 			}
-
 			if unsetAutostopRequirementDaysOfWeek {
 				autostopRequirementDaysOfWeek = []string{}
 			}
-
 			if !userSetOption(inv, "autostop-requirement-weeks") {
 				autostopRequirementWeeks = template.AutostopRequirement.Weeks
 			}
-
 			if len(autostartRequirementDaysOfWeek) == 1 && autostartRequirementDaysOfWeek[0] == "all" {
 				// Set it to every day of the week
 				autostartRequirementDaysOfWeek = []string{"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}
@@ -155,17 +129,14 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 			} else if len(autostartRequirementDaysOfWeek) == 0 {
 				autostartRequirementDaysOfWeek = []string{}
 			}
-
 			var deprecated *string
 			if userSetOption(inv, "deprecated") {
 				deprecated = &deprecationMessage
 			}
-
 			var disableEveryoneGroup bool
 			if userSetOption(inv, "private") {
 				disableEveryoneGroup = disableEveryone
 			}
-
 			req := codersdk.UpdateTemplateMeta{
 				Name:               name,
 				DisplayName:        displayName,
@@ -190,16 +161,14 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 				DeprecationMessage:             deprecated,
 				DisableEveryoneGroupAccess:     disableEveryoneGroup,
 			}
-
 			_, err = client.UpdateTemplateMeta(inv.Context(), template.ID, req)
 			if err != nil {
-				return xerrors.Errorf("update template metadata: %w", err)
+				return fmt.Errorf("update template metadata: %w", err)
 			}
 			_, _ = fmt.Fprintf(inv.Stdout, "Updated template metadata at %s!\n", pretty.Sprint(cliui.DefaultStyles.DateTimeStamp, time.Now().Format(time.Stamp)))
 			return nil
 		},
 	}
-
 	cmd.Options = serpent.OptionSet{
 		{
 			Flag:        "name",
@@ -304,6 +273,5 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 		cliui.SkipPromptOption(),
 	}
 	orgContext.AttachOptions(cmd)
-
 	return cmd
 }

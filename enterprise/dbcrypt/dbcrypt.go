@@ -1,35 +1,28 @@
 package dbcrypt
-
 import (
+	"fmt"
+	"errors"
 	"context"
 	"database/sql"
 	"encoding/base64"
-
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
-
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 )
-
 // testValue is the value that is stored in dbcrypt_keys.test.
 // This is used to determine if the key is valid.
 const testValue = "coder"
-
 var (
 	b64encode = base64.StdEncoding.EncodeToString
 	b64decode = base64.StdEncoding.DecodeString
 )
-
 // DecryptFailedError is returned when decryption fails.
 type DecryptFailedError struct {
 	Inner error
 }
-
 func (e *DecryptFailedError) Error() string {
-	return xerrors.Errorf("decrypt failed: %w", e.Inner).Error()
+	return fmt.Errorf("decrypt failed: %w", e.Inner).Error()
 }
-
 // New creates a database.Store wrapper that encrypts/decrypts values
 // stored at rest in the database.
 func New(ctx context.Context, db database.Store, ciphers ...Cipher) (database.Store, error) {
@@ -47,11 +40,10 @@ func New(ctx context.Context, db database.Store, ciphers ...Cipher) (database.St
 	// nolint: gocritic // This is allowed.
 	authCtx := dbauthz.AsSystemRestricted(ctx)
 	if err := dbc.ensureEncryptedWithRetry(authCtx); err != nil {
-		return nil, xerrors.Errorf("ensure encrypted database fields: %w", err)
+		return nil, fmt.Errorf("ensure encrypted database fields: %w", err)
 	}
 	return dbc, nil
 }
-
 type dbCrypt struct {
 	// primaryCipherDigest is the digest of the primary cipher used for encrypting data.
 	primaryCipherDigest string
@@ -59,7 +51,6 @@ type dbCrypt struct {
 	ciphers map[string]Cipher
 	database.Store
 }
-
 func (db *dbCrypt) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
 	return db.Store.InTx(func(s database.Store) error {
 		return function(&dbCrypt{
@@ -69,7 +60,6 @@ func (db *dbCrypt) InTx(function func(database.Store) error, txOpts *database.Tx
 		})
 	}, txOpts)
 }
-
 func (db *dbCrypt) GetDBCryptKeys(ctx context.Context) ([]database.DBCryptKey, error) {
 	ks, err := db.Store.GetDBCryptKeys(ctx)
 	if err != nil {
@@ -89,13 +79,11 @@ func (db *dbCrypt) GetDBCryptKeys(ctx context.Context) ([]database.DBCryptKey, e
 	}
 	return ks, nil
 }
-
 // This does not need any special handling as it does not touch any encrypted fields.
 // Explicitly defining this here to avoid confusion.
 func (db *dbCrypt) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error {
 	return db.Store.RevokeDBCryptKey(ctx, activeKeyDigest)
 }
-
 func (db *dbCrypt) InsertDBCryptKey(ctx context.Context, arg database.InsertDBCryptKeyParams) error {
 	// It's nicer to be able to pass a *sql.NullString to encryptField, but we need to pass a string here.
 	var digest sql.NullString
@@ -106,7 +94,6 @@ func (db *dbCrypt) InsertDBCryptKey(ctx context.Context, arg database.InsertDBCr
 	arg.ActiveKeyDigest = digest.String
 	return db.Store.InsertDBCryptKey(ctx, arg)
 }
-
 func (db *dbCrypt) GetUserLinkByLinkedID(ctx context.Context, linkedID string) (database.UserLink, error) {
 	link, err := db.Store.GetUserLinkByLinkedID(ctx, linkedID)
 	if err != nil {
@@ -120,7 +107,6 @@ func (db *dbCrypt) GetUserLinkByLinkedID(ctx context.Context, linkedID string) (
 	}
 	return link, nil
 }
-
 func (db *dbCrypt) GetUserLinksByUserID(ctx context.Context, userID uuid.UUID) ([]database.UserLink, error) {
 	links, err := db.Store.GetUserLinksByUserID(ctx, userID)
 	if err != nil {
@@ -136,7 +122,6 @@ func (db *dbCrypt) GetUserLinksByUserID(ctx context.Context, userID uuid.UUID) (
 	}
 	return links, nil
 }
-
 func (db *dbCrypt) GetUserLinkByUserIDLoginType(ctx context.Context, params database.GetUserLinkByUserIDLoginTypeParams) (database.UserLink, error) {
 	link, err := db.Store.GetUserLinkByUserIDLoginType(ctx, params)
 	if err != nil {
@@ -150,7 +135,6 @@ func (db *dbCrypt) GetUserLinkByUserIDLoginType(ctx context.Context, params data
 	}
 	return link, nil
 }
-
 func (db *dbCrypt) InsertUserLink(ctx context.Context, params database.InsertUserLinkParams) (database.UserLink, error) {
 	if err := db.encryptField(&params.OAuthAccessToken, &params.OAuthAccessTokenKeyID); err != nil {
 		return database.UserLink{}, err
@@ -170,7 +154,6 @@ func (db *dbCrypt) InsertUserLink(ctx context.Context, params database.InsertUse
 	}
 	return link, nil
 }
-
 func (db *dbCrypt) UpdateUserLink(ctx context.Context, params database.UpdateUserLinkParams) (database.UserLink, error) {
 	if err := db.encryptField(&params.OAuthAccessToken, &params.OAuthAccessTokenKeyID); err != nil {
 		return database.UserLink{}, err
@@ -190,7 +173,6 @@ func (db *dbCrypt) UpdateUserLink(ctx context.Context, params database.UpdateUse
 	}
 	return link, nil
 }
-
 func (db *dbCrypt) InsertExternalAuthLink(ctx context.Context, params database.InsertExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 	if err := db.encryptField(&params.OAuthAccessToken, &params.OAuthAccessTokenKeyID); err != nil {
 		return database.ExternalAuthLink{}, err
@@ -210,7 +192,6 @@ func (db *dbCrypt) InsertExternalAuthLink(ctx context.Context, params database.I
 	}
 	return link, nil
 }
-
 func (db *dbCrypt) GetExternalAuthLink(ctx context.Context, params database.GetExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 	link, err := db.Store.GetExternalAuthLink(ctx, params)
 	if err != nil {
@@ -224,7 +205,6 @@ func (db *dbCrypt) GetExternalAuthLink(ctx context.Context, params database.GetE
 	}
 	return link, nil
 }
-
 func (db *dbCrypt) GetExternalAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]database.ExternalAuthLink, error) {
 	links, err := db.Store.GetExternalAuthLinksByUserID(ctx, userID)
 	if err != nil {
@@ -240,7 +220,6 @@ func (db *dbCrypt) GetExternalAuthLinksByUserID(ctx context.Context, userID uuid
 	}
 	return links, nil
 }
-
 func (db *dbCrypt) UpdateExternalAuthLink(ctx context.Context, params database.UpdateExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 	if err := db.encryptField(&params.OAuthAccessToken, &params.OAuthAccessTokenKeyID); err != nil {
 		return database.ExternalAuthLink{}, err
@@ -260,7 +239,6 @@ func (db *dbCrypt) UpdateExternalAuthLink(ctx context.Context, params database.U
 	}
 	return link, nil
 }
-
 func (db *dbCrypt) UpdateExternalAuthLinkRefreshToken(ctx context.Context, params database.UpdateExternalAuthLinkRefreshTokenParams) error {
 	// We would normally use a sql.NullString here, but sqlc does not want to make
 	// a params struct with a nullable string.
@@ -272,10 +250,8 @@ func (db *dbCrypt) UpdateExternalAuthLinkRefreshToken(ctx context.Context, param
 	if err := db.encryptField(&params.OAuthRefreshToken, &digest); err != nil {
 		return err
 	}
-
 	return db.Store.UpdateExternalAuthLinkRefreshToken(ctx, params)
 }
-
 func (db *dbCrypt) GetCryptoKeys(ctx context.Context) ([]database.CryptoKey, error) {
 	keys, err := db.Store.GetCryptoKeys(ctx)
 	if err != nil {
@@ -288,7 +264,6 @@ func (db *dbCrypt) GetCryptoKeys(ctx context.Context) ([]database.CryptoKey, err
 	}
 	return keys, nil
 }
-
 func (db *dbCrypt) GetLatestCryptoKeyByFeature(ctx context.Context, feature database.CryptoKeyFeature) (database.CryptoKey, error) {
 	key, err := db.Store.GetLatestCryptoKeyByFeature(ctx, feature)
 	if err != nil {
@@ -299,7 +274,6 @@ func (db *dbCrypt) GetLatestCryptoKeyByFeature(ctx context.Context, feature data
 	}
 	return key, nil
 }
-
 func (db *dbCrypt) GetCryptoKeyByFeatureAndSequence(ctx context.Context, params database.GetCryptoKeyByFeatureAndSequenceParams) (database.CryptoKey, error) {
 	key, err := db.Store.GetCryptoKeyByFeatureAndSequence(ctx, params)
 	if err != nil {
@@ -310,7 +284,6 @@ func (db *dbCrypt) GetCryptoKeyByFeatureAndSequence(ctx context.Context, params 
 	}
 	return key, nil
 }
-
 func (db *dbCrypt) InsertCryptoKey(ctx context.Context, params database.InsertCryptoKeyParams) (database.CryptoKey, error) {
 	if err := db.encryptField(&params.Secret.String, &params.SecretKeyID); err != nil {
 		return database.CryptoKey{}, err
@@ -324,7 +297,6 @@ func (db *dbCrypt) InsertCryptoKey(ctx context.Context, params database.InsertCr
 	}
 	return key, nil
 }
-
 func (db *dbCrypt) UpdateCryptoKeyDeletesAt(ctx context.Context, arg database.UpdateCryptoKeyDeletesAtParams) (database.CryptoKey, error) {
 	key, err := db.Store.UpdateCryptoKeyDeletesAt(ctx, arg)
 	if err != nil {
@@ -335,35 +307,29 @@ func (db *dbCrypt) UpdateCryptoKeyDeletesAt(ctx context.Context, arg database.Up
 	}
 	return key, nil
 }
-
 func (db *dbCrypt) GetCryptoKeysByFeature(ctx context.Context, feature database.CryptoKeyFeature) ([]database.CryptoKey, error) {
 	keys, err := db.Store.GetCryptoKeysByFeature(ctx, feature)
 	if err != nil {
 		return nil, err
 	}
-
 	for i := range keys {
 		if err := db.decryptField(&keys[i].Secret.String, keys[i].SecretKeyID); err != nil {
 			return nil, err
 		}
 	}
-
 	return keys, nil
 }
-
 func (db *dbCrypt) encryptField(field *string, digest *sql.NullString) error {
 	// If no cipher is loaded, then we can't encrypt anything!
 	if db.ciphers == nil || db.primaryCipherDigest == "" {
 		return nil
 	}
-
 	if field == nil {
-		return xerrors.Errorf("developer error: encryptField called with nil field")
+		return fmt.Errorf("developer error: encryptField called with nil field")
 	}
 	if digest == nil {
-		return xerrors.Errorf("developer error: encryptField called with nil digest")
+		return fmt.Errorf("developer error: encryptField called with nil digest")
 	}
-
 	encrypted, err := db.ciphers[db.primaryCipherDigest].Encrypt([]byte(*field))
 	if err != nil {
 		return err
@@ -373,31 +339,27 @@ func (db *dbCrypt) encryptField(field *string, digest *sql.NullString) error {
 	*digest = sql.NullString{String: db.primaryCipherDigest, Valid: true}
 	return nil
 }
-
 // decryptFields decrypts the given field using the key with the given digest.
 // If the value fails to decrypt, sql.ErrNoRows will be returned.
 func (db *dbCrypt) decryptField(field *string, digest sql.NullString) error {
 	if field == nil {
-		return xerrors.Errorf("developer error: decryptField called with nil field")
+		return fmt.Errorf("developer error: decryptField called with nil field")
 	}
-
 	if !digest.Valid || digest.String == "" {
 		// This field is not encrypted.
 		return nil
 	}
-
 	key, ok := db.ciphers[digest.String]
 	if !ok {
 		return &DecryptFailedError{
-			Inner: xerrors.Errorf("no cipher with digest %q", digest.String),
+			Inner: fmt.Errorf("no cipher with digest %q", digest.String),
 		}
 	}
-
 	data, err := b64decode(*field)
 	if err != nil {
 		// If it's not valid base64, we should complain loudly.
 		return &DecryptFailedError{
-			Inner: xerrors.Errorf("malformed encrypted field %q: %w", *field, err),
+			Inner: fmt.Errorf("malformed encrypted field %q: %w", *field, err),
 		}
 	}
 	decrypted, err := key.Decrypt(data)
@@ -407,7 +369,6 @@ func (db *dbCrypt) decryptField(field *string, digest sql.NullString) error {
 	*field = string(decrypted)
 	return nil
 }
-
 func (db *dbCrypt) ensureEncryptedWithRetry(ctx context.Context) error {
 	var err error
 	for i := 0; i < 3; i++ {
@@ -424,36 +385,30 @@ func (db *dbCrypt) ensureEncryptedWithRetry(ctx context.Context) error {
 	// If we get here, then we ran out of retries
 	return err
 }
-
 func (db *dbCrypt) ensureEncrypted(ctx context.Context) error {
 	return db.InTx(func(s database.Store) error {
 		// Attempt to read the encrypted test fields of the currently active keys.
 		ks, err := s.GetDBCryptKeys(ctx)
-		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return err
 		}
-
 		var highestNumber int32
 		var activeCipherFound bool
 		for _, k := range ks {
 			// If our primary key has been revoked, then we can't do anything.
 			if k.RevokedKeyDigest.Valid && k.RevokedKeyDigest.String == db.primaryCipherDigest {
-				return xerrors.Errorf("primary encryption key %q has been revoked", db.primaryCipherDigest)
+				return fmt.Errorf("primary encryption key %q has been revoked", db.primaryCipherDigest)
 			}
-
 			if k.ActiveKeyDigest.Valid && k.ActiveKeyDigest.String == db.primaryCipherDigest {
 				activeCipherFound = true
 			}
-
 			if k.Number > highestNumber {
 				highestNumber = k.Number
 			}
 		}
-
 		if activeCipherFound || len(db.ciphers) == 0 {
 			return nil
 		}
-
 		// If we get here, then we have a new key that we need to insert.
 		return db.InsertDBCryptKey(ctx, database.InsertDBCryptKeyParams{
 			Number:          highestNumber + 1,

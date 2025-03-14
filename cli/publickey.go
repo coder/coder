@@ -1,17 +1,13 @@
 package cli
-
 import (
+	"fmt"
+	"errors"
 	"strings"
-
-	"golang.org/x/xerrors"
-
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
-
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 )
-
 func (r *RootCmd) publickey() *serpent.Command {
 	var reset bool
 	client := new(codersdk.Client)
@@ -32,19 +28,16 @@ func (r *RootCmd) publickey() *serpent.Command {
 				if err != nil {
 					return err
 				}
-
 				// Reset the public key, let the retrieve re-read it.
 				_, err = client.RegenerateGitSSHKey(inv.Context(), codersdk.Me)
 				if err != nil {
 					return err
 				}
 			}
-
 			key, err := client.GitSSHKey(inv.Context(), codersdk.Me)
 			if err != nil {
-				return xerrors.Errorf("create codersdk client: %w", err)
+				return fmt.Errorf("create codersdk client: %w", err)
 			}
-
 			cliui.Info(inv.Stdout,
 				"This is your public key for using "+pretty.Sprint(cliui.DefaultStyles.Field, "git")+" in "+
 					"Coder. All clones with SSH will be authenticated automatically 🪄.",
@@ -53,11 +46,9 @@ func (r *RootCmd) publickey() *serpent.Command {
 			cliui.Info(inv.Stdout, "Add to GitHub and GitLab:")
 			cliui.Info(inv.Stdout, "> https://github.com/settings/ssh/new")
 			cliui.Info(inv.Stdout, "> https://gitlab.com/-/profile/keys")
-
 			return nil
 		},
 	}
-
 	cmd.Options = serpent.OptionSet{
 		{
 			Flag:        "reset",
@@ -66,6 +57,5 @@ func (r *RootCmd) publickey() *serpent.Command {
 		},
 		cliui.SkipPromptOption(),
 	}
-
 	return cmd
 }

@@ -1,25 +1,20 @@
 package cliui
-
 import (
+	"errors"
 	"context"
 	"fmt"
 	"io"
 	"strconv"
 	"strings"
 	"time"
-
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
-
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/tailnet"
 )
-
-var errAgentShuttingDown = xerrors.New("agent is shutting down")
-
+var errAgentShuttingDown = errors.New("agent is shutting down")
 type AgentOptions struct {
 	FetchInterval time.Duration
 	Fetch         func(ctx context.Context, agentID uuid.UUID) (codersdk.WorkspaceAgent, error)
@@ -27,12 +22,10 @@ type AgentOptions struct {
 	Wait          bool // If true, wait for the agent to be ready (startup script).
 	DocsURL       string
 }
-
 // Agent displays a spinning indicator that waits for a workspace agent to connect.
 func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentOptions) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-
 	if opts.FetchInterval == 0 {
 		opts.FetchInterval = 500 * time.Millisecond
 	}
@@ -43,7 +36,6 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 			return c, closeFunc(func() error { return nil }), nil
 		}
 	}
-
 	type fetchAgent struct {
 		agent codersdk.WorkspaceAgent
 		err   error
@@ -52,7 +44,6 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 	go func() {
 		t := time.NewTimer(0)
 		defer t.Stop()
-
 		for {
 			select {
 			case <-ctx.Done():
@@ -64,7 +55,7 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 				default:
 				}
 				if err != nil {
-					fetchedAgent <- fetchAgent{err: xerrors.Errorf("fetch workspace agent: %w", err)}
+					fetchedAgent <- fetchAgent{err: fmt.Errorf("fetch workspace agent: %w", err)}
 					return
 				}
 				fetchedAgent <- fetchAgent{agent: agent}
@@ -83,18 +74,15 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 			return f.agent, nil
 		}
 	}
-
 	agent, err := fetch()
 	if err != nil {
-		return xerrors.Errorf("fetch: %w", err)
+		return fmt.Errorf("fetch: %w", err)
 	}
 	logSources := map[uuid.UUID]codersdk.WorkspaceAgentLogSource{}
 	for _, source := range agent.LogSources {
 		logSources[source.ID] = source
 	}
-
 	sw := &stageWriter{w: writer}
-
 	showStartupLogs := false
 	for {
 		// It doesn't matter if we're connected or not, if the agent is
@@ -102,39 +90,34 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 		if agent.LifecycleState.ShuttingDown() {
 			return errAgentShuttingDown
 		}
-
 		switch agent.Status {
 		case codersdk.WorkspaceAgentConnecting, codersdk.WorkspaceAgentTimeout:
 			// Since we were waiting for the agent to connect, also show
 			// startup logs if applicable.
 			showStartupLogs = true
-
 			stage := "Waiting for the workspace agent to connect"
 			sw.Start(stage)
 			for agent.Status == codersdk.WorkspaceAgentConnecting {
 				if agent, err = fetch(); err != nil {
-					return xerrors.Errorf("fetch: %w", err)
+					return fmt.Errorf("fetch: %w", err)
 				}
 			}
-
 			if agent.Status == codersdk.WorkspaceAgentTimeout {
 				now := time.Now()
 				sw.Log(now, codersdk.LogLevelInfo, "The workspace agent is having trouble connecting, wait for it to connect or restart your workspace.")
 				sw.Log(now, codersdk.LogLevelInfo, troubleshootingMessage(agent, fmt.Sprintf("%s/admin/templates/troubleshooting#agent-connection-issues", opts.DocsURL)))
 				for agent.Status == codersdk.WorkspaceAgentTimeout {
 					if agent, err = fetch(); err != nil {
-						return xerrors.Errorf("fetch: %w", err)
+						return fmt.Errorf("fetch: %w", err)
 					}
 				}
 			}
 			sw.Complete(stage, agent.FirstConnectedAt.Sub(agent.CreatedAt))
-
 		case codersdk.WorkspaceAgentConnected:
 			if !showStartupLogs && agent.LifecycleState == codersdk.WorkspaceAgentLifecycleReady {
 				// The workspace is ready, there's nothing to do but connect.
 				return nil
 			}
-
 			stage := "Running workspace agent startup scripts"
 			follow := opts.Wait && agent.LifecycleState.Starting()
 			if !follow {
@@ -144,14 +127,12 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 			if follow {
 				sw.Log(time.Time{}, codersdk.LogLevelInfo, "==> ℹ︎ To connect immediately, reconnect with --wait=no or CODER_SSH_WAIT=no, see --help for more information.")
 			}
-
 			err = func() error { // Use func because of defer in for loop.
 				logStream, logsCloser, err := opts.FetchLogs(ctx, agent.ID, 0, follow)
 				if err != nil {
-					return xerrors.Errorf("fetch workspace agent startup logs: %w", err)
+					return fmt.Errorf("fetch workspace agent startup logs: %w", err)
 				}
 				defer logsCloser.Close()
-
 				var lastLog codersdk.WorkspaceAgentLog
 				fetchedAgentWhileFollowing := fetchedAgent
 				if !follow {
@@ -164,10 +145,9 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 						return ctx.Err()
 					case f := <-fetchedAgentWhileFollowing:
 						if f.err != nil {
-							return xerrors.Errorf("fetch: %w", f.err)
+							return fmt.Errorf("fetch: %w", f.err)
 						}
 						agent = f.agent
-
 						// If the agent is no longer starting, stop following
 						// logs because FetchLogs will keep streaming forever.
 						// We do one last non-follow request to ensure we have
@@ -175,10 +155,9 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 						if !agent.LifecycleState.Starting() {
 							_ = logsCloser.Close()
 							fetchedAgentWhileFollowing = nil
-
 							logStream, logsCloser, err = opts.FetchLogs(ctx, agent.ID, lastLog.ID, false)
 							if err != nil {
-								return xerrors.Errorf("fetch workspace agent startup logs: %w", err)
+								return fmt.Errorf("fetch workspace agent startup logs: %w", err)
 							}
 							// Logs are already primed, so we can call close.
 							_ = logsCloser.Close()
@@ -202,13 +181,11 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 			if err != nil {
 				return err
 			}
-
 			for follow && agent.LifecycleState.Starting() {
 				if agent, err = fetch(); err != nil {
-					return xerrors.Errorf("fetch: %w", err)
+					return fmt.Errorf("fetch: %w", err)
 				}
 			}
-
 			switch agent.LifecycleState {
 			case codersdk.WorkspaceAgentLifecycleReady:
 				sw.Complete(stage, safeDuration(sw, agent.ReadyAt, agent.StartedAt))
@@ -242,30 +219,25 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 					return errAgentShuttingDown
 				}
 			}
-
 			return nil
-
 		case codersdk.WorkspaceAgentDisconnected:
 			// If the agent was still starting during disconnect, we'll
 			// show startup logs.
 			showStartupLogs = agent.LifecycleState.Starting()
-
 			stage := "The workspace agent lost connection"
 			sw.Start(stage)
 			sw.Log(time.Now(), codersdk.LogLevelWarn, "Wait for it to reconnect or restart your workspace.")
 			sw.Log(time.Now(), codersdk.LogLevelWarn, troubleshootingMessage(agent, fmt.Sprintf("%s/admin/templates/troubleshooting#agent-connection-issues", opts.DocsURL)))
-
 			disconnectedAt := agent.DisconnectedAt
 			for agent.Status == codersdk.WorkspaceAgentDisconnected {
 				if agent, err = fetch(); err != nil {
-					return xerrors.Errorf("fetch: %w", err)
+					return fmt.Errorf("fetch: %w", err)
 				}
 			}
 			sw.Complete(stage, safeDuration(sw, agent.LastConnectedAt, disconnectedAt))
 		}
 	}
 }
-
 func troubleshootingMessage(agent codersdk.WorkspaceAgent, url string) string {
 	m := "For more information and troubleshooting, see " + url
 	if agent.TroubleshootingURL != "" {
@@ -273,7 +245,6 @@ func troubleshootingMessage(agent codersdk.WorkspaceAgent, url string) string {
 	}
 	return m
 }
-
 // safeDuration returns a-b. If a or b is nil, it returns 0.
 // This is because we often dereference a time pointer, which can
 // cause a panic. These dereferences are used to calculate durations,
@@ -292,13 +263,10 @@ func safeDuration(sw *stageWriter, a, b *time.Time) time.Duration {
 	}
 	return a.Sub(*b)
 }
-
 type closeFunc func() error
-
 func (c closeFunc) Close() error {
 	return c()
 }
-
 func PeerDiagnostics(w io.Writer, d tailnet.PeerDiagnostics) {
 	if d.PreferredDERP > 0 {
 		rn, ok := d.DERPRegionNames[d.PreferredDERP]
@@ -350,7 +318,6 @@ func PeerDiagnostics(w io.Writer, d tailnet.PeerDiagnostics) {
 		_, _ = fmt.Fprint(w, "✘ Wireguard is not connected\n")
 	}
 }
-
 type ConnDiags struct {
 	ConnInfo           workspacesdk.AgentConnectionInfo
 	PingP2P            bool
@@ -363,7 +330,6 @@ type ConnDiags struct {
 	Verbose            bool
 	TroubleshootingURL string
 }
-
 func (d ConnDiags) Write(w io.Writer) {
 	_, _ = fmt.Fprintln(w, "")
 	general, client, agent := d.splitDiagnostics()
@@ -386,7 +352,6 @@ func (d ConnDiags) Write(w io.Writer) {
 		}
 	}
 }
-
 func (d ConnDiags) splitDiagnostics() (general, client, agent []string) {
 	if d.AgentNetcheck != nil {
 		for _, msg := range d.AgentNetcheck.Interfaces.Warnings {
@@ -396,7 +361,6 @@ func (d ConnDiags) splitDiagnostics() (general, client, agent []string) {
 			agent[len(agent)-1] += fmt.Sprintf("\n%s#low-mtu", d.TroubleshootingURL)
 		}
 	}
-
 	if d.LocalInterfaces != nil {
 		for _, msg := range d.LocalInterfaces.Warnings {
 			client = append(client, msg.Message)
@@ -405,11 +369,9 @@ func (d ConnDiags) splitDiagnostics() (general, client, agent []string) {
 			client[len(client)-1] += fmt.Sprintf("\n%s#low-mtu", d.TroubleshootingURL)
 		}
 	}
-
 	if d.PingP2P && !d.Verbose {
 		return general, client, agent
 	}
-
 	if d.DisableDirect {
 		general = append(general, "❗ Direct connections are disabled locally, by `--disable-direct-connections` or `CODER_DISABLE_DIRECT_CONNECTIONS`.\n"+
 			"   They may still be established over a private network.")
@@ -417,7 +379,6 @@ func (d ConnDiags) splitDiagnostics() (general, client, agent []string) {
 			return general, client, agent
 		}
 	}
-
 	if d.ConnInfo.DisableDirectConnections {
 		general = append(general,
 			fmt.Sprintf("❗ Your Coder administrator has blocked direct connections\n   %s#disabled-deployment-wide", d.TroubleshootingURL))
@@ -425,7 +386,6 @@ func (d ConnDiags) splitDiagnostics() (general, client, agent []string) {
 			return general, client, agent
 		}
 	}
-
 	if !d.ConnInfo.DERPMap.HasSTUN() {
 		general = append(general,
 			fmt.Sprintf("❗ The DERP map is not configured to use STUN\n   %s#no-stun-servers", d.TroubleshootingURL))
@@ -433,12 +393,10 @@ func (d ConnDiags) splitDiagnostics() (general, client, agent []string) {
 		client = append(client,
 			fmt.Sprintf("Client could not connect to STUN over UDP\n   %s#udp-blocked", d.TroubleshootingURL))
 	}
-
 	if d.LocalNetInfo != nil && d.LocalNetInfo.MappingVariesByDestIP.EqualBool(true) {
 		client = append(client,
 			fmt.Sprintf("Client is potentially behind a hard NAT, as multiple endpoints were retrieved from different STUN servers\n  %s#endpoint-dependent-nat-hard-nat", d.TroubleshootingURL))
 	}
-
 	if d.AgentNetcheck != nil && d.AgentNetcheck.NetInfo != nil {
 		if d.AgentNetcheck.NetInfo.MappingVariesByDestIP.EqualBool(true) {
 			agent = append(agent,
@@ -449,16 +407,13 @@ func (d ConnDiags) splitDiagnostics() (general, client, agent []string) {
 				fmt.Sprintf("Agent could not connect to STUN over UDP\n   %s#udp-blocked", d.TroubleshootingURL))
 		}
 	}
-
 	if d.ClientIPIsAWS {
 		client = append(client,
 			fmt.Sprintf("Client IP address is within an AWS range (AWS uses hard NAT)\n   %s#endpoint-dependent-nat-hard-nat", d.TroubleshootingURL))
 	}
-
 	if d.AgentIPIsAWS {
 		agent = append(agent,
 			fmt.Sprintf("Agent IP address is within an AWS range (AWS uses hard NAT)\n   %s#endpoint-dependent-nat-hard-nat", d.TroubleshootingURL))
 	}
-
 	return general, client, agent
 }

@@ -1,5 +1,4 @@
 package cli
-
 import (
 	"bytes"
 	"context"
@@ -18,7 +17,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
 	"github.com/gen2brain/beeep"
 	"github.com/gofrs/flock"
 	"github.com/google/uuid"
@@ -27,11 +25,9 @@ import (
 	gossh "golang.org/x/crypto/ssh"
 	gosshagent "golang.org/x/crypto/ssh/agent"
 	"golang.org/x/term"
-	"golang.org/x/xerrors"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/netlogtype"
-
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/v2/agent/agentssh"
@@ -47,18 +43,15 @@ import (
 	"github.com/coder/retry"
 	"github.com/coder/serpent"
 )
-
 const (
 	disableUsageApp = "disable"
 )
-
 var (
 	workspacePollInterval   = time.Minute
 	autostopNotifyCountdown = []time.Duration{30 * time.Minute}
 	// gracefulShutdownTimeout is the timeout, per item in the stack of things to close
 	gracefulShutdownTimeout = 2 * time.Second
 )
-
 func (r *RootCmd) ssh() *serpent.Command {
 	var (
 		stdio               bool
@@ -77,7 +70,6 @@ func (r *RootCmd) ssh() *serpent.Command {
 		appearanceConfig    codersdk.AppearanceConfig
 		networkInfoDir      string
 		networkInfoInterval time.Duration
-
 		containerName string
 		containerUser string
 	)
@@ -102,11 +94,9 @@ func (r *RootCmd) ssh() *serpent.Command {
 			defer stop()
 			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()
-
 			// Prevent unnecessary logs from the stdlib from messing up the TTY.
 			// See: https://github.com/coder/coder/issues/13144
 			log.SetOutput(io.Discard)
-
 			logger := inv.Logger
 			defer func() {
 				if retErr != nil {
@@ -115,7 +105,6 @@ func (r *RootCmd) ssh() *serpent.Command {
 					logger.Error(ctx, "command exit", slog.Error(retErr))
 				}
 			}()
-
 			// In stdio mode, we can't allow any writes to stdin or stdout
 			// because they are used by the SSH protocol.
 			stdioReader, stdioWriter := inv.Stdin, inv.Stdout
@@ -123,18 +112,16 @@ func (r *RootCmd) ssh() *serpent.Command {
 				inv.Stdin = stdioErrLogReader{inv.Logger}
 				inv.Stdout = inv.Stderr
 			}
-
 			// This WaitGroup solves for a race condition where we were logging
 			// while closing the log file in a defer. It probably solves
 			// others too.
 			var wg sync.WaitGroup
 			wg.Add(1)
 			defer wg.Done()
-
 			if logDirPath != "" {
 				nonce, err := cryptorand.StringCharset(cryptorand.Lower, 5)
 				if err != nil {
-					return xerrors.Errorf("generate nonce: %w", err)
+					return fmt.Errorf("generate nonce: %w", err)
 				}
 				logFileBaseName := fmt.Sprintf(
 					"coder-ssh-%s-%s",
@@ -154,7 +141,6 @@ func (r *RootCmd) ssh() *serpent.Command {
 					logFileBaseName += fmt.Sprintf("-%d", os.Getppid())
 				}
 				logFileBaseName += ".log"
-
 				logFilePath := filepath.Join(logDirPath, logFileBaseName)
 				logFile, err := os.OpenFile(
 					logFilePath,
@@ -162,53 +148,46 @@ func (r *RootCmd) ssh() *serpent.Command {
 					0o600,
 				)
 				if err != nil {
-					return xerrors.Errorf("error opening %s for logging: %w", logDirPath, err)
+					return fmt.Errorf("error opening %s for logging: %w", logDirPath, err)
 				}
 				dc := cliutil.DiscardAfterClose(logFile)
 				go func() {
 					wg.Wait()
 					_ = dc.Close()
 				}()
-
 				logger = logger.AppendSinks(sloghuman.Sink(dc))
 				if r.verbose {
 					logger = logger.Leveled(slog.LevelDebug)
 				}
-
 				// log HTTP requests
 				client.SetLogger(logger)
 			}
 			stack := newCloserStack(ctx, logger, quartz.NewReal())
 			defer stack.close(nil)
-
 			for _, remoteForward := range remoteForwards {
 				isValid := validateRemoteForward(remoteForward)
 				if !isValid {
-					return xerrors.Errorf(`invalid format of remote-forward, expected: remote_port:local_address:local_port`)
+					return fmt.Errorf(`invalid format of remote-forward, expected: remote_port:local_address:local_port`)
 				}
 				if isValid && stdio {
-					return xerrors.Errorf(`remote-forward can't be enabled in the stdio mode`)
+					return fmt.Errorf(`remote-forward can't be enabled in the stdio mode`)
 				}
 			}
-
 			var parsedEnv [][2]string
 			for _, e := range env {
 				k, v, ok := strings.Cut(e, "=")
 				if !ok {
-					return xerrors.Errorf("invalid environment variable setting %q", e)
+					return fmt.Errorf("invalid environment variable setting %q", e)
 				}
 				parsedEnv = append(parsedEnv, [2]string{k, v})
 			}
-
 			namedWorkspace := strings.TrimPrefix(inv.Args[0], hostPrefix)
 			// Support "--" as a delimiter between owner and workspace name
 			namedWorkspace = strings.Replace(namedWorkspace, "--", "/", 1)
-
 			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, !disableAutostart, namedWorkspace)
 			if err != nil {
 				return err
 			}
-
 			// Select the startup script behavior based on template configuration or flags.
 			var wait bool
 			switch waitEnum {
@@ -224,18 +203,16 @@ func (r *RootCmd) ssh() *serpent.Command {
 					}
 				}
 			default:
-				return xerrors.Errorf("unknown wait value %q", waitEnum)
+				return fmt.Errorf("unknown wait value %q", waitEnum)
 			}
 			// The `--no-wait` flag is deprecated, but for now, check it.
 			if noWait {
 				wait = false
 			}
-
 			templateVersion, err := client.TemplateVersion(ctx, workspace.LatestBuild.TemplateVersionID)
 			if err != nil {
 				return err
 			}
-
 			var unsupportedWorkspace bool
 			for _, warning := range templateVersion.Warnings {
 				if warning == codersdk.TemplateVersionWarningUnsupportedWorkspaces {
@@ -243,16 +220,13 @@ func (r *RootCmd) ssh() *serpent.Command {
 					break
 				}
 			}
-
 			if unsupportedWorkspace && isTTYErr(inv) {
 				_, _ = fmt.Fprintln(inv.Stderr, "👋 Your workspace uses legacy parameters which are not supported anymore. Contact your administrator for assistance.")
 			}
-
 			updateWorkspaceBanner, outdated := verifyWorkspaceOutdated(client, workspace)
 			if outdated && isTTYErr(inv) {
 				_, _ = fmt.Fprintln(inv.Stderr, updateWorkspaceBanner)
 			}
-
 			// OpenSSH passes stderr directly to the calling TTY.
 			// This is required in "stdio" mode so a connecting indicator can be displayed.
 			err = cliui.Agent(ctx, inv.Stderr, workspaceAgent.ID, cliui.AgentOptions{
@@ -263,12 +237,11 @@ func (r *RootCmd) ssh() *serpent.Command {
 				DocsURL:       appearanceConfig.DocsURL,
 			})
 			if err != nil {
-				if xerrors.Is(err, context.Canceled) {
+				if errors.Is(err, context.Canceled) {
 					return cliui.Canceled
 				}
 				return err
 			}
-
 			if r.disableDirect {
 				_, _ = fmt.Fprintln(inv.Stderr, "Direct connections disabled.")
 			}
@@ -279,17 +252,16 @@ func (r *RootCmd) ssh() *serpent.Command {
 					EnableTelemetry: !r.disableNetworkTelemetry,
 				})
 			if err != nil {
-				return xerrors.Errorf("dial agent: %w", err)
+				return fmt.Errorf("dial agent: %w", err)
 			}
 			if err = stack.push("agent conn", conn); err != nil {
 				return err
 			}
 			conn.AwaitReachable(ctx)
-
 			if containerName != "" {
 				cts, err := client.WorkspaceAgentListContainers(ctx, workspaceAgent.ID, nil)
 				if err != nil {
-					return xerrors.Errorf("list containers: %w", err)
+					return fmt.Errorf("list containers: %w", err)
 				}
 				if len(cts.Containers) == 0 {
 					cliui.Info(inv.Stderr, "No containers found!")
@@ -313,10 +285,8 @@ func (r *RootCmd) ssh() *serpent.Command {
 					return nil
 				}
 			}
-
 			stopPolling := tryPollWorkspaceAutostop(ctx, client, workspace)
 			defer stopPolling()
-
 			usageAppName := getUsageAppName(usageApp)
 			if usageAppName != "" {
 				closeUsage := client.UpdateWorkspaceUsageWithBodyContext(ctx, workspace.ID, codersdk.PostWorkspaceUsageRequest{
@@ -325,17 +295,15 @@ func (r *RootCmd) ssh() *serpent.Command {
 				})
 				defer closeUsage()
 			}
-
 			if stdio {
 				rawSSH, err := conn.SSH(ctx)
 				if err != nil {
-					return xerrors.Errorf("connect SSH: %w", err)
+					return fmt.Errorf("connect SSH: %w", err)
 				}
 				copier := newRawSSHCopier(logger, rawSSH, stdioReader, stdioWriter)
 				if err = stack.push("rawSSHCopier", copier); err != nil {
 					return err
 				}
-
 				var errCh <-chan error
 				if networkInfoDir != "" {
 					errCh, err = setStatsCallback(ctx, conn, logger, networkInfoDir, networkInfoInterval)
@@ -343,35 +311,31 @@ func (r *RootCmd) ssh() *serpent.Command {
 						return err
 					}
 				}
-
 				wg.Add(1)
 				go func() {
 					defer wg.Done()
 					watchAndClose(ctx, func() error {
-						stack.close(xerrors.New("watchAndClose"))
+						stack.close(errors.New("watchAndClose"))
 						return nil
 					}, logger, client, workspace, errCh)
 				}()
 				copier.copy(&wg)
 				return nil
 			}
-
 			sshClient, err := conn.SSHClient(ctx)
 			if err != nil {
-				return xerrors.Errorf("ssh client: %w", err)
+				return fmt.Errorf("ssh client: %w", err)
 			}
 			if err = stack.push("ssh client", sshClient); err != nil {
 				return err
 			}
-
 			sshSession, err := sshClient.NewSession()
 			if err != nil {
-				return xerrors.Errorf("ssh session: %w", err)
+				return fmt.Errorf("ssh session: %w", err)
 			}
 			if err = stack.push("sshSession", sshSession); err != nil {
 				return err
 			}
-
 			var errCh <-chan error
 			if networkInfoDir != "" {
 				errCh, err = setStatsCallback(ctx, conn, logger, networkInfoDir, networkInfoInterval)
@@ -379,14 +343,13 @@ func (r *RootCmd) ssh() *serpent.Command {
 					return err
 				}
 			}
-
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
 				watchAndClose(
 					ctx,
 					func() error {
-						stack.close(xerrors.New("watchAndClose"))
+						stack.close(errors.New("watchAndClose"))
 						return nil
 					},
 					logger,
@@ -395,56 +358,50 @@ func (r *RootCmd) ssh() *serpent.Command {
 					errCh,
 				)
 			}()
-
 			if identityAgent == "" {
 				identityAgent = os.Getenv("SSH_AUTH_SOCK")
 			}
 			if forwardAgent && identityAgent != "" {
 				err = gosshagent.ForwardToRemote(sshClient, identityAgent)
 				if err != nil {
-					return xerrors.Errorf("forward agent: %w", err)
+					return fmt.Errorf("forward agent: %w", err)
 				}
 				err = gosshagent.RequestAgentForwarding(sshSession)
 				if err != nil {
-					return xerrors.Errorf("request agent forwarding failed: %w", err)
+					return fmt.Errorf("request agent forwarding failed: %w", err)
 				}
 			}
-
 			if forwardGPG {
 				if workspaceAgent.OperatingSystem == "windows" {
-					return xerrors.New("GPG forwarding is not supported for Windows workspaces")
+					return errors.New("GPG forwarding is not supported for Windows workspaces")
 				}
-
 				err = uploadGPGKeys(ctx, sshClient)
 				if err != nil {
-					return xerrors.Errorf("upload GPG public keys and ownertrust to workspace: %w", err)
+					return fmt.Errorf("upload GPG public keys and ownertrust to workspace: %w", err)
 				}
 				closer, err := forwardGPGAgent(ctx, inv.Stderr, sshClient)
 				if err != nil {
-					return xerrors.Errorf("forward GPG socket: %w", err)
+					return fmt.Errorf("forward GPG socket: %w", err)
 				}
 				if err = stack.push("forwardGPGAgent", closer); err != nil {
 					return err
 				}
 			}
-
 			if len(remoteForwards) > 0 {
 				for _, remoteForward := range remoteForwards {
 					localAddr, remoteAddr, err := parseRemoteForward(remoteForward)
 					if err != nil {
 						return err
 					}
-
 					closer, err := sshRemoteForward(ctx, inv.Stderr, sshClient, localAddr, remoteAddr)
 					if err != nil {
-						return xerrors.Errorf("ssh remote forward: %w", err)
+						return fmt.Errorf("ssh remote forward: %w", err)
 					}
 					if err = stack.push("sshRemoteForward", closer); err != nil {
 						return err
 					}
 				}
 			}
-
 			stdinFile, validIn := inv.Stdin.(*os.File)
 			stdoutFile, validOut := inv.Stdout.(*os.File)
 			if validIn && validOut && isatty.IsTerminal(stdinFile.Fd()) && isatty.IsTerminal(stdoutFile.Fd()) {
@@ -462,7 +419,6 @@ func (r *RootCmd) ssh() *serpent.Command {
 				defer func() {
 					_ = pty.RestoreTerminal(stdoutFile.Fd(), outState)
 				}()
-
 				windowChange := listenWindowSize(ctx)
 				go func() {
 					for {
@@ -479,42 +435,35 @@ func (r *RootCmd) ssh() *serpent.Command {
 					}
 				}()
 			}
-
 			for _, kv := range parsedEnv {
 				if err := sshSession.Setenv(kv[0], kv[1]); err != nil {
-					return xerrors.Errorf("setenv: %w", err)
+					return fmt.Errorf("setenv: %w", err)
 				}
 			}
-
 			if containerName != "" {
 				for k, v := range map[string]string{
 					agentssh.ContainerEnvironmentVariable:     containerName,
 					agentssh.ContainerUserEnvironmentVariable: containerUser,
 				} {
 					if err := sshSession.Setenv(k, v); err != nil {
-						return xerrors.Errorf("setenv: %w", err)
+						return fmt.Errorf("setenv: %w", err)
 					}
 				}
 			}
-
 			err = sshSession.RequestPty("xterm-256color", 128, 128, gossh.TerminalModes{})
 			if err != nil {
-				return xerrors.Errorf("request pty: %w", err)
+				return fmt.Errorf("request pty: %w", err)
 			}
-
 			sshSession.Stdin = inv.Stdin
 			sshSession.Stdout = inv.Stdout
 			sshSession.Stderr = inv.Stderr
-
 			err = sshSession.Shell()
 			if err != nil {
-				return xerrors.Errorf("start shell: %w", err)
+				return fmt.Errorf("start shell: %w", err)
 			}
-
 			// Put cancel at the top of the defer stack to initiate
 			// shutdown of services.
 			defer cancel()
-
 			if validOut {
 				// Set initial window size.
 				width, height, err := term.GetSize(int(stdoutFile.Fd()))
@@ -522,7 +471,6 @@ func (r *RootCmd) ssh() *serpent.Command {
 					_ = sshSession.WindowChange(height, width)
 				}
 			}
-
 			err = sshSession.Wait()
 			conn.SendDisconnectedTelemetry()
 			if err != nil {
@@ -535,11 +483,10 @@ func (r *RootCmd) ssh() *serpent.Command {
 				// ExitMissingError but no other error details, so try to at
 				// least give the user a better message
 				if errors.Is(err, &gossh.ExitMissingError{}) {
-					return ExitError(255, xerrors.New("SSH connection ended unexpectedly"))
+					return ExitError(255, errors.New("SSH connection ended unexpectedly"))
 				}
-				return xerrors.Errorf("session ended: %w", err)
+				return fmt.Errorf("session ended: %w", err)
 			}
-
 			return nil
 		},
 	}
@@ -654,7 +601,6 @@ func (r *RootCmd) ssh() *serpent.Command {
 	}
 	return cmd
 }
-
 // watchAndClose ensures closer is called if the context is canceled or
 // the workspace reaches the stopped state.
 //
@@ -674,7 +620,6 @@ func watchAndClose(ctx context.Context, closer func() error, logger slog.Logger,
 			logger.Error(ctx, "error closing session", slog.Error(err))
 		}
 	}()
-
 startWatchLoop:
 	for {
 		logger.Debug(ctx, "connecting to the coder server to watch workspace events")
@@ -690,7 +635,6 @@ startWatchLoop:
 				return
 			}
 		}
-
 		for {
 			select {
 			case <-ctx.Done():
@@ -700,7 +644,6 @@ startWatchLoop:
 				if !ok {
 					continue startWatchLoop
 				}
-
 				// Transitioning to stop or delete could mean that
 				// the agent will still gracefully stop. If a new
 				// build is starting, there's no reason to wait for
@@ -723,7 +666,6 @@ startWatchLoop:
 		}
 	}
 }
-
 // getWorkspaceAgent returns the workspace and agent selected using either the
 // `<workspace>[.<agent>]` syntax via `in`.
 // If autoStart is true, the workspace will be started if it is not already running.
@@ -735,36 +677,33 @@ func getWorkspaceAndAgent(ctx context.Context, inv *serpent.Invocation, client *
 		workspaceParts = strings.Split(input, ".")
 		err            error
 	)
-
 	workspace, err = namedWorkspace(ctx, client, workspaceParts[0])
 	if err != nil {
 		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
 	}
-
 	if workspace.LatestBuild.Transition != codersdk.WorkspaceTransitionStart {
 		if !autostart {
-			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.New("workspace must be started")
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, errors.New("workspace must be started")
 		}
 		// Autostart the workspace for the user.
 		// For some failure modes, return a better message.
 		if workspace.LatestBuild.Transition == codersdk.WorkspaceTransitionDelete {
 			// Any sort of deleting status, we should reject with a nicer error.
-			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("workspace %q is deleted", workspace.Name)
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, fmt.Errorf("workspace %q is deleted", workspace.Name)
 		}
 		if workspace.LatestBuild.Job.Status == codersdk.ProvisionerJobFailed {
 			return codersdk.Workspace{}, codersdk.WorkspaceAgent{},
-				xerrors.Errorf("workspace %q is in failed state, unable to autostart the workspace", workspace.Name)
+				fmt.Errorf("workspace %q is in failed state, unable to autostart the workspace", workspace.Name)
 		}
 		// The workspace needs to be stopped before we can start it.
 		// It cannot be in any pending or failed state.
 		if workspace.LatestBuild.Status != codersdk.WorkspaceStatusStopped {
 			return codersdk.Workspace{}, codersdk.WorkspaceAgent{},
-				xerrors.Errorf("workspace must be started; was unable to autostart as the last build job is %q, expected %q",
+				fmt.Errorf("workspace must be started; was unable to autostart as the last build job is %q, expected %q",
 					workspace.LatestBuild.Status,
 					codersdk.WorkspaceStatusStopped,
 				)
 		}
-
 		// Start workspace based on the last build parameters.
 		// It's possible for a workspace build to fail due to the template requiring starting
 		// workspaces with the active version.
@@ -775,18 +714,16 @@ func getWorkspaceAndAgent(ctx context.Context, inv *serpent.Invocation, client *
 			case http.StatusConflict:
 				_, _ = fmt.Fprintln(inv.Stderr, "Unable to start the workspace due to conflict, the workspace may be starting, retrying without autostart...")
 				return getWorkspaceAndAgent(ctx, inv, client, false, input)
-
 			case http.StatusForbidden:
 				_, err = startWorkspace(inv, client, workspace, workspaceParameterFlags{}, buildFlags{}, WorkspaceUpdate)
 				if err != nil {
-					return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("start workspace with active template version: %w", err)
+					return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, fmt.Errorf("start workspace with active template version: %w", err)
 				}
 				_, _ = fmt.Fprintln(inv.Stdout, "Unable to start the workspace with template version from last build. Your workspace has been updated to the current active template version.")
 			}
 		} else if err != nil {
-			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("start workspace with current template version: %w", err)
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, fmt.Errorf("start workspace with current template version: %w", err)
 		}
-
 		// Refresh workspace state so that `outdated`, `build`,`template_*` fields are up-to-date.
 		workspace, err = namedWorkspace(ctx, client, workspaceParts[0])
 		if err != nil {
@@ -805,9 +742,8 @@ func getWorkspaceAndAgent(ctx context.Context, inv *serpent.Invocation, client *
 		}
 	}
 	if workspace.LatestBuild.Transition == codersdk.WorkspaceTransitionDelete {
-		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("workspace %q is being deleted", workspace.Name)
+		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, fmt.Errorf("workspace %q is being deleted", workspace.Name)
 	}
-
 	var agentName string
 	if len(workspaceParts) >= 2 {
 		agentName = workspaceParts[1]
@@ -816,19 +752,16 @@ func getWorkspaceAndAgent(ctx context.Context, inv *serpent.Invocation, client *
 	if err != nil {
 		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
 	}
-
 	return workspace, workspaceAgent, nil
 }
-
 func getWorkspaceAgent(workspace codersdk.Workspace, agentName string) (workspaceAgent codersdk.WorkspaceAgent, err error) {
 	resources := workspace.LatestBuild.Resources
-
 	agents := make([]codersdk.WorkspaceAgent, 0)
 	for _, resource := range resources {
 		agents = append(agents, resource.Agents...)
 	}
 	if len(agents) == 0 {
-		return codersdk.WorkspaceAgent{}, xerrors.Errorf("workspace %q has no agents", workspace.Name)
+		return codersdk.WorkspaceAgent{}, fmt.Errorf("workspace %q has no agents", workspace.Name)
 	}
 	if agentName != "" {
 		for _, otherAgent := range agents {
@@ -839,7 +772,7 @@ func getWorkspaceAgent(workspace codersdk.Workspace, agentName string) (workspac
 			break
 		}
 		if workspaceAgent.ID == uuid.Nil {
-			return codersdk.WorkspaceAgent{}, xerrors.Errorf("agent not found by name %q", agentName)
+			return codersdk.WorkspaceAgent{}, fmt.Errorf("agent not found by name %q", agentName)
 		}
 	}
 	if workspaceAgent.ID == uuid.Nil {
@@ -854,7 +787,6 @@ func getWorkspaceAgent(workspace codersdk.Workspace, agentName string) (workspac
 	}
 	return workspaceAgent, nil
 }
-
 // Attempt to poll workspace autostop. We write a per-workspace lockfile to
 // avoid spamming the user with notifications in case of multiple instances
 // of the CLI running simultaneously.
@@ -870,7 +802,6 @@ func tryPollWorkspaceAutostop(ctx context.Context, client *codersdk.Client, work
 		notifier.Close()
 	}
 }
-
 // Notify the user if the workspace is due to shutdown.
 func notifyCondition(ctx context.Context, client *codersdk.Client, workspaceID uuid.UUID, lock *flock.Flock) notify.Condition {
 	return func(now time.Time) (deadline time.Time, callback func()) {
@@ -879,16 +810,13 @@ func notifyCondition(ctx context.Context, client *codersdk.Client, workspaceID u
 		if err != nil || !locked {
 			return time.Time{}, nil
 		}
-
 		ws, err := client.Workspace(ctx, workspaceID)
 		if err != nil {
 			return time.Time{}, nil
 		}
-
 		if ptr.NilOrZero(ws.TTLMillis) {
 			return time.Time{}, nil
 		}
-
 		deadline = ws.LatestBuild.Deadline.Time
 		callback = func() {
 			ttl := deadline.Sub(now)
@@ -907,35 +835,29 @@ func notifyCondition(ctx context.Context, client *codersdk.Client, workspaceID u
 		return deadline.Truncate(time.Minute), callback
 	}
 }
-
 // Verify if the user workspace is outdated and prepare an actionable message for user.
 func verifyWorkspaceOutdated(client *codersdk.Client, workspace codersdk.Workspace) (string, bool) {
 	if !workspace.Outdated {
 		return "", false // workspace is up-to-date
 	}
-
 	workspaceLink := buildWorkspaceLink(client.URL, workspace)
 	return fmt.Sprintf("👋 Your workspace is outdated! Update it here: %s\n", workspaceLink), true
 }
-
 // Build the user workspace link which navigates to the Coder web UI.
 func buildWorkspaceLink(serverURL *url.URL, workspace codersdk.Workspace) *url.URL {
 	return serverURL.ResolveReference(&url.URL{Path: fmt.Sprintf("@%s/%s", workspace.OwnerName, workspace.Name)})
 }
-
 // runLocal runs a command on the local machine.
 func runLocal(ctx context.Context, stdin io.Reader, name string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Stdin = stdin
-
 	out, err := cmd.Output()
 	if err != nil {
 		var stderr []byte
 		if exitErr := new(exec.ExitError); errors.As(err, &exitErr) {
 			stderr = exitErr.Stderr
 		}
-
-		return out, xerrors.Errorf(
+		return out, fmt.Errorf(
 			"`%s %s` failed: stderr: %s\n\nstdout: %s\n\n%w",
 			name,
 			strings.Join(args, " "),
@@ -944,18 +866,15 @@ func runLocal(ctx context.Context, stdin io.Reader, name string, args ...string)
 			err,
 		)
 	}
-
 	return out, nil
 }
-
 // runRemoteSSH runs a command on a remote machine/workspace via SSH.
 func runRemoteSSH(sshClient *gossh.Client, stdin io.Reader, cmd string) ([]byte, error) {
 	sess, err := sshClient.NewSession()
 	if err != nil {
-		return nil, xerrors.Errorf("create SSH session")
+		return nil, fmt.Errorf("create SSH session")
 	}
 	defer sess.Close()
-
 	stderr := bytes.NewBuffer(nil)
 	sess.Stdin = stdin
 	// On fish, this was outputting to stderr instead of stdout.
@@ -963,7 +882,7 @@ func runRemoteSSH(sshClient *gossh.Client, stdin io.Reader, cmd string) ([]byte,
 	// so it's best we capture the output of both.
 	out, err := sess.CombinedOutput(cmd)
 	if err != nil {
-		return out, xerrors.Errorf(
+		return out, fmt.Errorf(
 			"`%s` failed: stderr: %s\n\nstdout: %s:\n\n%w",
 			cmd,
 			bytes.TrimSpace(stderr.Bytes()),
@@ -971,10 +890,8 @@ func runRemoteSSH(sshClient *gossh.Client, stdin io.Reader, cmd string) ([]byte,
 			err,
 		)
 	}
-
 	return out, nil
 }
-
 func uploadGPGKeys(ctx context.Context, sshClient *gossh.Client) error {
 	// Check if the agent is running in the workspace already.
 	//
@@ -993,70 +910,59 @@ if [ -S "$agent_socket" ]; then
   rm -f "$agent_socket"
   sleep 1
 fi
-
 test ! -S "$agent_socket"
 '`)
 	agentSocket := strings.TrimSpace(string(agentSocketBytes))
 	if err != nil {
-		return xerrors.Errorf("check if agent socket is running (check if %q exists): %w", agentSocket, err)
+		return fmt.Errorf("check if agent socket is running (check if %q exists): %w", agentSocket, err)
 	}
 	if agentSocket == "" {
-		return xerrors.Errorf("agent socket path is empty, check the output of `gpgconf --list-dir agent-socket`")
+		return fmt.Errorf("agent socket path is empty, check the output of `gpgconf --list-dir agent-socket`")
 	}
-
 	// Read the user's public keys and ownertrust from GPG.
 	pubKeyExport, err := runLocal(ctx, nil, "gpg", "--armor", "--export")
 	if err != nil {
-		return xerrors.Errorf("export local public keys from GPG: %w", err)
+		return fmt.Errorf("export local public keys from GPG: %w", err)
 	}
 	ownerTrustExport, err := runLocal(ctx, nil, "gpg", "--export-ownertrust")
 	if err != nil {
-		return xerrors.Errorf("export local ownertrust from GPG: %w", err)
+		return fmt.Errorf("export local ownertrust from GPG: %w", err)
 	}
-
 	// Import the public keys and ownertrust into the workspace.
 	_, err = runRemoteSSH(sshClient, bytes.NewReader(pubKeyExport), "gpg --import")
 	if err != nil {
-		return xerrors.Errorf("import public keys into workspace: %w", err)
+		return fmt.Errorf("import public keys into workspace: %w", err)
 	}
 	_, err = runRemoteSSH(sshClient, bytes.NewReader(ownerTrustExport), "gpg --import-ownertrust")
 	if err != nil {
-		return xerrors.Errorf("import ownertrust into workspace: %w", err)
+		return fmt.Errorf("import ownertrust into workspace: %w", err)
 	}
-
 	// Kill the agent in the workspace if it was started by one of the above
 	// commands.
 	_, err = runRemoteSSH(sshClient, nil, fmt.Sprintf("gpgconf --kill gpg-agent && rm -f %q", agentSocket))
 	if err != nil {
-		return xerrors.Errorf("kill existing agent in workspace: %w", err)
+		return fmt.Errorf("kill existing agent in workspace: %w", err)
 	}
-
 	return nil
 }
-
 func localGPGExtraSocket(ctx context.Context) (string, error) {
 	localSocket, err := runLocal(ctx, nil, "gpgconf", "--list-dir", "agent-extra-socket")
 	if err != nil {
-		return "", xerrors.Errorf("get local GPG agent socket: %w", err)
+		return "", fmt.Errorf("get local GPG agent socket: %w", err)
 	}
-
 	return string(bytes.TrimSpace(localSocket)), nil
 }
-
 func remoteGPGAgentSocket(sshClient *gossh.Client) (string, error) {
 	remoteSocket, err := runRemoteSSH(sshClient, nil, "gpgconf --list-dir agent-socket")
 	if err != nil {
-		return "", xerrors.Errorf("get remote GPG agent socket: %w", err)
+		return "", fmt.Errorf("get remote GPG agent socket: %w", err)
 	}
-
 	return string(bytes.TrimSpace(remoteSocket)), nil
 }
-
 type closerWithName struct {
 	name   string
 	closer io.Closer
 }
-
 type closerStack struct {
 	sync.Mutex
 	closers []closerWithName
@@ -1064,11 +970,9 @@ type closerStack struct {
 	logger  slog.Logger
 	err     error
 	allDone chan struct{}
-
 	// for testing
 	clock quartz.Clock
 }
-
 func newCloserStack(ctx context.Context, logger slog.Logger, clock quartz.Clock) *closerStack {
 	cs := &closerStack{
 		logger:  logger,
@@ -1078,12 +982,10 @@ func newCloserStack(ctx context.Context, logger slog.Logger, clock quartz.Clock)
 	go cs.closeAfterContext(ctx)
 	return cs
 }
-
 func (c *closerStack) closeAfterContext(ctx context.Context) {
 	<-ctx.Done()
 	c.close(ctx.Err())
 }
-
 func (c *closerStack) close(err error) {
 	c.Lock()
 	if c.closed {
@@ -1098,7 +1000,6 @@ func (c *closerStack) close(err error) {
 	if len(c.closers) == 0 {
 		return
 	}
-
 	// We are going to work down the stack in order.  If things close quickly, we trigger the
 	// closers serially, in order. `done` is a channel that indicates the nth closer is done
 	// closing, and we should trigger the (n-1) closer.  However, if things take too long we don't
@@ -1119,7 +1020,6 @@ func (c *closerStack) close(err error) {
 		next--
 	}
 	done <- len(c.closers) // kick us off right away
-
 	// start a ticking countdown in case we hang/don't close quickly
 	countdown := len(c.closers) - 1
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1132,7 +1032,6 @@ func (c *closerStack) close(err error) {
 		countdown--
 		return nil
 	}, "closerStack")
-
 	for n := range done { // the nth closer is done
 		if n == 0 {
 			return
@@ -1142,7 +1041,6 @@ func (c *closerStack) close(err error) {
 		}
 	}
 }
-
 func (c *closerStack) push(name string, closer io.Closer) error {
 	c.Lock()
 	if c.closed {
@@ -1151,27 +1049,23 @@ func (c *closerStack) push(name string, closer io.Closer) error {
 		err := closer.Close()
 		c.logger.Error(context.Background(),
 			"closed item rejected push", slog.F("name", name), slog.Error(err))
-		return xerrors.Errorf("already closed: %w", c.err)
+		return fmt.Errorf("already closed: %w", c.err)
 	}
 	c.closers = append(c.closers, closerWithName{name: name, closer: closer})
 	c.Unlock()
 	return nil
 }
-
 // rawSSHCopier handles copying raw SSH data between the conn and the pair (r, w).
 type rawSSHCopier struct {
 	conn   *gonet.TCPConn
 	logger slog.Logger
 	r      io.Reader
 	w      io.Writer
-
 	done chan struct{}
 }
-
 func newRawSSHCopier(logger slog.Logger, conn *gonet.TCPConn, r io.Reader, w io.Writer) *rawSSHCopier {
 	return &rawSSHCopier{conn: conn, logger: logger, r: r, w: w, done: make(chan struct{})}
 }
-
 func (c *rawSSHCopier) copy(wg *sync.WaitGroup) {
 	defer close(c.done)
 	logCtx := context.Background()
@@ -1191,7 +1085,6 @@ func (c *rawSSHCopier) copy(wg *sync.WaitGroup) {
 			cwErr := c.conn.CloseWrite()
 			c.logger.Debug(logCtx, "closed raw SSH connection for writing", slog.Error(cwErr))
 		}()
-
 		_, err := io.Copy(c.conn, c.r)
 		if err != nil {
 			c.logger.Error(logCtx, "copy stdin error", slog.Error(err))
@@ -1206,10 +1099,8 @@ func (c *rawSSHCopier) copy(wg *sync.WaitGroup) {
 		c.logger.Debug(logCtx, "copy stdout complete")
 	}
 }
-
 func (c *rawSSHCopier) Close() error {
 	err := c.conn.CloseWrite()
-
 	// give the copy() call a chance to return on a timeout, so that we don't
 	// continue tearing down and close the underlying netstack before the SSH
 	// session has a chance to gracefully shut down.
@@ -1221,7 +1112,6 @@ func (c *rawSSHCopier) Close() error {
 	}
 	return err
 }
-
 func sshDisableAutostartOption(src *serpent.Bool) serpent.Option {
 	return serpent.Option{
 		Flag:        "disable-autostart",
@@ -1231,21 +1121,17 @@ func sshDisableAutostartOption(src *serpent.Bool) serpent.Option {
 		Default:     "false",
 	}
 }
-
 type stdioErrLogReader struct {
 	l slog.Logger
 }
-
 func (r stdioErrLogReader) Read(_ []byte) (int, error) {
 	r.l.Error(context.Background(), "reading from stdin in stdio mode is not allowed")
 	return 0, io.EOF
 }
-
 func getUsageAppName(usageApp string) codersdk.UsageAppName {
 	if usageApp == disableUsageApp {
 		return ""
 	}
-
 	allowedUsageApps := []string{
 		string(codersdk.UsageAppNameSSH),
 		string(codersdk.UsageAppNameVscode),
@@ -1254,10 +1140,8 @@ func getUsageAppName(usageApp string) codersdk.UsageAppName {
 	if slices.Contains(allowedUsageApps, usageApp) {
 		return codersdk.UsageAppName(usageApp)
 	}
-
 	return codersdk.UsageAppNameSSH
 }
-
 func setStatsCallback(
 	ctx context.Context,
 	agentConn *workspacesdk.AgentConn,
@@ -1270,23 +1154,20 @@ func setStatsCallback(
 		fs = afero.NewOsFs()
 	}
 	if err := fs.MkdirAll(networkInfoDir, 0o700); err != nil {
-		return nil, xerrors.Errorf("mkdir: %w", err)
+		return nil, fmt.Errorf("mkdir: %w", err)
 	}
-
 	// The VS Code extension obtains the PID of the SSH process to
 	// read files to display logs and network info.
 	//
 	// We get the parent PID because it's assumed `ssh` is calling this
 	// command via the ProxyCommand SSH option.
 	pid := os.Getppid()
-
 	// The VS Code extension obtains the PID of the SSH process to
 	// read the file below which contains network information to display.
 	//
 	// We get the parent PID because it's assumed `ssh` is calling this
 	// command via the ProxyCommand SSH option.
 	networkInfoFilePath := filepath.Join(networkInfoDir, fmt.Sprintf("%d.json", pid))
-
 	var (
 		firstErrTime time.Time
 		errCh        = make(chan error, 1)
@@ -1304,19 +1185,16 @@ func setStatsCallback(
 					return
 				}
 			}
-
 			select {
 			case errCh <- err:
 			default:
 			}
 		}
-
 		stats, err := collectNetworkStats(ctx, agentConn, start, end, virtual)
 		if err != nil {
 			sendErr(true, err)
 			return
 		}
-
 		rawStats, err := json.Marshal(stats)
 		if err != nil {
 			sendErr(false, err)
@@ -1327,16 +1205,13 @@ func setStatsCallback(
 			sendErr(false, err)
 			return
 		}
-
 		firstErrTime = time.Time{}
 	}
-
 	now := time.Now()
 	cb(now, now.Add(time.Nanosecond), map[netlogtype.Connection]netlogtype.Counts{}, map[netlogtype.Connection]netlogtype.Counts{})
 	agentConn.SetConnStatsCallback(networkInfoInterval, 2048, cb)
 	return errCh, nil
 }
-
 type sshNetworkStats struct {
 	P2P              bool               `json:"p2p"`
 	Latency          float64            `json:"latency"`
@@ -1345,7 +1220,6 @@ type sshNetworkStats struct {
 	UploadBytesSec   int64              `json:"upload_bytes_sec"`
 	DownloadBytesSec int64              `json:"download_bytes_sec"`
 }
-
 func collectNetworkStats(ctx context.Context, agentConn *workspacesdk.AgentConn, start, end time.Time, counts map[netlogtype.Connection]netlogtype.Counts) (*sshNetworkStats, error) {
 	latency, p2p, pingResult, err := agentConn.Ping(ctx)
 	if err != nil {
@@ -1354,7 +1228,6 @@ func collectNetworkStats(ctx context.Context, agentConn *workspacesdk.AgentConn,
 	node := agentConn.Node()
 	derpMap := agentConn.DERPMap()
 	derpLatency := map[string]float64{}
-
 	// Convert DERP region IDs to friendly names for display in the UI.
 	for rawRegion, latency := range node.DERPLatency {
 		regionParts := strings.SplitN(rawRegion, "-", 2)
@@ -1375,7 +1248,6 @@ func collectNetworkStats(ctx context.Context, agentConn *workspacesdk.AgentConn,
 		// Convert the microseconds to milliseconds.
 		derpLatency[region.RegionName] = latency * 1000
 	}
-
 	totalRx := uint64(0)
 	totalTx := uint64(0)
 	for _, stat := range counts {
@@ -1387,7 +1259,6 @@ func collectNetworkStats(ctx context.Context, agentConn *workspacesdk.AgentConn,
 	dur := end.Sub(start)
 	uploadSecs := float64(totalTx) / dur.Seconds()
 	downloadSecs := float64(totalRx) / dur.Seconds()
-
 	// Sometimes the preferred DERP doesn't match the one we're actually
 	// connected with. Perhaps because the agent prefers a different DERP and
 	// we're using that server instead.
@@ -1403,7 +1274,6 @@ func collectNetworkStats(ctx context.Context, agentConn *workspacesdk.AgentConn,
 	if _, ok := derpLatency[preferredDerpName]; !ok {
 		derpLatency[preferredDerpName] = 0
 	}
-
 	return &sshNetworkStats{
 		P2P:              p2p,
 		Latency:          float64(latency.Microseconds()) / 1000,

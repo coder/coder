@@ -1,24 +1,20 @@
 package cliui_test
-
 import (
+	"errors"
 	"bytes"
 	"context"
 	"io"
 	"os"
 	"os/exec"
 	"testing"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/pty"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
 )
-
 func TestPrompt(t *testing.T) {
 	t.Parallel()
 	t.Run("Success", func(t *testing.T) {
@@ -38,7 +34,6 @@ func TestPrompt(t *testing.T) {
 		resp := testutil.RequireRecvCtx(ctx, t, msgChan)
 		require.Equal(t, "hello", resp)
 	})
-
 	t.Run("Confirm", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
@@ -57,13 +52,11 @@ func TestPrompt(t *testing.T) {
 		resp := testutil.RequireRecvCtx(ctx, t, doneChan)
 		require.Equal(t, "yes", resp)
 	})
-
 	t.Run("Skip", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
 		ptty := ptytest.New(t)
 		var buf bytes.Buffer
-
 		// Copy all data written out to a buffer. When we close the ptty, we can
 		// no longer read from the ptty.Output(), but we can read what was
 		// written to the buffer.
@@ -77,7 +70,6 @@ func TestPrompt(t *testing.T) {
 			_, _ = io.Copy(&buf, ptty.Output())
 			doneReading()
 		}()
-
 		doneChan := make(chan string)
 		go func() {
 			resp, err := newPrompt(ctx, ptty, cliui.PromptOptions{
@@ -90,7 +82,6 @@ func TestPrompt(t *testing.T) {
 			assert.NoError(t, err)
 			doneChan <- resp
 		}()
-
 		resp := testutil.RequireRecvCtx(ctx, t, doneChan)
 		require.Equal(t, "yes", resp)
 		// Close the reader to end the io.Copy
@@ -118,7 +109,6 @@ func TestPrompt(t *testing.T) {
 		resp := testutil.RequireRecvCtx(ctx, t, doneChan)
 		require.Equal(t, "{}", resp)
 	})
-
 	t.Run("BadJSON", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
@@ -136,7 +126,6 @@ func TestPrompt(t *testing.T) {
 		resp := testutil.RequireRecvCtx(ctx, t, doneChan)
 		require.Equal(t, "{a", resp)
 	})
-
 	t.Run("MultilineJSON", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
@@ -156,7 +145,6 @@ func TestPrompt(t *testing.T) {
 		resp := testutil.RequireRecvCtx(ctx, t, doneChan)
 		require.Equal(t, `{"test":"wow"}`, resp)
 	})
-
 	t.Run("InvalidValid", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
@@ -168,7 +156,7 @@ func TestPrompt(t *testing.T) {
 				Validate: func(s string) error {
 					t.Logf("validate: %q", s)
 					if s != "valid" {
-						return xerrors.New("invalid")
+						return errors.New("invalid")
 					}
 					return nil
 				},
@@ -182,7 +170,6 @@ func TestPrompt(t *testing.T) {
 		require.Equal(t, "valid", resp)
 	})
 }
-
 func newPrompt(ctx context.Context, ptty *ptytest.PTY, opts cliui.PromptOptions, invOpt func(inv *serpent.Invocation)) (string, error) {
 	value := ""
 	cmd := &serpent.Command{
@@ -192,7 +179,6 @@ func newPrompt(ctx context.Context, ptty *ptytest.PTY, opts cliui.PromptOptions,
 			return err
 		},
 	}
-
 	inv := cmd.Invoke()
 	// Optionally modify the cmd
 	if invOpt != nil {
@@ -203,20 +189,17 @@ func newPrompt(ctx context.Context, ptty *ptytest.PTY, opts cliui.PromptOptions,
 	inv.Stdin = ptty.Input()
 	return value, inv.WithContext(ctx).Run()
 }
-
 func TestPasswordTerminalState(t *testing.T) {
 	if os.Getenv("TEST_SUBPROCESS") == "1" {
 		passwordHelper()
 		return
 	}
 	t.Parallel()
-
 	ptty := ptytest.New(t)
 	ptyWithFlags, ok := ptty.PTY.(pty.WithFlags)
 	if !ok {
 		t.Skip("unable to check PTY local echo on this platform")
 	}
-
 	cmd := exec.Command(os.Args[0], "-test.run=TestPasswordTerminalState") //nolint:gosec
 	cmd.Env = append(os.Environ(), "TEST_SUBPROCESS=1")
 	// connect the child process's stdio to the PTY directly, not via a pipe
@@ -227,25 +210,20 @@ func TestPasswordTerminalState(t *testing.T) {
 	require.NoError(t, err)
 	process := cmd.Process
 	defer process.Kill()
-
 	ptty.ExpectMatch("Password: ")
-
 	require.Eventually(t, func() bool {
 		echo, err := ptyWithFlags.EchoEnabled()
 		return err == nil && !echo
 	}, testutil.WaitShort, testutil.IntervalMedium, "echo is on while reading password")
-
 	err = process.Signal(os.Interrupt)
 	require.NoError(t, err)
 	_, err = process.Wait()
 	require.NoError(t, err)
-
 	require.Eventually(t, func() bool {
 		echo, err := ptyWithFlags.EchoEnabled()
 		return err == nil && echo
 	}, testutil.WaitShort, testutil.IntervalMedium, "echo is off after reading password")
 }
-
 // nolint:unused
 func passwordHelper() {
 	cmd := &serpent.Command{

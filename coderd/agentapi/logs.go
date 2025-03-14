@@ -1,12 +1,10 @@
 package agentapi
-
 import (
+	"fmt"
+	"errors"
 	"context"
 	"time"
-
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
-
 	"cdr.dev/slog"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
@@ -14,24 +12,20 @@ import (
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
-
 type LogsAPI struct {
 	AgentFn                           func(context.Context) (database.WorkspaceAgent, error)
 	Database                          database.Store
 	Log                               slog.Logger
 	PublishWorkspaceUpdateFn          func(context.Context, *database.WorkspaceAgent, wspubsub.WorkspaceEventKind) error
 	PublishWorkspaceAgentLogsUpdateFn func(ctx context.Context, workspaceAgentID uuid.UUID, msg agentsdk.LogsNotifyMessage)
-
 	TimeNowFn func() time.Time // defaults to dbtime.Now()
 }
-
 func (a *LogsAPI) now() time.Time {
 	if a.TimeNowFn != nil {
 		return a.TimeNowFn()
 	}
 	return dbtime.Now()
 }
-
 func (a *LogsAPI) BatchCreateLogs(ctx context.Context, req *agentproto.BatchCreateLogsRequest) (*agentproto.BatchCreateLogsResponse, error) {
 	workspaceAgent, err := a.AgentFn(ctx)
 	if err != nil {
@@ -40,15 +34,13 @@ func (a *LogsAPI) BatchCreateLogs(ctx context.Context, req *agentproto.BatchCrea
 	if workspaceAgent.LogsOverflowed {
 		return &agentproto.BatchCreateLogsResponse{LogLimitExceeded: true}, nil
 	}
-
 	if len(req.Logs) == 0 {
 		return &agentproto.BatchCreateLogsResponse{}, nil
 	}
 	logSourceID, err := uuid.FromBytes(req.LogSourceId)
 	if err != nil {
-		return nil, xerrors.Errorf("parse log source ID %q: %w", req.LogSourceId, err)
+		return nil, fmt.Errorf("parse log source ID %q: %w", req.LogSourceId, err)
 	}
-
 	// This is to support the legacy API where the log source ID was
 	// not provided in the request body. We default to the external
 	// log source in this case.
@@ -66,20 +58,18 @@ func (a *LogsAPI) BatchCreateLogs(ctx context.Context, req *agentproto.BatchCrea
 			logSourceID = agentsdk.ExternalLogSourceID
 		}
 		if err != nil {
-			return nil, xerrors.Errorf("insert external workspace agent log source: %w", err)
+			return nil, fmt.Errorf("insert external workspace agent log source: %w", err)
 		}
 		if len(externalSources) == 1 {
 			logSourceID = externalSources[0].ID
 		}
 	}
-
 	output := make([]string, 0)
 	level := make([]database.LogLevel, 0)
 	outputLength := 0
 	for _, logEntry := range req.Logs {
 		output = append(output, logEntry.Output)
 		outputLength += len(logEntry.Output)
-
 		var dbLevel database.LogLevel
 		switch logEntry.Level {
 		case agentproto.Log_TRACE:
@@ -99,7 +89,6 @@ func (a *LogsAPI) BatchCreateLogs(ctx context.Context, req *agentproto.BatchCrea
 		}
 		level = append(level, dbLevel)
 	}
-
 	logs, err := a.Database.InsertWorkspaceAgentLogs(ctx, database.InsertWorkspaceAgentLogsParams{
 		AgentID:      workspaceAgent.ID,
 		CreatedAt:    a.now(),
@@ -110,7 +99,7 @@ func (a *LogsAPI) BatchCreateLogs(ctx context.Context, req *agentproto.BatchCrea
 	})
 	if err != nil {
 		if !database.IsWorkspaceAgentLogsLimitError(err) {
-			return nil, xerrors.Errorf("insert workspace agent logs: %w", err)
+			return nil, fmt.Errorf("insert workspace agent logs: %w", err)
 		}
 		err := a.Database.UpdateWorkspaceAgentLogOverflowByID(ctx, database.UpdateWorkspaceAgentLogOverflowByIDParams{
 			ID:             workspaceAgent.ID,
@@ -122,16 +111,14 @@ func (a *LogsAPI) BatchCreateLogs(ctx context.Context, req *agentproto.BatchCrea
 			// hint to the user that the logs are incomplete.
 			a.Log.Warn(ctx, "failed to update workspace agent log overflow", slog.Error(err))
 		}
-
 		if a.PublishWorkspaceUpdateFn != nil {
 			err = a.PublishWorkspaceUpdateFn(ctx, &workspaceAgent, wspubsub.WorkspaceEventKindAgentLogsOverflow)
 			if err != nil {
-				return nil, xerrors.Errorf("publish workspace update: %w", err)
+				return nil, fmt.Errorf("publish workspace update: %w", err)
 			}
 		}
 		return &agentproto.BatchCreateLogsResponse{LogLimitExceeded: true}, nil
 	}
-
 	// Publish by the lowest log ID inserted so the log stream will fetch
 	// everything from that point.
 	if a.PublishWorkspaceAgentLogsUpdateFn != nil {
@@ -140,15 +127,13 @@ func (a *LogsAPI) BatchCreateLogs(ctx context.Context, req *agentproto.BatchCrea
 			CreatedAfter: lowestLogID - 1,
 		})
 	}
-
 	if workspaceAgent.LogsLength == 0 && a.PublishWorkspaceUpdateFn != nil {
 		// If these are the first logs being appended, we publish a UI update
 		// to notify the UI that logs are now available.
 		err = a.PublishWorkspaceUpdateFn(ctx, &workspaceAgent, wspubsub.WorkspaceEventKindAgentFirstLogs)
 		if err != nil {
-			return nil, xerrors.Errorf("publish workspace update: %w", err)
+			return nil, fmt.Errorf("publish workspace update: %w", err)
 		}
 	}
-
 	return &agentproto.BatchCreateLogsResponse{}, nil
 }

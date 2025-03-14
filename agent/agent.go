@@ -28,7 +28,6 @@ import (
 	"github.com/spf13/afero"
 	"go.uber.org/atomic"
 	"golang.org/x/sync/errgroup"
-	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"tailscale.com/net/speedtest"
 	"tailscale.com/tailcfg"
@@ -404,7 +403,7 @@ func (a *agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentM
 	if out.Len() > bufLimit {
 		err = errors.Join(
 			err,
-			xerrors.Errorf("output truncated from %v to %v bytes", out.Len(), bufLimit),
+			fmt.Errorf("output truncated from %v to %v bytes", out.Len(), bufLimit),
 		)
 		out.Truncate(bufLimit)
 	}
@@ -625,7 +624,7 @@ func (a *agent) reportMetadata(ctx context.Context, aAPI proto.DRPCAgentClient24
 			logMsg := "batch update metadata complete"
 			if err != nil {
 				a.logger.Debug(ctx, logMsg, slog.Error(err))
-				return xerrors.Errorf("failed to report metadata: %w", err)
+				return fmt.Errorf("failed to report metadata: %w", err)
 			}
 			a.logger.Debug(ctx, logMsg)
 			reportInFlight = false
@@ -697,7 +696,7 @@ func (a *agent) reportLifecycle(ctx context.Context, aAPI proto.DRPCAgentClient2
 
 			_, err = aAPI.UpdateLifecycle(ctx, payload)
 			if err != nil {
-				return xerrors.Errorf("failed to update lifecycle: %w", err)
+				return fmt.Errorf("failed to update lifecycle: %w", err)
 			}
 
 			logger.Debug(ctx, "successfully reported lifecycle state")
@@ -767,7 +766,7 @@ func (a *agent) reportConnectionsLoop(ctx context.Context, aAPI proto.DRPCAgentC
 			logger.Debug(ctx, "reporting connection")
 			_, err := aAPI.ReportConnection(ctx, payload)
 			if err != nil {
-				return xerrors.Errorf("failed to report connection: %w", err)
+				return fmt.Errorf("failed to report connection: %w", err)
 			}
 
 			logger.Debug(ctx, "successfully reported connection")
@@ -895,7 +894,7 @@ func (a *agent) run() (retErr error) {
 	// may not have re-provisioned, but a new agent ID was created.
 	sessionToken, err := a.exchangeToken(a.hardCtx)
 	if err != nil {
-		return xerrors.Errorf("exchange token: %w", err)
+		return fmt.Errorf("exchange token: %w", err)
 	}
 	a.sessionToken.Store(&sessionToken)
 
@@ -920,7 +919,7 @@ func (a *agent) run() (retErr error) {
 		func(ctx context.Context, aAPI proto.DRPCAgentClient24) error {
 			bannersProto, err := aAPI.GetAnnouncementBanners(ctx, &proto.GetAnnouncementBannersRequest{})
 			if err != nil {
-				return xerrors.Errorf("fetch service banner: %w", err)
+				return fmt.Errorf("fetch service banner: %w", err)
 			}
 			banners := make([]codersdk.BannerConfig, 0, len(bannersProto.AnnouncementBanners))
 			for _, bannerProto := range bannersProto.AnnouncementBanners {
@@ -936,7 +935,7 @@ func (a *agent) run() (retErr error) {
 	connMan.startAgentAPI("send logs", gracefulShutdownBehaviorRemain,
 		func(ctx context.Context, aAPI proto.DRPCAgentClient24) error {
 			err := a.logSender.SendLoop(ctx, aAPI)
-			if xerrors.Is(err, agentsdk.LogLimitExceededError) {
+			if errors.Is(err, agentsdk.LogLimitExceededError) {
 				// we don't want this error to tear down the API connection and propagate to the
 				// other routines that use the API.  The LogSender has already dropped a warning
 				// log, so just return nil here.
@@ -958,12 +957,12 @@ func (a *agent) run() (retErr error) {
 		clk := quartz.NewReal()
 		config, err := aAPI.GetResourcesMonitoringConfiguration(ctx, &proto.GetResourcesMonitoringConfigurationRequest{})
 		if err != nil {
-			return xerrors.Errorf("failed to get resources monitoring configuration: %w", err)
+			return fmt.Errorf("failed to get resources monitoring configuration: %w", err)
 		}
 
 		statfetcher, err := clistat.New()
 		if err != nil {
-			return xerrors.Errorf("failed to create resources fetcher: %w", err)
+			return fmt.Errorf("failed to create resources fetcher: %w", err)
 		}
 		resourcesFetcher := resourcesmonitor.NewFetcher(statfetcher)
 
@@ -999,7 +998,7 @@ func (a *agent) run() (retErr error) {
 	connMan.startAgentAPI("app health reporter", gracefulShutdownBehaviorStop,
 		func(ctx context.Context, aAPI proto.DRPCAgentClient24) error {
 			if err := manifestOK.wait(ctx); err != nil {
-				return xerrors.Errorf("no manifest: %w", err)
+				return fmt.Errorf("no manifest: %w", err)
 			}
 			manifest := a.manifest.Load()
 			NewWorkspaceAppHealthReporter(
@@ -1014,7 +1013,7 @@ func (a *agent) run() (retErr error) {
 	connMan.startTailnetAPI("coordination", gracefulShutdownBehaviorStop,
 		func(ctx context.Context, tAPI tailnetproto.DRPCTailnetClient24) error {
 			if err := networkOK.wait(ctx); err != nil {
-				return xerrors.Errorf("no network: %w", err)
+				return fmt.Errorf("no network: %w", err)
 			}
 			return a.runCoordinator(ctx, tAPI, a.network)
 		},
@@ -1023,7 +1022,7 @@ func (a *agent) run() (retErr error) {
 	connMan.startTailnetAPI("derp map subscriber", gracefulShutdownBehaviorStop,
 		func(ctx context.Context, tAPI tailnetproto.DRPCTailnetClient24) error {
 			if err := networkOK.wait(ctx); err != nil {
-				return xerrors.Errorf("no network: %w", err)
+				return fmt.Errorf("no network: %w", err)
 			}
 			return a.runDERPMapSubscriber(ctx, tAPI, a.network)
 		})
@@ -1032,7 +1031,7 @@ func (a *agent) run() (retErr error) {
 
 	connMan.startAgentAPI("stats report loop", gracefulShutdownBehaviorStop, func(ctx context.Context, aAPI proto.DRPCAgentClient24) error {
 		if err := networkOK.wait(ctx); err != nil {
-			return xerrors.Errorf("no network: %w", err)
+			return fmt.Errorf("no network: %w", err)
 		}
 		return a.statsReporter.reportLoop(ctx, aAPI)
 	})
@@ -1054,16 +1053,16 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 		}()
 		mp, err := aAPI.GetManifest(ctx, &proto.GetManifestRequest{})
 		if err != nil {
-			return xerrors.Errorf("fetch metadata: %w", err)
+			return fmt.Errorf("fetch metadata: %w", err)
 		}
 		a.logger.Info(ctx, "fetched manifest", slog.F("manifest", mp))
 		manifest, err := agentsdk.ManifestFromProto(mp)
 		if err != nil {
 			a.logger.Critical(ctx, "failed to convert manifest", slog.F("manifest", mp), slog.Error(err))
-			return xerrors.Errorf("convert manifest: %w", err)
+			return fmt.Errorf("convert manifest: %w", err)
 		}
 		if manifest.AgentID == uuid.Nil {
-			return xerrors.New("nil agentID returned by manifest")
+			return errors.New("nil agentID returned by manifest")
 		}
 		a.client.RewriteDERPMap(manifest.DERPMap)
 
@@ -1074,12 +1073,12 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 		// before initializing a connection.
 		manifest.Directory, err = expandDirectory(manifest.Directory)
 		if err != nil {
-			return xerrors.Errorf("expand directory: %w", err)
+			return fmt.Errorf("expand directory: %w", err)
 		}
 		subsys, err := agentsdk.ProtoFromSubsystems(a.subsystems)
 		if err != nil {
 			a.logger.Critical(ctx, "failed to convert subsystems", slog.Error(err))
-			return xerrors.Errorf("failed to convert subsystems: %w", err)
+			return fmt.Errorf("failed to convert subsystems: %w", err)
 		}
 		_, err = aAPI.UpdateStartup(ctx, &proto.UpdateStartupRequest{Startup: &proto.Startup{
 			Version:           buildinfo.Version(),
@@ -1087,7 +1086,7 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 			Subsystems:        subsys,
 		}})
 		if err != nil {
-			return xerrors.Errorf("update workspace agent startup: %w", err)
+			return fmt.Errorf("update workspace agent startup: %w", err)
 		}
 
 		oldManifest := a.manifest.Swap(&manifest)
@@ -1114,7 +1113,7 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 
 			err = a.scriptRunner.Init(manifest.Scripts, aAPI.ScriptCompleted)
 			if err != nil {
-				return xerrors.Errorf("init script runner: %w", err)
+				return fmt.Errorf("init script runner: %w", err)
 			}
 			err = a.trackGoroutine(func() {
 				start := time.Now()
@@ -1142,7 +1141,7 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				a.scriptRunner.StartCron()
 			})
 			if err != nil {
-				return xerrors.Errorf("track conn goroutine: %w", err)
+				return fmt.Errorf("track conn goroutine: %w", err)
 			}
 		}
 		return nil
@@ -1154,7 +1153,7 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 func (a *agent) createOrUpdateNetwork(manifestOK, networkOK *checkpoint) func(context.Context, proto.DRPCAgentClient24) error {
 	return func(ctx context.Context, _ proto.DRPCAgentClient24) (retErr error) {
 		if err := manifestOK.wait(ctx); err != nil {
-			return xerrors.Errorf("no manifest: %w", err)
+			return fmt.Errorf("no manifest: %w", err)
 		}
 		defer func() {
 			networkOK.complete(retErr)
@@ -1166,7 +1165,7 @@ func (a *agent) createOrUpdateNetwork(manifestOK, networkOK *checkpoint) func(co
 		if network == nil {
 			keySeed, err := WorkspaceKeySeed(manifest.WorkspaceID, manifest.AgentName)
 			if err != nil {
-				return xerrors.Errorf("generate seed from workspace id: %w", err)
+				return fmt.Errorf("generate seed from workspace id: %w", err)
 			}
 			// use the graceful context here, because creating the tailnet is not itself tied to the
 			// agent API.
@@ -1179,7 +1178,7 @@ func (a *agent) createOrUpdateNetwork(manifestOK, networkOK *checkpoint) func(co
 				keySeed,
 			)
 			if err != nil {
-				return xerrors.Errorf("create tailnet: %w", err)
+				return fmt.Errorf("create tailnet: %w", err)
 			}
 			a.closeMutex.Lock()
 			// Re-check if agent was closed while initializing the network.
@@ -1191,7 +1190,7 @@ func (a *agent) createOrUpdateNetwork(manifestOK, networkOK *checkpoint) func(co
 			a.closeMutex.Unlock()
 			if closed {
 				_ = network.Close()
-				return xerrors.New("agent is closed")
+				return errors.New("agent is closed")
 			}
 		} else {
 			// Update the wireguard IPs if the agent ID changed.
@@ -1218,12 +1217,12 @@ func (a *agent) createOrUpdateNetwork(manifestOK, networkOK *checkpoint) func(co
 func (a *agent) updateCommandEnv(current []string) (updated []string, err error) {
 	manifest := a.manifest.Load()
 	if manifest == nil {
-		return nil, xerrors.Errorf("no manifest")
+		return nil, fmt.Errorf("no manifest")
 	}
 
 	executablePath, err := os.Executable()
 	if err != nil {
-		return nil, xerrors.Errorf("getting os executable: %w", err)
+		return nil, fmt.Errorf("getting os executable: %w", err)
 	}
 	unixExecutablePath := strings.ReplaceAll(executablePath, "\\", "/")
 
@@ -1307,7 +1306,7 @@ func (a *agent) trackGoroutine(fn func()) error {
 	a.closeMutex.Lock()
 	defer a.closeMutex.Unlock()
 	if a.isClosed() {
-		return xerrors.New("track conn goroutine: agent is closed")
+		return errors.New("track conn goroutine: agent is closed")
 	}
 	a.closeWaitGroup.Add(1)
 	go func() {
@@ -1342,7 +1341,7 @@ func (a *agent) createTailnet(
 		BlockEndpoints:      disableDirectConnections,
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("create tailnet: %w", err)
+		return nil, fmt.Errorf("create tailnet: %w", err)
 	}
 	defer func() {
 		if err != nil {
@@ -1351,13 +1350,13 @@ func (a *agent) createTailnet(
 	}()
 
 	if err := a.sshServer.UpdateHostSigner(keySeed); err != nil {
-		return nil, xerrors.Errorf("update host signer: %w", err)
+		return nil, fmt.Errorf("update host signer: %w", err)
 	}
 
 	for _, port := range []int{workspacesdk.AgentSSHPort, workspacesdk.AgentStandardSSHPort} {
 		sshListener, err := network.Listen("tcp", ":"+strconv.Itoa(port))
 		if err != nil {
-			return nil, xerrors.Errorf("listen on the ssh port (%v): %w", port, err)
+			return nil, fmt.Errorf("listen on the ssh port (%v): %w", port, err)
 		}
 		// nolint:revive // We do want to run the deferred functions when createTailnet returns.
 		defer func() {
@@ -1374,7 +1373,7 @@ func (a *agent) createTailnet(
 
 	reconnectingPTYListener, err := network.Listen("tcp", ":"+strconv.Itoa(workspacesdk.AgentReconnectingPTYPort))
 	if err != nil {
-		return nil, xerrors.Errorf("listen for reconnecting pty: %w", err)
+		return nil, fmt.Errorf("listen for reconnecting pty: %w", err)
 	}
 	defer func() {
 		if err != nil {
@@ -1394,7 +1393,7 @@ func (a *agent) createTailnet(
 
 	speedtestListener, err := network.Listen("tcp", ":"+strconv.Itoa(workspacesdk.AgentSpeedtestPort))
 	if err != nil {
-		return nil, xerrors.Errorf("listen for speedtest: %w", err)
+		return nil, fmt.Errorf("listen for speedtest: %w", err)
 	}
 	defer func() {
 		if err != nil {
@@ -1442,7 +1441,7 @@ func (a *agent) createTailnet(
 
 	apiListener, err := network.Listen("tcp", ":"+strconv.Itoa(workspacesdk.AgentHTTPAPIServerPort))
 	if err != nil {
-		return nil, xerrors.Errorf("api listener: %w", err)
+		return nil, fmt.Errorf("api listener: %w", err)
 	}
 	defer func() {
 		if err != nil {
@@ -1467,7 +1466,7 @@ func (a *agent) createTailnet(
 		}()
 
 		apiServErr := server.Serve(apiListener)
-		if apiServErr != nil && !xerrors.Is(apiServErr, http.ErrServerClosed) && !strings.Contains(apiServErr.Error(), "use of closed network connection") {
+		if apiServErr != nil && !errors.Is(apiServErr, http.ErrServerClosed) && !strings.Contains(apiServErr.Error(), "use of closed network connection") {
 			a.logger.Critical(ctx, "serve HTTP API server", slog.Error(apiServErr))
 		}
 	}); err != nil {
@@ -1485,7 +1484,7 @@ func (a *agent) runCoordinator(ctx context.Context, tClient tailnetproto.DRPCTai
 	// gracefully shut down.
 	coordinate, err := tClient.Coordinate(a.hardCtx)
 	if err != nil {
-		return xerrors.Errorf("failed to connect to the coordinate endpoint: %w", err)
+		return fmt.Errorf("failed to connect to the coordinate endpoint: %w", err)
 	}
 	defer func() {
 		cErr := coordinate.Close()
@@ -1532,7 +1531,7 @@ func (a *agent) runDERPMapSubscriber(ctx context.Context, tClient tailnetproto.D
 	defer cancel()
 	stream, err := tClient.StreamDERPMaps(ctx, &tailnetproto.StreamDERPMapsRequest{})
 	if err != nil {
-		return xerrors.Errorf("stream DERP Maps: %w", err)
+		return fmt.Errorf("stream DERP Maps: %w", err)
 	}
 	defer func() {
 		cErr := stream.Close()
@@ -1544,7 +1543,7 @@ func (a *agent) runDERPMapSubscriber(ctx context.Context, tClient tailnetproto.D
 	for {
 		dmp, err := stream.Recv()
 		if err != nil {
-			return xerrors.Errorf("recv DERPMap error: %w", err)
+			return fmt.Errorf("recv DERPMap error: %w", err)
 		}
 		dm := tailnet.DERPMapFromProto(dmp)
 		a.client.RewriteDERPMap(dm)
@@ -1838,7 +1837,7 @@ func userHomeDir() (string, error) {
 	// As a fallback, we try the user information.
 	u, err := user.Current()
 	if err != nil {
-		return "", xerrors.Errorf("current user: %w", err)
+		return "", fmt.Errorf("current user: %w", err)
 	}
 	return u.HomeDir, nil
 }
@@ -1953,7 +1952,7 @@ func (a *apiConnRoutineManager) startAgentAPI(
 	a.eg.Go(func() error {
 		logger.Debug(ctx, "starting agent routine")
 		err := f(ctx, a.aAPI)
-		if xerrors.Is(err, context.Canceled) && ctx.Err() != nil {
+		if errors.Is(err, context.Canceled) && ctx.Err() != nil {
 			logger.Debug(ctx, "swallowing context canceled")
 			// Don't propagate context canceled errors to the error group, because we don't want the
 			// graceful context being canceled to halt the work of routines with
@@ -1965,7 +1964,7 @@ func (a *apiConnRoutineManager) startAgentAPI(
 		}
 		logger.Debug(ctx, "routine exited", slog.Error(err))
 		if err != nil {
-			return xerrors.Errorf("error in routine %s: %w", name, err)
+			return fmt.Errorf("error in routine %s: %w", name, err)
 		}
 		return nil
 	})
@@ -1990,7 +1989,7 @@ func (a *apiConnRoutineManager) startTailnetAPI(
 	a.eg.Go(func() error {
 		logger.Debug(ctx, "starting tailnet routine")
 		err := f(ctx, a.tAPI)
-		if xerrors.Is(err, context.Canceled) && ctx.Err() != nil {
+		if errors.Is(err, context.Canceled) && ctx.Err() != nil {
 			logger.Debug(ctx, "swallowing context canceled")
 			// Don't propagate context canceled errors to the error group, because we don't want the
 			// graceful context being canceled to halt the work of routines with
@@ -2002,7 +2001,7 @@ func (a *apiConnRoutineManager) startTailnetAPI(
 		}
 		logger.Debug(ctx, "routine exited", slog.Error(err))
 		if err != nil {
-			return xerrors.Errorf("error in routine %s: %w", name, err)
+			return fmt.Errorf("error in routine %s: %w", name, err)
 		}
 		return nil
 	})

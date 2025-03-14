@@ -1,19 +1,15 @@
 package cli
-
 import (
+	"errors"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
-
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
-
 func (r *RootCmd) organizationSettings(orgContext *OrganizationContext) *serpent.Command {
 	settings := []organizationSetting{
 		{
@@ -24,7 +20,7 @@ func (r *RootCmd) organizationSettings(orgContext *OrganizationContext) *serpent
 				var req codersdk.GroupSyncSettings
 				err := json.Unmarshal(input, &req)
 				if err != nil {
-					return nil, xerrors.Errorf("unmarshalling group sync settings: %w", err)
+					return nil, fmt.Errorf("unmarshalling group sync settings: %w", err)
 				}
 				return cli.PatchGroupIDPSyncSettings(ctx, org.String(), req)
 			},
@@ -40,7 +36,7 @@ func (r *RootCmd) organizationSettings(orgContext *OrganizationContext) *serpent
 				var req codersdk.RoleSyncSettings
 				err := json.Unmarshal(input, &req)
 				if err != nil {
-					return nil, xerrors.Errorf("unmarshalling role sync settings: %w", err)
+					return nil, fmt.Errorf("unmarshalling role sync settings: %w", err)
 				}
 				return cli.PatchRoleIDPSyncSettings(ctx, org.String(), req)
 			},
@@ -57,7 +53,7 @@ func (r *RootCmd) organizationSettings(orgContext *OrganizationContext) *serpent
 				var req codersdk.OrganizationSyncSettings
 				err := json.Unmarshal(input, &req)
 				if err != nil {
-					return nil, xerrors.Errorf("unmarshalling organization sync settings: %w", err)
+					return nil, fmt.Errorf("unmarshalling organization sync settings: %w", err)
 				}
 				return cli.PatchOrganizationIDPSyncSettings(ctx, req)
 			},
@@ -80,7 +76,6 @@ func (r *RootCmd) organizationSettings(orgContext *OrganizationContext) *serpent
 	}
 	return cmd
 }
-
 type organizationSetting struct {
 	Name    string
 	Aliases []string
@@ -93,7 +88,6 @@ type organizationSetting struct {
 	Patch             func(ctx context.Context, cli *codersdk.Client, org uuid.UUID, input json.RawMessage) (any, error)
 	Fetch             func(ctx context.Context, cli *codersdk.Client, org uuid.UUID) (any, error)
 }
-
 func (r *RootCmd) setOrganizationSettings(orgContext *OrganizationContext, settings []organizationSetting) *serpent.Command {
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
@@ -114,7 +108,6 @@ func (r *RootCmd) setOrganizationSettings(orgContext *OrganizationContext, setti
 			return inv.Command.HelpHandler(inv)
 		},
 	}
-
 	for _, set := range settings {
 		set := set
 		patch := set.Patch
@@ -131,45 +124,37 @@ func (r *RootCmd) setOrganizationSettings(orgContext *OrganizationContext, setti
 				ctx := inv.Context()
 				var org codersdk.Organization
 				var err error
-
 				if !set.DisableOrgContext {
 					org, err = orgContext.Selected(inv, client)
 					if err != nil {
 						return err
 					}
 				}
-
 				// Read in the json
 				inputData, err := io.ReadAll(inv.Stdin)
 				if err != nil {
-					return xerrors.Errorf("reading stdin: %w", err)
+					return fmt.Errorf("reading stdin: %w", err)
 				}
-
 				output, err := patch(ctx, client, org.ID, inputData)
 				if err != nil {
-					return xerrors.Errorf("patching %q: %w", set.Name, err)
+					return fmt.Errorf("patching %q: %w", set.Name, err)
 				}
-
 				settingJSON, err := json.Marshal(output)
 				if err != nil {
-					return xerrors.Errorf("failed to marshal organization setting %s: %w", inv.Args[0], err)
+					return fmt.Errorf("failed to marshal organization setting %s: %w", inv.Args[0], err)
 				}
-
 				var dst bytes.Buffer
 				err = json.Indent(&dst, settingJSON, "", "\t")
 				if err != nil {
-					return xerrors.Errorf("failed to indent organization setting as json %s: %w", inv.Args[0], err)
+					return fmt.Errorf("failed to indent organization setting as json %s: %w", inv.Args[0], err)
 				}
-
 				_, err = fmt.Fprintln(inv.Stdout, dst.String())
 				return err
 			},
 		})
 	}
-
 	return cmd
 }
-
 func (r *RootCmd) printOrganizationSetting(orgContext *OrganizationContext, settings []organizationSetting) *serpent.Command {
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
@@ -190,7 +175,6 @@ func (r *RootCmd) printOrganizationSetting(orgContext *OrganizationContext, sett
 			return inv.Command.HelpHandler(inv)
 		},
 	}
-
 	for _, set := range settings {
 		set := set
 		fetch := set.Fetch
@@ -207,35 +191,29 @@ func (r *RootCmd) printOrganizationSetting(orgContext *OrganizationContext, sett
 				ctx := inv.Context()
 				var org codersdk.Organization
 				var err error
-
 				if !set.DisableOrgContext {
 					org, err = orgContext.Selected(inv, client)
 					if err != nil {
 						return err
 					}
 				}
-
 				output, err := fetch(ctx, client, org.ID)
 				if err != nil {
-					return xerrors.Errorf("patching %q: %w", set.Name, err)
+					return fmt.Errorf("patching %q: %w", set.Name, err)
 				}
-
 				settingJSON, err := json.Marshal(output)
 				if err != nil {
-					return xerrors.Errorf("failed to marshal organization setting %s: %w", inv.Args[0], err)
+					return fmt.Errorf("failed to marshal organization setting %s: %w", inv.Args[0], err)
 				}
-
 				var dst bytes.Buffer
 				err = json.Indent(&dst, settingJSON, "", "\t")
 				if err != nil {
-					return xerrors.Errorf("failed to indent organization setting as json %s: %w", inv.Args[0], err)
+					return fmt.Errorf("failed to indent organization setting as json %s: %w", inv.Args[0], err)
 				}
-
 				_, err = fmt.Fprintln(inv.Stdout, dst.String())
 				return err
 			},
 		})
 	}
-
 	return cmd
 }

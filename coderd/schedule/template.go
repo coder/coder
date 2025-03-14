@@ -1,26 +1,21 @@
 package schedule
-
 import (
+	"fmt"
+	"errors"
 	"context"
 	"time"
-
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/tracing"
 )
-
 const MaxTemplateAutostopRequirementWeeks = 16
-
 func TemplateAutostopRequirementEpoch(loc *time.Location) time.Time {
 	// The "first week" starts on January 2nd, 2023, which is the first Monday
 	// of 2023. All other weeks are counted using modulo arithmetic from that
 	// date.
 	return time.Date(2023, time.January, 2, 0, 0, 0, 0, loc)
 }
-
 // DaysOfWeek intentionally starts on Monday as opposed to Sunday so the weekend
 // days are contiguous in the bitmap. This matters greatly when doing restarts
 // every second week or more to avoid workspaces restarting "at the start" of
@@ -34,7 +29,6 @@ var DaysOfWeek = []time.Weekday{
 	time.Saturday,
 	time.Sunday,
 }
-
 type TemplateAutostartRequirement struct {
 	// DaysOfWeek is a bitmap of which days of the week the workspace is allowed
 	// to be auto started. If fully zero, the workspace is not allowed to be auto started.
@@ -42,11 +36,9 @@ type TemplateAutostartRequirement struct {
 	// First bit is Monday, ..., seventh bit is Sunday, eighth bit is unused.
 	DaysOfWeek uint8
 }
-
 func (r TemplateAutostartRequirement) DaysMap() map[time.Weekday]bool {
 	return daysMap(r.DaysOfWeek)
 }
-
 type TemplateAutostopRequirement struct {
 	// DaysOfWeek is a bitmap of which days of the week the workspace must be
 	// restarted. If fully zero, the workspace is not required to be restarted
@@ -65,13 +57,11 @@ type TemplateAutostopRequirement struct {
 	// date.
 	Weeks int64
 }
-
 // DaysMap returns a map of the days of the week that the workspace must be
 // restarted.
 func (r TemplateAutostopRequirement) DaysMap() map[time.Weekday]bool {
 	return daysMap(r.DaysOfWeek)
 }
-
 // daysMap returns a map of the days of the week that are specified in the
 // bitmap.
 func daysMap(daysOfWeek uint8) map[time.Weekday]bool {
@@ -81,38 +71,34 @@ func daysMap(daysOfWeek uint8) map[time.Weekday]bool {
 	}
 	return days
 }
-
 // VerifyTemplateAutostopRequirement returns an error if the autostop
 // requirement is invalid.
 func VerifyTemplateAutostopRequirement(days uint8, weeks int64) error {
 	if days&0b10000000 != 0 {
-		return xerrors.New("invalid autostop requirement days, last bit is set")
+		return errors.New("invalid autostop requirement days, last bit is set")
 	}
 	if days > 0b11111111 {
-		return xerrors.New("invalid autostop requirement days, too large")
+		return errors.New("invalid autostop requirement days, too large")
 	}
 	if weeks < 1 {
-		return xerrors.New("invalid autostop requirement weeks, less than 1")
+		return errors.New("invalid autostop requirement weeks, less than 1")
 	}
 	if weeks > MaxTemplateAutostopRequirementWeeks {
-		return xerrors.New("invalid autostop requirement weeks, too large")
+		return errors.New("invalid autostop requirement weeks, too large")
 	}
 	return nil
 }
-
 // VerifyTemplateAutostartRequirement returns an error if the autostart
 // requirement is invalid.
 func VerifyTemplateAutostartRequirement(days uint8) error {
 	if days&0b10000000 != 0 {
-		return xerrors.New("invalid autostart requirement days, last bit is set")
+		return errors.New("invalid autostart requirement days, last bit is set")
 	}
 	if days > 0b11111111 {
-		return xerrors.New("invalid autostart requirement days, too large")
+		return errors.New("invalid autostart requirement days, too large")
 	}
-
 	return nil
 }
-
 type TemplateScheduleOptions struct {
 	UserAutostartEnabled bool
 	UserAutostopEnabled  bool
@@ -147,31 +133,24 @@ type TemplateScheduleOptions struct {
 	// threshold.
 	UpdateWorkspaceDormantAt bool
 }
-
 // TemplateScheduleStore provides an interface for retrieving template
 // scheduling options set by the template/site admin.
 type TemplateScheduleStore interface {
 	Get(ctx context.Context, db database.Store, templateID uuid.UUID) (TemplateScheduleOptions, error)
 	Set(ctx context.Context, db database.Store, template database.Template, opts TemplateScheduleOptions) (database.Template, error)
 }
-
 type agplTemplateScheduleStore struct{}
-
 var _ TemplateScheduleStore = &agplTemplateScheduleStore{}
-
 func NewAGPLTemplateScheduleStore() TemplateScheduleStore {
 	return &agplTemplateScheduleStore{}
 }
-
 func (*agplTemplateScheduleStore) Get(ctx context.Context, db database.Store, templateID uuid.UUID) (TemplateScheduleOptions, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
-
 	tpl, err := db.GetTemplateByID(ctx, templateID)
 	if err != nil {
 		return TemplateScheduleOptions{}, err
 	}
-
 	return TemplateScheduleOptions{
 		// Disregard the values in the database, since user scheduling is an
 		// enterprise feature.
@@ -196,16 +175,13 @@ func (*agplTemplateScheduleStore) Get(ctx context.Context, db database.Store, te
 		TimeTilDormantAutoDelete: 0,
 	}, nil
 }
-
 func (*agplTemplateScheduleStore) Set(ctx context.Context, db database.Store, tpl database.Template, opts TemplateScheduleOptions) (database.Template, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
-
 	if int64(opts.DefaultTTL) == tpl.DefaultTTL && int64(opts.ActivityBump) == tpl.ActivityBump {
 		// Avoid updating the UpdatedAt timestamp if nothing will be changed.
 		return tpl, nil
 	}
-
 	var template database.Template
 	err := db.InTx(func(db database.Store) error {
 		err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
@@ -225,19 +201,16 @@ func (*agplTemplateScheduleStore) Set(ctx context.Context, db database.Store, tp
 			TimeTilDormantAutoDelete:      tpl.TimeTilDormantAutoDelete,
 		})
 		if err != nil {
-			return xerrors.Errorf("update template schedule: %w", err)
+			return fmt.Errorf("update template schedule: %w", err)
 		}
-
 		template, err = db.GetTemplateByID(ctx, tpl.ID)
 		if err != nil {
-			return xerrors.Errorf("fetch updated template: %w", err)
+			return fmt.Errorf("fetch updated template: %w", err)
 		}
-
 		return nil
 	}, nil)
 	if err != nil {
 		return database.Template{}, err
 	}
-
 	return template, err
 }

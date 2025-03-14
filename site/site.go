@@ -1,5 +1,4 @@
 package site
-
 import (
 	"archive/tar"
 	"bytes"
@@ -25,15 +24,12 @@ import (
 	"sync/atomic"
 	"text/template" // html/template escapes some nonces
 	"time"
-
 	"github.com/google/uuid"
 	"github.com/justinas/nosurf"
 	"github.com/klauspost/compress/zstd"
 	"github.com/unrolled/secure"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/singleflight"
-	"golang.org/x/xerrors"
-
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/database"
@@ -45,34 +41,27 @@ import (
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/codersdk"
 )
-
 // We always embed the error page HTML because it it doesn't need to be built,
 // and it's tiny and doesn't contribute much to the binary size.
 var (
 	//go:embed static/error.html
 	errorHTML string
-
 	errorTemplate *htmltemplate.Template
-
 	//go:embed static/oauth2allow.html
 	oauthHTML string
-
 	oauthTemplate *htmltemplate.Template
 )
-
 func init() {
 	var err error
 	errorTemplate, err = htmltemplate.New("error").Parse(errorHTML)
 	if err != nil {
 		panic(err)
 	}
-
 	oauthTemplate, err = htmltemplate.New("error").Parse(oauthHTML)
 	if err != nil {
 		panic(err)
 	}
 }
-
 type Options struct {
 	BinFS             http.FileSystem
 	BinHashes         map[string]string
@@ -86,7 +75,6 @@ type Options struct {
 	Telemetry         telemetry.Reporter
 	Logger            slog.Logger
 }
-
 func New(opts *Options) *Handler {
 	if opts.AppearanceFetcher == nil {
 		daf := atomic.Pointer[appearance.Fetcher]{}
@@ -99,7 +87,6 @@ func New(opts *Options) *Handler {
 		secureHeaders: secureHeaders(),
 		Entitlements:  opts.Entitlements,
 	}
-
 	// html files are handled by a text/template. Non-html files
 	// are served by the default file server.
 	var err error
@@ -107,16 +94,13 @@ func New(opts *Options) *Handler {
 	if err != nil {
 		panic(fmt.Sprintf("Failed to parse html files: %v", err))
 	}
-
 	binHashCache := newBinHashCache(opts.BinFS, opts.BinHashes)
-
 	mux := http.NewServeMux()
 	mux.Handle("/bin/", http.StripPrefix("/bin", http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		// Convert underscores in the filename to hyphens. We eventually want to
 		// change our hyphen-based filenames to underscores, but we need to
 		// support both for now.
 		r.URL.Path = strings.ReplaceAll(r.URL.Path, "_", "-")
-
 		// Set ETag header to the SHA1 hash of the file contents.
 		name := filePath(r.URL.Path)
 		if name == "" || name == "/" {
@@ -132,7 +116,7 @@ func New(opts *Options) *Handler {
 			return
 		}
 		hash, err := binHashCache.getHash(name)
-		if xerrors.Is(err, os.ErrNotExist) {
+		if errors.Is(err, os.ErrNotExist) {
 			http.NotFound(rw, r)
 			return
 		}
@@ -140,10 +124,8 @@ func New(opts *Options) *Handler {
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 			return
 		}
-
 		// ETag header needs to be quoted.
 		rw.Header().Set("ETag", fmt.Sprintf(`%q`, hash))
-
 		// http.FileServer will see the ETag header and automatically handle
 		// If-Match and If-None-Match headers on the request properly.
 		http.FileServer(opts.BinFS).ServeHTTP(rw, r)
@@ -163,40 +145,31 @@ func New(opts *Options) *Handler {
 	}
 	handler.buildInfoJSON = html.EscapeString(string(buildInfoResponse))
 	handler.handler = mux.ServeHTTP
-
 	handler.installScript, err = parseInstallScript(opts.SiteFS, opts.BuildInfo)
 	if err != nil {
 		opts.Logger.Warn(context.Background(), "could not parse install.sh, it will be unavailable", slog.Error(err))
 	}
-
 	return handler
 }
-
 type Handler struct {
 	opts *Options
-
 	secureHeaders *secure.Secure
 	handler       http.HandlerFunc
 	htmlTemplates *template.Template
 	buildInfoJSON string
 	installScript []byte
-
 	// RegionsFetcher will attempt to fetch the more detailed WorkspaceProxy data, but will fall back to the
 	// regions if the user does not have the correct permissions.
 	RegionsFetcher func(ctx context.Context) (any, error)
-
 	Entitlements *entitlements.Set
 	Experiments  atomic.Pointer[codersdk.Experiments]
-
 	telemetryHTMLServedOnce sync.Once
 }
-
 func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	err := h.secureHeaders.Process(rw, r)
 	if err != nil {
 		return
 	}
-
 	// reqFile is the static file requested
 	reqFile := filePath(r.URL.Path)
 	state := htmlState{
@@ -205,12 +178,10 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		BuildInfo: h.buildInfoJSON,
 		DocsURL:   h.opts.DocsURL,
 	}
-
 	// First check if it's a file we have in our templates
 	if h.serveHTML(rw, r, reqFile, state) {
 		return
 	}
-
 	switch {
 	// If requesting binaries, serve straight up.
 	case reqFile == "bin" || strings.HasPrefix(reqFile, "bin/"):
@@ -246,29 +217,24 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		h.handler.ServeHTTP(rw, r)
 		return
 	}
-
 	// Serve the file assuming it's an html file
 	// This matches paths like `/app/terminal.html`
 	r.URL.Path = strings.TrimSuffix(r.URL.Path, "/")
 	r.URL.Path += ".html"
-
 	reqFile = filePath(r.URL.Path)
 	// All html files should be served by the htmlFile templates
 	if h.serveHTML(rw, r, reqFile, state) {
 		return
 	}
-
 	// If we don't have the file... we should redirect to `/`
 	// for our single-page-app.
 	r.URL.Path = "/"
 	if h.serveHTML(rw, r, "", state) {
 		return
 	}
-
 	// This will send a correct 404
 	h.handler.ServeHTTP(rw, r)
 }
-
 // filePath returns the filepath of the requested file.
 func filePath(p string) string {
 	if !strings.HasPrefix(p, "/") {
@@ -276,7 +242,6 @@ func filePath(p string) string {
 	}
 	return strings.TrimPrefix(path.Clean(p), "/")
 }
-
 func (h *Handler) exists(filePath string) bool {
 	f, err := h.opts.SiteFS.Open(filePath)
 	if err == nil {
@@ -284,14 +249,11 @@ func (h *Handler) exists(filePath string) bool {
 	}
 	return err == nil
 }
-
 type htmlState struct {
 	CSRF csrfState
-
 	// Below are HTML escaped JSON strings of the respective structs.
 	ApplicationName string
 	LogoURL         string
-
 	BuildInfo      string
 	User           string
 	Entitlements   string
@@ -301,11 +263,9 @@ type htmlState struct {
 	Regions        string
 	DocsURL        string
 }
-
 type csrfState struct {
 	Token string
 }
-
 func ShouldCacheFile(reqFile string) bool {
 	// Images, favicons and uniquely content hashed bundle assets should be
 	// cached. By default, we cache everything in the site/out directory except
@@ -318,16 +278,13 @@ func ShouldCacheFile(reqFile string) bool {
 		".html",
 		"worker.js",
 	}
-
 	for _, suffix := range denyListedSuffixes {
 		if strings.HasSuffix(reqFile, suffix) {
 			return false
 		}
 	}
-
 	return true
 }
-
 // reportHTMLFirstServedAt sends a telemetry report when the first HTML is ever served.
 // The purpose is to track the first time the first user opens the site.
 func (h *Handler) reportHTMLFirstServedAt() {
@@ -361,7 +318,6 @@ func (h *Handler) reportHTMLFirstServedAt() {
 		TelemetryItems: []telemetry.TelemetryItem{telemetry.ConvertTelemetryItem(item)},
 	})
 }
-
 func (h *Handler) serveHTML(resp http.ResponseWriter, request *http.Request, reqPath string, state htmlState) bool {
 	if data, err := h.renderHTMLWithState(request, reqPath, state); err == nil {
 		if reqPath == "" {
@@ -378,13 +334,11 @@ func (h *Handler) serveHTML(resp http.ResponseWriter, request *http.Request, req
 	}
 	return false
 }
-
 func execTmpl(tmpl *template.Template, state htmlState) ([]byte, error) {
 	var buf bytes.Buffer
 	err := tmpl.Execute(&buf, state)
 	return buf.Bytes(), err
 }
-
 // renderWithState will render the file using the given nonce if the file exists
 // as a template. If it does not, it will return an error.
 func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state htmlState) ([]byte, error) {
@@ -394,9 +348,8 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 	}
 	tmpl := h.htmlTemplates.Lookup(filePath)
 	if tmpl == nil {
-		return nil, xerrors.Errorf("template %q not found", filePath)
+		return nil, fmt.Errorf("template %q not found", filePath)
 	}
-
 	// Cookies are sent when requesting HTML, so we can get the user
 	// and pre-populate the state for the frontend to reduce requests.
 	// We use a noop response writer because we don't want to write
@@ -422,9 +375,7 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 		state.LogoURL = cfg.LogoURL
 		return execTmpl(tmpl, state)
 	}
-
 	ctx := dbauthz.As(r.Context(), *actor)
-
 	var eg errgroup.Group
 	var user database.User
 	var themePreference string
@@ -465,7 +416,6 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 				state.User = html.EscapeString(string(user))
 			}
 		}()
-
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -476,7 +426,6 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 				state.UserAppearance = html.EscapeString(string(userAppearance))
 			}
 		}()
-
 		if h.Entitlements != nil {
 			wg.Add(1)
 			go func() {
@@ -484,7 +433,6 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 				state.Entitlements = html.EscapeString(string(h.Entitlements.AsJSON()))
 			}()
 		}
-
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -498,7 +446,6 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 				}
 			}
 		}()
-
 		if h.RegionsFetcher != nil {
 			wg.Add(1)
 			go func() {
@@ -525,17 +472,13 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 		}
 		wg.Wait()
 	}
-
 	return execTmpl(tmpl, state)
 }
-
 // noopResponseWriter is a response writer that does nothing.
 type noopResponseWriter struct{}
-
 func (noopResponseWriter) Header() http.Header         { return http.Header{} }
 func (noopResponseWriter) Write(p []byte) (int, error) { return len(p), nil }
 func (noopResponseWriter) WriteHeader(int)             {}
-
 // secureHeaders is only needed for statically served files. We do not need this for api endpoints.
 // It adds various headers to enforce browser security features.
 func secureHeaders() *secure.Secure {
@@ -561,52 +504,42 @@ func secureHeaders() *secure.Secure {
 		"screen-wake-lock=()",
 		"xr-spatial-tracking=()",
 	}, ", ")
-
 	return secure.New(secure.Options{
 		PermissionsPolicy: permissions,
-
 		// Prevent the browser from sending Referrer header with requests
 		ReferrerPolicy: "no-referrer",
 	})
 }
-
 // findAndParseHTMLFiles recursively walks the file system passed finding all *.html files.
 // The template returned has all html files parsed.
 func findAndParseHTMLFiles(files fs.FS) (*template.Template, error) {
 	// root is the collection of html templates. All templates are named by their pathing.
 	// So './404.html' is named '404.html'. './subdir/index.html' is 'subdir/index.html'
 	root := template.New("")
-
 	rootPath := "."
 	err := fs.WalkDir(files, rootPath, func(filePath string, directory fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-
 		if directory.IsDir() {
 			return nil
 		}
-
 		if filepath.Ext(directory.Name()) != ".html" {
 			return nil
 		}
-
 		file, err := files.Open(filePath)
 		if err != nil {
 			return err
 		}
-
 		data, err := io.ReadAll(file)
 		if err != nil {
 			return err
 		}
-
 		tPath := strings.TrimPrefix(filePath, rootPath+string(filepath.Separator))
 		_, err = root.New(tPath).Parse(string(data))
 		if err != nil {
 			return err
 		}
-
 		return nil
 	})
 	if err != nil {
@@ -614,33 +547,27 @@ func findAndParseHTMLFiles(files fs.FS) (*template.Template, error) {
 	}
 	return root, nil
 }
-
 type installScriptState struct {
 	Origin  string
 	Version string
 }
-
 func parseInstallScript(files fs.FS, buildInfo codersdk.BuildInfoResponse) ([]byte, error) {
 	scriptFile, err := fs.ReadFile(files, "install.sh")
 	if err != nil {
 		return nil, err
 	}
-
 	script, err := template.New("install.sh").Parse(string(scriptFile))
 	if err != nil {
 		return nil, err
 	}
-
 	var buf bytes.Buffer
 	state := installScriptState{Origin: buildInfo.DashboardURL, Version: buildInfo.Version}
 	err = script.Execute(&buf, state)
 	if err != nil {
 		return nil, err
 	}
-
 	return buf.Bytes(), nil
 }
-
 // ExtractOrReadBinFS checks the provided fs for compressed coder binaries and
 // extracts them into dest/bin if found. As a fallback, the provided FS is
 // checked for a /bin directory, if it is non-empty it is returned. Finally
@@ -655,85 +582,76 @@ func ExtractOrReadBinFS(dest string, siteFS fs.FS) (http.FileSystem, map[string]
 		// No destination on fs, embedded fs is the only option.
 		binFS, err := fs.Sub(siteFS, "bin")
 		if err != nil {
-			return nil, nil, xerrors.Errorf("cache path is empty and embedded fs does not have /bin: %w", err)
+			return nil, nil, fmt.Errorf("cache path is empty and embedded fs does not have /bin: %w", err)
 		}
 		return http.FS(binFS), nil, nil
 	}
-
 	dest = filepath.Join(dest, "bin")
 	mkdest := func() (http.FileSystem, error) {
 		err := os.MkdirAll(dest, 0o700)
 		if err != nil {
-			return nil, xerrors.Errorf("mkdir failed: %w", err)
+			return nil, fmt.Errorf("mkdir failed: %w", err)
 		}
 		return http.Dir(dest), nil
 	}
-
 	archive, err := siteFS.Open("bin/coder.tar.zst")
 	if err != nil {
-		if xerrors.Is(err, fs.ErrNotExist) {
+		if errors.Is(err, fs.ErrNotExist) {
 			files, err := fs.ReadDir(siteFS, "bin")
 			if err != nil {
-				if xerrors.Is(err, fs.ErrNotExist) {
+				if errors.Is(err, fs.ErrNotExist) {
 					// Given fs does not have a bin directory, serve from cache
 					// directory without extracting anything.
 					binFS, err := mkdest()
 					if err != nil {
-						return nil, nil, xerrors.Errorf("mkdest failed: %w", err)
+						return nil, nil, fmt.Errorf("mkdest failed: %w", err)
 					}
 					return binFS, map[string]string{}, nil
 				}
-				return nil, nil, xerrors.Errorf("site fs read dir failed: %w", err)
+				return nil, nil, fmt.Errorf("site fs read dir failed: %w", err)
 			}
-
 			if len(filterFiles(files, "GITKEEP")) > 0 {
 				// If there are other files than bin/GITKEEP, serve the files.
 				binFS, err := fs.Sub(siteFS, "bin")
 				if err != nil {
-					return nil, nil, xerrors.Errorf("site fs sub dir failed: %w", err)
+					return nil, nil, fmt.Errorf("site fs sub dir failed: %w", err)
 				}
 				return http.FS(binFS), nil, nil
 			}
-
 			// Nothing we can do, serve the cache directory, thus allowing
 			// binaries to be placed there.
 			binFS, err := mkdest()
 			if err != nil {
-				return nil, nil, xerrors.Errorf("mkdest failed: %w", err)
+				return nil, nil, fmt.Errorf("mkdest failed: %w", err)
 			}
 			return binFS, map[string]string{}, nil
 		}
-		return nil, nil, xerrors.Errorf("open coder binary archive failed: %w", err)
+		return nil, nil, fmt.Errorf("open coder binary archive failed: %w", err)
 	}
 	defer archive.Close()
-
 	binFS, err := mkdest()
 	if err != nil {
 		return nil, nil, err
 	}
-
 	shaFiles, err := parseSHA1(siteFS)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("parse sha1 file failed: %w", err)
+		return nil, nil, fmt.Errorf("parse sha1 file failed: %w", err)
 	}
-
 	ok, err := verifyBinSha1IsCurrent(dest, siteFS, shaFiles)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("verify coder binaries sha1 failed: %w", err)
+		return nil, nil, fmt.Errorf("verify coder binaries sha1 failed: %w", err)
 	}
 	if !ok {
 		n, err := extractBin(dest, archive)
 		if err != nil {
-			return nil, nil, xerrors.Errorf("extract coder binaries failed: %w", err)
+			return nil, nil, fmt.Errorf("extract coder binaries failed: %w", err)
 		}
 		if n == 0 {
-			return nil, nil, xerrors.New("no files were extracted from coder binaries archive")
+			return nil, nil, errors.New("no files were extracted from coder binaries archive")
 		}
 	}
-
 	return binFS, shaFiles, nil
 }
-
 func filterFiles(files []fs.DirEntry, names ...string) []fs.DirEntry {
 	var filtered []fs.DirEntry
 	for _, f := range files {
@@ -744,56 +662,48 @@ func filterFiles(files []fs.DirEntry, names ...string) []fs.DirEntry {
 	}
 	return filtered
 }
-
 // errHashMismatch is a sentinel error used in verifyBinSha1IsCurrent.
-var errHashMismatch = xerrors.New("hash mismatch")
-
+var errHashMismatch = errors.New("hash mismatch")
 func parseSHA1(siteFS fs.FS) (map[string]string, error) {
 	b, err := fs.ReadFile(siteFS, "bin/coder.sha1")
 	if err != nil {
-		return nil, xerrors.Errorf("read coder sha1 from embedded fs failed: %w", err)
+		return nil, fmt.Errorf("read coder sha1 from embedded fs failed: %w", err)
 	}
-
 	shaFiles := make(map[string]string)
 	for _, line := range bytes.Split(bytes.TrimSpace(b), []byte{'\n'}) {
 		parts := bytes.Split(line, []byte{' ', '*'})
 		if len(parts) != 2 {
-			return nil, xerrors.Errorf("malformed sha1 file: %w", err)
+			return nil, fmt.Errorf("malformed sha1 file: %w", err)
 		}
 		shaFiles[string(parts[1])] = strings.ToLower(string(parts[0]))
 	}
 	if len(shaFiles) == 0 {
-		return nil, xerrors.Errorf("empty sha1 file: %w", err)
+		return nil, fmt.Errorf("empty sha1 file: %w", err)
 	}
-
 	return shaFiles, nil
 }
-
 func verifyBinSha1IsCurrent(dest string, siteFS fs.FS, shaFiles map[string]string) (ok bool, err error) {
 	b1, err := fs.ReadFile(siteFS, "bin/coder.sha1")
 	if err != nil {
-		return false, xerrors.Errorf("read coder sha1 from embedded fs failed: %w", err)
+		return false, fmt.Errorf("read coder sha1 from embedded fs failed: %w", err)
 	}
 	b2, err := os.ReadFile(filepath.Join(dest, "coder.sha1"))
 	if err != nil {
-		if xerrors.Is(err, fs.ErrNotExist) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return false, nil
 		}
-		return false, xerrors.Errorf("read coder sha1 failed: %w", err)
+		return false, fmt.Errorf("read coder sha1 failed: %w", err)
 	}
-
 	// Check shasum files for equality for early-exit.
 	if !bytes.Equal(b1, b2) {
 		return false, nil
 	}
-
 	var eg errgroup.Group
 	// Speed up startup by verifying files concurrently. Concurrency
 	// is limited to save resources / early-exit. Early-exit speed
 	// could be improved by using a context aware io.Reader and
 	// passing the context from errgroup.WithContext.
 	eg.SetLimit(3)
-
 	// Verify the hash of each on-disk binary.
 	for file, hash1 := range shaFiles {
 		file := file
@@ -801,10 +711,10 @@ func verifyBinSha1IsCurrent(dest string, siteFS fs.FS, shaFiles map[string]strin
 		eg.Go(func() error {
 			hash2, err := sha1HashFile(filepath.Join(dest, file))
 			if err != nil {
-				if xerrors.Is(err, fs.ErrNotExist) {
+				if errors.Is(err, fs.ErrNotExist) {
 					return errHashMismatch
 				}
-				return xerrors.Errorf("hash file failed: %w", err)
+				return fmt.Errorf("hash file failed: %w", err)
 			}
 			if !strings.EqualFold(hash1, hash2) {
 				return errHashMismatch
@@ -814,15 +724,13 @@ func verifyBinSha1IsCurrent(dest string, siteFS fs.FS, shaFiles map[string]strin
 	}
 	err = eg.Wait()
 	if err != nil {
-		if xerrors.Is(err, errHashMismatch) {
+		if errors.Is(err, errHashMismatch) {
 			return false, nil
 		}
 		return false, err
 	}
-
 	return true, nil
 }
-
 // sha1HashFile computes a SHA1 hash of the file, returning the hex
 // representation.
 func sha1HashFile(name string) (string, error) {
@@ -833,18 +741,14 @@ func sha1HashFile(name string) (string, error) {
 		return "", err
 	}
 	defer f.Close()
-
 	_, err = io.Copy(hash, f)
 	if err != nil {
 		return "", err
 	}
-
 	b := make([]byte, hash.Size())
 	hash.Sum(b[:0])
-
 	return hex.EncodeToString(b), nil
 }
-
 func extractBin(dest string, r io.Reader) (numExtracted int, err error) {
 	opts := []zstd.DOption{
 		// Concurrency doesn't help us when decoding the tar and
@@ -859,10 +763,9 @@ func extractBin(dest string, r io.Reader) (numExtracted int, err error) {
 	}
 	zr, err := zstd.NewReader(r, opts...)
 	if err != nil {
-		return 0, xerrors.Errorf("open zstd archive failed: %w", err)
+		return 0, fmt.Errorf("open zstd archive failed: %w", err)
 	}
 	defer zr.Close()
-
 	tr := tar.NewReader(zr)
 	n := 0
 	for {
@@ -871,32 +774,29 @@ func extractBin(dest string, r io.Reader) (numExtracted int, err error) {
 			if errors.Is(err, io.EOF) {
 				return n, nil
 			}
-			return n, xerrors.Errorf("read tar archive failed: %w", err)
+			return n, fmt.Errorf("read tar archive failed: %w", err)
 		}
 		if h.Name == "." || strings.Contains(h.Name, "..") {
 			continue
 		}
-
 		name := filepath.Join(dest, filepath.Base(h.Name))
 		f, err := os.Create(name)
 		if err != nil {
-			return n, xerrors.Errorf("create file failed: %w", err)
+			return n, fmt.Errorf("create file failed: %w", err)
 		}
 		//#nosec // We created this tar, no risk of decompression bomb.
 		_, err = io.Copy(f, tr)
 		if err != nil {
 			_ = f.Close()
-			return n, xerrors.Errorf("write file contents failed: %w", err)
+			return n, fmt.Errorf("write file contents failed: %w", err)
 		}
 		err = f.Close()
 		if err != nil {
-			return n, xerrors.Errorf("close file failed: %w", err)
+			return n, fmt.Errorf("close file failed: %w", err)
 		}
-
 		n++
 	}
 }
-
 // ErrorPageData contains the variables that are found in
 // site/static/error.html.
 type ErrorPageData struct {
@@ -911,23 +811,18 @@ type ErrorPageData struct {
 	AdditionalInfo       string
 	AdditionalButtonLink string
 	AdditionalButtonText string
-
 	RenderDescriptionMarkdown bool
 }
-
 // RenderStaticErrorPage renders the static error page. This is used by app
 // requests to avoid dependence on the dashboard but maintain the ability to
 // render a friendly error page on subdomains.
 func RenderStaticErrorPage(rw http.ResponseWriter, r *http.Request, data ErrorPageData) {
 	type outerData struct {
 		Error ErrorPageData
-
 		ErrorDescriptionHTML htmltemplate.HTML
 	}
-
 	rw.Header().Set("Content-Type", "text/html; charset=utf-8")
 	rw.WriteHeader(data.Status)
-
 	err := errorTemplate.Execute(rw, outerData{
 		Error:                data,
 		ErrorDescriptionHTML: htmltemplate.HTML(data.Description), //nolint:gosec // gosec thinks this is user-input, but it is from Coder deployment configuration.
@@ -940,16 +835,13 @@ func RenderStaticErrorPage(rw http.ResponseWriter, r *http.Request, data ErrorPa
 		return
 	}
 }
-
 type binHashCache struct {
 	binFS http.FileSystem
-
 	hashes map[string]string
 	mut    sync.RWMutex
 	sf     singleflight.Group
 	sem    chan struct{}
 }
-
 func newBinHashCache(binFS http.FileSystem, binHashes map[string]string) *binHashCache {
 	b := &binHashCache{
 		binFS:  binFS,
@@ -962,10 +854,8 @@ func newBinHashCache(binFS http.FileSystem, binHashes map[string]string) *binHas
 	for k, v := range binHashes {
 		b.hashes[k] = v
 	}
-
 	return b
 }
-
 func (b *binHashCache) getHash(name string) (string, error) {
 	b.mut.RLock()
 	hash, ok := b.hashes[name]
@@ -973,24 +863,20 @@ func (b *binHashCache) getHash(name string) (string, error) {
 	if ok {
 		return hash, nil
 	}
-
 	// Avoid DOS by using a pool, and only doing work once per file.
 	v, err, _ := b.sf.Do(name, func() (interface{}, error) {
 		b.sem <- struct{}{}
 		defer func() { <-b.sem }()
-
 		f, err := b.binFS.Open(name)
 		if err != nil {
 			return "", err
 		}
 		defer f.Close()
-
 		h := sha1.New() //#nosec // Not used for cryptography.
 		_, err = io.Copy(h, f)
 		if err != nil {
 			return "", err
 		}
-
 		hash := hex.EncodeToString(h.Sum(nil))
 		b.mut.Lock()
 		b.hashes[name] = hash
@@ -1000,50 +886,41 @@ func (b *binHashCache) getHash(name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-
 	//nolint:forcetypeassert
 	return strings.ToLower(v.(string)), nil
 }
-
 func applicationNameOrDefault(cfg codersdk.AppearanceConfig) string {
 	if cfg.ApplicationName != "" {
 		return cfg.ApplicationName
 	}
 	return "Coder"
 }
-
 // OnlyFiles returns a new fs.FS that only contains files. If a directory is
 // requested, os.ErrNotExist is returned. This prevents directory listings from
 // being served.
 func OnlyFiles(files fs.FS) fs.FS {
 	return justFilesSystem{FS: files}
 }
-
 type justFilesSystem struct {
 	FS fs.FS
 }
-
 func (jfs justFilesSystem) Open(name string) (fs.File, error) {
 	f, err := jfs.FS.Open(name)
 	if err != nil {
 		return nil, err
 	}
-
 	stat, err := f.Stat()
 	if err != nil {
 		return nil, err
 	}
-
 	// Returning a 404 here does prevent the http.FileServer from serving
 	// index.* files automatically. Coder handles this above as all index pages
 	// are considered template files. So we never relied on this behavior.
 	if stat.IsDir() {
 		return nil, os.ErrNotExist
 	}
-
 	return f, nil
 }
-
 // RenderOAuthAllowData contains the variables that are found in
 // site/static/oauth2allow.html.
 type RenderOAuthAllowData struct {
@@ -1053,7 +930,6 @@ type RenderOAuthAllowData struct {
 	RedirectURI string
 	Username    string
 }
-
 // RenderOAuthAllowPage renders the static page for a user to "Allow" an create
 // a new oauth2 link with an external site. This is when Coder is acting as the
 // identity provider.
@@ -1062,7 +938,6 @@ type RenderOAuthAllowData struct {
 // It cannot defer to the FE typescript easily.
 func RenderOAuthAllowPage(rw http.ResponseWriter, r *http.Request, data RenderOAuthAllowData) {
 	rw.Header().Set("Content-Type", "text/html; charset=utf-8")
-
 	err := oauthTemplate.Execute(rw, data)
 	if err != nil {
 		httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.Response{

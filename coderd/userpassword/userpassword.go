@@ -1,6 +1,6 @@
 package userpassword
-
 import (
+	"errors"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -10,35 +10,26 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-
 	passwordvalidator "github.com/wagslane/go-password-validator"
 	"golang.org/x/crypto/pbkdf2"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/coderd/util/lazy"
 )
-
 var (
 	// The base64 encoder used when producing the string representation of
 	// hashes.
 	base64Encoding = base64.RawStdEncoding
-
 	// The number of iterations to use when generating the hash. This was chosen
 	// to make it about as fast as bcrypt hashes. Increasing this causes hashes
 	// to take longer to compute.
 	defaultHashIter = 65535
-
 	// This is the length of our output hash. bcrypt has a hash size of up to
 	// 60, so we rounded up to a power of 8.
 	hashLength = 64
-
 	// The scheme to include in our hashed password.
 	hashScheme = "pbkdf2-sha256"
-
 	// A salt size of 16 is the default in passlib. A minimum of 8 can be safely
 	// used.
 	defaultSaltSize = 16
-
 	// The simulated hash is used when trying to simulate password checks for
 	// users that don't exist. It's meant to preserve the timing of the hash
 	// comparison.
@@ -50,16 +41,13 @@ var (
 		return h
 	})
 )
-
 // Make password hashing much faster in tests.
 func init() {
 	args := os.Args[1:]
-
 	// Ensure this can never be enabled if running in server mode.
 	if slices.Contains(args, "server") {
 		return
 	}
-
 	for _, flag := range args {
 		if strings.HasPrefix(flag, "-test.") {
 			defaultHashIter = 1
@@ -67,7 +55,6 @@ func init() {
 		}
 	}
 }
-
 // Compare checks the equality of passwords from a hashed pbkdf2 string. This
 // uses pbkdf2 to ensure FIPS 140-2 compliance. See:
 // https://csrc.nist.gov/csrc/media/templates/cryptographic-module-validation-program/documents/security-policies/140sp2261.pdf
@@ -78,48 +65,42 @@ func Compare(hashed string, password string) (bool, error) {
 		// hunter2 can log into any account.
 		hashed = simulatedHash.Load()
 	}
-
 	if len(hashed) < hashLength {
-		return false, xerrors.Errorf("hash too short: %d", len(hashed))
+		return false, fmt.Errorf("hash too short: %d", len(hashed))
 	}
 	parts := strings.SplitN(hashed, "$", 5)
 	if len(parts) != 5 {
-		return false, xerrors.Errorf("hash has too many parts: %d", len(parts))
+		return false, fmt.Errorf("hash has too many parts: %d", len(parts))
 	}
 	if len(parts[0]) != 0 {
-		return false, xerrors.Errorf("hash prefix is invalid")
+		return false, fmt.Errorf("hash prefix is invalid")
 	}
 	if parts[1] != hashScheme {
-		return false, xerrors.Errorf("hash isn't %q scheme: %q", hashScheme, parts[1])
+		return false, fmt.Errorf("hash isn't %q scheme: %q", hashScheme, parts[1])
 	}
 	iter, err := strconv.Atoi(parts[2])
 	if err != nil {
-		return false, xerrors.Errorf("parse iter from hash: %w", err)
+		return false, fmt.Errorf("parse iter from hash: %w", err)
 	}
 	salt, err := base64Encoding.DecodeString(parts[3])
 	if err != nil {
-		return false, xerrors.Errorf("decode salt: %w", err)
+		return false, fmt.Errorf("decode salt: %w", err)
 	}
-
 	if subtle.ConstantTimeCompare([]byte(hashWithSaltAndIter(password, salt, iter)), []byte(hashed)) != 1 {
 		return false, nil
 	}
-
 	return true, nil
 }
-
 // Hash generates a hash using pbkdf2.
 // See the Compare() comment for rationale.
 func Hash(password string) (string, error) {
 	salt := make([]byte, defaultSaltSize)
 	_, err := rand.Read(salt)
 	if err != nil {
-		return "", xerrors.Errorf("read random bytes for salt: %w", err)
+		return "", fmt.Errorf("read random bytes for salt: %w", err)
 	}
-
 	return hashWithSaltAndIter(password, salt, defaultHashIter), nil
 }
-
 // Produces a string representation of the hash.
 func hashWithSaltAndIter(password string, salt []byte, iter int) string {
 	var (
@@ -127,13 +108,10 @@ func hashWithSaltAndIter(password string, salt []byte, iter int) string {
 		encHash = make([]byte, base64Encoding.EncodedLen(len(hash)))
 		encSalt = make([]byte, base64Encoding.EncodedLen(len(salt)))
 	)
-
 	base64Encoding.Encode(encHash, hash)
 	base64Encoding.Encode(encSalt, salt)
-
 	return fmt.Sprintf("$%s$%d$%s$%s", hashScheme, iter, encSalt, encHash)
 }
-
 // Validate checks that the plain text password meets the minimum password requirements.
 // It returns properly formatted errors for detailed form validation on the client.
 func Validate(password string) error {
@@ -144,7 +122,7 @@ func Validate(password string) error {
 		return err
 	}
 	if len(password) > 64 {
-		return xerrors.Errorf("password must be no more than %d characters", 64)
+		return fmt.Errorf("password must be no more than %d characters", 64)
 	}
 	return nil
 }

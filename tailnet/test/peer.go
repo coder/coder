@@ -1,39 +1,32 @@
 package test
-
 import (
+	"fmt"
+	"errors"
 	"context"
 	"testing"
 	"time"
-
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/xerrors"
 	"tailscale.com/types/key"
-
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
 )
-
 type PeerStatus struct {
 	preferredDERP     int32
 	status            proto.CoordinateResponse_PeerUpdate_Kind
 	readyForHandshake bool
 }
-
 type PeerOption func(*Peer)
-
 func WithID(id uuid.UUID) PeerOption {
 	return func(p *Peer) {
 		p.ID = id
 	}
 }
-
 func WithAuth(auth tailnet.CoordinateeAuth) PeerOption {
 	return func(p *Peer) {
 		p.auth = auth
 	}
 }
-
 type Peer struct {
 	ctx         context.Context
 	cancel      context.CancelFunc
@@ -48,7 +41,6 @@ type Peer struct {
 	peers       map[uuid.UUID]PeerStatus
 	peerUpdates map[uuid.UUID][]*proto.CoordinateResponse_PeerUpdate
 }
-
 func NewPeer(ctx context.Context, t testing.TB, coord tailnet.CoordinatorV2, name string, opts ...PeerOption) *Peer {
 	p := &Peer{
 		t:           t,
@@ -66,29 +58,24 @@ func NewPeer(ctx context.Context, t testing.TB, coord tailnet.CoordinatorV2, nam
 	for _, opt := range opts {
 		opt(p)
 	}
-
 	p.reqs, p.resps = coord.Coordinate(p.ctx, p.ID, name, p.auth)
 	return p
 }
-
 // NewAgent is a wrapper around NewPeer, creating a peer with Agent auth tied to its ID
 func NewAgent(ctx context.Context, t testing.TB, coord tailnet.CoordinatorV2, name string) *Peer {
 	id := uuid.New()
 	return NewPeer(ctx, t, coord, name, WithID(id), WithAuth(tailnet.AgentCoordinateeAuth{ID: id}))
 }
-
 // NewClient is a wrapper around NewPeer, creating a peer with Client auth tied to the provided agentID
 func NewClient(ctx context.Context, t testing.TB, coord tailnet.CoordinatorV2, name string, agentID uuid.UUID) *Peer {
 	p := NewPeer(ctx, t, coord, name, WithAuth(tailnet.ClientCoordinateeAuth{AgentID: agentID}))
 	p.AddTunnel(agentID)
 	return p
 }
-
 func (p *Peer) ConnectToCoordinator(ctx context.Context, c tailnet.CoordinatorV2) {
 	p.t.Helper()
 	p.reqs, p.resps = c.Coordinate(ctx, p.ID, p.name, p.auth)
 }
-
 func (p *Peer) AddTunnel(other uuid.UUID) {
 	p.t.Helper()
 	req := &proto.CoordinateRequest{AddTunnel: &proto.CoordinateRequest_Tunnel{Id: tailnet.UUIDToByteSlice(other)}}
@@ -100,7 +87,6 @@ func (p *Peer) AddTunnel(other uuid.UUID) {
 		return
 	}
 }
-
 func (p *Peer) RemoveTunnel(other uuid.UUID) {
 	p.t.Helper()
 	req := &proto.CoordinateRequest{RemoveTunnel: &proto.CoordinateRequest_Tunnel{Id: tailnet.UUIDToByteSlice(other)}}
@@ -112,13 +98,11 @@ func (p *Peer) RemoveTunnel(other uuid.UUID) {
 		return
 	}
 }
-
 func (p *Peer) UpdateDERP(derp int32) {
 	p.t.Helper()
 	node := &proto.Node{PreferredDerp: derp}
 	p.UpdateNode(node)
 }
-
 func (p *Peer) UpdateNode(node *proto.Node) {
 	p.t.Helper()
 	nk, err := p.nodeKey.MarshalBinary()
@@ -136,10 +120,8 @@ func (p *Peer) UpdateNode(node *proto.Node) {
 		return
 	}
 }
-
 func (p *Peer) ReadyForHandshake(peer uuid.UUID) {
 	p.t.Helper()
-
 	req := &proto.CoordinateRequest{ReadyForHandshake: []*proto.CoordinateRequest_ReadyForHandshake{{
 		Id: peer[:],
 	}}}
@@ -151,7 +133,6 @@ func (p *Peer) ReadyForHandshake(peer uuid.UUID) {
 		return
 	}
 }
-
 func (p *Peer) Disconnect() {
 	p.t.Helper()
 	req := &proto.CoordinateRequest{Disconnect: &proto.CoordinateRequest_Disconnect{}}
@@ -163,7 +144,6 @@ func (p *Peer) Disconnect() {
 		return
 	}
 }
-
 func (p *Peer) AssertEventuallyHasDERP(other uuid.UUID, derp int32) {
 	p.t.Helper()
 	for {
@@ -177,7 +157,6 @@ func (p *Peer) AssertEventuallyHasDERP(other uuid.UUID, derp int32) {
 		}
 	}
 }
-
 func (p *Peer) AssertNeverHasDERPs(ctx context.Context, other uuid.UUID, expected ...int32) {
 	p.t.Helper()
 	for {
@@ -201,7 +180,6 @@ func (p *Peer) AssertNeverHasDERPs(ctx context.Context, other uuid.UUID, expecte
 		}
 	}
 }
-
 func (p *Peer) AssertEventuallyDisconnected(other uuid.UUID) {
 	p.t.Helper()
 	for {
@@ -215,7 +193,6 @@ func (p *Peer) AssertEventuallyDisconnected(other uuid.UUID) {
 		}
 	}
 }
-
 func (p *Peer) AssertEventuallyLost(other uuid.UUID) {
 	p.t.Helper()
 	for {
@@ -229,12 +206,11 @@ func (p *Peer) AssertEventuallyLost(other uuid.UUID) {
 		}
 	}
 }
-
 func (p *Peer) AssertEventuallyResponsesClosed() {
 	p.t.Helper()
 	for {
 		err := p.readOneResp()
-		if xerrors.Is(err, responsesClosed) {
+		if errors.Is(err, responsesClosed) {
 			return
 		}
 		if !assert.NoError(p.t, err) {
@@ -242,7 +218,6 @@ func (p *Peer) AssertEventuallyResponsesClosed() {
 		}
 	}
 }
-
 func (p *Peer) AssertNotClosed(d time.Duration) {
 	p.t.Helper()
 	// nolint: gocritic // erroneously thinks we're hardcoding non testutil constants here
@@ -268,7 +243,6 @@ func (p *Peer) AssertNotClosed(d time.Duration) {
 		}
 	}
 }
-
 func (p *Peer) AssertEventuallyReadyForHandshake(other uuid.UUID) {
 	p.t.Helper()
 	for {
@@ -276,44 +250,36 @@ func (p *Peer) AssertEventuallyReadyForHandshake(other uuid.UUID) {
 		if o.readyForHandshake {
 			return
 		}
-
 		err := p.readOneResp()
-		if xerrors.Is(err, responsesClosed) {
+		if errors.Is(err, responsesClosed) {
 			return
 		}
 	}
 }
-
 func (p *Peer) AssertEventuallyGetsError(match string) {
 	p.t.Helper()
 	for {
 		err := p.readOneResp()
-		if xerrors.Is(err, responsesClosed) {
+		if errors.Is(err, responsesClosed) {
 			p.t.Error("closed before target error")
 			return
 		}
-
 		if err != nil && assert.ErrorContains(p.t, err, match) {
 			return
 		}
 	}
 }
-
 // AssertNeverUpdateKind asserts that we have not received
 // any updates on the provided peer for the provided kind.
 func (p *Peer) AssertNeverUpdateKind(peer uuid.UUID, kind proto.CoordinateResponse_PeerUpdate_Kind) {
 	p.t.Helper()
-
 	updates, ok := p.peerUpdates[peer]
 	assert.True(p.t, ok, "expected updates for peer %s", peer)
-
 	for _, update := range updates {
 		assert.NotEqual(p.t, kind, update.Kind, update)
 	}
 }
-
-var responsesClosed = xerrors.New("responses closed")
-
+var responsesClosed = errors.New("responses closed")
 func (p *Peer) readOneResp() error {
 	select {
 	case <-p.ctx.Done():
@@ -329,10 +295,9 @@ func (p *Peer) readOneResp() error {
 	}
 	return nil
 }
-
 func (p *Peer) handleResp(resp *proto.CoordinateResponse) error {
 	if resp.Error != "" {
-		return xerrors.New(resp.Error)
+		return errors.New(resp.Error)
 	}
 	for _, update := range resp.PeerUpdates {
 		id, err := uuid.FromBytes(update.Id)
@@ -340,7 +305,6 @@ func (p *Peer) handleResp(resp *proto.CoordinateResponse) error {
 			return err
 		}
 		p.peerUpdates[id] = append(p.peerUpdates[id], update)
-
 		switch update.Kind {
 		case proto.CoordinateResponse_PeerUpdate_NODE, proto.CoordinateResponse_PeerUpdate_LOST:
 			peer := p.peers[id]
@@ -354,12 +318,11 @@ func (p *Peer) handleResp(resp *proto.CoordinateResponse) error {
 			peer.readyForHandshake = true
 			p.peers[id] = peer
 		default:
-			return xerrors.Errorf("unhandled update kind %s", update.Kind)
+			return fmt.Errorf("unhandled update kind %s", update.Kind)
 		}
 	}
 	return nil
 }
-
 func (p *Peer) Close(ctx context.Context) {
 	p.t.Helper()
 	p.cancel()
@@ -376,26 +339,21 @@ func (p *Peer) Close(ctx context.Context) {
 		}
 	}
 }
-
 func (p *Peer) UngracefulDisconnect(ctx context.Context) {
 	p.t.Helper()
 	close(p.reqs)
 	p.Close(ctx)
 }
-
 type FakeSubjectKey struct{}
-
 type FakeCoordinateeAuth struct {
 	Chan chan struct{}
 }
-
 func (f FakeCoordinateeAuth) Authorize(ctx context.Context, _ *proto.CoordinateRequest) error {
 	_, ok := ctx.Value(FakeSubjectKey{}).(struct{})
 	if !ok {
-		return xerrors.New("unauthorized")
+		return errors.New("unauthorized")
 	}
 	f.Chan <- struct{}{}
 	return nil
 }
-
 var _ tailnet.CoordinateeAuth = (*FakeCoordinateeAuth)(nil)

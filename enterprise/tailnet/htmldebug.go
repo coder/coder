@@ -1,26 +1,22 @@
 package tailnet
-
 import (
+	"fmt"
+	"errors"
 	"context"
 	"database/sql"
 	"html/template"
 	"net/http"
 	"time"
-
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 	gProto "google.golang.org/protobuf/proto"
-
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/tailnet/proto"
 )
-
 type HTMLDebug struct {
 	Coordinators []*HTMLCoordinator
 	Peers        []*HTMLPeer
 	Tunnels      []*HTMLTunnel
 }
-
 type HTMLPeer struct {
 	ID            uuid.UUID
 	CoordinatorID uuid.UUID
@@ -28,19 +24,16 @@ type HTMLPeer struct {
 	Node          string
 	Status        database.TailnetStatus
 }
-
 type HTMLCoordinator struct {
 	ID           uuid.UUID
 	HeartbeatAge time.Duration
 }
-
 type HTMLTunnel struct {
 	CoordinatorID uuid.UUID
 	SrcID         uuid.UUID
 	DstID         uuid.UUID
 	LastWriteAge  time.Duration
 }
-
 func (c *pgCoord) ServeHTTPDebug(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	debug, err := getDebug(ctx, c.store)
@@ -49,9 +42,7 @@ func (c *pgCoord) ServeHTTPDebug(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(err.Error()))
 		return
 	}
-
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-
 	err = debugTempl.Execute(w, debug)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -59,20 +50,19 @@ func (c *pgCoord) ServeHTTPDebug(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 }
-
 func getDebug(ctx context.Context, store database.Store) (HTMLDebug, error) {
 	out := HTMLDebug{}
 	coords, err := store.GetAllTailnetCoordinators(ctx)
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-		return HTMLDebug{}, xerrors.Errorf("failed to query coordinators: %w", err)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return HTMLDebug{}, fmt.Errorf("failed to query coordinators: %w", err)
 	}
 	peers, err := store.GetAllTailnetPeers(ctx)
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-		return HTMLDebug{}, xerrors.Errorf("failed to query peers: %w", err)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return HTMLDebug{}, fmt.Errorf("failed to query peers: %w", err)
 	}
 	tunnels, err := store.GetAllTailnetTunnels(ctx)
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-		return HTMLDebug{}, xerrors.Errorf("failed to query tunnels: %w", err)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return HTMLDebug{}, fmt.Errorf("failed to query tunnels: %w", err)
 	}
 	now := time.Now() // call this once so all our ages are on the same timebase
 	for _, coord := range coords {
@@ -90,19 +80,17 @@ func getDebug(ctx context.Context, store database.Store) (HTMLDebug, error) {
 	}
 	return out, nil
 }
-
 func coordToHTML(d database.TailnetCoordinator, now time.Time) *HTMLCoordinator {
 	return &HTMLCoordinator{
 		ID:           d.ID,
 		HeartbeatAge: now.Sub(d.HeartbeatAt),
 	}
 }
-
 func peerToHTML(d database.TailnetPeer, now time.Time) (*HTMLPeer, error) {
 	node := &proto.Node{}
 	err := gProto.Unmarshal(d.Node, node)
 	if err != nil {
-		return nil, xerrors.Errorf("unmarshal node: %w", err)
+		return nil, fmt.Errorf("unmarshal node: %w", err)
 	}
 	return &HTMLPeer{
 		ID:            d.ID,
@@ -112,7 +100,6 @@ func peerToHTML(d database.TailnetPeer, now time.Time) (*HTMLPeer, error) {
 		Node:          node.String(),
 	}, nil
 }
-
 func tunnelToHTML(d database.TailnetTunnel, now time.Time) *HTMLTunnel {
 	return &HTMLTunnel{
 		CoordinatorID: d.CoordinatorID,
@@ -121,7 +108,6 @@ func tunnelToHTML(d database.TailnetTunnel, now time.Time) *HTMLTunnel {
 		LastWriteAge:  now.Sub(d.UpdatedAt),
 	}
 }
-
 var coordinatorDebugTmpl = `
 <!DOCTYPE html>
 <html>
@@ -154,7 +140,6 @@ tr {
 			</tr>
 		{{- end }}
 		</table>
-
 		<h2 id=peers> <a href=#peers>#</a> peers: total {{ len .Peers }} </h2>
 		<table>
 			<tr style="margin-top:4px">
@@ -174,7 +159,6 @@ tr {
 			</tr>
 		{{- end }}
 		</table>
-
 		<h2 id=tunnels><a href=#tunnels>#</a> tunnels: total {{ len .Tunnels }}</h2>
 		<table>
 			<tr style="margin-top:4px">
@@ -195,5 +179,4 @@ tr {
 	</body>
 </html>
 `
-
 var debugTempl = template.Must(template.New("coordinator_debug").Parse(coordinatorDebugTmpl))

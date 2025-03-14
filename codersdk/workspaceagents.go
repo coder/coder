@@ -1,6 +1,6 @@
 package codersdk
-
 import (
+	"errors"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -9,17 +9,12 @@ import (
 	"net/http/cookiejar"
 	"strings"
 	"time"
-
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk/wsjson"
 	"github.com/coder/websocket"
 )
-
 type WorkspaceAgentStatus string
-
 // This is also in database/modelmethods.go and should be kept in sync.
 const (
 	WorkspaceAgentConnecting   WorkspaceAgentStatus = "connecting"
@@ -27,14 +22,12 @@ const (
 	WorkspaceAgentDisconnected WorkspaceAgentStatus = "disconnected"
 	WorkspaceAgentTimeout      WorkspaceAgentStatus = "timeout"
 )
-
 // WorkspaceAgentLifecycle represents the lifecycle state of a workspace agent.
 //
 // The agent lifecycle starts in the "created" state, and transitions to
 // "starting" when the agent reports it has begun preparing (e.g. started
 // executing the startup script).
 type WorkspaceAgentLifecycle string
-
 // WorkspaceAgentLifecycle enums.
 const (
 	WorkspaceAgentLifecycleCreated         WorkspaceAgentLifecycle = "created"
@@ -47,7 +40,6 @@ const (
 	WorkspaceAgentLifecycleShutdownError   WorkspaceAgentLifecycle = "shutdown_error"
 	WorkspaceAgentLifecycleOff             WorkspaceAgentLifecycle = "off"
 )
-
 // Starting returns true if the agent is in the process of starting.
 func (l WorkspaceAgentLifecycle) Starting() bool {
 	switch l {
@@ -57,7 +49,6 @@ func (l WorkspaceAgentLifecycle) Starting() bool {
 		return false
 	}
 }
-
 // ShuttingDown returns true if the agent is in the process of shutting
 // down or has shut down.
 func (l WorkspaceAgentLifecycle) ShuttingDown() bool {
@@ -68,7 +59,6 @@ func (l WorkspaceAgentLifecycle) ShuttingDown() bool {
 		return false
 	}
 }
-
 // WorkspaceAgentLifecycleOrder is the order in which workspace agent
 // lifecycle states are expected to be reported during the lifetime of
 // the agent process. For instance, the agent can go from starting to
@@ -86,7 +76,6 @@ var WorkspaceAgentLifecycleOrder = []WorkspaceAgentLifecycle{
 	WorkspaceAgentLifecycleShutdownError,
 	WorkspaceAgentLifecycleOff,
 }
-
 // WorkspaceAgentStartupScriptBehavior defines whether or not the startup script
 // should be considered blocking or non-blocking. The blocking behavior means
 // that the agent will not be considered ready until the startup script has
@@ -96,12 +85,10 @@ var WorkspaceAgentLifecycleOrder = []WorkspaceAgentLifecycle{
 // Presently, non-blocking is the default, but this may change in the future.
 // Deprecated: `coder_script` allows configuration on a per-script basis.
 type WorkspaceAgentStartupScriptBehavior string
-
 const (
 	WorkspaceAgentStartupScriptBehaviorBlocking    WorkspaceAgentStartupScriptBehavior = "blocking"
 	WorkspaceAgentStartupScriptBehaviorNonBlocking WorkspaceAgentStartupScriptBehavior = "non-blocking"
 )
-
 type WorkspaceAgentMetadataResult struct {
 	CollectedAt time.Time `json:"collected_at" format:"date-time"`
 	// Age is the number of seconds since the metadata was collected.
@@ -110,7 +97,6 @@ type WorkspaceAgentMetadataResult struct {
 	Value string `json:"value"`
 	Error string `json:"error"`
 }
-
 // WorkspaceAgentMetadataDescription is a description of dynamic metadata the agent should report
 // back to coderd. It is provided via the `metadata` list in the `coder_agent`
 // block.
@@ -121,14 +107,11 @@ type WorkspaceAgentMetadataDescription struct {
 	Interval    int64  `json:"interval"`
 	Timeout     int64  `json:"timeout"`
 }
-
 type WorkspaceAgentMetadata struct {
 	Result      WorkspaceAgentMetadataResult      `json:"result"`
 	Description WorkspaceAgentMetadataDescription `json:"description"`
 }
-
 type DisplayApp string
-
 const (
 	DisplayAppVSCodeDesktop  DisplayApp = "vscode"
 	DisplayAppVSCodeInsiders DisplayApp = "vscode_insiders"
@@ -136,7 +119,6 @@ const (
 	DisplayAppPortForward    DisplayApp = "port_forwarding_helper"
 	DisplayAppSSH            DisplayApp = "ssh_helper"
 )
-
 type WorkspaceAgent struct {
 	ID                   uuid.UUID               `json:"id" format:"uuid"`
 	CreatedAt            time.Time               `json:"created_at" format:"date-time"`
@@ -170,13 +152,11 @@ type WorkspaceAgent struct {
 	DisplayApps              []DisplayApp              `json:"display_apps"`
 	LogSources               []WorkspaceAgentLogSource `json:"log_sources"`
 	Scripts                  []WorkspaceAgentScript    `json:"scripts"`
-
 	// StartupScriptBehavior is a legacy field that is deprecated in favor
 	// of the `coder_script` resource. It's only referenced by old clients.
 	// Deprecated: Remove in the future!
 	StartupScriptBehavior WorkspaceAgentStartupScriptBehavior `json:"startup_script_behavior"`
 }
-
 type WorkspaceAgentLogSource struct {
 	WorkspaceAgentID uuid.UUID `json:"workspace_agent_id" format:"uuid"`
 	ID               uuid.UUID `json:"id" format:"uuid"`
@@ -184,7 +164,6 @@ type WorkspaceAgentLogSource struct {
 	DisplayName      string    `json:"display_name"`
 	Icon             string    `json:"icon"`
 }
-
 type WorkspaceAgentScript struct {
 	ID               uuid.UUID     `json:"id" format:"uuid"`
 	LogSourceID      uuid.UUID     `json:"log_source_id" format:"uuid"`
@@ -197,17 +176,14 @@ type WorkspaceAgentScript struct {
 	Timeout          time.Duration `json:"timeout"`
 	DisplayName      string        `json:"display_name"`
 }
-
 type WorkspaceAgentHealth struct {
 	Healthy bool   `json:"healthy" example:"false"`                              // Healthy is true if the agent is healthy.
 	Reason  string `json:"reason,omitempty" example:"agent has lost connection"` // Reason is a human-readable explanation of the agent's health. It is empty if Healthy is true.
 }
-
 type DERPRegion struct {
 	Preferred           bool    `json:"preferred"`
 	LatencyMilliseconds float64 `json:"latency_ms"`
 }
-
 type WorkspaceAgentLog struct {
 	ID        int64     `json:"id"`
 	CreatedAt time.Time `json:"created_at" format:"date-time"`
@@ -215,15 +191,12 @@ type WorkspaceAgentLog struct {
 	Level     LogLevel  `json:"level"`
 	SourceID  uuid.UUID `json:"source_id" format:"uuid"`
 }
-
 type AgentSubsystem string
-
 const (
 	AgentSubsystemEnvbox     AgentSubsystem = "envbox"
 	AgentSubsystemEnvbuilder AgentSubsystem = "envbuilder"
 	AgentSubsystemExectrace  AgentSubsystem = "exectrace"
 )
-
 func (s AgentSubsystem) Valid() bool {
 	switch s {
 	case AgentSubsystemEnvbox, AgentSubsystemEnvbuilder, AgentSubsystemExectrace:
@@ -232,16 +205,13 @@ func (s AgentSubsystem) Valid() bool {
 		return false
 	}
 }
-
 // WatchWorkspaceAgentMetadata watches the metadata of a workspace agent.
 // The returned channel will be closed when the context is canceled. Exactly
 // one error will be sent on the error channel. The metadata channel is never closed.
 func (c *Client) WatchWorkspaceAgentMetadata(ctx context.Context, id uuid.UUID) (<-chan []WorkspaceAgentMetadata, <-chan error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
-
 	metadataChan := make(chan []WorkspaceAgentMetadata, 256)
-
 	ready := make(chan struct{})
 	watch := func() error {
 		res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s/watch-metadata", id), nil)
@@ -251,10 +221,8 @@ func (c *Client) WatchWorkspaceAgentMetadata(ctx context.Context, id uuid.UUID) 
 		if res.StatusCode != http.StatusOK {
 			return ReadBodyAsError(res)
 		}
-
 		nextEvent := ServerSentEventReader(ctx, res.Body)
 		defer res.Body.Close()
-
 		firstEvent := true
 		for {
 			select {
@@ -262,48 +230,42 @@ func (c *Client) WatchWorkspaceAgentMetadata(ctx context.Context, id uuid.UUID) 
 				return ctx.Err()
 			default:
 			}
-
 			sse, err := nextEvent()
 			if err != nil {
 				return err
 			}
-
 			if firstEvent {
 				close(ready) // Only close ready after the first event is received.
 				firstEvent = false
 			}
-
 			// Ignore pings.
 			if sse.Type == ServerSentEventTypePing {
 				continue
 			}
-
 			b, ok := sse.Data.([]byte)
 			if !ok {
-				return xerrors.Errorf("unexpected data type: %T", sse.Data)
+				return fmt.Errorf("unexpected data type: %T", sse.Data)
 			}
-
 			switch sse.Type {
 			case ServerSentEventTypeData:
 				var met []WorkspaceAgentMetadata
 				err = json.Unmarshal(b, &met)
 				if err != nil {
-					return xerrors.Errorf("unmarshal metadata: %w", err)
+					return fmt.Errorf("unmarshal metadata: %w", err)
 				}
 				metadataChan <- met
 			case ServerSentEventTypeError:
 				var r Response
 				err = json.Unmarshal(b, &r)
 				if err != nil {
-					return xerrors.Errorf("unmarshal error: %w", err)
+					return fmt.Errorf("unmarshal error: %w", err)
 				}
-				return xerrors.Errorf("%+v", r)
+				return fmt.Errorf("%+v", r)
 			default:
-				return xerrors.Errorf("unexpected event type: %s", sse.Type)
+				return fmt.Errorf("unexpected event type: %s", sse.Type)
 			}
 		}
 	}
-
 	errorChan := make(chan error, 1)
 	go func() {
 		defer close(errorChan)
@@ -315,13 +277,10 @@ func (c *Client) WatchWorkspaceAgentMetadata(ctx context.Context, id uuid.UUID) 
 		}
 		errorChan <- err
 	}()
-
 	// Wait until first event is received and the subscription is registered.
 	<-ready
-
 	return metadataChan, errorChan
 }
-
 // WorkspaceAgent returns an agent by ID.
 func (c *Client) WorkspaceAgent(ctx context.Context, id uuid.UUID) (WorkspaceAgent, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s", id), nil)
@@ -339,17 +298,14 @@ func (c *Client) WorkspaceAgent(ctx context.Context, id uuid.UUID) (WorkspaceAge
 	}
 	return workspaceAgent, nil
 }
-
 type IssueReconnectingPTYSignedTokenRequest struct {
 	// URL is the URL of the reconnecting-pty endpoint you are connecting to.
 	URL     string    `json:"url" validate:"required"`
 	AgentID uuid.UUID `json:"agentID" format:"uuid" validate:"required"`
 }
-
 type IssueReconnectingPTYSignedTokenResponse struct {
 	SignedToken string `json:"signed_token"`
 }
-
 func (c *Client) IssueReconnectingPTYSignedToken(ctx context.Context, req IssueReconnectingPTYSignedTokenRequest) (IssueReconnectingPTYSignedTokenResponse, error) {
 	res, err := c.Request(ctx, http.MethodPost, "/api/v2/applications/reconnecting-pty-signed-token", req)
 	if err != nil {
@@ -362,7 +318,6 @@ func (c *Client) IssueReconnectingPTYSignedToken(ctx context.Context, req IssueR
 	var resp IssueReconnectingPTYSignedTokenResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
-
 type WorkspaceAgentListeningPortsResponse struct {
 	// If there are no ports in the list, nothing should be displayed in the UI.
 	// There must not be a "no ports available" message or anything similar, as
@@ -370,13 +325,11 @@ type WorkspaceAgentListeningPortsResponse struct {
 	// detection logic is unsupported.
 	Ports []WorkspaceAgentListeningPort `json:"ports"`
 }
-
 type WorkspaceAgentListeningPort struct {
 	ProcessName string `json:"process_name"` // may be empty
 	Network     string `json:"network"`      // only "tcp" at the moment
 	Port        uint16 `json:"port"`
 }
-
 // WorkspaceAgentListeningPorts returns a list of ports that are currently being
 // listened on inside the workspace agent's network namespace.
 func (c *Client) WorkspaceAgentListeningPorts(ctx context.Context, agentID uuid.UUID) (WorkspaceAgentListeningPortsResponse, error) {
@@ -391,7 +344,6 @@ func (c *Client) WorkspaceAgentListeningPorts(ctx context.Context, agentID uuid.
 	var listeningPorts WorkspaceAgentListeningPortsResponse
 	return listeningPorts, json.NewDecoder(res.Body).Decode(&listeningPorts)
 }
-
 // WorkspaceAgentDevcontainer describes a devcontainer of some sort
 // that is visible to the workspace agent. This struct is an abstraction
 // of potentially multiple implementations, and the fields will be
@@ -419,7 +371,6 @@ type WorkspaceAgentDevcontainer struct {
 	// is somewhat implementation-dependent.
 	Volumes map[string]string `json:"volumes"`
 }
-
 // WorkspaceAgentListContainersResponse is the response to the list containers
 // request.
 type WorkspaceAgentListContainersResponse struct {
@@ -429,7 +380,6 @@ type WorkspaceAgentListContainersResponse struct {
 	// process of listing containers. This should not include fatal errors.
 	Warnings []string `json:"warnings,omitempty"`
 }
-
 func workspaceAgentContainersLabelFilter(kvs map[string]string) RequestOption {
 	return func(r *http.Request) {
 		q := r.URL.Query()
@@ -440,7 +390,6 @@ func workspaceAgentContainersLabelFilter(kvs map[string]string) RequestOption {
 		r.URL.RawQuery = q.Encode()
 	}
 }
-
 // WorkspaceAgentListContainers returns a list of containers that are currently
 // running on a Docker daemon accessible to the workspace agent.
 func (c *Client) WorkspaceAgentListContainers(ctx context.Context, agentID uuid.UUID, labels map[string]string) (WorkspaceAgentListContainersResponse, error) {
@@ -454,10 +403,8 @@ func (c *Client) WorkspaceAgentListContainers(ctx context.Context, agentID uuid.
 		return WorkspaceAgentListContainersResponse{}, ReadBodyAsError(res)
 	}
 	var cr WorkspaceAgentListContainersResponse
-
 	return cr, json.NewDecoder(res.Body).Decode(&cr)
 }
-
 //nolint:revive // Follow is a control flag on the server as well.
 func (c *Client) WorkspaceAgentLogsAfter(ctx context.Context, agentID uuid.UUID, after int64, follow bool) (<-chan []WorkspaceAgentLog, io.Closer, error) {
 	var queryParams []string
@@ -475,33 +422,28 @@ func (c *Client) WorkspaceAgentLogsAfter(ctx context.Context, agentID uuid.UUID,
 	if err != nil {
 		return nil, nil, err
 	}
-
 	if !follow {
 		resp, err := c.Request(ctx, http.MethodGet, reqURL.String(), nil)
 		if err != nil {
-			return nil, nil, xerrors.Errorf("execute request: %w", err)
+			return nil, nil, fmt.Errorf("execute request: %w", err)
 		}
 		defer resp.Body.Close()
-
 		if resp.StatusCode != http.StatusOK {
 			return nil, nil, ReadBodyAsError(resp)
 		}
-
 		var logs []WorkspaceAgentLog
 		err = json.NewDecoder(resp.Body).Decode(&logs)
 		if err != nil {
-			return nil, nil, xerrors.Errorf("decode startup logs: %w", err)
+			return nil, nil, fmt.Errorf("decode startup logs: %w", err)
 		}
-
 		ch := make(chan []WorkspaceAgentLog, 1)
 		ch <- logs
 		close(ch)
 		return ch, closeFunc(func() error { return nil }), nil
 	}
-
 	jar, err := cookiejar.New(nil)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("create cookie jar: %w", err)
+		return nil, nil, fmt.Errorf("create cookie jar: %w", err)
 	}
 	jar.SetCookies(reqURL, []*http.Cookie{{
 		Name:  SessionTokenCookie,

@@ -1,16 +1,12 @@
 package workspacestats
-
 import (
+	"errors"
 	"context"
 	"time"
-
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
-
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
 )
-
 // ActivityBumpWorkspace automatically bumps the workspace's auto-off timer
 // if it is set to expire soon. The deadline will be bumped by 1 hour*.
 // If the bump crosses over an autostart time, the workspace will be
@@ -46,7 +42,7 @@ func ActivityBumpWorkspace(ctx context.Context, log slog.Logger, db database.Sto
 		WorkspaceID:   workspaceID,
 	})
 	if err != nil {
-		if !xerrors.Is(err, context.Canceled) && !database.IsQueryCanceledError(err) {
+		if !errors.Is(err, context.Canceled) && !database.IsQueryCanceledError(err) {
 			// Bump will fail if the context is canceled, but this is ok.
 			log.Error(ctx, "activity bump failed", slog.Error(err),
 				slog.F("workspace_id", workspaceID),
@@ -54,7 +50,6 @@ func ActivityBumpWorkspace(ctx context.Context, log slog.Logger, db database.Sto
 		}
 		return
 	}
-
 	log.Debug(ctx, "bumped deadline from activity",
 		slog.F("workspace_id", workspaceID),
 	)

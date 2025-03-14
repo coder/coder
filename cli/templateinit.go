@@ -1,5 +1,4 @@
 package cli
-
 import (
 	"bytes"
 	"errors"
@@ -8,10 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-
 	"golang.org/x/exp/maps"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/examples"
@@ -19,7 +15,6 @@ import (
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
 )
-
 func (*RootCmd) templateInit() *serpent.Command {
 	var templateID string
 	exampleList, err := examples.List()
@@ -63,7 +58,7 @@ func (*RootCmd) templateInit() *serpent.Command {
 				})
 				if err != nil {
 					if errors.Is(err, io.EOF) {
-						return xerrors.Errorf(
+						return fmt.Errorf(
 							"Couldn't find a matching template!\n" +
 								"Tip: if you're trying to automate template creation, try\n" +
 								"coder templates init --id <template_id> instead!",
@@ -73,11 +68,10 @@ func (*RootCmd) templateInit() *serpent.Command {
 				}
 				templateID = optsToID[selected]
 			}
-
 			selectedTemplate, ok := templateByID(templateID, exampleList)
 			if !ok {
 				// serpent.EnumOf would normally handle this.
-				return xerrors.Errorf("template not found: %q", templateID)
+				return fmt.Errorf("template not found: %q", templateID)
 			}
 			archive, err := examples.Archive(selectedTemplate.ID)
 			if err != nil {
@@ -119,7 +113,6 @@ func (*RootCmd) templateInit() *serpent.Command {
 			return nil
 		},
 	}
-
 	cmd.Options = serpent.OptionSet{
 		{
 			Flag:        "id",
@@ -127,10 +120,8 @@ func (*RootCmd) templateInit() *serpent.Command {
 			Value:       serpent.EnumOf(&templateID, templateIDs...),
 		},
 	}
-
 	return cmd
 }
-
 func templateByID(templateID string, tes []codersdk.TemplateExample) (codersdk.TemplateExample, bool) {
 	for _, te := range tes {
 		if te.ID == templateID {

@@ -1,17 +1,14 @@
 package cli
-
 import (
+	"fmt"
+	"errors"
 	"time"
-
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
 )
-
 func (r *RootCmd) templates() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "templates",
@@ -38,46 +35,38 @@ func (r *RootCmd) templates() *serpent.Command {
 			r.archiveTemplateVersions(),
 		},
 	}
-
 	return cmd
 }
-
 func selectTemplate(inv *serpent.Invocation, client *codersdk.Client, organization codersdk.Organization) (codersdk.Template, error) {
 	var empty codersdk.Template
 	ctx := inv.Context()
 	allTemplates, err := client.TemplatesByOrganization(ctx, organization.ID)
 	if err != nil {
-		return empty, xerrors.Errorf("get templates by organization: %w", err)
+		return empty, fmt.Errorf("get templates by organization: %w", err)
 	}
-
 	if len(allTemplates) == 0 {
-		return empty, xerrors.Errorf("no templates exist in the current organization %q", organization.Name)
+		return empty, fmt.Errorf("no templates exist in the current organization %q", organization.Name)
 	}
-
 	opts := make([]string, 0, len(allTemplates))
 	for _, template := range allTemplates {
 		opts = append(opts, template.Name)
 	}
-
 	selection, err := cliui.Select(inv, cliui.SelectOptions{
 		Options: opts,
 	})
 	if err != nil {
-		return empty, xerrors.Errorf("select template: %w", err)
+		return empty, fmt.Errorf("select template: %w", err)
 	}
-
 	for _, template := range allTemplates {
 		if template.Name == selection {
 			return template, nil
 		}
 	}
-	return empty, xerrors.Errorf("no template selected")
+	return empty, fmt.Errorf("no template selected")
 }
-
 type templateTableRow struct {
 	// Used by json format:
 	Template codersdk.Template
-
 	// Used by table format:
 	Name             string                   `json:"-" table:"name,default_sort"`
 	CreatedAt        string                   `json:"-" table:"created at"`
@@ -89,7 +78,6 @@ type templateTableRow struct {
 	UsedBy           string                   `json:"-" table:"used by"`
 	DefaultTTL       time.Duration            `json:"-" table:"default ttl"`
 }
-
 // templateToRows converts a list of templates to a list of templateTableRow for
 // outputting.
 func templatesToRows(templates ...codersdk.Template) []templateTableRow {
@@ -108,6 +96,5 @@ func templatesToRows(templates ...codersdk.Template) []templateTableRow {
 			DefaultTTL:       (time.Duration(template.DefaultTTLMillis) * time.Millisecond),
 		}
 	}
-
 	return rows
 }

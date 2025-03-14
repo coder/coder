@@ -1,47 +1,39 @@
 //go:build windows
-
 package pty
-
 import (
+	"fmt"
+	"errors"
 	"context"
 	"io"
 	"os"
 	"os/exec"
 	"sync"
 	"unsafe"
-
 	"golang.org/x/sys/windows"
-
-	"golang.org/x/xerrors"
 )
-
 var (
 	kernel32                = windows.NewLazySystemDLL("kernel32.dll")
 	procResizePseudoConsole = kernel32.NewProc("ResizePseudoConsole")
 	procCreatePseudoConsole = kernel32.NewProc("CreatePseudoConsole")
 	procClosePseudoConsole  = kernel32.NewProc("ClosePseudoConsole")
 )
-
 // See: https://docs.microsoft.com/en-us/windows/console/creating-a-pseudoconsole-session
 func newPty(opt ...Option) (*ptyWindows, error) {
 	var opts ptyOptions
 	for _, o := range opt {
 		o(&opts)
 	}
-
 	// We use the CreatePseudoConsole API which was introduced in build 17763
 	vsn := windows.RtlGetVersion()
 	if vsn.MajorVersion < 10 ||
 		vsn.BuildNumber < 17763 {
 		// If the CreatePseudoConsole API is not available, we fall back to a simpler
 		// implementation that doesn't create an actual PTY - just uses os.Pipe
-		return nil, xerrors.Errorf("pty not supported")
+		return nil, fmt.Errorf("pty not supported")
 	}
-
 	pty := &ptyWindows{
 		opts: opts,
 	}
-
 	var err error
 	pty.inputRead, pty.inputWrite, err = os.Pipe()
 	if err != nil {
@@ -53,7 +45,6 @@ func newPty(opt ...Option) (*ptyWindows, error) {
 		_ = pty.inputWrite.Close()
 		return nil, err
 	}
-
 	consoleSize := uintptr(80) + (uintptr(80) << 16)
 	if opts.sshReq != nil {
 		consoleSize = uintptr(opts.sshReq.Window.Width) + (uintptr(opts.sshReq.Window.Height) << 16)
@@ -69,25 +60,20 @@ func newPty(opt ...Option) (*ptyWindows, error) {
 	// https://learn.microsoft.com/en-us/windows/console/createpseudoconsole
 	if windows.Handle(ret) != windows.S_OK {
 		_ = pty.Close()
-		return nil, xerrors.Errorf("create pseudo console (%d): %w", int32(ret), err)
+		return nil, fmt.Errorf("create pseudo console (%d): %w", int32(ret), err)
 	}
-
 	return pty, nil
 }
-
 type ptyWindows struct {
 	opts    ptyOptions
 	console windows.Handle
-
 	outputWrite *os.File
 	outputRead  *os.File
 	inputWrite  *os.File
 	inputRead   *os.File
-
 	closeMutex sync.Mutex
 	closed     bool
 }
-
 type windowsProcess struct {
 	// cmdDone protects access to cmdErr: anything reading cmdErr should read from cmdDone first.
 	cmdDone chan any
@@ -95,36 +81,30 @@ type windowsProcess struct {
 	proc    *os.Process
 	pw      *ptyWindows
 }
-
 // Name returns the TTY name on Windows.
 //
 // Not implemented.
 func (p *ptyWindows) Name() string {
 	return ""
 }
-
 func (p *ptyWindows) Output() ReadWriter {
 	return ReadWriter{
 		Reader: p.outputRead,
 		Writer: p.outputWrite,
 	}
 }
-
 func (p *ptyWindows) OutputReader() io.Reader {
 	return p.outputRead
 }
-
 func (p *ptyWindows) Input() ReadWriter {
 	return ReadWriter{
 		Reader: p.inputRead,
 		Writer: p.inputWrite,
 	}
 }
-
 func (p *ptyWindows) InputWriter() io.Writer {
 	return p.inputWrite
 }
-
 func (p *ptyWindows) Resize(height uint16, width uint16) error {
 	// hold the lock, so we don't race with anyone trying to close the console
 	p.closeMutex.Lock()
@@ -142,7 +122,6 @@ func (p *ptyWindows) Resize(height uint16, width uint16) error {
 	}
 	return nil
 }
-
 // closeConsoleNoLock closes the console handle, and sets it to
 // windows.InvalidHandle. It must be called with p.closeMutex held.
 func (p *ptyWindows) closeConsoleNoLock() error {
@@ -162,21 +141,18 @@ func (p *ptyWindows) closeConsoleNoLock() error {
 		// https://docs.microsoft.com/en-us/windows/console/closepseudoconsole
 		ret, _, err := procClosePseudoConsole.Call(uintptr(p.console))
 		if winerrorFailed(ret) {
-			return xerrors.Errorf("close pseudo console (%d): %w", ret, err)
+			return fmt.Errorf("close pseudo console (%d): %w", ret, err)
 		}
 		p.console = windows.InvalidHandle
 	}
-
 	return nil
 }
-
 func (p *ptyWindows) Close() error {
 	p.closeMutex.Lock()
 	defer p.closeMutex.Unlock()
 	if p.closed {
 		return nil
 	}
-
 	// Close the pseudo console, this will also terminate the process attached
 	// to this pty. If it was created via Start(), this also unblocks close of
 	// the readers below.
@@ -184,10 +160,8 @@ func (p *ptyWindows) Close() error {
 	if err != nil {
 		return err
 	}
-
 	// Only set closed after the console has been successfully closed.
 	p.closed = true
-
 	// Close the pipes ensuring that the writer is closed before the respective
 	// reader, otherwise closing the reader may block indefinitely. Note that
 	// outputWrite and inputRead are unset when we Start() a new process.
@@ -201,7 +175,6 @@ func (p *ptyWindows) Close() error {
 	}
 	return nil
 }
-
 func (p *windowsProcess) waitInternal() {
 	// put this on the bottom of the defer stack since the next defer can write to p.cmdErr
 	defer close(p.cmdDone)
@@ -213,7 +186,6 @@ func (p *windowsProcess) waitInternal() {
 		// c.f. https://devblogs.microsoft.com/commandline/windows-command-line-introducing-the-windows-pseudo-console-conpty/
 		p.pw.closeMutex.Lock()
 		defer p.pw.closeMutex.Unlock()
-
 		err := p.pw.closeConsoleNoLock()
 		// if we already have an error from the command, prefer that error
 		// but if the command succeeded and closing the PseudoConsole fails
@@ -222,7 +194,6 @@ func (p *windowsProcess) waitInternal() {
 			p.cmdErr = err
 		}
 	}()
-
 	state, err := p.proc.Wait()
 	if err != nil {
 		p.cmdErr = err
@@ -233,21 +204,17 @@ func (p *windowsProcess) waitInternal() {
 		return
 	}
 }
-
 func (p *windowsProcess) Wait() error {
 	<-p.cmdDone
 	return p.cmdErr
 }
-
 func (p *windowsProcess) Kill() error {
 	return p.proc.Kill()
 }
-
 func (p *windowsProcess) Signal(sig os.Signal) error {
 	// Windows doesn't support signals.
 	return p.Kill()
 }
-
 // killOnContext waits for the context to be done and kills the process, unless it exits on its own first.
 func (p *windowsProcess) killOnContext(ctx context.Context) {
 	select {
@@ -257,7 +224,6 @@ func (p *windowsProcess) killOnContext(ctx context.Context) {
 		p.Kill()
 	}
 }
-
 // winerrorFailed returns true if the syscall failed, this function
 // assumes the return value is a 32-bit integer, like HRESULT.
 //

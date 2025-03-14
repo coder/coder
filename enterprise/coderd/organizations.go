@@ -1,13 +1,10 @@
 package coderd
-
 import (
+	"errors"
 	"database/sql"
 	"fmt"
 	"net/http"
-
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -16,7 +13,6 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
 )
-
 // @Summary Update organization
 // @ID update-organization
 // @Security CoderSessionToken
@@ -42,12 +38,10 @@ func (api *API) patchOrganization(rw http.ResponseWriter, r *http.Request) {
 	)
 	aReq.Old = organization
 	defer commitAudit()
-
 	var req codersdk.UpdateOrganizationRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-
 	// "default" is a reserved name that always refers to the default org (much like the way we
 	// use "me" for users).
 	if req.Name == codersdk.DefaultOrganization {
@@ -56,14 +50,12 @@ func (api *API) patchOrganization(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	err := database.ReadModifyUpdate(api.Database, func(tx database.Store) error {
 		var err error
 		organization, err = tx.GetOrganizationByID(ctx, organization.ID)
 		if err != nil {
 			return err
 		}
-
 		updateOrgParams := database.UpdateOrganizationParams{
 			UpdatedAt:   dbtime.Now(),
 			ID:          organization.ID,
@@ -72,7 +64,6 @@ func (api *API) patchOrganization(rw http.ResponseWriter, r *http.Request) {
 			Description: organization.Description,
 			Icon:        organization.Icon,
 		}
-
 		if req.Name != "" {
 			updateOrgParams.Name = req.Name
 		}
@@ -85,14 +76,12 @@ func (api *API) patchOrganization(rw http.ResponseWriter, r *http.Request) {
 		if req.Icon != nil {
 			updateOrgParams.Icon = *req.Icon
 		}
-
 		organization, err = tx.UpdateOrganization(ctx, updateOrgParams)
 		if err != nil {
 			return err
 		}
 		return nil
 	})
-
 	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -114,11 +103,9 @@ func (api *API) patchOrganization(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	aReq.New = organization
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Organization(organization))
 }
-
 // @Summary Delete organization
 // @ID delete-organization
 // @Security CoderSessionToken
@@ -142,21 +129,19 @@ func (api *API) deleteOrganization(rw http.ResponseWriter, r *http.Request) {
 	)
 	aReq.Old = organization
 	defer commitAudit()
-
 	if organization.IsDefault {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Default organization cannot be deleted.",
 		})
 		return
 	}
-
 	err := api.Database.InTx(func(tx database.Store) error {
 		err := tx.UpdateOrganizationDeletedByID(ctx, database.UpdateOrganizationDeletedByIDParams{
 			ID:        organization.ID,
 			UpdatedAt: dbtime.Now(),
 		})
 		if err != nil {
-			return xerrors.Errorf("delete organization: %w", err)
+			return fmt.Errorf("delete organization: %w", err)
 		}
 		return nil
 	}, nil)
@@ -167,13 +152,11 @@ func (api *API) deleteOrganization(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	aReq.New = database.Organization{}
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
 		Message: "Organization has been deleted.",
 	})
 }
-
 // @Summary Create organization
 // @ID create-organization
 // @Security CoderSessionToken
@@ -200,19 +183,16 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 	)
 	aReq.Old = database.Organization{}
 	defer commitAudit()
-
 	var req codersdk.CreateOrganizationRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-
 	if req.Name == codersdk.DefaultOrganization {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("Organization name %q is reserved.", codersdk.DefaultOrganization),
 		})
 		return
 	}
-
 	_, err := api.Database.GetOrganizationByName(ctx, database.GetOrganizationByNameParams{
 		Name:    req.Name,
 		Deleted: false,
@@ -223,20 +203,18 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if !xerrors.Is(err, sql.ErrNoRows) {
+	if !errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: fmt.Sprintf("Internal error fetching organization %q.", req.Name),
 			Detail:  err.Error(),
 		})
 		return
 	}
-
 	var organization database.Organization
 	err = api.Database.InTx(func(tx database.Store) error {
 		if req.DisplayName == "" {
 			req.DisplayName = req.Name
 		}
-
 		organization, err = tx.InsertOrganization(ctx, database.InsertOrganizationParams{
 			ID:          organizationID,
 			Name:        req.Name,
@@ -247,7 +225,7 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 			UpdatedAt:   dbtime.Now(),
 		})
 		if err != nil {
-			return xerrors.Errorf("create organization: %w", err)
+			return fmt.Errorf("create organization: %w", err)
 		}
 		_, err = tx.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
 			OrganizationID: organization.ID,
@@ -262,12 +240,11 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 			},
 		})
 		if err != nil {
-			return xerrors.Errorf("create organization admin: %w", err)
+			return fmt.Errorf("create organization admin: %w", err)
 		}
-
 		_, err = tx.InsertAllUsersGroup(ctx, organization.ID)
 		if err != nil {
-			return xerrors.Errorf("create %q group: %w", database.EveryoneGroup, err)
+			return fmt.Errorf("create %q group: %w", database.EveryoneGroup, err)
 		}
 		return nil
 	}, nil)
@@ -278,7 +255,6 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	aReq.New = organization
 	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.Organization(organization))
 }

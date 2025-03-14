@@ -1,16 +1,13 @@
 package workspacestats
-
 import (
+	"fmt"
+	"errors"
 	"context"
 	"encoding/json"
 	"sync/atomic"
 	"time"
-
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
-
 	"cdr.dev/slog"
-
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -21,7 +18,6 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 )
-
 type ReporterOptions struct {
 	Database              database.Store
 	Logger                slog.Logger
@@ -30,18 +26,14 @@ type ReporterOptions struct {
 	StatsBatcher          Batcher
 	UsageTracker          *UsageTracker
 	UpdateAgentMetricsFn  func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
-
 	AppStatBatchSize int
 }
-
 type Reporter struct {
 	opts ReporterOptions
 }
-
 func NewReporter(opts ReporterOptions) *Reporter {
 	return &Reporter{opts: opts}
 }
-
 func (r *Reporter) ReportAppStats(ctx context.Context, stats []workspaceapps.StatsReport) error {
 	err := r.opts.Database.InTx(func(tx database.Store) error {
 		maxBatchSize := r.opts.AppStatBatchSize
@@ -69,13 +61,11 @@ func (r *Reporter) ReportAppStats(ctx context.Context, stats []workspaceapps.Sta
 			batch.SessionStartedAt = append(batch.SessionStartedAt, stat.SessionStartedAt)
 			batch.SessionEndedAt = append(batch.SessionEndedAt, stat.SessionEndedAt)
 			batch.Requests = append(batch.Requests, int32(stat.Requests))
-
 			if len(batch.UserID) >= r.opts.AppStatBatchSize {
 				err := tx.InsertWorkspaceAppStats(ctx, batch)
 				if err != nil {
 					return err
 				}
-
 				// Reset batch.
 				batch.UserID = batch.UserID[:0]
 				batch.WorkspaceID = batch.WorkspaceID[:0]
@@ -91,11 +81,9 @@ func (r *Reporter) ReportAppStats(ctx context.Context, stats []workspaceapps.Sta
 		if len(batch.UserID) == 0 {
 			return nil
 		}
-
 		if err := tx.InsertWorkspaceAppStats(ctx, batch); err != nil {
 			return err
 		}
-
 		// TODO: We currently measure workspace usage based on when we get stats from it.
 		// There are currently two paths for this:
 		// 1) From SSH -> workspace agent stats POSTed from agent
@@ -108,28 +96,23 @@ func (r *Reporter) ReportAppStats(ctx context.Context, stats []workspaceapps.Sta
 		}); err != nil {
 			return err
 		}
-
 		return nil
 	}, nil)
 	if err != nil {
-		return xerrors.Errorf("insert workspace app stats failed: %w", err)
+		return fmt.Errorf("insert workspace app stats failed: %w", err)
 	}
-
 	return nil
 }
-
 // nolint:revive // usage is a control flag while we have the experiment
 func (r *Reporter) ReportAgentStats(ctx context.Context, now time.Time, workspace database.Workspace, workspaceAgent database.WorkspaceAgent, templateName string, stats *agentproto.Stats, usage bool) error {
 	// update agent stats
 	r.opts.StatsBatcher.Add(now, workspaceAgent.ID, workspace.TemplateID, workspace.OwnerID, workspace.ID, stats, usage)
-
 	// update prometheus metrics
 	if r.opts.UpdateAgentMetricsFn != nil {
 		user, err := r.opts.Database.GetUserByID(ctx, workspace.OwnerID)
 		if err != nil {
-			return xerrors.Errorf("get user: %w", err)
+			return fmt.Errorf("get user: %w", err)
 		}
-
 		r.opts.UpdateAgentMetricsFn(ctx, prometheusmetrics.AgentMetricLabels{
 			Username:      user.Username,
 			WorkspaceName: workspace.Name,
@@ -137,17 +120,14 @@ func (r *Reporter) ReportAgentStats(ctx context.Context, now time.Time, workspac
 			TemplateName:  templateName,
 		}, stats.Metrics)
 	}
-
 	// workspace activity: if no sessions we do not bump activity
 	if usage && stats.SessionCountVscode == 0 && stats.SessionCountJetbrains == 0 && stats.SessionCountReconnectingPty == 0 && stats.SessionCountSsh == 0 {
 		return nil
 	}
-
 	// legacy stats: if no active connections we do not bump activity
 	if !usage && stats.ConnectionCount == 0 {
 		return nil
 	}
-
 	// check next autostart
 	var nextAutostart time.Time
 	if workspace.AutostartSchedule.String != "" {
@@ -171,47 +151,39 @@ func (r *Reporter) ReportAgentStats(ctx context.Context, now time.Time, workspac
 			)
 		}
 	}
-
 	// bump workspace activity
 	ActivityBumpWorkspace(ctx, r.opts.Logger.Named("activity_bump"), r.opts.Database, workspace.ID, nextAutostart)
-
 	// bump workspace last_used_at
 	r.opts.UsageTracker.Add(workspace.ID)
-
 	// notify workspace update
 	msg, err := json.Marshal(wspubsub.WorkspaceEvent{
 		Kind:        wspubsub.WorkspaceEventKindStatsUpdate,
 		WorkspaceID: workspace.ID,
 	})
 	if err != nil {
-		return xerrors.Errorf("marshal workspace agent stats event: %w", err)
+		return fmt.Errorf("marshal workspace agent stats event: %w", err)
 	}
 	err = r.opts.Pubsub.Publish(wspubsub.WorkspaceEventChannel(workspace.OwnerID), msg)
 	if err != nil {
 		r.opts.Logger.Warn(ctx, "failed to publish workspace agent stats",
 			slog.F("workspace_id", workspace.ID), slog.Error(err))
 	}
-
 	return nil
 }
-
 type UpdateTemplateWorkspacesLastUsedAtFunc func(ctx context.Context, db database.Store, templateID uuid.UUID, lastUsedAt time.Time) error
-
 func UpdateTemplateWorkspacesLastUsedAt(ctx context.Context, db database.Store, templateID uuid.UUID, lastUsedAt time.Time) error {
 	err := db.UpdateTemplateWorkspacesLastUsedAt(ctx, database.UpdateTemplateWorkspacesLastUsedAtParams{
 		TemplateID: templateID,
 		LastUsedAt: lastUsedAt,
 	})
 	if err != nil {
-		return xerrors.Errorf("update template workspaces last used at: %w", err)
+		return fmt.Errorf("update template workspaces last used at: %w", err)
 	}
 	return nil
 }
-
 func (r *Reporter) TrackUsage(workspaceID uuid.UUID) {
 	r.opts.UsageTracker.Add(workspaceID)
 }
-
 func (r *Reporter) Close() error {
 	return r.opts.UsageTracker.Close()
 }

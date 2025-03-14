@@ -1,6 +1,6 @@
 package cliui
-
 import (
+	"errors"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -8,15 +8,11 @@ import (
 	"os"
 	"os/signal"
 	"strings"
-
 	"github.com/bgentry/speakeasy"
 	"github.com/mattn/go-isatty"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
 )
-
 // PromptOptions supply a set of options to the prompt.
 type PromptOptions struct {
 	Text      string
@@ -25,9 +21,7 @@ type PromptOptions struct {
 	IsConfirm bool
 	Validate  func(string) error
 }
-
 const skipPromptFlag = "yes"
-
 // SkipPromptOption adds a "--yes/-y" flag to the cmd that can be used to skip
 // prompts.
 func SkipPromptOption() serpent.Option {
@@ -39,12 +33,10 @@ func SkipPromptOption() serpent.Option {
 		Value: serpent.BoolOf(new(bool)),
 	}
 }
-
 const (
 	ConfirmYes = "yes"
 	ConfirmNo  = "no"
 )
-
 // Prompt asks the user for input.
 func Prompt(inv *serpent.Invocation, opts PromptOptions) (string, error) {
 	// If the cmd has a "yes" flag for skipping confirm prompts, honor it.
@@ -55,7 +47,6 @@ func Prompt(inv *serpent.Invocation, opts PromptOptions) (string, error) {
 			return ConfirmYes, nil
 		}
 	}
-
 	pretty.Fprintf(inv.Stdout, DefaultStyles.FocusedPrompt, "")
 	pretty.Fprintf(inv.Stdout, pretty.Nop, "%s ", opts.Text)
 	if opts.IsConfirm {
@@ -76,18 +67,14 @@ func Prompt(inv *serpent.Invocation, opts PromptOptions) (string, error) {
 		_, _ = fmt.Fprintf(inv.Stdout, "(%s) ", pretty.Sprint(DefaultStyles.Placeholder, opts.Default))
 	}
 	interrupt := make(chan os.Signal, 1)
-
 	if inv.Stdin == nil {
 		panic("inv.Stdin is nil")
 	}
-
 	errCh := make(chan error, 1)
 	lineCh := make(chan string)
-
 	go func() {
 		var line string
 		var err error
-
 		inFile, isInputFile := inv.Stdin.(*os.File)
 		if opts.Secret && isInputFile && isatty.IsTerminal(inFile.Fd()) {
 			// we don't install a signal handler here because speakeasy has its own
@@ -95,9 +82,7 @@ func Prompt(inv *serpent.Invocation, opts PromptOptions) (string, error) {
 		} else {
 			signal.Notify(interrupt, os.Interrupt)
 			defer signal.Stop(interrupt)
-
 			line, err = readUntil(inv.Stdin, '\n')
-
 			// Check if the first line beings with JSON object or array chars.
 			// This enables multiline JSON to be pasted into an input, and have
 			// it parse properly.
@@ -118,13 +103,12 @@ func Prompt(inv *serpent.Invocation, opts PromptOptions) (string, error) {
 		case lineCh <- line:
 		}
 	}()
-
 	select {
 	case err := <-errCh:
 		return "", err
 	case line := <-lineCh:
 		if opts.IsConfirm && line != "yes" && line != "y" {
-			return line, xerrors.Errorf("got %q: %w", line, Canceled)
+			return line, fmt.Errorf("got %q: %w", line, Canceled)
 		}
 		if opts.Validate != nil {
 			err := opts.Validate(line)
@@ -142,7 +126,6 @@ func Prompt(inv *serpent.Invocation, opts PromptOptions) (string, error) {
 		return "", Canceled
 	}
 }
-
 func promptJSON(reader io.Reader, line string) (string, error) {
 	var data bytes.Buffer
 	for {
@@ -157,7 +140,6 @@ func promptJSON(reader io.Reader, line string) (string, error) {
 				line = data.String()
 				break
 			}
-
 			// Read line-by-line. We can't use a JSON decoder
 			// here because it doesn't work by newline, so
 			// reads will block.
@@ -172,13 +154,12 @@ func promptJSON(reader io.Reader, line string) (string, error) {
 		data.Reset()
 		err = json.Compact(&data, rawJSON)
 		if err != nil {
-			return line, xerrors.Errorf("compact json: %w", err)
+			return line, fmt.Errorf("compact json: %w", err)
 		}
 		return data.String(), nil
 	}
 	return line, nil
 }
-
 // readUntil the first occurrence of delim in the input, returning a string containing the data up
 // to and including the delimiter. Unlike `bufio`, it only reads until the delimiter and no further
 // bytes. If readUntil encounters an error before finding a delimiter, it returns the data read

@@ -1,27 +1,22 @@
 //go:build windows
 // +build windows
-
 package pty_test
-
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"testing"
-
 	"github.com/coder/coder/v2/pty"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
-	"golang.org/x/xerrors"
 )
-
 func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
-
 func TestStart(t *testing.T) {
 	t.Parallel()
 	t.Run("Echo", func(t *testing.T) {
@@ -48,7 +43,7 @@ func TestStart(t *testing.T) {
 		assert.NoError(t, err)
 		err = ps.Wait()
 		var exitErr *exec.ExitError
-		require.True(t, xerrors.As(err, &exitErr))
+		require.True(t, errors.As(err, &exitErr))
 		assert.NotEqual(t, 0, exitErr.ExitCode())
 		err = ptty.Close()
 		require.NoError(t, err)
@@ -60,30 +55,21 @@ func TestStart(t *testing.T) {
 		assert.NoError(t, err)
 		err = ps.Wait()
 		var exitErr *exec.ExitError
-		require.True(t, xerrors.As(err, &exitErr))
+		require.True(t, errors.As(err, &exitErr))
 		assert.NotEqual(t, 0, exitErr.ExitCode())
 		err = ptty.Close()
 		require.NoError(t, err)
 	})
 }
-
 // these constants/vars are used by Test_Start_copy
-
 const cmdEcho = "cmd.exe"
-
 var argEcho = []string{"/c", "echo", "test"}
-
 // these constants/vars are used by Test_Start_truncate
-
 const (
 	countEnd = 1000
 	cmdCount = "cmd.exe"
 )
-
 var argCount = []string{"/c", fmt.Sprintf("for /L %%n in (1,1,%d) do @echo %%n", countEnd)}
-
 // these constants/vars are used by Test_Start_cancel_context
-
 const cmdSleep = "cmd.exe"
-
 var argSleep = []string{"/c", "timeout", "/t", "30"}

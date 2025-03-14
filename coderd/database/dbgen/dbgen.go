@@ -1,5 +1,4 @@
 package dbgen
-
 import (
 	"context"
 	"crypto/rand"
@@ -14,12 +13,9 @@ import (
 	"strings"
 	"testing"
 	"time"
-
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -31,10 +27,8 @@ import (
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/testutil"
 )
-
 // All methods take in a 'seed' object. Any provided fields in the seed will be
 // maintained. Any fields omitted will have sensible defaults generated.
-
 // genCtx is to give all generator functions permission if the db is a dbauthz db.
 var genCtx = dbauthz.As(context.Background(), rbac.Subject{
 	ID:     "owner",
@@ -42,7 +36,6 @@ var genCtx = dbauthz.As(context.Background(), rbac.Subject{
 	Groups: []string{},
 	Scope:  rbac.ExpandableScope(rbac.ScopeAll),
 })
-
 func AuditLog(t testing.TB, db database.Store, seed database.AuditLog) database.AuditLog {
 	log, err := db.InsertAuditLog(genCtx, database.InsertAuditLogParams{
 		ID:     takeFirst(seed.ID, uuid.New()),
@@ -71,7 +64,6 @@ func AuditLog(t testing.TB, db database.Store, seed database.AuditLog) database.
 	require.NoError(t, err, "insert audit log")
 	return log
 }
-
 func Template(t testing.TB, db database.Store, seed database.Template) database.Template {
 	id := takeFirst(seed.ID, uuid.New())
 	if seed.GroupACL == nil {
@@ -101,17 +93,14 @@ func Template(t testing.TB, db database.Store, seed database.Template) database.
 		MaxPortSharingLevel:          takeFirst(seed.MaxPortSharingLevel, database.AppSharingLevelOwner),
 	})
 	require.NoError(t, err, "insert template")
-
 	template, err := db.GetTemplateByID(genCtx, id)
 	require.NoError(t, err, "get template")
 	return template
 }
-
 func APIKey(t testing.TB, db database.Store, seed database.APIKey) (key database.APIKey, token string) {
 	id, _ := cryptorand.String(10)
 	secret, _ := cryptorand.String(22)
 	hashed := sha256.Sum256([]byte(secret))
-
 	ip := seed.IPAddress
 	if !ip.Valid {
 		ip = pqtype.Inet{
@@ -122,7 +111,6 @@ func APIKey(t testing.TB, db database.Store, seed database.APIKey) (key database
 			Valid: true,
 		}
 	}
-
 	key, err := db.InsertAPIKey(genCtx, database.InsertAPIKeyParams{
 		ID: takeFirst(seed.ID, id),
 		// 0 defaults to 86400 at the db layer
@@ -141,7 +129,6 @@ func APIKey(t testing.TB, db database.Store, seed database.APIKey) (key database
 	require.NoError(t, err, "insert api key")
 	return key, fmt.Sprintf("%s-%s", key.ID, secret)
 }
-
 func WorkspaceAgentPortShare(t testing.TB, db database.Store, orig database.WorkspaceAgentPortShare) database.WorkspaceAgentPortShare {
 	ps, err := db.UpsertWorkspaceAgentPortShare(genCtx, database.UpsertWorkspaceAgentPortShareParams{
 		WorkspaceID: takeFirst(orig.WorkspaceID, uuid.New()),
@@ -153,7 +140,6 @@ func WorkspaceAgentPortShare(t testing.TB, db database.Store, orig database.Work
 	require.NoError(t, err, "insert workspace agent")
 	return ps
 }
-
 func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgent) database.WorkspaceAgent {
 	agt, err := db.InsertWorkspaceAgent(genCtx, database.InsertWorkspaceAgentParams{
 		ID:         takeFirst(orig.ID, uuid.New()),
@@ -190,7 +176,6 @@ func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgen
 	require.NoError(t, err, "insert workspace agent")
 	return agt
 }
-
 func WorkspaceAgentScript(t testing.TB, db database.Store, orig database.WorkspaceAgentScript) database.WorkspaceAgentScript {
 	scripts, err := db.InsertWorkspaceAgentScripts(genCtx, database.InsertWorkspaceAgentScriptsParams{
 		WorkspaceAgentID: takeFirst(orig.WorkspaceAgentID, uuid.New()),
@@ -210,7 +195,6 @@ func WorkspaceAgentScript(t testing.TB, db database.Store, orig database.Workspa
 	require.NotEmpty(t, scripts, "insert workspace agent script returned no scripts")
 	return scripts[0]
 }
-
 func WorkspaceAgentScripts(t testing.TB, db database.Store, count int, orig database.WorkspaceAgentScript) []database.WorkspaceAgentScript {
 	scripts := make([]database.WorkspaceAgentScript, 0, count)
 	for range count {
@@ -218,7 +202,6 @@ func WorkspaceAgentScripts(t testing.TB, db database.Store, count int, orig data
 	}
 	return scripts
 }
-
 func WorkspaceAgentScriptTimings(t testing.TB, db database.Store, scripts []database.WorkspaceAgentScript) []database.WorkspaceAgentScriptTiming {
 	timings := make([]database.WorkspaceAgentScriptTiming, len(scripts))
 	for i, script := range scripts {
@@ -228,7 +211,6 @@ func WorkspaceAgentScriptTimings(t testing.TB, db database.Store, scripts []data
 	}
 	return timings
 }
-
 func WorkspaceAgentScriptTiming(t testing.TB, db database.Store, orig database.WorkspaceAgentScriptTiming) database.WorkspaceAgentScriptTiming {
 	// retry a few times in case of a unique constraint violation
 	for i := 0; i < 10; i++ {
@@ -254,16 +236,13 @@ func WorkspaceAgentScriptTiming(t testing.TB, db database.Store, orig database.W
 	}
 	panic("failed to insert workspace agent script timing")
 }
-
 func Workspace(t testing.TB, db database.Store, orig database.WorkspaceTable) database.WorkspaceTable {
 	t.Helper()
-
 	var defOrgID uuid.UUID
 	if orig.OrganizationID == uuid.Nil {
 		defOrg, _ := db.GetDefaultOrganization(genCtx)
 		defOrgID = defOrg.ID
 	}
-
 	workspace, err := db.InsertWorkspace(genCtx, database.InsertWorkspaceParams{
 		ID:                takeFirst(orig.ID, uuid.New()),
 		OwnerID:           takeFirst(orig.OwnerID, uuid.New()),
@@ -281,7 +260,6 @@ func Workspace(t testing.TB, db database.Store, orig database.WorkspaceTable) da
 	require.NoError(t, err, "insert workspace")
 	return workspace
 }
-
 func WorkspaceAgentLogSource(t testing.TB, db database.Store, orig database.WorkspaceAgentLogSource) database.WorkspaceAgentLogSource {
 	sources, err := db.InsertWorkspaceAgentLogSources(genCtx, database.InsertWorkspaceAgentLogSourcesParams{
 		WorkspaceAgentID: takeFirst(orig.WorkspaceAgentID, uuid.New()),
@@ -293,10 +271,8 @@ func WorkspaceAgentLogSource(t testing.TB, db database.Store, orig database.Work
 	require.NoError(t, err, "insert workspace agent log source")
 	return sources[0]
 }
-
 func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuild) database.WorkspaceBuild {
 	t.Helper()
-
 	buildID := takeFirst(orig.ID, uuid.New())
 	var build database.WorkspaceBuild
 	err := db.InTx(func(db database.Store) error {
@@ -322,7 +298,6 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 		if err != nil {
 			return err
 		}
-
 		if orig.DailyCost > 0 {
 			err = db.UpdateWorkspaceBuildCostByID(genCtx, database.UpdateWorkspaceBuildCostByIDParams{
 				ID:        buildID,
@@ -330,7 +305,6 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 			})
 			require.NoError(t, err)
 		}
-
 		build, err = db.GetWorkspaceBuildByID(genCtx, buildID)
 		if err != nil {
 			return err
@@ -338,15 +312,12 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 		return nil
 	}, nil)
 	require.NoError(t, err, "insert workspace build")
-
 	return build
 }
-
 func WorkspaceBuildParameters(t testing.TB, db database.Store, orig []database.WorkspaceBuildParameter) []database.WorkspaceBuildParameter {
 	if len(orig) == 0 {
 		return nil
 	}
-
 	var (
 		names  = make([]string, 0, len(orig))
 		values = make([]string, 0, len(orig))
@@ -366,14 +337,12 @@ func WorkspaceBuildParameters(t testing.TB, db database.Store, orig []database.W
 		if err != nil {
 			return err
 		}
-
 		params, err = tx.GetWorkspaceBuildParameters(genCtx, id)
 		return err
 	}, nil)
 	require.NoError(t, err)
 	return params
 }
-
 func User(t testing.TB, db database.Store, orig database.User) database.User {
 	user, err := db.InsertUser(genCtx, database.InsertUserParams{
 		ID:             takeFirst(orig.ID, uuid.New()),
@@ -388,14 +357,12 @@ func User(t testing.TB, db database.Store, orig database.User) database.User {
 		Status:         string(takeFirst(orig.Status, database.UserStatusDormant)),
 	})
 	require.NoError(t, err, "insert user")
-
 	user, err = db.UpdateUserStatus(genCtx, database.UpdateUserStatusParams{
 		ID:        user.ID,
 		Status:    takeFirst(orig.Status, database.UserStatusActive),
 		UpdatedAt: dbtime.Now(),
 	})
 	require.NoError(t, err, "insert user")
-
 	if !orig.LastSeenAt.IsZero() {
 		user, err = db.UpdateUserLastSeenAt(genCtx, database.UpdateUserLastSeenAtParams{
 			ID:         user.ID,
@@ -404,14 +371,12 @@ func User(t testing.TB, db database.Store, orig database.User) database.User {
 		})
 		require.NoError(t, err, "user last seen")
 	}
-
 	if orig.Deleted {
 		err = db.UpdateUserDeletedByID(genCtx, user.ID)
 		require.NoError(t, err, "set user as deleted")
 	}
 	return user
 }
-
 func GitSSHKey(t testing.TB, db database.Store, orig database.GitSSHKey) database.GitSSHKey {
 	key, err := db.InsertGitSSHKey(genCtx, database.InsertGitSSHKeyParams{
 		UserID:     takeFirst(orig.UserID, uuid.New()),
@@ -423,7 +388,6 @@ func GitSSHKey(t testing.TB, db database.Store, orig database.GitSSHKey) databas
 	require.NoError(t, err, "insert ssh key")
 	return key
 }
-
 func Organization(t testing.TB, db database.Store, orig database.Organization) database.Organization {
 	org, err := db.InsertOrganization(genCtx, database.InsertOrganizationParams{
 		ID:          takeFirst(orig.ID, uuid.New()),
@@ -437,7 +401,6 @@ func Organization(t testing.TB, db database.Store, orig database.Organization) d
 	require.NoError(t, err, "insert organization")
 	return org
 }
-
 func OrganizationMember(t testing.TB, db database.Store, orig database.OrganizationMember) database.OrganizationMember {
 	mem, err := db.InsertOrganizationMember(genCtx, database.InsertOrganizationMemberParams{
 		OrganizationID: takeFirst(orig.OrganizationID, uuid.New()),
@@ -449,7 +412,6 @@ func OrganizationMember(t testing.TB, db database.Store, orig database.Organizat
 	require.NoError(t, err, "insert organization")
 	return mem
 }
-
 func NotificationInbox(t testing.TB, db database.Store, orig database.InsertInboxNotificationParams) database.InboxNotification {
 	notification, err := db.InsertInboxNotification(genCtx, database.InsertInboxNotificationParams{
 		ID:         takeFirst(orig.ID, uuid.New()),
@@ -465,10 +427,8 @@ func NotificationInbox(t testing.TB, db database.Store, orig database.InsertInbo
 	require.NoError(t, err, "insert notification")
 	return notification
 }
-
 func Group(t testing.TB, db database.Store, orig database.Group) database.Group {
 	t.Helper()
-
 	name := takeFirst(orig.Name, testutil.GetRandomName(t))
 	group, err := db.InsertGroup(genCtx, database.InsertGroupParams{
 		ID:             takeFirst(orig.ID, uuid.New()),
@@ -481,7 +441,6 @@ func Group(t testing.TB, db database.Store, orig database.Group) database.Group 
 	require.NoError(t, err, "insert group")
 	return group
 }
-
 // GroupMember requires a user + group to already exist.
 // Example for creating a group member for a random group + user.
 //
@@ -494,26 +453,22 @@ func Group(t testing.TB, db database.Store, orig database.Group) database.Group 
 func GroupMember(t testing.TB, db database.Store, member database.GroupMemberTable) database.GroupMember {
 	require.NotEqual(t, member.UserID, uuid.Nil, "A user id is required to use 'dbgen.GroupMember', use 'dbgen.User'.")
 	require.NotEqual(t, member.GroupID, uuid.Nil, "A group id is required to use 'dbgen.GroupMember', use 'dbgen.Group'.")
-
 	//nolint:gosimple
 	err := db.InsertGroupMember(genCtx, database.InsertGroupMemberParams{
 		UserID:  member.UserID,
 		GroupID: member.GroupID,
 	})
 	require.NoError(t, err, "insert group member")
-
 	user, err := db.GetUserByID(genCtx, member.UserID)
 	if errors.Is(err, sql.ErrNoRows) {
 		require.NoErrorf(t, err, "'dbgen.GroupMember' failed as the user with id %s does not exist. A user is required to use this function, use 'dbgen.User'.", member.UserID)
 	}
 	require.NoError(t, err, "get user by id")
-
 	group, err := db.GetGroupByID(genCtx, member.GroupID)
 	if errors.Is(err, sql.ErrNoRows) {
 		require.NoErrorf(t, err, "'dbgen.GroupMember' failed as the group with id %s does not exist. A group is required to use this function, use 'dbgen.Group'.", member.GroupID)
 	}
 	require.NoError(t, err, "get group by id")
-
 	groupMember := database.GroupMember{
 		UserID:                 user.ID,
 		UserEmail:              user.Email,
@@ -534,21 +489,17 @@ func GroupMember(t testing.TB, db database.Store, member database.GroupMemberTab
 		GroupName:              group.Name,
 		GroupID:                group.ID,
 	}
-
 	return groupMember
 }
-
 // ProvisionerDaemon creates a provisioner daemon as far as the database is concerned. It does not run a provisioner daemon.
 // If no key is provided, it will create one.
 func ProvisionerDaemon(t testing.TB, db database.Store, orig database.ProvisionerDaemon) database.ProvisionerDaemon {
 	t.Helper()
-
 	var defOrgID uuid.UUID
 	if orig.OrganizationID == uuid.Nil {
 		defOrg, _ := db.GetDefaultOrganization(genCtx)
 		defOrgID = defOrg.ID
 	}
-
 	daemon := database.UpsertProvisionerDaemonParams{
 		Name:           takeFirst(orig.Name, testutil.GetRandomName(t)),
 		OrganizationID: takeFirst(orig.OrganizationID, defOrgID, uuid.New()),
@@ -560,7 +511,6 @@ func ProvisionerDaemon(t testing.TB, db database.Store, orig database.Provisione
 		Version:        takeFirst(orig.Version, "v0.0.0"),
 		APIVersion:     takeFirst(orig.APIVersion, "1.1"),
 	}
-
 	if daemon.KeyID == uuid.Nil {
 		key, err := db.InsertProvisionerKey(genCtx, database.InsertProvisionerKeyParams{
 			ID:             uuid.New(),
@@ -573,25 +523,20 @@ func ProvisionerDaemon(t testing.TB, db database.Store, orig database.Provisione
 		require.NoError(t, err)
 		daemon.KeyID = key.ID
 	}
-
 	d, err := db.UpsertProvisionerDaemon(genCtx, daemon)
 	require.NoError(t, err)
 	return d
 }
-
 // ProvisionerJob is a bit more involved to get the values such as "completedAt", "startedAt", "cancelledAt" set.  ps
 // can be set to nil if you are SURE that you don't require a provisionerdaemon to acquire the job in your test.
 func ProvisionerJob(t testing.TB, db database.Store, ps pubsub.Pubsub, orig database.ProvisionerJob) database.ProvisionerJob {
 	t.Helper()
-
 	var defOrgID uuid.UUID
 	if orig.OrganizationID == uuid.Nil {
 		defOrg, _ := db.GetDefaultOrganization(genCtx)
 		defOrgID = defOrg.ID
 	}
-
 	jobID := takeFirst(orig.ID, uuid.New())
-
 	// Always set some tags to prevent Acquire from grabbing jobs it should not.
 	tags := maps.Clone(orig.Tags)
 	if !orig.StartedAt.Time.IsZero() {
@@ -601,7 +546,6 @@ func ProvisionerJob(t testing.TB, db database.Store, ps pubsub.Pubsub, orig data
 		// Make sure when we acquire the job, we only get this one.
 		tags[jobID.String()] = "true"
 	}
-
 	job, err := db.InsertProvisionerJob(genCtx, database.InsertProvisionerJobParams{
 		ID:             jobID,
 		CreatedAt:      takeFirst(orig.CreatedAt, dbtime.Now()),
@@ -633,7 +577,6 @@ func ProvisionerJob(t testing.TB, db database.Store, ps pubsub.Pubsub, orig data
 		// There is no easy way to make sure we acquire the correct job.
 		require.Equal(t, jobID, job.ID, "acquired incorrect job")
 	}
-
 	if !orig.CompletedAt.Time.IsZero() || orig.Error.String != "" {
 		err = db.UpdateProvisionerJobWithCompleteByID(genCtx, database.UpdateProvisionerJobWithCompleteByIDParams{
 			ID:          jobID,
@@ -652,13 +595,10 @@ func ProvisionerJob(t testing.TB, db database.Store, ps pubsub.Pubsub, orig data
 		})
 		require.NoError(t, err)
 	}
-
 	job, err = db.GetProvisionerJobByID(genCtx, jobID)
 	require.NoError(t, err, "get job: %s", jobID.String())
-
 	return job
 }
-
 func ProvisionerKey(t testing.TB, db database.Store, orig database.ProvisionerKey) database.ProvisionerKey {
 	key, err := db.InsertProvisionerKey(genCtx, database.InsertProvisionerKeyParams{
 		ID:             takeFirst(orig.ID, uuid.New()),
@@ -671,7 +611,6 @@ func ProvisionerKey(t testing.TB, db database.Store, orig database.ProvisionerKe
 	require.NoError(t, err, "insert provisioner key")
 	return key
 }
-
 func WorkspaceApp(t testing.TB, db database.Store, orig database.WorkspaceApp) database.WorkspaceApp {
 	resource, err := db.InsertWorkspaceApp(genCtx, database.InsertWorkspaceAppParams{
 		ID:          takeFirst(orig.ID, uuid.New()),
@@ -702,12 +641,10 @@ func WorkspaceApp(t testing.TB, db database.Store, orig database.WorkspaceApp) d
 	require.NoError(t, err, "insert app")
 	return resource
 }
-
 func WorkspaceAppStat(t testing.TB, db database.Store, orig database.WorkspaceAppStat) database.WorkspaceAppStat {
 	// This is not going to be correct, but our query doesn't return the ID.
 	id, err := cryptorand.Int63()
 	require.NoError(t, err, "generate id")
-
 	scheme := database.WorkspaceAppStat{
 		ID:               takeFirst(orig.ID, id),
 		UserID:           takeFirst(orig.UserID, uuid.New()),
@@ -734,7 +671,6 @@ func WorkspaceAppStat(t testing.TB, db database.Store, orig database.WorkspaceAp
 	require.NoError(t, err, "insert workspace agent stat")
 	return scheme
 }
-
 func WorkspaceResource(t testing.TB, db database.Store, orig database.WorkspaceResource) database.WorkspaceResource {
 	resource, err := db.InsertWorkspaceResource(genCtx, database.InsertWorkspaceResourceParams{
 		ID:         takeFirst(orig.ID, uuid.New()),
@@ -758,7 +694,6 @@ func WorkspaceResource(t testing.TB, db database.Store, orig database.WorkspaceR
 	require.NoError(t, err, "insert resource")
 	return resource
 }
-
 func WorkspaceModule(t testing.TB, db database.Store, orig database.WorkspaceModule) database.WorkspaceModule {
 	module, err := db.InsertWorkspaceModule(genCtx, database.InsertWorkspaceModuleParams{
 		ID:         takeFirst(orig.ID, uuid.New()),
@@ -772,7 +707,6 @@ func WorkspaceModule(t testing.TB, db database.Store, orig database.WorkspaceMod
 	require.NoError(t, err, "insert workspace module")
 	return module
 }
-
 func WorkspaceResourceMetadatums(t testing.TB, db database.Store, seed database.WorkspaceResourceMetadatum) []database.WorkspaceResourceMetadatum {
 	meta, err := db.InsertWorkspaceResourceMetadata(genCtx, database.InsertWorkspaceResourceMetadataParams{
 		WorkspaceResourceID: takeFirst(seed.WorkspaceResourceID, uuid.New()),
@@ -783,12 +717,10 @@ func WorkspaceResourceMetadatums(t testing.TB, db database.Store, seed database.
 	require.NoError(t, err, "insert meta data")
 	return meta
 }
-
 func WorkspaceProxy(t testing.TB, db database.Store, orig database.WorkspaceProxy) (database.WorkspaceProxy, string) {
 	secret, err := cryptorand.HexString(64)
 	require.NoError(t, err, "generate secret")
 	hashedSecret := sha256.Sum256([]byte(secret))
-
 	proxy, err := db.InsertWorkspaceProxy(genCtx, database.InsertWorkspaceProxyParams{
 		ID:                takeFirst(orig.ID, uuid.New()),
 		Name:              takeFirst(orig.Name, testutil.GetRandomName(t)),
@@ -801,7 +733,6 @@ func WorkspaceProxy(t testing.TB, db database.Store, orig database.WorkspaceProx
 		DerpOnly:          takeFirst(orig.DerpEnabled, false),
 	})
 	require.NoError(t, err, "insert proxy")
-
 	// Also set these fields if the caller wants them.
 	if orig.Url != "" || orig.WildcardHostname != "" {
 		proxy, err = db.RegisterWorkspaceProxy(genCtx, database.RegisterWorkspaceProxyParams{
@@ -813,7 +744,6 @@ func WorkspaceProxy(t testing.TB, db database.Store, orig database.WorkspaceProx
 	}
 	return proxy, secret
 }
-
 func File(t testing.TB, db database.Store, orig database.File) database.File {
 	file, err := db.InsertFile(genCtx, database.InsertFileParams{
 		ID:        takeFirst(orig.ID, uuid.New()),
@@ -826,7 +756,6 @@ func File(t testing.TB, db database.Store, orig database.File) database.File {
 	require.NoError(t, err, "insert file")
 	return file
 }
-
 func UserLink(t testing.TB, db database.Store, orig database.UserLink) database.UserLink {
 	link, err := db.InsertUserLink(genCtx, database.InsertUserLinkParams{
 		UserID:                 takeFirst(orig.UserID, uuid.New()),
@@ -839,11 +768,9 @@ func UserLink(t testing.TB, db database.Store, orig database.UserLink) database.
 		OAuthExpiry:            takeFirst(orig.OAuthExpiry, dbtime.Now().Add(time.Hour*24)),
 		Claims:                 orig.Claims,
 	})
-
 	require.NoError(t, err, "insert link")
 	return link
 }
-
 func ExternalAuthLink(t testing.TB, db database.Store, orig database.ExternalAuthLink) database.ExternalAuthLink {
 	msg := takeFirst(&orig.OAuthExtra, &pqtype.NullRawMessage{})
 	link, err := db.InsertExternalAuthLink(genCtx, database.InsertExternalAuthLinkParams{
@@ -858,11 +785,9 @@ func ExternalAuthLink(t testing.TB, db database.Store, orig database.ExternalAut
 		UpdatedAt:              takeFirst(orig.UpdatedAt, dbtime.Now()),
 		OAuthExtra:             *msg,
 	})
-
 	require.NoError(t, err, "insert external auth link")
 	return link
 }
-
 func TemplateVersion(t testing.TB, db database.Store, orig database.TemplateVersion) database.TemplateVersion {
 	var version database.TemplateVersion
 	err := db.InTx(func(db database.Store) error {
@@ -883,7 +808,6 @@ func TemplateVersion(t testing.TB, db database.Store, orig database.TemplateVers
 		if err != nil {
 			return err
 		}
-
 		version, err = db.GetTemplateVersionByID(genCtx, versionID)
 		if err != nil {
 			return err
@@ -891,10 +815,8 @@ func TemplateVersion(t testing.TB, db database.Store, orig database.TemplateVers
 		return nil
 	}, nil)
 	require.NoError(t, err, "insert template version")
-
 	return version
 }
-
 func TemplateVersionVariable(t testing.TB, db database.Store, orig database.TemplateVersionVariable) database.TemplateVersionVariable {
 	version, err := db.InsertTemplateVersionVariable(genCtx, database.InsertTemplateVersionVariableParams{
 		TemplateVersionID: takeFirst(orig.TemplateVersionID, uuid.New()),
@@ -909,7 +831,6 @@ func TemplateVersionVariable(t testing.TB, db database.Store, orig database.Temp
 	require.NoError(t, err, "insert template version variable")
 	return version
 }
-
 func TemplateVersionWorkspaceTag(t testing.TB, db database.Store, orig database.TemplateVersionWorkspaceTag) database.TemplateVersionWorkspaceTag {
 	workspaceTag, err := db.InsertTemplateVersionWorkspaceTag(genCtx, database.InsertTemplateVersionWorkspaceTagParams{
 		TemplateVersionID: takeFirst(orig.TemplateVersionID, uuid.New()),
@@ -919,10 +840,8 @@ func TemplateVersionWorkspaceTag(t testing.TB, db database.Store, orig database.
 	require.NoError(t, err, "insert template version workspace tag")
 	return workspaceTag
 }
-
 func TemplateVersionParameter(t testing.TB, db database.Store, orig database.TemplateVersionParameter) database.TemplateVersionParameter {
 	t.Helper()
-
 	version, err := db.InsertTemplateVersionParameter(genCtx, database.InsertTemplateVersionParameterParams{
 		TemplateVersionID:   takeFirst(orig.TemplateVersionID, uuid.New()),
 		Name:                takeFirst(orig.Name, testutil.GetRandomName(t)),
@@ -945,13 +864,11 @@ func TemplateVersionParameter(t testing.TB, db database.Store, orig database.Tem
 	require.NoError(t, err, "insert template version parameter")
 	return version
 }
-
 func WorkspaceAgentStat(t testing.TB, db database.Store, orig database.WorkspaceAgentStat) database.WorkspaceAgentStat {
 	if orig.ConnectionsByProto == nil {
 		orig.ConnectionsByProto = json.RawMessage([]byte("{}"))
 	}
 	jsonProto := []byte(fmt.Sprintf("[%s]", orig.ConnectionsByProto))
-
 	params := database.InsertWorkspaceAgentStatsParams{
 		ID:                          []uuid.UUID{takeFirst(orig.ID, uuid.New())},
 		CreatedAt:                   []time.Time{takeFirst(orig.CreatedAt, dbtime.Now())},
@@ -974,7 +891,6 @@ func WorkspaceAgentStat(t testing.TB, db database.Store, orig database.Workspace
 	}
 	err := db.InsertWorkspaceAgentStats(genCtx, params)
 	require.NoError(t, err, "insert workspace agent stat")
-
 	return database.WorkspaceAgentStat{
 		ID:                          params.ID[0],
 		CreatedAt:                   params.CreatedAt[0],
@@ -996,7 +912,6 @@ func WorkspaceAgentStat(t testing.TB, db database.Store, orig database.Workspace
 		Usage:                       params.Usage[0],
 	}
 }
-
 func OAuth2ProviderApp(t testing.TB, db database.Store, seed database.OAuth2ProviderApp) database.OAuth2ProviderApp {
 	app, err := db.InsertOAuth2ProviderApp(genCtx, database.InsertOAuth2ProviderAppParams{
 		ID:          takeFirst(seed.ID, uuid.New()),
@@ -1009,7 +924,6 @@ func OAuth2ProviderApp(t testing.TB, db database.Store, seed database.OAuth2Prov
 	require.NoError(t, err, "insert oauth2 app")
 	return app
 }
-
 func OAuth2ProviderAppSecret(t testing.TB, db database.Store, seed database.OAuth2ProviderAppSecret) database.OAuth2ProviderAppSecret {
 	app, err := db.InsertOAuth2ProviderAppSecret(genCtx, database.InsertOAuth2ProviderAppSecretParams{
 		ID:            takeFirst(seed.ID, uuid.New()),
@@ -1022,7 +936,6 @@ func OAuth2ProviderAppSecret(t testing.TB, db database.Store, seed database.OAut
 	require.NoError(t, err, "insert oauth2 app secret")
 	return app
 }
-
 func OAuth2ProviderAppCode(t testing.TB, db database.Store, seed database.OAuth2ProviderAppCode) database.OAuth2ProviderAppCode {
 	code, err := db.InsertOAuth2ProviderAppCode(genCtx, database.InsertOAuth2ProviderAppCodeParams{
 		ID:           takeFirst(seed.ID, uuid.New()),
@@ -1036,7 +949,6 @@ func OAuth2ProviderAppCode(t testing.TB, db database.Store, seed database.OAuth2
 	require.NoError(t, err, "insert oauth2 app code")
 	return code
 }
-
 func OAuth2ProviderAppToken(t testing.TB, db database.Store, seed database.OAuth2ProviderAppToken) database.OAuth2ProviderAppToken {
 	token, err := db.InsertOAuth2ProviderAppToken(genCtx, database.InsertOAuth2ProviderAppTokenParams{
 		ID:          takeFirst(seed.ID, uuid.New()),
@@ -1050,7 +962,6 @@ func OAuth2ProviderAppToken(t testing.TB, db database.Store, seed database.OAuth
 	require.NoError(t, err, "insert oauth2 app token")
 	return token
 }
-
 func WorkspaceAgentMemoryResourceMonitor(t testing.TB, db database.Store, seed database.WorkspaceAgentMemoryResourceMonitor) database.WorkspaceAgentMemoryResourceMonitor {
 	monitor, err := db.InsertMemoryResourceMonitor(genCtx, database.InsertMemoryResourceMonitorParams{
 		AgentID:        takeFirst(seed.AgentID, uuid.New()),
@@ -1064,7 +975,6 @@ func WorkspaceAgentMemoryResourceMonitor(t testing.TB, db database.Store, seed d
 	require.NoError(t, err, "insert workspace agent memory resource monitor")
 	return monitor
 }
-
 func WorkspaceAgentVolumeResourceMonitor(t testing.TB, db database.Store, seed database.WorkspaceAgentVolumeResourceMonitor) database.WorkspaceAgentVolumeResourceMonitor {
 	monitor, err := db.InsertVolumeResourceMonitor(genCtx, database.InsertVolumeResourceMonitorParams{
 		AgentID:        takeFirst(seed.AgentID, uuid.New()),
@@ -1079,7 +989,6 @@ func WorkspaceAgentVolumeResourceMonitor(t testing.TB, db database.Store, seed d
 	require.NoError(t, err, "insert workspace agent volume resource monitor")
 	return monitor
 }
-
 func CustomRole(t testing.TB, db database.Store, seed database.CustomRole) database.CustomRole {
 	role, err := db.InsertCustomRole(genCtx, database.InsertCustomRoleParams{
 		Name:            takeFirst(seed.Name, strings.ToLower(testutil.GetRandomName(t))),
@@ -1092,12 +1001,9 @@ func CustomRole(t testing.TB, db database.Store, seed database.CustomRole) datab
 	require.NoError(t, err, "insert custom role")
 	return role
 }
-
 func CryptoKey(t testing.TB, db database.Store, seed database.CryptoKey) database.CryptoKey {
 	t.Helper()
-
 	seed.Feature = takeFirst(seed.Feature, database.CryptoKeyFeatureWorkspaceAppsAPIKey)
-
 	// An empty string for the secret is interpreted as
 	// a caller wanting a new secret to be generated.
 	// To generate a key with a NULL secret set Valid=false
@@ -1110,7 +1016,6 @@ func CryptoKey(t testing.TB, db database.Store, seed database.CryptoKey) databas
 			Valid:  true,
 		}
 	}
-
 	key, err := db.InsertCryptoKey(genCtx, database.InsertCryptoKeyParams{
 		Sequence:    takeFirst(seed.Sequence, 123),
 		Secret:      seed.Secret,
@@ -1119,7 +1024,6 @@ func CryptoKey(t testing.TB, db database.Store, seed database.CryptoKey) databas
 		StartsAt:    takeFirst(seed.StartsAt, dbtime.Now()),
 	})
 	require.NoError(t, err, "insert crypto key")
-
 	if seed.DeletesAt.Valid {
 		key, err = db.UpdateCryptoKeyDeletesAt(genCtx, database.UpdateCryptoKeyDeletesAtParams{
 			Feature:   key.Feature,
@@ -1130,7 +1034,6 @@ func CryptoKey(t testing.TB, db database.Store, seed database.CryptoKey) databas
 	}
 	return key
 }
-
 func ProvisionerJobTimings(t testing.TB, db database.Store, build database.WorkspaceBuild, count int) []database.ProvisionerJobTiming {
 	timings := make([]database.ProvisionerJobTiming, count)
 	for i := range count {
@@ -1140,7 +1043,6 @@ func ProvisionerJobTimings(t testing.TB, db database.Store, build database.Works
 	}
 	return timings
 }
-
 func TelemetryItem(t testing.TB, db database.Store, seed database.TelemetryItem) database.TelemetryItem {
 	if seed.Key == "" {
 		seed.Key = testutil.GetRandomName(t)
@@ -1157,7 +1059,6 @@ func TelemetryItem(t testing.TB, db database.Store, seed database.TelemetryItem)
 	require.NoError(t, err, "get telemetry item")
 	return item
 }
-
 func provisionerJobTiming(t testing.TB, db database.Store, seed database.ProvisionerJobTiming) database.ProvisionerJobTiming {
 	timing, err := db.InsertProvisionerJobTimings(genCtx, database.InsertProvisionerJobTimingsParams{
 		JobID:     takeFirst(seed.JobID, uuid.New()),
@@ -1171,20 +1072,17 @@ func provisionerJobTiming(t testing.TB, db database.Store, seed database.Provisi
 	require.NoError(t, err, "insert provisioner job timing")
 	return timing[0]
 }
-
 func must[V any](v V, err error) V {
 	if err != nil {
 		panic(err)
 	}
 	return v
 }
-
 func takeFirstIP(values ...net.IPNet) net.IPNet {
 	return takeFirstF(values, func(v net.IPNet) bool {
 		return len(v.IP) != 0 && len(v.Mask) != 0
 	})
 }
-
 // takeFirstSlice implements takeFirst for []any.
 // []any is not a comparable type.
 func takeFirstSlice[T any](values ...[]T) []T {
@@ -1192,13 +1090,11 @@ func takeFirstSlice[T any](values ...[]T) []T {
 		return len(v) != 0
 	})
 }
-
 func takeFirstMap[T, E comparable](values ...map[T]E) map[T]E {
 	return takeFirstF(values, func(v map[T]E) bool {
 		return v != nil
 	})
 }
-
 // takeFirstF takes the first value that returns true
 func takeFirstF[Value any](values []Value, take func(v Value) bool) Value {
 	for _, v := range values {
@@ -1213,7 +1109,6 @@ func takeFirstF[Value any](values []Value, take func(v Value) bool) Value {
 	var empty Value
 	return empty
 }
-
 // takeFirst will take the first non-empty value.
 func takeFirst[Value comparable](values ...Value) Value {
 	var empty Value
@@ -1221,7 +1116,6 @@ func takeFirst[Value comparable](values ...Value) Value {
 		return v != empty
 	})
 }
-
 func newCryptoKeySecret(feature database.CryptoKeyFeature) (string, error) {
 	switch feature {
 	case database.CryptoKeyFeatureWorkspaceAppsAPIKey:
@@ -1233,14 +1127,13 @@ func newCryptoKeySecret(feature database.CryptoKeyFeature) (string, error) {
 	case database.CryptoKeyFeatureTailnetResume:
 		return generateCryptoKey(64)
 	}
-	return "", xerrors.Errorf("unknown feature: %s", feature)
+	return "", fmt.Errorf("unknown feature: %s", feature)
 }
-
 func generateCryptoKey(length int) (string, error) {
 	b := make([]byte, length)
 	_, err := rand.Read(b)
 	if err != nil {
-		return "", xerrors.Errorf("rand read: %w", err)
+		return "", fmt.Errorf("rand read: %w", err)
 	}
 	return hex.EncodeToString(b), nil
 }

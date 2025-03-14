@@ -1,18 +1,16 @@
 package tailnet
-
 import (
+	"fmt"
+	"errors"
 	"context"
 	"database/sql"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
-
 	"github.com/cenkalti/backoff/v4"
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 	gProto "google.golang.org/protobuf/proto"
-
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -23,7 +21,6 @@ import (
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/quartz"
 )
-
 const (
 	EventHeartbeats        = "tailnet_coordinator_heartbeat"
 	eventPeerUpdate        = "tailnet_peer_update"
@@ -38,7 +35,6 @@ const (
 	dbMaxBackoff           = 10 * time.Second
 	cleanupPeriod          = time.Hour
 )
-
 // pgCoord is a postgres-backed coordinator
 //
 //	                 ┌────────────┐
@@ -78,24 +74,20 @@ type pgCoord struct {
 	logger slog.Logger
 	pubsub pubsub.Pubsub
 	store  database.Store
-
 	bindings         chan binding
 	newConnections   chan *connIO
 	closeConnections chan *connIO
 	tunnelerCh       chan tunnel
 	handshakerCh     chan readyForHandshake
 	id               uuid.UUID
-
 	cancel    context.CancelFunc
 	closeOnce sync.Once
 	closed    chan struct{}
-
 	binder     *binder
 	tunneler   *tunneler
 	handshaker *handshaker
 	querier    *querier
 }
-
 var pgCoordSubject = rbac.Subject{
 	ID: uuid.Nil.String(),
 	Roles: rbac.Roles([]rbac.Role{
@@ -111,18 +103,15 @@ var pgCoordSubject = rbac.Subject{
 	}),
 	Scope: rbac.ScopeAll,
 }.WithCachedASTValue()
-
 // NewPGCoord creates a high-availability coordinator that stores state in the PostgreSQL database and
 // receives notifications of updates via the pubsub.
 func NewPGCoord(ctx context.Context, logger slog.Logger, ps pubsub.Pubsub, store database.Store) (agpl.Coordinator, error) {
 	return newPGCoordInternal(ctx, logger, ps, store, quartz.NewReal())
 }
-
 // NewTestPGCoord is only used in testing to pass a clock.Clock in.
 func NewTestPGCoord(ctx context.Context, logger slog.Logger, ps pubsub.Pubsub, store database.Store, clk quartz.Clock) (agpl.Coordinator, error) {
 	return newPGCoordInternal(ctx, logger, ps, store, clk)
 }
-
 func newPGCoordInternal(
 	ctx context.Context, logger slog.Logger, ps pubsub.Pubsub, store database.Store, clk quartz.Clock,
 ) (
@@ -142,7 +131,6 @@ func newPGCoordInternal(
 	rfhCh := make(chan readyForHandshake)
 	// signals when first heartbeat has been sent, so it's safe to start binding.
 	fHB := make(chan struct{})
-
 	c := &pgCoord{
 		ctx:              ctx,
 		cancel:           cancel,
@@ -164,7 +152,6 @@ func newPGCoordInternal(
 	logger.Info(ctx, "starting coordinator")
 	return c, nil
 }
-
 func (c *pgCoord) Node(id uuid.UUID) *agpl.Node {
 	// We're going to directly query the database, since we would only have the mapping stored locally if we had
 	// a tunnel peer connected, which is not always the case.
@@ -207,7 +194,6 @@ func (c *pgCoord) Node(id uuid.UUID) *agpl.Node {
 	}
 	return node
 }
-
 func (c *pgCoord) Close() error {
 	c.logger.Info(c.ctx, "closing coordinator")
 	c.cancel()
@@ -218,7 +204,6 @@ func (c *pgCoord) Close() error {
 	c.handshaker.workerWG.Wait()
 	return nil
 }
-
 func (c *pgCoord) Coordinate(
 	ctx context.Context, id uuid.UUID, name string, a agpl.CoordinateeAuth,
 ) (
@@ -248,36 +233,29 @@ func (c *pgCoord) Coordinate(
 		<-cIO.Done()
 		_ = agpl.SendCtx(c.ctx, c.closeConnections, cIO)
 	}()
-
 	return reqs, resps
 }
-
 type tKey struct {
 	src uuid.UUID
 	dst uuid.UUID
 }
-
 type tunnel struct {
 	tKey
 	// whether the subscription should be active. if true, the subscription is
 	// added. if false, the subscription is removed.
 	active bool
 }
-
 type tunneler struct {
 	ctx           context.Context
 	logger        slog.Logger
 	coordinatorID uuid.UUID
 	store         database.Store
 	updates       <-chan tunnel
-
 	mu     sync.Mutex
 	latest map[uuid.UUID]map[uuid.UUID]tunnel
 	workQ  *workQ[tKey]
-
 	workerWG sync.WaitGroup
 }
-
 func newTunneler(ctx context.Context,
 	logger slog.Logger,
 	id uuid.UUID,
@@ -306,7 +284,6 @@ func newTunneler(ctx context.Context,
 	}()
 	return s
 }
-
 func (t *tunneler) handle() {
 	for {
 		select {
@@ -319,7 +296,6 @@ func (t *tunneler) handle() {
 		}
 	}
 }
-
 func (t *tunneler) worker() {
 	defer t.workerWG.Done()
 	eb := backoff.NewExponentialBackOff()
@@ -342,7 +318,6 @@ func (t *tunneler) worker() {
 		t.workQ.done(tk)
 	}
 }
-
 func (t *tunneler) cache(update tunnel) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -364,7 +339,6 @@ func (t *tunneler) cache(update tunnel) {
 		}
 	}
 }
-
 // retrieveBinding gets the latest tunnel for a key.
 func (t *tunneler) retrieve(k tKey) tunnel {
 	t.mu.Lock()
@@ -376,7 +350,6 @@ func (t *tunneler) retrieve(k tKey) tunnel {
 			active: false,
 		}
 	}
-
 	tun, ok := dstMap[k.dst]
 	if !ok {
 		return tunnel{
@@ -384,10 +357,8 @@ func (t *tunneler) retrieve(k tKey) tunnel {
 			active: false,
 		}
 	}
-
 	return tun
 }
-
 func (t *tunneler) writeOne(tun tunnel) error {
 	var err error
 	switch {
@@ -423,7 +394,7 @@ func (t *tunneler) writeOne(tun tunnel) error {
 			slog.Error(err),
 		)
 		// writeOne should be idempotent
-		if xerrors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) {
 			err = nil
 		}
 	default:
@@ -438,17 +409,14 @@ func (t *tunneler) writeOne(tun tunnel) error {
 	}
 	return err
 }
-
 // bKey, or "binding key" identifies a peer in a binding
 type bKey uuid.UUID
-
 // binding represents an association between a peer and a Node.
 type binding struct {
 	bKey
 	node *proto.Node
 	kind proto.CoordinateResponse_PeerUpdate_Kind
 }
-
 // binder reads node bindings from the channel and writes them to the database.  It handles retries with a backoff.
 type binder struct {
 	ctx           context.Context
@@ -456,15 +424,12 @@ type binder struct {
 	coordinatorID uuid.UUID
 	store         database.Store
 	bindings      <-chan binding
-
 	mu     sync.Mutex
 	latest map[bKey]binding
 	workQ  *workQ[bKey]
-
 	workerWG sync.WaitGroup
 	close    chan struct{}
 }
-
 func newBinder(ctx context.Context,
 	logger slog.Logger,
 	id uuid.UUID,
@@ -492,16 +457,12 @@ func newBinder(ctx context.Context,
 			go b.worker()
 		}
 	}()
-
 	go func() {
 		defer close(b.close)
 		<-b.ctx.Done()
 		b.logger.Debug(b.ctx, "binder exiting, waiting for workers")
-
 		b.workerWG.Wait()
-
 		b.logger.Debug(b.ctx, "updating peers to lost")
-
 		ctx, cancel := context.WithTimeout(dbauthz.As(context.Background(), pgCoordSubject), time.Second*15)
 		defer cancel()
 		err := b.store.UpdateTailnetPeerStatusByCoordinator(ctx, database.UpdateTailnetPeerStatusByCoordinatorParams{
@@ -514,7 +475,6 @@ func newBinder(ctx context.Context,
 	}()
 	return b
 }
-
 func (b *binder) handleBindings() {
 	for {
 		select {
@@ -527,7 +487,6 @@ func (b *binder) handleBindings() {
 		}
 	}
 }
-
 func (b *binder) worker() {
 	defer b.workerWG.Done()
 	eb := backoff.NewExponentialBackOff()
@@ -550,7 +509,6 @@ func (b *binder) worker() {
 		b.workQ.done(bk)
 	}
 }
-
 func (b *binder) writeOne(bnd binding) error {
 	var err error
 	if bnd.kind == proto.CoordinateResponse_PeerUpdate_DISCONNECTED {
@@ -559,7 +517,7 @@ func (b *binder) writeOne(bnd binding) error {
 			CoordinatorID: b.coordinatorID,
 		})
 		// writeOne is idempotent
-		if xerrors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) {
 			err = nil
 		}
 	} else {
@@ -582,7 +540,6 @@ func (b *binder) writeOne(bnd binding) error {
 			Status:        status,
 		})
 	}
-
 	if err != nil && !database.IsQueryCanceledError(err) {
 		b.logger.Error(b.ctx, "failed to write binding to database",
 			slog.F("binding_id", bnd.bKey),
@@ -591,13 +548,11 @@ func (b *binder) writeOne(bnd binding) error {
 	}
 	return err
 }
-
 // storeBinding stores the latest binding, where we interpret kind == DISCONNECTED as removing the binding. This keeps the map
 // from growing without bound.
 func (b *binder) storeBinding(bnd binding) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-
 	switch bnd.kind {
 	case proto.CoordinateResponse_PeerUpdate_NODE:
 		b.latest[bnd.bKey] = bnd
@@ -615,7 +570,6 @@ func (b *binder) storeBinding(bnd binding) {
 		b.latest[bnd.bKey] = bnd
 	}
 }
-
 // retrieveBinding gets the latest binding for a key.
 func (b *binder) retrieveBinding(bk bKey) binding {
 	b.mu.Lock()
@@ -630,31 +584,23 @@ func (b *binder) retrieveBinding(bk bKey) binding {
 	}
 	return bnd
 }
-
 func (b *binder) wait() {
 	<-b.close
 }
-
 // mapper tracks data sent to a peer, and sends updates based on changes read from the database.
 type mapper struct {
 	ctx    context.Context
 	logger slog.Logger
-
 	// reads from this channel trigger recomputing the set of mappings to send, and sending any updates. It is used when
 	// coordinators are added or removed
 	update chan struct{}
-
 	mappings chan []mapping
-
 	c *connIO
-
 	// sent is the state of mappings we have actually enqueued; used to compute diffs for updates.
 	sent map[uuid.UUID]mapping
-
 	// called to filter mappings to healthy coordinators
 	heartbeats *heartbeats
 }
-
 func newMapper(c *connIO, logger slog.Logger, h *heartbeats) *mapper {
 	logger = logger.With(
 		slog.F("peer_id", c.UniqueID()),
@@ -671,7 +617,6 @@ func newMapper(c *connIO, logger slog.Logger, h *heartbeats) *mapper {
 	go m.run()
 	return m
 }
-
 func (m *mapper) run() {
 	for {
 		var best map[uuid.UUID]mapping
@@ -691,12 +636,11 @@ func (m *mapper) run() {
 			m.logger.Debug(m.ctx, "skipping nil node update")
 			continue
 		}
-		if err := m.c.Enqueue(update); err != nil && !xerrors.Is(err, context.Canceled) {
+		if err := m.c.Enqueue(update); err != nil && !errors.Is(err, context.Canceled) {
 			m.logger.Error(m.ctx, "failed to enqueue node update", slog.Error(err))
 		}
 	}
 }
-
 // bestMappings takes a set of mappings and resolves the best set of nodes.  We may get several mappings for a
 // particular connection, from different coordinators in the distributed system.  Furthermore, some coordinators
 // might be considered invalid on account of missing heartbeats.  We take the most recent mapping from a valid
@@ -710,7 +654,6 @@ func (m *mapper) bestMappings(mappings []mapping) map[uuid.UUID]mapping {
 		case !ok:
 			// no current best
 			best[mpng.peer] = mpng
-
 		// NODE always beats LOST mapping, since the LOST could be from a coordinator that's
 		// slow updating the DB, and the peer has reconnected to a different coordinator and
 		// given a NODE mapping.
@@ -723,10 +666,8 @@ func (m *mapper) bestMappings(mappings []mapping) map[uuid.UUID]mapping {
 	}
 	return best
 }
-
 func (m *mapper) bestToUpdate(best map[uuid.UUID]mapping) *proto.CoordinateResponse {
 	resp := new(proto.CoordinateResponse)
-
 	for k, mpng := range best {
 		var reason string
 		sm, ok := m.sent[k]
@@ -762,7 +703,6 @@ func (m *mapper) bestToUpdate(best map[uuid.UUID]mapping) *proto.CoordinateRespo
 		})
 		m.sent[k] = mpng
 	}
-
 	for k := range m.sent {
 		if _, ok := best[k]; !ok {
 			resp.PeerUpdates = append(resp.PeerUpdates, &proto.CoordinateResponse_PeerUpdate{
@@ -773,13 +713,11 @@ func (m *mapper) bestToUpdate(best map[uuid.UUID]mapping) *proto.CoordinateRespo
 			delete(m.sent, k)
 		}
 	}
-
 	if len(resp.PeerUpdates) == 0 {
 		return nil
 	}
 	return resp
 }
-
 // querier is responsible for monitoring pubsub notifications and querying the database for the
 // mappings that all connected peers need.  It also checks heartbeats and withdraws mappings from
 // coordinators that have failed heartbeats.
@@ -800,22 +738,16 @@ type querier struct {
 	coordinatorID uuid.UUID
 	pubsub        pubsub.Pubsub
 	store         database.Store
-
 	newConnections   chan *connIO
 	closeConnections chan *connIO
-
 	workQ *workQ[querierWorkKey]
-
 	wg sync.WaitGroup
-
 	heartbeats *heartbeats
 	updates    <-chan hbUpdate
-
 	mu      sync.Mutex
 	mappers map[mKey]*mapper
 	healthy bool
 }
-
 func newQuerier(ctx context.Context,
 	logger slog.Logger,
 	coordinatorID uuid.UUID,
@@ -844,7 +776,6 @@ func newQuerier(ctx context.Context,
 		healthy:          true, // assume we start healthy
 	}
 	q.subscribe()
-
 	q.wg.Add(2 + numWorkers)
 	go func() {
 		<-firstHeartbeat
@@ -856,28 +787,23 @@ func newQuerier(ctx context.Context,
 	}()
 	return q
 }
-
 func (q *querier) wait() {
 	q.wg.Wait()
 	q.heartbeats.wg.Wait()
 }
-
 func (q *querier) handleIncoming() {
 	defer q.wg.Done()
 	for {
 		select {
 		case <-q.ctx.Done():
 			return
-
 		case c := <-q.newConnections:
 			q.newConn(c)
-
 		case c := <-q.closeConnections:
 			q.cleanupConn(c)
 		}
 	}
 }
-
 func (q *querier) newConn(c *connIO) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -910,18 +836,15 @@ func (q *querier) newConn(c *connIO) {
 		mappingQuery: mk,
 	})
 }
-
 func (q *querier) isHealthy() bool {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	return q.healthy
 }
-
 func (q *querier) cleanupConn(c *connIO) {
 	logger := q.logger.With(slog.F("peer_id", c.UniqueID()))
 	q.mu.Lock()
 	defer q.mu.Unlock()
-
 	mk := mKey(c.UniqueID())
 	mpr, ok := q.mappers[mk]
 	if !ok {
@@ -938,7 +861,6 @@ func (q *querier) cleanupConn(c *connIO) {
 	delete(q.mappers, mk)
 	q.logger.Debug(q.ctx, "removed mapper")
 }
-
 func (q *querier) worker() {
 	defer q.wg.Done()
 	eb := backoff.NewExponentialBackOff()
@@ -960,7 +882,6 @@ func (q *querier) worker() {
 		q.workQ.done(qk)
 	}
 }
-
 func (q *querier) query(qk querierWorkKey) error {
 	if uuid.UUID(qk.mappingQuery) != uuid.Nil {
 		return q.mappingQuery(qk.mappingQuery)
@@ -969,9 +890,8 @@ func (q *querier) query(qk querierWorkKey) error {
 		return q.peerUpdate(qk.peerUpdate)
 	}
 	q.logger.Critical(q.ctx, "bad querierWorkKey", slog.F("work_key", qk))
-	return backoff.Permanent(xerrors.Errorf("bad querierWorkKey %v", qk))
+	return backoff.Permanent(fmt.Errorf("bad querierWorkKey %v", qk))
 }
-
 // peerUpdate is work scheduled in response to a new peer->binding.  We need to find out all the
 // other peers that share a tunnel with the indicated peer, and then schedule a mapping update on
 // each, so that they can find out about the new binding.
@@ -979,7 +899,7 @@ func (q *querier) peerUpdate(peer uuid.UUID) error {
 	logger := q.logger.With(slog.F("peer_id", peer))
 	logger.Debug(q.ctx, "querying peers that share a tunnel")
 	others, err := q.store.GetTailnetTunnelPeerIDs(q.ctx, peer)
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return err
 	}
 	logger.Debug(q.ctx, "queried peers that share a tunnel", slog.F("num_peers", len(others)))
@@ -989,7 +909,6 @@ func (q *querier) peerUpdate(peer uuid.UUID) error {
 	}
 	return nil
 }
-
 // mappingQuery queries the database for all the mappings that the given peer should know about,
 // that is, all the peers that it shares a tunnel with and their current node mappings (if they
 // exist).  It then sends the mapping snapshot to the corresponding mapper, where it will get
@@ -999,7 +918,7 @@ func (q *querier) mappingQuery(peer mKey) error {
 	logger.Debug(q.ctx, "querying mappings")
 	bindings, err := q.store.GetTailnetTunnelPeerBindings(q.ctx, uuid.UUID(peer))
 	logger.Debug(q.ctx, "queried mappings", slog.F("num_mappings", len(bindings)))
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return err
 	}
 	mappings, err := q.bindingsToMappings(bindings)
@@ -1017,7 +936,6 @@ func (q *querier) mappingQuery(peer mKey) error {
 	logger.Debug(q.ctx, "sending mappings", slog.F("mapping_len", len(mappings)))
 	return agpl.SendCtx(q.ctx, mpr.mappings, mappings)
 }
-
 func (q *querier) bindingsToMappings(bindings []database.GetTailnetTunnelPeerBindingsRow) ([]mapping, error) {
 	slog.Helper()
 	mappings := make([]mapping, 0, len(bindings))
@@ -1042,7 +960,6 @@ func (q *querier) bindingsToMappings(bindings []database.GetTailnetTunnelPeerBin
 	}
 	return mappings, nil
 }
-
 // subscribe starts our subscriptions to peer and tunnnel updates in a new goroutine, and returns once we are subscribed
 // or the querier context is canceled.
 func (q *querier) subscribe() {
@@ -1075,7 +992,6 @@ func (q *querier) subscribe() {
 		}()
 		bkoff.Reset()
 		q.logger.Info(q.ctx, "subscribed to peer updates")
-
 		var cancelTunnel context.CancelFunc
 		err = backoff.Retry(func() error {
 			cancelFn, err := q.pubsub.SubscribeWithErr(eventTunnelUpdate, q.listenTunnel)
@@ -1097,7 +1013,6 @@ func (q *querier) subscribe() {
 			cancelTunnel()
 		}()
 		q.logger.Info(q.ctx, "subscribed to tunnel updates")
-
 		var cancelRFH context.CancelFunc
 		err = backoff.Retry(func() error {
 			cancelFn, err := q.pubsub.SubscribeWithErr(eventReadyForHandshake, q.listenReadyForHandshake)
@@ -1119,18 +1034,15 @@ func (q *querier) subscribe() {
 			cancelRFH()
 		}()
 		q.logger.Info(q.ctx, "subscribed to ready for handshakes")
-
 		// unblock the outer function from returning
 		subscribed <- struct{}{}
-
 		// hold subscriptions open until context is canceled
 		<-q.ctx.Done()
 	}()
 	<-subscribed
 }
-
 func (q *querier) listenPeer(_ context.Context, msg []byte, err error) {
-	if xerrors.Is(err, pubsub.ErrDroppedMessages) {
+	if errors.Is(err, pubsub.ErrDroppedMessages) {
 		q.logger.Warn(q.ctx, "pubsub may have dropped peer updates")
 		// we need to schedule a full resync of peer mappings
 		q.resyncPeerMappings()
@@ -1146,18 +1058,15 @@ func (q *querier) listenPeer(_ context.Context, msg []byte, err error) {
 			slog.F("msg", string(msg)), slog.Error(err))
 		return
 	}
-
 	logger := q.logger.With(slog.F("peer_id", peer))
 	logger.Debug(q.ctx, "got peer update")
-
 	// we know that this peer has an updated node mapping, but we don't yet know who to send that
 	// update to. We need to query the database to find all the other peers that share a tunnel with
 	// this one, and then run mapping queries against all of them.
 	q.workQ.enqueue(querierWorkKey{peerUpdate: peer})
 }
-
 func (q *querier) listenTunnel(_ context.Context, msg []byte, err error) {
-	if xerrors.Is(err, pubsub.ErrDroppedMessages) {
+	if errors.Is(err, pubsub.ErrDroppedMessages) {
 		q.logger.Warn(q.ctx, "pubsub may have dropped tunnel updates")
 		// we need to schedule a full resync of peer mappings
 		q.resyncPeerMappings()
@@ -1186,19 +1095,16 @@ func (q *querier) listenTunnel(_ context.Context, msg []byte, err error) {
 		q.workQ.enqueue(querierWorkKey{mappingQuery: mk})
 	}
 }
-
 func (q *querier) listenReadyForHandshake(_ context.Context, msg []byte, err error) {
-	if err != nil && !xerrors.Is(err, pubsub.ErrDroppedMessages) {
+	if err != nil && !errors.Is(err, pubsub.ErrDroppedMessages) {
 		q.logger.Warn(q.ctx, "unhandled pubsub error", slog.Error(err))
 		return
 	}
-
 	to, from, err := parseReadyForHandshake(string(msg))
 	if err != nil {
 		q.logger.Error(q.ctx, "failed to parse ready for handshake", slog.F("msg", string(msg)), slog.Error(err))
 		return
 	}
-
 	mk := mKey(to)
 	q.mu.Lock()
 	mpr, ok := q.mappers[mk]
@@ -1208,7 +1114,6 @@ func (q *querier) listenReadyForHandshake(_ context.Context, msg []byte, err err
 			slog.F("peer_id", to))
 		return
 	}
-
 	_ = mpr.c.Enqueue(&proto.CoordinateResponse{
 		PeerUpdates: []*proto.CoordinateResponse_PeerUpdate{{
 			Id:   from[:],
@@ -1216,7 +1121,6 @@ func (q *querier) listenReadyForHandshake(_ context.Context, msg []byte, err err
 		}},
 	})
 }
-
 func (q *querier) resyncPeerMappings() {
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -1224,7 +1128,6 @@ func (q *querier) resyncPeerMappings() {
 		q.workQ.enqueue(querierWorkKey{mappingQuery: mk})
 	}
 }
-
 func (q *querier) handleUpdates() {
 	defer q.wg.Done()
 	for {
@@ -1246,11 +1149,9 @@ func (q *querier) handleUpdates() {
 		}
 	}
 }
-
 func (q *querier) updateAll() {
 	q.mu.Lock()
 	defer q.mu.Unlock()
-
 	for _, mpr := range q.mappers {
 		// send on goroutine to avoid holding the q.mu.  Heartbeat failures come asynchronously with respect to
 		// other kinds of work, so it's fine to deliver the command to refresh async.
@@ -1261,7 +1162,6 @@ func (q *querier) updateAll() {
 		}(mpr)
 	}
 }
-
 // unhealthyCloseAll marks the coordinator unhealthy and closes all connections.  We do this so that peers
 // are forced to reconnect to the coordinator, and will hopefully land on a healthy coordinator.
 func (q *querier) unhealthyCloseAll() {
@@ -1279,55 +1179,49 @@ func (q *querier) unhealthyCloseAll() {
 		// NOTE: we don't need to remove the connection from the map, as that will happen async in q.cleanupConn()
 	}
 }
-
 func (q *querier) setHealthy() {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	q.healthy = true
 }
-
 func parseTunnelUpdate(msg string) ([]uuid.UUID, error) {
 	parts := strings.Split(msg, ",")
 	if len(parts) != 2 {
-		return nil, xerrors.Errorf("expected 2 parts separated by comma")
+		return nil, fmt.Errorf("expected 2 parts separated by comma")
 	}
 	peers := make([]uuid.UUID, 2)
 	var err error
 	for i, part := range parts {
 		peers[i], err = uuid.Parse(part)
 		if err != nil {
-			return nil, xerrors.Errorf("failed to parse UUID: %w", err)
+			return nil, fmt.Errorf("failed to parse UUID: %w", err)
 		}
 	}
 	return peers, nil
 }
-
 func parsePeerUpdate(msg string) (peer uuid.UUID, err error) {
 	peer, err = uuid.Parse(msg)
 	if err != nil {
-		return uuid.Nil, xerrors.Errorf("failed to parse peer update message UUID: %w", err)
+		return uuid.Nil, fmt.Errorf("failed to parse peer update message UUID: %w", err)
 	}
 	return peer, nil
 }
-
 func parseReadyForHandshake(msg string) (to uuid.UUID, from uuid.UUID, err error) {
 	parts := strings.Split(msg, ",")
 	if len(parts) != 2 {
-		return uuid.Nil, uuid.Nil, xerrors.Errorf("expected 2 parts separated by comma")
+		return uuid.Nil, uuid.Nil, fmt.Errorf("expected 2 parts separated by comma")
 	}
 	ids := make([]uuid.UUID, 2)
 	for i, part := range parts {
 		ids[i], err = uuid.Parse(part)
 		if err != nil {
-			return uuid.Nil, uuid.Nil, xerrors.Errorf("failed to parse UUID: %w", err)
+			return uuid.Nil, uuid.Nil, fmt.Errorf("failed to parse UUID: %w", err)
 		}
 	}
 	return ids[0], ids[1], nil
 }
-
 // mKey identifies a set of node mappings we want to query.
 type mKey uuid.UUID
-
 // mapping associates a particular peer, and its respective coordinator with a node.
 type mapping struct {
 	peer        uuid.UUID
@@ -1336,7 +1230,6 @@ type mapping struct {
 	node        *proto.Node
 	kind        proto.CoordinateResponse_PeerUpdate_Kind
 }
-
 // querierWorkKey describes two kinds of work the querier needs to do.  If peerUpdate
 // is not uuid.Nil, then the querier needs to find all tunnel peers of the given peer and
 // mark them for a mapping query.  If mappingQuery is not uuid.Nil, then the querier has to
@@ -1345,21 +1238,17 @@ type querierWorkKey struct {
 	peerUpdate   uuid.UUID
 	mappingQuery mKey
 }
-
 type queueKey interface {
 	bKey | tKey | querierWorkKey
 }
-
 // workQ allows scheduling work based on a key.  Multiple enqueue requests for the same key are coalesced, and
 // only one in-progress job per key is scheduled.
 type workQ[K queueKey] struct {
 	ctx context.Context
-
 	cond       *sync.Cond
 	pending    []K
 	inProgress map[K]bool
 }
-
 func newWorkQ[K queueKey](ctx context.Context) *workQ[K] {
 	q := &workQ[K]{
 		ctx:        ctx,
@@ -1375,7 +1264,6 @@ func newWorkQ[K queueKey](ctx context.Context) *workQ[K] {
 	}()
 	return q
 }
-
 // enqueue adds the key to the workQ if it is not already pending.
 func (q *workQ[K]) enqueue(key K) {
 	q.cond.L.Lock()
@@ -1389,7 +1277,6 @@ func (q *workQ[K]) enqueue(key K) {
 	q.pending = append(q.pending, key)
 	q.cond.Signal()
 }
-
 // acquire gets a new key to begin working on.  This call blocks until work is available.  After acquiring a key, the
 // worker MUST call done() with the same key to mark it complete and allow new pending work to be acquired for the key.
 // An error is returned if the workQ context is canceled to unblock waiting workers.
@@ -1413,7 +1300,6 @@ func (q *workQ[K]) acquire() (key K, err error) {
 	// this should not be possible because we are holding the lock when we exit the loop that waits
 	panic("woke with no work available")
 }
-
 // workAvailable returns true if there is work we can do.  Must be called while holding q.cond.L
 func (q workQ[K]) workAvailable() bool {
 	for _, mk := range q.pending {
@@ -1424,7 +1310,6 @@ func (q workQ[K]) workAvailable() bool {
 	}
 	return false
 }
-
 // done marks the key completed; MUST be called after acquire() for each key.
 func (q *workQ[K]) done(key K) {
 	q.cond.L.Lock()
@@ -1432,29 +1317,23 @@ func (q *workQ[K]) done(key K) {
 	delete(q.inProgress, key)
 	q.cond.Signal()
 }
-
 type filterUpdate int
-
 const (
 	filterUpdateNone filterUpdate = iota
 	filterUpdateUpdated
 )
-
 type healthUpdate int
-
 const (
 	healthUpdateNone healthUpdate = iota
 	healthUpdateHealthy
 	healthUpdateUnhealthy
 )
-
 // hbUpdate is an update sent from the heartbeats to the querier.  Zero values of the fields mean no update of that
 // kind.
 type hbUpdate struct {
 	filter filterUpdate
 	health healthUpdate
 }
-
 // heartbeats sends heartbeats for this coordinator on a timer, and monitors heartbeats from other coordinators.  If a
 // coordinator misses their heartbeat, we remove it from our map of "valid" coordinators, such that we will filter out
 // any mappings for it when filter() is called, and we send a signal on the update channel, which triggers all mappers
@@ -1465,21 +1344,16 @@ type heartbeats struct {
 	pubsub pubsub.Pubsub
 	store  database.Store
 	self   uuid.UUID
-
 	update           chan<- hbUpdate
 	firstHeartbeat   chan<- struct{}
 	failedHeartbeats int
-
 	lock         sync.RWMutex
 	coordinators map[uuid.UUID]time.Time
 	timer        *quartz.Timer
-
 	wg sync.WaitGroup
-
 	// for testing
 	clock quartz.Clock
 }
-
 func newHeartbeats(
 	ctx context.Context, logger slog.Logger,
 	ps pubsub.Pubsub, store database.Store,
@@ -1504,7 +1378,6 @@ func newHeartbeats(
 	go h.cleanupLoop()
 	return h
 }
-
 func (h *heartbeats) filter(mappings []mapping) []mapping {
 	out := make([]mapping, 0, len(mappings))
 	h.lock.RLock()
@@ -1522,12 +1395,10 @@ func (h *heartbeats) filter(mappings []mapping) []mapping {
 				m.kind = proto.CoordinateResponse_PeerUpdate_LOST
 			}
 		}
-
 		out = append(out, m)
 	}
 	return out
 }
-
 func (h *heartbeats) subscribe() {
 	defer h.wg.Done()
 	eb := backoff.NewExponentialBackOff()
@@ -1554,7 +1425,6 @@ func (h *heartbeats) subscribe() {
 	defer cancel()
 	<-h.ctx.Done()
 }
-
 func (h *heartbeats) listen(_ context.Context, msg []byte, err error) {
 	if err != nil {
 		// in the context of heartbeats, if we miss some messages it will be OK as long
@@ -1575,7 +1445,6 @@ func (h *heartbeats) listen(_ context.Context, msg []byte, err error) {
 	}
 	h.recvBeat(id)
 }
-
 func (h *heartbeats) recvBeat(id uuid.UUID) {
 	h.logger.Debug(h.ctx, "got heartbeat", slog.F("other_coordinator_id", id))
 	h.lock.Lock()
@@ -1588,7 +1457,6 @@ func (h *heartbeats) recvBeat(id uuid.UUID) {
 		}()
 	}
 	h.coordinators[id] = h.clock.Now("heartbeats", "recvBeat")
-
 	if h.timer == nil {
 		// this can only happen for the very first beat
 		h.timer = h.clock.AfterFunc(MissedHeartbeats*HeartbeatPeriod, h.checkExpiry, "heartbeats", "recvBeat")
@@ -1597,7 +1465,6 @@ func (h *heartbeats) recvBeat(id uuid.UUID) {
 	}
 	h.resetExpiryTimerWithLock()
 }
-
 func (h *heartbeats) resetExpiryTimerWithLock() {
 	var oldestTime time.Time
 	for _, t := range h.coordinators {
@@ -1618,7 +1485,6 @@ func (h *heartbeats) resetExpiryTimerWithLock() {
 	}
 	h.timer.Reset(d, "heartbeats", "resetExpiryTimerWithLock")
 }
-
 func (h *heartbeats) checkExpiry() {
 	h.logger.Debug(h.ctx, "checking heartbeat expiry")
 	h.lock.Lock()
@@ -1643,7 +1509,6 @@ func (h *heartbeats) checkExpiry() {
 	// we need to reset the timer for when the next oldest coordinator will expire, if any.
 	h.resetExpiryTimerWithLock()
 }
-
 func (h *heartbeats) sendBeats() {
 	defer h.wg.Done()
 	// send an initial heartbeat so that other coordinators can start using our bindings right away.
@@ -1656,7 +1521,6 @@ func (h *heartbeats) sendBeats() {
 	err := tkr.Wait()
 	h.logger.Debug(h.ctx, "ending heartbeats", slog.Error(err))
 }
-
 func (h *heartbeats) sendBeat() {
 	_, err := h.store.UpsertTailnetCoordinator(h.ctx, h.self)
 	if database.IsQueryCanceledError(err) {
@@ -1678,7 +1542,6 @@ func (h *heartbeats) sendBeat() {
 	}
 	h.failedHeartbeats = 0
 }
-
 func (h *heartbeats) cleanupLoop() {
 	defer h.wg.Done()
 	h.cleanup()
@@ -1689,7 +1552,6 @@ func (h *heartbeats) cleanupLoop() {
 	err := tkr.Wait()
 	h.logger.Debug(h.ctx, "ending cleanupLoop", slog.Error(err))
 }
-
 // cleanup issues a DB command to clean out any old expired coordinators or lost peer state.  The
 // cleanup is idempotent, so no need to synchronize with other coordinators.
 func (h *heartbeats) cleanup() {

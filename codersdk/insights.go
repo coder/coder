@@ -1,6 +1,6 @@
 package codersdk
-
 import (
+	"errors"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -8,18 +8,13 @@ import (
 	"net/url"
 	"strings"
 	"time"
-
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 )
-
 // Duplicated in coderd.
 const insightsTimeLayout = time.RFC3339
-
 // InsightsReportInterval is the interval of time over which to generate a
 // smaller insights report within a time range.
 type InsightsReportInterval string
-
 // Days returns the duration of the interval in days.
 func (interval InsightsReportInterval) Days() int32 {
 	switch interval {
@@ -31,28 +26,23 @@ func (interval InsightsReportInterval) Days() int32 {
 		panic("developer error: unsupported report interval")
 	}
 }
-
 // InsightsReportInterval enums.
 const (
 	InsightsReportIntervalDay  InsightsReportInterval = "day"
 	InsightsReportIntervalWeek InsightsReportInterval = "week"
 )
-
 // TemplateInsightsSection defines the section to be included in the template insights response.
 type TemplateInsightsSection string
-
 // TemplateInsightsSection enums.
 const (
 	TemplateInsightsSectionIntervalReports TemplateInsightsSection = "interval_reports"
 	TemplateInsightsSectionReport          TemplateInsightsSection = "report"
 )
-
 // UserLatencyInsightsResponse is the response from the user latency insights
 // endpoint.
 type UserLatencyInsightsResponse struct {
 	Report UserLatencyInsightsReport `json:"report"`
 }
-
 // UserLatencyInsightsReport is the report from the user latency insights
 // endpoint.
 type UserLatencyInsightsReport struct {
@@ -61,7 +51,6 @@ type UserLatencyInsightsReport struct {
 	TemplateIDs []uuid.UUID   `json:"template_ids" format:"uuid"`
 	Users       []UserLatency `json:"users"`
 }
-
 // UserLatency shows the connection latency for a user.
 type UserLatency struct {
 	TemplateIDs []uuid.UUID       `json:"template_ids" format:"uuid"`
@@ -70,13 +59,11 @@ type UserLatency struct {
 	AvatarURL   string            `json:"avatar_url" format:"uri"`
 	LatencyMS   ConnectionLatency `json:"latency_ms"`
 }
-
 // UserActivityInsightsResponse is the response from the user activity insights
 // endpoint.
 type UserActivityInsightsResponse struct {
 	Report UserActivityInsightsReport `json:"report"`
 }
-
 // UserActivityInsightsReport is the report from the user activity insights
 // endpoint.
 type UserActivityInsightsReport struct {
@@ -85,7 +72,6 @@ type UserActivityInsightsReport struct {
 	TemplateIDs []uuid.UUID    `json:"template_ids" format:"uuid"`
 	Users       []UserActivity `json:"users"`
 }
-
 // UserActivity shows the session time for a user.
 type UserActivity struct {
 	TemplateIDs []uuid.UUID `json:"template_ids" format:"uuid"`
@@ -94,19 +80,16 @@ type UserActivity struct {
 	AvatarURL   string      `json:"avatar_url" format:"uri"`
 	Seconds     int64       `json:"seconds" example:"80500"`
 }
-
 // ConnectionLatency shows the latency for a connection.
 type ConnectionLatency struct {
 	P50 float64 `json:"p50" example:"31.312"`
 	P95 float64 `json:"p95" example:"119.832"`
 }
-
 type UserLatencyInsightsRequest struct {
 	StartTime   time.Time   `json:"start_time" format:"date-time"`
 	EndTime     time.Time   `json:"end_time" format:"date-time"`
 	TemplateIDs []uuid.UUID `json:"template_ids" format:"uuid"`
 }
-
 func (c *Client) UserLatencyInsights(ctx context.Context, req UserLatencyInsightsRequest) (UserLatencyInsightsResponse, error) {
 	qp := url.Values{}
 	qp.Add("start_time", req.StartTime.Format(insightsTimeLayout))
@@ -118,27 +101,23 @@ func (c *Client) UserLatencyInsights(ctx context.Context, req UserLatencyInsight
 		}
 		qp.Add("template_ids", strings.Join(templateIDs, ","))
 	}
-
 	reqURL := fmt.Sprintf("/api/v2/insights/user-latency?%s", qp.Encode())
 	resp, err := c.Request(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
-		return UserLatencyInsightsResponse{}, xerrors.Errorf("make request: %w", err)
+		return UserLatencyInsightsResponse{}, fmt.Errorf("make request: %w", err)
 	}
 	defer resp.Body.Close()
-
 	if resp.StatusCode != http.StatusOK {
 		return UserLatencyInsightsResponse{}, ReadBodyAsError(resp)
 	}
 	var result UserLatencyInsightsResponse
 	return result, json.NewDecoder(resp.Body).Decode(&result)
 }
-
 type UserActivityInsightsRequest struct {
 	StartTime   time.Time   `json:"start_time" format:"date-time"`
 	EndTime     time.Time   `json:"end_time" format:"date-time"`
 	TemplateIDs []uuid.UUID `json:"template_ids" format:"uuid"`
 }
-
 func (c *Client) UserActivityInsights(ctx context.Context, req UserActivityInsightsRequest) (UserActivityInsightsResponse, error) {
 	qp := url.Values{}
 	qp.Add("start_time", req.StartTime.Format(insightsTimeLayout))
@@ -150,27 +129,23 @@ func (c *Client) UserActivityInsights(ctx context.Context, req UserActivityInsig
 		}
 		qp.Add("template_ids", strings.Join(templateIDs, ","))
 	}
-
 	reqURL := fmt.Sprintf("/api/v2/insights/user-activity?%s", qp.Encode())
 	resp, err := c.Request(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
-		return UserActivityInsightsResponse{}, xerrors.Errorf("make request: %w", err)
+		return UserActivityInsightsResponse{}, fmt.Errorf("make request: %w", err)
 	}
 	defer resp.Body.Close()
-
 	if resp.StatusCode != http.StatusOK {
 		return UserActivityInsightsResponse{}, ReadBodyAsError(resp)
 	}
 	var result UserActivityInsightsResponse
 	return result, json.NewDecoder(resp.Body).Decode(&result)
 }
-
 // TemplateInsightsResponse is the response from the template insights endpoint.
 type TemplateInsightsResponse struct {
 	Report          *TemplateInsightsReport          `json:"report,omitempty"`
 	IntervalReports []TemplateInsightsIntervalReport `json:"interval_reports,omitempty"`
 }
-
 // TemplateInsightsReport is the report from the template insights endpoint.
 type TemplateInsightsReport struct {
 	StartTime       time.Time                `json:"start_time" format:"date-time"`
@@ -180,7 +155,6 @@ type TemplateInsightsReport struct {
 	AppsUsage       []TemplateAppUsage       `json:"apps_usage"`
 	ParametersUsage []TemplateParameterUsage `json:"parameters_usage"`
 }
-
 // TemplateInsightsIntervalReport is the report from the template insights
 // endpoint for a specific interval.
 type TemplateInsightsIntervalReport struct {
@@ -190,16 +164,13 @@ type TemplateInsightsIntervalReport struct {
 	Interval    InsightsReportInterval `json:"interval" example:"week"`
 	ActiveUsers int64                  `json:"active_users" example:"14"`
 }
-
 // TemplateAppsType defines the type of app reported.
 type TemplateAppsType string
-
 // TemplateAppsType enums.
 const (
 	TemplateAppsTypeBuiltin TemplateAppsType = "builtin"
 	TemplateAppsTypeApp     TemplateAppsType = "app"
 )
-
 // Enums define the display name of the builtin app reported.
 const (
 	TemplateBuiltinAppDisplayNameVSCode      string = "Visual Studio Code"
@@ -208,7 +179,6 @@ const (
 	TemplateBuiltinAppDisplayNameSSH         string = "SSH"
 	TemplateBuiltinAppDisplayNameSFTP        string = "SFTP"
 )
-
 // TemplateAppUsage shows the usage of an app for one or more templates.
 type TemplateAppUsage struct {
 	TemplateIDs []uuid.UUID      `json:"template_ids" format:"uuid"`
@@ -219,7 +189,6 @@ type TemplateAppUsage struct {
 	Seconds     int64            `json:"seconds" example:"80500"`
 	TimesUsed   int64            `json:"times_used" example:"2"`
 }
-
 // TemplateParameterUsage shows the usage of a parameter for one or more
 // templates.
 type TemplateParameterUsage struct {
@@ -231,14 +200,12 @@ type TemplateParameterUsage struct {
 	Options     []TemplateVersionParameterOption `json:"options,omitempty"`
 	Values      []TemplateParameterValue         `json:"values"`
 }
-
 // TemplateParameterValue shows the usage of a parameter value for one or more
 // templates.
 type TemplateParameterValue struct {
 	Value string `json:"value"`
 	Count int64  `json:"count"`
 }
-
 type TemplateInsightsRequest struct {
 	StartTime   time.Time                 `json:"start_time" format:"date-time"`
 	EndTime     time.Time                 `json:"end_time" format:"date-time"`
@@ -246,7 +213,6 @@ type TemplateInsightsRequest struct {
 	Interval    InsightsReportInterval    `json:"interval" example:"day"`
 	Sections    []TemplateInsightsSection `json:"sections" example:"report"`
 }
-
 func (c *Client) TemplateInsights(ctx context.Context, req TemplateInsightsRequest) (TemplateInsightsResponse, error) {
 	qp := url.Values{}
 	qp.Add("start_time", req.StartTime.Format(insightsTimeLayout))
@@ -268,45 +234,37 @@ func (c *Client) TemplateInsights(ctx context.Context, req TemplateInsightsReque
 		}
 		qp.Add("sections", strings.Join(sections, ","))
 	}
-
 	reqURL := fmt.Sprintf("/api/v2/insights/templates?%s", qp.Encode())
 	resp, err := c.Request(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
-		return TemplateInsightsResponse{}, xerrors.Errorf("make request: %w", err)
+		return TemplateInsightsResponse{}, fmt.Errorf("make request: %w", err)
 	}
 	defer resp.Body.Close()
-
 	if resp.StatusCode != http.StatusOK {
 		return TemplateInsightsResponse{}, ReadBodyAsError(resp)
 	}
 	var result TemplateInsightsResponse
 	return result, json.NewDecoder(resp.Body).Decode(&result)
 }
-
 type GetUserStatusCountsResponse struct {
 	StatusCounts map[UserStatus][]UserStatusChangeCount `json:"status_counts"`
 }
-
 type UserStatusChangeCount struct {
 	Date  time.Time `json:"date" format:"date-time"`
 	Count int64     `json:"count" example:"10"`
 }
-
 type GetUserStatusCountsRequest struct {
 	Offset time.Time `json:"offset" format:"date-time"`
 }
-
 func (c *Client) GetUserStatusCounts(ctx context.Context, req GetUserStatusCountsRequest) (GetUserStatusCountsResponse, error) {
 	qp := url.Values{}
 	qp.Add("offset", req.Offset.Format(insightsTimeLayout))
-
 	reqURL := fmt.Sprintf("/api/v2/insights/user-status-counts?%s", qp.Encode())
 	resp, err := c.Request(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
-		return GetUserStatusCountsResponse{}, xerrors.Errorf("make request: %w", err)
+		return GetUserStatusCountsResponse{}, fmt.Errorf("make request: %w", err)
 	}
 	defer resp.Body.Close()
-
 	if resp.StatusCode != http.StatusOK {
 		return GetUserStatusCountsResponse{}, ReadBodyAsError(resp)
 	}

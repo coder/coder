@@ -1,15 +1,11 @@
 package cli
-
 import (
+	"errors"
 	"fmt"
-
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/serpent"
 	"github.com/coder/serpent/completion"
 )
-
 func (*RootCmd) completion() *serpent.Command {
 	var shellName string
 	var printOutput bool
@@ -28,7 +24,6 @@ func (*RootCmd) completion() *serpent.Command {
 				Flag:          "print",
 				Description:   "Print the completion script instead of installing it.",
 				FlagShorthand: "p",
-
 				Value: serpent.BoolOf(&printOutput),
 			},
 		},
@@ -48,7 +43,7 @@ func (*RootCmd) completion() *serpent.Command {
 				return installCompletion(inv, shell)
 			}
 			if !isTTYOut(inv) {
-				return xerrors.New("could not detect the current shell, please specify one with --shell or run interactively")
+				return errors.New("could not detect the current shell, please specify one with --shell or run interactively")
 			}
 			// Silently continue to the shell selection if detecting failed in interactive mode
 			choice, err := cliui.Select(inv, cliui.SelectOptions{
@@ -69,7 +64,6 @@ func (*RootCmd) completion() *serpent.Command {
 		},
 	}
 }
-
 func installCompletion(inv *serpent.Invocation, shell completion.Shell) error {
 	path, err := shell.InstallPath()
 	if err != nil {

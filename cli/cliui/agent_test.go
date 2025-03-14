@@ -1,6 +1,7 @@
 package cliui_test
-
 import (
+	"fmt"
+	"errors"
 	"bufio"
 	"bytes"
 	"context"
@@ -11,13 +12,10 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
-
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
-
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
@@ -29,13 +27,10 @@ import (
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
 )
-
 func TestAgent(t *testing.T) {
 	t.Parallel()
-
 	waitLines := func(t *testing.T, output <-chan string, lines ...string) error {
 		t.Helper()
-
 		var got []string
 	outerLoop:
 		for _, want := range lines {
@@ -48,13 +43,12 @@ func TestAgent(t *testing.T) {
 					}
 				case <-time.After(testutil.WaitShort):
 					assert.Failf(t, "timed out waiting for line", "want: %q; got: %q", want, got)
-					return xerrors.Errorf("timed out waiting for line: %q; got: %q", want, got)
+					return fmt.Errorf("timed out waiting for line: %q; got: %q", want, got)
 				}
 			}
 		}
 		return nil
 	}
-
 	for _, tc := range []struct {
 		name    string
 		iter    []func(context.Context, *testing.T, *codersdk.WorkspaceAgent, <-chan string, chan []codersdk.WorkspaceAgentLog) error
@@ -334,7 +328,7 @@ func TestAgent(t *testing.T) {
 					return waitLines(t, output, "⧗ Waiting for the workspace agent to connect")
 				},
 				func(_ context.Context, _ *testing.T, agent *codersdk.WorkspaceAgent, _ <-chan string, _ chan []codersdk.WorkspaceAgentLog) error {
-					return xerrors.New("bad")
+					return errors.New("bad")
 				},
 			},
 			want: []string{
@@ -358,7 +352,7 @@ func TestAgent(t *testing.T) {
 					return waitLines(t, output, "The workspace agent is having trouble connecting, wait for it to connect or restart your workspace.")
 				},
 				func(_ context.Context, _ *testing.T, agent *codersdk.WorkspaceAgent, output <-chan string, _ chan []codersdk.WorkspaceAgentLog) error {
-					return xerrors.New("bad")
+					return errors.New("bad")
 				},
 			},
 			want: []string{
@@ -372,15 +366,12 @@ func TestAgent(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 			defer cancel()
-
 			r, w, err := os.Pipe()
 			require.NoError(t, err, "create pipe failed")
 			defer r.Close()
 			defer w.Close()
-
 			agent := codersdk.WorkspaceAgent{
 				ID:             uuid.New(),
 				Status:         codersdk.WorkspaceAgentConnecting,
@@ -389,7 +380,6 @@ func TestAgent(t *testing.T) {
 			}
 			output := make(chan string, 100) // Buffered to avoid blocking, overflow is discarded.
 			logs := make(chan []codersdk.WorkspaceAgentLog, 1)
-
 			cmd := &serpent.Command{
 				Handler: func(inv *serpent.Invocation) error {
 					tc.opts.Fetch = func(_ context.Context, _ uuid.UUID) (codersdk.WorkspaceAgent, error) {
@@ -405,7 +395,6 @@ func TestAgent(t *testing.T) {
 						if follow {
 							return logs, closeFunc(func() error { return nil }), nil
 						}
-
 						fetchLogs := make(chan []codersdk.WorkspaceAgentLog, 1)
 						select {
 						case <-ctx.Done():
@@ -423,9 +412,7 @@ func TestAgent(t *testing.T) {
 				},
 			}
 			inv := cmd.Invoke()
-
 			waiter := clitest.StartWithWaiter(t, inv)
-
 			s := bufio.NewScanner(r)
 			for s.Scan() {
 				line := s.Text()
@@ -445,7 +432,6 @@ func TestAgent(t *testing.T) {
 			if len(tc.want) > 0 {
 				require.Fail(t, "missing lines: "+strings.Join(tc.want, ", "))
 			}
-
 			if tc.wantErr {
 				waiter.RequireError()
 			} else {
@@ -453,11 +439,9 @@ func TestAgent(t *testing.T) {
 			}
 		})
 	}
-
 	t.Run("NotInfinite", func(t *testing.T) {
 		t.Parallel()
 		var fetchCalled uint64
-
 		cmd := &serpent.Command{
 			Handler: func(inv *serpent.Invocation) error {
 				buf := bytes.Buffer{}
@@ -465,7 +449,6 @@ func TestAgent(t *testing.T) {
 					FetchInterval: 10 * time.Millisecond,
 					Fetch: func(ctx context.Context, agentID uuid.UUID) (codersdk.WorkspaceAgent, error) {
 						atomic.AddUint64(&fetchCalled, 1)
-
 						return codersdk.WorkspaceAgent{
 							Status:         codersdk.WorkspaceAgentConnected,
 							LifecycleState: codersdk.WorkspaceAgentLifecycleReady,
@@ -475,19 +458,16 @@ func TestAgent(t *testing.T) {
 				if err != nil {
 					return err
 				}
-
 				require.Never(t, func() bool {
 					called := atomic.LoadUint64(&fetchCalled)
 					return called > 5 || called == 0
 				}, time.Second, 100*time.Millisecond)
-
 				return nil
 			},
 		}
 		require.NoError(t, cmd.Invoke().Run())
 	})
 }
-
 func TestPeerDiagnostics(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {
@@ -675,7 +655,6 @@ func TestPeerDiagnostics(t *testing.T) {
 		})
 	}
 }
-
 func TestConnDiagnostics(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {

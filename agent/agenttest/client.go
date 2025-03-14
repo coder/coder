@@ -12,8 +12,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"errors"
+	"fmt"
 	"golang.org/x/exp/maps"
-	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"storj.io/drpc/drpcmux"
@@ -61,7 +62,7 @@ func NewClient(t testing.TB,
 	require.NoError(t, err)
 	server := drpcserver.NewWithOptions(mux, drpcserver.Options{
 		Log: func(err error) {
-			if xerrors.Is(err, io.EOF) {
+			if errors.Is(err, io.EOF) {
 				return
 			}
 			logger.Debug(context.Background(), "drpc server error", slog.Error(err))
@@ -148,7 +149,7 @@ func (c *Client) PushDERPMapUpdate(update *tailcfg.DERPMap) error {
 	select {
 	case c.derpMapUpdates <- update:
 	case <-timer.C:
-		return xerrors.New("timeout waiting to push derp map update")
+		return errors.New("timeout waiting to push derp map update")
 	}
 
 	return nil

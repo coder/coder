@@ -1,22 +1,16 @@
 package cliui
-
 import (
+	"errors"
 	"flag"
 	"os"
 	"sync"
 	"time"
-
 	"github.com/muesli/termenv"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/pretty"
 )
-
-var Canceled = xerrors.New("canceled")
-
+var Canceled = errors.New("canceled")
 // DefaultStyles compose visual elements of the UI.
 var DefaultStyles Styles
-
 type Styles struct {
 	Code,
 	DateTimeStamp,
@@ -31,12 +25,10 @@ type Styles struct {
 	Warn,
 	Wrap pretty.Style
 }
-
 var (
 	color     termenv.Profile
 	colorOnce sync.Once
 )
-
 var (
 	// ANSI color codes
 	red           = Color("1")
@@ -47,12 +39,10 @@ var (
 	brightBlue    = Color("12")
 	brightMagenta = Color("13")
 )
-
 // Color returns a color for the given string.
 func Color(s string) termenv.Color {
 	colorOnce.Do(func() {
 		color = termenv.NewOutput(os.Stdout).EnvColorProfile()
-
 		if flag.Lookup("test.v") != nil {
 			// Use a consistent colorless profile in tests so that results
 			// are deterministic.
@@ -61,11 +51,9 @@ func Color(s string) termenv.Color {
 	})
 	return color.Color(s)
 }
-
 func isTerm() bool {
 	return color != termenv.Ascii
 }
-
 // Bold returns a formatter that renders text in bold
 // if the terminal supports it.
 func Bold(s string) string {
@@ -74,7 +62,6 @@ func Bold(s string) string {
 	}
 	return pretty.Sprint(pretty.Bold(), s)
 }
-
 // BoldFmt returns a formatter that renders text in bold
 // if the terminal supports it.
 func BoldFmt() pretty.Formatter {
@@ -83,44 +70,36 @@ func BoldFmt() pretty.Formatter {
 	}
 	return pretty.Bold()
 }
-
 // Timestamp formats a timestamp for display.
 func Timestamp(t time.Time) string {
 	return pretty.Sprint(DefaultStyles.DateTimeStamp, t.Format(time.Stamp))
 }
-
 // Keyword formats a keyword for display.
 func Keyword(s string) string {
 	return pretty.Sprint(DefaultStyles.Keyword, s)
 }
-
 // Placeholder formats a placeholder for display.
 func Placeholder(s string) string {
 	return pretty.Sprint(DefaultStyles.Placeholder, s)
 }
-
 // Wrap prevents the text from overflowing the terminal.
 func Wrap(s string) string {
 	return pretty.Sprint(DefaultStyles.Wrap, s)
 }
-
 // Code formats code for display.
 func Code(s string) string {
 	return pretty.Sprint(DefaultStyles.Code, s)
 }
-
 // Field formats a field for display.
 func Field(s string) string {
 	return pretty.Sprint(DefaultStyles.Field, s)
 }
-
 func ifTerm(fmt pretty.Formatter) pretty.Formatter {
 	if !isTerm() {
 		return pretty.Nop
 	}
 	return fmt
 }
-
 func init() {
 	// We do not adapt the color based on whether the terminal is light or dark.
 	// Doing so would require a round-trip between the program and the terminal
@@ -172,11 +151,10 @@ func init() {
 		},
 	}
 }
-
 // ValidateNotEmpty is a helper function to disallow empty inputs!
 func ValidateNotEmpty(s string) error {
 	if s == "" {
-		return xerrors.New("Must be provided!")
+		return errors.New("Must be provided!")
 	}
 	return nil
 }

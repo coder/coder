@@ -1,16 +1,12 @@
 package cli
-
 import (
+	"errors"
 	"fmt"
 	"strings"
-
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
-
 func (RootCmd) promptExample() *serpent.Command {
 	promptCmd := func(use string, prompt func(inv *serpent.Invocation) error, options ...serpent.Option) *serpent.Command {
 		return &serpent.Command{
@@ -21,7 +17,6 @@ func (RootCmd) promptExample() *serpent.Command {
 			},
 		}
 	}
-
 	var (
 		useSearch       bool
 		useSearchOption = serpent.Option{
@@ -31,7 +26,6 @@ func (RootCmd) promptExample() *serpent.Command {
 			Flag:        "search",
 			Value:       serpent.BoolOf(&useSearch),
 		}
-
 		multiSelectValues []string
 		multiSelectError  error
 		useThingsOption   = serpent.Option{
@@ -41,7 +35,6 @@ func (RootCmd) promptExample() *serpent.Command {
 			Default:     "",
 			Value:       serpent.StringArrayOf(&multiSelectValues),
 		}
-
 		enableCustomInput       bool
 		enableCustomInputOption = serpent.Option{
 			Name:        "enable-custom-input",
@@ -77,10 +70,10 @@ func (RootCmd) promptExample() *serpent.Command {
 					IsConfirm: false,
 					Validate: func(s string) error {
 						if len(s) == 0 {
-							return xerrors.Errorf("an input string is required")
+							return fmt.Errorf("an input string is required")
 						}
 						if strings.ToUpper(string(s[0])) != string(s[0]) {
-							return xerrors.Errorf("input string must start with a capital letter")
+							return fmt.Errorf("input string must start with a capital letter")
 						}
 						return nil
 					},
@@ -96,7 +89,7 @@ func (RootCmd) promptExample() *serpent.Command {
 					IsConfirm: false,
 					Validate: func(s string) error {
 						if len(s) == 0 {
-							return xerrors.Errorf("an input string is required")
+							return fmt.Errorf("an input string is required")
 						}
 						return nil
 					},
@@ -205,6 +198,5 @@ func (RootCmd) promptExample() *serpent.Command {
 			}, useSearchOption),
 		},
 	}
-
 	return cmd
 }

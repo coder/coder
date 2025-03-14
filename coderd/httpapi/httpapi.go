@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/go-playground/validator/v10"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/httpapi/httpapiconstraints"
 	"github.com/coder/coder/v2/coderd/tracing"
@@ -124,7 +123,7 @@ func Is404Error(err error) bool {
 	if IsUnauthorizedError(err) {
 		return true
 	}
-	return xerrors.Is(err, sql.ErrNoRows)
+	return errors.Is(err, sql.ErrNoRows)
 }
 
 func IsUnauthorizedError(err error) bool {
@@ -369,7 +368,7 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (sendEvent f
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-closed:
-			return xerrors.New("server sent event sender closed")
+			return errors.New("server sent event sender closed")
 		case eventC <- event:
 			// Re-check closure signals after sending the event to allow
 			// for early exit. We don't check closed here because it

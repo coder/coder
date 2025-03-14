@@ -1,14 +1,10 @@
 package cli
-
 import (
+	"errors"
 	"fmt"
-
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
-
 func (r *RootCmd) update() *serpent.Command {
 	var (
 		parameterFlags workspaceParameterFlags
@@ -33,12 +29,10 @@ func (r *RootCmd) update() *serpent.Command {
 				_, _ = fmt.Fprintf(inv.Stdout, "Workspace is up-to-date.\n")
 				return nil
 			}
-
 			build, err := startWorkspace(inv, client, workspace, parameterFlags, bflags, WorkspaceUpdate)
 			if err != nil {
-				return xerrors.Errorf("start workspace: %w", err)
+				return fmt.Errorf("start workspace: %w", err)
 			}
-
 			logs, closer, err := client.WorkspaceBuildLogsAfter(inv.Context(), build.ID, 0)
 			if err != nil {
 				return err
@@ -54,7 +48,6 @@ func (r *RootCmd) update() *serpent.Command {
 			return nil
 		},
 	}
-
 	cmd.Options = append(cmd.Options, parameterFlags.allOptions()...)
 	cmd.Options = append(cmd.Options, bflags.cliOptions()...)
 	return cmd

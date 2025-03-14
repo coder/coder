@@ -1,25 +1,21 @@
 package tailnet
-
 import (
+	"fmt"
+	"errors"
 	"net/netip"
-
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
-
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet/proto"
 )
-
 func UUIDToByteSlice(u uuid.UUID) []byte {
 	b := [16]byte(u)
 	o := make([]byte, 16)
 	copy(o, b[:]) // copy so that we can't mutate the original
 	return o
 }
-
 func NodeToProto(n *Node) (*proto.Node, error) {
 	k, err := n.Key.MarshalBinary()
 	if err != nil {
@@ -62,7 +58,6 @@ func NodeToProto(n *Node) (*proto.Node, error) {
 		Endpoints:           n.Endpoints,
 	}, nil
 }
-
 func ProtoToNode(p *proto.Node) (*Node, error) {
 	k := key.NodePublic{}
 	err := k.UnmarshalBinary(p.GetKey())
@@ -105,7 +100,6 @@ func ProtoToNode(p *proto.Node) (*Node, error) {
 		Endpoints:           p.Endpoints,
 	}, nil
 }
-
 func OnlyNodeUpdates(resp *proto.CoordinateResponse) ([]*Node, error) {
 	nodes := make([]*Node, 0, len(resp.GetPeerUpdates()))
 	for _, pu := range resp.GetPeerUpdates() {
@@ -114,17 +108,16 @@ func OnlyNodeUpdates(resp *proto.CoordinateResponse) ([]*Node, error) {
 		}
 		n, err := ProtoToNode(pu.Node)
 		if err != nil {
-			return nil, xerrors.Errorf("failed conversion from protobuf: %w", err)
+			return nil, fmt.Errorf("failed conversion from protobuf: %w", err)
 		}
 		nodes = append(nodes, n)
 	}
 	return nodes, nil
 }
-
 func SingleNodeUpdate(id uuid.UUID, node *Node, reason string) (*proto.CoordinateResponse, error) {
 	p, err := NodeToProto(node)
 	if err != nil {
-		return nil, xerrors.Errorf("node failed conversion to protobuf: %w", err)
+		return nil, fmt.Errorf("node failed conversion to protobuf: %w", err)
 	}
 	return &proto.CoordinateResponse{
 		PeerUpdates: []*proto.CoordinateResponse_PeerUpdate{
@@ -137,24 +130,20 @@ func SingleNodeUpdate(id uuid.UUID, node *Node, reason string) (*proto.Coordinat
 		},
 	}, nil
 }
-
 func DERPMapToProto(derpMap *tailcfg.DERPMap) *proto.DERPMap {
 	if derpMap == nil {
 		return nil
 	}
-
 	regionScore := make(map[int64]float64)
 	if derpMap.HomeParams != nil {
 		for k, v := range derpMap.HomeParams.RegionScore {
 			regionScore[int64(k)] = v
 		}
 	}
-
 	regions := make(map[int64]*proto.DERPMap_Region, len(derpMap.Regions))
 	for regionID, region := range derpMap.Regions {
 		regions[int64(regionID)] = DERPRegionToProto(region)
 	}
-
 	return &proto.DERPMap{
 		HomeParams: &proto.DERPMap_HomeParams{
 			RegionScore: regionScore,
@@ -162,33 +151,27 @@ func DERPMapToProto(derpMap *tailcfg.DERPMap) *proto.DERPMap {
 		Regions: regions,
 	}
 }
-
 func DERPRegionToProto(region *tailcfg.DERPRegion) *proto.DERPMap_Region {
 	if region == nil {
 		return nil
 	}
-
 	regionNodes := make([]*proto.DERPMap_Region_Node, len(region.Nodes))
 	for i, node := range region.Nodes {
 		regionNodes[i] = DERPNodeToProto(node)
 	}
-
 	return &proto.DERPMap_Region{
 		RegionId:      int64(region.RegionID),
 		EmbeddedRelay: region.EmbeddedRelay,
 		RegionCode:    region.RegionCode,
 		RegionName:    region.RegionName,
 		Avoid:         region.Avoid,
-
 		Nodes: regionNodes,
 	}
 }
-
 func DERPNodeToProto(node *tailcfg.DERPNode) *proto.DERPMap_Region_Node {
 	if node == nil {
 		return nil
 	}
-
 	return &proto.DERPMap_Region_Node{
 		Name:             node.Name,
 		RegionId:         int64(node.RegionID),
@@ -205,22 +188,18 @@ func DERPNodeToProto(node *tailcfg.DERPNode) *proto.DERPMap_Region_Node {
 		CanPort_80:       node.CanPort80,
 	}
 }
-
 func DERPMapFromProto(derpMap *proto.DERPMap) *tailcfg.DERPMap {
 	if derpMap == nil {
 		return nil
 	}
-
 	regionScore := make(map[int]float64, len(derpMap.HomeParams.RegionScore))
 	for k, v := range derpMap.HomeParams.RegionScore {
 		regionScore[int(k)] = v
 	}
-
 	regions := make(map[int]*tailcfg.DERPRegion, len(derpMap.Regions))
 	for regionID, region := range derpMap.Regions {
 		regions[int(regionID)] = DERPRegionFromProto(region)
 	}
-
 	return &tailcfg.DERPMap{
 		HomeParams: &tailcfg.DERPHomeParams{
 			RegionScore: regionScore,
@@ -228,33 +207,27 @@ func DERPMapFromProto(derpMap *proto.DERPMap) *tailcfg.DERPMap {
 		Regions: regions,
 	}
 }
-
 func DERPRegionFromProto(region *proto.DERPMap_Region) *tailcfg.DERPRegion {
 	if region == nil {
 		return nil
 	}
-
 	regionNodes := make([]*tailcfg.DERPNode, len(region.Nodes))
 	for i, node := range region.Nodes {
 		regionNodes[i] = DERPNodeFromProto(node)
 	}
-
 	return &tailcfg.DERPRegion{
 		RegionID:      int(region.RegionId),
 		EmbeddedRelay: region.EmbeddedRelay,
 		RegionCode:    region.RegionCode,
 		RegionName:    region.RegionName,
 		Avoid:         region.Avoid,
-
 		Nodes: regionNodes,
 	}
 }
-
 func DERPNodeFromProto(node *proto.DERPMap_Region_Node) *tailcfg.DERPNode {
 	if node == nil {
 		return nil
 	}
-
 	return &tailcfg.DERPNode{
 		Name:             node.Name,
 		RegionID:         int(node.RegionId),
@@ -271,7 +244,6 @@ func DERPNodeFromProto(node *proto.DERPMap_Region_Node) *tailcfg.DERPNode {
 		CanPort80:        node.CanPort_80,
 	}
 }
-
 func WorkspaceStatusToProto(status codersdk.WorkspaceStatus) proto.Workspace_Status {
 	switch status {
 	case codersdk.WorkspaceStatusCanceled:
@@ -298,15 +270,12 @@ func WorkspaceStatusToProto(status codersdk.WorkspaceStatus) proto.Workspace_Sta
 		return proto.Workspace_UNKNOWN
 	}
 }
-
 type DERPFromDRPCWrapper struct {
 	Client proto.DRPCTailnet_StreamDERPMapsClient
 }
-
 func (w *DERPFromDRPCWrapper) Close() error {
 	return w.Client.Close()
 }
-
 func (w *DERPFromDRPCWrapper) Recv() (*tailcfg.DERPMap, error) {
 	p, err := w.Client.Recv()
 	if err != nil {
@@ -314,5 +283,4 @@ func (w *DERPFromDRPCWrapper) Recv() (*tailcfg.DERPMap, error) {
 	}
 	return DERPMapFromProto(p), nil
 }
-
 var _ DERPClient = &DERPFromDRPCWrapper{}

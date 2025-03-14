@@ -1,19 +1,15 @@
 package cli
-
 import (
+	"errors"
 	"fmt"
 	"os"
 	"slices"
 	"strings"
 	"time"
-
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
-
 func (r *RootCmd) tokens() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "tokens",
@@ -44,7 +40,6 @@ func (r *RootCmd) tokens() *serpent.Command {
 	}
 	return cmd
 }
-
 func (r *RootCmd) createToken() *serpent.Command {
 	var (
 		tokenLifetime string
@@ -64,42 +59,34 @@ func (r *RootCmd) createToken() *serpent.Command {
 			if user != "" {
 				userID = user
 			}
-
 			var parsedLifetime time.Duration
 			var err error
-
 			tokenConfig, err := client.GetTokenConfig(inv.Context(), userID)
 			if err != nil {
-				return xerrors.Errorf("get token config: %w", err)
+				return fmt.Errorf("get token config: %w", err)
 			}
-
 			if tokenLifetime == "" {
 				parsedLifetime = tokenConfig.MaxTokenLifetime
 			} else {
 				parsedLifetime, err = extendedParseDuration(tokenLifetime)
 				if err != nil {
-					return xerrors.Errorf("parse lifetime: %w", err)
+					return fmt.Errorf("parse lifetime: %w", err)
 				}
-
 				if parsedLifetime > tokenConfig.MaxTokenLifetime {
-					return xerrors.Errorf("lifetime (%s) is greater than the maximum allowed lifetime (%s)", parsedLifetime, tokenConfig.MaxTokenLifetime)
+					return fmt.Errorf("lifetime (%s) is greater than the maximum allowed lifetime (%s)", parsedLifetime, tokenConfig.MaxTokenLifetime)
 				}
 			}
-
 			res, err := client.CreateToken(inv.Context(), userID, codersdk.CreateTokenRequest{
 				Lifetime:  parsedLifetime,
 				TokenName: name,
 			})
 			if err != nil {
-				return xerrors.Errorf("create tokens: %w", err)
+				return fmt.Errorf("create tokens: %w", err)
 			}
-
 			_, _ = fmt.Fprintln(inv.Stdout, res.Key)
-
 			return nil
 		},
 	}
-
 	cmd.Options = serpent.OptionSet{
 		{
 			Flag:        "lifetime",
@@ -122,15 +109,12 @@ func (r *RootCmd) createToken() *serpent.Command {
 			Value:         serpent.StringOf(&user),
 		},
 	}
-
 	return cmd
 }
-
 // tokenListRow is the type provided to the OutputFormatter.
 type tokenListRow struct {
 	// For JSON format:
 	codersdk.APIKey `table:"-"`
-
 	// For table format:
 	ID        string    `json:"-" table:"id,default_sort"`
 	TokenName string    `json:"token_name" table:"name"`
@@ -139,7 +123,6 @@ type tokenListRow struct {
 	CreatedAt time.Time `json:"-" table:"created at"`
 	Owner     string    `json:"-" table:"owner"`
 }
-
 func tokenListRowFromToken(token codersdk.APIKeyWithOwner) tokenListRow {
 	return tokenListRow{
 		APIKey:    token.APIKey,
@@ -151,14 +134,12 @@ func tokenListRowFromToken(token codersdk.APIKeyWithOwner) tokenListRow {
 		Owner:     token.Username,
 	}
 }
-
 func (r *RootCmd) listTokens() *serpent.Command {
 	// we only display the 'owner' column if the --all argument is passed in
 	defaultCols := []string{"id", "name", "last used", "expires at", "created at"}
 	if slices.Contains(os.Args, "-a") || slices.Contains(os.Args, "--all") {
 		defaultCols = append(defaultCols, "owner")
 	}
-
 	var (
 		all           bool
 		displayTokens []tokenListRow
@@ -167,7 +148,6 @@ func (r *RootCmd) listTokens() *serpent.Command {
 			cliui.JSONFormat(),
 		)
 	)
-
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:     "list",
@@ -182,32 +162,26 @@ func (r *RootCmd) listTokens() *serpent.Command {
 				IncludeAll: all,
 			})
 			if err != nil {
-				return xerrors.Errorf("list tokens: %w", err)
+				return fmt.Errorf("list tokens: %w", err)
 			}
-
 			if len(tokens) == 0 {
 				cliui.Infof(
 					inv.Stdout,
 					"No tokens found.\n",
 				)
 			}
-
 			displayTokens = make([]tokenListRow, len(tokens))
-
 			for i, token := range tokens {
 				displayTokens[i] = tokenListRowFromToken(token)
 			}
-
 			out, err := formatter.Format(inv.Context(), displayTokens)
 			if err != nil {
 				return err
 			}
-
 			_, err = fmt.Fprintln(inv.Stdout, out)
 			return err
 		},
 	}
-
 	cmd.Options = serpent.OptionSet{
 		{
 			Flag:          "all",
@@ -216,11 +190,9 @@ func (r *RootCmd) listTokens() *serpent.Command {
 			Value:         serpent.BoolOf(&all),
 		},
 	}
-
 	formatter.AttachOptions(&cmd.Options)
 	return cmd
 }
-
 func (r *RootCmd) removeToken() *serpent.Command {
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
@@ -238,23 +210,19 @@ func (r *RootCmd) removeToken() *serpent.Command {
 				maybeID := strings.Split(inv.Args[0], "-")[0]
 				token, err = client.APIKeyByID(inv.Context(), codersdk.Me, maybeID)
 				if err != nil {
-					return xerrors.Errorf("fetch api key by name or id: %w", err)
+					return fmt.Errorf("fetch api key by name or id: %w", err)
 				}
 			}
-
 			err = client.DeleteAPIKey(inv.Context(), codersdk.Me, token.ID)
 			if err != nil {
-				return xerrors.Errorf("delete api key: %w", err)
+				return fmt.Errorf("delete api key: %w", err)
 			}
-
 			cliui.Infof(
 				inv.Stdout,
 				"Token has been deleted.",
 			)
-
 			return nil
 		},
 	}
-
 	return cmd
 }

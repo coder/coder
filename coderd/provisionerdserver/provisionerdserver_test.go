@@ -1,6 +1,6 @@
 package provisionerdserver_test
-
 import (
+	"errors"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -12,19 +12,15 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
-
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/oauth2"
-	"golang.org/x/xerrors"
 	"storj.io/drpc"
-
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/quartz"
 	"github.com/coder/serpent"
-
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -47,21 +43,18 @@ import (
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
 )
-
 func testTemplateScheduleStore() *atomic.Pointer[schedule.TemplateScheduleStore] {
 	ptr := &atomic.Pointer[schedule.TemplateScheduleStore]{}
 	store := schedule.NewAGPLTemplateScheduleStore()
 	ptr.Store(&store)
 	return ptr
 }
-
 func testUserQuietHoursScheduleStore() *atomic.Pointer[schedule.UserQuietHoursScheduleStore] {
 	ptr := &atomic.Pointer[schedule.UserQuietHoursScheduleStore]{}
 	store := schedule.NewAGPLUserQuietHoursScheduleStore()
 	ptr.Store(&store)
 	return ptr
 }
-
 func TestAcquireJob_LongPoll(t *testing.T) {
 	t.Parallel()
 	//nolint:dogsled
@@ -70,7 +63,6 @@ func TestAcquireJob_LongPoll(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, &proto.AcquiredJob{}, job)
 }
-
 func TestAcquireJobWithCancel_Cancel(t *testing.T) {
 	t.Parallel()
 	//nolint:dogsled
@@ -94,10 +86,8 @@ func TestAcquireJobWithCancel_Cancel(t *testing.T) {
 	require.NotNil(t, job)
 	require.Equal(t, "", job.JobId)
 }
-
 func TestHeartbeat(t *testing.T) {
 	t.Parallel()
-
 	numBeats := 3
 	ctx := testutil.Context(t, testutil.WaitShort)
 	heartbeatChan := make(chan struct{})
@@ -116,16 +106,13 @@ func TestHeartbeat(t *testing.T) {
 		heartbeatFn:       heartbeatFn,
 		heartbeatInterval: testutil.IntervalFast,
 	})
-
 	for i := 0; i < numBeats; i++ {
 		testutil.RequireRecvCtx(ctx, t, heartbeatChan)
 	}
 	// goleak.VerifyTestMain ensures that the heartbeat goroutine does not leak
 }
-
 func TestAcquireJob(t *testing.T) {
 	t.Parallel()
-
 	// These test acquiring a single job without canceling, and tests both AcquireJob (deprecated) and
 	// AcquireJobWithCancel as the way to get the job.
 	cases := []struct {
@@ -151,7 +138,6 @@ func TestAcquireJob(t *testing.T) {
 			srv, db, _, pd := setup(t, false, nil)
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 			defer cancel()
-
 			_, err := db.InsertProvisionerJob(context.Background(), database.InsertProvisionerJobParams{
 				OrganizationID: pd.OrganizationID,
 				ID:             uuid.New(),
@@ -177,7 +163,6 @@ func TestAcquireJob(t *testing.T) {
 			gitAuthProvider := &sdkproto.ExternalAuthProviderResource{
 				Id: "github",
 			}
-
 			srv, db, ps, pd := setup(t, false, &overrides{
 				deploymentValues: dv,
 				externalAuthConfigs: []*externalauth.Config{{
@@ -187,7 +172,6 @@ func TestAcquireJob(t *testing.T) {
 			})
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 			defer cancel()
-
 			user := dbgen.User(t, db, database.User{})
 			group1 := dbgen.Group(t, db, database.Group{
 				Name:           "group1",
@@ -293,7 +277,6 @@ func TestAcquireJob(t *testing.T) {
 					WorkspaceBuildID: build.ID,
 				})),
 			})
-
 			startPublished := make(chan struct{})
 			var closed bool
 			closeStartSubscribe, err := ps.SubscribeWithErr(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
@@ -311,9 +294,7 @@ func TestAcquireJob(t *testing.T) {
 					}))
 			require.NoError(t, err)
 			defer closeStartSubscribe()
-
 			var job *proto.AcquiredJob
-
 			for {
 				// Grab jobs until we find the workspace build job. There is also
 				// an import version job that we need to ignore.
@@ -323,12 +304,9 @@ func TestAcquireJob(t *testing.T) {
 					break
 				}
 			}
-
 			<-startPublished
-
 			got, err := json.Marshal(job.Type)
 			require.NoError(t, err)
-
 			// Validate that a session token is generated during the job.
 			sessionToken := job.Type.(*proto.AcquiredJob_WorkspaceBuild_).WorkspaceBuild.Metadata.WorkspaceOwnerSessionToken
 			require.NotEmpty(t, sessionToken)
@@ -338,7 +316,6 @@ func TestAcquireJob(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, int64(dv.Sessions.MaximumTokenDuration.Value().Seconds()), key.LifetimeSeconds)
 			require.WithinDuration(t, time.Now().Add(dv.Sessions.MaximumTokenDuration.Value()), key.ExpiresAt, time.Minute)
-
 			want, err := json.Marshal(&proto.AcquiredJob_WorkspaceBuild_{
 				WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
 					WorkspaceBuildId: build.ID.String(),
@@ -382,9 +359,7 @@ func TestAcquireJob(t *testing.T) {
 				},
 			})
 			require.NoError(t, err)
-
 			require.JSONEq(t, string(want), string(got))
-
 			// Assert that we delete the session token whenever
 			// a stop is issued.
 			stopbuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
@@ -406,7 +381,6 @@ func TestAcquireJob(t *testing.T) {
 					WorkspaceBuildID: stopbuild.ID,
 				})),
 			})
-
 			stopPublished := make(chan struct{})
 			closeStopSubscribe, err := ps.SubscribeWithErr(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
 				wspubsub.HandleWorkspaceEvent(
@@ -420,28 +394,23 @@ func TestAcquireJob(t *testing.T) {
 					}))
 			require.NoError(t, err)
 			defer closeStopSubscribe()
-
 			// Grab jobs until we find the workspace build job. There is also
 			// an import version job that we need to ignore.
 			job, err = tc.acquire(ctx, srv)
 			require.NoError(t, err)
 			_, ok := job.Type.(*proto.AcquiredJob_WorkspaceBuild_)
 			require.True(t, ok, "acquired job not a workspace build?")
-
 			<-stopPublished
-
 			// Validate that a session token is deleted during a stop job.
 			sessionToken = job.Type.(*proto.AcquiredJob_WorkspaceBuild_).WorkspaceBuild.Metadata.WorkspaceOwnerSessionToken
 			require.Empty(t, sessionToken)
 			_, err = db.GetAPIKeyByID(ctx, key.ID)
 			require.ErrorIs(t, err, sql.ErrNoRows)
 		})
-
 		t.Run(tc.name+"_TemplateVersionDryRun", func(t *testing.T) {
 			t.Parallel()
 			srv, db, ps, _ := setup(t, false, nil)
 			ctx := context.Background()
-
 			user := dbgen.User(t, db, database.User{})
 			version := dbgen.TemplateVersion(t, db, database.TemplateVersion{})
 			file := dbgen.File(t, db, database.File{CreatedBy: user.ID})
@@ -456,13 +425,10 @@ func TestAcquireJob(t *testing.T) {
 					WorkspaceName:     "testing",
 				})),
 			})
-
 			job, err := tc.acquire(ctx, srv)
 			require.NoError(t, err)
-
 			got, err := json.Marshal(job.Type)
 			require.NoError(t, err)
-
 			want, err := json.Marshal(&proto.AcquiredJob_TemplateDryRun_{
 				TemplateDryRun: &proto.AcquiredJob_TemplateDryRun{
 					Metadata: &sdkproto.Metadata{
@@ -478,7 +444,6 @@ func TestAcquireJob(t *testing.T) {
 			t.Parallel()
 			srv, db, ps, _ := setup(t, false, nil)
 			ctx := context.Background()
-
 			user := dbgen.User(t, db, database.User{})
 			file := dbgen.File(t, db, database.File{CreatedBy: user.ID})
 			_ = dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
@@ -488,13 +453,10 @@ func TestAcquireJob(t *testing.T) {
 				StorageMethod: database.ProvisionerStorageMethodFile,
 				Type:          database.ProvisionerJobTypeTemplateVersionImport,
 			})
-
 			job, err := tc.acquire(ctx, srv)
 			require.NoError(t, err)
-
 			got, err := json.Marshal(job.Type)
 			require.NoError(t, err)
-
 			want, err := json.Marshal(&proto.AcquiredJob_TemplateImport_{
 				TemplateImport: &proto.AcquiredJob_TemplateImport{
 					Metadata: &sdkproto.Metadata{
@@ -508,7 +470,6 @@ func TestAcquireJob(t *testing.T) {
 		t.Run(tc.name+"_TemplateVersionImportWithUserVariable", func(t *testing.T) {
 			t.Parallel()
 			srv, db, ps, _ := setup(t, false, nil)
-
 			user := dbgen.User(t, db, database.User{})
 			version := dbgen.TemplateVersion(t, db, database.TemplateVersion{})
 			file := dbgen.File(t, db, database.File{CreatedBy: user.ID})
@@ -525,16 +486,12 @@ func TestAcquireJob(t *testing.T) {
 					},
 				})),
 			})
-
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 			defer cancel()
-
 			job, err := tc.acquire(ctx, srv)
 			require.NoError(t, err)
-
 			got, err := json.Marshal(job.Type)
 			require.NoError(t, err)
-
 			want, err := json.Marshal(&proto.AcquiredJob_TemplateImport_{
 				TemplateImport: &proto.AcquiredJob_TemplateImport{
 					UserVariableValues: []*sdkproto.VariableValue{
@@ -550,7 +507,6 @@ func TestAcquireJob(t *testing.T) {
 		})
 	}
 }
-
 func TestUpdateJob(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -561,7 +517,6 @@ func TestUpdateJob(t *testing.T) {
 			JobId: "hello",
 		})
 		require.ErrorContains(t, err, "invalid UUID")
-
 		_, err = srv.UpdateJob(ctx, &proto.UpdateJobRequest{
 			JobId: uuid.NewString(),
 		})
@@ -606,7 +561,6 @@ func TestUpdateJob(t *testing.T) {
 		})
 		require.ErrorContains(t, err, "you don't own this job")
 	})
-
 	setupJob := func(t *testing.T, db database.Store, srvID uuid.UUID) uuid.UUID {
 		job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
 			ID:            uuid.New(),
@@ -625,7 +579,6 @@ func TestUpdateJob(t *testing.T) {
 		require.NoError(t, err)
 		return job.ID
 	}
-
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
 		srv, db, _, pd := setup(t, false, &overrides{})
@@ -635,20 +588,16 @@ func TestUpdateJob(t *testing.T) {
 		})
 		require.NoError(t, err)
 	})
-
 	t.Run("Logs", func(t *testing.T) {
 		t.Parallel()
 		srv, db, ps, pd := setup(t, false, &overrides{})
 		job := setupJob(t, db, pd.ID)
-
 		published := make(chan struct{})
-
 		closeListener, err := ps.Subscribe(provisionersdk.ProvisionerJobLogsNotifyChannel(job), func(_ context.Context, _ []byte) {
 			close(published)
 		})
 		require.NoError(t, err)
 		defer closeListener()
-
 		_, err = srv.UpdateJob(ctx, &proto.UpdateJobRequest{
 			JobId: job.String(),
 			Logs: []*proto.Log{{
@@ -658,7 +607,6 @@ func TestUpdateJob(t *testing.T) {
 			}},
 		})
 		require.NoError(t, err)
-
 		<-published
 	})
 	t.Run("Readme", func(t *testing.T) {
@@ -676,19 +624,15 @@ func TestUpdateJob(t *testing.T) {
 			Readme: []byte("# hello world"),
 		})
 		require.NoError(t, err)
-
 		version, err := db.GetTemplateVersionByID(ctx, versionID)
 		require.NoError(t, err)
 		require.Equal(t, "# hello world", version.Readme)
 	})
-
 	t.Run("TemplateVariables", func(t *testing.T) {
 		t.Parallel()
-
 		t.Run("Valid", func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
-
 			srv, db, _, pd := setup(t, false, &overrides{})
 			job := setupJob(t, db, pd.ID)
 			versionID := uuid.New()
@@ -724,18 +668,15 @@ func TestUpdateJob(t *testing.T) {
 			})
 			require.NoError(t, err)
 			require.Len(t, response.VariableValues, 2)
-
 			templateVariables, err := db.GetTemplateVersionVariables(ctx, versionID)
 			require.NoError(t, err)
 			require.Len(t, templateVariables, 2)
 			require.Equal(t, templateVariables[0].Value, firstTemplateVariable.DefaultValue)
 			require.Equal(t, templateVariables[1].Value, "foobar")
 		})
-
 		t.Run("Missing required value", func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
-
 			srv, db, _, pd := setup(t, false, &overrides{})
 			job := setupJob(t, db, pd.ID)
 			versionID := uuid.New()
@@ -765,7 +706,6 @@ func TestUpdateJob(t *testing.T) {
 			})
 			require.Error(t, err) // required template variables need values
 			require.Nil(t, response)
-
 			// Even though there is an error returned, variables are stored in the database
 			// to show the schema in the site UI.
 			templateVariables, err := db.GetTemplateVersionVariables(ctx, versionID)
@@ -775,13 +715,10 @@ func TestUpdateJob(t *testing.T) {
 			require.Equal(t, templateVariables[1].Value, "")
 		})
 	})
-
 	t.Run("WorkspaceTags", func(t *testing.T) {
 		t.Parallel()
-
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
-
 		srv, db, _, pd := setup(t, false, &overrides{})
 		job := setupJob(t, db, pd.ID)
 		versionID := uuid.New()
@@ -798,7 +735,6 @@ func TestUpdateJob(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-
 		workspaceTags, err := db.GetTemplateVersionWorkspaceTags(ctx, versionID)
 		require.NoError(t, err)
 		require.Len(t, workspaceTags, 2)
@@ -808,7 +744,6 @@ func TestUpdateJob(t *testing.T) {
 		require.Equal(t, workspaceTags[1].Value, "jinx")
 	})
 }
-
 func TestFailJob(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -819,7 +754,6 @@ func TestFailJob(t *testing.T) {
 			JobId: "hello",
 		})
 		require.ErrorContains(t, err, "invalid UUID")
-
 		_, err = srv.UpdateJob(ctx, &proto.UpdateJobRequest{
 			JobId: uuid.NewString(),
 		})
@@ -901,7 +835,6 @@ func TestFailJob(t *testing.T) {
 			WorkspaceBuildID: buildID,
 		})
 		require.NoError(t, err)
-
 		job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
 			ID:            uuid.New(),
 			Input:         input,
@@ -920,7 +853,6 @@ func TestFailJob(t *testing.T) {
 			JobID:       job.ID,
 		})
 		require.NoError(t, err)
-
 		_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
 			WorkerID: uuid.NullUUID{
 				UUID:  pd.ID,
@@ -929,7 +861,6 @@ func TestFailJob(t *testing.T) {
 			Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
 		})
 		require.NoError(t, err)
-
 		publishedWorkspace := make(chan struct{})
 		closeWorkspaceSubscribe, err := ps.SubscribeWithErr(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
 			wspubsub.HandleWorkspaceEvent(
@@ -949,7 +880,6 @@ func TestFailJob(t *testing.T) {
 		})
 		require.NoError(t, err)
 		defer closeLogsSubscribe()
-
 		auditor.ResetLogs()
 		_, err = srv.FailJob(ctx, &proto.FailedJob{
 			JobId: job.ID.String(),
@@ -966,7 +896,6 @@ func TestFailJob(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "some state", string(build.ProvisionerState))
 		require.Len(t, auditor.AuditLogs(), 1)
-
 		// Assert that the workspace_id field get populated
 		var additionalFields audit.AdditionalFields
 		err = json.Unmarshal(auditor.AuditLogs()[0].AdditionalFields, &additionalFields)
@@ -974,7 +903,6 @@ func TestFailJob(t *testing.T) {
 		require.Equal(t, workspace.ID, additionalFields.WorkspaceID)
 	})
 }
-
 func TestCompleteJob(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -985,7 +913,6 @@ func TestCompleteJob(t *testing.T) {
 			JobId: "hello",
 		})
 		require.ErrorContains(t, err, "invalid UUID")
-
 		_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
 			JobId: uuid.NewString(),
 		})
@@ -1017,7 +944,6 @@ func TestCompleteJob(t *testing.T) {
 		})
 		require.ErrorContains(t, err, "you don't own this job")
 	})
-
 	t.Run("TemplateImport_MissingGitAuth", func(t *testing.T) {
 		t.Parallel()
 		srv, db, _, pd := setup(t, false, &overrides{})
@@ -1070,7 +996,6 @@ func TestCompleteJob(t *testing.T) {
 		require.NoError(t, err)
 		require.Contains(t, job.Error.String, `external auth provider "github" is not configured`)
 	})
-
 	t.Run("TemplateImport_WithGitAuth", func(t *testing.T) {
 		t.Parallel()
 		srv, db, _, pd := setup(t, false, &overrides{
@@ -1125,42 +1050,33 @@ func TestCompleteJob(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, job.Error.Valid)
 	})
-
 	t.Run("WorkspaceBuild", func(t *testing.T) {
 		t.Parallel()
-
 		now := time.Now()
-
 		// NOTE: if you're looking for more in-depth deadline/max_deadline
 		// calculation testing, see the schedule package. The provsiionerdserver
 		// package calls `schedule.CalculateAutostop()` to generate the deadline
 		// and max_deadline.
-
 		// Wednesday the 8th of February 2023 at midnight. This date was
 		// specifically chosen as it doesn't fall on a applicable week for both
 		// fortnightly and triweekly autostop requirements.
 		wednesdayMidnightUTC := time.Date(2023, 2, 8, 0, 0, 0, 0, time.UTC)
-
 		sydneyQuietHours := "CRON_TZ=Australia/Sydney 0 0 * * *"
 		sydneyLoc, err := time.LoadLocation("Australia/Sydney")
 		require.NoError(t, err)
 		// 12am on Saturday the 11th of February 2023 in Sydney.
 		saturdayMidnightSydney := time.Date(2023, 2, 11, 0, 0, 0, 0, sydneyLoc)
-
 		t.Log("now", now)
 		t.Log("wednesdayMidnightUTC", wednesdayMidnightUTC)
 		t.Log("saturdayMidnightSydney", saturdayMidnightSydney)
-
 		cases := []struct {
 			name         string
 			now          time.Time
 			workspaceTTL time.Duration
 			transition   database.WorkspaceTransition
-
 			// These fields are only used when testing max deadline.
 			userQuietHoursSchedule      string
 			templateAutostopRequirement schedule.TemplateAutostopRequirement
-
 			expectedDeadline    time.Time
 			expectedMaxDeadline time.Time
 		}{
@@ -1205,13 +1121,10 @@ func TestCompleteJob(t *testing.T) {
 				expectedMaxDeadline: saturdayMidnightSydney.In(time.UTC),
 			},
 		}
-
 		for _, c := range cases {
 			c := c
-
 			t.Run(c.name, func(t *testing.T) {
 				t.Parallel()
-
 				// Simulate the given time starting from now.
 				require.False(t, c.now.IsZero())
 				clock := quartz.NewMock(t)
@@ -1225,7 +1138,6 @@ func TestCompleteJob(t *testing.T) {
 					userQuietHoursScheduleStore: uqhss,
 					auditor:                     auditor,
 				})
-
 				var templateScheduleStore schedule.TemplateScheduleStore = schedule.MockTemplateScheduleStore{
 					GetFn: func(_ context.Context, _ database.Store, _ uuid.UUID) (schedule.TemplateScheduleOptions, error) {
 						return schedule.TemplateScheduleOptions{
@@ -1237,7 +1149,6 @@ func TestCompleteJob(t *testing.T) {
 					},
 				}
 				tss.Store(&templateScheduleStore)
-
 				var userQuietHoursScheduleStore schedule.UserQuietHoursScheduleStore = schedule.MockUserQuietHoursScheduleStore{
 					GetFn: func(_ context.Context, _ database.Store, _ uuid.UUID) (schedule.UserQuietHoursScheduleOptions, error) {
 						if c.userQuietHoursSchedule == "" {
@@ -1245,12 +1156,10 @@ func TestCompleteJob(t *testing.T) {
 								Schedule: nil,
 							}, nil
 						}
-
 						sched, err := cron.Daily(c.userQuietHoursSchedule)
 						if !assert.NoError(t, err) {
 							return schedule.UserQuietHoursScheduleOptions{}, err
 						}
-
 						return schedule.UserQuietHoursScheduleOptions{
 							Schedule: sched,
 							UserSet:  false,
@@ -1258,7 +1167,6 @@ func TestCompleteJob(t *testing.T) {
 					},
 				}
 				uqhss.Store(&userQuietHoursScheduleStore)
-
 				user := dbgen.User(t, db, database.User{
 					QuietHoursSchedule: c.userQuietHoursSchedule,
 				})
@@ -1326,7 +1234,6 @@ func TestCompleteJob(t *testing.T) {
 					Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
 				})
 				require.NoError(t, err)
-
 				publishedWorkspace := make(chan struct{})
 				closeWorkspaceSubscribe, err := ps.SubscribeWithErr(wspubsub.WorkspaceEventChannel(workspaceTable.OwnerID),
 					wspubsub.HandleWorkspaceEvent(
@@ -1346,7 +1253,6 @@ func TestCompleteJob(t *testing.T) {
 				})
 				require.NoError(t, err)
 				defer closeLogsSubscribe()
-
 				_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
 					JobId: job.ID.String(),
 					Type: &proto.CompletedJob_WorkspaceBuild_{
@@ -1360,23 +1266,18 @@ func TestCompleteJob(t *testing.T) {
 					},
 				})
 				require.NoError(t, err)
-
 				<-publishedWorkspace
 				<-publishedLogs
-
 				workspace, err := db.GetWorkspaceByID(ctx, workspaceTable.ID)
 				require.NoError(t, err)
 				require.Equal(t, c.transition == database.WorkspaceTransitionDelete, workspace.Deleted)
-
 				workspaceBuild, err := db.GetWorkspaceBuildByID(ctx, build.ID)
 				require.NoError(t, err)
-
 				// If the max deadline is set, the deadline should also be set.
 				// Default to the max deadline if the deadline is not set.
 				if c.expectedDeadline.IsZero() {
 					c.expectedDeadline = c.expectedMaxDeadline
 				}
-
 				if c.expectedDeadline.IsZero() {
 					require.True(t, workspaceBuild.Deadline.IsZero())
 				} else {
@@ -1388,7 +1289,6 @@ func TestCompleteJob(t *testing.T) {
 					require.WithinDuration(t, c.expectedMaxDeadline, workspaceBuild.MaxDeadline, 15*time.Second, "max deadline does not match expected")
 					require.GreaterOrEqual(t, workspaceBuild.MaxDeadline.Unix(), workspaceBuild.Deadline.Unix(), "max deadline is smaller than deadline")
 				}
-
 				require.Len(t, auditor.AuditLogs(), 1)
 				var additionalFields audit.AdditionalFields
 				err = json.Unmarshal(auditor.AuditLogs()[0].AdditionalFields, &additionalFields)
@@ -1415,7 +1315,6 @@ func TestCompleteJob(t *testing.T) {
 			Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
 		})
 		require.NoError(t, err)
-
 		_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
 			JobId: job.ID.String(),
 			Type: &proto.CompletedJob_TemplateDryRun_{
@@ -1429,13 +1328,10 @@ func TestCompleteJob(t *testing.T) {
 		})
 		require.NoError(t, err)
 	})
-
 	t.Run("Modules", func(t *testing.T) {
 		t.Parallel()
-
 		templateVersionID := uuid.New()
 		workspaceBuildID := uuid.New()
-
 		cases := []struct {
 			name                 string
 			job                  *proto.CompletedJob
@@ -1616,13 +1512,10 @@ func TestCompleteJob(t *testing.T) {
 				},
 			},
 		}
-
 		for _, c := range cases {
 			c := c
-
 			t.Run(c.name, func(t *testing.T) {
 				t.Parallel()
-
 				srv, db, _, pd := setup(t, false, &overrides{})
 				jobParams := c.provisionerJobParams
 				if jobParams.ID == uuid.Nil {
@@ -1635,7 +1528,6 @@ func TestCompleteJob(t *testing.T) {
 					jobParams.StorageMethod = database.ProvisionerStorageMethodFile
 				}
 				job, err := db.InsertProvisionerJob(ctx, jobParams)
-
 				tpl := dbgen.Template(t, db, database.Template{
 					OrganizationID: pd.OrganizationID,
 				})
@@ -1652,7 +1544,6 @@ func TestCompleteJob(t *testing.T) {
 					WorkspaceID:       workspace.ID,
 					TemplateVersionID: tv.ID,
 				})
-
 				require.NoError(t, err)
 				_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
 					WorkerID: uuid.NullUUID{
@@ -1662,17 +1553,13 @@ func TestCompleteJob(t *testing.T) {
 					Types: []database.ProvisionerType{jobParams.Provisioner},
 				})
 				require.NoError(t, err)
-
 				completedJob := c.job
 				completedJob.JobId = job.ID.String()
-
 				_, err = srv.CompleteJob(ctx, completedJob)
 				require.NoError(t, err)
-
 				resources, err := db.GetWorkspaceResourcesByJobID(ctx, job.ID)
 				require.NoError(t, err)
 				require.Len(t, resources, len(c.expectedResources))
-
 				for _, expectedResource := range c.expectedResources {
 					for i, resource := range resources {
 						if resource.Name == expectedResource.Name &&
@@ -1687,11 +1574,9 @@ func TestCompleteJob(t *testing.T) {
 				for _, resource := range resources {
 					require.Equal(t, "matched", resource.Name)
 				}
-
 				modules, err := db.GetWorkspaceModulesByJobID(ctx, job.ID)
 				require.NoError(t, err)
 				require.Len(t, modules, len(c.expectedModules))
-
 				for _, expectedModule := range c.expectedModules {
 					for i, module := range modules {
 						if module.Key == expectedModule.Key &&
@@ -1709,15 +1594,12 @@ func TestCompleteJob(t *testing.T) {
 		}
 	})
 }
-
 func TestInsertWorkspacePresetsAndParameters(t *testing.T) {
 	t.Parallel()
-
 	type testCase struct {
 		name         string
 		givenPresets []*sdkproto.Preset
 	}
-
 	testCases := []testCase{
 		{
 			name: "no presets",
@@ -1780,12 +1662,10 @@ func TestInsertWorkspacePresetsAndParameters(t *testing.T) {
 			},
 		},
 	}
-
 	for _, c := range testCases {
 		c := c
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
-
 			ctx := testutil.Context(t, testutil.WaitLong)
 			logger := testutil.Logger(t)
 			db, ps := dbtestutil.NewDB(t)
@@ -1800,7 +1680,6 @@ func TestInsertWorkspacePresetsAndParameters(t *testing.T) {
 				OrganizationID: org.ID,
 				CreatedBy:      user.ID,
 			})
-
 			err := provisionerdserver.InsertWorkspacePresetsAndParameters(
 				ctx,
 				logger,
@@ -1811,11 +1690,9 @@ func TestInsertWorkspacePresetsAndParameters(t *testing.T) {
 				time.Now(),
 			)
 			require.NoError(t, err)
-
 			gotPresets, err := db.GetPresetsByTemplateVersionID(ctx, templateVersion.ID)
 			require.NoError(t, err)
 			require.Len(t, gotPresets, len(c.givenPresets))
-
 			for _, givenPreset := range c.givenPresets {
 				foundMatch := false
 				for _, gotPreset := range gotPresets {
@@ -1826,17 +1703,14 @@ func TestInsertWorkspacePresetsAndParameters(t *testing.T) {
 				}
 				require.True(t, foundMatch, "preset %s not found in parameters", givenPreset.Name)
 			}
-
 			gotPresetParameters, err := db.GetPresetParametersByTemplateVersionID(ctx, templateVersion.ID)
 			require.NoError(t, err)
-
 			for _, givenPreset := range c.givenPresets {
 				for _, givenParameter := range givenPreset.Parameters {
 					foundMatch := false
 					for _, gotParameter := range gotPresetParameters {
 						nameMatches := givenParameter.Name == gotParameter.Name
 						valueMatches := givenParameter.Value == gotParameter.Value
-
 						// ensure that preset parameters are matched to the correct preset:
 						var gotPreset database.TemplateVersionPreset
 						for _, preset := range gotPresets {
@@ -1846,7 +1720,6 @@ func TestInsertWorkspacePresetsAndParameters(t *testing.T) {
 							}
 						}
 						presetMatches := gotPreset.Name == givenPreset.Name
-
 						if nameMatches && valueMatches && presetMatches {
 							foundMatch = true
 							break
@@ -1858,7 +1731,6 @@ func TestInsertWorkspacePresetsAndParameters(t *testing.T) {
 		})
 	}
 }
-
 func TestInsertWorkspaceResource(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -2084,7 +1956,6 @@ func TestInsertWorkspaceResource(t *testing.T) {
 			database.DisplayAppVscode,
 		}, agent.DisplayApps)
 	})
-
 	t.Run("AllDisplayApps", func(t *testing.T) {
 		t.Parallel()
 		db := dbmem.New()
@@ -2113,7 +1984,6 @@ func TestInsertWorkspaceResource(t *testing.T) {
 		agent := agents[0]
 		require.ElementsMatch(t, database.AllDisplayAppValues(), agent.DisplayApps)
 	})
-
 	t.Run("DisableDefaultApps", func(t *testing.T) {
 		t.Parallel()
 		db := dbmem.New()
@@ -2138,7 +2008,6 @@ func TestInsertWorkspaceResource(t *testing.T) {
 		// that all apps are disabled.
 		require.Equal(t, []database.DisplayApp{}, agent.DisplayApps)
 	})
-
 	t.Run("ResourcesMonitoring", func(t *testing.T) {
 		t.Parallel()
 		db := dbmem.New()
@@ -2176,13 +2045,11 @@ func TestInsertWorkspaceResource(t *testing.T) {
 		agents, err := db.GetWorkspaceAgentsByResourceIDs(ctx, []uuid.UUID{resources[0].ID})
 		require.NoError(t, err)
 		require.Len(t, agents, 1)
-
 		agent := agents[0]
 		memMonitor, err := db.FetchMemoryResourceMonitorsByAgentID(ctx, agent.ID)
 		require.NoError(t, err)
 		volMonitors, err := db.FetchVolumesResourceMonitorsByAgentID(ctx, agent.ID)
 		require.NoError(t, err)
-
 		require.Equal(t, int32(80), memMonitor.Threshold)
 		require.Len(t, volMonitors, 2)
 		require.Equal(t, int32(90), volMonitors[0].Threshold)
@@ -2191,13 +2058,10 @@ func TestInsertWorkspaceResource(t *testing.T) {
 		require.Equal(t, "/volume2", volMonitors[1].Path)
 	})
 }
-
 func TestNotifications(t *testing.T) {
 	t.Parallel()
-
 	t.Run("Workspace deletion", func(t *testing.T) {
 		t.Parallel()
-
 		tests := []struct {
 			name               string
 			deletionReason     database.BuildReason
@@ -2222,24 +2086,19 @@ func TestNotifications(t *testing.T) {
 				shouldSelfInitiate: false,
 			},
 		}
-
 		for _, tc := range tests {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
-
 				ctx := context.Background()
 				notifEnq := &notificationstest.FakeEnqueuer{}
-
 				srv, db, ps, pd := setup(t, false, &overrides{
 					notificationEnqueuer: notifEnq,
 				})
-
 				user := dbgen.User(t, db, database.User{})
 				initiator := user
 				if !tc.shouldSelfInitiate {
 					initiator = dbgen.User(t, db, database.User{})
 				}
-
 				template := dbgen.Template(t, db, database.Template{
 					Name:           "template",
 					Provisioner:    database.ProvisionerTypeEcho,
@@ -2286,7 +2145,6 @@ func TestNotifications(t *testing.T) {
 					Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
 				})
 				require.NoError(t, err)
-
 				_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
 					JobId: job.ID.String(),
 					Type: &proto.CompletedJob_WorkspaceBuild_{
@@ -2300,11 +2158,9 @@ func TestNotifications(t *testing.T) {
 					},
 				})
 				require.NoError(t, err)
-
 				workspace, err := db.GetWorkspaceByID(ctx, workspaceTable.ID)
 				require.NoError(t, err)
 				require.True(t, workspace.Deleted)
-
 				if tc.shouldNotify {
 					// Validate that the notification was sent and contained the expected values.
 					sent := notifEnq.Sent()
@@ -2323,13 +2179,10 @@ func TestNotifications(t *testing.T) {
 			})
 		}
 	})
-
 	t.Run("Workspace build failed", func(t *testing.T) {
 		t.Parallel()
-
 		tests := []struct {
 			name string
-
 			buildReason  database.BuildReason
 			shouldNotify bool
 		}{
@@ -2344,24 +2197,19 @@ func TestNotifications(t *testing.T) {
 				shouldNotify: true,
 			},
 		}
-
 		for _, tc := range tests {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
-
 				ctx := context.Background()
 				notifEnq := &notificationstest.FakeEnqueuer{}
-
 				//	Otherwise `(*Server).FailJob` fails with:
 				// audit log - get build {"error": "sql: no rows in result set"}
 				ignoreLogErrors := true
 				srv, db, ps, pd := setup(t, ignoreLogErrors, &overrides{
 					notificationEnqueuer: notifEnq,
 				})
-
 				user := dbgen.User(t, db, database.User{})
 				initiator := user
-
 				template := dbgen.Template(t, db, database.Template{
 					Name:           "template",
 					Provisioner:    database.ProvisionerTypeEcho,
@@ -2406,7 +2254,6 @@ func TestNotifications(t *testing.T) {
 					Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
 				})
 				require.NoError(t, err)
-
 				_, err = srv.FailJob(ctx, &proto.FailedJob{
 					JobId: job.ID.String(),
 					Type: &proto.FailedJob_WorkspaceBuild_{
@@ -2416,7 +2263,6 @@ func TestNotifications(t *testing.T) {
 					},
 				})
 				require.NoError(t, err)
-
 				if tc.shouldNotify {
 					// Validate that the notification was sent and contained the expected values.
 					sent := notifEnq.Sent()
@@ -2433,22 +2279,17 @@ func TestNotifications(t *testing.T) {
 			})
 		}
 	})
-
 	t.Run("Manual build failed, template admins notified", func(t *testing.T) {
 		t.Parallel()
-
 		ctx := context.Background()
-
 		// given
 		notifEnq := &notificationstest.FakeEnqueuer{}
 		srv, db, ps, pd := setup(t, true /* ignoreLogErrors */, &overrides{notificationEnqueuer: notifEnq})
-
 		templateAdmin := dbgen.User(t, db, database.User{RBACRoles: []string{codersdk.RoleTemplateAdmin}})
 		_ /* other template admin, should not receive notification */ = dbgen.User(t, db, database.User{RBACRoles: []string{codersdk.RoleTemplateAdmin}})
 		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: templateAdmin.ID, OrganizationID: pd.OrganizationID})
 		user := dbgen.User(t, db, database.User{})
 		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: pd.OrganizationID})
-
 		template := dbgen.Template(t, db, database.Template{
 			Name: "template", DisplayName: "William's Template", Provisioner: database.ProvisionerTypeEcho, OrganizationID: pd.OrganizationID,
 		})
@@ -2474,13 +2315,11 @@ func TestNotifications(t *testing.T) {
 			Types:          []database.ProvisionerType{database.ProvisionerTypeEcho},
 		})
 		require.NoError(t, err)
-
 		// when
 		_, err = srv.FailJob(ctx, &proto.FailedJob{
 			JobId: job.ID.String(), Type: &proto.FailedJob_WorkspaceBuild_{WorkspaceBuild: &proto.FailedJob_WorkspaceBuild{State: []byte{}}},
 		})
 		require.NoError(t, err)
-
 		// then
 		sent := notifEnq.Sent()
 		require.Len(t, sent, 1)
@@ -2498,7 +2337,6 @@ func TestNotifications(t *testing.T) {
 		assert.Equal(t, strconv.Itoa(int(build.BuildNumber)), sent[0].Labels["workspace_build_number"])
 	})
 }
-
 type overrides struct {
 	ctx                         context.Context
 	deploymentValues            *codersdk.DeploymentValues
@@ -2512,7 +2350,6 @@ type overrides struct {
 	auditor                     audit.Auditor
 	notificationEnqueuer        notifications.Enqueuer
 }
-
 func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisionerDaemonServer, database.Store, pubsub.Pubsub, database.ProvisionerDaemon) {
 	t.Helper()
 	logger := testutil.Logger(t)
@@ -2520,7 +2357,6 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 	ps := pubsub.NewInMemory()
 	defOrg, err := db.GetDefaultOrganization(context.Background())
 	require.NoError(t, err, "default org not found")
-
 	deploymentValues := &codersdk.DeploymentValues{}
 	var externalAuthConfigs []*externalauth.Config
 	tss := testTemplateScheduleStore()
@@ -2578,7 +2414,6 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 	} else {
 		notifEnq = notifications.NewNoopEnqueuer()
 	}
-
 	daemon, err := db.UpsertProvisionerDaemon(ov.ctx, database.UpsertProvisionerDaemonParams{
 		Name:           "test",
 		CreatedAt:      dbtime.Now(),
@@ -2591,7 +2426,6 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 		KeyID:          codersdk.ProvisionerKeyUUIDBuiltIn,
 	})
 	require.NoError(t, err)
-
 	srv, err := provisionerdserver.NewServer(
 		ov.ctx,
 		&url.URL{},
@@ -2623,19 +2457,16 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 	require.NoError(t, err)
 	return srv, db, ps, daemon
 }
-
 func must[T any](value T, err error) T {
 	if err != nil {
 		panic(err)
 	}
 	return value
 }
-
 var (
-	errUnimplemented = xerrors.New("unimplemented")
-	errClosed        = xerrors.New("closed")
+	errUnimplemented = errors.New("unimplemented")
+	errClosed        = errors.New("closed")
 )
-
 type fakeStream struct {
 	ctx        context.Context
 	c          *sync.Cond
@@ -2644,14 +2475,12 @@ type fakeStream struct {
 	sendCalled bool
 	job        *proto.AcquiredJob
 }
-
 func newFakeStream(ctx context.Context) *fakeStream {
 	return &fakeStream{
 		ctx: ctx,
 		c:   sync.NewCond(&sync.Mutex{}),
 	}
 }
-
 func (s *fakeStream) Send(j *proto.AcquiredJob) error {
 	s.c.L.Lock()
 	defer s.c.L.Unlock()
@@ -2660,7 +2489,6 @@ func (s *fakeStream) Send(j *proto.AcquiredJob) error {
 	s.c.Broadcast()
 	return nil
 }
-
 func (s *fakeStream) Recv() (*proto.CancelAcquire, error) {
 	s.c.L.Lock()
 	defer s.c.L.Unlock()
@@ -2672,29 +2500,24 @@ func (s *fakeStream) Recv() (*proto.CancelAcquire, error) {
 	}
 	return nil, io.EOF
 }
-
 // Context returns the context associated with the stream. It is canceled
 // when the Stream is closed and no more messages will ever be sent or
 // received on it.
 func (s *fakeStream) Context() context.Context {
 	return s.ctx
 }
-
 // MsgSend sends the Message to the remote.
 func (*fakeStream) MsgSend(drpc.Message, drpc.Encoding) error {
 	return errUnimplemented
 }
-
 // MsgRecv receives a Message from the remote.
 func (*fakeStream) MsgRecv(drpc.Message, drpc.Encoding) error {
 	return errUnimplemented
 }
-
 // CloseSend signals to the remote that we will no longer send any messages.
 func (*fakeStream) CloseSend() error {
 	return errUnimplemented
 }
-
 // Close closes the stream.
 func (s *fakeStream) Close() error {
 	s.c.L.Lock()
@@ -2703,7 +2526,6 @@ func (s *fakeStream) Close() error {
 	s.c.Broadcast()
 	return nil
 }
-
 func (s *fakeStream) waitForJob() (*proto.AcquiredJob, error) {
 	s.c.L.Lock()
 	defer s.c.L.Unlock()
@@ -2715,7 +2537,6 @@ func (s *fakeStream) waitForJob() (*proto.AcquiredJob, error) {
 	}
 	return nil, errClosed
 }
-
 func (s *fakeStream) cancel() {
 	s.c.L.Lock()
 	defer s.c.L.Unlock()

@@ -18,7 +18,6 @@ import (
 	"github.com/robfig/cron/v3"
 	"github.com/spf13/afero"
 	"golang.org/x/sync/errgroup"
-	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"cdr.dev/slog"
@@ -32,7 +31,7 @@ import (
 
 var (
 	// ErrTimeout is returned when a script times out.
-	ErrTimeout = xerrors.New("script timed out")
+	ErrTimeout = errors.New("script timed out")
 	// ErrOutputPipesOpen is returned when a script exits leaving the output
 	// pipe(s) (stdout, stderr) open. This happens because we set WaitDelay on
 	// the command, which gives us two things:
@@ -40,7 +39,7 @@ var (
 	// 1. The ability to ensure that a script exits (this is important for e.g.
 	//    blocking login, and avoiding doing so indefinitely)
 	// 2. Improved command cancellation on timeout
-	ErrOutputPipesOpen = xerrors.New("script exited without closing output pipes")
+	ErrOutputPipesOpen = errors.New("script exited without closing output pipes")
 
 	parser = cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.DowOptional)
 )
@@ -124,7 +123,7 @@ func (r *Runner) RegisterMetrics(reg prometheus.Registerer) {
 // This function must be called before Execute.
 func (r *Runner) Init(scripts []codersdk.WorkspaceAgentScript, scriptCompleted ScriptCompletedFunc) error {
 	if r.initialized.Load() {
-		return xerrors.New("init: already initialized")
+		return errors.New("init: already initialized")
 	}
 	r.initialized.Store(true)
 	r.scripts = scripts
@@ -133,7 +132,7 @@ func (r *Runner) Init(scripts []codersdk.WorkspaceAgentScript, scriptCompleted S
 
 	err := r.Filesystem.MkdirAll(r.ScriptBinDir(), 0o700)
 	if err != nil {
-		return xerrors.Errorf("create script bin dir: %w", err)
+		return fmt.Errorf("create script bin dir: %w", err)
 	}
 
 	for _, script := range scripts {
@@ -148,7 +147,7 @@ func (r *Runner) Init(scripts []codersdk.WorkspaceAgentScript, scriptCompleted S
 			}
 		})
 		if err != nil {
-			return xerrors.Errorf("add schedule: %w", err)
+			return fmt.Errorf("add schedule: %w", err)
 		}
 	}
 	return nil
@@ -207,7 +206,7 @@ func (r *Runner) Execute(ctx context.Context, option ExecuteOption) error {
 		eg.Go(func() error {
 			err := r.trackRun(ctx, script, option)
 			if err != nil {
-				return xerrors.Errorf("run agent script %q: %w", script.LogSourceID, err)
+				return fmt.Errorf("run agent script %q: %w", script.LogSourceID, err)
 			}
 			return nil
 		})
@@ -241,7 +240,7 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 		if err != nil {
 			u, err := user.Current()
 			if err != nil {
-				return xerrors.Errorf("current user: %w", err)
+				return fmt.Errorf("current user: %w", err)
 			}
 			homeDir = u.HomeDir
 		}
@@ -255,7 +254,7 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 	scriptDataDir := filepath.Join(r.DataDir(), script.LogSourceID.String())
 	err := r.Filesystem.MkdirAll(scriptDataDir, 0o700)
 	if err != nil {
-		return xerrors.Errorf("%s script: create script temp dir: %w", scriptDataDir, err)
+		return fmt.Errorf("%s script: create script temp dir: %w", scriptDataDir, err)
 	}
 
 	logger := r.Logger.With(
@@ -267,7 +266,7 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 
 	fileWriter, err := r.Filesystem.OpenFile(logPath, os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
-		return xerrors.Errorf("open %s script log file: %w", logPath, err)
+		return fmt.Errorf("open %s script log file: %w", logPath, err)
 	}
 	defer func() {
 		err := fileWriter.Close()
@@ -285,7 +284,7 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 	}
 	cmdPty, err := r.SSHServer.CreateCommand(cmdCtx, script.Script, nil, nil)
 	if err != nil {
-		return xerrors.Errorf("%s script: create command: %w", logPath, err)
+		return fmt.Errorf("%s script: create command: %w", logPath, err)
 	}
 	cmd = cmdPty.AsExec()
 	cmd.SysProcAttr = cmdSysProcAttr()
@@ -325,7 +324,7 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 		if err != nil {
 			exitCode = 255 // Unknown status.
 			var exitError *exec.ExitError
-			if xerrors.As(err, &exitError) {
+			if errors.As(err, &exitError) {
 				exitCode = exitError.ExitCode()
 			}
 			logger.Warn(ctx, fmt.Sprintf("%s script failed", logPath), slog.F("execution_time", execTime), slog.F("exit_code", exitCode), slog.Error(err))
@@ -393,7 +392,7 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 		if errors.Is(err, context.DeadlineExceeded) {
 			return ErrTimeout
 		}
-		return xerrors.Errorf("%s script: start command: %w", logPath, err)
+		return fmt.Errorf("%s script: start command: %w", logPath, err)
 	}
 
 	cmdDone := make(chan error, 1)
@@ -401,7 +400,7 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 		cmdDone <- cmd.Wait()
 	})
 	if err != nil {
-		return xerrors.Errorf("%s script: track command goroutine: %w", logPath, err)
+		return fmt.Errorf("%s script: track command goroutine: %w", logPath, err)
 	}
 	select {
 	case <-cmdCtx.Done():
@@ -452,7 +451,7 @@ func (r *Runner) trackCommandGoroutine(fn func()) error {
 	r.closeMutex.Lock()
 	defer r.closeMutex.Unlock()
 	if r.isClosed() {
-		return xerrors.New("track command goroutine: closed")
+		return errors.New("track command goroutine: closed")
 	}
 	r.cmdCloseWait.Add(1)
 	go func() {

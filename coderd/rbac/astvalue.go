@@ -1,21 +1,18 @@
 package rbac
-
 import (
+	"fmt"
+	"errors"
 	"github.com/open-policy-agent/opa/ast"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 )
-
 // regoInputValue returns a rego input value for the given subject, action, and
 // object. This rego input is already parsed and can be used directly in a
 // rego query.
 func regoInputValue(subject Subject, action policy.Action, object Object) (ast.Value, error) {
 	regoSubj, err := subject.regoValue()
 	if err != nil {
-		return nil, xerrors.Errorf("subject: %w", err)
+		return nil, fmt.Errorf("subject: %w", err)
 	}
-
 	s := [2]*ast.Term{
 		ast.StringTerm("subject"),
 		ast.NewTerm(regoSubj),
@@ -28,20 +25,16 @@ func regoInputValue(subject Subject, action policy.Action, object Object) (ast.V
 		ast.StringTerm("object"),
 		ast.NewTerm(object.regoValue()),
 	}
-
 	input := ast.NewObject(s, a, o)
-
 	return input, nil
 }
-
 // regoPartialInputValue is the same as regoInputValue but only includes the
 // object type. This is for partial evaluations.
 func regoPartialInputValue(subject Subject, action policy.Action, objectType string) (ast.Value, error) {
 	regoSubj, err := subject.regoValue()
 	if err != nil {
-		return nil, xerrors.Errorf("subject: %w", err)
+		return nil, fmt.Errorf("subject: %w", err)
 	}
-
 	s := [2]*ast.Term{
 		ast.StringTerm("subject"),
 		ast.NewTerm(regoSubj),
@@ -59,26 +52,21 @@ func regoPartialInputValue(subject Subject, action policy.Action, objectType str
 			}),
 		),
 	}
-
 	input := ast.NewObject(s, a, o)
-
 	return input, nil
 }
-
 // regoValue returns the ast.Object representation of the subject.
 func (s Subject) regoValue() (ast.Value, error) {
 	if s.cachedASTValue != nil {
 		return s.cachedASTValue, nil
 	}
-
 	subjRoles, err := s.Roles.Expand()
 	if err != nil {
-		return nil, xerrors.Errorf("expand roles: %w", err)
+		return nil, fmt.Errorf("expand roles: %w", err)
 	}
-
 	subjScope, err := s.Scope.Expand()
 	if err != nil {
-		return nil, xerrors.Errorf("expand scope: %w", err)
+		return nil, fmt.Errorf("expand scope: %w", err)
 	}
 	subj := ast.NewObject(
 		[2]*ast.Term{
@@ -98,10 +86,8 @@ func (s Subject) regoValue() (ast.Value, error) {
 			ast.NewTerm(regoSliceString(s.Groups...)),
 		},
 	)
-
 	return subj, nil
 }
-
 func (z Object) regoValue() ast.Value {
 	userACL := ast.NewObject()
 	for k, v := range z.ACLUserList {
@@ -142,7 +128,6 @@ func (z Object) regoValue() ast.Value {
 		},
 	)
 }
-
 // withCachedRegoValue returns a copy of the role with the cachedRegoValue.
 // It does not mutate the underlying role.
 // Avoid using this function if possible, it should only be used if the
@@ -152,7 +137,6 @@ func (role Role) withCachedRegoValue() Role {
 	tmp.cachedRegoValue = role.regoValue()
 	return tmp
 }
-
 func (role Role) regoValue() ast.Value {
 	if role.cachedRegoValue != nil {
 		return role.cachedRegoValue
@@ -176,7 +160,6 @@ func (role Role) regoValue() ast.Value {
 		},
 	)
 }
-
 func (s Scope) regoValue() ast.Value {
 	r, ok := s.Role.regoValue().(ast.Object)
 	if !ok {
@@ -188,7 +171,6 @@ func (s Scope) regoValue() ast.Value {
 	)
 	return r
 }
-
 func (perm Permission) regoValue() ast.Value {
 	return ast.NewObject(
 		[2]*ast.Term{
@@ -205,11 +187,9 @@ func (perm Permission) regoValue() ast.Value {
 		},
 	)
 }
-
 type regoValue interface {
 	regoValue() ast.Value
 }
-
 // regoSlice returns the ast.Array representation of the slice.
 // The slice must contain only types that implement the regoValue interface.
 func regoSlice[T regoValue](slice []T) *ast.Array {
@@ -219,7 +199,6 @@ func regoSlice[T regoValue](slice []T) *ast.Array {
 	}
 	return ast.NewArray(terms...)
 }
-
 func regoSliceString[T ~string](slice ...T) *ast.Array {
 	terms := make([]*ast.Term, len(slice))
 	for i, v := range slice {

@@ -1,17 +1,14 @@
 //go:build windows
-
 package vpn
-
 import (
+	"fmt"
 	"context"
 	"errors"
 	"time"
-
 	"github.com/dblohm7/wingoes/com"
 	"github.com/tailscale/wireguard-go/tun"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/svc"
-	"golang.org/x/xerrors"
 	"golang.zx2c4.com/wintun"
 	"tailscale.com/net/dns"
 	"tailscale.com/net/netmon"
@@ -19,42 +16,36 @@ import (
 	"tailscale.com/types/logger"
 	"tailscale.com/util/winutil"
 	"tailscale.com/wgengine/router"
-
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/retry"
 )
-
 const (
 	tunName = "Coder"
 	tunGUID = "{0ed1515d-04a4-4c46-abae-11ad07cf0e6d}"
-
 	wintunDLL = "wintun.dll"
 )
-
 func GetNetworkingStack(t *Tunnel, _ *StartRequest, logger slog.Logger) (NetworkStack, error) {
 	// Initialize COM process-wide so Tailscale can make calls to the windows
 	// network APIs to read/write adapter state.
 	comProcessType := com.ConsoleApp
 	isSvc, err := svc.IsWindowsService()
 	if err != nil {
-		return NetworkStack{}, xerrors.Errorf("svc.IsWindowsService failed: %w", err)
+		return NetworkStack{}, fmt.Errorf("svc.IsWindowsService failed: %w", err)
 	}
 	if isSvc {
 		comProcessType = com.Service
 	}
 	if err := com.StartRuntime(comProcessType); err != nil {
-		return NetworkStack{}, xerrors.Errorf("could not initialize COM: com.StartRuntime(%d): %w", comProcessType, err)
+		return NetworkStack{}, fmt.Errorf("could not initialize COM: com.StartRuntime(%d): %w", comProcessType, err)
 	}
-
 	// Set the name and GUID for the TUN interface.
 	tun.WintunTunnelType = tunName
 	guid, err := windows.GUIDFromString(tunGUID)
 	if err != nil {
-		return NetworkStack{}, xerrors.Errorf("could not parse GUID %q: %w", tunGUID, err)
+		return NetworkStack{}, fmt.Errorf("could not parse GUID %q: %w", tunGUID, err)
 	}
 	tun.WintunStaticRequestedGUID = &guid
-
 	// Ensure wintun.dll is available, and fail early if it's not to avoid
 	// hanging for 5 minutes in tstunNewWithWindowsRetries.
 	//
@@ -62,7 +53,6 @@ func GetNetworkingStack(t *Tunnel, _ *StartRequest, logger slog.Logger) (Network
 	// load wintun.dll. This allows the wintun package to set the logging
 	// callback in the DLL before we load it ourselves.
 	_ = wintun.Version()
-
 	// Then, we try to load wintun.dll ourselves so we get a better error
 	// message if there was a problem. This call matches the wintun package, so
 	// we're loading it in the same way.
@@ -75,27 +65,22 @@ func GetNetworkingStack(t *Tunnel, _ *StartRequest, logger slog.Logger) (Network
 	)
 	_, err = windows.LoadLibraryEx(wintunDLL, 0, LOAD_LIBRARY_SEARCH_APPLICATION_DIR|LOAD_LIBRARY_SEARCH_SYSTEM32)
 	if err != nil {
-		return NetworkStack{}, xerrors.Errorf("could not load %q, it should be in the same directory as the executable (in Coder Desktop, this should have been installed automatically): %w", wintunDLL, err)
+		return NetworkStack{}, fmt.Errorf("could not load %q, it should be in the same directory as the executable (in Coder Desktop, this should have been installed automatically): %w", wintunDLL, err)
 	}
-
 	tunDev, tunName, err := tstunNewWithWindowsRetries(tailnet.Logger(logger.Named("net.tun.device")), tunName)
 	if err != nil {
-		return NetworkStack{}, xerrors.Errorf("create tun device: %w", err)
+		return NetworkStack{}, fmt.Errorf("create tun device: %w", err)
 	}
 	logger.Info(context.Background(), "tun created", slog.F("name", tunName))
-
 	wireguardMonitor, err := netmon.New(tailnet.Logger(logger.Named("net.wgmonitor")))
-
 	coderRouter, err := router.New(tailnet.Logger(logger.Named("net.router")), tunDev, wireguardMonitor)
 	if err != nil {
-		return NetworkStack{}, xerrors.Errorf("create router: %w", err)
+		return NetworkStack{}, fmt.Errorf("create router: %w", err)
 	}
-
 	dnsConfigurator, err := dns.NewOSConfigurator(tailnet.Logger(logger.Named("net.dns")), tunName)
 	if err != nil {
-		return NetworkStack{}, xerrors.Errorf("create dns configurator: %w", err)
+		return NetworkStack{}, fmt.Errorf("create dns configurator: %w", err)
 	}
-
 	return NetworkStack{
 		WireguardMonitor: nil, // default is fine
 		TUNDevice:        tunDev,
@@ -103,7 +88,6 @@ func GetNetworkingStack(t *Tunnel, _ *StartRequest, logger slog.Logger) (Network
 		DNSConfigurator:  dnsConfigurator,
 	}, nil
 }
-
 // tstunNewOrRetry is a wrapper around tstun.New that retries on Windows for certain
 // errors.
 //
@@ -125,20 +109,16 @@ func tstunNewWithWindowsRetries(logf logger.Logf, tunName string) (_ tun.Device,
 			winutil.LogSvcState(logf, "NetSetupSvc")
 		}
 	}
-
 	return nil, "", ctx.Err()
 }
-
 var (
 	kernel32           = windows.NewLazySystemDLL("kernel32.dll")
 	getTickCount64Proc = kernel32.NewProc("GetTickCount64")
 )
-
 func windowsUptime() time.Duration {
 	r, _, _ := getTickCount64Proc.Call()
 	return time.Duration(int64(r)) * time.Millisecond
 }
-
 // TODO(@dean): implement a way to install/uninstall the wintun driver, most
 // likely as a CLI command
 //
@@ -150,11 +130,9 @@ func uninstallWinTun(logf logger.Logf) {
 		logf("Cannot load wintun.dll for uninstall: %v", err)
 		return
 	}
-
 	logf("Removing wintun driver...")
 	err := wintun.Uninstall()
 	logf("Uninstall: %v", err)
 }
-
 // TODO(@dean): remove
 var _ = uninstallWinTun

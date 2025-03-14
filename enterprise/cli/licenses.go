@@ -1,6 +1,6 @@
 package cli
-
 import (
+	"errors"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,17 +9,12 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
-
 var jwtRegexp = regexp.MustCompile(`^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$`)
-
 func (r *RootCmd) licenses() *serpent.Command {
 	cmd := &serpent.Command{
 		Short:   "Add, delete, and list licenses",
@@ -36,7 +31,6 @@ func (r *RootCmd) licenses() *serpent.Command {
 	}
 	return cmd
 }
-
 func (r *RootCmd) licenseAdd() *serpent.Command {
 	var (
 		filename string
@@ -55,8 +49,7 @@ func (r *RootCmd) licenseAdd() *serpent.Command {
 			var err error
 			switch {
 			case filename != "" && license != "":
-				return xerrors.New("only one of (--file, --license) may be specified")
-
+				return errors.New("only one of (--file, --license) may be specified")
 			case filename == "" && license == "":
 				license, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text:     "Paste license:",
@@ -66,7 +59,6 @@ func (r *RootCmd) licenseAdd() *serpent.Command {
 				if err != nil {
 					return err
 				}
-
 			case filename != "" && license == "":
 				var r io.Reader
 				if filename == "-" {
@@ -90,7 +82,6 @@ func (r *RootCmd) licenseAdd() *serpent.Command {
 			if err != nil {
 				return err
 			}
-
 			licResp, err := client.AddLicense(
 				inv.Context(),
 				codersdk.AddLicenseRequest{License: license},
@@ -128,14 +119,12 @@ func (r *RootCmd) licenseAdd() *serpent.Command {
 	}
 	return cmd
 }
-
 func validJWT(s string) error {
 	if jwtRegexp.MatchString(s) {
 		return nil
 	}
-	return xerrors.New("Invalid license")
+	return errors.New("Invalid license")
 }
-
 func (r *RootCmd) licensesList() *serpent.Command {
 	type tableLicense struct {
 		ID         int32     `table:"id,default_sort"`
@@ -147,21 +136,20 @@ func (r *RootCmd) licensesList() *serpent.Command {
 		ExpiresAt time.Time `table:"expires at" format:"date-time"`
 		Trial     bool      `table:"trial"`
 	}
-
 	formatter := cliui.NewOutputFormatter(
 		cliui.ChangeFormatterData(
 			cliui.TableFormat([]tableLicense{}, []string{"ID", "UUID", "Expires At", "Uploaded At", "Features"}),
 			func(data any) (any, error) {
 				list, ok := data.([]codersdk.License)
 				if !ok {
-					return nil, xerrors.Errorf("invalid data type %T", data)
+					return nil, fmt.Errorf("invalid data type %T", data)
 				}
 				out := make([]tableLicense, 0, len(list))
 				for _, lic := range list {
 					var formattedFeatures string
 					features, err := lic.FeaturesClaims()
 					if err != nil {
-						formattedFeatures = xerrors.Errorf("invalid license: %w", err).Error()
+						formattedFeatures = fmt.Errorf("invalid license: %w", err).Error()
 					} else {
 						var strs []string
 						if lic.AllFeaturesClaim() {
@@ -179,7 +167,6 @@ func (r *RootCmd) licensesList() *serpent.Command {
 					}
 					// If this returns an error, a zero time is returned.
 					exp, _ := lic.ExpiresAt()
-
 					out = append(out, tableLicense{
 						ID:         lic.ID,
 						UUID:       lic.UUID,
@@ -194,7 +181,7 @@ func (r *RootCmd) licensesList() *serpent.Command {
 		cliui.ChangeFormatterData(cliui.JSONFormat(), func(data any) (any, error) {
 			list, ok := data.([]codersdk.License)
 			if !ok {
-				return nil, xerrors.Errorf("invalid data type %T", data)
+				return nil, fmt.Errorf("invalid data type %T", data)
 			}
 			for i := range list {
 				humanExp, err := list[i].ExpiresAt()
@@ -202,11 +189,9 @@ func (r *RootCmd) licensesList() *serpent.Command {
 					list[i].Claims[codersdk.LicenseExpiryClaim+"_human"] = humanExp.Format(time.RFC3339)
 				}
 			}
-
 			return list, nil
 		}),
 	)
-
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:     "list",
@@ -225,12 +210,10 @@ func (r *RootCmd) licensesList() *serpent.Command {
 			if licenses == nil {
 				licenses = make([]codersdk.License, 0)
 			}
-
 			out, err := formatter.Format(inv.Context(), licenses)
 			if err != nil {
 				return err
 			}
-
 			_, err = fmt.Fprintln(inv.Stdout, out)
 			return err
 		},
@@ -238,7 +221,6 @@ func (r *RootCmd) licensesList() *serpent.Command {
 	formatter.AttachOptions(&cmd.Options)
 	return cmd
 }
-
 func (r *RootCmd) licenseDelete() *serpent.Command {
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
@@ -252,7 +234,7 @@ func (r *RootCmd) licenseDelete() *serpent.Command {
 		Handler: func(inv *serpent.Invocation) error {
 			id, err := strconv.ParseInt(inv.Args[0], 10, 32)
 			if err != nil {
-				return xerrors.Errorf("license ID must be an integer: %s", inv.Args[0])
+				return fmt.Errorf("license ID must be an integer: %s", inv.Args[0])
 			}
 			err = client.DeleteLicense(inv.Context(), int32(id))
 			if err != nil {

@@ -1,25 +1,20 @@
 package cli
-
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
-
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/util/tz"
 	"github.com/coder/serpent"
 )
-
 var (
-	errInvalidScheduleFormat = xerrors.New("Schedule must be in the format Mon-Fri 09:00AM America/Chicago")
-	errInvalidTimeFormat     = xerrors.New("Start time must be in the format hh:mm[am|pm] or HH:MM")
-	errUnsupportedTimezone   = xerrors.New("The location you provided looks like a timezone. Check https://ipinfo.io for your location.")
+	errInvalidScheduleFormat = errors.New("Schedule must be in the format Mon-Fri 09:00AM America/Chicago")
+	errInvalidTimeFormat     = errors.New("Start time must be in the format hh:mm[am|pm] or HH:MM")
+	errUnsupportedTimezone   = errors.New("The location you provided looks like a timezone. Check https://ipinfo.io for your location.")
 )
-
 // userSetOption returns true if the option was set by the user.
 // This is helpful if the zero value of a flag is meaningful, and you need
 // to distinguish between the user setting the flag to the zero value and
@@ -32,7 +27,6 @@ func userSetOption(inv *serpent.Invocation, flagName string) bool {
 	}
 	return false
 }
-
 // durationDisplay formats a duration for easier display:
 //   - Durations of 24 hours or greater are displays as Xd
 //   - Durations less than 1 minute are displayed as <1m
@@ -76,7 +70,6 @@ func durationDisplay(d time.Duration) string {
 	}
 	return sign + durationDisplay
 }
-
 // timeDisplay formats a time in the local timezone
 // in RFC3339 format.
 func timeDisplay(t time.Time) string {
@@ -84,10 +77,8 @@ func timeDisplay(t time.Time) string {
 	if err != nil {
 		localTz = time.UTC
 	}
-
 	return t.In(localTz).Format(time.RFC3339)
 }
-
 // relative relativizes a duration with the prefix "ago" or "in"
 func relative(d time.Duration) string {
 	if d > 0 {
@@ -98,7 +89,6 @@ func relative(d time.Duration) string {
 	}
 	return "now"
 }
-
 // parseCLISchedule parses a schedule in the format HH:MM{AM|PM} [DOW] [LOCATION]
 func parseCLISchedule(parts ...string) (*cron.Schedule, error) {
 	// If the user was careful and quoted the schedule, un-quote it.
@@ -113,7 +103,6 @@ func parseCLISchedule(parts ...string) (*cron.Schedule, error) {
 		return nil, err
 	}
 	hour, minute := t.Hour(), t.Minute()
-
 	// Any additional parts get ignored.
 	switch len(parts) {
 	case 3:
@@ -124,7 +113,7 @@ func parseCLISchedule(parts ...string) (*cron.Schedule, error) {
 			if err == nil {
 				return nil, errUnsupportedTimezone
 			}
-			return nil, xerrors.Errorf("Invalid timezone %q specified: a valid IANA timezone is required", parts[2])
+			return nil, fmt.Errorf("Invalid timezone %q specified: a valid IANA timezone is required", parts[2])
 		}
 	case 2:
 		// Did they provide day-of-week or location?
@@ -138,7 +127,6 @@ func parseCLISchedule(parts ...string) (*cron.Schedule, error) {
 	default:
 		return nil, errInvalidScheduleFormat
 	}
-
 	// If location was not specified, attempt to automatically determine it as a last resort.
 	if loc == nil {
 		loc, err = tz.TimezoneIANA()
@@ -146,7 +134,6 @@ func parseCLISchedule(parts ...string) (*cron.Schedule, error) {
 			loc = time.UTC
 		}
 	}
-
 	sched, err := cron.Weekly(fmt.Sprintf(
 		"CRON_TZ=%s %d %d * * %s",
 		loc.String(),
@@ -156,12 +143,10 @@ func parseCLISchedule(parts ...string) (*cron.Schedule, error) {
 	))
 	if err != nil {
 		// This will either be an invalid dayOfWeek or an invalid timezone.
-		return nil, xerrors.Errorf("Invalid schedule: %w", err)
+		return nil, fmt.Errorf("Invalid schedule: %w", err)
 	}
-
 	return sched, nil
 }
-
 // parseDuration parses a duration from a string.
 // If units are omitted, minutes are assumed.
 func parseDuration(raw string) (time.Duration, error) {
@@ -175,13 +160,11 @@ func parseDuration(raw string) (time.Duration, error) {
 	}
 	return d, nil
 }
-
 func isDigit(s string) bool {
 	return strings.IndexFunc(s, func(c rune) bool {
 		return c < '0' || c > '9'
 	}) == -1
 }
-
 // extendedParseDuration is a more lenient version of parseDuration that allows
 // for more flexible input formats and cumulative durations.
 // It allows for some extra units:
@@ -192,68 +175,59 @@ func isDigit(s string) bool {
 func extendedParseDuration(raw string) (time.Duration, error) {
 	var d int64
 	isPositive := true
-
 	// handle negative durations by checking for a leading '-'
 	if strings.HasPrefix(raw, "-") {
 		raw = raw[1:]
 		isPositive = false
 	}
-
 	if raw == "" {
-		return 0, xerrors.Errorf("invalid duration: %q", raw)
+		return 0, fmt.Errorf("invalid duration: %q", raw)
 	}
-
 	// Regular expression to match any characters that do not match the expected duration format
 	invalidCharRe := regexp.MustCompile(`[^0-9|nsuµhdym]+`)
 	if invalidCharRe.MatchString(raw) {
-		return 0, xerrors.Errorf("invalid duration format: %q", raw)
+		return 0, fmt.Errorf("invalid duration format: %q", raw)
 	}
-
 	// Regular expression to match numbers followed by 'd', 'y', or time units
 	re := regexp.MustCompile(`(-?\d+)(ns|us|µs|ms|s|m|h|d|y)`)
 	matches := re.FindAllStringSubmatch(raw, -1)
-
 	for _, match := range matches {
 		var num int64
 		num, err := strconv.ParseInt(match[1], 10, 0)
 		if err != nil {
-			return 0, xerrors.Errorf("invalid duration: %q", match[1])
+			return 0, fmt.Errorf("invalid duration: %q", match[1])
 		}
-
 		switch match[2] {
 		case "d":
 			// we want to check if d + num * int64(24*time.Hour) would overflow
 			if d > (1<<63-1)-num*int64(24*time.Hour) {
-				return 0, xerrors.Errorf("invalid duration: %q", raw)
+				return 0, fmt.Errorf("invalid duration: %q", raw)
 			}
 			d += num * int64(24*time.Hour)
 		case "y":
 			// we want to check if d + num * int64(8760*time.Hour) would overflow
 			if d > (1<<63-1)-num*int64(8760*time.Hour) {
-				return 0, xerrors.Errorf("invalid duration: %q", raw)
+				return 0, fmt.Errorf("invalid duration: %q", raw)
 			}
 			d += num * int64(8760*time.Hour)
 		case "h", "m", "s", "ns", "us", "µs", "ms":
 			partDuration, err := time.ParseDuration(match[0])
 			if err != nil {
-				return 0, xerrors.Errorf("invalid duration: %q", match[0])
+				return 0, fmt.Errorf("invalid duration: %q", match[0])
 			}
 			if d > (1<<63-1)-int64(partDuration) {
-				return 0, xerrors.Errorf("invalid duration: %q", raw)
+				return 0, fmt.Errorf("invalid duration: %q", raw)
 			}
 			d += int64(partDuration)
 		default:
-			return 0, xerrors.Errorf("invalid duration unit: %q", match[2])
+			return 0, fmt.Errorf("invalid duration unit: %q", match[2])
 		}
 	}
-
 	if !isPositive {
 		return -time.Duration(d), nil
 	}
-
 	return time.Duration(d), nil
 }
-
 // parseTime attempts to parse a time (no date) from the given string using a number of layouts.
 func parseTime(s string) (time.Time, error) {
 	// Try a number of possible layouts.
@@ -276,19 +250,16 @@ func parseTime(s string) (time.Time, error) {
 	}
 	return time.Time{}, errInvalidTimeFormat
 }
-
 func formatActiveDevelopers(n int) string {
 	developerText := "developer"
 	if n != 1 {
 		developerText = "developers"
 	}
-
 	var nStr string
 	if n < 0 {
 		nStr = "-"
 	} else {
 		nStr = strconv.Itoa(n)
 	}
-
 	return fmt.Sprintf("%s active %s", nStr, developerText)
 }

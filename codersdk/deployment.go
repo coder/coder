@@ -1,5 +1,4 @@
 package codersdk
-
 import (
 	"context"
 	"encoding/json"
@@ -13,35 +12,26 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
 	"github.com/google/uuid"
 	"golang.org/x/mod/semver"
-	"golang.org/x/xerrors"
-
 	"github.com/coreos/go-oidc/v3/oidc"
-
 	"github.com/coder/serpent"
-
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/agentmetrics"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 )
-
 // Entitlement represents whether a feature is licensed.
 type Entitlement string
-
 const (
 	EntitlementEntitled    Entitlement = "entitled"
 	EntitlementGracePeriod Entitlement = "grace_period"
 	EntitlementNotEntitled Entitlement = "not_entitled"
 )
-
 // Entitled returns if the entitlement can be used. So this is true if it
 // is entitled or still in it's grace period.
 func (e Entitlement) Entitled() bool {
 	return e == EntitlementEntitled || e == EntitlementGracePeriod
 }
-
 // Weight converts the enum types to a numerical value for easier
 // comparisons. Easier than sets of if statements.
 func (e Entitlement) Weight() int {
@@ -56,12 +46,10 @@ func (e Entitlement) Weight() int {
 		return -2
 	}
 }
-
 // FeatureName represents the internal name of a feature.
 // To add a new feature, add it to this set of enums as well as the FeatureNames
 // array below.
 type FeatureName string
-
 const (
 	FeatureUserLimit                  FeatureName = "user_limit"
 	FeatureAuditLog                   FeatureName = "audit_log"
@@ -82,7 +70,6 @@ const (
 	FeatureCustomRoles                FeatureName = "custom_roles"
 	FeatureMultipleOrganizations      FeatureName = "multiple_organizations"
 )
-
 // FeatureNames must be kept in-sync with the Feature enum above.
 var FeatureNames = []FeatureName{
 	FeatureUserLimit,
@@ -104,7 +91,6 @@ var FeatureNames = []FeatureName{
 	FeatureCustomRoles,
 	FeatureMultipleOrganizations,
 }
-
 // Humanize returns the feature name in a human-readable format.
 func (n FeatureName) Humanize() string {
 	switch n {
@@ -116,7 +102,6 @@ func (n FeatureName) Humanize() string {
 		return strings.Title(strings.ReplaceAll(string(n), "_", " "))
 	}
 }
-
 // AlwaysEnable returns if the feature is always enabled if entitled.
 // This is required because some features are only enabled if they are entitled
 // and not required.
@@ -134,7 +119,6 @@ func (n FeatureName) AlwaysEnable() bool {
 		FeatureMultipleOrganizations:      true,
 	}[n]
 }
-
 // Enterprise returns true if the feature is an enterprise feature.
 func (n FeatureName) Enterprise() bool {
 	switch n {
@@ -145,7 +129,6 @@ func (n FeatureName) Enterprise() bool {
 		return true
 	}
 }
-
 // FeatureSet represents a grouping of features. Rather than manually
 // assigning features al-la-carte when making a license, a set can be specified.
 // Sets are dynamic in the sense a feature can be added to a set, granting the
@@ -153,18 +136,15 @@ func (n FeatureName) Enterprise() bool {
 // If features were granted al-la-carte, we would need to reissue the existing
 // old licenses to include the new feature.
 type FeatureSet string
-
 const (
 	FeatureSetNone       FeatureSet = ""
 	FeatureSetEnterprise FeatureSet = "enterprise"
 	FeatureSetPremium    FeatureSet = "premium"
 )
-
 func (set FeatureSet) Features() []FeatureName {
 	switch FeatureSet(strings.ToLower(string(set))) {
 	case FeatureSetEnterprise:
 		// Enterprise is the set 'AllFeatures' minus some select features.
-
 		// Copy the list of all features
 		enterpriseFeatures := make([]FeatureName, len(FeatureNames))
 		copy(enterpriseFeatures, FeatureNames)
@@ -172,7 +152,6 @@ func (set FeatureSet) Features() []FeatureName {
 		enterpriseFeatures = slices.DeleteFunc(enterpriseFeatures, func(f FeatureName) bool {
 			return !f.Enterprise()
 		})
-
 		return enterpriseFeatures
 	case FeatureSetPremium:
 		premiumFeatures := make([]FeatureName, len(FeatureNames))
@@ -183,14 +162,12 @@ func (set FeatureSet) Features() []FeatureName {
 	// By default, return an empty set.
 	return []FeatureName{}
 }
-
 type Feature struct {
 	Entitlement Entitlement `json:"entitlement"`
 	Enabled     bool        `json:"enabled"`
 	Limit       *int64      `json:"limit,omitempty"`
 	Actual      *int64      `json:"actual,omitempty"`
 }
-
 // Compare compares two features and returns an integer representing
 // if the first feature (f) is greater than, equal to, or less than the second
 // feature (b). "Greater than" means the first feature has more functionality
@@ -217,13 +194,11 @@ func (f Feature) Compare(b Feature) int {
 			}
 		}
 	}
-
 	// Strict entitlement check. Higher is better
 	entitlementDifference := f.Entitlement.Weight() - b.Entitlement.Weight()
 	if entitlementDifference != 0 {
 		return entitlementDifference
 	}
-
 	// If the entitlement is the same, then we can compare the limits.
 	if f.Limit == nil && b.Limit != nil {
 		return -1
@@ -237,7 +212,6 @@ func (f Feature) Compare(b Feature) int {
 			return int(difference)
 		}
 	}
-
 	// Enabled is better than disabled.
 	if f.Enabled && !b.Enabled {
 		return 1
@@ -245,7 +219,6 @@ func (f Feature) Compare(b Feature) int {
 	if !f.Enabled && b.Enabled {
 		return -1
 	}
-
 	// Higher actual is better
 	if f.Actual == nil && b.Actual != nil {
 		return -1
@@ -259,10 +232,8 @@ func (f Feature) Compare(b Feature) int {
 			return int(difference)
 		}
 	}
-
 	return 0
 }
-
 // Capable is a helper function that returns if a given feature has a limit
 // that is greater than or equal to the actual.
 // If this condition is not true, then the feature is not capable of being used
@@ -273,7 +244,6 @@ func (f Feature) Capable() bool {
 	}
 	return true
 }
-
 type Entitlements struct {
 	Features         map[FeatureName]Feature `json:"features"`
 	Warnings         []string                `json:"warnings"`
@@ -283,7 +253,6 @@ type Entitlements struct {
 	RequireTelemetry bool                    `json:"require_telemetry"`
 	RefreshedAt      time.Time               `json:"refreshed_at" format:"date-time"`
 }
-
 // AddFeature will add the feature to the entitlements iff it expands
 // the set of features granted by the entitlements. If it does not, it will
 // be ignored and the existing feature with the same name will remain.
@@ -298,7 +267,6 @@ func (e *Entitlements) AddFeature(name FeatureName, add Feature) {
 		e.Features[name] = add
 		return
 	}
-
 	// Compare the features, keep the one that is "better"
 	comparison := add.Compare(existing)
 	if comparison > 0 {
@@ -306,7 +274,6 @@ func (e *Entitlements) AddFeature(name FeatureName, add Feature) {
 		return
 	}
 }
-
 func (c *Client) Entitlements(ctx context.Context) (Entitlements, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/entitlements", nil)
 	if err != nil {
@@ -319,19 +286,15 @@ func (c *Client) Entitlements(ctx context.Context) (Entitlements, error) {
 	var ent Entitlements
 	return ent, json.NewDecoder(res.Body).Decode(&ent)
 }
-
 type PostgresAuth string
-
 const (
 	PostgresAuthPassword  PostgresAuth = "password"
 	PostgresAuthAWSIAMRDS PostgresAuth = "awsiamrds"
 )
-
 var PostgresAuthDrivers = []string{
 	string(PostgresAuthPassword),
 	string(PostgresAuthAWSIAMRDS),
 }
-
 // DeploymentValues is the central configuration values the coder server.
 type DeploymentValues struct {
 	Verbose             serpent.Bool   `json:"verbose,omitempty"`
@@ -393,14 +356,11 @@ type DeploymentValues struct {
 	TermsOfServiceURL               serpent.String                       `json:"terms_of_service_url,omitempty" typescript:",notnull"`
 	Notifications                   NotificationsConfig                  `json:"notifications,omitempty" typescript:",notnull"`
 	AdditionalCSPPolicy             serpent.StringArray                  `json:"additional_csp_policy,omitempty" typescript:",notnull"`
-
 	Config      serpent.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig serpent.Bool           `json:"write_config,omitempty" typescript:",notnull"`
-
 	// DEPRECATED: Use HTTPAddress or TLS.Address instead.
 	Address serpent.HostPort `json:"address,omitempty" typescript:",notnull"`
 }
-
 // SSHConfig is configuration the cli & vscode extension use for configuring
 // ssh connections.
 type SSHConfig struct {
@@ -410,7 +370,6 @@ type SSHConfig struct {
 	// This will override defaults.
 	SSHConfigOptions serpent.StringArray
 }
-
 func (c SSHConfig) ParseOptions() (map[string]string, error) {
 	m := make(map[string]string)
 	for _, opt := range c.SSHConfigOptions {
@@ -422,7 +381,6 @@ func (c SSHConfig) ParseOptions() (map[string]string, error) {
 	}
 	return m, nil
 }
-
 // ParseSSHConfigOption parses a single ssh config option into it's key/value pair.
 func ParseSSHConfigOption(opt string) (key string, value string, err error) {
 	// An equal sign or whitespace is the separator between the key and value.
@@ -430,11 +388,10 @@ func ParseSSHConfigOption(opt string) (key string, value string, err error) {
 		return r == ' ' || r == '='
 	})
 	if idx == -1 {
-		return "", "", xerrors.Errorf("invalid config-ssh option %q", opt)
+		return "", "", fmt.Errorf("invalid config-ssh option %q", opt)
 	}
 	return opt[:idx], opt[idx+1:], nil
 }
-
 // SessionLifetime refers to "sessions" authenticating into Coderd. Coder has
 // multiple different session types: api keys, tokens, workspace app tokens,
 // agent tokens, etc. This configuration struct should be used to group all
@@ -455,20 +412,15 @@ type SessionLifetime struct {
 	// keys when they are used from the api. This means the api key lifetime at
 	// creation is the lifetime of the api key.
 	DisableExpiryRefresh serpent.Bool `json:"disable_expiry_refresh,omitempty" typescript:",notnull"`
-
 	// DefaultDuration is only for browser, workspace app and oauth sessions.
 	DefaultDuration serpent.Duration `json:"default_duration" typescript:",notnull"`
-
 	DefaultTokenDuration serpent.Duration `json:"default_token_lifetime,omitempty" typescript:",notnull"`
-
 	MaximumTokenDuration serpent.Duration `json:"max_token_lifetime,omitempty" typescript:",notnull"`
 }
-
 type DERP struct {
 	Server DERPServerConfig `json:"server" typescript:",notnull"`
 	Config DERPConfig       `json:"config" typescript:",notnull"`
 }
-
 type DERPServerConfig struct {
 	Enable        serpent.Bool        `json:"enable" typescript:",notnull"`
 	RegionID      serpent.Int64       `json:"region_id" typescript:",notnull"`
@@ -477,14 +429,12 @@ type DERPServerConfig struct {
 	STUNAddresses serpent.StringArray `json:"stun_addresses" typescript:",notnull"`
 	RelayURL      serpent.URL         `json:"relay_url" typescript:",notnull"`
 }
-
 type DERPConfig struct {
 	BlockDirect     serpent.Bool   `json:"block_direct" typescript:",notnull"`
 	ForceWebSockets serpent.Bool   `json:"force_websockets" typescript:",notnull"`
 	URL             serpent.String `json:"url" typescript:",notnull"`
 	Path            serpent.String `json:"path" typescript:",notnull"`
 }
-
 type PrometheusConfig struct {
 	Enable                serpent.Bool        `json:"enable" typescript:",notnull"`
 	Address               serpent.HostPort    `json:"address" typescript:",notnull"`
@@ -492,16 +442,13 @@ type PrometheusConfig struct {
 	CollectDBMetrics      serpent.Bool        `json:"collect_db_metrics" typescript:",notnull"`
 	AggregateAgentStatsBy serpent.StringArray `json:"aggregate_agent_stats_by" typescript:",notnull"`
 }
-
 type PprofConfig struct {
 	Enable  serpent.Bool     `json:"enable" typescript:",notnull"`
 	Address serpent.HostPort `json:"address" typescript:",notnull"`
 }
-
 type OAuth2Config struct {
 	Github OAuth2GithubConfig `json:"github" typescript:",notnull"`
 }
-
 type OAuth2GithubConfig struct {
 	ClientID              serpent.String      `json:"client_id" typescript:",notnull"`
 	ClientSecret          serpent.String      `json:"client_secret" typescript:",notnull"`
@@ -513,7 +460,6 @@ type OAuth2GithubConfig struct {
 	AllowEveryone         serpent.Bool        `json:"allow_everyone" typescript:",notnull"`
 	EnterpriseBaseURL     serpent.String      `json:"enterprise_base_url" typescript:",notnull"`
 }
-
 type OIDCConfig struct {
 	AllowSignups serpent.Bool   `json:"allow_signups" typescript:",notnull"`
 	ClientID     serpent.String `json:"client_id" typescript:",notnull"`
@@ -556,13 +502,11 @@ type OIDCConfig struct {
 	SignupsDisabledText       serpent.String                         `json:"signups_disabled_text" typescript:",notnull"`
 	SkipIssuerChecks          serpent.Bool                           `json:"skip_issuer_checks" typescript:",notnull"`
 }
-
 type TelemetryConfig struct {
 	Enable serpent.Bool `json:"enable" typescript:",notnull"`
 	Trace  serpent.Bool `json:"trace" typescript:",notnull"`
 	URL    serpent.URL  `json:"url" typescript:",notnull"`
 }
-
 type TLSConfig struct {
 	Enable               serpent.Bool        `json:"enable" typescript:",notnull"`
 	Address              serpent.HostPort    `json:"address" typescript:",notnull"`
@@ -577,14 +521,12 @@ type TLSConfig struct {
 	SupportedCiphers     serpent.StringArray `json:"supported_ciphers" typescript:",notnull"`
 	AllowInsecureCiphers serpent.Bool        `json:"allow_insecure_ciphers" typescript:",notnull"`
 }
-
 type TraceConfig struct {
 	Enable          serpent.Bool   `json:"enable" typescript:",notnull"`
 	HoneycombAPIKey serpent.String `json:"honeycomb_api_key" typescript:",notnull"`
 	CaptureLogs     serpent.Bool   `json:"capture_logs" typescript:",notnull"`
 	DataDog         serpent.Bool   `json:"data_dog" typescript:",notnull"`
 }
-
 type ExternalAuthConfig struct {
 	// Type is the type of external auth config.
 	Type         string `json:"type" yaml:"type"`
@@ -615,7 +557,6 @@ type ExternalAuthConfig struct {
 	// DisplayIcon is a URL to an icon to display in the UI.
 	DisplayIcon string `json:"display_icon" yaml:"display_icon"`
 }
-
 type ProvisionerConfig struct {
 	// Daemons is the number of built-in terraform provisioners.
 	Daemons             serpent.Int64       `json:"daemons" typescript:",notnull"`
@@ -625,29 +566,24 @@ type ProvisionerConfig struct {
 	ForceCancelInterval serpent.Duration    `json:"force_cancel_interval" typescript:",notnull"`
 	DaemonPSK           serpent.String      `json:"daemon_psk" typescript:",notnull"`
 }
-
 type RateLimitConfig struct {
 	DisableAll serpent.Bool  `json:"disable_all" typescript:",notnull"`
 	API        serpent.Int64 `json:"api" typescript:",notnull"`
 }
-
 type SwaggerConfig struct {
 	Enable serpent.Bool `json:"enable" typescript:",notnull"`
 }
-
 type LoggingConfig struct {
 	Filter      serpent.StringArray `json:"log_filter" typescript:",notnull"`
 	Human       serpent.String      `json:"human" typescript:",notnull"`
 	JSON        serpent.String      `json:"json" typescript:",notnull"`
 	Stackdriver serpent.String      `json:"stackdriver" typescript:",notnull"`
 }
-
 type DangerousConfig struct {
 	AllowPathAppSharing         serpent.Bool `json:"allow_path_app_sharing" typescript:",notnull"`
 	AllowPathAppSiteOwnerAccess serpent.Bool `json:"allow_path_app_site_owner_access" typescript:",notnull"`
 	AllowAllCors                serpent.Bool `json:"allow_all_cors" typescript:",notnull"`
 }
-
 type UserQuietHoursScheduleConfig struct {
 	DefaultSchedule serpent.String `json:"default_schedule" typescript:",notnull"`
 	AllowUserCustom serpent.Bool   `json:"allow_user_custom" typescript:",notnull"`
@@ -655,19 +591,16 @@ type UserQuietHoursScheduleConfig struct {
 	// amount
 	// WindowDuration  serpent.Duration `json:"window_duration" typescript:",notnull"`
 }
-
 // HealthcheckConfig contains configuration for healthchecks.
 type HealthcheckConfig struct {
 	Refresh           serpent.Duration `json:"refresh" typescript:",notnull"`
 	ThresholdDatabase serpent.Duration `json:"threshold_database" typescript:",notnull"`
 }
-
 type NotificationsConfig struct {
 	// The upper limit of attempts to send a notification.
 	MaxSendAttempts serpent.Int64 `json:"max_send_attempts" typescript:",notnull"`
 	// The minimum time between retries.
 	RetryInterval serpent.Duration `json:"retry_interval" typescript:",notnull"`
-
 	// The notifications system buffers message updates in memory to ease pressure on the database.
 	// This option controls how often it synchronizes its state with the database. The shorter this value the
 	// lower the change of state inconsistency in a non-graceful shutdown - but it also increases load on the
@@ -678,7 +611,6 @@ type NotificationsConfig struct {
 	// lower the change of state inconsistency in a non-graceful shutdown - but it also increases load on the
 	// database. It is recommended to keep this option at its default value.
 	StoreSyncBufferSize serpent.Int64 `json:"sync_buffer_size" typescript:",notnull"`
-
 	// How long a notifier should lease a message. This is effectively how long a notification is 'owned'
 	// by a notifier, and once this period expires it will be available for lease by another notifier. Leasing
 	// is important in order for multiple running notifiers to not pick the same messages to deliver concurrently.
@@ -689,7 +621,6 @@ type NotificationsConfig struct {
 	LeaseCount serpent.Int64 `json:"lease_count"`
 	// How often to query the database for queued notifications.
 	FetchInterval serpent.Duration `json:"fetch_interval"`
-
 	// Which delivery method to use (available options: 'smtp', 'webhook').
 	Method serpent.String `json:"method"`
 	// How long to wait while a notification is being sent before giving up.
@@ -699,11 +630,9 @@ type NotificationsConfig struct {
 	// Webhook settings.
 	Webhook NotificationsWebhookConfig `json:"webhook" typescript:",notnull"`
 }
-
 func (n *NotificationsConfig) Enabled() bool {
 	return n.SMTP.Smarthost != "" || n.Webhook.Endpoint != serpent.URL{}
 }
-
 type NotificationsEmailConfig struct {
 	// The sender's address.
 	From serpent.String `json:"from" typescript:",notnull"`
@@ -711,7 +640,6 @@ type NotificationsEmailConfig struct {
 	Smarthost serpent.String `json:"smarthost" typescript:",notnull"`
 	// The hostname identifying the SMTP server.
 	Hello serpent.String `json:"hello" typescript:",notnull"`
-
 	// Authentication details.
 	Auth NotificationsEmailAuthConfig `json:"auth" typescript:",notnull"`
 	// TLS details.
@@ -719,7 +647,6 @@ type NotificationsEmailConfig struct {
 	// ForceTLS causes a TLS connection to be attempted.
 	ForceTLS serpent.Bool `json:"force_tls" typescript:",notnull"`
 }
-
 type NotificationsEmailAuthConfig struct {
 	// Identity for PLAIN auth.
 	Identity serpent.String `json:"identity" typescript:",notnull"`
@@ -730,11 +657,9 @@ type NotificationsEmailAuthConfig struct {
 	// File from which to load the password for LOGIN/PLAIN auth.
 	PasswordFile serpent.String `json:"password_file" typescript:",notnull"`
 }
-
 func (c *NotificationsEmailAuthConfig) Empty() bool {
 	return reflect.ValueOf(*c).IsZero()
 }
-
 type NotificationsEmailTLSConfig struct {
 	// StartTLS attempts to upgrade plain connections to TLS.
 	StartTLS serpent.Bool `json:"start_tls" typescript:",notnull"`
@@ -749,16 +674,13 @@ type NotificationsEmailTLSConfig struct {
 	// KeyFile specifies the location of the key to use.
 	KeyFile serpent.String `json:"key_file" typescript:",notnull"`
 }
-
 func (c *NotificationsEmailTLSConfig) Empty() bool {
 	return reflect.ValueOf(*c).IsZero()
 }
-
 type NotificationsWebhookConfig struct {
 	// The URL to which the payload will be sent with an HTTP POST request.
 	Endpoint serpent.URL `json:"endpoint" typescript:",notnull"`
 }
-
 const (
 	annotationFormatDuration = "format_duration"
 	annotationEnterpriseKey  = "enterprise"
@@ -767,18 +689,15 @@ const (
 	// proxies. This is used to filter out options that are not relevant.
 	annotationExternalProxies = "external_workspace_proxies"
 )
-
 // IsWorkspaceProxies returns true if the cli option is used by workspace proxies.
 func IsWorkspaceProxies(opt serpent.Option) bool {
 	// If it is a bool, use the bool value.
 	b, _ := strconv.ParseBool(opt.Annotations[annotationExternalProxies])
 	return b
 }
-
 func IsSecretDeploymentOption(opt serpent.Option) bool {
 	return opt.Annotations.IsSet(annotationSecretKey)
 }
-
 func DefaultCacheDir() string {
 	defaultCacheDir, err := os.UserCacheDir()
 	if err != nil {
@@ -793,11 +712,9 @@ func DefaultCacheDir() string {
 	}
 	return filepath.Join(defaultCacheDir, "coder")
 }
-
 func DefaultSupportLinks(docsURL string) []LinkConfig {
 	version := buildinfo.Version()
 	buildInfo := fmt.Sprintf("Version: [`%s`](%s)", version, buildinfo.ExternalURL())
-
 	return []LinkConfig{
 		{
 			Name:   "Documentation",
@@ -821,11 +738,9 @@ func DefaultSupportLinks(docsURL string) []LinkConfig {
 		},
 	}
 }
-
 func removeTrailingVersionInfo(v string) string {
 	return strings.Split(strings.Split(v, "-")[0], "+")[0]
 }
-
 func DefaultDocsURL() string {
 	version := removeTrailingVersionInfo(buildinfo.Version())
 	if version == "v0.0.0" {
@@ -833,13 +748,11 @@ func DefaultDocsURL() string {
 	}
 	return "https://coder.com/docs/@" + version
 }
-
 // DeploymentConfig contains both the deployment values and how they're set.
 type DeploymentConfig struct {
 	Values  *DeploymentValues `json:"config,omitempty"`
 	Options serpent.OptionSet `json:"options,omitempty"`
 }
-
 func (c *DeploymentValues) Options() serpent.OptionSet {
 	// The deploymentGroup variables are used to organize the myriad server options.
 	var (
@@ -990,7 +903,6 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			YAML:   "webhook",
 		}
 	)
-
 	httpAddress := serpent.Option{
 		Name:        "HTTP Address",
 		Description: "HTTP bind address of the server. Unset to disable the HTTP endpoint.",
@@ -1522,7 +1434,6 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 				if value == nil {
 					return nil
 				}
-
 				return agentmetrics.ValidateAggregationLabels(value.Value())
 			}),
 			Group:   &deploymentGroupIntrospectionPrometheus,
@@ -2063,13 +1974,11 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 				if values == nil {
 					return nil
 				}
-
 				for _, value := range *values {
 					if err := ProvisionerTypeValid(value); err != nil {
 						return err
 					}
 				}
-
 				return nil
 			}),
 			Group: &deploymentGroupProvisioning,
@@ -2123,7 +2032,6 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Description: "Disables all rate limits. This is not recommended in production.",
 			Flag:        "dangerous-disable-rate-limits",
 			Env:         "CODER_DANGEROUS_DISABLE_RATE_LIMITS",
-
 			Value:       &c.RateLimit.DisableAll,
 			Hidden:      true,
 			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
@@ -2209,7 +2117,6 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Value: &c.AdditionalCSPPolicy,
 			Group: &deploymentGroupNetworkingHTTP,
 		},
-
 		// ☢️ Dangerous settings
 		{
 			Name:        "DANGEROUS: Allow all CORS requests",
@@ -2226,7 +2133,6 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Description: "Allow workspace apps that are not served from subdomains to be shared. Path-based app sharing is DISABLED by default for security purposes. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. Path-based apps can be disabled entirely with --disable-path-apps for further security.",
 			Flag:        "dangerous-allow-path-app-sharing",
 			Env:         "CODER_DANGEROUS_ALLOW_PATH_APP_SHARING",
-
 			Value: &c.Dangerous.AllowPathAppSharing,
 			Group: &deploymentGroupDangerous,
 		},
@@ -2235,7 +2141,6 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Description: "Allow site-owners to access workspace apps from workspaces they do not own. Owners cannot access path-based apps they do not own by default. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. Path-based apps can be disabled entirely with --disable-path-apps for further security.",
 			Flag:        "dangerous-allow-path-app-site-owner-access",
 			Env:         "CODER_DANGEROUS_ALLOW_PATH_APP_SITE_OWNER_ACCESS",
-
 			Value: &c.Dangerous.AllowPathAppSiteOwnerAccess,
 			Group: &deploymentGroupDangerous,
 		},
@@ -2289,7 +2194,6 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Description: "Expose the swagger endpoint via /swagger.",
 			Flag:        "swagger-enable",
 			Env:         "CODER_SWAGGER_ENABLE",
-
 			Value: &c.Swagger.Enable,
 			YAML:  "enableSwagger",
 		},
@@ -2470,7 +2374,6 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Description: "Disable workspace apps that are not served from subdomains. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. This is recommended for security purposes if a --wildcard-access-url is configured.",
 			Flag:        "disable-path-apps",
 			Env:         "CODER_DISABLE_PATH_APPS",
-
 			Value:       &c.DisablePathApps,
 			YAML:        "disablePathApps",
 			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
@@ -2480,7 +2383,6 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Description: "Remove the permission for the 'owner' role to have workspace execution on all workspaces. This prevents the 'owner' from ssh, apps, and terminal access based on the 'owner' role. They still have their user permissions to access their own workspaces.",
 			Flag:        "disable-owner-workspace-access",
 			Env:         "CODER_DISABLE_OWNER_WORKSPACE_ACCESS",
-
 			Value:       &c.DisableOwnerWorkspaceExec,
 			YAML:        "disableOwnerWorkspaceAccess",
 			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
@@ -2501,7 +2403,6 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Description: "Disable automatic session expiry bumping due to activity. This forces all sessions to become invalid after the session expiry duration has been reached.",
 			Flag:        "disable-session-expiry-refresh",
 			Env:         "CODER_DISABLE_SESSION_EXPIRY_REFRESH",
-
 			Value: &c.Sessions.DisableExpiryRefresh,
 			Group: &deploymentGroupNetworkingHTTP,
 			YAML:  "disableSessionExpiryRefresh",
@@ -2511,7 +2412,6 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Description: "Disable password authentication. This is recommended for security purposes in production deployments that rely on an identity provider. Any user with the owner role will be able to sign in with their password regardless of this setting to avoid potential lock out. If you are locked out of your account, you can use the `coder server create-admin` command to create a new admin user directly in the database.",
 			Flag:        "disable-password-auth",
 			Env:         "CODER_DISABLE_PASSWORD_AUTH",
-
 			Value: &c.DisablePasswordAuth,
 			Group: &deploymentGroupNetworkingHTTP,
 			YAML:  "disablePasswordAuth",
@@ -2947,20 +2847,16 @@ Write out the current server config as YAML to stdout.`,
 			Hidden:      true, // Hidden because most operators should not need to modify this.
 		},
 	}
-
 	return opts
 }
-
 type SupportConfig struct {
 	Links serpent.Struct[[]LinkConfig] `json:"links" typescript:",notnull"`
 }
-
 type LinkConfig struct {
 	Name   string `json:"name" yaml:"name"`
 	Target string `json:"target" yaml:"target"`
 	Icon   string `json:"icon" yaml:"icon" enums:"bug,chat,docs"`
 }
-
 // DeploymentOptionsWithoutSecrets returns a copy of the OptionSet with secret values omitted.
 func DeploymentOptionsWithoutSecrets(set serpent.OptionSet) serpent.OptionSet {
 	cpy := make(serpent.OptionSet, 0, len(set))
@@ -2973,11 +2869,9 @@ func DeploymentOptionsWithoutSecrets(set serpent.OptionSet) serpent.OptionSet {
 	}
 	return cpy
 }
-
 // WithoutSecrets returns a copy of the config without secret values.
 func (c *DeploymentValues) WithoutSecrets() (*DeploymentValues, error) {
 	var ff DeploymentValues
-
 	// Create copy via JSON.
 	byt, err := json.Marshal(c)
 	if err != nil {
@@ -2987,12 +2881,10 @@ func (c *DeploymentValues) WithoutSecrets() (*DeploymentValues, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	for _, opt := range ff.Options() {
 		if !IsSecretDeploymentOption(opt) {
 			continue
 		}
-
 		// This only works with string values for now.
 		switch v := opt.Value.(type) {
 		case *serpent.String, *serpent.StringArray:
@@ -3001,25 +2893,21 @@ func (c *DeploymentValues) WithoutSecrets() (*DeploymentValues, error) {
 				panic(err)
 			}
 		default:
-			return nil, xerrors.Errorf("unsupported type %T", v)
+			return nil, fmt.Errorf("unsupported type %T", v)
 		}
 	}
-
 	return &ff, nil
 }
-
 // DeploymentConfig returns the deployment config for the coder server.
 func (c *Client) DeploymentConfig(ctx context.Context) (*DeploymentConfig, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/deployment/config", nil)
 	if err != nil {
-		return nil, xerrors.Errorf("execute request: %w", err)
+		return nil, fmt.Errorf("execute request: %w", err)
 	}
 	defer res.Body.Close()
-
 	if res.StatusCode != http.StatusOK {
 		return nil, ReadBodyAsError(res)
 	}
-
 	conf := &DeploymentValues{}
 	resp := &DeploymentConfig{
 		Values:  conf,
@@ -3027,22 +2915,18 @@ func (c *Client) DeploymentConfig(ctx context.Context) (*DeploymentConfig, error
 	}
 	return resp, json.NewDecoder(res.Body).Decode(resp)
 }
-
 func (c *Client) DeploymentStats(ctx context.Context) (DeploymentStats, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/deployment/stats", nil)
 	if err != nil {
-		return DeploymentStats{}, xerrors.Errorf("execute request: %w", err)
+		return DeploymentStats{}, fmt.Errorf("execute request: %w", err)
 	}
 	defer res.Body.Close()
-
 	if res.StatusCode != http.StatusOK {
 		return DeploymentStats{}, ReadBodyAsError(res)
 	}
-
 	var df DeploymentStats
 	return df, json.NewDecoder(res.Body).Decode(&df)
 }
-
 type AppearanceConfig struct {
 	ApplicationName string `json:"application_name"`
 	LogoURL         string `json:"logo_url"`
@@ -3052,7 +2936,6 @@ type AppearanceConfig struct {
 	AnnouncementBanners []BannerConfig `json:"announcement_banners"`
 	SupportLinks        []LinkConfig   `json:"support_links,omitempty"`
 }
-
 type UpdateAppearanceConfig struct {
 	ApplicationName string `json:"application_name"`
 	LogoURL         string `json:"logo_url"`
@@ -3060,16 +2943,13 @@ type UpdateAppearanceConfig struct {
 	ServiceBanner       BannerConfig   `json:"service_banner"`
 	AnnouncementBanners []BannerConfig `json:"announcement_banners"`
 }
-
 // Deprecated: ServiceBannerConfig has been renamed to BannerConfig.
 type ServiceBannerConfig = BannerConfig
-
 type BannerConfig struct {
 	Enabled         bool   `json:"enabled"`
 	Message         string `json:"message,omitempty"`
 	BackgroundColor string `json:"background_color,omitempty"`
 }
-
 // Appearance returns the configuration that modifies the visual
 // display of the dashboard.
 func (c *Client) Appearance(ctx context.Context) (AppearanceConfig, error) {
@@ -3084,7 +2964,6 @@ func (c *Client) Appearance(ctx context.Context) (AppearanceConfig, error) {
 	var cfg AppearanceConfig
 	return cfg, json.NewDecoder(res.Body).Decode(&cfg)
 }
-
 func (c *Client) UpdateAppearance(ctx context.Context, appearance UpdateAppearanceConfig) error {
 	res, err := c.Request(ctx, http.MethodPut, "/api/v2/appearance", appearance)
 	if err != nil {
@@ -3096,7 +2975,6 @@ func (c *Client) UpdateAppearance(ctx context.Context, appearance UpdateAppearan
 	}
 	return nil
 }
-
 // BuildInfoResponse contains build information for this instance of Coder.
 type BuildInfoResponse struct {
 	// ExternalURL references the current Coder version.
@@ -3110,30 +2988,24 @@ type BuildInfoResponse struct {
 	DashboardURL string `json:"dashboard_url"`
 	// Telemetry is a boolean that indicates whether telemetry is enabled.
 	Telemetry bool `json:"telemetry"`
-
 	WorkspaceProxy bool `json:"workspace_proxy"`
-
 	// AgentAPIVersion is the current version of the Agent API (back versions
 	// MAY still be supported).
 	AgentAPIVersion string `json:"agent_api_version"`
 	// ProvisionerAPIVersion is the current version of the Provisioner API
 	ProvisionerAPIVersion string `json:"provisioner_api_version"`
-
 	// UpgradeMessage is the message displayed to users when an outdated client
 	// is detected.
 	UpgradeMessage string `json:"upgrade_message"`
-
 	// DeploymentID is the unique identifier for this deployment.
 	DeploymentID string `json:"deployment_id"`
 }
-
 type WorkspaceProxyBuildInfo struct {
 	// TODO: @emyrk what should we include here?
 	WorkspaceProxy bool `json:"workspace_proxy"`
 	// DashboardURL is the URL of the coderd this proxy is connected to.
 	DashboardURL string `json:"dashboard_url"`
 }
-
 // CanonicalVersion trims build information from the version.
 // E.g. 'v0.7.4-devel+11573034' -> 'v0.7.4'.
 func (b BuildInfoResponse) CanonicalVersion() string {
@@ -3142,7 +3014,6 @@ func (b BuildInfoResponse) CanonicalVersion() string {
 	trimmed := strings.ReplaceAll(b.Version, "-devel+", "+devel-")
 	return semver.Canonical(trimmed)
 }
-
 // BuildInfo returns build information for this instance of Coder.
 func (c *Client) BuildInfo(ctx context.Context) (BuildInfoResponse, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/buildinfo", nil)
@@ -3150,17 +3021,13 @@ func (c *Client) BuildInfo(ctx context.Context) (BuildInfoResponse, error) {
 		return BuildInfoResponse{}, err
 	}
 	defer res.Body.Close()
-
 	if res.StatusCode != http.StatusOK || ExpectJSONMime(res) != nil {
 		return BuildInfoResponse{}, ReadBodyAsError(res)
 	}
-
 	var buildInfo BuildInfoResponse
 	return buildInfo, json.NewDecoder(res.Body).Decode(&buildInfo)
 }
-
 type Experiment string
-
 const (
 	// Add new experiments here!
 	ExperimentExample            Experiment = "example"              // This isn't used for anything.
@@ -3168,19 +3035,16 @@ const (
 	ExperimentNotifications      Experiment = "notifications"        // Sends notifications via SMTP and webhooks following certain events.
 	ExperimentWorkspaceUsage     Experiment = "workspace-usage"      // Enables the new workspace usage tracking.
 )
-
 // ExperimentsAll should include all experiments that are safe for
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
 var ExperimentsAll = Experiments{}
-
 // Experiments is a list of experiments.
 // Multiple experiments may be enabled at the same time.
 // Experiments are not safe for production use, and are not guaranteed to
 // be backwards compatible. They may be removed or renamed at any time.
 type Experiments []Experiment
-
 // Returns a list of experiments that are enabled for the deployment.
 func (e Experiments) Enabled(ex Experiment) bool {
 	for _, v := range e {
@@ -3190,7 +3054,6 @@ func (e Experiments) Enabled(ex Experiment) bool {
 	}
 	return false
 }
-
 func (c *Client) Experiments(ctx context.Context) (Experiments, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/experiments", nil)
 	if err != nil {
@@ -3203,13 +3066,11 @@ func (c *Client) Experiments(ctx context.Context) (Experiments, error) {
 	var exp []Experiment
 	return exp, json.NewDecoder(res.Body).Decode(&exp)
 }
-
 // AvailableExperiments is an expandable type that returns all safe experiments
 // available to be used with a deployment.
 type AvailableExperiments struct {
 	Safe []Experiment `json:"safe"`
 }
-
 func (c *Client) SafeExperiments(ctx context.Context) (AvailableExperiments, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/experiments/available", nil)
 	if err != nil {
@@ -3222,23 +3083,19 @@ func (c *Client) SafeExperiments(ctx context.Context) (AvailableExperiments, err
 	var exp AvailableExperiments
 	return exp, json.NewDecoder(res.Body).Decode(&exp)
 }
-
 type DAUsResponse struct {
 	Entries      []DAUEntry `json:"entries"`
 	TZHourOffset int        `json:"tz_hour_offset"`
 }
-
 type DAUEntry struct {
 	// Date is a string formatted as 2024-01-31.
 	// Timezone and time information is not included.
 	Date   string `json:"date"`
 	Amount int    `json:"amount"`
 }
-
 type DAURequest struct {
 	TZHourOffset int
 }
-
 func (d DAURequest) asRequestOption() RequestOption {
 	return func(r *http.Request) {
 		q := r.URL.Query()
@@ -3246,7 +3103,6 @@ func (d DAURequest) asRequestOption() RequestOption {
 		r.URL.RawQuery = q.Encode()
 	}
 }
-
 // TimezoneOffsetHourWithTime is implemented to match the javascript 'getTimezoneOffset()' function.
 // This is the amount of time between this date evaluated in UTC and evaluated in the 'loc'
 // The trivial case of times being on the same day is:
@@ -3260,15 +3116,12 @@ func TimezoneOffsetHourWithTime(now time.Time, loc *time.Location) int {
 	// Convert to hours and flip the sign
 	return -1 * offsetSec / 60 / 60
 }
-
 func TimezoneOffsetHour(loc *time.Location) int {
 	return TimezoneOffsetHourWithTime(time.Now(), loc)
 }
-
 func (c *Client) DeploymentDAUsLocalTZ(ctx context.Context) (*DAUsResponse, error) {
 	return c.DeploymentDAUs(ctx, TimezoneOffsetHour(time.Local))
 }
-
 // DeploymentDAUs requires a tzOffset in hours. Use 0 for UTC, and TimezoneOffsetHour(time.Local) for the
 // local timezone.
 func (c *Client) DeploymentDAUs(ctx context.Context, tzOffset int) (*DAUsResponse, error) {
@@ -3276,23 +3129,19 @@ func (c *Client) DeploymentDAUs(ctx context.Context, tzOffset int) (*DAUsRespons
 		TZHourOffset: tzOffset,
 	}.asRequestOption())
 	if err != nil {
-		return nil, xerrors.Errorf("execute request: %w", err)
+		return nil, fmt.Errorf("execute request: %w", err)
 	}
 	defer res.Body.Close()
-
 	if res.StatusCode != http.StatusOK {
 		return nil, ReadBodyAsError(res)
 	}
-
 	var resp DAUsResponse
 	return &resp, json.NewDecoder(res.Body).Decode(&resp)
 }
-
 type AppHostResponse struct {
 	// Host is the externally accessible URL for the Coder instance.
 	Host string `json:"host"`
 }
-
 // AppHost returns the site-wide application wildcard hostname
 // e.g. "*--apps.coder.com". Apps are accessible at:
 // "<app-name>--<agent-name>--<workspace-name>--<username><app-host>", e.g.
@@ -3305,39 +3154,32 @@ func (c *Client) AppHost(ctx context.Context) (AppHostResponse, error) {
 		return AppHostResponse{}, err
 	}
 	defer res.Body.Close()
-
 	if res.StatusCode != http.StatusOK {
 		return AppHostResponse{}, ReadBodyAsError(res)
 	}
-
 	var host AppHostResponse
 	return host, json.NewDecoder(res.Body).Decode(&host)
 }
-
 type WorkspaceConnectionLatencyMS struct {
 	P50 float64
 	P95 float64
 }
-
 type WorkspaceDeploymentStats struct {
 	Pending  int64 `json:"pending"`
 	Building int64 `json:"building"`
 	Running  int64 `json:"running"`
 	Failed   int64 `json:"failed"`
 	Stopped  int64 `json:"stopped"`
-
 	ConnectionLatencyMS WorkspaceConnectionLatencyMS `json:"connection_latency_ms"`
 	RxBytes             int64                        `json:"rx_bytes"`
 	TxBytes             int64                        `json:"tx_bytes"`
 }
-
 type SessionCountDeploymentStats struct {
 	VSCode          int64 `json:"vscode"`
 	SSH             int64 `json:"ssh"`
 	JetBrains       int64 `json:"jetbrains"`
 	ReconnectingPTY int64 `json:"reconnecting_pty"`
 }
-
 type DeploymentStats struct {
 	// AggregatedFrom is the time in which stats are aggregated from.
 	// This might be back in time a specific duration or interval.
@@ -3347,16 +3189,13 @@ type DeploymentStats struct {
 	// NextUpdateAt is the time when the next batch of stats will
 	// be updated.
 	NextUpdateAt time.Time `json:"next_update_at" format:"date-time"`
-
 	Workspaces   WorkspaceDeploymentStats    `json:"workspaces"`
 	SessionCount SessionCountDeploymentStats `json:"session_count"`
 }
-
 type SSHConfigResponse struct {
 	HostnamePrefix   string            `json:"hostname_prefix"`
 	SSHConfigOptions map[string]string `json:"ssh_config_options"`
 }
-
 // SSHConfiguration returns information about the SSH configuration for the
 // Coder instance.
 func (c *Client) SSHConfiguration(ctx context.Context) (SSHConfigResponse, error) {
@@ -3365,17 +3204,13 @@ func (c *Client) SSHConfiguration(ctx context.Context) (SSHConfigResponse, error
 		return SSHConfigResponse{}, err
 	}
 	defer res.Body.Close()
-
 	if res.StatusCode != http.StatusOK {
 		return SSHConfigResponse{}, ReadBodyAsError(res)
 	}
-
 	var sshConfig SSHConfigResponse
 	return sshConfig, json.NewDecoder(res.Body).Decode(&sshConfig)
 }
-
 type CryptoKeyFeature string
-
 const (
 	CryptoKeyFeatureWorkspaceAppsAPIKey CryptoKeyFeature = "workspace_apps_api_key"
 	//nolint:gosec // This denotes a type of key, not a literal.
@@ -3383,7 +3218,6 @@ const (
 	CryptoKeyFeatureOIDCConvert        CryptoKeyFeature = "oidc_convert"
 	CryptoKeyFeatureTailnetResume      CryptoKeyFeature = "tailnet_resume"
 )
-
 type CryptoKey struct {
 	Feature   CryptoKeyFeature `json:"feature"`
 	Secret    string           `json:"secret"`
@@ -3391,13 +3225,11 @@ type CryptoKey struct {
 	Sequence  int32            `json:"sequence"`
 	StartsAt  time.Time        `json:"starts_at" format:"date-time"`
 }
-
 func (c CryptoKey) CanSign(now time.Time) bool {
 	now = now.UTC()
 	isAfterStartsAt := !c.StartsAt.IsZero() && !now.Before(c.StartsAt)
 	return isAfterStartsAt && c.CanVerify(now)
 }
-
 func (c CryptoKey) CanVerify(now time.Time) bool {
 	now = now.UTC()
 	hasSecret := c.Secret != ""

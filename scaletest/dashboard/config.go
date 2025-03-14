@@ -1,15 +1,12 @@
 package dashboard
-
 import (
+	"fmt"
+	"errors"
 	"context"
 	"net/url"
 	"time"
-
 	"cdr.dev/slog"
-
-	"golang.org/x/xerrors"
 )
-
 type Config struct {
 	// Interval is the minimum interval between fetches.
 	Interval time.Duration `json:"interval"`
@@ -32,15 +29,12 @@ type Config struct {
 	// InitChromeDPCtx is a function that initializes ChromeDP into the given context.Context.
 	InitChromeDPCtx func(ctx context.Context, log slog.Logger, u *url.URL, sessionToken string, headless bool) (context.Context, context.CancelFunc, error) `json:"-"`
 }
-
 func (c Config) Validate() error {
 	if !(c.Interval > 0) {
-		return xerrors.Errorf("validate interval: must be greater than zero")
+		return fmt.Errorf("validate interval: must be greater than zero")
 	}
-
 	if !(c.Jitter < c.Interval) {
-		return xerrors.Errorf("validate jitter: must be less than interval")
+		return fmt.Errorf("validate jitter: must be less than interval")
 	}
-
 	return nil
 }

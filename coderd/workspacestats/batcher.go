@@ -1,16 +1,14 @@
 package workspacestats
-
 import (
+	"fmt"
+	"errors"
 	"context"
 	"encoding/json"
 	"os"
 	"sync"
 	"sync/atomic"
 	"time"
-
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
-
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	agentproto "github.com/coder/coder/v2/agent/proto"
@@ -18,22 +16,18 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 )
-
 const (
 	defaultBufferSize    = 1024
 	defaultFlushInterval = time.Second
 )
-
 type Batcher interface {
 	Add(now time.Time, agentID uuid.UUID, templateID uuid.UUID, userID uuid.UUID, workspaceID uuid.UUID, st *agentproto.Stats, usage bool)
 }
-
 // DBBatcher holds a buffer of agent stats and periodically flushes them to
 // its configured store.
 type DBBatcher struct {
 	store database.Store
 	log   slog.Logger
-
 	mu sync.Mutex
 	// TODO: make this a buffered chan instead?
 	buf *database.InsertWorkspaceAgentStatsParams
@@ -41,7 +35,6 @@ type DBBatcher struct {
 	// pq.Array + unnest doesn't play nicely with this.
 	connectionsByProto []map[string]int64
 	batchSize          int
-
 	// tickCh is used to periodically flush the buffer.
 	tickCh   <-chan time.Time
 	ticker   *time.Ticker
@@ -52,38 +45,32 @@ type DBBatcher struct {
 	// flushed is used during testing to signal that a flush has completed.
 	flushed chan<- int
 }
-
 // Option is a functional option for configuring a Batcher.
 type BatcherOption func(b *DBBatcher)
-
 // BatcherWithStore sets the store to use for storing stats.
 func BatcherWithStore(store database.Store) BatcherOption {
 	return func(b *DBBatcher) {
 		b.store = store
 	}
 }
-
 // BatcherWithBatchSize sets the number of stats to store in a batch.
 func BatcherWithBatchSize(size int) BatcherOption {
 	return func(b *DBBatcher) {
 		b.batchSize = size
 	}
 }
-
 // BatcherWithInterval sets the interval for flushes.
 func BatcherWithInterval(d time.Duration) BatcherOption {
 	return func(b *DBBatcher) {
 		b.interval = d
 	}
 }
-
 // BatcherWithLogger sets the logger to use for logging.
 func BatcherWithLogger(log slog.Logger) BatcherOption {
 	return func(b *DBBatcher) {
 		b.log = log
 	}
 }
-
 // NewBatcher creates a new Batcher and starts it.
 func NewBatcher(ctx context.Context, opts ...BatcherOption) (*DBBatcher, func(), error) {
 	b := &DBBatcher{}
@@ -92,33 +79,26 @@ func NewBatcher(ctx context.Context, opts ...BatcherOption) (*DBBatcher, func(),
 	for _, opt := range opts {
 		opt(b)
 	}
-
 	if b.store == nil {
-		return nil, nil, xerrors.Errorf("no store configured for batcher")
+		return nil, nil, fmt.Errorf("no store configured for batcher")
 	}
-
 	if b.interval == 0 {
 		b.interval = defaultFlushInterval
 	}
-
 	if b.batchSize == 0 {
 		b.batchSize = defaultBufferSize
 	}
-
 	if b.tickCh == nil {
 		b.ticker = time.NewTicker(b.interval)
 		b.tickCh = b.ticker.C
 	}
-
 	b.initBuf(b.batchSize)
-
 	cancelCtx, cancelFunc := context.WithCancel(ctx)
 	done := make(chan struct{})
 	go func() {
 		b.run(cancelCtx)
 		close(done)
 	}()
-
 	closer := func() {
 		cancelFunc()
 		if b.ticker != nil {
@@ -126,10 +106,8 @@ func NewBatcher(ctx context.Context, opts ...BatcherOption) (*DBBatcher, func(),
 		}
 		<-done
 	}
-
 	return b, closer, nil
 }
-
 // Add adds a stat to the batcher for the given workspace and agent.
 func (b *DBBatcher) Add(
 	now time.Time,
@@ -142,20 +120,16 @@ func (b *DBBatcher) Add(
 ) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-
 	now = dbtime.Time(now)
-
 	b.buf.ID = append(b.buf.ID, uuid.New())
 	b.buf.CreatedAt = append(b.buf.CreatedAt, now)
 	b.buf.AgentID = append(b.buf.AgentID, agentID)
 	b.buf.UserID = append(b.buf.UserID, userID)
 	b.buf.TemplateID = append(b.buf.TemplateID, templateID)
 	b.buf.WorkspaceID = append(b.buf.WorkspaceID, workspaceID)
-
 	// Store the connections by proto separately as it's a jsonb field. We marshal on flush.
 	// b.buf.ConnectionsByProto = append(b.buf.ConnectionsByProto, st.ConnectionsByProto)
 	b.connectionsByProto = append(b.connectionsByProto, st.ConnectionsByProto)
-
 	b.buf.ConnectionCount = append(b.buf.ConnectionCount, st.ConnectionCount)
 	b.buf.RxPackets = append(b.buf.RxPackets, st.RxPackets)
 	b.buf.RxBytes = append(b.buf.RxBytes, st.RxBytes)
@@ -167,7 +141,6 @@ func (b *DBBatcher) Add(
 	b.buf.SessionCountSSH = append(b.buf.SessionCountSSH, st.SessionCountSsh)
 	b.buf.ConnectionMedianLatencyMS = append(b.buf.ConnectionMedianLatencyMS, st.ConnectionMedianLatencyMs)
 	b.buf.Usage = append(b.buf.Usage, usage)
-
 	// If the buffer is over 80% full, signal the flusher to flush immediately.
 	// We want to trigger flushes early to reduce the likelihood of
 	// accidentally growing the buffer over batchSize.
@@ -177,7 +150,6 @@ func (b *DBBatcher) Add(
 		b.flushForced.Store(true)
 	}
 }
-
 // Run runs the batcher.
 func (b *DBBatcher) run(ctx context.Context) {
 	// nolint:gocritic // This is only ever used for one thing - inserting agent stats.
@@ -191,18 +163,15 @@ func (b *DBBatcher) run(ctx context.Context) {
 			b.flush(authCtx, true, "reaching capacity")
 		case <-ctx.Done():
 			b.log.Debug(ctx, "context done, flushing before exit")
-
 			// We must create a new context here as the parent context is done.
 			ctxTimeout, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			defer cancel() //nolint:revive // We're returning, defer is fine.
-
 			// nolint:gocritic // This is only ever used for one thing - inserting agent stats.
 			b.flush(dbauthz.AsSystemRestricted(ctxTimeout), true, "exit")
 			return
 		}
 	}
 }
-
 // flush flushes the batcher's buffer.
 func (b *DBBatcher) flush(ctx context.Context, forced bool, reason string) {
 	b.mu.Lock()
@@ -231,11 +200,9 @@ func (b *DBBatcher) flush(ctx context.Context, forced bool, reason string) {
 			}
 		}
 	}()
-
 	if len(b.buf.ID) == 0 {
 		return
 	}
-
 	// marshal connections by proto
 	payload, err := json.Marshal(b.connectionsByProto)
 	if err != nil {
@@ -244,7 +211,6 @@ func (b *DBBatcher) flush(ctx context.Context, forced bool, reason string) {
 	} else {
 		b.buf.ConnectionsByProto = payload
 	}
-
 	// nolint:gocritic // (#13146) Will be moved soon as part of refactor.
 	err = b.store.InsertWorkspaceAgentStats(ctx, *b.buf)
 	elapsed := time.Since(start)
@@ -256,10 +222,8 @@ func (b *DBBatcher) flush(ctx context.Context, forced bool, reason string) {
 		b.log.Error(ctx, "error inserting workspace agent stats", slog.Error(err), slog.F("elapsed", elapsed))
 		return
 	}
-
 	b.resetBuf()
 }
-
 // initBuf resets the buffer. b MUST be locked.
 func (b *DBBatcher) initBuf(size int) {
 	b.buf = &database.InsertWorkspaceAgentStatsParams{
@@ -282,10 +246,8 @@ func (b *DBBatcher) initBuf(size int) {
 		ConnectionMedianLatencyMS:   make([]float64, 0, b.batchSize),
 		Usage:                       make([]bool, 0, b.batchSize),
 	}
-
 	b.connectionsByProto = make([]map[string]int64, 0, size)
 }
-
 func (b *DBBatcher) resetBuf() {
 	b.buf.ID = b.buf.ID[:0]
 	b.buf.CreatedAt = b.buf.CreatedAt[:0]

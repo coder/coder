@@ -1,6 +1,6 @@
 package workspacetraffic
-
 import (
+	"errors"
 	"bytes"
 	"context"
 	"fmt"
@@ -8,10 +8,7 @@ import (
 	"math/rand"
 	"sync"
 	"time"
-
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
-
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/v2/coderd/tracing"
@@ -20,41 +17,34 @@ import (
 	"github.com/coder/coder/v2/scaletest/loadtestutil"
 	"github.com/coder/websocket"
 )
-
 type Runner struct {
 	client    *codersdk.Client
 	webClient *codersdk.Client
 	cfg       Config
 }
-
 var (
 	_ harness.Runnable  = &Runner{}
 	_ harness.Cleanable = &Runner{}
 )
-
 // func NewRunner(client *codersdk.Client, cfg Config, metrics *Metrics) *Runner {
 func NewRunner(client *codersdk.Client, cfg Config) *Runner {
 	webClient := client
 	if cfg.WebClient != nil {
 		webClient = cfg.WebClient
 	}
-
 	return &Runner{
 		client:    client,
 		webClient: webClient,
 		cfg:       cfg,
 	}
 }
-
 func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) (err error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
-
 	logs = loadtestutil.NewSyncWriter(logs)
 	logger := slog.Make(sloghuman.Sink(logs)).Leveled(slog.LevelDebug)
 	r.client.SetLogger(logger)
 	r.client.SetLogBodies(true)
-
 	// Initialize our metrics eagerly. This is mainly so that we can test for the
 	// presence of a zero-valued metric as opposed to the absence of a metric.
 	r.cfg.ReadMetrics.AddError(0)
@@ -63,7 +53,6 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) (err error) 
 	r.cfg.WriteMetrics.AddError(0)
 	r.cfg.WriteMetrics.AddTotal(0)
 	r.cfg.WriteMetrics.ObserveLatency(0)
-
 	var (
 		agentID             = r.cfg.AgentID
 		reconnect           = uuid.New()
@@ -73,9 +62,7 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) (err error) 
 		bytesPerTick        = r.cfg.BytesPerTick
 		echo                = r.cfg.Echo
 	)
-
 	logger = logger.With(slog.F("agent_id", agentID))
-
 	logger.Debug(ctx, "config",
 		slog.F("reconnecting_pty_id", reconnect),
 		slog.F("height", height),
@@ -83,19 +70,16 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) (err error) 
 		slog.F("tick_interval", tickInterval),
 		slog.F("bytes_per_tick", bytesPerTick),
 	)
-
 	// Set a deadline for stopping the text.
 	start := time.Now()
 	deadlineCtx, cancel := context.WithDeadline(ctx, start.Add(r.cfg.Duration))
 	defer cancel()
 	logger.Debug(ctx, "connect to workspace agent")
-
 	output := "/dev/stdout"
 	if !echo {
 		output = "/dev/null"
 	}
 	command := fmt.Sprintf("dd if=/dev/stdin of=%s bs=%d status=none", output, bytesPerTick)
-
 	var conn *countReadWriteCloser
 	switch {
 	case r.cfg.App.Name != "":
@@ -103,9 +87,8 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) (err error) 
 		conn, err = appClientConn(ctx, r.webClient, r.cfg.App.URL)
 		if err != nil {
 			logger.Error(ctx, "connect to workspace app", slog.Error(err))
-			return xerrors.Errorf("connect to workspace app: %w", err)
+			return fmt.Errorf("connect to workspace app: %w", err)
 		}
-
 	case r.cfg.SSH:
 		logger.Info(ctx, "connecting to workspace agent", slog.F("method", "ssh"))
 		// If echo is enabled, disable PTY to avoid double echo and
@@ -114,15 +97,14 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) (err error) 
 		conn, err = connectSSH(ctx, r.client, agentID, command, requestPTY)
 		if err != nil {
 			logger.Error(ctx, "connect to workspace agent via ssh", slog.Error(err))
-			return xerrors.Errorf("connect to workspace via ssh: %w", err)
+			return fmt.Errorf("connect to workspace via ssh: %w", err)
 		}
-
 	default:
 		logger.Info(ctx, "connecting to workspace agent", slog.F("method", "reconnectingpty"))
 		conn, err = connectRPTY(ctx, r.webClient, agentID, reconnect, command)
 		if err != nil {
 			logger.Error(ctx, "connect to workspace agent via reconnectingpty", slog.Error(err))
-			return xerrors.Errorf("connect to workspace via reconnectingpty: %w", err)
+			return fmt.Errorf("connect to workspace via reconnectingpty: %w", err)
 		}
 	}
 	var closeErr error
@@ -144,18 +126,14 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) (err error) 
 			}
 		}
 	}()
-
 	conn.readMetrics = r.cfg.ReadMetrics
 	conn.writeMetrics = r.cfg.WriteMetrics
-
 	// Create a ticker for sending data to the conn.
 	tick := time.NewTicker(tickInterval)
 	defer tick.Stop()
-
 	// Now we begin writing random data to the conn.
 	rch := make(chan error, 1)
 	wch := make(chan error, 1)
-
 	// Read until connection is closed.
 	go func() {
 		logger.Debug(ctx, "reading from agent")
@@ -163,7 +141,6 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) (err error) 
 		logger.Debug(ctx, "done reading from agent")
 		close(rch)
 	}()
-
 	// Write random data to the conn every tick.
 	go func() {
 		logger.Debug(ctx, "writing to agent")
@@ -171,7 +148,6 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) (err error) 
 		logger.Debug(ctx, "done writing to agent")
 		close(wch)
 	}()
-
 	var waitCloseTimeoutCh <-chan struct{}
 	deadlineCtxCh := deadlineCtx.Done()
 	wchRef, rchRef := wch, rch
@@ -179,14 +155,13 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) (err error) 
 		if wchRef == nil && rchRef == nil {
 			return nil
 		}
-
 		select {
 		case <-waitCloseTimeoutCh:
 			logger.Warn(ctx, "timed out waiting for read/write to complete",
 				slog.F("write_done", wchRef == nil),
 				slog.F("read_done", rchRef == nil),
 			)
-			return xerrors.Errorf("timed out waiting for read/write to complete: %w", ctx.Err())
+			return fmt.Errorf("timed out waiting for read/write to complete: %w", ctx.Err())
 		case <-deadlineCtxCh:
 			go func() {
 				_ = closeConn()
@@ -198,74 +173,69 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) (err error) 
 			waitCloseTimeoutCh = waitCtx.Done()
 		case err = <-wchRef:
 			if err != nil {
-				return xerrors.Errorf("write to agent: %w", err)
+				return fmt.Errorf("write to agent: %w", err)
 			}
 			wchRef = nil
 		case err = <-rchRef:
 			if err != nil {
-				return xerrors.Errorf("read from agent: %w", err)
+				return fmt.Errorf("read from agent: %w", err)
 			}
 			rchRef = nil
 		}
 	}
 }
-
 // Cleanup does nothing, successfully.
 func (*Runner) Cleanup(context.Context, string, io.Writer) error {
 	return nil
 }
-
 // drain drains from src until it returns io.EOF or ctx times out.
 func drain(src io.Reader) error {
 	if _, err := io.Copy(io.Discard, src); err != nil {
-		if xerrors.Is(err, io.EOF) {
+		if errors.Is(err, io.EOF) {
 			return nil
 		}
-		if xerrors.Is(err, io.ErrClosedPipe) {
+		if errors.Is(err, io.ErrClosedPipe) {
 			return nil
 		}
-		if xerrors.Is(err, context.Canceled) {
+		if errors.Is(err, context.Canceled) {
 			return nil
 		}
-		if xerrors.Is(err, context.DeadlineExceeded) {
+		if errors.Is(err, context.DeadlineExceeded) {
 			return nil
 		}
-		if xerrors.As(err, &websocket.CloseError{}) {
+		if errors.As(err, &websocket.CloseError{}) {
 			return nil
 		}
 		return err
 	}
 	return nil
 }
-
 // Allowed characters for random strings, exclude most of the 0x00 - 0x1F range.
 var allowedChars = []byte("\t !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}")
-
 func writeRandomData(dst io.Writer, size int64, tick <-chan time.Time) error {
 	var b bytes.Buffer
 	p := make([]byte, size-1)
 	for range tick {
 		b.Reset()
-
 		p := mustRandom(p)
 		for _, c := range p {
 			_, _ = b.WriteRune(rune(allowedChars[c%byte(len(allowedChars))]))
 		}
 		_, _ = b.WriteString("\n")
 		if _, err := b.WriteTo(dst); err != nil {
-			if xerrors.Is(err, io.EOF) {
+			if errors.Is(err, io.EOF) {
 				return nil
 			}
-			if xerrors.Is(err, io.ErrClosedPipe) {
+			if errors.Is(err, io.ErrClosedPipe) {
 				return nil
 			}
-			if xerrors.Is(err, context.Canceled) {
+			if errors.Is(err, context.Canceled) {
 				return nil
 			}
-			if xerrors.Is(err, context.DeadlineExceeded) {
+			if errors.Is(err, context.DeadlineExceeded) {
 				return nil
 			}
-			if xerrors.As(err, &websocket.CloseError{}) {
+			if errors.As(err, &websocket.CloseError{}) {
 				return nil
 			}
 			return err
@@ -273,13 +243,11 @@ func writeRandomData(dst io.Writer, size int64, tick <-chan time.Time) error {
 	}
 	return nil
 }
-
 // mustRandom writes pseudo random bytes to p and panics if it fails.
 func mustRandom(p []byte) []byte {
 	n, err := rand.Read(p) //nolint:gosec // We want pseudorandomness here to avoid entropy issues.
 	if err != nil {
 		panic(err)
 	}
-
 	return p[:n]
 }

@@ -1,15 +1,12 @@
 package cli
-
 import (
+	"errors"
 	"context"
 	"fmt"
 	"os"
 	"time"
-
-	"golang.org/x/xerrors"
 	tsspeedtest "tailscale.com/net/speedtest"
 	"tailscale.com/wgengine/capture"
-
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/v2/cli/cliui"
@@ -17,23 +14,19 @@ import (
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/serpent"
 )
-
 type SpeedtestResult struct {
 	Overall   SpeedtestResultInterval   `json:"overall"`
 	Intervals []SpeedtestResultInterval `json:"intervals"`
 }
-
 type SpeedtestResultInterval struct {
 	StartTimeSeconds float64 `json:"start_time_seconds"`
 	EndTimeSeconds   float64 `json:"end_time_seconds"`
 	ThroughputMbits  float64 `json:"throughput_mbits"`
 }
-
 type speedtestTableItem struct {
 	Interval   string `table:"Interval,nosort"`
 	Throughput string `table:"Throughput"`
 }
-
 func (r *RootCmd) speedtest() *serpent.Command {
 	var (
 		direct           bool
@@ -46,7 +39,7 @@ func (r *RootCmd) speedtest() *serpent.Command {
 				res, ok := data.(SpeedtestResult)
 				if !ok {
 					// This should never happen
-					return "", xerrors.Errorf("expected speedtestResult, got %T", data)
+					return "", fmt.Errorf("expected speedtestResult, got %T", data)
 				}
 				tableRows := make([]any, len(res.Intervals)+2)
 				for i, r := range res.Intervals {
@@ -78,25 +71,21 @@ func (r *RootCmd) speedtest() *serpent.Command {
 		Handler: func(inv *serpent.Invocation) error {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
-
 			if direct && r.disableDirect {
-				return xerrors.Errorf("--direct (-d) is incompatible with --%s", varDisableDirect)
+				return fmt.Errorf("--direct (-d) is incompatible with --%s", varDisableDirect)
 			}
-
 			_, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, false, inv.Args[0])
 			if err != nil {
 				return err
 			}
-
 			err = cliui.Agent(ctx, inv.Stderr, workspaceAgent.ID, cliui.AgentOptions{
 				Fetch:   client.WorkspaceAgent,
 				Wait:    false,
 				DocsURL: appearanceConfig.DocsURL,
 			})
 			if err != nil {
-				return xerrors.Errorf("await agent: %w", err)
+				return fmt.Errorf("await agent: %w", err)
 			}
-
 			opts := &workspacesdk.DialAgentOptions{}
 			if r.verbose {
 				opts.Logger = inv.Logger.AppendSinks(sloghuman.Sink(inv.Stderr)).Leveled(slog.LevelDebug)
@@ -125,7 +114,6 @@ func (r *RootCmd) speedtest() *serpent.Command {
 				return err
 			}
 			defer conn.Close()
-
 			if direct {
 				ticker := time.NewTicker(time.Second)
 				defer ticker.Stop()
@@ -158,7 +146,6 @@ func (r *RootCmd) speedtest() *serpent.Command {
 			} else {
 				conn.AwaitReachable(ctx)
 			}
-
 			var tsDir tsspeedtest.Direction
 			switch direction {
 			case "up":
@@ -166,7 +153,7 @@ func (r *RootCmd) speedtest() *serpent.Command {
 			case "down":
 				tsDir = tsspeedtest.Download
 			default:
-				return xerrors.Errorf("invalid direction: %q", direction)
+				return fmt.Errorf("invalid direction: %q", direction)
 			}
 			cliui.Infof(inv.Stderr, "Starting a %ds %s test...", int(duration.Seconds()), tsDir)
 			results, err := conn.Speedtest(ctx, tsDir, duration)
@@ -203,7 +190,6 @@ func (r *RootCmd) speedtest() *serpent.Command {
 			Description:   "Specifies whether to wait for a direct connection before testing speed.",
 			Flag:          "direct",
 			FlagShorthand: "d",
-
 			Value: serpent.BoolOf(&direct),
 		},
 		{

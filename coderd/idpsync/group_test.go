@@ -1,17 +1,14 @@
 package idpsync_test
-
 import (
+	"errors"
 	"context"
 	"database/sql"
 	"regexp"
 	"slices"
 	"testing"
-
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
-
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -25,29 +22,21 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
-
 func TestParseGroupClaims(t *testing.T) {
 	t.Parallel()
-
 	t.Run("EmptyConfig", func(t *testing.T) {
 		t.Parallel()
-
 		s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}),
 			runtimeconfig.NewManager(),
 			idpsync.DeploymentSyncSettings{})
-
 		ctx := testutil.Context(t, testutil.WaitMedium)
-
 		params, err := s.ParseGroupClaims(ctx, jwt.MapClaims{})
 		require.Nil(t, err)
-
 		require.False(t, params.SyncEntitled)
 	})
-
 	// AllowList has no effect in AGPL
 	t.Run("AllowList", func(t *testing.T) {
 		t.Parallel()
-
 		s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}),
 			runtimeconfig.NewManager(),
 			idpsync.DeploymentSyncSettings{
@@ -56,23 +45,18 @@ func TestParseGroupClaims(t *testing.T) {
 					"foo": {},
 				},
 			})
-
 		ctx := testutil.Context(t, testutil.WaitMedium)
-
 		params, err := s.ParseGroupClaims(ctx, jwt.MapClaims{})
 		require.Nil(t, err)
 		require.False(t, params.SyncEntitled)
 	})
 }
-
 func TestGroupSyncTable(t *testing.T) {
 	t.Parallel()
-
 	// Last checked, takes 30s with postgres on a fast machine.
 	if dbtestutil.WillUsePostgres() {
 		t.Skip("Skipping test because it populates a lot of db entries, which is slow on postgres.")
 	}
-
 	userClaims := jwt.MapClaims{
 		"groups": []string{
 			"foo", "bar", "baz",
@@ -80,7 +64,6 @@ func TestGroupSyncTable(t *testing.T) {
 			"legacy-bar",
 		},
 	}
-
 	ids := coderdtest.NewDeterministicUUIDGenerator()
 	testCases := []orgSetupDefinition{
 		{
@@ -245,12 +228,10 @@ func TestGroupSyncTable(t *testing.T) {
 			},
 		},
 	}
-
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
-
 			db, _ := dbtestutil.NewDB(t)
 			manager := runtimeconfig.NewManager()
 			s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}),
@@ -268,30 +249,25 @@ func TestGroupSyncTable(t *testing.T) {
 					},
 				},
 			)
-
 			ctx := testutil.Context(t, testutil.WaitSuperLong)
 			user := dbgen.User(t, db, database.User{})
 			orgID := uuid.New()
 			SetupOrganization(t, s, db, user, orgID, tc)
-
 			// Do the group sync!
 			err := s.SyncGroups(ctx, db, user, idpsync.GroupParams{
 				SyncEntitled: true,
 				MergedClaims: userClaims,
 			})
 			require.NoError(t, err)
-
 			tc.Assert(t, orgID, db, user)
 		})
 	}
-
 	// AllTogether runs the entire tabled test as a singular user and
 	// deployment. This tests all organizations being synced together.
 	// The reason we do them individually, is that it is much easier to
 	// debug a single test case.
 	t.Run("AllTogether", func(t *testing.T) {
 		t.Parallel()
-
 		db, _ := dbtestutil.NewDB(t)
 		manager := runtimeconfig.NewManager()
 		s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}),
@@ -312,10 +288,8 @@ func TestGroupSyncTable(t *testing.T) {
 				},
 			},
 		)
-
 		ctx := testutil.Context(t, testutil.WaitSuperLong)
 		user := dbgen.User(t, db, database.User{})
-
 		var asserts []func(t *testing.T)
 		// The default org is also going to do something
 		def := orgSetupDefinition{
@@ -331,7 +305,6 @@ func TestGroupSyncTable(t *testing.T) {
 				ExpectedGroupNames: []string{"legacy-foo", "legacy-baz", "legacy-bar"},
 			},
 		}
-
 		//nolint:gocritic // testing
 		defOrg, err := db.GetDefaultOrganization(dbauthz.AsSystemRestricted(ctx))
 		require.NoError(t, err)
@@ -342,10 +315,8 @@ func TestGroupSyncTable(t *testing.T) {
 				def.Assert(t, defOrg.ID, db, user)
 			})
 		})
-
 		for _, tc := range testCases {
 			tc := tc
-
 			orgID := uuid.New()
 			SetupOrganization(t, s, db, user, orgID, tc)
 			asserts = append(asserts, func(t *testing.T) {
@@ -355,44 +326,36 @@ func TestGroupSyncTable(t *testing.T) {
 				})
 			})
 		}
-
 		asserts = append(asserts, func(t *testing.T) {
 			t.Helper()
 			def.Assert(t, defOrg.ID, db, user)
 		})
-
 		// Do the group sync!
 		err = s.SyncGroups(ctx, db, user, idpsync.GroupParams{
 			SyncEntitled: true,
 			MergedClaims: userClaims,
 		})
 		require.NoError(t, err)
-
 		for _, assert := range asserts {
 			assert(t)
 		}
 	})
 }
-
 func TestSyncDisabled(t *testing.T) {
 	t.Parallel()
-
 	if dbtestutil.WillUsePostgres() {
 		t.Skip("Skipping test because it populates a lot of db entries, which is slow on postgres.")
 	}
-
 	db, _ := dbtestutil.NewDB(t)
 	manager := runtimeconfig.NewManager()
 	s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}),
 		manager,
 		idpsync.DeploymentSyncSettings{},
 	)
-
 	ids := coderdtest.NewDeterministicUUIDGenerator()
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	user := dbgen.User(t, db, database.User{})
 	orgID := uuid.New()
-
 	def := orgSetupDefinition{
 		Name: "SyncDisabled",
 		Groups: map[uuid.UUID]bool{
@@ -415,9 +378,7 @@ func TestSyncDisabled(t *testing.T) {
 			},
 		},
 	}
-
 	SetupOrganization(t, s, db, user, orgID, def)
-
 	// Do the group sync!
 	err := s.SyncGroups(ctx, db, user, idpsync.GroupParams{
 		SyncEntitled: false,
@@ -426,14 +387,11 @@ func TestSyncDisabled(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-
 	def.Assert(t, orgID, db, user)
 }
-
 // TestApplyGroupDifference is mainly testing the database functions
 func TestApplyGroupDifference(t *testing.T) {
 	t.Parallel()
-
 	ids := coderdtest.NewDeterministicUUIDGenerator()
 	testCase := []struct {
 		Name   string
@@ -528,29 +486,23 @@ func TestApplyGroupDifference(t *testing.T) {
 			},
 		},
 	}
-
 	for _, tc := range testCase {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
-
 			mgr := runtimeconfig.NewManager()
 			db, _ := dbtestutil.NewDB(t)
-
 			ctx := testutil.Context(t, testutil.WaitMedium)
 			//nolint:gocritic // testing
 			ctx = dbauthz.AsSystemRestricted(ctx)
-
 			org := dbgen.Organization(t, db, database.Organization{})
 			_, err := db.InsertAllUsersGroup(ctx, org.ID)
 			require.NoError(t, err)
-
 			user := dbgen.User(t, db, database.User{})
 			_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
 				UserID:         user.ID,
 				OrganizationID: org.ID,
 			})
-
 			for gid, in := range tc.Before {
 				group := dbgen.Group(t, db, database.Group{
 					ID:             gid,
@@ -563,30 +515,24 @@ func TestApplyGroupDifference(t *testing.T) {
 					})
 				}
 			}
-
 			s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}), mgr, idpsync.FromDeploymentValues(coderdtest.DeploymentValues(t)))
 			err = s.ApplyGroupDifference(context.Background(), db, user, tc.Add, tc.Remove)
 			require.NoError(t, err)
-
 			userGroups, err := db.GetGroups(ctx, database.GetGroupsParams{
 				HasMemberID: user.ID,
 			})
 			require.NoError(t, err)
-
 			// assert
 			found := db2sdk.List(userGroups, func(g database.GetGroupsRow) uuid.UUID {
 				return g.Group.ID
 			})
-
 			// Add everyone group
 			require.ElementsMatch(t, append(tc.Expect, org.ID), found)
 		})
 	}
 }
-
 func TestExpectedGroupEqual(t *testing.T) {
 	t.Parallel()
-
 	ids := coderdtest.NewDeterministicUUIDGenerator()
 	testCases := []struct {
 		Name  string
@@ -718,52 +664,43 @@ func TestExpectedGroupEqual(t *testing.T) {
 			Equal: false,
 		},
 	}
-
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
-
 			require.Equal(t, tc.Equal, tc.A.Equal(tc.B))
 		})
 	}
 }
-
 func SetupOrganization(t *testing.T, s *idpsync.AGPLIDPSync, db database.Store, user database.User, orgID uuid.UUID, def orgSetupDefinition) {
 	t.Helper()
-
 	// Account that the org might be the default organization
 	org, err := db.GetOrganizationByID(context.Background(), orgID)
-	if xerrors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, sql.ErrNoRows) {
 		org = dbgen.Organization(t, db, database.Organization{
 			ID: orgID,
 		})
 	}
-
 	_, err = db.InsertAllUsersGroup(context.Background(), org.ID)
 	if !database.IsUniqueViolation(err) {
 		require.NoError(t, err, "Everyone group for an org")
 	}
-
 	manager := runtimeconfig.NewManager()
 	orgResolver := manager.OrganizationResolver(db, org.ID)
 	if def.GroupSettings != nil {
 		err = s.Group.SetRuntimeValue(context.Background(), orgResolver, (*idpsync.GroupSyncSettings)(def.GroupSettings))
 		require.NoError(t, err)
 	}
-
 	if def.RoleSettings != nil {
 		err = s.Role.SetRuntimeValue(context.Background(), orgResolver, def.RoleSettings)
 		require.NoError(t, err)
 	}
-
 	if !def.NotMember {
 		dbgen.OrganizationMember(t, db, database.OrganizationMember{
 			UserID:         user.ID,
 			OrganizationID: org.ID,
 		})
 	}
-
 	if len(def.OrganizationRoles) > 0 {
 		_, err := db.UpdateMemberRoles(context.Background(), database.UpdateMemberRolesParams{
 			GrantedRoles: def.OrganizationRoles,
@@ -772,7 +709,6 @@ func SetupOrganization(t *testing.T, s *idpsync.AGPLIDPSync, db database.Store, 
 		})
 		require.NoError(t, err)
 	}
-
 	if len(def.CustomRoles) > 0 {
 		for _, cr := range def.CustomRoles {
 			_, err := db.InsertCustomRole(context.Background(), database.InsertCustomRoleParams{
@@ -789,7 +725,6 @@ func SetupOrganization(t *testing.T, s *idpsync.AGPLIDPSync, db database.Store, 
 			require.NoError(t, err)
 		}
 	}
-
 	for groupID, in := range def.Groups {
 		dbgen.Group(t, db, database.Group{
 			ID:             groupID,
@@ -815,7 +750,6 @@ func SetupOrganization(t *testing.T, s *idpsync.AGPLIDPSync, db database.Store, 
 		}
 	}
 }
-
 type orgSetupDefinition struct {
 	Name string
 	// True if the user is a member of the group
@@ -825,28 +759,21 @@ type orgSetupDefinition struct {
 	CustomRoles       []string
 	// NotMember if true will ensure the user is not a member of the organization.
 	NotMember bool
-
 	GroupSettings *codersdk.GroupSyncSettings
 	RoleSettings  *idpsync.RoleSyncSettings
-
 	assertGroups *orgGroupAssert
 	assertRoles  *orgRoleAssert
 }
-
 type orgRoleAssert struct {
 	ExpectedOrgRoles []string
 }
-
 type orgGroupAssert struct {
 	ExpectedGroups     []uuid.UUID
 	ExpectedGroupNames []string
 }
-
 func (o orgSetupDefinition) Assert(t *testing.T, orgID uuid.UUID, db database.Store, user database.User) {
 	t.Helper()
-
 	ctx := context.Background()
-
 	members, err := db.OrganizationMembers(ctx, database.OrganizationMembersParams{
 		OrganizationID: orgID,
 		UserID:         user.ID,
@@ -857,26 +784,21 @@ func (o orgSetupDefinition) Assert(t *testing.T, orgID uuid.UUID, db database.St
 	} else {
 		require.Len(t, members, 1, "should be a member")
 	}
-
 	if o.assertGroups != nil {
 		o.assertGroups.Assert(t, orgID, db, user)
 	}
 	if o.assertRoles != nil {
 		o.assertRoles.Assert(t, orgID, db, o.NotMember, user)
 	}
-
 	// If the user is not a member, there is nothing to really assert in the org
 	if o.assertGroups == nil && o.assertRoles == nil && !o.NotMember {
 		t.Errorf("no group or role asserts present, must have at least one")
 		t.FailNow()
 	}
 }
-
 func (o orgGroupAssert) Assert(t *testing.T, orgID uuid.UUID, db database.Store, user database.User) {
 	t.Helper()
-
 	ctx := context.Background()
-
 	userGroups, err := db.GetGroups(ctx, database.GetGroupsParams{
 		OrganizationID: orgID,
 		HasMemberID:    user.ID,
@@ -888,12 +810,10 @@ func (o orgGroupAssert) Assert(t *testing.T, orgID uuid.UUID, db database.Store,
 	if len(o.ExpectedGroupNames) > 0 && len(o.ExpectedGroups) > 0 {
 		t.Fatal("ExpectedGroups and ExpectedGroupNames are mutually exclusive")
 	}
-
 	// Everyone groups mess up our asserts
 	userGroups = slices.DeleteFunc(userGroups, func(row database.GetGroupsRow) bool {
 		return row.Group.ID == row.Group.OrganizationID
 	})
-
 	if len(o.ExpectedGroupNames) > 0 {
 		found := db2sdk.List(userGroups, func(g database.GetGroupsRow) string {
 			return g.Group.Name
@@ -909,13 +829,10 @@ func (o orgGroupAssert) Assert(t *testing.T, orgID uuid.UUID, db database.Store,
 		require.Len(t, o.ExpectedGroupNames, 0, "ExpectedGroupNames should be empty")
 	}
 }
-
 //nolint:revive
 func (o orgRoleAssert) Assert(t *testing.T, orgID uuid.UUID, db database.Store, notMember bool, user database.User) {
 	t.Helper()
-
 	ctx := context.Background()
-
 	members, err := db.OrganizationMembers(ctx, database.OrganizationMembersParams{
 		OrganizationID: orgID,
 		UserID:         user.ID,

@@ -1,5 +1,4 @@
 package identityprovider
-
 import (
 	"context"
 	"database/sql"
@@ -7,11 +6,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-
 	"github.com/google/uuid"
 	"golang.org/x/oauth2"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -22,16 +18,14 @@ import (
 	"github.com/coder/coder/v2/coderd/userpassword"
 	"github.com/coder/coder/v2/codersdk"
 )
-
 var (
 	// errBadSecret means the user provided a bad secret.
-	errBadSecret = xerrors.New("Invalid client secret")
+	errBadSecret = errors.New("Invalid client secret")
 	// errBadCode means the user provided a bad code.
-	errBadCode = xerrors.New("Invalid code")
+	errBadCode = errors.New("Invalid code")
 	// errBadToken means the user provided a bad token.
-	errBadToken = xerrors.New("Invalid token")
+	errBadToken = errors.New("Invalid token")
 )
-
 type tokenParams struct {
 	clientID     string
 	clientSecret string
@@ -40,14 +34,12 @@ type tokenParams struct {
 	redirectURL  *url.URL
 	refreshToken string
 }
-
 func extractTokenParams(r *http.Request, callbackURL *url.URL) (tokenParams, []codersdk.ValidationError, error) {
 	p := httpapi.NewQueryParamParser()
 	err := r.ParseForm()
 	if err != nil {
-		return tokenParams{}, nil, xerrors.Errorf("parse form: %w", err)
+		return tokenParams{}, nil, fmt.Errorf("parse form: %w", err)
 	}
-
 	vals := r.Form
 	p.RequiredNotEmpty("grant_type")
 	grantType := httpapi.ParseCustom(p, vals, "", "grant_type", httpapi.ParseEnum[codersdk.OAuth2ProviderGrantType])
@@ -57,7 +49,6 @@ func extractTokenParams(r *http.Request, callbackURL *url.URL) (tokenParams, []c
 	case codersdk.OAuth2ProviderGrantTypeAuthorizationCode:
 		p.RequiredNotEmpty("client_secret", "client_id", "code")
 	}
-
 	params := tokenParams{
 		clientID:     p.String(vals, "", "client_id"),
 		clientSecret: p.String(vals, "", "client_secret"),
@@ -66,14 +57,12 @@ func extractTokenParams(r *http.Request, callbackURL *url.URL) (tokenParams, []c
 		redirectURL:  p.RedirectURL(vals, callbackURL, "redirect_uri"),
 		refreshToken: p.String(vals, "", "refresh_token"),
 	}
-
 	p.ErrorExcessParams(vals)
 	if len(p.Errors) > 0 {
-		return tokenParams{}, p.Errors, xerrors.Errorf("invalid query params: %w", p.Errors)
+		return tokenParams{}, p.Errors, fmt.Errorf("invalid query params: %w", p.Errors)
 	}
 	return params, nil, nil
 }
-
 // Tokens
 // TODO: the sessions lifetime config passed is for coder api tokens.
 // Should there be a separate config for oauth2 tokens? They are related,
@@ -82,7 +71,6 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerF
 	return func(rw http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		app := httpmw.OAuth2ProviderApp(r)
-
 		callbackURL, err := url.Parse(app.CallbackURL)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -91,7 +79,6 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerF
 			})
 			return
 		}
-
 		params, validationErrs, err := extractTokenParams(r, callbackURL)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -101,7 +88,6 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerF
 			})
 			return
 		}
-
 		var token oauth2.Token
 		//nolint:gocritic,revive // More cases will be added later.
 		switch params.grantType {
@@ -119,7 +105,6 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerF
 			})
 			return
 		}
-
 		if errors.Is(err, errBadCode) || errors.Is(err, errBadSecret) {
 			httpapi.Write(r.Context(), rw, http.StatusUnauthorized, codersdk.Response{
 				Message: err.Error(),
@@ -133,13 +118,11 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerF
 			})
 			return
 		}
-
 		// Some client libraries allow this to be "application/x-www-form-urlencoded". We can implement that upon
 		// request. The same libraries should also accept JSON. If implemented, choose based on "Accept" header.
 		httpapi.Write(ctx, rw, http.StatusOK, token)
 	}
 }
-
 func authorizationCodeGrant(ctx context.Context, db database.Store, app database.OAuth2ProviderApp, lifetimes codersdk.SessionLifetime, params tokenParams) (oauth2.Token, error) {
 	// Validate the client secret.
 	secret, err := parseSecret(params.clientSecret)
@@ -156,12 +139,11 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 	}
 	equal, err := userpassword.Compare(string(dbSecret.HashedSecret), secret.secret)
 	if err != nil {
-		return oauth2.Token{}, xerrors.Errorf("unable to compare secret: %w", err)
+		return oauth2.Token{}, fmt.Errorf("unable to compare secret: %w", err)
 	}
 	if !equal {
 		return oauth2.Token{}, errBadSecret
 	}
-
 	// Validate the authorization code.
 	code, err := parseSecret(params.code)
 	if err != nil {
@@ -177,23 +159,20 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 	}
 	equal, err = userpassword.Compare(string(dbCode.HashedSecret), code.secret)
 	if err != nil {
-		return oauth2.Token{}, xerrors.Errorf("unable to compare code: %w", err)
+		return oauth2.Token{}, fmt.Errorf("unable to compare code: %w", err)
 	}
 	if !equal {
 		return oauth2.Token{}, errBadCode
 	}
-
 	// Ensure the code has not expired.
 	if dbCode.ExpiresAt.Before(dbtime.Now()) {
 		return oauth2.Token{}, errBadCode
 	}
-
 	// Generate a refresh token.
 	refreshToken, err := GenerateSecret()
 	if err != nil {
 		return oauth2.Token{}, err
 	}
-
 	// Generate the API key we will swap for the code.
 	// TODO: We are ignoring scopes for now.
 	tokenName := fmt.Sprintf("%s_%s_oauth_session_token", dbCode.UserID, app.ID)
@@ -207,21 +186,18 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 	if err != nil {
 		return oauth2.Token{}, err
 	}
-
 	// Grab the user roles so we can perform the exchange as the user.
 	actor, _, err := httpmw.UserRBACSubject(ctx, db, dbCode.UserID, rbac.ScopeAll)
 	if err != nil {
-		return oauth2.Token{}, xerrors.Errorf("fetch user actor: %w", err)
+		return oauth2.Token{}, fmt.Errorf("fetch user actor: %w", err)
 	}
-
 	// Do the actual token exchange in the database.
 	err = db.InTx(func(tx database.Store) error {
 		ctx := dbauthz.As(ctx, actor)
 		err = tx.DeleteOAuth2ProviderAppCodeByID(ctx, dbCode.ID)
 		if err != nil {
-			return xerrors.Errorf("delete oauth2 app code: %w", err)
+			return fmt.Errorf("delete oauth2 app code: %w", err)
 		}
-
 		// Delete the previous key, if any.
 		prevKey, err := tx.GetAPIKeyByName(ctx, database.GetAPIKeyByNameParams{
 			UserID:    dbCode.UserID,
@@ -231,14 +207,12 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 			err = tx.DeleteAPIKeyByID(ctx, prevKey.ID)
 		}
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return xerrors.Errorf("delete api key by name: %w", err)
+			return fmt.Errorf("delete api key by name: %w", err)
 		}
-
 		newKey, err := tx.InsertAPIKey(ctx, key)
 		if err != nil {
-			return xerrors.Errorf("insert oauth2 access token: %w", err)
+			return fmt.Errorf("insert oauth2 access token: %w", err)
 		}
-
 		_, err = tx.InsertOAuth2ProviderAppToken(ctx, database.InsertOAuth2ProviderAppTokenParams{
 			ID:          uuid.New(),
 			CreatedAt:   dbtime.Now(),
@@ -249,14 +223,13 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 			APIKeyID:    newKey.ID,
 		})
 		if err != nil {
-			return xerrors.Errorf("insert oauth2 refresh token: %w", err)
+			return fmt.Errorf("insert oauth2 refresh token: %w", err)
 		}
 		return nil
 	}, nil)
 	if err != nil {
 		return oauth2.Token{}, err
 	}
-
 	return oauth2.Token{
 		AccessToken:  sessionToken,
 		TokenType:    "Bearer",
@@ -264,7 +237,6 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 		Expiry:       key.ExpiresAt,
 	}, nil
 }
-
 func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAuth2ProviderApp, lifetimes codersdk.SessionLifetime, params tokenParams) (oauth2.Token, error) {
 	// Validate the token.
 	token, err := parseSecret(params.refreshToken)
@@ -281,35 +253,30 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 	}
 	equal, err := userpassword.Compare(string(dbToken.RefreshHash), token.secret)
 	if err != nil {
-		return oauth2.Token{}, xerrors.Errorf("unable to compare token: %w", err)
+		return oauth2.Token{}, fmt.Errorf("unable to compare token: %w", err)
 	}
 	if !equal {
 		return oauth2.Token{}, errBadToken
 	}
-
 	// Ensure the token has not expired.
 	if dbToken.ExpiresAt.Before(dbtime.Now()) {
 		return oauth2.Token{}, errBadToken
 	}
-
 	// Grab the user roles so we can perform the refresh as the user.
 	//nolint:gocritic // There is no user yet so we must use the system.
 	prevKey, err := db.GetAPIKeyByID(dbauthz.AsSystemRestricted(ctx), dbToken.APIKeyID)
 	if err != nil {
 		return oauth2.Token{}, err
 	}
-
 	actor, _, err := httpmw.UserRBACSubject(ctx, db, prevKey.UserID, rbac.ScopeAll)
 	if err != nil {
-		return oauth2.Token{}, xerrors.Errorf("fetch user actor: %w", err)
+		return oauth2.Token{}, fmt.Errorf("fetch user actor: %w", err)
 	}
-
 	// Generate a new refresh token.
 	refreshToken, err := GenerateSecret()
 	if err != nil {
 		return oauth2.Token{}, err
 	}
-
 	// Generate the new API key.
 	// TODO: We are ignoring scopes for now.
 	tokenName := fmt.Sprintf("%s_%s_oauth_session_token", prevKey.UserID, app.ID)
@@ -323,20 +290,17 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 	if err != nil {
 		return oauth2.Token{}, err
 	}
-
 	// Replace the token.
 	err = db.InTx(func(tx database.Store) error {
 		ctx := dbauthz.As(ctx, actor)
 		err = tx.DeleteAPIKeyByID(ctx, prevKey.ID) // This cascades to the token.
 		if err != nil {
-			return xerrors.Errorf("delete oauth2 app token: %w", err)
+			return fmt.Errorf("delete oauth2 app token: %w", err)
 		}
-
 		newKey, err := tx.InsertAPIKey(ctx, key)
 		if err != nil {
-			return xerrors.Errorf("insert oauth2 access token: %w", err)
+			return fmt.Errorf("insert oauth2 access token: %w", err)
 		}
-
 		_, err = tx.InsertOAuth2ProviderAppToken(ctx, database.InsertOAuth2ProviderAppTokenParams{
 			ID:          uuid.New(),
 			CreatedAt:   dbtime.Now(),
@@ -347,14 +311,13 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 			APIKeyID:    newKey.ID,
 		})
 		if err != nil {
-			return xerrors.Errorf("insert oauth2 refresh token: %w", err)
+			return fmt.Errorf("insert oauth2 refresh token: %w", err)
 		}
 		return nil
 	}, nil)
 	if err != nil {
 		return oauth2.Token{}, err
 	}
-
 	return oauth2.Token{
 		AccessToken:  sessionToken,
 		TokenType:    "Bearer",

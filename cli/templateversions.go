@@ -1,19 +1,15 @@
 package cli
-
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
-
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
 )
-
 func (r *RootCmd) templateVersions() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:     "versions",
@@ -35,10 +31,8 @@ func (r *RootCmd) templateVersions() *serpent.Command {
 			r.templateVersionsPromote(),
 		},
 	}
-
 	return cmd
 }
-
 func (r *RootCmd) templateVersionsList() *serpent.Command {
 	defaultColumns := []string{
 		"name",
@@ -53,9 +47,7 @@ func (r *RootCmd) templateVersionsList() *serpent.Command {
 	)
 	client := new(codersdk.Client)
 	orgContext := NewOrganizationContext()
-
 	var includeArchived serpent.Bool
-
 	cmd := &serpent.Command{
 		Use: "list <template>",
 		Middleware: serpent.Chain(
@@ -97,42 +89,36 @@ func (r *RootCmd) templateVersionsList() *serpent.Command {
 		Handler: func(inv *serpent.Invocation) error {
 			organization, err := orgContext.Selected(inv, client)
 			if err != nil {
-				return xerrors.Errorf("get current organization: %w", err)
+				return fmt.Errorf("get current organization: %w", err)
 			}
 			template, err := client.TemplateByName(inv.Context(), organization.ID, inv.Args[0])
 			if err != nil {
-				return xerrors.Errorf("get template by name: %w", err)
+				return fmt.Errorf("get template by name: %w", err)
 			}
 			req := codersdk.TemplateVersionsByTemplateRequest{
 				TemplateID:      template.ID,
 				IncludeArchived: includeArchived.Value(),
 			}
-
 			versions, err := client.TemplateVersionsByTemplate(inv.Context(), req)
 			if err != nil {
-				return xerrors.Errorf("get template versions by template: %w", err)
+				return fmt.Errorf("get template versions by template: %w", err)
 			}
-
 			rows := templateVersionsToRows(template.ActiveVersionID, versions...)
 			out, err := formatter.Format(inv.Context(), rows)
 			if err != nil {
-				return xerrors.Errorf("render table: %w", err)
+				return fmt.Errorf("render table: %w", err)
 			}
-
 			_, err = fmt.Fprintln(inv.Stdout, out)
 			return err
 		},
 	}
-
 	orgContext.AttachOptions(cmd)
 	formatter.AttachOptions(&cmd.Options)
 	return cmd
 }
-
 type templateVersionRow struct {
 	// For json format:
 	TemplateVersion codersdk.TemplateVersion `table:"-"`
-
 	// For table format:
 	Name      string    `json:"-" table:"name,default_sort"`
 	CreatedAt time.Time `json:"-" table:"created at"`
@@ -141,7 +127,6 @@ type templateVersionRow struct {
 	Active    string    `json:"-" table:"active"`
 	Archived  string    `json:"-" table:"archived"`
 }
-
 // templateVersionsToRows converts a list of template versions to a list of rows
 // for outputting.
 func templateVersionsToRows(activeVersionID uuid.UUID, templateVersions ...codersdk.TemplateVersion) []templateVersionRow {
@@ -151,12 +136,10 @@ func templateVersionsToRows(activeVersionID uuid.UUID, templateVersions ...coder
 		if templateVersion.ID == activeVersionID {
 			activeStatus = cliui.Keyword("Active")
 		}
-
 		archivedStatus := ""
 		if templateVersion.Archived {
 			archivedStatus = pretty.Sprint(cliui.DefaultStyles.Warn, "Archived")
 		}
-
 		rows[i] = templateVersionRow{
 			TemplateVersion: templateVersion,
 			Name:            templateVersion.Name,
@@ -167,10 +150,8 @@ func templateVersionsToRows(activeVersionID uuid.UUID, templateVersions ...coder
 			Archived:        archivedStatus,
 		}
 	}
-
 	return rows
 }
-
 func (r *RootCmd) templateVersionsPromote() *serpent.Command {
 	var (
 		templateName        string
@@ -190,29 +171,24 @@ func (r *RootCmd) templateVersionsPromote() *serpent.Command {
 			if err != nil {
 				return err
 			}
-
 			template, err := client.TemplateByName(inv.Context(), organization.ID, templateName)
 			if err != nil {
-				return xerrors.Errorf("get template by name: %w", err)
+				return fmt.Errorf("get template by name: %w", err)
 			}
-
 			version, err := client.TemplateVersionByName(inv.Context(), template.ID, templateVersionName)
 			if err != nil {
-				return xerrors.Errorf("get template version by name: %w", err)
+				return fmt.Errorf("get template version by name: %w", err)
 			}
-
 			err = client.UpdateActiveTemplateVersion(inv.Context(), template.ID, codersdk.UpdateActiveTemplateVersion{
 				ID: version.ID,
 			})
 			if err != nil {
-				return xerrors.Errorf("update active template version: %w", err)
+				return fmt.Errorf("update active template version: %w", err)
 			}
-
 			_, _ = fmt.Fprintf(inv.Stdout, "Successfully promoted version %q to active for template %q\n", templateVersionName, templateName)
 			return nil
 		},
 	}
-
 	cmd.Options = serpent.OptionSet{
 		{
 			Flag:          "template",

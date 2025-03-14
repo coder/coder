@@ -1,6 +1,6 @@
 package coderd
-
 import (
+	"errors"
 	"context"
 	"crypto/sha256"
 	"database/sql"
@@ -10,10 +10,7 @@ import (
 	"slices"
 	"strings"
 	"time"
-
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
-
 	"cdr.dev/slog"
 	agpl "github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/audit"
@@ -33,22 +30,19 @@ import (
 	"github.com/coder/coder/v2/enterprise/replicasync"
 	"github.com/coder/coder/v2/enterprise/wsproxy/wsproxysdk"
 )
-
 // whitelistedCryptoKeyFeatures is a list of crypto key features that are
 // allowed to be queried with workspace proxies.
 var whitelistedCryptoKeyFeatures = []database.CryptoKeyFeature{
 	database.CryptoKeyFeatureWorkspaceAppsToken,
 	database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 }
-
 // forceWorkspaceProxyHealthUpdate forces an update of the proxy health.
 // This is useful when a proxy is created or deleted. Errors will be logged.
 func (api *API) forceWorkspaceProxyHealthUpdate(ctx context.Context) {
-	if err := api.ProxyHealth.ForceUpdate(ctx); err != nil && !database.IsQueryCanceledError(err) && !xerrors.Is(err, context.Canceled) {
+	if err := api.ProxyHealth.ForceUpdate(ctx); err != nil && !database.IsQueryCanceledError(err) && !errors.Is(err, context.Canceled) {
 		api.Logger.Error(ctx, "force proxy health update", slog.Error(err))
 	}
 }
-
 // NOTE: this doesn't need a swagger definition since AGPL already has one, and
 // this route overrides the AGPL one.
 func (api *API) regions(rw http.ResponseWriter, r *http.Request) {
@@ -57,10 +51,8 @@ func (api *API) regions(rw http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-
 	httpapi.Write(r.Context(), rw, http.StatusOK, regions)
 }
-
 func (api *API) fetchRegions(ctx context.Context) (codersdk.RegionsResponse[codersdk.Region], error) {
 	//nolint:gocritic // this intentionally requests resources that users
 	// cannot usually access in order to give them a full list of available
@@ -70,7 +62,6 @@ func (api *API) fetchRegions(ctx context.Context) (codersdk.RegionsResponse[code
 	if err != nil {
 		return codersdk.RegionsResponse[codersdk.Region]{}, err
 	}
-
 	regions := make([]codersdk.Region, 0, len(proxies.Regions))
 	for i := range proxies.Regions {
 		// Ignore deleted and DERP-only proxies.
@@ -80,12 +71,10 @@ func (api *API) fetchRegions(ctx context.Context) (codersdk.RegionsResponse[code
 		// Append the inner region data.
 		regions = append(regions, proxies.Regions[i].Region)
 	}
-
 	return codersdk.RegionsResponse[codersdk.Region]{
 		Regions: regions,
 	}, nil
 }
-
 // @Summary Update workspace proxy
 // @ID update-workspace-proxy
 // @Security CoderSessionToken
@@ -110,12 +99,10 @@ func (api *API) patchWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 	)
 	aReq.Old = proxy
 	defer commitAudit()
-
 	var req codersdk.PatchWorkspaceProxy
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-
 	var hashedSecret []byte
 	var fullToken string
 	if req.RegenerateToken {
@@ -126,13 +113,11 @@ func (api *API) patchWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-
 	deploymentIDStr, err := api.Database.GetDeploymentID(ctx)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-
 	var updatedProxy database.WorkspaceProxy
 	if proxy.ID.String() == deploymentIDStr {
 		// User is editing the default primary proxy.
@@ -159,7 +144,6 @@ func (api *API) patchWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-
 	aReq.New = updatedProxy
 	status, ok := api.ProxyHealth.HealthStatus()[updatedProxy.ID]
 	if !ok {
@@ -170,18 +154,15 @@ func (api *API) patchWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 		Proxy:      convertProxy(updatedProxy, status),
 		ProxyToken: fullToken,
 	})
-
 	// Update the proxy cache.
 	go api.forceWorkspaceProxyHealthUpdate(api.ctx)
 }
-
 // patchPrimaryWorkspaceProxy handles the special case of updating the default
 func (api *API) patchPrimaryWorkspaceProxy(req codersdk.PatchWorkspaceProxy, rw http.ResponseWriter, r *http.Request) (database.WorkspaceProxy, bool) {
 	var (
 		ctx   = r.Context()
 		proxy = httpmw.WorkspaceProxyParam(r)
 	)
-
 	// User is editing the default primary proxy.
 	if req.Name != "" && req.Name != proxy.Name {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -202,7 +183,6 @@ func (api *API) patchPrimaryWorkspaceProxy(req codersdk.PatchWorkspaceProxy, rw 
 		})
 		return database.WorkspaceProxy{}, false
 	}
-
 	args := database.UpsertDefaultProxyParams{
 		DisplayName: req.DisplayName,
 		IconUrl:     req.Icon,
@@ -221,13 +201,11 @@ func (api *API) patchPrimaryWorkspaceProxy(req codersdk.PatchWorkspaceProxy, rw 
 			args.IconUrl = existing.IconUrl
 		}
 	}
-
 	err := api.Database.UpsertDefaultProxy(ctx, args)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return database.WorkspaceProxy{}, false
 	}
-
 	// Use the primary region to fetch the default proxy values.
 	updatedProxy, err := api.AGPL.PrimaryWorkspaceProxy(ctx)
 	if err != nil {
@@ -236,7 +214,6 @@ func (api *API) patchPrimaryWorkspaceProxy(req codersdk.PatchWorkspaceProxy, rw 
 	}
 	return updatedProxy, true
 }
-
 // @Summary Delete workspace proxy
 // @ID delete-workspace-proxy
 // @Security CoderSessionToken
@@ -259,14 +236,12 @@ func (api *API) deleteWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 	)
 	aReq.Old = proxy
 	defer commitAudit()
-
 	if proxy.IsPrimary() {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Cannot delete primary proxy",
 		})
 		return
 	}
-
 	err := api.Database.UpdateWorkspaceProxyDeleted(ctx, database.UpdateWorkspaceProxyDeletedParams{
 		ID:      proxy.ID,
 		Deleted: true,
@@ -279,16 +254,13 @@ func (api *API) deleteWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-
 	aReq.New = database.WorkspaceProxy{}
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
 		Message: "Proxy has been deleted!",
 	})
-
 	// Update the proxy health cache to remove this proxy.
 	go api.forceWorkspaceProxyHealthUpdate(api.ctx)
 }
-
 // @Summary Get workspace proxy
 // @ID get-workspace-proxy
 // @Security CoderSessionToken
@@ -302,10 +274,8 @@ func (api *API) workspaceProxy(rw http.ResponseWriter, r *http.Request) {
 		ctx   = r.Context()
 		proxy = httpmw.WorkspaceProxyParam(r)
 	)
-
 	httpapi.Write(ctx, rw, http.StatusOK, convertProxy(proxy, api.ProxyHealth.HealthStatus()[proxy.ID]))
 }
-
 // @Summary Create workspace proxy
 // @ID create-workspace-proxy
 // @Security CoderSessionToken
@@ -327,12 +297,10 @@ func (api *API) postWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 		})
 	)
 	defer commitAudit()
-
 	var req codersdk.CreateWorkspaceProxyRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-
 	if strings.ToLower(req.Name) == "primary" {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: `The name "primary" is reserved for the primary region.`,
@@ -346,14 +314,12 @@ func (api *API) postWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	id := uuid.New()
 	fullToken, hashedSecret, err := generateWorkspaceProxyToken(id)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-
 	proxy, err := api.Database.InsertWorkspaceProxy(ctx, database.InsertWorkspaceProxyParams{
 		ID:                id,
 		Name:              req.Name,
@@ -378,11 +344,9 @@ func (api *API) postWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-
 	api.Telemetry.Report(&telemetry.Snapshot{
 		WorkspaceProxies: []telemetry.WorkspaceProxy{telemetry.ConvertWorkspaceProxy(proxy)},
 	})
-
 	aReq.New = proxy
 	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.UpdateWorkspaceProxyResponse{
 		Proxy: convertProxy(proxy, proxyhealth.ProxyStatus{
@@ -392,11 +356,9 @@ func (api *API) postWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 		}),
 		ProxyToken: fullToken,
 	})
-
 	// Update the proxy health cache to include this new proxy.
 	go api.forceWorkspaceProxyHealthUpdate(api.ctx)
 }
-
 // nolint:revive
 func validateProxyURL(u string) error {
 	p, err := url.Parse(u)
@@ -404,14 +366,13 @@ func validateProxyURL(u string) error {
 		return err
 	}
 	if p.Scheme != "http" && p.Scheme != "https" {
-		return xerrors.New("scheme must be http or https")
+		return errors.New("scheme must be http or https")
 	}
 	if !(p.Path == "/" || p.Path == "") {
-		return xerrors.New("path must be empty or /")
+		return errors.New("path must be empty or /")
 	}
 	return nil
 }
-
 // @Summary Get workspace proxies
 // @ID get-workspace-proxies
 // @Security CoderSessionToken
@@ -434,26 +395,22 @@ func (api *API) workspaceProxies(rw http.ResponseWriter, r *http.Request) {
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, proxies)
 }
-
 func (api *API) fetchWorkspaceProxies(ctx context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error) {
 	proxies, err := api.Database.GetWorkspaceProxies(ctx)
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return codersdk.RegionsResponse[codersdk.WorkspaceProxy]{}, err
 	}
-
 	// Add the primary as well
 	primaryProxy, err := api.AGPL.PrimaryWorkspaceProxy(ctx)
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return codersdk.RegionsResponse[codersdk.WorkspaceProxy]{}, err
 	}
 	proxies = append([]database.WorkspaceProxy{primaryProxy}, proxies...)
-
 	statues := api.ProxyHealth.HealthStatus()
 	return codersdk.RegionsResponse[codersdk.WorkspaceProxy]{
 		Regions: convertProxies(proxies, statues),
 	}, nil
 }
-
 // @Summary Issue signed workspace app token
 // @ID issue-signed-workspace-app-token
 // @Security CoderSessionToken
@@ -466,16 +423,13 @@ func (api *API) fetchWorkspaceProxies(ctx context.Context) (codersdk.RegionsResp
 // @x-apidocgen {"skip": true}
 func (api *API) workspaceProxyIssueSignedAppToken(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
 	// NOTE: this endpoint will return JSON on success, but will (usually)
 	// return a self-contained HTML error page on failure. The external proxy
 	// should forward any non-201 response to the client.
-
 	var req workspaceapps.IssueTokenRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-
 	// userReq is a http request from the user on the other side of the proxy.
 	// Although the workspace proxy is making this call, we want to use the user's
 	// authorization context to create the token.
@@ -486,26 +440,23 @@ func (api *API) workspaceProxyIssueSignedAppToken(rw http.ResponseWriter, r *htt
 	userReq, err := http.NewRequestWithContext(ctx, "GET", req.AppRequest.BasePath, nil)
 	if err != nil {
 		// This should never happen
-		httpapi.InternalServerError(rw, xerrors.Errorf("[DEV ERROR] new request: %w", err))
+		httpapi.InternalServerError(rw, fmt.Errorf("[DEV ERROR] new request: %w", err))
 		return
 	}
 	userReq.Header.Set(codersdk.SessionTokenHeader, req.SessionToken)
-
 	// Exchange the token.
 	token, tokenStr, ok := api.AGPL.WorkspaceAppsProvider.Issue(ctx, rw, userReq, req)
 	if !ok {
 		return
 	}
 	if token == nil {
-		httpapi.InternalServerError(rw, xerrors.New("nil token after calling token provider"))
+		httpapi.InternalServerError(rw, errors.New("nil token after calling token provider"))
 		return
 	}
-
 	httpapi.Write(ctx, rw, http.StatusCreated, wsproxysdk.IssueSignedAppTokenResponse{
 		SignedTokenStr: tokenStr,
 	})
 }
-
 // @Summary Report workspace app stats
 // @ID report-workspace-app-stats
 // @Security CoderSessionToken
@@ -518,24 +469,19 @@ func (api *API) workspaceProxyIssueSignedAppToken(rw http.ResponseWriter, r *htt
 func (api *API) workspaceProxyReportAppStats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	_ = httpmw.WorkspaceProxy(r) // Ensure the proxy is authenticated.
-
 	var req wsproxysdk.ReportAppStatsRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-
 	api.Logger.Debug(ctx, "report app stats", slog.F("stats", req.Stats))
-
 	reporter := api.WorkspaceAppsStatsCollectorOptions.Reporter
 	if err := reporter.ReportAppStats(ctx, req.Stats); err != nil {
 		api.Logger.Error(ctx, "report app stats failed", slog.Error(err))
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-
 	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
 }
-
 // workspaceProxyRegister is used to register a new workspace proxy. When a proxy
 // comes online, it will announce itself to this endpoint. This updates its values
 // in the database and returns a signed token that can be used to authenticate
@@ -560,18 +506,15 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 		ctx   = r.Context()
 		proxy = httpmw.WorkspaceProxy(r)
 	)
-
 	var req wsproxysdk.RegisterWorkspaceProxyRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-
 	// NOTE: we previously enforced version checks when registering, but this
 	// will cause proxies to enter crash loop backoff if the server is updated
 	// and the proxy is not. Most releases do not make backwards-incompatible
 	// changes to the proxy API, so instead of blocking requests we will show
 	// healthcheck warnings.
-
 	if err := validateProxyURL(req.AccessURL); err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "URL is invalid.",
@@ -579,7 +522,6 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 		})
 		return
 	}
-
 	if req.WildcardHostname != "" {
 		if _, err := appurl.CompileHostnamePattern(req.WildcardHostname); err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -589,24 +531,20 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 			return
 		}
 	}
-
 	if req.ReplicaID == uuid.Nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Replica ID is invalid.",
 		})
 		return
 	}
-
 	if req.DerpOnly && !req.DerpEnabled {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "DerpOnly cannot be true when DerpEnabled is false.",
 		})
 		return
 	}
-
 	startingRegionID, _ := getProxyDERPStartingRegionID(api.Options.BaseDERPMap)
 	regionID := int32(startingRegionID) + proxy.RegionID
-
 	err := api.Database.InTx(func(db database.Store) error {
 		// First, update the proxy's values in the database.
 		_, err := db.RegisterWorkspaceProxy(ctx, database.RegisterWorkspaceProxyParams{
@@ -618,9 +556,8 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 			Version:          req.Version,
 		})
 		if err != nil {
-			return xerrors.Errorf("register workspace proxy: %w", err)
+			return fmt.Errorf("register workspace proxy: %w", err)
 		}
-
 		// Second, find the replica that corresponds to this proxy and refresh
 		// it if it exists. If it doesn't exist, create it.
 		now := time.Now()
@@ -631,9 +568,8 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 				// If the replica deregistered, it shouldn't be able to
 				// re-register before restarting.
 				// TODO: sadly this results in 500 when it should be 400
-				return xerrors.Errorf("replica %s is marked stopped", replica.ID)
+				return fmt.Errorf("replica %s is marked stopped", replica.ID)
 			}
-
 			replica, err = db.UpdateReplica(ctx, database.UpdateReplicaParams{
 				ID:              replica.ID,
 				UpdatedAt:       now,
@@ -648,9 +584,9 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 				Primary:         false,
 			})
 			if err != nil {
-				return xerrors.Errorf("update replica: %w", err)
+				return fmt.Errorf("update replica: %w", err)
 			}
-		} else if xerrors.Is(err, sql.ErrNoRows) {
+		} else if errors.Is(err, sql.ErrNoRows) {
 			// Replica doesn't exist, create it.
 			replica, err = db.InsertReplica(ctx, database.InsertReplicaParams{
 				ID:              req.ReplicaID,
@@ -665,12 +601,11 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 				Primary:         false,
 			})
 			if err != nil {
-				return xerrors.Errorf("insert replica: %w", err)
+				return fmt.Errorf("insert replica: %w", err)
 			}
 		} else {
-			return xerrors.Errorf("get replica: %w", err)
+			return fmt.Errorf("get replica: %w", err)
 		}
-
 		return nil
 	}, nil)
 	if httpapi.Is404Error(err) {
@@ -681,7 +616,6 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-
 	// Update replica sync and notify all other replicas to update their
 	// replica list.
 	err = api.replicaManager.PublishUpdate()
@@ -696,7 +630,6 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-
 	// Find sibling regions to respond with for derpmesh.
 	siblings := api.replicaManager.InRegion(regionID)
 	siblingsRes := make([]codersdk.Replica, 0, len(siblings))
@@ -706,7 +639,6 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 		}
 		siblingsRes = append(siblingsRes, convertReplica(replica))
 	}
-
 	httpapi.Write(ctx, rw, http.StatusCreated, wsproxysdk.RegisterWorkspaceProxyResponse{
 		DERPMeshKey:         api.DERPServer.MeshKey(),
 		DERPRegionID:        regionID,
@@ -714,10 +646,8 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 		DERPForceWebSockets: api.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
 		SiblingReplicas:     siblingsRes,
 	})
-
 	go api.forceWorkspaceProxyHealthUpdate(api.ctx)
 }
-
 // workspaceProxyCryptoKeys is used to fetch signing keys for the workspace proxy.
 //
 // This is called periodically by the proxy in the background (every 10m per
@@ -734,7 +664,6 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 // @x-apidocgen {"skip": true}
 func (api *API) workspaceProxyCryptoKeys(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
 	feature := database.CryptoKeyFeature(r.URL.Query().Get("feature"))
 	if feature == "" {
 		httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
@@ -742,25 +671,21 @@ func (api *API) workspaceProxyCryptoKeys(rw http.ResponseWriter, r *http.Request
 		})
 		return
 	}
-
 	if !slices.Contains(whitelistedCryptoKeyFeatures, feature) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("Invalid feature: %q", feature),
 		})
 		return
 	}
-
 	keys, err := api.Database.GetCryptoKeysByFeature(ctx, feature)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-
 	httpapi.Write(ctx, rw, http.StatusOK, wsproxysdk.CryptoKeysResponse{
 		CryptoKeys: db2sdk.CryptoKeys(keys),
 	})
 }
-
 // @Summary Deregister workspace proxy
 // @ID deregister-workspace-proxy
 // @Security CoderSessionToken
@@ -772,24 +697,20 @@ func (api *API) workspaceProxyCryptoKeys(rw http.ResponseWriter, r *http.Request
 // @x-apidocgen {"skip": true}
 func (api *API) workspaceProxyDeregister(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
 	var req wsproxysdk.DeregisterWorkspaceProxyRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-
 	err := api.Database.InTx(func(db database.Store) error {
 		now := time.Now()
 		replica, err := db.GetReplicaByID(ctx, req.ReplicaID)
 		if err != nil {
-			return xerrors.Errorf("get replica: %w", err)
+			return fmt.Errorf("get replica: %w", err)
 		}
-
 		if replica.StoppedAt.Valid && !replica.StartedAt.IsZero() {
 			// TODO: sadly this results in 500 when it should be 400
-			return xerrors.Errorf("replica %s is already marked stopped", replica.ID)
+			return fmt.Errorf("replica %s is already marked stopped", replica.ID)
 		}
-
 		replica, err = db.UpdateReplica(ctx, database.UpdateReplicaParams{
 			ID:        replica.ID,
 			UpdatedAt: now,
@@ -807,9 +728,8 @@ func (api *API) workspaceProxyDeregister(rw http.ResponseWriter, r *http.Request
 			Primary:         replica.Primary,
 		})
 		if err != nil {
-			return xerrors.Errorf("update replica: %w", err)
+			return fmt.Errorf("update replica: %w", err)
 		}
-
 		return nil
 	}, nil)
 	if httpapi.Is404Error(err) {
@@ -820,7 +740,6 @@ func (api *API) workspaceProxyDeregister(rw http.ResponseWriter, r *http.Request
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-
 	// Publish a replicasync event with a nil ID so every replica (yes, even the
 	// current replica) will refresh its replicas list.
 	err = api.Pubsub.Publish(replicasync.PubsubEvent, []byte(uuid.Nil.String()))
@@ -828,11 +747,9 @@ func (api *API) workspaceProxyDeregister(rw http.ResponseWriter, r *http.Request
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-
 	rw.WriteHeader(http.StatusNoContent)
 	go api.forceWorkspaceProxyHealthUpdate(api.ctx)
 }
-
 // reconnectingPTYSignedToken issues a signed app token for use when connecting
 // to the reconnecting PTY websocket on an external workspace proxy. This is set
 // by the client as a query parameter when connecting.
@@ -854,15 +771,13 @@ func (api *API) reconnectingPTYSignedToken(rw http.ResponseWriter, r *http.Reque
 		httpapi.ResourceNotFound(rw)
 		return
 	}
-
 	var req codersdk.IssueReconnectingPTYSignedTokenRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-
 	u, err := url.Parse(req.URL)
 	if err == nil && u.Scheme != "ws" && u.Scheme != "wss" {
-		err = xerrors.Errorf("invalid URL scheme %q, expected 'ws' or 'wss'", u.Scheme)
+		err = fmt.Errorf("invalid URL scheme %q, expected 'ws' or 'wss'", u.Scheme)
 	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -871,7 +786,6 @@ func (api *API) reconnectingPTYSignedToken(rw http.ResponseWriter, r *http.Reque
 		})
 		return
 	}
-
 	// Assert the URL is a valid reconnecting-pty URL.
 	expectedPath := fmt.Sprintf("/api/v2/workspaceagents/%s/pty", req.AgentID.String())
 	if u.Path != expectedPath {
@@ -881,7 +795,6 @@ func (api *API) reconnectingPTYSignedToken(rw http.ResponseWriter, r *http.Reque
 		})
 		return
 	}
-
 	scheme, err := api.AGPL.ValidWorkspaceAppHostname(ctx, u.Host, agpl.ValidWorkspaceAppHostnameOpts{
 		// Only allow the proxy access URL as a hostname since we don't need a
 		// ticket for the primary dashboard URL terminal.
@@ -904,7 +817,6 @@ func (api *API) reconnectingPTYSignedToken(rw http.ResponseWriter, r *http.Reque
 		})
 		return
 	}
-
 	_, tokenStr, ok := api.AGPL.WorkspaceAppsProvider.Issue(ctx, rw, r, workspaceapps.IssueTokenRequest{
 		AppRequest: workspaceapps.Request{
 			AccessMethod:  workspaceapps.AccessMethodTerminal,
@@ -924,22 +836,19 @@ func (api *API) reconnectingPTYSignedToken(rw http.ResponseWriter, r *http.Reque
 	if !ok {
 		return
 	}
-
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.IssueReconnectingPTYSignedTokenResponse{
 		SignedToken: tokenStr,
 	})
 }
-
 func generateWorkspaceProxyToken(id uuid.UUID) (token string, hashed []byte, err error) {
 	secret, err := cryptorand.HexString(64)
 	if err != nil {
-		return "", nil, xerrors.Errorf("generate token: %w", err)
+		return "", nil, fmt.Errorf("generate token: %w", err)
 	}
 	hashedSecret := sha256.Sum256([]byte(secret))
 	fullToken := fmt.Sprintf("%s:%s", id, secret)
 	return fullToken, hashedSecret[:], nil
 }
-
 func convertProxies(p []database.WorkspaceProxy, statuses map[uuid.UUID]proxyhealth.ProxyStatus) []codersdk.WorkspaceProxy {
 	resp := make([]codersdk.WorkspaceProxy, 0, len(p))
 	for _, proxy := range p {
@@ -947,7 +856,6 @@ func convertProxies(p []database.WorkspaceProxy, statuses map[uuid.UUID]proxyhea
 	}
 	return resp
 }
-
 func convertRegion(proxy database.WorkspaceProxy, status proxyhealth.ProxyStatus) codersdk.Region {
 	return codersdk.Region{
 		ID:               proxy.ID,
@@ -959,7 +867,6 @@ func convertRegion(proxy database.WorkspaceProxy, status proxyhealth.ProxyStatus
 		WildcardHostname: proxy.WildcardHostname,
 	}
 }
-
 func convertProxy(p database.WorkspaceProxy, status proxyhealth.ProxyStatus) codersdk.WorkspaceProxy {
 	now := dbtime.Now()
 	if p.IsPrimary() {
@@ -1001,20 +908,17 @@ func convertProxy(p database.WorkspaceProxy, status proxyhealth.ProxyStatus) cod
 		},
 	}
 }
-
 // workspaceProxiesFetchUpdater implements healthcheck.WorkspaceProxyFetchUpdater
 // in an actually useful and meaningful way.
 type workspaceProxiesFetchUpdater struct {
 	fetchFunc  func(context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error)
 	updateFunc func(context.Context) error
 }
-
 func (w *workspaceProxiesFetchUpdater) Fetch(ctx context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error) {
 	//nolint:gocritic // Need perms to read all workspace proxies.
 	authCtx := dbauthz.AsSystemRestricted(ctx)
 	return w.fetchFunc(authCtx)
 }
-
 func (w *workspaceProxiesFetchUpdater) Update(ctx context.Context) error {
 	return w.updateFunc(ctx)
 }

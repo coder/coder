@@ -1,6 +1,7 @@
 package reconnectingpty
-
 import (
+	"fmt"
+	"errors"
 	"context"
 	"encoding/binary"
 	"encoding/json"
@@ -8,20 +9,15 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
-	"golang.org/x/xerrors"
-
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
-
 type reportConnectionFunc func(id uuid.UUID, ip string) (disconnected func(code int, reason string))
-
 type Server struct {
 	logger           slog.Logger
 	connectionsTotal prometheus.Counter
@@ -31,10 +27,8 @@ type Server struct {
 	connCount        atomic.Int64
 	reconnectingPTYs sync.Map
 	timeout          time.Duration
-
 	ExperimentalDevcontainersEnabled bool
 }
-
 // NewServer returns a new ReconnectingPTY server
 func NewServer(logger slog.Logger, commandCreator *agentssh.Server, reportConnection reportConnectionFunc,
 	connectionsTotal prometheus.Counter, errorsTotal *prometheus.CounterVec,
@@ -58,7 +52,6 @@ func NewServer(logger slog.Logger, commandCreator *agentssh.Server, reportConnec
 	}
 	return s
 }
-
 func (s *Server) Serve(ctx, hardCtx context.Context, l net.Listener) (retErr error) {
 	var wg sync.WaitGroup
 	for {
@@ -106,17 +99,14 @@ func (s *Server) Serve(ctx, hardCtx context.Context, l net.Listener) (retErr err
 	wg.Wait()
 	return retErr
 }
-
 func (s *Server) ConnCount() int64 {
 	return s.connCount.Load()
 }
-
 func (s *Server) handleConn(ctx context.Context, logger slog.Logger, conn net.Conn) (retErr error) {
 	defer conn.Close()
 	s.connectionsTotal.Add(1)
 	s.connCount.Add(1)
 	defer s.connCount.Add(-1)
-
 	// This cannot use a JSON decoder, since that can
 	// buffer additional data that is required for the PTY.
 	rawLen := make([]byte, 2)
@@ -142,11 +132,9 @@ func (s *Server) handleConn(ctx context.Context, logger slog.Logger, conn net.Co
 		logger.Warn(ctx, "failed to unmarshal init", slog.F("raw", data))
 		return nil
 	}
-
 	connectionID := uuid.NewString()
 	connLogger := logger.With(slog.F("message_id", msg.ID), slog.F("connection_id", connectionID), slog.F("container", msg.Container), slog.F("container_user", msg.ContainerUser))
 	connLogger.Debug(ctx, "starting handler")
-
 	defer func() {
 		if err := retErr; err != nil {
 			// If the context is done, we don't want to log this as an error since it's expected.
@@ -158,7 +146,6 @@ func (s *Server) handleConn(ctx context.Context, logger slog.Logger, conn net.Co
 		}
 		connLogger.Info(ctx, "reconnecting pty connection closed")
 	}()
-
 	var rpty ReconnectingPTY
 	sendConnected := make(chan ReconnectingPTY, 1)
 	// On store, reserve this ID to prevent multiple concurrent new connections.
@@ -168,16 +155,15 @@ func (s *Server) handleConn(ctx context.Context, logger slog.Logger, conn net.Co
 		connLogger.Debug(ctx, "connecting to existing reconnecting pty")
 		c, ok := waitReady.(chan ReconnectingPTY)
 		if !ok {
-			return xerrors.Errorf("found invalid type in reconnecting pty map: %T", waitReady)
+			return fmt.Errorf("found invalid type in reconnecting pty map: %T", waitReady)
 		}
 		rpty, ok = <-c
 		if !ok || rpty == nil {
-			return xerrors.Errorf("reconnecting pty closed before connection")
+			return fmt.Errorf("reconnecting pty closed before connection")
 		}
 		c <- rpty // Put it back for the next reconnect.
 	} else {
 		connLogger.Debug(ctx, "creating new reconnecting pty")
-
 		connected := false
 		defer func() {
 			if !connected && retErr != nil {
@@ -185,12 +171,11 @@ func (s *Server) handleConn(ctx context.Context, logger slog.Logger, conn net.Co
 				close(sendConnected)
 			}
 		}()
-
 		var ei usershell.EnvInfoer
 		if s.ExperimentalDevcontainersEnabled && msg.Container != "" {
 			dei, err := agentcontainers.EnvInfo(ctx, s.commandCreator.Execer, msg.Container, msg.ContainerUser)
 			if err != nil {
-				return xerrors.Errorf("get container env info: %w", err)
+				return fmt.Errorf("get container env info: %w", err)
 			}
 			ei = dei
 			s.logger.Info(ctx, "got container env info", slog.F("container", msg.Container))
@@ -199,9 +184,8 @@ func (s *Server) handleConn(ctx context.Context, logger slog.Logger, conn net.Co
 		cmd, err := s.commandCreator.CreateCommand(ctx, msg.Command, nil, ei)
 		if err != nil {
 			s.errorsTotal.WithLabelValues("create_command").Add(1)
-			return xerrors.Errorf("create command: %w", err)
+			return fmt.Errorf("create command: %w", err)
 		}
-
 		rpty = New(ctx,
 			logger.With(slog.F("message_id", msg.ID)),
 			s.commandCreator.Execer,
@@ -211,7 +195,6 @@ func (s *Server) handleConn(ctx context.Context, logger slog.Logger, conn net.Co
 				Metrics: s.errorsTotal,
 			},
 		)
-
 		done := make(chan struct{})
 		go func() {
 			select {
@@ -220,12 +203,10 @@ func (s *Server) handleConn(ctx context.Context, logger slog.Logger, conn net.Co
 				rpty.Close(ctx.Err())
 			}
 		}()
-
 		go func() {
 			rpty.Wait()
 			s.reconnectingPTYs.Delete(msg.ID)
 		}()
-
 		connected = true
 		sendConnected <- rpty
 	}

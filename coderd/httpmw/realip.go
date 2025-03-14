@@ -1,21 +1,17 @@
 package httpmw
-
 import (
+	"fmt"
+	"errors"
 	"context"
 	"net"
 	"net/http"
 	"strings"
-
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/coderd/httpapi"
 )
-
 const (
 	headerXForwardedFor   string = "X-Forwarded-For"
 	headerXForwardedProto string = "X-Forwarded-Proto"
 )
-
 // RealIPConfig configures the search order for the function, which controls
 // which headers to consider trusted.
 type RealIPConfig struct {
@@ -23,12 +19,10 @@ type RealIPConfig struct {
 	// any non-trusted address supplies these headers, they will be
 	// ignored.
 	TrustedOrigins []*net.IPNet
-
 	// TrustedHeaders lists headers that are trusted for forwarding
 	// IP addresses. e.g. "CF-Connecting-IP", "True-Client-IP", etc.
 	TrustedHeaders []string
 }
-
 // ExtractRealIP is a middleware that uses headers from reverse proxies to
 // propagate origin IP address information, when configured to do so.
 func ExtractRealIP(config *RealIPConfig) func(next http.Handler) http.Handler {
@@ -39,19 +33,16 @@ func ExtractRealIP(config *RealIPConfig) func(next http.Handler) http.Handler {
 				Config:             config,
 				OriginalRemoteAddr: req.RemoteAddr,
 			}))
-
 			info, err := ExtractRealIPAddress(config, req)
 			if err != nil {
 				httpapi.InternalServerError(w, err)
 				return
 			}
 			req.RemoteAddr = info.String()
-
 			next.ServeHTTP(w, req)
 		})
 	}
 }
-
 // ExtractRealIPAddress returns the original client address according to the
 // configuration and headers. It does not mutate the original request.
 func ExtractRealIPAddress(config *RealIPConfig, req *http.Request) (net.IP, error) {
@@ -61,24 +52,20 @@ func ExtractRealIPAddress(config *RealIPConfig, req *http.Request) (net.IP, erro
 			TrustedHeaders: nil,
 		}
 	}
-
 	cf := isContainedIn(config.TrustedOrigins, getRemoteAddress(req.RemoteAddr))
 	if !cf {
 		// Address is not valid or the origin is not trusted; use the
 		// original address
 		return getRemoteAddress(req.RemoteAddr), nil
 	}
-
 	for _, trustedHeader := range config.TrustedHeaders {
 		addr := getRemoteAddress(req.Header.Get(trustedHeader))
 		if addr != nil {
 			return addr, nil
 		}
 	}
-
 	return getRemoteAddress(req.RemoteAddr), nil
 }
-
 // FilterUntrustedOriginHeaders removes all known proxy headers from the
 // request for untrusted origins, and ensures that only one copy
 // of each proxy header is set.
@@ -89,7 +76,6 @@ func FilterUntrustedOriginHeaders(config *RealIPConfig, req *http.Request) {
 			TrustedHeaders: nil,
 		}
 	}
-
 	cf := isContainedIn(config.TrustedOrigins, getRemoteAddress(req.RemoteAddr))
 	if !cf {
 		// Address is not valid or the origin is not trusted; clear
@@ -99,12 +85,10 @@ func FilterUntrustedOriginHeaders(config *RealIPConfig, req *http.Request) {
 		}
 		return
 	}
-
 	for _, header := range config.TrustedHeaders {
 		req.Header.Set(header, req.Header.Get(header))
 	}
 }
-
 // EnsureXForwardedForHeader ensures that the request has an X-Forwarded-For
 // header. It uses the following logic:
 //
@@ -121,19 +105,16 @@ func FilterUntrustedOriginHeaders(config *RealIPConfig, req *http.Request) {
 func EnsureXForwardedForHeader(req *http.Request) error {
 	state := RealIP(req.Context())
 	if state == nil {
-		return xerrors.New("request does not contain realip.State; was it processed by httpmw.ExtractRealIP?")
+		return errors.New("request does not contain realip.State; was it processed by httpmw.ExtractRealIP?")
 	}
-
 	remoteAddr := getRemoteAddress(req.RemoteAddr)
 	if remoteAddr == nil {
-		return xerrors.Errorf("failed to parse remote address: %s", remoteAddr)
+		return fmt.Errorf("failed to parse remote address: %s", remoteAddr)
 	}
-
 	proxyAddr := getRemoteAddress(state.OriginalRemoteAddr)
 	if proxyAddr == nil {
-		return xerrors.Errorf("failed to parse original address: %s", proxyAddr)
+		return fmt.Errorf("failed to parse original address: %s", proxyAddr)
 	}
-
 	if remoteAddr.Equal(proxyAddr) {
 		req.Header.Set(headerXForwardedFor, remoteAddr.String())
 	} else {
@@ -144,7 +125,6 @@ func EnsureXForwardedForHeader(req *http.Request) error {
 			req.Header.Set(headerXForwardedFor, forwarded+","+proxyAddr.String())
 		}
 	}
-
 	if req.Header.Get(headerXForwardedProto) == "" {
 		if req.TLS != nil {
 			req.Header.Set(headerXForwardedProto, "https")
@@ -152,10 +132,8 @@ func EnsureXForwardedForHeader(req *http.Request) error {
 			req.Header.Set(headerXForwardedProto, "http")
 		}
 	}
-
 	return nil
 }
-
 // getRemoteAddress extracts the IP address from the given string. If
 // the string contains commas, it assumes that the first part is the
 // original address.
@@ -166,7 +144,6 @@ func getRemoteAddress(address string) net.IP {
 	if i == -1 {
 		i = len(address)
 	}
-
 	// If the address contains a port, remove it
 	firstAddress := address[:i]
 	host, _, err := net.SplitHostPort(firstAddress)
@@ -176,7 +153,6 @@ func getRemoteAddress(address string) net.IP {
 	}
 	return net.ParseIP(host)
 }
-
 // isContainedIn checks that the given address is contained in the given
 // network.
 func isContainedIn(networks []*net.IPNet, address net.IP) bool {
@@ -185,23 +161,18 @@ func isContainedIn(networks []*net.IPNet, address net.IP) bool {
 			return true
 		}
 	}
-
 	return false
 }
-
 // RealIPState is the original state prior to modification by this middleware,
 // useful for getting information about the connecting client if needed.
 type RealIPState struct {
 	// Config is the configuration applied in the middleware. Consider
 	// this read-only and do not modify.
 	Config *RealIPConfig
-
 	// OriginalRemoteAddr is the original RemoteAddr for the request.
 	OriginalRemoteAddr string
 }
-
 type ctxKey struct{}
-
 // FromContext retrieves the state from the given context.Context.
 func RealIP(ctx context.Context) *RealIPState {
 	state, ok := ctx.Value(ctxKey{}).(*RealIPState)
@@ -210,7 +181,6 @@ func RealIP(ctx context.Context) *RealIPState {
 	}
 	return state
 }
-
 // ParseRealIPConfig takes a raw string array of headers and origins
 // to produce a config.
 func ParseRealIPConfig(headers, origins []string) (*RealIPConfig, error) {
@@ -221,7 +191,7 @@ func ParseRealIPConfig(headers, origins []string) (*RealIPConfig, error) {
 	for _, origin := range origins {
 		_, network, err := net.ParseCIDR(origin)
 		if err != nil {
-			return nil, xerrors.Errorf("parse proxy origin %q: %w", origin, err)
+			return nil, fmt.Errorf("parse proxy origin %q: %w", origin, err)
 		}
 		config.TrustedOrigins = append(config.TrustedOrigins, network)
 	}
@@ -229,6 +199,5 @@ func ParseRealIPConfig(headers, origins []string) (*RealIPConfig, error) {
 		headers[index] = http.CanonicalHeaderKey(header)
 	}
 	config.TrustedHeaders = headers
-
 	return config, nil
 }

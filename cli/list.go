@@ -1,27 +1,22 @@
 package cli
-
 import (
+	"errors"
 	"context"
 	"fmt"
 	"strconv"
 	"time"
-
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
 )
-
 // workspaceListRow is the type provided to the OutputFormatter. This is a bit
 // dodgy but it's the only way to do complex display code for one format vs. the
 // other.
 type workspaceListRow struct {
 	// For JSON format:
 	codersdk.Workspace `table:"-"`
-
 	// For table format:
 	Favorite         bool      `json:"-" table:"favorite"`
 	WorkspaceName    string    `json:"-" table:"workspace,default_sort"`
@@ -39,13 +34,10 @@ type workspaceListRow struct {
 	StopsNext        string    `json:"-" table:"stops next"`
 	DailyCost        string    `json:"-" table:"daily cost"`
 }
-
 func workspaceListRowFromWorkspace(now time.Time, workspace codersdk.Workspace) workspaceListRow {
 	status := codersdk.WorkspaceDisplayStatus(workspace.LatestBuild.Job.Status, workspace.LatestBuild.Transition)
-
 	lastBuilt := now.UTC().Sub(workspace.LatestBuild.Job.CreatedAt).Truncate(time.Second)
 	schedRow := scheduleListRowFromWorkspace(now, workspace)
-
 	healthy := ""
 	if status == "Starting" || status == "Started" {
 		healthy = strconv.FormatBool(workspace.Health.Healthy)
@@ -74,7 +66,6 @@ func workspaceListRowFromWorkspace(now time.Time, workspace codersdk.Workspace) 
 		DailyCost:        strconv.Itoa(int(workspace.LatestBuild.DailyCost)),
 	}
 }
-
 func (r *RootCmd) list() *serpent.Command {
 	var (
 		filter    cliui.WorkspaceFilter
@@ -111,7 +102,6 @@ func (r *RootCmd) list() *serpent.Command {
 			if err != nil {
 				return err
 			}
-
 			if len(res) == 0 && formatter.FormatID() != cliui.JSONFormat().ID() {
 				pretty.Fprintf(inv.Stderr, cliui.DefaultStyles.Prompt, "No workspaces found! Create one:\n")
 				_, _ = fmt.Fprintln(inv.Stderr)
@@ -119,12 +109,10 @@ func (r *RootCmd) list() *serpent.Command {
 				_, _ = fmt.Fprintln(inv.Stderr)
 				return nil
 			}
-
 			out, err := formatter.Format(inv.Context(), res)
 			if err != nil {
 				return err
 			}
-
 			_, err = fmt.Fprintln(inv.Stdout, out)
 			return err
 		},
@@ -133,7 +121,6 @@ func (r *RootCmd) list() *serpent.Command {
 	formatter.AttachOptions(&cmd.Options)
 	return cmd
 }
-
 // queryConvertWorkspaces is a helper function for converting
 // codersdk.Workspaces to a different type.
 // It's used by the list command to convert workspaces to
@@ -143,7 +130,7 @@ func queryConvertWorkspaces[T any](ctx context.Context, client *codersdk.Client,
 	var empty []T
 	workspaces, err := client.Workspaces(ctx, filter)
 	if err != nil {
-		return empty, xerrors.Errorf("query workspaces: %w", err)
+		return empty, fmt.Errorf("query workspaces: %w", err)
 	}
 	converted := make([]T, len(workspaces.Workspaces))
 	for i, workspace := range workspaces.Workspaces {

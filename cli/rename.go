@@ -1,17 +1,12 @@
 package cli
-
 import (
+	"errors"
 	"fmt"
-
-	"golang.org/x/xerrors"
-
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
-
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 )
-
 func (r *RootCmd) rename() *serpent.Command {
 	var appearanceConfig codersdk.AppearanceConfig
 	client := new(codersdk.Client)
@@ -27,9 +22,8 @@ func (r *RootCmd) rename() *serpent.Command {
 		Handler: func(inv *serpent.Invocation) error {
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
-				return xerrors.Errorf("get workspace: %w", err)
+				return fmt.Errorf("get workspace: %w", err)
 			}
-
 			_, _ = fmt.Fprintf(inv.Stdout, "%s\n\n",
 				pretty.Sprint(cliui.DefaultStyles.Wrap, "WARNING: A rename can result in data loss if a resource references the workspace name in the template (e.g volumes). Please backup any data before proceeding."),
 			)
@@ -40,25 +34,22 @@ func (r *RootCmd) rename() *serpent.Command {
 					if s == workspace.Name {
 						return nil
 					}
-					return xerrors.Errorf("Input %q does not match %q", s, workspace.Name)
+					return fmt.Errorf("Input %q does not match %q", s, workspace.Name)
 				},
 			})
 			if err != nil {
 				return err
 			}
-
 			err = client.UpdateWorkspace(inv.Context(), workspace.ID, codersdk.UpdateWorkspaceRequest{
 				Name: inv.Args[1],
 			})
 			if err != nil {
-				return xerrors.Errorf("rename workspace: %w", err)
+				return fmt.Errorf("rename workspace: %w", err)
 			}
 			_, _ = fmt.Fprintf(inv.Stdout, "Workspace %q renamed to %q\n", workspace.Name, inv.Args[1])
 			return nil
 		},
 	}
-
 	cmd.Options = append(cmd.Options, cliui.SkipPromptOption())
-
 	return cmd
 }

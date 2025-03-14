@@ -18,7 +18,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/semconv/v1.14.0/httpconv"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/tracing"
 
@@ -193,14 +192,14 @@ func prefixLines(prefix, s []byte) []byte {
 // responsible for closing the response body.
 func (c *Client) Request(ctx context.Context, method, path string, body interface{}, opts ...RequestOption) (*http.Response, error) {
 	if ctx == nil {
-		return nil, xerrors.Errorf("context should not be nil")
+		return nil, fmt.Errorf("context should not be nil")
 	}
 	ctx, span := tracing.StartSpanWithName(ctx, tracing.FuncNameSkip(1))
 	defer span.End()
 
 	serverURL, err := c.URL.Parse(path)
 	if err != nil {
-		return nil, xerrors.Errorf("parse url: %w", err)
+		return nil, fmt.Errorf("parse url: %w", err)
 	}
 
 	var r io.Reader
@@ -217,7 +216,7 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 			enc.SetEscapeHTML(false)
 			err = enc.Encode(body)
 			if err != nil {
-				return nil, xerrors.Errorf("encode body: %w", err)
+				return nil, fmt.Errorf("encode body: %w", err)
 			}
 			r = buf
 		}
@@ -231,14 +230,14 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 	if r != nil && logBodies {
 		reqBody, err = io.ReadAll(r)
 		if err != nil {
-			return nil, xerrors.Errorf("read request body: %w", err)
+			return nil, fmt.Errorf("read request body: %w", err)
 		}
 		r = bytes.NewReader(reqBody)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, method, serverURL.String(), r)
 	if err != nil {
-		return nil, xerrors.Errorf("create request: %w", err)
+		return nil, fmt.Errorf("create request: %w", err)
 	}
 
 	tokenHeader := c.SessionTokenHeader
@@ -280,7 +279,7 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 	if resp != nil && c.PlainLogger != nil {
 		out, err := httputil.DumpRequest(resp.Request, logBodies)
 		if err != nil {
-			return nil, xerrors.Errorf("dump request: %w", err)
+			return nil, fmt.Errorf("dump request: %w", err)
 		}
 		out = prefixLines([]byte("http --> "), out)
 		_, _ = c.PlainLogger.Write(out)
@@ -293,7 +292,7 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 	if c.PlainLogger != nil {
 		out, err := httputil.DumpResponse(resp, logBodies)
 		if err != nil {
-			return nil, xerrors.Errorf("dump response: %w", err)
+			return nil, fmt.Errorf("dump response: %w", err)
 		}
 		out = prefixLines([]byte("http <-- "), out)
 		_, _ = c.PlainLogger.Write(out)
@@ -309,11 +308,11 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 		if _, ok := loggableMimeTypes[mimeType]; ok {
 			respBody, err = io.ReadAll(resp.Body)
 			if err != nil {
-				return nil, xerrors.Errorf("copy response body for logs: %w", err)
+				return nil, fmt.Errorf("copy response body for logs: %w", err)
 			}
 			err = resp.Body.Close()
 			if err != nil {
-				return nil, xerrors.Errorf("close response body: %w", err)
+				return nil, fmt.Errorf("close response body: %w", err)
 			}
 			resp.Body = io.NopCloser(bytes.NewReader(respBody))
 		}
@@ -338,7 +337,7 @@ func ExpectJSONMime(res *http.Response) error {
 	contentType := res.Header.Get("Content-Type")
 	mimeType := parseMimeType(contentType)
 	if mimeType != "application/json" {
-		return xerrors.Errorf("unexpected non-JSON response %q", contentType)
+		return fmt.Errorf("unexpected non-JSON response %q", contentType)
 	}
 	return nil
 }
@@ -351,7 +350,7 @@ func ExpectJSONMime(res *http.Response) error {
 // nolint:staticcheck
 func ReadBodyAsError(res *http.Response) error {
 	if res == nil {
-		return xerrors.Errorf("no body returned")
+		return fmt.Errorf("no body returned")
 	}
 	defer res.Body.Close()
 
@@ -372,7 +371,7 @@ func ReadBodyAsError(res *http.Response) error {
 
 	resp, err := io.ReadAll(res.Body)
 	if err != nil {
-		return xerrors.Errorf("read body: %w", err)
+		return fmt.Errorf("read body: %w", err)
 	}
 
 	if mimeErr := ExpectJSONMime(res); mimeErr != nil {
@@ -406,7 +405,7 @@ func ReadBodyAsError(res *http.Response) error {
 				Helper: helpMessage,
 			}
 		}
-		return xerrors.Errorf("decode body: %w", err)
+		return fmt.Errorf("decode body: %w", err)
 	}
 	if m.Message == "" {
 		if len(resp) > 1024 {
@@ -533,12 +532,12 @@ func IsConnectionError(err error) bool {
 		opErr *net.OpError
 	)
 
-	return xerrors.As(err, &dnsErr) || xerrors.As(err, &opErr)
+	return errors.As(err, &dnsErr) || errors.As(err, &opErr)
 }
 
 func AsError(err error) (*Error, bool) {
 	var e *Error
-	return e, xerrors.As(err, &e)
+	return e, errors.As(err, &e)
 }
 
 // RequestOption is a function that can be used to modify an http.Request.

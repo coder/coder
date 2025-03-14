@@ -1,6 +1,6 @@
 package rbac
-
 import (
+	"fmt"
 	"context"
 	"crypto/sha256"
 	_ "embed"
@@ -9,7 +9,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
 	"github.com/ammario/tlru"
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/v1/rego"
@@ -17,21 +16,17 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/rbac/regosql"
 	"github.com/coder/coder/v2/coderd/rbac/regosql/sqltypes"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/util/slice"
 )
-
 type AuthCall struct {
 	Actor  Subject
 	Action policy.Action
 	Object Object
 }
-
 // hashAuthorizeCall guarantees a unique hash for a given auth call.
 // If two hashes are equal, then the result of a given authorize() call
 // will be the same.
@@ -41,14 +36,12 @@ type AuthCall struct {
 func hashAuthorizeCall(actor Subject, action policy.Action, object Object) [32]byte {
 	var hashOut [32]byte
 	hash := sha256.New()
-
 	// We use JSON for the forward security benefits if the rbac structs are
 	// modified without consideration for the caching layer.
 	enc := json.NewEncoder(hash)
 	_ = enc.Encode(actor)
 	_ = enc.Encode(action)
 	_ = enc.Encode(object)
-
 	// We might be able to avoid this extra copy?
 	// sha256.Sum256() returns a [32]byte. We need to return
 	// an array vs a slice so we can use it as a key in the cache.
@@ -56,7 +49,6 @@ func hashAuthorizeCall(actor Subject, action policy.Action, object Object) [32]b
 	copy(hashOut[:], image)
 	return hashOut
 }
-
 // Subject is a struct that contains all the elements of a subject in an rbac
 // authorize.
 type Subject struct {
@@ -65,16 +57,13 @@ type Subject struct {
 	// It is usually the "username" of the user, but it can be the name of the
 	// external workspace proxy or other service type actor.
 	FriendlyName string
-
 	ID     string
 	Roles  ExpandableRoles
 	Groups []string
 	Scope  ExpandableScope
-
 	// cachedASTValue is the cached ast value for this subject.
 	cachedASTValue ast.Value
 }
-
 // RegoValueOk is only used for unit testing. There is no easy way
 // to get the error for the unexported method, and this is intentional.
 // Failed rego values can default to the backup json marshal method,
@@ -85,7 +74,6 @@ func (s Subject) RegoValueOk() error {
 	_, err := tmp.regoValue()
 	return err
 }
-
 // WithCachedASTValue can be called if the subject is static. This will compute
 // the ast value once and cache it for future calls.
 func (s Subject) WithCachedASTValue() Subject {
@@ -96,26 +84,21 @@ func (s Subject) WithCachedASTValue() Subject {
 	}
 	return tmp
 }
-
 func (s Subject) Equal(b Subject) bool {
 	if s.ID != b.ID {
 		return false
 	}
-
 	if !slice.SameElements(s.Groups, b.Groups) {
 		return false
 	}
-
 	if !slice.SameElements(s.SafeRoleNames(), b.SafeRoleNames()) {
 		return false
 	}
-
 	if s.SafeScopeName() != b.SafeScopeName() {
 		return false
 	}
 	return true
 }
-
 // SafeScopeName prevent nil pointer dereference.
 func (s Subject) SafeScopeName() string {
 	if s.Scope == nil {
@@ -123,7 +106,6 @@ func (s Subject) SafeScopeName() string {
 	}
 	return s.Scope.Name().String()
 }
-
 // SafeRoleNames prevent nil pointer dereference.
 func (s Subject) SafeRoleNames() []RoleIdentifier {
 	if s.Roles == nil {
@@ -131,7 +113,6 @@ func (s Subject) SafeRoleNames() []RoleIdentifier {
 	}
 	return s.Roles.Names()
 }
-
 type Authorizer interface {
 	// Authorize will authorize the given subject to perform the given action
 	// on the given object. Authorize is pure and deterministic with respect to
@@ -139,12 +120,10 @@ type Authorizer interface {
 	Authorize(ctx context.Context, subject Subject, action policy.Action, object Object) error
 	Prepare(ctx context.Context, subject Subject, action policy.Action, objectType string) (PreparedAuthorized, error)
 }
-
 type PreparedAuthorized interface {
 	Authorize(ctx context.Context, object Object) error
 	CompileToSQL(ctx context.Context, cfg regosql.ConvertConfig) (string, error)
 }
-
 // Filter takes in a list of objects, and will filter the list removing all
 // the elements the subject does not have permission for. All objects must be
 // of the same type.
@@ -158,7 +137,6 @@ func Filter[O Objecter](ctx context.Context, auth Authorizer, subject Subject, a
 	}
 	objectType := objects[0].RBACObject().Type
 	filtered := make([]O, 0)
-
 	// Start the span after the object type is detected. If we are filtering 0
 	// objects, then the span is not interesting. It would just add excessive
 	// 0 time spans that provide no insight.
@@ -172,7 +150,6 @@ func Filter[O Objecter](ctx context.Context, auth Authorizer, subject Subject, a
 		),
 	)
 	defer span.End()
-
 	// Running benchmarks on this function, it is **always** faster to call
 	// auth.Authorize on <10 objects. This is because the overhead of
 	// 'Prepare'. Once we cross 10 objects, then it starts to become
@@ -181,7 +158,7 @@ func Filter[O Objecter](ctx context.Context, auth Authorizer, subject Subject, a
 		for _, o := range objects {
 			rbacObj := o.RBACObject()
 			if rbacObj.Type != objectType {
-				return nil, xerrors.Errorf("object types must be uniform across the set (%s), found %s", objectType, rbacObj.Type)
+				return nil, fmt.Errorf("object types must be uniform across the set (%s), found %s", objectType, rbacObj.Type)
 			}
 			err := auth.Authorize(ctx, subject, action, o.RBACObject())
 			if err == nil {
@@ -194,16 +171,14 @@ func Filter[O Objecter](ctx context.Context, auth Authorizer, subject Subject, a
 		}
 		return filtered, nil
 	}
-
 	prepared, err := auth.Prepare(ctx, subject, action, objectType)
 	if err != nil {
-		return nil, xerrors.Errorf("prepare: %w", err)
+		return nil, fmt.Errorf("prepare: %w", err)
 	}
-
 	for _, object := range objects {
 		rbacObj := object.RBACObject()
 		if rbacObj.Type != objectType {
-			return nil, xerrors.Errorf("object types must be uniform across the set (%s), found %s", objectType, object.RBACObject().Type)
+			return nil, fmt.Errorf("object types must be uniform across the set (%s), found %s", objectType, object.RBACObject().Type)
 		}
 		err := prepared.Authorize(ctx, rbacObj)
 		if err == nil {
@@ -214,25 +189,19 @@ func Filter[O Objecter](ctx context.Context, auth Authorizer, subject Subject, a
 			return nil, err
 		}
 	}
-
 	return filtered, nil
 }
-
 // RegoAuthorizer will use a prepared rego query for performing authorize()
 type RegoAuthorizer struct {
 	query        rego.PreparedEvalQuery
 	partialQuery rego.PreparedPartialQuery
-
 	authorizeHist *prometheus.HistogramVec
 	prepareHist   prometheus.Histogram
-
 	// strict checking also verifies the inputs to the authorizer. Making sure
 	// the action make sense for the input object.
 	strict bool
 }
-
 var _ Authorizer = (*RegoAuthorizer)(nil)
-
 var (
 	// Load the policy from policy.rego in this directory.
 	//
@@ -242,21 +211,18 @@ var (
 	query        rego.PreparedEvalQuery
 	partialQuery rego.PreparedPartialQuery
 )
-
 // NewCachingAuthorizer returns a new RegoAuthorizer that supports context based
 // caching. To utilize the caching, the context passed to Authorize() must be
 // created with 'WithCacheCtx(ctx)'.
 func NewCachingAuthorizer(registry prometheus.Registerer) Authorizer {
 	return Cacher(NewAuthorizer(registry))
 }
-
 // NewStrictCachingAuthorizer is mainly just for testing.
 func NewStrictCachingAuthorizer(registry prometheus.Registerer) Authorizer {
 	auth := NewAuthorizer(registry)
 	auth.strict = true
 	return Cacher(auth)
 }
-
 func NewAuthorizer(registry prometheus.Registerer) *RegoAuthorizer {
 	queryOnce.Do(func() {
 		var err error
@@ -265,9 +231,8 @@ func NewAuthorizer(registry prometheus.Registerer) *RegoAuthorizer {
 			rego.Module("policy.rego", regoPolicy),
 		).PrepareForEval(context.Background())
 		if err != nil {
-			panic(xerrors.Errorf("compile rego: %w", err))
+			panic(fmt.Errorf("compile rego: %w", err))
 		}
-
 		partialQuery, err = rego.New(
 			rego.Unknowns([]string{
 				"input.object.id",
@@ -280,10 +245,9 @@ func NewAuthorizer(registry prometheus.Registerer) *RegoAuthorizer {
 			rego.Module("policy.rego", regoPolicy),
 		).PrepareForPartial(context.Background())
 		if err != nil {
-			panic(xerrors.Errorf("compile partial rego: %w", err))
+			panic(fmt.Errorf("compile partial rego: %w", err))
 		}
 	})
-
 	// Register metrics to prometheus.
 	// These bucket values are based on the average time it takes to run authz
 	// being around 1ms. Anything under ~2ms is OK and does not need to be
@@ -304,7 +268,6 @@ func NewAuthorizer(registry prometheus.Registerer) *RegoAuthorizer {
 		0.75, // 750ms
 		1,    // 1s
 	}
-
 	factory := promauto.With(registry)
 	authorizeHistogram := factory.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "coderd",
@@ -313,7 +276,6 @@ func NewAuthorizer(registry prometheus.Registerer) *RegoAuthorizer {
 		Help:      "Duration of the 'Authorize' call in seconds. Only counts calls that succeed.",
 		Buckets:   buckets,
 	}, []string{"allowed"})
-
 	prepareHistogram := factory.NewHistogram(prometheus.HistogramOpts{
 		Namespace: "coderd",
 		Subsystem: "authz",
@@ -321,23 +283,19 @@ func NewAuthorizer(registry prometheus.Registerer) *RegoAuthorizer {
 		Help:      "Duration of the 'PrepareAuthorize' call in seconds.",
 		Buckets:   buckets,
 	})
-
 	return &RegoAuthorizer{
 		query:        query,
 		partialQuery: partialQuery,
-
 		authorizeHist: authorizeHistogram,
 		prepareHist:   prepareHistogram,
 	}
 }
-
 type authSubject struct {
 	ID     string   `json:"id"`
 	Roles  []Role   `json:"roles"`
 	Groups []string `json:"groups"`
 	Scope  Scope    `json:"scope"`
 }
-
 // Authorize is the intended function to be used outside this package.
 // It returns `nil` if the subject is authorized to perform the action on
 // the object.
@@ -345,10 +303,9 @@ type authSubject struct {
 func (a RegoAuthorizer) Authorize(ctx context.Context, subject Subject, action policy.Action, object Object) error {
 	if a.strict {
 		if err := object.ValidAction(action); err != nil {
-			return xerrors.Errorf("strict authz check: %w", err)
+			return fmt.Errorf("strict authz check: %w", err)
 		}
 	}
-
 	start := time.Now()
 	ctx, span := tracing.StartSpan(ctx,
 		trace.WithTimestamp(start), // Reuse the time.Now for metric and trace
@@ -360,57 +317,47 @@ func (a RegoAuthorizer) Authorize(ctx context.Context, subject Subject, action p
 		),
 	)
 	defer span.End()
-
 	err := a.authorize(ctx, subject, action, object)
-
 	span.SetAttributes(attribute.Bool("authorized", err == nil))
-
 	dur := time.Since(start)
 	if err != nil {
 		a.authorizeHist.WithLabelValues("false").Observe(dur.Seconds())
 		return err
 	}
-
 	a.authorizeHist.WithLabelValues("true").Observe(dur.Seconds())
 	return nil
 }
-
 // authorize is the internal function that does the actual authorization.
 // It is a different function so the exported one can add tracing + metrics.
 // That code tends to clutter up the actual logic, so it's separated out.
 // nolint:revive
 func (a RegoAuthorizer) authorize(ctx context.Context, subject Subject, action policy.Action, object Object) error {
 	if subject.Roles == nil {
-		return xerrors.Errorf("subject must have roles")
+		return fmt.Errorf("subject must have roles")
 	}
 	if subject.Scope == nil {
-		return xerrors.Errorf("subject must have a scope")
+		return fmt.Errorf("subject must have a scope")
 	}
-
 	// The caller should use either 1 or the other (or none).
 	// Using "AnyOrgOwner" and an OrgID is a contradiction.
 	// An empty uuid or a nil uuid means "no org owner".
 	if object.AnyOrgOwner && !(object.OrgID == "" || object.OrgID == "00000000-0000-0000-0000-000000000000") {
-		return xerrors.Errorf("object cannot have 'any_org' and an 'org_id' specified, values are mutually exclusive")
+		return fmt.Errorf("object cannot have 'any_org' and an 'org_id' specified, values are mutually exclusive")
 	}
-
 	astV, err := regoInputValue(subject, action, object)
 	if err != nil {
-		return xerrors.Errorf("convert input to value: %w", err)
+		return fmt.Errorf("convert input to value: %w", err)
 	}
-
 	results, err := a.query.Eval(ctx, rego.EvalParsedInput(astV))
 	if err != nil {
 		err = correctCancelError(err)
-		return xerrors.Errorf("evaluate rego: %w", err)
+		return fmt.Errorf("evaluate rego: %w", err)
 	}
-
 	if !results.Allowed() {
-		return ForbiddenWithInternal(xerrors.Errorf("policy disallows request"), subject, action, object, results)
+		return ForbiddenWithInternal(fmt.Errorf("policy disallows request"), subject, action, object, results)
 	}
 	return nil
 }
-
 // Prepare will partially execute the rego policy leaving the object fields unknown (except for the type).
 // This will vastly speed up performance if batch authorization on the same type of objects is needed.
 func (a RegoAuthorizer) Prepare(ctx context.Context, subject Subject, action policy.Action, objectType string) (PreparedAuthorized, error) {
@@ -420,24 +367,20 @@ func (a RegoAuthorizer) Prepare(ctx context.Context, subject Subject, action pol
 		rbacTraceAttributes(subject, action, objectType),
 	)
 	defer span.End()
-
 	prepared, err := a.newPartialAuthorizer(ctx, subject, action, objectType)
 	if err != nil {
 		err = correctCancelError(err)
-		return nil, xerrors.Errorf("new partial authorizer: %w", err)
+		return nil, fmt.Errorf("new partial authorizer: %w", err)
 	}
-
 	// Add attributes of the Prepare results. This will help understand the
 	// complexity of the roles and how it affects the time taken.
 	span.SetAttributes(
 		attribute.Int("num_queries", len(prepared.preparedQueries)),
 		attribute.Bool("always_true", prepared.alwaysTrue),
 	)
-
 	a.prepareHist.Observe(time.Since(start).Seconds())
 	return prepared, nil
 }
-
 // PartialAuthorizer is a prepared authorizer with the subject, action, and
 // resource type fields already filled in. This speeds up authorization
 // when authorizing the same type of object numerous times.
@@ -446,12 +389,10 @@ type PartialAuthorizer struct {
 	// partialQueries is mainly used for unit testing to assert our rego policy
 	// can always be compressed into a set of queries.
 	partialQueries *rego.PartialQueries
-
 	// input is used purely for debugging and logging.
 	subjectInput        Subject
 	subjectAction       policy.Action
 	subjectResourceType Object
-
 	// preparedQueries are the compiled set of queries after partial evaluation.
 	// Cache these prepared queries to avoid re-compiling the queries.
 	// If alwaysTrue is true, then ignore these.
@@ -460,9 +401,7 @@ type PartialAuthorizer struct {
 	// resource type, regardless of the unknown fields.
 	alwaysTrue bool
 }
-
 var _ PreparedAuthorized = (*PartialAuthorizer)(nil)
-
 // CompileToSQL converts the remaining rego queries into SQL WHERE clauses.
 func (pa *PartialAuthorizer) CompileToSQL(ctx context.Context, cfg regosql.ConvertConfig) (string, error) {
 	_, span := tracing.StartSpan(ctx, trace.WithAttributes(
@@ -472,33 +411,28 @@ func (pa *PartialAuthorizer) CompileToSQL(ctx context.Context, cfg regosql.Conve
 		attribute.Bool("always_true", pa.alwaysTrue),
 	))
 	defer span.End()
-
 	filter, err := Compile(cfg, pa)
 	if err != nil {
-		return "", xerrors.Errorf("compile: %w", err)
+		return "", fmt.Errorf("compile: %w", err)
 	}
 	return filter.SQLString(), nil
 }
-
 func (pa *PartialAuthorizer) Authorize(ctx context.Context, object Object) error {
 	if pa.alwaysTrue {
 		return nil
 	}
-
 	// If we have no queries, then no queries can return 'true'.
 	// So the result is always 'false'.
 	if len(pa.preparedQueries) == 0 {
-		return ForbiddenWithInternal(xerrors.Errorf("policy disallows request"),
+		return ForbiddenWithInternal(fmt.Errorf("policy disallows request"),
 			pa.subjectInput, pa.subjectAction, pa.subjectResourceType, nil)
 	}
-
 	parsed, err := ast.InterfaceToValue(map[string]interface{}{
 		"object": object,
 	})
 	if err != nil {
-		return xerrors.Errorf("parse object: %w", err)
+		return fmt.Errorf("parse object: %w", err)
 	}
-
 	// How to interpret the results of the partial queries.
 	// We have a list of queries that are along the lines of:
 	// 	`input.object.org_owner = ""; "me" = input.object.owner`
@@ -515,23 +449,20 @@ EachQueryLoop:
 		results, err := q.Eval(ctx, rego.EvalParsedInput(parsed))
 		if err != nil {
 			err = correctCancelError(err)
-			return xerrors.Errorf("eval error: %w", err)
+			return fmt.Errorf("eval error: %w", err)
 		}
-
 		// If there are no results, then the query is false. This is because rego
 		// treats false queries as "undefined". So if any expression is false, the
 		// result is an empty list.
 		if len(results) == 0 {
 			continue EachQueryLoop
 		}
-
 		// If there is more than 1 result, that means there is more than 1 rule.
 		// This should not happen, because our query should always be an expression.
 		// If this every occurs, it is likely the original query was not an expression.
 		if len(results) > 1 {
 			continue EachQueryLoop
 		}
-
 		// Our queries should be simple, and should not yield any bindings.
 		// A binding is something like 'x := 1'. This binding as an expression is
 		// 'true', but in our case is unhelpful. We are not analyzing this ast to
@@ -540,7 +471,6 @@ EachQueryLoop:
 		if len(results[0].Bindings) > 0 {
 			continue EachQueryLoop
 		}
-
 		// We have a valid set of boolean expressions! All expressions are 'AND'd
 		// together. This is automatic by rego, so we should not actually need to
 		// inspect this any further. But just in case, we will verify each expression
@@ -550,32 +480,26 @@ EachQueryLoop:
 				continue EachQueryLoop
 			}
 		}
-
 		return nil
 	}
-
-	return ForbiddenWithInternal(xerrors.Errorf("policy disallows request"),
+	return ForbiddenWithInternal(fmt.Errorf("policy disallows request"),
 		pa.subjectInput, pa.subjectAction, pa.subjectResourceType, nil)
 }
-
 func (a RegoAuthorizer) newPartialAuthorizer(ctx context.Context, subject Subject, action policy.Action, objectType string) (*PartialAuthorizer, error) {
 	if subject.Roles == nil {
-		return nil, xerrors.Errorf("subject must have roles")
+		return nil, fmt.Errorf("subject must have roles")
 	}
 	if subject.Scope == nil {
-		return nil, xerrors.Errorf("subject must have a scope")
+		return nil, fmt.Errorf("subject must have a scope")
 	}
-
 	input, err := regoPartialInputValue(subject, action, objectType)
 	if err != nil {
-		return nil, xerrors.Errorf("prepare input: %w", err)
+		return nil, fmt.Errorf("prepare input: %w", err)
 	}
-
 	partialQueries, err := a.partialQuery.Partial(ctx, rego.EvalParsedInput(input))
 	if err != nil {
-		return nil, xerrors.Errorf("prepare: %w", err)
+		return nil, fmt.Errorf("prepare: %w", err)
 	}
-
 	pAuth := &PartialAuthorizer{
 		partialQueries:  partialQueries,
 		preparedQueries: []rego.PreparedEvalQuery{},
@@ -586,7 +510,6 @@ func (a RegoAuthorizer) newPartialAuthorizer(ctx context.Context, subject Subjec
 		},
 		subjectAction: action,
 	}
-
 	// Prepare each query to optimize the runtime when we iterate over the objects.
 	preparedQueries := make([]rego.PreparedEvalQuery, 0, len(partialQueries.Queries))
 	for _, q := range partialQueries.Queries {
@@ -603,26 +526,22 @@ func (a RegoAuthorizer) newPartialAuthorizer(ctx context.Context, subject Subjec
 			rego.ParsedQuery(q),
 		).PrepareForEval(ctx)
 		if err != nil {
-			return nil, xerrors.Errorf("prepare query %s: %w", q.String(), err)
+			return nil, fmt.Errorf("prepare query %s: %w", q.String(), err)
 		}
 		preparedQueries = append(preparedQueries, results)
 	}
 	pAuth.preparedQueries = preparedQueries
-
 	return pAuth, nil
 }
-
 // AuthorizeFilter is a compiled partial query that can be converted to SQL.
 // This allows enforcing the policy on the database side in a WHERE clause.
 type AuthorizeFilter interface {
 	SQLString() string
 }
-
 type authorizedSQLFilter struct {
 	sqlString string
 	auth      *PartialAuthorizer
 }
-
 // ConfigWithACL is the basic configuration for converting rego to SQL when
 // the object has group and user ACL fields.
 func ConfigWithACL() regosql.ConvertConfig {
@@ -630,7 +549,6 @@ func ConfigWithACL() regosql.ConvertConfig {
 		VariableConverter: regosql.DefaultVariableConverter(),
 	}
 }
-
 // ConfigWithoutACL is the basic configuration for converting rego to SQL when
 // the object has no ACL fields.
 func ConfigWithoutACL() regosql.ConvertConfig {
@@ -638,19 +556,16 @@ func ConfigWithoutACL() regosql.ConvertConfig {
 		VariableConverter: regosql.NoACLConverter(),
 	}
 }
-
 func ConfigWorkspaces() regosql.ConvertConfig {
 	return regosql.ConvertConfig{
 		VariableConverter: regosql.WorkspaceConverter(),
 	}
 }
-
 func Compile(cfg regosql.ConvertConfig, pa *PartialAuthorizer) (AuthorizeFilter, error) {
 	root, err := regosql.ConvertRegoAst(cfg, pa.partialQueries)
 	if err != nil {
-		return nil, xerrors.Errorf("convert rego ast: %w", err)
+		return nil, fmt.Errorf("convert rego ast: %w", err)
 	}
-
 	// Generate the SQL
 	gen := sqltypes.NewSQLGenerator()
 	sqlString := root.SQLString(gen)
@@ -659,28 +574,23 @@ func Compile(cfg regosql.ConvertConfig, pa *PartialAuthorizer) (AuthorizeFilter,
 		for _, err := range gen.Errors() {
 			errStrings = append(errStrings, err.Error())
 		}
-		return nil, xerrors.Errorf("sql generation errors: %v", strings.Join(errStrings, ", "))
+		return nil, fmt.Errorf("sql generation errors: %v", strings.Join(errStrings, ", "))
 	}
-
 	return &authorizedSQLFilter{
 		sqlString: sqlString,
 		auth:      pa,
 	}, nil
 }
-
 func (a *authorizedSQLFilter) SQLString() string {
 	return a.sqlString
 }
-
 type authCache struct {
 	// cache is a cache of hashed Authorize inputs to the result of the Authorize
 	// call.
 	// determistic function.
 	cache *tlru.Cache[[32]byte, error]
-
 	authz Authorizer
 }
-
 // Cacher returns an Authorizer that can use a cache to short circuit duplicate
 // calls to the Authorizer. This is useful when multiple calls are made to the
 // Authorizer for the same subject, action, and object.
@@ -696,10 +606,8 @@ func Cacher(authz Authorizer) Authorizer {
 		cache: tlru.New[[32]byte](tlru.ConstantCost[error], 64*1024),
 	}
 }
-
 func (c *authCache) Authorize(ctx context.Context, subject Subject, action policy.Action, object Object) error {
 	authorizeCacheKey := hashAuthorizeCall(subject, action, object)
-
 	var err error
 	err, _, ok := c.cache.Get(authorizeCacheKey)
 	if !ok {
@@ -711,17 +619,14 @@ func (c *authCache) Authorize(ctx context.Context, subject Subject, action polic
 			c.cache.Set(authorizeCacheKey, err, time.Minute)
 		}
 	}
-
 	return err
 }
-
 // Prepare returns the underlying PreparedAuthorized. The cache does not apply
 // to prepared authorizations. These should be using a SQL filter, and
 // therefore the cache is not needed.
 func (c *authCache) Prepare(ctx context.Context, subject Subject, action policy.Action, objectType string) (PreparedAuthorized, error) {
 	return c.authz.Prepare(ctx, subject, action, objectType)
 }
-
 // rbacTraceAttributes are the attributes that are added to all spans created by
 // the rbac package. These attributes should help to debug slow spans.
 func rbacTraceAttributes(actor Subject, action policy.Action, objectType string, extra ...attribute.KeyValue) trace.SpanStartOption {

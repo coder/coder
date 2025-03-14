@@ -1,6 +1,6 @@
 package codersdk
-
 import (
+	"errors"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -10,12 +10,9 @@ import (
 	"slices"
 	"strings"
 	"time"
-
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"golang.org/x/exp/maps"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/codersdk/wsjson"
@@ -23,32 +20,25 @@ import (
 	"github.com/coder/coder/v2/provisionerd/runner"
 	"github.com/coder/websocket"
 )
-
 type LogSource string
-
 type LogLevel string
-
 const (
 	LogSourceProvisionerDaemon LogSource = "provisioner_daemon"
 	LogSourceProvisioner       LogSource = "provisioner"
-
 	LogLevelTrace LogLevel = "trace"
 	LogLevelDebug LogLevel = "debug"
 	LogLevelInfo  LogLevel = "info"
 	LogLevelWarn  LogLevel = "warn"
 	LogLevelError LogLevel = "error"
 )
-
 // ProvisionerDaemonStatus represents the status of a provisioner daemon.
 type ProvisionerDaemonStatus string
-
 // ProvisionerDaemonStatus enums.
 const (
 	ProvisionerDaemonOffline ProvisionerDaemonStatus = "offline"
 	ProvisionerDaemonIdle    ProvisionerDaemonStatus = "idle"
 	ProvisionerDaemonBusy    ProvisionerDaemonStatus = "busy"
 )
-
 type ProvisionerDaemon struct {
 	ID             uuid.UUID         `json:"id" format:"uuid" table:"id"`
 	OrganizationID uuid.UUID         `json:"organization_id" format:"uuid" table:"organization id"`
@@ -60,14 +50,12 @@ type ProvisionerDaemon struct {
 	APIVersion     string            `json:"api_version" table:"api version"`
 	Provisioners   []ProvisionerType `json:"provisioners" table:"-"`
 	Tags           map[string]string `json:"tags" table:"tags"`
-
 	// Optional fields.
 	KeyName     *string                  `json:"key_name" table:"key name"`
 	Status      *ProvisionerDaemonStatus `json:"status" enums:"offline,idle,busy" table:"status"`
 	CurrentJob  *ProvisionerDaemonJob    `json:"current_job" table:"current job,recursive"`
 	PreviousJob *ProvisionerDaemonJob    `json:"previous_job" table:"previous job,recursive"`
 }
-
 type ProvisionerDaemonJob struct {
 	ID                  uuid.UUID            `json:"id" format:"uuid" table:"id"`
 	Status              ProvisionerJobStatus `json:"status" enums:"pending,running,succeeded,canceling,canceled,failed" table:"status"`
@@ -75,7 +63,6 @@ type ProvisionerDaemonJob struct {
 	TemplateIcon        string               `json:"template_icon" table:"template icon"`
 	TemplateDisplayName string               `json:"template_display_name" table:"template display name"`
 }
-
 // MatchedProvisioners represents the number of provisioner daemons
 // available to take a job at a specific point in time.
 // Introduced in Coder version 2.18.0.
@@ -92,10 +79,8 @@ type MatchedProvisioners struct {
 	// provisioners. If no provisioners matched, this field will be null.
 	MostRecentlySeen NullTime `json:"most_recently_seen,omitempty" format:"date-time"`
 }
-
 // ProvisionerJobStatus represents the at-time state of a job.
 type ProvisionerJobStatus string
-
 // Active returns whether the job is still active or not.
 // It returns true if canceling as well, since the job isn't
 // in an entirely inactive state yet.
@@ -104,7 +89,6 @@ func (p ProvisionerJobStatus) Active() bool {
 		p == ProvisionerJobRunning ||
 		p == ProvisionerJobCanceling
 }
-
 const (
 	ProvisionerJobPending   ProvisionerJobStatus = "pending"
 	ProvisionerJobRunning   ProvisionerJobStatus = "running"
@@ -114,7 +98,6 @@ const (
 	ProvisionerJobFailed    ProvisionerJobStatus = "failed"
 	ProvisionerJobUnknown   ProvisionerJobStatus = "unknown"
 )
-
 func ProvisionerJobStatusEnums() []ProvisionerJobStatus {
 	return []ProvisionerJobStatus{
 		ProvisionerJobPending,
@@ -126,14 +109,12 @@ func ProvisionerJobStatusEnums() []ProvisionerJobStatus {
 		ProvisionerJobUnknown,
 	}
 }
-
 // ProvisionerJobInput represents the input for the job.
 type ProvisionerJobInput struct {
 	TemplateVersionID *uuid.UUID `json:"template_version_id,omitempty" format:"uuid" table:"template version id"`
 	WorkspaceBuildID  *uuid.UUID `json:"workspace_build_id,omitempty" format:"uuid" table:"workspace build id"`
 	Error             string     `json:"error,omitempty" table:"-"`
 }
-
 // ProvisionerJobMetadata contains metadata for the job.
 type ProvisionerJobMetadata struct {
 	TemplateVersionName string     `json:"template_version_name" table:"template version name"`
@@ -144,29 +125,23 @@ type ProvisionerJobMetadata struct {
 	WorkspaceID         *uuid.UUID `json:"workspace_id,omitempty" format:"uuid" table:"workspace id"`
 	WorkspaceName       string     `json:"workspace_name,omitempty" table:"workspace name"`
 }
-
 // ProvisionerJobType represents the type of job.
 type ProvisionerJobType string
-
 const (
 	ProvisionerJobTypeTemplateVersionImport ProvisionerJobType = "template_version_import"
 	ProvisionerJobTypeWorkspaceBuild        ProvisionerJobType = "workspace_build"
 	ProvisionerJobTypeTemplateVersionDryRun ProvisionerJobType = "template_version_dry_run"
 )
-
 // JobErrorCode defines the error code returned by job runner.
 type JobErrorCode string
-
 const (
 	RequiredTemplateVariables JobErrorCode = "REQUIRED_TEMPLATE_VARIABLES"
 )
-
 // JobIsMissingParameterErrorCode returns whether the error is a missing parameter error.
 // This can indicate to consumers that they should check parameters.
 func JobIsMissingParameterErrorCode(code JobErrorCode) bool {
 	return string(code) == runner.MissingParameterErrorCode
 }
-
 // ProvisionerJob describes the job executed by the provisioning daemon.
 type ProvisionerJob struct {
 	ID               uuid.UUID              `json:"id" format:"uuid" table:"id"`
@@ -188,7 +163,6 @@ type ProvisionerJob struct {
 	AvailableWorkers []uuid.UUID            `json:"available_workers,omitempty" format:"uuid" table:"available workers"`
 	Metadata         ProvisionerJobMetadata `json:"metadata" table:"metadata,recursive_inline"`
 }
-
 // ProvisionerJobLog represents the provisioner log entry annotated with source and level.
 type ProvisionerJobLog struct {
 	ID        int64     `json:"id"`
@@ -198,7 +172,6 @@ type ProvisionerJobLog struct {
 	Stage     string    `json:"stage"`
 	Output    string    `json:"output"`
 }
-
 // provisionerJobLogsAfter streams logs that occurred after a specific time.
 func (c *Client) provisionerJobLogsAfter(ctx context.Context, path string, after int64) (<-chan ProvisionerJobLog, io.Closer, error) {
 	afterQuery := ""
@@ -211,7 +184,7 @@ func (c *Client) provisionerJobLogsAfter(ctx context.Context, path string, after
 	}
 	jar, err := cookiejar.New(nil)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("create cookie jar: %w", err)
+		return nil, nil, fmt.Errorf("create cookie jar: %w", err)
 	}
 	jar.SetCookies(followURL, []*http.Cookie{{
 		Name:  SessionTokenCookie,
@@ -234,7 +207,6 @@ func (c *Client) provisionerJobLogsAfter(ctx context.Context, path string, after
 	d := wsjson.NewDecoder[ProvisionerJobLog](conn, websocket.MessageText, c.logger)
 	return d.Chan(), d, nil
 }
-
 // ServeProvisionerDaemonRequest are the parameters to call ServeProvisionerDaemon with
 // @typescript-ignore ServeProvisionerDaemonRequest
 type ServeProvisionerDaemonRequest struct {
@@ -255,7 +227,6 @@ type ServeProvisionerDaemonRequest struct {
 	// ProvisionerKey is an authentication key to use on the API instead of the normal session token from the client.
 	ProvisionerKey string `json:"provisioner_key"`
 }
-
 // ServeProvisionerDaemon returns the gRPC service for a provisioner daemon
 // implementation. The context is during dial, not during the lifetime of the
 // client. Client should be closed after use.
@@ -264,16 +235,14 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, req ServeProvisione
 	if req.Organization == uuid.Nil {
 		orgParam = DefaultOrganization
 	}
-
 	serverURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/organizations/%s/provisionerdaemons/serve", orgParam))
 	if err != nil {
-		return nil, xerrors.Errorf("parse url: %w", err)
+		return nil, fmt.Errorf("parse url: %w", err)
 	}
 	query := serverURL.Query()
 	query.Add("version", proto.CurrentVersion.String())
 	query.Add("name", req.Name)
 	query.Add("version", proto.CurrentVersion.String())
-
 	for _, provisioner := range req.Provisioners {
 		query.Add("provisioner", string(provisioner))
 	}
@@ -285,9 +254,7 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, req ServeProvisione
 		Transport: c.HTTPClient.Transport,
 	}
 	headers := http.Header{}
-
 	headers.Set(BuildVersionHeader, buildinfo.Version())
-
 	if req.ProvisionerKey != "" {
 		headers.Set(ProvisionerDaemonKey, req.ProvisionerKey)
 	}
@@ -298,7 +265,7 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, req ServeProvisione
 		// use session token if we don't have a PSK or provisioner key.
 		jar, err := cookiejar.New(nil)
 		if err != nil {
-			return nil, xerrors.Errorf("create cookie jar: %w", err)
+			return nil, fmt.Errorf("create cookie jar: %w", err)
 		}
 		jar.SetCookies(serverURL, []*http.Cookie{{
 			Name:  SessionTokenCookie,
@@ -306,7 +273,6 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, req ServeProvisione
 		}})
 		httpClient.Jar = jar
 	}
-
 	conn, res, err := websocket.Dial(ctx, serverURL.String(), &websocket.DialOptions{
 		HTTPClient: httpClient,
 		// Need to disable compression to avoid a data-race.
@@ -321,7 +287,6 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, req ServeProvisione
 	}
 	// Align with the frame size of yamux.
 	conn.SetReadLimit(256 * 1024)
-
 	config := yamux.DefaultConfig()
 	config.LogOutput = io.Discard
 	// Use background context because caller should close the client.
@@ -330,13 +295,11 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, req ServeProvisione
 	if err != nil {
 		_ = conn.Close(websocket.StatusGoingAway, "")
 		_ = wsNetConn.Close()
-		return nil, xerrors.Errorf("multiplex client: %w", err)
+		return nil, fmt.Errorf("multiplex client: %w", err)
 	}
 	return proto.NewDRPCProvisionerDaemonClient(drpc.MultiplexedConn(session)), nil
 }
-
 type ProvisionerKeyTags map[string]string
-
 func (p ProvisionerKeyTags) String() string {
 	keys := maps.Keys(p)
 	slices.Sort(keys)
@@ -346,7 +309,6 @@ func (p ProvisionerKeyTags) String() string {
 	}
 	return strings.Join(tags, " ")
 }
-
 type ProvisionerKey struct {
 	ID             uuid.UUID          `json:"id" table:"-" format:"uuid"`
 	CreatedAt      time.Time          `json:"created_at" table:"created at" format:"date-time"`
@@ -355,30 +317,25 @@ type ProvisionerKey struct {
 	Tags           ProvisionerKeyTags `json:"tags" table:"tags"`
 	// HashedSecret - never include the access token in the API response
 }
-
 type ProvisionerKeyDaemons struct {
 	Key     ProvisionerKey      `json:"key"`
 	Daemons []ProvisionerDaemon `json:"daemons"`
 }
-
 const (
 	ProvisionerKeyIDBuiltIn  = "00000000-0000-0000-0000-000000000001"
 	ProvisionerKeyIDUserAuth = "00000000-0000-0000-0000-000000000002"
 	ProvisionerKeyIDPSK      = "00000000-0000-0000-0000-000000000003"
 )
-
 var (
 	ProvisionerKeyUUIDBuiltIn  = uuid.MustParse(ProvisionerKeyIDBuiltIn)
 	ProvisionerKeyUUIDUserAuth = uuid.MustParse(ProvisionerKeyIDUserAuth)
 	ProvisionerKeyUUIDPSK      = uuid.MustParse(ProvisionerKeyIDPSK)
 )
-
 const (
 	ProvisionerKeyNameBuiltIn  = "built-in"
 	ProvisionerKeyNameUserAuth = "user-auth"
 	ProvisionerKeyNamePSK      = "psk"
 )
-
 func ReservedProvisionerKeyNames() []string {
 	return []string{
 		ProvisionerKeyNameBuiltIn,
@@ -386,16 +343,13 @@ func ReservedProvisionerKeyNames() []string {
 		ProvisionerKeyNamePSK,
 	}
 }
-
 type CreateProvisionerKeyRequest struct {
 	Name string            `json:"name"`
 	Tags map[string]string `json:"tags"`
 }
-
 type CreateProvisionerKeyResponse struct {
 	Key string `json:"key"`
 }
-
 // CreateProvisionerKey creates a new provisioner key for an organization.
 func (c *Client) CreateProvisionerKey(ctx context.Context, organizationID uuid.UUID, req CreateProvisionerKeyRequest) (CreateProvisionerKeyResponse, error) {
 	res, err := c.Request(ctx, http.MethodPost,
@@ -403,17 +357,15 @@ func (c *Client) CreateProvisionerKey(ctx context.Context, organizationID uuid.U
 		req,
 	)
 	if err != nil {
-		return CreateProvisionerKeyResponse{}, xerrors.Errorf("make request: %w", err)
+		return CreateProvisionerKeyResponse{}, fmt.Errorf("make request: %w", err)
 	}
 	defer res.Body.Close()
-
 	if res.StatusCode != http.StatusCreated {
 		return CreateProvisionerKeyResponse{}, ReadBodyAsError(res)
 	}
 	var resp CreateProvisionerKeyResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
-
 // ListProvisionerKeys lists all provisioner keys for an organization.
 func (c *Client) ListProvisionerKeys(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error) {
 	res, err := c.Request(ctx, http.MethodGet,
@@ -421,17 +373,15 @@ func (c *Client) ListProvisionerKeys(ctx context.Context, organizationID uuid.UU
 		nil,
 	)
 	if err != nil {
-		return nil, xerrors.Errorf("make request: %w", err)
+		return nil, fmt.Errorf("make request: %w", err)
 	}
 	defer res.Body.Close()
-
 	if res.StatusCode != http.StatusOK {
 		return nil, ReadBodyAsError(res)
 	}
 	var resp []ProvisionerKey
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
-
 // GetProvisionerKey returns the provisioner key.
 func (c *Client) GetProvisionerKey(ctx context.Context, pk string) (ProvisionerKey, error) {
 	res, err := c.Request(ctx, http.MethodGet,
@@ -441,17 +391,15 @@ func (c *Client) GetProvisionerKey(ctx context.Context, pk string) (ProvisionerK
 		},
 	)
 	if err != nil {
-		return ProvisionerKey{}, xerrors.Errorf("request to fetch provisioner key failed: %w", err)
+		return ProvisionerKey{}, fmt.Errorf("request to fetch provisioner key failed: %w", err)
 	}
 	defer res.Body.Close()
-
 	if res.StatusCode != http.StatusOK {
 		return ProvisionerKey{}, ReadBodyAsError(res)
 	}
 	var resp ProvisionerKey
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
-
 // ListProvisionerKeyDaemons lists all provisioner keys with their associated daemons for an organization.
 func (c *Client) ListProvisionerKeyDaemons(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKeyDaemons, error) {
 	res, err := c.Request(ctx, http.MethodGet,
@@ -459,17 +407,15 @@ func (c *Client) ListProvisionerKeyDaemons(ctx context.Context, organizationID u
 		nil,
 	)
 	if err != nil {
-		return nil, xerrors.Errorf("make request: %w", err)
+		return nil, fmt.Errorf("make request: %w", err)
 	}
 	defer res.Body.Close()
-
 	if res.StatusCode != http.StatusOK {
 		return nil, ReadBodyAsError(res)
 	}
 	var resp []ProvisionerKeyDaemons
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
-
 // DeleteProvisionerKey deletes a provisioner key.
 func (c *Client) DeleteProvisionerKey(ctx context.Context, organizationID uuid.UUID, name string) error {
 	res, err := c.Request(ctx, http.MethodDelete,
@@ -477,16 +423,14 @@ func (c *Client) DeleteProvisionerKey(ctx context.Context, organizationID uuid.U
 		nil,
 	)
 	if err != nil {
-		return xerrors.Errorf("make request: %w", err)
+		return fmt.Errorf("make request: %w", err)
 	}
 	defer res.Body.Close()
-
 	if res.StatusCode != http.StatusNoContent {
 		return ReadBodyAsError(res)
 	}
 	return nil
 }
-
 func ConvertWorkspaceStatus(jobStatus ProvisionerJobStatus, transition WorkspaceTransition) WorkspaceStatus {
 	switch jobStatus {
 	case ProvisionerJobPending:
@@ -516,7 +460,6 @@ func ConvertWorkspaceStatus(jobStatus ProvisionerJobStatus, transition Workspace
 	case ProvisionerJobFailed:
 		return WorkspaceStatusFailed
 	}
-
 	// return error status since we should never get here
 	return WorkspaceStatusFailed
 }

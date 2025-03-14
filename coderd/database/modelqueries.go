@@ -1,24 +1,19 @@
 package database
-
 import (
+	"errors"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
-
 	"github.com/google/uuid"
 	"github.com/lib/pq"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/regosql"
 )
-
 const (
 	authorizedQueryPlaceholder = "-- @authorize_filter"
 )
-
 // ExpectOne can be used to convert a ':many:' query into a ':one'
 // query. To reduce the quantity of SQL queries, a :many with a filter is used.
 // These filters sometimes are expected to return just 1 row.
@@ -30,18 +25,14 @@ func ExpectOne[T any](ret []T, err error) (T, error) {
 	if err != nil {
 		return empty, err
 	}
-
 	if len(ret) == 0 {
 		return empty, sql.ErrNoRows
 	}
-
 	if len(ret) > 1 {
-		return empty, xerrors.Errorf("too many rows returned, expected 1")
+		return empty, fmt.Errorf("too many rows returned, expected 1")
 	}
-
 	return ret[0], nil
 }
-
 // customQuerier encompasses all non-generated queries.
 // It provides a flexible way to write queries for cases
 // where sqlc proves inadequate.
@@ -51,26 +42,22 @@ type customQuerier interface {
 	userQuerier
 	auditLogQuerier
 }
-
 type templateQuerier interface {
 	GetAuthorizedTemplates(ctx context.Context, arg GetTemplatesWithFilterParams, prepared rbac.PreparedAuthorized) ([]Template, error)
 	GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([]TemplateGroup, error)
 	GetTemplateUserRoles(ctx context.Context, id uuid.UUID) ([]TemplateUser, error)
 }
-
 func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplatesWithFilterParams, prepared rbac.PreparedAuthorized) ([]Template, error) {
 	authorizedFilter, err := prepared.CompileToSQL(ctx, regosql.ConvertConfig{
 		VariableConverter: regosql.TemplateConverter(),
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("compile authorized filter: %w", err)
+		return nil, fmt.Errorf("compile authorized filter: %w", err)
 	}
-
 	filtered, err := insertAuthorizedFilter(getTemplatesWithFilter, fmt.Sprintf(" AND %s", authorizedFilter))
 	if err != nil {
-		return nil, xerrors.Errorf("insert authorized filter: %w", err)
+		return nil, fmt.Errorf("insert authorized filter: %w", err)
 	}
-
 	// The name comment is for metric tracking
 	query := fmt.Sprintf("-- name: GetAuthorizedTemplates :many\n%s", filtered)
 	rows, err := q.db.QueryContext(ctx, query,
@@ -135,12 +122,10 @@ func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplate
 	}
 	return items, nil
 }
-
 type TemplateUser struct {
 	User
 	Actions Actions `db:"actions"`
 }
-
 func (q *sqlQuerier) GetTemplateUserRoles(ctx context.Context, id uuid.UUID) ([]TemplateUser, error) {
 	const query = `
 	SELECT
@@ -170,21 +155,17 @@ func (q *sqlQuerier) GetTemplateUserRoles(ctx context.Context, id uuid.UUID) ([]
 	AND
 		users.status != 'suspended';
 	`
-
 	var tus []TemplateUser
 	err := q.db.SelectContext(ctx, &tus, query, id.String())
 	if err != nil {
-		return nil, xerrors.Errorf("select user actions: %w", err)
+		return nil, fmt.Errorf("select user actions: %w", err)
 	}
-
 	return tus, nil
 }
-
 type TemplateGroup struct {
 	Group
 	Actions Actions `db:"actions"`
 }
-
 func (q *sqlQuerier) GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([]TemplateGroup, error) {
 	const query = `
 	SELECT
@@ -210,37 +191,31 @@ func (q *sqlQuerier) GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([
 	ON
 		groups.id::text = perms.key;
 	`
-
 	var tgs []TemplateGroup
 	err := q.db.SelectContext(ctx, &tgs, query, id.String())
 	if err != nil {
-		return nil, xerrors.Errorf("select group roles: %w", err)
+		return nil, fmt.Errorf("select group roles: %w", err)
 	}
-
 	return tgs, nil
 }
-
 type workspaceQuerier interface {
 	GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspacesParams, prepared rbac.PreparedAuthorized) ([]GetWorkspacesRow, error)
 	GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx context.Context, ownerID uuid.UUID, prepared rbac.PreparedAuthorized) ([]GetWorkspacesAndAgentsByOwnerIDRow, error)
 }
-
 // GetAuthorizedWorkspaces returns all workspaces that the user is authorized to access.
 // This code is copied from `GetWorkspaces` and adds the authorized filter WHERE
 // clause.
 func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspacesParams, prepared rbac.PreparedAuthorized) ([]GetWorkspacesRow, error) {
 	authorizedFilter, err := prepared.CompileToSQL(ctx, rbac.ConfigWorkspaces())
 	if err != nil {
-		return nil, xerrors.Errorf("compile authorized filter: %w", err)
+		return nil, fmt.Errorf("compile authorized filter: %w", err)
 	}
-
 	// In order to properly use ORDER BY, OFFSET, and LIMIT, we need to inject the
 	// authorizedFilter between the end of the where clause and those statements.
 	filtered, err := insertAuthorizedFilter(getWorkspaces, fmt.Sprintf(" AND %s", authorizedFilter))
 	if err != nil {
-		return nil, xerrors.Errorf("insert authorized filter: %w", err)
+		return nil, fmt.Errorf("insert authorized filter: %w", err)
 	}
-
 	// The name comment is for metric tracking
 	query := fmt.Sprintf("-- name: GetAuthorizedWorkspaces :many\n%s", filtered)
 	rows, err := q.db.QueryContext(ctx, query,
@@ -322,20 +297,17 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 	}
 	return items, nil
 }
-
 func (q *sqlQuerier) GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx context.Context, ownerID uuid.UUID, prepared rbac.PreparedAuthorized) ([]GetWorkspacesAndAgentsByOwnerIDRow, error) {
 	authorizedFilter, err := prepared.CompileToSQL(ctx, rbac.ConfigWorkspaces())
 	if err != nil {
-		return nil, xerrors.Errorf("compile authorized filter: %w", err)
+		return nil, fmt.Errorf("compile authorized filter: %w", err)
 	}
-
 	// In order to properly use ORDER BY, OFFSET, and LIMIT, we need to inject the
 	// authorizedFilter between the end of the where clause and those statements.
 	filtered, err := insertAuthorizedFilter(getWorkspacesAndAgentsByOwnerID, fmt.Sprintf(" AND %s", authorizedFilter))
 	if err != nil {
-		return nil, xerrors.Errorf("insert authorized filter: %w", err)
+		return nil, fmt.Errorf("insert authorized filter: %w", err)
 	}
-
 	// The name comment is for metric tracking
 	query := fmt.Sprintf("-- name: GetAuthorizedWorkspacesAndAgentsByOwnerID :many\n%s", filtered)
 	rows, err := q.db.QueryContext(ctx, query, ownerID)
@@ -365,24 +337,20 @@ func (q *sqlQuerier) GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx context.Conte
 	}
 	return items, nil
 }
-
 type userQuerier interface {
 	GetAuthorizedUsers(ctx context.Context, arg GetUsersParams, prepared rbac.PreparedAuthorized) ([]GetUsersRow, error)
 }
-
 func (q *sqlQuerier) GetAuthorizedUsers(ctx context.Context, arg GetUsersParams, prepared rbac.PreparedAuthorized) ([]GetUsersRow, error) {
 	authorizedFilter, err := prepared.CompileToSQL(ctx, regosql.ConvertConfig{
 		VariableConverter: regosql.UserConverter(),
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("compile authorized filter: %w", err)
+		return nil, fmt.Errorf("compile authorized filter: %w", err)
 	}
-
 	filtered, err := insertAuthorizedFilter(getUsers, fmt.Sprintf(" AND %s", authorizedFilter))
 	if err != nil {
-		return nil, xerrors.Errorf("insert authorized filter: %w", err)
+		return nil, fmt.Errorf("insert authorized filter: %w", err)
 	}
-
 	query := fmt.Sprintf("-- name: GetAuthorizedUsers :many\n%s", filtered)
 	rows, err := q.db.QueryContext(ctx, query,
 		arg.AfterID,
@@ -435,24 +403,20 @@ func (q *sqlQuerier) GetAuthorizedUsers(ctx context.Context, arg GetUsersParams,
 	}
 	return items, nil
 }
-
 type auditLogQuerier interface {
 	GetAuthorizedAuditLogsOffset(ctx context.Context, arg GetAuditLogsOffsetParams, prepared rbac.PreparedAuthorized) ([]GetAuditLogsOffsetRow, error)
 }
-
 func (q *sqlQuerier) GetAuthorizedAuditLogsOffset(ctx context.Context, arg GetAuditLogsOffsetParams, prepared rbac.PreparedAuthorized) ([]GetAuditLogsOffsetRow, error) {
 	authorizedFilter, err := prepared.CompileToSQL(ctx, regosql.ConvertConfig{
 		VariableConverter: regosql.AuditLogConverter(),
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("compile authorized filter: %w", err)
+		return nil, fmt.Errorf("compile authorized filter: %w", err)
 	}
-
 	filtered, err := insertAuthorizedFilter(getAuditLogsOffset, fmt.Sprintf(" AND %s", authorizedFilter))
 	if err != nil {
-		return nil, xerrors.Errorf("insert authorized filter: %w", err)
+		return nil, fmt.Errorf("insert authorized filter: %w", err)
 	}
-
 	query := fmt.Sprintf("-- name: GetAuthorizedAuditLogsOffset :many\n%s", filtered)
 	rows, err := q.db.QueryContext(ctx, query,
 		arg.ResourceType,
@@ -522,15 +486,13 @@ func (q *sqlQuerier) GetAuthorizedAuditLogsOffset(ctx context.Context, arg GetAu
 	}
 	return items, nil
 }
-
 func insertAuthorizedFilter(query string, replaceWith string) (string, error) {
 	if !strings.Contains(query, authorizedQueryPlaceholder) {
-		return "", xerrors.Errorf("query does not contain authorized replace string, this is not an authorized query")
+		return "", fmt.Errorf("query does not contain authorized replace string, this is not an authorized query")
 	}
 	filtered := strings.Replace(query, authorizedQueryPlaceholder, replaceWith, 1)
 	return filtered, nil
 }
-
 // UpdateUserLinkRawJSON is a custom query for unit testing. Do not ever expose this
 func (q *sqlQuerier) UpdateUserLinkRawJSON(ctx context.Context, userID uuid.UUID, data json.RawMessage) error {
 	_, err := q.sdb.ExecContext(ctx, "UPDATE user_links SET claims = $2 WHERE user_id = $1", userID, data)

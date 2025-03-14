@@ -1,31 +1,25 @@
 package agent
-
 import (
+	"fmt"
+	"errors"
 	"context"
 	"net/http"
 	"sync"
 	"time"
-
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
-
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/quartz"
 )
-
 // PostWorkspaceAgentAppHealth updates the workspace app health.
 type PostWorkspaceAgentAppHealth func(context.Context, agentsdk.PostAppHealthsRequest) error
-
 // WorkspaceAppHealthReporter is a function that checks and reports the health of the workspace apps until the passed context is canceled.
 type WorkspaceAppHealthReporter func(ctx context.Context)
-
 // NewWorkspaceAppHealthReporter creates a WorkspaceAppHealthReporter that reports app health to coderd.
 func NewWorkspaceAppHealthReporter(logger slog.Logger, apps []codersdk.WorkspaceApp, postWorkspaceAgentAppHealth PostWorkspaceAgentAppHealth) WorkspaceAppHealthReporter {
 	return NewAppHealthReporterWithClock(logger, apps, postWorkspaceAgentAppHealth, quartz.NewReal())
 }
-
 // NewAppHealthReporterWithClock is only called directly by test code.  Product code should call
 // NewAppHealthReporter.
 func NewAppHealthReporterWithClock(
@@ -35,16 +29,13 @@ func NewAppHealthReporterWithClock(
 	clk quartz.Clock,
 ) WorkspaceAppHealthReporter {
 	logger = logger.Named("apphealth")
-
 	return func(ctx context.Context) {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
-
 		// no need to run this loop if no apps for this workspace.
 		if len(apps) == 0 {
 			return
 		}
-
 		hasHealthchecksEnabled := false
 		health := make(map[uuid.UUID]codersdk.WorkspaceAppHealth, 0)
 		for _, app := range apps {
@@ -54,12 +45,10 @@ func NewAppHealthReporterWithClock(
 			health[app.ID] = app.Health
 			hasHealthchecksEnabled = true
 		}
-
 		// no need to run this loop if no health checks are configured.
 		if !hasHealthchecksEnabled {
 			return
 		}
-
 		// run a ticker for each app health check.
 		var mu sync.RWMutex
 		failures := make(map[uuid.UUID]int, 0)
@@ -85,7 +74,6 @@ func NewAppHealthReporterWithClock(
 						reqCancel,
 						"timeout", app.Slug)
 					defer timeout.Stop()
-
 					err := func() error {
 						req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, app.Healthcheck.URL, nil)
 						if err != nil {
@@ -98,9 +86,8 @@ func NewAppHealthReporterWithClock(
 						// successful healthcheck is a non-5XX status code
 						_ = res.Body.Close()
 						if res.StatusCode >= http.StatusInternalServerError {
-							return xerrors.Errorf("error status code: %d", res.StatusCode)
+							return fmt.Errorf("error status code: %d", res.StatusCode)
 						}
-
 						return nil
 					}()
 					if err != nil {
@@ -134,7 +121,6 @@ func NewAppHealthReporterWithClock(
 				}, "healthcheck", app.Slug)
 			}()
 		}
-
 		mu.Lock()
 		lastHealth := copyHealth(health)
 		mu.Unlock()
@@ -145,7 +131,6 @@ func NewAppHealthReporterWithClock(
 			if !changed {
 				return nil
 			}
-
 			mu.Lock()
 			lastHealth = copyHealth(health)
 			mu.Unlock()
@@ -162,11 +147,9 @@ func NewAppHealthReporterWithClock(
 		_ = reportTicker.Wait() // only possible error is context done
 	}
 }
-
 func shouldStartTicker(app codersdk.WorkspaceApp) bool {
 	return app.Healthcheck.URL != "" && app.Healthcheck.Interval > 0 && app.Healthcheck.Threshold > 0
 }
-
 func healthChanged(old map[uuid.UUID]codersdk.WorkspaceAppHealth, new map[uuid.UUID]codersdk.WorkspaceAppHealth) bool {
 	for name, newValue := range new {
 		oldValue, found := old[name]
@@ -177,15 +160,12 @@ func healthChanged(old map[uuid.UUID]codersdk.WorkspaceAppHealth, new map[uuid.U
 			return true
 		}
 	}
-
 	return false
 }
-
 func copyHealth(h1 map[uuid.UUID]codersdk.WorkspaceAppHealth) map[uuid.UUID]codersdk.WorkspaceAppHealth {
 	h2 := make(map[uuid.UUID]codersdk.WorkspaceAppHealth, 0)
 	for k, v := range h1 {
 		h2[k] = v
 	}
-
 	return h2
 }

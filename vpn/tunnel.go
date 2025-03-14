@@ -1,6 +1,6 @@
 package vpn
-
 import (
+	"errors"
 	"context"
 	"database/sql/driver"
 	"encoding/json"
@@ -15,39 +15,29 @@ import (
 	"sync"
 	"time"
 	"unicode"
-
 	"github.com/google/uuid"
 	"github.com/tailscale/wireguard-go/tun"
-	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"tailscale.com/net/dns"
 	"tailscale.com/net/netmon"
 	"tailscale.com/util/dnsname"
 	"tailscale.com/wgengine/router"
-
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/quartz"
 )
-
 // netStatusInterval is the interval at which the tunnel sends network status updates to the manager.
 // This is currently only used to keep `last_handshake` up to date.
 const netStatusInterval = 10 * time.Second
-
 type Tunnel struct {
 	speaker[*TunnelMessage, *ManagerMessage, ManagerMessage]
 	updater
-
 	ctx             context.Context
 	requestLoopDone chan struct{}
-
 	logger slog.Logger
-
 	logMu sync.Mutex
 	logs  []*TunnelMessage
-
 	client Client
-
 	// clientLogger is a separate logger than `logger` when the `UseAsLogger`
 	// option is used, to avoid the tunnel using itself as a sink for it's own
 	// logs, which could lead to deadlocks.
@@ -55,9 +45,7 @@ type Tunnel struct {
 	// the following may be nil
 	networkingStackFn func(*Tunnel, *StartRequest, slog.Logger) (NetworkStack, error)
 }
-
 type TunnelOption func(t *Tunnel)
-
 func NewTunnel(
 	ctx context.Context,
 	logger slog.Logger,
@@ -89,7 +77,6 @@ func NewTunnel(
 			clock:       quartz.NewReal(),
 		},
 	}
-
 	for _, opt := range opts {
 		opt(t)
 	}
@@ -98,7 +85,6 @@ func NewTunnel(
 	go t.netStatusLoop()
 	return t, nil
 }
-
 func (t *Tunnel) requestLoop() {
 	defer close(t.requestLoopDone)
 	for req := range t.speaker.requests {
@@ -116,7 +102,6 @@ func (t *Tunnel) requestLoop() {
 		t.logger.Critical(t.ctx, "unknown request", slog.F("msg", req.msg))
 	}
 }
-
 // handleRPC handles unary RPCs from the manager, sending a reply back to the manager.
 func (t *Tunnel) handleRPC(req *request[*TunnelMessage, *ManagerMessage]) {
 	resp := &TunnelMessage{}
@@ -170,38 +155,32 @@ func (t *Tunnel) handleRPC(req *request[*TunnelMessage, *ManagerMessage]) {
 		t.logger.Debug(t.ctx, "failed to send RPC reply", slog.Error(err))
 	}
 }
-
 type NetworkStack struct {
 	WireguardMonitor *netmon.Monitor
 	TUNDevice        tun.Device
 	Router           router.Router
 	DNSConfigurator  dns.OSConfigurator
 }
-
 func UseOSNetworkingStack() TunnelOption {
 	return func(t *Tunnel) {
 		t.networkingStackFn = GetNetworkingStack
 	}
 }
-
 func UseAsLogger() TunnelOption {
 	return func(t *Tunnel) {
 		t.clientLogger = t.clientLogger.AppendSinks(t)
 	}
 }
-
 func UseCustomLogSinks(sinks ...slog.Sink) TunnelOption {
 	return func(t *Tunnel) {
 		t.clientLogger = t.clientLogger.AppendSinks(sinks...)
 	}
 }
-
 func WithClock(clock quartz.Clock) TunnelOption {
 	return func(t *Tunnel) {
 		t.clock = clock
 	}
 }
-
 // ApplyNetworkSettings sends a request to the manager to apply the given network settings
 func (t *Tunnel) ApplyNetworkSettings(ctx context.Context, ns *NetworkSettingsRequest) error {
 	msg, err := t.speaker.unaryRPC(ctx, &TunnelMessage{
@@ -210,27 +189,26 @@ func (t *Tunnel) ApplyNetworkSettings(ctx context.Context, ns *NetworkSettingsRe
 		},
 	})
 	if err != nil {
-		return xerrors.Errorf("rpc failure: %w", err)
+		return fmt.Errorf("rpc failure: %w", err)
 	}
 	resp := msg.GetNetworkSettings()
 	if !resp.Success {
-		return xerrors.Errorf("network settings failed: %s", resp.ErrorMessage)
+		return fmt.Errorf("network settings failed: %s", resp.ErrorMessage)
 	}
 	return nil
 }
-
 func (t *Tunnel) start(req *StartRequest) error {
 	rawURL := req.GetCoderUrl()
 	if rawURL == "" {
-		return xerrors.New("missing coder url")
+		return errors.New("missing coder url")
 	}
 	svrURL, err := url.Parse(rawURL)
 	if err != nil {
-		return xerrors.Errorf("parse url %q: %w", rawURL, err)
+		return fmt.Errorf("parse url %q: %w", rawURL, err)
 	}
 	apiToken := req.GetApiToken()
 	if apiToken == "" {
-		return xerrors.New("missing api token")
+		return errors.New("missing api token")
 	}
 	header := make(http.Header)
 	for _, h := range req.GetHeaders() {
@@ -240,12 +218,11 @@ func (t *Tunnel) start(req *StartRequest) error {
 	if t.networkingStackFn != nil {
 		networkingStack, err = t.networkingStackFn(t, req, t.clientLogger)
 		if err != nil {
-			return xerrors.Errorf("failed to create networking stack dependencies: %w", err)
+			return fmt.Errorf("failed to create networking stack dependencies: %w", err)
 		}
 	} else {
 		t.logger.Debug(t.ctx, "using default networking stack as no custom stack was provided")
 	}
-
 	conn, err := t.client.NewConn(
 		t.ctx,
 		svrURL,
@@ -261,21 +238,17 @@ func (t *Tunnel) start(req *StartRequest) error {
 		},
 	)
 	if err != nil {
-		return xerrors.Errorf("failed to start connection: %w", err)
+		return fmt.Errorf("failed to start connection: %w", err)
 	}
-
 	if ok := t.updater.setConn(conn); !ok {
 		t.logger.Warn(t.ctx, "asked to start tunnel, but tunnel is already running")
 	}
 	return err
 }
-
 func (t *Tunnel) stop(*StopRequest) error {
 	return t.updater.stop()
 }
-
 var _ slog.Sink = &Tunnel{}
-
 func (t *Tunnel) LogEntry(_ context.Context, e slog.SinkEntry) {
 	t.logMu.Lock()
 	defer t.logMu.Unlock()
@@ -285,7 +258,6 @@ func (t *Tunnel) LogEntry(_ context.Context, e slog.SinkEntry) {
 		},
 	})
 }
-
 func (t *Tunnel) Sync() {
 	t.logMu.Lock()
 	logs := t.logs
@@ -299,7 +271,6 @@ func (t *Tunnel) Sync() {
 		}
 	}
 }
-
 func sinkEntryToPb(e slog.SinkEntry) *Log {
 	l := &Log{
 		Level:       Log_Level(e.Level),
@@ -314,28 +285,23 @@ func sinkEntryToPb(e slog.SinkEntry) *Log {
 	}
 	return l
 }
-
 // updater is the component of the tunnel responsible for sending workspace
 // updates to the manager.
 type updater struct {
 	ctx         context.Context
 	cancel      context.CancelFunc
 	netLoopDone chan struct{}
-
 	mu      sync.Mutex
 	uSendCh chan<- *TunnelMessage
 	// agents contains the agents that are currently connected to the tunnel.
 	agents map[uuid.UUID]tailnet.Agent
 	conn   Conn
-
 	clock quartz.Clock
 }
-
 // Update pushes a workspace update to the manager
 func (u *updater) Update(update tailnet.WorkspaceUpdate) error {
 	u.mu.Lock()
 	defer u.mu.Unlock()
-
 	peerUpdate := u.createPeerUpdateLocked(update)
 	msg := &TunnelMessage{
 		Msg: &TunnelMessage_PeerUpdate{
@@ -349,16 +315,14 @@ func (u *updater) Update(update tailnet.WorkspaceUpdate) error {
 	}
 	return nil
 }
-
 // sendUpdateResponse responds to the provided `ManagerMessage_GetPeerUpdate` request
 // with the current state of the workspaces.
 func (u *updater) sendUpdateResponse(req *request[*TunnelMessage, *ManagerMessage]) error {
 	u.mu.Lock()
 	defer u.mu.Unlock()
-
 	state, err := u.conn.CurrentWorkspaceState()
 	if err != nil {
-		return xerrors.Errorf("failed to get current workspace state: %w", err)
+		return fmt.Errorf("failed to get current workspace state: %w", err)
 	}
 	update := u.createPeerUpdateLocked(state)
 	resp := &TunnelMessage{
@@ -368,11 +332,10 @@ func (u *updater) sendUpdateResponse(req *request[*TunnelMessage, *ManagerMessag
 	}
 	err = req.sendReply(resp)
 	if err != nil {
-		return xerrors.Errorf("failed to send RPC reply: %w", err)
+		return fmt.Errorf("failed to send RPC reply: %w", err)
 	}
 	return nil
 }
-
 // createPeerUpdateLocked creates a PeerUpdate message from a workspace update, populating
 // the network status of the agents.
 func (u *updater) createPeerUpdateLocked(update tailnet.WorkspaceUpdate) *PeerUpdate {
@@ -382,9 +345,7 @@ func (u *updater) createPeerUpdateLocked(update tailnet.WorkspaceUpdate) *PeerUp
 		DeletedWorkspaces:  make([]*Workspace, len(update.DeletedWorkspaces)),
 		DeletedAgents:      make([]*Agent, len(update.DeletedAgents)),
 	}
-
 	u.saveUpdateLocked(update)
-
 	for i, ws := range update.UpsertedWorkspaces {
 		out.UpsertedWorkspaces[i] = &Workspace{
 			Id:     tailnet.UUIDToByteSlice(ws.ID),
@@ -420,12 +381,10 @@ func (u *updater) createPeerUpdateLocked(update tailnet.WorkspaceUpdate) *PeerUp
 	}
 	return out
 }
-
 // convertAgentsLocked takes a list of `tailnet.Agent` and converts them to proto agents.
 // If there is an active connection, the last handshake time is populated.
 func (u *updater) convertAgentsLocked(agents []*tailnet.Agent) []*Agent {
 	out := make([]*Agent, 0, len(agents))
-
 	for _, agent := range agents {
 		fqdn := make([]string, 0, len(agent.Hosts))
 		for name := range agent.Hosts {
@@ -447,10 +406,8 @@ func (u *updater) convertAgentsLocked(agents []*tailnet.Agent) []*Agent {
 		}
 		out = append(out, protoAgent)
 	}
-
 	return out
 }
-
 // saveUpdateLocked saves the workspace update to the tunnel's state, such that it can
 // be used to populate automated peer updates.
 func (u *updater) saveUpdateLocked(update tailnet.WorkspaceUpdate) {
@@ -461,23 +418,19 @@ func (u *updater) saveUpdateLocked(update tailnet.WorkspaceUpdate) {
 		delete(u.agents, agent.ID)
 	}
 }
-
 // setConn sets the `conn` and returns false if there's already a connection set.
 func (u *updater) setConn(conn Conn) bool {
 	u.mu.Lock()
 	defer u.mu.Unlock()
-
 	if u.conn != nil {
 		return false
 	}
 	u.conn = conn
 	return true
 }
-
 func (u *updater) stop() error {
 	u.mu.Lock()
 	defer u.mu.Unlock()
-
 	if u.conn == nil {
 		return nil
 	}
@@ -486,13 +439,11 @@ func (u *updater) stop() error {
 	u.cancel()
 	return err
 }
-
 // sendAgentUpdate sends a peer update message to the manager with the current
 // state of the agents, including the latest network status.
 func (u *updater) sendAgentUpdate() {
 	u.mu.Lock()
 	defer u.mu.Unlock()
-
 	agents := make([]*tailnet.Agent, 0, len(u.agents))
 	for _, agent := range u.agents {
 		agents = append(agents, &agent)
@@ -501,7 +452,6 @@ func (u *updater) sendAgentUpdate() {
 	if len(upsertedAgents) == 0 {
 		return
 	}
-
 	msg := &TunnelMessage{
 		Msg: &TunnelMessage_PeerUpdate{
 			PeerUpdate: &PeerUpdate{
@@ -509,14 +459,12 @@ func (u *updater) sendAgentUpdate() {
 			},
 		},
 	}
-
 	select {
 	case <-u.ctx.Done():
 		return
 	case u.uSendCh <- msg:
 	}
 }
-
 func (u *updater) netStatusLoop() {
 	ticker := u.clock.NewTicker(netStatusInterval)
 	defer ticker.Stop()
@@ -530,7 +478,6 @@ func (u *updater) netStatusLoop() {
 		}
 	}
 }
-
 // hostsToIPStrings returns a slice of all unique IP addresses in the values
 // of the given map.
 func hostsToIPStrings(hosts map[dnsname.FQDN][]netip.Addr) []string {
@@ -546,9 +493,7 @@ func hostsToIPStrings(hosts map[dnsname.FQDN][]netip.Addr) []string {
 	}
 	return result
 }
-
 // the following are taken from sloghuman:
-
 func formatValue(v interface{}) string {
 	if vr, ok := v.(driver.Valuer); ok {
 		var err error
@@ -578,7 +523,6 @@ func formatValue(v interface{}) string {
 		return quote(fmt.Sprintf("%+v", v))
 	}
 }
-
 // quotes quotes a string so that it is suitable
 // as a key for a map or in general some output that
 // cannot span multiple lines or have weird characters.
@@ -587,7 +531,6 @@ func quote(key string) string {
 	if key == "" {
 		return `""`
 	}
-
 	var hasSpace bool
 	for _, r := range key {
 		if unicode.IsSpace(r) {

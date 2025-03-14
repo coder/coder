@@ -1,15 +1,14 @@
 package tfparse
-
 import (
+	"fmt"
+	"errors"
 	"github.com/aquasecurity/trivy-iac/pkg/scanners/terraform/parser/funcs"
 	"github.com/hashicorp/hcl/v2/ext/tryfunc"
 	ctyyaml "github.com/zclconf/go-cty-yaml"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 	"github.com/zclconf/go-cty/cty/function/stdlib"
-	"golang.org/x/xerrors"
 )
-
 // Functions returns a set of functions that are safe to use in the context of
 // evaluating Terraform expressions without any ability to reference local files.
 // Functions that refer to file operations are replaced with stubs that return a
@@ -17,7 +16,6 @@ import (
 func Functions() map[string]function.Function {
 	return allFunctions
 }
-
 var (
 	// Adapted from github.com/aquasecurity/trivy-iac@v0.8.0/pkg/scanners/terraform/parser/functions.go
 	// We cannot support all available functions here, as the result of reading a file will be different
@@ -115,7 +113,6 @@ var (
 		"yamlencode":      ctyyaml.YAMLEncodeFunc,
 		"zipmap":          stdlib.ZipmapFunc,
 	}
-
 	// the below functions are not safe for usage in the context of tfparse, as their return
 	// values may change depending on the underlying filesystem.
 	stubFileFunctions = map[string]function.Function{
@@ -132,10 +129,8 @@ var (
 		"filesha512":       makeStubFunction("filesha512", cty.String, function.Parameter{Name: "path", Type: cty.String}),
 		"pathexpand":       makeStubFunction("pathexpand", cty.String, function.Parameter{Name: "path", Type: cty.String}),
 	}
-
 	allFunctions = mergeMaps(safeFunctions, stubFileFunctions)
 )
-
 // mergeMaps returns a new map which is the result of merging each key and value
 // of all maps in ms, in order. Successive maps may override values of previous
 // maps.
@@ -148,7 +143,6 @@ func mergeMaps[K, V comparable](ms ...map[K]V) map[K]V {
 	}
 	return merged
 }
-
 // makeStubFunction returns a function.Function with the required return type and parameters
 // that will always return an unknown type and an error.
 func makeStubFunction(name string, returnType cty.Type, params ...function.Parameter) function.Function {
@@ -156,7 +150,7 @@ func makeStubFunction(name string, returnType cty.Type, params ...function.Param
 	spec.Params = params
 	spec.Type = function.StaticReturnType(returnType)
 	spec.Impl = func(_ []cty.Value, _ cty.Type) (cty.Value, error) {
-		return cty.UnknownVal(returnType), xerrors.Errorf("function %q may not be used here", name)
+		return cty.UnknownVal(returnType), fmt.Errorf("function %q may not be used here", name)
 	}
 	return function.New(&spec)
 }

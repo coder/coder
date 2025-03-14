@@ -1,21 +1,17 @@
 package httpmw
-
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 	"time"
-
 	"github.com/go-chi/httprate"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 )
-
 // RateLimit returns a handler that limits requests per-minute based
 // on IP, endpoint, and user ID (if available).
 func RateLimit(count int, window time.Duration) func(http.Handler) http.Handler {
@@ -25,7 +21,6 @@ func RateLimit(count int, window time.Duration) func(http.Handler) http.Handler 
 			return handler
 		}
 	}
-
 	return httprate.Limit(
 		count,
 		window,
@@ -35,16 +30,13 @@ func RateLimit(count int, window time.Duration) func(http.Handler) http.Handler 
 			if !ok {
 				return httprate.KeyByIP(r)
 			}
-
 			if ok, _ := strconv.ParseBool(r.Header.Get(codersdk.BypassRatelimitHeader)); !ok {
 				// No bypass attempt, just ratelimit.
 				return apiKey.UserID.String(), nil
 			}
-
 			// Allow Owner to bypass rate limiting for load tests
 			// and automation.
 			auth := UserAuthorization(r)
-
 			// We avoid using rbac.Authorizer since rego is CPU-intensive
 			// and undermines the DoS-prevention goal of the rate limiter.
 			for _, role := range auth.SafeRoleNames() {
@@ -57,8 +49,7 @@ func RateLimit(count int, window time.Duration) func(http.Handler) http.Handler 
 					return cryptorand.String(16)
 				}
 			}
-
-			return apiKey.UserID.String(), xerrors.Errorf(
+			return apiKey.UserID.String(), fmt.Errorf(
 				"%q provided but user is not %v",
 				codersdk.BypassRatelimitHeader, rbac.RoleOwner(),
 			)

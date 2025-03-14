@@ -1,28 +1,22 @@
 //go:build !windows
-
 package pty
-
 import (
+	"errors"
 	"context"
 	"fmt"
 	"runtime"
 	"strings"
 	"syscall"
-
-	"golang.org/x/xerrors"
 )
-
 func startPty(cmdPty *Cmd, opt ...StartOption) (retPTY *otherPty, proc Process, err error) {
 	var opts startOptions
 	for _, o := range opt {
 		o(&opts)
 	}
-
 	opty, err := newPty(opts.ptyOpts...)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("newPty failed: %w", err)
+		return nil, nil, fmt.Errorf("newPty failed: %w", err)
 	}
-
 	origEnv := cmdPty.Env
 	if opty.opts.sshReq != nil {
 		cmdPty.Env = append(cmdPty.Env, fmt.Sprintf("SSH_TTY=%s", opty.Name()))
@@ -34,7 +28,6 @@ func startPty(cmdPty *Cmd, opt ...StartOption) (retPTY *otherPty, proc Process, 
 		cmdPty.Context = context.Background()
 	}
 	cmdExec := cmdPty.AsExec()
-
 	cmdExec.SysProcAttr = &syscall.SysProcAttr{
 		Setsid:  true,
 		Setctty: true,
@@ -52,7 +45,7 @@ func startPty(cmdPty *Cmd, opt ...StartOption) (retPTY *otherPty, proc Process, 
 			cmdPty.Env = origEnv
 			return startPty(cmdPty, opt...)
 		}
-		return nil, nil, xerrors.Errorf("start: %w", err)
+		return nil, nil, fmt.Errorf("start: %w", err)
 	}
 	if runtime.GOOS == "linux" {
 		// Now that we've started the command, and passed the TTY to it, close
@@ -69,7 +62,7 @@ func startPty(cmdPty *Cmd, opt ...StartOption) (retPTY *otherPty, proc Process, 
 		// observations: https://developer.apple.com/forums/thread/663632
 		if err := opty.tty.Close(); err != nil {
 			_ = cmdExec.Process.Kill()
-			return nil, nil, xerrors.Errorf("close tty: %w", err)
+			return nil, nil, fmt.Errorf("close tty: %w", err)
 		}
 		opty.tty = nil // remove so we don't attempt to close it again.
 	}

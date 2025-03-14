@@ -1,16 +1,14 @@
 package httpmw_test
-
 import (
+	"fmt"
+	"errors"
 	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
-
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -20,10 +18,8 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
 )
-
 func TestWorkspaceAgentParam(t *testing.T) {
 	t.Parallel()
-
 	setupAuthentication := func(db database.Store) (*http.Request, database.WorkspaceAgent) {
 		var (
 			user     = dbgen.User(t, db, database.User{})
@@ -54,17 +50,14 @@ func TestWorkspaceAgentParam(t *testing.T) {
 				ResourceID: resource.ID,
 			})
 		)
-
 		r := httptest.NewRequest("GET", "/", nil)
 		r.Header.Set(codersdk.SessionTokenHeader, token)
-
 		ctx := chi.NewRouteContext()
 		ctx.URLParams.Add("user", user.ID.String())
 		ctx.URLParams.Add("workspaceagent", agent.ID.String())
 		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, ctx))
 		return r, agent
 	}
-
 	t.Run("None", func(t *testing.T) {
 		t.Parallel()
 		db := dbmem.New()
@@ -74,35 +67,29 @@ func TestWorkspaceAgentParam(t *testing.T) {
 		r, _ := setupAuthentication(db)
 		rw := httptest.NewRecorder()
 		rtr.ServeHTTP(rw, r)
-
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusBadRequest, res.StatusCode)
 	})
-
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
 		db := dbmem.New()
 		rtr := chi.NewRouter()
 		rtr.Use(httpmw.ExtractWorkspaceAgentParam(db))
 		rtr.Get("/", nil)
-
 		r, _ := setupAuthentication(db)
 		chi.RouteContext(r.Context()).URLParams.Add("workspaceagent", uuid.NewString())
 		rw := httptest.NewRecorder()
 		rtr.ServeHTTP(rw, r)
-
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusNotFound, res.StatusCode)
 	})
-
 	t.Run("NotAuthorized", func(t *testing.T) {
 		t.Parallel()
 		db := dbmem.New()
-		fakeAuthz := (&coderdtest.FakeAuthorizer{}).AlwaysReturn(xerrors.Errorf("constant failure"))
+		fakeAuthz := (&coderdtest.FakeAuthorizer{}).AlwaysReturn(fmt.Errorf("constant failure"))
 		dbFail := dbauthz.New(db, fakeAuthz, slog.Make(), coderdtest.AccessControlStorePointer())
-
 		rtr := chi.NewRouter()
 		rtr.Use(
 			httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
@@ -116,17 +103,13 @@ func TestWorkspaceAgentParam(t *testing.T) {
 			_ = httpmw.WorkspaceAgentParam(r)
 			rw.WriteHeader(http.StatusOK)
 		})
-
 		r, _ := setupAuthentication(db)
-
 		rw := httptest.NewRecorder()
 		rtr.ServeHTTP(rw, r)
-
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusNotFound, res.StatusCode)
 	})
-
 	t.Run("WorkspaceAgent", func(t *testing.T) {
 		t.Parallel()
 		db := dbmem.New()
@@ -142,11 +125,9 @@ func TestWorkspaceAgentParam(t *testing.T) {
 			_ = httpmw.WorkspaceAgentParam(r)
 			rw.WriteHeader(http.StatusOK)
 		})
-
 		r, _ := setupAuthentication(db)
 		rw := httptest.NewRecorder()
 		rtr.ServeHTTP(rw, r)
-
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode)

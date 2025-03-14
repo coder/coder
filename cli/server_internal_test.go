@@ -1,23 +1,19 @@
 package cli
-
 import (
+	"errors"
 	"bytes"
 	"context"
 	"crypto/tls"
 	"testing"
-
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
-
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
 )
-
 func Test_configureServerTLS(t *testing.T) {
 	t.Parallel()
 	t.Run("DefaultNoInsecureCiphers", func(t *testing.T) {
@@ -25,9 +21,7 @@ func Test_configureServerTLS(t *testing.T) {
 		logger := testutil.Logger(t)
 		cfg, err := configureServerTLS(context.Background(), logger, "tls12", "none", nil, nil, "", nil, false)
 		require.NoError(t, err)
-
 		require.NotEmpty(t, cfg)
-
 		insecureCiphers := tls.InsecureCipherSuites()
 		for _, cipher := range cfg.CipherSuites {
 			for _, insecure := range insecureCiphers {
@@ -39,10 +33,8 @@ func Test_configureServerTLS(t *testing.T) {
 		}
 	})
 }
-
 func Test_configureCipherSuites(t *testing.T) {
 	t.Parallel()
-
 	cipherNames := func(ciphers []*tls.CipherSuite) []string {
 		var names []string
 		for _, c := range ciphers {
@@ -50,7 +42,6 @@ func Test_configureCipherSuites(t *testing.T) {
 		}
 		return names
 	}
-
 	cipherIDs := func(ciphers []*tls.CipherSuite) []uint16 {
 		var ids []uint16
 		for _, c := range ciphers {
@@ -58,7 +49,6 @@ func Test_configureCipherSuites(t *testing.T) {
 		}
 		return ids
 	}
-
 	cipherByName := func(cipher string) *tls.CipherSuite {
 		for _, c := range append(tls.CipherSuites(), tls.InsecureCipherSuites()...) {
 			if cipher == c.Name {
@@ -68,7 +58,6 @@ func Test_configureCipherSuites(t *testing.T) {
 		}
 		return nil
 	}
-
 	tests := []struct {
 		name          string
 		wantErr       string
@@ -179,7 +168,6 @@ func Test_configureCipherSuites(t *testing.T) {
 			ctx := context.Background()
 			var out bytes.Buffer
 			logger := slog.Make(sloghuman.Sink(&out))
-
 			found, err := configureCipherSuites(ctx, logger, tt.inputCiphers, tt.allowInsecure, tt.minTLS, tt.maxTLS)
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
@@ -196,10 +184,8 @@ func Test_configureCipherSuites(t *testing.T) {
 		})
 	}
 }
-
 func TestRedirectHTTPToHTTPSDeprecation(t *testing.T) {
 	t.Parallel()
-
 	testcases := []struct {
 		name     string
 		environ  serpent.Environ
@@ -243,7 +229,6 @@ func TestRedirectHTTPToHTTPSDeprecation(t *testing.T) {
 			expected: true,
 		},
 	}
-
 	for _, tc := range testcases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
@@ -264,10 +249,8 @@ func TestRedirectHTTPToHTTPSDeprecation(t *testing.T) {
 		})
 	}
 }
-
 func TestIsDERPPath(t *testing.T) {
 	t.Parallel()
-
 	testcases := []struct {
 		path     string
 		expected bool
@@ -317,10 +300,8 @@ func TestIsDERPPath(t *testing.T) {
 		})
 	}
 }
-
 func TestEscapePostgresURLUserInfo(t *testing.T) {
 	t.Parallel()
-
 	testcases := []struct {
 		input  string
 		output string
@@ -349,7 +330,7 @@ func TestEscapePostgresURLUserInfo(t *testing.T) {
 		{
 			input:  "postgres://local host:5432/coder",
 			output: "",
-			err:    xerrors.New("parse postgres url: parse \"postgres://local host:5432/coder\": invalid character \" \" in host name"),
+			err:    errors.New("parse postgres url: parse \"postgres://local host:5432/coder\": invalid character \" \" in host name"),
 		},
 		{
 			input:  "postgres://coder:co?der@localhost:5432/coder",

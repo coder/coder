@@ -1,20 +1,15 @@
 package cli
-
 import (
+	"errors"
 	"context"
 	"fmt"
 	"strings"
-
 	"github.com/fatih/color"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/pretty"
-
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
-
 func (r *RootCmd) workspaceProxy() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "workspace-proxy",
@@ -36,10 +31,8 @@ func (r *RootCmd) workspaceProxy() *serpent.Command {
 			r.regenerateProxyToken(),
 		},
 	}
-
 	return cmd
 }
-
 func (r *RootCmd) regenerateProxyToken() *serpent.Command {
 	formatter := newUpdateProxyResponseFormatter()
 	client := new(codersdk.Client)
@@ -58,9 +51,8 @@ func (r *RootCmd) regenerateProxyToken() *serpent.Command {
 			// 'DeleteWorkspaceProxyByName' and it will work.
 			proxy, err := client.WorkspaceProxyByName(ctx, inv.Args[0])
 			if err != nil {
-				return xerrors.Errorf("fetch workspace proxy %q: %w", inv.Args[0], err)
+				return fmt.Errorf("fetch workspace proxy %q: %w", inv.Args[0], err)
 			}
-
 			// Only regenerate the token
 			updated, err := client.PatchWorkspaceProxy(ctx, codersdk.PatchWorkspaceProxy{
 				ID:              proxy.ID,
@@ -70,9 +62,8 @@ func (r *RootCmd) regenerateProxyToken() *serpent.Command {
 				RegenerateToken: true,
 			})
 			if err != nil {
-				return xerrors.Errorf("update workspace proxy %q: %w", inv.Args[0], err)
+				return fmt.Errorf("update workspace proxy %q: %w", inv.Args[0], err)
 			}
-
 			output, err := formatter.Format(ctx, updated)
 			if err != nil {
 				return err
@@ -82,10 +73,8 @@ func (r *RootCmd) regenerateProxyToken() *serpent.Command {
 		},
 	}
 	formatter.AttachOptions(&cmd.Options)
-
 	return cmd
 }
-
 func (r *RootCmd) patchProxy() *serpent.Command {
 	var (
 		proxyName   string
@@ -96,7 +85,7 @@ func (r *RootCmd) patchProxy() *serpent.Command {
 			cliui.ChangeFormatterData(cliui.TextFormat(), func(data any) (any, error) {
 				response, ok := data.(codersdk.WorkspaceProxy)
 				if !ok {
-					return nil, xerrors.Errorf("unexpected type %T", data)
+					return nil, fmt.Errorf("unexpected type %T", data)
 				}
 				return fmt.Sprintf("Workspace Proxy %q updated successfully.", response.Name), nil
 			}),
@@ -106,7 +95,7 @@ func (r *RootCmd) patchProxy() *serpent.Command {
 				func(data any) (any, error) {
 					response, ok := data.(codersdk.WorkspaceProxy)
 					if !ok {
-						return nil, xerrors.Errorf("unexpected type %T", data)
+						return nil, fmt.Errorf("unexpected type %T", data)
 					}
 					return []codersdk.WorkspaceProxy{response}, nil
 				}),
@@ -124,16 +113,14 @@ func (r *RootCmd) patchProxy() *serpent.Command {
 			ctx := inv.Context()
 			if proxyIcon == "" && displayName == "" && proxyName == "" {
 				_ = inv.Command.HelpHandler(inv)
-				return xerrors.Errorf("specify at least one field to update")
+				return fmt.Errorf("specify at least one field to update")
 			}
-
 			// This is cheeky, but you can also use a uuid string in
 			// 'DeleteWorkspaceProxyByName' and it will work.
 			proxy, err := client.WorkspaceProxyByName(ctx, inv.Args[0])
 			if err != nil {
-				return xerrors.Errorf("fetch workspace proxy %q: %w", inv.Args[0], err)
+				return fmt.Errorf("fetch workspace proxy %q: %w", inv.Args[0], err)
 			}
-
 			// Use the existing values if the user didn't specify them.
 			if proxyName == "" {
 				proxyName = proxy.Name
@@ -144,7 +131,6 @@ func (r *RootCmd) patchProxy() *serpent.Command {
 			if proxyIcon == "" {
 				proxyIcon = proxy.IconURL
 			}
-
 			updated, err := client.PatchWorkspaceProxy(ctx, codersdk.PatchWorkspaceProxy{
 				ID:          proxy.ID,
 				Name:        proxyName,
@@ -152,18 +138,16 @@ func (r *RootCmd) patchProxy() *serpent.Command {
 				Icon:        proxyIcon,
 			})
 			if err != nil {
-				return xerrors.Errorf("update workspace proxy %q: %w", inv.Args[0], err)
+				return fmt.Errorf("update workspace proxy %q: %w", inv.Args[0], err)
 			}
-
 			output, err := formatter.Format(ctx, updated.Proxy)
 			if err != nil {
-				return xerrors.Errorf("format response: %w", err)
+				return fmt.Errorf("format response: %w", err)
 			}
 			_, err = fmt.Fprintln(inv.Stdout, output)
 			return err
 		},
 	}
-
 	formatter.AttachOptions(&cmd.Options)
 	cmd.Options.Add(
 		serpent.Option{
@@ -182,10 +166,8 @@ func (r *RootCmd) patchProxy() *serpent.Command {
 			Value:       serpent.StringOf(&proxyIcon),
 		},
 	)
-
 	return cmd
 }
-
 func (r *RootCmd) deleteProxy() *serpent.Command {
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
@@ -200,12 +182,10 @@ func (r *RootCmd) deleteProxy() *serpent.Command {
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
-
 			wsproxy, err := client.WorkspaceProxyByName(ctx, inv.Args[0])
 			if err != nil {
-				return xerrors.Errorf("fetch workspace proxy %q: %w", inv.Args[0], err)
+				return fmt.Errorf("fetch workspace proxy %q: %w", inv.Args[0], err)
 			}
-
 			// Confirm deletion of the template.
 			_, err = cliui.Prompt(inv, cliui.PromptOptions{
 				Text:      fmt.Sprintf("Delete this workspace proxy: %s?", pretty.Sprint(cliui.DefaultStyles.Code, wsproxy.DisplayName)),
@@ -215,20 +195,16 @@ func (r *RootCmd) deleteProxy() *serpent.Command {
 			if err != nil {
 				return err
 			}
-
 			err = client.DeleteWorkspaceProxyByName(ctx, inv.Args[0])
 			if err != nil {
-				return xerrors.Errorf("delete workspace proxy %q: %w", inv.Args[0], err)
+				return fmt.Errorf("delete workspace proxy %q: %w", inv.Args[0], err)
 			}
-
 			_, _ = fmt.Fprintf(inv.Stdout, "Workspace proxy %q deleted successfully\n", inv.Args[0])
 			return nil
 		},
 	}
-
 	return cmd
 }
-
 func (r *RootCmd) createProxy() *serpent.Command {
 	var (
 		proxyName   string
@@ -239,11 +215,10 @@ func (r *RootCmd) createProxy() *serpent.Command {
 	)
 	validateIcon := func(s *serpent.String) error {
 		if !(strings.HasPrefix(s.Value(), "/emojis/") || strings.HasPrefix(s.Value(), "http")) {
-			return xerrors.New("icon must be a relative path to an emoji or a publicly hosted image URL")
+			return errors.New("icon must be a relative path to an emoji or a publicly hosted image URL")
 		}
 		return nil
 	}
-
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "create",
@@ -273,7 +248,6 @@ func (r *RootCmd) createProxy() *serpent.Command {
 					return err
 				}
 			}
-
 			if proxyIcon == "" && !noPrompts {
 				proxyIcon, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text:    "Icon URL:",
@@ -286,20 +260,17 @@ func (r *RootCmd) createProxy() *serpent.Command {
 					return err
 				}
 			}
-
 			if proxyName == "" {
-				return xerrors.New("proxy name is required")
+				return errors.New("proxy name is required")
 			}
-
 			resp, err := client.CreateWorkspaceProxy(ctx, codersdk.CreateWorkspaceProxyRequest{
 				Name:        proxyName,
 				DisplayName: displayName,
 				Icon:        proxyIcon,
 			})
 			if err != nil {
-				return xerrors.Errorf("create workspace proxy: %w", err)
+				return fmt.Errorf("create workspace proxy: %w", err)
 			}
-
 			output, err := formatter.Format(ctx, resp)
 			if err != nil {
 				return err
@@ -308,7 +279,6 @@ func (r *RootCmd) createProxy() *serpent.Command {
 			return err
 		},
 	}
-
 	formatter.AttachOptions(&cmd.Options)
 	cmd.Options.Add(
 		serpent.Option{
@@ -334,7 +304,6 @@ func (r *RootCmd) createProxy() *serpent.Command {
 	)
 	return cmd
 }
-
 func (r *RootCmd) listProxies() *serpent.Command {
 	formatter := cliui.NewOutputFormatter(
 		cliui.TableFormat([]codersdk.WorkspaceProxy{}, []string{"name", "url", "proxy status"}),
@@ -342,7 +311,7 @@ func (r *RootCmd) listProxies() *serpent.Command {
 		cliui.ChangeFormatterData(cliui.TextFormat(), func(data any) (any, error) {
 			resp, ok := data.([]codersdk.WorkspaceProxy)
 			if !ok {
-				return nil, xerrors.Errorf("unexpected type %T", data)
+				return nil, fmt.Errorf("unexpected type %T", data)
 			}
 			var str strings.Builder
 			_, _ = str.WriteString("Workspace Proxies:\n")
@@ -361,7 +330,6 @@ func (r *RootCmd) listProxies() *serpent.Command {
 			return str.String(), nil
 		}),
 	)
-
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:     "ls",
@@ -375,37 +343,31 @@ func (r *RootCmd) listProxies() *serpent.Command {
 			ctx := inv.Context()
 			proxies, err := client.WorkspaceProxies(ctx)
 			if err != nil {
-				return xerrors.Errorf("list workspace proxies: %w", err)
+				return fmt.Errorf("list workspace proxies: %w", err)
 			}
-
 			output, err := formatter.Format(ctx, proxies.Regions)
 			if err != nil {
 				return err
 			}
-
 			_, err = fmt.Fprintln(inv.Stdout, output)
 			return err
 		},
 	}
-
 	formatter.AttachOptions(&cmd.Options)
 	return cmd
 }
-
 // updateProxyResponseFormatter is used for both create and regenerate proxy commands.
 type updateProxyResponseFormatter struct {
 	onlyToken        bool
 	formatter        *cliui.OutputFormatter
 	primaryAccessURL string
 }
-
 func (f *updateProxyResponseFormatter) Format(ctx context.Context, data codersdk.UpdateWorkspaceProxyResponse) (string, error) {
 	if f.onlyToken {
 		return data.ProxyToken, nil
 	}
 	return f.formatter.Format(ctx, data)
 }
-
 func (f *updateProxyResponseFormatter) AttachOptions(opts *serpent.OptionSet) {
 	opts.Add(
 		serpent.Option{
@@ -416,7 +378,6 @@ func (f *updateProxyResponseFormatter) AttachOptions(opts *serpent.OptionSet) {
 	)
 	f.formatter.AttachOptions(opts)
 }
-
 func newUpdateProxyResponseFormatter() *updateProxyResponseFormatter {
 	up := &updateProxyResponseFormatter{
 		onlyToken: false,
@@ -426,9 +387,8 @@ func newUpdateProxyResponseFormatter() *updateProxyResponseFormatter {
 		cliui.ChangeFormatterData(cliui.TextFormat(), func(data any) (any, error) {
 			response, ok := data.(codersdk.UpdateWorkspaceProxyResponse)
 			if !ok {
-				return nil, xerrors.Errorf("unexpected type %T", data)
+				return nil, fmt.Errorf("unexpected type %T", data)
 			}
-
 			return fmt.Sprintf("Workspace Proxy %[1]q updated successfully.\n"+
 				pretty.Sprint(cliui.DefaultStyles.Placeholder, "—————————————————————————————————————————————————")+"\n"+
 				"Save this authentication token, it will not be shown again.\n"+
@@ -446,11 +406,10 @@ func newUpdateProxyResponseFormatter() *updateProxyResponseFormatter {
 			func(data any) (any, error) {
 				response, ok := data.(codersdk.UpdateWorkspaceProxyResponse)
 				if !ok {
-					return nil, xerrors.Errorf("unexpected type %T", data)
+					return nil, fmt.Errorf("unexpected type %T", data)
 				}
 				return []codersdk.UpdateWorkspaceProxyResponse{response}, nil
 			}),
 	)
-
 	return up
 }

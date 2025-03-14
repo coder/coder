@@ -2,9 +2,9 @@ package database
 
 import (
 	"database/sql"
+	"errors"
 
 	"github.com/lib/pq"
-	"golang.org/x/xerrors"
 )
 
 const maxRetries = 5
@@ -37,7 +37,7 @@ func ReadModifyUpdate(db Store, f func(tx Store) error,
 			Isolation: sql.LevelRepeatableRead,
 		})
 		var pqe *pq.Error
-		if xerrors.As(err, &pqe) {
+		if errors.As(err, &pqe) {
 			if pqe.Code == "40001" {
 				// serialization error, retry
 				continue
@@ -45,5 +45,5 @@ func ReadModifyUpdate(db Store, f func(tx Store) error,
 		}
 		return err
 	}
-	return xerrors.Errorf("too many errors; last error: %w", err)
+	return fmt.Errorf("too many errors; last error: %w", err)
 }

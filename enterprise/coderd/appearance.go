@@ -1,5 +1,4 @@
 package coderd
-
 import (
 	"context"
 	"database/sql"
@@ -8,10 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-
 	"golang.org/x/sync/errgroup"
-	"golang.org/x/xerrors"
-
 	agpl "github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -19,7 +15,6 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 )
-
 // @Summary Get appearance
 // @ID get-appearance
 // @Security CoderSessionToken
@@ -37,17 +32,14 @@ func (api *API) appearance(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	httpapi.Write(r.Context(), rw, http.StatusOK, cfg)
 }
-
 type appearanceFetcher struct {
 	database     database.Store
 	supportLinks []codersdk.LinkConfig
 	docsURL      string
 	coderVersion string
 }
-
 func newAppearanceFetcher(store database.Store, links []codersdk.LinkConfig, docsURL, coderVersion string) agpl.Fetcher {
 	if docsURL == "" {
 		docsURL = codersdk.DefaultDocsURL()
@@ -59,7 +51,6 @@ func newAppearanceFetcher(store database.Store, links []codersdk.LinkConfig, doc
 		coderVersion: coderVersion,
 	}
 }
-
 func (f *appearanceFetcher) Fetch(ctx context.Context) (codersdk.AppearanceConfig, error) {
 	var eg errgroup.Group
 	var (
@@ -70,21 +61,21 @@ func (f *appearanceFetcher) Fetch(ctx context.Context) (codersdk.AppearanceConfi
 	eg.Go(func() (err error) {
 		applicationName, err = f.database.GetApplicationName(ctx)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return xerrors.Errorf("get application name: %w", err)
+			return fmt.Errorf("get application name: %w", err)
 		}
 		return nil
 	})
 	eg.Go(func() (err error) {
 		logoURL, err = f.database.GetLogoURL(ctx)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return xerrors.Errorf("get logo url: %w", err)
+			return fmt.Errorf("get logo url: %w", err)
 		}
 		return nil
 	})
 	eg.Go(func() (err error) {
 		announcementBannersJSON, err = f.database.GetAnnouncementBanners(ctx)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return xerrors.Errorf("get notification banners: %w", err)
+			return fmt.Errorf("get notification banners: %w", err)
 		}
 		return nil
 	})
@@ -92,7 +83,6 @@ func (f *appearanceFetcher) Fetch(ctx context.Context) (codersdk.AppearanceConfi
 	if err != nil {
 		return codersdk.AppearanceConfig{}, err
 	}
-
 	cfg := codersdk.AppearanceConfig{
 		ApplicationName:     applicationName,
 		LogoURL:             logoURL,
@@ -100,15 +90,13 @@ func (f *appearanceFetcher) Fetch(ctx context.Context) (codersdk.AppearanceConfi
 		SupportLinks:        codersdk.DefaultSupportLinks(f.docsURL),
 		DocsURL:             f.docsURL,
 	}
-
 	if announcementBannersJSON != "" {
 		err = json.Unmarshal([]byte(announcementBannersJSON), &cfg.AnnouncementBanners)
 		if err != nil {
-			return codersdk.AppearanceConfig{}, xerrors.Errorf(
+			return codersdk.AppearanceConfig{}, fmt.Errorf(
 				"unmarshal announcement banners json: %w, raw: %s", err, announcementBannersJSON,
 			)
 		}
-
 		// Redundant, but improves compatibility with slightly mismatched agent versions.
 		// Maybe we can remove this after a grace period? -Kayla, May 6th 2024
 		if len(cfg.AnnouncementBanners) > 0 {
@@ -118,21 +106,18 @@ func (f *appearanceFetcher) Fetch(ctx context.Context) (codersdk.AppearanceConfi
 	if len(f.supportLinks) > 0 {
 		cfg.SupportLinks = f.supportLinks
 	}
-
 	return cfg, nil
 }
-
 func validateHexColor(color string) error {
 	if len(color) != 7 {
-		return xerrors.New("expected # prefix and 6 characters")
+		return errors.New("expected # prefix and 6 characters")
 	}
 	if color[0] != '#' {
-		return xerrors.New("no # prefix")
+		return errors.New("no # prefix")
 	}
 	_, err := hex.DecodeString(color[1:])
 	return err
 }
-
 // @Summary Update appearance
 // @ID update-appearance
 // @Security CoderSessionToken
@@ -144,19 +129,16 @@ func validateHexColor(color string) error {
 // @Router /appearance [put]
 func (api *API) putAppearance(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Insufficient permissions to update appearance",
 		})
 		return
 	}
-
 	var appearance codersdk.UpdateAppearanceConfig
 	if !httpapi.Read(ctx, rw, r, &appearance) {
 		return
 	}
-
 	for _, banner := range appearance.AnnouncementBanners {
 		if err := validateHexColor(banner.BackgroundColor); err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -166,7 +148,6 @@ func (api *API) putAppearance(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-
 	if appearance.AnnouncementBanners == nil {
 		appearance.AnnouncementBanners = []codersdk.BannerConfig{}
 	}
@@ -178,7 +159,6 @@ func (api *API) putAppearance(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	err = api.Database.UpsertAnnouncementBanners(ctx, string(announcementBannersJSON))
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -187,7 +167,6 @@ func (api *API) putAppearance(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	err = api.Database.UpsertApplicationName(ctx, appearance.ApplicationName)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -196,7 +175,6 @@ func (api *API) putAppearance(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	err = api.Database.UpsertLogoURL(ctx, appearance.LogoURL)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -205,6 +183,5 @@ func (api *API) putAppearance(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	httpapi.Write(r.Context(), rw, http.StatusOK, appearance)
 }

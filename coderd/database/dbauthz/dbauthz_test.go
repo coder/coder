@@ -1,6 +1,6 @@
 package dbauthz_test
-
 import (
+	"errors"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -10,20 +10,15 @@ import (
 	"strings"
 	"testing"
 	"time"
-
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
-
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
-
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -35,58 +30,48 @@ import (
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/testutil"
 )
-
 func TestAsNoActor(t *testing.T) {
 	t.Parallel()
-
 	t.Run("NoError", func(t *testing.T) {
 		t.Parallel()
 		require.False(t, dbauthz.IsNotAuthorizedError(nil), "no error")
 	})
-
 	t.Run("AsRemoveActor", func(t *testing.T) {
 		t.Parallel()
 		_, ok := dbauthz.ActorFromContext(context.Background())
 		require.False(t, ok, "no actor should be present")
 	})
-
 	t.Run("AsActor", func(t *testing.T) {
 		t.Parallel()
 		ctx := dbauthz.As(context.Background(), coderdtest.RandomRBACSubject())
 		_, ok := dbauthz.ActorFromContext(ctx)
 		require.True(t, ok, "actor present")
 	})
-
 	t.Run("DeleteActor", func(t *testing.T) {
 		t.Parallel()
 		// First set an actor
 		ctx := dbauthz.As(context.Background(), coderdtest.RandomRBACSubject())
 		_, ok := dbauthz.ActorFromContext(ctx)
 		require.True(t, ok, "actor present")
-
 		// Delete the actor
 		ctx = dbauthz.As(ctx, dbauthz.AsRemoveActor)
 		_, ok = dbauthz.ActorFromContext(ctx)
 		require.False(t, ok, "actor should be deleted")
 	})
 }
-
 func TestPing(t *testing.T) {
 	t.Parallel()
-
 	db, _ := dbtestutil.NewDB(t)
 	q := dbauthz.New(db, &coderdtest.RecordingAuthorizer{}, slog.Make(), coderdtest.AccessControlStorePointer())
 	_, err := q.Ping(context.Background())
 	require.NoError(t, err, "must not error")
 }
-
 // TestInTX is not perfect, just checks that it properly checks auth.
 func TestInTX(t *testing.T) {
 	t.Parallel()
-
 	db, _ := dbtestutil.NewDB(t)
 	q := dbauthz.New(db, &coderdtest.RecordingAuthorizer{
-		Wrapped: (&coderdtest.FakeAuthorizer{}).AlwaysReturn(xerrors.New("custom error")),
+		Wrapped: (&coderdtest.FakeAuthorizer{}).AlwaysReturn(errors.New("custom error")),
 	}, slog.Make(), coderdtest.AccessControlStorePointer())
 	actor := rbac.Subject{
 		ID:     uuid.NewString(),
@@ -115,11 +100,9 @@ func TestInTX(t *testing.T) {
 	require.ErrorAs(t, err, &dbauthz.NotAuthorizedError{}, "must be an authorized error")
 	require.True(t, dbauthz.IsNotAuthorizedError(err), "must be an authorized error")
 }
-
 // TestNew should not double wrap a querier.
 func TestNew(t *testing.T) {
 	t.Parallel()
-
 	var (
 		db, _ = dbtestutil.NewDB(t)
 		rec   = &coderdtest.RecordingAuthorizer{
@@ -143,15 +126,12 @@ func TestNew(t *testing.T) {
 	// should be made.
 	az := dbauthz.New(db, rec, slog.Make(), coderdtest.AccessControlStorePointer())
 	az = dbauthz.New(az, rec, slog.Make(), coderdtest.AccessControlStorePointer())
-
 	w, err := az.GetWorkspaceByID(ctx, exp.ID)
 	require.NoError(t, err, "must not error")
 	require.Equal(t, exp, w.WorkspaceTable(), "must be equal")
-
 	rec.AssertActor(t, subj, rec.Pair(policy.ActionRead, exp))
 	require.NoError(t, rec.AllAsserted(), "should only be 1 rbac call")
 }
-
 // TestDBAuthzRecursive is a simple test to search for infinite recursion
 // bugs. It isn't perfect, and only catches a subset of the possible bugs
 // as only the first db call will be made. But it is better than nothing.
@@ -170,7 +150,6 @@ func TestDBAuthzRecursive(t *testing.T) {
 	for i := 0; i < reflect.TypeOf(q).NumMethod(); i++ {
 		var ins []reflect.Value
 		ctx := dbauthz.As(context.Background(), actor)
-
 		ins = append(ins, reflect.ValueOf(ctx))
 		method := reflect.TypeOf(q).Method(i)
 		for i := 2; i < method.Type.NumIn(); i++ {
@@ -189,14 +168,12 @@ func TestDBAuthzRecursive(t *testing.T) {
 		reflect.ValueOf(q).Method(i).Call(ins)
 	}
 }
-
 func must[T any](value T, err error) T {
 	if err != nil {
 		panic(err)
 	}
 	return value
 }
-
 func defaultIPAddress() pqtype.Inet {
 	return pqtype.Inet{
 		IPNet: net.IPNet{
@@ -206,7 +183,6 @@ func defaultIPAddress() pqtype.Inet {
 		Valid: true,
 	}
 }
-
 func (s *MethodTestSuite) TestAPIKey() {
 	s.Run("DeleteAPIKeyByID", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
@@ -241,11 +217,9 @@ func (s *MethodTestSuite) TestAPIKey() {
 	s.Run("GetAPIKeysByUserID", s.Subtest(func(db database.Store, check *expects) {
 		u1 := dbgen.User(s.T(), db, database.User{})
 		u2 := dbgen.User(s.T(), db, database.User{})
-
 		keyA, _ := dbgen.APIKey(s.T(), db, database.APIKey{UserID: u1.ID, LoginType: database.LoginTypeToken, TokenName: "key-a"})
 		keyB, _ := dbgen.APIKey(s.T(), db, database.APIKey{UserID: u1.ID, LoginType: database.LoginTypeToken, TokenName: "key-b"})
 		_, _ = dbgen.APIKey(s.T(), db, database.APIKey{UserID: u2.ID, LoginType: database.LoginTypeToken})
-
 		check.Args(database.GetAPIKeysByUserIDParams{LoginType: database.LoginTypeToken, UserID: u1.ID}).
 			Asserts(keyA, policy.ActionRead, keyB, policy.ActionRead).
 			Returns(slice.New(keyA, keyB))
@@ -261,7 +235,6 @@ func (s *MethodTestSuite) TestAPIKey() {
 	}))
 	s.Run("InsertAPIKey", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
-
 		check.Args(database.InsertAPIKeyParams{
 			UserID:    u.ID,
 			LoginType: database.LoginTypePassword,
@@ -303,7 +276,6 @@ func (s *MethodTestSuite) TestAPIKey() {
 			rbac.ResourceUserObject(b.UserID), policy.ActionReadPersonal)
 	}))
 }
-
 func (s *MethodTestSuite) TestAuditLogs() {
 	s.Run("InsertAuditLog", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.InsertAuditLogParams{
@@ -329,7 +301,6 @@ func (s *MethodTestSuite) TestAuditLogs() {
 		}, emptyPreparedAuthorized{}).Asserts(rbac.ResourceAuditLog, policy.ActionRead)
 	}))
 }
-
 func (s *MethodTestSuite) TestFile() {
 	s.Run("GetFileByHashAndCreator", s.Subtest(func(db database.Store, check *expects) {
 		f := dbgen.File(s.T(), db, database.File{})
@@ -349,7 +320,6 @@ func (s *MethodTestSuite) TestFile() {
 		}).Asserts(rbac.ResourceFile.WithOwner(u.ID.String()), policy.ActionCreate)
 	}))
 }
-
 func (s *MethodTestSuite) TestGroup() {
 	s.Run("DeleteGroupByID", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
@@ -494,7 +464,6 @@ func (s *MethodTestSuite) TestGroup() {
 		}).Asserts(g, policy.ActionUpdate)
 	}))
 }
-
 func (s *MethodTestSuite) TestProvisionerJob() {
 	s.Run("ArchiveUnusedTemplateVersions", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
@@ -714,7 +683,6 @@ func (s *MethodTestSuite) TestProvisionerJob() {
 		}).Asserts(w, policy.ActionRead).Returns([]database.ProvisionerJobLog{})
 	}))
 }
-
 func (s *MethodTestSuite) TestLicense() {
 	s.Run("GetLicenses", s.Subtest(func(db database.Store, check *expects) {
 		l, err := db.InsertLicense(context.Background(), database.InsertLicenseParams{
@@ -769,7 +737,6 @@ func (s *MethodTestSuite) TestLicense() {
 		check.Args().Asserts().Returns("value")
 	}))
 }
-
 func (s *MethodTestSuite) TestOrganization() {
 	s.Run("Deployment/OIDCClaimFields", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(uuid.Nil).Asserts(rbac.ResourceIdpsyncSettings, policy.ActionRead).Returns([]string{})
@@ -850,7 +817,6 @@ func (s *MethodTestSuite) TestOrganization() {
 	s.Run("InsertOrganizationMember", s.Subtest(func(db database.Store, check *expects) {
 		o := dbgen.Organization(s.T(), db, database.Organization{})
 		u := dbgen.User(s.T(), db, database.User{})
-
 		check.Args(database.InsertOrganizationMemberParams{
 			OrganizationID: o.ID,
 			UserID:         u.ID,
@@ -934,12 +900,10 @@ func (s *MethodTestSuite) TestOrganization() {
 		o := dbgen.Organization(s.T(), db, database.Organization{})
 		u := dbgen.User(s.T(), db, database.User{})
 		member := dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{UserID: u.ID, OrganizationID: o.ID})
-
 		cancelledErr := "fetch object: context canceled"
 		if !dbtestutil.WillUsePostgres() {
 			cancelledErr = sql.ErrNoRows.Error()
 		}
-
 		check.Args(database.DeleteOrganizationMemberParams{
 			OrganizationID: o.ID,
 			UserID:         u.ID,
@@ -977,7 +941,6 @@ func (s *MethodTestSuite) TestOrganization() {
 			UserID:         u.ID,
 			Roles:          []string{rbac.RoleOrgAdmin()},
 		})
-
 		check.Args(database.OrganizationMembersParams{
 			OrganizationID: uuid.UUID{},
 			UserID:         uuid.UUID{},
@@ -993,7 +956,6 @@ func (s *MethodTestSuite) TestOrganization() {
 			UserID:         u.ID,
 			Roles:          []string{rbac.RoleOrgAdmin()},
 		})
-
 		check.Args(database.PaginatedOrganizationMembersParams{
 			OrganizationID: o.ID,
 			LimitOpt:       0,
@@ -1021,12 +983,10 @@ func (s *MethodTestSuite) TestOrganization() {
 		})
 		out := mem
 		out.Roles = []string{}
-
 		cancelledErr := "fetch object: context canceled"
 		if !dbtestutil.WillUsePostgres() {
 			cancelledErr = sql.ErrNoRows.Error()
 		}
-
 		check.Args(database.UpdateMemberRolesParams{
 			GrantedRoles: []string{},
 			UserID:       u.ID,
@@ -1041,7 +1001,6 @@ func (s *MethodTestSuite) TestOrganization() {
 			).Returns(out)
 	}))
 }
-
 func (s *MethodTestSuite) TestWorkspaceProxy() {
 	s.Run("InsertWorkspaceProxy", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.InsertWorkspaceProxyParams{
@@ -1081,7 +1040,6 @@ func (s *MethodTestSuite) TestWorkspaceProxy() {
 		check.Args().Asserts(p1, policy.ActionRead, p2, policy.ActionRead).Returns(slice.New(p1, p2))
 	}))
 }
-
 func (s *MethodTestSuite) TestTemplate() {
 	s.Run("GetPreviousTemplateVersion", s.Subtest(func(db database.Store, check *expects) {
 		tvid := uuid.New()
@@ -1422,7 +1380,6 @@ func (s *MethodTestSuite) TestTemplate() {
 		check.Asserts(rbac.ResourceSystem, policy.ActionUpdate)
 	}))
 }
-
 func (s *MethodTestSuite) TestUser() {
 	s.Run("GetAuthorizedUsers", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
@@ -1693,7 +1650,7 @@ func (s *MethodTestSuite) TestUser() {
 			Name: customRole.Name,
 		}).Asserts(
 		// fails immediately, missing organization id
-		).Errors(dbauthz.NotAuthorizedError{Err: xerrors.New("custom roles must belong to an organization")})
+		).Errors(dbauthz.NotAuthorizedError{Err: errors.New("custom roles must belong to an organization")})
 	}))
 	s.Run("Blank/UpdateCustomRole", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
@@ -1724,7 +1681,7 @@ func (s *MethodTestSuite) TestUser() {
 			}), convertSDKPerm),
 		}).Asserts(
 		// fails immediately, missing organization id
-		).Errors(dbauthz.NotAuthorizedError{Err: xerrors.New("custom roles must belong to an organization")})
+		).Errors(dbauthz.NotAuthorizedError{Err: errors.New("custom roles must belong to an organization")})
 	}))
 	s.Run("OrgPermissions/UpdateCustomRole", s.Subtest(func(db database.Store, check *expects) {
 		orgID := uuid.New()
@@ -1734,7 +1691,6 @@ func (s *MethodTestSuite) TestUser() {
 				Valid: true,
 			},
 		})
-
 		check.Args(database.UpdateCustomRoleParams{
 			Name:            customRole.Name,
 			DisplayName:     "Test Name",
@@ -1777,7 +1733,7 @@ func (s *MethodTestSuite) TestUser() {
 			}), convertSDKPerm),
 		}).Asserts(
 		// fails immediately, missing organization id
-		).Errors(dbauthz.NotAuthorizedError{Err: xerrors.New("custom roles must belong to an organization")})
+		).Errors(dbauthz.NotAuthorizedError{Err: errors.New("custom roles must belong to an organization")})
 	}))
 	s.Run("OrgPermissions/InsertCustomRole", s.Subtest(func(db database.Store, check *expects) {
 		orgID := uuid.New()
@@ -1809,7 +1765,6 @@ func (s *MethodTestSuite) TestUser() {
 		}).Asserts(rbac.ResourceUser, policy.ActionRead)
 	}))
 }
-
 func (s *MethodTestSuite) TestWorkspace() {
 	s.Run("GetWorkspaceByID", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
@@ -2192,7 +2147,6 @@ func (s *MethodTestSuite) TestWorkspace() {
 		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
 		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
 		app := dbgen.WorkspaceApp(s.T(), db, database.WorkspaceApp{AgentID: agt.ID})
-
 		check.Args(database.GetWorkspaceAppByAgentIDAndSlugParams{
 			AgentID: agt.ID,
 			Slug:    app.Slug,
@@ -2227,7 +2181,6 @@ func (s *MethodTestSuite) TestWorkspace() {
 		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
 		a := dbgen.WorkspaceApp(s.T(), db, database.WorkspaceApp{AgentID: agt.ID})
 		b := dbgen.WorkspaceApp(s.T(), db, database.WorkspaceApp{AgentID: agt.ID})
-
 		check.Args(agt.ID).Asserts(ws, policy.ActionRead).Returns(slice.New(a, b))
 	}))
 	s.Run("GetWorkspaceBuildByID", s.Subtest(func(db database.Store, check *expects) {
@@ -2659,14 +2612,12 @@ func (s *MethodTestSuite) TestWorkspace() {
 			CreatedBy:       u.ID,
 			ActiveVersionID: v.ID,
 		})
-
 		ctx := testutil.Context(s.T(), testutil.WaitShort)
 		err := db.UpdateTemplateAccessControlByID(ctx, database.UpdateTemplateAccessControlByIDParams{
 			ID:                   t.ID,
 			RequireActiveVersion: true,
 		})
 		require.NoError(s.T(), err)
-
 		w := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
 			TemplateID:     t.ID,
 			OrganizationID: o.ID,
@@ -3075,7 +3026,6 @@ func (s *MethodTestSuite) TestWorkspace() {
 		check.Args(w.ID).Asserts(w, policy.ActionUpdate).Returns()
 	}))
 }
-
 func (s *MethodTestSuite) TestWorkspacePortSharing() {
 	s.Run("UpsertWorkspaceAgentPortShare", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
@@ -3183,7 +3133,6 @@ func (s *MethodTestSuite) TestWorkspacePortSharing() {
 		check.Args(tpl.ID).Asserts(tpl, policy.ActionUpdate).Returns()
 	}))
 }
-
 func (s *MethodTestSuite) TestProvisionerKeys() {
 	s.Run("InsertProvisionerKey", s.Subtest(func(db database.Store, check *expects) {
 		org := dbgen.Organization(s.T(), db, database.Organization{})
@@ -3255,7 +3204,6 @@ func (s *MethodTestSuite) TestProvisionerKeys() {
 		check.Args(pk.ID).Asserts(pk, policy.ActionDelete).Returns()
 	}))
 }
-
 func (s *MethodTestSuite) TestExtraMethods() {
 	s.Run("GetProvisionerDaemons", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
@@ -3374,7 +3322,6 @@ func (s *MethodTestSuite) TestExtraMethods() {
 			Tags:           tags,
 		})
 		dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{ID: wbID, WorkspaceID: w.ID, TemplateVersionID: tv.ID, JobID: j2.ID})
-
 		ds, err := db.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(context.Background(), database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams{
 			OrganizationID: org.ID,
 		})
@@ -3384,7 +3331,6 @@ func (s *MethodTestSuite) TestExtraMethods() {
 		}).Asserts(j1, policy.ActionRead, j2, policy.ActionRead).Returns(ds)
 	}))
 }
-
 func (s *MethodTestSuite) TestTailnetFunctions() {
 	s.Run("CleanTailnetCoordinators", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args().
@@ -3532,7 +3478,6 @@ func (s *MethodTestSuite) TestTailnetFunctions() {
 			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 	}))
 }
-
 func (s *MethodTestSuite) TestDBCrypt() {
 	s.Run("GetDBCryptKeys", s.Subtest(func(db database.Store, check *expects) {
 		check.Args().
@@ -3554,7 +3499,6 @@ func (s *MethodTestSuite) TestDBCrypt() {
 			Returns()
 	}))
 }
-
 func (s *MethodTestSuite) TestCryptoKeys() {
 	s.Run("GetCryptoKeys", s.Subtest(func(db database.Store, check *expects) {
 		check.Args().
@@ -3609,7 +3553,6 @@ func (s *MethodTestSuite) TestCryptoKeys() {
 			Asserts(rbac.ResourceCryptoKey, policy.ActionRead)
 	}))
 }
-
 func (s *MethodTestSuite) TestSystemFunctions() {
 	s.Run("UpdateUserLinkedID", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
@@ -3850,7 +3793,6 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		require.NoError(s.T(), err)
 		presetParameters, err := db.GetPresetParametersByTemplateVersionID(ctx, templateVersion.ID)
 		require.NoError(s.T(), err)
-
 		check.Args(templateVersion.ID).Asserts(template.RBACObject(), policy.ActionRead).Returns(presetParameters)
 	}))
 	s.Run("GetPresetsByTemplateVersionID", s.Subtest(func(db database.Store, check *expects) {
@@ -3866,16 +3808,13 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			OrganizationID: org.ID,
 			CreatedBy:      user.ID,
 		})
-
 		_, err := db.InsertPreset(ctx, database.InsertPresetParams{
 			TemplateVersionID: templateVersion.ID,
 			Name:              "test",
 		})
 		require.NoError(s.T(), err)
-
 		presets, err := db.GetPresetsByTemplateVersionID(ctx, templateVersion.ID)
 		require.NoError(s.T(), err)
-
 		check.Args(templateVersion.ID).Asserts(template.RBACObject(), policy.ActionRead).Returns(presets)
 	}))
 	s.Run("GetWorkspaceAppsByAgentIDs", s.Subtest(func(db database.Store, check *expects) {
@@ -3885,13 +3824,11 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		aRes := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: aBuild.JobID})
 		aAgt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: aRes.ID})
 		a := dbgen.WorkspaceApp(s.T(), db, database.WorkspaceApp{AgentID: aAgt.ID, OpenIn: database.WorkspaceAppOpenInSlimWindow})
-
 		bWs := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		bBuild := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: bWs.ID, JobID: uuid.New()})
 		bRes := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: bBuild.JobID})
 		bAgt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: bRes.ID})
 		b := dbgen.WorkspaceApp(s.T(), db, database.WorkspaceApp{AgentID: bAgt.ID, OpenIn: database.WorkspaceAppOpenInSlimWindow})
-
 		check.Args([]uuid.UUID{a.AgentID, b.AgentID}).
 			Asserts(rbac.ResourceSystem, policy.ActionRead).
 			Returns([]database.WorkspaceApp{a, b})
@@ -3901,7 +3838,6 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		tpl := dbgen.Template(s.T(), db, database.Template{})
 		v := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}, JobID: uuid.New()})
 		tJob := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{ID: v.JobID, Type: database.ProvisionerJobTypeTemplateVersionImport})
-
 		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
 		wJob := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{ID: build.JobID, Type: database.ProvisionerJobTypeWorkspaceBuild})
@@ -4245,7 +4181,6 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		agent := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{
 			ResourceID: res.ID,
 		})
-
 		err := db.UpsertJFrogXrayScanByWorkspaceAndAgentID(context.Background(), database.UpsertJFrogXrayScanByWorkspaceAndAgentIDParams{
 			AgentID:     agent.ID,
 			WorkspaceID: ws.ID,
@@ -4255,7 +4190,6 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			ResultsUrl:  "http://hello",
 		})
 		require.NoError(s.T(), err)
-
 		expect := database.JfrogXrayScan{
 			WorkspaceID: ws.ID,
 			AgentID:     agent.ID,
@@ -4264,7 +4198,6 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			Medium:      14,
 			ResultsUrl:  "http://hello",
 		}
-
 		check.Args(database.GetJFrogXrayScanByWorkspaceAndAgentIDParams{
 			WorkspaceID: ws.ID,
 			AgentID:     agent.ID,
@@ -4433,7 +4366,6 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args(true).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
 }
-
 func (s *MethodTestSuite) TestNotifications() {
 	// System functions
 	s.Run("AcquireNotificationMessages", s.Subtest(func(_ database.Store, check *expects) {
@@ -4468,7 +4400,6 @@ func (s *MethodTestSuite) TestNotifications() {
 			Limit:  10,
 		}).Asserts(rbac.ResourceNotificationMessage, policy.ActionRead)
 	}))
-
 	// Notification templates
 	s.Run("GetNotificationTemplateByID", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
@@ -4490,7 +4421,6 @@ func (s *MethodTestSuite) TestNotifications() {
 		}).Asserts(rbac.ResourceNotificationTemplate, policy.ActionUpdate).
 			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 	}))
-
 	// Notification preferences
 	s.Run("GetUserNotificationPreferences", s.Subtest(func(db database.Store, check *expects) {
 		user := dbgen.User(s.T(), db, database.User{})
@@ -4505,12 +4435,9 @@ func (s *MethodTestSuite) TestNotifications() {
 			Disableds:               []bool{true, false},
 		}).Asserts(rbac.ResourceNotificationPreference.WithOwner(user.ID.String()), policy.ActionUpdate)
 	}))
-
 	s.Run("GetInboxNotificationsByUserID", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
-
 		notifID := uuid.New()
-
 		notif := dbgen.NotificationInbox(s.T(), db, database.InsertInboxNotificationParams{
 			ID:         notifID,
 			UserID:     u.ID,
@@ -4520,20 +4447,15 @@ func (s *MethodTestSuite) TestNotifications() {
 			Icon:       "https://coder.com/favicon.ico",
 			Actions:    json.RawMessage("{}"),
 		})
-
 		check.Args(database.GetInboxNotificationsByUserIDParams{
 			UserID:     u.ID,
 			ReadStatus: database.InboxNotificationReadStatusAll,
 		}).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionRead).Returns([]database.InboxNotification{notif})
 	}))
-
 	s.Run("GetFilteredInboxNotificationsByUserID", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
-
 		notifID := uuid.New()
-
 		targets := []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}
-
 		notif := dbgen.NotificationInbox(s.T(), db, database.InsertInboxNotificationParams{
 			ID:         notifID,
 			UserID:     u.ID,
@@ -4544,7 +4466,6 @@ func (s *MethodTestSuite) TestNotifications() {
 			Icon:       "https://coder.com/favicon.ico",
 			Actions:    json.RawMessage("{}"),
 		})
-
 		check.Args(database.GetFilteredInboxNotificationsByUserIDParams{
 			UserID:     u.ID,
 			Templates:  []uuid.UUID{notifications.TemplateWorkspaceAutoUpdated},
@@ -4552,14 +4473,10 @@ func (s *MethodTestSuite) TestNotifications() {
 			ReadStatus: database.InboxNotificationReadStatusAll,
 		}).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionRead).Returns([]database.InboxNotification{notif})
 	}))
-
 	s.Run("GetInboxNotificationByID", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
-
 		notifID := uuid.New()
-
 		targets := []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}
-
 		notif := dbgen.NotificationInbox(s.T(), db, database.InsertInboxNotificationParams{
 			ID:         notifID,
 			UserID:     u.ID,
@@ -4570,17 +4487,12 @@ func (s *MethodTestSuite) TestNotifications() {
 			Icon:       "https://coder.com/favicon.ico",
 			Actions:    json.RawMessage("{}"),
 		})
-
 		check.Args(notifID).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionRead).Returns(notif)
 	}))
-
 	s.Run("CountUnreadInboxNotificationsByUserID", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
-
 		notifID := uuid.New()
-
 		targets := []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}
-
 		_ = dbgen.NotificationInbox(s.T(), db, database.InsertInboxNotificationParams{
 			ID:         notifID,
 			UserID:     u.ID,
@@ -4591,17 +4503,12 @@ func (s *MethodTestSuite) TestNotifications() {
 			Icon:       "https://coder.com/favicon.ico",
 			Actions:    json.RawMessage("{}"),
 		})
-
 		check.Args(u.ID).Asserts(rbac.ResourceInboxNotification.WithOwner(u.ID.String()), policy.ActionRead).Returns(int64(1))
 	}))
-
 	s.Run("InsertInboxNotification", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
-
 		notifID := uuid.New()
-
 		targets := []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}
-
 		check.Args(database.InsertInboxNotificationParams{
 			ID:         notifID,
 			UserID:     u.ID,
@@ -4613,15 +4520,11 @@ func (s *MethodTestSuite) TestNotifications() {
 			Actions:    json.RawMessage("{}"),
 		}).Asserts(rbac.ResourceInboxNotification.WithOwner(u.ID.String()), policy.ActionCreate)
 	}))
-
 	s.Run("UpdateInboxNotificationReadStatus", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
-
 		notifID := uuid.New()
-
 		targets := []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}
 		readAt := dbtestutil.NowInDefaultTimezone()
-
 		notif := dbgen.NotificationInbox(s.T(), db, database.InsertInboxNotificationParams{
 			ID:         notifID,
 			UserID:     u.ID,
@@ -4632,16 +4535,13 @@ func (s *MethodTestSuite) TestNotifications() {
 			Icon:       "https://coder.com/favicon.ico",
 			Actions:    json.RawMessage("{}"),
 		})
-
 		notif.ReadAt = sql.NullTime{Time: readAt, Valid: true}
-
 		check.Args(database.UpdateInboxNotificationReadStatusParams{
 			ID:     notifID,
 			ReadAt: sql.NullTime{Time: readAt, Valid: true},
 		}).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionUpdate)
 	}))
 }
-
 func (s *MethodTestSuite) TestOAuth2ProviderApps() {
 	s.Run("GetOAuth2ProviderApps", s.Subtest(func(db database.Store, check *expects) {
 		apps := []database.OAuth2ProviderApp{
@@ -4716,7 +4616,6 @@ func (s *MethodTestSuite) TestOAuth2ProviderApps() {
 		check.Args(app.ID).Asserts(rbac.ResourceOauth2App, policy.ActionDelete)
 	}))
 }
-
 func (s *MethodTestSuite) TestOAuth2ProviderAppSecrets() {
 	s.Run("GetOAuth2ProviderAppSecretsByAppID", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
@@ -4779,7 +4678,6 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppSecrets() {
 		check.Args(secret.ID).Asserts(rbac.ResourceOauth2AppSecret, policy.ActionDelete)
 	}))
 }
-
 func (s *MethodTestSuite) TestOAuth2ProviderAppCodes() {
 	s.Run("GetOAuth2ProviderAppCodeByID", s.Subtest(func(db database.Store, check *expects) {
 		user := dbgen.User(s.T(), db, database.User{})
@@ -4833,7 +4731,6 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppCodes() {
 		}).Asserts(rbac.ResourceOauth2AppCodeToken.WithOwner(user.ID.String()), policy.ActionDelete)
 	}))
 }
-
 func (s *MethodTestSuite) TestOAuth2ProviderAppTokens() {
 	s.Run("InsertOAuth2ProviderAppToken", s.Subtest(func(db database.Store, check *expects) {
 		user := dbgen.User(s.T(), db, database.User{})
@@ -4887,11 +4784,9 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppTokens() {
 		}).Asserts(rbac.ResourceOauth2AppCodeToken.WithOwner(user.ID.String()), policy.ActionDelete)
 	}))
 }
-
 func (s *MethodTestSuite) TestResourcesMonitor() {
 	createAgent := func(t *testing.T, db database.Store) (database.WorkspaceAgent, database.WorkspaceTable) {
 		t.Helper()
-
 		u := dbgen.User(t, db, database.User{})
 		o := dbgen.Organization(t, db, database.Organization{})
 		tpl := dbgen.Template(t, db, database.Template{
@@ -4918,73 +4813,56 @@ func (s *MethodTestSuite) TestResourcesMonitor() {
 		})
 		res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: b.JobID})
 		agt := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: res.ID})
-
 		return agt, w
 	}
-
 	s.Run("InsertMemoryResourceMonitor", s.Subtest(func(db database.Store, check *expects) {
 		agt, _ := createAgent(s.T(), db)
-
 		check.Args(database.InsertMemoryResourceMonitorParams{
 			AgentID: agt.ID,
 			State:   database.WorkspaceAgentMonitorStateOK,
 		}).Asserts(rbac.ResourceWorkspaceAgentResourceMonitor, policy.ActionCreate)
 	}))
-
 	s.Run("InsertVolumeResourceMonitor", s.Subtest(func(db database.Store, check *expects) {
 		agt, _ := createAgent(s.T(), db)
-
 		check.Args(database.InsertVolumeResourceMonitorParams{
 			AgentID: agt.ID,
 			State:   database.WorkspaceAgentMonitorStateOK,
 		}).Asserts(rbac.ResourceWorkspaceAgentResourceMonitor, policy.ActionCreate)
 	}))
-
 	s.Run("UpdateMemoryResourceMonitor", s.Subtest(func(db database.Store, check *expects) {
 		agt, _ := createAgent(s.T(), db)
-
 		check.Args(database.UpdateMemoryResourceMonitorParams{
 			AgentID: agt.ID,
 			State:   database.WorkspaceAgentMonitorStateOK,
 		}).Asserts(rbac.ResourceWorkspaceAgentResourceMonitor, policy.ActionUpdate)
 	}))
-
 	s.Run("UpdateVolumeResourceMonitor", s.Subtest(func(db database.Store, check *expects) {
 		agt, _ := createAgent(s.T(), db)
-
 		check.Args(database.UpdateVolumeResourceMonitorParams{
 			AgentID: agt.ID,
 			State:   database.WorkspaceAgentMonitorStateOK,
 		}).Asserts(rbac.ResourceWorkspaceAgentResourceMonitor, policy.ActionUpdate)
 	}))
-
 	s.Run("FetchMemoryResourceMonitorsUpdatedAfter", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(dbtime.Now()).Asserts(rbac.ResourceWorkspaceAgentResourceMonitor, policy.ActionRead)
 	}))
-
 	s.Run("FetchVolumesResourceMonitorsUpdatedAfter", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(dbtime.Now()).Asserts(rbac.ResourceWorkspaceAgentResourceMonitor, policy.ActionRead)
 	}))
-
 	s.Run("FetchMemoryResourceMonitorsByAgentID", s.Subtest(func(db database.Store, check *expects) {
 		agt, w := createAgent(s.T(), db)
-
 		dbgen.WorkspaceAgentMemoryResourceMonitor(s.T(), db, database.WorkspaceAgentMemoryResourceMonitor{
 			AgentID:   agt.ID,
 			Enabled:   true,
 			Threshold: 80,
 			CreatedAt: dbtime.Now(),
 		})
-
 		monitor, err := db.FetchMemoryResourceMonitorsByAgentID(context.Background(), agt.ID)
 		require.NoError(s.T(), err)
-
 		check.Args(agt.ID).Asserts(w, policy.ActionRead).Returns(monitor)
 	}))
-
 	s.Run("FetchVolumesResourceMonitorsByAgentID", s.Subtest(func(db database.Store, check *expects) {
 		agt, w := createAgent(s.T(), db)
-
 		dbgen.WorkspaceAgentVolumeResourceMonitor(s.T(), db, database.WorkspaceAgentVolumeResourceMonitor{
 			AgentID:   agt.ID,
 			Path:      "/var/lib",
@@ -4992,10 +4870,8 @@ func (s *MethodTestSuite) TestResourcesMonitor() {
 			Threshold: 80,
 			CreatedAt: dbtime.Now(),
 		})
-
 		monitors, err := db.FetchVolumesResourceMonitorsByAgentID(context.Background(), agt.ID)
 		require.NoError(s.T(), err)
-
 		check.Args(agt.ID).Asserts(w, policy.ActionRead).Returns(monitors)
 	}))
 }

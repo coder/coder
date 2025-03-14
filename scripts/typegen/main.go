@@ -1,5 +1,4 @@
 package main
-
 import (
 	"bytes"
 	_ "embed"
@@ -15,48 +14,36 @@ import (
 	"slices"
 	"strings"
 	"text/template"
-
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 )
-
 //go:embed rbacobject.gotmpl
 var rbacObjectTemplate string
-
 //go:embed codersdk.gotmpl
 var codersdkTemplate string
-
 //go:embed typescript.tstmpl
 var typescriptTemplate string
-
 //go:embed countries.tstmpl
 var countriesTemplate string
-
 func usage() {
 	_, _ = fmt.Println("Usage: typegen <type> [template]")
 	_, _ = fmt.Println("Types:")
 	_, _ = fmt.Println("  rbac <object|codersdk|typescript> - Generate RBAC related files")
 	_, _ = fmt.Println("  countries              - Generate countries TypeScript")
 }
-
 // main will generate a file based on the type and template specified.
 // This is to provide an "AllResources" function that is always
 // in sync.
 func main() {
 	flag.Parse()
-
 	if len(flag.Args()) < 1 {
 		usage()
 		os.Exit(1)
 	}
-
 	var (
 		out []byte
 		err error
 	)
-
 	// It did not make sense to have 2 different generators that do essentially
 	// the same thing, but different format for the BE and the sdk.
 	// So the argument switches the go template to use.
@@ -74,14 +61,11 @@ func main() {
 		usage()
 		os.Exit(2)
 	}
-
 	if err != nil {
 		log.Fatalf("Generate source: %s", err.Error())
 	}
-
 	_, _ = fmt.Fprint(os.Stdout, string(out))
 }
-
 func generateRBAC(tmpl string) ([]byte, error) {
 	formatSource := format.Source
 	var source string
@@ -97,31 +81,26 @@ func generateRBAC(tmpl string) ([]byte, error) {
 			return src, nil
 		}
 	default:
-		return nil, xerrors.Errorf("%q is not a valid RBAC template target", tmpl)
+		return nil, fmt.Errorf("%q is not a valid RBAC template target", tmpl)
 	}
-
 	out, err := generateRbacObjects(source)
 	if err != nil {
 		return nil, err
 	}
 	return formatSource(out)
 }
-
 func generateCountries() ([]byte, error) {
 	tmpl, err := template.New("countries.tstmpl").Parse(countriesTemplate)
 	if err != nil {
-		return nil, xerrors.Errorf("parse template: %w", err)
+		return nil, fmt.Errorf("parse template: %w", err)
 	}
-
 	var out bytes.Buffer
 	err = tmpl.Execute(&out, codersdk.Countries)
 	if err != nil {
-		return nil, xerrors.Errorf("execute template: %w", err)
+		return nil, fmt.Errorf("execute template: %w", err)
 	}
-
 	return out.Bytes(), nil
 }
-
 func pascalCaseName[T ~string](name T) string {
 	names := strings.Split(string(name), "_")
 	for i := range names {
@@ -129,30 +108,25 @@ func pascalCaseName[T ~string](name T) string {
 	}
 	return strings.Join(names, "")
 }
-
 func capitalize(name string) string {
 	return strings.ToUpper(string(name[0])) + name[1:]
 }
-
 type Definition struct {
 	policy.PermissionDefinition
 	Type string
 }
-
 func (p Definition) FunctionName() string {
 	if p.Name != "" {
 		return p.Name
 	}
 	return p.Type
 }
-
 // fileActions is required because we cannot get the variable name of the enum
 // at runtime. So parse the package to get it. This is purely to ensure enum
 // names are consistent, which is a bit annoying, but not too bad.
 func fileActions(file *ast.File) map[string]string {
 	// actions is a map from the enum value -> enum name
 	actions := make(map[string]string)
-
 	// Find the action consts
 fileDeclLoop:
 	for _, decl := range file.Decls {
@@ -167,16 +141,13 @@ fileDeclLoop:
 				if !ok {
 					continue fileDeclLoop
 				}
-
 				typeIdent, ok := vSpec.Type.(*ast.Ident)
 				if !ok {
 					continue fileDeclLoop
 				}
-
 				if typeIdent.Name != "Action" || len(vSpec.Values) != 1 || len(vSpec.Names) != 1 {
 					continue fileDeclLoop
 				}
-
 				literal, ok := vSpec.Values[0].(*ast.BasicLit)
 				if !ok {
 					continue fileDeclLoop
@@ -189,19 +160,17 @@ fileDeclLoop:
 	}
 	return actions
 }
-
 type ActionDetails struct {
 	Enum  string
 	Value string
 }
-
 // generateRbacObjects will take the policy.go file, and send it as input
 // to the go templates. Some AST of the Action enum is also included.
 func generateRbacObjects(templateSource string) ([]byte, error) {
 	// Parse the policy.go file for the action enums
 	f, err := parser.ParseFile(token.NewFileSet(), "./coderd/rbac/policy/policy.go", nil, parser.ParseComments)
 	if err != nil {
-		return nil, xerrors.Errorf("parsing policy.go: %w", err)
+		return nil, fmt.Errorf("parsing policy.go: %w", err)
 	}
 	actionMap := fileActions(f)
 	actionList := make([]ActionDetails, 0)
@@ -211,12 +180,10 @@ func generateRbacObjects(templateSource string) ([]byte, error) {
 			Value: value,
 		})
 	}
-
 	// Sorting actions for auto gen consistency.
 	slices.SortFunc(actionList, func(a, b ActionDetails) int {
 		return strings.Compare(a.Enum, b.Enum)
 	})
-
 	var errorList []error
 	var x int
 	tpl, err := template.New("object.gotmpl").Funcs(template.FuncMap{
@@ -229,16 +196,15 @@ func generateRbacObjects(templateSource string) ([]byte, error) {
 			x++
 			v, ok := actionMap[string(action)]
 			if !ok {
-				errorList = append(errorList, xerrors.Errorf("action value %q does not have a constant a matching enum constant", action))
+				errorList = append(errorList, fmt.Errorf("action value %q does not have a constant a matching enum constant", action))
 			}
 			return v
 		},
 		"concat": func(strs ...string) string { return strings.Join(strs, "") },
 	}).Parse(templateSource)
 	if err != nil {
-		return nil, xerrors.Errorf("parse template: %w", err)
+		return nil, fmt.Errorf("parse template: %w", err)
 	}
-
 	// Convert to sorted list for autogen consistency.
 	var out bytes.Buffer
 	list := make([]Definition, 0)
@@ -249,19 +215,15 @@ func generateRbacObjects(templateSource string) ([]byte, error) {
 			Type:                 t,
 		})
 	}
-
 	slices.SortFunc(list, func(a, b Definition) int {
 		return strings.Compare(a.Type, b.Type)
 	})
-
 	err = tpl.Execute(&out, list)
 	if err != nil {
-		return nil, xerrors.Errorf("execute template: %w", err)
+		return nil, fmt.Errorf("execute template: %w", err)
 	}
-
 	if len(errorList) > 0 {
 		return nil, errors.Join(errorList...)
 	}
-
 	return out.Bytes(), nil
 }

@@ -1,6 +1,7 @@
 package oauthpki_test
-
 import (
+	"fmt"
+	"errors"
 	"context"
 	"encoding/base64"
 	"io"
@@ -10,22 +11,18 @@ import (
 	"strings"
 	"testing"
 	"time"
-
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/oauthpki"
 	"github.com/coder/coder/v2/testutil"
 )
-
 //nolint:gosec // these are just for testing
 const (
 	testClientKey = `-----BEGIN RSA PRIVATE KEY-----
@@ -55,7 +52,6 @@ HuoyDLsCgYBcbboYMFT1cUSxBeMtPGt3CxxZUYnUQaRUeOcjqYYlFL+DCWhY7pxH
 EnLhwW/KzkDzOmwRmmNOMqD7UhR/ayxR+avRt6v5d5l8fVCuNexgs7kR9L5IQp9l
 YV2wsCoXBCcuPmio/te44U//BlzprEu0w1iHpb3ibmQg4y291R0TvQ==
 -----END RSA PRIVATE KEY-----`
-
 	testClientCert = `
 -----BEGIN CERTIFICATE-----
 MIIEOjCCAiKgAwIBAgIQMO50KnWsRbmrrthPQgyubjANBgkqhkiG9w0BAQsFADAY
@@ -84,20 +80,17 @@ B1B7CpkMU55hPP+7nsofCszNrMDXT8Z5w2a3zLKM
 -----END CERTIFICATE-----
 `
 )
-
 // TestAzureADPKIOIDC ensures we do not break Azure AD compatibility.
 // It runs an oauth2.Exchange method and hijacks the request to only check the
 // request side of the transaction.
 func TestAzureADPKIOIDC(t *testing.T) {
 	t.Parallel()
-
 	oauthCfg := &oauth2.Config{
 		ClientID: "random-client-id",
 		Endpoint: oauth2.Endpoint{
 			TokenURL: "https://login.microsoftonline.com/6a1e9139-13f2-4afb-8f46-036feac8bd79/v2.0/token",
 		},
 	}
-
 	pkiConfig, err := oauthpki.NewOauth2PKIConfig(oauthpki.ConfigParams{
 		ClientID:       oauthCfg.ClientID,
 		TokenURL:       oauthCfg.Endpoint.TokenURL,
@@ -107,7 +100,6 @@ func TestAzureADPKIOIDC(t *testing.T) {
 		Scopes:         []string{"openid", "email", "profile"},
 	})
 	require.NoError(t, err, "failed to create pki config")
-
 	ctx := testutil.Context(t, testutil.WaitMedium)
 	ctx = oidc.ClientContext(ctx, &http.Client{
 		Transport: &fakeRoundTripper{
@@ -127,19 +119,17 @@ func TestAzureADPKIOIDC(t *testing.T) {
 	// We hijack the request and return an error intentionally
 	require.Error(t, err, "error expected")
 }
-
 // TestAzureAKPKIWithCoderd uses a fake IDP and a real Coderd to test PKI auth.
 // nolint:bodyclose
 func TestAzureAKPKIWithCoderd(t *testing.T) {
 	t.Parallel()
-
 	scopes := []string{"openid", "email", "profile", "offline_access"}
 	fake := oidctest.NewFakeIDP(t,
 		oidctest.WithIssuer("https://login.microsoftonline.com/fake_app"),
 		oidctest.WithCustomClientAuth(func(t testing.TB, req *http.Request) (url.Values, error) {
 			values := assertJWTAuth(t, req)
 			if values == nil {
-				return nil, xerrors.New("authorizatin failed in request")
+				return nil, errors.New("authorizatin failed in request")
 			}
 			return values, nil
 		}),
@@ -148,7 +138,6 @@ func TestAzureAKPKIWithCoderd(t *testing.T) {
 	cfg := fake.OIDCConfig(t, scopes, func(cfg *coderd.OIDCConfig) {
 		cfg.AllowSignups = true
 	})
-
 	oauthCfg := cfg.OAuth2Config.(*oauth2.Config)
 	// Create the oauthpki config
 	pki, err := oauthpki.NewOauth2PKIConfig(oauthpki.ConfigParams{
@@ -161,11 +150,9 @@ func TestAzureAKPKIWithCoderd(t *testing.T) {
 	})
 	require.NoError(t, err)
 	cfg.OAuth2Config = pki
-
 	owner, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 		OIDCConfig: cfg,
 	})
-
 	// Create a user and login
 	const email = "alice@coder.com"
 	claims := jwt.MapClaims{
@@ -174,13 +161,11 @@ func TestAzureAKPKIWithCoderd(t *testing.T) {
 	}
 	helper := oidctest.NewLoginHelper(owner, fake)
 	user, _ := helper.Login(t, claims)
-
 	// Try refreshing the token more than once.
 	for i := 0; i < 2; i++ {
 		helper.ForceRefresh(t, api.Database, user, claims)
 	}
 }
-
 // TestSavedAzureADPKIOIDC was created by capturing actual responses from an Azure
 // AD instance and saving them to replay, removing some details.
 // The reason this is done is that this is the only way to assert values
@@ -190,12 +175,10 @@ func TestAzureAKPKIWithCoderd(t *testing.T) {
 // of the request values.
 func TestSavedAzureADPKIOIDC(t *testing.T) {
 	t.Parallel()
-
 	var (
 		stateString = "random-state"
 		oauth2Code  = base64.StdEncoding.EncodeToString([]byte("random-code"))
 	)
-
 	// Real oauth config. We will hijack all http requests so some of these values
 	// are fake.
 	cfg := &oauth2.Config{
@@ -209,10 +192,8 @@ func TestSavedAzureADPKIOIDC(t *testing.T) {
 		RedirectURL: "http://localhost/api/v2/users/oidc/callback",
 		Scopes:      []string{"openid", "profile", "email", "offline_access"},
 	}
-
 	initialExchange := false
 	tokenRefreshed := false
-
 	// Create the oauthpki config
 	pki, err := oauthpki.NewOauth2PKIConfig(oauthpki.ConfigParams{
 		ClientID:       cfg.ClientID,
@@ -223,7 +204,6 @@ func TestSavedAzureADPKIOIDC(t *testing.T) {
 		Config:         cfg,
 	})
 	require.NoError(t, err)
-
 	var fakeCtx context.Context
 	fakeClient := &http.Client{
 		Transport: fakeRoundTripper{
@@ -231,7 +211,6 @@ func TestSavedAzureADPKIOIDC(t *testing.T) {
 				if strings.Contains(req.URL.String(), "authorize") {
 					// This is the user hitting the browser endpoint to begin the OIDC
 					// auth flow.
-
 					// Authorize should redirect the user back to the app after authentication on
 					// the IDP.
 					resp := httptest.NewRecorder()
@@ -240,7 +219,6 @@ func TestSavedAzureADPKIOIDC(t *testing.T) {
 						"state":         {stateString},
 						"session_state": {"a18cf797-1e2b-4bc3-baf9-66b41a4997cf"},
 					}
-
 					// This url doesn't really matter since the fake client will hiject this actual request.
 					http.Redirect(resp, req, "http://localhost:3000/api/v2/users/oidc/callback?"+v.Encode(), http.StatusTemporaryRedirect)
 					return resp.Result(), nil
@@ -257,7 +235,6 @@ func TestSavedAzureADPKIOIDC(t *testing.T) {
 						tokenRefreshed = true
 						assert.Equal(t, "<refresh_token_JWT>", vals.Get("refresh_token"), "refresh token required")
 					}
-
 					resp := httptest.NewRecorder()
 					// Taken from an actual response
 					// Just always return a token no matter what.
@@ -282,13 +259,11 @@ func TestSavedAzureADPKIOIDC(t *testing.T) {
 					require.Equal(t, oauth2Code, code, "code mismatch")
 					state := req.URL.Query().Get("state")
 					require.Equal(t, stateString, state, "state mismatch")
-
 					// Exchange for token should work
 					token, err := pki.Exchange(fakeCtx, code)
 					if !assert.NoError(t, err) {
 						return httptest.NewRecorder().Result(), nil
 					}
-
 					// Also try a refresh
 					cpy := token
 					cpy.Expiry = time.Now().Add(time.Minute * -1)
@@ -298,33 +273,27 @@ func TestSavedAzureADPKIOIDC(t *testing.T) {
 					assert.NoError(t, err, "token refreshed")
 					return httptest.NewRecorder().Result(), nil
 				}
-
-				return nil, xerrors.Errorf("not implemented")
+				return nil, fmt.Errorf("not implemented")
 			},
 		},
 	}
 	fakeCtx = oidc.ClientContext(context.Background(), fakeClient)
 	_ = fakeCtx
-
 	// This simulates a client logging into the browser. The 307 redirect will
 	// make sure this goes through the full flow.
 	// nolint: noctx
 	resp, err := fakeClient.Get(pki.AuthCodeURL("state", oauth2.AccessTypeOffline))
 	require.NoError(t, err)
 	_ = resp.Body.Close()
-
 	require.True(t, initialExchange, "initial token exchange complete")
 	require.True(t, tokenRefreshed, "token was refreshed")
 }
-
 type fakeRoundTripper struct {
 	roundTrip func(req *http.Request) (*http.Response, error)
 }
-
 func (f fakeRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f.roundTrip(req)
 }
-
 // assertJWTAuth will assert the basic JWT auth assertions. It will return the
 // url.Values from the request body for any additional assertions to be made.
 func assertJWTAuth(t testing.TB, r *http.Request) url.Values {
@@ -336,7 +305,6 @@ func assertJWTAuth(t testing.TB, r *http.Request) url.Values {
 	if !assert.NoError(t, err) {
 		return nil
 	}
-
 	assert.Equal(t, "urn:ietf:params:oauth:client-assertion-type:jwt-bearer", vals.Get("client_assertion_type"))
 	jwtToken := vals.Get("client_assertion")
 	// No need to actually verify the jwt is signed right.
@@ -344,11 +312,9 @@ func assertJWTAuth(t testing.TB, r *http.Request) url.Values {
 	if !assert.NoError(t, err, "failed to parse jwt token") {
 		return nil
 	}
-
 	// Azure requirements
 	assert.NotEmpty(t, parsedToken.Header["x5t"], "hashed cert missing")
 	assert.Equal(t, "RS256", parsedToken.Header["alg"], "azure only accepts RS256")
 	assert.Equal(t, "JWT", parsedToken.Header["typ"], "azure only accepts JWT")
-
 	return vals
 }

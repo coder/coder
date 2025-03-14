@@ -1,6 +1,6 @@
 package cli
-
 import (
+	"errors"
 	"context"
 	"fmt"
 	"io"
@@ -13,13 +13,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
 	"cloud.google.com/go/compute/metadata"
-	"golang.org/x/xerrors"
 	"gopkg.in/natefinch/lumberjack.v2"
-
 	"github.com/prometheus/client_golang/prometheus"
-
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"cdr.dev/slog/sloggers/slogjson"
@@ -35,7 +31,6 @@ import (
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/serpent"
 )
-
 func (r *RootCmd) workspaceAgent() *serpent.Command {
 	var (
 		auth                string
@@ -53,7 +48,6 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 		blockFileTransfer   bool
 		agentHeaderCommand  string
 		agentHeader         []string
-
 		experimentalDevcontainersEnabled bool
 	)
 	cmd := &serpent.Command{
@@ -64,11 +58,9 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 		Handler: func(inv *serpent.Invocation) error {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
-
 			var (
 				ignorePorts = map[int]string{}
 				isLinux     = runtime.GOOS == "linux"
-
 				sinks      = []slog.Sink{}
 				logClosers = []func() error{}
 			)
@@ -77,39 +69,33 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 					_ = closer()
 				}
 			}()
-
 			addSinkIfProvided := func(sinkFn func(io.Writer) slog.Sink, loc string) error {
 				switch loc {
 				case "":
 					// Do nothing.
-
 				case "/dev/stderr":
 					sinks = append(sinks, sinkFn(inv.Stderr))
-
 				case "/dev/stdout":
 					sinks = append(sinks, sinkFn(inv.Stdout))
-
 				default:
 					fi, err := os.OpenFile(loc, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o644)
 					if err != nil {
-						return xerrors.Errorf("open log file %q: %w", loc, err)
+						return fmt.Errorf("open log file %q: %w", loc, err)
 					}
 					sinks = append(sinks, sinkFn(fi))
 					logClosers = append(logClosers, fi.Close)
 				}
 				return nil
 			}
-
 			if err := addSinkIfProvided(sloghuman.Sink, slogHumanPath); err != nil {
-				return xerrors.Errorf("add human sink: %w", err)
+				return fmt.Errorf("add human sink: %w", err)
 			}
 			if err := addSinkIfProvided(slogjson.Sink, slogJSONPath); err != nil {
-				return xerrors.Errorf("add json sink: %w", err)
+				return fmt.Errorf("add json sink: %w", err)
 			}
 			if err := addSinkIfProvided(slogstackdriver.Sink, slogStackdriverPath); err != nil {
-				return xerrors.Errorf("add stackdriver sink: %w", err)
+				return fmt.Errorf("add stackdriver sink: %w", err)
 			}
-
 			// Spawn a reaper so that we don't accumulate a ton
 			// of zombie processes.
 			if reaper.IsInitProcess() && !noReap && isLinux {
@@ -120,10 +106,8 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 					MaxBackups: 1,
 				}}
 				defer logWriter.Close()
-
 				sinks = append(sinks, sloghuman.Sink(logWriter))
 				logger := inv.Logger.AppendSinks(sinks...).Leveled(slog.LevelDebug)
-
 				logger.Info(ctx, "spawning reaper process")
 				// Do not start a reaper on the child process. It's important
 				// to do this else we fork bomb ourselves.
@@ -134,13 +118,11 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 				)
 				if err != nil {
 					logger.Error(ctx, "agent process reaper unable to fork", slog.Error(err))
-					return xerrors.Errorf("fork reap: %w", err)
+					return fmt.Errorf("fork reap: %w", err)
 				}
-
 				logger.Info(ctx, "reaper process exiting")
 				return nil
 			}
-
 			// Handle interrupt signals to allow for graceful shutdown,
 			// note that calling stopNotify disables the signal handler
 			// and the next interrupt will terminate the program (you
@@ -151,11 +133,9 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			// the reaper forked.
 			ctx, stopNotify := inv.SignalNotifyContext(ctx, StopSignals...)
 			defer stopNotify()
-
 			// DumpHandler does signal handling, so we call it after the
 			// reaper.
 			go DumpHandler(ctx, "agent")
-
 			logWriter := &clilog.LumberjackWriteCloseFixer{Writer: &lumberjack.Logger{
 				Filename: filepath.Join(logDir, "coder-agent.log"),
 				MaxSize:  5, // MB
@@ -164,17 +144,14 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 				MaxBackups: 10,
 			}}
 			defer logWriter.Close()
-
 			sinks = append(sinks, sloghuman.Sink(logWriter))
 			logger := inv.Logger.AppendSinks(sinks...).Leveled(slog.LevelDebug)
-
 			version := buildinfo.Version()
 			logger.Info(ctx, "agent is starting now",
 				slog.F("url", r.agentURL),
 				slog.F("auth", auth),
 				slog.F("version", version),
 			)
-
 			client := agentsdk.New(r.agentURL)
 			client.SDK.SetLogger(logger)
 			// Set a reasonable timeout so requests can't hang forever!
@@ -186,11 +163,10 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			// --agent-header-command flags
 			headerTransport, err := headerTransport(ctx, r.agentURL, agentHeader, agentHeaderCommand)
 			if err != nil {
-				return xerrors.Errorf("configure header transport: %w", err)
+				return fmt.Errorf("configure header transport: %w", err)
 			}
 			headerTransport.Transport = client.SDK.HTTPClient.Transport
 			client.SDK.HTTPClient.Transport = headerTransport
-
 			// Enable pprof handler
 			// This prevents the pprof import from being accidentally deleted.
 			_ = pprof.Handler
@@ -199,15 +175,12 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			if port, err := extractPort(pprofAddress); err == nil {
 				ignorePorts[port] = "pprof"
 			}
-
 			if port, err := extractPort(prometheusAddress); err == nil {
 				ignorePorts[port] = "prometheus"
 			}
-
 			if port, err := extractPort(debugAddress); err == nil {
 				ignorePorts[port] = "debug"
 			}
-
 			// exchangeToken returns a session token.
 			// This is abstracted to allow for the same looping condition
 			// regardless of instance identity auth type.
@@ -220,13 +193,13 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 					if tokenFile != "" {
 						tokenBytes, err := os.ReadFile(tokenFile)
 						if err != nil {
-							return xerrors.Errorf("read token file %q: %w", tokenFile, err)
+							return fmt.Errorf("read token file %q: %w", tokenFile, err)
 						}
 						token = strings.TrimSpace(string(tokenBytes))
 					}
 				}
 				if token == "" {
-					return xerrors.Errorf("CODER_AGENT_TOKEN or CODER_AGENT_TOKEN_FILE must be set for token auth")
+					return fmt.Errorf("CODER_AGENT_TOKEN or CODER_AGENT_TOKEN_FILE must be set for token auth")
 				}
 				client.SetSessionToken(token)
 			case "google-instance-identity":
@@ -269,16 +242,14 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 					return client.AuthAzureInstanceIdentity(ctx)
 				}
 			}
-
 			executablePath, err := os.Executable()
 			if err != nil {
-				return xerrors.Errorf("getting os executable: %w", err)
+				return fmt.Errorf("getting os executable: %w", err)
 			}
 			err = os.Setenv("PATH", fmt.Sprintf("%s%c%s", os.Getenv("PATH"), filepath.ListSeparator, filepath.Dir(executablePath)))
 			if err != nil {
-				return xerrors.Errorf("add executable to $PATH: %w", err)
+				return fmt.Errorf("add executable to $PATH: %w", err)
 			}
-
 			prometheusRegistry := prometheus.NewRegistry()
 			subsystemsRaw := inv.Environ.Get(agent.EnvAgentSubsystem)
 			subsystems := []codersdk.AgentSubsystem{}
@@ -288,15 +259,13 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 					continue
 				}
 				if !subsystem.Valid() {
-					return xerrors.Errorf("invalid subsystem %q", subsystem)
+					return fmt.Errorf("invalid subsystem %q", subsystem)
 				}
 				subsystems = append(subsystems, subsystem)
 			}
-
 			environmentVariables := map[string]string{
 				"GIT_ASKPASS": executablePath,
 			}
-
 			enabled := os.Getenv(agentexec.EnvProcPrioMgmt)
 			if enabled != "" && runtime.GOOS == "linux" {
 				logger.Info(ctx, "process priority management enabled",
@@ -311,12 +280,10 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 					slog.F("os", runtime.GOOS),
 				)
 			}
-
 			execer, err := agentexec.NewExecer()
 			if err != nil {
-				return xerrors.Errorf("create agent execer: %w", err)
+				return fmt.Errorf("create agent execer: %w", err)
 			}
-
 			var containerLister agentcontainers.Lister
 			if !experimentalDevcontainersEnabled {
 				logger.Info(ctx, "agent devcontainer detection not enabled")
@@ -325,7 +292,6 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 				logger.Info(ctx, "agent devcontainer detection enabled")
 				containerLister = agentcontainers.NewDocker(execer)
 			}
-
 			agnt := agent.New(agent.Options{
 				Client:            client,
 				Logger:            logger,
@@ -347,27 +313,21 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 				IgnorePorts:          ignorePorts,
 				SSHMaxTimeout:        sshMaxTimeout,
 				Subsystems:           subsystems,
-
 				PrometheusRegistry: prometheusRegistry,
 				BlockFileTransfer:  blockFileTransfer,
 				Execer:             execer,
 				ContainerLister:    containerLister,
-
 				ExperimentalDevcontainersEnabled: experimentalDevcontainersEnabled,
 			})
-
 			promHandler := agent.PrometheusMetricsHandler(prometheusRegistry, logger)
 			prometheusSrvClose := ServeHandler(ctx, logger, promHandler, prometheusAddress, "prometheus")
 			defer prometheusSrvClose()
-
 			debugSrvClose := ServeHandler(ctx, logger, agnt.HTTPDebug(), debugAddress, "debug")
 			defer debugSrvClose()
-
 			<-ctx.Done()
 			return agnt.Close()
 		},
 	}
-
 	cmd.Options = serpent.OptionSet{
 		{
 			Flag:        "auth",
@@ -411,7 +371,6 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 		},
 		{
 			Flag: "no-reap",
-
 			Env:         "",
 			Description: "Do not start a process reaper.",
 			Value:       serpent.BoolOf(&noReap),
@@ -484,13 +443,10 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			Value:       serpent.BoolOf(&experimentalDevcontainersEnabled),
 		},
 	}
-
 	return cmd
 }
-
 func ServeHandler(ctx context.Context, logger slog.Logger, handler http.Handler, addr, name string) (closeFunc func()) {
 	logger.Debug(ctx, "http server listening", slog.F("addr", addr), slog.F("name", name))
-
 	// ReadHeaderTimeout is purposefully not enabled. It caused some issues with
 	// websockets over the dev tunnel.
 	// See: https://github.com/coder/coder/pull/3730
@@ -501,16 +457,14 @@ func ServeHandler(ctx context.Context, logger slog.Logger, handler http.Handler,
 	}
 	go func() {
 		err := srv.ListenAndServe()
-		if err != nil && !xerrors.Is(err, http.ErrServerClosed) {
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logger.Error(ctx, "http server listen", slog.F("name", name), slog.Error(err))
 		}
 	}()
-
 	return func() {
 		_ = srv.Close()
 	}
 }
-
 // extractPort handles different url strings.
 // - localhost:6060
 // - http://localhost:6060
@@ -519,20 +473,18 @@ func extractPort(u string) (int, error) {
 	if firstError == nil {
 		return port, nil
 	}
-
 	// Try with a scheme
 	port, err := urlPort("http://" + u)
 	if err == nil {
 		return port, nil
 	}
-	return -1, xerrors.Errorf("invalid url %q: %w", u, firstError)
+	return -1, fmt.Errorf("invalid url %q: %w", u, firstError)
 }
-
 // urlPort extracts the port from a valid URL.
 func urlPort(u string) (int, error) {
 	parsed, err := url.Parse(u)
 	if err != nil {
-		return -1, xerrors.Errorf("invalid url %q: %w", u, err)
+		return -1, fmt.Errorf("invalid url %q: %w", u, err)
 	}
 	if parsed.Port() != "" {
 		port, err := strconv.ParseUint(parsed.Port(), 10, 16)
@@ -540,5 +492,5 @@ func urlPort(u string) (int, error) {
 			return int(port), nil
 		}
 	}
-	return -1, xerrors.Errorf("invalid port: %s", u)
+	return -1, fmt.Errorf("invalid port: %s", u)
 }

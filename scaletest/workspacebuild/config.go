@@ -1,12 +1,10 @@
 package workspacebuild
-
 import (
+	"fmt"
+	"errors"
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/codersdk"
 )
-
 type Config struct {
 	// OrganizationID is the ID of the organization to create the workspace in.
 	OrganizationID uuid.UUID `json:"organization_id"`
@@ -23,23 +21,21 @@ type Config struct {
 	// fails.
 	Retry int `json:"retry"`
 }
-
 func (c Config) Validate() error {
 	if c.OrganizationID == uuid.Nil {
-		return xerrors.New("organization_id must be set")
+		return errors.New("organization_id must be set")
 	}
 	if c.UserID == "" {
-		return xerrors.New("user_id must be set")
+		return errors.New("user_id must be set")
 	}
 	if c.UserID != codersdk.Me {
 		_, err := uuid.Parse(c.UserID)
 		if err != nil {
-			return xerrors.Errorf("user_id must be %q or a valid UUID: %w", codersdk.Me, err)
+			return fmt.Errorf("user_id must be %q or a valid UUID: %w", codersdk.Me, err)
 		}
 	}
 	if c.Request.TemplateID == uuid.Nil {
-		return xerrors.New("request.template_id must be set")
+		return errors.New("request.template_id must be set")
 	}
-
 	return nil
 }

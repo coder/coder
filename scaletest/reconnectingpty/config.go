@@ -1,21 +1,16 @@
 package reconnectingpty
-
 import (
+	"errors"
 	"time"
-
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
-
 const (
 	DefaultWidth   = 80
 	DefaultHeight  = 24
 	DefaultTimeout = httpapi.Duration(5 * time.Minute)
 )
-
 type Config struct {
 	// AgentID is the ID of the agent to run the command in.
 	AgentID uuid.UUID `json:"agent_id"`
@@ -39,14 +34,12 @@ type Config struct {
 	// is false.
 	LogOutput bool `json:"log_output"`
 }
-
 func (c Config) Validate() error {
 	if c.AgentID == uuid.Nil {
-		return xerrors.New("agent_id must be set")
+		return errors.New("agent_id must be set")
 	}
 	if c.Timeout < 0 {
-		return xerrors.New("timeout must be a positive value")
+		return errors.New("timeout must be a positive value")
 	}
-
 	return nil
 }

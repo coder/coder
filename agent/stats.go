@@ -1,32 +1,25 @@
 package agent
-
 import (
+	"fmt"
+	"errors"
 	"context"
 	"maps"
 	"sync"
 	"time"
-
-	"golang.org/x/xerrors"
 	"tailscale.com/types/netlogtype"
-
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/agent/proto"
 )
-
 const maxConns = 2048
-
 type networkStatsSource interface {
 	SetConnStatsCallback(maxPeriod time.Duration, maxConns int, dump func(start, end time.Time, virtual, physical map[netlogtype.Connection]netlogtype.Counts))
 }
-
 type statsCollector interface {
 	Collect(ctx context.Context, networkStats map[netlogtype.Connection]netlogtype.Counts) *proto.Stats
 }
-
 type statsDest interface {
 	UpdateStats(ctx context.Context, req *proto.UpdateStatsRequest) (*proto.UpdateStatsResponse, error)
 }
-
 // statsReporter is a subcomponent of the agent that handles registering the stats callback on the
 // networkStatsSource (tailnet.Conn in prod), handling the callback, calling back to the
 // statsCollector (agent in prod) to collect additional stats, then sending the update to the
@@ -36,12 +29,10 @@ type statsReporter struct {
 	networkStats map[netlogtype.Connection]netlogtype.Counts
 	unreported   bool
 	lastInterval time.Duration
-
 	source    networkStatsSource
 	collector statsCollector
 	logger    slog.Logger
 }
-
 func newStatsReporter(logger slog.Logger, source networkStatsSource, collector statsCollector) *statsReporter {
 	return &statsReporter{
 		Cond:      sync.NewCond(&sync.Mutex{}),
@@ -50,7 +41,6 @@ func newStatsReporter(logger slog.Logger, source networkStatsSource, collector s
 		collector: collector,
 	}
 }
-
 func (s *statsReporter) callback(_, _ time.Time, virtual, _ map[netlogtype.Connection]netlogtype.Counts) {
 	s.L.Lock()
 	defer s.L.Unlock()
@@ -66,7 +56,6 @@ func (s *statsReporter) callback(_, _ time.Time, virtual, _ map[netlogtype.Conne
 	}
 	s.Broadcast()
 }
-
 // reportLoop programs the source (tailnet.Conn) to send it stats via the
 // callback, then reports them to the dest.
 //
@@ -78,11 +67,10 @@ func (s *statsReporter) reportLoop(ctx context.Context, dest statsDest) error {
 	// send an initial, blank report to get the interval
 	resp, err := dest.UpdateStats(ctx, &proto.UpdateStatsRequest{})
 	if err != nil {
-		return xerrors.Errorf("initial update: %w", err)
+		return fmt.Errorf("initial update: %w", err)
 	}
 	s.lastInterval = resp.ReportInterval.AsDuration()
 	s.source.SetConnStatsCallback(s.lastInterval, maxConns, s.callback)
-
 	// use a separate goroutine to monitor the context so that we notice immediately, rather than
 	// waiting for the next callback (which might never come if we are closing!)
 	ctxDone := false
@@ -94,7 +82,6 @@ func (s *statsReporter) reportLoop(ctx context.Context, dest statsDest) error {
 		s.Broadcast()
 	}()
 	defer s.logger.Debug(ctx, "reportLoop exiting")
-
 	s.L.Lock()
 	defer s.L.Unlock()
 	for {
@@ -106,11 +93,10 @@ func (s *statsReporter) reportLoop(ctx context.Context, dest statsDest) error {
 		}
 		s.unreported = false
 		if err = s.reportLocked(ctx, dest, s.networkStats); err != nil {
-			return xerrors.Errorf("report stats: %w", err)
+			return fmt.Errorf("report stats: %w", err)
 		}
 	}
 }
-
 func (s *statsReporter) reportLocked(
 	ctx context.Context, dest statsDest, networkStats map[netlogtype.Connection]netlogtype.Counts,
 ) error {

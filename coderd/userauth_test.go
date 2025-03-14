@@ -1,6 +1,6 @@
 package coderd_test
-
 import (
+	"errors"
 	"context"
 	"crypto"
 	"crypto/rand"
@@ -13,7 +13,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/go-jose/go-jose/v4"
 	"github.com/golang-jwt/jwt/v4"
@@ -24,8 +23,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 	"golang.org/x/oauth2"
-	"golang.org/x/xerrors"
-
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd"
@@ -45,30 +42,25 @@ import (
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/testutil"
 )
-
 // This test specifically tests logging in with OIDC when an expired
 // OIDC session token exists.
 // The token refreshing should not happen since we are reauthenticating.
 // nolint:bodyclose
 func TestOIDCOauthLoginWithExisting(t *testing.T) {
 	t.Parallel()
-
 	fake := oidctest.NewFakeIDP(t,
 		oidctest.WithRefresh(func(_ string) error {
-			return xerrors.New("refreshing token should never occur")
+			return errors.New("refreshing token should never occur")
 		}),
 		oidctest.WithServing(),
 	)
-
 	cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
 		cfg.AllowSignups = true
 		cfg.SecondaryClaims = coderd.MergedClaimsSourceNone
 	})
-
 	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 		OIDCConfig: cfg,
 	})
-
 	const username = "alice"
 	claims := jwt.MapClaims{
 		"email":              "alice@coder.com",
@@ -76,18 +68,14 @@ func TestOIDCOauthLoginWithExisting(t *testing.T) {
 		"preferred_username": username,
 		"sub":                uuid.NewString(),
 	}
-
 	helper := oidctest.NewLoginHelper(client, fake)
 	// Signup alice
 	userClient, _ := helper.Login(t, claims)
-
 	// Expire the link. This will force the client to refresh the token.
 	helper.ExpireOauthToken(t, api.Database, userClient)
-
 	// Instead of refreshing, just log in again.
 	helper.Login(t, claims)
 }
-
 func TestUserLogin(t *testing.T) {
 	t.Parallel()
 	t.Run("OK", func(t *testing.T) {
@@ -116,7 +104,6 @@ func TestUserLogin(t *testing.T) {
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
 	})
-
 	t.Run("LoginTypeNone", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
@@ -125,7 +112,6 @@ func TestUserLogin(t *testing.T) {
 			r.Password = ""
 			r.UserLoginType = codersdk.LoginTypeNone
 		})
-
 		_, err := anotherClient.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
 			Email:    anotherUser.Email,
 			Password: "SomeSecurePassword!",
@@ -133,16 +119,13 @@ func TestUserLogin(t *testing.T) {
 		require.Error(t, err)
 	})
 }
-
 func TestUserAuthMethods(t *testing.T) {
 	t.Parallel()
 	t.Run("Password", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
-
 		methods, err := client.AuthMethods(ctx)
 		require.NoError(t, err)
 		require.True(t, methods.Password.Enabled)
@@ -153,24 +136,19 @@ func TestUserAuthMethods(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{
 			GithubOAuth2Config: &coderd.GithubOAuth2Config{},
 		})
-
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
-
 		methods, err := client.AuthMethods(ctx)
 		require.NoError(t, err)
 		require.True(t, methods.Password.Enabled)
 		require.True(t, methods.Github.Enabled)
 	})
 }
-
 // nolint:bodyclose
 func TestUserOAuth2Github(t *testing.T) {
 	t.Parallel()
-
 	stateActive := "active"
 	statePending := "pending"
-
 	t.Run("NotInAllowedOrganization", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{
@@ -186,7 +164,6 @@ func TestUserOAuth2Github(t *testing.T) {
 				},
 			},
 		})
-
 		resp := oauth2Callback(t, client)
 		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	})
@@ -213,11 +190,10 @@ func TestUserOAuth2Github(t *testing.T) {
 					}, nil
 				},
 				TeamMembership: func(ctx context.Context, client *http.Client, org, team, username string) (*github.Membership, error) {
-					return nil, xerrors.New("no perms")
+					return nil, errors.New("no perms")
 				},
 			},
 		})
-
 		resp := oauth2Callback(t, client)
 		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	})
@@ -246,22 +222,16 @@ func TestUserOAuth2Github(t *testing.T) {
 				},
 			},
 		})
-
 		_ = coderdtest.CreateFirstUser(t, client)
-
 		resp := oauth2Callback(t, client)
-
 		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	})
 	t.Run("BlockSignups", func(t *testing.T) {
 		t.Parallel()
-
 		db, ps := dbtestutil.NewDB(t)
-
 		id := atomic.NewInt64(100)
 		login := atomic.NewString("testuser")
 		email := atomic.NewString("testuser@coder.com")
-
 		client := coderdtest.New(t, &coderdtest.Options{
 			Database: db,
 			Pubsub:   ps,
@@ -295,23 +265,18 @@ func TestUserOAuth2Github(t *testing.T) {
 				},
 			},
 		})
-
 		// The first user in a deployment with signups disabled will be allowed to sign up,
 		// but all the other users will not.
 		resp := oauth2Callback(t, client)
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
-
 		ctx := testutil.Context(t, testutil.WaitLong)
-
 		// nolint:gocritic // Unit test
 		count, err := db.GetUserCount(dbauthz.AsSystemRestricted(ctx))
 		require.NoError(t, err)
 		require.Equal(t, int64(1), count)
-
 		id.Store(101)
 		email.Store("someotheruser@coder.com")
 		login.Store("someotheruser")
-
 		resp = oauth2Callback(t, client)
 		require.Equal(t, http.StatusForbidden, resp.StatusCode)
 	})
@@ -345,14 +310,11 @@ func TestUserOAuth2Github(t *testing.T) {
 				},
 			},
 		})
-
 		// Creates the first user with login_type 'password'.
 		_ = coderdtest.CreateFirstUser(t, client)
-
 		// Attempting to login should give us a 403 since the user
 		// already has a login_type of 'password'.
 		resp := oauth2Callback(t, client)
-
 		require.Equal(t, http.StatusForbidden, resp.StatusCode)
 	})
 	t.Run("Signup", func(t *testing.T) {
@@ -390,7 +352,6 @@ func TestUserOAuth2Github(t *testing.T) {
 			},
 		})
 		numLogs := len(auditor.AuditLogs())
-
 		// Validate that attempting to redirect away from the
 		// site does not work.
 		maliciousHost := "https://malicious.com"
@@ -403,7 +364,6 @@ func TestUserOAuth2Github(t *testing.T) {
 			})
 		})
 		numLogs++ // add an audit log for login
-
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 		redirect, err := resp.Location()
 		require.NoError(t, err)
@@ -418,7 +378,6 @@ func TestUserOAuth2Github(t *testing.T) {
 		require.Equal(t, "Kylium Carbonate", user.Name)
 		require.Equal(t, "/hello-world", user.AvatarURL)
 		require.Equal(t, 1, len(user.OrganizationIDs), "in the default org")
-
 		require.Len(t, auditor.AuditLogs(), numLogs)
 		require.NotEqual(t, auditor.AuditLogs()[numLogs-1].UserID, uuid.Nil)
 		require.Equal(t, database.AuditActionRegister, auditor.AuditLogs()[numLogs-1].Action)
@@ -458,12 +417,9 @@ func TestUserOAuth2Github(t *testing.T) {
 			},
 		})
 		numLogs := len(auditor.AuditLogs())
-
 		resp := oauth2Callback(t, client)
 		numLogs++ // add an audit log for login
-
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
-
 		client.SetSessionToken(authCookieValue(resp.Cookies()))
 		user, err := client.User(context.Background(), "me")
 		require.NoError(t, err)
@@ -472,7 +428,6 @@ func TestUserOAuth2Github(t *testing.T) {
 		require.Equal(t, strings.Repeat("a", 128), user.Name)
 		require.Equal(t, "/hello-world", user.AvatarURL)
 		require.Equal(t, 1, len(user.OrganizationIDs), "in the default org")
-
 		require.Len(t, auditor.AuditLogs(), numLogs)
 		require.NotEqual(t, auditor.AuditLogs()[numLogs-1].UserID, uuid.Nil)
 		require.Equal(t, database.AuditActionRegister, auditor.AuditLogs()[numLogs-1].Action)
@@ -516,10 +471,8 @@ func TestUserOAuth2Github(t *testing.T) {
 			},
 		})
 		numLogs := len(auditor.AuditLogs())
-
 		resp := oauth2Callback(t, client)
 		numLogs++ // add an audit log for login
-
 		client.SetSessionToken(authCookieValue(resp.Cookies()))
 		user, err := client.User(context.Background(), "me")
 		require.NoError(t, err)
@@ -528,7 +481,6 @@ func TestUserOAuth2Github(t *testing.T) {
 		require.Equal(t, "Kylium Carbonate", user.Name)
 		require.Equal(t, "/hello-world", user.AvatarURL)
 		require.Equal(t, 1, len(user.OrganizationIDs), "in the default org")
-
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 		require.Len(t, auditor.AuditLogs(), numLogs)
 		require.Equal(t, database.AuditActionRegister, auditor.AuditLogs()[numLogs-1].Action)
@@ -580,10 +532,8 @@ func TestUserOAuth2Github(t *testing.T) {
 			},
 		})
 		numLogs := len(auditor.AuditLogs())
-
 		resp := oauth2Callback(t, client)
 		numLogs++ // add an audit log for login
-
 		client.SetSessionToken(authCookieValue(resp.Cookies()))
 		user, err := client.User(context.Background(), "me")
 		require.NoError(t, err)
@@ -591,7 +541,6 @@ func TestUserOAuth2Github(t *testing.T) {
 		require.Equal(t, "mathias", user.Username)
 		require.Equal(t, "Mathias Mathias", user.Name)
 		require.Equal(t, 1, len(user.OrganizationIDs), "in the default org")
-
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 		require.Len(t, auditor.AuditLogs(), numLogs)
 		require.Equal(t, database.AuditActionRegister, auditor.AuditLogs()[numLogs-1].Action)
@@ -643,10 +592,8 @@ func TestUserOAuth2Github(t *testing.T) {
 			},
 		})
 		numLogs := len(auditor.AuditLogs())
-
 		resp := oauth2Callback(t, client)
 		numLogs++ // add an audit log for login
-
 		client.SetSessionToken(authCookieValue(resp.Cookies()))
 		user, err := client.User(context.Background(), "me")
 		require.NoError(t, err)
@@ -654,7 +601,6 @@ func TestUserOAuth2Github(t *testing.T) {
 		require.Equal(t, "mathias", user.Username)
 		require.Equal(t, "Mathias Mathias", user.Name)
 		require.Equal(t, 1, len(user.OrganizationIDs), "in the default org")
-
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 		require.Len(t, auditor.AuditLogs(), numLogs)
 		require.Equal(t, database.AuditActionRegister, auditor.AuditLogs()[numLogs-1].Action)
@@ -672,7 +618,7 @@ func TestUserOAuth2Github(t *testing.T) {
 					return []*github.Membership{}, nil
 				},
 				TeamMembership: func(ctx context.Context, client *http.Client, org, team, username string) (*github.Membership, error) {
-					return nil, xerrors.New("no teams")
+					return nil, errors.New("no teams")
 				},
 				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
 					return &github.User{
@@ -691,17 +637,14 @@ func TestUserOAuth2Github(t *testing.T) {
 			},
 		})
 		numLogs := len(auditor.AuditLogs())
-
 		resp := oauth2Callback(t, client)
 		numLogs++ // add an audit log for login
-
 		client.SetSessionToken(authCookieValue(resp.Cookies()))
 		user, err := client.User(context.Background(), "me")
 		require.NoError(t, err)
 		require.Equal(t, "mathias@coder.com", user.Email)
 		require.Equal(t, "mathias", user.Username)
 		require.Equal(t, "Mathias Mathias", user.Name)
-
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 		require.Len(t, auditor.AuditLogs(), numLogs)
 		require.Equal(t, database.AuditActionRegister, auditor.AuditLogs()[numLogs-1].Action)
@@ -719,7 +662,7 @@ func TestUserOAuth2Github(t *testing.T) {
 					return []*github.Membership{}, nil
 				},
 				TeamMembership: func(_ context.Context, _ *http.Client, _, _, _ string) (*github.Membership, error) {
-					return nil, xerrors.New("no teams")
+					return nil, errors.New("no teams")
 				},
 				AuthenticatedUser: func(_ context.Context, _ *http.Client) (*github.User, error) {
 					return &github.User{
@@ -737,14 +680,11 @@ func TestUserOAuth2Github(t *testing.T) {
 			},
 		})
 		numLogs := len(auditor.AuditLogs())
-
 		resp := oauth2Callback(t, client)
 		numLogs++ // add an audit log for login
-
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 		require.Len(t, auditor.AuditLogs(), numLogs)
 		require.Equal(t, database.AuditActionRegister, auditor.AuditLogs()[numLogs-1].Action)
-
 		client.SetSessionToken(authCookieValue(resp.Cookies()))
 		user, err := client.User(context.Background(), "me")
 		require.NoError(t, err)
@@ -785,19 +725,15 @@ func TestUserOAuth2Github(t *testing.T) {
 				},
 			},
 		})
-
 		resp := oauth2Callback(t, client)
-
 		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	})
-
 	// The bug only is exercised when a deleted user with the same linked_id exists.
 	// Still related open issues:
 	// - https://github.com/coder/coder/issues/12116
 	// - https://github.com/coder/coder/issues/12115
 	t.Run("ChangedEmail", func(t *testing.T) {
 		t.Parallel()
-
 		fake := oidctest.NewFakeIDP(t,
 			oidctest.WithServing(),
 			oidctest.WithCallbackPath("/api/v2/users/oauth2/github/callback"),
@@ -818,7 +754,6 @@ func TestUserOAuth2Github(t *testing.T) {
 			gmailEmail,
 			coderEmail,
 		}
-
 		owner, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
 			Auditor: auditor,
 			GithubOAuth2Config: &coderd.GithubOAuth2Config{
@@ -829,7 +764,7 @@ func TestUserOAuth2Github(t *testing.T) {
 					return []*github.Membership{}, nil
 				},
 				TeamMembership: func(ctx context.Context, client *http.Client, org, team, username string) (*github.Membership, error) {
-					return nil, xerrors.New("no teams")
+					return nil, errors.New("no teams")
 				},
 				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
 					return &github.User{
@@ -844,26 +779,21 @@ func TestUserOAuth2Github(t *testing.T) {
 			},
 		})
 		first := coderdtest.CreateFirstUser(t, owner)
-
 		ctx := testutil.Context(t, testutil.WaitLong)
 		ownerUser, err := owner.User(context.Background(), "me")
 		require.NoError(t, err)
-
 		// Create the user, then delete the user, then create again.
 		// This causes the email change to fail.
 		client := codersdk.New(owner.URL)
-
 		client, _ = fake.Login(t, client, jwt.MapClaims{})
 		deleted, err := client.User(ctx, "me")
 		require.NoError(t, err)
-
 		err = owner.DeleteUser(ctx, deleted.ID)
 		require.NoError(t, err)
 		// Check no user links for the user
 		links, err := db.GetUserLinksByUserID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(ownerUser, first.OrganizationID)), deleted.ID)
 		require.NoError(t, err)
 		require.Empty(t, links)
-
 		// Make sure a user_link cannot be created with a deleted user.
 		// nolint:gocritic // Unit test
 		_, err = db.InsertUserLink(dbauthz.AsSystemRestricted(ctx), database.InsertUserLinkParams{
@@ -876,25 +806,20 @@ func TestUserOAuth2Github(t *testing.T) {
 			Claims:            database.UserLinkClaims{},
 		})
 		require.ErrorContains(t, err, "Cannot create user_link for deleted user")
-
 		// Create the user again.
 		client, _ = fake.Login(t, client, jwt.MapClaims{})
 		user, err := client.User(ctx, "me")
 		require.NoError(t, err)
 		userID := user.ID
 		require.Equal(t, user.Email, *coderEmail.Email)
-
 		// Now the user is registered, let's change their primary email.
 		coderEmail.Primary = github.Bool(false)
 		gmailEmail.Primary = github.Bool(true)
-
 		client, _ = fake.Login(t, client, jwt.MapClaims{})
 		user, err = client.User(ctx, "me")
 		require.NoError(t, err)
-
 		require.Equal(t, user.ID, userID, "user_id is different, a new user was likely created")
 		require.Equal(t, user.Email, *gmailEmail.Email)
-
 		// Entirely change emails.
 		newEmail := "alice@newdomain.com"
 		emails = []*github.UserEmail{
@@ -907,7 +832,6 @@ func TestUserOAuth2Github(t *testing.T) {
 		client, _ = fake.Login(t, client, jwt.MapClaims{})
 		user, err = client.User(ctx, "me")
 		require.NoError(t, err)
-
 		require.Equal(t, user.ID, userID, "user_id is different, a new user was likely created")
 		require.Equal(t, user.Email, newEmail)
 	})
@@ -959,29 +883,23 @@ func TestUserOAuth2Github(t *testing.T) {
 		client.HTTPClient.CheckRedirect = func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
 		}
-
 		// Ensure that we redirect to the device login page when the user is not logged in.
 		oauthURL, err := client.URL.Parse("/api/v2/users/oauth2/github/callback")
 		require.NoError(t, err)
-
 		req, err := http.NewRequestWithContext(context.Background(), "GET", oauthURL.String(), nil)
-
 		require.NoError(t, err)
 		res, err := client.HTTPClient.Do(req)
 		require.NoError(t, err)
 		defer res.Body.Close()
-
 		require.Equal(t, http.StatusTemporaryRedirect, res.StatusCode)
 		location, err := res.Location()
 		require.NoError(t, err)
 		require.Equal(t, "/login/device", location.Path)
 		query := location.Query()
 		require.NotEmpty(t, query.Get("state"))
-
 		// Ensure that we return a JSON response when the code is successfully exchanged.
 		oauthURL, err = client.URL.Parse("/api/v2/users/oauth2/github/callback?code=hey&state=somestate")
 		require.NoError(t, err)
-
 		req, err = http.NewRequestWithContext(context.Background(), "GET", oauthURL.String(), nil)
 		req.AddCookie(&http.Cookie{
 			Name:  "oauth_state",
@@ -991,18 +909,15 @@ func TestUserOAuth2Github(t *testing.T) {
 		res, err = client.HTTPClient.Do(req)
 		require.NoError(t, err)
 		defer res.Body.Close()
-
 		require.Equal(t, http.StatusOK, res.StatusCode)
 		var resp codersdk.OAuth2DeviceFlowCallbackResponse
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&resp))
 		require.Equal(t, "/", resp.RedirectURL)
 	})
 }
-
 // nolint:bodyclose
 func TestUserOIDC(t *testing.T) {
 	t.Parallel()
-
 	for _, tc := range []struct {
 		Name                string
 		IDTokenClaims       jwt.MapClaims
@@ -1446,18 +1361,16 @@ func TestUserOIDC(t *testing.T) {
 			t.Parallel()
 			opts := []oidctest.FakeIDPOpt{
 				oidctest.WithRefresh(func(_ string) error {
-					return xerrors.New("refreshing token should never occur")
+					return errors.New("refreshing token should never occur")
 				}),
 				oidctest.WithServing(),
 				oidctest.WithStaticUserInfo(tc.UserInfoClaims),
 			}
-
 			if tc.AccessTokenClaims != nil && len(tc.AccessTokenClaims) > 0 {
 				opts = append(opts, oidctest.WithAccessTokenJWTHook(func(email string, exp time.Time) jwt.MapClaims {
 					return tc.AccessTokenClaims
 				}))
 			}
-
 			fake := oidctest.NewFakeIDP(t, opts...)
 			cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
 				cfg.AllowSignups = tc.AllowSignups
@@ -1472,7 +1385,6 @@ func TestUserOIDC(t *testing.T) {
 				}
 				cfg.NameField = "name"
 			})
-
 			auditor := audit.NewMock()
 			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 			owner := coderdtest.New(t, &coderdtest.Options{
@@ -1481,7 +1393,6 @@ func TestUserOIDC(t *testing.T) {
 				Logger:     &logger,
 			})
 			numLogs := len(auditor.AuditLogs())
-
 			ctx := testutil.Context(t, testutil.WaitShort)
 			if tc.PrecreateFirstUser {
 				owner.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{
@@ -1490,18 +1401,15 @@ func TestUserOIDC(t *testing.T) {
 					Password: "SomeSecurePassword!",
 				})
 			}
-
 			client, resp := fake.AttemptLogin(t, owner, tc.IDTokenClaims)
 			numLogs++ // add an audit log for login
 			require.Equal(t, tc.StatusCode, resp.StatusCode)
 			if tc.AssertResponse != nil {
 				tc.AssertResponse(t, resp)
 			}
-
 			if tc.AssertUser != nil {
 				user, err := client.User(ctx, "me")
 				require.NoError(t, err)
-
 				tc.AssertUser(t, user)
 				require.Len(t, auditor.AuditLogs(), numLogs)
 				require.NotEqual(t, uuid.Nil, auditor.AuditLogs()[numLogs-1].UserID)
@@ -1510,74 +1418,62 @@ func TestUserOIDC(t *testing.T) {
 			}
 		})
 	}
-
 	t.Run("OIDCDormancy", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
-
 		auditor := audit.NewMock()
 		fake := oidctest.NewFakeIDP(t,
 			oidctest.WithRefresh(func(_ string) error {
-				return xerrors.New("refreshing token should never occur")
+				return errors.New("refreshing token should never occur")
 			}),
 			oidctest.WithServing(),
 		)
 		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
 			cfg.AllowSignups = true
 		})
-
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 		owner, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
 			Auditor:    auditor,
 			OIDCConfig: cfg,
 			Logger:     &logger,
 		})
-
 		user := dbgen.User(t, db, database.User{
 			LoginType: database.LoginTypeOIDC,
 			Status:    database.UserStatusDormant,
 		})
 		auditor.ResetLogs()
-
 		client, resp := fake.AttemptLogin(t, owner, jwt.MapClaims{
 			"email": user.Email,
 			"sub":   uuid.NewString(),
 		})
 		require.Equal(t, http.StatusOK, resp.StatusCode)
-
 		auditor.Contains(t, database.AuditLog{
 			ResourceType:     database.ResourceTypeUser,
 			AdditionalFields: json.RawMessage(`{"automatic_actor":"coder","automatic_subsystem":"dormancy"}`),
 		})
 		me, err := client.User(ctx, "me")
 		require.NoError(t, err)
-
 		require.Equal(t, codersdk.UserStatusActive, me.Status)
 	})
-
 	t.Run("OIDCConvert", func(t *testing.T) {
 		t.Parallel()
-
 		auditor := audit.NewMock()
 		fake := oidctest.NewFakeIDP(t,
 			oidctest.WithRefresh(func(_ string) error {
-				return xerrors.New("refreshing token should never occur")
+				return errors.New("refreshing token should never occur")
 			}),
 			oidctest.WithServing(),
 		)
 		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
 			cfg.AllowSignups = true
 		})
-
 		client := coderdtest.New(t, &coderdtest.Options{
 			Auditor:    auditor,
 			OIDCConfig: cfg,
 		})
-
 		owner := coderdtest.CreateFirstUser(t, client)
 		user, userData := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 		require.Equal(t, codersdk.LoginTypePassword, userData.LoginType)
-
 		claims := jwt.MapClaims{
 			"email": userData.Email,
 			"sub":   uuid.NewString(),
@@ -1586,15 +1482,12 @@ func TestUserOIDC(t *testing.T) {
 		user.HTTPClient.Jar, err = cookiejar.New(nil)
 		require.NoError(t, err)
 		user.HTTPClient.Transport = http.DefaultTransport.(*http.Transport).Clone()
-
 		ctx := testutil.Context(t, testutil.WaitShort)
-
 		convertResponse, err := user.ConvertLoginType(ctx, codersdk.ConvertLoginRequest{
 			ToType:   codersdk.LoginTypeOIDC,
 			Password: "SomeSecurePassword!",
 		})
 		require.NoError(t, err)
-
 		_, _ = fake.LoginWithClient(t, user, claims, func(r *http.Request) {
 			r.URL.RawQuery = url.Values{
 				"oidc_merge_state": {convertResponse.StateString},
@@ -1605,39 +1498,32 @@ func TestUserOIDC(t *testing.T) {
 				r.AddCookie(cookie)
 			}
 		})
-
 		info, err := client.User(ctx, userData.ID.String())
 		require.NoError(t, err)
 		require.Equal(t, codersdk.LoginTypeOIDC, info.LoginType)
 	})
-
 	t.Run("BadJWT", func(t *testing.T) {
 		t.Parallel()
-
 		var (
 			ctx    = testutil.Context(t, testutil.WaitMedium)
 			logger = testutil.Logger(t)
 		)
-
 		auditor := audit.NewMock()
 		fake := oidctest.NewFakeIDP(t,
 			oidctest.WithRefresh(func(_ string) error {
-				return xerrors.New("refreshing token should never occur")
+				return errors.New("refreshing token should never occur")
 			}),
 			oidctest.WithServing(),
 		)
 		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
 			cfg.AllowSignups = true
 		})
-
 		db, ps := dbtestutil.NewDB(t)
 		fetcher := &cryptokeys.DBFetcher{
 			DB: db,
 		}
-
 		kc, err := cryptokeys.NewSigningCache(ctx, logger, fetcher, codersdk.CryptoKeyFeatureOIDCConvert)
 		require.NoError(t, err)
-
 		client := coderdtest.New(t, &coderdtest.Options{
 			Auditor:             auditor,
 			OIDCConfig:          cfg,
@@ -1645,10 +1531,8 @@ func TestUserOIDC(t *testing.T) {
 			Pubsub:              ps,
 			OIDCConvertKeyCache: kc,
 		})
-
 		owner := coderdtest.CreateFirstUser(t, client)
 		user, userData := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-
 		claims := jwt.MapClaims{
 			"email": userData.Email,
 			"sub":   uuid.NewString(),
@@ -1656,13 +1540,11 @@ func TestUserOIDC(t *testing.T) {
 		user.HTTPClient.Jar, err = cookiejar.New(nil)
 		require.NoError(t, err)
 		user.HTTPClient.Transport = http.DefaultTransport.(*http.Transport).Clone()
-
 		convertResponse, err := user.ConvertLoginType(ctx, codersdk.ConvertLoginRequest{
 			ToType:   codersdk.LoginTypeOIDC,
 			Password: "SomeSecurePassword!",
 		})
 		require.NoError(t, err)
-
 		// Update the cookie to use a bad signing key. We're asserting the behavior of the scenario
 		// where a JWT gets minted on an old version of Coder but gets verified on a new version.
 		_, resp := fake.AttemptLogin(t, user, claims, func(r *http.Request) {
@@ -1670,13 +1552,11 @@ func TestUserOIDC(t *testing.T) {
 				"oidc_merge_state": {convertResponse.StateString},
 			}.Encode()
 			r.Header.Set(codersdk.SessionTokenHeader, user.SessionToken())
-
 			cookies := user.HTTPClient.Jar.Cookies(user.URL)
 			for i, cookie := range cookies {
 				if cookie.Name != coderd.OAuthConvertCookieValue {
 					continue
 				}
-
 				jwt := cookie.Value
 				var claims coderd.OAuthConvertStateClaims
 				err := jwtutils.Verify(ctx, kc, jwt, &claims)
@@ -1685,9 +1565,7 @@ func TestUserOIDC(t *testing.T) {
 				cookie.Value = badJWT
 				cookies[i] = cookie
 			}
-
 			user.HTTPClient.Jar.SetCookies(user.URL, cookies)
-
 			for _, cookie := range cookies {
 				fmt.Printf("cookie: %+v\n", cookie)
 				r.AddCookie(cookie)
@@ -1700,39 +1578,33 @@ func TestUserOIDC(t *testing.T) {
 		require.NoError(t, err)
 		require.Contains(t, respErr.Message, "Using an invalid jwt to authorize this action.")
 	})
-
 	t.Run("AlternateUsername", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
 		fake := oidctest.NewFakeIDP(t,
 			oidctest.WithRefresh(func(_ string) error {
-				return xerrors.New("refreshing token should never occur")
+				return errors.New("refreshing token should never occur")
 			}),
 			oidctest.WithServing(),
 		)
 		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
 			cfg.AllowSignups = true
 		})
-
 		client := coderdtest.New(t, &coderdtest.Options{
 			Auditor:    auditor,
 			OIDCConfig: cfg,
 		})
-
 		numLogs := len(auditor.AuditLogs())
 		claims := jwt.MapClaims{
 			"email": "jon@coder.com",
 			"sub":   uuid.NewString(),
 		}
-
 		userClient, _ := fake.Login(t, client, claims)
 		numLogs++ // add an audit log for login
-
 		ctx := testutil.Context(t, testutil.WaitLong)
 		user, err := userClient.User(ctx, "me")
 		require.NoError(t, err)
 		require.Equal(t, "jon", user.Username)
-
 		// Pass a different subject field so that we prompt creating a
 		// new user
 		userClient, _ = fake.Login(t, client, jwt.MapClaims{
@@ -1740,60 +1612,50 @@ func TestUserOIDC(t *testing.T) {
 			"sub":   "diff",
 		})
 		numLogs++ // add an audit log for login
-
 		user, err = userClient.User(ctx, "me")
 		require.NoError(t, err)
 		require.True(t, strings.HasPrefix(user.Username, "jon-"), "username %q should have prefix %q", user.Username, "jon-")
-
 		require.Len(t, auditor.AuditLogs(), numLogs)
 		require.Equal(t, database.AuditActionRegister, auditor.AuditLogs()[numLogs-1].Action)
 	})
-
 	t.Run("Disabled", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		oauthURL, err := client.URL.Parse("/api/v2/users/oidc/callback")
 		require.NoError(t, err)
-
 		req, err := http.NewRequestWithContext(context.Background(), "GET", oauthURL.String(), nil)
 		require.NoError(t, err)
 		resp, err := client.HTTPClient.Do(req)
 		require.NoError(t, err)
 		resp.Body.Close()
-
 		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	})
-
 	t.Run("NoIDToken", func(t *testing.T) {
 		t.Parallel()
 		fake := oidctest.NewFakeIDP(t,
 			oidctest.WithRefresh(func(_ string) error {
-				return xerrors.New("refreshing token should never occur")
+				return errors.New("refreshing token should never occur")
 			}),
 			oidctest.WithServing(),
 		)
 		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
 			cfg.AllowSignups = true
 		})
-
 		client := coderdtest.New(t, &coderdtest.Options{
 			OIDCConfig: cfg,
 		})
-
 		_, resp := fake.AttemptLogin(t, client, jwt.MapClaims{})
 		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	})
-
 	t.Run("BadVerify", func(t *testing.T) {
 		t.Parallel()
 		badVerifier := oidc.NewVerifier("", &oidc.StaticKeySet{
 			PublicKeys: []crypto.PublicKey{},
 		}, &oidc.Config{})
 		badProvider := &oidc.Provider{}
-
 		fake := oidctest.NewFakeIDP(t,
 			oidctest.WithRefresh(func(_ string) error {
-				return xerrors.New("refreshing token should never occur")
+				return errors.New("refreshing token should never occur")
 			}),
 			oidctest.WithServing(),
 		)
@@ -1802,26 +1664,21 @@ func TestUserOIDC(t *testing.T) {
 			cfg.Provider = badProvider
 			cfg.Verifier = badVerifier
 		})
-
 		client := coderdtest.New(t, &coderdtest.Options{
 			OIDCConfig: cfg,
 		})
-
 		_, resp := fake.AttemptLogin(t, client, jwt.MapClaims{})
 		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	})
-
 	t.Run("StripRedirectHost", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
-
 		expectedRedirect := "/foo/bar?hello=world&bar=baz"
 		redirectURL := "https://malicious" + expectedRedirect
-
 		callbackPath := fmt.Sprintf("/api/v2/users/oidc/callback?redirect=%s", url.QueryEscape(redirectURL))
 		fake := oidctest.NewFakeIDP(t,
 			oidctest.WithRefresh(func(_ string) error {
-				return xerrors.New("refreshing token should never occur")
+				return errors.New("refreshing token should never occur")
 			}),
 			oidctest.WithServing(),
 			oidctest.WithCallbackPath(callbackPath),
@@ -1829,58 +1686,45 @@ func TestUserOIDC(t *testing.T) {
 		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
 			cfg.AllowSignups = true
 		})
-
 		client := coderdtest.New(t, &coderdtest.Options{
 			OIDCConfig: cfg,
 		})
-
 		client.HTTPClient.Transport = http.DefaultTransport
-
 		client.HTTPClient.CheckRedirect = func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
 		}
-
 		claims := jwt.MapClaims{
 			"email":          "user@example.com",
 			"email_verified": true,
 			"sub":            uuid.NewString(),
 		}
-
 		// Perform the login
 		loginClient, resp := fake.LoginWithClient(t, client, claims)
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
-
 		// Get the location from the response
 		location, err := resp.Location()
 		require.NoError(t, err)
-
 		// Check that the redirect URL has been stripped of its malicious host
 		require.Equal(t, expectedRedirect, location.RequestURI())
 		require.Equal(t, client.URL.Host, location.Host)
 		require.NotContains(t, location.String(), "malicious")
-
 		// Verify the user was created
 		user, err := loginClient.User(ctx, "me")
 		require.NoError(t, err)
 		require.Equal(t, "user@example.com", user.Email)
 	})
 }
-
 func TestUserLogout(t *testing.T) {
 	t.Parallel()
-
 	// Create a custom database so it's easier to make scoped tokens for
 	// testing.
 	db, pubSub := dbtestutil.NewDB(t)
-
 	client := coderdtest.New(t, &coderdtest.Options{
 		Database: db,
 		Pubsub:   pubSub,
 	})
 	firstUser := coderdtest.CreateFirstUser(t, client)
-
 	ctx := testutil.Context(t, testutil.WaitLong)
-
 	// Create a user with built-in auth.
 	const (
 		email    = "dean.was.here@test.coder.com"
@@ -1895,7 +1739,6 @@ func TestUserLogout(t *testing.T) {
 		OrganizationIDs: []uuid.UUID{firstUser.OrganizationID},
 	})
 	require.NoError(t, err)
-
 	// Log in with basic auth and keep the the session token (but don't use it).
 	userClient := codersdk.New(client.URL)
 	loginRes1, err := userClient.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
@@ -1903,7 +1746,6 @@ func TestUserLogout(t *testing.T) {
 		Password: password,
 	})
 	require.NoError(t, err)
-
 	// Log in again but actually set the token this time.
 	loginRes2, err := userClient.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
 		Email:    email,
@@ -1911,20 +1753,17 @@ func TestUserLogout(t *testing.T) {
 	})
 	require.NoError(t, err)
 	userClient.SetSessionToken(loginRes2.SessionToken)
-
 	// Add the user's second session token to the list of API keys that should
 	// be deleted.
 	shouldBeDeleted := map[string]string{
 		"user login 2 (logging out with this)": loginRes2.SessionToken,
 	}
-
 	// Add the user's first token, and the admin's session token to the list of
 	// API keys that should not be deleted.
 	shouldNotBeDeleted := map[string]string{
 		"user login 1 (not logging out of)": loginRes1.SessionToken,
 		"admin login":                       client.SessionToken(),
 	}
-
 	// Create a few application_connect-scoped API keys that should be deleted.
 	for i := 0; i < 3; i++ {
 		key, _ := dbgen.APIKey(t, db, database.APIKey{
@@ -1933,7 +1772,6 @@ func TestUserLogout(t *testing.T) {
 		})
 		shouldBeDeleted[fmt.Sprintf("application_connect key owned by logout user %d", i)] = key.ID
 	}
-
 	// Create a few application_connect-scoped API keys for the admin user that
 	// should not be deleted.
 	for i := 0; i < 3; i++ {
@@ -1943,25 +1781,21 @@ func TestUserLogout(t *testing.T) {
 		})
 		shouldNotBeDeleted[fmt.Sprintf("application_connect key owned by admin user %d", i)] = key.ID
 	}
-
 	// Log out of the new user.
 	err = userClient.Logout(ctx)
 	require.NoError(t, err)
-
 	// Ensure the new user's session token is no longer valid.
 	_, err = userClient.User(ctx, codersdk.Me)
 	require.Error(t, err)
 	var sdkErr *codersdk.Error
 	require.ErrorAs(t, err, &sdkErr)
 	require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode())
-
 	// Check that the deleted keys are gone.
 	for name, id := range shouldBeDeleted {
 		id := strings.Split(id, "-")[0]
 		_, err := db.GetAPIKeyByID(ctx, id)
 		require.Error(t, err, name)
 	}
-
 	// Check that the other keys are still there.
 	for name, id := range shouldNotBeDeleted {
 		id := strings.Split(id, "-")[0]
@@ -1969,7 +1803,6 @@ func TestUserLogout(t *testing.T) {
 		require.NoError(t, err, name)
 	}
 }
-
 // TestOIDCSkipIssuer verifies coderd can run without checking the issuer url
 // in the OIDC exchange. This means the CODER_OIDC_ISSUER_URL does not need
 // to match the id_token `iss` field, or the value returned in the well-known
@@ -1986,7 +1819,6 @@ func TestOIDCSkipIssuer(t *testing.T) {
 	const primaryURLString = "https://primary.com"
 	const secondaryURLString = "https://secondary.com"
 	primaryURL := must(url.Parse(primaryURLString))
-
 	fake := oidctest.NewFakeIDP(t,
 		oidctest.WithServing(),
 		oidctest.WithDefaultIDClaims(jwt.MapClaims{}),
@@ -1996,13 +1828,11 @@ func TestOIDCSkipIssuer(t *testing.T) {
 			return nil
 		}),
 	)
-
 	owner := coderdtest.New(t, &coderdtest.Options{
 		OIDCConfig: fake.OIDCConfigSkipIssuerChecks(t, nil, func(cfg *coderd.OIDCConfig) {
 			cfg.AllowSignups = true
 		}),
 	})
-
 	// User can login and use their token.
 	ctx := testutil.Context(t, testutil.WaitShort)
 	//nolint:bodyclose
@@ -2015,20 +1845,16 @@ func TestOIDCSkipIssuer(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, found.LoginType, codersdk.LoginTypeOIDC)
 }
-
 func TestUserForgotPassword(t *testing.T) {
 	t.Parallel()
-
 	const oldPassword = "SomeSecurePassword!"
 	const newPassword = "SomeNewSecurePassword!"
-
 	requireOneTimePasscodeNotification := func(t *testing.T, notif *notificationstest.FakeNotification, userID uuid.UUID) {
 		require.Equal(t, notifications.TemplateUserRequestedOneTimePasscode, notif.TemplateID)
 		require.Equal(t, userID, notif.UserID)
 		require.Equal(t, 1, len(notif.Targets))
 		require.Equal(t, userID, notif.Targets[0])
 	}
-
 	requireCanLogin := func(t *testing.T, ctx context.Context, client *codersdk.Client, email string, password string) {
 		_, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
 			Email:    email,
@@ -2036,7 +1862,6 @@ func TestUserForgotPassword(t *testing.T) {
 		})
 		require.NoError(t, err)
 	}
-
 	requireCannotLogin := func(t *testing.T, ctx context.Context, client *codersdk.Client, email string, password string) {
 		_, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
 			Email:    email,
@@ -2047,18 +1872,15 @@ func TestUserForgotPassword(t *testing.T) {
 		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
 		require.Contains(t, apiErr.Message, "Incorrect email or password.")
 	}
-
 	requireRequestOneTimePasscode := func(t *testing.T, ctx context.Context, client *codersdk.Client, notifyEnq *notificationstest.FakeEnqueuer, email string, userID uuid.UUID) string {
 		notifyEnq.Clear()
 		err := client.RequestOneTimePasscode(ctx, codersdk.RequestOneTimePasscodeRequest{Email: email})
 		require.NoError(t, err)
 		sent := notifyEnq.Sent()
 		require.Len(t, sent, 1)
-
 		requireOneTimePasscodeNotification(t, sent[0], userID)
 		return sent[0].Labels["one_time_passcode"]
 	}
-
 	requireChangePasswordWithOneTimePasscode := func(t *testing.T, ctx context.Context, client *codersdk.Client, email string, passcode string, password string) {
 		err := client.ChangePasswordWithOneTimePasscode(ctx, codersdk.ChangePasswordWithOneTimePasscodeRequest{
 			Email:           email,
@@ -2067,31 +1889,22 @@ func TestUserForgotPassword(t *testing.T) {
 		})
 		require.NoError(t, err)
 	}
-
 	t.Run("CanChangePassword", func(t *testing.T) {
 		t.Parallel()
-
 		notifyEnq := &notificationstest.FakeEnqueuer{}
-
 		client := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer: notifyEnq,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
-
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
-
 		anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
-
 		// First try to login before changing our password. We expected this to error
 		// as we haven't change the password yet.
 		requireCannotLogin(t, ctx, anotherClient, anotherUser.Email, newPassword)
-
 		oneTimePasscode := requireRequestOneTimePasscode(t, ctx, anotherClient, notifyEnq, anotherUser.Email, anotherUser.ID)
-
 		requireChangePasswordWithOneTimePasscode(t, ctx, anotherClient, anotherUser.Email, oneTimePasscode, newPassword)
 		requireCanLogin(t, ctx, anotherClient, anotherUser.Email, newPassword)
-
 		// We now need to check that the one-time passcode isn't valid.
 		err := anotherClient.ChangePasswordWithOneTimePasscode(ctx, codersdk.ChangePasswordWithOneTimePasscodeRequest{
 			Email:           anotherUser.Email,
@@ -2102,34 +1915,24 @@ func TestUserForgotPassword(t *testing.T) {
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 		require.Contains(t, apiErr.Message, "Incorrect email or one-time passcode.")
-
 		requireCannotLogin(t, ctx, anotherClient, anotherUser.Email, newPassword+"!")
 		requireCanLogin(t, ctx, anotherClient, anotherUser.Email, newPassword)
 	})
-
 	t.Run("OneTimePasscodeExpires", func(t *testing.T) {
 		t.Parallel()
-
 		const oneTimePasscodeValidityPeriod = 1 * time.Millisecond
-
 		notifyEnq := &notificationstest.FakeEnqueuer{}
-
 		client := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer:         notifyEnq,
 			OneTimePasscodeValidityPeriod: oneTimePasscodeValidityPeriod,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
-
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
-
 		anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
-
 		oneTimePasscode := requireRequestOneTimePasscode(t, ctx, anotherClient, notifyEnq, anotherUser.Email, anotherUser.ID)
-
 		// Wait for long enough so that the token expires
 		time.Sleep(oneTimePasscodeValidityPeriod + 1*time.Millisecond)
-
 		// Try to change password with an expired one time passcode.
 		err := anotherClient.ChangePasswordWithOneTimePasscode(ctx, codersdk.ChangePasswordWithOneTimePasscodeRequest{
 			Email:           anotherUser.Email,
@@ -2140,27 +1943,20 @@ func TestUserForgotPassword(t *testing.T) {
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 		require.Contains(t, apiErr.Message, "Incorrect email or one-time passcode.")
-
 		// Ensure that the password was not changed.
 		requireCannotLogin(t, ctx, anotherClient, anotherUser.Email, newPassword)
 		requireCanLogin(t, ctx, anotherClient, anotherUser.Email, oldPassword)
 	})
-
 	t.Run("CannotChangePasswordWithoutRequestingOneTimePasscode", func(t *testing.T) {
 		t.Parallel()
-
 		notifyEnq := &notificationstest.FakeEnqueuer{}
-
 		client := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer: notifyEnq,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
-
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
-
 		anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
-
 		err := anotherClient.ChangePasswordWithOneTimePasscode(ctx, codersdk.ChangePasswordWithOneTimePasscodeRequest{
 			Email:           anotherUser.Email,
 			OneTimePasscode: uuid.New().String(),
@@ -2170,28 +1966,20 @@ func TestUserForgotPassword(t *testing.T) {
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 		require.Contains(t, apiErr.Message, "Incorrect email or one-time passcode")
-
 		requireCannotLogin(t, ctx, anotherClient, anotherUser.Email, newPassword)
 		requireCanLogin(t, ctx, anotherClient, anotherUser.Email, oldPassword)
 	})
-
 	t.Run("CannotChangePasswordWithInvalidOneTimePasscode", func(t *testing.T) {
 		t.Parallel()
-
 		notifyEnq := &notificationstest.FakeEnqueuer{}
-
 		client := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer: notifyEnq,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
-
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
-
 		anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
-
 		_ = requireRequestOneTimePasscode(t, ctx, anotherClient, notifyEnq, anotherUser.Email, anotherUser.ID)
-
 		err := anotherClient.ChangePasswordWithOneTimePasscode(ctx, codersdk.ChangePasswordWithOneTimePasscodeRequest{
 			Email:           anotherUser.Email,
 			OneTimePasscode: uuid.New().String(), // Use a different UUID to the one expected
@@ -2201,28 +1989,20 @@ func TestUserForgotPassword(t *testing.T) {
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 		require.Contains(t, apiErr.Message, "Incorrect email or one-time passcode")
-
 		requireCannotLogin(t, ctx, anotherClient, anotherUser.Email, newPassword)
 		requireCanLogin(t, ctx, anotherClient, anotherUser.Email, oldPassword)
 	})
-
 	t.Run("CannotChangePasswordWithNoOneTimePasscode", func(t *testing.T) {
 		t.Parallel()
-
 		notifyEnq := &notificationstest.FakeEnqueuer{}
-
 		client := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer: notifyEnq,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
-
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
-
 		anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
-
 		_ = requireRequestOneTimePasscode(t, ctx, anotherClient, notifyEnq, anotherUser.Email, anotherUser.ID)
-
 		err := anotherClient.ChangePasswordWithOneTimePasscode(ctx, codersdk.ChangePasswordWithOneTimePasscodeRequest{
 			Email:           anotherUser.Email,
 			OneTimePasscode: "",
@@ -2234,28 +2014,20 @@ func TestUserForgotPassword(t *testing.T) {
 		require.Contains(t, apiErr.Message, "Validation failed.")
 		require.Equal(t, 1, len(apiErr.Validations))
 		require.Equal(t, "one_time_passcode", apiErr.Validations[0].Field)
-
 		requireCannotLogin(t, ctx, anotherClient, anotherUser.Email, newPassword)
 		requireCanLogin(t, ctx, anotherClient, anotherUser.Email, oldPassword)
 	})
-
 	t.Run("CannotChangePasswordWithWeakPassword", func(t *testing.T) {
 		t.Parallel()
-
 		notifyEnq := &notificationstest.FakeEnqueuer{}
-
 		client := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer: notifyEnq,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
-
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
-
 		anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
-
 		oneTimePasscode := requireRequestOneTimePasscode(t, ctx, anotherClient, notifyEnq, anotherUser.Email, anotherUser.ID)
-
 		err := anotherClient.ChangePasswordWithOneTimePasscode(ctx, codersdk.ChangePasswordWithOneTimePasscodeRequest{
 			Email:           anotherUser.Email,
 			OneTimePasscode: oneTimePasscode,
@@ -2267,30 +2039,22 @@ func TestUserForgotPassword(t *testing.T) {
 		require.Contains(t, apiErr.Message, "Invalid password.")
 		require.Equal(t, 1, len(apiErr.Validations))
 		require.Equal(t, "password", apiErr.Validations[0].Field)
-
 		requireCannotLogin(t, ctx, anotherClient, anotherUser.Email, "notstrong")
 		requireCanLogin(t, ctx, anotherClient, anotherUser.Email, oldPassword)
 	})
-
 	t.Run("CannotChangePasswordOfAnotherUser", func(t *testing.T) {
 		t.Parallel()
-
 		notifyEnq := &notificationstest.FakeEnqueuer{}
-
 		client := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer: notifyEnq,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
-
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
-
 		anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		thirdClient, thirdUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
-
 		// Request a One-Time Passcode for `anotherUser`
 		oneTimePasscode := requireRequestOneTimePasscode(t, ctx, anotherClient, notifyEnq, anotherUser.Email, anotherUser.ID)
-
 		// Ensure we cannot change the password for `thirdUser` with `anotherUser`'s One-Time Passcode.
 		err := thirdClient.ChangePasswordWithOneTimePasscode(ctx, codersdk.ChangePasswordWithOneTimePasscodeRequest{
 			Email:           thirdUser.Email,
@@ -2301,43 +2065,33 @@ func TestUserForgotPassword(t *testing.T) {
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 		require.Contains(t, apiErr.Message, "Incorrect email or one-time passcode")
-
 		requireCannotLogin(t, ctx, thirdClient, thirdUser.Email, newPassword)
 		requireCanLogin(t, ctx, thirdClient, thirdUser.Email, oldPassword)
 		requireCanLogin(t, ctx, anotherClient, anotherUser.Email, oldPassword)
 	})
-
 	t.Run("GivenOKResponseWithInvalidEmail", func(t *testing.T) {
 		t.Parallel()
-
 		notifyEnq := &notificationstest.FakeEnqueuer{}
-
 		client := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer: notifyEnq,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
-
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
-
 		anotherClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
-
 		err := anotherClient.RequestOneTimePasscode(ctx, codersdk.RequestOneTimePasscodeRequest{
 			Email: "not-a-member@coder.com",
 		})
 		require.NoError(t, err)
-
 		sent := notifyEnq.Sent()
 		require.Len(t, notifyEnq.Sent(), 1)
 		require.NotEqual(t, notifications.TemplateUserRequestedOneTimePasscode, sent[0].TemplateID)
 	})
 }
-
 func oauth2Callback(t *testing.T, client *codersdk.Client, opts ...func(*http.Request)) *http.Response {
 	client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
-
 	state := "somestate"
 	oauthURL, err := client.URL.Parse("/api/v2/users/oauth2/github/callback?code=asd&state=" + state)
 	require.NoError(t, err)
@@ -2357,11 +2111,9 @@ func oauth2Callback(t *testing.T, client *codersdk.Client, opts ...func(*http.Re
 	})
 	return res
 }
-
 func i64ptr(i int64) *int64 {
 	return &i
 }
-
 func authCookieValue(cookies []*http.Cookie) string {
 	for _, cookie := range cookies {
 		if cookie.Name == codersdk.SessionTokenCookie {
@@ -2370,7 +2122,6 @@ func authCookieValue(cookies []*http.Cookie) string {
 	}
 	return ""
 }
-
 // inflateClaims 'inflates' a jwt.MapClaims from a seed by
 // adding a ridiculously large key-value pair of length size.
 func inflateClaims(t testing.TB, seed jwt.MapClaims, size int) jwt.MapClaims {
@@ -2380,11 +2131,9 @@ func inflateClaims(t testing.TB, seed jwt.MapClaims, size int) jwt.MapClaims {
 	seed["random_data"] = junk
 	return seed
 }
-
 // generateBadJWT generates a JWT with a random key. It's intended to emulate the old-style JWT's we generated.
 func generateBadJWT(t *testing.T, claims interface{}) string {
 	t.Helper()
-
 	var buf [64]byte
 	_, err := rand.Read(buf[:])
 	require.NoError(t, err)

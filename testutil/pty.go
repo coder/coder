@@ -1,16 +1,12 @@
 package testutil
-
 import (
+	"errors"
 	"context"
 	"io"
 	"strings"
 	"testing"
-
-	"golang.org/x/xerrors"
-
 	"github.com/hinshun/vt10x"
 )
-
 // TerminalReader emulates a terminal and allows matching output.  It's important in cases where we
 // can get control sequences to parse them correctly, and keep the state of the terminal across the
 // lifespan of the PTY, since some control sequences are relative to the current cursor position.
@@ -19,7 +15,6 @@ type TerminalReader struct {
 	r    io.Reader
 	term vt10x.Terminal
 }
-
 func NewTerminalReader(t *testing.T, r io.Reader) *TerminalReader {
 	return &TerminalReader{
 		t:    t,
@@ -27,7 +22,6 @@ func NewTerminalReader(t *testing.T, r io.Reader) *TerminalReader {
 		term: vt10x.New(vt10x.WithSize(80, 80)),
 	}
 }
-
 // ReadUntilString emulates a terminal and reads one byte at a time until we
 // either see the string we want, or the context expires.  The PTY must be sized
 // to 80x80 or there could be unexpected results.
@@ -36,7 +30,6 @@ func (tr *TerminalReader) ReadUntilString(ctx context.Context, want string) erro
 		return strings.TrimSpace(line) == want
 	})
 }
-
 // ReadUntil emulates a terminal and reads one byte at a time until the matcher
 // returns true or the context expires.  If the matcher is nil, read until EOF.
 // The PTY must be sized to 80x80 or there could be unexpected results.
@@ -63,7 +56,7 @@ func (tr *TerminalReader) ReadUntil(ctx context.Context, matcher func(line strin
 		gotTrimmed := strings.Join(lines, "\n")
 		tr.t.Logf("Terminal contents:\n%s", gotTrimmed)
 		// EOF is expected when matcher == nil
-		if retErr != nil && !(xerrors.Is(retErr, io.EOF) && matcher == nil) {
+		if retErr != nil && !(errors.Is(retErr, io.EOF) && matcher == nil) {
 			tr.t.Logf("Bytes Read: %q", string(readBytes))
 		}
 	}()

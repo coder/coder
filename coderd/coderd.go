@@ -27,7 +27,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
 	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
@@ -416,7 +415,7 @@ func New(options *Options) *API {
 	}
 	binFS, binHashes, err := site.ExtractOrReadBinFS(siteCacheDir, site.FS())
 	if err != nil {
-		panic(xerrors.Errorf("read site bin failed: %w", err))
+		panic(fmt.Errorf("read site bin failed: %w", err))
 	}
 
 	metricsCache := metricscache.New(
@@ -455,7 +454,7 @@ func New(options *Options) *API {
 	// nolint:gocritic // Load deployment ID. This never changes
 	depID, err := options.Database.GetDeploymentID(dbauthz.AsSystemRestricted(ctx))
 	if err != nil {
-		panic(xerrors.Errorf("get deployment ID: %w", err))
+		panic(fmt.Errorf("get deployment ID: %w", err))
 	}
 
 	fetcher := &cryptokeys.DBFetcher{
@@ -1425,7 +1424,7 @@ func New(options *Options) *API {
 		v = strings.TrimSpace(v)
 		parts := strings.Split(v, " ")
 		if len(parts) < 2 {
-			cspParseErrors = errors.Join(cspParseErrors, xerrors.Errorf("invalid CSP header %q, not enough parts to be valid", v))
+			cspParseErrors = errors.Join(cspParseErrors, fmt.Errorf("invalid CSP header %q, not enough parts to be valid", v))
 			continue
 		}
 		additionalCSPHeaders[httpmw.CSPFetchDirective(strings.ToLower(parts[0]))] = parts[1:]
@@ -1541,7 +1540,7 @@ type API struct {
 func (api *API) Close() error {
 	select {
 	case <-api.ctx.Done():
-		return xerrors.New("API already closed")
+		return errors.New("API already closed")
 	default:
 		api.cancel()
 	}
@@ -1634,7 +1633,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 	//nolint:gocritic // in-memory provisioners are owned by system
 	defaultOrg, err := api.Database.GetDefaultOrganization(dbauthz.AsSystemRestricted(dialCtx))
 	if err != nil {
-		return nil, xerrors.Errorf("unable to fetch default org for in memory provisioner: %w", err)
+		return nil, fmt.Errorf("unable to fetch default org for in memory provisioner: %w", err)
 	}
 
 	dbTypes := make([]database.ProvisionerType, 0, len(provisionerTypes))
@@ -1644,7 +1643,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 
 	keyID, err := uuid.Parse(string(codersdk.ProvisionerKeyIDBuiltIn))
 	if err != nil {
-		return nil, xerrors.Errorf("failed to parse built-in provisioner key ID: %w", err)
+		return nil, fmt.Errorf("failed to parse built-in provisioner key ID: %w", err)
 	}
 
 	//nolint:gocritic // in-memory provisioners are owned by system
@@ -1660,7 +1659,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 		KeyID:          keyID,
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("failed to create in-memory provisioner daemon: %w", err)
+		return nil, fmt.Errorf("failed to create in-memory provisioner daemon: %w", err)
 	}
 
 	mux := drpcmux.New()
@@ -1701,7 +1700,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 	server := drpcserver.NewWithOptions(&tracing.DRPCHandler{Handler: mux},
 		drpcserver.Options{
 			Log: func(err error) {
-				if xerrors.Is(err, io.EOF) {
+				if errors.Is(err, io.EOF) {
 					return
 				}
 				logger.Debug(dialCtx, "drpc server error", slog.Error(err))

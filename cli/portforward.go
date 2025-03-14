@@ -1,6 +1,6 @@
 package cli
-
 import (
+	"errors"
 	"context"
 	"fmt"
 	"net"
@@ -12,19 +12,14 @@ import (
 	"strings"
 	"sync"
 	"syscall"
-
-	"golang.org/x/xerrors"
-
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
-
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/serpent"
 )
-
 var (
 	// noAddr is the zero-value of netip.Addr, and is not a valid address.  We use it to identify
 	// when the local address is not specified in port-forward flags.
@@ -32,7 +27,6 @@ var (
 	ipv6Loopback = netip.MustParseAddr("::1")
 	ipv4Loopback = netip.MustParseAddr("127.0.0.1")
 )
-
 func (r *RootCmd) portForward() *serpent.Command {
 	var (
 		tcpForwards      []string // <port>:<port>
@@ -75,21 +69,19 @@ func (r *RootCmd) portForward() *serpent.Command {
 		Handler: func(inv *serpent.Invocation) error {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
-
 			specs, err := parsePortForwards(tcpForwards, udpForwards)
 			if err != nil {
-				return xerrors.Errorf("parse port-forward specs: %w", err)
+				return fmt.Errorf("parse port-forward specs: %w", err)
 			}
 			if len(specs) == 0 {
-				return xerrors.New("no port-forwards requested")
+				return errors.New("no port-forwards requested")
 			}
-
 			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, !disableAutostart, inv.Args[0])
 			if err != nil {
 				return err
 			}
 			if workspace.LatestBuild.Transition != codersdk.WorkspaceTransitionStart {
-				return xerrors.New("workspace must be in start transition to port-forward")
+				return errors.New("workspace must be in start transition to port-forward")
 			}
 			if workspace.LatestBuild.Job.CompletedAt == nil {
 				err = cliui.WorkspaceBuild(ctx, inv.Stderr, client, workspace.LatestBuild.ID)
@@ -97,23 +89,19 @@ func (r *RootCmd) portForward() *serpent.Command {
 					return err
 				}
 			}
-
 			err = cliui.Agent(ctx, inv.Stderr, workspaceAgent.ID, cliui.AgentOptions{
 				Fetch:   client.WorkspaceAgent,
 				Wait:    false,
 				DocsURL: appearanceConfig.DocsURL,
 			})
 			if err != nil {
-				return xerrors.Errorf("await agent: %w", err)
+				return fmt.Errorf("await agent: %w", err)
 			}
-
 			opts := &workspacesdk.DialAgentOptions{}
-
 			logger := inv.Logger
 			if r.verbose {
 				opts.Logger = logger.AppendSinks(sloghuman.Sink(inv.Stdout)).Leveled(slog.LevelDebug)
 			}
-
 			if r.disableDirect {
 				_, _ = fmt.Fprintln(inv.Stderr, "Direct connections disabled.")
 				opts.BlockEndpoints = true
@@ -126,7 +114,6 @@ func (r *RootCmd) portForward() *serpent.Command {
 				return err
 			}
 			defer conn.Close()
-
 			// Start all listeners.
 			var (
 				wg                = new(sync.WaitGroup)
@@ -142,7 +129,6 @@ func (r *RootCmd) portForward() *serpent.Command {
 				}
 			)
 			defer closeAllListeners()
-
 			for _, spec := range specs {
 				if spec.listenHost == noAddr {
 					// first, opportunistically try to listen on IPv6
@@ -163,19 +149,15 @@ func (r *RootCmd) portForward() *serpent.Command {
 				}
 				listeners = append(listeners, l)
 			}
-
 			stopUpdating := client.UpdateWorkspaceUsageContext(ctx, workspace.ID)
-
 			// Wait for the context to be canceled or for a signal and close
 			// all listeners.
 			var closeErr error
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-
 				sigs := make(chan os.Signal, 1)
 				signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-
 				select {
 				case <-ctx.Done():
 					logger.Debug(ctx, "command context expired waiting for signal", slog.Error(ctx.Err()))
@@ -184,12 +166,10 @@ func (r *RootCmd) portForward() *serpent.Command {
 					logger.Debug(ctx, "received signal", slog.F("signal", sig))
 					_, _ = fmt.Fprintln(inv.Stderr, "\nReceived signal, closing all listeners and active connections")
 				}
-
 				cancel()
 				stopUpdating()
 				closeAllListeners()
 			}()
-
 			conn.AwaitReachable(ctx)
 			logger.Debug(ctx, "read to accept connections to forward")
 			_, _ = fmt.Fprintln(inv.Stderr, "Ready!")
@@ -197,7 +177,6 @@ func (r *RootCmd) portForward() *serpent.Command {
 			return closeErr
 		},
 	}
-
 	cmd.Options = serpent.OptionSet{
 		{
 			Flag:          "tcp",
@@ -214,10 +193,8 @@ func (r *RootCmd) portForward() *serpent.Command {
 		},
 		sshDisableAutostartOption(serpent.BoolOf(&disableAutostart)),
 	}
-
 	return cmd
 }
-
 func listenAndPortForward(
 	ctx context.Context,
 	inv *serpent.Invocation,
@@ -235,13 +212,11 @@ func listenAndPortForward(
 	dialAddress := fmt.Sprintf("127.0.0.1:%d", spec.dialPort)
 	_, _ = fmt.Fprintf(inv.Stderr, "Forwarding '%s://%s' locally to '%s://%s' in the workspace\n",
 		spec.network, listenAddress, spec.network, dialAddress)
-
 	l, err := inv.Net.Listen(spec.network, listenAddress.String())
 	if err != nil {
-		return nil, xerrors.Errorf("listen '%s://%s': %w", spec.network, listenAddress.String(), err)
+		return nil, fmt.Errorf("listen '%s://%s': %w", spec.network, listenAddress.String(), err)
 	}
 	logger.Debug(ctx, "listening")
-
 	wg.Add(1)
 	go func(spec portForwardSpec) {
 		defer wg.Done()
@@ -249,7 +224,7 @@ func listenAndPortForward(
 			netConn, err := l.Accept()
 			if err != nil {
 				// Silently ignore net.ErrClosed errors.
-				if xerrors.Is(err, net.ErrClosed) {
+				if errors.Is(err, net.ErrClosed) {
 					logger.Debug(ctx, "listener closed")
 					return
 				}
@@ -261,7 +236,6 @@ func listenAndPortForward(
 			}
 			logger.Debug(ctx, "accepted connection",
 				slog.F("remote_addr", netConn.RemoteAddr()))
-
 			go func(netConn net.Conn) {
 				defer netConn.Close()
 				remoteConn, err := conn.DialContext(ctx, spec.network, dialAddress)
@@ -274,79 +248,66 @@ func listenAndPortForward(
 				defer remoteConn.Close()
 				logger.Debug(ctx,
 					"dialed remote", slog.F("remote_addr", netConn.RemoteAddr()))
-
 				agentssh.Bicopy(ctx, netConn, remoteConn)
 				logger.Debug(ctx,
 					"connection closing", slog.F("remote_addr", netConn.RemoteAddr()))
 			}(netConn)
 		}
 	}(spec)
-
 	return l, nil
 }
-
 type portForwardSpec struct {
 	network              string // tcp, udp
 	listenHost           netip.Addr
 	listenPort, dialPort uint16
 }
-
 func parsePortForwards(tcpSpecs, udpSpecs []string) ([]portForwardSpec, error) {
 	specs := []portForwardSpec{}
-
 	for _, specEntry := range tcpSpecs {
 		for _, spec := range strings.Split(specEntry, ",") {
 			pfSpecs, err := parseSrcDestPorts(strings.TrimSpace(spec))
 			if err != nil {
-				return nil, xerrors.Errorf("failed to parse TCP port-forward specification %q: %w", spec, err)
+				return nil, fmt.Errorf("failed to parse TCP port-forward specification %q: %w", spec, err)
 			}
-
 			for _, pfSpec := range pfSpecs {
 				pfSpec.network = "tcp"
 				specs = append(specs, pfSpec)
 			}
 		}
 	}
-
 	for _, specEntry := range udpSpecs {
 		for _, spec := range strings.Split(specEntry, ",") {
 			pfSpecs, err := parseSrcDestPorts(strings.TrimSpace(spec))
 			if err != nil {
-				return nil, xerrors.Errorf("failed to parse UDP port-forward specification %q: %w", spec, err)
+				return nil, fmt.Errorf("failed to parse UDP port-forward specification %q: %w", spec, err)
 			}
-
 			for _, pfSpec := range pfSpecs {
 				pfSpec.network = "udp"
 				specs = append(specs, pfSpec)
 			}
 		}
 	}
-
 	// Check for duplicate entries.
 	locals := map[string]struct{}{}
 	for _, spec := range specs {
 		localStr := fmt.Sprintf("%s:%s:%d", spec.network, spec.listenHost, spec.listenPort)
 		if _, ok := locals[localStr]; ok {
-			return nil, xerrors.Errorf("local %s host:%s port:%d is specified twice", spec.network, spec.listenHost, spec.listenPort)
+			return nil, fmt.Errorf("local %s host:%s port:%d is specified twice", spec.network, spec.listenHost, spec.listenPort)
 		}
 		locals[localStr] = struct{}{}
 	}
-
 	return specs, nil
 }
-
 func parsePort(in string) (uint16, error) {
 	port, err := strconv.ParseUint(strings.TrimSpace(in), 10, 16)
 	if err != nil {
-		return 0, xerrors.Errorf("parse port %q: %w", in, err)
+		return 0, fmt.Errorf("parse port %q: %w", in, err)
 	}
 	if port == 0 {
-		return 0, xerrors.New("port cannot be 0")
+		return 0, errors.New("port cannot be 0")
 	}
-
 	return uint16(port), nil
 }
-
 // specRegexp matches port specs. It handles all the following formats:
 //
 // 8000
@@ -366,35 +327,32 @@ func parsePort(in string) (uint16, error) {
 // 7: remote port, or start of remote port range
 // 9: end or remote port range
 var specRegexp = regexp.MustCompile(`^((\[[0-9a-fA-F:]+]|\d+\.\d+\.\d+\.\d+):)?(\d+)(-(\d+))?(:(\d+)(-(\d+))?)?$`)
-
 func parseSrcDestPorts(in string) ([]portForwardSpec, error) {
 	groups := specRegexp.FindStringSubmatch(in)
 	if len(groups) == 0 {
-		return nil, xerrors.Errorf("invalid port specification %q", in)
+		return nil, fmt.Errorf("invalid port specification %q", in)
 	}
-
 	var localAddr netip.Addr
 	if groups[2] != "" {
 		parsedAddr, err := netip.ParseAddr(strings.Trim(groups[2], "[]"))
 		if err != nil {
-			return nil, xerrors.Errorf("invalid IP address %q", groups[2])
+			return nil, fmt.Errorf("invalid IP address %q", groups[2])
 		}
 		localAddr = parsedAddr
 	}
-
 	local, err := parsePortRange(groups[3], groups[5])
 	if err != nil {
-		return nil, xerrors.Errorf("parse local port range from %q: %w", in, err)
+		return nil, fmt.Errorf("parse local port range from %q: %w", in, err)
 	}
 	remote := local
 	if groups[7] != "" {
 		remote, err = parsePortRange(groups[7], groups[9])
 		if err != nil {
-			return nil, xerrors.Errorf("parse remote port range from %q: %w", in, err)
+			return nil, fmt.Errorf("parse remote port range from %q: %w", in, err)
 		}
 	}
 	if len(local) != len(remote) {
-		return nil, xerrors.Errorf("port ranges must be the same length, got %d ports forwarded to %d ports", len(local), len(remote))
+		return nil, fmt.Errorf("port ranges must be the same length, got %d ports forwarded to %d ports", len(local), len(remote))
 	}
 	var out []portForwardSpec
 	for i := range local {
@@ -406,21 +364,20 @@ func parseSrcDestPorts(in string) ([]portForwardSpec, error) {
 	}
 	return out, nil
 }
-
 func parsePortRange(s, e string) ([]uint16, error) {
 	start, err := parsePort(s)
 	if err != nil {
-		return nil, xerrors.Errorf("parse range start port from %q: %w", s, err)
+		return nil, fmt.Errorf("parse range start port from %q: %w", s, err)
 	}
 	end := start
 	if len(e) != 0 {
 		end, err = parsePort(e)
 		if err != nil {
-			return nil, xerrors.Errorf("parse range end port from %q: %w", e, err)
+			return nil, fmt.Errorf("parse range end port from %q: %w", e, err)
 		}
 	}
 	if end < start {
-		return nil, xerrors.Errorf("range end port %v is less than start port %v", end, start)
+		return nil, fmt.Errorf("range end port %v is less than start port %v", end, start)
 	}
 	var ports []uint16
 	for i := start; i <= end; i++ {

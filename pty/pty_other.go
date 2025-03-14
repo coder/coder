@@ -3,6 +3,7 @@
 package pty
 
 import (
+	"errors"
 	"io"
 	"io/fs"
 	"os"
@@ -13,7 +14,6 @@ import (
 	"github.com/creack/pty"
 	"github.com/u-root/u-root/pkg/termios"
 	"golang.org/x/sys/unix"
-	"golang.org/x/xerrors"
 )
 
 func newPty(opt ...Option) (retPTY *otherPty, err error) {
@@ -195,7 +195,7 @@ func (r *ptmReader) Read(p []byte) (n int, err error) {
 	// portability, and to fit with our use of io.Copy() to copy from the PTY,
 	// we want to translate this error into io.EOF
 	pathErr := &fs.PathError{}
-	if xerrors.As(err, &pathErr) {
+	if errors.As(err, &pathErr) {
 		return n, io.EOF
 	}
 	return n, err

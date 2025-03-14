@@ -1,19 +1,14 @@
 package cli
-
 import (
+	"errors"
 	"encoding/json"
 	"fmt"
-
-	"golang.org/x/xerrors"
-
 	"github.com/tidwall/gjson"
-
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
 )
-
 func (r *RootCmd) externalAuth() *serpent.Command {
 	return &serpent.Command{
 		Use:   "external-auth",
@@ -27,7 +22,6 @@ func (r *RootCmd) externalAuth() *serpent.Command {
 		},
 	}
 }
-
 func (r *RootCmd) externalAuthAccessToken() *serpent.Command {
 	var extra string
 	return &serpent.Command{
@@ -39,7 +33,6 @@ func (r *RootCmd) externalAuthAccessToken() *serpent.Command {
 			Example{
 				Description: "Ensure that the user is authenticated with GitHub before cloning.",
 				Command: `#!/usr/bin/env sh
-
 OUTPUT=$(coder external-auth access-token github)
 if [ $? -eq 0 ]; then
   echo "Authenticated with GitHub"
@@ -63,28 +56,23 @@ fi
 			Description: "Extract a field from the \"extra\" properties of the OAuth token.",
 			Value:       serpent.StringOf(&extra),
 		}},
-
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
-
 			ctx, stop := inv.SignalNotifyContext(ctx, StopSignals...)
 			defer stop()
-
 			if r.agentToken == "" {
 				_, _ = fmt.Fprint(inv.Stderr, pretty.Sprintf(headLineStyle(), "No agent token found, this command must be run from inside a running workspace.\n"))
-				return xerrors.Errorf("agent token not found")
+				return fmt.Errorf("agent token not found")
 			}
-
 			client, err := r.createAgentClient()
 			if err != nil {
-				return xerrors.Errorf("create agent client: %w", err)
+				return fmt.Errorf("create agent client: %w", err)
 			}
-
 			extAuth, err := client.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{
 				ID: inv.Args[0],
 			})
 			if err != nil {
-				return xerrors.Errorf("get external auth token: %w", err)
+				return fmt.Errorf("get external auth token: %w", err)
 			}
 			if extAuth.URL != "" {
 				_, err = inv.Stdout.Write([]byte(extAuth.URL))
@@ -95,11 +83,11 @@ fi
 			}
 			if extra != "" {
 				if extAuth.TokenExtra == nil {
-					return xerrors.Errorf("no extra properties found for token")
+					return fmt.Errorf("no extra properties found for token")
 				}
 				data, err := json.Marshal(extAuth.TokenExtra)
 				if err != nil {
-					return xerrors.Errorf("marshal extra properties: %w", err)
+					return fmt.Errorf("marshal extra properties: %w", err)
 				}
 				result := gjson.GetBytes(data, extra)
 				_, err = inv.Stdout.Write([]byte(result.String()))

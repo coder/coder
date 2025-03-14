@@ -1,22 +1,18 @@
 package codersdk
-
 import (
+	"fmt"
+	"errors"
 	"bytes"
 	"database/sql"
 	"encoding/json"
 	"time"
-
-	"golang.org/x/xerrors"
 )
-
 var nullBytes = []byte("null")
-
 // NullTime represents a nullable time.Time.
 // @typescript-ignore NullTime
 type NullTime struct {
 	sql.NullTime
 }
-
 // NewNullTime returns a new NullTime with the given time.Time.
 func NewNullTime(t time.Time, valid bool) NullTime {
 	return NullTime{
@@ -26,7 +22,6 @@ func NewNullTime(t time.Time, valid bool) NullTime {
 		},
 	}
 }
-
 // MarshalJSON implements json.Marshaler.
 func (t NullTime) MarshalJSON() ([]byte, error) {
 	if !t.Valid {
@@ -34,11 +29,10 @@ func (t NullTime) MarshalJSON() ([]byte, error) {
 	}
 	b, err := t.Time.MarshalJSON()
 	if err != nil {
-		return nil, xerrors.Errorf("codersdk.NullTime: json encode failed: %w", err)
+		return nil, fmt.Errorf("codersdk.NullTime: json encode failed: %w", err)
 	}
 	return b, nil
 }
-
 // UnmarshalJSON implements json.Unmarshaler.
 func (t *NullTime) UnmarshalJSON(data []byte) error {
 	t.Valid = false
@@ -47,12 +41,11 @@ func (t *NullTime) UnmarshalJSON(data []byte) error {
 	}
 	err := json.Unmarshal(data, &t.Time)
 	if err != nil {
-		return xerrors.Errorf("codersdk.NullTime: json decode failed: %w", err)
+		return fmt.Errorf("codersdk.NullTime: json decode failed: %w", err)
 	}
 	t.Valid = true
 	return nil
 }
-
 // IsZero return true if the time is null or zero.
 func (t NullTime) IsZero() bool {
 	return !t.Valid || t.Time.IsZero()

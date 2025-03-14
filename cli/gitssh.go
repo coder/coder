@@ -1,6 +1,6 @@
 package cli
-
 import (
+	"errors"
 	"bufio"
 	"bytes"
 	"context"
@@ -10,14 +10,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
 )
-
 func (r *RootCmd) gitssh() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:    "gitssh",
@@ -26,30 +22,26 @@ func (r *RootCmd) gitssh() *serpent.Command {
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
 			env := os.Environ()
-
 			// Catch interrupt signals to ensure the temporary private
 			// key file is cleaned up on most cases.
 			ctx, stop := inv.SignalNotifyContext(ctx, StopSignals...)
 			defer stop()
-
 			// Early check so errors are reported immediately.
 			identityFiles, err := parseIdentityFilesForHost(ctx, inv.Args, env)
 			if err != nil {
 				return err
 			}
-
 			client, err := r.createAgentClient()
 			if err != nil {
-				return xerrors.Errorf("create agent client: %w", err)
+				return fmt.Errorf("create agent client: %w", err)
 			}
 			key, err := client.GitSSHKey(ctx)
 			if err != nil {
-				return xerrors.Errorf("get agent git ssh token: %w", err)
+				return fmt.Errorf("get agent git ssh token: %w", err)
 			}
-
 			privateKeyFile, err := os.CreateTemp("", "coder-gitsshkey-*")
 			if err != nil {
-				return xerrors.Errorf("create temp gitsshkey file: %w", err)
+				return fmt.Errorf("create temp gitsshkey file: %w", err)
 			}
 			defer func() {
 				_ = privateKeyFile.Close()
@@ -57,13 +49,12 @@ func (r *RootCmd) gitssh() *serpent.Command {
 			}()
 			_, err = privateKeyFile.WriteString(key.PrivateKey)
 			if err != nil {
-				return xerrors.Errorf("write to temp gitsshkey file: %w", err)
+				return fmt.Errorf("write to temp gitsshkey file: %w", err)
 			}
 			err = privateKeyFile.Close()
 			if err != nil {
-				return xerrors.Errorf("close temp gitsshkey file: %w", err)
+				return fmt.Errorf("close temp gitsshkey file: %w", err)
 			}
-
 			// Append our key, giving precedence to user keys. Note that
 			// OpenSSH server are typically configured with MaxAuthTries
 			// set to the default value of 6. This means that only the 6
@@ -72,12 +63,10 @@ func (r *RootCmd) gitssh() *serpent.Command {
 			// they're doing. This behavior is critical if a server has
 			// been configured with MaxAuthTries set to 1.
 			identityFiles = append(identityFiles, privateKeyFile.Name())
-
 			var identityArgs []string
 			for _, id := range identityFiles {
 				identityArgs = append(identityArgs, "-i", id)
 			}
-
 			args := inv.Args
 			args = append(identityArgs, args...)
 			c := exec.CommandContext(ctx, "ssh", args...)
@@ -88,7 +77,7 @@ func (r *RootCmd) gitssh() *serpent.Command {
 			err = c.Run()
 			if err != nil {
 				exitErr := &exec.ExitError{}
-				if xerrors.As(err, &exitErr) && exitErr.ExitCode() == 255 {
+				if errors.As(err, &exitErr) && exitErr.ExitCode() == 255 {
 					_, _ = fmt.Fprintln(inv.Stderr,
 						"\n"+pretty.Sprintf(
 							cliui.DefaultStyles.Wrap, "%s",
@@ -102,16 +91,13 @@ func (r *RootCmd) gitssh() *serpent.Command {
 					_, _ = fmt.Fprintln(inv.Stderr)
 					return err
 				}
-				return xerrors.Errorf("run ssh command: %w", err)
+				return fmt.Errorf("run ssh command: %w", err)
 			}
-
 			return nil
 		},
 	}
-
 	return cmd
 }
-
 // fallbackIdentityFiles is the list of identity files SSH tries when
 // none have been defined for a host.
 var fallbackIdentityFiles = strings.Join([]string{
@@ -123,7 +109,6 @@ var fallbackIdentityFiles = strings.Join([]string{
 	"identityfile ~/.ssh/id_ed25519_sk",
 	"identityfile ~/.ssh/id_xmss",
 }, "\n")
-
 // parseIdentityFilesForHost uses ssh -G to discern what SSH keys have
 // been enabled for the host (via the users SSH config) and returns a
 // list of existing identity files.
@@ -141,12 +126,10 @@ var fallbackIdentityFiles = strings.Join([]string{
 func parseIdentityFilesForHost(ctx context.Context, args, env []string) (identityFiles []string, error error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return nil, xerrors.Errorf("get user home dir failed: %w", err)
+		return nil, fmt.Errorf("get user home dir failed: %w", err)
 	}
-
 	var outBuf bytes.Buffer
 	var r io.Reader = &outBuf
-
 	args = append([]string{"-G"}, args...)
 	cmd := exec.CommandContext(ctx, "ssh", args...)
 	cmd.Env = append(cmd.Env, env...)
@@ -158,7 +141,6 @@ func parseIdentityFilesForHost(ctx context.Context, args, env []string) (identit
 		// to using the default identity files.
 		r = strings.NewReader(fallbackIdentityFiles)
 	}
-
 	s := bufio.NewScanner(r)
 	for s.Scan() {
 		line := s.Text()
@@ -177,7 +159,6 @@ func parseIdentityFilesForHost(ctx context.Context, args, env []string) (identit
 			// OpenSSH is amazing, this will work on Windows too:
 			// C:\Users\ZeroCool/.ssh/id_rsa
 			id = filepath.FromSlash(id)
-
 			// Only include the identity file if it exists.
 			if _, err := os.Stat(id); err == nil {
 				identityFiles = append(identityFiles, id)
@@ -186,8 +167,7 @@ func parseIdentityFilesForHost(ctx context.Context, args, env []string) (identit
 	}
 	if err := s.Err(); err != nil {
 		// This should never happen, the check is for completeness.
-		return nil, xerrors.Errorf("scan ssh output: %w", err)
+		return nil, fmt.Errorf("scan ssh output: %w", err)
 	}
-
 	return identityFiles, nil
 }

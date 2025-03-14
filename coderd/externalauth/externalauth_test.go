@@ -1,6 +1,6 @@
 package externalauth_test
-
 import (
+	"errors"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -10,7 +10,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
@@ -19,8 +18,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/oauth2"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -32,52 +29,46 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
-
 func TestRefreshToken(t *testing.T) {
 	t.Parallel()
 	expired := time.Now().Add(time.Hour * -1)
-
 	t.Run("NoRefreshExpired", func(t *testing.T) {
 		t.Parallel()
 		fake, config, link := setupOauth2Test(t, testConfig{
 			FakeIDPOpts: []oidctest.FakeIDPOpt{
 				oidctest.WithRefresh(func(_ string) error {
 					t.Error("refresh on the IDP was called, but NoRefresh was set")
-					return xerrors.New("should not be called")
+					return errors.New("should not be called")
 				}),
 				// The IDP should not be contacted since the token is expired. An expired
 				// token with 'NoRefresh' should early abort.
 				oidctest.WithDynamicUserInfo(func(_ string) (jwt.MapClaims, error) {
 					t.Error("token was validated, but it was expired and this should never have happened.")
-					return nil, xerrors.New("should not be called")
+					return nil, errors.New("should not be called")
 				}),
 			},
 			ExternalAuthOpt: func(cfg *externalauth.Config) {
 				cfg.NoRefresh = true
 			},
 		})
-
 		ctx := oidc.ClientContext(context.Background(), fake.HTTPClient(nil))
 		// Expire the link
 		link.OAuthExpiry = expired
-
 		_, err := config.RefreshToken(ctx, nil, link)
 		require.Error(t, err)
 		require.True(t, externalauth.IsInvalidTokenError(err))
 		require.Contains(t, err.Error(), "refreshing is either disabled or refreshing failed")
 	})
-
 	// NoRefreshNoExpiry tests that an oauth token without an expiry is always valid.
 	// The "validate url" should be hit, but the refresh endpoint should not.
 	t.Run("NoRefreshNoExpiry", func(t *testing.T) {
 		t.Parallel()
-
 		validated := false
 		fake, config, link := setupOauth2Test(t, testConfig{
 			FakeIDPOpts: []oidctest.FakeIDPOpt{
 				oidctest.WithRefresh(func(_ string) error {
 					t.Error("refresh on the IDP was called, but NoRefresh was set")
-					return xerrors.New("should not be called")
+					return errors.New("should not be called")
 				}),
 				oidctest.WithDynamicUserInfo(func(_ string) (jwt.MapClaims, error) {
 					validated = true
@@ -88,22 +79,19 @@ func TestRefreshToken(t *testing.T) {
 				cfg.NoRefresh = true
 			},
 		})
-
 		ctx := oidc.ClientContext(context.Background(), fake.HTTPClient(nil))
-
 		// Zero time used
 		link.OAuthExpiry = time.Time{}
 		_, err := config.RefreshToken(ctx, nil, link)
 		require.NoError(t, err)
 		require.True(t, validated, "token should have been validated")
 	})
-
 	t.Run("FalseIfTokenSourceFails", func(t *testing.T) {
 		t.Parallel()
 		config := &externalauth.Config{
 			InstrumentedOAuth2Config: &testutil.OAuth2Config{
 				TokenSourceFunc: func() (*oauth2.Token, error) {
-					return nil, xerrors.New("failure")
+					return nil, errors.New("failure")
 				},
 			},
 		}
@@ -114,26 +102,22 @@ func TestRefreshToken(t *testing.T) {
 		require.True(t, externalauth.IsInvalidTokenError(err))
 		require.Contains(t, err.Error(), "failure")
 	})
-
 	t.Run("ValidateServerError", func(t *testing.T) {
 		t.Parallel()
-
 		const staticError = "static error"
 		validated := false
 		fake, config, link := setupOauth2Test(t, testConfig{
 			FakeIDPOpts: []oidctest.FakeIDPOpt{
 				oidctest.WithDynamicUserInfo(func(_ string) (jwt.MapClaims, error) {
 					validated = true
-					return jwt.MapClaims{}, xerrors.New(staticError)
+					return jwt.MapClaims{}, errors.New(staticError)
 				}),
 			},
 			ExternalAuthOpt: func(cfg *externalauth.Config) {
 			},
 		})
-
 		ctx := oidc.ClientContext(context.Background(), fake.HTTPClient(nil))
 		link.OAuthExpiry = expired
-
 		_, err := config.RefreshToken(ctx, nil, link)
 		require.ErrorContains(t, err, staticError)
 		// Unsure if this should be the correct behavior. It's an invalid token because
@@ -142,19 +126,15 @@ func TestRefreshToken(t *testing.T) {
 		require.False(t, externalauth.IsInvalidTokenError(err))
 		require.True(t, validated, "token should have been attempted to be validated")
 	})
-
 	// RefreshRetries tests that refresh token retry behavior works as expected.
 	// If a refresh token fails because the token itself is invalid, no more
 	// refresh attempts should ever happen. An invalid refresh token does
 	// not magically become valid at some point in the future.
 	t.Run("RefreshRetries", func(t *testing.T) {
 		t.Parallel()
-
 		var refreshErr *oauth2.RetrieveError
-
 		ctrl := gomock.NewController(t)
 		mDB := dbmock.NewMockStore(ctrl)
-
 		refreshCount := 0
 		fake, config, link := setupOauth2Test(t, testConfig{
 			FakeIDPOpts: []oidctest.FakeIDPOpt{
@@ -166,16 +146,14 @@ func TestRefreshToken(t *testing.T) {
 				// refresh attempts will fail.
 				oidctest.WithDynamicUserInfo(func(_ string) (jwt.MapClaims, error) {
 					t.Error("token was validated, but it was expired and this should never have happened.")
-					return nil, xerrors.New("should not be called")
+					return nil, errors.New("should not be called")
 				}),
 			},
 			ExternalAuthOpt: func(cfg *externalauth.Config) {},
 		})
-
 		ctx := oidc.ClientContext(context.Background(), fake.HTTPClient(nil))
 		// Expire the link
 		link.OAuthExpiry = expired
-
 		// Make the failure a server internal error. Not related to the token
 		refreshErr = &oauth2.RetrieveError{
 			Response: &http.Response{
@@ -187,7 +165,6 @@ func TestRefreshToken(t *testing.T) {
 		require.Error(t, err)
 		require.True(t, externalauth.IsInvalidTokenError(err))
 		require.Equal(t, refreshCount, 1)
-
 		// Try again with a bad refresh token error
 		// Expect DB call to remove the refresh token
 		mDB.EXPECT().UpdateExternalAuthLinkRefreshToken(gomock.Any(), gomock.Any()).Return(nil).Times(1)
@@ -201,7 +178,6 @@ func TestRefreshToken(t *testing.T) {
 		require.Error(t, err)
 		require.True(t, externalauth.IsInvalidTokenError(err))
 		require.Equal(t, refreshCount, 2)
-
 		// When the refresh token is empty, no api calls should be made
 		link.OAuthRefreshToken = "" // mock'd db, so manually set the token to ''
 		_, err = config.RefreshToken(ctx, mDB, link)
@@ -209,43 +185,37 @@ func TestRefreshToken(t *testing.T) {
 		require.True(t, externalauth.IsInvalidTokenError(err))
 		require.Equal(t, refreshCount, 2)
 	})
-
 	// ValidateFailure tests if the token is no longer valid with a 401 response.
 	t.Run("ValidateFailure", func(t *testing.T) {
 		t.Parallel()
-
 		const staticError = "static error"
 		validated := false
 		fake, config, link := setupOauth2Test(t, testConfig{
 			FakeIDPOpts: []oidctest.FakeIDPOpt{
 				oidctest.WithDynamicUserInfo(func(_ string) (jwt.MapClaims, error) {
 					validated = true
-					return jwt.MapClaims{}, oidctest.StatusError(http.StatusUnauthorized, xerrors.New(staticError))
+					return jwt.MapClaims{}, oidctest.StatusError(http.StatusUnauthorized, errors.New(staticError))
 				}),
 			},
 			ExternalAuthOpt: func(cfg *externalauth.Config) {
 			},
 		})
-
 		ctx := oidc.ClientContext(context.Background(), fake.HTTPClient(nil))
 		link.OAuthExpiry = expired
-
 		_, err := config.RefreshToken(ctx, nil, link)
 		require.ErrorContains(t, err, "token failed to validate")
 		require.True(t, externalauth.IsInvalidTokenError(err))
 		require.True(t, validated, "token should have been attempted to be validated")
 	})
-
 	t.Run("ValidateRetryGitHub", func(t *testing.T) {
 		t.Parallel()
-
 		const staticError = "static error"
 		validateCalls := 0
 		fake, config, link := setupOauth2Test(t, testConfig{
 			FakeIDPOpts: []oidctest.FakeIDPOpt{
 				oidctest.WithRefresh(func(_ string) error {
 					t.Error("refresh on the IDP was called, but the token is not expired")
-					return xerrors.New("should not be called")
+					return errors.New("should not be called")
 				}),
 				oidctest.WithDynamicUserInfo(func(_ string) (jwt.MapClaims, error) {
 					validateCalls++
@@ -253,32 +223,28 @@ func TestRefreshToken(t *testing.T) {
 					if validateCalls > 1 {
 						return jwt.MapClaims{}, nil
 					}
-					return jwt.MapClaims{}, oidctest.StatusError(http.StatusUnauthorized, xerrors.New(staticError))
+					return jwt.MapClaims{}, oidctest.StatusError(http.StatusUnauthorized, errors.New(staticError))
 				}),
 			},
 			ExternalAuthOpt: func(cfg *externalauth.Config) {
 				cfg.Type = codersdk.EnhancedExternalAuthProviderGitHub.String()
 			},
 		})
-
 		ctx := oidc.ClientContext(context.Background(), fake.HTTPClient(nil))
 		// Unlimited lifetime, this is what GitHub returns tokens as
 		link.OAuthExpiry = time.Time{}
-
 		_, err := config.RefreshToken(ctx, nil, link)
 		require.NoError(t, err)
 		require.Equal(t, 2, validateCalls, "token should have been attempted to be validated more than once")
 	})
-
 	t.Run("ValidateNoUpdate", func(t *testing.T) {
 		t.Parallel()
-
 		validateCalls := 0
 		fake, config, link := setupOauth2Test(t, testConfig{
 			FakeIDPOpts: []oidctest.FakeIDPOpt{
 				oidctest.WithRefresh(func(_ string) error {
 					t.Error("refresh on the IDP was called, but the token is not expired")
-					return xerrors.New("should not be called")
+					return errors.New("should not be called")
 				}),
 				oidctest.WithDynamicUserInfo(func(_ string) (jwt.MapClaims, error) {
 					validateCalls++
@@ -289,18 +255,14 @@ func TestRefreshToken(t *testing.T) {
 				cfg.Type = codersdk.EnhancedExternalAuthProviderGitHub.String()
 			},
 		})
-
 		ctx := oidc.ClientContext(context.Background(), fake.HTTPClient(nil))
-
 		_, err := config.RefreshToken(ctx, nil, link)
 		require.NoError(t, err)
 		require.Equal(t, 1, validateCalls, "token is validated")
 	})
-
 	// A token update comes from a refresh.
 	t.Run("Updates", func(t *testing.T) {
 		t.Parallel()
-
 		db := dbmem.New()
 		validateCalls := 0
 		refreshCalls := 0
@@ -320,11 +282,9 @@ func TestRefreshToken(t *testing.T) {
 			},
 			DB: db,
 		})
-
 		ctx := oidc.ClientContext(context.Background(), fake.HTTPClient(nil))
 		// Force a refresh
 		link.OAuthExpiry = expired
-
 		updated, err := config.RefreshToken(ctx, db, link)
 		require.NoError(t, err)
 		require.Equal(t, 1, validateCalls, "token is validated")
@@ -338,10 +298,8 @@ func TestRefreshToken(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, updated.OAuthAccessToken, dbLink.OAuthAccessToken, "token is updated in the DB")
 	})
-
 	t.Run("WithExtra", func(t *testing.T) {
 		t.Parallel()
-
 		db := dbmem.New()
 		fake, config, link := setupOauth2Test(t, testConfig{
 			FakeIDPOpts: []oidctest.FakeIDPOpt{
@@ -358,14 +316,11 @@ func TestRefreshToken(t *testing.T) {
 			},
 			DB: db,
 		})
-
 		ctx := oidc.ClientContext(context.Background(), fake.HTTPClient(nil))
 		// Force a refresh
 		link.OAuthExpiry = expired
-
 		updated, err := config.RefreshToken(ctx, db, link)
 		require.NoError(t, err)
-
 		require.True(t, updated.OAuthExtra.Valid)
 		extra := map[string]interface{}{}
 		require.NoError(t, json.Unmarshal(updated.OAuthExtra.RawMessage, &extra))
@@ -374,7 +329,6 @@ func TestRefreshToken(t *testing.T) {
 		require.Equal(t, updated.OAuthAccessToken, mapping["access_token"])
 	})
 }
-
 func TestExchangeWithClientSecret(t *testing.T) {
 	t.Parallel()
 	instrument := promoauth.NewFactory(prometheus.NewRegistry())
@@ -382,14 +336,12 @@ func TestExchangeWithClientSecret(t *testing.T) {
 	// client secret exchange works.
 	configs, err := externalauth.ConvertConfig(instrument, []codersdk.ExternalAuthConfig{{
 		// JFrog just happens to require this custom type.
-
 		Type:         codersdk.EnhancedExternalAuthProviderJFrog.String(),
 		ClientID:     "id",
 		ClientSecret: "secret",
 	}}, &url.URL{})
 	require.NoError(t, err)
 	config := configs[0]
-
 	client := &http.Client{
 		Transport: roundTripper(func(req *http.Request) (*http.Response, error) {
 			require.Equal(t, "Bearer secret", req.Header.Get("Authorization"))
@@ -405,14 +357,11 @@ func TestExchangeWithClientSecret(t *testing.T) {
 			return rec.Result(), err
 		}),
 	}
-
 	_, err = config.Exchange(context.WithValue(context.Background(), oauth2.HTTPClient, client), "code")
 	require.NoError(t, err)
 }
-
 func TestConvertYAML(t *testing.T) {
 	t.Parallel()
-
 	instrument := promoauth.NewFactory(prometheus.NewRegistry())
 	for _, tc := range []struct {
 		Name   string
@@ -475,7 +424,6 @@ func TestConvertYAML(t *testing.T) {
 			require.Equal(t, tc.Output, output)
 		})
 	}
-
 	t.Run("CustomScopesAndEndpoint", func(t *testing.T) {
 		t.Parallel()
 		config, err := externalauth.ConvertConfig(instrument, []codersdk.ExternalAuthConfig{{
@@ -490,7 +438,6 @@ func TestConvertYAML(t *testing.T) {
 		require.Equal(t, "https://auth.com?client_id=id&redirect_uri=%2Fexternal-auth%2Fgitlab%2Fcallback&response_type=code&scope=read", config[0].AuthCodeURL(""))
 	})
 }
-
 // TestConstantQueryParams verifies a constant query parameter can be set in the
 // "authenticate" url for external auth applications, and it will be carried forward
 // to actual auth requests.
@@ -518,20 +465,17 @@ func TestConstantQueryParams(t *testing.T) {
 				// Include a constant query parameter.
 				authURL, err := url.Parse(cfg.OAuth2Config.(*oauth2.Config).Endpoint.AuthURL)
 				require.NoError(t, err)
-
 				authURL.RawQuery = url.Values{constantQueryParamKey: []string{constantQueryParamValue}}.Encode()
 				cfg.OAuth2Config.(*oauth2.Config).Endpoint.AuthURL = authURL.String()
 				require.Contains(t, cfg.OAuth2Config.(*oauth2.Config).Endpoint.AuthURL, constantQueryParam)
 			},
 		},
 	})
-
 	callbackCalled := false
 	fake.SetCoderdCallbackHandler(func(writer http.ResponseWriter, request *http.Request) {
 		// Just record the callback was hit, and the auth succeeded.
 		callbackCalled = true
 	})
-
 	// Verify the AuthURL endpoint contains the constant query parameter and is a valid URL.
 	// It should look something like:
 	//	http://127.0.0.1:<port>>/oauth2/authorize?
@@ -554,7 +498,6 @@ func TestConstantQueryParams(t *testing.T) {
 	// Validate the raw URL.
 	// Double check only 1 '?' exists. Url parsing allows multiple '?' in the query string.
 	require.Equal(t, strings.Count(rawAuthURL, "?"), 1)
-
 	// Actually run an auth request. Although it says OIDC, the flow is the same
 	// for oauth2.
 	//nolint:bodyclose
@@ -562,7 +505,6 @@ func TestConstantQueryParams(t *testing.T) {
 	require.True(t, callbackCalled)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 }
-
 type testConfig struct {
 	FakeIDPOpts         []oidctest.FakeIDPOpt
 	CoderOIDCConfigOpts []func(cfg *coderd.OIDCConfig)
@@ -570,7 +512,6 @@ type testConfig struct {
 	// If DB is passed in, the link will be inserted into the DB.
 	DB database.Store
 }
-
 // setupTest will configure a fake IDP and a externalauth.Config for testing.
 // The Fake's userinfo endpoint is used for validating tokens.
 // No http servers are started so use the fake IDP's HTTPClient to make requests.
@@ -578,16 +519,13 @@ type testConfig struct {
 // to test different scenarios.
 func setupOauth2Test(t *testing.T, settings testConfig) (*oidctest.FakeIDP, *externalauth.Config, database.ExternalAuthLink) {
 	t.Helper()
-
 	if settings.ExternalAuthOpt == nil {
 		settings.ExternalAuthOpt = func(_ *externalauth.Config) {}
 	}
-
 	const providerID = "test-idp"
 	fake := oidctest.NewFakeIDP(t,
 		append([]oidctest.FakeIDPOpt{}, settings.FakeIDPOpts...)...,
 	)
-
 	f := promoauth.NewFactory(prometheus.NewRegistry())
 	config := &externalauth.Config{
 		InstrumentedOAuth2Config: f.New("test-oauth2",
@@ -596,12 +534,10 @@ func setupOauth2Test(t *testing.T, settings testConfig) (*oidctest.FakeIDP, *ext
 		ValidateURL: fake.WellknownConfig().UserInfoURL,
 	}
 	settings.ExternalAuthOpt(config)
-
 	oauthToken, err := fake.GenerateAuthenticatedToken(jwt.MapClaims{
 		"email": "test@coder.com",
 	})
 	require.NoError(t, err)
-
 	now := time.Now()
 	link := database.ExternalAuthLink{
 		ProviderID:        providerID,
@@ -613,7 +549,6 @@ func setupOauth2Test(t *testing.T, settings testConfig) (*oidctest.FakeIDP, *ext
 		// The caller can manually expire this if they want.
 		OAuthExpiry: now.Add(time.Hour),
 	}
-
 	if settings.DB != nil {
 		// Feel free to insert additional things like the user, etc if required.
 		link, err = settings.DB.InsertExternalAuthLink(context.Background(), database.InsertExternalAuthLinkParams{
@@ -627,12 +562,9 @@ func setupOauth2Test(t *testing.T, settings testConfig) (*oidctest.FakeIDP, *ext
 		})
 		require.NoError(t, err, "failed to insert link into DB")
 	}
-
 	return fake, config, link
 }
-
 type roundTripper func(req *http.Request) (*http.Response, error)
-
 func (r roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	return r(req)
 }

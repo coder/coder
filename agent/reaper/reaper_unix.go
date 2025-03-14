@@ -7,8 +7,8 @@ import (
 	"os/signal"
 	"syscall"
 
+	"errors"
 	"github.com/hashicorp/go-reap"
-	"golang.org/x/xerrors"
 )
 
 // IsInitProcess returns true if the current process's PID is 1.
@@ -53,7 +53,7 @@ func ForkReap(opt ...Option) error {
 
 	pwd, err := os.Getwd()
 	if err != nil {
-		return xerrors.Errorf("get wd: %w", err)
+		return fmt.Errorf("get wd: %w", err)
 	}
 
 	pattrs := &syscall.ProcAttr{
@@ -72,14 +72,14 @@ func ForkReap(opt ...Option) error {
 	//#nosec G204
 	pid, err := syscall.ForkExec(opts.ExecArgs[0], opts.ExecArgs, pattrs)
 	if err != nil {
-		return xerrors.Errorf("fork exec: %w", err)
+		return fmt.Errorf("fork exec: %w", err)
 	}
 
 	go catchSignals(pid, opts.CatchSignals)
 
 	var wstatus syscall.WaitStatus
 	_, err = syscall.Wait4(pid, &wstatus, 0, nil)
-	for xerrors.Is(err, syscall.EINTR) {
+	for errors.Is(err, syscall.EINTR) {
 		_, err = syscall.Wait4(pid, &wstatus, 0, nil)
 	}
 	return err

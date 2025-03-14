@@ -1,18 +1,14 @@
 package cli
-
 import (
+	"fmt"
+	"errors"
 	"sort"
 	"sync"
-
-	"golang.org/x/xerrors"
-
 	"github.com/google/uuid"
-
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
-
 func (r *RootCmd) show() *serpent.Command {
 	client := new(codersdk.Client)
 	return &serpent.Command{
@@ -25,13 +21,12 @@ func (r *RootCmd) show() *serpent.Command {
 		Handler: func(inv *serpent.Invocation) error {
 			buildInfo, err := client.BuildInfo(inv.Context())
 			if err != nil {
-				return xerrors.Errorf("get server version: %w", err)
+				return fmt.Errorf("get server version: %w", err)
 			}
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
-				return xerrors.Errorf("get workspace: %w", err)
+				return fmt.Errorf("get workspace: %w", err)
 			}
-
 			options := cliui.WorkspaceResourcesOptions{
 				WorkspaceName: workspace.Name,
 				ServerVersion: buildInfo.Version,
@@ -46,7 +41,6 @@ func (r *RootCmd) show() *serpent.Command {
 		},
 	}
 }
-
 func fetchRuntimeResources(inv *serpent.Invocation, client *codersdk.Client, resources ...codersdk.WorkspaceResource) (map[uuid.UUID]codersdk.WorkspaceAgentListeningPortsResponse, map[uuid.UUID]codersdk.WorkspaceAgentListContainersResponse) {
 	ports := make(map[uuid.UUID]codersdk.WorkspaceAgentListeningPortsResponse)
 	devcontainers := make(map[uuid.UUID]codersdk.WorkspaceAgentListContainersResponse)

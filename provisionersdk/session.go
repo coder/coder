@@ -1,6 +1,6 @@
 package provisionersdk
-
 import (
+	"errors"
 	"archive/tar"
 	"bytes"
 	"context"
@@ -11,30 +11,22 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
 	"github.com/google/uuid"
 	"github.com/spf13/afero"
-	"golang.org/x/xerrors"
-
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
-
 const (
 	// ReadmeFile is the location we look for to extract documentation from template versions.
 	ReadmeFile = "README.md"
-
 	sessionDirPrefix      = "Session"
 	staleSessionRetention = 7 * 24 * time.Hour
 )
-
 // protoServer is a wrapper that translates the dRPC protocol into a Session with method calls into the Server.
 type protoServer struct {
 	server Server
 	opts   ServeOptions
 }
-
 func (p *protoServer) Session(stream proto.DRPCProvisioner_SessionStream) error {
 	sessID := uuid.New().String()
 	s := &Session{
@@ -42,16 +34,14 @@ func (p *protoServer) Session(stream proto.DRPCProvisioner_SessionStream) error 
 		stream: stream,
 		server: p.server,
 	}
-
 	err := CleanStaleSessions(s.Context(), p.opts.WorkDirectory, afero.NewOsFs(), time.Now(), s.Logger)
 	if err != nil {
-		return xerrors.Errorf("unable to clean stale sessions %q: %w", s.WorkDirectory, err)
+		return fmt.Errorf("unable to clean stale sessions %q: %w", s.WorkDirectory, err)
 	}
-
 	s.WorkDirectory = filepath.Join(p.opts.WorkDirectory, SessionDir(sessID))
 	err = os.MkdirAll(s.WorkDirectory, 0o700)
 	if err != nil {
-		return xerrors.Errorf("create work directory %q: %w", s.WorkDirectory, err)
+		return fmt.Errorf("create work directory %q: %w", s.WorkDirectory, err)
 	}
 	defer func() {
 		var err error
@@ -75,24 +65,22 @@ func (p *protoServer) Session(stream proto.DRPCProvisioner_SessionStream) error 
 	}()
 	req, err := stream.Recv()
 	if err != nil {
-		return xerrors.Errorf("receive config: %w", err)
+		return fmt.Errorf("receive config: %w", err)
 	}
 	config := req.GetConfig()
 	if config == nil {
-		return xerrors.New("first request must be Config")
+		return errors.New("first request must be Config")
 	}
 	s.Config = config
 	if s.Config.ProvisionerLogLevel != "" {
 		s.logLevel = proto.LogLevel_value[strings.ToUpper(s.Config.ProvisionerLogLevel)]
 	}
-
 	err = s.extractArchive()
 	if err != nil {
-		return xerrors.Errorf("extract archive: %w", err)
+		return fmt.Errorf("extract archive: %w", err)
 	}
 	return s.handleRequests()
 }
-
 func (s *Session) requestReader(done <-chan struct{}) <-chan *proto.Request {
 	ch := make(chan *proto.Request)
 	go func() {
@@ -113,7 +101,6 @@ func (s *Session) requestReader(done <-chan struct{}) <-chan *proto.Request {
 	}()
 	return ch
 }
-
 func (s *Session) handleRequests() error {
 	done := make(chan struct{})
 	defer close(done)
@@ -163,7 +150,7 @@ func (s *Session) handleRequests() error {
 		}
 		if apply := req.GetApply(); apply != nil {
 			if !planned {
-				return xerrors.New("cannot apply before successful plan")
+				return errors.New("cannot apply before successful plan")
 			}
 			r := &request[*proto.ApplyRequest, *proto.ApplyComplete]{
 				req:      apply,
@@ -179,77 +166,69 @@ func (s *Session) handleRequests() error {
 		}
 		err := s.stream.Send(resp)
 		if err != nil {
-			return xerrors.Errorf("send response: %w", err)
+			return fmt.Errorf("send response: %w", err)
 		}
 	}
 	return nil
 }
-
 type Session struct {
 	Logger        slog.Logger
 	WorkDirectory string
 	Config        *proto.Config
-
 	server   Server
 	stream   proto.DRPCProvisioner_SessionStream
 	logLevel int32
 }
-
 func (s *Session) Context() context.Context {
 	return s.stream.Context()
 }
-
 func (s *Session) extractArchive() error {
 	ctx := s.Context()
-
 	s.Logger.Info(ctx, "unpacking template source archive",
 		slog.F("size_bytes", len(s.Config.TemplateSourceArchive)),
 	)
-
 	reader := tar.NewReader(bytes.NewBuffer(s.Config.TemplateSourceArchive))
 	// for safety, nil out the reference on Config, since the reader now owns it.
 	s.Config.TemplateSourceArchive = nil
 	for {
 		header, err := reader.Next()
 		if err != nil {
-			if xerrors.Is(err, io.EOF) {
+			if errors.Is(err, io.EOF) {
 				break
 			}
-			return xerrors.Errorf("read template source archive: %w", err)
+			return fmt.Errorf("read template source archive: %w", err)
 		}
 		s.Logger.Debug(context.Background(), "read archive entry",
 			slog.F("name", header.Name),
 			slog.F("mod_time", header.ModTime),
 			slog.F("size", header.Size))
-
 		// Security: don't untar absolute or relative paths, as this can allow a malicious tar to overwrite
 		// files outside the workdir.
 		if !filepath.IsLocal(header.Name) {
-			return xerrors.Errorf("refusing to extract to non-local path")
+			return fmt.Errorf("refusing to extract to non-local path")
 		}
 		// nolint: gosec
 		headerPath := filepath.Join(s.WorkDirectory, header.Name)
 		if !strings.HasPrefix(headerPath, filepath.Clean(s.WorkDirectory)) {
-			return xerrors.New("tar attempts to target relative upper directory")
+			return errors.New("tar attempts to target relative upper directory")
 		}
 		mode := header.FileInfo().Mode()
 		if mode == 0 {
 			mode = 0o600
 		}
-
 		// Always check for context cancellation before reading the next header.
 		// This is mainly important for unit tests, since a canceled context means
 		// the underlying directory is going to be deleted. There still exists
 		// the small race condition that the context is canceled after this, and
 		// before the disk write.
 		if ctx.Err() != nil {
-			return xerrors.Errorf("context canceled: %w", ctx.Err())
+			return fmt.Errorf("context canceled: %w", ctx.Err())
 		}
 		switch header.Typeflag {
 		case tar.TypeDir:
 			err = os.MkdirAll(headerPath, mode)
 			if err != nil {
-				return xerrors.Errorf("mkdir %q: %w", headerPath, err)
+				return fmt.Errorf("mkdir %q: %w", headerPath, err)
 			}
 			s.Logger.Debug(context.Background(), "extracted directory",
 				slog.F("path", headerPath),
@@ -257,23 +236,22 @@ func (s *Session) extractArchive() error {
 		case tar.TypeReg:
 			file, err := os.OpenFile(headerPath, os.O_CREATE|os.O_RDWR, mode)
 			if err != nil {
-				return xerrors.Errorf("create file %q (mode %s): %w", headerPath, mode, err)
+				return fmt.Errorf("create file %q (mode %s): %w", headerPath, mode, err)
 			}
-
 			hash := crc32.NewIEEE()
 			hashReader := io.TeeReader(reader, hash)
 			// Max file size of 10MiB.
 			size, err := io.CopyN(file, hashReader, 10<<20)
-			if xerrors.Is(err, io.EOF) {
+			if errors.Is(err, io.EOF) {
 				err = nil
 			}
 			if err != nil {
 				_ = file.Close()
-				return xerrors.Errorf("copy file %q: %w", headerPath, err)
+				return fmt.Errorf("copy file %q: %w", headerPath, err)
 			}
 			err = file.Close()
 			if err != nil {
-				return xerrors.Errorf("close file %q: %s", headerPath, err)
+				return fmt.Errorf("close file %q: %s", headerPath, err)
 			}
 			s.Logger.Debug(context.Background(), "extracted file",
 				slog.F("size_bytes", size),
@@ -284,12 +262,10 @@ func (s *Session) extractArchive() error {
 	}
 	return nil
 }
-
 func (s *Session) ProvisionLog(level proto.LogLevel, output string) {
 	if int32(level) < s.logLevel {
 		return
 	}
-
 	err := s.stream.Send(&proto.Response{Type: &proto.Response_Log{Log: &proto.Log{
 		Level:  level,
 		Output: output,
@@ -299,15 +275,12 @@ func (s *Session) ProvisionLog(level proto.LogLevel, output string) {
 			slog.F("level", level), slog.F("output", output))
 	}
 }
-
 type pRequest interface {
 	*proto.ParseRequest | *proto.PlanRequest | *proto.ApplyRequest
 }
-
 type pComplete interface {
 	*proto.ParseComplete | *proto.PlanComplete | *proto.ApplyComplete
 }
-
 // request processes a single request call to the Server and returns its complete result, while also processing cancel
 // requests from the daemon.  Provisioner implementations read from canceledOrComplete to be asynchronously informed
 // of cancel.
@@ -317,7 +290,6 @@ type request[R pRequest, C pComplete] struct {
 	cancels  <-chan *proto.Request
 	serverFn func(*Session, R, <-chan struct{}) C
 }
-
 func (r *request[R, C]) do() (C, error) {
 	canceledOrComplete := make(chan struct{})
 	result := make(chan C)
@@ -337,15 +309,14 @@ func (r *request[R, C]) do() (C, error) {
 			return c, nil
 		}
 		if req == nil {
-			return c, xerrors.New("got nil while old request still processing")
+			return c, errors.New("got nil while old request still processing")
 		}
-		return c, xerrors.Errorf("got new request %T while old request still processing", req.Type)
+		return c, fmt.Errorf("got new request %T while old request still processing", req.Type)
 	case c := <-result:
 		close(canceledOrComplete)
 		return c, nil
 	}
 }
-
 // SessionDir returns the directory name with mandatory prefix.
 func SessionDir(sessID string) string {
 	return sessionDirPrefix + sessID

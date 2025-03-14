@@ -1,6 +1,6 @@
 package harness_test
-
 import (
+	"errors"
 	"bytes"
 	"encoding/json"
 	"os"
@@ -8,27 +8,20 @@ import (
 	"strings"
 	"testing"
 	"time"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/scaletest/harness"
 )
-
 type testError struct {
 	hidden error
 }
-
 func (e testError) Error() string {
 	return e.hidden.Error()
 }
-
 func Test_Results(t *testing.T) {
 	t.Parallel()
-
 	now := time.Date(2023, 10, 5, 12, 3, 56, 395813665, time.UTC)
 	results := harness.Results{
 		TotalRuns: 10,
@@ -40,7 +33,7 @@ func Test_Results(t *testing.T) {
 				TestName:   "test-0",
 				ID:         "0",
 				Logs:       "test-0/0 log line 1\ntest-0/0 log line 2",
-				Error:      xerrors.New("test-0/0 error"),
+				Error:      errors.New("test-0/0 error"),
 				StartedAt:  now,
 				Duration:   httpapi.Duration(time.Second),
 				DurationMS: 1000,
@@ -60,7 +53,7 @@ func Test_Results(t *testing.T) {
 				TestName:   "test-0",
 				ID:         "2",
 				Logs:       "test-0/2 log line 1\ntest-0/2 log line 2",
-				Error:      testError{hidden: xerrors.New("test-0/2 error")},
+				Error:      testError{hidden: errors.New("test-0/2 error")},
 				StartedAt:  now.Add(666 * time.Millisecond),
 				Duration:   httpapi.Duration(time.Second),
 				DurationMS: 1000,
@@ -69,28 +62,19 @@ func Test_Results(t *testing.T) {
 		Elapsed:   httpapi.Duration(time.Second),
 		ElapsedMS: 1000,
 	}
-
 	wantText := `
 == FAIL: test-0/0
-
 	Error: test-0/0 error
-
 	Log:
 		test-0/0 log line 1
-
 == FAIL: test-0/2
-
 	Error: test-0/2 error
-
 	Log:
 		test-0/2 log line 1
-
-
 Test results:
 	Pass:  8
 	Fail:  2
 	Total: 10
-
 	Total duration: 1s
 	Avg. duration:  300ms
 `
@@ -138,17 +122,13 @@ Test results:
 	require.NoError(t, err)
 	wd = filepath.ToSlash(wd) // Hello there Windows, my friend...
 	wantJSON = strings.Replace(wantJSON, "[working_directory]", wd, 1)
-
 	out := bytes.NewBuffer(nil)
 	results.PrintText(out)
-
 	assert.Empty(t, cmp.Diff(wantText, out.String()), "text result does not match (-want +got)")
-
 	out.Reset()
 	enc := json.NewEncoder(out)
 	enc.SetIndent("", "\t")
 	err = enc.Encode(results)
 	require.NoError(t, err)
-
 	assert.Empty(t, cmp.Diff(wantJSON, out.String()), "JSON result does not match (-want +got)")
 }

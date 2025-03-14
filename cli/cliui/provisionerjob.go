@@ -1,6 +1,6 @@
 package cliui
-
 import (
+	"errors"
 	"bytes"
 	"context"
 	"fmt"
@@ -10,14 +10,10 @@ import (
 	"strings"
 	"sync"
 	"time"
-
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/pretty"
 )
-
 func WorkspaceBuild(ctx context.Context, writer io.Writer, client *codersdk.Client, build uuid.UUID) error {
 	return ProvisionerJob(ctx, writer, ProvisionerJobOptions{
 		Fetch: func() (codersdk.ProvisionerJob, error) {
@@ -29,12 +25,10 @@ func WorkspaceBuild(ctx context.Context, writer io.Writer, client *codersdk.Clie
 		},
 	})
 }
-
 type ProvisionerJobOptions struct {
 	Fetch  func() (codersdk.ProvisionerJob, error)
 	Cancel func() error
 	Logs   func() (<-chan codersdk.ProvisionerJobLog, io.Closer, error)
-
 	FetchInterval time.Duration
 	// Verbose determines whether debug and trace logs will be shown.
 	Verbose bool
@@ -42,23 +36,18 @@ type ProvisionerJobOptions struct {
 	// error.
 	Silent bool
 }
-
 type ProvisionerJobError struct {
 	Message string
 	Code    codersdk.JobErrorCode
 }
-
 var _ error = new(ProvisionerJobError)
-
 func (err *ProvisionerJobError) Error() string {
 	return err.Message
 }
-
 const (
 	ProvisioningStateQueued  = "Queued"
 	ProvisioningStateRunning = "Running"
 )
-
 // ProvisionerJob renders a provisioner job with interactive cancellation.
 func ProvisionerJob(ctx context.Context, wr io.Writer, opts ProvisionerJobOptions) error {
 	if opts.FetchInterval == 0 {
@@ -66,22 +55,17 @@ func ProvisionerJob(ctx context.Context, wr io.Writer, opts ProvisionerJobOption
 	}
 	ctx, cancelFunc := context.WithCancel(ctx)
 	defer cancelFunc()
-
 	var (
 		currentStage          = ProvisioningStateQueued
 		currentStageStartedAt = time.Now().UTC()
 		currentQueuePos       = -1
-
 		errChan  = make(chan error, 1)
 		job      codersdk.ProvisionerJob
 		jobMutex sync.Mutex
 	)
-
 	sw := &stageWriter{w: wr, verbose: opts.Verbose, silentLogs: opts.Silent}
-
 	printStage := func() {
 		out := currentStage
-
 		if currentStage == ProvisioningStateQueued && currentQueuePos > 0 {
 			var queuePos string
 			if currentQueuePos == 1 {
@@ -89,13 +73,10 @@ func ProvisionerJob(ctx context.Context, wr io.Writer, opts ProvisionerJobOption
 			} else {
 				queuePos = fmt.Sprintf("position: %d", currentQueuePos)
 			}
-
 			out = pretty.Sprintf(DefaultStyles.Warn, "%s (%s)", currentStage, queuePos)
 		}
-
 		sw.Start(out)
 	}
-
 	updateStage := func(stage string, startedAt time.Time) {
 		if currentStage != "" {
 			duration := startedAt.Sub(currentStageStartedAt)
@@ -112,19 +93,17 @@ func ProvisionerJob(ctx context.Context, wr io.Writer, opts ProvisionerJobOption
 		currentStageStartedAt = startedAt
 		printStage()
 	}
-
 	updateJob := func() {
 		var err error
 		jobMutex.Lock()
 		defer jobMutex.Unlock()
 		job, err = opts.Fetch()
 		if err != nil {
-			errChan <- xerrors.Errorf("fetch: %w", err)
+			errChan <- fmt.Errorf("fetch: %w", err)
 			return
 		}
 		if job.QueuePosition != currentQueuePos {
 			initialState := currentQueuePos == -1
-
 			currentQueuePos = job.QueuePosition
 			// Print an update when the queue position changes, but:
 			//   - not initially, because the stage is printed at startup
@@ -143,7 +122,6 @@ func ProvisionerJob(ctx context.Context, wr io.Writer, opts ProvisionerJobOption
 		}
 		updateStage(ProvisioningStateRunning, *job.StartedAt)
 	}
-
 	if opts.Cancel != nil {
 		// Handles ctrl+c to cancel a job.
 		stopChan := make(chan os.Signal, 1)
@@ -165,23 +143,20 @@ func ProvisionerJob(ctx context.Context, wr io.Writer, opts ProvisionerJobOption
 			)
 			err := opts.Cancel()
 			if err != nil {
-				errChan <- xerrors.Errorf("cancel: %w", err)
+				errChan <- fmt.Errorf("cancel: %w", err)
 				return
 			}
 			updateJob()
 		}()
 	}
-
 	// The initial stage needs to print after the signal handler has been registered.
 	updateJob()
 	printStage()
-
 	logs, closer, err := opts.Logs()
 	if err != nil {
-		return xerrors.Errorf("begin streaming logs: %w", err)
+		return fmt.Errorf("begin streaming logs: %w", err)
 	}
 	defer closer.Close()
-
 	ticker := time.NewTicker(opts.FetchInterval)
 	defer ticker.Stop()
 	for {
@@ -218,7 +193,6 @@ func ProvisionerJob(ctx context.Context, wr io.Writer, opts ProvisionerJobOption
 				jobMutex.Unlock()
 				return err
 			}
-
 			jobMutex.Lock()
 			if log.Stage != currentStage && log.Stage != "" {
 				updateStage(log.Stage, log.CreatedAt)
@@ -230,31 +204,25 @@ func ProvisionerJob(ctx context.Context, wr io.Writer, opts ProvisionerJobOption
 		}
 	}
 }
-
 type stageWriter struct {
 	w          io.Writer
 	verbose    bool
 	silentLogs bool
 	logBuf     bytes.Buffer
 }
-
 func (s *stageWriter) Start(stage string) {
 	_, _ = fmt.Fprintf(s.w, "==> ⧗ %s\n", stage)
 }
-
 func (s *stageWriter) Complete(stage string, duration time.Duration) {
 	s.end(stage, duration, true)
 }
-
 func (s *stageWriter) Fail(stage string, duration time.Duration) {
 	s.flushLogs()
 	s.end(stage, duration, false)
 }
-
 //nolint:revive
 func (s *stageWriter) end(stage string, duration time.Duration, ok bool) {
 	s.logBuf.Reset()
-
 	mark := "✔"
 	if !ok {
 		mark = "✘"
@@ -264,21 +232,17 @@ func (s *stageWriter) end(stage string, duration time.Duration, ok bool) {
 	}
 	_, _ = fmt.Fprintf(s.w, "=== %s %s [%dms]\n", mark, stage, duration.Milliseconds())
 }
-
 func (s *stageWriter) Log(createdAt time.Time, level codersdk.LogLevel, line string) {
 	w := s.w
 	if s.silentLogs {
 		w = &s.logBuf
 	}
-
 	var style pretty.Style
-
 	var lines []string
 	if !createdAt.IsZero() {
 		lines = append(lines, createdAt.Local().Format("2006-01-02 15:04:05.000Z07:00"))
 	}
 	lines = append(lines, line)
-
 	switch level {
 	case codersdk.LogLevelTrace, codersdk.LogLevelDebug:
 		if !s.verbose {
@@ -293,7 +257,6 @@ func (s *stageWriter) Log(createdAt time.Time, level codersdk.LogLevel, line str
 	}
 	pretty.Fprintf(w, style, "%s\n", strings.Join(lines, " "))
 }
-
 func (s *stageWriter) flushLogs() {
 	if s.silentLogs {
 		_, _ = io.Copy(s.w, &s.logBuf)

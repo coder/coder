@@ -1,5 +1,4 @@
 package prometheusmetrics
-
 import (
 	"context"
 	"database/sql"
@@ -9,14 +8,10 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
-
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
-	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
-
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/v2/coderd/agentmetrics"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -25,15 +20,12 @@ import (
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/quartz"
 )
-
 const defaultRefreshRate = time.Minute
-
 // ActiveUsers tracks the number of users that have authenticated within the past hour.
 func ActiveUsers(ctx context.Context, logger slog.Logger, registerer prometheus.Registerer, db database.Store, duration time.Duration) (func(), error) {
 	if duration == 0 {
 		duration = defaultRefreshRate
 	}
-
 	gauge := prometheus.NewGauge(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "api",
@@ -44,7 +36,6 @@ func ActiveUsers(ctx context.Context, logger slog.Logger, registerer prometheus.
 	if err != nil {
 		return nil, err
 	}
-
 	ctx, cancelFunc := context.WithCancel(ctx)
 	done := make(chan struct{})
 	ticker := time.NewTicker(duration)
@@ -57,7 +48,6 @@ func ActiveUsers(ctx context.Context, logger slog.Logger, registerer prometheus.
 				return
 			case <-ticker.C:
 			}
-
 			apiKeys, err := db.GetAPIKeysLastUsedAfter(ctx, dbtime.Now().Add(-1*time.Hour))
 			if err != nil {
 				logger.Error(ctx, "get api keys for active users prometheus metric", slog.Error(err))
@@ -75,14 +65,12 @@ func ActiveUsers(ctx context.Context, logger slog.Logger, registerer prometheus.
 		<-done
 	}, nil
 }
-
 // Users tracks the total number of registered users, partitioned by status.
 func Users(ctx context.Context, logger slog.Logger, clk quartz.Clock, registerer prometheus.Registerer, db database.Store, duration time.Duration) (func(), error) {
 	if duration == 0 {
 		// It's not super important this tracks real-time.
 		duration = defaultRefreshRate * 5
 	}
-
 	gauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "api",
@@ -91,9 +79,8 @@ func Users(ctx context.Context, logger slog.Logger, clk quartz.Clock, registerer
 	}, []string{"status"})
 	err := registerer.Register(gauge)
 	if err != nil {
-		return nil, xerrors.Errorf("register total_user_count gauge: %w", err)
+		return nil, fmt.Errorf("register total_user_count gauge: %w", err)
 	}
-
 	ctx, cancelFunc := context.WithCancel(ctx)
 	done := make(chan struct{})
 	ticker := clk.NewTicker(duration)
@@ -106,7 +93,6 @@ func Users(ctx context.Context, logger slog.Logger, clk quartz.Clock, registerer
 				return
 			case <-ticker.C:
 			}
-
 			gauge.Reset()
 			//nolint:gocritic // This is a system service that needs full access
 			//to the users table.
@@ -115,7 +101,6 @@ func Users(ctx context.Context, logger slog.Logger, clk quartz.Clock, registerer
 				logger.Error(ctx, "get all users for prometheus metrics", slog.Error(err))
 				continue
 			}
-
 			for _, user := range users {
 				gauge.WithLabelValues(string(user.Status)).Inc()
 			}
@@ -126,13 +111,11 @@ func Users(ctx context.Context, logger slog.Logger, clk quartz.Clock, registerer
 		<-done
 	}, nil
 }
-
 // Workspaces tracks the total number of workspaces with labels on status.
 func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.Registerer, db database.Store, duration time.Duration) (func(), error) {
 	if duration == 0 {
 		duration = defaultRefreshRate
 	}
-
 	// TODO: deprecated: remove in the future
 	// See: https://github.com/coder/coder/issues/12999
 	// Deprecation reason: gauge metrics should avoid suffix `_total``
@@ -145,7 +128,6 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 	if err := registerer.Register(workspaceLatestBuildTotalsDeprecated); err != nil {
 		return nil, err
 	}
-
 	workspaceLatestBuildTotals := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "api",
@@ -155,7 +137,6 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 	if err := registerer.Register(workspaceLatestBuildTotals); err != nil {
 		return nil, err
 	}
-
 	workspaceLatestBuildStatuses := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Name:      "workspace_latest_build_status",
@@ -164,10 +145,8 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 	if err := registerer.Register(workspaceLatestBuildStatuses); err != nil {
 		return nil, err
 	}
-
 	ctx, cancelFunc := context.WithCancel(ctx)
 	done := make(chan struct{})
-
 	updateWorkspaceTotals := func() {
 		builds, err := db.GetLatestWorkspaceBuilds(ctx)
 		if err != nil {
@@ -189,11 +168,9 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 			for _, id := range jobIDs {
 				ids = append(ids, id.String())
 			}
-
 			logger.Warn(ctx, "failed to load provisioner jobs", slog.F("ids", ids), slog.Error(err))
 			return
 		}
-
 		workspaceLatestBuildTotals.Reset()
 		for _, job := range jobs {
 			status := codersdk.ProvisionerJobStatus(job.JobStatus)
@@ -202,7 +179,6 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 			workspaceLatestBuildTotalsDeprecated.WithLabelValues(string(status)).Add(1)
 		}
 	}
-
 	updateWorkspaceStatuses := func() {
 		ws, err := db.GetWorkspaces(ctx, database.GetWorkspacesParams{
 			Deleted:     false,
@@ -213,27 +189,22 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 				// clear all series if there are no database entries
 				workspaceLatestBuildStatuses.Reset()
 			}
-
 			logger.Warn(ctx, "failed to load active workspaces", slog.Error(err))
 			return
 		}
-
 		workspaceLatestBuildStatuses.Reset()
 		for _, w := range ws {
 			workspaceLatestBuildStatuses.WithLabelValues(string(w.LatestBuildStatus), w.TemplateName, w.TemplateVersionName.String, w.OwnerUsername, string(w.LatestBuildTransition)).Add(1)
 		}
 	}
-
 	// Use time.Nanosecond to force an initial tick. It will be reset to the
 	// correct duration after executing once.
 	ticker := time.NewTicker(time.Nanosecond)
 	doTick := func() {
 		defer ticker.Reset(duration)
-
 		updateWorkspaceTotals()
 		updateWorkspaceStatuses()
 	}
-
 	go func() {
 		defer close(done)
 		defer ticker.Stop()
@@ -251,13 +222,11 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		<-done
 	}, nil
 }
-
 // Agents tracks the total number of workspaces with labels on status.
 func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Registerer, db database.Store, coordinator *atomic.Pointer[tailnet.Coordinator], derpMapFn func() *tailcfg.DERPMap, agentInactiveDisconnectTimeout, duration time.Duration) (func(), error) {
 	if duration == 0 {
 		duration = defaultRefreshRate
 	}
-
 	agentsGauge := NewCachedGaugeVec(prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "agents",
@@ -268,7 +237,6 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 	if err != nil {
 		return nil, err
 	}
-
 	agentsConnectionsGauge := NewCachedGaugeVec(prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "agents",
@@ -279,7 +247,6 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 	if err != nil {
 		return nil, err
 	}
-
 	agentsConnectionLatenciesGauge := NewCachedGaugeVec(prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "agents",
@@ -290,7 +257,6 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 	if err != nil {
 		return nil, err
 	}
-
 	agentsAppsGauge := NewCachedGaugeVec(prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "agents",
@@ -301,7 +267,6 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 	if err != nil {
 		return nil, err
 	}
-
 	metricsCollectorAgents := prometheus.NewHistogram(prometheus.HistogramOpts{
 		Namespace: "coderd",
 		Subsystem: "prometheusmetrics",
@@ -313,12 +278,10 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 	if err != nil {
 		return nil, err
 	}
-
 	ctx, cancelFunc := context.WithCancel(ctx)
 	// nolint:gocritic // Prometheus must collect metrics for all Coder users.
 	ctx = dbauthz.AsSystemRestricted(ctx)
 	done := make(chan struct{})
-
 	// Use time.Nanosecond to force an initial tick. It will be reset to the
 	// correct duration after executing once.
 	ticker := time.NewTicker(time.Nanosecond)
@@ -331,11 +294,9 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 				return
 			case <-ticker.C:
 			}
-
 			logger.Debug(ctx, "agent metrics collection is starting")
 			timer := prometheus.NewTimer(metricsCollectorAgents)
 			derpMap := derpMapFn()
-
 			workspaceRows, err := db.GetWorkspaces(ctx, database.GetWorkspacesParams{
 				AgentInactiveDisconnectTimeoutSeconds: int64(agentInactiveDisconnectTimeout.Seconds()),
 			})
@@ -343,48 +304,39 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 				logger.Error(ctx, "can't get workspace rows", slog.Error(err))
 				goto done
 			}
-
 			for _, workspace := range workspaceRows {
 				templateName := workspace.TemplateName
 				templateVersionName := workspace.TemplateVersionName.String
 				if !workspace.TemplateVersionName.Valid {
 					templateVersionName = "unknown"
 				}
-
 				user, err := db.GetUserByID(ctx, workspace.OwnerID)
 				if err != nil {
 					logger.Error(ctx, "can't get user from the database", slog.F("user_id", workspace.OwnerID), slog.Error(err))
 					agentsGauge.WithLabelValues(VectorOperationAdd, 0, user.Username, workspace.Name, templateName, templateVersionName)
 					continue
 				}
-
 				agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
 				if err != nil {
 					logger.Error(ctx, "can't get workspace agents", slog.F("workspace_id", workspace.ID), slog.Error(err))
 					agentsGauge.WithLabelValues(VectorOperationAdd, 0, user.Username, workspace.Name, templateName, templateVersionName)
 					continue
 				}
-
 				if len(agents) == 0 {
 					logger.Debug(ctx, "workspace agents are unavailable", slog.F("workspace_id", workspace.ID))
 					agentsGauge.WithLabelValues(VectorOperationAdd, 0, user.Username, workspace.Name, templateName, templateVersionName)
 					continue
 				}
-
 				for _, agent := range agents {
 					// Collect information about agents
 					agentsGauge.WithLabelValues(VectorOperationAdd, 1, user.Username, workspace.Name, templateName, templateVersionName)
-
 					connectionStatus := agent.Status(agentInactiveDisconnectTimeout)
 					node := (*coordinator.Load()).Node(agent.ID)
-
 					tailnetNode := "unknown"
 					if node != nil {
 						tailnetNode = node.ID.String()
 					}
-
 					agentsConnectionsGauge.WithLabelValues(VectorOperationSet, 1, agent.Name, user.Username, workspace.Name, string(connectionStatus.Status), string(agent.LifecycleState), tailnetNode)
-
 					if node == nil {
 						logger.Debug(ctx, "can't read in-memory node for agent", slog.F("agent_id", agent.ID))
 					} else {
@@ -396,7 +348,6 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 								logger.Error(ctx, "can't convert DERP region", slog.F("agent_id", agent.ID), slog.F("raw_region", rawRegion), slog.Error(err))
 								continue
 							}
-
 							region, found := derpMap.Regions[regionID]
 							if !found {
 								// It's possible that a workspace agent is using an old DERPMap
@@ -407,29 +358,24 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 									RegionName: fmt.Sprintf("Unnamed %d", regionID),
 								}
 							}
-
 							agentsConnectionLatenciesGauge.WithLabelValues(VectorOperationSet, latency, agent.Name, user.Username, workspace.Name, region.RegionName, fmt.Sprintf("%v", node.PreferredDERP == regionID))
 						}
 					}
-
 					// Collect information about registered applications
 					apps, err := db.GetWorkspaceAppsByAgentID(ctx, agent.ID)
 					if err != nil && !errors.Is(err, sql.ErrNoRows) {
 						logger.Error(ctx, "can't get workspace apps", slog.F("agent_id", agent.ID), slog.Error(err))
 						continue
 					}
-
 					for _, app := range apps {
 						agentsAppsGauge.WithLabelValues(VectorOperationAdd, 1, agent.Name, user.Username, workspace.Name, app.DisplayName, string(app.Health))
 					}
 				}
 			}
-
 			agentsGauge.Commit()
 			agentsConnectionsGauge.Commit()
 			agentsConnectionLatenciesGauge.Commit()
 			agentsAppsGauge.Commit()
-
 		done:
 			logger.Debug(ctx, "agent metrics collection is done")
 			timer.ObserveDuration()
@@ -441,19 +387,15 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 		<-done
 	}, nil
 }
-
 // nolint:revive // This will be removed alongside the workspaceusage experiment
 func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.Registerer, db database.Store, initialCreateAfter time.Time, duration time.Duration, aggregateByLabels []string, usage bool) (func(), error) {
 	if duration == 0 {
 		duration = defaultRefreshRate
 	}
-
 	if len(aggregateByLabels) == 0 {
 		aggregateByLabels = agentmetrics.LabelAgentStats
 	}
-
 	aggregateByLabels = filterAcceptableAgentLabels(aggregateByLabels)
-
 	metricsCollectorAgentStats := prometheus.NewHistogram(prometheus.HistogramOpts{
 		Namespace: "coderd",
 		Subsystem: "prometheusmetrics",
@@ -465,7 +407,6 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 	if err != nil {
 		return nil, err
 	}
-
 	agentStatsTxBytesGauge := NewCachedGaugeVec(prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "agentstats",
@@ -476,7 +417,6 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 	if err != nil {
 		return nil, err
 	}
-
 	agentStatsRxBytesGauge := NewCachedGaugeVec(prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "agentstats",
@@ -487,7 +427,6 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 	if err != nil {
 		return nil, err
 	}
-
 	agentStatsConnectionCountGauge := NewCachedGaugeVec(prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "agentstats",
@@ -498,7 +437,6 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 	if err != nil {
 		return nil, err
 	}
-
 	agentStatsConnectionMedianLatencyGauge := NewCachedGaugeVec(prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "agentstats",
@@ -509,7 +447,6 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 	if err != nil {
 		return nil, err
 	}
-
 	agentStatsSessionCountJetBrainsGauge := NewCachedGaugeVec(prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "agentstats",
@@ -520,7 +457,6 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 	if err != nil {
 		return nil, err
 	}
-
 	agentStatsSessionCountReconnectingPTYGauge := NewCachedGaugeVec(prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "agentstats",
@@ -531,7 +467,6 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 	if err != nil {
 		return nil, err
 	}
-
 	agentStatsSessionCountSSHGauge := NewCachedGaugeVec(prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "agentstats",
@@ -542,7 +477,6 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 	if err != nil {
 		return nil, err
 	}
-
 	agentStatsSessionCountVSCodeGauge := NewCachedGaugeVec(prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "agentstats",
@@ -553,10 +487,8 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 	if err != nil {
 		return nil, err
 	}
-
 	ctx, cancelFunc := context.WithCancel(ctx)
 	done := make(chan struct{})
-
 	createdAfter := initialCreateAfter
 	// Use time.Nanosecond to force an initial tick. It will be reset to the
 	// correct duration after executing once.
@@ -570,10 +502,8 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 				return
 			case <-ticker.C:
 			}
-
 			logger.Debug(ctx, "agent metrics collection is starting")
 			timer := prometheus.NewTimer(metricsCollectorAgentStats)
-
 			checkpoint := time.Now()
 			var (
 				stats []database.GetWorkspaceAgentStatsAndLabelsRow
@@ -604,36 +534,28 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 							labelValues = append(labelValues, agentStat.AgentName)
 						}
 					}
-
 					agentStatsRxBytesGauge.WithLabelValues(VectorOperationAdd, float64(agentStat.RxBytes), labelValues...)
 					agentStatsTxBytesGauge.WithLabelValues(VectorOperationAdd, float64(agentStat.TxBytes), labelValues...)
-
 					agentStatsConnectionCountGauge.WithLabelValues(VectorOperationSet, float64(agentStat.ConnectionCount), labelValues...)
 					agentStatsConnectionMedianLatencyGauge.WithLabelValues(VectorOperationSet, agentStat.ConnectionMedianLatencyMS/1000.0 /* (to seconds) */, labelValues...)
-
 					agentStatsSessionCountJetBrainsGauge.WithLabelValues(VectorOperationSet, float64(agentStat.SessionCountJetBrains), labelValues...)
 					agentStatsSessionCountReconnectingPTYGauge.WithLabelValues(VectorOperationSet, float64(agentStat.SessionCountReconnectingPTY), labelValues...)
 					agentStatsSessionCountSSHGauge.WithLabelValues(VectorOperationSet, float64(agentStat.SessionCountSSH), labelValues...)
 					agentStatsSessionCountVSCodeGauge.WithLabelValues(VectorOperationSet, float64(agentStat.SessionCountVSCode), labelValues...)
 				}
-
 				if len(stats) > 0 {
 					agentStatsRxBytesGauge.Commit()
 					agentStatsTxBytesGauge.Commit()
-
 					agentStatsConnectionCountGauge.Commit()
 					agentStatsConnectionMedianLatencyGauge.Commit()
-
 					agentStatsSessionCountJetBrainsGauge.Commit()
 					agentStatsSessionCountReconnectingPTYGauge.Commit()
 					agentStatsSessionCountSSHGauge.Commit()
 					agentStatsSessionCountVSCodeGauge.Commit()
 				}
 			}
-
 			logger.Debug(ctx, "agent metrics collection is done", slog.F("len", len(stats)))
 			timer.ObserveDuration()
-
 			createdAfter = checkpoint
 			ticker.Reset(duration)
 		}
@@ -643,7 +565,6 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		<-done
 	}, nil
 }
-
 // Experiments registers a metric which indicates whether each experiment is enabled or not.
 func Experiments(registerer prometheus.Registerer, active codersdk.Experiments) error {
 	experimentsGauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
@@ -654,7 +575,6 @@ func Experiments(registerer prometheus.Registerer, active codersdk.Experiments) 
 	if err := registerer.Register(experimentsGauge); err != nil {
 		return err
 	}
-
 	for _, exp := range codersdk.ExperimentsAll {
 		var val float64
 		for _, enabled := range active {
@@ -663,13 +583,10 @@ func Experiments(registerer prometheus.Registerer, active codersdk.Experiments) 
 				break
 			}
 		}
-
 		experimentsGauge.WithLabelValues(string(exp)).Set(val)
 	}
-
 	return nil
 }
-
 // filterAcceptableAgentLabels handles a slightly messy situation whereby `prometheus-aggregate-agent-stats-by` can control on
 // which labels agent stats are aggregated, but for these specific metrics in this file there is no `template` label value,
 // and therefore we have to exclude it from the list of acceptable labels.
@@ -680,6 +597,5 @@ func filterAcceptableAgentLabels(labels []string) []string {
 			out = append(out, label)
 		}
 	}
-
 	return out
 }

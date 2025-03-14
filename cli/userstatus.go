@@ -1,18 +1,13 @@
 package cli
-
 import (
+	"errors"
 	"fmt"
 	"strings"
-
-	"golang.org/x/xerrors"
-
 	"github.com/coder/pretty"
-
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
-
 // createUserStatusCommand sets a user status.
 func (r *RootCmd) createUserStatusCommand(sdkStatus codersdk.UserStatus) *serpent.Command {
 	var verb string
@@ -32,9 +27,7 @@ func (r *RootCmd) createUserStatusCommand(sdkStatus codersdk.UserStatus) *serpen
 	default:
 		panic(fmt.Sprintf("%s is not supported", sdkStatus))
 	}
-
 	client := new(codersdk.Client)
-
 	var columns []string
 	allColumns := []string{"username", "email", "created at", "status"}
 	cmd := &serpent.Command{
@@ -53,29 +46,25 @@ func (r *RootCmd) createUserStatusCommand(sdkStatus codersdk.UserStatus) *serpen
 		Handler: func(inv *serpent.Invocation) error {
 			identifier := inv.Args[0]
 			if identifier == "" {
-				return xerrors.Errorf("user identifier cannot be an empty string")
+				return fmt.Errorf("user identifier cannot be an empty string")
 			}
-
 			user, err := client.User(inv.Context(), identifier)
 			if err != nil {
-				return xerrors.Errorf("fetch user: %w", err)
+				return fmt.Errorf("fetch user: %w", err)
 			}
-
 			// Display the user. This uses cliui.DisplayTable directly instead
 			// of cliui.NewOutputFormatter because we prompt immediately
 			// afterwards.
 			table, err := cliui.DisplayTable([]codersdk.User{user}, "", columns)
 			if err != nil {
-				return xerrors.Errorf("render user table: %w", err)
+				return fmt.Errorf("render user table: %w", err)
 			}
 			_, _ = fmt.Fprintln(inv.Stdout, table)
-
 			// User status is already set to this
 			if user.Status == sdkStatus {
 				_, _ = fmt.Fprintf(inv.Stdout, "User status is already %q\n", sdkStatus)
 				return nil
 			}
-
 			// Prompt to confirm the action
 			_, err = cliui.Prompt(inv, cliui.PromptOptions{
 				Text:      fmt.Sprintf("Are you sure you want to %s this user?", verb),
@@ -85,12 +74,10 @@ func (r *RootCmd) createUserStatusCommand(sdkStatus codersdk.UserStatus) *serpen
 			if err != nil {
 				return err
 			}
-
 			_, err = client.UpdateUserStatus(inv.Context(), user.ID.String(), sdkStatus)
 			if err != nil {
-				return xerrors.Errorf("%s user: %w", verb, err)
+				return fmt.Errorf("%s user: %w", verb, err)
 			}
-
 			_, _ = fmt.Fprintf(inv.Stdout, "\nUser %s has been %s!\n", pretty.Sprint(cliui.DefaultStyles.Keyword, user.Username), pastVerb)
 			return nil
 		},

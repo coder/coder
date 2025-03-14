@@ -1,21 +1,16 @@
 package agentconn
-
 import (
+	"fmt"
+	"errors"
 	"net/url"
-
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/coderd/httpapi"
 )
-
 type ConnectionMode string
-
 const (
 	ConnectionModeDirect ConnectionMode = "direct"
 	ConnectionModeDerp   ConnectionMode = "derp"
 )
-
 type Config struct {
 	// AgentID is the ID of the agent to connect to.
 	AgentID uuid.UUID `json:"agent_id"`
@@ -25,12 +20,10 @@ type Config struct {
 	// 0, the connection will be closed immediately after making each request
 	// once.
 	HoldDuration httpapi.Duration `json:"hold_duration"`
-
 	// Connections is the list of connections to make to services running
 	// inside the workspace. Only HTTP connections are supported.
 	Connections []Connection `json:"connections"`
 }
-
 type Connection struct {
 	// URL is the address to connect to (e.g. "http://127.0.0.1:8080/path"). The
 	// endpoint must respond with a any response within timeout. The IP address
@@ -45,45 +38,42 @@ type Connection struct {
 	// succeed. If set to 0, the default timeout will be used.
 	Timeout httpapi.Duration `json:"timeout"`
 }
-
 func (c Config) Validate() error {
 	if c.AgentID == uuid.Nil {
-		return xerrors.New("agent_id must be set")
+		return errors.New("agent_id must be set")
 	}
 	if c.ConnectionMode == "" {
-		return xerrors.New("connection_mode must be set")
+		return errors.New("connection_mode must be set")
 	}
 	switch c.ConnectionMode {
 	case ConnectionModeDirect:
 	case ConnectionModeDerp:
 	default:
-		return xerrors.Errorf("invalid connection_mode: %q", c.ConnectionMode)
+		return fmt.Errorf("invalid connection_mode: %q", c.ConnectionMode)
 	}
 	if c.HoldDuration < 0 {
-		return xerrors.New("hold_duration must be a positive value")
+		return errors.New("hold_duration must be a positive value")
 	}
-
 	for i, conn := range c.Connections {
 		if conn.URL == "" {
-			return xerrors.Errorf("connections[%d].url must be set", i)
+			return fmt.Errorf("connections[%d].url must be set", i)
 		}
 		u, err := url.Parse(conn.URL)
 		if err != nil {
-			return xerrors.Errorf("connections[%d].url is not a valid URL: %w", i, err)
+			return fmt.Errorf("connections[%d].url is not a valid URL: %w", i, err)
 		}
 		if u.Scheme != "http" {
-			return xerrors.Errorf("connections[%d].url has an unsupported scheme %q, only http is supported", i, u.Scheme)
+			return fmt.Errorf("connections[%d].url has an unsupported scheme %q, only http is supported", i, u.Scheme)
 		}
 		if conn.Interval < 0 {
-			return xerrors.Errorf("connections[%d].interval must be a positive value", i)
+			return fmt.Errorf("connections[%d].interval must be a positive value", i)
 		}
 		if conn.Interval > 0 && c.HoldDuration == 0 {
-			return xerrors.Errorf("connections[%d].interval must be 0 if hold_duration is 0", i)
+			return fmt.Errorf("connections[%d].interval must be 0 if hold_duration is 0", i)
 		}
 		if conn.Timeout < 0 {
-			return xerrors.Errorf("connections[%d].timeout must be a positive value", i)
+			return fmt.Errorf("connections[%d].timeout must be a positive value", i)
 		}
 	}
-
 	return nil
 }

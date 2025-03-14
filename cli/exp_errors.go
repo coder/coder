@@ -1,17 +1,12 @@
 package cli
-
 import (
 	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
-
 func (RootCmd) errorExample() *serpent.Command {
 	errorCmd := func(use string, err error) *serpent.Command {
 		return &serpent.Command{
@@ -21,7 +16,6 @@ func (RootCmd) errorExample() *serpent.Command {
 			},
 		}
 	}
-
 	// Make an api error
 	recorder := httptest.NewRecorder()
 	recorder.WriteHeader(http.StatusBadRequest)
@@ -42,15 +36,12 @@ func (RootCmd) errorExample() *serpent.Command {
 	}
 	//nolint:errorlint,forcetypeassert
 	apiError.(*codersdk.Error).Helper = "Have you tried turning it off and on again?"
-
 	//nolint:errorlint,forcetypeassert
 	cpy := *apiError.(*codersdk.Error)
 	apiErrorNoHelper := &cpy
 	apiErrorNoHelper.Helper = ""
-
 	// Some flags
 	var magicWord serpent.String
-
 	cmd := &serpent.Command{
 		Use:   "example-error",
 		Short: "Shows what different error messages look like",
@@ -63,18 +54,16 @@ func (RootCmd) errorExample() *serpent.Command {
 		Children: []*serpent.Command{
 			// Typical codersdk api error
 			errorCmd("api", apiError),
-
 			// Typical cli error
-			errorCmd("cmd", xerrors.Errorf("some error: %w", errorWithStackTrace())),
-
+			errorCmd("cmd", fmt.Errorf("some error: %w", errorWithStackTrace())),
 			// A multi-error
 			{
 				Use: "multi-error",
 				Handler: func(inv *serpent.Invocation) error {
-					return xerrors.Errorf("wrapped: %w", errors.Join(
-						xerrors.Errorf("first error: %w", errorWithStackTrace()),
-						xerrors.Errorf("second error: %w", errorWithStackTrace()),
-						xerrors.Errorf("wrapped api error: %w", apiErrorNoHelper),
+					return fmt.Errorf("wrapped: %w", errors.Join(
+						fmt.Errorf("first error: %w", errorWithStackTrace()),
+						fmt.Errorf("second error: %w", errorWithStackTrace()),
+						fmt.Errorf("wrapped api error: %w", apiErrorNoHelper),
 					))
 				},
 			},
@@ -83,10 +72,10 @@ func (RootCmd) errorExample() *serpent.Command {
 				Short: "This is a multi error inside a multi error",
 				Handler: func(inv *serpent.Invocation) error {
 					return errors.Join(
-						xerrors.Errorf("parent error: %w", errorWithStackTrace()),
+						fmt.Errorf("parent error: %w", errorWithStackTrace()),
 						errors.Join(
-							xerrors.Errorf("child first error: %w", errorWithStackTrace()),
-							xerrors.Errorf("child second error: %w", errorWithStackTrace()),
+							fmt.Errorf("child first error: %w", errorWithStackTrace()),
+							fmt.Errorf("child second error: %w", errorWithStackTrace()),
 						),
 					)
 				},
@@ -101,7 +90,7 @@ func (RootCmd) errorExample() *serpent.Command {
 						Flag:        "magic-word",
 						Default:     "",
 						Value: serpent.Validate(&magicWord, func(value *serpent.String) error {
-							return xerrors.Errorf("magic word is incorrect")
+							return fmt.Errorf("magic word is incorrect")
 						}),
 					},
 				},
@@ -122,10 +111,8 @@ func (RootCmd) errorExample() *serpent.Command {
 			},
 		},
 	}
-
 	return cmd
 }
-
 func errorWithStackTrace() error {
-	return xerrors.Errorf("function decided not to work, and it never will")
+	return fmt.Errorf("function decided not to work, and it never will")
 }

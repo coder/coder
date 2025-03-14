@@ -11,7 +11,6 @@ import (
 	"strconv"
 
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
@@ -381,7 +380,7 @@ func convertProvisionerJob(pj database.GetProvisionerJobsByIDsWithQueuePositionR
 	// Only unmarshal input if it exists, this should only be zero in testing.
 	if len(provisionerJob.Input) > 0 {
 		if err := json.Unmarshal(provisionerJob.Input, &job.Input); err != nil {
-			job.Input.Error = xerrors.Errorf("decode input %s: %w", provisionerJob.Input, err).Error()
+			job.Input.Error = fmt.Errorf("decode input %s: %w", provisionerJob.Input, err).Error()
 		}
 	}
 
@@ -543,7 +542,7 @@ func (f *logFollower) follow() {
 	// query for logs once right away, so we can get historical data from before
 	// subscription
 	if err := f.query(); err != nil {
-		if f.ctx.Err() == nil && !xerrors.Is(err, io.EOF) {
+		if f.ctx.Err() == nil && !errors.Is(err, io.EOF) {
 			// neither context expiry, nor EOF, close and log
 			f.logger.Error(f.ctx, "failed to query logs", slog.Error(err))
 			err = f.conn.Close(websocket.StatusInternalError, err.Error())
@@ -585,7 +584,7 @@ func (f *logFollower) follow() {
 			}
 			err = f.query()
 			if err != nil {
-				if f.ctx.Err() == nil && !xerrors.Is(err, io.EOF) {
+				if f.ctx.Err() == nil && !errors.Is(err, io.EOF) {
 					// neither context expiry, nor EOF, close and log
 					f.logger.Error(f.ctx, "failed to query logs", slog.Error(err))
 					err = f.conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("%s", err.Error()))
@@ -633,12 +632,12 @@ func (f *logFollower) query() error {
 		CreatedAfter: f.after,
 	})
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return xerrors.Errorf("error fetching logs: %w", err)
+		return fmt.Errorf("error fetching logs: %w", err)
 	}
 	for _, log := range logs {
 		err := f.enc.Encode(convertProvisionerJobLog(log))
 		if err != nil {
-			return xerrors.Errorf("error writing to websocket: %w", err)
+			return fmt.Errorf("error writing to websocket: %w", err)
 		}
 		f.after = log.ID
 		f.logger.Debug(f.ctx, "wrote log to websocket", slog.F("id", log.ID))

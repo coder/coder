@@ -1,8 +1,7 @@
 //go:build !slim
-
 package cli
-
 import (
+	"errors"
 	"context"
 	"fmt"
 	"io"
@@ -13,14 +12,11 @@ import (
 	"regexp"
 	rpprof "runtime/pprof"
 	"time"
-
 	"github.com/charmbracelet/lipgloss"
 	"github.com/coreos/go-systemd/daemon"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"golang.org/x/xerrors"
-
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/clilog"
@@ -33,25 +29,20 @@ import (
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
 )
-
 type closerFuncs []func()
-
 func (c closerFuncs) Close() {
 	for _, closeF := range c {
 		closeF()
 	}
 }
-
 func (c *closerFuncs) Add(f func()) {
 	*c = append(*c, f)
 }
-
 func (r *RootCmd) proxyServer() *serpent.Command {
 	var (
 		cfg = new(codersdk.DeploymentValues)
 		// Filter options for only relevant ones.
 		opts = cfg.Options().Filter(codersdk.IsWorkspaceProxies)
-
 		externalProxyOptionGroup = serpent.Group{
 			Name: "External Workspace Proxy",
 			YAML: "externalWorkspaceProxy",
@@ -62,7 +53,6 @@ func (r *RootCmd) proxyServer() *serpent.Command {
 	)
 	opts.Add(
 		// Options only for external workspace proxies
-
 		serpent.Option{
 			Name:        "Proxy Session Token",
 			Description: "Authentication token for the workspace proxy to communicate with coderd.",
@@ -74,7 +64,6 @@ func (r *RootCmd) proxyServer() *serpent.Command {
 			Group:       &externalProxyOptionGroup,
 			Hidden:      false,
 		},
-
 		serpent.Option{
 			Name:        "Coderd (Primary) Access URL",
 			Description: "URL to communicate with coderd. This should match the access URL of the Coder deployment.",
@@ -84,7 +73,7 @@ func (r *RootCmd) proxyServer() *serpent.Command {
 			Required:    true,
 			Value: serpent.Validate(&primaryAccessURL, func(value *serpent.URL) error {
 				if !(value.Scheme == "http" || value.Scheme == "https") {
-					return xerrors.Errorf("'--primary-access-url' value must be http or https: url=%s", primaryAccessURL.String())
+					return fmt.Errorf("'--primary-access-url' value must be http or https: url=%s", primaryAccessURL.String())
 				}
 				return nil
 			}),
@@ -103,7 +92,6 @@ func (r *RootCmd) proxyServer() *serpent.Command {
 			Hidden:      false,
 		},
 	)
-
 	cmd := &serpent.Command{
 		Use:     "server",
 		Short:   "Start a workspace proxy server",
@@ -120,20 +108,16 @@ func (r *RootCmd) proxyServer() *serpent.Command {
 			ctx, topCancel := context.WithCancel(inv.Context())
 			defer topCancel()
 			closers.Add(topCancel)
-
 			go cli.DumpHandler(ctx, "workspace-proxy")
-
 			cli.PrintLogo(inv, "Coder Workspace Proxy")
 			logger, logCloser, err := clilog.New(clilog.FromDeploymentValues(cfg)).Build(inv)
 			if err != nil {
-				return xerrors.Errorf("make logger: %w", err)
+				return fmt.Errorf("make logger: %w", err)
 			}
 			defer logCloser()
 			closers.Add(logCloser)
-
 			logger.Debug(ctx, "started debug logging")
 			logger.Sync()
-
 			// Register signals early on so that graceful shutdown can't
 			// be interrupted by additional signals. Note that we avoid
 			// shadowing cancel() (from above) here because notifyStop()
@@ -146,27 +130,23 @@ func (r *RootCmd) proxyServer() *serpent.Command {
 			// SIGQUIT with ctrl+\ or SIGKILL with `kill -9`.
 			notifyCtx, notifyStop := inv.SignalNotifyContext(ctx, cli.StopSignals...)
 			defer notifyStop()
-
 			// Clean up idle connections at the end, e.g.
 			// embedded-postgres can leave an idle connection
 			// which is caught by goleaks.
 			defer http.DefaultClient.CloseIdleConnections()
 			closers.Add(http.DefaultClient.CloseIdleConnections)
-
 			tracer, _, closeTracing := cli.ConfigureTraceProvider(ctx, logger, cfg)
 			defer func() {
 				logger.Debug(ctx, "closing tracing")
 				traceCloseErr := shutdownWithTimeout(closeTracing, 5*time.Second)
 				logger.Debug(ctx, "tracing closed", slog.Error(traceCloseErr))
 			}()
-
 			httpServers, err := cli.ConfigureHTTPServers(logger, inv, cfg)
 			if err != nil {
-				return xerrors.Errorf("configure http(s): %w", err)
+				return fmt.Errorf("configure http(s): %w", err)
 			}
 			defer httpServers.Close()
 			closers.Add(httpServers.Close)
-
 			// If no access url given, use the local address.
 			if cfg.AccessURL.String() == "" {
 				// Prefer TLS
@@ -176,11 +156,9 @@ func (r *RootCmd) proxyServer() *serpent.Command {
 					cfg.AccessURL = serpent.URL(*httpServers.HTTPUrl)
 				}
 			}
-
 			if derpOnly.Value() && !cfg.DERP.Server.Enable.Value() {
-				return xerrors.Errorf("cannot use --derp-only with DERP server disabled")
+				return fmt.Errorf("cannot use --derp-only with DERP server disabled")
 			}
-
 			// TODO: @emyrk I find this strange that we add this to the context
 			// at the root here.
 			ctx, httpClient, err := cli.ConfigureHTTPClient(
@@ -190,20 +168,18 @@ func (r *RootCmd) proxyServer() *serpent.Command {
 				cfg.TLS.ClientCAFile.String(),
 			)
 			if err != nil {
-				return xerrors.Errorf("configure http client: %w", err)
+				return fmt.Errorf("configure http client: %w", err)
 			}
 			defer httpClient.CloseIdleConnections()
 			closers.Add(httpClient.CloseIdleConnections)
-
 			// Attach header transport so we process --header and
 			// --header-command flags
 			headerTransport, err := r.HeaderTransport(ctx, primaryAccessURL.Value())
 			if err != nil {
-				return xerrors.Errorf("configure header transport: %w", err)
+				return fmt.Errorf("configure header transport: %w", err)
 			}
 			headerTransport.Transport = httpClient.Transport
 			httpClient.Transport = headerTransport
-
 			accessURL := cfg.AccessURL.String()
 			cliui.Info(inv.Stdout, lipgloss.NewStyle().
 				Border(lipgloss.DoubleBorder()).
@@ -212,21 +188,18 @@ func (r *RootCmd) proxyServer() *serpent.Command {
 				BorderForeground(lipgloss.Color("12")).
 				Render(fmt.Sprintf("View the Web UI:\n%s",
 					pretty.Sprint(cliui.DefaultStyles.Hyperlink, accessURL))))
-
 			var appHostnameRegex *regexp.Regexp
 			appHostname := cfg.WildcardAccessURL.String()
 			if appHostname != "" {
 				appHostnameRegex, err = appurl.CompileHostnamePattern(appHostname)
 				if err != nil {
-					return xerrors.Errorf("parse wildcard access URL %q: %w", appHostname, err)
+					return fmt.Errorf("parse wildcard access URL %q: %w", appHostname, err)
 				}
 			}
-
 			realIPConfig, err := httpmw.ParseRealIPConfig(cfg.ProxyTrustedHeaders, cfg.ProxyTrustedOrigins)
 			if err != nil {
-				return xerrors.Errorf("parse real ip config: %w", err)
+				return fmt.Errorf("parse real ip config: %w", err)
 			}
-
 			if cfg.Pprof.Enable {
 				// This prevents the pprof import from being accidentally deleted.
 				// pprof has an init function that attaches itself to the default handler.
@@ -238,12 +211,10 @@ func (r *RootCmd) proxyServer() *serpent.Command {
 				defer closeFunc()
 				closers.Add(closeFunc)
 			}
-
 			prometheusRegistry := prometheus.NewRegistry()
 			if cfg.Prometheus.Enable {
 				prometheusRegistry.MustRegister(collectors.NewGoCollector())
 				prometheusRegistry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
-
 				//nolint:revive
 				closeFunc := cli.ServeHandler(ctx, logger, promhttp.InstrumentMetricHandler(
 					prometheusRegistry, promhttp.HandlerFor(prometheusRegistry, promhttp.HandlerOpts{}),
@@ -251,7 +222,6 @@ func (r *RootCmd) proxyServer() *serpent.Command {
 				defer closeFunc()
 				closers.Add(closeFunc)
 			}
-
 			options := &wsproxy.Options{
 				Logger:                 logger,
 				Experiments:            coderd.ReadExperiments(logger, cfg.Experiments.Value()),
@@ -276,13 +246,11 @@ func (r *RootCmd) proxyServer() *serpent.Command {
 			if httpServers.TLSConfig != nil {
 				options.TLSCertificates = httpServers.TLSConfig.Certificates
 			}
-
 			proxy, err := wsproxy.New(ctx, options)
 			if err != nil {
-				return xerrors.Errorf("create workspace proxy: %w", err)
+				return fmt.Errorf("create workspace proxy: %w", err)
 			}
 			closers.Add(func() { _ = proxy.Close() })
-
 			shutdownConnsCtx, shutdownConns := context.WithCancel(ctx)
 			defer shutdownConns()
 			closers.Add(shutdownConns)
@@ -305,21 +273,17 @@ func (r *RootCmd) proxyServer() *serpent.Command {
 				defer cancel()
 				_ = httpServer.Shutdown(ctx)
 			}()
-
 			// TODO: So this obviously is not going to work well.
 			errCh := make(chan error, 1)
 			go rpprof.Do(ctx, rpprof.Labels("service", "workspace-proxy"), func(ctx context.Context) {
 				errCh <- httpServers.Serve(httpServer)
 			})
-
 			cliui.Infof(inv.Stdout, "\n==> Logs will stream in below (press ctrl+c to gracefully exit):")
-
 			// Updates the systemd status from activating to activated.
 			_, err = daemon.SdNotify(false, daemon.SdNotifyReady)
 			if err != nil {
-				return xerrors.Errorf("notify systemd: %w", err)
+				return fmt.Errorf("notify systemd: %w", err)
 			}
-
 			// Currently there is no way to ask the server to shut
 			// itself down, so any exit signal will result in a non-zero
 			// exit of the server.
@@ -332,23 +296,19 @@ func (r *RootCmd) proxyServer() *serpent.Command {
 					"Interrupt caught, gracefully exiting. Use ctrl+\\ to force quit",
 				))
 			}
-
-			if exitErr != nil && !xerrors.Is(exitErr, context.Canceled) {
+			if exitErr != nil && !errors.Is(exitErr, context.Canceled) {
 				cliui.Errorf(inv.Stderr, "Unexpected error, shutting down server: %s\n", exitErr)
 			}
-
 			// Begin clean shut down stage, we try to shut down services
 			// gracefully in an order that gives the best experience.
 			// This procedure should not differ greatly from the order
 			// of `defer`s in this function, but allows us to inform
 			// the user about what's going on and handle errors more
 			// explicitly.
-
 			_, err = daemon.SdNotify(false, daemon.SdNotifyStopping)
 			if err != nil {
 				cliui.Errorf(inv.Stderr, "Notify systemd failed: %s", err)
 			}
-
 			// Stop accepting new connections without interrupting
 			// in-flight requests, give in-flight requests 5 seconds to
 			// complete.
@@ -363,28 +323,24 @@ func (r *RootCmd) proxyServer() *serpent.Command {
 			}
 			// Cancel any remaining in-flight requests.
 			shutdownConns()
-
 			// Trigger context cancellation for any remaining services.
 			closers.Close()
-
 			switch {
-			case xerrors.Is(exitErr, context.DeadlineExceeded):
+			case errors.Is(exitErr, context.DeadlineExceeded):
 				cliui.Warnf(inv.Stderr, "Graceful shutdown timed out")
 				// Errors here cause a significant number of benign CI failures.
 				return nil
-			case xerrors.Is(exitErr, context.Canceled):
+			case errors.Is(exitErr, context.Canceled):
 				return nil
 			case exitErr != nil:
-				return xerrors.Errorf("graceful shutdown: %w", exitErr)
+				return fmt.Errorf("graceful shutdown: %w", exitErr)
 			default:
 				return nil
 			}
 		},
 	}
-
 	return cmd
 }
-
 func shutdownWithTimeout(shutdown func(context.Context) error, timeout time.Duration) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()

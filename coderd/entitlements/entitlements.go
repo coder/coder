@@ -1,18 +1,14 @@
 package entitlements
-
 import (
+	"errors"
 	"context"
 	"encoding/json"
 	"net/http"
 	"slices"
 	"sync"
 	"time"
-
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/codersdk"
 )
-
 type Set struct {
 	entitlementsMu sync.RWMutex
 	entitlements   codersdk.Entitlements
@@ -23,7 +19,6 @@ type Set struct {
 	// right2Update token.
 	right2Update chan struct{}
 }
-
 func New() *Set {
 	s := &Set{
 		// Some defaults for an unlicensed instance.
@@ -50,11 +45,9 @@ func New() *Set {
 	s.right2Update <- struct{}{} // one token, serialized updates
 	return s
 }
-
 // ErrLicenseRequiresTelemetry is an error returned by a fetch passed to Update to indicate that the
 // fetched license cannot be used because it requires telemetry.
-var ErrLicenseRequiresTelemetry = xerrors.New(codersdk.LicenseTelemetryRequiredErrorText)
-
+var ErrLicenseRequiresTelemetry = errors.New(codersdk.LicenseTelemetryRequiredErrorText)
 func (l *Set) Update(ctx context.Context, fetch func(context.Context) (codersdk.Entitlements, error)) error {
 	select {
 	case <-ctx.Done():
@@ -65,7 +58,7 @@ func (l *Set) Update(ctx context.Context, fetch func(context.Context) (codersdk.
 		}()
 	}
 	ents, err := fetch(ctx)
-	if xerrors.Is(err, ErrLicenseRequiresTelemetry) {
+	if errors.Is(err, ErrLicenseRequiresTelemetry) {
 		// We can't fail because then the user couldn't remove the offending
 		// license w/o a restart.
 		//
@@ -84,78 +77,62 @@ func (l *Set) Update(ctx context.Context, fetch func(context.Context) (codersdk.
 	l.entitlements = ents
 	return nil
 }
-
 // AllowRefresh returns whether the entitlements are allowed to be refreshed.
 // If it returns false, that means it was recently refreshed and the caller should
 // wait the returned duration before trying again.
 func (l *Set) AllowRefresh(now time.Time) (bool, time.Duration) {
 	l.entitlementsMu.RLock()
 	defer l.entitlementsMu.RUnlock()
-
 	diff := now.Sub(l.entitlements.RefreshedAt)
 	if diff < time.Minute {
 		return false, time.Minute - diff
 	}
-
 	return true, 0
 }
-
 func (l *Set) Feature(name codersdk.FeatureName) (codersdk.Feature, bool) {
 	l.entitlementsMu.RLock()
 	defer l.entitlementsMu.RUnlock()
-
 	f, ok := l.entitlements.Features[name]
 	return f, ok
 }
-
 func (l *Set) Enabled(feature codersdk.FeatureName) bool {
 	l.entitlementsMu.RLock()
 	defer l.entitlementsMu.RUnlock()
-
 	f, ok := l.entitlements.Features[feature]
 	if !ok {
 		return false
 	}
 	return f.Enabled
 }
-
 // AsJSON is used to return this to the api without exposing the entitlements for
 // mutation.
 func (l *Set) AsJSON() json.RawMessage {
 	l.entitlementsMu.RLock()
 	defer l.entitlementsMu.RUnlock()
-
 	b, _ := json.Marshal(l.entitlements)
 	return b
 }
-
 func (l *Set) Modify(do func(entitlements *codersdk.Entitlements)) {
 	l.entitlementsMu.Lock()
 	defer l.entitlementsMu.Unlock()
-
 	do(&l.entitlements)
 }
-
 func (l *Set) FeatureChanged(featureName codersdk.FeatureName, newFeature codersdk.Feature) (initial, changed, enabled bool) {
 	l.entitlementsMu.RLock()
 	defer l.entitlementsMu.RUnlock()
-
 	oldFeature := l.entitlements.Features[featureName]
 	if oldFeature.Enabled != newFeature.Enabled {
 		return false, true, newFeature.Enabled
 	}
 	return false, false, newFeature.Enabled
 }
-
 func (l *Set) WriteEntitlementWarningHeaders(header http.Header) {
 	l.entitlementsMu.RLock()
 	defer l.entitlementsMu.RUnlock()
-
 	for _, warning := range l.entitlements.Warnings {
 		header.Add(codersdk.EntitlementsWarningHeader, warning)
 	}
 }
-
 func (l *Set) Errors() []string {
 	l.entitlementsMu.RLock()
 	defer l.entitlementsMu.RUnlock()

@@ -1,6 +1,6 @@
 package cli
-
 import (
+	"errors"
 	"bufio"
 	"context"
 	"encoding/json"
@@ -8,29 +8,24 @@ import (
 	"io"
 	"os"
 	"strings"
-
 	"github.com/google/uuid"
 	"github.com/mattn/go-isatty"
 	"golang.org/x/term"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/pty"
 	"github.com/coder/serpent"
 )
-
 func (r *RootCmd) rptyCommand() *serpent.Command {
 	var (
 		client = new(codersdk.Client)
 		args   handleRPTYArgs
 	)
-
 	cmd := &serpent.Command{
 		Handler: func(inv *serpent.Invocation) error {
 			if r.disableDirect {
-				return xerrors.New("direct connections are disabled, but you can try websocat ;-)")
+				return errors.New("direct connections are disabled, but you can try websocat ;-)")
 			}
 			args.NamedWorkspace = inv.Args[0]
 			args.Command = inv.Args[1:]
@@ -70,10 +65,8 @@ func (r *RootCmd) rptyCommand() *serpent.Command {
 		Short: "Establish an RPTY session with a workspace/agent.",
 		Use:   "rpty",
 	}
-
 	return cmd
 }
-
 type handleRPTYArgs struct {
 	Command        []string
 	Container      string
@@ -81,16 +74,14 @@ type handleRPTYArgs struct {
 	NamedWorkspace string
 	ReconnectID    string
 }
-
 func handleRPTY(inv *serpent.Invocation, client *codersdk.Client, args handleRPTYArgs) error {
 	ctx, cancel := context.WithCancel(inv.Context())
 	defer cancel()
-
 	var reconnectID uuid.UUID
 	if args.ReconnectID != "" {
 		rid, err := uuid.Parse(args.ReconnectID)
 		if err != nil {
-			return xerrors.Errorf("invalid reconnect ID: %w", err)
+			return fmt.Errorf("invalid reconnect ID: %w", err)
 		}
 		reconnectID = rid
 	} else {
@@ -100,7 +91,6 @@ func handleRPTY(inv *serpent.Invocation, client *codersdk.Client, args handleRPT
 	if err != nil {
 		return err
 	}
-
 	var ctID string
 	if args.Container != "" {
 		cts, err := client.WorkspaceAgentListContainers(ctx, agt.ID, nil)
@@ -114,10 +104,9 @@ func handleRPTY(inv *serpent.Invocation, client *codersdk.Client, args handleRPT
 			}
 		}
 		if ctID == "" {
-			return xerrors.Errorf("container %q not found", args.Container)
+			return fmt.Errorf("container %q not found", args.Container)
 		}
 	}
-
 	if err := cliui.Agent(ctx, inv.Stderr, agt.ID, cliui.AgentOptions{
 		FetchInterval: 0,
 		Fetch:         client.WorkspaceAgent,
@@ -125,7 +114,6 @@ func handleRPTY(inv *serpent.Invocation, client *codersdk.Client, args handleRPT
 	}); err != nil {
 		return err
 	}
-
 	// Get the width and height of the terminal.
 	var termWidth, termHeight uint16
 	stdoutFile, validOut := inv.Stdout.(*os.File)
@@ -136,19 +124,17 @@ func handleRPTY(inv *serpent.Invocation, client *codersdk.Client, args handleRPT
 			termWidth, termHeight = uint16(w), uint16(h)
 		}
 	}
-
 	// Set stdin to raw mode so that control characters work.
 	stdinFile, validIn := inv.Stdin.(*os.File)
 	if validIn && isatty.IsTerminal(stdinFile.Fd()) {
 		inState, err := pty.MakeInputRaw(stdinFile.Fd())
 		if err != nil {
-			return xerrors.Errorf("failed to set input terminal to raw mode: %w", err)
+			return fmt.Errorf("failed to set input terminal to raw mode: %w", err)
 		}
 		defer func() {
 			_ = pty.RestoreTerminal(stdinFile.Fd(), inState)
 		}()
 	}
-
 	conn, err := workspacesdk.New(client).AgentReconnectingPTY(ctx, workspacesdk.WorkspaceAgentReconnectingPTYOpts{
 		AgentID:       agt.ID,
 		Reconnect:     reconnectID,
@@ -159,10 +145,9 @@ func handleRPTY(inv *serpent.Invocation, client *codersdk.Client, args handleRPT
 		Height:        termHeight,
 	})
 	if err != nil {
-		return xerrors.Errorf("open reconnecting PTY: %w", err)
+		return fmt.Errorf("open reconnecting PTY: %w", err)
 	}
 	defer conn.Close()
-
 	cliui.Infof(inv.Stderr, "Connected to %s (agent id: %s)", args.NamedWorkspace, agt.ID)
 	cliui.Infof(inv.Stderr, "Reconnect ID: %s", reconnectID)
 	closeUsage := client.UpdateWorkspaceUsageWithBodyContext(ctx, ws.ID, codersdk.PostWorkspaceUsageRequest{
@@ -170,12 +155,10 @@ func handleRPTY(inv *serpent.Invocation, client *codersdk.Client, args handleRPT
 		AppName: codersdk.UsageAppNameReconnectingPty,
 	})
 	defer closeUsage()
-
 	br := bufio.NewScanner(inv.Stdin)
 	// Split on bytes, otherwise you have to send a newline to flush the buffer.
 	br.Split(bufio.ScanBytes)
 	je := json.NewEncoder(conn)
-
 	go func() {
 		for br.Scan() {
 			if err := je.Encode(map[string]string{
@@ -185,7 +168,6 @@ func handleRPTY(inv *serpent.Invocation, client *codersdk.Client, args handleRPT
 			}
 		}
 	}()
-
 	windowChange := listenWindowSize(ctx)
 	go func() {
 		for {
@@ -206,11 +188,9 @@ func handleRPTY(inv *serpent.Invocation, client *codersdk.Client, args handleRPT
 			}
 		}
 	}()
-
 	_, _ = io.Copy(inv.Stdout, conn)
 	cancel()
 	_ = conn.Close()
 	_, _ = fmt.Fprintf(inv.Stderr, "Connection closed\n")
-
 	return nil
 }

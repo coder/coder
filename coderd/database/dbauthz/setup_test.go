@@ -1,5 +1,4 @@
 package dbauthz_test
-
 import (
 	"context"
 	"encoding/gob"
@@ -9,7 +8,6 @@ import (
 	"sort"
 	"strings"
 	"testing"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
@@ -17,11 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
-	"golang.org/x/xerrors"
-
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
-
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -31,9 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/regosql"
 	"github.com/coder/coder/v2/coderd/util/slice"
 )
-
-var errMatchAny = xerrors.New("match any error")
-
+var errMatchAny = errors.New("match any error")
 var skipMethods = map[string]string{
 	"InTx":           "Not relevant",
 	"Ping":           "Not relevant",
@@ -42,7 +35,6 @@ var skipMethods = map[string]string{
 	"AcquireLock":    "Not relevant",
 	"TryAcquireLock": "Not relevant",
 }
-
 // TestMethodTestSuite runs MethodTestSuite.
 // In order for 'go test' to run this suite, we need to create
 // a normal test function and pass our suite to suite.Run
@@ -50,7 +42,6 @@ var skipMethods = map[string]string{
 func TestMethodTestSuite(t *testing.T) {
 	suite.Run(t, new(MethodTestSuite))
 }
-
 // MethodTestSuite runs all methods tests for querier. We use
 // a test suite so we can account for all functions tested on the querier.
 // We can then assert all methods were tested and asserted for proper RBAC
@@ -62,7 +53,6 @@ type MethodTestSuite struct {
 	// methodAccounting counts all methods called by a 'RunMethodTest'
 	methodAccounting map[string]int
 }
-
 // SetupSuite sets up the suite by creating a map of all methods on querier
 // and setting their count to 0.
 func (s *MethodTestSuite) SetupSuite() {
@@ -85,7 +75,6 @@ func (s *MethodTestSuite) SetupSuite() {
 		s.methodAccounting[method.Name] = 0
 	}
 }
-
 // TearDownSuite asserts that all methods were called at least once.
 func (s *MethodTestSuite) TearDownSuite() {
 	s.Run("Accounting", func() {
@@ -102,9 +91,7 @@ func (s *MethodTestSuite) TearDownSuite() {
 		}
 	})
 }
-
 var testActorID = uuid.New()
-
 // Subtest is a helper function that returns a function that can be passed to
 // s.Run(). This function will run the test case for the method that is being
 // tested. The check parameter is used to assert the results of the method.
@@ -116,7 +103,6 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *expec
 		names := strings.Split(testName, "/")
 		methodName := names[len(names)-1]
 		s.methodAccounting[methodName]++
-
 		db, _ := dbtestutil.NewDB(t)
 		fakeAuthorizer := &coderdtest.FakeAuthorizer{}
 		rec := &coderdtest.RecordingAuthorizer{
@@ -130,13 +116,11 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *expec
 			Scope:  rbac.ScopeAll,
 		}
 		ctx := dbauthz.As(context.Background(), actor)
-
 		var testCase expects
 		testCaseF(db, &testCase)
 		// Check the developer added assertions. If there are no assertions,
 		// an empty list should be passed.
 		s.Require().False(testCase.assertions == nil, "rbac assertions not set, use the 'check' parameter")
-
 		// Find the method with the name of the test.
 		var callMethod func(ctx context.Context) ([]reflect.Value, error)
 		azt := reflect.TypeOf(az)
@@ -145,7 +129,6 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *expec
 			method := azt.Method(i)
 			if method.Name == methodName {
 				methodF := reflect.ValueOf(az).Method(i)
-
 				callMethod = func(ctx context.Context) ([]reflect.Value, error) {
 					resp := methodF.Call(append([]reflect.Value{reflect.ValueOf(ctx)}, testCase.inputs...))
 					return splitResp(t, resp)
@@ -153,15 +136,12 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *expec
 				break MethodLoop
 			}
 		}
-
 		require.NotNil(t, callMethod, "method %q does not exist", methodName)
-
 		if len(testCase.assertions) > 0 {
 			// Only run these tests if we know the underlying call makes
 			// rbac assertions.
 			s.NotAuthorizedErrorTest(ctx, fakeAuthorizer, testCase, callMethod)
 		}
-
 		if len(testCase.assertions) > 0 ||
 			slice.Contains([]string{
 				"GetAuthorizedWorkspaces",
@@ -172,7 +152,6 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *expec
 			// actor is not set.
 			s.NoActorErrorTest(callMethod)
 		}
-
 		// Always run
 		s.Run("Success", func() {
 			rec.Reset()
@@ -181,7 +160,6 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *expec
 			} else {
 				fakeAuthorizer.AlwaysReturn(nil)
 			}
-
 			outputs, err := callMethod(ctx)
 			if testCase.err == nil {
 				s.NoError(err, "method %q returned an error", methodName)
@@ -193,7 +171,6 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *expec
 					s.EqualError(err, testCase.err.Error(), "method %q returned an unexpected error", methodName)
 				}
 			}
-
 			// Some tests may not care about the outputs, so we only assert if
 			// they are provided.
 			if testCase.outputs != nil {
@@ -201,7 +178,6 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *expec
 				s.Equal(len(testCase.outputs), len(outputs), "method %q returned unexpected number of outputs", methodName)
 				for i := range outputs {
 					a, b := testCase.outputs[i].Interface(), outputs[i].Interface()
-
 					// To avoid the extra small overhead of gob encoding, we can
 					// first check if the values are equal with regard to order.
 					// If not, re-check disregarding order and show a nice diff
@@ -227,7 +203,6 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *expec
 					}
 				}
 			}
-
 			var pairs []coderdtest.ActionObjectPair
 			for _, assrt := range testCase.assertions {
 				for _, action := range assrt.Actions {
@@ -237,7 +212,6 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *expec
 					})
 				}
 			}
-
 			if testCase.outOfOrder {
 				rec.AssertOutOfOrder(s.T(), actor, pairs...)
 			} else {
@@ -247,7 +221,6 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *expec
 		})
 	}
 }
-
 func (s *MethodTestSuite) NoActorErrorTest(callMethod func(ctx context.Context) ([]reflect.Value, error)) {
 	s.Run("AsRemoveActor", func() {
 		// Call without any actor
@@ -255,20 +228,17 @@ func (s *MethodTestSuite) NoActorErrorTest(callMethod func(ctx context.Context) 
 		s.ErrorIs(err, dbauthz.NoActorError, "method should return NoActorError error when no actor is provided")
 	})
 }
-
 // NotAuthorizedErrorTest runs the given method with an authorizer that will fail authz.
 // Asserts that the error returned is a NotAuthorizedError.
 func (s *MethodTestSuite) NotAuthorizedErrorTest(ctx context.Context, az *coderdtest.FakeAuthorizer, testCase expects, callMethod func(ctx context.Context) ([]reflect.Value, error)) {
 	s.Run("NotAuthorized", func() {
-		az.AlwaysReturn(rbac.ForbiddenWithInternal(xerrors.New("Always fail authz"), rbac.Subject{}, "", rbac.Object{}, nil))
+		az.AlwaysReturn(rbac.ForbiddenWithInternal(errors.New("Always fail authz"), rbac.Subject{}, "", rbac.Object{}, nil))
 		// Override the SQL filter to always fail.
 		az.OverrideSQLFilter("FALSE")
-
 		// If we have assertions, that means the method should FAIL
 		// if RBAC will disallow the request. The returned error should
 		// be expected to be a NotAuthorizedError.
 		resp, err := callMethod(ctx)
-
 		// This is unfortunate, but if we are using `Filter` the error returned will be nil. So filter out
 		// any case where the error is nil and the response is an empty slice.
 		if err != nil || !hasEmptySliceResponse(resp) {
@@ -282,19 +252,16 @@ func (s *MethodTestSuite) NotAuthorizedErrorTest(ctx context.Context, az *coderd
 			}
 		}
 	})
-
 	s.Run("Canceled", func() {
 		// Pass in a canceled context
 		ctx, cancel := context.WithCancel(ctx)
 		cancel()
 		az.AlwaysReturn(rbac.ForbiddenWithInternal(&topdown.Error{Code: topdown.CancelErr},
 			rbac.Subject{}, "", rbac.Object{}, nil))
-
 		// If we have assertions, that means the method should FAIL
 		// if RBAC will disallow the request. The returned error should
 		// be expected to be a NotAuthorizedError.
 		resp, err := callMethod(ctx)
-
 		// This is unfortunate, but if we are using `Filter` the error returned will be nil. So filter out
 		// any case where the error is nil and the response is an empty slice.
 		if err != nil || !hasEmptySliceResponse(resp) {
@@ -307,7 +274,6 @@ func (s *MethodTestSuite) NotAuthorizedErrorTest(ctx context.Context, az *coderd
 		}
 	})
 }
-
 func hasEmptySliceResponse(values []reflect.Value) bool {
 	for _, r := range values {
 		if r.Kind() == reflect.Slice || r.Kind() == reflect.Array {
@@ -318,7 +284,6 @@ func hasEmptySliceResponse(values []reflect.Value) bool {
 	}
 	return false
 }
-
 func splitResp(t *testing.T, values []reflect.Value) ([]reflect.Value, error) {
 	outputs := []reflect.Value{}
 	for _, r := range values {
@@ -338,7 +303,6 @@ func splitResp(t *testing.T, values []reflect.Value) ([]reflect.Value, error) {
 	t.Fatal("no expected error value found in responses (error can be nil)")
 	return nil, nil // unreachable, required to compile
 }
-
 // expects is used to build a test case for a method.
 // It includes the expected inputs, rbac assertions, and expected outputs.
 type expects struct {
@@ -347,7 +311,6 @@ type expects struct {
 	// outputs is optional. Can assert non-error return values.
 	outputs []reflect.Value
 	err     error
-
 	// Optional override of the default error checks.
 	// By default, we search for the expected error strings.
 	// If these strings are present, these strings will be searched
@@ -357,21 +320,18 @@ type expects struct {
 	successAuthorizer   func(ctx context.Context, subject rbac.Subject, action policy.Action, obj rbac.Object) error
 	outOfOrder          bool
 }
-
 // OutOfOrder is optional. It controls whether the assertions should be
 // asserted in order.
 func (m *expects) OutOfOrder() *expects {
 	m.outOfOrder = true
 	return m
 }
-
 // Asserts is required. Asserts the RBAC authorize calls that should be made.
 // If no RBAC calls are expected, pass an empty list: 'm.Asserts()'
 func (m *expects) Asserts(pairs ...any) *expects {
 	m.assertions = asserts(pairs...)
 	return m
 }
-
 // Args is required. The arguments to be provided to the method.
 // If there are no arguments, pass an empty list: 'm.Args()'
 // The first context argument should not be included, as the test suite
@@ -380,19 +340,16 @@ func (m *expects) Args(args ...any) *expects {
 	m.inputs = values(args...)
 	return m
 }
-
 // Returns is optional. If it is never called, it will not be asserted.
 func (m *expects) Returns(rets ...any) *expects {
 	m.outputs = values(rets...)
 	return m
 }
-
 // Errors is optional. If it is never called, it will not be asserted.
 func (m *expects) Errors(err error) *expects {
 	m.err = err
 	return m
 }
-
 // ErrorsWithPG is optional. If it is never called, it will not be asserted.
 // It will only be asserted if the test is running with a Postgres database.
 func (m *expects) ErrorsWithPG(err error) *expects {
@@ -401,7 +358,6 @@ func (m *expects) ErrorsWithPG(err error) *expects {
 	}
 	return m
 }
-
 // ErrorsWithInMemDB is optional. If it is never called, it will not be asserted.
 // It will only be asserted if the test is running with an in-memory database.
 func (m *expects) ErrorsWithInMemDB(err error) *expects {
@@ -410,16 +366,14 @@ func (m *expects) ErrorsWithInMemDB(err error) *expects {
 	}
 	return m
 }
-
 func (m *expects) FailSystemObjectChecks() *expects {
 	return m.WithSuccessAuthorizer(func(ctx context.Context, subject rbac.Subject, action policy.Action, obj rbac.Object) error {
 		if obj.Type == rbac.ResourceSystem.Type {
-			return xerrors.Errorf("hard coded system authz failed")
+			return fmt.Errorf("hard coded system authz failed")
 		}
 		return nil
 	})
 }
-
 // WithSuccessAuthorizer is helpful when an optimization authz check is made
 // to skip some RBAC checks. This check in testing would prevent the ability
 // to assert the more nuanced RBAC checks.
@@ -427,23 +381,19 @@ func (m *expects) WithSuccessAuthorizer(f func(ctx context.Context, subject rbac
 	m.successAuthorizer = f
 	return m
 }
-
 func (m *expects) WithNotAuthorized(contains string) *expects {
 	m.notAuthorizedExpect = contains
 	return m
 }
-
 func (m *expects) WithCancelled(contains string) *expects {
 	m.cancelledCtxExpect = contains
 	return m
 }
-
 // AssertRBAC contains the object and actions to be asserted.
 type AssertRBAC struct {
 	Object  rbac.Object
 	Actions []policy.Action
 }
-
 // values is a convenience method for creating []reflect.Value.
 //
 // values(workspace, template, ...)
@@ -463,7 +413,6 @@ func values(ins ...any) []reflect.Value {
 	}
 	return out
 }
-
 // asserts is a convenience method for creating AssertRBACs.
 //
 // The number of inputs must be an even number.
@@ -486,7 +435,6 @@ func asserts(inputs ...any) []AssertRBAC {
 	if len(inputs)%2 != 0 {
 		panic(fmt.Sprintf("Must be an even length number of args, found %d", len(inputs)))
 	}
-
 	out := make([]AssertRBAC, 0)
 	for i := 0; i < len(inputs); i += 2 {
 		obj, ok := inputs[i].(rbac.Objecter)
@@ -494,7 +442,6 @@ func asserts(inputs ...any) []AssertRBAC {
 			panic(fmt.Sprintf("object type '%T' does not implement rbac.Objecter", inputs[i]))
 		}
 		rbacObj := obj.RBACObject()
-
 		var actions []policy.Action
 		actions, ok = inputs[i+1].([]policy.Action)
 		if !ok {
@@ -509,7 +456,6 @@ func asserts(inputs ...any) []AssertRBAC {
 			}
 			actions = []policy.Action{action}
 		}
-
 		out = append(out, AssertRBAC{
 			Object:  rbacObj,
 			Actions: actions,
@@ -517,9 +463,7 @@ func asserts(inputs ...any) []AssertRBAC {
 	}
 	return out
 }
-
 type emptyPreparedAuthorized struct{}
-
 func (emptyPreparedAuthorized) Authorize(_ context.Context, _ rbac.Object) error { return nil }
 func (emptyPreparedAuthorized) CompileToSQL(_ context.Context, _ regosql.ConvertConfig) (string, error) {
 	return "", nil

@@ -1,6 +1,6 @@
 package coderd
-
 import (
+	"errors"
 	"bytes"
 	"context"
 	"crypto/ed25519"
@@ -14,12 +14,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
-
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/audit"
@@ -31,19 +28,15 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 )
-
 const (
 	PubsubEventLicenses = "licenses"
 )
-
 // key20220812 is the Coder license public key with id 2022-08-12 used to validate licenses signed
 // by our signing infrastructure
 //
 //go:embed keys/2022-08-12
 var key20220812 []byte
-
 var Keys = map[string]ed25519.PublicKey{"2022-08-12": ed25519.PublicKey(key20220812)}
-
 // postLicense adds a new Enterprise license to the cluster.  We allow multiple different licenses
 // in the cluster at one time for several reasons:
 //
@@ -75,17 +68,14 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 		})
 	)
 	defer commitAudit()
-
 	if !api.AGPL.Authorize(r, policy.ActionCreate, rbac.ResourceLicense) {
 		httpapi.Forbidden(rw)
 		return
 	}
-
 	var addLicense codersdk.AddLicenseRequest
 	if !httpapi.Read(ctx, rw, r, &addLicense) {
 		return
 	}
-
 	claims, err := license.ParseClaimsIgnoreNbf(addLicense.License, api.LicenseKeys)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -94,7 +84,6 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	id, err := uuid.Parse(claims.ID)
 	if err != nil {
 		// If no uuid is in the license, we generate a random uuid.
@@ -112,7 +101,6 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	dl, err := api.Database.InsertLicense(ctx, database.InsertLicenseParams{
 		UploadedAt: dbtime.Now(),
 		JWT:        addLicense.License,
@@ -127,7 +115,6 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	aReq.New = dl
-
 	err = api.updateEntitlements(ctx)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -141,7 +128,6 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 		api.Logger.Error(context.Background(), "failed to publish license add", slog.Error(err))
 		// don't fail the HTTP request, since we did write it successfully to the database
 	}
-
 	c, err := decodeClaims(dl)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -152,7 +138,6 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 	}
 	httpapi.Write(ctx, rw, http.StatusCreated, convertLicense(dl, c))
 }
-
 // postRefreshEntitlements forces an `updateEntitlements` call and publishes
 // a message to the PubsubEventLicenses topic to force other replicas
 // to update their entitlements.
@@ -168,7 +153,6 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 // @Router /licenses/refresh-entitlements [post]
 func (api *API) postRefreshEntitlements(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
 	// If the user cannot create a new license, then they cannot refresh entitlements.
 	// Refreshing entitlements is a way to force a refresh of the license, so it is
 	// equivalent to creating a new license.
@@ -176,7 +160,6 @@ func (api *API) postRefreshEntitlements(rw http.ResponseWriter, r *http.Request)
 		httpapi.Forbidden(rw)
 		return
 	}
-
 	// Prevent abuse by limiting how often we allow a forced refresh.
 	now := time.Now()
 	if ok, wait := api.Entitlements.AllowRefresh(now); !ok {
@@ -186,7 +169,6 @@ func (api *API) postRefreshEntitlements(rw http.ResponseWriter, r *http.Request)
 		})
 		return
 	}
-
 	err := api.replicaManager.UpdateNow(ctx)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -195,7 +177,6 @@ func (api *API) postRefreshEntitlements(rw http.ResponseWriter, r *http.Request)
 		})
 		return
 	}
-
 	err = api.refreshEntitlements(ctx)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -204,27 +185,23 @@ func (api *API) postRefreshEntitlements(rw http.ResponseWriter, r *http.Request)
 		})
 		return
 	}
-
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
 		Message: "Entitlements updated",
 	})
 }
-
 func (api *API) refreshEntitlements(ctx context.Context) error {
 	api.Logger.Info(ctx, "refresh entitlements now")
-
 	err := api.updateEntitlements(ctx)
 	if err != nil {
-		return xerrors.Errorf("failed to update entitlements: %w", err)
+		return fmt.Errorf("failed to update entitlements: %w", err)
 	}
 	err = api.Pubsub.Publish(PubsubEventLicenses, []byte("refresh"))
 	if err != nil {
 		api.Logger.Error(ctx, "failed to publish forced entitlement update", slog.Error(err))
-		return xerrors.Errorf("failed to publish forced entitlement update, other replicas might not be updated: %w", err)
+		return fmt.Errorf("failed to publish forced entitlement update, other replicas might not be updated: %w", err)
 	}
 	return nil
 }
-
 // @Summary Get licenses
 // @ID get-licenses
 // @Security CoderSessionToken
@@ -235,7 +212,7 @@ func (api *API) refreshEntitlements(ctx context.Context) error {
 func (api *API) licenses(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	licenses, err := api.Database.GetLicenses(ctx)
-	if xerrors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusOK, []codersdk.License{})
 		return
 	}
@@ -246,7 +223,6 @@ func (api *API) licenses(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	licenses, err = coderd.AuthorizeFilter(api.AGPL.HTTPAuth, r, policy.ActionRead, licenses)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -265,7 +241,6 @@ func (api *API) licenses(rw http.ResponseWriter, r *http.Request) {
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, sdkLicenses)
 }
-
 // @Summary Delete license
 // @ID delete-license
 // @Security CoderSessionToken
@@ -279,7 +254,6 @@ func (api *API) deleteLicense(rw http.ResponseWriter, r *http.Request) {
 		ctx     = r.Context()
 		auditor = api.AGPL.Auditor.Load()
 	)
-
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 32)
 	if err != nil {
@@ -288,13 +262,11 @@ func (api *API) deleteLicense(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	dl, err := api.Database.GetLicenseByID(ctx, int32(id))
 	if err != nil {
 		// don't fail the HTTP request simply because we cannot audit
 		api.Logger.Warn(context.Background(), "could not retrieve license; cannot audit", slog.Error(err))
 	}
-
 	aReq, commitAudit := audit.InitRequest[database.License](rw, &audit.RequestParams{
 		Audit:   *auditor,
 		Log:     api.Logger,
@@ -303,12 +275,10 @@ func (api *API) deleteLicense(rw http.ResponseWriter, r *http.Request) {
 	})
 	defer commitAudit()
 	aReq.Old = dl
-
 	if !api.AGPL.Authorize(r, policy.ActionDelete, rbac.ResourceLicense) {
 		httpapi.Forbidden(rw)
 		return
 	}
-
 	_, err = api.Database.DeleteLicense(ctx, int32(id))
 	if httpapi.Is404Error(err) {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
@@ -338,7 +308,6 @@ func (api *API) deleteLicense(rw http.ResponseWriter, r *http.Request) {
 	}
 	rw.WriteHeader(http.StatusOK)
 }
-
 func convertLicense(dl database.License, c jwt.MapClaims) codersdk.License {
 	return codersdk.License{
 		ID:         dl.ID,
@@ -347,7 +316,6 @@ func convertLicense(dl database.License, c jwt.MapClaims) codersdk.License {
 		Claims:     c,
 	}
 }
-
 func convertLicenses(licenses []database.License) ([]codersdk.License, error) {
 	var out []codersdk.License
 	for _, l := range licenses {
@@ -359,7 +327,6 @@ func convertLicenses(licenses []database.License) ([]codersdk.License, error) {
 	}
 	return out, nil
 }
-
 // decodeClaims decodes the JWT claims from the stored JWT.  Note here we do not validate the JWT
 // and just return the claims verbatim.  We want to include all licenses on the GET response, even
 // if they are expired, or signed by a key this version of Coder no longer considers valid.
@@ -369,11 +336,11 @@ func convertLicenses(licenses []database.License) ([]codersdk.License, error) {
 func decodeClaims(l database.License) (jwt.MapClaims, error) {
 	parts := strings.Split(l.JWT, ".")
 	if len(parts) != 3 {
-		return nil, xerrors.Errorf("Unable to parse license %d as JWT", l.ID)
+		return nil, fmt.Errorf("Unable to parse license %d as JWT", l.ID)
 	}
 	cb, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil {
-		return nil, xerrors.Errorf("Unable to decode license %d claims: %w", l.ID, err)
+		return nil, fmt.Errorf("Unable to decode license %d claims: %w", l.ID, err)
 	}
 	c := make(jwt.MapClaims)
 	d := json.NewDecoder(bytes.NewBuffer(cb))

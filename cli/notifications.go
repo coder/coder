@@ -1,15 +1,10 @@
 package cli
-
 import (
+	"errors"
 	"fmt"
-
-	"golang.org/x/xerrors"
-
 	"github.com/coder/serpent"
-
 	"github.com/coder/coder/v2/codersdk"
 )
-
 func (r *RootCmd) notifications() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "notifications",
@@ -40,7 +35,6 @@ func (r *RootCmd) notifications() *serpent.Command {
 	}
 	return cmd
 }
-
 func (r *RootCmd) pauseNotifications() *serpent.Command {
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
@@ -55,16 +49,14 @@ func (r *RootCmd) pauseNotifications() *serpent.Command {
 				NotifierPaused: true,
 			})
 			if err != nil {
-				return xerrors.Errorf("unable to pause notifications: %w", err)
+				return fmt.Errorf("unable to pause notifications: %w", err)
 			}
-
 			_, _ = fmt.Fprintln(inv.Stderr, "Notifications are now paused.")
 			return nil
 		},
 	}
 	return cmd
 }
-
 func (r *RootCmd) resumeNotifications() *serpent.Command {
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
@@ -79,16 +71,14 @@ func (r *RootCmd) resumeNotifications() *serpent.Command {
 				NotifierPaused: false,
 			})
 			if err != nil {
-				return xerrors.Errorf("unable to resume notifications: %w", err)
+				return fmt.Errorf("unable to resume notifications: %w", err)
 			}
-
 			_, _ = fmt.Fprintln(inv.Stderr, "Notifications are now resumed.")
 			return nil
 		},
 	}
 	return cmd
 }
-
 func (r *RootCmd) testNotifications() *serpent.Command {
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
@@ -100,9 +90,8 @@ func (r *RootCmd) testNotifications() *serpent.Command {
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			if err := client.PostTestNotification(inv.Context()); err != nil {
-				return xerrors.Errorf("unable to post test notification: %w", err)
+				return fmt.Errorf("unable to post test notification: %w", err)
 			}
-
 			_, _ = fmt.Fprintln(inv.Stderr, "A test notification has been sent. If you don't receive the notification, check Coder's logs for any errors.")
 			return nil
 		},

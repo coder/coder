@@ -3,12 +3,12 @@ package coderd
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
-
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/database"
@@ -187,16 +187,16 @@ func (api *API) ValidWorkspaceAppHostname(ctx context.Context, host string, opts
 			AllowAccessUrl:        opts.AllowProxyAccessURL,
 			AllowWildcardHostname: opts.AllowProxyWildcard,
 		})
-		if xerrors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) {
 			return "", nil
 		}
 		if err != nil {
-			return "", xerrors.Errorf("get workspace proxy by hostname %q: %w", host, err)
+			return "", fmt.Errorf("get workspace proxy by hostname %q: %w", host, err)
 		}
 
 		proxyURL, err := url.Parse(proxy.Url)
 		if err != nil {
-			return "", xerrors.Errorf("parse proxy URL %q: %w", proxy.Url, err)
+			return "", fmt.Errorf("parse proxy URL %q: %w", proxy.Url, err)
 		}
 
 		// Force the redirect URI to use the same scheme as the proxy access URL

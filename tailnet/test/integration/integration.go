@@ -1,9 +1,8 @@
 //go:build linux
 // +build linux
-
 package integration
-
 import (
+	"errors"
 	"context"
 	"fmt"
 	"io"
@@ -21,16 +20,13 @@ import (
 	"syscall"
 	"testing"
 	"time"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 	"tailscale.com/derp"
 	"tailscale.com/derp/derphttp"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
-
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -41,62 +37,52 @@ import (
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/websocket"
 )
-
 type ClientNumber int
-
 const (
 	ClientNumber1 ClientNumber = 1
 	ClientNumber2 ClientNumber = 2
 )
-
 type Client struct {
 	Number         ClientNumber
 	ID             uuid.UUID
 	ListenPort     uint16
 	ShouldRunTests bool
 }
-
 var Client1 = Client{
 	Number:         ClientNumber1,
 	ID:             uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 	ListenPort:     client1Port,
 	ShouldRunTests: true,
 }
-
 var Client2 = Client{
 	Number:         ClientNumber2,
 	ID:             uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 	ListenPort:     client2Port,
 	ShouldRunTests: false,
 }
-
 type TestTopology struct {
 	Name string
 	// SetupNetworking creates interfaces and network namespaces for the test.
 	// The most simple implementation is NetworkSetupDefault, which only creates
 	// a network namespace shared for all tests.
 	SetupNetworking func(t *testing.T, logger slog.Logger) TestNetworking
-
 	// Server is the server starter for the test. It is executed in the server
 	// subprocess.
 	Server ServerStarter
 	// StartClient gets called in each client subprocess. It's expected to
 	// create the tailnet.Conn and ensure connectivity to it's peer.
 	StartClient func(t *testing.T, logger slog.Logger, serverURL *url.URL, derpMap *tailcfg.DERPMap, me Client, peer Client) *tailnet.Conn
-
 	// RunTests is the main test function. It's called in each of the client
 	// subprocesses. If tests can only run once, they should check the client ID
 	// and return early if it's not the expected one.
 	RunTests func(t *testing.T, logger slog.Logger, serverURL *url.URL, conn *tailnet.Conn, me Client, peer Client)
 }
-
 type ServerStarter interface {
 	// StartServer should start the server and return once it's listening. It
 	// should not block once it's listening. Cleanup should be handled by
 	// t.Cleanup.
 	StartServer(t *testing.T, logger slog.Logger, listenAddr string)
 }
-
 type SimpleServerOptions struct {
 	// FailUpgradeDERP will make the DERP server fail to handle the initial DERP
 	// upgrade in a way that causes the client to fallback to
@@ -109,14 +95,11 @@ type SimpleServerOptions struct {
 	// Incompatible with FailUpgradeDERP.
 	DERPWebsocketOnly bool
 }
-
 var _ ServerStarter = SimpleServerOptions{}
-
 type connManager struct {
 	mu    sync.Mutex
 	conns map[uuid.UUID]net.Conn
 }
-
 func (c *connManager) Add(id uuid.UUID, conn net.Conn) func() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -127,7 +110,6 @@ func (c *connManager) Add(id uuid.UUID, conn net.Conn) func() {
 		delete(c.conns, id)
 	}
 }
-
 func (c *connManager) CloseAll() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -136,13 +118,11 @@ func (c *connManager) CloseAll() {
 	}
 	c.conns = make(map[uuid.UUID]net.Conn)
 }
-
 type derpServer struct {
 	http.Handler
 	srv     *derp.Server
 	closeFn func()
 }
-
 func newDerpServer(t *testing.T, logger slog.Logger) *derpServer {
 	derpSrv := derp.NewServer(key.NewNode(), tailnet.Logger(logger.Named("derp")))
 	derpHandler, derpCloseFunc := tailnet.WithWebsocketSupport(derpSrv, derphttp.Handler(derpSrv))
@@ -153,23 +133,19 @@ func newDerpServer(t *testing.T, logger slog.Logger) *derpServer {
 		closeFn: derpCloseFunc,
 	}
 }
-
 func (s *derpServer) Close() {
 	s.srv.Close()
 	s.closeFn()
 }
-
 //nolint:revive
 func (o SimpleServerOptions) Router(t *testing.T, logger slog.Logger) *chi.Mux {
 	coord := tailnet.NewCoordinator(logger)
 	var coordPtr atomic.Pointer[tailnet.Coordinator]
 	coordPtr.Store(&coord)
 	t.Cleanup(func() { _ = coord.Close() })
-
 	cm := connManager{
 		conns: make(map[uuid.UUID]net.Conn),
 	}
-
 	csvc, err := tailnet.NewClientService(tailnet.ClientServiceOptions{
 		Logger:                 logger,
 		CoordPtr:               &coordPtr,
@@ -184,13 +160,11 @@ func (o SimpleServerOptions) Router(t *testing.T, logger slog.Logger) *chi.Mux {
 		ResumeTokenProvider:     tailnet.NewInsecureTestResumeTokenProvider(),
 	})
 	require.NoError(t, err)
-
 	derpServer := atomic.Pointer[derpServer]{}
 	derpServer.Store(newDerpServer(t, logger))
 	t.Cleanup(func() {
 		derpServer.Load().Close()
 	})
-
 	r := chi.NewRouter()
 	r.Use(
 		func(next http.Handler) http.Handler {
@@ -202,18 +176,15 @@ func (o SimpleServerOptions) Router(t *testing.T, logger slog.Logger) *chi.Mux {
 		tracing.StatusWriterMiddleware,
 		httpmw.Logger(logger),
 	)
-
 	r.Route("/derp", func(r chi.Router) {
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 			logger.Info(r.Context(), "start derp request", slog.F("path", r.URL.Path), slog.F("remote_ip", r.RemoteAddr))
-
 			upgrade := strings.ToLower(r.Header.Get("Upgrade"))
 			if upgrade != "derp" && upgrade != "websocket" {
 				http.Error(w, "invalid DERP upgrade header", http.StatusBadRequest)
 				t.Errorf("invalid DERP upgrade header: %s", upgrade)
 				return
 			}
-
 			if o.FailUpgradeDERP && upgrade == "derp" {
 				// 4xx status codes will cause the client to fallback to
 				// DERP-over-WebSocket.
@@ -226,7 +197,6 @@ func (o SimpleServerOptions) Router(t *testing.T, logger slog.Logger) *chi.Mux {
 				t.Error("non-websocket DERP request received")
 				return
 			}
-
 			derpServer.Load().ServeHTTP(w, r)
 		})
 		r.Get("/latency-check", func(w http.ResponseWriter, r *http.Request) {
@@ -238,7 +208,6 @@ func (o SimpleServerOptions) Router(t *testing.T, logger slog.Logger) *chi.Mux {
 			w.WriteHeader(http.StatusOK)
 		})
 	})
-
 	// /restart?derp=[true|false]&coordinator=[true|false]
 	r.Post("/restart", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("derp") == "true" {
@@ -247,14 +216,12 @@ func (o SimpleServerOptions) Router(t *testing.T, logger slog.Logger) *chi.Mux {
 			oldServer.Close()
 			logger.Info(r.Context(), "restarted DERP server")
 		}
-
 		if r.URL.Query().Get("coordinator") == "true" {
 			logger.Info(r.Context(), "simulating coordinator restart")
 			cm.CloseAll()
 		}
 		w.WriteHeader(http.StatusOK)
 	})
-
 	r.Get("/api/v2/workspaceagents/{id}/coordinate", func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		idStr := chi.URLParamFromCtx(ctx, "id")
@@ -267,7 +234,6 @@ func (o SimpleServerOptions) Router(t *testing.T, logger slog.Logger) *chi.Mux {
 			})
 			return
 		}
-
 		conn, err := websocket.Accept(w, r, nil)
 		if err != nil {
 			logger.Warn(ctx, "failed to accept websocket", slog.Error(err))
@@ -277,28 +243,23 @@ func (o SimpleServerOptions) Router(t *testing.T, logger slog.Logger) *chi.Mux {
 			})
 			return
 		}
-
 		ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageBinary)
 		defer wsNetConn.Close()
-
 		cleanFn := cm.Add(id, wsNetConn)
 		defer cleanFn()
-
 		err = csvc.ServeConnV2(ctx, wsNetConn, tailnet.StreamID{
 			Name: "client-" + id.String(),
 			ID:   id,
 			Auth: tailnet.SingleTailnetCoordinateeAuth{},
 		})
-		if err != nil && !xerrors.Is(err, io.EOF) && !xerrors.Is(err, context.Canceled) {
+		if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, context.Canceled) {
 			logger.Warn(ctx, "failed to serve conn", slog.Error(err))
 			_ = conn.Close(websocket.StatusInternalError, err.Error())
 			return
 		}
 	})
-
 	return r
 }
-
 func (o SimpleServerOptions) StartServer(t *testing.T, logger slog.Logger, listenAddr string) {
 	srv := http.Server{
 		Addr:        listenAddr,
@@ -309,7 +270,7 @@ func (o SimpleServerOptions) StartServer(t *testing.T, logger slog.Logger, liste
 	go func() {
 		defer close(serveDone)
 		err := srv.ListenAndServe()
-		if err != nil && !xerrors.Is(err, http.ErrServerClosed) {
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			t.Error("HTTP server error:", err)
 		}
 	}()
@@ -318,27 +279,20 @@ func (o SimpleServerOptions) StartServer(t *testing.T, logger slog.Logger, liste
 		<-serveDone
 	})
 }
-
 type NGINXServerOptions struct {
 	SimpleServerOptions
 }
-
 var _ ServerStarter = NGINXServerOptions{}
-
 func (o NGINXServerOptions) StartServer(t *testing.T, logger slog.Logger, listenAddr string) {
 	host, nginxPortStr, err := net.SplitHostPort(listenAddr)
 	require.NoError(t, err)
-
 	nginxPort, err := strconv.Atoi(nginxPortStr)
 	require.NoError(t, err)
-
 	serverPort := nginxPort + 1
 	serverListenAddr := net.JoinHostPort(host, strconv.Itoa(serverPort))
-
 	o.SimpleServerOptions.StartServer(t, logger, serverListenAddr)
 	startNginx(t, nginxPortStr, serverListenAddr)
 }
-
 func startNginx(t *testing.T, listenPort, serverAddr string) {
 	cfg := `events {}
 http {
@@ -359,16 +313,13 @@ http {
 	}
 }
 `
-
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "nginx.conf")
 	err := os.WriteFile(cfgPath, []byte(cfg), 0o600)
 	require.NoError(t, err)
-
 	// ExecBackground will handle cleanup.
 	_, _ = ExecBackground(t, "server.nginx", nil, "nginx", []string{"-c", cfgPath})
 }
-
 // StartClientDERP creates a client connection to the server for coordination
 // and creates a tailnet.Conn which will only use DERP to connect to the peer.
 func StartClientDERP(t *testing.T, logger slog.Logger, serverURL *url.URL, derpMap *tailcfg.DERPMap, me, peer Client) *tailnet.Conn {
@@ -384,7 +335,6 @@ func StartClientDERP(t *testing.T, logger slog.Logger, serverURL *url.URL, derpM
 		ForceNetworkUp: true,
 	})
 }
-
 // StartClientDERPWebSockets does the same thing as StartClientDERP but will
 // only use DERP WebSocket fallback.
 func StartClientDERPWebSockets(t *testing.T, logger slog.Logger, serverURL *url.URL, derpMap *tailcfg.DERPMap, me, peer Client) *tailnet.Conn {
@@ -400,7 +350,6 @@ func StartClientDERPWebSockets(t *testing.T, logger slog.Logger, serverURL *url.
 		ForceNetworkUp: true,
 	})
 }
-
 // StartClientDirect does the same thing as StartClientDERP but disables
 // BlockEndpoints (which enables Direct connections), and waits for a direct
 // connection to be established between the two peers.
@@ -416,7 +365,6 @@ func StartClientDirect(t *testing.T, logger slog.Logger, serverURL *url.URL, der
 		// magicsock to do anything.
 		ForceNetworkUp: true,
 	})
-
 	// Wait for direct connection to be established.
 	peerIP := tailnet.TailscaleServicePrefix.AddrFromUUID(peer.ID)
 	require.Eventually(t, func() bool {
@@ -434,14 +382,11 @@ func StartClientDirect(t *testing.T, logger slog.Logger, serverURL *url.URL, der
 		t.Logf("ping succeeded, direct connection established via %s", pong.Endpoint)
 		return true
 	}, testutil.WaitLong, testutil.IntervalMedium)
-
 	return conn
 }
-
 type ClientStarter struct {
 	Options *tailnet.Options
 }
-
 func startClientOptions(t *testing.T, logger slog.Logger, serverURL *url.URL, me, peer Client, options *tailnet.Options) *tailnet.Conn {
 	u, err := serverURL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/coordinate", me.ID.String()))
 	require.NoError(t, err)
@@ -451,22 +396,18 @@ func startClientOptions(t *testing.T, logger slog.Logger, serverURL *url.URL, me
 	t.Cleanup(func() {
 		_ = ws.Close(websocket.StatusNormalClosure, "closing websocket")
 	})
-
 	client, err := tailnet.NewDRPCClient(
 		websocket.NetConn(context.Background(), ws, websocket.MessageBinary),
 		logger,
 	)
 	require.NoError(t, err)
-
 	coord, err := client.Coordinate(context.Background())
 	require.NoError(t, err)
-
 	conn, err := tailnet.NewConn(options)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = conn.Close()
 	})
-
 	ctrl := tailnet.NewTunnelSrcCoordController(logger, conn)
 	ctrl.AddDestination(peer.ID)
 	coordination := ctrl.New(coord)
@@ -475,22 +416,18 @@ func startClientOptions(t *testing.T, logger slog.Logger, serverURL *url.URL, me
 		defer cancel()
 		_ = coordination.Close(cctx)
 	})
-
 	return conn
 }
-
 func basicDERPMap(serverURLStr string) (*tailcfg.DERPMap, error) {
 	serverURL, err := url.Parse(serverURLStr)
 	if err != nil {
-		return nil, xerrors.Errorf("parse server URL %q: %w", serverURLStr, err)
+		return nil, fmt.Errorf("parse server URL %q: %w", serverURLStr, err)
 	}
-
 	portStr := serverURL.Port()
 	port, err := strconv.Atoi(portStr)
 	if err != nil {
-		return nil, xerrors.Errorf("parse port %q: %w", portStr, err)
+		return nil, fmt.Errorf("parse port %q: %w", portStr, err)
 	}
-
 	hostname := serverURL.Hostname()
 	ipv4 := ""
 	ip, err := netip.ParseAddr(hostname)
@@ -498,7 +435,6 @@ func basicDERPMap(serverURLStr string) (*tailcfg.DERPMap, error) {
 		hostname = ""
 		ipv4 = ip.String()
 	}
-
 	return &tailcfg.DERPMap{
 		Regions: map[int]*tailcfg.DERPRegion{
 			1: {
@@ -522,7 +458,6 @@ func basicDERPMap(serverURLStr string) (*tailcfg.DERPMap, error) {
 		},
 	}, nil
 }
-
 // ExecBackground starts a subprocess with the given flags and returns a
 // channel that will receive the error when the subprocess exits. The returned
 // function can be used to close the subprocess.
@@ -548,12 +483,10 @@ func ExecBackground(t *testing.T, processName string, netNS *os.File, name strin
 		args = append([]string{"--net=/proc/self/fd/3", name}, args...)
 		name = "nsenter"
 	}
-
 	cmd := exec.Command(name, args...)
 	if netNS != nil {
 		cmd.ExtraFiles = []*os.File{netNS}
 	}
-
 	out := &testWriter{
 		name: processName,
 		t:    t,
@@ -566,7 +499,6 @@ func ExecBackground(t *testing.T, processName string, netNS *os.File, name strin
 	}
 	err := cmd.Start()
 	require.NoError(t, err)
-
 	waitErr := make(chan error, 1)
 	go func() {
 		err := cmd.Wait()
@@ -576,7 +508,6 @@ func ExecBackground(t *testing.T, processName string, netNS *os.File, name strin
 		waitErr <- err
 		close(waitErr)
 	}()
-
 	closeFn := func() error {
 		_ = cmd.Process.Signal(syscall.SIGTERM)
 		select {
@@ -587,7 +518,6 @@ func ExecBackground(t *testing.T, processName string, netNS *os.File, name strin
 		}
 		return <-waitErr
 	}
-
 	t.Cleanup(func() {
 		select {
 		case err := <-waitErr:
@@ -597,21 +527,16 @@ func ExecBackground(t *testing.T, processName string, netNS *os.File, name strin
 			return
 		default:
 		}
-
 		_ = closeFn()
 	})
-
 	return waitErr, closeFn
 }
-
 type testWriter struct {
 	mut  sync.Mutex
 	name string
 	t    *testing.T
-
 	capturedLines []string
 }
-
 func (w *testWriter) Write(p []byte) (n int, err error) {
 	w.mut.Lock()
 	defer w.mut.Unlock()
@@ -621,7 +546,6 @@ func (w *testWriter) Write(p []byte) (n int, err error) {
 		if s == "" {
 			continue
 		}
-
 		// If a line begins with "\s*--- (PASS|FAIL)" or is just PASS or FAIL,
 		// then it's a test result line. We want to capture it and log it later.
 		trimmed := strings.TrimSpace(s)
@@ -630,16 +554,13 @@ func (w *testWriter) Write(p []byte) (n int, err error) {
 			if strings.Contains(trimmed, "FAIL") {
 				w.t.Errorf("subprocess logged test failure: %s: \t%s", w.name, s)
 			}
-
 			w.capturedLines = append(w.capturedLines, s)
 			continue
 		}
-
 		w.t.Logf("%s output: \t%s", w.name, s)
 	}
 	return len(p), nil
 }
-
 func (w *testWriter) Flush() {
 	w.mut.Lock()
 	defer w.mut.Unlock()

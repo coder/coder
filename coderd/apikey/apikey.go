@@ -1,27 +1,22 @@
 package apikey
-
 import (
+	"errors"
 	"crypto/sha256"
 	"fmt"
 	"net"
 	"time"
-
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/cryptorand"
 )
-
 type CreateParams struct {
 	UserID    uuid.UUID
 	LoginType database.LoginType
 	// DefaultLifetime is configured in DeploymentValues.
 	// It is used if both ExpiresAt and LifetimeSeconds are not set.
 	DefaultLifetime time.Duration
-
 	// Optional.
 	ExpiresAt       time.Time
 	LifetimeSeconds int64
@@ -29,18 +24,15 @@ type CreateParams struct {
 	TokenName       string
 	RemoteAddr      string
 }
-
 // Generate generates an API key, returning the key as a string as well as the
 // database representation. It is the responsibility of the caller to insert it
 // into the database.
 func Generate(params CreateParams) (database.InsertAPIKeyParams, string, error) {
 	keyID, keySecret, err := generateKey()
 	if err != nil {
-		return database.InsertAPIKeyParams{}, "", xerrors.Errorf("generate API key: %w", err)
+		return database.InsertAPIKeyParams{}, "", fmt.Errorf("generate API key: %w", err)
 	}
-
 	hashed := sha256.Sum256([]byte(keySecret))
-
 	// Default expires at to now+lifetime, or use the configured value if not
 	// set.
 	if params.ExpiresAt.IsZero() {
@@ -54,14 +46,11 @@ func Generate(params CreateParams) (database.InsertAPIKeyParams, string, error) 
 	if params.LifetimeSeconds == 0 {
 		params.LifetimeSeconds = int64(time.Until(params.ExpiresAt).Seconds())
 	}
-
 	ip := net.ParseIP(params.RemoteAddr)
 	if ip == nil {
 		ip = net.IPv4(0, 0, 0, 0)
 	}
-
 	bitlen := len(ip) * 8
-
 	scope := database.APIKeyScopeAll
 	if params.Scope != "" {
 		scope = params.Scope
@@ -69,11 +58,9 @@ func Generate(params CreateParams) (database.InsertAPIKeyParams, string, error) 
 	switch scope {
 	case database.APIKeyScopeAll, database.APIKeyScopeApplicationConnect:
 	default:
-		return database.InsertAPIKeyParams{}, "", xerrors.Errorf("invalid API key scope: %q", scope)
+		return database.InsertAPIKeyParams{}, "", fmt.Errorf("invalid API key scope: %q", scope)
 	}
-
 	token := fmt.Sprintf("%s-%s", keyID, keySecret)
-
 	return database.InsertAPIKeyParams{
 		ID:              keyID,
 		UserID:          params.UserID,
@@ -96,7 +83,6 @@ func Generate(params CreateParams) (database.InsertAPIKeyParams, string, error) 
 		TokenName:    params.TokenName,
 	}, token, nil
 }
-
 // generateKey a new ID and secret for an API key.
 func generateKey() (id string, secret string, err error) {
 	// Length of an API Key ID.

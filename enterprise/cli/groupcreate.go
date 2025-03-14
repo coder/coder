@@ -1,24 +1,19 @@
 package cli
-
 import (
+	"errors"
 	"fmt"
-
-	"golang.org/x/xerrors"
-
 	agpl "github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
 )
-
 func (r *RootCmd) groupCreate() *serpent.Command {
 	var (
 		avatarURL   string
 		displayName string
 		orgContext  = agpl.NewOrganizationContext()
 	)
-
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "create <name>",
@@ -29,31 +24,26 @@ func (r *RootCmd) groupCreate() *serpent.Command {
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
-
 			org, err := orgContext.Selected(inv, client)
 			if err != nil {
-				return xerrors.Errorf("current organization: %w", err)
+				return fmt.Errorf("current organization: %w", err)
 			}
-
 			err = codersdk.GroupNameValid(inv.Args[0])
 			if err != nil {
-				return xerrors.Errorf("group name %q is invalid: %w", inv.Args[0], err)
+				return fmt.Errorf("group name %q is invalid: %w", inv.Args[0], err)
 			}
-
 			group, err := client.CreateGroup(ctx, org.ID, codersdk.CreateGroupRequest{
 				Name:        inv.Args[0],
 				DisplayName: displayName,
 				AvatarURL:   avatarURL,
 			})
 			if err != nil {
-				return xerrors.Errorf("create group: %w", err)
+				return fmt.Errorf("create group: %w", err)
 			}
-
 			_, _ = fmt.Fprintf(inv.Stdout, "Successfully created group %s!\n", pretty.Sprint(cliui.DefaultStyles.Keyword, group.Name))
 			return nil
 		},
 	}
-
 	cmd.Options = serpent.OptionSet{
 		{
 			Flag:          "avatar-url",
@@ -71,7 +61,7 @@ func (r *RootCmd) groupCreate() *serpent.Command {
 				if displayName != "" {
 					err := codersdk.DisplayNameValid(displayName)
 					if err != nil {
-						return xerrors.Errorf("group display name %q is invalid: %w", displayName, err)
+						return fmt.Errorf("group display name %q is invalid: %w", displayName, err)
 					}
 				}
 				return nil
@@ -79,6 +69,5 @@ func (r *RootCmd) groupCreate() *serpent.Command {
 		},
 	}
 	orgContext.AttachOptions(cmd)
-
 	return cmd
 }

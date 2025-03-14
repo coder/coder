@@ -1,6 +1,6 @@
 package dbtestutil
-
 import (
+	"errors"
 	"bytes"
 	"context"
 	"database/sql"
@@ -14,22 +14,17 @@ import (
 	"strings"
 	"testing"
 	"time"
-
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
-
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/testutil"
 )
-
 // WillUsePostgres returns true if a call to NewDB() will return a real, postgres-backed Store and Pubsub.
 func WillUsePostgres() bool {
 	return os.Getenv("DB") != ""
 }
-
 type options struct {
 	fixedTimezone string
 	dumpOnFailure bool
@@ -37,48 +32,39 @@ type options struct {
 	logger        slog.Logger
 	url           string
 }
-
 type Option func(*options)
-
 // WithTimezone sets the database to the defined timezone.
 func WithTimezone(tz string) Option {
 	return func(o *options) {
 		o.fixedTimezone = tz
 	}
 }
-
 // WithDumpOnFailure will dump the entire database on test failure.
 func WithDumpOnFailure() Option {
 	return func(o *options) {
 		o.dumpOnFailure = true
 	}
 }
-
 func WithLogger(logger slog.Logger) Option {
 	return func(o *options) {
 		o.logger = logger
 	}
 }
-
 func WithURL(u string) Option {
 	return func(o *options) {
 		o.url = u
 	}
 }
-
 func withReturnSQLDB(f func(*sql.DB)) Option {
 	return func(o *options) {
 		o.returnSQLDB = f
 	}
 }
-
 func NewDBWithSQLDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub, *sql.DB) {
 	t.Helper()
-
 	if !WillUsePostgres() {
 		t.Fatal("cannot use NewDBWithSQLDB without PostgreSQL, consider adding `if !dbtestutil.WillUsePostgres() { t.Skip() }` to this test")
 	}
-
 	var sqlDB *sql.DB
 	opts = append(opts, withReturnSQLDB(func(db *sql.DB) {
 		sqlDB = db
@@ -86,9 +72,7 @@ func NewDBWithSQLDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub
 	db, ps := NewDB(t, opts...)
 	return db, ps, sqlDB
 }
-
 var DefaultTimezone = "Canada/Newfoundland"
-
 // NowInDefaultTimezone returns the current time rounded to the nearest microsecond in the default timezone
 // used by postgres in tests. Useful for object equality checks.
 func NowInDefaultTimezone() time.Time {
@@ -98,15 +82,12 @@ func NowInDefaultTimezone() time.Time {
 	}
 	return time.Now().In(loc).Round(time.Microsecond)
 }
-
 func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 	t.Helper()
-
 	o := options{logger: testutil.Logger(t).Named("pubsub")}
 	for _, opt := range opts {
 		opt(&o)
 	}
-
 	var db database.Store
 	var ps pubsub.Pubsub
 	if WillUsePostgres() {
@@ -119,7 +100,6 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 			connectionURL, err = Open(t)
 			require.NoError(t, err)
 		}
-
 		if o.fixedTimezone == "" {
 			// To make sure we find timezone-related issues, we set the timezone
 			// of the database to a non-UTC one.
@@ -131,7 +111,6 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 		}
 		dbName := dbNameFromConnectionURL(t, connectionURL)
 		setDBTimezone(t, connectionURL, dbName, o.fixedTimezone)
-
 		sqlDB, err := sql.Open("postgres", connectionURL)
 		require.NoError(t, err)
 		t.Cleanup(func() {
@@ -145,7 +124,6 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 		}
 		// Unit tests should not retry serial transaction failures.
 		db = database.New(sqlDB, database.WithSerialRetryCount(1))
-
 		ps, err = pubsub.New(context.Background(), o.logger, sqlDB, connectionURL)
 		require.NoError(t, err)
 		t.Cleanup(func() {
@@ -155,27 +133,22 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 		db = dbmem.New()
 		ps = pubsub.NewInMemory()
 	}
-
 	return db, ps
 }
-
 // setRandDBTimezone sets the timezone of the database to the given timezone.
 // Note that the updated timezone only comes into effect on reconnect, so we
 // create our own connection for this and close the DB after we're done.
 func setDBTimezone(t testing.TB, dbURL, dbname, tz string) {
 	t.Helper()
-
 	sqlDB, err := sql.Open("postgres", dbURL)
 	require.NoError(t, err)
 	defer func() {
 		_ = sqlDB.Close()
 	}()
-
 	// nolint: gosec // This unfortunately does not work with placeholders.
 	_, err = sqlDB.Exec(fmt.Sprintf("ALTER DATABASE %s SET TIMEZONE TO %q", dbname, tz))
 	require.NoError(t, err, "failed to set timezone for database")
 }
-
 // dbNameFromConnectionURL returns the database name from the given connection URL,
 // where connectionURL is of the form postgres://user:pass@host:port/dbname
 func dbNameFromConnectionURL(t testing.TB, connectionURL string) string {
@@ -183,7 +156,6 @@ func dbNameFromConnectionURL(t testing.TB, connectionURL string) string {
 	require.NoError(t, err)
 	return strings.TrimPrefix(u.Path, "/")
 }
-
 // DumpOnFailure exports the database referenced by connectionURL to a file
 // corresponding to the current test, with a suffix indicating the time the
 // test was run.
@@ -218,12 +190,11 @@ func DumpOnFailure(t testing.TB, connectionURL string) {
 	}
 	t.Logf("Dumped database to %q due to failed test. I hope you find what you're looking for!", outPath)
 }
-
 // PGDump runs pg_dump against dbURL and returns the output.
 // It is used by DumpOnFailure().
 func PGDump(dbURL string) ([]byte, error) {
 	if _, err := exec.LookPath("pg_dump"); err != nil {
-		return nil, xerrors.Errorf("could not find pg_dump in path: %w", err)
+		return nil, fmt.Errorf("could not find pg_dump in path: %w", err)
 	}
 	cmdArgs := []string{
 		"pg_dump",
@@ -249,13 +220,11 @@ func PGDump(dbURL string) ([]byte, error) {
 	var stdout bytes.Buffer
 	cmd.Stdout = &stdout
 	if err := cmd.Run(); err != nil {
-		return nil, xerrors.Errorf("exec pg_dump: %w", err)
+		return nil, fmt.Errorf("exec pg_dump: %w", err)
 	}
 	return stdout.Bytes(), nil
 }
-
 const minimumPostgreSQLVersion = 13
-
 // PGDumpSchemaOnly is for use by gen/dump only.
 // It runs pg_dump against dbURL and sets a consistent timezone and encoding.
 func PGDumpSchemaOnly(dbURL string) ([]byte, error) {
@@ -274,7 +243,6 @@ func PGDumpSchemaOnly(dbURL string) ([]byte, error) {
 			}
 		}
 	}
-
 	cmdArgs := []string{
 		"pg_dump",
 		"--schema-only",
@@ -286,12 +254,10 @@ func PGDumpSchemaOnly(dbURL string) ([]byte, error) {
 		"--no-security-labels",
 		"--no-subscriptions",
 		"--no-tablespaces",
-
 		// We never want to manually generate
 		// queries executing against this table.
 		"--exclude-table=schema_migrations",
 	}
-
 	if !hasPGDump {
 		cmdArgs = append([]string{
 			"docker",
@@ -315,7 +281,6 @@ func PGDumpSchemaOnly(dbURL string) ([]byte, error) {
 	}
 	return normalizeDump(output.Bytes()), nil
 }
-
 func normalizeDump(schema []byte) []byte {
 	// Remove all comments.
 	schema = regexp.MustCompile(`(?im)^(--.*)$`).ReplaceAll(schema, []byte{})
@@ -327,10 +292,8 @@ func normalizeDump(schema []byte) []byte {
 	schema = regexp.MustCompile(`(?im)^(SELECT.*;)`).ReplaceAll(schema, []byte(``))
 	// Removes multiple newlines.
 	schema = regexp.MustCompile(`(?im)\n{3,}`).ReplaceAll(schema, []byte("\n\n"))
-
 	return schema
 }
-
 // Deprecated: disable foreign keys was created to aid in migrating off
 // of the test-only in-memory database. Do not use this in new code.
 func DisableForeignKeysAndTriggers(t *testing.T, db database.Store) {

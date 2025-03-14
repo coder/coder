@@ -1,24 +1,20 @@
 package clistat
-
 import (
+	"fmt"
+	"errors"
 	"math"
 	"runtime"
 	"strconv"
 	"strings"
 	"time"
-
 	"github.com/elastic/go-sysinfo"
 	"github.com/spf13/afero"
-	"golang.org/x/xerrors"
 	"tailscale.com/types/ptr"
-
 	sysinfotypes "github.com/elastic/go-sysinfo/types"
 )
-
 // Prefix is a scale multiplier for a result.
 // Used when creating a human-readable representation.
 type Prefix float64
-
 const (
 	PrefixDefault = 1.0
 	PrefixKibi    = 1024.0
@@ -26,14 +22,12 @@ const (
 	PrefixGibi    = PrefixMebi * 1024.0
 	PrefixTebi    = PrefixGibi * 1024.0
 )
-
 var (
 	PrefixHumanKibi = "Ki"
 	PrefixHumanMebi = "Mi"
 	PrefixHumanGibi = "Gi"
 	PrefixHumanTebi = "Ti"
 )
-
 func (s *Prefix) String() string {
 	switch *s {
 	case PrefixKibi:
@@ -48,7 +42,6 @@ func (s *Prefix) String() string {
 		return ""
 	}
 }
-
 func ParsePrefix(s string) Prefix {
 	switch s {
 	case PrefixHumanKibi:
@@ -63,7 +56,6 @@ func ParsePrefix(s string) Prefix {
 		return PrefixDefault
 	}
 }
-
 // Result is a generic result type for a statistic.
 // Total is the total amount of the resource available.
 // It is nil if the resource is not a finite quantity.
@@ -75,18 +67,15 @@ type Result struct {
 	Used   float64  `json:"used"`
 	Prefix Prefix   `json:"-"`
 }
-
 // String returns a human-readable representation of the result.
 func (r *Result) String() string {
 	if r == nil {
 		return "-"
 	}
-
 	scale := 1.0
 	if r.Prefix != 0.0 {
 		scale = float64(r.Prefix)
 	}
-
 	var sb strings.Builder
 	var usedScaled, totalScaled float64
 	usedScaled = r.Used / scale
@@ -96,21 +85,17 @@ func (r *Result) String() string {
 		totalScaled = *r.Total / scale
 		_, _ = sb.WriteString(humanizeFloat(totalScaled))
 	}
-
 	_, _ = sb.WriteString(" ")
 	_, _ = sb.WriteString(r.Prefix.String())
 	_, _ = sb.WriteString(r.Unit)
-
 	if r.Total != (*float64)(nil) && *r.Total > 0 {
 		_, _ = sb.WriteString(" (")
 		pct := r.Used / *r.Total * 100.0
 		_, _ = sb.WriteString(strconv.FormatFloat(pct, 'f', 0, 64))
 		_, _ = sb.WriteString("%)")
 	}
-
 	return strings.TrimSpace(sb.String())
 }
-
 func humanizeFloat(f float64) string {
 	// humanize.FtoaWithDigits does not round correctly.
 	prec := precision(f)
@@ -118,7 +103,6 @@ func humanizeFloat(f float64) string {
 	rounded := math.Round(f*rat) / rat
 	return strconv.FormatFloat(rounded, 'f', -1, 64)
 }
-
 // limit precision to 3 digits at most to preserve space
 func precision(f float64) int {
 	fabs := math.Abs(f)
@@ -136,7 +120,6 @@ func precision(f float64) int {
 	}
 	return 0
 }
-
 // Statter is a system statistics collector.
 // It is a thin wrapper around the elastic/go-sysinfo library.
 type Statter struct {
@@ -146,27 +129,23 @@ type Statter struct {
 	nproc          int
 	wait           func(time.Duration)
 }
-
 type Option func(*Statter)
-
 // WithSampleInterval sets the sample interval for the statter.
 func WithSampleInterval(d time.Duration) Option {
 	return func(s *Statter) {
 		s.sampleInterval = d
 	}
 }
-
 // WithFS sets the fs for the statter.
 func WithFS(fs afero.Fs) Option {
 	return func(s *Statter) {
 		s.fs = fs
 	}
 }
-
 func New(opts ...Option) (*Statter, error) {
 	hi, err := sysinfo.Host()
 	if err != nil {
-		return nil, xerrors.Errorf("get host info: %w", err)
+		return nil, fmt.Errorf("get host info: %w", err)
 	}
 	s := &Statter{
 		hi:             hi,
@@ -182,7 +161,6 @@ func New(opts ...Option) (*Statter, error) {
 	}
 	return s, nil
 }
-
 // HostCPU returns the CPU usage of the host. This is calculated by
 // taking two samples of CPU usage and calculating the difference.
 // Total will always be equal to the number of cores.
@@ -198,12 +176,12 @@ func (s *Statter) HostCPU() (*Result, error) {
 	}
 	c1, err := s.hi.CPUTime()
 	if err != nil {
-		return nil, xerrors.Errorf("get first cpu sample: %w", err)
+		return nil, fmt.Errorf("get first cpu sample: %w", err)
 	}
 	s.wait(s.sampleInterval)
 	c2, err := s.hi.CPUTime()
 	if err != nil {
-		return nil, xerrors.Errorf("get second cpu sample: %w", err)
+		return nil, fmt.Errorf("get second cpu sample: %w", err)
 	}
 	total := c2.Total() - c1.Total()
 	if total == 0 {
@@ -215,7 +193,6 @@ func (s *Statter) HostCPU() (*Result, error) {
 	r.Used = used.Seconds() * scaleFactor
 	return r, nil
 }
-
 // HostMemory returns the memory usage of the host, in gigabytes.
 func (s *Statter) HostMemory(p Prefix) (*Result, error) {
 	r := &Result{
@@ -224,7 +201,7 @@ func (s *Statter) HostMemory(p Prefix) (*Result, error) {
 	}
 	hm, err := s.hi.Memory()
 	if err != nil {
-		return nil, xerrors.Errorf("get memory info: %w", err)
+		return nil, fmt.Errorf("get memory info: %w", err)
 	}
 	r.Total = ptr.To(float64(hm.Total))
 	// On Linux, hm.Used equates to MemTotal - MemFree in /proc/stat.

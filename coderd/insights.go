@@ -1,6 +1,6 @@
 package coderd
-
 import (
+	"errors"
 	"context"
 	"database/sql"
 	"fmt"
@@ -8,11 +8,8 @@ import (
 	"slices"
 	"strings"
 	"time"
-
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -22,10 +19,8 @@ import (
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
-
 // Duplicated in codersdk.
 const insightsTimeLayout = time.RFC3339
-
 // @Summary Get deployment DAUs
 // @ID get-deployment-daus
 // @Security CoderSessionToken
@@ -39,13 +34,10 @@ func (api *API) deploymentDAUs(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Forbidden(rw)
 		return
 	}
-
 	api.returnDAUsInternal(rw, r, nil)
 }
-
 func (api *API) returnDAUsInternal(rw http.ResponseWriter, r *http.Request, templateIDs []uuid.UUID) {
 	ctx := r.Context()
-
 	p := httpapi.NewQueryParamParser()
 	vals := r.URL.Query()
 	tzOffset := p.Int(vals, 0, "tz_offset")
@@ -57,7 +49,6 @@ func (api *API) returnDAUsInternal(rw http.ResponseWriter, r *http.Request, temp
 		})
 		return
 	}
-
 	loc := time.FixedZone("", tzOffset*3600)
 	// If the time is 14:01 or 14:31, we still want to include all the
 	// data between 14:00 and 15:00. Our rollups buckets are 30 minutes
@@ -65,7 +56,6 @@ func (api *API) returnDAUsInternal(rw http.ResponseWriter, r *http.Request, temp
 	nextHourInLoc := time.Now().In(loc).Truncate(time.Hour).Add(time.Hour)
 	// Always return 60 days of data (2 months).
 	sixtyDaysAgo := nextHourInLoc.In(loc).Truncate(24*time.Hour).AddDate(0, 0, -60)
-
 	rows, err := api.Database.GetTemplateInsightsByInterval(ctx, database.GetTemplateInsightsByIntervalParams{
 		StartTime:    sixtyDaysAgo,
 		EndTime:      nextHourInLoc,
@@ -77,13 +67,11 @@ func (api *API) returnDAUsInternal(rw http.ResponseWriter, r *http.Request, temp
 			httpapi.ResourceNotFound(rw)
 			return
 		}
-
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching DAUs.",
 			Detail:  err.Error(),
 		})
 	}
-
 	resp := codersdk.DAUsResponse{
 		TZHourOffset: tzOffset,
 		Entries:      make([]codersdk.DAUEntry, 0, len(rows)),
@@ -96,7 +84,6 @@ func (api *API) returnDAUsInternal(rw http.ResponseWriter, r *http.Request, temp
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
-
 // @Summary Get insights about user activity
 // @ID get-insights-about-user-activity
 // @Security CoderSessionToken
@@ -109,7 +96,6 @@ func (api *API) returnDAUsInternal(rw http.ResponseWriter, r *http.Request, temp
 // @Router /insights/user-activity [get]
 func (api *API) insightsUserActivity(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
 	p := httpapi.NewQueryParamParser().
 		RequiredNotEmpty("start_time").
 		RequiredNotEmpty("end_time")
@@ -129,12 +115,10 @@ func (api *API) insightsUserActivity(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	startTime, endTime, ok := parseInsightsStartAndEndTime(ctx, rw, time.Now(), startTimeString, endTimeString)
 	if !ok {
 		return
 	}
-
 	rows, err := api.Database.GetUserActivityInsights(ctx, database.GetUserActivityInsightsParams{
 		StartTime:   startTime,
 		EndTime:     endTime,
@@ -142,7 +126,7 @@ func (api *API) insightsUserActivity(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		// No data is not an error.
-		if xerrors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) {
 			httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserActivityInsightsResponse{
 				Report: codersdk.UserActivityInsightsReport{
 					StartTime:   startTime,
@@ -164,7 +148,6 @@ func (api *API) insightsUserActivity(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	templateIDSet := make(map[uuid.UUID]struct{})
 	userActivities := make([]codersdk.UserActivity, 0, len(rows))
 	for _, row := range rows {
@@ -179,7 +162,6 @@ func (api *API) insightsUserActivity(rw http.ResponseWriter, r *http.Request) {
 			Seconds:     row.UsageSeconds,
 		})
 	}
-
 	// TemplateIDs that contributed to the data.
 	seenTemplateIDs := make([]uuid.UUID, 0, len(templateIDSet))
 	for templateID := range templateIDSet {
@@ -188,7 +170,6 @@ func (api *API) insightsUserActivity(rw http.ResponseWriter, r *http.Request) {
 	slices.SortFunc(seenTemplateIDs, func(a, b uuid.UUID) int {
 		return slice.Ascending(a.String(), b.String())
 	})
-
 	resp := codersdk.UserActivityInsightsResponse{
 		Report: codersdk.UserActivityInsightsReport{
 			StartTime:   startTime,
@@ -199,7 +180,6 @@ func (api *API) insightsUserActivity(rw http.ResponseWriter, r *http.Request) {
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
-
 // @Summary Get insights about user latency
 // @ID get-insights-about-user-latency
 // @Security CoderSessionToken
@@ -212,7 +192,6 @@ func (api *API) insightsUserActivity(rw http.ResponseWriter, r *http.Request) {
 // @Router /insights/user-latency [get]
 func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
 	p := httpapi.NewQueryParamParser().
 		RequiredNotEmpty("start_time").
 		RequiredNotEmpty("end_time")
@@ -232,12 +211,10 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	startTime, endTime, ok := parseInsightsStartAndEndTime(ctx, rw, time.Now(), startTimeString, endTimeString)
 	if !ok {
 		return
 	}
-
 	rows, err := api.Database.GetUserLatencyInsights(ctx, database.GetUserLatencyInsightsParams{
 		StartTime:   startTime,
 		EndTime:     endTime,
@@ -254,7 +231,6 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	templateIDSet := make(map[uuid.UUID]struct{})
 	userLatencies := make([]codersdk.UserLatency, 0, len(rows))
 	for _, row := range rows {
@@ -272,7 +248,6 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 			},
 		})
 	}
-
 	// TemplateIDs that contributed to the data.
 	seenTemplateIDs := make([]uuid.UUID, 0, len(templateIDSet))
 	for templateID := range templateIDSet {
@@ -281,7 +256,6 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 	slices.SortFunc(seenTemplateIDs, func(a, b uuid.UUID) int {
 		return slice.Ascending(a.String(), b.String())
 	})
-
 	resp := codersdk.UserLatencyInsightsResponse{
 		Report: codersdk.UserLatencyInsightsReport{
 			StartTime:   startTime,
@@ -292,7 +266,6 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
-
 // @Summary Get insights about user status counts
 // @ID get-insights-about-user-status-counts
 // @Security CoderSessionToken
@@ -303,13 +276,11 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 // @Router /insights/user-status-counts [get]
 func (api *API) insightsUserStatusCounts(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
 	p := httpapi.NewQueryParamParser()
 	vals := r.URL.Query()
 	tzOffset := p.Int(vals, 0, "tz_offset")
 	interval := p.Int(vals, int((24 * time.Hour).Seconds()), "interval")
 	p.ErrorExcessParams(vals)
-
 	if len(p.Errors) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Query parameters have invalid values.",
@@ -317,11 +288,9 @@ func (api *API) insightsUserStatusCounts(rw http.ResponseWriter, r *http.Request
 		})
 		return
 	}
-
 	loc := time.FixedZone("", tzOffset*3600)
 	nextHourInLoc := dbtime.Now().Truncate(time.Hour).Add(time.Hour).In(loc)
 	sixtyDaysAgo := dbtime.StartOfDay(nextHourInLoc).AddDate(0, 0, -60)
-
 	rows, err := api.Database.GetUserStatusCounts(ctx, database.GetUserStatusCountsParams{
 		StartTime: sixtyDaysAgo,
 		EndTime:   nextHourInLoc,
@@ -338,11 +307,9 @@ func (api *API) insightsUserStatusCounts(rw http.ResponseWriter, r *http.Request
 		})
 		return
 	}
-
 	resp := codersdk.GetUserStatusCountsResponse{
 		StatusCounts: make(map[codersdk.UserStatus][]codersdk.UserStatusChangeCount),
 	}
-
 	for _, row := range rows {
 		status := codersdk.UserStatus(row.Status)
 		resp.StatusCounts[status] = append(resp.StatusCounts[status], codersdk.UserStatusChangeCount{
@@ -350,10 +317,8 @@ func (api *API) insightsUserStatusCounts(rw http.ResponseWriter, r *http.Request
 			Count: row.Count,
 		})
 	}
-
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
-
 // @Summary Get insights about templates
 // @ID get-insights-about-templates
 // @Security CoderSessionToken
@@ -367,7 +332,6 @@ func (api *API) insightsUserStatusCounts(rw http.ResponseWriter, r *http.Request
 // @Router /insights/templates [get]
 func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
 	p := httpapi.NewQueryParamParser().
 		RequiredNotEmpty("start_time").
 		RequiredNotEmpty("end_time")
@@ -389,7 +353,6 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	startTime, endTime, ok := parseInsightsStartAndEndTime(ctx, rw, time.Now(), startTimeString, endTimeString)
 	if !ok {
 		return
@@ -402,15 +365,12 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-
 	var usage database.GetTemplateInsightsRow
 	var appUsage []database.GetTemplateAppInsightsRow
 	var dailyUsage []database.GetTemplateInsightsByIntervalRow
 	var parameterRows []database.GetTemplateParameterInsightsRow
-
 	eg, egCtx := errgroup.WithContext(ctx)
 	eg.SetLimit(4)
-
 	// The following insights data queries have a theoretical chance to be
 	// inconsistent between each other when looking at "today", however, the
 	// overhead from a transaction is not worth it.
@@ -424,7 +384,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 				IntervalDays: interval.Days(),
 			})
 			if err != nil {
-				return xerrors.Errorf("get template daily insights: %w", err)
+				return fmt.Errorf("get template daily insights: %w", err)
 			}
 		}
 		return nil
@@ -433,7 +393,6 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 		if !slices.Contains(sections, codersdk.TemplateInsightsSectionReport) {
 			return nil
 		}
-
 		var err error
 		usage, err = api.Database.GetTemplateInsights(egCtx, database.GetTemplateInsightsParams{
 			StartTime:   startTime,
@@ -441,7 +400,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 			TemplateIDs: templateIDs,
 		})
 		if err != nil {
-			return xerrors.Errorf("get template insights: %w", err)
+			return fmt.Errorf("get template insights: %w", err)
 		}
 		return nil
 	})
@@ -449,7 +408,6 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 		if !slices.Contains(sections, codersdk.TemplateInsightsSectionReport) {
 			return nil
 		}
-
 		var err error
 		appUsage, err = api.Database.GetTemplateAppInsights(egCtx, database.GetTemplateAppInsightsParams{
 			StartTime:   startTime,
@@ -457,18 +415,16 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 			TemplateIDs: templateIDs,
 		})
 		if err != nil {
-			return xerrors.Errorf("get template app insights: %w", err)
+			return fmt.Errorf("get template app insights: %w", err)
 		}
 		return nil
 	})
-
 	// Template parameter insights have no risk of inconsistency with the other
 	// insights.
 	eg.Go(func() error {
 		if !slices.Contains(sections, codersdk.TemplateInsightsSectionReport) {
 			return nil
 		}
-
 		var err error
 		parameterRows, err = api.Database.GetTemplateParameterInsights(ctx, database.GetTemplateParameterInsightsParams{
 			StartTime:   startTime,
@@ -476,11 +432,10 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 			TemplateIDs: templateIDs,
 		})
 		if err != nil {
-			return xerrors.Errorf("get template parameter insights: %w", err)
+			return fmt.Errorf("get template parameter insights: %w", err)
 		}
 		return nil
 	})
-
 	err := eg.Wait()
 	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
@@ -493,7 +448,6 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	parametersUsage, err := db2sdk.TemplateInsightsParameters(parameterRows)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -502,11 +456,9 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	resp := codersdk.TemplateInsightsResponse{
 		IntervalReports: []codersdk.TemplateInsightsIntervalReport{},
 	}
-
 	if slices.Contains(sections, codersdk.TemplateInsightsSectionReport) {
 		resp.Report = &codersdk.TemplateInsightsReport{
 			StartTime:       startTime,
@@ -517,7 +469,6 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 			ParametersUsage: parametersUsage,
 		}
 	}
-
 	for _, row := range dailyUsage {
 		resp.IntervalReports = append(resp.IntervalReports, codersdk.TemplateInsightsIntervalReport{
 			// NOTE(mafredri): This might not be accurate over DST since the
@@ -531,7 +482,6 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
-
 // convertTemplateInsightsApps builds the list of builtin apps and template apps
 // from the provided database rows, builtin apps are implicitly a part of all
 // templates.
@@ -585,7 +535,6 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 			Seconds:     usage.UsageSftpSeconds,
 		},
 	}
-
 	// Use a stable sort, similarly to how we would sort in the query, note that
 	// we don't sort in the query because order varies depending on the table
 	// collation.
@@ -600,7 +549,6 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 		}
 		return strings.Compare(a.Icon, b.Icon)
 	})
-
 	// Template apps.
 	for _, app := range appUsage {
 		apps = append(apps, codersdk.TemplateAppUsage{
@@ -613,10 +561,8 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 			TimesUsed:   app.TimesUsed,
 		})
 	}
-
 	return apps
 }
-
 // parseInsightsStartAndEndTime parses the start and end time query parameters
 // and returns the parsed values. The client provided timezone must be preserved
 // when parsing the time. Verification is performed so that the start and end
@@ -644,10 +590,8 @@ func parseInsightsStartAndEndTime(ctx context.Context, rw http.ResponseWriter, n
 			})
 			return time.Time{}, time.Time{}, false
 		}
-
 		// Change now to the same timezone as the parsed time.
 		now := now.In(t.Location())
-
 		if t.IsZero() {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Query parameter has invalid value.",
@@ -660,7 +604,6 @@ func parseInsightsStartAndEndTime(ctx context.Context, rw http.ResponseWriter, n
 			})
 			return time.Time{}, time.Time{}, false
 		}
-
 		// Round upwards one hour to ensure we can fetch the latest data.
 		if t.After(now.Truncate(time.Hour).Add(time.Hour)) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -674,12 +617,10 @@ func parseInsightsStartAndEndTime(ctx context.Context, rw http.ResponseWriter, n
 			})
 			return time.Time{}, time.Time{}, false
 		}
-
 		ensureZeroHour := true
 		if qp.name == "end_time" {
 			ey, em, ed := t.Date()
 			ty, tm, td := now.Date()
-
 			ensureZeroHour = ey != ty || em != tm || ed != td
 		}
 		h, m, s := t.Clock()
@@ -720,10 +661,8 @@ func parseInsightsStartAndEndTime(ctx context.Context, rw http.ResponseWriter, n
 		})
 		return time.Time{}, time.Time{}, false
 	}
-
 	return startTime, endTime, true
 }
-
 func parseInsightsInterval(ctx context.Context, rw http.ResponseWriter, intervalString string, startTime, endTime time.Time) (codersdk.InsightsReportInterval, bool) {
 	switch v := codersdk.InsightsReportInterval(intervalString); v {
 	case codersdk.InsightsReportIntervalDay, "":
@@ -750,7 +689,6 @@ func parseInsightsInterval(ctx context.Context, rw http.ResponseWriter, interval
 		return "", false
 	}
 }
-
 func lastReportIntervalHasAtLeastSixDays(startTime, endTime time.Time) bool {
 	lastReportIntervalDays := endTime.Sub(startTime) % (7 * 24 * time.Hour)
 	if lastReportIntervalDays == 0 {
@@ -760,7 +698,6 @@ func lastReportIntervalHasAtLeastSixDays(startTime, endTime time.Time) bool {
 	// when the duration can be shorter than 6 days: 5 days 23 hours.
 	return lastReportIntervalDays >= 6*24*time.Hour || startTime.AddDate(0, 0, 6).Equal(endTime)
 }
-
 func templateInsightsSectionAsStrings(sections ...codersdk.TemplateInsightsSection) []string {
 	t := make([]string, len(sections))
 	for i, s := range sections {
@@ -768,7 +705,6 @@ func templateInsightsSectionAsStrings(sections ...codersdk.TemplateInsightsSecti
 	}
 	return t
 }
-
 func parseTemplateInsightsSections(ctx context.Context, rw http.ResponseWriter, sections []string) ([]codersdk.TemplateInsightsSection, bool) {
 	t := make([]codersdk.TemplateInsightsSection, len(sections))
 	for i, s := range sections {

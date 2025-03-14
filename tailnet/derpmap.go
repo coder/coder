@@ -1,6 +1,6 @@
 package tailnet
-
 import (
+	"errors"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -8,29 +8,23 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-
-	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 )
-
 const DisableSTUN = "disable"
-
 func STUNRegions(baseRegionID int, stunAddrs []string) ([]*tailcfg.DERPRegion, error) {
 	regions := make([]*tailcfg.DERPRegion, 0, len(stunAddrs))
 	for index, stunAddr := range stunAddrs {
 		if stunAddr == DisableSTUN {
 			return []*tailcfg.DERPRegion{}, nil
 		}
-
 		host, rawPort, err := net.SplitHostPort(stunAddr)
 		if err != nil {
-			return nil, xerrors.Errorf("split host port for %q: %w", stunAddr, err)
+			return nil, fmt.Errorf("split host port for %q: %w", stunAddr, err)
 		}
 		port, err := strconv.Atoi(rawPort)
 		if err != nil {
-			return nil, xerrors.Errorf("parse port for %q: %w", stunAddr, err)
+			return nil, fmt.Errorf("parse port for %q: %w", stunAddr, err)
 		}
-
 		regionID := baseRegionID + index + 1
 		regions = append(regions, &tailcfg.DERPRegion{
 			EmbeddedRelay: false,
@@ -46,22 +40,19 @@ func STUNRegions(baseRegionID int, stunAddrs []string) ([]*tailcfg.DERPRegion, e
 			}},
 		})
 	}
-
 	return regions, nil
 }
-
 // NewDERPMap constructs a DERPMap from a set of STUN addresses and optionally a remote
 // URL to fetch a mapping from e.g. https://controlplane.tailscale.com/derpmap/default.
 //
 //nolint:revive
 func NewDERPMap(ctx context.Context, region *tailcfg.DERPRegion, stunAddrs []string, remoteURL, localPath string, disableSTUN bool) (*tailcfg.DERPMap, error) {
 	if remoteURL != "" && localPath != "" {
-		return nil, xerrors.New("a remote URL or local path must be specified, not both")
+		return nil, errors.New("a remote URL or local path must be specified, not both")
 	}
 	if disableSTUN {
 		stunAddrs = nil
 	}
-
 	// stunAddrs only applies when a default region is set. Each STUN node gets
 	// it's own region ID because netcheck will only try a single STUN server in
 	// each region before canceling the region's STUN check.
@@ -70,51 +61,48 @@ func NewDERPMap(ctx context.Context, region *tailcfg.DERPRegion, stunAddrs []str
 		addRegions = append(addRegions, region)
 		stunRegions, err := STUNRegions(region.RegionID, stunAddrs)
 		if err != nil {
-			return nil, xerrors.Errorf("create stun regions: %w", err)
+			return nil, fmt.Errorf("create stun regions: %w", err)
 		}
 		addRegions = append(addRegions, stunRegions...)
 	}
-
 	derpMap := &tailcfg.DERPMap{
 		Regions: map[int]*tailcfg.DERPRegion{},
 	}
 	if remoteURL != "" {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, remoteURL, nil)
 		if err != nil {
-			return nil, xerrors.Errorf("create request: %w", err)
+			return nil, fmt.Errorf("create request: %w", err)
 		}
 		res, err := http.DefaultClient.Do(req)
 		if err != nil {
-			return nil, xerrors.Errorf("get derpmap: %w", err)
+			return nil, fmt.Errorf("get derpmap: %w", err)
 		}
 		defer res.Body.Close()
 		err = json.NewDecoder(res.Body).Decode(&derpMap)
 		if err != nil {
-			return nil, xerrors.Errorf("fetch derpmap: %w", err)
+			return nil, fmt.Errorf("fetch derpmap: %w", err)
 		}
 	}
 	if localPath != "" {
 		content, err := os.ReadFile(localPath)
 		if err != nil {
-			return nil, xerrors.Errorf("read derpmap from %q: %w", localPath, err)
+			return nil, fmt.Errorf("read derpmap from %q: %w", localPath, err)
 		}
 		err = json.Unmarshal(content, &derpMap)
 		if err != nil {
-			return nil, xerrors.Errorf("unmarshal derpmap: %w", err)
+			return nil, fmt.Errorf("unmarshal derpmap: %w", err)
 		}
 	}
-
 	// Add our custom regions to the DERP map.
 	if len(addRegions) > 0 {
 		for _, region := range addRegions {
 			_, conflicts := derpMap.Regions[region.RegionID]
 			if conflicts {
-				return nil, xerrors.Errorf("a default region ID %d (%s - %q) conflicts with a remote region from %q", region.RegionID, region.RegionCode, region.RegionName, remoteURL)
+				return nil, fmt.Errorf("a default region ID %d (%s - %q) conflicts with a remote region from %q", region.RegionID, region.RegionCode, region.RegionName, remoteURL)
 			}
 			derpMap.Regions[region.RegionID] = region
 		}
 	}
-
 	// Remove all STUNPorts from DERPy nodes, and fully remove all STUNOnly
 	// nodes.
 	if disableSTUN {
@@ -129,11 +117,10 @@ func NewDERPMap(ctx context.Context, region *tailcfg.DERPRegion, stunAddrs []str
 			region.Nodes = newNodes
 		}
 	}
-
 	// Fail if the DERP map has no regions or no DERP nodes.
 	badDerpMapMsg := "A valid DERP map is required for networking to work. You must either supply your own DERP map or use the built-in DERP server"
 	if len(derpMap.Regions) == 0 {
-		return nil, xerrors.New("DERP map has no regions. " + badDerpMapMsg)
+		return nil, errors.New("DERP map has no regions. " + badDerpMapMsg)
 	}
 	foundValidNode := false
 regionLoop:
@@ -146,12 +133,10 @@ regionLoop:
 		}
 	}
 	if !foundValidNode {
-		return nil, xerrors.New("DERP map has no DERP nodes. " + badDerpMapMsg)
+		return nil, errors.New("DERP map has no DERP nodes. " + badDerpMapMsg)
 	}
-
 	return derpMap, nil
 }
-
 // CompareDERPMaps returns true if the given DERPMaps are equivalent. Ordering
 // of slices is ignored.
 //
@@ -171,7 +156,6 @@ func CompareDERPMaps(a *tailcfg.DERPMap, b *tailcfg.DERPMap) bool {
 	if a.OmitDefaultRegions != b.OmitDefaultRegions {
 		return false
 	}
-
 	for id, region := range a.Regions {
 		other, ok := b.Regions[id]
 		if !ok {
@@ -183,7 +167,6 @@ func CompareDERPMaps(a *tailcfg.DERPMap, b *tailcfg.DERPMap) bool {
 	}
 	return true
 }
-
 func compareDERPRegions(a *tailcfg.DERPRegion, b *tailcfg.DERPRegion) bool {
 	if a == nil || b == nil {
 		return false
@@ -206,7 +189,6 @@ func compareDERPRegions(a *tailcfg.DERPRegion, b *tailcfg.DERPRegion) bool {
 	if len(a.Nodes) != len(b.Nodes) {
 		return false
 	}
-
 	// Convert both slices to maps so ordering can be ignored easier.
 	aNodes := map[string]*tailcfg.DERPNode{}
 	for _, node := range a.Nodes {
@@ -216,13 +198,11 @@ func compareDERPRegions(a *tailcfg.DERPRegion, b *tailcfg.DERPRegion) bool {
 	for _, node := range b.Nodes {
 		bNodes[node.Name] = node
 	}
-
 	for name, aNode := range aNodes {
 		bNode, ok := bNodes[name]
 		if !ok {
 			return false
 		}
-
 		if aNode.Name != bNode.Name {
 			return false
 		}
@@ -260,6 +240,5 @@ func compareDERPRegions(a *tailcfg.DERPRegion, b *tailcfg.DERPRegion) bool {
 			return false
 		}
 	}
-
 	return true
 }

@@ -1,5 +1,4 @@
 package replicasync
-
 import (
 	"context"
 	"crypto/tls"
@@ -12,10 +11,7 @@ import (
 	"strings"
 	"sync"
 	"time"
-
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
-
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/cliutil"
@@ -24,9 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 )
-
 var PubsubEvent = "replica"
-
 type Options struct {
 	ID              uuid.UUID
 	CleanupInterval time.Duration
@@ -36,7 +30,6 @@ type Options struct {
 	RegionID        int32
 	TLSConfig       *tls.Config
 }
-
 // New registers the replica with the database and periodically updates to
 // ensure it's healthy. It contacts all other alive replicas to ensure they are
 // reachable.
@@ -61,7 +54,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, ps pubsub.P
 	hostname := cliutil.Hostname()
 	databaseLatency, err := db.Ping(ctx)
 	if err != nil {
-		return nil, xerrors.Errorf("ping database: %w", err)
+		return nil, fmt.Errorf("ping database: %w", err)
 	}
 	// nolint:gocritic // Inserting a replica is a system function.
 	replica, err := db.InsertReplica(dbauthz.AsSystemRestricted(ctx), database.InsertReplicaParams{
@@ -77,11 +70,11 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, ps pubsub.P
 		Primary:         true,
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("insert replica: %w", err)
+		return nil, fmt.Errorf("insert replica: %w", err)
 	}
 	err = ps.Publish(PubsubEvent, []byte(options.ID.String()))
 	if err != nil {
-		return nil, xerrors.Errorf("publish new replica: %w", err)
+		return nil, fmt.Errorf("publish new replica: %w", err)
 	}
 	ctx, cancelFunc := context.WithCancel(ctx)
 	manager := &Manager{
@@ -96,17 +89,16 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, ps pubsub.P
 	}
 	err = manager.syncReplicas(ctx)
 	if err != nil {
-		return nil, xerrors.Errorf("run replica: %w", err)
+		return nil, fmt.Errorf("run replica: %w", err)
 	}
 	err = manager.subscribe(ctx)
 	if err != nil {
-		return nil, xerrors.Errorf("subscribe: %w", err)
+		return nil, fmt.Errorf("subscribe: %w", err)
 	}
 	manager.closeWait.Add(1)
 	go manager.loop(ctx)
 	return manager, nil
 }
-
 // Manager keeps the replica up to date and in sync with other replicas.
 type Manager struct {
 	id      uuid.UUID
@@ -114,39 +106,32 @@ type Manager struct {
 	db      database.Store
 	pubsub  pubsub.Pubsub
 	logger  slog.Logger
-
 	closeWait   sync.WaitGroup
 	closeMutex  sync.Mutex
 	closed      chan (struct{})
 	closeCancel context.CancelFunc
-
 	self     database.Replica
 	mutex    sync.Mutex
 	peers    []database.Replica
 	callback func()
 }
-
 func (m *Manager) ID() uuid.UUID {
 	return m.id
 }
-
 // UpdateNow synchronously updates replicas.
 func (m *Manager) UpdateNow(ctx context.Context) error {
 	return m.syncReplicas(ctx)
 }
-
 // PublishUpdate notifies all other replicas to update.
 func (m *Manager) PublishUpdate() error {
 	return m.pubsub.Publish(PubsubEvent, []byte(m.id.String()))
 }
-
 // updateInterval is used to determine a replicas state.
 // If the replica was updated > the time, it's considered healthy.
 // If the replica was updated < the time, it's considered stale.
 func (m *Manager) updateInterval() time.Time {
 	return dbtime.Now().Add(-3 * m.options.UpdateInterval)
 }
-
 // loop runs the replica update sequence on an update interval.
 func (m *Manager) loop(ctx context.Context) {
 	defer m.closeWait.Done()
@@ -173,7 +158,6 @@ func (m *Manager) loop(ctx context.Context) {
 		}
 	}
 }
-
 // subscribe listens for new replica information!
 func (m *Manager) subscribe(ctx context.Context) error {
 	var (
@@ -181,7 +165,6 @@ func (m *Manager) subscribe(ctx context.Context) error {
 		updating    = false
 		updateMutex = sync.Mutex{}
 	)
-
 	// This loop will continually update nodes as updates are processed.
 	// The intent is to always be up to date without spamming the run
 	// function, so if a new update comes in while one is being processed,
@@ -229,13 +212,12 @@ func (m *Manager) subscribe(ctx context.Context) error {
 	}()
 	return nil
 }
-
 func (m *Manager) syncReplicas(ctx context.Context) error {
 	m.closeMutex.Lock()
 	select {
 	case <-m.closed:
 		m.closeMutex.Unlock()
-		return xerrors.New("manager is closed")
+		return errors.New("manager is closed")
 	default:
 	}
 	m.closeWait.Add(1)
@@ -246,9 +228,8 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 	// nolint:gocritic // Reading replicas is a system function
 	replicas, err := m.db.GetReplicasUpdatedAfter(dbauthz.AsSystemRestricted(ctx), m.updateInterval())
 	if err != nil {
-		return xerrors.Errorf("get replicas: %w", err)
+		return fmt.Errorf("get replicas: %w", err)
 	}
-
 	m.mutex.Lock()
 	m.peers = make([]database.Replica, 0, len(replicas))
 	for _, replica := range replicas {
@@ -265,7 +246,6 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 		m.peers = append(m.peers, replica)
 	}
 	m.mutex.Unlock()
-
 	client := http.Client{
 		Timeout: m.options.PeerTimeout,
 		Transport: &http.Transport{
@@ -273,14 +253,13 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 		},
 	}
 	defer client.CloseIdleConnections()
-
 	peers := m.Regional()
 	errs := make(chan error, len(peers))
 	for _, peer := range peers {
 		go func(peer database.Replica) {
 			err := PingPeerReplica(ctx, client, peer.RelayAddress)
 			if err != nil {
-				errs <- xerrors.Errorf("ping sibling replica %s (%s): %w", peer.Hostname, peer.RelayAddress, err)
+				errs <- fmt.Errorf("ping sibling replica %s (%s): %w", peer.Hostname, peer.RelayAddress, err)
 				m.logger.Warn(ctx, "failed to ping sibling replica, this could happen if the replica has shutdown",
 					slog.F("replica_hostname", peer.Hostname),
 					slog.F("replica_relay_address", peer.RelayAddress),
@@ -291,7 +270,6 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 			errs <- nil
 		}(peer)
 	}
-
 	replicaErrs := make([]string, 0, len(peers))
 	for i := 0; i < len(peers); i++ {
 		err := <-errs
@@ -303,12 +281,10 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 	if len(replicaErrs) > 0 {
 		replicaError = fmt.Sprintf("Failed to dial peers: %s", strings.Join(replicaErrs, ", "))
 	}
-
 	databaseLatency, err := m.db.Ping(ctx)
 	if err != nil {
-		return xerrors.Errorf("ping database: %w", err)
+		return fmt.Errorf("ping database: %w", err)
 	}
-
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	// nolint:gocritic // Updating a replica is a system function.
@@ -327,7 +303,7 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 	})
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
-			return xerrors.Errorf("update replica: %w", err)
+			return fmt.Errorf("update replica: %w", err)
 		}
 		// self replica has been cleaned up, we must reinsert
 		// nolint:gocritic // Updating a replica is a system function.
@@ -344,14 +320,14 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 			Primary:         m.self.Primary,
 		})
 		if err != nil {
-			return xerrors.Errorf("update replica: %w", err)
+			return fmt.Errorf("update replica: %w", err)
 		}
 	}
 	if m.self.Error != replica.Error {
 		// Publish an update occurred!
 		err = m.PublishUpdate()
 		if err != nil {
-			return xerrors.Errorf("publish replica update: %w", err)
+			return fmt.Errorf("publish replica update: %w", err)
 		}
 	}
 	m.self = replica
@@ -360,40 +336,37 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 	}
 	return nil
 }
-
 // PingPeerReplica pings a peer replica over it's internal relay address to
 // ensure it's reachable and alive for health purposes.
 func PingPeerReplica(ctx context.Context, client http.Client, relayAddress string) error {
 	ra, err := url.Parse(relayAddress)
 	if err != nil {
-		return xerrors.Errorf("parse relay address %q: %w", relayAddress, err)
+		return fmt.Errorf("parse relay address %q: %w", relayAddress, err)
 	}
 	target, err := ra.Parse("/derp/latency-check")
 	if err != nil {
-		return xerrors.Errorf("parse latency-check URL: %w", err)
+		return fmt.Errorf("parse latency-check URL: %w", err)
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)
 	if err != nil {
-		return xerrors.Errorf("create request: %w", err)
+		return fmt.Errorf("create request: %w", err)
 	}
 	res, err := client.Do(req)
 	if err != nil {
-		return xerrors.Errorf("do probe: %w", err)
+		return fmt.Errorf("do probe: %w", err)
 	}
 	_ = res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return xerrors.Errorf("unexpected status code: %d", res.StatusCode)
+		return fmt.Errorf("unexpected status code: %d", res.StatusCode)
 	}
 	return nil
 }
-
 // Self represents the current replica.
 func (m *Manager) Self() database.Replica {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	return m.self
 }
-
 // AllPrimary returns every primary replica (not workspace proxy replicas),
 // including itself.
 func (m *Manager) AllPrimary() []database.Replica {
@@ -404,7 +377,6 @@ func (m *Manager) AllPrimary() []database.Replica {
 		if !replica.Primary {
 			continue
 		}
-
 		// When we assign the non-pointer to a
 		// variable it loses the reference.
 		replica := replica
@@ -412,7 +384,6 @@ func (m *Manager) AllPrimary() []database.Replica {
 	}
 	return replicas
 }
-
 // InRegion returns every replica in the given DERP region excluding itself.
 func (m *Manager) InRegion(regionID int32) []database.Replica {
 	m.mutex.Lock()
@@ -426,18 +397,15 @@ func (m *Manager) InRegion(regionID int32) []database.Replica {
 	}
 	return replicas
 }
-
 // Regional returns all replicas in the same region excluding itself.
 func (m *Manager) Regional() []database.Replica {
 	return m.InRegion(m.regionID())
 }
-
 func (m *Manager) regionID() int32 {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	return m.self.RegionID
 }
-
 // SetCallback sets a function to execute whenever new peers
 // are refreshed or updated.
 func (m *Manager) SetCallback(callback func()) {
@@ -447,7 +415,6 @@ func (m *Manager) SetCallback(callback func()) {
 	// Instantly call the callback to inform replicas!
 	go callback()
 }
-
 func (m *Manager) Close() error {
 	m.closeMutex.Lock()
 	select {
@@ -482,15 +449,14 @@ func (m *Manager) Close() error {
 		Primary:         false, // A stopped replica cannot be primary.
 	})
 	if err != nil {
-		return xerrors.Errorf("update replica: %w", err)
+		return fmt.Errorf("update replica: %w", err)
 	}
 	err = m.pubsub.Publish(PubsubEvent, []byte(m.self.ID.String()))
 	if err != nil {
-		return xerrors.Errorf("publish replica update: %w", err)
+		return fmt.Errorf("publish replica update: %w", err)
 	}
 	return nil
 }
-
 // CreateDERPMeshTLSConfig creates a TLS configuration for connecting to peers
 // in the DERP mesh over private networking. It overrides the ServerName to be
 // the expected public hostname of the peer, and trusts all of the TLS server
@@ -502,12 +468,11 @@ func CreateDERPMeshTLSConfig(hostname string, tlsCertificates []tls.Certificate)
 		for _, certificatePart := range certificate.Certificate {
 			parsedCert, err := x509.ParseCertificate(certificatePart)
 			if err != nil {
-				return nil, xerrors.Errorf("parse certificate %s: %w", parsedCert.Subject.CommonName, err)
+				return nil, fmt.Errorf("parse certificate %s: %w", parsedCert.Subject.CommonName, err)
 			}
 			meshRootCA.AddCert(parsedCert)
 		}
 	}
-
 	// This TLS configuration trusts the built-in TLS certificates and forces
 	// the server name to be the public hostname.
 	return &tls.Config{

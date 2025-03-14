@@ -1,31 +1,26 @@
 package cli
-
 import (
+	"errors"
 	"fmt"
 	"os"
-
 	"github.com/spf13/afero"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/cli/clistat"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/serpent"
 )
-
 func initStatterMW(tgt **clistat.Statter, fs afero.Fs) serpent.MiddlewareFunc {
 	return func(next serpent.HandlerFunc) serpent.HandlerFunc {
 		return func(i *serpent.Invocation) error {
 			var err error
 			stat, err := clistat.New(clistat.WithFS(fs))
 			if err != nil {
-				return xerrors.Errorf("initialize workspace stats collector: %w", err)
+				return fmt.Errorf("initialize workspace stats collector: %w", err)
 			}
 			*tgt = stat
 			return next(i)
 		}
 	}
 }
-
 func (r *RootCmd) stat() *serpent.Command {
 	var (
 		st        *clistat.Statter
@@ -52,7 +47,6 @@ func (r *RootCmd) stat() *serpent.Command {
 		},
 		Handler: func(inv *serpent.Invocation) error {
 			var sr statsRow
-
 			// Get CPU measurements first.
 			hostErr := make(chan error, 1)
 			containerErr := make(chan error, 1)
@@ -78,21 +72,18 @@ func (r *RootCmd) stat() *serpent.Command {
 				}
 				sr.ContainerCPU = cs
 			}()
-
 			if err := <-hostErr; err != nil {
 				return err
 			}
 			if err := <-containerErr; err != nil {
 				return err
 			}
-
 			// Host-level stats
 			ms, err := st.HostMemory(clistat.PrefixGibi)
 			if err != nil {
 				return err
 			}
 			sr.HostMemory = ms
-
 			home, err := os.UserHomeDir()
 			if err != nil {
 				return err
@@ -102,7 +93,6 @@ func (r *RootCmd) stat() *serpent.Command {
 				return err
 			}
 			sr.Disk = ds
-
 			// Container-only stats.
 			if ok, err := clistat.IsContainerized(fs); err == nil && ok {
 				cs, err := st.ContainerCPU()
@@ -110,14 +100,12 @@ func (r *RootCmd) stat() *serpent.Command {
 					return err
 				}
 				sr.ContainerCPU = cs
-
 				ms, err := st.ContainerMemory(clistat.PrefixGibi)
 				if err != nil {
 					return err
 				}
 				sr.ContainerMemory = ms
 			}
-
 			out, err := formatter.Format(inv.Context(), []statsRow{sr})
 			if err != nil {
 				return err
@@ -129,7 +117,6 @@ func (r *RootCmd) stat() *serpent.Command {
 	formatter.AttachOptions(&cmd.Options)
 	return cmd
 }
-
 func (*RootCmd) statCPU(fs afero.Fs) *serpent.Command {
 	var (
 		hostArg   bool
@@ -167,10 +154,8 @@ func (*RootCmd) statCPU(fs afero.Fs) *serpent.Command {
 		},
 	}
 	formatter.AttachOptions(&cmd.Options)
-
 	return cmd
 }
-
 func (*RootCmd) statMem(fs afero.Fs) *serpent.Command {
 	var (
 		hostArg   bool
@@ -220,11 +205,9 @@ func (*RootCmd) statMem(fs afero.Fs) *serpent.Command {
 			return err
 		},
 	}
-
 	formatter.AttachOptions(&cmd.Options)
 	return cmd
 }
-
 func (*RootCmd) statDisk(fs afero.Fs) *serpent.Command {
 	var (
 		pathArg   string
@@ -269,7 +252,6 @@ func (*RootCmd) statDisk(fs afero.Fs) *serpent.Command {
 				}
 				return err
 			}
-
 			out, err := formatter.Format(inv.Context(), ds)
 			if err != nil {
 				return err
@@ -278,11 +260,9 @@ func (*RootCmd) statDisk(fs afero.Fs) *serpent.Command {
 			return err
 		},
 	}
-
 	formatter.AttachOptions(&cmd.Options)
 	return cmd
 }
-
 type statsRow struct {
 	HostCPU         *clistat.Result `json:"host_cpu" table:"host cpu,default_sort"`
 	HostMemory      *clistat.Result `json:"host_memory" table:"host memory"`

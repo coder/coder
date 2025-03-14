@@ -1,58 +1,48 @@
 package agentapi
-
 import (
+	"fmt"
+	"errors"
 	"context"
 	"database/sql"
 	"slices"
 	"time"
-
 	"github.com/google/uuid"
 	"golang.org/x/mod/semver"
-	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/timestamppb"
-
 	"cdr.dev/slog"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 )
-
 type contextKeyAPIVersion struct{}
-
 func WithAPIVersion(ctx context.Context, version string) context.Context {
 	return context.WithValue(ctx, contextKeyAPIVersion{}, version)
 }
-
 type LifecycleAPI struct {
 	AgentFn                  func(context.Context) (database.WorkspaceAgent, error)
 	WorkspaceID              uuid.UUID
 	Database                 database.Store
 	Log                      slog.Logger
 	PublishWorkspaceUpdateFn func(context.Context, *database.WorkspaceAgent, wspubsub.WorkspaceEventKind) error
-
 	TimeNowFn func() time.Time // defaults to dbtime.Now()
 }
-
 func (a *LifecycleAPI) now() time.Time {
 	if a.TimeNowFn != nil {
 		return a.TimeNowFn()
 	}
 	return dbtime.Now()
 }
-
 func (a *LifecycleAPI) UpdateLifecycle(ctx context.Context, req *agentproto.UpdateLifecycleRequest) (*agentproto.Lifecycle, error) {
 	workspaceAgent, err := a.AgentFn(ctx)
 	if err != nil {
 		return nil, err
 	}
-
 	logger := a.Log.With(
 		slog.F("workspace_id", a.WorkspaceID),
 		slog.F("payload", req),
 	)
 	logger.Debug(ctx, "workspace agent state report")
-
 	var lifecycleState database.WorkspaceAgentLifecycleState
 	switch req.Lifecycle.State {
 	case agentproto.Lifecycle_CREATED:
@@ -74,19 +64,17 @@ func (a *LifecycleAPI) UpdateLifecycle(ctx context.Context, req *agentproto.Upda
 	case agentproto.Lifecycle_OFF:
 		lifecycleState = database.WorkspaceAgentLifecycleStateOff
 	default:
-		return nil, xerrors.Errorf("unknown lifecycle state %q", req.Lifecycle.State)
+		return nil, fmt.Errorf("unknown lifecycle state %q", req.Lifecycle.State)
 	}
 	if !lifecycleState.Valid() {
-		return nil, xerrors.Errorf("unknown lifecycle state %q", req.Lifecycle.State)
+		return nil, fmt.Errorf("unknown lifecycle state %q", req.Lifecycle.State)
 	}
-
 	changedAt := req.Lifecycle.ChangedAt.AsTime()
 	if changedAt.IsZero() {
 		changedAt = a.now()
 		req.Lifecycle.ChangedAt = timestamppb.New(changedAt)
 	}
 	dbChangedAt := sql.NullTime{Time: changedAt, Valid: true}
-
 	startedAt := workspaceAgent.StartedAt
 	readyAt := workspaceAgent.ReadyAt
 	switch lifecycleState {
@@ -103,7 +91,6 @@ func (a *LifecycleAPI) UpdateLifecycle(ctx context.Context, req *agentproto.Upda
 		}
 		readyAt = dbChangedAt
 	}
-
 	err = a.Database.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
 		ID:             workspaceAgent.ID,
 		LifecycleState: lifecycleState,
@@ -115,40 +102,34 @@ func (a *LifecycleAPI) UpdateLifecycle(ctx context.Context, req *agentproto.Upda
 			// not an error if we are canceled
 			logger.Error(ctx, "failed to update lifecycle state", slog.Error(err))
 		}
-		return nil, xerrors.Errorf("update workspace agent lifecycle state: %w", err)
+		return nil, fmt.Errorf("update workspace agent lifecycle state: %w", err)
 	}
-
 	if a.PublishWorkspaceUpdateFn != nil {
 		err = a.PublishWorkspaceUpdateFn(ctx, &workspaceAgent, wspubsub.WorkspaceEventKindAgentLifecycleUpdate)
 		if err != nil {
-			return nil, xerrors.Errorf("publish workspace update: %w", err)
+			return nil, fmt.Errorf("publish workspace update: %w", err)
 		}
 	}
-
 	return req.Lifecycle, nil
 }
-
 func (a *LifecycleAPI) UpdateStartup(ctx context.Context, req *agentproto.UpdateStartupRequest) (*agentproto.Startup, error) {
 	apiVersion, ok := ctx.Value(contextKeyAPIVersion{}).(string)
 	if !ok {
-		return nil, xerrors.Errorf("internal error; api version unspecified")
+		return nil, fmt.Errorf("internal error; api version unspecified")
 	}
 	workspaceAgent, err := a.AgentFn(ctx)
 	if err != nil {
 		return nil, err
 	}
-
 	a.Log.Debug(
 		ctx,
 		"post workspace agent version",
 		slog.F("workspace_id", a.WorkspaceID),
 		slog.F("agent_version", req.Startup.Version),
 	)
-
 	if !semver.IsValid(req.Startup.Version) {
-		return nil, xerrors.Errorf("invalid agent semver version %q", req.Startup.Version)
+		return nil, fmt.Errorf("invalid agent semver version %q", req.Startup.Version)
 	}
-
 	// Validate subsystems.
 	dbSubsystems := make([]database.WorkspaceAgentSubsystem, 0, len(req.Startup.Subsystems))
 	seenSubsystems := make(map[database.WorkspaceAgentSubsystem]struct{}, len(req.Startup.Subsystems))
@@ -162,16 +143,14 @@ func (a *LifecycleAPI) UpdateStartup(ctx context.Context, req *agentproto.Update
 		case agentproto.Startup_EXECTRACE:
 			dbSubsystem = database.WorkspaceAgentSubsystemExectrace
 		default:
-			return nil, xerrors.Errorf("invalid agent subsystem %q", s)
+			return nil, fmt.Errorf("invalid agent subsystem %q", s)
 		}
-
 		if _, ok := seenSubsystems[dbSubsystem]; !ok {
 			seenSubsystems[dbSubsystem] = struct{}{}
 			dbSubsystems = append(dbSubsystems, dbSubsystem)
 		}
 	}
 	slices.Sort(dbSubsystems)
-
 	err = a.Database.UpdateWorkspaceAgentStartupByID(ctx, database.UpdateWorkspaceAgentStartupByIDParams{
 		ID:                workspaceAgent.ID,
 		Version:           req.Startup.Version,
@@ -180,8 +159,7 @@ func (a *LifecycleAPI) UpdateStartup(ctx context.Context, req *agentproto.Update
 		APIVersion:        apiVersion,
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("update workspace agent startup in database: %w", err)
+		return nil, fmt.Errorf("update workspace agent startup in database: %w", err)
 	}
-
 	return req.Startup, nil
 }

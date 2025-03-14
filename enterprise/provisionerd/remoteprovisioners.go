@@ -1,6 +1,6 @@
 package provisionerd
-
 import (
+	"errors"
 	"bufio"
 	"context"
 	"crypto/ecdsa"
@@ -21,10 +21,7 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"golang.org/x/xerrors"
 	"storj.io/drpc/drpcconn"
-
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -33,7 +30,6 @@ import (
 	"github.com/coder/coder/v2/provisionersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 )
-
 // Executor is responsible for executing the remote provisioners.
 //
 // TODO: this interface is where we will run Kubernetes Jobs in a future
@@ -47,14 +43,12 @@ type Executor interface {
 		provisionerType database.ProvisionerType,
 		jobID, token, daemonCert, daemonAddress string) (errCh <-chan error)
 }
-
 type waiter struct {
 	ctx    context.Context
 	job    *proto.AcquiredJob
 	respCh chan<- agpl.ConnectResponse
 	token  string
 }
-
 type remoteConnector struct {
 	ctx      context.Context
 	executor Executor
@@ -63,16 +57,14 @@ type remoteConnector struct {
 	listener net.Listener
 	logger   slog.Logger
 	tlsCfg   *tls.Config
-
 	mu      sync.Mutex
 	waiters map[string]waiter
 }
-
 func NewRemoteConnector(ctx context.Context, logger slog.Logger, exec Executor) (agpl.Connector, error) {
 	// nolint: gosec
 	listener, err := net.Listen("tcp", ":0")
 	if err != nil {
-		return nil, xerrors.Errorf("failed to listen: %w", err)
+		return nil, fmt.Errorf("failed to listen: %w", err)
 	}
 	go func() {
 		<-ctx.Done()
@@ -89,12 +81,11 @@ func NewRemoteConnector(ctx context.Context, logger slog.Logger, exec Executor) 
 	}
 	err = r.genCert()
 	if err != nil {
-		return nil, xerrors.Errorf("failed to generate certificate: %w", err)
+		return nil, fmt.Errorf("failed to generate certificate: %w", err)
 	}
 	go r.listenLoop()
 	return r, nil
 }
-
 func (r *remoteConnector) genCert() error {
 	privateKey, cert, err := GenCert()
 	if err != nil {
@@ -103,24 +94,23 @@ func (r *remoteConnector) genCert() error {
 	r.cert = string(cert)
 	privateKeyBytes, err := x509.MarshalPKCS8PrivateKey(privateKey)
 	if err != nil {
-		return xerrors.Errorf("failed to marshal private key: %w", err)
+		return fmt.Errorf("failed to marshal private key: %w", err)
 	}
 	pkPEM := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: privateKeyBytes})
 	certKey, err := tls.X509KeyPair(cert, pkPEM)
 	if err != nil {
-		return xerrors.Errorf("failed to create TLS certificate: %w", err)
+		return fmt.Errorf("failed to create TLS certificate: %w", err)
 	}
 	r.tlsCfg = &tls.Config{Certificates: []tls.Certificate{certKey}, MinVersion: tls.VersionTLS13}
 	return nil
 }
-
 // GenCert is a helper function that generates a private key and certificate.  It
 // is exported so that we can test a certificate generated in exactly the same
 // way, but with a different private key.
 func GenCert() (*ecdsa.PrivateKey, []byte, error) {
 	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("generate private key: %w", err)
+		return nil, nil, fmt.Errorf("generate private key: %w", err)
 	}
 	template := x509.Certificate{
 		SerialNumber: big.NewInt(1),
@@ -134,20 +124,17 @@ func GenCert() (*ecdsa.PrivateKey, []byte, error) {
 		// and is valid for as long as the daemon is up and starting new remote
 		// provisioners
 		NotAfter: time.Now().Add(time.Hour * 24 * 365 * 5),
-
 		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		BasicConstraintsValid: true,
 	}
-
 	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &privateKey.PublicKey, privateKey)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("failed to create certificate: %w", err)
+		return nil, nil, fmt.Errorf("failed to create certificate: %w", err)
 	}
 	cert := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: derBytes})
 	return privateKey, cert, nil
 }
-
 func (r *remoteConnector) listenLoop() {
 	for {
 		conn, err := r.listener.Accept()
@@ -158,10 +145,8 @@ func (r *remoteConnector) listenLoop() {
 		go r.handleConn(conn)
 	}
 }
-
 func (r *remoteConnector) handleConn(conn net.Conn) {
 	logger := r.logger.With(slog.F("remote_addr", conn.RemoteAddr()))
-
 	// If we hit an error while setting up, we want to close the connection.
 	// This construction makes the default to close until we explicitly set
 	// closeConn = false just before handing the connection over the respCh.
@@ -172,7 +157,6 @@ func (r *remoteConnector) handleConn(conn net.Conn) {
 			logger.Debug(r.ctx, "closed connection", slog.Error(ce))
 		}
 	}()
-
 	tlsConn := tls.Server(conn, r.tlsCfg)
 	err := tlsConn.HandshakeContext(r.ctx)
 	if err != nil {
@@ -192,12 +176,10 @@ func (r *remoteConnector) handleConn(conn net.Conn) {
 		Client: sdkproto.NewDRPCProvisionerClient(drpcconn.New(tlsConn)),
 	}
 }
-
 var (
-	errInvalidJobID = xerrors.New("invalid jobID")
-	errInvalidToken = xerrors.New("invalid token")
+	errInvalidJobID = errors.New("invalid jobID")
+	errInvalidToken = errors.New("invalid token")
 )
-
 func (r *remoteConnector) pullWaiter(jobID, token string) (waiter, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -214,13 +196,12 @@ func (r *remoteConnector) pullWaiter(jobID, token string) (waiter, error) {
 	}
 	return waiter{}, errInvalidToken
 }
-
 func (r *remoteConnector) Connect(
 	ctx context.Context, job *proto.AcquiredJob, respCh chan<- agpl.ConnectResponse,
 ) {
 	pt := database.ProvisionerType(job.Provisioner)
 	if !pt.Valid() {
-		go errResponse(job, respCh, xerrors.Errorf("invalid provisioner type: %s", job.Provisioner))
+		go errResponse(job, respCh, fmt.Errorf("invalid provisioner type: %s", job.Provisioner))
 	}
 	tb := make([]byte, 16) // 128-bit token
 	n, err := rand.Read(tb)
@@ -229,7 +210,7 @@ func (r *remoteConnector) Connect(
 		return
 	}
 	if n != 16 {
-		go errResponse(job, respCh, xerrors.New("short read generating token"))
+		go errResponse(job, respCh, errors.New("short read generating token"))
 	}
 	token := base64.StdEncoding.EncodeToString(tb)
 	r.mu.Lock()
@@ -244,7 +225,6 @@ func (r *remoteConnector) Connect(
 	errCh := r.executor.Execute(ctx, pt, job.JobId, token, r.cert, r.addr)
 	go r.handleExecError(job.JobId, errCh)
 }
-
 func (r *remoteConnector) handleContextExpired(ctx context.Context, jobID string) {
 	<-ctx.Done()
 	r.mu.Lock()
@@ -264,7 +244,6 @@ func (r *remoteConnector) handleContextExpired(ctx context.Context, jobID string
 		}
 	}()
 }
-
 func (r *remoteConnector) handleExecError(jobID string, errCh <-chan error) {
 	err := <-errCh
 	if err == nil {
@@ -287,14 +266,12 @@ func (r *remoteConnector) handleExecError(jobID string, errCh <-chan error) {
 		}
 	}()
 }
-
 func errResponse(job *proto.AcquiredJob, respCh chan<- agpl.ConnectResponse, err error) {
 	respCh <- agpl.ConnectResponse{
 		Job:   job,
 		Error: err,
 	}
 }
-
 // EphemeralEcho starts an Echo provisioner that connects to provisioner daemon,
 // handles one job, then exits.
 func EphemeralEcho(
@@ -304,11 +281,10 @@ func EphemeralEcho(
 ) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-
 	workdir := filepath.Join(cacheDir, "echo")
 	err := os.MkdirAll(workdir, 0o777)
 	if err != nil {
-		return xerrors.Errorf("create workdir %s: %w", workdir, err)
+		return fmt.Errorf("create workdir %s: %w", workdir, err)
 	}
 	conn, err := DialTLS(ctx, daemonCert, daemonAddress)
 	if err != nil {
@@ -327,26 +303,24 @@ func EphemeralEcho(
 		WorkDirectory: workdir,
 	})
 	logger.Debug(ctx, "echo.Serve done", slog.Error(exitErr))
-
-	if xerrors.Is(exitErr, context.Canceled) {
+	if errors.Is(exitErr, context.Canceled) {
 		return nil
 	}
 	return exitErr
 }
-
 // DialTLS establishes a TLS connection to the given addr using the given cert
 // as the root CA
 func DialTLS(ctx context.Context, cert, addr string) (*tls.Conn, error) {
 	roots := x509.NewCertPool()
 	ok := roots.AppendCertsFromPEM([]byte(cert))
 	if !ok {
-		return nil, xerrors.New("failed to parse daemon certificate")
+		return nil, errors.New("failed to parse daemon certificate")
 	}
 	cfg := &tls.Config{RootCAs: roots, MinVersion: tls.VersionTLS13, ServerName: serverName}
 	d := net.Dialer{}
 	nc, err := d.DialContext(ctx, "tcp", addr)
 	if err != nil {
-		return nil, xerrors.Errorf("dial: %w", err)
+		return nil, fmt.Errorf("dial: %w", err)
 	}
 	tc := tls.Client(nc, cfg)
 	// Explicitly handshake so we don't have to mess with setting read
@@ -354,11 +328,10 @@ func DialTLS(ctx context.Context, cert, addr string) (*tls.Conn, error) {
 	err = tc.HandshakeContext(ctx)
 	if err != nil {
 		_ = nc.Close()
-		return nil, xerrors.Errorf("TLS handshake: %w", err)
+		return nil, fmt.Errorf("TLS handshake: %w", err)
 	}
 	return tc, nil
 }
-
 // Authentication Protocol:
 //
 // Ephemeral provisioners connect to the connector using TLS.  This allows the
@@ -379,7 +352,6 @@ func DialTLS(ctx context.Context, cert, addr string) (*tls.Conn, error) {
 // Also note that we don't really have to worry about cross-version
 // compatibility in this protocol, since the provisioners are always started by
 // the same daemon/connector as they connect to.
-
 // Responses are all exactly 3 bytes so that don't have to use a scanner
 // which might accidentally buffer some of the first dRPC request.
 const (
@@ -387,14 +359,12 @@ const (
 	responseInvalidJobID = "IJ\n"
 	responseInvalidToken = "IT\n"
 )
-
 // serverName is the name on the x509 certificate the daemon/connector generates
 // this name doesn't matter as long as both sides agree, since the provisioners
 // get the IP address directly.  It is also fine to reuse, since each generates
 // a unique private key and self-signs, we will not correctly authenticate to
 // a different provisionerd.
 const serverName = "provisionerd"
-
 // AuthenticateProvisioner performs the provisioner's side of the authentication
 // protocol.
 func AuthenticateProvisioner(conn io.ReadWriter, token, jobID string) error {
@@ -405,12 +375,12 @@ func AuthenticateProvisioner(conn io.ReadWriter, token, jobID string) error {
 	_, _ = sb.WriteString("\n")
 	_, err := conn.Write([]byte(sb.String()))
 	if err != nil {
-		return xerrors.Errorf("failed to write token: %w", err)
+		return fmt.Errorf("failed to write token: %w", err)
 	}
 	b := make([]byte, 3)
 	_, err = conn.Read(b)
 	if err != nil {
-		return xerrors.Errorf("failed to read token resp: %w", err)
+		return fmt.Errorf("failed to read token resp: %w", err)
 	}
 	if string(b) != responseOK {
 		// convert to a human-readable format
@@ -423,11 +393,10 @@ func AuthenticateProvisioner(conn io.ReadWriter, token, jobID string) error {
 		default:
 			reason = fmt.Sprintf("unknown response code: %s", b)
 		}
-		return xerrors.Errorf("authenticate protocol error: %s", reason)
+		return fmt.Errorf("authenticate protocol error: %s", reason)
 	}
 	return nil
 }
-
 // authenticate performs the daemon/connector's side of the authentication
 // protocol.
 func (r *remoteConnector) authenticate(conn io.ReadWriter) (waiter, error) {
@@ -435,18 +404,18 @@ func (r *remoteConnector) authenticate(conn io.ReadWriter) (waiter, error) {
 	// off the connection to the dRPC handler until after we send our response.
 	scn := bufio.NewScanner(conn)
 	if ok := scn.Scan(); !ok {
-		return waiter{}, xerrors.Errorf("failed to receive jobID: %w", scn.Err())
+		return waiter{}, fmt.Errorf("failed to receive jobID: %w", scn.Err())
 	}
 	jobID := scn.Text()
 	if ok := scn.Scan(); !ok {
-		return waiter{}, xerrors.Errorf("failed to receive job token: %w", scn.Err())
+		return waiter{}, fmt.Errorf("failed to receive job token: %w", scn.Err())
 	}
 	token := scn.Text()
 	w, err := r.pullWaiter(jobID, token)
 	if err == nil {
 		_, err = conn.Write([]byte(responseOK))
 		if err != nil {
-			err = xerrors.Errorf("failed to write authentication response: %w", err)
+			err = fmt.Errorf("failed to write authentication response: %w", err)
 			// if we fail here, it's our responsibility to send the error response on the respCh
 			// because we're not going to return the waiter to the caller.
 			go errResponse(w.job, w.respCh, err)
@@ -454,11 +423,11 @@ func (r *remoteConnector) authenticate(conn io.ReadWriter) (waiter, error) {
 		}
 		return w, nil
 	}
-	if xerrors.Is(err, errInvalidJobID) {
+	if errors.Is(err, errInvalidJobID) {
 		_, wErr := conn.Write([]byte(responseInvalidJobID))
 		r.logger.Debug(r.ctx, "responded invalid jobID", slog.Error(wErr))
 	}
-	if xerrors.Is(err, errInvalidToken) {
+	if errors.Is(err, errInvalidToken) {
 		_, wErr := conn.Write([]byte(responseInvalidToken))
 		r.logger.Debug(r.ctx, "responded invalid token", slog.Error(wErr))
 	}

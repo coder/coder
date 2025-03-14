@@ -1,22 +1,17 @@
 package main
-
 import (
+	"errors"
 	"fmt"
 	"log"
-
-	"golang.org/x/xerrors"
-
 	"github.com/coder/guts"
 	"github.com/coder/guts/bindings"
 	"github.com/coder/guts/config"
 )
-
 func main() {
 	gen, err := guts.NewGolangParser()
 	if err != nil {
 		log.Fatalf("new convert: %v", err)
 	}
-
 	generateDirectories := map[string]string{
 		"github.com/coder/coder/v2/codersdk":                  "",
 		"github.com/coder/coder/v2/coderd/healthcheck/health": "Health",
@@ -28,7 +23,6 @@ func main() {
 			log.Fatalf("include generate package %q: %v", dir, err)
 		}
 	}
-
 	// Serpent has some types referenced in the codersdk.
 	// We want the referenced types generated.
 	referencePackages := map[string]string{
@@ -44,26 +38,21 @@ func main() {
 			log.Fatalf("include reference package %q: %v", pkg, err)
 		}
 	}
-
 	err = TypeMappings(gen)
 	if err != nil {
 		log.Fatalf("type mappings: %v", err)
 	}
-
 	ts, err := gen.ToTypescript()
 	if err != nil {
 		log.Fatalf("to typescript: %v", err)
 	}
-
 	TsMutations(ts)
-
 	output, err := ts.Serialize()
 	if err != nil {
 		log.Fatalf("serialize: %v", err)
 	}
 	_, _ = fmt.Println(output)
 }
-
 func TsMutations(ts *guts.Typescript) {
 	ts.ApplyMutations(
 		FixSerpentStruct,
@@ -80,17 +69,14 @@ func TsMutations(ts *guts.Typescript) {
 		config.SimplifyOmitEmpty,
 	)
 }
-
 // TypeMappings is all the custom types for codersdk
 func TypeMappings(gen *guts.GoParser) error {
 	gen.IncludeCustomDeclaration(config.StandardMappings())
-
 	gen.IncludeCustomDeclaration(map[string]guts.TypeOverride{
 		"github.com/coder/coder/v2/codersdk.NullTime": config.OverrideNullable(config.OverrideLiteral(bindings.KeywordString)),
 		// opt.Bool can return 'null' if unset
 		"tailscale.com/types/opt.Bool": config.OverrideNullable(config.OverrideLiteral(bindings.KeywordBoolean)),
 	})
-
 	err := gen.IncludeCustom(map[string]string{
 		// Serpent fields should be converted to their primitive types
 		"github.com/coder/serpent.Regexp":         "string",
@@ -106,12 +92,10 @@ func TypeMappings(gen *guts.GoParser) error {
 		"encoding/json.RawMessage":                "map[string]string",
 	})
 	if err != nil {
-		return xerrors.Errorf("include custom: %w", err)
+		return fmt.Errorf("include custom: %w", err)
 	}
-
 	return nil
 }
-
 // FixSerpentStruct fixes 'serpent.Struct'.
 // 'serpent.Struct' overrides the json.Marshal to use the underlying type,
 // so the typescript type should be the underlying type.

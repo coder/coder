@@ -1,16 +1,13 @@
 package appurl
-
 import (
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
-
-	"golang.org/x/xerrors"
 )
-
 var (
 	// nameRegex is the same as our UsernameRegex without the ^ and $.
 	nameRegex = "[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*"
@@ -18,10 +15,8 @@ var (
 		// {PORT/APP_SLUG}--{AGENT_NAME}--{WORKSPACE_NAME}--{USERNAME}
 		`^(?P<AppSlug>%[1]s)--(?P<AgentName>%[1]s)--(?P<WorkspaceName>%[1]s)--(?P<Username>%[1]s)$`,
 		nameRegex))
-
 	validHostnameLabelRegex = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
 )
-
 // SubdomainAppHost returns the URL of the apphost for subdomain based apps.
 // It will omit the scheme.
 //
@@ -39,7 +34,6 @@ func SubdomainAppHost(apphost string, accessURL *url.URL) string {
 	if apphost == "" {
 		return ""
 	}
-
 	if apphost != "" && accessURL.Port() != "" {
 		// This should always parse if we prepend a scheme. We should add
 		// the access url port if the apphost doesn't have a port specified.
@@ -48,10 +42,8 @@ func SubdomainAppHost(apphost string, accessURL *url.URL) string {
 			apphost += fmt.Sprintf(":%s", accessURL.Port())
 		}
 	}
-
 	return apphost
 }
-
 // ApplicationURL is a parsed application URL hostname.
 type ApplicationURL struct {
 	Prefix        string
@@ -60,7 +52,6 @@ type ApplicationURL struct {
 	WorkspaceName string
 	Username      string
 }
-
 // String returns the application URL hostname without scheme. You will likely
 // want to append a period and the base hostname.
 func (a ApplicationURL) String() string {
@@ -75,7 +66,6 @@ func (a ApplicationURL) String() string {
 	_, _ = appURL.WriteString(a.Username)
 	return appURL.String()
 }
-
 // Path is a helper function to get the url path of the app if it is not served
 // on a subdomain. In practice this is not really used because we use the chi
 // `{variable}` syntax to extract these parts. For testing purposes and for
@@ -83,7 +73,6 @@ func (a ApplicationURL) String() string {
 func (a ApplicationURL) Path() string {
 	return fmt.Sprintf("/@%s/%s.%s/apps/%s", a.Username, a.WorkspaceName, a.AgentName, a.AppSlugOrPort)
 }
-
 // PortInfo returns the port, protocol, and whether the AppSlugOrPort is a port or not.
 func (a ApplicationURL) PortInfo() (uint, string, bool) {
 	var (
@@ -92,7 +81,6 @@ func (a ApplicationURL) PortInfo() (uint, string, bool) {
 		isPort   bool
 		err      error
 	)
-
 	if strings.HasSuffix(a.AppSlugOrPort, "s") {
 		trimmed := strings.TrimSuffix(a.AppSlugOrPort, "s")
 		port, err = strconv.ParseUint(trimmed, 10, 16)
@@ -107,32 +95,25 @@ func (a ApplicationURL) PortInfo() (uint, string, bool) {
 			isPort = true
 		}
 	}
-
 	return uint(port), protocol, isPort
 }
-
 func (a *ApplicationURL) ChangePortProtocol(target string) ApplicationURL {
 	newAppURL := *a
 	port, protocol, isPort := a.PortInfo()
 	if !isPort {
 		return newAppURL
 	}
-
 	if target == protocol {
 		return newAppURL
 	}
-
 	if target == "https" {
 		newAppURL.AppSlugOrPort = fmt.Sprintf("%ds", port)
 	}
-
 	if target == "http" {
 		newAppURL.AppSlugOrPort = fmt.Sprintf("%d", port)
 	}
-
 	return newAppURL
 }
-
 // ParseSubdomainAppURL parses an ApplicationURL from the given subdomain. If
 // the subdomain is not a valid application URL hostname, returns a non-nil
 // error. If the hostname is not a subdomain of the given base hostname, returns
@@ -166,13 +147,11 @@ func ParseSubdomainAppURL(subdomain string) (ApplicationURL, error) {
 		prefix = strings.Join(prefixSegments[:len(prefixSegments)-1], "---") + "---"
 		subdomain = prefixSegments[len(prefixSegments)-1]
 	}
-
 	matches := appURL.FindAllStringSubmatch(subdomain, -1)
 	if len(matches) == 0 {
-		return ApplicationURL{}, xerrors.Errorf("invalid application url format: %q", subdomain)
+		return ApplicationURL{}, fmt.Errorf("invalid application url format: %q", subdomain)
 	}
 	matchGroup := matches[0]
-
 	return ApplicationURL{
 		Prefix:        prefix,
 		AppSlugOrPort: matchGroup[appURL.SubexpIndex("AppSlug")],
@@ -181,13 +160,11 @@ func ParseSubdomainAppURL(subdomain string) (ApplicationURL, error) {
 		Username:      matchGroup[appURL.SubexpIndex("Username")],
 	}, nil
 }
-
 // HostnamesMatch returns true if the hostnames are equal, disregarding
 // capitalization, extra leading or trailing periods, and ports.
 func HostnamesMatch(a, b string) bool {
 	a = strings.Trim(a, ".")
 	b = strings.Trim(b, ".")
-
 	aHost, _, err := net.SplitHostPort(a)
 	if err != nil {
 		aHost = a
@@ -196,10 +173,8 @@ func HostnamesMatch(a, b string) bool {
 	if err != nil {
 		bHost = b
 	}
-
 	return strings.EqualFold(aHost, bHost)
 }
-
 // CompileHostnamePattern compiles a hostname pattern into a regular expression.
 // A hostname pattern is a string that may contain a single wildcard character
 // at the beginning. The wildcard character matches any number of hostname-safe
@@ -220,22 +195,20 @@ func HostnamesMatch(a, b string) bool {
 func CompileHostnamePattern(pattern string) (*regexp.Regexp, error) {
 	pattern = strings.ToLower(pattern)
 	if strings.Contains(pattern, "http:") || strings.Contains(pattern, "https:") {
-		return nil, xerrors.Errorf("hostname pattern must not contain a scheme: %q", pattern)
+		return nil, fmt.Errorf("hostname pattern must not contain a scheme: %q", pattern)
 	}
-
 	if strings.HasPrefix(pattern, ".") || strings.HasSuffix(pattern, ".") {
-		return nil, xerrors.Errorf("hostname pattern must not start or end with a period: %q", pattern)
+		return nil, fmt.Errorf("hostname pattern must not start or end with a period: %q", pattern)
 	}
 	if strings.Count(pattern, ".") < 1 {
-		return nil, xerrors.Errorf("hostname pattern must contain at least two labels/segments: %q", pattern)
+		return nil, fmt.Errorf("hostname pattern must contain at least two labels/segments: %q", pattern)
 	}
 	if strings.Count(pattern, "*") != 1 {
-		return nil, xerrors.Errorf("hostname pattern must contain exactly one asterisk: %q", pattern)
+		return nil, fmt.Errorf("hostname pattern must contain exactly one asterisk: %q", pattern)
 	}
 	if !strings.HasPrefix(pattern, "*") {
-		return nil, xerrors.Errorf("hostname pattern must only contain an asterisk at the beginning: %q", pattern)
+		return nil, fmt.Errorf("hostname pattern must only contain an asterisk at the beginning: %q", pattern)
 	}
-
 	// If there is a hostname:port, we only care about the hostname. For hostname
 	// pattern reasons, we do not actually care what port the client is requesting.
 	// Any port provided here is used for generating urls for the ui, not for
@@ -244,7 +217,6 @@ func CompileHostnamePattern(pattern string) (*regexp.Regexp, error) {
 	if err == nil {
 		pattern = hostname
 	}
-
 	for i, label := range strings.Split(pattern, ".") {
 		if i == 0 {
 			// We have to allow the asterisk to be a valid hostname label, so
@@ -256,28 +228,21 @@ func CompileHostnamePattern(pattern string) (*regexp.Regexp, error) {
 			label = "a" + label
 		}
 		if !validHostnameLabelRegex.MatchString(label) {
-			return nil, xerrors.Errorf("hostname pattern contains invalid label %q: %q", label, pattern)
+			return nil, fmt.Errorf("hostname pattern contains invalid label %q: %q", label, pattern)
 		}
 	}
-
 	// Replace periods with escaped periods.
 	regexPattern := strings.ReplaceAll(pattern, ".", "\\.")
-
 	// Capture wildcard match.
 	regexPattern = strings.Replace(regexPattern, "*", "([^.]+)", 1)
-
 	// Allow trailing period.
 	regexPattern = regexPattern + "\\.?"
-
 	// Allow optional port number.
 	regexPattern += "(:\\d+)?"
-
 	// Allow leading and trailing whitespace.
 	regexPattern = `^\s*` + regexPattern + `\s*$`
-
 	return regexp.Compile(regexPattern)
 }
-
 // ExecuteHostnamePattern executes a pattern generated by CompileHostnamePattern
 // and returns the wildcard match. If the pattern does not match the hostname,
 // returns false.
@@ -286,6 +251,5 @@ func ExecuteHostnamePattern(pattern *regexp.Regexp, hostname string) (string, bo
 	if len(matches) < 2 {
 		return "", false
 	}
-
 	return matches[1], true
 }

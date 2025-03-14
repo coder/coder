@@ -1,19 +1,16 @@
 package workspaceapps
-
 import (
+	"fmt"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
-
 	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/codersdk"
 )
-
 // SignedToken is the struct data contained inside a workspace app JWE. It
 // contains the details of the workspace app that the token is valid for to
 // avoid database queries.
@@ -21,13 +18,11 @@ type SignedToken struct {
 	jwtutils.RegisteredClaims
 	// Request details.
 	Request `json:"request"`
-
 	UserID      uuid.UUID `json:"user_id"`
 	WorkspaceID uuid.UUID `json:"workspace_id"`
 	AgentID     uuid.UUID `json:"agent_id"`
 	AppURL      string    `json:"app_url"`
 }
-
 // MatchesRequest returns true if the token matches the request. Any token that
 // does not match the request should be considered invalid.
 func (t SignedToken) MatchesRequest(req Request) bool {
@@ -39,7 +34,6 @@ func (t SignedToken) MatchesRequest(req Request) bool {
 	if !strings.HasSuffix(reqBasePath, "/") {
 		reqBasePath += "/"
 	}
-
 	return t.AccessMethod == req.AccessMethod &&
 		tokenBasePath == reqBasePath &&
 		t.Prefix == req.Prefix &&
@@ -48,30 +42,24 @@ func (t SignedToken) MatchesRequest(req Request) bool {
 		t.AgentNameOrID == req.AgentNameOrID &&
 		t.AppSlugOrPort == req.AppSlugOrPort
 }
-
 type EncryptedAPIKeyPayload struct {
 	jwtutils.RegisteredClaims
 	APIKey string `json:"api_key"`
 }
-
 func (e *EncryptedAPIKeyPayload) Fill(now time.Time) {
 	e.Issuer = "coderd"
 	e.Audience = jwt.Audience{"wsproxy"}
 	e.Expiry = jwt.NewNumericDate(now.Add(time.Minute))
 	e.NotBefore = jwt.NewNumericDate(now.Add(-time.Minute))
 }
-
 func (e EncryptedAPIKeyPayload) Validate(ex jwt.Expected) error {
 	if e.NotBefore == nil {
-		return xerrors.Errorf("not before is required")
+		return fmt.Errorf("not before is required")
 	}
-
 	ex.Issuer = "coderd"
 	ex.AnyAudience = jwt.Audience{"wsproxy"}
-
 	return e.RegisteredClaims.Validate(ex)
 }
-
 // FromRequest returns the signed token from the request, if it exists and is
 // valid. The caller must check that the token matches the request.
 func FromRequest(r *http.Request, mgr cryptokeys.SigningKeycache) (*SignedToken, bool) {
@@ -98,11 +86,9 @@ func FromRequest(r *http.Request, mgr cryptokeys.SigningKeycache) (*SignedToken,
 			tokens = append(tokens, cookie.Value)
 		}
 	}
-
 	if len(tokens) > 4 {
 		tokens = tokens[:4]
 	}
-
 	ctx := r.Context()
 	for _, tokenStr := range tokens {
 		var token SignedToken
@@ -116,7 +102,6 @@ func FromRequest(r *http.Request, mgr cryptokeys.SigningKeycache) (*SignedToken,
 				// query parameter.
 				return nil, false
 			}
-
 			err := req.Check()
 			if err == nil {
 				// The request has a valid signed app token, which is a valid
@@ -126,6 +111,5 @@ func FromRequest(r *http.Request, mgr cryptokeys.SigningKeycache) (*SignedToken,
 			}
 		}
 	}
-
 	return nil, false
 }

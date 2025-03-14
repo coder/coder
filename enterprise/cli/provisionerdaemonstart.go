@@ -1,7 +1,5 @@
 //go:build !slim
-
 package cli
-
 import (
 	"context"
 	"errors"
@@ -10,13 +8,10 @@ import (
 	"os"
 	"regexp"
 	"time"
-
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"golang.org/x/xerrors"
-
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	agpl "github.com/coder/coder/v2/cli"
@@ -33,7 +28,6 @@ import (
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/serpent"
 )
-
 func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 	var (
 		cacheDir       string
@@ -48,7 +42,6 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 		preSharedKey   string
 		provisionerKey string
 		verbose        bool
-
 		prometheusEnable  bool
 		prometheusAddress string
 	)
@@ -66,12 +59,10 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 		Handler: func(inv *serpent.Invocation) error {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
-
 			stopCtx, stopCancel := inv.SignalNotifyContext(ctx, agpl.StopSignalsNoInterrupt...)
 			defer stopCancel()
 			interruptCtx, interruptCancel := inv.SignalNotifyContext(ctx, agpl.InterruptSignals...)
 			defer interruptCancel()
-
 			orgID := uuid.Nil
 			if preSharedKey == "" && provisionerKey == "" {
 				// We can only select an organization if using user auth
@@ -79,38 +70,32 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 				if err != nil {
 					var cErr *codersdk.Error
 					if !errors.As(err, &cErr) || cErr.StatusCode() != http.StatusUnauthorized {
-						return xerrors.Errorf("current organization: %w", err)
+						return fmt.Errorf("current organization: %w", err)
 					}
-
-					return xerrors.New("must provide a pre-shared key or provisioner key when not authenticated as a user")
+					return errors.New("must provide a pre-shared key or provisioner key when not authenticated as a user")
 				}
-
 				orgID = org.ID
 			} else if orgContext.FlagSelect != "" {
-				return xerrors.New("cannot provide --org value with --psk or --key flags")
+				return errors.New("cannot provide --org value with --psk or --key flags")
 			}
-
 			if provisionerKey != "" {
 				if preSharedKey != "" {
-					return xerrors.New("cannot provide both provisioner key --key and pre-shared key --psk")
+					return errors.New("cannot provide both provisioner key --key and pre-shared key --psk")
 				}
 				if len(rawTags) > 0 {
-					return xerrors.New("cannot provide tags when using provisioner key")
+					return errors.New("cannot provide tags when using provisioner key")
 				}
 			}
-
 			tags, err := agpl.ParseProvisionerTags(rawTags)
 			if err != nil {
 				return err
 			}
-
 			displayedTags := make(map[string]string, len(tags))
 			if provisionerKey != "" {
 				pkDetails, err := client.GetProvisionerKey(ctx, provisionerKey)
 				if err != nil {
-					return xerrors.New("unable to get provisioner key details")
+					return errors.New("unable to get provisioner key details")
 				}
-
 				for k, v := range pkDetails.Tags {
 					displayedTags[k] = v
 				}
@@ -119,15 +104,12 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 					displayedTags[key] = val
 				}
 			}
-
 			if name == "" {
 				name = cliutil.Hostname()
 			}
-
 			if err := validateProvisionerDaemonName(name); err != nil {
 				return err
 			}
-
 			logOpts := []clilog.Option{
 				clilog.WithFilter(logFilter...),
 				clilog.WithHuman(logHuman),
@@ -137,7 +119,6 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 			if verbose {
 				logOpts = append(logOpts, clilog.WithVerbose())
 			}
-
 			logger, closeLogger, err := clilog.New(logOpts...).Build(inv)
 			if err != nil {
 				// Fall back to a basic logger
@@ -146,11 +127,9 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 			} else {
 				defer closeLogger()
 			}
-
 			if len(displayedTags) == 0 {
 				logger.Info(ctx, "note: untagged provisioners can only pick up jobs from untagged templates")
 			}
-
 			// When authorizing with a PSK / provisioner key, we automatically scope the provisionerd
 			// to organization. Scoping to user with PSK / provisioner key auth is not a valid configuration.
 			if preSharedKey != "" {
@@ -162,28 +141,23 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 				// no scope tag will default to org scope
 				delete(tags, provisionersdk.TagScope)
 			}
-
 			err = os.MkdirAll(cacheDir, 0o700)
 			if err != nil {
-				return xerrors.Errorf("mkdir %q: %w", cacheDir, err)
+				return fmt.Errorf("mkdir %q: %w", cacheDir, err)
 			}
-
 			tempDir, err := os.MkdirTemp("", "provisionerd")
 			if err != nil {
 				return err
 			}
-
 			terraformClient, terraformServer := drpc.MemTransportPipe()
 			go func() {
 				<-ctx.Done()
 				_ = terraformClient.Close()
 				_ = terraformServer.Close()
 			}()
-
 			errCh := make(chan error, 1)
 			go func() {
 				defer cancel()
-
 				err := terraform.Serve(ctx, &terraform.ServeOptions{
 					ServeOptions: &provisionersdk.ServeOptions{
 						Listener:      terraformServer,
@@ -192,34 +166,28 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 					},
 					CachePath: cacheDir,
 				})
-				if err != nil && !xerrors.Is(err, context.Canceled) {
+				if err != nil && !errors.Is(err, context.Canceled) {
 					select {
 					case errCh <- err:
 					default:
 					}
 				}
 			}()
-
 			var metrics *provisionerd.Metrics
 			if prometheusEnable {
 				logger.Info(ctx, "starting Prometheus endpoint", slog.F("address", prometheusAddress))
-
 				prometheusRegistry := prometheus.NewRegistry()
 				prometheusRegistry.MustRegister(collectors.NewGoCollector())
 				prometheusRegistry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
-
 				m := provisionerd.NewMetrics(prometheusRegistry)
 				m.Runner.NumDaemons.Set(float64(1)) // Set numDaemons to 1 as this is standalone mode.
 				metrics = &m
-
 				closeFunc := agpl.ServeHandler(ctx, logger, promhttp.InstrumentMetricHandler(
 					prometheusRegistry, promhttp.HandlerFor(prometheusRegistry, promhttp.HandlerOpts{}),
 				), prometheusAddress, "prometheus")
 				defer closeFunc()
 			}
-
 			logger.Info(ctx, "starting provisioner daemon", slog.F("tags", displayedTags), slog.F("name", name))
-
 			connector := provisionerd.LocalProvisioners{
 				string(database.ProvisionerTypeTerraform): proto.NewDRPCProvisionerClient(terraformClient),
 			}
@@ -241,7 +209,6 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 				Metrics:             metrics,
 				ExternalProvisioner: true,
 			})
-
 			waitForProvisionerJobs := false
 			var exitErr error
 			select {
@@ -258,29 +225,25 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 				))
 			case exitErr = <-errCh:
 			}
-			if exitErr != nil && !xerrors.Is(exitErr, context.Canceled) {
+			if exitErr != nil && !errors.Is(exitErr, context.Canceled) {
 				cliui.Errorf(inv.Stderr, "Unexpected error, shutting down server: %s\n", exitErr)
 			}
-
 			err = srv.Shutdown(ctx, !waitForProvisionerJobs)
 			if err != nil {
-				return xerrors.Errorf("shutdown: %w", err)
+				return fmt.Errorf("shutdown: %w", err)
 			}
-
 			// Shutdown does not call close. Must call it manually.
 			err = srv.Close()
 			if err != nil {
-				return xerrors.Errorf("close server: %w", err)
+				return fmt.Errorf("close server: %w", err)
 			}
-
 			cancel()
-			if xerrors.Is(exitErr, context.Canceled) {
+			if errors.Is(exitErr, context.Canceled) {
 				return nil
 			}
 			return exitErr
 		},
 	}
-
 	keyOption := serpent.Option{
 		Flag:        "key",
 		Env:         "CODER_PROVISIONER_DAEMON_KEY",
@@ -383,16 +346,14 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 		},
 	}
 	orgContext.AttachOptions(cmd)
-
 	return cmd
 }
-
 func validateProvisionerDaemonName(name string) error {
 	if len(name) > 64 {
-		return xerrors.Errorf("name cannot be greater than 64 characters in length")
+		return fmt.Errorf("name cannot be greater than 64 characters in length")
 	}
 	if ok, err := regexp.MatchString(`^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]$`, name); err != nil || !ok {
-		return xerrors.Errorf("name %q is not a valid hostname", name)
+		return fmt.Errorf("name %q is not a valid hostname", name)
 	}
 	return nil
 }

@@ -1,7 +1,7 @@
 // Package db2sdk provides common conversion routines from database types to codersdk types
 package db2sdk
-
 import (
+	"errors"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -10,11 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
-
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -25,14 +22,12 @@ import (
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/tailnet"
 )
-
 // List is a helper function to reduce boilerplate when converting slices of
 // database types to slices of codersdk types.
 // Only works if the function takes a single argument.
 func List[F any, T any](list []F, convert func(F) T) []T {
 	return ListLazy(convert)(list)
 }
-
 // ListLazy returns the converter function for a list, but does not eval
 // the input. Helpful for combining the Map and the List functions.
 func ListLazy[F any, T any](convert func(F) T) func(list []F) []T {
@@ -44,7 +39,6 @@ func ListLazy[F any, T any](convert func(F) T) func(list []F) []T {
 		return into
 	}
 }
-
 func Map[K comparable, F any, T any](params map[K]F, convert func(F) T) map[K]T {
 	into := make(map[K]T)
 	for k, item := range params {
@@ -52,12 +46,10 @@ func Map[K comparable, F any, T any](params map[K]F, convert func(F) T) map[K]T 
 	}
 	return into
 }
-
 type ExternalAuthMeta struct {
 	Authenticated bool
 	ValidateError string
 }
-
 func ExternalAuths(auths []database.ExternalAuthLink, meta map[string]ExternalAuthMeta) []codersdk.ExternalAuthLink {
 	out := make([]codersdk.ExternalAuthLink, 0, len(auths))
 	for _, auth := range auths {
@@ -65,7 +57,6 @@ func ExternalAuths(auths []database.ExternalAuthLink, meta map[string]ExternalAu
 	}
 	return out
 }
-
 func ExternalAuth(auth database.ExternalAuthLink, meta ExternalAuthMeta) codersdk.ExternalAuthLink {
 	return codersdk.ExternalAuthLink{
 		ProviderID:      auth.ProviderID,
@@ -77,52 +68,43 @@ func ExternalAuth(auth database.ExternalAuthLink, meta ExternalAuthMeta) codersd
 		ValidateError:   meta.ValidateError,
 	}
 }
-
 func WorkspaceBuildParameter(p database.WorkspaceBuildParameter) codersdk.WorkspaceBuildParameter {
 	return codersdk.WorkspaceBuildParameter{
 		Name:  p.Name,
 		Value: p.Value,
 	}
 }
-
 func WorkspaceBuildParameters(params []database.WorkspaceBuildParameter) []codersdk.WorkspaceBuildParameter {
 	return List(params, WorkspaceBuildParameter)
 }
-
 func TemplateVersionParameters(params []database.TemplateVersionParameter) ([]codersdk.TemplateVersionParameter, error) {
 	out := make([]codersdk.TemplateVersionParameter, len(params))
 	var err error
 	for i, p := range params {
 		out[i], err = TemplateVersionParameter(p)
 		if err != nil {
-			return nil, xerrors.Errorf("convert template version parameter %q: %w", p.Name, err)
+			return nil, fmt.Errorf("convert template version parameter %q: %w", p.Name, err)
 		}
 	}
-
 	return out, nil
 }
-
 func TemplateVersionParameter(param database.TemplateVersionParameter) (codersdk.TemplateVersionParameter, error) {
 	options, err := templateVersionParameterOptions(param.Options)
 	if err != nil {
 		return codersdk.TemplateVersionParameter{}, err
 	}
-
 	descriptionPlaintext, err := render.PlaintextFromMarkdown(param.Description)
 	if err != nil {
 		return codersdk.TemplateVersionParameter{}, err
 	}
-
 	var validationMin *int32
 	if param.ValidationMin.Valid {
 		validationMin = &param.ValidationMin.Int32
 	}
-
 	var validationMax *int32
 	if param.ValidationMax.Valid {
 		validationMax = &param.ValidationMax.Int32
 	}
-
 	return codersdk.TemplateVersionParameter{
 		Name:                 param.Name,
 		DisplayName:          param.DisplayName,
@@ -142,7 +124,6 @@ func TemplateVersionParameter(param database.TemplateVersionParameter) (codersdk
 		Ephemeral:            param.Ephemeral,
 	}, nil
 }
-
 func ReducedUser(user database.User) codersdk.ReducedUser {
 	return codersdk.ReducedUser{
 		MinimalUser: codersdk.MinimalUser{
@@ -159,7 +140,6 @@ func ReducedUser(user database.User) codersdk.ReducedUser {
 		LoginType:  codersdk.LoginType(user.LoginType),
 	}
 }
-
 func UserFromGroupMember(member database.GroupMember) database.User {
 	return database.User{
 		ID:                 member.UserID,
@@ -179,35 +159,28 @@ func UserFromGroupMember(member database.GroupMember) database.User {
 		GithubComUserID:    member.UserGithubComUserID,
 	}
 }
-
 func ReducedUserFromGroupMember(member database.GroupMember) codersdk.ReducedUser {
 	return ReducedUser(UserFromGroupMember(member))
 }
-
 func ReducedUsersFromGroupMembers(members []database.GroupMember) []codersdk.ReducedUser {
 	return List(members, ReducedUserFromGroupMember)
 }
-
 func ReducedUsers(users []database.User) []codersdk.ReducedUser {
 	return List(users, ReducedUser)
 }
-
 func User(user database.User, organizationIDs []uuid.UUID) codersdk.User {
 	convertedUser := codersdk.User{
 		ReducedUser:     ReducedUser(user),
 		OrganizationIDs: organizationIDs,
 		Roles:           SlimRolesFromNames(user.RBACRoles),
 	}
-
 	return convertedUser
 }
-
 func Users(users []database.User, organizationIDs map[uuid.UUID][]uuid.UUID) []codersdk.User {
 	return List(users, func(user database.User) codersdk.User {
 		return User(user, organizationIDs[user.ID])
 	})
 }
-
 func Group(row database.GetGroupsRow, members []database.GroupMember, totalMemberCount int) codersdk.Group {
 	return codersdk.Group{
 		ID:                      row.Group.ID,
@@ -223,7 +196,6 @@ func Group(row database.GetGroupsRow, members []database.GroupMember, totalMembe
 		OrganizationDisplayName: row.OrganizationDisplayName,
 	}
 }
-
 func TemplateInsightsParameters(parameterRows []database.GetTemplateParameterInsightsRow) ([]codersdk.TemplateParameterUsage, error) {
 	// Use a stable sort, similarly to how we would sort in the query, note that
 	// we don't sort in the query because order varies depending on the table
@@ -248,7 +220,6 @@ func TemplateInsightsParameters(parameterRows []database.GetTemplateParameterIns
 		}
 		return strings.Compare(a.Value, b.Value)
 	})
-
 	parametersUsage := []codersdk.TemplateParameterUsage{}
 	indexByNum := make(map[int64]int)
 	for _, param := range parameterRows {
@@ -258,12 +229,10 @@ func TemplateInsightsParameters(parameterRows []database.GetTemplateParameterIns
 			if err != nil {
 				return nil, err
 			}
-
 			plaintextDescription, err := render.PlaintextFromMarkdown(param.Description)
 			if err != nil {
 				return nil, err
 			}
-
 			parametersUsage = append(parametersUsage, codersdk.TemplateParameterUsage{
 				TemplateIDs: param.TemplateIDs,
 				Name:        param.Name,
@@ -274,17 +243,14 @@ func TemplateInsightsParameters(parameterRows []database.GetTemplateParameterIns
 			})
 			indexByNum[param.Num] = len(parametersUsage) - 1
 		}
-
 		i := indexByNum[param.Num]
 		parametersUsage[i].Values = append(parametersUsage[i].Values, codersdk.TemplateParameterValue{
 			Value: param.Value,
 			Count: param.Count,
 		})
 	}
-
 	return parametersUsage, nil
 }
-
 func templateVersionParameterOptions(rawOptions json.RawMessage) ([]codersdk.TemplateVersionParameterOption, error) {
 	var protoOptions []*proto.RichParameterOption
 	err := json.Unmarshal(rawOptions, &protoOptions)
@@ -302,7 +268,6 @@ func templateVersionParameterOptions(rawOptions json.RawMessage) ([]codersdk.Tem
 	}
 	return options, nil
 }
-
 func OAuth2ProviderApp(accessURL *url.URL, dbApp database.OAuth2ProviderApp) codersdk.OAuth2ProviderApp {
 	return codersdk.OAuth2ProviderApp{
 		ID:          dbApp.ID,
@@ -321,13 +286,11 @@ func OAuth2ProviderApp(accessURL *url.URL, dbApp database.OAuth2ProviderApp) cod
 		},
 	}
 }
-
 func OAuth2ProviderApps(accessURL *url.URL, dbApps []database.OAuth2ProviderApp) []codersdk.OAuth2ProviderApp {
 	return List(dbApps, func(dbApp database.OAuth2ProviderApp) codersdk.OAuth2ProviderApp {
 		return OAuth2ProviderApp(accessURL, dbApp)
 	})
 }
-
 func convertDisplayApps(apps []database.DisplayApp) []codersdk.DisplayApp {
 	dapps := make([]codersdk.DisplayApp, 0, len(apps))
 	for _, app := range apps {
@@ -336,22 +299,18 @@ func convertDisplayApps(apps []database.DisplayApp) []codersdk.DisplayApp {
 			dapps = append(dapps, codersdk.DisplayApp(app))
 		}
 	}
-
 	return dapps
 }
-
 func WorkspaceAgentEnvironment(workspaceAgent database.WorkspaceAgent) (map[string]string, error) {
 	var envs map[string]string
 	if workspaceAgent.EnvironmentVariables.Valid {
 		err := json.Unmarshal(workspaceAgent.EnvironmentVariables.RawMessage, &envs)
 		if err != nil {
-			return nil, xerrors.Errorf("unmarshal environment variables: %w", err)
+			return nil, fmt.Errorf("unmarshal environment variables: %w", err)
 		}
 	}
-
 	return envs, nil
 }
-
 func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 	dbAgent database.WorkspaceAgent, apps []codersdk.WorkspaceApp, scripts []codersdk.WorkspaceAgentScript, logSources []codersdk.WorkspaceAgentLogSource,
 	agentInactiveDisconnectTimeout time.Duration, agentFallbackTroubleshootingURL string,
@@ -368,7 +327,6 @@ func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 	for i, subsystem := range dbAgent.Subsystems {
 		subsystems[i] = codersdk.AgentSubsystem(subsystem)
 	}
-
 	legacyStartupScriptBehavior := codersdk.WorkspaceAgentStartupScriptBehaviorNonBlocking
 	for _, script := range scripts {
 		if !script.RunOnStart {
@@ -379,7 +337,6 @@ func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 		}
 		legacyStartupScriptBehavior = codersdk.WorkspaceAgentStartupScriptBehaviorBlocking
 	}
-
 	workspaceAgent := codersdk.WorkspaceAgent{
 		ID:                       dbAgent.ID,
 		CreatedAt:                dbAgent.CreatedAt,
@@ -413,7 +370,7 @@ func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 			regionParts := strings.SplitN(rawRegion, "-", 2)
 			regionID, err := strconv.Atoi(regionParts[0])
 			if err != nil {
-				return codersdk.WorkspaceAgent{}, xerrors.Errorf("convert derp region id %q: %w", rawRegion, err)
+				return codersdk.WorkspaceAgent{}, fmt.Errorf("convert derp region id %q: %w", rawRegion, err)
 			}
 			region, found := derpMap.Regions[regionID]
 			if !found {
@@ -431,20 +388,17 @@ func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 			}
 		}
 	}
-
 	status := dbAgent.Status(agentInactiveDisconnectTimeout)
 	workspaceAgent.Status = codersdk.WorkspaceAgentStatus(status.Status)
 	workspaceAgent.FirstConnectedAt = status.FirstConnectedAt
 	workspaceAgent.LastConnectedAt = status.LastConnectedAt
 	workspaceAgent.DisconnectedAt = status.DisconnectedAt
-
 	if dbAgent.StartedAt.Valid {
 		workspaceAgent.StartedAt = &dbAgent.StartedAt.Time
 	}
 	if dbAgent.ReadyAt.Valid {
 		workspaceAgent.ReadyAt = &dbAgent.ReadyAt.Time
 	}
-
 	switch {
 	case workspaceAgent.Status != codersdk.WorkspaceAgentConnected && workspaceAgent.LifecycleState == codersdk.WorkspaceAgentLifecycleOff:
 		workspaceAgent.Health.Reason = "agent is not running"
@@ -462,15 +416,12 @@ func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 	default:
 		workspaceAgent.Health.Healthy = true
 	}
-
 	return workspaceAgent, nil
 }
-
 func AppSubdomain(dbApp database.WorkspaceApp, agentName, workspaceName, ownerName string) string {
 	if !dbApp.Subdomain || agentName == "" || ownerName == "" || workspaceName == "" {
 		return ""
 	}
-
 	appSlug := dbApp.Slug
 	if appSlug == "" {
 		appSlug = dbApp.DisplayName
@@ -486,7 +437,6 @@ func AppSubdomain(dbApp database.WorkspaceApp, agentName, workspaceName, ownerNa
 		Username:      ownerName,
 	}.String()
 }
-
 func Apps(dbApps []database.WorkspaceApp, agent database.WorkspaceAgent, ownerName string, workspace database.Workspace) []codersdk.WorkspaceApp {
 	sort.Slice(dbApps, func(i, j int) bool {
 		if dbApps[i].DisplayOrder != dbApps[j].DisplayOrder {
@@ -497,7 +447,6 @@ func Apps(dbApps []database.WorkspaceApp, agent database.WorkspaceAgent, ownerNa
 		}
 		return dbApps[i].Slug < dbApps[j].Slug
 	})
-
 	apps := make([]codersdk.WorkspaceApp, 0)
 	for _, dbApp := range dbApps {
 		apps = append(apps, codersdk.WorkspaceApp{
@@ -523,7 +472,6 @@ func Apps(dbApps []database.WorkspaceApp, agent database.WorkspaceAgent, ownerNa
 	}
 	return apps
 }
-
 func ProvisionerDaemon(dbDaemon database.ProvisionerDaemon) codersdk.ProvisionerDaemon {
 	result := codersdk.ProvisionerDaemon{
 		ID:             dbDaemon.ID,
@@ -541,10 +489,8 @@ func ProvisionerDaemon(dbDaemon database.ProvisionerDaemon) codersdk.Provisioner
 	}
 	return result
 }
-
 func RecentProvisionerDaemons(now time.Time, staleInterval time.Duration, daemons []database.ProvisionerDaemon) []codersdk.ProvisionerDaemon {
 	results := []codersdk.ProvisionerDaemon{}
-
 	for _, daemon := range daemons {
 		// Daemon never connected, skip.
 		if !daemon.LastSeenAt.Valid {
@@ -554,41 +500,32 @@ func RecentProvisionerDaemons(now time.Time, staleInterval time.Duration, daemon
 		if now.Sub(daemon.LastSeenAt.Time) > staleInterval {
 			continue
 		}
-
 		results = append(results, ProvisionerDaemon(daemon))
 	}
-
 	// Ensure stable order for display and for tests
 	sort.Slice(results, func(i, j int) bool {
 		return results[i].Name < results[j].Name
 	})
-
 	return results
 }
-
 func SlimRole(role rbac.Role) codersdk.SlimRole {
 	orgID := ""
 	if role.Identifier.OrganizationID != uuid.Nil {
 		orgID = role.Identifier.OrganizationID.String()
 	}
-
 	return codersdk.SlimRole{
 		DisplayName:    role.DisplayName,
 		Name:           role.Identifier.Name,
 		OrganizationID: orgID,
 	}
 }
-
 func SlimRolesFromNames(names []string) []codersdk.SlimRole {
 	convertedRoles := make([]codersdk.SlimRole, 0, len(names))
-
 	for _, name := range names {
 		convertedRoles = append(convertedRoles, SlimRoleFromName(name))
 	}
-
 	return convertedRoles
 }
-
 func SlimRoleFromName(name string) codersdk.SlimRole {
 	rbacRole, err := rbac.RoleByName(rbac.RoleIdentifier{Name: name})
 	var convertedRole codersdk.SlimRole
@@ -599,10 +536,8 @@ func SlimRoleFromName(name string) codersdk.SlimRole {
 	}
 	return convertedRole
 }
-
 func RBACRole(role rbac.Role) codersdk.Role {
 	slim := SlimRole(role)
-
 	orgPerms := role.Org[slim.OrganizationID]
 	return codersdk.Role{
 		Name:                    slim.Name,
@@ -613,13 +548,11 @@ func RBACRole(role rbac.Role) codersdk.Role {
 		UserPermissions:         List(role.User, RBACPermission),
 	}
 }
-
 func Role(role database.CustomRole) codersdk.Role {
 	orgID := ""
 	if role.OrganizationID.UUID != uuid.Nil {
 		orgID = role.OrganizationID.UUID.String()
 	}
-
 	return codersdk.Role{
 		Name:                    role.Name,
 		OrganizationID:          orgID,
@@ -629,7 +562,6 @@ func Role(role database.CustomRole) codersdk.Role {
 		UserPermissions:         List(role.UserPermissions, Permission),
 	}
 }
-
 func Permission(permission database.CustomRolePermission) codersdk.Permission {
 	return codersdk.Permission{
 		Negate:       permission.Negate,
@@ -637,7 +569,6 @@ func Permission(permission database.CustomRolePermission) codersdk.Permission {
 		Action:       codersdk.RBACAction(permission.Action),
 	}
 }
-
 func RBACPermission(permission rbac.Permission) codersdk.Permission {
 	return codersdk.Permission{
 		Negate:       permission.Negate,
@@ -645,7 +576,6 @@ func RBACPermission(permission rbac.Permission) codersdk.Permission {
 		Action:       codersdk.RBACAction(permission.Action),
 	}
 }
-
 func Organization(organization database.Organization) codersdk.Organization {
 	return codersdk.Organization{
 		MinimalOrganization: codersdk.MinimalOrganization{
@@ -660,11 +590,9 @@ func Organization(organization database.Organization) codersdk.Organization {
 		IsDefault:   organization.IsDefault,
 	}
 }
-
 func CryptoKeys(keys []database.CryptoKey) []codersdk.CryptoKey {
 	return List(keys, CryptoKey)
 }
-
 func CryptoKey(key database.CryptoKey) codersdk.CryptoKey {
 	return codersdk.CryptoKey{
 		Feature:   codersdk.CryptoKeyFeature(key.Feature),
@@ -674,7 +602,6 @@ func CryptoKey(key database.CryptoKey) codersdk.CryptoKey {
 		Secret:    key.Secret.String,
 	}
 }
-
 func MatchedProvisioners(provisionerDaemons []database.ProvisionerDaemon, now time.Time, staleInterval time.Duration) codersdk.MatchedProvisioners {
 	minLastSeenAt := now.Add(-staleInterval)
 	mostRecentlySeen := codersdk.NullTime{}
@@ -694,7 +621,6 @@ func MatchedProvisioners(provisionerDaemons []database.ProvisionerDaemon, now ti
 	}
 	return matched
 }
-
 func TemplateRoleActions(role codersdk.TemplateRole) []policy.Action {
 	switch role {
 	case codersdk.TemplateRoleAdmin:
@@ -704,7 +630,6 @@ func TemplateRoleActions(role codersdk.TemplateRole) []policy.Action {
 	}
 	return []policy.Action{}
 }
-
 func AuditActionFromAgentProtoConnectionAction(action agentproto.Connection_Action) (database.AuditAction, error) {
 	switch action {
 	case agentproto.Connection_CONNECT:
@@ -713,10 +638,9 @@ func AuditActionFromAgentProtoConnectionAction(action agentproto.Connection_Acti
 		return database.AuditActionDisconnect, nil
 	default:
 		// Also Connection_ACTION_UNSPECIFIED, no mapping.
-		return "", xerrors.Errorf("unknown agent connection action %q", action)
+		return "", fmt.Errorf("unknown agent connection action %q", action)
 	}
 }
-
 func AgentProtoConnectionActionToAuditAction(action database.AuditAction) (agentproto.Connection_Action, error) {
 	switch action {
 	case database.AuditActionConnect:
@@ -724,6 +648,6 @@ func AgentProtoConnectionActionToAuditAction(action database.AuditAction) (agent
 	case database.AuditActionDisconnect:
 		return agentproto.Connection_DISCONNECT, nil
 	default:
-		return agentproto.Connection_ACTION_UNSPECIFIED, xerrors.Errorf("unknown agent connection action %q", action)
+		return agentproto.Connection_ACTION_UNSPECIFIED, fmt.Errorf("unknown agent connection action %q", action)
 	}
 }

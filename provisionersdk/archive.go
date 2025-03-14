@@ -1,31 +1,25 @@
 package provisionersdk
-
 import (
+	"fmt"
+	"errors"
 	"archive/tar"
 	"context"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
-
-	"golang.org/x/xerrors"
-
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/v2/coderd/util/xio"
 )
-
 const (
 	// TemplateArchiveLimit represents the maximum size of a template in bytes.
 	TemplateArchiveLimit = 1 << 20
 )
-
 func dirHasExt(dir string, exts ...string) (bool, error) {
 	dirEnts, err := os.ReadDir(dir)
 	if err != nil {
 		return false, err
 	}
-
 	for _, fi := range dirEnts {
 		for _, ext := range exts {
 			if strings.HasSuffix(fi.Name(), ext) {
@@ -33,20 +27,16 @@ func dirHasExt(dir string, exts ...string) (bool, error) {
 			}
 		}
 	}
-
 	return false, nil
 }
-
 func DirHasLockfile(dir string) (bool, error) {
 	return dirHasExt(dir, ".terraform.lock.hcl")
 }
-
 // Tar archives a Terraform directory.
 func Tar(w io.Writer, logger slog.Logger, directory string, limit int64) error {
 	// The total bytes written must be under the limit, so use -1
 	w = xio.NewLimitWriter(w, limit-1)
 	tarWriter := tar.NewWriter(w)
-
 	tfExts := []string{".tf", ".tf.json"}
 	hasTf, err := dirHasExt(directory, tfExts...)
 	if err != nil {
@@ -57,15 +47,13 @@ func Tar(w io.Writer, logger slog.Logger, directory string, limit int64) error {
 		if err != nil {
 			return err
 		}
-
 		// Show absolute path to aid in debugging. E.g. showing "." is
 		// useless.
-		return xerrors.Errorf(
+		return fmt.Errorf(
 			"%s is not a valid template since it has no %s files",
 			absPath, tfExts,
 		)
 	}
-
 	err = filepath.Walk(directory, func(file string, fileInfo os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -118,7 +106,6 @@ func Tar(w io.Writer, logger slog.Logger, directory string, limit int64) error {
 		if !fileInfo.Mode().IsRegular() {
 			return nil
 		}
-
 		data, err := os.Open(file)
 		if err != nil {
 			return err
@@ -126,17 +113,16 @@ func Tar(w io.Writer, logger slog.Logger, directory string, limit int64) error {
 		defer data.Close()
 		_, err = io.Copy(tarWriter, data)
 		if err != nil {
-			if xerrors.Is(err, xio.ErrLimitReached) {
-				return xerrors.Errorf("Archive too big. Must be <= %d bytes", limit)
+			if errors.Is(err, xio.ErrLimitReached) {
+				return fmt.Errorf("Archive too big. Must be <= %d bytes", limit)
 			}
 			return err
 		}
-
 		return data.Close()
 	})
 	if err != nil {
-		if xerrors.Is(err, xio.ErrLimitReached) {
-			return xerrors.Errorf("Archive too big. Must be <= %d bytes", limit)
+		if errors.Is(err, xio.ErrLimitReached) {
+			return fmt.Errorf("Archive too big. Must be <= %d bytes", limit)
 		}
 		return err
 	}
@@ -146,13 +132,12 @@ func Tar(w io.Writer, logger slog.Logger, directory string, limit int64) error {
 	}
 	return nil
 }
-
 // Untar extracts the archive to a provided directory.
 func Untar(directory string, r io.Reader) error {
 	tarReader := tar.NewReader(r)
 	for {
 		header, err := tarReader.Next()
-		if xerrors.Is(err, io.EOF) {
+		if errors.Is(err, io.EOF) {
 			return nil
 		}
 		if err != nil {
@@ -181,7 +166,7 @@ func Untar(directory string, r io.Reader) error {
 			}
 			// Max file size of 10MB.
 			_, err = io.CopyN(file, tarReader, (1<<20)*10)
-			if xerrors.Is(err, io.EOF) {
+			if errors.Is(err, io.EOF) {
 				err = nil
 			}
 			if err != nil {

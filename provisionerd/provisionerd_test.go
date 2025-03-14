@@ -1,6 +1,6 @@
 package provisionerd_test
-
 import (
+	"errors"
 	"context"
 	"fmt"
 	"io"
@@ -9,16 +9,13 @@ import (
 	"sync"
 	"testing"
 	"time"
-
 	"github.com/hashicorp/yamux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 	"go.uber.org/goleak"
-	"golang.org/x/xerrors"
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
-
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/codersdk/drpc"
@@ -28,11 +25,9 @@ import (
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
 )
-
 func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
-
 func closedWithin(c chan struct{}, d time.Duration) func() bool {
 	return func() bool {
 		select {
@@ -43,14 +38,11 @@ func closedWithin(c chan struct{}, d time.Duration) func() bool {
 		}
 	}
 }
-
 func TestProvisionerd(t *testing.T) {
 	t.Parallel()
-
 	noopUpdateJob := func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
 		return &proto.UpdateJobResponse{}, nil
 	}
-
 	t.Run("InstantClose", func(t *testing.T) {
 		t.Parallel()
 		done := make(chan struct{})
@@ -62,7 +54,6 @@ func TestProvisionerd(t *testing.T) {
 		}, provisionerd.LocalProvisioners{})
 		require.NoError(t, closer.Close())
 	})
-
 	t.Run("ConnectErrorClose", func(t *testing.T) {
 		t.Parallel()
 		done := make(chan struct{})
@@ -75,12 +66,11 @@ func TestProvisionerd(t *testing.T) {
 			completed.Do(func() {
 				defer close(completeChan)
 			})
-			return nil, xerrors.New("an error")
+			return nil, errors.New("an error")
 		}, provisionerd.LocalProvisioners{})
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
 		require.NoError(t, closer.Close())
 	})
-
 	t.Run("CloseCancelsJob", func(t *testing.T) {
 		t.Parallel()
 		done := make(chan struct{})
@@ -136,7 +126,6 @@ func TestProvisionerd(t *testing.T) {
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
 		require.NoError(t, closer.Close())
 	})
-
 	t.Run("MaliciousTar", func(t *testing.T) {
 		// Ensures tars with "../../../etc/passwd" as the path
 		// are not allowed to run, and will fail the job.
@@ -161,7 +150,6 @@ func TestProvisionerd(t *testing.T) {
 				},
 			})
 		)
-
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 			return createProvisionerDaemonClient(t, done, provisionerDaemonTestServer{
 				acquireJobWithCancel: acq.acquireWithCancel,
@@ -177,7 +165,6 @@ func TestProvisionerd(t *testing.T) {
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
 		require.NoError(t, closer.Close())
 	})
-
 	t.Run("RunningPeriodicUpdate", func(t *testing.T) {
 		t.Parallel()
 		done := make(chan struct{})
@@ -188,7 +175,6 @@ func TestProvisionerd(t *testing.T) {
 			completeChan = make(chan struct{})
 			completeOnce sync.Once
 		)
-
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 			return createProvisionerDaemonClient(t, done, provisionerDaemonTestServer{
 				acquireJobWithCancel: func(stream proto.DRPCProvisionerDaemon_AcquireJobWithCancelStream) error {
@@ -230,7 +216,6 @@ func TestProvisionerd(t *testing.T) {
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
 		require.NoError(t, closer.Close())
 	})
-
 	t.Run("TemplateImport", func(t *testing.T) {
 		t.Parallel()
 		done := make(chan struct{})
@@ -255,7 +240,6 @@ func TestProvisionerd(t *testing.T) {
 				},
 			})
 		)
-
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 			return createProvisionerDaemonClient(t, done, provisionerDaemonTestServer{
 				acquireJobWithCancel: acq.acquireWithCancel,
@@ -306,13 +290,11 @@ func TestProvisionerd(t *testing.T) {
 				},
 			}),
 		})
-
 		require.Condition(t, closedWithin(acq.complete, testutil.WaitShort))
 		require.NoError(t, closer.Close())
 		assert.True(t, didLog.Load(), "should log some updates")
 		assert.True(t, didComplete.Load(), "should complete the job")
 	})
-
 	t.Run("TemplateDryRun", func(t *testing.T) {
 		t.Parallel()
 		done := make(chan struct{})
@@ -336,7 +318,6 @@ func TestProvisionerd(t *testing.T) {
 				},
 			})
 		)
-
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 			return createProvisionerDaemonClient(t, done, provisionerDaemonTestServer{
 				acquireJobWithCancel: acq.acquireWithCancel,
@@ -345,7 +326,6 @@ func TestProvisionerd(t *testing.T) {
 						t.Log("provisionerDaemonTestServer: no log messages")
 						return &proto.UpdateJobResponse{}, nil
 					}
-
 					didLog.Store(true)
 					for _, msg := range update.Logs {
 						t.Log("provisionerDaemonTestServer", "msg:", msg)
@@ -378,13 +358,11 @@ func TestProvisionerd(t *testing.T) {
 				},
 			}),
 		})
-
 		require.Condition(t, closedWithin(acq.complete, testutil.WaitShort))
 		require.NoError(t, closer.Close())
 		assert.True(t, didLog.Load(), "should log some updates")
 		assert.True(t, didComplete.Load(), "should complete the job")
 	})
-
 	t.Run("WorkspaceBuild", func(t *testing.T) {
 		t.Parallel()
 		done := make(chan struct{})
@@ -407,7 +385,6 @@ func TestProvisionerd(t *testing.T) {
 				},
 			})
 		)
-
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 			return createProvisionerDaemonClient(t, done, provisionerDaemonTestServer{
 				acquireJobWithCancel: acq.acquireWithCancel,
@@ -446,7 +423,6 @@ func TestProvisionerd(t *testing.T) {
 		assert.True(t, didLog.Load(), "should log some updates")
 		assert.True(t, didComplete.Load(), "should complete the job")
 	})
-
 	t.Run("WorkspaceBuildQuotaExceeded", func(t *testing.T) {
 		t.Parallel()
 		done := make(chan struct{})
@@ -470,7 +446,6 @@ func TestProvisionerd(t *testing.T) {
 				},
 			})
 		)
-
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 			return createProvisionerDaemonClient(t, done, provisionerDaemonTestServer{
 				acquireJobWithCancel: acq.acquireWithCancel,
@@ -538,7 +513,6 @@ func TestProvisionerd(t *testing.T) {
 		assert.False(t, didComplete.Load(), "should not complete the job")
 		assert.True(t, didFail.Load(), "should fail the job")
 	})
-
 	t.Run("WorkspaceBuildFailComplete", func(t *testing.T) {
 		t.Parallel()
 		done := make(chan struct{})
@@ -560,7 +534,6 @@ func TestProvisionerd(t *testing.T) {
 				},
 			})
 		)
-
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 			return createProvisionerDaemonClient(t, done, provisionerDaemonTestServer{
 				acquireJobWithCancel: acq.acquireWithCancel,
@@ -597,7 +570,6 @@ func TestProvisionerd(t *testing.T) {
 		require.NoError(t, closer.Close())
 		assert.True(t, didFail.Load(), "should fail the job")
 	})
-
 	// Simulates when there is no coderd to connect to. So the client connection
 	// will never be established.
 	t.Run("ShutdownNoCoderd", func(t *testing.T) {
@@ -606,21 +578,18 @@ func TestProvisionerd(t *testing.T) {
 		t.Cleanup(func() {
 			close(done)
 		})
-
 		connectAttemptedClose := sync.Once{}
 		connectAttempted := make(chan struct{})
 		server := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 			// This is the dial out to Coderd, which in this unit test will always fail.
 			connectAttemptedClose.Do(func() { close(connectAttempted) })
-			return nil, xerrors.New("client connection always fails")
+			return nil, errors.New("client connection always fails")
 		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{}),
 		})
-
 		// Wait for at least 1 attempt to connect to ensure the connect go routine
 		// is running.
 		require.Condition(t, closedWithin(connectAttempted, testutil.WaitShort))
-
 		// The test is ensuring this Shutdown call does not block indefinitely.
 		// If it does, the context will return with an error, and the test will
 		// fail.
@@ -629,7 +598,6 @@ func TestProvisionerd(t *testing.T) {
 		require.NoError(t, err, "shutdown did not unblock. Failed to close the server gracefully.")
 		require.NoError(t, server.Close())
 	})
-
 	t.Run("Shutdown", func(t *testing.T) {
 		t.Parallel()
 		done := make(chan struct{})
@@ -709,7 +677,6 @@ func TestProvisionerd(t *testing.T) {
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
 		require.NoError(t, server.Close())
 	})
-
 	t.Run("ShutdownFromJob", func(t *testing.T) {
 		t.Parallel()
 		done := make(chan struct{})
@@ -798,7 +765,6 @@ func TestProvisionerd(t *testing.T) {
 		require.NoError(t, server.Shutdown(ctx, true))
 		require.NoError(t, server.Close())
 	})
-
 	t.Run("ReconnectAndFail", func(t *testing.T) {
 		t.Parallel()
 		done := make(chan struct{})
@@ -889,7 +855,6 @@ func TestProvisionerd(t *testing.T) {
 		require.NoError(t, server.Shutdown(ctx, true))
 		require.NoError(t, server.Close())
 	})
-
 	t.Run("ReconnectAndComplete", func(t *testing.T) {
 		t.Parallel()
 		done := make(chan struct{})
@@ -980,7 +945,6 @@ func TestProvisionerd(t *testing.T) {
 		require.NoError(t, server.Shutdown(ctx, true))
 		require.NoError(t, server.Close())
 	})
-
 	t.Run("UpdatesBeforeComplete", func(t *testing.T) {
 		t.Parallel()
 		done := make(chan struct{})
@@ -992,7 +956,6 @@ func TestProvisionerd(t *testing.T) {
 		var ops []string
 		completeChan := make(chan struct{})
 		completeOnce := sync.Once{}
-
 		server := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 			return createProvisionerDaemonClient(t, done, provisionerDaemonTestServer{
 				acquireJobWithCancel: func(stream proto.DRPCProvisionerDaemon_AcquireJobWithCancelStream) error {
@@ -1007,7 +970,6 @@ func TestProvisionerd(t *testing.T) {
 						return nil
 					}
 					ops = append(ops, "AcquireJob")
-
 					err := stream.Send(&proto.AcquiredJob{
 						JobId:       "test",
 						Provisioner: "someprovisioner",
@@ -1078,7 +1040,6 @@ func TestProvisionerd(t *testing.T) {
 		assert.Contains(t, ops[0:len(ops)-1], "Log: Cleaning Up | ")
 	})
 }
-
 // Creates a provisionerd implementation with the provided dialer and provisioners.
 func createProvisionerd(t *testing.T, dialer provisionerd.Dialer, connector provisionerd.LocalProvisioners) *provisionerd.Server {
 	server := provisionerd.New(dialer, &provisionerd.Options{
@@ -1094,7 +1055,6 @@ func createProvisionerd(t *testing.T, dialer provisionerd.Dialer, connector prov
 	})
 	return server
 }
-
 // Creates a provisionerd protobuf client that's connected
 // to the server implementation provided.
 func createProvisionerDaemonClient(t *testing.T, done <-chan struct{}, server provisionerDaemonTestServer) proto.DRPCProvisionerDaemonClient {
@@ -1138,7 +1098,6 @@ func createProvisionerDaemonClient(t *testing.T, done <-chan struct{}, server pr
 	}
 	return proto.NewDRPCProvisionerDaemonClient(clientPipe)
 }
-
 // Creates a provisioner protobuf client that's connected
 // to the server implementation provided.
 func createProvisionerClient(t *testing.T, done <-chan struct{}, server provisionerTestServer) sdkproto.DRPCProvisionerClient {
@@ -1175,25 +1134,20 @@ func createProvisionerClient(t *testing.T, done <-chan struct{}, server provisio
 	}
 	return sdkproto.NewDRPCProvisionerClient(clientPipe)
 }
-
 type provisionerTestServer struct {
 	parse func(s *provisionersdk.Session, r *sdkproto.ParseRequest, canceledOrComplete <-chan struct{}) *sdkproto.ParseComplete
 	plan  func(s *provisionersdk.Session, r *sdkproto.PlanRequest, canceledOrComplete <-chan struct{}) *sdkproto.PlanComplete
 	apply func(s *provisionersdk.Session, r *sdkproto.ApplyRequest, canceledOrComplete <-chan struct{}) *sdkproto.ApplyComplete
 }
-
 func (p *provisionerTestServer) Parse(s *provisionersdk.Session, r *sdkproto.ParseRequest, canceledOrComplete <-chan struct{}) *sdkproto.ParseComplete {
 	return p.parse(s, r, canceledOrComplete)
 }
-
 func (p *provisionerTestServer) Plan(s *provisionersdk.Session, r *sdkproto.PlanRequest, canceledOrComplete <-chan struct{}) *sdkproto.PlanComplete {
 	return p.plan(s, r, canceledOrComplete)
 }
-
 func (p *provisionerTestServer) Apply(s *provisionersdk.Session, r *sdkproto.ApplyRequest, canceledOrComplete <-chan struct{}) *sdkproto.ApplyComplete {
 	return p.apply(s, r, canceledOrComplete)
 }
-
 // Fulfills the protobuf interface for a ProvisionerDaemon with
 // passable functions for dynamic functionality.
 type provisionerDaemonTestServer struct {
@@ -1203,11 +1157,9 @@ type provisionerDaemonTestServer struct {
 	failJob              func(ctx context.Context, job *proto.FailedJob) (*proto.Empty, error)
 	completeJob          func(ctx context.Context, job *proto.CompletedJob) (*proto.Empty, error)
 }
-
 func (*provisionerDaemonTestServer) AcquireJob(context.Context, *proto.Empty) (*proto.AcquiredJob, error) {
-	return nil, xerrors.New("deprecated!")
+	return nil, errors.New("deprecated!")
 }
-
 func (p *provisionerDaemonTestServer) AcquireJobWithCancel(stream proto.DRPCProvisionerDaemon_AcquireJobWithCancelStream) error {
 	if p.acquireJobWithCancel != nil {
 		return p.acquireJobWithCancel(stream)
@@ -1217,7 +1169,6 @@ func (p *provisionerDaemonTestServer) AcquireJobWithCancel(stream proto.DRPCProv
 	_ = stream.Send(&proto.AcquiredJob{})
 	return nil
 }
-
 func (p *provisionerDaemonTestServer) CommitQuota(ctx context.Context, com *proto.CommitQuotaRequest) (*proto.CommitQuotaResponse, error) {
 	if p.commitQuota == nil {
 		return &proto.CommitQuotaResponse{
@@ -1226,19 +1177,15 @@ func (p *provisionerDaemonTestServer) CommitQuota(ctx context.Context, com *prot
 	}
 	return p.commitQuota(ctx, com)
 }
-
 func (p *provisionerDaemonTestServer) UpdateJob(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
 	return p.updateJob(ctx, update)
 }
-
 func (p *provisionerDaemonTestServer) FailJob(ctx context.Context, job *proto.FailedJob) (*proto.Empty, error) {
 	return p.failJob(ctx, job)
 }
-
 func (p *provisionerDaemonTestServer) CompleteJob(ctx context.Context, job *proto.CompletedJob) (*proto.Empty, error) {
 	return p.completeJob(ctx, job)
 }
-
 // acquireOne provides a function that returns a single provisioner job, then subsequent calls block until canceled.
 // The complete channel is closed on the 2nd call.
 type acquireOne struct {
@@ -1248,7 +1195,6 @@ type acquireOne struct {
 	called   int
 	complete chan struct{}
 }
-
 func newAcquireOne(t *testing.T, job *proto.AcquiredJob) *acquireOne {
 	return &acquireOne{
 		t:        t,
@@ -1256,7 +1202,6 @@ func newAcquireOne(t *testing.T, job *proto.AcquiredJob) *acquireOne {
 		complete: make(chan struct{}),
 	}
 }
-
 func (a *acquireOne) acquireWithCancel(stream proto.DRPCProvisionerDaemon_AcquireJobWithCancelStream) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()

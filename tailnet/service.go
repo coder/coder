@@ -1,30 +1,25 @@
 package tailnet
-
 import (
+	"fmt"
+	"errors"
 	"context"
 	"io"
 	"net"
 	"sync"
 	"sync/atomic"
 	"time"
-
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
-	"golang.org/x/xerrors"
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
 	"tailscale.com/tailcfg"
-
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/apiversion"
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/quartz"
 )
-
-var ErrUnsupportedVersion = xerrors.New("unsupported version")
-
+var ErrUnsupportedVersion = errors.New("unsupported version")
 type streamIDContextKey struct{}
-
 // StreamID identifies the caller of the CoordinateTailnet RPC.  We store this
 // on the context, since the information is extracted at the HTTP layer for
 // remote clients of the API, or set outside tailnet for local clients (e.g.
@@ -34,25 +29,20 @@ type StreamID struct {
 	ID   uuid.UUID
 	Auth CoordinateeAuth
 }
-
 func WithStreamID(ctx context.Context, streamID StreamID) context.Context {
 	return context.WithValue(ctx, streamIDContextKey{}, streamID)
 }
-
 type WorkspaceUpdatesProvider interface {
 	io.Closer
 	Subscribe(ctx context.Context, userID uuid.UUID) (Subscription, error)
 }
-
 type Subscription interface {
 	io.Closer
 	Updates() <-chan *proto.WorkspaceUpdate
 }
-
 type TunnelAuthorizer interface {
 	AuthorizeTunnel(ctx context.Context, agentID uuid.UUID) error
 }
-
 type ClientServiceOptions struct {
 	Logger                   slog.Logger
 	CoordPtr                 *atomic.Pointer[Coordinator]
@@ -62,7 +52,6 @@ type ClientServiceOptions struct {
 	ResumeTokenProvider      ResumeTokenProvider
 	WorkspaceUpdatesProvider WorkspaceUpdatesProvider
 }
-
 // ClientService is a tailnet coordination service that accepts a connection and version from a
 // tailnet client, and support versions 2.x of the Tailnet API protocol.
 type ClientService struct {
@@ -70,7 +59,6 @@ type ClientService struct {
 	CoordPtr *atomic.Pointer[Coordinator]
 	drpc     *drpcserver.Server
 }
-
 // NewClientService returns a ClientService based on the given Coordinator pointer.  The pointer is
 // loaded on each processed connection.
 func NewClientService(options ClientServiceOptions) (
@@ -89,13 +77,13 @@ func NewClientService(options ClientServiceOptions) (
 	}
 	err := proto.DRPCRegisterTailnet(mux, drpcService)
 	if err != nil {
-		return nil, xerrors.Errorf("register DRPC service: %w", err)
+		return nil, fmt.Errorf("register DRPC service: %w", err)
 	}
 	server := drpcserver.NewWithOptions(mux, drpcserver.Options{
 		Log: func(err error) {
-			if xerrors.Is(err, io.EOF) ||
-				xerrors.Is(err, context.Canceled) ||
-				xerrors.Is(err, context.DeadlineExceeded) {
+			if errors.Is(err, io.EOF) ||
+				errors.Is(err, context.Canceled) ||
+				errors.Is(err, context.DeadlineExceeded) {
 				return
 			}
 			options.Logger.Debug(context.Background(), "drpc server error", slog.Error(err))
@@ -104,7 +92,6 @@ func NewClientService(options ClientServiceOptions) (
 	s.drpc = server
 	return s, nil
 }
-
 func (s *ClientService) ServeClient(ctx context.Context, version string, conn net.Conn, streamID StreamID) error {
 	major, _, err := apiversion.Parse(version)
 	if err != nil {
@@ -119,20 +106,18 @@ func (s *ClientService) ServeClient(ctx context.Context, version string, conn ne
 		return ErrUnsupportedVersion
 	}
 }
-
 func (s ClientService) ServeConnV2(ctx context.Context, conn net.Conn, streamID StreamID) error {
 	config := yamux.DefaultConfig()
 	config.LogOutput = io.Discard
 	session, err := yamux.Server(conn, config)
 	if err != nil {
-		return xerrors.Errorf("yamux init failed: %w", err)
+		return fmt.Errorf("yamux init failed: %w", err)
 	}
 	ctx = WithStreamID(ctx, streamID)
 	s.Logger.Debug(ctx, "serving dRPC tailnet v2 API session",
 		slog.F("peer_id", streamID.ID.String()))
 	return s.drpc.Serve(ctx, session)
 }
-
 // DRPCService is the dRPC-based, version 2.x of the tailnet API and implements proto.DRPCClientServer
 type DRPCService struct {
 	CoordPtr                 *atomic.Pointer[Coordinator]
@@ -143,20 +128,16 @@ type DRPCService struct {
 	ResumeTokenProvider      ResumeTokenProvider
 	WorkspaceUpdatesProvider WorkspaceUpdatesProvider
 }
-
 func (s *DRPCService) PostTelemetry(_ context.Context, req *proto.TelemetryRequest) (*proto.TelemetryResponse, error) {
 	if s.NetworkTelemetryHandler != nil {
 		s.NetworkTelemetryHandler(req.Events)
 	}
 	return &proto.TelemetryResponse{}, nil
 }
-
 func (s *DRPCService) StreamDERPMaps(_ *proto.StreamDERPMapsRequest, stream proto.DRPCTailnet_StreamDERPMapsStream) error {
 	defer stream.Close()
-
 	ticker := time.NewTicker(s.DerpMapUpdateFrequency)
 	defer ticker.Stop()
-
 	var lastDERPMap *tailcfg.DERPMap
 	for {
 		derpMap := s.DerpMapFn()
@@ -168,11 +149,10 @@ func (s *DRPCService) StreamDERPMaps(_ *proto.StreamDERPMapsRequest, stream prot
 			protoDERPMap := DERPMapToProto(derpMap)
 			err := stream.Send(protoDERPMap)
 			if err != nil {
-				return xerrors.Errorf("send derp map: %w", err)
+				return fmt.Errorf("send derp map: %w", err)
 			}
 			lastDERPMap = derpMap
 		}
-
 		ticker.Reset(s.DerpMapUpdateFrequency)
 		select {
 		case <-stream.Context().Done():
@@ -181,26 +161,23 @@ func (s *DRPCService) StreamDERPMaps(_ *proto.StreamDERPMapsRequest, stream prot
 		}
 	}
 }
-
 func (s *DRPCService) RefreshResumeToken(ctx context.Context, _ *proto.RefreshResumeTokenRequest) (*proto.RefreshResumeTokenResponse, error) {
 	streamID, ok := ctx.Value(streamIDContextKey{}).(StreamID)
 	if !ok {
-		return nil, xerrors.New("no Stream ID")
+		return nil, errors.New("no Stream ID")
 	}
-
 	res, err := s.ResumeTokenProvider.GenerateResumeToken(ctx, streamID.ID)
 	if err != nil {
-		return nil, xerrors.Errorf("generate resume token: %w", err)
+		return nil, fmt.Errorf("generate resume token: %w", err)
 	}
 	return res, nil
 }
-
 func (s *DRPCService) Coordinate(stream proto.DRPCTailnet_CoordinateStream) error {
 	ctx := stream.Context()
 	streamID, ok := ctx.Value(streamIDContextKey{}).(StreamID)
 	if !ok {
 		_ = stream.Close()
-		return xerrors.New("no Stream ID")
+		return errors.New("no Stream ID")
 	}
 	logger := s.Logger.With(slog.F("peer_id", streamID), slog.F("name", streamID.Name))
 	logger.Debug(ctx, "starting tailnet Coordinate")
@@ -215,23 +192,18 @@ func (s *DRPCService) Coordinate(stream proto.DRPCTailnet_CoordinateStream) erro
 	c.communicate()
 	return nil
 }
-
 func (s *DRPCService) WorkspaceUpdates(req *proto.WorkspaceUpdatesRequest, stream proto.DRPCTailnet_WorkspaceUpdatesStream) error {
 	defer stream.Close()
-
 	ctx := stream.Context()
-
 	ownerID, err := uuid.FromBytes(req.WorkspaceOwnerId)
 	if err != nil {
-		return xerrors.Errorf("parse workspace owner ID: %w", err)
+		return fmt.Errorf("parse workspace owner ID: %w", err)
 	}
-
 	sub, err := s.WorkspaceUpdatesProvider.Subscribe(ctx, ownerID)
 	if err != nil {
-		return xerrors.Errorf("subscribe to workspace updates: %w", err)
+		return fmt.Errorf("subscribe to workspace updates: %w", err)
 	}
 	defer sub.Close()
-
 	for {
 		select {
 		case updates, ok := <-sub.Updates():
@@ -240,26 +212,23 @@ func (s *DRPCService) WorkspaceUpdates(req *proto.WorkspaceUpdatesRequest, strea
 			}
 			err := stream.Send(updates)
 			if err != nil {
-				return xerrors.Errorf("send workspace update: %w", err)
+				return fmt.Errorf("send workspace update: %w", err)
 			}
 		case <-stream.Context().Done():
 			return nil
 		}
 	}
 }
-
 type communicator struct {
 	logger slog.Logger
 	stream proto.DRPCTailnet_CoordinateStream
 	reqs   chan<- *proto.CoordinateRequest
 	resps  <-chan *proto.CoordinateResponse
 }
-
 func (c communicator) communicate() {
 	go c.loopReq()
 	c.loopResp()
 }
-
 func (c communicator) loopReq() {
 	ctx := c.stream.Context()
 	defer close(c.reqs)
@@ -276,7 +245,6 @@ func (c communicator) loopReq() {
 		}
 	}
 }
-
 func (c communicator) loopResp() {
 	ctx := c.stream.Context()
 	defer func() {
@@ -298,20 +266,17 @@ func (c communicator) loopResp() {
 		}
 	}
 }
-
 type NetworkTelemetryBatcher struct {
 	clock     quartz.Clock
 	frequency time.Duration
 	maxSize   int
 	batchFn   func(batch []*proto.TelemetryEvent)
-
 	mu      sync.Mutex
 	closed  chan struct{}
 	done    chan struct{}
 	ticker  *quartz.Ticker
 	pending []*proto.TelemetryEvent
 }
-
 func NewNetworkTelemetryBatcher(clk quartz.Clock, frequency time.Duration, maxSize int, batchFn func(batch []*proto.TelemetryEvent)) *NetworkTelemetryBatcher {
 	b := &NetworkTelemetryBatcher{
 		clock:     clk,
@@ -327,19 +292,17 @@ func NewNetworkTelemetryBatcher(clk quartz.Clock, frequency time.Duration, maxSi
 	b.start()
 	return b
 }
-
 func (b *NetworkTelemetryBatcher) Close() error {
 	close(b.closed)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	select {
 	case <-ctx.Done():
-		return xerrors.New("timed out waiting for batcher to close")
+		return errors.New("timed out waiting for batcher to close")
 	case <-b.done:
 	}
 	return nil
 }
-
 func (b *NetworkTelemetryBatcher) sendTelemetryBatch() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -350,10 +313,8 @@ func (b *NetworkTelemetryBatcher) sendTelemetryBatch() {
 	b.pending = []*proto.TelemetryEvent{}
 	b.batchFn(events)
 }
-
 func (b *NetworkTelemetryBatcher) start() {
 	b.ticker = b.clock.NewTicker(b.frequency)
-
 	go func() {
 		defer func() {
 			// The lock prevents Handler from racing with Close.
@@ -362,7 +323,6 @@ func (b *NetworkTelemetryBatcher) start() {
 			close(b.done)
 			b.ticker.Stop()
 		}()
-
 		for {
 			select {
 			case <-b.ticker.C:
@@ -376,7 +336,6 @@ func (b *NetworkTelemetryBatcher) start() {
 		}
 	}()
 }
-
 func (b *NetworkTelemetryBatcher) Handler(events []*proto.TelemetryEvent) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -385,10 +344,8 @@ func (b *NetworkTelemetryBatcher) Handler(events []*proto.TelemetryEvent) {
 		return
 	default:
 	}
-
 	for _, event := range events {
 		b.pending = append(b.pending, event)
-
 		if len(b.pending) >= b.maxSize {
 			// This can't call sendTelemetryBatch directly because we already
 			// hold the lock.

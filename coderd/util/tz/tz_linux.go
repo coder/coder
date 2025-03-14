@@ -1,20 +1,16 @@
 //go:build linux
-
 package tz
-
 import (
+	"fmt"
+	"errors"
 	"path/filepath"
 	"strings"
 	"time"
-
-	"golang.org/x/xerrors"
 )
-
 const (
 	etcLocaltime = "/etc/localtime"
 	zoneInfoPath = "/usr/share/zoneinfo"
 )
-
 // TimezoneIANA attempts to determine the local timezone in IANA format.
 // If the TZ environment variable is set, this is used.
 // Otherwise, /etc/localtime is used to determine the timezone.
@@ -27,19 +23,18 @@ func TimezoneIANA() (*time.Location, error) {
 	if err == nil {
 		return loc, nil
 	}
-	if !xerrors.Is(err, errNoEnvSet) {
-		return nil, xerrors.Errorf("lookup timezone from env: %w", err)
+	if !errors.Is(err, errNoEnvSet) {
+		return nil, fmt.Errorf("lookup timezone from env: %w", err)
 	}
-
 	lp, err := filepath.EvalSymlinks(etcLocaltime)
 	if err != nil {
-		return nil, xerrors.Errorf("read location of %s: %w", etcLocaltime, err)
+		return nil, fmt.Errorf("read location of %s: %w", etcLocaltime, err)
 	}
 	stripped := strings.Replace(lp, zoneInfoPath, "", -1)
 	stripped = strings.TrimPrefix(stripped, string(filepath.Separator))
 	loc, err = time.LoadLocation(stripped)
 	if err != nil {
-		return nil, xerrors.Errorf("invalid location %q guessed from %s: %w", stripped, lp, err)
+		return nil, fmt.Errorf("invalid location %q guessed from %s: %w", stripped, lp, err)
 	}
 	return loc, nil
 }

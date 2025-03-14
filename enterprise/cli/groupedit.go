@@ -1,20 +1,15 @@
 package cli
-
 import (
+	"errors"
 	"fmt"
 	"net/mail"
-
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/pretty"
-
 	agpl "github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
-
 func (r *RootCmd) groupEdit() *serpent.Command {
 	var (
 		avatarURL   string
@@ -37,54 +32,43 @@ func (r *RootCmd) groupEdit() *serpent.Command {
 				ctx       = inv.Context()
 				groupName = inv.Args[0]
 			)
-
 			org, err := orgContext.Selected(inv, client)
 			if err != nil {
-				return xerrors.Errorf("current organization: %w", err)
+				return fmt.Errorf("current organization: %w", err)
 			}
-
 			group, err := client.GroupByOrgAndName(ctx, org.ID, groupName)
 			if err != nil {
-				return xerrors.Errorf("group by org and name: %w", err)
+				return fmt.Errorf("group by org and name: %w", err)
 			}
-
 			req := codersdk.PatchGroupRequest{
 				Name: name,
 			}
-
 			if avatarURL != "" {
 				req.AvatarURL = &avatarURL
 			}
-
 			if inv.ParsedFlags().Lookup("display-name").Changed {
 				req.DisplayName = &displayName
 			}
-
 			userRes, err := client.Users(ctx, codersdk.UsersRequest{})
 			if err != nil {
-				return xerrors.Errorf("get users: %w", err)
+				return fmt.Errorf("get users: %w", err)
 			}
-
 			req.AddUsers, err = convertToUserIDs(addUsers, userRes.Users)
 			if err != nil {
-				return xerrors.Errorf("parse add-users: %w", err)
+				return fmt.Errorf("parse add-users: %w", err)
 			}
-
 			req.RemoveUsers, err = convertToUserIDs(rmUsers, userRes.Users)
 			if err != nil {
-				return xerrors.Errorf("parse rm-users: %w", err)
+				return fmt.Errorf("parse rm-users: %w", err)
 			}
-
 			group, err = client.PatchGroup(ctx, group.ID, req)
 			if err != nil {
-				return xerrors.Errorf("patch group: %w", err)
+				return fmt.Errorf("patch group: %w", err)
 			}
-
 			_, _ = fmt.Fprintf(inv.Stdout, "Successfully patched group %s!\n", pretty.Sprint(cliui.DefaultStyles.Keyword, group.Name))
 			return nil
 		},
 	}
-
 	cmd.Options = serpent.OptionSet{
 		{
 			Flag:          "name",
@@ -118,15 +102,12 @@ func (r *RootCmd) groupEdit() *serpent.Command {
 		},
 	}
 	orgContext.AttachOptions(cmd)
-
 	return cmd
 }
-
 // convertToUserIDs accepts a list of users in the form of IDs or email addresses
 // and translates any emails to the matching user ID.
 func convertToUserIDs(userList []string, users []codersdk.User) ([]string, error) {
 	converted := make([]string, 0, len(userList))
-
 	for _, user := range userList {
 		if _, err := uuid.Parse(user); err == nil {
 			converted = append(converted, user)
@@ -141,9 +122,7 @@ func convertToUserIDs(userList []string, users []codersdk.User) ([]string, error
 			}
 			continue
 		}
-
-		return nil, xerrors.Errorf("%q must be a valid UUID or email address", user)
+		return nil, fmt.Errorf("%q must be a valid UUID or email address", user)
 	}
-
 	return converted, nil
 }

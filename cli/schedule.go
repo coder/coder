@@ -1,13 +1,10 @@
 package cli
-
 import (
+	"errors"
 	"fmt"
 	"io"
 	"strings"
 	"time"
-
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -15,7 +12,6 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
-
 const (
 	scheduleShowDescriptionLong = `Shows the following information for the given workspace(s):
   * The automatic start schedule
@@ -39,7 +35,6 @@ Schedule format: <start-time> [day-of-week] [location].
   * The workspace template may place restrictions on the maximum shutdown time.
   * Changes to workspace schedules only take effect upon the next build of the workspace,
     and do not affect a running instance of a workspace.
-
 When enabling scheduled stop, enter a duration in one of the following formats:
   * 3h2m (3 hours and two minutes)
   * 3h   (3 hours)
@@ -52,7 +47,6 @@ When enabling scheduled stop, enter a duration in one of the following formats:
   * The workspace template may restrict the maximum workspace runtime.
 `
 )
-
 func (r *RootCmd) schedules() *serpent.Command {
 	scheduleCmd := &serpent.Command{
 		Annotations: workspaceCommand,
@@ -68,10 +62,8 @@ func (r *RootCmd) schedules() *serpent.Command {
 			r.scheduleExtend(),
 		},
 	}
-
 	return scheduleCmd
 }
-
 // scheduleShow() is just a wrapper for list() with some different defaults.
 func (r *RootCmd) scheduleShow() *serpent.Command {
 	var (
@@ -121,12 +113,10 @@ func (r *RootCmd) scheduleShow() *serpent.Command {
 			if err != nil {
 				return err
 			}
-
 			out, err := formatter.Format(inv.Context(), res)
 			if err != nil {
 				return err
 			}
-
 			_, err = fmt.Fprintln(inv.Stdout, out)
 			return err
 		},
@@ -135,7 +125,6 @@ func (r *RootCmd) scheduleShow() *serpent.Command {
 	formatter.AttachOptions(&showCmd.Options)
 	return showCmd
 }
-
 func (r *RootCmd) scheduleStart() *serpent.Command {
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
@@ -156,24 +145,20 @@ func (r *RootCmd) scheduleStart() *serpent.Command {
 			if err != nil {
 				return err
 			}
-
 			var schedStr *string
 			if inv.Args[1] != "manual" {
 				sched, err := parseCLISchedule(inv.Args[1:]...)
 				if err != nil {
 					return err
 				}
-
 				schedStr = ptr.Ref(sched.String())
 			}
-
 			err = client.UpdateWorkspaceAutostart(inv.Context(), workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
 				Schedule: schedStr,
 			})
 			if err != nil {
 				return err
 			}
-
 			updated, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err
@@ -181,10 +166,8 @@ func (r *RootCmd) scheduleStart() *serpent.Command {
 			return displaySchedule(updated, inv.Stdout)
 		},
 	}
-
 	return cmd
 }
-
 func (r *RootCmd) scheduleStop() *serpent.Command {
 	client := new(codersdk.Client)
 	return &serpent.Command{
@@ -204,7 +187,6 @@ func (r *RootCmd) scheduleStop() *serpent.Command {
 			if err != nil {
 				return err
 			}
-
 			var durMillis *int64
 			if inv.Args[1] != "manual" {
 				dur, err := parseDuration(inv.Args[1])
@@ -213,13 +195,11 @@ func (r *RootCmd) scheduleStop() *serpent.Command {
 				}
 				durMillis = ptr.Ref(dur.Milliseconds())
 			}
-
 			if err := client.UpdateWorkspaceTTL(inv.Context(), workspace.ID, codersdk.UpdateWorkspaceTTLRequest{
 				TTLMillis: durMillis,
 			}); err != nil {
 				return err
 			}
-
 			updated, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err
@@ -228,7 +208,6 @@ func (r *RootCmd) scheduleStop() *serpent.Command {
 		},
 	}
 }
-
 func (r *RootCmd) scheduleExtend() *serpent.Command {
 	client := new(codersdk.Client)
 	extendCmd := &serpent.Command{
@@ -249,17 +228,14 @@ func (r *RootCmd) scheduleExtend() *serpent.Command {
 			if err != nil {
 				return err
 			}
-
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
-				return xerrors.Errorf("get workspace: %w", err)
+				return fmt.Errorf("get workspace: %w", err)
 			}
-
 			loc, err := tz.TimezoneIANA()
 			if err != nil {
 				loc = time.UTC // best effort
 			}
-
 			if extendDuration < 29*time.Minute {
 				_, _ = fmt.Fprintf(
 					inv.Stdout,
@@ -267,14 +243,12 @@ func (r *RootCmd) scheduleExtend() *serpent.Command {
 				)
 				return nil
 			}
-
 			newDeadline := time.Now().In(loc).Add(extendDuration)
 			if err := client.PutExtendWorkspace(inv.Context(), workspace.ID, codersdk.PutExtendWorkspaceRequest{
 				Deadline: newDeadline,
 			}); err != nil {
 				return err
 			}
-
 			updated, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err
@@ -284,7 +258,6 @@ func (r *RootCmd) scheduleExtend() *serpent.Command {
 	}
 	return extendCmd
 }
-
 func displaySchedule(ws codersdk.Workspace, out io.Writer) error {
 	rows := []workspaceListRow{workspaceListRowFromWorkspace(time.Now(), ws)}
 	rendered, err := cliui.DisplayTable(rows, "workspace", []string{
@@ -296,7 +269,6 @@ func displaySchedule(ws codersdk.Workspace, out io.Writer) error {
 	_, err = fmt.Fprintln(out, rendered)
 	return err
 }
-
 // scheduleListRow is a row in the schedule list.
 // this is required for proper JSON output.
 type scheduleListRow struct {
@@ -306,7 +278,6 @@ type scheduleListRow struct {
 	StopsAfter    string `json:"stops_after" table:"stops after"`
 	StopsNext     string `json:"stops_next" table:"stops next"`
 }
-
 func scheduleListRowFromWorkspace(now time.Time, workspace codersdk.Workspace) scheduleListRow {
 	autostartDisplay := ""
 	nextStartDisplay := ""
@@ -316,7 +287,6 @@ func scheduleListRowFromWorkspace(now time.Time, workspace codersdk.Workspace) s
 			nextStartDisplay = timeDisplay(sched.Next(now))
 		}
 	}
-
 	autostopDisplay := ""
 	nextStopDisplay := ""
 	if !ptr.NilOrZero(workspace.TTLMillis) {

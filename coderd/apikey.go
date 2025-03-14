@@ -1,17 +1,14 @@
 package coderd
-
 import (
+	"errors"
 	"context"
 	"fmt"
 	"net/http"
 	"strconv"
 	"time"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -22,7 +19,6 @@ import (
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/codersdk"
 )
-
 // Creates a new token API key with the given scope and lifetime.
 //
 // @Summary Create token API key
@@ -49,23 +45,18 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 	)
 	aReq.Old = database.APIKey{}
 	defer commitAudit()
-
 	var createToken codersdk.CreateTokenRequest
 	if !httpapi.Read(ctx, rw, r, &createToken) {
 		return
 	}
-
 	scope := database.APIKeyScopeAll
 	if scope != "" {
 		scope = database.APIKeyScope(createToken.Scope)
 	}
-
 	tokenName := namesgenerator.GetRandomName(1)
-
 	if len(createToken.TokenName) != 0 {
 		tokenName = createToken.TokenName
 	}
-
 	params := apikey.CreateParams{
 		UserID:          user.ID,
 		LoginType:       database.LoginTypeToken,
@@ -73,7 +64,6 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 		Scope:           scope,
 		TokenName:       tokenName,
 	}
-
 	if createToken.Lifetime != 0 {
 		err := api.validateAPIKeyLifetime(createToken.Lifetime)
 		if err != nil {
@@ -86,7 +76,6 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 		params.ExpiresAt = dbtime.Now().Add(createToken.Lifetime)
 		params.LifetimeSeconds = int64(createToken.Lifetime.Seconds())
 	}
-
 	cookie, key, err := api.createAPIKey(ctx, params)
 	if err != nil {
 		if database.IsUniqueViolation(err, database.UniqueIndexAPIKeyName) {
@@ -108,7 +97,6 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 	aReq.New = *key
 	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.GenerateAPIKeyResponse{Key: cookie.Value})
 }
-
 // Creates a new session key, used for logging in via the CLI.
 //
 // @Summary Create new session key
@@ -122,7 +110,6 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
-
 	cookie, _, err := api.createAPIKey(ctx, apikey.CreateParams{
 		UserID:          user.ID,
 		DefaultLifetime: api.DeploymentValues.Sessions.DefaultTokenDuration.Value(),
@@ -136,14 +123,12 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	// We intentionally do not set the cookie on the response here.
 	// Setting the cookie will couple the browser session to the API
 	// key we return here, meaning logging out of the website would
 	// invalid your CLI key.
 	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.GenerateAPIKeyResponse{Key: cookie.Value})
 }
-
 // @Summary Get API key by ID
 // @ID get-api-key-by-id
 // @Security CoderSessionToken
@@ -155,7 +140,6 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 // @Router /users/{user}/keys/{keyid} [get]
 func (api *API) apiKeyByID(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
 	keyID := chi.URLParam(r, "keyid")
 	key, err := api.Database.GetAPIKeyByID(ctx, keyID)
 	if httpapi.Is404Error(err) {
@@ -169,10 +153,8 @@ func (api *API) apiKeyByID(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	httpapi.Write(ctx, rw, http.StatusOK, convertAPIKey(key))
 }
-
 // @Summary Get API key by token name
 // @ID get-api-key-by-token-name
 // @Security CoderSessionToken
@@ -188,7 +170,6 @@ func (api *API) apiKeyByName(rw http.ResponseWriter, r *http.Request) {
 		user      = httpmw.UserParam(r)
 		tokenName = chi.URLParam(r, "keyname")
 	)
-
 	token, err := api.Database.GetAPIKeyByName(ctx, database.GetAPIKeyByNameParams{
 		TokenName: tokenName,
 		UserID:    user.ID,
@@ -204,10 +185,8 @@ func (api *API) apiKeyByName(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	httpapi.Write(ctx, rw, http.StatusOK, convertAPIKey(token))
 }
-
 // @Summary Get user tokens
 // @ID get-user-tokens
 // @Security CoderSessionToken
@@ -225,7 +204,6 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 		queryStr      = r.URL.Query().Get("include_all")
 		includeAll, _ = strconv.ParseBool(queryStr)
 	)
-
 	if includeAll {
 		// get tokens for all users
 		keys, err = api.Database.GetAPIKeysByLoginType(ctx, database.LoginTypeToken)
@@ -247,7 +225,6 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-
 	keys, err = AuthorizeFilter(api.HTTPAuth, r, policy.ActionRead, keys)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -256,18 +233,15 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	var userIds []uuid.UUID
 	for _, key := range keys {
 		userIds = append(userIds, key.UserID)
 	}
-
 	users, _ := api.Database.GetUsersByIDs(ctx, userIds)
 	usersByID := map[uuid.UUID]database.User{}
 	for _, user := range users {
 		usersByID[user.ID] = user
 	}
-
 	var apiKeys []codersdk.APIKeyWithOwner
 	for _, key := range keys {
 		if user, exists := usersByID[key.UserID]; exists {
@@ -282,10 +256,8 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 			})
 		}
 	}
-
 	httpapi.Write(ctx, rw, http.StatusOK, apiKeys)
 }
-
 // @Summary Delete API key
 // @ID delete-api-key
 // @Security CoderSessionToken
@@ -312,7 +284,6 @@ func (api *API) deleteAPIKey(rw http.ResponseWriter, r *http.Request) {
 	}
 	aReq.Old = key
 	defer commitAudit()
-
 	err = api.Database.DeleteAPIKeyByID(ctx, keyID)
 	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
@@ -325,10 +296,8 @@ func (api *API) deleteAPIKey(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	rw.WriteHeader(http.StatusNoContent)
 }
-
 // @Summary Get token config
 // @ID get-token-config
 // @Security CoderSessionToken
@@ -343,7 +312,6 @@ func (api *API) tokenConfig(rw http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-
 	httpapi.Write(
 		r.Context(), rw, http.StatusOK,
 		codersdk.TokenConfig{
@@ -351,37 +319,30 @@ func (api *API) tokenConfig(rw http.ResponseWriter, r *http.Request) {
 		},
 	)
 }
-
 func (api *API) validateAPIKeyLifetime(lifetime time.Duration) error {
 	if lifetime <= 0 {
-		return xerrors.New("lifetime must be positive number greater than 0")
+		return errors.New("lifetime must be positive number greater than 0")
 	}
-
 	if lifetime > api.DeploymentValues.Sessions.MaximumTokenDuration.Value() {
-		return xerrors.Errorf(
+		return fmt.Errorf(
 			"lifetime must be less than %v",
 			api.DeploymentValues.Sessions.MaximumTokenDuration,
 		)
 	}
-
 	return nil
 }
-
 func (api *API) createAPIKey(ctx context.Context, params apikey.CreateParams) (*http.Cookie, *database.APIKey, error) {
 	key, sessionToken, err := apikey.Generate(params)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("generate API key: %w", err)
+		return nil, nil, fmt.Errorf("generate API key: %w", err)
 	}
-
 	newkey, err := api.Database.InsertAPIKey(ctx, key)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("insert API key: %w", err)
+		return nil, nil, fmt.Errorf("insert API key: %w", err)
 	}
-
 	api.Telemetry.Report(&telemetry.Snapshot{
 		APIKeys: []telemetry.APIKey{telemetry.ConvertAPIKey(newkey)},
 	})
-
 	return &http.Cookie{
 		Name:     codersdk.SessionTokenCookie,
 		Value:    sessionToken,

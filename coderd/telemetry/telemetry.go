@@ -1,5 +1,4 @@
 package telemetry
-
 import (
 	"bytes"
 	"context"
@@ -19,14 +18,11 @@ import (
 	"strings"
 	"sync"
 	"time"
-
 	"github.com/elastic/go-sysinfo"
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
-	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
-
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/buildinfo"
 	clitelemetry "github.com/coder/coder/v2/cli/telemetry"
@@ -35,29 +31,24 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 )
-
 const (
 	// VersionHeader is sent in every telemetry request to
 	// report the semantic version of Coder.
 	VersionHeader = "X-Coder-Version"
 )
-
 type Options struct {
 	Disabled bool
 	Database database.Store
 	Logger   slog.Logger
 	// URL is an endpoint to direct telemetry towards!
 	URL *url.URL
-
 	DeploymentID     string
 	DeploymentConfig *codersdk.DeploymentValues
 	BuiltinPostgres  bool
 	Tunnel           bool
-
 	SnapshotFrequency time.Duration
 	ParseLicenseJWT   func(lic *License) error
 }
-
 // New constructs a reporter for telemetry data.
 // Duplicate data will be sent, it's on the server-side to index by UUID.
 // Data is anonymized prior to being sent!
@@ -68,13 +59,12 @@ func New(options Options) (Reporter, error) {
 	}
 	snapshotURL, err := options.URL.Parse("/snapshot")
 	if err != nil {
-		return nil, xerrors.Errorf("parse snapshot url: %w", err)
+		return nil, fmt.Errorf("parse snapshot url: %w", err)
 	}
 	deploymentURL, err := options.URL.Parse("/deployment")
 	if err != nil {
-		return nil, xerrors.Errorf("parse deployment url: %w", err)
+		return nil, fmt.Errorf("parse deployment url: %w", err)
 	}
-
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	reporter := &remoteReporter{
 		ctx:           ctx,
@@ -88,12 +78,10 @@ func New(options Options) (Reporter, error) {
 	go reporter.runSnapshotter()
 	return reporter, nil
 }
-
 // NewNoop creates a new telemetry reporter that entirely discards all requests.
 func NewNoop() Reporter {
 	return &noopReporter{}
 }
-
 // Reporter sends data to the telemetry server.
 type Reporter interface {
 	// Report sends a snapshot to the telemetry server.
@@ -104,28 +92,23 @@ type Reporter interface {
 	Enabled() bool
 	Close()
 }
-
 type remoteReporter struct {
 	ctx        context.Context
 	closed     chan struct{}
 	closeMutex sync.Mutex
 	closeFunc  context.CancelFunc
-
 	options Options
 	deploymentURL,
 	snapshotURL *url.URL
 	startedAt  time.Time
 	shutdownAt *time.Time
 }
-
 func (r *remoteReporter) Enabled() bool {
 	return !r.options.Disabled
 }
-
 func (r *remoteReporter) Report(snapshot *Snapshot) {
 	go r.reportSync(snapshot)
 }
-
 func (r *remoteReporter) reportSync(snapshot *Snapshot) {
 	snapshot.DeploymentID = r.options.DeploymentID
 	data, err := json.Marshal(snapshot)
@@ -153,7 +136,6 @@ func (r *remoteReporter) reportSync(snapshot *Snapshot) {
 	}
 	r.options.Logger.Debug(r.ctx, "submitted snapshot")
 }
-
 func (r *remoteReporter) Close() {
 	r.closeMutex.Lock()
 	defer r.closeMutex.Unlock()
@@ -171,7 +153,6 @@ func (r *remoteReporter) Close() {
 	}
 	r.closeFunc()
 }
-
 func (r *remoteReporter) isClosed() bool {
 	select {
 	case <-r.closed:
@@ -180,12 +161,10 @@ func (r *remoteReporter) isClosed() bool {
 		return false
 	}
 }
-
 // See the corresponding test in telemetry_test.go for a truth table.
 func ShouldReportTelemetryDisabled(recordedTelemetryEnabled *bool, telemetryEnabled bool) bool {
 	return recordedTelemetryEnabled != nil && *recordedTelemetryEnabled && !telemetryEnabled
 }
-
 // RecordTelemetryStatus records the telemetry status in the database.
 // If the status changed from enabled to disabled, returns a snapshot to
 // be sent to the telemetry server.
@@ -197,7 +176,7 @@ func RecordTelemetryStatus( //nolint:revive
 ) (*Snapshot, error) {
 	item, err := db.GetTelemetryItem(ctx, string(TelemetryItemKeyTelemetryEnabled))
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return nil, xerrors.Errorf("get telemetry enabled: %w", err)
+		return nil, fmt.Errorf("get telemetry enabled: %w", err)
 	}
 	var recordedTelemetryEnabled *bool
 	if !errors.Is(err, sql.ErrNoRows) {
@@ -210,14 +189,12 @@ func RecordTelemetryStatus( //nolint:revive
 		// in the database.
 		recordedTelemetryEnabled = &value
 	}
-
 	if err := db.UpsertTelemetryItem(ctx, database.UpsertTelemetryItemParams{
 		Key:   string(TelemetryItemKeyTelemetryEnabled),
 		Value: strconv.FormatBool(telemetryEnabled),
 	}); err != nil {
-		return nil, xerrors.Errorf("upsert telemetry enabled: %w", err)
+		return nil, fmt.Errorf("upsert telemetry enabled: %w", err)
 	}
-
 	shouldReport := ShouldReportTelemetryDisabled(recordedTelemetryEnabled, telemetryEnabled)
 	if !shouldReport {
 		return nil, nil //nolint:nilnil
@@ -227,7 +204,7 @@ func RecordTelemetryStatus( //nolint:revive
 	// once, and never again. If that attempt fails, so be it.
 	item, err = db.GetTelemetryItem(ctx, string(TelemetryItemKeyTelemetryEnabled))
 	if err != nil {
-		return nil, xerrors.Errorf("get telemetry enabled after upsert: %w", err)
+		return nil, fmt.Errorf("get telemetry enabled after upsert: %w", err)
 	}
 	return &Snapshot{
 		TelemetryItems: []TelemetryItem{
@@ -235,7 +212,6 @@ func RecordTelemetryStatus( //nolint:revive
 		},
 	}, nil
 }
-
 func (r *remoteReporter) runSnapshotter() {
 	telemetryDisabledSnapshot, err := RecordTelemetryStatus(r.ctx, r.options.Logger, r.options.Database, r.Enabled())
 	if err != nil {
@@ -248,7 +224,6 @@ func (r *remoteReporter) runSnapshotter() {
 	if !r.Enabled() {
 		return
 	}
-
 	first := true
 	ticker := time.NewTicker(r.options.SnapshotFrequency)
 	defer ticker.Stop()
@@ -271,7 +246,6 @@ func (r *remoteReporter) runSnapshotter() {
 		r.closeMutex.Unlock()
 	}
 }
-
 func (r *remoteReporter) reportWithDeployment() {
 	// Submit deployment information before creating a snapshot!
 	// This is separated from the snapshot API call to reduce
@@ -292,35 +266,30 @@ func (r *remoteReporter) reportWithDeployment() {
 	}
 	r.reportSync(snapshot)
 }
-
 // deployment collects host information and reports it to the telemetry server.
 func (r *remoteReporter) deployment() error {
 	sysInfoHost, err := sysinfo.Host()
 	if err != nil {
-		return xerrors.Errorf("get host info: %w", err)
+		return fmt.Errorf("get host info: %w", err)
 	}
 	mem, err := sysInfoHost.Memory()
 	if err != nil {
-		return xerrors.Errorf("get memory info: %w", err)
+		return fmt.Errorf("get memory info: %w", err)
 	}
 	sysInfo := sysInfoHost.Info()
-
 	containerized := false
 	if sysInfo.Containerized != nil {
 		containerized = *sysInfo.Containerized
 	}
-
 	// Tracks where Coder was installed from!
 	installSource := os.Getenv("CODER_TELEMETRY_INSTALL_SOURCE")
 	if len(installSource) > 64 {
-		return xerrors.Errorf("install source must be <=64 chars: %s", installSource)
+		return fmt.Errorf("install source must be <=64 chars: %s", installSource)
 	}
-
 	idpOrgSync, err := checkIDPOrgSync(r.ctx, r.options.Database, r.options.DeploymentConfig)
 	if err != nil {
 		r.options.Logger.Debug(r.ctx, "check IDP org sync", slog.Error(err))
 	}
-
 	data, err := json.Marshal(&Deployment{
 		ID:              r.options.DeploymentID,
 		Architecture:    sysInfo.Architecture,
@@ -343,31 +312,29 @@ func (r *remoteReporter) deployment() error {
 		IDPOrgSync:      &idpOrgSync,
 	})
 	if err != nil {
-		return xerrors.Errorf("marshal deployment: %w", err)
+		return fmt.Errorf("marshal deployment: %w", err)
 	}
 	req, err := http.NewRequestWithContext(r.ctx, "POST", r.deploymentURL.String(), bytes.NewReader(data))
 	if err != nil {
-		return xerrors.Errorf("create deployment request: %w", err)
+		return fmt.Errorf("create deployment request: %w", err)
 	}
 	req.Header.Set(VersionHeader, buildinfo.Version())
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return xerrors.Errorf("perform request: %w", err)
+		return fmt.Errorf("perform request: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusAccepted {
-		return xerrors.Errorf("update deployment: %w", err)
+		return fmt.Errorf("update deployment: %w", err)
 	}
 	r.options.Logger.Debug(r.ctx, "submitted deployment info")
 	return nil
 }
-
 // idpOrgSyncConfig is a subset of
 // https://github.com/coder/coder/blob/5c6578d84e2940b9cfd04798c45e7c8042c3fe0e/coderd/idpsync/organization.go#L148
 type idpOrgSyncConfig struct {
 	Field string `json:"field"`
 }
-
 // checkIDPOrgSync inspects the server flags and the runtime config. It's based on
 // the OrganizationSyncEnabled function from enterprise/coderd/enidpsync/organizations.go.
 // It has one distinct difference: it doesn't check if the license entitles to the
@@ -392,15 +359,14 @@ func checkIDPOrgSync(ctx context.Context, db database.Store, values *codersdk.De
 			// has the organization field set.
 			return values != nil && values.OIDC.OrganizationField != "", nil
 		}
-		return false, xerrors.Errorf("get runtime config: %w", err)
+		return false, fmt.Errorf("get runtime config: %w", err)
 	}
 	syncConfig := idpOrgSyncConfig{}
 	if err := json.Unmarshal([]byte(syncConfigRaw), &syncConfig); err != nil {
-		return false, xerrors.Errorf("unmarshal runtime config: %w", err)
+		return false, fmt.Errorf("unmarshal runtime config: %w", err)
 	}
 	return syncConfig.Field != "", nil
 }
-
 // createSnapshot collects a full snapshot from the database.
 func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	var (
@@ -413,11 +379,10 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 			DeploymentID: r.options.DeploymentID,
 		}
 	)
-
 	eg.Go(func() error {
 		apiKeys, err := r.options.Database.GetAPIKeysLastUsedAfter(ctx, createdAfter)
 		if err != nil {
-			return xerrors.Errorf("get api keys last used: %w", err)
+			return fmt.Errorf("get api keys last used: %w", err)
 		}
 		snapshot.APIKeys = make([]APIKey, 0, len(apiKeys))
 		for _, apiKey := range apiKeys {
@@ -428,7 +393,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	eg.Go(func() error {
 		jobs, err := r.options.Database.GetProvisionerJobsCreatedAfter(ctx, createdAfter)
 		if err != nil {
-			return xerrors.Errorf("get provisioner jobs: %w", err)
+			return fmt.Errorf("get provisioner jobs: %w", err)
 		}
 		snapshot.ProvisionerJobs = make([]ProvisionerJob, 0, len(jobs))
 		for _, job := range jobs {
@@ -439,7 +404,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	eg.Go(func() error {
 		templates, err := r.options.Database.GetTemplates(ctx)
 		if err != nil {
-			return xerrors.Errorf("get templates: %w", err)
+			return fmt.Errorf("get templates: %w", err)
 		}
 		snapshot.Templates = make([]Template, 0, len(templates))
 		for _, dbTemplate := range templates {
@@ -450,7 +415,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	eg.Go(func() error {
 		templateVersions, err := r.options.Database.GetTemplateVersionsCreatedAfter(ctx, createdAfter)
 		if err != nil {
-			return xerrors.Errorf("get template versions: %w", err)
+			return fmt.Errorf("get template versions: %w", err)
 		}
 		snapshot.TemplateVersions = make([]TemplateVersion, 0, len(templateVersions))
 		for _, version := range templateVersions {
@@ -461,7 +426,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	eg.Go(func() error {
 		userRows, err := r.options.Database.GetUsers(ctx, database.GetUsersParams{})
 		if err != nil {
-			return xerrors.Errorf("get users: %w", err)
+			return fmt.Errorf("get users: %w", err)
 		}
 		users := database.ConvertUserRows(userRows)
 		var firstUser database.User
@@ -488,7 +453,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	eg.Go(func() error {
 		groups, err := r.options.Database.GetGroups(ctx, database.GetGroupsParams{})
 		if err != nil {
-			return xerrors.Errorf("get groups: %w", err)
+			return fmt.Errorf("get groups: %w", err)
 		}
 		snapshot.Groups = make([]Group, 0, len(groups))
 		for _, group := range groups {
@@ -499,7 +464,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	eg.Go(func() error {
 		groupMembers, err := r.options.Database.GetGroupMembers(ctx)
 		if err != nil {
-			return xerrors.Errorf("get groups: %w", err)
+			return fmt.Errorf("get groups: %w", err)
 		}
 		snapshot.GroupMembers = make([]GroupMember, 0, len(groupMembers))
 		for _, member := range groupMembers {
@@ -510,7 +475,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	eg.Go(func() error {
 		workspaceRows, err := r.options.Database.GetWorkspaces(ctx, database.GetWorkspacesParams{})
 		if err != nil {
-			return xerrors.Errorf("get workspaces: %w", err)
+			return fmt.Errorf("get workspaces: %w", err)
 		}
 		workspaces := database.ConvertWorkspaceRows(workspaceRows)
 		snapshot.Workspaces = make([]Workspace, 0, len(workspaces))
@@ -522,7 +487,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	eg.Go(func() error {
 		workspaceApps, err := r.options.Database.GetWorkspaceAppsCreatedAfter(ctx, createdAfter)
 		if err != nil {
-			return xerrors.Errorf("get workspace apps: %w", err)
+			return fmt.Errorf("get workspace apps: %w", err)
 		}
 		snapshot.WorkspaceApps = make([]WorkspaceApp, 0, len(workspaceApps))
 		for _, app := range workspaceApps {
@@ -533,7 +498,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	eg.Go(func() error {
 		workspaceAgents, err := r.options.Database.GetWorkspaceAgentsCreatedAfter(ctx, createdAfter)
 		if err != nil {
-			return xerrors.Errorf("get workspace agents: %w", err)
+			return fmt.Errorf("get workspace agents: %w", err)
 		}
 		snapshot.WorkspaceAgents = make([]WorkspaceAgent, 0, len(workspaceAgents))
 		for _, agent := range workspaceAgents {
@@ -544,7 +509,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	eg.Go(func() error {
 		workspaceBuilds, err := r.options.Database.GetWorkspaceBuildsCreatedAfter(ctx, createdAfter)
 		if err != nil {
-			return xerrors.Errorf("get workspace builds: %w", err)
+			return fmt.Errorf("get workspace builds: %w", err)
 		}
 		snapshot.WorkspaceBuilds = make([]WorkspaceBuild, 0, len(workspaceBuilds))
 		for _, build := range workspaceBuilds {
@@ -555,7 +520,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	eg.Go(func() error {
 		workspaceResources, err := r.options.Database.GetWorkspaceResourcesCreatedAfter(ctx, createdAfter)
 		if err != nil {
-			return xerrors.Errorf("get workspace resources: %w", err)
+			return fmt.Errorf("get workspace resources: %w", err)
 		}
 		snapshot.WorkspaceResources = make([]WorkspaceResource, 0, len(workspaceResources))
 		for _, resource := range workspaceResources {
@@ -566,7 +531,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	eg.Go(func() error {
 		workspaceMetadata, err := r.options.Database.GetWorkspaceResourceMetadataCreatedAfter(ctx, createdAfter)
 		if err != nil {
-			return xerrors.Errorf("get workspace resource metadata: %w", err)
+			return fmt.Errorf("get workspace resource metadata: %w", err)
 		}
 		snapshot.WorkspaceResourceMetadata = make([]WorkspaceResourceMetadata, 0, len(workspaceMetadata))
 		for _, metadata := range workspaceMetadata {
@@ -577,7 +542,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	eg.Go(func() error {
 		workspaceModules, err := r.options.Database.GetWorkspaceModulesCreatedAfter(ctx, createdAfter)
 		if err != nil {
-			return xerrors.Errorf("get workspace modules: %w", err)
+			return fmt.Errorf("get workspace modules: %w", err)
 		}
 		snapshot.WorkspaceModules = make([]WorkspaceModule, 0, len(workspaceModules))
 		for _, module := range workspaceModules {
@@ -588,7 +553,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	eg.Go(func() error {
 		licenses, err := r.options.Database.GetUnexpiredLicenses(ctx)
 		if err != nil {
-			return xerrors.Errorf("get licenses: %w", err)
+			return fmt.Errorf("get licenses: %w", err)
 		}
 		snapshot.Licenses = make([]License, 0, len(licenses))
 		for _, license := range licenses {
@@ -606,7 +571,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		if r.options.DeploymentConfig != nil && slices.Contains(r.options.DeploymentConfig.Experiments, string(codersdk.ExperimentWorkspaceUsage)) {
 			agentStats, err := r.options.Database.GetWorkspaceAgentUsageStats(ctx, createdAfter)
 			if err != nil {
-				return xerrors.Errorf("get workspace agent stats: %w", err)
+				return fmt.Errorf("get workspace agent stats: %w", err)
 			}
 			snapshot.WorkspaceAgentStats = make([]WorkspaceAgentStat, 0, len(agentStats))
 			for _, stat := range agentStats {
@@ -615,7 +580,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		} else {
 			agentStats, err := r.options.Database.GetWorkspaceAgentStats(ctx, createdAfter)
 			if err != nil {
-				return xerrors.Errorf("get workspace agent stats: %w", err)
+				return fmt.Errorf("get workspace agent stats: %w", err)
 			}
 			snapshot.WorkspaceAgentStats = make([]WorkspaceAgentStat, 0, len(agentStats))
 			for _, stat := range agentStats {
@@ -627,7 +592,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	eg.Go(func() error {
 		memoryMonitors, err := r.options.Database.FetchMemoryResourceMonitorsUpdatedAfter(ctx, createdAfter)
 		if err != nil {
-			return xerrors.Errorf("get memory resource monitors: %w", err)
+			return fmt.Errorf("get memory resource monitors: %w", err)
 		}
 		snapshot.WorkspaceAgentMemoryResourceMonitors = make([]WorkspaceAgentMemoryResourceMonitor, 0, len(memoryMonitors))
 		for _, monitor := range memoryMonitors {
@@ -638,7 +603,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	eg.Go(func() error {
 		volumeMonitors, err := r.options.Database.FetchVolumesResourceMonitorsUpdatedAfter(ctx, createdAfter)
 		if err != nil {
-			return xerrors.Errorf("get volume resource monitors: %w", err)
+			return fmt.Errorf("get volume resource monitors: %w", err)
 		}
 		snapshot.WorkspaceAgentVolumeResourceMonitors = make([]WorkspaceAgentVolumeResourceMonitor, 0, len(volumeMonitors))
 		for _, monitor := range volumeMonitors {
@@ -649,7 +614,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	eg.Go(func() error {
 		proxies, err := r.options.Database.GetWorkspaceProxies(ctx)
 		if err != nil {
-			return xerrors.Errorf("get workspace proxies: %w", err)
+			return fmt.Errorf("get workspace proxies: %w", err)
 		}
 		snapshot.WorkspaceProxies = make([]WorkspaceProxy, 0, len(proxies))
 		for _, proxy := range proxies {
@@ -664,7 +629,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		// interpreting the telemetry data later.
 		orgs, err := r.options.Database.GetOrganizations(r.ctx, database.GetOrganizationsParams{})
 		if err != nil {
-			return xerrors.Errorf("get organizations: %w", err)
+			return fmt.Errorf("get organizations: %w", err)
 		}
 		snapshot.Organizations = make([]Organization, 0, len(orgs))
 		for _, org := range orgs {
@@ -675,7 +640,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	eg.Go(func() error {
 		items, err := r.options.Database.GetTelemetryItems(ctx)
 		if err != nil {
-			return xerrors.Errorf("get telemetry items: %w", err)
+			return fmt.Errorf("get telemetry items: %w", err)
 		}
 		snapshot.TelemetryItems = make([]TelemetryItem, 0, len(items))
 		for _, item := range items {
@@ -683,14 +648,12 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		}
 		return nil
 	})
-
 	err := eg.Wait()
 	if err != nil {
 		return nil, err
 	}
 	return snapshot, nil
 }
-
 // ConvertAPIKey anonymizes an API key.
 func ConvertAPIKey(apiKey database.APIKey) APIKey {
 	a := APIKey{
@@ -705,7 +668,6 @@ func ConvertAPIKey(apiKey database.APIKey) APIKey {
 	}
 	return a
 }
-
 // ConvertWorkspace anonymizes a workspace.
 func ConvertWorkspace(workspace database.Workspace) Workspace {
 	return Workspace{
@@ -720,7 +682,6 @@ func ConvertWorkspace(workspace database.Workspace) Workspace {
 		AutomaticUpdates:  string(workspace.AutomaticUpdates),
 	}
 }
-
 // ConvertWorkspaceBuild anonymizes a workspace build.
 func ConvertWorkspaceBuild(build database.WorkspaceBuild) WorkspaceBuild {
 	return WorkspaceBuild{
@@ -732,7 +693,6 @@ func ConvertWorkspaceBuild(build database.WorkspaceBuild) WorkspaceBuild {
 		BuildNumber:       uint32(build.BuildNumber),
 	}
 }
-
 // ConvertProvisionerJob anonymizes a provisioner job.
 func ConvertProvisionerJob(job database.ProvisionerJob) ProvisionerJob {
 	snapJob := ProvisionerJob{
@@ -755,14 +715,12 @@ func ConvertProvisionerJob(job database.ProvisionerJob) ProvisionerJob {
 	}
 	return snapJob
 }
-
 // ConvertWorkspaceAgent anonymizes a workspace agent.
 func ConvertWorkspaceAgent(agent database.WorkspaceAgent) WorkspaceAgent {
 	subsystems := []string{}
 	for _, subsystem := range agent.Subsystems {
 		subsystems = append(subsystems, string(subsystem))
 	}
-
 	snapAgent := WorkspaceAgent{
 		ID:                       agent.ID,
 		CreatedAt:                agent.CreatedAt,
@@ -786,7 +744,6 @@ func ConvertWorkspaceAgent(agent database.WorkspaceAgent) WorkspaceAgent {
 	}
 	return snapAgent
 }
-
 func ConvertWorkspaceAgentMemoryResourceMonitor(monitor database.WorkspaceAgentMemoryResourceMonitor) WorkspaceAgentMemoryResourceMonitor {
 	return WorkspaceAgentMemoryResourceMonitor{
 		AgentID:   monitor.AgentID,
@@ -796,7 +753,6 @@ func ConvertWorkspaceAgentMemoryResourceMonitor(monitor database.WorkspaceAgentM
 		UpdatedAt: monitor.UpdatedAt,
 	}
 }
-
 func ConvertWorkspaceAgentVolumeResourceMonitor(monitor database.WorkspaceAgentVolumeResourceMonitor) WorkspaceAgentVolumeResourceMonitor {
 	return WorkspaceAgentVolumeResourceMonitor{
 		AgentID:   monitor.AgentID,
@@ -806,7 +762,6 @@ func ConvertWorkspaceAgentVolumeResourceMonitor(monitor database.WorkspaceAgentV
 		UpdatedAt: monitor.UpdatedAt,
 	}
 }
-
 // ConvertWorkspaceAgentStat anonymizes a workspace agent stat.
 func ConvertWorkspaceAgentStat(stat database.GetWorkspaceAgentStatsRow) WorkspaceAgentStat {
 	return WorkspaceAgentStat{
@@ -825,7 +780,6 @@ func ConvertWorkspaceAgentStat(stat database.GetWorkspaceAgentStatsRow) Workspac
 		SessionCountSSH:             stat.SessionCountSSH,
 	}
 }
-
 // ConvertWorkspaceApp anonymizes a workspace app.
 func ConvertWorkspaceApp(app database.WorkspaceApp) WorkspaceApp {
 	return WorkspaceApp{
@@ -836,7 +790,6 @@ func ConvertWorkspaceApp(app database.WorkspaceApp) WorkspaceApp {
 		Subdomain: app.Subdomain,
 	}
 }
-
 // ConvertWorkspaceResource anonymizes a workspace resource.
 func ConvertWorkspaceResource(resource database.WorkspaceResource) WorkspaceResource {
 	r := WorkspaceResource{
@@ -852,7 +805,6 @@ func ConvertWorkspaceResource(resource database.WorkspaceResource) WorkspaceReso
 	}
 	return r
 }
-
 // ConvertWorkspaceResourceMetadata anonymizes workspace metadata.
 func ConvertWorkspaceResourceMetadata(metadata database.WorkspaceResourceMetadatum) WorkspaceResourceMetadata {
 	return WorkspaceResourceMetadata{
@@ -861,15 +813,12 @@ func ConvertWorkspaceResourceMetadata(metadata database.WorkspaceResourceMetadat
 		Sensitive:  metadata.Sensitive,
 	}
 }
-
 func shouldSendRawModuleSource(source string) bool {
 	return strings.Contains(source, "registry.coder.com")
 }
-
 // ModuleSourceType is the type of source for a module.
 // For reference, see https://developer.hashicorp.com/terraform/language/modules/sources
 type ModuleSourceType string
-
 const (
 	ModuleSourceTypeLocal           ModuleSourceType = "local"
 	ModuleSourceTypeLocalAbs        ModuleSourceType = "local_absolute"
@@ -885,7 +834,6 @@ const (
 	ModuleSourceTypeGCS             ModuleSourceType = "gcs"
 	ModuleSourceTypeUnknown         ModuleSourceType = "unknown"
 )
-
 // Terraform supports a variety of module source types, like:
 //   - local paths (./ or ../)
 //   - absolute local paths (/)
@@ -950,7 +898,6 @@ func GetModuleSourceType(source string) ModuleSourceType {
 	}
 	return ModuleSourceTypeUnknown
 }
-
 func ConvertWorkspaceModule(module database.WorkspaceModule) WorkspaceModule {
 	source := module.Source
 	version := module.Version
@@ -959,7 +906,6 @@ func ConvertWorkspaceModule(module database.WorkspaceModule) WorkspaceModule {
 		source = fmt.Sprintf("%x", sha256.Sum256([]byte(source)))
 		version = fmt.Sprintf("%x", sha256.Sum256([]byte(version)))
 	}
-
 	return WorkspaceModule{
 		ID:         module.ID,
 		JobID:      module.JobID,
@@ -971,7 +917,6 @@ func ConvertWorkspaceModule(module database.WorkspaceModule) WorkspaceModule {
 		CreatedAt:  module.CreatedAt,
 	}
 }
-
 // ConvertUser anonymizes a user.
 func ConvertUser(dbUser database.User) User {
 	emailHashed := ""
@@ -992,7 +937,6 @@ func ConvertUser(dbUser database.User) User {
 		LoginType:       string(dbUser.LoginType),
 	}
 }
-
 func ConvertGroup(group database.Group) Group {
 	return Group{
 		ID:             group.ID,
@@ -1004,14 +948,12 @@ func ConvertGroup(group database.Group) Group {
 		Source:         group.Source,
 	}
 }
-
 func ConvertGroupMember(member database.GroupMember) GroupMember {
 	return GroupMember{
 		GroupID: member.GroupID,
 		UserID:  member.UserID,
 	}
 }
-
 // ConvertTemplate anonymizes a template.
 func ConvertTemplate(dbTemplate database.Template) Template {
 	return Template{
@@ -1024,7 +966,6 @@ func ConvertTemplate(dbTemplate database.Template) Template {
 		ActiveVersionID: dbTemplate.ActiveVersionID,
 		Name:            dbTemplate.Name,
 		Description:     dbTemplate.Description != "",
-
 		// Some of these fields are meant to be accessed using a specialized
 		// interface (for entitlement purposes), but for telemetry purposes
 		// there's minimal harm accessing them directly.
@@ -1042,7 +983,6 @@ func ConvertTemplate(dbTemplate database.Template) Template {
 		Deprecated:                     dbTemplate.Deprecated != "",
 	}
 }
-
 // ConvertTemplateVersion anonymizes a template version.
 func ConvertTemplateVersion(version database.TemplateVersion) TemplateVersion {
 	snapVersion := TemplateVersion{
@@ -1059,7 +999,6 @@ func ConvertTemplateVersion(version database.TemplateVersion) TemplateVersion {
 	}
 	return snapVersion
 }
-
 func ConvertLicense(license database.License) License {
 	// License is intentionally not anonymized because it's
 	// deployment-wide, and we already have an index of all issued
@@ -1071,7 +1010,6 @@ func ConvertLicense(license database.License) License {
 		UUID:       license.UUID,
 	}
 }
-
 // ConvertWorkspaceProxy anonymizes a workspace proxy.
 func ConvertWorkspaceProxy(proxy database.WorkspaceProxy) WorkspaceProxy {
 	return WorkspaceProxy{
@@ -1084,7 +1022,6 @@ func ConvertWorkspaceProxy(proxy database.WorkspaceProxy) WorkspaceProxy {
 		UpdatedAt:   proxy.UpdatedAt,
 	}
 }
-
 func ConvertExternalProvisioner(id uuid.UUID, tags map[string]string, provisioners []database.ProvisionerType) ExternalProvisioner {
 	tagsCopy := make(map[string]string, len(tags))
 	for k, v := range tags {
@@ -1101,7 +1038,6 @@ func ConvertExternalProvisioner(id uuid.UUID, tags map[string]string, provisione
 		StartedAt:    time.Now(),
 	}
 }
-
 func ConvertOrganization(org database.Organization) Organization {
 	return Organization{
 		ID:        org.ID,
@@ -1109,7 +1045,6 @@ func ConvertOrganization(org database.Organization) Organization {
 		IsDefault: org.IsDefault,
 	}
 }
-
 func ConvertTelemetryItem(item database.TelemetryItem) TelemetryItem {
 	return TelemetryItem{
 		Key:       item.Key,
@@ -1118,13 +1053,11 @@ func ConvertTelemetryItem(item database.TelemetryItem) TelemetryItem {
 		UpdatedAt: item.UpdatedAt,
 	}
 }
-
 // Snapshot represents a point-in-time anonymized database dump.
 // Data is aggregated by latest on the server-side, so partial data
 // can be sent without issue.
 type Snapshot struct {
 	DeploymentID string `json:"deployment_id"`
-
 	APIKeys                              []APIKey                              `json:"api_keys"`
 	CLIInvocations                       []clitelemetry.Invocation             `json:"cli_invocations"`
 	ExternalProvisioners                 []ExternalProvisioner                 `json:"external_provisioners"`
@@ -1150,7 +1083,6 @@ type Snapshot struct {
 	Organizations                        []Organization                        `json:"organizations"`
 	TelemetryItems                       []TelemetryItem                       `json:"telemetry_items"`
 }
-
 // Deployment contains information about the host running Coder.
 type Deployment struct {
 	ID              string                     `json:"id"`
@@ -1175,7 +1107,6 @@ type Deployment struct {
 	// the struct backwards compatible with older coder versions.
 	IDPOrgSync *bool `json:"idp_org_sync"`
 }
-
 type APIKey struct {
 	ID        string             `json:"id"`
 	UserID    uuid.UUID          `json:"user_id"`
@@ -1184,7 +1115,6 @@ type APIKey struct {
 	LoginType database.LoginType `json:"login_type"`
 	IPAddress net.IP             `json:"ip_address"`
 }
-
 type User struct {
 	ID        uuid.UUID `json:"id"`
 	CreatedAt time.Time `json:"created_at"`
@@ -1197,7 +1127,6 @@ type User struct {
 	// Omitempty for backwards compatibility.
 	LoginType string `json:"login_type,omitempty"`
 }
-
 type Group struct {
 	ID             uuid.UUID            `json:"id"`
 	Name           string               `json:"name"`
@@ -1207,12 +1136,10 @@ type Group struct {
 	DisplayName    string               `json:"display_name"`
 	Source         database.GroupSource `json:"source"`
 }
-
 type GroupMember struct {
 	UserID  uuid.UUID `json:"user_id"`
 	GroupID uuid.UUID `json:"group_id"`
 }
-
 type WorkspaceResource struct {
 	ID           uuid.UUID                    `json:"id"`
 	CreatedAt    time.Time                    `json:"created_at"`
@@ -1226,13 +1153,11 @@ type WorkspaceResource struct {
 	// in the database will not.
 	ModulePath *string `json:"module_path"`
 }
-
 type WorkspaceResourceMetadata struct {
 	ResourceID uuid.UUID `json:"resource_id"`
 	Key        string    `json:"key"`
 	Sensitive  bool      `json:"sensitive"`
 }
-
 type WorkspaceModule struct {
 	ID         uuid.UUID                    `json:"id"`
 	CreatedAt  time.Time                    `json:"created_at"`
@@ -1243,7 +1168,6 @@ type WorkspaceModule struct {
 	Source     string                       `json:"source"`
 	SourceType ModuleSourceType             `json:"source_type"`
 }
-
 type WorkspaceAgent struct {
 	ID                       uuid.UUID  `json:"id"`
 	CreatedAt                time.Time  `json:"created_at"`
@@ -1259,7 +1183,6 @@ type WorkspaceAgent struct {
 	ConnectionTimeoutSeconds int32      `json:"connection_timeout_seconds"`
 	Subsystems               []string   `json:"subsystems"`
 }
-
 type WorkspaceAgentStat struct {
 	UserID                      uuid.UUID `json:"user_id"`
 	TemplateID                  uuid.UUID `json:"template_id"`
@@ -1275,7 +1198,6 @@ type WorkspaceAgentStat struct {
 	SessionCountReconnectingPTY int64     `json:"session_count_reconnecting_pty"`
 	SessionCountSSH             int64     `json:"session_count_ssh"`
 }
-
 type WorkspaceAgentMemoryResourceMonitor struct {
 	AgentID   uuid.UUID `json:"agent_id"`
 	Enabled   bool      `json:"enabled"`
@@ -1283,7 +1205,6 @@ type WorkspaceAgentMemoryResourceMonitor struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
-
 type WorkspaceAgentVolumeResourceMonitor struct {
 	AgentID   uuid.UUID `json:"agent_id"`
 	Enabled   bool      `json:"enabled"`
@@ -1291,7 +1212,6 @@ type WorkspaceAgentVolumeResourceMonitor struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
-
 type WorkspaceApp struct {
 	ID        uuid.UUID `json:"id"`
 	CreatedAt time.Time `json:"created_at"`
@@ -1299,7 +1219,6 @@ type WorkspaceApp struct {
 	Icon      string    `json:"icon"`
 	Subdomain bool      `json:"subdomain"`
 }
-
 type WorkspaceBuild struct {
 	ID                uuid.UUID `json:"id"`
 	CreatedAt         time.Time `json:"created_at"`
@@ -1308,7 +1227,6 @@ type WorkspaceBuild struct {
 	JobID             uuid.UUID `json:"job_id"`
 	BuildNumber       uint32    `json:"build_number"`
 }
-
 type Workspace struct {
 	ID                uuid.UUID `json:"id"`
 	OrganizationID    uuid.UUID `json:"organization_id"`
@@ -1320,7 +1238,6 @@ type Workspace struct {
 	AutostartSchedule string    `json:"autostart_schedule"`
 	AutomaticUpdates  string    `json:"automatic_updates"`
 }
-
 type Template struct {
 	ID              uuid.UUID `json:"id"`
 	CreatedBy       uuid.UUID `json:"created_by"`
@@ -1331,7 +1248,6 @@ type Template struct {
 	ActiveVersionID uuid.UUID `json:"active_version_id"`
 	Name            string    `json:"name"`
 	Description     bool      `json:"description"`
-
 	DefaultTTLMillis               int64    `json:"default_ttl_ms"`
 	AllowUserCancelWorkspaceJobs   bool     `json:"allow_user_cancel_workspace_jobs"`
 	AllowUserAutostart             bool     `json:"allow_user_autostart"`
@@ -1345,7 +1261,6 @@ type Template struct {
 	RequireActiveVersion           bool     `json:"require_active_version"`
 	Deprecated                     bool     `json:"deprecated"`
 }
-
 type TemplateVersion struct {
 	ID              uuid.UUID  `json:"id"`
 	CreatedAt       time.Time  `json:"created_at"`
@@ -1354,7 +1269,6 @@ type TemplateVersion struct {
 	JobID           uuid.UUID  `json:"job_id"`
 	SourceExampleID *string    `json:"source_example_id,omitempty"`
 }
-
 type ProvisionerJob struct {
 	ID             uuid.UUID                   `json:"id"`
 	OrganizationID uuid.UUID                   `json:"organization_id"`
@@ -1367,7 +1281,6 @@ type ProvisionerJob struct {
 	Error          string                      `json:"error"`
 	Type           database.ProvisionerJobType `json:"type"`
 }
-
 type License struct {
 	JWT        string    `json:"jwt"`
 	UploadedAt time.Time `json:"uploaded_at"`
@@ -1378,7 +1291,6 @@ type License struct {
 	Email *string `json:"email"`
 	Trial *bool   `json:"trial"`
 }
-
 type WorkspaceProxy struct {
 	ID          uuid.UUID `json:"id"`
 	Name        string    `json:"name"`
@@ -1390,7 +1302,6 @@ type WorkspaceProxy struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
-
 type ExternalProvisioner struct {
 	ID           string            `json:"id"`
 	Tags         map[string]string `json:"tags"`
@@ -1398,12 +1309,10 @@ type ExternalProvisioner struct {
 	StartedAt    time.Time         `json:"started_at"`
 	ShutdownAt   *time.Time        `json:"shutdown_at"`
 }
-
 type NetworkEventIPFields struct {
 	Version int32  `json:"version"` // 4 or 6
 	Class   string `json:"class"`   // public, private, link_local, unique_local, loopback
 }
-
 func ipFieldsFromProto(proto *tailnetproto.IPFields) NetworkEventIPFields {
 	if proto == nil {
 		return NetworkEventIPFields{}
@@ -1413,13 +1322,11 @@ func ipFieldsFromProto(proto *tailnetproto.IPFields) NetworkEventIPFields {
 		Class:   strings.ToLower(proto.Class.String()),
 	}
 }
-
 type NetworkEventP2PEndpoint struct {
 	Hash   string               `json:"hash"`
 	Port   int                  `json:"port"`
 	Fields NetworkEventIPFields `json:"fields"`
 }
-
 func p2pEndpointFromProto(proto *tailnetproto.TelemetryEvent_P2PEndpoint) NetworkEventP2PEndpoint {
 	if proto == nil {
 		return NetworkEventP2PEndpoint{}
@@ -1430,11 +1337,9 @@ func p2pEndpointFromProto(proto *tailnetproto.TelemetryEvent_P2PEndpoint) Networ
 		Fields: ipFieldsFromProto(proto.Fields),
 	}
 }
-
 type DERPMapHomeParams struct {
 	RegionScore map[int64]float64 `json:"region_score"`
 }
-
 func derpMapHomeParamsFromProto(proto *tailnetproto.DERPMap_HomeParams) DERPMapHomeParams {
 	if proto == nil {
 		return DERPMapHomeParams{}
@@ -1447,7 +1352,6 @@ func derpMapHomeParamsFromProto(proto *tailnetproto.DERPMap_HomeParams) DERPMapH
 	}
 	return out
 }
-
 type DERPRegion struct {
 	RegionID      int64 `json:"region_id"`
 	EmbeddedRelay bool  `json:"embedded_relay"`
@@ -1456,7 +1360,6 @@ type DERPRegion struct {
 	Avoid         bool
 	Nodes         []DERPNode `json:"nodes"`
 }
-
 func derpRegionFromProto(proto *tailnetproto.DERPMap_Region) DERPRegion {
 	if proto == nil {
 		return DERPRegion{}
@@ -1474,7 +1377,6 @@ func derpRegionFromProto(proto *tailnetproto.DERPMap_Region) DERPRegion {
 		Nodes:         nodes,
 	}
 }
-
 type DERPNode struct {
 	Name             string `json:"name"`
 	RegionID         int64  `json:"region_id"`
@@ -1490,7 +1392,6 @@ type DERPNode struct {
 	STUNTestIP       string `json:"stun_test_ip"`
 	CanPort80        bool   `json:"can_port_80"`
 }
-
 func derpNodeFromProto(proto *tailnetproto.DERPMap_Region_Node) DERPNode {
 	if proto == nil {
 		return DERPNode{}
@@ -1511,12 +1412,10 @@ func derpNodeFromProto(proto *tailnetproto.DERPMap_Region_Node) DERPNode {
 		CanPort80:        proto.CanPort_80,
 	}
 }
-
 type DERPMap struct {
 	HomeParams DERPMapHomeParams `json:"home_params"`
 	Regions    map[int64]DERPRegion
 }
-
 func derpMapFromProto(proto *tailnetproto.DERPMap) DERPMap {
 	if proto == nil {
 		return DERPMap{}
@@ -1530,12 +1429,10 @@ func derpMapFromProto(proto *tailnetproto.DERPMap) DERPMap {
 		Regions:    regionMap,
 	}
 }
-
 type NetcheckIP struct {
 	Hash   string               `json:"hash"`
 	Fields NetworkEventIPFields `json:"fields"`
 }
-
 func netcheckIPFromProto(proto *tailnetproto.Netcheck_NetcheckIP) NetcheckIP {
 	if proto == nil {
 		return NetcheckIP{}
@@ -1545,7 +1442,6 @@ func netcheckIPFromProto(proto *tailnetproto.Netcheck_NetcheckIP) NetcheckIP {
 		Fields: ipFieldsFromProto(proto.Fields),
 	}
 }
-
 type Netcheck struct {
 	UDP         bool `json:"udp"`
 	IPv6        bool `json:"ipv6"`
@@ -1553,35 +1449,28 @@ type Netcheck struct {
 	IPv6CanSend bool `json:"ipv6_can_send"`
 	IPv4CanSend bool `json:"ipv4_can_send"`
 	ICMPv4      bool `json:"icmpv4"`
-
 	OSHasIPv6             *bool `json:"os_has_ipv6"`
 	MappingVariesByDestIP *bool `json:"mapping_varies_by_dest_ip"`
 	HairPinning           *bool `json:"hair_pinning"`
 	UPnP                  *bool `json:"upnp"`
 	PMP                   *bool `json:"pmp"`
 	PCP                   *bool `json:"pcp"`
-
 	PreferredDERP int64 `json:"preferred_derp"`
-
 	RegionV4Latency map[int64]time.Duration `json:"region_v4_latency"`
 	RegionV6Latency map[int64]time.Duration `json:"region_v6_latency"`
-
 	GlobalV4 NetcheckIP `json:"global_v4"`
 	GlobalV6 NetcheckIP `json:"global_v6"`
 }
-
 func protoBool(b *wrapperspb.BoolValue) *bool {
 	if b == nil {
 		return nil
 	}
 	return &b.Value
 }
-
 func netcheckFromProto(proto *tailnetproto.Netcheck) Netcheck {
 	if proto == nil {
 		return Netcheck{}
 	}
-
 	durationMapFromProto := func(m map[int64]*durationpb.Duration) map[int64]time.Duration {
 		out := make(map[int64]time.Duration, len(m))
 		for k, v := range m {
@@ -1589,7 +1478,6 @@ func netcheckFromProto(proto *tailnetproto.Netcheck) Netcheck {
 		}
 		return out
 	}
-
 	return Netcheck{
 		UDP:         proto.UDP,
 		IPv6:        proto.IPv6,
@@ -1597,24 +1485,19 @@ func netcheckFromProto(proto *tailnetproto.Netcheck) Netcheck {
 		IPv6CanSend: proto.IPv6CanSend,
 		IPv4CanSend: proto.IPv4CanSend,
 		ICMPv4:      proto.ICMPv4,
-
 		OSHasIPv6:             protoBool(proto.OSHasIPv6),
 		MappingVariesByDestIP: protoBool(proto.MappingVariesByDestIP),
 		HairPinning:           protoBool(proto.HairPinning),
 		UPnP:                  protoBool(proto.UPnP),
 		PMP:                   protoBool(proto.PMP),
 		PCP:                   protoBool(proto.PCP),
-
 		PreferredDERP: proto.PreferredDERP,
-
 		RegionV4Latency: durationMapFromProto(proto.RegionV4Latency),
 		RegionV6Latency: durationMapFromProto(proto.RegionV6Latency),
-
 		GlobalV4: netcheckIPFromProto(proto.GlobalV4),
 		GlobalV6: netcheckIPFromProto(proto.GlobalV6),
 	}
 }
-
 // NetworkEvent and all related structs come from tailnet.proto.
 type NetworkEvent struct {
 	ID             uuid.UUID               `json:"id"`
@@ -1629,7 +1512,6 @@ type NetworkEvent struct {
 	HomeDERP       int                     `json:"home_derp"`
 	DERPMap        DERPMap                 `json:"derp_map"`
 	LatestNetcheck Netcheck                `json:"latest_netcheck"`
-
 	ConnectionAge   *time.Duration `json:"connection_age"`
 	ConnectionSetup *time.Duration `json:"connection_setup"`
 	P2PSetup        *time.Duration `json:"p2p_setup"`
@@ -1637,14 +1519,12 @@ type NetworkEvent struct {
 	P2PLatency      *time.Duration `json:"p2p_latency"`
 	ThroughputMbits *float32       `json:"throughput_mbits"`
 }
-
 func protoFloat(f *wrapperspb.FloatValue) *float32 {
 	if f == nil {
 		return nil
 	}
 	return &f.Value
 }
-
 func protoDurationNil(d *durationpb.Duration) *time.Duration {
 	if d == nil {
 		return nil
@@ -1652,16 +1532,14 @@ func protoDurationNil(d *durationpb.Duration) *time.Duration {
 	dur := d.AsDuration()
 	return &dur
 }
-
 func NetworkEventFromProto(proto *tailnetproto.TelemetryEvent) (NetworkEvent, error) {
 	if proto == nil {
-		return NetworkEvent{}, xerrors.New("nil event")
+		return NetworkEvent{}, errors.New("nil event")
 	}
 	id, err := uuid.FromBytes(proto.Id)
 	if err != nil {
-		return NetworkEvent{}, xerrors.Errorf("parse id %q: %w", proto.Id, err)
+		return NetworkEvent{}, fmt.Errorf("parse id %q: %w", proto.Id, err)
 	}
-
 	return NetworkEvent{
 		ID:             id,
 		Time:           proto.Time.AsTime(),
@@ -1675,7 +1553,6 @@ func NetworkEventFromProto(proto *tailnetproto.TelemetryEvent) (NetworkEvent, er
 		HomeDERP:       int(proto.HomeDerp),
 		DERPMap:        derpMapFromProto(proto.DerpMap),
 		LatestNetcheck: netcheckFromProto(proto.LatestNetcheck),
-
 		ConnectionAge:   protoDurationNil(proto.ConnectionAge),
 		ConnectionSetup: protoDurationNil(proto.ConnectionSetup),
 		P2PSetup:        protoDurationNil(proto.P2PSetup),
@@ -1684,15 +1561,12 @@ func NetworkEventFromProto(proto *tailnetproto.TelemetryEvent) (NetworkEvent, er
 		ThroughputMbits: protoFloat(proto.ThroughputMbits),
 	}, nil
 }
-
 type Organization struct {
 	ID        uuid.UUID `json:"id"`
 	IsDefault bool      `json:"is_default"`
 	CreatedAt time.Time `json:"created_at"`
 }
-
 type telemetryItemKey string
-
 // The comment below gets rid of the warning that the name "TelemetryItemKey" has
 // the "Telemetry" prefix, and that stutters when you use it outside the package
 // (telemetry.TelemetryItemKey...). "TelemetryItem" is the name of a database table,
@@ -1703,16 +1577,13 @@ const (
 	TelemetryItemKeyHTMLFirstServedAt telemetryItemKey = "html_first_served_at"
 	TelemetryItemKeyTelemetryEnabled  telemetryItemKey = "telemetry_enabled"
 )
-
 type TelemetryItem struct {
 	Key       string    `json:"key"`
 	Value     string    `json:"value"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
-
 type noopReporter struct{}
-
 func (*noopReporter) Report(_ *Snapshot)            {}
 func (*noopReporter) Enabled() bool                 { return false }
 func (*noopReporter) Close()                        {}

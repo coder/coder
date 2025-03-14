@@ -1,11 +1,8 @@
 package placebo
-
 import (
-	"golang.org/x/xerrors"
-
+	"errors"
 	"github.com/coder/coder/v2/coderd/httpapi"
 )
-
 type Config struct {
 	// Sleep is how long to sleep for. If unspecified, the test run will finish
 	// instantly.
@@ -18,20 +15,18 @@ type Config struct {
 	// between 0 and 1.
 	FailureChance float64 `json:"failure_chance"`
 }
-
 func (c Config) Validate() error {
 	if c.Sleep < 0 {
-		return xerrors.New("sleep must be set to a positive value")
+		return errors.New("sleep must be set to a positive value")
 	}
 	if c.Jitter < 0 {
-		return xerrors.New("jitter must be set to a positive value")
+		return errors.New("jitter must be set to a positive value")
 	}
 	if c.Jitter > 0 && c.Sleep == 0 {
-		return xerrors.New("jitter must be 0 if sleep is 0")
+		return errors.New("jitter must be 0 if sleep is 0")
 	}
 	if c.FailureChance < 0 || c.FailureChance > 1 {
-		return xerrors.New("failure_chance must be between 0 and 1")
+		return errors.New("failure_chance must be between 0 and 1")
 	}
-
 	return nil
 }

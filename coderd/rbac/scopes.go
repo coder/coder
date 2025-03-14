@@ -1,22 +1,16 @@
 package rbac
-
 import (
+	"errors"
 	"fmt"
-
 	"github.com/google/uuid"
-
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 )
-
 type WorkspaceAgentScopeParams struct {
 	WorkspaceID uuid.UUID
 	OwnerID     uuid.UUID
 	TemplateID  uuid.UUID
 	VersionID   uuid.UUID
 }
-
 // WorkspaceAgentScope returns a scope that is the same as ScopeAll but can only
 // affect resources in the allow list. Only a scope is returned as the roles
 // should come from the workspace owner.
@@ -24,7 +18,6 @@ func WorkspaceAgentScope(params WorkspaceAgentScopeParams) Scope {
 	if params.WorkspaceID == uuid.Nil || params.OwnerID == uuid.Nil || params.TemplateID == uuid.Nil || params.VersionID == uuid.Nil {
 		panic("all uuids must be non-nil, this is a developer error")
 	}
-
 	allScope, err := ScopeAll.Expand()
 	if err != nil {
 		panic("failed to expand scope all, this should never happen")
@@ -46,12 +39,10 @@ func WorkspaceAgentScope(params WorkspaceAgentScopeParams) Scope {
 		},
 	}
 }
-
 const (
 	ScopeAll                ScopeName = "all"
 	ScopeApplicationConnect ScopeName = "application_connect"
 )
-
 // TODO: Support passing in scopeID list for allowlisting resources.
 var builtinScopes = map[ScopeName]Scope{
 	// ScopeAll is a special scope that allows access to all resources. During
@@ -68,7 +59,6 @@ var builtinScopes = map[ScopeName]Scope{
 		},
 		AllowIDList: []string{policy.WildcardSymbol},
 	},
-
 	ScopeApplicationConnect: {
 		Role: Role{
 			Identifier:  RoleIdentifier{Name: fmt.Sprintf("Scope_%s", ScopeApplicationConnect)},
@@ -82,24 +72,19 @@ var builtinScopes = map[ScopeName]Scope{
 		AllowIDList: []string{policy.WildcardSymbol},
 	},
 }
-
 type ExpandableScope interface {
 	Expand() (Scope, error)
 	// Name is for logging and tracing purposes, we want to know the human
 	// name of the scope.
 	Name() RoleIdentifier
 }
-
 type ScopeName string
-
 func (name ScopeName) Expand() (Scope, error) {
 	return ExpandScope(name)
 }
-
 func (name ScopeName) Name() RoleIdentifier {
 	return RoleIdentifier{Name: string(name)}
 }
-
 // Scope acts the exact same as a Role with the addition that is can also
 // apply an AllowIDList. Any resource being checked against a Scope will
 // reject any resource that is not in the AllowIDList.
@@ -109,19 +94,16 @@ type Scope struct {
 	Role
 	AllowIDList []string `json:"allow_list"`
 }
-
 func (s Scope) Expand() (Scope, error) {
 	return s, nil
 }
-
 func (s Scope) Name() RoleIdentifier {
 	return s.Role.Identifier
 }
-
 func ExpandScope(scope ScopeName) (Scope, error) {
 	role, ok := builtinScopes[scope]
 	if !ok {
-		return Scope{}, xerrors.Errorf("no scope named %q", scope)
+		return Scope{}, fmt.Errorf("no scope named %q", scope)
 	}
 	return role, nil
 }

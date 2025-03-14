@@ -1,33 +1,26 @@
 package devtunnel
-
 import (
+	"errors"
 	"runtime"
 	"slices"
 	"sync"
 	"time"
-
 	ping "github.com/prometheus-community/pro-bing"
 	"golang.org/x/sync/errgroup"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/cryptorand"
 )
-
 type Region struct {
 	ID           int
 	LocationName string
 	Nodes        []Node
 }
-
 type Node struct {
 	ID            int    `json:"id"`
 	RegionID      int    `json:"region_id"`
 	HostnameHTTPS string `json:"hostname_https"`
-
 	AvgLatency time.Duration `json:"-"`
 }
-
 var Regions = []Region{
 	{
 		ID:           0,
@@ -41,7 +34,6 @@ var Regions = []Region{
 		},
 	},
 }
-
 // Nodes returns a list of nodes to use for the tunnel. It will pick a random
 // node from each region.
 //
@@ -49,7 +41,6 @@ var Regions = []Region{
 // 9999.
 func Nodes(customTunnelHost string) ([]Node, error) {
 	nodes := []Node{}
-
 	if customTunnelHost != "" {
 		return []Node{
 			{
@@ -59,7 +50,6 @@ func Nodes(customTunnelHost string) ([]Node, error) {
 			},
 		}, nil
 	}
-
 	for _, region := range Regions {
 		// Pick a random node from each region.
 		i, err := cryptorand.Intn(len(region.Nodes))
@@ -68,19 +58,15 @@ func Nodes(customTunnelHost string) ([]Node, error) {
 		}
 		nodes = append(nodes, region.Nodes[i])
 	}
-
 	return nodes, nil
 }
-
 // FindClosestNode pings each node and returns the one with the lowest latency.
 func FindClosestNode(nodes []Node) (Node, error) {
 	if len(nodes) == 0 {
-		return Node{}, xerrors.New("no wgtunnel nodes")
+		return Node{}, errors.New("no wgtunnel nodes")
 	}
-
 	// Copy the nodes so we don't mutate the original.
 	nodes = append([]Node{}, nodes...)
-
 	var (
 		nodesMu sync.Mutex
 		eg      = errgroup.Group{}
@@ -92,30 +78,25 @@ func FindClosestNode(nodes []Node) (Node, error) {
 			if err != nil {
 				return err
 			}
-
 			if runtime.GOOS == "windows" {
 				pinger.SetPrivileged(true)
 			}
-
 			pinger.Count = 5
 			pinger.Timeout = 5 * time.Second
 			err = pinger.Run()
 			if err != nil {
 				return err
 			}
-
 			nodesMu.Lock()
 			nodes[i].AvgLatency = pinger.Statistics().AvgRtt
 			nodesMu.Unlock()
 			return nil
 		})
 	}
-
 	err := eg.Wait()
 	if err != nil {
 		return Node{}, err
 	}
-
 	slices.SortFunc(nodes, func(a, b Node) int {
 		return slice.Ascending(a.AvgLatency, b.AvgLatency)
 	})

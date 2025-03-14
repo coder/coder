@@ -1,19 +1,15 @@
 package terraform
-
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
-
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/testutil"
 )
-
 // nolint:paralleltest
 func Test_absoluteBinaryPath(t *testing.T) {
 	tests := []struct {
@@ -44,7 +40,7 @@ func Test_absoluteBinaryPath(t *testing.T) {
 		{
 			name:             "TestMalformedVersion",
 			terraformVersion: "version",
-			expectedErr:      xerrors.Errorf("Terraform binary get version failed: Malformed version: version"),
+			expectedErr:      fmt.Errorf("Terraform binary get version failed: Malformed version: version"),
 		},
 	}
 	// nolint:paralleltest
@@ -53,7 +49,6 @@ func Test_absoluteBinaryPath(t *testing.T) {
 			if runtime.GOOS == "windows" {
 				t.Skip("Dummy terraform executable on Windows requires sh which isn't very practical.")
 			}
-
 			// Create a temp dir with the binary
 			tempDir := t.TempDir()
 			terraformBinaryOutput := fmt.Sprintf(`#!/bin/sh
@@ -65,7 +60,6 @@ func Test_absoluteBinaryPath(t *testing.T) {
 				"terraform_outdated": false
 			}
 			EOF`, tt.terraformVersion)
-
 			// #nosec
 			err := os.WriteFile(
 				filepath.Join(tempDir, "terraform"),
@@ -73,19 +67,15 @@ func Test_absoluteBinaryPath(t *testing.T) {
 				0o770,
 			)
 			require.NoError(t, err)
-
 			// Add the binary to PATH
 			pathVariable := os.Getenv("PATH")
 			t.Setenv("PATH", strings.Join([]string{tempDir, pathVariable}, ":"))
-
 			var expectedAbsoluteBinary string
 			if tt.expectedErr == nil {
 				expectedAbsoluteBinary = filepath.Join(tempDir, "terraform")
 			}
-
 			ctx := testutil.Context(t, testutil.WaitShort)
 			actualBinaryDetails, actualErr := systemBinary(ctx)
-
 			if tt.expectedErr == nil {
 				require.NoError(t, actualErr)
 				require.Equal(t, expectedAbsoluteBinary, actualBinaryDetails.absolutePath)

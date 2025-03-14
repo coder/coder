@@ -1,21 +1,16 @@
 package cli
-
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
 	"unicode/utf8"
-
-	"golang.org/x/xerrors"
-
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
-
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
-
 func (r *RootCmd) templateCreate() *serpent.Command {
 	var (
 		provisioner          string
@@ -24,12 +19,10 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 		commandLineVariables []string
 		disableEveryone      bool
 		requireActiveVersion bool
-
 		defaultTTL           time.Duration
 		failureTTL           time.Duration
 		dormancyThreshold    time.Duration
 		dormancyAutoDeletion time.Duration
-
 		uploadFlags templateUploadFlags
 		orgContext  = NewOrganizationContext()
 	)
@@ -47,77 +40,63 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			isTemplateSchedulingOptionsSet := failureTTL != 0 || dormancyThreshold != 0 || dormancyAutoDeletion != 0
-
 			if isTemplateSchedulingOptionsSet || requireActiveVersion {
 				entitlements, err := client.Entitlements(inv.Context())
 				if cerr, ok := codersdk.AsError(err); ok && cerr.StatusCode() == http.StatusNotFound {
-					return xerrors.Errorf("your deployment appears to be an AGPL deployment, so you cannot set enterprise-only flags")
+					return fmt.Errorf("your deployment appears to be an AGPL deployment, so you cannot set enterprise-only flags")
 				} else if err != nil {
-					return xerrors.Errorf("get entitlements: %w", err)
+					return fmt.Errorf("get entitlements: %w", err)
 				}
-
 				if isTemplateSchedulingOptionsSet {
 					if !entitlements.Features[codersdk.FeatureAdvancedTemplateScheduling].Enabled {
-						return xerrors.Errorf("your license is not entitled to use advanced template scheduling, so you cannot set --failure-ttl, or --inactivity-ttl")
+						return fmt.Errorf("your license is not entitled to use advanced template scheduling, so you cannot set --failure-ttl, or --inactivity-ttl")
 					}
 				}
-
 				if requireActiveVersion {
 					if !entitlements.Features[codersdk.FeatureAccessControl].Enabled {
-						return xerrors.Errorf("your license is not entitled to use enterprise access control, so you cannot set --require-active-version")
+						return fmt.Errorf("your license is not entitled to use enterprise access control, so you cannot set --require-active-version")
 					}
 				}
 			}
-
 			organization, err := orgContext.Selected(inv, client)
 			if err != nil {
 				return err
 			}
-
 			templateName, err := uploadFlags.templateName(inv)
 			if err != nil {
 				return err
 			}
-
 			if utf8.RuneCountInString(templateName) > 32 {
-				return xerrors.Errorf("Template name must be no more than 32 characters")
+				return fmt.Errorf("Template name must be no more than 32 characters")
 			}
-
 			_, err = client.TemplateByName(inv.Context(), organization.ID, templateName)
 			if err == nil {
-				return xerrors.Errorf("A template already exists named %q!", templateName)
+				return fmt.Errorf("A template already exists named %q!", templateName)
 			}
-
 			err = uploadFlags.checkForLockfile(inv)
 			if err != nil {
-				return xerrors.Errorf("check for lockfile: %w", err)
+				return fmt.Errorf("check for lockfile: %w", err)
 			}
-
 			message := uploadFlags.templateMessage(inv)
-
 			var varsFiles []string
 			if !uploadFlags.stdin(inv) {
 				varsFiles, err = codersdk.DiscoverVarsFiles(uploadFlags.directory)
 				if err != nil {
 					return err
 				}
-
 				if len(varsFiles) > 0 {
 					_, _ = fmt.Fprintln(inv.Stdout, "Auto-discovered Terraform tfvars files. Make sure to review and clean up any unused files.")
 				}
 			}
-
 			// Confirm upload of the directory.
 			resp, err := uploadFlags.upload(inv, client)
 			if err != nil {
 				return err
 			}
-
 			tags, err := ParseProvisionerTags(provisionerTags)
 			if err != nil {
 				return err
 			}
-
 			userVariableValues, err := codersdk.ParseUserVariableValues(
 				varsFiles,
 				variablesFile,
@@ -125,7 +104,6 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 			if err != nil {
 				return err
 			}
-
 			job, err := createValidTemplateVersion(inv, createValidTemplateVersionArgs{
 				Message:            message,
 				Client:             client,
@@ -138,7 +116,6 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 			if err != nil {
 				return err
 			}
-
 			if !uploadFlags.stdin(inv) {
 				_, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text:      "Confirm create?",
@@ -148,7 +125,6 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 					return err
 				}
 			}
-
 			createReq := codersdk.CreateTemplateRequest{
 				Name:                           templateName,
 				VersionID:                      job.ID,
@@ -159,21 +135,17 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 				DisableEveryoneGroupAccess:     disableEveryone,
 				RequireActiveVersion:           requireActiveVersion,
 			}
-
 			template, err := client.CreateTemplate(inv.Context(), organization.ID, createReq)
 			if err != nil {
 				return err
 			}
-
 			_, _ = fmt.Fprintln(inv.Stdout, "\n"+pretty.Sprint(cliui.DefaultStyles.Wrap,
 				"The "+pretty.Sprint(
 					cliui.DefaultStyles.Keyword, templateName)+" template has been created at "+
 					pretty.Sprint(cliui.DefaultStyles.DateTimeStamp, time.Now().Format(time.Stamp))+"! "+
 					"Developers can provision a workspace with this template using:")+"\n")
-
 			_, _ = fmt.Fprintln(inv.Stdout, "  "+pretty.Sprint(cliui.DefaultStyles.Code, fmt.Sprintf("coder create --template=%q --org=%q [workspace name]", templateName, template.OrganizationName)))
 			_, _ = fmt.Fprintln(inv.Stdout)
-
 			return nil
 		},
 	}
@@ -241,7 +213,6 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 			Value:       serpent.BoolOf(&requireActiveVersion),
 			Default:     "false",
 		},
-
 		cliui.SkipPromptOption(),
 	}
 	orgContext.AttachOptions(cmd)

@@ -1,6 +1,6 @@
 package coderd
-
 import (
+	"errors"
 	"bytes"
 	"context"
 	"database/sql"
@@ -9,10 +9,7 @@ import (
 	"net/http"
 	"slices"
 	"time"
-
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
-
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -24,7 +21,6 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
 )
-
 // @Summary Debug Info Wireguard Coordinator
 // @ID debug-info-wireguard-coordinator
 // @Security CoderSessionToken
@@ -35,7 +31,6 @@ import (
 func (api *API) debugCoordinator(rw http.ResponseWriter, r *http.Request) {
 	(*api.TailnetCoordinator.Load()).ServeHTTPDebug(rw, r)
 }
-
 // @Summary Debug Info Tailnet
 // @ID debug-info-tailnet
 // @Security CoderSessionToken
@@ -46,7 +41,6 @@ func (api *API) debugCoordinator(rw http.ResponseWriter, r *http.Request) {
 func (api *API) debugTailnet(rw http.ResponseWriter, r *http.Request) {
 	api.agentProvider.ServeHTTPDebug(rw, r)
 }
-
 // @Summary Debug Info Deployment Health
 // @ID debug-info-deployment-health
 // @Security CoderSessionToken
@@ -59,15 +53,12 @@ func (api *API) debugDeploymentHealth(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APITokenFromRequest(r)
 	ctx, cancel := context.WithTimeout(r.Context(), api.Options.HealthcheckTimeout)
 	defer cancel()
-
 	// Load sections previously marked as dismissed.
 	// We hydrate this here as we cache the healthcheck and hydrating in the
 	// healthcheck function itself can lead to stale results.
 	dismissed := loadDismissedHealthchecks(ctx, api.Database, api.Logger)
-
 	// Check if the forced query parameter is set.
 	forced := r.URL.Query().Get("force") == "true"
-
 	// Get cached report if it exists and the requester did not force a refresh.
 	if !forced {
 		if report := api.healthCheckCache.Load(); report != nil {
@@ -77,17 +68,14 @@ func (api *API) debugDeploymentHealth(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-
 	resChan := api.healthCheckGroup.DoChan("", func() (*healthsdk.HealthcheckReport, error) {
 		// Create a new context not tied to the request.
 		ctx, cancel := context.WithTimeout(context.Background(), api.Options.HealthcheckTimeout)
 		defer cancel()
-
 		report := api.HealthcheckFunc(ctx, apiKey)
 		api.healthCheckCache.Store(report)
 		return report, nil
 	})
-
 	select {
 	case <-ctx.Done():
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
@@ -107,7 +95,6 @@ func (api *API) debugDeploymentHealth(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 }
-
 func formatHealthcheck(ctx context.Context, rw http.ResponseWriter, r *http.Request, hc healthsdk.HealthcheckReport, dismissed ...healthsdk.HealthSection) {
 	// Mark any sections previously marked as dismissed.
 	for _, d := range dismissed {
@@ -124,23 +111,19 @@ func formatHealthcheck(ctx context.Context, rw http.ResponseWriter, r *http.Requ
 			hc.WorkspaceProxy.Dismissed = true
 		}
 	}
-
 	format := r.URL.Query().Get("format")
 	switch format {
 	case "text":
 		rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		rw.WriteHeader(http.StatusOK)
-
 		_, _ = fmt.Fprintln(rw, "time:", hc.Time.Format(time.RFC3339))
 		_, _ = fmt.Fprintln(rw, "healthy:", hc.Healthy)
 		_, _ = fmt.Fprintln(rw, "derp:", hc.DERP.Healthy)
 		_, _ = fmt.Fprintln(rw, "access_url:", hc.AccessURL.Healthy)
 		_, _ = fmt.Fprintln(rw, "websocket:", hc.Websocket.Healthy)
 		_, _ = fmt.Fprintln(rw, "database:", hc.Database.Healthy)
-
 	case "", "json":
 		httpapi.WriteIndent(ctx, rw, http.StatusOK, hc)
-
 	default:
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("Invalid format option %q.", format),
@@ -148,7 +131,6 @@ func formatHealthcheck(ctx context.Context, rw http.ResponseWriter, r *http.Requ
 		})
 	}
 }
-
 // @Summary Get health settings
 // @ID get-health-settings
 // @Security CoderSessionToken
@@ -165,7 +147,6 @@ func (api *API) deploymentHealthSettings(rw http.ResponseWriter, r *http.Request
 		})
 		return
 	}
-
 	var settings healthsdk.HealthSettings
 	err = json.Unmarshal([]byte(settingsJSON), &settings)
 	if err != nil {
@@ -175,14 +156,11 @@ func (api *API) deploymentHealthSettings(rw http.ResponseWriter, r *http.Request
 		})
 		return
 	}
-
 	if len(settings.DismissedHealthchecks) == 0 {
 		settings.DismissedHealthchecks = []healthsdk.HealthSection{}
 	}
-
 	httpapi.Write(r.Context(), rw, http.StatusOK, settings)
 }
-
 // @Summary Update health settings
 // @ID update-health-settings
 // @Security CoderSessionToken
@@ -194,19 +172,16 @@ func (api *API) deploymentHealthSettings(rw http.ResponseWriter, r *http.Request
 // @Router /debug/health/settings [put]
 func (api *API) putDeploymentHealthSettings(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Insufficient permissions to update health settings.",
 		})
 		return
 	}
-
 	var settings healthsdk.HealthSettings
 	if !httpapi.Read(ctx, rw, r, &settings) {
 		return
 	}
-
 	err := validateHealthSettings(settings)
 	if err != nil {
 		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
@@ -215,7 +190,6 @@ func (api *API) putDeploymentHealthSettings(rw http.ResponseWriter, r *http.Requ
 		})
 		return
 	}
-
 	settingsJSON, err := json.Marshal(&settings)
 	if err != nil {
 		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
@@ -224,7 +198,6 @@ func (api *API) putDeploymentHealthSettings(rw http.ResponseWriter, r *http.Requ
 		})
 		return
 	}
-
 	currentSettingsJSON, err := api.Database.GetHealthSettings(r.Context())
 	if err != nil {
 		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
@@ -233,13 +206,11 @@ func (api *API) putDeploymentHealthSettings(rw http.ResponseWriter, r *http.Requ
 		})
 		return
 	}
-
 	if bytes.Equal(settingsJSON, []byte(currentSettingsJSON)) {
 		// See: https://www.rfc-editor.org/rfc/rfc7231#section-6.3.5
 		rw.WriteHeader(http.StatusNoContent)
 		return
 	}
-
 	auditor := api.Auditor.Load()
 	aReq, commitAudit := audit.InitRequest[database.HealthSettings](rw, &audit.RequestParams{
 		Audit:   *auditor,
@@ -248,12 +219,10 @@ func (api *API) putDeploymentHealthSettings(rw http.ResponseWriter, r *http.Requ
 		Action:  database.AuditActionWrite,
 	})
 	defer commitAudit()
-
 	aReq.New = database.HealthSettings{
 		ID:                    uuid.New(),
 		DismissedHealthchecks: slice.ToStrings(settings.DismissedHealthchecks),
 	}
-
 	err = api.Database.UpsertHealthSettings(ctx, string(settingsJSON))
 	if err != nil {
 		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
@@ -262,22 +231,18 @@ func (api *API) putDeploymentHealthSettings(rw http.ResponseWriter, r *http.Requ
 		})
 		return
 	}
-
 	httpapi.Write(r.Context(), rw, http.StatusOK, settings)
 }
-
 func validateHealthSettings(settings healthsdk.HealthSettings) error {
 	for _, dismissed := range settings.DismissedHealthchecks {
 		ok := slices.Contains(healthsdk.HealthSections, dismissed)
 		if !ok {
-			return xerrors.Errorf("unknown healthcheck section: %s", dismissed)
+			return fmt.Errorf("unknown healthcheck section: %s", dismissed)
 		}
 	}
 	return nil
 }
-
 // For some reason the swagger docs need to be attached to a function.
-
 // @Summary Debug Info Websocket Test
 // @ID debug-info-websocket-test
 // @Security CoderSessionToken
@@ -287,7 +252,6 @@ func validateHealthSettings(settings healthsdk.HealthSettings) error {
 // @Router /debug/ws [get]
 // @x-apidocgen {"skip": true}
 func _debugws(http.ResponseWriter, *http.Request) {} //nolint:unused
-
 // @Summary Debug DERP traffic
 // @ID debug-derp-traffic
 // @Security CoderSessionToken
@@ -297,7 +261,6 @@ func _debugws(http.ResponseWriter, *http.Request) {} //nolint:unused
 // @Router /debug/derp/traffic [get]
 // @x-apidocgen {"skip": true}
 func _debugDERPTraffic(http.ResponseWriter, *http.Request) {} //nolint:unused
-
 // @Summary Debug expvar
 // @ID debug-expvar
 // @Security CoderSessionToken
@@ -307,7 +270,6 @@ func _debugDERPTraffic(http.ResponseWriter, *http.Request) {} //nolint:unused
 // @Router /debug/expvar [get]
 // @x-apidocgen {"skip": true}
 func _debugExpVar(http.ResponseWriter, *http.Request) {} //nolint:unused
-
 func loadDismissedHealthchecks(ctx context.Context, db database.Store, logger slog.Logger) []healthsdk.HealthSection {
 	dismissedHealthchecks := []healthsdk.HealthSection{}
 	settingsJSON, err := db.GetHealthSettings(ctx)
@@ -318,7 +280,7 @@ func loadDismissedHealthchecks(ctx context.Context, db database.Store, logger sl
 			dismissedHealthchecks = settings.DismissedHealthchecks
 		}
 	}
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		logger.Error(ctx, "unable to fetch health settings", slog.Error(err))
 	}
 	return dismissedHealthchecks

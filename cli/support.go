@@ -1,6 +1,6 @@
 package cli
-
 import (
+	"errors"
 	"archive/zip"
 	"bytes"
 	"encoding/base64"
@@ -12,10 +12,7 @@ import (
 	"strings"
 	"text/tabwriter"
 	"time"
-
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
-
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/v2/cli/cliui"
@@ -23,7 +20,6 @@ import (
 	"github.com/coder/coder/v2/support"
 	"github.com/coder/serpent"
 )
-
 func (r *RootCmd) support() *serpent.Command {
 	supportCmd := &serpent.Command{
 		Use:   "support",
@@ -37,7 +33,6 @@ func (r *RootCmd) support() *serpent.Command {
 	}
 	return supportCmd
 }
-
 var supportBundleBlurb = cliui.Bold("This will collect the following information:\n") +
 	`  - Coder deployment version
   - Coder deployment Configuration (sanitized), including enabled experiments
@@ -54,7 +49,6 @@ var supportBundleBlurb = cliui.Bold("This will collect the following information
 	"  - Review the support bundle before distribution\n" +
 	"  - Only distribute it via trusted channels\n" +
 	cliui.Bold("Continue? ")
-
 func (r *RootCmd) supportBundle() *serpent.Command {
 	var outputPath string
 	var coderURLOverride string
@@ -87,7 +81,6 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 			} else {
 				cliLog.Debug(inv.Context(), "user confirmed manually", slog.F("answer", ans))
 			}
-
 			vi := defaultVersionInfo()
 			cliLog.Debug(inv.Context(), "version info",
 				slog.F("version", vi.Version),
@@ -98,35 +91,31 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 				slog.F("boring_crypto", vi.BoringCrypto),
 			)
 			cliLog.Debug(inv.Context(), "invocation", slog.F("args", strings.Join(os.Args, " ")))
-
 			// Check if we're running inside a workspace
 			if val, found := os.LookupEnv("CODER"); found && val == "true" {
 				cliui.Warn(inv.Stderr, "Running inside Coder workspace; this can affect results!")
 				cliLog.Debug(inv.Context(), "running inside coder workspace")
 			}
-
 			if coderURLOverride != "" && coderURLOverride != client.URL.String() {
 				u, err := url.Parse(coderURLOverride)
 				if err != nil {
-					return xerrors.Errorf("invalid value for Coder URL override: %w", err)
+					return fmt.Errorf("invalid value for Coder URL override: %w", err)
 				}
 				_, _ = fmt.Fprintf(inv.Stderr, "Overrode Coder URL to %q; this can affect results!\n", coderURLOverride)
 				cliLog.Debug(inv.Context(), "coder url overridden", slog.F("url", coderURLOverride))
 				client.URL = u
 			}
-
 			var (
 				wsID  uuid.UUID
 				agtID uuid.UUID
 			)
-
 			if len(inv.Args) == 0 {
 				cliLog.Warn(inv.Context(), "no workspace specified")
 				cliui.Warn(inv.Stderr, "No workspace specified. This will result in incomplete information.")
 			} else {
 				ws, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 				if err != nil {
-					return xerrors.Errorf("invalid workspace: %w", err)
+					return fmt.Errorf("invalid workspace: %w", err)
 				}
 				cliLog.Debug(inv.Context(), "found workspace",
 					slog.F("workspace_name", ws.Name),
@@ -137,7 +126,6 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 				if len(inv.Args) > 1 {
 					agentName = inv.Args[1]
 				}
-
 				agt, found := findAgent(agentName, ws.LatestBuild.Resources)
 				if !found {
 					cliLog.Warn(inv.Context(), "could not find agent in workspace", slog.F("agent_name", agentName))
@@ -149,24 +137,21 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 					agtID = agt.ID
 				}
 			}
-
 			if outputPath == "" {
 				cwd, err := filepath.Abs(".")
 				if err != nil {
-					return xerrors.Errorf("could not determine current working directory: %w", err)
+					return fmt.Errorf("could not determine current working directory: %w", err)
 				}
 				fname := fmt.Sprintf("coder-support-%d.zip", time.Now().Unix())
 				outputPath = filepath.Join(cwd, fname)
 			}
 			cliLog.Debug(inv.Context(), "output path", slog.F("path", outputPath))
-
 			w, err := os.Create(outputPath)
 			if err != nil {
-				return xerrors.Errorf("create output file: %w", err)
+				return fmt.Errorf("create output file: %w", err)
 			}
 			zwr := zip.NewWriter(w)
 			defer zwr.Close()
-
 			clientLog := slog.Make().Leveled(slog.LevelDebug)
 			if r.verbose {
 				clientLog.AppendSinks(sloghuman.Sink(inv.Stderr))
@@ -178,22 +163,18 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 				WorkspaceID: wsID,
 				AgentID:     agtID,
 			}
-
 			bun, err := support.Run(inv.Context(), &deps)
 			if err != nil {
 				_ = os.Remove(outputPath) // best effort
-				return xerrors.Errorf("create support bundle: %w", err)
+				return fmt.Errorf("create support bundle: %w", err)
 			}
-
 			summarizeBundle(inv, bun)
 			bun.CLILogs = cliLogBuf.Bytes()
-
 			if err := writeBundle(bun, zwr); err != nil {
 				_ = os.Remove(outputPath) // best effort
-				return xerrors.Errorf("write support bundle to %s: %w", outputPath, err)
+				return fmt.Errorf("write support bundle to %s: %w", outputPath, err)
 			}
 			_, _ = fmt.Fprintln(inv.Stderr, "Wrote support bundle to "+outputPath)
-
 			return nil
 		},
 	}
@@ -213,10 +194,8 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 			Value:       serpent.StringOf(&coderURLOverride),
 		},
 	}
-
 	return cmd
 }
-
 // summarizeBundle makes a best-effort attempt to write a short summary
 // of the support bundle to the user's terminal.
 func summarizeBundle(inv *serpent.Invocation, bun *support.Bundle) {
@@ -224,12 +203,10 @@ func summarizeBundle(inv *serpent.Invocation, bun *support.Bundle) {
 		cliui.Error(inv.Stdout, "No support bundle generated!")
 		return
 	}
-
 	if bun.Deployment.Config == nil {
 		cliui.Error(inv.Stdout, "No deployment configuration available!")
 		return
 	}
-
 	docsURL := bun.Deployment.Config.Values.DocsURL.String()
 	if bun.Deployment.HealthReport == nil {
 		cliui.Error(inv.Stdout, "No deployment health report available!")
@@ -239,18 +216,15 @@ func summarizeBundle(inv *serpent.Invocation, bun *support.Bundle) {
 	if len(deployHealthSummary) > 0 {
 		cliui.Warn(inv.Stdout, "Deployment health issues detected:", deployHealthSummary...)
 	}
-
 	if bun.Network.Netcheck == nil {
 		cliui.Error(inv.Stdout, "No network troubleshooting information available!")
 		return
 	}
-
 	clientNetcheckSummary := bun.Network.Netcheck.Summarize("Client netcheck:", docsURL)
 	if len(clientNetcheckSummary) > 0 {
 		cliui.Warn(inv.Stdout, "Networking issues detected:", deployHealthSummary...)
 	}
 }
-
 func findAgent(agentName string, haystack []codersdk.WorkspaceResource) (*codersdk.WorkspaceAgent, bool) {
 	for _, res := range haystack {
 		for _, agt := range res.Agents {
@@ -265,7 +239,6 @@ func findAgent(agentName string, haystack []codersdk.WorkspaceResource) (*coders
 	}
 	return nil, false
 }
-
 func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 	// We JSON-encode the following:
 	for k, v := range map[string]any{
@@ -288,20 +261,18 @@ func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 	} {
 		f, err := dest.Create(k)
 		if err != nil {
-			return xerrors.Errorf("create file %q in archive: %w", k, err)
+			return fmt.Errorf("create file %q in archive: %w", k, err)
 		}
 		enc := json.NewEncoder(f)
 		enc.SetIndent("", "    ")
 		if err := enc.Encode(v); err != nil {
-			return xerrors.Errorf("write json to %q: %w", k, err)
+			return fmt.Errorf("write json to %q: %w", k, err)
 		}
 	}
-
 	templateVersionBytes, err := base64.StdEncoding.DecodeString(src.Workspace.TemplateFileBase64)
 	if err != nil {
-		return xerrors.Errorf("decode template zip from base64")
+		return fmt.Errorf("decode template zip from base64")
 	}
-
 	// The below we just write as we have them:
 	for k, v := range map[string]string{
 		"agent/logs.txt":                 string(src.Agent.Logs),
@@ -318,18 +289,17 @@ func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 	} {
 		f, err := dest.Create(k)
 		if err != nil {
-			return xerrors.Errorf("create file %q in archive: %w", k, err)
+			return fmt.Errorf("create file %q in archive: %w", k, err)
 		}
 		if _, err := f.Write([]byte(v)); err != nil {
-			return xerrors.Errorf("write file %q in archive: %w", k, err)
+			return fmt.Errorf("write file %q in archive: %w", k, err)
 		}
 	}
 	if err := dest.Close(); err != nil {
-		return xerrors.Errorf("close zip file: %w", err)
+		return fmt.Errorf("close zip file: %w", err)
 	}
 	return nil
 }
-
 func humanizeAgentLogs(ls []codersdk.WorkspaceAgentLog) string {
 	var buf bytes.Buffer
 	tw := tabwriter.NewWriter(&buf, 0, 2, 1, ' ', 0)
@@ -343,7 +313,6 @@ func humanizeAgentLogs(ls []codersdk.WorkspaceAgentLog) string {
 	_ = tw.Flush()
 	return buf.String()
 }
-
 func humanizeBuildLogs(ls []codersdk.ProvisionerJobLog) string {
 	var buf bytes.Buffer
 	tw := tabwriter.NewWriter(&buf, 0, 2, 1, ' ', 0)

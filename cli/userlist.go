@@ -1,25 +1,20 @@
 package cli
-
 import (
+	"errors"
 	"context"
 	"fmt"
 	"time"
-
 	"github.com/jedib0t/go-pretty/v6/table"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
-
 func (r *RootCmd) userList() *serpent.Command {
 	formatter := cliui.NewOutputFormatter(
 		cliui.TableFormat([]codersdk.User{}, []string{"username", "email", "created at", "status"}),
 		cliui.JSONFormat(),
 	)
 	client := new(codersdk.Client)
-
 	cmd := &serpent.Command{
 		Use:     "list",
 		Aliases: []string{"ls"},
@@ -32,28 +27,23 @@ func (r *RootCmd) userList() *serpent.Command {
 			if err != nil {
 				return err
 			}
-
 			out, err := formatter.Format(inv.Context(), res.Users)
 			if err != nil {
 				return err
 			}
-
 			_, err = fmt.Fprintln(inv.Stdout, out)
 			return err
 		},
 	}
-
 	formatter.AttachOptions(&cmd.Options)
 	return cmd
 }
-
 func (r *RootCmd) userSingle() *serpent.Command {
 	formatter := cliui.NewOutputFormatter(
 		&userShowFormat{},
 		cliui.JSONFormat(),
 	)
 	client := new(codersdk.Client)
-
 	cmd := &serpent.Command{
 		Use:   "show <username|user_id|'me'>",
 		Short: "Show a single user. Use 'me' to indicate the currently authenticated user.",
@@ -71,17 +61,14 @@ func (r *RootCmd) userSingle() *serpent.Command {
 			if err != nil {
 				return err
 			}
-
 			orgNames := make([]string, len(user.OrganizationIDs))
 			for i, orgID := range user.OrganizationIDs {
 				org, err := client.Organization(inv.Context(), orgID)
 				if err != nil {
-					return xerrors.Errorf("get organization %q: %w", orgID.String(), err)
+					return fmt.Errorf("get organization %q: %w", orgID.String(), err)
 				}
-
 				orgNames[i] = org.Name
 			}
-
 			out, err := formatter.Format(inv.Context(), userWithOrgNames{
 				User:              user,
 				OrganizationNames: orgNames,
@@ -89,40 +76,31 @@ func (r *RootCmd) userSingle() *serpent.Command {
 			if err != nil {
 				return err
 			}
-
 			_, err = fmt.Fprintln(inv.Stdout, out)
 			return err
 		},
 	}
-
 	formatter.AttachOptions(&cmd.Options)
 	return cmd
 }
-
 type userWithOrgNames struct {
 	codersdk.User
 	OrganizationNames []string `json:"organization_names"`
 }
-
 type userShowFormat struct{}
-
 var _ cliui.OutputFormat = &userShowFormat{}
-
 // ID implements OutputFormat.
 func (*userShowFormat) ID() string {
 	return "table"
 }
-
 // AttachOptions implements OutputFormat.
 func (*userShowFormat) AttachOptions(_ *serpent.OptionSet) {}
-
 // Format implements OutputFormat.
 func (*userShowFormat) Format(_ context.Context, out interface{}) (string, error) {
 	user, ok := out.(userWithOrgNames)
 	if !ok {
-		return "", xerrors.Errorf("expected type %T, got %T", user, out)
+		return "", fmt.Errorf("expected type %T, got %T", user, out)
 	}
-
 	tw := cliui.Table()
 	addRow := func(name string, value interface{}) {
 		key := ""
@@ -133,7 +111,6 @@ func (*userShowFormat) Format(_ context.Context, out interface{}) (string, error
 			key, value,
 		})
 	}
-
 	// Add rows for each of the user's fields.
 	addRow("ID", user.ID.String())
 	addRow("Username", user.Username)
@@ -141,7 +118,6 @@ func (*userShowFormat) Format(_ context.Context, out interface{}) (string, error
 	addRow("Email", user.Email)
 	addRow("Status", user.Status)
 	addRow("Created At", user.CreatedAt.Format(time.Stamp))
-
 	addRow("", "")
 	firstRole := true
 	for _, role := range user.Roles {
@@ -149,7 +125,6 @@ func (*userShowFormat) Format(_ context.Context, out interface{}) (string, error
 			// Skip roles with no display name.
 			continue
 		}
-
 		key := ""
 		if firstRole {
 			key = "Roles"
@@ -160,7 +135,6 @@ func (*userShowFormat) Format(_ context.Context, out interface{}) (string, error
 	if firstRole {
 		addRow("Roles", "(none)")
 	}
-
 	addRow("", "")
 	firstOrg := true
 	for _, orgName := range user.OrganizationNames {
@@ -169,12 +143,10 @@ func (*userShowFormat) Format(_ context.Context, out interface{}) (string, error
 			key = "Organizations"
 			firstOrg = false
 		}
-
 		addRow(key, orgName)
 	}
 	if firstOrg {
 		addRow("Organizations", "(none)")
 	}
-
 	return tw.Render(), nil
 }

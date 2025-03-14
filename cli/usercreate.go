@@ -1,21 +1,16 @@
 package cli
-
 import (
+	"errors"
 	"fmt"
 	"strings"
-
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/pretty"
-
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/serpent"
 )
-
 func (r *RootCmd) userCreate() *serpent.Command {
 	var (
 		email        string
@@ -47,7 +42,7 @@ func (r *RootCmd) userCreate() *serpent.Command {
 					Validate: func(username string) error {
 						err = codersdk.NameValid(username)
 						if err != nil {
-							return xerrors.Errorf("username %q is invalid: %w", username, err)
+							return fmt.Errorf("username %q is invalid: %w", username, err)
 						}
 						return nil
 					},
@@ -62,7 +57,7 @@ func (r *RootCmd) userCreate() *serpent.Command {
 					Validate: func(s string) error {
 						err := validator.New().Var(s, "email")
 						if err != nil {
-							return xerrors.New("That's not a valid email address!")
+							return errors.New("That's not a valid email address!")
 						}
 						return err
 					},
@@ -85,14 +80,13 @@ func (r *RootCmd) userCreate() *serpent.Command {
 			}
 			userLoginType := codersdk.LoginTypePassword
 			if disableLogin && loginType != "" {
-				return xerrors.New("You cannot specify both --disable-login and --login-type")
+				return errors.New("You cannot specify both --disable-login and --login-type")
 			}
 			if disableLogin {
 				userLoginType = codersdk.LoginTypeNone
 			} else if loginType != "" {
 				userLoginType = codersdk.LoginType(loginType)
 			}
-
 			if password == "" && userLoginType == codersdk.LoginTypePassword {
 				// Generate a random password
 				password, err = cryptorand.StringCharset(cryptorand.Human, 20)
@@ -100,7 +94,6 @@ func (r *RootCmd) userCreate() *serpent.Command {
 					return err
 				}
 			}
-
 			_, err = client.CreateUserWithOrgs(inv.Context(), codersdk.CreateUserRequestWithOrgs{
 				Email:           email,
 				Username:        username,
@@ -112,7 +105,6 @@ func (r *RootCmd) userCreate() *serpent.Command {
 			if err != nil {
 				return err
 			}
-
 			authenticationMethod := ""
 			switch codersdk.LoginType(strings.ToLower(string(userLoginType))) {
 			case codersdk.LoginTypePassword:
@@ -124,18 +116,14 @@ func (r *RootCmd) userCreate() *serpent.Command {
 			case codersdk.LoginTypeOIDC:
 				authenticationMethod = `Login is authenticated through the configured OIDC provider.`
 			}
-
 			_, _ = fmt.Fprintln(inv.Stderr, `A new user has been created!
 Share the instructions below to get them started.
 `+pretty.Sprint(cliui.DefaultStyles.Placeholder, "—————————————————————————————————————————————————")+`
 Download the Coder command line for your operating system:
 https://github.com/coder/coder/releases
-
 Run `+pretty.Sprint(cliui.DefaultStyles.Code, "coder login "+client.URL.String())+` to authenticate.
-
 Your email is: `+pretty.Sprint(cliui.DefaultStyles.Field, email)+`
 `+authenticationMethod+`
-
 Create a workspace  `+pretty.Sprint(cliui.DefaultStyles.Code, "coder create")+`!`)
 			return nil
 		},
@@ -156,7 +144,7 @@ Create a workspace  `+pretty.Sprint(cliui.DefaultStyles.Code, "coder create")+`!
 				if username != "" {
 					err := codersdk.NameValid(username)
 					if err != nil {
-						return xerrors.Errorf("username %q is invalid: %w", username, err)
+						return fmt.Errorf("username %q is invalid: %w", username, err)
 					}
 				}
 				return nil
@@ -192,7 +180,6 @@ Create a workspace  `+pretty.Sprint(cliui.DefaultStyles.Code, "coder create")+`!
 			Value: serpent.StringOf(&loginType),
 		},
 	}
-
 	orgContext.AttachOptions(cmd)
 	return cmd
 }

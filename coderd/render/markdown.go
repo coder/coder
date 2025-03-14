@@ -1,17 +1,15 @@
 package render
-
 import (
+	"fmt"
+	"errors"
 	"bytes"
 	"strings"
-
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/glamour/ansi"
 	gomarkdown "github.com/gomarkdown/markdown"
 	"github.com/gomarkdown/markdown/html"
 	"github.com/gomarkdown/markdown/parser"
-	"golang.org/x/xerrors"
 )
-
 var plaintextStyle = ansi.StyleConfig{
 	Document: ansi.StyleBlock{
 		StylePrimitive: ansi.StylePrimitive{},
@@ -78,7 +76,6 @@ var plaintextStyle = ansi.StyleConfig{
 	Table:                 ansi.StyleTable{},
 	DefinitionDescription: ansi.StylePrimitive{},
 }
-
 // PlaintextFromMarkdown function converts the description with optional Markdown tags
 // to the plaintext form.
 func PlaintextFromMarkdown(markdown string) (string, error) {
@@ -88,18 +85,15 @@ func PlaintextFromMarkdown(markdown string) (string, error) {
 		glamour.WithStyles(plaintextStyle),
 	)
 	if err != nil {
-		return "", xerrors.Errorf("can't initialize the Markdown renderer: %w", err)
+		return "", fmt.Errorf("can't initialize the Markdown renderer: %w", err)
 	}
-
 	output, err := renderer.Render(markdown)
 	if err != nil {
-		return "", xerrors.Errorf("can't render description to plaintext: %w", err)
+		return "", fmt.Errorf("can't render description to plaintext: %w", err)
 	}
 	defer renderer.Close()
-
 	return strings.TrimSpace(output), nil
 }
-
 func HTMLFromMarkdown(markdown string) string {
 	p := parser.NewWithExtensions(parser.CommonExtensions | parser.HardLineBreak) // Added HardLineBreak.
 	doc := p.Parse([]byte(markdown))

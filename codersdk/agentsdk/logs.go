@@ -1,6 +1,6 @@
 package agentsdk
-
 import (
+	"fmt"
 	"bytes"
 	"context"
 	"errors"
@@ -8,29 +8,22 @@ import (
 	"net/http"
 	"sync"
 	"time"
-
 	"google.golang.org/protobuf/types/known/timestamppb"
-
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
-
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/retry"
 )
-
 const (
 	flushInterval    = time.Second
 	maxBytesPerBatch = 1 << 20 // 1MiB
 	overheadPerLog   = 21      // found by testing
-
 	// maxBytesQueued is the maximum length of logs we will queue in memory.  The number is taken
 	// from dump.sql `max_logs_length` constraint, as there is no point queuing more logs than we'll
 	// accept in the database.
 	maxBytesQueued = 1048576
 )
-
 type startupLogsWriter struct {
 	buf    bytes.Buffer // Buffer to track partial lines.
 	ctx    context.Context
@@ -38,7 +31,6 @@ type startupLogsWriter struct {
 	level  codersdk.LogLevel
 	source uuid.UUID
 }
-
 func (w *startupLogsWriter) Write(p []byte) (int, error) {
 	n := len(p)
 	for len(p) > 0 {
@@ -50,7 +42,6 @@ func (w *startupLogsWriter) Write(p []byte) (int, error) {
 		if nl > 0 && p[nl-1] == '\r' {
 			cr = 1
 		}
-
 		var partial []byte
 		if w.buf.Len() > 0 {
 			partial = w.buf.Bytes()
@@ -74,7 +65,6 @@ func (w *startupLogsWriter) Write(p []byte) (int, error) {
 	}
 	return n, nil
 }
-
 func (w *startupLogsWriter) Close() error {
 	if w.buf.Len() > 0 {
 		defer w.buf.Reset()
@@ -86,7 +76,6 @@ func (w *startupLogsWriter) Close() error {
 	}
 	return nil
 }
-
 // LogsWriter returns an io.WriteCloser that sends logs via the
 // provided sender. The sender is expected to be non-blocking. Calling
 // Close flushes any remaining partially written log lines but is
@@ -103,7 +92,6 @@ func LogsWriter(ctx context.Context, sender func(ctx context.Context, log ...Log
 		source: source,
 	}
 }
-
 // LogsSenderFlushTimeout changes the default flush timeout (250ms),
 // this is mostly useful for tests.
 func LogsSenderFlushTimeout(timeout time.Duration) func(*logsSenderOptions) {
@@ -111,11 +99,9 @@ func LogsSenderFlushTimeout(timeout time.Duration) func(*logsSenderOptions) {
 		o.flushTimeout = timeout
 	}
 }
-
 type logsSenderOptions struct {
 	flushTimeout time.Duration
 }
-
 // LogsSender will send agent startup logs to the server. Calls to
 // sendLog are non-blocking and will return an error if flushAndClose
 // has been called. Calling sendLog concurrently is not supported. If
@@ -130,13 +116,11 @@ func LogsSender(sourceID uuid.UUID, patchLogs func(ctx context.Context, req Patc
 	for _, opt := range opts {
 		opt(&o)
 	}
-
 	// The main context is used to close the sender goroutine and cancel
 	// any outbound requests to the API. The shutdown context is used to
 	// signal the sender goroutine to flush logs and then exit.
 	ctx, cancel := context.WithCancel(context.Background())
 	shutdownCtx, shutdown := context.WithCancel(ctx)
-
 	// Synchronous sender, there can only be one outbound send at a time.
 	sendDone := make(chan struct{})
 	send := make(chan []Log, 1)
@@ -145,9 +129,7 @@ func LogsSender(sourceID uuid.UUID, patchLogs func(ctx context.Context, req Patc
 		// once every 250ms or when 100 logs have been added to the
 		// backlog, whichever comes first.
 		backlogLimit := 100
-
 		flush := time.NewTicker(o.flushTimeout)
-
 		var backlog []Log
 		defer func() {
 			flush.Stop()
@@ -157,7 +139,6 @@ func LogsSender(sourceID uuid.UUID, patchLogs func(ctx context.Context, req Patc
 			logger.Debug(ctx, "startup logs sender exited")
 			close(sendDone)
 		}()
-
 		done := false
 		for {
 			flushed := false
@@ -166,7 +147,6 @@ func LogsSender(sourceID uuid.UUID, patchLogs func(ctx context.Context, req Patc
 				return
 			case <-shutdownCtx.Done():
 				done = true
-
 				// Check queued logs before flushing.
 				select {
 				case logs := <-send:
@@ -179,10 +159,8 @@ func LogsSender(sourceID uuid.UUID, patchLogs func(ctx context.Context, req Patc
 				backlog = append(backlog, logs...)
 				flushed = len(backlog) >= backlogLimit
 			}
-
 			if (done || flushed) && len(backlog) > 0 {
 				flush.Stop() // Lower the chance of a double flush.
-
 				// Retry uploading logs until successful or a specific
 				// error occurs. Note that we use the main context here,
 				// meaning these requests won't be interrupted by
@@ -196,7 +174,6 @@ func LogsSender(sourceID uuid.UUID, patchLogs func(ctx context.Context, req Patc
 					if err == nil {
 						break
 					}
-
 					if errors.Is(err, context.Canceled) {
 						break
 					}
@@ -216,7 +193,6 @@ func LogsSender(sourceID uuid.UUID, patchLogs func(ctx context.Context, req Patc
 					return
 				}
 				backlog = nil
-
 				// Anchor flush to the last log upload.
 				flush.Reset(o.flushTimeout)
 			}
@@ -225,19 +201,18 @@ func LogsSender(sourceID uuid.UUID, patchLogs func(ctx context.Context, req Patc
 			}
 		}
 	}()
-
 	var queue []Log
 	sendLog = func(callCtx context.Context, log ...Log) error {
 		select {
 		case <-shutdownCtx.Done():
-			return xerrors.Errorf("closed: %w", shutdownCtx.Err())
+			return fmt.Errorf("closed: %w", shutdownCtx.Err())
 		case <-callCtx.Done():
 			return callCtx.Err()
 		case queue = <-send:
 			// Recheck to give priority to context cancellation.
 			select {
 			case <-shutdownCtx.Done():
-				return xerrors.Errorf("closed: %w", shutdownCtx.Err())
+				return fmt.Errorf("closed: %w", shutdownCtx.Err())
 			case <-callCtx.Done():
 				return callCtx.Err()
 			default:
@@ -245,11 +220,9 @@ func LogsSender(sourceID uuid.UUID, patchLogs func(ctx context.Context, req Patc
 			// Queue has not been captured by sender yet, re-use.
 		default:
 		}
-
 		queue = append(queue, log...)
 		send <- queue // Non-blocking.
 		queue = nil
-
 		return nil
 	}
 	flushAndClose = func(callCtx context.Context) error {
@@ -266,13 +239,11 @@ func LogsSender(sourceID uuid.UUID, patchLogs func(ctx context.Context, req Patc
 	}
 	return sendLog, flushAndClose
 }
-
 type logQueue struct {
 	logs           []*proto.Log
 	flushRequested bool
 	lastFlush      time.Time
 }
-
 // LogSender is a component that handles enqueuing logs and then sending them over the agent API.
 // Things that need to log call Enqueue and Flush.  When the agent API becomes available, call
 // SendLoop to send pending logs.
@@ -283,11 +254,9 @@ type LogSender struct {
 	exceededLogLimit bool
 	outputLen        int
 }
-
 type LogDest interface {
 	BatchCreateLogs(ctx context.Context, request *proto.BatchCreateLogsRequest) (*proto.BatchCreateLogsResponse, error)
 }
-
 func NewLogSender(logger slog.Logger) *LogSender {
 	return &LogSender{
 		Cond:   sync.NewCond(&sync.Mutex{}),
@@ -295,7 +264,6 @@ func NewLogSender(logger slog.Logger) *LogSender {
 		queues: make(map[uuid.UUID]*logQueue),
 	}
 }
-
 func (l *LogSender) Enqueue(src uuid.UUID, logs ...Log) {
 	logger := l.logger.With(slog.F("log_source_id", src))
 	if len(logs) == 0 {
@@ -342,7 +310,6 @@ func (l *LogSender) Enqueue(src uuid.UUID, logs ...Log) {
 	}
 	logger.Debug(context.Background(), "enqueued agent logs", slog.F("new_logs", len(logs)), slog.F("queued_logs", len(q.logs)))
 }
-
 func (l *LogSender) Flush(src uuid.UUID) {
 	l.L.Lock()
 	defer l.L.Unlock()
@@ -354,9 +321,7 @@ func (l *LogSender) Flush(src uuid.UUID) {
 	// queue might not exist because it's already been flushed and removed from
 	// the map.
 }
-
-var LogLimitExceededError = xerrors.New("Log limit exceeded")
-
+var LogLimitExceededError = errors.New("Log limit exceeded")
 // SendLoop sends any pending logs until it hits an error or the context is canceled.  It does not
 // retry as it is expected that a higher layer retries establishing connection to the agent API and
 // calls SendLoop again.
@@ -367,10 +332,8 @@ func (l *LogSender) SendLoop(ctx context.Context, dest LogDest) error {
 		l.logger.Debug(ctx, "aborting SendLoop because log limit is already exceeded")
 		return LogLimitExceededError
 	}
-
 	ctxDone := false
 	defer l.logger.Debug(ctx, "log sender send loop exiting")
-
 	// wake 4 times per Flush interval to check if anything needs to be flushed
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -392,7 +355,6 @@ func (l *LogSender) SendLoop(ctx context.Context, dest LogDest) error {
 			}
 		}
 	}()
-
 	for {
 		for !ctxDone && !l.hasPendingWorkLocked() {
 			l.Wait()
@@ -400,14 +362,12 @@ func (l *LogSender) SendLoop(ctx context.Context, dest LogDest) error {
 		if ctxDone {
 			return ctx.Err()
 		}
-
 		src, q := l.getPendingWorkLocked()
 		logger := l.logger.With(slog.F("log_source_id", src))
 		q.flushRequested = false // clear flag since we're now flushing
 		req := &proto.BatchCreateLogsRequest{
 			LogSourceId: src[:],
 		}
-
 		// outputToSend keeps track of the size of the protobuf message we send, while
 		// outputToRemove keeps track of the size of the output we'll remove from the queues on
 		// success.  They are different because outputToSend also counts protocol message overheads.
@@ -424,13 +384,12 @@ func (l *LogSender) SendLoop(ctx context.Context, dest LogDest) error {
 			n++
 			outputToRemove += len(log.Output)
 		}
-
 		l.L.Unlock()
 		logger.Debug(ctx, "sending logs to agent API", slog.F("num_logs", len(req.Logs)))
 		resp, err := dest.BatchCreateLogs(ctx, req)
 		l.L.Lock()
 		if err != nil {
-			return xerrors.Errorf("failed to upload logs: %w", err)
+			return fmt.Errorf("failed to upload logs: %w", err)
 		}
 		if resp.LogLimitExceeded {
 			l.logger.Warn(ctx, "server log limit exceeded; logs truncated")
@@ -440,7 +399,6 @@ func (l *LogSender) SendLoop(ctx context.Context, dest LogDest) error {
 			l.Broadcast() // might unblock WaitUntilEmpty
 			return LogLimitExceededError
 		}
-
 		// Since elsewhere we only append to the logs, here we can remove them
 		// since we successfully sent them.  First we nil the pointers though,
 		// so that they can be gc'd.
@@ -458,7 +416,6 @@ func (l *LogSender) SendLoop(ctx context.Context, dest LogDest) error {
 		q.lastFlush = time.Now()
 	}
 }
-
 func (l *LogSender) hasPendingWorkLocked() bool {
 	for _, q := range l.queues {
 		if time.Since(q.lastFlush) > flushInterval {
@@ -470,7 +427,6 @@ func (l *LogSender) hasPendingWorkLocked() bool {
 	}
 	return false
 }
-
 func (l *LogSender) getPendingWorkLocked() (src uuid.UUID, q *logQueue) {
 	// take the one it's been the longest since we've flushed, so that we have some sense of
 	// fairness across sources
@@ -484,11 +440,9 @@ func (l *LogSender) getPendingWorkLocked() (src uuid.UUID, q *logQueue) {
 	}
 	return src, q
 }
-
 func (l *LogSender) GetScriptLogger(logSourceID uuid.UUID) ScriptLogger {
 	return ScriptLogger{srcID: logSourceID, sender: l}
 }
-
 // WaitUntilEmpty waits until the LogSender's queues are empty or the given context expires.
 func (l *LogSender) WaitUntilEmpty(ctx context.Context) error {
 	ctxDone := false
@@ -516,12 +470,10 @@ func (l *LogSender) WaitUntilEmpty(ctx context.Context) error {
 	}
 	return ctx.Err()
 }
-
 type ScriptLogger struct {
 	sender *LogSender
 	srcID  uuid.UUID
 }
-
 func (s ScriptLogger) Send(ctx context.Context, log ...Log) error {
 	select {
 	case <-ctx.Done():
@@ -531,7 +483,6 @@ func (s ScriptLogger) Send(ctx context.Context, log ...Log) error {
 		return nil
 	}
 }
-
 func (s ScriptLogger) Flush(ctx context.Context) error {
 	select {
 	case <-ctx.Done():

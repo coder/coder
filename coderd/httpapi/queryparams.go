@@ -1,5 +1,4 @@
 package httpapi
-
 import (
 	"database/sql"
 	"encoding/json"
@@ -9,13 +8,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/codersdk"
 )
-
 // QueryParamParser is a helper for parsing all query params and gathering all
 // errors in 1 sweep. This means all invalid fields are returned at once,
 // rather than only returning the first error
@@ -30,7 +25,6 @@ type QueryParamParser struct {
 	// for forcing a value to be provided.
 	RequiredNotEmptyParams map[string]bool
 }
-
 func NewQueryParamParser() *QueryParamParser {
 	return &QueryParamParser{
 		Errors:                 []codersdk.ValidationError{},
@@ -38,7 +32,6 @@ func NewQueryParamParser() *QueryParamParser {
 		RequiredNotEmptyParams: map[string]bool{},
 	}
 }
-
 // ErrorExcessParams checks if any query params were passed in that were not
 // parsed. If so, it adds an error to the parser as these values are not valid
 // query parameters.
@@ -52,11 +45,9 @@ func (p *QueryParamParser) ErrorExcessParams(values url.Values) {
 		}
 	}
 }
-
 func (p *QueryParamParser) addParsed(key string) {
 	p.Parsed[key] = true
 }
-
 func (p *QueryParamParser) UInt(vals url.Values, def uint64, queryParam string) uint64 {
 	v, err := parseQueryParam(p, vals, func(v string) (uint64, error) {
 		return strconv.ParseUint(v, 10, 64)
@@ -70,7 +61,6 @@ func (p *QueryParamParser) UInt(vals url.Values, def uint64, queryParam string) 
 	}
 	return v
 }
-
 func (p *QueryParamParser) Int(vals url.Values, def int, queryParam string) int {
 	v, err := parseQueryParam(p, vals, strconv.Atoi, def, queryParam)
 	if err != nil {
@@ -81,7 +71,6 @@ func (p *QueryParamParser) Int(vals url.Values, def int, queryParam string) int 
 	}
 	return v
 }
-
 // PositiveInt32 function checks if the given value is 32-bit and positive.
 //
 // We can't use `uint32` as the value must be within the range  <0,2147483647>
@@ -93,7 +82,7 @@ func (p *QueryParamParser) PositiveInt32(vals url.Values, def int32, queryParam 
 			return 0, err
 		}
 		if intValue < 0 {
-			return 0, xerrors.Errorf("value is negative")
+			return 0, fmt.Errorf("value is negative")
 		}
 		return int32(intValue), nil
 	}, def, queryParam)
@@ -105,7 +94,6 @@ func (p *QueryParamParser) PositiveInt32(vals url.Values, def int32, queryParam 
 	}
 	return v
 }
-
 // NullableBoolean will return a null sql value if no input is provided.
 // SQLc still uses sql.NullBool rather than the generic type. So converting from
 // the generic type is required.
@@ -120,13 +108,11 @@ func (p *QueryParamParser) NullableBoolean(vals url.Values, def sql.NullBool, qu
 			Detail: fmt.Sprintf("Query param %q must be a valid boolean: %s", queryParam, err.Error()),
 		})
 	}
-
 	return sql.NullBool{
 		Bool:  v.V,
 		Valid: v.Valid,
 	}
 }
-
 func (p *QueryParamParser) Boolean(vals url.Values, def bool, queryParam string) bool {
 	v, err := parseQueryParam(p, vals, strconv.ParseBool, def, queryParam)
 	if err != nil {
@@ -137,14 +123,12 @@ func (p *QueryParamParser) Boolean(vals url.Values, def bool, queryParam string)
 	}
 	return v
 }
-
 func (p *QueryParamParser) RequiredNotEmpty(queryParam ...string) *QueryParamParser {
 	for _, q := range queryParam {
 		p.RequiredNotEmptyParams[q] = true
 	}
 	return p
 }
-
 // UUIDorName will parse a string as a UUID, if it fails, it uses the "fetchByName"
 // function to return a UUID based on the value as a string.
 // This is useful when fetching something like an organization by ID or by name.
@@ -157,7 +141,6 @@ func (p *QueryParamParser) UUIDorName(vals url.Values, def uuid.UUID, queryParam
 		return fetchByName(v)
 	})
 }
-
 func (p *QueryParamParser) UUIDorMe(vals url.Values, def uuid.UUID, me uuid.UUID, queryParam string) uuid.UUID {
 	return ParseCustom(p, vals, def, queryParam, func(v string) (uuid.UUID, error) {
 		if v == "me" {
@@ -166,7 +149,6 @@ func (p *QueryParamParser) UUIDorMe(vals url.Values, def uuid.UUID, me uuid.UUID
 		return uuid.Parse(v)
 	})
 }
-
 func (p *QueryParamParser) UUID(vals url.Values, def uuid.UUID, queryParam string) uuid.UUID {
 	v, err := parseQueryParam(p, vals, uuid.Parse, def, queryParam)
 	if err != nil {
@@ -177,13 +159,11 @@ func (p *QueryParamParser) UUID(vals url.Values, def uuid.UUID, queryParam strin
 	}
 	return v
 }
-
 func (p *QueryParamParser) UUIDs(vals url.Values, def []uuid.UUID, queryParam string) []uuid.UUID {
 	return ParseCustomList(p, vals, def, queryParam, func(v string) (uuid.UUID, error) {
 		return uuid.Parse(strings.TrimSpace(v))
 	})
 }
-
 func (p *QueryParamParser) RedirectURL(vals url.Values, base *url.URL, queryParam string) *url.URL {
 	v, err := parseQueryParam(p, vals, url.Parse, base, queryParam)
 	if err != nil {
@@ -192,7 +172,6 @@ func (p *QueryParamParser) RedirectURL(vals url.Values, base *url.URL, queryPara
 			Detail: fmt.Sprintf("Query param %q must be a valid url: %s", queryParam, err.Error()),
 		})
 	}
-
 	// It can be a sub-directory but not a sub-domain, as we have apps on
 	// sub-domains and that seems too dangerous.
 	if v.Host != base.Host || !strings.HasPrefix(v.Path, base.Path) {
@@ -201,14 +180,11 @@ func (p *QueryParamParser) RedirectURL(vals url.Values, base *url.URL, queryPara
 			Detail: fmt.Sprintf("Query param %q must be a subset of %s", queryParam, base),
 		})
 	}
-
 	return v
 }
-
 func (p *QueryParamParser) Time(vals url.Values, def time.Time, queryParam, layout string) time.Time {
 	return p.timeWithMutate(vals, def, queryParam, layout, nil)
 }
-
 // Time uses the default time format of RFC3339Nano and always returns a UTC time.
 func (p *QueryParamParser) Time3339Nano(vals url.Values, def time.Time, queryParam string) time.Time {
 	layout := time.RFC3339Nano
@@ -218,7 +194,6 @@ func (p *QueryParamParser) Time3339Nano(vals url.Values, def time.Time, queryPar
 		return strings.ToUpper(term)
 	})
 }
-
 func (p *QueryParamParser) timeWithMutate(vals url.Values, def time.Time, queryParam, layout string, mutate func(term string) string) time.Time {
 	v, err := parseQueryParam(p, vals, func(term string) (time.Time, error) {
 		if mutate != nil {
@@ -238,7 +213,6 @@ func (p *QueryParamParser) timeWithMutate(vals url.Values, def time.Time, queryP
 	}
 	return v
 }
-
 func (p *QueryParamParser) String(vals url.Values, def string, queryParam string) string {
 	v, err := parseQueryParam(p, vals, func(v string) (string, error) {
 		return v, nil
@@ -251,13 +225,11 @@ func (p *QueryParamParser) String(vals url.Values, def string, queryParam string
 	}
 	return v
 }
-
 func (p *QueryParamParser) Strings(vals url.Values, def []string, queryParam string) []string {
 	return ParseCustomList(p, vals, def, queryParam, func(v string) (string, error) {
 		return v, nil
 	})
 }
-
 func (p *QueryParamParser) JSONStringMap(vals url.Values, def map[string]string, queryParam string) map[string]string {
 	v, err := parseQueryParam(p, vals, func(v string) (map[string]string, error) {
 		var m map[string]string
@@ -274,16 +246,13 @@ func (p *QueryParamParser) JSONStringMap(vals url.Values, def map[string]string,
 	}
 	return v
 }
-
 // ValidEnum represents an enum that can be parsed and validated.
 type ValidEnum interface {
 	// Add more types as needed (avoid importing large dependency trees).
 	~string
-
 	// Valid is required on the enum type to be used with ParseEnum.
 	Valid() bool
 }
-
 // ParseEnum is a function that can be passed into ParseCustom that handles enum
 // validation.
 func ParseEnum[T ValidEnum](term string) (T, error) {
@@ -292,9 +261,8 @@ func ParseEnum[T ValidEnum](term string) (T, error) {
 		return enum, nil
 	}
 	var empty T
-	return empty, xerrors.Errorf("%q is not a valid value", term)
+	return empty, fmt.Errorf("%q is not a valid value", term)
 }
-
 // ParseCustom has to be a function, not a method on QueryParamParser because generics
 // cannot be used on struct methods.
 func ParseCustom[T any](parser *QueryParamParser, vals url.Values, def T, queryParam string, parseFunc func(v string) (T, error)) T {
@@ -307,7 +275,6 @@ func ParseCustom[T any](parser *QueryParamParser, vals url.Values, def T, queryP
 	}
 	return v
 }
-
 // ParseCustomList is a function that handles csv query params or multiple values
 // for a query param.
 // Csv is supported as it is a common way to pass multiple values in a query param.
@@ -321,7 +288,6 @@ func ParseCustomList[T any](parser *QueryParamParser, vals url.Values, def []T, 
 			terms := strings.Split(s, ",")
 			allTerms = append(allTerms, terms...)
 		}
-
 		var badErrors error
 		var output []T
 		for _, s := range allTerms {
@@ -335,7 +301,6 @@ func ParseCustomList[T any](parser *QueryParamParser, vals url.Values, def []T, 
 		if badErrors != nil {
 			return []T{}, badErrors
 		}
-
 		return output, nil
 	}, def, queryParam)
 	if err != nil {
@@ -346,7 +311,6 @@ func ParseCustomList[T any](parser *QueryParamParser, vals url.Values, def []T, 
 	}
 	return v
 }
-
 func parseNullableQueryParam[T any](parser *QueryParamParser, vals url.Values, parse func(v string) (T, error), def sql.Null[T], queryParam string) (sql.Null[T], error) {
 	setParse := parseSingle(parser, parse, def.V, queryParam)
 	return parseQueryParamSet[sql.Null[T]](parser, vals, func(set []string) (sql.Null[T], error) {
@@ -355,7 +319,6 @@ func parseNullableQueryParam[T any](parser *QueryParamParser, vals url.Values, p
 				Valid: false,
 			}, nil
 		}
-
 		value, err := setParse(set)
 		if err != nil {
 			return sql.Null[T]{}, err
@@ -366,13 +329,11 @@ func parseNullableQueryParam[T any](parser *QueryParamParser, vals url.Values, p
 		}, nil
 	}, def, queryParam)
 }
-
 // parseQueryParam expects just 1 value set for the given query param.
 func parseQueryParam[T any](parser *QueryParamParser, vals url.Values, parse func(v string) (T, error), def T, queryParam string) (T, error) {
 	setParse := parseSingle(parser, parse, def, queryParam)
 	return parseQueryParamSet(parser, vals, setParse, def, queryParam)
 }
-
 func parseSingle[T any](parser *QueryParamParser, parse func(v string) (T, error), def T, queryParam string) func(set []string) (T, error) {
 	return func(set []string) (T, error) {
 		if len(set) > 1 {
@@ -390,7 +351,6 @@ func parseSingle[T any](parser *QueryParamParser, parse func(v string) (T, error
 		return parse(set[0])
 	}
 }
-
 func parseQueryParamSet[T any](parser *QueryParamParser, vals url.Values, parse func(set []string) (T, error), def T, queryParam string) (T, error) {
 	parser.addParsed(queryParam)
 	// If the query param is required and not present, return an error.
@@ -401,11 +361,9 @@ func parseQueryParamSet[T any](parser *QueryParamParser, vals url.Values, parse 
 		})
 		return def, nil
 	}
-
 	// If the query param is not present, return the default value.
 	if !vals.Has(queryParam) || vals.Get(queryParam) == "" {
 		return def, nil
 	}
-
 	return parse(vals[queryParam])
 }

@@ -1,22 +1,17 @@
 package tailnet
-
 import (
+	"errors"
 	"context"
 	"fmt"
 	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
-
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
-
 	"cdr.dev/slog"
-
 	agpl "github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
 )
-
 // connIO manages the reading and writing to a connected peer. It reads requests via its requests
 // channel, then pushes them onto the bindings or tunnels channel.  It receives responses via calls
 // to Enqueue and pushes them onto the responses channel.
@@ -39,13 +34,11 @@ type connIO struct {
 	disconnected bool
 	// latest is the most recent, unfiltered snapshot of the mappings we know about
 	latest []mapping
-
 	name       string
 	start      int64
 	lastWrite  int64
 	overwrites int64
 }
-
 func newConnIO(coordContext context.Context,
 	peerCtx context.Context,
 	logger slog.Logger,
@@ -80,7 +73,6 @@ func newConnIO(coordContext context.Context,
 	c.logger.Info(coordContext, "serving connection")
 	return c
 }
-
 func (c *connIO) recvLoop() {
 	defer func() {
 		// withdraw bindings & tunnels when we exit.  We need to use the coordinator context here, since
@@ -128,17 +120,14 @@ func (c *connIO) recvLoop() {
 		}
 	}
 }
-
-var errDisconnect = xerrors.New("graceful disconnect")
-
+var errDisconnect = errors.New("graceful disconnect")
 func (c *connIO) handleRequest(req *proto.CoordinateRequest) error {
 	c.logger.Debug(c.peerCtx, "got request")
 	err := c.auth.Authorize(c.peerCtx, req)
 	if err != nil {
 		c.logger.Warn(c.peerCtx, "unauthorized request", slog.Error(err))
-		return xerrors.Errorf("authorize request: %w", err)
+		return fmt.Errorf("authorize request: %w", err)
 	}
-
 	if req.UpdateSelf != nil {
 		c.logger.Debug(c.peerCtx, "got node update", slog.F("node", req.UpdateSelf))
 		b := binding{
@@ -208,7 +197,6 @@ func (c *connIO) handleRequest(req *proto.CoordinateRequest) error {
 				// doesn't just happily continue thinking everything is fine.
 				return err
 			}
-
 			mappings := c.getLatestMapping()
 			if !slices.ContainsFunc(mappings, func(mapping mapping) bool {
 				return mapping.peer == dst
@@ -221,7 +209,6 @@ func (c *connIO) handleRequest(req *proto.CoordinateRequest) error {
 				})
 				return nil
 			}
-
 			if err := agpl.SendCtx(c.coordCtx, c.rfhs, readyForHandshake{
 				src: c.id,
 				dst: dst,
@@ -233,29 +220,25 @@ func (c *connIO) handleRequest(req *proto.CoordinateRequest) error {
 	}
 	return nil
 }
-
 func (c *connIO) setLatestMapping(latest []mapping) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.latest = latest
 }
-
 func (c *connIO) getLatestMapping() []mapping {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.latest
 }
-
 func (c *connIO) UniqueID() uuid.UUID {
 	return c.id
 }
-
 func (c *connIO) Enqueue(resp *proto.CoordinateResponse) error {
 	atomic.StoreInt64(&c.lastWrite, time.Now().Unix())
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.closed {
-		return xerrors.New("connIO closed")
+		return errors.New("connIO closed")
 	}
 	select {
 	case <-c.peerCtx.Done():
@@ -267,29 +250,23 @@ func (c *connIO) Enqueue(resp *proto.CoordinateResponse) error {
 		return agpl.ErrWouldBlock
 	}
 }
-
 func (c *connIO) Name() string {
 	return c.name
 }
-
 func (c *connIO) Stats() (start int64, lastWrite int64) {
 	return c.start, atomic.LoadInt64(&c.lastWrite)
 }
-
 func (c *connIO) Overwrites() int64 {
 	return atomic.LoadInt64(&c.overwrites)
 }
-
 // CoordinatorClose is used by the coordinator when closing a Queue. It
 // should skip removing itself from the coordinator.
 func (c *connIO) CoordinatorClose() error {
 	return c.Close()
 }
-
 func (c *connIO) Done() <-chan struct{} {
 	return c.peerCtx.Done()
 }
-
 func (c *connIO) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()

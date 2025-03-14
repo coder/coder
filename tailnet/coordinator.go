@@ -2,6 +2,7 @@ package tailnet
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"html/template"
 	"io"
@@ -11,7 +12,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
 
@@ -92,9 +92,9 @@ type Coordinatee interface {
 const LoggerName = "coord"
 
 var (
-	ErrClosed         = xerrors.New("coordinator is closed")
-	ErrWouldBlock     = xerrors.New("would block")
-	ErrAlreadyRemoved = xerrors.New("already removed")
+	ErrClosed         = errors.New("coordinator is closed")
+	ErrWouldBlock     = errors.New("would block")
+	ErrAlreadyRemoved = errors.New("already removed")
 )
 
 // NewCoordinator constructs a new in-memory connection coordinator. This
@@ -146,7 +146,7 @@ func (c *coordinator) Coordinate(
 	}
 	err := c.core.initPeer(p)
 	if err != nil {
-		if xerrors.Is(err, ErrClosed) {
+		if errors.Is(err, ErrClosed) {
 			logger.Debug(ctx, "coordinate failed: Coordinator is closed")
 		} else {
 			logger.Critical(ctx, "coordinate failed: %s", err.Error())
@@ -163,7 +163,7 @@ func (c *coordinator) Coordinate(
 		defer c.wg.Done()
 		p.reqLoop(ctx, logger, c.core.handleRequest)
 		err := c.core.lostPeer(p)
-		if xerrors.Is(err, ErrClosed) || xerrors.Is(err, ErrAlreadyRemoved) {
+		if errors.Is(err, ErrClosed) || errors.Is(err, ErrAlreadyRemoved) {
 			return
 		}
 		if err != nil {
@@ -227,16 +227,16 @@ func (c *core) handleRequest(ctx context.Context, p *peer, req *proto.Coordinate
 	}
 
 	if err := pr.auth.Authorize(ctx, req); err != nil {
-		return xerrors.Errorf("authorize request: %w", err)
+		return fmt.Errorf("authorize request: %w", err)
 	}
 
 	if req.UpdateSelf != nil {
 		err := c.nodeUpdateLocked(p, req.UpdateSelf.Node)
-		if xerrors.Is(err, ErrAlreadyRemoved) || xerrors.Is(err, ErrClosed) {
+		if errors.Is(err, ErrAlreadyRemoved) || errors.Is(err, ErrClosed) {
 			return nil
 		}
 		if err != nil {
-			return xerrors.Errorf("node update failed: %w", err)
+			return fmt.Errorf("node update failed: %w", err)
 		}
 	}
 	if req.AddTunnel != nil {
@@ -244,14 +244,14 @@ func (c *core) handleRequest(ctx context.Context, p *peer, req *proto.Coordinate
 		if err != nil {
 			// this shouldn't happen unless there is a client error.  Close the connection so the client
 			// doesn't just happily continue thinking everything is fine.
-			return xerrors.Errorf("unable to convert bytes to UUID: %w", err)
+			return fmt.Errorf("unable to convert bytes to UUID: %w", err)
 		}
 		err = c.addTunnelLocked(p, dstID)
-		if xerrors.Is(err, ErrAlreadyRemoved) || xerrors.Is(err, ErrClosed) {
+		if errors.Is(err, ErrAlreadyRemoved) || errors.Is(err, ErrClosed) {
 			return nil
 		}
 		if err != nil {
-			return xerrors.Errorf("add tunnel failed: %w", err)
+			return fmt.Errorf("add tunnel failed: %w", err)
 		}
 	}
 	if req.RemoveTunnel != nil {
@@ -259,14 +259,14 @@ func (c *core) handleRequest(ctx context.Context, p *peer, req *proto.Coordinate
 		if err != nil {
 			// this shouldn't happen unless there is a client error.  Close the connection so the client
 			// doesn't just happily continue thinking everything is fine.
-			return xerrors.Errorf("unable to convert bytes to UUID: %w", err)
+			return fmt.Errorf("unable to convert bytes to UUID: %w", err)
 		}
 		err = c.removeTunnelLocked(p, dstID)
-		if xerrors.Is(err, ErrAlreadyRemoved) || xerrors.Is(err, ErrClosed) {
+		if errors.Is(err, ErrAlreadyRemoved) || errors.Is(err, ErrClosed) {
 			return nil
 		}
 		if err != nil {
-			return xerrors.Errorf("remove tunnel failed: %w", err)
+			return fmt.Errorf("remove tunnel failed: %w", err)
 		}
 	}
 	if req.Disconnect != nil {
@@ -275,7 +275,7 @@ func (c *core) handleRequest(ctx context.Context, p *peer, req *proto.Coordinate
 	if rfhs := req.ReadyForHandshake; rfhs != nil {
 		err := c.handleReadyForHandshakeLocked(pr, rfhs)
 		if err != nil {
-			return xerrors.Errorf("handle ack: %w", err)
+			return fmt.Errorf("handle ack: %w", err)
 		}
 	}
 	return nil
@@ -287,7 +287,7 @@ func (c *core) handleReadyForHandshakeLocked(src *peer, rfhs []*proto.Coordinate
 		if err != nil {
 			// this shouldn't happen unless there is a client error.  Close the connection so the client
 			// doesn't just happily continue thinking everything is fine.
-			return xerrors.Errorf("unable to convert bytes to UUID: %w", err)
+			return fmt.Errorf("unable to convert bytes to UUID: %w", err)
 		}
 
 		if !c.tunnels.tunnelExists(src.id, dstID) {
@@ -408,7 +408,7 @@ func (c *core) initPeer(p *peer) error {
 		return ErrClosed
 	}
 	if p.node != nil {
-		return xerrors.Errorf("peer (%s) must be initialized with nil node", p.id)
+		return fmt.Errorf("peer (%s) must be initialized with nil node", p.id)
 	}
 	if old, ok := c.peers[p.id]; ok {
 		// rare and interesting enough to log at Info, but it isn't an error per se

@@ -1,6 +1,6 @@
 package workspaceapps
-
 import (
+	"errors"
 	"context"
 	"database/sql"
 	"fmt"
@@ -10,11 +10,7 @@ import (
 	"slices"
 	"strings"
 	"time"
-
-	"golang.org/x/xerrors"
-
 	"github.com/go-jose/go-jose/v4/jwt"
-
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
@@ -26,12 +22,10 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 )
-
 // DBTokenProvider provides authentication and authorization for workspace apps
 // by querying the database if the request is missing a valid token.
 type DBTokenProvider struct {
 	Logger slog.Logger
-
 	// DashboardURL is the main dashboard access URL for error pages.
 	DashboardURL                  *url.URL
 	Authorizer                    rbac.Authorizer
@@ -41,9 +35,7 @@ type DBTokenProvider struct {
 	WorkspaceAgentInactiveTimeout time.Duration
 	Keycache                      cryptokeys.SigningKeycache
 }
-
 var _ SignedTokenProvider = &DBTokenProvider{}
-
 func NewDBTokenProvider(log slog.Logger,
 	accessURL *url.URL,
 	authz rbac.Authorizer,
@@ -56,7 +48,6 @@ func NewDBTokenProvider(log slog.Logger,
 	if workspaceAgentInactiveTimeout == 0 {
 		workspaceAgentInactiveTimeout = 1 * time.Minute
 	}
-
 	return &DBTokenProvider{
 		Logger:                        log,
 		DashboardURL:                  accessURL,
@@ -68,11 +59,9 @@ func NewDBTokenProvider(log slog.Logger,
 		Keycache:                      signer,
 	}
 }
-
 func (p *DBTokenProvider) FromRequest(r *http.Request) (*SignedToken, bool) {
 	return FromRequest(r, p.Keycache)
 }
-
 func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *http.Request, issueReq IssueTokenRequest) (*SignedToken, string, bool) {
 	// nolint:gocritic // We need to make a number of database calls. Setting a system context here
 	//                 // is simpler than calling dbauthz.AsSystemRestricted on every call.
@@ -80,18 +69,15 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 	//                 // logic is handled in Provider.authorizeWorkspaceApp which directly checks the actor's
 	//                 // permissions.
 	dangerousSystemCtx := dbauthz.AsSystemRestricted(ctx)
-
 	appReq := issueReq.AppRequest.Normalize()
 	err := appReq.Check()
 	if err != nil {
 		WriteWorkspaceApp500(p.Logger, p.DashboardURL, rw, r, &appReq, err, "invalid app request")
 		return nil, "", false
 	}
-
 	token := SignedToken{
 		Request: appReq,
 	}
-
 	// We use the regular API apiKey extraction middleware fn here to avoid any
 	// differences in behavior between the two.
 	apiKey, authz, ok := httpmw.ExtractAPIKey(rw, r, httpmw.ExtractAPIKeyConfig{
@@ -110,13 +96,12 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 	if !ok {
 		return nil, "", false
 	}
-
 	// Lookup workspace app details from DB.
 	dbReq, err := appReq.getDatabase(dangerousSystemCtx, p.Database)
-	if xerrors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, sql.ErrNoRows) {
 		WriteWorkspaceApp404(p.Logger, p.DashboardURL, rw, r, &appReq, nil, err.Error())
 		return nil, "", false
-	} else if xerrors.Is(err, errWorkspaceStopped) {
+	} else if errors.Is(err, errWorkspaceStopped) {
 		WriteWorkspaceOffline(p.Logger, p.DashboardURL, rw, r, &appReq)
 		return nil, "", false
 	} else if err != nil {
@@ -129,7 +114,6 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 	if dbReq.AppURL != nil {
 		token.AppURL = dbReq.AppURL.String()
 	}
-
 	// Verify the user has access to the app.
 	authed, warnings, err := p.authorizeRequest(r.Context(), authz, dbReq)
 	if err != nil {
@@ -142,10 +126,8 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 			WriteWorkspaceApp404(p.Logger, p.DashboardURL, rw, r, &appReq, warnings, "insufficient permissions")
 			return nil, "", false
 		}
-
 		// Redirect to login as they don't have permission to access the app
 		// and they aren't signed in.
-
 		// We don't support login redirects for the terminal since it's a
 		// WebSocket endpoint and redirects won't work. The token must be
 		// specified as a query parameter.
@@ -153,13 +135,11 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 			httpapi.ResourceNotFound(rw)
 			return nil, "", false
 		}
-
 		appBaseURL, err := issueReq.AppBaseURL()
 		if err != nil {
 			WriteWorkspaceApp500(p.Logger, p.DashboardURL, rw, r, &appReq, err, "get app base URL")
 			return nil, "", false
 		}
-
 		// If the app is a path app and it's on the same host as the dashboard
 		// access URL, then we need to redirect to login using the standard
 		// login redirect function.
@@ -167,7 +147,6 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 			httpmw.RedirectToLogin(rw, r, p.DashboardURL, httpmw.SignedOutErrorMessage)
 			return nil, "", false
 		}
-
 		// Otherwise, we need to redirect to the app auth endpoint, which will
 		// redirect back to the app (with an encrypted API key) after the user
 		// has logged in.
@@ -190,7 +169,6 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 			}
 			redirectURI.RawQuery = q
 		}
-
 		// This endpoint accepts redirect URIs from the primary app wildcard
 		// host, proxy access URLs and proxy wildcard app hosts. It does not
 		// accept redirect URIs from the primary access URL or any other host.
@@ -199,29 +177,24 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 		q := u.Query()
 		q.Add(RedirectURIQueryParam, redirectURI.String())
 		u.RawQuery = q.Encode()
-
 		http.Redirect(rw, r, u.String(), http.StatusSeeOther)
 		return nil, "", false
 	}
-
 	// Check that the agent is online.
 	agentStatus := dbReq.Agent.Status(p.WorkspaceAgentInactiveTimeout)
 	if agentStatus.Status != database.WorkspaceAgentStatusConnected {
 		WriteWorkspaceAppOffline(p.Logger, p.DashboardURL, rw, r, &appReq, fmt.Sprintf("Agent state is %q, not %q", agentStatus.Status, database.WorkspaceAgentStatusConnected))
 		return nil, "", false
 	}
-
 	// This is where we used to check app health, but we don't do that anymore
 	// in case there are bugs with the healthcheck code that lock users out of
 	// their apps completely.
-
 	// As a sanity check, ensure the token we just made is valid for this
 	// request.
 	if !token.MatchesRequest(appReq) {
 		WriteWorkspaceApp500(p.Logger, p.DashboardURL, rw, r, &appReq, nil, "fresh token does not match request")
 		return nil, "", false
 	}
-
 	token.RegisteredClaims = jwtutils.RegisteredClaims{
 		Expiry: jwt.NewNumericDate(time.Now().Add(DefaultTokenExpiry)),
 	}
@@ -231,10 +204,8 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 		WriteWorkspaceApp500(p.Logger, p.DashboardURL, rw, r, &appReq, err, "generate token")
 		return nil, "", false
 	}
-
 	return &token, tokenStr, true
 }
-
 // authorizeRequest returns true/false if the request is authorized. The returned []string
 // are warnings that aid in debugging. These messages do not prevent authorization,
 // but may indicate that the request is not configured correctly.
@@ -246,7 +217,6 @@ func (p *DBTokenProvider) authorizeRequest(ctx context.Context, roles *rbac.Subj
 		accessMethod = AccessMethodPath
 	}
 	isPathApp := accessMethod == AccessMethodPath
-
 	// If path-based app sharing is disabled (which is the default), we can
 	// force the sharing level to be "owner" so that the user can only access
 	// their own apps.
@@ -265,14 +235,12 @@ func (p *DBTokenProvider) authorizeRequest(ctx context.Context, roles *rbac.Subj
 		}
 		sharingLevel = database.AppSharingLevelOwner
 	}
-
 	// Short circuit if not authenticated.
 	if roles == nil {
 		// The user is not authenticated, so they can only access the app if it
 		// is public.
 		return sharingLevel == database.AppSharingLevelPublic, warnings, nil
 	}
-
 	// Block anyone from accessing workspaces they don't own in path-based apps
 	// unless the admin disables this security feature. This blocks site-owners
 	// from accessing any apps from any user's workspaces.
@@ -292,7 +260,6 @@ func (p *DBTokenProvider) authorizeRequest(ctx context.Context, roles *rbac.Subj
 		}
 		return false, warnings, nil
 	}
-
 	// Figure out which RBAC resource to check. For terminals we use execution
 	// instead of application connect.
 	var (
@@ -307,7 +274,6 @@ func (p *DBTokenProvider) authorizeRequest(ctx context.Context, roles *rbac.Subj
 		rbacAction = policy.ActionSSH
 		rbacResourceOwned = rbac.ResourceWorkspace.WithOwner(roles.ID)
 	}
-
 	// Do a standard RBAC check. This accounts for share level "owner" and any
 	// other RBAC rules that may be in place.
 	//
@@ -318,7 +284,6 @@ func (p *DBTokenProvider) authorizeRequest(ctx context.Context, roles *rbac.Subj
 	if err == nil {
 		return true, []string{}, nil
 	}
-
 	switch sharingLevel {
 	case database.AppSharingLevelOwner:
 		// We essentially already did this above with the regular RBAC check.
@@ -337,7 +302,6 @@ func (p *DBTokenProvider) authorizeRequest(ctx context.Context, roles *rbac.Subj
 		// key cookie in the request and access the page.
 		return true, []string{}, nil
 	}
-
 	// No checks were successful.
 	return false, warnings, nil
 }

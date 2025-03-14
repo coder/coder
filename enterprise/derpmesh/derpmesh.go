@@ -1,21 +1,18 @@
 package derpmesh
-
 import (
+	"fmt"
+	"errors"
 	"context"
 	"crypto/tls"
 	"net"
 	"net/url"
 	"sync"
-
-	"golang.org/x/xerrors"
 	"tailscale.com/derp"
 	"tailscale.com/derp/derphttp"
 	"tailscale.com/types/key"
-
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/tailnet"
 )
-
 // New constructs a new mesh for DERP servers.
 func New(logger slog.Logger, server *derp.Server, tlsConfig *tls.Config) *Mesh {
 	return &Mesh{
@@ -27,18 +24,15 @@ func New(logger slog.Logger, server *derp.Server, tlsConfig *tls.Config) *Mesh {
 		active:    make(map[string]context.CancelFunc),
 	}
 }
-
 type Mesh struct {
 	logger    slog.Logger
 	server    *derp.Server
 	ctx       context.Context
 	tlsConfig *tls.Config
-
 	mutex  sync.Mutex
 	closed chan struct{}
 	active map[string]context.CancelFunc
 }
-
 // SetAddresses performs a diff of the incoming addresses and adds
 // or removes DERP clients from the mesh.
 //
@@ -59,7 +53,6 @@ func (m *Mesh) SetAddresses(addresses []string, connect bool) {
 			continue
 		}
 		address = derpURL.String()
-
 		total[address] = struct{}{}
 		added, err := m.addAddress(address, connect)
 		if err != nil {
@@ -70,7 +63,6 @@ func (m *Mesh) SetAddresses(addresses []string, connect bool) {
 			m.logger.Debug(m.ctx, "added mesh address", slog.F("address", address))
 		}
 	}
-
 	m.mutex.Lock()
 	for address := range m.active {
 		_, found := total[address]
@@ -84,7 +76,6 @@ func (m *Mesh) SetAddresses(addresses []string, connect bool) {
 	}
 	m.mutex.Unlock()
 }
-
 // addAddress begins meshing with a new address. It returns false if the address is already being meshed with.
 // It's expected that this is a full HTTP address with a path.
 // e.g. http://127.0.0.1:8080/derp
@@ -101,7 +92,7 @@ func (m *Mesh) addAddress(address string, connect bool) (bool, error) {
 	}
 	client, err := derphttp.NewClient(m.server.PrivateKey(), address, tailnet.Logger(m.logger.Named("client")))
 	if err != nil {
-		return false, xerrors.Errorf("create derp client: %w", err)
+		return false, fmt.Errorf("create derp client: %w", err)
 	}
 	client.TLSConfig = m.tlsConfig
 	client.MeshKey = m.server.MeshKey()
@@ -130,7 +121,6 @@ func (m *Mesh) addAddress(address string, connect bool) (bool, error) {
 	}()
 	return true, nil
 }
-
 // removeAddress stops meshing with a given address.
 func (m *Mesh) removeAddress(address string) bool {
 	cancelFunc, isActive := m.active[address]
@@ -140,7 +130,6 @@ func (m *Mesh) removeAddress(address string) bool {
 	}
 	return isActive
 }
-
 // Close ends all active meshes with the DERP server.
 func (m *Mesh) Close() error {
 	m.mutex.Lock()
@@ -154,7 +143,6 @@ func (m *Mesh) Close() error {
 	}
 	return nil
 }
-
 func (m *Mesh) isClosed() bool {
 	select {
 	case <-m.closed:

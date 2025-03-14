@@ -1,20 +1,16 @@
 package license
-
 import (
+	"errors"
 	"context"
 	"crypto/ed25519"
 	"fmt"
 	"math"
 	"time"
-
 	"github.com/golang-jwt/jwt/v4"
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/codersdk"
 )
-
 // Entitlements processes licenses to return whether features are enabled or not.
 func Entitlements(
 	ctx context.Context,
@@ -25,19 +21,16 @@ func Entitlements(
 	enablements map[codersdk.FeatureName]bool,
 ) (codersdk.Entitlements, error) {
 	now := time.Now()
-
 	// nolint:gocritic // Getting unexpired licenses is a system function.
 	licenses, err := db.GetUnexpiredLicenses(dbauthz.AsSystemRestricted(ctx))
 	if err != nil {
 		return codersdk.Entitlements{}, err
 	}
-
 	// nolint:gocritic // Getting active user count is a system function.
 	activeUserCount, err := db.GetActiveUserCount(dbauthz.AsSystemRestricted(ctx))
 	if err != nil {
-		return codersdk.Entitlements{}, xerrors.Errorf("query active user count: %w", err)
+		return codersdk.Entitlements{}, fmt.Errorf("query active user count: %w", err)
 	}
-
 	// always shows active user count regardless of license
 	entitlements, err := LicensesEntitlements(now, licenses, enablements, keys, FeatureArguments{
 		ActiveUserCount:   activeUserCount,
@@ -47,16 +40,13 @@ func Entitlements(
 	if err != nil {
 		return entitlements, err
 	}
-
 	return entitlements, nil
 }
-
 type FeatureArguments struct {
 	ActiveUserCount   int64
 	ReplicaCount      int
 	ExternalAuthCount int
 }
-
 // LicensesEntitlements returns the entitlements for licenses. Entitlements are
 // merged from all licenses and the highest entitlement is used for each feature.
 // Arguments:
@@ -87,7 +77,6 @@ func LicensesEntitlements(
 		Warnings: []string{},
 		Errors:   []string{},
 	}
-
 	// By default, enumerate all features and set them to not entitled.
 	for _, featureName := range codersdk.FeatureNames {
 		entitlements.AddFeature(featureName, codersdk.Feature{
@@ -95,13 +84,12 @@ func LicensesEntitlements(
 			Enabled:     enablements[featureName],
 		})
 	}
-
 	// TODO: License specific warnings and errors should be tied to the license, not the
 	//   'Entitlements' group as a whole.
 	for _, license := range licenses {
 		claims, err := ParseClaims(license.JWT, keys)
 		var vErr *jwt.ValidationError
-		if xerrors.As(err, &vErr) && vErr.Is(jwt.ErrTokenNotValidYet) {
+		if errors.As(err, &vErr) && vErr.Is(jwt.ErrTokenNotValidYet) {
 			// The license isn't valid yet.  We don't consider any entitlements contained in it, but
 			// it's also not an error.  Just skip it silently.  This can happen if an administrator
 			// uploads a license for a new term that hasn't started yet.
@@ -112,13 +100,10 @@ func LicensesEntitlements(
 				fmt.Sprintf("Invalid license (%s) parsing claims: %s", license.UUID.String(), err.Error()))
 			continue
 		}
-
 		// Any valid license should toggle this boolean
 		entitlements.HasLicense = true
-
 		// If any license requires telemetry, the deployment should require telemetry.
 		entitlements.RequireTelemetry = entitlements.RequireTelemetry || claims.RequireTelemetry
-
 		// entitlement is the highest entitlement for any features in this license.
 		entitlement := codersdk.EntitlementEntitled
 		// If any license is a trial license, this should be set to true.
@@ -129,17 +114,14 @@ func LicensesEntitlements(
 			// LicenseExpires we must be in grace period.
 			entitlement = codersdk.EntitlementGracePeriod
 		}
-
 		// Will add a warning if the license is expiring soon.
 		// This warning can be raised multiple times if there is more than 1 license.
 		licenseExpirationWarning(&entitlements, now, claims)
-
 		// 'claims.AllFeature' is the legacy way to set 'claims.FeatureSet = codersdk.FeatureSetEnterprise'
 		// If both are set, ignore the legacy 'claims.AllFeature'
 		if claims.AllFeatures && claims.FeatureSet == "" {
 			claims.FeatureSet = codersdk.FeatureSetEnterprise
 		}
-
 		// Add all features from the feature set defined.
 		for _, featureName := range claims.FeatureSet.Features() {
 			if featureName == codersdk.FeatureUserLimit {
@@ -154,14 +136,12 @@ func LicensesEntitlements(
 				Actual:      nil,
 			})
 		}
-
 		// Features al-la-carte
 		for featureName, featureValue := range claims.Features {
 			// Can this be negative?
 			if featureValue <= 0 {
 				continue
 			}
-
 			switch featureName {
 			case codersdk.FeatureUserLimit:
 				// User limit has special treatment as our only non-boolean feature.
@@ -180,13 +160,10 @@ func LicensesEntitlements(
 			}
 		}
 	}
-
 	// Now the license specific warnings and errors are added to the entitlements.
-
 	// If HA is enabled, ensure the feature is entitled.
 	if featureArguments.ReplicaCount > 1 {
 		feature := entitlements.Features[codersdk.FeatureHighAvailability]
-
 		switch feature.Entitlement {
 		case codersdk.EntitlementNotEntitled:
 			if entitlements.HasLicense {
@@ -201,10 +178,8 @@ func LicensesEntitlements(
 				"You have multiple replicas but your license for high availability is expired. Reduce to one replica or workspace connections will stop working.")
 		}
 	}
-
 	if featureArguments.ExternalAuthCount > 1 {
 		feature := entitlements.Features[codersdk.FeatureMultipleExternalAuth]
-
 		switch feature.Entitlement {
 		case codersdk.EntitlementNotEntitled:
 			if entitlements.HasLicense {
@@ -222,7 +197,6 @@ func LicensesEntitlements(
 			)
 		}
 	}
-
 	if entitlements.HasLicense {
 		userLimit := entitlements.Features[codersdk.FeatureUserLimit]
 		if userLimit.Limit != nil && featureArguments.ActiveUserCount > *userLimit.Limit {
@@ -234,7 +208,6 @@ func LicensesEntitlements(
 				"Your deployment has %d active users but the license with the limit %d is expired.",
 				featureArguments.ActiveUserCount, *userLimit.Limit))
 		}
-
 		// Add a warning for every feature that is enabled but not entitled or
 		// is in a grace period.
 		for _, featureName := range codersdk.FeatureNames {
@@ -250,7 +223,6 @@ func LicensesEntitlements(
 			if featureName == codersdk.FeatureMultipleExternalAuth {
 				continue
 			}
-
 			feature := entitlements.Features[featureName]
 			if !feature.Enabled {
 				continue
@@ -267,7 +239,6 @@ func LicensesEntitlements(
 			}
 		}
 	}
-
 	// Wrap up by disabling all features that are not entitled.
 	for _, featureName := range codersdk.FeatureNames {
 		feature := entitlements.Features[featureName]
@@ -277,29 +248,23 @@ func LicensesEntitlements(
 		}
 	}
 	entitlements.RefreshedAt = now
-
 	return entitlements, nil
 }
-
 const (
 	CurrentVersion        = 3
 	HeaderKeyID           = "kid"
 	AccountTypeSalesforce = "salesforce"
 	VersionClaim          = "version"
 )
-
 var (
 	ValidMethods = []string{"EdDSA"}
-
-	ErrInvalidVersion        = xerrors.New("license must be version 3")
-	ErrMissingKeyID          = xerrors.Errorf("JOSE header must contain %s", HeaderKeyID)
-	ErrMissingLicenseExpires = xerrors.New("license missing license_expires")
-	ErrMissingExp            = xerrors.New("exp claim missing or not parsable")
-	ErrMultipleIssues        = xerrors.New("license has multiple issues; contact support")
+	ErrInvalidVersion        = errors.New("license must be version 3")
+	ErrMissingKeyID          = fmt.Errorf("JOSE header must contain %s", HeaderKeyID)
+	ErrMissingLicenseExpires = errors.New("license missing license_expires")
+	ErrMissingExp            = errors.New("exp claim missing or not parsable")
+	ErrMultipleIssues        = errors.New("license has multiple issues; contact support")
 )
-
 type Features map[codersdk.FeatureName]int64
-
 type Claims struct {
 	jwt.RegisteredClaims
 	// LicenseExpires is the end of the legit license term, and the start of the grace period, if
@@ -321,7 +286,6 @@ type Claims struct {
 	Features         Features `json:"features"`
 	RequireTelemetry bool     `json:"require_telemetry,omitempty"`
 }
-
 // ParseRaw consumes a license and returns the claims.
 func ParseRaw(l string, keys map[string]ed25519.PublicKey) (jwt.MapClaims, error) {
 	tok, err := jwt.Parse(
@@ -342,9 +306,8 @@ func ParseRaw(l string, keys map[string]ed25519.PublicKey) (jwt.MapClaims, error
 		}
 		return claims, nil
 	}
-	return nil, xerrors.New("unable to parse Claims")
+	return nil, errors.New("unable to parse Claims")
 }
-
 // ParseClaims validates a raw JWT, and if valid, returns the claims.  If
 // unparsable or invalid, it returns an error
 func ParseClaims(rawJWT string, keys map[string]ed25519.PublicKey) (*Claims, error) {
@@ -359,7 +322,6 @@ func ParseClaims(rawJWT string, keys map[string]ed25519.PublicKey) (*Claims, err
 	}
 	return validateClaims(tok)
 }
-
 func validateClaims(tok *jwt.Token) (*Claims, error) {
 	if claims, ok := tok.Claims.(*Claims); ok {
 		if claims.Version != uint64(CurrentVersion) {
@@ -373,9 +335,8 @@ func validateClaims(tok *jwt.Token) (*Claims, error) {
 		}
 		return claims, nil
 	}
-	return nil, xerrors.New("unable to parse Claims")
+	return nil, errors.New("unable to parse Claims")
 }
-
 // ParseClaimsIgnoreNbf validates a raw JWT, but ignores `nbf` claim. If otherwise valid, it returns
 // the claims.  If unparsable or invalid, it returns an error. Ignoring the `nbf` (not before) is
 // useful to determine if a JWT _will_ become valid at any point now or in the future.
@@ -387,7 +348,7 @@ func ParseClaimsIgnoreNbf(rawJWT string, keys map[string]ed25519.PublicKey) (*Cl
 		jwt.WithValidMethods(ValidMethods),
 	)
 	var vErr *jwt.ValidationError
-	if xerrors.As(err, &vErr) {
+	if errors.As(err, &vErr) {
 		// zero out the NotValidYet error to check if there were other problems
 		vErr.Errors = vErr.Errors & (^jwt.ValidationErrorNotValidYet)
 		if vErr.Errors != 0 {
@@ -403,7 +364,6 @@ func ParseClaimsIgnoreNbf(rawJWT string, keys map[string]ed25519.PublicKey) (*Cl
 	}
 	return validateClaims(tok)
 }
-
 func keyFunc(keys map[string]ed25519.PublicKey) func(*jwt.Token) (interface{}, error) {
 	return func(j *jwt.Token) (interface{}, error) {
 		keyID, ok := j.Header[HeaderKeyID].(string)
@@ -412,12 +372,11 @@ func keyFunc(keys map[string]ed25519.PublicKey) func(*jwt.Token) (interface{}, e
 		}
 		k, ok := keys[keyID]
 		if !ok {
-			return nil, xerrors.Errorf("no key with ID %s", keyID)
+			return nil, fmt.Errorf("no key with ID %s", keyID)
 		}
 		return k, nil
 	}
 }
-
 // licenseExpirationWarning adds a warning message if the license is expiring soon.
 func licenseExpirationWarning(entitlements *codersdk.Entitlements, now time.Time, claims *Claims) {
 	// Add warning if license is expiring soon

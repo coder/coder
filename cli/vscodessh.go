@@ -1,6 +1,6 @@
 package cli
-
 import (
+	"errors"
 	"context"
 	"fmt"
 	"io"
@@ -10,20 +10,15 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
 	"github.com/spf13/afero"
-	"golang.org/x/xerrors"
-
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
-
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/serpent"
 )
-
 // vscodeSSH is used by the Coder VS Code extension to establish
 // a connection to a workspace.
 //
@@ -49,64 +44,55 @@ func (r *RootCmd) vscodeSSH() *serpent.Command {
 		Middleware: serpent.RequireNArgs(1),
 		Handler: func(inv *serpent.Invocation) error {
 			if networkInfoDir == "" {
-				return xerrors.New("network-info-dir must be specified")
+				return errors.New("network-info-dir must be specified")
 			}
 			if sessionTokenFile == "" {
-				return xerrors.New("session-token-file must be specified")
+				return errors.New("session-token-file must be specified")
 			}
 			if urlFile == "" {
-				return xerrors.New("url-file must be specified")
+				return errors.New("url-file must be specified")
 			}
-
 			fs, ok := inv.Context().Value("fs").(afero.Fs)
 			if !ok {
 				fs = afero.NewOsFs()
 			}
-
 			sessionToken, err := afero.ReadFile(fs, sessionTokenFile)
 			if err != nil {
-				return xerrors.Errorf("read session token: %w", err)
+				return fmt.Errorf("read session token: %w", err)
 			}
 			rawURL, err := afero.ReadFile(fs, urlFile)
 			if err != nil {
-				return xerrors.Errorf("read url: %w", err)
+				return fmt.Errorf("read url: %w", err)
 			}
 			serverURL, err := url.Parse(string(rawURL))
 			if err != nil {
-				return xerrors.Errorf("parse url: %w", err)
+				return fmt.Errorf("parse url: %w", err)
 			}
-
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
-
 			client := codersdk.New(serverURL)
 			client.SetSessionToken(string(sessionToken))
-
 			// This adds custom headers to the request!
 			err = r.configureClient(ctx, client, serverURL, inv)
 			if err != nil {
-				return xerrors.Errorf("set client: %w", err)
+				return fmt.Errorf("set client: %w", err)
 			}
-
 			parts := strings.Split(inv.Args[0], "--")
 			if len(parts) < 3 {
-				return xerrors.Errorf("invalid argument format. must be: coder-vscode--<owner>--<name>--<agent?>")
+				return fmt.Errorf("invalid argument format. must be: coder-vscode--<owner>--<name>--<agent?>")
 			}
 			owner := parts[1]
 			name := parts[2]
 			if len(parts) > 3 {
 				name += "." + parts[3]
 			}
-
 			// Set autostart to false because it's assumed the VS Code extension
 			// will call this command after the workspace is started.
 			autostart := false
-
 			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, autostart, fmt.Sprintf("%s/%s", owner, name))
 			if err != nil {
-				return xerrors.Errorf("find workspace and agent: %w", err)
+				return fmt.Errorf("find workspace and agent: %w", err)
 			}
-
 			// Select the startup script behavior based on template configuration or flags.
 			var wait bool
 			switch waitEnum {
@@ -122,18 +108,16 @@ func (r *RootCmd) vscodeSSH() *serpent.Command {
 					}
 				}
 			default:
-				return xerrors.Errorf("unknown wait value %q", waitEnum)
+				return fmt.Errorf("unknown wait value %q", waitEnum)
 			}
-
 			appearanceCfg, err := client.Appearance(ctx)
 			if err != nil {
 				var sdkErr *codersdk.Error
-				if !(xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound) {
-					return xerrors.Errorf("get appearance config: %w", err)
+				if !(errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound) {
+					return fmt.Errorf("get appearance config: %w", err)
 				}
 				appearanceCfg.DocsURL = codersdk.DefaultDocsURL()
 			}
-
 			err = cliui.Agent(ctx, inv.Stderr, workspaceAgent.ID, cliui.AgentOptions{
 				Fetch:     client.WorkspaceAgent,
 				FetchLogs: client.WorkspaceAgentLogsAfter,
@@ -141,11 +125,10 @@ func (r *RootCmd) vscodeSSH() *serpent.Command {
 				DocsURL:   appearanceCfg.DocsURL,
 			})
 			if err != nil {
-				if xerrors.Is(err, context.Canceled) {
+				if errors.Is(err, context.Canceled) {
 					return cliui.Canceled
 				}
 			}
-
 			// Use a stripped down writer that doesn't sync, otherwise you get
 			// "failed to sync sloghuman: sync /dev/stderr: The handle is
 			// invalid" on Windows. Syncing isn't required for stdout/stderr
@@ -155,7 +138,7 @@ func (r *RootCmd) vscodeSSH() *serpent.Command {
 				logFilePath := filepath.Join(logDir, fmt.Sprintf("%d.log", os.Getppid()))
 				logFile, err := fs.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY, 0o600)
 				if err != nil {
-					return xerrors.Errorf("open log file %q: %w", logFilePath, err)
+					return fmt.Errorf("open log file %q: %w", logFilePath, err)
 				}
 				dc := cliutil.DiscardAfterClose(logFile)
 				defer dc.Close()
@@ -170,24 +153,20 @@ func (r *RootCmd) vscodeSSH() *serpent.Command {
 					BlockEndpoints: r.disableDirect,
 				})
 			if err != nil {
-				return xerrors.Errorf("dial workspace agent: %w", err)
+				return fmt.Errorf("dial workspace agent: %w", err)
 			}
 			defer agentConn.Close()
-
 			agentConn.AwaitReachable(ctx)
-
 			closeUsage := client.UpdateWorkspaceUsageWithBodyContext(ctx, workspace.ID, codersdk.PostWorkspaceUsageRequest{
 				AgentID: workspaceAgent.ID,
 				AppName: codersdk.UsageAppNameVscode,
 			})
 			defer closeUsage()
-
 			rawSSH, err := agentConn.SSH(ctx)
 			if err != nil {
 				return err
 			}
 			defer rawSSH.Close()
-
 			// Copy SSH traffic over stdio.
 			go func() {
 				_, _ = io.Copy(inv.Stdout, rawSSH)
@@ -195,7 +174,6 @@ func (r *RootCmd) vscodeSSH() *serpent.Command {
 			go func() {
 				_, _ = io.Copy(rawSSH, inv.Stdin)
 			}()
-
 			errCh, err := setStatsCallback(ctx, agentConn, logger, networkInfoDir, networkInfoInterval)
 			if err != nil {
 				return err
@@ -244,15 +222,12 @@ func (r *RootCmd) vscodeSSH() *serpent.Command {
 	}
 	return cmd
 }
-
 // slogWriter wraps an io.Writer and removes all other methods (such as Sync),
 // which may cause undesired/broken behavior.
 type slogWriter struct {
 	w io.Writer
 }
-
 var _ io.Writer = slogWriter{}
-
 func (s slogWriter) Write(p []byte) (n int, err error) {
 	return s.w.Write(p)
 }

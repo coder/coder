@@ -1,18 +1,13 @@
 package tailnet
-
 import (
+	"fmt"
+	"errors"
 	"context"
 	"time"
-
-	"golang.org/x/xerrors"
-
 	"github.com/google/uuid"
-
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/v2/tailnet/proto"
 )
-
 type peer struct {
 	logger slog.Logger
 	id     uuid.UUID
@@ -21,26 +16,23 @@ type peer struct {
 	reqs   <-chan *proto.CoordinateRequest
 	auth   CoordinateeAuth
 	sent   map[uuid.UUID]*proto.Node
-
 	name       string
 	start      time.Time
 	lastWrite  time.Time
 	overwrites int
 }
-
 // updateMappingLocked updates the mapping for another peer linked to this one by a tunnel.  This method
 // is NOT threadsafe and must be called while holding the core lock.
 func (p *peer) updateMappingLocked(id uuid.UUID, n *proto.Node, k proto.CoordinateResponse_PeerUpdate_Kind, reason string) error {
 	logger := p.logger.With(slog.F("from_id", id), slog.F("kind", k), slog.F("reason", reason))
 	update, err := p.storeMappingLocked(id, n, k, reason)
-	if xerrors.Is(err, noResp) {
+	if errors.Is(err, noResp) {
 		logger.Debug(context.Background(), "skipping update")
 		return nil
 	}
 	if err != nil {
 		return err
 	}
-
 	req := &proto.CoordinateResponse{PeerUpdates: []*proto.CoordinateResponse_PeerUpdate{update}}
 	select {
 	case p.resps <- req:
@@ -51,7 +43,6 @@ func (p *peer) updateMappingLocked(id uuid.UUID, n *proto.Node, k proto.Coordina
 		return ErrWouldBlock
 	}
 }
-
 // batchUpdateMapping updates the mappings for a list of peers linked to this one by a tunnel. This
 // method is NOT threadsafe and must be called while holding the core lock.
 func (p *peer) batchUpdateMappingLocked(others []*peer, k proto.CoordinateResponse_PeerUpdate_Kind, reason string) error {
@@ -61,7 +52,7 @@ func (p *peer) batchUpdateMappingLocked(others []*peer, k proto.CoordinateRespon
 			continue
 		}
 		update, err := p.storeMappingLocked(other.id, other.node, k, reason)
-		if xerrors.Is(err, noResp) {
+		if errors.Is(err, noResp) {
 			continue
 		}
 		if err != nil {
@@ -81,9 +72,7 @@ func (p *peer) batchUpdateMappingLocked(others []*peer, k proto.CoordinateRespon
 		return ErrWouldBlock
 	}
 }
-
-var noResp = xerrors.New("no response needed")
-
+var noResp = errors.New("no response needed")
 func (p *peer) storeMappingLocked(
 	id uuid.UUID, n *proto.Node, k proto.CoordinateResponse_PeerUpdate_Kind, reason string,
 ) (
@@ -106,7 +95,7 @@ func (p *peer) storeMappingLocked(
 		eq, err := sn.Equal(n)
 		if err != nil {
 			p.logger.Critical(context.Background(), "failed to compare nodes", slog.F("old", sn), slog.F("new", n))
-			return nil, xerrors.Errorf("failed to compare nodes: %s", sn.String())
+			return nil, fmt.Errorf("failed to compare nodes: %s", sn.String())
 		}
 		if eq {
 			return nil, noResp
@@ -120,7 +109,6 @@ func (p *peer) storeMappingLocked(
 		Reason: reason,
 	}, nil
 }
-
 func (p *peer) reqLoop(ctx context.Context, logger slog.Logger, handler func(context.Context, *peer, *proto.CoordinateRequest) error) {
 	for {
 		select {
@@ -134,7 +122,7 @@ func (p *peer) reqLoop(ctx context.Context, logger slog.Logger, handler func(con
 			}
 			logger.Debug(ctx, "peerReadLoop got request")
 			if err := handler(ctx, p, req); err != nil {
-				if xerrors.Is(err, ErrAlreadyRemoved) || xerrors.Is(err, ErrClosed) {
+				if errors.Is(err, ErrAlreadyRemoved) || errors.Is(err, ErrClosed) {
 					return
 				}
 				logger.Error(ctx, "peerReadLoop error handling request", slog.Error(err), slog.F("request", req))
@@ -143,7 +131,6 @@ func (p *peer) reqLoop(ctx context.Context, logger slog.Logger, handler func(con
 		}
 	}
 }
-
 func (p *peer) htmlDebug() HTMLPeer {
 	node := "<nil>"
 	if p.node != nil {

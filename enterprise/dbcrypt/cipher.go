@@ -1,16 +1,13 @@
 package dbcrypt
-
 import (
+	"errors"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha256"
 	"fmt"
 	"io"
-
-	"golang.org/x/xerrors"
 )
-
 // cipherAES256GCM is the name of the AES-256 cipher.
 // This is used to identify the cipher used to encrypt a value.
 // It is added to the digest to ensure that if, in the future,
@@ -22,13 +19,11 @@ import (
 const (
 	cipherAES256GCM = "aes256gcm"
 )
-
 type Cipher interface {
 	Encrypt([]byte) ([]byte, error)
 	Decrypt([]byte) ([]byte, error)
 	HexDigest() string
 }
-
 // NewCiphers is a convenience function for creating multiple ciphers.
 // It currently only supports AES-256-GCM.
 func NewCiphers(keys ...[]byte) ([]Cipher, error) {
@@ -42,11 +37,10 @@ func NewCiphers(keys ...[]byte) ([]Cipher, error) {
 	}
 	return cs, nil
 }
-
 // cipherAES256 returns a new AES-256 cipher.
 func cipherAES256(key []byte) (*aes256, error) {
 	if len(key) != 32 {
-		return nil, xerrors.Errorf("key must be 32 bytes")
+		return nil, fmt.Errorf("key must be 32 bytes")
 	}
 	block, err := aes.NewCipher(key)
 	if err != nil {
@@ -64,13 +58,11 @@ func cipherAES256(key []byte) (*aes256, error) {
 	digest := fmt.Sprintf("%x", sha256.Sum256(toDigest))[:7]
 	return &aes256{aead: aead, digest: digest}, nil
 }
-
 type aes256 struct {
 	aead cipher.AEAD
 	// digest is the first 7 bytes of the hex-encoded SHA-256 digest of aead.
 	digest string
 }
-
 func (a *aes256) Encrypt(plaintext []byte) ([]byte, error) {
 	nonce := make([]byte, a.aead.NonceSize())
 	_, err := io.ReadFull(rand.Reader, nonce)
@@ -81,10 +73,9 @@ func (a *aes256) Encrypt(plaintext []byte) ([]byte, error) {
 	copy(dst, nonce)
 	return a.aead.Seal(dst, nonce, plaintext, nil), nil
 }
-
 func (a *aes256) Decrypt(ciphertext []byte) ([]byte, error) {
 	if len(ciphertext) < a.aead.NonceSize() {
-		return nil, xerrors.Errorf("ciphertext too short")
+		return nil, fmt.Errorf("ciphertext too short")
 	}
 	decrypted, err := a.aead.Open(nil, ciphertext[:a.aead.NonceSize()], ciphertext[a.aead.NonceSize():], nil)
 	if err != nil {
@@ -92,7 +83,6 @@ func (a *aes256) Decrypt(ciphertext []byte) ([]byte, error) {
 	}
 	return decrypted, nil
 }
-
 func (a *aes256) HexDigest() string {
 	return a.digest
 }

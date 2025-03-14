@@ -25,7 +25,6 @@ import (
 	"github.com/spf13/afero"
 	"go.uber.org/atomic"
 	gossh "golang.org/x/crypto/ssh"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 
@@ -466,7 +465,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 
 	err := s.sessionStart(logger, session, env, magicType, container, containerUser)
 	var exitError *exec.ExitError
-	if xerrors.As(err, &exitError) {
+	if errors.As(err, &exitError) {
 		code := exitError.ExitCode()
 		if code == -1 {
 			// If we return -1 here, it will be transmitted as an
@@ -566,7 +565,7 @@ func (s *Server) sessionStart(logger slog.Logger, session ssh.Session, env []str
 		l, err := ssh.NewAgentListener()
 		if err != nil {
 			s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, ptyLabel, "listener").Add(1)
-			return xerrors.Errorf("new agent listener: %w", err)
+			return fmt.Errorf("new agent listener: %w", err)
 		}
 		defer l.Close()
 		go ssh.ForwardAgentConnections(l, session)
@@ -589,7 +588,7 @@ func (s *Server) startNonPTYSession(logger slog.Logger, session ssh.Session, mag
 	stdinPipe, err := cmd.StdinPipe()
 	if err != nil {
 		s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "no", "stdin_pipe").Add(1)
-		return xerrors.Errorf("create stdin pipe: %w", err)
+		return fmt.Errorf("create stdin pipe: %w", err)
 	}
 	go func() {
 		_, err := io.Copy(stdinPipe, session)
@@ -601,7 +600,7 @@ func (s *Server) startNonPTYSession(logger slog.Logger, session ssh.Session, mag
 	err = cmd.Start()
 	if err != nil {
 		s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "no", "start_command").Add(1)
-		return xerrors.Errorf("start: %w", err)
+		return fmt.Errorf("start: %w", err)
 	}
 	sigs := make(chan ssh.Signal, 1)
 	session.Signals(sigs)
@@ -666,7 +665,7 @@ func (s *Server) startPTYSession(logger slog.Logger, session ptySession, magicTy
 	))
 	if err != nil {
 		s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "start_command").Add(1)
-		return xerrors.Errorf("start command: %w", err)
+		return fmt.Errorf("start command: %w", err)
 	}
 	defer func() {
 		closeErr := ptty.Close()
@@ -731,7 +730,7 @@ func (s *Server) startPTYSession(logger slog.Logger, session ptySession, magicTy
 	logger.Debug(ctx, "copy output done", slog.F("bytes", n), slog.Error(err))
 	if err != nil {
 		s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "output_io_copy").Add(1)
-		return xerrors.Errorf("copy error: %w", err)
+		return fmt.Errorf("copy error: %w", err)
 	}
 	// We've gotten all the output, but we need to wait for the process to
 	// complete so that we can get the exit code.  This returns
@@ -740,12 +739,12 @@ func (s *Server) startPTYSession(logger slog.Logger, session ptySession, magicTy
 	var exitErr *exec.ExitError
 	// ExitErrors just mean the command we run returned a non-zero exit code, which is normal
 	// and not something to be concerned about.  But, if it's something else, we should log it.
-	if err != nil && !xerrors.As(err, &exitErr) {
+	if err != nil && !errors.As(err, &exitErr) {
 		logger.Warn(ctx, "process wait exited with error", slog.Error(err))
 		s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "wait").Add(1)
 	}
 	if err != nil {
-		return xerrors.Errorf("process wait: %w", err)
+		return fmt.Errorf("process wait: %w", err)
 	}
 	return nil
 }
@@ -786,7 +785,7 @@ func (s *Server) sftpHandler(logger slog.Logger, session ssh.Session) error {
 	server, err := sftp.NewServer(session, opts...)
 	if err != nil {
 		logger.Debug(ctx, "initialize sftp server", slog.Error(err))
-		return xerrors.Errorf("initialize sftp server: %w", err)
+		return fmt.Errorf("initialize sftp server: %w", err)
 	}
 	defer server.Close()
 
@@ -806,7 +805,7 @@ func (s *Server) sftpHandler(logger slog.Logger, session ssh.Session) error {
 	logger.Warn(ctx, "sftp server closed with error", slog.Error(err))
 	s.metrics.sftpServerErrors.Add(1)
 	_ = session.Exit(1)
-	return xerrors.Errorf("sftp server closed with error: %w", err)
+	return fmt.Errorf("sftp server closed with error: %w", err)
 }
 
 // CreateCommand processes raw command input with OpenSSH-like behavior.
@@ -822,13 +821,13 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string,
 	}
 	currentUser, err := ei.User()
 	if err != nil {
-		return nil, xerrors.Errorf("get current user: %w", err)
+		return nil, fmt.Errorf("get current user: %w", err)
 	}
 	username := currentUser.Username
 
 	shell, err := ei.Shell(username)
 	if err != nil {
-		return nil, xerrors.Errorf("get user shell: %w", err)
+		return nil, fmt.Errorf("get user shell: %w", err)
 	}
 
 	// OpenSSH executes all commands with the users current shell.
@@ -852,7 +851,7 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string,
 		shebang = strings.TrimPrefix(shebang, "#!")
 		words, err := shellquote.Split(shebang)
 		if err != nil {
-			return nil, xerrors.Errorf("split shebang: %w", err)
+			return nil, fmt.Errorf("split shebang: %w", err)
 		}
 		name = words[0]
 		if len(words) > 1 {
@@ -895,7 +894,7 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string,
 		// Default to user home if a directory is not set.
 		homedir, err := ei.HomeDir()
 		if err != nil {
-			return nil, xerrors.Errorf("get home dir: %w", err)
+			return nil, fmt.Errorf("get home dir: %w", err)
 		}
 		cmd.Dir = homedir
 	}
@@ -916,7 +915,7 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string,
 
 	cmd.Env, err = s.config.UpdateEnv(cmd.Env)
 	if err != nil {
-		return nil, xerrors.Errorf("apply env: %w", err)
+		return nil, fmt.Errorf("apply env: %w", err)
 	}
 
 	return cmd, nil
@@ -926,7 +925,7 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string,
 // It returns an error if no host keys are set or if there is an issue accepting connections.
 func (s *Server) Serve(l net.Listener) (retErr error) {
 	if len(s.srv.HostSigners) == 0 {
-		return xerrors.New("no host keys set")
+		return errors.New("no host keys set")
 	}
 
 	s.logger.Info(context.Background(), "started serving listener", slog.F("listen_addr", l.Addr()))
@@ -1049,7 +1048,7 @@ func (s *Server) Close() error {
 	// accepting new connections during close.
 	if s.closing != nil {
 		s.mu.Unlock()
-		return xerrors.New("server is closing")
+		return errors.New("server is closing")
 	}
 	s.closing = make(chan struct{})
 
@@ -1140,11 +1139,11 @@ func showMOTD(fs afero.Fs, dest io.Writer, filename string) error {
 
 	f, err := fs.Open(filename)
 	if err != nil {
-		if xerrors.Is(err, os.ErrNotExist) {
+		if errors.Is(err, os.ErrNotExist) {
 			// This is not an error, there simply isn't a MOTD to show.
 			return nil
 		}
-		return xerrors.Errorf("open MOTD: %w", err)
+		return fmt.Errorf("open MOTD: %w", err)
 	}
 	defer f.Close()
 
@@ -1158,11 +1157,11 @@ func writeWithCarriageReturn(src io.Reader, dest io.Writer) error {
 	for s.Scan() {
 		_, err := fmt.Fprint(dest, s.Text()+"\r\n")
 		if err != nil {
-			return xerrors.Errorf("write line: %w", err)
+			return fmt.Errorf("write line: %w", err)
 		}
 	}
 	if err := s.Err(); err != nil {
-		return xerrors.Errorf("read line: %w", err)
+		return fmt.Errorf("read line: %w", err)
 	}
 	return nil
 }
@@ -1179,7 +1178,7 @@ func userHomeDir() (string, error) {
 	// As a fallback, we try the user information.
 	u, err := user.Current()
 	if err != nil {
-		return "", xerrors.Errorf("current user: %w", err)
+		return "", fmt.Errorf("current user: %w", err)
 	}
 	return u.HomeDir, nil
 }

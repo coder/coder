@@ -1,5 +1,4 @@
 package workspacesdk
-
 import (
 	"context"
 	"errors"
@@ -7,9 +6,6 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
-
-	"golang.org/x/xerrors"
-
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/codersdk"
@@ -17,13 +13,11 @@ import (
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/websocket"
 )
-
 var permanentErrorStatuses = []int{
 	http.StatusConflict,   // returned if client/agent connections disabled (browser only)
 	http.StatusBadRequest, // returned if API mismatch
 	http.StatusNotFound,   // returned if user doesn't have permission or agent doesn't exist
 }
-
 type WebsocketDialer struct {
 	logger      slog.Logger
 	dialOptions *websocket.DialOptions
@@ -31,26 +25,21 @@ type WebsocketDialer struct {
 	// workspaceUpdatesReq != nil means that the dialer should call the WorkspaceUpdates RPC and
 	// return the corresponding client
 	workspaceUpdatesReq *proto.WorkspaceUpdatesRequest
-
 	resumeTokenFailed bool
 	connected         chan error
 	isFirst           bool
 }
-
 type WebsocketDialerOption func(*WebsocketDialer)
-
 func WithWorkspaceUpdates(req *proto.WorkspaceUpdatesRequest) WebsocketDialerOption {
 	return func(w *WebsocketDialer) {
 		w.workspaceUpdatesReq = req
 	}
 }
-
 func (w *WebsocketDialer) Dial(ctx context.Context, r tailnet.ResumeTokenController,
 ) (
 	tailnet.ControlProtocolClients, error,
 ) {
 	w.logger.Debug(ctx, "dialing Coder tailnet v2+ API")
-
 	u := new(url.URL)
 	*u = *w.url
 	q := u.Query()
@@ -74,7 +63,6 @@ func (w *WebsocketDialer) Dial(ctx context.Context, r tailnet.ResumeTokenControl
 		q.Add("version", "2.0")
 	}
 	u.RawQuery = q.Encode()
-
 	// nolint:bodyclose
 	ws, res, err := websocket.Dial(ctx, u.String(), w.dialOptions)
 	if w.isFirst {
@@ -82,7 +70,7 @@ func (w *WebsocketDialer) Dial(ctx context.Context, r tailnet.ResumeTokenControl
 			err = codersdk.ReadBodyAsError(res)
 			// A bit more human-readable help in the case the API version was rejected
 			var sdkErr *codersdk.Error
-			if xerrors.As(err, &sdkErr) {
+			if errors.As(err, &sdkErr) {
 				if sdkErr.Message == AgentAPIMismatchMessage &&
 					sdkErr.StatusCode() == http.StatusBadRequest {
 					sdkErr.Helper = fmt.Sprintf(
@@ -99,7 +87,7 @@ func (w *WebsocketDialer) Dial(ctx context.Context, r tailnet.ResumeTokenControl
 	if err != nil {
 		bodyErr := codersdk.ReadBodyAsError(res)
 		var sdkErr *codersdk.Error
-		if xerrors.As(bodyErr, &sdkErr) {
+		if errors.As(bodyErr, &sdkErr) {
 			for _, v := range sdkErr.Validations {
 				if v.Field == "resume_token" {
 					// Unset the resume token for the next attempt
@@ -115,7 +103,6 @@ func (w *WebsocketDialer) Dial(ctx context.Context, r tailnet.ResumeTokenControl
 		return tailnet.ControlProtocolClients{}, err
 	}
 	w.resumeTokenFailed = false
-
 	client, err := tailnet.NewDRPCClient(
 		websocket.NetConn(context.Background(), ws, websocket.MessageBinary),
 		w.logger,
@@ -131,7 +118,6 @@ func (w *WebsocketDialer) Dial(ctx context.Context, r tailnet.ResumeTokenControl
 		_ = ws.Close(websocket.StatusInternalError, "")
 		return tailnet.ControlProtocolClients{}, err
 	}
-
 	derps := &tailnet.DERPFromDRPCWrapper{}
 	derps.Client, err = client.StreamDERPMaps(context.Background(), &proto.StreamDERPMapsRequest{})
 	if err != nil {
@@ -139,7 +125,6 @@ func (w *WebsocketDialer) Dial(ctx context.Context, r tailnet.ResumeTokenControl
 		_ = ws.Close(websocket.StatusInternalError, "")
 		return tailnet.ControlProtocolClients{}, err
 	}
-
 	var updates tailnet.WorkspaceUpdatesClient
 	if w.workspaceUpdatesReq != nil {
 		updates, err = client.WorkspaceUpdates(context.Background(), w.workspaceUpdatesReq)
@@ -149,7 +134,6 @@ func (w *WebsocketDialer) Dial(ctx context.Context, r tailnet.ResumeTokenControl
 			return tailnet.ControlProtocolClients{}, err
 		}
 	}
-
 	return tailnet.ControlProtocolClients{
 		Closer:           client.DRPCConn(),
 		Coordinator:      coord,
@@ -159,11 +143,9 @@ func (w *WebsocketDialer) Dial(ctx context.Context, r tailnet.ResumeTokenControl
 		WorkspaceUpdates: updates,
 	}, nil
 }
-
 func (w *WebsocketDialer) Connected() <-chan error {
 	return w.connected
 }
-
 func NewWebsocketDialer(
 	logger slog.Logger, u *url.URL, websocketOptions *websocket.DialOptions,
 	dialerOptions ...WebsocketDialerOption,

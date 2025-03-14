@@ -1,5 +1,4 @@
 package runner
-
 import (
 	"context"
 	"errors"
@@ -9,38 +8,29 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.14.0"
 	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/xerrors"
-
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 )
-
 const (
 	MissingParameterErrorCode = "MISSING_TEMPLATE_PARAMETER"
 	missingParameterErrorText = "missing parameter"
-
 	RequiredTemplateVariablesErrorCode = "REQUIRED_TEMPLATE_VARIABLES"
 	requiredTemplateVariablesErrorText = "required template variables"
 )
-
 var errorCodes = map[string]string{
 	MissingParameterErrorCode:          missingParameterErrorText,
 	RequiredTemplateVariablesErrorCode: requiredTemplateVariablesErrorText,
 }
-
-var errUpdateSkipped = xerrors.New("update skipped; job complete or failed")
-
+var errUpdateSkipped = errors.New("update skipped; job complete or failed")
 type Runner struct {
 	tracer              trace.Tracer
 	metrics             Metrics
@@ -53,7 +43,6 @@ type Runner struct {
 	updateInterval      time.Duration
 	forceCancelInterval time.Duration
 	logBufferInterval   time.Duration
-
 	// session is the provisioning session with the (possibly remote) provisioner
 	session sdkproto.DRPCProvisioner_SessionClient
 	// closed when the Runner is finished sending any updates/failed/complete.
@@ -64,7 +53,6 @@ type Runner struct {
 	// active as long as we haven't been force stopped
 	notStopped context.Context
 	stop       context.CancelFunc
-
 	// mutex controls access to all the following variables.
 	mutex *sync.Mutex
 	// used to wait for the failedJob or completedJob to be populated
@@ -79,7 +67,6 @@ type Runner struct {
 	// terminal message, but okToSend is set to false regardless.
 	okToSend bool
 }
-
 type Metrics struct {
 	ConcurrentJobs *prometheus.GaugeVec
 	NumDaemons     prometheus.Gauge
@@ -89,7 +76,6 @@ type Metrics struct {
 	WorkspaceBuilds       *prometheus.CounterVec
 	WorkspaceBuildTimings *prometheus.HistogramVec
 }
-
 type JobUpdater interface {
 	UpdateJob(ctx context.Context, in *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error)
 	FailJob(ctx context.Context, in *proto.FailedJob) error
@@ -98,7 +84,6 @@ type JobUpdater interface {
 type QuotaCommitter interface {
 	CommitQuota(ctx context.Context, in *proto.CommitQuotaRequest) (*proto.CommitQuotaResponse, error)
 }
-
 type Options struct {
 	Updater             JobUpdater
 	QuotaCommitter      QuotaCommitter
@@ -110,18 +95,15 @@ type Options struct {
 	Tracer              trace.Tracer
 	Metrics             Metrics
 }
-
 func New(
 	ctx context.Context,
 	job *proto.AcquiredJob,
 	opts Options,
 ) *Runner {
 	m := new(sync.Mutex)
-
 	// we need to create our contexts here in case a call to Cancel() comes immediately.
 	forceStopContext, forceStopFunc := context.WithCancel(ctx)
 	gracefulContext, cancelFunc := context.WithCancel(forceStopContext)
-
 	logger := opts.Logger.With(slog.F("job_id", job.JobId))
 	if build := job.GetWorkspaceBuild(); build != nil {
 		logger = logger.With(
@@ -134,7 +116,6 @@ func New(
 			slog.F("workspace_transition", strings.ToLower(build.Metadata.WorkspaceTransition.String())),
 		)
 	}
-
 	return &Runner{
 		tracer:              opts.Tracer,
 		metrics:             opts.Metrics,
@@ -157,7 +138,6 @@ func New(
 		cancel:              cancelFunc,
 	}
 }
-
 // Run executes the job.
 //
 // the idea here is to run two goroutines to work on the job: doCleanFinish and heartbeat, then use
@@ -171,7 +151,6 @@ func (r *Runner) Run() {
 	start := time.Now()
 	ctx, span := r.startTrace(r.notStopped, tracing.FuncName())
 	defer span.End()
-
 	concurrentGauge := r.metrics.ConcurrentJobs.WithLabelValues(r.job.Provisioner)
 	concurrentGauge.Inc()
 	defer func() {
@@ -179,7 +158,6 @@ func (r *Runner) Run() {
 		if r.failedJob != nil {
 			status = "failed"
 		}
-
 		concurrentGauge.Dec()
 		if build := r.job.GetWorkspaceBuild(); build != nil {
 			r.metrics.WorkspaceBuilds.WithLabelValues(
@@ -199,11 +177,9 @@ func (r *Runner) Run() {
 		}
 		r.metrics.JobTimings.WithLabelValues(r.job.Provisioner, status).Observe(time.Since(start).Seconds())
 	}()
-
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	defer r.stop()
-
 	go r.doCleanFinish(ctx)
 	go r.heartbeatRoutine(ctx)
 	for r.failedJob == nil && r.completedJob == nil {
@@ -214,9 +190,8 @@ func (r *Runner) Run() {
 		return
 	}
 	if r.failedJob != nil {
-		span.RecordError(xerrors.New(r.failedJob.Error))
+		span.RecordError(errors.New(r.failedJob.Error))
 		span.SetStatus(codes.Error, r.failedJob.Error)
-
 		r.logger.Debug(ctx, "sending FailedJob")
 		err := r.sender.FailJob(ctx, r.failedJob)
 		if err != nil {
@@ -240,17 +215,14 @@ func (r *Runner) Run() {
 	close(r.done)
 	r.okToSend = false
 }
-
 // Cancel initiates a Cancel on the job, but allows it to keep running to do so gracefully.  Read from Done() to
 // be notified when the job completes.
 func (r *Runner) Cancel() {
 	r.cancel()
 }
-
 func (r *Runner) Done() <-chan struct{} {
 	return r.done
 }
-
 // Fail immediately halts updates and, if the job is not complete sends FailJob to the coder server. Running goroutines
 // are canceled but complete asynchronously (although they are prevented from further updating the job to the coder
 // server). The provided context sets how long to keep trying to send the FailJob.
@@ -275,7 +247,6 @@ func (r *Runner) Fail(ctx context.Context, f *proto.FailedJob) error {
 	close(r.done)
 	return err
 }
-
 // setComplete is an internal function to set the job to completed.  This does not send the completedJob.
 func (r *Runner) setComplete(c *proto.CompletedJob) {
 	r.mutex.Lock()
@@ -285,7 +256,6 @@ func (r *Runner) setComplete(c *proto.CompletedJob) {
 		r.cond.Signal()
 	}
 }
-
 // setFail is an internal function to set the job to failed.  This does not send the failedJob.
 func (r *Runner) setFail(f *proto.FailedJob) {
 	r.mutex.Lock()
@@ -296,7 +266,6 @@ func (r *Runner) setFail(f *proto.FailedJob) {
 		r.cond.Signal()
 	}
 }
-
 // ForceStop signals all goroutines to stop and prevents any further API calls back to coder server for this job
 func (r *Runner) ForceStop() {
 	r.mutex.Lock()
@@ -312,18 +281,15 @@ func (r *Runner) ForceStop() {
 	r.failedJob = &proto.FailedJob{}
 	r.cond.Signal()
 }
-
 func (r *Runner) sendHeartbeat(ctx context.Context) (*proto.UpdateJobResponse, error) {
 	ctx, span := r.startTrace(ctx, "updateHeartbeat")
 	defer span.End()
-
 	r.mutex.Lock()
 	if !r.okToSend {
 		r.mutex.Unlock()
 		return nil, errUpdateSkipped
 	}
 	r.mutex.Unlock()
-
 	// Skip sending a heartbeat if we've sent an update recently.
 	if lastUpdate := r.lastUpdate.Load(); lastUpdate != nil {
 		if time.Since(*lastUpdate) < r.updateInterval {
@@ -331,58 +297,48 @@ func (r *Runner) sendHeartbeat(ctx context.Context) (*proto.UpdateJobResponse, e
 			return &proto.UpdateJobResponse{}, nil
 		}
 	}
-
 	return r.update(ctx, &proto.UpdateJobRequest{
 		JobId: r.job.JobId,
 	})
 }
-
 func (r *Runner) update(ctx context.Context, u *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-
 	ctx, span := r.startTrace(ctx, tracing.FuncName())
 	defer span.End()
 	defer func() {
 		r.lastUpdate.Store(ptr.Ref(time.Now()))
 	}()
-
 	span.SetAttributes(
 		attribute.Int64("logs_len", int64(len(u.Logs))),
 		attribute.Int64("template_variables_len", int64(len(u.TemplateVariables))),
 		attribute.Int64("user_variable_values_len", int64(len(u.UserVariableValues))),
 		attribute.Int64("readme_len", int64(len(u.Readme))),
 	)
-
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	if !r.okToSend {
 		return nil, errUpdateSkipped
 	}
-
 	return r.sender.UpdateJob(ctx, u)
 }
-
 // doCleanFinish wraps a call to do() with cleaning up the job and setting the terminal messages
 func (r *Runner) doCleanFinish(ctx context.Context) {
 	var (
 		failedJob    *proto.FailedJob
 		completedJob *proto.CompletedJob
 	)
-
 	// push the fail/succeed write onto the defer stack before the cleanup, so
 	// that cleanup happens before this.
 	defer func() {
 		_, span := r.startTrace(ctx, tracing.FuncName())
 		defer span.End()
-
 		if failedJob != nil {
 			r.setFail(failedJob)
 			return
 		}
 		r.setComplete(completedJob)
 	}()
-
 	var err error
 	r.session, err = r.provisioner.Session(ctx)
 	if err != nil {
@@ -390,11 +346,9 @@ func (r *Runner) doCleanFinish(ctx context.Context) {
 		return
 	}
 	defer r.session.Close()
-
 	defer func() {
 		ctx, span := r.startTrace(ctx, tracing.FuncName())
 		defer span.End()
-
 		r.queueLog(ctx, &proto.Log{
 			Source:    proto.LogSource_PROVISIONER_DAEMON,
 			Level:     sdkproto.LogLevel_INFO,
@@ -403,28 +357,23 @@ func (r *Runner) doCleanFinish(ctx context.Context) {
 		})
 		r.flushQueuedLogs(ctx)
 	}()
-
 	completedJob, failedJob = r.do(ctx)
 }
-
 // do actually does the work of running the job
 func (r *Runner) do(ctx context.Context) (*proto.CompletedJob, *proto.FailedJob) {
 	ctx, span := r.startTrace(ctx, tracing.FuncName())
 	defer span.End()
-
 	r.queueLog(ctx, &proto.Log{
 		Source:    proto.LogSource_PROVISIONER_DAEMON,
 		Level:     sdkproto.LogLevel_INFO,
 		Stage:     "Setting up",
 		CreatedAt: time.Now().UnixMilli(),
 	})
-
 	switch jobType := r.job.Type.(type) {
 	case *proto.AcquiredJob_TemplateImport_:
 		r.logger.Debug(context.Background(), "acquired job is template import",
 			slog.F("user_variable_values", redactVariableValues(jobType.TemplateImport.UserVariableValues)),
 		)
-
 		return r.runTemplateImport(ctx)
 	case *proto.AcquiredJob_TemplateDryRun_:
 		r.logger.Debug(context.Background(), "acquired job is template dry-run",
@@ -446,7 +395,6 @@ func (r *Runner) do(ctx context.Context) (*proto.CompletedJob, *proto.FailedJob)
 			reflect.TypeOf(r.job.Type).String())
 	}
 }
-
 func (r *Runner) configure(config *sdkproto.Config) *proto.FailedJob {
 	err := r.session.Send(&sdkproto.Request{Type: &sdkproto.Request_Config{Config: config}})
 	if err != nil {
@@ -454,24 +402,20 @@ func (r *Runner) configure(config *sdkproto.Config) *proto.FailedJob {
 	}
 	return nil
 }
-
 // heartbeatRoutine periodically sends updates on the job, which keeps coder server
 // from assuming the job is stalled, and allows the runner to learn if the job
 // has been canceled by the user.
 func (r *Runner) heartbeatRoutine(ctx context.Context) {
 	ctx, span := r.startTrace(ctx, tracing.FuncName())
 	defer span.End()
-
 	ticker := time.NewTicker(r.updateInterval)
 	defer ticker.Stop()
-
 	for {
 		select {
 		case <-r.notCanceled.Done():
 			return
 		case <-ticker.C:
 		}
-
 		resp, err := r.sendHeartbeat(ctx)
 		if err != nil {
 			// Calling Fail starts cancellation so the process will exit.
@@ -506,18 +450,15 @@ func (r *Runner) heartbeatRoutine(ctx context.Context) {
 		}
 	}
 }
-
 func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *proto.FailedJob) {
 	ctx, span := r.startTrace(ctx, tracing.FuncName())
 	defer span.End()
-
 	failedJob := r.configure(&sdkproto.Config{
 		TemplateSourceArchive: r.job.GetTemplateSourceArchive(),
 	})
 	if failedJob != nil {
 		return nil, failedJob
 	}
-
 	// Parse parameters and update the job with the parameter specs
 	r.queueLog(ctx, &proto.Log{
 		Source:    proto.LogSource_PROVISIONER_DAEMON,
@@ -529,7 +470,6 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 	if err != nil {
 		return nil, r.failedJobf("run parse: %s", err)
 	}
-
 	// Once Terraform template variables are parsed, the runner can pass variables
 	// to store in database and filter valid ones.
 	updateResponse, err := r.update(ctx, &proto.UpdateJobRequest{
@@ -542,7 +482,6 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 	if err != nil {
 		return nil, r.failedJobf("update job: %s", err)
 	}
-
 	// Determine persistent resources
 	r.queueLog(ctx, &proto.Log{
 		Source:    proto.LogSource_PROVISIONER_DAEMON,
@@ -557,7 +496,6 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 	if err != nil {
 		return nil, r.failedJobf("template import provision for start: %s", err)
 	}
-
 	// Determine ephemeral resources.
 	r.queueLog(ctx, &proto.Log{
 		Source:    proto.LogSource_PROVISIONER_DAEMON,
@@ -572,13 +510,11 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 	if err != nil {
 		return nil, r.failedJobf("template import provision for stop: %s", err)
 	}
-
 	// For backwards compatibility with older versions of coderd
 	externalAuthProviderNames := make([]string, 0, len(startProvision.ExternalAuthProviders))
 	for _, it := range startProvision.ExternalAuthProviders {
 		externalAuthProviderNames = append(externalAuthProviderNames, it.Id)
 	}
-
 	return &proto.CompletedJob{
 		JobId: r.job.JobId,
 		Type: &proto.CompletedJob_TemplateImport_{
@@ -595,22 +531,20 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 		},
 	}, nil
 }
-
 // Parses template variables and README from source.
 func (r *Runner) runTemplateImportParse(ctx context.Context) (
 	workspaceTags map[string]string, vars []*sdkproto.TemplateVariable, readme []byte, err error,
 ) {
 	ctx, span := r.startTrace(ctx, tracing.FuncName())
 	defer span.End()
-
 	err = r.session.Send(&sdkproto.Request{Type: &sdkproto.Request_Parse{Parse: &sdkproto.ParseRequest{}}})
 	if err != nil {
-		return nil, nil, nil, xerrors.Errorf("parse source: %w", err)
+		return nil, nil, nil, fmt.Errorf("parse source: %w", err)
 	}
 	for {
 		msg, err := r.session.Recv()
 		if err != nil {
-			return nil, nil, nil, xerrors.Errorf("recv parse source: %w", err)
+			return nil, nil, nil, fmt.Errorf("recv parse source: %w", err)
 		}
 		switch msgType := msg.Type.(type) {
 		case *sdkproto.Response_Log:
@@ -618,7 +552,6 @@ func (r *Runner) runTemplateImportParse(ctx context.Context) (
 				slog.F("level", msgType.Log.Level),
 				slog.F("output", msgType.Log.Output),
 			)
-
 			r.queueLog(ctx, &proto.Log{
 				Source:    proto.LogSource_PROVISIONER,
 				Level:     msgType.Log.Level,
@@ -635,17 +568,15 @@ func (r *Runner) runTemplateImportParse(ctx context.Context) (
 				slog.F("error", pc.Error),
 			)
 			if pc.Error != "" {
-				return nil, nil, nil, xerrors.Errorf("parse error: %s", pc.Error)
+				return nil, nil, nil, fmt.Errorf("parse error: %s", pc.Error)
 			}
-
 			return msgType.Parse.WorkspaceTags, msgType.Parse.TemplateVariables, msgType.Parse.Readme, nil
 		default:
-			return nil, nil, nil, xerrors.Errorf("invalid message type %q received from provisioner",
+			return nil, nil, nil, fmt.Errorf("invalid message type %q received from provisioner",
 				reflect.TypeOf(msg.Type).String())
 		}
 	}
 }
-
 type templateImportProvision struct {
 	Resources             []*sdkproto.Resource
 	Parameters            []*sdkproto.RichParameter
@@ -653,14 +584,12 @@ type templateImportProvision struct {
 	Modules               []*sdkproto.Module
 	Presets               []*sdkproto.Preset
 }
-
 // Performs a dry-run provision when importing a template.
 // This is used to detect resources that would be provisioned for a workspace in various states.
 // It doesn't define values for rich parameters as they're unknown during template import.
 func (r *Runner) runTemplateImportProvision(ctx context.Context, variableValues []*sdkproto.VariableValue, metadata *sdkproto.Metadata) (*templateImportProvision, error) {
 	return r.runTemplateImportProvisionWithRichParameters(ctx, variableValues, nil, metadata)
 }
-
 // Performs a dry-run provision with provided rich parameters.
 // This is used to detect resources that would be provisioned for a workspace in various states.
 func (r *Runner) runTemplateImportProvisionWithRichParameters(
@@ -671,7 +600,6 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 ) (*templateImportProvision, error) {
 	ctx, span := r.startTrace(ctx, tracing.FuncName())
 	defer span.End()
-
 	var stage string
 	switch metadata.WorkspaceTransition {
 	case sdkproto.WorkspaceTransition_START:
@@ -687,7 +615,7 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 		VariableValues:      variableValues,
 	}}})
 	if err != nil {
-		return nil, xerrors.Errorf("start provision: %w", err)
+		return nil, fmt.Errorf("start provision: %w", err)
 	}
 	nevermind := make(chan struct{})
 	defer close(nevermind)
@@ -705,11 +633,10 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 			})
 		}
 	}()
-
 	for {
 		msg, err := r.session.Recv()
 		if err != nil {
-			return nil, xerrors.Errorf("recv import provision: %w", err)
+			return nil, fmt.Errorf("recv import provision: %w", err)
 		}
 		switch msgType := msg.Type.(type) {
 		case *sdkproto.Response_Log:
@@ -730,15 +657,12 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 				r.logger.Info(context.Background(), "dry-run provision failure",
 					slog.F("error", c.Error),
 				)
-
-				return nil, xerrors.New(c.Error)
+				return nil, errors.New(c.Error)
 			}
-
 			r.logger.Info(context.Background(), "parse dry-run provision successful",
 				slog.F("resource_count", len(c.Resources)),
 				slog.F("resources", resourceNames(c.Resources)),
 			)
-
 			return &templateImportProvision{
 				Resources:             c.Resources,
 				Parameters:            c.Parameters,
@@ -747,16 +671,14 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 				Presets:               c.Presets,
 			}, nil
 		default:
-			return nil, xerrors.Errorf("invalid message type %q received from provisioner",
+			return nil, fmt.Errorf("invalid message type %q received from provisioner",
 				reflect.TypeOf(msg.Type).String())
 		}
 	}
 }
-
 func (r *Runner) runTemplateDryRun(ctx context.Context) (*proto.CompletedJob, *proto.FailedJob) {
 	ctx, span := r.startTrace(ctx, tracing.FuncName())
 	defer span.End()
-
 	// Ensure all metadata fields are set as they are all optional for dry-run.
 	metadata := r.job.GetTemplateDryRun().GetMetadata()
 	metadata.WorkspaceTransition = sdkproto.WorkspaceTransition_START
@@ -784,14 +706,12 @@ func (r *Runner) runTemplateDryRun(ctx context.Context) (*proto.CompletedJob, *p
 		}
 		metadata.WorkspaceOwnerId = id.String()
 	}
-
 	failedJob := r.configure(&sdkproto.Config{
 		TemplateSourceArchive: r.job.GetTemplateSourceArchive(),
 	})
 	if failedJob != nil {
 		return nil, failedJob
 	}
-
 	// Run the template import provision task since it's already a dry run.
 	provision, err := r.runTemplateImportProvisionWithRichParameters(ctx,
 		r.job.GetTemplateDryRun().GetVariableValues(),
@@ -801,7 +721,6 @@ func (r *Runner) runTemplateDryRun(ctx context.Context) (*proto.CompletedJob, *p
 	if err != nil {
 		return nil, r.failedJobf("run dry-run provision job: %s", err)
 	}
-
 	return &proto.CompletedJob{
 		JobId: r.job.JobId,
 		Type: &proto.CompletedJob_TemplateDryRun_{
@@ -812,7 +731,6 @@ func (r *Runner) runTemplateDryRun(ctx context.Context) (*proto.CompletedJob, *p
 		},
 	}, nil
 }
-
 func (r *Runner) buildWorkspace(ctx context.Context, stage string, req *sdkproto.Request) (
 	*sdkproto.Response, *proto.FailedJob,
 ) {
@@ -838,7 +756,6 @@ func (r *Runner) buildWorkspace(ctx context.Context, stage string, req *sdkproto
 			})
 		}
 	}()
-
 	for {
 		msg, err := r.session.Recv()
 		if err != nil {
@@ -851,7 +768,6 @@ func (r *Runner) buildWorkspace(ctx context.Context, stage string, req *sdkproto
 				slog.F("output", msgType.Log.Output),
 				slog.F("workspace_build_id", r.job.GetWorkspaceBuild().WorkspaceBuildId),
 			)
-
 			r.queueLog(ctx, &proto.Log{
 				Source:    proto.LogSource_PROVISIONER,
 				Level:     msgType.Log.Level,
@@ -865,7 +781,6 @@ func (r *Runner) buildWorkspace(ctx context.Context, stage string, req *sdkproto
 		}
 	}
 }
-
 func (r *Runner) commitQuota(ctx context.Context, resources []*sdkproto.Resource) *proto.FailedJob {
 	cost := sumDailyCost(resources)
 	r.logger.Debug(ctx, "committing quota",
@@ -875,9 +790,7 @@ func (r *Runner) commitQuota(ctx context.Context, resources []*sdkproto.Resource
 	if cost == 0 {
 		return nil
 	}
-
 	const stage = "Commit quota"
-
 	resp, err := r.quotaCommitter.CommitQuota(ctx, &proto.CommitQuotaRequest{
 		JobId:     r.job.JobId,
 		DailyCost: int32(cost),
@@ -905,7 +818,6 @@ func (r *Runner) commitQuota(ctx context.Context, resources []*sdkproto.Resource
 			Stage:     stage,
 		})
 	}
-
 	if !resp.Ok {
 		r.queueLog(ctx, &proto.Log{
 			Source:    proto.LogSource_PROVISIONER,
@@ -918,11 +830,9 @@ func (r *Runner) commitQuota(ctx context.Context, resources []*sdkproto.Resource
 	}
 	return nil
 }
-
 func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *proto.FailedJob) {
 	ctx, span := r.startTrace(ctx, tracing.FuncName())
 	defer span.End()
-
 	var (
 		applyStage  string
 		commitQuota bool
@@ -937,7 +847,6 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 	case sdkproto.WorkspaceTransition_DESTROY:
 		applyStage = "Destroying workspace"
 	}
-
 	failedJob := r.configure(&sdkproto.Config{
 		TemplateSourceArchive: r.job.GetTemplateSourceArchive(),
 		State:                 r.job.GetWorkspaceBuild().State,
@@ -946,7 +855,6 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 	if failedJob != nil {
 		return nil, failedJob
 	}
-
 	resp, failed := r.buildWorkspace(ctx, "Planning infrastructure", &sdkproto.Request{
 		Type: &sdkproto.Request_Plan{
 			Plan: &sdkproto.PlanRequest{
@@ -968,7 +876,6 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 		r.logger.Warn(context.Background(), "plan request failed",
 			slog.F("error", planComplete.Error),
 		)
-
 		return nil, &proto.FailedJob{
 			JobId: r.job.JobId,
 			Error: planComplete.Error,
@@ -977,7 +884,6 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 			},
 		}
 	}
-
 	r.logger.Info(context.Background(), "plan request successful",
 		slog.F("resource_count", len(planComplete.Resources)),
 		slog.F("resources", resourceNames(planComplete.Resources)),
@@ -990,14 +896,12 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 			return nil, failed
 		}
 	}
-
 	r.queueLog(ctx, &proto.Log{
 		Source:    proto.LogSource_PROVISIONER_DAEMON,
 		Level:     sdkproto.LogLevel_INFO,
 		Stage:     applyStage,
 		CreatedAt: time.Now().UnixMilli(),
 	})
-
 	resp, failed = r.buildWorkspace(ctx, applyStage, &sdkproto.Request{
 		Type: &sdkproto.Request_Apply{
 			Apply: &sdkproto.ApplyRequest{
@@ -1012,16 +916,13 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 	if applyComplete == nil {
 		return nil, r.failedWorkspaceBuildf("invalid message type %T received from provisioner", resp.Type)
 	}
-
 	// Prepend the plan timings (since they occurred first).
 	applyComplete.Timings = append(planComplete.Timings, applyComplete.Timings...)
-
 	if applyComplete.Error != "" {
 		r.logger.Warn(context.Background(), "apply failed; updating state",
 			slog.F("error", applyComplete.Error),
 			slog.F("state_len", len(applyComplete.State)),
 		)
-
 		return nil, &proto.FailedJob{
 			JobId: r.job.JobId,
 			Error: applyComplete.Error,
@@ -1033,14 +934,12 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 			},
 		}
 	}
-
 	r.logger.Info(context.Background(), "apply successful",
 		slog.F("resource_count", len(applyComplete.Resources)),
 		slog.F("resources", resourceNames(applyComplete.Resources)),
 		slog.F("state_len", len(applyComplete.State)),
 	)
 	r.flushQueuedLogs(ctx)
-
 	return &proto.CompletedJob{
 		JobId: r.job.JobId,
 		Type: &proto.CompletedJob_WorkspaceBuild_{
@@ -1056,7 +955,6 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 		},
 	}, nil
 }
-
 func resourceNames(rs []*sdkproto.Resource) []string {
 	var sb strings.Builder
 	names := make([]string, 0, len(rs))
@@ -1069,17 +967,14 @@ func resourceNames(rs []*sdkproto.Resource) []string {
 	}
 	return names
 }
-
 func (r *Runner) failedWorkspaceBuildf(format string, args ...interface{}) *proto.FailedJob {
 	failedJob := r.failedJobf(format, args...)
 	failedJob.Type = &proto.FailedJob_WorkspaceBuild_{}
 	return failedJob
 }
-
 func (r *Runner) failedJobf(format string, args ...interface{}) *proto.FailedJob {
 	message := fmt.Sprintf(format, args...)
 	var code string
-
 	for c, m := range errorCodes {
 		if strings.Contains(message, m) {
 			code = c
@@ -1092,14 +987,12 @@ func (r *Runner) failedJobf(format string, args ...interface{}) *proto.FailedJob
 		ErrorCode: code,
 	}
 }
-
 func (r *Runner) startTrace(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
 	return r.tracer.Start(ctx, name, append(opts, trace.WithAttributes(
 		semconv.ServiceNameKey.String("coderd.provisionerd"),
 		attribute.String("job_id", r.job.JobId),
 	))...)
 }
-
 // queueLog adds a log to the buffer and debounces a timer
 // if one exists to flush the logs. It stores a maximum of
 // 100 log lines before flushing as a safe-guard mechanism.
@@ -1121,7 +1014,6 @@ func (r *Runner) queueLog(ctx context.Context, log *proto.Log) {
 		r.flushQueuedLogs(ctx)
 	})
 }
-
 func (r *Runner) flushQueuedLogs(ctx context.Context) {
 	r.mutex.Lock()
 	if r.flushLogsTimer != nil {
@@ -1141,7 +1033,6 @@ func (r *Runner) flushQueuedLogs(ctx context.Context) {
 		r.logger.Error(ctx, "flush queued logs", slog.Error(err))
 	}
 }
-
 func redactVariableValues(variableValues []*sdkproto.VariableValue) []*sdkproto.VariableValue {
 	var redacted []*sdkproto.VariableValue
 	for _, v := range variableValues {
@@ -1157,7 +1048,6 @@ func redactVariableValues(variableValues []*sdkproto.VariableValue) []*sdkproto.
 	}
 	return redacted
 }
-
 // logProvisionerJobLog logs a message from the provisioner daemon at the appropriate level.
 func (r *Runner) logProvisionerJobLog(ctx context.Context, logLevel sdkproto.LogLevel, msg string, fields ...any) {
 	switch logLevel {

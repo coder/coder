@@ -1,30 +1,24 @@
 package dashboard
-
 import (
+	"fmt"
 	"context"
 	"errors"
 	"io"
 	"math/rand"
 	"time"
-
-	"golang.org/x/xerrors"
-
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/scaletest/harness"
 )
-
 type Runner struct {
 	client  *codersdk.Client
 	cfg     Config
 	metrics Metrics
 }
-
 var (
 	_ harness.Runnable  = &Runner{}
 	_ harness.Cleanable = &Runner{}
 )
-
 func NewRunner(client *codersdk.Client, metrics Metrics, cfg Config) *Runner {
 	client.Trace = cfg.Trace
 	if cfg.WaitLoaded == nil {
@@ -48,7 +42,6 @@ func NewRunner(client *codersdk.Client, metrics Metrics, cfg Config) *Runner {
 		metrics: metrics,
 	}
 }
-
 func (r *Runner) Run(ctx context.Context, _ string, _ io.Writer) error {
 	err := r.runUntilDeadlineExceeded(ctx)
 	// If the context deadline exceeded, don't return an error.
@@ -58,24 +51,22 @@ func (r *Runner) Run(ctx context.Context, _ string, _ io.Writer) error {
 	}
 	return err
 }
-
 func (r *Runner) runUntilDeadlineExceeded(ctx context.Context) error {
 	if r.client == nil {
-		return xerrors.Errorf("client is nil")
+		return fmt.Errorf("client is nil")
 	}
 	me, err := r.client.User(ctx, codersdk.Me)
 	if err != nil {
-		return xerrors.Errorf("get scaletest user: %w", err)
+		return fmt.Errorf("get scaletest user: %w", err)
 	}
 	//nolint:gocritic
 	r.cfg.Logger.Info(ctx, "running as user", slog.F("username", me.Username))
 	if len(me.OrganizationIDs) == 0 {
-		return xerrors.Errorf("user has no organizations")
+		return fmt.Errorf("user has no organizations")
 	}
-
 	cdpCtx, cdpCancel, err := r.cfg.InitChromeDPCtx(ctx, r.cfg.Logger, r.client.URL, r.client.SessionToken(), r.cfg.Headless)
 	if err != nil {
-		return xerrors.Errorf("init chromedp ctx: %w", err)
+		return fmt.Errorf("init chromedp ctx: %w", err)
 	}
 	defer cdpCancel()
 	t := time.NewTicker(1) // First one should be immediate
@@ -83,7 +74,7 @@ func (r *Runner) runUntilDeadlineExceeded(ctx context.Context) error {
 	r.cfg.Logger.Info(ctx, "waiting for workspaces page to load")
 	loadWorkspacePageDeadline := time.Now().Add(r.cfg.Interval)
 	if err := r.cfg.WaitLoaded(cdpCtx, loadWorkspacePageDeadline); err != nil {
-		return xerrors.Errorf("wait for workspaces page to load: %w", err)
+		return fmt.Errorf("wait for workspaces page to load: %w", err)
 	}
 	for {
 		select {
@@ -127,7 +118,6 @@ func (r *Runner) runUntilDeadlineExceeded(ctx context.Context) error {
 		}
 	}
 }
-
 func (*Runner) Cleanup(_ context.Context, _ string, _ io.Writer) error {
 	return nil
 }

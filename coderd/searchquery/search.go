@@ -1,22 +1,17 @@
 package searchquery
-
 import (
+	"errors"
 	"context"
 	"database/sql"
 	"fmt"
 	"net/url"
 	"strings"
 	"time"
-
 	"github.com/google/uuid"
-
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 )
-
 // AuditLogs requires the database to fetch an organization by name
 // to convert to organization uuid.
 //
@@ -43,7 +38,6 @@ func AuditLogs(ctx context.Context, db database.Store, query string) (database.G
 	if len(errors) > 0 {
 		return database.GetAuditLogsOffsetParams{}, errors
 	}
-
 	const dateLayout = "2006-01-02"
 	parser := httpapi.NewQueryParamParser()
 	filter := database.GetAuditLogsOffsetParams{
@@ -62,11 +56,9 @@ func AuditLogs(ctx context.Context, db database.Store, query string) (database.G
 	if !filter.DateTo.IsZero() {
 		filter.DateTo = filter.DateTo.Add(23*time.Hour + 59*time.Minute + 59*time.Second)
 	}
-
 	parser.ErrorExcessParams(values)
 	return filter, parser.Errors
 }
-
 func Users(query string) (database.GetUsersParams, []codersdk.ValidationError) {
 	// Always lowercase for all searches.
 	query = strings.ToLower(query)
@@ -77,7 +69,6 @@ func Users(query string) (database.GetUsersParams, []codersdk.ValidationError) {
 	if len(errors) > 0 {
 		return database.GetUsersParams{}, errors
 	}
-
 	parser := httpapi.NewQueryParamParser()
 	filter := database.GetUsersParams{
 		Search:         parser.String(values, "", "search"),
@@ -91,19 +82,15 @@ func Users(query string) (database.GetUsersParams, []codersdk.ValidationError) {
 	parser.ErrorExcessParams(values)
 	return filter, parser.Errors
 }
-
 func Workspaces(ctx context.Context, db database.Store, query string, page codersdk.Pagination, agentInactiveDisconnectTimeout time.Duration) (database.GetWorkspacesParams, []codersdk.ValidationError) {
 	filter := database.GetWorkspacesParams{
 		AgentInactiveDisconnectTimeoutSeconds: int64(agentInactiveDisconnectTimeout.Seconds()),
-
 		Offset: int32(page.Offset),
 		Limit:  int32(page.Limit),
 	}
-
 	if query == "" {
 		return filter, nil
 	}
-
 	// Always lowercase for all searches.
 	query = strings.ToLower(query)
 	values, errors := searchTerms(query, func(term string, values url.Values) error {
@@ -116,14 +103,13 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 			values.Add("owner", parts[0])
 			values.Add("name", parts[1])
 		default:
-			return xerrors.Errorf("Query element %q can only contain 1 '/'", term)
+			return fmt.Errorf("Query element %q can only contain 1 '/'", term)
 		}
 		return nil
 	})
 	if len(errors) > 0 {
 		return filter, errors
 	}
-
 	parser := httpapi.NewQueryParamParser()
 	filter.WorkspaceIds = parser.UUIDs(values, []uuid.UUID{}, "id")
 	filter.OwnerUsername = parser.String(values, "", "owner")
@@ -143,7 +129,6 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 		Valid: values.Has("outdated"),
 	}
 	filter.OrganizationID = parseOrganization(ctx, db, parser, values, "organization")
-
 	type paramMatch struct {
 		name  string
 		value *string
@@ -162,12 +147,12 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 		}
 		if len(parts) == 2 {
 			if parts[1] == "" {
-				return paramMatch{}, xerrors.Errorf("query element %q has an empty value. omit the '=' to match just on the parameter name", v)
+				return paramMatch{}, fmt.Errorf("query element %q has an empty value. omit the '=' to match just on the parameter name", v)
 			}
 			// Match on the parameter and value
 			return paramMatch{name: parts[0], value: &parts[1]}, nil
 		}
-		return paramMatch{}, xerrors.Errorf("query element %q can only contain 1 '='", v)
+		return paramMatch{}, fmt.Errorf("query element %q can only contain 1 '='", v)
 	})
 	for _, p := range params {
 		if p.value == nil {
@@ -177,11 +162,9 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 		filter.ParamNames = append(filter.ParamNames, p.name)
 		filter.ParamValues = append(filter.ParamValues, *p.value)
 	}
-
 	parser.ErrorExcessParams(values)
 	return filter, parser.Errors
 }
-
 func Templates(ctx context.Context, db database.Store, query string) (database.GetTemplatesWithFilterParams, []codersdk.ValidationError) {
 	// Always lowercase for all searches.
 	query = strings.ToLower(query)
@@ -193,7 +176,6 @@ func Templates(ctx context.Context, db database.Store, query string) (database.G
 	if len(errors) > 0 {
 		return database.GetTemplatesWithFilterParams{}, errors
 	}
-
 	parser := httpapi.NewQueryParamParser()
 	filter := database.GetTemplatesWithFilterParams{
 		Deleted:        parser.Boolean(values, false, "deleted"),
@@ -203,14 +185,11 @@ func Templates(ctx context.Context, db database.Store, query string) (database.G
 		Deprecated:     parser.NullableBoolean(values, sql.NullBool{}, "deprecated"),
 		OrganizationID: parseOrganization(ctx, db, parser, values, "organization"),
 	}
-
 	parser.ErrorExcessParams(values)
 	return filter, parser.Errors
 }
-
 func searchTerms(query string, defaultKey func(term string, values url.Values) error) (url.Values, []codersdk.ValidationError) {
 	searchValues := make(url.Values)
-
 	// Because we do this in 2 passes, we want to maintain quotes on the first
 	// pass. Further splitting occurs on the second pass and quotes will be
 	// dropped.
@@ -245,10 +224,8 @@ func searchTerms(query string, defaultKey func(term string, values url.Values) e
 			}
 		}
 	}
-
 	return searchValues, nil
 }
-
 func parseOrganization(ctx context.Context, db database.Store, parser *httpapi.QueryParamParser, vals url.Values, queryParam string) uuid.UUID {
 	return httpapi.ParseCustom(parser, vals, uuid.Nil, queryParam, func(v string) (uuid.UUID, error) {
 		if v == "" {
@@ -262,12 +239,11 @@ func parseOrganization(ctx context.Context, db database.Store, parser *httpapi.Q
 			Name: v, Deleted: false,
 		})
 		if err != nil {
-			return uuid.Nil, xerrors.Errorf("organization %q either does not exist, or you are unauthorized to view it", v)
+			return uuid.Nil, fmt.Errorf("organization %q either does not exist, or you are unauthorized to view it", v)
 		}
 		return organization.ID, nil
 	})
 }
-
 // splitQueryParameterByDelimiter takes a query string and splits it into the individual elements
 // of the query. Each element is separated by a delimiter. All quoted strings are
 // kept as a single element.
@@ -291,6 +267,5 @@ func splitQueryParameterByDelimiter(query string, delimiter rune, maintainQuotes
 			parts[i] = strings.Trim(part, "\"")
 		}
 	}
-
 	return parts
 }

@@ -1,20 +1,15 @@
 package vpn
-
 import (
+	"errors"
 	"context"
 	"fmt"
 	"io"
 	"strings"
 	"sync"
-
-	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/proto"
-
 	"cdr.dev/slog"
 )
-
 type SpeakerRole string
-
 type rpcMessage interface {
 	proto.Message
 	GetRpc() *RPC
@@ -22,21 +17,18 @@ type rpcMessage interface {
 	// can allocate the RPC.
 	EnsureRPC() *RPC
 }
-
 func (t *TunnelMessage) EnsureRPC() *RPC {
 	if t.Rpc == nil {
 		t.Rpc = &RPC{}
 	}
 	return t.Rpc
 }
-
 func (m *ManagerMessage) EnsureRPC() *RPC {
 	if m.Rpc == nil {
 		m.Rpc = &RPC{}
 	}
 	return m.Rpc
 }
-
 // receivableRPCMessage is an rpcMessage that we can receive, and unmarshal, using generics, from a
 // byte stream.  proto.Unmarshal requires us to have already allocated the memory for the message
 // type we are unmarshalling.  All our message types are pointers like *TunnelMessage, so to
@@ -53,12 +45,10 @@ type receivableRPCMessage[RR any] interface {
 	rpcMessage
 	*RR
 }
-
 const (
 	SpeakerRoleManager SpeakerRole = "manager"
 	SpeakerRoleTunnel  SpeakerRole = "tunnel"
 )
-
 // speaker is an implementation of the CoderVPN protocol. It handles unary RPCs and their responses,
 // as well as the low-level serialization & deserialization to the ReadWriteCloser (rwc).
 //
@@ -94,18 +84,14 @@ type speaker[S rpcMessage, R receivableRPCMessage[RR], RR any] struct {
 	requests  chan *request[S, R]
 	logger    slog.Logger
 	nextMsgID uint64
-
 	ctx    context.Context
 	cancel context.CancelFunc
-
 	sendCh       chan<- S
 	recvCh       <-chan R
 	recvLoopDone chan struct{}
-
 	mu            sync.Mutex
 	responseChans map[uint64]chan R
 }
-
 // newSpeaker creates a new protocol speaker.
 func newSpeaker[S rpcMessage, R receivableRPCMessage[RR], RR any](
 	ctx context.Context, logger slog.Logger, conn io.ReadWriteCloser,
@@ -116,7 +102,7 @@ func newSpeaker[S rpcMessage, R receivableRPCMessage[RR], RR any](
 	ctx, cancel := context.WithCancel(ctx)
 	if err := handshake(ctx, conn, logger, me, them); err != nil {
 		cancel()
-		return nil, xerrors.Errorf("handshake failed: %w", err)
+		return nil, fmt.Errorf("handshake failed: %w", err)
 	}
 	sendCh := make(chan S)
 	recvCh := make(chan R)
@@ -134,7 +120,6 @@ func newSpeaker[S rpcMessage, R receivableRPCMessage[RR], RR any](
 	}
 	return s, nil
 }
-
 // start starts the serialzation/deserialization.  It's important this happens
 // after any assignments of the speaker to its owning Tunnel or Manager, since
 // the mutex is copied and that is not threadsafe.
@@ -143,7 +128,6 @@ func (s *speaker[_, _, _]) start() {
 	s.serdes.start()
 	go s.recvFromSerdes()
 }
-
 func (s *speaker[S, R, _]) recvFromSerdes() {
 	defer close(s.recvLoopDone)
 	defer close(s.requests)
@@ -177,7 +161,6 @@ func (s *speaker[S, R, _]) recvFromSerdes() {
 		}
 	}
 }
-
 // Close closes the speaker
 // nolint: revive
 func (s *speaker[_, _, _]) Close() error {
@@ -185,7 +168,6 @@ func (s *speaker[_, _, _]) Close() error {
 	err := s.serdes.Close()
 	return err
 }
-
 // unaryRPC sends a request/response style RPC over the protocol, waits for the response, then
 // returns the response
 func (s *speaker[S, R, _]) unaryRPC(ctx context.Context, req S) (resp R, err error) {
@@ -197,7 +179,7 @@ func (s *speaker[S, R, _]) unaryRPC(ctx context.Context, req S) (resp R, err err
 	case <-ctx.Done():
 		return resp, ctx.Err()
 	case <-s.ctx.Done():
-		return resp, xerrors.Errorf("vpn protocol closed: %w", s.ctx.Err())
+		return resp, fmt.Errorf("vpn protocol closed: %w", s.ctx.Err())
 	case <-s.recvLoopDone:
 		logger.Debug(s.ctx, "recvLoopDone while sending request")
 		return resp, io.ErrUnexpectedEOF
@@ -210,7 +192,7 @@ func (s *speaker[S, R, _]) unaryRPC(ctx context.Context, req S) (resp R, err err
 		return resp, ctx.Err()
 	case <-s.ctx.Done():
 		s.rmResponseChan(msgID)
-		return resp, xerrors.Errorf("vpn protocol closed: %w", s.ctx.Err())
+		return resp, fmt.Errorf("vpn protocol closed: %w", s.ctx.Err())
 	case <-s.recvLoopDone:
 		logger.Debug(s.ctx, "recvLoopDone while waiting for response")
 		return resp, io.ErrUnexpectedEOF
@@ -219,7 +201,6 @@ func (s *speaker[S, R, _]) unaryRPC(ctx context.Context, req S) (resp R, err err
 		return resp, nil
 	}
 }
-
 func (s *speaker[_, R, _]) newRPC() (uint64, chan R) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -229,13 +210,11 @@ func (s *speaker[_, R, _]) newRPC() (uint64, chan R) {
 	s.responseChans[msgID] = c
 	return msgID, c
 }
-
 func (s *speaker[_, _, _]) rmResponseChan(msgID uint64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.responseChans, msgID)
 }
-
 func (s *speaker[_, R, _]) tryToDeliverResponse(resp R) {
 	msgID := resp.GetRpc().GetResponseTo()
 	s.mu.Lock()
@@ -249,7 +228,6 @@ func (s *speaker[_, R, _]) tryToDeliverResponse(resp R) {
 		delete(s.responseChans, msgID)
 	}
 }
-
 // handshake performs the initial CoderVPN protocol handshake over the given conn
 func handshake(
 	ctx context.Context, conn io.ReadWriteCloser, logger slog.Logger, me, them SpeakerRole,
@@ -261,7 +239,7 @@ func handshake(
 		_, err := conn.Write([]byte(ours))
 		logger.Debug(ctx, "wrote out header")
 		if err != nil {
-			err = xerrors.Errorf("write header: %w", err)
+			err = fmt.Errorf("write header: %w", err)
 		}
 		errCh <- err
 	}()
@@ -275,7 +253,7 @@ func handshake(
 		for {
 			_, err := conn.Read(buf[have : have+1])
 			if err != nil {
-				errCh <- xerrors.Errorf("read header: %w", err)
+				errCh <- fmt.Errorf("read header: %w", err)
 				return
 			}
 			if buf[have] == '\n' {
@@ -286,12 +264,11 @@ func handshake(
 			}
 			have++
 			if have >= len(buf) {
-				errCh <- xerrors.Errorf("header malformed or too large: %s", string(buf))
+				errCh <- fmt.Errorf("header malformed or too large: %s", string(buf))
 				return
 			}
 		}
 	}()
-
 	writeOK := false
 	theirHeader := ""
 	readOK := false
@@ -317,54 +294,49 @@ func handshake(
 	logger.Debug(ctx, "handshake read/write complete", slog.F("their_header", theirHeader))
 	gotVersion, err := validateHeader(theirHeader, them, CurrentSupportedVersions)
 	if err != nil {
-		return xerrors.Errorf("validate header (%s): %w", theirHeader, err)
+		return fmt.Errorf("validate header (%s): %w", theirHeader, err)
 	}
 	logger.Debug(ctx, "handshake validated", slog.F("common_version", gotVersion))
 	// TODO: actually use the common version to perform different behavior once
 	// we have multiple versions
 	return nil
 }
-
 const headerPreamble = "codervpn"
-
 func headerString(role SpeakerRole, versions RPCVersionList) string {
 	return fmt.Sprintf("%s %s %s\n", headerPreamble, role, versions.String())
 }
-
 func validateHeader(header string, expectedRole SpeakerRole, supportedVersions RPCVersionList) (RPCVersion, error) {
 	parts := strings.Split(header, " ")
 	if len(parts) != 3 {
-		return RPCVersion{}, xerrors.New("wrong number of parts")
+		return RPCVersion{}, errors.New("wrong number of parts")
 	}
 	if parts[0] != headerPreamble {
-		return RPCVersion{}, xerrors.New("invalid preamble")
+		return RPCVersion{}, errors.New("invalid preamble")
 	}
 	if parts[1] != string(expectedRole) {
-		return RPCVersion{}, xerrors.New("unexpected role")
+		return RPCVersion{}, errors.New("unexpected role")
 	}
 	otherVersions, err := ParseRPCVersionList(parts[2])
 	if err != nil {
-		return RPCVersion{}, xerrors.Errorf("parse version list %q: %w", parts[2], err)
+		return RPCVersion{}, fmt.Errorf("parse version list %q: %w", parts[2], err)
 	}
 	compatibleVersion, ok := supportedVersions.IsCompatibleWith(otherVersions)
 	if !ok {
 		return RPCVersion{},
-			xerrors.Errorf("current supported versions %q is not compatible with peer versions %q", supportedVersions.String(), otherVersions.String())
+			fmt.Errorf("current supported versions %q is not compatible with peer versions %q", supportedVersions.String(), otherVersions.String())
 	}
 	return compatibleVersion, nil
 }
-
 type request[S rpcMessage, R rpcMessage] struct {
 	ctx     context.Context
 	msg     R
 	replyCh chan<- S
 }
-
 func (r *request[S, _]) sendReply(reply S) error {
 	rrpc := reply.EnsureRPC()
 	mrpc := r.msg.GetRpc()
 	if mrpc == nil {
-		return xerrors.Errorf("message didn't want a reply")
+		return fmt.Errorf("message didn't want a reply")
 	}
 	rrpc.ResponseTo = mrpc.MsgId
 	select {

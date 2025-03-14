@@ -1,37 +1,28 @@
 package cli
-
 import (
+	"errors"
 	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
-
-	"golang.org/x/xerrors"
 	"gopkg.in/yaml.v3"
-
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
-
 // workspaceParameterFlags are used by commands processing rich parameters and/or build options.
 type workspaceParameterFlags struct {
 	promptEphemeralParameters bool
-
 	ephemeralParameters []string
-
 	richParameterFile     string
 	richParameters        []string
 	richParameterDefaults []string
-
 	promptRichParameters bool
 }
-
 func (wpf *workspaceParameterFlags) allOptions() []serpent.Option {
 	options := append(wpf.cliEphemeralParameters(), wpf.cliParameters()...)
 	options = append(options, wpf.cliParameterDefaults()...)
 	return append(options, wpf.alwaysPrompt())
 }
-
 func (wpf *workspaceParameterFlags) cliEphemeralParameters() []serpent.Option {
 	return serpent.OptionSet{
 		// Deprecated - replaced with ephemeral-parameter
@@ -63,7 +54,6 @@ func (wpf *workspaceParameterFlags) cliEphemeralParameters() []serpent.Option {
 		},
 	}
 }
-
 func (wpf *workspaceParameterFlags) cliParameters() []serpent.Option {
 	return serpent.OptionSet{
 		serpent.Option{
@@ -80,7 +70,6 @@ func (wpf *workspaceParameterFlags) cliParameters() []serpent.Option {
 		},
 	}
 }
-
 func (wpf *workspaceParameterFlags) cliParameterDefaults() []serpent.Option {
 	return serpent.OptionSet{
 		serpent.Option{
@@ -91,7 +80,6 @@ func (wpf *workspaceParameterFlags) cliParameterDefaults() []serpent.Option {
 		},
 	}
 }
-
 func (wpf *workspaceParameterFlags) alwaysPrompt() serpent.Option {
 	return serpent.Option{
 		Flag:        "always-prompt",
@@ -99,13 +87,12 @@ func (wpf *workspaceParameterFlags) alwaysPrompt() serpent.Option {
 		Value:       serpent.BoolOf(&wpf.promptRichParameters),
 	}
 }
-
 func asWorkspaceBuildParameters(nameValuePairs []string) ([]codersdk.WorkspaceBuildParameter, error) {
 	var params []codersdk.WorkspaceBuildParameter
 	for _, nameValue := range nameValuePairs {
 		split := strings.SplitN(nameValue, "=", 2)
 		if len(split) < 2 {
-			return nil, xerrors.Errorf("format key=value expected, but got %s", nameValue)
+			return nil, fmt.Errorf("format key=value expected, but got %s", nameValue)
 		}
 		params = append(params, codersdk.WorkspaceBuildParameter{
 			Name:  split[0],
@@ -114,19 +101,16 @@ func asWorkspaceBuildParameters(nameValuePairs []string) ([]codersdk.WorkspaceBu
 	}
 	return params, nil
 }
-
 func parseParameterMapFile(parameterFile string) (map[string]string, error) {
 	parameterFileContents, err := os.ReadFile(parameterFile)
 	if err != nil {
 		return nil, err
 	}
-
 	mapStringInterface := make(map[string]interface{})
 	err = yaml.Unmarshal(parameterFileContents, &mapStringInterface)
 	if err != nil {
 		return nil, err
 	}
-
 	parameterMap := map[string]string{}
 	for k, v := range mapStringInterface {
 		switch val := v.(type) {
@@ -139,17 +123,15 @@ func parseParameterMapFile(parameterFile string) (map[string]string, error) {
 			}
 			parameterMap[k] = string(b)
 		default:
-			return nil, xerrors.Errorf("invalid parameter type: %T", v)
+			return nil, fmt.Errorf("invalid parameter type: %T", v)
 		}
 	}
 	return parameterMap, nil
 }
-
 // buildFlags contains options relating to troubleshooting provisioner jobs.
 type buildFlags struct {
 	provisionerLogDebug bool
 }
-
 func (bf *buildFlags) cliOptions() []serpent.Option {
 	return []serpent.Option{
 		{

@@ -2,6 +2,7 @@ package tailnet
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"maps"
@@ -13,7 +14,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 	"storj.io/drpc"
 	"storj.io/drpc/drpcerr"
 	"tailscale.com/tailcfg"
@@ -184,7 +184,7 @@ func (c *BasicCoordinationController) NewCoordination(client CoordinatorClient) 
 		}
 		err = b.Client.Send(&proto.CoordinateRequest{UpdateSelf: &proto.CoordinateRequest_UpdateSelf{Node: pn}})
 		if err != nil {
-			b.SendErr(xerrors.Errorf("write: %w", err))
+			b.SendErr(fmt.Errorf("write: %w", err))
 		}
 	})
 	go b.respLoop()
@@ -239,9 +239,9 @@ func (c *BasicCoordination) Close(ctx context.Context) (retErr error) {
 		}
 	}()
 	err := c.Client.Send(&proto.CoordinateRequest{Disconnect: &proto.CoordinateRequest_Disconnect{}})
-	if err != nil && !xerrors.Is(err, io.EOF) {
+	if err != nil && !errors.Is(err, io.EOF) {
 		// Coordinator RPC hangs up when it gets disconnect, so EOF is expected.
-		return xerrors.Errorf("send disconnect: %w", err)
+		return fmt.Errorf("send disconnect: %w", err)
 	}
 	c.logger.Debug(context.Background(), "sent disconnect")
 	return nil
@@ -277,14 +277,14 @@ func (c *BasicCoordination) respLoop() {
 		if err != nil {
 			c.logger.Debug(context.Background(),
 				"failed to read from protocol", slog.Error(err))
-			c.SendErr(xerrors.Errorf("read: %w", err))
+			c.SendErr(fmt.Errorf("read: %w", err))
 			return
 		}
 
 		err = c.coordinatee.UpdatePeers(resp.GetPeerUpdates())
 		if err != nil {
 			c.logger.Debug(context.Background(), "failed to update peers", slog.Error(err))
-			c.SendErr(xerrors.Errorf("update peers: %w", err))
+			c.SendErr(fmt.Errorf("update peers: %w", err))
 			return
 		}
 
@@ -309,7 +309,7 @@ func (c *BasicCoordination) respLoop() {
 				if err != nil {
 					c.logger.Debug(context.Background(),
 						"failed to send ready for handshake", slog.Error(err))
-					c.SendErr(xerrors.Errorf("send: %w", err))
+					c.SendErr(fmt.Errorf("send: %w", err))
 					return
 				}
 			}
@@ -815,7 +815,7 @@ func (r *basicResumeTokenRefresher) refresh() {
 		return // context done, no need to refresh
 	}
 	res, err := r.client.RefreshResumeToken(r.ctx, &proto.RefreshResumeTokenRequest{})
-	if xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		// these can only come from being closed, no need to log
 		select {
 		case r.errCh <- nil:
@@ -963,7 +963,7 @@ func (t *TunnelAllWorkspaceUpdatesController) CurrentState() (WorkspaceUpdate, e
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if t.updater == nil {
-		return WorkspaceUpdate{}, xerrors.New("no updater")
+		return WorkspaceUpdate{}, errors.New("no updater")
 	}
 	t.updater.Lock()
 	defer t.updater.Unlock()
@@ -1110,7 +1110,7 @@ func (t *tunnelUpdater) handleUpdate(update *proto.WorkspaceUpdate) error {
 	for _, uw := range update.UpsertedWorkspaces {
 		workspaceID, err := uuid.FromBytes(uw.Id)
 		if err != nil {
-			return xerrors.Errorf("failed to parse workspace ID: %w", err)
+			return fmt.Errorf("failed to parse workspace ID: %w", err)
 		}
 		w := &Workspace{
 			ID:            workspaceID,
@@ -1127,26 +1127,26 @@ func (t *tunnelUpdater) handleUpdate(update *proto.WorkspaceUpdate) error {
 	for _, da := range update.DeletedAgents {
 		agentID, err := uuid.FromBytes(da.Id)
 		if err != nil {
-			return xerrors.Errorf("failed to parse agent ID: %w", err)
+			return fmt.Errorf("failed to parse agent ID: %w", err)
 		}
 		workspaceID, err := uuid.FromBytes(da.WorkspaceId)
 		if err != nil {
-			return xerrors.Errorf("failed to parse workspace ID: %w", err)
+			return fmt.Errorf("failed to parse workspace ID: %w", err)
 		}
 		deletedAgent, err := t.deleteAgentLocked(workspaceID, agentID)
 		if err != nil {
-			return xerrors.Errorf("failed to delete agent: %w", err)
+			return fmt.Errorf("failed to delete agent: %w", err)
 		}
 		currentUpdate.DeletedAgents = append(currentUpdate.DeletedAgents, deletedAgent)
 	}
 	for _, dw := range update.DeletedWorkspaces {
 		workspaceID, err := uuid.FromBytes(dw.Id)
 		if err != nil {
-			return xerrors.Errorf("failed to parse workspace ID: %w", err)
+			return fmt.Errorf("failed to parse workspace ID: %w", err)
 		}
 		deletedWorkspace, err := t.deleteWorkspaceLocked(workspaceID)
 		if err != nil {
-			return xerrors.Errorf("failed to delete workspace: %w", err)
+			return fmt.Errorf("failed to delete workspace: %w", err)
 		}
 		currentUpdate.DeletedWorkspaces = append(currentUpdate.DeletedWorkspaces, deletedWorkspace)
 	}
@@ -1156,16 +1156,16 @@ func (t *tunnelUpdater) handleUpdate(update *proto.WorkspaceUpdate) error {
 	for _, ua := range update.UpsertedAgents {
 		agentID, err := uuid.FromBytes(ua.Id)
 		if err != nil {
-			return xerrors.Errorf("failed to parse agent ID: %w", err)
+			return fmt.Errorf("failed to parse agent ID: %w", err)
 		}
 		workspaceID, err := uuid.FromBytes(ua.WorkspaceId)
 		if err != nil {
-			return xerrors.Errorf("failed to parse workspace ID: %w", err)
+			return fmt.Errorf("failed to parse workspace ID: %w", err)
 		}
 		a := &Agent{Name: ua.Name, ID: agentID, WorkspaceID: workspaceID}
 		err = t.upsertAgentLocked(workspaceID, a)
 		if err != nil {
-			return xerrors.Errorf("failed to upsert agent: %w", err)
+			return fmt.Errorf("failed to upsert agent: %w", err)
 		}
 		currentUpdate.UpsertedAgents = append(currentUpdate.UpsertedAgents, a)
 	}
@@ -1176,7 +1176,7 @@ func (t *tunnelUpdater) handleUpdate(update *proto.WorkspaceUpdate) error {
 		t.logger.Debug(context.Background(), "updating dns hosts")
 		err := t.dnsHostsSetter.SetDNSHosts(dnsNames)
 		if err != nil {
-			return xerrors.Errorf("failed to set DNS hosts: %w", err)
+			return fmt.Errorf("failed to set DNS hosts: %w", err)
 		}
 	} else {
 		t.logger.Debug(context.Background(), "skipping setting DNS names because we have no setter")
@@ -1206,7 +1206,7 @@ func (t *tunnelUpdater) upsertWorkspaceLocked(w *Workspace) *Workspace {
 func (t *tunnelUpdater) deleteWorkspaceLocked(id uuid.UUID) (*Workspace, error) {
 	w, ok := t.workspaces[id]
 	if !ok {
-		return nil, xerrors.Errorf("workspace %s not found", id)
+		return nil, fmt.Errorf("workspace %s not found", id)
 	}
 	delete(t.workspaces, id)
 	return w, nil
@@ -1215,7 +1215,7 @@ func (t *tunnelUpdater) deleteWorkspaceLocked(id uuid.UUID) (*Workspace, error) 
 func (t *tunnelUpdater) upsertAgentLocked(workspaceID uuid.UUID, a *Agent) error {
 	w, ok := t.workspaces[workspaceID]
 	if !ok {
-		return xerrors.Errorf("workspace %s not found", workspaceID)
+		return fmt.Errorf("workspace %s not found", workspaceID)
 	}
 	w.agents[a.ID] = a
 	return nil
@@ -1224,11 +1224,11 @@ func (t *tunnelUpdater) upsertAgentLocked(workspaceID uuid.UUID, a *Agent) error
 func (t *tunnelUpdater) deleteAgentLocked(workspaceID, id uuid.UUID) (*Agent, error) {
 	w, ok := t.workspaces[workspaceID]
 	if !ok {
-		return nil, xerrors.Errorf("workspace %s not found", workspaceID)
+		return nil, fmt.Errorf("workspace %s not found", workspaceID)
 	}
 	a, ok := w.agents[id]
 	if !ok {
-		return nil, xerrors.Errorf("agent %s not found in workspace %s", id, workspaceID)
+		return nil, fmt.Errorf("agent %s not found in workspace %s", id, workspaceID)
 	}
 	delete(w.agents, id)
 	return a, nil
@@ -1359,12 +1359,12 @@ func (c *Controller) Run(ctx context.Context) {
 
 			tailnetClients, err := c.Dialer.Dial(c.ctx, c.ResumeTokenCtrl)
 			if err != nil {
-				if xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) {
+				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 					return
 				}
 				errF := slog.Error(err)
 				var sdkErr *codersdk.Error
-				if xerrors.As(err, &sdkErr) {
+				if errors.As(err, &sdkErr) {
 					errF = slog.Error(sdkErr)
 				}
 				c.logger.Error(c.ctx, "failed to dial tailnet v2+ API", errF)
@@ -1389,22 +1389,22 @@ func (c *Controller) Run(ctx context.Context) {
 // controllers, or not configured correctly with respect to Tailnet API version.
 func (c *Controller) precheckClientsAndControllers(clients ControlProtocolClients) error {
 	if clients.Coordinator == nil && c.CoordCtrl != nil {
-		return xerrors.New("missing Coordinator client; have controller")
+		return errors.New("missing Coordinator client; have controller")
 	}
 	if clients.DERP == nil && c.DERPCtrl != nil {
-		return xerrors.New("missing DERPMap client; have controller")
+		return errors.New("missing DERPMap client; have controller")
 	}
 	if clients.WorkspaceUpdates == nil && c.WorkspaceUpdatesCtrl != nil {
-		return xerrors.New("missing WorkspaceUpdates client; have controller")
+		return errors.New("missing WorkspaceUpdates client; have controller")
 	}
 
 	// Telemetry and ResumeToken support is considered optional, but the clients must be present
 	// so that we can call the functions and get an "unimplemented" error.
 	if clients.ResumeToken == nil && c.ResumeTokenCtrl != nil {
-		return xerrors.New("missing ResumeToken client; have controller")
+		return errors.New("missing ResumeToken client; have controller")
 	}
 	if clients.Telemetry == nil && c.TelemetryCtrl != nil {
-		return xerrors.New("missing Telemetry client; have controller")
+		return errors.New("missing Telemetry client; have controller")
 	}
 	return nil
 }
@@ -1420,9 +1420,9 @@ func (c *Controller) runControllersOnce(clients ControlProtocolClients) {
 		closeOnce.Do(func() {
 			closeErr := clients.Closer.Close()
 			if closeErr != nil &&
-				!xerrors.Is(closeErr, io.EOF) &&
-				!xerrors.Is(closeErr, context.Canceled) &&
-				!xerrors.Is(closeErr, context.DeadlineExceeded) {
+				!errors.Is(closeErr, io.EOF) &&
+				!errors.Is(closeErr, context.Canceled) &&
+				!errors.Is(closeErr, context.DeadlineExceeded) {
 				c.logger.Error(c.ctx, "error closing tailnet clients", slog.Error(closeErr))
 			}
 		})
@@ -1512,9 +1512,9 @@ func (c *Controller) coordinate(client CoordinatorClient) {
 		}
 	case err := <-coordination.Wait():
 		if err != nil &&
-			!xerrors.Is(err, io.EOF) &&
-			!xerrors.Is(err, context.Canceled) &&
-			!xerrors.Is(err, context.DeadlineExceeded) {
+			!errors.Is(err, io.EOF) &&
+			!errors.Is(err, context.Canceled) &&
+			!errors.Is(err, context.DeadlineExceeded) {
 			c.logger.Error(c.ctx, "remote coordination error", slog.Error(err))
 		}
 	}
@@ -1536,10 +1536,10 @@ func (c *Controller) derpMap(client DERPClient) error {
 		}
 		return nil
 	case err := <-cw.Wait():
-		if xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			return nil
 		}
-		if err != nil && !xerrors.Is(err, io.EOF) {
+		if err != nil && !errors.Is(err, io.EOF) {
 			c.logger.Error(c.ctx, "error receiving DERP Map", slog.Error(err))
 		}
 		return err
@@ -1562,9 +1562,9 @@ func (c *Controller) workspaceUpdates(client WorkspaceUpdatesClient) {
 	case err := <-cw.Wait():
 		c.logger.Debug(c.ctx, "workspaceUpdates: wait done")
 		if err != nil &&
-			!xerrors.Is(err, io.EOF) &&
-			!xerrors.Is(err, context.Canceled) &&
-			!xerrors.Is(err, context.DeadlineExceeded) {
+			!errors.Is(err, io.EOF) &&
+			!errors.Is(err, context.Canceled) &&
+			!errors.Is(err, context.DeadlineExceeded) {
 			c.logger.Error(c.ctx, "workspace updates stream error", slog.Error(err))
 		}
 	}
@@ -1581,7 +1581,7 @@ func (c *Controller) refreshToken(ctx context.Context, client ResumeTokenClient)
 	}()
 
 	err := <-cw.Wait()
-	if err != nil && !xerrors.Is(err, context.Canceled) && !xerrors.Is(err, context.DeadlineExceeded) {
+	if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
 		c.logger.Error(c.ctx, "error receiving refresh token", slog.Error(err))
 	}
 }

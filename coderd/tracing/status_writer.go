@@ -1,6 +1,6 @@
 package tracing
-
 import (
+	"errors"
 	"bufio"
 	"flag"
 	"fmt"
@@ -9,17 +9,12 @@ import (
 	"net/http"
 	"runtime"
 	"strings"
-
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/buildinfo"
 )
-
 var (
 	_ http.ResponseWriter = (*StatusWriter)(nil)
 	_ http.Hijacker       = (*StatusWriter)(nil)
 )
-
 // StatusWriter intercepts the status of the request and the response body up
 // to maxBodySize if Status >= 400. It is guaranteed to be the ResponseWriter
 // directly downstream from Middleware.
@@ -28,18 +23,15 @@ type StatusWriter struct {
 	Status       int
 	Hijacked     bool
 	responseBody []byte
-
 	wroteHeader      bool
 	wroteHeaderStack string
 }
-
 func StatusWriterMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		sw := &StatusWriter{ResponseWriter: rw}
 		next.ServeHTTP(sw, r)
 	})
 }
-
 func (w *StatusWriter) WriteHeader(status int) {
 	if buildinfo.IsDev() || flag.Lookup("test.v") != nil {
 		if w.wroteHeader {
@@ -61,15 +53,12 @@ func (w *StatusWriter) WriteHeader(status int) {
 	}
 	w.ResponseWriter.WriteHeader(status)
 }
-
 func (w *StatusWriter) Write(b []byte) (int, error) {
 	const maxBodySize = 4096
-
 	if !w.wroteHeader {
 		w.Status = http.StatusOK
 		w.wroteHeader = true
 	}
-
 	if w.Status >= http.StatusBadRequest {
 		// This is technically wrong as multiple calls to write
 		// will simply overwrite w.ResponseBody but given that
@@ -79,31 +68,25 @@ func (w *StatusWriter) Write(b []byte) (int, error) {
 		w.responseBody = make([]byte, minInt(len(b), maxBodySize))
 		copy(w.responseBody, b)
 	}
-
 	return w.ResponseWriter.Write(b)
 }
-
 func minInt(a, b int) int {
 	if a < b {
 		return a
 	}
 	return b
 }
-
 func (w *StatusWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	hijacker, ok := w.ResponseWriter.(http.Hijacker)
 	if !ok {
-		return nil, nil, xerrors.Errorf("%T is not a http.Hijacker", w.ResponseWriter)
+		return nil, nil, fmt.Errorf("%T is not a http.Hijacker", w.ResponseWriter)
 	}
 	w.Hijacked = true
-
 	return hijacker.Hijack()
 }
-
 func (w *StatusWriter) ResponseBody() []byte {
 	return w.responseBody
 }
-
 func (w *StatusWriter) Flush() {
 	f, ok := w.ResponseWriter.(http.Flusher)
 	if !ok {
@@ -111,13 +94,11 @@ func (w *StatusWriter) Flush() {
 	}
 	f.Flush()
 }
-
 func getStackString(skip int) string {
 	// Get up to 5 callers, skipping this one and the skip count.
 	pcs := make([]uintptr, 5)
 	got := runtime.Callers(skip+1, pcs)
 	frames := runtime.CallersFrames(pcs[:got])
-
 	callers := []string{}
 	for {
 		frame, more := frames.Next()

@@ -1,5 +1,4 @@
 package coderd
-
 import (
 	"context"
 	"database/sql"
@@ -11,14 +10,10 @@ import (
 	"sort"
 	"strconv"
 	"time"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
-	"golang.org/x/xerrors"
-
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -35,7 +30,6 @@ import (
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
 )
-
 // @Summary Get workspace build
 // @ID get-workspace-build
 // @Security CoderSessionToken
@@ -48,7 +42,6 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
 	workspace := httpmw.WorkspaceParam(r)
-
 	data, err := api.workspaceBuildsData(ctx, []database.WorkspaceBuild{workspaceBuild})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -57,7 +50,6 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	// Ensure we have the job and template version for the workspace build.
 	// Otherwise we risk a panic in the api.convertWorkspaceBuild call below.
 	if len(data.jobs) == 0 {
@@ -67,7 +59,6 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	if len(data.templateVersions) == 0 {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: "Internal error getting workspace build data.",
@@ -75,7 +66,6 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	apiBuild, err := api.convertWorkspaceBuild(
 		workspaceBuild,
 		workspace,
@@ -96,10 +86,8 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	httpapi.Write(ctx, rw, http.StatusOK, apiBuild)
 }
-
 // @Summary Get workspace builds by workspace ID
 // @ID get-workspace-builds-by-workspace-id
 // @Security CoderSessionToken
@@ -115,14 +103,11 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspace := httpmw.WorkspaceParam(r)
-
 	paginationParams, ok := parsePagination(rw, r)
 	if !ok {
 		return
 	}
-
 	var since time.Time
-
 	sinceParam := r.URL.Query().Get("since")
 	if sinceParam != "" {
 		var err error
@@ -135,7 +120,6 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-
 	var workspaceBuilds []database.WorkspaceBuild
 	// Ensure all db calls happen in the same tx
 	err := api.Database.InTx(func(store database.Store) error {
@@ -144,7 +128,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			// See if the record exists first. If the record does not exist, the pagination
 			// query will not work.
 			_, err := store.GetWorkspaceBuildByID(ctx, paginationParams.AfterID)
-			if err != nil && xerrors.Is(err, sql.ErrNoRows) {
+			if err != nil && errors.Is(err, sql.ErrNoRows) {
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 					Message: fmt.Sprintf("Record at \"after_id\" (%q) does not exist.", paginationParams.AfterID.String()),
 				})
@@ -157,7 +141,6 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 				return err
 			}
 		}
-
 		req := database.GetWorkspaceBuildsByWorkspaceIDParams{
 			WorkspaceID: workspace.ID,
 			AfterID:     paginationParams.AfterID,
@@ -166,7 +149,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			Since:       dbtime.Time(since),
 		}
 		workspaceBuilds, err = store.GetWorkspaceBuildsByWorkspaceID(ctx, req)
-		if xerrors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) {
 			err = nil
 		}
 		if err != nil {
@@ -176,13 +159,11 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			})
 			return err
 		}
-
 		return nil
 	}, nil)
 	if err != nil {
 		return
 	}
-
 	data, err := api.workspaceBuildsData(ctx, workspaceBuilds)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -191,7 +172,6 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	apiBuilds, err := api.convertWorkspaceBuilds(
 		workspaceBuilds,
 		[]database.Workspace{workspace},
@@ -212,10 +192,8 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	httpapi.Write(ctx, rw, http.StatusOK, apiBuilds)
 }
-
 // @Summary Get workspace build by user, workspace name, and build number
 // @ID get-workspace-build-by-user-workspace-name-and-build-number
 // @Security CoderSessionToken
@@ -238,7 +216,6 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 		})
 		return
 	}
-
 	workspace, err := api.Database.GetWorkspaceByOwnerIDAndName(ctx, database.GetWorkspaceByOwnerIDAndNameParams{
 		OwnerID: owner.ID,
 		Name:    workspaceName,
@@ -254,7 +231,6 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 		})
 		return
 	}
-
 	workspaceBuild, err := api.Database.GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx, database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams{
 		WorkspaceID: workspace.ID,
 		BuildNumber: int32(buildNumber),
@@ -272,7 +248,6 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 		})
 		return
 	}
-
 	data, err := api.workspaceBuildsData(ctx, []database.WorkspaceBuild{workspaceBuild})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -281,7 +256,6 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 		})
 		return
 	}
-
 	apiBuild, err := api.convertWorkspaceBuild(
 		workspaceBuild,
 		workspace,
@@ -302,10 +276,8 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 		})
 		return
 	}
-
 	httpapi.Write(ctx, rw, http.StatusOK, apiBuild)
 }
-
 // Azure supports instance identity verification:
 // https://docs.microsoft.com/en-us/azure/virtual-machines/windows/instance-metadata-service?tabs=linux#tabgroup_14
 //
@@ -327,25 +299,21 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.Read(ctx, rw, r, &createBuild) {
 		return
 	}
-
 	builder := wsbuilder.New(workspace, database.WorkspaceTransition(createBuild.Transition)).
 		Initiator(apiKey.UserID).
 		RichParameterValues(createBuild.RichParameterValues).
 		LogLevel(string(createBuild.LogLevel)).
 		DeploymentValues(api.Options.DeploymentValues)
-
 	var (
 		previousWorkspaceBuild database.WorkspaceBuild
 		workspaceBuild         *database.WorkspaceBuild
 		provisionerJob         *database.ProvisionerJob
 		provisionerDaemons     []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
 	)
-
 	err := api.Database.InTx(func(tx database.Store) error {
 		var err error
-
 		previousWorkspaceBuild, err = tx.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
-		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			api.Logger.Error(ctx, "failed fetching previous workspace build", slog.F("workspace_id", workspace.ID), slog.Error(err))
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error fetching previous workspace build",
@@ -353,11 +321,9 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			})
 			return nil
 		}
-
 		if createBuild.TemplateVersionID != uuid.Nil {
 			builder = builder.VersionID(createBuild.TemplateVersionID)
 		}
-
 		if createBuild.Orphan {
 			if createBuild.Transition != codersdk.WorkspaceTransitionDelete {
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -376,7 +342,6 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		if len(createBuild.ProvisionerState) > 0 {
 			builder = builder.State(createBuild.ProvisionerState)
 		}
-
 		workspaceBuild, provisionerJob, provisionerDaemons, err = builder.Build(
 			ctx,
 			tx,
@@ -388,16 +353,14 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return err
 	}, nil)
 	var buildErr wsbuilder.BuildError
-	if xerrors.As(err, &buildErr) {
+	if errors.As(err, &buildErr) {
 		var authErr dbauthz.NotAuthorizedError
-		if xerrors.As(err, &authErr) {
+		if errors.As(err, &authErr) {
 			buildErr.Status = http.StatusForbidden
 		}
-
 		if buildErr.Status == http.StatusInternalServerError {
 			api.Logger.Error(ctx, "workspace build error", slog.Error(buildErr.Wrapped))
 		}
-
 		httpapi.Write(ctx, rw, buildErr.Status, codersdk.Response{
 			Message: buildErr.Message,
 			Detail:  buildErr.Error(),
@@ -411,14 +374,12 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	if provisionerJob != nil {
 		if err := provisionerjobs.PostJob(api.Pubsub, *provisionerJob); err != nil {
 			// Client probably doesn't care about this error, so just log it.
 			api.Logger.Error(ctx, "failed to post provisioner job to pubsub", slog.Error(err))
 		}
 	}
-
 	apiBuild, err := api.convertWorkspaceBuild(
 		*workspaceBuild,
 		workspace,
@@ -442,7 +403,6 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	// If this workspace build has a different template version ID to the previous build
 	// we can assume it has just been updated.
 	if createBuild.TemplateVersionID != uuid.Nil && createBuild.TemplateVersionID != previousWorkspaceBuild.TemplateVersionID {
@@ -456,20 +416,16 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 				if admin.ID == apiKey.UserID {
 					continue
 				}
-
 				api.notifyWorkspaceUpdated(ctx, apiKey.UserID, admin.ID, workspace, createBuild.RichParameterValues)
 			}
 		}
 	}
-
 	api.publishWorkspaceUpdate(ctx, workspace.OwnerID, wspubsub.WorkspaceEvent{
 		Kind:        wspubsub.WorkspaceEventKindStateChange,
 		WorkspaceID: workspace.ID,
 	})
-
 	httpapi.Write(ctx, rw, http.StatusCreated, apiBuild)
 }
-
 func (api *API) notifyWorkspaceUpdated(
 	ctx context.Context,
 	initiatorID uuid.UUID,
@@ -478,31 +434,26 @@ func (api *API) notifyWorkspaceUpdated(
 	parameters []codersdk.WorkspaceBuildParameter,
 ) {
 	log := api.Logger.With(slog.F("workspace_id", workspace.ID))
-
 	template, err := api.Database.GetTemplateByID(ctx, workspace.TemplateID)
 	if err != nil {
 		log.Warn(ctx, "failed to fetch template for workspace creation notification", slog.F("template_id", workspace.TemplateID), slog.Error(err))
 		return
 	}
-
 	version, err := api.Database.GetTemplateVersionByID(ctx, template.ActiveVersionID)
 	if err != nil {
 		log.Warn(ctx, "failed to fetch template version for workspace creation notification", slog.F("template_id", workspace.TemplateID), slog.Error(err))
 		return
 	}
-
 	initiator, err := api.Database.GetUserByID(ctx, initiatorID)
 	if err != nil {
 		log.Warn(ctx, "failed to fetch user for workspace update notification", slog.F("initiator_id", initiatorID), slog.Error(err))
 		return
 	}
-
 	owner, err := api.Database.GetUserByID(ctx, workspace.OwnerID)
 	if err != nil {
 		log.Warn(ctx, "failed to fetch user for workspace update notification", slog.F("owner_id", workspace.OwnerID), slog.Error(err))
 		return
 	}
-
 	buildParameters := make([]map[string]any, len(parameters))
 	for idx, parameter := range parameters {
 		buildParameters[idx] = map[string]any{
@@ -510,7 +461,6 @@ func (api *API) notifyWorkspaceUpdated(
 			"value": parameter.Value,
 		}
 	}
-
 	if _, err := api.NotificationsEnqueuer.EnqueueWithData(
 		// nolint:gocritic // Need notifier actor to enqueue notifications
 		dbauthz.AsNotifier(ctx),
@@ -537,7 +487,6 @@ func (api *API) notifyWorkspaceUpdated(
 		log.Warn(ctx, "failed to notify of workspace update", slog.Error(err))
 	}
 }
-
 // @Summary Cancel workspace build
 // @ID cancel-workspace-build
 // @Security CoderSessionToken
@@ -556,7 +505,6 @@ func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 		})
 		return
 	}
-
 	valid, err := api.verifyUserCanCancelWorkspaceBuilds(ctx, httpmw.APIKey(r).UserID, workspace.TemplateID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -571,7 +519,6 @@ func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 		})
 		return
 	}
-
 	job, err := api.Database.GetProvisionerJobByID(ctx, workspaceBuild.JobID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -611,34 +558,28 @@ func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 		})
 		return
 	}
-
 	api.publishWorkspaceUpdate(ctx, workspace.OwnerID, wspubsub.WorkspaceEvent{
 		Kind:        wspubsub.WorkspaceEventKindStateChange,
 		WorkspaceID: workspace.ID,
 	})
-
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
 		Message: "Job has been marked as canceled...",
 	})
 }
-
 func (api *API) verifyUserCanCancelWorkspaceBuilds(ctx context.Context, userID uuid.UUID, templateID uuid.UUID) (bool, error) {
 	template, err := api.Database.GetTemplateByID(ctx, templateID)
 	if err != nil {
-		return false, xerrors.New("no template exists for this workspace")
+		return false, errors.New("no template exists for this workspace")
 	}
-
 	if template.AllowUserCancelWorkspaceJobs {
 		return true, nil // all users can cancel workspace builds
 	}
-
 	user, err := api.Database.GetUserByID(ctx, userID)
 	if err != nil {
-		return false, xerrors.New("user does not exist")
+		return false, errors.New("user does not exist")
 	}
 	return slices.Contains(user.RBACRoles, rbac.RoleOwner().String()), nil // only user with "owner" role can cancel workspace builds
 }
-
 // @Summary Get build parameters for workspace build
 // @ID get-build-parameters-for-workspace-build
 // @Security CoderSessionToken
@@ -650,7 +591,6 @@ func (api *API) verifyUserCanCancelWorkspaceBuilds(ctx context.Context, userID u
 func (api *API) workspaceBuildParameters(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
-
 	parameters, err := api.Database.GetWorkspaceBuildParameters(ctx, workspaceBuild.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -662,7 +602,6 @@ func (api *API) workspaceBuildParameters(rw http.ResponseWriter, r *http.Request
 	apiParameters := db2sdk.WorkspaceBuildParameters(parameters)
 	httpapi.Write(ctx, rw, http.StatusOK, apiParameters)
 }
-
 // @Summary Get workspace build logs
 // @ID get-workspace-build-logs
 // @Security CoderSessionToken
@@ -677,7 +616,6 @@ func (api *API) workspaceBuildParameters(rw http.ResponseWriter, r *http.Request
 func (api *API) workspaceBuildLogs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
-
 	job, err := api.Database.GetProvisionerJobByID(ctx, workspaceBuild.JobID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -688,7 +626,6 @@ func (api *API) workspaceBuildLogs(rw http.ResponseWriter, r *http.Request) {
 	}
 	api.provisionerJobLogs(rw, r, job)
 }
-
 // @Summary Get provisioner state for workspace build
 // @ID get-provisioner-state-for-workspace-build
 // @Security CoderSessionToken
@@ -715,19 +652,16 @@ func (api *API) workspaceBuildState(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	// You must have update permissions on the template to get the state.
 	// This matches a push!
 	if !api.Authorize(r, policy.ActionUpdate, template.RBACObject()) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
-
 	rw.Header().Set("Content-Type", "application/json")
 	rw.WriteHeader(http.StatusOK)
 	_, _ = rw.Write(workspaceBuild.ProvisionerState)
 }
-
 // @Summary Get workspace build timings by ID
 // @ID get-workspace-build-timings-by-id
 // @Security CoderSessionToken
@@ -741,7 +675,6 @@ func (api *API) workspaceBuildTimings(rw http.ResponseWriter, r *http.Request) {
 		ctx   = r.Context()
 		build = httpmw.WorkspaceBuildParam(r)
 	)
-
 	timings, err := api.buildTimings(ctx, build)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -750,10 +683,8 @@ func (api *API) workspaceBuildTimings(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	httpapi.Write(ctx, rw, http.StatusOK, timings)
 }
-
 type workspaceBuildsData struct {
 	jobs               []database.GetProvisionerJobsByIDsWithQueuePositionRow
 	templateVersions   []database.TemplateVersion
@@ -765,7 +696,6 @@ type workspaceBuildsData struct {
 	logSources         []database.WorkspaceAgentLogSource
 	provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
 }
-
 func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []database.WorkspaceBuild) (workspaceBuildsData, error) {
 	jobIDs := make([]uuid.UUID, 0, len(workspaceBuilds))
 	for _, build := range workspaceBuilds {
@@ -773,7 +703,7 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []datab
 	}
 	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, jobIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return workspaceBuildsData{}, xerrors.Errorf("get provisioner jobs: %w", err)
+		return workspaceBuildsData{}, fmt.Errorf("get provisioner jobs: %w", err)
 	}
 	pendingJobIDs := []uuid.UUID{}
 	for _, job := range jobs {
@@ -781,29 +711,24 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []datab
 			pendingJobIDs = append(pendingJobIDs, job.ProvisionerJob.ID)
 		}
 	}
-
 	pendingJobProvisioners, err := api.Database.GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx, pendingJobIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return workspaceBuildsData{}, xerrors.Errorf("get provisioner daemons: %w", err)
+		return workspaceBuildsData{}, fmt.Errorf("get provisioner daemons: %w", err)
 	}
-
 	templateVersionIDs := make([]uuid.UUID, 0, len(workspaceBuilds))
 	for _, build := range workspaceBuilds {
 		templateVersionIDs = append(templateVersionIDs, build.TemplateVersionID)
 	}
-
 	// nolint:gocritic // Getting template versions by ID is a system function.
 	templateVersions, err := api.Database.GetTemplateVersionsByIDs(dbauthz.AsSystemRestricted(ctx), templateVersionIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return workspaceBuildsData{}, xerrors.Errorf("get template versions: %w", err)
+		return workspaceBuildsData{}, fmt.Errorf("get template versions: %w", err)
 	}
-
 	// nolint:gocritic // Getting workspace resources by job ID is a system function.
 	resources, err := api.Database.GetWorkspaceResourcesByJobIDs(dbauthz.AsSystemRestricted(ctx), jobIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return workspaceBuildsData{}, xerrors.Errorf("get workspace resources by job: %w", err)
+		return workspaceBuildsData{}, fmt.Errorf("get workspace resources by job: %w", err)
 	}
-
 	if len(resources) == 0 {
 		return workspaceBuildsData{
 			jobs:               jobs,
@@ -811,24 +736,20 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []datab
 			provisionerDaemons: pendingJobProvisioners,
 		}, nil
 	}
-
 	resourceIDs := make([]uuid.UUID, 0)
 	for _, resource := range resources {
 		resourceIDs = append(resourceIDs, resource.ID)
 	}
-
 	// nolint:gocritic // Getting workspace resource metadata by resource ID is a system function.
 	metadata, err := api.Database.GetWorkspaceResourceMetadataByResourceIDs(dbauthz.AsSystemRestricted(ctx), resourceIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return workspaceBuildsData{}, xerrors.Errorf("fetching resource metadata: %w", err)
+		return workspaceBuildsData{}, fmt.Errorf("fetching resource metadata: %w", err)
 	}
-
 	// nolint:gocritic // Getting workspace agents by resource IDs is a system function.
 	agents, err := api.Database.GetWorkspaceAgentsByResourceIDs(dbauthz.AsSystemRestricted(ctx), resourceIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return workspaceBuildsData{}, xerrors.Errorf("get workspace agents: %w", err)
+		return workspaceBuildsData{}, fmt.Errorf("get workspace agents: %w", err)
 	}
-
 	if len(resources) == 0 {
 		return workspaceBuildsData{
 			jobs:               jobs,
@@ -838,18 +759,15 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []datab
 			provisionerDaemons: pendingJobProvisioners,
 		}, nil
 	}
-
 	agentIDs := make([]uuid.UUID, 0)
 	for _, agent := range agents {
 		agentIDs = append(agentIDs, agent.ID)
 	}
-
 	var (
 		apps       []database.WorkspaceApp
 		scripts    []database.WorkspaceAgentScript
 		logSources []database.WorkspaceAgentLogSource
 	)
-
 	var eg errgroup.Group
 	eg.Go(func() (err error) {
 		// nolint:gocritic // Getting workspace apps by agent IDs is a system function.
@@ -870,7 +788,6 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []datab
 	if err != nil {
 		return workspaceBuildsData{}, err
 	}
-
 	return workspaceBuildsData{
 		jobs:               jobs,
 		templateVersions:   templateVersions,
@@ -883,7 +800,6 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []datab
 		provisionerDaemons: pendingJobProvisioners,
 	}, nil
 }
-
 func (api *API) convertWorkspaceBuilds(
 	workspaceBuilds []database.WorkspaceBuild,
 	workspaces []database.Workspace,
@@ -909,23 +825,21 @@ func (api *API) convertWorkspaceBuilds(
 	for _, templateVersion := range templateVersions {
 		templateVersionByID[templateVersion.ID] = templateVersion
 	}
-
 	// Should never be nil for API consistency
 	apiBuilds := []codersdk.WorkspaceBuild{}
 	for _, build := range workspaceBuilds {
 		job, exists := jobByID[build.JobID]
 		if !exists {
-			return nil, xerrors.New("build job not found")
+			return nil, errors.New("build job not found")
 		}
 		workspace, exists := workspaceByID[build.WorkspaceID]
 		if !exists {
-			return nil, xerrors.New("workspace not found")
+			return nil, errors.New("workspace not found")
 		}
 		templateVersion, exists := templateVersionByID[build.TemplateVersionID]
 		if !exists {
-			return nil, xerrors.New("template version not found")
+			return nil, errors.New("template version not found")
 		}
-
 		apiBuild, err := api.convertWorkspaceBuild(
 			build,
 			workspace,
@@ -940,15 +854,12 @@ func (api *API) convertWorkspaceBuilds(
 			provisionerDaemons,
 		)
 		if err != nil {
-			return nil, xerrors.Errorf("converting workspace build: %w", err)
+			return nil, fmt.Errorf("converting workspace build: %w", err)
 		}
-
 		apiBuilds = append(apiBuilds, apiBuild)
 	}
-
 	return apiBuilds, nil
 }
-
 func (api *API) convertWorkspaceBuild(
 	build database.WorkspaceBuild,
 	workspace database.Workspace,
@@ -994,7 +905,6 @@ func (api *API) convertWorkspaceBuild(
 		provisionerDaemonsForThisWorkspaceBuild = append(provisionerDaemonsForThisWorkspaceBuild, provisionerDaemon.ProvisionerDaemon)
 	}
 	matchedProvisioners := db2sdk.MatchedProvisioners(provisionerDaemonsForThisWorkspaceBuild, job.ProvisionerJob.CreatedAt, provisionerdserver.StaleInterval)
-
 	resources := resourcesByJobID[job.ProvisionerJob.ID]
 	apiResources := make([]codersdk.WorkspaceResource, 0)
 	resourceAgentsMinOrder := map[uuid.UUID]int32{} // map[resource.ID]minOrder
@@ -1006,13 +916,10 @@ func (api *API) convertWorkspaceBuild(
 			}
 			return agents[i].Name < agents[j].Name
 		})
-
 		apiAgents := make([]codersdk.WorkspaceAgent, 0)
 		resourceAgentsMinOrder[resource.ID] = math.MaxInt32
-
 		for _, agent := range agents {
 			resourceAgentsMinOrder[resource.ID] = min(resourceAgentsMinOrder[resource.ID], agent.DisplayOrder)
-
 			apps := appsByAgentID[agent.ID]
 			scripts := scriptsByAgentID[agent.ID]
 			logSources := logSourcesByAgentID[agent.ID]
@@ -1021,7 +928,7 @@ func (api *API) convertWorkspaceBuild(
 				api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 			)
 			if err != nil {
-				return codersdk.WorkspaceBuild{}, xerrors.Errorf("converting workspace agent: %w", err)
+				return codersdk.WorkspaceBuild{}, fmt.Errorf("converting workspace agent: %w", err)
 			}
 			apiAgents = append(apiAgents, apiAgent)
 		}
@@ -1036,7 +943,6 @@ func (api *API) convertWorkspaceBuild(
 		}
 		return apiResources[i].Name < apiResources[j].Name
 	})
-
 	apiJob := convertProvisionerJob(job)
 	transition := codersdk.WorkspaceTransition(build.Transition)
 	return codersdk.WorkspaceBuild{
@@ -1064,7 +970,6 @@ func (api *API) convertWorkspaceBuild(
 		MatchedProvisioners:     &matchedProvisioners,
 	}, nil
 }
-
 func convertWorkspaceResource(resource database.WorkspaceResource, agents []codersdk.WorkspaceAgent, metadata []database.WorkspaceResourceMetadatum) codersdk.WorkspaceResource {
 	var convertedMetadata []codersdk.WorkspaceResourceMetadata
 	for _, field := range metadata {
@@ -1074,7 +979,6 @@ func convertWorkspaceResource(resource database.WorkspaceResource, agents []code
 			Sensitive: field.Sensitive,
 		})
 	}
-
 	return codersdk.WorkspaceResource{
 		ID:         resource.ID,
 		CreatedAt:  resource.CreatedAt,
@@ -1089,22 +993,19 @@ func convertWorkspaceResource(resource database.WorkspaceResource, agents []code
 		DailyCost:  resource.DailyCost,
 	}
 }
-
 func (api *API) buildTimings(ctx context.Context, build database.WorkspaceBuild) (codersdk.WorkspaceBuildTimings, error) {
 	provisionerTimings, err := api.Database.GetProvisionerJobTimingsByJobID(ctx, build.JobID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return codersdk.WorkspaceBuildTimings{}, xerrors.Errorf("fetching provisioner job timings: %w", err)
+		return codersdk.WorkspaceBuildTimings{}, fmt.Errorf("fetching provisioner job timings: %w", err)
 	}
-
 	//nolint:gocritic // Already checked if the build can be fetched.
 	agentScriptTimings, err := api.Database.GetWorkspaceAgentScriptTimingsByBuildID(dbauthz.AsSystemRestricted(ctx), build.ID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return codersdk.WorkspaceBuildTimings{}, xerrors.Errorf("fetching workspace agent script timings: %w", err)
+		return codersdk.WorkspaceBuildTimings{}, fmt.Errorf("fetching workspace agent script timings: %w", err)
 	}
-
 	resources, err := api.Database.GetWorkspaceResourcesByJobID(ctx, build.JobID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return codersdk.WorkspaceBuildTimings{}, xerrors.Errorf("fetching workspace resources: %w", err)
+		return codersdk.WorkspaceBuildTimings{}, fmt.Errorf("fetching workspace resources: %w", err)
 	}
 	resourceIDs := make([]uuid.UUID, 0, len(resources))
 	for _, resource := range resources {
@@ -1113,15 +1014,13 @@ func (api *API) buildTimings(ctx context.Context, build database.WorkspaceBuild)
 	//nolint:gocritic // Already checked if the build can be fetched.
 	agents, err := api.Database.GetWorkspaceAgentsByResourceIDs(dbauthz.AsSystemRestricted(ctx), resourceIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return codersdk.WorkspaceBuildTimings{}, xerrors.Errorf("fetching workspace agents: %w", err)
+		return codersdk.WorkspaceBuildTimings{}, fmt.Errorf("fetching workspace agents: %w", err)
 	}
-
 	res := codersdk.WorkspaceBuildTimings{
 		ProvisionerTimings:     make([]codersdk.ProvisionerTiming, 0, len(provisionerTimings)),
 		AgentScriptTimings:     make([]codersdk.AgentScriptTiming, 0, len(agentScriptTimings)),
 		AgentConnectionTimings: make([]codersdk.AgentConnectionTiming, 0, len(agents)),
 	}
-
 	for _, t := range provisionerTimings {
 		res.ProvisionerTimings = append(res.ProvisionerTimings, codersdk.ProvisionerTiming{
 			JobID:     t.JobID,
@@ -1154,6 +1053,5 @@ func (api *API) buildTimings(ctx context.Context, build database.WorkspaceBuild)
 			EndedAt:            agent.FirstConnectedAt.Time,
 		})
 	}
-
 	return res, nil
 }

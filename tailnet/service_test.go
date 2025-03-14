@@ -1,27 +1,23 @@
 package tailnet_test
-
 import (
+	"errors"
 	"context"
 	"io"
 	"net"
 	"sync/atomic"
 	"testing"
 	"time"
-
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
-	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
-
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/tailnet/tailnettest"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
-
 func TestClientService_ServeClient_V2(t *testing.T) {
 	t.Parallel()
 	fCoord := tailnettest.NewFakeCoordinator()
@@ -30,7 +26,6 @@ func TestClientService_ServeClient_V2(t *testing.T) {
 	coordPtr.Store(&coord)
 	logger := testutil.Logger(t)
 	derpMap := &tailcfg.DERPMap{Regions: map[int]*tailcfg.DERPRegion{999: {RegionCode: "test"}}}
-
 	telemetryEvents := make(chan []*proto.TelemetryEvent, 64)
 	uut, err := tailnet.NewClientService(tailnet.ClientServiceOptions{
 		Logger:                 logger,
@@ -43,7 +38,6 @@ func TestClientService_ServeClient_V2(t *testing.T) {
 		ResumeTokenProvider: tailnet.NewInsecureTestResumeTokenProvider(),
 	})
 	require.NoError(t, err)
-
 	ctx := testutil.Context(t, testutil.WaitShort)
 	c, s := net.Pipe()
 	defer c.Close()
@@ -62,20 +56,16 @@ func TestClientService_ServeClient_V2(t *testing.T) {
 		t.Logf("ServeClient returned; err=%v", err)
 		errCh <- err
 	}()
-
 	client, err := tailnet.NewDRPCClient(c, logger)
 	require.NoError(t, err)
-
 	// Coordinate
 	stream, err := client.Coordinate(ctx)
 	require.NoError(t, err)
 	defer stream.Close()
-
 	err = stream.Send(&proto.CoordinateRequest{
 		UpdateSelf: &proto.CoordinateRequest_UpdateSelf{Node: &proto.Node{PreferredDerp: 11}},
 	})
 	require.NoError(t, err)
-
 	call := testutil.RequireRecvCtx(ctx, t, fCoord.CoordinateCalls)
 	require.NotNil(t, call)
 	require.Equal(t, call.ID, clientID)
@@ -85,7 +75,6 @@ func TestClientService_ServeClient_V2(t *testing.T) {
 	}))
 	req := testutil.RequireRecvCtx(ctx, t, call.Reqs)
 	require.Equal(t, int32(11), req.GetUpdateSelf().GetNode().GetPreferredDerp())
-
 	call.Resps <- &proto.CoordinateResponse{PeerUpdates: []*proto.CoordinateResponse_PeerUpdate{
 		{
 			Kind: proto.CoordinateResponse_PeerUpdate_NODE,
@@ -98,20 +87,16 @@ func TestClientService_ServeClient_V2(t *testing.T) {
 	u := resp.GetPeerUpdates()
 	require.Len(t, u, 1)
 	require.Equal(t, int32(22), u[0].GetNode().GetPreferredDerp())
-
 	err = stream.Close()
 	require.NoError(t, err)
-
 	// DERP Map
 	dms, err := client.StreamDERPMaps(ctx, &proto.StreamDERPMapsRequest{})
 	require.NoError(t, err)
-
 	gotDermMap, err := dms.Recv()
 	require.NoError(t, err)
 	require.Equal(t, "test", gotDermMap.GetRegions()[999].GetRegionCode())
 	err = dms.Close()
 	require.NoError(t, err)
-
 	// PostTelemetry
 	telemetryReq := &proto.TelemetryRequest{
 		Events: []*proto.TelemetryEvent{
@@ -130,14 +115,12 @@ func TestClientService_ServeClient_V2(t *testing.T) {
 	require.Len(t, gotEvents, 2)
 	require.Equal(t, "hi", string(gotEvents[0].Id))
 	require.Equal(t, "bye", string(gotEvents[1].Id))
-
 	// RPCs closed; we need to close the Conn to end the session.
 	err = c.Close()
 	require.NoError(t, err)
 	err = testutil.RequireRecvCtx(ctx, t, errCh)
-	require.True(t, xerrors.Is(err, io.EOF) || xerrors.Is(err, io.ErrClosedPipe))
+	require.True(t, errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe))
 }
-
 func TestClientService_ServeClient_V1(t *testing.T) {
 	t.Parallel()
 	fCoord := tailnettest.NewFakeCoordinator()
@@ -154,7 +137,6 @@ func TestClientService_ServeClient_V1(t *testing.T) {
 		ResumeTokenProvider:     tailnet.NewInsecureTestResumeTokenProvider(),
 	})
 	require.NoError(t, err)
-
 	ctx := testutil.Context(t, testutil.WaitShort)
 	c, s := net.Pipe()
 	defer c.Close()
@@ -173,14 +155,11 @@ func TestClientService_ServeClient_V1(t *testing.T) {
 		t.Logf("ServeClient returned; err=%v", err)
 		errCh <- err
 	}()
-
 	err = testutil.RequireRecvCtx(ctx, t, errCh)
 	require.ErrorIs(t, err, tailnet.ErrUnsupportedVersion)
 }
-
 func TestNetworkTelemetryBatcher(t *testing.T) {
 	t.Parallel()
-
 	var (
 		events = make(chan []*proto.TelemetryEvent, 64)
 		mClock = quartz.NewMock(t)
@@ -189,7 +168,6 @@ func TestNetworkTelemetryBatcher(t *testing.T) {
 			events <- batch
 		})
 	)
-
 	b.Handler([]*proto.TelemetryEvent{
 		{Id: []byte("1")},
 		{Id: []byte("2")},
@@ -198,7 +176,6 @@ func TestNetworkTelemetryBatcher(t *testing.T) {
 		{Id: []byte("3")},
 		{Id: []byte("4")},
 	})
-
 	// Should overflow and send a batch.
 	ctx := testutil.Context(t, testutil.WaitShort)
 	batch := testutil.RequireRecvCtx(ctx, t, events)
@@ -206,13 +183,11 @@ func TestNetworkTelemetryBatcher(t *testing.T) {
 	require.Equal(t, "1", string(batch[0].Id))
 	require.Equal(t, "2", string(batch[1].Id))
 	require.Equal(t, "3", string(batch[2].Id))
-
 	// Should send any pending events when the ticker fires.
 	mClock.Advance(time.Millisecond)
 	batch = testutil.RequireRecvCtx(ctx, t, events)
 	require.Len(t, batch, 1)
 	require.Equal(t, "4", string(batch[0].Id))
-
 	// Should send any pending events when closed.
 	b.Handler([]*proto.TelemetryEvent{
 		{Id: []byte("5")},
@@ -225,38 +200,29 @@ func TestNetworkTelemetryBatcher(t *testing.T) {
 	require.Equal(t, "5", string(batch[0].Id))
 	require.Equal(t, "6", string(batch[1].Id))
 }
-
 func TestClientUserCoordinateeAuth(t *testing.T) {
 	t.Parallel()
-
 	ctx := testutil.Context(t, testutil.WaitShort)
-
 	agentID := uuid.UUID{0x01}
 	agentID2 := uuid.UUID{0x02}
 	clientID := uuid.UUID{0x03}
-
 	ctrl := gomock.NewController(t)
 	updatesProvider := tailnettest.NewMockWorkspaceUpdatesProvider(ctrl)
-
 	fCoord, client := createUpdateService(t, ctx, clientID, updatesProvider)
-
 	// Coordinate
 	stream, err := client.Coordinate(ctx)
 	require.NoError(t, err)
 	defer stream.Close()
-
 	err = stream.Send(&proto.CoordinateRequest{
 		UpdateSelf: &proto.CoordinateRequest_UpdateSelf{Node: &proto.Node{PreferredDerp: 11}},
 	})
 	require.NoError(t, err)
-
 	call := testutil.RequireRecvCtx(ctx, t, fCoord.CoordinateCalls)
 	require.NotNil(t, call)
 	require.Equal(t, call.ID, clientID)
 	require.Equal(t, call.Name, "client")
 	req := testutil.RequireRecvCtx(ctx, t, call.Reqs)
 	require.Equal(t, int32(11), req.GetUpdateSelf().GetNode().GetPreferredDerp())
-
 	// Authorize uses `ClientUserCoordinateeAuth`
 	require.NoError(t, call.Auth.Authorize(ctx, &proto.CoordinateRequest{
 		AddTunnel: &proto.CoordinateRequest_Tunnel{Id: tailnet.UUIDToByteSlice(agentID)},
@@ -265,21 +231,16 @@ func TestClientUserCoordinateeAuth(t *testing.T) {
 		AddTunnel: &proto.CoordinateRequest_Tunnel{Id: tailnet.UUIDToByteSlice(agentID2)},
 	}))
 }
-
 func TestWorkspaceUpdates(t *testing.T) {
 	t.Parallel()
-
 	ctx := testutil.Context(t, testutil.WaitShort)
 	ctrl := gomock.NewController(t)
 	updatesProvider := tailnettest.NewMockWorkspaceUpdatesProvider(ctrl)
 	mSub := tailnettest.NewMockSubscription(ctrl)
 	updatesCh := make(chan *proto.WorkspaceUpdate, 1)
-
 	clientID := uuid.UUID{0x03}
 	wsID := uuid.UUID{0x04}
-
 	_, client := createUpdateService(t, ctx, clientID, updatesProvider)
-
 	// Workspace updates
 	expected := &proto.WorkspaceUpdate{
 		UpsertedWorkspaces: []*proto.Workspace{
@@ -299,13 +260,11 @@ func TestWorkspaceUpdates(t *testing.T) {
 		Return(mSub, nil)
 	mSub.EXPECT().Updates().MinTimes(1).Return(updatesCh)
 	mSub.EXPECT().Close().Times(1).Return(nil)
-
 	updatesStream, err := client.WorkspaceUpdates(ctx, &proto.WorkspaceUpdatesRequest{
 		WorkspaceOwnerId: tailnet.UUIDToByteSlice(clientID),
 	})
 	require.NoError(t, err)
 	defer updatesStream.Close()
-
 	updates, err := updatesStream.Recv()
 	require.NoError(t, err)
 	require.Len(t, updates.GetUpsertedWorkspaces(), 1)
@@ -313,7 +272,6 @@ func TestWorkspaceUpdates(t *testing.T) {
 	require.Equal(t, expected.GetUpsertedWorkspaces()[0].GetStatus(), updates.GetUpsertedWorkspaces()[0].GetStatus())
 	require.Equal(t, expected.GetUpsertedWorkspaces()[0].GetId(), updates.GetUpsertedWorkspaces()[0].GetId())
 }
-
 //nolint:revive // t takes precedence
 func createUpdateService(t *testing.T, ctx context.Context, clientID uuid.UUID, updates tailnet.WorkspaceUpdatesProvider) (*tailnettest.FakeCoordinator, proto.DRPCTailnetClient) {
 	fCoord := tailnettest.NewFakeCoordinator()
@@ -321,20 +279,17 @@ func createUpdateService(t *testing.T, ctx context.Context, clientID uuid.UUID, 
 	coordPtr := atomic.Pointer[tailnet.Coordinator]{}
 	coordPtr.Store(&coord)
 	logger := testutil.Logger(t)
-
 	uut, err := tailnet.NewClientService(tailnet.ClientServiceOptions{
 		Logger:                   logger,
 		CoordPtr:                 &coordPtr,
 		WorkspaceUpdatesProvider: updates,
 	})
 	require.NoError(t, err)
-
 	c, s := net.Pipe()
 	t.Cleanup(func() {
 		_ = c.Close()
 		_ = s.Close()
 	})
-
 	errCh := make(chan error, 1)
 	go func() {
 		err := uut.ServeClient(ctx, "2.0", s, tailnet.StreamID{
@@ -347,27 +302,22 @@ func createUpdateService(t *testing.T, ctx context.Context, clientID uuid.UUID, 
 		t.Logf("ServeClient returned; err=%v", err)
 		errCh <- err
 	}()
-
 	client, err := tailnet.NewDRPCClient(c, logger)
 	require.NoError(t, err)
-
 	t.Cleanup(func() {
 		err = c.Close()
 		require.NoError(t, err)
 		err = testutil.RequireRecvCtx(ctx, t, errCh)
-		require.True(t, xerrors.Is(err, io.EOF) || xerrors.Is(err, io.ErrClosedPipe))
+		require.True(t, errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe))
 	})
 	return fCoord, client
 }
-
 type fakeTunnelAuth struct{}
-
 // AuthorizeTunnel implements tailnet.TunnelAuthorizer.
 func (*fakeTunnelAuth) AuthorizeTunnel(_ context.Context, agentID uuid.UUID) error {
 	if agentID[0] != 1 {
-		return xerrors.New("policy disallows request")
+		return errors.New("policy disallows request")
 	}
 	return nil
 }
-
 var _ tailnet.TunnelAuthorizer = (*fakeTunnelAuth)(nil)

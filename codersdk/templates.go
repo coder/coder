@@ -1,17 +1,14 @@
 package codersdk
-
 import (
+	"errors"
 	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
-
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 )
-
 // Template is the JSON representation of a Coder template. This type matches the
 // database object for now, but is abstracted for ease of change later on.
 type Template struct {
@@ -42,27 +39,23 @@ type Template struct {
 	AutostartRequirement TemplateAutostartRequirement `json:"autostart_requirement"`
 	CreatedByID          uuid.UUID                    `json:"created_by_id" format:"uuid"`
 	CreatedByName        string                       `json:"created_by_name"`
-
 	// AllowUserAutostart and AllowUserAutostop are enterprise-only. Their
 	// values are only used if your license is entitled to use the advanced
 	// template scheduling feature.
 	AllowUserAutostart           bool `json:"allow_user_autostart"`
 	AllowUserAutostop            bool `json:"allow_user_autostop"`
 	AllowUserCancelWorkspaceJobs bool `json:"allow_user_cancel_workspace_jobs"`
-
 	// FailureTTLMillis, TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are enterprise-only. Their
 	// values are used if your license is entitled to use the advanced
 	// template scheduling feature.
 	FailureTTLMillis               int64 `json:"failure_ttl_ms"`
 	TimeTilDormantMillis           int64 `json:"time_til_dormant_ms"`
 	TimeTilDormantAutoDeleteMillis int64 `json:"time_til_dormant_autodelete_ms"`
-
 	// RequireActiveVersion mandates that workspaces are built with the active
 	// template version.
 	RequireActiveVersion bool                         `json:"require_active_version"`
 	MaxPortShareLevel    WorkspaceAgentPortShareLevel `json:"max_port_share_level"`
 }
-
 // WeekdaysToBitmap converts a list of weekdays to a bitmap in accordance with
 // the schedule package's rules. The 0th bit is Monday, ..., the 6th bit is
 // Sunday. The 7th bit is unused.
@@ -85,12 +78,11 @@ func WeekdaysToBitmap(days []string) (uint8, error) {
 		case "sunday":
 			bitmap |= 1 << 6
 		default:
-			return 0, xerrors.Errorf("invalid weekday %q", day)
+			return 0, fmt.Errorf("invalid weekday %q", day)
 		}
 	}
 	return bitmap, nil
 }
-
 // BitmapToWeekdays converts a bitmap to a list of weekdays in accordance with
 // the schedule package's rules (see above).
 func BitmapToWeekdays(bitmap uint8) []string {
@@ -117,15 +109,12 @@ func BitmapToWeekdays(bitmap uint8) []string {
 	}
 	return days
 }
-
 var AllDaysOfWeek = []string{"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}
-
 type TemplateAutostartRequirement struct {
 	// DaysOfWeek is a list of days of the week in which autostart is allowed
 	// to happen. If no days are specified, autostart is not allowed.
 	DaysOfWeek []string `json:"days_of_week" enums:"monday,tuesday,wednesday,thursday,friday,saturday,sunday"`
 }
-
 type TemplateAutostopRequirement struct {
 	// DaysOfWeek is a list of days of the week on which restarts are required.
 	// Restarts happen within the user's quiet hours (in their configured
@@ -142,53 +131,43 @@ type TemplateAutostopRequirement struct {
 	// fortnightly restarts, etc.
 	Weeks int64 `json:"weeks"`
 }
-
 type TransitionStats struct {
 	P50 *int64 `example:"123"`
 	P95 *int64 `example:"146"`
 }
-
 type (
 	TemplateBuildTimeStats      map[WorkspaceTransition]TransitionStats
 	UpdateActiveTemplateVersion struct {
 		ID uuid.UUID `json:"id" validate:"required" format:"uuid"`
 	}
 )
-
 type ArchiveTemplateVersionsRequest struct {
 	// By default, only failed versions are archived. Set this to true
 	// to archive all unused versions regardless of job status.
 	All bool `json:"all"`
 }
-
 type ArchiveTemplateVersionsResponse struct {
 	TemplateID  uuid.UUID   `json:"template_id" format:"uuid"`
 	ArchivedIDs []uuid.UUID `json:"archived_ids"`
 }
-
 type TemplateRole string
-
 const (
 	TemplateRoleAdmin   TemplateRole = "admin"
 	TemplateRoleUse     TemplateRole = "use"
 	TemplateRoleDeleted TemplateRole = ""
 )
-
 type TemplateACL struct {
 	Users  []TemplateUser  `json:"users"`
 	Groups []TemplateGroup `json:"group"`
 }
-
 type TemplateGroup struct {
 	Group
 	Role TemplateRole `json:"role" enums:"admin,use"`
 }
-
 type TemplateUser struct {
 	User
 	Role TemplateRole `json:"role" enums:"admin,use"`
 }
-
 type UpdateTemplateACL struct {
 	// UserPerms should be a mapping of user id to role. The user id must be the
 	// uuid of the user, not a username or email address.
@@ -196,14 +175,12 @@ type UpdateTemplateACL struct {
 	// GroupPerms should be a mapping of group id to role.
 	GroupPerms map[string]TemplateRole `json:"group_perms,omitempty" example:"<user_id>>:admin,8bd26b20-f3e8-48be-a903-46bb920cf671:use"`
 }
-
 // ACLAvailable is a list of users and groups that can be added to a template
 // ACL.
 type ACLAvailable struct {
 	Users  []ReducedUser `json:"users"`
 	Groups []Group       `json:"groups"`
 }
-
 type UpdateTemplateMeta struct {
 	Name             string `json:"name,omitempty" validate:"omitempty,template_name"`
 	DisplayName      string `json:"display_name,omitempty" validate:"omitempty,template_display_name"`
@@ -251,7 +228,6 @@ type UpdateTemplateMeta struct {
 	DisableEveryoneGroupAccess bool                          `json:"disable_everyone_group_access"`
 	MaxPortShareLevel          *WorkspaceAgentPortShareLevel `json:"max_port_share_level,omitempty"`
 }
-
 type TemplateExample struct {
 	ID          string   `json:"id" format:"uuid"`
 	URL         string   `json:"url"`
@@ -261,12 +237,11 @@ type TemplateExample struct {
 	Tags        []string `json:"tags"`
 	Markdown    string   `json:"markdown"`
 }
-
 // Template returns a single template.
 func (c *Client) Template(ctx context.Context, template uuid.UUID) (Template, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templates/%s", template), nil)
 	if err != nil {
-		return Template{}, xerrors.Errorf("do request: %w", err)
+		return Template{}, fmt.Errorf("do request: %w", err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
@@ -275,7 +250,6 @@ func (c *Client) Template(ctx context.Context, template uuid.UUID) (Template, er
 	var resp Template
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
-
 func (c *Client) ArchiveTemplateVersions(ctx context.Context, template uuid.UUID, all bool) (ArchiveTemplateVersionsResponse, error) {
 	res, err := c.Request(ctx, http.MethodPost,
 		fmt.Sprintf("/api/v2/templates/%s/versions/archive", template),
@@ -293,7 +267,6 @@ func (c *Client) ArchiveTemplateVersions(ctx context.Context, template uuid.UUID
 	var resp ArchiveTemplateVersionsResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
-
 //nolint:revive
 func (c *Client) SetArchiveTemplateVersion(ctx context.Context, templateVersion uuid.UUID, archive bool) error {
 	u := fmt.Sprintf("/api/v2/templateversions/%s", templateVersion.String())
@@ -310,10 +283,8 @@ func (c *Client) SetArchiveTemplateVersion(ctx context.Context, templateVersion 
 	if res.StatusCode != http.StatusOK {
 		return ReadBodyAsError(res)
 	}
-
 	return nil
 }
-
 func (c *Client) DeleteTemplate(ctx context.Context, template uuid.UUID) error {
 	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/templates/%s", template), nil)
 	if err != nil {
@@ -325,7 +296,6 @@ func (c *Client) DeleteTemplate(ctx context.Context, template uuid.UUID) error {
 	}
 	return nil
 }
-
 func (c *Client) UpdateTemplateMeta(ctx context.Context, templateID uuid.UUID, req UpdateTemplateMeta) (Template, error) {
 	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/templates/%s", templateID), req)
 	if err != nil {
@@ -333,7 +303,7 @@ func (c *Client) UpdateTemplateMeta(ctx context.Context, templateID uuid.UUID, r
 	}
 	defer res.Body.Close()
 	if res.StatusCode == http.StatusNotModified {
-		return Template{}, xerrors.New("template metadata not modified")
+		return Template{}, errors.New("template metadata not modified")
 	}
 	if res.StatusCode != http.StatusOK {
 		return Template{}, ReadBodyAsError(res)
@@ -341,7 +311,6 @@ func (c *Client) UpdateTemplateMeta(ctx context.Context, templateID uuid.UUID, r
 	var updated Template
 	return updated, json.NewDecoder(res.Body).Decode(&updated)
 }
-
 func (c *Client) UpdateTemplateACL(ctx context.Context, templateID uuid.UUID, req UpdateTemplateACL) error {
 	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/templates/%s/acl", templateID), req)
 	if err != nil {
@@ -353,7 +322,6 @@ func (c *Client) UpdateTemplateACL(ctx context.Context, templateID uuid.UUID, re
 	}
 	return nil
 }
-
 // TemplateACLAvailable returns available users + groups that can be assigned template perms
 func (c *Client) TemplateACLAvailable(ctx context.Context, templateID uuid.UUID) (ACLAvailable, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templates/%s/acl/available", templateID), nil)
@@ -367,7 +335,6 @@ func (c *Client) TemplateACLAvailable(ctx context.Context, templateID uuid.UUID)
 	var acl ACLAvailable
 	return acl, json.NewDecoder(res.Body).Decode(&acl)
 }
-
 func (c *Client) TemplateACL(ctx context.Context, templateID uuid.UUID) (TemplateACL, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templates/%s/acl", templateID), nil)
 	if err != nil {
@@ -380,7 +347,6 @@ func (c *Client) TemplateACL(ctx context.Context, templateID uuid.UUID) (Templat
 	var acl TemplateACL
 	return acl, json.NewDecoder(res.Body).Decode(&acl)
 }
-
 // UpdateActiveTemplateVersion updates the active template version to the ID provided.
 // The template version must be attached to the template.
 func (c *Client) UpdateActiveTemplateVersion(ctx context.Context, template uuid.UUID, req UpdateActiveTemplateVersion) error {
@@ -394,7 +360,6 @@ func (c *Client) UpdateActiveTemplateVersion(ctx context.Context, template uuid.
 	}
 	return nil
 }
-
 // TemplateVersionsByTemplateRequest defines the request parameters for
 // TemplateVersionsByTemplate.
 type TemplateVersionsByTemplateRequest struct {
@@ -402,7 +367,6 @@ type TemplateVersionsByTemplateRequest struct {
 	IncludeArchived bool      `json:"include_archived"`
 	Pagination
 }
-
 // TemplateVersionsByTemplate lists versions associated with a template.
 func (c *Client) TemplateVersionsByTemplate(ctx context.Context, req TemplateVersionsByTemplateRequest) ([]TemplateVersion, error) {
 	u := fmt.Sprintf("/api/v2/templates/%s/versions", req.TemplateID)
@@ -420,7 +384,6 @@ func (c *Client) TemplateVersionsByTemplate(ctx context.Context, req TemplateVer
 	var templateVersion []TemplateVersion
 	return templateVersion, json.NewDecoder(res.Body).Decode(&templateVersion)
 }
-
 // TemplateVersionByName returns a template version by it's friendly name.
 // This is used for path-based routing. Like: /templates/example/versions/helloworld
 func (c *Client) TemplateVersionByName(ctx context.Context, template uuid.UUID, name string) (TemplateVersion, error) {
@@ -435,11 +398,9 @@ func (c *Client) TemplateVersionByName(ctx context.Context, template uuid.UUID, 
 	var templateVersion TemplateVersion
 	return templateVersion, json.NewDecoder(res.Body).Decode(&templateVersion)
 }
-
 func (c *Client) TemplateDAUsLocalTZ(ctx context.Context, templateID uuid.UUID) (*DAUsResponse, error) {
 	return c.TemplateDAUs(ctx, templateID, TimezoneOffsetHour(time.Local))
 }
-
 // TemplateDAUs requires a tzOffset in hours. Use 0 for UTC, and TimezoneOffsetHour(time.Local) for the
 // local timezone.
 func (c *Client) TemplateDAUs(ctx context.Context, templateID uuid.UUID, tzOffset int) (*DAUsResponse, error) {
@@ -447,23 +408,19 @@ func (c *Client) TemplateDAUs(ctx context.Context, templateID uuid.UUID, tzOffse
 		TZHourOffset: tzOffset,
 	}.asRequestOption())
 	if err != nil {
-		return nil, xerrors.Errorf("execute request: %w", err)
+		return nil, fmt.Errorf("execute request: %w", err)
 	}
 	defer res.Body.Close()
-
 	if res.StatusCode != http.StatusOK {
 		return nil, ReadBodyAsError(res)
 	}
-
 	var resp DAUsResponse
 	return &resp, json.NewDecoder(res.Body).Decode(&resp)
 }
-
 // AgentStatsReportRequest is a WebSocket request by coderd
 // to the agent for stats.
 // @typescript-ignore AgentStatsReportRequest
 type AgentStatsReportRequest struct{}
-
 // AgentStatsReportResponse is returned for each report
 // request by the agent.
 type AgentStatsReportResponse struct {
@@ -473,14 +430,12 @@ type AgentStatsReportResponse struct {
 	// TxBytes is the number of transmitted bytes.
 	TxBytes int64 `json:"tx_bytes"`
 }
-
 // TemplateExamples lists example templates available in Coder.
 //
 // Deprecated: Use StarterTemplates instead.
 func (c *Client) TemplateExamples(ctx context.Context, _ uuid.UUID) ([]TemplateExample, error) {
 	return c.StarterTemplates(ctx)
 }
-
 // StarterTemplates lists example templates available in Coder.
 func (c *Client) StarterTemplates(ctx context.Context) ([]TemplateExample, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/templates/examples", nil)

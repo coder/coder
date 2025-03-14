@@ -1,10 +1,8 @@
 //go:build !linux
 // +build !linux
-
 package agentexec
-
-import "golang.org/x/xerrors"
-
+import 
+import "errors"
 func CLI() error {
-	return xerrors.New("agent-exec is only supported on Linux")
+	return errors.New("agent-exec is only supported on Linux")
 }
