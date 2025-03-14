@@ -53,7 +53,7 @@ A workspace is considered "active" when Coder detects one or more active session
 
 - **VSCode sessions**: Using code-server or VS Code with a remote extension
 - **JetBrains IDE sessions**: Using JetBrains Gateway or remote IDE plugins
-- **Terminal sessions**: Using the web terminal (reconnecting PTY)
+- **Terminal sessions**: Using the web terminal (including reconnecting to the web terminal)
 - **SSH sessions**: Connecting via `coder ssh` or SSH config integration
 
 Activity is only detected when there is at least one active session. An open session will keep your workspace marked as active and prevent automatic shutdown.
@@ -66,7 +66,7 @@ The following actions do **not** count as workspace activity:
 - Accessing ports through direct URLs without an active session
 - Background agent statistics reporting
 
-To avoid unexpected cloud costs, close your connections (IDE windows, SSH sessions, etc.) when you finish using your workspace.
+To avoid unexpected cloud costs, close your connections, this includes IDE windows, SSH sessions, and others, when you finish using your workspace.
 
 ## Autostop requirement
 
