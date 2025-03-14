@@ -207,13 +207,10 @@ export const provisionerJobQueryKey = (orgId: string) => [
 	"provisionerjobs",
 ];
 
-export const provisionerJobs = (
-	orgId: string,
-	fetchProvisionerJobs = API.getProvisionerJobs,
-) => {
+export const provisionerJobs = (orgId: string) => {
 	return {
 		queryKey: provisionerJobQueryKey(orgId),
-		queryFn: () => fetchProvisionerJobs(orgId),
+		queryFn: () => API.getProvisionerJobs(orgId),
 	};
 };
 
