@@ -29,9 +29,7 @@ const (
 	inboxNotificationsPageSize = 25
 )
 
-var (
-	failingPaginationUUID = uuid.MustParse("fba6966a-9061-4111-8e1a-f6a9fbea4b16")
-)
+var failingPaginationUUID = uuid.MustParse("fba6966a-9061-4111-8e1a-f6a9fbea4b16")
 
 func TestInboxNotification_Watch(t *testing.T) {
 	t.Parallel()
@@ -633,7 +631,6 @@ func TestInboxNotifications_ReadStatus(t *testing.T) {
 		require.NotNil(t, updatedNotif)
 		require.Nil(t, updatedNotif.Notification.ReadAt)
 		require.Equal(t, 20, updatedNotif.UnreadCount)
-
 	})
 
 	t.Run("NOK - wrong id", func(t *testing.T) {
