@@ -171,7 +171,7 @@ to optimize your templates based on this data.
 
 ![Workspace build timings UI](../../images/admin/templates/troubleshooting/workspace-build-timings-ui.png)
 
-## Coder on Raspberry Pi OS
+## Docker Workspaces on Raspberry Pi OS
 
 ### Unable to query ContainerMemory
 
