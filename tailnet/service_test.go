@@ -2,6 +2,7 @@ package tailnet_test
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net"
 	"sync/atomic"

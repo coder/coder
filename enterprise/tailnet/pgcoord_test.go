@@ -3,6 +3,7 @@ package tailnet_test
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"net/netip"
 	"sync"
 	"testing"

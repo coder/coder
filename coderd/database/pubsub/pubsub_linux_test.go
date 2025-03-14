@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	goerrors "errors"
 	"fmt"
 	"math/rand"
 	"strconv"
@@ -276,7 +277,7 @@ func TestPubsub_Disconnect(t *testing.T) {
 	gotDroppedErr := false
 	for {
 		m, err := readOne()
-		if errors.Is(err, pubsub.ErrDroppedMessages) {
+		if goerrors.Is(err, pubsub.ErrDroppedMessages) {
 			gotDroppedErr = true
 			continue
 		}
