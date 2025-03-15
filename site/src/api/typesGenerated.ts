@@ -3006,6 +3006,11 @@ export interface WorkspaceAgent {
 	readonly startup_script_behavior: WorkspaceAgentStartupScriptBehavior;
 }
 
+// From codersdk/workspaceapps.go
+export interface WorkspaceAgentAppURL {
+	readonly url: string;
+}
+
 // From codersdk/workspaceagents.go
 export interface WorkspaceAgentDevcontainer {
 	readonly created_at: string;

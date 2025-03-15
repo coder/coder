@@ -1060,9 +1060,29 @@
 							"path": "reference/cli/open.md"
 						},
 						{
+							"title": "open cursor",
+							"description": "Open a workspace in Cursor Desktop",
+							"path": "reference/cli/open_cursor.md"
+						},
+						{
+							"title": "open fleet",
+							"description": "Open a workspace in JetBrains Fleet",
+							"path": "reference/cli/open_fleet.md"
+						},
+						{
 							"title": "open vscode",
 							"description": "Open a workspace in VS Code Desktop",
 							"path": "reference/cli/open_vscode.md"
+						},
+						{
+							"title": "open windsurf",
+							"description": "Open a workspace in Windsurf Desktop",
+							"path": "reference/cli/open_windsurf.md"
+						},
+						{
+							"title": "open zed",
+							"description": "Open a workspace in Zed",
+							"path": "reference/cli/open_zed.md"
 						},
 						{
 							"title": "organizations",
