@@ -410,7 +410,7 @@ type WorkspaceAgentDevcontainer struct {
 	// Running is true if the container is currently running.
 	Running bool `json:"running"`
 	// Ports includes ports exposed by the container.
-	Ports []WorkspaceAgentListeningPort `json:"ports"`
+	Ports []WorkspaceAgentDevcontainerPort `json:"ports"`
 	// Status is the current status of the container. This is somewhat
 	// implementation-dependent, but should generally be a human-readable
 	// string.
@@ -418,6 +418,19 @@ type WorkspaceAgentDevcontainer struct {
 	// Volumes is a map of "things" mounted into the container. Again, this
 	// is somewhat implementation-dependent.
 	Volumes map[string]string `json:"volumes"`
+}
+
+// WorkspaceAgentDevcontainerPort describes a port as exposed by a container.
+type WorkspaceAgentDevcontainerPort struct {
+	// Port is the port number *inside* the container.
+	Port uint16 `json:"port"`
+	// Network is the network protocol used by the port (tcp, udp, etc).
+	Network string `json:"network"`
+	// HostIP is the IP address of the host interface to which the port is
+	// bound. Note that this can be an IPv4 or IPv6 address.
+	HostIP string `json:"host_ip,omitempty"`
+	// HostPort is the port number *outside* the container.
+	HostPort uint16 `json:"host_port,omitempty"`
 }
 
 // WorkspaceAgentListContainersResponse is the response to the list containers

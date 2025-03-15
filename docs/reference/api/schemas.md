@@ -7732,9 +7732,10 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "name": "string",
   "ports": [
     {
+      "host_ip": "string",
+      "host_port": 0,
       "network": "string",
-      "port": 0,
-      "process_name": "string"
+      "port": 0
     }
   ],
   "running": true,
@@ -7748,19 +7749,39 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name               | Type                                                                                  | Required | Restrictions | Description                                                                                                                                |
-|--------------------|---------------------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------|
-| `created_at`       | string                                                                                | false    |              | Created at is the time the container was created.                                                                                          |
-| `id`               | string                                                                                | false    |              | ID is the unique identifier of the container.                                                                                              |
-| `image`            | string                                                                                | false    |              | Image is the name of the container image.                                                                                                  |
-| `labels`           | object                                                                                | false    |              | Labels is a map of key-value pairs of container labels.                                                                                    |
-| » `[any property]` | string                                                                                | false    |              |                                                                                                                                            |
-| `name`             | string                                                                                | false    |              | Name is the human-readable name of the container.                                                                                          |
-| `ports`            | array of [codersdk.WorkspaceAgentListeningPort](#codersdkworkspaceagentlisteningport) | false    |              | Ports includes ports exposed by the container.                                                                                             |
-| `running`          | boolean                                                                               | false    |              | Running is true if the container is currently running.                                                                                     |
-| `status`           | string                                                                                | false    |              | Status is the current status of the container. This is somewhat implementation-dependent, but should generally be a human-readable string. |
-| `volumes`          | object                                                                                | false    |              | Volumes is a map of "things" mounted into the container. Again, this is somewhat implementation-dependent.                                 |
-| » `[any property]` | string                                                                                | false    |              |                                                                                                                                            |
+| Name               | Type                                                                                        | Required | Restrictions | Description                                                                                                                                |
+|--------------------|---------------------------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------|
+| `created_at`       | string                                                                                      | false    |              | Created at is the time the container was created.                                                                                          |
+| `id`               | string                                                                                      | false    |              | ID is the unique identifier of the container.                                                                                              |
+| `image`            | string                                                                                      | false    |              | Image is the name of the container image.                                                                                                  |
+| `labels`           | object                                                                                      | false    |              | Labels is a map of key-value pairs of container labels.                                                                                    |
+| » `[any property]` | string                                                                                      | false    |              |                                                                                                                                            |
+| `name`             | string                                                                                      | false    |              | Name is the human-readable name of the container.                                                                                          |
+| `ports`            | array of [codersdk.WorkspaceAgentDevcontainerPort](#codersdkworkspaceagentdevcontainerport) | false    |              | Ports includes ports exposed by the container.                                                                                             |
+| `running`          | boolean                                                                                     | false    |              | Running is true if the container is currently running.                                                                                     |
+| `status`           | string                                                                                      | false    |              | Status is the current status of the container. This is somewhat implementation-dependent, but should generally be a human-readable string. |
+| `volumes`          | object                                                                                      | false    |              | Volumes is a map of "things" mounted into the container. Again, this is somewhat implementation-dependent.                                 |
+| » `[any property]` | string                                                                                      | false    |              |                                                                                                                                            |
+
+## codersdk.WorkspaceAgentDevcontainerPort
+
+```json
+{
+  "host_ip": "string",
+  "host_port": 0,
+  "network": "string",
+  "port": 0
+}
+```
+
+### Properties
+
+| Name        | Type    | Required | Restrictions | Description                                                                                                                |
+|-------------|---------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------|
+| `host_ip`   | string  | false    |              | Host ip is the IP address of the host interface to which the port is bound. Note that this can be an IPv4 or IPv6 address. |
+| `host_port` | integer | false    |              | Host port is the port number *outside* the container.                                                                      |
+| `network`   | string  | false    |              | Network is the network protocol used by the port (tcp, udp, etc).                                                          |
+| `port`      | integer | false    |              | Port is the port number *inside* the container.                                                                            |
 
 ## codersdk.WorkspaceAgentHealth
 
@@ -7816,9 +7837,10 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "name": "string",
       "ports": [
         {
+          "host_ip": "string",
+          "host_port": 0,
           "network": "string",
-          "port": 0,
-          "process_name": "string"
+          "port": 0
         }
       ],
       "running": true,

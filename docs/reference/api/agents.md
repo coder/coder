@@ -676,9 +676,10 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/con
       "name": "string",
       "ports": [
         {
+          "host_ip": "string",
+          "host_port": 0,
           "network": "string",
-          "port": 0,
-          "process_name": "string"
+          "port": 0
         }
       ],
       "running": true,
