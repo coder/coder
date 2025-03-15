@@ -423,6 +423,7 @@ func ConvertUserRows(rows []GetUsersRow) []User {
 			AvatarURL:      r.AvatarURL,
 			Deleted:        r.Deleted,
 			LastSeenAt:     r.LastSeenAt,
+			IsSystem:       r.IsSystem,
 		}
 	}
 

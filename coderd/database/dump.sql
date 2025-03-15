@@ -445,6 +445,17 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION prevent_system_user_changes() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+	IF OLD.is_system = true THEN
+		RAISE EXCEPTION 'Cannot modify or delete system users';
+	END IF;
+	RETURN OLD;
+END;
+$$;
+
 CREATE FUNCTION protect_deleting_organizations() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -854,6 +865,7 @@ CREATE TABLE users (
     github_com_user_id bigint,
     hashed_one_time_passcode bytea,
     one_time_passcode_expires_at timestamp with time zone,
+    is_system boolean DEFAULT false,
     CONSTRAINT one_time_passcode_set CHECK ((((hashed_one_time_passcode IS NULL) AND (one_time_passcode_expires_at IS NULL)) OR ((hashed_one_time_passcode IS NOT NULL) AND (one_time_passcode_expires_at IS NOT NULL))))
 );
 
@@ -866,6 +878,8 @@ COMMENT ON COLUMN users.github_com_user_id IS 'The GitHub.com numerical user ID.
 COMMENT ON COLUMN users.hashed_one_time_passcode IS 'A hash of the one-time-passcode given to the user.';
 
 COMMENT ON COLUMN users.one_time_passcode_expires_at IS 'The time when the one-time-passcode expires.';
+
+COMMENT ON COLUMN users.is_system IS 'Determines if a user is a system user, and therefore cannot login or perform normal actions';
 
 CREATE VIEW group_members_expanded AS
  WITH all_members AS (
@@ -2362,6 +2376,8 @@ COMMENT ON INDEX template_usage_stats_start_time_template_id_user_id_idx IS 'Ind
 
 CREATE UNIQUE INDEX templates_organization_id_name_idx ON templates USING btree (organization_id, lower((name)::text)) WHERE (deleted = false);
 
+CREATE INDEX user_is_system_idx ON users USING btree (is_system);
+
 CREATE UNIQUE INDEX user_links_linked_id_login_type_idx ON user_links USING btree (linked_id, login_type) WHERE (linked_id <> ''::text);
 
 CREATE UNIQUE INDEX users_email_lower_idx ON users USING btree (lower(email)) WHERE (deleted = false);
@@ -2449,6 +2465,10 @@ CREATE OR REPLACE VIEW provisioner_job_stats AS
   GROUP BY pj.id, wb.workspace_id;
 
 CREATE TRIGGER inhibit_enqueue_if_disabled BEFORE INSERT ON notification_messages FOR EACH ROW EXECUTE FUNCTION inhibit_enqueue_if_disabled();
+
+CREATE TRIGGER prevent_system_user_deletions BEFORE DELETE ON users FOR EACH ROW WHEN ((old.is_system = true)) EXECUTE FUNCTION prevent_system_user_changes();
+
+CREATE TRIGGER prevent_system_user_updates BEFORE UPDATE ON users FOR EACH ROW WHEN ((old.is_system = true)) EXECUTE FUNCTION prevent_system_user_changes();
 
 CREATE TRIGGER protect_deleting_organizations BEFORE UPDATE ON organizations FOR EACH ROW WHEN (((new.deleted = true) AND (old.deleted = false))) EXECUTE FUNCTION protect_deleting_organizations();
 

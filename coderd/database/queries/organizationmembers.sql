@@ -22,6 +22,12 @@ WHERE
 		WHEN @user_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
 			user_id = @user_id
 		ELSE true
+	END
+  -- Filter by system type
+  	AND CASE
+		  WHEN @include_system::bool THEN TRUE
+		  ELSE
+			  is_system = false
 	END;
 
 -- name: InsertOrganizationMember :one
