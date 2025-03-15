@@ -5567,6 +5567,38 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `ssh_config_options` | object | false    |              |             |
 | » `[any property]`   | string | false    |              |             |
 
+## codersdk.ServerSentEvent
+
+```json
+{
+  "data": null,
+  "type": "ping"
+}
+```
+
+### Properties
+
+| Name   | Type                                                         | Required | Restrictions | Description |
+|--------|--------------------------------------------------------------|----------|--------------|-------------|
+| `data` | any                                                          | false    |              |             |
+| `type` | [codersdk.ServerSentEventType](#codersdkserversenteventtype) | false    |              |             |
+
+## codersdk.ServerSentEventType
+
+```json
+"ping"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value   |
+|---------|
+| `ping`  |
+| `data`  |
+| `error` |
+
 ## codersdk.SessionCountDeploymentStats
 
 ```json
