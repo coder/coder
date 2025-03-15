@@ -62,6 +62,27 @@ OPTIONS:
           server postgres-builtin-url". Note that any special characters in the
           URL must be URL-encoded.
 
+      --postgres-database string, $CODER_PG_DATABASE
+          Database name for PostgreSQL. Only used if postgres-url is not set.
+
+      --postgres-host string, $CODER_PG_HOST
+          Hostname of a PostgreSQL server. Only used if postgres-url is not set.
+
+      --postgres-options string, $CODER_PG_OPTIONS
+          Additional options for PostgreSQL connection string. Only used if
+          postgres-url is not set.
+
+      --postgres-password string, $CODER_PG_PASSWORD
+          Password for PostgreSQL authentication. Only used if postgres-url is
+          not set.
+
+      --postgres-port string, $CODER_PG_PORT (default: 5432)
+          Port of a PostgreSQL server. Only used if postgres-url is not set.
+
+      --postgres-username string, $CODER_PG_USERNAME
+          Username for PostgreSQL authentication. Only used if postgres-url is
+          not set.
+
       --ssh-keygen-algorithm string, $CODER_SSH_KEYGEN_ALGORITHM (default: ed25519)
           The algorithm to use for generating ssh keys. Accepted values are
           "ed25519", "ecdsa", or "rsa4096".

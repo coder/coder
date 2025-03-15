@@ -63,6 +63,9 @@ func TestDeploymentValues_HighlyConfigurable(t *testing.T) {
 		"Postgres Connection URL": {
 			yaml: true,
 		},
+		"Postgres Password": {
+			yaml: true,
+		},
 		"SCIM API Key": {
 			yaml: true,
 		},
