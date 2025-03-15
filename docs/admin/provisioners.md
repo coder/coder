@@ -167,7 +167,7 @@ for more information.
 
 > [!NOTE]
 > Workspace tags defined with the `coder_workspace_tags` data source
-> template **do not** automatically apply to the template import job! You may
+> template do not automatically apply to the template import job! You may
 > need to specify the desired tags when importing the template.
 
 A provisioner can run a given build job if one of the below is true:
@@ -376,6 +376,18 @@ This can be disabled with a server-wide
 ```sh
 coder server --provisioner-daemons=0
 ```
+
+## Manage external provisioners
+
+View more information about and manage your provisioners from the Coder dashboard.
+
+1. Under **Admin settings** select **Organizations**, then select **Provisioners**.
+
+1. Use the **Jobs** or **Daemons** tab to view provisioners and their status.
+
+1. Select the **>** to expand each job or daemon entry for more information.
+
+1. To delete a job, select the 🚫 at the end of the entry's row.
 
 ## Prometheus metrics
 
