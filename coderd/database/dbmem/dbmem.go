@@ -1549,11 +1549,16 @@ func (q *FakeQuerier) ActivityBumpWorkspace(ctx context.Context, arg database.Ac
 	return sql.ErrNoRows
 }
 
-func (q *FakeQuerier) AllUserIDs(_ context.Context) ([]uuid.UUID, error) {
+// nolint:revive // It's not a control flag, it's a filter.
+func (q *FakeQuerier) AllUserIDs(_ context.Context, includeSystem bool) ([]uuid.UUID, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 	userIDs := make([]uuid.UUID, 0, len(q.users))
 	for idx := range q.users {
+		if !includeSystem && q.users[idx].IsSystem.Valid && q.users[idx].IsSystem.Bool {
+			continue
+		}
+
 		userIDs = append(userIDs, q.users[idx].ID)
 	}
 	return userIDs, nil
@@ -1707,6 +1712,10 @@ func (*FakeQuerier) BulkMarkNotificationMessagesSent(_ context.Context, arg data
 		return 0, err
 	}
 	return int64(len(arg.IDs)), nil
+}
+
+func (*FakeQuerier) ClaimPrebuild(_ context.Context, _ database.ClaimPrebuildParams) (database.ClaimPrebuildRow, error) {
+	return database.ClaimPrebuildRow{}, ErrUnimplemented
 }
 
 func (*FakeQuerier) CleanTailnetCoordinators(_ context.Context) error {
@@ -2644,12 +2653,17 @@ func (q *FakeQuerier) GetAPIKeysLastUsedAfter(_ context.Context, after time.Time
 	return apiKeys, nil
 }
 
-func (q *FakeQuerier) GetActiveUserCount(_ context.Context) (int64, error) {
+// nolint:revive // It's not a control flag, it's a filter.
+func (q *FakeQuerier) GetActiveUserCount(_ context.Context, includeSystem bool) (int64, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	active := int64(0)
 	for _, u := range q.users {
+		if !includeSystem && u.IsSystem.Valid && u.IsSystem.Bool {
+			continue
+		}
+
 		if u.Status == database.UserStatusActive && !u.Deleted {
 			active++
 		}
@@ -4013,6 +4027,14 @@ func (q *FakeQuerier) GetParameterSchemasByJobID(_ context.Context, jobID uuid.U
 	return parameters, nil
 }
 
+func (*FakeQuerier) GetPrebuildMetrics(_ context.Context) ([]database.GetPrebuildMetricsRow, error) {
+	return nil, ErrUnimplemented
+}
+
+func (*FakeQuerier) GetPrebuildsInProgress(_ context.Context) ([]database.GetPrebuildsInProgressRow, error) {
+	return nil, ErrUnimplemented
+}
+
 func (q *FakeQuerier) GetPresetByWorkspaceBuildID(_ context.Context, workspaceBuildID uuid.UUID) (database.TemplateVersionPreset, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -4053,6 +4075,10 @@ func (q *FakeQuerier) GetPresetParametersByTemplateVersionID(_ context.Context, 
 	}
 
 	return parameters, nil
+}
+
+func (*FakeQuerier) GetPresetsBackoff(_ context.Context, _ time.Time) ([]database.GetPresetsBackoffRow, error) {
+	return nil, ErrUnimplemented
 }
 
 func (q *FakeQuerier) GetPresetsByTemplateVersionID(_ context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionPreset, error) {
@@ -4716,6 +4742,10 @@ func (q *FakeQuerier) GetReplicasUpdatedAfter(_ context.Context, updatedAt time.
 		}
 	}
 	return replicas, nil
+}
+
+func (*FakeQuerier) GetRunningPrebuilds(_ context.Context) ([]database.GetRunningPrebuildsRow, error) {
+	return nil, ErrUnimplemented
 }
 
 func (q *FakeQuerier) GetRuntimeConfig(_ context.Context, key string) (string, error) {
@@ -5757,6 +5787,10 @@ func (q *FakeQuerier) GetTemplateParameterInsights(ctx context.Context, arg data
 	return rows, nil
 }
 
+func (*FakeQuerier) GetTemplatePresetsWithPrebuilds(_ context.Context, _ uuid.NullUUID) ([]database.GetTemplatePresetsWithPrebuildsRow, error) {
+	return nil, ErrUnimplemented
+}
+
 func (q *FakeQuerier) GetTemplateUsageStats(_ context.Context, arg database.GetTemplateUsageStatsParams) ([]database.TemplateUsageStat, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -6200,7 +6234,8 @@ func (q *FakeQuerier) GetUserByID(_ context.Context, id uuid.UUID) (database.Use
 	return q.getUserByIDNoLock(id)
 }
 
-func (q *FakeQuerier) GetUserCount(_ context.Context) (int64, error) {
+// nolint:revive // It's not a control flag, it's a filter.
+func (q *FakeQuerier) GetUserCount(_ context.Context, includeSystem bool) (int64, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -6208,6 +6243,10 @@ func (q *FakeQuerier) GetUserCount(_ context.Context) (int64, error) {
 	for _, u := range q.users {
 		if !u.Deleted {
 			existing++
+		}
+
+		if !includeSystem && u.IsSystem.Valid && u.IsSystem.Bool {
+			continue
 		}
 	}
 	return existing, nil
@@ -8525,6 +8564,15 @@ func (q *FakeQuerier) InsertPresetParameters(_ context.Context, arg database.Ins
 	}
 
 	return presetParameters, nil
+}
+
+func (*FakeQuerier) InsertPresetPrebuild(_ context.Context, arg database.InsertPresetPrebuildParams) (database.TemplateVersionPresetPrebuild, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.TemplateVersionPresetPrebuild{}, err
+	}
+
+	return database.TemplateVersionPresetPrebuild{}, ErrUnimplemented
 }
 
 func (q *FakeQuerier) InsertProvisionerJob(_ context.Context, arg database.InsertProvisionerJobParams) (database.ProvisionerJob, error) {

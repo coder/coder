@@ -53,6 +53,7 @@ func TestListMembers(t *testing.T) {
 	t.Parallel()
 
 	t.Run("OK", func(t *testing.T) {
+
 		t.Parallel()
 		owner := coderdtest.New(t, nil)
 		first := coderdtest.CreateFirstUser(t, owner)

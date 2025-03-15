@@ -19,6 +19,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/coder/coder/v2/coderd/prebuilds"
+
 	"github.com/andybalholm/brotli"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -565,6 +567,7 @@ func New(options *Options) *API {
 	f := appearance.NewDefaultFetcher(api.DeploymentValues.DocsURL.String())
 	api.AppearanceFetcher.Store(&f)
 	api.PortSharer.Store(&portsharing.DefaultPortSharer)
+	api.PrebuildsClaimer.Store(&prebuilds.DefaultClaimer)
 	buildInfo := codersdk.BuildInfoResponse{
 		ExternalURL:           buildinfo.ExternalURL(),
 		Version:               buildinfo.Version(),
@@ -1216,6 +1219,7 @@ func New(options *Options) *API {
 				r.Get("/external-auth", api.workspaceAgentsExternalAuth)
 				r.Get("/gitsshkey", api.agentGitSSHKey)
 				r.Post("/log-source", api.workspaceAgentPostLogSource)
+				r.Get("/reinit", api.workspaceAgentReinit)
 			})
 			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(
@@ -1499,6 +1503,7 @@ type API struct {
 	// passed to dbauthz.
 	AccessControlStore *atomic.Pointer[dbauthz.AccessControlStore]
 	PortSharer         atomic.Pointer[portsharing.PortSharer]
+	PrebuildsClaimer   atomic.Pointer[prebuilds.Claimer]
 
 	UpdatesProvider tailnet.WorkspaceUpdatesProvider
 
