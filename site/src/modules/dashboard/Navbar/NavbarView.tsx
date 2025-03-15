@@ -9,6 +9,7 @@ import { DeploymentDropdown } from "./DeploymentDropdown";
 import { MobileMenu } from "./MobileMenu";
 import { ProxyMenu } from "./ProxyMenu";
 import { UserDropdown } from "./UserDropdown/UserDropdown";
+import { API } from "api/api";
 
 export interface NavbarViewProps {
 	logo_url?: string;
@@ -57,6 +58,30 @@ export const NavbarView: FC<NavbarViewProps> = ({
 				{proxyContextValue && (
 					<ProxyMenu proxyContextValue={proxyContextValue} />
 				)}
+
+				<button onClick={() => {
+					Notification.requestPermission().then(async (permission) => {
+						if (permission === "granted") {
+							const registration = await navigator.serviceWorker.ready;
+							registration.pushManager.subscribe({
+								userVisibleOnly: true,
+								applicationServerKey: buildInfo?.notifications_vapid_public_key,
+							}).then((subscription) => {
+								const json = subscription.toJSON()
+								API.updateUserBrowserNotificationSubscription(user?.id ?? "me", {
+									subscription: {
+										endpoint: json.endpoint!,
+									keys: json.keys! as any,
+									},
+								}).then(() => {
+									console.log("Subscribed to browser notifications");
+								})
+							});
+						}
+					});
+				}}>
+					Subscribe
+				</button>
 
 				<DeploymentDropdown
 					canViewAuditLog={canViewAuditLog}

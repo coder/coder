@@ -533,12 +533,13 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
   "tasks": [
     {
       "agent_id": "string",
+      "completion": true,
       "created_at": "string",
       "icon": "string",
       "id": "string",
-      "link_to": "string",
       "reporter": "string",
-      "summary": "string"
+      "summary": "string",
+      "url": "string"
     }
   ],
   "troubleshooting_url": "string",

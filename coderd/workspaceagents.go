@@ -1065,13 +1065,14 @@ func (api *API) postWorkspaceAgentTask(rw http.ResponseWriter, r *http.Request) 
 	workspaceAgent := httpmw.WorkspaceAgent(r)
 
 	task, err := api.Database.InsertWorkspaceAgentTask(ctx, database.InsertWorkspaceAgentTaskParams{
-		ID:        uuid.New(),
-		AgentID:   workspaceAgent.ID,
-		CreatedAt: dbtime.Now(),
-		Reporter:  req.Reporter,
-		Summary:   req.Summary,
-		LinkTo:    req.LinkTo,
-		Icon:      req.Icon,
+		ID:         uuid.New(),
+		AgentID:    workspaceAgent.ID,
+		CreatedAt:  dbtime.Now(),
+		Reporter:   req.Reporter,
+		Summary:    req.Summary,
+		Url:        sql.NullString{String: req.URL, Valid: req.URL != ""},
+		Icon:       sql.NullString{String: req.Icon, Valid: req.Icon != ""},
+		Completion: req.Completion,
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
@@ -1101,7 +1102,7 @@ func (api *API) postWorkspaceAgentTask(rw http.ResponseWriter, r *http.Request) 
 		err = api.dispatchUserBrowserNotification(owner, userBrowserNotification{
 			Title: task.Summary,
 			Body:  task.Summary,
-			Icon:  task.Icon,
+			Icon:  task.Icon.String,
 		})
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -1110,6 +1111,63 @@ func (api *API) postWorkspaceAgentTask(rw http.ResponseWriter, r *http.Request) 
 			})
 			return
 		}
+	}
+
+	err = api.Database.UpdateWorkspaceAgentTask(ctx, database.UpdateWorkspaceAgentTaskParams{
+		ID:                      workspaceAgent.ID,
+		TaskWaitingForUserInput: false,
+		TaskNotifications:       workspaceAgent.TaskNotifications,
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	api.publishWorkspaceUpdate(ctx, owner.ID, wspubsub.WorkspaceEvent{
+		Kind:        wspubsub.WorkspaceEventKindAgentTaskUpdate,
+		AgentID:     &workspaceAgent.ID,
+		WorkspaceID: workspace.ID,
+	})
+
+	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
+}
+
+func (api *API) patchWorkspaceAgentTasks(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var req agentsdk.PatchTasksRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	workspaceAgent := httpmw.WorkspaceAgent(r)
+	latestBuild := httpmw.LatestBuild(r)
+	workspace, err := api.Database.GetWorkspaceByID(ctx, latestBuild.WorkspaceID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Internal error fetching workspace.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	owner, err := api.Database.GetUserByID(ctx, workspace.OwnerID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Internal error fetching user.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	err = api.Database.UpdateWorkspaceAgentTask(ctx, database.UpdateWorkspaceAgentTaskParams{
+		ID:                      workspaceAgent.ID,
+		TaskWaitingForUserInput: req.WaitingForUserInput,
+		TaskNotifications:       workspaceAgent.TaskNotifications,
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
 	}
 
 	api.publishWorkspaceUpdate(ctx, owner.ID, wspubsub.WorkspaceEvent{

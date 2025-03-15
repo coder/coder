@@ -31,6 +31,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/SherClockHolmes/webpush-go"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/coreos/go-systemd/daemon"
@@ -774,6 +775,39 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			if err != nil {
 				return xerrors.Errorf("set deployment id: %w", err)
 			}
+
+			var vapidPublicKey string
+			var vapidPrivateKey string
+			err = options.Database.InTx(func(tx database.Store) error {
+				vapidPublicKey, err = tx.GetVAPIDPublicKey(ctx)
+				if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+					return xerrors.Errorf("get vapid public key: %w", err)
+				}
+				vapidPrivateKey, err = tx.GetVAPIDPrivateKey(ctx)
+				if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+					return xerrors.Errorf("get vapid private key: %w", err)
+				}
+				if vapidPublicKey == "" || vapidPrivateKey == "" {
+					vapidPrivateKey, vapidPublicKey, err = webpush.GenerateVAPIDKeys()
+					if err != nil {
+						return xerrors.Errorf("generate vapid keys: %w", err)
+					}
+					err = tx.InsertVAPIDPublicKey(ctx, vapidPublicKey)
+					if err != nil {
+						return xerrors.Errorf("insert vapid public key: %w", err)
+					}
+					err = tx.InsertVAPIDPrivateKey(ctx, vapidPrivateKey)
+					if err != nil {
+						return xerrors.Errorf("insert vapid private key: %w", err)
+					}
+				}
+				return nil
+			}, nil)
+			if err != nil {
+				return xerrors.Errorf("insert vapid keys: %w", err)
+			}
+			options.NotificationsVAPIDPrivateKey = vapidPrivateKey
+			options.NotificationsVAPIDPublicKey = vapidPublicKey
 
 			githubOAuth2ConfigParams, err := getGithubOAuth2ConfigParams(ctx, options.Database, vals)
 			if err != nil {

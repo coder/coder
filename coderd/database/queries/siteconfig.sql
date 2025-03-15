@@ -23,6 +23,18 @@ INSERT INTO site_configs (key, value) VALUES ('deployment_id', $1);
 -- name: GetDeploymentID :one
 SELECT value FROM site_configs WHERE key = 'deployment_id';
 
+-- name: GetVAPIDPublicKey :one
+SELECT value FROM site_configs WHERE key = 'vapid_public_key';
+
+-- name: GetVAPIDPrivateKey :one
+SELECT value FROM site_configs WHERE key = 'vapid_private_key';
+
+-- name: InsertVAPIDPublicKey :exec
+INSERT INTO site_configs (key, value) VALUES ('vapid_public_key', $1);
+
+-- name: InsertVAPIDPrivateKey :exec
+INSERT INTO site_configs (key, value) VALUES ('vapid_private_key', $1);
+
 -- name: InsertDERPMeshKey :exec
 INSERT INTO site_configs (key, value) VALUES ('derp_mesh_key', $1);
 

@@ -1494,6 +1494,20 @@ func (m queryMetricsStore) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) (
 	return users, err
 }
 
+func (m queryMetricsStore) GetVAPIDPrivateKey(ctx context.Context) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetVAPIDPrivateKey(ctx)
+	m.queryLatencies.WithLabelValues("GetVAPIDPrivateKey").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetVAPIDPublicKey(ctx context.Context) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetVAPIDPublicKey(ctx)
+	m.queryLatencies.WithLabelValues("GetVAPIDPublicKey").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetWorkspaceAgentAndLatestBuildByAuthToken(ctx context.Context, authToken uuid.UUID) (database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetWorkspaceAgentAndLatestBuildByAuthToken(ctx, authToken)
@@ -2122,6 +2136,20 @@ func (m queryMetricsStore) InsertUserLink(ctx context.Context, arg database.Inse
 	link, err := m.s.InsertUserLink(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertUserLink").Observe(time.Since(start).Seconds())
 	return link, err
+}
+
+func (m queryMetricsStore) InsertVAPIDPrivateKey(ctx context.Context, value string) error {
+	start := time.Now()
+	r0 := m.s.InsertVAPIDPrivateKey(ctx, value)
+	m.queryLatencies.WithLabelValues("InsertVAPIDPrivateKey").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m queryMetricsStore) InsertVAPIDPublicKey(ctx context.Context, value string) error {
+	start := time.Now()
+	r0 := m.s.InsertVAPIDPublicKey(ctx, value)
+	m.queryLatencies.WithLabelValues("InsertVAPIDPublicKey").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m queryMetricsStore) InsertVolumeResourceMonitor(ctx context.Context, arg database.InsertVolumeResourceMonitorParams) (database.WorkspaceAgentVolumeResourceMonitor, error) {

@@ -3405,13 +3405,14 @@ type WorkspaceAgentStat struct {
 }
 
 type WorkspaceAgentTask struct {
-	ID        uuid.UUID `db:"id" json:"id"`
-	AgentID   uuid.UUID `db:"agent_id" json:"agent_id"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
-	Reporter  string    `db:"reporter" json:"reporter"`
-	Summary   string    `db:"summary" json:"summary"`
-	LinkTo    string    `db:"link_to" json:"link_to"`
-	Icon      string    `db:"icon" json:"icon"`
+	ID         uuid.UUID      `db:"id" json:"id"`
+	AgentID    uuid.UUID      `db:"agent_id" json:"agent_id"`
+	CreatedAt  time.Time      `db:"created_at" json:"created_at"`
+	Reporter   string         `db:"reporter" json:"reporter"`
+	Summary    string         `db:"summary" json:"summary"`
+	Url        sql.NullString `db:"url" json:"url"`
+	Icon       sql.NullString `db:"icon" json:"icon"`
+	Completion bool           `db:"completion" json:"completion"`
 }
 
 type WorkspaceAgentVolumeResourceMonitor struct {

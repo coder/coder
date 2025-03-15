@@ -118,6 +118,28 @@ export const Workspace: FC<WorkspaceProps> = ({
 		(workspace.latest_build.matched_provisioners?.available ?? 1) > 0;
 	const shouldShowProvisionerAlert =
 		workspacePending && !haveBuildLogs && !provisionersHealthy && !isRestarting;
+	const tasks = workspace.latest_build.resources
+		.flatMap(resource => resource.agents || [])
+		.flatMap(agent => agent.tasks || [])
+	const waitingForUserInput = workspace.latest_build.resources
+		.flatMap(resource => resource.agents || []).filter(agent => agent.task_waiting_for_user_input).length >= 1
+
+	// Function to get a random thinking message
+	const getRandomThinkingMessage = () => {
+		const messages = [
+			"Analyzing code patterns and potential solutions...",
+			"Searching through documentation and best practices...",
+			"Connecting the dots between your requirements...",
+			"Brewing some code magic for you...",
+			"Exploring the digital universe for answers...",
+			"Consulting my silicon brain cells...",
+			"Calculating the optimal approach...",
+			"Assembling the perfect solution...",
+			"Processing at the speed of light...",
+			"Translating your needs into code..."
+		];
+		return messages[Math.floor(Math.random() * messages.length)];
+	};
 
 	return (
 		<div
@@ -249,47 +271,187 @@ export const Workspace: FC<WorkspaceProps> = ({
 						<WorkspaceBuildLogsSection logs={buildLogs} />
 					)}
 
-					{selectedResource && (
-						<section
-							css={{ display: "flex", flexDirection: "column", gap: 24 }}
-						>
-							{selectedResource.agents?.map((agent) => (
-								<AgentRow
-									key={agent.id}
-									agent={agent}
-									workspace={workspace}
-									template={template}
-									sshPrefix={sshPrefix}
-									showApps={permissions.updateWorkspace}
-									showBuiltinApps={permissions.updateWorkspace}
-									hideSSHButton={hideSSHButton}
-									hideVSCodeDesktopButton={hideVSCodeDesktopButton}
-									serverVersion={buildInfo?.version || ""}
-									serverAPIVersion={buildInfo?.agent_api_version || ""}
-									onUpdateAgent={handleUpdate} // On updating the workspace the agent version is also updated
-								/>
-							))}
+					<div css={{ display: "flex", flexDirection: "row", gap: 24 }}>
+						{selectedResource && (
+							<section
+								css={{ display: "flex", flexDirection: "column", gap: 24 }}
+							>
+								{selectedResource.agents?.map((agent) => (
+									<AgentRow
+										key={agent.id}
+										agent={agent}
+										workspace={workspace}
+										template={template}
+										sshPrefix={sshPrefix}
+										showApps={permissions.updateWorkspace}
+										showBuiltinApps={permissions.updateWorkspace}
+										hideSSHButton={hideSSHButton}
+										hideVSCodeDesktopButton={hideVSCodeDesktopButton}
+										serverVersion={buildInfo?.version || ""}
+										serverAPIVersion={buildInfo?.agent_api_version || ""}
+										onUpdateAgent={handleUpdate} // On updating the workspace the agent version is also updated
+									/>
+								))}
 
-							{(!selectedResource.agents ||
-								selectedResource.agents?.length === 0) && (
-								<div
-									css={{
+								{(!selectedResource.agents ||
+									selectedResource.agents?.length === 0) && (
+										<div
+											css={{
+												display: "flex",
+												justifyContent: "center",
+												alignItems: "center",
+												width: "100%",
+												height: "100%",
+											}}
+										>
+											<div>
+												<h4 css={{ fontSize: 16, fontWeight: 500 }}>
+													No agents are currently assigned to this resource.
+												</h4>
+											</div>
+										</div>
+									)}
+							</section>
+						)}
+
+						{tasks.length && (
+							<div css={{
+								background: "#09090b", padding: 20, borderRadius: 8, border: "1px solid rgba(78, 208, 126, 0.2)",
+								maxHeight: 800, overflowY: "auto",
+								minWidth: 360,
+								display: "flex",
+								flexDirection: "column",
+							}}>
+								{waitingForUserInput ? <div>
+									<Alert severity="info" css={{
+										marginBottom: 16,
+									}}>
+										<AlertTitle>The agent needs your input...</AlertTitle>
+									</Alert>
+								</div> : <div css={{
+									display: "flex",
+									flexDirection: "column",
+									alignItems: "center",
+									justifyContent: "center",
+									padding: "16px 8px",
+									background: "rgba(24, 24, 27, 0.6)",
+									borderRadius: 8,
+									marginBottom: 16
+								}}>
+									<div css={{
 										display: "flex",
-										justifyContent: "center",
 										alignItems: "center",
-										width: "100%",
-										height: "100%",
-									}}
-								>
-									<div>
-										<h4 css={{ fontSize: 16, fontWeight: 500 }}>
-											No agents are currently assigned to this resource.
-										</h4>
+										gap: 12,
+										marginBottom: 8
+									}}>
+										<div css={{
+											display: "flex",
+											alignItems: "center",
+											justifyContent: "center"
+										}}>
+											<div css={{
+												width: 24,
+												height: 24,
+												borderRadius: "50%",
+												border: "3px solid rgba(158, 88, 255, 0.2)",
+												borderTopColor: "#9e58ff",
+												animation: "spin 1s linear infinite",
+												"@keyframes spin": {
+													to: { transform: "rotate(360deg)" }
+												}
+											}} />
+										</div>
+										<div css={{
+											fontSize: 16,
+											fontWeight: 500,
+											color: "#fff"
+										}}>
+											Thinking...
+										</div>
 									</div>
+									<div css={{
+										fontSize: 12,
+										color: "rgba(255, 255, 255, 0.6)",
+										textAlign: "center",
+										maxWidth: 280
+									}}>
+										{getRandomThinkingMessage()}
+									</div>
+								</div>}
+								<div css={{ width: "300px" }}>
+									{tasks.map((task, index) => (
+										<div key={index} css={{
+											background: "#18181b",
+											padding: 8,
+											borderRadius: 8,
+											marginBottom: 8,
+											display: "flex",
+											flexDirection: "column",
+											border: "1px solid rgba(255, 255, 255, 0.05)",
+											boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
+											transition: "transform 0.2s ease, box-shadow 0.2s ease",
+										}}>
+											<div css={{
+												display: "flex",
+												alignItems: "center",
+												gap: 10,
+												position: "relative",
+											}}>
+												<div css={{
+													fontSize: "12px",
+													color: "#fff",
+													lineHeight: 1.4,
+													margin: 4,
+												}}>
+													{task.icon} {task.summary}
+												</div>
+											</div>
+
+											{task.url && (
+												<a href={task.url} target="_blank" rel="noopener noreferrer" css={{
+													display: "inline-flex",
+													alignItems: "center",
+													gap: 6,
+													fontSize: "12px",
+													color: "#9e58ff",
+													textDecoration: "none",
+													transition: "color 0.2s ease",
+
+													":hover": {
+														color: "#b47aff",
+														textDecoration: "underline",
+													}
+												}}>
+													<svg css={{ minWidth: 14, }} width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+														<path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+														<path d="M15 3h6v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+														<path d="M10 14L21 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+													</svg>
+													<span css={{
+														overflow: "hidden",
+														textOverflow: "ellipsis",
+														whiteSpace: "nowrap",
+													}}>
+														{task.url}
+													</span>
+												</a>
+											)}
+
+											<div css={{
+												fontSize: "11px",
+												color: "rgba(255, 255, 255, 0.5)",
+												marginTop: "auto",
+											}}>
+												{new Date(task.created_at).toLocaleString()}
+											</div>
+										</div>
+									))}
 								</div>
-							)}
-						</section>
-					)}
+							</div>
+
+						)}
+
+					</div>
 
 					<WorkspaceTimings
 						provisionerTimings={timings?.provisioner_timings}

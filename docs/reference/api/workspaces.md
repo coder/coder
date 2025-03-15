@@ -219,12 +219,13 @@ of the template will be used.
             "tasks": [
               {
                 "agent_id": "string",
+                "completion": true,
                 "created_at": "string",
                 "icon": "string",
                 "id": "string",
-                "link_to": "string",
                 "reporter": "string",
-                "summary": "string"
+                "summary": "string",
+                "url": "string"
               }
             ],
             "troubleshooting_url": "string",
@@ -483,12 +484,13 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
             "tasks": [
               {
                 "agent_id": "string",
+                "completion": true,
                 "created_at": "string",
                 "icon": "string",
                 "id": "string",
-                "link_to": "string",
                 "reporter": "string",
-                "summary": "string"
+                "summary": "string",
+                "url": "string"
               }
             ],
             "troubleshooting_url": "string",
@@ -771,12 +773,13 @@ of the template will be used.
             "tasks": [
               {
                 "agent_id": "string",
+                "completion": true,
                 "created_at": "string",
                 "icon": "string",
                 "id": "string",
-                "link_to": "string",
                 "reporter": "string",
-                "summary": "string"
+                "summary": "string",
+                "url": "string"
               }
             ],
             "troubleshooting_url": "string",
@@ -1034,12 +1037,13 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
                 "tasks": [
                   {
                     "agent_id": "string",
+                    "completion": true,
                     "created_at": "string",
                     "icon": "string",
                     "id": "string",
-                    "link_to": "string",
                     "reporter": "string",
-                    "summary": "string"
+                    "summary": "string",
+                    "url": "string"
                   }
                 ],
                 "troubleshooting_url": "string",
@@ -1299,12 +1303,13 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
             "tasks": [
               {
                 "agent_id": "string",
+                "completion": true,
                 "created_at": "string",
                 "icon": "string",
                 "id": "string",
-                "link_to": "string",
                 "reporter": "string",
-                "summary": "string"
+                "summary": "string",
+                "url": "string"
               }
             ],
             "troubleshooting_url": "string",
@@ -1679,12 +1684,13 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
             "tasks": [
               {
                 "agent_id": "string",
+                "completion": true,
                 "created_at": "string",
                 "icon": "string",
                 "id": "string",
-                "link_to": "string",
                 "reporter": "string",
-                "summary": "string"
+                "summary": "string",
+                "url": "string"
               }
             ],
             "troubleshooting_url": "string",

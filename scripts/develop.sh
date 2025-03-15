@@ -13,12 +13,19 @@ source "${SCRIPT_DIR}/lib.sh"
 [[ -n ${VERBOSE:-} ]] && set -x
 set -euo pipefail
 
-CODER_DEV_ACCESS_URL="${CODER_DEV_ACCESS_URL:-http://127.0.0.1:3000}"
+CODER_DEV_ACCESS_URL="${CODER_DEV_ACCESS_URL:-https://dev.leopard-enigmatic.ts.net}"
 debug=0
 DEFAULT_PASSWORD="SomeSecurePassword!"
 password="${CODER_DEV_ADMIN_PASSWORD:-${DEFAULT_PASSWORD}}"
 use_proxy=0
 multi_org=0
+
+export CODER_EXTERNAL_AUTH_0_ID=github
+export CODER_EXTERNAL_AUTH_0_TYPE=github
+export CODER_EXTERNAL_AUTH_0_CLIENT_ID=Iv1.6a2b4b4aec4f4fe7
+export CODER_EXTERNAL_AUTH_0_DEVICE_FLOW=true
+export CODER_EXTERNAL_AUTH_0_NO_REFRESH=true
+export CODER_EXTERNAL_AUTH_0_APP_INSTALL_URL=https://github.com/apps/coder/installations/new
 
 args="$(getopt -o "" -l access-url:,use-proxy,agpl,debug,password:,multi-organization -- "$@")"
 eval set -- "$args"

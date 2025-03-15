@@ -960,6 +960,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "dashboard_url": "string",
   "deployment_id": "string",
   "external_url": "string",
+  "notifications_vapid_public_key": "string",
   "provisioner_api_version": "string",
   "telemetry": true,
   "upgrade_message": "string",
@@ -970,17 +971,18 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                      | Type    | Required | Restrictions | Description                                                                                                                                                         |
-|---------------------------|---------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent_api_version`       | string  | false    |              | Agent api version is the current version of the Agent API (back versions MAY still be supported).                                                                   |
-| `dashboard_url`           | string  | false    |              | Dashboard URL is the URL to hit the deployment's dashboard. For external workspace proxies, this is the coderd they are connected to.                               |
-| `deployment_id`           | string  | false    |              | Deployment ID is the unique identifier for this deployment.                                                                                                         |
-| `external_url`            | string  | false    |              | External URL references the current Coder version. For production builds, this will link directly to a release. For development builds, this will link to a commit. |
-| `provisioner_api_version` | string  | false    |              | Provisioner api version is the current version of the Provisioner API                                                                                               |
-| `telemetry`               | boolean | false    |              | Telemetry is a boolean that indicates whether telemetry is enabled.                                                                                                 |
-| `upgrade_message`         | string  | false    |              | Upgrade message is the message displayed to users when an outdated client is detected.                                                                              |
-| `version`                 | string  | false    |              | Version returns the semantic version of the build.                                                                                                                  |
-| `workspace_proxy`         | boolean | false    |              |                                                                                                                                                                     |
+| Name                             | Type    | Required | Restrictions | Description                                                                                                                                                         |
+|----------------------------------|---------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_api_version`              | string  | false    |              | Agent api version is the current version of the Agent API (back versions MAY still be supported).                                                                   |
+| `dashboard_url`                  | string  | false    |              | Dashboard URL is the URL to hit the deployment's dashboard. For external workspace proxies, this is the coderd they are connected to.                               |
+| `deployment_id`                  | string  | false    |              | Deployment ID is the unique identifier for this deployment.                                                                                                         |
+| `external_url`                   | string  | false    |              | External URL references the current Coder version. For production builds, this will link directly to a release. For development builds, this will link to a commit. |
+| `notifications_vapid_public_key` | string  | false    |              |                                                                                                                                                                     |
+| `provisioner_api_version`        | string  | false    |              | Provisioner api version is the current version of the Provisioner API                                                                                               |
+| `telemetry`                      | boolean | false    |              | Telemetry is a boolean that indicates whether telemetry is enabled.                                                                                                 |
+| `upgrade_message`                | string  | false    |              | Upgrade message is the message displayed to users when an outdated client is detected.                                                                              |
+| `version`                        | string  | false    |              | Version returns the semantic version of the build.                                                                                                                  |
+| `workspace_proxy`                | boolean | false    |              |                                                                                                                                                                     |
 
 ## codersdk.BuildReason
 
@@ -7491,12 +7493,13 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "tasks": [
               {
                 "agent_id": "string",
+                "completion": true,
                 "created_at": "string",
                 "icon": "string",
                 "id": "string",
-                "link_to": "string",
                 "reporter": "string",
-                "summary": "string"
+                "summary": "string",
+                "url": "string"
               }
             ],
             "troubleshooting_url": "string",
@@ -7693,12 +7696,13 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "tasks": [
     {
       "agent_id": "string",
+      "completion": true,
       "created_at": "string",
       "icon": "string",
       "id": "string",
-      "link_to": "string",
       "reporter": "string",
-      "summary": "string"
+      "summary": "string",
+      "url": "string"
     }
   ],
   "troubleshooting_url": "string",
@@ -8110,26 +8114,28 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 ```json
 {
   "agent_id": "string",
+  "completion": true,
   "created_at": "string",
   "icon": "string",
   "id": "string",
-  "link_to": "string",
   "reporter": "string",
-  "summary": "string"
+  "summary": "string",
+  "url": "string"
 }
 ```
 
 ### Properties
 
-| Name         | Type   | Required | Restrictions | Description |
-|--------------|--------|----------|--------------|-------------|
-| `agent_id`   | string | false    |              |             |
-| `created_at` | string | false    |              |             |
-| `icon`       | string | false    |              |             |
-| `id`         | string | false    |              |             |
-| `link_to`    | string | false    |              |             |
-| `reporter`   | string | false    |              |             |
-| `summary`    | string | false    |              |             |
+| Name         | Type    | Required | Restrictions | Description |
+|--------------|---------|----------|--------------|-------------|
+| `agent_id`   | string  | false    |              |             |
+| `completion` | boolean | false    |              |             |
+| `created_at` | string  | false    |              |             |
+| `icon`       | string  | false    |              |             |
+| `id`         | string  | false    |              |             |
+| `reporter`   | string  | false    |              |             |
+| `summary`    | string  | false    |              |             |
+| `url`        | string  | false    |              |             |
 
 ## codersdk.WorkspaceApp
 
@@ -8386,12 +8392,13 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "tasks": [
             {
               "agent_id": "string",
+              "completion": true,
               "created_at": "string",
               "icon": "string",
               "id": "string",
-              "link_to": "string",
               "reporter": "string",
-              "summary": "string"
+              "summary": "string",
+              "url": "string"
             }
           ],
           "troubleshooting_url": "string",
@@ -8800,12 +8807,13 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "tasks": [
         {
           "agent_id": "string",
+          "completion": true,
           "created_at": "string",
           "icon": "string",
           "id": "string",
-          "link_to": "string",
           "reporter": "string",
-          "summary": "string"
+          "summary": "string",
+          "url": "string"
         }
       ],
       "troubleshooting_url": "string",
@@ -9083,12 +9091,13 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                 "tasks": [
                   {
                     "agent_id": "string",
+                    "completion": true,
                     "created_at": "string",
                     "icon": "string",
                     "id": "string",
-                    "link_to": "string",
                     "reporter": "string",
-                    "summary": "string"
+                    "summary": "string",
+                    "url": "string"
                   }
                 ],
                 "troubleshooting_url": "string",

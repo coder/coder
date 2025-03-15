@@ -254,6 +254,8 @@ type data struct {
 	// locked.
 	locks                            map[int64]struct{}
 	deploymentID                     string
+	vapidPublicKey                   string
+	vapidPrivateKey                  string
 	derpMeshKey                      string
 	lastUpdateCheck                  []byte
 	announcementBanners              []byte
@@ -6593,6 +6595,20 @@ func (q *FakeQuerier) GetUsersByIDs(_ context.Context, ids []uuid.UUID) ([]datab
 	return users, nil
 }
 
+func (q *FakeQuerier) GetVAPIDPrivateKey(ctx context.Context) (string, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	return q.vapidPrivateKey, nil
+}
+
+func (q *FakeQuerier) GetVAPIDPublicKey(ctx context.Context) (string, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	return q.vapidPublicKey, nil
+}
+
 func (q *FakeQuerier) GetWorkspaceAgentAndLatestBuildByAuthToken(_ context.Context, authToken uuid.UUID) (database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -8960,6 +8976,22 @@ func (q *FakeQuerier) InsertUserLink(_ context.Context, args database.InsertUser
 	return link, nil
 }
 
+func (q *FakeQuerier) InsertVAPIDPrivateKey(ctx context.Context, value string) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	q.vapidPrivateKey = value
+	return nil
+}
+
+func (q *FakeQuerier) InsertVAPIDPublicKey(ctx context.Context, value string) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	q.vapidPublicKey = value
+	return nil
+}
+
 func (q *FakeQuerier) InsertVolumeResourceMonitor(_ context.Context, arg database.InsertVolumeResourceMonitorParams) (database.WorkspaceAgentVolumeResourceMonitor, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -9232,13 +9264,14 @@ func (q *FakeQuerier) InsertWorkspaceAgentTask(ctx context.Context, arg database
 	defer q.mutex.Unlock()
 
 	task := database.WorkspaceAgentTask{
-		ID:        arg.ID,
-		AgentID:   arg.AgentID,
-		CreatedAt: arg.CreatedAt,
-		Reporter:  arg.Reporter,
-		Summary:   arg.Summary,
-		LinkTo:    arg.LinkTo,
-		Icon:      arg.Icon,
+		ID:         arg.ID,
+		AgentID:    arg.AgentID,
+		CreatedAt:  arg.CreatedAt,
+		Reporter:   arg.Reporter,
+		Summary:    arg.Summary,
+		Url:        arg.Url,
+		Completion: arg.Completion,
+		Icon:       arg.Icon,
 	}
 	q.workspaceAgentTasks = append(q.workspaceAgentTasks, task)
 	return task, nil

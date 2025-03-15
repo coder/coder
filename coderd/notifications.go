@@ -400,15 +400,15 @@ func convertNotificationPreferences(in []database.NotificationPreference) (out [
 }
 
 type userBrowserNotification struct {
-	Title   string
-	Body    string
-	Icon    string
-	Actions []userBrowserNotificationAction
+	Title   string                          `json:"title"`
+	Body    string                          `json:"body"`
+	Icon    string                          `json:"icon"`
+	Actions []userBrowserNotificationAction `json:"actions"`
 }
 
 type userBrowserNotificationAction struct {
-	Title string
-	Link  string
+	Title string `json:"title"`
+	Link  string `json:"link"`
 }
 
 func (api *API) dispatchUserBrowserNotification(user database.User, notif userBrowserNotification) error {

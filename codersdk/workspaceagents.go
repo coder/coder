@@ -184,13 +184,14 @@ type WorkspaceAgent struct {
 }
 
 type WorkspaceAgentTask struct {
-	ID        uuid.UUID `json:"id"`
-	AgentID   uuid.UUID `json:"agent_id"`
-	CreatedAt time.Time `json:"created_at"`
-	Reporter  string    `json:"reporter"`
-	Summary   string    `json:"summary"`
-	LinkTo    string    `json:"link_to"`
-	Icon      string    `json:"icon"`
+	ID         uuid.UUID `json:"id"`
+	AgentID    uuid.UUID `json:"agent_id"`
+	CreatedAt  time.Time `json:"created_at"`
+	Reporter   string    `json:"reporter"`
+	Summary    string    `json:"summary"`
+	URL        string    `json:"url"`
+	Icon       string    `json:"icon"`
+	Completion bool      `json:"completion"`
 }
 
 type WorkspaceAgentLogSource struct {

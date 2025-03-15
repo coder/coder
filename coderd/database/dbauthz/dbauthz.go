@@ -1030,10 +1030,6 @@ func (q *querier) customRoleCheck(ctx context.Context, role database.CustomRole)
 	return nil
 }
 
-func (q *querier) GetWorkspaceAgentTasks(ctx context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentTask, error) {
-	panic("not implemented")
-}
-
 func (q *querier) AcquireLock(ctx context.Context, id int64) error {
 	return q.db.AcquireLock(ctx, id)
 }
@@ -2633,6 +2629,14 @@ func (q *querier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]databas
 	return q.db.GetUsersByIDs(ctx, ids)
 }
 
+func (q *querier) GetVAPIDPrivateKey(ctx context.Context) (string, error) {
+	return q.db.GetVAPIDPrivateKey(ctx)
+}
+
+func (q *querier) GetVAPIDPublicKey(ctx context.Context) (string, error) {
+	return q.db.GetVAPIDPublicKey(ctx)
+}
+
 func (q *querier) GetWorkspaceAgentAndLatestBuildByAuthToken(ctx context.Context, authToken uuid.UUID) (database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow, error) {
 	// This is a system function
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
@@ -2738,7 +2742,7 @@ func (q *querier) GetWorkspaceAgentStatsAndLabels(ctx context.Context, createdAf
 }
 
 func (q *querier) GetWorkspaceAgentTasksByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAgentTask, error) {
-	panic("not implemented")
+	return q.db.GetWorkspaceAgentTasksByAgentIDs(ctx, ids)
 }
 
 func (q *querier) GetWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) ([]database.GetWorkspaceAgentUsageStatsRow, error) {
@@ -3370,6 +3374,14 @@ func (q *querier) InsertUserLink(ctx context.Context, arg database.InsertUserLin
 	return q.db.InsertUserLink(ctx, arg)
 }
 
+func (q *querier) InsertVAPIDPrivateKey(ctx context.Context, value string) error {
+	return q.db.InsertVAPIDPrivateKey(ctx, value)
+}
+
+func (q *querier) InsertVAPIDPublicKey(ctx context.Context, value string) error {
+	return q.db.InsertVAPIDPublicKey(ctx, value)
+}
+
 func (q *querier) InsertVolumeResourceMonitor(ctx context.Context, arg database.InsertVolumeResourceMonitorParams) (database.WorkspaceAgentVolumeResourceMonitor, error) {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceWorkspaceAgentResourceMonitor); err != nil {
 		return database.WorkspaceAgentVolumeResourceMonitor{}, err
@@ -3441,7 +3453,7 @@ func (q *querier) InsertWorkspaceAgentStats(ctx context.Context, arg database.In
 }
 
 func (q *querier) InsertWorkspaceAgentTask(ctx context.Context, arg database.InsertWorkspaceAgentTaskParams) (database.WorkspaceAgentTask, error) {
-	panic("not implemented")
+	return q.db.InsertWorkspaceAgentTask(ctx, arg)
 }
 
 func (q *querier) InsertWorkspaceApp(ctx context.Context, arg database.InsertWorkspaceAppParams) (database.WorkspaceApp, error) {
@@ -4064,7 +4076,7 @@ func (q *querier) UpdateUserAppearanceSettings(ctx context.Context, arg database
 }
 
 func (q *querier) UpdateUserBrowserNotificationSubscription(ctx context.Context, arg database.UpdateUserBrowserNotificationSubscriptionParams) error {
-	panic("not implemented")
+	return q.db.UpdateUserBrowserNotificationSubscription(ctx, arg)
 }
 
 func (q *querier) UpdateUserDeletedByID(ctx context.Context, id uuid.UUID) error {
@@ -4294,7 +4306,7 @@ func (q *querier) UpdateWorkspaceAgentStartupByID(ctx context.Context, arg datab
 }
 
 func (q *querier) UpdateWorkspaceAgentTask(ctx context.Context, arg database.UpdateWorkspaceAgentTaskParams) error {
-	panic("not implemented")
+	return q.db.UpdateWorkspaceAgentTask(ctx, arg)
 }
 
 func (q *querier) UpdateWorkspaceAppHealthByID(ctx context.Context, arg database.UpdateWorkspaceAppHealthByIDParams) error {

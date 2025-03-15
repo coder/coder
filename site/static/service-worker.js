@@ -9,6 +9,15 @@ self.addEventListener('activate', (event) => {
 
 // Handle push event to show notifications
 self.addEventListener('push', (event) => {
+  // {
+  //   title: String;
+  //   body: String;
+  //   icon: String;
+  //   actions: Array<{
+  //     title: String;
+  //     link: String;
+  //   }>;
+  // }
   let payload;
   try {
     payload = event.data.json();
@@ -19,10 +28,13 @@ self.addEventListener('push', (event) => {
     };
   }
 
-  const title = payload.title || 'Coder Notification';
+  console.log("PAYLOAD", payload);
+
+  const title = payload.title || 'no title';
   const options = {
     body: payload.body || '',
-    icon: '/favicon.ico',
+    icon: payload.icon || '/favicon.ico',
+    actions: payload.actions || [],
     data: payload.data || {}
   };
 

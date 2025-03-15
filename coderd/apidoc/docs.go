@@ -10545,6 +10545,9 @@ const docTemplate = `{
                     "description": "ExternalURL references the current Coder version.\nFor production builds, this will link directly to a release. For development builds, this will link to a commit.",
                     "type": "string"
                 },
+                "notifications_vapid_public_key": {
+                    "type": "string"
+                },
                 "provisioner_api_version": {
                     "description": "ProvisionerAPIVersion is the current version of the Provisioner API",
                     "type": "string"
@@ -16314,6 +16317,9 @@ const docTemplate = `{
                 "agent_id": {
                     "type": "string"
                 },
+                "completion": {
+                    "type": "boolean"
+                },
                 "created_at": {
                     "type": "string"
                 },
@@ -16323,13 +16329,13 @@ const docTemplate = `{
                 "id": {
                     "type": "string"
                 },
-                "link_to": {
-                    "type": "string"
-                },
                 "reporter": {
                     "type": "string"
                 },
                 "summary": {
+                    "type": "string"
+                },
+                "url": {
                     "type": "string"
                 }
             }

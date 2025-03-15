@@ -178,12 +178,13 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
           "tasks": [
             {
               "agent_id": "string",
+              "completion": true,
               "created_at": "string",
               "icon": "string",
               "id": "string",
-              "link_to": "string",
               "reporter": "string",
-              "summary": "string"
+              "summary": "string",
+              "url": "string"
             }
           ],
           "troubleshooting_url": "string",
@@ -406,12 +407,13 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
           "tasks": [
             {
               "agent_id": "string",
+              "completion": true,
               "created_at": "string",
               "icon": "string",
               "id": "string",
-              "link_to": "string",
               "reporter": "string",
-              "summary": "string"
+              "summary": "string",
+              "url": "string"
             }
           ],
           "troubleshooting_url": "string",
@@ -749,12 +751,13 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
         "tasks": [
           {
             "agent_id": "string",
+            "completion": true,
             "created_at": "string",
             "icon": "string",
             "id": "string",
-            "link_to": "string",
             "reporter": "string",
-            "summary": "string"
+            "summary": "string",
+            "url": "string"
           }
         ],
         "troubleshooting_url": "string",
@@ -868,12 +871,13 @@ Status Code **200**
 | `»» task_waiting_for_user_input` | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» tasks`                       | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
 | `»»» agent_id`                   | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» completion`                 | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»» created_at`                 | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» icon`                       | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» id`                         | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
-| `»»» link_to`                    | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» reporter`                   | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» summary`                    | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» url`                        | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» troubleshooting_url`         | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» updated_at`                  | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»» version`                     | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
@@ -1101,12 +1105,13 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
           "tasks": [
             {
               "agent_id": "string",
+              "completion": true,
               "created_at": "string",
               "icon": "string",
               "id": "string",
-              "link_to": "string",
               "reporter": "string",
-              "summary": "string"
+              "summary": "string",
+              "url": "string"
             }
           ],
           "troubleshooting_url": "string",
@@ -1402,12 +1407,13 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
             "tasks": [
               {
                 "agent_id": "string",
+                "completion": true,
                 "created_at": "string",
                 "icon": "string",
                 "id": "string",
-                "link_to": "string",
                 "reporter": "string",
-                "summary": "string"
+                "summary": "string",
+                "url": "string"
               }
             ],
             "troubleshooting_url": "string",
@@ -1577,12 +1583,13 @@ Status Code **200**
 | `»»» task_waiting_for_user_input` | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»» tasks`                       | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» agent_id`                   | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» completion`                 | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» created_at`                 | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» icon`                       | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» id`                         | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
-| `»»»» link_to`                    | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» reporter`                   | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» summary`                    | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» url`                        | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» troubleshooting_url`         | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» updated_at`                  | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»»» version`                     | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
@@ -1869,12 +1876,13 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
           "tasks": [
             {
               "agent_id": "string",
+              "completion": true,
               "created_at": "string",
               "icon": "string",
               "id": "string",
-              "link_to": "string",
               "reporter": "string",
-              "summary": "string"
+              "summary": "string",
+              "url": "string"
             }
           ],
           "troubleshooting_url": "string",

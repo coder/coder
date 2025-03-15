@@ -377,7 +377,23 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 				Use:   "mcp",
 				Short: "Start the MCP server",
 				Handler: func(inv *serpent.Invocation) error {
-					return agentmcp.New(inv.Context())
+					client := agentsdk.New(r.agentURL)
+					token, _ := inv.ParsedFlags().GetString(varAgentToken)
+					if token == "" {
+						tokenFile, _ := inv.ParsedFlags().GetString(varAgentTokenFile)
+						if tokenFile != "" {
+							tokenBytes, err := os.ReadFile(tokenFile)
+							if err != nil {
+								return xerrors.Errorf("read token file %q: %w", tokenFile, err)
+							}
+							token = strings.TrimSpace(string(tokenBytes))
+						}
+					}
+					if token == "" {
+						return xerrors.Errorf("CODER_AGENT_TOKEN or CODER_AGENT_TOKEN_FILE must be set for token auth")
+					}
+					client.SetSessionToken(token)
+					return agentmcp.New(inv.Context(), client)
 				},
 			},
 			{
@@ -401,7 +417,35 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 					},
 				},
 				Handler: func(inv *serpent.Invocation) error {
-					return agentclaude.New(inv.Context(), claudeAPIKey, claudeSystemPrompt, claudeTaskPrompt)
+					client := agentsdk.New(r.agentURL)
+					token, _ := inv.ParsedFlags().GetString(varAgentToken)
+					if token == "" {
+						tokenFile, _ := inv.ParsedFlags().GetString(varAgentTokenFile)
+						if tokenFile != "" {
+							tokenBytes, err := os.ReadFile(tokenFile)
+							if err != nil {
+								return xerrors.Errorf("read token file %q: %w", tokenFile, err)
+							}
+							token = strings.TrimSpace(string(tokenBytes))
+						}
+					}
+					if token == "" {
+						return xerrors.Errorf("CODER_AGENT_TOKEN or CODER_AGENT_TOKEN_FILE must be set for token auth")
+					}
+					client.SetSessionToken(token)
+
+					client.PostTask(inv.Context(), agentsdk.PostTaskRequest{
+						Reporter:   "claude",
+						Summary:    "Starting on your task...",
+						Icon:       "🤖",
+						Completion: false,
+					})
+
+					return agentclaude.New(inv.Context(), claudeAPIKey, claudeSystemPrompt, claudeTaskPrompt, func() {
+						_ = client.PatchTasks(inv.Context(), agentsdk.PatchTasksRequest{
+							WaitingForUserInput: true,
+						})
+					})
 				},
 			},
 		},

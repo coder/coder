@@ -1696,8 +1696,9 @@ CREATE TABLE workspace_agent_tasks (
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     reporter text NOT NULL,
     summary text NOT NULL,
-    link_to text NOT NULL,
-    icon text NOT NULL
+    url text,
+    icon text,
+    completion boolean DEFAULT false NOT NULL
 );
 
 CREATE TABLE workspace_agent_volume_resource_monitors (

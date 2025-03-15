@@ -229,6 +229,7 @@ export const MockBuildInfo: TypesGen.BuildInfoResponse = {
 	upgrade_message: "My custom upgrade message",
 	deployment_id: "510d407f-e521-4180-b559-eab4a6d802b8",
 	telemetry: true,
+	notifications_vapid_public_key: "",
 };
 
 export const MockSupportLinks: TypesGen.LinkConfig[] = [
@@ -974,6 +975,9 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
 		"vscode_insiders",
 		"web_terminal",
 	],
+	tasks: [],
+	task_notifications: false,
+	task_waiting_for_user_input: false,
 };
 
 export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {

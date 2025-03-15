@@ -3125,6 +3125,10 @@ type BuildInfoResponse struct {
 
 	// DeploymentID is the unique identifier for this deployment.
 	DeploymentID string `json:"deployment_id"`
+
+	// NotificationsVAPIDPublicKey is the public key for browser push notifications.
+	// This is randomly generated when coderd first starts.
+	NotificationsVAPIDPublicKey string `json:"notifications_vapid_public_key"`
 }
 
 type WorkspaceProxyBuildInfo struct {

@@ -8475,6 +8475,28 @@ func (q *sqlQuerier) GetRuntimeConfig(ctx context.Context, key string) (string, 
 	return value, err
 }
 
+const getVAPIDPrivateKey = `-- name: GetVAPIDPrivateKey :one
+SELECT value FROM site_configs WHERE key = 'vapid_private_key'
+`
+
+func (q *sqlQuerier) GetVAPIDPrivateKey(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getVAPIDPrivateKey)
+	var value string
+	err := row.Scan(&value)
+	return value, err
+}
+
+const getVAPIDPublicKey = `-- name: GetVAPIDPublicKey :one
+SELECT value FROM site_configs WHERE key = 'vapid_public_key'
+`
+
+func (q *sqlQuerier) GetVAPIDPublicKey(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getVAPIDPublicKey)
+	var value string
+	err := row.Scan(&value)
+	return value, err
+}
+
 const insertDERPMeshKey = `-- name: InsertDERPMeshKey :exec
 INSERT INTO site_configs (key, value) VALUES ('derp_mesh_key', $1)
 `
@@ -8490,6 +8512,24 @@ INSERT INTO site_configs (key, value) VALUES ('deployment_id', $1)
 
 func (q *sqlQuerier) InsertDeploymentID(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, insertDeploymentID, value)
+	return err
+}
+
+const insertVAPIDPrivateKey = `-- name: InsertVAPIDPrivateKey :exec
+INSERT INTO site_configs (key, value) VALUES ('vapid_private_key', $1)
+`
+
+func (q *sqlQuerier) InsertVAPIDPrivateKey(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, insertVAPIDPrivateKey, value)
+	return err
+}
+
+const insertVAPIDPublicKey = `-- name: InsertVAPIDPublicKey :exec
+INSERT INTO site_configs (key, value) VALUES ('vapid_public_key', $1)
+`
+
+func (q *sqlQuerier) InsertVAPIDPublicKey(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, insertVAPIDPublicKey, value)
 	return err
 }
 
@@ -14688,7 +14728,7 @@ func (q *sqlQuerier) InsertWorkspaceAgentStats(ctx context.Context, arg InsertWo
 }
 
 const getWorkspaceAgentTasksByAgentIDs = `-- name: GetWorkspaceAgentTasksByAgentIDs :many
-SELECT id, agent_id, created_at, reporter, summary, link_to, icon FROM workspace_agent_tasks
+SELECT id, agent_id, created_at, reporter, summary, url, icon, completion FROM workspace_agent_tasks
 WHERE agent_id = ANY($1::uuid[])
 ORDER BY created_at DESC
 `
@@ -14708,8 +14748,9 @@ func (q *sqlQuerier) GetWorkspaceAgentTasksByAgentIDs(ctx context.Context, ids [
 			&i.CreatedAt,
 			&i.Reporter,
 			&i.Summary,
-			&i.LinkTo,
+			&i.Url,
 			&i.Icon,
+			&i.Completion,
 		); err != nil {
 			return nil, err
 		}
@@ -14731,8 +14772,9 @@ INSERT INTO workspace_agent_tasks (
     created_at,
     reporter,
     summary,
-    link_to,
-    icon
+    url,
+    icon,
+    completion
 ) VALUES (
     $1,
     $2,
@@ -14740,18 +14782,20 @@ INSERT INTO workspace_agent_tasks (
     $4,
     $5,
     $6,
-    $7
-) RETURNING id, agent_id, created_at, reporter, summary, link_to, icon
+    $7,
+    $8
+) RETURNING id, agent_id, created_at, reporter, summary, url, icon, completion
 `
 
 type InsertWorkspaceAgentTaskParams struct {
-	ID        uuid.UUID `db:"id" json:"id"`
-	AgentID   uuid.UUID `db:"agent_id" json:"agent_id"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
-	Reporter  string    `db:"reporter" json:"reporter"`
-	Summary   string    `db:"summary" json:"summary"`
-	LinkTo    string    `db:"link_to" json:"link_to"`
-	Icon      string    `db:"icon" json:"icon"`
+	ID         uuid.UUID      `db:"id" json:"id"`
+	AgentID    uuid.UUID      `db:"agent_id" json:"agent_id"`
+	CreatedAt  time.Time      `db:"created_at" json:"created_at"`
+	Reporter   string         `db:"reporter" json:"reporter"`
+	Summary    string         `db:"summary" json:"summary"`
+	Url        sql.NullString `db:"url" json:"url"`
+	Icon       sql.NullString `db:"icon" json:"icon"`
+	Completion bool           `db:"completion" json:"completion"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceAgentTask(ctx context.Context, arg InsertWorkspaceAgentTaskParams) (WorkspaceAgentTask, error) {
@@ -14761,8 +14805,9 @@ func (q *sqlQuerier) InsertWorkspaceAgentTask(ctx context.Context, arg InsertWor
 		arg.CreatedAt,
 		arg.Reporter,
 		arg.Summary,
-		arg.LinkTo,
+		arg.Url,
 		arg.Icon,
+		arg.Completion,
 	)
 	var i WorkspaceAgentTask
 	err := row.Scan(
@@ -14771,8 +14816,9 @@ func (q *sqlQuerier) InsertWorkspaceAgentTask(ctx context.Context, arg InsertWor
 		&i.CreatedAt,
 		&i.Reporter,
 		&i.Summary,
-		&i.LinkTo,
+		&i.Url,
 		&i.Icon,
+		&i.Completion,
 	)
 	return i, err
 }

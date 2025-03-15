@@ -5,16 +5,18 @@ INSERT INTO workspace_agent_tasks (
     created_at,
     reporter,
     summary,
-    link_to,
-    icon
+    url,
+    icon,
+    completion
 ) VALUES (
     @id,
     @agent_id,
     @created_at,
     @reporter,
     @summary,
-    @link_to,
-    @icon
+    @url,
+    @icon,
+    @completion
 ) RETURNING *;
 
 

@@ -324,13 +324,14 @@ func OAuth2ProviderApp(accessURL *url.URL, dbApp database.OAuth2ProviderApp) cod
 
 func WorkspaceAgentTask(task database.WorkspaceAgentTask) codersdk.WorkspaceAgentTask {
 	return codersdk.WorkspaceAgentTask{
-		ID:        task.ID,
-		CreatedAt: task.CreatedAt,
-		AgentID:   task.AgentID,
-		Reporter:  task.Reporter,
-		Summary:   task.Summary,
-		LinkTo:    task.LinkTo,
-		Icon:      task.Icon,
+		ID:         task.ID,
+		CreatedAt:  task.CreatedAt,
+		AgentID:    task.AgentID,
+		Reporter:   task.Reporter,
+		Summary:    task.Summary,
+		URL:        task.Url.String,
+		Icon:       task.Icon.String,
+		Completion: task.Completion,
 	}
 }
 

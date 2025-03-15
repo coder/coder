@@ -3127,6 +3127,36 @@ func (mr *MockStoreMockRecorder) GetUsersByIDs(ctx, ids any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUsersByIDs", reflect.TypeOf((*MockStore)(nil).GetUsersByIDs), ctx, ids)
 }
 
+// GetVAPIDPrivateKey mocks base method.
+func (m *MockStore) GetVAPIDPrivateKey(ctx context.Context) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetVAPIDPrivateKey", ctx)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetVAPIDPrivateKey indicates an expected call of GetVAPIDPrivateKey.
+func (mr *MockStoreMockRecorder) GetVAPIDPrivateKey(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVAPIDPrivateKey", reflect.TypeOf((*MockStore)(nil).GetVAPIDPrivateKey), ctx)
+}
+
+// GetVAPIDPublicKey mocks base method.
+func (m *MockStore) GetVAPIDPublicKey(ctx context.Context) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetVAPIDPublicKey", ctx)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetVAPIDPublicKey indicates an expected call of GetVAPIDPublicKey.
+func (mr *MockStoreMockRecorder) GetVAPIDPublicKey(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVAPIDPublicKey", reflect.TypeOf((*MockStore)(nil).GetVAPIDPublicKey), ctx)
+}
+
 // GetWorkspaceAgentAndLatestBuildByAuthToken mocks base method.
 func (m *MockStore) GetWorkspaceAgentAndLatestBuildByAuthToken(ctx context.Context, authToken uuid.UUID) (database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow, error) {
 	m.ctrl.T.Helper()
@@ -4481,6 +4511,34 @@ func (m *MockStore) InsertUserLink(ctx context.Context, arg database.InsertUserL
 func (mr *MockStoreMockRecorder) InsertUserLink(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertUserLink", reflect.TypeOf((*MockStore)(nil).InsertUserLink), ctx, arg)
+}
+
+// InsertVAPIDPrivateKey mocks base method.
+func (m *MockStore) InsertVAPIDPrivateKey(ctx context.Context, value string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertVAPIDPrivateKey", ctx, value)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertVAPIDPrivateKey indicates an expected call of InsertVAPIDPrivateKey.
+func (mr *MockStoreMockRecorder) InsertVAPIDPrivateKey(ctx, value any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertVAPIDPrivateKey", reflect.TypeOf((*MockStore)(nil).InsertVAPIDPrivateKey), ctx, value)
+}
+
+// InsertVAPIDPublicKey mocks base method.
+func (m *MockStore) InsertVAPIDPublicKey(ctx context.Context, value string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertVAPIDPublicKey", ctx, value)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertVAPIDPublicKey indicates an expected call of InsertVAPIDPublicKey.
+func (mr *MockStoreMockRecorder) InsertVAPIDPublicKey(ctx, value any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertVAPIDPublicKey", reflect.TypeOf((*MockStore)(nil).InsertVAPIDPublicKey), ctx, value)
 }
 
 // InsertVolumeResourceMonitor mocks base method.

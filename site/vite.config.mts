@@ -58,6 +58,11 @@ export default defineConfig({
 				secure: process.env.NODE_ENV === "production",
 				rewrite: (path) => path.replace(/\/+/g, "/"),
 			},
+			"/bin": {
+				changeOrigin: true,
+				target: process.env.CODER_HOST || "http://localhost:3000",
+				secure: process.env.NODE_ENV === "production",
+			},
 			"/api": {
 				ws: true,
 				changeOrigin: true,

@@ -604,14 +604,31 @@ func (c *Client) PostLogSource(ctx context.Context, req PostLogSourceRequest) (c
 }
 
 type PostTaskRequest struct {
-	Reporter string `json:"reporter"`
-	Summary  string `json:"summary"`
-	LinkTo   string `json:"link_to"`
-	Icon     string `json:"icon"`
+	Reporter   string `json:"reporter"`
+	Summary    string `json:"summary"`
+	URL        string `json:"url"`
+	Icon       string `json:"icon"`
+	Completion bool   `json:"completion"`
 }
 
 func (c *Client) PostTask(ctx context.Context, req PostTaskRequest) error {
 	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/task", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return codersdk.ReadBodyAsError(res)
+	}
+	return nil
+}
+
+type PatchTasksRequest struct {
+	WaitingForUserInput bool `json:"waiting_for_user_input"`
+}
+
+func (c *Client) PatchTasks(ctx context.Context, req PatchTasksRequest) error {
+	res, err := c.SDK.Request(ctx, http.MethodPatch, "/api/v2/workspaceagents/me/tasks", req)
 	if err != nil {
 		return err
 	}

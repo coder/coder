@@ -2322,6 +2322,16 @@ class ApiMethods {
 		return res.data;
 	};
 
+	updateUserBrowserNotificationSubscription = async (
+		userId: string,
+		req: TypesGen.UpdateUserBrowserNotificationSubscription,
+	) => {
+		await this.axios.post<void>(
+			`/api/v2/users/${userId}/notifications/browser`,
+			req,
+		);
+	};
+
 	postTestNotification = async () => {
 		await this.axios.post<void>("/api/v2/notifications/test");
 	};

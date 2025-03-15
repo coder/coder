@@ -263,6 +263,7 @@ export interface BuildInfoResponse {
 	readonly provisioner_api_version: string;
 	readonly upgrade_message: string;
 	readonly deployment_id: string;
+	readonly notifications_vapid_public_key: string;
 }
 
 // From codersdk/workspacebuilds.go
@@ -2707,6 +2708,11 @@ export interface UpdateUserAppearanceSettingsRequest {
 	readonly theme_preference: string;
 }
 
+// From codersdk/users.go
+export interface UpdateUserBrowserNotificationSubscription {
+	readonly subscription: UserBrowserNotificationSubscription | null;
+}
+
 // From codersdk/notifications.go
 export interface UpdateUserNotificationPreferences {
 	readonly template_disabled_map: Record<string, boolean>;
@@ -2821,6 +2827,18 @@ export interface UserActivityInsightsResponse {
 // From codersdk/users.go
 export interface UserAppearanceSettings {
 	readonly theme_preference: string;
+}
+
+// From codersdk/users.go
+export interface UserBrowserNotificationKeys {
+	readonly auth: string;
+	readonly p256dh: string;
+}
+
+// From codersdk/users.go
+export interface UserBrowserNotificationSubscription {
+	readonly endpoint: string;
+	readonly keys: UserBrowserNotificationKeys;
 }
 
 // From codersdk/insights.go
@@ -3004,6 +3022,10 @@ export interface WorkspaceAgent {
 	readonly display_apps: readonly DisplayApp[];
 	readonly log_sources: readonly WorkspaceAgentLogSource[];
 	readonly scripts: readonly WorkspaceAgentScript[];
+	readonly task_waiting_for_user_input: boolean;
+	readonly task_notifications: boolean;
+	readonly task_completed_at?: string;
+	readonly tasks: readonly WorkspaceAgentTask[];
 	readonly startup_script_behavior: WorkspaceAgentStartupScriptBehavior;
 }
 
@@ -3171,6 +3193,18 @@ export const WorkspaceAgentStatuses: WorkspaceAgentStatus[] = [
 	"disconnected",
 	"timeout",
 ];
+
+// From codersdk/workspaceagents.go
+export interface WorkspaceAgentTask {
+	readonly id: string;
+	readonly agent_id: string;
+	readonly created_at: string;
+	readonly reporter: string;
+	readonly summary: string;
+	readonly url: string;
+	readonly icon: string;
+	readonly completion: boolean;
+}
 
 // From codersdk/workspaceapps.go
 export interface WorkspaceApp {

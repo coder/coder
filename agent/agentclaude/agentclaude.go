@@ -15,7 +15,7 @@ import (
 	"github.com/spf13/afero"
 )
 
-func New(ctx context.Context, apiKey, systemPrompt, taskPrompt string) error {
+func New(ctx context.Context, apiKey, systemPrompt, taskPrompt string, onPause func()) error {
 	claudePath, err := exec.LookPath("claude")
 	if err != nil {
 		return fmt.Errorf("claude not found: %w", err)
@@ -25,7 +25,13 @@ func New(ctx context.Context, apiKey, systemPrompt, taskPrompt string) error {
 
 The user is running this task entirely autonomously.
 
-You must use the coder-agent MCP server to periodically report your progress.
+Use the coder-agent MCP server to report your progress. You must report when you:
+- Start a new task.
+- Complete a task (e.g. push a commit, open a PR, etc.)
+- Make progress on a task.
+
+You should report your progress frequently. Try to report as much as possible.
+
 If you do not, the user will not be able to see your progress.
 `, systemPrompt, "")
 	if err != nil {
@@ -42,34 +48,31 @@ If you do not, the user will not be able to see your progress.
 		ProjectDirectory: wd,
 		APIKey:           apiKey,
 		AllowedTools:     []string{},
-		MCPServers:       map[string]ClaudeConfigMCP{
-			// "coder-agent": {
-			// 	Command: "coder",
-			// 	Args:    []string{"agent", "mcp"},
-			// },
+		MCPServers: map[string]ClaudeConfigMCP{
+			"coder-agent": {
+				Command: "coder",
+				Args:    []string{"agent", "mcp"},
+				Env: map[string]string{
+					"CODER_AGENT_TOKEN": os.Getenv("CODER_AGENT_TOKEN"),
+				},
+			},
 		},
 	})
 	if err != nil {
 		return fmt.Errorf("failed to configure claude: %w", err)
 	}
 
-	cmd := exec.CommandContext(ctx, claudePath, taskPrompt)
-
-	handlePause := func() {
-		// We need to notify the user that we've paused!
-		fmt.Println("We would normally notify the user...")
-	}
-
+	cmd := exec.CommandContext(ctx, claudePath, "--dangerously-skip-permissions", taskPrompt)
 	// Create a simple wrapper that starts monitoring only after first write
 	stdoutWriter := &delayedPauseWriter{
 		writer:      os.Stdout,
 		pauseWindow: 2 * time.Second,
-		onPause:     handlePause,
+		onPause:     onPause,
 	}
 	stderrWriter := &delayedPauseWriter{
 		writer:      os.Stderr,
 		pauseWindow: 2 * time.Second,
-		onPause:     handlePause,
+		onPause:     onPause,
 	}
 
 	cmd.Stdout = stdoutWriter
@@ -197,6 +200,11 @@ func injectClaudeMD(fs afero.Fs, coderPrompt, systemPrompt string, configPath st
 		newContent += cleanContent
 	}
 
+	err = fs.MkdirAll(filepath.Dir(configPath), 0755)
+	if err != nil {
+		return fmt.Errorf("failed to create claude config directory: %w", err)
+	}
+
 	// Write the updated content back to the file
 	err = afero.WriteFile(fs, configPath, []byte(newContent), 0644)
 	if err != nil {
@@ -226,9 +234,9 @@ type ClaudeConfig struct {
 }
 
 type ClaudeConfigMCP struct {
-	Command string
-	Args    []string
-	Env     map[string]string
+	Command string            `json:"command"`
+	Args    []string          `json:"args"`
+	Env     map[string]string `json:"env"`
 }
 
 func configureClaude(fs afero.Fs, cfg ClaudeConfig) error {
@@ -240,7 +248,6 @@ func configureClaude(fs afero.Fs, cfg ClaudeConfig) error {
 	if err != nil {
 		if os.IsNotExist(err) {
 			config = make(map[string]any)
-			err = nil
 		} else {
 			return fmt.Errorf("failed to stat claude config: %w", err)
 		}
@@ -265,6 +272,7 @@ func configureClaude(fs afero.Fs, cfg ClaudeConfig) error {
 	config["hasCompletedOnboarding"] = true
 	// Stops Claude from asking for permissions.
 	config["bypassPermissionsModeAccepted"] = true
+	config["autoUpdaterStatus"] = "disabled"
 
 	projects, ok := config["projects"].(map[string]any)
 	if !ok {
@@ -291,6 +299,8 @@ func configureClaude(fs afero.Fs, cfg ClaudeConfig) error {
 		allowedTools = append(allowedTools, tool)
 	}
 	project["allowedTools"] = allowedTools
+	project["hasTrustDialogAccepted"] = true
+	project["hasCompletedProjectOnboarding"] = true
 
 	mcpServers, ok := project["mcpServers"].(map[string]any)
 	if !ok {

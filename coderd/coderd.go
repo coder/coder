@@ -256,6 +256,9 @@ type Options struct {
 	AppEncryptionKeyCache cryptokeys.EncryptionKeycache
 	OIDCConvertKeyCache   cryptokeys.SigningKeycache
 	Clock                 quartz.Clock
+
+	NotificationsVAPIDPublicKey  string
+	NotificationsVAPIDPrivateKey string
 }
 
 // @title Coder API
@@ -560,21 +563,25 @@ func New(options *Options) *API {
 			options.Pubsub,
 		),
 		dbRolluper: options.DatabaseRolluper,
+
+		NotificationsVAPIDPublicKey:  options.NotificationsVAPIDPublicKey,
+		NotificationsVAPIDPrivateKey: options.NotificationsVAPIDPrivateKey,
 	}
 
 	f := appearance.NewDefaultFetcher(api.DeploymentValues.DocsURL.String())
 	api.AppearanceFetcher.Store(&f)
 	api.PortSharer.Store(&portsharing.DefaultPortSharer)
 	buildInfo := codersdk.BuildInfoResponse{
-		ExternalURL:           buildinfo.ExternalURL(),
-		Version:               buildinfo.Version(),
-		AgentAPIVersion:       AgentAPIVersionREST,
-		ProvisionerAPIVersion: proto.CurrentVersion.String(),
-		DashboardURL:          api.AccessURL.String(),
-		WorkspaceProxy:        false,
-		UpgradeMessage:        api.DeploymentValues.CLIUpgradeMessage.String(),
-		DeploymentID:          api.DeploymentID,
-		Telemetry:             api.Telemetry.Enabled(),
+		ExternalURL:                 buildinfo.ExternalURL(),
+		Version:                     buildinfo.Version(),
+		AgentAPIVersion:             AgentAPIVersionREST,
+		ProvisionerAPIVersion:       proto.CurrentVersion.String(),
+		DashboardURL:                api.AccessURL.String(),
+		WorkspaceProxy:              false,
+		UpgradeMessage:              api.DeploymentValues.CLIUpgradeMessage.String(),
+		DeploymentID:                api.DeploymentID,
+		Telemetry:                   api.Telemetry.Enabled(),
+		NotificationsVAPIDPublicKey: api.NotificationsVAPIDPublicKey,
 	}
 	api.SiteHandler = site.New(&site.Options{
 		BinFS:             binFS,
@@ -1212,6 +1219,7 @@ func New(options *Options) *API {
 				}))
 				r.Get("/rpc", api.workspaceAgentRPC)
 				r.Patch("/logs", api.patchWorkspaceAgentLogs)
+				r.Patch("/tasks", api.patchWorkspaceAgentTasks)
 				// Deprecated: Required to support legacy agents
 				r.Get("/gitauth", api.workspaceAgentsGitAuth)
 				r.Get("/external-auth", api.workspaceAgentsExternalAuth)
