@@ -12351,12 +12351,12 @@ func (q *FakeQuerier) GetTemplateGroupRoles(_ context.Context, id uuid.UUID) ([]
 	groups := make([]database.TemplateGroup, 0, len(template.GroupACL))
 	for k, v := range template.GroupACL {
 		group, err := q.getGroupByIDNoLock(context.Background(), uuid.MustParse(k))
-		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return nil, xerrors.Errorf("get group by ID: %w", err)
 		}
 		// We don't delete groups from the map if they
 		// get deleted so just skip.
-		if xerrors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) {
 			continue
 		}
 
@@ -12388,12 +12388,12 @@ func (q *FakeQuerier) GetTemplateUserRoles(_ context.Context, id uuid.UUID) ([]d
 	users := make([]database.TemplateUser, 0, len(template.UserACL))
 	for k, v := range template.UserACL {
 		user, err := q.getUserByIDNoLock(uuid.MustParse(k))
-		if err != nil && xerrors.Is(err, sql.ErrNoRows) {
+		if err != nil && errors.Is(err, sql.ErrNoRows) {
 			return nil, xerrors.Errorf("get user by ID: %w", err)
 		}
 		// We don't delete users from the map if they
 		// get deleted so just skip.
-		if xerrors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) {
 			continue
 		}
 

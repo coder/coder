@@ -3,6 +3,7 @@
 package reaper
 
 import (
+	"errors"
 	"os"
 	"os/signal"
 	"syscall"
@@ -79,7 +80,7 @@ func ForkReap(opt ...Option) error {
 
 	var wstatus syscall.WaitStatus
 	_, err = syscall.Wait4(pid, &wstatus, 0, nil)
-	for xerrors.Is(err, syscall.EINTR) {
+	for errors.Is(err, syscall.EINTR) {
 		_, err = syscall.Wait4(pid, &wstatus, 0, nil)
 	}
 	return err

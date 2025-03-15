@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -314,7 +315,7 @@ func assertSDKError(t *testing.T, err error) *Error {
 
 	var sdkErr *Error
 	require.Error(t, err)
-	require.True(t, xerrors.As(err, &sdkErr))
+	require.True(t, errors.As(err, &sdkErr))
 
 	return sdkErr
 }

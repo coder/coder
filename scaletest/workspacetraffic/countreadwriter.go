@@ -6,8 +6,6 @@ import (
 	"io"
 	"time"
 
-	"golang.org/x/xerrors"
-
 	"github.com/coder/websocket"
 )
 
@@ -56,10 +54,10 @@ func reportableErr(err error) bool {
 	if err == nil {
 		return false
 	}
-	if xerrors.Is(err, io.EOF) {
+	if errors.Is(err, io.EOF) {
 		return false
 	}
-	if xerrors.Is(err, context.Canceled) {
+	if errors.Is(err, context.Canceled) {
 		return false
 	}
 	var wsErr websocket.CloseError

@@ -12,6 +12,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/base64"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"math/big"
@@ -328,7 +329,7 @@ func EphemeralEcho(
 	})
 	logger.Debug(ctx, "echo.Serve done", slog.Error(exitErr))
 
-	if xerrors.Is(exitErr, context.Canceled) {
+	if errors.Is(exitErr, context.Canceled) {
 		return nil
 	}
 	return exitErr
@@ -454,11 +455,11 @@ func (r *remoteConnector) authenticate(conn io.ReadWriter) (waiter, error) {
 		}
 		return w, nil
 	}
-	if xerrors.Is(err, errInvalidJobID) {
+	if errors.Is(err, errInvalidJobID) {
 		_, wErr := conn.Write([]byte(responseInvalidJobID))
 		r.logger.Debug(r.ctx, "responded invalid jobID", slog.Error(wErr))
 	}
-	if xerrors.Is(err, errInvalidToken) {
+	if errors.Is(err, errInvalidToken) {
 		_, wErr := conn.Write([]byte(responseInvalidToken))
 		r.logger.Debug(r.ctx, "responded invalid token", slog.Error(wErr))
 	}

@@ -3,6 +3,7 @@ package coderd
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -19,7 +20,7 @@ import (
 // be used by a user.
 func (api *API) PrimaryRegion(ctx context.Context) (codersdk.Region, error) {
 	deploymentIDStr, err := api.Database.GetDeploymentID(ctx)
-	if xerrors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, sql.ErrNoRows) {
 		// This shouldn't happen but it's pretty easy to avoid this causing
 		// issues by falling back to a nil UUID.
 		deploymentIDStr = uuid.Nil.String()

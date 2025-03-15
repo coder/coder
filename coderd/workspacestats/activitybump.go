@@ -2,10 +2,10 @@ package workspacestats
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
@@ -46,7 +46,7 @@ func ActivityBumpWorkspace(ctx context.Context, log slog.Logger, db database.Sto
 		WorkspaceID:   workspaceID,
 	})
 	if err != nil {
-		if !xerrors.Is(err, context.Canceled) && !database.IsQueryCanceledError(err) {
+		if !errors.Is(err, context.Canceled) && !database.IsQueryCanceledError(err) {
 			// Bump will fail if the context is canceled, but this is ok.
 			log.Error(ctx, "activity bump failed", slog.Error(err),
 				slog.F("workspace_id", workspaceID),

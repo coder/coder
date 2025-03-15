@@ -1,10 +1,9 @@
 package coderd
 
 import (
+	"errors"
 	"net/http"
 	"time"
-
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -100,7 +99,7 @@ func (api *API) putUserQuietHoursSchedule(rw http.ResponseWriter, r *http.Reques
 	}
 
 	opts, err := (*api.UserQuietHoursScheduleStore.Load()).Set(ctx, api.Database, user.ID, params.Schedule)
-	if xerrors.Is(err, schedule.ErrUserCannotSetQuietHoursSchedule) {
+	if errors.Is(err, schedule.ErrUserCannotSetQuietHoursSchedule) {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Users cannot set custom quiet hours schedule due to deployment configuration.",
 		})

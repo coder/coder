@@ -42,7 +42,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
@@ -454,7 +453,7 @@ func TestAgent_SessionTTYExitCode(t *testing.T) {
 	require.NoError(t, err)
 	err = session.Wait()
 	exitErr := &ssh.ExitError{}
-	require.True(t, xerrors.As(err, &exitErr))
+	require.True(t, errors.As(err, &exitErr))
 	if runtime.GOOS == "windows" {
 		assert.Equal(t, 1, exitErr.ExitStatus())
 	} else {

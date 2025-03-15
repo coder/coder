@@ -304,7 +304,7 @@ func (s *server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Acquire
 	acqCtx, acqCancel := context.WithTimeout(ctx, s.acquireJobLongPollDur)
 	defer acqCancel()
 	job, err := s.Acquirer.AcquireJob(acqCtx, s.OrganizationID, s.ID, s.Provisioners, s.Tags)
-	if xerrors.Is(err, context.DeadlineExceeded) {
+	if errors.Is(err, context.DeadlineExceeded) {
 		s.Logger.Debug(ctx, "successful cancel")
 		return &proto.AcquiredJob{}, nil
 	}
@@ -351,7 +351,7 @@ func (s *server) AcquireJobWithCancel(stream proto.DRPCProvisionerDaemon_Acquire
 		je = <-jec
 	case je = <-jec:
 	}
-	if xerrors.Is(je.err, context.Canceled) {
+	if errors.Is(je.err, context.Canceled) {
 		s.Logger.Debug(streamCtx, "successful cancel")
 		err := stream.Send(&proto.AcquiredJob{})
 		if err != nil {
@@ -469,7 +469,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			return nil, failJob(fmt.Sprintf("get template version: %s", err))
 		}
 		templateVariables, err := s.Database.GetTemplateVersionVariables(ctx, templateVersion.ID)
-		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return nil, failJob(fmt.Sprintf("get template version variables: %s", err))
 		}
 		template, err := s.Database.GetTemplateByID(ctx, templateVersion.TemplateID.UUID)
@@ -482,7 +482,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		}
 		var ownerSSHPublicKey, ownerSSHPrivateKey string
 		if ownerSSHKey, err := s.Database.GetGitSSHKey(ctx, owner.ID); err != nil {
-			if !xerrors.Is(err, sql.ErrNoRows) {
+			if !errors.Is(err, sql.ErrNoRows) {
 				return nil, failJob(fmt.Sprintf("get owner ssh key: %s", err))
 			}
 		} else {
@@ -651,7 +651,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			return nil, failJob(fmt.Sprintf("get template version: %s", err))
 		}
 		templateVariables, err := s.Database.GetTemplateVersionVariables(ctx, templateVersion.ID)
-		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return nil, failJob(fmt.Sprintf("get template version variables: %s", err))
 		}
 
@@ -730,7 +730,7 @@ func (s *server) includeLastVariableValues(ctx context.Context, templateVersionI
 	}
 
 	templateVariables, err := s.Database.GetTemplateVersionVariables(ctx, template.ActiveVersionID)
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, xerrors.Errorf("get template version variables: %w", err)
 	}
 
@@ -2236,7 +2236,7 @@ func deleteSessionToken(ctx context.Context, db database.Store, workspace databa
 			err = tx.DeleteAPIKeyByID(ctx, key.ID)
 		}
 
-		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return xerrors.Errorf("get api key by name: %w", err)
 		}
 

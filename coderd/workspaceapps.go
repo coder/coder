@@ -3,6 +3,7 @@ package coderd
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"net/http"
 	"net/url"
 	"strings"
@@ -187,7 +188,7 @@ func (api *API) ValidWorkspaceAppHostname(ctx context.Context, host string, opts
 			AllowAccessUrl:        opts.AllowProxyAccessURL,
 			AllowWildcardHostname: opts.AllowProxyWildcard,
 		})
-		if xerrors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) {
 			return "", nil
 		}
 		if err != nil {

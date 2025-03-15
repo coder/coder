@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/rand" //#nosec // this is only used for shuffling an array to pick random jobs to unhang
 	"time"
@@ -137,7 +138,7 @@ func (d *Detector) Start() {
 					return
 				}
 				stats := d.run(t)
-				if stats.Error != nil && !xerrors.As(stats.Error, &acquireLockError{}) {
+				if stats.Error != nil && !errors.As(stats.Error, &acquireLockError{}) {
 					d.log.Warn(d.ctx, "error running workspace build hang detector once", slog.Error(stats.Error))
 				}
 				if d.stats != nil {
@@ -198,7 +199,7 @@ func (d *Detector) run(t time.Time) Stats {
 
 		err := unhangJob(ctx, log, d.db, d.pubsub, job.ID)
 		if err != nil {
-			if !(xerrors.As(err, &acquireLockError{}) || xerrors.As(err, &jobIneligibleError{})) {
+			if !(errors.As(err, &acquireLockError{}) || errors.As(err, &jobIneligibleError{})) {
 				log.Error(ctx, "error forcefully terminating hung provisioner job", slog.Error(err))
 			}
 			continue
@@ -333,7 +334,7 @@ func unhangJob(ctx context.Context, log slog.Logger, db database.Store, pub pubs
 					WorkspaceID: build.WorkspaceID,
 					BuildNumber: build.BuildNumber - 1,
 				})
-				if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+				if err != nil && !errors.Is(err, sql.ErrNoRows) {
 					return xerrors.Errorf("get previous workspace build: %w", err)
 				}
 				if err == nil {

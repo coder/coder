@@ -567,7 +567,7 @@ func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req co
 	user, err := api.Database.GetUserByEmailOrUsername(dbauthz.AsSystemRestricted(ctx), database.GetUserByEmailOrUsernameParams{
 		Email: req.Email,
 	})
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		logger.Error(ctx, "unable to fetch user by email", slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error.",
@@ -1713,7 +1713,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 					_, err := tx.GetUserByEmailOrUsername(dbauthz.AsSystemRestricted(ctx), database.GetUserByEmailOrUsernameParams{
 						Username: params.Username,
 					})
-					if xerrors.Is(err, sql.ErrNoRows) {
+					if errors.Is(err, sql.ErrNoRows) {
 						validUsername = true
 						break
 					}
@@ -1960,7 +1960,7 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 	var claims OAuthConvertStateClaims
 
 	err = jwtutils.Verify(ctx, api.OIDCConvertKeyCache, jwtCookie.Value, &claims)
-	if xerrors.Is(err, cryptokeys.ErrKeyNotFound) || xerrors.Is(err, cryptokeys.ErrKeyInvalid) || xerrors.Is(err, jose.ErrCryptoFailure) || xerrors.Is(err, jwtutils.ErrMissingKeyID) {
+	if errors.Is(err, cryptokeys.ErrKeyNotFound) || errors.Is(err, cryptokeys.ErrKeyInvalid) || errors.Is(err, jose.ErrCryptoFailure) || errors.Is(err, jwtutils.ErrMissingKeyID) {
 		// These errors are probably because the user is mixing 2 coder deployments.
 		return database.User{}, idpsync.HTTPError{
 			Code: http.StatusBadRequest,

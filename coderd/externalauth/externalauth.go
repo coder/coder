@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -104,7 +105,7 @@ func (e InvalidTokenError) Error() string {
 
 func IsInvalidTokenError(err error) bool {
 	var invalidTokenError InvalidTokenError
-	return xerrors.As(err, &invalidTokenError)
+	return errors.As(err, &invalidTokenError)
 }
 
 // RefreshToken automatically refreshes the token if expired and permitted.
@@ -1024,7 +1025,7 @@ func isFailedRefresh(existingToken *oauth2.Token, err error) bool {
 	}
 
 	var oauthErr *oauth2.RetrieveError
-	if xerrors.As(err, &oauthErr) {
+	if errors.As(err, &oauthErr) {
 		switch oauthErr.ErrorCode {
 		// Known error codes that indicate a failed refresh.
 		// 'Spec' means the code is defined in the spec.

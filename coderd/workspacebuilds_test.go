@@ -957,7 +957,7 @@ func TestWorkspaceBuildDebugMode(t *testing.T) {
 		// Template author: expect an error as the debug mode is disabled
 		require.NotNil(t, err)
 		var sdkError *codersdk.Error
-		isSdkError := xerrors.As(err, &sdkError)
+		isSdkError := errors.As(err, &sdkError)
 		require.True(t, isSdkError)
 		require.Contains(t, sdkError.Message, "Terraform debug mode is disabled in the deployment configuration.")
 	})
@@ -994,7 +994,7 @@ func TestWorkspaceBuildDebugMode(t *testing.T) {
 		// Regular user: expect an error
 		require.NotNil(t, err)
 		var sdkError *codersdk.Error
-		isSdkError := xerrors.As(err, &sdkError)
+		isSdkError := errors.As(err, &sdkError)
 		require.True(t, isSdkError)
 		require.Contains(t, sdkError.Message, "Workspace builds with a custom log level are restricted to administrators only.")
 	})
@@ -1031,7 +1031,7 @@ func TestWorkspaceBuildDebugMode(t *testing.T) {
 		// Template author: expect an error as the debug mode is disabled
 		require.NotNil(t, err)
 		var sdkError *codersdk.Error
-		isSdkError := xerrors.As(err, &sdkError)
+		isSdkError := errors.As(err, &sdkError)
 		require.True(t, isSdkError)
 		require.Contains(t, sdkError.Message, "Workspace builds with a custom log level are restricted to administrators only.")
 	})

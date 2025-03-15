@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/base64"
+	"errors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -429,7 +430,7 @@ func (db *dbCrypt) ensureEncrypted(ctx context.Context) error {
 	return db.InTx(func(s database.Store) error {
 		// Attempt to read the encrypted test fields of the currently active keys.
 		ks, err := s.GetDBCryptKeys(ctx)
-		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return err
 		}
 

@@ -2,6 +2,7 @@ package agenttest
 
 import (
 	"context"
+	"errors"
 	"io"
 	"slices"
 	"sync"
@@ -61,7 +62,7 @@ func NewClient(t testing.TB,
 	require.NoError(t, err)
 	server := drpcserver.NewWithOptions(mux, drpcserver.Options{
 		Log: func(err error) {
-			if xerrors.Is(err, io.EOF) {
+			if errors.Is(err, io.EOF) {
 				return
 			}
 			logger.Debug(context.Background(), "drpc server error", slog.Error(err))

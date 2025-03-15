@@ -3,6 +3,7 @@ package idpsync
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -44,7 +45,7 @@ func (s AGPLIDPSync) GroupSyncSettings(ctx context.Context, orgID uuid.UUID, db 
 	orgResolver := s.Manager.OrganizationResolver(db, orgID)
 	settings, err := s.SyncSettings.Group.Resolve(ctx, orgResolver)
 	if err != nil {
-		if !xerrors.Is(err, runtimeconfig.ErrEntryNotFound) {
+		if !errors.Is(err, runtimeconfig.ErrEntryNotFound) {
 			return nil, xerrors.Errorf("resolve group sync settings: %w", err)
 		}
 

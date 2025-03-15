@@ -543,7 +543,7 @@ func (f *logFollower) follow() {
 	// query for logs once right away, so we can get historical data from before
 	// subscription
 	if err := f.query(); err != nil {
-		if f.ctx.Err() == nil && !xerrors.Is(err, io.EOF) {
+		if f.ctx.Err() == nil && !errors.Is(err, io.EOF) {
 			// neither context expiry, nor EOF, close and log
 			f.logger.Error(f.ctx, "failed to query logs", slog.Error(err))
 			err = f.conn.Close(websocket.StatusInternalError, err.Error())
@@ -585,7 +585,7 @@ func (f *logFollower) follow() {
 			}
 			err = f.query()
 			if err != nil {
-				if f.ctx.Err() == nil && !xerrors.Is(err, io.EOF) {
+				if f.ctx.Err() == nil && !errors.Is(err, io.EOF) {
 					// neither context expiry, nor EOF, close and log
 					f.logger.Error(f.ctx, "failed to query logs", slog.Error(err))
 					err = f.conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("%s", err.Error()))

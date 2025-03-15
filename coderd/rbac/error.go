@@ -8,7 +8,6 @@ import (
 
 	"github.com/open-policy-agent/opa/topdown"
 	"github.com/open-policy-agent/opa/v1/rego"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/httpapi/httpapiconstraints"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -120,7 +119,7 @@ func (*UnauthorizedError) As(target interface{}) bool {
 // location of the query that was canceled, which does not matter.
 func correctCancelError(err error) error {
 	e := new(topdown.Error)
-	if xerrors.As(err, &e) || e.Code == topdown.CancelErr {
+	if errors.As(err, &e) || e.Code == topdown.CancelErr {
 		return context.Canceled
 	}
 	return err
