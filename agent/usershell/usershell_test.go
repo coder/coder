@@ -43,4 +43,13 @@ func TestGet(t *testing.T) {
 			require.NotEmpty(t, shell)
 		})
 	})
+
+	t.Run("Remove GOTRACEBACK=none", func(t *testing.T) {
+		t.Setenv("GOTRACEBACK", "none")
+		ei := usershell.SystemEnvInfo{}
+		env := ei.Environ()
+		for _, e := range env {
+			require.NotEqual(t, "GOTRACEBACK=none", e)
+		}
+	})
 }

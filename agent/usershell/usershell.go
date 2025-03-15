@@ -50,7 +50,17 @@ func (SystemEnvInfo) User() (*user.User, error) {
 }
 
 func (SystemEnvInfo) Environ() []string {
-	return os.Environ()
+	var env []string
+	for _, e := range os.Environ() {
+		// Ignore GOTRACEBACK=none, as it disables stack traces, it can
+		// be set on the agent due to changes in capabilities.
+		// https://pkg.go.dev/runtime#hdr-Security.
+		if e == "GOTRACEBACK=none" {
+			continue
+		}
+		env = append(env, e)
+	}
+	return env
 }
 
 func (SystemEnvInfo) HomeDir() (string, error) {
