@@ -34,6 +34,7 @@ services:
     image: "postgres:16"
     ports:
       - "5432:5432"
+    privileged: true
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-username} # The PostgreSQL user (useful to connect to the database)
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password} # The PostgreSQL password (useful to connect to the database)
