@@ -1725,8 +1725,6 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			return nil, xerrors.Errorf("update workspace: %w", err)
 		}
 
-		// If this job was initiated by the prebuilds user and the job is not a prebuild, then it MUST be the claim run.
-		// TODO: maybe add some specific metadata to indicate this rather than imputing it.
 		if input.PrebuildClaimedByUser != uuid.Nil {
 			channel := agentsdk.PrebuildClaimedChannel(workspace.ID)
 			s.Logger.Info(ctx, "workspace prebuild successfully claimed by user",
