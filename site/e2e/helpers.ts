@@ -61,7 +61,7 @@ export function requireTerraformProvisioner() {
 	test.skip(!requireTerraformTests);
 }
 
-type LoginOptions = {
+export type LoginOptions = {
 	username: string;
 	email: string;
 	password: string;
@@ -1126,4 +1126,31 @@ export async function createOrganization(page: Page): Promise<{
 	await expect(page.getByText("Organization created.")).toBeVisible();
 
 	return { name, displayName, description };
+}
+
+/**
+ * @param organization organization name
+ * @param user user email or username
+ */
+export async function addUserToOrganization(
+	page: Page,
+	organization: string,
+	user: string,
+	roles: string[] = [],
+): Promise<void> {
+	await page.goto(`/organizations/${organization}`, {
+		waitUntil: "domcontentloaded",
+	});
+
+	await page.getByPlaceholder("User email or username").fill(user);
+	await page.getByRole("option", { name: user }).click();
+	await page.getByRole("button", { name: "Add user" }).click();
+	const addedRow = page.locator("tr", { hasText: user });
+	await expect(addedRow).toBeVisible();
+
+	await addedRow.getByLabel("Edit user roles").click();
+	for (const role of roles) {
+		await page.getByText(role).click();
+	}
+	await page.mouse.click(10, 10); // close the popover by clicking outside of it
 }
