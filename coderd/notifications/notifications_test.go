@@ -71,7 +71,7 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
-	store, _ := dbtestutil.NewDB(t)
+	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
 	method := database.NotificationMethodSmtp
 
@@ -80,7 +80,7 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 	interceptor := &syncInterceptor{Store: store}
 	cfg := defaultNotificationsConfig(method)
 	cfg.RetryInterval = serpent.Duration(time.Hour) // Ensure retries don't interfere with the test
-	mgr, err := notifications.NewManager(cfg, interceptor, defaultHelpers(), createMetrics(), logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, interceptor, pubsub, defaultHelpers(), createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{
 		method:                           handler,
@@ -138,7 +138,7 @@ func TestSMTPDispatch(t *testing.T) {
 
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
-	store, _ := dbtestutil.NewDB(t)
+	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
 
 	// start mock SMTP server
@@ -161,7 +161,7 @@ func TestSMTPDispatch(t *testing.T) {
 		Hello:     "localhost",
 	}
 	handler := newDispatchInterceptor(dispatch.NewSMTPHandler(cfg.SMTP, logger.Named("smtp")))
-	mgr, err := notifications.NewManager(cfg, store, defaultHelpers(), createMetrics(), logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, store, pubsub, defaultHelpers(), createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{
 		method:                           handler,
@@ -204,7 +204,7 @@ func TestWebhookDispatch(t *testing.T) {
 
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
-	store, _ := dbtestutil.NewDB(t)
+	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
 
 	sent := make(chan dispatch.WebhookPayload, 1)
@@ -230,7 +230,7 @@ func TestWebhookDispatch(t *testing.T) {
 	cfg.Webhook = codersdk.NotificationsWebhookConfig{
 		Endpoint: *serpent.URLOf(endpoint),
 	}
-	mgr, err := notifications.NewManager(cfg, store, defaultHelpers(), createMetrics(), logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, store, pubsub, defaultHelpers(), createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
@@ -284,7 +284,7 @@ func TestBackpressure(t *testing.T) {
 		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
 	}
 
-	store, _ := dbtestutil.NewDB(t)
+	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitShort))
@@ -319,7 +319,7 @@ func TestBackpressure(t *testing.T) {
 	defer fetchTrap.Close()
 
 	// GIVEN: a notification manager whose updates will be intercepted
-	mgr, err := notifications.NewManager(cfg, storeInterceptor, defaultHelpers(), createMetrics(),
+	mgr, err := notifications.NewManager(cfg, storeInterceptor, pubsub, defaultHelpers(), createMetrics(),
 		logger.Named("manager"), notifications.WithTestClock(mClock))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{
@@ -417,7 +417,7 @@ func TestRetries(t *testing.T) {
 	const maxAttempts = 3
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
-	store, _ := dbtestutil.NewDB(t)
+	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
 
 	// GIVEN: a mock HTTP server which will receive webhooksand a map to track the dispatch attempts
@@ -468,7 +468,7 @@ func TestRetries(t *testing.T) {
 	// Intercept calls to submit the buffered updates to the store.
 	storeInterceptor := &syncInterceptor{Store: store}
 
-	mgr, err := notifications.NewManager(cfg, storeInterceptor, defaultHelpers(), createMetrics(), logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, storeInterceptor, pubsub, defaultHelpers(), createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
@@ -517,7 +517,7 @@ func TestExpiredLeaseIsRequeued(t *testing.T) {
 
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
-	store, _ := dbtestutil.NewDB(t)
+	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
 
 	// GIVEN: a manager which has its updates intercepted and paused until measurements can be taken
@@ -539,7 +539,7 @@ func TestExpiredLeaseIsRequeued(t *testing.T) {
 	mgrCtx, cancelManagerCtx := context.WithCancel(dbauthz.AsNotifier(context.Background()))
 	t.Cleanup(cancelManagerCtx)
 
-	mgr, err := notifications.NewManager(cfg, noopInterceptor, defaultHelpers(), createMetrics(), logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, noopInterceptor, pubsub, defaultHelpers(), createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
@@ -588,7 +588,7 @@ func TestExpiredLeaseIsRequeued(t *testing.T) {
 	// Intercept calls to submit the buffered updates to the store.
 	storeInterceptor := &syncInterceptor{Store: store}
 	handler := newDispatchInterceptor(&fakeHandler{})
-	mgr, err = notifications.NewManager(cfg, storeInterceptor, defaultHelpers(), createMetrics(), logger.Named("manager"))
+	mgr, err = notifications.NewManager(cfg, storeInterceptor, pubsub, defaultHelpers(), createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{
 		method:                           handler,
@@ -620,7 +620,7 @@ func TestExpiredLeaseIsRequeued(t *testing.T) {
 func TestInvalidConfig(t *testing.T) {
 	t.Parallel()
 
-	store, _ := dbtestutil.NewDB(t)
+	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
 
 	// GIVEN: invalid config with dispatch period <= lease period
@@ -633,7 +633,7 @@ func TestInvalidConfig(t *testing.T) {
 	cfg.DispatchTimeout = serpent.Duration(leasePeriod)
 
 	// WHEN: the manager is created with invalid config
-	_, err := notifications.NewManager(cfg, store, defaultHelpers(), createMetrics(), logger.Named("manager"))
+	_, err := notifications.NewManager(cfg, store, pubsub, defaultHelpers(), createMetrics(), logger.Named("manager"))
 
 	// THEN: the manager will fail to be created, citing invalid config as error
 	require.ErrorIs(t, err, notifications.ErrInvalidDispatchTimeout)
@@ -646,7 +646,7 @@ func TestNotifierPaused(t *testing.T) {
 
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
-	store, _ := dbtestutil.NewDB(t)
+	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
 
 	// Prepare the test.
@@ -657,7 +657,7 @@ func TestNotifierPaused(t *testing.T) {
 	const fetchInterval = time.Millisecond * 100
 	cfg := defaultNotificationsConfig(method)
 	cfg.FetchInterval = serpent.Duration(fetchInterval)
-	mgr, err := notifications.NewManager(cfg, store, defaultHelpers(), createMetrics(), logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, store, pubsub, defaultHelpers(), createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{
 		method:                           handler,
@@ -1229,6 +1229,8 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				// nolint:gocritic // Unit test.
 				ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 
+				_, pubsub := dbtestutil.NewDB(t)
+
 				// smtp config shared between client and server
 				smtpConfig := codersdk.NotificationsEmailConfig{
 					Hello: hello,
@@ -1296,6 +1298,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				smtpManager, err := notifications.NewManager(
 					smtpCfg,
 					*db,
+					pubsub,
 					defaultHelpers(),
 					createMetrics(),
 					logger.Named("manager"),
@@ -1410,6 +1413,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 					return &db, &api.Logger, &user
 				}()
 
+				_, pubsub := dbtestutil.NewDB(t)
 				// nolint:gocritic // Unit test.
 				ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 
@@ -1437,6 +1441,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				webhookManager, err := notifications.NewManager(
 					webhookCfg,
 					*db,
+					pubsub,
 					defaultHelpers(),
 					createMetrics(),
 					logger.Named("manager"),
@@ -1613,13 +1618,13 @@ func TestDisabledAfterEnqueue(t *testing.T) {
 
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
-	store, _ := dbtestutil.NewDB(t)
+	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
 
 	method := database.NotificationMethodSmtp
 	cfg := defaultNotificationsConfig(method)
 
-	mgr, err := notifications.NewManager(cfg, store, defaultHelpers(), createMetrics(), logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, store, pubsub, defaultHelpers(), createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
@@ -1670,7 +1675,7 @@ func TestCustomNotificationMethod(t *testing.T) {
 
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
-	store, _ := dbtestutil.NewDB(t)
+	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
 
 	received := make(chan uuid.UUID, 1)
@@ -1728,7 +1733,7 @@ func TestCustomNotificationMethod(t *testing.T) {
 		Endpoint: *serpent.URLOf(endpoint),
 	}
 
-	mgr, err := notifications.NewManager(cfg, store, defaultHelpers(), createMetrics(), logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, store, pubsub, defaultHelpers(), createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = mgr.Stop(ctx)
@@ -1811,13 +1816,13 @@ func TestNotificationDuplicates(t *testing.T) {
 
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
-	store, _ := dbtestutil.NewDB(t)
+	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
 
 	method := database.NotificationMethodSmtp
 	cfg := defaultNotificationsConfig(method)
 
-	mgr, err := notifications.NewManager(cfg, store, defaultHelpers(), createMetrics(), logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, store, pubsub, defaultHelpers(), createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))

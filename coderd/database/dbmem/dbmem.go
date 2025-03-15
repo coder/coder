@@ -3296,34 +3296,52 @@ func (q *FakeQuerier) GetFilteredInboxNotificationsByUserID(_ context.Context, a
 	defer q.mutex.RUnlock()
 
 	notifications := make([]database.InboxNotification, 0)
-	for _, notification := range q.inboxNotifications {
+	// TODO : after using go version >= 1.23 , we can change this one to https://pkg.go.dev/slices#Backward
+	for idx := len(q.inboxNotifications) - 1; idx >= 0; idx-- {
+		notification := q.inboxNotifications[idx]
+
 		if notification.UserID == arg.UserID {
+			if !arg.CreatedAtOpt.IsZero() && !notification.CreatedAt.Before(arg.CreatedAtOpt) {
+				continue
+			}
+
+			templateFound := false
 			for _, template := range arg.Templates {
-				templateFound := false
 				if notification.TemplateID == template {
 					templateFound = true
 				}
-
-				if !templateFound {
-					continue
-				}
 			}
 
+			if len(arg.Templates) > 0 && !templateFound {
+				continue
+			}
+
+			targetsFound := true
 			for _, target := range arg.Targets {
-				isFound := false
+				targetFound := false
 				for _, insertedTarget := range notification.Targets {
 					if insertedTarget == target {
-						isFound = true
+						targetFound = true
 						break
 					}
 				}
 
-				if !isFound {
-					continue
+				if !targetFound {
+					targetsFound = false
+					break
 				}
-
-				notifications = append(notifications, notification)
 			}
+
+			if !targetsFound {
+				continue
+			}
+
+			if (arg.LimitOpt == 0 && len(notifications) == 25) ||
+				(arg.LimitOpt != 0 && len(notifications) == int(arg.LimitOpt)) {
+				break
+			}
+
+			notifications = append(notifications, notification)
 		}
 	}
 
@@ -8223,7 +8241,7 @@ func (q *FakeQuerier) InsertInboxNotification(_ context.Context, arg database.In
 		Content:    arg.Content,
 		Icon:       arg.Icon,
 		Actions:    arg.Actions,
-		CreatedAt:  time.Now(),
+		CreatedAt:  arg.CreatedAt,
 	}
 
 	q.inboxNotifications = append(q.inboxNotifications, notification)

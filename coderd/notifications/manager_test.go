@@ -33,7 +33,7 @@ func TestBufferedUpdates(t *testing.T) {
 
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
-	store, _ := dbtestutil.NewDB(t)
+	store, ps := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
 
 	interceptor := &syncInterceptor{Store: store}
@@ -44,7 +44,7 @@ func TestBufferedUpdates(t *testing.T) {
 	cfg.StoreSyncInterval = serpent.Duration(time.Hour) // Ensure we don't sync the store automatically.
 
 	// GIVEN: a manager which will pass or fail notifications based on their "nice" labels
-	mgr, err := notifications.NewManager(cfg, interceptor, defaultHelpers(), createMetrics(), logger.Named("notifications-manager"))
+	mgr, err := notifications.NewManager(cfg, interceptor, ps, defaultHelpers(), createMetrics(), logger.Named("notifications-manager"))
 	require.NoError(t, err)
 
 	handlers := map[database.NotificationMethod]notifications.Handler{
@@ -168,11 +168,11 @@ func TestStopBeforeRun(t *testing.T) {
 
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
-	store, _ := dbtestutil.NewDB(t)
+	store, ps := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
 
 	// GIVEN: a standard manager
-	mgr, err := notifications.NewManager(defaultNotificationsConfig(database.NotificationMethodSmtp), store, defaultHelpers(), createMetrics(), logger.Named("notifications-manager"))
+	mgr, err := notifications.NewManager(defaultNotificationsConfig(database.NotificationMethodSmtp), store, ps, defaultHelpers(), createMetrics(), logger.Named("notifications-manager"))
 	require.NoError(t, err)
 
 	// THEN: validate that the manager can be stopped safely without Run() having been called yet
