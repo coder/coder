@@ -6,7 +6,7 @@ import { hasFirstUserKey, meKey } from "api/queries/users";
 import type { Entitlements } from "api/typesGenerated";
 import { GlobalSnackbar } from "components/GlobalSnackbar/GlobalSnackbar";
 import { AuthProvider } from "contexts/auth/AuthProvider";
-import { permissionsToCheck } from "contexts/auth/permissions";
+import { permissionChecks } from "contexts/auth/permissions";
 import { DashboardContext } from "modules/dashboard/DashboardProvider";
 import { DeploymentSettingsContext } from "modules/management/DeploymentSettingsProvider";
 import { OrganizationSettingsContext } from "modules/management/OrganizationSettingsLayout";
@@ -114,7 +114,7 @@ export const withAuthProvider = (Story: FC, { parameters }: StoryContext) => {
 	queryClient.setQueryData(meKey, parameters.user);
 	queryClient.setQueryData(hasFirstUserKey, true);
 	queryClient.setQueryData(
-		getAuthorizationKey({ checks: permissionsToCheck }),
+		getAuthorizationKey({ checks: permissionChecks }),
 		parameters.permissions ?? {},
 	);
 
