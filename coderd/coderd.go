@@ -819,6 +819,10 @@ func New(options *Options) *API {
 		httpmw.CSRF(options.SecureAuthCookie),
 	)
 
+	if buildinfo.IsDev() {
+		r.Use(httpmw.RecordAuthzChecks)
+	}
+
 	// This incurs a performance hit from the middleware, but is required to make sure
 	// we do not override subdomain app routes.
 	r.Get("/latency-check", tracing.StatusWriterMiddleware(prometheusMW(LatencyCheck())).ServeHTTP)
