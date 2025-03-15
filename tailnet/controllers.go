@@ -867,6 +867,7 @@ type TunnelAllWorkspaceUpdatesController struct {
 	dnsHostSetter DNSHostsSetter
 	updateHandler UpdatesHandler
 	ownerUsername string
+	domainSuffix  string
 	logger        slog.Logger
 
 	mu      sync.Mutex
@@ -879,6 +880,7 @@ type Workspace struct {
 	Status proto.Workspace_Status
 
 	ownerUsername string
+	domainSuffix  string
 	agents        map[uuid.UUID]*Agent
 }
 
@@ -890,23 +892,29 @@ type Workspace struct {
 func (w *Workspace) updateDNSNames() error {
 	wsName := strings.ToLower(w.Name)
 	username := strings.ToLower(w.ownerUsername)
+	// Default to "coder" if no domainSuffix is set
+	domainSuffix := "coder"
+	if w.domainSuffix != "" {
+		domainSuffix = w.domainSuffix
+	}
+	
 	for id, a := range w.agents {
 		agentName := strings.ToLower(a.Name)
 		names := make(map[dnsname.FQDN][]netip.Addr)
 		// TODO: technically, DNS labels cannot start with numbers, but the rules are often not
 		//       strictly enforced.
-		fqdn, err := dnsname.ToFQDN(fmt.Sprintf("%s.%s.me.coder.", agentName, wsName))
+		fqdn, err := dnsname.ToFQDN(fmt.Sprintf("%s.%s.me.%s.", agentName, wsName, domainSuffix))
 		if err != nil {
 			return err
 		}
 		names[fqdn] = []netip.Addr{CoderServicePrefix.AddrFromUUID(a.ID)}
-		fqdn, err = dnsname.ToFQDN(fmt.Sprintf("%s.%s.%s.coder.", agentName, wsName, username))
+		fqdn, err = dnsname.ToFQDN(fmt.Sprintf("%s.%s.%s.%s.", agentName, wsName, username, domainSuffix))
 		if err != nil {
 			return err
 		}
 		names[fqdn] = []netip.Addr{CoderServicePrefix.AddrFromUUID(a.ID)}
 		if len(w.agents) == 1 {
-			fqdn, err := dnsname.ToFQDN(fmt.Sprintf("%s.coder.", wsName))
+			fqdn, err := dnsname.ToFQDN(fmt.Sprintf("%s.%s.", wsName, domainSuffix))
 			if err != nil {
 				return err
 			}
@@ -951,6 +959,7 @@ func (t *TunnelAllWorkspaceUpdatesController) New(client WorkspaceUpdatesClient)
 		dnsHostsSetter: t.dnsHostSetter,
 		updateHandler:  t.updateHandler,
 		ownerUsername:  t.ownerUsername,
+		domainSuffix:   t.domainSuffix,
 		recvLoopDone:   make(chan struct{}),
 		workspaces:     make(map[uuid.UUID]*Workspace),
 	}
@@ -994,6 +1003,7 @@ type tunnelUpdater struct {
 	dnsHostsSetter DNSHostsSetter
 	updateHandler  UpdatesHandler
 	ownerUsername  string
+	domainSuffix   string
 	recvLoopDone   chan struct{}
 
 	sync.Mutex
@@ -1117,6 +1127,7 @@ func (t *tunnelUpdater) handleUpdate(update *proto.WorkspaceUpdate) error {
 			Name:          uw.Name,
 			Status:        uw.Status,
 			ownerUsername: t.ownerUsername,
+			domainSuffix:  t.domainSuffix,
 			agents:        make(map[uuid.UUID]*Agent),
 		}
 		t.upsertWorkspaceLocked(w)
@@ -1272,10 +1283,11 @@ type TunnelAllOption func(t *TunnelAllWorkspaceUpdatesController)
 
 // WithDNS configures the tunnelAllWorkspaceUpdatesController to set DNS names for all workspaces
 // and agents it learns about.
-func WithDNS(d DNSHostsSetter, ownerUsername string) TunnelAllOption {
+func WithDNS(d DNSHostsSetter, ownerUsername string, domainSuffix string) TunnelAllOption {
 	return func(t *TunnelAllWorkspaceUpdatesController) {
 		t.dnsHostSetter = d
 		t.ownerUsername = ownerUsername
+		t.domainSuffix = domainSuffix
 	}
 }
 
