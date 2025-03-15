@@ -153,17 +153,27 @@ if [[ "$push" == 1 ]]; then
 	docker push "$image_tag" 1>&2
 fi
 
-log "--- Generating SBOM for Docker image ($image_tag)"
-syft "$image_tag" -o spdx-json >"${image_tag//[:\/]/_}.spdx.json"
+# Only generate SBOM if syft is available
+if command -v syft &> /dev/null; then
+	log "--- Generating SBOM for Docker image ($image_tag)"
+	syft "$image_tag" -o spdx-json >"${image_tag//[:\/]/_}.spdx.json"
+	
+	if [[ "$push" == 1 ]]; then
+		# Only attest if cosign is available
+		if command -v cosign &> /dev/null; then
+			log "--- Attesting SBOM to Docker image for $arch ($image_tag)"
+			COSIGN_EXPERIMENTAL=1 cosign clean "$image_tag"
 
-if [[ "$push" == 1 ]]; then
-	log "--- Attesting SBOM to Docker image for $arch ($image_tag)"
-	COSIGN_EXPERIMENTAL=1 cosign clean "$image_tag"
-
-	COSIGN_EXPERIMENTAL=1 cosign attest --type spdxjson \
-		--predicate "${image_tag//[:\/]/_}.spdx.json" \
-		--yes \
-		"$image_tag"
+			COSIGN_EXPERIMENTAL=1 cosign attest --type spdxjson \
+				--predicate "${image_tag//[:\/]/_}.spdx.json" \
+				--yes \
+				"$image_tag"
+		else
+			log "--- Skipping SBOM attestation: cosign not found"
+		fi
+	fi
+else
+	log "--- Skipping SBOM generation: syft not found"
 fi
 
 echo "$image_tag"
