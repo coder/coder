@@ -34,8 +34,9 @@ import (
 // It can be run manually as follows:
 //
 // CODER_TEST_USE_DOCKER=1 go test ./agent/agentcontainers -run TestDockerCLIContainerLister
+//
+//nolint:paralleltest // This test tends to flake when lots of containers start and stop in parallel.
 func TestIntegrationDocker(t *testing.T) {
-	t.Parallel()
 	if ctud, ok := os.LookupEnv("CODER_TEST_USE_DOCKER"); !ok || ctud != "1" {
 		t.Skip("Set CODER_TEST_USE_DOCKER=1 to run this test")
 	}
@@ -418,8 +419,9 @@ func TestConvertDockerVolume(t *testing.T) {
 // It can be run manually as follows:
 //
 // CODER_TEST_USE_DOCKER=1 go test ./agent/agentcontainers -run TestDockerEnvInfoer
+//
+//nolint:paralleltest // This test tends to flake when lots of containers start and stop in parallel.
 func TestDockerEnvInfoer(t *testing.T) {
-	t.Parallel()
 	if ctud, ok := os.LookupEnv("CODER_TEST_USE_DOCKER"); !ok || ctud != "1" {
 		t.Skip("Set CODER_TEST_USE_DOCKER=1 to run this test")
 	}
@@ -483,9 +485,8 @@ func TestDockerEnvInfoer(t *testing.T) {
 			expectedUserShell: "/bin/bash",
 		},
 	} {
+		//nolint:paralleltest // variable recapture no longer required
 		t.Run(fmt.Sprintf("#%d", idx), func(t *testing.T) {
-			t.Parallel()
-
 			// Start a container with the given image
 			// and environment variables
 			image := strings.Split(tt.image, ":")[0]
