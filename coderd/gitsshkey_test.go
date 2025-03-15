@@ -81,6 +81,7 @@ func TestGitSSHKey(t *testing.T) {
 			Auditor:            auditor,
 		})
 		res := coderdtest.CreateFirstUser(t, client)
+		auditor.ResetLogs()
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -93,8 +94,8 @@ func TestGitSSHKey(t *testing.T) {
 		require.GreaterOrEqual(t, key2.UpdatedAt, key1.UpdatedAt)
 		require.NotEmpty(t, key2.PublicKey)
 
-		require.Len(t, auditor.AuditLogs(), 2)
-		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[1].Action)
+		require.Len(t, auditor.AuditLogs(), 1)
+		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[0].Action)
 	})
 }
 

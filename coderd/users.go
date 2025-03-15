@@ -188,7 +188,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	//nolint:gocritic // needed to create first user
-	user, err := api.CreateUser(dbauthz.AsSystemRestricted(ctx), api.Database, CreateUserRequest{
+	user, memberships, err := api.CreateUser(dbauthz.AsSystemRestricted(ctx), api.Database, CreateUserRequest{
 		CreateUserRequestWithOrgs: codersdk.CreateUserRequestWithOrgs{
 			Email:    createUser.Email,
 			Username: createUser.Username,
@@ -209,6 +209,17 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 			Detail:  err.Error(),
 		})
 		return
+	}
+
+	for _, member := range memberships {
+		audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.AuditableOrganizationMember]{
+			Audit:          *api.Auditor.Load(),
+			Log:            api.Logger,
+			Action:         database.AuditActionCreate,
+			IP:             r.RemoteAddr,
+			OrganizationID: member.OrganizationID,
+			New:            member,
+		})
 	}
 
 	if api.RefreshEntitlements != nil {
@@ -481,7 +492,7 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := api.CreateUser(ctx, api.Database, CreateUserRequest{
+	user, memberships, err := api.CreateUser(ctx, api.Database, CreateUserRequest{
 		CreateUserRequestWithOrgs: req,
 		LoginType:                 loginType,
 		accountCreatorName:        accountCreator.Name,
@@ -502,6 +513,19 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	aReq.New = user
+
+	actorID := httpmw.APIKey(r).UserID
+	for _, member := range memberships {
+		audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.AuditableOrganizationMember]{
+			Audit:          *api.Auditor.Load(),
+			Log:            api.Logger,
+			Action:         database.AuditActionCreate,
+			IP:             r.RemoteAddr,
+			UserID:         actorID,
+			OrganizationID: member.OrganizationID,
+			New:            member,
+		})
+	}
 
 	// Report when users are added!
 	api.Telemetry.Report(&telemetry.Snapshot{
@@ -1364,11 +1388,11 @@ type CreateUserRequest struct {
 	RBACRoles          []string
 }
 
-func (api *API) CreateUser(ctx context.Context, store database.Store, req CreateUserRequest) (database.User, error) {
+func (api *API) CreateUser(ctx context.Context, store database.Store, req CreateUserRequest) (database.User, []database.AuditableOrganizationMember, error) {
 	// Ensure the username is valid. It's the caller's responsibility to ensure
 	// the username is valid and unique.
 	if usernameValid := codersdk.NameValid(req.Username); usernameValid != nil {
-		return database.User{}, xerrors.Errorf("invalid username %q: %w", req.Username, usernameValid)
+		return database.User{}, nil, xerrors.Errorf("invalid username %q: %w", req.Username, usernameValid)
 	}
 
 	// If the caller didn't specify rbac roles, default to
@@ -1379,9 +1403,8 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 	}
 
 	var user database.User
+	var memberships []database.AuditableOrganizationMember
 	err := store.InTx(func(tx database.Store) error {
-		orgRoles := make([]string, 0)
-
 		status := ""
 		if req.UserStatus != nil {
 			status = string(*req.UserStatus)
@@ -1429,28 +1452,31 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 		}
 
 		for _, orgID := range req.OrganizationIDs {
-			_, err = tx.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
+			member, err := tx.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
 				OrganizationID: orgID,
 				UserID:         user.ID,
 				CreatedAt:      dbtime.Now(),
 				UpdatedAt:      dbtime.Now(),
-				// By default give them membership to the organization.
-				Roles: orgRoles,
+				Roles:          []string{},
 			})
 			if err != nil {
 				return xerrors.Errorf("create organization member for %q: %w", orgID.String(), err)
 			}
+			memberships = append(memberships, member.Auditable(user.Username))
 		}
 
 		return nil
 	}, nil)
 	if err != nil || req.SkipNotifications {
-		return user, err
+		return user, memberships, err
 	}
+
+	// Only create audit logs for the created memberships if they were the direct
+	// result of user action. For example, a user admin creating a new user.
 
 	userAdmins, err := findUserAdmins(ctx, store)
 	if err != nil {
-		return user, xerrors.Errorf("find user admins: %w", err)
+		return user, memberships, xerrors.Errorf("find user admins: %w", err)
 	}
 
 	for _, u := range userAdmins {
@@ -1478,7 +1504,7 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 		}
 	}
 
-	return user, err
+	return user, memberships, nil
 }
 
 // findUserAdmins fetches all users with user admin permission including owners.

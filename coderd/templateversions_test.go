@@ -155,6 +155,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 			ProvisionPlan:  echo.PlanComplete,
 		})
 		require.NoError(t, err)
+		auditor.ResetLogs()
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -177,8 +178,8 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 			assert.True(t, version.MatchedProvisioners.MostRecentlySeen.Valid)
 		}
 
-		require.Len(t, auditor.AuditLogs(), 2)
-		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs()[1].Action)
+		require.Len(t, auditor.AuditLogs(), 1)
+		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs()[0].Action)
 
 		admin, err := client.User(ctx, user.UserID.String())
 		require.NoError(t, err)
@@ -1087,10 +1088,13 @@ func TestPatchActiveTemplateVersion(t *testing.T) {
 			Auditor:                  auditor,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
+		auditor.ResetLogs()
+
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		version = coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, nil, template.ID)
 		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		auditor.ResetLogs()
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -1100,8 +1104,8 @@ func TestPatchActiveTemplateVersion(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		require.Len(t, auditor.AuditLogs(), 6)
-		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[5].Action)
+		require.Len(t, auditor.AuditLogs(), 1)
+		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[0].Action)
 	})
 }
 

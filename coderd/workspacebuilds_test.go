@@ -786,21 +786,15 @@ func TestWorkspaceBuildStatus(t *testing.T) {
 	t.Parallel()
 
 	auditor := audit.NewMock()
-	numLogs := len(auditor.AuditLogs())
 	client, closeDaemon, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
 	user := coderdtest.CreateFirstUser(t, client)
-	numLogs++ // add an audit log for login
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-	numLogs++ // add an audit log for template version creation
-	numLogs++ // add an audit log for template version update
 
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	closeDaemon.Close()
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-	numLogs++ // add an audit log for template creation
 
 	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
-	numLogs++ // add an audit log for workspace creation
 
 	// initial returned state is "pending"
 	require.EqualValues(t, codersdk.WorkspaceStatusPending, workspace.LatestBuild.Status)
@@ -808,6 +802,7 @@ func TestWorkspaceBuildStatus(t *testing.T) {
 	closeDaemon = coderdtest.NewProvisionerDaemon(t, api)
 	// after successful build is "running"
 	_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+	auditor.ResetLogs()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
@@ -815,8 +810,6 @@ func TestWorkspaceBuildStatus(t *testing.T) {
 	workspace, err := client.Workspace(ctx, workspace.ID)
 	require.NoError(t, err)
 	require.EqualValues(t, codersdk.WorkspaceStatusRunning, workspace.LatestBuild.Status)
-
-	numLogs++ // add an audit log for workspace_build starting
 
 	// after successful stop is "stopped"
 	build := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
@@ -826,9 +819,8 @@ func TestWorkspaceBuildStatus(t *testing.T) {
 	require.EqualValues(t, codersdk.WorkspaceStatusStopped, workspace.LatestBuild.Status)
 
 	// assert an audit log has been created for workspace stopping
-	numLogs++ // add an audit log for workspace_build stop
-	require.Len(t, auditor.AuditLogs(), numLogs)
-	require.Equal(t, database.AuditActionStop, auditor.AuditLogs()[numLogs-1].Action)
+	require.Len(t, auditor.AuditLogs(), 1)
+	require.Equal(t, database.AuditActionStop, auditor.AuditLogs()[0].Action)
 
 	_ = closeDaemon.Close()
 	// after successful cancel is "canceled"

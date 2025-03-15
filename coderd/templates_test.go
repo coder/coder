@@ -569,6 +569,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		assert.Equal(t, (1 * time.Hour).Milliseconds(), template.ActivityBumpMillis)
+		auditor.ResetLogs()
 
 		req := codersdk.UpdateTemplateMeta{
 			Name:                         "new-template-name",
@@ -608,8 +609,8 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.Equal(t, req.ActivityBumpMillis, updated.ActivityBumpMillis)
 		assert.False(t, req.AllowUserCancelWorkspaceJobs)
 
-		require.Len(t, auditor.AuditLogs(), 5)
-		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[4].Action)
+		require.Len(t, auditor.AuditLogs(), 1)
+		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[0].Action)
 	})
 
 	t.Run("AlreadyExists", func(t *testing.T) {
@@ -1267,14 +1268,15 @@ func TestDeleteTemplate(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		auditor.ResetLogs()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client.DeleteTemplate(ctx, template.ID)
 		require.NoError(t, err)
 
-		require.Len(t, auditor.AuditLogs(), 5)
-		assert.Equal(t, database.AuditActionDelete, auditor.AuditLogs()[4].Action)
+		require.Len(t, auditor.AuditLogs(), 1)
+		assert.Equal(t, database.AuditActionDelete, auditor.AuditLogs()[0].Action)
 	})
 
 	t.Run("Workspaces", func(t *testing.T) {
