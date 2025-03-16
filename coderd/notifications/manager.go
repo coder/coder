@@ -125,6 +125,7 @@ func defaultHandlers(cfg codersdk.NotificationsConfig, log slog.Logger, store St
 	return map[database.NotificationMethod]Handler{
 		database.NotificationMethodSmtp:    dispatch.NewSMTPHandler(cfg.SMTP, log.Named("dispatcher.smtp")),
 		database.NotificationMethodWebhook: dispatch.NewWebhookHandler(cfg.Webhook, log.Named("dispatcher.webhook")),
+		database.NotificationMethodPush:    dispatch.NewPushHandler(cfg.Push, log.Named("dispatcher.push"), store),
 		database.NotificationMethodInbox:   dispatch.NewInboxHandler(log.Named("dispatcher.inbox"), store),
 	}
 }

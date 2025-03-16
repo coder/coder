@@ -31,6 +31,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/SherClockHolmes/webpush-go"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/coreos/go-systemd/daemon"
@@ -930,6 +931,34 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					return xerrors.Errorf("failed to instantiate notification store enqueuer: %w", err)
 				}
 				options.NotificationsEnqueuer = enqueuer
+
+				// VAPID keys are required to send push notifications.
+				// These should not be provided by the user, but they must
+				// be consistent between instances so notifications are
+				// signed properly.
+				keys, err := options.Database.GetNotificationVAPIDKeys(ctx)
+				if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+					return xerrors.Errorf("failed to get notification vapid keys: %w", err)
+				}
+				if keys.VapidPublicKey == "" || keys.VapidPrivateKey == "" {
+					privateKey, publicKey, err := webpush.GenerateVAPIDKeys()
+					if err != nil {
+						return xerrors.Errorf("failed to generate vapid keys: %w", err)
+					}
+					err = options.Database.UpsertNotificationVAPIDKeys(ctx, database.UpsertNotificationVAPIDKeysParams{
+						VapidPublicKey:  publicKey,
+						VapidPrivateKey: privateKey,
+					})
+					if err != nil {
+						return xerrors.Errorf("failed to upsert notification vapid keys: %w", err)
+					}
+					keys.VapidPublicKey = publicKey
+					keys.VapidPrivateKey = privateKey
+				}
+				notificationsCfg.Push = codersdk.NotificationsPushConfig{
+					VAPIDPublicKey:  serpent.String(keys.VapidPublicKey),
+					VAPIDPrivateKey: serpent.String(keys.VapidPrivateKey),
+				}
 
 				// The notification manager is responsible for:
 				//   - creating notifiers and managing their lifecycles (notifiers are responsible for dequeueing/sending notifications)

@@ -54,46 +54,47 @@ func New() database.Store {
 	q := &FakeQuerier{
 		mutex: &sync.RWMutex{},
 		data: &data{
-			apiKeys:                   make([]database.APIKey, 0),
-			auditLogs:                 make([]database.AuditLog, 0),
-			customRoles:               make([]database.CustomRole, 0),
-			dbcryptKeys:               make([]database.DBCryptKey, 0),
-			externalAuthLinks:         make([]database.ExternalAuthLink, 0),
-			files:                     make([]database.File, 0),
-			gitSSHKey:                 make([]database.GitSSHKey, 0),
-			groups:                    make([]database.Group, 0),
-			groupMembers:              make([]database.GroupMemberTable, 0),
-			licenses:                  make([]database.License, 0),
-			locks:                     map[int64]struct{}{},
-			notificationMessages:      make([]database.NotificationMessage, 0),
-			notificationPreferences:   make([]database.NotificationPreference, 0),
-			organizationMembers:       make([]database.OrganizationMember, 0),
-			organizations:             make([]database.Organization, 0),
-			inboxNotifications:        make([]database.InboxNotification, 0),
-			parameterSchemas:          make([]database.ParameterSchema, 0),
-			presets:                   make([]database.TemplateVersionPreset, 0),
-			presetParameters:          make([]database.TemplateVersionPresetParameter, 0),
-			provisionerDaemons:        make([]database.ProvisionerDaemon, 0),
-			provisionerJobs:           make([]database.ProvisionerJob, 0),
-			provisionerJobLogs:        make([]database.ProvisionerJobLog, 0),
-			provisionerKeys:           make([]database.ProvisionerKey, 0),
-			runtimeConfig:             map[string]string{},
-			telemetryItems:            make([]database.TelemetryItem, 0),
-			templateVersions:          make([]database.TemplateVersionTable, 0),
-			templates:                 make([]database.TemplateTable, 0),
-			users:                     make([]database.User, 0),
-			userConfigs:               make([]database.UserConfig, 0),
-			userStatusChanges:         make([]database.UserStatusChange, 0),
-			workspaceAgents:           make([]database.WorkspaceAgent, 0),
-			workspaceResources:        make([]database.WorkspaceResource, 0),
-			workspaceModules:          make([]database.WorkspaceModule, 0),
-			workspaceResourceMetadata: make([]database.WorkspaceResourceMetadatum, 0),
-			workspaceAgentStats:       make([]database.WorkspaceAgentStat, 0),
-			workspaceAgentLogs:        make([]database.WorkspaceAgentLog, 0),
-			workspaceBuilds:           make([]database.WorkspaceBuild, 0),
-			workspaceApps:             make([]database.WorkspaceApp, 0),
-			workspaces:                make([]database.WorkspaceTable, 0),
-			workspaceProxies:          make([]database.WorkspaceProxy, 0),
+			apiKeys:                       make([]database.APIKey, 0),
+			auditLogs:                     make([]database.AuditLog, 0),
+			customRoles:                   make([]database.CustomRole, 0),
+			dbcryptKeys:                   make([]database.DBCryptKey, 0),
+			externalAuthLinks:             make([]database.ExternalAuthLink, 0),
+			files:                         make([]database.File, 0),
+			gitSSHKey:                     make([]database.GitSSHKey, 0),
+			groups:                        make([]database.Group, 0),
+			groupMembers:                  make([]database.GroupMemberTable, 0),
+			licenses:                      make([]database.License, 0),
+			locks:                         map[int64]struct{}{},
+			notificationPushSubscriptions: make([]database.NotificationPushSubscription, 0),
+			notificationMessages:          make([]database.NotificationMessage, 0),
+			notificationPreferences:       make([]database.NotificationPreference, 0),
+			organizationMembers:           make([]database.OrganizationMember, 0),
+			organizations:                 make([]database.Organization, 0),
+			inboxNotifications:            make([]database.InboxNotification, 0),
+			parameterSchemas:              make([]database.ParameterSchema, 0),
+			presets:                       make([]database.TemplateVersionPreset, 0),
+			presetParameters:              make([]database.TemplateVersionPresetParameter, 0),
+			provisionerDaemons:            make([]database.ProvisionerDaemon, 0),
+			provisionerJobs:               make([]database.ProvisionerJob, 0),
+			provisionerJobLogs:            make([]database.ProvisionerJobLog, 0),
+			provisionerKeys:               make([]database.ProvisionerKey, 0),
+			runtimeConfig:                 map[string]string{},
+			telemetryItems:                make([]database.TelemetryItem, 0),
+			templateVersions:              make([]database.TemplateVersionTable, 0),
+			templates:                     make([]database.TemplateTable, 0),
+			users:                         make([]database.User, 0),
+			userConfigs:                   make([]database.UserConfig, 0),
+			userStatusChanges:             make([]database.UserStatusChange, 0),
+			workspaceAgents:               make([]database.WorkspaceAgent, 0),
+			workspaceResources:            make([]database.WorkspaceResource, 0),
+			workspaceModules:              make([]database.WorkspaceModule, 0),
+			workspaceResourceMetadata:     make([]database.WorkspaceResourceMetadatum, 0),
+			workspaceAgentStats:           make([]database.WorkspaceAgentStat, 0),
+			workspaceAgentLogs:            make([]database.WorkspaceAgentLog, 0),
+			workspaceBuilds:               make([]database.WorkspaceBuild, 0),
+			workspaceApps:                 make([]database.WorkspaceApp, 0),
+			workspaces:                    make([]database.WorkspaceTable, 0),
+			workspaceProxies:              make([]database.WorkspaceProxy, 0),
 		},
 	}
 	// Always start with a default org. Matching migration 198.
@@ -205,6 +206,7 @@ type data struct {
 	groups                               []database.Group
 	jfrogXRayScans                       []database.JfrogXrayScan
 	licenses                             []database.License
+	notificationPushSubscriptions        []database.NotificationPushSubscription
 	notificationMessages                 []database.NotificationMessage
 	notificationPreferences              []database.NotificationPreference
 	notificationReportGeneratorLogs      []database.NotificationReportGeneratorLog
@@ -267,6 +269,8 @@ type data struct {
 	lastLicenseID                    int32
 	defaultProxyDisplayName          string
 	defaultProxyIconURL              string
+	notificationVAPIDPublicKey       string
+	notificationVAPIDPrivateKey      string
 	userStatusChanges                []database.UserStatusChange
 	telemetryItems                   []database.TelemetryItem
 	presets                          []database.TemplateVersionPreset
@@ -1968,6 +1972,39 @@ func (q *FakeQuerier) DeleteLicense(_ context.Context, id int32) (int32, error) 
 		}
 	}
 	return 0, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) DeleteNotificationPushSubscriptionByEndpoint(ctx context.Context, arg database.DeleteNotificationPushSubscriptionByEndpointParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, subscription := range q.notificationPushSubscriptions {
+		if subscription.UserID == arg.UserID && subscription.Endpoint == arg.Endpoint {
+			q.notificationPushSubscriptions[i] = q.notificationPushSubscriptions[len(q.notificationPushSubscriptions)-1]
+			q.notificationPushSubscriptions = q.notificationPushSubscriptions[:len(q.notificationPushSubscriptions)-1]
+			return nil
+		}
+	}
+	return sql.ErrNoRows
+}
+
+func (q *FakeQuerier) DeleteNotificationPushSubscriptions(ctx context.Context, ids []uuid.UUID) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, subscription := range q.notificationPushSubscriptions {
+		if slices.Contains(ids, subscription.ID) {
+			q.notificationPushSubscriptions[i] = q.notificationPushSubscriptions[len(q.notificationPushSubscriptions)-1]
+			q.notificationPushSubscriptions = q.notificationPushSubscriptions[:len(q.notificationPushSubscriptions)-1]
+			return nil
+		}
+	}
+	return sql.ErrNoRows
 }
 
 func (q *FakeQuerier) DeleteOAuth2ProviderAppByID(_ context.Context, id uuid.UUID) error {
@@ -3711,6 +3748,20 @@ func (q *FakeQuerier) GetNotificationMessagesByStatus(_ context.Context, arg dat
 	return out, nil
 }
 
+func (q *FakeQuerier) GetNotificationPushSubscriptionsByUserID(ctx context.Context, userID uuid.UUID) ([]database.NotificationPushSubscription, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	out := make([]database.NotificationPushSubscription, 0)
+	for _, subscription := range q.notificationPushSubscriptions {
+		if subscription.UserID == userID {
+			out = append(out, subscription)
+		}
+	}
+
+	return out, nil
+}
+
 func (q *FakeQuerier) GetNotificationReportGeneratorLogByTemplate(_ context.Context, templateID uuid.UUID) (database.NotificationReportGeneratorLog, error) {
 	err := validateDatabaseType(templateID)
 	if err != nil {
@@ -3738,6 +3789,20 @@ func (*FakeQuerier) GetNotificationTemplatesByKind(_ context.Context, _ database
 	// Not implementing this function because it relies on state in the database which is created with migrations.
 	// We could consider using code-generation to align the database state and dbmem, but it's not worth it right now.
 	return nil, ErrUnimplemented
+}
+
+func (q *FakeQuerier) GetNotificationVAPIDKeys(_ context.Context) (database.GetNotificationVAPIDKeysRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	if q.notificationVAPIDPublicKey == "" && q.notificationVAPIDPrivateKey == "" {
+		return database.GetNotificationVAPIDKeysRow{}, sql.ErrNoRows
+	}
+
+	return database.GetNotificationVAPIDKeysRow{
+		VapidPublicKey:  q.notificationVAPIDPublicKey,
+		VapidPrivateKey: q.notificationVAPIDPrivateKey,
+	}, nil
 }
 
 func (q *FakeQuerier) GetNotificationsSettings(_ context.Context) (string, error) {
@@ -8314,6 +8379,20 @@ func (q *FakeQuerier) InsertMissingGroups(_ context.Context, arg database.Insert
 	return newGroups, nil
 }
 
+func (q *FakeQuerier) InsertNotificationPushSubscription(ctx context.Context, arg database.InsertNotificationPushSubscriptionParams) (database.NotificationPushSubscription, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.NotificationPushSubscription{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	subscription := database.NotificationPushSubscription(arg)
+	q.notificationPushSubscriptions = append(q.notificationPushSubscriptions, subscription)
+	return subscription, nil
+}
+
 func (q *FakeQuerier) InsertOAuth2ProviderApp(_ context.Context, arg database.InsertOAuth2ProviderAppParams) (database.OAuth2ProviderApp, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -11499,6 +11578,20 @@ func (q *FakeQuerier) UpsertNotificationReportGeneratorLog(_ context.Context, ar
 	}
 
 	q.notificationReportGeneratorLogs = append(q.notificationReportGeneratorLogs, database.NotificationReportGeneratorLog(arg))
+	return nil
+}
+
+func (q *FakeQuerier) UpsertNotificationVAPIDKeys(ctx context.Context, arg database.UpsertNotificationVAPIDKeysParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	q.notificationVAPIDPublicKey = arg.VapidPublicKey
+	q.notificationVAPIDPrivateKey = arg.VapidPrivateKey
 	return nil
 }
 

@@ -297,6 +297,10 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "lease_period": 0,
       "max_send_attempts": 0,
       "method": "string",
+      "push": {
+        "vapid_private_key": "string",
+        "vapid_public_key": "string"
+      },
       "retry_interval": 0,
       "sync_buffer_size": 0,
       "sync_interval": 0,

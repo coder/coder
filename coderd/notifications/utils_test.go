@@ -33,6 +33,7 @@ func defaultNotificationsConfig(method database.NotificationMethod) codersdk.Not
 		StoreSyncBufferSize: 50,
 		SMTP:                codersdk.NotificationsEmailConfig{},
 		Webhook:             codersdk.NotificationsWebhookConfig{},
+		Push:                codersdk.NotificationsPushConfig{},
 	}
 }
 

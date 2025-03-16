@@ -242,7 +242,7 @@ type Options struct {
 	DatabaseRolluper *dbrollup.Rolluper
 	// WorkspaceUsageTracker tracks workspace usage by the CLI.
 	WorkspaceUsageTracker *workspacestats.UsageTracker
-	// NotificationsEnqueuer handles enqueueing notifications for delivery by SMTP, webhook, etc.
+	// NotificationsEnqueuer handles enqueueing notifications for delivery by SMTP, webhook, push, etc.
 	NotificationsEnqueuer notifications.Enqueuer
 
 	// IDPSync holds all configured values for syncing external IDP users into Coder.

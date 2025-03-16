@@ -12432,6 +12432,14 @@ const docTemplate = `{
                     "description": "Which delivery method to use (available options: 'smtp', 'webhook').",
                     "type": "string"
                 },
+                "push": {
+                    "description": "Push settings.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.NotificationsPushConfig"
+                        }
+                    ]
+                },
                 "retry_interval": {
                     "description": "The minimum time between retries.",
                     "type": "integer"
@@ -12538,6 +12546,17 @@ const docTemplate = `{
                 "start_tls": {
                     "description": "StartTLS attempts to upgrade plain connections to TLS.",
                     "type": "boolean"
+                }
+            }
+        },
+        "codersdk.NotificationsPushConfig": {
+            "type": "object",
+            "properties": {
+                "vapid_private_key": {
+                    "type": "string"
+                },
+                "vapid_public_key": {
+                    "type": "string"
                 }
             }
         },
@@ -13840,6 +13859,7 @@ const docTemplate = `{
                 "license",
                 "notification_message",
                 "notification_preference",
+                "notification_push_subscription",
                 "notification_template",
                 "oauth2_app",
                 "oauth2_app_code_token",
@@ -13876,6 +13896,7 @@ const docTemplate = `{
                 "ResourceLicense",
                 "ResourceNotificationMessage",
                 "ResourceNotificationPreference",
+                "ResourceNotificationPushSubscription",
                 "ResourceNotificationTemplate",
                 "ResourceOauth2App",
                 "ResourceOauth2AppCodeToken",
