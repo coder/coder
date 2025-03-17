@@ -6,11 +6,15 @@ This article walks you through how to upgrade your Coder server.
 > Prior to upgrading a production Coder deployment, take a database snapshot since
 > Coder does not support rollbacks.
 
+## Reinstall Coder to upgrade
+
+<div class="tabs">
+
 To upgrade your Coder server, simply reinstall Coder using your original method
 of [install](../install). If you are using the Official Coder AMI on AWS, use the
 first option to upgrade.
 
-## Via install.sh
+### install.sh
 
 If you installed Coder using the `install.sh` script, re-run the below command
 on the host:
@@ -28,7 +32,7 @@ systemctl daemon-reload
 systemctl restart coder
 ```
 
-## Via docker-compose
+### docker-compose
 
 If you installed using `docker-compose`, run the below command to upgrade the
 Coder container:
@@ -37,12 +41,12 @@ Coder container:
 docker-compose pull coder && docker-compose up -d coder
 ```
 
-## Via Kubernetes
+### Kubernetes
 
 See
 [Upgrading Coder via Helm](../install/kubernetes.md#upgrading-coder-via-helm).
 
-## Via Windows
+### Windows
 
 Download the latest Windows installer or binary from
 [GitHub releases](https://github.com/coder/coder/releases/latest), or upgrade
@@ -51,3 +55,5 @@ from Winget.
 ```pwsh
 winget install Coder.Coder
 ```
+
+</div>
