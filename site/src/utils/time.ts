@@ -40,3 +40,9 @@ export function durationInDays(duration: number): number {
 export function relativeTime(date: Date) {
 	return dayjs(date).fromNow();
 }
+
+export function daysAgo(count: number) {
+	const date = new Date();
+	date.setDate(date.getDate() - count);
+	return date.toISOString();
+}

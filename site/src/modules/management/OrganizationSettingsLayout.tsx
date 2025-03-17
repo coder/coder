@@ -24,7 +24,7 @@ export const OrganizationSettingsContext = createContext<
 	OrganizationSettingsValue | undefined
 >(undefined);
 
-type OrganizationSettingsValue = Readonly<{
+export type OrganizationSettingsValue = Readonly<{
 	organizations: readonly Organization[];
 	organizationPermissionsByOrganizationId: Record<
 		string,
@@ -36,9 +36,10 @@ type OrganizationSettingsValue = Readonly<{
 
 export const useOrganizationSettings = (): OrganizationSettingsValue => {
 	const context = useContext(OrganizationSettingsContext);
+
 	if (!context) {
 		throw new Error(
-			"useOrganizationSettings should be used inside of OrganizationSettingsLayout",
+			"useOrganizationSettings should be used inside of OrganizationSettingsLayout or with the default values in case of testing.",
 		);
 	}
 
