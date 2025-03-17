@@ -1,11 +1,11 @@
-import { useDeploymentSettings } from "modules/management/DeploymentSettingsProvider";
+import { useDeploymentConfig } from "modules/management/DeploymentConfigProvider";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
 import { ExternalAuthSettingsPageView } from "./ExternalAuthSettingsPageView";
 
 const ExternalAuthSettingsPage: FC = () => {
-	const { deploymentConfig } = useDeploymentSettings();
+	const { deploymentConfig } = useDeploymentConfig();
 
 	return (
 		<>

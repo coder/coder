@@ -1484,6 +1484,18 @@ export interface OrganizationSyncSettings {
 	readonly organization_assign_default: boolean;
 }
 
+// From codersdk/organizations.go
+export interface PaginatedMembersRequest {
+	readonly limit?: number;
+	readonly offset?: number;
+}
+
+// From codersdk/organizations.go
+export interface PaginatedMembersResponse {
+	readonly members: readonly OrganizationMemberWithUserData[];
+	readonly count: number;
+}
+
 // From codersdk/pagination.go
 export interface Pagination {
 	readonly after_id?: string;

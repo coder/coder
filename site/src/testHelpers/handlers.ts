@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { CreateWorkspaceBuildRequest } from "api/typesGenerated";
-import { permissionChecks } from "contexts/auth/permissions";
+import { permissionChecks } from "modules/permissions";
 import { http, HttpResponse } from "msw";
 import * as M from "./entities";
 import { MockGroup, MockWorkspaceQuota } from "./entities";
@@ -64,11 +64,11 @@ export const handlers = [
 			M.MockOrganizationAuditorRole,
 		]);
 	}),
-	http.get("/api/v2/organizations/:organizationId/members", () => {
-		return HttpResponse.json([
-			M.MockOrganizationMember,
-			M.MockOrganizationMember2,
-		]);
+	http.get("/api/v2/organizations/:organizationId/paginated-members", () => {
+		return HttpResponse.json({
+			members: [M.MockOrganizationMember, M.MockOrganizationMember2],
+			count: 2,
+		});
 	}),
 	http.delete(
 		"/api/v2/organizations/:organizationId/members/:userId",

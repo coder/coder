@@ -5,10 +5,11 @@ import {
 } from "api/api";
 import type { FieldError } from "api/errors";
 import type * as TypesGen from "api/typesGenerated";
-import type { Permissions } from "contexts/auth/permissions";
 import type { ProxyLatencyReport } from "contexts/useProxyLatency";
 import range from "lodash/range";
-import type { OrganizationPermissions } from "modules/management/organizationPermissions";
+import type { Notification } from "modules/notifications/NotificationsInbox/types";
+import type { Permissions } from "modules/permissions";
+import type { OrganizationPermissions } from "modules/permissions/organizations";
 import type { FileTree } from "utils/filetree";
 import type { TemplateVersionFiles } from "utils/templateVersion";
 
@@ -2844,11 +2845,9 @@ export const MockPermissions: Permissions = {
 	viewAllUsers: true,
 	updateUsers: true,
 	viewAnyAuditLog: true,
-	viewDeploymentValues: true,
-	editDeploymentValues: true,
-	viewUpdateCheck: true,
+	viewDeploymentConfig: true,
+	editDeploymentConfig: true,
 	viewDeploymentStats: true,
-	viewExternalAuthConfig: true,
 	readWorkspaceProxies: true,
 	editWorkspaceProxies: true,
 	createOrganization: true,
@@ -2873,11 +2872,9 @@ export const MockNoPermissions: Permissions = {
 	viewAllUsers: false,
 	updateUsers: false,
 	viewAnyAuditLog: false,
-	viewDeploymentValues: false,
-	editDeploymentValues: false,
-	viewUpdateCheck: false,
+	viewDeploymentConfig: false,
+	editDeploymentConfig: false,
 	viewDeploymentStats: false,
-	viewExternalAuthConfig: false,
 	readWorkspaceProxies: false,
 	editWorkspaceProxies: false,
 	createOrganization: false,
@@ -2904,6 +2901,8 @@ export const MockOrganizationPermissions: OrganizationPermissions = {
 	viewOrgRoles: true,
 	createOrgRoles: true,
 	assignOrgRoles: true,
+	updateOrgRoles: true,
+	deleteOrgRoles: true,
 	viewProvisioners: true,
 	viewProvisionerJobs: true,
 	viewIdpSyncSettings: true,
@@ -2920,6 +2919,8 @@ export const MockNoOrganizationPermissions: OrganizationPermissions = {
 	viewOrgRoles: false,
 	createOrgRoles: false,
 	assignOrgRoles: false,
+	updateOrgRoles: false,
+	deleteOrgRoles: false,
 	viewProvisioners: false,
 	viewProvisionerJobs: false,
 	viewIdpSyncSettings: false,
@@ -4243,3 +4244,31 @@ export const MockNotificationTemplates: TypesGen.NotificationTemplate[] = [
 
 export const MockNotificationMethodsResponse: TypesGen.NotificationMethodsResponse =
 	{ available: ["smtp", "webhook"], default: "smtp" };
+
+export const MockNotification: Notification = {
+	id: "1",
+	read_status: "unread",
+	content:
+		"New user account testuser has been created. This new user account was created for Test User by Kira Pilot.",
+	created_at: mockTwoDaysAgo(),
+	actions: [
+		{
+			label: "View template",
+			url: "https://dev.coder.com/templates/coder/coder",
+		},
+	],
+};
+
+export const MockNotifications: Notification[] = [
+	MockNotification,
+	{ ...MockNotification, id: "2", read_status: "unread" },
+	{ ...MockNotification, id: "3", read_status: "read" },
+	{ ...MockNotification, id: "4", read_status: "read" },
+	{ ...MockNotification, id: "5", read_status: "read" },
+];
+
+function mockTwoDaysAgo() {
+	const date = new Date();
+	date.setDate(date.getDate() - 2);
+	return date.toISOString();
+}

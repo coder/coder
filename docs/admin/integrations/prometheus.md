@@ -84,9 +84,12 @@ metadata:
   namespace: coder
 spec:
   endpoints:
-    - port: prometheus-http
+    - port: prom-http
       interval: 10s
       scrapeTimeout: 10s
+  namespaceSelector:
+    matchNames:
+    - coder
   selector:
     matchLabels:
       app.kubernetes.io/name: coder

@@ -16,11 +16,11 @@ import {
 	PopoverTrigger,
 } from "components/Popover/Popover";
 import { SettingsSidebarNavItem } from "components/Sidebar/Sidebar";
-import type { Permissions } from "contexts/auth/permissions";
 import { Check, ChevronDown, Plus } from "lucide-react";
+import type { Permissions } from "modules/permissions";
+import type { OrganizationPermissions } from "modules/permissions/organizations";
 import { type FC, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { OrganizationPermissions } from "./organizationPermissions";
 
 interface OrganizationsSettingsNavigationProps {
 	/** The organization selected from the dropdown */
@@ -186,11 +186,18 @@ const OrganizationSettingsNavigation: FC<
 				)}
 				{orgPermissions.viewProvisioners &&
 					orgPermissions.viewProvisionerJobs && (
-						<SettingsSidebarNavItem
-							href={urlForSubpage(organization.name, "provisioners")}
-						>
-							Provisioners
-						</SettingsSidebarNavItem>
+						<>
+							<SettingsSidebarNavItem
+								href={urlForSubpage(organization.name, "provisioners")}
+							>
+								Provisioners
+							</SettingsSidebarNavItem>
+							<SettingsSidebarNavItem
+								href={urlForSubpage(organization.name, "provisioner-jobs")}
+							>
+								Provisioner Jobs
+							</SettingsSidebarNavItem>
+						</>
 					)}
 				{orgPermissions.viewIdpSyncSettings && (
 					<SettingsSidebarNavItem

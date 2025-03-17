@@ -11,12 +11,12 @@ December 13, 2023
 
 ---
 
-> Okta is an identity provider that can be used for OpenID Connect (OIDC) Single
-> Sign On (SSO) on Coder.
+Okta is an identity provider that can be used for OpenID Connect (OIDC) Single
+Sign On (SSO) on Coder.
 
 To configure custom claims in Okta to support syncing roles and groups with
 Coder, you must first have setup an Okta application with
-[OIDC working with Coder](https://coder.com/docs/admin/auth#openid-connect).
+[OIDC working with Coder](../admin/users/oidc-auth.md).
 From here, we will add additional claims for Coder to use for syncing groups and
 roles.
 
@@ -37,10 +37,10 @@ In the “OpenID Connect ID Token” section, turn on “Groups Claim Type” an
 the “Claim name” to `groups`. Optionally configure a filter for which groups to
 be sent.
 
-> !! If the user does not belong to any groups, the claim will not be sent. Make
-> sure the user authenticating for testing is in at least 1 group. Defer to
-> [troubleshooting](https://coder.com/docs/admin/auth#troubleshooting) with
-> issues
+> [!IMPORTANT]
+> If the user does not belong to any groups, the claim will not be sent. Make
+> sure the user authenticating for testing is in at least one group. Defer to
+> [troubleshooting](../admin/users/index.md) with issues.
 
 ![Okta OpenID Connect ID Token](../images/guides/okta/oidc_id_token.png)
 

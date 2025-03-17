@@ -4189,6 +4189,47 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | » `[any property]`            | array of string | false    |              |                                                                                                                                                                                     |
 | `organization_assign_default` | boolean         | false    |              | Organization assign default will ensure the default org is always included for every user, regardless of their claims. This preserves legacy behavior.                              |
 
+## codersdk.PaginatedMembersResponse
+
+```json
+{
+  "count": 0,
+  "members": [
+    {
+      "avatar_url": "string",
+      "created_at": "2019-08-24T14:15:22Z",
+      "email": "string",
+      "global_roles": [
+        {
+          "display_name": "string",
+          "name": "string",
+          "organization_id": "string"
+        }
+      ],
+      "name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "roles": [
+        {
+          "display_name": "string",
+          "name": "string",
+          "organization_id": "string"
+        }
+      ],
+      "updated_at": "2019-08-24T14:15:22Z",
+      "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+      "username": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name      | Type                                                                                        | Required | Restrictions | Description |
+|-----------|---------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `count`   | integer                                                                                     | false    |              |             |
+| `members` | array of [codersdk.OrganizationMemberWithUserData](#codersdkorganizationmemberwithuserdata) | false    |              |             |
+
 ## codersdk.PatchGroupIDPSyncConfigRequest
 
 ```json

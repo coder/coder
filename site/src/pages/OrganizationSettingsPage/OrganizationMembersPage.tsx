@@ -3,7 +3,7 @@ import { getErrorMessage } from "api/errors";
 import { groupsByUserIdInOrganization } from "api/queries/groups";
 import {
 	addOrganizationMember,
-	organizationMembers,
+	paginatedOrganizationMembers,
 	removeOrganizationMember,
 	updateOrganizationMemberRoles,
 } from "api/queries/organizations";
@@ -14,11 +14,13 @@ import { EmptyState } from "components/EmptyState/EmptyState";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Stack } from "components/Stack/Stack";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { usePaginatedQuery } from "hooks/usePaginatedQuery";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
+import { RequirePermission } from "modules/permissions/RequirePermission";
 import { type FC, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { OrganizationMembersPageView } from "./OrganizationMembersPageView";
 
@@ -29,17 +31,23 @@ const OrganizationMembersPage: FC = () => {
 		organization: string;
 	};
 	const { organization, organizationPermissions } = useOrganizationSettings();
+	const searchParamsResult = useSearchParams();
 
-	const membersQuery = useQuery(organizationMembers(organizationName));
 	const organizationRolesQuery = useQuery(organizationRoles(organizationName));
 	const groupsByUserIdQuery = useQuery(
 		groupsByUserIdInOrganization(organizationName),
 	);
 
-	const members = membersQuery.data?.map((member) => {
-		const groups = groupsByUserIdQuery.data?.get(member.user_id) ?? [];
-		return { ...member, groups };
-	});
+	const membersQuery = usePaginatedQuery(
+		paginatedOrganizationMembers(organizationName, searchParamsResult[0]),
+	);
+
+	const members = membersQuery.data?.members.map(
+		(member: OrganizationMemberWithUserData) => {
+			const groups = groupsByUserIdQuery.data?.get(member.user_id) ?? [];
+			return { ...member, groups };
+		},
+	);
 
 	const addMemberMutation = useMutation(
 		addOrganizationMember(queryClient, organizationName),
@@ -54,7 +62,7 @@ const OrganizationMembersPage: FC = () => {
 	const [memberToDelete, setMemberToDelete] =
 		useState<OrganizationMemberWithUserData>();
 
-	if (!organization || !organizationPermissions) {
+	if (!organization) {
 		return <EmptyState message="Organization not found" />;
 	}
 
@@ -65,6 +73,15 @@ const OrganizationMembersPage: FC = () => {
 			</title>
 		</Helmet>
 	);
+
+	if (!organizationPermissions) {
+		return (
+			<>
+				{helmet}
+				<RequirePermission isFeatureVisible={false} />
+			</>
+		);
+	}
 
 	return (
 		<>
@@ -85,6 +102,7 @@ const OrganizationMembersPage: FC = () => {
 				isUpdatingMemberRoles={updateMemberRolesMutation.isLoading}
 				me={me}
 				members={members}
+				membersQuery={membersQuery}
 				addMember={async (user: User) => {
 					await addMemberMutation.mutateAsync(user.id);
 					void membersQuery.refetch();

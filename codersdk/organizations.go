@@ -81,6 +81,16 @@ type OrganizationMemberWithUserData struct {
 	OrganizationMember `table:"m,recursive_inline"`
 }
 
+type PaginatedMembersRequest struct {
+	Limit  int `json:"limit,omitempty"`
+	Offset int `json:"offset,omitempty"`
+}
+
+type PaginatedMembersResponse struct {
+	Members []OrganizationMemberWithUserData `json:"members"`
+	Count   int                              `json:"count"`
+}
+
 type CreateOrganizationRequest struct {
 	Name string `json:"name" validate:"required,organization_name"`
 	// DisplayName will default to the same value as `Name` if not provided.
