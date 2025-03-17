@@ -1,7 +1,3 @@
-//go:build !go1.24
-
-// Testing `rand.Reader.Read` for errors will panic in Go 1.24 and later.
-
 package cryptorand_test
 
 import (
@@ -49,8 +45,5 @@ func TestRandError(t *testing.T) {
 		require.ErrorIs(t, err, io.ErrShortBuffer, "expected Float64 error")
 	})
 
-	t.Run("StringCharset", func(t *testing.T) {
-		_, err := cryptorand.HexString(10)
-		require.ErrorIs(t, err, io.ErrShortBuffer, "expected HexString error")
-	})
+	// See errors_go123_test.go for the StringCharset test.
 }
