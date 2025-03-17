@@ -1,4 +1,4 @@
-import { expect, type Page, test } from "@playwright/test";
+import { type Page, expect, test } from "@playwright/test";
 import { defaultPassword, users } from "../constants";
 import {
 	createTemplate,
