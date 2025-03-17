@@ -70,6 +70,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
+	"github.com/coder/coder/v2/coderd/notifications/push"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
@@ -161,6 +162,7 @@ type Options struct {
 	Logger       *slog.Logger
 	StatsBatcher workspacestats.Batcher
 
+	PushNotifier                       *push.Notifier
 	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions
 	AllowWorkspaceRenames              bool
 	NewTicker                          func(duration time.Duration) (<-chan time.Time, func())
@@ -278,6 +280,15 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		// nolint:gocritic // Setting up unit test data inside test helper
 		err := options.Database.InsertDeploymentID(dbauthz.AsSystemRestricted(context.Background()), uuid.NewString())
 		require.NoError(t, err, "insert a deployment id")
+	}
+
+	if options.PushNotifier == nil {
+		// nolint:gocritic // Gets/sets VAPID keys.
+		pushNotifier, err := push.New(dbauthz.AsSystemRestricted(context.Background()), options.Logger, options.Database)
+		if err != nil {
+			panic(xerrors.Errorf("failed to create push notifier: %w", err))
+		}
+		options.PushNotifier = pushNotifier
 	}
 
 	if options.DeploymentValues == nil {
@@ -530,6 +541,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			TrialGenerator:                     options.TrialGenerator,
 			RefreshEntitlements:                options.RefreshEntitlements,
 			TailnetCoordinator:                 options.Coordinator,
+			PushNotifier:                       options.PushNotifier,
 			BaseDERPMap:                        derpMap,
 			DERPMapUpdateFrequency:             150 * time.Millisecond,
 			CoordinatorResumeTokenProvider:     options.CoordinatorResumeTokenProvider,

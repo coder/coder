@@ -3147,6 +3147,9 @@ type BuildInfoResponse struct {
 
 	// DeploymentID is the unique identifier for this deployment.
 	DeploymentID string `json:"deployment_id"`
+
+	// PushNotificationsPublicKey is the public key for push notifications.
+	PushNotificationsPublicKey string `json:"push_notifications_public_key"`
 }
 
 type WorkspaceProxyBuildInfo struct {

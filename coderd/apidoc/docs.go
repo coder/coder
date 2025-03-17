@@ -10709,6 +10709,10 @@ const docTemplate = `{
                     "description": "ProvisionerAPIVersion is the current version of the Provisioner API",
                     "type": "string"
                 },
+                "push_notifications_public_key": {
+                    "description": "PushNotificationsPublicKey is the public key for push notifications.",
+                    "type": "string"
+                },
                 "telemetry": {
                     "description": "Telemetry is a boolean that indicates whether telemetry is enabled.",
                     "type": "boolean"
@@ -11494,6 +11498,14 @@ const docTemplate = `{
                 },
                 "allow_path_app_site_owner_access": {
                     "type": "boolean"
+                }
+            }
+        },
+        "codersdk.DeletePushNotificationSubscription": {
+            "type": "object",
+            "properties": {
+                "endpoint": {
+                    "type": "string"
                 }
             }
         },
@@ -14013,6 +14025,20 @@ const docTemplate = `{
                 "ProxyUnregistered"
             ]
         },
+        "codersdk.PushNotificationSubscription": {
+            "type": "object",
+            "properties": {
+                "auth_key": {
+                    "type": "string"
+                },
+                "endpoint": {
+                    "type": "string"
+                },
+                "p256dh_key": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.PutExtendWorkspaceRequest": {
             "type": "object",
             "required": [
@@ -14098,6 +14124,7 @@ const docTemplate = `{
                 "license",
                 "notification_message",
                 "notification_preference",
+                "notification_push_subscription",
                 "notification_template",
                 "oauth2_app",
                 "oauth2_app_code_token",
@@ -14135,6 +14162,7 @@ const docTemplate = `{
                 "ResourceLicense",
                 "ResourceNotificationMessage",
                 "ResourceNotificationPreference",
+                "ResourceNotificationPushSubscription",
                 "ResourceNotificationTemplate",
                 "ResourceOauth2App",
                 "ResourceOauth2AppCodeToken",
@@ -15485,6 +15513,9 @@ const docTemplate = `{
         "codersdk.UpdateUserNotificationPreferences": {
             "type": "object",
             "properties": {
+                "push_subscription": {
+                    "type": "string"
+                },
                 "template_disabled_map": {
                     "type": "object",
                     "additionalProperties": {

@@ -44,6 +44,7 @@ import (
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/idpsync"
+	"github.com/coder/coder/v2/coderd/notifications/push"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
@@ -260,6 +261,9 @@ type Options struct {
 	AppEncryptionKeyCache cryptokeys.EncryptionKeycache
 	OIDCConvertKeyCache   cryptokeys.SigningKeycache
 	Clock                 quartz.Clock
+
+	// PushNotifier is a way to send push notifications to users.
+	PushNotifier *push.Notifier
 }
 
 // @title Coder API
@@ -546,6 +550,7 @@ func New(options *Options) *API {
 		UserQuietHoursScheduleStore: options.UserQuietHoursScheduleStore,
 		AccessControlStore:          options.AccessControlStore,
 		Experiments:                 experiments,
+		PushNotifier:                options.PushNotifier,
 		healthCheckGroup:            &singleflight.Group[string, *healthsdk.HealthcheckReport]{},
 		Acquirer: provisionerdserver.NewAcquirer(
 			ctx,
@@ -572,15 +577,16 @@ func New(options *Options) *API {
 	api.AppearanceFetcher.Store(&f)
 	api.PortSharer.Store(&portsharing.DefaultPortSharer)
 	buildInfo := codersdk.BuildInfoResponse{
-		ExternalURL:           buildinfo.ExternalURL(),
-		Version:               buildinfo.Version(),
-		AgentAPIVersion:       AgentAPIVersionREST,
-		ProvisionerAPIVersion: proto.CurrentVersion.String(),
-		DashboardURL:          api.AccessURL.String(),
-		WorkspaceProxy:        false,
-		UpgradeMessage:        api.DeploymentValues.CLIUpgradeMessage.String(),
-		DeploymentID:          api.DeploymentID,
-		Telemetry:             api.Telemetry.Enabled(),
+		ExternalURL:                buildinfo.ExternalURL(),
+		Version:                    buildinfo.Version(),
+		AgentAPIVersion:            AgentAPIVersionREST,
+		ProvisionerAPIVersion:      proto.CurrentVersion.String(),
+		DashboardURL:               api.AccessURL.String(),
+		WorkspaceProxy:             false,
+		UpgradeMessage:             api.DeploymentValues.CLIUpgradeMessage.String(),
+		DeploymentID:               api.DeploymentID,
+		PushNotificationsPublicKey: api.PushNotifier.VAPIDPublicKey,
+		Telemetry:                  api.Telemetry.Enabled(),
 	}
 	api.SiteHandler = site.New(&site.Options{
 		BinFS:             binFS,
@@ -1194,6 +1200,10 @@ func New(options *Options) *API {
 							r.Get("/", api.userNotificationPreferences)
 							r.Put("/", api.putUserNotificationPreferences)
 						})
+						r.Route("/push", func(r chi.Router) {
+							r.Post("/subscription", api.postUserPushNotificationSubscription)
+							r.Delete("/subscription", api.deleteUserPushNotificationSubscription)
+						})
 					})
 				})
 			})
@@ -1494,8 +1504,10 @@ type API struct {
 	TailnetCoordinator                atomic.Pointer[tailnet.Coordinator]
 	NetworkTelemetryBatcher           *tailnet.NetworkTelemetryBatcher
 	TailnetClientService              *tailnet.ClientService
-	QuotaCommitter                    atomic.Pointer[proto.QuotaCommitter]
-	AppearanceFetcher                 atomic.Pointer[appearance.Fetcher]
+	// PushNotifier is a way to send push notifications to users.
+	PushNotifier      *push.Notifier
+	QuotaCommitter    atomic.Pointer[proto.QuotaCommitter]
+	AppearanceFetcher atomic.Pointer[appearance.Fetcher]
 	// WorkspaceProxyHostsFn returns the hosts of healthy workspace proxies
 	// for header reasons.
 	WorkspaceProxyHostsFn atomic.Pointer[func() []string]

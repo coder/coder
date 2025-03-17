@@ -284,6 +284,20 @@ func (m queryMetricsStore) DeleteLicense(ctx context.Context, id int32) (int32, 
 	return licenseID, err
 }
 
+func (m queryMetricsStore) DeleteNotificationPushSubscriptionByEndpoint(ctx context.Context, arg database.DeleteNotificationPushSubscriptionByEndpointParams) error {
+	start := time.Now()
+	r0 := m.s.DeleteNotificationPushSubscriptionByEndpoint(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteNotificationPushSubscriptionByEndpoint").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m queryMetricsStore) DeleteNotificationPushSubscriptions(ctx context.Context, ids []uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteNotificationPushSubscriptions(ctx, ids)
+	m.queryLatencies.WithLabelValues("DeleteNotificationPushSubscriptions").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m queryMetricsStore) DeleteOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.DeleteOAuth2ProviderAppByID(ctx, id)
@@ -886,6 +900,13 @@ func (m queryMetricsStore) GetNotificationMessagesByStatus(ctx context.Context, 
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetNotificationPushSubscriptionsByUserID(ctx context.Context, userID uuid.UUID) ([]database.NotificationPushSubscription, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetNotificationPushSubscriptionsByUserID(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetNotificationPushSubscriptionsByUserID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetNotificationReportGeneratorLogByTemplate(ctx context.Context, arg uuid.UUID) (database.NotificationReportGeneratorLog, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetNotificationReportGeneratorLogByTemplate(ctx, arg)
@@ -904,6 +925,13 @@ func (m queryMetricsStore) GetNotificationTemplatesByKind(ctx context.Context, k
 	start := time.Now()
 	r0, r1 := m.s.GetNotificationTemplatesByKind(ctx, kind)
 	m.queryLatencies.WithLabelValues("GetNotificationTemplatesByKind").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetNotificationVAPIDKeys(ctx context.Context) (database.GetNotificationVAPIDKeysRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetNotificationVAPIDKeys(ctx)
+	m.queryLatencies.WithLabelValues("GetNotificationVAPIDKeys").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -1971,6 +1999,13 @@ func (m queryMetricsStore) InsertMissingGroups(ctx context.Context, arg database
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertNotificationPushSubscription(ctx context.Context, arg database.InsertNotificationPushSubscriptionParams) (database.NotificationPushSubscription, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertNotificationPushSubscription(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertNotificationPushSubscription").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertOAuth2ProviderApp(ctx context.Context, arg database.InsertOAuth2ProviderAppParams) (database.OAuth2ProviderApp, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertOAuth2ProviderApp(ctx, arg)
@@ -2920,6 +2955,13 @@ func (m queryMetricsStore) UpsertNotificationReportGeneratorLog(ctx context.Cont
 	start := time.Now()
 	r0 := m.s.UpsertNotificationReportGeneratorLog(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpsertNotificationReportGeneratorLog").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m queryMetricsStore) UpsertNotificationVAPIDKeys(ctx context.Context, arg database.UpsertNotificationVAPIDKeysParams) error {
+	start := time.Now()
+	r0 := m.s.UpsertNotificationVAPIDKeys(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertNotificationVAPIDKeys").Observe(time.Since(start).Seconds())
 	return r0
 }
 

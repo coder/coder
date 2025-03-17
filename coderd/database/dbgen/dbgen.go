@@ -479,6 +479,19 @@ func NotificationInbox(t testing.TB, db database.Store, orig database.InsertInbo
 	return notification
 }
 
+func NotificationPushSubscription(t testing.TB, db database.Store, orig database.InsertNotificationPushSubscriptionParams) database.NotificationPushSubscription {
+	subscription, err := db.InsertNotificationPushSubscription(genCtx, database.InsertNotificationPushSubscriptionParams{
+		ID:                takeFirst(orig.ID, uuid.New()),
+		CreatedAt:         takeFirst(orig.CreatedAt, dbtime.Now()),
+		UserID:            takeFirst(orig.UserID, uuid.New()),
+		Endpoint:          takeFirst(orig.Endpoint, testutil.GetRandomName(t)),
+		EndpointP256dhKey: takeFirst(orig.EndpointP256dhKey, testutil.GetRandomName(t)),
+		EndpointAuthKey:   takeFirst(orig.EndpointAuthKey, testutil.GetRandomName(t)),
+	})
+	require.NoError(t, err, "insert notification push subscription")
+	return subscription
+}
+
 func Group(t testing.TB, db database.Store, orig database.Group) database.Group {
 	t.Helper()
 

@@ -3988,6 +3988,31 @@ func (q *sqlQuerier) BulkMarkNotificationMessagesSent(ctx context.Context, arg B
 	return result.RowsAffected()
 }
 
+const deleteNotificationPushSubscriptionByEndpoint = `-- name: DeleteNotificationPushSubscriptionByEndpoint :exec
+DELETE FROM notification_push_subscriptions
+WHERE user_id = $1 AND endpoint = $2
+`
+
+type DeleteNotificationPushSubscriptionByEndpointParams struct {
+	UserID   uuid.UUID `db:"user_id" json:"user_id"`
+	Endpoint string    `db:"endpoint" json:"endpoint"`
+}
+
+func (q *sqlQuerier) DeleteNotificationPushSubscriptionByEndpoint(ctx context.Context, arg DeleteNotificationPushSubscriptionByEndpointParams) error {
+	_, err := q.db.ExecContext(ctx, deleteNotificationPushSubscriptionByEndpoint, arg.UserID, arg.Endpoint)
+	return err
+}
+
+const deleteNotificationPushSubscriptions = `-- name: DeleteNotificationPushSubscriptions :exec
+DELETE FROM notification_push_subscriptions
+WHERE id = ANY($1::uuid[])
+`
+
+func (q *sqlQuerier) DeleteNotificationPushSubscriptions(ctx context.Context, ids []uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteNotificationPushSubscriptions, pq.Array(ids))
+	return err
+}
+
 const deleteOldNotificationMessages = `-- name: DeleteOldNotificationMessages :exec
 DELETE
 FROM notification_messages
@@ -4140,6 +4165,42 @@ func (q *sqlQuerier) GetNotificationMessagesByStatus(ctx context.Context, arg Ge
 	return items, nil
 }
 
+const getNotificationPushSubscriptionsByUserID = `-- name: GetNotificationPushSubscriptionsByUserID :many
+SELECT id, user_id, created_at, endpoint, endpoint_p256dh_key, endpoint_auth_key
+FROM notification_push_subscriptions
+WHERE user_id = $1::uuid
+`
+
+func (q *sqlQuerier) GetNotificationPushSubscriptionsByUserID(ctx context.Context, userID uuid.UUID) ([]NotificationPushSubscription, error) {
+	rows, err := q.db.QueryContext(ctx, getNotificationPushSubscriptionsByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []NotificationPushSubscription
+	for rows.Next() {
+		var i NotificationPushSubscription
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.CreatedAt,
+			&i.Endpoint,
+			&i.EndpointP256dhKey,
+			&i.EndpointAuthKey,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getNotificationReportGeneratorLogByTemplate = `-- name: GetNotificationReportGeneratorLogByTemplate :one
 SELECT
 	notification_template_id, last_generated_at
@@ -4253,6 +4314,42 @@ func (q *sqlQuerier) GetUserNotificationPreferences(ctx context.Context, userID 
 		return nil, err
 	}
 	return items, nil
+}
+
+const insertNotificationPushSubscription = `-- name: InsertNotificationPushSubscription :one
+INSERT INTO notification_push_subscriptions (id, user_id, created_at, endpoint, endpoint_p256dh_key, endpoint_auth_key)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, user_id, created_at, endpoint, endpoint_p256dh_key, endpoint_auth_key
+`
+
+type InsertNotificationPushSubscriptionParams struct {
+	ID                uuid.UUID `db:"id" json:"id"`
+	UserID            uuid.UUID `db:"user_id" json:"user_id"`
+	CreatedAt         time.Time `db:"created_at" json:"created_at"`
+	Endpoint          string    `db:"endpoint" json:"endpoint"`
+	EndpointP256dhKey string    `db:"endpoint_p256dh_key" json:"endpoint_p256dh_key"`
+	EndpointAuthKey   string    `db:"endpoint_auth_key" json:"endpoint_auth_key"`
+}
+
+func (q *sqlQuerier) InsertNotificationPushSubscription(ctx context.Context, arg InsertNotificationPushSubscriptionParams) (NotificationPushSubscription, error) {
+	row := q.db.QueryRowContext(ctx, insertNotificationPushSubscription,
+		arg.ID,
+		arg.UserID,
+		arg.CreatedAt,
+		arg.Endpoint,
+		arg.EndpointP256dhKey,
+		arg.EndpointAuthKey,
+	)
+	var i NotificationPushSubscription
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.CreatedAt,
+		&i.Endpoint,
+		&i.EndpointP256dhKey,
+		&i.EndpointAuthKey,
+	)
+	return i, err
 }
 
 const updateNotificationTemplateMethodByID = `-- name: UpdateNotificationTemplateMethodByID :one
@@ -8510,6 +8607,24 @@ func (q *sqlQuerier) GetLogoURL(ctx context.Context) (string, error) {
 	return value, err
 }
 
+const getNotificationVAPIDKeys = `-- name: GetNotificationVAPIDKeys :one
+SELECT
+    COALESCE((SELECT value FROM site_configs WHERE key = 'notification_vapid_public_key'), '') :: text AS vapid_public_key,
+    COALESCE((SELECT value FROM site_configs WHERE key = 'notification_vapid_private_key'), '') :: text AS vapid_private_key
+`
+
+type GetNotificationVAPIDKeysRow struct {
+	VapidPublicKey  string `db:"vapid_public_key" json:"vapid_public_key"`
+	VapidPrivateKey string `db:"vapid_private_key" json:"vapid_private_key"`
+}
+
+func (q *sqlQuerier) GetNotificationVAPIDKeys(ctx context.Context) (GetNotificationVAPIDKeysRow, error) {
+	row := q.db.QueryRowContext(ctx, getNotificationVAPIDKeys)
+	var i GetNotificationVAPIDKeysRow
+	err := row.Scan(&i.VapidPublicKey, &i.VapidPrivateKey)
+	return i, err
+}
+
 const getNotificationsSettings = `-- name: GetNotificationsSettings :one
 SELECT
 	COALESCE((SELECT value FROM site_configs WHERE key = 'notifications_settings'), '{}') :: text AS notifications_settings
@@ -8669,6 +8784,25 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'logo_url'
 
 func (q *sqlQuerier) UpsertLogoURL(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, upsertLogoURL, value)
+	return err
+}
+
+const upsertNotificationVAPIDKeys = `-- name: UpsertNotificationVAPIDKeys :exec
+INSERT INTO site_configs (key, value)
+VALUES
+    ('notification_vapid_public_key', $1 :: text),
+    ('notification_vapid_private_key', $2 :: text)
+ON CONFLICT (key)
+DO UPDATE SET value = EXCLUDED.value WHERE site_configs.key = EXCLUDED.key
+`
+
+type UpsertNotificationVAPIDKeysParams struct {
+	VapidPublicKey  string `db:"vapid_public_key" json:"vapid_public_key"`
+	VapidPrivateKey string `db:"vapid_private_key" json:"vapid_private_key"`
+}
+
+func (q *sqlQuerier) UpsertNotificationVAPIDKeys(ctx context.Context, arg UpsertNotificationVAPIDKeysParams) error {
+	_, err := q.db.ExecContext(ctx, upsertNotificationVAPIDKeys, arg.VapidPublicKey, arg.VapidPrivateKey)
 	return err
 }
 

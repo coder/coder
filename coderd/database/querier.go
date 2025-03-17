@@ -78,6 +78,8 @@ type sqlcQuerier interface {
 	DeleteGroupByID(ctx context.Context, id uuid.UUID) error
 	DeleteGroupMemberFromGroup(ctx context.Context, arg DeleteGroupMemberFromGroupParams) error
 	DeleteLicense(ctx context.Context, id int32) (int32, error)
+	DeleteNotificationPushSubscriptionByEndpoint(ctx context.Context, arg DeleteNotificationPushSubscriptionByEndpointParams) error
+	DeleteNotificationPushSubscriptions(ctx context.Context, ids []uuid.UUID) error
 	DeleteOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) error
 	DeleteOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) error
 	DeleteOAuth2ProviderAppCodesByAppAndUserID(ctx context.Context, arg DeleteOAuth2ProviderAppCodesByAppAndUserIDParams) error
@@ -198,10 +200,12 @@ type sqlcQuerier interface {
 	GetLicenses(ctx context.Context) ([]License, error)
 	GetLogoURL(ctx context.Context) (string, error)
 	GetNotificationMessagesByStatus(ctx context.Context, arg GetNotificationMessagesByStatusParams) ([]NotificationMessage, error)
+	GetNotificationPushSubscriptionsByUserID(ctx context.Context, userID uuid.UUID) ([]NotificationPushSubscription, error)
 	// Fetch the notification report generator log indicating recent activity.
 	GetNotificationReportGeneratorLogByTemplate(ctx context.Context, templateID uuid.UUID) (NotificationReportGeneratorLog, error)
 	GetNotificationTemplateByID(ctx context.Context, id uuid.UUID) (NotificationTemplate, error)
 	GetNotificationTemplatesByKind(ctx context.Context, kind NotificationTemplateKind) ([]NotificationTemplate, error)
+	GetNotificationVAPIDKeys(ctx context.Context) (GetNotificationVAPIDKeysRow, error)
 	GetNotificationsSettings(ctx context.Context) (string, error)
 	GetOAuth2GithubDefaultEligible(ctx context.Context) (bool, error)
 	GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderApp, error)
@@ -425,6 +429,7 @@ type sqlcQuerier interface {
 	// values for avatar, display name, and quota allowance (all zero values).
 	// If the name conflicts, do nothing.
 	InsertMissingGroups(ctx context.Context, arg InsertMissingGroupsParams) ([]Group, error)
+	InsertNotificationPushSubscription(ctx context.Context, arg InsertNotificationPushSubscriptionParams) (NotificationPushSubscription, error)
 	InsertOAuth2ProviderApp(ctx context.Context, arg InsertOAuth2ProviderAppParams) (OAuth2ProviderApp, error)
 	InsertOAuth2ProviderAppCode(ctx context.Context, arg InsertOAuth2ProviderAppCodeParams) (OAuth2ProviderAppCode, error)
 	InsertOAuth2ProviderAppSecret(ctx context.Context, arg InsertOAuth2ProviderAppSecretParams) (OAuth2ProviderAppSecret, error)
@@ -580,6 +585,7 @@ type sqlcQuerier interface {
 	UpsertLogoURL(ctx context.Context, value string) error
 	// Insert or update notification report generator logs with recent activity.
 	UpsertNotificationReportGeneratorLog(ctx context.Context, arg UpsertNotificationReportGeneratorLogParams) error
+	UpsertNotificationVAPIDKeys(ctx context.Context, arg UpsertNotificationVAPIDKeysParams) error
 	UpsertNotificationsSettings(ctx context.Context, value string) error
 	UpsertOAuth2GithubDefaultEligible(ctx context.Context, eligible bool) error
 	UpsertOAuthSigningKey(ctx context.Context, value string) error

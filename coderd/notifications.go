@@ -3,8 +3,11 @@ package coderd
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
+	"strconv"
 
+	"github.com/SherClockHolmes/webpush-go"
 	"github.com/google/uuid"
 
 	"cdr.dev/slog"
@@ -12,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/notifications"
@@ -321,6 +325,142 @@ func (api *API) putUserNotificationPreferences(rw http.ResponseWriter, r *http.R
 
 	out := convertNotificationPreferences(userPrefs)
 	httpapi.Write(ctx, rw, http.StatusOK, out)
+}
+
+// @Summary Create user push notification subscription
+// @ID create-user-push-notification-subscription
+// @Security CoderSessionToken
+// @Accept json
+// @Tags Notifications
+// @Param request body codersdk.PushNotificationSubscription true "Push notification subscription"
+// @Param user path string true "User ID, name, or me"
+// @Router /users/{user}/notifications/push/subscription [post]
+// @Success 204
+func (api *API) postUserPushNotificationSubscription(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := httpmw.UserParam(r)
+
+	var req codersdk.PushNotificationSubscription
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	notificationJSON, err := json.Marshal(codersdk.PushNotification{
+		Title: "It's working!",
+		Body:  "You've subscribed to push notifications.",
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to marshal notification",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Before inserting the subscription into the database, we send a test notification
+	// to ensure the subscription is valid.
+	resp, err := webpush.SendNotificationWithContext(r.Context(), notificationJSON, &webpush.Subscription{
+		Endpoint: req.Endpoint,
+		Keys: webpush.Keys{
+			Auth:   req.AuthKey,
+			P256dh: req.P256DHKey,
+		},
+	}, &webpush.Options{
+		VAPIDPublicKey:  api.PushNotifier.PublicKey(),
+		VAPIDPrivateKey: api.PushNotifier.PrivateKey(),
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to send notification",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(resp.Body)
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to send notification. Status code: " + strconv.Itoa(resp.StatusCode),
+			Detail:  string(body),
+		})
+		return
+	}
+
+	_, err = api.Database.InsertNotificationPushSubscription(ctx, database.InsertNotificationPushSubscriptionParams{
+		ID:                uuid.New(),
+		CreatedAt:         dbtime.Now(),
+		UserID:            user.ID,
+		Endpoint:          req.Endpoint,
+		EndpointAuthKey:   req.AuthKey,
+		EndpointP256dhKey: req.P256DHKey,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to insert push notification subscription.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+// @Summary Delete user push notification subscription
+// @ID delete-user-push-notification-subscription
+// @Security CoderSessionToken
+// @Accept json
+// @Tags Notifications
+// @Param request body codersdk.DeletePushNotificationSubscription true "Push notification subscription"
+// @Param user path string true "User ID, name, or me"
+// @Router /users/{user}/notifications/push/subscription [delete]
+// @Success 204
+func (api *API) deleteUserPushNotificationSubscription(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := httpmw.UserParam(r)
+
+	var req codersdk.DeletePushNotificationSubscription
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	err := api.Database.DeleteNotificationPushSubscriptionByEndpoint(ctx, database.DeleteNotificationPushSubscriptionByEndpointParams{
+		UserID:   user.ID,
+		Endpoint: req.Endpoint,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to delete push notification subscription.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+// @Summary Send a test push notification
+// @ID send-a-test-push-notification
+// @Security CoderSessionToken
+// @Tags Notifications
+// @Param user path string true "User ID, name, or me"
+// @Success 204
+// @Router /users/{user}/notifications/push/test [post]
+func (api *API) postUserPushNotificationTest(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := httpmw.UserParam(r)
+
+	if err := api.PushNotifier.Dispatch(ctx, user.ID, codersdk.PushNotification{
+		Title: "It's working!",
+		Body:  "You've subscribed to push notifications.",
+	}); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to send test notification",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
 }
 
 func convertNotificationTemplates(in []database.NotificationTemplate) (out []codersdk.NotificationTemplate) {

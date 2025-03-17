@@ -3,6 +3,7 @@ import type * as TypesGen from "api/typesGenerated";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import type { ProxyContextValue } from "contexts/ProxyContext";
+import { usePushNotifications } from "contexts/usePushNotifications";
 import { NotificationsInbox } from "modules/notifications/NotificationsInbox/NotificationsInbox";
 import type { FC } from "react";
 import { NavLink, useLocation } from "react-router-dom";
@@ -43,6 +44,11 @@ export const NavbarView: FC<NavbarViewProps> = ({
 	canViewAuditLog,
 	proxyContextValue,
 }) => {
+	const { subscribed, loading, subscribe, unsubscribe } =
+		usePushNotifications();
+
+	console.log("HERE");
+
 	return (
 		<div className="border-0 border-b border-solid h-[72px] flex items-center leading-none px-6">
 			<NavLink to="/workspaces">
@@ -55,7 +61,13 @@ export const NavbarView: FC<NavbarViewProps> = ({
 
 			<NavItems className="ml-4" />
 
-			<div className="flex items-center gap-3 ml-auto">
+			{subscribed ? (
+				<button onClick={unsubscribe}>Unsubscribe</button>
+			) : (
+				<button onClick={subscribe}>Subscribe</button>
+			)}
+
+			<div className=" hidden md:flex items-center gap-3 ml-auto">
 				{proxyContextValue && (
 					<div className="hidden md:block">
 						<ProxyMenu proxyContextValue={proxyContextValue} />

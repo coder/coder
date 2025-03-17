@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"slices"
 	"testing"
 
@@ -374,5 +375,61 @@ func TestNotificationTest(t *testing.T) {
 
 		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateTestNotification))
 		require.Len(t, sent, 0)
+	})
+}
+
+const validEndpointAuthKey = "zqbxT6JKstKSY9JKibZLSQ=="
+const validEndpointP256dhKey = "BNNL5ZaTfK81qhXOx23+wewhigUeFb632jN6LvRWCFH1ubQr77FE/9qV1FuojuRmHP42zmf34rXgW80OvUVDgTk="
+
+func TestPushNotificationSubscription(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Create", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		notificationSent := false
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			notificationSent = true
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer server.Close()
+
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+
+		err := client.CreateNotificationPushSubscription(ctx, "me", codersdk.PushNotificationSubscription{
+			Endpoint:  server.URL,
+			AuthKey:   validEndpointAuthKey,
+			P256DHKey: validEndpointP256dhKey,
+		})
+		require.NoError(t, err)
+		require.True(t, notificationSent)
+	})
+	t.Run("Delete", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer server.Close()
+
+		err := client.CreateNotificationPushSubscription(ctx, "me", codersdk.PushNotificationSubscription{
+			Endpoint:  server.URL,
+			AuthKey:   validEndpointAuthKey,
+			P256DHKey: validEndpointP256dhKey,
+		})
+		require.NoError(t, err)
+
+		err = client.DeleteNotificationPushSubscription(ctx, "me", codersdk.DeletePushNotificationSubscription{
+			Endpoint: server.URL,
+		})
+		require.NoError(t, err)
 	})
 }

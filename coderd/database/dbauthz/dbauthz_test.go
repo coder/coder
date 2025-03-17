@@ -4531,6 +4531,15 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	s.Run("UpsertOAuth2GithubDefaultEligible", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(true).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
+	s.Run("GetNotificationVAPIDKeys", s.Subtest(func(db database.Store, check *expects) {
+		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Errors(sql.ErrNoRows)
+	}))
+	s.Run("UpsertNotificationVAPIDKeys", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.UpsertNotificationVAPIDKeysParams{
+			VapidPublicKey:  "test",
+			VapidPrivateKey: "test",
+		}).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
+	}))
 }
 
 func (s *MethodTestSuite) TestNotifications() {
@@ -4566,6 +4575,35 @@ func (s *MethodTestSuite) TestNotifications() {
 			Status: database.NotificationMessageStatusLeased,
 			Limit:  10,
 		}).Asserts(rbac.ResourceNotificationMessage, policy.ActionRead)
+	}))
+
+	// Notification push subscriptions
+	s.Run("GetNotificationPushSubscriptionsByUserID", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		check.Args(user.ID).Asserts(rbac.ResourceNotificationPushSubscription.WithOwner(user.ID.String()), policy.ActionRead)
+	}))
+	s.Run("InsertNotificationPushSubscription", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		check.Args(database.InsertNotificationPushSubscriptionParams{
+			UserID: user.ID,
+		}).Asserts(rbac.ResourceNotificationPushSubscription.WithOwner(user.ID.String()), policy.ActionCreate)
+	}))
+	s.Run("DeleteNotificationPushSubscriptions", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		push := dbgen.NotificationPushSubscription(s.T(), db, database.InsertNotificationPushSubscriptionParams{
+			UserID: user.ID,
+		})
+		check.Args([]uuid.UUID{push.ID}).Asserts(rbac.ResourceSystem, policy.ActionDelete)
+	}))
+	s.Run("DeleteNotificationPushSubscriptionByEndpoint", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		push := dbgen.NotificationPushSubscription(s.T(), db, database.InsertNotificationPushSubscriptionParams{
+			UserID: user.ID,
+		})
+		check.Args(database.DeleteNotificationPushSubscriptionByEndpointParams{
+			UserID:   user.ID,
+			Endpoint: push.Endpoint,
+		}).Asserts(rbac.ResourceNotificationPushSubscription.WithOwner(user.ID.String()), policy.ActionDelete)
 	}))
 
 	// Notification templates

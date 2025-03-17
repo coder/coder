@@ -961,6 +961,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "deployment_id": "string",
   "external_url": "string",
   "provisioner_api_version": "string",
+  "push_notifications_public_key": "string",
   "telemetry": true,
   "upgrade_message": "string",
   "version": "string",
@@ -970,17 +971,18 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                      | Type    | Required | Restrictions | Description                                                                                                                                                         |
-|---------------------------|---------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent_api_version`       | string  | false    |              | Agent api version is the current version of the Agent API (back versions MAY still be supported).                                                                   |
-| `dashboard_url`           | string  | false    |              | Dashboard URL is the URL to hit the deployment's dashboard. For external workspace proxies, this is the coderd they are connected to.                               |
-| `deployment_id`           | string  | false    |              | Deployment ID is the unique identifier for this deployment.                                                                                                         |
-| `external_url`            | string  | false    |              | External URL references the current Coder version. For production builds, this will link directly to a release. For development builds, this will link to a commit. |
-| `provisioner_api_version` | string  | false    |              | Provisioner api version is the current version of the Provisioner API                                                                                               |
-| `telemetry`               | boolean | false    |              | Telemetry is a boolean that indicates whether telemetry is enabled.                                                                                                 |
-| `upgrade_message`         | string  | false    |              | Upgrade message is the message displayed to users when an outdated client is detected.                                                                              |
-| `version`                 | string  | false    |              | Version returns the semantic version of the build.                                                                                                                  |
-| `workspace_proxy`         | boolean | false    |              |                                                                                                                                                                     |
+| Name                            | Type    | Required | Restrictions | Description                                                                                                                                                         |
+|---------------------------------|---------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_api_version`             | string  | false    |              | Agent api version is the current version of the Agent API (back versions MAY still be supported).                                                                   |
+| `dashboard_url`                 | string  | false    |              | Dashboard URL is the URL to hit the deployment's dashboard. For external workspace proxies, this is the coderd they are connected to.                               |
+| `deployment_id`                 | string  | false    |              | Deployment ID is the unique identifier for this deployment.                                                                                                         |
+| `external_url`                  | string  | false    |              | External URL references the current Coder version. For production builds, this will link directly to a release. For development builds, this will link to a commit. |
+| `provisioner_api_version`       | string  | false    |              | Provisioner api version is the current version of the Provisioner API                                                                                               |
+| `push_notifications_public_key` | string  | false    |              | Push notifications public key is the public key for push notifications.                                                                                             |
+| `telemetry`                     | boolean | false    |              | Telemetry is a boolean that indicates whether telemetry is enabled.                                                                                                 |
+| `upgrade_message`               | string  | false    |              | Upgrade message is the message displayed to users when an outdated client is detected.                                                                              |
+| `version`                       | string  | false    |              | Version returns the semantic version of the build.                                                                                                                  |
+| `workspace_proxy`               | boolean | false    |              |                                                                                                                                                                     |
 
 ## codersdk.BuildReason
 
@@ -1754,6 +1756,20 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `allow_all_cors`                   | boolean | false    |              |             |
 | `allow_path_app_sharing`           | boolean | false    |              |             |
 | `allow_path_app_site_owner_access` | boolean | false    |              |             |
+
+## codersdk.DeletePushNotificationSubscription
+
+```json
+{
+  "endpoint": "string"
+}
+```
+
+### Properties
+
+| Name       | Type   | Required | Restrictions | Description |
+|------------|--------|----------|--------------|-------------|
+| `endpoint` | string | false    |              |             |
 
 ## codersdk.DeleteWorkspaceAgentPortShareRequest
 
@@ -5243,6 +5259,24 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `unhealthy`    |
 | `unregistered` |
 
+## codersdk.PushNotificationSubscription
+
+```json
+{
+  "auth_key": "string",
+  "endpoint": "string",
+  "p256dh_key": "string"
+}
+```
+
+### Properties
+
+| Name         | Type   | Required | Restrictions | Description |
+|--------------|--------|----------|--------------|-------------|
+| `auth_key`   | string | false    |              |             |
+| `endpoint`   | string | false    |              |             |
+| `p256dh_key` | string | false    |              |             |
+
 ## codersdk.PutExtendWorkspaceRequest
 
 ```json
@@ -5331,6 +5365,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `license`                          |
 | `notification_message`             |
 | `notification_preference`          |
+| `notification_push_subscription`   |
 | `notification_template`            |
 | `oauth2_app`                       |
 | `oauth2_app_code_token`            |
@@ -6848,6 +6883,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ```json
 {
+  "push_subscription": "string",
   "template_disabled_map": {
     "property1": true,
     "property2": true
@@ -6859,6 +6895,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 | Name                    | Type    | Required | Restrictions | Description |
 |-------------------------|---------|----------|--------------|-------------|
+| `push_subscription`     | string  | false    |              |             |
 | `template_disabled_map` | object  | false    |              |             |
 | » `[any property]`      | boolean | false    |              |             |
 
