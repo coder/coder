@@ -1,19 +1,11 @@
-import { type Page, chromium, expect, test } from "@playwright/test";
+import { type Page, expect, test } from "@playwright/test";
 import {
 	createOrganization,
 	createOrganizationMember,
-	createUser,
 	setupApiCalls,
 } from "../../api";
 import { defaultPassword, users } from "../../constants";
-import {
-	createTemplate,
-	createWorkspace,
-	currentUser,
-	login,
-	randomName,
-	requiresLicense,
-} from "../../helpers";
+import { login, randomName, requiresLicense } from "../../helpers";
 import { beforeCoderTest } from "../../hooks";
 
 test.describe.configure({ mode: "parallel" });
