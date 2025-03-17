@@ -11,26 +11,23 @@ This article walks you through how to upgrade your Coder server.
 <div class="tabs">
 
 To upgrade your Coder server, simply reinstall Coder using your original method
-of [install](../install). If you are using the Official Coder AMI on AWS, use the
-first option to upgrade.
+of [install](../install).
 
 ### install.sh
 
-If you installed Coder using the `install.sh` script, re-run the below command
-on the host:
+1. If you installed Coder using the `install.sh` script, re-run the below command
+   on the host:
 
-```shell
-curl -L https://coder.com/install.sh | sh
-```
+   ```shell
+   curl -L https://coder.com/install.sh | sh
+   ```
 
-The script will unpack the new `coder` binary version over the one currently
-installed. Next, you can restart Coder with the following commands (if running
-it as a system service):
+1. If you're running Coder as a system service, you can restart it with `systemctl`:
 
-```shell
-systemctl daemon-reload
-systemctl restart coder
-```
+   ```shell
+   systemctl daemon-reload
+   systemctl restart coder
+   ```
 
 ### docker-compose
 
@@ -45,6 +42,24 @@ docker-compose pull coder && docker-compose up -d coder
 
 See
 [Upgrading Coder via Helm](../install/kubernetes.md#upgrading-coder-via-helm).
+
+### Coder AMI on AWS
+
+1. Run the Coder installation script on the host:
+
+   ```shell
+   curl -L https://coder.com/install.sh | sh
+   ```
+
+   The script will unpack the new `coder` binary version over the one currently
+   installed.
+
+1. If you're running Coder as a system service, you can restart it with `systemctl`:
+
+   ```shell
+   systemctl daemon-reload
+   systemctl restart coder
+   ```
 
 ### Windows
 
