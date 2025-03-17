@@ -1,11 +1,6 @@
 package codersdk
 
 import (
-	"context"
-	"encoding/json"
-	"fmt"
-	"net/http"
-
 	"github.com/google/uuid"
 )
 
@@ -89,51 +84,4 @@ type Healthcheck struct {
 	Interval int32 `json:"interval"`
 	// Threshold specifies the number of consecutive failed health checks before returning "unhealthy".
 	Threshold int32 `json:"threshold"`
-}
-
-// WorkspaceAgentAppURL contains URL to access a workspace app
-type WorkspaceAgentAppURL struct {
-	URL string `json:"url"`
-}
-
-// WorkspaceAgentApps returns a list of apps for the given workspace agent.
-func (c *Client) WorkspaceAgentApps(ctx context.Context, agentID uuid.UUID) ([]WorkspaceApp, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s/apps", agentID), nil)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
-	}
-
-	var apps []WorkspaceApp
-	err = json.NewDecoder(res.Body).Decode(&apps)
-	if err != nil {
-		return nil, err
-	}
-
-	return apps, nil
-}
-
-// WorkspaceAgentAppURL returns the URL for a specific app on a workspace agent.
-func (c *Client) WorkspaceAgentAppURL(ctx context.Context, agentID uuid.UUID, appSlug string) (WorkspaceAgentAppURL, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s/apps/%s/url", agentID, appSlug), nil)
-	if err != nil {
-		return WorkspaceAgentAppURL{}, err
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		return WorkspaceAgentAppURL{}, ReadBodyAsError(res)
-	}
-
-	var appURL WorkspaceAgentAppURL
-	err = json.NewDecoder(res.Body).Decode(&appURL)
-	if err != nil {
-		return WorkspaceAgentAppURL{}, err
-	}
-
-	return appURL, nil
 }
