@@ -4047,12 +4047,9 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		app := dbgen.WorkspaceApp(s.T(), db, database.WorkspaceApp{AgentID: agent.ID})
 		check.Args(database.UpsertWorkspaceAppAuditSessionParams{
 			AgentID: agent.ID,
-			AppID:   uuid.NullUUID{UUID: app.ID, Valid: true},
-			UserID:  uuid.NullUUID{UUID: u.ID, Valid: true},
-		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
-	}))
-	s.Run("UpdateWorkspaceAppAuditSession", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.UpdateWorkspaceAppAuditSessionParams{}).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+			AppID:   app.ID,
+			UserID:  u.ID,
+		}).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
 	}))
 	s.Run("InsertWorkspaceAgentScriptTimings", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
