@@ -74,7 +74,7 @@ export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
 								to={`${getLink(
 									linkToTemplate(t.organization_name, t.name),
 								)}/workspace`}
-								className="w-[320px] p-4 rounded-md border-solid border-surface-grey text-left flex gap-4 no-underline text-inherit hover:bg-surface-grey"
+								className="w-[320px] p-4 rounded-md border border-solid border-surface-quaternary text-left flex gap-4 no-underline text-inherit hover:bg-surface-grey"
 							>
 								<div className="flex-shrink-0 pt-1">
 									<Avatar variant="icon" src={t.icon} fallback={t.name} />
@@ -90,7 +90,7 @@ export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
 										// descriptions, when those URLS have no hyphens or other
 										// easy semantic breakpoints. Need to set this to ensure
 										// those URLs don't break outside their containing boxes
-										className="text-sm text-gray-600 leading-[1.4] m-0 pt-1 break-words"
+										className="text-sm text-gray-400 leading-[1.4] m-0 pt-1 break-words"
 									>
 										{t.description}
 									</p>
