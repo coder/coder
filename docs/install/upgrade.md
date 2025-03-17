@@ -1,6 +1,6 @@
 # Upgrade
 
-This article walks you through how to upgrade your Coder server.
+This article describes how to upgrade your Coder server.
 
 > [!CAUTION]
 > Prior to upgrading a production Coder deployment, take a database snapshot since
