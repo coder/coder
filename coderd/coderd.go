@@ -1387,6 +1387,11 @@ func New(options *Options) *API {
 		})
 		r.Route("/notifications", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
+			r.Route("/inbox", func(r chi.Router) {
+				r.Get("/", api.listInboxNotifications)
+				r.Get("/watch", api.watchInboxNotifications)
+				r.Put("/{id}/read-status", api.updateInboxNotificationReadStatus)
+			})
 			r.Get("/settings", api.notificationsSettings)
 			r.Put("/settings", api.putNotificationsSettings)
 			r.Route("/templates", func(r chi.Router) {
