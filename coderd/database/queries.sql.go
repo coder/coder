@@ -11677,7 +11677,7 @@ type GetUsersRow struct {
 	GithubComUserID          sql.NullInt64  `db:"github_com_user_id" json:"github_com_user_id"`
 	HashedOneTimePasscode    []byte         `db:"hashed_one_time_passcode" json:"hashed_one_time_passcode"`
 	OneTimePasscodeExpiresAt sql.NullTime   `db:"one_time_passcode_expires_at" json:"one_time_passcode_expires_at"`
-	IsSystem                 sql.NullBool   `db:"is_system" json:"is_system"`
+	IsSystem                 bool           `db:"is_system" json:"is_system"`
 	Count                    int64          `db:"count" json:"count"`
 }
 
