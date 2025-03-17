@@ -11,7 +11,7 @@ This article describes how to upgrade your Coder server.
 To upgrade your Coder server, reinstall Coder using your original method
 of [install](../install).
 
-### install.sh
+### Coder install script
 
 1. If you installed Coder using the `install.sh` script, re-run the below command
    on the host:
@@ -26,6 +26,8 @@ of [install](../install).
    systemctl daemon-reload
    systemctl restart coder
    ```
+
+### Other methods
 
 <div class="tabs">
 
