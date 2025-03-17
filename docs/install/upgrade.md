@@ -7,7 +7,8 @@ This article walks you through how to upgrade your Coder server.
 > Coder does not support rollbacks.
 
 To upgrade your Coder server, simply reinstall Coder using your original method
-of [install](../install).
+of [install](../install). If you are using the Official Coder AMI on AWS, use the
+first option to upgrade.
 
 ## Via install.sh
 
