@@ -620,7 +620,7 @@ func setupTestDBPrebuild(
 	templateVersionID uuid.UUID,
 ) database.WorkspaceTable {
 	t.Helper()
-	return setupTestDBWorkspace(t, clock, db, ps, transition, prebuildStatus, orgID, preset, templateID, templateVersionID, agplprebuilds.OwnerID, agplprebuilds.OwnerID)
+	return setupTestDBWorkspace(t, clock, db, ps, transition, prebuildStatus, orgID, preset, templateID, templateVersionID, agplprebuilds.SystemUserID, agplprebuilds.SystemUserID)
 }
 
 func setupTestDBWorkspace(

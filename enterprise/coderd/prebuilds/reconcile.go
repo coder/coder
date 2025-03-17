@@ -371,7 +371,7 @@ func (c *StoreReconciler) createPrebuild(ctx context.Context, prebuildID uuid.UU
 			ID:               prebuildID,
 			CreatedAt:        now,
 			UpdatedAt:        now,
-			OwnerID:          prebuilds.OwnerID,
+			OwnerID:          prebuilds.SystemUserID,
 			OrganizationID:   template.OrganizationID,
 			TemplateID:       template.ID,
 			Name:             name,
@@ -441,7 +441,7 @@ func (c *StoreReconciler) provision(ctx context.Context, db database.Store, preb
 
 	builder := wsbuilder.New(workspace, transition).
 		Reason(database.BuildReasonInitiator).
-		Initiator(prebuilds.OwnerID).
+		Initiator(prebuilds.SystemUserID).
 		ActiveVersion().
 		VersionID(template.ActiveVersionID).
 		MarkPrebuild().

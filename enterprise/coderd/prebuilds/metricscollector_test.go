@@ -51,11 +51,11 @@ func TestMetricsCollector(t *testing.T) {
 			name:         "prebuild created",
 			transitions:  allTransitions,
 			jobStatuses:  allJobStatuses,
-			initiatorIDs: []uuid.UUID{agplprebuilds.OwnerID},
+			initiatorIDs: []uuid.UUID{agplprebuilds.SystemUserID},
 			// TODO: reexamine and refactor the test cases and assertions:
 			// * a running prebuild that is not elibible to be claimed currently seems to be eligible.
 			// * a prebuild that was claimed should not be deemed running, not eligible.
-			ownerIDs: []uuid.UUID{agplprebuilds.OwnerID, uuid.New()},
+			ownerIDs: []uuid.UUID{agplprebuilds.SystemUserID, uuid.New()},
 			metrics: []metricCheck{
 				{"coderd_prebuilds_created", ptr.To(1.0), true},
 				{"coderd_prebuilds_desired", ptr.To(1.0), false},
@@ -67,8 +67,8 @@ func TestMetricsCollector(t *testing.T) {
 			name:         "prebuild running",
 			transitions:  []database.WorkspaceTransition{database.WorkspaceTransitionStart},
 			jobStatuses:  []database.ProvisionerJobStatus{database.ProvisionerJobStatusSucceeded},
-			initiatorIDs: []uuid.UUID{agplprebuilds.OwnerID},
-			ownerIDs:     []uuid.UUID{agplprebuilds.OwnerID},
+			initiatorIDs: []uuid.UUID{agplprebuilds.SystemUserID},
+			ownerIDs:     []uuid.UUID{agplprebuilds.SystemUserID},
 			metrics: []metricCheck{
 				{"coderd_prebuilds_created", ptr.To(1.0), true},
 				{"coderd_prebuilds_desired", ptr.To(1.0), false},
@@ -80,8 +80,8 @@ func TestMetricsCollector(t *testing.T) {
 			name:         "prebuild failed",
 			transitions:  allTransitions,
 			jobStatuses:  []database.ProvisionerJobStatus{database.ProvisionerJobStatusFailed},
-			initiatorIDs: []uuid.UUID{agplprebuilds.OwnerID},
-			ownerIDs:     []uuid.UUID{agplprebuilds.OwnerID, uuid.New()},
+			initiatorIDs: []uuid.UUID{agplprebuilds.SystemUserID},
+			ownerIDs:     []uuid.UUID{agplprebuilds.SystemUserID, uuid.New()},
 			metrics: []metricCheck{
 				{"coderd_prebuilds_created", ptr.To(1.0), true},
 				{"coderd_prebuilds_failed", ptr.To(1.0), true},
@@ -94,7 +94,7 @@ func TestMetricsCollector(t *testing.T) {
 			name:         "prebuild assigned",
 			transitions:  allTransitions,
 			jobStatuses:  allJobStatuses,
-			initiatorIDs: []uuid.UUID{agplprebuilds.OwnerID},
+			initiatorIDs: []uuid.UUID{agplprebuilds.SystemUserID},
 			ownerIDs:     []uuid.UUID{uuid.New()},
 			metrics: []metricCheck{
 				{"coderd_prebuilds_created", ptr.To(1.0), true},
@@ -145,7 +145,7 @@ func TestMetricsCollector(t *testing.T) {
 							reconciler := prebuilds.NewStoreReconciler(db, pubsub, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t))
 							ctx := testutil.Context(t, testutil.WaitLong)
 
-							createdUsers := []uuid.UUID{agplprebuilds.OwnerID}
+							createdUsers := []uuid.UUID{agplprebuilds.SystemUserID}
 							for _, user := range slices.Concat(test.ownerIDs, test.initiatorIDs) {
 								if !slices.Contains(createdUsers, user) {
 									dbgen.User(t, db, database.User{
