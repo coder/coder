@@ -678,7 +678,7 @@ func createWorkspace(
 		return err
 	}, nil)
 	var bldErr wsbuilder.BuildError
-	if xerrors.As(err, &bldErr) {
+	if errors.As(err, &bldErr) {
 		httpapi.Write(ctx, rw, bldErr.Status, codersdk.Response{
 			Message: bldErr.Message,
 			Detail:  bldErr.Error(),

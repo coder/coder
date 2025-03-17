@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
@@ -50,7 +51,7 @@ func (s AGPLIDPSync) OrganizationSyncSettings(ctx context.Context, db database.S
 	rlv := s.Manager.Resolver(db)
 	orgSettings, err := s.SyncSettings.Organization.Resolve(ctx, rlv)
 	if err != nil {
-		if !xerrors.Is(err, runtimeconfig.ErrEntryNotFound) {
+		if !errors.Is(err, runtimeconfig.ErrEntryNotFound) {
 			return nil, xerrors.Errorf("resolve org sync settings: %w", err)
 		}
 
@@ -122,7 +123,7 @@ func (s AGPLIDPSync) SyncOrganizations(ctx context.Context, tx database.Store, u
 			Roles:          []string{},
 		})
 		if err != nil {
-			if xerrors.Is(err, sql.ErrNoRows) {
+			if errors.Is(err, sql.ErrNoRows) {
 				notExists = append(notExists, orgID)
 				continue
 			}

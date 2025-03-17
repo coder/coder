@@ -2,6 +2,7 @@ package agentapi
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net"
 	"net/url"
@@ -210,7 +211,7 @@ func (a *API) Server(ctx context.Context) (*drpcserver.Server, error) {
 	return drpcserver.NewWithOptions(&tracing.DRPCHandler{Handler: mux},
 		drpcserver.Options{
 			Log: func(err error) {
-				if xerrors.Is(err, io.EOF) {
+				if errors.Is(err, io.EOF) {
 					return
 				}
 				a.opts.Log.Debug(ctx, "drpc server error", slog.Error(err))

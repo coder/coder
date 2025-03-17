@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -76,7 +77,7 @@ func (c *AgentConn) Close() error {
 	var cerr error
 	if c.opts.CloseFunc != nil {
 		cerr = c.opts.CloseFunc()
-		if xerrors.Is(cerr, ErrSkipClose) {
+		if errors.Is(cerr, ErrSkipClose) {
 			return nil
 		}
 	}

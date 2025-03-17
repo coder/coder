@@ -2,6 +2,7 @@ package tailnet
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"html/template"
 	"io"
@@ -146,7 +147,7 @@ func (c *coordinator) Coordinate(
 	}
 	err := c.core.initPeer(p)
 	if err != nil {
-		if xerrors.Is(err, ErrClosed) {
+		if errors.Is(err, ErrClosed) {
 			logger.Debug(ctx, "coordinate failed: Coordinator is closed")
 		} else {
 			logger.Critical(ctx, "coordinate failed: %s", err.Error())
@@ -163,7 +164,7 @@ func (c *coordinator) Coordinate(
 		defer c.wg.Done()
 		p.reqLoop(ctx, logger, c.core.handleRequest)
 		err := c.core.lostPeer(p)
-		if xerrors.Is(err, ErrClosed) || xerrors.Is(err, ErrAlreadyRemoved) {
+		if errors.Is(err, ErrClosed) || errors.Is(err, ErrAlreadyRemoved) {
 			return
 		}
 		if err != nil {
@@ -232,7 +233,7 @@ func (c *core) handleRequest(ctx context.Context, p *peer, req *proto.Coordinate
 
 	if req.UpdateSelf != nil {
 		err := c.nodeUpdateLocked(p, req.UpdateSelf.Node)
-		if xerrors.Is(err, ErrAlreadyRemoved) || xerrors.Is(err, ErrClosed) {
+		if errors.Is(err, ErrAlreadyRemoved) || errors.Is(err, ErrClosed) {
 			return nil
 		}
 		if err != nil {
@@ -247,7 +248,7 @@ func (c *core) handleRequest(ctx context.Context, p *peer, req *proto.Coordinate
 			return xerrors.Errorf("unable to convert bytes to UUID: %w", err)
 		}
 		err = c.addTunnelLocked(p, dstID)
-		if xerrors.Is(err, ErrAlreadyRemoved) || xerrors.Is(err, ErrClosed) {
+		if errors.Is(err, ErrAlreadyRemoved) || errors.Is(err, ErrClosed) {
 			return nil
 		}
 		if err != nil {
@@ -262,7 +263,7 @@ func (c *core) handleRequest(ctx context.Context, p *peer, req *proto.Coordinate
 			return xerrors.Errorf("unable to convert bytes to UUID: %w", err)
 		}
 		err = c.removeTunnelLocked(p, dstID)
-		if xerrors.Is(err, ErrAlreadyRemoved) || xerrors.Is(err, ErrClosed) {
+		if errors.Is(err, ErrAlreadyRemoved) || errors.Is(err, ErrClosed) {
 			return nil
 		}
 		if err != nil {

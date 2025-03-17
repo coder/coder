@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -13,7 +14,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/audit"
@@ -325,7 +325,7 @@ func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.Get
 	case database.ResourceTypeTemplate:
 		template, err := api.Database.GetTemplateByID(ctx, alog.AuditLog.ResourceID)
 		if err != nil {
-			if xerrors.Is(err, sql.ErrNoRows) {
+			if errors.Is(err, sql.ErrNoRows) {
 				return true
 			}
 			api.Logger.Error(ctx, "unable to fetch template", slog.Error(err))
@@ -334,7 +334,7 @@ func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.Get
 	case database.ResourceTypeUser:
 		user, err := api.Database.GetUserByID(ctx, alog.AuditLog.ResourceID)
 		if err != nil {
-			if xerrors.Is(err, sql.ErrNoRows) {
+			if errors.Is(err, sql.ErrNoRows) {
 				return true
 			}
 			api.Logger.Error(ctx, "unable to fetch user", slog.Error(err))
@@ -343,7 +343,7 @@ func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.Get
 	case database.ResourceTypeWorkspace:
 		workspace, err := api.Database.GetWorkspaceByID(ctx, alog.AuditLog.ResourceID)
 		if err != nil {
-			if xerrors.Is(err, sql.ErrNoRows) {
+			if errors.Is(err, sql.ErrNoRows) {
 				return true
 			}
 			api.Logger.Error(ctx, "unable to fetch workspace", slog.Error(err))
@@ -352,7 +352,7 @@ func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.Get
 	case database.ResourceTypeWorkspaceBuild:
 		workspaceBuild, err := api.Database.GetWorkspaceBuildByID(ctx, alog.AuditLog.ResourceID)
 		if err != nil {
-			if xerrors.Is(err, sql.ErrNoRows) {
+			if errors.Is(err, sql.ErrNoRows) {
 				return true
 			}
 			api.Logger.Error(ctx, "unable to fetch workspace build", slog.Error(err))
@@ -360,7 +360,7 @@ func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.Get
 		// We use workspace as a proxy for workspace build here
 		workspace, err := api.Database.GetWorkspaceByID(ctx, workspaceBuild.WorkspaceID)
 		if err != nil {
-			if xerrors.Is(err, sql.ErrNoRows) {
+			if errors.Is(err, sql.ErrNoRows) {
 				return true
 			}
 			api.Logger.Error(ctx, "unable to fetch workspace", slog.Error(err))
@@ -370,7 +370,7 @@ func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.Get
 		// We use workspace as a proxy for workspace agents.
 		workspace, err := api.Database.GetWorkspaceByAgentID(ctx, alog.AuditLog.ResourceID)
 		if err != nil {
-			if xerrors.Is(err, sql.ErrNoRows) {
+			if errors.Is(err, sql.ErrNoRows) {
 				return true
 			}
 			api.Logger.Error(ctx, "unable to fetch workspace", slog.Error(err))
@@ -380,7 +380,7 @@ func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.Get
 		// We use workspace as a proxy for workspace apps.
 		workspace, err := api.Database.GetWorkspaceByWorkspaceAppID(ctx, alog.AuditLog.ResourceID)
 		if err != nil {
-			if xerrors.Is(err, sql.ErrNoRows) {
+			if errors.Is(err, sql.ErrNoRows) {
 				return true
 			}
 			api.Logger.Error(ctx, "unable to fetch workspace", slog.Error(err))
@@ -388,7 +388,7 @@ func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.Get
 		return workspace.Deleted
 	case database.ResourceTypeOauth2ProviderApp:
 		_, err := api.Database.GetOAuth2ProviderAppByID(ctx, alog.AuditLog.ResourceID)
-		if xerrors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) {
 			return true
 		} else if err != nil {
 			api.Logger.Error(ctx, "unable to fetch oauth2 app", slog.Error(err))
@@ -396,7 +396,7 @@ func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.Get
 		return false
 	case database.ResourceTypeOauth2ProviderAppSecret:
 		_, err := api.Database.GetOAuth2ProviderAppSecretByID(ctx, alog.AuditLog.ResourceID)
-		if xerrors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) {
 			return true
 		} else if err != nil {
 			api.Logger.Error(ctx, "unable to fetch oauth2 app secret", slog.Error(err))

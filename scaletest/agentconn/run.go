@@ -2,6 +2,7 @@ package agentconn
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -357,7 +358,7 @@ func holdConnection(ctx context.Context, logs io.Writer, conn *workspacesdk.Agen
 	})
 
 	err := eg.Wait()
-	if err != nil && !xerrors.Is(err, holdDurationEndedError{}) {
+	if err != nil && !errors.Is(err, holdDurationEndedError{}) {
 		return xerrors.Errorf("run connections loop: %w", err)
 	}
 

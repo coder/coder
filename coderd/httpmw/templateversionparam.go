@@ -3,10 +3,10 @@ package httpmw
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -47,7 +47,7 @@ func ExtractTemplateVersionParam(db database.Store) func(http.Handler) http.Hand
 			}
 
 			template, err := db.GetTemplateByID(r.Context(), templateVersion.TemplateID.UUID)
-			if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
 				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Internal error fetching template.",
 					Detail:  err.Error(),

@@ -402,7 +402,7 @@ func Is404Error(err error) bool {
 	if IsUnauthorizedError(err) {
 		return true
 	}
-	return xerrors.Is(err, sql.ErrNoRows)
+	return errors.Is(err, sql.ErrNoRows)
 }
 ```
 

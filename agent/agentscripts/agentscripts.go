@@ -325,7 +325,7 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 		if err != nil {
 			exitCode = 255 // Unknown status.
 			var exitError *exec.ExitError
-			if xerrors.As(err, &exitError) {
+			if errors.As(err, &exitError) {
 				exitCode = exitError.ExitCode()
 			}
 			logger.Warn(ctx, fmt.Sprintf("%s script failed", logPath), slog.F("execution_time", execTime), slog.F("exit_code", exitCode), slog.Error(err))

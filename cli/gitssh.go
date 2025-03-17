@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -88,7 +89,7 @@ func (r *RootCmd) gitssh() *serpent.Command {
 			err = c.Run()
 			if err != nil {
 				exitErr := &exec.ExitError{}
-				if xerrors.As(err, &exitErr) && exitErr.ExitCode() == 255 {
+				if errors.As(err, &exitErr) && exitErr.ExitCode() == 255 {
 					_, _ = fmt.Fprintln(inv.Stderr,
 						"\n"+pretty.Sprintf(
 							cliui.DefaultStyles.Wrap, "%s",

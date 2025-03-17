@@ -3,6 +3,7 @@ package workspaceapps
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -10,8 +11,6 @@ import (
 	"slices"
 	"strings"
 	"time"
-
-	"golang.org/x/xerrors"
 
 	"github.com/go-jose/go-jose/v4/jwt"
 
@@ -113,10 +112,10 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 
 	// Lookup workspace app details from DB.
 	dbReq, err := appReq.getDatabase(dangerousSystemCtx, p.Database)
-	if xerrors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, sql.ErrNoRows) {
 		WriteWorkspaceApp404(p.Logger, p.DashboardURL, rw, r, &appReq, nil, err.Error())
 		return nil, "", false
-	} else if xerrors.Is(err, errWorkspaceStopped) {
+	} else if errors.Is(err, errWorkspaceStopped) {
 		WriteWorkspaceOffline(p.Logger, p.DashboardURL, rw, r, &appReq)
 		return nil, "", false
 	} else if err != nil {

@@ -2,10 +2,9 @@ package testutil
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
-
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
@@ -37,7 +36,7 @@ func IgnoreLoggedError(entry slog.SinkEntry) bool {
 // to us, rather than the pq error type, because we don't want testutil, which is imported in lots
 // of places to import lib/pq, which we have our own fork of.
 func isQueryCanceledError(err error) bool {
-	if xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return true
 	}
 	if strings.Contains(err.Error(), "canceling statement due to user request") {

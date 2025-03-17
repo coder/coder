@@ -3,6 +3,7 @@ package tailnet
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -423,7 +424,7 @@ func (t *tunneler) writeOne(tun tunnel) error {
 			slog.Error(err),
 		)
 		// writeOne should be idempotent
-		if xerrors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) {
 			err = nil
 		}
 	default:
@@ -559,7 +560,7 @@ func (b *binder) writeOne(bnd binding) error {
 			CoordinatorID: b.coordinatorID,
 		})
 		// writeOne is idempotent
-		if xerrors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) {
 			err = nil
 		}
 	} else {
@@ -691,7 +692,7 @@ func (m *mapper) run() {
 			m.logger.Debug(m.ctx, "skipping nil node update")
 			continue
 		}
-		if err := m.c.Enqueue(update); err != nil && !xerrors.Is(err, context.Canceled) {
+		if err := m.c.Enqueue(update); err != nil && !errors.Is(err, context.Canceled) {
 			m.logger.Error(m.ctx, "failed to enqueue node update", slog.Error(err))
 		}
 	}
@@ -979,7 +980,7 @@ func (q *querier) peerUpdate(peer uuid.UUID) error {
 	logger := q.logger.With(slog.F("peer_id", peer))
 	logger.Debug(q.ctx, "querying peers that share a tunnel")
 	others, err := q.store.GetTailnetTunnelPeerIDs(q.ctx, peer)
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return err
 	}
 	logger.Debug(q.ctx, "queried peers that share a tunnel", slog.F("num_peers", len(others)))
@@ -999,7 +1000,7 @@ func (q *querier) mappingQuery(peer mKey) error {
 	logger.Debug(q.ctx, "querying mappings")
 	bindings, err := q.store.GetTailnetTunnelPeerBindings(q.ctx, uuid.UUID(peer))
 	logger.Debug(q.ctx, "queried mappings", slog.F("num_mappings", len(bindings)))
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return err
 	}
 	mappings, err := q.bindingsToMappings(bindings)
@@ -1130,7 +1131,7 @@ func (q *querier) subscribe() {
 }
 
 func (q *querier) listenPeer(_ context.Context, msg []byte, err error) {
-	if xerrors.Is(err, pubsub.ErrDroppedMessages) {
+	if errors.Is(err, pubsub.ErrDroppedMessages) {
 		q.logger.Warn(q.ctx, "pubsub may have dropped peer updates")
 		// we need to schedule a full resync of peer mappings
 		q.resyncPeerMappings()
@@ -1157,7 +1158,7 @@ func (q *querier) listenPeer(_ context.Context, msg []byte, err error) {
 }
 
 func (q *querier) listenTunnel(_ context.Context, msg []byte, err error) {
-	if xerrors.Is(err, pubsub.ErrDroppedMessages) {
+	if errors.Is(err, pubsub.ErrDroppedMessages) {
 		q.logger.Warn(q.ctx, "pubsub may have dropped tunnel updates")
 		// we need to schedule a full resync of peer mappings
 		q.resyncPeerMappings()
@@ -1188,7 +1189,7 @@ func (q *querier) listenTunnel(_ context.Context, msg []byte, err error) {
 }
 
 func (q *querier) listenReadyForHandshake(_ context.Context, msg []byte, err error) {
-	if err != nil && !xerrors.Is(err, pubsub.ErrDroppedMessages) {
+	if err != nil && !errors.Is(err, pubsub.ErrDroppedMessages) {
 		q.logger.Warn(q.ctx, "unhandled pubsub error", slog.Error(err))
 		return
 	}

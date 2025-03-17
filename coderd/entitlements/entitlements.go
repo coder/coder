@@ -3,6 +3,7 @@ package entitlements
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"slices"
 	"sync"
@@ -65,7 +66,7 @@ func (l *Set) Update(ctx context.Context, fetch func(context.Context) (codersdk.
 		}()
 	}
 	ents, err := fetch(ctx)
-	if xerrors.Is(err, ErrLicenseRequiresTelemetry) {
+	if errors.Is(err, ErrLicenseRequiresTelemetry) {
 		// We can't fail because then the user couldn't remove the offending
 		// license w/o a restart.
 		//

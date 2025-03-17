@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"regexp"
@@ -483,7 +484,7 @@ func (b *stdbuf) Read(p []byte) (int, error) {
 	}
 
 	n, err := b.r.Read(p)
-	if xerrors.Is(err, io.EOF) {
+	if errors.Is(err, io.EOF) {
 		b.r = nil
 		err = nil
 		if n == 0 {

@@ -2,6 +2,7 @@ package tailnet
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -33,7 +34,7 @@ type peer struct {
 func (p *peer) updateMappingLocked(id uuid.UUID, n *proto.Node, k proto.CoordinateResponse_PeerUpdate_Kind, reason string) error {
 	logger := p.logger.With(slog.F("from_id", id), slog.F("kind", k), slog.F("reason", reason))
 	update, err := p.storeMappingLocked(id, n, k, reason)
-	if xerrors.Is(err, noResp) {
+	if errors.Is(err, noResp) {
 		logger.Debug(context.Background(), "skipping update")
 		return nil
 	}
@@ -61,7 +62,7 @@ func (p *peer) batchUpdateMappingLocked(others []*peer, k proto.CoordinateRespon
 			continue
 		}
 		update, err := p.storeMappingLocked(other.id, other.node, k, reason)
-		if xerrors.Is(err, noResp) {
+		if errors.Is(err, noResp) {
 			continue
 		}
 		if err != nil {
@@ -134,7 +135,7 @@ func (p *peer) reqLoop(ctx context.Context, logger slog.Logger, handler func(con
 			}
 			logger.Debug(ctx, "peerReadLoop got request")
 			if err := handler(ctx, p, req); err != nil {
-				if xerrors.Is(err, ErrAlreadyRemoved) || xerrors.Is(err, ErrClosed) {
+				if errors.Is(err, ErrAlreadyRemoved) || errors.Is(err, ErrClosed) {
 					return
 				}
 				logger.Error(ctx, "peerReadLoop error handling request", slog.Error(err), slog.F("request", req))

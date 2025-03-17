@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -128,7 +129,7 @@ func (r *RootCmd) vscodeSSH() *serpent.Command {
 			appearanceCfg, err := client.Appearance(ctx)
 			if err != nil {
 				var sdkErr *codersdk.Error
-				if !(xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound) {
+				if !(errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound) {
 					return xerrors.Errorf("get appearance config: %w", err)
 				}
 				appearanceCfg.DocsURL = codersdk.DefaultDocsURL()
@@ -141,7 +142,7 @@ func (r *RootCmd) vscodeSSH() *serpent.Command {
 				DocsURL:   appearanceCfg.DocsURL,
 			})
 			if err != nil {
-				if xerrors.Is(err, context.Canceled) {
+				if errors.Is(err, context.Canceled) {
 					return cliui.Canceled
 				}
 			}

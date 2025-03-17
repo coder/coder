@@ -2,6 +2,7 @@ package tailnet
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net"
 	"sync"
@@ -93,9 +94,9 @@ func NewClientService(options ClientServiceOptions) (
 	}
 	server := drpcserver.NewWithOptions(mux, drpcserver.Options{
 		Log: func(err error) {
-			if xerrors.Is(err, io.EOF) ||
-				xerrors.Is(err, context.Canceled) ||
-				xerrors.Is(err, context.DeadlineExceeded) {
+			if errors.Is(err, io.EOF) ||
+				errors.Is(err, context.Canceled) ||
+				errors.Is(err, context.DeadlineExceeded) {
 				return
 			}
 			options.Logger.Debug(context.Background(), "drpc server error", slog.Error(err))

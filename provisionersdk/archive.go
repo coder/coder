@@ -3,6 +3,7 @@ package provisionersdk
 import (
 	"archive/tar"
 	"context"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -126,7 +127,7 @@ func Tar(w io.Writer, logger slog.Logger, directory string, limit int64) error {
 		defer data.Close()
 		_, err = io.Copy(tarWriter, data)
 		if err != nil {
-			if xerrors.Is(err, xio.ErrLimitReached) {
+			if errors.Is(err, xio.ErrLimitReached) {
 				return xerrors.Errorf("Archive too big. Must be <= %d bytes", limit)
 			}
 			return err
@@ -135,7 +136,7 @@ func Tar(w io.Writer, logger slog.Logger, directory string, limit int64) error {
 		return data.Close()
 	})
 	if err != nil {
-		if xerrors.Is(err, xio.ErrLimitReached) {
+		if errors.Is(err, xio.ErrLimitReached) {
 			return xerrors.Errorf("Archive too big. Must be <= %d bytes", limit)
 		}
 		return err
@@ -152,7 +153,7 @@ func Untar(directory string, r io.Reader) error {
 	tarReader := tar.NewReader(r)
 	for {
 		header, err := tarReader.Next()
-		if xerrors.Is(err, io.EOF) {
+		if errors.Is(err, io.EOF) {
 			return nil
 		}
 		if err != nil {
@@ -181,7 +182,7 @@ func Untar(directory string, r io.Reader) error {
 			}
 			// Max file size of 10MB.
 			_, err = io.CopyN(file, tarReader, (1<<20)*10)
-			if xerrors.Is(err, io.EOF) {
+			if errors.Is(err, io.EOF) {
 				err = nil
 			}
 			if err != nil {

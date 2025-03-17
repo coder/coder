@@ -4,6 +4,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -333,7 +334,7 @@ func (r *RootCmd) proxyServer() *serpent.Command {
 				))
 			}
 
-			if exitErr != nil && !xerrors.Is(exitErr, context.Canceled) {
+			if exitErr != nil && !errors.Is(exitErr, context.Canceled) {
 				cliui.Errorf(inv.Stderr, "Unexpected error, shutting down server: %s\n", exitErr)
 			}
 
@@ -368,11 +369,11 @@ func (r *RootCmd) proxyServer() *serpent.Command {
 			closers.Close()
 
 			switch {
-			case xerrors.Is(exitErr, context.DeadlineExceeded):
+			case errors.Is(exitErr, context.DeadlineExceeded):
 				cliui.Warnf(inv.Stderr, "Graceful shutdown timed out")
 				// Errors here cause a significant number of benign CI failures.
 				return nil
-			case xerrors.Is(exitErr, context.Canceled):
+			case errors.Is(exitErr, context.Canceled):
 				return nil
 			case exitErr != nil:
 				return xerrors.Errorf("graceful shutdown: %w", exitErr)

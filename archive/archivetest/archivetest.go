@@ -5,12 +5,12 @@ import (
 	"archive/zip"
 	"bytes"
 	_ "embed"
+	"errors"
 	"io"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 )
 
 //go:embed testdata/test.tar
@@ -52,7 +52,7 @@ func AssertSampleTarFile(t *testing.T, tarBytes []byte) {
 		case "test/hello.txt":
 			require.Equal(t, hdr.Typeflag, byte(tar.TypeReg))
 			bs, err := io.ReadAll(tr)
-			if err != nil && !xerrors.Is(err, io.EOF) {
+			if err != nil && !errors.Is(err, io.EOF) {
 				require.NoError(t, err)
 			}
 			require.Equal(t, "hello", string(bs))
@@ -61,7 +61,7 @@ func AssertSampleTarFile(t *testing.T, tarBytes []byte) {
 		case "test/dir/world.txt":
 			require.Equal(t, hdr.Typeflag, byte(tar.TypeReg))
 			bs, err := io.ReadAll(tr)
-			if err != nil && !xerrors.Is(err, io.EOF) {
+			if err != nil && !errors.Is(err, io.EOF) {
 				require.NoError(t, err)
 			}
 			require.Equal(t, "world", string(bs))

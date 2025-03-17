@@ -3,6 +3,7 @@ package tailnet
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"html/template"
 	"net/http"
 	"time"
@@ -63,15 +64,15 @@ func (c *pgCoord) ServeHTTPDebug(w http.ResponseWriter, r *http.Request) {
 func getDebug(ctx context.Context, store database.Store) (HTMLDebug, error) {
 	out := HTMLDebug{}
 	coords, err := store.GetAllTailnetCoordinators(ctx)
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return HTMLDebug{}, xerrors.Errorf("failed to query coordinators: %w", err)
 	}
 	peers, err := store.GetAllTailnetPeers(ctx)
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return HTMLDebug{}, xerrors.Errorf("failed to query peers: %w", err)
 	}
 	tunnels, err := store.GetAllTailnetTunnels(ctx)
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return HTMLDebug{}, xerrors.Errorf("failed to query tunnels: %w", err)
 	}
 	now := time.Now() // call this once so all our ages are on the same timebase

@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"slices"
@@ -318,7 +319,7 @@ func loadDismissedHealthchecks(ctx context.Context, db database.Store, logger sl
 			dismissedHealthchecks = settings.DismissedHealthchecks
 		}
 	}
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		logger.Error(ctx, "unable to fetch health settings", slog.Error(err))
 	}
 	return dismissedHealthchecks

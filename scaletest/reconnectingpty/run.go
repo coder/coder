@@ -3,6 +3,7 @@ package reconnectingpty
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -96,7 +97,7 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 		if err == nil {
 			return xerrors.Errorf("expected timeout, but the command exited successfully")
 		}
-		if !xerrors.Is(err, context.DeadlineExceeded) {
+		if !errors.Is(err, context.DeadlineExceeded) {
 			return xerrors.Errorf("expected timeout, but got a different error: %w", err)
 		}
 	} else if err != nil {
@@ -146,7 +147,7 @@ func copyContext(ctx context.Context, dst io.Writer, src io.Reader, expectOutput
 			}
 			processing <- struct{}{}
 		}
-		if scanner.Err() != nil && !xerrors.Is(scanner.Err(), io.EOF) {
+		if scanner.Err() != nil && !errors.Is(scanner.Err(), io.EOF) {
 			copyErr <- xerrors.Errorf("read from reconnecting PTY: %w", scanner.Err())
 			return
 		}

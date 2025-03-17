@@ -324,7 +324,7 @@ func (p *ProxyHealth) runOnce(ctx context.Context, now time.Time) (map[uuid.UUID
 				// err will always be non-nil
 				err := codersdk.ReadBodyAsError(resp)
 				var apiErr *codersdk.Error
-				if xerrors.As(err, &apiErr) {
+				if errors.As(err, &apiErr) {
 					builder.WriteString(fmt.Sprintf("\nError Message: %s\nError Detail: %s", apiErr.Message, apiErr.Detail))
 					for _, v := range apiErr.Validations {
 						// Pretty sure this is not possible from the called endpoint, but just in case.

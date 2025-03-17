@@ -5,6 +5,7 @@ import (
 	"crypto/subtle"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"time"
 
@@ -243,7 +244,7 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 		Email:    email,
 		Username: sUser.UserName,
 	})
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		_ = handlerutil.WriteError(rw, err) // internal error
 		return
 	}

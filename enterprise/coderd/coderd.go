@@ -3,6 +3,7 @@ package coderd
 import (
 	"context"
 	"crypto/ed25519"
+	"errors"
 	"fmt"
 	"math"
 	"net/http"
@@ -104,7 +105,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		// database is encrypted with an unknown external token encryption key.
 		// This is a fatal error.
 		var derr *dbcrypt.DecryptFailedError
-		if xerrors.As(err, &derr) {
+		if errors.As(err, &derr) {
 			return nil, xerrors.Errorf("database encrypted with unknown key, either add the key or see https://coder.com/docs/admin/encryption#disabling-encryption: %w", derr)
 		}
 		return nil, xerrors.Errorf("init database encryption: %w", err)

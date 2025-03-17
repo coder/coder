@@ -33,7 +33,6 @@ import (
 	"golang.org/x/crypto/ssh"
 	gosshagent "golang.org/x/crypto/ssh/agent"
 	"golang.org/x/sync/errgroup"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agentcontainers"
@@ -812,7 +811,7 @@ func TestSSH(t *testing.T) {
 		fsn.AssertStopped()
 		require.Eventually(t, func() bool {
 			_, err = os.Stat(remoteSock)
-			return xerrors.Is(err, os.ErrNotExist)
+			return errors.Is(err, os.ErrNotExist)
 		}, testutil.WaitShort, testutil.IntervalFast)
 	})
 
@@ -985,7 +984,7 @@ func TestSSH(t *testing.T) {
 				// might connect to an old listener on the agent side.
 				require.Eventually(t, func() bool {
 					_, err = os.Stat(remoteSock)
-					return xerrors.Is(err, os.ErrNotExist)
+					return errors.Is(err, os.ErrNotExist)
 				}, testutil.WaitShort, testutil.IntervalFast)
 			}()
 		}
