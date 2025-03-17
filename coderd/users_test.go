@@ -2460,7 +2460,7 @@ func TestSystemUserBehaviour(t *testing.T) {
 	require.NotNil(t, regularUser)
 
 	require.True(t, systemUser.IsSystem.Bool)
-	require.Equal(t, systemUser.ID, prebuilds.OwnerID)
+	require.Equal(t, systemUser.ID, prebuilds.SystemUserID)
 	require.False(t, regularUser.IsSystem.Bool)
 	require.Equal(t, regularUser.ID, other.ID)
 
