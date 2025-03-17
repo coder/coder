@@ -12265,7 +12265,7 @@ func (q *FakeQuerier) UpsertWorkspaceAgentPortShare(_ context.Context, arg datab
 	return psl, nil
 }
 
-func (q *FakeQuerier) UpsertWorkspaceAppAuditSession(ctx context.Context, arg database.UpsertWorkspaceAppAuditSessionParams) (time.Time, error) {
+func (q *FakeQuerier) UpsertWorkspaceAppAuditSession(_ context.Context, arg database.UpsertWorkspaceAppAuditSessionParams) (time.Time, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return time.Time{}, err
