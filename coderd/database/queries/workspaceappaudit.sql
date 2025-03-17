@@ -1,11 +1,16 @@
--- name: InsertWorkspaceAppAuditSession :one
+-- name: UpsertWorkspaceAppAuditSession :one
+--
+-- Insert a new workspace app audit session or update an existing one, if
+-- started_at is updated, it means the session has been restarted.
 INSERT INTO
 	workspace_app_audit_sessions (
 		agent_id,
 		app_id,
 		user_id,
 		ip,
+		user_agent,
 		slug_or_port,
+		status_code,
 		started_at,
 		updated_at
 	)
@@ -17,25 +22,20 @@ VALUES
 		$4,
 		$5,
 		$6,
-		$7
+		$7,
+		$8,
+		$9
 	)
+ON CONFLICT
+	(agent_id, app_id, user_id, ip, user_agent, slug_or_port, status_code)
+DO
+	UPDATE
+	SET
+		started_at = CASE
+			WHEN workspace_app_audit_sessions.updated_at > NOW() - (@stale_interval_ms::bigint || ' ms')::interval
+			THEN workspace_app_audit_sessions.started_at
+			ELSE EXCLUDED.started_at
+		END,
+		updated_at = EXCLUDED.updated_at
 RETURNING
-	id;
-
--- name: UpdateWorkspaceAppAuditSession :many
---
--- Return ID to determine if a row was updated or not. This table isn't strict
--- about uniqueness, so we need to know if we updated an existing row or not.
-UPDATE
-	workspace_app_audit_sessions
-SET
-	updated_at = @updated_at
-WHERE
-	agent_id = @agent_id
-	AND app_id IS NOT DISTINCT FROM @app_id
-	AND user_id IS NOT DISTINCT FROM @user_id
-	AND ip IS NOT DISTINCT FROM @ip
-	AND slug_or_port = @slug_or_port
-	AND updated_at > NOW() - (@stale_interval_ms::bigint || ' ms')::interval
-RETURNING
-	id;
+	started_at;
