@@ -25,6 +25,8 @@ type Store interface {
 	GetNotificationsSettings(ctx context.Context) (string, error)
 	GetApplicationName(ctx context.Context) (string, error)
 	GetLogoURL(ctx context.Context) (string, error)
+	GetNotificationPushSubscriptionsByUserID(ctx context.Context, userID uuid.UUID) ([]database.NotificationPushSubscription, error)
+	DeleteNotificationPushSubscriptions(ctx context.Context, subscriptionIDs []uuid.UUID) error
 
 	InsertInboxNotification(ctx context.Context, arg database.InsertInboxNotificationParams) (database.InboxNotification, error)
 }

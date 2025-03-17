@@ -213,3 +213,15 @@ type UpdateNotificationTemplateMethod struct {
 type UpdateUserNotificationPreferences struct {
 	TemplateDisabledMap map[string]bool `json:"template_disabled_map"`
 }
+
+type PushNotificationAction struct {
+	Label string `json:"label"`
+	URL   string `json:"url"`
+}
+
+type PushNotification struct {
+	Icon    string                   `json:"icon"`
+	Title   string                   `json:"title"`
+	Body    string                   `json:"body"`
+	Actions []PushNotificationAction `json:"actions"`
+}

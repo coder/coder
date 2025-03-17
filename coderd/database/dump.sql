@@ -114,7 +114,8 @@ CREATE TYPE notification_message_status AS ENUM (
 CREATE TYPE notification_method AS ENUM (
     'smtp',
     'webhook',
-    'inbox'
+    'inbox',
+    'push'
 );
 
 CREATE TYPE notification_template_kind AS ENUM (
@@ -971,6 +972,15 @@ CREATE TABLE notification_preferences (
     disabled boolean DEFAULT false NOT NULL,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE TABLE notification_push_subscriptions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    endpoint text NOT NULL,
+    endpoint_p256dh_key text NOT NULL,
+    endpoint_auth_key text NOT NULL
 );
 
 CREATE TABLE notification_report_generator_logs (
@@ -2088,6 +2098,9 @@ ALTER TABLE ONLY notification_messages
 ALTER TABLE ONLY notification_preferences
     ADD CONSTRAINT notification_preferences_pkey PRIMARY KEY (user_id, notification_template_id);
 
+ALTER TABLE ONLY notification_push_subscriptions
+    ADD CONSTRAINT notification_push_subscriptions_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY notification_report_generator_logs
     ADD CONSTRAINT notification_report_generator_logs_pkey PRIMARY KEY (notification_template_id);
 
@@ -2531,6 +2544,9 @@ ALTER TABLE ONLY notification_preferences
 
 ALTER TABLE ONLY notification_preferences
     ADD CONSTRAINT notification_preferences_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY notification_push_subscriptions
+    ADD CONSTRAINT notification_push_subscriptions_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY oauth2_provider_app_codes
     ADD CONSTRAINT oauth2_provider_app_codes_app_id_fkey FOREIGN KEY (app_id) REFERENCES oauth2_provider_apps(id) ON DELETE CASCADE;

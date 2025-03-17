@@ -1270,6 +1270,7 @@ export interface NotificationsConfig {
 	readonly dispatch_timeout: number;
 	readonly email: NotificationsEmailConfig;
 	readonly webhook: NotificationsWebhookConfig;
+	readonly push: NotificationsPushConfig;
 }
 
 // From codersdk/deployment.go
@@ -1298,6 +1299,12 @@ export interface NotificationsEmailTLSConfig {
 	readonly ca_file: string;
 	readonly cert_file: string;
 	readonly key_file: string;
+}
+
+// From codersdk/deployment.go
+export interface NotificationsPushConfig {
+	readonly vapid_public_key: string;
+	readonly vapid_private_key: string;
 }
 
 // From codersdk/notifications.go
@@ -1847,6 +1854,20 @@ export const ProxyHealthStatuses: ProxyHealthStatus[] = [
 	"unregistered",
 ];
 
+// From codersdk/notifications.go
+export interface PushNotification {
+	readonly icon: string;
+	readonly title: string;
+	readonly body: string;
+	readonly actions: readonly PushNotificationAction[];
+}
+
+// From codersdk/notifications.go
+export interface PushNotificationAction {
+	readonly label: string;
+	readonly url: string;
+}
+
 // From codersdk/workspaces.go
 export interface PutExtendWorkspaceRequest {
 	readonly deadline: string;
@@ -1911,6 +1932,7 @@ export type RBACResource =
 	| "license"
 	| "notification_message"
 	| "notification_preference"
+	| "notification_push_subscription"
 	| "notification_template"
 	| "oauth2_app"
 	| "oauth2_app_code_token"
@@ -1947,6 +1969,7 @@ export const RBACResources: RBACResource[] = [
 	"license",
 	"notification_message",
 	"notification_preference",
+	"notification_push_subscription",
 	"notification_template",
 	"oauth2_app",
 	"oauth2_app_code_token",

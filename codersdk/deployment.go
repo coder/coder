@@ -698,10 +698,17 @@ type NotificationsConfig struct {
 	SMTP NotificationsEmailConfig `json:"email" typescript:",notnull"`
 	// Webhook settings.
 	Webhook NotificationsWebhookConfig `json:"webhook" typescript:",notnull"`
+	// Push settings.
+	Push NotificationsPushConfig `json:"push" typescript:",notnull"`
 }
 
 func (n *NotificationsConfig) Enabled() bool {
 	return n.SMTP.Smarthost != "" || n.Webhook.Endpoint != serpent.URL{}
+}
+
+type NotificationsPushConfig struct {
+	VAPIDPublicKey  serpent.String `json:"vapid_public_key" typescript:",notnull"`
+	VAPIDPrivateKey serpent.String `json:"vapid_private_key" typescript:",notnull"`
 }
 
 type NotificationsEmailConfig struct {

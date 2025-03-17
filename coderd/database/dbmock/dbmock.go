@@ -446,6 +446,34 @@ func (mr *MockStoreMockRecorder) DeleteLicense(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteLicense", reflect.TypeOf((*MockStore)(nil).DeleteLicense), ctx, id)
 }
 
+// DeleteNotificationPushSubscriptionByEndpoint mocks base method.
+func (m *MockStore) DeleteNotificationPushSubscriptionByEndpoint(ctx context.Context, arg database.DeleteNotificationPushSubscriptionByEndpointParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteNotificationPushSubscriptionByEndpoint", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteNotificationPushSubscriptionByEndpoint indicates an expected call of DeleteNotificationPushSubscriptionByEndpoint.
+func (mr *MockStoreMockRecorder) DeleteNotificationPushSubscriptionByEndpoint(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteNotificationPushSubscriptionByEndpoint", reflect.TypeOf((*MockStore)(nil).DeleteNotificationPushSubscriptionByEndpoint), ctx, arg)
+}
+
+// DeleteNotificationPushSubscriptions mocks base method.
+func (m *MockStore) DeleteNotificationPushSubscriptions(ctx context.Context, ids []uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteNotificationPushSubscriptions", ctx, ids)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteNotificationPushSubscriptions indicates an expected call of DeleteNotificationPushSubscriptions.
+func (mr *MockStoreMockRecorder) DeleteNotificationPushSubscriptions(ctx, ids any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteNotificationPushSubscriptions", reflect.TypeOf((*MockStore)(nil).DeleteNotificationPushSubscriptions), ctx, ids)
+}
+
 // DeleteOAuth2ProviderAppByID mocks base method.
 func (m *MockStore) DeleteOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) error {
 	m.ctrl.T.Helper()
@@ -1792,6 +1820,21 @@ func (mr *MockStoreMockRecorder) GetNotificationMessagesByStatus(ctx, arg any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNotificationMessagesByStatus", reflect.TypeOf((*MockStore)(nil).GetNotificationMessagesByStatus), ctx, arg)
 }
 
+// GetNotificationPushSubscriptionsByUserID mocks base method.
+func (m *MockStore) GetNotificationPushSubscriptionsByUserID(ctx context.Context, userID uuid.UUID) ([]database.NotificationPushSubscription, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetNotificationPushSubscriptionsByUserID", ctx, userID)
+	ret0, _ := ret[0].([]database.NotificationPushSubscription)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetNotificationPushSubscriptionsByUserID indicates an expected call of GetNotificationPushSubscriptionsByUserID.
+func (mr *MockStoreMockRecorder) GetNotificationPushSubscriptionsByUserID(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNotificationPushSubscriptionsByUserID", reflect.TypeOf((*MockStore)(nil).GetNotificationPushSubscriptionsByUserID), ctx, userID)
+}
+
 // GetNotificationReportGeneratorLogByTemplate mocks base method.
 func (m *MockStore) GetNotificationReportGeneratorLogByTemplate(ctx context.Context, templateID uuid.UUID) (database.NotificationReportGeneratorLog, error) {
 	m.ctrl.T.Helper()
@@ -1835,6 +1878,21 @@ func (m *MockStore) GetNotificationTemplatesByKind(ctx context.Context, kind dat
 func (mr *MockStoreMockRecorder) GetNotificationTemplatesByKind(ctx, kind any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNotificationTemplatesByKind", reflect.TypeOf((*MockStore)(nil).GetNotificationTemplatesByKind), ctx, kind)
+}
+
+// GetNotificationVAPIDKeys mocks base method.
+func (m *MockStore) GetNotificationVAPIDKeys(ctx context.Context) (database.GetNotificationVAPIDKeysRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetNotificationVAPIDKeys", ctx)
+	ret0, _ := ret[0].(database.GetNotificationVAPIDKeysRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetNotificationVAPIDKeys indicates an expected call of GetNotificationVAPIDKeys.
+func (mr *MockStoreMockRecorder) GetNotificationVAPIDKeys(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNotificationVAPIDKeys", reflect.TypeOf((*MockStore)(nil).GetNotificationVAPIDKeys), ctx)
 }
 
 // GetNotificationsSettings mocks base method.
@@ -4127,6 +4185,21 @@ func (mr *MockStoreMockRecorder) InsertMissingGroups(ctx, arg any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertMissingGroups", reflect.TypeOf((*MockStore)(nil).InsertMissingGroups), ctx, arg)
 }
 
+// InsertNotificationPushSubscription mocks base method.
+func (m *MockStore) InsertNotificationPushSubscription(ctx context.Context, arg database.InsertNotificationPushSubscriptionParams) (database.NotificationPushSubscription, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertNotificationPushSubscription", ctx, arg)
+	ret0, _ := ret[0].(database.NotificationPushSubscription)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertNotificationPushSubscription indicates an expected call of InsertNotificationPushSubscription.
+func (mr *MockStoreMockRecorder) InsertNotificationPushSubscription(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertNotificationPushSubscription", reflect.TypeOf((*MockStore)(nil).InsertNotificationPushSubscription), ctx, arg)
+}
+
 // InsertOAuth2ProviderApp mocks base method.
 func (m *MockStore) InsertOAuth2ProviderApp(ctx context.Context, arg database.InsertOAuth2ProviderAppParams) (database.OAuth2ProviderApp, error) {
 	m.ctrl.T.Helper()
@@ -6084,6 +6157,20 @@ func (m *MockStore) UpsertNotificationReportGeneratorLog(ctx context.Context, ar
 func (mr *MockStoreMockRecorder) UpsertNotificationReportGeneratorLog(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertNotificationReportGeneratorLog", reflect.TypeOf((*MockStore)(nil).UpsertNotificationReportGeneratorLog), ctx, arg)
+}
+
+// UpsertNotificationVAPIDKeys mocks base method.
+func (m *MockStore) UpsertNotificationVAPIDKeys(ctx context.Context, arg database.UpsertNotificationVAPIDKeysParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertNotificationVAPIDKeys", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertNotificationVAPIDKeys indicates an expected call of UpsertNotificationVAPIDKeys.
+func (mr *MockStoreMockRecorder) UpsertNotificationVAPIDKeys(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertNotificationVAPIDKeys", reflect.TypeOf((*MockStore)(nil).UpsertNotificationVAPIDKeys), ctx, arg)
 }
 
 // UpsertNotificationsSettings mocks base method.
