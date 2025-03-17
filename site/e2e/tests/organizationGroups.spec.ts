@@ -34,9 +34,7 @@ test("create group", async ({ page }) => {
 	// Create a new organization
 	const org = await createOrganization();
 	const orgUserAdmin = await createOrganizationMember({
-		orgRoles: {
-			[org.id]: ["organization-user-admin"],
-		},
+		[org.id]: ["organization-user-admin"],
 	});
 
 	await login(page, orgUserAdmin);
@@ -101,9 +99,7 @@ test("change quota settings", async ({ page }) => {
 	const org = await createOrganization();
 	const group = await createGroup(org.id);
 	const orgUserAdmin = await createOrganizationMember({
-		orgRoles: {
-			[org.id]: ["organization-user-admin"],
-		},
+		[org.id]: ["organization-user-admin"],
 	});
 
 	// Go to settings

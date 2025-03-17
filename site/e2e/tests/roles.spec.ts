@@ -106,9 +106,7 @@ test.describe("org-scoped roles admin settings access", () => {
 	test("org template admin can see admin settings", async ({ page }) => {
 		const org = await createOrganization();
 		const orgTemplateAdmin = await createOrganizationMember({
-			orgRoles: {
-				[org.id]: ["organization-template-admin"],
-			},
+			[org.id]: ["organization-template-admin"],
 		});
 
 		await login(page, orgTemplateAdmin);
@@ -120,9 +118,7 @@ test.describe("org-scoped roles admin settings access", () => {
 	test("org user admin can see admin settings", async ({ page }) => {
 		const org = await createOrganization();
 		const orgUserAdmin = await createOrganizationMember({
-			orgRoles: {
-				[org.id]: ["organization-user-admin"],
-			},
+			[org.id]: ["organization-user-admin"],
 		});
 
 		await login(page, orgUserAdmin);
@@ -134,9 +130,7 @@ test.describe("org-scoped roles admin settings access", () => {
 	test("org auditor can see admin settings", async ({ page }) => {
 		const org = await createOrganization();
 		const orgAuditor = await createOrganizationMember({
-			orgRoles: {
-				[org.id]: ["organization-auditor"],
-			},
+			[org.id]: ["organization-auditor"],
 		});
 
 		await login(page, orgAuditor);
@@ -148,9 +142,7 @@ test.describe("org-scoped roles admin settings access", () => {
 	test("org admin can see admin settings", async ({ page }) => {
 		const org = await createOrganization();
 		const orgAdmin = await createOrganizationMember({
-			orgRoles: {
-				[org.id]: ["organization-admin"],
-			},
+			[org.id]: ["organization-admin"],
 		});
 
 		await login(page, orgAdmin);
