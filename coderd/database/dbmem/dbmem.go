@@ -9251,30 +9251,6 @@ func (q *FakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertW
 	return workspaceApp, nil
 }
 
-func (q *FakeQuerier) InsertWorkspaceAppAuditSession(_ context.Context, arg database.InsertWorkspaceAppAuditSessionParams) (uuid.UUID, error) {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return uuid.Nil, err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	id := uuid.New()
-	q.workspaceAppAuditSessions = append(q.workspaceAppAuditSessions, database.WorkspaceAppAuditSession{
-		ID:         id,
-		AgentID:    arg.AgentID,
-		AppID:      arg.AppID,
-		UserID:     arg.UserID,
-		Ip:         arg.Ip,
-		SlugOrPort: arg.SlugOrPort,
-		StartedAt:  arg.StartedAt,
-		UpdatedAt:  arg.UpdatedAt,
-	})
-
-	return id, nil
-}
-
 func (q *FakeQuerier) InsertWorkspaceAppStats(_ context.Context, arg database.InsertWorkspaceAppStatsParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -11021,42 +10997,6 @@ func (q *FakeQuerier) UpdateWorkspaceAgentStartupByID(_ context.Context, arg dat
 	return sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateWorkspaceAppAuditSession(_ context.Context, arg database.UpdateWorkspaceAppAuditSessionParams) ([]uuid.UUID, error) {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return nil, err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	var updated []uuid.UUID
-	for i, s := range q.workspaceAppAuditSessions {
-		if s.AgentID != arg.AgentID {
-			continue
-		}
-		if s.AppID != arg.AppID {
-			continue
-		}
-		if s.UserID != arg.UserID {
-			continue
-		}
-		if s.Ip.IPNet.String() != arg.Ip.IPNet.String() {
-			continue
-		}
-		if s.SlugOrPort != arg.SlugOrPort {
-			continue
-		}
-		staleTime := dbtime.Now().Add(-(time.Duration(arg.StaleIntervalMS) * time.Millisecond))
-		if !s.UpdatedAt.After(staleTime) {
-			continue
-		}
-		q.workspaceAppAuditSessions[i].UpdatedAt = arg.UpdatedAt
-		updated = append(updated, s.ID)
-	}
-	return updated, nil
-}
-
 func (q *FakeQuerier) UpdateWorkspaceAppHealthByID(_ context.Context, arg database.UpdateWorkspaceAppHealthByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
@@ -12276,6 +12216,63 @@ func (q *FakeQuerier) UpsertWorkspaceAgentPortShare(_ context.Context, arg datab
 	q.workspaceAgentPortShares = append(q.workspaceAgentPortShares, psl)
 
 	return psl, nil
+}
+
+func (q *FakeQuerier) UpsertWorkspaceAppAuditSession(ctx context.Context, arg database.UpsertWorkspaceAppAuditSessionParams) (time.Time, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, s := range q.workspaceAppAuditSessions {
+		if s.AgentID != arg.AgentID {
+			continue
+		}
+		if s.AppID != arg.AppID {
+			continue
+		}
+		if s.UserID != arg.UserID {
+			continue
+		}
+		if s.Ip.IPNet.String() != arg.Ip.IPNet.String() {
+			continue
+		}
+		if s.UserAgent != arg.UserAgent {
+			continue
+		}
+		if s.SlugOrPort != arg.SlugOrPort {
+			continue
+		}
+		if s.StatusCode != arg.StatusCode {
+			continue
+		}
+
+		staleTime := dbtime.Now().Add(-(time.Duration(arg.StaleIntervalMS) * time.Millisecond))
+		fresh := s.UpdatedAt.After(staleTime)
+
+		q.workspaceAppAuditSessions[i].UpdatedAt = arg.UpdatedAt
+		if !fresh {
+			q.workspaceAppAuditSessions[i].StartedAt = arg.StartedAt
+			return arg.StartedAt, nil
+		}
+		return s.StartedAt, nil
+	}
+
+	q.workspaceAppAuditSessions = append(q.workspaceAppAuditSessions, database.WorkspaceAppAuditSession{
+		AgentID:    arg.AgentID,
+		AppID:      arg.AppID,
+		UserID:     arg.UserID,
+		Ip:         arg.Ip,
+		UserAgent:  arg.UserAgent,
+		SlugOrPort: arg.SlugOrPort,
+		StatusCode: arg.StatusCode,
+		StartedAt:  arg.StartedAt,
+		UpdatedAt:  arg.UpdatedAt,
+	})
+	return arg.StartedAt, nil
 }
 
 func (q *FakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, prepared rbac.PreparedAuthorized) ([]database.Template, error) {

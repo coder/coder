@@ -2187,13 +2187,6 @@ func (m queryMetricsStore) InsertWorkspaceApp(ctx context.Context, arg database.
 	return app, err
 }
 
-func (m queryMetricsStore) InsertWorkspaceAppAuditSession(ctx context.Context, arg database.InsertWorkspaceAppAuditSessionParams) (uuid.UUID, error) {
-	start := time.Now()
-	r0, r1 := m.s.InsertWorkspaceAppAuditSession(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertWorkspaceAppAuditSession").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
 func (m queryMetricsStore) InsertWorkspaceAppStats(ctx context.Context, arg database.InsertWorkspaceAppStatsParams) error {
 	start := time.Now()
 	r0 := m.s.InsertWorkspaceAppStats(ctx, arg)
@@ -2712,13 +2705,6 @@ func (m queryMetricsStore) UpdateWorkspaceAgentStartupByID(ctx context.Context, 
 	return err
 }
 
-func (m queryMetricsStore) UpdateWorkspaceAppAuditSession(ctx context.Context, arg database.UpdateWorkspaceAppAuditSessionParams) ([]uuid.UUID, error) {
-	start := time.Now()
-	r0, r1 := m.s.UpdateWorkspaceAppAuditSession(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateWorkspaceAppAuditSession").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
 func (m queryMetricsStore) UpdateWorkspaceAppHealthByID(ctx context.Context, arg database.UpdateWorkspaceAppHealthByIDParams) error {
 	start := time.Now()
 	err := m.s.UpdateWorkspaceAppHealthByID(ctx, arg)
@@ -2989,6 +2975,13 @@ func (m queryMetricsStore) UpsertWorkspaceAgentPortShare(ctx context.Context, ar
 	start := time.Now()
 	r0, r1 := m.s.UpsertWorkspaceAgentPortShare(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpsertWorkspaceAgentPortShare").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpsertWorkspaceAppAuditSession(ctx context.Context, arg database.UpsertWorkspaceAppAuditSessionParams) (time.Time, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpsertWorkspaceAppAuditSession(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertWorkspaceAppAuditSession").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 

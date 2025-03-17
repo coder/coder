@@ -14560,14 +14560,16 @@ func (q *sqlQuerier) InsertWorkspaceAgentStats(ctx context.Context, arg InsertWo
 	return err
 }
 
-const insertWorkspaceAppAuditSession = `-- name: InsertWorkspaceAppAuditSession :one
+const upsertWorkspaceAppAuditSession = `-- name: UpsertWorkspaceAppAuditSession :one
 INSERT INTO
 	workspace_app_audit_sessions (
 		agent_id,
 		app_id,
 		user_id,
 		ip,
+		user_agent,
 		slug_or_port,
+		status_code,
 		started_at,
 		updated_at
 	)
@@ -14579,94 +14581,56 @@ VALUES
 		$4,
 		$5,
 		$6,
-		$7
+		$7,
+		$8,
+		$9
 	)
+ON CONFLICT
+	(agent_id, app_id, user_id, ip, user_agent, slug_or_port, status_code)
+DO
+	UPDATE
+	SET
+		started_at = CASE
+			WHEN workspace_app_audit_sessions.updated_at > NOW() - ($10::bigint || ' ms')::interval
+			THEN workspace_app_audit_sessions.started_at
+			ELSE EXCLUDED.started_at
+		END,
+		updated_at = EXCLUDED.updated_at
 RETURNING
-	id
+	started_at
 `
 
-type InsertWorkspaceAppAuditSessionParams struct {
-	AgentID    uuid.UUID     `db:"agent_id" json:"agent_id"`
-	AppID      uuid.NullUUID `db:"app_id" json:"app_id"`
-	UserID     uuid.NullUUID `db:"user_id" json:"user_id"`
-	Ip         pqtype.Inet   `db:"ip" json:"ip"`
-	SlugOrPort string        `db:"slug_or_port" json:"slug_or_port"`
-	StartedAt  time.Time     `db:"started_at" json:"started_at"`
-	UpdatedAt  time.Time     `db:"updated_at" json:"updated_at"`
+type UpsertWorkspaceAppAuditSessionParams struct {
+	AgentID         uuid.UUID   `db:"agent_id" json:"agent_id"`
+	AppID           uuid.UUID   `db:"app_id" json:"app_id"`
+	UserID          uuid.UUID   `db:"user_id" json:"user_id"`
+	Ip              pqtype.Inet `db:"ip" json:"ip"`
+	UserAgent       string      `db:"user_agent" json:"user_agent"`
+	SlugOrPort      string      `db:"slug_or_port" json:"slug_or_port"`
+	StatusCode      int32       `db:"status_code" json:"status_code"`
+	StartedAt       time.Time   `db:"started_at" json:"started_at"`
+	UpdatedAt       time.Time   `db:"updated_at" json:"updated_at"`
+	StaleIntervalMS int64       `db:"stale_interval_ms" json:"stale_interval_ms"`
 }
 
-func (q *sqlQuerier) InsertWorkspaceAppAuditSession(ctx context.Context, arg InsertWorkspaceAppAuditSessionParams) (uuid.UUID, error) {
-	row := q.db.QueryRowContext(ctx, insertWorkspaceAppAuditSession,
+// Insert a new workspace app audit session or update an existing one, if
+// started_at is updated, it means the session has been restarted.
+func (q *sqlQuerier) UpsertWorkspaceAppAuditSession(ctx context.Context, arg UpsertWorkspaceAppAuditSessionParams) (time.Time, error) {
+	row := q.db.QueryRowContext(ctx, upsertWorkspaceAppAuditSession,
 		arg.AgentID,
 		arg.AppID,
 		arg.UserID,
 		arg.Ip,
+		arg.UserAgent,
 		arg.SlugOrPort,
+		arg.StatusCode,
 		arg.StartedAt,
 		arg.UpdatedAt,
-	)
-	var id uuid.UUID
-	err := row.Scan(&id)
-	return id, err
-}
-
-const updateWorkspaceAppAuditSession = `-- name: UpdateWorkspaceAppAuditSession :many
-UPDATE
-	workspace_app_audit_sessions
-SET
-	updated_at = $1
-WHERE
-	agent_id = $2
-	AND app_id IS NOT DISTINCT FROM $3
-	AND user_id IS NOT DISTINCT FROM $4
-	AND ip IS NOT DISTINCT FROM $5
-	AND slug_or_port = $6
-	AND updated_at > NOW() - ($7::bigint || ' ms')::interval
-RETURNING
-	id
-`
-
-type UpdateWorkspaceAppAuditSessionParams struct {
-	UpdatedAt       time.Time     `db:"updated_at" json:"updated_at"`
-	AgentID         uuid.UUID     `db:"agent_id" json:"agent_id"`
-	AppID           uuid.NullUUID `db:"app_id" json:"app_id"`
-	UserID          uuid.NullUUID `db:"user_id" json:"user_id"`
-	Ip              pqtype.Inet   `db:"ip" json:"ip"`
-	SlugOrPort      string        `db:"slug_or_port" json:"slug_or_port"`
-	StaleIntervalMS int64         `db:"stale_interval_ms" json:"stale_interval_ms"`
-}
-
-// Return ID to determine if a row was updated or not. This table isn't strict
-// about uniqueness, so we need to know if we updated an existing row or not.
-func (q *sqlQuerier) UpdateWorkspaceAppAuditSession(ctx context.Context, arg UpdateWorkspaceAppAuditSessionParams) ([]uuid.UUID, error) {
-	rows, err := q.db.QueryContext(ctx, updateWorkspaceAppAuditSession,
-		arg.UpdatedAt,
-		arg.AgentID,
-		arg.AppID,
-		arg.UserID,
-		arg.Ip,
-		arg.SlugOrPort,
 		arg.StaleIntervalMS,
 	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []uuid.UUID
-	for rows.Next() {
-		var id uuid.UUID
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		items = append(items, id)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+	var started_at time.Time
+	err := row.Scan(&started_at)
+	return started_at, err
 }
 
 const getWorkspaceAppByAgentIDAndSlug = `-- name: GetWorkspaceAppByAgentIDAndSlug :one

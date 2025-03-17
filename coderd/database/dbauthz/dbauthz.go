@@ -3439,13 +3439,6 @@ func (q *querier) InsertWorkspaceApp(ctx context.Context, arg database.InsertWor
 	return q.db.InsertWorkspaceApp(ctx, arg)
 }
 
-func (q *querier) InsertWorkspaceAppAuditSession(ctx context.Context, arg database.InsertWorkspaceAppAuditSessionParams) (uuid.UUID, error) {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
-		return uuid.Nil, err
-	}
-	return q.db.InsertWorkspaceAppAuditSession(ctx, arg)
-}
-
 func (q *querier) InsertWorkspaceAppStats(ctx context.Context, arg database.InsertWorkspaceAppStatsParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
 		return err
@@ -4276,13 +4269,6 @@ func (q *querier) UpdateWorkspaceAgentStartupByID(ctx context.Context, arg datab
 	return q.db.UpdateWorkspaceAgentStartupByID(ctx, arg)
 }
 
-func (q *querier) UpdateWorkspaceAppAuditSession(ctx context.Context, arg database.UpdateWorkspaceAppAuditSessionParams) ([]uuid.UUID, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
-		return nil, err
-	}
-	return q.db.UpdateWorkspaceAppAuditSession(ctx, arg)
-}
-
 func (q *querier) UpdateWorkspaceAppHealthByID(ctx context.Context, arg database.UpdateWorkspaceAppHealthByIDParams) error {
 	// TODO: This is a workspace agent operation. Should users be able to query this?
 	workspace, err := q.db.GetWorkspaceByWorkspaceAppID(ctx, arg.ID)
@@ -4619,6 +4605,13 @@ func (q *querier) UpsertWorkspaceAgentPortShare(ctx context.Context, arg databas
 	}
 
 	return q.db.UpsertWorkspaceAgentPortShare(ctx, arg)
+}
+
+func (q *querier) UpsertWorkspaceAppAuditSession(ctx context.Context, arg database.UpsertWorkspaceAppAuditSessionParams) (time.Time, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return time.Time{}, err
+	}
+	return q.db.UpsertWorkspaceAppAuditSession(ctx, arg)
 }
 
 func (q *querier) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, _ rbac.PreparedAuthorized) ([]database.Template, error) {

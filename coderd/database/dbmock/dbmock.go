@@ -4616,21 +4616,6 @@ func (mr *MockStoreMockRecorder) InsertWorkspaceApp(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceApp", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceApp), ctx, arg)
 }
 
-// InsertWorkspaceAppAuditSession mocks base method.
-func (m *MockStore) InsertWorkspaceAppAuditSession(ctx context.Context, arg database.InsertWorkspaceAppAuditSessionParams) (uuid.UUID, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertWorkspaceAppAuditSession", ctx, arg)
-	ret0, _ := ret[0].(uuid.UUID)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// InsertWorkspaceAppAuditSession indicates an expected call of InsertWorkspaceAppAuditSession.
-func (mr *MockStoreMockRecorder) InsertWorkspaceAppAuditSession(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceAppAuditSession", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceAppAuditSession), ctx, arg)
-}
-
 // InsertWorkspaceAppStats mocks base method.
 func (m *MockStore) InsertWorkspaceAppStats(ctx context.Context, arg database.InsertWorkspaceAppStatsParams) error {
 	m.ctrl.T.Helper()
@@ -5733,21 +5718,6 @@ func (mr *MockStoreMockRecorder) UpdateWorkspaceAgentStartupByID(ctx, arg any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceAgentStartupByID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceAgentStartupByID), ctx, arg)
 }
 
-// UpdateWorkspaceAppAuditSession mocks base method.
-func (m *MockStore) UpdateWorkspaceAppAuditSession(ctx context.Context, arg database.UpdateWorkspaceAppAuditSessionParams) ([]uuid.UUID, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateWorkspaceAppAuditSession", ctx, arg)
-	ret0, _ := ret[0].([]uuid.UUID)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// UpdateWorkspaceAppAuditSession indicates an expected call of UpdateWorkspaceAppAuditSession.
-func (mr *MockStoreMockRecorder) UpdateWorkspaceAppAuditSession(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceAppAuditSession", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceAppAuditSession), ctx, arg)
-}
-
 // UpdateWorkspaceAppHealthByID mocks base method.
 func (m *MockStore) UpdateWorkspaceAppHealthByID(ctx context.Context, arg database.UpdateWorkspaceAppHealthByIDParams) error {
 	m.ctrl.T.Helper()
@@ -6302,6 +6272,21 @@ func (m *MockStore) UpsertWorkspaceAgentPortShare(ctx context.Context, arg datab
 func (mr *MockStoreMockRecorder) UpsertWorkspaceAgentPortShare(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertWorkspaceAgentPortShare", reflect.TypeOf((*MockStore)(nil).UpsertWorkspaceAgentPortShare), ctx, arg)
+}
+
+// UpsertWorkspaceAppAuditSession mocks base method.
+func (m *MockStore) UpsertWorkspaceAppAuditSession(ctx context.Context, arg database.UpsertWorkspaceAppAuditSessionParams) (time.Time, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertWorkspaceAppAuditSession", ctx, arg)
+	ret0, _ := ret[0].(time.Time)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpsertWorkspaceAppAuditSession indicates an expected call of UpsertWorkspaceAppAuditSession.
+func (mr *MockStoreMockRecorder) UpsertWorkspaceAppAuditSession(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertWorkspaceAppAuditSession", reflect.TypeOf((*MockStore)(nil).UpsertWorkspaceAppAuditSession), ctx, arg)
 }
 
 // Wrappers mocks base method.
