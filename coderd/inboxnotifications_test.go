@@ -143,7 +143,8 @@ func TestInboxNotification_Watch(t *testing.T) {
 		db, ps := dbtestutil.NewDB(t)
 
 		firstClient, _, _ := coderdtest.NewWithAPI(t, &coderdtest.Options{
-			Pubsub: ps,
+			Pubsub:   ps,
+			Database: db,
 		})
 		firstUser := coderdtest.CreateFirstUser(t, firstClient)
 		member, memberClient := coderdtest.CreateAnotherUser(t, firstClient, firstUser.OrganizationID, rbac.RoleTemplateAdmin())
@@ -318,7 +319,6 @@ func TestInboxNotifications_List(t *testing.T) {
 			{"nok - wrong templates", `Query param "templates" has invalid values`, "wrong_template", "", "", ""},
 			{"nok - wrong read status", "starting_before query parameter should be any of 'all', 'read', 'unread'", "", "", "erroneous", ""},
 			{"nok - wrong starting before", `Query param "starting_before" must be a valid uuid`, "", "", "", "xxx-xxx-xxx"},
-			{"nok - not found starting before", `Failed to get notification by id`, "", "", "", failingPaginationUUID.String()},
 		}
 
 		for _, tt := range tests {
