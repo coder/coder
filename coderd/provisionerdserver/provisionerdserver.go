@@ -1866,6 +1866,18 @@ func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, 
 		if err != nil {
 			return xerrors.Errorf("insert preset parameters: %w", err)
 		}
+
+		if protoPreset.Prebuild != nil {
+			_, err := tx.InsertPresetPrebuild(ctx, database.InsertPresetPrebuildParams{
+				ID:                  uuid.New(),
+				PresetID:            dbPreset.ID,
+				DesiredInstances:    protoPreset.Prebuild.Instances,
+				InvalidateAfterSecs: 0, // TODO: implement cache invalidation
+			})
+			if err != nil {
+				return xerrors.Errorf("insert preset prebuild: %w", err)
+			}
+		}
 		return nil
 	}, nil)
 	if err != nil {
