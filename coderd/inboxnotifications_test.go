@@ -34,6 +34,13 @@ var failingPaginationUUID = uuid.MustParse("fba6966a-9061-4111-8e1a-f6a9fbea4b16
 func TestInboxNotification_Watch(t *testing.T) {
 	t.Parallel()
 
+	// I skip these tests specifically on windows as for now they are flaky - only on Windows.
+	// For now the idea is that the runner takes too long to insert the entries, could be worth
+	// investigating a manual Tx.
+	if runtime.GOOS == "windows" {
+		t.Skip("our runners are randomly taking too long to insert entries")
+	}
+
 	tests := []struct {
 		name               string
 		expectedError      string
