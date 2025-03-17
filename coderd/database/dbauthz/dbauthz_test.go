@@ -4075,6 +4075,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			AgentID: agent.ID,
 			AppID:   app.ID,
 			UserID:  u.ID,
+			Ip:      "127.0.0.1",
 		}).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
 	}))
 	s.Run("InsertWorkspaceAgentScriptTimings", s.Subtest(func(db database.Store, check *expects) {

@@ -14676,16 +14676,16 @@ RETURNING
 `
 
 type UpsertWorkspaceAppAuditSessionParams struct {
-	AgentID         uuid.UUID   `db:"agent_id" json:"agent_id"`
-	AppID           uuid.UUID   `db:"app_id" json:"app_id"`
-	UserID          uuid.UUID   `db:"user_id" json:"user_id"`
-	Ip              pqtype.Inet `db:"ip" json:"ip"`
-	UserAgent       string      `db:"user_agent" json:"user_agent"`
-	SlugOrPort      string      `db:"slug_or_port" json:"slug_or_port"`
-	StatusCode      int32       `db:"status_code" json:"status_code"`
-	StartedAt       time.Time   `db:"started_at" json:"started_at"`
-	UpdatedAt       time.Time   `db:"updated_at" json:"updated_at"`
-	StaleIntervalMS int64       `db:"stale_interval_ms" json:"stale_interval_ms"`
+	AgentID         uuid.UUID `db:"agent_id" json:"agent_id"`
+	AppID           uuid.UUID `db:"app_id" json:"app_id"`
+	UserID          uuid.UUID `db:"user_id" json:"user_id"`
+	Ip              string    `db:"ip" json:"ip"`
+	UserAgent       string    `db:"user_agent" json:"user_agent"`
+	SlugOrPort      string    `db:"slug_or_port" json:"slug_or_port"`
+	StatusCode      int32     `db:"status_code" json:"status_code"`
+	StartedAt       time.Time `db:"started_at" json:"started_at"`
+	UpdatedAt       time.Time `db:"updated_at" json:"updated_at"`
+	StaleIntervalMS int64     `db:"stale_interval_ms" json:"stale_interval_ms"`
 }
 
 // Insert a new workspace app audit session or update an existing one, if

@@ -4,7 +4,7 @@ CREATE UNLOGGED TABLE workspace_app_audit_sessions (
 	agent_id UUID NOT NULL,
 	app_id UUID NOT NULL, -- Can be NULL, but must be uuid.Nil.
 	user_id UUID NOT NULL, -- Can be NULL, but must be uuid.Nil.
-	ip inet NOT NULL,
+	ip TEXT NOT NULL,
 	user_agent TEXT NOT NULL,
 	slug_or_port TEXT NOT NULL,
 	status_code int4 NOT NULL,

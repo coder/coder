@@ -12284,7 +12284,7 @@ func (q *FakeQuerier) UpsertWorkspaceAppAuditSession(ctx context.Context, arg da
 		if s.UserID != arg.UserID {
 			continue
 		}
-		if s.Ip.IPNet.String() != arg.Ip.IPNet.String() {
+		if s.Ip != arg.Ip {
 			continue
 		}
 		if s.UserAgent != arg.UserAgent {

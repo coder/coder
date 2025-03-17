@@ -15,7 +15,6 @@ import (
 
 	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/google/uuid"
-	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -367,7 +366,6 @@ func (p *DBTokenProvider) authorizeRequest(ctx context.Context, roles *rbac.Subj
 
 type auditRequest struct {
 	time   time.Time
-	ip     pqtype.Inet
 	apiKey *database.APIKey
 	dbReq  *databaseRequest
 }
@@ -389,7 +387,6 @@ func (p *DBTokenProvider) auditInitRequest(ctx context.Context, w http.ResponseW
 
 	aReq = &auditRequest{
 		time: dbtime.Now(),
-		ip:   audit.ParseIP(r.RemoteAddr),
 	}
 
 	// Set the commit function on the status writer to create an audit
@@ -412,6 +409,7 @@ func (p *DBTokenProvider) auditInitRequest(ctx context.Context, w http.ResponseW
 			userID = aReq.apiKey.UserID
 		}
 		userAgent := r.UserAgent()
+		ip := r.RemoteAddr
 
 		// Approximation of the status code.
 		statusCode := sw.Status
@@ -462,7 +460,7 @@ func (p *DBTokenProvider) auditInitRequest(ctx context.Context, w http.ResponseW
 				AgentID:    aReq.dbReq.Agent.ID,
 				AppID:      aReq.dbReq.App.ID, // Can be unset, in which case uuid.Nil is fine.
 				UserID:     userID,            // Can be unset, in which case uuid.Nil is fine.
-				Ip:         aReq.ip,
+				Ip:         ip,
 				UserAgent:  userAgent,
 				SlugOrPort: appInfo.SlugOrPort,
 				StatusCode: int32(statusCode),
@@ -512,7 +510,7 @@ func (p *DBTokenProvider) auditInitRequest(ctx context.Context, w http.ResponseW
 				RequestID:        requestID,
 				Time:             aReq.time,
 				Status:           statusCode,
-				IP:               aReq.ip.IPNet.IP.String(),
+				IP:               ip,
 				UserAgent:        userAgent,
 				New:              aReq.dbReq.App,
 				AdditionalFields: appInfoBytes,
@@ -529,7 +527,7 @@ func (p *DBTokenProvider) auditInitRequest(ctx context.Context, w http.ResponseW
 				RequestID:        requestID,
 				Time:             aReq.time,
 				Status:           statusCode,
-				IP:               aReq.ip.IPNet.IP.String(),
+				IP:               ip,
 				UserAgent:        userAgent,
 				New:              aReq.dbReq.Agent,
 				AdditionalFields: appInfoBytes,

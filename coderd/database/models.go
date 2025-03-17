@@ -3443,7 +3443,7 @@ type WorkspaceAppAuditSession struct {
 	// The user that is currently using the workspace app. This is may be uuid.Nil if we cannot determine the user.
 	UserID uuid.UUID `db:"user_id" json:"user_id"`
 	// The IP address of the user that is currently using the workspace app.
-	Ip pqtype.Inet `db:"ip" json:"ip"`
+	Ip string `db:"ip" json:"ip"`
 	// The user agent of the user that is currently using the workspace app.
 	UserAgent string `db:"user_agent" json:"user_agent"`
 	// The slug or port of the workspace app that the user is currently using.
