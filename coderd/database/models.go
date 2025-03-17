@@ -2679,6 +2679,15 @@ type NotificationPreference struct {
 	UpdatedAt              time.Time `db:"updated_at" json:"updated_at"`
 }
 
+type NotificationPushSubscription struct {
+	ID                uuid.UUID `db:"id" json:"id"`
+	UserID            uuid.UUID `db:"user_id" json:"user_id"`
+	CreatedAt         time.Time `db:"created_at" json:"created_at"`
+	Endpoint          string    `db:"endpoint" json:"endpoint"`
+	EndpointP256dhKey string    `db:"endpoint_p256dh_key" json:"endpoint_p256dh_key"`
+	EndpointAuthKey   string    `db:"endpoint_auth_key" json:"endpoint_auth_key"`
+}
+
 // Log of generated reports for users.
 type NotificationReportGeneratorLog struct {
 	NotificationTemplateID uuid.UUID `db:"notification_template_id" json:"notification_template_id"`

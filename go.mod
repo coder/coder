@@ -468,3 +468,8 @@ require (
 	kernel.org/pub/linux/libs/security/libcap/psx v1.2.73 // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
+
+require (
+	github.com/SherClockHolmes/webpush-go v1.4.0 // indirect
+	github.com/golang-jwt/jwt/v5 v5.2.1 // indirect
+)

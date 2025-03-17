@@ -62,6 +62,7 @@ import (
 	"github.com/coder/wgtunnel/tunnelsdk"
 
 	"github.com/coder/coder/v2/coderd/entitlements"
+	"github.com/coder/coder/v2/coderd/notifications/push"
 	"github.com/coder/coder/v2/coderd/notifications/reports"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
 
@@ -774,6 +775,12 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			if err != nil {
 				return xerrors.Errorf("set deployment id: %w", err)
 			}
+
+			pushNotifier, err := push.New(ctx, &options.Logger, options.Database)
+			if err != nil {
+				return xerrors.Errorf("failed to create push notifier: %w", err)
+			}
+			options.PushNotifier = pushNotifier
 
 			githubOAuth2ConfigParams, err := getGithubOAuth2ConfigParams(ctx, options.Database, vals)
 			if err != nil {
