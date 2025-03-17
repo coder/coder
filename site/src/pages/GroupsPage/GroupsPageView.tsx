@@ -3,12 +3,6 @@ import AddOutlined from "@mui/icons-material/AddOutlined";
 import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
 import AvatarGroup from "@mui/material/AvatarGroup";
 import Skeleton from "@mui/material/Skeleton";
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
 import type { Group } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
@@ -17,6 +11,14 @@ import { Button } from "components/Button/Button";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Paywall } from "components/Paywall/Paywall";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "components/Table/Table";
 import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
@@ -51,55 +53,53 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 					/>
 				</Cond>
 				<Cond>
-					<TableContainer>
-						<Table>
-							<TableHead>
-								<TableRow>
-									<TableCell width="50%">Name</TableCell>
-									<TableCell width="49%">Users</TableCell>
-									<TableCell width="1%" />
-								</TableRow>
-							</TableHead>
-							<TableBody>
-								<ChooseOne>
-									<Cond condition={isLoading}>
-										<TableLoader />
-									</Cond>
+					<Table>
+						<TableHeader>
+							<TableRow>
+								<TableHead className="w-2/5">Name</TableHead>
+								<TableHead className="w-3/5">Users</TableHead>
+								<TableHead className="w-auto" />
+							</TableRow>
+						</TableHeader>
+						<TableBody>
+							<ChooseOne>
+								<Cond condition={isLoading}>
+									<TableLoader />
+								</Cond>
 
-									<Cond condition={isEmpty}>
-										<TableRow>
-											<TableCell colSpan={999}>
-												<EmptyState
-													message="No groups yet"
-													description={
-														canCreateGroup
-															? "Create your first group"
-															: "You don't have permission to create a group"
-													}
-													cta={
-														canCreateGroup && (
-															<Button asChild>
-																<RouterLink to="create">
-																	<AddOutlined />
-																	Create group
-																</RouterLink>
-															</Button>
-														)
-													}
-												/>
-											</TableCell>
-										</TableRow>
-									</Cond>
+								<Cond condition={isEmpty}>
+									<TableRow>
+										<TableCell colSpan={999}>
+											<EmptyState
+												message="No groups yet"
+												description={
+													canCreateGroup
+														? "Create your first group"
+														: "You don't have permission to create a group"
+												}
+												cta={
+													canCreateGroup && (
+														<Button asChild>
+															<RouterLink to="create">
+																<AddOutlined />
+																Create group
+															</RouterLink>
+														</Button>
+													)
+												}
+											/>
+										</TableCell>
+									</TableRow>
+								</Cond>
 
-									<Cond>
-										{groups?.map((group) => (
-											<GroupRow key={group.id} group={group} />
-										))}
-									</Cond>
-								</ChooseOne>
-							</TableBody>
-						</Table>
-					</TableContainer>
+								<Cond>
+									{groups?.map((group) => (
+										<GroupRow key={group.id} group={group} />
+									))}
+								</Cond>
+							</ChooseOne>
+						</TableBody>
+					</Table>
 				</Cond>
 			</ChooseOne>
 		</>
