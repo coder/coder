@@ -11,7 +11,7 @@ import { beforeCoderTest } from "../../hooks";
 
 test.beforeEach(async ({ page }) => {
 	beforeCoderTest(page);
-	await login(page, users.userAdmin);
+	await login(page);
 	await setupApiCalls(page);
 });
 
@@ -135,7 +135,6 @@ test.describe("IdP organization sync", () => {
 
 	test("add new IdP organization mapping with UI", async ({ page }) => {
 		const orgName = randomName();
-
 		await createOrganizationWithName(orgName);
 
 		await page.goto("/deployment/idp-org-sync", {
