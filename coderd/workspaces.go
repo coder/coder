@@ -662,7 +662,8 @@ func createWorkspace(
 			Reason(database.BuildReasonInitiator).
 			Initiator(initiatorID).
 			ActiveVersion().
-			RichParameterValues(req.RichParameterValues)
+			RichParameterValues(req.RichParameterValues).
+			TemplateVersionPresetID(req.TemplateVersionPresetID)
 		if req.TemplateVersionID != uuid.Nil {
 			builder = builder.VersionID(req.TemplateVersionID)
 		}

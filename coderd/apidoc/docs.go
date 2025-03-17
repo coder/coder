@@ -11096,6 +11096,11 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "template_version_preset_id": {
+                    "description": "TemplateVersionPresetID is the ID of the template version preset to use for the build.",
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "transition": {
                     "enum": [
                         "start",
@@ -11157,6 +11162,10 @@ const docTemplate = `{
                 },
                 "template_version_id": {
                     "description": "TemplateVersionID can be used to specify a specific version of a template for creating the workspace.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "template_version_preset_id": {
                     "type": "string",
                     "format": "uuid"
                 },
