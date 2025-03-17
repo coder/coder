@@ -171,10 +171,26 @@ type WorkspaceAgent struct {
 	LogSources               []WorkspaceAgentLogSource `json:"log_sources"`
 	Scripts                  []WorkspaceAgentScript    `json:"scripts"`
 
+	TaskWaitingForUserInput bool       `json:"task_waiting_for_user_input"`
+	TaskNotifications       bool       `json:"task_notifications"`
+	TaskCompletedAt         *time.Time `json:"task_completed_at,omitempty"`
+
+	Tasks []WorkspaceAgentTask `json:"tasks"`
+
 	// StartupScriptBehavior is a legacy field that is deprecated in favor
 	// of the `coder_script` resource. It's only referenced by old clients.
 	// Deprecated: Remove in the future!
 	StartupScriptBehavior WorkspaceAgentStartupScriptBehavior `json:"startup_script_behavior"`
+}
+
+type WorkspaceAgentTask struct {
+	ID        uuid.UUID `json:"id"`
+	AgentID   uuid.UUID `json:"agent_id"`
+	CreatedAt time.Time `json:"created_at"`
+	Reporter  string    `json:"reporter"`
+	Summary   string    `json:"summary"`
+	LinkTo    string    `json:"link_to"`
+	Icon      string    `json:"icon"`
 }
 
 type WorkspaceAgentLogSource struct {

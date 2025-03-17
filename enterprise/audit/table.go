@@ -151,6 +151,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"github_com_user_id":           ActionIgnore,
 		"hashed_one_time_passcode":     ActionIgnore,
 		"one_time_passcode_expires_at": ActionTrack,
+		"browser_notification_subscription": ActionIgnore,
 	},
 	&database.WorkspaceTable{}: {
 		"id":                 ActionTrack,
@@ -341,6 +342,9 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"display_apps":               ActionIgnore,
 		"api_version":                ActionIgnore,
 		"display_order":              ActionIgnore,
+		"task_waiting_for_user_input": ActionIgnore,
+		"task_notifications":          ActionIgnore,
+		"task_completed_at":           ActionIgnore,
 	},
 	&database.WorkspaceApp{}: {
 		"id":                    ActionIgnore,
