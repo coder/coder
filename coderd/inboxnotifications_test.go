@@ -113,6 +113,7 @@ func TestInboxNotification_Watch(t *testing.T) {
 			require.NoError(t, err)
 		}
 		defer wsConn.Close(websocket.StatusNormalClosure, "done")
+		defer resp.Body.Close()
 
 		inboxHandler := dispatch.NewInboxHandler(logger, db, ps)
 		dispatchFunc, err := inboxHandler.Dispatcher(types.MessagePayload{
@@ -164,6 +165,7 @@ func TestInboxNotification_Watch(t *testing.T) {
 			require.NoError(t, err)
 		}
 		defer wsConn.Close(websocket.StatusNormalClosure, "done")
+		defer resp.Body.Close()
 
 		inboxHandler := dispatch.NewInboxHandler(logger, db, ps)
 		dispatchFunc, err := inboxHandler.Dispatcher(types.MessagePayload{
@@ -244,6 +246,7 @@ func TestInboxNotification_Watch(t *testing.T) {
 			require.NoError(t, err)
 		}
 		defer wsConn.Close(websocket.StatusNormalClosure, "done")
+		defer resp.Body.Close()
 
 		inboxHandler := dispatch.NewInboxHandler(logger, db, ps)
 		dispatchFunc, err := inboxHandler.Dispatcher(types.MessagePayload{
