@@ -401,27 +401,22 @@ func (p *DBTokenProvider) auditInitRequest(ctx context.Context, w http.ResponseW
 		}
 		committed = true
 
-		if sw.Status == http.StatusSeeOther {
-			// Redirects aren't interesting as we will capture the audit
-			// log after the redirect.
-			//
-			// There's a case where we call httpmw.RedirectToLogin for
-			// path-based apps the user doesn't have access to, in which
-			// case the dashboard login redirect is used and we end up
-			// not hitting the workspaceapps API again due to dashboard
-			// showing 404. (Bug?)
-			return
-		}
-
 		if aReq.dbReq == nil {
 			// App doesn't exist, there's information in the Request
 			// struct but we need UUIDs for audit logging.
 			return
 		}
 
-		userID := uuid.NullUUID{}
+		userID := uuid.Nil
 		if aReq.apiKey != nil {
-			userID = uuid.NullUUID{Valid: true, UUID: aReq.apiKey.UserID}
+			userID = aReq.apiKey.UserID
+		}
+		userAgent := r.UserAgent()
+
+		// Approximation of the status code.
+		statusCode := sw.Status
+		if statusCode == 0 {
+			statusCode = http.StatusOK
 		}
 
 		type additionalFields struct {
@@ -443,50 +438,34 @@ func (p *DBTokenProvider) auditInitRequest(ctx context.Context, w http.ResponseW
 			appInfo.SlugOrPort = aReq.dbReq.AppSlugOrPort
 		}
 
+		// If we end up logging, ensure relevant fields are set.
 		logger := p.Logger.With(
 			slog.F("workspace_id", aReq.dbReq.Workspace.ID),
 			slog.F("agent_id", aReq.dbReq.Agent.ID),
 			slog.F("app_id", aReq.dbReq.App.ID),
-			slog.F("user_id", userID.UUID),
+			slog.F("user_id", userID),
+			slog.F("user_agent", userAgent),
 			slog.F("app_slug_or_port", appInfo.SlugOrPort),
+			slog.F("status_code", statusCode),
 		)
 
-		appInfoBytes, err := json.Marshal(appInfo)
-		if err != nil {
-			logger.Error(ctx, "marshal additional fields failed", slog.Error(err))
-		}
-
-		var (
-			updatedIDs []uuid.UUID
-			sessionID  = uuid.Nil
-		)
-		err = p.Database.InTx(func(tx database.Store) error {
+		var startedAt time.Time
+		err := p.Database.InTx(func(tx database.Store) (err error) {
 			// nolint:gocritic // System context is needed to write audit sessions.
 			dangerousSystemCtx := dbauthz.AsSystemRestricted(ctx)
 
-			updatedIDs, err = tx.UpdateWorkspaceAppAuditSession(dangerousSystemCtx, database.UpdateWorkspaceAppAuditSessionParams{
-				AgentID:         aReq.dbReq.Agent.ID,
-				AppID:           uuid.NullUUID{Valid: aReq.dbReq.App.ID != uuid.Nil, UUID: aReq.dbReq.App.ID},
-				UserID:          userID,
-				Ip:              aReq.ip,
-				SlugOrPort:      appInfo.SlugOrPort,
-				UpdatedAt:       aReq.time,
+			startedAt, err = tx.UpsertWorkspaceAppAuditSession(dangerousSystemCtx, database.UpsertWorkspaceAppAuditSessionParams{
+				// Config.
 				StaleIntervalMS: p.WorkspaceAppAuditSessionTimeout.Milliseconds(),
-			})
-			if err != nil {
-				return xerrors.Errorf("update workspace app audit session: %w", err)
-			}
-			if len(updatedIDs) > 0 {
-				// Session is valid and got updated, no need to create a new audit log.
-				return nil
-			}
 
-			sessionID, err = tx.InsertWorkspaceAppAuditSession(dangerousSystemCtx, database.InsertWorkspaceAppAuditSessionParams{
+				// Data.
 				AgentID:    aReq.dbReq.Agent.ID,
-				AppID:      uuid.NullUUID{Valid: aReq.dbReq.App.ID != uuid.Nil, UUID: aReq.dbReq.App.ID},
-				UserID:     userID,
+				AppID:      aReq.dbReq.App.ID, // Can be unset, in which case uuid.Nil is fine.
+				UserID:     userID,            // Can be unset, in which case uuid.Nil is fine.
 				Ip:         aReq.ip,
+				UserAgent:  userAgent,
 				SlugOrPort: appInfo.SlugOrPort,
+				StatusCode: int32(statusCode),
 				StartedAt:  aReq.time,
 				UpdatedAt:  aReq.time,
 			})
@@ -504,34 +483,23 @@ func (p *DBTokenProvider) auditInitRequest(ctx context.Context, w http.ResponseW
 			return
 		}
 
-		if sessionID == uuid.Nil {
-			if sw.Status < 400 {
-				// Session was updated and no error occurred, no need to
-				// create a new audit log.
-				return
-			}
-			if len(updatedIDs) > 0 {
-				// Session was updated but an error occurred, we need to
-				// create a new audit log.
-				sessionID = updatedIDs[0]
-			} else {
-				// This shouldn't happen, but fall-back to request so it
-				// can be correlated to _something_.
-				sessionID = httpmw.RequestID(r)
-			}
+		if !startedAt.Equal(aReq.time) {
+			// If the unique session wasn't renewed, we don't want to log a new
+			// audit event for it.
+			return
 		}
 
-		// Mimic the behavior of a HTTP status writer
-		// by defaulting to 200 if the status is 0.
-		status := sw.Status
-		if status == 0 {
-			status = http.StatusOK
+		// Marshal additional fields only if we're writing an audit log entry.
+		appInfoBytes, err := json.Marshal(appInfo)
+		if err != nil {
+			logger.Error(ctx, "marshal additional fields failed", slog.Error(err))
 		}
 
 		// We use the background audit function instead of init request
 		// here because we don't know the resource type ahead of time.
 		// This also allows us to log unauthenticated access.
 		auditor := *p.Auditor.Load()
+		requestID := httpmw.RequestID(r)
 		switch {
 		case aReq.dbReq.App.ID != uuid.Nil:
 			audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.WorkspaceApp]{
@@ -540,12 +508,12 @@ func (p *DBTokenProvider) auditInitRequest(ctx context.Context, w http.ResponseW
 
 				Action:           database.AuditActionOpen,
 				OrganizationID:   aReq.dbReq.Workspace.OrganizationID,
-				UserID:           userID.UUID,
-				RequestID:        sessionID,
+				UserID:           userID,
+				RequestID:        requestID,
 				Time:             aReq.time,
-				Status:           status,
+				Status:           statusCode,
 				IP:               aReq.ip.IPNet.IP.String(),
-				UserAgent:        r.UserAgent(),
+				UserAgent:        userAgent,
 				New:              aReq.dbReq.App,
 				AdditionalFields: appInfoBytes,
 			})
@@ -557,12 +525,12 @@ func (p *DBTokenProvider) auditInitRequest(ctx context.Context, w http.ResponseW
 
 				Action:           database.AuditActionOpen,
 				OrganizationID:   aReq.dbReq.Workspace.OrganizationID,
-				UserID:           userID.UUID,
-				RequestID:        sessionID,
+				UserID:           userID,
+				RequestID:        requestID,
 				Time:             aReq.time,
-				Status:           status,
+				Status:           statusCode,
 				IP:               aReq.ip.IPNet.IP.String(),
-				UserAgent:        r.UserAgent(),
+				UserAgent:        userAgent,
 				New:              aReq.dbReq.Agent,
 				AdditionalFields: appInfoBytes,
 			})
