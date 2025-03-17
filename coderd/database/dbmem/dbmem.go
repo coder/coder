@@ -10,6 +10,7 @@ import (
 	"math"
 	"reflect"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -19,7 +20,6 @@ import (
 	"github.com/lib/pq"
 	"golang.org/x/exp/constraints"
 	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/notifications/types"
@@ -55,43 +55,45 @@ func New() database.Store {
 		mutex: &sync.RWMutex{},
 		data: &data{
 			apiKeys:                   make([]database.APIKey, 0),
-			organizationMembers:       make([]database.OrganizationMember, 0),
-			organizations:             make([]database.Organization, 0),
-			users:                     make([]database.User, 0),
+			auditLogs:                 make([]database.AuditLog, 0),
+			customRoles:               make([]database.CustomRole, 0),
 			dbcryptKeys:               make([]database.DBCryptKey, 0),
 			externalAuthLinks:         make([]database.ExternalAuthLink, 0),
-			groups:                    make([]database.Group, 0),
-			groupMembers:              make([]database.GroupMemberTable, 0),
-			auditLogs:                 make([]database.AuditLog, 0),
 			files:                     make([]database.File, 0),
 			gitSSHKey:                 make([]database.GitSSHKey, 0),
+			groups:                    make([]database.Group, 0),
+			groupMembers:              make([]database.GroupMemberTable, 0),
+			licenses:                  make([]database.License, 0),
+			locks:                     map[int64]struct{}{},
 			notificationMessages:      make([]database.NotificationMessage, 0),
 			notificationPreferences:   make([]database.NotificationPreference, 0),
+			organizationMembers:       make([]database.OrganizationMember, 0),
+			organizations:             make([]database.Organization, 0),
+			inboxNotifications:        make([]database.InboxNotification, 0),
 			parameterSchemas:          make([]database.ParameterSchema, 0),
+			presets:                   make([]database.TemplateVersionPreset, 0),
+			presetParameters:          make([]database.TemplateVersionPresetParameter, 0),
 			provisionerDaemons:        make([]database.ProvisionerDaemon, 0),
-			provisionerKeys:           make([]database.ProvisionerKey, 0),
-			workspaceAgents:           make([]database.WorkspaceAgent, 0),
+			provisionerJobs:           make([]database.ProvisionerJob, 0),
 			provisionerJobLogs:        make([]database.ProvisionerJobLog, 0),
+			provisionerKeys:           make([]database.ProvisionerKey, 0),
+			runtimeConfig:             map[string]string{},
+			telemetryItems:            make([]database.TelemetryItem, 0),
+			templateVersions:          make([]database.TemplateVersionTable, 0),
+			templates:                 make([]database.TemplateTable, 0),
+			users:                     make([]database.User, 0),
+			userConfigs:               make([]database.UserConfig, 0),
+			userStatusChanges:         make([]database.UserStatusChange, 0),
+			workspaceAgents:           make([]database.WorkspaceAgent, 0),
 			workspaceResources:        make([]database.WorkspaceResource, 0),
 			workspaceModules:          make([]database.WorkspaceModule, 0),
 			workspaceResourceMetadata: make([]database.WorkspaceResourceMetadatum, 0),
-			provisionerJobs:           make([]database.ProvisionerJob, 0),
-			templateVersions:          make([]database.TemplateVersionTable, 0),
-			templates:                 make([]database.TemplateTable, 0),
 			workspaceAgentStats:       make([]database.WorkspaceAgentStat, 0),
 			workspaceAgentLogs:        make([]database.WorkspaceAgentLog, 0),
 			workspaceBuilds:           make([]database.WorkspaceBuild, 0),
 			workspaceApps:             make([]database.WorkspaceApp, 0),
 			workspaces:                make([]database.WorkspaceTable, 0),
-			licenses:                  make([]database.License, 0),
 			workspaceProxies:          make([]database.WorkspaceProxy, 0),
-			customRoles:               make([]database.CustomRole, 0),
-			locks:                     map[int64]struct{}{},
-			runtimeConfig:             map[string]string{},
-			userStatusChanges:         make([]database.UserStatusChange, 0),
-			telemetryItems:            make([]database.TelemetryItem, 0),
-			presets:                   make([]database.TemplateVersionPreset, 0),
-			presetParameters:          make([]database.TemplateVersionPresetParameter, 0),
 		},
 	}
 	// Always start with a default org. Matching migration 198.
@@ -206,6 +208,7 @@ type data struct {
 	notificationMessages                 []database.NotificationMessage
 	notificationPreferences              []database.NotificationPreference
 	notificationReportGeneratorLogs      []database.NotificationReportGeneratorLog
+	inboxNotifications                   []database.InboxNotification
 	oauth2ProviderApps                   []database.OAuth2ProviderApp
 	oauth2ProviderAppSecrets             []database.OAuth2ProviderAppSecret
 	oauth2ProviderAppCodes               []database.OAuth2ProviderAppCode
@@ -222,6 +225,7 @@ type data struct {
 	templateVersionWorkspaceTags         []database.TemplateVersionWorkspaceTag
 	templates                            []database.TemplateTable
 	templateUsageStats                   []database.TemplateUsageStat
+	userConfigs                          []database.UserConfig
 	workspaceAgents                      []database.WorkspaceAgent
 	workspaceAgentMetadata               []database.WorkspaceAgentMetadatum
 	workspaceAgentLogs                   []database.WorkspaceAgentLog
@@ -254,6 +258,7 @@ type data struct {
 	announcementBanners              []byte
 	healthSettings                   []byte
 	notificationsSettings            []byte
+	oauth2GithubDefaultEligible      *bool
 	applicationName                  string
 	logoURL                          string
 	appSecurityKey                   string
@@ -268,7 +273,7 @@ type data struct {
 	presetParameters                 []database.TemplateVersionPresetParameter
 }
 
-func tryPercentile(fs []float64, p float64) float64 {
+func tryPercentileCont(fs []float64, p float64) float64 {
 	if len(fs) == 0 {
 		return -1
 	}
@@ -279,6 +284,14 @@ func tryPercentile(fs []float64, p float64) float64 {
 		return fs[lower]
 	}
 	return fs[lower] + (fs[upper]-fs[lower])*(pos-float64(lower))
+}
+
+func tryPercentileDisc(fs []float64, p float64) float64 {
+	if len(fs) == 0 {
+		return -1
+	}
+	sort.Float64s(fs)
+	return fs[max(int(math.Ceil(float64(len(fs))*p/100-1)), 0)]
 }
 
 func validateDatabaseTypeWithValid(v reflect.Value) (handled bool, err error) {
@@ -888,7 +901,6 @@ func (q *FakeQuerier) getGroupMemberNoLock(ctx context.Context, userID, groupID 
 		UserDeleted:            user.Deleted,
 		UserLastSeenAt:         user.LastSeenAt,
 		UserQuietHoursSchedule: user.QuietHoursSchedule,
-		UserThemePreference:    user.ThemePreference,
 		UserName:               user.Name,
 		UserGithubComUserID:    user.GithubComUserID,
 		OrganizationID:         orgID,
@@ -1138,7 +1150,119 @@ func getOwnerFromTags(tags map[string]string) string {
 	return ""
 }
 
-func (q *FakeQuerier) getProvisionerJobsByIDsWithQueuePositionLocked(_ context.Context, ids []uuid.UUID) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
+// provisionerTagsetContains checks if daemonTags contain all key-value pairs from jobTags
+func provisionerTagsetContains(daemonTags, jobTags map[string]string) bool {
+	for jobKey, jobValue := range jobTags {
+		if daemonValue, exists := daemonTags[jobKey]; !exists || daemonValue != jobValue {
+			return false
+		}
+	}
+	return true
+}
+
+// GetProvisionerJobsByIDsWithQueuePosition mimics the SQL logic in pure Go
+func (q *FakeQuerier) getProvisionerJobsByIDsWithQueuePositionLockedTagBasedQueue(_ context.Context, jobIDs []uuid.UUID) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
+	// Step 1: Filter provisionerJobs based on jobIDs
+	filteredJobs := make(map[uuid.UUID]database.ProvisionerJob)
+	for _, job := range q.provisionerJobs {
+		for _, id := range jobIDs {
+			if job.ID == id {
+				filteredJobs[job.ID] = job
+			}
+		}
+	}
+
+	// Step 2: Identify pending jobs
+	pendingJobs := make(map[uuid.UUID]database.ProvisionerJob)
+	for _, job := range q.provisionerJobs {
+		if job.JobStatus == "pending" {
+			pendingJobs[job.ID] = job
+		}
+	}
+
+	// Step 3: Identify pending jobs that have a matching provisioner
+	matchedJobs := make(map[uuid.UUID]struct{})
+	for _, job := range pendingJobs {
+		for _, daemon := range q.provisionerDaemons {
+			if provisionerTagsetContains(daemon.Tags, job.Tags) {
+				matchedJobs[job.ID] = struct{}{}
+				break
+			}
+		}
+	}
+
+	// Step 4: Rank pending jobs per provisioner
+	jobRanks := make(map[uuid.UUID][]database.ProvisionerJob)
+	for _, job := range pendingJobs {
+		for _, daemon := range q.provisionerDaemons {
+			if provisionerTagsetContains(daemon.Tags, job.Tags) {
+				jobRanks[daemon.ID] = append(jobRanks[daemon.ID], job)
+			}
+		}
+	}
+
+	// Sort jobs per provisioner by CreatedAt
+	for daemonID := range jobRanks {
+		sort.Slice(jobRanks[daemonID], func(i, j int) bool {
+			return jobRanks[daemonID][i].CreatedAt.Before(jobRanks[daemonID][j].CreatedAt)
+		})
+	}
+
+	// Step 5: Compute queue position & max queue size across all provisioners
+	jobQueueStats := make(map[uuid.UUID]database.GetProvisionerJobsByIDsWithQueuePositionRow)
+	for _, jobs := range jobRanks {
+		queueSize := int64(len(jobs)) // Queue size per provisioner
+		for i, job := range jobs {
+			queuePosition := int64(i + 1)
+
+			// If the job already exists, update only if this queuePosition is better
+			if existing, exists := jobQueueStats[job.ID]; exists {
+				jobQueueStats[job.ID] = database.GetProvisionerJobsByIDsWithQueuePositionRow{
+					ID:             job.ID,
+					CreatedAt:      job.CreatedAt,
+					ProvisionerJob: job,
+					QueuePosition:  min(existing.QueuePosition, queuePosition),
+					QueueSize:      max(existing.QueueSize, queueSize), // Take the maximum queue size across provisioners
+				}
+			} else {
+				jobQueueStats[job.ID] = database.GetProvisionerJobsByIDsWithQueuePositionRow{
+					ID:             job.ID,
+					CreatedAt:      job.CreatedAt,
+					ProvisionerJob: job,
+					QueuePosition:  queuePosition,
+					QueueSize:      queueSize,
+				}
+			}
+		}
+	}
+
+	// Step 6: Compute the final results with minimal checks
+	var results []database.GetProvisionerJobsByIDsWithQueuePositionRow
+	for _, job := range filteredJobs {
+		// If the job has a computed rank, use it
+		if rank, found := jobQueueStats[job.ID]; found {
+			results = append(results, rank)
+		} else {
+			// Otherwise, return (0,0) for non-pending jobs and unranked pending jobs
+			results = append(results, database.GetProvisionerJobsByIDsWithQueuePositionRow{
+				ID:             job.ID,
+				CreatedAt:      job.CreatedAt,
+				ProvisionerJob: job,
+				QueuePosition:  0,
+				QueueSize:      0,
+			})
+		}
+	}
+
+	// Step 7: Sort results by CreatedAt
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].CreatedAt.Before(results[j].CreatedAt)
+	})
+
+	return results, nil
+}
+
+func (q *FakeQuerier) getProvisionerJobsByIDsWithQueuePositionLockedGlobalQueue(_ context.Context, ids []uuid.UUID) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
 	//	WITH pending_jobs AS (
 	//		SELECT
 	//			id, created_at
@@ -1595,6 +1719,26 @@ func (*FakeQuerier) CleanTailnetLostPeers(context.Context) error {
 
 func (*FakeQuerier) CleanTailnetTunnels(context.Context) error {
 	return ErrUnimplemented
+}
+
+func (q *FakeQuerier) CountUnreadInboxNotificationsByUserID(_ context.Context, userID uuid.UUID) (int64, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	var count int64
+	for _, notification := range q.inboxNotifications {
+		if notification.UserID != userID {
+			continue
+		}
+
+		if notification.ReadAt.Valid {
+			continue
+		}
+
+		count++
+	}
+
+	return count, nil
 }
 
 func (q *FakeQuerier) CustomRoles(_ context.Context, arg database.CustomRolesParams) ([]database.CustomRole, error) {
@@ -2360,6 +2504,19 @@ func (q *FakeQuerier) FetchMemoryResourceMonitorsByAgentID(_ context.Context, ag
 	return database.WorkspaceAgentMemoryResourceMonitor{}, sql.ErrNoRows
 }
 
+func (q *FakeQuerier) FetchMemoryResourceMonitorsUpdatedAfter(_ context.Context, updatedAt time.Time) ([]database.WorkspaceAgentMemoryResourceMonitor, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	monitors := []database.WorkspaceAgentMemoryResourceMonitor{}
+	for _, monitor := range q.workspaceAgentMemoryResourceMonitors {
+		if monitor.UpdatedAt.After(updatedAt) {
+			monitors = append(monitors, monitor)
+		}
+	}
+	return monitors, nil
+}
+
 func (q *FakeQuerier) FetchNewMessageMetadata(_ context.Context, arg database.FetchNewMessageMetadataParams) (database.FetchNewMessageMetadataRow, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -2401,6 +2558,19 @@ func (q *FakeQuerier) FetchVolumesResourceMonitorsByAgentID(_ context.Context, a
 		}
 	}
 
+	return monitors, nil
+}
+
+func (q *FakeQuerier) FetchVolumesResourceMonitorsUpdatedAfter(_ context.Context, updatedAt time.Time) ([]database.WorkspaceAgentVolumeResourceMonitor, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	monitors := []database.WorkspaceAgentVolumeResourceMonitor{}
+	for _, monitor := range q.workspaceAgentVolumeResourceMonitors {
+		if monitor.UpdatedAt.After(updatedAt) {
+			monitors = append(monitors, monitor)
+		}
+	}
 	return monitors, nil
 }
 
@@ -2789,8 +2959,8 @@ func (q *FakeQuerier) GetDeploymentWorkspaceAgentStats(_ context.Context, create
 		latencies = append(latencies, agentStat.ConnectionMedianLatencyMS)
 	}
 
-	stat.WorkspaceConnectionLatency50 = tryPercentile(latencies, 50)
-	stat.WorkspaceConnectionLatency95 = tryPercentile(latencies, 95)
+	stat.WorkspaceConnectionLatency50 = tryPercentileCont(latencies, 50)
+	stat.WorkspaceConnectionLatency95 = tryPercentileCont(latencies, 95)
 
 	return stat, nil
 }
@@ -2838,8 +3008,8 @@ func (q *FakeQuerier) GetDeploymentWorkspaceAgentUsageStats(_ context.Context, c
 		stat.WorkspaceTxBytes += agentStat.TxBytes
 		latencies = append(latencies, agentStat.ConnectionMedianLatencyMS)
 	}
-	stat.WorkspaceConnectionLatency50 = tryPercentile(latencies, 50)
-	stat.WorkspaceConnectionLatency95 = tryPercentile(latencies, 95)
+	stat.WorkspaceConnectionLatency50 = tryPercentileCont(latencies, 50)
+	stat.WorkspaceConnectionLatency95 = tryPercentileCont(latencies, 95)
 
 	for _, agentStat := range sessions {
 		stat.SessionCountVSCode += agentStat.SessionCountVSCode
@@ -3121,6 +3291,45 @@ func (q *FakeQuerier) GetFileTemplates(_ context.Context, id uuid.UUID) ([]datab
 	return rows, nil
 }
 
+func (q *FakeQuerier) GetFilteredInboxNotificationsByUserID(_ context.Context, arg database.GetFilteredInboxNotificationsByUserIDParams) ([]database.InboxNotification, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	notifications := make([]database.InboxNotification, 0)
+	for _, notification := range q.inboxNotifications {
+		if notification.UserID == arg.UserID {
+			for _, template := range arg.Templates {
+				templateFound := false
+				if notification.TemplateID == template {
+					templateFound = true
+				}
+
+				if !templateFound {
+					continue
+				}
+			}
+
+			for _, target := range arg.Targets {
+				isFound := false
+				for _, insertedTarget := range notification.Targets {
+					if insertedTarget == target {
+						isFound = true
+						break
+					}
+				}
+
+				if !isFound {
+					continue
+				}
+
+				notifications = append(notifications, notification)
+			}
+		}
+	}
+
+	return notifications, nil
+}
+
 func (q *FakeQuerier) GetGitSSHKey(_ context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -3319,6 +3528,33 @@ func (q *FakeQuerier) GetHungProvisionerJobs(_ context.Context, hungSince time.T
 	return hungJobs, nil
 }
 
+func (q *FakeQuerier) GetInboxNotificationByID(_ context.Context, id uuid.UUID) (database.InboxNotification, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, notification := range q.inboxNotifications {
+		if notification.ID == id {
+			return notification, nil
+		}
+	}
+
+	return database.InboxNotification{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) GetInboxNotificationsByUserID(_ context.Context, params database.GetInboxNotificationsByUserIDParams) ([]database.InboxNotification, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	notifications := make([]database.InboxNotification, 0)
+	for _, notification := range q.inboxNotifications {
+		if notification.UserID == params.UserID {
+			notifications = append(notifications, notification)
+		}
+	}
+
+	return notifications, nil
+}
+
 func (q *FakeQuerier) GetJFrogXrayScanByWorkspaceAndAgentID(_ context.Context, arg database.GetJFrogXrayScanByWorkspaceAndAgentIDParams) (database.JfrogXrayScan, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -3513,6 +3749,16 @@ func (q *FakeQuerier) GetNotificationsSettings(_ context.Context) (string, error
 	}
 
 	return string(q.notificationsSettings), nil
+}
+
+func (q *FakeQuerier) GetOAuth2GithubDefaultEligible(_ context.Context) (bool, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	if q.oauth2GithubDefaultEligible == nil {
+		return false, sql.ErrNoRows
+	}
+	return *q.oauth2GithubDefaultEligible, nil
 }
 
 func (q *FakeQuerier) GetOAuth2ProviderAppByID(_ context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {
@@ -4062,7 +4308,7 @@ func (q *FakeQuerier) GetProvisionerDaemonsWithStatusByOrganization(ctx context.
 	}
 
 	slices.SortFunc(rows, func(a, b database.GetProvisionerDaemonsWithStatusByOrganizationRow) int {
-		return a.ProvisionerDaemon.CreatedAt.Compare(b.ProvisionerDaemon.CreatedAt)
+		return b.ProvisionerDaemon.CreatedAt.Compare(a.ProvisionerDaemon.CreatedAt)
 	})
 
 	if arg.Limit.Valid && arg.Limit.Int32 > 0 && len(rows) > int(arg.Limit.Int32) {
@@ -4130,7 +4376,7 @@ func (q *FakeQuerier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Conte
 	if ids == nil {
 		ids = []uuid.UUID{}
 	}
-	return q.getProvisionerJobsByIDsWithQueuePositionLocked(ctx, ids)
+	return q.getProvisionerJobsByIDsWithQueuePositionLockedTagBasedQueue(ctx, ids)
 }
 
 func (q *FakeQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(ctx context.Context, arg database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams) ([]database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow, error) {
@@ -4199,7 +4445,7 @@ func (q *FakeQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePosition
 		LIMIT
 			sqlc.narg('limit')::int;
 	*/
-	rowsWithQueuePosition, err := q.getProvisionerJobsByIDsWithQueuePositionLocked(ctx, nil)
+	rowsWithQueuePosition, err := q.getProvisionerJobsByIDsWithQueuePositionLockedGlobalQueue(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -4976,9 +5222,9 @@ func (q *FakeQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg datab
 	}
 
 	var row database.GetTemplateAverageBuildTimeRow
-	row.Delete50, row.Delete95 = tryPercentile(deleteTimes, 50), tryPercentile(deleteTimes, 95)
-	row.Stop50, row.Stop95 = tryPercentile(stopTimes, 50), tryPercentile(stopTimes, 95)
-	row.Start50, row.Start95 = tryPercentile(startTimes, 50), tryPercentile(startTimes, 95)
+	row.Delete50, row.Delete95 = tryPercentileDisc(deleteTimes, 50), tryPercentileDisc(deleteTimes, 95)
+	row.Stop50, row.Stop95 = tryPercentileDisc(stopTimes, 50), tryPercentileDisc(stopTimes, 95)
+	row.Start50, row.Start95 = tryPercentileDisc(startTimes, 50), tryPercentileDisc(startTimes, 95)
 	return row, nil
 }
 
@@ -5917,6 +6163,20 @@ func (q *FakeQuerier) GetUserActivityInsights(_ context.Context, arg database.Ge
 	return rows, nil
 }
 
+func (q *FakeQuerier) GetUserAppearanceSettings(_ context.Context, userID uuid.UUID) (string, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, uc := range q.userConfigs {
+		if uc.UserID != userID || uc.Key != "theme_preference" {
+			continue
+		}
+		return uc.Value, nil
+	}
+
+	return "", sql.ErrNoRows
+}
+
 func (q *FakeQuerier) GetUserByEmailOrUsername(_ context.Context, arg database.GetUserByEmailOrUsernameParams) (database.User, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.User{}, err
@@ -6013,8 +6273,8 @@ func (q *FakeQuerier) GetUserLatencyInsights(_ context.Context, arg database.Get
 			Username:                     user.Username,
 			AvatarURL:                    user.AvatarURL,
 			TemplateIDs:                  seenTemplatesByUserID[userID],
-			WorkspaceConnectionLatency50: tryPercentile(latencies, 50),
-			WorkspaceConnectionLatency95: tryPercentile(latencies, 95),
+			WorkspaceConnectionLatency50: tryPercentileCont(latencies, 50),
+			WorkspaceConnectionLatency95: tryPercentileCont(latencies, 95),
 		}
 		rows = append(rows, row)
 	}
@@ -6658,8 +6918,8 @@ func (q *FakeQuerier) GetWorkspaceAgentStats(_ context.Context, createdAfter tim
 		if !ok {
 			continue
 		}
-		stat.WorkspaceConnectionLatency50 = tryPercentile(latencies, 50)
-		stat.WorkspaceConnectionLatency95 = tryPercentile(latencies, 95)
+		stat.WorkspaceConnectionLatency50 = tryPercentileCont(latencies, 50)
+		stat.WorkspaceConnectionLatency95 = tryPercentileCont(latencies, 95)
 		statByAgent[stat.AgentID] = stat
 	}
 
@@ -6796,8 +7056,8 @@ func (q *FakeQuerier) GetWorkspaceAgentUsageStats(_ context.Context, createdAt t
 	for key, latencies := range latestAgentLatencies {
 		val, ok := latestAgentStats[key]
 		if ok {
-			val.WorkspaceConnectionLatency50 = tryPercentile(latencies, 50)
-			val.WorkspaceConnectionLatency95 = tryPercentile(latencies, 95)
+			val.WorkspaceConnectionLatency50 = tryPercentileCont(latencies, 50)
+			val.WorkspaceConnectionLatency95 = tryPercentileCont(latencies, 95)
 		}
 		latestAgentStats[key] = val
 	}
@@ -6907,7 +7167,7 @@ func (q *FakeQuerier) GetWorkspaceAgentUsageStatsAndLabels(_ context.Context, cr
 		}
 		// WHERE usage = true AND created_at > now() - '1 minute'::interval
 		// GROUP BY user_id, agent_id, workspace_id
-		if agentStat.Usage && agentStat.CreatedAt.After(time.Now().Add(-time.Minute)) {
+		if agentStat.Usage && agentStat.CreatedAt.After(dbtime.Now().Add(-time.Minute)) {
 			val, ok := latestAgentStats[key]
 			if !ok {
 				latestAgentStats[key] = agentStat
@@ -7944,6 +8204,30 @@ func (q *FakeQuerier) InsertGroupMember(_ context.Context, arg database.InsertGr
 	})
 
 	return nil
+}
+
+func (q *FakeQuerier) InsertInboxNotification(_ context.Context, arg database.InsertInboxNotificationParams) (database.InboxNotification, error) {
+	if err := validateDatabaseType(arg); err != nil {
+		return database.InboxNotification{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	notification := database.InboxNotification{
+		ID:         arg.ID,
+		UserID:     arg.UserID,
+		TemplateID: arg.TemplateID,
+		Targets:    arg.Targets,
+		Title:      arg.Title,
+		Content:    arg.Content,
+		Icon:       arg.Icon,
+		Actions:    arg.Actions,
+		CreatedAt:  time.Now(),
+	}
+
+	q.inboxNotifications = append(q.inboxNotifications, notification)
+	return notification, nil
 }
 
 func (q *FakeQuerier) InsertLicense(
@@ -9300,6 +9584,53 @@ func (q *FakeQuerier) OrganizationMembers(_ context.Context, arg database.Organi
 	return tmp, nil
 }
 
+func (q *FakeQuerier) PaginatedOrganizationMembers(_ context.Context, arg database.PaginatedOrganizationMembersParams) ([]database.PaginatedOrganizationMembersRow, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	// All of the members in the organization
+	orgMembers := make([]database.OrganizationMember, 0)
+	for _, mem := range q.organizationMembers {
+		if mem.OrganizationID != arg.OrganizationID {
+			continue
+		}
+
+		orgMembers = append(orgMembers, mem)
+	}
+
+	selectedMembers := make([]database.PaginatedOrganizationMembersRow, 0)
+
+	skippedMembers := 0
+	for _, organizationMember := range orgMembers {
+		if skippedMembers < int(arg.OffsetOpt) {
+			skippedMembers++
+			continue
+		}
+
+		// if the limit is set to 0 we treat that as returning all of the org members
+		if int(arg.LimitOpt) != 0 && len(selectedMembers) >= int(arg.LimitOpt) {
+			break
+		}
+
+		user, _ := q.getUserByIDNoLock(organizationMember.UserID)
+		selectedMembers = append(selectedMembers, database.PaginatedOrganizationMembersRow{
+			OrganizationMember: organizationMember,
+			Username:           user.Username,
+			AvatarURL:          user.AvatarURL,
+			Name:               user.Name,
+			Email:              user.Email,
+			GlobalRoles:        user.RBACRoles,
+			Count:              int64(len(orgMembers)),
+		})
+	}
+	return selectedMembers, nil
+}
+
 func (q *FakeQuerier) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(_ context.Context, templateID uuid.UUID) error {
 	err := validateDatabaseType(templateID)
 	if err != nil {
@@ -9658,6 +9989,24 @@ func (q *FakeQuerier) UpdateInactiveUsersToDormant(_ context.Context, params dat
 	}
 
 	return updated, nil
+}
+
+func (q *FakeQuerier) UpdateInboxNotificationReadStatus(_ context.Context, arg database.UpdateInboxNotificationReadStatusParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i := range q.inboxNotifications {
+		if q.inboxNotifications[i].ID == arg.ID {
+			q.inboxNotifications[i].ReadAt = arg.ReadAt
+		}
+	}
+
+	return nil
 }
 
 func (q *FakeQuerier) UpdateMemberRoles(_ context.Context, arg database.UpdateMemberRolesParams) (database.OrganizationMember, error) {
@@ -10167,24 +10516,31 @@ func (q *FakeQuerier) UpdateTemplateWorkspacesLastUsedAt(_ context.Context, arg 
 	return nil
 }
 
-func (q *FakeQuerier) UpdateUserAppearanceSettings(_ context.Context, arg database.UpdateUserAppearanceSettingsParams) (database.User, error) {
+func (q *FakeQuerier) UpdateUserAppearanceSettings(_ context.Context, arg database.UpdateUserAppearanceSettingsParams) (database.UserConfig, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
-		return database.User{}, err
+		return database.UserConfig{}, err
 	}
 
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	for index, user := range q.users {
-		if user.ID != arg.ID {
+	for i, uc := range q.userConfigs {
+		if uc.UserID != arg.UserID || uc.Key != "theme_preference" {
 			continue
 		}
-		user.ThemePreference = arg.ThemePreference
-		q.users[index] = user
-		return user, nil
+		uc.Value = arg.ThemePreference
+		q.userConfigs[i] = uc
+		return uc, nil
 	}
-	return database.User{}, sql.ErrNoRows
+
+	uc := database.UserConfig{
+		UserID: arg.UserID,
+		Key:    "theme_preference",
+		Value:  arg.ThemePreference,
+	}
+	q.userConfigs = append(q.userConfigs, uc)
+	return uc, nil
 }
 
 func (q *FakeQuerier) UpdateUserDeletedByID(_ context.Context, id uuid.UUID) error {
@@ -11151,6 +11507,14 @@ func (q *FakeQuerier) UpsertNotificationsSettings(_ context.Context, data string
 	defer q.mutex.Unlock()
 
 	q.notificationsSettings = []byte(data)
+	return nil
+}
+
+func (q *FakeQuerier) UpsertOAuth2GithubDefaultEligible(_ context.Context, eligible bool) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	q.oauth2GithubDefaultEligible = &eligible
 	return nil
 }
 
@@ -12567,7 +12931,6 @@ func (q *FakeQuerier) GetAuthorizedAuditLogsOffset(ctx context.Context, arg data
 			UserLastSeenAt:          sql.NullTime{Time: user.LastSeenAt, Valid: userValid},
 			UserLoginType:           database.NullLoginType{LoginType: user.LoginType, Valid: userValid},
 			UserDeleted:             sql.NullBool{Bool: user.Deleted, Valid: userValid},
-			UserThemePreference:     sql.NullString{String: user.ThemePreference, Valid: userValid},
 			UserQuietHoursSchedule:  sql.NullString{String: user.QuietHoursSchedule, Valid: userValid},
 			UserStatus:              database.NullUserStatus{UserStatus: user.Status, Valid: userValid},
 			UserRoles:               user.RBACRoles,

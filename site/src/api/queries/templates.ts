@@ -2,7 +2,6 @@ import { API, type GetTemplatesOptions, type GetTemplatesQuery } from "api/api";
 import type {
 	CreateTemplateRequest,
 	CreateTemplateVersionRequest,
-	Preset,
 	ProvisionerJob,
 	ProvisionerJobStatus,
 	Template,

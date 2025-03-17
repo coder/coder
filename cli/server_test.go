@@ -25,7 +25,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -45,6 +44,8 @@ import (
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/migrations"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -251,10 +252,8 @@ func TestServer(t *testing.T) {
 			"--access-url", "http://localhost:3000/",
 			"--cache-dir", t.TempDir(),
 		)
-		stdoutRW := syncReaderWriter{}
-		stderrRW := syncReaderWriter{}
-		inv.Stdout = io.MultiWriter(os.Stdout, &stdoutRW)
-		inv.Stderr = io.MultiWriter(os.Stderr, &stderrRW)
+		pty := ptytest.New(t).Attach(inv)
+		require.NoError(t, pty.Resize(20, 80))
 		clitest.Start(t, inv)
 
 		// Wait for startup
@@ -268,8 +267,9 @@ func TestServer(t *testing.T) {
 		// normally shown to the user, so we'll ignore them.
 		ignoreLines := []string{
 			"isn't externally reachable",
-			"install.sh will be unavailable",
+			"open install.sh: file does not exist",
 			"telemetry disabled, unable to notify of security issues",
+			"installed terraform version newer than expected",
 		}
 
 		countLines := func(fullOutput string) int {
@@ -280,9 +280,11 @@ func TestServer(t *testing.T) {
 			for _, line := range linesByNewline {
 				for _, ignoreLine := range ignoreLines {
 					if strings.Contains(line, ignoreLine) {
+						t.Logf("Ignoring: %q", line)
 						continue lineLoop
 					}
 				}
+				t.Logf("Counting: %q", line)
 				if line == "" {
 					// Empty lines take up one line.
 					countByWidth++
@@ -293,17 +295,158 @@ func TestServer(t *testing.T) {
 			return countByWidth
 		}
 
-		stdout, err := io.ReadAll(&stdoutRW)
-		if err != nil {
-			t.Fatalf("failed to read stdout: %v", err)
-		}
-		stderr, err := io.ReadAll(&stderrRW)
-		if err != nil {
-			t.Fatalf("failed to read stderr: %v", err)
+		out := pty.ReadAll()
+		numLines := countLines(string(out))
+		t.Logf("numLines: %d", numLines)
+		require.Less(t, numLines, 12, "expected less than 12 lines of output (terminal width 80), got %d", numLines)
+	})
+
+	t.Run("OAuth2GitHubDefaultProvider", func(t *testing.T) {
+		type testCase struct {
+			name                                  string
+			githubDefaultProviderEnabled          string
+			githubClientID                        string
+			githubClientSecret                    string
+			allowedOrg                            string
+			expectGithubEnabled                   bool
+			expectGithubDefaultProviderConfigured bool
+			createUserPreStart                    bool
+			createUserPostRestart                 bool
 		}
 
-		numLines := countLines(string(stdout)) + countLines(string(stderr))
-		require.Less(t, numLines, 20)
+		runGitHubProviderTest := func(t *testing.T, tc testCase) {
+			t.Parallel()
+			if !dbtestutil.WillUsePostgres() {
+				t.Skip("test requires postgres")
+			}
+
+			ctx, cancelFunc := context.WithCancel(testutil.Context(t, testutil.WaitLong))
+			defer cancelFunc()
+
+			dbURL, err := dbtestutil.Open(t)
+			require.NoError(t, err)
+			db, _ := dbtestutil.NewDB(t, dbtestutil.WithURL(dbURL))
+
+			if tc.createUserPreStart {
+				_ = dbgen.User(t, db, database.User{})
+			}
+
+			args := []string{
+				"server",
+				"--postgres-url", dbURL,
+				"--http-address", ":0",
+				"--access-url", "https://example.com",
+			}
+			if tc.githubClientID != "" {
+				args = append(args, fmt.Sprintf("--oauth2-github-client-id=%s", tc.githubClientID))
+			}
+			if tc.githubClientSecret != "" {
+				args = append(args, fmt.Sprintf("--oauth2-github-client-secret=%s", tc.githubClientSecret))
+			}
+			if tc.githubClientID != "" || tc.githubClientSecret != "" {
+				args = append(args, "--oauth2-github-allow-everyone")
+			}
+			if tc.githubDefaultProviderEnabled != "" {
+				args = append(args, fmt.Sprintf("--oauth2-github-default-provider-enable=%s", tc.githubDefaultProviderEnabled))
+			}
+			if tc.allowedOrg != "" {
+				args = append(args, fmt.Sprintf("--oauth2-github-allowed-orgs=%s", tc.allowedOrg))
+			}
+			inv, cfg := clitest.New(t, args...)
+			errChan := make(chan error, 1)
+			go func() {
+				errChan <- inv.WithContext(ctx).Run()
+			}()
+			accessURLChan := make(chan *url.URL, 1)
+			go func() {
+				accessURLChan <- waitAccessURL(t, cfg)
+			}()
+
+			var accessURL *url.URL
+			select {
+			case err := <-errChan:
+				require.NoError(t, err)
+			case accessURL = <-accessURLChan:
+				require.NotNil(t, accessURL)
+			}
+
+			client := codersdk.New(accessURL)
+
+			authMethods, err := client.AuthMethods(ctx)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectGithubEnabled, authMethods.Github.Enabled)
+			require.Equal(t, tc.expectGithubDefaultProviderConfigured, authMethods.Github.DefaultProviderConfigured)
+
+			cancelFunc()
+			select {
+			case err := <-errChan:
+				require.NoError(t, err)
+			case <-time.After(testutil.WaitLong):
+				t.Fatal("server did not exit")
+			}
+
+			if tc.createUserPostRestart {
+				_ = dbgen.User(t, db, database.User{})
+			}
+
+			// Ensure that it stays at that setting after the server restarts.
+			inv, cfg = clitest.New(t, args...)
+			clitest.Start(t, inv)
+			accessURL = waitAccessURL(t, cfg)
+			client = codersdk.New(accessURL)
+
+			ctx = testutil.Context(t, testutil.WaitLong)
+			authMethods, err = client.AuthMethods(ctx)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectGithubEnabled, authMethods.Github.Enabled)
+			require.Equal(t, tc.expectGithubDefaultProviderConfigured, authMethods.Github.DefaultProviderConfigured)
+		}
+
+		for _, tc := range []testCase{
+			{
+				name:                                  "NewDeployment",
+				expectGithubEnabled:                   true,
+				expectGithubDefaultProviderConfigured: true,
+				createUserPreStart:                    false,
+				createUserPostRestart:                 true,
+			},
+			{
+				name:                                  "ExistingDeployment",
+				expectGithubEnabled:                   false,
+				expectGithubDefaultProviderConfigured: false,
+				createUserPreStart:                    true,
+				createUserPostRestart:                 false,
+			},
+			{
+				name:                                  "ManuallyDisabled",
+				githubDefaultProviderEnabled:          "false",
+				expectGithubEnabled:                   false,
+				expectGithubDefaultProviderConfigured: false,
+			},
+			{
+				name:                                  "ConfiguredClientID",
+				githubClientID:                        "123",
+				expectGithubEnabled:                   true,
+				expectGithubDefaultProviderConfigured: false,
+			},
+			{
+				name:                                  "ConfiguredClientSecret",
+				githubClientSecret:                    "456",
+				expectGithubEnabled:                   true,
+				expectGithubDefaultProviderConfigured: false,
+			},
+			{
+				name:                                  "AllowedOrg",
+				allowedOrg:                            "coder",
+				expectGithubEnabled:                   true,
+				expectGithubDefaultProviderConfigured: true,
+			},
+		} {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				runGitHubProviderTest(t, tc)
+			})
+		}
 	})
 
 	// Validate that a warning is printed that it may not be externally
@@ -2204,23 +2347,4 @@ func mockTelemetryServer(t *testing.T) (*url.URL, chan *telemetry.Deployment, ch
 	require.NoError(t, err)
 
 	return serverURL, deployment, snapshot
-}
-
-// syncWriter provides a thread-safe io.ReadWriter implementation
-type syncReaderWriter struct {
-	buf bytes.Buffer
-	mu  sync.Mutex
-}
-
-func (w *syncReaderWriter) Write(p []byte) (n int, err error) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	return w.buf.Write(p)
-}
-
-func (w *syncReaderWriter) Read(p []byte) (n int, err error) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-
-	return w.buf.Read(p)
 }

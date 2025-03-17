@@ -1,6 +1,6 @@
 {
   "format_version": "1.0",
-  "terraform_version": "1.10.5",
+  "terraform_version": "1.11.0",
   "values": {
     "root_module": {
       "resources": [
@@ -17,7 +17,7 @@
             "display_name": null,
             "ephemeral": false,
             "icon": null,
-            "id": "3f56c659-fe68-47c3-9765-cd09abe69de7",
+            "id": "1f22af56-31b6-40d1-acc9-652a5e5c8a8d",
             "mutable": false,
             "name": "Example",
             "option": null,
@@ -44,7 +44,7 @@
             "display_name": null,
             "ephemeral": false,
             "icon": null,
-            "id": "2ecde94b-399a-43c7-b50a-3603895aff83",
+            "id": "bc6ed4d8-ea44-4afc-8641-7b0bf176145d",
             "mutable": false,
             "name": "Sample",
             "option": null,
@@ -80,16 +80,17 @@
               }
             ],
             "env": null,
-            "id": "a2171da1-5f68-446f-97e3-1c2755552840",
+            "id": "09d607d0-f6dc-4d6b-b76c-0c532f34721e",
             "init_script": "",
             "metadata": [],
             "motd_file": null,
             "order": null,
             "os": "windows",
+            "resources_monitoring": [],
             "shutdown_script": null,
             "startup_script": null,
             "startup_script_behavior": "non-blocking",
-            "token": "a986f085-2697-4d95-a431-6545716ca36b",
+            "token": "ac504187-c31b-408f-8f1a-f7927a6de3bc",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -97,6 +98,7 @@
               {}
             ],
             "metadata": [],
+            "resources_monitoring": [],
             "token": true
           }
         },
@@ -108,7 +110,7 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "5482122353677678043",
+            "id": "6812852238057715937",
             "triggers": null
           },
           "sensitive_values": {},

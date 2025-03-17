@@ -543,6 +543,67 @@ func AllGroupSourceValues() []GroupSource {
 	}
 }
 
+type InboxNotificationReadStatus string
+
+const (
+	InboxNotificationReadStatusAll    InboxNotificationReadStatus = "all"
+	InboxNotificationReadStatusUnread InboxNotificationReadStatus = "unread"
+	InboxNotificationReadStatusRead   InboxNotificationReadStatus = "read"
+)
+
+func (e *InboxNotificationReadStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = InboxNotificationReadStatus(s)
+	case string:
+		*e = InboxNotificationReadStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for InboxNotificationReadStatus: %T", src)
+	}
+	return nil
+}
+
+type NullInboxNotificationReadStatus struct {
+	InboxNotificationReadStatus InboxNotificationReadStatus `json:"inbox_notification_read_status"`
+	Valid                       bool                        `json:"valid"` // Valid is true if InboxNotificationReadStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullInboxNotificationReadStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.InboxNotificationReadStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.InboxNotificationReadStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullInboxNotificationReadStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.InboxNotificationReadStatus), nil
+}
+
+func (e InboxNotificationReadStatus) Valid() bool {
+	switch e {
+	case InboxNotificationReadStatusAll,
+		InboxNotificationReadStatusUnread,
+		InboxNotificationReadStatusRead:
+		return true
+	}
+	return false
+}
+
+func AllInboxNotificationReadStatusValues() []InboxNotificationReadStatus {
+	return []InboxNotificationReadStatus{
+		InboxNotificationReadStatusAll,
+		InboxNotificationReadStatusUnread,
+		InboxNotificationReadStatusRead,
+	}
+}
+
 type LogLevel string
 
 const (
@@ -817,6 +878,7 @@ type NotificationMethod string
 const (
 	NotificationMethodSmtp    NotificationMethod = "smtp"
 	NotificationMethodWebhook NotificationMethod = "webhook"
+	NotificationMethodInbox   NotificationMethod = "inbox"
 )
 
 func (e *NotificationMethod) Scan(src interface{}) error {
@@ -857,7 +919,8 @@ func (ns NullNotificationMethod) Value() (driver.Value, error) {
 func (e NotificationMethod) Valid() bool {
 	switch e {
 	case NotificationMethodSmtp,
-		NotificationMethodWebhook:
+		NotificationMethodWebhook,
+		NotificationMethodInbox:
 		return true
 	}
 	return false
@@ -867,6 +930,7 @@ func AllNotificationMethodValues() []NotificationMethod {
 	return []NotificationMethod{
 		NotificationMethodSmtp,
 		NotificationMethodWebhook,
+		NotificationMethodInbox,
 	}
 }
 
@@ -2544,7 +2608,6 @@ type GroupMember struct {
 	UserDeleted            bool          `db:"user_deleted" json:"user_deleted"`
 	UserLastSeenAt         time.Time     `db:"user_last_seen_at" json:"user_last_seen_at"`
 	UserQuietHoursSchedule string        `db:"user_quiet_hours_schedule" json:"user_quiet_hours_schedule"`
-	UserThemePreference    string        `db:"user_theme_preference" json:"user_theme_preference"`
 	UserName               string        `db:"user_name" json:"user_name"`
 	UserGithubComUserID    sql.NullInt64 `db:"user_github_com_user_id" json:"user_github_com_user_id"`
 	OrganizationID         uuid.UUID     `db:"organization_id" json:"organization_id"`
@@ -2555,6 +2618,19 @@ type GroupMember struct {
 type GroupMemberTable struct {
 	UserID  uuid.UUID `db:"user_id" json:"user_id"`
 	GroupID uuid.UUID `db:"group_id" json:"group_id"`
+}
+
+type InboxNotification struct {
+	ID         uuid.UUID       `db:"id" json:"id"`
+	UserID     uuid.UUID       `db:"user_id" json:"user_id"`
+	TemplateID uuid.UUID       `db:"template_id" json:"template_id"`
+	Targets    []uuid.UUID     `db:"targets" json:"targets"`
+	Title      string          `db:"title" json:"title"`
+	Content    string          `db:"content" json:"content"`
+	Icon       string          `db:"icon" json:"icon"`
+	Actions    json.RawMessage `db:"actions" json:"actions"`
+	ReadAt     sql.NullTime    `db:"read_at" json:"read_at"`
+	CreatedAt  time.Time       `db:"created_at" json:"created_at"`
 }
 
 type JfrogXrayScan struct {
@@ -3102,8 +3178,6 @@ type User struct {
 	LastSeenAt     time.Time      `db:"last_seen_at" json:"last_seen_at"`
 	// Daily (!) cron schedule (with optional CRON_TZ) signifying the start of the user's quiet hours. If empty, the default quiet hours on the instance is used instead.
 	QuietHoursSchedule string `db:"quiet_hours_schedule" json:"quiet_hours_schedule"`
-	// "" can be interpreted as "the user does not care", falling back to the default theme
-	ThemePreference string `db:"theme_preference" json:"theme_preference"`
 	// Name of the Coder user
 	Name string `db:"name" json:"name"`
 	// The GitHub.com numerical user ID. At time of implementation, this is used to check if the user has starred the Coder repository.
@@ -3112,6 +3186,12 @@ type User struct {
 	HashedOneTimePasscode []byte `db:"hashed_one_time_passcode" json:"hashed_one_time_passcode"`
 	// The time when the one-time-passcode expires.
 	OneTimePasscodeExpiresAt sql.NullTime `db:"one_time_passcode_expires_at" json:"one_time_passcode_expires_at"`
+}
+
+type UserConfig struct {
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	Key    string    `db:"key" json:"key"`
+	Value  string    `db:"value" json:"value"`
 }
 
 // Tracks when users were deleted

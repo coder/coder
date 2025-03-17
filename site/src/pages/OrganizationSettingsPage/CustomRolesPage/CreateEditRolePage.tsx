@@ -9,6 +9,7 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
+import { RequirePermission } from "modules/permissions/RequirePermission";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
@@ -45,7 +46,13 @@ export const CreateEditRolePage: FC = () => {
 	}
 
 	return (
-		<>
+		<RequirePermission
+			isFeatureVisible={
+				role
+					? organizationPermissions.updateOrgRoles
+					: organizationPermissions.createOrgRoles
+			}
+		>
 			<Helmet>
 				<title>
 					{pageTitle(
@@ -81,9 +88,8 @@ export const CreateEditRolePage: FC = () => {
 						: createOrganizationRoleMutation.isLoading
 				}
 				organizationName={organizationName}
-				canAssignOrgRole={organizationPermissions.assignOrgRoles}
 			/>
-		</>
+		</RequirePermission>
 	);
 };
 

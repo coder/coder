@@ -3,6 +3,7 @@ package agenttest
 import (
 	"context"
 	"io"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -12,7 +13,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -158,20 +158,24 @@ func (c *Client) SetLogsChannel(ch chan<- *agentproto.BatchCreateLogsRequest) {
 	c.fakeAgentAPI.SetLogsChannel(ch)
 }
 
+func (c *Client) GetConnectionReports() []*agentproto.ReportConnectionRequest {
+	return c.fakeAgentAPI.GetConnectionReports()
+}
+
 type FakeAgentAPI struct {
 	sync.Mutex
 	t      testing.TB
 	logger slog.Logger
 
-	manifest        *agentproto.Manifest
-	startupCh       chan *agentproto.Startup
-	statsCh         chan *agentproto.Stats
-	appHealthCh     chan *agentproto.BatchUpdateAppHealthRequest
-	logsCh          chan<- *agentproto.BatchCreateLogsRequest
-	lifecycleStates []codersdk.WorkspaceAgentLifecycle
-	metadata        map[string]agentsdk.Metadata
-	timings         []*agentproto.Timing
-	connections     []*agentproto.Connection
+	manifest          *agentproto.Manifest
+	startupCh         chan *agentproto.Startup
+	statsCh           chan *agentproto.Stats
+	appHealthCh       chan *agentproto.BatchUpdateAppHealthRequest
+	logsCh            chan<- *agentproto.BatchCreateLogsRequest
+	lifecycleStates   []codersdk.WorkspaceAgentLifecycle
+	metadata          map[string]agentsdk.Metadata
+	timings           []*agentproto.Timing
+	connectionReports []*agentproto.ReportConnectionRequest
 
 	getAnnouncementBannersFunc              func() ([]codersdk.BannerConfig, error)
 	getResourcesMonitoringConfigurationFunc func() (*agentproto.GetResourcesMonitoringConfigurationResponse, error)
@@ -348,10 +352,16 @@ func (f *FakeAgentAPI) ScriptCompleted(_ context.Context, req *agentproto.Worksp
 
 func (f *FakeAgentAPI) ReportConnection(_ context.Context, req *agentproto.ReportConnectionRequest) (*emptypb.Empty, error) {
 	f.Lock()
-	f.connections = append(f.connections, req.GetConnection())
+	f.connectionReports = append(f.connectionReports, req)
 	f.Unlock()
 
 	return &emptypb.Empty{}, nil
+}
+
+func (f *FakeAgentAPI) GetConnectionReports() []*agentproto.ReportConnectionRequest {
+	f.Lock()
+	defer f.Unlock()
+	return slices.Clone(f.connectionReports)
 }
 
 func NewFakeAgentAPI(t testing.TB, logger slog.Logger, manifest *agentproto.Manifest, statsCh chan *agentproto.Stats) *FakeAgentAPI {

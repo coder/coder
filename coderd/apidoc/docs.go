@@ -2545,6 +2545,7 @@ const docTemplate = `{
                 ],
                 "summary": "List organization members",
                 "operationId": "list-organization-members",
+                "deprecated": true,
                 "parameters": [
                     {
                         "type": "string",
@@ -2966,6 +2967,55 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Workspace"
+                        }
+                    }
+                }
+            }
+        },
+        "/organizations/{organization}/paginated-members": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Members"
+                ],
+                "summary": "Paginated organization members",
+                "operationId": "paginated-organization-members",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page limit, if 0 returns all members",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page offset",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.PaginatedMembersResponse"
+                            }
                         }
                     }
                 }
@@ -6395,6 +6445,38 @@ const docTemplate = `{
             }
         },
         "/users/{user}/appearance": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Get user appearance settings",
+                "operationId": "get-user-appearance-settings",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserAppearanceSettings"
+                        }
+                    }
+                }
+            },
             "put": {
                 "security": [
                     {
@@ -6434,7 +6516,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.User"
+                            "$ref": "#/definitions/codersdk.UserAppearanceSettings"
                         }
                     }
                 }
@@ -10331,7 +10413,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "github": {
-                    "$ref": "#/definitions/codersdk.AuthMethod"
+                    "$ref": "#/definitions/codersdk.GithubAuthMethod"
                 },
                 "oidc": {
                     "$ref": "#/definitions/codersdk.OIDCAuthMethod"
@@ -11857,6 +11939,17 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.GithubAuthMethod": {
+            "type": "object",
+            "properties": {
+                "default_provider_configured": {
+                    "type": "boolean"
+                },
+                "enabled": {
+                    "type": "boolean"
+                }
+            }
+        },
         "codersdk.Group": {
             "type": "object",
             "properties": {
@@ -12519,6 +12612,9 @@ const docTemplate = `{
                 "client_secret": {
                     "type": "string"
                 },
+                "default_provider_enable": {
+                    "type": "boolean"
+                },
                 "device_flow": {
                     "type": "boolean"
                 },
@@ -12853,6 +12949,20 @@ const docTemplate = `{
                 "organization_assign_default": {
                     "description": "AssignDefault will ensure the default org is always included\nfor every user, regardless of their claims. This preserves legacy behavior.",
                     "type": "boolean"
+                }
+            }
+        },
+        "codersdk.PaginatedMembersResponse": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "members": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.OrganizationMemberWithUserData"
+                    }
                 }
             }
         },
@@ -13685,6 +13795,7 @@ const docTemplate = `{
                 "read",
                 "read_personal",
                 "ssh",
+                "unassign",
                 "update",
                 "update_personal",
                 "use",
@@ -13700,6 +13811,7 @@ const docTemplate = `{
                 "ActionRead",
                 "ActionReadPersonal",
                 "ActionSSH",
+                "ActionUnassign",
                 "ActionUpdate",
                 "ActionUpdatePersonal",
                 "ActionUse",
@@ -13724,6 +13836,7 @@ const docTemplate = `{
                 "group",
                 "group_member",
                 "idpsync_settings",
+                "inbox_notification",
                 "license",
                 "notification_message",
                 "notification_preference",
@@ -13759,6 +13872,7 @@ const docTemplate = `{
                 "ResourceGroup",
                 "ResourceGroupMember",
                 "ResourceIdpsyncSettings",
+                "ResourceInboxNotification",
                 "ResourceLicense",
                 "ResourceNotificationMessage",
                 "ResourceNotificationPreference",
@@ -13839,6 +13953,7 @@ const docTemplate = `{
                     ]
                 },
                 "theme_preference": {
+                    "description": "Deprecated: this value should be retrieved from\n` + "`" + `codersdk.UserPreferenceSettings` + "`" + ` instead.",
                     "type": "string"
                 },
                 "updated_at": {
@@ -14706,6 +14821,7 @@ const docTemplate = `{
                     ]
                 },
                 "theme_preference": {
+                    "description": "Deprecated: this value should be retrieved from\n` + "`" + `codersdk.UserPreferenceSettings` + "`" + ` instead.",
                     "type": "string"
                 },
                 "updated_at": {
@@ -15316,6 +15432,7 @@ const docTemplate = `{
                     ]
                 },
                 "theme_preference": {
+                    "description": "Deprecated: this value should be retrieved from\n` + "`" + `codersdk.UserPreferenceSettings` + "`" + ` instead.",
                     "type": "string"
                 },
                 "updated_at": {
@@ -15385,6 +15502,14 @@ const docTemplate = `{
             "properties": {
                 "report": {
                     "$ref": "#/definitions/codersdk.UserActivityInsightsReport"
+                }
+            }
+        },
+        "codersdk.UserAppearanceSettings": {
+            "type": "object",
+            "properties": {
+                "theme_preference": {
+                    "type": "string"
                 }
             }
         },

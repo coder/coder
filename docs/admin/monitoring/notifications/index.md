@@ -29,14 +29,14 @@ These notifications are sent to the workspace owner:
 
 ### User Events
 
-These notifications sent to users with **owner** and **user admin** roles:
+These notifications are sent to users with **owner** and **user admin** roles:
 
 - User account created
 - User account deleted
 - User account suspended
 - User account activated
 
-These notifications sent to users themselves:
+These notifications are sent to users themselves:
 
 - User account suspended
 - User account activated
@@ -48,6 +48,8 @@ These notifications are sent to users with **template admin** roles:
 
 - Template deleted
 - Template deprecated
+- Out of memory (OOM) / Out of disk (OOD)
+  - [Configure](#configure-oomood-notifications) in the template `main.tf`.
 - Report: Workspace builds failed for template
   - This notification is delivered as part of a weekly cron job and summarizes
     the failed builds for a given template.
@@ -62,6 +64,16 @@ flags.
 |    ✔️    | `--notifications-dispatch-timeout`  | `CODER_NOTIFICATIONS_DISPATCH_TIMEOUT`  | `duration` | How long to wait while a notification is being sent before giving up.                                                 | 1m      |
 |    ✔️    | `--notifications-method`            | `CODER_NOTIFICATIONS_METHOD`            | `string`   | Which delivery method to use (available options: 'smtp', 'webhook'). See [Delivery Methods](#delivery-methods) below. | smtp    |
 |    -️    | `--notifications-max-send-attempts` | `CODER_NOTIFICATIONS_MAX_SEND_ATTEMPTS` | `int`      | The upper limit of attempts to send a notification.                                                                   | 5       |
+
+### Configure OOM/OOD notifications
+
+You can monitor out of memory (OOM) and out of disk (OOD) errors and alert users
+when they overutilize memory and disk.
+
+This can help prevent agent disconnects due to OOM/OOD issues.
+
+To enable OOM/OOD notifications on a template, follow the steps in the
+[resource monitoring guide](../../templates/extending-templates/resource-monitoring.md).
 
 ## Delivery Methods
 
@@ -135,7 +147,7 @@ for more options.
 
 After setting the required fields above:
 
-1. Setup an account on Microsoft 365 or outlook.com
+1. Set up an account on Microsoft 365 or outlook.com
 1. Set the following configuration options:
 
    ```text
@@ -230,12 +242,9 @@ notification is indicated on the right hand side of this table.
 
 ## Delivery Preferences
 
-<blockquote class="info">
-
-Delivery preferences is an Enterprise and Premium feature.
-[Learn more](https://coder.com/pricing#compare-plans).
-
-</blockquote>
+> [!NOTE]
+> Delivery preferences is an Enterprise and Premium feature.
+> [Learn more](https://coder.com/pricing#compare-plans).
 
 Administrators can configure which delivery methods are used for each different
 [event type](#event-types).
@@ -269,7 +278,7 @@ troubleshoot:
     `CODER_VERBOSE=true` or `--verbose` to output debug logs.
 1. If you are on version 2.15.x, notifications must be enabled using the
     `notifications`
-    [experiment](../../../contributing/feature-stages.md#experimental-features).
+    [experiment](../../../about/feature-stages.md#early-access-features).
 
     Notifications are enabled by default in Coder v2.16.0 and later.
 

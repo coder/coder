@@ -13,7 +13,6 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
-import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Latency } from "components/Latency/Latency";
 import type { ProxyContextValue } from "contexts/ProxyContext";
@@ -220,7 +219,7 @@ const AdminSettingsSub: FC<MobileMenuPermissions> = ({
 						asChild
 						className={cn(itemStyles.default, itemStyles.sub)}
 					>
-						<Link to="/deployment/general">Deployment</Link>
+						<Link to="/deployment">Deployment</Link>
 					</DropdownMenuItem>
 				)}
 				{canViewOrganizations && (

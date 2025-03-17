@@ -1,6 +1,6 @@
 {
   "format_version": "1.2",
-  "terraform_version": "1.10.5",
+  "terraform_version": "1.11.0",
   "planned_values": {
     "root_module": {
       "resources": [
@@ -21,6 +21,7 @@
             "motd_file": null,
             "order": null,
             "os": "linux",
+            "resources_monitoring": [],
             "shutdown_script": null,
             "startup_script": null,
             "startup_script_behavior": "non-blocking",
@@ -29,6 +30,7 @@
           "sensitive_values": {
             "display_apps": [],
             "metadata": [],
+            "resources_monitoring": [],
             "token": true
           }
         }
@@ -91,6 +93,7 @@
           "motd_file": null,
           "order": null,
           "os": "linux",
+          "resources_monitoring": [],
           "shutdown_script": null,
           "startup_script": null,
           "startup_script_behavior": "non-blocking",
@@ -101,12 +104,14 @@
           "id": true,
           "init_script": true,
           "metadata": [],
+          "resources_monitoring": [],
           "token": true
         },
         "before_sensitive": false,
         "after_sensitive": {
           "display_apps": [],
           "metadata": [],
+          "resources_monitoring": [],
           "token": true
         }
       }
@@ -254,7 +259,7 @@
       ]
     }
   ],
-  "timestamp": "2025-02-18T10:58:12Z",
+  "timestamp": "2025-03-03T20:39:59Z",
   "applyable": true,
   "complete": true,
   "errored": false

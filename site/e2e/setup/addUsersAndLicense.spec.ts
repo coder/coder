@@ -16,9 +16,8 @@ test("setup deployment", async ({ page }) => {
 	}
 
 	// Setup first user
-	await page.getByLabel(Language.usernameLabel).fill(users.admin.username);
-	await page.getByLabel(Language.emailLabel).fill(users.admin.email);
-	await page.getByLabel(Language.passwordLabel).fill(users.admin.password);
+	await page.getByLabel(Language.emailLabel).fill(users.owner.email);
+	await page.getByLabel(Language.passwordLabel).fill(users.owner.password);
 	await page.getByTestId("create").click();
 
 	await expectUrl(page).toHavePathName("/workspaces");
@@ -26,7 +25,7 @@ test("setup deployment", async ({ page }) => {
 
 	for (const user of Object.values(users)) {
 		// Already created as first user
-		if (user.username === "admin") {
+		if (user.username === "owner") {
 			continue;
 		}
 

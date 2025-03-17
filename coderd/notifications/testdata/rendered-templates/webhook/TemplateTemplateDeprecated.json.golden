@@ -24,7 +24,8 @@
       "organization": "coder",
       "template": "alpha"
     },
-    "data": null
+    "data": null,
+    "targets": null
   },
   "title": "Template 'alpha' has been deprecated",
   "title_markdown": "Template 'alpha' has been deprecated",

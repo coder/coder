@@ -3,6 +3,7 @@ import Button from "@mui/material/Button";
 import Collapse from "@mui/material/Collapse";
 import Divider from "@mui/material/Divider";
 import Skeleton from "@mui/material/Skeleton";
+import { API } from "api/api";
 import { xrayScan } from "api/queries/integrations";
 import type {
 	Template,
@@ -25,6 +26,7 @@ import {
 import { useQuery } from "react-query";
 import AutoSizer from "react-virtualized-auto-sizer";
 import type { FixedSizeList as List, ListOnScrollProps } from "react-window";
+import { AgentDevcontainerCard } from "./AgentDevcontainerCard";
 import { AgentLatency } from "./AgentLatency";
 import { AGENT_LOG_LINE_HEIGHT } from "./AgentLogs/AgentLogLine";
 import { AgentLogs } from "./AgentLogs/AgentLogs";
@@ -35,7 +37,7 @@ import { AgentVersion } from "./AgentVersion";
 import { AppLink } from "./AppLink/AppLink";
 import { DownloadAgentLogsButton } from "./DownloadAgentLogsButton";
 import { PortForwardButton } from "./PortForwardButton";
-import { SSHButton } from "./SSHButton/SSHButton";
+import { AgentSSHButton } from "./SSHButton/SSHButton";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
 import { VSCodeDesktopButton } from "./VSCodeDesktopButton/VSCodeDesktopButton";
 import { XRayScanAlert } from "./XRayScanAlert";
@@ -152,6 +154,18 @@ export const AgentRow: FC<AgentRowProps> = ({
 		setBottomOfLogs(distanceFromBottom < AGENT_LOG_LINE_HEIGHT);
 	}, []);
 
+	const { data: containers } = useQuery({
+		queryKey: ["agents", agent.id, "containers"],
+		queryFn: () =>
+			// Only return devcontainers
+			API.getAgentContainers(agent.id, [
+				"devcontainer.config_file=",
+				"devcontainer.local_folder=",
+			]),
+		enabled: agent.status === "connected",
+		select: (res) => res.containers.filter((c) => c.status === "running"),
+	});
+
 	return (
 		<Stack
 			key={agent.id}
@@ -191,14 +205,13 @@ export const AgentRow: FC<AgentRowProps> = ({
 				{showBuiltinApps && (
 					<div css={{ display: "flex" }}>
 						{!hideSSHButton && agent.display_apps.includes("ssh_helper") && (
-							<SSHButton
+							<AgentSSHButton
 								workspaceName={workspace.name}
 								agentName={agent.name}
 								sshPrefix={sshPrefix}
 							/>
 						)}
-						{proxy.preferredWildcardHostname &&
-							proxy.preferredWildcardHostname !== "" &&
+						{proxy.preferredWildcardHostname !== "" &&
 							agent.display_apps.includes("port_forwarding_helper") && (
 								<PortForwardButton
 									host={proxy.preferredWildcardHostname}
@@ -264,6 +277,22 @@ export const AgentRow: FC<AgentRowProps> = ({
 							variant="rectangular"
 							css={styles.buttonSkeleton}
 						/>
+					</section>
+				)}
+
+				{containers && containers.length > 0 && (
+					<section className="flex flex-col gap-4">
+						{containers.map((container) => {
+							return (
+								<AgentDevcontainerCard
+									key={container.id}
+									container={container}
+									workspace={workspace}
+									wildcardHostname={proxy.preferredWildcardHostname}
+									agentName={agent.name}
+								/>
+							);
+						})}
 					</section>
 				)}
 

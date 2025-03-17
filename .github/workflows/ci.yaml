@@ -172,13 +172,13 @@ jobs:
 
       - name: Get golangci-lint cache dir
         run: |
-          linter_ver=$(egrep -o 'GOLANGCI_LINT_VERSION=\S+' dogfood/contents/Dockerfile | cut -d '=' -f 2)
+          linter_ver=$(egrep -o 'GOLANGCI_LINT_VERSION=\S+' dogfood/coder/Dockerfile | cut -d '=' -f 2)
           go install github.com/golangci/golangci-lint/cmd/golangci-lint@v$linter_ver
           dir=$(golangci-lint cache status | awk '/Dir/ { print $2 }')
           echo "LINT_CACHE_DIR=$dir" >> $GITHUB_ENV
 
       - name: golangci-lint cache
-        uses: actions/cache@0c907a75c2c80ebcb7f088228285e798b750cf8f # v4.2.1
+        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
         with:
           path: |
             ${{ env.LINT_CACHE_DIR }}
@@ -188,7 +188,7 @@ jobs:
 
       # Check for any typos
       - name: Check for typos
-        uses: crate-ci/typos@212923e4ff05b7fc2294a204405eec047b807138 # v1.29.9
+        uses: crate-ci/typos@db35ee91e80fbb447f33b0e5fbddb24d2a1a884f # v1.29.10
         with:
           config: .github/workflows/typos.toml
 
@@ -1021,7 +1021,14 @@ jobs:
     if: github.ref == 'refs/heads/main' && needs.changes.outputs.docs-only == 'false' && !github.event.pull_request.head.repo.fork
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-22.04' }}
     permissions:
-      packages: write # Needed to push images to ghcr.io
+      # Necessary to push docker images to ghcr.io.
+      packages: write
+      # Necessary for GCP authentication (https://github.com/google-github-actions/setup-gcloud#usage)
+      # Also necessary for keyless cosign (https://docs.sigstore.dev/cosign/signing/overview/)
+      # And for GitHub Actions attestation
+      id-token: write
+      # Required for GitHub Actions attestation
+      attestations: write
     env:
       DOCKER_CLI_EXPERIMENTAL: "enabled"
     outputs:
@@ -1038,7 +1045,7 @@ jobs:
           fetch-depth: 0
 
       - name: GHCR Login
-        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -1050,14 +1057,56 @@ jobs:
       - name: Setup Go
         uses: ./.github/actions/setup-go
 
+      # Necessary for signing Windows binaries.
+      - name: Setup Java
+        uses: actions/setup-java@3a4f6e1af504cf6a31855fa899c6aa5355ba6c12 # v4.7.0
+        with:
+          distribution: "zulu"
+          java-version: "11.0"
+
+      - name: Install go-winres
+        run: go install github.com/tc-hib/go-winres@d743268d7ea168077ddd443c4240562d4f5e8c3e # v0.3.3
+
       - name: Install nfpm
         run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.35.1
 
       - name: Install zstd
         run: sudo apt-get install -y zstd
 
+      - name: Install cosign
+        uses: sigstore/cosign-installer@d7d6bc7722e3daa8354c50bcb52f4837da5e9b6a # v3.8.1
+        with:
+          cosign-release: "v2.4.3"
+
+      - name: Install syft
+        uses: anchore/sbom-action/download-syft@f325610c9f50a54015d37c8d16cb3b0e2c8f4de0 # v0.18.0
+        with:
+          syft-version: "v1.20.0"
+
+      - name: Setup Windows EV Signing Certificate
+        run: |
+          set -euo pipefail
+          touch /tmp/ev_cert.pem
+          chmod 600 /tmp/ev_cert.pem
+          echo "$EV_SIGNING_CERT" > /tmp/ev_cert.pem
+          wget https://github.com/ebourg/jsign/releases/download/6.0/jsign-6.0.jar -O /tmp/jsign-6.0.jar
+        env:
+          EV_SIGNING_CERT: ${{ secrets.EV_SIGNING_CERT }}
+
+      # Setup GCloud for signing Windows binaries.
+      - name: Authenticate to Google Cloud
+        id: gcloud_auth
+        uses: google-github-actions/auth@71f986410dfbc7added4569d411d040a91dc6935 # v2.1.8
+        with:
+          workload_identity_provider: ${{ secrets.GCP_CODE_SIGNING_WORKLOAD_ID_PROVIDER }}
+          service_account: ${{ secrets.GCP_CODE_SIGNING_SERVICE_ACCOUNT }}
+          token_format: "access_token"
+
+      - name: Setup GCloud SDK
+        uses: google-github-actions/setup-gcloud@77e7a554d41e2ee56fc945c52dfd3f33d12def9a # v2.1.4
+
       - name: Download dylibs
-        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4.1.9
         with:
           name: dylibs
           path: ./build
@@ -1082,6 +1131,18 @@ jobs:
             build/coder_linux_{amd64,arm64,armv7} \
             build/coder_"$version"_windows_amd64.zip \
             build/coder_"$version"_linux_amd64.{tar.gz,deb}
+        env:
+          # The Windows slim binary must be signed for Coder Desktop to accept
+          # it. The darwin executables don't need to be signed, but the dylibs
+          # do (see above).
+          CODER_SIGN_WINDOWS: "1"
+          CODER_WINDOWS_RESOURCES: "1"
+          EV_KEY: ${{ secrets.EV_KEY }}
+          EV_KEYSTORE: ${{ secrets.EV_KEYSTORE }}
+          EV_TSA_URL: ${{ secrets.EV_TSA_URL }}
+          EV_CERTIFICATE_PATH: /tmp/ev_cert.pem
+          GCLOUD_ACCESS_TOKEN: ${{ steps.gcloud_auth.outputs.access_token }}
+          JSIGN_PATH: /tmp/jsign-6.0.jar
 
       - name: Build Linux Docker images
         id: build-docker
@@ -1121,6 +1182,138 @@ jobs:
                     --version $version \
                     $(cat build/coder_"$version"_linux_{amd64,arm64,armv7}.tag)
             done
+          fi
+
+      # GitHub attestation provides SLSA provenance for the Docker images, establishing a verifiable
+      # record that these images were built in GitHub Actions with specific inputs and environment.
+      # This complements our existing cosign attestations which focus on SBOMs.
+      #
+      # We attest each tag separately to ensure all tags have proper provenance records.
+      # TODO: Consider refactoring these steps to use a matrix strategy or composite action to reduce duplication
+      # while maintaining the required functionality for each tag.
+      - name: GitHub Attestation for Docker image
+        id: attest_main
+        if: github.ref == 'refs/heads/main'
+        continue-on-error: true
+        uses: actions/attest@a63cfcc7d1aab266ee064c58250cfc2c7d07bc31 # v2.2.1
+        with:
+          subject-name: "ghcr.io/coder/coder-preview:main"
+          predicate-type: "https://slsa.dev/provenance/v1"
+          predicate: |
+            {
+              "buildType": "https://github.com/actions/runner-images/",
+              "builder": {
+                "id": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              },
+              "invocation": {
+                "configSource": {
+                  "uri": "git+https://github.com/${{ github.repository }}@${{ github.ref }}",
+                  "digest": {
+                    "sha1": "${{ github.sha }}"
+                  },
+                  "entryPoint": ".github/workflows/ci.yaml"
+                },
+                "environment": {
+                  "github_workflow": "${{ github.workflow }}",
+                  "github_run_id": "${{ github.run_id }}"
+                }
+              },
+              "metadata": {
+                "buildInvocationID": "${{ github.run_id }}",
+                "completeness": {
+                  "environment": true,
+                  "materials": true
+                }
+              }
+            }
+          push-to-registry: true
+
+      - name: GitHub Attestation for Docker image (latest tag)
+        id: attest_latest
+        if: github.ref == 'refs/heads/main'
+        continue-on-error: true
+        uses: actions/attest@a63cfcc7d1aab266ee064c58250cfc2c7d07bc31 # v2.2.1
+        with:
+          subject-name: "ghcr.io/coder/coder-preview:latest"
+          predicate-type: "https://slsa.dev/provenance/v1"
+          predicate: |
+            {
+              "buildType": "https://github.com/actions/runner-images/",
+              "builder": {
+                "id": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              },
+              "invocation": {
+                "configSource": {
+                  "uri": "git+https://github.com/${{ github.repository }}@${{ github.ref }}",
+                  "digest": {
+                    "sha1": "${{ github.sha }}"
+                  },
+                  "entryPoint": ".github/workflows/ci.yaml"
+                },
+                "environment": {
+                  "github_workflow": "${{ github.workflow }}",
+                  "github_run_id": "${{ github.run_id }}"
+                }
+              },
+              "metadata": {
+                "buildInvocationID": "${{ github.run_id }}",
+                "completeness": {
+                  "environment": true,
+                  "materials": true
+                }
+              }
+            }
+          push-to-registry: true
+
+      - name: GitHub Attestation for version-specific Docker image
+        id: attest_version
+        if: github.ref == 'refs/heads/main'
+        continue-on-error: true
+        uses: actions/attest@a63cfcc7d1aab266ee064c58250cfc2c7d07bc31 # v2.2.1
+        with:
+          subject-name: "ghcr.io/coder/coder-preview:${{ steps.build-docker.outputs.tag }}"
+          predicate-type: "https://slsa.dev/provenance/v1"
+          predicate: |
+            {
+              "buildType": "https://github.com/actions/runner-images/",
+              "builder": {
+                "id": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              },
+              "invocation": {
+                "configSource": {
+                  "uri": "git+https://github.com/${{ github.repository }}@${{ github.ref }}",
+                  "digest": {
+                    "sha1": "${{ github.sha }}"
+                  },
+                  "entryPoint": ".github/workflows/ci.yaml"
+                },
+                "environment": {
+                  "github_workflow": "${{ github.workflow }}",
+                  "github_run_id": "${{ github.run_id }}"
+                }
+              },
+              "metadata": {
+                "buildInvocationID": "${{ github.run_id }}",
+                "completeness": {
+                  "environment": true,
+                  "materials": true
+                }
+              }
+            }
+          push-to-registry: true
+
+      # Report attestation failures but don't fail the workflow
+      - name: Check attestation status
+        if: github.ref == 'refs/heads/main'
+        run: |
+          if [[ "${{ steps.attest_main.outcome }}" == "failure" ]]; then
+            echo "::warning::GitHub attestation for main tag failed"
+          fi
+          if [[ "${{ steps.attest_latest.outcome }}" == "failure" ]]; then
+            echo "::warning::GitHub attestation for latest tag failed"
+          fi
+          if [[ "${{ steps.attest_version.outcome }}" == "failure" ]]; then
+            echo "::warning::GitHub attestation for version-specific tag failed"
           fi
 
       - name: Prune old images
@@ -1183,13 +1376,13 @@ jobs:
         uses: google-github-actions/setup-gcloud@77e7a554d41e2ee56fc945c52dfd3f33d12def9a # v2.1.4
 
       - name: Set up Flux CLI
-        uses: fluxcd/flux2/action@af67405ee43a6cd66e0b73f4b3802e8583f9d961 # v2.5.0
+        uses: fluxcd/flux2/action@8d5f40dca5aa5d3c0fc3414457dda15a0ac92fa4 # v2.5.1
         with:
           # Keep this and the github action up to date with the version of flux installed in dogfood cluster
-          version: "2.2.1"
+          version: "2.5.1"
 
       - name: Get Cluster Credentials
-        uses: google-github-actions/get-gke-credentials@7a108e64ed8546fe38316b4086e91da13f4785e1 # v2.3.1
+        uses: google-github-actions/get-gke-credentials@d0cee45012069b163a631894b98904a9e6723729 # v2.3.3
         with:
           cluster_name: dogfood-v2
           location: us-central1-a
@@ -1219,6 +1412,8 @@ jobs:
           kubectl --namespace coder rollout status deployment/coder
           kubectl --namespace coder rollout restart deployment/coder-provisioner
           kubectl --namespace coder rollout status deployment/coder-provisioner
+          kubectl --namespace coder rollout restart deployment/coder-provisioner-tagged
+          kubectl --namespace coder rollout status deployment/coder-provisioner-tagged
 
   deploy-wsproxies:
     runs-on: ubuntu-latest

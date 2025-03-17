@@ -16,6 +16,12 @@ import { AuditPageView } from "./AuditPageView";
 
 const AuditPage: FC = () => {
 	const feats = useFeatureVisibility();
+	// The "else false" is required if audit_log is undefined.
+	// It may happen if owner removes the license.
+	//
+	// see: https://github.com/coder/coder/issues/14798
+	const isAuditLogVisible = feats.audit_log || false;
+
 	const { showOrganizations } = useDashboard();
 
 	/**
@@ -68,14 +74,6 @@ const AuditPage: FC = () => {
 			}),
 	});
 
-	if (auditsQuery.error) {
-		return (
-			<div className="p-6">
-				<ErrorAlert error={auditsQuery.error} />
-			</div>
-		);
-	}
-
 	return (
 		<>
 			<Helmet>
@@ -85,7 +83,7 @@ const AuditPage: FC = () => {
 			<AuditPageView
 				auditLogs={auditsQuery.data?.audit_logs}
 				isNonInitialPage={isNonInitialPage(searchParams)}
-				isAuditLogVisible={feats.audit_log}
+				isAuditLogVisible={isAuditLogVisible}
 				auditsQuery={auditsQuery}
 				error={auditsQuery.error}
 				showOrgDetails={showOrganizations}

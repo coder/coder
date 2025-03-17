@@ -4,7 +4,7 @@ Headless user accounts that cannot use the web UI to log in to Coder. This is
 useful for creating accounts for automated systems, such as CI/CD pipelines or
 for users who only consume Coder via another client/API.
 
-> You must have the User Admin role or above to create headless users.
+You must have the User Admin role or above to create headless users.
 
 ## Create a headless user
 
