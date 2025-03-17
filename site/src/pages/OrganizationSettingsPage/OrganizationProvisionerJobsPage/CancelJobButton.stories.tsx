@@ -4,7 +4,7 @@ import { MockProvisionerJob } from "testHelpers/entities";
 import { CancelJobButton } from "./CancelJobButton";
 
 const meta: Meta<typeof CancelJobButton> = {
-	title: "pages/OrganizationSettingsPage/ProvisionersPage/CancelJobButton",
+	title: "pages/OrganizationProvisionerJobsPage/CancelJobButton",
 	component: CancelJobButton,
 	args: {
 		job: {
@@ -28,7 +28,7 @@ export const NotCancellable: Story = {
 	},
 };
 
-export const OnClick: Story = {
+export const ConfirmOnClick: Story = {
 	parameters: {
 		chromatic: { disableSnapshot: true },
 	},

@@ -186,11 +186,18 @@ const OrganizationSettingsNavigation: FC<
 				)}
 				{orgPermissions.viewProvisioners &&
 					orgPermissions.viewProvisionerJobs && (
-						<SettingsSidebarNavItem
-							href={urlForSubpage(organization.name, "provisioners")}
-						>
-							Provisioners
-						</SettingsSidebarNavItem>
+						<>
+							<SettingsSidebarNavItem
+								href={urlForSubpage(organization.name, "provisioners")}
+							>
+								Provisioners
+							</SettingsSidebarNavItem>
+							<SettingsSidebarNavItem
+								href={urlForSubpage(organization.name, "provisioner-jobs")}
+							>
+								Provisioner Jobs
+							</SettingsSidebarNavItem>
+						</>
 					)}
 				{orgPermissions.viewIdpSyncSettings && (
 					<SettingsSidebarNavItem
