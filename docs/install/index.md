@@ -29,7 +29,8 @@ alternate installation methods (e.g. standalone binaries, system packages).
 
 ## Windows
 
-> **Important:** If you plan to use the built-in PostgreSQL database, you will
+> [!IMPORTANT]
+> If you plan to use the built-in PostgreSQL database, you will
 > need to ensure that the
 > [Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version)
 > is installed.
@@ -59,7 +60,7 @@ To start the Coder server:
 coder server
 ```
 
-![Coder install](../images/install/coder-setup.png)
+![Coder install](../images/screenshots/welcome-create-admin-user.png)
 
 To log in to an existing Coder deployment:
 

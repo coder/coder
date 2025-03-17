@@ -28,12 +28,9 @@ manage infrastructure costs.
 
 ## Failure cleanup
 
-<blockquote class="info">
-
-Failure cleanup is an Enterprise and Premium feature.
-[Learn more](https://coder.com/pricing#compare-plans).
-
-</blockquote>
+> [!NOTE]
+> Failure cleanup is an Enterprise and Premium feature.
+> [Learn more](https://coder.com/pricing#compare-plans).
 
 Failure cleanup defines how long a workspace is permitted to remain in the
 failed state prior to being automatically stopped. Failure cleanup is only
@@ -41,12 +38,9 @@ available for licensed customers.
 
 ## Dormancy threshold
 
-<blockquote class="info">
-
-Dormancy threshold is an Enterprise and Premium feature.
-[Learn more](https://coder.com/pricing#compare-plans).
-
-</blockquote>
+> [!NOTE]
+> Dormancy threshold is an Enterprise and Premium feature.
+> [Learn more](https://coder.com/pricing#compare-plans).
 
 Dormancy Threshold defines how long Coder allows a workspace to remain inactive
 before being moved into a dormant state. A workspace's inactivity is determined
@@ -58,12 +52,9 @@ only available for licensed customers.
 
 ## Dormancy auto-deletion
 
-<blockquote class="info">
-
-Dormancy auto-deletion is an Enterprise and Premium feature.
-[Learn more](https://coder.com/pricing#compare-plans).
-
-</blockquote>
+> [!NOTE]
+> Dormancy auto-deletion is an Enterprise and Premium feature.
+> [Learn more](https://coder.com/pricing#compare-plans).
 
 Dormancy Auto-Deletion allows a template admin to dictate how long a workspace
 is permitted to remain dormant before it is automatically deleted. Dormancy
@@ -71,12 +62,9 @@ Auto-Deletion is only available for licensed customers.
 
 ## Autostop requirement
 
-<blockquote class="info">
-
-Autostop requirement is an Enterprise and Premium feature.
-[Learn more](https://coder.com/pricing#compare-plans).
-
-</blockquote>
+> [!NOTE]
+> Autostop requirement is an Enterprise and Premium feature.
+> [Learn more](https://coder.com/pricing#compare-plans).
 
 Autostop requirement is a template setting that determines how often workspaces
 using the template must automatically stop. Autostop requirement ignores any
@@ -108,12 +96,9 @@ requirement during the deprecation period, but only one can be used at a time.
 
 ## User quiet hours
 
-<blockquote class="info">
-
-User quiet hours are an Enterprise and Premium feature.
-[Learn more](https://coder.com/pricing#compare-plans).
-
-</blockquote>
+> [!NOTE]
+> User quiet hours are an Enterprise and Premium feature.
+> [Learn more](https://coder.com/pricing#compare-plans).
 
 User quiet hours can be configured in the user's schedule settings page.
 Workspaces on templates with an autostop requirement will only be forcibly

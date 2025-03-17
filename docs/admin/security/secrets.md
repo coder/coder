@@ -38,7 +38,8 @@ Users can view their public key in their account settings:
 
 ![SSH keys in account settings](../../images/ssh-keys.png)
 
-> Note: SSH keys are never stored in Coder workspaces, and are fetched only when
+> [!NOTE]
+> SSH keys are never stored in Coder workspaces, and are fetched only when
 > SSH is invoked. The keys are held in-memory and never written to disk.
 
 ## Dynamic Secrets
