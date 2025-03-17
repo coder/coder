@@ -488,3 +488,5 @@ require (
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
 )
+
+replace github.com/coder/terraform-provider-coder/v2 => github.com/coder/terraform-provider-coder/v2 v2.1.4-0.20250211100915-129c295afed8
