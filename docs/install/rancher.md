@@ -9,163 +9,149 @@ You can deploy Coder on Rancher as a
 - Helm 3.5+ installed
 - Workload Kubernetes cluster for Coder
 
-## Install Coder with SUSE Rancher Manager
+## Overview
 
-1. Create a namespace for the Coder control plane. In this tutorial, we call it `coder`:
+Installing Coder on Rancher involves four key steps:
 
-   ```shell
-   kubectl create namespace coder
-   ```
+1. Create a namespace for Coder
+1. Set up PostgreSQL
+1. Create a database connection secret
+1. Install the Coder application via Rancher UI
 
-1. Create a PostgreSQL instance:
+## Create a namespace
 
-   <div class="tabs">
+Create a namespace for the Coder control plane. In this tutorial, we call it `coder`:
 
-   Coder does not manage a database server for you. This is required for storing
-   data about your Coder deployment and resources.
+```shell
+kubectl create namespace coder
+```
 
-   ### Managed PostgreSQL (recommended)
+## Set up PostgreSQL
 
-   If you're in a public cloud such as
-   [Google Cloud](https://cloud.google.com/sql/docs/postgres/),
-   [AWS](https://aws.amazon.com/rds/postgresql/),
-   [Azure](https://docs.microsoft.com/en-us/azure/postgresql/), or
-   [DigitalOcean](https://www.digitalocean.com/products/managed-databases-postgresql),
-   you can use the managed PostgreSQL offerings they provide. Make sure that the
-   PostgreSQL service is running and accessible from your cluster. It should be in
-   the same network, same project, etc.
+Coder requires a PostgreSQL database to store deployment data.
+We recommend that you use a managed PostgreSQL service, but you can use an in-cluster PostgreSQL service for non-production deployments:
 
-   ### In-Cluster PostgreSQL (for proof of concepts)
+<div class="tabs">
 
-   You can install Postgres manually on your cluster using the
-   [Bitnami PostgreSQL Helm chart](https://github.com/bitnami/charts/tree/master/bitnami/postgresql#readme).
-   There are some [helpful guides](https://phoenixnap.com/kb/postgresql-kubernetes)
-   on the internet that explain sensible configurations for this chart.
+### Managed PostgreSQL (Recommended)
 
-   Here's one example:
+For production deployments, we recommend using a managed PostgreSQL service:
 
-   ```console
-   # Install PostgreSQL
-   helm repo add bitnami https://charts.bitnami.com/bitnami
-   helm install coder-db bitnami/postgresql \
-       --namespace coder \
-       --set auth.username=coder \
-       --set auth.password=coder \
-       --set auth.database=coder \
-       --set persistence.size=10Gi
-   ```
+- [Google Cloud SQL](https://cloud.google.com/sql/docs/postgres/)
+- [AWS RDS for PostgreSQL](https://aws.amazon.com/rds/postgresql/)
+- [Azure Database for PostgreSQL](https://docs.microsoft.com/en-us/azure/postgresql/)
+- [DigitalOcean Managed PostgreSQL](https://www.digitalocean.com/products/managed-databases-postgresql)
 
-   The cluster-internal DB URL for the above database is:
+Ensure that your PostgreSQL service:
 
-   ```shell
-   postgres://coder:coder@coder-db-postgresql.coder.svc.cluster.local:5432/coder?sslmode=disable
-   ```
+- Is running and accessible from your cluster
+- Is in the same network/project as your cluster
+- Has proper credentials and a database created for Coder
 
-   Optionally, you can use the
-   [Postgres operator](https://github.com/zalando/postgres-operator) to manage
-   PostgreSQL deployments on your Kubernetes cluster.
+### In-Cluster PostgreSQL (Development/PoC)
 
-   </div>
+For proof-of-concept deployments, you can use Bitnami Helm chart to install PostgreSQL in your Kubernetes cluster:
 
-1. Create the PostgreSQL secret.
+```console
+helm repo add bitnami https://charts.bitnami.com/bitnami
+helm install coder-db bitnami/postgresql \
+    --namespace coder \
+    --set auth.username=coder \
+    --set auth.password=coder \
+    --set auth.database=coder \
+    --set persistence.size=10Gi
+```
 
-   Create a secret with the PostgreSQL database URL string. In the case of the
-   self-managed PostgreSQL, the address will be:
+After installation, the cluster-internal database URL will be:
 
-   ```shell
-   kubectl create secret generic coder-db-url -n coder \
-     --from-literal=url="postgres://coder:coder@coder-db-postgresql.coder.svc.cluster.local:5432/coder?sslmode=disable"
-   ```
+```text
+postgres://coder:coder@coder-db-postgresql.coder.svc.cluster.local:5432/coder?sslmode=disable
+```
 
-1. Select the target workload K8s cluster for Coder in the Rancher Manager console and access the Kubectl shell.
+For more advanced PostgreSQL management, consider using the
+[Postgres operator](https://github.com/zalando/postgres-operator).
 
-1. From the **Cluster Manager** console, go to **Apps** > **Charts**
+</div>
 
-1. Select **Partners** from the drop-down menu and search for `Coder`.
+## Create the database connection secret
 
-1. Select **Coder**, then **Install**.
+Create a Kubernetes secret with your PostgreSQL connection URL:
 
-1. Select the target namespace you created for Coder and select **Customize Helm options before install**, then **Next**.
+```shell
+kubectl create secret generic coder-db-url -n coder \
+  --from-literal=url="postgres://coder:coder@coder-db-postgresql.coder.svc.cluster.local:5432/coder?sslmode=disable"
+```
 
-1. Configure Values used by Helm that help define the Coder App.
+> [!Important]
+> If you're using a managed PostgreSQL service, replace the connection URL with your specific database credentials.
 
-   Select **Edit YAML** and enter configuration settings for your deployment.
+## Install Coder through the Rancher UI
 
-   <details><summary>Expand for an example `values.yaml`</summary>
+1. In the Rancher Manager console, select your target Kubernetes cluster for Coder.
 
-   <!-- from kubernetes.md -->
+1. Navigate to **Apps** > **Charts**
+
+1. From the dropdown menu, select **Partners** and search for `Coder`
+
+1. Select **Coder**, then **Install**
+
+1. Select the `coder` namespace you created earlier and check **Customize Helm options before install**.
+
+   Select **Next**
+
+1. On the configuration screen, select **Edit YAML** and enter your Coder configuration settings:
+
+   <details>
+   <summary>Example values.yaml configuration</summary>
 
    ```yaml
    coder:
-     # You can specify any environment variables you'd like to pass to Coder
-     # here. Coder consumes environment variables listed in
-     # `coder server --help`, and these environment variables are also passed
-     # to the workspace provisioner (so you can consume them in your Terraform
-     # templates for auth keys etc.).
-     #
-     # Please keep in mind that you should not set `CODER_HTTP_ADDRESS`,
-     # `CODER_TLS_ENABLE`, `CODER_TLS_CERT_FILE` or `CODER_TLS_KEY_FILE` as
-     # they are already set by the Helm chart and will cause conflicts.
+     # Environment variables for Coder
      env:
        - name: CODER_PG_CONNECTION_URL
          valueFrom:
            secretKeyRef:
-             # You'll need to create a secret called coder-db-url with your
-             # Postgres connection URL like:
-             # postgres://coder:password@postgres:5432/coder?sslmode=disable
              name: coder-db-url
              key: url
 
-       # (Optional) For production deployments the access URL should be set.
-       # If you're just trying Coder, access the dashboard via the service IP.
+       # For production, uncomment and set your access URL
        # - name: CODER_ACCESS_URL
        #   value: "https://coder.example.com"
 
+     # For TLS configuration (uncomment if needed)
      #tls:
      #  secretNames:
      #    - my-tls-secret-name
    ```
 
-   > You can view our
-   > [Helm README](https://github.com/coder/coder/blob/main/helm#readme) for
-   > details on the values that are available, or you can view the
-   > [values.yaml](https://github.com/coder/coder/blob/main/helm/coder/values.yaml)
-   > file directly.
-
-   We support two release channels: mainline and stable - read the
-   [Releases](./releases.md) page to learn more about which best suits your team.
-
-   - **Mainline** Coder release:
-
-     <!-- autoversion(mainline): "--version [version]" -->
-
-     ```shell
-     helm install coder coder-v2/coder \
-         --namespace coder \
-         --values values.yaml \
-         --version 2.19.0
-     ```
-
-   - **Stable** Coder release:
-
-     <!-- autoversion(stable): "--version [version]" -->
-
-     ```shell
-     helm install coder coder-v2/coder \
-         --namespace coder \
-         --values values.yaml \
-         --version 2.18.5
-     ```
+   For available configuration options, refer to the [Helm chart documentation](https://github.com/coder/coder/blob/main/helm#readme)
+   or [values.yaml file](https://github.com/coder/coder/blob/main/helm/coder/values.yaml).
 
    </details>
 
-   Select **Next** when you're done.
+1. Select a Coder version:
 
-1. On the **Supply additional deployment options** screen, accept the default settings, then select **Install**.
+   - **Mainline**: `2.20.x`
+   - **Stable**: `2.19.x`
 
-   A Helm install output shell will be displayed and should indicate success when completed.
+   Learn more about release channels in the [Releases documentation](./releases.md).
 
-In the future, if you need to update a Coder deployment, select Coder from **Installed Apps** and use the options in the **⋮** menu.
+1. Select **Next** when your configuration is complete.
+
+1. On the **Supply additional deployment options** screen:
+
+   1. Accept the default settings
+   1. Select **Install**
+
+1. A Helm install output shell will be displayed and indicates the installation status.
+
+## Manage your Rancher Coder deployment
+
+To update or manage your Coder deployment later:
+
+1. Navigate to **Apps** > **Installed Apps** in the Rancher UI.
+1. Find and select Coder.
+1. Use the options in the **⋮** menu for upgrade, rollback, or other operations.
 
 ## Next steps
 
