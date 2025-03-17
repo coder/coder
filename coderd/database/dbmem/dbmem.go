@@ -1555,7 +1555,7 @@ func (q *FakeQuerier) AllUserIDs(_ context.Context, includeSystem bool) ([]uuid.
 	defer q.mutex.RUnlock()
 	userIDs := make([]uuid.UUID, 0, len(q.users))
 	for idx := range q.users {
-		if !includeSystem && q.users[idx].IsSystem.Valid && q.users[idx].IsSystem.Bool {
+		if !includeSystem && q.users[idx].IsSystem {
 			continue
 		}
 
@@ -2660,7 +2660,7 @@ func (q *FakeQuerier) GetActiveUserCount(_ context.Context, includeSystem bool) 
 
 	active := int64(0)
 	for _, u := range q.users {
-		if !includeSystem && u.IsSystem.Valid && u.IsSystem.Bool {
+		if !includeSystem && u.IsSystem {
 			continue
 		}
 
@@ -6245,7 +6245,7 @@ func (q *FakeQuerier) GetUserCount(_ context.Context, includeSystem bool) (int64
 			existing++
 		}
 
-		if !includeSystem && u.IsSystem.Valid && u.IsSystem.Bool {
+		if !includeSystem && u.IsSystem {
 			continue
 		}
 	}
