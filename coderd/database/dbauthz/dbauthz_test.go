@@ -979,8 +979,8 @@ func (s *MethodTestSuite) TestOrganization() {
 		})
 
 		check.Args(database.OrganizationMembersParams{
-			OrganizationID: o.ID,
-			UserID:         u.ID,
+			OrganizationID: uuid.UUID{},
+			UserID:         uuid.UUID{},
 		}).Asserts(
 			mem, policy.ActionRead,
 		)
