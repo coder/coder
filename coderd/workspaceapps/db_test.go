@@ -454,7 +454,8 @@ func Test_ResolveRequest(t *testing.T) {
 				require.NotZero(t, rw.Code)
 				require.NotEqual(t, http.StatusOK, rw.Code)
 
-				require.Len(t, auditor.AuditLogs(), 0, "no audit logs for unauthenticated requests")
+				assertAuditApp(t, rw, r, auditor, appsBySlug[app], uuid.Nil, nil)
+				require.Len(t, auditor.AuditLogs(), 1, "audit log for unauthenticated requests")
 			} else {
 				if !assert.True(t, ok) {
 					dump, err := httputil.DumpResponse(w, true)
@@ -971,7 +972,10 @@ func Test_ResolveRequest(t *testing.T) {
 		w := rw.Result()
 		defer w.Body.Close()
 		require.Equal(t, http.StatusSeeOther, w.StatusCode)
-		require.Len(t, auditor.AuditLogs(), 0, "no audit logs for redirect requests")
+		// Note that we don't capture the owner UUID here because the apiKey
+		// check/authorization exits early.
+		assertAuditApp(t, rw, r, auditor, appsBySlug[appNameOwner], uuid.Nil, nil)
+		require.Len(t, auditor.AuditLogs(), 1, "autit log entry for redirect")
 
 		loc, err := w.Location()
 		require.NoError(t, err)
@@ -1254,7 +1258,9 @@ func workspaceappsResolveRequest(t testing.TB, auditor audit.Auditor, w http.Res
 	}
 
 	tracing.StatusWriterMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		token, ok = workspaceapps.ResolveRequest(w, r, opts)
+		httpmw.AttachRequestID(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			token, ok = workspaceapps.ResolveRequest(w, r, opts)
+		})).ServeHTTP(w, r)
 	})).ServeHTTP(w, r)
 
 	return token, ok
