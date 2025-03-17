@@ -153,7 +153,7 @@ func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request)
 				select {
 				case notificationCh <- payload.InboxNotification:
 				default:
-					api.Logger.Error(ctx, "unable to push notification in channel")
+					api.Logger.Error(ctx, "Failed to push consumed notification into websocket handler, check latency")
 				}
 			},
 		))
@@ -235,13 +235,9 @@ func (api *API) listInboxNotifications(rw http.ResponseWriter, r *http.Request) 
 	createdBefore := dbtime.Now()
 	if startingBefore != uuid.Nil {
 		lastNotif, err := api.Database.GetInboxNotificationByID(ctx, startingBefore)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Failed to get notification by id.",
-			})
-			return
+		if err == nil {
+			createdBefore = lastNotif.CreatedAt
 		}
-		createdBefore = lastNotif.CreatedAt
 	}
 
 	notifs, err := api.Database.GetFilteredInboxNotificationsByUserID(ctx, database.GetFilteredInboxNotificationsByUserIDParams{

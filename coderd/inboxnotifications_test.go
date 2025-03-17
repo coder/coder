@@ -41,45 +41,47 @@ func TestInboxNotification_Watch(t *testing.T) {
 		t.Skip("our runners are randomly taking too long to insert entries")
 	}
 
-	tests := []struct {
-		name               string
-		expectedError      string
-		listTemplate       string
-		listTarget         string
-		listReadStatus     string
-		listStartingBefore string
-	}{
-		{"nok - wrong targets", `Query param "targets" has invalid values`, "", "wrong_target", "", ""},
-		{"nok - wrong templates", `Query param "templates" has invalid values`, "wrong_template", "", "", ""},
-		{"nok - wrong read status", "starting_before query parameter should be any of 'all', 'read', 'unread'", "", "", "erroneous", ""},
-	}
+	t.Run("Failure Modes", func(t *testing.T) {
+		tests := []struct {
+			name               string
+			expectedError      string
+			listTemplate       string
+			listTarget         string
+			listReadStatus     string
+			listStartingBefore string
+		}{
+			{"nok - wrong targets", `Query param "targets" has invalid values`, "", "wrong_target", "", ""},
+			{"nok - wrong templates", `Query param "templates" has invalid values`, "wrong_template", "", "", ""},
+			{"nok - wrong read status", "starting_before query parameter should be any of 'all', 'read', 'unread'", "", "", "erroneous", ""},
+		}
 
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+		for _, tt := range tests {
+			tt := tt
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
 
-			client, _, _ := coderdtest.NewWithAPI(t, &coderdtest.Options{})
-			firstUser := coderdtest.CreateFirstUser(t, client)
-			client, _ = coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+				client, _, _ := coderdtest.NewWithAPI(t, &coderdtest.Options{})
+				firstUser := coderdtest.CreateFirstUser(t, client)
+				client, _ = coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
 
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-			defer cancel()
+				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+				defer cancel()
 
-			resp, err := client.Request(ctx, http.MethodGet, "/api/v2/notifications/inbox/watch", nil,
-				codersdk.ListInboxNotificationsRequestToQueryParams(codersdk.ListInboxNotificationsRequest{
-					Targets:        tt.listTarget,
-					Templates:      tt.listTemplate,
-					ReadStatus:     tt.listReadStatus,
-					StartingBefore: tt.listStartingBefore,
-				})...)
-			require.NoError(t, err)
-			defer resp.Body.Close()
+				resp, err := client.Request(ctx, http.MethodGet, "/api/v2/notifications/inbox/watch", nil,
+					codersdk.ListInboxNotificationsRequestToQueryParams(codersdk.ListInboxNotificationsRequest{
+						Targets:        tt.listTarget,
+						Templates:      tt.listTemplate,
+						ReadStatus:     tt.listReadStatus,
+						StartingBefore: tt.listStartingBefore,
+					})...)
+				require.NoError(t, err)
+				defer resp.Body.Close()
 
-			err = codersdk.ReadBodyAsError(resp)
-			require.ErrorContains(t, err, tt.expectedError)
-		})
-	}
+				err = codersdk.ReadBodyAsError(resp)
+				require.ErrorContains(t, err, tt.expectedError)
+			})
+		}
+	})
 
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
@@ -99,7 +101,6 @@ func TestInboxNotification_Watch(t *testing.T) {
 		u, err := member.URL.Parse("/api/v2/notifications/inbox/watch")
 		require.NoError(t, err)
 
-		// nolint: bodyclose
 		wsConn, resp, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{
 			HTTPHeader: http.Header{
 				"Coder-Session-Token": []string{member.SessionToken()},
@@ -142,8 +143,7 @@ func TestInboxNotification_Watch(t *testing.T) {
 		db, ps := dbtestutil.NewDB(t)
 
 		firstClient, _, _ := coderdtest.NewWithAPI(t, &coderdtest.Options{
-			Pubsub:   ps,
-			Database: db,
+			Pubsub: ps,
 		})
 		firstUser := coderdtest.CreateFirstUser(t, firstClient)
 		member, memberClient := coderdtest.CreateAnotherUser(t, firstClient, firstUser.OrganizationID, rbac.RoleTemplateAdmin())
@@ -151,7 +151,6 @@ func TestInboxNotification_Watch(t *testing.T) {
 		u, err := member.URL.Parse(fmt.Sprintf("/api/v2/notifications/inbox/watch?templates=%v", notifications.TemplateWorkspaceOutOfMemory))
 		require.NoError(t, err)
 
-		// nolint: bodyclose
 		wsConn, resp, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{
 			HTTPHeader: http.Header{
 				"Coder-Session-Token": []string{member.SessionToken()},
@@ -232,7 +231,6 @@ func TestInboxNotification_Watch(t *testing.T) {
 		u, err := member.URL.Parse(fmt.Sprintf("/api/v2/notifications/inbox/watch?targets=%v", correctTarget.String()))
 		require.NoError(t, err)
 
-		// nolint: bodyclose
 		wsConn, resp, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{
 			HTTPHeader: http.Header{
 				"Coder-Session-Token": []string{member.SessionToken()},
@@ -307,64 +305,65 @@ func TestInboxNotifications_List(t *testing.T) {
 		t.Skip("our runners are randomly taking too long to insert entries")
 	}
 
-	// create table-based tests for errors and repeting use cases
-	tests := []struct {
-		name               string
-		expectedError      string
-		listTemplate       string
-		listTarget         string
-		listReadStatus     string
-		listStartingBefore string
-	}{
-		{"nok - wrong targets", `Query param "targets" has invalid values`, "", "wrong_target", "", ""},
-		{"nok - wrong templates", `Query param "templates" has invalid values`, "wrong_template", "", "", ""},
-		{"nok - wrong read status", "starting_before query parameter should be any of 'all', 'read', 'unread'", "", "", "erroneous", ""},
-		{"nok - wrong starting before", `Query param "starting_before" must be a valid uuid`, "", "", "", "xxx-xxx-xxx"},
-		{"nok - not found starting before", `Failed to get notification by id`, "", "", "", failingPaginationUUID.String()},
-	}
+	t.Run("Failure Modes", func(t *testing.T) {
+		tests := []struct {
+			name               string
+			expectedError      string
+			listTemplate       string
+			listTarget         string
+			listReadStatus     string
+			listStartingBefore string
+		}{
+			{"nok - wrong targets", `Query param "targets" has invalid values`, "", "wrong_target", "", ""},
+			{"nok - wrong templates", `Query param "templates" has invalid values`, "wrong_template", "", "", ""},
+			{"nok - wrong read status", "starting_before query parameter should be any of 'all', 'read', 'unread'", "", "", "erroneous", ""},
+			{"nok - wrong starting before", `Query param "starting_before" must be a valid uuid`, "", "", "", "xxx-xxx-xxx"},
+			{"nok - not found starting before", `Failed to get notification by id`, "", "", "", failingPaginationUUID.String()},
+		}
 
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+		for _, tt := range tests {
+			tt := tt
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
 
-			client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{})
-			firstUser := coderdtest.CreateFirstUser(t, client)
-			client, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+				client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{})
+				firstUser := coderdtest.CreateFirstUser(t, client)
+				client, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
 
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-			defer cancel()
+				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+				defer cancel()
 
-			notifs, err := client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
-			require.NoError(t, err)
-			require.NotNil(t, notifs)
-			require.Equal(t, 0, notifs.UnreadCount)
-			require.Empty(t, notifs.Notifications)
+				notifs, err := client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
+				require.NoError(t, err)
+				require.NotNil(t, notifs)
+				require.Equal(t, 0, notifs.UnreadCount)
+				require.Empty(t, notifs.Notifications)
 
-			// create a new notifications to fill the database with data
-			for i := range 20 {
-				dbgen.NotificationInbox(t, api.Database, database.InsertInboxNotificationParams{
-					ID:         uuid.New(),
-					UserID:     member.ID,
-					TemplateID: notifications.TemplateWorkspaceOutOfMemory,
-					Title:      fmt.Sprintf("Notification %d", i),
-					Actions:    json.RawMessage("[]"),
-					Content:    fmt.Sprintf("Content of the notif %d", i),
-					CreatedAt:  dbtime.Now(),
+				// create a new notifications to fill the database with data
+				for i := range 20 {
+					dbgen.NotificationInbox(t, api.Database, database.InsertInboxNotificationParams{
+						ID:         uuid.New(),
+						UserID:     member.ID,
+						TemplateID: notifications.TemplateWorkspaceOutOfMemory,
+						Title:      fmt.Sprintf("Notification %d", i),
+						Actions:    json.RawMessage("[]"),
+						Content:    fmt.Sprintf("Content of the notif %d", i),
+						CreatedAt:  dbtime.Now(),
+					})
+				}
+
+				notifs, err = client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{
+					Templates:      tt.listTemplate,
+					Targets:        tt.listTarget,
+					ReadStatus:     tt.listReadStatus,
+					StartingBefore: tt.listStartingBefore,
 				})
-			}
-
-			notifs, err = client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{
-				Templates:      tt.listTemplate,
-				Targets:        tt.listTarget,
-				ReadStatus:     tt.listReadStatus,
-				StartingBefore: tt.listStartingBefore,
+				require.ErrorContains(t, err, tt.expectedError)
+				require.Empty(t, notifs.Notifications)
+				require.Zero(t, notifs.UnreadCount)
 			})
-			require.ErrorContains(t, err, tt.expectedError)
-			require.Empty(t, notifs.Notifications)
-			require.Zero(t, notifs.UnreadCount)
-		})
-	}
+		}
+	})
 
 	t.Run("OK empty", func(t *testing.T) {
 		t.Parallel()
