@@ -153,7 +153,7 @@ func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request)
 				select {
 				case notificationCh <- payload.InboxNotification:
 				default:
-					api.Logger.Error(ctx, "Failed to push consumed notification into websocket handler, check latency")
+					api.Logger.Error(ctx, "failed to push consumed notification into websocket handler, check latency")
 				}
 			},
 		))
