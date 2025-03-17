@@ -101,6 +101,7 @@ func TestInboxNotification_Watch(t *testing.T) {
 		u, err := member.URL.Parse("/api/v2/notifications/inbox/watch")
 		require.NoError(t, err)
 
+		// nolint:bodyclose
 		wsConn, resp, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{
 			HTTPHeader: http.Header{
 				"Coder-Session-Token": []string{member.SessionToken()},
@@ -113,7 +114,6 @@ func TestInboxNotification_Watch(t *testing.T) {
 			require.NoError(t, err)
 		}
 		defer wsConn.Close(websocket.StatusNormalClosure, "done")
-		defer resp.Body.Close()
 
 		inboxHandler := dispatch.NewInboxHandler(logger, db, ps)
 		dispatchFunc, err := inboxHandler.Dispatcher(types.MessagePayload{
@@ -153,6 +153,7 @@ func TestInboxNotification_Watch(t *testing.T) {
 		u, err := member.URL.Parse(fmt.Sprintf("/api/v2/notifications/inbox/watch?templates=%v", notifications.TemplateWorkspaceOutOfMemory))
 		require.NoError(t, err)
 
+		// nolint:bodyclose
 		wsConn, resp, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{
 			HTTPHeader: http.Header{
 				"Coder-Session-Token": []string{member.SessionToken()},
@@ -165,7 +166,6 @@ func TestInboxNotification_Watch(t *testing.T) {
 			require.NoError(t, err)
 		}
 		defer wsConn.Close(websocket.StatusNormalClosure, "done")
-		defer resp.Body.Close()
 
 		inboxHandler := dispatch.NewInboxHandler(logger, db, ps)
 		dispatchFunc, err := inboxHandler.Dispatcher(types.MessagePayload{
@@ -234,6 +234,7 @@ func TestInboxNotification_Watch(t *testing.T) {
 		u, err := member.URL.Parse(fmt.Sprintf("/api/v2/notifications/inbox/watch?targets=%v", correctTarget.String()))
 		require.NoError(t, err)
 
+		// nolint:bodyclose
 		wsConn, resp, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{
 			HTTPHeader: http.Header{
 				"Coder-Session-Token": []string{member.SessionToken()},
@@ -246,7 +247,6 @@ func TestInboxNotification_Watch(t *testing.T) {
 			require.NoError(t, err)
 		}
 		defer wsConn.Close(websocket.StatusNormalClosure, "done")
-		defer resp.Body.Close()
 
 		inboxHandler := dispatch.NewInboxHandler(logger, db, ps)
 		dispatchFunc, err := inboxHandler.Dispatcher(types.MessagePayload{
