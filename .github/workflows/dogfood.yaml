@@ -37,7 +37,7 @@ jobs:
       - name: Setup Nix
         uses: nixbuild/nix-quick-install-action@5bb6a3b3abe66fd09bbf250dce8ada94f856a703 # v30
 
-      - uses: nix-community/cache-nix-action@aee88ae5efbbeb38ac5d9862ecbebdb404a19e69 # v6.1.1
+      - uses: nix-community/cache-nix-action@c448f065ba14308da81de769632ca67a3ce67cf5 # v6.1.2
         with:
           # restore and save a cache using this key
           primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', '**/flake.lock') }}
@@ -76,7 +76,7 @@ jobs:
 
       - name: Login to DockerHub
         if: github.ref == 'refs/heads/main'
-        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
