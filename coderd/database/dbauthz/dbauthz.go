@@ -362,7 +362,7 @@ var (
 
 	subjectPrebuildsOrchestrator = rbac.Subject{
 		FriendlyName: "Prebuilds Orchestrator",
-		ID:           prebuilds.OwnerID.String(),
+		ID:           prebuilds.SystemUserID.String(),
 		Roles: rbac.Roles([]rbac.Role{
 			{
 				Identifier:  rbac.RoleIdentifier{Name: "prebuilds-orchestrator"},
