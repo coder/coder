@@ -1,3 +1,7 @@
+//go:build !go1.24
+
+// Testing `rand.Reader.Read` for errors will panic in Go 1.24 and later.
+
 package cryptorand_test
 
 import (
