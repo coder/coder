@@ -84,6 +84,11 @@ export const RBACResourceActions: Partial<
 		read: "read notification preferences",
 		update: "update notification preferences",
 	},
+	notification_push_subscription: {
+		create: "create notification push subscriptions",
+		delete: "delete notification push subscriptions",
+		read: "read notification push subscriptions",
+	},
 	notification_template: {
 		read: "read notification templates",
 		update: "update notification templates",

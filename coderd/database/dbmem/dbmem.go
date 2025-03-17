@@ -208,6 +208,7 @@ type data struct {
 	notificationMessages                 []database.NotificationMessage
 	notificationPreferences              []database.NotificationPreference
 	notificationReportGeneratorLogs      []database.NotificationReportGeneratorLog
+	notificationPushSubscriptions        []database.NotificationPushSubscription
 	inboxNotifications                   []database.InboxNotification
 	oauth2ProviderApps                   []database.OAuth2ProviderApp
 	oauth2ProviderAppSecrets             []database.OAuth2ProviderAppSecret
@@ -267,6 +268,8 @@ type data struct {
 	lastLicenseID                    int32
 	defaultProxyDisplayName          string
 	defaultProxyIconURL              string
+	notificationsPushVAPIDPublicKey  string
+	notificationsPushVAPIDPrivateKey string
 	userStatusChanges                []database.UserStatusChange
 	telemetryItems                   []database.TelemetryItem
 	presets                          []database.TemplateVersionPreset
@@ -1968,6 +1971,36 @@ func (q *FakeQuerier) DeleteLicense(_ context.Context, id int32) (int32, error) 
 		}
 	}
 	return 0, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) DeleteNotificationPushSubscriptionByEndpoint(_ context.Context, arg database.DeleteNotificationPushSubscriptionByEndpointParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, subscription := range q.notificationPushSubscriptions {
+		if subscription.UserID == arg.UserID && subscription.Endpoint == arg.Endpoint {
+			q.notificationPushSubscriptions[i] = q.notificationPushSubscriptions[len(q.notificationPushSubscriptions)-1]
+			q.notificationPushSubscriptions = q.notificationPushSubscriptions[:len(q.notificationPushSubscriptions)-1]
+			return nil
+		}
+	}
+	return sql.ErrNoRows
+}
+
+func (q *FakeQuerier) DeleteNotificationPushSubscriptions(_ context.Context, ids []uuid.UUID) error {
+	for i, subscription := range q.notificationPushSubscriptions {
+		if slices.Contains(ids, subscription.ID) {
+			q.notificationPushSubscriptions[i] = q.notificationPushSubscriptions[len(q.notificationPushSubscriptions)-1]
+			q.notificationPushSubscriptions = q.notificationPushSubscriptions[:len(q.notificationPushSubscriptions)-1]
+			return nil
+		}
+	}
+	return sql.ErrNoRows
 }
 
 func (q *FakeQuerier) DeleteOAuth2ProviderAppByID(_ context.Context, id uuid.UUID) error {
@@ -3711,6 +3744,20 @@ func (q *FakeQuerier) GetNotificationMessagesByStatus(_ context.Context, arg dat
 	return out, nil
 }
 
+func (q *FakeQuerier) GetNotificationPushSubscriptionsByUserID(_ context.Context, userID uuid.UUID) ([]database.NotificationPushSubscription, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	out := make([]database.NotificationPushSubscription, 0)
+	for _, subscription := range q.notificationPushSubscriptions {
+		if subscription.UserID == userID {
+			out = append(out, subscription)
+		}
+	}
+
+	return out, nil
+}
+
 func (q *FakeQuerier) GetNotificationReportGeneratorLogByTemplate(_ context.Context, templateID uuid.UUID) (database.NotificationReportGeneratorLog, error) {
 	err := validateDatabaseType(templateID)
 	if err != nil {
@@ -3738,6 +3785,20 @@ func (*FakeQuerier) GetNotificationTemplatesByKind(_ context.Context, _ database
 	// Not implementing this function because it relies on state in the database which is created with migrations.
 	// We could consider using code-generation to align the database state and dbmem, but it's not worth it right now.
 	return nil, ErrUnimplemented
+}
+
+func (q *FakeQuerier) GetNotificationVAPIDKeys(_ context.Context) (database.GetNotificationVAPIDKeysRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	if q.notificationsPushVAPIDPublicKey == "" && q.notificationsPushVAPIDPrivateKey == "" {
+		return database.GetNotificationVAPIDKeysRow{}, sql.ErrNoRows
+	}
+
+	return database.GetNotificationVAPIDKeysRow{
+		VapidPublicKey:  q.notificationsPushVAPIDPublicKey,
+		VapidPrivateKey: q.notificationsPushVAPIDPrivateKey,
+	}, nil
 }
 
 func (q *FakeQuerier) GetNotificationsSettings(_ context.Context) (string, error) {
@@ -8314,6 +8375,20 @@ func (q *FakeQuerier) InsertMissingGroups(_ context.Context, arg database.Insert
 	return newGroups, nil
 }
 
+func (q *FakeQuerier) InsertNotificationPushSubscription(ctx context.Context, arg database.InsertNotificationPushSubscriptionParams) (database.NotificationPushSubscription, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.NotificationPushSubscription{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	subscription := database.NotificationPushSubscription(arg)
+	q.notificationPushSubscriptions = append(q.notificationPushSubscriptions, subscription)
+	return subscription, nil
+}
+
 func (q *FakeQuerier) InsertOAuth2ProviderApp(_ context.Context, arg database.InsertOAuth2ProviderAppParams) (database.OAuth2ProviderApp, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -11499,6 +11574,20 @@ func (q *FakeQuerier) UpsertNotificationReportGeneratorLog(_ context.Context, ar
 	}
 
 	q.notificationReportGeneratorLogs = append(q.notificationReportGeneratorLogs, database.NotificationReportGeneratorLog(arg))
+	return nil
+}
+
+func (q *FakeQuerier) UpsertNotificationVAPIDKeys(_ context.Context, arg database.UpsertNotificationVAPIDKeysParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	q.notificationsPushVAPIDPublicKey = arg.VapidPublicKey
+	q.notificationsPushVAPIDPrivateKey = arg.VapidPrivateKey
 	return nil
 }
 

@@ -197,6 +197,7 @@ Status Code **200**
 | `resource_type` | `license`                          |
 | `resource_type` | `notification_message`             |
 | `resource_type` | `notification_preference`          |
+| `resource_type` | `notification_push_subscription`   |
 | `resource_type` | `notification_template`            |
 | `resource_type` | `oauth2_app`                       |
 | `resource_type` | `oauth2_app_code_token`            |
@@ -361,6 +362,7 @@ Status Code **200**
 | `resource_type` | `license`                          |
 | `resource_type` | `notification_message`             |
 | `resource_type` | `notification_preference`          |
+| `resource_type` | `notification_push_subscription`   |
 | `resource_type` | `notification_template`            |
 | `resource_type` | `oauth2_app`                       |
 | `resource_type` | `oauth2_app_code_token`            |
@@ -525,6 +527,7 @@ Status Code **200**
 | `resource_type` | `license`                          |
 | `resource_type` | `notification_message`             |
 | `resource_type` | `notification_preference`          |
+| `resource_type` | `notification_push_subscription`   |
 | `resource_type` | `notification_template`            |
 | `resource_type` | `oauth2_app`                       |
 | `resource_type` | `oauth2_app_code_token`            |
@@ -658,6 +661,7 @@ Status Code **200**
 | `resource_type` | `license`                          |
 | `resource_type` | `notification_message`             |
 | `resource_type` | `notification_preference`          |
+| `resource_type` | `notification_push_subscription`   |
 | `resource_type` | `notification_template`            |
 | `resource_type` | `oauth2_app`                       |
 | `resource_type` | `oauth2_app_code_token`            |
@@ -1013,6 +1017,7 @@ Status Code **200**
 | `resource_type` | `license`                          |
 | `resource_type` | `notification_message`             |
 | `resource_type` | `notification_preference`          |
+| `resource_type` | `notification_push_subscription`   |
 | `resource_type` | `notification_template`            |
 | `resource_type` | `oauth2_app`                       |
 | `resource_type` | `oauth2_app_code_token`            |

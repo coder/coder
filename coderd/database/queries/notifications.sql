@@ -190,3 +190,21 @@ WHERE
 INSERT INTO notification_report_generator_logs (notification_template_id, last_generated_at) VALUES (@notification_template_id, @last_generated_at)
 ON CONFLICT (notification_template_id) DO UPDATE set last_generated_at = EXCLUDED.last_generated_at
 WHERE notification_report_generator_logs.notification_template_id = EXCLUDED.notification_template_id;
+
+-- name: GetNotificationPushSubscriptionsByUserID :many
+SELECT *
+FROM notification_push_subscriptions
+WHERE user_id = @user_id::uuid;
+
+-- name: InsertNotificationPushSubscription :one
+INSERT INTO notification_push_subscriptions (id, user_id, created_at, endpoint, endpoint_p256dh_key, endpoint_auth_key)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING *;
+
+-- name: DeleteNotificationPushSubscriptions :exec
+DELETE FROM notification_push_subscriptions
+WHERE id = ANY(@ids::uuid[]);
+
+-- name: DeleteNotificationPushSubscriptionByEndpoint :exec
+DELETE FROM notification_push_subscriptions
+WHERE user_id = @user_id AND endpoint = @endpoint;

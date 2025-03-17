@@ -2344,6 +2344,22 @@ class ApiMethods {
 		await this.axios.post<void>("/api/v2/notifications/test");
 	};
 
+	createNotificationPushSubscription = async (
+		userId: string,
+		req: TypesGen.PushNotificationSubscription,
+	) => {
+		await this.axios.post<void>(`/api/v2/users/${userId}/notifications/push/subscription`, req);
+	};
+
+	deleteNotificationPushSubscription = async (
+		userId: string,
+		req: TypesGen.DeletePushNotificationSubscription,
+	) => {
+		await this.axios.delete<void>(`/api/v2/users/${userId}/notifications/push/subscription`, {
+			data: req,
+		});
+	};
+
 	requestOneTimePassword = async (
 		req: TypesGen.RequestOneTimePasscodeRequest,
 	) => {
