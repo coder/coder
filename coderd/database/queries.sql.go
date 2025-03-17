@@ -4967,7 +4967,7 @@ SELECT
 FROM
 	organization_members
 		INNER JOIN
-	users ON organization_members.user_id = users.id
+	users ON organization_members.user_id = users.id AND users.deleted = false
 WHERE
 	-- Filter by organization id
 	CASE
