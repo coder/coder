@@ -179,10 +179,10 @@ CODER_EXTERNAL_AUTH_0_TYPE=gitlab
 # This value is the "Application ID"
 CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxx
 CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
-CODER_EXTERNAL_AUTH_0_VALIDATE_URL="https://gitlab.example.org/oauth/token/info"
-CODER_EXTERNAL_AUTH_0_AUTH_URL="https://gitlab.example.org/oauth/authorize"
-CODER_EXTERNAL_AUTH_0_TOKEN_URL="https://gitlab.example.org/oauth/token"
-CODER_EXTERNAL_AUTH_0_REGEX=gitlab\.example\.org
+CODER_EXTERNAL_AUTH_0_VALIDATE_URL="https://gitlab.example.com/oauth/token/info"
+CODER_EXTERNAL_AUTH_0_AUTH_URL="https://gitlab.example.com/oauth/authorize"
+CODER_EXTERNAL_AUTH_0_TOKEN_URL="https://gitlab.example.com/oauth/token"
+CODER_EXTERNAL_AUTH_0_REGEX=gitlab\.example\.com
 ```
 
 When [configuring your GitLab OAuth application](https://docs.gitlab.com/17.5/integration/oauth_provider/),
@@ -201,8 +201,8 @@ provider deployments.
 ```env
 CODER_EXTERNAL_AUTH_0_AUTH_URL="https://github.example.com/oauth/authorize"
 CODER_EXTERNAL_AUTH_0_TOKEN_URL="https://github.example.com/oauth/token"
-CODER_EXTERNAL_AUTH_0_VALIDATE_URL="https://your-domain.com/oauth/token/info"
-CODER_EXTERNAL_AUTH_0_REGEX=github\.company\.org
+CODER_EXTERNAL_AUTH_0_VALIDATE_URL="https://example.com/oauth/token/info"
+CODER_EXTERNAL_AUTH_0_REGEX=github\.company\.com
 ```
 
 > [!NOTE]
