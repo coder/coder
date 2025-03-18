@@ -56,7 +56,7 @@ See
    The script will unpack the new `coder` binary version over the one currently
    installed.
 
-1. If you're running Coder as a system service, you can restart it with `systemctl`:
+1. Restart the Coder system process with `systemctl`:
 
    ```shell
    systemctl daemon-reload
