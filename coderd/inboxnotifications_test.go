@@ -723,6 +723,7 @@ func TestInboxNotifications_ReadStatus(t *testing.T) {
 		require.Empty(t, updatedNotif.Notification)
 	})
 }
+
 func TestInboxNotifications_MarkAllAsRead(t *testing.T) {
 	t.Parallel()
 
