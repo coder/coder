@@ -131,15 +131,6 @@ function createMockWebSocket(
 	};
 }
 
-/**
- * Qualities to test:
- * 1. Lets a consumer to add an event listener of each type
- * 2. Lets a consumer to add multiple event listeners of each type
- * 3. Registering a callback that is already registered will do nothing
- * 4. Surfaces a parse error if a message is not formatted as JSON
- * 4. Lets a consumer remove event listeners of each type
- * 5. Closing the socket renders it inert
- */
 describe(OneWayWebSocket.name, () => {
 	const dummyRoute = "/api/v2/blah";
 
