@@ -13,8 +13,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/coder/coder/v2/agent/agentcontainers/dcspec"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/usershell"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 
 	"golang.org/x/exp/maps"
@@ -183,7 +185,7 @@ func devcontainerEnv(ctx context.Context, execer agentexec.Execer, container str
 		return nil, nil
 	}
 
-	meta := make([]DevContainerMeta, 0)
+	meta := make([]dcspec.DevContainer, 0)
 	if err := json.Unmarshal([]byte(rawMeta), &meta); err != nil {
 		return nil, xerrors.Errorf("unmarshal devcontainer.metadata: %w", err)
 	}
@@ -192,7 +194,13 @@ func devcontainerEnv(ctx context.Context, execer agentexec.Execer, container str
 	env := make([]string, 0)
 	for _, m := range meta {
 		for k, v := range m.RemoteEnv {
-			env = append(env, fmt.Sprintf("%s=%s", k, v))
+			if v == nil { // *string per spec
+				// devcontainer-cli will set this to the string "null" if the value is
+				// not set. Explicitly setting to an empty string here as this would be
+				// more expected here.
+				v = ptr.Ref("")
+			}
+			env = append(env, fmt.Sprintf("%s=%s", k, *v))
 		}
 	}
 	slices.Sort(env)
@@ -276,7 +284,7 @@ func (dcl *DockerCLILister) List(ctx context.Context) (codersdk.WorkspaceAgentLi
 	// log this error, but I'm not sure it's worth it.
 	ins, dockerInspectStderr, err := runDockerInspect(ctx, dcl.execer, ids...)
 	if err != nil {
-		return codersdk.WorkspaceAgentListContainersResponse{}, xerrors.Errorf("run docker inspect: %w", err)
+		return codersdk.WorkspaceAgentListContainersResponse{}, xerrors.Errorf("run docker inspect: %w: %s", err, dockerInspectStderr)
 	}
 
 	for _, in := range ins {

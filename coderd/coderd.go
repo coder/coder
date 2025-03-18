@@ -226,6 +226,10 @@ type Options struct {
 	UpdateAgentMetrics func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 	StatsBatcher       workspacestats.Batcher
 
+	// WorkspaceAppAuditSessionTimeout allows changing the timeout for audit
+	// sessions. Raising or lowering this value will directly affect the write
+	// load of the audit log table. This is used for testing. Default 1 hour.
+	WorkspaceAppAuditSessionTimeout    time.Duration
 	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions
 
 	// This janky function is used in telemetry to parse fields out of the raw
@@ -534,16 +538,6 @@ func New(options *Options) *API {
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
 		},
-		WorkspaceAppsProvider: workspaceapps.NewDBTokenProvider(
-			options.Logger.Named("workspaceapps"),
-			options.AccessURL,
-			options.Authorizer,
-			options.Database,
-			options.DeploymentValues,
-			oauthConfigs,
-			options.AgentInactiveDisconnectTimeout,
-			options.AppSigningKeyCache,
-		),
 		metricsCache:                metricsCache,
 		Auditor:                     atomic.Pointer[audit.Auditor]{},
 		TailnetCoordinator:          atomic.Pointer[tailnet.Coordinator]{},
@@ -561,6 +555,18 @@ func New(options *Options) *API {
 		),
 		dbRolluper: options.DatabaseRolluper,
 	}
+	api.WorkspaceAppsProvider = workspaceapps.NewDBTokenProvider(
+		options.Logger.Named("workspaceapps"),
+		options.AccessURL,
+		options.Authorizer,
+		&api.Auditor,
+		options.Database,
+		options.DeploymentValues,
+		oauthConfigs,
+		options.AgentInactiveDisconnectTimeout,
+		options.WorkspaceAppAuditSessionTimeout,
+		options.AppSigningKeyCache,
+	)
 
 	f := appearance.NewDefaultFetcher(api.DeploymentValues.DocsURL.String())
 	api.AppearanceFetcher.Store(&f)

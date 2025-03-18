@@ -2985,6 +2985,13 @@ func (m queryMetricsStore) UpsertWorkspaceAgentPortShare(ctx context.Context, ar
 	return r0, r1
 }
 
+func (m queryMetricsStore) UpsertWorkspaceAppAuditSession(ctx context.Context, arg database.UpsertWorkspaceAppAuditSessionParams) (time.Time, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpsertWorkspaceAppAuditSession(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertWorkspaceAppAuditSession").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, prepared rbac.PreparedAuthorized) ([]database.Template, error) {
 	start := time.Now()
 	templates, err := m.s.GetAuthorizedTemplates(ctx, arg, prepared)
