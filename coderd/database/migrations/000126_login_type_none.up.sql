@@ -1,11 +1,8 @@
 -- This migration has been modified after its initial commit.
--- The original disregarded the warning in create_migration.sh.
--- As a result, it was not possible to insert a user with the "none" login type
--- in a migration.
 -- The new implementation makes the same changes as the original, but
--- adhered to the warning in create_migration.sh to allow the insertion of
--- a user with the "none" login type. This was necessary for prebuilds.
--- For more information, see: https://github.com/coder/coder/pull/16916#discussion_r1998758887
+-- takes into account the message in create_migration.sh. This is done
+-- to allow the insertion of a user with the "none" login type in later migrations.
+
 CREATE TYPE new_logintype AS ENUM (
   'password',
   'github',
