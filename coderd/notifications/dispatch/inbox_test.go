@@ -73,7 +73,7 @@ func TestInbox(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			db, _ := dbtestutil.NewDB(t)
+			db, pubsub := dbtestutil.NewDB(t)
 
 			if tc.payload.UserID == "valid" {
 				user := dbgen.User(t, db, database.User{})
@@ -82,7 +82,7 @@ func TestInbox(t *testing.T) {
 
 			ctx := context.Background()
 
-			handler := dispatch.NewInboxHandler(logger.Named("smtp"), db)
+			handler := dispatch.NewInboxHandler(logger.Named("smtp"), db, pubsub)
 			dispatcherFunc, err := handler.Dispatcher(tc.payload, "", "", nil)
 			require.NoError(t, err)
 

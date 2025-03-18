@@ -1173,10 +1173,12 @@ func TestWorkspaceAgentContainers(t *testing.T) {
 					Labels:       testLabels,
 					Running:      true,
 					Status:       "running",
-					Ports: []codersdk.WorkspaceAgentListeningPort{
+					Ports: []codersdk.WorkspaceAgentDevcontainerPort{
 						{
-							Network: "tcp",
-							Port:    80,
+							Network:  "tcp",
+							Port:     80,
+							HostIP:   "0.0.0.0",
+							HostPort: 8000,
 						},
 					},
 					Volumes: map[string]string{

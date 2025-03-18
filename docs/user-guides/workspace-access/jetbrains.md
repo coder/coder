@@ -27,10 +27,6 @@ manually setting up an SSH connection.
 
 ### How to use the plugin
 
-> If you experience problems, please
-> [create a GitHub issue](https://github.com/coder/coder/issues) or share in
-> [our Discord channel](https://discord.gg/coder).
-
 1. [Install Gateway](https://www.jetbrains.com/help/idea/jetbrains-gateway.html)
    and open the application.
 1. Under **Install More Providers**, find the Coder icon and click **Install**
@@ -72,8 +68,11 @@ manually setting up an SSH connection.
 
    ![Gateway IDE Opened](../../images/gateway/gateway-intellij-opened.png)
 
-   > Note the JetBrains IDE is remotely installed into
-   > `~/.cache/JetBrains/RemoteDev/dist`
+The JetBrains IDE is remotely installed into `~/.cache/JetBrains/RemoteDev/dist`
+
+If you experience any issues, please
+[create a GitHub issue](https://github.com/coder/coder/issues) or share in
+[our Discord channel](https://discord.gg/coder).
 
 ### Update a Coder plugin version
 
@@ -95,49 +94,61 @@ Failed to configure connection to https://coder.internal.enterprise/: PKIX path 
 ```
 
 To resolve this issue, you will need to add Coder's certificate to the Java
-trust store present on your local machine. Here is the default location of the
-trust store for each OS:
+trust store present on your local machine as well as to the Coder plugin settings.
 
-```console
-# Linux
-<Gateway installation directory>/jbr/lib/security/cacerts
+1. Add the certificate to the Java trust store:
 
-# macOS
-<Gateway installation directory>/jbr/lib/security/cacerts
-/Library/Application Support/JetBrains/Toolbox/apps/JetBrainsGateway/ch-0/<app-id>/JetBrains Gateway.app/Contents/jbr/Contents/Home/lib/security/cacerts # Path for Toolbox installation
+   <div class="tabs">
 
-# Windows
-C:\Program Files (x86)\<Gateway installation directory>\jre\lib\security\cacerts
-%USERPROFILE%\AppData\Local\JetBrains\Toolbox\bin\jre\lib\security\cacerts # Path for Toolbox installation
-```
+   #### Linux
 
-To add the certificate to the keystore, you can use the `keytool` utility that
-ships with Java:
+   ```none
+   <Gateway installation directory>/jbr/lib/security/cacerts
+   ```
 
-```console
-keytool -import -alias coder -file <certificate> -keystore /path/to/trust/store
-```
+   Use the `keytool` utility that ships with Java:
 
-You can use `keytool` that ships with the JetBrains Gateway installation.
-Windows example:
+   ```shell
+   keytool -import -alias coder -file <certificate> -keystore /path/to/trust/store
+   ```
 
-```powershell
-& 'C:\Program Files\JetBrains\JetBrains Gateway <version>/jbr/bin/keytool.exe' 'C:\Program Files\JetBrains\JetBrains Gateway <version>/jre/lib/security/cacerts' -import -alias coder -file <cert>
+   #### macOS
 
-# command for Toolbox installation
-& '%USERPROFILE%\AppData\Local\JetBrains\Toolbox\apps\Gateway\ch-0\<VERSION>\jbr\bin\keytool.exe' '%USERPROFILE%\AppData\Local\JetBrains\Toolbox\bin\jre\lib\security\cacerts' -import -alias coder -file <cert>
-```
+   ```none
+   <Gateway installation directory>/jbr/lib/security/cacerts
+   /Library/Application Support/JetBrains/Toolbox/apps/JetBrainsGateway/ch-0/<app-id>/JetBrains Gateway.app/Contents/jbr/Contents/Home/lib/security/cacerts # Path for Toolbox installation
+   ```
 
-macOS example:
+   Use the `keytool` included in the JetBrains Gateway installation:
 
-```shell
-keytool -import -alias coder -file cacert.pem -keystore /Applications/JetBrains\ Gateway.app/Contents/jbr/Contents/Home/lib/security/cacerts
-```
+   ```shell
+   keytool -import -alias coder -file cacert.pem -keystore /Applications/JetBrains\ Gateway.app/Contents/jbr/Contents/Home/lib/security/cacerts
+   ```
+
+   #### Windows
+
+   ```none
+   C:\Program Files (x86)\<Gateway installation directory>\jre\lib\security\cacerts\%USERPROFILE%\AppData\Local\JetBrains\Toolbox\bin\jre\lib\security\cacerts # Path for Toolbox installation
+   ```
+
+   Use the `keytool` included in the JetBrains Gateway installation:
+
+   ```powershell
+   & 'C:\Program Files\JetBrains\JetBrains Gateway <version>/jbr/bin/keytool.exe' 'C:\Program Files\JetBrains\JetBrains Gateway <version>/jre/lib/security/cacerts' -import -alias coder -file <cert>
+
+   # command for Toolbox installation
+   & '%USERPROFILE%\AppData\Local\JetBrains\Toolbox\apps\Gateway\ch-0\<VERSION>\jbr\bin\keytool.exe' '%USERPROFILE%\AppData\Local\JetBrains\Toolbox\bin\jre\lib\security\cacerts' -import -alias coder -file <cert>
+   ```
+
+   </div>
+
+1. In JetBrains, go to **Settings** > **Tools** > **Coder**.
+
+1. Paste the path to the certificate in **CA Path**.
 
 ## Manually Configuring A JetBrains Gateway Connection
 
-> This is in lieu of using Coder's Gateway plugin which automatically performs
-> these steps.
+This is in lieu of using Coder's Gateway plugin which automatically performs these steps.
 
 1. [Install Gateway](https://www.jetbrains.com/help/idea/jetbrains-gateway.html).
 
@@ -187,8 +198,7 @@ keytool -import -alias coder -file cacert.pem -keystore /Applications/JetBrains\
 
    ![Gateway Choose IDE](../../images/gateway/gateway-choose-ide.png)
 
-   > Note the JetBrains IDE is remotely installed into
-   > `~/. cache/JetBrains/RemoteDev/dist`
+   The JetBrains IDE is remotely installed into `~/.cache/JetBrains/RemoteDev/dist`
 
 1. Click **Download and Start IDE** to connect.
 
@@ -206,6 +216,7 @@ cd /opt/idea/bin
 ./remote-dev-server.sh registerBackendLocationForGateway
 ```
 
+> [!NOTE]
 > Gateway only works with paid versions of JetBrains IDEs so the script will not
 > be located in the `bin` directory of JetBrains Community editions.
 
@@ -395,6 +406,6 @@ Fleet can connect to a Coder workspace by following these steps.
 4. Connect via SSH with the Host set to `coder.workspace-name`
    ![Fleet Connect to Coder](../../images/fleet/ssh-connect-to-coder.png)
 
-> If you experience problems, please
-> [create a GitHub issue](https://github.com/coder/coder/issues) or share in
-> [our Discord channel](https://discord.gg/coder).
+If you experience any issues, please
+[create a GitHub issue](https://github.com/coder/coder/issues) or share in
+[our Discord channel](https://discord.gg/coder).

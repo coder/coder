@@ -3434,6 +3434,28 @@ type WorkspaceApp struct {
 	OpenIn WorkspaceAppOpenIn `db:"open_in" json:"open_in"`
 }
 
+// Audit sessions for workspace apps, the data in this table is ephemeral and is used to deduplicate audit log entries for workspace apps. While a session is active, the same data will not be logged again. This table does not store historical data.
+type WorkspaceAppAuditSession struct {
+	// The agent that the workspace app or port forward belongs to.
+	AgentID uuid.UUID `db:"agent_id" json:"agent_id"`
+	// The app that is currently in the workspace app. This is may be uuid.Nil because ports are not associated with an app.
+	AppID uuid.UUID `db:"app_id" json:"app_id"`
+	// The user that is currently using the workspace app. This is may be uuid.Nil if we cannot determine the user.
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	// The IP address of the user that is currently using the workspace app.
+	Ip string `db:"ip" json:"ip"`
+	// The user agent of the user that is currently using the workspace app.
+	UserAgent string `db:"user_agent" json:"user_agent"`
+	// The slug or port of the workspace app that the user is currently using.
+	SlugOrPort string `db:"slug_or_port" json:"slug_or_port"`
+	// The HTTP status produced by the token authorization. Defaults to 200 if no status is provided.
+	StatusCode int32 `db:"status_code" json:"status_code"`
+	// The time the user started the session.
+	StartedAt time.Time `db:"started_at" json:"started_at"`
+	// The time the session was last updated.
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+}
+
 // A record of workspace app usage statistics
 type WorkspaceAppStat struct {
 	// The ID of the record

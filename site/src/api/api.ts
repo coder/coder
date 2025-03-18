@@ -125,6 +125,39 @@ export const watchWorkspace = (
 	});
 };
 
+type WatchInboxNotificationsParams = {
+	read_status?: "read" | "unread" | "all";
+};
+
+export const watchInboxNotifications = (
+	onNewNotification: (res: TypesGen.GetInboxNotificationResponse) => void,
+	params?: WatchInboxNotificationsParams,
+) => {
+	const searchParams = new URLSearchParams(params);
+	const socket = createWebSocket(
+		"/api/v2/notifications/inbox/watch",
+		searchParams,
+	);
+
+	socket.addEventListener("message", (event) => {
+		try {
+			const res = JSON.parse(
+				event.data,
+			) as TypesGen.GetInboxNotificationResponse;
+			onNewNotification(res);
+		} catch (error) {
+			console.warn("Error parsing inbox notification: ", error);
+		}
+	});
+
+	socket.addEventListener("error", (event) => {
+		console.warn("Watch inbox notifications error: ", event);
+		socket.close();
+	});
+
+	return socket;
+};
+
 export const getURLWithSearchParams = (
 	basePath: string,
 	options?: SearchParamOptions,
@@ -185,14 +218,10 @@ export const watchBuildLogsByTemplateVersionId = (
 		searchParams.append("after", after.toString());
 	}
 
-	const proto = location.protocol === "https:" ? "wss:" : "ws:";
-	const socket = new WebSocket(
-		`${proto}//${
-			location.host
-		}/api/v2/templateversions/${versionId}/logs?${searchParams.toString()}`,
+	const socket = createWebSocket(
+		`/api/v2/templateversions/${versionId}/logs`,
+		searchParams,
 	);
-
-	socket.binaryType = "blob";
 
 	socket.addEventListener("message", (event) =>
 		onMessage(JSON.parse(event.data) as TypesGen.ProvisionerJobLog),
@@ -215,21 +244,21 @@ export const watchWorkspaceAgentLogs = (
 	agentId: string,
 	{ after, onMessage, onDone, onError }: WatchWorkspaceAgentLogsOptions,
 ) => {
-	// WebSocket compression in Safari (confirmed in 16.5) is broken when
-	// the server sends large messages. The following error is seen:
-	//
-	//   WebSocket connection to 'wss://.../logs?follow&after=0' failed: The operation couldn’t be completed. Protocol error
-	//
-	const noCompression =
-		userAgentParser(navigator.userAgent).browser.name === "Safari"
-			? "&no_compression"
-			: "";
+	const searchParams = new URLSearchParams({ after: after.toString() });
 
-	const proto = location.protocol === "https:" ? "wss:" : "ws:";
-	const socket = new WebSocket(
-		`${proto}//${location.host}/api/v2/workspaceagents/${agentId}/logs?follow&after=${after}${noCompression}`,
+	/**
+	 * WebSocket compression in Safari (confirmed in 16.5) is broken when
+	 * the server sends large messages. The following error is seen:
+	 * WebSocket connection to 'wss://...' failed: The operation couldn’t be completed.
+	 */
+	if (userAgentParser(navigator.userAgent).browser.name === "Safari") {
+		searchParams.set("no_compression", "");
+	}
+
+	const socket = createWebSocket(
+		`/api/v2/workspaceagents/${agentId}/logs`,
+		searchParams,
 	);
-	socket.binaryType = "blob";
 
 	socket.addEventListener("message", (event) => {
 		const logs = JSON.parse(event.data) as TypesGen.WorkspaceAgentLog[];
@@ -268,13 +297,11 @@ export const watchBuildLogsByBuildId = (
 	if (after !== undefined) {
 		searchParams.append("after", after.toString());
 	}
-	const proto = location.protocol === "https:" ? "wss:" : "ws:";
-	const socket = new WebSocket(
-		`${proto}//${
-			location.host
-		}/api/v2/workspacebuilds/${buildId}/logs?${searchParams.toString()}`,
+
+	const socket = createWebSocket(
+		`/api/v2/workspacebuilds/${buildId}/logs`,
+		searchParams,
 	);
-	socket.binaryType = "blob";
 
 	socket.addEventListener("message", (event) =>
 		onMessage(JSON.parse(event.data) as TypesGen.ProvisionerJobLog),
@@ -580,6 +607,24 @@ class ApiMethods {
 		const response = await this.axios.get<
 			TypesGen.OrganizationMemberWithUserData[]
 		>(`/api/v2/organizations/${organization}/members`);
+
+		return response.data;
+	};
+
+	/**
+	 * @param organization Can be the organization's ID or name
+	 * @param options Pagination options
+	 */
+	getOrganizationPaginatedMembers = async (
+		organization: string,
+		options?: TypesGen.Pagination,
+	) => {
+		const url = getURLWithSearchParams(
+			`/api/v2/organizations/${organization}/paginated-members`,
+			options,
+		);
+		const response =
+			await this.axios.get<TypesGen.PaginatedMembersResponse>(url);
 
 		return response.data;
 	};
@@ -2389,6 +2434,25 @@ class ApiMethods {
 			);
 		return res.data;
 	};
+
+	getInboxNotifications = async () => {
+		const res = await this.axios.get<TypesGen.ListInboxNotificationsResponse>(
+			"/api/v2/notifications/inbox",
+		);
+		return res.data;
+	};
+
+	updateInboxNotificationReadStatus = async (
+		notificationId: string,
+		req: TypesGen.UpdateInboxNotificationReadStatusRequest,
+	) => {
+		const res =
+			await this.axios.put<TypesGen.UpdateInboxNotificationReadStatusResponse>(
+				`/api/v2/notifications/inbox/${notificationId}/read-status`,
+				req,
+			);
+		return res.data;
+	};
 }
 
 // This is a hard coded CSRF token/cookie pair for local development. In prod,
@@ -2438,6 +2502,21 @@ function getConfiguredAxiosInstance(): AxiosInstance {
 	}
 
 	return instance;
+}
+
+/**
+ * Utility function to help create a WebSocket connection with Coder's API.
+ */
+function createWebSocket(
+	path: string,
+	params: URLSearchParams = new URLSearchParams(),
+) {
+	const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+	const socket = new WebSocket(
+		`${protocol}//${location.host}${path}?${params.toString()}`,
+	);
+	socket.binaryType = "blob";
+	return socket;
 }
 
 // Other non-API methods defined here to make it a little easier to find them.

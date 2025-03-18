@@ -1,4 +1,5 @@
 import Link from "@mui/material/Link";
+import Tooltip, { type TooltipProps } from "@mui/material/Tooltip";
 import type { Workspace, WorkspaceAgentDevcontainer } from "api/typesGenerated";
 import { ExternalLinkIcon } from "lucide-react";
 import type { FC } from "react";
@@ -47,25 +48,38 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 				/>
 				{wildcardHostname !== "" &&
 					container.ports.map((port) => {
-						return (
-							<Link
-								key={port.port}
-								color="inherit"
-								component={AgentButton}
-								underline="none"
-								startIcon={<ExternalLinkIcon className="size-icon-sm" />}
-								href={portForwardURL(
+						const portLabel = `${port.port}/${port.network.toUpperCase()}`;
+						const hasHostBind =
+							port.host_port !== undefined && port.host_ip !== undefined;
+						const helperText = hasHostBind
+							? `${port.host_ip}:${port.host_port}`
+							: "Not bound to host";
+						const linkDest = hasHostBind
+							? portForwardURL(
 									wildcardHostname,
-									port.port,
+									port.host_port!,
 									agentName,
 									workspace.name,
 									workspace.owner_name,
 									location.protocol === "https" ? "https" : "http",
-								)}
-							>
-								{port.process_name ||
-									`${port.port}/${port.network.toUpperCase()}`}
-							</Link>
+								)
+							: "";
+						return (
+							<Tooltip key={portLabel} title={helperText}>
+								<span>
+									<Link
+										key={portLabel}
+										color="inherit"
+										component={AgentButton}
+										underline="none"
+										startIcon={<ExternalLinkIcon className="size-icon-sm" />}
+										disabled={!hasHostBind}
+										href={linkDest}
+									>
+										{portLabel}
+									</Link>
+								</span>
+							</Tooltip>
 						);
 					})}
 			</div>

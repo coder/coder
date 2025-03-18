@@ -267,8 +267,12 @@ export const createTemplate = async (
 			);
 		}
 
-		await orgPicker.click();
-		await page.getByText(orgName, { exact: true }).click();
+		// The organization picker will be disabled if there is only one option.
+		const pickerIsDisabled = await orgPicker.isDisabled();
+		if (!pickerIsDisabled) {
+			await orgPicker.click();
+			await page.getByText(orgName, { exact: true }).click();
+		}
 	}
 
 	const name = randomName();
@@ -1089,8 +1093,12 @@ export async function createUser(
 	const orgPicker = page.getByLabel("Organization *");
 	const organizationsEnabled = await orgPicker.isVisible();
 	if (organizationsEnabled) {
-		await orgPicker.click();
-		await page.getByText(orgName, { exact: true }).click();
+		// The organization picker will be disabled if there is only one option.
+		const pickerIsDisabled = await orgPicker.isDisabled();
+		if (!pickerIsDisabled) {
+			await orgPicker.click();
+			await page.getByText(orgName, { exact: true }).click();
+		}
 	}
 
 	await page.getByLabel("Login Type").click();

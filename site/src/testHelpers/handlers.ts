@@ -64,11 +64,11 @@ export const handlers = [
 			M.MockOrganizationAuditorRole,
 		]);
 	}),
-	http.get("/api/v2/organizations/:organizationId/members", () => {
-		return HttpResponse.json([
-			M.MockOrganizationMember,
-			M.MockOrganizationMember2,
-		]);
+	http.get("/api/v2/organizations/:organizationId/paginated-members", () => {
+		return HttpResponse.json({
+			members: [M.MockOrganizationMember, M.MockOrganizationMember2],
+			count: 2,
+		});
 	}),
 	http.delete(
 		"/api/v2/organizations/:organizationId/members/:userId",
