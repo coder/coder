@@ -1,7 +1,9 @@
+import { API } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import type { ProxyContextValue } from "contexts/ProxyContext";
+import { NotificationsInbox } from "modules/notifications/NotificationsInbox/NotificationsInbox";
 import type { FC } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { cn } from "utils/cn";
@@ -9,8 +11,6 @@ import { DeploymentDropdown } from "./DeploymentDropdown";
 import { MobileMenu } from "./MobileMenu";
 import { ProxyMenu } from "./ProxyMenu";
 import { UserDropdown } from "./UserDropdown/UserDropdown";
-import { NotificationsInbox } from "modules/notifications/NotificationsInbox/NotificationsInbox";
-import { API } from "api/api";
 
 export interface NavbarViewProps {
 	logo_url?: string;

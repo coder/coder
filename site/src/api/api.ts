@@ -144,7 +144,7 @@ export const watchInboxNotifications = (
 	});
 
 	socket.addEventListener("error", (event) => {
-		console.log("Watch inbox notifications error: ", event);
+		console.warn("Watch inbox notifications error: ", event);
 		socket.close();
 	});
 

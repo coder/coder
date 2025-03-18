@@ -1,3 +1,4 @@
+import type { InboxNotification } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import {
 	Popover,
@@ -13,7 +14,6 @@ import { cn } from "utils/cn";
 import { InboxButton } from "./InboxButton";
 import { InboxItem } from "./InboxItem";
 import { UnreadBadge } from "./UnreadBadge";
-import type { InboxNotification } from "api/typesGenerated";
 
 type InboxPopoverProps = {
 	notifications: readonly InboxNotification[] | undefined;

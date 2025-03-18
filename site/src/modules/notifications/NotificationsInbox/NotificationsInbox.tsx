@@ -1,13 +1,13 @@
+import { API, watchInboxNotifications } from "api/api";
 import { getErrorDetail, getErrorMessage } from "api/errors";
-import { displayError } from "components/GlobalSnackbar/utils";
-import { useEffect, useRef, type FC } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { InboxPopover } from "./InboxPopover";
 import type {
 	ListInboxNotificationsResponse,
 	UpdateInboxNotificationReadStatusResponse,
 } from "api/typesGenerated";
-import { API, watchInboxNotifications } from "api/api";
+import { displayError } from "components/GlobalSnackbar/utils";
+import { type FC, useEffect, useRef } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { InboxPopover } from "./InboxPopover";
 
 const NOTIFICATIONS_QUERY_KEY = ["notifications"];
 
