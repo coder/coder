@@ -251,10 +251,10 @@ jobs:
           rm /tmp/rcodesign.tar.gz
 
       - name: Install cosign
-        uses: ./.github/action/install-cosign
+        uses: ./.github/actions/install-cosign
 
       - name: Install syft
-        uses: ./.github/action/install-syft
+        uses: ./.github/actions/install-syft
 
       - name: Setup Apple Developer certificate and API key
         run: |

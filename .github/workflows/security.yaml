@@ -86,10 +86,10 @@ jobs:
         uses: ./.github/actions/setup-sqlc
 
       - name: Install cosign
-        uses: ./.github/action/install-cosign
+        uses: ./.github/actions/install-cosign
 
       - name: Install syft
-        uses: ./.github/action/install-syft
+        uses: ./.github/actions/install-syft
 
       - name: Install yq
         run: go run github.com/mikefarah/yq/v4@v4.44.3

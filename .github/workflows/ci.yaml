@@ -1074,10 +1074,10 @@ jobs:
         run: sudo apt-get install -y zstd
 
       - name: Install cosign
-        uses: ./.github/action/install-cosign
+        uses: ./.github/actions/install-cosign
 
       - name: Install syft
-        uses: ./.github/action/install-syft
+        uses: ./.github/actions/install-syft
 
       - name: Setup Windows EV Signing Certificate
         run: |
