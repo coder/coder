@@ -3065,9 +3065,17 @@ export interface WorkspaceAgentDevcontainer {
 	readonly image: string;
 	readonly labels: Record<string, string>;
 	readonly running: boolean;
-	readonly ports: readonly WorkspaceAgentListeningPort[];
+	readonly ports: readonly WorkspaceAgentDevcontainerPort[];
 	readonly status: string;
 	readonly volumes: Record<string, string>;
+}
+
+// From codersdk/workspaceagents.go
+export interface WorkspaceAgentDevcontainerPort {
+	readonly port: number;
+	readonly network: string;
+	readonly host_ip?: string;
+	readonly host_port?: number;
 }
 
 // From codersdk/workspaceagents.go
