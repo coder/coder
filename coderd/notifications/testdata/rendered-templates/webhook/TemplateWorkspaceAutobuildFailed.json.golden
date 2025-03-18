@@ -2,7 +2,7 @@
   "_version": "1.1",
   "msg_id": "00000000-0000-0000-0000-000000000000",
   "payload": {
-    "_version": "1.1",
+    "_version": "1.2",
     "notification_name": "Workspace Autobuild Failed",
     "notification_template_id": "00000000-0000-0000-0000-000000000000",
     "user_id": "00000000-0000-0000-0000-000000000000",
@@ -20,7 +20,10 @@
       "reason": "autostart"
     },
     "data": null,
-    "targets": null
+    "targets": [
+      "00000000-0000-0000-0000-000000000000",
+      "00000000-0000-0000-0000-000000000000"
+    ]
   },
   "title": "Workspace \"bobby-workspace\" autobuild failed",
   "title_markdown": "Workspace \"bobby-workspace\" autobuild failed",
