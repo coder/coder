@@ -5,10 +5,8 @@ CREATE INDEX user_is_system_idx ON users USING btree (is_system);
 
 COMMENT ON COLUMN users.is_system IS 'Determines if a user is a system user, and therefore cannot login or perform normal actions';
 
--- TODO: tried using "none" for login type, but the migration produced this error: 'unsafe use of new value "none" of enum type login_type'
---  	 -> not sure why though? it exists on the login_type enum.
 INSERT INTO users (id, email, username, name, created_at, updated_at, status, rbac_roles, hashed_password, is_system, login_type)
-VALUES ('c42fdf75-3097-471c-8c33-fb52454d81c0', 'prebuilds@system', 'prebuilds', 'Prebuilds Owner', now(), now(),
+VALUES ('c42fdf75-3097-471c-8c33-fb52454d81c0', 'prebuilds@system', 'none', 'Prebuilds Owner', now(), now(),
 		'active', '{}', 'none', true, 'password'::login_type);
 
 -- Create function to check system user modifications
