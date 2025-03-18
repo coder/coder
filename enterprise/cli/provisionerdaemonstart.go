@@ -99,9 +99,9 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 			defer retryCancel()
 			for retrier := retry.New(100*time.Millisecond, 10*time.Second); retrier.Wait(retryCtx); {
 				lcCtx, lcCancel := context.WithTimeout(inv.Context(), time.Second*30)
-				defer lcCancel()
-
 				err = client.CheckLiveness(lcCtx)
+				lcCancel() // We shouldn't defer in loops.
+
 				if err == nil {
 					break
 				}
@@ -112,6 +112,8 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 			if err := retryCtx.Err(); err != nil {
 				logger.Error(ctx, "provisioner could not establish a connection with coderd",
 					slog.F("access_url", client.URL.String()))
+
+				// nolint:revive // We want a specific exit status here.
 				os.Exit(2)
 			}
 
