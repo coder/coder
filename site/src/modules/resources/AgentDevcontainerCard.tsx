@@ -54,10 +54,7 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 					container.ports.map((port) => {
 						const portLabel = `${port.port}/${port.network.toUpperCase()}`;
 						const hasHostBind =
-							port.host_port !== undefined &&
-							port.host_port !== null &&
-							port.host_ip !== undefined &&
-							port.host_ip !== null;
+							port.host_port !== undefined && port.host_ip !== undefined;
 						const helperText = hasHostBind
 							? `${port.host_ip}:${port.host_port}`
 							: "Not bound to host";
