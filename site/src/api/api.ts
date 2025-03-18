@@ -102,7 +102,6 @@ const getMissingParameters = (
 };
 
 /**
- *
  * @param agentId
  * @returns {OneWayWebSocket} A OneWayWebSocket that emits Server-Sent Events.
  */
@@ -125,38 +124,18 @@ export const watchWorkspace = (
 	});
 };
 
-type WatchInboxNotificationsParams = {
+type WatchInboxNotificationsParams = Readonly<{
 	read_status?: "read" | "unread" | "all";
-};
+}>;
 
-export const watchInboxNotifications = (
-	onNewNotification: (res: TypesGen.GetInboxNotificationResponse) => void,
+export function watchInboxNotifications(
 	params?: WatchInboxNotificationsParams,
-) => {
-	const searchParams = new URLSearchParams(params);
-	const socket = createWebSocket(
-		"/api/v2/notifications/inbox/watch",
-		searchParams,
-	);
-
-	socket.addEventListener("message", (event) => {
-		try {
-			const res = JSON.parse(
-				event.data,
-			) as TypesGen.GetInboxNotificationResponse;
-			onNewNotification(res);
-		} catch (error) {
-			console.warn("Error parsing inbox notification: ", error);
-		}
+): OneWayWebSocket<TypesGen.GetInboxNotificationResponse> {
+	return new OneWayWebSocket({
+		apiRoute: "/api/v2/notifications/inbox/watch",
+		searchParams: params,
 	});
-
-	socket.addEventListener("error", (event) => {
-		console.warn("Watch inbox notifications error: ", event);
-		socket.close();
-	});
-
-	return socket;
-};
+}
 
 export const getURLWithSearchParams = (
 	basePath: string,
@@ -2513,7 +2492,7 @@ function createWebSocket(
 ) {
 	const protocol = location.protocol === "https:" ? "wss:" : "ws:";
 	const socket = new WebSocket(
-		`${protocol}//${location.host}${path}?${params.toString()}`,
+		`${protocol}//${location.host}${path}?${params}`,
 	);
 	socket.binaryType = "blob";
 	return socket;
