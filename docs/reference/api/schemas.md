@@ -3062,6 +3062,40 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |-------|--------|----------|--------------|-------------|
 | `key` | string | false    |              |             |
 
+## codersdk.GetInboxNotificationResponse
+
+```json
+{
+  "notification": {
+    "actions": [
+      {
+        "label": "string",
+        "url": "string"
+      }
+    ],
+    "content": "string",
+    "created_at": "2019-08-24T14:15:22Z",
+    "icon": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "read_at": "string",
+    "targets": [
+      "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+    ],
+    "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+    "title": "string",
+    "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+  },
+  "unread_count": 0
+}
+```
+
+### Properties
+
+| Name           | Type                                                     | Required | Restrictions | Description |
+|----------------|----------------------------------------------------------|----------|--------------|-------------|
+| `notification` | [codersdk.InboxNotification](#codersdkinboxnotification) | false    |              |             |
+| `unread_count` | integer                                                  | false    |              |             |
+
 ## codersdk.GetUserStatusCountsResponse
 
 ```json
@@ -3297,6 +3331,61 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `refresh`            | integer | false    |              |             |
 | `threshold_database` | integer | false    |              |             |
 
+## codersdk.InboxNotification
+
+```json
+{
+  "actions": [
+    {
+      "label": "string",
+      "url": "string"
+    }
+  ],
+  "content": "string",
+  "created_at": "2019-08-24T14:15:22Z",
+  "icon": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "read_at": "string",
+  "targets": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ],
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+  "title": "string",
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+}
+```
+
+### Properties
+
+| Name          | Type                                                                          | Required | Restrictions | Description |
+|---------------|-------------------------------------------------------------------------------|----------|--------------|-------------|
+| `actions`     | array of [codersdk.InboxNotificationAction](#codersdkinboxnotificationaction) | false    |              |             |
+| `content`     | string                                                                        | false    |              |             |
+| `created_at`  | string                                                                        | false    |              |             |
+| `icon`        | string                                                                        | false    |              |             |
+| `id`          | string                                                                        | false    |              |             |
+| `read_at`     | string                                                                        | false    |              |             |
+| `targets`     | array of string                                                               | false    |              |             |
+| `template_id` | string                                                                        | false    |              |             |
+| `title`       | string                                                                        | false    |              |             |
+| `user_id`     | string                                                                        | false    |              |             |
+
+## codersdk.InboxNotificationAction
+
+```json
+{
+  "label": "string",
+  "url": "string"
+}
+```
+
+### Properties
+
+| Name    | Type   | Required | Restrictions | Description |
+|---------|--------|----------|--------------|-------------|
+| `label` | string | false    |              |             |
+| `url`   | string | false    |              |             |
+
 ## codersdk.InsightsReportInterval
 
 ```json
@@ -3425,6 +3514,42 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `icon`   | `bug`  |
 | `icon`   | `chat` |
 | `icon`   | `docs` |
+
+## codersdk.ListInboxNotificationsResponse
+
+```json
+{
+  "notifications": [
+    {
+      "actions": [
+        {
+          "label": "string",
+          "url": "string"
+        }
+      ],
+      "content": "string",
+      "created_at": "2019-08-24T14:15:22Z",
+      "icon": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "read_at": "string",
+      "targets": [
+        "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+      ],
+      "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+      "title": "string",
+      "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+    }
+  ],
+  "unread_count": 0
+}
+```
+
+### Properties
+
+| Name            | Type                                                              | Required | Restrictions | Description |
+|-----------------|-------------------------------------------------------------------|----------|--------------|-------------|
+| `notifications` | array of [codersdk.InboxNotification](#codersdkinboxnotification) | false    |              |             |
+| `unread_count`  | integer                                                           | false    |              |             |
 
 ## codersdk.LogLevel
 

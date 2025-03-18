@@ -898,6 +898,12 @@ export interface GenerateAPIKeyResponse {
 	readonly key: string;
 }
 
+// From codersdk/inboxnotification.go
+export interface GetInboxNotificationResponse {
+	readonly notification: InboxNotification;
+	readonly unread_count: number;
+}
+
 // From codersdk/insights.go
 export interface GetUserStatusCountsRequest {
 	readonly offset: string;
@@ -1082,6 +1088,26 @@ export interface IDPSyncMapping<ResourceIdType extends string | string> {
 	readonly Gets: ResourceIdType;
 }
 
+// From codersdk/inboxnotification.go
+export interface InboxNotification {
+	readonly id: string;
+	readonly user_id: string;
+	readonly template_id: string;
+	readonly targets: readonly string[];
+	readonly title: string;
+	readonly content: string;
+	readonly icon: string;
+	readonly actions: readonly InboxNotificationAction[];
+	readonly read_at: string | null;
+	readonly created_at: string;
+}
+
+// From codersdk/inboxnotification.go
+export interface InboxNotificationAction {
+	readonly label: string;
+	readonly url: string;
+}
+
 // From codersdk/insights.go
 export type InsightsReportInterval = "day" | "week";
 
@@ -1137,6 +1163,20 @@ export interface LinkConfig {
 	readonly name: string;
 	readonly target: string;
 	readonly icon: string;
+}
+
+// From codersdk/inboxnotification.go
+export interface ListInboxNotificationsRequest {
+	readonly targets?: string;
+	readonly templates?: string;
+	readonly read_status?: string;
+	readonly starting_before?: string;
+}
+
+// From codersdk/inboxnotification.go
+export interface ListInboxNotificationsResponse {
+	readonly notifications: readonly InboxNotification[];
+	readonly unread_count: number;
 }
 
 // From codersdk/externalauth.go
@@ -2664,6 +2704,17 @@ export interface UpdateCheckResponse {
 // From healthsdk/healthsdk.go
 export interface UpdateHealthSettings {
 	readonly dismissed_healthchecks: readonly HealthSection[];
+}
+
+// From codersdk/inboxnotification.go
+export interface UpdateInboxNotificationReadStatusRequest {
+	readonly is_read: boolean;
+}
+
+// From codersdk/inboxnotification.go
+export interface UpdateInboxNotificationReadStatusResponse {
+	readonly notification: InboxNotification;
+	readonly unread_count: number;
 }
 
 // From codersdk/notifications.go
