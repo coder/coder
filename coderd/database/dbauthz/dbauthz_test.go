@@ -4647,7 +4647,7 @@ func (s *MethodTestSuite) TestNotifications() {
 		check.Args(database.MarkAllInboxNotificationsAsReadParams{
 			UserID: u.ID,
 			ReadAt: sql.NullTime{Time: dbtestutil.NowInDefaultTimezone(), Valid: true},
-		}).Asserts(rbac.ResourceInboxNotification, policy.ActionUpdate)
+		}).Asserts(rbac.ResourceInboxNotification.WithOwner(u.ID.String()), policy.ActionUpdate)
 	}))
 }
 
