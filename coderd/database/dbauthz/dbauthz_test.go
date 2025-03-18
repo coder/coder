@@ -4640,6 +4640,15 @@ func (s *MethodTestSuite) TestNotifications() {
 			ReadAt: sql.NullTime{Time: readAt, Valid: true},
 		}).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionUpdate)
 	}))
+
+	s.Run("MarkAllInboxNotificationsAsRead", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+
+		check.Args(database.MarkAllInboxNotificationsAsReadParams{
+			UserID: u.ID,
+			ReadAt: sql.NullTime{Time: dbtestutil.NowInDefaultTimezone(), Valid: true},
+		}).Asserts(rbac.ResourceInboxNotification, policy.ActionUpdate)
+	}))
 }
 
 func (s *MethodTestSuite) TestOAuth2ProviderApps() {

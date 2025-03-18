@@ -1389,6 +1389,7 @@ func New(options *Options) *API {
 			r.Use(apiKeyMiddleware)
 			r.Route("/inbox", func(r chi.Router) {
 				r.Get("/", api.listInboxNotifications)
+				r.Put("/mark-all-as-read", api.markAllInboxNotificationsAsRead)
 				r.Get("/watch", api.watchInboxNotifications)
 				r.Put("/{id}/read-status", api.updateInboxNotificationReadStatus)
 			})
