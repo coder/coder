@@ -1758,6 +1758,38 @@ COMMENT ON COLUMN workspace_agents.ready_at IS 'The time the agent entered the r
 
 COMMENT ON COLUMN workspace_agents.display_order IS 'Specifies the order in which to display agents in user interfaces.';
 
+CREATE UNLOGGED TABLE workspace_app_audit_sessions (
+    agent_id uuid NOT NULL,
+    app_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    ip text NOT NULL,
+    user_agent text NOT NULL,
+    slug_or_port text NOT NULL,
+    status_code integer NOT NULL,
+    started_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL
+);
+
+COMMENT ON TABLE workspace_app_audit_sessions IS 'Audit sessions for workspace apps, the data in this table is ephemeral and is used to deduplicate audit log entries for workspace apps. While a session is active, the same data will not be logged again. This table does not store historical data.';
+
+COMMENT ON COLUMN workspace_app_audit_sessions.agent_id IS 'The agent that the workspace app or port forward belongs to.';
+
+COMMENT ON COLUMN workspace_app_audit_sessions.app_id IS 'The app that is currently in the workspace app. This is may be uuid.Nil because ports are not associated with an app.';
+
+COMMENT ON COLUMN workspace_app_audit_sessions.user_id IS 'The user that is currently using the workspace app. This is may be uuid.Nil if we cannot determine the user.';
+
+COMMENT ON COLUMN workspace_app_audit_sessions.ip IS 'The IP address of the user that is currently using the workspace app.';
+
+COMMENT ON COLUMN workspace_app_audit_sessions.user_agent IS 'The user agent of the user that is currently using the workspace app.';
+
+COMMENT ON COLUMN workspace_app_audit_sessions.slug_or_port IS 'The slug or port of the workspace app that the user is currently using.';
+
+COMMENT ON COLUMN workspace_app_audit_sessions.status_code IS 'The HTTP status produced by the token authorization. Defaults to 200 if no status is provided.';
+
+COMMENT ON COLUMN workspace_app_audit_sessions.started_at IS 'The time the user started the session.';
+
+COMMENT ON COLUMN workspace_app_audit_sessions.updated_at IS 'The time the session was last updated.';
+
 CREATE TABLE workspace_app_stats (
     id bigint NOT NULL,
     user_id uuid NOT NULL,
@@ -2244,6 +2276,9 @@ ALTER TABLE ONLY workspace_agent_volume_resource_monitors
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY workspace_app_audit_sessions
+    ADD CONSTRAINT workspace_app_audit_sessions_agent_id_app_id_user_id_ip_use_key UNIQUE (agent_id, app_id, user_id, ip, user_agent, slug_or_port, status_code);
+
 ALTER TABLE ONLY workspace_app_stats
     ADD CONSTRAINT workspace_app_stats_pkey PRIMARY KEY (id);
 
@@ -2381,6 +2416,10 @@ COMMENT ON INDEX workspace_agent_stats_template_id_created_at_user_id_idx IS 'Su
 CREATE INDEX workspace_agents_auth_token_idx ON workspace_agents USING btree (auth_token);
 
 CREATE INDEX workspace_agents_resource_id_idx ON workspace_agents USING btree (resource_id);
+
+CREATE UNIQUE INDEX workspace_app_audit_sessions_unique_index ON workspace_app_audit_sessions USING btree (agent_id, app_id, user_id, ip, user_agent, slug_or_port, status_code);
+
+COMMENT ON INDEX workspace_app_audit_sessions_unique_index IS 'Unique index to ensure that we do not allow duplicate entries from multiple transactions.';
 
 CREATE INDEX workspace_app_stats_workspace_id_idx ON workspace_app_stats USING btree (workspace_id);
 
@@ -2663,6 +2702,9 @@ ALTER TABLE ONLY workspace_agent_volume_resource_monitors
 
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_resource_id_fkey FOREIGN KEY (resource_id) REFERENCES workspace_resources(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_app_audit_sessions
+    ADD CONSTRAINT workspace_app_audit_sessions_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_app_stats
     ADD CONSTRAINT workspace_app_stats_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id);

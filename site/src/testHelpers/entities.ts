@@ -4272,3 +4272,46 @@ function mockTwoDaysAgo() {
 	date.setDate(date.getDate() - 2);
 	return date.toISOString();
 }
+
+export const MockWorkspaceAgentDevcontainerPorts: TypesGen.WorkspaceAgentDevcontainerPort[] =
+	[
+		{
+			port: 1000,
+			network: "tcp",
+			host_port: 1000,
+			host_ip: "0.0.0.0",
+		},
+		{
+			port: 2001,
+			network: "tcp",
+			host_port: 2000,
+			host_ip: "::1",
+		},
+		{
+			port: 8888,
+			network: "tcp",
+		},
+	];
+
+export const MockWorkspaceAgentDevcontainer: TypesGen.WorkspaceAgentDevcontainer =
+	{
+		created_at: "2024-01-04T15:53:03.21563Z",
+		id: "abcd1234",
+		name: "container-1",
+		image: "ubuntu:latest",
+		labels: {
+			foo: "bar",
+		},
+		ports: [],
+		running: true,
+		status: "running",
+		volumes: {
+			"/mnt/volume1": "/volume1",
+		},
+	};
+
+export const MockWorkspaceAgentListContainersResponse: TypesGen.WorkspaceAgentListContainersResponse =
+	{
+		containers: [MockWorkspaceAgentDevcontainer],
+		warnings: ["This is a warning"],
+	};

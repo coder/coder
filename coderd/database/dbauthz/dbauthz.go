@@ -4615,6 +4615,13 @@ func (q *querier) UpsertWorkspaceAgentPortShare(ctx context.Context, arg databas
 	return q.db.UpsertWorkspaceAgentPortShare(ctx, arg)
 }
 
+func (q *querier) UpsertWorkspaceAppAuditSession(ctx context.Context, arg database.UpsertWorkspaceAppAuditSessionParams) (time.Time, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return time.Time{}, err
+	}
+	return q.db.UpsertWorkspaceAppAuditSession(ctx, arg)
+}
+
 func (q *querier) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, _ rbac.PreparedAuthorized) ([]database.Template, error) {
 	// TODO Delete this function, all GetTemplates should be authorized. For now just call getTemplates on the authz querier.
 	return q.GetTemplatesWithFilter(ctx, arg)
