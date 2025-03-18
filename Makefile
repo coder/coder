@@ -564,8 +564,8 @@ GEN_FILES := \
 	examples/examples.gen.json \
 	$(TAILNETTEST_MOCKS) \
 	coderd/database/pubsub/psmock/psmock.go \
-	agent/agentcontainers/acmock/acmock.go
-
+	agent/agentcontainers/acmock/acmock.go \
+	agent/agentcontainers/dcspec/dcspec_gen.go
 
 # all gen targets should be added here and to gen/mark-fresh
 gen: gen/db $(GEN_FILES)
@@ -600,6 +600,7 @@ gen/mark-fresh:
 		$(TAILNETTEST_MOCKS) \
 		coderd/database/pubsub/psmock/psmock.go \
 		agent/agentcontainers/acmock/acmock.go \
+		agent/agentcontainers/dcspec/dcspec_gen.go \
 		"
 
 	for file in $$files; do
@@ -633,6 +634,9 @@ coderd/database/pubsub/psmock/psmock.go: coderd/database/pubsub/pubsub.go
 
 agent/agentcontainers/acmock/acmock.go: agent/agentcontainers/containers.go
 	go generate ./agent/agentcontainers/acmock/
+
+agent/agentcontainers/dcspec/dcspec_gen.go: agent/agentcontainers/dcspec/devContainer.base.schema.json
+	go generate ./agent/agentcontainers/dcspec/
 
 $(TAILNETTEST_MOCKS): tailnet/coordinator.go tailnet/service.go
 	go generate ./tailnet/tailnettest/

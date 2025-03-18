@@ -136,7 +136,7 @@ jobs:
           echo "image=$(cat "$image_job")" >> $GITHUB_OUTPUT
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@18f2510ee396bbf400402947b394f2dd8c87dbb0
+        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5
         with:
           image-ref: ${{ steps.build.outputs.image }}
           format: sarif

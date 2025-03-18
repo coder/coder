@@ -59,7 +59,7 @@ Inside your Terraform code, you now have access to authentication variables. Ref
 Use [`external-auth`](../reference/cli/external-auth.md) in the Coder CLI to access a token within the workspace:
 
 ```shell
-coder external-auth <USER_DEFINED_ID> access-token
+coder external-auth access-token <USER_DEFINED_ID>
 ```
 
 ## Git-provider specific env variables

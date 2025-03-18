@@ -606,6 +606,24 @@ class ApiMethods {
 
 	/**
 	 * @param organization Can be the organization's ID or name
+	 * @param options Pagination options
+	 */
+	getOrganizationPaginatedMembers = async (
+		organization: string,
+		options?: TypesGen.Pagination,
+	) => {
+		const url = getURLWithSearchParams(
+			`/api/v2/organizations/${organization}/paginated-members`,
+			options,
+		);
+		const response =
+			await this.axios.get<TypesGen.PaginatedMembersResponse>(url);
+
+		return response.data;
+	};
+
+	/**
+	 * @param organization Can be the organization's ID or name
 	 */
 	getOrganizationRoles = async (organization: string) => {
 		const response = await this.axios.get<TypesGen.AssignableRoles[]>(

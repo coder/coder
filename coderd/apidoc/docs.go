@@ -1660,6 +1660,130 @@ const docTemplate = `{
                 }
             }
         },
+        "/notifications/inbox": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "List inbox notifications",
+                "operationId": "list-inbox-notifications",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Comma-separated list of target IDs to filter notifications",
+                        "name": "targets",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated list of template IDs to filter notifications",
+                        "name": "templates",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter notifications by read status. Possible values: read, unread, all",
+                        "name": "read_status",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ListInboxNotificationsResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/notifications/inbox/watch": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "Watch for new inbox notifications",
+                "operationId": "watch-for-new-inbox-notifications",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Comma-separated list of target IDs to filter notifications",
+                        "name": "targets",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated list of template IDs to filter notifications",
+                        "name": "templates",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter notifications by read status. Possible values: read, unread, all",
+                        "name": "read_status",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.GetInboxNotificationResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/notifications/inbox/{id}/read-status": {
+            "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "Update read status of a notification",
+                "operationId": "update-read-status-of-a-notification",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "id of the notification",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/notifications/settings": {
             "get": {
                 "security": [
@@ -11890,6 +12014,17 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.GetInboxNotificationResponse": {
+            "type": "object",
+            "properties": {
+                "notification": {
+                    "$ref": "#/definitions/codersdk.InboxNotification"
+                },
+                "unread_count": {
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.GetUserStatusCountsResponse": {
             "type": "object",
             "properties": {
@@ -12071,6 +12206,63 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.InboxNotification": {
+            "type": "object",
+            "properties": {
+                "actions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.InboxNotificationAction"
+                    }
+                },
+                "content": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "read_at": {
+                    "type": "string"
+                },
+                "targets": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
+                "template_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
+        "codersdk.InboxNotificationAction": {
+            "type": "object",
+            "properties": {
+                "label": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.InsightsReportInterval": {
             "type": "string",
             "enum": [
@@ -12178,6 +12370,20 @@ const docTemplate = `{
                 },
                 "target": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.ListInboxNotificationsResponse": {
+            "type": "object",
+            "properties": {
+                "notifications": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.InboxNotification"
+                    }
+                },
+                "unread_count": {
+                    "type": "integer"
                 }
             }
         },

@@ -74,14 +74,6 @@ const AuditPage: FC = () => {
 			}),
 	});
 
-	if (auditsQuery.error) {
-		return (
-			<div className="p-6">
-				<ErrorAlert error={auditsQuery.error} />
-			</div>
-		);
-	}
-
 	return (
 		<>
 			<Helmet>
