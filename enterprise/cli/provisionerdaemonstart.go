@@ -17,8 +17,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/retry"
+
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+	"github.com/coder/serpent"
+
 	agpl "github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/clilog"
 	"github.com/coder/coder/v2/cli/cliui"
@@ -31,7 +35,6 @@ import (
 	provisionerdproto "github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
-	"github.com/coder/serpent"
 )
 
 func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
@@ -71,6 +74,46 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 			defer stopCancel()
 			interruptCtx, interruptCancel := inv.SignalNotifyContext(ctx, agpl.InterruptSignals...)
 			defer interruptCancel()
+
+			logOpts := []clilog.Option{
+				clilog.WithFilter(logFilter...),
+				clilog.WithHuman(logHuman),
+				clilog.WithJSON(logJSON),
+				clilog.WithStackdriver(logStackdriver),
+			}
+			if verbose {
+				logOpts = append(logOpts, clilog.WithVerbose())
+			}
+
+			logger, closeLogger, err := clilog.New(logOpts...).Build(inv)
+			if err != nil {
+				// Fall back to a basic logger
+				logger = slog.Make(sloghuman.Sink(inv.Stderr))
+				logger.Error(ctx, "failed to initialize logger", slog.Error(err))
+			} else {
+				defer closeLogger()
+			}
+
+			// Wait for coderd liveness, with retry.
+			retryCtx, retryCancel := context.WithTimeout(ctx, time.Hour)
+			defer retryCancel()
+			for retrier := retry.New(100*time.Millisecond, 10*time.Second); retrier.Wait(retryCtx); {
+				lcCtx, lcCancel := context.WithTimeout(inv.Context(), time.Second*30)
+				defer lcCancel()
+
+				err = client.CheckLiveness(lcCtx)
+				if err == nil {
+					break
+				}
+
+				logger.Warn(ctx, "coderd liveness check failed", slog.Error(err))
+			}
+
+			if err := retryCtx.Err(); err != nil {
+				logger.Error(ctx, "provisioner could not establish a connection with coderd",
+					slog.F("access_url", client.URL.String()))
+				os.Exit(2)
+			}
 
 			orgID := uuid.Nil
 			if preSharedKey == "" && provisionerKey == "" {
@@ -126,25 +169,6 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 
 			if err := validateProvisionerDaemonName(name); err != nil {
 				return err
-			}
-
-			logOpts := []clilog.Option{
-				clilog.WithFilter(logFilter...),
-				clilog.WithHuman(logHuman),
-				clilog.WithJSON(logJSON),
-				clilog.WithStackdriver(logStackdriver),
-			}
-			if verbose {
-				logOpts = append(logOpts, clilog.WithVerbose())
-			}
-
-			logger, closeLogger, err := clilog.New(logOpts...).Build(inv)
-			if err != nil {
-				// Fall back to a basic logger
-				logger = slog.Make(sloghuman.Sink(inv.Stderr))
-				logger.Error(ctx, "failed to initialize logger", slog.Error(err))
-			} else {
-				defer closeLogger()
 			}
 
 			if len(displayedTags) == 0 {
