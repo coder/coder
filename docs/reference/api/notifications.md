@@ -46,6 +46,168 @@ Status Code **200**
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## List inbox notifications
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/notifications/inbox \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /notifications/inbox`
+
+### Parameters
+
+| Name          | In    | Type   | Required | Description                                                             |
+|---------------|-------|--------|----------|-------------------------------------------------------------------------|
+| `targets`     | query | string | false    | Comma-separated list of target IDs to filter notifications              |
+| `templates`   | query | string | false    | Comma-separated list of template IDs to filter notifications            |
+| `read_status` | query | string | false    | Filter notifications by read status. Possible values: read, unread, all |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "notifications": [
+    {
+      "actions": [
+        {
+          "label": "string",
+          "url": "string"
+        }
+      ],
+      "content": "string",
+      "created_at": "2019-08-24T14:15:22Z",
+      "icon": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "read_at": "string",
+      "targets": [
+        "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+      ],
+      "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+      "title": "string",
+      "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+    }
+  ],
+  "unread_count": 0
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                       |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ListInboxNotificationsResponse](schemas.md#codersdklistinboxnotificationsresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Watch for new inbox notifications
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/notifications/inbox/watch \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /notifications/inbox/watch`
+
+### Parameters
+
+| Name          | In    | Type   | Required | Description                                                             |
+|---------------|-------|--------|----------|-------------------------------------------------------------------------|
+| `targets`     | query | string | false    | Comma-separated list of target IDs to filter notifications              |
+| `templates`   | query | string | false    | Comma-separated list of template IDs to filter notifications            |
+| `read_status` | query | string | false    | Filter notifications by read status. Possible values: read, unread, all |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "notification": {
+    "actions": [
+      {
+        "label": "string",
+        "url": "string"
+      }
+    ],
+    "content": "string",
+    "created_at": "2019-08-24T14:15:22Z",
+    "icon": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "read_at": "string",
+    "targets": [
+      "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+    ],
+    "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+    "title": "string",
+    "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+  },
+  "unread_count": 0
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                   |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.GetInboxNotificationResponse](schemas.md#codersdkgetinboxnotificationresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update read status of a notification
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/v2/notifications/inbox/{id}/read-status \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /notifications/inbox/{id}/read-status`
+
+### Parameters
+
+| Name | In   | Type   | Required | Description            |
+|------|------|--------|----------|------------------------|
+| `id` | path | string | true     | id of the notification |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "detail": "string",
+  "message": "string",
+  "validations": [
+    {
+      "detail": "string",
+      "field": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                           |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get notifications settings
 
 ### Code samples
