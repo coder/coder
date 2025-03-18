@@ -331,9 +331,15 @@ func (c *StoreReconciler) Reconcile(ctx context.Context, ps prebuilds.PresetStat
 		levelFn(ctx, "template prebuild state retrieved", fields...)
 	}
 
-	// Provision workspaces within the same tx so we don't get any timing issues here.
-	// i.e. we hold the advisory lock until all "reconciliatory" actions have been taken.
-	// TODO: max per reconciliation iteration?
+	// Shit happens (i.e. bugs or bitflips); let's defend against disastrous outcomes.
+	// See https://blog.robertelder.org/causes-of-bit-flips-in-computer-memory/.
+	// This is obviously not comprehensive protection against this sort of problem, but this is one essential check.
+	if actions.Create > actions.Desired {
+		vlogger.Critical(ctx, "determined excessive count of prebuilds to create; clamping to desired count",
+			slog.F("create_count", actions.Create), slog.F("desired_count", actions.Desired))
+
+		actions.Create = actions.Desired
+	}
 
 	// TODO: i've removed the surrounding tx, but if we restore it then we need to pass down the store to these funcs.
 	for range actions.Create {
