@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, fn, userEvent, within } from "@storybook/test";
 import { MockNotification } from "testHelpers/entities";
+import { daysAgo } from "utils/time";
 import { InboxItem } from "./InboxItem";
 
 const meta: Meta<typeof InboxItem> = {
@@ -22,7 +23,7 @@ export const Read: Story = {
 	args: {
 		notification: {
 			...MockNotification,
-			read_status: "read",
+			read_at: daysAgo(1),
 		},
 	},
 };
@@ -31,7 +32,7 @@ export const Unread: Story = {
 	args: {
 		notification: {
 			...MockNotification,
-			read_status: "unread",
+			read_at: null,
 		},
 	},
 };
@@ -40,7 +41,7 @@ export const UnreadFocus: Story = {
 	args: {
 		notification: {
 			...MockNotification,
-			read_status: "unread",
+			read_at: null,
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -54,7 +55,7 @@ export const OnMarkNotificationAsRead: Story = {
 	args: {
 		notification: {
 			...MockNotification,
-			read_status: "unread",
+			read_at: null,
 		},
 		onMarkNotificationAsRead: fn(),
 	},
