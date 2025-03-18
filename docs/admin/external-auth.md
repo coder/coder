@@ -128,7 +128,7 @@ CODER_EXTERNAL_AUTH_0_AUTH_URL="https://gitea.com/login/oauth/authorize"
 ```
 
 The redirect URI for Gitea should be
-`https://coder.example.org/external-auth/gitea/callback`.
+`https://coder.example.com/external-auth/gitea/callback`.
 
 ### GitHub
 
