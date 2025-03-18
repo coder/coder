@@ -1391,6 +1391,7 @@ func New(options *Options) *API {
 				r.Get("/", api.listInboxNotifications)
 				r.Get("/watch", api.watchInboxNotifications)
 				r.Put("/{id}/read-status", api.updateInboxNotificationReadStatus)
+				r.Put("/mark-all-read", api.updateAllInboxNotificationsReadStatus)
 			})
 			r.Get("/settings", api.notificationsSettings)
 			r.Put("/settings", api.putNotificationsSettings)

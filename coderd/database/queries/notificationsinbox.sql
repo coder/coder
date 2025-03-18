@@ -57,3 +57,13 @@ SET
     read_at = $1
 WHERE
     id = $2;
+    
+-- name: UpdateAllInboxNotificationsReadStatusByUserID :exec
+-- Marks all unread notifications as read for a user
+UPDATE
+    inbox_notifications
+SET
+    read_at = $1
+WHERE
+    user_id = $2 AND
+    read_at IS NULL;

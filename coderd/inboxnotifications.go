@@ -345,3 +345,47 @@ func (api *API) updateInboxNotificationReadStatus(rw http.ResponseWriter, r *htt
 		UnreadCount:  int(unreadCount),
 	})
 }
+
+// updateAllInboxNotificationsReadStatus marks all notifications as read for the user.
+// @Summary Mark all notifications as read
+// @ID mark-all-notifications-as-read
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Notifications
+// @Success 200 {object} codersdk.Response
+// @Router /notifications/inbox/mark-all-read [put]
+func (api *API) updateAllInboxNotificationsReadStatus(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx    = r.Context()
+		apikey = httpmw.APIKey(r)
+	)
+
+	err := api.Database.UpdateAllInboxNotificationsReadStatusByUserID(ctx, database.UpdateAllInboxNotificationsReadStatusByUserIDParams{
+		ReadAt: sql.NullTime{
+			Time:  dbtime.Now(),
+			Valid: true,
+		},
+		UserID: apikey.UserID,
+	})
+	if err != nil {
+		api.Logger.Error(ctx, "failed to update all inbox notifications read status", slog.Error(err))
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to update all inbox notifications read status.",
+		})
+		return
+	}
+
+	// Get the updated unread count
+	unreadCount, err := api.Database.CountUnreadInboxNotificationsByUserID(ctx, apikey.UserID)
+	if err != nil {
+		api.Logger.Error(ctx, "failed to call count unread inbox notifications", slog.Error(err))
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to call count unread inbox notifications.",
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.MarkAllInboxNotificationsReadResponse{
+		UnreadCount: int(unreadCount),
+	})
+}
