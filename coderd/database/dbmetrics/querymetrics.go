@@ -12,6 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -115,9 +116,9 @@ func (m queryMetricsStore) ActivityBumpWorkspace(ctx context.Context, arg databa
 	return r0
 }
 
-func (m queryMetricsStore) AllUserIDs(ctx context.Context) ([]uuid.UUID, error) {
+func (m queryMetricsStore) AllUserIDs(ctx context.Context, includeSystem bool) ([]uuid.UUID, error) {
 	start := time.Now()
-	r0, r1 := m.s.AllUserIDs(ctx)
+	r0, r1 := m.s.AllUserIDs(ctx, includeSystem)
 	m.queryLatencies.WithLabelValues("AllUserIDs").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
@@ -154,6 +155,13 @@ func (m queryMetricsStore) BulkMarkNotificationMessagesSent(ctx context.Context,
 	start := time.Now()
 	r0, r1 := m.s.BulkMarkNotificationMessagesSent(ctx, arg)
 	m.queryLatencies.WithLabelValues("BulkMarkNotificationMessagesSent").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) ClaimPrebuild(ctx context.Context, newOwnerID database.ClaimPrebuildParams) (database.ClaimPrebuildRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.ClaimPrebuild(ctx, newOwnerID)
+	m.queryLatencies.WithLabelValues("ClaimPrebuild").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -514,9 +522,9 @@ func (m queryMetricsStore) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed
 	return apiKeys, err
 }
 
-func (m queryMetricsStore) GetActiveUserCount(ctx context.Context) (int64, error) {
+func (m queryMetricsStore) GetActiveUserCount(ctx context.Context, includeSystem bool) (int64, error) {
 	start := time.Now()
-	count, err := m.s.GetActiveUserCount(ctx)
+	count, err := m.s.GetActiveUserCount(ctx, includeSystem)
 	m.queryLatencies.WithLabelValues("GetActiveUserCount").Observe(time.Since(start).Seconds())
 	return count, err
 }
@@ -1032,6 +1040,20 @@ func (m queryMetricsStore) GetParameterSchemasByJobID(ctx context.Context, jobID
 	return schemas, err
 }
 
+func (m queryMetricsStore) GetPrebuildMetrics(ctx context.Context) ([]database.GetPrebuildMetricsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetPrebuildMetrics(ctx)
+	m.queryLatencies.WithLabelValues("GetPrebuildMetrics").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetPrebuildsInProgress(ctx context.Context) ([]database.GetPrebuildsInProgressRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetPrebuildsInProgress(ctx)
+	m.queryLatencies.WithLabelValues("GetPrebuildsInProgress").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetPresetByWorkspaceBuildID(ctx context.Context, workspaceBuildID uuid.UUID) (database.TemplateVersionPreset, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetPresetByWorkspaceBuildID(ctx, workspaceBuildID)
@@ -1043,6 +1065,13 @@ func (m queryMetricsStore) GetPresetParametersByTemplateVersionID(ctx context.Co
 	start := time.Now()
 	r0, r1 := m.s.GetPresetParametersByTemplateVersionID(ctx, templateVersionID)
 	m.queryLatencies.WithLabelValues("GetPresetParametersByTemplateVersionID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetPresetsBackoff(ctx context.Context, lookback time.Time) ([]database.GetPresetsBackoffRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetPresetsBackoff(ctx, lookback)
+	m.queryLatencies.WithLabelValues("GetPresetsBackoff").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -1179,6 +1208,13 @@ func (m queryMetricsStore) GetReplicasUpdatedAfter(ctx context.Context, updatedA
 	return replicas, err
 }
 
+func (m queryMetricsStore) GetRunningPrebuilds(ctx context.Context) ([]database.GetRunningPrebuildsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetRunningPrebuilds(ctx)
+	m.queryLatencies.WithLabelValues("GetRunningPrebuilds").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetRuntimeConfig(ctx context.Context, key string) (string, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetRuntimeConfig(ctx, key)
@@ -1305,6 +1341,13 @@ func (m queryMetricsStore) GetTemplateParameterInsights(ctx context.Context, arg
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetTemplatePresetsWithPrebuilds(ctx context.Context, templateID uuid.NullUUID) ([]database.GetTemplatePresetsWithPrebuildsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTemplatePresetsWithPrebuilds(ctx, templateID)
+	m.queryLatencies.WithLabelValues("GetTemplatePresetsWithPrebuilds").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetTemplateUsageStats(ctx context.Context, arg database.GetTemplateUsageStatsParams) ([]database.TemplateUsageStat, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetTemplateUsageStats(ctx, arg)
@@ -1424,9 +1467,9 @@ func (m queryMetricsStore) GetUserByID(ctx context.Context, id uuid.UUID) (datab
 	return user, err
 }
 
-func (m queryMetricsStore) GetUserCount(ctx context.Context) (int64, error) {
+func (m queryMetricsStore) GetUserCount(ctx context.Context, includeSystem bool) (int64, error) {
 	start := time.Now()
-	count, err := m.s.GetUserCount(ctx)
+	count, err := m.s.GetUserCount(ctx, includeSystem)
 	m.queryLatencies.WithLabelValues("GetUserCount").Observe(time.Since(start).Seconds())
 	return count, err
 }
@@ -2009,6 +2052,13 @@ func (m queryMetricsStore) InsertPresetParameters(ctx context.Context, arg datab
 	start := time.Now()
 	r0, r1 := m.s.InsertPresetParameters(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertPresetParameters").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertPresetPrebuild(ctx context.Context, arg database.InsertPresetPrebuildParams) (database.TemplateVersionPresetPrebuild, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertPresetPrebuild(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertPresetPrebuild").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 

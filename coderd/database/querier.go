@@ -49,7 +49,7 @@ type sqlcQuerier interface {
 	// We only bump when 5% of the deadline has elapsed.
 	ActivityBumpWorkspace(ctx context.Context, arg ActivityBumpWorkspaceParams) error
 	// AllUserIDs returns all UserIDs regardless of user status or deletion.
-	AllUserIDs(ctx context.Context) ([]uuid.UUID, error)
+	AllUserIDs(ctx context.Context, includeSystem bool) ([]uuid.UUID, error)
 	// Archiving templates is a soft delete action, so is reversible.
 	// Archiving prevents the version from being used and discovered
 	// by listing.
@@ -60,6 +60,7 @@ type sqlcQuerier interface {
 	BatchUpdateWorkspaceNextStartAt(ctx context.Context, arg BatchUpdateWorkspaceNextStartAtParams) error
 	BulkMarkNotificationMessagesFailed(ctx context.Context, arg BulkMarkNotificationMessagesFailedParams) (int64, error)
 	BulkMarkNotificationMessagesSent(ctx context.Context, arg BulkMarkNotificationMessagesSentParams) (int64, error)
+	ClaimPrebuild(ctx context.Context, arg ClaimPrebuildParams) (ClaimPrebuildRow, error)
 	CleanTailnetCoordinators(ctx context.Context) error
 	CleanTailnetLostPeers(ctx context.Context) error
 	CleanTailnetTunnels(ctx context.Context) error
@@ -124,7 +125,7 @@ type sqlcQuerier interface {
 	GetAPIKeysByLoginType(ctx context.Context, loginType LoginType) ([]APIKey, error)
 	GetAPIKeysByUserID(ctx context.Context, arg GetAPIKeysByUserIDParams) ([]APIKey, error)
 	GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]APIKey, error)
-	GetActiveUserCount(ctx context.Context) (int64, error)
+	GetActiveUserCount(ctx context.Context, includeSystem bool) (int64, error)
 	GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]WorkspaceBuild, error)
 	GetAllTailnetAgents(ctx context.Context) ([]TailnetAgent, error)
 	// For PG Coordinator HTMLDebug
@@ -220,8 +221,11 @@ type sqlcQuerier interface {
 	GetOrganizations(ctx context.Context, arg GetOrganizationsParams) ([]Organization, error)
 	GetOrganizationsByUserID(ctx context.Context, arg GetOrganizationsByUserIDParams) ([]Organization, error)
 	GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUID) ([]ParameterSchema, error)
+	GetPrebuildMetrics(ctx context.Context) ([]GetPrebuildMetricsRow, error)
+	GetPrebuildsInProgress(ctx context.Context) ([]GetPrebuildsInProgressRow, error)
 	GetPresetByWorkspaceBuildID(ctx context.Context, workspaceBuildID uuid.UUID) (TemplateVersionPreset, error)
 	GetPresetParametersByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionPresetParameter, error)
+	GetPresetsBackoff(ctx context.Context, lookback time.Time) ([]GetPresetsBackoffRow, error)
 	GetPresetsByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionPreset, error)
 	GetPreviousTemplateVersion(ctx context.Context, arg GetPreviousTemplateVersionParams) (TemplateVersion, error)
 	GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDaemon, error)
@@ -243,6 +247,7 @@ type sqlcQuerier interface {
 	GetQuotaConsumedForUser(ctx context.Context, arg GetQuotaConsumedForUserParams) (int64, error)
 	GetReplicaByID(ctx context.Context, id uuid.UUID) (Replica, error)
 	GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]Replica, error)
+	GetRunningPrebuilds(ctx context.Context) ([]GetRunningPrebuildsRow, error)
 	GetRuntimeConfig(ctx context.Context, key string) (string, error)
 	GetTailnetAgents(ctx context.Context, id uuid.UUID) ([]TailnetAgent, error)
 	GetTailnetClientsForAgent(ctx context.Context, agentID uuid.UUID) ([]TailnetClient, error)
@@ -285,6 +290,7 @@ type sqlcQuerier interface {
 	// created in the timeframe and return the aggregate usage counts of parameter
 	// values.
 	GetTemplateParameterInsights(ctx context.Context, arg GetTemplateParameterInsightsParams) ([]GetTemplateParameterInsightsRow, error)
+	GetTemplatePresetsWithPrebuilds(ctx context.Context, templateID uuid.NullUUID) ([]GetTemplatePresetsWithPrebuildsRow, error)
 	GetTemplateUsageStats(ctx context.Context, arg GetTemplateUsageStatsParams) ([]TemplateUsageStat, error)
 	GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (TemplateVersion, error)
 	GetTemplateVersionByJobID(ctx context.Context, jobID uuid.UUID) (TemplateVersion, error)
@@ -309,7 +315,7 @@ type sqlcQuerier interface {
 	GetUserAppearanceSettings(ctx context.Context, userID uuid.UUID) (string, error)
 	GetUserByEmailOrUsername(ctx context.Context, arg GetUserByEmailOrUsernameParams) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
-	GetUserCount(ctx context.Context) (int64, error)
+	GetUserCount(ctx context.Context, includeSystem bool) (int64, error)
 	// GetUserLatencyInsights returns the median and 95th percentile connection
 	// latency that users have experienced. The result can be filtered on
 	// template_ids, meaning only user data from workspaces based on those templates
@@ -431,6 +437,7 @@ type sqlcQuerier interface {
 	InsertOrganizationMember(ctx context.Context, arg InsertOrganizationMemberParams) (OrganizationMember, error)
 	InsertPreset(ctx context.Context, arg InsertPresetParams) (TemplateVersionPreset, error)
 	InsertPresetParameters(ctx context.Context, arg InsertPresetParametersParams) ([]TemplateVersionPresetParameter, error)
+	InsertPresetPrebuild(ctx context.Context, arg InsertPresetPrebuildParams) (TemplateVersionPresetPrebuild, error)
 	InsertProvisionerJob(ctx context.Context, arg InsertProvisionerJobParams) (ProvisionerJob, error)
 	InsertProvisionerJobLogs(ctx context.Context, arg InsertProvisionerJobLogsParams) ([]ProvisionerJobLog, error)
 	InsertProvisionerJobTimings(ctx context.Context, arg InsertProvisionerJobTimingsParams) ([]ProvisionerJobTiming, error)

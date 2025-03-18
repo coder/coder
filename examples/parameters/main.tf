@@ -281,3 +281,19 @@ data "coder_parameter" "force-rebuild" {
 
   order = 4
 }
+
+# data "coder_workspace_preset" "coder" {
+#   name = "coder"
+#   parameters = {
+#     project_id = "coder"
+#     apps_dir = "/var/apps/coder"
+#   }
+# }
+
+# data "coder_workspace_preset" "envbuilder" {
+#   name = "envbuilder"
+#   parameters = {
+#     project_id = "envbuilder"
+#     apps_dir = "/var/apps/envbuilder"
+#   }
+# }

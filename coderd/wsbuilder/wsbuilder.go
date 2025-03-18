@@ -51,9 +51,10 @@ type Builder struct {
 	logLevel         string
 	deploymentValues *codersdk.DeploymentValues
 
-	richParameterValues []codersdk.WorkspaceBuildParameter
-	initiator           uuid.UUID
-	reason              database.BuildReason
+	richParameterValues     []codersdk.WorkspaceBuildParameter
+	initiator               uuid.UUID
+	reason                  database.BuildReason
+	templateVersionPresetID uuid.UUID
 
 	// used during build, makes function arguments less verbose
 	ctx   context.Context
@@ -72,6 +73,10 @@ type Builder struct {
 	lastBuildJob                 *database.ProvisionerJob
 	parameterNames               *[]string
 	parameterValues              *[]string
+
+	prebuild                bool
+	prebuildClaimedBy       uuid.UUID
+	runningWorkspaceAgentID uuid.UUID
 
 	verifyNoLegacyParametersOnce bool
 }
@@ -168,6 +173,25 @@ func (b Builder) RichParameterValues(p []codersdk.WorkspaceBuildParameter) Build
 	return b
 }
 
+func (b Builder) MarkPrebuild() Builder {
+	// nolint: revive
+	b.prebuild = true
+	return b
+}
+
+func (b Builder) MarkPrebuildClaimedBy(userID uuid.UUID) Builder {
+	// nolint: revive
+	b.prebuildClaimedBy = userID
+	return b
+}
+
+// RunningWorkspaceAgentID is only used for prebuilds; see the associated field in `provisionerdserver.WorkspaceProvisionJob`.
+func (b Builder) RunningWorkspaceAgentID(id uuid.UUID) Builder {
+	// nolint: revive
+	b.runningWorkspaceAgentID = id
+	return b
+}
+
 // SetLastWorkspaceBuildInTx prepopulates the Builder's cache with the last workspace build.  This allows us
 // to avoid a repeated database query when the Builder's caller also needs the workspace build, e.g. auto-start &
 // auto-stop.
@@ -189,6 +213,12 @@ func (b Builder) SetLastWorkspaceBuildInTx(build *database.WorkspaceBuild) Build
 func (b Builder) SetLastWorkspaceBuildJobInTx(job *database.ProvisionerJob) Builder {
 	// nolint: revive
 	b.lastBuildJob = job
+	return b
+}
+
+func (b Builder) TemplateVersionPresetID(id uuid.UUID) Builder {
+	// nolint: revive
+	b.templateVersionPresetID = id
 	return b
 }
 
@@ -293,8 +323,11 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 
 	workspaceBuildID := uuid.New()
 	input, err := json.Marshal(provisionerdserver.WorkspaceProvisionJob{
-		WorkspaceBuildID: workspaceBuildID,
-		LogLevel:         b.logLevel,
+		WorkspaceBuildID:        workspaceBuildID,
+		LogLevel:                b.logLevel,
+		IsPrebuild:              b.prebuild,
+		PrebuildClaimedByUser:   b.prebuildClaimedBy,
+		RunningWorkspaceAgentID: b.runningWorkspaceAgentID,
 	})
 	if err != nil {
 		return nil, nil, nil, BuildError{
@@ -363,20 +396,23 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 	var workspaceBuild database.WorkspaceBuild
 	err = b.store.InTx(func(store database.Store) error {
 		err = store.InsertWorkspaceBuild(b.ctx, database.InsertWorkspaceBuildParams{
-			ID:                      workspaceBuildID,
-			CreatedAt:               now,
-			UpdatedAt:               now,
-			WorkspaceID:             b.workspace.ID,
-			TemplateVersionID:       templateVersionID,
-			BuildNumber:             buildNum,
-			ProvisionerState:        state,
-			InitiatorID:             b.initiator,
-			Transition:              b.trans,
-			JobID:                   provisionerJob.ID,
-			Reason:                  b.reason,
-			Deadline:                time.Time{},     // set by provisioner upon completion
-			MaxDeadline:             time.Time{},     // set by provisioner upon completion
-			TemplateVersionPresetID: uuid.NullUUID{}, // TODO (sasswart): add this in from the caller
+			ID:                workspaceBuildID,
+			CreatedAt:         now,
+			UpdatedAt:         now,
+			WorkspaceID:       b.workspace.ID,
+			TemplateVersionID: templateVersionID,
+			BuildNumber:       buildNum,
+			ProvisionerState:  state,
+			InitiatorID:       b.initiator,
+			Transition:        b.trans,
+			JobID:             provisionerJob.ID,
+			Reason:            b.reason,
+			Deadline:          time.Time{}, // set by provisioner upon completion
+			MaxDeadline:       time.Time{}, // set by provisioner upon completion
+			TemplateVersionPresetID: uuid.NullUUID{
+				UUID:  b.templateVersionPresetID,
+				Valid: b.templateVersionPresetID != uuid.Nil,
+			},
 		})
 		if err != nil {
 			code := http.StatusInternalServerError
@@ -587,6 +623,11 @@ func (b *Builder) findNewBuildParameterValue(name string) *codersdk.WorkspaceBui
 }
 
 func (b *Builder) getLastBuildParameters() ([]database.WorkspaceBuildParameter, error) {
+	// TODO: exclude preset params from this list instead of returning nothing?
+	if b.prebuildClaimedBy != uuid.Nil {
+		return nil, nil
+	}
+
 	if b.lastBuildParameters != nil {
 		return *b.lastBuildParameters, nil
 	}

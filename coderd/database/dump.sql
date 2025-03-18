@@ -445,6 +445,17 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION prevent_system_user_changes() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+	IF OLD.is_system = true THEN
+		RAISE EXCEPTION 'Cannot modify or delete system users';
+	END IF;
+	RETURN OLD;
+END;
+$$;
+
 CREATE FUNCTION protect_deleting_organizations() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -854,6 +865,7 @@ CREATE TABLE users (
     github_com_user_id bigint,
     hashed_one_time_passcode bytea,
     one_time_passcode_expires_at timestamp with time zone,
+    is_system boolean DEFAULT false NOT NULL,
     CONSTRAINT one_time_passcode_set CHECK ((((hashed_one_time_passcode IS NULL) AND (one_time_passcode_expires_at IS NULL)) OR ((hashed_one_time_passcode IS NOT NULL) AND (one_time_passcode_expires_at IS NOT NULL))))
 );
 
@@ -866,6 +878,8 @@ COMMENT ON COLUMN users.github_com_user_id IS 'The GitHub.com numerical user ID.
 COMMENT ON COLUMN users.hashed_one_time_passcode IS 'A hash of the one-time-passcode given to the user.';
 
 COMMENT ON COLUMN users.one_time_passcode_expires_at IS 'The time when the one-time-passcode expires.';
+
+COMMENT ON COLUMN users.is_system IS 'Determines if a user is a system user, and therefore cannot login or perform normal actions';
 
 CREATE VIEW group_members_expanded AS
  WITH all_members AS (
@@ -1366,6 +1380,13 @@ CREATE TABLE template_version_preset_parameters (
     template_version_preset_id uuid NOT NULL,
     name text NOT NULL,
     value text NOT NULL
+);
+
+CREATE TABLE template_version_preset_prebuilds (
+    id uuid NOT NULL,
+    preset_id uuid NOT NULL,
+    desired_instances integer NOT NULL,
+    invalidate_after_secs integer DEFAULT 0
 );
 
 CREATE TABLE template_version_presets (
@@ -1878,6 +1899,25 @@ CREATE VIEW workspace_build_with_user AS
 
 COMMENT ON VIEW workspace_build_with_user IS 'Joins in the username + avatar url of the initiated by user.';
 
+CREATE VIEW workspace_latest_build AS
+ SELECT DISTINCT ON (workspace_builds.workspace_id) workspace_builds.id,
+    workspace_builds.created_at,
+    workspace_builds.updated_at,
+    workspace_builds.workspace_id,
+    workspace_builds.template_version_id,
+    workspace_builds.build_number,
+    workspace_builds.transition,
+    workspace_builds.initiator_id,
+    workspace_builds.provisioner_state,
+    workspace_builds.job_id,
+    workspace_builds.deadline,
+    workspace_builds.reason,
+    workspace_builds.daily_cost,
+    workspace_builds.max_deadline,
+    workspace_builds.template_version_preset_id
+   FROM workspace_builds
+  ORDER BY workspace_builds.workspace_id, workspace_builds.build_number DESC;
+
 CREATE TABLE workspace_modules (
     id uuid NOT NULL,
     job_id uuid NOT NULL,
@@ -1887,6 +1927,48 @@ CREATE TABLE workspace_modules (
     key text NOT NULL,
     created_at timestamp with time zone NOT NULL
 );
+
+CREATE VIEW workspace_prebuild_builds AS
+ SELECT workspace_builds.id,
+    workspace_builds.created_at,
+    workspace_builds.updated_at,
+    workspace_builds.workspace_id,
+    workspace_builds.template_version_id,
+    workspace_builds.build_number,
+    workspace_builds.transition,
+    workspace_builds.initiator_id,
+    workspace_builds.provisioner_state,
+    workspace_builds.job_id,
+    workspace_builds.deadline,
+    workspace_builds.reason,
+    workspace_builds.daily_cost,
+    workspace_builds.max_deadline,
+    workspace_builds.template_version_preset_id
+   FROM workspace_builds
+  WHERE (workspace_builds.initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid);
+
+CREATE VIEW workspace_prebuilds AS
+SELECT
+    NULL::uuid AS id,
+    NULL::timestamp with time zone AS created_at,
+    NULL::timestamp with time zone AS updated_at,
+    NULL::uuid AS owner_id,
+    NULL::uuid AS organization_id,
+    NULL::uuid AS template_id,
+    NULL::boolean AS deleted,
+    NULL::character varying(64) AS name,
+    NULL::text AS autostart_schedule,
+    NULL::bigint AS ttl,
+    NULL::timestamp with time zone AS last_used_at,
+    NULL::timestamp with time zone AS dormant_at,
+    NULL::timestamp with time zone AS deleting_at,
+    NULL::automatic_updates AS automatic_updates,
+    NULL::boolean AS favorite,
+    NULL::timestamp with time zone AS next_start_at,
+    NULL::uuid AS agent_id,
+    NULL::workspace_agent_lifecycle_state AS lifecycle_state,
+    NULL::timestamp with time zone AS ready_at,
+    NULL::uuid AS current_preset_id;
 
 CREATE TABLE workspace_proxies (
     id uuid NOT NULL,
@@ -2184,6 +2266,9 @@ ALTER TABLE ONLY template_version_parameters
 ALTER TABLE ONLY template_version_preset_parameters
     ADD CONSTRAINT template_version_preset_parameters_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY template_version_preset_prebuilds
+    ADD CONSTRAINT template_version_preset_prebuilds_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY template_version_presets
     ADD CONSTRAINT template_version_presets_pkey PRIMARY KEY (id);
 
@@ -2334,6 +2419,8 @@ CREATE INDEX idx_tailnet_tunnels_dst_id ON tailnet_tunnels USING hash (dst_id);
 
 CREATE INDEX idx_tailnet_tunnels_src_id ON tailnet_tunnels USING hash (src_id);
 
+CREATE UNIQUE INDEX idx_unique_preset_name ON template_version_presets USING btree (name, template_version_id);
+
 CREATE INDEX idx_user_deleted_deleted_at ON user_deleted USING btree (deleted_at);
 
 CREATE INDEX idx_user_status_changes_changed_at ON user_status_changes USING btree (changed_at);
@@ -2361,6 +2448,8 @@ CREATE UNIQUE INDEX template_usage_stats_start_time_template_id_user_id_idx ON t
 COMMENT ON INDEX template_usage_stats_start_time_template_id_user_id_idx IS 'Index for primary key.';
 
 CREATE UNIQUE INDEX templates_organization_id_name_idx ON templates USING btree (organization_id, lower((name)::text)) WHERE (deleted = false);
+
+CREATE INDEX user_is_system_idx ON users USING btree (is_system);
 
 CREATE UNIQUE INDEX user_links_linked_id_login_type_idx ON user_links USING btree (linked_id, login_type) WHERE (linked_id <> ''::text);
 
@@ -2448,7 +2537,91 @@ CREATE OR REPLACE VIEW provisioner_job_stats AS
      LEFT JOIN provisioner_job_timings pjt ON ((pjt.job_id = pj.id)))
   GROUP BY pj.id, wb.workspace_id;
 
+CREATE OR REPLACE VIEW workspace_prebuilds AS
+ WITH all_prebuilds AS (
+         SELECT w.id,
+            w.created_at,
+            w.updated_at,
+            w.owner_id,
+            w.organization_id,
+            w.template_id,
+            w.deleted,
+            w.name,
+            w.autostart_schedule,
+            w.ttl,
+            w.last_used_at,
+            w.dormant_at,
+            w.deleting_at,
+            w.automatic_updates,
+            w.favorite,
+            w.next_start_at
+           FROM workspaces w
+          WHERE (w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid)
+        ), latest_prebuild_builds AS (
+         SELECT workspace_latest_build.id,
+            workspace_latest_build.created_at,
+            workspace_latest_build.updated_at,
+            workspace_latest_build.workspace_id,
+            workspace_latest_build.template_version_id,
+            workspace_latest_build.build_number,
+            workspace_latest_build.transition,
+            workspace_latest_build.initiator_id,
+            workspace_latest_build.provisioner_state,
+            workspace_latest_build.job_id,
+            workspace_latest_build.deadline,
+            workspace_latest_build.reason,
+            workspace_latest_build.daily_cost,
+            workspace_latest_build.max_deadline,
+            workspace_latest_build.template_version_preset_id
+           FROM workspace_latest_build
+          WHERE (workspace_latest_build.template_version_preset_id IS NOT NULL)
+        ), workspace_agents AS (
+         SELECT w.id AS workspace_id,
+            wa.id AS agent_id,
+            wa.lifecycle_state,
+            wa.ready_at
+           FROM (((workspaces w
+             JOIN workspace_latest_build wlb ON ((wlb.workspace_id = w.id)))
+             JOIN workspace_resources wr ON ((wr.job_id = wlb.job_id)))
+             JOIN workspace_agents wa ON ((wa.resource_id = wr.id)))
+          WHERE (w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid)
+          GROUP BY w.id, wa.id
+        ), current_presets AS (
+         SELECT w.id AS prebuild_id,
+            lpb.template_version_preset_id
+           FROM (workspaces w
+             JOIN latest_prebuild_builds lpb ON ((lpb.workspace_id = w.id)))
+          WHERE (w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid)
+        )
+ SELECT p.id,
+    p.created_at,
+    p.updated_at,
+    p.owner_id,
+    p.organization_id,
+    p.template_id,
+    p.deleted,
+    p.name,
+    p.autostart_schedule,
+    p.ttl,
+    p.last_used_at,
+    p.dormant_at,
+    p.deleting_at,
+    p.automatic_updates,
+    p.favorite,
+    p.next_start_at,
+    a.agent_id,
+    a.lifecycle_state,
+    a.ready_at,
+    cp.template_version_preset_id AS current_preset_id
+   FROM ((all_prebuilds p
+     LEFT JOIN workspace_agents a ON ((a.workspace_id = p.id)))
+     JOIN current_presets cp ON ((cp.prebuild_id = p.id)));
+
 CREATE TRIGGER inhibit_enqueue_if_disabled BEFORE INSERT ON notification_messages FOR EACH ROW EXECUTE FUNCTION inhibit_enqueue_if_disabled();
+
+CREATE TRIGGER prevent_system_user_deletions BEFORE DELETE ON users FOR EACH ROW WHEN ((old.is_system = true)) EXECUTE FUNCTION prevent_system_user_changes();
+
+CREATE TRIGGER prevent_system_user_updates BEFORE UPDATE ON users FOR EACH ROW WHEN ((old.is_system = true)) EXECUTE FUNCTION prevent_system_user_changes();
 
 CREATE TRIGGER protect_deleting_organizations BEFORE UPDATE ON organizations FOR EACH ROW WHEN (((new.deleted = true) AND (old.deleted = false))) EXECUTE FUNCTION protect_deleting_organizations();
 
@@ -2594,6 +2767,9 @@ ALTER TABLE ONLY template_version_parameters
 
 ALTER TABLE ONLY template_version_preset_parameters
     ADD CONSTRAINT template_version_preset_paramet_template_version_preset_id_fkey FOREIGN KEY (template_version_preset_id) REFERENCES template_version_presets(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY template_version_preset_prebuilds
+    ADD CONSTRAINT template_version_preset_prebuilds_preset_id_fkey FOREIGN KEY (preset_id) REFERENCES template_version_presets(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY template_version_presets
     ADD CONSTRAINT template_version_presets_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;

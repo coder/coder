@@ -33,7 +33,7 @@ func Entitlements(
 	}
 
 	// nolint:gocritic // Getting active user count is a system function.
-	activeUserCount, err := db.GetActiveUserCount(dbauthz.AsSystemRestricted(ctx))
+	activeUserCount, err := db.GetActiveUserCount(dbauthz.AsSystemRestricted(ctx), false) // Don't include system user in license count.
 	if err != nil {
 		return codersdk.Entitlements{}, xerrors.Errorf("query active user count: %w", err)
 	}

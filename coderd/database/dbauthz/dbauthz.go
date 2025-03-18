@@ -18,6 +18,7 @@ import (
 
 	"cdr.dev/slog"
 
+	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/rbac/rolestore"
 
@@ -358,6 +359,27 @@ var (
 		}),
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
+
+	subjectPrebuildsOrchestrator = rbac.Subject{
+		FriendlyName: "Prebuilds Orchestrator",
+		ID:           prebuilds.SystemUserID.String(),
+		Roles: rbac.Roles([]rbac.Role{
+			{
+				Identifier:  rbac.RoleIdentifier{Name: "prebuilds-orchestrator"},
+				DisplayName: "Coder",
+				Site: rbac.Permissions(map[string][]policy.Action{
+					// May use template, read template-related info, & insert template-related resources (preset prebuilds).
+					rbac.ResourceTemplate.Type: {policy.ActionRead, policy.ActionUpdate, policy.ActionUse},
+					// May CRUD workspaces, and start/stop them.
+					rbac.ResourceWorkspace.Type: {
+						policy.ActionCreate, policy.ActionDelete, policy.ActionRead, policy.ActionUpdate,
+						policy.ActionWorkspaceStart, policy.ActionWorkspaceStop,
+					},
+				}),
+			},
+		}),
+		Scope: rbac.ScopeAll,
+	}.WithCachedASTValue()
 )
 
 // AsProvisionerd returns a context with an actor that has permissions required
@@ -410,6 +432,12 @@ func AsSystemRestricted(ctx context.Context) context.Context {
 // to read provisioner daemons.
 func AsSystemReadProvisionerDaemons(ctx context.Context) context.Context {
 	return context.WithValue(ctx, authContextKey{}, subjectSystemReadProvisionerDaemons)
+}
+
+// AsPrebuildsOrchestrator returns a context with an actor that has permissions
+// to read orchestrator workspace prebuilds.
+func AsPrebuildsOrchestrator(ctx context.Context) context.Context {
+	return context.WithValue(ctx, authContextKey{}, subjectPrebuildsOrchestrator)
 }
 
 var AsRemoveActor = rbac.Subject{
@@ -1056,13 +1084,13 @@ func (q *querier) ActivityBumpWorkspace(ctx context.Context, arg database.Activi
 	return update(q.log, q.auth, fetch, q.db.ActivityBumpWorkspace)(ctx, arg)
 }
 
-func (q *querier) AllUserIDs(ctx context.Context) ([]uuid.UUID, error) {
+func (q *querier) AllUserIDs(ctx context.Context, includeSystem bool) ([]uuid.UUID, error) {
 	// Although this technically only reads users, only system-related functions should be
 	// allowed to call this.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
 	}
-	return q.db.AllUserIDs(ctx)
+	return q.db.AllUserIDs(ctx, includeSystem)
 }
 
 func (q *querier) ArchiveUnusedTemplateVersions(ctx context.Context, arg database.ArchiveUnusedTemplateVersionsParams) ([]uuid.UUID, error) {
@@ -1104,6 +1132,15 @@ func (q *querier) BulkMarkNotificationMessagesSent(ctx context.Context, arg data
 		return 0, err
 	}
 	return q.db.BulkMarkNotificationMessagesSent(ctx, arg)
+}
+
+func (q *querier) ClaimPrebuild(ctx context.Context, newOwnerID database.ClaimPrebuildParams) (database.ClaimPrebuildRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceWorkspace); err != nil {
+		return database.ClaimPrebuildRow{
+			ID: uuid.Nil,
+		}, err
+	}
+	return q.db.ClaimPrebuild(ctx, newOwnerID)
 }
 
 func (q *querier) CleanTailnetCoordinators(ctx context.Context) error {
@@ -1315,7 +1352,11 @@ func (q *querier) DeleteOldWorkspaceAgentStats(ctx context.Context) error {
 
 func (q *querier) DeleteOrganizationMember(ctx context.Context, arg database.DeleteOrganizationMemberParams) error {
 	return deleteQ[database.OrganizationMember](q.log, q.auth, func(ctx context.Context, arg database.DeleteOrganizationMemberParams) (database.OrganizationMember, error) {
-		member, err := database.ExpectOne(q.OrganizationMembers(ctx, database.OrganizationMembersParams(arg)))
+		member, err := database.ExpectOne(q.OrganizationMembers(ctx, database.OrganizationMembersParams{
+			OrganizationID: arg.OrganizationID,
+			UserID:         arg.UserID,
+			IncludeSystem:  false,
+		}))
 		if err != nil {
 			return database.OrganizationMember{}, err
 		}
@@ -1501,11 +1542,11 @@ func (q *querier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Tim
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetAPIKeysLastUsedAfter)(ctx, lastUsed)
 }
 
-func (q *querier) GetActiveUserCount(ctx context.Context) (int64, error) {
+func (q *querier) GetActiveUserCount(ctx context.Context, includeSystem bool) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return 0, err
 	}
-	return q.db.GetActiveUserCount(ctx)
+	return q.db.GetActiveUserCount(ctx, includeSystem)
 }
 
 func (q *querier) GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]database.WorkspaceBuild, error) {
@@ -2016,6 +2057,20 @@ func (q *querier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUI
 	return q.db.GetParameterSchemasByJobID(ctx, jobID)
 }
 
+func (q *querier) GetPrebuildMetrics(ctx context.Context) ([]database.GetPrebuildMetricsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate); err != nil {
+		return nil, err
+	}
+	return q.db.GetPrebuildMetrics(ctx)
+}
+
+func (q *querier) GetPrebuildsInProgress(ctx context.Context) ([]database.GetPrebuildsInProgressRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate); err != nil {
+		return nil, err
+	}
+	return q.db.GetPrebuildsInProgress(ctx)
+}
+
 func (q *querier) GetPresetByWorkspaceBuildID(ctx context.Context, workspaceID uuid.UUID) (database.TemplateVersionPreset, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate); err != nil {
 		return database.TemplateVersionPreset{}, err
@@ -2031,6 +2086,13 @@ func (q *querier) GetPresetParametersByTemplateVersionID(ctx context.Context, te
 	}
 
 	return q.db.GetPresetParametersByTemplateVersionID(ctx, templateVersionID)
+}
+
+func (q *querier) GetPresetsBackoff(ctx context.Context, lookback time.Time) ([]database.GetPresetsBackoffRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate); err != nil {
+		return nil, err
+	}
+	return q.db.GetPresetsBackoff(ctx, lookback)
 }
 
 func (q *querier) GetPresetsByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionPreset, error) {
@@ -2084,13 +2146,13 @@ func (q *querier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (data
 		// can read the job.
 		_, err := q.GetWorkspaceBuildByJobID(ctx, id)
 		if err != nil {
-			return database.ProvisionerJob{}, err
+			return database.ProvisionerJob{}, xerrors.Errorf("fetch related workspace build: %w", err)
 		}
 	case database.ProvisionerJobTypeTemplateVersionDryRun, database.ProvisionerJobTypeTemplateVersionImport:
 		// Authorized call to get template version.
 		_, err := authorizedTemplateVersionFromJob(ctx, q, job)
 		if err != nil {
-			return database.ProvisionerJob{}, err
+			return database.ProvisionerJob{}, xerrors.Errorf("fetch related template version: %w", err)
 		}
 	default:
 		return database.ProvisionerJob{}, xerrors.Errorf("unknown job type: %q", job.Type)
@@ -2181,6 +2243,13 @@ func (q *querier) GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Ti
 		return nil, err
 	}
 	return q.db.GetReplicasUpdatedAfter(ctx, updatedAt)
+}
+
+func (q *querier) GetRunningPrebuilds(ctx context.Context) ([]database.GetRunningPrebuildsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate); err != nil {
+		return nil, err
+	}
+	return q.db.GetRunningPrebuilds(ctx)
 }
 
 func (q *querier) GetRuntimeConfig(ctx context.Context, key string) (string, error) {
@@ -2305,6 +2374,16 @@ func (q *querier) GetTemplateParameterInsights(ctx context.Context, arg database
 		return nil, err
 	}
 	return q.db.GetTemplateParameterInsights(ctx, arg)
+}
+
+func (q *querier) GetTemplatePresetsWithPrebuilds(ctx context.Context, templateID uuid.NullUUID) ([]database.GetTemplatePresetsWithPrebuildsRow, error) {
+	// Although this fetches presets. It filters them by prebuilds and is only of use to the prebuild system.
+	// As such, we authorize this in line with other prebuild queries, not with other preset queries.
+
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate); err != nil {
+		return nil, err
+	}
+	return q.db.GetTemplatePresetsWithPrebuilds(ctx, templateID)
 }
 
 func (q *querier) GetTemplateUsageStats(ctx context.Context, arg database.GetTemplateUsageStatsParams) ([]database.TemplateUsageStat, error) {
@@ -2529,11 +2608,11 @@ func (q *querier) GetUserByID(ctx context.Context, id uuid.UUID) (database.User,
 	return fetch(q.log, q.auth, q.db.GetUserByID)(ctx, id)
 }
 
-func (q *querier) GetUserCount(ctx context.Context) (int64, error) {
+func (q *querier) GetUserCount(ctx context.Context, includeSystem bool) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return 0, err
 	}
-	return q.db.GetUserCount(ctx)
+	return q.db.GetUserCount(ctx, includeSystem)
 }
 
 func (q *querier) GetUserLatencyInsights(ctx context.Context, arg database.GetUserLatencyInsightsParams) ([]database.GetUserLatencyInsightsRow, error) {
@@ -3231,6 +3310,13 @@ func (q *querier) InsertPresetParameters(ctx context.Context, arg database.Inser
 	return q.db.InsertPresetParameters(ctx, arg)
 }
 
+func (q *querier) InsertPresetPrebuild(ctx context.Context, arg database.InsertPresetPrebuildParams) (database.TemplateVersionPresetPrebuild, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.TemplateVersionPresetPrebuild{}, err
+	}
+	return q.db.InsertPresetPrebuild(ctx, arg)
+}
+
 // TODO: We need to create a ProvisionerJob resource type
 func (q *querier) InsertProvisionerJob(ctx context.Context, arg database.InsertProvisionerJobParams) (database.ProvisionerJob, error) {
 	// if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
@@ -3745,6 +3831,7 @@ func (q *querier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemb
 	member, err := database.ExpectOne(q.OrganizationMembers(ctx, database.OrganizationMembersParams{
 		OrganizationID: arg.OrgID,
 		UserID:         arg.UserID,
+		IncludeSystem:  false,
 	}))
 	if err != nil {
 		return database.OrganizationMember{}, err

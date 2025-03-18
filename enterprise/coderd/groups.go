@@ -170,6 +170,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		_, err := database.ExpectOne(api.Database.OrganizationMembers(ctx, database.OrganizationMembersParams{
 			OrganizationID: group.OrganizationID,
 			UserID:         uuid.MustParse(id),
+			IncludeSystem:  false,
 		}))
 		if errors.Is(err, sql.ErrNoRows) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
