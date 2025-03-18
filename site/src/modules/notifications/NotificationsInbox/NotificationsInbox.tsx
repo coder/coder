@@ -5,10 +5,10 @@ import type {
 	UpdateInboxNotificationReadStatusResponse,
 } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
+import { useEffectEvent } from "hooks/hookPolyfills";
 import { type FC, useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { InboxPopover } from "./InboxPopover";
-import { useEffectEvent } from "hooks/hookPolyfills";
 
 const NOTIFICATIONS_QUERY_KEY = ["notifications"];
 
@@ -79,7 +79,6 @@ export const NotificationsInbox: FC<NotificationsInboxProps> = ({
 		mutationFn: markAllAsRead,
 		onSuccess: () => {
 			updateNotificationsCache((prev) => {
-				console.log("PREV", prev);
 				return {
 					unread_count: 0,
 					notifications: prev.notifications.map((n) => ({
