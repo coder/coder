@@ -92,6 +92,7 @@ func New() database.Store {
 			workspaceAgentLogs:        make([]database.WorkspaceAgentLog, 0),
 			workspaceBuilds:           make([]database.WorkspaceBuild, 0),
 			workspaceApps:             make([]database.WorkspaceApp, 0),
+			workspaceAppAuditSessions: make([]database.WorkspaceAppAuditSession, 0),
 			workspaces:                make([]database.WorkspaceTable, 0),
 			workspaceProxies:          make([]database.WorkspaceProxy, 0),
 		},
@@ -237,6 +238,7 @@ type data struct {
 	workspaceAgentMemoryResourceMonitors []database.WorkspaceAgentMemoryResourceMonitor
 	workspaceAgentVolumeResourceMonitors []database.WorkspaceAgentVolumeResourceMonitor
 	workspaceApps                        []database.WorkspaceApp
+	workspaceAppAuditSessions            []database.WorkspaceAppAuditSession
 	workspaceAppStatsLastInsertID        int64
 	workspaceAppStats                    []database.WorkspaceAppStat
 	workspaceBuilds                      []database.WorkspaceBuild
@@ -3296,34 +3298,52 @@ func (q *FakeQuerier) GetFilteredInboxNotificationsByUserID(_ context.Context, a
 	defer q.mutex.RUnlock()
 
 	notifications := make([]database.InboxNotification, 0)
-	for _, notification := range q.inboxNotifications {
+	// TODO : after using go version >= 1.23 , we can change this one to https://pkg.go.dev/slices#Backward
+	for idx := len(q.inboxNotifications) - 1; idx >= 0; idx-- {
+		notification := q.inboxNotifications[idx]
+
 		if notification.UserID == arg.UserID {
+			if !arg.CreatedAtOpt.IsZero() && !notification.CreatedAt.Before(arg.CreatedAtOpt) {
+				continue
+			}
+
+			templateFound := false
 			for _, template := range arg.Templates {
-				templateFound := false
 				if notification.TemplateID == template {
 					templateFound = true
 				}
-
-				if !templateFound {
-					continue
-				}
 			}
 
+			if len(arg.Templates) > 0 && !templateFound {
+				continue
+			}
+
+			targetsFound := true
 			for _, target := range arg.Targets {
-				isFound := false
+				targetFound := false
 				for _, insertedTarget := range notification.Targets {
 					if insertedTarget == target {
-						isFound = true
+						targetFound = true
 						break
 					}
 				}
 
-				if !isFound {
-					continue
+				if !targetFound {
+					targetsFound = false
+					break
 				}
-
-				notifications = append(notifications, notification)
 			}
+
+			if !targetsFound {
+				continue
+			}
+
+			if (arg.LimitOpt == 0 && len(notifications) == 25) ||
+				(arg.LimitOpt != 0 && len(notifications) == int(arg.LimitOpt)) {
+				break
+			}
+
+			notifications = append(notifications, notification)
 		}
 	}
 
@@ -8223,7 +8243,7 @@ func (q *FakeQuerier) InsertInboxNotification(_ context.Context, arg database.In
 		Content:    arg.Content,
 		Icon:       arg.Icon,
 		Actions:    arg.Actions,
-		CreatedAt:  time.Now(),
+		CreatedAt:  arg.CreatedAt,
 	}
 
 	q.inboxNotifications = append(q.inboxNotifications, notification)
@@ -9582,6 +9602,53 @@ func (q *FakeQuerier) OrganizationMembers(_ context.Context, arg database.Organi
 		})
 	}
 	return tmp, nil
+}
+
+func (q *FakeQuerier) PaginatedOrganizationMembers(_ context.Context, arg database.PaginatedOrganizationMembersParams) ([]database.PaginatedOrganizationMembersRow, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	// All of the members in the organization
+	orgMembers := make([]database.OrganizationMember, 0)
+	for _, mem := range q.organizationMembers {
+		if mem.OrganizationID != arg.OrganizationID {
+			continue
+		}
+
+		orgMembers = append(orgMembers, mem)
+	}
+
+	selectedMembers := make([]database.PaginatedOrganizationMembersRow, 0)
+
+	skippedMembers := 0
+	for _, organizationMember := range orgMembers {
+		if skippedMembers < int(arg.OffsetOpt) {
+			skippedMembers++
+			continue
+		}
+
+		// if the limit is set to 0 we treat that as returning all of the org members
+		if int(arg.LimitOpt) != 0 && len(selectedMembers) >= int(arg.LimitOpt) {
+			break
+		}
+
+		user, _ := q.getUserByIDNoLock(organizationMember.UserID)
+		selectedMembers = append(selectedMembers, database.PaginatedOrganizationMembersRow{
+			OrganizationMember: organizationMember,
+			Username:           user.Username,
+			AvatarURL:          user.AvatarURL,
+			Name:               user.Name,
+			Email:              user.Email,
+			GlobalRoles:        user.RBACRoles,
+			Count:              int64(len(orgMembers)),
+		})
+	}
+	return selectedMembers, nil
 }
 
 func (q *FakeQuerier) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(_ context.Context, templateID uuid.UUID) error {
@@ -12214,6 +12281,63 @@ func (q *FakeQuerier) UpsertWorkspaceAgentPortShare(_ context.Context, arg datab
 	q.workspaceAgentPortShares = append(q.workspaceAgentPortShares, psl)
 
 	return psl, nil
+}
+
+func (q *FakeQuerier) UpsertWorkspaceAppAuditSession(_ context.Context, arg database.UpsertWorkspaceAppAuditSessionParams) (time.Time, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, s := range q.workspaceAppAuditSessions {
+		if s.AgentID != arg.AgentID {
+			continue
+		}
+		if s.AppID != arg.AppID {
+			continue
+		}
+		if s.UserID != arg.UserID {
+			continue
+		}
+		if s.Ip != arg.Ip {
+			continue
+		}
+		if s.UserAgent != arg.UserAgent {
+			continue
+		}
+		if s.SlugOrPort != arg.SlugOrPort {
+			continue
+		}
+		if s.StatusCode != arg.StatusCode {
+			continue
+		}
+
+		staleTime := dbtime.Now().Add(-(time.Duration(arg.StaleIntervalMS) * time.Millisecond))
+		fresh := s.UpdatedAt.After(staleTime)
+
+		q.workspaceAppAuditSessions[i].UpdatedAt = arg.UpdatedAt
+		if !fresh {
+			q.workspaceAppAuditSessions[i].StartedAt = arg.StartedAt
+			return arg.StartedAt, nil
+		}
+		return s.StartedAt, nil
+	}
+
+	q.workspaceAppAuditSessions = append(q.workspaceAppAuditSessions, database.WorkspaceAppAuditSession{
+		AgentID:    arg.AgentID,
+		AppID:      arg.AppID,
+		UserID:     arg.UserID,
+		Ip:         arg.Ip,
+		UserAgent:  arg.UserAgent,
+		SlugOrPort: arg.SlugOrPort,
+		StatusCode: arg.StatusCode,
+		StartedAt:  arg.StartedAt,
+		UpdatedAt:  arg.UpdatedAt,
+	})
+	return arg.StartedAt, nil
 }
 
 func (q *FakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, prepared rbac.PreparedAuthorized) ([]database.Template, error) {

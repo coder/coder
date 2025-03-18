@@ -15,8 +15,8 @@ Persistent resources stay provisioned when the workspace is stopped, where as
 ephemeral resources are destroyed and recreated on restart. All resources are
 destroyed when a workspace is deleted.
 
-> Template administrators can learn more about resource configuration in the
-> [extending templates docs](../admin/templates/extending-templates/resource-persistence.md).
+Template administrators can learn more about resource configuration in the
+[extending templates docs](../admin/templates/extending-templates/resource-persistence.md).
 
 ## Workspace States
 

@@ -892,6 +892,12 @@ export interface GenerateAPIKeyResponse {
 	readonly key: string;
 }
 
+// From codersdk/inboxnotification.go
+export interface GetInboxNotificationResponse {
+	readonly notification: InboxNotification;
+	readonly unread_count: number;
+}
+
 // From codersdk/insights.go
 export interface GetUserStatusCountsRequest {
 	readonly offset: string;
@@ -1076,6 +1082,26 @@ export interface IDPSyncMapping<ResourceIdType extends string | string> {
 	readonly Gets: ResourceIdType;
 }
 
+// From codersdk/inboxnotification.go
+export interface InboxNotification {
+	readonly id: string;
+	readonly user_id: string;
+	readonly template_id: string;
+	readonly targets: readonly string[];
+	readonly title: string;
+	readonly content: string;
+	readonly icon: string;
+	readonly actions: readonly InboxNotificationAction[];
+	readonly read_at: string | null;
+	readonly created_at: string;
+}
+
+// From codersdk/inboxnotification.go
+export interface InboxNotificationAction {
+	readonly label: string;
+	readonly url: string;
+}
+
 // From codersdk/insights.go
 export type InsightsReportInterval = "day" | "week";
 
@@ -1131,6 +1157,20 @@ export interface LinkConfig {
 	readonly name: string;
 	readonly target: string;
 	readonly icon: string;
+}
+
+// From codersdk/inboxnotification.go
+export interface ListInboxNotificationsRequest {
+	readonly targets?: string;
+	readonly templates?: string;
+	readonly read_status?: string;
+	readonly starting_before?: string;
+}
+
+// From codersdk/inboxnotification.go
+export interface ListInboxNotificationsResponse {
+	readonly notifications: readonly InboxNotification[];
+	readonly unread_count: number;
 }
 
 // From codersdk/externalauth.go
@@ -1482,6 +1522,18 @@ export interface OrganizationSyncSettings {
 	readonly field: string;
 	readonly mapping: Record<string, string[]>;
 	readonly organization_assign_default: boolean;
+}
+
+// From codersdk/organizations.go
+export interface PaginatedMembersRequest {
+	readonly limit?: number;
+	readonly offset?: number;
+}
+
+// From codersdk/organizations.go
+export interface PaginatedMembersResponse {
+	readonly members: readonly OrganizationMemberWithUserData[];
+	readonly count: number;
 }
 
 // From codersdk/pagination.go
@@ -2641,6 +2693,17 @@ export interface UpdateHealthSettings {
 	readonly dismissed_healthchecks: readonly HealthSection[];
 }
 
+// From codersdk/inboxnotification.go
+export interface UpdateInboxNotificationReadStatusRequest {
+	readonly is_read: boolean;
+}
+
+// From codersdk/inboxnotification.go
+export interface UpdateInboxNotificationReadStatusResponse {
+	readonly notification: InboxNotification;
+	readonly unread_count: number;
+}
+
 // From codersdk/notifications.go
 export interface UpdateNotificationTemplateMethod {
 	readonly method?: string;
@@ -3002,9 +3065,17 @@ export interface WorkspaceAgentDevcontainer {
 	readonly image: string;
 	readonly labels: Record<string, string>;
 	readonly running: boolean;
-	readonly ports: readonly WorkspaceAgentListeningPort[];
+	readonly ports: readonly WorkspaceAgentDevcontainerPort[];
 	readonly status: string;
 	readonly volumes: Record<string, string>;
+}
+
+// From codersdk/workspaceagents.go
+export interface WorkspaceAgentDevcontainerPort {
+	readonly port: number;
+	readonly network: string;
+	readonly host_ip?: string;
+	readonly host_port?: number;
 }
 
 // From codersdk/workspaceagents.go

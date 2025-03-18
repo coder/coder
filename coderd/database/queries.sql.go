@@ -4310,8 +4310,8 @@ func (q *sqlQuerier) CountUnreadInboxNotificationsByUserID(ctx context.Context, 
 const getFilteredInboxNotificationsByUserID = `-- name: GetFilteredInboxNotificationsByUserID :many
 SELECT id, user_id, template_id, targets, title, content, icon, actions, read_at, created_at FROM inbox_notifications WHERE
 	user_id = $1 AND
-	template_id = ANY($2::UUID[]) AND
-	targets @> COALESCE($3, ARRAY[]::UUID[]) AND
+	($2::UUID[] IS NULL OR template_id = ANY($2::UUID[])) AND
+	($3::UUID[] IS NULL OR targets @> $3::UUID[]) AND
 	($4::inbox_notification_read_status = 'all' OR ($4::inbox_notification_read_status = 'unread' AND read_at IS NULL) OR ($4::inbox_notification_read_status = 'read' AND read_at IS NOT NULL)) AND
 	($5::TIMESTAMPTZ = '0001-01-01 00:00:00Z' OR created_at < $5::TIMESTAMPTZ)
 	ORDER BY created_at DESC
@@ -5256,6 +5256,81 @@ func (q *sqlQuerier) OrganizationMembers(ctx context.Context, arg OrganizationMe
 			&i.Name,
 			&i.Email,
 			&i.GlobalRoles,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const paginatedOrganizationMembers = `-- name: PaginatedOrganizationMembers :many
+SELECT
+	organization_members.user_id, organization_members.organization_id, organization_members.created_at, organization_members.updated_at, organization_members.roles,
+	users.username, users.avatar_url, users.name, users.email, users.rbac_roles as "global_roles",
+	COUNT(*) OVER() AS count
+FROM
+	organization_members
+		INNER JOIN
+	users ON organization_members.user_id = users.id AND users.deleted = false
+WHERE
+	-- Filter by organization id
+	CASE
+		WHEN $1 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			organization_id = $1
+		ELSE true
+	END
+ORDER BY
+	-- Deterministic and consistent ordering of all users. This is to ensure consistent pagination.
+	LOWER(username) ASC OFFSET $2
+LIMIT
+	-- A null limit means "no limit", so 0 means return all
+	NULLIF($3 :: int, 0)
+`
+
+type PaginatedOrganizationMembersParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	OffsetOpt      int32     `db:"offset_opt" json:"offset_opt"`
+	LimitOpt       int32     `db:"limit_opt" json:"limit_opt"`
+}
+
+type PaginatedOrganizationMembersRow struct {
+	OrganizationMember OrganizationMember `db:"organization_member" json:"organization_member"`
+	Username           string             `db:"username" json:"username"`
+	AvatarURL          string             `db:"avatar_url" json:"avatar_url"`
+	Name               string             `db:"name" json:"name"`
+	Email              string             `db:"email" json:"email"`
+	GlobalRoles        pq.StringArray     `db:"global_roles" json:"global_roles"`
+	Count              int64              `db:"count" json:"count"`
+}
+
+func (q *sqlQuerier) PaginatedOrganizationMembers(ctx context.Context, arg PaginatedOrganizationMembersParams) ([]PaginatedOrganizationMembersRow, error) {
+	rows, err := q.db.QueryContext(ctx, paginatedOrganizationMembers, arg.OrganizationID, arg.OffsetOpt, arg.LimitOpt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PaginatedOrganizationMembersRow
+	for rows.Next() {
+		var i PaginatedOrganizationMembersRow
+		if err := rows.Scan(
+			&i.OrganizationMember.UserID,
+			&i.OrganizationMember.OrganizationID,
+			&i.OrganizationMember.CreatedAt,
+			&i.OrganizationMember.UpdatedAt,
+			pq.Array(&i.OrganizationMember.Roles),
+			&i.Username,
+			&i.AvatarURL,
+			&i.Name,
+			&i.Email,
+			&i.GlobalRoles,
+			&i.Count,
 		); err != nil {
 			return nil, err
 		}
@@ -14558,6 +14633,79 @@ func (q *sqlQuerier) InsertWorkspaceAgentStats(ctx context.Context, arg InsertWo
 		pq.Array(arg.Usage),
 	)
 	return err
+}
+
+const upsertWorkspaceAppAuditSession = `-- name: UpsertWorkspaceAppAuditSession :one
+INSERT INTO
+	workspace_app_audit_sessions (
+		agent_id,
+		app_id,
+		user_id,
+		ip,
+		user_agent,
+		slug_or_port,
+		status_code,
+		started_at,
+		updated_at
+	)
+VALUES
+	(
+		$1,
+		$2,
+		$3,
+		$4,
+		$5,
+		$6,
+		$7,
+		$8,
+		$9
+	)
+ON CONFLICT
+	(agent_id, app_id, user_id, ip, user_agent, slug_or_port, status_code)
+DO
+	UPDATE
+	SET
+		started_at = CASE
+			WHEN workspace_app_audit_sessions.updated_at > NOW() - ($10::bigint || ' ms')::interval
+			THEN workspace_app_audit_sessions.started_at
+			ELSE EXCLUDED.started_at
+		END,
+		updated_at = EXCLUDED.updated_at
+RETURNING
+	started_at
+`
+
+type UpsertWorkspaceAppAuditSessionParams struct {
+	AgentID         uuid.UUID `db:"agent_id" json:"agent_id"`
+	AppID           uuid.UUID `db:"app_id" json:"app_id"`
+	UserID          uuid.UUID `db:"user_id" json:"user_id"`
+	Ip              string    `db:"ip" json:"ip"`
+	UserAgent       string    `db:"user_agent" json:"user_agent"`
+	SlugOrPort      string    `db:"slug_or_port" json:"slug_or_port"`
+	StatusCode      int32     `db:"status_code" json:"status_code"`
+	StartedAt       time.Time `db:"started_at" json:"started_at"`
+	UpdatedAt       time.Time `db:"updated_at" json:"updated_at"`
+	StaleIntervalMS int64     `db:"stale_interval_ms" json:"stale_interval_ms"`
+}
+
+// Insert a new workspace app audit session or update an existing one, if
+// started_at is updated, it means the session has been restarted.
+func (q *sqlQuerier) UpsertWorkspaceAppAuditSession(ctx context.Context, arg UpsertWorkspaceAppAuditSessionParams) (time.Time, error) {
+	row := q.db.QueryRowContext(ctx, upsertWorkspaceAppAuditSession,
+		arg.AgentID,
+		arg.AppID,
+		arg.UserID,
+		arg.Ip,
+		arg.UserAgent,
+		arg.SlugOrPort,
+		arg.StatusCode,
+		arg.StartedAt,
+		arg.UpdatedAt,
+		arg.StaleIntervalMS,
+	)
+	var started_at time.Time
+	err := row.Scan(&started_at)
+	return started_at, err
 }
 
 const getWorkspaceAppByAgentIDAndSlug = `-- name: GetWorkspaceAppByAgentIDAndSlug :one
