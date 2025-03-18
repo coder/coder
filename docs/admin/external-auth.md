@@ -12,13 +12,15 @@ application. The following providers have been tested and work with Coder:
 - [Azure DevOps](https://learn.microsoft.com/en-us/azure/devops/integrate/get-started/authentication/oauth?view=azure-devops)
 - [Azure DevOps (via Entra ID)](https://learn.microsoft.com/en-us/entra/architecture/auth-oauth2)
 - [BitBucket](https://support.atlassian.com/bitbucket-cloud/docs/use-oauth-on-bitbucket-cloud/)
-- [GitHub](#github)
+- [GitHub](#configure-a-github-oauth-app
 - [GitLab](https://docs.gitlab.com/ee/integration/oauth_provider.html)
 
 If you have experience with a provider that is not listed here, please
 [file an issue](https://github.com/coder/internal/issues/new?title=request%28docs%29%3A+external-auth+-+request+title+here%0D%0A&labels=["customer-feedback","docs"]&body=doc%3A+%5Bexternal-auth%5D%28https%3A%2F%2Fcoder.com%2Fdocs%2Fadmin%2Fexternal-auth%29%0D%0A%0D%0Aplease+enter+your+request+here%0D%0A)
 
 ## Configuration
+
+### Set environment variables
 
 After you create an OAuth application, set environment variables to configure the Coder server to use it:
 
@@ -33,7 +35,13 @@ CODER_EXTERNAL_AUTH_0_DISPLAY_NAME="Google Calendar"
 CODER_EXTERNAL_AUTH_0_DISPLAY_ICON="https://mycustomicon.com/google.svg"
 ```
 
-The `CODER_EXTERNAL_AUTH_0_ID` environment variable is used as an identifier for the authentication provider. **This ID is also used as part of the callback URL path** that you must configure in your OAuth provider settings. Set it with a value that helps you identify the provider. For example, you can use `CODER_EXTERNAL_AUTH_0_ID="primary-github"` for your GitHub provider. Your callback URL would then be `https://your-coder-domain.com/external-auth/primary-github/callback`.
+The `CODER_EXTERNAL_AUTH_0_ID` environment variable is used as an identifier for the authentication provider.
+This variable is used as part of the callback URL path that you must configure in your OAuth provider settings.
+Set it with a value that helps you identify the provider.
+For example, if you use `CODER_EXTERNAL_AUTH_0_ID="primary-github"` for your GitHub provider,
+your callback URL will be `https://example.com/external-auth/primary-github/callback`.
+
+### Add an authentication button to the workspace template
 
 Add the following code to any template to add a button to the workspace setup page which will allow you to authenticate with your provider:
 
@@ -50,7 +58,8 @@ data "coder_external_auth" "github" {
 
 ```
 
-Inside your Terraform code, you now have access to authentication variables. Reference the documentation for your chosen provider for more information on how to supply it with a token.
+Inside your Terraform code, you now have access to authentication variables.
+Reference the documentation for your chosen provider for more information on how to supply it with a token.
 
 ### Workspace CLI
 
@@ -100,10 +109,12 @@ CODER_EXTERNAL_AUTH_0_ID="primary-bitbucket-server"
 CODER_EXTERNAL_AUTH_0_TYPE=bitbucket-server
 CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxx
 CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxx
-CODER_EXTERNAL_AUTH_0_AUTH_URL=https://bitbucket.domain.com/rest/oauth2/latest/authorize
+CODER_EXTERNAL_AUTH_0_AUTH_URL=https://bitbucket.example.com/rest/oauth2/latest/authorize
 ```
 
-When configuring your Bitbucket OAuth application, set the Redirect URI to `https://your-coder-domain.com/external-auth/primary-bitbucket-server/callback`. The callback path includes the value of `CODER_EXTERNAL_AUTH_0_ID`.
+When configuring your Bitbucket OAuth application, set the redirect URI to
+`https://example.com/external-auth/primary-bitbucket-server/callback`.
+This callback path includes the value of `CODER_EXTERNAL_AUTH_0_ID`.
 
 ### Gitea
 
@@ -116,13 +127,16 @@ CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
 CODER_EXTERNAL_AUTH_0_AUTH_URL="https://gitea.com/login/oauth/authorize"
 ```
 
-The Redirect URI for Gitea should be
-`https://coder.company.org/external-auth/gitea/callback`.
+The redirect URI for Gitea should be
+`https://coder.example.org/external-auth/gitea/callback`.
 
 ### GitHub
 
-> [!TIP]
-> If you don't require fine-grained access control, it's easier to [configure a GitHub OAuth app](#configure-a-github-oauth-app).
+Use this section as a reference for environment variables to customize your setup
+or to integrate with an existing GitHub authentication.
+
+For a more complete, step-by-step guide, follow the
+[configure a GitHub OAuth app](#configure-a-github-oauth-app) section instead.
 
 ```env
 CODER_EXTERNAL_AUTH_0_ID="USER_DEFINED_ID"
@@ -130,6 +144,11 @@ CODER_EXTERNAL_AUTH_0_TYPE=github
 CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxx
 CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
 ```
+
+When configuring your GitHub OAuth application, set the
+[authorization callback URL](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/about-the-user-authorization-callback-url)
+as `https://example.com/external-auth/USER_DEFINED_ID/callback`, where
+`USER_DEFINED_ID` matches your `CODER_EXTERNAL_AUTH_0_ID` value (in this example, `USER_DEFINED_ID`).
 
 ### GitHub Enterprise
 
@@ -145,6 +164,11 @@ CODER_EXTERNAL_AUTH_0_AUTH_URL="https://github.example.com/login/oauth/authorize
 CODER_EXTERNAL_AUTH_0_TOKEN_URL="https://github.example.com/login/oauth/access_token"
 ```
 
+When configuring your GitHub Enterprise OAuth application, set the
+[authorization callback URL](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/about-the-user-authorization-callback-url)
+as `https://example.com/external-auth/primary-github/callback`, where
+`USER_DEFINED_ID` matches your `CODER_EXTERNAL_AUTH_0_ID` value (in this example, `primary-github`).
+
 ### GitLab self-managed
 
 GitLab self-managed requires the following environment variables:
@@ -155,14 +179,15 @@ CODER_EXTERNAL_AUTH_0_TYPE=gitlab
 # This value is the "Application ID"
 CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxx
 CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
-CODER_EXTERNAL_AUTH_0_VALIDATE_URL="https://gitlab.company.org/oauth/token/info"
-CODER_EXTERNAL_AUTH_0_AUTH_URL="https://gitlab.company.org/oauth/authorize"
-CODER_EXTERNAL_AUTH_0_TOKEN_URL="https://gitlab.company.org/oauth/token"
-CODER_EXTERNAL_AUTH_0_REGEX=gitlab\.company\.org
+CODER_EXTERNAL_AUTH_0_VALIDATE_URL="https://gitlab.example.org/oauth/token/info"
+CODER_EXTERNAL_AUTH_0_AUTH_URL="https://gitlab.example.org/oauth/authorize"
+CODER_EXTERNAL_AUTH_0_TOKEN_URL="https://gitlab.example.org/oauth/token"
+CODER_EXTERNAL_AUTH_0_REGEX=gitlab\.example\.org
 ```
 
-> [!IMPORTANT]
-> When configuring your GitLab OAuth application, set the Redirect URI to `https://your-coder-domain.com/external-auth/primary-gitlab/callback`. Note that the callback URL must include the value of `CODER_EXTERNAL_AUTH_0_ID` (in this example, "primary-gitlab").
+When [configuring your GitLab OAuth application](https://docs.gitlab.com/17.5/integration/oauth_provider/),
+set the redirect URI to `https://example.com/external-auth/primary-gitlab/callback`.
+Note that the redirect URI must include the value of `CODER_EXTERNAL_AUTH_0_ID` (in this example, `primary-gitlab`).
 
 ### JFrog Artifactory
 
@@ -181,7 +206,7 @@ CODER_EXTERNAL_AUTH_0_REGEX=github\.company\.org
 ```
 
 > [!NOTE]
-> The `REGEX` variable must be set if using a custom git domain.
+> The `REGEX` variable must be set if using a custom Git domain.
 
 ## Custom scopes
 
@@ -197,8 +222,8 @@ CODER_EXTERNAL_AUTH_0_SCOPES="repo:read repo:write write:gpg_key"
 
 1. [Create a GitHub App](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app)
 
-   - Set the callback URL to
-     `https://coder.example.com/external-auth/USER_DEFINED_ID/callback`, where `USER_DEFINED_ID` 
+   - Set the authorization callback URL to
+     `https://coder.example.com/external-auth/USER_DEFINED_ID/callback`, where `USER_DEFINED_ID`
      is the value you set for `CODER_EXTERNAL_AUTH_0_ID`.
    - Deactivate Webhooks.
    - Enable fine-grained access to specific repositories or a subset of
