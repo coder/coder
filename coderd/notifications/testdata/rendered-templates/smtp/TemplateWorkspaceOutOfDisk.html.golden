@@ -10,8 +10,6 @@ MIME-Version: 1.0
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/plain; charset=UTF-8
 
-Hi Bobby,
-
 Volume /home/coder is over 90% full in workspace bobby-workspace.
 
 
@@ -45,10 +43,9 @@ argin: 8px 0 32px; line-height: 1.5;">
         Your workspace "bobby-workspace" is low on volume space
       </h1>
       <div style=3D"line-height: 1.5;">
-        <p>Hi Bobby,</p>
-
-<p>Volume <strong><code>/home/coder</code></strong> is over 90% full in wor=
-kspace <strong>bobby-workspace</strong>.</p>
+				Hi,
+        <p>Volume <strong><code>/home/coder</code></strong> is over 90% ful=
+l in workspace <strong>bobby-workspace</strong>.</p>
       </div>
       <div style=3D"text-align: center; margin-top: 32px;">
        =20

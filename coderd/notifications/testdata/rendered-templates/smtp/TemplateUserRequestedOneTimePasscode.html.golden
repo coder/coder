@@ -10,11 +10,12 @@ MIME-Version: 1.0
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/plain; charset=UTF-8
 
-Hi Bobby,
+A request to reset the password for your Coder account has been made. Your =
+one-time passcode is:
 
-Use the link below to reset your password.
+fad9020b-6562-4cdb-87f1-0486f1bea415
 
-If you did not make this request, you can ignore this message.
+If you did not request to reset your password, you can ignore this message.
 
 
 Reset password: http://test.com/reset-password/change?otp=3Dfad9020b-6562-4=
@@ -48,11 +49,14 @@ argin: 8px 0 32px; line-height: 1.5;">
         Reset your password for Coder
       </h1>
       <div style=3D"line-height: 1.5;">
-        <p>Hi Bobby,</p>
+				Hi,
+        <p>A request to reset the password for your Coder account has been =
+made. Your one-time passcode is:</p>
 
-<p>Use the link below to reset your password.</p>
+<p><strong>fad9020b-6562-4cdb-87f1-0486f1bea415</strong></p>
 
-<p>If you did not make this request, you can ignore this message.</p>
+<p>If you did not request to reset your password, you can ignore this messa=
+ge.</p>
       </div>
       <div style=3D"text-align: center; margin-top: 32px;">
        =20

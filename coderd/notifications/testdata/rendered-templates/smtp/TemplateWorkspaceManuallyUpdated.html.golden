@@ -10,8 +10,6 @@ MIME-Version: 1.0
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/plain; charset=UTF-8
 
-Hello Bobby,
-
 A new workspace build has been manually created for your workspace bobby-wo=
 rkspace by bobby to update it to version alpha of template bobby-template.
 
@@ -49,11 +47,11 @@ argin: 8px 0 32px; line-height: 1.5;">
         Workspace 'bobby-workspace' has been manually updated
       </h1>
       <div style=3D"line-height: 1.5;">
-        <p>Hello Bobby,</p>
-
-<p>A new workspace build has been manually created for your workspace <stro=
-ng>bobby-workspace</strong> by <strong>bobby</strong> to update it to versi=
-on <strong>alpha</strong> of template <strong>bobby-template</strong>.</p>
+				Hi,
+        <p>A new workspace build has been manually created for your workspa=
+ce <strong>bobby-workspace</strong> by <strong>bobby</strong> to update it =
+to version <strong>alpha</strong> of template <strong>bobby-template</stron=
+g>.</p>
       </div>
       <div style=3D"text-align: center; margin-top: 32px;">
        =20

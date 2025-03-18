@@ -10,11 +10,8 @@ MIME-Version: 1.0
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/plain; charset=UTF-8
 
-Hi Bobby,
-
 A manual build of the workspace bobby-workspace using the template bobby-te=
 mplate failed (version: bobby-template-version).
-
 The workspace build was initiated by joe.
 
 
@@ -48,13 +45,11 @@ argin: 8px 0 32px; line-height: 1.5;">
         Workspace "bobby-workspace" manual build failed
       </h1>
       <div style=3D"line-height: 1.5;">
-        <p>Hi Bobby,</p>
-
-<p>A manual build of the workspace <strong>bobby-workspace</strong> using t=
-he template <strong>bobby-template</strong> failed (version: <strong>bobby-=
-template-version</strong>).</p>
-
-<p>The workspace build was initiated by <strong>joe</strong>.</p>
+				Hi,
+        <p>A manual build of the workspace <strong>bobby-workspace</strong>=
+ using the template <strong>bobby-template</strong> failed (version: <stron=
+g>bobby-template-version</strong>).<br>
+The workspace build was initiated by <strong>joe</strong>.</p>
       </div>
       <div style=3D"text-align: center; margin-top: 32px;">
        =20

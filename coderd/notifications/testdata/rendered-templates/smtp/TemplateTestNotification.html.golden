@@ -10,8 +10,6 @@ MIME-Version: 1.0
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/plain; charset=UTF-8
 
-Hi Bobby,
-
 This is a test notification.
 
 
@@ -46,9 +44,8 @@ argin: 8px 0 32px; line-height: 1.5;">
         A test notification
       </h1>
       <div style=3D"line-height: 1.5;">
-        <p>Hi Bobby,</p>
-
-<p>This is a test notification.</p>
+				Hi,
+        <p>This is a test notification.</p>
       </div>
       <div style=3D"text-align: center; margin-top: 32px;">
        =20

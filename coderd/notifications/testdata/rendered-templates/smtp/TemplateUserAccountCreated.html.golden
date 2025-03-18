@@ -10,11 +10,7 @@ MIME-Version: 1.0
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/plain; charset=UTF-8
 
-Hi Bobby,
-
 New user account bobby has been created.
-
-This new user account was created for William Tables by rob.
 
 
 View accounts: http://test.com/deployment/users?filter=3Dstatus%3Aactive
@@ -47,12 +43,8 @@ argin: 8px 0 32px; line-height: 1.5;">
         User account "bobby" created
       </h1>
       <div style=3D"line-height: 1.5;">
-        <p>Hi Bobby,</p>
-
-<p>New user account <strong>bobby</strong> has been created.</p>
-
-<p>This new user account was created for <strong>William Tables</strong> by=
- <strong>rob</strong>.</p>
+				Hi,
+        <p>New user account <strong>bobby</strong> has been created.</p>
       </div>
       <div style=3D"text-align: center; margin-top: 32px;">
        =20

@@ -10,9 +10,7 @@ MIME-Version: 1.0
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/plain; charset=UTF-8
 
-Hi Bobby,
-
-Your account bobby has been suspended by rob.
+Your account bobby has been suspended.
 
 
 --bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
@@ -43,10 +41,8 @@ argin: 8px 0 32px; line-height: 1.5;">
         Your account "bobby" has been suspended
       </h1>
       <div style=3D"line-height: 1.5;">
-        <p>Hi Bobby,</p>
-
-<p>Your account <strong>bobby</strong> has been suspended by <strong>rob</s=
-trong>.</p>
+				Hi,
+        <p>Your account <strong>bobby</strong> has been suspended.</p>
       </div>
       <div style=3D"text-align: center; margin-top: 32px;">
        =20

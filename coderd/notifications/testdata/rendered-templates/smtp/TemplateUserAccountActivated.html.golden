@@ -10,11 +10,7 @@ MIME-Version: 1.0
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/plain; charset=UTF-8
 
-Hi Bobby,
-
 User account bobby has been activated.
-
-The account belongs to William Tables and it was activated by rob.
 
 
 View accounts: http://test.com/deployment/users?filter=3Dstatus%3Aactive
@@ -47,12 +43,8 @@ argin: 8px 0 32px; line-height: 1.5;">
         User account "bobby" activated
       </h1>
       <div style=3D"line-height: 1.5;">
-        <p>Hi Bobby,</p>
-
-<p>User account <strong>bobby</strong> has been activated.</p>
-
-<p>The account belongs to <strong>William Tables</strong> and it was activa=
-ted by <strong>rob</strong>.</p>
+				Hi,
+        <p>User account <strong>bobby</strong> has been activated.</p>
       </div>
       <div style=3D"text-align: center; margin-top: 32px;">
        =20

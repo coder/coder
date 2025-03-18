@@ -10,10 +10,7 @@ MIME-Version: 1.0
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/plain; charset=UTF-8
 
-Hi Bobby,
-
 Your workspace bobby-workspace was deleted.
-
 The specified reason was "autodeleted due to dormancy (autobuild)".
 
 
@@ -49,12 +46,10 @@ argin: 8px 0 32px; line-height: 1.5;">
         Workspace "bobby-workspace" deleted
       </h1>
       <div style=3D"line-height: 1.5;">
-        <p>Hi Bobby,</p>
-
-<p>Your workspace <strong>bobby-workspace</strong> was deleted.</p>
-
-<p>The specified reason was &ldquo;<strong>autodeleted due to dormancy (aut=
-obuild)</strong>&rdquo;.</p>
+				Hi,
+        <p>Your workspace <strong>bobby-workspace</strong> was deleted.<br>
+The specified reason was &ldquo;<strong>autodeleted due to dormancy (autobu=
+ild)</strong>&rdquo;.</p>
       </div>
       <div style=3D"text-align: center; margin-top: 32px;">
        =20
