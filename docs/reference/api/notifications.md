@@ -106,7 +106,7 @@ curl -X GET http://coder-server:8080/api/v2/notifications/inbox \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Make all unread notifications as read
+## Mark all unread notifications as read
 
 ### Code samples
 

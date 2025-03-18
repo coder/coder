@@ -63,4 +63,5 @@ UPDATE
 	inbox_notifications
 SET
 	read_at = $1
-WHERE user_id = $2 and read_at IS NULL;
+WHERE
+	user_id = $2 and read_at IS NULL;

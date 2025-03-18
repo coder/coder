@@ -723,3 +723,57 @@ func TestInboxNotifications_ReadStatus(t *testing.T) {
 		require.Empty(t, updatedNotif.Notification)
 	})
 }
+func TestInboxNotifications_MarkAllAsRead(t *testing.T) {
+	t.Parallel()
+
+	// I skip these tests specifically on windows as for now they are flaky - only on Windows.
+	// For now the idea is that the runner takes too long to insert the entries, could be worth
+	// investigating a manual Tx.
+	if runtime.GOOS == "windows" {
+		t.Skip("our runners are randomly taking too long to insert entries")
+	}
+
+	t.Run("ok", func(t *testing.T) {
+		t.Parallel()
+		client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{})
+		firstUser := coderdtest.CreateFirstUser(t, client)
+		client, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		notifs, err := client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
+		require.NoError(t, err)
+		require.NotNil(t, notifs)
+		require.Equal(t, 0, notifs.UnreadCount)
+		require.Empty(t, notifs.Notifications)
+
+		for i := range 20 {
+			dbgen.NotificationInbox(t, api.Database, database.InsertInboxNotificationParams{
+				ID:         uuid.New(),
+				UserID:     member.ID,
+				TemplateID: notifications.TemplateWorkspaceOutOfMemory,
+				Title:      fmt.Sprintf("Notification %d", i),
+				Actions:    json.RawMessage("[]"),
+				Content:    fmt.Sprintf("Content of the notif %d", i),
+				CreatedAt:  dbtime.Now(),
+			})
+		}
+
+		notifs, err = client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
+		require.NoError(t, err)
+		require.NotNil(t, notifs)
+		require.Equal(t, 20, notifs.UnreadCount)
+		require.Len(t, notifs.Notifications, 20)
+
+		resp, err := client.MarkAllInboxNotificationsAsRead(ctx)
+		require.NoError(t, err)
+		require.Zero(t, resp.UnreadCount)
+
+		notifs, err = client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
+		require.NoError(t, err)
+		require.NotNil(t, notifs)
+		require.Equal(t, 0, notifs.UnreadCount)
+		require.Len(t, notifs.Notifications, 20)
+	})
+}

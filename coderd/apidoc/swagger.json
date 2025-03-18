@@ -1495,8 +1495,8 @@
 				],
 				"produces": ["application/json"],
 				"tags": ["Notifications"],
-				"summary": "Make all unread notifications as read",
-				"operationId": "make-all-unread-notifications-as-read",
+				"summary": "Mark all unread notifications as read",
+				"operationId": "mark-all-unread-notifications-as-read",
 				"responses": {
 					"200": {
 						"description": "OK",
