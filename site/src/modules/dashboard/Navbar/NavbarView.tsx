@@ -69,7 +69,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 
 				<NotificationsInbox
 					fetchNotifications={API.getInboxNotifications}
-					markAllAsRead={(): Promise<void> => {
+					markAllAsRead={() => {
 						throw new Error("Function not implemented.");
 					}}
 					markNotificationAsRead={(notificationId) =>

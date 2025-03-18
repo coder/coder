@@ -139,8 +139,14 @@ export const watchInboxNotifications = (
 	);
 
 	socket.addEventListener("message", (event) => {
-		const res = JSON.parse(event.data) as TypesGen.GetInboxNotificationResponse;
-		onNewNotification(res);
+		try {
+			const res = JSON.parse(
+				event.data,
+			) as TypesGen.GetInboxNotificationResponse;
+			onNewNotification(res);
+		} catch (error) {
+			console.warn("Error parsing inbox notification: ", error);
+		}
 	});
 
 	socket.addEventListener("error", (event) => {
