@@ -19,6 +19,6 @@
   },
   "title": "Your account \"bobby\" has been suspended",
   "title_markdown": "Your account \"bobby\" has been suspended",
-  "body": "Hi Bobby,\n\nYour account bobby has been suspended by rob.",
-  "body_markdown": "Hi Bobby,\n\nYour account **bobby** has been suspended by **rob**."
+  "body": "Your account bobby has been suspended.",
+  "body_markdown": "Your account **bobby** has been suspended."
 }

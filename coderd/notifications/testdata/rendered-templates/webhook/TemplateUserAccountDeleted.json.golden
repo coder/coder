@@ -25,6 +25,6 @@
   },
   "title": "User account \"bobby\" deleted",
   "title_markdown": "User account \"bobby\" deleted",
-  "body": "Hi Bobby,\n\nUser account bobby has been deleted.\n\nThe deleted account belonged to William Tables and was deleted by rob.",
-  "body_markdown": "Hi Bobby,\n\nUser account **bobby** has been deleted.\n\nThe deleted account belonged to **William Tables** and was deleted by **rob**."
+  "body": "User account bobby has been deleted.",
+  "body_markdown": "User account **bobby** has been deleted."
 }

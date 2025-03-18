@@ -25,6 +25,6 @@
   },
   "title": "User account \"bobby\" created",
   "title_markdown": "User account \"bobby\" created",
-  "body": "Hi Bobby,\n\nNew user account bobby has been created.\n\nThis new user account was created for William Tables by rob.",
-  "body_markdown": "Hi Bobby,\n\nNew user account **bobby** has been created.\n\nThis new user account was created for **William Tables** by **rob**."
+  "body": "New user account bobby has been created.",
+  "body_markdown": "New user account **bobby** has been created."
 }

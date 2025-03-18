@@ -21,6 +21,6 @@
   },
   "title": "A test notification",
   "title_markdown": "A test notification",
-  "body": "Hi Bobby,\n\nThis is a test notification.",
-  "body_markdown": "Hi Bobby,\n\nThis is a test notification."
+  "body": "This is a test notification.",
+  "body_markdown": "This is a test notification."
 }

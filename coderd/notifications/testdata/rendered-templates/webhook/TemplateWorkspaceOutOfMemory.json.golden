@@ -24,6 +24,6 @@
   },
   "title": "Your workspace \"bobby-workspace\" is low on memory",
   "title_markdown": "Your workspace \"bobby-workspace\" is low on memory",
-  "body": "Hi Bobby,\n\nYour workspace bobby-workspace has reached the memory usage threshold set at 90%.",
-  "body_markdown": "Hi Bobby,\n\nYour workspace **bobby-workspace** has reached the memory usage threshold set at **90%**."
+  "body": "Your workspace bobby-workspace has reached the memory usage threshold set at 90%.",
+  "body_markdown": "Your workspace **bobby-workspace** has reached the memory usage threshold set at **90%**."
 }

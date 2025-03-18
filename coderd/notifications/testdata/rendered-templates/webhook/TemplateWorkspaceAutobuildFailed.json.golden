@@ -24,6 +24,6 @@
   },
   "title": "Workspace \"bobby-workspace\" autobuild failed",
   "title_markdown": "Workspace \"bobby-workspace\" autobuild failed",
-  "body": "Hi Bobby,\n\nAutomatic build of your workspace bobby-workspace failed.\n\nThe specified reason was \"autostart\".",
-  "body_markdown": "Hi Bobby,\n\nAutomatic build of your workspace **bobby-workspace** failed.\n\nThe specified reason was \"**autostart**\"."
+  "body": "Automatic build of your workspace bobby-workspace failed.\nThe specified reason was \"autostart\".",
+  "body_markdown": "Automatic build of your workspace **bobby-workspace** failed.\nThe specified reason was \"**autostart**\"."
 }
