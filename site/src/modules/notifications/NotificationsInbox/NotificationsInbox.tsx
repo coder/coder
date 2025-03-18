@@ -1,22 +1,23 @@
 import { getErrorDetail, getErrorMessage } from "api/errors";
 import { displayError } from "components/GlobalSnackbar/utils";
-import type { FC } from "react";
+import { useEffect, useRef, type FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { InboxPopover } from "./InboxPopover";
-import type { Notification } from "./types";
+import type {
+	ListInboxNotificationsResponse,
+	UpdateInboxNotificationReadStatusResponse,
+} from "api/typesGenerated";
+import { API, watchInboxNotifications } from "api/api";
 
 const NOTIFICATIONS_QUERY_KEY = ["notifications"];
 
-type NotificationsResponse = {
-	notifications: Notification[];
-	unread_count: number;
-};
-
 type NotificationsInboxProps = {
 	defaultOpen?: boolean;
-	fetchNotifications: () => Promise<NotificationsResponse>;
+	fetchNotifications: () => Promise<ListInboxNotificationsResponse>;
 	markAllAsRead: () => Promise<void>;
-	markNotificationAsRead: (notificationId: string) => Promise<void>;
+	markNotificationAsRead: (
+		notificationId: string,
+	) => Promise<UpdateInboxNotificationReadStatusResponse>;
 };
 
 export const NotificationsInbox: FC<NotificationsInboxProps> = ({
@@ -35,6 +36,24 @@ export const NotificationsInbox: FC<NotificationsInboxProps> = ({
 		queryKey: NOTIFICATIONS_QUERY_KEY,
 		queryFn: fetchNotifications,
 	});
+
+	useEffect(() => {
+		const socket = watchInboxNotifications(
+			(res) => {
+				safeUpdateNotificationsCache((prev) => {
+					return {
+						unread_count: res.unread_count,
+						notifications: [res.notification, ...prev.notifications],
+					};
+				});
+			},
+			{ read_status: "unread" },
+		);
+
+		return () => {
+			socket.close();
+		};
+	}, []);
 
 	const markAllAsReadMutation = useMutation({
 		mutationFn: markAllAsRead,
@@ -59,15 +78,15 @@ export const NotificationsInbox: FC<NotificationsInboxProps> = ({
 
 	const markNotificationAsReadMutation = useMutation({
 		mutationFn: markNotificationAsRead,
-		onSuccess: (_, notificationId) => {
+		onSuccess: (res) => {
 			safeUpdateNotificationsCache((prev) => {
 				return {
-					unread_count: prev.unread_count - 1,
+					unread_count: res.unread_count,
 					notifications: prev.notifications.map((n) => {
-						if (n.id !== notificationId) {
+						if (n.id !== res.notification.id) {
 							return n;
 						}
-						return { ...n, read_status: "read" };
+						return res.notification;
 					}),
 				};
 			});
@@ -81,10 +100,12 @@ export const NotificationsInbox: FC<NotificationsInboxProps> = ({
 	});
 
 	async function safeUpdateNotificationsCache(
-		callback: (res: NotificationsResponse) => NotificationsResponse,
+		callback: (
+			res: ListInboxNotificationsResponse,
+		) => ListInboxNotificationsResponse,
 	) {
 		await queryClient.cancelQueries(NOTIFICATIONS_QUERY_KEY);
-		queryClient.setQueryData<NotificationsResponse>(
+		queryClient.setQueryData<ListInboxNotificationsResponse>(
 			NOTIFICATIONS_QUERY_KEY,
 			(prev) => {
 				if (!prev) {

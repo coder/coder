@@ -13,10 +13,10 @@ import { cn } from "utils/cn";
 import { InboxButton } from "./InboxButton";
 import { InboxItem } from "./InboxItem";
 import { UnreadBadge } from "./UnreadBadge";
-import type { Notification } from "./types";
+import type { InboxNotification } from "api/typesGenerated";
 
 type InboxPopoverProps = {
-	notifications: Notification[] | undefined;
+	notifications: readonly InboxNotification[] | undefined;
 	unreadCount: number;
 	error: unknown;
 	onRetry: () => void;

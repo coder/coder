@@ -9,6 +9,8 @@ import { DeploymentDropdown } from "./DeploymentDropdown";
 import { MobileMenu } from "./MobileMenu";
 import { ProxyMenu } from "./ProxyMenu";
 import { UserDropdown } from "./UserDropdown/UserDropdown";
+import { NotificationsInbox } from "modules/notifications/NotificationsInbox/NotificationsInbox";
+import { API } from "api/api";
 
 export interface NavbarViewProps {
 	logo_url?: string;
@@ -63,6 +65,18 @@ export const NavbarView: FC<NavbarViewProps> = ({
 					canViewOrganizations={canViewOrganizations}
 					canViewDeployment={canViewDeployment}
 					canViewHealth={canViewHealth}
+				/>
+
+				<NotificationsInbox
+					fetchNotifications={API.getInboxNotifications}
+					markAllAsRead={(): Promise<void> => {
+						throw new Error("Function not implemented.");
+					}}
+					markNotificationAsRead={(notificationId) =>
+						API.updateInboxNotificationReadStatus(notificationId, {
+							is_read: true,
+						})
+					}
 				/>
 
 				{user && (
