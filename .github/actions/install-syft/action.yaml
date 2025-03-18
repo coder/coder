@@ -7,4 +7,4 @@ runs:
     - name: Install syft
       uses: anchore/sbom-action/download-syft@f325610c9f50a54015d37c8d16cb3b0e2c8f4de0 # v0.18.0
       with:
-        syft-version: "1.22.8"
+        syft-version: "v1.20.0"
