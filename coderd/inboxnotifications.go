@@ -373,7 +373,6 @@ func (api *API) markAllInboxNotificationsAsRead(rw http.ResponseWriter, r *http.
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UpdateInboxNotificationReadStatusResponse{
-		// Notification: convertInboxNotificationResponse(ctx, api.Logger, updatedNotification),
-		// UnreadCount:  int(unreadCount),
+		UnreadCount: 0,
 	})
 }
