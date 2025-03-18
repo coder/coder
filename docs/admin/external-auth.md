@@ -12,7 +12,7 @@ application. The following providers have been tested and work with Coder:
 - [Azure DevOps](https://learn.microsoft.com/en-us/azure/devops/integrate/get-started/authentication/oauth?view=azure-devops)
 - [Azure DevOps (via Entra ID)](https://learn.microsoft.com/en-us/entra/architecture/auth-oauth2)
 - [BitBucket](https://support.atlassian.com/bitbucket-cloud/docs/use-oauth-on-bitbucket-cloud/)
-- [GitHub](#configure-a-github-oauth-app
+- [GitHub](#configure-a-github-oauth-app)
 - [GitLab](https://docs.gitlab.com/ee/integration/oauth_provider.html)
 
 If you have experience with a provider that is not listed here, please
