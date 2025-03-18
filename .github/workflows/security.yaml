@@ -85,6 +85,12 @@ jobs:
       - name: Setup sqlc
         uses: ./.github/actions/setup-sqlc
 
+      - name: Install cosign
+        uses: ./.github/action/install-cosign
+
+      - name: Install syft
+        uses: ./.github/action/install-syft
+
       - name: Install yq
         run: go run github.com/mikefarah/yq/v4@v4.44.3
       - name: Install mockgen
