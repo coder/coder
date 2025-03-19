@@ -2138,6 +2138,13 @@ func (m queryMetricsStore) InsertWorkspaceAgent(ctx context.Context, arg databas
 	return agent, err
 }
 
+func (m queryMetricsStore) InsertWorkspaceAgentDevcontainers(ctx context.Context, arg database.InsertWorkspaceAgentDevcontainersParams) ([]database.WorkspaceAgentDevcontainer, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertWorkspaceAgentDevcontainers(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertWorkspaceAgentDevcontainers").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertWorkspaceAgentLogSources(ctx context.Context, arg database.InsertWorkspaceAgentLogSourcesParams) ([]database.WorkspaceAgentLogSource, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertWorkspaceAgentLogSources(ctx, arg)

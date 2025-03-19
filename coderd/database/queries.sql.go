@@ -13534,6 +13534,61 @@ func (q *sqlQuerier) InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspa
 	return i, err
 }
 
+const insertWorkspaceAgentDevcontainers = `-- name: InsertWorkspaceAgentDevcontainers :many
+INSERT INTO
+	workspace_agent_devcontainers (workspace_agent_id, created_at, id, workspace_folder, config_path)
+SELECT
+	$1::uuid AS workspace_agent_id,
+	$2::timestamptz AS created_at,
+	unnest($3::uuid[]) AS id,
+	unnest($4::text[]) AS workspace_folder,
+	unnest($5::text[]) AS config_path
+RETURNING workspace_agent_devcontainers.id, workspace_agent_devcontainers.workspace_agent_id, workspace_agent_devcontainers.created_at, workspace_agent_devcontainers.workspace_folder, workspace_agent_devcontainers.config_path
+`
+
+type InsertWorkspaceAgentDevcontainersParams struct {
+	WorkspaceAgentID uuid.UUID   `db:"workspace_agent_id" json:"workspace_agent_id"`
+	CreatedAt        time.Time   `db:"created_at" json:"created_at"`
+	ID               []uuid.UUID `db:"id" json:"id"`
+	WorkspaceFolder  []string    `db:"workspace_folder" json:"workspace_folder"`
+	ConfigPath       []string    `db:"config_path" json:"config_path"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceAgentDevcontainers(ctx context.Context, arg InsertWorkspaceAgentDevcontainersParams) ([]WorkspaceAgentDevcontainer, error) {
+	rows, err := q.db.QueryContext(ctx, insertWorkspaceAgentDevcontainers,
+		arg.WorkspaceAgentID,
+		arg.CreatedAt,
+		pq.Array(arg.ID),
+		pq.Array(arg.WorkspaceFolder),
+		pq.Array(arg.ConfigPath),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAgentDevcontainer
+	for rows.Next() {
+		var i WorkspaceAgentDevcontainer
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceAgentID,
+			&i.CreatedAt,
+			&i.WorkspaceFolder,
+			&i.ConfigPath,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertWorkspaceAgentLogSources = `-- name: InsertWorkspaceAgentLogSources :many
 INSERT INTO
 		workspace_agent_log_sources (workspace_agent_id, created_at, id, display_name, icon)
