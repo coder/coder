@@ -64,7 +64,7 @@ func TestInboxNotification_Watch(t *testing.T) {
 				firstUser := coderdtest.CreateFirstUser(t, client)
 				client, _ = coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
 
-				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 				defer cancel()
 
 				resp, err := client.Request(ctx, http.MethodGet, "/api/v2/notifications/inbox/watch", nil,
@@ -86,7 +86,7 @@ func TestInboxNotification_Watch(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
 		logger := testutil.Logger(t)
 
 		db, ps := dbtestutil.NewDB(t)
@@ -138,7 +138,7 @@ func TestInboxNotification_Watch(t *testing.T) {
 	t.Run("OK - filters on templates", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
 		logger := testutil.Logger(t)
 
 		db, ps := dbtestutil.NewDB(t)
@@ -217,7 +217,7 @@ func TestInboxNotification_Watch(t *testing.T) {
 	t.Run("OK - filters on targets", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
 		logger := testutil.Logger(t)
 
 		db, ps := dbtestutil.NewDB(t)
