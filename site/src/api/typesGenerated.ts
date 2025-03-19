@@ -1226,11 +1226,6 @@ export interface LoginWithPasswordResponse {
 	readonly session_token: string;
 }
 
-// From codersdk/inboxnotification.go
-export interface MarkAllInboxNotificationsAsReadResponse {
-	readonly unread_count: number;
-}
-
 // From codersdk/provisionerdaemons.go
 export interface MatchedProvisioners {
 	readonly count: number;

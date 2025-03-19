@@ -1493,7 +1493,6 @@
 						"CoderSessionToken": []
 					}
 				],
-				"produces": ["application/json"],
 				"tags": ["Notifications"],
 				"summary": "Mark all unread notifications as read",
 				"operationId": "mark-all-unread-notifications-as-read",
