@@ -11,7 +11,7 @@ const meta: Meta<typeof InboxPopover> = {
 	},
 	render: (args) => {
 		return (
-			<div className="w-full max-w-screen-xl p-6 h-[720px]">
+			<div className="w-full max-w-screen-xl py-2 px-6">
 				<header className="flex justify-end">
 					<InboxPopover {...args} />
 				</header>
