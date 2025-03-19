@@ -549,13 +549,47 @@ func TestServerSentEventSender(t *testing.T) {
 		require.True(t, <-successC)
 	})
 
-	t.Run("Cancels the entire connection if the request context cancels", func(t *testing.T) {
-		t.FailNow()
-		t.Parallel()
-	})
-
 	t.Run("Sends a heartbeat to the client on a fixed internal of time to keep connections alive", func(t *testing.T) {
-		t.FailNow()
 		t.Parallel()
+
+		// Need add at least three heartbeats for something to be reliably
+		// counted as an interval, but also need some wiggle room
+		heartbeatCount := 3
+		hbDuration := time.Duration(heartbeatCount) * httpapi.HeartbeatInterval
+		timeout := hbDuration + (5 * time.Second)
+
+		ctx := testutil.Context(t, timeout)
+		req := newBaseRequest(ctx)
+		writer := newServerSentWriter(t)
+		_, _, err := httpapi.ServerSentEventSender(writer, req)
+		require.NoError(t, err)
+
+		type Result struct {
+			Err     error
+			Success bool
+		}
+		resultC := make(chan Result)
+		go func() {
+			err := writer.
+				clientConn.
+				SetReadDeadline(time.Now().Add(timeout))
+			if err != nil {
+				resultC <- Result{err, false}
+				return
+			}
+			for range heartbeatCount {
+				pingBuffer := make([]byte, 1)
+				pingSize, err := writer.clientConn.Read(pingBuffer)
+				if err != nil || pingSize != 1 {
+					resultC <- Result{err, false}
+					return
+				}
+			}
+			resultC <- Result{nil, true}
+		}()
+
+		result := <-resultC
+		require.NoError(t, result.Err)
+		require.True(t, result.Success)
 	})
 }
