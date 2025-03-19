@@ -81,8 +81,8 @@ function defaultInit(url: string, protocols?: string | string[]): WebSocket {
 export class OneWayWebSocket<TData = unknown>
 	implements OneWayWebSocketApi<TData>
 {
-	#socket: WebSocket;
-	#messageCallbackWrappers = new Map<
+	readonly #socket: WebSocket;
+	readonly #messageCallbackWrappers = new Map<
 		OneWayEventCallback<TData, "message">,
 		WebSocketMessageCallback
 	>();
