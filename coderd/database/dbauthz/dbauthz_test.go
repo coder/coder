@@ -3989,9 +3989,34 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
 	s.Run("InsertWorkspaceAgentDevcontainers", s.Subtest(func(db database.Store, check *expects) {
-		a := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{})
+		u := dbgen.User(s.T(), db, database.User{})
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		tpl := dbgen.Template(s.T(), db, database.Template{
+			OrganizationID: o.ID,
+			CreatedBy:      u.ID,
+		})
+		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
+			OrganizationID: o.ID,
+			CreatedBy:      u.ID,
+		})
+		w := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
+			TemplateID:     tpl.ID,
+			OrganizationID: o.ID,
+			OwnerID:        u.ID,
+		})
+		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
+			Type: database.ProvisionerJobTypeWorkspaceBuild,
+		})
+		b := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{
+			JobID:             j.ID,
+			WorkspaceID:       w.ID,
+			TemplateVersionID: tv.ID,
+		})
+		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: b.JobID})
+		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
 		check.Args(database.InsertWorkspaceAgentDevcontainersParams{
-			WorkspaceAgentID: a.ID,
+			WorkspaceAgentID: agt.ID,
 		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
 	s.Run("UpdateWorkspaceAgentConnectionByID", s.Subtest(func(db database.Store, check *expects) {
