@@ -5372,6 +5372,20 @@ func (mr *MockStoreMockRecorder) UpdateTemplateScheduleByID(ctx, arg any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTemplateScheduleByID", reflect.TypeOf((*MockStore)(nil).UpdateTemplateScheduleByID), ctx, arg)
 }
 
+// UpdateTemplateVersionByCompletedJobID mocks base method.
+func (m *MockStore) UpdateTemplateVersionByCompletedJobID(ctx context.Context, arg database.UpdateTemplateVersionByCompletedJobIDParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateTemplateVersionByCompletedJobID", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateTemplateVersionByCompletedJobID indicates an expected call of UpdateTemplateVersionByCompletedJobID.
+func (mr *MockStoreMockRecorder) UpdateTemplateVersionByCompletedJobID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTemplateVersionByCompletedJobID", reflect.TypeOf((*MockStore)(nil).UpdateTemplateVersionByCompletedJobID), ctx, arg)
+}
+
 // UpdateTemplateVersionByID mocks base method.
 func (m *MockStore) UpdateTemplateVersionByID(ctx context.Context, arg database.UpdateTemplateVersionByIDParams) error {
 	m.ctrl.T.Helper()
@@ -5398,20 +5412,6 @@ func (m *MockStore) UpdateTemplateVersionDescriptionByJobID(ctx context.Context,
 func (mr *MockStoreMockRecorder) UpdateTemplateVersionDescriptionByJobID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTemplateVersionDescriptionByJobID", reflect.TypeOf((*MockStore)(nil).UpdateTemplateVersionDescriptionByJobID), ctx, arg)
-}
-
-// UpdateTemplateVersionExternalAuthProvidersByJobID mocks base method.
-func (m *MockStore) UpdateTemplateVersionExternalAuthProvidersByJobID(ctx context.Context, arg database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateTemplateVersionExternalAuthProvidersByJobID", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// UpdateTemplateVersionExternalAuthProvidersByJobID indicates an expected call of UpdateTemplateVersionExternalAuthProvidersByJobID.
-func (mr *MockStoreMockRecorder) UpdateTemplateVersionExternalAuthProvidersByJobID(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTemplateVersionExternalAuthProvidersByJobID", reflect.TypeOf((*MockStore)(nil).UpdateTemplateVersionExternalAuthProvidersByJobID), ctx, arg)
 }
 
 // UpdateTemplateWorkspacesLastUsedAt mocks base method.

@@ -132,6 +132,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"created_by_username":     ActionIgnore,
 		"archived":                ActionTrack,
 		"source_example_id":       ActionIgnore, // Never changes.
+		"import_graph":            ActionIgnore, // Not helpful because this can only change when new versions are added, and is very large.
 	},
 	&database.User{}: {
 		"id":                           ActionTrack,

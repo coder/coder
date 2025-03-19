@@ -113,14 +113,15 @@ SET
 WHERE
 	job_id = $1;
 
--- name: UpdateTemplateVersionExternalAuthProvidersByJobID :exec
+-- name: UpdateTemplateVersionByCompletedJobID :exec
 UPDATE
 	template_versions
 SET
-	external_auth_providers = $2,
-	updated_at = $3
+	external_auth_providers = @external_auth_providers,
+	import_graph = @import_graph,
+	updated_at = @updated_at
 WHERE
-	job_id = $1;
+	job_id = @job_id;
 
 -- name: GetPreviousTemplateVersion :one
 SELECT

@@ -591,6 +591,7 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 				StartModules:               startProvision.Modules,
 				StopModules:                stopProvision.Modules,
 				Presets:                    startProvision.Presets,
+				Graph:                      startProvision.Graph,
 			},
 		},
 	}, nil
@@ -652,6 +653,7 @@ type templateImportProvision struct {
 	ExternalAuthProviders []*sdkproto.ExternalAuthProviderResource
 	Modules               []*sdkproto.Module
 	Presets               []*sdkproto.Preset
+	Graph                 string
 }
 
 // Performs a dry-run provision when importing a template.
@@ -745,6 +747,7 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 				ExternalAuthProviders: c.ExternalAuthProviders,
 				Modules:               c.Modules,
 				Presets:               c.Presets,
+				Graph:                 c.Graph,
 			}, nil
 		default:
 			return nil, xerrors.Errorf("invalid message type %q received from provisioner",

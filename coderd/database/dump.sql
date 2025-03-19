@@ -1413,7 +1413,8 @@ CREATE TABLE template_versions (
     external_auth_providers jsonb DEFAULT '[]'::jsonb NOT NULL,
     message character varying(1048576) DEFAULT ''::character varying NOT NULL,
     archived boolean DEFAULT false NOT NULL,
-    source_example_id text
+    source_example_id text,
+    import_graph text DEFAULT ''::text NOT NULL
 );
 
 COMMENT ON COLUMN template_versions.external_auth_providers IS 'IDs of External auth providers for a specific template version';

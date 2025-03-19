@@ -3067,6 +3067,7 @@ type TemplateVersion struct {
 	Message               string          `db:"message" json:"message"`
 	Archived              bool            `db:"archived" json:"archived"`
 	SourceExampleID       sql.NullString  `db:"source_example_id" json:"source_example_id"`
+	ImportGraph           string          `db:"import_graph" json:"import_graph"`
 	CreatedByAvatarURL    string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername     string          `db:"created_by_username" json:"created_by_username"`
 }
@@ -3137,6 +3138,7 @@ type TemplateVersionTable struct {
 	Message         string         `db:"message" json:"message"`
 	Archived        bool           `db:"archived" json:"archived"`
 	SourceExampleID sql.NullString `db:"source_example_id" json:"source_example_id"`
+	ImportGraph     string         `db:"import_graph" json:"import_graph"`
 }
 
 type TemplateVersionVariable struct {

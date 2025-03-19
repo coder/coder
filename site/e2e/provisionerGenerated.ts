@@ -340,6 +340,7 @@ export interface PlanComplete {
   timings: Timing[];
   modules: Module[];
   presets: Preset[];
+  graph: string;
 }
 
 /**
@@ -1077,6 +1078,9 @@ export const PlanComplete = {
     }
     for (const v of message.presets) {
       Preset.encode(v!, writer.uint32(66).fork()).ldelim();
+    }
+    if (message.graph !== "") {
+      writer.uint32(74).string(message.graph);
     }
     return writer;
   },

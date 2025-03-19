@@ -231,7 +231,7 @@ func TestAcquireJob(t *testing.T) {
 				Optional: gitAuthProvider.Optional,
 			}})
 			require.NoError(t, err)
-			err = db.UpdateTemplateVersionExternalAuthProvidersByJobID(ctx, database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams{
+			err = db.UpdateTemplateVersionByCompletedJobID(ctx, database.UpdateTemplateVersionByCompletedJobIDParams{
 				JobID:                 version.JobID,
 				ExternalAuthProviders: json.RawMessage(externalAuthProviders),
 				UpdatedAt:             dbtime.Now(),

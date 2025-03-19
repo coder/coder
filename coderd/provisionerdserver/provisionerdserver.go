@@ -1263,6 +1263,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 	defer s.Telemetry.Report(telemetrySnapshot)
 
 	switch jobType := completed.Type.(type) {
+
 	case *proto.CompletedJob_TemplateImport_:
 		var input TemplateVersionImportJob
 		err = json.Unmarshal(job.Input, &input)
@@ -1404,9 +1405,10 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			return nil, xerrors.Errorf("failed to serialize external_auth_providers value: %w", err)
 		}
 
-		err = s.Database.UpdateTemplateVersionExternalAuthProvidersByJobID(ctx, database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams{
+		err = s.Database.UpdateTemplateVersionByCompletedJobID(ctx, database.UpdateTemplateVersionByCompletedJobIDParams{
 			JobID:                 jobID,
 			ExternalAuthProviders: json.RawMessage(externalAuthProvidersMessage),
+			ImportGraph:           jobType.TemplateImport.Graph,
 			UpdatedAt:             s.timeNow(),
 		})
 		if err != nil {
@@ -1427,6 +1429,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			return nil, xerrors.Errorf("update provisioner job: %w", err)
 		}
 		s.Logger.Debug(ctx, "marked import job as completed", slog.F("job_id", jobID))
+
 	case *proto.CompletedJob_WorkspaceBuild_:
 		var input WorkspaceProvisionJob
 		err = json.Unmarshal(job.Input, &input)
