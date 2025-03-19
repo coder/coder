@@ -12,12 +12,15 @@ const meta: Meta<typeof InboxPopover> = {
 	},
 	render: (args) => {
 		return (
-			<div className="w-full max-w-screen-xl p-6 h-[720px]">
+			<div className="w-full max-w-screen-xl p-6 h-[320px]">
 				<header className="flex justify-end">
 					<InboxPopover {...args} />
 				</header>
 			</div>
 		);
+	},
+	parameters: {
+		layout: "fullscreen",
 	},
 };
 
@@ -33,7 +36,7 @@ export const Default: Story = {
 
 export const Scrollable: Story = {
 	args: {
-		unreadCount: 0,
+		unreadCount: 2,
 		notifications: MockNotifications,
 	},
 	play: async ({ canvasElement }) => {
