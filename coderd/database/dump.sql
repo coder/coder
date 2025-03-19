@@ -906,6 +906,7 @@ CREATE VIEW group_members_expanded AS
     users.quiet_hours_schedule AS user_quiet_hours_schedule,
     users.name AS user_name,
     users.github_com_user_id AS user_github_com_user_id,
+    users.is_system AS user_is_system,
     groups.organization_id,
     groups.name AS group_name,
     all_members.group_id

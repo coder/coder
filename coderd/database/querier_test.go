@@ -1505,7 +1505,10 @@ func TestWorkspaceQuotas(t *testing.T) {
 		})
 
 		// Fetch the 'Everyone' group members
-		everyoneMembers, err := db.GetGroupMembersByGroupID(ctx, org.ID)
+		everyoneMembers, err := db.GetGroupMembersByGroupID(ctx, database.GetGroupMembersByGroupIDParams{
+			GroupID:       everyoneGroup.ID,
+			IncludeSystem: false,
+		})
 		require.NoError(t, err)
 
 		require.ElementsMatch(t, db2sdk.List(everyoneMembers, groupMemberIDs),
