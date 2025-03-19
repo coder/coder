@@ -3453,10 +3453,7 @@ func (q *FakeQuerier) GetGroupMembersByGroupID(ctx context.Context, arg database
 }
 
 func (q *FakeQuerier) GetGroupMembersCountByGroupID(ctx context.Context, arg database.GetGroupMembersCountByGroupIDParams) (int64, error) {
-	users, err := q.GetGroupMembersByGroupID(ctx, database.GetGroupMembersByGroupIDParams{
-		GroupID:       arg.GroupID,
-		IncludeSystem: arg.IncludeSystem,
-	})
+	users, err := q.GetGroupMembersByGroupID(ctx, database.GetGroupMembersByGroupIDParams(arg))
 	if err != nil {
 		return 0, err
 	}
