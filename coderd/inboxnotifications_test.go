@@ -37,6 +37,7 @@ func TestInboxNotification_Watch(t *testing.T) {
 	// I skip these tests specifically on windows as for now they are flaky - only on Windows.
 	// For now the idea is that the runner takes too long to insert the entries, could be worth
 	// investigating a manual Tx.
+	// Related issue for fix : https://github.com/coder/internal/issues/503
 	if runtime.GOOS == "windows" {
 		t.Skip("our runners are randomly taking too long to insert entries")
 	}
@@ -305,6 +306,7 @@ func TestInboxNotifications_List(t *testing.T) {
 	// I skip these tests specifically on windows as for now they are flaky - only on Windows.
 	// For now the idea is that the runner takes too long to insert the entries, could be worth
 	// investigating a manual Tx.
+	// Related issue for fix : https://github.com/coder/internal/issues/503
 	if runtime.GOOS == "windows" {
 		t.Skip("our runners are randomly taking too long to insert entries")
 	}
@@ -588,6 +590,7 @@ func TestInboxNotifications_ReadStatus(t *testing.T) {
 	// I skip these tests specifically on windows as for now they are flaky - only on Windows.
 	// For now the idea is that the runner takes too long to insert the entries, could be worth
 	// investigating a manual Tx.
+	// Related issue for fix : https://github.com/coder/internal/issues/503
 	if runtime.GOOS == "windows" {
 		t.Skip("our runners are randomly taking too long to insert entries")
 	}
@@ -730,6 +733,7 @@ func TestInboxNotifications_MarkAllAsRead(t *testing.T) {
 	// I skip these tests specifically on windows as for now they are flaky - only on Windows.
 	// For now the idea is that the runner takes too long to insert the entries, could be worth
 	// investigating a manual Tx.
+	// Related issue for fix : https://github.com/coder/internal/issues/503
 	if runtime.GOOS == "windows" {
 		t.Skip("our runners are randomly taking too long to insert entries")
 	}
@@ -776,5 +780,23 @@ func TestInboxNotifications_MarkAllAsRead(t *testing.T) {
 		require.NotNil(t, notifs)
 		require.Equal(t, 0, notifs.UnreadCount)
 		require.Len(t, notifs.Notifications, 20)
+
+		for i := range 10 {
+			dbgen.NotificationInbox(t, api.Database, database.InsertInboxNotificationParams{
+				ID:         uuid.New(),
+				UserID:     member.ID,
+				TemplateID: notifications.TemplateWorkspaceOutOfMemory,
+				Title:      fmt.Sprintf("Notification %d", i),
+				Actions:    json.RawMessage("[]"),
+				Content:    fmt.Sprintf("Content of the notif %d", i),
+				CreatedAt:  dbtime.Now(),
+			})
+		}
+
+		notifs, err = client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
+		require.NoError(t, err)
+		require.NotNil(t, notifs)
+		require.Equal(t, 10, notifs.UnreadCount)
+		require.Len(t, notifs.Notifications, 25)
 	})
 }

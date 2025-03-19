@@ -352,7 +352,7 @@ func (api *API) updateInboxNotificationReadStatus(rw http.ResponseWriter, r *htt
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Notifications
-// @Success 200 {object} codersdk.Response
+// @Success 204
 // @Router /notifications/inbox/mark-all-as-read [put]
 func (api *API) markAllInboxNotificationsAsRead(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -372,7 +372,5 @@ func (api *API) markAllInboxNotificationsAsRead(rw http.ResponseWriter, r *http.
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UpdateInboxNotificationReadStatusResponse{
-		UnreadCount: 0,
-	})
+	rw.WriteHeader(http.StatusNoContent)
 }

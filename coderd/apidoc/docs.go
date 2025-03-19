@@ -1721,11 +1721,8 @@ const docTemplate = `{
                 "summary": "Mark all unread notifications as read",
                 "operationId": "mark-all-unread-notifications-as-read",
                 "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
+                    "204": {
+                        "description": "No Content"
                     }
                 }
             }

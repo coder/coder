@@ -3555,8 +3555,7 @@ func (q *querier) ListWorkspaceAgentPortShares(ctx context.Context, workspaceID 
 }
 
 func (q *querier) MarkAllInboxNotificationsAsRead(ctx context.Context, arg database.MarkAllInboxNotificationsAsReadParams) error {
-	resource := rbac.ResourceInboxNotification
-	resource.Owner = arg.UserID.String()
+	resource := rbac.ResourceInboxNotification.WithOwner(arg.UserID.String())
 
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, resource); err != nil {
 		return err
