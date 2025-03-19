@@ -162,7 +162,7 @@ func TestWebsocketCloseMsg(t *testing.T) {
 }
 
 // Our WebSocket library accepts any arbitrary ResponseWriter at the type level,
-// but it must also implement http.Hijack
+// but the writer must also implement http.Hijacker for long-lived connections
 type mockWsResponseWriter struct {
 	serverRecorder   *httptest.ResponseRecorder
 	serverConn       net.Conn
@@ -196,7 +196,7 @@ func (w mockWsWrite) Write(b []byte) (int, error) {
 	return w(b)
 }
 
-func TestOneWayWebSocket(t *testing.T) {
+func TestWebSocketEventSender(t *testing.T) {
 	t.Parallel()
 
 	newBaseRequest := func(ctx context.Context) *http.Request {
@@ -256,7 +256,7 @@ func TestOneWayWebSocket(t *testing.T) {
 			req.Proto = p.proto
 
 			writer := newWebsocketWriter()
-			_, _, err := httpapi.OneWayWebSocket(writer, req)
+			_, _, err := httpapi.WebSocketEventSender(writer, req)
 			require.ErrorContains(t, err, p.proto)
 		}
 	})
@@ -267,7 +267,7 @@ func TestOneWayWebSocket(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		req := newBaseRequest(ctx)
 		writer := newWebsocketWriter()
-		send, _, err := httpapi.OneWayWebSocket(writer, req)
+		send, _, err := httpapi.WebSocketEventSender(writer, req)
 		require.NoError(t, err)
 
 		serverPayload := codersdk.ServerSentEvent{
@@ -293,7 +293,7 @@ func TestOneWayWebSocket(t *testing.T) {
 		ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitShort))
 		req := newBaseRequest(ctx)
 		writer := newWebsocketWriter()
-		_, done, err := httpapi.OneWayWebSocket(writer, req)
+		_, done, err := httpapi.WebSocketEventSender(writer, req)
 		require.NoError(t, err)
 
 		successC := make(chan bool)
@@ -317,7 +317,7 @@ func TestOneWayWebSocket(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		req := newBaseRequest(ctx)
 		writer := newWebsocketWriter()
-		_, done, err := httpapi.OneWayWebSocket(writer, req)
+		_, done, err := httpapi.WebSocketEventSender(writer, req)
 		require.NoError(t, err)
 
 		successC := make(chan bool)
@@ -347,7 +347,7 @@ func TestOneWayWebSocket(t *testing.T) {
 		ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitShort))
 		req := newBaseRequest(ctx)
 		writer := newWebsocketWriter()
-		send, done, err := httpapi.OneWayWebSocket(writer, req)
+		send, done, err := httpapi.WebSocketEventSender(writer, req)
 		require.NoError(t, err)
 
 		successC := make(chan bool)
@@ -388,7 +388,7 @@ func TestOneWayWebSocket(t *testing.T) {
 		ctx := testutil.Context(t, timeout)
 		req := newBaseRequest(ctx)
 		writer := newWebsocketWriter()
-		_, _, err := httpapi.OneWayWebSocket(writer, req)
+		_, _, err := httpapi.WebSocketEventSender(writer, req)
 		require.NoError(t, err)
 
 		type Result struct {

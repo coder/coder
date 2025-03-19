@@ -285,7 +285,7 @@ func WebsocketCloseSprintf(format string, vars ...any) string {
 	return msg
 }
 
-type InitializeConnectionCallback func(rw http.ResponseWriter, r *http.Request) (
+type EventSender func(rw http.ResponseWriter, r *http.Request) (
 	sendEvent func(sse codersdk.ServerSentEvent) error,
 	done <-chan struct{},
 	err error,
@@ -410,8 +410,8 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (
 	return sendEvent, closed, nil
 }
 
-// OneWayWebSocket establishes a new WebSocket connection that enforces one-way
-// communication from the server to the client.
+// WebSocketEventSender establishes a new WebSocket connection that enforces
+// one-way communication from the server to the client.
 //
 // The function returned allows you to send a single message to the client,
 // while the channel lets you listen for when the connection closes.
@@ -422,7 +422,7 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (
 // open a workspace in multiple tabs, the entire UI can start to lock up.
 // WebSockets have no such limitation, no matter what HTTP protocol was used to
 // establish the connection.
-func OneWayWebSocket(rw http.ResponseWriter, r *http.Request) (
+func WebSocketEventSender(rw http.ResponseWriter, r *http.Request) (
 	func(event codersdk.ServerSentEvent) error,
 	<-chan struct{},
 	error,
@@ -436,12 +436,8 @@ func OneWayWebSocket(rw http.ResponseWriter, r *http.Request) (
 	}
 	go Heartbeat(ctx, socket)
 
-	type SocketError struct {
-		Code   websocket.StatusCode
-		Reason string
-	}
 	eventC := make(chan codersdk.ServerSentEvent)
-	socketErrC := make(chan SocketError, 1)
+	socketErrC := make(chan websocket.CloseError, 1)
 	closed := make(chan struct{})
 	go func() {
 		defer cancel()
@@ -477,13 +473,13 @@ func OneWayWebSocket(rw http.ResponseWriter, r *http.Request) (
 			return
 		}
 		if err != nil {
-			socketErrC <- SocketError{
+			socketErrC <- websocket.CloseError{
 				Code:   websocket.StatusInternalError,
 				Reason: "Unable to process invalid message from client",
 			}
 			return
 		}
-		socketErrC <- SocketError{
+		socketErrC <- websocket.CloseError{
 			Code:   websocket.StatusProtocolError,
 			Reason: "Clients cannot send messages for one-way WebSockets",
 		}

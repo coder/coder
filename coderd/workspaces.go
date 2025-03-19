@@ -1732,13 +1732,13 @@ func (api *API) watchWorkspaceSSE(rw http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} codersdk.ServerSentEvent
 // @Router /workspaces/{workspace}/watch-ws [get]
 func (api *API) watchWorkspaceWS(rw http.ResponseWriter, r *http.Request) {
-	api.watchWorkspace(rw, r, httpapi.OneWayWebSocket)
+	api.watchWorkspace(rw, r, httpapi.WebSocketEventSender)
 }
 
 func (api *API) watchWorkspace(
 	rw http.ResponseWriter,
 	r *http.Request,
-	connect httpapi.InitializeConnectionCallback,
+	connect httpapi.EventSender,
 ) {
 	ctx := r.Context()
 	workspace := httpmw.WorkspaceParam(r)
