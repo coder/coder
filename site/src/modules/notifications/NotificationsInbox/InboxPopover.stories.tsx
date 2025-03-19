@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, fn, userEvent, within } from "@storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "@storybook/test";
 import { MockNotifications } from "testHelpers/entities";
 import { daysAgo } from "utils/time";
 import { InboxPopover } from "./InboxPopover";
@@ -47,12 +47,13 @@ export const Scrollable: Story = {
 		if (!content) {
 			throw new Error("ScrollArea content not found");
 		}
-		const openAnimationDuration = 250;
-		setTimeout(() => {
+		await waitFor(() => {
+			const distanceToBottom = content?.children[0].clientHeight;
 			content.scroll({
-				top: content?.children[0].clientHeight,
+				top: distanceToBottom,
 			});
-		}, openAnimationDuration);
+			expect(content.scrollTop).not.toBe(0);
+		});
 	},
 };
 
