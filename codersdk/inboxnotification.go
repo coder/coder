@@ -110,10 +110,6 @@ func (c *Client) UpdateInboxNotificationReadStatus(ctx context.Context, notifID 
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
-type MarkAllInboxNotificationsAsReadResponse struct {
-	UnreadCount int `json:"unread_count"`
-}
-
 func (c *Client) MarkAllInboxNotificationsAsRead(ctx context.Context) error {
 	res, err := c.Request(
 		ctx, http.MethodPut,
