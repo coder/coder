@@ -9,8 +9,8 @@
 
 import {
 	type OneWayMessageEvent,
-	type WebSocketEventType,
 	OneWayWebSocket,
+	type WebSocketEventType,
 } from "./OneWayWebSocket";
 
 type MockSocket = WebSocket & {
