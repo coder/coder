@@ -13,3 +13,7 @@ COMMENT ON COLUMN workspace_agent_devcontainers.workspace_agent_id IS 'Workspace
 COMMENT ON COLUMN workspace_agent_devcontainers.created_at IS 'Creation timestamp';
 COMMENT ON COLUMN workspace_agent_devcontainers.workspace_folder IS 'Workspace folder';
 COMMENT ON COLUMN workspace_agent_devcontainers.config_path IS 'Path to devcontainer.json.';
+
+CREATE INDEX workspace_agent_devcontainers_workspace_agent_id ON workspace_agent_devcontainers (workspace_agent_id);
+
+COMMENT ON INDEX workspace_agent_devcontainers_workspace_agent_id IS 'Workspace agent foreign key and query index';

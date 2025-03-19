@@ -2430,6 +2430,10 @@ CREATE UNIQUE INDEX users_email_lower_idx ON users USING btree (lower(email)) WH
 
 CREATE UNIQUE INDEX users_username_lower_idx ON users USING btree (lower(username)) WHERE (deleted = false);
 
+CREATE INDEX workspace_agent_devcontainers_workspace_agent_id ON workspace_agent_devcontainers USING btree (workspace_agent_id);
+
+COMMENT ON INDEX workspace_agent_devcontainers_workspace_agent_id IS 'Workspace agent foreign key and query index';
+
 CREATE INDEX workspace_agent_scripts_workspace_agent_id_idx ON workspace_agent_scripts USING btree (workspace_agent_id);
 
 COMMENT ON INDEX workspace_agent_scripts_workspace_agent_id_idx IS 'Foreign key support index for faster lookups';
