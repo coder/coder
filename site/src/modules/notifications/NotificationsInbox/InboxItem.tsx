@@ -26,7 +26,7 @@ export const InboxItem: FC<InboxItemProps> = ({
 			</div>
 
 			<div className="flex flex-col gap-3 flex-1">
-				<span className="text-content-secondary text-sm font-medium">
+				<span className="text-content-secondary text-sm font-medium whitespace-break-spaces [overflow-wrap:anywhere]">
 					{notification.content}
 				</span>
 				<div className="flex items-center gap-1">
