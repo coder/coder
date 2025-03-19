@@ -47,7 +47,12 @@ export const InboxPopover: FC<InboxPopoverProps> = ({
 				 * https://github.com/shadcn-ui/ui/issues/542#issuecomment-2339361283
 				 */}
 				<ScrollArea className="[&>[data-radix-scroll-area-viewport]]:max-h-[calc(var(--radix-popover-content-available-height)-24px)]">
-					<div className="flex items-center justify-between p-3 border-0 border-b border-solid border-border">
+					<div
+						className={cn([
+							"flex items-center justify-between p-3 border-0 border-b border-solid border-border",
+							"sticky top-0 bg-surface-primary z-10 rounded-t",
+						])}
+					>
 						<div className="flex items-center gap-2">
 							<span className="text-xl font-semibold">Inbox</span>
 							{unreadCount > 0 && <UnreadBadge count={unreadCount} />}
