@@ -45,7 +45,7 @@ argin: 8px 0 32px; line-height: 1.5;">
         Workspace "bobby-workspace" manual build failed
       </h1>
       <div style=3D"line-height: 1.5;">
-				Hi,
+				Hi bobby,
         <p>A manual build of the workspace <strong>bobby-workspace</strong>=
  using the template <strong>bobby-template</strong> failed (version: <stron=
 g>bobby-template-version</strong>).<br>

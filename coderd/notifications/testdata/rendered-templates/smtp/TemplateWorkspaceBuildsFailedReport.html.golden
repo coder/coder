@@ -10,8 +10,6 @@ MIME-Version: 1.0
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/plain; charset=UTF-8
 
-Hi Bobby,
-
 Template Bobby First Template has failed to build 4/55 times over the last =
 week.
 
@@ -65,10 +63,9 @@ argin: 8px 0 32px; line-height: 1.5;">
         Workspace builds failed for template "Bobby First Template"
       </h1>
       <div style=3D"line-height: 1.5;">
-        <p>Hi Bobby,</p>
-
-<p>Template <strong>Bobby First Template</strong> has failed to build <sup>=
-4</sup>&frasl;<sub>55</sub> times over the last week.</p>
+				Hi bobby,
+        <p>Template <strong>Bobby First Template</strong> has failed to bui=
+ld <sup>4</sup>&frasl;<sub>55</sub> times over the last week.</p>
 
 <p><strong>Report:</strong></p>
 

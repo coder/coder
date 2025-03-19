@@ -46,7 +46,7 @@ argin: 8px 0 32px; line-height: 1.5;">
         Workspace "bobby-workspace" deleted
       </h1>
       <div style=3D"line-height: 1.5;">
-				Hi,
+				Hi bobby,
         <p>Your workspace <strong>bobby-workspace</strong> was deleted.<br>
 The specified reason was &ldquo;<strong>autodeleted due to dormancy (autobu=
 ild)</strong>&rdquo;.</p>
