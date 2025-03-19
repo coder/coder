@@ -9,32 +9,6 @@ INSERT INTO users (id, email, username, name, created_at, updated_at, status, rb
 VALUES ('c42fdf75-3097-471c-8c33-fb52454d81c0', 'prebuilds@system', 'prebuilds', 'Prebuilds Owner', now(), now(),
 		'active', '{}', 'none', true, 'none'::login_type);
 
--- Create function to check system user modifications
-CREATE OR REPLACE FUNCTION prevent_system_user_changes()
-	RETURNS TRIGGER AS
-$$
-BEGIN
-	IF OLD.is_system = true THEN
-		RAISE EXCEPTION 'Cannot modify or delete system users';
-	END IF;
-	RETURN OLD;
-END;
-$$ LANGUAGE plpgsql;
-
--- Create trigger to prevent updates to system users
-CREATE TRIGGER prevent_system_user_updates
-	BEFORE UPDATE ON users
-	FOR EACH ROW
-	WHEN (OLD.is_system = true)
-EXECUTE FUNCTION prevent_system_user_changes();
-
--- Create trigger to prevent deletion of system users
-CREATE TRIGGER prevent_system_user_deletions
-	BEFORE DELETE ON users
-	FOR EACH ROW
-	WHEN (OLD.is_system = true)
-EXECUTE FUNCTION prevent_system_user_changes();
-
 DROP VIEW IF EXISTS group_members_expanded;
 CREATE VIEW group_members_expanded AS
  WITH all_members AS (
