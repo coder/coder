@@ -36,6 +36,7 @@ jobs:
           GH_TOKEN: ${{secrets.GITHUB_TOKEN}}
 
       - name: Enable auto-merge
+        if: ${{ steps.metadata.outputs.package-ecosystem == 'github-actions' }}
         run: |
           echo "Enabling auto-merge for $PR_URL"
           gh pr merge --auto --squash "$PR_URL"
@@ -44,6 +45,7 @@ jobs:
           GH_TOKEN: ${{secrets.GITHUB_TOKEN}}
 
       - name: Send Slack notification
+        if: ${{ steps.metadata.outputs.package-ecosystem == 'github-actions' }}
         env:
           PR_URL: ${{github.event.pull_request.html_url}}
           PR_TITLE: ${{github.event.pull_request.title}}
