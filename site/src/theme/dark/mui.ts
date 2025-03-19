@@ -19,8 +19,8 @@ const muiTheme = createTheme({
 			dark: tw.zinc[400],
 		},
 		background: {
-			default: tw.zinc[950],
-			paper: tw.zinc[900],
+			default: tw.purple[950],
+			paper: tw.purple[900],
 		},
 		text: {
 			primary: tw.zinc[50],
