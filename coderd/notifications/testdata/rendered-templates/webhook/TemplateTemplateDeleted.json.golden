@@ -24,6 +24,6 @@
   },
   "title": "Template \"Bobby's Template\" deleted",
   "title_markdown": "Template \"Bobby's Template\" deleted",
-  "body": "Hi Bobby,\n\nThe template Bobby's Template was deleted by rob.",
-  "body_markdown": "Hi Bobby,\n\nThe template **Bobby's Template** was deleted by **rob**.\n\n"
+  "body": "The template Bobby's Template was deleted by rob.",
+  "body_markdown": "The template **Bobby's Template** was deleted by **rob**.\n\n"
 }

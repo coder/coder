@@ -16,7 +16,8 @@ UPDATE notification_templates SET body_template = E'Hi {{.UserName}},\n\n' ||
 UPDATE notification_templates SET body_template = E'Hi {{.UserName}},\n\n' ||
 					E'User account **{{.Labels.suspended_account_name}}** has been suspended.\n\n' ||
   					E'The account {{if .Labels.suspended_account_user_name}}belongs to **{{.Labels.suspended_account_user_name}}** and it {{end}}was suspended by **{{.Labels.initiator}}**.' WHERE id = 'b02ddd82-4733-4d02-a2d7-c36f3598997d';
-UPDATE notification_templates SET body_template = E'Hi {{.UserName}},\nYour account **{{.Labels.suspended_account_name}}** has been suspended.' WHERE id = '6a2f0609-9b69-4d36-a989-9f5925b6cbff';
+UPDATE notification_templates SET body_template = E'Hi {{.UserName}},\n\n' ||
+					E'Your account **{{.Labels.suspended_account_name}}** has been suspended by **{{.Labels.initiator}}**.' WHERE id = '6a2f0609-9b69-4d36-a989-9f5925b6cbff';
 UPDATE notification_templates SET body_template = E'Hi {{.UserName}},\n\n' ||
 					E'User account **{{.Labels.activated_account_name}}** has been activated.\n\n' ||
 					E'The account {{if .Labels.activated_account_user_name}}belongs to **{{.Labels.activated_account_user_name}}** and it {{ end }}was activated by **{{.Labels.initiator}}**.' WHERE id = '9f5af851-8408-4e73-a7a1-c6502ba46689';
@@ -57,3 +58,5 @@ UPDATE notification_templates SET body_template = E'Hi {{.UserName}},\n\n'||
 		E'{{ end }}' WHERE id = 'f047f6a3-5713-40f7-85aa-0394cce9fa3a';
 UPDATE notification_templates SET body_template = E'Hi {{.UserName}},\n\n'||
 		E'This is a test notification.' WHERE id = 'c425f63e-716a-4bf4-ae24-78348f706c3f';
+UPDATE notification_templates SET body_template = E'Hi {{.UserName}},\n\n' ||
+					E'The template **{{.Labels.name}}** was deleted by **{{ .Labels.initiator }}**.\n\n' WHERE id = '29a09665-2a4c-403f-9648-54301670e7be';

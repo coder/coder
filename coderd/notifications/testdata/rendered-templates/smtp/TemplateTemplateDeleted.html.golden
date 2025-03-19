@@ -10,8 +10,6 @@ MIME-Version: 1.0
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/plain; charset=UTF-8
 
-Hi Bobby,
-
 The template Bobby's Template was deleted by rob.
 
 
@@ -45,11 +43,9 @@ argin: 8px 0 32px; line-height: 1.5;">
         Template "Bobby's Template" deleted
       </h1>
       <div style=3D"line-height: 1.5;">
-				<p>Hi bobby,</p>
-        <p>Hi Bobby,</p>
-
-<p>The template <strong>Bobby&rsquo;s Template</strong> was deleted by <str=
-ong>rob</strong>.</p>
+				<p>Hi bobby,</p><br />
+        <p>The template <strong>Bobby&rsquo;s Template</strong> was deleted=
+ by <strong>rob</strong>.</p>
       </div>
       <div style=3D"text-align: center; margin-top: 32px;">
        =20

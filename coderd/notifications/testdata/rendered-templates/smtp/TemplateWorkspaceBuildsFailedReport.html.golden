@@ -63,7 +63,7 @@ argin: 8px 0 32px; line-height: 1.5;">
         Workspace builds failed for template "Bobby First Template"
       </h1>
       <div style=3D"line-height: 1.5;">
-				<p>Hi bobby,</p>
+				<p>Hi bobby,</p><br />
         <p>Template <strong>Bobby First Template</strong> has failed to bui=
 ld <sup>4</sup>&frasl;<sub>55</sub> times over the last week.</p>
 

@@ -44,7 +44,7 @@ argin: 8px 0 32px; line-height: 1.5;">
         Your workspace "bobby-workspace" is low on memory
       </h1>
       <div style=3D"line-height: 1.5;">
-				<p>Hi bobby,</p>
+				<p>Hi bobby,</p><br />
         <p>Your workspace <strong>bobby-workspace</strong> has reached the =
 memory usage threshold set at <strong>90%</strong>.</p>
       </div>

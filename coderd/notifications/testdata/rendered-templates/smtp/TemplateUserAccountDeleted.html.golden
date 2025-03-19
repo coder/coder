@@ -45,7 +45,7 @@ argin: 8px 0 32px; line-height: 1.5;">
         User account "bobby" deleted
       </h1>
       <div style=3D"line-height: 1.5;">
-				<p>Hi bobby,</p>
+				<p>Hi bobby,</p><br />
         <p>User account <strong>bobby</strong> has been deleted.</p>
 
 <p>The deleted account belonged to <strong>William Tables</strong> and was =

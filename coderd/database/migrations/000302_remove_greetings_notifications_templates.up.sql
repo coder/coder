@@ -41,3 +41,4 @@ UPDATE notification_templates SET body_template = E'{{ if eq (len .Data.volumes)
 			E'{{ end }}'||
 		E'{{ end }}' WHERE id = 'f047f6a3-5713-40f7-85aa-0394cce9fa3a';
 UPDATE notification_templates SET body_template = E'This is a test notification.' WHERE id = 'c425f63e-716a-4bf4-ae24-78348f706c3f';
+UPDATE notification_templates SET body_template = E'The template **{{.Labels.name}}** was deleted by **{{ .Labels.initiator }}**.\n\n' WHERE id = '29a09665-2a4c-403f-9648-54301670e7be';
