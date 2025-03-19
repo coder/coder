@@ -255,6 +255,17 @@ func WorkspaceAgentScriptTiming(t testing.TB, db database.Store, orig database.W
 	panic("failed to insert workspace agent script timing")
 }
 
+func WorkspaceAgentDevcontainer(t testing.TB, db database.Store, orig database.WorkspaceAgentDevcontainer) database.WorkspaceAgentDevcontainer {
+	devcontainers, err := db.InsertWorkspaceAgentDevcontainers(genCtx, database.InsertWorkspaceAgentDevcontainersParams{
+		WorkspaceAgentID: takeFirst(orig.WorkspaceAgentID, uuid.New()),
+		ID:               []uuid.UUID{takeFirst(orig.ID, uuid.New())},
+		WorkspaceFolder:  []string{takeFirst(orig.WorkspaceFolder, "")},
+		ConfigPath:       []string{takeFirst(orig.ConfigPath, "")},
+	})
+	require.NoError(t, err, "insert workspace agent devcontainer")
+	return devcontainers[0]
+}
+
 func Workspace(t testing.TB, db database.Store, orig database.WorkspaceTable) database.WorkspaceTable {
 	t.Helper()
 

@@ -2190,6 +2190,37 @@ func TestInsertWorkspaceResource(t *testing.T) {
 		require.Equal(t, int32(50), volMonitors[1].Threshold)
 		require.Equal(t, "/volume2", volMonitors[1].Path)
 	})
+
+	t.Run("Devcontainers", func(t *testing.T) {
+		t.Parallel()
+		db := dbmem.New()
+		job := uuid.New()
+		err := insert(db, job, &sdkproto.Resource{
+			Name: "something",
+			Type: "aws_instance",
+			Agents: []*sdkproto.Agent{{
+				Name: "dev",
+				Devcontainers: []*sdkproto.Devcontainer{
+					{WorkspaceFolder: "/workspace1"},
+					{WorkspaceFolder: "/workspace2", ConfigPath: "/workspace2/.devcontainer/devcontainer.json"},
+				},
+			}},
+		})
+		require.NoError(t, err)
+		resources, err := db.GetWorkspaceResourcesByJobID(ctx, job)
+		require.NoError(t, err)
+		require.Len(t, resources, 1)
+		agents, err := db.GetWorkspaceAgentsByResourceIDs(ctx, []uuid.UUID{resources[0].ID})
+		require.NoError(t, err)
+		require.Len(t, agents, 1)
+		agent := agents[0]
+		devcontainers, err := db.GetWorkspaceAgentDevcontainersByWorkspaceAgentID(ctx, agent.ID)
+		require.NoError(t, err)
+		require.Len(t, devcontainers, 2)
+		require.Equal(t, "/workspace1", devcontainers[0].WorkspaceFolder)
+		require.Equal(t, "/workspace2", devcontainers[1].WorkspaceFolder)
+		require.Equal(t, "/workspace2/.devcontainer/devcontainer.json", devcontainers[1].ConfigPath)
+	})
 }
 
 func TestNotifications(t *testing.T) {
