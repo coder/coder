@@ -162,41 +162,66 @@ func TestWebsocketCloseMsg(t *testing.T) {
 }
 
 // Our WebSocket library accepts any arbitrary ResponseWriter at the type level,
-// but the writer must also implement http.Hijacker for long-lived connections
-type mockWsResponseWriter struct {
+// but the writer must also implement http.Hijacker for long-lived connections.
+// The SSE version only requires http.Flusher (no need for the Hijack method).
+type mockEventSenderResponseWriter struct {
 	serverRecorder   *httptest.ResponseRecorder
 	serverConn       net.Conn
 	clientConn       net.Conn
 	serverReadWriter *bufio.ReadWriter
 }
 
-func (m mockWsResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+func (m mockEventSenderResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return m.serverConn, m.serverReadWriter, nil
 }
 
-func (m mockWsResponseWriter) Flush() {
+func (m mockEventSenderResponseWriter) Flush() {
 	_ = m.serverReadWriter.Flush()
 }
 
-func (m mockWsResponseWriter) Header() http.Header {
+func (m mockEventSenderResponseWriter) Header() http.Header {
 	return m.serverRecorder.Header()
 }
 
-func (m mockWsResponseWriter) Write(b []byte) (int, error) {
+func (m mockEventSenderResponseWriter) Write(b []byte) (int, error) {
 	return m.serverReadWriter.Write(b)
 }
 
-func (m mockWsResponseWriter) WriteHeader(code int) {
+func (m mockEventSenderResponseWriter) WriteHeader(code int) {
 	m.serverRecorder.WriteHeader(code)
 }
 
-type mockWsWrite func(b []byte) (int, error)
+type mockEventSenderWrite func(b []byte) (int, error)
 
-func (w mockWsWrite) Write(b []byte) (int, error) {
+func (w mockEventSenderWrite) Write(b []byte) (int, error) {
 	return w(b)
 }
 
-func TestWebSocketEventSender(t *testing.T) {
+func newMockEventSenderWriter() mockEventSenderResponseWriter {
+	mockServer, mockClient := net.Pipe()
+	recorder := httptest.NewRecorder()
+
+	var write mockEventSenderWrite = func(b []byte) (int, error) {
+		serverCount, err := mockServer.Write(b)
+		if err != nil {
+			return serverCount, err
+		}
+		recorderCount, err := recorder.Write(b)
+		return min(serverCount, recorderCount), err
+	}
+
+	return mockEventSenderResponseWriter{
+		serverConn:     mockServer,
+		clientConn:     mockClient,
+		serverRecorder: recorder,
+		serverReadWriter: bufio.NewReadWriter(
+			bufio.NewReader(mockServer),
+			bufio.NewWriter(write),
+		),
+	}
+}
+
+func TestOneWayWebSocketEventSender(t *testing.T) {
 	t.Parallel()
 
 	newBaseRequest := func(ctx context.Context) *http.Request {
@@ -211,30 +236,6 @@ func TestWebSocketEventSender(t *testing.T) {
 		h.Add("Sec-WebSocket-Key", "dGhlIHNhbXBsZSBub25jZQ==") // Just need any string
 
 		return req
-	}
-
-	newWebsocketWriter := func() mockWsResponseWriter {
-		mockServer, mockClient := net.Pipe()
-		recorder := httptest.NewRecorder()
-
-		var write mockWsWrite = func(b []byte) (int, error) {
-			serverCount, err := mockServer.Write(b)
-			if err != nil {
-				return serverCount, err
-			}
-			recorderCount, err := recorder.Write(b)
-			return min(serverCount, recorderCount), err
-		}
-
-		return mockWsResponseWriter{
-			serverConn:     mockServer,
-			clientConn:     mockClient,
-			serverRecorder: recorder,
-			serverReadWriter: bufio.NewReadWriter(
-				bufio.NewReader(mockServer),
-				bufio.NewWriter(write),
-			),
-		}
 	}
 
 	t.Run("Produces error if the socket connection could not be established", func(t *testing.T) {
@@ -255,8 +256,8 @@ func TestWebSocketEventSender(t *testing.T) {
 			req.ProtoMinor = p.minor
 			req.Proto = p.proto
 
-			writer := newWebsocketWriter()
-			_, _, err := httpapi.WebSocketEventSender(writer, req)
+			writer := newMockEventSenderWriter()
+			_, _, err := httpapi.OneWayWebSocketEventSender(writer, req)
 			require.ErrorContains(t, err, p.proto)
 		}
 	})
@@ -266,8 +267,8 @@ func TestWebSocketEventSender(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 		req := newBaseRequest(ctx)
-		writer := newWebsocketWriter()
-		send, _, err := httpapi.WebSocketEventSender(writer, req)
+		writer := newMockEventSenderWriter()
+		send, _, err := httpapi.OneWayWebSocketEventSender(writer, req)
 		require.NoError(t, err)
 
 		serverPayload := codersdk.ServerSentEvent{
@@ -292,8 +293,8 @@ func TestWebSocketEventSender(t *testing.T) {
 
 		ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitShort))
 		req := newBaseRequest(ctx)
-		writer := newWebsocketWriter()
-		_, done, err := httpapi.WebSocketEventSender(writer, req)
+		writer := newMockEventSenderWriter()
+		_, done, err := httpapi.OneWayWebSocketEventSender(writer, req)
 		require.NoError(t, err)
 
 		successC := make(chan bool)
@@ -316,8 +317,8 @@ func TestWebSocketEventSender(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 		req := newBaseRequest(ctx)
-		writer := newWebsocketWriter()
-		_, done, err := httpapi.WebSocketEventSender(writer, req)
+		writer := newMockEventSenderWriter()
+		_, done, err := httpapi.OneWayWebSocketEventSender(writer, req)
 		require.NoError(t, err)
 
 		successC := make(chan bool)
@@ -346,8 +347,8 @@ func TestWebSocketEventSender(t *testing.T) {
 
 		ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitShort))
 		req := newBaseRequest(ctx)
-		writer := newWebsocketWriter()
-		send, done, err := httpapi.WebSocketEventSender(writer, req)
+		writer := newMockEventSenderWriter()
+		send, done, err := httpapi.OneWayWebSocketEventSender(writer, req)
 		require.NoError(t, err)
 
 		successC := make(chan bool)
@@ -387,8 +388,8 @@ func TestWebSocketEventSender(t *testing.T) {
 
 		ctx := testutil.Context(t, timeout)
 		req := newBaseRequest(ctx)
-		writer := newWebsocketWriter()
-		_, _, err := httpapi.WebSocketEventSender(writer, req)
+		writer := newMockEventSenderWriter()
+		_, _, err := httpapi.OneWayWebSocketEventSender(writer, req)
 		require.NoError(t, err)
 
 		type Result struct {
@@ -418,5 +419,75 @@ func TestWebSocketEventSender(t *testing.T) {
 		result := <-resultC
 		require.NoError(t, result.Err)
 		require.True(t, result.Success)
+	})
+}
+
+func TestServerSentEventSender(t *testing.T) {
+	t.Parallel()
+
+	newBaseRequest := func(ctx context.Context) *http.Request {
+		url := "ws://www.fake-website.com/logs"
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		require.NoError(t, err)
+		return req
+	}
+
+	t.Run("Mutates response headers to support SSE connections", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		req := newBaseRequest(ctx)
+		writer := newMockEventSenderWriter()
+		_, _, err := httpapi.ServerSentEventSender(writer, req)
+		require.NoError(t, err)
+
+		h := writer.Header()
+		require.Equal(t, h.Get("Content-Type"), "text/event-stream")
+		require.Equal(t, h.Get("Cache-Control"), "no-cache")
+		require.Equal(t, h.Get("Connection"), "keep-alive")
+		require.Equal(t, h.Get("X-Accel-Buffering"), "no")
+	})
+
+	t.Run("Returned callback can publish new event to SSE connection", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		req := newBaseRequest(ctx)
+		writer := newMockEventSenderWriter()
+		send, _, err := httpapi.ServerSentEventSender(writer, req)
+		require.NoError(t, err)
+
+		serverPayload := codersdk.ServerSentEvent{
+			Type: codersdk.ServerSentEventTypeData,
+			Data: "Blah",
+		}
+		err = send(serverPayload)
+		require.NoError(t, err)
+
+		// The client connection will receive a little bit of additional data on
+		// top of the main payload. Have to make sure check has tolerance for
+		// extra data being present
+		serverBytes, err := json.Marshal(serverPayload)
+		require.NoError(t, err)
+
+		// This is the part that's breaking
+		clientBytes, err := io.ReadAll(writer.clientConn)
+		require.NoError(t, err)
+		require.True(t, bytes.Contains(clientBytes, serverBytes))
+	})
+
+	t.Run("Signals to outside consumer when connection has been closed", func(t *testing.T) {
+		t.Parallel()
+		t.FailNow()
+	})
+
+	t.Run("Cancels the entire connection if the request context cancels", func(t *testing.T) {
+		t.Parallel()
+		t.FailNow()
+	})
+
+	t.Run("Sends a heartbeat to the client on a fixed internal of time to keep connections alive", func(t *testing.T) {
+		t.Parallel()
+		t.FailNow()
 	})
 }

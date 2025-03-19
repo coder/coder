@@ -326,16 +326,13 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (
 	// Synchronized handling of events (no guarantee of order).
 	go func() {
 		defer close(closed)
-
-		// Send a heartbeat every 15 seconds to avoid the connection being killed.
-		ticker := time.NewTicker(time.Second * 15)
+		ticker := time.NewTicker(HeartbeatInterval)
 		defer ticker.Stop()
 
 		for {
 			var event sseEvent
-
 			select {
-			case <-r.Context().Done():
+			case <-ctx.Done():
 				return
 			case event = <-eventC:
 			case <-ticker.C:
@@ -357,8 +354,6 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (
 
 	sendEvent := func(newEvent codersdk.ServerSentEvent) error {
 		buf := &bytes.Buffer{}
-		enc := json.NewEncoder(buf)
-
 		_, err := buf.WriteString(fmt.Sprintf("event: %s\n", newEvent.Type))
 		if err != nil {
 			return err
@@ -369,6 +364,8 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (
 			if err != nil {
 				return err
 			}
+
+			enc := json.NewEncoder(buf)
 			err = enc.Encode(newEvent.Data)
 			if err != nil {
 				return err
@@ -386,8 +383,6 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (
 		}
 
 		select {
-		case <-r.Context().Done():
-			return r.Context().Err()
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-closed:
@@ -397,8 +392,6 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (
 			// for early exit. We don't check closed here because it
 			// can't happen while processing the event.
 			select {
-			case <-r.Context().Done():
-				return r.Context().Err()
 			case <-ctx.Done():
 				return ctx.Err()
 			case err := <-event.errC:
@@ -410,8 +403,8 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (
 	return sendEvent, closed, nil
 }
 
-// WebSocketEventSender establishes a new WebSocket connection that enforces
-// one-way communication from the server to the client.
+// OneWayWebSocketEventSender establishes a new WebSocket connection that
+// enforces one-way communication from the server to the client.
 //
 // The function returned allows you to send a single message to the client,
 // while the channel lets you listen for when the connection closes.
@@ -422,7 +415,7 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (
 // open a workspace in multiple tabs, the entire UI can start to lock up.
 // WebSockets have no such limitation, no matter what HTTP protocol was used to
 // establish the connection.
-func WebSocketEventSender(rw http.ResponseWriter, r *http.Request) (
+func OneWayWebSocketEventSender(rw http.ResponseWriter, r *http.Request) (
 	func(event codersdk.ServerSentEvent) error,
 	<-chan struct{},
 	error,
