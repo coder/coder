@@ -1,4 +1,7 @@
 -- name: GetTemplatePresetsWithPrebuilds :many
+-- GetTemplatePresetsWithPrebuilds retrieves template versions with configured presets.
+-- It also returns the number of desired instances for each preset.
+-- If template_id is specified, only template versions associated with that template will be returned.
 SELECT t.id                        AS template_id,
 	   t.name                      AS template_name,
 	   tv.id                       AS template_version_id,

@@ -6053,6 +6053,9 @@ type GetTemplatePresetsWithPrebuildsRow struct {
 	Deprecated          bool      `db:"deprecated" json:"deprecated"`
 }
 
+// GetTemplatePresetsWithPrebuilds retrieves template versions with configured presets.
+// It also returns the number of desired instances for each preset.
+// If template_id is specified, only template versions associated with that template will be returned.
 func (q *sqlQuerier) GetTemplatePresetsWithPrebuilds(ctx context.Context, templateID uuid.NullUUID) ([]GetTemplatePresetsWithPrebuildsRow, error) {
 	rows, err := q.db.QueryContext(ctx, getTemplatePresetsWithPrebuilds, templateID)
 	if err != nil {

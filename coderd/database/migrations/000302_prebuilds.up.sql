@@ -1,8 +1,11 @@
+-- workspace_latest_build contains latest build for every workspace
 CREATE VIEW workspace_latest_build AS
 SELECT DISTINCT ON (workspace_id) *
 FROM workspace_builds
 ORDER BY workspace_id, build_number DESC;
 
+-- workspace_prebuilds contains all prebuilt workspaces with corresponding agent information
+-- (including lifecycle_state which indicates is agent ready or not) and corresponding preset_id for prebuild
 CREATE VIEW workspace_prebuilds AS
 WITH
     -- All workspaces owned by the "prebuilds" user.
