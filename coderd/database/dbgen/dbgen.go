@@ -258,6 +258,7 @@ func WorkspaceAgentScriptTiming(t testing.TB, db database.Store, orig database.W
 func WorkspaceAgentDevcontainer(t testing.TB, db database.Store, orig database.WorkspaceAgentDevcontainer) database.WorkspaceAgentDevcontainer {
 	devcontainers, err := db.InsertWorkspaceAgentDevcontainers(genCtx, database.InsertWorkspaceAgentDevcontainersParams{
 		WorkspaceAgentID: takeFirst(orig.WorkspaceAgentID, uuid.New()),
+		CreatedAt:        takeFirst(orig.CreatedAt, dbtime.Now()),
 		ID:               []uuid.UUID{takeFirst(orig.ID, uuid.New())},
 		WorkspaceFolder:  []string{takeFirst(orig.WorkspaceFolder, "")},
 		ConfigPath:       []string{takeFirst(orig.ConfigPath, "")},
