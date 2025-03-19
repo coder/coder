@@ -114,21 +114,20 @@ type MarkAllInboxNotificationsAsReadResponse struct {
 	UnreadCount int `json:"unread_count"`
 }
 
-func (c *Client) MarkAllInboxNotificationsAsRead(ctx context.Context) (MarkAllInboxNotificationsAsReadResponse, error) {
+func (c *Client) MarkAllInboxNotificationsAsRead(ctx context.Context) error {
 	res, err := c.Request(
 		ctx, http.MethodPut,
 		"/api/v2/notifications/inbox/mark-all-as-read",
 		nil,
 	)
 	if err != nil {
-		return MarkAllInboxNotificationsAsReadResponse{}, err
+		return err
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode != http.StatusOK {
-		return MarkAllInboxNotificationsAsReadResponse{}, ReadBodyAsError(res)
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
 	}
 
-	var resp MarkAllInboxNotificationsAsReadResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return nil
 }

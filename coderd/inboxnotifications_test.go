@@ -771,9 +771,8 @@ func TestInboxNotifications_MarkAllAsRead(t *testing.T) {
 		require.Equal(t, 20, notifs.UnreadCount)
 		require.Len(t, notifs.Notifications, 20)
 
-		resp, err := client.MarkAllInboxNotificationsAsRead(ctx)
+		err = client.MarkAllInboxNotificationsAsRead(ctx)
 		require.NoError(t, err)
-		require.Zero(t, resp.UnreadCount)
 
 		notifs, err = client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
 		require.NoError(t, err)
