@@ -14753,7 +14753,7 @@
 				}
 			}
 		},
-		"codersdk.WorkspaceAgentDevcontainer": {
+		"codersdk.WorkspaceAgentContainer": {
 			"type": "object",
 			"properties": {
 				"created_at": {
@@ -14784,7 +14784,7 @@
 					"description": "Ports includes ports exposed by the container.",
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/codersdk.WorkspaceAgentDevcontainerPort"
+						"$ref": "#/definitions/codersdk.WorkspaceAgentContainerPort"
 					}
 				},
 				"running": {
@@ -14804,7 +14804,7 @@
 				}
 			}
 		},
-		"codersdk.WorkspaceAgentDevcontainerPort": {
+		"codersdk.WorkspaceAgentContainerPort": {
 			"type": "object",
 			"properties": {
 				"host_ip": {
@@ -14872,7 +14872,7 @@
 					"description": "Containers is a list of containers visible to the workspace agent.",
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/codersdk.WorkspaceAgentDevcontainer"
+						"$ref": "#/definitions/codersdk.WorkspaceAgentContainer"
 					}
 				},
 				"warnings": {
