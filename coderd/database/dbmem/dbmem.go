@@ -3414,7 +3414,7 @@ func (q *FakeQuerier) GetGroupByOrgAndName(_ context.Context, arg database.GetGr
 	return database.Group{}, sql.ErrNoRows
 }
 
-func (q *FakeQuerier) GetGroupMembers(ctx context.Context) ([]database.GroupMember, error) {
+func (q *FakeQuerier) GetGroupMembers(ctx context.Context, includeSystem bool) ([]database.GroupMember, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -3422,6 +3422,9 @@ func (q *FakeQuerier) GetGroupMembers(ctx context.Context) ([]database.GroupMemb
 	members = append(members, q.groupMembers...)
 	for _, org := range q.organizations {
 		for _, user := range q.users {
+			if !includeSystem && user.IsSystem {
+				continue
+			}
 			members = append(members, database.GroupMemberTable{
 				UserID:  user.ID,
 				GroupID: org.ID,
@@ -6254,12 +6257,11 @@ func (q *FakeQuerier) GetUserCount(_ context.Context, includeSystem bool) (int64
 
 	existing := int64(0)
 	for _, u := range q.users {
-		if !u.Deleted {
-			existing++
-		}
-
 		if !includeSystem && u.IsSystem {
 			continue
+		}
+		if !u.Deleted {
+			existing++
 		}
 	}
 	return existing, nil
@@ -10026,7 +10028,7 @@ func (q *FakeQuerier) UpdateInactiveUsersToDormant(_ context.Context, params dat
 
 	var updated []database.UpdateInactiveUsersToDormantRow
 	for index, user := range q.users {
-		if user.Status == database.UserStatusActive && user.LastSeenAt.Before(params.LastSeenAfter) {
+		if user.Status == database.UserStatusActive && user.LastSeenAt.Before(params.LastSeenAfter) && !user.IsSystem {
 			q.users[index].Status = database.UserStatusDormant
 			q.users[index].UpdatedAt = params.UpdatedAt
 			updated = append(updated, database.UpdateInactiveUsersToDormantRow{

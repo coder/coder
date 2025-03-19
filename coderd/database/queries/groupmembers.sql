@@ -1,5 +1,10 @@
 -- name: GetGroupMembers :many
-SELECT * FROM group_members_expanded;
+SELECT * FROM group_members_expanded
+WHERE CASE
+      WHEN @include_system::bool THEN TRUE
+      ELSE
+        user_is_system = false
+        END;
 
 -- name: GetGroupMembersByGroupID :many
 SELECT *

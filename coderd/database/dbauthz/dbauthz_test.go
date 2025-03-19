@@ -405,7 +405,7 @@ func (s *MethodTestSuite) TestGroup() {
 		g := dbgen.Group(s.T(), db, database.Group{})
 		u := dbgen.User(s.T(), db, database.User{})
 		dbgen.GroupMember(s.T(), db, database.GroupMemberTable{GroupID: g.ID, UserID: u.ID})
-		check.Asserts(rbac.ResourceSystem, policy.ActionRead)
+		check.Args(false).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("System/GetGroups", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)

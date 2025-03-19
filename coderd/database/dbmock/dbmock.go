@@ -1523,18 +1523,18 @@ func (mr *MockStoreMockRecorder) GetGroupByOrgAndName(ctx, arg any) *gomock.Call
 }
 
 // GetGroupMembers mocks base method.
-func (m *MockStore) GetGroupMembers(ctx context.Context) ([]database.GroupMember, error) {
+func (m *MockStore) GetGroupMembers(ctx context.Context, includeSystem bool) ([]database.GroupMember, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetGroupMembers", ctx)
+	ret := m.ctrl.Call(m, "GetGroupMembers", ctx, includeSystem)
 	ret0, _ := ret[0].([]database.GroupMember)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetGroupMembers indicates an expected call of GetGroupMembers.
-func (mr *MockStoreMockRecorder) GetGroupMembers(ctx any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetGroupMembers(ctx, includeSystem any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGroupMembers", reflect.TypeOf((*MockStore)(nil).GetGroupMembers), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGroupMembers", reflect.TypeOf((*MockStore)(nil).GetGroupMembers), ctx, includeSystem)
 }
 
 // GetGroupMembersByGroupID mocks base method.

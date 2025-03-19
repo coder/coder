@@ -1580,10 +1580,15 @@ func (q *sqlQuerier) DeleteGroupMemberFromGroup(ctx context.Context, arg DeleteG
 
 const getGroupMembers = `-- name: GetGroupMembers :many
 SELECT user_id, user_email, user_username, user_hashed_password, user_created_at, user_updated_at, user_status, user_rbac_roles, user_login_type, user_avatar_url, user_deleted, user_last_seen_at, user_quiet_hours_schedule, user_name, user_github_com_user_id, user_is_system, organization_id, group_name, group_id FROM group_members_expanded
+WHERE CASE
+      WHEN $1::bool THEN TRUE
+      ELSE
+        user_is_system = false
+        END
 `
 
-func (q *sqlQuerier) GetGroupMembers(ctx context.Context) ([]GroupMember, error) {
-	rows, err := q.db.QueryContext(ctx, getGroupMembers)
+func (q *sqlQuerier) GetGroupMembers(ctx context.Context, includeSystem bool) ([]GroupMember, error) {
+	rows, err := q.db.QueryContext(ctx, getGroupMembers, includeSystem)
 	if err != nil {
 		return nil, err
 	}
@@ -11891,10 +11896,11 @@ UPDATE
     users
 SET
     status = 'dormant'::user_status,
-	updated_at = $1
+    updated_at = $1
 WHERE
     last_seen_at < $2 :: timestamp
     AND status = 'active'::user_status
+		AND NOT is_system
 RETURNING id, email, username, last_seen_at
 `
 
@@ -12095,7 +12101,9 @@ SET
 		'':: bytea
 	END
 WHERE
-	id = $2 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system
+	id = $2
+	AND NOT is_system
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system
 `
 
 type UpdateUserLoginTypeParams struct {

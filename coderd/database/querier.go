@@ -172,7 +172,7 @@ type sqlcQuerier interface {
 	GetGitSSHKey(ctx context.Context, userID uuid.UUID) (GitSSHKey, error)
 	GetGroupByID(ctx context.Context, id uuid.UUID) (Group, error)
 	GetGroupByOrgAndName(ctx context.Context, arg GetGroupByOrgAndNameParams) (Group, error)
-	GetGroupMembers(ctx context.Context) ([]GroupMember, error)
+	GetGroupMembers(ctx context.Context, includeSystem bool) ([]GroupMember, error)
 	GetGroupMembersByGroupID(ctx context.Context, arg GetGroupMembersByGroupIDParams) ([]GroupMember, error)
 	// Returns the total count of members in a group. Shows the total
 	// count even if the caller does not have read access to ResourceGroupMember.

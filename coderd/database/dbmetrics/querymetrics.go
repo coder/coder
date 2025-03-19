@@ -760,9 +760,9 @@ func (m queryMetricsStore) GetGroupByOrgAndName(ctx context.Context, arg databas
 	return group, err
 }
 
-func (m queryMetricsStore) GetGroupMembers(ctx context.Context) ([]database.GroupMember, error) {
+func (m queryMetricsStore) GetGroupMembers(ctx context.Context, includeSystem bool) ([]database.GroupMember, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetGroupMembers(ctx)
+	r0, r1 := m.s.GetGroupMembers(ctx, includeSystem)
 	m.queryLatencies.WithLabelValues("GetGroupMembers").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
