@@ -350,7 +350,6 @@ func (api *API) updateInboxNotificationReadStatus(rw http.ResponseWriter, r *htt
 // @Summary Mark all unread notifications as read
 // @ID mark-all-unread-notifications-as-read
 // @Security CoderSessionToken
-// @Produce json
 // @Tags Notifications
 // @Success 204
 // @Router /notifications/inbox/mark-all-as-read [put]
