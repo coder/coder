@@ -1333,7 +1333,6 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				)
 				require.NoError(t, err)
 
-				tc.payload.Targets = append(tc.payload.Targets, user.ID)
 				_, err = smtpEnqueuer.EnqueueWithData(
 					ctx,
 					user.ID,
@@ -1466,7 +1465,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 					tc.payload.Labels,
 					tc.payload.Data,
 					user.Username,
-					user.ID,
+					tc.payload.Targets...,
 				)
 				require.NoError(t, err)
 
