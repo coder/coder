@@ -8,7 +8,7 @@ import {
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import { Spinner } from "components/Spinner/Spinner";
 import { RefreshCwIcon, SettingsIcon } from "lucide-react";
-import type { FC } from "react";
+import { type FC, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import { cn } from "utils/cn";
 import { InboxButton } from "./InboxButton";
@@ -34,8 +34,10 @@ export const InboxPopover: FC<InboxPopoverProps> = ({
 	onMarkAllAsRead,
 	onMarkNotificationAsRead,
 }) => {
+	const [isOpen, setIsOpen] = useState(defaultOpen);
+
 	return (
-		<Popover defaultOpen={defaultOpen}>
+		<Popover open={isOpen} onOpenChange={setIsOpen}>
 			<PopoverTrigger asChild>
 				<InboxButton unreadCount={unreadCount} />
 			</PopoverTrigger>
@@ -61,7 +63,10 @@ export const InboxPopover: FC<InboxPopoverProps> = ({
 								Mark all as read
 							</Button>
 							<Button variant="outline" size="icon" asChild>
-								<RouterLink to="/settings/notifications">
+								<RouterLink
+									to="/settings/notifications"
+									onClick={() => setIsOpen(false)}
+								>
 									<SettingsIcon />
 									<span className="sr-only">Notification settings</span>
 								</RouterLink>
