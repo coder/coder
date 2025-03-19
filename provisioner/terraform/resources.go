@@ -57,10 +57,10 @@ type agentAttributes struct {
 	DisplayApps              []agentDisplayAppsAttributes `mapstructure:"display_apps"`
 	Order                    int64                        `mapstructure:"order"`
 	ResourcesMonitoring      []agentResourcesMonitoring   `mapstructure:"resources_monitoring"`
-	Devcontainers            []agentDevcontainer          `mapstructure:"devcontainers"`
 }
 
-type agentDevcontainer struct {
+type agentDevcontainerAttributes struct {
+	AgentID         string `mapstructure:"agent_id"`
 	WorkspaceFolder string `mapstructure:"workspace_folder"`
 	ConfigPath      string `mapstructure:"config_path"`
 }
@@ -353,13 +353,6 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 				agent.Auth = &proto.Agent_InstanceId{}
 			}
 
-			for _, devcontainer := range attrs.Devcontainers {
-				agent.Devcontainers = append(agent.Devcontainers, &proto.Devcontainer{
-					WorkspaceFolder: devcontainer.WorkspaceFolder,
-					ConfigPath:      devcontainer.ConfigPath,
-				})
-			}
-
 			// The label is used to find the graph node!
 			agentLabel := convertAddressToLabel(tfResource.Address)
 
@@ -597,6 +590,32 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 						RunOnStart:       attrs.RunOnStart,
 						RunOnStop:        attrs.RunOnStop,
 						TimeoutSeconds:   attrs.TimeoutSeconds,
+					})
+				}
+			}
+		}
+	}
+
+	// Associate Dev Containers with agents.
+	for _, resources := range tfResourcesByLabel {
+		for _, resource := range resources {
+			if resource.Type != "coder_devcontainer" {
+				continue
+			}
+			var attrs agentDevcontainerAttributes
+			err = mapstructure.Decode(resource.AttributeValues, &attrs)
+			if err != nil {
+				return nil, xerrors.Errorf("decode script attributes: %w", err)
+			}
+			for _, agents := range resourceAgents {
+				for _, agent := range agents {
+					// Find agents with the matching ID and associate them!
+					if !dependsOnAgent(graph, agent, attrs.AgentID, resource) {
+						continue
+					}
+					agent.Devcontainers = append(agent.Devcontainers, &proto.Devcontainer{
+						WorkspaceFolder: attrs.WorkspaceFolder,
+						ConfigPath:      attrs.ConfigPath,
 					})
 				}
 			}
