@@ -6612,6 +6612,12 @@ func (q *FakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 		users = usersFilteredByLastSeen
 	}
 
+	if !params.IncludeSystem {
+		users = slices.DeleteFunc(users, func(u database.User) bool {
+			return u.IsSystem
+		})
+	}
+
 	beforePageCount := len(users)
 
 	if params.OffsetOpt > 0 {
@@ -6626,12 +6632,6 @@ func (q *FakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 			params.LimitOpt = int32(len(users))
 		}
 		users = users[:params.LimitOpt]
-	}
-
-	if !params.IncludeSystem {
-		users = slices.DeleteFunc(users, func(u database.User) bool {
-			return u.IsSystem
-		})
 	}
 
 	return convertUsers(users, int64(beforePageCount)), nil
