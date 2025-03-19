@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { expect, fn, userEvent, within } from "@storybook/test";
 import { MockNotifications } from "testHelpers/entities";
 import { InboxPopover } from "./InboxPopover";
+import { daysAgo } from "utils/time";
 
 const meta: Meta<typeof InboxPopover> = {
 	title: "modules/notifications/NotificationsInbox/InboxPopover",
@@ -32,8 +33,23 @@ export const Default: Story = {
 
 export const Scrollable: Story = {
 	args: {
-		unreadCount: 2,
+		unreadCount: 0,
 		notifications: MockNotifications,
+	},
+	play: async ({ canvasElement }) => {
+		const body = canvasElement.ownerDocument.body;
+		const content = body.querySelector<HTMLDivElement>(
+			"[data-radix-scroll-area-viewport]",
+		);
+		if (!content) {
+			throw new Error("ScrollArea content not found");
+		}
+		const openAnimationDuration = 250;
+		setTimeout(() => {
+			content.scroll({
+				top: content?.children[0].clientHeight,
+			});
+		}, openAnimationDuration);
 	},
 };
 
