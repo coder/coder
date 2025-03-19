@@ -2096,6 +2096,30 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			return xerrors.Errorf("insert agent scripts: %w", err)
 		}
 
+		if devcontainers := prAgent.GetDevcontainers(); len(devcontainers) > 0 {
+			var (
+				devContainerIDs              = make([]uuid.UUID, 0, len(devcontainers))
+				devContainerWorkspaceFolders = make([]string, 0, len(devcontainers))
+				devContainerConfigPaths      = make([]string, 0, len(devcontainers))
+			)
+			for _, dc := range devcontainers {
+				devContainerIDs = append(devContainerIDs, uuid.New())
+				devContainerWorkspaceFolders = append(devContainerWorkspaceFolders, dc.WorkspaceFolder)
+				devContainerConfigPaths = append(devContainerConfigPaths, dc.ConfigPath)
+			}
+
+			_, err = db.InsertWorkspaceAgentDevcontainers(ctx, database.InsertWorkspaceAgentDevcontainersParams{
+				WorkspaceAgentID: agentID,
+				CreatedAt:        dbtime.Now(),
+				ID:               devContainerIDs,
+				WorkspaceFolder:  devContainerWorkspaceFolders,
+				ConfigPath:       devContainerConfigPaths,
+			})
+			if err != nil {
+				return xerrors.Errorf("insert agent devcontainer: %w", err)
+			}
+		}
+
 		for _, app := range prAgent.Apps {
 			// Similar logic is duplicated in terraform/resources.go.
 			slug := app.Slug

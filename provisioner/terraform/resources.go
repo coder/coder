@@ -57,6 +57,12 @@ type agentAttributes struct {
 	DisplayApps              []agentDisplayAppsAttributes `mapstructure:"display_apps"`
 	Order                    int64                        `mapstructure:"order"`
 	ResourcesMonitoring      []agentResourcesMonitoring   `mapstructure:"resources_monitoring"`
+	Devcontainers            []agentDevcontainer          `mapstructure:"devcontainers"`
+}
+
+type agentDevcontainer struct {
+	WorkspaceFolder string `mapstructure:"workspace_folder"`
+	ConfigPath      string `mapstructure:"config_path"`
 }
 
 type agentResourcesMonitoring struct {
@@ -345,6 +351,13 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 				// assume instance auth. It's our only other
 				// authentication type!
 				agent.Auth = &proto.Agent_InstanceId{}
+			}
+
+			for _, devcontainer := range attrs.Devcontainers {
+				agent.Devcontainers = append(agent.Devcontainers, &proto.Devcontainer{
+					WorkspaceFolder: devcontainer.WorkspaceFolder,
+					ConfigPath:      devcontainer.ConfigPath,
+				})
 			}
 
 			// The label is used to find the graph node!
