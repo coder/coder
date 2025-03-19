@@ -1421,7 +1421,6 @@ func TestGetUsers_IncludeSystem(t *testing.T) {
 			require.Equal(t, tt.wantSystemUser, len(users) == 2, "should have 2 users when including system user, 1 otherwise")
 		})
 	}
-
 }
 
 func TestUpdateSystemUser(t *testing.T) {
