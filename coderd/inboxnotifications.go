@@ -94,18 +94,6 @@ func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	conn, err := websocket.Accept(rw, r, nil)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to upgrade connection to websocket.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	go httpapi.Heartbeat(ctx, conn)
-	defer conn.Close(websocket.StatusNormalClosure, "connection closed")
-
 	notificationCh := make(chan codersdk.InboxNotification, 10)
 
 	closeInboxNotificationsSubscriber, err := api.Pubsub.SubscribeWithErr(pubsub.InboxNotificationForOwnerEventChannel(apikey.UserID),
@@ -161,8 +149,19 @@ func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request)
 		api.Logger.Error(ctx, "subscribe to inbox notification event", slog.Error(err))
 		return
 	}
-
 	defer closeInboxNotificationsSubscriber()
+
+	conn, err := websocket.Accept(rw, r, nil)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to upgrade connection to websocket.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	go httpapi.Heartbeat(ctx, conn)
+	defer conn.Close(websocket.StatusNormalClosure, "connection closed")
 
 	encoder := wsjson.NewEncoder[codersdk.GetInboxNotificationResponse](conn, websocket.MessageText)
 	defer encoder.Close(websocket.StatusNormalClosure)
