@@ -25,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/migrations"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/provisionersdk"
@@ -1362,6 +1363,120 @@ func TestUserLastSeenFilter(t *testing.T) {
 		require.NoError(t, err)
 		requireUsersMatch(t, []database.User{today, yesterday}, allAfterLastWeek, "after last week")
 	})
+}
+
+func TestGetUsers_IncludeSystem(t *testing.T) {
+	t.Parallel()
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("test only supports postgres")
+	}
+
+	tests := []struct {
+		name           string
+		includeSystem  bool
+		wantSystemUser bool
+	}{
+		{
+			name:           "include system users",
+			includeSystem:  true,
+			wantSystemUser: true,
+		},
+		{
+			name:           "exclude system users",
+			includeSystem:  false,
+			wantSystemUser: false,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			sqlDB := testSQLDB(t)
+			// Given: a system user introduced by migration coderd/database/migrations/00030*_system_user.up.sql
+			err := migrations.Up(sqlDB)
+			require.NoError(t, err, "migrations")
+
+			db := database.New(sqlDB)
+			other := dbgen.User(t, db, database.User{})
+			users, err := db.GetUsers(ctx, database.GetUsersParams{
+				IncludeSystem: tt.includeSystem,
+			})
+			require.NoError(t, err)
+
+			// Should always find the regular user
+			foundRegularUser := false
+			foundSystemUser := false
+
+			for _, u := range users {
+				if u.IsSystem {
+					foundSystemUser = true
+					require.Equal(t, prebuilds.SystemUserID, u.ID)
+				} else {
+					foundRegularUser = true
+					require.Equal(t, other.ID, u.ID)
+				}
+			}
+
+			require.True(t, foundRegularUser, "regular user should always be found")
+			require.Equal(t, tt.wantSystemUser, foundSystemUser, "system user presence should match includeSystem setting")
+			require.Equal(t, tt.wantSystemUser, len(users) == 2, "should have 2 users when including system user, 1 otherwise")
+		})
+	}
+
+}
+
+func TestUpdateSystemUser(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("test only supports postgres")
+	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	sqlDB := testSQLDB(t)
+	// Given: a system user introduced by migration coderd/database/migrations/00030*_system_user.up.sql
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err, "migrations")
+
+	db := database.New(sqlDB)
+	// Given a system user.
+	users, err := db.GetUsers(ctx, database.GetUsersParams{
+		IncludeSystem: true,
+	})
+	require.NoError(t, err)
+	var systemUser database.GetUsersRow
+	for _, u := range users {
+		if u.IsSystem {
+			systemUser = u
+		}
+	}
+	require.NotNil(t, systemUser)
+
+	// When: attempting to update a system user's name.
+	_, err = db.UpdateUserProfile(ctx, database.UpdateUserProfileParams{
+		ID:   systemUser.ID,
+		Name: "not prebuilds",
+	})
+	// Then: the attempt is rejected by a postgres trigger.
+	require.ErrorContains(t, err, "Cannot modify or delete system users")
+
+	// When: attempting to delete a system user.
+	err = db.UpdateUserDeletedByID(ctx, systemUser.ID)
+	// Then: the attempt is rejected by a postgres trigger.
+	require.ErrorContains(t, err, "Cannot modify or delete system users")
+
+	// When: attempting to update a user's roles.
+	_, err = db.UpdateUserRoles(ctx, database.UpdateUserRolesParams{
+		ID:           systemUser.ID,
+		GrantedRoles: []string{rbac.RoleAuditor().String()},
+	})
+	// Then: the attempt is rejected by a postgres trigger.
+	require.ErrorContains(t, err, "Cannot modify or delete system users")
 }
 
 func TestUserChangeLoginType(t *testing.T) {
