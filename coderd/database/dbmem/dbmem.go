@@ -23,6 +23,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/notifications/types"
+	"github.com/coder/coder/v2/coderd/prebuilds"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -152,6 +153,21 @@ func New() database.Store {
 	if err != nil {
 		panic(xerrors.Errorf("failed to create psk provisioner key: %w", err))
 	}
+
+	q.mutex.Lock()
+	q.data.users = append(q.data.users, database.User{
+		ID:             prebuilds.SystemUserID,
+		Email:          "prebuilds@coder.com",
+		Username:       "prebuilds",
+		CreatedAt:      dbtime.Now(),
+		UpdatedAt:      dbtime.Now(),
+		Status:         "active",
+		LoginType:      "none",
+		HashedPassword: []byte{},
+		IsSystem:       true,
+		Deleted:        false,
+	})
+	q.mutex.Unlock()
 
 	return q
 }
@@ -439,6 +455,7 @@ func convertUsers(users []database.User, count int64) []database.GetUsersRow {
 			Deleted:        u.Deleted,
 			LastSeenAt:     u.LastSeenAt,
 			Count:          count,
+			IsSystem:       u.IsSystem,
 		}
 	}
 
@@ -6608,6 +6625,12 @@ func (q *FakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 		users = users[:params.LimitOpt]
 	}
 
+	if !params.IncludeSystem {
+		users = slices.DeleteFunc(users, func(u database.User) bool {
+			return u.IsSystem
+		})
+	}
+
 	return convertUsers(users, int64(beforePageCount)), nil
 }
 
@@ -8888,6 +8911,7 @@ func (q *FakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParam
 		Status:         status,
 		RBACRoles:      arg.RBACRoles,
 		LoginType:      arg.LoginType,
+		IsSystem:       false,
 	}
 	q.users = append(q.users, user)
 	sort.Slice(q.users, func(i, j int) bool {

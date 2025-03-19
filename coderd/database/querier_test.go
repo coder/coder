@@ -1367,9 +1367,6 @@ func TestUserLastSeenFilter(t *testing.T) {
 
 func TestGetUsers_IncludeSystem(t *testing.T) {
 	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("test only supports postgres")
-	}
 
 	tests := []struct {
 		name           string
@@ -1395,12 +1392,10 @@ func TestGetUsers_IncludeSystem(t *testing.T) {
 
 			ctx := testutil.Context(t, testutil.WaitLong)
 
-			sqlDB := testSQLDB(t)
-			// Given: a system user introduced by migration coderd/database/migrations/00030*_system_user.up.sql
-			err := migrations.Up(sqlDB)
-			require.NoError(t, err, "migrations")
-
-			db := database.New(sqlDB)
+			// Given: a system user
+			// postgres: introduced by migration coderd/database/migrations/00030*_system_user.up.sql
+			// dbmem: created in dbmem/dbmem.go
+			db, _ := dbtestutil.NewDB(t)
 			other := dbgen.User(t, db, database.User{})
 			users, err := db.GetUsers(ctx, database.GetUsersParams{
 				IncludeSystem: tt.includeSystem,
@@ -1417,7 +1412,7 @@ func TestGetUsers_IncludeSystem(t *testing.T) {
 					require.Equal(t, prebuilds.SystemUserID, u.ID)
 				} else {
 					foundRegularUser = true
-					require.Equal(t, other.ID, u.ID)
+					require.Equalf(t, other.ID.String(), u.ID.String(), "found unexpected regular user")
 				}
 			}
 
