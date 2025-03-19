@@ -6697,6 +6697,22 @@ func (q *FakeQuerier) GetWorkspaceAgentByInstanceID(_ context.Context, instanceI
 	return database.WorkspaceAgent{}, sql.ErrNoRows
 }
 
+func (q *FakeQuerier) GetWorkspaceAgentDevcontainersByWorkspaceAgentID(_ context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentDevcontainer, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	devcontainers := make([]database.WorkspaceAgentDevcontainer, 0)
+	for _, dc := range q.workspaceAgentDevcontainers {
+		if dc.WorkspaceAgentID == workspaceAgentID {
+			devcontainers = append(devcontainers, dc)
+		}
+	}
+	if len(devcontainers) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return devcontainers, nil
+}
+
 func (q *FakeQuerier) GetWorkspaceAgentLifecycleStateByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceAgentLifecycleStateByIDRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
