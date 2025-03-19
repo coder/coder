@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, fn, userEvent, waitFor, within } from "@storybook/test";
 import { MockNotifications } from "testHelpers/entities";
-import { daysAgo } from "utils/time";
 import { InboxPopover } from "./InboxPopover";
 
 const meta: Meta<typeof InboxPopover> = {
@@ -12,7 +11,7 @@ const meta: Meta<typeof InboxPopover> = {
 	},
 	render: (args) => {
 		return (
-			<div className="w-full max-w-screen-xl p-6 h-[320px]">
+			<div className="w-full max-w-screen-xl p-6 h-[720px]">
 				<header className="flex justify-end">
 					<InboxPopover {...args} />
 				</header>
@@ -21,6 +20,9 @@ const meta: Meta<typeof InboxPopover> = {
 	},
 	parameters: {
 		layout: "fullscreen",
+		chromatic: {
+			desktop: { name: "Custom", styles: { width: "640px", height: "720px" } },
+		},
 	},
 };
 
