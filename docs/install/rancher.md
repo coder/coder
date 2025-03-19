@@ -87,6 +87,8 @@ kubectl create secret generic coder-db-url -n coder \
 
 ## Install Coder through the Rancher UI
 
+![Coder installed on Rancher](../images/install/coder-rancher.png)
+
 1. In the Rancher Manager console, select your target Kubernetes cluster for Coder.
 
 1. Navigate to **Apps** > **Charts**
