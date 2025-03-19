@@ -765,7 +765,7 @@ func (api *API) workspaceAgentListContainers(rw http.ResponseWriter, r *http.Req
 	}
 
 	// Filter in-place by labels
-	cts.Containers = slices.DeleteFunc(cts.Containers, func(ct codersdk.WorkspaceAgentDevcontainer) bool {
+	cts.Containers = slices.DeleteFunc(cts.Containers, func(ct codersdk.WorkspaceAgentContainer) bool {
 		return !maputil.Subset(labels, ct.Labels)
 	})
 
