@@ -13,6 +13,8 @@ Content-Type: text/plain; charset=UTF-8
 Your workspace bobby-workspace has been updated automatically to the latest=
  template version (1.0).
 
+Reason for update: template now includes catnip.
+
 
 View workspace: http://test.com/@bobby/bobby-workspace
 
@@ -47,6 +49,8 @@ argin: 8px 0 32px; line-height: 1.5;">
 				<p>Hi bobby,</p>
         <p>Your workspace <strong>bobby-workspace</strong> has been updated=
  automatically to the latest template version (1.0).</p>
+
+<p>Reason for update: <strong>template now includes catnip</strong>.</p>
       </div>
       <div style=3D"text-align: center; margin-top: 32px;">
        =20

@@ -10,7 +10,7 @@ MIME-Version: 1.0
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/plain; charset=UTF-8
 
-Your account bobby has been activated.
+Your account bobby has been activated by rob.
 
 
 Open Coder: http://test.com
@@ -44,7 +44,8 @@ argin: 8px 0 32px; line-height: 1.5;">
       </h1>
       <div style=3D"line-height: 1.5;">
 				<p>Hi bobby,</p>
-        <p>Your account <strong>bobby</strong> has been activated.</p>
+        <p>Your account <strong>bobby</strong> has been activated by <stron=
+g>rob</strong>.</p>
       </div>
       <div style=3D"text-align: center; margin-top: 32px;">
        =20

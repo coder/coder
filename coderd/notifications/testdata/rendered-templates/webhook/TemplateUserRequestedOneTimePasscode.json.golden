@@ -23,6 +23,6 @@
   },
   "title": "Reset your password for Coder",
   "title_markdown": "Reset your password for Coder",
-  "body": "A request to reset the password for your Coder account has been made. Your one-time passcode is:\n\n00000000-0000-0000-0000-000000000000\n\nIf you did not request to reset your password, you can ignore this message.",
-  "body_markdown": "A request to reset the password for your Coder account has been made. Your one-time passcode is:\n\n**00000000-0000-0000-0000-000000000000**\n\nIf you did not request to reset your password, you can ignore this message."
+  "body": "Use the link below to reset your password.\n\nIf you did not make this request, you can ignore this message.",
+  "body_markdown": "Use the link below to reset your password.\n\nIf you did not make this request, you can ignore this message."
 }
