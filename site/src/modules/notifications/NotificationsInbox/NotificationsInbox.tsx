@@ -1,4 +1,4 @@
-import { API, watchInboxNotifications } from "api/api";
+import { watchInboxNotifications } from "api/api";
 import { getErrorDetail, getErrorMessage } from "api/errors";
 import type {
 	ListInboxNotificationsResponse,
@@ -6,7 +6,7 @@ import type {
 } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { useEffectEvent } from "hooks/hookPolyfills";
-import { type FC, useEffect, useRef } from "react";
+import { type FC, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { InboxPopover } from "./InboxPopover";
 
@@ -58,21 +58,31 @@ export const NotificationsInbox: FC<NotificationsInboxProps> = ({
 	);
 
 	useEffect(() => {
-		const socket = watchInboxNotifications(
-			(res) => {
-				updateNotificationsCache((prev) => {
-					return {
-						unread_count: res.unread_count,
-						notifications: [res.notification, ...prev.notifications],
-					};
-				});
-			},
-			{ read_status: "unread" },
-		);
+		const socket = watchInboxNotifications({ read_status: "unread" });
 
-		return () => {
+		socket.addEventListener("message", (e) => {
+			if (e.parseError) {
+				console.warn("Error parsing inbox notification: ", e.parseError);
+				return;
+			}
+
+			const msg = e.parsedMessage;
+			updateNotificationsCache((prev) => {
+				return {
+					unread_count: msg.unread_count,
+					notifications: [msg.notification, ...prev.notifications],
+				};
+			});
+		});
+
+		socket.addEventListener("error", () => {
+			displayError(
+				"Unable to retrieve latest inbox notifications. Please try refreshing the browser.",
+			);
 			socket.close();
-		};
+		});
+
+		return () => socket.close();
 	}, [updateNotificationsCache]);
 
 	const markAllAsReadMutation = useMutation({
