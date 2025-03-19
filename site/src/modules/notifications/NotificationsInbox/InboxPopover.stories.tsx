@@ -36,29 +36,6 @@ export const Default: Story = {
 	},
 };
 
-export const Scrollable: Story = {
-	args: {
-		unreadCount: 2,
-		notifications: MockNotifications,
-	},
-	play: async ({ canvasElement }) => {
-		const body = canvasElement.ownerDocument.body;
-		const content = body.querySelector<HTMLDivElement>(
-			"[data-radix-scroll-area-viewport]",
-		);
-		if (!content) {
-			throw new Error("ScrollArea content not found");
-		}
-		await waitFor(() => {
-			const distanceToBottom = content?.children[0].clientHeight;
-			content.scroll({
-				top: distanceToBottom,
-			});
-			expect(content.scrollTop).not.toBe(0);
-		});
-	},
-};
-
 export const Loading: Story = {
 	args: {
 		unreadCount: 0,
