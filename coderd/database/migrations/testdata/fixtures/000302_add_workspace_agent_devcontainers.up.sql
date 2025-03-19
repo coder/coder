@@ -1,6 +1,6 @@
 INSERT INTO
 	workspace_agent_devcontainers (
-		agent_id,
+		workspace_agent_id,
 		created_at,
 		id,
 		workspace_folder,
