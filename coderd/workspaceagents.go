@@ -1109,13 +1109,13 @@ func (api *API) watchWorkspaceAgentMetadataSSE(rw http.ResponseWriter, r *http.R
 // @Router /workspaceagents/{workspaceagent}/watch-metadata-ws [get]
 // @x-apidocgen {"skip": true}
 func (api *API) watchWorkspaceAgentMetadataWS(rw http.ResponseWriter, r *http.Request) {
-	api.watchWorkspaceAgentMetadata(rw, r, httpapi.OneWayWebSocket)
+	api.watchWorkspaceAgentMetadata(rw, r, httpapi.OneWayWebSocketEventSender)
 }
 
 func (api *API) watchWorkspaceAgentMetadata(
 	rw http.ResponseWriter,
 	r *http.Request,
-	connect httpapi.InitializeConnectionCallback,
+	connect httpapi.EventSender,
 ) {
 	// Allow us to interrupt watch via cancel.
 	ctx, cancel := context.WithCancel(r.Context())
