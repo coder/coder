@@ -43,7 +43,7 @@ argin: 8px 0 32px; line-height: 1.5;">
         Your workspace "bobby-workspace" is low on volume space
       </h1>
       <div style=3D"line-height: 1.5;">
-				Hi bobby,
+				<p>Hi bobby,</p>
         <p>Volume <strong><code>/home/coder</code></strong> is over 90% ful=
 l in workspace <strong>bobby-workspace</strong>.</p>
       </div>

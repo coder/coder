@@ -49,7 +49,7 @@ argin: 8px 0 32px; line-height: 1.5;">
         Reset your password for Coder
       </h1>
       <div style=3D"line-height: 1.5;">
-				Hi bobby,
+				<p>Hi bobby,</p>
         <p>A request to reset the password for your Coder account has been =
 made. Your one-time passcode is:</p>
 

@@ -44,7 +44,7 @@ argin: 8px 0 32px; line-height: 1.5;">
         Workspace "bobby-workspace" autobuild failed
       </h1>
       <div style=3D"line-height: 1.5;">
-				Hi bobby,
+				<p>Hi bobby,</p>
         <p>Automatic build of your workspace <strong>bobby-workspace</stron=
 g> failed.<br>
 The specified reason was &ldquo;<strong>autostart</strong>&rdquo;.</p>
