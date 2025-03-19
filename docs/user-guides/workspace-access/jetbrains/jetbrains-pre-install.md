@@ -29,7 +29,7 @@ rm -rf ~/JetBrains/backends/IU/ideaIU-2024.3.5.tar.gz
 
 ## Register the Gateway backend
 
-Run the following script in the downloaded JetBrains IDE backend directory to configure the Gateway backend:
+Add the following command to your template's `startup_script`:
 
 ```shell
 ~/JetBrains/backends/IU/ideaIU-2024.3.5/bin/remote-dev-server.sh registerBackendLocationForGateway
