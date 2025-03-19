@@ -27,7 +27,7 @@ of [install](../install).
    systemctl restart coder
    ```
 
-### Other methods
+### Other upgrade methods
 
 <div class="tabs">
 
