@@ -8,3 +8,13 @@ SELECT
 	unnest(@workspace_folder::text[]) AS workspace_folder,
 	unnest(@config_path::text[]) AS config_path
 RETURNING workspace_agent_devcontainers.*;
+
+-- name: GetWorkspaceAgentDevcontainersByWorkspaceAgentID :many
+SELECT
+	*
+FROM
+	workspace_agent_devcontainers
+WHERE
+	workspace_agent_id = $1
+ORDER BY
+	created_at, id;
