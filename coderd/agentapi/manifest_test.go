@@ -323,7 +323,7 @@ func TestGetManifest(t *testing.T) {
 			WorkspaceAgentID: agent.ID,
 			Keys:             nil, // all
 		}).Return(metadata, nil)
-		mDB.EXPECT().GetWorkspaceAgentDevcontainersByWorkspaceAgentID(gomock.Any(), agent.ID).Return(devcontainers, nil)
+		mDB.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), agent.ID).Return(devcontainers, nil)
 		mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil)
 		mDB.EXPECT().GetUserByID(gomock.Any(), workspace.OwnerID).Return(owner, nil)
 
@@ -390,7 +390,7 @@ func TestGetManifest(t *testing.T) {
 			WorkspaceAgentID: agent.ID,
 			Keys:             nil, // all
 		}).Return(metadata, nil)
-		mDB.EXPECT().GetWorkspaceAgentDevcontainersByWorkspaceAgentID(gomock.Any(), agent.ID).Return(devcontainers, nil)
+		mDB.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), agent.ID).Return(devcontainers, nil)
 		mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil)
 		mDB.EXPECT().GetUserByID(gomock.Any(), workspace.OwnerID).Return(owner, nil)
 

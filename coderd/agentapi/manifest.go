@@ -83,7 +83,7 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		return err
 	})
 	eg.Go(func() (err error) {
-		devcontainers, err = a.Database.GetWorkspaceAgentDevcontainersByWorkspaceAgentID(ctx, workspaceAgent.ID)
+		devcontainers, err = a.Database.GetWorkspaceAgentDevcontainersByAgentID(ctx, workspaceAgent.ID)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return err
 		}

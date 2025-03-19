@@ -9,7 +9,7 @@ SELECT
 	unnest(@config_path::text[]) AS config_path
 RETURNING workspace_agent_devcontainers.*;
 
--- name: GetWorkspaceAgentDevcontainersByWorkspaceAgentID :many
+-- name: GetWorkspaceAgentDevcontainersByAgentID :many
 SELECT
 	*
 FROM

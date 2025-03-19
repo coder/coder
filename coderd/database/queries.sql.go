@@ -12269,7 +12269,7 @@ func (q *sqlQuerier) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusP
 	return i, err
 }
 
-const getWorkspaceAgentDevcontainersByWorkspaceAgentID = `-- name: GetWorkspaceAgentDevcontainersByWorkspaceAgentID :many
+const getWorkspaceAgentDevcontainersByAgentID = `-- name: GetWorkspaceAgentDevcontainersByAgentID :many
 SELECT
 	id, workspace_agent_id, created_at, workspace_folder, config_path
 FROM
@@ -12280,8 +12280,8 @@ ORDER BY
 	created_at, id
 `
 
-func (q *sqlQuerier) GetWorkspaceAgentDevcontainersByWorkspaceAgentID(ctx context.Context, workspaceAgentID uuid.UUID) ([]WorkspaceAgentDevcontainer, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentDevcontainersByWorkspaceAgentID, workspaceAgentID)
+func (q *sqlQuerier) GetWorkspaceAgentDevcontainersByAgentID(ctx context.Context, workspaceAgentID uuid.UUID) ([]WorkspaceAgentDevcontainer, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentDevcontainersByAgentID, workspaceAgentID)
 	if err != nil {
 		return nil, err
 	}

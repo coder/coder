@@ -3172,19 +3172,19 @@ func (mr *MockStoreMockRecorder) GetWorkspaceAgentByInstanceID(ctx, authInstance
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentByInstanceID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentByInstanceID), ctx, authInstanceID)
 }
 
-// GetWorkspaceAgentDevcontainersByWorkspaceAgentID mocks base method.
-func (m *MockStore) GetWorkspaceAgentDevcontainersByWorkspaceAgentID(ctx context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentDevcontainer, error) {
+// GetWorkspaceAgentDevcontainersByAgentID mocks base method.
+func (m *MockStore) GetWorkspaceAgentDevcontainersByAgentID(ctx context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentDevcontainer, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetWorkspaceAgentDevcontainersByWorkspaceAgentID", ctx, workspaceAgentID)
+	ret := m.ctrl.Call(m, "GetWorkspaceAgentDevcontainersByAgentID", ctx, workspaceAgentID)
 	ret0, _ := ret[0].([]database.WorkspaceAgentDevcontainer)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetWorkspaceAgentDevcontainersByWorkspaceAgentID indicates an expected call of GetWorkspaceAgentDevcontainersByWorkspaceAgentID.
-func (mr *MockStoreMockRecorder) GetWorkspaceAgentDevcontainersByWorkspaceAgentID(ctx, workspaceAgentID any) *gomock.Call {
+// GetWorkspaceAgentDevcontainersByAgentID indicates an expected call of GetWorkspaceAgentDevcontainersByAgentID.
+func (mr *MockStoreMockRecorder) GetWorkspaceAgentDevcontainersByAgentID(ctx, workspaceAgentID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentDevcontainersByWorkspaceAgentID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentDevcontainersByWorkspaceAgentID), ctx, workspaceAgentID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentDevcontainersByAgentID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentDevcontainersByAgentID), ctx, workspaceAgentID)
 }
 
 // GetWorkspaceAgentLifecycleStateByID mocks base method.

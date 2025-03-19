@@ -2214,7 +2214,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, agents, 1)
 		agent := agents[0]
-		devcontainers, err := db.GetWorkspaceAgentDevcontainersByWorkspaceAgentID(ctx, agent.ID)
+		devcontainers, err := db.GetWorkspaceAgentDevcontainersByAgentID(ctx, agent.ID)
 		require.NoError(t, err)
 		require.Len(t, devcontainers, 2)
 		require.Equal(t, "/workspace1", devcontainers[0].WorkspaceFolder)

@@ -1515,10 +1515,10 @@ func (m queryMetricsStore) GetWorkspaceAgentByInstanceID(ctx context.Context, au
 	return agent, err
 }
 
-func (m queryMetricsStore) GetWorkspaceAgentDevcontainersByWorkspaceAgentID(ctx context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentDevcontainer, error) {
+func (m queryMetricsStore) GetWorkspaceAgentDevcontainersByAgentID(ctx context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentDevcontainer, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetWorkspaceAgentDevcontainersByWorkspaceAgentID(ctx, workspaceAgentID)
-	m.queryLatencies.WithLabelValues("GetWorkspaceAgentDevcontainersByWorkspaceAgentID").Observe(time.Since(start).Seconds())
+	r0, r1 := m.s.GetWorkspaceAgentDevcontainersByAgentID(ctx, workspaceAgentID)
+	m.queryLatencies.WithLabelValues("GetWorkspaceAgentDevcontainersByAgentID").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 

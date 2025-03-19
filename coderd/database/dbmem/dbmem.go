@@ -6697,7 +6697,7 @@ func (q *FakeQuerier) GetWorkspaceAgentByInstanceID(_ context.Context, instanceI
 	return database.WorkspaceAgent{}, sql.ErrNoRows
 }
 
-func (q *FakeQuerier) GetWorkspaceAgentDevcontainersByWorkspaceAgentID(_ context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentDevcontainer, error) {
+func (q *FakeQuerier) GetWorkspaceAgentDevcontainersByAgentID(_ context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentDevcontainer, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
