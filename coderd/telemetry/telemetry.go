@@ -497,7 +497,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		return nil
 	})
 	eg.Go(func() error {
-		groupMembers, err := r.options.Database.GetGroupMembers(ctx)
+		groupMembers, err := r.options.Database.GetGroupMembers(ctx, false)
 		if err != nil {
 			return xerrors.Errorf("get groups: %w", err)
 		}

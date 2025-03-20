@@ -1,14 +1,35 @@
 -- name: GetGroupMembers :many
-SELECT * FROM group_members_expanded;
+SELECT * FROM group_members_expanded
+WHERE CASE
+      WHEN @include_system::bool THEN TRUE
+      ELSE
+        user_is_system = false
+        END;
 
 -- name: GetGroupMembersByGroupID :many
-SELECT * FROM group_members_expanded WHERE group_id = @group_id;
+SELECT *
+FROM group_members_expanded
+WHERE group_id = @group_id
+  -- Filter by system type
+  AND CASE
+      WHEN @include_system::bool THEN TRUE
+      ELSE
+        user_is_system = false
+      END;
 
 -- name: GetGroupMembersCountByGroupID :one
 -- Returns the total count of members in a group. Shows the total
 -- count even if the caller does not have read access to ResourceGroupMember.
 -- They only need ResourceGroup read access.
-SELECT COUNT(*) FROM group_members_expanded WHERE group_id = @group_id;
+SELECT COUNT(*)
+FROM group_members_expanded
+WHERE group_id = @group_id
+  -- Filter by system type
+  AND CASE
+      WHEN @include_system::bool THEN TRUE
+      ELSE
+        user_is_system = false
+        END;
 
 -- InsertUserGroupsByName adds a user to all provided groups, if they exist.
 -- name: InsertUserGroupsByName :exec
