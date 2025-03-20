@@ -363,12 +363,12 @@ func (e *executor) planResources(ctx, killCtx context.Context, planfilePath stri
 		return nil, nil, err
 	}
 
-	planJson, err := json.Marshal(plan)
+	planJSON, err := json.Marshal(plan)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	return state, planJson, nil
+	return state, planJSON, nil
 }
 
 // showPlan must only be called while the lock is held.

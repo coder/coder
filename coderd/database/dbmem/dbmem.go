@@ -8820,7 +8820,7 @@ func (q *FakeQuerier) InsertTemplateVersionParameter(_ context.Context, arg data
 	return param, nil
 }
 
-func (q *FakeQuerier) InsertTemplateVersionTerraformValuesByJobID(ctx context.Context, arg database.InsertTemplateVersionTerraformValuesByJobIDParams) error {
+func (q *FakeQuerier) InsertTemplateVersionTerraformValuesByJobID(_ context.Context, arg database.InsertTemplateVersionTerraformValuesByJobIDParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return err
