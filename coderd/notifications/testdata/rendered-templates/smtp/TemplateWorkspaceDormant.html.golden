@@ -10,8 +10,6 @@ MIME-Version: 1.0
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/plain; charset=UTF-8
 
-Hi Bobby,
-
 Your workspace bobby-workspace has been marked as dormant (https://coder.co=
 m/docs/templates/schedule#dormancy-threshold-enterprise) because of breache=
 d the template's threshold for inactivity.
@@ -52,12 +50,10 @@ argin: 8px 0 32px; line-height: 1.5;">
       </h1>
       <div style=3D"line-height: 1.5;">
 				<p>Hi bobby,</p><br />
-        <p>Hi Bobby,</p>
-
-<p>Your workspace <strong>bobby-workspace</strong> has been marked as <a hr=
-ef=3D"https://coder.com/docs/templates/schedule#dormancy-threshold-enterpri=
-se"><strong>dormant</strong></a> because of breached the template&rsquo;s t=
-hreshold for inactivity.<br>
+        <p>Your workspace <strong>bobby-workspace</strong> has been marked =
+as <a href=3D"https://coder.com/docs/templates/schedule#dormancy-threshold-=
+enterprise"><strong>dormant</strong></a> because of breached the template&r=
+squo;s threshold for inactivity.<br>
 Dormant workspaces are <a href=3D"https://coder.com/docs/templates/schedule=
 #dormancy-auto-deletion-enterprise">automatically deleted</a> after 24 hour=
 s of inactivity.<br>
