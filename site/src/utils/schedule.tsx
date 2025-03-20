@@ -276,7 +276,7 @@ export const quietHoursDisplay = (
 
 	const today = dayjs(now).tz(tz);
 	const day = dayjs(parsed.next().toDate()).tz(tz);
-	let display = day.format("h:mmA");
+	let display = day.format("HH:mm");
 
 	if (day.isSame(today, "day")) {
 		display += " today";
