@@ -106,6 +106,26 @@ curl -X GET http://coder-server:8080/api/v2/notifications/inbox \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Mark all unread notifications as read
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/v2/notifications/inbox/mark-all-as-read \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /notifications/inbox/mark-all-as-read`
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Watch for new inbox notifications
 
 ### Code samples

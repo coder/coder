@@ -3454,6 +3454,7 @@ type WorkspaceAppAuditSession struct {
 	StartedAt time.Time `db:"started_at" json:"started_at"`
 	// The time the session was last updated.
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	ID        uuid.UUID `db:"id" json:"id"`
 }
 
 // A record of workspace app usage statistics

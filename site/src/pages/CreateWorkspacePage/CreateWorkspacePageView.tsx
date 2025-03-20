@@ -286,11 +286,13 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 										label="Preset"
 										options={presetOptions}
 										onSelect={(option) => {
-											setSelectedPresetIndex(
-												presetOptions.findIndex(
-													(preset) => preset.value === option?.value,
-												),
+											const index = presetOptions.findIndex(
+												(preset) => preset.value === option?.value,
 											);
+											if (index === -1) {
+												return;
+											}
+											setSelectedPresetIndex(index);
 										}}
 										placeholder="Select a preset"
 										selectedOption={presetOptions[selectedPresetIndex]}
