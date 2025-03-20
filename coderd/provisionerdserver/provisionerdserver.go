@@ -1407,7 +1407,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 		err = s.Database.UpdateTemplateVersionExternalAuthProvidersByJobID(ctx, database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams{
 			JobID:                 jobID,
 			ExternalAuthProviders: json.RawMessage(externalAuthProvidersMessage),
-			ImportGraph:           string(jobType.TemplateImport.Plan),
+			CachedPlan:            jobType.TemplateImport.Plan,
 			UpdatedAt:             s.timeNow(),
 		})
 		if err != nil {
