@@ -260,7 +260,7 @@ func WorkspaceAgentDevcontainer(t testing.TB, db database.Store, orig database.W
 		WorkspaceAgentID: takeFirst(orig.WorkspaceAgentID, uuid.New()),
 		CreatedAt:        takeFirst(orig.CreatedAt, dbtime.Now()),
 		ID:               []uuid.UUID{takeFirst(orig.ID, uuid.New())},
-		WorkspaceFolder:  []string{takeFirst(orig.WorkspaceFolder, "")},
+		WorkspaceFolder:  []string{takeFirst(orig.WorkspaceFolder, "/workspace")},
 		ConfigPath:       []string{takeFirst(orig.ConfigPath, "")},
 	})
 	require.NoError(t, err, "insert workspace agent devcontainer")
