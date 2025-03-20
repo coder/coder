@@ -19,9 +19,12 @@ type InboxPopoverProps = {
 	notifications: readonly InboxNotification[] | undefined;
 	unreadCount: number;
 	error: unknown;
+	isLoadingMoreNotifications: boolean;
+	hasMoreNotifications: boolean;
 	onRetry: () => void;
 	onMarkAllAsRead: () => void;
 	onMarkNotificationAsRead: (notificationId: string) => void;
+	onLoadMoreNotifications: () => void;
 	defaultOpen?: boolean;
 };
 
@@ -30,9 +33,12 @@ export const InboxPopover: FC<InboxPopoverProps> = ({
 	unreadCount,
 	notifications,
 	error,
+	isLoadingMoreNotifications,
+	hasMoreNotifications,
 	onRetry,
 	onMarkAllAsRead,
 	onMarkNotificationAsRead,
+	onLoadMoreNotifications,
 }) => {
 	const [isOpen, setIsOpen] = useState(defaultOpen);
 
@@ -41,12 +47,18 @@ export const InboxPopover: FC<InboxPopoverProps> = ({
 			<PopoverTrigger asChild>
 				<InboxButton unreadCount={unreadCount} />
 			</PopoverTrigger>
-			<PopoverContent className="w-[466px]" align="end">
+			<PopoverContent className="w-[466px] flex flex-col" align="end">
 				{/*
 				 * data-radix-scroll-area-viewport is used to set the max-height of the ScrollArea
 				 * https://github.com/shadcn-ui/ui/issues/542#issuecomment-2339361283
 				 */}
-				<ScrollArea className="[&>[data-radix-scroll-area-viewport]]:max-h-[calc(var(--radix-popover-content-available-height)-24px)]">
+				<ScrollArea
+					className={cn([
+						"[--bottom-offset:48px]",
+						"[--max-height:calc(var(--radix-popover-content-available-height)-var(--bottom-offset))]",
+						"[&>[data-radix-scroll-area-viewport]]:max-h-[var(--max-height)]",
+					])}
+				>
 					<div
 						className={cn([
 							"flex items-center justify-between p-3 border-0 border-b border-solid border-border",
@@ -94,6 +106,18 @@ export const InboxPopover: FC<InboxPopoverProps> = ({
 										onMarkNotificationAsRead={onMarkNotificationAsRead}
 									/>
 								))}
+								{hasMoreNotifications && (
+									<Button
+										variant="subtle"
+										size="sm"
+										disabled={isLoadingMoreNotifications}
+										onClick={onLoadMoreNotifications}
+										className="w-full"
+									>
+										<Spinner loading={isLoadingMoreNotifications} size="sm" />
+										Load more
+									</Button>
+								)}
 							</div>
 						) : (
 							<div className="p-6 flex items-center justify-center min-h-48">
