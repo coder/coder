@@ -381,6 +381,8 @@ coder server --provisioner-daemons=0
 
 View more information about and manage your provisioners from the Coder dashboard.
 
+![Provisioner jobs in the dashboard](../images/admin/provisioners/provisioner-jobs.png)
+
 1. Under **Admin settings** select **Organizations**, then select **Provisioner jobs**.
 
 1. Select the **>** to expand each entry for more information.
