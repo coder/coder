@@ -7,6 +7,7 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 
 	"github.com/skratchdot/open-golang/open"
@@ -26,6 +27,7 @@ func (r *RootCmd) open() *serpent.Command {
 		},
 		Children: []*serpent.Command{
 			r.openVSCode(),
+			r.openApp(),
 		},
 	}
 	return cmd
@@ -211,6 +213,118 @@ func (r *RootCmd) openVSCode() *serpent.Command {
 	return cmd
 }
 
+func (r *RootCmd) openApp() *serpent.Command {
+	var (
+		preferredRegion string
+		testOpenError   bool
+	)
+
+	client := new(codersdk.Client)
+	cmd := &serpent.Command{
+		Annotations: workspaceCommand,
+		Use:         "app <workspace> <app slug>",
+		Short:       "Open a workspace application.",
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(2),
+			r.InitClient(client),
+		),
+		Handler: func(inv *serpent.Invocation) error {
+			ctx, cancel := context.WithCancel(inv.Context())
+			defer cancel()
+
+			// Check if we're inside a workspace, and especially inside _this_
+			// workspace so we can perform path resolution/expansion. Generally,
+			// we know that if we're inside a workspace, `open` can't be used.
+			insideAWorkspace := inv.Environ.Get("CODER") == "true"
+
+			// Fetch the preferred region.
+			regions, err := client.Regions(ctx)
+			if err != nil {
+				return xerrors.Errorf("failed to fetch regions: %w", err)
+			}
+			var region codersdk.Region
+			preferredIdx := slices.IndexFunc(regions, func(r codersdk.Region) bool {
+				return r.Name == preferredRegion
+			})
+			if preferredIdx == -1 {
+				allRegions := make([]string, len(regions))
+				for i, r := range regions {
+					allRegions[i] = r.Name
+				}
+				cliui.Errorf(inv.Stderr, "Preferred region %q not found!\nAvailable regions: %v", preferredRegion, allRegions)
+				return xerrors.Errorf("region not found")
+			}
+			region = regions[preferredIdx]
+
+			workspaceName := inv.Args[0]
+			appSlug := inv.Args[1]
+
+			// Fetch the ws and agent
+			ws, agt, err := getWorkspaceAndAgent(ctx, inv, client, false, workspaceName)
+			if err != nil {
+				return xerrors.Errorf("failed to get workspace and agent: %w", err)
+			}
+
+			// Fetch the app
+			var app codersdk.WorkspaceApp
+			appIdx := slices.IndexFunc(agt.Apps, func(a codersdk.WorkspaceApp) bool {
+				return a.Slug == appSlug
+			})
+			if appIdx == -1 {
+				appSlugs := make([]string, len(agt.Apps))
+				for i, app := range agt.Apps {
+					appSlugs[i] = app.Slug
+				}
+				cliui.Errorf(inv.Stderr, "App %q not found in workspace %q!\nAvailable apps: %v", appSlug, workspaceName, appSlugs)
+				return xerrors.Errorf("app not found")
+			}
+			app = agt.Apps[appIdx]
+
+			// Build the URL
+			baseURL, err := url.Parse(region.PathAppURL)
+			if err != nil {
+				return xerrors.Errorf("failed to parse proxy URL: %w", err)
+			}
+			baseURL.Path = ""
+			pathAppURL := strings.TrimPrefix(region.PathAppURL, baseURL.String())
+			appURL := buildAppLinkURL(baseURL, ws, agt, app, region.WildcardHostname, pathAppURL)
+
+			if insideAWorkspace {
+				_, _ = fmt.Fprintf(inv.Stderr, "Please open the following URI on your local machine:\n\n")
+				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", appURL)
+				return nil
+			}
+			_, _ = fmt.Fprintf(inv.Stderr, "Opening %s\n", appURL)
+
+			if !testOpenError {
+				err = open.Run(appURL)
+			} else {
+				err = xerrors.New("test.open-error")
+			}
+			return err
+		},
+	}
+
+	cmd.Options = serpent.OptionSet{
+		{
+			Flag: "preferred-region",
+			Env:  "CODER_OPEN_APP_PREFERRED_REGION",
+			Description: fmt.Sprintf("Preferred region to use when opening the app." +
+				" By default, the app will be opened using the main Coder deployment (a.k.a. \"primary\")."),
+			Value:   serpent.StringOf(&preferredRegion),
+			Default: "primary",
+		},
+		{
+			Flag:        "test.open-error",
+			Description: "Don't run the open command.",
+			Value:       serpent.BoolOf(&testOpenError),
+			Hidden:      true, // This is for testing!
+		},
+	}
+
+	return cmd
+}
+
 // waitForAgentCond uses the watch workspace API to update the agent information
 // until the condition is met.
 func waitForAgentCond(ctx context.Context, client *codersdk.Client, workspace codersdk.Workspace, workspaceAgent codersdk.WorkspaceAgent, cond func(codersdk.WorkspaceAgent) bool) (codersdk.Workspace, codersdk.WorkspaceAgent, error) {
@@ -336,4 +450,49 @@ func doAsync(f func()) (wait func()) {
 	return func() {
 		<-done
 	}
+}
+
+// buildAppLinkURL returns the URL to open the app in the browser.
+// It follows similar logic to the TypeScript implementation in site/src/utils/app.ts
+// except that all URLs returned are absolute and based on the provided base URL.
+func buildAppLinkURL(baseURL *url.URL, workspace codersdk.Workspace, agent codersdk.WorkspaceAgent, app codersdk.WorkspaceApp, appsHost, preferredPathBase string) string {
+	// If app is external, return the URL directly
+	if app.External {
+		return app.URL
+	}
+
+	var u url.URL
+	u.Scheme = baseURL.Scheme
+	u.Host = baseURL.Host
+	// We redirect if we don't include a trailing slash, so we always include one to avoid extra roundtrips.
+	u.Path = fmt.Sprintf(
+		"%s/@%s/%s.%s/apps/%s/",
+		preferredPathBase,
+		workspace.OwnerName,
+		workspace.Name,
+		agent.Name,
+		url.PathEscape(app.Slug),
+	)
+	// The frontend leaves the returns a relative URL for the terminal, but we don't have that luxury.
+	if app.Command != "" {
+		u.Path = fmt.Sprintf(
+			"%s/@%s/%s.%s/terminal",
+			preferredPathBase,
+			workspace.OwnerName,
+			workspace.Name,
+			agent.Name,
+		)
+		q := u.Query()
+		q.Set("command", app.Command)
+		u.RawQuery = q.Encode()
+		// encodeURIComponent replaces spaces with %20 but url.QueryEscape replaces them with +.
+		// We replace them with %20 to match the TypeScript implementation.
+		u.RawQuery = strings.ReplaceAll(u.RawQuery, "+", "%20")
+	}
+
+	if appsHost != "" && app.Subdomain && app.SubdomainName != "" {
+		u.Host = strings.Replace(appsHost, "*", app.SubdomainName, 1)
+		u.Path = "/"
+	}
+	return u.String()
 }

@@ -1,0 +1,14 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder open app [flags] <workspace> <app slug>
+
+  Open a workspace application.
+
+OPTIONS:
+      --preferred-region string, $CODER_OPEN_APP_PREFERRED_REGION (default: primary)
+          Preferred region to use when opening the app. By default, the app will
+          be opened using the main Coder deployment (a.k.a. "primary").
+
+———
+Run `coder --help` for a list of global options.

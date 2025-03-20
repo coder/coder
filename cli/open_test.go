@@ -33,7 +33,7 @@ func TestOpenVSCode(t *testing.T) {
 	})
 
 	_ = agenttest.New(t, client.URL, agentToken)
-	_ = coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+	_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
 
 	insideWorkspaceEnv := map[string]string{
 		"CODER":                      "true",
@@ -168,7 +168,7 @@ func TestOpenVSCode_NoAgentDirectory(t *testing.T) {
 	})
 
 	_ = agenttest.New(t, client.URL, agentToken)
-	_ = coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+	_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
 
 	insideWorkspaceEnv := map[string]string{
 		"CODER":                      "true",
@@ -282,4 +282,72 @@ func TestOpenVSCode_NoAgentDirectory(t *testing.T) {
 			w.RequireSuccess()
 		})
 	}
+}
+
+func TestOpenApp(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		client, ws, _ := setupWorkspaceForAgent(t, func(agents []*proto.Agent) []*proto.Agent {
+			agents[0].Apps = []*proto.App{
+				{
+					Slug: "app1",
+					Url:  "https://example.com/app1",
+				},
+			}
+			return agents
+		})
+
+		inv, root := clitest.New(t, "open", "app", ws.Name, "app1", "--test.open-error")
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t)
+		inv.Stdin = pty.Input()
+		inv.Stdout = pty.Output()
+
+		w := clitest.StartWithWaiter(t, inv)
+		w.RequireError()
+		w.RequireContains("test.open-error")
+	})
+
+	t.Run("AppNotFound", func(t *testing.T) {
+		t.Parallel()
+
+		client, ws, _ := setupWorkspaceForAgent(t)
+
+		inv, root := clitest.New(t, "open", "app", ws.Name, "app1")
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t)
+		inv.Stdin = pty.Input()
+		inv.Stdout = pty.Output()
+
+		w := clitest.StartWithWaiter(t, inv)
+		w.RequireError()
+		w.RequireContains("app not found")
+	})
+
+	t.Run("RegionNotFound", func(t *testing.T) {
+		t.Parallel()
+
+		client, ws, _ := setupWorkspaceForAgent(t, func(agents []*proto.Agent) []*proto.Agent {
+			agents[0].Apps = []*proto.App{
+				{
+					Slug: "app1",
+					Url:  "https://example.com/app1",
+				},
+			}
+			return agents
+		})
+
+		inv, root := clitest.New(t, "open", "app", ws.Name, "app1", "--preferred-region", "bad-region")
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t)
+		inv.Stdin = pty.Input()
+		inv.Stdout = pty.Output()
+
+		w := clitest.StartWithWaiter(t, inv)
+		w.RequireError()
+		w.RequireContains("region not found")
+	})
 }
