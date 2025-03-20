@@ -1149,6 +1149,7 @@ type Snapshot struct {
 	NetworkEvents                        []NetworkEvent                        `json:"network_events"`
 	Organizations                        []Organization                        `json:"organizations"`
 	TelemetryItems                       []TelemetryItem                       `json:"telemetry_items"`
+	UserTailnetConnections               []UserTailnetConnection               `json:"user_tailnet_connections"`
 }
 
 // Deployment contains information about the host running Coder.
@@ -1709,6 +1710,16 @@ type TelemetryItem struct {
 	Value     string    `json:"value"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type UserTailnetConnection struct {
+	ConnectedAt         time.Time  `json:"connected_at"`
+	DisconnectedAt      *time.Time `json:"disconnected_at"`
+	UserID              string     `json:"user_id"`
+	PeerID              string     `json:"peer_id"`
+	DeviceID            *string    `json:"device_id"`
+	DeviceOS            *string    `json:"device_os"`
+	CoderDesktopVersion *string    `json:"coder_desktop_version"`
 }
 
 type noopReporter struct{}
