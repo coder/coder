@@ -49,7 +49,7 @@ argin: 8px 0 32px; line-height: 1.5;">
         Workspace 'bobby-workspace' has been manually updated
       </h1>
       <div style=3D"line-height: 1.5;">
-				<p>Hi Bobby,</p>
+        <p>Hi Bobby,</p>
         <p>A new workspace build has been manually created for your workspa=
 ce <strong>bobby-workspace</strong> by <strong>bobby</strong> to update it =
 to version <strong>alpha</strong> of template <strong>bobby-template</stron=

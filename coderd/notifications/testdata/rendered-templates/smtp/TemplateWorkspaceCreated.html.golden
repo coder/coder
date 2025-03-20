@@ -46,7 +46,7 @@ argin: 8px 0 32px; line-height: 1.5;">
         Workspace 'bobby-workspace' has been created
       </h1>
       <div style=3D"line-height: 1.5;">
-				<p>Hi Bobby,</p>
+        <p>Hi Bobby,</p>
         <p>The workspace <strong>bobby-workspace</strong> has been created =
 from the template <strong>bobby-template</strong> using version <strong>alp=
 ha</strong>.</p>
