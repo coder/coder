@@ -12283,10 +12283,10 @@ func (q *FakeQuerier) UpsertWorkspaceAgentPortShare(_ context.Context, arg datab
 	return psl, nil
 }
 
-func (q *FakeQuerier) UpsertWorkspaceAppAuditSession(_ context.Context, arg database.UpsertWorkspaceAppAuditSessionParams) (time.Time, error) {
+func (q *FakeQuerier) UpsertWorkspaceAppAuditSession(_ context.Context, arg database.UpsertWorkspaceAppAuditSessionParams) (uuid.UUID, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
-		return time.Time{}, err
+		return uuid.Nil, err
 	}
 
 	q.mutex.Lock()
@@ -12320,10 +12320,11 @@ func (q *FakeQuerier) UpsertWorkspaceAppAuditSession(_ context.Context, arg data
 
 		q.workspaceAppAuditSessions[i].UpdatedAt = arg.UpdatedAt
 		if !fresh {
+			q.workspaceAppAuditSessions[i].ID = arg.ID
 			q.workspaceAppAuditSessions[i].StartedAt = arg.StartedAt
-			return arg.StartedAt, nil
+			return arg.ID, nil
 		}
-		return s.StartedAt, nil
+		return s.ID, nil
 	}
 
 	q.workspaceAppAuditSessions = append(q.workspaceAppAuditSessions, database.WorkspaceAppAuditSession{
@@ -12337,7 +12338,7 @@ func (q *FakeQuerier) UpsertWorkspaceAppAuditSession(_ context.Context, arg data
 		StartedAt:  arg.StartedAt,
 		UpdatedAt:  arg.UpdatedAt,
 	})
-	return arg.StartedAt, nil
+	return arg.ID, nil
 }
 
 func (q *FakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, prepared rbac.PreparedAuthorized) ([]database.Template, error) {

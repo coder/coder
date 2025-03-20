@@ -596,7 +596,7 @@ type sqlcQuerier interface {
 	//
 	// Insert a new workspace app audit session or update an existing one, if
 	// started_at is updated, it means the session has been restarted.
-	UpsertWorkspaceAppAuditSession(ctx context.Context, arg UpsertWorkspaceAppAuditSessionParams) (time.Time, error)
+	UpsertWorkspaceAppAuditSession(ctx context.Context, arg UpsertWorkspaceAppAuditSessionParams) (uuid.UUID, error)
 }
 
 var _ sqlcQuerier = (*sqlQuerier)(nil)

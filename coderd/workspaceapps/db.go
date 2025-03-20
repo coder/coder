@@ -447,16 +447,20 @@ func (p *DBTokenProvider) auditInitRequest(ctx context.Context, w http.ResponseW
 			slog.F("status_code", statusCode),
 		)
 
-		var startedAt time.Time
+		var (
+			refreshID       = uuid.New()
+			upsertRefreshID uuid.UUID
+		)
 		err := p.Database.InTx(func(tx database.Store) (err error) {
 			// nolint:gocritic // System context is needed to write audit sessions.
 			dangerousSystemCtx := dbauthz.AsSystemRestricted(ctx)
 
-			startedAt, err = tx.UpsertWorkspaceAppAuditSession(dangerousSystemCtx, database.UpsertWorkspaceAppAuditSessionParams{
+			upsertRefreshID, err = tx.UpsertWorkspaceAppAuditSession(dangerousSystemCtx, database.UpsertWorkspaceAppAuditSessionParams{
 				// Config.
 				StaleIntervalMS: p.WorkspaceAppAuditSessionTimeout.Milliseconds(),
 
 				// Data.
+				ID:         refreshID,
 				AgentID:    aReq.dbReq.Agent.ID,
 				AppID:      aReq.dbReq.App.ID, // Can be unset, in which case uuid.Nil is fine.
 				UserID:     userID,            // Can be unset, in which case uuid.Nil is fine.
@@ -481,9 +485,9 @@ func (p *DBTokenProvider) auditInitRequest(ctx context.Context, w http.ResponseW
 			return
 		}
 
-		if !startedAt.Equal(aReq.time) {
-			// If the unique session wasn't renewed, we don't want to log a new
-			// audit event for it.
+		if sessionExistsOrIsActive := refreshID != upsertRefreshID; sessionExistsOrIsActive {
+			// We either didn't insert a new session, or the session
+			// didn't timeout due to inactivity.
 			return
 		}
 
