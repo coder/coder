@@ -14677,7 +14677,7 @@ DO
 		END,
 		updated_at = EXCLUDED.updated_at
 RETURNING
-	id
+	id = $1 AS new_or_stale
 `
 
 type UpsertWorkspaceAppAuditSessionParams struct {
@@ -14694,9 +14694,10 @@ type UpsertWorkspaceAppAuditSessionParams struct {
 	StaleIntervalMS int64     `db:"stale_interval_ms" json:"stale_interval_ms"`
 }
 
-// Insert a new workspace app audit session or update an existing one, if
-// started_at is updated, it means the session has been restarted.
-func (q *sqlQuerier) UpsertWorkspaceAppAuditSession(ctx context.Context, arg UpsertWorkspaceAppAuditSessionParams) (uuid.UUID, error) {
+// The returned boolean, new_or_stale, can be used to deduce if a new session
+// was started. This means that a new row was inserted (no previous session) or
+// the updated_at is older than stale interval.
+func (q *sqlQuerier) UpsertWorkspaceAppAuditSession(ctx context.Context, arg UpsertWorkspaceAppAuditSessionParams) (bool, error) {
 	row := q.db.QueryRowContext(ctx, upsertWorkspaceAppAuditSession,
 		arg.ID,
 		arg.AgentID,
@@ -14710,9 +14711,9 @@ func (q *sqlQuerier) UpsertWorkspaceAppAuditSession(ctx context.Context, arg Ups
 		arg.UpdatedAt,
 		arg.StaleIntervalMS,
 	)
-	var id uuid.UUID
-	err := row.Scan(&id)
-	return id, err
+	var new_or_stale bool
+	err := row.Scan(&new_or_stale)
+	return new_or_stale, err
 }
 
 const getWorkspaceAppByAgentIDAndSlug = `-- name: GetWorkspaceAppByAgentIDAndSlug :one

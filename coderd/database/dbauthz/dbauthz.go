@@ -4615,9 +4615,9 @@ func (q *querier) UpsertWorkspaceAgentPortShare(ctx context.Context, arg databas
 	return q.db.UpsertWorkspaceAgentPortShare(ctx, arg)
 }
 
-func (q *querier) UpsertWorkspaceAppAuditSession(ctx context.Context, arg database.UpsertWorkspaceAppAuditSessionParams) (uuid.UUID, error) {
+func (q *querier) UpsertWorkspaceAppAuditSession(ctx context.Context, arg database.UpsertWorkspaceAppAuditSessionParams) (bool, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
-		return uuid.Nil, err
+		return false, err
 	}
 	return q.db.UpsertWorkspaceAppAuditSession(ctx, arg)
 }
