@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/mail"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -732,6 +733,95 @@ func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
 		Message: "Logged out!",
 	})
+}
+
+// Returns the OIDC logout URL.
+//
+// @Summary Returns URL for the OIDC logout
+// @ID user-oidc-logout
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Success 200 {object} map[string]string "Returns a map containing the OIDC logout URL"
+// @Router /users/oidc-logout [get]
+func (api *API) userOIDCLogoutURL(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Get logged-in user
+	apiKey := httpmw.APIKey(r)
+	user, err := api.Database.GetUserByID(ctx, apiKey.UserID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
+			Message: "Failed to retrieve user information.",
+		})
+		return
+	}
+
+	// Retrieve the user's OAuthAccessToken for logout
+	// nolint:gocritic // We only can get user link by user ID and login type with the system auth.
+	link, err := api.Database.GetUserLinkByUserIDLoginType(dbauthz.AsSystemRestricted(ctx),
+		database.GetUserLinkByUserIDLoginTypeParams{
+			UserID:    user.ID,
+			LoginType: user.LoginType,
+		})
+	if err != nil {
+		api.Logger.Error(ctx, "failed to retrieve OIDC user link", "error", err)
+		if xerrors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+				Message: "No OIDC link found for this user.",
+			})
+		} else {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to retrieve user authentication data.",
+			})
+		}
+		return
+	}
+
+	rawIDToken := link.OAuthAccessToken
+
+	// Retrieve OIDC environment variables
+	dvOIDC := api.DeploymentValues.OIDC
+	oidcEndpoint := dvOIDC.LogoutEndpoint.Value()
+	oidcClientID := dvOIDC.ClientID.Value()
+	logoutURI := dvOIDC.LogoutRedirectURI.Value()
+
+	if oidcEndpoint == "" {
+		api.Logger.Error(ctx, "missing OIDC logout endpoint")
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "OIDC configuration is missing.",
+		})
+		return
+	}
+
+	// Construct OIDC Logout URL
+	logoutURL, err := url.Parse(oidcEndpoint)
+	if err != nil {
+		api.Logger.Error(ctx, "failed to parse OIDC endpoint", "error", err)
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Invalid OIDC endpoint.",
+		})
+		return
+	}
+
+	// Build parameters
+	q := url.Values{}
+
+	if oidcClientID != "" {
+		q.Set("client_id", oidcClientID)
+	}
+	if rawIDToken != "" {
+		q.Set("id_token_hint", rawIDToken)
+	}
+	if logoutURI != "" {
+		q.Set("logout_uri", logoutURI)
+	}
+
+	logoutURL.RawQuery = q.Encode()
+
+	// Return full logout URL
+	response := map[string]string{"oidc_logout_url": logoutURL.String()}
+	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
 // GithubOAuth2Team represents a team scoped to an organization.

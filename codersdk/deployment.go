@@ -543,6 +543,8 @@ type OIDCConfig struct {
 	IconURL                   serpent.URL                            `json:"icon_url" typescript:",notnull"`
 	SignupsDisabledText       serpent.String                         `json:"signups_disabled_text" typescript:",notnull"`
 	SkipIssuerChecks          serpent.Bool                           `json:"skip_issuer_checks" typescript:",notnull"`
+	LogoutEndpoint            serpent.String                         `json:"logout_endpoint" typescript:",notnull"`
+	LogoutRedirectURI         serpent.String                         `json:"logout_redirect_uri" typescript:",notnull"`
 }
 
 type TelemetryConfig struct {
@@ -1916,6 +1918,26 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Value: &c.OIDC.SkipIssuerChecks,
 			Group: &deploymentGroupOIDC,
 			YAML:  "dangerousSkipIssuerChecks",
+		},
+		{
+			Name:        "OIDC logout endpoint",
+			Description: "OIDC endpoint for logout.",
+			Flag:        "logout-endpoint",
+			Env:         "CODER_OIDC_LOGOUT_ENDPOINT",
+			Default:     "",
+			Value:       &c.OIDC.LogoutEndpoint,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "logoutEndpoint",
+		},
+		{
+			Name:        "OIDC logout redirect URI",
+			Description: "OIDC redirect URI after logout.",
+			Flag:        "logout-redirect-uri",
+			Env:         "CODER_OIDC_LOGOUT_URI",
+			Default:     "",
+			Value:       &c.OIDC.LogoutRedirectURI,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "logoutRedirectURI",
 		},
 		// Telemetry settings
 		telemetryEnable,
