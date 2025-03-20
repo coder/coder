@@ -1261,6 +1261,13 @@ func (s *MethodTestSuite) TestTemplate() {
 			OrganizationID: t1.OrganizationID,
 		}).Asserts(t1, policy.ActionRead, t1, policy.ActionCreate)
 	}))
+	s.Run("InsertTemplateVersionTerraformValuesByJobID", s.Subtest(func(db database.Store, check *expects) {
+		job := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
+		_ = dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{JobID: job.ID})
+		check.Args(database.InsertTemplateVersionTerraformValuesByJobIDParams{
+			JobID: job.ID,
+		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	}))
 	s.Run("SoftDeleteTemplateByID", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		t1 := dbgen.Template(s.T(), db, database.Template{})
