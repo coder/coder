@@ -311,6 +311,11 @@ type UserParameter struct {
 	Value string `json:"value"`
 }
 
+// OIDCLogoutResponse represents the response for an OIDC logout request
+type OIDCLogoutResponse struct {
+	URL string `json:"oidc_logout_url"`
+}
+
 // UserAutofillParameters returns all recently used parameters for the given user.
 func (c *Client) UserAutofillParameters(ctx context.Context, user string, templateID uuid.UUID) ([]UserParameter, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/autofill-parameters?template_id=%s", user, templateID), nil)
