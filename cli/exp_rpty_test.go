@@ -33,13 +33,13 @@ func TestExpRpty(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
+		_ = agenttest.New(t, client.URL, agentToken)
+		_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+
 		cmdDone := tGo(t, func() {
 			err := inv.WithContext(ctx).Run()
 			assert.NoError(t, err)
 		})
-
-		_ = agenttest.New(t, client.URL, agentToken)
-		_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
 
 		pty.WriteLine("exit")
 		<-cmdDone
@@ -56,13 +56,13 @@ func TestExpRpty(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
+		_ = agenttest.New(t, client.URL, agentToken)
+		_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+
 		cmdDone := tGo(t, func() {
 			err := inv.WithContext(ctx).Run()
 			assert.NoError(t, err)
 		})
-
-		_ = agenttest.New(t, client.URL, agentToken)
-		_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
 
 		pty.ExpectMatch(randStr)
 		<-cmdDone
