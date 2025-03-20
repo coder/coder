@@ -8,10 +8,13 @@ import "github.com/coder/coder/v2/apiversion"
 //   - Add support for `open_in` parameters in the workspace apps.
 //
 // API v1.3:
-//   - Add new field named `resources_monitoring` in the Agent with resources monitoring..
+//   - Add new field named `resources_monitoring` in the Agent with resources monitoring.
+//
+// API v1.4:
+//   - Add new field named `devcontainers` in the Agent.
 const (
 	CurrentMajor = 1
-	CurrentMinor = 3
+	CurrentMinor = 4
 )
 
 // CurrentVersion is the current provisionerd API version.
