@@ -166,11 +166,11 @@ export const PresetReselected: Story = {
 
 		// First selection of Preset 1
 		await userEvent.click(canvas.getByLabelText("Preset"));
-		await userEvent.click(canvas.getByText("Preset 1"));
+		await userEvent.click(canvas.getByText("Preset 1", { selector: '.MuiMenuItem-root' }));
 
 		// Reselect the same preset
 		await userEvent.click(canvas.getByLabelText("Preset"));
-		await userEvent.click(canvas.getByText("Preset 1"));
+		await userEvent.click(canvas.getByText("Preset 1", { selector: '.MuiMenuItem-root' }));
 	},
 };
 
