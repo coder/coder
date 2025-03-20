@@ -321,7 +321,7 @@ message PlanComplete {
     repeated Timing timings = 6;
     repeated Module modules = 7;
     repeated Preset presets = 8;
-    string graph = 9;
+    bytes plan = 9;
 }
 
 // ApplyRequest asks the provisioner to apply the changes.  Apply MUST be preceded by a successful plan request/response

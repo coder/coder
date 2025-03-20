@@ -151,6 +151,7 @@ type State struct {
 	Parameters            []*proto.RichParameter
 	Presets               []*proto.Preset
 	ExternalAuthProviders []*proto.ExternalAuthProviderResource
+	Plan                  []byte
 }
 
 var ErrInvalidTerraformAddr = xerrors.New("invalid terraform address")

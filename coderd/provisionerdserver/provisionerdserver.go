@@ -1263,7 +1263,6 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 	defer s.Telemetry.Report(telemetrySnapshot)
 
 	switch jobType := completed.Type.(type) {
-
 	case *proto.CompletedJob_TemplateImport_:
 		var input TemplateVersionImportJob
 		err = json.Unmarshal(job.Input, &input)
@@ -1408,7 +1407,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 		err = s.Database.UpdateTemplateVersionExternalAuthProvidersByJobID(ctx, database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams{
 			JobID:                 jobID,
 			ExternalAuthProviders: json.RawMessage(externalAuthProvidersMessage),
-			ImportGraph:           jobType.TemplateImport.Graph,
+			ImportGraph:           string(jobType.TemplateImport.Plan),
 			UpdatedAt:             s.timeNow(),
 		})
 		if err != nil {
