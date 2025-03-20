@@ -457,26 +457,28 @@ class ApiMethods {
 	};
 
 	logout = async (): Promise<void> => {
-    try {
-      // Fetch the stored ID token from the backend
-      const response = await this.axios.get("/api/v2/users/oidc-logout");
+		try {
+			// Fetch the stored ID token from the backend
+			const response = await this.axios.get("/api/v2/users/oidc-logout");
 
-      // Redirect to OIDC logout after Coder logout
-      if (response.data.oidc_logout_url) {
-        // Coder session logout
-        await this.axios.post("/api/v2/users/logout");
+			// Redirect to OIDC logout after Coder logout
+			if (response.data.oidc_logout_url) {
+				// Coder session logout
+				await this.axios.post("/api/v2/users/logout");
 
-        // OIDC logout
-        window.location.href = response.data.oidc_logout_url;
-      } else {
-        // Redirect normally if no token is available
-        console.warn("No ID token found, continuing logout without OIDC logout.");
-        return this.axios.post("/api/v2/users/logout");
-      }
-    } catch (error) {
-      console.error("Logout failed", error);
-      return this.axios.post("/api/v2/users/logout");
-    }
+				// OIDC logout
+				window.location.href = response.data.oidc_logout_url;
+			} else {
+				// Redirect normally if no token is available
+				console.warn(
+					"No ID token found, continuing logout without OIDC logout.",
+				);
+				return this.axios.post("/api/v2/users/logout");
+			}
+		} catch (error) {
+			console.error("Logout failed", error);
+			return this.axios.post("/api/v2/users/logout");
+		}
 	};
 
 	getAuthenticatedUser = async () => {
