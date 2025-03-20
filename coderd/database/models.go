@@ -3306,6 +3306,20 @@ type WorkspaceAgent struct {
 	DisplayOrder int32 `db:"display_order" json:"display_order"`
 }
 
+// Workspace agent devcontainer configuration
+type WorkspaceAgentDevcontainer struct {
+	// Unique identifier
+	ID uuid.UUID `db:"id" json:"id"`
+	// Workspace agent foreign key
+	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	// Creation timestamp
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	// Workspace folder
+	WorkspaceFolder string `db:"workspace_folder" json:"workspace_folder"`
+	// Path to devcontainer.json.
+	ConfigPath string `db:"config_path" json:"config_path"`
+}
+
 type WorkspaceAgentLog struct {
 	AgentID     uuid.UUID `db:"agent_id" json:"agent_id"`
 	CreatedAt   time.Time `db:"created_at" json:"created_at"`

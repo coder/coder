@@ -830,6 +830,34 @@ func TestConvertResources(t *testing.T) {
 				}},
 			}},
 		},
+		"devcontainer": {
+			resources: []*proto.Resource{
+				{
+					Name: "dev",
+					Type: "null_resource",
+					Agents: []*proto.Agent{{
+						Name:                     "main",
+						OperatingSystem:          "linux",
+						Architecture:             "amd64",
+						Auth:                     &proto.Agent_Token{},
+						ConnectionTimeoutSeconds: 120,
+						DisplayApps:              &displayApps,
+						ResourcesMonitoring:      &proto.ResourcesMonitoring{},
+						Devcontainers: []*proto.Devcontainer{
+							{
+								WorkspaceFolder: "/workspace1",
+							},
+							{
+								WorkspaceFolder: "/workspace2",
+								ConfigPath:      "/workspace2/.devcontainer/devcontainer.json",
+							},
+						},
+					}},
+				},
+				{Name: "dev1", Type: "coder_devcontainer"},
+				{Name: "dev2", Type: "coder_devcontainer"},
+			},
+		},
 	} {
 		folderName := folderName
 		expected := expected
@@ -1374,6 +1402,9 @@ func sortResources(resources []*proto.Resource) {
 			})
 			sort.Slice(agent.Scripts, func(i, j int) bool {
 				return agent.Scripts[i].DisplayName < agent.Scripts[j].DisplayName
+			})
+			sort.Slice(agent.Devcontainers, func(i, j int) bool {
+				return agent.Devcontainers[i].WorkspaceFolder < agent.Devcontainers[j].WorkspaceFolder
 			})
 		}
 		sort.Slice(resource.Agents, func(i, j int) bool {
