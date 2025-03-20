@@ -78,14 +78,38 @@ describe("util/schedule", () => {
 	});
 
 	describe("quietHoursDisplay", () => {
-		const quietHoursStart = quietHoursDisplay(
-			"00:00",
-			"Australia/Sydney",
-			new Date("2023-09-06T15:00:00.000+10:00"),
-		);
+		it("midnight", () => {
+			const quietHoursStart = quietHoursDisplay(
+				"00:00",
+				"Australia/Sydney",
+				new Date("2023-09-06T15:00:00.000+10:00"),
+			);
 
-		expect(quietHoursStart).toBe(
-			"12:00AM tomorrow (in 9 hours) in Australia/Sydney",
-		);
+			expect(quietHoursStart).toBe(
+				"00:00 tomorrow (in 9 hours) in Australia/Sydney",
+			);
+		});
+		it("five o'clock today", () => {
+			const quietHoursStart = quietHoursDisplay(
+				"17:00",
+				"Europe/London",
+				new Date("2023-09-06T15:00:00.000+10:00"),
+			);
+
+			expect(quietHoursStart).toBe(
+				"17:00 today (in 11 hours) in Europe/London",
+			);
+		});
+		it("lunch tomorrow", () => {
+			const quietHoursStart = quietHoursDisplay(
+				"13:00",
+				"US/Central",
+				new Date("2023-09-06T08:00:00.000+10:00"),
+			);
+
+			expect(quietHoursStart).toBe(
+				"13:00 tomorrow (in 20 hours) in US/Central",
+			);
+		});
 	});
 });
