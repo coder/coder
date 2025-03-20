@@ -2452,6 +2452,10 @@ class ApiMethods {
 			);
 		return res.data;
 	};
+
+	markAllInboxNotificationsAsRead = async () => {
+		await this.axios.put<void>("/api/v2/notifications/inbox/mark-all-as-read");
+	};
 }
 
 // This is a hard coded CSRF token/cookie pair for local development. In prod,

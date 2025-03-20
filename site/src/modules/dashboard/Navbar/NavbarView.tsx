@@ -69,9 +69,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 
 				<NotificationsInbox
 					fetchNotifications={API.getInboxNotifications}
-					markAllAsRead={() => {
-						throw new Error("Function not implemented.");
-					}}
+					markAllAsRead={API.markAllInboxNotificationsAsRead}
 					markNotificationAsRead={(notificationId) =>
 						API.updateInboxNotificationReadStatus(notificationId, {
 							is_read: true,
@@ -92,9 +90,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 			<div className="ml-auto flex items-center gap-3 md:hidden">
 				<NotificationsInbox
 					fetchNotifications={API.getInboxNotifications}
-					markAllAsRead={() => {
-						throw new Error("Function not implemented.");
-					}}
+					markAllAsRead={API.markAllInboxNotificationsAsRead}
 					markNotificationAsRead={(notificationId) =>
 						API.updateInboxNotificationReadStatus(notificationId, {
 							is_read: true,
