@@ -10,12 +10,14 @@ MIME-Version: 1.0
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/plain; charset=UTF-8
 
+Hi Bobby,
 Automatic build of your workspace bobby-workspace failed.
 
 The specified reason was "autostart".
 
 
 View workspace: http://test.com/@bobby/bobby-workspace
+
 
 --bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
 Content-Transfer-Encoding: quoted-printable

@@ -10,6 +10,7 @@ MIME-Version: 1.0
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/plain; charset=UTF-8
 
+Hi Bobby,
 Your workspace bobby-workspace has been marked for deletion after 24 hours =
 of dormancy (https://coder.com/docs/templates/schedule#dormancy-auto-deleti=
 on-enterprise) because of template updated to new dormancy policy.
@@ -17,6 +18,7 @@ To prevent deletion, use your workspace with the link below.
 
 
 View workspace: http://test.com/@bobby/bobby-workspace
+
 
 --bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
 Content-Transfer-Encoding: quoted-printable

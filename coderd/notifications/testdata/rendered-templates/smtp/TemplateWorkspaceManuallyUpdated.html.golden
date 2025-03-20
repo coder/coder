@@ -10,6 +10,7 @@ MIME-Version: 1.0
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/plain; charset=UTF-8
 
+Hi Bobby,
 A new workspace build has been manually created for your workspace bobby-wo=
 rkspace by bobby to update it to version alpha of template bobby-template.
 
@@ -18,6 +19,7 @@ View workspace: http://test.com/@bobby/bobby-workspace
 
 View template version: http://test.com/templates/bobby-organization/bobby-t=
 emplate/versions/alpha
+
 
 --bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
 Content-Transfer-Encoding: quoted-printable

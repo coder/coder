@@ -10,6 +10,7 @@ MIME-Version: 1.0
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/plain; charset=UTF-8
 
+Hi Bobby,
 User account bobby has been suspended.
 
 The account belongs to William Tables and it was suspended by rob.
@@ -17,6 +18,7 @@ The account belongs to William Tables and it was suspended by rob.
 
 View suspended accounts: http://test.com/deployment/users?filter=3Dstatus%3=
 Asuspended
+
 
 --bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
 Content-Transfer-Encoding: quoted-printable

@@ -10,6 +10,7 @@ MIME-Version: 1.0
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/plain; charset=UTF-8
 
+Hi Bobby,
 The template alpha has been deprecated with the following message:
 
 This template has been replaced by beta
@@ -22,6 +23,7 @@ See affected workspaces: http://test.com/workspaces?filter=3Downer%3Ame+tem=
 plate%3Aalpha
 
 View template: http://test.com/templates/coder/alpha
+
 
 --bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
 Content-Transfer-Encoding: quoted-printable
