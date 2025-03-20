@@ -113,7 +113,7 @@ SET
 WHERE
 	job_id = $1;
 
--- name: UpdateTemplateVersionByCompletedJobID :exec
+-- name: UpdateTemplateVersionExternalAuthProvidersByJobID :exec
 UPDATE
 	template_versions
 SET

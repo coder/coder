@@ -2537,13 +2537,6 @@ func (m queryMetricsStore) UpdateTemplateScheduleByID(ctx context.Context, arg d
 	return err
 }
 
-func (m queryMetricsStore) UpdateTemplateVersionByCompletedJobID(ctx context.Context, arg database.UpdateTemplateVersionByCompletedJobIDParams) error {
-	start := time.Now()
-	err := m.s.UpdateTemplateVersionByCompletedJobID(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateTemplateVersionByCompletedJobID").Observe(time.Since(start).Seconds())
-	return err
-}
-
 func (m queryMetricsStore) UpdateTemplateVersionByID(ctx context.Context, arg database.UpdateTemplateVersionByIDParams) error {
 	start := time.Now()
 	err := m.s.UpdateTemplateVersionByID(ctx, arg)
@@ -2555,6 +2548,13 @@ func (m queryMetricsStore) UpdateTemplateVersionDescriptionByJobID(ctx context.C
 	start := time.Now()
 	err := m.s.UpdateTemplateVersionDescriptionByJobID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateTemplateVersionDescriptionByJobID").Observe(time.Since(start).Seconds())
+	return err
+}
+
+func (m queryMetricsStore) UpdateTemplateVersionExternalAuthProvidersByJobID(ctx context.Context, arg database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams) error {
+	start := time.Now()
+	err := m.s.UpdateTemplateVersionExternalAuthProvidersByJobID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateTemplateVersionExternalAuthProvidersByJobID").Observe(time.Since(start).Seconds())
 	return err
 }
 

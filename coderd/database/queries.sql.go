@@ -10737,34 +10737,6 @@ func (q *sqlQuerier) UnarchiveTemplateVersion(ctx context.Context, arg Unarchive
 	return err
 }
 
-const updateTemplateVersionByCompletedJobID = `-- name: UpdateTemplateVersionByCompletedJobID :exec
-UPDATE
-	template_versions
-SET
-	external_auth_providers = $1,
-	import_graph = $2,
-	updated_at = $3
-WHERE
-	job_id = $4
-`
-
-type UpdateTemplateVersionByCompletedJobIDParams struct {
-	ExternalAuthProviders json.RawMessage `db:"external_auth_providers" json:"external_auth_providers"`
-	ImportGraph           string          `db:"import_graph" json:"import_graph"`
-	UpdatedAt             time.Time       `db:"updated_at" json:"updated_at"`
-	JobID                 uuid.UUID       `db:"job_id" json:"job_id"`
-}
-
-func (q *sqlQuerier) UpdateTemplateVersionByCompletedJobID(ctx context.Context, arg UpdateTemplateVersionByCompletedJobIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateTemplateVersionByCompletedJobID,
-		arg.ExternalAuthProviders,
-		arg.ImportGraph,
-		arg.UpdatedAt,
-		arg.JobID,
-	)
-	return err
-}
-
 const updateTemplateVersionByID = `-- name: UpdateTemplateVersionByID :exec
 UPDATE
 	template_versions
@@ -10814,6 +10786,34 @@ type UpdateTemplateVersionDescriptionByJobIDParams struct {
 
 func (q *sqlQuerier) UpdateTemplateVersionDescriptionByJobID(ctx context.Context, arg UpdateTemplateVersionDescriptionByJobIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateTemplateVersionDescriptionByJobID, arg.JobID, arg.Readme, arg.UpdatedAt)
+	return err
+}
+
+const updateTemplateVersionExternalAuthProvidersByJobID = `-- name: UpdateTemplateVersionExternalAuthProvidersByJobID :exec
+UPDATE
+	template_versions
+SET
+	external_auth_providers = $1,
+	import_graph = $2,
+	updated_at = $3
+WHERE
+	job_id = $4
+`
+
+type UpdateTemplateVersionExternalAuthProvidersByJobIDParams struct {
+	ExternalAuthProviders json.RawMessage `db:"external_auth_providers" json:"external_auth_providers"`
+	ImportGraph           string          `db:"import_graph" json:"import_graph"`
+	UpdatedAt             time.Time       `db:"updated_at" json:"updated_at"`
+	JobID                 uuid.UUID       `db:"job_id" json:"job_id"`
+}
+
+func (q *sqlQuerier) UpdateTemplateVersionExternalAuthProvidersByJobID(ctx context.Context, arg UpdateTemplateVersionExternalAuthProvidersByJobIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateTemplateVersionExternalAuthProvidersByJobID,
+		arg.ExternalAuthProviders,
+		arg.ImportGraph,
+		arg.UpdatedAt,
+		arg.JobID,
+	)
 	return err
 }
 

@@ -1405,7 +1405,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			return nil, xerrors.Errorf("failed to serialize external_auth_providers value: %w", err)
 		}
 
-		err = s.Database.UpdateTemplateVersionByCompletedJobID(ctx, database.UpdateTemplateVersionByCompletedJobIDParams{
+		err = s.Database.UpdateTemplateVersionExternalAuthProvidersByJobID(ctx, database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams{
 			JobID:                 jobID,
 			ExternalAuthProviders: json.RawMessage(externalAuthProvidersMessage),
 			ImportGraph:           jobType.TemplateImport.Graph,

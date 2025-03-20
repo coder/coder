@@ -10454,27 +10454,6 @@ func (q *FakeQuerier) UpdateTemplateScheduleByID(_ context.Context, arg database
 	return sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateTemplateVersionByCompletedJobID(_ context.Context, arg database.UpdateTemplateVersionByCompletedJobIDParams) error {
-	if err := validateDatabaseType(arg); err != nil {
-		return err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	for index, templateVersion := range q.templateVersions {
-		if templateVersion.JobID != arg.JobID {
-			continue
-		}
-		templateVersion.ExternalAuthProviders = arg.ExternalAuthProviders
-		templateVersion.ImportGraph = arg.ImportGraph
-		templateVersion.UpdatedAt = arg.UpdatedAt
-		q.templateVersions[index] = templateVersion
-		return nil
-	}
-	return sql.ErrNoRows
-}
-
 func (q *FakeQuerier) UpdateTemplateVersionByID(_ context.Context, arg database.UpdateTemplateVersionByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
@@ -10510,6 +10489,26 @@ func (q *FakeQuerier) UpdateTemplateVersionDescriptionByJobID(_ context.Context,
 			continue
 		}
 		templateVersion.Readme = arg.Readme
+		templateVersion.UpdatedAt = arg.UpdatedAt
+		q.templateVersions[index] = templateVersion
+		return nil
+	}
+	return sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateTemplateVersionExternalAuthProvidersByJobID(_ context.Context, arg database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams) error {
+	if err := validateDatabaseType(arg); err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, templateVersion := range q.templateVersions {
+		if templateVersion.JobID != arg.JobID {
+			continue
+		}
+		templateVersion.ExternalAuthProviders = arg.ExternalAuthProviders
 		templateVersion.UpdatedAt = arg.UpdatedAt
 		q.templateVersions[index] = templateVersion
 		return nil

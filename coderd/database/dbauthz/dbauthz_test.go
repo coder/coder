@@ -1364,7 +1364,7 @@ func (s *MethodTestSuite) TestTemplate() {
 			Readme: "foo",
 		}).Asserts(t1, policy.ActionUpdate).Returns()
 	}))
-	s.Run("UpdateTemplateVersionByCompletedJobID", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("UpdateTemplateVersionExternalAuthProvidersByJobID", s.Subtest(func(db database.Store, check *expects) {
 		jobID := uuid.New()
 		u := dbgen.User(s.T(), db, database.User{})
 		o := dbgen.Organization(s.T(), db, database.Organization{})
@@ -1378,7 +1378,7 @@ func (s *MethodTestSuite) TestTemplate() {
 			OrganizationID: o.ID,
 			JobID:          jobID,
 		})
-		check.Args(database.UpdateTemplateVersionByCompletedJobIDParams{
+		check.Args(database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams{
 			JobID:                 jobID,
 			ExternalAuthProviders: json.RawMessage("{}"),
 		}).Asserts(t1, policy.ActionUpdate).Returns()
