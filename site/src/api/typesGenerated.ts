@@ -1478,6 +1478,11 @@ export interface OIDCConfig {
 	readonly logout_redirect_uri: string;
 }
 
+// From codersdk/users.go
+export interface OIDCLogoutResponse {
+	readonly oidc_logout_url: string;
+}
+
 // From codersdk/organizations.go
 export interface Organization extends MinimalOrganization {
 	readonly description: string;
