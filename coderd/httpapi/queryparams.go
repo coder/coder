@@ -82,6 +82,20 @@ func (p *QueryParamParser) Int(vals url.Values, def int, queryParam string) int 
 	return v
 }
 
+func (p *QueryParamParser) Int64(vals url.Values, def int64, queryParam string) int64 {
+	v, err := parseQueryParam(p, vals, func(v string) (int64, error) {
+		return strconv.ParseInt(v, 10, 64)
+	}, def, queryParam)
+	if err != nil {
+		p.Errors = append(p.Errors, codersdk.ValidationError{
+			Field:  queryParam,
+			Detail: fmt.Sprintf("Query param %q must be a valid 64-bit integer: %s", queryParam, err.Error()),
+		})
+		return 0
+	}
+	return v
+}
+
 // PositiveInt32 function checks if the given value is 32-bit and positive.
 //
 // We can't use `uint32` as the value must be within the range  <0,2147483647>
