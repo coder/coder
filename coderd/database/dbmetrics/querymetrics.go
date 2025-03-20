@@ -1515,6 +1515,13 @@ func (m queryMetricsStore) GetWorkspaceAgentByInstanceID(ctx context.Context, au
 	return agent, err
 }
 
+func (m queryMetricsStore) GetWorkspaceAgentDevcontainersByAgentID(ctx context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentDevcontainer, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceAgentDevcontainersByAgentID(ctx, workspaceAgentID)
+	m.queryLatencies.WithLabelValues("GetWorkspaceAgentDevcontainersByAgentID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetWorkspaceAgentLifecycleStateByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceAgentLifecycleStateByIDRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetWorkspaceAgentLifecycleStateByID(ctx, id)
@@ -2136,6 +2143,13 @@ func (m queryMetricsStore) InsertWorkspaceAgent(ctx context.Context, arg databas
 	agent, err := m.s.InsertWorkspaceAgent(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertWorkspaceAgent").Observe(time.Since(start).Seconds())
 	return agent, err
+}
+
+func (m queryMetricsStore) InsertWorkspaceAgentDevcontainers(ctx context.Context, arg database.InsertWorkspaceAgentDevcontainersParams) ([]database.WorkspaceAgentDevcontainer, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertWorkspaceAgentDevcontainers(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertWorkspaceAgentDevcontainers").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m queryMetricsStore) InsertWorkspaceAgentLogSources(ctx context.Context, arg database.InsertWorkspaceAgentLogSourcesParams) ([]database.WorkspaceAgentLogSource, error) {

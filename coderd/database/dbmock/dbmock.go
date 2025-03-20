@@ -3172,6 +3172,21 @@ func (mr *MockStoreMockRecorder) GetWorkspaceAgentByInstanceID(ctx, authInstance
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentByInstanceID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentByInstanceID), ctx, authInstanceID)
 }
 
+// GetWorkspaceAgentDevcontainersByAgentID mocks base method.
+func (m *MockStore) GetWorkspaceAgentDevcontainersByAgentID(ctx context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentDevcontainer, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceAgentDevcontainersByAgentID", ctx, workspaceAgentID)
+	ret0, _ := ret[0].([]database.WorkspaceAgentDevcontainer)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceAgentDevcontainersByAgentID indicates an expected call of GetWorkspaceAgentDevcontainersByAgentID.
+func (mr *MockStoreMockRecorder) GetWorkspaceAgentDevcontainersByAgentID(ctx, workspaceAgentID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentDevcontainersByAgentID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentDevcontainersByAgentID), ctx, workspaceAgentID)
+}
+
 // GetWorkspaceAgentLifecycleStateByID mocks base method.
 func (m *MockStore) GetWorkspaceAgentLifecycleStateByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceAgentLifecycleStateByIDRow, error) {
 	m.ctrl.T.Helper()
@@ -4511,6 +4526,21 @@ func (m *MockStore) InsertWorkspaceAgent(ctx context.Context, arg database.Inser
 func (mr *MockStoreMockRecorder) InsertWorkspaceAgent(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceAgent", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceAgent), ctx, arg)
+}
+
+// InsertWorkspaceAgentDevcontainers mocks base method.
+func (m *MockStore) InsertWorkspaceAgentDevcontainers(ctx context.Context, arg database.InsertWorkspaceAgentDevcontainersParams) ([]database.WorkspaceAgentDevcontainer, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertWorkspaceAgentDevcontainers", ctx, arg)
+	ret0, _ := ret[0].([]database.WorkspaceAgentDevcontainer)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertWorkspaceAgentDevcontainers indicates an expected call of InsertWorkspaceAgentDevcontainers.
+func (mr *MockStoreMockRecorder) InsertWorkspaceAgentDevcontainers(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceAgentDevcontainers", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceAgentDevcontainers), ctx, arg)
 }
 
 // InsertWorkspaceAgentLogSources mocks base method.
