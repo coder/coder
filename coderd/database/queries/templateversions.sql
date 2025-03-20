@@ -118,7 +118,7 @@ UPDATE
 	template_versions
 SET
 	external_auth_providers = @external_auth_providers,
-	import_graph = @import_graph,
+	cached_plan = @cached_plan,
 	updated_at = @updated_at
 WHERE
 	job_id = @job_id;
