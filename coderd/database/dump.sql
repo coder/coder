@@ -1375,6 +1375,12 @@ CREATE TABLE template_version_presets (
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
+CREATE TABLE template_version_terraform_values (
+    template_version_id uuid NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    cached_plan jsonb NOT NULL
+);
+
 CREATE TABLE template_version_variables (
     template_version_id uuid NOT NULL,
     name text NOT NULL,
@@ -2240,6 +2246,9 @@ ALTER TABLE ONLY template_version_preset_parameters
 ALTER TABLE ONLY template_version_presets
     ADD CONSTRAINT template_version_presets_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY template_version_terraform_values
+    ADD CONSTRAINT template_version_terraform_values_template_version_id_key UNIQUE (template_version_id);
+
 ALTER TABLE ONLY template_version_variables
     ADD CONSTRAINT template_version_variables_template_version_id_name_key UNIQUE (template_version_id, name);
 
@@ -2667,6 +2676,9 @@ ALTER TABLE ONLY template_version_preset_parameters
 
 ALTER TABLE ONLY template_version_presets
     ADD CONSTRAINT template_version_presets_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY template_version_terraform_values
+    ADD CONSTRAINT template_version_terraform_values_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id);
 
 ALTER TABLE ONLY template_version_variables
     ADD CONSTRAINT template_version_variables_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
