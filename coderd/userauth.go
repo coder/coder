@@ -742,7 +742,7 @@ func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Users
-// @Success 200 {object} map[string]string "Returns a map containing the OIDC logout URL"
+// @Success 200 {object} codersdk.OIDCLogoutResponse "Returns a map containing the OIDC logout URL"
 // @Router /users/oidc-logout [get]
 func (api *API) userOIDCLogoutURL(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -757,6 +757,11 @@ func (api *API) userOIDCLogoutURL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	logger := api.Logger.Named(userAuthLoggerName)
+
+	// Default response: empty URL if OIDC logout is not supported
+	response := codersdk.OIDCLogoutResponse{URL: ""}
+
 	// Retrieve the user's OAuthAccessToken for logout
 	// nolint:gocritic // We only can get user link by user ID and login type with the system auth.
 	link, err := api.Database.GetUserLinkByUserIDLoginType(dbauthz.AsSystemRestricted(ctx),
@@ -765,16 +770,17 @@ func (api *API) userOIDCLogoutURL(rw http.ResponseWriter, r *http.Request) {
 			LoginType: user.LoginType,
 		})
 	if err != nil {
-		api.Logger.Error(ctx, "failed to retrieve OIDC user link", "error", err)
 		if xerrors.Is(err, sql.ErrNoRows) {
-			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-				Message: "No OIDC link found for this user.",
-			})
-		} else {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to retrieve user authentication data.",
-			})
+			logger.Warn(ctx, "no OIDC link found for this user")
+			httpapi.Write(ctx, rw, http.StatusOK, response)
+			return
 		}
+
+		logger.Error(ctx, "failed to retrieve OIDC user link", "error", err)
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to retrieve user authentication data.",
+			Detail:  err.Error(),
+		})
 		return
 	}
 
@@ -787,19 +793,18 @@ func (api *API) userOIDCLogoutURL(rw http.ResponseWriter, r *http.Request) {
 	logoutURI := dvOIDC.LogoutRedirectURI.Value()
 
 	if oidcEndpoint == "" {
-		api.Logger.Error(ctx, "missing OIDC logout endpoint")
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "OIDC configuration is missing.",
-		})
+		logger.Warn(ctx, "missing OIDC logout endpoint")
+		httpapi.Write(ctx, rw, http.StatusOK, response)
 		return
 	}
 
 	// Construct OIDC Logout URL
 	logoutURL, err := url.Parse(oidcEndpoint)
 	if err != nil {
-		api.Logger.Error(ctx, "failed to parse OIDC endpoint", "error", err)
+		logger.Error(ctx, "failed to parse OIDC endpoint", "error", err)
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Invalid OIDC endpoint.",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -820,7 +825,7 @@ func (api *API) userOIDCLogoutURL(rw http.ResponseWriter, r *http.Request) {
 	logoutURL.RawQuery = q.Encode()
 
 	// Return full logout URL
-	response := map[string]string{"oidc_logout_url": logoutURL.String()}
+	response.URL = logoutURL.String()
 	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
