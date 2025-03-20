@@ -14654,6 +14654,7 @@ func (q *sqlQuerier) InsertWorkspaceAgentStats(ctx context.Context, arg InsertWo
 const upsertWorkspaceAppAuditSession = `-- name: UpsertWorkspaceAppAuditSession :one
 INSERT INTO
 	workspace_app_audit_sessions (
+		id,
 		agent_id,
 		app_id,
 		user_id,
@@ -14674,24 +14675,32 @@ VALUES
 		$6,
 		$7,
 		$8,
-		$9
+		$9,
+		$10
 	)
 ON CONFLICT
 	(agent_id, app_id, user_id, ip, user_agent, slug_or_port, status_code)
 DO
 	UPDATE
 	SET
+		-- ID is used to know if session was reset on upsert.
+		id = CASE
+			WHEN workspace_app_audit_sessions.updated_at > NOW() - ($11::bigint || ' ms')::interval
+			THEN workspace_app_audit_sessions.id
+			ELSE EXCLUDED.id
+		END,
 		started_at = CASE
-			WHEN workspace_app_audit_sessions.updated_at > NOW() - ($10::bigint || ' ms')::interval
+			WHEN workspace_app_audit_sessions.updated_at > NOW() - ($11::bigint || ' ms')::interval
 			THEN workspace_app_audit_sessions.started_at
 			ELSE EXCLUDED.started_at
 		END,
 		updated_at = EXCLUDED.updated_at
 RETURNING
-	started_at
+	id = $1 AS new_or_stale
 `
 
 type UpsertWorkspaceAppAuditSessionParams struct {
+	ID              uuid.UUID `db:"id" json:"id"`
 	AgentID         uuid.UUID `db:"agent_id" json:"agent_id"`
 	AppID           uuid.UUID `db:"app_id" json:"app_id"`
 	UserID          uuid.UUID `db:"user_id" json:"user_id"`
@@ -14704,10 +14713,12 @@ type UpsertWorkspaceAppAuditSessionParams struct {
 	StaleIntervalMS int64     `db:"stale_interval_ms" json:"stale_interval_ms"`
 }
 
-// Insert a new workspace app audit session or update an existing one, if
-// started_at is updated, it means the session has been restarted.
-func (q *sqlQuerier) UpsertWorkspaceAppAuditSession(ctx context.Context, arg UpsertWorkspaceAppAuditSessionParams) (time.Time, error) {
+// The returned boolean, new_or_stale, can be used to deduce if a new session
+// was started. This means that a new row was inserted (no previous session) or
+// the updated_at is older than stale interval.
+func (q *sqlQuerier) UpsertWorkspaceAppAuditSession(ctx context.Context, arg UpsertWorkspaceAppAuditSessionParams) (bool, error) {
 	row := q.db.QueryRowContext(ctx, upsertWorkspaceAppAuditSession,
+		arg.ID,
 		arg.AgentID,
 		arg.AppID,
 		arg.UserID,
@@ -14719,9 +14730,9 @@ func (q *sqlQuerier) UpsertWorkspaceAppAuditSession(ctx context.Context, arg Ups
 		arg.UpdatedAt,
 		arg.StaleIntervalMS,
 	)
-	var started_at time.Time
-	err := row.Scan(&started_at)
-	return started_at, err
+	var new_or_stale bool
+	err := row.Scan(&new_or_stale)
+	return new_or_stale, err
 }
 
 const getWorkspaceAppByAgentIDAndSlug = `-- name: GetWorkspaceAppByAgentIDAndSlug :one

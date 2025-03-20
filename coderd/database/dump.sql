@@ -1767,7 +1767,8 @@ CREATE UNLOGGED TABLE workspace_app_audit_sessions (
     slug_or_port text NOT NULL,
     status_code integer NOT NULL,
     started_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL
+    updated_at timestamp with time zone NOT NULL,
+    id uuid NOT NULL
 );
 
 COMMENT ON TABLE workspace_app_audit_sessions IS 'Audit sessions for workspace apps, the data in this table is ephemeral and is used to deduplicate audit log entries for workspace apps. While a session is active, the same data will not be logged again. This table does not store historical data.';
@@ -2278,6 +2279,9 @@ ALTER TABLE ONLY workspace_agents
 
 ALTER TABLE ONLY workspace_app_audit_sessions
     ADD CONSTRAINT workspace_app_audit_sessions_agent_id_app_id_user_id_ip_use_key UNIQUE (agent_id, app_id, user_id, ip, user_agent, slug_or_port, status_code);
+
+ALTER TABLE ONLY workspace_app_audit_sessions
+    ADD CONSTRAINT workspace_app_audit_sessions_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY workspace_app_stats
     ADD CONSTRAINT workspace_app_stats_pkey PRIMARY KEY (id);

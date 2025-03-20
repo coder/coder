@@ -595,9 +595,10 @@ type sqlcQuerier interface {
 	UpsertTemplateUsageStats(ctx context.Context) error
 	UpsertWorkspaceAgentPortShare(ctx context.Context, arg UpsertWorkspaceAgentPortShareParams) (WorkspaceAgentPortShare, error)
 	//
-	// Insert a new workspace app audit session or update an existing one, if
-	// started_at is updated, it means the session has been restarted.
-	UpsertWorkspaceAppAuditSession(ctx context.Context, arg UpsertWorkspaceAppAuditSessionParams) (time.Time, error)
+	// The returned boolean, new_or_stale, can be used to deduce if a new session
+	// was started. This means that a new row was inserted (no previous session) or
+	// the updated_at is older than stale interval.
+	UpsertWorkspaceAppAuditSession(ctx context.Context, arg UpsertWorkspaceAppAuditSessionParams) (bool, error)
 }
 
 var _ sqlcQuerier = (*sqlQuerier)(nil)

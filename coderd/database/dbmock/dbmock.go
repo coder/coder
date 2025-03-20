@@ -6304,10 +6304,10 @@ func (mr *MockStoreMockRecorder) UpsertWorkspaceAgentPortShare(ctx, arg any) *go
 }
 
 // UpsertWorkspaceAppAuditSession mocks base method.
-func (m *MockStore) UpsertWorkspaceAppAuditSession(ctx context.Context, arg database.UpsertWorkspaceAppAuditSessionParams) (time.Time, error) {
+func (m *MockStore) UpsertWorkspaceAppAuditSession(ctx context.Context, arg database.UpsertWorkspaceAppAuditSessionParams) (bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpsertWorkspaceAppAuditSession", ctx, arg)
-	ret0, _ := ret[0].(time.Time)
+	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
