@@ -67,6 +67,18 @@ export const NavbarView: FC<NavbarViewProps> = ({
 					canViewHealth={canViewHealth}
 				/>
 
+				<NotificationsInbox
+					fetchNotifications={API.getInboxNotifications}
+					markAllAsRead={() => {
+						throw new Error("Function not implemented.");
+					}}
+					markNotificationAsRead={(notificationId) =>
+						API.updateInboxNotificationReadStatus(notificationId, {
+							is_read: true,
+						})
+					}
+				/>
+
 				{user && (
 					<UserDropdown
 						user={user}
