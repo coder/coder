@@ -9506,10 +9506,7 @@ func (q *FakeQuerier) MarkAllInboxNotificationsAsRead(_ context.Context, arg dat
 
 	for idx, notif := range q.inboxNotifications {
 		if notif.UserID == arg.UserID && !notif.ReadAt.Valid {
-			q.inboxNotifications[idx].ReadAt = sql.NullTime{
-				Time:  dbtime.Now(),
-				Valid: true,
-			}
+			q.inboxNotifications[idx].ReadAt = arg.ReadAt
 		}
 	}
 

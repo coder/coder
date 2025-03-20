@@ -37,7 +37,7 @@ func TestInboxNotification_Watch(t *testing.T) {
 	// I skip these tests specifically on windows as for now they are flaky - only on Windows.
 	// For now the idea is that the runner takes too long to insert the entries, could be worth
 	// investigating a manual Tx.
-	// Related issue for fix : https://github.com/coder/internal/issues/503
+	// see: https://github.com/coder/internal/issues/503
 	if runtime.GOOS == "windows" {
 		t.Skip("our runners are randomly taking too long to insert entries")
 	}
@@ -306,7 +306,7 @@ func TestInboxNotifications_List(t *testing.T) {
 	// I skip these tests specifically on windows as for now they are flaky - only on Windows.
 	// For now the idea is that the runner takes too long to insert the entries, could be worth
 	// investigating a manual Tx.
-	// Related issue for fix : https://github.com/coder/internal/issues/503
+	// see: https://github.com/coder/internal/issues/503
 	if runtime.GOOS == "windows" {
 		t.Skip("our runners are randomly taking too long to insert entries")
 	}
@@ -590,7 +590,7 @@ func TestInboxNotifications_ReadStatus(t *testing.T) {
 	// I skip these tests specifically on windows as for now they are flaky - only on Windows.
 	// For now the idea is that the runner takes too long to insert the entries, could be worth
 	// investigating a manual Tx.
-	// Related issue for fix : https://github.com/coder/internal/issues/503
+	// see: https://github.com/coder/internal/issues/503
 	if runtime.GOOS == "windows" {
 		t.Skip("our runners are randomly taking too long to insert entries")
 	}
@@ -733,7 +733,7 @@ func TestInboxNotifications_MarkAllAsRead(t *testing.T) {
 	// I skip these tests specifically on windows as for now they are flaky - only on Windows.
 	// For now the idea is that the runner takes too long to insert the entries, could be worth
 	// investigating a manual Tx.
-	// Related issue for fix : https://github.com/coder/internal/issues/503
+	// see: https://github.com/coder/internal/issues/503
 	if runtime.GOOS == "windows" {
 		t.Skip("our runners are randomly taking too long to insert entries")
 	}
