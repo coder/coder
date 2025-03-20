@@ -155,6 +155,7 @@ func New() database.Store {
 	}
 
 	q.mutex.Lock()
+	// We can't insert this user using the interface, because it's a system user.
 	q.data.users = append(q.data.users, database.User{
 		ID:             prebuilds.SystemUserID,
 		Email:          "prebuilds@coder.com",
