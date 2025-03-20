@@ -3399,6 +3399,8 @@ func (q *querier) InsertWorkspaceAgent(ctx context.Context, arg database.InsertW
 }
 
 func (q *querier) InsertWorkspaceAgentDevcontainers(ctx context.Context, arg database.InsertWorkspaceAgentDevcontainersParams) ([]database.WorkspaceAgentDevcontainer, error) {
+	// TODO: This should probably be a new RBAC resource and not rely on ResourceSystem.
+	// See: https://github.com/coder/coder/issues/13315
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
 		return nil, err
 	}
