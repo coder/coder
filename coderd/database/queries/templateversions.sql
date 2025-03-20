@@ -41,9 +41,7 @@ LIMIT
 
 -- name: GetTemplateVersionByJobID :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme,
-	job_id, created_by, external_auth_providers, message, archived,
-	source_example_id, created_by_avatar_url, created_by_username
+	*
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -54,9 +52,7 @@ SELECT * FROM template_version_with_user AS template_versions WHERE created_at >
 
 -- name: GetTemplateVersionByTemplateIDAndName :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme,
-	job_id, created_by, external_auth_providers, message, archived,
-	source_example_id, created_by_avatar_url, created_by_username
+	*
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -65,9 +61,7 @@ WHERE
 
 -- name: GetTemplateVersionByID :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme,
-	job_id, created_by, external_auth_providers, message, archived,
-	source_example_id, created_by_avatar_url, created_by_username
+	*
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -75,9 +69,7 @@ WHERE
 
 -- name: GetTemplateVersionsByIDs :many
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme,
-	job_id, created_by, external_auth_providers, message, archived,
-	source_example_id, created_by_avatar_url, created_by_username
+	*
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -125,16 +117,14 @@ WHERE
 UPDATE
 	template_versions
 SET
-	external_auth_providers = @external_auth_providers,
-	updated_at = @updated_at
+	external_auth_providers = $2,
+	updated_at = $3
 WHERE
-	job_id = @job_id;
+	job_id = $1;
 
 -- name: GetPreviousTemplateVersion :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme,
-	job_id, created_by, external_auth_providers, message, archived,
-	source_example_id, created_by_avatar_url, created_by_username
+	*
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -178,7 +168,7 @@ FROM
 			-- Scope an archive to a single template and ignore already archived template versions
 			(
 				SELECT
-					id, job_id, template_id
+					*
 				FROM
 					template_versions
 				WHERE
