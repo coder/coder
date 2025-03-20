@@ -3139,12 +3139,6 @@ type TemplateVersionTable struct {
 	SourceExampleID sql.NullString `db:"source_example_id" json:"source_example_id"`
 }
 
-type TemplateVersionTerraformValue struct {
-	TemplateVersionID uuid.UUID       `db:"template_version_id" json:"template_version_id"`
-	UpdatedAt         time.Time       `db:"updated_at" json:"updated_at"`
-	CachedPlan        json.RawMessage `db:"cached_plan" json:"cached_plan"`
-}
-
 type TemplateVersionVariable struct {
 	TemplateVersionID uuid.UUID `db:"template_version_id" json:"template_version_id"`
 	// Variable name
@@ -3312,6 +3306,20 @@ type WorkspaceAgent struct {
 	DisplayOrder int32 `db:"display_order" json:"display_order"`
 }
 
+// Workspace agent devcontainer configuration
+type WorkspaceAgentDevcontainer struct {
+	// Unique identifier
+	ID uuid.UUID `db:"id" json:"id"`
+	// Workspace agent foreign key
+	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	// Creation timestamp
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	// Workspace folder
+	WorkspaceFolder string `db:"workspace_folder" json:"workspace_folder"`
+	// Path to devcontainer.json.
+	ConfigPath string `db:"config_path" json:"config_path"`
+}
+
 type WorkspaceAgentLog struct {
 	AgentID     uuid.UUID `db:"agent_id" json:"agent_id"`
 	CreatedAt   time.Time `db:"created_at" json:"created_at"`
@@ -3460,6 +3468,7 @@ type WorkspaceAppAuditSession struct {
 	StartedAt time.Time `db:"started_at" json:"started_at"`
 	// The time the session was last updated.
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	ID        uuid.UUID `db:"id" json:"id"`
 }
 
 // A record of workspace app usage statistics

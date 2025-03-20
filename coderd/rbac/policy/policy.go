@@ -309,4 +309,9 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionUpdate: actDef("update workspace agent resource monitor"),
 		},
 	},
+	"workspace_agent_devcontainers": {
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: actDef("create workspace agent devcontainers"),
+		},
+	},
 }

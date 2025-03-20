@@ -269,7 +269,7 @@ func (dcl *DockerCLILister) List(ctx context.Context) (codersdk.WorkspaceAgentLi
 	}
 
 	res := codersdk.WorkspaceAgentListContainersResponse{
-		Containers: make([]codersdk.WorkspaceAgentDevcontainer, 0, len(ids)),
+		Containers: make([]codersdk.WorkspaceAgentContainer, 0, len(ids)),
 		Warnings:   make([]string, 0),
 	}
 	dockerPsStderr := strings.TrimSpace(stderrBuf.String())
@@ -380,13 +380,13 @@ func (dis dockerInspectState) String() string {
 	return sb.String()
 }
 
-func convertDockerInspect(raw []byte) ([]codersdk.WorkspaceAgentDevcontainer, []string, error) {
+func convertDockerInspect(raw []byte) ([]codersdk.WorkspaceAgentContainer, []string, error) {
 	var warns []string
 	var ins []dockerInspect
 	if err := json.NewDecoder(bytes.NewReader(raw)).Decode(&ins); err != nil {
 		return nil, nil, xerrors.Errorf("decode docker inspect output: %w", err)
 	}
-	outs := make([]codersdk.WorkspaceAgentDevcontainer, 0, len(ins))
+	outs := make([]codersdk.WorkspaceAgentContainer, 0, len(ins))
 
 	// Say you have two containers:
 	//  - Container A with Host IP 127.0.0.1:8000 mapped to container port 8001
@@ -402,14 +402,14 @@ func convertDockerInspect(raw []byte) ([]codersdk.WorkspaceAgentDevcontainer, []
 	hostPortContainers := make(map[int][]string)
 
 	for _, in := range ins {
-		out := codersdk.WorkspaceAgentDevcontainer{
+		out := codersdk.WorkspaceAgentContainer{
 			CreatedAt: in.Created,
 			// Remove the leading slash from the container name
 			FriendlyName: strings.TrimPrefix(in.Name, "/"),
 			ID:           in.ID,
 			Image:        in.Config.Image,
 			Labels:       in.Config.Labels,
-			Ports:        make([]codersdk.WorkspaceAgentDevcontainerPort, 0),
+			Ports:        make([]codersdk.WorkspaceAgentContainerPort, 0),
 			Running:      in.State.Running,
 			Status:       in.State.String(),
 			Volumes:      make(map[string]string, len(in.Mounts)),
@@ -452,7 +452,7 @@ func convertDockerInspect(raw []byte) ([]codersdk.WorkspaceAgentDevcontainer, []
 					// Also keep track of the host port and the container ID.
 					hostPortContainers[hp] = append(hostPortContainers[hp], in.ID)
 				}
-				out.Ports = append(out.Ports, codersdk.WorkspaceAgentDevcontainerPort{
+				out.Ports = append(out.Ports, codersdk.WorkspaceAgentContainerPort{
 					Network:  network,
 					Port:     cp,
 					HostPort: uint16(hp),

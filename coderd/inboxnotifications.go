@@ -94,18 +94,6 @@ func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	conn, err := websocket.Accept(rw, r, nil)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to upgrade connection to websocket.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	go httpapi.Heartbeat(ctx, conn)
-	defer conn.Close(websocket.StatusNormalClosure, "connection closed")
-
 	notificationCh := make(chan codersdk.InboxNotification, 10)
 
 	closeInboxNotificationsSubscriber, err := api.Pubsub.SubscribeWithErr(pubsub.InboxNotificationForOwnerEventChannel(apikey.UserID),
@@ -161,8 +149,19 @@ func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request)
 		api.Logger.Error(ctx, "subscribe to inbox notification event", slog.Error(err))
 		return
 	}
-
 	defer closeInboxNotificationsSubscriber()
+
+	conn, err := websocket.Accept(rw, r, nil)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to upgrade connection to websocket.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	go httpapi.Heartbeat(ctx, conn)
+	defer conn.Close(websocket.StatusNormalClosure, "connection closed")
 
 	encoder := wsjson.NewEncoder[codersdk.GetInboxNotificationResponse](conn, websocket.MessageText)
 	defer encoder.Close(websocket.StatusNormalClosure)
@@ -344,4 +343,32 @@ func (api *API) updateInboxNotificationReadStatus(rw http.ResponseWriter, r *htt
 		Notification: convertInboxNotificationResponse(ctx, api.Logger, updatedNotification),
 		UnreadCount:  int(unreadCount),
 	})
+}
+
+// markAllInboxNotificationsAsRead marks as read all unread notifications for authenticated user.
+// @Summary Mark all unread notifications as read
+// @ID mark-all-unread-notifications-as-read
+// @Security CoderSessionToken
+// @Tags Notifications
+// @Success 204
+// @Router /notifications/inbox/mark-all-as-read [put]
+func (api *API) markAllInboxNotificationsAsRead(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx    = r.Context()
+		apikey = httpmw.APIKey(r)
+	)
+
+	err := api.Database.MarkAllInboxNotificationsAsRead(ctx, database.MarkAllInboxNotificationsAsReadParams{
+		UserID: apikey.UserID,
+		ReadAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
+	})
+	if err != nil {
+		api.Logger.Error(ctx, "failed to mark all unread notifications as read", slog.Error(err))
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to mark all unread notifications as read.",
+		})
+		return
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
 }

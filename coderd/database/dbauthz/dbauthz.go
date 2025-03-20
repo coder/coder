@@ -186,6 +186,7 @@ var (
 					rbac.ResourceNotificationMessage.Type: {policy.ActionCreate, policy.ActionRead},
 					// Provisionerd creates workspaces resources monitor
 					rbac.ResourceWorkspaceAgentResourceMonitor.Type: {policy.ActionCreate},
+					rbac.ResourceWorkspaceAgentDevcontainers.Type:   {policy.ActionCreate},
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},
@@ -2660,6 +2661,14 @@ func (q *querier) GetWorkspaceAgentByInstanceID(ctx context.Context, authInstanc
 	return agent, nil
 }
 
+func (q *querier) GetWorkspaceAgentDevcontainersByAgentID(ctx context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentDevcontainer, error) {
+	_, err := q.GetWorkspaceAgentByID(ctx, workspaceAgentID)
+	if err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspaceAgentDevcontainersByAgentID(ctx, workspaceAgentID)
+}
+
 func (q *querier) GetWorkspaceAgentLifecycleStateByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceAgentLifecycleStateByIDRow, error) {
 	_, err := q.GetWorkspaceAgentByID(ctx, id)
 	if err != nil {
@@ -3390,6 +3399,13 @@ func (q *querier) InsertWorkspaceAgent(ctx context.Context, arg database.InsertW
 	return q.db.InsertWorkspaceAgent(ctx, arg)
 }
 
+func (q *querier) InsertWorkspaceAgentDevcontainers(ctx context.Context, arg database.InsertWorkspaceAgentDevcontainersParams) ([]database.WorkspaceAgentDevcontainer, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceWorkspaceAgentDevcontainers); err != nil {
+		return nil, err
+	}
+	return q.db.InsertWorkspaceAgentDevcontainers(ctx, arg)
+}
+
 func (q *querier) InsertWorkspaceAgentLogSources(ctx context.Context, arg database.InsertWorkspaceAgentLogSourcesParams) ([]database.WorkspaceAgentLogSource, error) {
 	// TODO: This is used by the agent, should we have an rbac check here?
 	return q.db.InsertWorkspaceAgentLogSources(ctx, arg)
@@ -3552,6 +3568,16 @@ func (q *querier) ListWorkspaceAgentPortShares(ctx context.Context, workspaceID 
 	}
 
 	return q.db.ListWorkspaceAgentPortShares(ctx, workspaceID)
+}
+
+func (q *querier) MarkAllInboxNotificationsAsRead(ctx context.Context, arg database.MarkAllInboxNotificationsAsReadParams) error {
+	resource := rbac.ResourceInboxNotification.WithOwner(arg.UserID.String())
+
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, resource); err != nil {
+		return err
+	}
+
+	return q.db.MarkAllInboxNotificationsAsRead(ctx, arg)
 }
 
 func (q *querier) OIDCClaimFieldValues(ctx context.Context, args database.OIDCClaimFieldValuesParams) ([]string, error) {
@@ -4615,9 +4641,9 @@ func (q *querier) UpsertWorkspaceAgentPortShare(ctx context.Context, arg databas
 	return q.db.UpsertWorkspaceAgentPortShare(ctx, arg)
 }
 
-func (q *querier) UpsertWorkspaceAppAuditSession(ctx context.Context, arg database.UpsertWorkspaceAppAuditSessionParams) (time.Time, error) {
+func (q *querier) UpsertWorkspaceAppAuditSession(ctx context.Context, arg database.UpsertWorkspaceAppAuditSessionParams) (bool, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
-		return time.Time{}, err
+		return false, err
 	}
 	return q.db.UpsertWorkspaceAppAuditSession(ctx, arg)
 }

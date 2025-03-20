@@ -4277,7 +4277,7 @@ function mockTwoDaysAgo() {
 	return date.toISOString();
 }
 
-export const MockWorkspaceAgentDevcontainerPorts: TypesGen.WorkspaceAgentDevcontainerPort[] =
+export const MockWorkspaceAgentContainerPorts: TypesGen.WorkspaceAgentContainerPort[] =
 	[
 		{
 			port: 1000,
@@ -4297,25 +4297,24 @@ export const MockWorkspaceAgentDevcontainerPorts: TypesGen.WorkspaceAgentDevcont
 		},
 	];
 
-export const MockWorkspaceAgentDevcontainer: TypesGen.WorkspaceAgentDevcontainer =
-	{
-		created_at: "2024-01-04T15:53:03.21563Z",
-		id: "abcd1234",
-		name: "container-1",
-		image: "ubuntu:latest",
-		labels: {
-			foo: "bar",
-		},
-		ports: [],
-		running: true,
-		status: "running",
-		volumes: {
-			"/mnt/volume1": "/volume1",
-		},
-	};
+export const MockWorkspaceAgentContainer: TypesGen.WorkspaceAgentContainer = {
+	created_at: "2024-01-04T15:53:03.21563Z",
+	id: "abcd1234",
+	name: "container-1",
+	image: "ubuntu:latest",
+	labels: {
+		foo: "bar",
+	},
+	ports: [],
+	running: true,
+	status: "running",
+	volumes: {
+		"/mnt/volume1": "/volume1",
+	},
+};
 
 export const MockWorkspaceAgentListContainersResponse: TypesGen.WorkspaceAgentListContainersResponse =
 	{
-		containers: [MockWorkspaceAgentDevcontainer],
+		containers: [MockWorkspaceAgentContainer],
 		warnings: ["This is a warning"],
 	};

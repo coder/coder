@@ -59,6 +59,12 @@ type agentAttributes struct {
 	ResourcesMonitoring      []agentResourcesMonitoring   `mapstructure:"resources_monitoring"`
 }
 
+type agentDevcontainerAttributes struct {
+	AgentID         string `mapstructure:"agent_id"`
+	WorkspaceFolder string `mapstructure:"workspace_folder"`
+	ConfigPath      string `mapstructure:"config_path"`
+}
+
 type agentResourcesMonitoring struct {
 	Memory  []agentMemoryResourceMonitor `mapstructure:"memory"`
 	Volumes []agentVolumeResourceMonitor `mapstructure:"volume"`
@@ -585,6 +591,32 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 						RunOnStart:       attrs.RunOnStart,
 						RunOnStop:        attrs.RunOnStop,
 						TimeoutSeconds:   attrs.TimeoutSeconds,
+					})
+				}
+			}
+		}
+	}
+
+	// Associate Dev Containers with agents.
+	for _, resources := range tfResourcesByLabel {
+		for _, resource := range resources {
+			if resource.Type != "coder_devcontainer" {
+				continue
+			}
+			var attrs agentDevcontainerAttributes
+			err = mapstructure.Decode(resource.AttributeValues, &attrs)
+			if err != nil {
+				return nil, xerrors.Errorf("decode script attributes: %w", err)
+			}
+			for _, agents := range resourceAgents {
+				for _, agent := range agents {
+					// Find agents with the matching ID and associate them!
+					if !dependsOnAgent(graph, agent, attrs.AgentID, resource) {
+						continue
+					}
+					agent.Devcontainers = append(agent.Devcontainers, &proto.Devcontainer{
+						WorkspaceFolder: attrs.WorkspaceFolder,
+						ConfigPath:      attrs.ConfigPath,
 					})
 				}
 			}

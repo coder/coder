@@ -55,7 +55,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 
 			<NavItems className="ml-4" />
 
-			<div className=" hidden md:flex items-center gap-3 ml-auto">
+			<div className="hidden md:flex items-center gap-3 ml-auto">
 				{proxyContextValue && (
 					<ProxyMenu proxyContextValue={proxyContextValue} />
 				)}
@@ -69,9 +69,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 
 				<NotificationsInbox
 					fetchNotifications={API.getInboxNotifications}
-					markAllAsRead={() => {
-						throw new Error("Function not implemented.");
-					}}
+					markAllAsRead={API.markAllInboxNotificationsAsRead}
 					markNotificationAsRead={(notificationId) =>
 						API.updateInboxNotificationReadStatus(notificationId, {
 							is_read: true,
@@ -89,16 +87,28 @@ export const NavbarView: FC<NavbarViewProps> = ({
 				)}
 			</div>
 
-			<MobileMenu
-				proxyContextValue={proxyContextValue}
-				user={user}
-				supportLinks={supportLinks}
-				onSignOut={onSignOut}
-				canViewAuditLog={canViewAuditLog}
-				canViewOrganizations={canViewOrganizations}
-				canViewDeployment={canViewDeployment}
-				canViewHealth={canViewHealth}
-			/>
+			<div className="ml-auto flex items-center gap-3 md:hidden">
+				<NotificationsInbox
+					fetchNotifications={API.getInboxNotifications}
+					markAllAsRead={API.markAllInboxNotificationsAsRead}
+					markNotificationAsRead={(notificationId) =>
+						API.updateInboxNotificationReadStatus(notificationId, {
+							is_read: true,
+						})
+					}
+				/>
+
+				<MobileMenu
+					proxyContextValue={proxyContextValue}
+					user={user}
+					supportLinks={supportLinks}
+					onSignOut={onSignOut}
+					canViewAuditLog={canViewAuditLog}
+					canViewOrganizations={canViewOrganizations}
+					canViewDeployment={canViewDeployment}
+					canViewHealth={canViewHealth}
+				/>
+			</div>
 		</div>
 	);
 };

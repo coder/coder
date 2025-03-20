@@ -5321,6 +5321,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `template`                         |
 | `user`                             |
 | `workspace`                        |
+| `workspace_agent_devcontainers`    |
 | `workspace_agent_resource_monitor` |
 | `workspace_dormant`                |
 | `workspace_proxy`                  |
@@ -7843,7 +7844,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `updated_at`                 | string                                                                                       | false    |              |                                                                                                                                                                              |
 | `version`                    | string                                                                                       | false    |              |                                                                                                                                                                              |
 
-## codersdk.WorkspaceAgentDevcontainer
+## codersdk.WorkspaceAgentContainer
 
 ```json
 {
@@ -7874,21 +7875,21 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name               | Type                                                                                        | Required | Restrictions | Description                                                                                                                                |
-|--------------------|---------------------------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------|
-| `created_at`       | string                                                                                      | false    |              | Created at is the time the container was created.                                                                                          |
-| `id`               | string                                                                                      | false    |              | ID is the unique identifier of the container.                                                                                              |
-| `image`            | string                                                                                      | false    |              | Image is the name of the container image.                                                                                                  |
-| `labels`           | object                                                                                      | false    |              | Labels is a map of key-value pairs of container labels.                                                                                    |
-| » `[any property]` | string                                                                                      | false    |              |                                                                                                                                            |
-| `name`             | string                                                                                      | false    |              | Name is the human-readable name of the container.                                                                                          |
-| `ports`            | array of [codersdk.WorkspaceAgentDevcontainerPort](#codersdkworkspaceagentdevcontainerport) | false    |              | Ports includes ports exposed by the container.                                                                                             |
-| `running`          | boolean                                                                                     | false    |              | Running is true if the container is currently running.                                                                                     |
-| `status`           | string                                                                                      | false    |              | Status is the current status of the container. This is somewhat implementation-dependent, but should generally be a human-readable string. |
-| `volumes`          | object                                                                                      | false    |              | Volumes is a map of "things" mounted into the container. Again, this is somewhat implementation-dependent.                                 |
-| » `[any property]` | string                                                                                      | false    |              |                                                                                                                                            |
+| Name               | Type                                                                                  | Required | Restrictions | Description                                                                                                                                |
+|--------------------|---------------------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------|
+| `created_at`       | string                                                                                | false    |              | Created at is the time the container was created.                                                                                          |
+| `id`               | string                                                                                | false    |              | ID is the unique identifier of the container.                                                                                              |
+| `image`            | string                                                                                | false    |              | Image is the name of the container image.                                                                                                  |
+| `labels`           | object                                                                                | false    |              | Labels is a map of key-value pairs of container labels.                                                                                    |
+| » `[any property]` | string                                                                                | false    |              |                                                                                                                                            |
+| `name`             | string                                                                                | false    |              | Name is the human-readable name of the container.                                                                                          |
+| `ports`            | array of [codersdk.WorkspaceAgentContainerPort](#codersdkworkspaceagentcontainerport) | false    |              | Ports includes ports exposed by the container.                                                                                             |
+| `running`          | boolean                                                                               | false    |              | Running is true if the container is currently running.                                                                                     |
+| `status`           | string                                                                                | false    |              | Status is the current status of the container. This is somewhat implementation-dependent, but should generally be a human-readable string. |
+| `volumes`          | object                                                                                | false    |              | Volumes is a map of "things" mounted into the container. Again, this is somewhat implementation-dependent.                                 |
+| » `[any property]` | string                                                                                | false    |              |                                                                                                                                            |
 
-## codersdk.WorkspaceAgentDevcontainerPort
+## codersdk.WorkspaceAgentContainerPort
 
 ```json
 {
@@ -7984,10 +7985,10 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name         | Type                                                                                | Required | Restrictions | Description                                                                                                                           |
-|--------------|-------------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------|
-| `containers` | array of [codersdk.WorkspaceAgentDevcontainer](#codersdkworkspaceagentdevcontainer) | false    |              | Containers is a list of containers visible to the workspace agent.                                                                    |
-| `warnings`   | array of string                                                                     | false    |              | Warnings is a list of warnings that may have occurred during the process of listing containers. This should not include fatal errors. |
+| Name         | Type                                                                          | Required | Restrictions | Description                                                                                                                           |
+|--------------|-------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------|
+| `containers` | array of [codersdk.WorkspaceAgentContainer](#codersdkworkspaceagentcontainer) | false    |              | Containers is a list of containers visible to the workspace agent.                                                                    |
+| `warnings`   | array of string                                                               | false    |              | Warnings is a list of warnings that may have occurred during the process of listing containers. This should not include fatal errors. |
 
 ## codersdk.WorkspaceAgentListeningPort
 

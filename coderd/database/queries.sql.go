@@ -3804,7 +3804,6 @@ SELECT
     nm.method,
     nm.attempt_count::int                                                 AS attempt_count,
     nm.queued_seconds::float                                              AS queued_seconds,
-    nm.targets,
     -- template
     nt.id                                                                 AS template_id,
     nt.title_template,
@@ -3830,7 +3829,6 @@ type AcquireNotificationMessagesRow struct {
 	Method        NotificationMethod `db:"method" json:"method"`
 	AttemptCount  int32              `db:"attempt_count" json:"attempt_count"`
 	QueuedSeconds float64            `db:"queued_seconds" json:"queued_seconds"`
-	Targets       []uuid.UUID        `db:"targets" json:"targets"`
 	TemplateID    uuid.UUID          `db:"template_id" json:"template_id"`
 	TitleTemplate string             `db:"title_template" json:"title_template"`
 	BodyTemplate  string             `db:"body_template" json:"body_template"`
@@ -3867,7 +3865,6 @@ func (q *sqlQuerier) AcquireNotificationMessages(ctx context.Context, arg Acquir
 			&i.Method,
 			&i.AttemptCount,
 			&i.QueuedSeconds,
-			pq.Array(&i.Targets),
 			&i.TemplateID,
 			&i.TitleTemplate,
 			&i.BodyTemplate,
@@ -4512,6 +4509,25 @@ func (q *sqlQuerier) InsertInboxNotification(ctx context.Context, arg InsertInbo
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const markAllInboxNotificationsAsRead = `-- name: MarkAllInboxNotificationsAsRead :exec
+UPDATE
+	inbox_notifications
+SET
+	read_at = $1
+WHERE
+	user_id = $2 and read_at IS NULL
+`
+
+type MarkAllInboxNotificationsAsReadParams struct {
+	ReadAt sql.NullTime `db:"read_at" json:"read_at"`
+	UserID uuid.UUID    `db:"user_id" json:"user_id"`
+}
+
+func (q *sqlQuerier) MarkAllInboxNotificationsAsRead(ctx context.Context, arg MarkAllInboxNotificationsAsReadParams) error {
+	_, err := q.db.ExecContext(ctx, markAllInboxNotificationsAsRead, arg.ReadAt, arg.UserID)
+	return err
 }
 
 const updateInboxNotificationReadStatus = `-- name: UpdateInboxNotificationReadStatus :exec
@@ -10226,7 +10242,7 @@ FROM
 			-- Scope an archive to a single template and ignore already archived template versions
 			(
 				SELECT
-					id, job_id, template_id
+					id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id
 				FROM
 					template_versions
 				WHERE
@@ -10327,9 +10343,7 @@ func (q *sqlQuerier) ArchiveUnusedTemplateVersions(ctx context.Context, arg Arch
 
 const getPreviousTemplateVersion = `-- name: GetPreviousTemplateVersion :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme,
-	job_id, created_by, external_auth_providers, message, archived,
-	source_example_id, created_by_avatar_url, created_by_username
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, created_by_avatar_url, created_by_username
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -10375,9 +10389,7 @@ func (q *sqlQuerier) GetPreviousTemplateVersion(ctx context.Context, arg GetPrev
 
 const getTemplateVersionByID = `-- name: GetTemplateVersionByID :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme,
-	job_id, created_by, external_auth_providers, message, archived,
-	source_example_id, created_by_avatar_url, created_by_username
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, created_by_avatar_url, created_by_username
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -10409,9 +10421,7 @@ func (q *sqlQuerier) GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (
 
 const getTemplateVersionByJobID = `-- name: GetTemplateVersionByJobID :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme,
-	job_id, created_by, external_auth_providers, message, archived,
-	source_example_id, created_by_avatar_url, created_by_username
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, created_by_avatar_url, created_by_username
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -10443,9 +10453,7 @@ func (q *sqlQuerier) GetTemplateVersionByJobID(ctx context.Context, jobID uuid.U
 
 const getTemplateVersionByTemplateIDAndName = `-- name: GetTemplateVersionByTemplateIDAndName :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme,
-	job_id, created_by, external_auth_providers, message, archived,
-	source_example_id, created_by_avatar_url, created_by_username
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, created_by_avatar_url, created_by_username
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -10483,9 +10491,7 @@ func (q *sqlQuerier) GetTemplateVersionByTemplateIDAndName(ctx context.Context, 
 
 const getTemplateVersionsByIDs = `-- name: GetTemplateVersionsByIDs :many
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme,
-	job_id, created_by, external_auth_providers, message, archived,
-	source_example_id, created_by_avatar_url, created_by_username
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, created_by_avatar_url, created_by_username
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -10796,46 +10802,20 @@ const updateTemplateVersionExternalAuthProvidersByJobID = `-- name: UpdateTempla
 UPDATE
 	template_versions
 SET
-	external_auth_providers = $1,
-	updated_at = $2
+	external_auth_providers = $2,
+	updated_at = $3
 WHERE
-	job_id = $3
+	job_id = $1
 `
 
 type UpdateTemplateVersionExternalAuthProvidersByJobIDParams struct {
+	JobID                 uuid.UUID       `db:"job_id" json:"job_id"`
 	ExternalAuthProviders json.RawMessage `db:"external_auth_providers" json:"external_auth_providers"`
 	UpdatedAt             time.Time       `db:"updated_at" json:"updated_at"`
-	JobID                 uuid.UUID       `db:"job_id" json:"job_id"`
 }
 
 func (q *sqlQuerier) UpdateTemplateVersionExternalAuthProvidersByJobID(ctx context.Context, arg UpdateTemplateVersionExternalAuthProvidersByJobIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateTemplateVersionExternalAuthProvidersByJobID, arg.ExternalAuthProviders, arg.UpdatedAt, arg.JobID)
-	return err
-}
-
-const insertTemplateVersionTerraformValuesByJobID = `-- name: InsertTemplateVersionTerraformValuesByJobID :exec
-INSERT INTO
-	template_version_terraform_values (
-		template_version_id,
-		cached_plan,
-		updated_at
-	)
-VALUES
-	(
-		(select id from template_versions where job_id = $1),
-		$2,
-		$3
-	)
-`
-
-type InsertTemplateVersionTerraformValuesByJobIDParams struct {
-	JobID      uuid.UUID       `db:"job_id" json:"job_id"`
-	CachedPlan json.RawMessage `db:"cached_plan" json:"cached_plan"`
-	UpdatedAt  time.Time       `db:"updated_at" json:"updated_at"`
-}
-
-func (q *sqlQuerier) InsertTemplateVersionTerraformValuesByJobID(ctx context.Context, arg InsertTemplateVersionTerraformValuesByJobIDParams) error {
-	_, err := q.db.ExecContext(ctx, insertTemplateVersionTerraformValuesByJobID, arg.JobID, arg.CachedPlan, arg.UpdatedAt)
+	_, err := q.db.ExecContext(ctx, updateTemplateVersionExternalAuthProvidersByJobID, arg.JobID, arg.ExternalAuthProviders, arg.UpdatedAt)
 	return err
 }
 
@@ -12287,6 +12267,101 @@ func (q *sqlQuerier) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusP
 		&i.OneTimePasscodeExpiresAt,
 	)
 	return i, err
+}
+
+const getWorkspaceAgentDevcontainersByAgentID = `-- name: GetWorkspaceAgentDevcontainersByAgentID :many
+SELECT
+	id, workspace_agent_id, created_at, workspace_folder, config_path
+FROM
+	workspace_agent_devcontainers
+WHERE
+	workspace_agent_id = $1
+ORDER BY
+	created_at, id
+`
+
+func (q *sqlQuerier) GetWorkspaceAgentDevcontainersByAgentID(ctx context.Context, workspaceAgentID uuid.UUID) ([]WorkspaceAgentDevcontainer, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentDevcontainersByAgentID, workspaceAgentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAgentDevcontainer
+	for rows.Next() {
+		var i WorkspaceAgentDevcontainer
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceAgentID,
+			&i.CreatedAt,
+			&i.WorkspaceFolder,
+			&i.ConfigPath,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertWorkspaceAgentDevcontainers = `-- name: InsertWorkspaceAgentDevcontainers :many
+INSERT INTO
+	workspace_agent_devcontainers (workspace_agent_id, created_at, id, workspace_folder, config_path)
+SELECT
+	$1::uuid AS workspace_agent_id,
+	$2::timestamptz AS created_at,
+	unnest($3::uuid[]) AS id,
+	unnest($4::text[]) AS workspace_folder,
+	unnest($5::text[]) AS config_path
+RETURNING workspace_agent_devcontainers.id, workspace_agent_devcontainers.workspace_agent_id, workspace_agent_devcontainers.created_at, workspace_agent_devcontainers.workspace_folder, workspace_agent_devcontainers.config_path
+`
+
+type InsertWorkspaceAgentDevcontainersParams struct {
+	WorkspaceAgentID uuid.UUID   `db:"workspace_agent_id" json:"workspace_agent_id"`
+	CreatedAt        time.Time   `db:"created_at" json:"created_at"`
+	ID               []uuid.UUID `db:"id" json:"id"`
+	WorkspaceFolder  []string    `db:"workspace_folder" json:"workspace_folder"`
+	ConfigPath       []string    `db:"config_path" json:"config_path"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceAgentDevcontainers(ctx context.Context, arg InsertWorkspaceAgentDevcontainersParams) ([]WorkspaceAgentDevcontainer, error) {
+	rows, err := q.db.QueryContext(ctx, insertWorkspaceAgentDevcontainers,
+		arg.WorkspaceAgentID,
+		arg.CreatedAt,
+		pq.Array(arg.ID),
+		pq.Array(arg.WorkspaceFolder),
+		pq.Array(arg.ConfigPath),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAgentDevcontainer
+	for rows.Next() {
+		var i WorkspaceAgentDevcontainer
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceAgentID,
+			&i.CreatedAt,
+			&i.WorkspaceFolder,
+			&i.ConfigPath,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const deleteWorkspaceAgentPortShare = `-- name: DeleteWorkspaceAgentPortShare :exec
@@ -14674,6 +14749,7 @@ func (q *sqlQuerier) InsertWorkspaceAgentStats(ctx context.Context, arg InsertWo
 const upsertWorkspaceAppAuditSession = `-- name: UpsertWorkspaceAppAuditSession :one
 INSERT INTO
 	workspace_app_audit_sessions (
+		id,
 		agent_id,
 		app_id,
 		user_id,
@@ -14694,24 +14770,32 @@ VALUES
 		$6,
 		$7,
 		$8,
-		$9
+		$9,
+		$10
 	)
 ON CONFLICT
 	(agent_id, app_id, user_id, ip, user_agent, slug_or_port, status_code)
 DO
 	UPDATE
 	SET
+		-- ID is used to know if session was reset on upsert.
+		id = CASE
+			WHEN workspace_app_audit_sessions.updated_at > NOW() - ($11::bigint || ' ms')::interval
+			THEN workspace_app_audit_sessions.id
+			ELSE EXCLUDED.id
+		END,
 		started_at = CASE
-			WHEN workspace_app_audit_sessions.updated_at > NOW() - ($10::bigint || ' ms')::interval
+			WHEN workspace_app_audit_sessions.updated_at > NOW() - ($11::bigint || ' ms')::interval
 			THEN workspace_app_audit_sessions.started_at
 			ELSE EXCLUDED.started_at
 		END,
 		updated_at = EXCLUDED.updated_at
 RETURNING
-	started_at
+	id = $1 AS new_or_stale
 `
 
 type UpsertWorkspaceAppAuditSessionParams struct {
+	ID              uuid.UUID `db:"id" json:"id"`
 	AgentID         uuid.UUID `db:"agent_id" json:"agent_id"`
 	AppID           uuid.UUID `db:"app_id" json:"app_id"`
 	UserID          uuid.UUID `db:"user_id" json:"user_id"`
@@ -14724,10 +14808,12 @@ type UpsertWorkspaceAppAuditSessionParams struct {
 	StaleIntervalMS int64     `db:"stale_interval_ms" json:"stale_interval_ms"`
 }
 
-// Insert a new workspace app audit session or update an existing one, if
-// started_at is updated, it means the session has been restarted.
-func (q *sqlQuerier) UpsertWorkspaceAppAuditSession(ctx context.Context, arg UpsertWorkspaceAppAuditSessionParams) (time.Time, error) {
+// The returned boolean, new_or_stale, can be used to deduce if a new session
+// was started. This means that a new row was inserted (no previous session) or
+// the updated_at is older than stale interval.
+func (q *sqlQuerier) UpsertWorkspaceAppAuditSession(ctx context.Context, arg UpsertWorkspaceAppAuditSessionParams) (bool, error) {
 	row := q.db.QueryRowContext(ctx, upsertWorkspaceAppAuditSession,
+		arg.ID,
 		arg.AgentID,
 		arg.AppID,
 		arg.UserID,
@@ -14739,9 +14825,9 @@ func (q *sqlQuerier) UpsertWorkspaceAppAuditSession(ctx context.Context, arg Ups
 		arg.UpdatedAt,
 		arg.StaleIntervalMS,
 	)
-	var started_at time.Time
-	err := row.Scan(&started_at)
-	return started_at, err
+	var new_or_stale bool
+	err := row.Scan(&new_or_stale)
+	return new_or_stale, err
 }
 
 const getWorkspaceAppByAgentIDAndSlug = `-- name: GetWorkspaceAppByAgentIDAndSlug :one
