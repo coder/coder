@@ -344,3 +344,31 @@ func (api *API) updateInboxNotificationReadStatus(rw http.ResponseWriter, r *htt
 		UnreadCount:  int(unreadCount),
 	})
 }
+
+// markAllInboxNotificationsAsRead marks as read all unread notifications for authenticated user.
+// @Summary Mark all unread notifications as read
+// @ID mark-all-unread-notifications-as-read
+// @Security CoderSessionToken
+// @Tags Notifications
+// @Success 204
+// @Router /notifications/inbox/mark-all-as-read [put]
+func (api *API) markAllInboxNotificationsAsRead(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx    = r.Context()
+		apikey = httpmw.APIKey(r)
+	)
+
+	err := api.Database.MarkAllInboxNotificationsAsRead(ctx, database.MarkAllInboxNotificationsAsReadParams{
+		UserID: apikey.UserID,
+		ReadAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
+	})
+	if err != nil {
+		api.Logger.Error(ctx, "failed to mark all unread notifications as read", slog.Error(err))
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to mark all unread notifications as read.",
+		})
+		return
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
+}

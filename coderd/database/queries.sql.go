@@ -4511,6 +4511,25 @@ func (q *sqlQuerier) InsertInboxNotification(ctx context.Context, arg InsertInbo
 	return i, err
 }
 
+const markAllInboxNotificationsAsRead = `-- name: MarkAllInboxNotificationsAsRead :exec
+UPDATE
+	inbox_notifications
+SET
+	read_at = $1
+WHERE
+	user_id = $2 and read_at IS NULL
+`
+
+type MarkAllInboxNotificationsAsReadParams struct {
+	ReadAt sql.NullTime `db:"read_at" json:"read_at"`
+	UserID uuid.UUID    `db:"user_id" json:"user_id"`
+}
+
+func (q *sqlQuerier) MarkAllInboxNotificationsAsRead(ctx context.Context, arg MarkAllInboxNotificationsAsReadParams) error {
+	_, err := q.db.ExecContext(ctx, markAllInboxNotificationsAsRead, arg.ReadAt, arg.UserID)
+	return err
+}
+
 const updateInboxNotificationReadStatus = `-- name: UpdateInboxNotificationReadStatus :exec
 UPDATE
     inbox_notifications

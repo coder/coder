@@ -9500,6 +9500,21 @@ func (q *FakeQuerier) ListWorkspaceAgentPortShares(_ context.Context, workspaceI
 	return shares, nil
 }
 
+func (q *FakeQuerier) MarkAllInboxNotificationsAsRead(_ context.Context, arg database.MarkAllInboxNotificationsAsReadParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	for idx, notif := range q.inboxNotifications {
+		if notif.UserID == arg.UserID && !notif.ReadAt.Valid {
+			q.inboxNotifications[idx].ReadAt = arg.ReadAt
+		}
+	}
+
+	return nil
+}
+
 // nolint:forcetypeassert
 func (q *FakeQuerier) OIDCClaimFieldValues(_ context.Context, args database.OIDCClaimFieldValuesParams) ([]string, error) {
 	orgMembers := q.getOrganizationMemberNoLock(args.OrganizationID)

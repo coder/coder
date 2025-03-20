@@ -1486,6 +1486,23 @@
 				}
 			}
 		},
+		"/notifications/inbox/mark-all-as-read": {
+			"put": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"tags": ["Notifications"],
+				"summary": "Mark all unread notifications as read",
+				"operationId": "mark-all-unread-notifications-as-read",
+				"responses": {
+					"204": {
+						"description": "No Content"
+					}
+				}
+			}
+		},
 		"/notifications/inbox/watch": {
 			"get": {
 				"security": [
