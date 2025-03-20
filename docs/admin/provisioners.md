@@ -377,6 +377,18 @@ This can be disabled with a server-wide
 coder server --provisioner-daemons=0
 ```
 
+## Manage provisioner jobs
+
+View more information about and manage your provisioners from the Coder dashboard.
+
+1. Under **Admin settings** select **Organizations**, then select **Provisioner jobs**.
+
+1. Select the **>** to expand each entry for more information.
+
+1. To delete a job, select the 🚫 at the end of the entry's row.
+
+   If your user doesn't have the correct permissions, this option is greyed out.
+
 ## Prometheus metrics
 
 Coder provisioner daemon exports metrics via the HTTP endpoint, which can be
