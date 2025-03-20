@@ -47,6 +47,11 @@ WHERE pj.job_status IN ('pending'::provisioner_job_status, 'running'::provisione
 GROUP BY t.id, wpb.template_version_id, wpb.transition;
 
 -- name: GetPresetsBackoff :many
+-- GetPresetsBackoff groups workspace builds by template version ID.
+-- For each group, the query checks the last N jobs, where N equals the number of desired instances for the corresponding preset.
+-- If at least one of the last N jobs has failed, we should backoff on the corresponding template version ID.
+-- Query returns a list of template version IDs for which we should backoff.
+-- Only template versions with configured presets are considered.
 WITH filtered_builds AS (
 	-- Only select builds which are for prebuild creations
 	SELECT wlb.*, tvp.id AS preset_id, pj.job_status, tvpp.desired_instances

@@ -5932,6 +5932,11 @@ type GetPresetsBackoffRow struct {
 	LastBuildAt       time.Time            `db:"last_build_at" json:"last_build_at"`
 }
 
+// GetPresetsBackoff groups workspace builds by template version ID.
+// For each group, the query checks the last N jobs, where N equals the number of desired instances for the corresponding preset.
+// If at least one of the last N jobs has failed, we should backoff on the corresponding template version ID.
+// Query returns a list of template version IDs for which we should backoff.
+// Only template versions with configured presets are considered.
 func (q *sqlQuerier) GetPresetsBackoff(ctx context.Context, lookback time.Time) ([]GetPresetsBackoffRow, error) {
 	rows, err := q.db.QueryContext(ctx, getPresetsBackoff, lookback)
 	if err != nil {
