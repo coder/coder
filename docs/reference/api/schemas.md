@@ -2017,6 +2017,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "ignore_email_verified": true,
       "ignore_user_info": true,
       "issuer_url": "string",
+      "logout_endpoint": "string",
+      "logout_redirect_uri": "string",
       "name_field": "string",
       "organization_assign_default": true,
       "organization_field": "string",
@@ -2490,6 +2492,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "ignore_email_verified": true,
     "ignore_user_info": true,
     "issuer_url": "string",
+    "logout_endpoint": "string",
+    "logout_redirect_uri": "string",
     "name_field": "string",
     "organization_assign_default": true,
     "organization_field": "string",
@@ -4133,6 +4137,8 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "ignore_email_verified": true,
   "ignore_user_info": true,
   "issuer_url": "string",
+  "logout_endpoint": "string",
+  "logout_redirect_uri": "string",
   "name_field": "string",
   "organization_assign_default": true,
   "organization_field": "string",
@@ -4174,6 +4180,8 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `ignore_email_verified`              | boolean                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
 | `ignore_user_info`                   | boolean                          | false    |              | Ignore user info & UserInfoFromAccessToken are mutually exclusive. Only 1 can be set to true. Ideally this would be an enum with 3 states, ['none', 'userinfo', 'access_token']. However, for backward compatibility, `ignore_user_info` must remain. And `access_token` is a niche, non-spec compliant edge case. So it's use is rare, and should not be advised. |
 | `issuer_url`                         | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `logout_endpoint`                    | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `logout_redirect_uri`                | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
 | `name_field`                         | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
 | `organization_assign_default`        | boolean                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
 | `organization_field`                 | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
@@ -4187,6 +4195,20 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `user_role_mapping`                  | object                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
 | `user_roles_default`                 | array of string                  | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
 | `username_field`                     | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+
+## codersdk.OIDCLogoutResponse
+
+```json
+{
+  "oidc_logout_url": "string"
+}
+```
+
+### Properties
+
+| Name              | Type   | Required | Restrictions | Description |
+|-------------------|--------|----------|--------------|-------------|
+| `oidc_logout_url` | string | false    |              |             |
 
 ## codersdk.Organization
 
