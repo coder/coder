@@ -3974,6 +3974,46 @@ func (q *FakeQuerier) GetOrganizationIDsByMemberIDs(_ context.Context, ids []uui
 	return getOrganizationIDsByMemberIDRows, nil
 }
 
+func (q *FakeQuerier) GetOrganizationResourcesCountById(ctx context.Context, organizationID uuid.UUID) (database.GetOrganizationResourcesCountByIdRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	workspacesCount := 0
+	for _, workspace := range q.workspaces {
+		if workspace.OrganizationID == organizationID {
+			workspacesCount++
+		}
+	}
+
+	groupsCount := 0
+	for _, group := range q.groups {
+		if group.OrganizationID == organizationID {
+			groupsCount++
+		}
+	}
+
+	templatesCount := 0
+	for _, template := range q.templates {
+		if template.OrganizationID == organizationID {
+			templatesCount++
+		}
+	}
+
+	organizationMembersCount := 0
+	for _, organizationMember := range q.organizationMembers {
+		if organizationMember.OrganizationID == organizationID {
+			organizationMembersCount++
+		}
+	}
+
+	return database.GetOrganizationResourcesCountByIdRow{
+		WorkspaceCount: int64(workspacesCount),
+		GroupCount:     int64(groupsCount),
+		TemplateCount:  int64(templatesCount),
+		MemberCount:    int64(organizationMembersCount),
+	}, nil
+}
+
 func (q *FakeQuerier) GetOrganizations(_ context.Context, args database.GetOrganizationsParams) ([]database.Organization, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
