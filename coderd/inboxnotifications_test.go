@@ -64,7 +64,7 @@ func TestInboxNotification_Watch(t *testing.T) {
 				firstUser := coderdtest.CreateFirstUser(t, client)
 				client, _ = coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
 
-				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 				defer cancel()
 
 				resp, err := client.Request(ctx, http.MethodGet, "/api/v2/notifications/inbox/watch", nil,
@@ -86,7 +86,7 @@ func TestInboxNotification_Watch(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitSuperLong)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		logger := testutil.Logger(t)
 
 		db, ps := dbtestutil.NewDB(t)
@@ -122,7 +122,8 @@ func TestInboxNotification_Watch(t *testing.T) {
 		}, "notification title", "notification content", nil)
 		require.NoError(t, err)
 
-		dispatchFunc(ctx, uuid.New())
+		_, err = dispatchFunc(ctx, uuid.New())
+		require.NoError(t, err)
 
 		_, message, err := wsConn.Read(ctx)
 		require.NoError(t, err)
@@ -138,7 +139,7 @@ func TestInboxNotification_Watch(t *testing.T) {
 	t.Run("OK - filters on templates", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitSuperLong)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		logger := testutil.Logger(t)
 
 		db, ps := dbtestutil.NewDB(t)
@@ -174,7 +175,8 @@ func TestInboxNotification_Watch(t *testing.T) {
 		}, "memory related title", "memory related content", nil)
 		require.NoError(t, err)
 
-		dispatchFunc(ctx, uuid.New())
+		_, err = dispatchFunc(ctx, uuid.New())
+		require.NoError(t, err)
 
 		_, message, err := wsConn.Read(ctx)
 		require.NoError(t, err)
@@ -193,7 +195,8 @@ func TestInboxNotification_Watch(t *testing.T) {
 		}, "disk related title", "disk related title", nil)
 		require.NoError(t, err)
 
-		dispatchFunc(ctx, uuid.New())
+		_, err = dispatchFunc(ctx, uuid.New())
+		require.NoError(t, err)
 
 		dispatchFunc, err = inboxHandler.Dispatcher(types.MessagePayload{
 			UserID:                 memberClient.ID.String(),
@@ -201,7 +204,8 @@ func TestInboxNotification_Watch(t *testing.T) {
 		}, "second memory related title", "second memory related title", nil)
 		require.NoError(t, err)
 
-		dispatchFunc(ctx, uuid.New())
+		_, err = dispatchFunc(ctx, uuid.New())
+		require.NoError(t, err)
 
 		_, message, err = wsConn.Read(ctx)
 		require.NoError(t, err)
@@ -217,7 +221,7 @@ func TestInboxNotification_Watch(t *testing.T) {
 	t.Run("OK - filters on targets", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitSuperLong)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		logger := testutil.Logger(t)
 
 		db, ps := dbtestutil.NewDB(t)
@@ -256,7 +260,8 @@ func TestInboxNotification_Watch(t *testing.T) {
 		}, "memory related title", "memory related content", nil)
 		require.NoError(t, err)
 
-		dispatchFunc(ctx, uuid.New())
+		_, err = dispatchFunc(ctx, uuid.New())
+		require.NoError(t, err)
 
 		_, message, err := wsConn.Read(ctx)
 		require.NoError(t, err)
@@ -276,7 +281,8 @@ func TestInboxNotification_Watch(t *testing.T) {
 		}, "second memory related title", "second memory related title", nil)
 		require.NoError(t, err)
 
-		dispatchFunc(ctx, uuid.New())
+		_, err = dispatchFunc(ctx, uuid.New())
+		require.NoError(t, err)
 
 		dispatchFunc, err = inboxHandler.Dispatcher(types.MessagePayload{
 			UserID:                 memberClient.ID.String(),
@@ -285,7 +291,8 @@ func TestInboxNotification_Watch(t *testing.T) {
 		}, "another memory related title", "another memory related title", nil)
 		require.NoError(t, err)
 
-		dispatchFunc(ctx, uuid.New())
+		_, err = dispatchFunc(ctx, uuid.New())
+		require.NoError(t, err)
 
 		_, message, err = wsConn.Read(ctx)
 		require.NoError(t, err)
