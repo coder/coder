@@ -16,11 +16,51 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/wsjson"
 	"github.com/coder/websocket"
 )
+
+const (
+	fallbackIconWorkspace = ""
+	fallbackIconAccount   = ""
+	fallbackIconTemplate  = ""
+	fallbackIconOther     = ""
+)
+
+var fallbackIcons = map[uuid.UUID]string{
+	// workspace related notifications
+	notifications.TemplateWorkspaceCreated:           fallbackIconWorkspace,
+	notifications.TemplateWorkspaceCreated:           fallbackIconWorkspace,
+	notifications.TemplateWorkspaceManuallyUpdated:   fallbackIconWorkspace,
+	notifications.TemplateWorkspaceDeleted:           fallbackIconWorkspace,
+	notifications.TemplateWorkspaceAutobuildFailed:   fallbackIconWorkspace,
+	notifications.TemplateWorkspaceDormant:           fallbackIconWorkspace,
+	notifications.TemplateWorkspaceAutoUpdated:       fallbackIconWorkspace,
+	notifications.TemplateWorkspaceMarkedForDeletion: fallbackIconWorkspace,
+	notifications.TemplateWorkspaceManualBuildFailed: fallbackIconWorkspace,
+	notifications.TemplateWorkspaceOutOfMemory:       fallbackIconWorkspace,
+	notifications.TemplateWorkspaceOutOfDisk:         fallbackIconWorkspace,
+
+	// account related notifications
+	notifications.TemplateUserAccountCreated:           fallbackIconAccount,
+	notifications.TemplateUserAccountDeleted:           fallbackIconAccount,
+	notifications.TemplateUserAccountSuspended:         fallbackIconAccount,
+	notifications.TemplateUserAccountActivated:         fallbackIconAccount,
+	notifications.TemplateYourAccountSuspended:         fallbackIconAccount,
+	notifications.TemplateYourAccountActivated:         fallbackIconAccount,
+	notifications.TemplateUserRequestedOneTimePasscode: fallbackIconAccount,
+
+	// template related notifications
+	notifications.TemplateTemplateDeleted:             fallbackIconTemplate,
+	notifications.TemplateTemplateDeprecated:          fallbackIconTemplate,
+	notifications.TemplateWorkspaceBuildsFailedReport: fallbackIconTemplate,
+
+	// other related notifications
+	notifications.TemplateTestNotification: fallbackIconOther,
+}
 
 // convertInboxNotificationResponse works as a util function to transform a database.InboxNotification to codersdk.InboxNotification
 func convertInboxNotificationResponse(ctx context.Context, logger slog.Logger, notif database.InboxNotification) codersdk.InboxNotification {
@@ -31,7 +71,13 @@ func convertInboxNotificationResponse(ctx context.Context, logger slog.Logger, n
 		Targets:    notif.Targets,
 		Title:      notif.Title,
 		Content:    notif.Content,
-		Icon:       notif.Icon,
+		Icon: func() string {
+			if notif.Icon != "" {
+				return notif.Icon
+			}
+
+			return fallbackIcons[notif.TemplateID]
+		}(),
 		Actions: func() []codersdk.InboxNotificationAction {
 			var actionsList []codersdk.InboxNotificationAction
 			err := json.Unmarshal([]byte(notif.Actions), &actionsList)
