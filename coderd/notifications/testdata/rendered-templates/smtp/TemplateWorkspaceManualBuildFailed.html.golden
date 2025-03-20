@@ -11,6 +11,7 @@ Content-Transfer-Encoding: quoted-printable
 Content-Type: text/plain; charset=UTF-8
 
 Hi Bobby,
+
 A manual build of the workspace bobby-workspace using the template bobby-te=
 mplate failed (version: bobby-template-version).
 The workspace build was initiated by joe.
