@@ -2006,8 +2006,8 @@ func (q *querier) GetOrganizationResourceCountByID(ctx context.Context, organiza
 		return database.GetOrganizationResourceCountByIDRow{}, err
 	}
 
-	// Can read org provisioner jobs
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerJobs.InOrg(organizationID)); err != nil {
+	// Can read org provisioner daemons
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerDaemon.InOrg(organizationID)); err != nil {
 		return database.GetOrganizationResourceCountByIDRow{}, err
 	}
 

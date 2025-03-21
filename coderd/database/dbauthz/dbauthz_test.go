@@ -833,7 +833,7 @@ func (s *MethodTestSuite) TestOrganization() {
 			rbac.ResourceWorkspace.InOrg(o.ID), policy.ActionRead,
 			rbac.ResourceGroup.InOrg(o.ID), policy.ActionRead,
 			rbac.ResourceTemplate.InOrg(o.ID), policy.ActionRead,
-			rbac.ResourceProvisionerJobs.InOrg(o.ID), policy.ActionRead,
+			rbac.ResourceProvisionerDaemon.InOrg(o.ID), policy.ActionRead,
 		).Returns(database.GetOrganizationResourceCountByIDRow{
 			WorkspaceCount:      1,
 			GroupCount:          1,
