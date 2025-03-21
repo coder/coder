@@ -239,7 +239,7 @@ Provisioners can broadly be categorized by scope: `organization` or `user`. The
 scope of a provisioner can be specified with
 [`-tag=scope=<scope>`](../../reference/cli/provisioner_start.md#-t---tag) when
 starting the provisioner daemon. Only users with at least the
-[Template Admin](./users/index.md#roles) role or higher may create
+[Template Admin](../users/index.md#roles) role or higher may create
 organization-scoped provisioner daemons.
 
 There are two exceptions:
