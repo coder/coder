@@ -400,7 +400,7 @@ site/node_modules/.installed: site/package.json site/pnpm-lock.yaml
 	(cd site/ && ../scripts/pnpm_install.sh)
 	touch "$@"
 
-scripts/apidocgen/.installed: scripts/apidocgen/package.json scripts/apidocgen/pnpm-lock.yaml
+scripts/apidocgen/node_modules/.installed: scripts/apidocgen/package.json scripts/apidocgen/pnpm-lock.yaml
 	(cd scripts/apidocgen && ../../scripts/pnpm_install.sh)
 	touch "$@"
 
@@ -768,7 +768,7 @@ docs/admin/security/audit-logs.md: node_modules/.installed coderd/database/queri
 
 coderd/apidoc/.gen: \
 	node_modules/.installed \
-	scripts/apidocgen/.installed \
+	scripts/apidocgen/node_modules/.installed \
 	$(wildcard coderd/*.go) \
 	$(wildcard enterprise/coderd/*.go) \
 	$(wildcard codersdk/*.go) \
