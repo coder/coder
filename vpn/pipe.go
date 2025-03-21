@@ -4,7 +4,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/hashicorp/go-multierror"
+	multierror "github.com/hashicorp/go-multierror"
 	"golang.org/x/xerrors"
 )
 

@@ -78,9 +78,7 @@ retry:
 	password, err := cliui.Prompt(inv, cliui.PromptOptions{
 		Text:   "Enter a " + pretty.Sprint(cliui.DefaultStyles.Field, "password") + ":",
 		Secret: true,
-		Validate: func(s string) error {
-			return userpassword.Validate(s)
-		},
+		Validate: userpassword.Validate,
 	})
 	if err != nil {
 		return "", xerrors.Errorf("specify password prompt: %w", err)

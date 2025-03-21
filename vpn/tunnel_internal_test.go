@@ -412,7 +412,7 @@ func TestTunnel_sendAgentUpdate(t *testing.T) {
 
 	// `sendAgentUpdate` produces the same PeerUpdate message until an agent
 	// update is received
-	for range 2 {
+	for i := 0; i < 2; i++ {
 		mClock.AdvanceNext()
 		// Then: the tunnel sends a PeerUpdate message of agent upserts,
 		// with the last handshake and latency set

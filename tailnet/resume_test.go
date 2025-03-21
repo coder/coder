@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-jose/go-jose/v4"
+	jose "github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
