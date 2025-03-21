@@ -5481,7 +5481,7 @@ func (q *sqlQuerier) GetOrganizationByName(ctx context.Context, arg GetOrganizat
 	return i, err
 }
 
-const getOrganizationResourceCountById = `-- name: GetOrganizationResourceCountById :one
+const getOrganizationResourceCountById = `-- name: GetOrganizationResourceCountByID :one
 SELECT
     (SELECT COUNT(*) FROM workspaces WHERE workspaces.organization_id = $1 AND workspaces.deleted = false) AS workspace_count,
     (SELECT COUNT(*) FROM groups WHERE groups.organization_id = $1) AS group_count,
@@ -5498,7 +5498,7 @@ type GetOrganizationResourceCountByIdRow struct {
 	ProvisionerKeyCount int64 `db:"provisioner_key_count" json:"provisioner_key_count"`
 }
 
-func (q *sqlQuerier) GetOrganizationResourceCountById(ctx context.Context, organizationID uuid.UUID) (GetOrganizationResourceCountByIdRow, error) {
+func (q *sqlQuerier) GetOrganizationResourceCountByID(ctx context.Context, organizationID uuid.UUID) (GetOrganizationResourceCountByIdRow, error) {
 	row := q.db.QueryRowContext(ctx, getOrganizationResourceCountById, organizationID)
 	var i GetOrganizationResourceCountByIdRow
 	err := row.Scan(

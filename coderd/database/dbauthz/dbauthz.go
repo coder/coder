@@ -1985,7 +1985,7 @@ func (q *querier) GetOrganizationIDsByMemberIDs(ctx context.Context, ids []uuid.
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetOrganizationIDsByMemberIDs)(ctx, ids)
 }
 
-func (q *querier) GetOrganizationResourceCountById(ctx context.Context, organizationID uuid.UUID) (database.GetOrganizationResourceCountByIdRow, error) {
+func (q *querier) GetOrganizationResourceCountByID(ctx context.Context, organizationID uuid.UUID) (database.GetOrganizationResourceCountByIdRow, error) {
 	// Can read org members
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceOrganizationMember.InOrg(organizationID)); err != nil {
 		return database.GetOrganizationResourceCountByIdRow{}, err
@@ -2011,7 +2011,7 @@ func (q *querier) GetOrganizationResourceCountById(ctx context.Context, organiza
 		return database.GetOrganizationResourceCountByIdRow{}, err
 	}
 
-	return q.db.GetOrganizationResourceCountById(ctx, organizationID)
+	return q.db.GetOrganizationResourceCountByID(ctx, organizationID)
 }
 
 func (q *querier) GetOrganizations(ctx context.Context, args database.GetOrganizationsParams) ([]database.Organization, error) {

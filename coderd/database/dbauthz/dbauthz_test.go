@@ -809,7 +809,7 @@ func (s *MethodTestSuite) TestOrganization() {
 		o := dbgen.Organization(s.T(), db, database.Organization{})
 		check.Args(o.ID).Asserts(o, policy.ActionRead).Returns(o)
 	}))
-	s.Run("GetOrganizationResourceCountById", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("GetOrganizationResourceCountByID", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
 		o := dbgen.Organization(s.T(), db, database.Organization{})
 
@@ -834,7 +834,7 @@ func (s *MethodTestSuite) TestOrganization() {
 			rbac.ResourceGroup.InOrg(o.ID), policy.ActionRead,
 			rbac.ResourceTemplate.InOrg(o.ID), policy.ActionRead,
 			rbac.ResourceProvisionerJobs.InOrg(o.ID), policy.ActionRead,
-		).Returns(database.GetOrganizationResourcesCountByIdRow{
+		).Returns(database.GetOrganizationResourceCountByIdRow{
 			WorkspaceCount:      1,
 			GroupCount:          1,
 			TemplateCount:       1,

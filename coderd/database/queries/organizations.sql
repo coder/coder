@@ -66,7 +66,7 @@ WHERE
             user_id = $1
     );
 
--- name: GetOrganizationResourceCountById :one
+-- name: GetOrganizationResourceCountByID :one
 SELECT
     (SELECT COUNT(*) FROM workspaces WHERE workspaces.organization_id = $1 AND workspaces.deleted = false) AS workspace_count,
     (SELECT COUNT(*) FROM groups WHERE groups.organization_id = $1) AS group_count,
