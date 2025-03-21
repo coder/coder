@@ -400,6 +400,10 @@ site/node_modules/.installed: site/package.json site/pnpm-lock.yaml
 	(cd site/ && ../scripts/pnpm_install.sh)
 	touch "$@"
 
+scripts/apidocgen/.installed: scripts/apidocgen/package.json scripts/apidocgen/pnpm-lock.yaml
+	(cd scripts/apidocgen && ../../scripts/pnpm_install.sh)
+	touch "$@"
+
 SITE_GEN_FILES := \
 	site/src/api/typesGenerated.ts \
 	site/src/api/rbacresourcesGenerated.ts \
@@ -560,6 +564,7 @@ GEN_FILES := \
 	docs/reference/cli/index.md \
 	docs/admin/security/audit-logs.md \
 	coderd/apidoc/swagger.json \
+	docs/manifest.json \
 	provisioner/terraform/testdata/version \
 	site/e2e/provisionerGenerated.ts \
 	examples/examples.gen.json \
@@ -607,6 +612,7 @@ gen/mark-fresh:
 		docs/reference/cli/index.md \
 		docs/admin/security/audit-logs.md \
 		coderd/apidoc/swagger.json \
+		docs/manifest.json \
 		site/e2e/provisionerGenerated.ts \
 		site/src/theme/icons.json \
 		examples/examples.gen.json \
@@ -752,7 +758,6 @@ docs/reference/cli/index.md: node_modules/.installed site/node_modules/.installe
 	CI=true BASE_PATH="." go run ./scripts/clidocgen
 	pnpm exec markdownlint-cli2 --fix ./docs/reference/cli/*.md
 	pnpm exec markdown-table-formatter ./docs/reference/cli/*.md
-	(cd site/ && pnpm exec biome format --write ../docs/manifest.json)
 	touch "$@"
 
 docs/admin/security/audit-logs.md: node_modules/.installed coderd/database/querier.go scripts/auditdocgen/main.go enterprise/audit/table.go coderd/rbac/object_gen.go
@@ -761,11 +766,30 @@ docs/admin/security/audit-logs.md: node_modules/.installed coderd/database/queri
 	pnpm exec markdown-table-formatter ./docs/admin/security/audit-logs.md
 	touch "$@"
 
-coderd/apidoc/swagger.json: node_modules/.installed site/node_modules/.installed $(shell find ./scripts/apidocgen $(FIND_EXCLUSIONS) -type f) $(wildcard coderd/*.go) $(wildcard enterprise/coderd/*.go) $(wildcard codersdk/*.go) $(wildcard enterprise/wsproxy/wsproxysdk/*.go) $(DB_GEN_FILES) .swaggo docs/manifest.json coderd/rbac/object_gen.go
+coderd/apidoc/.gen: \
+	node_modules/.installed \
+	scripts/apidocgen/.installed \
+	$(wildcard coderd/*.go) \
+	$(wildcard enterprise/coderd/*.go) \
+	$(wildcard codersdk/*.go) \
+	$(wildcard enterprise/wsproxy/wsproxysdk/*.go) \
+	$(DB_GEN_FILES) \
+	coderd/rbac/object_gen.go \
+	.swaggo \
+	scripts/apidocgen/generate.sh \
+	$(wildcard scripts/apidocgen/postprocess/*) \
+	$(wildcard scripts/apidocgen/markdown-template/*)
 	./scripts/apidocgen/generate.sh
 	pnpm exec markdownlint-cli2 --fix ./docs/reference/api/*.md
 	pnpm exec markdown-table-formatter ./docs/reference/api/*.md
-	(cd site/ && pnpm exec biome format --write ../docs/manifest.json ../coderd/apidoc/swagger.json)
+	touch "$@"
+
+docs/manifest.json: site/node_modules/.installed coderd/apidoc/.gen docs/reference/cli/index.md
+	(cd site/ && pnpm exec biome format --write ../docs/manifest.json)
+	touch "$@"
+
+coderd/apidoc/swagger.json: site/node_modules/.installed coderd/apidoc/.gen
+	(cd site/ && pnpm exec biome format --write ../coderd/apidoc/swagger.json)
 	touch "$@"
 
 update-golden-files:
