@@ -518,7 +518,7 @@ func buildAppLinkURL(baseURL *url.URL, workspace codersdk.Workspace, agent coder
 
 // replacePlaceholderExternalSessionTokenString replaces any $SESSION_TOKEN
 // strings in the URL with the actual session token.
-// This is consistent behaviour with the frontend. See: site/src/modules/resources/AppLink/AppLink.tsx
+// This is consistent behavior with the frontend. See: site/src/modules/resources/AppLink/AppLink.tsx
 func replacePlaceholderExternalSessionTokenString(client *codersdk.Client, appURL string) string {
 	if !strings.Contains(appURL, "$SESSION_TOKEN") {
 		return appURL
