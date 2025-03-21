@@ -11,12 +11,12 @@ coder open app [flags] <workspace> <app slug>
 
 ## Options
 
-### --preferred-region
+### --region
 
-|             |                                               |
-|-------------|-----------------------------------------------|
-| Type        | <code>string</code>                           |
-| Environment | <code>$CODER_OPEN_APP_PREFERRED_REGION</code> |
-| Default     | <code>primary</code>                          |
+|             |                                     |
+|-------------|-------------------------------------|
+| Type        | <code>string</code>                 |
+| Environment | <code>$CODER_OPEN_APP_REGION</code> |
+| Default     | <code>primary</code>                |
 
-Preferred region to use when opening the app. By default, the app will be opened using the main Coder deployment (a.k.a. "primary").
+Region to use when opening the app. By default, the app will be opened using the main Coder deployment (a.k.a. "primary").

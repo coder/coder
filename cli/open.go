@@ -322,7 +322,7 @@ func (r *RootCmd) openApp() *serpent.Command {
 	cmd.Options = serpent.OptionSet{
 		{
 			Flag: "region",
-			Env:  "CODER_OPEN_APP_PREFERRED_REGION",
+			Env:  "CODER_OPEN_APP_REGION",
 			Description: fmt.Sprintf("Region to use when opening the app." +
 				" By default, the app will be opened using the main Coder deployment (a.k.a. \"primary\")."),
 			Value:   serpent.StringOf(&regionArg),

@@ -6,9 +6,9 @@ USAGE:
   Open a workspace application.
 
 OPTIONS:
-      --preferred-region string, $CODER_OPEN_APP_PREFERRED_REGION (default: primary)
-          Preferred region to use when opening the app. By default, the app will
-          be opened using the main Coder deployment (a.k.a. "primary").
+      --region string, $CODER_OPEN_APP_REGION (default: primary)
+          Region to use when opening the app. By default, the app will be opened
+          using the main Coder deployment (a.k.a. "primary").
 
 ———
 Run `coder --help` for a list of global options.
