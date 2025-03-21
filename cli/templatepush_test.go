@@ -723,7 +723,7 @@ func TestTemplatePush(t *testing.T) {
 			template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, templateVersion.ID)
 
 			// Test the cli command.
-			modifiedTemplateVariables := append(initialTemplateVariables,
+			modifiedTemplateVariables := append(append([]*proto.TemplateVariable{}, initialTemplateVariables...),
 				&proto.TemplateVariable{
 					Name:        "second_variable",
 					Description: "This is the second variable.",
@@ -792,7 +792,7 @@ func TestTemplatePush(t *testing.T) {
 			template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, templateVersion.ID)
 
 			// Test the cli command.
-			modifiedTemplateVariables := append(initialTemplateVariables,
+			modifiedTemplateVariables := append(append([]*proto.TemplateVariable{}, initialTemplateVariables...),
 				&proto.TemplateVariable{
 					Name:        "second_variable",
 					Description: "This is the second variable.",
@@ -839,7 +839,7 @@ func TestTemplatePush(t *testing.T) {
 			template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, templateVersion.ID)
 
 			// Test the cli command.
-			modifiedTemplateVariables := append(initialTemplateVariables,
+			modifiedTemplateVariables := append(append([]*proto.TemplateVariable{}, initialTemplateVariables...),
 				&proto.TemplateVariable{
 					Name:         "second_variable",
 					Description:  "This is the second variable",
@@ -905,7 +905,7 @@ func TestTemplatePush(t *testing.T) {
 			template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, templateVersion.ID)
 
 			// Test the cli command.
-			modifiedTemplateVariables := append(initialTemplateVariables,
+			modifiedTemplateVariables := append(append([]*proto.TemplateVariable{}, initialTemplateVariables...),
 				&proto.TemplateVariable{
 					Name:        "second_variable",
 					Description: "This is the second variable.",
