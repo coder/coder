@@ -61,11 +61,12 @@ curl -X GET http://coder-server:8080/api/v2/notifications/inbox \
 
 ### Parameters
 
-| Name          | In    | Type   | Required | Description                                                             |
-|---------------|-------|--------|----------|-------------------------------------------------------------------------|
-| `targets`     | query | string | false    | Comma-separated list of target IDs to filter notifications              |
-| `templates`   | query | string | false    | Comma-separated list of template IDs to filter notifications            |
-| `read_status` | query | string | false    | Filter notifications by read status. Possible values: read, unread, all |
+| Name              | In    | Type   | Required | Description                                                                                                     |
+|-------------------|-------|--------|----------|-----------------------------------------------------------------------------------------------------------------|
+| `targets`         | query | string | false    | Comma-separated list of target IDs to filter notifications                                                      |
+| `templates`       | query | string | false    | Comma-separated list of template IDs to filter notifications                                                    |
+| `read_status`     | query | string | false    | Filter notifications by read status. Possible values: read, unread, all                                         |
+| `starting_before` | query | string | false    | ID of the last notification from the current page. Notifications returned will be older than the associated one |
 
 ### Example responses
 
