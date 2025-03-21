@@ -173,13 +173,13 @@ func (r *RootCmd) RunWithSubcommands(subcommands []*serpent.Command) {
 		}
 		if errors.Is(err, cliui.Canceled) {
 			//nolint:revive
-			os.Exit(code)
+			return
 		}
 		f := PrettyErrorFormatter{w: os.Stderr, verbose: r.verbose}
 		if err != nil {
 			f.Format(err)
 		}
-		//nolint:revive
+		// Set exit code but allow defers to run before exiting
 		os.Exit(code)
 	}
 }
@@ -891,8 +891,8 @@ func DumpHandler(ctx context.Context, name string) {
 
 	done:
 		if sigStr == "SIGQUIT" {
-			//nolint:revive
-			os.Exit(1)
+			// No need to use os.Exit here, just return to allow defers to run
+			return
 		}
 	}
 }
@@ -1045,7 +1045,7 @@ func formatMultiError(from string, multi []error, opts *formatOpts) string {
 		prefix := fmt.Sprintf("%d. ", i+1)
 		if len(prefix) < len(indent) {
 			// Indent the prefix to match the indent
-			prefix = prefix + strings.Repeat(" ", len(indent)-len(prefix))
+			prefix += strings.Repeat(" ", len(indent)-len(prefix))
 		}
 		errStr = prefix + errStr
 		// Now looks like

@@ -59,7 +59,7 @@ func TestCipherAES256(t *testing.T) {
 
 		munged := make([]byte, len(encrypted1))
 		copy(munged, encrypted1)
-		munged[0] = munged[0] ^ 0xff
+		munged[0] ^= 0xff
 		_, err = cipher.Decrypt(munged)
 		var decryptErr *DecryptFailedError
 		require.ErrorAs(t, err, &decryptErr, "munging the first byte of the encrypted data should cause decryption to fail")
