@@ -209,6 +209,9 @@ func handleCoderListWorkspaces(ctx context.Context, request mcp.CallToolRequest)
 		Offset: offset,
 		Limit:  limit,
 	})
+	if err != nil {
+		return nil, xerrors.Errorf("failed to fetch workspaces: %w", err)
+	}
 
 	// Encode it as JSON. TODO: It might be nicer for the agent to have a tabulated response.
 	var buf bytes.Buffer
