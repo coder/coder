@@ -2,6 +2,8 @@ package agentmcp
 
 import (
 	"context"
+	"io"
+	"log"
 	"os"
 
 	"github.com/mark3labs/mcp-go/server"
@@ -10,33 +12,83 @@ import (
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/v2/agent/agentmcp/mcptools"
 	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 )
 
-func New(ctx context.Context) error {
-	srv := server.NewMCPServer(
+type mcpOptions struct {
+	in           io.Reader
+	out          io.Writer
+	instructions string
+	logger       *slog.Logger
+}
+
+type Option func(*mcpOptions)
+
+func WithInstructions(instructions string) Option {
+	return func(o *mcpOptions) {
+		o.instructions = instructions
+	}
+}
+
+func WithLogger(logger *slog.Logger) Option {
+	return func(o *mcpOptions) {
+		o.logger = logger
+	}
+}
+
+func WithStdin(in io.Reader) Option {
+	return func(o *mcpOptions) {
+		o.in = in
+	}
+}
+
+func WithStdout(out io.Writer) Option {
+	return func(o *mcpOptions) {
+		o.out = out
+	}
+}
+
+func New(ctx context.Context, opts ...Option) io.Closer {
+	options := &mcpOptions{
+		in:           os.Stdin,
+		instructions: ``,
+		logger:       ptr.Ref(slog.Make(sloghuman.Sink(os.Stdout))),
+		out:          os.Stdout,
+	}
+	for _, opt := range opts {
+		opt(options)
+	}
+	mcpSrv := server.NewMCPServer(
 		"Coder Agent",
 		buildinfo.Version(),
-		server.WithInstructions(`Report your progress when starting, working on, or completing a task.
-
-You MUST report tasks when starting something new, or when you've completed a task.
-
-You MUST report intermediate progress on a task if you've been working on it for a while.
-
-Examples of sending a task:
-- Working on a new part of the codebase.
-- Starting on an issue (you should include the issue URL as "link").
-- Opening a pull request (you should include the PR URL as "link").
-- Completing a task (you should set "done" to true).
-- Starting a new task (you should set "done" to false).
-`),
+		server.WithInstructions(options.instructions),
 	)
 
 	logger := slog.Make(sloghuman.Sink(os.Stdout))
 
-	mcptools.RegisterCoderReportTask(srv, logger)
-	mcptools.RegisterCoderWhoami(srv)
-	mcptools.RegisterCoderListWorkspaces(srv)
-	mcptools.RegisterCoderWorkspaceExec(srv)
+	mcptools.RegisterCoderReportTask(mcpSrv, logger)
+	mcptools.RegisterCoderWhoami(mcpSrv)
+	mcptools.RegisterCoderListWorkspaces(mcpSrv)
+	mcptools.RegisterCoderWorkspaceExec(mcpSrv)
 
-	return server.ServeStdio(srv)
+	srv := server.NewStdioServer(mcpSrv)
+	srv.SetErrorLogger(log.New(options.out, "", log.LstdFlags))
+	done := make(chan error)
+	go func() {
+		defer close(done)
+		srvErr := srv.Listen(ctx, options.in, options.out)
+		done <- srvErr
+	}()
+
+	return closeFunc(func() error {
+		return <-done
+	})
 }
+
+type closeFunc func() error
+
+func (f closeFunc) Close() error {
+	return f()
+}
+
+var _ io.Closer = closeFunc(nil)
