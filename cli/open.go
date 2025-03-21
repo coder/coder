@@ -253,6 +253,7 @@ func (r *RootCmd) openApp() *serpent.Command {
 			for i, app := range agt.Apps {
 				allAppSlugs[i] = app.Slug
 			}
+			slices.Sort(allAppSlugs)
 
 			// If a user doesn't specify an app slug, we'll just list the available
 			// apps and exit.
