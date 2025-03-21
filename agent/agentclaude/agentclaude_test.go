@@ -22,6 +22,7 @@ func TestConfigureClaude(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Equal(t, `{
+  "autoUpdaterStatus": "disabled",
   "bypassPermissionsModeAccepted": true,
   "hasCompletedOnboarding": true,
   "primaryApiKey": "test-api-key",
@@ -29,6 +30,7 @@ func TestConfigureClaude(t *testing.T) {
     "/home/coder/projects/coder/coder": {
       "allowedTools": [],
       "hasCompletedProjectOnboarding": true,
+      "hasTrustDialogAccepted": true,
       "mcpServers": {}
     }
   }
@@ -54,6 +56,7 @@ func TestConfigureClaude(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Equal(t, `{
+  "autoUpdaterStatus": "disabled",
   "bypassPermissionsModeAccepted": true,
   "hasCompletedOnboarding": true,
   "primaryApiKey": "test-api-key",
@@ -61,6 +64,7 @@ func TestConfigureClaude(t *testing.T) {
     "/home/coder/projects/coder/coder": {
       "allowedTools": [],
       "hasCompletedProjectOnboarding": true,
+      "hasTrustDialogAccepted": true,
       "mcpServers": {}
     }
   }
