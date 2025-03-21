@@ -18,6 +18,13 @@
       "template_version_id": "============[version ID]============"
     },
     "type": "template_version_import",
+    "metadata": {
+      "template_version_name": "===========[version name]===========",
+      "template_id": "===========[template ID]============",
+      "template_name": "test-template",
+      "template_display_name": "",
+      "template_icon": ""
+    },
     "organization_name": "Coder"
   },
   {
@@ -39,6 +46,15 @@
       "workspace_build_id": "========[workspace build ID]========"
     },
     "type": "workspace_build",
+    "metadata": {
+      "template_version_name": "===========[version name]===========",
+      "template_id": "===========[template ID]============",
+      "template_name": "test-template",
+      "template_display_name": "",
+      "template_icon": "",
+      "workspace_id": "===========[workspace ID]===========",
+      "workspace_name": "test-workspace"
+    },
     "organization_name": "Coder"
   }
 ]

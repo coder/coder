@@ -44,6 +44,8 @@ import (
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/migrations"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -238,6 +240,212 @@ func TestServer(t *testing.T) {
 		got := pty.ReadLine(ctx)
 		if !strings.HasPrefix(got, "postgres://") {
 			t.Fatalf("expected postgres URL to start with \"postgres://\", got %q", got)
+		}
+	})
+	t.Run("SpammyLogs", func(t *testing.T) {
+		// The purpose of this test is to ensure we don't show excessive logs when the server starts.
+		t.Parallel()
+		inv, cfg := clitest.New(t,
+			"server",
+			"--in-memory",
+			"--http-address", ":0",
+			"--access-url", "http://localhost:3000/",
+			"--cache-dir", t.TempDir(),
+		)
+		pty := ptytest.New(t).Attach(inv)
+		require.NoError(t, pty.Resize(20, 80))
+		clitest.Start(t, inv)
+
+		// Wait for startup
+		_ = waitAccessURL(t, cfg)
+
+		// Wait a bit for more logs to be printed.
+		time.Sleep(testutil.WaitShort)
+
+		// Lines containing these strings are printed because we're
+		// running the server with a test config. They wouldn't be
+		// normally shown to the user, so we'll ignore them.
+		ignoreLines := []string{
+			"isn't externally reachable",
+			"open install.sh: file does not exist",
+			"telemetry disabled, unable to notify of security issues",
+			"installed terraform version newer than expected",
+		}
+
+		countLines := func(fullOutput string) int {
+			terminalWidth := 80
+			linesByNewline := strings.Split(fullOutput, "\n")
+			countByWidth := 0
+		lineLoop:
+			for _, line := range linesByNewline {
+				for _, ignoreLine := range ignoreLines {
+					if strings.Contains(line, ignoreLine) {
+						t.Logf("Ignoring: %q", line)
+						continue lineLoop
+					}
+				}
+				t.Logf("Counting: %q", line)
+				if line == "" {
+					// Empty lines take up one line.
+					countByWidth++
+				} else {
+					countByWidth += (len(line) + terminalWidth - 1) / terminalWidth
+				}
+			}
+			return countByWidth
+		}
+
+		out := pty.ReadAll()
+		numLines := countLines(string(out))
+		t.Logf("numLines: %d", numLines)
+		require.Less(t, numLines, 12, "expected less than 12 lines of output (terminal width 80), got %d", numLines)
+	})
+
+	t.Run("OAuth2GitHubDefaultProvider", func(t *testing.T) {
+		type testCase struct {
+			name                                  string
+			githubDefaultProviderEnabled          string
+			githubClientID                        string
+			githubClientSecret                    string
+			allowedOrg                            string
+			expectGithubEnabled                   bool
+			expectGithubDefaultProviderConfigured bool
+			createUserPreStart                    bool
+			createUserPostRestart                 bool
+		}
+
+		runGitHubProviderTest := func(t *testing.T, tc testCase) {
+			t.Parallel()
+			if !dbtestutil.WillUsePostgres() {
+				t.Skip("test requires postgres")
+			}
+
+			ctx, cancelFunc := context.WithCancel(testutil.Context(t, testutil.WaitLong))
+			defer cancelFunc()
+
+			dbURL, err := dbtestutil.Open(t)
+			require.NoError(t, err)
+			db, _ := dbtestutil.NewDB(t, dbtestutil.WithURL(dbURL))
+
+			if tc.createUserPreStart {
+				_ = dbgen.User(t, db, database.User{})
+			}
+
+			args := []string{
+				"server",
+				"--postgres-url", dbURL,
+				"--http-address", ":0",
+				"--access-url", "https://example.com",
+			}
+			if tc.githubClientID != "" {
+				args = append(args, fmt.Sprintf("--oauth2-github-client-id=%s", tc.githubClientID))
+			}
+			if tc.githubClientSecret != "" {
+				args = append(args, fmt.Sprintf("--oauth2-github-client-secret=%s", tc.githubClientSecret))
+			}
+			if tc.githubClientID != "" || tc.githubClientSecret != "" {
+				args = append(args, "--oauth2-github-allow-everyone")
+			}
+			if tc.githubDefaultProviderEnabled != "" {
+				args = append(args, fmt.Sprintf("--oauth2-github-default-provider-enable=%s", tc.githubDefaultProviderEnabled))
+			}
+			if tc.allowedOrg != "" {
+				args = append(args, fmt.Sprintf("--oauth2-github-allowed-orgs=%s", tc.allowedOrg))
+			}
+			inv, cfg := clitest.New(t, args...)
+			errChan := make(chan error, 1)
+			go func() {
+				errChan <- inv.WithContext(ctx).Run()
+			}()
+			accessURLChan := make(chan *url.URL, 1)
+			go func() {
+				accessURLChan <- waitAccessURL(t, cfg)
+			}()
+
+			var accessURL *url.URL
+			select {
+			case err := <-errChan:
+				require.NoError(t, err)
+			case accessURL = <-accessURLChan:
+				require.NotNil(t, accessURL)
+			}
+
+			client := codersdk.New(accessURL)
+
+			authMethods, err := client.AuthMethods(ctx)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectGithubEnabled, authMethods.Github.Enabled)
+			require.Equal(t, tc.expectGithubDefaultProviderConfigured, authMethods.Github.DefaultProviderConfigured)
+
+			cancelFunc()
+			select {
+			case err := <-errChan:
+				require.NoError(t, err)
+			case <-time.After(testutil.WaitLong):
+				t.Fatal("server did not exit")
+			}
+
+			if tc.createUserPostRestart {
+				_ = dbgen.User(t, db, database.User{})
+			}
+
+			// Ensure that it stays at that setting after the server restarts.
+			inv, cfg = clitest.New(t, args...)
+			clitest.Start(t, inv)
+			accessURL = waitAccessURL(t, cfg)
+			client = codersdk.New(accessURL)
+
+			ctx = testutil.Context(t, testutil.WaitLong)
+			authMethods, err = client.AuthMethods(ctx)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectGithubEnabled, authMethods.Github.Enabled)
+			require.Equal(t, tc.expectGithubDefaultProviderConfigured, authMethods.Github.DefaultProviderConfigured)
+		}
+
+		for _, tc := range []testCase{
+			{
+				name:                                  "NewDeployment",
+				expectGithubEnabled:                   true,
+				expectGithubDefaultProviderConfigured: true,
+				createUserPreStart:                    false,
+				createUserPostRestart:                 true,
+			},
+			{
+				name:                                  "ExistingDeployment",
+				expectGithubEnabled:                   false,
+				expectGithubDefaultProviderConfigured: false,
+				createUserPreStart:                    true,
+				createUserPostRestart:                 false,
+			},
+			{
+				name:                                  "ManuallyDisabled",
+				githubDefaultProviderEnabled:          "false",
+				expectGithubEnabled:                   false,
+				expectGithubDefaultProviderConfigured: false,
+			},
+			{
+				name:                                  "ConfiguredClientID",
+				githubClientID:                        "123",
+				expectGithubEnabled:                   true,
+				expectGithubDefaultProviderConfigured: false,
+			},
+			{
+				name:                                  "ConfiguredClientSecret",
+				githubClientSecret:                    "456",
+				expectGithubEnabled:                   true,
+				expectGithubDefaultProviderConfigured: false,
+			},
+			{
+				name:                                  "AllowedOrg",
+				allowedOrg:                            "coder",
+				expectGithubEnabled:                   true,
+				expectGithubDefaultProviderConfigured: true,
+			},
+		} {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				runGitHubProviderTest(t, tc)
+			})
 		}
 	})
 

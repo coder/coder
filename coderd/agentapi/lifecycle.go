@@ -3,10 +3,10 @@ package agentapi
 import (
 	"context"
 	"database/sql"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
-	"golang.org/x/exp/slices"
 	"golang.org/x/mod/semver"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/timestamppb"

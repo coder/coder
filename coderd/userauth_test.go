@@ -22,6 +22,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
+	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -60,7 +62,7 @@ func TestOIDCOauthLoginWithExisting(t *testing.T) {
 
 	cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
 		cfg.AllowSignups = true
-		cfg.IgnoreUserInfo = true
+		cfg.SecondaryClaims = coderd.MergedClaimsSourceNone
 	})
 
 	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
@@ -72,6 +74,7 @@ func TestOIDCOauthLoginWithExisting(t *testing.T) {
 		"email":              "alice@coder.com",
 		"email_verified":     true,
 		"preferred_username": username,
+		"sub":                uuid.NewString(),
 	}
 
 	helper := oidctest.NewLoginHelper(client, fake)
@@ -252,11 +255,20 @@ func TestUserOAuth2Github(t *testing.T) {
 	})
 	t.Run("BlockSignups", func(t *testing.T) {
 		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+
+		id := atomic.NewInt64(100)
+		login := atomic.NewString("testuser")
+		email := atomic.NewString("testuser@coder.com")
+
 		client := coderdtest.New(t, &coderdtest.Options{
+			Database: db,
+			Pubsub:   ps,
 			GithubOAuth2Config: &coderd.GithubOAuth2Config{
 				OAuth2Config:       &testutil.OAuth2Config{},
 				AllowOrganizations: []string{"coder"},
-				ListOrganizationMemberships: func(ctx context.Context, client *http.Client) ([]*github.Membership, error) {
+				ListOrganizationMemberships: func(_ context.Context, _ *http.Client) ([]*github.Membership, error) {
 					return []*github.Membership{{
 						State: &stateActive,
 						Organization: &github.Organization{
@@ -264,16 +276,19 @@ func TestUserOAuth2Github(t *testing.T) {
 						},
 					}}, nil
 				},
-				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
+				AuthenticatedUser: func(_ context.Context, _ *http.Client) (*github.User, error) {
+					id := id.Load()
+					login := login.Load()
 					return &github.User{
-						ID:    github.Int64(100),
-						Login: github.String("testuser"),
+						ID:    &id,
+						Login: &login,
 						Name:  github.String("The Right Honorable Sir Test McUser"),
 					}, nil
 				},
-				ListEmails: func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error) {
+				ListEmails: func(_ context.Context, _ *http.Client) ([]*github.UserEmail, error) {
+					email := email.Load()
 					return []*github.UserEmail{{
-						Email:    github.String("testuser@coder.com"),
+						Email:    &email,
 						Verified: github.Bool(true),
 						Primary:  github.Bool(true),
 					}}, nil
@@ -281,8 +296,23 @@ func TestUserOAuth2Github(t *testing.T) {
 			},
 		})
 
+		// The first user in a deployment with signups disabled will be allowed to sign up,
+		// but all the other users will not.
 		resp := oauth2Callback(t, client)
+		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// nolint:gocritic // Unit test
+		count, err := db.GetUserCount(dbauthz.AsSystemRestricted(ctx))
+		require.NoError(t, err)
+		require.Equal(t, int64(1), count)
+
+		id.Store(101)
+		email.Store("someotheruser@coder.com")
+		login.Store("someotheruser")
+
+		resp = oauth2Callback(t, client)
 		require.Equal(t, http.StatusForbidden, resp.StatusCode)
 	})
 	t.Run("MultiLoginNotAllowed", func(t *testing.T) {
@@ -881,6 +911,92 @@ func TestUserOAuth2Github(t *testing.T) {
 		require.Equal(t, user.ID, userID, "user_id is different, a new user was likely created")
 		require.Equal(t, user.Email, newEmail)
 	})
+	t.Run("DeviceFlow", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			GithubOAuth2Config: &coderd.GithubOAuth2Config{
+				OAuth2Config:       &testutil.OAuth2Config{},
+				AllowOrganizations: []string{"coder"},
+				AllowSignups:       true,
+				ListOrganizationMemberships: func(_ context.Context, _ *http.Client) ([]*github.Membership, error) {
+					return []*github.Membership{{
+						State: &stateActive,
+						Organization: &github.Organization{
+							Login: github.String("coder"),
+						},
+					}}, nil
+				},
+				AuthenticatedUser: func(_ context.Context, _ *http.Client) (*github.User, error) {
+					return &github.User{
+						ID:    github.Int64(100),
+						Login: github.String("testuser"),
+						Name:  github.String("The Right Honorable Sir Test McUser"),
+					}, nil
+				},
+				ListEmails: func(_ context.Context, _ *http.Client) ([]*github.UserEmail, error) {
+					return []*github.UserEmail{{
+						Email:    github.String("testuser@coder.com"),
+						Verified: github.Bool(true),
+						Primary:  github.Bool(true),
+					}}, nil
+				},
+				DeviceFlowEnabled: true,
+				ExchangeDeviceCode: func(_ context.Context, _ string) (*oauth2.Token, error) {
+					return &oauth2.Token{
+						AccessToken:  "access_token",
+						RefreshToken: "refresh_token",
+						Expiry:       time.Now().Add(time.Hour),
+					}, nil
+				},
+				AuthorizeDevice: func(_ context.Context) (*codersdk.ExternalAuthDevice, error) {
+					return &codersdk.ExternalAuthDevice{
+						DeviceCode: "device_code",
+						UserCode:   "user_code",
+					}, nil
+				},
+			},
+		})
+		client.HTTPClient.CheckRedirect = func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		}
+
+		// Ensure that we redirect to the device login page when the user is not logged in.
+		oauthURL, err := client.URL.Parse("/api/v2/users/oauth2/github/callback")
+		require.NoError(t, err)
+
+		req, err := http.NewRequestWithContext(context.Background(), "GET", oauthURL.String(), nil)
+
+		require.NoError(t, err)
+		res, err := client.HTTPClient.Do(req)
+		require.NoError(t, err)
+		defer res.Body.Close()
+
+		require.Equal(t, http.StatusTemporaryRedirect, res.StatusCode)
+		location, err := res.Location()
+		require.NoError(t, err)
+		require.Equal(t, "/login/device", location.Path)
+		query := location.Query()
+		require.NotEmpty(t, query.Get("state"))
+
+		// Ensure that we return a JSON response when the code is successfully exchanged.
+		oauthURL, err = client.URL.Parse("/api/v2/users/oauth2/github/callback?code=hey&state=somestate")
+		require.NoError(t, err)
+
+		req, err = http.NewRequestWithContext(context.Background(), "GET", oauthURL.String(), nil)
+		req.AddCookie(&http.Cookie{
+			Name:  "oauth_state",
+			Value: "somestate",
+		})
+		require.NoError(t, err)
+		res, err = client.HTTPClient.Do(req)
+		require.NoError(t, err)
+		defer res.Body.Close()
+
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		var resp codersdk.OAuth2DeviceFlowCallbackResponse
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&resp))
+		require.Equal(t, "/", resp.RedirectURL)
+	})
 }
 
 // nolint:bodyclose
@@ -891,6 +1007,7 @@ func TestUserOIDC(t *testing.T) {
 		Name                string
 		IDTokenClaims       jwt.MapClaims
 		UserInfoClaims      jwt.MapClaims
+		AccessTokenClaims   jwt.MapClaims
 		AllowSignups        bool
 		EmailDomain         []string
 		AssertUser          func(t testing.TB, u codersdk.User)
@@ -898,11 +1015,48 @@ func TestUserOIDC(t *testing.T) {
 		AssertResponse      func(t testing.TB, resp *http.Response)
 		IgnoreEmailVerified bool
 		IgnoreUserInfo      bool
+		UseAccessToken      bool
+		PrecreateFirstUser  bool
 	}{
+		{
+			Name: "NoSub",
+			IDTokenClaims: jwt.MapClaims{
+				"email": "kyle@kwc.io",
+			},
+			AllowSignups: true,
+			StatusCode:   http.StatusBadRequest,
+		},
+		{
+			Name: "AccessTokenMerge",
+			IDTokenClaims: jwt.MapClaims{
+				"sub": uuid.NewString(),
+			},
+			AccessTokenClaims: jwt.MapClaims{
+				"email": "kyle@kwc.io",
+			},
+			IgnoreUserInfo: true,
+			AllowSignups:   true,
+			UseAccessToken: true,
+			StatusCode:     http.StatusOK,
+			AssertUser: func(t testing.TB, u codersdk.User) {
+				assert.Equal(t, "kyle@kwc.io", u.Email)
+			},
+		},
+		{
+			Name: "AccessTokenMergeNotJWT",
+			IDTokenClaims: jwt.MapClaims{
+				"sub": uuid.NewString(),
+			},
+			IgnoreUserInfo: true,
+			AllowSignups:   true,
+			UseAccessToken: true,
+			StatusCode:     http.StatusBadRequest,
+		},
 		{
 			Name: "EmailOnly",
 			IDTokenClaims: jwt.MapClaims{
 				"email": "kyle@kwc.io",
+				"sub":   uuid.NewString(),
 			},
 			AllowSignups: true,
 			StatusCode:   http.StatusOK,
@@ -915,6 +1069,7 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"email":          "kyle@kwc.io",
 				"email_verified": false,
+				"sub":            uuid.NewString(),
 			},
 			AllowSignups: true,
 			StatusCode:   http.StatusForbidden,
@@ -924,6 +1079,7 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"email":          3.14159,
 				"email_verified": false,
+				"sub":            uuid.NewString(),
 			},
 			AllowSignups: true,
 			StatusCode:   http.StatusBadRequest,
@@ -933,6 +1089,7 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"email":          "kyle@kwc.io",
 				"email_verified": false,
+				"sub":            uuid.NewString(),
 			},
 			AllowSignups: true,
 			StatusCode:   http.StatusOK,
@@ -946,6 +1103,7 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"email":          "kyle@kwc.io",
 				"email_verified": true,
+				"sub":            uuid.NewString(),
 			},
 			AllowSignups: true,
 			EmailDomain: []string{
@@ -958,6 +1116,7 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"email":          "cian@coder.com",
 				"email_verified": true,
+				"sub":            uuid.NewString(),
 			},
 			AllowSignups: true,
 			EmailDomain: []string{
@@ -970,6 +1129,7 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"email":          "kyle@kwc.io",
 				"email_verified": true,
+				"sub":            uuid.NewString(),
 			},
 			AllowSignups: true,
 			EmailDomain: []string{
@@ -982,6 +1142,7 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"email":          "kyle@KWC.io",
 				"email_verified": true,
+				"sub":            uuid.NewString(),
 			},
 			AllowSignups: true,
 			AssertUser: func(t testing.TB, u codersdk.User) {
@@ -997,6 +1158,7 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"email":          "colin@gmail.com",
 				"email_verified": true,
+				"sub":            uuid.NewString(),
 			},
 			AllowSignups: true,
 			EmailDomain: []string{
@@ -1015,14 +1177,26 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"email":          "kyle@kwc.io",
 				"email_verified": true,
+				"sub":            uuid.NewString(),
 			},
-			StatusCode: http.StatusForbidden,
+			StatusCode:         http.StatusForbidden,
+			PrecreateFirstUser: true,
+		},
+		{
+			Name: "FirstSignup",
+			IDTokenClaims: jwt.MapClaims{
+				"email":          "kyle@kwc.io",
+				"email_verified": true,
+				"sub":            uuid.NewString(),
+			},
+			StatusCode: http.StatusOK,
 		},
 		{
 			Name: "UsernameFromEmail",
 			IDTokenClaims: jwt.MapClaims{
 				"email":          "kyle@kwc.io",
 				"email_verified": true,
+				"sub":            uuid.NewString(),
 			},
 			AssertUser: func(t testing.TB, u codersdk.User) {
 				assert.Equal(t, "kyle", u.Username)
@@ -1036,6 +1210,7 @@ func TestUserOIDC(t *testing.T) {
 				"email":              "kyle@kwc.io",
 				"email_verified":     true,
 				"preferred_username": "hotdog",
+				"sub":                uuid.NewString(),
 			},
 			AssertUser: func(t testing.TB, u codersdk.User) {
 				assert.Equal(t, "hotdog", u.Username)
@@ -1049,6 +1224,7 @@ func TestUserOIDC(t *testing.T) {
 				"email":          "kyle@kwc.io",
 				"email_verified": true,
 				"name":           "Hot Dog",
+				"sub":            uuid.NewString(),
 			},
 			AssertUser: func(t testing.TB, u codersdk.User) {
 				assert.Equal(t, "Hot Dog", u.Name)
@@ -1065,6 +1241,7 @@ func TestUserOIDC(t *testing.T) {
 				// However, we should not fail to log someone in if their name is too long.
 				// Just truncate it.
 				"name": strings.Repeat("a", 129),
+				"sub":  uuid.NewString(),
 			},
 			AllowSignups: true,
 			StatusCode:   http.StatusOK,
@@ -1080,6 +1257,7 @@ func TestUserOIDC(t *testing.T) {
 				// Full names must not have leading or trailing whitespace, but this is a
 				// daft reason to fail a login.
 				"name": " Bobby  Whitespace ",
+				"sub":  uuid.NewString(),
 			},
 			AllowSignups: true,
 			StatusCode:   http.StatusOK,
@@ -1096,6 +1274,7 @@ func TestUserOIDC(t *testing.T) {
 				"email_verified":     true,
 				"name":               "Kylium Carbonate",
 				"preferred_username": "kyle@kwc.io",
+				"sub":                uuid.NewString(),
 			},
 			AssertUser: func(t testing.TB, u codersdk.User) {
 				assert.Equal(t, "kyle", u.Username)
@@ -1108,6 +1287,7 @@ func TestUserOIDC(t *testing.T) {
 			Name: "UsernameIsEmail",
 			IDTokenClaims: jwt.MapClaims{
 				"preferred_username": "kyle@kwc.io",
+				"sub":                uuid.NewString(),
 			},
 			AssertUser: func(t testing.TB, u codersdk.User) {
 				assert.Equal(t, "kyle", u.Username)
@@ -1123,6 +1303,7 @@ func TestUserOIDC(t *testing.T) {
 				"email_verified":     true,
 				"preferred_username": "kyle",
 				"picture":            "/example.png",
+				"sub":                uuid.NewString(),
 			},
 			AssertUser: func(t testing.TB, u codersdk.User) {
 				assert.Equal(t, "/example.png", u.AvatarURL)
@@ -1136,6 +1317,7 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"email":          "kyle@kwc.io",
 				"email_verified": true,
+				"sub":            uuid.NewString(),
 			},
 			UserInfoClaims: jwt.MapClaims{
 				"preferred_username": "potato",
@@ -1155,6 +1337,7 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"email":  "coolin@coder.com",
 				"groups": []string{"pingpong"},
+				"sub":    uuid.NewString(),
 			},
 			AllowSignups: true,
 			StatusCode:   http.StatusOK,
@@ -1164,6 +1347,7 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"email":          "internaluser@internal.domain",
 				"email_verified": false,
+				"sub":            uuid.NewString(),
 			},
 			UserInfoClaims: jwt.MapClaims{
 				"email":              "externaluser@external.domain",
@@ -1182,6 +1366,7 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"email":          "internaluser@internal.domain",
 				"email_verified": false,
+				"sub":            uuid.NewString(),
 			},
 			UserInfoClaims: jwt.MapClaims{
 				"email": 1,
@@ -1197,6 +1382,7 @@ func TestUserOIDC(t *testing.T) {
 				"email_verified":     true,
 				"name":               "User McName",
 				"preferred_username": "user",
+				"sub":                uuid.NewString(),
 			},
 			UserInfoClaims: jwt.MapClaims{
 				"email":              "user.mcname@external.domain",
@@ -1216,6 +1402,7 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: inflateClaims(t, jwt.MapClaims{
 				"email":          "user@domain.tld",
 				"email_verified": true,
+				"sub":            uuid.NewString(),
 			}, 65536),
 			AssertUser: func(t testing.TB, u codersdk.User) {
 				assert.Equal(t, "user", u.Username)
@@ -1228,6 +1415,7 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"email":          "user@domain.tld",
 				"email_verified": true,
+				"sub":            uuid.NewString(),
 			},
 			UserInfoClaims: inflateClaims(t, jwt.MapClaims{}, 65536),
 			AssertUser: func(t testing.TB, u codersdk.User) {
@@ -1242,6 +1430,7 @@ func TestUserOIDC(t *testing.T) {
 				"iss":            "https://mismatch.com",
 				"email":          "user@domain.tld",
 				"email_verified": true,
+				"sub":            uuid.NewString(),
 			},
 			AllowSignups: true,
 			StatusCode:   http.StatusBadRequest,
@@ -1255,18 +1444,32 @@ func TestUserOIDC(t *testing.T) {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
-			fake := oidctest.NewFakeIDP(t,
+			opts := []oidctest.FakeIDPOpt{
 				oidctest.WithRefresh(func(_ string) error {
 					return xerrors.New("refreshing token should never occur")
 				}),
 				oidctest.WithServing(),
 				oidctest.WithStaticUserInfo(tc.UserInfoClaims),
-			)
+			}
+
+			if tc.AccessTokenClaims != nil && len(tc.AccessTokenClaims) > 0 {
+				opts = append(opts, oidctest.WithAccessTokenJWTHook(func(email string, exp time.Time) jwt.MapClaims {
+					return tc.AccessTokenClaims
+				}))
+			}
+
+			fake := oidctest.NewFakeIDP(t, opts...)
 			cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
 				cfg.AllowSignups = tc.AllowSignups
 				cfg.EmailDomain = tc.EmailDomain
 				cfg.IgnoreEmailVerified = tc.IgnoreEmailVerified
-				cfg.IgnoreUserInfo = tc.IgnoreUserInfo
+				cfg.SecondaryClaims = coderd.MergedClaimsSourceUserInfo
+				if tc.IgnoreUserInfo {
+					cfg.SecondaryClaims = coderd.MergedClaimsSourceNone
+				}
+				if tc.UseAccessToken {
+					cfg.SecondaryClaims = coderd.MergedClaimsSourceAccessToken
+				}
 				cfg.NameField = "name"
 			})
 
@@ -1279,14 +1482,21 @@ func TestUserOIDC(t *testing.T) {
 			})
 			numLogs := len(auditor.AuditLogs())
 
+			ctx := testutil.Context(t, testutil.WaitShort)
+			if tc.PrecreateFirstUser {
+				owner.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{
+					Email:    "precreated@coder.com",
+					Username: "precreated",
+					Password: "SomeSecurePassword!",
+				})
+			}
+
 			client, resp := fake.AttemptLogin(t, owner, tc.IDTokenClaims)
 			numLogs++ // add an audit log for login
 			require.Equal(t, tc.StatusCode, resp.StatusCode)
 			if tc.AssertResponse != nil {
 				tc.AssertResponse(t, resp)
 			}
-
-			ctx := testutil.Context(t, testutil.WaitShort)
 
 			if tc.AssertUser != nil {
 				user, err := client.User(ctx, "me")
@@ -1331,6 +1541,7 @@ func TestUserOIDC(t *testing.T) {
 
 		client, resp := fake.AttemptLogin(t, owner, jwt.MapClaims{
 			"email": user.Email,
+			"sub":   uuid.NewString(),
 		})
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -1369,6 +1580,7 @@ func TestUserOIDC(t *testing.T) {
 
 		claims := jwt.MapClaims{
 			"email": userData.Email,
+			"sub":   uuid.NewString(),
 		}
 		var err error
 		user.HTTPClient.Jar, err = cookiejar.New(nil)
@@ -1439,6 +1651,7 @@ func TestUserOIDC(t *testing.T) {
 
 		claims := jwt.MapClaims{
 			"email": userData.Email,
+			"sub":   uuid.NewString(),
 		}
 		user.HTTPClient.Jar, err = cookiejar.New(nil)
 		require.NoError(t, err)
@@ -1509,6 +1722,7 @@ func TestUserOIDC(t *testing.T) {
 		numLogs := len(auditor.AuditLogs())
 		claims := jwt.MapClaims{
 			"email": "jon@coder.com",
+			"sub":   uuid.NewString(),
 		}
 
 		userClient, _ := fake.Login(t, client, claims)
@@ -1629,6 +1843,7 @@ func TestUserOIDC(t *testing.T) {
 		claims := jwt.MapClaims{
 			"email":          "user@example.com",
 			"email_verified": true,
+			"sub":            uuid.NewString(),
 		}
 
 		// Perform the login
@@ -1794,6 +2009,7 @@ func TestOIDCSkipIssuer(t *testing.T) {
 	userClient, _ := fake.Login(t, owner, jwt.MapClaims{
 		"iss":   secondaryURLString,
 		"email": "alice@coder.com",
+		"sub":   uuid.NewString(),
 	})
 	found, err := userClient.User(ctx, "me")
 	require.NoError(t, err)

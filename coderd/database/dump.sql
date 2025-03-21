@@ -25,7 +25,11 @@ CREATE TYPE audit_action AS ENUM (
     'login',
     'logout',
     'register',
-    'request_password_reset'
+    'request_password_reset',
+    'connect',
+    'disconnect',
+    'open',
+    'close'
 );
 
 CREATE TYPE automatic_updates AS ENUM (
@@ -60,6 +64,12 @@ CREATE TYPE display_app AS ENUM (
 CREATE TYPE group_source AS ENUM (
     'user',
     'oidc'
+);
+
+CREATE TYPE inbox_notification_read_status AS ENUM (
+    'all',
+    'unread',
+    'read'
 );
 
 CREATE TYPE log_level AS ENUM (
@@ -103,7 +113,8 @@ CREATE TYPE notification_message_status AS ENUM (
 
 CREATE TYPE notification_method AS ENUM (
     'smtp',
-    'webhook'
+    'webhook',
+    'inbox'
 );
 
 CREATE TYPE notification_template_kind AS ENUM (
@@ -201,7 +212,9 @@ CREATE TYPE resource_type AS ENUM (
     'notification_template',
     'idp_sync_settings_organization',
     'idp_sync_settings_group',
-    'idp_sync_settings_role'
+    'idp_sync_settings_role',
+    'workspace_agent',
+    'workspace_app'
 );
 
 CREATE TYPE startup_script_behavior AS ENUM (
@@ -236,6 +249,11 @@ CREATE TYPE workspace_agent_lifecycle_state AS ENUM (
     'shutdown_timeout',
     'shutdown_error',
     'off'
+);
+
+CREATE TYPE workspace_agent_monitor_state AS ENUM (
+    'OK',
+    'NOK'
 );
 
 CREATE TYPE workspace_agent_script_timing_stage AS ENUM (
@@ -424,6 +442,74 @@ BEGIN
 		WHERE id = NEW.id;
 	END IF;
 	RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION protect_deleting_organizations() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    workspace_count int;
+	template_count int;
+	group_count int;
+	member_count int;
+	provisioner_keys_count int;
+BEGIN
+    workspace_count := (
+        SELECT count(*) as count FROM workspaces
+        WHERE
+            workspaces.organization_id = OLD.id
+            AND workspaces.deleted = false
+    );
+
+	template_count := (
+        SELECT count(*) as count FROM templates
+        WHERE
+            templates.organization_id = OLD.id
+            AND templates.deleted = false
+    );
+
+	group_count := (
+        SELECT count(*) as count FROM groups
+        WHERE
+            groups.organization_id = OLD.id
+    );
+
+	member_count := (
+        SELECT count(*) as count FROM organization_members
+        WHERE
+            organization_members.organization_id = OLD.id
+    );
+
+	provisioner_keys_count := (
+		Select count(*) as count FROM provisioner_keys
+		WHERE
+			provisioner_keys.organization_id = OLD.id
+	);
+
+    -- Fail the deletion if one of the following:
+    -- * the organization has 1 or more workspaces
+	-- * the organization has 1 or more templates
+	-- * the organization has 1 or more groups other than "Everyone" group
+	-- * the organization has 1 or more members other than the organization owner
+	-- * the organization has 1 or more provisioner keys
+
+    IF (workspace_count + template_count + provisioner_keys_count) > 0 THEN
+            RAISE EXCEPTION 'cannot delete organization: organization has % workspaces, % templates, and % provisioner keys that must be deleted first', workspace_count, template_count, provisioner_keys_count;
+    END IF;
+
+	IF (group_count) > 1 THEN
+            RAISE EXCEPTION 'cannot delete organization: organization has % groups that must be deleted first', group_count - 1;
+    END IF;
+
+    -- Allow 1 member to exist, because you cannot remove yourself. You can
+    -- remove everyone else. Ideally, we only omit the member that matches
+    -- the user_id of the caller, however in a trigger, the caller is unknown.
+	IF (member_count) > 1 THEN
+            RAISE EXCEPTION 'cannot delete organization: organization has % members that must be deleted first', member_count - 1;
+    END IF;
+
+    RETURN NEW;
 END;
 $$;
 
@@ -764,7 +850,6 @@ CREATE TABLE users (
     deleted boolean DEFAULT false NOT NULL,
     last_seen_at timestamp without time zone DEFAULT '0001-01-01 00:00:00'::timestamp without time zone NOT NULL,
     quiet_hours_schedule text DEFAULT ''::text NOT NULL,
-    theme_preference text DEFAULT ''::text NOT NULL,
     name text DEFAULT ''::text NOT NULL,
     github_com_user_id bigint,
     hashed_one_time_passcode bytea,
@@ -774,11 +859,9 @@ CREATE TABLE users (
 
 COMMENT ON COLUMN users.quiet_hours_schedule IS 'Daily (!) cron schedule (with optional CRON_TZ) signifying the start of the user''s quiet hours. If empty, the default quiet hours on the instance is used instead.';
 
-COMMENT ON COLUMN users.theme_preference IS '"" can be interpreted as "the user does not care", falling back to the default theme';
-
 COMMENT ON COLUMN users.name IS 'Name of the Coder user';
 
-COMMENT ON COLUMN users.github_com_user_id IS 'The GitHub.com numerical user ID. At time of implementation, this is used to check if the user has starred the Coder repository.';
+COMMENT ON COLUMN users.github_com_user_id IS 'The GitHub.com numerical user ID. It is used to check if the user has starred the Coder repository. It is also used for filtering users in the users list CLI command, and may become more widely used in the future.';
 
 COMMENT ON COLUMN users.hashed_one_time_passcode IS 'A hash of the one-time-passcode given to the user.';
 
@@ -807,7 +890,6 @@ CREATE VIEW group_members_expanded AS
     users.deleted AS user_deleted,
     users.last_seen_at AS user_last_seen_at,
     users.quiet_hours_schedule AS user_quiet_hours_schedule,
-    users.theme_preference AS user_theme_preference,
     users.name AS user_name,
     users.github_com_user_id AS user_github_com_user_id,
     groups.organization_id,
@@ -819,6 +901,19 @@ CREATE VIEW group_members_expanded AS
   WHERE (users.deleted = false);
 
 COMMENT ON VIEW group_members_expanded IS 'Joins group members with user information, organization ID, group name. Includes both regular group members and organization members (as part of the "Everyone" group).';
+
+CREATE TABLE inbox_notifications (
+    id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    template_id uuid NOT NULL,
+    targets uuid[],
+    title text NOT NULL,
+    content text NOT NULL,
+    icon text NOT NULL,
+    actions jsonb NOT NULL,
+    read_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
 
 CREATE TABLE jfrog_xray_scans (
     agent_id uuid NOT NULL,
@@ -956,7 +1051,8 @@ CREATE TABLE organizations (
     updated_at timestamp with time zone NOT NULL,
     is_default boolean DEFAULT false NOT NULL,
     display_name text NOT NULL,
-    icon text DEFAULT ''::text NOT NULL
+    icon text DEFAULT ''::text NOT NULL,
+    deleted boolean DEFAULT false NOT NULL
 );
 
 CREATE TABLE parameter_schemas (
@@ -1265,6 +1361,20 @@ COMMENT ON COLUMN template_version_parameters.display_order IS 'Specifies the or
 
 COMMENT ON COLUMN template_version_parameters.ephemeral IS 'The value of an ephemeral parameter will not be preserved between consecutive workspace builds.';
 
+CREATE TABLE template_version_preset_parameters (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    template_version_preset_id uuid NOT NULL,
+    name text NOT NULL,
+    value text NOT NULL
+);
+
+CREATE TABLE template_version_presets (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    template_version_id uuid NOT NULL,
+    name text NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
 CREATE TABLE template_version_variables (
     template_version_id uuid NOT NULL,
     name text NOT NULL,
@@ -1434,6 +1544,12 @@ CREATE VIEW template_with_names AS
 
 COMMENT ON VIEW template_with_names IS 'Joins in the display name information such as username, avatar, and organization name.';
 
+CREATE TABLE user_configs (
+    user_id uuid NOT NULL,
+    key character varying(256) NOT NULL,
+    value text NOT NULL
+);
+
 CREATE TABLE user_deleted (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
@@ -1469,6 +1585,26 @@ CREATE TABLE user_status_changes (
 
 COMMENT ON TABLE user_status_changes IS 'Tracks the history of user status changes';
 
+CREATE TABLE workspace_agent_devcontainers (
+    id uuid NOT NULL,
+    workspace_agent_id uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    workspace_folder text NOT NULL,
+    config_path text NOT NULL
+);
+
+COMMENT ON TABLE workspace_agent_devcontainers IS 'Workspace agent devcontainer configuration';
+
+COMMENT ON COLUMN workspace_agent_devcontainers.id IS 'Unique identifier';
+
+COMMENT ON COLUMN workspace_agent_devcontainers.workspace_agent_id IS 'Workspace agent foreign key';
+
+COMMENT ON COLUMN workspace_agent_devcontainers.created_at IS 'Creation timestamp';
+
+COMMENT ON COLUMN workspace_agent_devcontainers.workspace_folder IS 'Workspace folder';
+
+COMMENT ON COLUMN workspace_agent_devcontainers.config_path IS 'Path to devcontainer.json.';
+
 CREATE TABLE workspace_agent_log_sources (
     workspace_agent_id uuid NOT NULL,
     id uuid NOT NULL,
@@ -1490,7 +1626,10 @@ CREATE TABLE workspace_agent_memory_resource_monitors (
     agent_id uuid NOT NULL,
     enabled boolean NOT NULL,
     threshold integer NOT NULL,
-    created_at timestamp with time zone NOT NULL
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    state workspace_agent_monitor_state DEFAULT 'OK'::workspace_agent_monitor_state NOT NULL,
+    debounced_until timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL
 );
 
 CREATE UNLOGGED TABLE workspace_agent_metadata (
@@ -1575,7 +1714,10 @@ CREATE TABLE workspace_agent_volume_resource_monitors (
     enabled boolean NOT NULL,
     threshold integer NOT NULL,
     path text NOT NULL,
-    created_at timestamp with time zone NOT NULL
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    state workspace_agent_monitor_state DEFAULT 'OK'::workspace_agent_monitor_state NOT NULL,
+    debounced_until timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL
 );
 
 CREATE TABLE workspace_agents (
@@ -1635,6 +1777,39 @@ COMMENT ON COLUMN workspace_agents.started_at IS 'The time the agent entered the
 COMMENT ON COLUMN workspace_agents.ready_at IS 'The time the agent entered the ready or start_error lifecycle state';
 
 COMMENT ON COLUMN workspace_agents.display_order IS 'Specifies the order in which to display agents in user interfaces.';
+
+CREATE UNLOGGED TABLE workspace_app_audit_sessions (
+    agent_id uuid NOT NULL,
+    app_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    ip text NOT NULL,
+    user_agent text NOT NULL,
+    slug_or_port text NOT NULL,
+    status_code integer NOT NULL,
+    started_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    id uuid NOT NULL
+);
+
+COMMENT ON TABLE workspace_app_audit_sessions IS 'Audit sessions for workspace apps, the data in this table is ephemeral and is used to deduplicate audit log entries for workspace apps. While a session is active, the same data will not be logged again. This table does not store historical data.';
+
+COMMENT ON COLUMN workspace_app_audit_sessions.agent_id IS 'The agent that the workspace app or port forward belongs to.';
+
+COMMENT ON COLUMN workspace_app_audit_sessions.app_id IS 'The app that is currently in the workspace app. This is may be uuid.Nil because ports are not associated with an app.';
+
+COMMENT ON COLUMN workspace_app_audit_sessions.user_id IS 'The user that is currently using the workspace app. This is may be uuid.Nil if we cannot determine the user.';
+
+COMMENT ON COLUMN workspace_app_audit_sessions.ip IS 'The IP address of the user that is currently using the workspace app.';
+
+COMMENT ON COLUMN workspace_app_audit_sessions.user_agent IS 'The user agent of the user that is currently using the workspace app.';
+
+COMMENT ON COLUMN workspace_app_audit_sessions.slug_or_port IS 'The slug or port of the workspace app that the user is currently using.';
+
+COMMENT ON COLUMN workspace_app_audit_sessions.status_code IS 'The HTTP status produced by the token authorization. Defaults to 200 if no status is provided.';
+
+COMMENT ON COLUMN workspace_app_audit_sessions.started_at IS 'The time the user started the session.';
+
+COMMENT ON COLUMN workspace_app_audit_sessions.updated_at IS 'The time the session was last updated.';
 
 CREATE TABLE workspace_app_stats (
     id bigint NOT NULL,
@@ -1729,7 +1904,8 @@ CREATE TABLE workspace_builds (
     deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
     reason build_reason DEFAULT 'initiator'::build_reason NOT NULL,
     daily_cost integer DEFAULT 0 NOT NULL,
-    max_deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL
+    max_deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
+    template_version_preset_id uuid
 );
 
 CREATE VIEW workspace_build_with_user AS
@@ -1747,6 +1923,7 @@ CREATE VIEW workspace_build_with_user AS
     workspace_builds.reason,
     workspace_builds.daily_cost,
     workspace_builds.max_deadline,
+    workspace_builds.template_version_preset_id,
     COALESCE(visible_users.avatar_url, ''::text) AS initiator_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS initiator_by_username
    FROM (workspace_builds
@@ -1946,6 +2123,9 @@ ALTER TABLE ONLY groups
 ALTER TABLE ONLY groups
     ADD CONSTRAINT groups_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY inbox_notifications
+    ADD CONSTRAINT inbox_notifications_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY jfrog_xray_scans
     ADD CONSTRAINT jfrog_xray_scans_pkey PRIMARY KEY (agent_id, workspace_id);
 
@@ -1996,9 +2176,6 @@ ALTER TABLE ONLY oauth2_provider_apps
 
 ALTER TABLE ONLY organization_members
     ADD CONSTRAINT organization_members_pkey PRIMARY KEY (organization_id, user_id);
-
-ALTER TABLE ONLY organizations
-    ADD CONSTRAINT organizations_name UNIQUE (name);
 
 ALTER TABLE ONLY organizations
     ADD CONSTRAINT organizations_pkey PRIMARY KEY (id);
@@ -2057,6 +2234,12 @@ ALTER TABLE ONLY template_usage_stats
 ALTER TABLE ONLY template_version_parameters
     ADD CONSTRAINT template_version_parameters_template_version_id_name_key UNIQUE (template_version_id, name);
 
+ALTER TABLE ONLY template_version_preset_parameters
+    ADD CONSTRAINT template_version_preset_parameters_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY template_version_presets
+    ADD CONSTRAINT template_version_presets_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY template_version_variables
     ADD CONSTRAINT template_version_variables_template_version_id_name_key UNIQUE (template_version_id, name);
 
@@ -2072,6 +2255,9 @@ ALTER TABLE ONLY template_versions
 ALTER TABLE ONLY templates
     ADD CONSTRAINT templates_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY user_configs
+    ADD CONSTRAINT user_configs_pkey PRIMARY KEY (user_id, key);
+
 ALTER TABLE ONLY user_deleted
     ADD CONSTRAINT user_deleted_pkey PRIMARY KEY (id);
 
@@ -2083,6 +2269,9 @@ ALTER TABLE ONLY user_status_changes
 
 ALTER TABLE ONLY users
     ADD CONSTRAINT users_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY workspace_agent_devcontainers
+    ADD CONSTRAINT workspace_agent_devcontainers_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY workspace_agent_log_sources
     ADD CONSTRAINT workspace_agent_log_sources_pkey PRIMARY KEY (workspace_agent_id, id);
@@ -2110,6 +2299,12 @@ ALTER TABLE ONLY workspace_agent_volume_resource_monitors
 
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY workspace_app_audit_sessions
+    ADD CONSTRAINT workspace_app_audit_sessions_agent_id_app_id_user_id_ip_use_key UNIQUE (agent_id, app_id, user_id, ip, user_agent, slug_or_port, status_code);
+
+ALTER TABLE ONLY workspace_app_audit_sessions
+    ADD CONSTRAINT workspace_app_audit_sessions_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY workspace_app_stats
     ADD CONSTRAINT workspace_app_stats_pkey PRIMARY KEY (id);
@@ -2173,19 +2368,23 @@ CREATE INDEX idx_custom_roles_id ON custom_roles USING btree (id);
 
 CREATE UNIQUE INDEX idx_custom_roles_name_lower ON custom_roles USING btree (lower(name));
 
+CREATE INDEX idx_inbox_notifications_user_id_read_at ON inbox_notifications USING btree (user_id, read_at);
+
+CREATE INDEX idx_inbox_notifications_user_id_template_id_targets ON inbox_notifications USING btree (user_id, template_id, targets);
+
 CREATE INDEX idx_notification_messages_status ON notification_messages USING btree (status);
 
 CREATE INDEX idx_organization_member_organization_id_uuid ON organization_members USING btree (organization_id);
 
 CREATE INDEX idx_organization_member_user_id_uuid ON organization_members USING btree (user_id);
 
-CREATE UNIQUE INDEX idx_organization_name ON organizations USING btree (name);
-
-CREATE UNIQUE INDEX idx_organization_name_lower ON organizations USING btree (lower(name));
+CREATE UNIQUE INDEX idx_organization_name_lower ON organizations USING btree (lower(name)) WHERE (deleted = false);
 
 CREATE UNIQUE INDEX idx_provisioner_daemons_org_name_owner_key ON provisioner_daemons USING btree (organization_id, name, lower(COALESCE((tags ->> 'owner'::text), ''::text)));
 
 COMMENT ON INDEX idx_provisioner_daemons_org_name_owner_key IS 'Allow unique provisioner daemon names by organization and user';
+
+CREATE INDEX idx_provisioner_jobs_status ON provisioner_jobs USING btree (job_status);
 
 CREATE INDEX idx_tailnet_agents_coordinator ON tailnet_agents USING btree (coordinator_id);
 
@@ -2231,6 +2430,10 @@ CREATE UNIQUE INDEX users_email_lower_idx ON users USING btree (lower(email)) WH
 
 CREATE UNIQUE INDEX users_username_lower_idx ON users USING btree (lower(username)) WHERE (deleted = false);
 
+CREATE INDEX workspace_agent_devcontainers_workspace_agent_id ON workspace_agent_devcontainers USING btree (workspace_agent_id);
+
+COMMENT ON INDEX workspace_agent_devcontainers_workspace_agent_id IS 'Workspace agent foreign key and query index';
+
 CREATE INDEX workspace_agent_scripts_workspace_agent_id_idx ON workspace_agent_scripts USING btree (workspace_agent_id);
 
 COMMENT ON INDEX workspace_agent_scripts_workspace_agent_id_idx IS 'Foreign key support index for faster lookups';
@@ -2244,6 +2447,10 @@ COMMENT ON INDEX workspace_agent_stats_template_id_created_at_user_id_idx IS 'Su
 CREATE INDEX workspace_agents_auth_token_idx ON workspace_agents USING btree (auth_token);
 
 CREATE INDEX workspace_agents_resource_id_idx ON workspace_agents USING btree (resource_id);
+
+CREATE UNIQUE INDEX workspace_app_audit_sessions_unique_index ON workspace_app_audit_sessions USING btree (agent_id, app_id, user_id, ip, user_agent, slug_or_port, status_code);
+
+COMMENT ON INDEX workspace_app_audit_sessions_unique_index IS 'Unique index to ensure that we do not allow duplicate entries from multiple transactions.';
 
 CREATE INDEX workspace_app_stats_workspace_id_idx ON workspace_app_stats USING btree (workspace_id);
 
@@ -2313,6 +2520,8 @@ CREATE OR REPLACE VIEW provisioner_job_stats AS
 
 CREATE TRIGGER inhibit_enqueue_if_disabled BEFORE INSERT ON notification_messages FOR EACH ROW EXECUTE FUNCTION inhibit_enqueue_if_disabled();
 
+CREATE TRIGGER protect_deleting_organizations BEFORE UPDATE ON organizations FOR EACH ROW WHEN (((new.deleted = true) AND (old.deleted = false))) EXECUTE FUNCTION protect_deleting_organizations();
+
 CREATE TRIGGER remove_organization_member_custom_role BEFORE DELETE ON custom_roles FOR EACH ROW EXECUTE FUNCTION remove_organization_member_role();
 
 COMMENT ON TRIGGER remove_organization_member_custom_role ON custom_roles IS 'When a custom_role is deleted, this trigger removes the role from all organization members.';
@@ -2368,6 +2577,12 @@ ALTER TABLE ONLY group_members
 
 ALTER TABLE ONLY groups
     ADD CONSTRAINT groups_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY inbox_notifications
+    ADD CONSTRAINT inbox_notifications_template_id_fkey FOREIGN KEY (template_id) REFERENCES notification_templates(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY inbox_notifications
+    ADD CONSTRAINT inbox_notifications_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY jfrog_xray_scans
     ADD CONSTRAINT jfrog_xray_scans_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
@@ -2447,6 +2662,12 @@ ALTER TABLE ONLY tailnet_tunnels
 ALTER TABLE ONLY template_version_parameters
     ADD CONSTRAINT template_version_parameters_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY template_version_preset_parameters
+    ADD CONSTRAINT template_version_preset_paramet_template_version_preset_id_fkey FOREIGN KEY (template_version_preset_id) REFERENCES template_version_presets(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY template_version_presets
+    ADD CONSTRAINT template_version_presets_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
+
 ALTER TABLE ONLY template_version_variables
     ADD CONSTRAINT template_version_variables_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
 
@@ -2468,6 +2689,9 @@ ALTER TABLE ONLY templates
 ALTER TABLE ONLY templates
     ADD CONSTRAINT templates_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY user_configs
+    ADD CONSTRAINT user_configs_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
 ALTER TABLE ONLY user_deleted
     ADD CONSTRAINT user_deleted_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);
 
@@ -2482,6 +2706,9 @@ ALTER TABLE ONLY user_links
 
 ALTER TABLE ONLY user_status_changes
     ADD CONSTRAINT user_status_changes_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);
+
+ALTER TABLE ONLY workspace_agent_devcontainers
+    ADD CONSTRAINT workspace_agent_devcontainers_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agent_log_sources
     ADD CONSTRAINT workspace_agent_log_sources_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
@@ -2510,6 +2737,9 @@ ALTER TABLE ONLY workspace_agent_volume_resource_monitors
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_resource_id_fkey FOREIGN KEY (resource_id) REFERENCES workspace_resources(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY workspace_app_audit_sessions
+    ADD CONSTRAINT workspace_app_audit_sessions_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
+
 ALTER TABLE ONLY workspace_app_stats
     ADD CONSTRAINT workspace_app_stats_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id);
 
@@ -2530,6 +2760,9 @@ ALTER TABLE ONLY workspace_builds
 
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_builds
+    ADD CONSTRAINT workspace_builds_template_version_preset_id_fkey FOREIGN KEY (template_version_preset_id) REFERENCES template_version_presets(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;

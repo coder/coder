@@ -173,6 +173,7 @@ Status Code **200**
 | `action`        | `read`                             |
 | `action`        | `read_personal`                    |
 | `action`        | `ssh`                              |
+| `action`        | `unassign`                         |
 | `action`        | `update`                           |
 | `action`        | `update_personal`                  |
 | `action`        | `use`                              |
@@ -192,6 +193,7 @@ Status Code **200**
 | `resource_type` | `group`                            |
 | `resource_type` | `group_member`                     |
 | `resource_type` | `idpsync_settings`                 |
+| `resource_type` | `inbox_notification`               |
 | `resource_type` | `license`                          |
 | `resource_type` | `notification_message`             |
 | `resource_type` | `notification_preference`          |
@@ -203,13 +205,13 @@ Status Code **200**
 | `resource_type` | `organization_member`              |
 | `resource_type` | `provisioner_daemon`               |
 | `resource_type` | `provisioner_jobs`                 |
-| `resource_type` | `provisioner_keys`                 |
 | `resource_type` | `replicas`                         |
 | `resource_type` | `system`                           |
 | `resource_type` | `tailnet_coordinator`              |
 | `resource_type` | `template`                         |
 | `resource_type` | `user`                             |
 | `resource_type` | `workspace`                        |
+| `resource_type` | `workspace_agent_devcontainers`    |
 | `resource_type` | `workspace_agent_resource_monitor` |
 | `resource_type` | `workspace_dormant`                |
 | `resource_type` | `workspace_proxy`                  |
@@ -336,6 +338,7 @@ Status Code **200**
 | `action`        | `read`                             |
 | `action`        | `read_personal`                    |
 | `action`        | `ssh`                              |
+| `action`        | `unassign`                         |
 | `action`        | `update`                           |
 | `action`        | `update_personal`                  |
 | `action`        | `use`                              |
@@ -355,6 +358,7 @@ Status Code **200**
 | `resource_type` | `group`                            |
 | `resource_type` | `group_member`                     |
 | `resource_type` | `idpsync_settings`                 |
+| `resource_type` | `inbox_notification`               |
 | `resource_type` | `license`                          |
 | `resource_type` | `notification_message`             |
 | `resource_type` | `notification_preference`          |
@@ -366,13 +370,13 @@ Status Code **200**
 | `resource_type` | `organization_member`              |
 | `resource_type` | `provisioner_daemon`               |
 | `resource_type` | `provisioner_jobs`                 |
-| `resource_type` | `provisioner_keys`                 |
 | `resource_type` | `replicas`                         |
 | `resource_type` | `system`                           |
 | `resource_type` | `tailnet_coordinator`              |
 | `resource_type` | `template`                         |
 | `resource_type` | `user`                             |
 | `resource_type` | `workspace`                        |
+| `resource_type` | `workspace_agent_devcontainers`    |
 | `resource_type` | `workspace_agent_resource_monitor` |
 | `resource_type` | `workspace_dormant`                |
 | `resource_type` | `workspace_proxy`                  |
@@ -499,6 +503,7 @@ Status Code **200**
 | `action`        | `read`                             |
 | `action`        | `read_personal`                    |
 | `action`        | `ssh`                              |
+| `action`        | `unassign`                         |
 | `action`        | `update`                           |
 | `action`        | `update_personal`                  |
 | `action`        | `use`                              |
@@ -518,6 +523,7 @@ Status Code **200**
 | `resource_type` | `group`                            |
 | `resource_type` | `group_member`                     |
 | `resource_type` | `idpsync_settings`                 |
+| `resource_type` | `inbox_notification`               |
 | `resource_type` | `license`                          |
 | `resource_type` | `notification_message`             |
 | `resource_type` | `notification_preference`          |
@@ -529,13 +535,13 @@ Status Code **200**
 | `resource_type` | `organization_member`              |
 | `resource_type` | `provisioner_daemon`               |
 | `resource_type` | `provisioner_jobs`                 |
-| `resource_type` | `provisioner_keys`                 |
 | `resource_type` | `replicas`                         |
 | `resource_type` | `system`                           |
 | `resource_type` | `tailnet_coordinator`              |
 | `resource_type` | `template`                         |
 | `resource_type` | `user`                             |
 | `resource_type` | `workspace`                        |
+| `resource_type` | `workspace_agent_devcontainers`    |
 | `resource_type` | `workspace_agent_resource_monitor` |
 | `resource_type` | `workspace_dormant`                |
 | `resource_type` | `workspace_proxy`                  |
@@ -631,6 +637,7 @@ Status Code **200**
 | `action`        | `read`                             |
 | `action`        | `read_personal`                    |
 | `action`        | `ssh`                              |
+| `action`        | `unassign`                         |
 | `action`        | `update`                           |
 | `action`        | `update_personal`                  |
 | `action`        | `use`                              |
@@ -650,6 +657,7 @@ Status Code **200**
 | `resource_type` | `group`                            |
 | `resource_type` | `group_member`                     |
 | `resource_type` | `idpsync_settings`                 |
+| `resource_type` | `inbox_notification`               |
 | `resource_type` | `license`                          |
 | `resource_type` | `notification_message`             |
 | `resource_type` | `notification_preference`          |
@@ -661,13 +669,13 @@ Status Code **200**
 | `resource_type` | `organization_member`              |
 | `resource_type` | `provisioner_daemon`               |
 | `resource_type` | `provisioner_jobs`                 |
-| `resource_type` | `provisioner_keys`                 |
 | `resource_type` | `replicas`                         |
 | `resource_type` | `system`                           |
 | `resource_type` | `tailnet_coordinator`              |
 | `resource_type` | `template`                         |
 | `resource_type` | `user`                             |
 | `resource_type` | `workspace`                        |
+| `resource_type` | `workspace_agent_devcontainers`    |
 | `resource_type` | `workspace_agent_resource_monitor` |
 | `resource_type` | `workspace_dormant`                |
 | `resource_type` | `workspace_proxy`                  |
@@ -809,6 +817,96 @@ curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/members
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Paginated organization members
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/paginated-members \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /organizations/{organization}/paginated-members`
+
+### Parameters
+
+| Name           | In    | Type    | Required | Description                          |
+|----------------|-------|---------|----------|--------------------------------------|
+| `organization` | path  | string  | true     | Organization ID                      |
+| `limit`        | query | integer | false    | Page limit, if 0 returns all members |
+| `offset`       | query | integer | false    | Page offset                          |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "count": 0,
+    "members": [
+      {
+        "avatar_url": "string",
+        "created_at": "2019-08-24T14:15:22Z",
+        "email": "string",
+        "global_roles": [
+          {
+            "display_name": "string",
+            "name": "string",
+            "organization_id": "string"
+          }
+        ],
+        "name": "string",
+        "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+        "roles": [
+          {
+            "display_name": "string",
+            "name": "string",
+            "organization_id": "string"
+          }
+        ],
+        "updated_at": "2019-08-24T14:15:22Z",
+        "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+        "username": "string"
+      }
+    ]
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                    |
+|--------|---------------------------------------------------------|-------------|-------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.PaginatedMembersResponse](schemas.md#codersdkpaginatedmembersresponse) |
+
+<h3 id="paginated-organization-members-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                  | Type              | Required | Restrictions | Description |
+|-----------------------|-------------------|----------|--------------|-------------|
+| `[array item]`        | array             | false    |              |             |
+| `» count`             | integer           | false    |              |             |
+| `» members`           | array             | false    |              |             |
+| `»» avatar_url`       | string            | false    |              |             |
+| `»» created_at`       | string(date-time) | false    |              |             |
+| `»» email`            | string            | false    |              |             |
+| `»» global_roles`     | array             | false    |              |             |
+| `»»» display_name`    | string            | false    |              |             |
+| `»»» name`            | string            | false    |              |             |
+| `»»» organization_id` | string            | false    |              |             |
+| `»» name`             | string            | false    |              |             |
+| `»» organization_id`  | string(uuid)      | false    |              |             |
+| `»» roles`            | array             | false    |              |             |
+| `»» updated_at`       | string(date-time) | false    |              |             |
+| `»» user_id`          | string(uuid)      | false    |              |             |
+| `»» username`         | string            | false    |              |             |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get site member roles
 
 ### Code samples
@@ -895,6 +993,7 @@ Status Code **200**
 | `action`        | `read`                             |
 | `action`        | `read_personal`                    |
 | `action`        | `ssh`                              |
+| `action`        | `unassign`                         |
 | `action`        | `update`                           |
 | `action`        | `update_personal`                  |
 | `action`        | `use`                              |
@@ -914,6 +1013,7 @@ Status Code **200**
 | `resource_type` | `group`                            |
 | `resource_type` | `group_member`                     |
 | `resource_type` | `idpsync_settings`                 |
+| `resource_type` | `inbox_notification`               |
 | `resource_type` | `license`                          |
 | `resource_type` | `notification_message`             |
 | `resource_type` | `notification_preference`          |
@@ -925,13 +1025,13 @@ Status Code **200**
 | `resource_type` | `organization_member`              |
 | `resource_type` | `provisioner_daemon`               |
 | `resource_type` | `provisioner_jobs`                 |
-| `resource_type` | `provisioner_keys`                 |
 | `resource_type` | `replicas`                         |
 | `resource_type` | `system`                           |
 | `resource_type` | `tailnet_coordinator`              |
 | `resource_type` | `template`                         |
 | `resource_type` | `user`                             |
 | `resource_type` | `workspace`                        |
+| `resource_type` | `workspace_agent_devcontainers`    |
 | `resource_type` | `workspace_agent_resource_monitor` |
 | `resource_type` | `workspace_dormant`                |
 | `resource_type` | `workspace_proxy`                  |

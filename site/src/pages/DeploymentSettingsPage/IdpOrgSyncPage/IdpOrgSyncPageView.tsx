@@ -1,15 +1,10 @@
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
 import type {
 	Organization,
 	OrganizationSyncSettings,
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
+import { Combobox } from "components/Combobox/Combobox";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import {
 	Dialog,
@@ -35,9 +30,23 @@ import {
 } from "components/MultiSelectCombobox/MultiSelectCombobox";
 import { Spinner } from "components/Spinner/Spinner";
 import { Switch } from "components/Switch/Switch";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "components/Table/Table";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { useFormik } from "formik";
-import { Plus, Trash } from "lucide-react";
-import { type FC, useId, useState } from "react";
+import { Plus, Trash, TriangleAlert } from "lucide-react";
+import { type FC, type KeyboardEventHandler, useId, useState } from "react";
 import { docs } from "utils/docs";
 import { isUUID } from "utils/uuid";
 import * as Yup from "yup";
@@ -45,8 +54,10 @@ import { OrganizationPills } from "./OrganizationPills";
 
 interface IdpSyncPageViewProps {
 	organizationSyncSettings: OrganizationSyncSettings | undefined;
+	claimFieldValues: readonly string[] | undefined;
 	organizations: readonly Organization[];
 	onSubmit: (data: OrganizationSyncSettings) => void;
+	onSyncFieldChange: (value: string) => void;
 	error?: unknown;
 }
 
@@ -74,8 +85,10 @@ const validationSchema = Yup.object({
 
 export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 	organizationSyncSettings,
+	claimFieldValues,
 	organizations,
 	onSubmit,
+	onSyncFieldChange,
 	error,
 }) => {
 	const form = useFormik<OrganizationSyncSettings>({
@@ -91,11 +104,13 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 	});
 	const [coderOrgs, setCoderOrgs] = useState<Option[]>([]);
 	const [idpOrgName, setIdpOrgName] = useState("");
+	const [inputValue, setInputValue] = useState("");
 	const organizationMappingCount = form.values.mapping
 		? Object.entries(form.values.mapping).length
 		: 0;
 	const [isDialogOpen, setIsDialogOpen] = useState(false);
 	const id = useId();
+	const [open, setOpen] = useState(false);
 
 	const getOrgNames = (orgIds: readonly string[]) => {
 		return orgIds.map(
@@ -118,6 +133,19 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 		form.handleSubmit();
 	};
 
+	const handleKeyDown: KeyboardEventHandler<HTMLInputElement> = (event) => {
+		if (
+			event.key === "Enter" &&
+			inputValue &&
+			!claimFieldValues?.some((value) => value === inputValue.toLowerCase())
+		) {
+			event.preventDefault();
+			setIdpOrgName(inputValue);
+			setInputValue("");
+			setOpen(false);
+		}
+	};
+
 	return (
 		<div className="flex flex-col gap-2">
 			{Boolean(error) && <ErrorAlert error={error} />}
@@ -135,6 +163,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 										value={form.values.field}
 										onChange={(event) => {
 											void form.setFieldValue("field", event.target.value);
+											onSyncFieldChange(event.target.value);
 										}}
 									/>
 									<Button
@@ -184,20 +213,38 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 							{form.errors.field}
 						</p>
 					)}
-					<div className="flex flex-col gap-4">
+					<div className="flex flex-col gap-7">
 						<div className="flex flex-row pt-8 gap-2 justify-between items-start">
 							<div className="grid items-center gap-1">
 								<Label className="text-sm" htmlFor={`${id}-idp-org-name`}>
 									IdP organization name
 								</Label>
-								<Input
-									id={`${id}-idp-org-name`}
-									value={idpOrgName}
-									className="min-w-72 w-72"
-									onChange={(event) => {
-										setIdpOrgName(event.target.value);
-									}}
-								/>
+
+								{claimFieldValues ? (
+									<Combobox
+										value={idpOrgName}
+										options={claimFieldValues}
+										placeholder="Select IdP organization"
+										open={open}
+										onOpenChange={setOpen}
+										inputValue={inputValue}
+										onInputChange={setInputValue}
+										onKeyDown={handleKeyDown}
+										onSelect={(value: string) => {
+											setIdpOrgName(value);
+											setOpen(false);
+										}}
+									/>
+								) : (
+									<Input
+										id={`${id}-idp-org-name`}
+										value={idpOrgName}
+										className="w-72"
+										onChange={(event) => {
+											setIdpOrgName(event.target.value);
+										}}
+									/>
+								)}
 							</div>
 							<div className="grid items-center gap-1 flex-1">
 								<Label className="text-sm" htmlFor={`${id}-coder-org`}>
@@ -218,7 +265,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 									placeholder="Select organization"
 									emptyIndicator={
 										<p className="text-center text-md text-content-primary">
-											All organizations selected
+											No organizations found
 										</p>
 									}
 								/>
@@ -267,6 +314,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 											idpOrg={idpOrg}
 											coderOrgs={getOrgNames(organizations)}
 											onDelete={handleDelete}
+											exists={claimFieldValues?.includes(idpOrg)}
 										/>
 									))}
 						</IdpMappingTable>
@@ -315,57 +363,80 @@ interface IdpMappingTableProps {
 
 const IdpMappingTable: FC<IdpMappingTableProps> = ({ isEmpty, children }) => {
 	return (
-		<TableContainer>
-			<Table>
-				<TableHead>
-					<TableRow>
-						<TableCell width="45%">IdP organization</TableCell>
-						<TableCell width="55%">Coder organization</TableCell>
-						<TableCell width="10%" />
-					</TableRow>
-				</TableHead>
-				<TableBody>
-					<ChooseOne>
-						<Cond condition={isEmpty}>
-							<TableRow>
-								<TableCell colSpan={999}>
-									<EmptyState
-										message={"No organization mappings"}
-										isCompact
-										cta={
-											<Link
-												href={docs("/admin/users/idp-sync#organization-sync")}
-											>
-												How to set up IdP organization sync
-											</Link>
-										}
-									/>
-								</TableCell>
-							</TableRow>
-						</Cond>
+		<Table>
+			<TableHeader>
+				<TableRow>
+					<TableHead className="w-2/5">IdP organization</TableHead>
+					<TableHead className="w-3/5">Coder organization</TableHead>
+					<TableHead className="w-auto" />
+				</TableRow>
+			</TableHeader>
+			<TableBody>
+				<ChooseOne>
+					<Cond condition={isEmpty}>
+						<TableRow>
+							<TableCell colSpan={999}>
+								<EmptyState
+									message={"No organization mappings"}
+									isCompact
+									cta={
+										<Link
+											href={docs("/admin/users/idp-sync#organization-sync")}
+										>
+											How to set up IdP organization sync
+										</Link>
+									}
+								/>
+							</TableCell>
+						</TableRow>
+					</Cond>
 
-						<Cond>{children}</Cond>
-					</ChooseOne>
-				</TableBody>
-			</Table>
-		</TableContainer>
+					<Cond>{children}</Cond>
+				</ChooseOne>
+			</TableBody>
+		</Table>
 	);
 };
 
 interface OrganizationRowProps {
 	idpOrg: string;
+	exists: boolean | undefined;
 	coderOrgs: readonly string[];
 	onDelete: (idpOrg: string) => void;
 }
 
 const OrganizationRow: FC<OrganizationRowProps> = ({
 	idpOrg,
+	exists = true,
 	coderOrgs,
 	onDelete,
 }) => {
 	return (
 		<TableRow data-testid={`idp-org-${idpOrg}`}>
-			<TableCell>{idpOrg}</TableCell>
+			<TableCell>
+				<div className="flex flex-row items-center gap-2 text-content-primary">
+					{idpOrg}
+					{!exists && (
+						<TooltipProvider>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<TriangleAlert className="size-icon-xs cursor-pointer text-content-warning" />
+								</TooltipTrigger>
+								<TooltipContent
+									align="start"
+									alignOffset={-8}
+									sideOffset={8}
+									className="p-2 text-xs text-content-secondary max-w-sm"
+								>
+									This value has not be seen in the specified claim field
+									before. You might want to check your IdP configuration and
+									ensure that this value is not misspelled.
+								</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
+					)}
+				</div>
+			</TableCell>
 			<TableCell>
 				<OrganizationPills organizations={coderOrgs} />
 			</TableCell>

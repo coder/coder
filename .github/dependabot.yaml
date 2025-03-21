@@ -9,21 +9,6 @@ updates:
     labels: []
     commit-message:
       prefix: "ci"
-    ignore:
-      # These actions deliver the latest versions by updating the major
-      # release tag, so ignore minor and patch versions
-      - dependency-name: "actions/*"
-        update-types:
-          - version-update:semver-minor
-          - version-update:semver-patch
-      - dependency-name: "Apple-Actions/import-codesign-certs"
-        update-types:
-          - version-update:semver-minor
-          - version-update:semver-patch
-      - dependency-name: "marocchino/sticky-pull-request-comment"
-        update-types:
-          - version-update:semver-minor
-          - version-update:semver-patch
     groups:
       github-actions:
         patterns:
@@ -52,7 +37,8 @@ updates:
   # Update our Dockerfile.
   - package-ecosystem: "docker"
     directories:
-      - "/dogfood/contents"
+      - "/dogfood/coder"
+      - "/dogfood/coder-envbuilder"
       - "/scripts"
       - "/examples/templates/docker/build"
       - "/examples/parameters/build"

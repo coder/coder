@@ -1,14 +1,6 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import PersonAdd from "@mui/icons-material/PersonAdd";
 import LoadingButton from "@mui/lab/LoadingButton";
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
 import { getErrorMessage } from "api/errors";
-import type { GroupsByUserId } from "api/queries/groups";
 import type {
 	Group,
 	OrganizationMemberWithUserData,
@@ -26,9 +18,20 @@ import {
 	MoreMenuTrigger,
 	ThreeDotsButton,
 } from "components/MoreMenu/MoreMenu";
+import { PaginationContainer } from "components/PaginationWidget/PaginationContainer";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "components/Table/Table";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
+import type { PaginationResultInfo } from "hooks/usePaginatedQuery";
+import { TriangleAlert } from "lucide-react";
 import { UserGroupsCell } from "pages/UsersPage/UsersTable/UserGroupsCell";
 import { type FC, useState } from "react";
 import { TableColumnHelpTooltip } from "./UserTable/TableColumnHelpTooltip";
@@ -37,11 +40,15 @@ import { UserRoleCell } from "./UserTable/UserRoleCell";
 interface OrganizationMembersPageViewProps {
 	allAvailableRoles: readonly SlimRole[] | undefined;
 	canEditMembers: boolean;
+	canViewMembers: boolean;
 	error: unknown;
 	isAddingMember: boolean;
 	isUpdatingMemberRoles: boolean;
 	me: User;
 	members: Array<OrganizationMemberTableEntry> | undefined;
+	membersQuery: PaginationResultInfo & {
+		isPreviousData: boolean;
+	};
 	addMember: (user: User) => Promise<void>;
 	removeMember: (member: OrganizationMemberWithUserData) => void;
 	updateMemberRoles: (
@@ -59,10 +66,12 @@ export const OrganizationMembersPageView: FC<
 > = ({
 	allAvailableRoles,
 	canEditMembers,
+	canViewMembers,
 	error,
 	isAddingMember,
 	isUpdatingMemberRoles,
 	me,
+	membersQuery,
 	members,
 	addMember,
 	removeMember,
@@ -71,7 +80,7 @@ export const OrganizationMembersPageView: FC<
 	return (
 		<div>
 			<SettingsHeader title="Members" />
-			<Stack>
+			<div className="flex flex-col gap-4">
 				{Boolean(error) && <ErrorAlert error={error} />}
 
 				{canEditMembers && (
@@ -81,29 +90,37 @@ export const OrganizationMembersPageView: FC<
 					/>
 				)}
 
-				<TableContainer>
+				{!canViewMembers && (
+					<div className="flex flex-row text-content-warning gap-2 items-center text-sm font-medium">
+						<TriangleAlert className="size-icon-sm" />
+						<p>
+							You do not have permission to view members other than yourself.
+						</p>
+					</div>
+				)}
+				<PaginationContainer query={membersQuery} paginationUnitLabel="members">
 					<Table>
-						<TableHead>
+						<TableHeader>
 							<TableRow>
-								<TableCell width="33%">User</TableCell>
-								<TableCell width="33%">
+								<TableHead className="w-2/6">User</TableHead>
+								<TableHead className="w-2/6">
 									<Stack direction="row" spacing={1} alignItems="center">
 										<span>Roles</span>
 										<TableColumnHelpTooltip variant="roles" />
 									</Stack>
-								</TableCell>
-								<TableCell width="33%">
+								</TableHead>
+								<TableHead className="w-2/6">
 									<Stack direction="row" spacing={1} alignItems="center">
 										<span>Groups</span>
 										<TableColumnHelpTooltip variant="groups" />
 									</Stack>
-								</TableCell>
-								<TableCell width="1%" />
+								</TableHead>
+								<TableHead className="w-auto" />
 							</TableRow>
-						</TableHead>
+						</TableHeader>
 						<TableBody>
 							{members?.map((member) => (
-								<TableRow key={member.user_id}>
+								<TableRow key={member.user_id} className="align-baseline">
 									<TableCell>
 										<AvatarData
 											avatar={
@@ -156,8 +173,8 @@ export const OrganizationMembersPageView: FC<
 							))}
 						</TableBody>
 					</Table>
-				</TableContainer>
-			</Stack>
+				</PaginationContainer>
+			</div>
 		</div>
 	);
 };
@@ -190,7 +207,7 @@ const AddOrganizationMember: FC<AddOrganizationMemberProps> = ({
 		>
 			<Stack direction="row" alignItems="center" spacing={1}>
 				<UserAutocomplete
-					css={styles.autoComplete}
+					className="w-[300px]"
 					value={selectedUser}
 					onChange={(newValue) => {
 						setSelectedUser(newValue);
@@ -210,17 +227,3 @@ const AddOrganizationMember: FC<AddOrganizationMemberProps> = ({
 		</form>
 	);
 };
-
-const styles = {
-	role: (theme) => ({
-		backgroundColor: theme.roles.notice.background,
-		borderColor: theme.roles.notice.outline,
-	}),
-	globalRole: (theme) => ({
-		backgroundColor: theme.roles.inactive.background,
-		borderColor: theme.roles.inactive.outline,
-	}),
-	autoComplete: {
-		width: 300,
-	},
-} satisfies Record<string, Interpolation<Theme>>;

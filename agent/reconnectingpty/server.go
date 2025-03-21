@@ -14,32 +14,49 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentssh"
+	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
+
+type reportConnectionFunc func(id uuid.UUID, ip string) (disconnected func(code int, reason string))
 
 type Server struct {
 	logger           slog.Logger
 	connectionsTotal prometheus.Counter
 	errorsTotal      *prometheus.CounterVec
 	commandCreator   *agentssh.Server
+	reportConnection reportConnectionFunc
 	connCount        atomic.Int64
 	reconnectingPTYs sync.Map
 	timeout          time.Duration
+
+	ExperimentalDevcontainersEnabled bool
 }
 
 // NewServer returns a new ReconnectingPTY server
-func NewServer(logger slog.Logger, commandCreator *agentssh.Server,
+func NewServer(logger slog.Logger, commandCreator *agentssh.Server, reportConnection reportConnectionFunc,
 	connectionsTotal prometheus.Counter, errorsTotal *prometheus.CounterVec,
-	timeout time.Duration,
+	timeout time.Duration, opts ...func(*Server),
 ) *Server {
-	return &Server{
+	if reportConnection == nil {
+		reportConnection = func(uuid.UUID, string) func(int, string) {
+			return func(int, string) {}
+		}
+	}
+	s := &Server{
 		logger:           logger,
 		commandCreator:   commandCreator,
+		reportConnection: reportConnection,
 		connectionsTotal: connectionsTotal,
 		errorsTotal:      errorsTotal,
 		timeout:          timeout,
 	}
+	for _, o := range opts {
+		o(s)
+	}
+	return s
 }
 
 func (s *Server) Serve(ctx, hardCtx context.Context, l net.Listener) (retErr error) {
@@ -59,20 +76,31 @@ func (s *Server) Serve(ctx, hardCtx context.Context, l net.Listener) (retErr err
 			slog.F("local", conn.LocalAddr().String()))
 		clog.Info(ctx, "accepted conn")
 		wg.Add(1)
+		disconnected := s.reportConnection(uuid.New(), conn.RemoteAddr().String())
 		closed := make(chan struct{})
 		go func() {
+			defer wg.Done()
 			select {
 			case <-closed:
 			case <-hardCtx.Done():
+				disconnected(1, "server shut down")
 				_ = conn.Close()
 			}
-			wg.Done()
 		}()
 		wg.Add(1)
 		go func() {
 			defer close(closed)
 			defer wg.Done()
-			_ = s.handleConn(ctx, clog, conn)
+			err := s.handleConn(ctx, clog, conn)
+			if err != nil {
+				if ctx.Err() != nil {
+					disconnected(1, "server shutting down")
+				} else {
+					disconnected(1, err.Error())
+				}
+			} else {
+				disconnected(0, "")
+			}
 		}()
 	}
 	wg.Wait()
@@ -116,7 +144,7 @@ func (s *Server) handleConn(ctx context.Context, logger slog.Logger, conn net.Co
 	}
 
 	connectionID := uuid.NewString()
-	connLogger := logger.With(slog.F("message_id", msg.ID), slog.F("connection_id", connectionID))
+	connLogger := logger.With(slog.F("message_id", msg.ID), slog.F("connection_id", connectionID), slog.F("container", msg.Container), slog.F("container_user", msg.ContainerUser))
 	connLogger.Debug(ctx, "starting handler")
 
 	defer func() {
@@ -158,8 +186,17 @@ func (s *Server) handleConn(ctx context.Context, logger slog.Logger, conn net.Co
 			}
 		}()
 
+		var ei usershell.EnvInfoer
+		if s.ExperimentalDevcontainersEnabled && msg.Container != "" {
+			dei, err := agentcontainers.EnvInfo(ctx, s.commandCreator.Execer, msg.Container, msg.ContainerUser)
+			if err != nil {
+				return xerrors.Errorf("get container env info: %w", err)
+			}
+			ei = dei
+			s.logger.Info(ctx, "got container env info", slog.F("container", msg.Container))
+		}
 		// Empty command will default to the users shell!
-		cmd, err := s.commandCreator.CreateCommand(ctx, msg.Command, nil)
+		cmd, err := s.commandCreator.CreateCommand(ctx, msg.Command, nil, ei)
 		if err != nil {
 			s.errorsTotal.WithLabelValues("create_command").Add(1)
 			return xerrors.Errorf("create command: %w", err)
@@ -170,8 +207,9 @@ func (s *Server) handleConn(ctx context.Context, logger slog.Logger, conn net.Co
 			s.commandCreator.Execer,
 			cmd,
 			&Options{
-				Timeout: s.timeout,
-				Metrics: s.errorsTotal,
+				Timeout:     s.timeout,
+				Metrics:     s.errorsTotal,
+				BackendType: msg.BackendType,
 			},
 		)
 

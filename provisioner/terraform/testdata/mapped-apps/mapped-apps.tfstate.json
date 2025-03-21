@@ -1,6 +1,6 @@
 {
   "format_version": "1.0",
-  "terraform_version": "1.9.8",
+  "terraform_version": "1.11.0",
   "values": {
     "root_module": {
       "resources": [
@@ -26,7 +26,7 @@
               }
             ],
             "env": null,
-            "id": "18098e15-2e8b-4c83-9362-0823834ae628",
+            "id": "bac96c8e-acef-4e1c-820d-0933d6989874",
             "init_script": "",
             "metadata": [],
             "motd_file": null,
@@ -36,7 +36,7 @@
             "shutdown_script": null,
             "startup_script": null,
             "startup_script_behavior": "non-blocking",
-            "token": "59691c9e-bf9e-4c93-9768-ba3582c68727",
+            "token": "d52f0d63-5b51-48b3-b342-fd48de4bf957",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -57,14 +57,14 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 1,
           "values": {
-            "agent_id": "18098e15-2e8b-4c83-9362-0823834ae628",
+            "agent_id": "bac96c8e-acef-4e1c-820d-0933d6989874",
             "command": null,
             "display_name": "app1",
             "external": false,
             "healthcheck": [],
             "hidden": false,
             "icon": null,
-            "id": "8f031ab5-e051-4eff-9f7e-233f5825c3fd",
+            "id": "96899450-2057-4e9b-8375-293d59d33ad5",
             "open_in": "slim-window",
             "order": null,
             "share": "owner",
@@ -88,14 +88,14 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 1,
           "values": {
-            "agent_id": "18098e15-2e8b-4c83-9362-0823834ae628",
+            "agent_id": "bac96c8e-acef-4e1c-820d-0933d6989874",
             "command": null,
             "display_name": "app2",
             "external": false,
             "healthcheck": [],
             "hidden": false,
             "icon": null,
-            "id": "5462894e-7fdc-4fd0-8715-7829e53efea2",
+            "id": "fe173876-2b1a-4072-ac0d-784e787e8a3b",
             "open_in": "slim-window",
             "order": null,
             "share": "owner",
@@ -118,7 +118,7 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "2699316377754222096",
+            "id": "6233436439206951440",
             "triggers": null
           },
           "sensitive_values": {},

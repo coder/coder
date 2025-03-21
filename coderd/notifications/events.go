@@ -39,3 +39,8 @@ var (
 
 	TemplateWorkspaceBuildsFailedReport = uuid.MustParse("34a20db2-e9cc-4a93-b0e4-8569699d7a00")
 )
+
+// Notification-related events.
+var (
+	TemplateTestNotification = uuid.MustParse("c425f63e-716a-4bf4-ae24-78348f706c3f")
+)

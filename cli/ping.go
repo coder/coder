@@ -21,13 +21,14 @@ import (
 
 	"github.com/coder/pretty"
 
+	"github.com/coder/serpent"
+
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
-	"github.com/coder/serpent"
 )
 
 type pingSummary struct {
@@ -86,6 +87,8 @@ func (r *RootCmd) ping() *serpent.Command {
 		pingNum          int64
 		pingTimeout      time.Duration
 		pingWait         time.Duration
+		pingTimeLocal    bool
+		pingTimeUTC      bool
 		appearanceConfig codersdk.AppearanceConfig
 	)
 
@@ -159,7 +162,7 @@ func (r *RootCmd) ping() *serpent.Command {
 				LocalNetInfo:       ni,
 				Verbose:            r.verbose,
 				PingP2P:            didP2p,
-				TroubleshootingURL: appearanceConfig.DocsURL + "/networking/troubleshooting",
+				TroubleshootingURL: appearanceConfig.DocsURL + "/admin/networking/troubleshooting",
 			}
 
 			awsRanges, err := cliutil.FetchAWSIPRanges(diagCtx, cliutil.AWSIPRangesURL)
@@ -217,6 +220,10 @@ func (r *RootCmd) ping() *serpent.Command {
 
 				ctx, cancel := context.WithTimeout(ctx, pingTimeout)
 				dur, p2p, pong, err = conn.Ping(ctx)
+				pongTime := time.Now()
+				if pingTimeUTC {
+					pongTime = pongTime.UTC()
+				}
 				cancel()
 				results.addResult(pong)
 				if err != nil {
@@ -268,7 +275,13 @@ func (r *RootCmd) ping() *serpent.Command {
 					)
 				}
 
-				_, _ = fmt.Fprintf(inv.Stdout, "pong from %s %s in %s\n",
+				var displayTime string
+				if pingTimeLocal || pingTimeUTC {
+					displayTime = pretty.Sprintf(cliui.DefaultStyles.DateTimeStamp, "[%s] ", pongTime.Format(time.RFC3339))
+				}
+
+				_, _ = fmt.Fprintf(inv.Stdout, "%spong from %s %s in %s\n",
+					displayTime,
 					pretty.Sprint(cliui.DefaultStyles.Keyword, workspaceName),
 					via,
 					pretty.Sprint(cliui.DefaultStyles.DateTimeStamp, dur.String()),
@@ -320,6 +333,16 @@ func (r *RootCmd) ping() *serpent.Command {
 			FlagShorthand: "n",
 			Description:   "Specifies the number of pings to perform. By default, pings will continue until interrupted.",
 			Value:         serpent.Int64Of(&pingNum),
+		},
+		{
+			Flag:        "time",
+			Description: "Show the response time of each pong in local time.",
+			Value:       serpent.BoolOf(&pingTimeLocal),
+		},
+		{
+			Flag:        "utc",
+			Description: "Show the response time of each pong in UTC (implies --time).",
+			Value:       serpent.BoolOf(&pingTimeUTC),
 		},
 	}
 	return cmd

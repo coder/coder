@@ -14,6 +14,7 @@
   writeShellScriptBin,
   writeText,
   writeTextFile,
+  writeTextDir,
   cacert,
   storeDir ? builtins.storeDir,
   pigz,
@@ -43,6 +44,33 @@ let
     mkdir -p $out/bin
     ln -s ${bashInteractive}/bin/bash $out/bin/sh
     ln -s ${bashInteractive}/bin/bash $out/bin/bash
+  '';
+
+  etcNixConf = writeTextDir "etc/nix/nix.conf" ''
+    experimental-features = nix-command flakes
+  '';
+
+  etcPamdSudoFile = writeText "pam-sudo" ''
+    # Allow root to bypass authentication (optional)
+    auth      sufficient pam_rootok.so
+
+    # For all users, always allow auth
+    auth      sufficient pam_permit.so
+
+    # Do not perform any account management checks
+    account   sufficient pam_permit.so
+
+    # No password management here (only needed if you are changing passwords)
+    # password  requisite pam_unix.so nullok yescrypt
+
+    # Keep session logging if desired
+    session   required pam_unix.so
+  '';
+
+  etcPamdSudo = runCommand "etc-pamd-sudo" { } ''
+    mkdir -p $out/etc/pam.d/
+    ln -s ${etcPamdSudoFile} $out/etc/pam.d/sudo
+    ln -s ${etcPamdSudoFile} $out/etc/pam.d/su
   '';
 
   compressors = {
@@ -83,6 +111,7 @@ let
       run ? null,
       maxLayers ? 100,
       uname ? "nixbld",
+      releaseName ? "0.0.0",
     }:
     assert lib.assertMsg (!(drv.drvAttrs.__structuredAttrs or false))
       "streamNixShellImage: Does not work with the derivation ${drv.name} because it uses __structuredAttrs";
@@ -130,40 +159,9 @@ let
         ''}
       '';
 
-      nixConfFile = writeText "nix-conf" ''
-        experimental-features = nix-command flakes
-      '';
-
-      etcNixConf = runCommand "etc-nix-conf" { } ''
-        mkdir -p $out/etc/nix/
-        ln -s ${nixConfFile} $out/etc/nix/nix.conf
-      '';
-
-      sudoersFile = writeText "sudoers" ''
+      etcSudoers = writeTextDir "etc/sudoers" ''
         root ALL=(ALL) ALL
         ${toString uname} ALL=(ALL) NOPASSWD:ALL
-      '';
-
-      etcSudoers = runCommand "etc-sudoers" { } ''
-        mkdir -p $out/etc/
-        cp ${sudoersFile} $out/etc/sudoers
-        chmod 440 $out/etc/sudoers
-      '';
-
-      pamSudoFile = writeText "pam-sudo" ''
-        auth       sufficient   pam_rootok.so
-        auth       required     pam_permit.so
-        account    required     pam_permit.so
-        session    required     pam_permit.so
-        session    optional     pam_xauth.so
-      '';
-
-      etcPamSudo = runCommand "etc-pam-sudo" { } ''
-        mkdir -p $out/etc/pam.d/
-        cp ${pamSudoFile} $out/etc/pam.d/sudo
-
-        # We can’t chown in a sandbox, but that’s okay for Nix store.
-        chmod 644 $out/etc/pam.d/sudo
       '';
 
       # Add our Docker init script
@@ -205,6 +203,10 @@ let
           exit 0
         '';
       };
+
+      etcReleaseName = writeTextDir "etc/coderniximage-release" ''
+        ${releaseName}
+      '';
 
       # https://github.com/NixOS/nix/blob/2.8.0/src/libstore/globals.hh#L464-L465
       sandboxBuildDir = "/build";
@@ -273,7 +275,8 @@ let
         caCertificates
         etcNixConf
         etcSudoers
-        etcPamSudo
+        etcPamdSudo
+        etcReleaseName
         (fakeNss.override {
           # Allows programs to look up the build user's home directory
           # https://github.com/NixOS/nix/blob/ffe155abd36366a870482625543f9bf924a58281/src/libstore/build/local-derivation-goal.cc#L906-L910
@@ -333,6 +336,7 @@ let
         chmod 4755 ./usr/bin/sudo
 
         chown root:root ./etc/pam.d/sudo
+        chown root:root ./etc/pam.d/su
         chown root:root ./etc/sudoers
 
         # Create /var/run and chown it so docker command

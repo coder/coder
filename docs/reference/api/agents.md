@@ -638,6 +638,72 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/con
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get running containers for workspace agent
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/containers?label=string \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /workspaceagents/{workspaceagent}/containers`
+
+### Parameters
+
+| Name             | In    | Type              | Required | Description        |
+|------------------|-------|-------------------|----------|--------------------|
+| `workspaceagent` | path  | string(uuid)      | true     | Workspace agent ID |
+| `label`          | query | string(key=value) | true     | Labels             |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "containers": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": "string",
+      "image": "string",
+      "labels": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "name": "string",
+      "ports": [
+        {
+          "host_ip": "string",
+          "host_port": 0,
+          "network": "string",
+          "port": 0
+        }
+      ],
+      "running": true,
+      "status": "string",
+      "volumes": {
+        "property1": "string",
+        "property2": "string"
+      }
+    }
+  ],
+  "warnings": [
+    "string"
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                                   |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceAgentListContainersResponse](schemas.md#codersdkworkspaceagentlistcontainersresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Coordinate workspace agent
 
 ### Code samples

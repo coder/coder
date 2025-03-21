@@ -1,6 +1,6 @@
 {
   "format_version": "1.0",
-  "terraform_version": "1.9.8",
+  "terraform_version": "1.11.0",
   "values": {
     "root_module": {
       "resources": [
@@ -26,7 +26,7 @@
               }
             ],
             "env": null,
-            "id": "00794e64-40d3-43df-885a-4b1cc5f5b965",
+            "id": "b67999d7-9356-4d32-b3ed-f9ffd283cd5b",
             "init_script": "",
             "metadata": [],
             "motd_file": null,
@@ -36,7 +36,7 @@
             "shutdown_script": null,
             "startup_script": null,
             "startup_script_behavior": "non-blocking",
-            "token": "7c0a6e5e-dd2c-46e4-a5f5-f71aae7515c3",
+            "token": "f736f6d7-6fce-47b6-9fe0-3c99ce17bd8f",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -70,7 +70,7 @@
               }
             ],
             "env": null,
-            "id": "1b8ddc14-25c2-4eab-b282-71b12d45de73",
+            "id": "cb18360a-0bad-4371-a26d-50c30e1d33f7",
             "init_script": "",
             "metadata": [],
             "motd_file": null,
@@ -80,7 +80,7 @@
             "shutdown_script": null,
             "startup_script": null,
             "startup_script_behavior": "non-blocking",
-            "token": "39497aa1-11a1-40c0-854d-554c2e27ef77",
+            "token": "5d1d447c-65b0-47ba-998b-1ba752db7d78",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -100,14 +100,14 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 1,
           "values": {
-            "agent_id": "00794e64-40d3-43df-885a-4b1cc5f5b965",
+            "agent_id": "b67999d7-9356-4d32-b3ed-f9ffd283cd5b",
             "command": null,
             "display_name": null,
             "external": false,
             "healthcheck": [],
             "hidden": false,
             "icon": null,
-            "id": "c9cf036f-5fd9-408a-8c28-90cde4c5b0cf",
+            "id": "07588471-02bb-4fd5-b1d5-575b85269831",
             "open_in": "slim-window",
             "order": null,
             "share": "owner",
@@ -130,7 +130,7 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 1,
           "values": {
-            "agent_id": "00794e64-40d3-43df-885a-4b1cc5f5b965",
+            "agent_id": "b67999d7-9356-4d32-b3ed-f9ffd283cd5b",
             "command": null,
             "display_name": null,
             "external": false,
@@ -143,7 +143,7 @@
             ],
             "hidden": false,
             "icon": null,
-            "id": "e40999b2-8ceb-4e35-962b-c0b7b95c8bc8",
+            "id": "c09130c1-9fae-4bae-aa52-594f75524f96",
             "open_in": "slim-window",
             "order": null,
             "share": "owner",
@@ -168,14 +168,14 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 1,
           "values": {
-            "agent_id": "1b8ddc14-25c2-4eab-b282-71b12d45de73",
+            "agent_id": "cb18360a-0bad-4371-a26d-50c30e1d33f7",
             "command": null,
             "display_name": null,
             "external": false,
             "healthcheck": [],
             "hidden": false,
             "icon": null,
-            "id": "4e61c245-271a-41e1-9a37-2badf68bf5cd",
+            "id": "40b06284-da65-4289-a0bc-9db74bde23bf",
             "open_in": "slim-window",
             "order": null,
             "share": "owner",
@@ -198,7 +198,7 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "7796235346668423309",
+            "id": "5736572714180973036",
             "triggers": null
           },
           "sensitive_values": {},
@@ -214,7 +214,7 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "8353198974918613541",
+            "id": "8645366905408885514",
             "triggers": null
           },
           "sensitive_values": {},

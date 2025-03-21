@@ -2,7 +2,7 @@
   "_version": "1.1",
   "msg_id": "00000000-0000-0000-0000-000000000000",
   "payload": {
-    "_version": "1.1",
+    "_version": "1.2",
     "notification_name": "Template Deleted",
     "notification_template_id": "00000000-0000-0000-0000-000000000000",
     "user_id": "00000000-0000-0000-0000-000000000000",
@@ -19,10 +19,11 @@
       "initiator": "rob",
       "name": "Bobby's Template"
     },
-    "data": null
+    "data": null,
+    "targets": null
   },
   "title": "Template \"Bobby's Template\" deleted",
   "title_markdown": "Template \"Bobby's Template\" deleted",
-  "body": "Hi Bobby,\n\nThe template Bobby's Template was deleted by rob.",
-  "body_markdown": "Hi Bobby,\n\nThe template **Bobby's Template** was deleted by **rob**.\n\n"
+  "body": "The template Bobby's Template was deleted by rob.",
+  "body_markdown": "The template **Bobby's Template** was deleted by **rob**.\n\n"
 }

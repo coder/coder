@@ -167,8 +167,6 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		// TODO: It would be nice to enforce this at the schema level
-		// but unfortunately our org_members table does not have an ID.
 		_, err := database.ExpectOne(api.Database.OrganizationMembers(ctx, database.OrganizationMembersParams{
 			OrganizationID: group.OrganizationID,
 			UserID:         uuid.MustParse(id),
@@ -440,7 +438,10 @@ func (api *API) groups(rw http.ResponseWriter, r *http.Request) {
 	parser := httpapi.NewQueryParamParser()
 	// Organization selector can be an org ID or name
 	filter.OrganizationID = parser.UUIDorName(r.URL.Query(), uuid.Nil, "organization", func(orgName string) (uuid.UUID, error) {
-		org, err := api.Database.GetOrganizationByName(ctx, orgName)
+		org, err := api.Database.GetOrganizationByName(ctx, database.GetOrganizationByNameParams{
+			Name:    orgName,
+			Deleted: false,
+		})
 		if err != nil {
 			return uuid.Nil, xerrors.Errorf("organization %q not found", orgName)
 		}

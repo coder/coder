@@ -19,6 +19,20 @@ import (
 
 // AuditLogs requires the database to fetch an organization by name
 // to convert to organization uuid.
+//
+// Supported query parameters:
+//
+//   - request_id: UUID (can be used to search for associated audits e.g. connect/disconnect or open/close)
+//   - resource_id: UUID
+//   - resource_target: string
+//   - username: string
+//   - email: string
+//   - date_from: string (date in format "2006-01-02")
+//   - date_to: string (date in format "2006-01-02")
+//   - organization: string (organization UUID or name)
+//   - resource_type: string (enum)
+//   - action: string (enum)
+//   - build_reason: string (enum)
 func AuditLogs(ctx context.Context, db database.Store, query string) (database.GetAuditLogsOffsetParams, []codersdk.ValidationError) {
 	// Always lowercase for all searches.
 	query = strings.ToLower(query)
@@ -33,6 +47,7 @@ func AuditLogs(ctx context.Context, db database.Store, query string) (database.G
 	const dateLayout = "2006-01-02"
 	parser := httpapi.NewQueryParamParser()
 	filter := database.GetAuditLogsOffsetParams{
+		RequestID:      parser.UUID(values, uuid.Nil, "request_id"),
 		ResourceID:     parser.UUID(values, uuid.Nil, "resource_id"),
 		ResourceTarget: parser.String(values, "", "resource_target"),
 		Username:       parser.String(values, "", "username"),
@@ -65,13 +80,14 @@ func Users(query string) (database.GetUsersParams, []codersdk.ValidationError) {
 
 	parser := httpapi.NewQueryParamParser()
 	filter := database.GetUsersParams{
-		Search:         parser.String(values, "", "search"),
-		Status:         httpapi.ParseCustomList(parser, values, []database.UserStatus{}, "status", httpapi.ParseEnum[database.UserStatus]),
-		RbacRole:       parser.Strings(values, []string{}, "role"),
-		LastSeenAfter:  parser.Time3339Nano(values, time.Time{}, "last_seen_after"),
-		LastSeenBefore: parser.Time3339Nano(values, time.Time{}, "last_seen_before"),
-		CreatedAfter:   parser.Time3339Nano(values, time.Time{}, "created_after"),
-		CreatedBefore:  parser.Time3339Nano(values, time.Time{}, "created_before"),
+		Search:          parser.String(values, "", "search"),
+		Status:          httpapi.ParseCustomList(parser, values, []database.UserStatus{}, "status", httpapi.ParseEnum[database.UserStatus]),
+		RbacRole:        parser.Strings(values, []string{}, "role"),
+		LastSeenAfter:   parser.Time3339Nano(values, time.Time{}, "last_seen_after"),
+		LastSeenBefore:  parser.Time3339Nano(values, time.Time{}, "last_seen_before"),
+		CreatedAfter:    parser.Time3339Nano(values, time.Time{}, "created_after"),
+		CreatedBefore:   parser.Time3339Nano(values, time.Time{}, "created_before"),
+		GithubComUserID: parser.Int64(values, 0, "github_com_user_id"),
 	}
 	parser.ErrorExcessParams(values)
 	return filter, parser.Errors
@@ -243,7 +259,9 @@ func parseOrganization(ctx context.Context, db database.Store, parser *httpapi.Q
 		if err == nil {
 			return organizationID, nil
 		}
-		organization, err := db.GetOrganizationByName(ctx, v)
+		organization, err := db.GetOrganizationByName(ctx, database.GetOrganizationByNameParams{
+			Name: v, Deleted: false,
+		})
 		if err != nil {
 			return uuid.Nil, xerrors.Errorf("organization %q either does not exist, or you are unauthorized to view it", v)
 		}

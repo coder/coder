@@ -2,7 +2,7 @@
   "_version": "1.1",
   "msg_id": "00000000-0000-0000-0000-000000000000",
   "payload": {
-    "_version": "1.1",
+    "_version": "1.2",
     "notification_name": "Workspace Deleted",
     "notification_template_id": "00000000-0000-0000-0000-000000000000",
     "user_id": "00000000-0000-0000-0000-000000000000",
@@ -24,10 +24,14 @@
       "name": "bobby-workspace",
       "reason": "autodeleted due to dormancy"
     },
-    "data": null
+    "data": null,
+    "targets": [
+      "00000000-0000-0000-0000-000000000000",
+      "00000000-0000-0000-0000-000000000000"
+    ]
   },
   "title": "Workspace \"bobby-workspace\" deleted",
   "title_markdown": "Workspace \"bobby-workspace\" deleted",
-  "body": "Hi Bobby,\n\nYour workspace bobby-workspace was deleted.\n\nThe specified reason was \"autodeleted due to dormancy (autobuild)\".",
-  "body_markdown": "Hi Bobby,\n\nYour workspace **bobby-workspace** was deleted.\n\nThe specified reason was \"**autodeleted due to dormancy (autobuild)**\"."
+  "body": "Your workspace bobby-workspace was deleted.\n\nThe specified reason was \"autodeleted due to dormancy (autobuild)\".",
+  "body_markdown": "Your workspace **bobby-workspace** was deleted.\n\nThe specified reason was \"**autodeleted due to dormancy (autobuild)**\"."
 }

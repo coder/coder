@@ -5,6 +5,7 @@ import type {
 	Experiments,
 	Region,
 	User,
+	UserAppearanceSettings,
 } from "api/typesGenerated";
 import { useMemo, useSyncExternalStore } from "react";
 
@@ -25,6 +26,7 @@ type AvailableMetadata = Readonly<{
 	user: User;
 	experiments: Experiments;
 	appearance: AppearanceConfig;
+	userAppearance: UserAppearanceSettings;
 	entitlements: Entitlements;
 	regions: readonly Region[];
 	"build-info": BuildInfoResponse;
@@ -83,6 +85,8 @@ export class MetadataManager implements MetadataManagerApi {
 		this.metadata = {
 			user: this.registerValue<User>("user"),
 			appearance: this.registerValue<AppearanceConfig>("appearance"),
+			userAppearance:
+				this.registerValue<UserAppearanceSettings>("userAppearance"),
 			entitlements: this.registerValue<Entitlements>("entitlements"),
 			experiments: this.registerValue<Experiments>("experiments"),
 			"build-info": this.registerValue<BuildInfoResponse>("build-info"),

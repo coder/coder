@@ -1,13 +1,6 @@
-import type { AuthorizationResponse, Organization } from "api/typesGenerated";
-import { useAuthenticated } from "contexts/auth/RequireAuth";
-import { RequirePermission } from "contexts/auth/RequirePermission";
+import type { Organization } from "api/typesGenerated";
 import { useDashboard } from "modules/dashboard/useDashboard";
-import {
-	type FC,
-	type PropsWithChildren,
-	createContext,
-	useContext,
-} from "react";
+import { type FC, createContext, useContext } from "react";
 import { Navigate, Outlet, useParams } from "react-router-dom";
 
 export const GroupsPageContext = createContext<

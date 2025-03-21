@@ -54,9 +54,11 @@ type ReducedUser struct {
 	UpdatedAt   time.Time `json:"updated_at" table:"updated at" format:"date-time"`
 	LastSeenAt  time.Time `json:"last_seen_at" format:"date-time"`
 
-	Status          UserStatus `json:"status" table:"status" enums:"active,suspended"`
-	LoginType       LoginType  `json:"login_type"`
-	ThemePreference string     `json:"theme_preference"`
+	Status    UserStatus `json:"status" table:"status" enums:"active,suspended"`
+	LoginType LoginType  `json:"login_type"`
+	// Deprecated: this value should be retrieved from
+	// `codersdk.UserPreferenceSettings` instead.
+	ThemePreference string `json:"theme_preference,omitempty"`
 }
 
 // User represents a user in Coder.
@@ -187,6 +189,10 @@ type ValidateUserPasswordResponse struct {
 	Details string `json:"details"`
 }
 
+type UserAppearanceSettings struct {
+	ThemePreference string `json:"theme_preference"`
+}
+
 type UpdateUserAppearanceSettingsRequest struct {
 	ThemePreference string `json:"theme_preference" validate:"required"`
 }
@@ -275,10 +281,10 @@ type OAuthConversionResponse struct {
 
 // AuthMethods contains authentication method information like whether they are enabled or not or custom text, etc.
 type AuthMethods struct {
-	TermsOfServiceURL string         `json:"terms_of_service_url,omitempty"`
-	Password          AuthMethod     `json:"password"`
-	Github            AuthMethod     `json:"github"`
-	OIDC              OIDCAuthMethod `json:"oidc"`
+	TermsOfServiceURL string           `json:"terms_of_service_url,omitempty"`
+	Password          AuthMethod       `json:"password"`
+	Github            GithubAuthMethod `json:"github"`
+	OIDC              OIDCAuthMethod   `json:"oidc"`
 }
 
 type AuthMethod struct {
@@ -287,6 +293,11 @@ type AuthMethod struct {
 
 type UserLoginType struct {
 	LoginType LoginType `json:"login_type"`
+}
+
+type GithubAuthMethod struct {
+	Enabled                   bool `json:"enabled"`
+	DefaultProviderConfigured bool `json:"default_provider_configured"`
 }
 
 type OIDCAuthMethod struct {

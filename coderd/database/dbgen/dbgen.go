@@ -255,6 +255,18 @@ func WorkspaceAgentScriptTiming(t testing.TB, db database.Store, orig database.W
 	panic("failed to insert workspace agent script timing")
 }
 
+func WorkspaceAgentDevcontainer(t testing.TB, db database.Store, orig database.WorkspaceAgentDevcontainer) database.WorkspaceAgentDevcontainer {
+	devcontainers, err := db.InsertWorkspaceAgentDevcontainers(genCtx, database.InsertWorkspaceAgentDevcontainersParams{
+		WorkspaceAgentID: takeFirst(orig.WorkspaceAgentID, uuid.New()),
+		CreatedAt:        takeFirst(orig.CreatedAt, dbtime.Now()),
+		ID:               []uuid.UUID{takeFirst(orig.ID, uuid.New())},
+		WorkspaceFolder:  []string{takeFirst(orig.WorkspaceFolder, "/workspace")},
+		ConfigPath:       []string{takeFirst(orig.ConfigPath, "")},
+	})
+	require.NoError(t, err, "insert workspace agent devcontainer")
+	return devcontainers[0]
+}
+
 func Workspace(t testing.TB, db database.Store, orig database.WorkspaceTable) database.WorkspaceTable {
 	t.Helper()
 
@@ -314,6 +326,10 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 			Deadline:          takeFirst(orig.Deadline, dbtime.Now().Add(time.Hour)),
 			MaxDeadline:       takeFirst(orig.MaxDeadline, time.Time{}),
 			Reason:            takeFirst(orig.Reason, database.BuildReasonInitiator),
+			TemplateVersionPresetID: takeFirst(orig.TemplateVersionPresetID, uuid.NullUUID{
+				UUID:  uuid.UUID{},
+				Valid: false,
+			}),
 		})
 		if err != nil {
 			return err
@@ -446,6 +462,22 @@ func OrganizationMember(t testing.TB, db database.Store, orig database.Organizat
 	return mem
 }
 
+func NotificationInbox(t testing.TB, db database.Store, orig database.InsertInboxNotificationParams) database.InboxNotification {
+	notification, err := db.InsertInboxNotification(genCtx, database.InsertInboxNotificationParams{
+		ID:         takeFirst(orig.ID, uuid.New()),
+		UserID:     takeFirst(orig.UserID, uuid.New()),
+		TemplateID: takeFirst(orig.TemplateID, uuid.New()),
+		Targets:    takeFirstSlice(orig.Targets, []uuid.UUID{}),
+		Title:      takeFirst(orig.Title, testutil.GetRandomName(t)),
+		Content:    takeFirst(orig.Content, testutil.GetRandomName(t)),
+		Icon:       takeFirst(orig.Icon, ""),
+		Actions:    orig.Actions,
+		CreatedAt:  takeFirst(orig.CreatedAt, dbtime.Now()),
+	})
+	require.NoError(t, err, "insert notification")
+	return notification
+}
+
 func Group(t testing.TB, db database.Store, orig database.Group) database.Group {
 	t.Helper()
 
@@ -508,7 +540,6 @@ func GroupMember(t testing.TB, db database.Store, member database.GroupMemberTab
 		UserDeleted:            user.Deleted,
 		UserLastSeenAt:         user.LastSeenAt,
 		UserQuietHoursSchedule: user.QuietHoursSchedule,
-		UserThemePreference:    user.ThemePreference,
 		UserName:               user.Name,
 		UserGithubComUserID:    user.GithubComUserID,
 		OrganizationID:         group.OrganizationID,
@@ -1034,10 +1065,13 @@ func OAuth2ProviderAppToken(t testing.TB, db database.Store, seed database.OAuth
 
 func WorkspaceAgentMemoryResourceMonitor(t testing.TB, db database.Store, seed database.WorkspaceAgentMemoryResourceMonitor) database.WorkspaceAgentMemoryResourceMonitor {
 	monitor, err := db.InsertMemoryResourceMonitor(genCtx, database.InsertMemoryResourceMonitorParams{
-		AgentID:   takeFirst(seed.AgentID, uuid.New()),
-		Enabled:   takeFirst(seed.Enabled, true),
-		Threshold: takeFirst(seed.Threshold, 100),
-		CreatedAt: takeFirst(seed.CreatedAt, dbtime.Now()),
+		AgentID:        takeFirst(seed.AgentID, uuid.New()),
+		Enabled:        takeFirst(seed.Enabled, true),
+		State:          takeFirst(seed.State, database.WorkspaceAgentMonitorStateOK),
+		Threshold:      takeFirst(seed.Threshold, 100),
+		CreatedAt:      takeFirst(seed.CreatedAt, dbtime.Now()),
+		UpdatedAt:      takeFirst(seed.UpdatedAt, dbtime.Now()),
+		DebouncedUntil: takeFirst(seed.DebouncedUntil, time.Time{}),
 	})
 	require.NoError(t, err, "insert workspace agent memory resource monitor")
 	return monitor
@@ -1045,11 +1079,14 @@ func WorkspaceAgentMemoryResourceMonitor(t testing.TB, db database.Store, seed d
 
 func WorkspaceAgentVolumeResourceMonitor(t testing.TB, db database.Store, seed database.WorkspaceAgentVolumeResourceMonitor) database.WorkspaceAgentVolumeResourceMonitor {
 	monitor, err := db.InsertVolumeResourceMonitor(genCtx, database.InsertVolumeResourceMonitorParams{
-		AgentID:   takeFirst(seed.AgentID, uuid.New()),
-		Path:      takeFirst(seed.Path, "/"),
-		Enabled:   takeFirst(seed.Enabled, true),
-		Threshold: takeFirst(seed.Threshold, 100),
-		CreatedAt: takeFirst(seed.CreatedAt, dbtime.Now()),
+		AgentID:        takeFirst(seed.AgentID, uuid.New()),
+		Path:           takeFirst(seed.Path, "/"),
+		Enabled:        takeFirst(seed.Enabled, true),
+		State:          takeFirst(seed.State, database.WorkspaceAgentMonitorStateOK),
+		Threshold:      takeFirst(seed.Threshold, 100),
+		CreatedAt:      takeFirst(seed.CreatedAt, dbtime.Now()),
+		UpdatedAt:      takeFirst(seed.UpdatedAt, dbtime.Now()),
+		DebouncedUntil: takeFirst(seed.DebouncedUntil, time.Time{}),
 	})
 	require.NoError(t, err, "insert workspace agent volume resource monitor")
 	return monitor

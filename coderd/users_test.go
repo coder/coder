@@ -2,8 +2,10 @@ package coderd_test
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -19,7 +21,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
@@ -831,6 +832,7 @@ func TestPostUsers(t *testing.T) {
 		// Try to log in with OIDC.
 		userClient, _ := fake.Login(t, client, jwt.MapClaims{
 			"email": email,
+			"sub":   uuid.NewString(),
 		})
 
 		found, err := userClient.User(ctx, "me")
@@ -1871,6 +1873,33 @@ func TestGetUsers(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.ElementsMatch(t, active, res.Users)
+	})
+	t.Run("GithubComUserID", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		first := coderdtest.CreateFirstUser(t, client)
+		_ = dbgen.User(t, db, database.User{
+			Email:    "test2@coder.com",
+			Username: "test2",
+		})
+		// nolint:gocritic // Unit test
+		err := db.UpdateUserGithubComUserID(dbauthz.AsSystemRestricted(ctx), database.UpdateUserGithubComUserIDParams{
+			ID: first.UserID,
+			GithubComUserID: sql.NullInt64{
+				Int64: 123,
+				Valid: true,
+			},
+		})
+		require.NoError(t, err)
+		res, err := client.Users(ctx, codersdk.UsersRequest{
+			SearchQuery: "github_com_user_id:123",
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Users, 1)
+		require.Equal(t, res.Users[0].ID, first.UserID)
 	})
 }
 

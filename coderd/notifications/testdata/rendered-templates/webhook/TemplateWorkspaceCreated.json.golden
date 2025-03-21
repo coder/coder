@@ -2,7 +2,7 @@
   "_version": "1.1",
   "msg_id": "00000000-0000-0000-0000-000000000000",
   "payload": {
-    "_version": "1.1",
+    "_version": "1.2",
     "notification_name": "Workspace Created",
     "notification_template_id": "00000000-0000-0000-0000-000000000000",
     "user_id": "00000000-0000-0000-0000-000000000000",
@@ -20,10 +20,11 @@
       "version": "alpha",
       "workspace": "bobby-workspace"
     },
-    "data": null
+    "data": null,
+    "targets": null
   },
   "title": "Workspace 'bobby-workspace' has been created",
   "title_markdown": "Workspace 'bobby-workspace' has been created",
-  "body": "Hello Bobby,\n\nThe workspace bobby-workspace has been created from the template bobby-template using version alpha.",
-  "body_markdown": "Hello Bobby,\n\nThe workspace **bobby-workspace** has been created from the template **bobby-template** using version **alpha**."
+  "body": "The workspace bobby-workspace has been created from the template bobby-template using version alpha.",
+  "body_markdown": "The workspace **bobby-workspace** has been created from the template **bobby-template** using version **alpha**."
 }

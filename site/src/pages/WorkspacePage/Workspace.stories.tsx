@@ -5,14 +5,13 @@ import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
 import * as Mocks from "testHelpers/entities";
 import { withDashboardProvider } from "testHelpers/storybook";
 import { Workspace } from "./Workspace";
-import { WorkspaceBuildLogsSection } from "./WorkspaceBuildLogsSection";
 import type { WorkspacePermissions } from "./permissions";
 
 const permissions: WorkspacePermissions = {
 	readWorkspace: true,
 	updateWorkspace: true,
 	updateTemplate: true,
-	viewDeploymentValues: true,
+	viewDeploymentConfig: true,
 };
 
 const meta: Meta<typeof Workspace> = {
@@ -77,6 +76,43 @@ export const Running: Story = {
 		handleStop: action("stop"),
 		buildInfo: Mocks.MockBuildInfo,
 		template: Mocks.MockTemplate,
+	},
+};
+
+export const AppIcons: Story = {
+	args: {
+		...Running.args,
+		workspace: {
+			...Mocks.MockWorkspace,
+			latest_build: {
+				...Mocks.MockWorkspace.latest_build,
+				resources: [
+					{
+						...Mocks.MockWorkspaceResource,
+						agents: [
+							{
+								...Mocks.MockWorkspaceAgent,
+								apps: [
+									{
+										...Mocks.MockWorkspaceApp,
+										id: "test-app-1",
+										slug: "test-app-1",
+										display_name: "Default Icon",
+									},
+									{
+										...Mocks.MockWorkspaceApp,
+										id: "test-app-2",
+										slug: "test-app-2",
+										display_name: "Broken Icon",
+										icon: "/foobar/broken.png",
+									},
+								],
+							},
+						],
+					},
+				],
+			},
+		},
 	},
 };
 

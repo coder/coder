@@ -2,7 +2,7 @@
   "_version": "1.1",
   "msg_id": "00000000-0000-0000-0000-000000000000",
   "payload": {
-    "_version": "1.1",
+    "_version": "1.2",
     "notification_name": "User account deleted",
     "notification_template_id": "00000000-0000-0000-0000-000000000000",
     "user_id": "00000000-0000-0000-0000-000000000000",
@@ -20,10 +20,11 @@
       "deleted_account_user_name": "William Tables",
       "initiator": "rob"
     },
-    "data": null
+    "data": null,
+    "targets": null
   },
   "title": "User account \"bobby\" deleted",
   "title_markdown": "User account \"bobby\" deleted",
-  "body": "Hi Bobby,\n\nUser account bobby has been deleted.\n\nThe deleted account belonged to William Tables and was deleted by rob.",
-  "body_markdown": "Hi Bobby,\n\nUser account **bobby** has been deleted.\n\nThe deleted account belonged to **William Tables** and was deleted by **rob**."
+  "body": "User account bobby has been deleted.\n\nThe deleted account belonged to William Tables and was deleted by rob.",
+  "body_markdown": "User account **bobby** has been deleted.\n\nThe deleted account belonged to **William Tables** and was deleted by **rob**."
 }

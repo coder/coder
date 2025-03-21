@@ -1,14 +1,15 @@
 import { getErrorMessage } from "api/errors";
-import { organizationPermissions } from "api/queries/organizations";
 import {
 	createOrganizationRole,
 	organizationRoles,
 	updateOrganizationRole,
 } from "api/queries/roles";
 import type { CustomRoleRequest } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
+import { RequirePermission } from "modules/permissions/RequirePermission";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
@@ -24,9 +25,7 @@ export const CreateEditRolePage: FC = () => {
 		organization: string;
 		roleName: string;
 	};
-	const { organizations } = useOrganizationSettings();
-	const organization = organizations?.find((o) => o.name === organizationName);
-	const permissionsQuery = useQuery(organizationPermissions(organization?.id));
+	const { organizationPermissions } = useOrganizationSettings();
 	const createOrganizationRoleMutation = useMutation(
 		createOrganizationRole(queryClient, organizationName),
 	);
@@ -37,14 +36,23 @@ export const CreateEditRolePage: FC = () => {
 		organizationRoles(organizationName),
 	);
 	const role = roleData?.find((role) => role.name === roleName);
-	const permissions = permissionsQuery.data;
 
-	if (isLoading || !permissions) {
+	if (isLoading) {
 		return <Loader />;
 	}
 
+	if (!organizationPermissions) {
+		return <ErrorAlert error="Failed to load organization permissions" />;
+	}
+
 	return (
-		<>
+		<RequirePermission
+			isFeatureVisible={
+				role
+					? organizationPermissions.updateOrgRoles
+					: organizationPermissions.createOrgRoles
+			}
+		>
 			<Helmet>
 				<title>
 					{pageTitle(
@@ -80,9 +88,8 @@ export const CreateEditRolePage: FC = () => {
 						: createOrganizationRoleMutation.isLoading
 				}
 				organizationName={organizationName}
-				canAssignOrgRole={permissions.assignOrgRole}
 			/>
-		</>
+		</RequirePermission>
 	);
 };
 

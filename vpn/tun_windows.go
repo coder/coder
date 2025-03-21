@@ -7,9 +7,10 @@ import (
 	"errors"
 	"time"
 
-	"github.com/coder/retry"
+	"github.com/dblohm7/wingoes/com"
 	"github.com/tailscale/wireguard-go/tun"
 	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/svc"
 	"golang.org/x/xerrors"
 	"golang.zx2c4.com/wintun"
 	"tailscale.com/net/dns"
@@ -21,17 +22,61 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/tailnet"
+	"github.com/coder/retry"
 )
 
-const tunName = "Coder"
+const (
+	tunName = "Coder"
+	tunGUID = "{0ed1515d-04a4-4c46-abae-11ad07cf0e6d}"
+
+	wintunDLL = "wintun.dll"
+)
 
 func GetNetworkingStack(t *Tunnel, _ *StartRequest, logger slog.Logger) (NetworkStack, error) {
-	tun.WintunTunnelType = tunName
-	guid, err := windows.GUIDFromString("{0ed1515d-04a4-4c46-abae-11ad07cf0e6d}")
+	// Initialize COM process-wide so Tailscale can make calls to the windows
+	// network APIs to read/write adapter state.
+	comProcessType := com.ConsoleApp
+	isSvc, err := svc.IsWindowsService()
 	if err != nil {
-		panic(err)
+		return NetworkStack{}, xerrors.Errorf("svc.IsWindowsService failed: %w", err)
+	}
+	if isSvc {
+		comProcessType = com.Service
+	}
+	if err := com.StartRuntime(comProcessType); err != nil {
+		return NetworkStack{}, xerrors.Errorf("could not initialize COM: com.StartRuntime(%d): %w", comProcessType, err)
+	}
+
+	// Set the name and GUID for the TUN interface.
+	tun.WintunTunnelType = tunName
+	guid, err := windows.GUIDFromString(tunGUID)
+	if err != nil {
+		return NetworkStack{}, xerrors.Errorf("could not parse GUID %q: %w", tunGUID, err)
 	}
 	tun.WintunStaticRequestedGUID = &guid
+
+	// Ensure wintun.dll is available, and fail early if it's not to avoid
+	// hanging for 5 minutes in tstunNewWithWindowsRetries.
+	//
+	// First, we call wintun.Version() to make the wintun package attempt to
+	// load wintun.dll. This allows the wintun package to set the logging
+	// callback in the DLL before we load it ourselves.
+	_ = wintun.Version()
+
+	// Then, we try to load wintun.dll ourselves so we get a better error
+	// message if there was a problem. This call matches the wintun package, so
+	// we're loading it in the same way.
+	//
+	// Note: this leaks the handle to wintun.dll, but since it's already loaded
+	// it wouldn't be freed anyways.
+	const (
+		LOAD_LIBRARY_SEARCH_APPLICATION_DIR = 0x00000200
+		LOAD_LIBRARY_SEARCH_SYSTEM32        = 0x00000800
+	)
+	_, err = windows.LoadLibraryEx(wintunDLL, 0, LOAD_LIBRARY_SEARCH_APPLICATION_DIR|LOAD_LIBRARY_SEARCH_SYSTEM32)
+	if err != nil {
+		return NetworkStack{}, xerrors.Errorf("could not load %q, it should be in the same directory as the executable (in Coder Desktop, this should have been installed automatically): %w", wintunDLL, err)
+	}
 
 	tunDev, tunName, err := tstunNewWithWindowsRetries(tailnet.Logger(logger.Named("net.tun.device")), tunName)
 	if err != nil {

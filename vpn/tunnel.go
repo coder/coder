@@ -10,6 +10,7 @@ import (
 	"net/netip"
 	"net/url"
 	"reflect"
+	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -70,6 +71,7 @@ func NewTunnel(
 	if err != nil {
 		return nil, err
 	}
+	uCtx, uCancel := context.WithCancel(ctx)
 	t := &Tunnel{
 		//nolint:govet // safe to copy the locks here because we haven't started the speaker
 		speaker:         *(s),
@@ -79,7 +81,8 @@ func NewTunnel(
 		requestLoopDone: make(chan struct{}),
 		client:          client,
 		updater: updater{
-			ctx:         ctx,
+			ctx:         uCtx,
+			cancel:      uCancel,
 			netLoopDone: make(chan struct{}),
 			uSendCh:     s.sendCh,
 			agents:      map[uuid.UUID]tailnet.Agent{},
@@ -229,7 +232,7 @@ func (t *Tunnel) start(req *StartRequest) error {
 	if apiToken == "" {
 		return xerrors.New("missing api token")
 	}
-	var header http.Header
+	header := make(http.Header)
 	for _, h := range req.GetHeaders() {
 		header.Add(h.GetName(), h.GetValue())
 	}
@@ -316,6 +319,7 @@ func sinkEntryToPb(e slog.SinkEntry) *Log {
 // updates to the manager.
 type updater struct {
 	ctx         context.Context
+	cancel      context.CancelFunc
 	netLoopDone chan struct{}
 
 	mu      sync.Mutex
@@ -402,6 +406,9 @@ func (u *updater) createPeerUpdateLocked(update tailnet.WorkspaceUpdate) *PeerUp
 		for name := range agent.Hosts {
 			fqdn = append(fqdn, name.WithTrailingDot())
 		}
+		sort.Slice(fqdn, func(i, j int) bool {
+			return len(fqdn[i]) < len(fqdn[j])
+		})
 		out.DeletedAgents[i] = &Agent{
 			Id:            tailnet.UUIDToByteSlice(agent.ID),
 			Name:          agent.Name,
@@ -424,6 +431,9 @@ func (u *updater) convertAgentsLocked(agents []*tailnet.Agent) []*Agent {
 		for name := range agent.Hosts {
 			fqdn = append(fqdn, name.WithTrailingDot())
 		}
+		sort.Slice(fqdn, func(i, j int) bool {
+			return len(fqdn[i]) < len(fqdn[j])
+		})
 		protoAgent := &Agent{
 			Id:          tailnet.UUIDToByteSlice(agent.ID),
 			Name:        agent.Name,
@@ -473,6 +483,7 @@ func (u *updater) stop() error {
 	}
 	err := u.conn.Close()
 	u.conn = nil
+	u.cancel()
 	return err
 }
 

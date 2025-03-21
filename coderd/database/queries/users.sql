@@ -98,14 +98,27 @@ SET
 WHERE
 	id = $1;
 
--- name: UpdateUserAppearanceSettings :one
-UPDATE
-	users
-SET
-	theme_preference = $2,
-	updated_at = $3
+-- name: GetUserAppearanceSettings :one
+SELECT
+	value as theme_preference
+FROM
+	user_configs
 WHERE
-	id = $1
+	user_id = @user_id
+	AND key = 'theme_preference';
+
+-- name: UpdateUserAppearanceSettings :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'theme_preference', @theme_preference)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @theme_preference
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'theme_preference'
 RETURNING *;
 
 -- name: UpdateUserRoles :one
@@ -208,6 +221,11 @@ WHERE
 	AND CASE
 		WHEN @created_after :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
 			created_at >= @created_after
+		ELSE true
+	END
+	AND CASE
+		WHEN @github_com_user_id :: bigint != 0 THEN
+			github_com_user_id = @github_com_user_id
 		ELSE true
 	END
 	-- End of filters

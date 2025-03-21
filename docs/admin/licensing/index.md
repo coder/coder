@@ -7,8 +7,7 @@ features, you can [request a trial](https://coder.com/trial) or
 
 <!-- markdown-link-check-disable -->
 
-> If you are an existing customer, you can learn more our new Premium plan in
-> the [Coder v2.16 blog post](https://coder.com/blog/release-recap-2-16-0)
+You can learn more about Coder Premium in the [Coder v2.16 blog post](https://coder.com/blog/release-recap-2-16-0)
 
 <!-- markdown-link-check-enable -->
 
@@ -47,9 +46,17 @@ There are two ways to add a license to a Coder deployment:
 
 1. Run `coder licenses add`:
 
-   ```shell
-   coder licenses add -f <path to your license key>
-   ```
+   - For a `.jwt` license file:
+
+     ```shell
+     coder licenses add -f <path to your license key>
+     ```
+
+   - For a text string:
+
+     ```sh
+     coder licenses add -l 1f5...765
+     ```
 
 </div>
 

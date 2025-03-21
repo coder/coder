@@ -3,8 +3,8 @@ import { expect } from "@playwright/test";
 import { API, type DeploymentConfig } from "api/api";
 import type { SerpentOption } from "api/typesGenerated";
 import { formatDuration, intervalToDuration } from "date-fns";
-import { coderPort } from "./constants";
-import { findSessionToken, randomName } from "./helpers";
+import { coderPort, defaultPassword } from "./constants";
+import { type LoginOptions, findSessionToken, randomName } from "./helpers";
 
 let currentOrgId: string;
 
@@ -29,12 +29,48 @@ export const createUser = async (...orgIds: string[]) => {
 		email: `${name}@coder.com`,
 		username: name,
 		name: name,
-		password: "s3cure&password!",
+		password: defaultPassword,
 		login_type: "password",
 		organization_ids: orgIds,
 		user_status: null,
 	});
+
 	return user;
+};
+
+type CreateOrganizationMemberOptions = {
+	username?: string;
+	email?: string;
+	password?: string;
+	orgRoles: Record<string, string[]>;
+};
+
+export const createOrganizationMember = async ({
+	username = randomName(),
+	email = `${username}@coder.com`,
+	password = defaultPassword,
+	orgRoles,
+}: CreateOrganizationMemberOptions): Promise<LoginOptions> => {
+	const name = randomName();
+	const user = await API.createUser({
+		email,
+		username,
+		name: username,
+		password,
+		login_type: "password",
+		organization_ids: Object.keys(orgRoles),
+		user_status: null,
+	});
+
+	for (const [org, roles] of Object.entries(orgRoles)) {
+		API.updateOrganizationMemberRoles(org, user.id, roles);
+	}
+
+	return {
+		username: user.username,
+		email: user.email,
+		password,
+	};
 };
 
 export const createGroup = async (orgId: string) => {
@@ -48,8 +84,7 @@ export const createGroup = async (orgId: string) => {
 	return group;
 };
 
-export const createOrganization = async () => {
-	const name = randomName();
+export const createOrganization = async (name = randomName()) => {
 	const org = await API.createOrganization({
 		name,
 		display_name: `Org ${name}`,

@@ -14,8 +14,7 @@ Template [admins](../../users/index.md) may define these default values:
   stops it.
 - [**Autostop requirement**](#autostop-requirement): Enforce mandatory workspace
   restarts to apply template updates regardless of user activity.
-- **Activity bump**: The duration of inactivity that must pass before a
-  workspace is automatically stopped.
+- **Activity bump**: The duration by which to extend a workspace's deadline when activity is detected (default: 1 hour). The workspace will be considered inactive when no sessions are detected (VSCode, JetBrains, Terminal, or SSH). For details on what counts as activity, see the [user guide on activity detection](../../../user-guides/workspace-scheduling.md#activity-detection).
 - **Dormancy**: This allows automatic deletion of unused workspaces to reduce
   spend on idle resources.
 
@@ -28,12 +27,9 @@ manage infrastructure costs.
 
 ## Failure cleanup
 
-<blockquote class="info">
-
-Failure cleanup is an Enterprise and Premium feature.
-[Learn more](https://coder.com/pricing#compare-plans).
-
-</blockquote>
+> [!NOTE]
+> Failure cleanup is an Enterprise and Premium feature.
+> [Learn more](https://coder.com/pricing#compare-plans).
 
 Failure cleanup defines how long a workspace is permitted to remain in the
 failed state prior to being automatically stopped. Failure cleanup is only
@@ -41,12 +37,9 @@ available for licensed customers.
 
 ## Dormancy threshold
 
-<blockquote class="info">
-
-Dormancy threshold is an Enterprise and Premium feature.
-[Learn more](https://coder.com/pricing#compare-plans).
-
-</blockquote>
+> [!NOTE]
+> Dormancy threshold is an Enterprise and Premium feature.
+> [Learn more](https://coder.com/pricing#compare-plans).
 
 Dormancy Threshold defines how long Coder allows a workspace to remain inactive
 before being moved into a dormant state. A workspace's inactivity is determined
@@ -58,12 +51,9 @@ only available for licensed customers.
 
 ## Dormancy auto-deletion
 
-<blockquote class="info">
-
-Dormancy auto-deletion is an Enterprise and Premium feature.
-[Learn more](https://coder.com/pricing#compare-plans).
-
-</blockquote>
+> [!NOTE]
+> Dormancy auto-deletion is an Enterprise and Premium feature.
+> [Learn more](https://coder.com/pricing#compare-plans).
 
 Dormancy Auto-Deletion allows a template admin to dictate how long a workspace
 is permitted to remain dormant before it is automatically deleted. Dormancy
@@ -71,12 +61,9 @@ Auto-Deletion is only available for licensed customers.
 
 ## Autostop requirement
 
-<blockquote class="info">
-
-Autostop requirement is an Enterprise and Premium feature.
-[Learn more](https://coder.com/pricing#compare-plans).
-
-</blockquote>
+> [!NOTE]
+> Autostop requirement is an Enterprise and Premium feature.
+> [Learn more](https://coder.com/pricing#compare-plans).
 
 Autostop requirement is a template setting that determines how often workspaces
 using the template must automatically stop. Autostop requirement ignores any
@@ -108,12 +95,9 @@ requirement during the deprecation period, but only one can be used at a time.
 
 ## User quiet hours
 
-<blockquote class="info">
-
-User quiet hours are an Enterprise and Premium feature.
-[Learn more](https://coder.com/pricing#compare-plans).
-
-</blockquote>
+> [!NOTE]
+> User quiet hours are an Enterprise and Premium feature.
+> [Learn more](https://coder.com/pricing#compare-plans).
 
 User quiet hours can be configured in the user's schedule settings page.
 Workspaces on templates with an autostop requirement will only be forcibly
@@ -122,7 +106,7 @@ stopped due to the policy at the start of the user's quiet hours.
 ![User schedule settings](../../../images/admin/templates/schedule/user-quiet-hours.png)
 
 Admins can define the default quiet hours for all users with the
-`--default-quiet-hours-schedule` flag or `CODER_DEFAULT_QUIET_HOURS_SCHEDULE`
+[CODER_QUIET_HOURS_DEFAULT_SCHEDULE](../../../reference/cli/server.md#--default-quiet-hours-schedule)
 environment variable. The value should be a cron expression such as
 `CRON_TZ=America/Chicago 30 2 * * *` which would set the default quiet hours to
 2:30 AM in the America/Chicago timezone. The cron schedule can only have a

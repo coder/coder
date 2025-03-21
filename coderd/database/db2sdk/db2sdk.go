@@ -5,16 +5,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
-	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 
+	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -149,14 +150,13 @@ func ReducedUser(user database.User) codersdk.ReducedUser {
 			Username:  user.Username,
 			AvatarURL: user.AvatarURL,
 		},
-		Email:           user.Email,
-		Name:            user.Name,
-		CreatedAt:       user.CreatedAt,
-		UpdatedAt:       user.UpdatedAt,
-		LastSeenAt:      user.LastSeenAt,
-		Status:          codersdk.UserStatus(user.Status),
-		LoginType:       codersdk.LoginType(user.LoginType),
-		ThemePreference: user.ThemePreference,
+		Email:      user.Email,
+		Name:       user.Name,
+		CreatedAt:  user.CreatedAt,
+		UpdatedAt:  user.UpdatedAt,
+		LastSeenAt: user.LastSeenAt,
+		Status:     codersdk.UserStatus(user.Status),
+		LoginType:  codersdk.LoginType(user.LoginType),
 	}
 }
 
@@ -175,7 +175,6 @@ func UserFromGroupMember(member database.GroupMember) database.User {
 		Deleted:            member.UserDeleted,
 		LastSeenAt:         member.UserLastSeenAt,
 		QuietHoursSchedule: member.UserQuietHoursSchedule,
-		ThemePreference:    member.UserThemePreference,
 		Name:               member.UserName,
 		GithubComUserID:    member.UserGithubComUserID,
 	}
@@ -704,4 +703,27 @@ func TemplateRoleActions(role codersdk.TemplateRole) []policy.Action {
 		return []policy.Action{policy.ActionRead, policy.ActionUse}
 	}
 	return []policy.Action{}
+}
+
+func AuditActionFromAgentProtoConnectionAction(action agentproto.Connection_Action) (database.AuditAction, error) {
+	switch action {
+	case agentproto.Connection_CONNECT:
+		return database.AuditActionConnect, nil
+	case agentproto.Connection_DISCONNECT:
+		return database.AuditActionDisconnect, nil
+	default:
+		// Also Connection_ACTION_UNSPECIFIED, no mapping.
+		return "", xerrors.Errorf("unknown agent connection action %q", action)
+	}
+}
+
+func AgentProtoConnectionActionToAuditAction(action database.AuditAction) (agentproto.Connection_Action, error) {
+	switch action {
+	case database.AuditActionConnect:
+		return agentproto.Connection_CONNECT, nil
+	case database.AuditActionDisconnect:
+		return agentproto.Connection_DISCONNECT, nil
+	default:
+		return agentproto.Connection_ACTION_UNSPECIFIED, xerrors.Errorf("unknown agent connection action %q", action)
+	}
 }

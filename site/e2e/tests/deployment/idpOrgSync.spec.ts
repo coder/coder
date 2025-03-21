@@ -5,8 +5,8 @@ import {
 	deleteOrganization,
 	setupApiCalls,
 } from "../../api";
-import { randomName, requiresLicense } from "../../helpers";
-import { login } from "../../helpers";
+import { users } from "../../constants";
+import { login, randomName, requiresLicense } from "../../helpers";
 import { beforeCoderTest } from "../../hooks";
 
 test.beforeEach(async ({ page }) => {
@@ -15,13 +15,14 @@ test.beforeEach(async ({ page }) => {
 	await setupApiCalls(page);
 });
 
-test.describe("IdpOrgSyncPage", () => {
+test.describe("IdP organization sync", () => {
+	requiresLicense();
+
 	test.describe.configure({ retries: 1 });
 
 	test("show empty table when no org mappings are present", async ({
 		page,
 	}) => {
-		requiresLicense();
 		await page.goto("/deployment/idp-org-sync", {
 			waitUntil: "domcontentloaded",
 		});
@@ -35,8 +36,6 @@ test.describe("IdpOrgSyncPage", () => {
 	});
 
 	test("add new IdP organization mapping with API", async ({ page }) => {
-		requiresLicense();
-
 		await createOrganizationSyncSettings();
 
 		await page.goto("/deployment/idp-org-sync", {
@@ -59,7 +58,6 @@ test.describe("IdpOrgSyncPage", () => {
 	});
 
 	test("delete a IdP org to coder org mapping row", async ({ page }) => {
-		requiresLicense();
 		await createOrganizationSyncSettings();
 		await page.goto("/deployment/idp-org-sync", {
 			waitUntil: "domcontentloaded",
@@ -77,7 +75,6 @@ test.describe("IdpOrgSyncPage", () => {
 	});
 
 	test("update sync field", async ({ page }) => {
-		requiresLicense();
 		await page.goto("/deployment/idp-org-sync", {
 			waitUntil: "domcontentloaded",
 		});
@@ -100,7 +97,6 @@ test.describe("IdpOrgSyncPage", () => {
 	});
 
 	test("toggle off default organization assignment", async ({ page }) => {
-		requiresLicense();
 		await page.goto("/deployment/idp-org-sync", {
 			waitUntil: "domcontentloaded",
 		});
@@ -126,8 +122,6 @@ test.describe("IdpOrgSyncPage", () => {
 	test("export policy button is enabled when sync settings are present", async ({
 		page,
 	}) => {
-		requiresLicense();
-
 		await page.goto("/deployment/idp-org-sync", {
 			waitUntil: "domcontentloaded",
 		});
@@ -140,15 +134,17 @@ test.describe("IdpOrgSyncPage", () => {
 	});
 
 	test("add new IdP organization mapping with UI", async ({ page }) => {
-		requiresLicense();
-
 		const orgName = randomName();
-
 		await createOrganizationWithName(orgName);
 
 		await page.goto("/deployment/idp-org-sync", {
 			waitUntil: "domcontentloaded",
 		});
+
+		const syncField = page.getByRole("textbox", {
+			name: "Organization sync field",
+		});
+		await syncField.fill("");
 
 		const idpOrgInput = page.getByLabel("IdP organization name");
 		const addButton = page.getByRole("button", {
@@ -157,7 +153,8 @@ test.describe("IdpOrgSyncPage", () => {
 
 		await expect(addButton).toBeDisabled();
 
-		await idpOrgInput.fill("new-idp-org");
+		const idpOrgName = randomName();
+		await idpOrgInput.fill(idpOrgName);
 
 		// Select Coder organization from combobox
 		const orgSelector = page.getByPlaceholder("Select organization");
@@ -166,7 +163,7 @@ test.describe("IdpOrgSyncPage", () => {
 		await orgSelector.click();
 		await page.waitForTimeout(1000);
 
-		const option = await page.getByRole("option", { name: orgName });
+		const option = page.getByRole("option", { name: orgName });
 		await expect(option).toBeAttached({ timeout: 30000 });
 		await expect(option).toBeVisible();
 		await option.click();
@@ -177,11 +174,9 @@ test.describe("IdpOrgSyncPage", () => {
 		await addButton.click();
 
 		// Verify new mapping appears in table
-		const newRow = page.getByTestId("idp-org-new-idp-org");
+		const newRow = page.getByTestId(`idp-org-${idpOrgName}`);
 		await expect(newRow).toBeVisible();
-		await expect(
-			newRow.getByRole("cell", { name: "new-idp-org" }),
-		).toBeVisible();
+		await expect(newRow.getByRole("cell", { name: idpOrgName })).toBeVisible();
 		await expect(newRow.getByRole("cell", { name: orgName })).toBeVisible();
 
 		await expect(

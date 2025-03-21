@@ -291,6 +291,12 @@ describe("WorkspaceSchedulePage", () => {
 				name: /save/i,
 			});
 			await user.click(submitButton);
+
+			const notification = await screen.findByText(
+				"Workspace schedule updated",
+			);
+			expect(notification).toBeInTheDocument();
+
 			const dialog = await screen.findByText("Restart workspace?");
 			expect(dialog).toBeInTheDocument();
 		});
@@ -312,6 +318,12 @@ describe("WorkspaceSchedulePage", () => {
 				name: /save/i,
 			});
 			await user.click(submitButton);
+
+			const notification = await screen.findByText(
+				"Workspace schedule updated",
+			);
+			expect(notification).toBeInTheDocument();
+
 			const dialog = screen.queryByText("Restart workspace?");
 			expect(dialog).not.toBeInTheDocument();
 		});

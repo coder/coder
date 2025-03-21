@@ -262,6 +262,12 @@ oauth2:
     # Client ID for Login with GitHub.
     # (default: <unset>, type: string)
     clientID: ""
+    # Enable device flow for Login with GitHub.
+    # (default: false, type: bool)
+    deviceFlow: false
+    # Enable the default GitHub OAuth2 provider managed by Coder.
+    # (default: true, type: bool)
+    defaultProviderEnable: true
     # Organizations the user must be a member of to Login with GitHub.
     # (default: <unset>, type: string-array)
     allowedOrgs: []
@@ -326,6 +332,12 @@ oidc:
   # Ignore the userinfo endpoint and only use the ID token for user information.
   # (default: false, type: bool)
   ignoreUserInfo: false
+  # Source supplemental user claims from the 'access_token'. This assumes the token
+  # is a jwt signed by the same issuer as the id_token. Using this requires setting
+  # 'oidc-ignore-userinfo' to true. This setting is not compliant with the OIDC
+  # specification and is not recommended. Use at your own risk.
+  # (default: false, type: bool)
+  accessTokenClaims: false
   # This field must be set if using the organization sync feature. Set to the claim
   # to be used for organizations.
   # (default: <unset>, type: string)
