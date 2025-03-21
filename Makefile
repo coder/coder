@@ -754,7 +754,7 @@ docs/admin/integrations/prometheus.md: node_modules/.installed scripts/metricsdo
 	pnpm exec markdown-table-formatter ./docs/admin/integrations/prometheus.md
 	touch "$@"
 
-docs/reference/cli/index.md: node_modules/.installed site/node_modules/.installed scripts/clidocgen/main.go examples/examples.gen.json $(GO_SRC_FILES)
+docs/reference/cli/index.md: node_modules/.installed scripts/clidocgen/main.go examples/examples.gen.json $(GO_SRC_FILES)
 	CI=true BASE_PATH="." go run ./scripts/clidocgen
 	pnpm exec markdownlint-cli2 --fix ./docs/reference/cli/*.md
 	pnpm exec markdown-table-formatter ./docs/reference/cli/*.md
