@@ -834,7 +834,7 @@ func (s *MethodTestSuite) TestOrganization() {
 			rbac.ResourceGroup.InOrg(o.ID), policy.ActionRead,
 			rbac.ResourceTemplate.InOrg(o.ID), policy.ActionRead,
 			rbac.ResourceProvisionerJobs.InOrg(o.ID), policy.ActionRead,
-		).Returns(database.GetOrganizationResourceCountByIdRow{
+		).Returns(database.GetOrganizationResourceCountByIDRow{
 			WorkspaceCount:      1,
 			GroupCount:          1,
 			TemplateCount:       1,

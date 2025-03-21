@@ -87,7 +87,7 @@ func (m queryMetricsStore) DeleteOrganization(ctx context.Context, id uuid.UUID)
 	return r0
 }
 
-func (m queryMetricsStore) GetOrganizationResourceCountByID(ctx context.Context, organizationID uuid.UUID) (database.GetOrganizationResourceCountByIdRow, error) {
+func (m queryMetricsStore) GetOrganizationResourceCountByID(ctx context.Context, organizationID uuid.UUID) (database.GetOrganizationResourceCountByIDRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetOrganizationResourceCountByID(ctx, organizationID)
 	m.queryLatencies.WithLabelValues("GetOrganizationResourcesCountById").Observe(time.Since(start).Seconds())

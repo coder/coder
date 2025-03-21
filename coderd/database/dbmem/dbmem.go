@@ -3974,7 +3974,7 @@ func (q *FakeQuerier) GetOrganizationIDsByMemberIDs(_ context.Context, ids []uui
 	return getOrganizationIDsByMemberIDRows, nil
 }
 
-func (q *FakeQuerier) GetOrganizationResourceCountByID(_ context.Context, organizationID uuid.UUID) (database.GetOrganizationResourceCountByIdRow, error) {
+func (q *FakeQuerier) GetOrganizationResourceCountByID(_ context.Context, organizationID uuid.UUID) (database.GetOrganizationResourceCountByIDRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -4013,7 +4013,7 @@ func (q *FakeQuerier) GetOrganizationResourceCountByID(_ context.Context, organi
 		}
 	}
 
-	return database.GetOrganizationResourceCountByIdRow{
+	return database.GetOrganizationResourceCountByIDRow{
 		WorkspaceCount:      int64(workspacesCount),
 		GroupCount:          int64(groupsCount),
 		TemplateCount:       int64(templatesCount),

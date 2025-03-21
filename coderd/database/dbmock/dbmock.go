@@ -2063,10 +2063,10 @@ func (mr *MockStoreMockRecorder) GetOrganizationIDsByMemberIDs(ctx, ids any) *go
 }
 
 // GetOrganizationResourceCountByID mocks base method.
-func (m *MockStore) GetOrganizationResourceCountByID(ctx context.Context, organizationID uuid.UUID) (database.GetOrganizationResourceCountByIdRow, error) {
+func (m *MockStore) GetOrganizationResourceCountByID(ctx context.Context, organizationID uuid.UUID) (database.GetOrganizationResourceCountByIDRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetOrganizationResourceCountByID", ctx, organizationID)
-	ret0, _ := ret[0].(database.GetOrganizationResourceCountByIdRow)
+	ret0, _ := ret[0].(database.GetOrganizationResourceCountByIDRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

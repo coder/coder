@@ -5490,7 +5490,7 @@ SELECT
     (SELECT COUNT(*) FROM provisioner_keys WHERE provisioner_keys.organization_id = $1) AS provisioner_key_count
 `
 
-type GetOrganizationResourceCountByIdRow struct {
+type GetOrganizationResourceCountByIDRow struct {
 	WorkspaceCount      int64 `db:"workspace_count" json:"workspace_count"`
 	GroupCount          int64 `db:"group_count" json:"group_count"`
 	TemplateCount       int64 `db:"template_count" json:"template_count"`
@@ -5498,9 +5498,9 @@ type GetOrganizationResourceCountByIdRow struct {
 	ProvisionerKeyCount int64 `db:"provisioner_key_count" json:"provisioner_key_count"`
 }
 
-func (q *sqlQuerier) GetOrganizationResourceCountByID(ctx context.Context, organizationID uuid.UUID) (GetOrganizationResourceCountByIdRow, error) {
+func (q *sqlQuerier) GetOrganizationResourceCountByID(ctx context.Context, organizationID uuid.UUID) (GetOrganizationResourceCountByIDRow, error) {
 	row := q.db.QueryRowContext(ctx, getOrganizationResourceCountById, organizationID)
-	var i GetOrganizationResourceCountByIdRow
+	var i GetOrganizationResourceCountByIDRow
 	err := row.Scan(
 		&i.WorkspaceCount,
 		&i.GroupCount,
