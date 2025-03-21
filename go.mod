@@ -1,6 +1,8 @@
 module github.com/coder/coder/v2
 
-go 1.22.9
+go 1.23
+
+toolchain go1.24.1
 
 // Required until a v3 of chroma is created to lazily initialize all XML files.
 // None of our dependencies seem to use the registries anyways, so this
@@ -468,3 +470,7 @@ require (
 	kernel.org/pub/linux/libs/security/libcap/psx v1.2.73 // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
+
+require github.com/mark3labs/mcp-go v0.15.0
+
+require github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
