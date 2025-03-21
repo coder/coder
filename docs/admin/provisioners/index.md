@@ -32,6 +32,8 @@ Provisioners are started with the
 the [full Coder binary](https://github.com/coder/coder/releases). Keep reading
 to learn how to start provisioners via Docker, Kubernetes, Systemd, etc.
 
+You can use the dashboard, CLI, or API to [manage provisioners](./manage-provisioners.md).
+
 ## Authentication
 
 The provisioner daemon must authenticate with your Coder deployment.
