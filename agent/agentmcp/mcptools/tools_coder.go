@@ -158,7 +158,7 @@ func handleCoderListWorkspaces(ctx context.Context, request mcp.CallToolRequest)
 }
 
 // Example payload:
-// {"jsonrpc":"2.0","id":1,"method":"tools/call", "params": {"name": "coder_workspace_exec", "arguments": {"workspace": "nonix", "command": "ps -ef", "coder_url": "http://localhost:3000", "coder_session_token": "REDACTED"}}}
+// {"jsonrpc":"2.0","id":1,"method":"tools/call", "params": {"name": "coder_workspace_exec", "arguments": {"workspace": "dev", "command": "ps -ef", "coder_url": "http://localhost:3000", "coder_session_token": "REDACTED"}}}
 func handleCoderWorkspaceExec(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	args := request.Params.Arguments
 
