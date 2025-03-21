@@ -331,7 +331,7 @@ func onlyDataResources(sm tfjson.StateModule) tfjson.StateModule {
 }
 
 // planResources must only be called while the lock is held.
-func (e *executor) planResources(ctx, killCtx context.Context, planfilePath string) (*State, []byte, error) {
+func (e *executor) planResources(ctx, killCtx context.Context, planfilePath string) (*State, json.RawMessage, error) {
 	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
 	defer span.End()
 

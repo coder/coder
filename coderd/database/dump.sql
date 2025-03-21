@@ -2678,7 +2678,7 @@ ALTER TABLE ONLY template_version_presets
     ADD CONSTRAINT template_version_presets_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY template_version_terraform_values
-    ADD CONSTRAINT template_version_terraform_values_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id);
+    ADD CONSTRAINT template_version_terraform_values_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY template_version_variables
     ADD CONSTRAINT template_version_variables_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;

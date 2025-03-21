@@ -1270,6 +1270,8 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			return nil, xerrors.Errorf("template version ID is expected: %w", err)
 		}
 
+		now := s.timeNow()
+
 		for transition, resources := range map[database.WorkspaceTransition][]*sdkproto.Resource{
 			database.WorkspaceTransitionStart: jobType.TemplateImport.StartResources,
 			database.WorkspaceTransitionStop:  jobType.TemplateImport.StopResources,
@@ -1354,7 +1356,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			}
 		}
 
-		err = InsertWorkspacePresetsAndParameters(ctx, s.Logger, s.Database, jobID, input.TemplateVersionID, jobType.TemplateImport.Presets, s.timeNow())
+		err = InsertWorkspacePresetsAndParameters(ctx, s.Logger, s.Database, jobID, input.TemplateVersionID, jobType.TemplateImport.Presets, now)
 		if err != nil {
 			return nil, xerrors.Errorf("insert workspace presets and parameters: %w", err)
 		}
@@ -1407,7 +1409,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 		err = s.Database.UpdateTemplateVersionExternalAuthProvidersByJobID(ctx, database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams{
 			JobID:                 jobID,
 			ExternalAuthProviders: externalAuthProvidersMessage,
-			UpdatedAt:             s.timeNow(),
+			UpdatedAt:             now,
 		})
 		if err != nil {
 			return nil, xerrors.Errorf("update template version external auth providers: %w", err)
@@ -1416,7 +1418,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 		err = s.Database.InsertTemplateVersionTerraformValuesByJobID(ctx, database.InsertTemplateVersionTerraformValuesByJobIDParams{
 			JobID:      jobID,
 			CachedPlan: jobType.TemplateImport.Plan,
-			UpdatedAt:  s.timeNow(),
+			UpdatedAt:  now,
 		})
 		if err != nil {
 			return nil, xerrors.Errorf("insert template version terraform data: %w", err)
@@ -1424,9 +1426,9 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 
 		err = s.Database.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
 			ID:        jobID,
-			UpdatedAt: s.timeNow(),
+			UpdatedAt: now,
 			CompletedAt: sql.NullTime{
-				Time:  s.timeNow(),
+				Time:  now,
 				Valid: true,
 			},
 			Error:     completedError,

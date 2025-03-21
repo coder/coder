@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -655,7 +656,7 @@ type templateImportProvision struct {
 	ExternalAuthProviders []*sdkproto.ExternalAuthProviderResource
 	Modules               []*sdkproto.Module
 	Presets               []*sdkproto.Preset
-	Plan                  []byte
+	Plan                  json.RawMessage
 }
 
 // Performs a dry-run provision when importing a template.
