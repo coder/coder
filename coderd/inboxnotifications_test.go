@@ -137,6 +137,62 @@ func TestInboxNotification_Watch(t *testing.T) {
 		require.Equal(t, memberClient.ID, notif.Notification.UserID)
 	})
 
+	t.Run("OK - change format", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		logger := testutil.Logger(t)
+
+		db, ps := dbtestutil.NewDB(t)
+
+		firstClient, _, _ := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			Pubsub:   ps,
+			Database: db,
+		})
+		firstUser := coderdtest.CreateFirstUser(t, firstClient)
+		member, memberClient := coderdtest.CreateAnotherUser(t, firstClient, firstUser.OrganizationID, rbac.RoleTemplateAdmin())
+
+		u, err := member.URL.Parse("/api/v2/notifications/inbox/watch?format=plaintext")
+		require.NoError(t, err)
+
+		// nolint:bodyclose
+		wsConn, resp, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{
+			HTTPHeader: http.Header{
+				"Coder-Session-Token": []string{member.SessionToken()},
+			},
+		})
+		if err != nil {
+			if resp.StatusCode != http.StatusSwitchingProtocols {
+				err = codersdk.ReadBodyAsError(resp)
+			}
+			require.NoError(t, err)
+		}
+		defer wsConn.Close(websocket.StatusNormalClosure, "done")
+
+		inboxHandler := dispatch.NewInboxHandler(logger, db, ps)
+		dispatchFunc, err := inboxHandler.Dispatcher(types.MessagePayload{
+			UserID:                 memberClient.ID.String(),
+			NotificationTemplateID: notifications.TemplateWorkspaceOutOfMemory.String(),
+		}, "# Notification Title", "This is the __content__.", nil)
+		require.NoError(t, err)
+
+		_, err = dispatchFunc(ctx, uuid.New())
+		require.NoError(t, err)
+
+		_, message, err := wsConn.Read(ctx)
+		require.NoError(t, err)
+
+		var notif codersdk.GetInboxNotificationResponse
+		err = json.Unmarshal(message, &notif)
+		require.NoError(t, err)
+
+		require.Equal(t, 1, notif.UnreadCount)
+		require.Equal(t, memberClient.ID, notif.Notification.UserID)
+
+		require.Equal(t, "Notification Title", notif.Notification.Title)
+		require.Equal(t, "This is the content.", notif.Notification.Content)
+	})
+
 	t.Run("OK - filters on templates", func(t *testing.T) {
 		t.Parallel()
 
