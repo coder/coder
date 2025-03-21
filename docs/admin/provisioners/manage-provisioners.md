@@ -71,7 +71,7 @@ Follow these steps to identify problematic jobs or daemons:
    coder provisioner jobs list -s pending
    ```
 
-1. Look for daemons with multiple failed jobs and for template [tag mismatches](../admin/provisioners.md#provisioner-tags).
+1. Look for daemons with multiple failed jobs and for template [tag mismatches](../../admin/provisioners.md#provisioner-tags).
 
 1. Cancel the job through the dashboard, or use the CLI:
 
