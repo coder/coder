@@ -30,14 +30,36 @@ fi
 
 TMPDIR=$(mktemp -d)
 trap 'rm -rfv "$TMPDIR"' EXIT
-pnpm exec quicktype \
+
+show_stderr=1
+exec 3>&2
+if [[ " $* " == *" --quiet "* ]] || [[ ${DCSPEC_QUIET:-false} == "true" ]]; then
+	# Redirect stderr to log because quicktype can't infer all types and
+	# we don't care right now.
+	show_stderr=0
+	exec 2>"${TMPDIR}/stderr.log"
+fi
+
+if ! pnpm exec quicktype \
 	--src-lang schema \
 	--lang go \
 	--just-types-and-package \
 	--top-level "DevContainer" \
 	--out "${TMPDIR}/${DEST_FILENAME}" \
 	--package "dcspec" \
-	"${SCHEMA_DEST}"
+	"${SCHEMA_DEST}"; then
+	echo "quicktype failed to generate Go code." >&3
+	if [[ "${show_stderr}" -eq 1 ]]; then
+		cat "${TMPDIR}/stderr.log" >&3
+	fi
+	exit 1
+fi
+
+if [[ "${show_stderr}" -eq 0 ]]; then
+	# Restore stderr.
+	exec 2>&3
+fi
+exec 3>&-
 
 # Format the generated code.
 go run mvdan.cc/gofumpt@v0.4.0 -w -l "${TMPDIR}/${DEST_FILENAME}"
