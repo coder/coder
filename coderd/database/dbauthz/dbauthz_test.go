@@ -810,25 +810,23 @@ func (s *MethodTestSuite) TestOrganization() {
 		check.Args(o.ID).Asserts(o, policy.ActionRead).Returns(o)
 	}))
 	s.Run("GetOrganizationResourcesCountById", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
 		o := dbgen.Organization(s.T(), db, database.Organization{})
 
-		// Add one workspace to the db
-		dbgen.Workspace(s.T(), db, database.WorkspaceTable{OrganizationID: o.ID})
-
-		// Add two groups to the db
+		t := dbgen.Template(s.T(), db, database.Template{
+			CreatedBy:      u.ID,
+			OrganizationID: o.ID,
+		})
+		dbgen.Workspace(s.T(), db, database.WorkspaceTable{
+			OrganizationID: o.ID,
+			OwnerID:        u.ID,
+			TemplateID:     t.ID,
+		})
 		dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
-		dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
-
-		// add three templates to the db
-		dbgen.Template(s.T(), db, database.Template{OrganizationID: o.ID})
-		dbgen.Template(s.T(), db, database.Template{OrganizationID: o.ID})
-		dbgen.Template(s.T(), db, database.Template{OrganizationID: o.ID})
-
-		// add four members to the db
-		dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{OrganizationID: o.ID})
-		dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{OrganizationID: o.ID})
-		dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{OrganizationID: o.ID})
-		dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{OrganizationID: o.ID})
+		dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{
+			OrganizationID: o.ID,
+			UserID:         u.ID,
+		})
 
 		check.Args(o.ID).Asserts(
 			rbac.ResourceOrganizationMember.InOrg(o.ID), policy.ActionRead,
@@ -838,9 +836,9 @@ func (s *MethodTestSuite) TestOrganization() {
 			rbac.ResourceProvisionerJobs.InOrg(o.ID), policy.ActionRead,
 		).Returns(database.GetOrganizationResourcesCountByIdRow{
 			WorkspaceCount:      1,
-			GroupCount:          2,
-			TemplateCount:       3,
-			MemberCount:         4,
+			GroupCount:          1,
+			TemplateCount:       1,
+			MemberCount:         1,
 			ProvisionerKeyCount: 0,
 		})
 	}))
