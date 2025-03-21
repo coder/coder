@@ -144,7 +144,7 @@ func TestTunnelSrcCoordController_AddDestination(t *testing.T) {
 	}()
 
 	// THEN: Controller sends AddTunnel for the destinations
-	for i := range 2 {
+	for i := 0; i < 2; i++ {
 		b0 := byte(i + 1)
 		call := testutil.RequireRecvCtx(ctx, t, client1.reqs)
 		require.Equal(t, b0, call.req.GetAddTunnel().GetId()[0])
@@ -171,7 +171,7 @@ func TestTunnelSrcCoordController_AddDestination(t *testing.T) {
 
 	// THEN: should immediately send both destinations
 	var dests []byte
-	for range 2 {
+	for i := 0; i < 2; i++ {
 		call := testutil.RequireRecvCtx(ctx, t, client2.reqs)
 		dests = append(dests, call.req.GetAddTunnel().GetId()[0])
 		testutil.RequireSendCtx(ctx, t, call.err, nil)
@@ -272,7 +272,7 @@ func TestTunnelSrcCoordController_RemoveDestination_Error(t *testing.T) {
 	go func() {
 		cws <- uut.New(client1)
 	}()
-	for range 3 {
+	for i := 0; i < 3; i++ {
 		call := testutil.RequireRecvCtx(ctx, t, client1.reqs)
 		testutil.RequireSendCtx(ctx, t, call.err, nil)
 	}
@@ -329,7 +329,7 @@ func TestTunnelSrcCoordController_Sync(t *testing.T) {
 	go func() {
 		cws <- uut.New(client1)
 	}()
-	for range 2 {
+	for i := 0; i < 2; i++ {
 		call := testutil.RequireRecvCtx(ctx, t, client1.reqs)
 		testutil.RequireSendCtx(ctx, t, call.err, nil)
 	}
@@ -1548,7 +1548,7 @@ func TestTunnelAllWorkspaceUpdatesController_Initial(t *testing.T) {
 
 	// This should trigger AddTunnel for each agent
 	var adds []uuid.UUID
-	for range 3 {
+	for i := 0; i < 3; i++ {
 		coordCall := testutil.RequireRecvCtx(ctx, t, coordC.reqs)
 		adds = append(adds, uuid.Must(uuid.FromBytes(coordCall.req.GetAddTunnel().GetId())))
 		testutil.RequireSendCtx(ctx, t, coordCall.err, nil)

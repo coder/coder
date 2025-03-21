@@ -1218,7 +1218,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		// For each day of the week (Monday-Sunday)
 		// We iterate through each day of the week to ensure the behavior of each
 		// day of the week is as expected.
-		for range 7 {
+		for i := 0; i < 7; i++ {
 			next = sched.Next(next)
 
 			clock.Set(next)

@@ -1985,7 +1985,7 @@ func TestAgent_Dial(t *testing.T) {
 
 			go func() {
 				defer close(done)
-				for range 2 {
+				for i := 0; i < 2; i++ {
 					c, err := l.Accept()
 					if assert.NoError(t, err, "accept connection") {
 						testAccept(ctx, t, c)
