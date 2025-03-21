@@ -38,24 +38,24 @@ func RegisterCoderWorkspaceExec(ta ToolAdder) {
 var (
 	toolCoderWhoami = mcp.NewTool("coder_whoami",
 		mcp.WithDescription(`Get information about the currently logged-in Coder user.`),
-		mcp.WithString(`coder_url`, mcp.Description(`The URL of the Coder deployment. e.g. https://coder.example.com. This is accessible via CODER_URL or CODER_AGENT_URL.`), mcp.Required()),
-		mcp.WithString(`coder_session_token`, mcp.Description(`The session token for the Coder deployment. This is accessible via CODER_SESSION_TOKEN.`), mcp.Required()),
+		mcp.WithString(`coder_url`, mcp.Description(`The URL of the Coder deployment. e.g. https://coder.example.com. THIS IS AVAILABLE IN THE ENVIRONMENT VARIABLE CODER_URL.`), mcp.Required()),
+		mcp.WithString(`coder_session_token`, mcp.Description(`The session token for the Coder deployment. THIS IS AVAILABLE IN THE ENVIRONMENT VARIABLE CODER_SESSION_TOKEN.`), mcp.Required()),
 	)
 	toolCoderListWorkspaces = mcp.NewTool("coder_list_workspaces",
 		mcp.WithDescription(`List workspaces on a given Coder deployment owned by the current user.`),
 		mcp.WithString(`owner`, mcp.Description(`The owner of the workspaces to list. Defaults to the current user.`), mcp.DefaultString(codersdk.Me)),
 		mcp.WithNumber(`offset`, mcp.Description(`The offset to start listing workspaces from. Defaults to 0.`), mcp.DefaultNumber(0)),
 		mcp.WithNumber(`limit`, mcp.Description(`The maximum number of workspaces to list. Defaults to 10.`), mcp.DefaultNumber(10)),
-		mcp.WithString(`coder_url`, mcp.Description(`The URL of the Coder deployment. e.g. https://coder.example.com. This is accessible via CODER_URL or CODER_AGENT_URL.`), mcp.Required()),
-		mcp.WithString(`coder_session_token`, mcp.Description(`The session token for the Coder deployment. This is accessible via CODER_SESSION_TOKEN.`), mcp.Required()),
+		mcp.WithString(`coder_url`, mcp.Description(`The URL of the Coder deployment. e.g. https://coder.example.com. THIS IS AVAILABLE IN THE ENVIRONMENT VARIABLE CODER_URL.`), mcp.Required()),
+		mcp.WithString(`coder_session_token`, mcp.Description(`The session token for the Coder deployment. THIS IS AVAILABLE IN THE ENVIRONMENT VARIABLE CODER_SESSION_TOKEN.`), mcp.Required()),
 	)
 	toolCoderWorkspaceExec = mcp.NewTool("coder_workspace_exec",
 		mcp.WithDescription(`Execute a command in a remote workspace on a given Coder deployment.`),
 		// Required parameters.
 		mcp.WithString("workspace", mcp.Description(`The workspace ID or name in which to execute the command in. The workspace must be running.`), mcp.Required()),
 		mcp.WithString("command", mcp.Description(`The command to execute. Changing the working directory is not currently supported, so you may need to preface the command with 'cd /some/path && <my-command>'.`), mcp.Required()),
-		mcp.WithString(`coder_url`, mcp.Description(`The URL of the Coder deployment. e.g. https://coder.example.com. This is accessible via CODER_URL or CODER_AGENT_URL.`), mcp.Required()),
-		mcp.WithString(`coder_session_token`, mcp.Description(`The session token for the Coder deployment. This is accessible via CODER_SESSION_TOKEN.`), mcp.Required()),
+		mcp.WithString(`coder_url`, mcp.Description(`The URL of the Coder deployment. e.g. https://coder.example.com. THIS IS AVAILABLE IN THE ENVIRONMENT VARIABLE CODER_URL.`), mcp.Required()),
+		mcp.WithString(`coder_session_token`, mcp.Description(`The session token for the Coder deployment. THIS IS AVAILABLE IN THE ENVIRONMENT VARIABLE CODER_SESSION_TOKEN.`), mcp.Required()),
 	)
 )
 
