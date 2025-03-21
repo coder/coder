@@ -5892,26 +5892,29 @@ func (q *sqlQuerier) GetPrebuildsInProgress(ctx context.Context) ([]GetPrebuilds
 const getPresetsBackoff = `-- name: GetPresetsBackoff :many
 WITH filtered_builds AS (
 	-- Only select builds which are for prebuild creations
-	SELECT wlb.id, wlb.created_at, wlb.updated_at, wlb.workspace_id, wlb.template_version_id, wlb.build_number, wlb.transition, wlb.initiator_id, wlb.provisioner_state, wlb.job_id, wlb.deadline, wlb.reason, wlb.daily_cost, wlb.max_deadline, wlb.template_version_preset_id, tvp.id AS preset_id, pj.job_status, tvpp.desired_instances
+	SELECT wlb.id, wlb.created_at, wlb.updated_at, wlb.workspace_id, wlb.template_version_id, wlb.build_number, wlb.transition, wlb.initiator_id, wlb.provisioner_state, wlb.job_id, wlb.deadline, wlb.reason, wlb.daily_cost, wlb.max_deadline, wlb.template_version_preset_id, tvp.id AS preset_id, pj.job_status, tvp.desired_instances
 	FROM template_version_presets tvp
 			 JOIN workspace_latest_build wlb ON wlb.template_version_preset_id = tvp.id
 			 JOIN provisioner_jobs pj ON wlb.job_id = pj.id
 			 JOIN template_versions tv ON wlb.template_version_id = tv.id
 			 JOIN templates t ON tv.template_id = t.id AND t.active_version_id = tv.id
-			 JOIN template_version_preset_prebuilds tvpp ON tvpp.preset_id = tvp.id
-	WHERE wlb.transition = 'start'::workspace_transition),
-     time_sorted_builds AS (
-		 -- Group builds by template version, then sort each group by created_at.
-		 SELECT fb.id, fb.created_at, fb.updated_at, fb.workspace_id, fb.template_version_id, fb.build_number, fb.transition, fb.initiator_id, fb.provisioner_state, fb.job_id, fb.deadline, fb.reason, fb.daily_cost, fb.max_deadline, fb.template_version_preset_id, fb.preset_id, fb.job_status, fb.desired_instances,
-				ROW_NUMBER() OVER (PARTITION BY fb.template_version_preset_id ORDER BY fb.created_at DESC) as rn
-		 FROM filtered_builds fb),
-	 failed_count AS (
-		 -- Count failed builds per template version/preset in the given period
-		 SELECT preset_id, COUNT(*) AS num_failed
-		 FROM filtered_builds
-		 WHERE job_status = 'failed'::provisioner_job_status
-		   AND created_at >= $1::timestamptz
-		 GROUP BY preset_id)
+	WHERE tvp.desired_instances IS NOT NULL -- Consider only presets that have a prebuild configuration.
+      AND wlb.transition = 'start'::workspace_transition
+),
+time_sorted_builds AS (
+    -- Group builds by template version, then sort each group by created_at.
+	SELECT fb.id, fb.created_at, fb.updated_at, fb.workspace_id, fb.template_version_id, fb.build_number, fb.transition, fb.initiator_id, fb.provisioner_state, fb.job_id, fb.deadline, fb.reason, fb.daily_cost, fb.max_deadline, fb.template_version_preset_id, fb.preset_id, fb.job_status, fb.desired_instances,
+	    ROW_NUMBER() OVER (PARTITION BY fb.template_version_preset_id ORDER BY fb.created_at DESC) as rn
+	FROM filtered_builds fb
+),
+failed_count AS (
+    -- Count failed builds per template version/preset in the given period
+	SELECT preset_id, COUNT(*) AS num_failed
+	FROM filtered_builds
+	WHERE job_status = 'failed'::provisioner_job_status
+		AND created_at >= $1::timestamptz
+	GROUP BY preset_id
+)
 SELECT tsb.template_version_id,
 	   tsb.preset_id,
 	   COALESCE(fc.num_failed, 0)::int  AS num_failed,
@@ -6040,29 +6043,29 @@ SELECT t.id                        AS template_id,
 	   tv.id                       AS template_version_id,
 	   tv.name                     AS template_version_name,
 	   tv.id = t.active_version_id AS using_active_version,
-	   tvpp.preset_id,
+       tvp.id,
 	   tvp.name,
-	   tvpp.desired_instances      AS desired_instances,
+	   tvp.desired_instances       AS desired_instances,
 	   t.deleted,
 	   t.deprecated != ''          AS deprecated
 FROM templates t
 		 INNER JOIN template_versions tv ON tv.template_id = t.id
 		 INNER JOIN template_version_presets tvp ON tvp.template_version_id = tv.id
-		 INNER JOIN template_version_preset_prebuilds tvpp ON tvpp.preset_id = tvp.id
-WHERE (t.id = $1::uuid OR $1 IS NULL)
+WHERE tvp.desired_instances IS NOT NULL -- Consider only presets that have a prebuild configuration.
+  AND (t.id = $1::uuid OR $1 IS NULL)
 `
 
 type GetTemplatePresetsWithPrebuildsRow struct {
-	TemplateID          uuid.UUID `db:"template_id" json:"template_id"`
-	TemplateName        string    `db:"template_name" json:"template_name"`
-	TemplateVersionID   uuid.UUID `db:"template_version_id" json:"template_version_id"`
-	TemplateVersionName string    `db:"template_version_name" json:"template_version_name"`
-	UsingActiveVersion  bool      `db:"using_active_version" json:"using_active_version"`
-	PresetID            uuid.UUID `db:"preset_id" json:"preset_id"`
-	Name                string    `db:"name" json:"name"`
-	DesiredInstances    int32     `db:"desired_instances" json:"desired_instances"`
-	Deleted             bool      `db:"deleted" json:"deleted"`
-	Deprecated          bool      `db:"deprecated" json:"deprecated"`
+	TemplateID          uuid.UUID     `db:"template_id" json:"template_id"`
+	TemplateName        string        `db:"template_name" json:"template_name"`
+	TemplateVersionID   uuid.UUID     `db:"template_version_id" json:"template_version_id"`
+	TemplateVersionName string        `db:"template_version_name" json:"template_version_name"`
+	UsingActiveVersion  bool          `db:"using_active_version" json:"using_active_version"`
+	ID                  uuid.UUID     `db:"id" json:"id"`
+	Name                string        `db:"name" json:"name"`
+	DesiredInstances    sql.NullInt32 `db:"desired_instances" json:"desired_instances"`
+	Deleted             bool          `db:"deleted" json:"deleted"`
+	Deprecated          bool          `db:"deprecated" json:"deprecated"`
 }
 
 // GetTemplatePresetsWithPrebuilds retrieves template versions with configured presets.
@@ -6083,7 +6086,7 @@ func (q *sqlQuerier) GetTemplatePresetsWithPrebuilds(ctx context.Context, templa
 			&i.TemplateVersionID,
 			&i.TemplateVersionName,
 			&i.UsingActiveVersion,
-			&i.PresetID,
+			&i.ID,
 			&i.Name,
 			&i.DesiredInstances,
 			&i.Deleted,
@@ -6102,39 +6105,9 @@ func (q *sqlQuerier) GetTemplatePresetsWithPrebuilds(ctx context.Context, templa
 	return items, nil
 }
 
-const insertPresetPrebuild = `-- name: InsertPresetPrebuild :one
-INSERT INTO template_version_preset_prebuilds (id, preset_id, desired_instances, invalidate_after_secs)
-VALUES ($1::uuid, $2::uuid, $3::int, $4::int)
-RETURNING id, preset_id, desired_instances, invalidate_after_secs
-`
-
-type InsertPresetPrebuildParams struct {
-	ID                  uuid.UUID `db:"id" json:"id"`
-	PresetID            uuid.UUID `db:"preset_id" json:"preset_id"`
-	DesiredInstances    int32     `db:"desired_instances" json:"desired_instances"`
-	InvalidateAfterSecs int32     `db:"invalidate_after_secs" json:"invalidate_after_secs"`
-}
-
-func (q *sqlQuerier) InsertPresetPrebuild(ctx context.Context, arg InsertPresetPrebuildParams) (TemplateVersionPresetPrebuild, error) {
-	row := q.db.QueryRowContext(ctx, insertPresetPrebuild,
-		arg.ID,
-		arg.PresetID,
-		arg.DesiredInstances,
-		arg.InvalidateAfterSecs,
-	)
-	var i TemplateVersionPresetPrebuild
-	err := row.Scan(
-		&i.ID,
-		&i.PresetID,
-		&i.DesiredInstances,
-		&i.InvalidateAfterSecs,
-	)
-	return i, err
-}
-
 const getPresetByWorkspaceBuildID = `-- name: GetPresetByWorkspaceBuildID :one
 SELECT
-	template_version_presets.id, template_version_presets.template_version_id, template_version_presets.name, template_version_presets.created_at
+	template_version_presets.id, template_version_presets.template_version_id, template_version_presets.name, template_version_presets.created_at, template_version_presets.desired_instances, template_version_presets.invalidate_after_secs
 FROM
 	template_version_presets
 	INNER JOIN workspace_builds ON workspace_builds.template_version_preset_id = template_version_presets.id
@@ -6150,6 +6123,8 @@ func (q *sqlQuerier) GetPresetByWorkspaceBuildID(ctx context.Context, workspaceB
 		&i.TemplateVersionID,
 		&i.Name,
 		&i.CreatedAt,
+		&i.DesiredInstances,
+		&i.InvalidateAfterSecs,
 	)
 	return i, err
 }
@@ -6194,7 +6169,7 @@ func (q *sqlQuerier) GetPresetParametersByTemplateVersionID(ctx context.Context,
 
 const getPresetsByTemplateVersionID = `-- name: GetPresetsByTemplateVersionID :many
 SELECT
-	id, template_version_id, name, created_at
+	id, template_version_id, name, created_at, desired_instances, invalidate_after_secs
 FROM
 	template_version_presets
 WHERE
@@ -6215,6 +6190,8 @@ func (q *sqlQuerier) GetPresetsByTemplateVersionID(ctx context.Context, template
 			&i.TemplateVersionID,
 			&i.Name,
 			&i.CreatedAt,
+			&i.DesiredInstances,
+			&i.InvalidateAfterSecs,
 		); err != nil {
 			return nil, err
 		}
@@ -6230,26 +6207,46 @@ func (q *sqlQuerier) GetPresetsByTemplateVersionID(ctx context.Context, template
 }
 
 const insertPreset = `-- name: InsertPreset :one
-INSERT INTO
-	template_version_presets (template_version_id, name, created_at)
-VALUES
-	($1, $2, $3) RETURNING id, template_version_id, name, created_at
+INSERT INTO template_version_presets (
+	template_version_id,
+	name,
+	created_at,
+	desired_instances,
+	invalidate_after_secs
+)
+VALUES (
+	$1,
+	$2,
+	$3,
+	$4,
+	$5
+) RETURNING id, template_version_id, name, created_at, desired_instances, invalidate_after_secs
 `
 
 type InsertPresetParams struct {
-	TemplateVersionID uuid.UUID `db:"template_version_id" json:"template_version_id"`
-	Name              string    `db:"name" json:"name"`
-	CreatedAt         time.Time `db:"created_at" json:"created_at"`
+	TemplateVersionID   uuid.UUID     `db:"template_version_id" json:"template_version_id"`
+	Name                string        `db:"name" json:"name"`
+	CreatedAt           time.Time     `db:"created_at" json:"created_at"`
+	DesiredInstances    sql.NullInt32 `db:"desired_instances" json:"desired_instances"`
+	InvalidateAfterSecs sql.NullInt32 `db:"invalidate_after_secs" json:"invalidate_after_secs"`
 }
 
 func (q *sqlQuerier) InsertPreset(ctx context.Context, arg InsertPresetParams) (TemplateVersionPreset, error) {
-	row := q.db.QueryRowContext(ctx, insertPreset, arg.TemplateVersionID, arg.Name, arg.CreatedAt)
+	row := q.db.QueryRowContext(ctx, insertPreset,
+		arg.TemplateVersionID,
+		arg.Name,
+		arg.CreatedAt,
+		arg.DesiredInstances,
+		arg.InvalidateAfterSecs,
+	)
 	var i TemplateVersionPreset
 	err := row.Scan(
 		&i.ID,
 		&i.TemplateVersionID,
 		&i.Name,
 		&i.CreatedAt,
+		&i.DesiredInstances,
+		&i.InvalidateAfterSecs,
 	)
 	return i, err
 }

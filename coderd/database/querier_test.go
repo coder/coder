@@ -3511,17 +3511,17 @@ func TestGetPresetsBackoff(t *testing.T) {
 			UpdatedAt:      now,
 			CreatedBy:      tmpl.CreatedBy,
 		})
-		preset := dbgen.Preset(t, db, database.InsertPresetParams{
-			TemplateVersionID: tmplVersion.ID,
-			Name:              "preset",
-		})
 		desiredInstances := 1
 		if opts != nil {
 			desiredInstances = opts.DesiredInstances
 		}
-		dbgen.PresetPrebuild(t, db, database.InsertPresetPrebuildParams{
-			PresetID:         preset.ID,
-			DesiredInstances: int32(desiredInstances),
+		preset := dbgen.Preset(t, db, database.InsertPresetParams{
+			TemplateVersionID: tmplVersion.ID,
+			Name:              "preset",
+			DesiredInstances: sql.NullInt32{
+				Int32: int32(desiredInstances),
+				Valid: true,
+			},
 		})
 
 		return extTmplVersion{

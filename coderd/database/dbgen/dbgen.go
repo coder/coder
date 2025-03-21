@@ -1160,9 +1160,11 @@ func TelemetryItem(t testing.TB, db database.Store, seed database.TelemetryItem)
 
 func Preset(t testing.TB, db database.Store, seed database.InsertPresetParams) database.TemplateVersionPreset {
 	preset, err := db.InsertPreset(genCtx, database.InsertPresetParams{
-		TemplateVersionID: takeFirst(seed.TemplateVersionID, uuid.New()),
-		Name:              takeFirst(seed.Name, testutil.GetRandomName(t)),
-		CreatedAt:         takeFirst(seed.CreatedAt, dbtime.Now()),
+		TemplateVersionID:   takeFirst(seed.TemplateVersionID, uuid.New()),
+		Name:                takeFirst(seed.Name, testutil.GetRandomName(t)),
+		CreatedAt:           takeFirst(seed.CreatedAt, dbtime.Now()),
+		DesiredInstances:    seed.DesiredInstances,
+		InvalidateAfterSecs: seed.InvalidateAfterSecs,
 	})
 	require.NoError(t, err, "insert preset")
 	return preset
@@ -1177,17 +1179,6 @@ func PresetParameter(t testing.TB, db database.Store, seed database.InsertPreset
 
 	require.NoError(t, err, "insert preset parameters")
 	return parameters
-}
-
-func PresetPrebuild(t testing.TB, db database.Store, seed database.InsertPresetPrebuildParams) database.TemplateVersionPresetPrebuild {
-	prebuild, err := db.InsertPresetPrebuild(genCtx, database.InsertPresetPrebuildParams{
-		ID:                  takeFirst(seed.ID, uuid.New()),
-		PresetID:            takeFirst(seed.PresetID, uuid.New()),
-		DesiredInstances:    takeFirst(seed.DesiredInstances, 1),
-		InvalidateAfterSecs: 0,
-	})
-	require.NoError(t, err, "insert preset prebuild")
-	return prebuild
 }
 
 func provisionerJobTiming(t testing.TB, db database.Store, seed database.ProvisionerJobTiming) database.ProvisionerJobTiming {

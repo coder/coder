@@ -7,16 +7,16 @@ SELECT t.id                        AS template_id,
 	   tv.id                       AS template_version_id,
 	   tv.name                     AS template_version_name,
 	   tv.id = t.active_version_id AS using_active_version,
-	   tvpp.preset_id,
+       tvp.id,
 	   tvp.name,
-	   tvpp.desired_instances      AS desired_instances,
+	   tvp.desired_instances       AS desired_instances,
 	   t.deleted,
 	   t.deprecated != ''          AS deprecated
 FROM templates t
 		 INNER JOIN template_versions tv ON tv.template_id = t.id
 		 INNER JOIN template_version_presets tvp ON tvp.template_version_id = tv.id
-		 INNER JOIN template_version_preset_prebuilds tvpp ON tvpp.preset_id = tvp.id
-WHERE (t.id = sqlc.narg('template_id')::uuid OR sqlc.narg('template_id') IS NULL);
+WHERE tvp.desired_instances IS NOT NULL -- Consider only presets that have a prebuild configuration.
+  AND (t.id = sqlc.narg('template_id')::uuid OR sqlc.narg('template_id') IS NULL);
 
 -- name: GetRunningPrebuilds :many
 SELECT p.id               AS workspace_id,
@@ -64,26 +64,29 @@ GROUP BY t.id, wpb.template_version_id, wpb.transition;
 -- The number of failed builds is used downstream to determine the backoff duration.
 WITH filtered_builds AS (
 	-- Only select builds which are for prebuild creations
-	SELECT wlb.*, tvp.id AS preset_id, pj.job_status, tvpp.desired_instances
+	SELECT wlb.*, tvp.id AS preset_id, pj.job_status, tvp.desired_instances
 	FROM template_version_presets tvp
 			 JOIN workspace_latest_build wlb ON wlb.template_version_preset_id = tvp.id
 			 JOIN provisioner_jobs pj ON wlb.job_id = pj.id
 			 JOIN template_versions tv ON wlb.template_version_id = tv.id
 			 JOIN templates t ON tv.template_id = t.id AND t.active_version_id = tv.id
-			 JOIN template_version_preset_prebuilds tvpp ON tvpp.preset_id = tvp.id
-	WHERE wlb.transition = 'start'::workspace_transition),
-     time_sorted_builds AS (
-		 -- Group builds by template version, then sort each group by created_at.
-		 SELECT fb.*,
-				ROW_NUMBER() OVER (PARTITION BY fb.template_version_preset_id ORDER BY fb.created_at DESC) as rn
-		 FROM filtered_builds fb),
-	 failed_count AS (
-		 -- Count failed builds per template version/preset in the given period
-		 SELECT preset_id, COUNT(*) AS num_failed
-		 FROM filtered_builds
-		 WHERE job_status = 'failed'::provisioner_job_status
-		   AND created_at >= @lookback::timestamptz
-		 GROUP BY preset_id)
+	WHERE tvp.desired_instances IS NOT NULL -- Consider only presets that have a prebuild configuration.
+      AND wlb.transition = 'start'::workspace_transition
+),
+time_sorted_builds AS (
+    -- Group builds by template version, then sort each group by created_at.
+	SELECT fb.*,
+	    ROW_NUMBER() OVER (PARTITION BY fb.template_version_preset_id ORDER BY fb.created_at DESC) as rn
+	FROM filtered_builds fb
+),
+failed_count AS (
+    -- Count failed builds per template version/preset in the given period
+	SELECT preset_id, COUNT(*) AS num_failed
+	FROM filtered_builds
+	WHERE job_status = 'failed'::provisioner_job_status
+		AND created_at >= @lookback::timestamptz
+	GROUP BY preset_id
+)
 SELECT tsb.template_version_id,
 	   tsb.preset_id,
 	   COALESCE(fc.num_failed, 0)::int  AS num_failed,
@@ -112,11 +115,6 @@ WHERE w.id IN (SELECT p.id
 			   ORDER BY random()
 			   LIMIT 1 FOR UPDATE OF p SKIP LOCKED) -- Ensure that a concurrent request will not select the same prebuild.
 RETURNING w.id, w.name;
-
--- name: InsertPresetPrebuild :one
-INSERT INTO template_version_preset_prebuilds (id, preset_id, desired_instances, invalidate_after_secs)
-VALUES (@id::uuid, @preset_id::uuid, @desired_instances::int, @invalidate_after_secs::int)
-RETURNING *;
 
 -- name: GetPrebuildMetrics :many
 SELECT

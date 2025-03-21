@@ -8566,15 +8566,6 @@ func (q *FakeQuerier) InsertPresetParameters(_ context.Context, arg database.Ins
 	return presetParameters, nil
 }
 
-func (*FakeQuerier) InsertPresetPrebuild(_ context.Context, arg database.InsertPresetPrebuildParams) (database.TemplateVersionPresetPrebuild, error) {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return database.TemplateVersionPresetPrebuild{}, err
-	}
-
-	return database.TemplateVersionPresetPrebuild{}, ErrUnimplemented
-}
-
 func (q *FakeQuerier) InsertProvisionerJob(_ context.Context, arg database.InsertProvisionerJobParams) (database.ProvisionerJob, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.ProvisionerJob{}, err

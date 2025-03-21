@@ -1382,18 +1382,13 @@ CREATE TABLE template_version_preset_parameters (
     value text NOT NULL
 );
 
-CREATE TABLE template_version_preset_prebuilds (
-    id uuid NOT NULL,
-    preset_id uuid NOT NULL,
-    desired_instances integer NOT NULL,
-    invalidate_after_secs integer DEFAULT 0
-);
-
 CREATE TABLE template_version_presets (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     template_version_id uuid NOT NULL,
     name text NOT NULL,
-    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    desired_instances integer,
+    invalidate_after_secs integer DEFAULT 0
 );
 
 CREATE TABLE template_version_variables (
@@ -2266,9 +2261,6 @@ ALTER TABLE ONLY template_version_parameters
 ALTER TABLE ONLY template_version_preset_parameters
     ADD CONSTRAINT template_version_preset_parameters_pkey PRIMARY KEY (id);
 
-ALTER TABLE ONLY template_version_preset_prebuilds
-    ADD CONSTRAINT template_version_preset_prebuilds_pkey PRIMARY KEY (id);
-
 ALTER TABLE ONLY template_version_presets
     ADD CONSTRAINT template_version_presets_pkey PRIMARY KEY (id);
 
@@ -2767,9 +2759,6 @@ ALTER TABLE ONLY template_version_parameters
 
 ALTER TABLE ONLY template_version_preset_parameters
     ADD CONSTRAINT template_version_preset_paramet_template_version_preset_id_fkey FOREIGN KEY (template_version_preset_id) REFERENCES template_version_presets(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY template_version_preset_prebuilds
-    ADD CONSTRAINT template_version_preset_prebuilds_preset_id_fkey FOREIGN KEY (preset_id) REFERENCES template_version_presets(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY template_version_presets
     ADD CONSTRAINT template_version_presets_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
