@@ -6,12 +6,16 @@ import type {
 } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { useEffectEvent } from "hooks/hookPolyfills";
-import { type FC, useEffect } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
+import { type FC, useEffect, useMemo } from "react";
+import {
+	type QueryFunctionContext,
+	useInfiniteQuery,
+	useMutation,
+	useQueryClient,
+} from "react-query";
 import { InboxPopover } from "./InboxPopover";
 
 const NOTIFICATIONS_QUERY_KEY = ["notifications"];
-const NOTIFICATIONS_LIMIT = 25; // This is hard set in the API
 
 type NotificationsInboxProps = {
 	defaultOpen?: boolean;
@@ -30,17 +34,39 @@ export const NotificationsInbox: FC<NotificationsInboxProps> = ({
 	markAllAsRead,
 	markNotificationAsRead,
 }) => {
-	const queryClient = useQueryClient();
-
+	type CTX = QueryFunctionContext<typeof NOTIFICATIONS_QUERY_KEY, string>;
 	const {
-		data: inboxRes,
+		data: infiniteInboxRes,
 		error,
 		refetch,
-	} = useQuery({
+		fetchNextPage,
+		isFetchingNextPage,
+		hasNextPage = false,
+	} = useInfiniteQuery({
 		queryKey: NOTIFICATIONS_QUERY_KEY,
-		queryFn: () => fetchNotifications(),
+		queryFn: ({ pageParam }: CTX) => fetchNotifications(pageParam),
+		getNextPageParam: (latestPage, allPages) => {
+			const notificationsLoaded = allPages.reduce(
+				(count, page) => count + page.notifications.length,
+				0,
+			);
+			if (notificationsLoaded >= latestPage.unread_count) {
+				return undefined;
+			}
+			return latestPage.notifications.at(-1)?.id;
+		},
 	});
+	const flatInbox = useMemo<ListInboxNotificationsResponse | undefined>(() => {
+		if (infiniteInboxRes === undefined) {
+			return undefined;
+		}
+		return {
+			notifications: infiniteInboxRes.pages.flatMap((p) => p.notifications),
+			unread_count: infiniteInboxRes.pages.at(0)?.unread_count ?? 0,
+		};
+	}, [infiniteInboxRes]);
 
+	const queryClient = useQueryClient();
 	const updateNotificationsCache = useEffectEvent(
 		async (
 			callback: (
@@ -77,32 +103,6 @@ export const NotificationsInbox: FC<NotificationsInboxProps> = ({
 			socket.close();
 		};
 	}, [updateNotificationsCache]);
-
-	const {
-		mutate: loadMoreNotifications,
-		isLoading: isLoadingMoreNotifications,
-	} = useMutation({
-		mutationFn: async () => {
-			if (!inboxRes || inboxRes.notifications.length === 0) {
-				return;
-			}
-			const lastNotification =
-				inboxRes.notifications[inboxRes.notifications.length - 1];
-			const newRes = await fetchNotifications(lastNotification.id);
-			updateNotificationsCache((prev) => {
-				return {
-					unread_count: newRes.unread_count,
-					notifications: [...prev.notifications, ...newRes.notifications],
-				};
-			});
-		},
-		onError: (error) => {
-			displayError(
-				getErrorMessage(error, "Error loading more notifications"),
-				getErrorDetail(error),
-			);
-		},
-	});
 
 	const markAllAsReadMutation = useMutation({
 		mutationFn: markAllAsRead,
@@ -151,17 +151,15 @@ export const NotificationsInbox: FC<NotificationsInboxProps> = ({
 	return (
 		<InboxPopover
 			defaultOpen={defaultOpen}
-			notifications={inboxRes?.notifications}
-			unreadCount={inboxRes?.unread_count ?? 0}
+			notifications={flatInbox?.notifications}
+			unreadCount={flatInbox?.unread_count ?? 0}
 			error={error}
-			isLoadingMoreNotifications={isLoadingMoreNotifications}
-			hasMoreNotifications={Boolean(
-				inboxRes && inboxRes.notifications.length === NOTIFICATIONS_LIMIT,
-			)}
+			isLoadingMoreNotifications={isFetchingNextPage}
+			hasMoreNotifications={hasNextPage}
 			onRetry={refetch}
 			onMarkAllAsRead={markAllAsReadMutation.mutate}
 			onMarkNotificationAsRead={markNotificationAsReadMutation.mutate}
-			onLoadMoreNotifications={loadMoreNotifications}
+			onLoadMoreNotifications={fetchNextPage}
 		/>
 	);
 };
