@@ -1,4 +1,4 @@
-//go:build !go1.24 && !go1.25
+//go:build !go1.24
 
 package cryptorand_test
 
