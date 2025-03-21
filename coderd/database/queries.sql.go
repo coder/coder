@@ -5757,7 +5757,7 @@ SET owner_id   = $1::uuid,
 	updated_at = NOW()
 WHERE w.id IN (SELECT p.id
 			   FROM workspace_prebuilds p
-						INNER JOIN workspace_latest_build b ON b.workspace_id = p.id
+						INNER JOIN workspace_latest_builds b ON b.workspace_id = p.id
 						INNER JOIN provisioner_jobs pj ON b.job_id = pj.id
 						INNER JOIN templates t ON p.template_id = t.id
 			   WHERE (b.transition = 'start'::workspace_transition
@@ -5846,7 +5846,7 @@ func (q *sqlQuerier) GetPrebuildMetrics(ctx context.Context) ([]GetPrebuildMetri
 
 const getPrebuildsInProgress = `-- name: GetPrebuildsInProgress :many
 SELECT t.id AS template_id, wpb.template_version_id, wpb.transition, COUNT(wpb.transition)::int AS count
-FROM workspace_latest_build wlb
+FROM workspace_latest_builds wlb
 		 INNER JOIN provisioner_jobs pj ON wlb.job_id = pj.id
 		 INNER JOIN workspace_prebuild_builds wpb ON wpb.id = wlb.id
 		 INNER JOIN templates t ON t.active_version_id = wlb.template_version_id
@@ -5894,7 +5894,7 @@ WITH filtered_builds AS (
 	-- Only select builds which are for prebuild creations
 	SELECT wlb.id, wlb.created_at, wlb.updated_at, wlb.workspace_id, wlb.template_version_id, wlb.build_number, wlb.transition, wlb.initiator_id, wlb.provisioner_state, wlb.job_id, wlb.deadline, wlb.reason, wlb.daily_cost, wlb.max_deadline, wlb.template_version_preset_id, tvp.id AS preset_id, pj.job_status, tvp.desired_instances
 	FROM template_version_presets tvp
-			 JOIN workspace_latest_build wlb ON wlb.template_version_preset_id = tvp.id
+			 JOIN workspace_latest_builds wlb ON wlb.template_version_preset_id = tvp.id
 			 JOIN provisioner_jobs pj ON wlb.job_id = pj.id
 			 JOIN template_versions tv ON wlb.template_version_id = tv.id
 			 JOIN templates t ON tv.template_id = t.id AND t.active_version_id = tv.id
@@ -5987,7 +5987,7 @@ SELECT p.id               AS workspace_id,
 		   ELSE FALSE END AS ready,
 	   p.created_at
 FROM workspace_prebuilds p
-		 INNER JOIN workspace_latest_build b ON b.workspace_id = p.id
+		 INNER JOIN workspace_latest_builds b ON b.workspace_id = p.id
 		 INNER JOIN provisioner_jobs pj ON b.job_id = pj.id
 		 INNER JOIN templates t ON p.template_id = t.id
 		 LEFT JOIN template_version_presets tvp_curr

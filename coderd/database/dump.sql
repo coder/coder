@@ -1894,7 +1894,7 @@ CREATE VIEW workspace_build_with_user AS
 
 COMMENT ON VIEW workspace_build_with_user IS 'Joins in the username + avatar url of the initiated by user.';
 
-CREATE VIEW workspace_latest_build AS
+CREATE VIEW workspace_latest_builds AS
  SELECT DISTINCT ON (workspace_builds.workspace_id) workspace_builds.id,
     workspace_builds.created_at,
     workspace_builds.updated_at,
@@ -2550,30 +2550,30 @@ CREATE OR REPLACE VIEW workspace_prebuilds AS
            FROM workspaces w
           WHERE (w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid)
         ), latest_prebuild_builds AS (
-         SELECT workspace_latest_build.id,
-            workspace_latest_build.created_at,
-            workspace_latest_build.updated_at,
-            workspace_latest_build.workspace_id,
-            workspace_latest_build.template_version_id,
-            workspace_latest_build.build_number,
-            workspace_latest_build.transition,
-            workspace_latest_build.initiator_id,
-            workspace_latest_build.provisioner_state,
-            workspace_latest_build.job_id,
-            workspace_latest_build.deadline,
-            workspace_latest_build.reason,
-            workspace_latest_build.daily_cost,
-            workspace_latest_build.max_deadline,
-            workspace_latest_build.template_version_preset_id
-           FROM workspace_latest_build
-          WHERE (workspace_latest_build.template_version_preset_id IS NOT NULL)
+         SELECT workspace_latest_builds.id,
+            workspace_latest_builds.created_at,
+            workspace_latest_builds.updated_at,
+            workspace_latest_builds.workspace_id,
+            workspace_latest_builds.template_version_id,
+            workspace_latest_builds.build_number,
+            workspace_latest_builds.transition,
+            workspace_latest_builds.initiator_id,
+            workspace_latest_builds.provisioner_state,
+            workspace_latest_builds.job_id,
+            workspace_latest_builds.deadline,
+            workspace_latest_builds.reason,
+            workspace_latest_builds.daily_cost,
+            workspace_latest_builds.max_deadline,
+            workspace_latest_builds.template_version_preset_id
+           FROM workspace_latest_builds
+          WHERE (workspace_latest_builds.template_version_preset_id IS NOT NULL)
         ), workspace_agents AS (
          SELECT w.id AS workspace_id,
             wa.id AS agent_id,
             wa.lifecycle_state,
             wa.ready_at
            FROM (((workspaces w
-             JOIN workspace_latest_build wlb ON ((wlb.workspace_id = w.id)))
+             JOIN workspace_latest_builds wlb ON ((wlb.workspace_id = w.id)))
              JOIN workspace_resources wr ON ((wr.job_id = wlb.job_id)))
              JOIN workspace_agents wa ON ((wa.resource_id = wr.id)))
           WHERE (w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid)
