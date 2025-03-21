@@ -486,7 +486,7 @@
 					"state": ["enterprise", "premium"],
 					"children": [
 						{
-							"title": "Manage Provisioners",
+							"title": "Manage Provisioner Jobs",
 							"description": "Learn how to run external provisioners with Coder",
 							"path": "./admin/provisioners/manage-provisioners.md",
 							"state": ["enterprise", "premium"]
