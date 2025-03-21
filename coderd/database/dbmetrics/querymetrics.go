@@ -87,6 +87,13 @@ func (m queryMetricsStore) DeleteOrganization(ctx context.Context, id uuid.UUID)
 	return r0
 }
 
+func (m queryMetricsStore) GetOrganizationResourceCountById(ctx context.Context, organizationID uuid.UUID) (database.GetOrganizationResourceCountByIdRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOrganizationResourceCountById(ctx, organizationID)
+	m.queryLatencies.WithLabelValues("GetOrganizationResourcesCountById").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) AcquireLock(ctx context.Context, pgAdvisoryXactLock int64) error {
 	start := time.Now()
 	err := m.s.AcquireLock(ctx, pgAdvisoryXactLock)
@@ -1009,13 +1016,6 @@ func (m queryMetricsStore) GetOrganizationIDsByMemberIDs(ctx context.Context, id
 	organizations, err := m.s.GetOrganizationIDsByMemberIDs(ctx, ids)
 	m.queryLatencies.WithLabelValues("GetOrganizationIDsByMemberIDs").Observe(time.Since(start).Seconds())
 	return organizations, err
-}
-
-func (m queryMetricsStore) GetOrganizationResourcesCountById(ctx context.Context, organizationID uuid.UUID) (database.GetOrganizationResourcesCountByIdRow, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetOrganizationResourcesCountById(ctx, organizationID)
-	m.queryLatencies.WithLabelValues("GetOrganizationResourcesCountById").Observe(time.Since(start).Seconds())
-	return r0, r1
 }
 
 func (m queryMetricsStore) GetOrganizations(ctx context.Context, args database.GetOrganizationsParams) ([]database.Organization, error) {

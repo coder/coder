@@ -162,7 +162,7 @@ func (api *API) deleteOrganization(rw http.ResponseWriter, r *http.Request) {
 		return nil
 	}, nil)
 	if err != nil {
-		orgResourcesRow, queryErr := api.Database.GetOrganizationResourcesCountById(ctx, organization.ID)
+		orgResourcesRow, queryErr := api.Database.GetOrganizationResourceCountById(ctx, organization.ID)
 		if queryErr != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error deleting organization.",

@@ -809,7 +809,7 @@ func (s *MethodTestSuite) TestOrganization() {
 		o := dbgen.Organization(s.T(), db, database.Organization{})
 		check.Args(o.ID).Asserts(o, policy.ActionRead).Returns(o)
 	}))
-	s.Run("GetOrganizationResourcesCountById", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("GetOrganizationResourceCountById", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
 		o := dbgen.Organization(s.T(), db, database.Organization{})
 
