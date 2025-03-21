@@ -8837,6 +8837,10 @@ func (q *FakeQuerier) InsertTemplateVersionTerraformValuesByJobID(_ context.Cont
 		return sql.ErrNoRows
 	}
 
+	if !json.Valid(arg.CachedPlan) {
+		return xerrors.Errorf("cached plan must be valid json, received %q", string(arg.CachedPlan))
+	}
+
 	// Insert the new row
 	row := database.TemplateVersionTerraformValue{
 		TemplateVersionID: templateVersion.ID,
