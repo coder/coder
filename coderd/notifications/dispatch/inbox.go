@@ -16,7 +16,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/notifications/types"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
-	markdown "github.com/coder/coder/v2/coderd/render"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -36,17 +35,7 @@ func NewInboxHandler(log slog.Logger, store InboxStore, ps pubsub.Pubsub) *Inbox
 }
 
 func (s *InboxHandler) Dispatcher(payload types.MessagePayload, titleTmpl, bodyTmpl string, _ template.FuncMap) (DeliveryFunc, error) {
-	subject, err := markdown.PlaintextFromMarkdown(titleTmpl)
-	if err != nil {
-		return nil, xerrors.Errorf("render subject: %w", err)
-	}
-
-	htmlBody, err := markdown.PlaintextFromMarkdown(bodyTmpl)
-	if err != nil {
-		return nil, xerrors.Errorf("render html body: %w", err)
-	}
-
-	return s.dispatch(payload, subject, htmlBody), nil
+	return s.dispatch(payload, titleTmpl, bodyTmpl), nil
 }
 
 func (s *InboxHandler) dispatch(payload types.MessagePayload, title, body string) DeliveryFunc {
