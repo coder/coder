@@ -11662,29 +11662,35 @@ WHERE
 			created_at >= $8
 		ELSE true
 	END
+	AND CASE
+		WHEN $9 :: bigint != 0 THEN
+			github_com_user_id = $9
+		ELSE true
+	END
 	-- End of filters
 
 	-- Authorize Filter clause will be injected below in GetAuthorizedUsers
 	-- @authorize_filter
 ORDER BY
 	-- Deterministic and consistent ordering of all users. This is to ensure consistent pagination.
-	LOWER(username) ASC OFFSET $9
+	LOWER(username) ASC OFFSET $10
 LIMIT
 	-- A null limit means "no limit", so 0 means return all
-	NULLIF($10 :: int, 0)
+	NULLIF($11 :: int, 0)
 `
 
 type GetUsersParams struct {
-	AfterID        uuid.UUID    `db:"after_id" json:"after_id"`
-	Search         string       `db:"search" json:"search"`
-	Status         []UserStatus `db:"status" json:"status"`
-	RbacRole       []string     `db:"rbac_role" json:"rbac_role"`
-	LastSeenBefore time.Time    `db:"last_seen_before" json:"last_seen_before"`
-	LastSeenAfter  time.Time    `db:"last_seen_after" json:"last_seen_after"`
-	CreatedBefore  time.Time    `db:"created_before" json:"created_before"`
-	CreatedAfter   time.Time    `db:"created_after" json:"created_after"`
-	OffsetOpt      int32        `db:"offset_opt" json:"offset_opt"`
-	LimitOpt       int32        `db:"limit_opt" json:"limit_opt"`
+	AfterID         uuid.UUID    `db:"after_id" json:"after_id"`
+	Search          string       `db:"search" json:"search"`
+	Status          []UserStatus `db:"status" json:"status"`
+	RbacRole        []string     `db:"rbac_role" json:"rbac_role"`
+	LastSeenBefore  time.Time    `db:"last_seen_before" json:"last_seen_before"`
+	LastSeenAfter   time.Time    `db:"last_seen_after" json:"last_seen_after"`
+	CreatedBefore   time.Time    `db:"created_before" json:"created_before"`
+	CreatedAfter    time.Time    `db:"created_after" json:"created_after"`
+	GithubComUserID int64        `db:"github_com_user_id" json:"github_com_user_id"`
+	OffsetOpt       int32        `db:"offset_opt" json:"offset_opt"`
+	LimitOpt        int32        `db:"limit_opt" json:"limit_opt"`
 }
 
 type GetUsersRow struct {
@@ -11719,6 +11725,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUse
 		arg.LastSeenAfter,
 		arg.CreatedBefore,
 		arg.CreatedAfter,
+		arg.GithubComUserID,
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)

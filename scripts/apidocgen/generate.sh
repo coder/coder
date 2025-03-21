@@ -27,7 +27,6 @@ go run github.com/swaggo/swag/cmd/swag@v1.8.9 init \
 popd
 
 pushd "${APIDOCGEN_DIR}"
-pnpm i
 
 # Make sure that widdershins is installed correctly.
 pnpm exec -- widdershins --version
