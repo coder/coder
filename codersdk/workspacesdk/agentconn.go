@@ -100,6 +100,8 @@ type AgentReconnectingPTYInit struct {
 	// This can be a username or UID, depending on the underlying implementation.
 	// This is ignored if Container is not set.
 	ContainerUser string
+
+	BackendType string
 }
 
 // AgentReconnectingPTYInitOption is a functional option for AgentReconnectingPTYInit.

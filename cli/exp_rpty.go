@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -15,6 +14,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/pty"
@@ -96,6 +96,7 @@ func handleRPTY(inv *serpent.Invocation, client *codersdk.Client, args handleRPT
 	} else {
 		reconnectID = uuid.New()
 	}
+
 	ws, agt, err := getWorkspaceAndAgent(ctx, inv, client, true, args.NamedWorkspace)
 	if err != nil {
 		return err
@@ -116,14 +117,6 @@ func handleRPTY(inv *serpent.Invocation, client *codersdk.Client, args handleRPT
 		if ctID == "" {
 			return xerrors.Errorf("container %q not found", args.Container)
 		}
-	}
-
-	if err := cliui.Agent(ctx, inv.Stderr, agt.ID, cliui.AgentOptions{
-		FetchInterval: 0,
-		Fetch:         client.WorkspaceAgent,
-		Wait:          false,
-	}); err != nil {
-		return err
 	}
 
 	// Get the width and height of the terminal.
@@ -149,6 +142,15 @@ func handleRPTY(inv *serpent.Invocation, client *codersdk.Client, args handleRPT
 		}()
 	}
 
+	// If a user does not specify a command, we'll assume they intend to open an
+	// interactive shell.
+	var backend string
+	if isOneShotCommand(args.Command) {
+		// If the user specified a command, we'll prefer to use the buffered method.
+		// The screen backend is not well suited for one-shot commands.
+		backend = "buffered"
+	}
+
 	conn, err := workspacesdk.New(client).AgentReconnectingPTY(ctx, workspacesdk.WorkspaceAgentReconnectingPTYOpts{
 		AgentID:       agt.ID,
 		Reconnect:     reconnectID,
@@ -157,14 +159,13 @@ func handleRPTY(inv *serpent.Invocation, client *codersdk.Client, args handleRPT
 		ContainerUser: args.ContainerUser,
 		Width:         termWidth,
 		Height:        termHeight,
+		BackendType:   backend,
 	})
 	if err != nil {
 		return xerrors.Errorf("open reconnecting PTY: %w", err)
 	}
 	defer conn.Close()
 
-	cliui.Infof(inv.Stderr, "Connected to %s (agent id: %s)", args.NamedWorkspace, agt.ID)
-	cliui.Infof(inv.Stderr, "Reconnect ID: %s", reconnectID)
 	closeUsage := client.UpdateWorkspaceUsageWithBodyContext(ctx, ws.ID, codersdk.PostWorkspaceUsageRequest{
 		AgentID: agt.ID,
 		AppName: codersdk.UsageAppNameReconnectingPty,
@@ -210,7 +211,21 @@ func handleRPTY(inv *serpent.Invocation, client *codersdk.Client, args handleRPT
 	_, _ = io.Copy(inv.Stdout, conn)
 	cancel()
 	_ = conn.Close()
-	_, _ = fmt.Fprintf(inv.Stderr, "Connection closed\n")
 
 	return nil
+}
+
+var knownShells = []string{"ash", "bash", "csh", "dash", "fish", "ksh", "powershell", "pwsh", "zsh"}
+
+func isOneShotCommand(cmd []string) bool {
+	// If the command is empty, we'll assume the user wants to open a shell.
+	if len(cmd) == 0 {
+		return false
+	}
+	// If the command is a single word, and that word is a known shell, we'll
+	// assume the user wants to open a shell.
+	if len(cmd) == 1 && slice.Contains(knownShells, cmd[0]) {
+		return false
+	}
+	return true
 }

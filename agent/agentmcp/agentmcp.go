@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 
-	"github.com/coder/coder/v2/buildinfo"
-	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
+
+	"github.com/coder/coder/v2/agent/agentmcp/mcptools"
+	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
 
 func New(ctx context.Context, sdk *agentsdk.Client) error {
@@ -29,7 +31,7 @@ Examples of sending a task:
 `),
 	)
 
-	tool := mcp.NewTool("report_task",
+	taskTool := mcp.NewTool("report_task",
 		mcp.WithDescription(`Report progress on a task.`),
 		mcp.WithString("summary", mcp.Description(`A summary of your progress on a task.
 
@@ -42,7 +44,7 @@ Good Summaries:
 		mcp.WithString("emoji", mcp.Description(`A relevant emoji to your work.`), mcp.Required()),
 	)
 
-	srv.AddTool(tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	srv.AddTool(taskTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		args := request.Params.Arguments
 
 		summary, ok := args["summary"].(string)
@@ -82,6 +84,10 @@ Good Summaries:
 			},
 		}, nil
 	})
+
+	mcptools.RegisterCoderWhoami(srv)
+	mcptools.RegisterCoderListWorkspaces(srv)
+	mcptools.RegisterCoderWorkspaceExec(srv)
 
 	return server.ServeStdio(srv)
 }
