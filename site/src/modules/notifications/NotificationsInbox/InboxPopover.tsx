@@ -47,7 +47,10 @@ export const InboxPopover: FC<InboxPopoverProps> = ({
 			<PopoverTrigger asChild>
 				<InboxButton unreadCount={unreadCount} />
 			</PopoverTrigger>
-			<PopoverContent className="w-[466px] flex flex-col" align="end">
+			<PopoverContent
+				className="w-full max-w-[466px] flex flex-col"
+				align="end"
+			>
 				{/*
 				 * data-radix-scroll-area-viewport is used to set the max-height of the ScrollArea
 				 * https://github.com/shadcn-ui/ui/issues/542#issuecomment-2339361283

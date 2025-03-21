@@ -83,7 +83,7 @@ export const NotificationsInbox: FC<NotificationsInboxProps> = ({
 		isLoading: isLoadingMoreNotifications,
 	} = useMutation({
 		mutationFn: async () => {
-			if (!inboxRes) {
+			if (!inboxRes || inboxRes.notifications.length === 0) {
 				return;
 			}
 			const lastNotification =
