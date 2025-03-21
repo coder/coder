@@ -809,6 +809,39 @@ func (s *MethodTestSuite) TestOrganization() {
 		o := dbgen.Organization(s.T(), db, database.Organization{})
 		check.Args(o.ID).Asserts(o, policy.ActionRead).Returns(o)
 	}))
+	s.Run("GetOrganizationResourceCountByID", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+
+		t := dbgen.Template(s.T(), db, database.Template{
+			CreatedBy:      u.ID,
+			OrganizationID: o.ID,
+		})
+		dbgen.Workspace(s.T(), db, database.WorkspaceTable{
+			OrganizationID: o.ID,
+			OwnerID:        u.ID,
+			TemplateID:     t.ID,
+		})
+		dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
+		dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{
+			OrganizationID: o.ID,
+			UserID:         u.ID,
+		})
+
+		check.Args(o.ID).Asserts(
+			rbac.ResourceOrganizationMember.InOrg(o.ID), policy.ActionRead,
+			rbac.ResourceWorkspace.InOrg(o.ID), policy.ActionRead,
+			rbac.ResourceGroup.InOrg(o.ID), policy.ActionRead,
+			rbac.ResourceTemplate.InOrg(o.ID), policy.ActionRead,
+			rbac.ResourceProvisionerJobs.InOrg(o.ID), policy.ActionRead,
+		).Returns(database.GetOrganizationResourceCountByIDRow{
+			WorkspaceCount:      1,
+			GroupCount:          1,
+			TemplateCount:       1,
+			MemberCount:         1,
+			ProvisionerKeyCount: 0,
+		})
+	}))
 	s.Run("GetDefaultOrganization", s.Subtest(func(db database.Store, check *expects) {
 		o, _ := db.GetDefaultOrganization(context.Background())
 		check.Args().Asserts(o, policy.ActionRead).Returns(o)
