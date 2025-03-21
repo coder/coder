@@ -521,7 +521,7 @@ lint/go:
 	./scripts/check_enterprise_imports.sh
 	./scripts/check_codersdk_imports.sh
 	echo "Temporarily using custom golangci-lint invocation compatible with Go 1.24.1"
-	go run github.com/golangci/golangci-lint/cmd/golangci-lint@v1.57.1 run \
+	go run github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8 run \
 		--timeout 5m \
 		--allow-parallel-runners \
 		--disable-all \
