@@ -1693,6 +1693,13 @@ const docTemplate = `{
                         "description": "Filter notifications by read status. Possible values: read, unread, all",
                         "name": "read_status",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "ID of the last notification from the current page. Notifications returned will be older than the associated one",
+                        "name": "starting_before",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -1756,6 +1763,16 @@ const docTemplate = `{
                         "type": "string",
                         "description": "Filter notifications by read status. Possible values: read, unread, all",
                         "name": "read_status",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "plaintext",
+                            "markdown"
+                        ],
+                        "type": "string",
+                        "description": "Define the output format for notifications title and body.",
+                        "name": "format",
                         "in": "query"
                     }
                 ],

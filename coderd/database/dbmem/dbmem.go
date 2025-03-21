@@ -6580,6 +6580,16 @@ func (q *FakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 		users = usersFilteredByLastSeen
 	}
 
+	if params.GithubComUserID != 0 {
+		usersFilteredByGithubComUserID := make([]database.User, 0, len(users))
+		for i, user := range users {
+			if user.GithubComUserID.Int64 == params.GithubComUserID {
+				usersFilteredByGithubComUserID = append(usersFilteredByGithubComUserID, users[i])
+			}
+		}
+		users = usersFilteredByGithubComUserID
+	}
+
 	beforePageCount := len(users)
 
 	if params.OffsetOpt > 0 {

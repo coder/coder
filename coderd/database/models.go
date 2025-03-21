@@ -3186,7 +3186,7 @@ type User struct {
 	QuietHoursSchedule string `db:"quiet_hours_schedule" json:"quiet_hours_schedule"`
 	// Name of the Coder user
 	Name string `db:"name" json:"name"`
-	// The GitHub.com numerical user ID. At time of implementation, this is used to check if the user has starred the Coder repository.
+	// The GitHub.com numerical user ID. It is used to check if the user has starred the Coder repository. It is also used for filtering users in the users list CLI command, and may become more widely used in the future.
 	GithubComUserID sql.NullInt64 `db:"github_com_user_id" json:"github_com_user_id"`
 	// A hash of the one-time-passcode given to the user.
 	HashedOneTimePasscode []byte `db:"hashed_one_time_passcode" json:"hashed_one_time_passcode"`

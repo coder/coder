@@ -31,6 +31,6 @@
   },
   "title": "Workspace 'bobby-workspace' has been manually updated",
   "title_markdown": "Workspace 'bobby-workspace' has been manually updated",
-  "body": "Hello Bobby,\n\nA new workspace build has been manually created for your workspace bobby-workspace by bobby to update it to version alpha of template bobby-template.",
-  "body_markdown": "Hello Bobby,\n\nA new workspace build has been manually created for your workspace **bobby-workspace** by **bobby** to update it to version **alpha** of template **bobby-template**."
+  "body": "A new workspace build has been manually created for your workspace bobby-workspace by bobby to update it to version alpha of template bobby-template.",
+  "body_markdown": "A new workspace build has been manually created for your workspace **bobby-workspace** by **bobby** to update it to version **alpha** of template **bobby-template**."
 }
