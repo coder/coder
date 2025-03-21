@@ -229,7 +229,17 @@ type sqlcQuerier interface {
 	// For each group, the query checks the last N jobs, where N equals the number of desired instances for the corresponding preset.
 	// If at least one of the last N jobs has failed, we should backoff on the corresponding template version ID.
 	// Query returns a list of template version IDs for which we should backoff.
-	// Only template versions with configured presets are considered.
+	// Only active template versions with configured presets are considered.
+	//
+	// NOTE:
+	// We back off on the template version ID if at least one of the N latest workspace builds has failed.
+	// However, we also return the number of failed workspace builds that occurred during the lookback period.
+	//
+	// In other words:
+	// - To **decide whether to back off**, we look at the N most recent builds (regardless of when they happened).
+	// - To **calculate the number of failed builds**, we consider all builds within the defined lookback period.
+	//
+	// The number of failed builds is used downstream to determine the backoff duration.
 	GetPresetsBackoff(ctx context.Context, lookback time.Time) ([]GetPresetsBackoffRow, error)
 	GetPresetsByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionPreset, error)
 	GetPreviousTemplateVersion(ctx context.Context, arg GetPreviousTemplateVersionParams) (TemplateVersion, error)

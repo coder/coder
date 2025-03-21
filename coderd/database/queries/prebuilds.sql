@@ -51,7 +51,17 @@ GROUP BY t.id, wpb.template_version_id, wpb.transition;
 -- For each group, the query checks the last N jobs, where N equals the number of desired instances for the corresponding preset.
 -- If at least one of the last N jobs has failed, we should backoff on the corresponding template version ID.
 -- Query returns a list of template version IDs for which we should backoff.
--- Only template versions with configured presets are considered.
+-- Only active template versions with configured presets are considered.
+--
+-- NOTE:
+-- We back off on the template version ID if at least one of the N latest workspace builds has failed.
+-- However, we also return the number of failed workspace builds that occurred during the lookback period.
+--
+-- In other words:
+-- - To **decide whether to back off**, we look at the N most recent builds (regardless of when they happened).
+-- - To **calculate the number of failed builds**, we consider all builds within the defined lookback period.
+--
+-- The number of failed builds is used downstream to determine the backoff duration.
 WITH filtered_builds AS (
 	-- Only select builds which are for prebuild creations
 	SELECT wlb.*, tvp.id AS preset_id, pj.job_status, tvpp.desired_instances
@@ -62,8 +72,8 @@ WITH filtered_builds AS (
 			 JOIN templates t ON tv.template_id = t.id AND t.active_version_id = tv.id
 			 JOIN template_version_preset_prebuilds tvpp ON tvpp.preset_id = tvp.id
 	WHERE wlb.transition = 'start'::workspace_transition),
-	 latest_builds AS (
-		 -- Select only the latest build per template_version AND preset
+     time_sorted_builds AS (
+		 -- Group builds by template version, then sort each group by created_at.
 		 SELECT fb.*,
 				ROW_NUMBER() OVER (PARTITION BY fb.template_version_preset_id ORDER BY fb.created_at DESC) as rn
 		 FROM filtered_builds fb),
@@ -74,16 +84,16 @@ WITH filtered_builds AS (
 		 WHERE job_status = 'failed'::provisioner_job_status
 		   AND created_at >= @lookback::timestamptz
 		 GROUP BY preset_id)
-SELECT lb.template_version_id,
-	   lb.preset_id,
-	   MAX(lb.job_status)::provisioner_job_status AS latest_build_status,
-	   MAX(COALESCE(fc.num_failed, 0))::int       AS num_failed,
-	   MAX(lb.created_at)::timestamptz            AS last_build_at
-FROM latest_builds lb
-		 LEFT JOIN failed_count fc ON fc.preset_id = lb.preset_id
-WHERE lb.rn <= lb.desired_instances -- Fetch the last N builds, where N is the number of desired instances; if any fail, we backoff
-  AND lb.job_status = 'failed'::provisioner_job_status
-GROUP BY lb.template_version_id, lb.preset_id, lb.job_status;
+SELECT tsb.template_version_id,
+	   tsb.preset_id,
+	   tsb.job_status::provisioner_job_status AS latest_build_status,
+	   COALESCE(fc.num_failed, 0)::int        AS num_failed,
+	   tsb.created_at::timestamptz            AS last_build_at
+FROM time_sorted_builds tsb
+		 LEFT JOIN failed_count fc ON fc.preset_id = tsb.preset_id
+WHERE tsb.rn <= tsb.desired_instances -- Fetch the last N builds, where N is the number of desired instances; if any fail, we backoff
+  AND tsb.job_status = 'failed'::provisioner_job_status
+GROUP BY tsb.template_version_id, tsb.preset_id, tsb.job_status, tsb.created_at, fc.num_failed;
 
 -- name: ClaimPrebuild :one
 UPDATE workspaces w
