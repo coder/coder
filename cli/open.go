@@ -2,7 +2,9 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"path"
 	"path/filepath"
@@ -215,8 +217,8 @@ func (r *RootCmd) openVSCode() *serpent.Command {
 
 func (r *RootCmd) openApp() *serpent.Command {
 	var (
-		preferredRegion string
-		testOpenError   bool
+		regionArg     string
+		testOpenError bool
 	)
 
 	client := new(codersdk.Client)
@@ -225,69 +227,82 @@ func (r *RootCmd) openApp() *serpent.Command {
 		Use:         "app <workspace> <app slug>",
 		Short:       "Open a workspace application.",
 		Middleware: serpent.Chain(
-			serpent.RequireNArgs(2),
 			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
-			// Check if we're inside a workspace.  Generally, we know
-			// that if we're inside a workspace, `open` can't be used.
-			insideAWorkspace := inv.Environ.Get("CODER") == "true"
+			if len(inv.Args) == 0 || len(inv.Args) > 2 {
+				return inv.Command.HelpHandler(inv)
+			}
 
-			// Fetch the preferred region.
+			workspaceName := inv.Args[0]
+			ws, agt, err := getWorkspaceAndAgent(ctx, inv, client, false, workspaceName)
+			if err != nil {
+				var sdkErr *codersdk.Error
+				if errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
+					cliui.Errorf(inv.Stderr, "Workspace %q not found!", workspaceName)
+					return sdkErr
+				}
+				cliui.Errorf(inv.Stderr, "Failed to get workspace and agent: %s", err)
+				return err
+			}
+
+			allAppSlugs := make([]string, len(agt.Apps))
+			for i, app := range agt.Apps {
+				allAppSlugs[i] = app.Slug
+			}
+
+			// If a user doesn't specify an app slug, we'll just list the available
+			// apps and exit.
+			if len(inv.Args) == 1 {
+				cliui.Infof(inv.Stderr, "Available apps in %q: %v", workspaceName, allAppSlugs)
+				return nil
+			}
+
+			appSlug := inv.Args[1]
+			var foundApp codersdk.WorkspaceApp
+			appIdx := slices.IndexFunc(agt.Apps, func(a codersdk.WorkspaceApp) bool {
+				return a.Slug == appSlug
+			})
+			if appIdx == -1 {
+				cliui.Errorf(inv.Stderr, "App %q not found in workspace %q!\nAvailable apps: %v", appSlug, workspaceName, allAppSlugs)
+				return xerrors.Errorf("app not found")
+			}
+			foundApp = agt.Apps[appIdx]
+
+			// To build the app URL, we need to know the wildcard hostname
+			// and path app URL for the region.
 			regions, err := client.Regions(ctx)
 			if err != nil {
 				return xerrors.Errorf("failed to fetch regions: %w", err)
 			}
 			var region codersdk.Region
 			preferredIdx := slices.IndexFunc(regions, func(r codersdk.Region) bool {
-				return r.Name == preferredRegion
+				return r.Name == regionArg
 			})
 			if preferredIdx == -1 {
 				allRegions := make([]string, len(regions))
 				for i, r := range regions {
 					allRegions[i] = r.Name
 				}
-				cliui.Errorf(inv.Stderr, "Preferred region %q not found!\nAvailable regions: %v", preferredRegion, allRegions)
+				cliui.Errorf(inv.Stderr, "Preferred region %q not found!\nAvailable regions: %v", regionArg, allRegions)
 				return xerrors.Errorf("region not found")
 			}
 			region = regions[preferredIdx]
 
-			workspaceName := inv.Args[0]
-			appSlug := inv.Args[1]
-
-			// Fetch the ws and agent
-			ws, agt, err := getWorkspaceAndAgent(ctx, inv, client, false, workspaceName)
-			if err != nil {
-				return xerrors.Errorf("failed to get workspace and agent: %w", err)
-			}
-
-			// Fetch the app
-			var app codersdk.WorkspaceApp
-			appIdx := slices.IndexFunc(agt.Apps, func(a codersdk.WorkspaceApp) bool {
-				return a.Slug == appSlug
-			})
-			if appIdx == -1 {
-				appSlugs := make([]string, len(agt.Apps))
-				for i, app := range agt.Apps {
-					appSlugs[i] = app.Slug
-				}
-				cliui.Errorf(inv.Stderr, "App %q not found in workspace %q!\nAvailable apps: %v", appSlug, workspaceName, appSlugs)
-				return xerrors.Errorf("app not found")
-			}
-			app = agt.Apps[appIdx]
-
-			// Build the URL
 			baseURL, err := url.Parse(region.PathAppURL)
 			if err != nil {
 				return xerrors.Errorf("failed to parse proxy URL: %w", err)
 			}
 			baseURL.Path = ""
 			pathAppURL := strings.TrimPrefix(region.PathAppURL, baseURL.String())
-			appURL := buildAppLinkURL(baseURL, ws, agt, app, region.WildcardHostname, pathAppURL)
+			appURL := buildAppLinkURL(baseURL, ws, agt, foundApp, region.WildcardHostname, pathAppURL)
 
+			// Check if we're inside a workspace.  Generally, we know
+			// that if we're inside a workspace, `open` can't be used.
+			insideAWorkspace := inv.Environ.Get("CODER") == "true"
 			if insideAWorkspace {
 				_, _ = fmt.Fprintf(inv.Stderr, "Please open the following URI on your local machine:\n\n")
 				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", appURL)
@@ -306,11 +321,11 @@ func (r *RootCmd) openApp() *serpent.Command {
 
 	cmd.Options = serpent.OptionSet{
 		{
-			Flag: "preferred-region",
+			Flag: "region",
 			Env:  "CODER_OPEN_APP_PREFERRED_REGION",
-			Description: fmt.Sprintf("Preferred region to use when opening the app." +
+			Description: fmt.Sprintf("Region to use when opening the app." +
 				" By default, the app will be opened using the main Coder deployment (a.k.a. \"primary\")."),
-			Value:   serpent.StringOf(&preferredRegion),
+			Value:   serpent.StringOf(&regionArg),
 			Default: "primary",
 		},
 		{

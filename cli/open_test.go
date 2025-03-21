@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -311,6 +312,36 @@ func TestOpenApp(t *testing.T) {
 		w.RequireContains("test.open-error")
 	})
 
+	t.Run("OnlyWorkspaceName", func(t *testing.T) {
+		t.Parallel()
+
+		client, ws, _ := setupWorkspaceForAgent(t)
+		inv, root := clitest.New(t, "open", "app", ws.Name)
+		clitest.SetupConfig(t, client, root)
+		var sb strings.Builder
+		inv.Stdout = &sb
+		inv.Stderr = &sb
+
+		w := clitest.StartWithWaiter(t, inv)
+		w.RequireSuccess()
+
+		require.Contains(t, sb.String(), "Available apps in")
+	})
+
+	t.Run("WorkspaceNotFound", func(t *testing.T) {
+		t.Parallel()
+
+		client, _, _ := setupWorkspaceForAgent(t)
+		inv, root := clitest.New(t, "open", "app", "not-a-workspace", "app1")
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t)
+		inv.Stdin = pty.Input()
+		inv.Stdout = pty.Output()
+		w := clitest.StartWithWaiter(t, inv)
+		w.RequireError()
+		w.RequireContains("Resource not found or you do not have access to this resource")
+	})
+
 	t.Run("AppNotFound", func(t *testing.T) {
 		t.Parallel()
 
@@ -340,7 +371,7 @@ func TestOpenApp(t *testing.T) {
 			return agents
 		})
 
-		inv, root := clitest.New(t, "open", "app", ws.Name, "app1", "--preferred-region", "bad-region")
+		inv, root := clitest.New(t, "open", "app", ws.Name, "app1", "--region", "bad-region")
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
 		inv.Stdin = pty.Input()
