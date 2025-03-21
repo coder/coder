@@ -74,8 +74,7 @@ You can [pre-install the JetBrains Gateway backend](./jetbrains-pre-install.md) 
 
    ![Gateway IDE Opened](../../../images/gateway/gateway-intellij-opened.png)
 
-   > Note the JetBrains IDE is remotely installed into
-   > `~/.cache/JetBrains/RemoteDev/dist`
+   The JetBrains IDE is remotely installed into `~/.cache/JetBrains/RemoteDev/dist`.
 
 ### Update a Coder plugin version
 
@@ -97,56 +96,61 @@ Failed to configure connection to https://coder.internal.enterprise/: PKIX path 
 ```
 
 To resolve this issue, you will need to add Coder's certificate to the Java
-trust store present on your local machine:
+trust store present on your local machine as well as to the Coder plugin settings.
 
-<div class="tabs">
+1. Add the certificate to the Java trust store:
 
-#### Linux
+   <div class="tabs">
 
-```none
-<Gateway installation directory>/jbr/lib/security/cacerts
-```
+   #### Linux
 
-Use the `keytool` utility that ships with Java:
+   ```none
+   <Gateway installation directory>/jbr/lib/security/cacerts
+   ```
 
-```shell
-keytool -import -alias coder -file <certificate> -keystore /path/to/trust/store
-```
+   Use the `keytool` utility that ships with Java:
 
-#### macOS
+   ```shell
+   keytool -import -alias coder -file <certificate> -keystore /path/to/trust/store
+   ```
 
-```none
-<Gateway installation directory>/jbr/lib/security/cacerts
-/Library/Application Support/JetBrains/Toolbox/apps/JetBrainsGateway/ch-0/<app-id>/JetBrains Gateway.app/Contents/jbr/Contents/Home/lib/security/cacerts # Path for Toolbox installation
-```
+   #### macOS
 
-Use the `keytool` included in the JetBrains Gateway installation:
+   ```none
+   <Gateway installation directory>/jbr/lib/security/cacerts
+   /Library/Application Support/JetBrains/Toolbox/apps/JetBrainsGateway/ch-0/<app-id>/JetBrains Gateway.app/Contents/jbr/Contents/Home/lib/security/cacerts # Path for Toolbox installation
+   ```
 
-```shell
-keytool -import -alias coder -file cacert.pem -keystore /Applications/JetBrains\ Gateway.app/Contents/jbr/Contents/Home/lib/security/cacerts
-```
+   Use the `keytool` included in the JetBrains Gateway installation:
 
-#### Windows
+   ```shell
+   keytool -import -alias coder -file cacert.pem -keystore /Applications/JetBrains\ Gateway.app/Contents/jbr/Contents/Home/lib/security/cacerts
+   ```
 
-```none
-C:\Program Files (x86)\<Gateway installation directory>\jre\lib\security\cacerts\%USERPROFILE%\AppData\Local\JetBrains\Toolbox\bin\jre\lib\security\cacerts # Path for Toolbox installation
-```
+   #### Windows
 
-Use the `keytool` included in the JetBrains Gateway installation:
+   ```none
+   C:\Program Files (x86)\<Gateway installation directory>\jre\lib\security\cacerts\%USERPROFILE%\AppData\Local\JetBrains\Toolbox\bin\jre\lib\security\cacerts # Path for Toolbox installation
+   ```
 
-```powershell
-& 'C:\Program Files\JetBrains\JetBrains Gateway <version>/jbr/bin/keytool.exe' 'C:\Program Files\JetBrains\JetBrains Gateway <version>/jre/lib/security/cacerts' -import -alias coder -file <cert>
+   Use the `keytool` included in the JetBrains Gateway installation:
 
-# command for Toolbox installation
-& '%USERPROFILE%\AppData\Local\JetBrains\Toolbox\apps\Gateway\ch-0\<VERSION>\jbr\bin\keytool.exe' '%USERPROFILE%\AppData\Local\JetBrains\Toolbox\bin\jre\lib\security\cacerts' -import -alias coder -file <cert>
-```
+   ```powershell
+   & 'C:\Program Files\JetBrains\JetBrains Gateway <version>/jbr/bin/keytool.exe' 'C:\Program Files\JetBrains\JetBrains Gateway <version>/jre/lib/security/cacerts' -import -alias coder -file <cert>
 
-</div>
+   # command for Toolbox installation
+   & '%USERPROFILE%\AppData\Local\JetBrains\Toolbox\apps\Gateway\ch-0\<VERSION>\jbr\bin\keytool.exe' '%USERPROFILE%\AppData\Local\JetBrains\Toolbox\bin\jre\lib\security\cacerts' -import -alias coder -file <cert>
+   ```
+
+   </div>
+
+1. In JetBrains, go to **Settings** > **Tools** > **Coder**.
+
+1. Paste the path to the certificate in **CA Path**.
 
 ## Manually Configuring A JetBrains Gateway Connection
 
-> This is in lieu of using Coder's Gateway plugin which automatically performs
-> these steps.
+This is in lieu of using Coder's Gateway plugin which automatically performs these steps.
 
 1. [Install Gateway](https://www.jetbrains.com/help/idea/jetbrains-gateway.html).
 
@@ -196,8 +200,7 @@ Use the `keytool` included in the JetBrains Gateway installation:
 
    ![Gateway Choose IDE](../../../images/gateway/gateway-choose-ide.png)
 
-   > Note the JetBrains IDE is remotely installed into
-   > `~/.cache/JetBrains/RemoteDev/dist`
+   The JetBrains IDE is remotely installed into `~/.cache/JetBrains/RemoteDev/dist`
 
 1. Click **Download and Start IDE** to connect.
 
@@ -205,22 +208,17 @@ Use the `keytool` included in the JetBrains Gateway installation:
 
 ## Using an existing JetBrains installation in the workspace
 
-<blockquote class="info">
-
-This step must be done before configuring Gateway.
-
-</blockquote>
-
 If you would like to use an existing JetBrains IDE in a Coder workspace (or you
 are air-gapped, and cannot reach `jetbrains.com`), run the following script in
 the JetBrains IDE directory to point the default Gateway directory to the IDE
-directory.
+directory. This step must be done before configuring Gateway.
 
 ```shell
 cd /opt/idea/bin
 ./remote-dev-server.sh registerBackendLocationForGateway
 ```
 
+> [!NOTE]
 > Gateway only works with paid versions of JetBrains IDEs so the script will not
 > be located in the `bin` directory of JetBrains Community editions.
 
@@ -254,6 +252,6 @@ To connect Fleet to a Coder workspace:
 1. Connect via SSH with the Host set to `coder.workspace-name`
    ![Fleet Connect to Coder](../../../images/fleet/ssh-connect-to-coder.png)
 
-> If you experience any issues, please
-> [create a GitHub issue](https://github.com/coder/coder/issues) or share in
-> [our Discord channel](https://discord.gg/coder).
+If you experience any issues, please
+[create a GitHub issue](https://github.com/coder/coder/issues) or share in
+[our Discord channel](https://discord.gg/coder).
