@@ -5914,22 +5914,20 @@ WITH filtered_builds AS (
 		 GROUP BY preset_id)
 SELECT tsb.template_version_id,
 	   tsb.preset_id,
-	   tsb.job_status::provisioner_job_status AS latest_build_status,
-	   COALESCE(fc.num_failed, 0)::int        AS num_failed,
-	   MAX(tsb.created_at::timestamptz)       AS last_build_at
+	   COALESCE(fc.num_failed, 0)::int  AS num_failed,
+	   MAX(tsb.created_at::timestamptz) AS last_build_at
 FROM time_sorted_builds tsb
 		 LEFT JOIN failed_count fc ON fc.preset_id = tsb.preset_id
 WHERE tsb.rn <= tsb.desired_instances -- Fetch the last N builds, where N is the number of desired instances; if any fail, we backoff
   AND tsb.job_status = 'failed'::provisioner_job_status
-GROUP BY tsb.template_version_id, tsb.preset_id, tsb.job_status, fc.num_failed
+GROUP BY tsb.template_version_id, tsb.preset_id, fc.num_failed
 `
 
 type GetPresetsBackoffRow struct {
-	TemplateVersionID uuid.UUID            `db:"template_version_id" json:"template_version_id"`
-	PresetID          uuid.UUID            `db:"preset_id" json:"preset_id"`
-	LatestBuildStatus ProvisionerJobStatus `db:"latest_build_status" json:"latest_build_status"`
-	NumFailed         int32                `db:"num_failed" json:"num_failed"`
-	LastBuildAt       interface{}          `db:"last_build_at" json:"last_build_at"`
+	TemplateVersionID uuid.UUID   `db:"template_version_id" json:"template_version_id"`
+	PresetID          uuid.UUID   `db:"preset_id" json:"preset_id"`
+	NumFailed         int32       `db:"num_failed" json:"num_failed"`
+	LastBuildAt       interface{} `db:"last_build_at" json:"last_build_at"`
 }
 
 // GetPresetsBackoff groups workspace builds by template version ID.
@@ -5959,7 +5957,6 @@ func (q *sqlQuerier) GetPresetsBackoff(ctx context.Context, lookback time.Time) 
 		if err := rows.Scan(
 			&i.TemplateVersionID,
 			&i.PresetID,
-			&i.LatestBuildStatus,
 			&i.NumFailed,
 			&i.LastBuildAt,
 		); err != nil {

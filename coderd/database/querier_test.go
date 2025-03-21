@@ -3615,7 +3615,6 @@ func TestGetPresetsBackoff(t *testing.T) {
 		backoff := backoffs[0]
 		require.Equal(t, backoff.TemplateVersionID, tmpl.ActiveVersionID)
 		require.Equal(t, backoff.PresetID, tmplV1.preset.ID)
-		require.Equal(t, database.ProvisionerJobStatusFailed, backoff.LatestBuildStatus)
 		require.Equal(t, int32(1), backoff.NumFailed)
 	})
 
@@ -3644,7 +3643,6 @@ func TestGetPresetsBackoff(t *testing.T) {
 		backoff := backoffs[0]
 		require.Equal(t, backoff.TemplateVersionID, tmpl.ActiveVersionID)
 		require.Equal(t, backoff.PresetID, tmplV1.preset.ID)
-		require.Equal(t, database.ProvisionerJobStatusFailed, backoff.LatestBuildStatus)
 		require.Equal(t, int32(3), backoff.NumFailed)
 	})
 
@@ -3676,7 +3674,6 @@ func TestGetPresetsBackoff(t *testing.T) {
 		backoff := backoffs[0]
 		require.Equal(t, backoff.TemplateVersionID, tmpl.ActiveVersionID)
 		require.Equal(t, backoff.PresetID, tmplV2.preset.ID)
-		require.Equal(t, database.ProvisionerJobStatusFailed, backoff.LatestBuildStatus)
 		require.Equal(t, int32(2), backoff.NumFailed)
 	})
 
@@ -3708,14 +3705,12 @@ func TestGetPresetsBackoff(t *testing.T) {
 			backoff := findBackoffByTmplVersionId(backoffs, tmpl1.ActiveVersionID)
 			require.Equal(t, backoff.TemplateVersionID, tmpl1.ActiveVersionID)
 			require.Equal(t, backoff.PresetID, tmpl1V1.preset.ID)
-			require.Equal(t, database.ProvisionerJobStatusFailed, backoff.LatestBuildStatus)
 			require.Equal(t, int32(1), backoff.NumFailed)
 		}
 		{
 			backoff := findBackoffByTmplVersionId(backoffs, tmpl2.ActiveVersionID)
 			require.Equal(t, backoff.TemplateVersionID, tmpl2.ActiveVersionID)
 			require.Equal(t, backoff.PresetID, tmpl2V1.preset.ID)
-			require.Equal(t, database.ProvisionerJobStatusFailed, backoff.LatestBuildStatus)
 			require.Equal(t, int32(1), backoff.NumFailed)
 		}
 	})
@@ -3758,21 +3753,18 @@ func TestGetPresetsBackoff(t *testing.T) {
 			backoff := findBackoffByTmplVersionId(backoffs, tmpl1.ActiveVersionID)
 			require.Equal(t, backoff.TemplateVersionID, tmpl1.ActiveVersionID)
 			require.Equal(t, backoff.PresetID, tmpl1V1.preset.ID)
-			require.Equal(t, database.ProvisionerJobStatusFailed, backoff.LatestBuildStatus)
 			require.Equal(t, int32(1), backoff.NumFailed)
 		}
 		{
 			backoff := findBackoffByTmplVersionId(backoffs, tmpl2.ActiveVersionID)
 			require.Equal(t, backoff.TemplateVersionID, tmpl2.ActiveVersionID)
 			require.Equal(t, backoff.PresetID, tmpl2V1.preset.ID)
-			require.Equal(t, database.ProvisionerJobStatusFailed, backoff.LatestBuildStatus)
 			require.Equal(t, int32(2), backoff.NumFailed)
 		}
 		{
 			backoff := findBackoffByTmplVersionId(backoffs, tmpl3.ActiveVersionID)
 			require.Equal(t, backoff.TemplateVersionID, tmpl3.ActiveVersionID)
 			require.Equal(t, backoff.PresetID, tmpl3V2.preset.ID)
-			require.Equal(t, database.ProvisionerJobStatusFailed, backoff.LatestBuildStatus)
 			require.Equal(t, int32(3), backoff.NumFailed)
 		}
 	})
@@ -3931,7 +3923,6 @@ func TestGetPresetsBackoff(t *testing.T) {
 			backoff := backoffs[0]
 			require.Equal(t, backoff.TemplateVersionID, tmpl1.ActiveVersionID)
 			require.Equal(t, backoff.PresetID, tmpl1V1.preset.ID)
-			require.Equal(t, database.ProvisionerJobStatusFailed, backoff.LatestBuildStatus)
 			require.Equal(t, int32(1), backoff.NumFailed)
 		}
 	})
@@ -3982,7 +3973,6 @@ func TestGetPresetsBackoff(t *testing.T) {
 			backoff := backoffs[0]
 			require.Equal(t, backoff.TemplateVersionID, tmpl1.ActiveVersionID)
 			require.Equal(t, backoff.PresetID, tmpl1V1.preset.ID)
-			require.Equal(t, database.ProvisionerJobStatusFailed, backoff.LatestBuildStatus)
 			require.Equal(t, int32(2), backoff.NumFailed)
 		}
 	})
@@ -4037,7 +4027,6 @@ func TestGetPresetsBackoff(t *testing.T) {
 			backoff := backoffs[0]
 			require.Equal(t, backoff.TemplateVersionID, tmpl1.ActiveVersionID)
 			require.Equal(t, backoff.PresetID, tmpl1V1.preset.ID)
-			require.Equal(t, database.ProvisionerJobStatusFailed, backoff.LatestBuildStatus)
 			require.Equal(t, int32(5), backoff.NumFailed)
 			// make sure LastBuildAt is equal to latest failed build timestamp
 			require.Equal(t, 0, now.Compare(backoff.LastBuildAt.(time.Time)))
