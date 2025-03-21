@@ -1696,6 +1696,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
+                        "format": "uuid",
                         "description": "ID of the last notification from the current page. Notifications returned will be older than the associated one",
                         "name": "starting_before",
                         "in": "query"
@@ -1765,8 +1766,12 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "enum": [
+                            "plaintext",
+                            "markdown"
+                        ],
                         "type": "string",
-                        "description": "Define the output format for notifications title and body. Possible values: plaintext, markdown",
+                        "description": "Define the output format for notifications title and body.",
                         "name": "format",
                         "in": "query"
                     }

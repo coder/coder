@@ -66,7 +66,7 @@ func convertInboxNotificationResponse(ctx context.Context, logger slog.Logger, n
 // @Param targets query string false "Comma-separated list of target IDs to filter notifications"
 // @Param templates query string false "Comma-separated list of template IDs to filter notifications"
 // @Param read_status query string false "Filter notifications by read status. Possible values: read, unread, all"
-// @Param format query string false "Define the output format for notifications title and body. Possible values: plaintext, markdown"
+// @Param format query string false "Define the output format for notifications title and body." enums(plaintext,markdown)
 // @Success 200 {object} codersdk.GetInboxNotificationResponse
 // @Router /notifications/inbox/watch [get]
 func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request) {
@@ -221,7 +221,7 @@ func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request)
 // @Param targets query string false "Comma-separated list of target IDs to filter notifications"
 // @Param templates query string false "Comma-separated list of template IDs to filter notifications"
 // @Param read_status query string false "Filter notifications by read status. Possible values: read, unread, all"
-// @Param starting_before query string false "ID of the last notification from the current page. Notifications returned will be older than the associated one"
+// @Param starting_before query string false "ID of the last notification from the current page. Notifications returned will be older than the associated one" format(uuid)
 // @Success 200 {object} codersdk.ListInboxNotificationsResponse
 // @Router /notifications/inbox [get]
 func (api *API) listInboxNotifications(rw http.ResponseWriter, r *http.Request) {
