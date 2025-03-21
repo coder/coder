@@ -24,7 +24,7 @@ Roles determine which actions users can take within the platform.
 | Manage **ALL** Templates                                        |         |            | ✅              | ✅     |
 | View **ALL** Workspaces                                         |         |            | ✅              | ✅     |
 | Update and delete **ALL** Workspaces                            |         |            |                | ✅     |
-| Run [external provisioners](../provisioners/index.md)                 |         |            | ✅              | ✅     |
+| Run [external provisioners](../provisioners/index.md)           |         |            | ✅              | ✅     |
 | Execute and use **ALL** Workspaces                              |         |            |                | ✅     |
 | View all user operation [Audit Logs](../security/audit-logs.md) | ✅       |            |                | ✅     |
 
