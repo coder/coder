@@ -34,7 +34,6 @@ export const NotificationsInbox: FC<NotificationsInboxProps> = ({
 	markAllAsRead,
 	markNotificationAsRead,
 }) => {
-	type CTX = QueryFunctionContext<typeof NOTIFICATIONS_QUERY_KEY, string>;
 	const {
 		data: infiniteInboxRes,
 		error,
@@ -44,7 +43,11 @@ export const NotificationsInbox: FC<NotificationsInboxProps> = ({
 		hasNextPage = false,
 	} = useInfiniteQuery({
 		queryKey: NOTIFICATIONS_QUERY_KEY,
-		queryFn: ({ pageParam }: CTX) => fetchNotifications(pageParam),
+		// One rough edge for useInfiniteQuery is that you can't make pageParam
+		// fully type-safe (at least in v4). You can type the version for
+		// queryFn, but not for getNextPageParam. Adding type info one but not
+		// the other felt a bit pointless
+		queryFn: ({ pageParam }) => fetchNotifications(pageParam),
 		getNextPageParam: (latestPage, allPages) => {
 			const notificationsLoaded = allPages.reduce(
 				(count, page) => count + page.notifications.length,
