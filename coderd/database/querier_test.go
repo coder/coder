@@ -4002,7 +4002,11 @@ func TestGetPresetsBackoff(t *testing.T) {
 
 		tmpl1 := createTemplate(db)
 		tmpl1V1 := createTmplVersion(db, tmpl1, tmpl1.ActiveVersionID, &tmplVersionOpts{
-			DesiredInstances: 5,
+			DesiredInstances: 6,
+		})
+		createWorkspaceBuild(db, tmpl1, tmpl1V1, &workspaceBuildOpts{
+			successfulJob: false,
+			createdAt:     now.Add(-lookbackPeriod - time.Minute), // earlier than lookback period - skipped
 		})
 		createWorkspaceBuild(db, tmpl1, tmpl1V1, &workspaceBuildOpts{
 			successfulJob: false,
