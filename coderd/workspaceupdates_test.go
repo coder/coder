@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/database"
@@ -364,7 +365,7 @@ func (*mockAuthorizer) Authorize(context.Context, rbac.Subject, policy.Action, r
 
 // Prepare implements rbac.Authorizer.
 func (*mockAuthorizer) Prepare(context.Context, rbac.Subject, policy.Action, string) (rbac.PreparedAuthorized, error) {
-	return nil, nil
+	return nil, xerrors.New("not implemented")
 }
 
 var _ rbac.Authorizer = (*mockAuthorizer)(nil)
