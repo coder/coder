@@ -280,7 +280,8 @@ message Metadata {
     string workspace_owner_ssh_private_key = 16;
     string workspace_build_id = 17;
     string workspace_owner_login_type =  18;
-    repeated Role workspace_owner_rbac_roles =  19;
+    repeated Role workspace_owner_rbac_roles = 19;
+    bool   is_prebuild = 20;
 }
 
 // Config represents execution configuration shared by all subsequent requests in the Session
