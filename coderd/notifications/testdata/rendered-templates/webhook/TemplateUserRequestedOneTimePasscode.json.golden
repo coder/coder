@@ -23,6 +23,6 @@
   },
   "title": "Reset your password for Coder",
   "title_markdown": "Reset your password for Coder",
-  "body": "Hi Bobby,\n\nUse the link below to reset your password.\n\nIf you did not make this request, you can ignore this message.",
-  "body_markdown": "Hi Bobby,\n\nUse the link below to reset your password.\n\nIf you did not make this request, you can ignore this message."
+  "body": "Use the link below to reset your password.\n\nIf you did not make this request, you can ignore this message.",
+  "body_markdown": "Use the link below to reset your password.\n\nIf you did not make this request, you can ignore this message."
 }

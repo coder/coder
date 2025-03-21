@@ -25,6 +25,6 @@
   },
   "title": "User account \"bobby\" activated",
   "title_markdown": "User account \"bobby\" activated",
-  "body": "Hi Bobby,\n\nUser account bobby has been activated.\n\nThe account belongs to William Tables and it was activated by rob.",
-  "body_markdown": "Hi Bobby,\n\nUser account **bobby** has been activated.\n\nThe account belongs to **William Tables** and it was activated by **rob**."
+  "body": "User account bobby has been activated.\n\nThe account belongs to William Tables and it was activated by rob.",
+  "body_markdown": "User account **bobby** has been activated.\n\nThe account belongs to **William Tables** and it was activated by **rob**."
 }
