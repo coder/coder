@@ -1066,6 +1066,11 @@
 							"path": "reference/cli/open.md"
 						},
 						{
+							"title": "open app",
+							"description": "Open a workspace application.",
+							"path": "reference/cli/open_app.md"
+						},
+						{
 							"title": "open vscode",
 							"description": "Open a workspace in VS Code Desktop",
 							"path": "reference/cli/open_vscode.md"
