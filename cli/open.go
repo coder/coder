@@ -232,9 +232,8 @@ func (r *RootCmd) openApp() *serpent.Command {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
-			// Check if we're inside a workspace, and especially inside _this_
-			// workspace so we can perform path resolution/expansion. Generally,
-			// we know that if we're inside a workspace, `open` can't be used.
+			// Check if we're inside a workspace.  Generally, we know
+			// that if we're inside a workspace, `open` can't be used.
 			insideAWorkspace := inv.Environ.Get("CODER") == "true"
 
 			// Fetch the preferred region.
