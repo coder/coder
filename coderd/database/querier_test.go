@@ -3986,6 +3986,59 @@ func TestGetPresetsBackoff(t *testing.T) {
 			require.Equal(t, int32(2), backoff.NumFailed)
 		}
 	})
+
+	t.Run("check LastBuildAt timestamp", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		dbgen.Organization(t, db, database.Organization{
+			ID: orgID,
+		})
+		dbgen.User(t, db, database.User{
+			ID: userID,
+		})
+		lookbackPeriod := time.Hour
+
+		tmpl1 := createTemplate(db)
+		tmpl1V1 := createTmplVersion(db, tmpl1, tmpl1.ActiveVersionID, &tmplVersionOpts{
+			DesiredInstances: 5,
+		})
+		createWorkspaceBuild(db, tmpl1, tmpl1V1, &workspaceBuildOpts{
+			successfulJob: false,
+			createdAt:     now.Add(-4 * time.Minute),
+		})
+		createWorkspaceBuild(db, tmpl1, tmpl1V1, &workspaceBuildOpts{
+			successfulJob: false,
+			createdAt:     now.Add(-0 * time.Minute),
+		})
+		createWorkspaceBuild(db, tmpl1, tmpl1V1, &workspaceBuildOpts{
+			successfulJob: false,
+			createdAt:     now.Add(-3 * time.Minute),
+		})
+		createWorkspaceBuild(db, tmpl1, tmpl1V1, &workspaceBuildOpts{
+			successfulJob: false,
+			createdAt:     now.Add(-1 * time.Minute),
+		})
+		createWorkspaceBuild(db, tmpl1, tmpl1V1, &workspaceBuildOpts{
+			successfulJob: false,
+			createdAt:     now.Add(-2 * time.Minute),
+		})
+
+		backoffs, err := db.GetPresetsBackoff(ctx, now.Add(-lookbackPeriod))
+		require.NoError(t, err)
+
+		require.Len(t, backoffs, 1)
+		{
+			backoff := backoffs[0]
+			require.Equal(t, backoff.TemplateVersionID, tmpl1.ActiveVersionID)
+			require.Equal(t, backoff.PresetID, tmpl1V1.preset.ID)
+			require.Equal(t, database.ProvisionerJobStatusFailed, backoff.LatestBuildStatus)
+			require.Equal(t, int32(5), backoff.NumFailed)
+			// make sure LastBuildAt is equal to latest failed build timestamp
+			require.Equal(t, 0, now.Compare(backoff.LastBuildAt.(time.Time)))
+		}
+	})
 }
 
 func requireUsersMatch(t testing.TB, expected []database.User, found []database.GetUsersRow, msg string) {
