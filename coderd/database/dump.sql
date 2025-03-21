@@ -861,7 +861,7 @@ COMMENT ON COLUMN users.quiet_hours_schedule IS 'Daily (!) cron schedule (with o
 
 COMMENT ON COLUMN users.name IS 'Name of the Coder user';
 
-COMMENT ON COLUMN users.github_com_user_id IS 'The GitHub.com numerical user ID. At time of implementation, this is used to check if the user has starred the Coder repository.';
+COMMENT ON COLUMN users.github_com_user_id IS 'The GitHub.com numerical user ID. It is used to check if the user has starred the Coder repository. It is also used for filtering users in the users list CLI command, and may become more widely used in the future.';
 
 COMMENT ON COLUMN users.hashed_one_time_passcode IS 'A hash of the one-time-passcode given to the user.';
 
@@ -1585,6 +1585,26 @@ CREATE TABLE user_status_changes (
 
 COMMENT ON TABLE user_status_changes IS 'Tracks the history of user status changes';
 
+CREATE TABLE workspace_agent_devcontainers (
+    id uuid NOT NULL,
+    workspace_agent_id uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    workspace_folder text NOT NULL,
+    config_path text NOT NULL
+);
+
+COMMENT ON TABLE workspace_agent_devcontainers IS 'Workspace agent devcontainer configuration';
+
+COMMENT ON COLUMN workspace_agent_devcontainers.id IS 'Unique identifier';
+
+COMMENT ON COLUMN workspace_agent_devcontainers.workspace_agent_id IS 'Workspace agent foreign key';
+
+COMMENT ON COLUMN workspace_agent_devcontainers.created_at IS 'Creation timestamp';
+
+COMMENT ON COLUMN workspace_agent_devcontainers.workspace_folder IS 'Workspace folder';
+
+COMMENT ON COLUMN workspace_agent_devcontainers.config_path IS 'Path to devcontainer.json.';
+
 CREATE TABLE workspace_agent_log_sources (
     workspace_agent_id uuid NOT NULL,
     id uuid NOT NULL,
@@ -2250,6 +2270,9 @@ ALTER TABLE ONLY user_status_changes
 ALTER TABLE ONLY users
     ADD CONSTRAINT users_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY workspace_agent_devcontainers
+    ADD CONSTRAINT workspace_agent_devcontainers_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY workspace_agent_log_sources
     ADD CONSTRAINT workspace_agent_log_sources_pkey PRIMARY KEY (workspace_agent_id, id);
 
@@ -2406,6 +2429,10 @@ CREATE UNIQUE INDEX user_links_linked_id_login_type_idx ON user_links USING btre
 CREATE UNIQUE INDEX users_email_lower_idx ON users USING btree (lower(email)) WHERE (deleted = false);
 
 CREATE UNIQUE INDEX users_username_lower_idx ON users USING btree (lower(username)) WHERE (deleted = false);
+
+CREATE INDEX workspace_agent_devcontainers_workspace_agent_id ON workspace_agent_devcontainers USING btree (workspace_agent_id);
+
+COMMENT ON INDEX workspace_agent_devcontainers_workspace_agent_id IS 'Workspace agent foreign key and query index';
 
 CREATE INDEX workspace_agent_scripts_workspace_agent_id_idx ON workspace_agent_scripts USING btree (workspace_agent_id);
 
@@ -2679,6 +2706,9 @@ ALTER TABLE ONLY user_links
 
 ALTER TABLE ONLY user_status_changes
     ADD CONSTRAINT user_status_changes_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);
+
+ALTER TABLE ONLY workspace_agent_devcontainers
+    ADD CONSTRAINT workspace_agent_devcontainers_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agent_log_sources
     ADD CONSTRAINT workspace_agent_log_sources_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;

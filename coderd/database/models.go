@@ -3180,7 +3180,7 @@ type User struct {
 	QuietHoursSchedule string `db:"quiet_hours_schedule" json:"quiet_hours_schedule"`
 	// Name of the Coder user
 	Name string `db:"name" json:"name"`
-	// The GitHub.com numerical user ID. At time of implementation, this is used to check if the user has starred the Coder repository.
+	// The GitHub.com numerical user ID. It is used to check if the user has starred the Coder repository. It is also used for filtering users in the users list CLI command, and may become more widely used in the future.
 	GithubComUserID sql.NullInt64 `db:"github_com_user_id" json:"github_com_user_id"`
 	// A hash of the one-time-passcode given to the user.
 	HashedOneTimePasscode []byte `db:"hashed_one_time_passcode" json:"hashed_one_time_passcode"`
@@ -3304,6 +3304,20 @@ type WorkspaceAgent struct {
 	APIVersion  string                    `db:"api_version" json:"api_version"`
 	// Specifies the order in which to display agents in user interfaces.
 	DisplayOrder int32 `db:"display_order" json:"display_order"`
+}
+
+// Workspace agent devcontainer configuration
+type WorkspaceAgentDevcontainer struct {
+	// Unique identifier
+	ID uuid.UUID `db:"id" json:"id"`
+	// Workspace agent foreign key
+	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	// Creation timestamp
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	// Workspace folder
+	WorkspaceFolder string `db:"workspace_folder" json:"workspace_folder"`
+	// Path to devcontainer.json.
+	ConfigPath string `db:"config_path" json:"config_path"`
 }
 
 type WorkspaceAgentLog struct {

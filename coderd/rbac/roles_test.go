@@ -806,6 +806,21 @@ func TestRolePermissions(t *testing.T) {
 				},
 			},
 		},
+		{
+			Name:     "WorkspaceAgentDevcontainers",
+			Actions:  []policy.Action{policy.ActionCreate},
+			Resource: rbac.ResourceWorkspaceAgentDevcontainers,
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner},
+				false: {
+					memberMe, orgMemberMe, otherOrgMember,
+					orgAdmin, otherOrgAdmin,
+					orgAuditor, otherOrgAuditor,
+					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
+					userAdmin, orgUserAdmin, otherOrgUserAdmin,
+				},
+			},
+		},
 	}
 
 	// We expect every permission to be tested above.
