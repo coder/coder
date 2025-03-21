@@ -1763,6 +1763,12 @@ const docTemplate = `{
                         "description": "Filter notifications by read status. Possible values: read, unread, all",
                         "name": "read_status",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Define the output format for notifications title and body. Possible values: plaintext, markdown",
+                        "name": "format",
+                        "in": "query"
                     }
                 ],
                 "responses": {
