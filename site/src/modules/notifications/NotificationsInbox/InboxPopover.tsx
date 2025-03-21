@@ -48,7 +48,7 @@ export const InboxPopover: FC<InboxPopoverProps> = ({
 				<InboxButton unreadCount={unreadCount} />
 			</PopoverTrigger>
 			<PopoverContent
-				className="w-full max-w-[466px] flex flex-col"
+				className="w-[var(--radix-popper-available-width)] max-w-[466px]"
 				align="end"
 			>
 				{/*
