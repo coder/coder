@@ -1265,7 +1265,8 @@ func (s *MethodTestSuite) TestTemplate() {
 		job := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
 		_ = dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{JobID: job.ID})
 		check.Args(database.InsertTemplateVersionTerraformValuesByJobIDParams{
-			JobID: job.ID,
+			JobID:      job.ID,
+			CachedPlan: []byte("{}"),
 		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
 	s.Run("SoftDeleteTemplateByID", s.Subtest(func(db database.Store, check *expects) {

@@ -313,8 +313,15 @@ func TarWithOptions(ctx context.Context, logger slog.Logger, responses *Response
 		}
 	}
 	for trans, m := range responses.ProvisionPlanMap {
-		for i, rs := range m {
-			err := writeProto(fmt.Sprintf("%d.%s.plan.protobuf", i, strings.ToLower(trans.String())), rs)
+		for i, resp := range m {
+			plan := resp.GetPlan()
+			if plan != nil {
+				if len(plan.Plan) == 0 {
+					plan.Plan = []byte("{}")
+				}
+			}
+
+			err := writeProto(fmt.Sprintf("%d.%s.plan.protobuf", i, strings.ToLower(trans.String())), resp)
 			if err != nil {
 				return nil, err
 			}
