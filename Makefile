@@ -568,11 +568,23 @@ GEN_FILES := \
 	agent/agentcontainers/dcspec/dcspec_gen.go
 
 # all gen targets should be added here and to gen/mark-fresh
-gen: gen/db $(GEN_FILES)
+gen: gen/db gen/golden-files $(GEN_FILES)
 .PHONY: gen
 
 gen/db: $(DB_GEN_FILES)
 .PHONY: gen/db
+
+gen/golden-files: \
+	cli/testdata/.gen-golden \
+	coderd/.gen-golden \
+	coderd/notifications/.gen-golden \
+	enterprise/cli/testdata/.gen-golden \
+	enterprise/tailnet/testdata/.gen-golden \
+	helm/coder/tests/testdata/.gen-golden \
+	helm/provisioner/tests/testdata/.gen-golden \
+	provisioner/terraform/testdata/.gen-golden \
+	tailnet/testdata/.gen-golden
+.PHONY: gen/golden-files
 
 # Mark all generated files as fresh so make thinks they're up-to-date. This is
 # used during releases so we don't run generation scripts.
@@ -743,16 +755,10 @@ coderd/apidoc/swagger.json: node_modules/.installed site/node_modules/.installed
 	cd site/
 	pnpm exec biome format --write ../docs/manifest.json ../coderd/apidoc/swagger.json
 
-update-golden-files: \
-	cli/testdata/.gen-golden \
-	coderd/.gen-golden \
-	coderd/notifications/.gen-golden \
-	enterprise/cli/testdata/.gen-golden \
-	enterprise/tailnet/testdata/.gen-golden \
-	helm/coder/tests/testdata/.gen-golden \
-	helm/provisioner/tests/testdata/.gen-golden \
-	provisioner/terraform/testdata/.gen-golden \
-	tailnet/testdata/.gen-golden
+update-golden-files:
+	echo 'WARNING: This target is deprecated. Use "make gen/golden-files" instead.' 2>&1
+	echo 'Running "make gen/golden-files"' 2>&1
+	make gen/golden-files
 .PHONY: update-golden-files
 
 clean/golden-files:
