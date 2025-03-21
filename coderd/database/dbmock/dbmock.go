@@ -2062,6 +2062,21 @@ func (mr *MockStoreMockRecorder) GetOrganizationIDsByMemberIDs(ctx, ids any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrganizationIDsByMemberIDs", reflect.TypeOf((*MockStore)(nil).GetOrganizationIDsByMemberIDs), ctx, ids)
 }
 
+// GetOrganizationResourcesCountById mocks base method.
+func (m *MockStore) GetOrganizationResourcesCountById(ctx context.Context, organizationID uuid.UUID) (database.GetOrganizationResourcesCountByIdRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOrganizationResourcesCountById", ctx, organizationID)
+	ret0, _ := ret[0].(database.GetOrganizationResourcesCountByIdRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetOrganizationResourcesCountById indicates an expected call of GetOrganizationResourcesCountById.
+func (mr *MockStoreMockRecorder) GetOrganizationResourcesCountById(ctx, organizationID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrganizationResourcesCountById", reflect.TypeOf((*MockStore)(nil).GetOrganizationResourcesCountById), ctx, organizationID)
+}
+
 // GetOrganizations mocks base method.
 func (m *MockStore) GetOrganizations(ctx context.Context, arg database.GetOrganizationsParams) ([]database.Organization, error) {
 	m.ctrl.T.Helper()

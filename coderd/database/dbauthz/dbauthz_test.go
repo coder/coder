@@ -809,6 +809,41 @@ func (s *MethodTestSuite) TestOrganization() {
 		o := dbgen.Organization(s.T(), db, database.Organization{})
 		check.Args(o.ID).Asserts(o, policy.ActionRead).Returns(o)
 	}))
+	s.Run("GetOrganizationResourcesCountById", s.Subtest(func(db database.Store, check *expects) {
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+
+		// Add one workspace to the db
+		dbgen.Workspace(s.T(), db, database.WorkspaceTable{OrganizationID: o.ID})
+
+		// Add two groups to the db
+		dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
+		dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
+
+		// add three templates to the db
+		dbgen.Template(s.T(), db, database.Template{OrganizationID: o.ID})
+		dbgen.Template(s.T(), db, database.Template{OrganizationID: o.ID})
+		dbgen.Template(s.T(), db, database.Template{OrganizationID: o.ID})
+
+		// add four members to the db
+		dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{OrganizationID: o.ID})
+		dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{OrganizationID: o.ID})
+		dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{OrganizationID: o.ID})
+		dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{OrganizationID: o.ID})
+
+		check.Args(o.ID).Asserts(
+			rbac.ResourceOrganizationMember.InOrg(o.ID), policy.ActionRead,
+			rbac.ResourceWorkspace.InOrg(o.ID), policy.ActionRead,
+			rbac.ResourceGroup.InOrg(o.ID), policy.ActionRead,
+			rbac.ResourceTemplate.InOrg(o.ID), policy.ActionRead,
+			rbac.ResourceProvisionerJobs.InOrg(o.ID), policy.ActionRead,
+		).Returns(database.GetOrganizationResourcesCountByIdRow{
+			WorkspaceCount:      1,
+			GroupCount:          2,
+			TemplateCount:       3,
+			MemberCount:         4,
+			ProvisionerKeyCount: 0,
+		})
+	}))
 	s.Run("GetDefaultOrganization", s.Subtest(func(db database.Store, check *expects) {
 		o, _ := db.GetDefaultOrganization(context.Background())
 		check.Args().Asserts(o, policy.ActionRead).Returns(o)

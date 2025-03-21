@@ -66,6 +66,14 @@ WHERE
             user_id = $1
     );
 
+-- name: GetOrganizationResourcesCountById :one
+SELECT
+    (SELECT COUNT(*) FROM workspaces WHERE workspaces.organization_id = $1 AND deleted = false) AS workspace_count,
+    (SELECT COUNT(*) FROM groups WHERE groups.organization_id = $1 AND deleted = false) AS group_count,
+    (SELECT COUNT(*) FROM templates WHERE templates.organization_id = $1 AND deleted = false) AS template_count,
+    (SELECT COUNT(*) FROM organization_members WHERE organization_members.organization_id = $1) AS member_count,
+    (SELECT COUNT(*) FROM provisioner_keys WHERE provisioner_keys.organization_id = $1) AS provisioner_key_count;
+
 -- name: InsertOrganization :one
 INSERT INTO
     organizations (id, "name", display_name, description, icon, created_at, updated_at, is_default)

@@ -4006,11 +4006,19 @@ func (q *FakeQuerier) GetOrganizationResourcesCountById(ctx context.Context, org
 		}
 	}
 
+	provKeyCount := 0
+	for _, provKey := range q.provisionerKeys {
+		if provKey.OrganizationID == organizationID {
+			provKeyCount++
+		}
+	}
+
 	return database.GetOrganizationResourcesCountByIdRow{
-		WorkspaceCount: int64(workspacesCount),
-		GroupCount:     int64(groupsCount),
-		TemplateCount:  int64(templatesCount),
-		MemberCount:    int64(organizationMembersCount),
+		WorkspaceCount:      int64(workspacesCount),
+		GroupCount:          int64(groupsCount),
+		TemplateCount:       int64(templatesCount),
+		MemberCount:         int64(organizationMembersCount),
+		ProvisionerKeyCount: int64(provKeyCount),
 	}, nil
 }
 
