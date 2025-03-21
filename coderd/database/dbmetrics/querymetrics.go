@@ -1011,6 +1011,13 @@ func (m queryMetricsStore) GetOrganizationIDsByMemberIDs(ctx context.Context, id
 	return organizations, err
 }
 
+func (m queryMetricsStore) GetOrganizationResourceCountByID(ctx context.Context, organizationID uuid.UUID) (database.GetOrganizationResourceCountByIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOrganizationResourceCountByID(ctx, organizationID)
+	m.queryLatencies.WithLabelValues("GetOrganizationResourceCountByID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetOrganizations(ctx context.Context, args database.GetOrganizationsParams) ([]database.Organization, error) {
 	start := time.Now()
 	organizations, err := m.s.GetOrganizations(ctx, args)
