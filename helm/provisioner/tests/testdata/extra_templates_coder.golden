@@ -132,7 +132,13 @@ spec:
         lifecycle: {}
         name: coder
         ports: null
-        resources: {}
+        resources:
+          limits:
+            cpu: 2000m
+            memory: 4096Mi
+          requests:
+            cpu: 2000m
+            memory: 4096Mi
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: null

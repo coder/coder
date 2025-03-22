@@ -117,6 +117,14 @@ var testCases = []testCase{
 		name:          "securitycontext",
 		expectedError: "",
 	},
+	{
+		name:          "custom_resources",
+		expectedError: "",
+	},
+	{
+		name:          "partial_resources",
+		expectedError: "",
+	},
 }
 
 type testCase struct {

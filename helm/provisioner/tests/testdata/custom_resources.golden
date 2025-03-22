@@ -7,27 +7,18 @@ metadata:
   labels:
     app.kubernetes.io/instance: release-name
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/name: other-coder-provisioner
-    app.kubernetes.io/part-of: other-coder-provisioner
+    app.kubernetes.io/name: coder-provisioner
+    app.kubernetes.io/part-of: coder-provisioner
     app.kubernetes.io/version: 0.1.0
     helm.sh/chart: coder-provisioner-0.1.0
-  name: other-coder-provisioner
+  name: coder-provisioner
   namespace: default
----
-# Source: coder-provisioner/templates/extra-templates.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: some-config
-  namespace: default
-data:
-  key: some-value
 ---
 # Source: coder-provisioner/templates/rbac.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: other-coder-provisioner-workspace-perms
+  name: coder-provisioner-workspace-perms
   namespace: default
 rules:
   - apiGroups: [""]
@@ -70,15 +61,15 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: "other-coder-provisioner"
+  name: "coder-provisioner"
   namespace: default
 subjects:
   - kind: ServiceAccount
-    name: "other-coder-provisioner"
+    name: "coder-provisioner"
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: other-coder-provisioner-workspace-perms
+  name: coder-provisioner-workspace-perms
 ---
 # Source: coder-provisioner/templates/coder.yaml
 apiVersion: apps/v1
@@ -88,26 +79,26 @@ metadata:
   labels:
     app.kubernetes.io/instance: release-name
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/name: other-coder-provisioner
-    app.kubernetes.io/part-of: other-coder-provisioner
+    app.kubernetes.io/name: coder-provisioner
+    app.kubernetes.io/part-of: coder-provisioner
     app.kubernetes.io/version: 0.1.0
     helm.sh/chart: coder-provisioner-0.1.0
-  name: other-coder-provisioner
+  name: coder-provisioner
   namespace: default
 spec:
   replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/instance: release-name
-      app.kubernetes.io/name: other-coder-provisioner
+      app.kubernetes.io/name: coder-provisioner
   template:
     metadata:
       annotations: {}
       labels:
         app.kubernetes.io/instance: release-name
         app.kubernetes.io/managed-by: Helm
-        app.kubernetes.io/name: other-coder-provisioner
-        app.kubernetes.io/part-of: other-coder-provisioner
+        app.kubernetes.io/name: coder-provisioner
+        app.kubernetes.io/part-of: coder-provisioner
         app.kubernetes.io/version: 0.1.0
         helm.sh/chart: coder-provisioner-0.1.0
     spec:
@@ -134,11 +125,11 @@ spec:
         ports: null
         resources:
           limits:
-            cpu: 2000m
-            memory: 4096Mi
+            cpu: 4000m
+            memory: 8192Mi
           requests:
-            cpu: 2000m
-            memory: 4096Mi
+            cpu: 1000m
+            memory: 2048Mi
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: null
@@ -149,6 +140,6 @@ spec:
             type: RuntimeDefault
         volumeMounts: []
       restartPolicy: Always
-      serviceAccountName: other-coder-provisioner
+      serviceAccountName: coder-provisioner
       terminationGracePeriodSeconds: 600
       volumes: []
