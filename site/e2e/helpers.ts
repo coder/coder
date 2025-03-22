@@ -544,6 +544,8 @@ interface EchoProvisionerResponses {
 	apply?: RecursivePartial<Response>[];
 }
 
+const emptyPlan = new TextEncoder().encode("{}");
+
 /**
  * createTemplateVersionTar consumes a series of echo provisioner protobufs and
  * converts it into an uploadable tar file.
@@ -581,6 +583,7 @@ const createTemplateVersionTar = async (
 					externalAuthProviders: response.apply?.externalAuthProviders ?? [],
 					timings: response.apply?.timings ?? [],
 					presets: [],
+					plan: emptyPlan,
 				},
 			};
 		});
@@ -703,6 +706,7 @@ const createTemplateVersionTar = async (
 			timings: [],
 			modules: [],
 			presets: [],
+			plan: emptyPlan,
 			...response.plan,
 		} as PlanComplete;
 		response.plan.resources = response.plan.resources?.map(fillResource);

@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -579,6 +580,8 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 		externalAuthProviderNames = append(externalAuthProviderNames, it.Id)
 	}
 
+	// fmt.Println("completed job: template import: graph:", startProvision.Graph)
+
 	return &proto.CompletedJob{
 		JobId: r.job.JobId,
 		Type: &proto.CompletedJob_TemplateImport_{
@@ -591,6 +594,7 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 				StartModules:               startProvision.Modules,
 				StopModules:                stopProvision.Modules,
 				Presets:                    startProvision.Presets,
+				Plan:                       startProvision.Plan,
 			},
 		},
 	}, nil
@@ -652,6 +656,7 @@ type templateImportProvision struct {
 	ExternalAuthProviders []*sdkproto.ExternalAuthProviderResource
 	Modules               []*sdkproto.Module
 	Presets               []*sdkproto.Preset
+	Plan                  json.RawMessage
 }
 
 // Performs a dry-run provision when importing a template.
@@ -745,6 +750,7 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 				ExternalAuthProviders: c.ExternalAuthProviders,
 				Modules:               c.Modules,
 				Presets:               c.Presets,
+				Plan:                  c.Plan,
 			}, nil
 		default:
 			return nil, xerrors.Errorf("invalid message type %q received from provisioner",

@@ -10819,6 +10819,32 @@ func (q *sqlQuerier) UpdateTemplateVersionExternalAuthProvidersByJobID(ctx conte
 	return err
 }
 
+const insertTemplateVersionTerraformValuesByJobID = `-- name: InsertTemplateVersionTerraformValuesByJobID :exec
+INSERT INTO
+	template_version_terraform_values (
+		template_version_id,
+		cached_plan,
+		updated_at
+	)
+VALUES
+	(
+		(select id from template_versions where job_id = $1),
+		$2,
+		$3
+	)
+`
+
+type InsertTemplateVersionTerraformValuesByJobIDParams struct {
+	JobID      uuid.UUID       `db:"job_id" json:"job_id"`
+	CachedPlan json.RawMessage `db:"cached_plan" json:"cached_plan"`
+	UpdatedAt  time.Time       `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) InsertTemplateVersionTerraformValuesByJobID(ctx context.Context, arg InsertTemplateVersionTerraformValuesByJobIDParams) error {
+	_, err := q.db.ExecContext(ctx, insertTemplateVersionTerraformValuesByJobID, arg.JobID, arg.CachedPlan, arg.UpdatedAt)
+	return err
+}
+
 const getTemplateVersionVariables = `-- name: GetTemplateVersionVariables :many
 SELECT template_version_id, name, description, type, value, default_value, required, sensitive FROM template_version_variables WHERE template_version_id = $1
 `
