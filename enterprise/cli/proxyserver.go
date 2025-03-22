@@ -264,7 +264,7 @@ func (r *RootCmd) proxyServer() *serpent.Command {
 				Tracing:                tracer,
 				PrometheusRegistry:     prometheusRegistry,
 				APIRateLimit:           int(cfg.RateLimit.API.Value()),
-				SecureAuthCookie:       cfg.SecureAuthCookie.Value(),
+				CookieConfig:           cfg.HTTPCookies,
 				DisablePathApps:        cfg.DisablePathApps.Value(),
 				ProxySessionToken:      proxySessionToken.Value(),
 				AllowAllCors:           cfg.Dangerous.AllowAllCors.Value(),
