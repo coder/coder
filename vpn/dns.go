@@ -3,15 +3,24 @@ package vpn
 import "tailscale.com/net/dns"
 
 func NewDNSConfigurator(t *Tunnel) dns.OSConfigurator {
-	return &dnsManager{tunnel: t}
+	// Default to "coder" if options.DomainSuffix is not set
+	domainSuffix := "coder"
+	if t.options != nil && t.options.DomainSuffix != "" {
+		domainSuffix = t.options.DomainSuffix
+	}
+	return &dnsManager{
+		tunnel: t,
+		domainSuffix: domainSuffix,
+	}
 }
 
 type dnsManager struct {
 	tunnel *Tunnel
+	domainSuffix string
 }
 
 func (v *dnsManager) SetDNS(cfg dns.OSConfig) error {
-	settings := convertDNSConfig(cfg)
+	settings := convertDNSConfig(cfg, v.domainSuffix)
 	return v.tunnel.ApplyNetworkSettings(v.tunnel.ctx, &NetworkSettingsRequest{
 		DnsSettings: settings,
 	})
@@ -35,7 +44,7 @@ func (*dnsManager) Close() error {
 	return nil
 }
 
-func convertDNSConfig(cfg dns.OSConfig) *NetworkSettingsRequest_DNSSettings {
+func convertDNSConfig(cfg dns.OSConfig, domainSuffix string) *NetworkSettingsRequest_DNSSettings {
 	servers := make([]string, 0, len(cfg.Nameservers))
 	for _, ns := range cfg.Nameservers {
 		servers = append(servers, ns.String())
@@ -51,7 +60,7 @@ func convertDNSConfig(cfg dns.OSConfig) *NetworkSettingsRequest_DNSSettings {
 	return &NetworkSettingsRequest_DNSSettings{
 		Servers:              servers,
 		SearchDomains:        searchDomains,
-		DomainName:           "coder",
+		DomainName:           domainSuffix,
 		MatchDomains:         matchDomains,
 		MatchDomainsNoSearch: false,
 	}

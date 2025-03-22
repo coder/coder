@@ -47,6 +47,7 @@ type Tunnel struct {
 	logs  []*TunnelMessage
 
 	client Client
+	options *Options
 
 	// clientLogger is a separate logger than `logger` when the `UseAsLogger`
 	// option is used, to avoid the tunnel using itself as a sink for it's own
