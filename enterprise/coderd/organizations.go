@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -161,10 +162,41 @@ func (api *API) deleteOrganization(rw http.ResponseWriter, r *http.Request) {
 		return nil
 	}, nil)
 	if err != nil {
+		orgResourcesRow, queryErr := api.Database.GetOrganizationResourceCountByID(ctx, organization.ID)
+		if queryErr != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error deleting organization.",
+				Detail:  fmt.Sprintf("delete organization: %s", err.Error()),
+			})
+
+			return
+		}
+
+		detailParts := make([]string, 0)
+
+		addDetailPart := func(resource string, count int64) {
+			if count == 1 {
+				detailParts = append(detailParts, fmt.Sprintf("1 %s", resource))
+			} else if count > 1 {
+				detailParts = append(detailParts, fmt.Sprintf("%d %ss", count, resource))
+			}
+		}
+
+		addDetailPart("workspace", orgResourcesRow.WorkspaceCount)
+		addDetailPart("template", orgResourcesRow.TemplateCount)
+
+		// There will always be one member and group so instead we need to check that
+		// the count is greater than one.
+		addDetailPart("member", orgResourcesRow.MemberCount-1)
+		addDetailPart("group", orgResourcesRow.GroupCount-1)
+
+		addDetailPart("provisioner key", orgResourcesRow.ProvisionerKeyCount)
+
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error deleting organization.",
-			Detail:  fmt.Sprintf("delete organization: %s", err.Error()),
+			Message: "Error deleting organization.",
+			Detail:  fmt.Sprintf("This organization has %s that must be deleted first.", strings.Join(detailParts, ", ")),
 		})
+
 		return
 	}
 

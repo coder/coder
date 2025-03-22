@@ -494,8 +494,27 @@ BEGIN
 	-- * the organization has 1 or more members other than the organization owner
 	-- * the organization has 1 or more provisioner keys
 
+    -- Only create error message for resources that actually exist
     IF (workspace_count + template_count + provisioner_keys_count) > 0 THEN
-            RAISE EXCEPTION 'cannot delete organization: organization has % workspaces, % templates, and % provisioner keys that must be deleted first', workspace_count, template_count, provisioner_keys_count;
+        DECLARE
+            error_message text := 'cannot delete organization: organization has ';
+            error_parts text[] := '{}';
+        BEGIN
+            IF workspace_count > 0 THEN
+                error_parts := array_append(error_parts, workspace_count || ' workspaces');
+            END IF;
+            
+            IF template_count > 0 THEN
+                error_parts := array_append(error_parts, template_count || ' templates');
+            END IF;
+            
+            IF provisioner_keys_count > 0 THEN
+                error_parts := array_append(error_parts, provisioner_keys_count || ' provisioner keys');
+            END IF;
+            
+            error_message := error_message || array_to_string(error_parts, ', ') || ' that must be deleted first';
+            RAISE EXCEPTION '%', error_message;
+        END;
     END IF;
 
 	IF (group_count) > 1 THEN
