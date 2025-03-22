@@ -1,63 +1,54 @@
-import { useTheme } from "@emotion/react";
 import { Button } from "components/Button/Button";
-import { Stack } from "components/Stack/Stack";
 import { SquareArrowOutUpRightIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
+import { twMerge } from "tailwind-merge";
 
-interface HeaderProps {
+type HeaderHierarchy = "primary" | "secondary";
+type HeaderLevel = `h${1 | 2 | 3 | 4 | 5 | 6}`;
+
+type HeaderProps = Readonly<{
 	title: ReactNode;
 	description?: ReactNode;
-	secondary?: boolean;
+	titleVisualHierarchy?: HeaderHierarchy;
+	titleHeaderLevel?: HeaderLevel;
 	docsHref?: string;
 	tooltip?: ReactNode;
-}
+}>;
 
 export const SettingsHeader: FC<HeaderProps> = ({
 	title,
 	description,
 	docsHref,
-	secondary,
 	tooltip,
+	titleHeaderLevel = "h1",
+	titleVisualHierarchy = "primary",
 }) => {
-	const theme = useTheme();
-
+	const HeaderTitle = titleHeaderLevel;
 	return (
-		<Stack alignItems="baseline" direction="row" justifyContent="space-between">
-			<div css={{ maxWidth: 420, marginBottom: 24 }}>
-				<Stack direction="row" spacing={1} alignItems="center">
-					<h1
-						css={[
-							{
-								fontSize: 32,
-								fontWeight: 700,
-								display: "flex",
-								alignItems: "baseline",
-								lineHeight: "initial",
-								margin: 0,
-								marginBottom: 4,
-								gap: 8,
-							},
-							secondary && {
-								fontSize: 24,
-								fontWeight: 500,
-							},
-						]}
+		<hgroup className="flex flex-row justify-between align-baseline">
+			{/*
+			 * The text-sm class only adjusts the font size of the description,
+			 * but we need to apply it here and not on the <p> tag itself. That
+			 * way, text-sm combines with the max-w-prose class and makes sure
+			 * we have a predictable max width for the header + description.
+			 */}
+			<div className="text-sm max-w-prose pb-6">
+				<div className="flex flex-row gap-2 align-middle">
+					<HeaderTitle
+						className={twMerge(
+							"m-0 pb-1 text-3xl font-bold flex items-center gap-2 leading-tight",
+							titleVisualHierarchy === "secondary" && "text-2xl font-medium",
+						)}
 					>
 						{title}
-					</h1>
+					</HeaderTitle>
 					{tooltip}
-				</Stack>
+				</div>
 
 				{description && (
-					<span
-						css={{
-							fontSize: 14,
-							color: theme.palette.text.secondary,
-							lineHeight: "160%",
-						}}
-					>
+					<p className="m-0 text-content-secondary leading-relaxed">
 						{description}
-					</span>
+					</p>
 				)}
 			</div>
 
@@ -66,9 +57,10 @@ export const SettingsHeader: FC<HeaderProps> = ({
 					<a href={docsHref} target="_blank" rel="noreferrer">
 						<SquareArrowOutUpRightIcon />
 						Read the docs
+						<span className="sr-only"> (link opens in new tab)</span>
 					</a>
 				</Button>
 			)}
-		</Stack>
+		</hgroup>
 	);
 };
