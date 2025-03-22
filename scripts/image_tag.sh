@@ -11,6 +11,9 @@
 # If no version is specified, defaults to the version from ./version.sh. If the
 # supplied version is "latest", no `v` prefix will be added to the tag.
 #
+# The --channel parameter indecates the specific release channel, it's conflicts
+# with --version parameter.
+#
 # The returned tag will be sanitized to remove invalid characters like the plus
 # sign.
 
@@ -20,8 +23,9 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 arch=""
 version=""
+channel=""
 
-args="$(getopt -o "" -l arch:,version: -- "$@")"
+args="$(getopt -o "" -l arch:,version:,channel: -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
@@ -33,6 +37,10 @@ while true; do
 		version="$2"
 		shift 2
 		;;
+    --channel)
+        channel="$2"
+        shift 2
+        ;;
 	--)
 		shift
 		break
@@ -45,7 +53,7 @@ done
 
 # Remove the "v" prefix because we don't want to add it twice.
 version="${version#v}"
-if [[ "$version" == "" ]]; then
+if [[ "$version" == "" ]] && [[ "$channel" == "" ]]; then
 	version="$(execrelative ./version.sh)"
 fi
 
@@ -58,6 +66,10 @@ tag="${tag_prefix:+$tag_prefix-}v$version"
 
 if [[ "$version" == "latest" ]]; then
 	tag="latest"
+fi
+
+if [[ "$channel" != "" ]]; then
+    tag="$channel"
 fi
 
 if [[ "$arch" != "" ]]; then
