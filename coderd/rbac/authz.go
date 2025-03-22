@@ -6,6 +6,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -23,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/regosql"
 	"github.com/coder/coder/v2/coderd/rbac/regosql/sqltypes"
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
@@ -364,6 +366,8 @@ func (a RegoAuthorizer) Authorize(ctx context.Context, subject Subject, action p
 	err := a.authorize(ctx, subject, action, object)
 
 	span.SetAttributes(attribute.Bool("authorized", err == nil))
+	checkName := fmt.Sprintf("%v.%v", object.RBACObject().Type, action)
+	recordAuthzCheck(ctx, checkName, err == nil)
 
 	dur := time.Since(start)
 	if err != nil {
@@ -740,4 +744,46 @@ func rbacTraceAttributes(actor Subject, action policy.Action, objectType string,
 			attribute.String("action", string(action)),
 			attribute.String("object_type", objectType),
 		)...)
+}
+
+type authzCheckRecorderKey struct{}
+
+func WithAuthzCheckRecorder(ctx context.Context) context.Context {
+	return context.WithValue(ctx, authzCheckRecorderKey{}, ptr.Ref(AuthzCheckRecorder{
+		Checks: make(map[string]bool),
+	}))
+}
+
+type AuthzCheckRecorder struct {
+	// Checks is a map from preformatted authz check IDs to their authorization
+	// status (true => authorized, false => not authorized)
+	Checks map[string]bool
+}
+
+func recordAuthzCheck(ctx context.Context, check string, authorized bool) {
+	checks, ok := ctx.Value(authzCheckRecorderKey{}).(*AuthzCheckRecorder)
+	if !ok {
+		return
+	}
+
+	checks.Checks[check] = authorized
+}
+
+func GetAuthzChecks(ctx context.Context) (AuthzCheckRecorder, error) {
+	checks, ok := ctx.Value(authzCheckRecorderKey{}).(*AuthzCheckRecorder)
+	if !ok {
+		return AuthzCheckRecorder{}, xerrors.New("no authz checks recorded")
+	}
+
+	return *checks, nil
+}
+
+func (r *AuthzCheckRecorder) Serialize() string {
+	result := ""
+
+	for i, it := range r.Checks {
+		result += fmt.Sprintf("%v=%v;", i, it)
+	}
+
+	return result
 }
