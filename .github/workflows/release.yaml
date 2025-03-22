@@ -497,6 +497,11 @@ jobs:
           else
             echo "created_latest_tag=false" >> $GITHUB_OUTPUT
           fi
+          # push image based on current channel
+          ./scripts/build_docker_multiarch.sh \
+            --push \
+            --target "$(./scripts/image_tag.sh --channel ${CODER_RELEASE_CHANNEL})" \
+            $(cat build/coder_"$version"_linux_{amd64,arm64,armv7}.tag)
         env:
           CODER_BASE_IMAGE_TAG: ${{ steps.image-base-tag.outputs.tag }}
 
