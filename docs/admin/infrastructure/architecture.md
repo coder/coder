@@ -42,7 +42,7 @@ _provisionerd_ is the execution context for infrastructure modifying providers.
 At the moment, the only provider is Terraform (running `terraform`).
 
 By default, the Coder server runs multiple provisioner daemons.
-[External provisioners](../provisioners.md) can be added for security or
+[External provisioners](../provisioners/index.md) can be added for security or
 scalability purposes.
 
 ### Workspaces

@@ -294,7 +294,7 @@ be built until there is at least one provisioner daemon running.
 **Solution:**
 
 If you are using
-[External Provisioner Daemons](../provisioners.md#external-provisioners), ensure
+[External Provisioner Daemons](../provisioners/index.md#external-provisioners), ensure
 that they are able to successfully connect to Coder. Otherwise, ensure
 [`--provisioner-daemons`](../../reference/cli/server.md#--provisioner-daemons)
 is set to a value greater than 0.

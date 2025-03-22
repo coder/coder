@@ -24,7 +24,7 @@ Connect logs are all captured in the `coderd` logs.
 
 ## `provisionerd` Logs
 
-Logs for [external provisioners](../provisioners.md) are structured
+Logs for [external provisioners](../provisioners/index.md) are structured
 [and configured](../../reference/cli/provisioner_start.md#--log-human) similarly
 to `coderd` logs. Use these logs to troubleshoot and monitor the Terraform
 operations behind workspaces and templates.
