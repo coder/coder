@@ -659,8 +659,12 @@ agent/agentcontainers/acmock/acmock.go: agent/agentcontainers/containers.go
 	go generate ./agent/agentcontainers/acmock/
 	touch "$@"
 
-agent/agentcontainers/dcspec/dcspec_gen.go: agent/agentcontainers/dcspec/devContainer.base.schema.json
-	go generate ./agent/agentcontainers/dcspec/
+agent/agentcontainers/dcspec/dcspec_gen.go: \
+	node_modules/.installed \
+	agent/agentcontainers/dcspec/devContainer.base.schema.json \
+	agent/agentcontainers/dcspec/gen.sh \
+	agent/agentcontainers/dcspec/doc.go
+	DCSPEC_QUIET=true go generate ./agent/agentcontainers/dcspec/
 	touch "$@"
 
 $(TAILNETTEST_MOCKS): tailnet/coordinator.go tailnet/service.go

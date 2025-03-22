@@ -62,6 +62,10 @@ jobs:
         with:
           xcode-version: "16.0.0"
 
+      # Used by Makefile dependencies.
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
+
       - name: Setup Go
         uses: ./.github/actions/setup-go
 
