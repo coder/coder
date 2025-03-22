@@ -462,6 +462,22 @@ inMemoryDatabase: false
 # temporary directory and deleted when the server is stopped.
 # (default: <unset>, type: bool)
 ephemeralDeployment: false
+# Hostname of a PostgreSQL server. Only used if postgres-url is not set.
+# (default: <unset>, type: string)
+pgHost: ""
+# Port of a PostgreSQL server. Only used if postgres-url is not set.
+# (default: 5432, type: string)
+pgPort: "5432"
+# Username for PostgreSQL authentication. Only used if postgres-url is not set.
+# (default: <unset>, type: string)
+pgUsername: ""
+# Database name for PostgreSQL. Only used if postgres-url is not set.
+# (default: <unset>, type: string)
+pgDatabase: ""
+# Additional options for PostgreSQL connection string. Only used if postgres-url
+# is not set.
+# (default: <unset>, type: string)
+pgOptions: ""
 # Type of auth to use when connecting to postgres. For AWS RDS, using IAM
 # authentication (awsiamrds) is recommended.
 # (default: password, type: enum[password\|awsiamrds])
