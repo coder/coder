@@ -5989,7 +5989,6 @@ SELECT p.id               AS workspace_id,
 FROM workspace_prebuilds p
 		 INNER JOIN workspace_latest_builds b ON b.workspace_id = p.id
 		 INNER JOIN provisioner_jobs pj ON b.job_id = pj.id
-		 INNER JOIN templates t ON p.template_id = t.id
 		 LEFT JOIN template_version_presets tvp_curr
 				   ON tvp_curr.id = p.current_preset_id -- See https://github.com/coder/internal/issues/398.
 WHERE (b.transition = 'start'::workspace_transition
