@@ -19,10 +19,10 @@ locals {
     "us-pittsburgh" = "tcp://dogfood-ts-cdr-dev.tailscale.svc.cluster.local:2375"
     // For legacy reasons, this host is labelled `eu-helsinki` but it's
     // actually in Germany now.
-    "eu-helsinki"   = "tcp://katerose-fsn-cdr-dev.tailscale.svc.cluster.local:2375"
-    "ap-sydney"     = "tcp://wolfgang-syd-cdr-dev.tailscale.svc.cluster.local:2375"
-    "sa-saopaulo"   = "tcp://oberstein-sao-cdr-dev.tailscale.svc.cluster.local:2375"
-    "za-cpt"        = "tcp://schonkopf-cpt-cdr-dev.tailscale.svc.cluster.local:2375"
+    "eu-helsinki" = "tcp://katerose-fsn-cdr-dev.tailscale.svc.cluster.local:2375"
+    "ap-sydney"   = "tcp://wolfgang-syd-cdr-dev.tailscale.svc.cluster.local:2375"
+    "sa-saopaulo" = "tcp://oberstein-sao-cdr-dev.tailscale.svc.cluster.local:2375"
+    "za-cpt"      = "tcp://schonkopf-cpt-cdr-dev.tailscale.svc.cluster.local:2375"
   }
 
   repo_base_dir  = data.coder_parameter.repo_base_dir.value == "~" ? "/home/coder" : replace(data.coder_parameter.repo_base_dir.value, "/^~\\//", "/home/coder/")
@@ -66,8 +66,8 @@ data "coder_parameter" "region" {
     value = "us-pittsburgh"
   }
   option {
-    icon  = "/emojis/1f1e9-1f1ea.png"
-    name  = "Falkenstein"
+    icon = "/emojis/1f1e9-1f1ea.png"
+    name = "Falkenstein"
     // For legacy reasons, this host is labelled `eu-helsinki` but it's
     // actually in Germany now.
     value = "eu-helsinki"
