@@ -5894,10 +5894,10 @@ WITH filtered_builds AS (
 	-- Only select builds which are for prebuild creations
 	SELECT wlb.id, wlb.created_at, wlb.updated_at, wlb.workspace_id, wlb.template_version_id, wlb.build_number, wlb.transition, wlb.initiator_id, wlb.provisioner_state, wlb.job_id, wlb.deadline, wlb.reason, wlb.daily_cost, wlb.max_deadline, wlb.template_version_preset_id, tvp.id AS preset_id, pj.job_status, tvp.desired_instances
 	FROM template_version_presets tvp
-			 JOIN workspace_latest_builds wlb ON wlb.template_version_preset_id = tvp.id
-			 JOIN provisioner_jobs pj ON wlb.job_id = pj.id
-			 JOIN template_versions tv ON wlb.template_version_id = tv.id
-			 JOIN templates t ON tv.template_id = t.id AND t.active_version_id = tv.id
+			 INNER JOIN workspace_latest_builds wlb ON wlb.template_version_preset_id = tvp.id
+             INNER JOIN provisioner_jobs pj ON wlb.job_id = pj.id
+             INNER JOIN template_versions tv ON wlb.template_version_id = tv.id
+             INNER JOIN templates t ON tv.template_id = t.id AND t.active_version_id = tv.id
 	WHERE tvp.desired_instances IS NOT NULL -- Consider only presets that have a prebuild configuration.
       AND wlb.transition = 'start'::workspace_transition
 ),
