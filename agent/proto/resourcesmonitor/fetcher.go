@@ -13,19 +13,29 @@ type Fetcher interface {
 
 type fetcher struct {
 	*clistat.Statter
+	isContainerized bool
 }
 
 //nolint:revive
 func NewFetcher(f *clistat.Statter) *fetcher {
-	return &fetcher{
-		f,
-	}
+	isContainerized, _ := f.IsContainerized()
+
+	return &fetcher{f, isContainerized}
 }
 
 func (f *fetcher) FetchMemory() (total int64, used int64, err error) {
-	mem, err := f.HostMemory(clistat.PrefixDefault)
-	if err != nil {
-		return 0, 0, xerrors.Errorf("failed to fetch memory: %w", err)
+	var mem *clistat.Result
+
+	if f.isContainerized {
+		mem, err = f.ContainerMemory(clistat.PrefixDefault)
+		if err != nil {
+			return 0, 0, xerrors.Errorf("failed to fetch memory: %w", err)
+		}
+	} else {
+		mem, err = f.HostMemory(clistat.PrefixDefault)
+		if err != nil {
+			return 0, 0, xerrors.Errorf("failed to fetch memory: %w", err)
+		}
 	}
 
 	if mem.Total == nil {
