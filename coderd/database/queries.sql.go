@@ -5977,20 +5977,18 @@ func (q *sqlQuerier) GetPresetsBackoff(ctx context.Context, lookback time.Time) 
 }
 
 const getRunningPrebuilds = `-- name: GetRunningPrebuilds :many
-SELECT p.id               AS workspace_id,
-	   p.name             AS workspace_name,
+SELECT p.id                AS workspace_id,
+	   p.name              AS workspace_name,
 	   p.template_id,
 	   b.template_version_id,
-	   tvp_curr.id        AS current_preset_id,
+       p.current_preset_id AS current_preset_id,
 	   CASE
 		   WHEN p.lifecycle_state = 'ready'::workspace_agent_lifecycle_state THEN TRUE
 		   ELSE FALSE END AS ready,
 	   p.created_at
 FROM workspace_prebuilds p
 		 INNER JOIN workspace_latest_builds b ON b.workspace_id = p.id
-		 INNER JOIN provisioner_jobs pj ON b.job_id = pj.id
-		 LEFT JOIN template_version_presets tvp_curr
-				   ON tvp_curr.id = p.current_preset_id -- See https://github.com/coder/internal/issues/398.
+		 INNER JOIN provisioner_jobs pj ON b.job_id = pj.id -- See https://github.com/coder/internal/issues/398.
 WHERE (b.transition = 'start'::workspace_transition
 	AND pj.job_status = 'succeeded'::provisioner_job_status)
 `
