@@ -216,12 +216,13 @@ issues:
     - path: scripts/*
       linters:
         - exhaustruct
+    - path: coderd/database/dbmem/* # dbmem is being deprecated and removed.
+      linters:
+      - ALL
 
   fix: true
   max-issues-per-linter: 0
   max-same-issues: 0
-  exclude-rules:
-    - coderd/database/dbmem # dbmem is being deprecated and removed.
 
 run:
   skip-dirs:
