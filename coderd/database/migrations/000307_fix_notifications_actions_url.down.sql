@@ -19,4 +19,5 @@ SET
 			"label": "View template version",
 			"url": "{{base_url}}/templates/{{.Labels.organization}}/{{.Labels.template}}/versions/{{.Labels.version}}"
 		}
-	]'::jsonb WHERE id = 'd089fe7b-d5c5-4c0c-aaf5-689859f7d392';
+	]'::jsonb
+WHERE id = 'd089fe7b-d5c5-4c0c-aaf5-689859f7d392';
