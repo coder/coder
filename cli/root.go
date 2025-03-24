@@ -433,7 +433,7 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 		{
 			Flag:        varForceTty,
 			Env:         "CODER_FORCE_TTY",
-			Hidden:      true,
+			Hidden:      false,
 			Description: "Force the use of a TTY.",
 			Value:       serpent.BoolOf(&r.forceTTY),
 			Group:       globalGroup,
