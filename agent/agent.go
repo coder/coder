@@ -965,7 +965,10 @@ func (a *agent) run() (retErr error) {
 		if err != nil {
 			return xerrors.Errorf("failed to create resources fetcher: %w", err)
 		}
-		resourcesFetcher := resourcesmonitor.NewFetcher(statfetcher)
+		resourcesFetcher, err := resourcesmonitor.NewFetcher(statfetcher)
+		if err != nil {
+			return xerrors.Errorf("new resource fetcher: %w", err)
+		}
 
 		resourcesmonitor := resourcesmonitor.NewResourcesMonitor(logger, clk, config, resourcesFetcher, aAPI)
 		return resourcesmonitor.Start(ctx)
