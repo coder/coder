@@ -2137,6 +2137,7 @@ func TestOwnedWorkspacesCoordinate(t *testing.T) {
 	logger := testutil.Logger(t)
 
 	fTelemetry := newFakeTelemetryReporter(ctx, t, 200)
+	fTelemetry.enabled = false
 	firstClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 		Coordinator:       tailnet.NewCoordinator(logger),
 		TelemetryReporter: fTelemetry,
@@ -2147,10 +2148,8 @@ func TestOwnedWorkspacesCoordinate(t *testing.T) {
 	// Create a workspace with an agent
 	firstWorkspace := buildWorkspaceWithAgent(t, member, firstUser.OrganizationID, memberUser.ID, api.Database, api.Pubsub)
 
-	// clean out telemetry snapshots from the setup; we don't care about them for this test
-	for len(fTelemetry.snapshots) != 0 {
-		<-fTelemetry.snapshots
-	}
+	// enable telemetry now that workspace is built; we don't care about snapshots before this.
+	fTelemetry.enabled = true
 
 	u, err := member.URL.Parse("/api/v2/tailnet")
 	require.NoError(t, err)
@@ -2413,10 +2412,5 @@ func (f *fakeTelemetryReporter) Enabled() bool {
 	return f.enabled
 }
 
-// SetEnabled allows controlling whether the reporter is enabled.
-func (f *fakeTelemetryReporter) SetEnabled(enabled bool) {
-	f.enabled = enabled
-}
-
 // Close implements the telemetry.Reporter interface.
-func (f *fakeTelemetryReporter) Close() {}
+func (*fakeTelemetryReporter) Close() {}
