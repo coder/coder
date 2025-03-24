@@ -988,6 +988,12 @@ jobs:
           set -euxo pipefail
           go mod download
 
+          # The "build/coder-dylib" target depends on all Go source files and
+          # the target "agent/agentcontainers/dcspec/dcspec_gen.go" depends on
+          # node/pnpm tooling.
+          mkdir -p node_modules
+          touch node_modules/.installed
+
           make gen/mark-fresh
           make build/coder-dylib
         env:
