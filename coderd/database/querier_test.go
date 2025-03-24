@@ -1433,13 +1433,8 @@ func TestUpdateSystemUser(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	sqlDB := testSQLDB(t)
 	// Given: a system user introduced by migration coderd/database/migrations/00030*_system_user.up.sql
-	err := migrations.Up(sqlDB)
-	require.NoError(t, err, "migrations")
-
-	db := database.New(sqlDB)
-	// Given a system user.
+	db, _ := dbtestutil.NewDB(t)
 	users, err := db.GetUsers(ctx, database.GetUsersParams{
 		IncludeSystem: true,
 	})
