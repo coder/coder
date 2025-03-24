@@ -29,12 +29,24 @@ func (f *fetcher) FetchMemory() (total int64, used int64, err error) {
 	if f.isContainerized {
 		mem, err = f.ContainerMemory(clistat.PrefixDefault)
 		if err != nil {
-			return 0, 0, xerrors.Errorf("failed to fetch memory: %w", err)
+			return 0, 0, xerrors.Errorf("failed to fetch container memory: %w", err)
+		}
+
+		// A container might not have a memory limit set. If this
+		// happens we want to fallback to querying the host's memory
+		// to know what the total memory is on the host.
+		if mem.Total == nil {
+			hostMem, err := f.HostMemory(clistat.PrefixDefault)
+			if err != nil {
+				return 0, 0, xerrors.Errorf("failed to host fetch memory: %w", err)
+			}
+
+			mem.Total = hostMem.Total
 		}
 	} else {
 		mem, err = f.HostMemory(clistat.PrefixDefault)
 		if err != nil {
-			return 0, 0, xerrors.Errorf("failed to fetch memory: %w", err)
+			return 0, 0, xerrors.Errorf("failed to host fetch memory: %w", err)
 		}
 	}
 
