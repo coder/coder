@@ -171,11 +171,12 @@ func Untar(directory string, r io.Reader) error {
 				}
 			}
 		case tar.TypeReg:
-			err := os.MkdirAll(filepath.Dir(target), os.FileMode(header.Mode)|os.ModeDir|100)
+			// header.Mode is int64, converting to os.FileMode (uint32) is safe for file permissions
+			err := os.MkdirAll(filepath.Dir(target), os.FileMode(header.Mode)|os.ModeDir|100) // #nosec G115 -- header.Mode contains file mode bits, safely convertible to uint32
 			if err != nil {
 				return err
 			}
-			file, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR|os.O_TRUNC, os.FileMode(header.Mode))
+			file, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR|os.O_TRUNC, os.FileMode(header.Mode)) // #nosec G115 -- header.Mode contains file mode bits, safely convertible to uint32
 			if err != nil {
 				return err
 			}

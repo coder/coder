@@ -19,7 +19,7 @@ func (*Statter) Disk(p Prefix, path string) (*Result, error) {
 		return nil, err
 	}
 	var r Result
-	r.Total = ptr.To(float64(stat.Blocks * uint64(stat.Bsize)))
+	r.Total = ptr.To(float64(stat.Blocks * uint64(stat.Bsize))) // #nosec G115 -- int64 to uint64 is safe for filesystem stats (always positive)
 	r.Used = float64(stat.Blocks-stat.Bfree) * float64(stat.Bsize)
 	r.Unit = "B"
 	r.Prefix = p

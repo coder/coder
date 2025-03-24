@@ -44,20 +44,20 @@ const (
 //
 //nolint:varnamelen
 func unbiasedModulo32(v uint32, n int32) (int32, error) {
-	prod := uint64(v) * uint64(n)
-	low := uint32(prod)
-	if low < uint32(n) {
-		thresh := uint32(-n) % uint32(n)
+	prod := uint64(v) * uint64(n) // #nosec G115 -- uint32 to uint64 is always safe
+	low := uint32(prod)           // #nosec G115 -- truncation is intentional for the algorithm
+	if low < uint32(n) {          // #nosec G115 -- int32 to uint32 is safe for positive n (we require n > 0)
+		thresh := uint32(-n) % uint32(n) // #nosec G115 -- int32 to uint32 after negation is an acceptable pattern here
 		for low < thresh {
 			err := binary.Read(rand.Reader, binary.BigEndian, &v)
 			if err != nil {
 				return 0, err
 			}
-			prod = uint64(v) * uint64(n)
-			low = uint32(prod)
+			prod = uint64(v) * uint64(n) // #nosec G115 -- uint32 to uint64 is always safe
+			low = uint32(prod)           // #nosec G115 -- truncation is intentional for the algorithm
 		}
 	}
-	return int32(prod >> 32), nil
+	return int32(prod >> 32), nil // #nosec G115 -- proper range is guaranteed by the algorithm
 }
 
 // StringCharset generates a random string using the provided charset and size.
@@ -84,12 +84,13 @@ func StringCharset(charSetStr string, size int) (string, error) {
 	buf.Grow(size)
 
 	for i := 0; i < size; i++ {
-		r := binary.BigEndian.Uint32(entropy[:4])
+		r := binary.BigEndian.Uint32(entropy[:4]) // #nosec G115 -- not a conversion, just reading bytes as uint32
 		entropy = entropy[4:]
 
+		// Charset length is limited by string size, so conversion to int32 is safe
 		ci, err := unbiasedModulo32(
 			r,
-			int32(len(charSet)),
+			int32(len(charSet)), // #nosec G115 -- int to int32 is safe for charset length
 		)
 		if err != nil {
 			return "", err

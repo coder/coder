@@ -41,5 +41,6 @@ func RandomPortNoListen(*testing.T) uint16 {
 	rndMu.Lock()
 	x := rnd.Intn(n)
 	rndMu.Unlock()
-	return uint16(min + x)
+	// The calculation is safe as min(49152) + max possible x(11847) = 60999, which fits in uint16
+	return uint16(min + x) // #nosec G115 -- range is guaranteed to be within uint16
 }

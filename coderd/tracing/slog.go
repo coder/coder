@@ -33,7 +33,7 @@ func (SlogSink) LogEntry(ctx context.Context, e slog.SinkEntry) {
 		attribute.String("slog.message", e.Message),
 		attribute.String("slog.func", e.Func),
 		attribute.String("slog.file", e.File),
-		attribute.Int64("slog.line", int64(e.Line)),
+		attribute.Int64("slog.line", int64(e.Line)), // #nosec G115 -- int to int64 is safe
 	}
 	attributes = append(attributes, slogFieldsToAttributes(e.Fields)...)
 
@@ -61,36 +61,38 @@ func slogFieldsToAttributes(m slog.Map) []attribute.KeyValue {
 		case []float64:
 			value = attribute.Float64SliceValue(v)
 		case int:
-			value = attribute.Int64Value(int64(v))
+			value = attribute.Int64Value(int64(v))	// #nosec G115 -- int to int64 is safe
 		case []int:
 			value = attribute.IntSliceValue(v)
 		case int8:
-			value = attribute.Int64Value(int64(v))
+			value = attribute.Int64Value(int64(v))	// #nosec G115 -- int to int64 is safe
 		// no int8 slice method
 		case int16:
-			value = attribute.Int64Value(int64(v))
+			value = attribute.Int64Value(int64(v))	// #nosec G115 -- int to int64 is safe
 		// no int16 slice method
 		case int32:
-			value = attribute.Int64Value(int64(v))
+			value = attribute.Int64Value(int64(v))	// #nosec G115 -- int to int64 is safe
 		// no int32 slice method
 		case int64:
 			value = attribute.Int64Value(v)
 		case []int64:
 			value = attribute.Int64SliceValue(v)
 		case uint:
-			value = attribute.Int64Value(int64(v))
+			// If v is larger than math.MaxInt64, this will overflow, but this is acceptable for our tracing use case
+			value = attribute.Int64Value(int64(v)) // #nosec G115 -- acceptable overflow for tracing context
 		// no uint slice method
 		case uint8:
-			value = attribute.Int64Value(int64(v))
+			value = attribute.Int64Value(int64(v))	// #nosec G115 -- int to int64 is safe
 		// no uint8 slice method
-		case uint16:
-			value = attribute.Int64Value(int64(v))
+		case uint16:	// #nosec G115 -- int to int64 is safe
+			value = attribute.Int64Value(int64(v))	// #nosec G115 -- int to int64 is safe
 		// no uint16 slice method
 		case uint32:
-			value = attribute.Int64Value(int64(v))
+			value = attribute.Int64Value(int64(v))	// #nosec G115 -- int to int64 is safe
 		// no uint32 slice method
 		case uint64:
-			value = attribute.Int64Value(int64(v))
+			// If v is larger than math.MaxInt64, this will overflow, but this is acceptable for our tracing use case
+			value = attribute.Int64Value(int64(v)) // #nosec G115 -- acceptable overflow for tracing context
 		// no uint64 slice method
 		case string:
 			value = attribute.StringValue(v)

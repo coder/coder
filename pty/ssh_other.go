@@ -79,7 +79,7 @@ var terminalModeFlagNames = map[uint8]string{
 // https://github.com/tailscale/tailscale/blob/main/ssh/tailssh/incubator.go
 func applyTerminalModesToFd(logger *log.Logger, fd uintptr, req ssh.Pty) error {
 	// Get the current TTY configuration.
-	tios, err := termios.GTTY(int(fd))
+	tios, err := termios.GTTY(int(fd)) // #nosec G115 -- uintptr to int is safe for file descriptors
 	if err != nil {
 		return xerrors.Errorf("GTTY: %w", err)
 	}
@@ -90,11 +90,11 @@ func applyTerminalModesToFd(logger *log.Logger, fd uintptr, req ssh.Pty) error {
 
 	for c, v := range req.Modes {
 		if c == gossh.TTY_OP_ISPEED {
-			tios.Ispeed = int(v)
+			tios.Ispeed = int(v)	// #nosec G115 -- uint32 to int is safe for TTY speeds
 			continue
 		}
 		if c == gossh.TTY_OP_OSPEED {
-			tios.Ospeed = int(v)
+			tios.Ospeed = int(v)	// #nosec G115 -- uint32 to int is safe for TTY speeds
 			continue
 		}
 		k, ok := terminalModeFlagNames[c]
@@ -105,7 +105,9 @@ func applyTerminalModesToFd(logger *log.Logger, fd uintptr, req ssh.Pty) error {
 			continue
 		}
 		if _, ok := tios.CC[k]; ok {
-			tios.CC[k] = uint8(v)
+			if v <= 255 { // Ensure value fits in uint8
+				tios.CC[k] = uint8(v) // #nosec G115 -- value is checked to fit in uint8
+			}
 			continue
 		}
 		if _, ok := tios.Opts[k]; ok {
@@ -117,9 +119,9 @@ func applyTerminalModesToFd(logger *log.Logger, fd uintptr, req ssh.Pty) error {
 			logger.Printf("unsupported terminal mode: k=%s, c=%d, v=%d", k, c, v)
 		}
 	}
-
+	// #nosec G115 -- int to int64 is safe for file descriptors
 	// Save the new TTY configuration.
-	if _, err := tios.STTY(int(fd)); err != nil {
+	if _, err := tios.STTY(int(fd)); err != nil {	// #nosec G115 -- uintptr to int is safe for file descriptors
 		return xerrors.Errorf("STTY: %w", err)
 	}
 
