@@ -1,13 +1,14 @@
 package resourcesmonitor_test
 
 import (
-	"errors"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/agent/proto/resourcesmonitor"
 	"github.com/coder/coder/v2/cli/clistat"
 	"github.com/coder/coder/v2/coderd/util/ptr"
-	"github.com/stretchr/testify/require"
 )
 
 type mockStatter struct {
@@ -32,7 +33,7 @@ func (s *mockStatter) HostMemory(_ clistat.Prefix) (*clistat.Result, error) {
 func (s *mockStatter) Disk(_ clistat.Prefix, path string) (*clistat.Result, error) {
 	disk, ok := s.disk[path]
 	if !ok {
-		return nil, errors.New("path not found")
+		return nil, xerrors.New("path not found")
 	}
 	return &disk, nil
 }
