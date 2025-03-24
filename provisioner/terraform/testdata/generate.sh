@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 set -euo pipefail
-cd "$(dirname "${BASH_SOURCE[0]}")"
+cd "$(dirname "${BASH_SOURCE[0]}")/resources"
 
 generate() {
 	local name="$1"
@@ -70,22 +70,17 @@ run() {
 	cd "$d"
 	name=$(basename "$(pwd)")
 
-	# This needs care to update correctly.
-	if [[ $name == "kubernetes-metadata" ]]; then
-		echo "== Skipping: $name"
-		return 0
-	fi
-
-	# This directory is used for a different purpose (quick workaround).
-	if [[ $name == "cleanup-stale-plugins" ]]; then
-		echo "== Skipping: $name"
-		return 0
-	fi
-
-	if [[ $name == "timings-aggregation" ]]; then
-		echo "== Skipping: $name"
-		return 0
-	fi
+	toskip=(
+		# This needs care to update correctly.
+		"kubernetes-metadata"
+	)
+	for skip in "${toskip[@]}"; do
+		if [[ $name == "$skip" ]]; then
+			echo "== Skipping: $name"
+			touch "$name.tfplan.json" "$name.tfplan.dot" "$name.tfstate.json" "$name.tfstate.dot"
+			return 0
+		fi
+	done
 
 	echo "== Generating test data for: $name"
 	if ! out="$(generate "$name" 2>&1)"; then

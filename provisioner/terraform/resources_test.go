@@ -863,7 +863,7 @@ func TestConvertResources(t *testing.T) {
 		expected := expected
 		t.Run(folderName, func(t *testing.T) {
 			t.Parallel()
-			dir := filepath.Join(filepath.Dir(filename), "testdata", folderName)
+			dir := filepath.Join(filepath.Dir(filename), "testdata", "resources", folderName)
 			t.Run("Plan", func(t *testing.T) {
 				t.Parallel()
 				ctx, logger := ctxAndLogger(t)
@@ -1021,7 +1021,7 @@ func TestAppSlugValidation(t *testing.T) {
 	_, filename, _, _ := runtime.Caller(0)
 
 	// Load the multiple-apps state file and edit it.
-	dir := filepath.Join(filepath.Dir(filename), "testdata", "multiple-apps")
+	dir := filepath.Join(filepath.Dir(filename), "testdata", "resources", "multiple-apps")
 	tfPlanRaw, err := os.ReadFile(filepath.Join(dir, "multiple-apps.tfplan.json"))
 	require.NoError(t, err)
 	var tfPlan tfjson.Plan
@@ -1070,7 +1070,7 @@ func TestAppSlugDuplicate(t *testing.T) {
 	// nolint:dogsled
 	_, filename, _, _ := runtime.Caller(0)
 
-	dir := filepath.Join(filepath.Dir(filename), "testdata", "multiple-apps")
+	dir := filepath.Join(filepath.Dir(filename), "testdata", "resources", "multiple-apps")
 	tfPlanRaw, err := os.ReadFile(filepath.Join(dir, "multiple-apps.tfplan.json"))
 	require.NoError(t, err)
 	var tfPlan tfjson.Plan
@@ -1098,7 +1098,7 @@ func TestAgentNameInvalid(t *testing.T) {
 	// nolint:dogsled
 	_, filename, _, _ := runtime.Caller(0)
 
-	dir := filepath.Join(filepath.Dir(filename), "testdata", "multiple-agents")
+	dir := filepath.Join(filepath.Dir(filename), "testdata", "resources", "multiple-agents")
 	tfPlanRaw, err := os.ReadFile(filepath.Join(dir, "multiple-agents.tfplan.json"))
 	require.NoError(t, err)
 	var tfPlan tfjson.Plan
@@ -1147,7 +1147,7 @@ func TestAgentNameDuplicate(t *testing.T) {
 	// nolint:dogsled
 	_, filename, _, _ := runtime.Caller(0)
 
-	dir := filepath.Join(filepath.Dir(filename), "testdata", "multiple-agents")
+	dir := filepath.Join(filepath.Dir(filename), "testdata", "resources", "multiple-agents")
 	tfPlanRaw, err := os.ReadFile(filepath.Join(dir, "multiple-agents.tfplan.json"))
 	require.NoError(t, err)
 	var tfPlan tfjson.Plan
@@ -1178,7 +1178,7 @@ func TestMetadataResourceDuplicate(t *testing.T) {
 	ctx, logger := ctxAndLogger(t)
 
 	// Load the multiple-apps state file and edit it.
-	dir := filepath.Join("testdata", "resource-metadata-duplicate")
+	dir := filepath.Join("testdata", "resources", "resource-metadata-duplicate")
 	tfPlanRaw, err := os.ReadFile(filepath.Join(dir, "resource-metadata-duplicate.tfplan.json"))
 	require.NoError(t, err)
 	var tfPlan tfjson.Plan
@@ -1201,7 +1201,7 @@ func TestParameterValidation(t *testing.T) {
 	_, filename, _, _ := runtime.Caller(0)
 
 	// Load the rich-parameters state file and edit it.
-	dir := filepath.Join(filepath.Dir(filename), "testdata", "rich-parameters")
+	dir := filepath.Join(filepath.Dir(filename), "testdata", "resources", "rich-parameters")
 	tfPlanRaw, err := os.ReadFile(filepath.Join(dir, "rich-parameters.tfplan.json"))
 	require.NoError(t, err)
 	var tfPlan tfjson.Plan
