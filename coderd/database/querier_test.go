@@ -1428,7 +1428,7 @@ func TestUpdateSystemUser(t *testing.T) {
 
 	// TODO (sasswart): We've disabled the protection that prevents updates to system users
 	// while we reassess the mechanism to do so. Rather than skip the test, we've just inverted
-	// the assertions to ensure that the behaviour is as desired.
+	// the assertions to ensure that the behavior is as desired.
 	// Once we've re-enabeld the system user protection, we'll revert the assertions.
 
 	ctx := testutil.Context(t, testutil.WaitLong)
