@@ -1560,6 +1560,17 @@ Certificate key file to use.
 
 The endpoint to which to send webhooks.
 
+### --notifications-inbox-enabled
+
+|             |                                                 |
+|-------------|-------------------------------------------------|
+| Type        | <code>bool</code>                               |
+| Environment | <code>$CODER_NOTIFICATIONS_INBOX_ENABLED</code> |
+| YAML        | <code>notifications.inbox.enabled</code>        |
+| Default     | <code>true</code>                               |
+
+TODO: Write description later.
+
 ### --notifications-max-send-attempts
 
 |             |                                                     |
