@@ -3,10 +3,10 @@ import { Avatar } from "components/Avatar/Avatar";
 import { Button } from "components/Button/Button";
 import { SquareCheckBig } from "lucide-react";
 import type { FC } from "react";
-import { Link as RouterLink } from "react-router-dom";
-import { relativeTime } from "utils/time";
 import Markdown from "react-markdown";
+import { Link as RouterLink } from "react-router-dom";
 import { cn } from "utils/cn";
+import { relativeTime } from "utils/time";
 
 type InboxItemProps = {
 	notification: InboxNotification;
