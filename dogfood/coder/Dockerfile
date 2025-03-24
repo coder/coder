@@ -2,7 +2,7 @@ FROM rust:slim@sha256:9abf10cc84dfad6ace1b0aae3951dc5200f467c593394288c11db1e17b
 # Install rust helper programs
 # ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
 ENV CARGO_INSTALL_ROOT=/tmp/
-RUN cargo install exa bat ripgrep typos-cli watchexec-cli && \
+RUN cargo install typos-cli watchexec-cli && \
 	# Reduce image size.
 	rm -rf /usr/local/cargo/registry
 
@@ -128,6 +128,7 @@ RUN apt-get update --quiet && apt-get install --yes \
 	asciinema \
 	bash \
 	bash-completion \
+	bat \
 	bats \
 	bind9-dnsutils \
 	build-essential \
@@ -140,6 +141,7 @@ RUN apt-get update --quiet && apt-get install --yes \
 	docker-ce \
 	docker-ce-cli \
 	docker-compose-plugin \
+	exa \
 	fd-find \
 	file \
 	fish \
@@ -176,6 +178,7 @@ RUN apt-get update --quiet && apt-get install --yes \
 	postgresql-16 \
 	python3 \
 	python3-pip \
+	ripgrep \
 	rsync \
 	screen \
 	shellcheck \
