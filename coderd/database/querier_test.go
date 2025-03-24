@@ -3582,7 +3582,7 @@ func TestGetPresetsBackoff(t *testing.T) {
 			},
 		})
 	}
-	findBackoffByTmplVersionId := func(backoffs []database.GetPresetsBackoffRow, tmplVersionID uuid.UUID) *database.GetPresetsBackoffRow {
+	findBackoffByTmplVersionID := func(backoffs []database.GetPresetsBackoffRow, tmplVersionID uuid.UUID) *database.GetPresetsBackoffRow {
 		for _, backoff := range backoffs {
 			if backoff.TemplateVersionID == tmplVersionID {
 				return &backoff
@@ -3702,13 +3702,13 @@ func TestGetPresetsBackoff(t *testing.T) {
 
 		require.Len(t, backoffs, 2)
 		{
-			backoff := findBackoffByTmplVersionId(backoffs, tmpl1.ActiveVersionID)
+			backoff := findBackoffByTmplVersionID(backoffs, tmpl1.ActiveVersionID)
 			require.Equal(t, backoff.TemplateVersionID, tmpl1.ActiveVersionID)
 			require.Equal(t, backoff.PresetID, tmpl1V1.preset.ID)
 			require.Equal(t, int32(1), backoff.NumFailed)
 		}
 		{
-			backoff := findBackoffByTmplVersionId(backoffs, tmpl2.ActiveVersionID)
+			backoff := findBackoffByTmplVersionID(backoffs, tmpl2.ActiveVersionID)
 			require.Equal(t, backoff.TemplateVersionID, tmpl2.ActiveVersionID)
 			require.Equal(t, backoff.PresetID, tmpl2V1.preset.ID)
 			require.Equal(t, int32(1), backoff.NumFailed)
@@ -3750,19 +3750,19 @@ func TestGetPresetsBackoff(t *testing.T) {
 
 		require.Len(t, backoffs, 3)
 		{
-			backoff := findBackoffByTmplVersionId(backoffs, tmpl1.ActiveVersionID)
+			backoff := findBackoffByTmplVersionID(backoffs, tmpl1.ActiveVersionID)
 			require.Equal(t, backoff.TemplateVersionID, tmpl1.ActiveVersionID)
 			require.Equal(t, backoff.PresetID, tmpl1V1.preset.ID)
 			require.Equal(t, int32(1), backoff.NumFailed)
 		}
 		{
-			backoff := findBackoffByTmplVersionId(backoffs, tmpl2.ActiveVersionID)
+			backoff := findBackoffByTmplVersionID(backoffs, tmpl2.ActiveVersionID)
 			require.Equal(t, backoff.TemplateVersionID, tmpl2.ActiveVersionID)
 			require.Equal(t, backoff.PresetID, tmpl2V1.preset.ID)
 			require.Equal(t, int32(2), backoff.NumFailed)
 		}
 		{
-			backoff := findBackoffByTmplVersionId(backoffs, tmpl3.ActiveVersionID)
+			backoff := findBackoffByTmplVersionID(backoffs, tmpl3.ActiveVersionID)
 			require.Equal(t, backoff.TemplateVersionID, tmpl3.ActiveVersionID)
 			require.Equal(t, backoff.PresetID, tmpl3V2.preset.ID)
 			require.Equal(t, int32(3), backoff.NumFailed)
