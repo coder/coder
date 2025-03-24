@@ -5899,23 +5899,31 @@ WITH filtered_builds AS (
              INNER JOIN template_versions tv ON wlb.template_version_id = tv.id
              INNER JOIN templates t ON tv.template_id = t.id AND t.active_version_id = tv.id
 	WHERE tvp.desired_instances IS NOT NULL -- Consider only presets that have a prebuild configuration.
-	  AND wlb.transition = 'start'::workspace_transition
+      AND wlb.transition = 'start'::workspace_transition
 ),
 time_sorted_builds AS (
     -- Group builds by template version, then sort each group by created_at.
 	SELECT fb.id, fb.created_at, fb.updated_at, fb.workspace_id, fb.template_version_id, fb.build_number, fb.transition, fb.initiator_id, fb.provisioner_state, fb.job_id, fb.deadline, fb.reason, fb.daily_cost, fb.max_deadline, fb.template_version_preset_id, fb.preset_id, fb.job_status, fb.desired_instances,
 	    ROW_NUMBER() OVER (PARTITION BY fb.template_version_preset_id ORDER BY fb.created_at DESC) as rn
 	FROM filtered_builds fb
+),
+failed_count AS (
+    -- Count failed builds per template version/preset in the given period
+	SELECT preset_id, COUNT(*) AS num_failed
+	FROM filtered_builds
+	WHERE job_status = 'failed'::provisioner_job_status
+		AND created_at >= $1::timestamptz
+	GROUP BY preset_id
 )
 SELECT tsb.template_version_id,
 	   tsb.preset_id,
-	   COUNT(*)::int AS num_failed, -- Count failed builds per template version/preset in the given period
+	   COALESCE(fc.num_failed, 0)::int  AS num_failed,
 	   MAX(tsb.created_at::timestamptz) AS last_build_at
 FROM time_sorted_builds tsb
+		 LEFT JOIN failed_count fc ON fc.preset_id = tsb.preset_id
 WHERE tsb.rn <= tsb.desired_instances -- Fetch the last N builds, where N is the number of desired instances; if any fail, we backoff
   AND tsb.job_status = 'failed'::provisioner_job_status
-  AND created_at >= $1::timestamptz
-GROUP BY tsb.template_version_id, tsb.preset_id
+GROUP BY tsb.template_version_id, tsb.preset_id, fc.num_failed
 `
 
 type GetPresetsBackoffRow struct {
@@ -5926,15 +5934,20 @@ type GetPresetsBackoffRow struct {
 }
 
 // GetPresetsBackoff groups workspace builds by template version ID.
-// For each group, the query checks up to N of the most recent jobs that occurred within the
-// lookback period, where N equals the number of desired instances for the corresponding preset.
+// For each group, the query checks the last N jobs, where N equals the number of desired instances for the corresponding preset.
 // If at least one of the last N jobs has failed, we should backoff on the corresponding template version ID.
 // Query returns a list of template version IDs for which we should backoff.
 // Only active template versions with configured presets are considered.
 //
 // NOTE:
-// We only consider jobs that occurred within the lookback period; any failures that happened before this period are ignored.
-// We also return the number of failed workspace builds, which is used downstream to determine the backoff duration.
+// We back off on the template version ID if at least one of the N latest workspace builds has failed.
+// However, we also return the number of failed workspace builds that occurred during the lookback period.
+//
+// In other words:
+// - To **decide whether to back off**, we look at the N most recent builds (regardless of when they happened).
+// - To **calculate the number of failed builds**, we consider all builds within the defined lookback period.
+//
+// The number of failed builds is used downstream to determine the backoff duration.
 func (q *sqlQuerier) GetPresetsBackoff(ctx context.Context, lookback time.Time) ([]GetPresetsBackoffRow, error) {
 	rows, err := q.db.QueryContext(ctx, getPresetsBackoff, lookback)
 	if err != nil {
