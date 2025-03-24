@@ -1,13 +1,19 @@
 coder v0.0.0-devel
 
 USAGE:
-  coder open
+  coder open [flags] <workspace> [<app slug>]
 
-  Open a workspace
+  Open a workspace in an IDE or workspace app. If no app slug is provided, lists
+  available apps in <workspace>.
 
 SUBCOMMANDS:
-    app       Open a workspace application.
     vscode    Open a workspace in VS Code Desktop
+
+OPTIONS:
+      --region string, $CODER_OPEN_REGION (default: primary)
+          Region to use when opening the app. By default, the app will be opened
+          using the main Coder deployment (a.k.a. "primary"). This has no effect
+          on external application URLs.
 
 ———
 Run `coder --help` for a list of global options.

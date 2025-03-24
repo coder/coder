@@ -1,3 +1,4 @@
+WARNING: "coder open vscode" is deprecated!. Use 'coder open <workspace> vscode' instead.
 coder v0.0.0-devel
 
 USAGE:

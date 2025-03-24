@@ -1062,13 +1062,8 @@
 						},
 						{
 							"title": "open",
-							"description": "Open a workspace",
+							"description": "Open a workspace in an IDE or workspace app. If no app slug is provided, lists available apps in \u003cworkspace\u003e.",
 							"path": "reference/cli/open.md"
-						},
-						{
-							"title": "open app",
-							"description": "Open a workspace application.",
-							"path": "reference/cli/open_app.md"
 						},
 						{
 							"title": "open vscode",

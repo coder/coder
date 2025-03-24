@@ -30,7 +30,8 @@ SUBCOMMANDS:
     logout            Unauthenticate your local session
     netcheck          Print network debug information for DERP and STUN
     notifications     Manage Coder notifications
-    open              Open a workspace
+    open              Open a workspace in an IDE or workspace app. If no app
+                      slug is provided, lists available apps in <workspace>.
     organizations     Organization related commands
     ping              Ping a workspace
     port-forward      Forward ports from a workspace to the local machine. For

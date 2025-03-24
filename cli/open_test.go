@@ -285,7 +285,7 @@ func TestOpenVSCode_NoAgentDirectory(t *testing.T) {
 	}
 }
 
-func TestOpenApp(t *testing.T) {
+func TestOpen(t *testing.T) {
 	t.Parallel()
 
 	t.Run("OK", func(t *testing.T) {
@@ -301,7 +301,7 @@ func TestOpenApp(t *testing.T) {
 			return agents
 		})
 
-		inv, root := clitest.New(t, "open", "app", ws.Name, "app1", "--test.open-error")
+		inv, root := clitest.New(t, "open", ws.Name, "app1", "--test.open-error")
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
 		inv.Stdin = pty.Input()
@@ -312,11 +312,28 @@ func TestOpenApp(t *testing.T) {
 		w.RequireContains("test.open-error")
 	})
 
+	t.Run("NoAppsShouldAtLeastIncludeVSCode", func(t *testing.T) {
+		t.Parallel()
+
+		client, ws, _ := setupWorkspaceForAgent(t)
+		inv, root := clitest.New(t, "open", ws.Name)
+		clitest.SetupConfig(t, client, root)
+		var sb strings.Builder
+		inv.Stdout = &sb
+		inv.Stderr = &sb
+
+		w := clitest.StartWithWaiter(t, inv)
+		w.RequireSuccess()
+
+		require.Contains(t, sb.String(), "Available apps in")
+		require.Contains(t, sb.String(), "vscode")
+	})
+
 	t.Run("OnlyWorkspaceName", func(t *testing.T) {
 		t.Parallel()
 
 		client, ws, _ := setupWorkspaceForAgent(t)
-		inv, root := clitest.New(t, "open", "app", ws.Name)
+		inv, root := clitest.New(t, "open", ws.Name)
 		clitest.SetupConfig(t, client, root)
 		var sb strings.Builder
 		inv.Stdout = &sb
@@ -332,7 +349,7 @@ func TestOpenApp(t *testing.T) {
 		t.Parallel()
 
 		client, _, _ := setupWorkspaceForAgent(t)
-		inv, root := clitest.New(t, "open", "app", "not-a-workspace", "app1")
+		inv, root := clitest.New(t, "open", "not-a-workspace", "app1")
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
 		inv.Stdin = pty.Input()
@@ -347,7 +364,7 @@ func TestOpenApp(t *testing.T) {
 
 		client, ws, _ := setupWorkspaceForAgent(t)
 
-		inv, root := clitest.New(t, "open", "app", ws.Name, "app1")
+		inv, root := clitest.New(t, "open", ws.Name, "app1")
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
 		inv.Stdin = pty.Input()
@@ -371,7 +388,7 @@ func TestOpenApp(t *testing.T) {
 			return agents
 		})
 
-		inv, root := clitest.New(t, "open", "app", ws.Name, "app1", "--region", "bad-region")
+		inv, root := clitest.New(t, "open", ws.Name, "app1", "--region", "bad-region")
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
 		inv.Stdin = pty.Input()
@@ -395,7 +412,7 @@ func TestOpenApp(t *testing.T) {
 			}
 			return agents
 		})
-		inv, root := clitest.New(t, "open", "app", ws.Name, "app1", "--test.open-error")
+		inv, root := clitest.New(t, "open", ws.Name, "app1", "--test.open-error")
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
 		inv.Stdin = pty.Input()
@@ -405,5 +422,22 @@ func TestOpenApp(t *testing.T) {
 		w.RequireError()
 		w.RequireContains("test.open-error")
 		w.RequireContains(client.SessionToken())
+	})
+
+	t.Run("VSCode", func(t *testing.T) {
+		t.Parallel()
+
+		client, ws, _ := setupWorkspaceForAgent(t)
+
+		inv, root := clitest.New(t, "open", ws.Name, "vscode", "--test.open-error")
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t)
+		inv.Stdin = pty.Input()
+		inv.Stdout = pty.Output()
+
+		w := clitest.StartWithWaiter(t, inv)
+		w.RequireError()
+		w.RequireContains("test.open-error")
+		w.RequireContains("vscode://coder.coder-remote/open")
 	})
 }
