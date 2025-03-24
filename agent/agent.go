@@ -1115,7 +1115,12 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				}
 			}
 
-			err = a.scriptRunner.Init(manifest.Scripts, aAPI.ScriptCompleted)
+			var postStartScripts []codersdk.WorkspaceAgentScript
+			for _, dc := range manifest.Devcontainers {
+				postStartScripts = append(postStartScripts, agentcontainers.DevcontainerStartupScript(dc))
+			}
+
+			err = a.scriptRunner.Init(manifest.Scripts, aAPI.ScriptCompleted, agentscripts.WithPostStartScripts(postStartScripts...))
 			if err != nil {
 				return xerrors.Errorf("init script runner: %w", err)
 			}
@@ -1124,6 +1129,7 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				// here we use the graceful context because the script runner is not directly tied
 				// to the agent API.
 				err := a.scriptRunner.Execute(a.gracefulCtx, agentscripts.ExecuteStartScripts)
+				err = errors.Join(err, a.scriptRunner.Execute(a.gracefulCtx, agentscripts.ExecutePostStartScripts))
 				// Measure the time immediately after the script has finished
 				dur := time.Since(start).Seconds()
 				if err != nil {
