@@ -9,14 +9,20 @@ const meta: Meta<typeof UnreadBadge> = {
 export default meta;
 type Story = StoryObj<typeof UnreadBadge>;
 
-export const Default: Story = {
+export const Until10: Story = {
 	args: {
 		count: 3,
 	},
 };
 
-export const MoreThanNine: Story = {
+export const MoreThan10: Story = {
 	args: {
 		count: 12,
+	},
+};
+
+export const MoreThan99: Story = {
+	args: {
+		count: 1000,
 	},
 };

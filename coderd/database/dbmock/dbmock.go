@@ -3172,6 +3172,21 @@ func (mr *MockStoreMockRecorder) GetWorkspaceAgentByInstanceID(ctx, authInstance
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentByInstanceID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentByInstanceID), ctx, authInstanceID)
 }
 
+// GetWorkspaceAgentDevcontainersByAgentID mocks base method.
+func (m *MockStore) GetWorkspaceAgentDevcontainersByAgentID(ctx context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentDevcontainer, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceAgentDevcontainersByAgentID", ctx, workspaceAgentID)
+	ret0, _ := ret[0].([]database.WorkspaceAgentDevcontainer)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceAgentDevcontainersByAgentID indicates an expected call of GetWorkspaceAgentDevcontainersByAgentID.
+func (mr *MockStoreMockRecorder) GetWorkspaceAgentDevcontainersByAgentID(ctx, workspaceAgentID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentDevcontainersByAgentID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentDevcontainersByAgentID), ctx, workspaceAgentID)
+}
+
 // GetWorkspaceAgentLifecycleStateByID mocks base method.
 func (m *MockStore) GetWorkspaceAgentLifecycleStateByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceAgentLifecycleStateByIDRow, error) {
 	m.ctrl.T.Helper()
@@ -4513,6 +4528,21 @@ func (mr *MockStoreMockRecorder) InsertWorkspaceAgent(ctx, arg any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceAgent", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceAgent), ctx, arg)
 }
 
+// InsertWorkspaceAgentDevcontainers mocks base method.
+func (m *MockStore) InsertWorkspaceAgentDevcontainers(ctx context.Context, arg database.InsertWorkspaceAgentDevcontainersParams) ([]database.WorkspaceAgentDevcontainer, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertWorkspaceAgentDevcontainers", ctx, arg)
+	ret0, _ := ret[0].([]database.WorkspaceAgentDevcontainer)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertWorkspaceAgentDevcontainers indicates an expected call of InsertWorkspaceAgentDevcontainers.
+func (mr *MockStoreMockRecorder) InsertWorkspaceAgentDevcontainers(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceAgentDevcontainers", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceAgentDevcontainers), ctx, arg)
+}
+
 // InsertWorkspaceAgentLogSources mocks base method.
 func (m *MockStore) InsertWorkspaceAgentLogSources(ctx context.Context, arg database.InsertWorkspaceAgentLogSourcesParams) ([]database.WorkspaceAgentLogSource, error) {
 	m.ctrl.T.Helper()
@@ -4761,6 +4791,20 @@ func (m *MockStore) ListWorkspaceAgentPortShares(ctx context.Context, workspaceI
 func (mr *MockStoreMockRecorder) ListWorkspaceAgentPortShares(ctx, workspaceID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListWorkspaceAgentPortShares", reflect.TypeOf((*MockStore)(nil).ListWorkspaceAgentPortShares), ctx, workspaceID)
+}
+
+// MarkAllInboxNotificationsAsRead mocks base method.
+func (m *MockStore) MarkAllInboxNotificationsAsRead(ctx context.Context, arg database.MarkAllInboxNotificationsAsReadParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MarkAllInboxNotificationsAsRead", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// MarkAllInboxNotificationsAsRead indicates an expected call of MarkAllInboxNotificationsAsRead.
+func (mr *MockStoreMockRecorder) MarkAllInboxNotificationsAsRead(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkAllInboxNotificationsAsRead", reflect.TypeOf((*MockStore)(nil).MarkAllInboxNotificationsAsRead), ctx, arg)
 }
 
 // OIDCClaimFieldValues mocks base method.
@@ -6290,10 +6334,10 @@ func (mr *MockStoreMockRecorder) UpsertWorkspaceAgentPortShare(ctx, arg any) *go
 }
 
 // UpsertWorkspaceAppAuditSession mocks base method.
-func (m *MockStore) UpsertWorkspaceAppAuditSession(ctx context.Context, arg database.UpsertWorkspaceAppAuditSessionParams) (time.Time, error) {
+func (m *MockStore) UpsertWorkspaceAppAuditSession(ctx context.Context, arg database.UpsertWorkspaceAppAuditSessionParams) (bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpsertWorkspaceAppAuditSession", ctx, arg)
-	ret0, _ := ret[0].(time.Time)
+	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

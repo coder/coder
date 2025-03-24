@@ -254,6 +254,7 @@ type data struct {
 	workspaceAgentStats                  []database.WorkspaceAgentStat
 	workspaceAgentMemoryResourceMonitors []database.WorkspaceAgentMemoryResourceMonitor
 	workspaceAgentVolumeResourceMonitors []database.WorkspaceAgentVolumeResourceMonitor
+	workspaceAgentDevcontainers          []database.WorkspaceAgentDevcontainer
 	workspaceApps                        []database.WorkspaceApp
 	workspaceAppAuditSessions            []database.WorkspaceAppAuditSession
 	workspaceAppStatsLastInsertID        int64
@@ -6619,6 +6620,16 @@ func (q *FakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 		})
 	}
 
+	if params.GithubComUserID != 0 {
+		usersFilteredByGithubComUserID := make([]database.User, 0, len(users))
+		for i, user := range users {
+			if user.GithubComUserID.Int64 == params.GithubComUserID {
+				usersFilteredByGithubComUserID = append(usersFilteredByGithubComUserID, users[i])
+			}
+		}
+		users = usersFilteredByGithubComUserID
+	}
+
 	beforePageCount := len(users)
 
 	if params.OffsetOpt > 0 {
@@ -6736,6 +6747,22 @@ func (q *FakeQuerier) GetWorkspaceAgentByInstanceID(_ context.Context, instanceI
 		}
 	}
 	return database.WorkspaceAgent{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) GetWorkspaceAgentDevcontainersByAgentID(_ context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentDevcontainer, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	devcontainers := make([]database.WorkspaceAgentDevcontainer, 0)
+	for _, dc := range q.workspaceAgentDevcontainers {
+		if dc.WorkspaceAgentID == workspaceAgentID {
+			devcontainers = append(devcontainers, dc)
+		}
+	}
+	if len(devcontainers) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return devcontainers, nil
 }
 
 func (q *FakeQuerier) GetWorkspaceAgentLifecycleStateByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceAgentLifecycleStateByIDRow, error) {
@@ -9094,6 +9121,35 @@ func (q *FakeQuerier) InsertWorkspaceAgent(_ context.Context, arg database.Inser
 	return agent, nil
 }
 
+func (q *FakeQuerier) InsertWorkspaceAgentDevcontainers(_ context.Context, arg database.InsertWorkspaceAgentDevcontainersParams) ([]database.WorkspaceAgentDevcontainer, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, agent := range q.workspaceAgents {
+		if agent.ID == arg.WorkspaceAgentID {
+			var devcontainers []database.WorkspaceAgentDevcontainer
+			for i, id := range arg.ID {
+				devcontainers = append(devcontainers, database.WorkspaceAgentDevcontainer{
+					WorkspaceAgentID: arg.WorkspaceAgentID,
+					CreatedAt:        arg.CreatedAt,
+					ID:               id,
+					WorkspaceFolder:  arg.WorkspaceFolder[i],
+					ConfigPath:       arg.ConfigPath[i],
+				})
+			}
+			q.workspaceAgentDevcontainers = append(q.workspaceAgentDevcontainers, devcontainers...)
+			return devcontainers, nil
+		}
+	}
+
+	return nil, errForeignKeyConstraint
+}
+
 func (q *FakeQuerier) InsertWorkspaceAgentLogSources(_ context.Context, arg database.InsertWorkspaceAgentLogSourcesParams) ([]database.WorkspaceAgentLogSource, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -9541,6 +9597,21 @@ func (q *FakeQuerier) ListWorkspaceAgentPortShares(_ context.Context, workspaceI
 	}
 
 	return shares, nil
+}
+
+func (q *FakeQuerier) MarkAllInboxNotificationsAsRead(_ context.Context, arg database.MarkAllInboxNotificationsAsReadParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	for idx, notif := range q.inboxNotifications {
+		if notif.UserID == arg.UserID && !notif.ReadAt.Valid {
+			q.inboxNotifications[idx].ReadAt = arg.ReadAt
+		}
+	}
+
+	return nil
 }
 
 // nolint:forcetypeassert
@@ -12326,10 +12397,10 @@ func (q *FakeQuerier) UpsertWorkspaceAgentPortShare(_ context.Context, arg datab
 	return psl, nil
 }
 
-func (q *FakeQuerier) UpsertWorkspaceAppAuditSession(_ context.Context, arg database.UpsertWorkspaceAppAuditSessionParams) (time.Time, error) {
+func (q *FakeQuerier) UpsertWorkspaceAppAuditSession(_ context.Context, arg database.UpsertWorkspaceAppAuditSessionParams) (bool, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
-		return time.Time{}, err
+		return false, err
 	}
 
 	q.mutex.Lock()
@@ -12363,10 +12434,11 @@ func (q *FakeQuerier) UpsertWorkspaceAppAuditSession(_ context.Context, arg data
 
 		q.workspaceAppAuditSessions[i].UpdatedAt = arg.UpdatedAt
 		if !fresh {
+			q.workspaceAppAuditSessions[i].ID = arg.ID
 			q.workspaceAppAuditSessions[i].StartedAt = arg.StartedAt
-			return arg.StartedAt, nil
+			return true, nil
 		}
-		return s.StartedAt, nil
+		return false, nil
 	}
 
 	q.workspaceAppAuditSessions = append(q.workspaceAppAuditSessions, database.WorkspaceAppAuditSession{
@@ -12380,7 +12452,7 @@ func (q *FakeQuerier) UpsertWorkspaceAppAuditSession(_ context.Context, arg data
 		StartedAt:  arg.StartedAt,
 		UpdatedAt:  arg.UpdatedAt,
 	})
-	return arg.StartedAt, nil
+	return true, nil
 }
 
 func (q *FakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, prepared rbac.PreparedAuthorized) ([]database.Template, error) {

@@ -1693,6 +1693,13 @@ const docTemplate = `{
                         "description": "Filter notifications by read status. Possible values: read, unread, all",
                         "name": "read_status",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "ID of the last notification from the current page. Notifications returned will be older than the associated one",
+                        "name": "starting_before",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -1701,6 +1708,25 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.ListInboxNotificationsResponse"
                         }
+                    }
+                }
+            }
+        },
+        "/notifications/inbox/mark-all-as-read": {
+            "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "Mark all unread notifications as read",
+                "operationId": "mark-all-unread-notifications-as-read",
+                "responses": {
+                    "204": {
+                        "description": "No Content"
                     }
                 }
             }
@@ -1737,6 +1763,16 @@ const docTemplate = `{
                         "type": "string",
                         "description": "Filter notifications by read status. Possible values: read, unread, all",
                         "name": "read_status",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "plaintext",
+                            "markdown"
+                        ],
+                        "type": "string",
+                        "description": "Define the output format for notifications title and body.",
+                        "name": "format",
                         "in": "query"
                     }
                 ],
@@ -14060,6 +14096,7 @@ const docTemplate = `{
                 "template",
                 "user",
                 "workspace",
+                "workspace_agent_devcontainers",
                 "workspace_agent_resource_monitor",
                 "workspace_dormant",
                 "workspace_proxy"
@@ -14096,6 +14133,7 @@ const docTemplate = `{
                 "ResourceTemplate",
                 "ResourceUser",
                 "ResourceWorkspace",
+                "ResourceWorkspaceAgentDevcontainers",
                 "ResourceWorkspaceAgentResourceMonitor",
                 "ResourceWorkspaceDormant",
                 "ResourceWorkspaceProxy"
@@ -16180,7 +16218,7 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.WorkspaceAgentDevcontainer": {
+        "codersdk.WorkspaceAgentContainer": {
             "type": "object",
             "properties": {
                 "created_at": {
@@ -16211,7 +16249,7 @@ const docTemplate = `{
                     "description": "Ports includes ports exposed by the container.",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/codersdk.WorkspaceAgentListeningPort"
+                        "$ref": "#/definitions/codersdk.WorkspaceAgentContainerPort"
                     }
                 },
                 "running": {
@@ -16228,6 +16266,27 @@ const docTemplate = `{
                     "additionalProperties": {
                         "type": "string"
                     }
+                }
+            }
+        },
+        "codersdk.WorkspaceAgentContainerPort": {
+            "type": "object",
+            "properties": {
+                "host_ip": {
+                    "description": "HostIP is the IP address of the host interface to which the port is\nbound. Note that this can be an IPv4 or IPv6 address.",
+                    "type": "string"
+                },
+                "host_port": {
+                    "description": "HostPort is the port number *outside* the container.",
+                    "type": "integer"
+                },
+                "network": {
+                    "description": "Network is the network protocol used by the port (tcp, udp, etc).",
+                    "type": "string"
+                },
+                "port": {
+                    "description": "Port is the port number *inside* the container.",
+                    "type": "integer"
                 }
             }
         },
@@ -16278,7 +16337,7 @@ const docTemplate = `{
                     "description": "Containers is a list of containers visible to the workspace agent.",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/codersdk.WorkspaceAgentDevcontainer"
+                        "$ref": "#/definitions/codersdk.WorkspaceAgentContainer"
                     }
                 },
                 "warnings": {

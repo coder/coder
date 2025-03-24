@@ -768,7 +768,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 		hello = "localhost"
 
 		from = "system@coder.com"
-		hint = "run \"DB=ci make update-golden-files\" and commit the changes"
+		hint = "run \"DB=ci make gen/golden-files\" and commit the changes"
 	)
 
 	tests := []struct {
@@ -1333,7 +1333,6 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				)
 				require.NoError(t, err)
 
-				tc.payload.Targets = append(tc.payload.Targets, user.ID)
 				_, err = smtpEnqueuer.EnqueueWithData(
 					ctx,
 					user.ID,
@@ -1466,7 +1465,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 					tc.payload.Labels,
 					tc.payload.Data,
 					user.Username,
-					user.ID,
+					tc.payload.Targets...,
 				)
 				require.NoError(t, err)
 

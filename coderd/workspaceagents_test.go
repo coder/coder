@@ -1164,7 +1164,7 @@ func TestWorkspaceAgentContainers(t *testing.T) {
 			"com.coder.test": uuid.New().String(),
 		}
 		testResponse := codersdk.WorkspaceAgentListContainersResponse{
-			Containers: []codersdk.WorkspaceAgentDevcontainer{
+			Containers: []codersdk.WorkspaceAgentContainer{
 				{
 					ID:           uuid.NewString(),
 					CreatedAt:    dbtime.Now(),
@@ -1173,10 +1173,12 @@ func TestWorkspaceAgentContainers(t *testing.T) {
 					Labels:       testLabels,
 					Running:      true,
 					Status:       "running",
-					Ports: []codersdk.WorkspaceAgentListeningPort{
+					Ports: []codersdk.WorkspaceAgentContainerPort{
 						{
-							Network: "tcp",
-							Port:    80,
+							Network:  "tcp",
+							Port:     80,
+							HostIP:   "0.0.0.0",
+							HostPort: 8000,
 						},
 					},
 					Volumes: map[string]string{

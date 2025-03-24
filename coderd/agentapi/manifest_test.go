@@ -156,6 +156,19 @@ func TestGetManifest(t *testing.T) {
 				CollectedAt:      someTime.Add(time.Hour),
 			},
 		}
+		devcontainers = []database.WorkspaceAgentDevcontainer{
+			{
+				ID:               uuid.New(),
+				WorkspaceAgentID: agent.ID,
+				WorkspaceFolder:  "/cool/folder",
+			},
+			{
+				ID:               uuid.New(),
+				WorkspaceAgentID: agent.ID,
+				WorkspaceFolder:  "/another/cool/folder",
+				ConfigPath:       "/another/cool/folder/.devcontainer/devcontainer.json",
+			},
+		}
 		derpMapFn = func() *tailcfg.DERPMap {
 			return &tailcfg.DERPMap{
 				Regions: map[int]*tailcfg.DERPRegion{
@@ -267,6 +280,17 @@ func TestGetManifest(t *testing.T) {
 				Timeout:     durationpb.New(time.Duration(metadata[1].Timeout)),
 			},
 		}
+		protoDevcontainers = []*agentproto.WorkspaceAgentDevcontainer{
+			{
+				Id:              devcontainers[0].ID[:],
+				WorkspaceFolder: devcontainers[0].WorkspaceFolder,
+			},
+			{
+				Id:              devcontainers[1].ID[:],
+				WorkspaceFolder: devcontainers[1].WorkspaceFolder,
+				ConfigPath:      devcontainers[1].ConfigPath,
+			},
+		}
 	)
 
 	t.Run("OK", func(t *testing.T) {
@@ -299,6 +323,7 @@ func TestGetManifest(t *testing.T) {
 			WorkspaceAgentID: agent.ID,
 			Keys:             nil, // all
 		}).Return(metadata, nil)
+		mDB.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), agent.ID).Return(devcontainers, nil)
 		mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil)
 		mDB.EXPECT().GetUserByID(gomock.Any(), workspace.OwnerID).Return(owner, nil)
 
@@ -321,10 +346,11 @@ func TestGetManifest(t *testing.T) {
 			// tailnet.DERPMapToProto() is extensively tested elsewhere, so it's
 			// not necessary to manually recreate a big DERP map here like we
 			// did for apps and metadata.
-			DerpMap:  tailnet.DERPMapToProto(derpMapFn()),
-			Scripts:  protoScripts,
-			Apps:     protoApps,
-			Metadata: protoMetadata,
+			DerpMap:       tailnet.DERPMapToProto(derpMapFn()),
+			Scripts:       protoScripts,
+			Apps:          protoApps,
+			Metadata:      protoMetadata,
+			Devcontainers: protoDevcontainers,
 		}
 
 		// Log got and expected with spew.
@@ -364,6 +390,7 @@ func TestGetManifest(t *testing.T) {
 			WorkspaceAgentID: agent.ID,
 			Keys:             nil, // all
 		}).Return(metadata, nil)
+		mDB.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), agent.ID).Return(devcontainers, nil)
 		mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil)
 		mDB.EXPECT().GetUserByID(gomock.Any(), workspace.OwnerID).Return(owner, nil)
 
@@ -386,10 +413,11 @@ func TestGetManifest(t *testing.T) {
 			// tailnet.DERPMapToProto() is extensively tested elsewhere, so it's
 			// not necessary to manually recreate a big DERP map here like we
 			// did for apps and metadata.
-			DerpMap:  tailnet.DERPMapToProto(derpMapFn()),
-			Scripts:  protoScripts,
-			Apps:     protoApps,
-			Metadata: protoMetadata,
+			DerpMap:       tailnet.DERPMapToProto(derpMapFn()),
+			Scripts:       protoScripts,
+			Apps:          protoApps,
+			Metadata:      protoMetadata,
+			Devcontainers: protoDevcontainers,
 		}
 
 		// Log got and expected with spew.

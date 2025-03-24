@@ -1,3 +1,4 @@
+import type { InboxNotification } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import {
 	Popover,
@@ -7,21 +8,23 @@ import {
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import { Spinner } from "components/Spinner/Spinner";
 import { RefreshCwIcon, SettingsIcon } from "lucide-react";
-import type { FC } from "react";
+import { type FC, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import { cn } from "utils/cn";
 import { InboxButton } from "./InboxButton";
 import { InboxItem } from "./InboxItem";
 import { UnreadBadge } from "./UnreadBadge";
-import type { Notification } from "./types";
 
 type InboxPopoverProps = {
-	notifications: Notification[] | undefined;
+	notifications: readonly InboxNotification[] | undefined;
 	unreadCount: number;
 	error: unknown;
+	isLoadingMoreNotifications: boolean;
+	hasMoreNotifications: boolean;
 	onRetry: () => void;
 	onMarkAllAsRead: () => void;
 	onMarkNotificationAsRead: (notificationId: string) => void;
+	onLoadMoreNotifications: () => void;
 	defaultOpen?: boolean;
 };
 
@@ -30,22 +33,41 @@ export const InboxPopover: FC<InboxPopoverProps> = ({
 	unreadCount,
 	notifications,
 	error,
+	isLoadingMoreNotifications,
+	hasMoreNotifications,
 	onRetry,
 	onMarkAllAsRead,
 	onMarkNotificationAsRead,
+	onLoadMoreNotifications,
 }) => {
+	const [isOpen, setIsOpen] = useState(defaultOpen);
+
 	return (
-		<Popover defaultOpen={defaultOpen}>
+		<Popover open={isOpen} onOpenChange={setIsOpen}>
 			<PopoverTrigger asChild>
 				<InboxButton unreadCount={unreadCount} />
 			</PopoverTrigger>
-			<PopoverContent className="w-[466px]" align="end">
+			<PopoverContent
+				className="w-[var(--radix-popper-available-width)] max-w-[466px]"
+				align="end"
+			>
 				{/*
 				 * data-radix-scroll-area-viewport is used to set the max-height of the ScrollArea
 				 * https://github.com/shadcn-ui/ui/issues/542#issuecomment-2339361283
 				 */}
-				<ScrollArea className="[&>[data-radix-scroll-area-viewport]]:max-h-[calc(var(--radix-popover-content-available-height)-24px)]">
-					<div className="flex items-center justify-between p-3 border-0 border-b border-solid border-border">
+				<ScrollArea
+					className={cn([
+						"[--bottom-offset:48px]",
+						"[--max-height:calc(var(--radix-popover-content-available-height)-var(--bottom-offset))]",
+						"[&>[data-radix-scroll-area-viewport]]:max-h-[var(--max-height)]",
+					])}
+				>
+					<div
+						className={cn([
+							"flex items-center justify-between p-3 border-0 border-b border-solid border-border",
+							"sticky top-0 bg-surface-primary z-10 rounded-t",
+						])}
+					>
 						<div className="flex items-center gap-2">
 							<span className="text-xl font-semibold">Inbox</span>
 							{unreadCount > 0 && <UnreadBadge count={unreadCount} />}
@@ -61,7 +83,10 @@ export const InboxPopover: FC<InboxPopoverProps> = ({
 								Mark all as read
 							</Button>
 							<Button variant="outline" size="icon" asChild>
-								<RouterLink to="/settings/notifications">
+								<RouterLink
+									to="/settings/notifications"
+									onClick={() => setIsOpen(false)}
+								>
 									<SettingsIcon />
 									<span className="sr-only">Notification settings</span>
 								</RouterLink>
@@ -84,6 +109,18 @@ export const InboxPopover: FC<InboxPopoverProps> = ({
 										onMarkNotificationAsRead={onMarkNotificationAsRead}
 									/>
 								))}
+								{hasMoreNotifications && (
+									<Button
+										variant="subtle"
+										size="sm"
+										disabled={isLoadingMoreNotifications}
+										onClick={onLoadMoreNotifications}
+										className="w-full"
+									>
+										<Spinner loading={isLoadingMoreNotifications} size="sm" />
+										Load more
+									</Button>
+								)}
 							</div>
 						) : (
 							<div className="p-6 flex items-center justify-center min-h-48">

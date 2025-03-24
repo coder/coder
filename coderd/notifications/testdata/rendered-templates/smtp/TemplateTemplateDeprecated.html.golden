@@ -10,7 +10,7 @@ MIME-Version: 1.0
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/plain; charset=UTF-8
 
-Hello Bobby,
+Hi Bobby,
 
 The template alpha has been deprecated with the following message:
 
@@ -53,10 +53,9 @@ argin: 8px 0 32px; line-height: 1.5;">
         Template 'alpha' has been deprecated
       </h1>
       <div style=3D"line-height: 1.5;">
-        <p>Hello Bobby,</p>
-
-<p>The template <strong>alpha</strong> has been deprecated with the followi=
-ng message:</p>
+        <p>Hi Bobby,</p>
+        <p>The template <strong>alpha</strong> has been deprecated with the=
+ following message:</p>
 
 <p><strong>This template has been replaced by beta</strong></p>
 

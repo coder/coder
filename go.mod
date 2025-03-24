@@ -122,7 +122,7 @@ require (
 	github.com/go-playground/validator/v10 v10.25.0
 	github.com/gofrs/flock v0.12.0
 	github.com/gohugoio/hugo v0.143.0
-	github.com/golang-jwt/jwt/v4 v4.5.1
+	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/golang-migrate/migrate/v4 v4.18.1
 	github.com/gomarkdown/markdown v0.0.0-20240930133441-72d49d9543d8
 	github.com/google/go-cmp v0.7.0
