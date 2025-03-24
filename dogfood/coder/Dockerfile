@@ -65,9 +65,6 @@ RUN apt-get update && \
 	# we're using for the version of go-critic that it embeds, then check
 	# the version of ruleguard in go-critic for that tag.
 	go install github.com/quasilyte/go-ruleguard/cmd/ruleguard@v0.3.13 && \
-	# go-fuzz for fuzzy testing. they don't publish releases so we rely on latest.
-	go install github.com/dvyukov/go-fuzz/go-fuzz@latest && \
-	go install github.com/dvyukov/go-fuzz/go-fuzz-build@latest && \
 	# go-releaser for building 'fat binaries' that work cross-platform
 	go install github.com/goreleaser/goreleaser@v1.6.1 && \
 	go install mvdan.cc/sh/v3/cmd/shfmt@v3.7.0 && \
