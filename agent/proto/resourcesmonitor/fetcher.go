@@ -17,10 +17,13 @@ type fetcher struct {
 }
 
 //nolint:revive
-func NewFetcher(f *clistat.Statter) *fetcher {
-	isContainerized, _ := f.IsContainerized()
+func NewFetcher(f *clistat.Statter) (*fetcher, error) {
+	isContainerized, err := f.IsContainerized()
+	if err != nil {
+		return nil, xerrors.Errorf("check is containerized: %w", err)
+	}
 
-	return &fetcher{f, isContainerized}
+	return &fetcher{f, isContainerized}, nil
 }
 
 func (f *fetcher) FetchMemory() (total int64, used int64, err error) {
@@ -29,7 +32,7 @@ func (f *fetcher) FetchMemory() (total int64, used int64, err error) {
 	if f.isContainerized {
 		mem, err = f.ContainerMemory(clistat.PrefixDefault)
 		if err != nil {
-			return 0, 0, xerrors.Errorf("failed to fetch container memory: %w", err)
+			return 0, 0, xerrors.Errorf("fetch container memory: %w", err)
 		}
 
 		// A container might not have a memory limit set. If this
@@ -38,7 +41,7 @@ func (f *fetcher) FetchMemory() (total int64, used int64, err error) {
 		if mem.Total == nil {
 			hostMem, err := f.HostMemory(clistat.PrefixDefault)
 			if err != nil {
-				return 0, 0, xerrors.Errorf("failed to host fetch memory: %w", err)
+				return 0, 0, xerrors.Errorf("fetch host memory: %w", err)
 			}
 
 			mem.Total = hostMem.Total
@@ -46,7 +49,7 @@ func (f *fetcher) FetchMemory() (total int64, used int64, err error) {
 	} else {
 		mem, err = f.HostMemory(clistat.PrefixDefault)
 		if err != nil {
-			return 0, 0, xerrors.Errorf("failed to host fetch memory: %w", err)
+			return 0, 0, xerrors.Errorf("fetch host memory: %w", err)
 		}
 	}
 
