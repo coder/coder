@@ -1115,8 +1115,13 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				}
 			}
 
+			// Any defined Dev Containers may be autostarted after the start
+			// scripts have completed.
 			var postStartScripts []codersdk.WorkspaceAgentScript
 			for _, dc := range manifest.Devcontainers {
+				// TODO(mafredri): Verify `@devcontainers/cli` presence.
+				// TODO(mafredri): Verify workspace folder exists.
+				// TODO(mafredri): If set, verify config path exists.
 				postStartScripts = append(postStartScripts, agentcontainers.DevcontainerStartupScript(dc))
 			}
 
@@ -1126,11 +1131,18 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 			}
 			err = a.trackGoroutine(func() {
 				start := time.Now()
-				// here we use the graceful context because the script runner is not directly tied
-				// to the agent API.
+				// Here we use the graceful context because the script runner is
+				// not directly tied to the agent API.
+				//
+				// First we run the start scripts to ensure the workspace has
+				// been initialized and then the post start scripts which may
+				// depend on the workspace start scripts.
+				//
+				// Measure the time immediately after the start scripts have
+				// finished (both start and post start). For instance, an
+				// autostarted devcontainer will be included in this time.
 				err := a.scriptRunner.Execute(a.gracefulCtx, agentscripts.ExecuteStartScripts)
 				err = errors.Join(err, a.scriptRunner.Execute(a.gracefulCtx, agentscripts.ExecutePostStartScripts))
-				// Measure the time immediately after the script has finished
 				dur := time.Since(start).Seconds()
 				if err != nil {
 					a.logger.Warn(ctx, "startup script(s) failed", slog.Error(err))
