@@ -1843,10 +1843,22 @@ func InsertWorkspacePresetsAndParameters(ctx context.Context, logger slog.Logger
 
 func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, templateVersionID uuid.UUID, protoPreset *sdkproto.Preset, t time.Time) error {
 	err := db.InTx(func(tx database.Store) error {
+		var desiredInstances sql.NullInt32
+		if protoPreset != nil && protoPreset.Prebuild != nil {
+			desiredInstances = sql.NullInt32{
+				Int32: protoPreset.Prebuild.Instances,
+				Valid: true,
+			}
+		}
 		dbPreset, err := tx.InsertPreset(ctx, database.InsertPresetParams{
 			TemplateVersionID: templateVersionID,
 			Name:              protoPreset.Name,
 			CreatedAt:         t,
+			DesiredInstances:  desiredInstances,
+			InvalidateAfterSecs: sql.NullInt32{
+				Int32: 0,
+				Valid: false,
+			}, // TODO: implement cache invalidation
 		})
 		if err != nil {
 			return xerrors.Errorf("insert preset: %w", err)
@@ -1867,17 +1879,6 @@ func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, 
 			return xerrors.Errorf("insert preset parameters: %w", err)
 		}
 
-		if protoPreset.Prebuild != nil {
-			_, err := tx.InsertPresetPrebuild(ctx, database.InsertPresetPrebuildParams{
-				ID:                  uuid.New(),
-				PresetID:            dbPreset.ID,
-				DesiredInstances:    protoPreset.Prebuild.Instances,
-				InvalidateAfterSecs: 0, // TODO: implement cache invalidation
-			})
-			if err != nil {
-				return xerrors.Errorf("insert preset prebuild: %w", err)
-			}
-		}
 		return nil
 	}, nil)
 	if err != nil {

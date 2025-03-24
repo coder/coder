@@ -1,5 +1,5 @@
 ALTER TABLE users
-	ADD COLUMN is_system bool DEFAULT false;
+	ADD COLUMN is_system bool DEFAULT false NOT NULL;
 
 CREATE INDEX user_is_system_idx ON users USING btree (is_system);
 

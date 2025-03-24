@@ -2450,7 +2450,7 @@ func TestSystemUserBehaviour(t *testing.T) {
 
 	var systemUser, regularUser database.GetUsersRow
 	for _, u := range users {
-		if u.IsSystem.Bool {
+		if u.IsSystem {
 			systemUser = u
 		} else {
 			regularUser = u
@@ -2459,9 +2459,9 @@ func TestSystemUserBehaviour(t *testing.T) {
 	require.NotNil(t, systemUser)
 	require.NotNil(t, regularUser)
 
-	require.True(t, systemUser.IsSystem.Bool)
-	require.Equal(t, systemUser.ID, prebuilds.OwnerID)
-	require.False(t, regularUser.IsSystem.Bool)
+	require.True(t, systemUser.IsSystem)
+	require.Equal(t, systemUser.ID, prebuilds.SystemUserID)
+	require.False(t, regularUser.IsSystem)
 	require.Equal(t, regularUser.ID, other.ID)
 
 	// =================================================================================================================
@@ -2474,7 +2474,7 @@ func TestSystemUserBehaviour(t *testing.T) {
 	// Then: only regular users are returned.
 	require.NoError(t, err)
 	require.Len(t, users, 1)
-	require.False(t, users[0].IsSystem.Bool)
+	require.False(t, users[0].IsSystem)
 
 	// =================================================================================================================
 

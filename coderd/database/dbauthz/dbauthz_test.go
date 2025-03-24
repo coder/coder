@@ -4675,30 +4675,6 @@ func (s *MethodTestSuite) TestPrebuilds() {
 			Asserts(rbac.ResourceTemplate, policy.ActionRead).
 			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 	}))
-	s.Run("InsertPresetPrebuild", s.Subtest(func(db database.Store, check *expects) {
-		org := dbgen.Organization(s.T(), db, database.Organization{})
-		user := dbgen.User(s.T(), db, database.User{})
-		template := dbgen.Template(s.T(), db, database.Template{
-			CreatedBy:      user.ID,
-			OrganizationID: org.ID,
-		})
-		templateVersion := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
-		})
-		preset := dbgen.Preset(s.T(), db, database.InsertPresetParams{
-			Name:              coderdtest.RandomName(s.T()),
-			TemplateVersionID: templateVersion.ID,
-		})
-		check.Args(database.InsertPresetPrebuildParams{
-			ID:               uuid.New(),
-			PresetID:         preset.ID,
-			DesiredInstances: 1,
-		}).
-			Asserts(rbac.ResourceSystem, policy.ActionCreate).
-			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
-	}))
 }
 
 func (s *MethodTestSuite) TestOAuth2ProviderApps() {

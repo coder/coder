@@ -362,7 +362,7 @@ var (
 
 	subjectPrebuildsOrchestrator = rbac.Subject{
 		FriendlyName: "Prebuilds Orchestrator",
-		ID:           prebuilds.OwnerID.String(),
+		ID:           prebuilds.SystemUserID.String(),
 		Roles: rbac.Roles([]rbac.Role{
 			{
 				Identifier:  rbac.RoleIdentifier{Name: "prebuilds-orchestrator"},
@@ -3308,13 +3308,6 @@ func (q *querier) InsertPresetParameters(ctx context.Context, arg database.Inser
 	}
 
 	return q.db.InsertPresetParameters(ctx, arg)
-}
-
-func (q *querier) InsertPresetPrebuild(ctx context.Context, arg database.InsertPresetPrebuildParams) (database.TemplateVersionPresetPrebuild, error) {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
-		return database.TemplateVersionPresetPrebuild{}, err
-	}
-	return q.db.InsertPresetPrebuild(ctx, arg)
 }
 
 // TODO: We need to create a ProvisionerJob resource type

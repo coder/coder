@@ -865,7 +865,7 @@ CREATE TABLE users (
     github_com_user_id bigint,
     hashed_one_time_passcode bytea,
     one_time_passcode_expires_at timestamp with time zone,
-    is_system boolean DEFAULT false,
+    is_system boolean DEFAULT false NOT NULL,
     CONSTRAINT one_time_passcode_set CHECK ((((hashed_one_time_passcode IS NULL) AND (one_time_passcode_expires_at IS NULL)) OR ((hashed_one_time_passcode IS NOT NULL) AND (one_time_passcode_expires_at IS NOT NULL))))
 );
 
@@ -1382,18 +1382,13 @@ CREATE TABLE template_version_preset_parameters (
     value text NOT NULL
 );
 
-CREATE TABLE template_version_preset_prebuilds (
-    id uuid NOT NULL,
-    preset_id uuid NOT NULL,
-    desired_instances integer NOT NULL,
-    invalidate_after_secs integer DEFAULT 0
-);
-
 CREATE TABLE template_version_presets (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     template_version_id uuid NOT NULL,
     name text NOT NULL,
-    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    desired_instances integer,
+    invalidate_after_secs integer DEFAULT 0
 );
 
 CREATE TABLE template_version_variables (
@@ -1899,29 +1894,24 @@ CREATE VIEW workspace_build_with_user AS
 
 COMMENT ON VIEW workspace_build_with_user IS 'Joins in the username + avatar url of the initiated by user.';
 
-CREATE VIEW workspace_latest_build AS
- SELECT wb.id,
-    wb.created_at,
-    wb.updated_at,
-    wb.workspace_id,
-    wb.template_version_id,
-    wb.build_number,
-    wb.transition,
-    wb.initiator_id,
-    wb.provisioner_state,
-    wb.job_id,
-    wb.deadline,
-    wb.reason,
-    wb.daily_cost,
-    wb.max_deadline,
-    wb.template_version_preset_id
-   FROM (( SELECT tv.template_id,
-            wbmax_1.workspace_id,
-            max(wbmax_1.build_number) AS max_build_number
-           FROM (workspace_builds wbmax_1
-             JOIN template_versions tv ON ((tv.id = wbmax_1.template_version_id)))
-          GROUP BY tv.template_id, wbmax_1.workspace_id) wbmax
-     JOIN workspace_builds wb ON (((wb.workspace_id = wbmax.workspace_id) AND (wb.build_number = wbmax.max_build_number))));
+CREATE VIEW workspace_latest_builds AS
+ SELECT DISTINCT ON (workspace_builds.workspace_id) workspace_builds.id,
+    workspace_builds.created_at,
+    workspace_builds.updated_at,
+    workspace_builds.workspace_id,
+    workspace_builds.template_version_id,
+    workspace_builds.build_number,
+    workspace_builds.transition,
+    workspace_builds.initiator_id,
+    workspace_builds.provisioner_state,
+    workspace_builds.job_id,
+    workspace_builds.deadline,
+    workspace_builds.reason,
+    workspace_builds.daily_cost,
+    workspace_builds.max_deadline,
+    workspace_builds.template_version_preset_id
+   FROM workspace_builds
+  ORDER BY workspace_builds.workspace_id, workspace_builds.build_number DESC;
 
 CREATE TABLE workspace_modules (
     id uuid NOT NULL,
@@ -2271,9 +2261,6 @@ ALTER TABLE ONLY template_version_parameters
 ALTER TABLE ONLY template_version_preset_parameters
     ADD CONSTRAINT template_version_preset_parameters_pkey PRIMARY KEY (id);
 
-ALTER TABLE ONLY template_version_preset_prebuilds
-    ADD CONSTRAINT template_version_preset_prebuilds_pkey PRIMARY KEY (id);
-
 ALTER TABLE ONLY template_version_presets
     ADD CONSTRAINT template_version_presets_pkey PRIMARY KEY (id);
 
@@ -2562,44 +2549,40 @@ CREATE OR REPLACE VIEW workspace_prebuilds AS
             w.next_start_at
            FROM workspaces w
           WHERE (w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid)
+        ), latest_prebuild_builds AS (
+         SELECT workspace_latest_builds.id,
+            workspace_latest_builds.created_at,
+            workspace_latest_builds.updated_at,
+            workspace_latest_builds.workspace_id,
+            workspace_latest_builds.template_version_id,
+            workspace_latest_builds.build_number,
+            workspace_latest_builds.transition,
+            workspace_latest_builds.initiator_id,
+            workspace_latest_builds.provisioner_state,
+            workspace_latest_builds.job_id,
+            workspace_latest_builds.deadline,
+            workspace_latest_builds.reason,
+            workspace_latest_builds.daily_cost,
+            workspace_latest_builds.max_deadline,
+            workspace_latest_builds.template_version_preset_id
+           FROM workspace_latest_builds
+          WHERE (workspace_latest_builds.template_version_preset_id IS NOT NULL)
         ), workspace_agents AS (
          SELECT w.id AS workspace_id,
             wa.id AS agent_id,
             wa.lifecycle_state,
             wa.ready_at
            FROM (((workspaces w
-             JOIN workspace_latest_build wlb ON ((wlb.workspace_id = w.id)))
+             JOIN workspace_latest_builds wlb ON ((wlb.workspace_id = w.id)))
              JOIN workspace_resources wr ON ((wr.job_id = wlb.job_id)))
              JOIN workspace_agents wa ON ((wa.resource_id = wr.id)))
           WHERE (w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid)
           GROUP BY w.id, wa.id
         ), current_presets AS (
          SELECT w.id AS prebuild_id,
-            lps.template_version_preset_id
+            lpb.template_version_preset_id
            FROM (workspaces w
-             JOIN ( SELECT wb.id,
-                    wb.created_at,
-                    wb.updated_at,
-                    wb.workspace_id,
-                    wb.template_version_id,
-                    wb.build_number,
-                    wb.transition,
-                    wb.initiator_id,
-                    wb.provisioner_state,
-                    wb.job_id,
-                    wb.deadline,
-                    wb.reason,
-                    wb.daily_cost,
-                    wb.max_deadline,
-                    wb.template_version_preset_id
-                   FROM (( SELECT tv.template_id,
-                            wbmax_1.workspace_id,
-                            max(wbmax_1.build_number) AS max_build_number
-                           FROM (workspace_builds wbmax_1
-                             JOIN template_versions tv ON ((tv.id = wbmax_1.template_version_id)))
-                          WHERE (wbmax_1.template_version_preset_id IS NOT NULL)
-                          GROUP BY tv.template_id, wbmax_1.workspace_id) wbmax
-                     JOIN workspace_builds wb ON (((wb.workspace_id = wbmax.workspace_id) AND (wb.build_number = wbmax.max_build_number))))) lps ON ((lps.workspace_id = w.id)))
+             JOIN latest_prebuild_builds lpb ON ((lpb.workspace_id = w.id)))
           WHERE (w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid)
         )
  SELECT p.id,
@@ -2776,9 +2759,6 @@ ALTER TABLE ONLY template_version_parameters
 
 ALTER TABLE ONLY template_version_preset_parameters
     ADD CONSTRAINT template_version_preset_paramet_template_version_preset_id_fkey FOREIGN KEY (template_version_preset_id) REFERENCES template_version_presets(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY template_version_preset_prebuilds
-    ADD CONSTRAINT template_version_preset_prebuilds_preset_id_fkey FOREIGN KEY (preset_id) REFERENCES template_version_presets(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY template_version_presets
     ADD CONSTRAINT template_version_presets_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;

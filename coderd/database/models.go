@@ -3108,10 +3108,12 @@ type TemplateVersionParameter struct {
 }
 
 type TemplateVersionPreset struct {
-	ID                uuid.UUID `db:"id" json:"id"`
-	TemplateVersionID uuid.UUID `db:"template_version_id" json:"template_version_id"`
-	Name              string    `db:"name" json:"name"`
-	CreatedAt         time.Time `db:"created_at" json:"created_at"`
+	ID                  uuid.UUID     `db:"id" json:"id"`
+	TemplateVersionID   uuid.UUID     `db:"template_version_id" json:"template_version_id"`
+	Name                string        `db:"name" json:"name"`
+	CreatedAt           time.Time     `db:"created_at" json:"created_at"`
+	DesiredInstances    sql.NullInt32 `db:"desired_instances" json:"desired_instances"`
+	InvalidateAfterSecs sql.NullInt32 `db:"invalidate_after_secs" json:"invalidate_after_secs"`
 }
 
 type TemplateVersionPresetParameter struct {
@@ -3119,13 +3121,6 @@ type TemplateVersionPresetParameter struct {
 	TemplateVersionPresetID uuid.UUID `db:"template_version_preset_id" json:"template_version_preset_id"`
 	Name                    string    `db:"name" json:"name"`
 	Value                   string    `db:"value" json:"value"`
-}
-
-type TemplateVersionPresetPrebuild struct {
-	ID                  uuid.UUID     `db:"id" json:"id"`
-	PresetID            uuid.UUID     `db:"preset_id" json:"preset_id"`
-	DesiredInstances    int32         `db:"desired_instances" json:"desired_instances"`
-	InvalidateAfterSecs sql.NullInt32 `db:"invalidate_after_secs" json:"invalidate_after_secs"`
 }
 
 type TemplateVersionTable struct {
@@ -3194,7 +3189,7 @@ type User struct {
 	// The time when the one-time-passcode expires.
 	OneTimePasscodeExpiresAt sql.NullTime `db:"one_time_passcode_expires_at" json:"one_time_passcode_expires_at"`
 	// Determines if a user is a system user, and therefore cannot login or perform normal actions
-	IsSystem sql.NullBool `db:"is_system" json:"is_system"`
+	IsSystem bool `db:"is_system" json:"is_system"`
 }
 
 type UserConfig struct {
