@@ -54,47 +54,48 @@ func New() database.Store {
 	q := &FakeQuerier{
 		mutex: &sync.RWMutex{},
 		data: &data{
-			apiKeys:                   make([]database.APIKey, 0),
-			auditLogs:                 make([]database.AuditLog, 0),
-			customRoles:               make([]database.CustomRole, 0),
-			dbcryptKeys:               make([]database.DBCryptKey, 0),
-			externalAuthLinks:         make([]database.ExternalAuthLink, 0),
-			files:                     make([]database.File, 0),
-			gitSSHKey:                 make([]database.GitSSHKey, 0),
-			groups:                    make([]database.Group, 0),
-			groupMembers:              make([]database.GroupMemberTable, 0),
-			licenses:                  make([]database.License, 0),
-			locks:                     map[int64]struct{}{},
-			notificationMessages:      make([]database.NotificationMessage, 0),
-			notificationPreferences:   make([]database.NotificationPreference, 0),
-			organizationMembers:       make([]database.OrganizationMember, 0),
-			organizations:             make([]database.Organization, 0),
-			inboxNotifications:        make([]database.InboxNotification, 0),
-			parameterSchemas:          make([]database.ParameterSchema, 0),
-			presets:                   make([]database.TemplateVersionPreset, 0),
-			presetParameters:          make([]database.TemplateVersionPresetParameter, 0),
-			provisionerDaemons:        make([]database.ProvisionerDaemon, 0),
-			provisionerJobs:           make([]database.ProvisionerJob, 0),
-			provisionerJobLogs:        make([]database.ProvisionerJobLog, 0),
-			provisionerKeys:           make([]database.ProvisionerKey, 0),
-			runtimeConfig:             map[string]string{},
-			telemetryItems:            make([]database.TelemetryItem, 0),
-			templateVersions:          make([]database.TemplateVersionTable, 0),
-			templates:                 make([]database.TemplateTable, 0),
-			users:                     make([]database.User, 0),
-			userConfigs:               make([]database.UserConfig, 0),
-			userStatusChanges:         make([]database.UserStatusChange, 0),
-			workspaceAgents:           make([]database.WorkspaceAgent, 0),
-			workspaceResources:        make([]database.WorkspaceResource, 0),
-			workspaceModules:          make([]database.WorkspaceModule, 0),
-			workspaceResourceMetadata: make([]database.WorkspaceResourceMetadatum, 0),
-			workspaceAgentStats:       make([]database.WorkspaceAgentStat, 0),
-			workspaceAgentLogs:        make([]database.WorkspaceAgentLog, 0),
-			workspaceBuilds:           make([]database.WorkspaceBuild, 0),
-			workspaceApps:             make([]database.WorkspaceApp, 0),
-			workspaceAppAuditSessions: make([]database.WorkspaceAppAuditSession, 0),
-			workspaces:                make([]database.WorkspaceTable, 0),
-			workspaceProxies:          make([]database.WorkspaceProxy, 0),
+			apiKeys:                        make([]database.APIKey, 0),
+			auditLogs:                      make([]database.AuditLog, 0),
+			customRoles:                    make([]database.CustomRole, 0),
+			dbcryptKeys:                    make([]database.DBCryptKey, 0),
+			externalAuthLinks:              make([]database.ExternalAuthLink, 0),
+			files:                          make([]database.File, 0),
+			gitSSHKey:                      make([]database.GitSSHKey, 0),
+			groups:                         make([]database.Group, 0),
+			groupMembers:                   make([]database.GroupMemberTable, 0),
+			licenses:                       make([]database.License, 0),
+			locks:                          map[int64]struct{}{},
+			notificationMessages:           make([]database.NotificationMessage, 0),
+			notificationPreferences:        make([]database.NotificationPreference, 0),
+			organizationMembers:            make([]database.OrganizationMember, 0),
+			organizations:                  make([]database.Organization, 0),
+			inboxNotifications:             make([]database.InboxNotification, 0),
+			parameterSchemas:               make([]database.ParameterSchema, 0),
+			presets:                        make([]database.TemplateVersionPreset, 0),
+			presetParameters:               make([]database.TemplateVersionPresetParameter, 0),
+			provisionerDaemons:             make([]database.ProvisionerDaemon, 0),
+			provisionerJobs:                make([]database.ProvisionerJob, 0),
+			provisionerJobLogs:             make([]database.ProvisionerJobLog, 0),
+			provisionerKeys:                make([]database.ProvisionerKey, 0),
+			runtimeConfig:                  map[string]string{},
+			telemetryItems:                 make([]database.TelemetryItem, 0),
+			templateVersions:               make([]database.TemplateVersionTable, 0),
+			templateVersionTerraformValues: make([]database.TemplateVersionTerraformValue, 0),
+			templates:                      make([]database.TemplateTable, 0),
+			users:                          make([]database.User, 0),
+			userConfigs:                    make([]database.UserConfig, 0),
+			userStatusChanges:              make([]database.UserStatusChange, 0),
+			workspaceAgents:                make([]database.WorkspaceAgent, 0),
+			workspaceResources:             make([]database.WorkspaceResource, 0),
+			workspaceModules:               make([]database.WorkspaceModule, 0),
+			workspaceResourceMetadata:      make([]database.WorkspaceResourceMetadatum, 0),
+			workspaceAgentStats:            make([]database.WorkspaceAgentStat, 0),
+			workspaceAgentLogs:             make([]database.WorkspaceAgentLog, 0),
+			workspaceBuilds:                make([]database.WorkspaceBuild, 0),
+			workspaceApps:                  make([]database.WorkspaceApp, 0),
+			workspaceAppAuditSessions:      make([]database.WorkspaceAppAuditSession, 0),
+			workspaces:                     make([]database.WorkspaceTable, 0),
+			workspaceProxies:               make([]database.WorkspaceProxy, 0),
 		},
 	}
 	// Always start with a default org. Matching migration 198.
@@ -222,6 +223,7 @@ type data struct {
 	replicas                             []database.Replica
 	templateVersions                     []database.TemplateVersionTable
 	templateVersionParameters            []database.TemplateVersionParameter
+	templateVersionTerraformValues       []database.TemplateVersionTerraformValue
 	templateVersionVariables             []database.TemplateVersionVariable
 	templateVersionWorkspaceTags         []database.TemplateVersionWorkspaceTag
 	templates                            []database.TemplateTable
@@ -8874,6 +8876,37 @@ func (q *FakeQuerier) InsertTemplateVersionParameter(_ context.Context, arg data
 	}
 	q.templateVersionParameters = append(q.templateVersionParameters, param)
 	return param, nil
+}
+
+func (q *FakeQuerier) InsertTemplateVersionTerraformValuesByJobID(_ context.Context, arg database.InsertTemplateVersionTerraformValuesByJobIDParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	// Find the template version by the job_id
+	templateVersion, ok := slice.Find(q.templateVersions, func(v database.TemplateVersionTable) bool {
+		return v.JobID == arg.JobID
+	})
+	if !ok {
+		return sql.ErrNoRows
+	}
+
+	if !json.Valid(arg.CachedPlan) {
+		return xerrors.Errorf("cached plan must be valid json, received %q", string(arg.CachedPlan))
+	}
+
+	// Insert the new row
+	row := database.TemplateVersionTerraformValue{
+		TemplateVersionID: templateVersion.ID,
+		CachedPlan:        arg.CachedPlan,
+		UpdatedAt:         arg.UpdatedAt,
+	}
+	q.templateVersionTerraformValues = append(q.templateVersionTerraformValues, row)
+	return nil
 }
 
 func (q *FakeQuerier) InsertTemplateVersionVariable(_ context.Context, arg database.InsertTemplateVersionVariableParams) (database.TemplateVersionVariable, error) {

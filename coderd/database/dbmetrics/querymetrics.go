@@ -2089,6 +2089,13 @@ func (m queryMetricsStore) InsertTemplateVersionParameter(ctx context.Context, a
 	return parameter, err
 }
 
+func (m queryMetricsStore) InsertTemplateVersionTerraformValuesByJobID(ctx context.Context, arg database.InsertTemplateVersionTerraformValuesByJobIDParams) error {
+	start := time.Now()
+	r0 := m.s.InsertTemplateVersionTerraformValuesByJobID(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertTemplateVersionTerraformValuesByJobID").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m queryMetricsStore) InsertTemplateVersionVariable(ctx context.Context, arg database.InsertTemplateVersionVariableParams) (database.TemplateVersionVariable, error) {
 	start := time.Now()
 	variable, err := m.s.InsertTemplateVersionVariable(ctx, arg)

@@ -29,6 +29,9 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/quartz"
+	"github.com/coder/websocket"
+
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentcontainers/acmock"
@@ -47,6 +50,7 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -56,8 +60,6 @@ import (
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/tailnet/tailnettest"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/coder/quartz"
-	"github.com/coder/websocket"
 )
 
 func TestWorkspaceAgent(t *testing.T) {
@@ -2133,8 +2135,12 @@ func TestOwnedWorkspacesCoordinate(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	logger := testutil.Logger(t)
+
+	fTelemetry := newFakeTelemetryReporter(ctx, t, 200)
+	fTelemetry.enabled = false
 	firstClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-		Coordinator: tailnet.NewCoordinator(logger),
+		Coordinator:       tailnet.NewCoordinator(logger),
+		TelemetryReporter: fTelemetry,
 	})
 	firstUser := coderdtest.CreateFirstUser(t, firstClient)
 	member, memberUser := coderdtest.CreateAnotherUser(t, firstClient, firstUser.OrganizationID, rbac.RoleTemplateAdmin())
@@ -2142,11 +2148,16 @@ func TestOwnedWorkspacesCoordinate(t *testing.T) {
 	// Create a workspace with an agent
 	firstWorkspace := buildWorkspaceWithAgent(t, member, firstUser.OrganizationID, memberUser.ID, api.Database, api.Pubsub)
 
+	// enable telemetry now that workspace is built; we don't care about snapshots before this.
+	fTelemetry.enabled = true
+
 	u, err := member.URL.Parse("/api/v2/tailnet")
 	require.NoError(t, err)
 	q := u.Query()
 	q.Set("version", "2.0")
 	u.RawQuery = q.Encode()
+
+	predialTime := time.Now()
 
 	//nolint:bodyclose // websocket package closes this for you
 	wsConn, resp, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{
@@ -2155,12 +2166,21 @@ func TestOwnedWorkspacesCoordinate(t *testing.T) {
 		},
 	})
 	if err != nil {
-		if resp.StatusCode != http.StatusSwitchingProtocols {
+		if resp != nil && resp.StatusCode != http.StatusSwitchingProtocols {
 			err = codersdk.ReadBodyAsError(resp)
 		}
 		require.NoError(t, err)
 	}
 	defer wsConn.Close(websocket.StatusNormalClosure, "done")
+
+	// Check telemetry
+	snapshot := testutil.RequireRecvCtx(ctx, t, fTelemetry.snapshots)
+	require.Len(t, snapshot.UserTailnetConnections, 1)
+	telemetryConnection := snapshot.UserTailnetConnections[0]
+	require.Equal(t, memberUser.ID.String(), telemetryConnection.UserID)
+	require.GreaterOrEqual(t, telemetryConnection.ConnectedAt, predialTime)
+	require.LessOrEqual(t, telemetryConnection.ConnectedAt, time.Now())
+	require.NotEmpty(t, telemetryConnection.PeerID)
 
 	rpcClient, err := tailnet.NewDRPCClient(
 		websocket.NetConn(ctx, wsConn, websocket.MessageBinary),
@@ -2209,6 +2229,23 @@ func TestOwnedWorkspacesCoordinate(t *testing.T) {
 			NumAgents: 0,
 		},
 	})
+	err = stream.Close()
+	require.NoError(t, err)
+
+	beforeDisconnectTime := time.Now()
+	err = wsConn.Close(websocket.StatusNormalClosure, "done")
+	require.NoError(t, err)
+
+	snapshot = testutil.RequireRecvCtx(ctx, t, fTelemetry.snapshots)
+	require.Len(t, snapshot.UserTailnetConnections, 1)
+	telemetryDisconnection := snapshot.UserTailnetConnections[0]
+	require.Equal(t, memberUser.ID.String(), telemetryDisconnection.UserID)
+	require.Equal(t, telemetryConnection.ConnectedAt, telemetryDisconnection.ConnectedAt)
+	require.Equal(t, telemetryConnection.UserID, telemetryDisconnection.UserID)
+	require.Equal(t, telemetryConnection.PeerID, telemetryDisconnection.PeerID)
+	require.NotNil(t, telemetryDisconnection.DisconnectedAt)
+	require.GreaterOrEqual(t, *telemetryDisconnection.DisconnectedAt, beforeDisconnectTime)
+	require.LessOrEqual(t, *telemetryDisconnection.DisconnectedAt, time.Now())
 }
 
 func buildWorkspaceWithAgent(
@@ -2334,3 +2371,46 @@ func waitForUpdates(
 		t.Fatal("Timeout waiting for desired state", currentState)
 	}
 }
+
+// fakeTelemetryReporter is a fake implementation of telemetry.Reporter
+// that sends snapshots on a buffered channel, useful for testing.
+type fakeTelemetryReporter struct {
+	enabled   bool
+	snapshots chan *telemetry.Snapshot
+	t         testing.TB
+	ctx       context.Context
+}
+
+// newFakeTelemetryReporter creates a new fakeTelemetryReporter with a buffered channel.
+// The buffer size determines how many snapshots can be reported before blocking.
+func newFakeTelemetryReporter(ctx context.Context, t testing.TB, bufferSize int) *fakeTelemetryReporter {
+	return &fakeTelemetryReporter{
+		enabled:   true,
+		snapshots: make(chan *telemetry.Snapshot, bufferSize),
+		ctx:       ctx,
+		t:         t,
+	}
+}
+
+// Report implements the telemetry.Reporter interface by sending the snapshot
+// to the snapshots channel.
+func (f *fakeTelemetryReporter) Report(snapshot *telemetry.Snapshot) {
+	if !f.enabled {
+		return
+	}
+
+	select {
+	case f.snapshots <- snapshot:
+		// Successfully sent
+	case <-f.ctx.Done():
+		f.t.Error("context closed while writing snapshot")
+	}
+}
+
+// Enabled implements the telemetry.Reporter interface.
+func (f *fakeTelemetryReporter) Enabled() bool {
+	return f.enabled
+}
+
+// Close implements the telemetry.Reporter interface.
+func (*fakeTelemetryReporter) Close() {}

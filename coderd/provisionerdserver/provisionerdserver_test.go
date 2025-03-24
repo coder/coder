@@ -1060,6 +1060,7 @@ func TestCompleteJob(t *testing.T) {
 						ExternalAuthProviders: []*sdkproto.ExternalAuthProviderResource{{
 							Id: "github",
 						}},
+						Plan: []byte("{}"),
 					},
 				},
 			})
@@ -1115,6 +1116,7 @@ func TestCompleteJob(t *testing.T) {
 						}},
 						StopResources:         []*sdkproto.Resource{},
 						ExternalAuthProviders: []*sdkproto.ExternalAuthProviderResource{{Id: "github"}},
+						Plan:                  []byte("{}"),
 					},
 				},
 			})
@@ -1523,6 +1525,7 @@ func TestCompleteJob(t *testing.T) {
 									Source:  "github.com/example2/example",
 								},
 							},
+							Plan: []byte("{}"),
 						},
 					},
 				},
