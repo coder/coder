@@ -1900,6 +1900,7 @@ func TestNotificationTargetMatrix(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			// nolint:gocritic // Unit test.
 			ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 			store, pubsub := dbtestutil.NewDB(t)
 			logger := testutil.Logger(t)
