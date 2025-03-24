@@ -3631,7 +3631,9 @@ func TestGetPresetsBackoff(t *testing.T) {
 		})
 
 		tmpl := createTemplate(db)
-		tmplV1 := createTmplVersion(db, tmpl, tmpl.ActiveVersionID, nil)
+		tmplV1 := createTmplVersion(db, tmpl, tmpl.ActiveVersionID, &tmplVersionOpts{
+			DesiredInstances: 3,
+		})
 		createWorkspaceBuild(db, tmpl, tmplV1, nil)
 		createWorkspaceBuild(db, tmpl, tmplV1, nil)
 		createWorkspaceBuild(db, tmpl, tmplV1, nil)
@@ -3663,7 +3665,9 @@ func TestGetPresetsBackoff(t *testing.T) {
 		createWorkspaceBuild(db, tmpl, tmplV1, nil)
 
 		// Active Version
-		tmplV2 := createTmplVersion(db, tmpl, tmpl.ActiveVersionID, nil)
+		tmplV2 := createTmplVersion(db, tmpl, tmpl.ActiveVersionID, &tmplVersionOpts{
+			DesiredInstances: 2,
+		})
 		createWorkspaceBuild(db, tmpl, tmplV2, nil)
 		createWorkspaceBuild(db, tmpl, tmplV2, nil)
 
@@ -3732,7 +3736,9 @@ func TestGetPresetsBackoff(t *testing.T) {
 		createWorkspaceBuild(db, tmpl1, tmpl1V1, nil)
 
 		tmpl2 := createTemplate(db)
-		tmpl2V1 := createTmplVersion(db, tmpl2, tmpl2.ActiveVersionID, nil)
+		tmpl2V1 := createTmplVersion(db, tmpl2, tmpl2.ActiveVersionID, &tmplVersionOpts{
+			DesiredInstances: 2,
+		})
 		createWorkspaceBuild(db, tmpl2, tmpl2V1, nil)
 		createWorkspaceBuild(db, tmpl2, tmpl2V1, nil)
 
@@ -3740,7 +3746,9 @@ func TestGetPresetsBackoff(t *testing.T) {
 		tmpl3V1 := createTmplVersion(db, tmpl3, uuid.New(), nil)
 		createWorkspaceBuild(db, tmpl3, tmpl3V1, nil)
 
-		tmpl3V2 := createTmplVersion(db, tmpl3, tmpl3.ActiveVersionID, nil)
+		tmpl3V2 := createTmplVersion(db, tmpl3, tmpl3.ActiveVersionID, &tmplVersionOpts{
+			DesiredInstances: 3,
+		})
 		createWorkspaceBuild(db, tmpl3, tmpl3V2, nil)
 		createWorkspaceBuild(db, tmpl3, tmpl3V2, nil)
 		createWorkspaceBuild(db, tmpl3, tmpl3V2, nil)
@@ -3942,7 +3950,7 @@ func TestGetPresetsBackoff(t *testing.T) {
 
 		tmpl1 := createTemplate(db)
 		tmpl1V1 := createTmplVersion(db, tmpl1, tmpl1.ActiveVersionID, &tmplVersionOpts{
-			DesiredInstances: 3,
+			DesiredInstances: 5,
 		})
 		createWorkspaceBuild(db, tmpl1, tmpl1V1, &workspaceBuildOpts{
 			successfulJob: false,
