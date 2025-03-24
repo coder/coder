@@ -48,6 +48,16 @@ export const LongText: Story = {
 	},
 };
 
+export const Markdown: Story = {
+	args: {
+		notification: {
+			...MockNotification,
+			read_at: null,
+			content: "Hello **world**!",
+		},
+	},
+};
+
 export const UnreadFocus: Story = {
 	args: {
 		notification: {
