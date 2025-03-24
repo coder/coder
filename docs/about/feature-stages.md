@@ -7,6 +7,14 @@ If you encounter an issue with any Coder feature, please submit a
 [GitHub issue](https://github.com/coder/coder/issues) or join the
 [Coder Discord](https://discord.gg/coder).
 
+## Feature stages
+
+| Feature stage                          | Stable | Production-ready | Support               | Description                                                                                                                    |
+|----------------------------------------|--------|------------------|-----------------------|--------------------------------------------------------------------------------------------------------------------------------|
+| [Early Access](#early-access-features) | No     | No               | GitHub issues         | For staging only. Not feature-complete or stable. Disabled by default.                                                         |
+| [Beta](#beta)                          | No     | Not fully        | Docs, Discord, GitHub | Publicly available. In active developement with minor bugs. Suitable for staging; optional for production. Not covered by SLA. |
+| [GA](#general-availability-ga)         | Yes    | Yes              | License-based         | Stable and tested. Enabled by default. Fully documented. Support based on license.                                             |
+
 ## Early access features
 
 - **Stable**: No
