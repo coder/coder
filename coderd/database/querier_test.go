@@ -1426,9 +1426,10 @@ func TestGetUsers_IncludeSystem(t *testing.T) {
 func TestUpdateSystemUser(t *testing.T) {
 	t.Parallel()
 
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("test only supports postgres")
-	}
+	// TODO (sasswart): We've disabled the protection that prevents updates to system users
+	// while we reassess the mechanism to do so. Rather than skip the test, we've just inverted
+	// the assertions to ensure that the behaviour is as desired.
+	// Once we've re-enabeld the system user protection, we'll revert the assertions.
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -1457,12 +1458,14 @@ func TestUpdateSystemUser(t *testing.T) {
 		Name: "not prebuilds",
 	})
 	// Then: the attempt is rejected by a postgres trigger.
-	require.ErrorContains(t, err, "Cannot modify or delete system users")
+	// require.ErrorContains(t, err, "Cannot modify or delete system users")
+	require.NoError(t, err)
 
 	// When: attempting to delete a system user.
 	err = db.UpdateUserDeletedByID(ctx, systemUser.ID)
 	// Then: the attempt is rejected by a postgres trigger.
-	require.ErrorContains(t, err, "Cannot modify or delete system users")
+	// require.ErrorContains(t, err, "Cannot modify or delete system users")
+	require.NoError(t, err)
 
 	// When: attempting to update a user's roles.
 	_, err = db.UpdateUserRoles(ctx, database.UpdateUserRolesParams{
@@ -1470,7 +1473,8 @@ func TestUpdateSystemUser(t *testing.T) {
 		GrantedRoles: []string{rbac.RoleAuditor().String()},
 	})
 	// Then: the attempt is rejected by a postgres trigger.
-	require.ErrorContains(t, err, "Cannot modify or delete system users")
+	// require.ErrorContains(t, err, "Cannot modify or delete system users")
+	require.NoError(t, err)
 }
 
 func TestUserChangeLoginType(t *testing.T) {
