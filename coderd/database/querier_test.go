@@ -4032,6 +4032,33 @@ func TestGetPresetsBackoff(t *testing.T) {
 			require.Equal(t, 0, now.Compare(backoff.LastBuildAt.(time.Time)))
 		}
 	})
+
+	t.Run("failed job outside lookback period", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		dbgen.Organization(t, db, database.Organization{
+			ID: orgID,
+		})
+		dbgen.User(t, db, database.User{
+			ID: userID,
+		})
+		lookbackPeriod := time.Hour
+
+		tmpl1 := createTemplate(db)
+		tmpl1V1 := createTmplVersion(db, tmpl1, tmpl1.ActiveVersionID, &tmplVersionOpts{
+			DesiredInstances: 1,
+		})
+		createWorkspaceBuild(db, tmpl1, tmpl1V1, &workspaceBuildOpts{
+			successfulJob: false,
+			createdAt:     now.Add(-lookbackPeriod - time.Minute), // earlier than lookback period - skipped
+		})
+
+		backoffs, err := db.GetPresetsBackoff(ctx, now.Add(-lookbackPeriod))
+		require.NoError(t, err)
+		require.Len(t, backoffs, 0)
+	})
 }
 
 func requireUsersMatch(t testing.TB, expected []database.User, found []database.GetUsersRow, msg string) {

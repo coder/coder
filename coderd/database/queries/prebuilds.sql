@@ -43,22 +43,20 @@ FROM workspace_latest_builds wlb
 WHERE pj.job_status IN ('pending'::provisioner_job_status, 'running'::provisioner_job_status)
 GROUP BY t.id, wpb.template_version_id, wpb.transition;
 
--- name: GetPresetsBackoff :many
 -- GetPresetsBackoff groups workspace builds by template version ID.
--- For each group, the query checks the last N jobs, where N equals the number of desired instances for the corresponding preset.
--- If at least one of the last N jobs has failed, we should backoff on the corresponding template version ID.
+-- For each group, the query checks up to N of the most recent jobs that occurred within the
+-- lookback period, where N equals the number of desired instances for the corresponding preset.
+-- If at least one of the job within a group has failed, we should backoff on the corresponding template version ID.
 -- Query returns a list of template version IDs for which we should backoff.
 -- Only active template versions with configured presets are considered.
+-- We also return the number of failed workspace builds that occurred during the lookback period.
 --
 -- NOTE:
--- We back off on the template version ID if at least one of the N latest workspace builds has failed.
--- However, we also return the number of failed workspace builds that occurred during the lookback period.
---
--- In other words:
--- - To **decide whether to back off**, we look at the N most recent builds (regardless of when they happened).
+-- - To **decide whether to back off**, we look at up to the N most recent builds (within the defined lookback period).
 -- - To **calculate the number of failed builds**, we consider all builds within the defined lookback period.
 --
 -- The number of failed builds is used downstream to determine the backoff duration.
+-- name: GetPresetsBackoff :many
 WITH filtered_builds AS (
 	-- Only select builds which are for prebuild creations
 	SELECT wlb.*, tvp.id AS preset_id, pj.job_status, tvp.desired_instances
@@ -92,6 +90,7 @@ FROM time_sorted_builds tsb
 		 LEFT JOIN failed_count fc ON fc.preset_id = tsb.preset_id
 WHERE tsb.rn <= tsb.desired_instances -- Fetch the last N builds, where N is the number of desired instances; if any fail, we backoff
   AND tsb.job_status = 'failed'::provisioner_job_status
+  AND created_at >= @lookback::timestamptz
 GROUP BY tsb.template_version_id, tsb.preset_id, fc.num_failed;
 
 -- name: ClaimPrebuild :one
