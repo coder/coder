@@ -6,18 +6,25 @@ import (
 	"github.com/coder/coder/v2/cli/clistat"
 )
 
+type Statter interface {
+	IsContainerized() (bool, error)
+	ContainerMemory(p clistat.Prefix) (*clistat.Result, error)
+	HostMemory(p clistat.Prefix) (*clistat.Result, error)
+	Disk(p clistat.Prefix, path string) (*clistat.Result, error)
+}
+
 type Fetcher interface {
 	FetchMemory() (total int64, used int64, err error)
 	FetchVolume(volume string) (total int64, used int64, err error)
 }
 
 type fetcher struct {
-	*clistat.Statter
+	Statter
 	isContainerized bool
 }
 
 //nolint:revive
-func NewFetcher(f *clistat.Statter) (*fetcher, error) {
+func NewFetcher(f Statter) (*fetcher, error) {
 	isContainerized, err := f.IsContainerized()
 	if err != nil {
 		return nil, xerrors.Errorf("check is containerized: %w", err)
