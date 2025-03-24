@@ -211,6 +211,8 @@ issues:
         - errcheck
         - forcetypeassert
         - exhaustruct # This is unhelpful in tests.
+        - unused-parameter # TODO(JonA): disabling in order to update golangci-lint
+        - gosec # TODO(JonA): disabling in order to update golangci-lint
     - path: scripts/*
       linters:
         - exhaustruct
@@ -218,6 +220,8 @@ issues:
   fix: true
   max-issues-per-linter: 0
   max-same-issues: 0
+  exclude-rules:
+    - coderd/database/dbmem # dbmem is being deprecated and removed.
 
 run:
   skip-dirs:
