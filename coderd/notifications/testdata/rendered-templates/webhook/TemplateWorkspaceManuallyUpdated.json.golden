@@ -12,7 +12,7 @@
     "actions": [
       {
         "label": "View workspace",
-        "url": "http://test.com/@bobby/bobby-workspace"
+        "url": "http://test.com/@Bobby/bobby-workspace"
       },
       {
         "label": "View template version",
@@ -24,7 +24,8 @@
       "organization": "bobby-organization",
       "template": "bobby-template",
       "version": "alpha",
-      "workspace": "bobby-workspace"
+      "workspace": "bobby-workspace",
+      "workspace_owner_username": "Bobby"
     },
     "data": null,
     "targets": null
