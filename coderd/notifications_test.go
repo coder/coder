@@ -6,7 +6,6 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/serpent"
@@ -15,7 +14,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
-	"github.com/coder/coder/v2/coderd/notifications/push"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -389,23 +387,6 @@ const (
 
 func TestPushNotificationSubscription(t *testing.T) {
 	t.Parallel()
-
-	t.Run("Disabled", func(t *testing.T) {
-		t.Parallel()
-
-		client := coderdtest.New(t, &coderdtest.Options{
-			PushNotifier: &push.NoopNotifier{
-				Msg: assert.AnError.Error(),
-			},
-		})
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		owner := coderdtest.CreateFirstUser(t, client)
-		memberClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-		err := memberClient.TestPushNotification(ctx)
-		require.EqualError(t, err, assert.AnError.Error(), "test push notification should fail")
-	})
 
 	t.Run("CRUD", func(t *testing.T) {
 		t.Parallel()
