@@ -203,6 +203,14 @@ linters-settings:
       - G601
 
 issues:
+  exclude-dirs:
+    - coderd/database/dbmem
+    - node_modules
+    - .git
+
+  skip-files:
+    - scripts/rules.go
+
   # Rules listed here: https://github.com/securego/gosec#available-rules
   exclude-rules:
     - path: _test\.go
@@ -211,25 +219,17 @@ issues:
         - errcheck
         - forcetypeassert
         - exhaustruct # This is unhelpful in tests.
-        - revive:unused-parameter # TODO(JonA): disabling in order to update golangci-lint
+        - revive # TODO(JonA): disabling in order to update golangci-lint
         - gosec # TODO(JonA): disabling in order to update golangci-lint
     - path: scripts/*
       linters:
         - exhaustruct
-    - path: coderd/database/dbmem/* # dbmem is being deprecated and removed.
-      linters:
-      - ALL
 
   fix: true
   max-issues-per-linter: 0
   max-same-issues: 0
 
 run:
-  skip-dirs:
-    - node_modules
-    - .git
-  skip-files:
-    - scripts/rules.go
   timeout: 10m
 
 # Over time, add more and more linters from
