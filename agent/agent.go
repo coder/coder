@@ -1075,7 +1075,7 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 		//
 		// An example is VS Code Remote, which must know the directory
 		// before initializing a connection.
-		manifest.Directory, err = expandDirectory(manifest.Directory)
+		manifest.Directory, err = expandPathToAbs(manifest.Directory)
 		if err != nil {
 			return xerrors.Errorf("expand directory: %w", err)
 		}
@@ -1119,13 +1119,18 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 			// scripts have completed.
 			var postStartScripts []codersdk.WorkspaceAgentScript
 			for _, dc := range manifest.Devcontainers {
+				dc = expandDevcontainerPaths(a.logger, dc)
 				// TODO(mafredri): Verify `@devcontainers/cli` presence.
 				// TODO(mafredri): Verify workspace folder exists.
 				// TODO(mafredri): If set, verify config path exists.
 				postStartScripts = append(postStartScripts, agentcontainers.DevcontainerStartupScript(dc))
 			}
 
-			err = a.scriptRunner.Init(manifest.Scripts, aAPI.ScriptCompleted, agentscripts.WithPostStartScripts(postStartScripts...))
+			err = a.scriptRunner.Init(
+				manifest.Scripts,
+				aAPI.ScriptCompleted,
+				agentscripts.WithPostStartScripts(postStartScripts...),
+			)
 			if err != nil {
 				return xerrors.Errorf("init script runner: %w", err)
 			}
@@ -1864,30 +1869,42 @@ func userHomeDir() (string, error) {
 	return u.HomeDir, nil
 }
 
-// expandDirectory converts a directory path to an absolute path.
-// It primarily resolves the home directory and any environment
-// variables that may be set
-func expandDirectory(dir string) (string, error) {
-	if dir == "" {
+// expandPathToAbs converts a path to an absolute path. It primarily resolves
+// the home directory and any environment variables that may be set.
+func expandPathToAbs(path string) (string, error) {
+	if path == "" {
 		return "", nil
 	}
-	if dir[0] == '~' {
+	if path[0] == '~' {
 		home, err := userHomeDir()
 		if err != nil {
 			return "", err
 		}
-		dir = filepath.Join(home, dir[1:])
+		path = filepath.Join(home, path[1:])
 	}
-	dir = os.ExpandEnv(dir)
+	path = os.ExpandEnv(path)
 
-	if !filepath.IsAbs(dir) {
+	if !filepath.IsAbs(path) {
 		home, err := userHomeDir()
 		if err != nil {
 			return "", err
 		}
-		dir = filepath.Join(home, dir)
+		path = filepath.Join(home, path)
 	}
-	return dir, nil
+	return path, nil
+}
+
+func expandDevcontainerPaths(logger slog.Logger, dc codersdk.WorkspaceAgentDevcontainer) codersdk.WorkspaceAgentDevcontainer {
+	var err error
+	if dc.WorkspaceFolder, err = expandPathToAbs(dc.WorkspaceFolder); err != nil {
+		logger.Warn(context.Background(), "expand devcontainer workspace folder failed", slog.Error(err))
+	}
+	if dc.ConfigPath != "" {
+		if dc.ConfigPath, err = expandPathToAbs(dc.ConfigPath); err != nil {
+			logger.Warn(context.Background(), "expand devcontainer config path failed", slog.Error(err))
+		}
+	}
+	return dc
 }
 
 // EnvAgentSubsystem is the environment variable used to denote the
