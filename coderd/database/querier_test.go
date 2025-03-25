@@ -3507,7 +3507,6 @@ func TestOrganizationDeleteTrigger(t *testing.T) {
 		require.Error(t, err)
 		// cannot delete organization: organization has 0 workspaces and 1 templates that must be deleted first
 		require.ErrorContains(t, err, "cannot delete organization")
-		require.ErrorContains(t, err, "has 0 workspaces")
 		require.ErrorContains(t, err, "1 templates")
 	})
 

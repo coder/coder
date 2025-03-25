@@ -1989,6 +1989,35 @@ func (q *querier) GetOrganizationIDsByMemberIDs(ctx context.Context, ids []uuid.
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetOrganizationIDsByMemberIDs)(ctx, ids)
 }
 
+func (q *querier) GetOrganizationResourceCountByID(ctx context.Context, organizationID uuid.UUID) (database.GetOrganizationResourceCountByIDRow, error) {
+	// Can read org members
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceOrganizationMember.InOrg(organizationID)); err != nil {
+		return database.GetOrganizationResourceCountByIDRow{}, err
+	}
+
+	// Can read org workspaces
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspace.InOrg(organizationID)); err != nil {
+		return database.GetOrganizationResourceCountByIDRow{}, err
+	}
+
+	// Can read org groups
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceGroup.InOrg(organizationID)); err != nil {
+		return database.GetOrganizationResourceCountByIDRow{}, err
+	}
+
+	// Can read org templates
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate.InOrg(organizationID)); err != nil {
+		return database.GetOrganizationResourceCountByIDRow{}, err
+	}
+
+	// Can read org provisioner daemons
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerDaemon.InOrg(organizationID)); err != nil {
+		return database.GetOrganizationResourceCountByIDRow{}, err
+	}
+
+	return q.db.GetOrganizationResourceCountByID(ctx, organizationID)
+}
+
 func (q *querier) GetOrganizations(ctx context.Context, args database.GetOrganizationsParams) ([]database.Organization, error) {
 	fetch := func(ctx context.Context, _ interface{}) ([]database.Organization, error) {
 		return q.db.GetOrganizations(ctx, args)
