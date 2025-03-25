@@ -24,6 +24,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/coderd/jwtutils"
@@ -1668,7 +1669,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 		}
 
 		// nolint:gocritic // Getting user count is a system function.
-		userCount, err := tx.GetUserCount(dbauthz.AsSystemRestricted(ctx))
+		userCount, err := tx.GetUserCount(dbauthz.AsSystemRestricted(ctx), false)
 		if err != nil {
 			return xerrors.Errorf("unable to fetch user count: %w", err)
 		}

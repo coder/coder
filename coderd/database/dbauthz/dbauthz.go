@@ -1057,13 +1057,13 @@ func (q *querier) ActivityBumpWorkspace(ctx context.Context, arg database.Activi
 	return update(q.log, q.auth, fetch, q.db.ActivityBumpWorkspace)(ctx, arg)
 }
 
-func (q *querier) AllUserIDs(ctx context.Context) ([]uuid.UUID, error) {
+func (q *querier) AllUserIDs(ctx context.Context, includeSystem bool) ([]uuid.UUID, error) {
 	// Although this technically only reads users, only system-related functions should be
 	// allowed to call this.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
 	}
-	return q.db.AllUserIDs(ctx)
+	return q.db.AllUserIDs(ctx, includeSystem)
 }
 
 func (q *querier) ArchiveUnusedTemplateVersions(ctx context.Context, arg database.ArchiveUnusedTemplateVersionsParams) ([]uuid.UUID, error) {
@@ -1316,7 +1316,11 @@ func (q *querier) DeleteOldWorkspaceAgentStats(ctx context.Context) error {
 
 func (q *querier) DeleteOrganizationMember(ctx context.Context, arg database.DeleteOrganizationMemberParams) error {
 	return deleteQ[database.OrganizationMember](q.log, q.auth, func(ctx context.Context, arg database.DeleteOrganizationMemberParams) (database.OrganizationMember, error) {
-		member, err := database.ExpectOne(q.OrganizationMembers(ctx, database.OrganizationMembersParams(arg)))
+		member, err := database.ExpectOne(q.OrganizationMembers(ctx, database.OrganizationMembersParams{
+			OrganizationID: arg.OrganizationID,
+			UserID:         arg.UserID,
+			IncludeSystem:  false,
+		}))
 		if err != nil {
 			return database.OrganizationMember{}, err
 		}
@@ -1502,11 +1506,11 @@ func (q *querier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Tim
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetAPIKeysLastUsedAfter)(ctx, lastUsed)
 }
 
-func (q *querier) GetActiveUserCount(ctx context.Context) (int64, error) {
+func (q *querier) GetActiveUserCount(ctx context.Context, includeSystem bool) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return 0, err
 	}
-	return q.db.GetActiveUserCount(ctx)
+	return q.db.GetActiveUserCount(ctx, includeSystem)
 }
 
 func (q *querier) GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]database.WorkspaceBuild, error) {
@@ -1737,22 +1741,22 @@ func (q *querier) GetGroupByOrgAndName(ctx context.Context, arg database.GetGrou
 	return fetch(q.log, q.auth, q.db.GetGroupByOrgAndName)(ctx, arg)
 }
 
-func (q *querier) GetGroupMembers(ctx context.Context) ([]database.GroupMember, error) {
+func (q *querier) GetGroupMembers(ctx context.Context, includeSystem bool) ([]database.GroupMember, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
 	}
-	return q.db.GetGroupMembers(ctx)
+	return q.db.GetGroupMembers(ctx, includeSystem)
 }
 
-func (q *querier) GetGroupMembersByGroupID(ctx context.Context, id uuid.UUID) ([]database.GroupMember, error) {
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetGroupMembersByGroupID)(ctx, id)
+func (q *querier) GetGroupMembersByGroupID(ctx context.Context, arg database.GetGroupMembersByGroupIDParams) ([]database.GroupMember, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetGroupMembersByGroupID)(ctx, arg)
 }
 
-func (q *querier) GetGroupMembersCountByGroupID(ctx context.Context, groupID uuid.UUID) (int64, error) {
-	if _, err := q.GetGroupByID(ctx, groupID); err != nil { // AuthZ check
+func (q *querier) GetGroupMembersCountByGroupID(ctx context.Context, arg database.GetGroupMembersCountByGroupIDParams) (int64, error) {
+	if _, err := q.GetGroupByID(ctx, arg.GroupID); err != nil { // AuthZ check
 		return 0, err
 	}
-	memberCount, err := q.db.GetGroupMembersCountByGroupID(ctx, groupID)
+	memberCount, err := q.db.GetGroupMembersCountByGroupID(ctx, arg)
 	if err != nil {
 		return 0, err
 	}
@@ -2530,11 +2534,11 @@ func (q *querier) GetUserByID(ctx context.Context, id uuid.UUID) (database.User,
 	return fetch(q.log, q.auth, q.db.GetUserByID)(ctx, id)
 }
 
-func (q *querier) GetUserCount(ctx context.Context) (int64, error) {
+func (q *querier) GetUserCount(ctx context.Context, includeSystem bool) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return 0, err
 	}
-	return q.db.GetUserCount(ctx)
+	return q.db.GetUserCount(ctx, includeSystem)
 }
 
 func (q *querier) GetUserLatencyInsights(ctx context.Context, arg database.GetUserLatencyInsightsParams) ([]database.GetUserLatencyInsightsRow, error) {
@@ -3778,6 +3782,7 @@ func (q *querier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemb
 	member, err := database.ExpectOne(q.OrganizationMembers(ctx, database.OrganizationMembersParams{
 		OrganizationID: arg.OrgID,
 		UserID:         arg.UserID,
+		IncludeSystem:  false,
 	}))
 	if err != nil {
 		return database.OrganizationMember{}, err

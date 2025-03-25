@@ -1894,7 +1894,7 @@ func getGithubOAuth2ConfigParams(ctx context.Context, db database.Store, vals *c
 
 	if defaultEligibleNotSet {
 		// nolint:gocritic // User count requires system privileges
-		userCount, err := db.GetUserCount(dbauthz.AsSystemRestricted(ctx))
+		userCount, err := db.GetUserCount(dbauthz.AsSystemRestricted(ctx), false)
 		if err != nil {
 			return nil, xerrors.Errorf("get user count: %w", err)
 		}

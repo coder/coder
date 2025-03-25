@@ -854,6 +854,7 @@ CREATE TABLE users (
     github_com_user_id bigint,
     hashed_one_time_passcode bytea,
     one_time_passcode_expires_at timestamp with time zone,
+    is_system boolean DEFAULT false NOT NULL,
     CONSTRAINT one_time_passcode_set CHECK ((((hashed_one_time_passcode IS NULL) AND (one_time_passcode_expires_at IS NULL)) OR ((hashed_one_time_passcode IS NOT NULL) AND (one_time_passcode_expires_at IS NOT NULL))))
 );
 
@@ -866,6 +867,8 @@ COMMENT ON COLUMN users.github_com_user_id IS 'The GitHub.com numerical user ID.
 COMMENT ON COLUMN users.hashed_one_time_passcode IS 'A hash of the one-time-passcode given to the user.';
 
 COMMENT ON COLUMN users.one_time_passcode_expires_at IS 'The time when the one-time-passcode expires.';
+
+COMMENT ON COLUMN users.is_system IS 'Determines if a user is a system user, and therefore cannot login or perform normal actions';
 
 CREATE VIEW group_members_expanded AS
  WITH all_members AS (
@@ -892,6 +895,7 @@ CREATE VIEW group_members_expanded AS
     users.quiet_hours_schedule AS user_quiet_hours_schedule,
     users.name AS user_name,
     users.github_com_user_id AS user_github_com_user_id,
+    users.is_system AS user_is_system,
     groups.organization_id,
     groups.name AS group_name,
     all_members.group_id
