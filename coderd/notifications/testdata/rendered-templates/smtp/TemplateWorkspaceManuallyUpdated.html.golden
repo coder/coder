@@ -16,7 +16,7 @@ A new workspace build has been manually created for your workspace bobby-wo=
 rkspace by bobby to update it to version alpha of template bobby-template.
 
 
-View workspace: http://test.com/@Bobby/bobby-workspace
+View workspace: http://test.com/@mrbobby/bobby-workspace
 
 View template version: http://test.com/templates/bobby-organization/bobby-t=
 emplate/versions/alpha
@@ -57,9 +57,9 @@ g>.</p>
       </div>
       <div style=3D"text-align: center; margin-top: 32px;">
        =20
-        <a href=3D"http://test.com/@Bobby/bobby-workspace" style=3D"display=
-: inline-block; padding: 13px 24px; background-color: #020617; color: #f8fa=
-fc; text-decoration: none; border-radius: 8px; margin: 0 4px;">
+        <a href=3D"http://test.com/@mrbobby/bobby-workspace" style=3D"displ=
+ay: inline-block; padding: 13px 24px; background-color: #020617; color: #f8=
+fafc; text-decoration: none; border-radius: 8px; margin: 0 4px;">
           View workspace
         </a>
        =20
