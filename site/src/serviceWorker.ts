@@ -28,16 +28,10 @@ self.addEventListener("push", (event) => {
 		return;
 	}
 
-	console.log("PAYLOAD", payload);
-
 	event.waitUntil(
 		self.registration.showNotification(payload.title, {
 			body: payload.body || "",
 			icon: payload.icon || "/favicon.ico",
-			// actions: payload.actions.map((action: PushNotificationAction) => ({
-			//     title: action.title,
-			//     action: action.url,
-			// })) || [],
 		}),
 	);
 });
@@ -45,12 +39,4 @@ self.addEventListener("push", (event) => {
 // Handle notification click
 self.addEventListener("notificationclick", (event) => {
 	event.notification.close();
-
-	// If a link is provided, navigate to it
-	const data = event.notification.data;
-	// if (data && data.url) {
-	//     event.waitUntil(
-	//         clients.openWindow(data.url)
-	//     );
-	// }
 });

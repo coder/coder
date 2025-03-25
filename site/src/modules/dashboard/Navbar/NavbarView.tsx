@@ -47,8 +47,6 @@ export const NavbarView: FC<NavbarViewProps> = ({
 	const { subscribed, loading, subscribe, unsubscribe } =
 		usePushNotifications();
 
-	console.log("HERE");
-
 	return (
 		<div className="border-0 border-b border-solid h-[72px] flex items-center leading-none px-6">
 			<NavLink to="/workspaces">

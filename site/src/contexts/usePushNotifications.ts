@@ -48,11 +48,6 @@ export const usePushNotifications = (): PushNotifications => {
 			setLoading(true);
 			const registration = await navigator.serviceWorker.ready;
 
-			console.log(
-				"BUILD INFO",
-				buildInfoQuery.data?.push_notifications_public_key,
-			);
-
 			// Note: You'd typically get this key from your server
 			const vapidPublicKey = buildInfoQuery.data?.push_notifications_public_key;
 
