@@ -1600,7 +1600,8 @@ CREATE TABLE workspace_agent_devcontainers (
     workspace_agent_id uuid NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     workspace_folder text NOT NULL,
-    config_path text NOT NULL
+    config_path text NOT NULL,
+    name text NOT NULL
 );
 
 COMMENT ON TABLE workspace_agent_devcontainers IS 'Workspace agent devcontainer configuration';

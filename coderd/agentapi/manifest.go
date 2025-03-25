@@ -244,6 +244,7 @@ func dbAgentDevcontainersToProto(devcontainers []database.WorkspaceAgentDevconta
 	for i, dc := range devcontainers {
 		ret[i] = &agentproto.WorkspaceAgentDevcontainer{
 			Id:              dc.ID[:],
+			Name:            dc.Name,
 			WorkspaceFolder: dc.WorkspaceFolder,
 			ConfigPath:      dc.ConfigPath,
 		}

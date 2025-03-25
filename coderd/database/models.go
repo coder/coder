@@ -3327,6 +3327,7 @@ type WorkspaceAgentDevcontainer struct {
 	WorkspaceFolder string `db:"workspace_folder" json:"workspace_folder"`
 	// Path to devcontainer.json.
 	ConfigPath string `db:"config_path" json:"config_path"`
+	Name       string `db:"name" json:"name"`
 }
 
 type WorkspaceAgentLog struct {
