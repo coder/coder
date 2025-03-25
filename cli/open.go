@@ -174,24 +174,27 @@ func handleOpenCmd(inv *serpent.Invocation, client *codersdk.Client, regionArg s
 	foundApp = agt.Apps[appIdx]
 
 	// To build the app URL, we need to know the wildcard hostname
-	// and path app URL for the region.
-	regions, err := client.Regions(ctx)
-	if err != nil {
-		return xerrors.Errorf("failed to fetch regions: %w", err)
-	}
+	// and path app URL for the region. This isn't needed for external
+	// apps.
 	var region codersdk.Region
-	preferredIdx := slices.IndexFunc(regions, func(r codersdk.Region) bool {
-		return r.Name == regionArg
-	})
-	if preferredIdx == -1 {
-		allRegions := make([]string, len(regions))
-		for i, r := range regions {
-			allRegions[i] = r.Name
+	if !foundApp.External {
+		regions, err := client.Regions(ctx)
+		if err != nil {
+			return xerrors.Errorf("failed to fetch regions: %w", err)
 		}
-		cliui.Errorf(inv.Stderr, "Preferred region %q not found!\nAvailable regions: %v", regionArg, allRegions)
-		return xerrors.Errorf("region not found")
+		preferredIdx := slices.IndexFunc(regions, func(r codersdk.Region) bool {
+			return r.Name == regionArg
+		})
+		if preferredIdx == -1 {
+			allRegions := make([]string, len(regions))
+			for i, r := range regions {
+				allRegions[i] = r.Name
+			}
+			cliui.Errorf(inv.Stderr, "Preferred region %q not found!\nAvailable regions: %v", regionArg, allRegions)
+			return xerrors.Errorf("region not found")
+		}
+		region = regions[preferredIdx]
 	}
-	region = regions[preferredIdx]
 
 	baseURL, err := url.Parse(region.PathAppURL)
 	if err != nil {
@@ -211,6 +214,8 @@ func handleOpenCmd(inv *serpent.Invocation, client *codersdk.Client, regionArg s
 			return xerrors.Errorf("failed to build VS Code remote URL: %w", err)
 		}
 	} else {
+		// Note that external apps don't have a region, and that
+		// region.WildcardHostname and region.PathAppURL will be empty.
 		appURL = buildAppLinkURL(baseURL, ws, agt, foundApp, region.WildcardHostname, pathAppURL)
 	}
 
