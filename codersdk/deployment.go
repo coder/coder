@@ -591,7 +591,7 @@ type HTTPCookieConfig struct {
 	SameSite string       `json:"same_site,omitempty" typescript:",notnull"`
 }
 
-func (cfg HTTPCookieConfig) Apply(c *http.Cookie) *http.Cookie {
+func (cfg *HTTPCookieConfig) Apply(c *http.Cookie) *http.Cookie {
 	c.Secure = cfg.Secure.Value()
 	c.SameSite = cfg.HTTPSameSite()
 	return c
