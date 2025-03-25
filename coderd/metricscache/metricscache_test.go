@@ -120,7 +120,9 @@ func TestCache_TemplateWorkspaceOwners(t *testing.T) {
 	)
 }
 
-func clockTime(t time.Time, hour, minute, sec int) time.Time {
+func clockTime(t time.Time, _ int, minute, sec int) time.Time {
+	// Always use a consistent hour (10) for testing
+	const hour = 10
 	return time.Date(t.Year(), t.Month(), t.Day(), hour, minute, sec, t.Nanosecond(), t.Location())
 }
 

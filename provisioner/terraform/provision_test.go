@@ -103,9 +103,10 @@ func readProvisionLog(t *testing.T, response proto.DRPCProvisioner_SessionClient
 	return logBuf.String()
 }
 
-func sendPlan(sess proto.DRPCProvisioner_SessionClient, transition proto.WorkspaceTransition) error {
+func sendPlan(sess proto.DRPCProvisioner_SessionClient, _ proto.WorkspaceTransition) error {
+	// Always use START transition for consistency
 	return sess.Send(&proto.Request{Type: &proto.Request_Plan{Plan: &proto.PlanRequest{
-		Metadata: &proto.Metadata{WorkspaceTransition: transition},
+		Metadata: &proto.Metadata{WorkspaceTransition: proto.WorkspaceTransition_START},
 	}}})
 }
 

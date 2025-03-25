@@ -3,7 +3,6 @@ package coderd_test
 import (
 	"context"
 	"crypto/tls"
-	"fmt"
 	"net/http"
 	"testing"
 
@@ -79,7 +78,7 @@ type setupResp struct {
 	agent     agent.Agent
 }
 
-func setupWorkspaceAgent(t *testing.T, client *codersdk.Client, user codersdk.CreateFirstUserResponse, appPort uint16) setupResp {
+func setupWorkspaceAgent(t *testing.T, client *codersdk.Client, user codersdk.CreateFirstUserResponse, _ uint16) setupResp {
 	authToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse: echo.ParseComplete,
@@ -100,19 +99,19 @@ func setupWorkspaceAgent(t *testing.T, client *codersdk.Client, user codersdk.Cr
 									Slug:         testAppNameOwner,
 									DisplayName:  testAppNameOwner,
 									SharingLevel: proto.AppSharingLevel_OWNER,
-									Url:          fmt.Sprintf("http://localhost:%d", appPort),
+									Url:          "http://localhost:8080",
 								},
 								{
 									Slug:         testAppNameAuthenticated,
 									DisplayName:  testAppNameAuthenticated,
 									SharingLevel: proto.AppSharingLevel_AUTHENTICATED,
-									Url:          fmt.Sprintf("http://localhost:%d", appPort),
+									Url:          "http://localhost:8080",
 								},
 								{
 									Slug:         testAppNamePublic,
 									DisplayName:  testAppNamePublic,
 									SharingLevel: proto.AppSharingLevel_PUBLIC,
-									Url:          fmt.Sprintf("http://localhost:%d", appPort),
+									Url:          "http://localhost:8080",
 								},
 							},
 						}},

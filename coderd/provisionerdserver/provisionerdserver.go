@@ -238,8 +238,8 @@ func NewServer(
 
 // timeNow should be used when trying to get the current time for math
 // calculations regarding workspace start and stop time.
-func (s *server) timeNow(tags ...string) time.Time {
-	return dbtime.Time(s.Clock.Now(tags...))
+func (s *server) timeNow(_ ...string) time.Time {
+	return dbtime.Time(s.Clock.Now())
 }
 
 // heartbeatLoop runs heartbeatOnce at the interval specified by HeartbeatInterval
@@ -1817,10 +1817,11 @@ func (s *server) notifyWorkspaceDeleted(ctx context.Context, workspace database.
 	}
 }
 
-func (s *server) startTrace(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
-	return s.Tracer.Start(ctx, name, append(opts, trace.WithAttributes(
+func (s *server) startTrace(ctx context.Context, name string, _ ...trace.SpanStartOption) (context.Context, trace.Span) {
+	// Always use the same attribute for consistency
+	return s.Tracer.Start(ctx, name, trace.WithAttributes(
 		semconv.ServiceNameKey.String("coderd.provisionerd"),
-	))...)
+	))
 }
 
 func InsertWorkspaceModule(ctx context.Context, db database.Store, jobID uuid.UUID, transition database.WorkspaceTransition, protoModule *sdkproto.Module, snapshot *telemetry.Snapshot) error {

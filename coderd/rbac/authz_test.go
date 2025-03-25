@@ -24,7 +24,7 @@ type benchmarkCase struct {
 // benchmarkUserCases builds a set of users with different roles and groups.
 // The user id used as the subject and the orgs used to build the roles are
 // returned.
-func benchmarkUserCases() (cases []benchmarkCase, users uuid.UUID, orgs []uuid.UUID) {
+func benchmarkUserCases() (cases []benchmarkCase, _ uuid.UUID, orgs []uuid.UUID) {
 	orgs = []uuid.UUID{
 		uuid.MustParse("bf7b72bd-a2b1-4ef2-962c-1d698e0483f6"),
 		uuid.MustParse("e4660c6f-b9de-422d-9578-cd888983a795"),
@@ -143,7 +143,7 @@ func benchmarkUserCases() (cases []benchmarkCase, users uuid.UUID, orgs []uuid.U
 			}.WithCachedASTValue(),
 		},
 	}
-	return benchCases, users, orgs
+	return benchCases, user, orgs
 }
 
 // BenchmarkRBACAuthorize benchmarks the rbac.Authorize method.

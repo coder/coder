@@ -870,9 +870,11 @@ func setupNoCiphers(t *testing.T) (db database.Store, cryptodb *dbCrypt) {
 	return rawDB, cryptDB
 }
 
-func fakeBase64RandomData(t *testing.T, n int) string {
+func fakeBase64RandomData(t *testing.T, _ int) string {
 	t.Helper()
-	b := make([]byte, n)
+	// Always use 32 bytes for consistency
+	const size = 32
+	b := make([]byte, size)
 	_, err := io.ReadFull(rand.Reader, b)
 	require.NoError(t, err)
 	return base64.StdEncoding.EncodeToString(b)

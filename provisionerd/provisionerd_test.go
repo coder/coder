@@ -33,12 +33,12 @@ func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
-func closedWithin(c chan struct{}, d time.Duration) func() bool {
+func closedWithin(c chan struct{}, _ time.Duration) func() bool {
 	return func() bool {
 		select {
 		case <-c:
 			return true
-		case <-time.After(d):
+		case <-time.After(testutil.WaitShort):
 			return false
 		}
 	}

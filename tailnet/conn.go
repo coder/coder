@@ -961,7 +961,7 @@ func (ln *listener) Close() error {
 	return ln.closeNoLock()
 }
 
-func (ln *listener) closeNoLock() error {
+func (ln *listener) closeNoLock() (err error) {
 	if v, ok := ln.s.listeners[ln.key]; ok && v == ln {
 		delete(ln.s.listeners, ln.key)
 		close(ln.closed)
