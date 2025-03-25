@@ -3140,6 +3140,12 @@ type TemplateVersionTable struct {
 	SourceExampleID sql.NullString `db:"source_example_id" json:"source_example_id"`
 }
 
+type TemplateVersionTerraformValue struct {
+	TemplateVersionID uuid.UUID       `db:"template_version_id" json:"template_version_id"`
+	UpdatedAt         time.Time       `db:"updated_at" json:"updated_at"`
+	CachedPlan        json.RawMessage `db:"cached_plan" json:"cached_plan"`
+}
+
 type TemplateVersionVariable struct {
 	TemplateVersionID uuid.UUID `db:"template_version_id" json:"template_version_id"`
 	// Variable name

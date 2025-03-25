@@ -2,14 +2,14 @@ FROM rust:slim@sha256:9abf10cc84dfad6ace1b0aae3951dc5200f467c593394288c11db1e17b
 # Install rust helper programs
 # ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
 ENV CARGO_INSTALL_ROOT=/tmp/
-RUN cargo install exa bat ripgrep typos-cli watchexec-cli && \
+RUN cargo install typos-cli watchexec-cli && \
 	# Reduce image size.
 	rm -rf /usr/local/cargo/registry
 
 FROM ubuntu:jammy@sha256:0e5e4a57c2499249aafc3b40fcd541e9a456aab7296681a3994d631587203f97 AS go
 
 # Install Go manually, so that we can control the version
-ARG GO_VERSION=1.24.1
+ARG GO_VERSION=1.22.12
 
 # Boring Go is needed to build FIPS-compliant binaries.
 RUN apt-get update && \
@@ -65,9 +65,6 @@ RUN apt-get update && \
 	# we're using for the version of go-critic that it embeds, then check
 	# the version of ruleguard in go-critic for that tag.
 	go install github.com/quasilyte/go-ruleguard/cmd/ruleguard@v0.3.13 && \
-	# go-fuzz for fuzzy testing. they don't publish releases so we rely on latest.
-	go install github.com/dvyukov/go-fuzz/go-fuzz@latest && \
-	go install github.com/dvyukov/go-fuzz/go-fuzz-build@latest && \
 	# go-releaser for building 'fat binaries' that work cross-platform
 	go install github.com/goreleaser/goreleaser@v1.6.1 && \
 	go install mvdan.cc/sh/v3/cmd/shfmt@v3.7.0 && \
@@ -128,6 +125,7 @@ RUN apt-get update --quiet && apt-get install --yes \
 	asciinema \
 	bash \
 	bash-completion \
+	bat \
 	bats \
 	bind9-dnsutils \
 	build-essential \
@@ -140,6 +138,7 @@ RUN apt-get update --quiet && apt-get install --yes \
 	docker-ce \
 	docker-ce-cli \
 	docker-compose-plugin \
+	exa \
 	fd-find \
 	file \
 	fish \
@@ -176,6 +175,7 @@ RUN apt-get update --quiet && apt-get install --yes \
 	postgresql-16 \
 	python3 \
 	python3-pip \
+	ripgrep \
 	rsync \
 	screen \
 	shellcheck \
@@ -196,9 +196,9 @@ RUN apt-get update --quiet && apt-get install --yes \
 	# Configure FIPS-compliant policies
 	update-crypto-policies --set FIPS
 
-# NOTE: In scripts/Dockerfile.base we specifically install Terraform version 1.10.5.
+# NOTE: In scripts/Dockerfile.base we specifically install Terraform version 1.11.2.
 # Installing the same version here to match.
-RUN wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.11.0/terraform_1.11.0_linux_amd64.zip" && \
+RUN wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.11.2/terraform_1.11.2_linux_amd64.zip" && \
 	unzip /tmp/terraform.zip -d /usr/local/bin && \
 	rm -f /tmp/terraform.zip && \
 	chmod +x /usr/local/bin/terraform && \
