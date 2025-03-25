@@ -1616,6 +1616,8 @@ COMMENT ON COLUMN workspace_agent_devcontainers.workspace_folder IS 'Workspace f
 
 COMMENT ON COLUMN workspace_agent_devcontainers.config_path IS 'Path to devcontainer.json.';
 
+COMMENT ON COLUMN workspace_agent_devcontainers.name IS 'The name of the Dev Container.';
+
 CREATE TABLE workspace_agent_log_sources (
     workspace_agent_id uuid NOT NULL,
     id uuid NOT NULL,
