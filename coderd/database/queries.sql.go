@@ -12744,7 +12744,7 @@ func (q *sqlQuerier) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusP
 
 const getWorkspaceAgentDevcontainersByAgentID = `-- name: GetWorkspaceAgentDevcontainersByAgentID :many
 SELECT
-	id, workspace_agent_id, created_at, workspace_folder, config_path
+	id, workspace_agent_id, created_at, workspace_folder, config_path, name
 FROM
 	workspace_agent_devcontainers
 WHERE
@@ -12768,6 +12768,7 @@ func (q *sqlQuerier) GetWorkspaceAgentDevcontainersByAgentID(ctx context.Context
 			&i.CreatedAt,
 			&i.WorkspaceFolder,
 			&i.ConfigPath,
+			&i.Name,
 		); err != nil {
 			return nil, err
 		}
@@ -12784,20 +12785,22 @@ func (q *sqlQuerier) GetWorkspaceAgentDevcontainersByAgentID(ctx context.Context
 
 const insertWorkspaceAgentDevcontainers = `-- name: InsertWorkspaceAgentDevcontainers :many
 INSERT INTO
-	workspace_agent_devcontainers (workspace_agent_id, created_at, id, workspace_folder, config_path)
+	workspace_agent_devcontainers (workspace_agent_id, created_at, id, name, workspace_folder, config_path)
 SELECT
 	$1::uuid AS workspace_agent_id,
 	$2::timestamptz AS created_at,
 	unnest($3::uuid[]) AS id,
-	unnest($4::text[]) AS workspace_folder,
-	unnest($5::text[]) AS config_path
-RETURNING workspace_agent_devcontainers.id, workspace_agent_devcontainers.workspace_agent_id, workspace_agent_devcontainers.created_at, workspace_agent_devcontainers.workspace_folder, workspace_agent_devcontainers.config_path
+	unnest($4::text[]) AS name,
+	unnest($5::text[]) AS workspace_folder,
+	unnest($6::text[]) AS config_path
+RETURNING workspace_agent_devcontainers.id, workspace_agent_devcontainers.workspace_agent_id, workspace_agent_devcontainers.created_at, workspace_agent_devcontainers.workspace_folder, workspace_agent_devcontainers.config_path, workspace_agent_devcontainers.name
 `
 
 type InsertWorkspaceAgentDevcontainersParams struct {
 	WorkspaceAgentID uuid.UUID   `db:"workspace_agent_id" json:"workspace_agent_id"`
 	CreatedAt        time.Time   `db:"created_at" json:"created_at"`
 	ID               []uuid.UUID `db:"id" json:"id"`
+	Name             []string    `db:"name" json:"name"`
 	WorkspaceFolder  []string    `db:"workspace_folder" json:"workspace_folder"`
 	ConfigPath       []string    `db:"config_path" json:"config_path"`
 }
@@ -12807,6 +12810,7 @@ func (q *sqlQuerier) InsertWorkspaceAgentDevcontainers(ctx context.Context, arg 
 		arg.WorkspaceAgentID,
 		arg.CreatedAt,
 		pq.Array(arg.ID),
+		pq.Array(arg.Name),
 		pq.Array(arg.WorkspaceFolder),
 		pq.Array(arg.ConfigPath),
 	)
@@ -12823,6 +12827,7 @@ func (q *sqlQuerier) InsertWorkspaceAgentDevcontainers(ctx context.Context, arg 
 			&i.CreatedAt,
 			&i.WorkspaceFolder,
 			&i.ConfigPath,
+			&i.Name,
 		); err != nil {
 			return nil, err
 		}

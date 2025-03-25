@@ -845,9 +845,11 @@ func TestConvertResources(t *testing.T) {
 						ResourcesMonitoring:      &proto.ResourcesMonitoring{},
 						Devcontainers: []*proto.Devcontainer{
 							{
+								Name:            "dev1",
 								WorkspaceFolder: "/workspace1",
 							},
 							{
+								Name:            "dev2",
 								WorkspaceFolder: "/workspace2",
 								ConfigPath:      "/workspace2/.devcontainer/devcontainer.json",
 							},
@@ -1404,7 +1406,7 @@ func sortResources(resources []*proto.Resource) {
 				return agent.Scripts[i].DisplayName < agent.Scripts[j].DisplayName
 			})
 			sort.Slice(agent.Devcontainers, func(i, j int) bool {
-				return agent.Devcontainers[i].WorkspaceFolder < agent.Devcontainers[j].WorkspaceFolder
+				return agent.Devcontainers[i].Name < agent.Devcontainers[j].Name
 			})
 		}
 		sort.Slice(resource.Agents, func(i, j int) bool {

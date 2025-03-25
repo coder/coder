@@ -2110,22 +2110,25 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 
 		if devcontainers := prAgent.GetDevcontainers(); len(devcontainers) > 0 {
 			var (
-				devContainerIDs              = make([]uuid.UUID, 0, len(devcontainers))
-				devContainerWorkspaceFolders = make([]string, 0, len(devcontainers))
-				devContainerConfigPaths      = make([]string, 0, len(devcontainers))
+				devcontainerIDs              = make([]uuid.UUID, 0, len(devcontainers))
+				devcontainerNames            = make([]string, 0, len(devcontainers))
+				devcontainerWorkspaceFolders = make([]string, 0, len(devcontainers))
+				devcontainerConfigPaths      = make([]string, 0, len(devcontainers))
 			)
 			for _, dc := range devcontainers {
-				devContainerIDs = append(devContainerIDs, uuid.New())
-				devContainerWorkspaceFolders = append(devContainerWorkspaceFolders, dc.WorkspaceFolder)
-				devContainerConfigPaths = append(devContainerConfigPaths, dc.ConfigPath)
+				devcontainerIDs = append(devcontainerIDs, uuid.New())
+				devcontainerNames = append(devcontainerNames, dc.Name)
+				devcontainerWorkspaceFolders = append(devcontainerWorkspaceFolders, dc.WorkspaceFolder)
+				devcontainerConfigPaths = append(devcontainerConfigPaths, dc.ConfigPath)
 			}
 
 			_, err = db.InsertWorkspaceAgentDevcontainers(ctx, database.InsertWorkspaceAgentDevcontainersParams{
 				WorkspaceAgentID: agentID,
 				CreatedAt:        dbtime.Now(),
-				ID:               devContainerIDs,
-				WorkspaceFolder:  devContainerWorkspaceFolders,
-				ConfigPath:       devContainerConfigPaths,
+				ID:               devcontainerIDs,
+				Name:             devcontainerNames,
+				WorkspaceFolder:  devcontainerWorkspaceFolders,
+				ConfigPath:       devcontainerConfigPaths,
 			})
 			if err != nil {
 				return xerrors.Errorf("insert agent devcontainer: %w", err)

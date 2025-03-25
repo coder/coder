@@ -220,6 +220,7 @@ export interface Script {
 export interface Devcontainer {
   workspaceFolder: string;
   configPath: string;
+  name: string;
 }
 
 /** App represents a dev-accessible application on the workspace. */
@@ -805,6 +806,9 @@ export const Devcontainer = {
     }
     if (message.configPath !== "") {
       writer.uint32(18).string(message.configPath);
+    }
+    if (message.name !== "") {
+      writer.uint32(26).string(message.name);
     }
     return writer;
   },
