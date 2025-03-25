@@ -4774,7 +4774,7 @@ func (s *MethodTestSuite) TestPrebuilds() {
 	//	}).
 	//		Asserts(rbac.ResourceSystem, policy.ActionCreate).
 	//		ErrorsWithInMemDB(dbmem.ErrUnimplemented)
-	//}))
+	// }))
 }
 
 func (s *MethodTestSuite) TestOAuth2ProviderApps() {
