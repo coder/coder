@@ -38,15 +38,25 @@ export const createUser = async (...orgIds: string[]) => {
 	return user;
 };
 
-export const createOrganizationMember = async (
-	orgRoles: Record<string, string[]>,
-): Promise<LoginOptions> => {
+type CreateOrganizationMemberOptions = {
+	username?: string;
+	email?: string;
+	password?: string;
+	orgRoles: Record<string, string[]>;
+};
+
+export const createOrganizationMember = async ({
+	username = randomName(),
+	email = `${username}@coder.com`,
+	password = defaultPassword,
+	orgRoles,
+}: CreateOrganizationMemberOptions): Promise<LoginOptions> => {
 	const name = randomName();
 	const user = await API.createUser({
-		email: `${name}@coder.com`,
-		username: name,
-		name: name,
-		password: defaultPassword,
+		email,
+		username,
+		name: username,
+		password,
 		login_type: "password",
 		organization_ids: Object.keys(orgRoles),
 		user_status: null,
@@ -59,7 +69,7 @@ export const createOrganizationMember = async (
 	return {
 		username: user.username,
 		email: user.email,
-		password: defaultPassword,
+		password,
 	};
 };
 
@@ -74,8 +84,7 @@ export const createGroup = async (orgId: string) => {
 	return group;
 };
 
-export const createOrganization = async () => {
-	const name = randomName();
+export const createOrganization = async (name = randomName()) => {
 	const org = await API.createOrganization({
 		name,
 		display_name: `Org ${name}`,

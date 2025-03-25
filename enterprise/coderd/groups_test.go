@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/prebuilds"
 
 	"github.com/google/uuid"
@@ -824,11 +823,6 @@ func TestGroup(t *testing.T) {
 	t.Run("everyoneGroupReturnsEmpty", func(t *testing.T) {
 		// TODO (sasswart): this test seems to have drifted from its original intention. evaluate and remove/fix
 		t.Parallel()
-
-		if !dbtestutil.WillUsePostgres() {
-			t.Skip("This test requires postgres")
-		}
-
 		client, user := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
 				codersdk.FeatureTemplateRBAC: 1,
@@ -845,12 +839,12 @@ func TestGroup(t *testing.T) {
 		// The 'Everyone' group always has an ID that matches the organization ID.
 		group, err := userAdminClient.Group(ctx, user.OrganizationID)
 		require.NoError(t, err)
-		require.Len(t, group.Members, 5)
+		require.Len(t, group.Members, 4)
 		require.Equal(t, "Everyone", group.Name)
 		require.Equal(t, user.OrganizationID, group.OrganizationID)
 		require.Contains(t, group.Members, user1.ReducedUser)
 		require.Contains(t, group.Members, user2.ReducedUser)
-		require.Contains(t, group.Members, prebuildsUser.ReducedUser)
+		require.NotContains(t, group.Members, prebuildsUser.ReducedUser)
 	})
 }
 

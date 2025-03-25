@@ -445,17 +445,6 @@ BEGIN
 END;
 $$;
 
-CREATE FUNCTION prevent_system_user_changes() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-	IF OLD.is_system = true THEN
-		RAISE EXCEPTION 'Cannot modify or delete system users';
-	END IF;
-	RETURN OLD;
-END;
-$$;
-
 CREATE FUNCTION protect_deleting_organizations() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -873,7 +862,7 @@ COMMENT ON COLUMN users.quiet_hours_schedule IS 'Daily (!) cron schedule (with o
 
 COMMENT ON COLUMN users.name IS 'Name of the Coder user';
 
-COMMENT ON COLUMN users.github_com_user_id IS 'The GitHub.com numerical user ID. At time of implementation, this is used to check if the user has starred the Coder repository.';
+COMMENT ON COLUMN users.github_com_user_id IS 'The GitHub.com numerical user ID. It is used to check if the user has starred the Coder repository. It is also used for filtering users in the users list CLI command, and may become more widely used in the future.';
 
 COMMENT ON COLUMN users.hashed_one_time_passcode IS 'A hash of the one-time-passcode given to the user.';
 
@@ -906,6 +895,7 @@ CREATE VIEW group_members_expanded AS
     users.quiet_hours_schedule AS user_quiet_hours_schedule,
     users.name AS user_name,
     users.github_com_user_id AS user_github_com_user_id,
+    users.is_system AS user_is_system,
     groups.organization_id,
     groups.name AS group_name,
     all_members.group_id
@@ -1391,6 +1381,12 @@ CREATE TABLE template_version_presets (
     invalidate_after_secs integer DEFAULT 0
 );
 
+CREATE TABLE template_version_terraform_values (
+    template_version_id uuid NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    cached_plan jsonb NOT NULL
+);
+
 CREATE TABLE template_version_variables (
     template_version_id uuid NOT NULL,
     name text NOT NULL,
@@ -1601,6 +1597,26 @@ CREATE TABLE user_status_changes (
 
 COMMENT ON TABLE user_status_changes IS 'Tracks the history of user status changes';
 
+CREATE TABLE workspace_agent_devcontainers (
+    id uuid NOT NULL,
+    workspace_agent_id uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    workspace_folder text NOT NULL,
+    config_path text NOT NULL
+);
+
+COMMENT ON TABLE workspace_agent_devcontainers IS 'Workspace agent devcontainer configuration';
+
+COMMENT ON COLUMN workspace_agent_devcontainers.id IS 'Unique identifier';
+
+COMMENT ON COLUMN workspace_agent_devcontainers.workspace_agent_id IS 'Workspace agent foreign key';
+
+COMMENT ON COLUMN workspace_agent_devcontainers.created_at IS 'Creation timestamp';
+
+COMMENT ON COLUMN workspace_agent_devcontainers.workspace_folder IS 'Workspace folder';
+
+COMMENT ON COLUMN workspace_agent_devcontainers.config_path IS 'Path to devcontainer.json.';
+
 CREATE TABLE workspace_agent_log_sources (
     workspace_agent_id uuid NOT NULL,
     id uuid NOT NULL,
@@ -1773,6 +1789,39 @@ COMMENT ON COLUMN workspace_agents.started_at IS 'The time the agent entered the
 COMMENT ON COLUMN workspace_agents.ready_at IS 'The time the agent entered the ready or start_error lifecycle state';
 
 COMMENT ON COLUMN workspace_agents.display_order IS 'Specifies the order in which to display agents in user interfaces.';
+
+CREATE UNLOGGED TABLE workspace_app_audit_sessions (
+    agent_id uuid NOT NULL,
+    app_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    ip text NOT NULL,
+    user_agent text NOT NULL,
+    slug_or_port text NOT NULL,
+    status_code integer NOT NULL,
+    started_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    id uuid NOT NULL
+);
+
+COMMENT ON TABLE workspace_app_audit_sessions IS 'Audit sessions for workspace apps, the data in this table is ephemeral and is used to deduplicate audit log entries for workspace apps. While a session is active, the same data will not be logged again. This table does not store historical data.';
+
+COMMENT ON COLUMN workspace_app_audit_sessions.agent_id IS 'The agent that the workspace app or port forward belongs to.';
+
+COMMENT ON COLUMN workspace_app_audit_sessions.app_id IS 'The app that is currently in the workspace app. This is may be uuid.Nil because ports are not associated with an app.';
+
+COMMENT ON COLUMN workspace_app_audit_sessions.user_id IS 'The user that is currently using the workspace app. This is may be uuid.Nil if we cannot determine the user.';
+
+COMMENT ON COLUMN workspace_app_audit_sessions.ip IS 'The IP address of the user that is currently using the workspace app.';
+
+COMMENT ON COLUMN workspace_app_audit_sessions.user_agent IS 'The user agent of the user that is currently using the workspace app.';
+
+COMMENT ON COLUMN workspace_app_audit_sessions.slug_or_port IS 'The slug or port of the workspace app that the user is currently using.';
+
+COMMENT ON COLUMN workspace_app_audit_sessions.status_code IS 'The HTTP status produced by the token authorization. Defaults to 200 if no status is provided.';
+
+COMMENT ON COLUMN workspace_app_audit_sessions.started_at IS 'The time the user started the session.';
+
+COMMENT ON COLUMN workspace_app_audit_sessions.updated_at IS 'The time the session was last updated.';
 
 CREATE TABLE workspace_app_stats (
     id bigint NOT NULL,
@@ -2264,6 +2313,9 @@ ALTER TABLE ONLY template_version_preset_parameters
 ALTER TABLE ONLY template_version_presets
     ADD CONSTRAINT template_version_presets_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY template_version_terraform_values
+    ADD CONSTRAINT template_version_terraform_values_template_version_id_key UNIQUE (template_version_id);
+
 ALTER TABLE ONLY template_version_variables
     ADD CONSTRAINT template_version_variables_template_version_id_name_key UNIQUE (template_version_id, name);
 
@@ -2294,6 +2346,9 @@ ALTER TABLE ONLY user_status_changes
 ALTER TABLE ONLY users
     ADD CONSTRAINT users_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY workspace_agent_devcontainers
+    ADD CONSTRAINT workspace_agent_devcontainers_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY workspace_agent_log_sources
     ADD CONSTRAINT workspace_agent_log_sources_pkey PRIMARY KEY (workspace_agent_id, id);
 
@@ -2320,6 +2375,12 @@ ALTER TABLE ONLY workspace_agent_volume_resource_monitors
 
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY workspace_app_audit_sessions
+    ADD CONSTRAINT workspace_app_audit_sessions_agent_id_app_id_user_id_ip_use_key UNIQUE (agent_id, app_id, user_id, ip, user_agent, slug_or_port, status_code);
+
+ALTER TABLE ONLY workspace_app_audit_sessions
+    ADD CONSTRAINT workspace_app_audit_sessions_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY workspace_app_stats
     ADD CONSTRAINT workspace_app_stats_pkey PRIMARY KEY (id);
@@ -2441,13 +2502,15 @@ COMMENT ON INDEX template_usage_stats_start_time_template_id_user_id_idx IS 'Ind
 
 CREATE UNIQUE INDEX templates_organization_id_name_idx ON templates USING btree (organization_id, lower((name)::text)) WHERE (deleted = false);
 
-CREATE INDEX user_is_system_idx ON users USING btree (is_system);
-
 CREATE UNIQUE INDEX user_links_linked_id_login_type_idx ON user_links USING btree (linked_id, login_type) WHERE (linked_id <> ''::text);
 
 CREATE UNIQUE INDEX users_email_lower_idx ON users USING btree (lower(email)) WHERE (deleted = false);
 
 CREATE UNIQUE INDEX users_username_lower_idx ON users USING btree (lower(username)) WHERE (deleted = false);
+
+CREATE INDEX workspace_agent_devcontainers_workspace_agent_id ON workspace_agent_devcontainers USING btree (workspace_agent_id);
+
+COMMENT ON INDEX workspace_agent_devcontainers_workspace_agent_id IS 'Workspace agent foreign key and query index';
 
 CREATE INDEX workspace_agent_scripts_workspace_agent_id_idx ON workspace_agent_scripts USING btree (workspace_agent_id);
 
@@ -2462,6 +2525,10 @@ COMMENT ON INDEX workspace_agent_stats_template_id_created_at_user_id_idx IS 'Su
 CREATE INDEX workspace_agents_auth_token_idx ON workspace_agents USING btree (auth_token);
 
 CREATE INDEX workspace_agents_resource_id_idx ON workspace_agents USING btree (resource_id);
+
+CREATE UNIQUE INDEX workspace_app_audit_sessions_unique_index ON workspace_app_audit_sessions USING btree (agent_id, app_id, user_id, ip, user_agent, slug_or_port, status_code);
+
+COMMENT ON INDEX workspace_app_audit_sessions_unique_index IS 'Unique index to ensure that we do not allow duplicate entries from multiple transactions.';
 
 CREATE INDEX workspace_app_stats_workspace_id_idx ON workspace_app_stats USING btree (workspace_id);
 
@@ -2611,10 +2678,6 @@ CREATE OR REPLACE VIEW workspace_prebuilds AS
 
 CREATE TRIGGER inhibit_enqueue_if_disabled BEFORE INSERT ON notification_messages FOR EACH ROW EXECUTE FUNCTION inhibit_enqueue_if_disabled();
 
-CREATE TRIGGER prevent_system_user_deletions BEFORE DELETE ON users FOR EACH ROW WHEN ((old.is_system = true)) EXECUTE FUNCTION prevent_system_user_changes();
-
-CREATE TRIGGER prevent_system_user_updates BEFORE UPDATE ON users FOR EACH ROW WHEN ((old.is_system = true)) EXECUTE FUNCTION prevent_system_user_changes();
-
 CREATE TRIGGER protect_deleting_organizations BEFORE UPDATE ON organizations FOR EACH ROW WHEN (((new.deleted = true) AND (old.deleted = false))) EXECUTE FUNCTION protect_deleting_organizations();
 
 CREATE TRIGGER remove_organization_member_custom_role BEFORE DELETE ON custom_roles FOR EACH ROW EXECUTE FUNCTION remove_organization_member_role();
@@ -2763,6 +2826,9 @@ ALTER TABLE ONLY template_version_preset_parameters
 ALTER TABLE ONLY template_version_presets
     ADD CONSTRAINT template_version_presets_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY template_version_terraform_values
+    ADD CONSTRAINT template_version_terraform_values_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
+
 ALTER TABLE ONLY template_version_variables
     ADD CONSTRAINT template_version_variables_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
 
@@ -2802,6 +2868,9 @@ ALTER TABLE ONLY user_links
 ALTER TABLE ONLY user_status_changes
     ADD CONSTRAINT user_status_changes_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);
 
+ALTER TABLE ONLY workspace_agent_devcontainers
+    ADD CONSTRAINT workspace_agent_devcontainers_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
+
 ALTER TABLE ONLY workspace_agent_log_sources
     ADD CONSTRAINT workspace_agent_log_sources_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
 
@@ -2828,6 +2897,9 @@ ALTER TABLE ONLY workspace_agent_volume_resource_monitors
 
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_resource_id_fkey FOREIGN KEY (resource_id) REFERENCES workspace_resources(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_app_audit_sessions
+    ADD CONSTRAINT workspace_app_audit_sessions_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_app_stats
     ADD CONSTRAINT workspace_app_stats_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id);

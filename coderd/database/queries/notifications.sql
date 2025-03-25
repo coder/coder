@@ -84,7 +84,6 @@ SELECT
     nm.method,
     nm.attempt_count::int                                                 AS attempt_count,
     nm.queued_seconds::float                                              AS queued_seconds,
-    nm.targets,
     -- template
     nt.id                                                                 AS template_id,
     nt.title_template,

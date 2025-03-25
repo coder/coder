@@ -163,6 +163,7 @@ export interface Agent {
   extraEnvs: Env[];
   order: number;
   resourcesMonitoring: ResourcesMonitoring | undefined;
+  devcontainers: Devcontainer[];
 }
 
 export interface Agent_Metadata {
@@ -219,6 +220,11 @@ export interface Script {
   runOnStop: boolean;
   timeoutSeconds: number;
   logPath: string;
+}
+
+export interface Devcontainer {
+  workspaceFolder: string;
+  configPath: string;
 }
 
 /** App represents a dev-accessible application on the workspace. */
@@ -347,6 +353,7 @@ export interface PlanComplete {
   timings: Timing[];
   modules: Module[];
   presets: Preset[];
+  plan: Uint8Array;
 }
 
 /**
@@ -662,6 +669,9 @@ export const Agent = {
     if (message.resourcesMonitoring !== undefined) {
       ResourcesMonitoring.encode(message.resourcesMonitoring, writer.uint32(194).fork()).ldelim();
     }
+    for (const v of message.devcontainers) {
+      Devcontainer.encode(v!, writer.uint32(202).fork()).ldelim();
+    }
     return writer;
   },
 };
@@ -802,6 +812,18 @@ export const Script = {
     }
     if (message.logPath !== "") {
       writer.uint32(74).string(message.logPath);
+    }
+    return writer;
+  },
+};
+
+export const Devcontainer = {
+  encode(message: Devcontainer, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.workspaceFolder !== "") {
+      writer.uint32(10).string(message.workspaceFolder);
+    }
+    if (message.configPath !== "") {
+      writer.uint32(18).string(message.configPath);
     }
     return writer;
   },
@@ -1102,6 +1124,9 @@ export const PlanComplete = {
     }
     for (const v of message.presets) {
       Preset.encode(v!, writer.uint32(66).fork()).ldelim();
+    }
+    if (message.plan.length !== 0) {
+      writer.uint32(74).bytes(message.plan);
     }
     return writer;
   },

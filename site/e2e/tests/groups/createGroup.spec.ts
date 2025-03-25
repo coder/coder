@@ -1,12 +1,11 @@
 import { expect, test } from "@playwright/test";
-import { defaultOrganizationName } from "../../constants";
-import { randomName, requiresLicense } from "../../helpers";
-import { login } from "../../helpers";
+import { defaultOrganizationName, users } from "../../constants";
+import { login, randomName, requiresLicense } from "../../helpers";
 import { beforeCoderTest } from "../../hooks";
 
 test.beforeEach(async ({ page }) => {
 	beforeCoderTest(page);
-	await login(page);
+	await login(page, users.userAdmin);
 });
 
 test("create group", async ({ page, baseURL }) => {

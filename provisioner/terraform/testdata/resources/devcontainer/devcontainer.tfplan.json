@@ -1,0 +1,288 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.11.0",
+  "planned_values": {
+    "root_module": {
+      "resources": [
+        {
+          "address": "coder_agent.main",
+          "mode": "managed",
+          "type": "coder_agent",
+          "name": "main",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 1,
+          "values": {
+            "arch": "amd64",
+            "auth": "token",
+            "connection_timeout": 120,
+            "dir": null,
+            "env": null,
+            "metadata": [],
+            "motd_file": null,
+            "order": null,
+            "os": "linux",
+            "resources_monitoring": [],
+            "shutdown_script": null,
+            "startup_script": null,
+            "startup_script_behavior": "non-blocking",
+            "troubleshooting_url": null
+          },
+          "sensitive_values": {
+            "display_apps": [],
+            "metadata": [],
+            "resources_monitoring": [],
+            "token": true
+          }
+        },
+        {
+          "address": "coder_devcontainer.dev1",
+          "mode": "managed",
+          "type": "coder_devcontainer",
+          "name": "dev1",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 1,
+          "values": {
+            "config_path": null,
+            "workspace_folder": "/workspace1"
+          },
+          "sensitive_values": {}
+        },
+        {
+          "address": "coder_devcontainer.dev2",
+          "mode": "managed",
+          "type": "coder_devcontainer",
+          "name": "dev2",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 1,
+          "values": {
+            "config_path": "/workspace2/.devcontainer/devcontainer.json",
+            "workspace_folder": "/workspace2"
+          },
+          "sensitive_values": {}
+        },
+        {
+          "address": "null_resource.dev",
+          "mode": "managed",
+          "type": "null_resource",
+          "name": "dev",
+          "provider_name": "registry.terraform.io/hashicorp/null",
+          "schema_version": 0,
+          "values": {
+            "triggers": null
+          },
+          "sensitive_values": {}
+        }
+      ]
+    }
+  },
+  "resource_changes": [
+    {
+      "address": "coder_agent.main",
+      "mode": "managed",
+      "type": "coder_agent",
+      "name": "main",
+      "provider_name": "registry.terraform.io/coder/coder",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "arch": "amd64",
+          "auth": "token",
+          "connection_timeout": 120,
+          "dir": null,
+          "env": null,
+          "metadata": [],
+          "motd_file": null,
+          "order": null,
+          "os": "linux",
+          "resources_monitoring": [],
+          "shutdown_script": null,
+          "startup_script": null,
+          "startup_script_behavior": "non-blocking",
+          "troubleshooting_url": null
+        },
+        "after_unknown": {
+          "display_apps": true,
+          "id": true,
+          "init_script": true,
+          "metadata": [],
+          "resources_monitoring": [],
+          "token": true
+        },
+        "before_sensitive": false,
+        "after_sensitive": {
+          "display_apps": [],
+          "metadata": [],
+          "resources_monitoring": [],
+          "token": true
+        }
+      }
+    },
+    {
+      "address": "coder_devcontainer.dev1",
+      "mode": "managed",
+      "type": "coder_devcontainer",
+      "name": "dev1",
+      "provider_name": "registry.terraform.io/coder/coder",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "config_path": null,
+          "workspace_folder": "/workspace1"
+        },
+        "after_unknown": {
+          "agent_id": true,
+          "id": true
+        },
+        "before_sensitive": false,
+        "after_sensitive": {}
+      }
+    },
+    {
+      "address": "coder_devcontainer.dev2",
+      "mode": "managed",
+      "type": "coder_devcontainer",
+      "name": "dev2",
+      "provider_name": "registry.terraform.io/coder/coder",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "config_path": "/workspace2/.devcontainer/devcontainer.json",
+          "workspace_folder": "/workspace2"
+        },
+        "after_unknown": {
+          "agent_id": true,
+          "id": true
+        },
+        "before_sensitive": false,
+        "after_sensitive": {}
+      }
+    },
+    {
+      "address": "null_resource.dev",
+      "mode": "managed",
+      "type": "null_resource",
+      "name": "dev",
+      "provider_name": "registry.terraform.io/hashicorp/null",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "triggers": null
+        },
+        "after_unknown": {
+          "id": true
+        },
+        "before_sensitive": false,
+        "after_sensitive": {}
+      }
+    }
+  ],
+  "configuration": {
+    "provider_config": {
+      "coder": {
+        "name": "coder",
+        "full_name": "registry.terraform.io/coder/coder",
+        "version_constraint": ">= 2.0.0"
+      },
+      "null": {
+        "name": "null",
+        "full_name": "registry.terraform.io/hashicorp/null"
+      }
+    },
+    "root_module": {
+      "resources": [
+        {
+          "address": "coder_agent.main",
+          "mode": "managed",
+          "type": "coder_agent",
+          "name": "main",
+          "provider_config_key": "coder",
+          "expressions": {
+            "arch": {
+              "constant_value": "amd64"
+            },
+            "os": {
+              "constant_value": "linux"
+            }
+          },
+          "schema_version": 1
+        },
+        {
+          "address": "coder_devcontainer.dev1",
+          "mode": "managed",
+          "type": "coder_devcontainer",
+          "name": "dev1",
+          "provider_config_key": "coder",
+          "expressions": {
+            "agent_id": {
+              "references": [
+                "coder_agent.main.id",
+                "coder_agent.main"
+              ]
+            },
+            "workspace_folder": {
+              "constant_value": "/workspace1"
+            }
+          },
+          "schema_version": 1
+        },
+        {
+          "address": "coder_devcontainer.dev2",
+          "mode": "managed",
+          "type": "coder_devcontainer",
+          "name": "dev2",
+          "provider_config_key": "coder",
+          "expressions": {
+            "agent_id": {
+              "references": [
+                "coder_agent.main.id",
+                "coder_agent.main"
+              ]
+            },
+            "config_path": {
+              "constant_value": "/workspace2/.devcontainer/devcontainer.json"
+            },
+            "workspace_folder": {
+              "constant_value": "/workspace2"
+            }
+          },
+          "schema_version": 1
+        },
+        {
+          "address": "null_resource.dev",
+          "mode": "managed",
+          "type": "null_resource",
+          "name": "dev",
+          "provider_config_key": "null",
+          "schema_version": 0,
+          "depends_on": [
+            "coder_agent.main"
+          ]
+        }
+      ]
+    }
+  },
+  "relevant_attributes": [
+    {
+      "resource": "coder_agent.main",
+      "attribute": [
+        "id"
+      ]
+    }
+  ],
+  "timestamp": "2025-03-19T12:53:34Z",
+  "applyable": true,
+  "complete": true,
+  "errored": false
+}

@@ -134,7 +134,13 @@ export const MarkNotificationAsRead: Story = {
 			notifications: MockNotifications,
 			unread_count: 2,
 		})),
-		markNotificationAsRead: fn(),
+		markNotificationAsRead: fn(async () => ({
+			unread_count: 1,
+			notification: {
+				...MockNotifications[1],
+				read_at: new Date().toISOString(),
+			},
+		})),
 	},
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);

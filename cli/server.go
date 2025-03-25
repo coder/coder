@@ -934,7 +934,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				// The notification manager is responsible for:
 				//   - creating notifiers and managing their lifecycles (notifiers are responsible for dequeueing/sending notifications)
 				//   - keeping the store updated with status updates
-				notificationsManager, err = notifications.NewManager(notificationsCfg, options.Database, helpers, metrics, logger.Named("notifications.manager"))
+				notificationsManager, err = notifications.NewManager(notificationsCfg, options.Database, options.Pubsub, helpers, metrics, logger.Named("notifications.manager"))
 				if err != nil {
 					return xerrors.Errorf("failed to instantiate notification manager: %w", err)
 				}

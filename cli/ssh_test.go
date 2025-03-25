@@ -1997,7 +1997,7 @@ func TestSSH_Container(t *testing.T) {
 		_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
 
 		mLister.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
-			Containers: []codersdk.WorkspaceAgentDevcontainer{
+			Containers: []codersdk.WorkspaceAgentContainer{
 				{
 					ID:           uuid.NewString(),
 					FriendlyName: "something_completely_different",

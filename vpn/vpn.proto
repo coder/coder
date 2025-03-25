@@ -185,6 +185,12 @@ message StartRequest {
 		string value = 2;
 	}
 	repeated Header headers = 4;
+	// Device ID from Coder Desktop
+	string device_id = 5;
+	// Device OS from Coder Desktop
+	string device_os = 6;
+	// Coder Desktop version
+	string coder_desktop_version = 7;
 }
 
 message StartResponse {

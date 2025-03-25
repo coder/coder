@@ -2,7 +2,7 @@
   "_version": "1.1",
   "msg_id": "00000000-0000-0000-0000-000000000000",
   "payload": {
-    "_version": "1.1",
+    "_version": "1.2",
     "notification_name": "Template Deprecated",
     "notification_template_id": "00000000-0000-0000-0000-000000000000",
     "user_id": "00000000-0000-0000-0000-000000000000",
@@ -29,6 +29,6 @@
   },
   "title": "Template 'alpha' has been deprecated",
   "title_markdown": "Template 'alpha' has been deprecated",
-  "body": "Hello Bobby,\n\nThe template alpha has been deprecated with the following message:\n\nThis template has been replaced by beta\n\nNew workspaces may not be created from this template. Existing workspaces will continue to function normally.",
-  "body_markdown": "Hello Bobby,\n\nThe template **alpha** has been deprecated with the following message:\n\n**This template has been replaced by beta**\n\nNew workspaces may not be created from this template. Existing workspaces will continue to function normally."
+  "body": "The template alpha has been deprecated with the following message:\n\nThis template has been replaced by beta\n\nNew workspaces may not be created from this template. Existing workspaces will continue to function normally.",
+  "body_markdown": "The template **alpha** has been deprecated with the following message:\n\n**This template has been replaced by beta**\n\nNew workspaces may not be created from this template. Existing workspaces will continue to function normally."
 }
