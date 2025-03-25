@@ -1116,38 +1116,19 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 			}
 
 			var (
-				// Clone the scripts so we can remove the devcontainer scripts.
-				scripts = slices.Clone(manifest.Scripts)
+				scripts          = manifest.Scripts
+				scriptRunnerOpts []agentscripts.InitOption
+			)
+			if a.experimentalDevcontainersEnabled {
+				var dcScripts []codersdk.WorkspaceAgentScript
+				scripts, dcScripts = agentcontainers.ExtractDevcontainerScripts(a.logger, expandPathToAbs, manifest.Devcontainers, scripts)
 				// The post-start scripts are used to autostart Dev Containers
 				// after the start scripts have completed. This is necessary
 				// because the Dev Container may depend on the workspace being
 				// initialized (git clone, etc).
-				postStartScripts []codersdk.WorkspaceAgentScript
-			)
-			if a.experimentalDevcontainersEnabled {
-				for _, dc := range manifest.Devcontainers {
-					// TODO(mafredri): Verify `@devcontainers/cli` presence.
-					// TODO(mafredri): Verify workspace folder exists.
-					// TODO(mafredri): If set, verify config path exists.
-					dc = expandDevcontainerPaths(a.logger, dc)
-
-					for i, s := range scripts {
-						// The devcontainer scripts match the devcontainer ID for
-						// identification.
-						if s.ID == dc.ID {
-							scripts = slices.Delete(scripts, i, i+1)
-							postStartScripts = append(postStartScripts, agentcontainers.DevcontainerStartupScript(dc, s))
-							break
-						}
-					}
-				}
+				scriptRunnerOpts = append(scriptRunnerOpts, agentscripts.WithPostStartScripts(dcScripts...))
 			}
-
-			err = a.scriptRunner.Init(
-				manifest.Scripts,
-				aAPI.ScriptCompleted,
-				agentscripts.WithPostStartScripts(postStartScripts...),
-			)
+			err = a.scriptRunner.Init(scripts, aAPI.ScriptCompleted, scriptRunnerOpts...)
 			if err != nil {
 				return xerrors.Errorf("init script runner: %w", err)
 			}
@@ -1909,19 +1890,6 @@ func expandPathToAbs(path string) (string, error) {
 		path = filepath.Join(home, path)
 	}
 	return path, nil
-}
-
-func expandDevcontainerPaths(logger slog.Logger, dc codersdk.WorkspaceAgentDevcontainer) codersdk.WorkspaceAgentDevcontainer {
-	var err error
-	if dc.WorkspaceFolder, err = expandPathToAbs(dc.WorkspaceFolder); err != nil {
-		logger.Warn(context.Background(), "expand devcontainer workspace folder failed", slog.Error(err))
-	}
-	if dc.ConfigPath != "" {
-		if dc.ConfigPath, err = expandPathToAbs(dc.ConfigPath); err != nil {
-			logger.Warn(context.Background(), "expand devcontainer config path failed", slog.Error(err))
-		}
-	}
-	return dc
 }
 
 // EnvAgentSubsystem is the environment variable used to denote the
