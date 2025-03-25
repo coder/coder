@@ -1060,6 +1060,7 @@ func TestCompleteJob(t *testing.T) {
 						ExternalAuthProviders: []*sdkproto.ExternalAuthProviderResource{{
 							Id: "github",
 						}},
+						Plan: []byte("{}"),
 					},
 				},
 			})
@@ -1115,6 +1116,7 @@ func TestCompleteJob(t *testing.T) {
 						}},
 						StopResources:         []*sdkproto.Resource{},
 						ExternalAuthProviders: []*sdkproto.ExternalAuthProviderResource{{Id: "github"}},
+						Plan:                  []byte("{}"),
 					},
 				},
 			})
@@ -1523,6 +1525,7 @@ func TestCompleteJob(t *testing.T) {
 									Source:  "github.com/example2/example",
 								},
 							},
+							Plan: []byte("{}"),
 						},
 					},
 				},
@@ -2189,6 +2192,40 @@ func TestInsertWorkspaceResource(t *testing.T) {
 		require.Equal(t, "/volume1", volMonitors[0].Path)
 		require.Equal(t, int32(50), volMonitors[1].Threshold)
 		require.Equal(t, "/volume2", volMonitors[1].Path)
+	})
+
+	t.Run("Devcontainers", func(t *testing.T) {
+		t.Parallel()
+		db := dbmem.New()
+		job := uuid.New()
+		err := insert(db, job, &sdkproto.Resource{
+			Name: "something",
+			Type: "aws_instance",
+			Agents: []*sdkproto.Agent{{
+				Name: "dev",
+				Devcontainers: []*sdkproto.Devcontainer{
+					{Name: "foo", WorkspaceFolder: "/workspace1"},
+					{Name: "bar", WorkspaceFolder: "/workspace2", ConfigPath: "/workspace2/.devcontainer/devcontainer.json"},
+				},
+			}},
+		})
+		require.NoError(t, err)
+		resources, err := db.GetWorkspaceResourcesByJobID(ctx, job)
+		require.NoError(t, err)
+		require.Len(t, resources, 1)
+		agents, err := db.GetWorkspaceAgentsByResourceIDs(ctx, []uuid.UUID{resources[0].ID})
+		require.NoError(t, err)
+		require.Len(t, agents, 1)
+		agent := agents[0]
+		devcontainers, err := db.GetWorkspaceAgentDevcontainersByAgentID(ctx, agent.ID)
+		require.NoError(t, err)
+		require.Len(t, devcontainers, 2)
+		require.Equal(t, "foo", devcontainers[0].Name)
+		require.Equal(t, "/workspace1", devcontainers[0].WorkspaceFolder)
+		require.Equal(t, "", devcontainers[0].ConfigPath)
+		require.Equal(t, "bar", devcontainers[1].Name)
+		require.Equal(t, "/workspace2", devcontainers[1].WorkspaceFolder)
+		require.Equal(t, "/workspace2/.devcontainer/devcontainer.json", devcontainers[1].ConfigPath)
 	})
 }
 

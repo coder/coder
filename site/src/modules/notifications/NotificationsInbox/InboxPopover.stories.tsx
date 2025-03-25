@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, fn, userEvent, within } from "@storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "@storybook/test";
 import { MockNotifications } from "testHelpers/entities";
 import { InboxPopover } from "./InboxPopover";
 
@@ -27,13 +27,6 @@ export const Default: Story = {
 	args: {
 		unreadCount: 2,
 		notifications: MockNotifications.slice(0, 3),
-	},
-};
-
-export const Scrollable: Story = {
-	args: {
-		unreadCount: 2,
-		notifications: MockNotifications,
 	},
 };
 

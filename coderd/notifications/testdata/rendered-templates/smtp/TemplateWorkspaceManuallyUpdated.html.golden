@@ -10,13 +10,13 @@ MIME-Version: 1.0
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/plain; charset=UTF-8
 
-Hello Bobby,
+Hi Bobby,
 
 A new workspace build has been manually created for your workspace bobby-wo=
 rkspace by bobby to update it to version alpha of template bobby-template.
 
 
-View workspace: http://test.com/@bobby/bobby-workspace
+View workspace: http://test.com/@mrbobby/bobby-workspace
 
 View template version: http://test.com/templates/bobby-organization/bobby-t=
 emplate/versions/alpha
@@ -49,17 +49,17 @@ argin: 8px 0 32px; line-height: 1.5;">
         Workspace 'bobby-workspace' has been manually updated
       </h1>
       <div style=3D"line-height: 1.5;">
-        <p>Hello Bobby,</p>
-
-<p>A new workspace build has been manually created for your workspace <stro=
-ng>bobby-workspace</strong> by <strong>bobby</strong> to update it to versi=
-on <strong>alpha</strong> of template <strong>bobby-template</strong>.</p>
+        <p>Hi Bobby,</p>
+        <p>A new workspace build has been manually created for your workspa=
+ce <strong>bobby-workspace</strong> by <strong>bobby</strong> to update it =
+to version <strong>alpha</strong> of template <strong>bobby-template</stron=
+g>.</p>
       </div>
       <div style=3D"text-align: center; margin-top: 32px;">
        =20
-        <a href=3D"http://test.com/@bobby/bobby-workspace" style=3D"display=
-: inline-block; padding: 13px 24px; background-color: #020617; color: #f8fa=
-fc; text-decoration: none; border-radius: 8px; margin: 0 4px;">
+        <a href=3D"http://test.com/@mrbobby/bobby-workspace" style=3D"displ=
+ay: inline-block; padding: 13px 24px; background-color: #020617; color: #f8=
+fafc; text-decoration: none; border-radius: 8px; margin: 0 4px;">
           View workspace
         </a>
        =20

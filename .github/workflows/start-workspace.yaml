@@ -1,0 +1,32 @@
+name: Start Workspace On Issue Creation or Comment
+
+on:
+  issues:
+    types: [opened]
+  issue_comment:
+    types: [created]
+
+permissions:
+  issues: write
+
+jobs:
+  comment:
+    runs-on: ubuntu-latest
+    environment: aidev
+    timeout-minutes: 5
+    steps:
+      - name: Start Coder workspace
+        uses: coder/start-workspace-action@26d3600161d67901f24d8612793d3b82771cde2d
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          trigger-phrase: "@coder"
+          coder-url: ${{ secrets.CODER_URL }}
+          coder-token: ${{ secrets.CODER_TOKEN }}
+          template-name: ${{ secrets.CODER_TEMPLATE_NAME }}
+          workspace-name: issue-${{ github.event.issue.number }}
+          parameters: |-
+            Coder Image: codercom/oss-dogfood:latest
+            Coder Repository Base Directory: "~"
+            AI Code Prompt: "Use the gh CLI tool to read the details of issue https://github.com/${{ github.repository }}/issues/${{ github.event.issue.number }} and then address it."
+            Region: us-pittsburgh
+          user-mapping: ${{ secrets.CODER_USER_MAPPING }}
