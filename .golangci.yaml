@@ -211,7 +211,7 @@ issues:
         - errcheck
         - forcetypeassert
         - exhaustruct # This is unhelpful in tests.
-        - unused-parameter # TODO(JonA): disabling in order to update golangci-lint
+        - revive:unused-parameter # TODO(JonA): disabling in order to update golangci-lint
         - gosec # TODO(JonA): disabling in order to update golangci-lint
     - path: scripts/*
       linters:
