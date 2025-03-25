@@ -290,6 +290,9 @@ export interface ChangePasswordWithOneTimePasscodeRequest {
 	readonly one_time_passcode: string;
 }
 
+// From codersdk/client.go
+export const CoderDesktopTelemetryHeader = "Coder-Desktop-Telemetry";
+
 // From codersdk/insights.go
 export interface ConnectionLatency {
 	readonly p50: number;
