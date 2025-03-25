@@ -693,6 +693,7 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	}
 	defer release()
 	log.Debug(ctx, "dialed workspace agent")
+	// #nosec G115 - Safe conversion for terminal height/width which are expected to be within uint16 range (0-65535)
 	ptNetConn, err := agentConn.ReconnectingPTY(ctx, reconnect, uint16(height), uint16(width), r.URL.Query().Get("command"), func(arp *workspacesdk.AgentReconnectingPTYInit) {
 		arp.Container = container
 		arp.ContainerUser = containerUser

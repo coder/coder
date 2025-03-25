@@ -5977,6 +5977,7 @@ func (q *FakeQuerier) GetTemplateVersionsByTemplateID(_ context.Context, arg dat
 
 	if arg.LimitOpt > 0 {
 		if int(arg.LimitOpt) > len(version) {
+			// #nosec G115 - Safe conversion as version slice length is expected to be within int32 range
 			arg.LimitOpt = int32(len(version))
 		}
 		version = version[:arg.LimitOpt]
@@ -6601,6 +6602,7 @@ func (q *FakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 
 	if params.LimitOpt > 0 {
 		if int(params.LimitOpt) > len(users) {
+			// #nosec G115 - Safe conversion as users slice length is expected to be within int32 range
 			params.LimitOpt = int32(len(users))
 		}
 		users = users[:params.LimitOpt]
@@ -7528,6 +7530,7 @@ func (q *FakeQuerier) GetWorkspaceBuildsByWorkspaceID(_ context.Context,
 
 	if params.LimitOpt > 0 {
 		if int(params.LimitOpt) > len(history) {
+			// #nosec G115 - Safe conversion as history slice length is expected to be within int32 range
 			params.LimitOpt = int32(len(history))
 		}
 		history = history[:params.LimitOpt]
@@ -9188,6 +9191,7 @@ func (q *FakeQuerier) InsertWorkspaceAgentLogs(_ context.Context, arg database.I
 			LogSourceID: arg.LogSourceID,
 			Output:      output,
 		})
+			// #nosec G115 - Safe conversion as log output length is expected to be within int32 range
 		outputLength += int32(len(output))
 	}
 	for index, agent := range q.workspaceAgents {
@@ -12334,8 +12338,11 @@ TemplateUsageStatsInsertLoop:
 			SshMins:             int16(stat.SSHMins),
 			// #nosec G115 - Safe conversion for SFTP minutes which are expected to be within int16 range
 			SftpMins:            int16(stat.SFTPMins),
+			// #nosec G115 - Safe conversion for ReconnectingPTY minutes which are expected to be within int16 range
 			ReconnectingPtyMins: int16(stat.ReconnectingPTYMins),
+			// #nosec G115 - Safe conversion for VSCode minutes which are expected to be within int16 range
 			VscodeMins:          int16(stat.VSCodeMins),
+			// #nosec G115 - Safe conversion for JetBrains minutes which are expected to be within int16 range
 			JetbrainsMins:       int16(stat.JetBrainsMins),
 		}
 		if len(stat.AppUsageMinutes) > 0 {

@@ -54,7 +54,9 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	// #nosec G115 - Safe conversion as pagination offset is expected to be within int32 range
 	filter.OffsetOpt = int32(page.Offset)
+	// #nosec G115 - Safe conversion as pagination limit is expected to be within int32 range
 	filter.LimitOpt = int32(page.Limit)
 
 	if filter.Username == "me" {

@@ -1566,8 +1566,11 @@ func (a *agent) Collect(ctx context.Context, networkStats map[netlogtype.Connect
 		stats.ConnectionsByProto[conn.Proto.String()]++
 		// #nosec G115 - Safe conversions for network statistics which we expect to be within int64 range
 		stats.RxBytes += int64(counts.RxBytes)
+		// #nosec G115 - Safe conversions for network statistics which we expect to be within int64 range
 		stats.RxPackets += int64(counts.RxPackets)
+		// #nosec G115 - Safe conversions for network statistics which we expect to be within int64 range
 		stats.TxBytes += int64(counts.TxBytes)
+		// #nosec G115 - Safe conversions for network statistics which we expect to be within int64 range
 		stats.TxPackets += int64(counts.TxPackets)
 	}
 
@@ -2053,5 +2056,6 @@ func WorkspaceKeySeed(workspaceID uuid.UUID, agentName string) (int64, error) {
 		return 42, err
 	}
 
+	// #nosec G115 - Safe conversion to generate int64 hash from Sum64, data loss acceptable
 	return int64(h.Sum64()), nil
 }

@@ -74,6 +74,7 @@ func TestSpeaker_RawPeer(t *testing.T) {
 	msgBuf := make([]byte, msgLen)
 	n, err = mp.Read(msgBuf)
 	require.NoError(t, err)
+	// #nosec G115 - Safe conversion of read bytes count to uint32 for comparison with message length
 	require.Equal(t, msgLen, uint32(n))
 	msg := new(TunnelMessage)
 	err = proto.Unmarshal(msgBuf, msg)

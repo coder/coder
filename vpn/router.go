@@ -115,7 +115,7 @@ func convertToIPV4Route(route netip.Prefix) *NetworkSettingsRequest_IPv4Settings
 
 func convertToIPV6Route(route netip.Prefix) *NetworkSettingsRequest_IPv6Settings_IPv6Route {
 	return &NetworkSettingsRequest_IPv6Settings_IPv6Route{
-		Destination:  route.Addr().String(),
+		Destination: route.Addr().String(),
 		// #nosec G115 - Safe conversion as prefix lengths are always within uint32 range (0-128)
 		PrefixLength: uint32(route.Bits()),
 		Router:       "", // N/A

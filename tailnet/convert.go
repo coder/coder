@@ -51,10 +51,11 @@ func NodeToProto(n *Node) (*proto.Node, error) {
 		allowedIPs[i] = string(s)
 	}
 	return &proto.Node{
-		Id:                  int64(n.ID),
-		AsOf:                timestamppb.New(n.AsOf),
-		Key:                 k,
-		Disco:               string(disco),
+		Id:    int64(n.ID),
+		AsOf:  timestamppb.New(n.AsOf),
+		Key:   k,
+		Disco: string(disco),
+		// #nosec G115 - Safe conversion as DERP region IDs are small integers expected to be within int32 range
 		PreferredDerp:       int32(n.PreferredDERP),
 		DerpLatency:         n.DERPLatency,
 		DerpForcedWebsocket: derpForcedWebsocket,
@@ -191,14 +192,16 @@ func DERPNodeToProto(node *tailcfg.DERPNode) *proto.DERPMap_Region_Node {
 	}
 
 	return &proto.DERPMap_Region_Node{
-		Name:             node.Name,
-		RegionId:         int64(node.RegionID),
-		HostName:         node.HostName,
-		CertName:         node.CertName,
-		Ipv4:             node.IPv4,
-		Ipv6:             node.IPv6,
-		StunPort:         int32(node.STUNPort),
-		StunOnly:         node.STUNOnly,
+		Name:     node.Name,
+		RegionId: int64(node.RegionID),
+		HostName: node.HostName,
+		CertName: node.CertName,
+		Ipv4:     node.IPv4,
+		Ipv6:     node.IPv6,
+		// #nosec G115 - Safe conversion as STUN port is within int32 range (0-65535)
+		StunPort: int32(node.STUNPort),
+		StunOnly: node.STUNOnly,
+		// #nosec G115 - Safe conversion as DERP port is within int32 range (0-65535)
 		DerpPort:         int32(node.DERPPort),
 		InsecureForTests: node.InsecureForTests,
 		ForceHttp:        node.ForceHTTP,

@@ -327,10 +327,11 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			}
 
 			agnt := agent.New(agent.Options{
-				Client:            client,
-				Logger:            logger,
-				LogDir:            logDir,
-				ScriptDataDir:     scriptDataDir,
+				Client:        client,
+				Logger:        logger,
+				LogDir:        logDir,
+				ScriptDataDir: scriptDataDir,
+				// #nosec G115 - Safe conversion as tailnet listen port is within uint16 range (0-65535)
 				TailnetListenPort: uint16(tailnetListenPort),
 				ExchangeToken: func(ctx context.Context) (string, error) {
 					if exchangeToken == nil {

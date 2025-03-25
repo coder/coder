@@ -605,6 +605,7 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	startingRegionID, _ := getProxyDERPStartingRegionID(api.Options.BaseDERPMap)
+	// #nosec G115 - Safe conversion as DERP region IDs are small integers expected to be within int32 range
 	regionID := int32(startingRegionID) + proxy.RegionID
 
 	err := api.Database.InTx(func(db database.Store) error {

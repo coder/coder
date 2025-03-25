@@ -756,8 +756,9 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			DefaultValue: param.Default,
 			Icon:         param.Icon,
 			Required:     !param.Optional,
-			Order:        int32(param.Order),
-			Ephemeral:    param.Ephemeral,
+			// #nosec G115 - Safe conversion as parameter order value is expected to be within int32 range
+			Order:     int32(param.Order),
+			Ephemeral: param.Ephemeral,
 		}
 		if len(param.Validation) == 1 {
 			protoParam.ValidationRegex = param.Validation[0].Regex
@@ -940,6 +941,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 }
 
 func PtrInt32(number int) *int32 {
+	// #nosec G115 - Safe conversion as the number is expected to be within int32 range
 	n := int32(number)
 	return &n
 }

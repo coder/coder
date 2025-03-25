@@ -42,6 +42,7 @@ func ttyWidth() int {
 // wrapTTY wraps a string to the width of the terminal, or 80 no terminal
 // is detected.
 func wrapTTY(s string) string {
+	// #nosec G115 - Safe conversion as TTY width is expected to be within uint range
 	return wordwrap.WrapString(s, uint(ttyWidth()))
 }
 

@@ -210,7 +210,7 @@ func (n *notifier) process(ctx context.Context, success chan<- dispatchResult, f
 func (n *notifier) fetch(ctx context.Context) ([]database.AcquireNotificationMessagesRow, error) {
 	msgs, err := n.store.AcquireNotificationMessages(ctx, database.AcquireNotificationMessagesParams{
 		// #nosec G115 - Safe conversion for lease count which is expected to be within int32 range
-		Count:           int32(n.cfg.LeaseCount),
+		Count: int32(n.cfg.LeaseCount),
 		// #nosec G115 - Safe conversion for max send attempts which is expected to be within int32 range
 		MaxAttemptCount: int32(n.cfg.MaxSendAttempts),
 		NotifierID:      n.id,
@@ -338,6 +338,7 @@ func (n *notifier) newFailedDispatch(msg database.AcquireNotificationMessagesRow
 	var result string
 
 	// If retryable and not the last attempt, it's a temporary failure.
+	// #nosec G115 - Safe conversion as MaxSendAttempts is expected to be small enough to fit in int32
 	if retryable && msg.AttemptCount < int32(n.cfg.MaxSendAttempts)-1 {
 		result = ResultTempFail
 	} else {
