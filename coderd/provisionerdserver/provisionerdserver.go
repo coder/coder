@@ -2051,6 +2051,34 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			}
 		}
 
+		var (
+			devcontainers                = prAgent.GetDevcontainers()
+			devcontainerIDs              = make([]uuid.UUID, 0, len(devcontainers))
+			devcontainerNames            = make([]string, 0, len(devcontainers))
+			devcontainerWorkspaceFolders = make([]string, 0, len(devcontainers))
+			devcontainerConfigPaths      = make([]string, 0, len(devcontainers))
+		)
+		if len(devcontainers) > 0 {
+			for _, dc := range devcontainers {
+				devcontainerIDs = append(devcontainerIDs, uuid.New())
+				devcontainerNames = append(devcontainerNames, dc.Name)
+				devcontainerWorkspaceFolders = append(devcontainerWorkspaceFolders, dc.WorkspaceFolder)
+				devcontainerConfigPaths = append(devcontainerConfigPaths, dc.ConfigPath)
+			}
+
+			_, err = db.InsertWorkspaceAgentDevcontainers(ctx, database.InsertWorkspaceAgentDevcontainersParams{
+				WorkspaceAgentID: agentID,
+				CreatedAt:        dbtime.Now(),
+				ID:               devcontainerIDs,
+				Name:             devcontainerNames,
+				WorkspaceFolder:  devcontainerWorkspaceFolders,
+				ConfigPath:       devcontainerConfigPaths,
+			})
+			if err != nil {
+				return xerrors.Errorf("insert agent devcontainer: %w", err)
+			}
+		}
+
 		logSourceIDs := make([]uuid.UUID, 0, len(prAgent.Scripts))
 		logSourceDisplayNames := make([]string, 0, len(prAgent.Scripts))
 		logSourceIcons := make([]string, 0, len(prAgent.Scripts))
@@ -2077,6 +2105,22 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			scriptStartBlocksLogin = append(scriptStartBlocksLogin, script.StartBlocksLogin)
 			scriptRunOnStart = append(scriptRunOnStart, script.RunOnStart)
 			scriptRunOnStop = append(scriptRunOnStop, script.RunOnStop)
+		}
+		// Add a log source and script for each devcontainer so we can
+		// track logs and timings for each.
+		for _, id := range devcontainerIDs {
+			logSourceIDs = append(logSourceIDs, uuid.New())
+			logSourceDisplayNames = append(logSourceDisplayNames, "Dev Container")
+			logSourceIcons = append(logSourceIcons, "/emojis/1f4e6.png")   // Emoji package. Or perhaps /icon/container.svg?
+			scriptIDs = append(scriptIDs, id)                              // Re-use the devcontainer ID as the script ID for identification.
+			scriptDisplayName = append(scriptDisplayName, "Dev Container") // TODO(mafredri): Make it unique? Grab from id used in TF?
+			scriptLogPaths = append(scriptLogPaths, "")
+			scriptSources = append(scriptSources, "")
+			scriptCron = append(scriptCron, "")
+			scriptTimeout = append(scriptTimeout, 0)
+			scriptStartBlocksLogin = append(scriptStartBlocksLogin, false)
+			scriptRunOnStart = append(scriptRunOnStart, false)
+			scriptRunOnStop = append(scriptRunOnStop, false)
 		}
 
 		_, err = db.InsertWorkspaceAgentLogSources(ctx, database.InsertWorkspaceAgentLogSourcesParams{
@@ -2106,33 +2150,6 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		})
 		if err != nil {
 			return xerrors.Errorf("insert agent scripts: %w", err)
-		}
-
-		if devcontainers := prAgent.GetDevcontainers(); len(devcontainers) > 0 {
-			var (
-				devcontainerIDs              = make([]uuid.UUID, 0, len(devcontainers))
-				devcontainerNames            = make([]string, 0, len(devcontainers))
-				devcontainerWorkspaceFolders = make([]string, 0, len(devcontainers))
-				devcontainerConfigPaths      = make([]string, 0, len(devcontainers))
-			)
-			for _, dc := range devcontainers {
-				devcontainerIDs = append(devcontainerIDs, uuid.New())
-				devcontainerNames = append(devcontainerNames, dc.Name)
-				devcontainerWorkspaceFolders = append(devcontainerWorkspaceFolders, dc.WorkspaceFolder)
-				devcontainerConfigPaths = append(devcontainerConfigPaths, dc.ConfigPath)
-			}
-
-			_, err = db.InsertWorkspaceAgentDevcontainers(ctx, database.InsertWorkspaceAgentDevcontainersParams{
-				WorkspaceAgentID: agentID,
-				CreatedAt:        dbtime.Now(),
-				ID:               devcontainerIDs,
-				Name:             devcontainerNames,
-				WorkspaceFolder:  devcontainerWorkspaceFolders,
-				ConfigPath:       devcontainerConfigPaths,
-			})
-			if err != nil {
-				return xerrors.Errorf("insert agent devcontainer: %w", err)
-			}
 		}
 
 		for _, app := range prAgent.Apps {

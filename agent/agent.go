@@ -1115,15 +1115,32 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				}
 			}
 
-			// Any defined Dev Containers may be autostarted after the start
-			// scripts have completed.
-			var postStartScripts []codersdk.WorkspaceAgentScript
+			var (
+				// Clone the scripts so we can remove the devcontainer scripts.
+				scripts = slices.Clone(manifest.Scripts)
+				// The post-start scripts are used to autostart Dev Containers
+				// after the start scripts have completed. This is necessary
+				// because the Dev Container may depend on the workspace being
+				// initialized (git clone, etc).
+				postStartScripts []codersdk.WorkspaceAgentScript
+			)
 			for _, dc := range manifest.Devcontainers {
-				dc = expandDevcontainerPaths(a.logger, dc)
 				// TODO(mafredri): Verify `@devcontainers/cli` presence.
 				// TODO(mafredri): Verify workspace folder exists.
 				// TODO(mafredri): If set, verify config path exists.
-				postStartScripts = append(postStartScripts, agentcontainers.DevcontainerStartupScript(dc))
+				dc = expandDevcontainerPaths(a.logger, dc)
+
+				for i, s := range scripts {
+					// The devcontainer scripts match the devcontainer ID for
+					// identification.
+					if s.ID == dc.ID {
+						scripts = slices.Delete(scripts, i, i+1)
+						if a.experimentalDevcontainersEnabled {
+							postStartScripts = append(postStartScripts, agentcontainers.DevcontainerStartupScript(dc, s))
+						}
+						break
+					}
+				}
 			}
 
 			err = a.scriptRunner.Init(
