@@ -9171,6 +9171,7 @@ func (q *FakeQuerier) InsertWorkspaceAgentDevcontainers(_ context.Context, arg d
 					WorkspaceAgentID: arg.WorkspaceAgentID,
 					CreatedAt:        arg.CreatedAt,
 					ID:               id,
+					Name:             arg.Name[i],
 					WorkspaceFolder:  arg.WorkspaceFolder[i],
 					ConfigPath:       arg.ConfigPath[i],
 				})

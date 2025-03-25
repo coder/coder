@@ -3092,6 +3092,7 @@ export interface WorkspaceAgentContainerPort {
 // From codersdk/workspaceagents.go
 export interface WorkspaceAgentDevcontainer {
 	readonly id: string;
+	readonly name: string;
 	readonly workspace_folder: string;
 	readonly config_path?: string;
 }
