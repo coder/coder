@@ -1,13 +1,15 @@
+import type { InboxNotification } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { Button } from "components/Button/Button";
 import { SquareCheckBig } from "lucide-react";
 import type { FC } from "react";
+import Markdown from "react-markdown";
 import { Link as RouterLink } from "react-router-dom";
+import { cn } from "utils/cn";
 import { relativeTime } from "utils/time";
-import type { Notification } from "./types";
 
 type InboxItemProps = {
-	notification: Notification;
+	notification: InboxNotification;
 	onMarkNotificationAsRead: (notificationId: string) => void;
 };
 
@@ -25,9 +27,14 @@ export const InboxItem: FC<InboxItemProps> = ({
 				<Avatar fallback="AR" />
 			</div>
 
-			<div className="flex flex-col gap-3">
-				<span className="text-content-secondary text-sm font-medium">
-					{notification.content}
+			<div className="flex flex-col gap-3 flex-1">
+				<span
+					className={cn([
+						"text-content-secondary text-sm font-medium whitespace-break-spaces [overflow-wrap:anywhere]",
+						"[&_p]:m-0",
+					])}
+				>
+					<Markdown>{notification.content}</Markdown>
 				</span>
 				<div className="flex items-center gap-1">
 					{notification.actions.map((action) => {
@@ -41,7 +48,7 @@ export const InboxItem: FC<InboxItemProps> = ({
 			</div>
 
 			<div className="w-12 flex flex-col items-end flex-shrink-0">
-				{notification.read_status === "unread" && (
+				{notification.read_at === null && (
 					<>
 						<div className="group-focus:hidden group-hover:hidden size-2.5 rounded-full bg-highlight-sky">
 							<span className="sr-only">Unread</span>

@@ -7,7 +7,6 @@ import type { FieldError } from "api/errors";
 import type * as TypesGen from "api/typesGenerated";
 import type { ProxyLatencyReport } from "contexts/useProxyLatency";
 import range from "lodash/range";
-import type { Notification } from "modules/notifications/NotificationsInbox/types";
 import type { Permissions } from "modules/permissions";
 import type { OrganizationPermissions } from "modules/permissions/organizations";
 import type { FileTree } from "utils/filetree";
@@ -4245,9 +4244,9 @@ export const MockNotificationTemplates: TypesGen.NotificationTemplate[] = [
 export const MockNotificationMethodsResponse: TypesGen.NotificationMethodsResponse =
 	{ available: ["smtp", "webhook"], default: "smtp" };
 
-export const MockNotification: Notification = {
+export const MockNotification: TypesGen.InboxNotification = {
 	id: "1",
-	read_status: "unread",
+	read_at: null,
 	content:
 		"New user account testuser has been created. This new user account was created for Test User by Kira Pilot.",
 	created_at: mockTwoDaysAgo(),
@@ -4257,14 +4256,19 @@ export const MockNotification: Notification = {
 			url: "https://dev.coder.com/templates/coder/coder",
 		},
 	],
+	user_id: MockUser.id,
+	template_id: MockTemplate.id,
+	targets: [],
+	title: "User account created",
+	icon: "user",
 };
 
-export const MockNotifications: Notification[] = [
+export const MockNotifications: TypesGen.InboxNotification[] = [
 	MockNotification,
-	{ ...MockNotification, id: "2", read_status: "unread" },
-	{ ...MockNotification, id: "3", read_status: "read" },
-	{ ...MockNotification, id: "4", read_status: "read" },
-	{ ...MockNotification, id: "5", read_status: "read" },
+	{ ...MockNotification, id: "2", read_at: null },
+	{ ...MockNotification, id: "3", read_at: mockTwoDaysAgo() },
+	{ ...MockNotification, id: "4", read_at: mockTwoDaysAgo() },
+	{ ...MockNotification, id: "5", read_at: mockTwoDaysAgo() },
 ];
 
 function mockTwoDaysAgo() {
@@ -4272,3 +4276,45 @@ function mockTwoDaysAgo() {
 	date.setDate(date.getDate() - 2);
 	return date.toISOString();
 }
+
+export const MockWorkspaceAgentContainerPorts: TypesGen.WorkspaceAgentContainerPort[] =
+	[
+		{
+			port: 1000,
+			network: "tcp",
+			host_port: 1000,
+			host_ip: "0.0.0.0",
+		},
+		{
+			port: 2001,
+			network: "tcp",
+			host_port: 2000,
+			host_ip: "::1",
+		},
+		{
+			port: 8888,
+			network: "tcp",
+		},
+	];
+
+export const MockWorkspaceAgentContainer: TypesGen.WorkspaceAgentContainer = {
+	created_at: "2024-01-04T15:53:03.21563Z",
+	id: "abcd1234",
+	name: "container-1",
+	image: "ubuntu:latest",
+	labels: {
+		foo: "bar",
+	},
+	ports: [],
+	running: true,
+	status: "running",
+	volumes: {
+		"/mnt/volume1": "/volume1",
+	},
+};
+
+export const MockWorkspaceAgentListContainersResponse: TypesGen.WorkspaceAgentListContainersResponse =
+	{
+		containers: [MockWorkspaceAgentContainer],
+		warnings: ["This is a warning"],
+	};

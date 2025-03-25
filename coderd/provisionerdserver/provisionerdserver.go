@@ -1270,6 +1270,8 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			return nil, xerrors.Errorf("template version ID is expected: %w", err)
 		}
 
+		now := s.timeNow()
+
 		for transition, resources := range map[database.WorkspaceTransition][]*sdkproto.Resource{
 			database.WorkspaceTransitionStart: jobType.TemplateImport.StartResources,
 			database.WorkspaceTransitionStop:  jobType.TemplateImport.StopResources,
@@ -1354,7 +1356,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			}
 		}
 
-		err = InsertWorkspacePresetsAndParameters(ctx, s.Logger, s.Database, jobID, input.TemplateVersionID, jobType.TemplateImport.Presets, s.timeNow())
+		err = InsertWorkspacePresetsAndParameters(ctx, s.Logger, s.Database, jobID, input.TemplateVersionID, jobType.TemplateImport.Presets, now)
 		if err != nil {
 			return nil, xerrors.Errorf("insert workspace presets and parameters: %w", err)
 		}
@@ -1406,18 +1408,27 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 
 		err = s.Database.UpdateTemplateVersionExternalAuthProvidersByJobID(ctx, database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams{
 			JobID:                 jobID,
-			ExternalAuthProviders: json.RawMessage(externalAuthProvidersMessage),
-			UpdatedAt:             s.timeNow(),
+			ExternalAuthProviders: externalAuthProvidersMessage,
+			UpdatedAt:             now,
 		})
 		if err != nil {
 			return nil, xerrors.Errorf("update template version external auth providers: %w", err)
 		}
 
+		err = s.Database.InsertTemplateVersionTerraformValuesByJobID(ctx, database.InsertTemplateVersionTerraformValuesByJobIDParams{
+			JobID:      jobID,
+			CachedPlan: jobType.TemplateImport.Plan,
+			UpdatedAt:  now,
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("insert template version terraform data: %w", err)
+		}
+
 		err = s.Database.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
 			ID:        jobID,
-			UpdatedAt: s.timeNow(),
+			UpdatedAt: now,
 			CompletedAt: sql.NullTime{
-				Time:  s.timeNow(),
+				Time:  now,
 				Valid: true,
 			},
 			Error:     completedError,
@@ -1427,6 +1438,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			return nil, xerrors.Errorf("update provisioner job: %w", err)
 		}
 		s.Logger.Debug(ctx, "marked import job as completed", slog.F("job_id", jobID))
+
 	case *proto.CompletedJob_WorkspaceBuild_:
 		var input WorkspaceProvisionJob
 		err = json.Unmarshal(job.Input, &input)
@@ -2094,6 +2106,30 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		})
 		if err != nil {
 			return xerrors.Errorf("insert agent scripts: %w", err)
+		}
+
+		if devcontainers := prAgent.GetDevcontainers(); len(devcontainers) > 0 {
+			var (
+				devContainerIDs              = make([]uuid.UUID, 0, len(devcontainers))
+				devContainerWorkspaceFolders = make([]string, 0, len(devcontainers))
+				devContainerConfigPaths      = make([]string, 0, len(devcontainers))
+			)
+			for _, dc := range devcontainers {
+				devContainerIDs = append(devContainerIDs, uuid.New())
+				devContainerWorkspaceFolders = append(devContainerWorkspaceFolders, dc.WorkspaceFolder)
+				devContainerConfigPaths = append(devContainerConfigPaths, dc.ConfigPath)
+			}
+
+			_, err = db.InsertWorkspaceAgentDevcontainers(ctx, database.InsertWorkspaceAgentDevcontainersParams{
+				WorkspaceAgentID: agentID,
+				CreatedAt:        dbtime.Now(),
+				ID:               devContainerIDs,
+				WorkspaceFolder:  devContainerWorkspaceFolders,
+				ConfigPath:       devContainerConfigPaths,
+			})
+			if err != nil {
+				return xerrors.Errorf("insert agent devcontainer: %w", err)
+			}
 		}
 
 		for _, app := range prAgent.Apps {

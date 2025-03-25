@@ -318,6 +318,11 @@ type WorkspaceAgentReconnectingPTYOpts struct {
 	// CODER_AGENT_DEVCONTAINERS_ENABLE set to "true".
 	Container     string
 	ContainerUser string
+
+	// BackendType is the type of backend to use for the PTY. If not set, the
+	// workspace agent will attempt to determine the preferred backend type.
+	// Supported values are "screen" and "buffered".
+	BackendType string
 }
 
 // AgentReconnectingPTY spawns a PTY that reconnects using the token provided.
@@ -338,6 +343,9 @@ func (c *Client) AgentReconnectingPTY(ctx context.Context, opts WorkspaceAgentRe
 	}
 	if opts.ContainerUser != "" {
 		q.Set("container_user", opts.ContainerUser)
+	}
+	if opts.BackendType != "" {
+		q.Set("backend_type", opts.BackendType)
 	}
 	// If we're using a signed token, set the query parameter.
 	if opts.SignedToken != "" {

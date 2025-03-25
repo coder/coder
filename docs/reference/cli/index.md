@@ -131,6 +131,15 @@ Additional HTTP headers added to all requests. Provide as key=value. Can be spec
 
 An external command that outputs additional HTTP headers added to all requests. The command must output each header as `key=value` on its own line.
 
+### --force-tty
+
+|             |                               |
+|-------------|-------------------------------|
+| Type        | <code>bool</code>             |
+| Environment | <code>$CODER_FORCE_TTY</code> |
+
+Force the use of a TTY.
+
 ### -v, --verbose
 
 |             |                             |
