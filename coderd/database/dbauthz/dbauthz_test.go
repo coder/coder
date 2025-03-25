@@ -4751,7 +4751,7 @@ func (s *MethodTestSuite) TestPrebuilds() {
 			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 	}))
 	// TODO: remove?
-	//s.Run("InsertPresetPrebuild", s.Subtest(func(db database.Store, check *expects) {
+	// s.Run("InsertPresetPrebuild", s.Subtest(func(db database.Store, check *expects) {
 	//	org := dbgen.Organization(s.T(), db, database.Organization{})
 	//	user := dbgen.User(s.T(), db, database.User{})
 	//	template := dbgen.Template(s.T(), db, database.Template{
