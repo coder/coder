@@ -77,7 +77,7 @@ func (r TemplateAutostopRequirement) DaysMap() map[time.Weekday]bool {
 func daysMap(daysOfWeek uint8) map[time.Weekday]bool {
 	days := make(map[time.Weekday]bool)
 	for i, day := range DaysOfWeek {
-		days[day] = daysOfWeek&(1<<uint(i)) != 0
+		days[day] = daysOfWeek&(1<<uint(i)) != 0 // #nosec G115 -- int to uint is safe for small i values (< 8)
 	}
 	return days
 }

@@ -132,7 +132,8 @@ type TelemetrySink interface {
 // NodeID creates a Tailscale NodeID from the last 8 bytes of a UUID. It ensures
 // the returned NodeID is always positive.
 func NodeID(uid uuid.UUID) tailcfg.NodeID {
-	id := int64(binary.BigEndian.Uint64(uid[8:]))
+	// This may overflow, but we handle that by ensuring the result is positive below
+	id := int64(binary.BigEndian.Uint64(uid[8:])) // #nosec G115 -- potential overflow is handled below
 
 	// ensure id is positive
 	y := id >> 63
