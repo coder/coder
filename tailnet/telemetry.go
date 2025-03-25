@@ -131,6 +131,7 @@ func (b *TelemetryStore) updateRemoteNodeIDLocked(nm *netmap.NetworkMap) {
 	for _, p := range nm.Peers {
 		for _, a := range p.Addresses {
 			if a.Addr() == ip && a.IsSingleIP() {
+				// #nosec G115 - Safe conversion as p.ID is expected to be within uint64 range for node IDs
 				b.nodeIDRemote = uint64(p.ID)
 			}
 		}
@@ -188,6 +189,7 @@ func (b *TelemetryStore) updateByNodeLocked(n *tailcfg.Node) bool {
 	if n == nil {
 		return false
 	}
+	// #nosec G115 - Safe conversion as n.ID is expected to be within uint64 range for node IDs
 	b.nodeIDSelf = uint64(n.ID)
 	derpIP, err := netip.ParseAddrPort(n.DERP)
 	if err != nil {

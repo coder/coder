@@ -116,6 +116,7 @@ func (s *Server) x11Handler(ctx ssh.Context, x11 ssh.X11) (displayNumber int, ha
 				OriginatorPort    uint32
 			}{
 				OriginatorAddress: tcpAddr.IP.String(),
+				// #nosec G115 - Safe conversion as TCP port numbers are within uint32 range (0-65535)
 				OriginatorPort:    uint32(tcpAddr.Port),
 			}))
 			if err != nil {
@@ -294,6 +295,7 @@ func addXauthEntry(ctx context.Context, fs afero.Fs, host string, display string
 		return xerrors.Errorf("failed to write family: %w", err)
 	}
 
+	// #nosec G115 - Safe conversion for host name length which is expected to be within uint16 range
 	err = binary.Write(file, binary.BigEndian, uint16(len(host)))
 	if err != nil {
 		return xerrors.Errorf("failed to write host length: %w", err)
@@ -303,6 +305,7 @@ func addXauthEntry(ctx context.Context, fs afero.Fs, host string, display string
 		return xerrors.Errorf("failed to write host: %w", err)
 	}
 
+	// #nosec G115 - Safe conversion for display name length which is expected to be within uint16 range
 	err = binary.Write(file, binary.BigEndian, uint16(len(display)))
 	if err != nil {
 		return xerrors.Errorf("failed to write display length: %w", err)

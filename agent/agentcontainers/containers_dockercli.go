@@ -453,8 +453,8 @@ func convertDockerInspect(raw []byte) ([]codersdk.WorkspaceAgentContainer, []str
 					hostPortContainers[hp] = append(hostPortContainers[hp], in.ID)
 				}
 				out.Ports = append(out.Ports, codersdk.WorkspaceAgentContainerPort{
-					Network:  network,
-					Port:     cp,
+					Network: network,
+					Port:    cp,
 					// #nosec G115 - Safe conversion since Docker ports are limited to uint16 range
 					HostPort: uint16(hp),
 					HostIP:   p.HostIP,

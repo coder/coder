@@ -45,6 +45,7 @@ func convertRouterConfig(cfg router.Config) *NetworkSettingsRequest {
 			v4SubnetMasks = append(v4SubnetMasks, prefixToSubnetMask(addrs))
 		} else if addrs.Addr().Is6() {
 			v6LocalAddrs = append(v6LocalAddrs, addrs.Addr().String())
+			// #nosec G115 - Safe conversion as IPv6 prefix lengths are always within uint32 range (0-128)
 			v6PrefixLengths = append(v6PrefixLengths, uint32(addrs.Bits()))
 		} else {
 			continue
@@ -95,6 +96,7 @@ func convertRouterConfig(cfg router.Config) *NetworkSettingsRequest {
 	}
 
 	return &NetworkSettingsRequest{
+		// #nosec G115 - Safe conversion as MTU values are expected to be small positive integers
 		Mtu:                 uint32(cfg.NewMTU),
 		Ipv4Settings:        v4Settings,
 		Ipv6Settings:        v6Settings,
@@ -114,6 +116,7 @@ func convertToIPV4Route(route netip.Prefix) *NetworkSettingsRequest_IPv4Settings
 func convertToIPV6Route(route netip.Prefix) *NetworkSettingsRequest_IPv6Settings_IPv6Route {
 	return &NetworkSettingsRequest_IPv6Settings_IPv6Route{
 		Destination:  route.Addr().String(),
+		// #nosec G115 - Safe conversion as prefix lengths are always within uint32 range (0-128)
 		PrefixLength: uint32(route.Bits()),
 		Router:       "", // N/A
 	}

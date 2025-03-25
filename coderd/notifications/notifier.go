@@ -209,7 +209,9 @@ func (n *notifier) process(ctx context.Context, success chan<- dispatchResult, f
 // messages until they are dispatched - or until the lease expires (in exceptional cases).
 func (n *notifier) fetch(ctx context.Context) ([]database.AcquireNotificationMessagesRow, error) {
 	msgs, err := n.store.AcquireNotificationMessages(ctx, database.AcquireNotificationMessagesParams{
+		// #nosec G115 - Safe conversion for lease count which is expected to be within int32 range
 		Count:           int32(n.cfg.LeaseCount),
+		// #nosec G115 - Safe conversion for max send attempts which is expected to be within int32 range
 		MaxAttemptCount: int32(n.cfg.MaxSendAttempts),
 		NotifierID:      n.id,
 		LeaseSeconds:    int32(n.cfg.LeasePeriod.Value().Seconds()),

@@ -31,6 +31,7 @@ func NodeToProto(n *Node) (*proto.Node, error) {
 	}
 	derpForcedWebsocket := make(map[int32]string)
 	for i, s := range n.DERPForcedWebsocket {
+		// #nosec G115 - Safe conversion for DERP region IDs which are small positive integers
 		derpForcedWebsocket[int32(i)] = s
 	}
 	addresses := make([]string, len(n.Addresses))

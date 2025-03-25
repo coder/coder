@@ -65,14 +65,14 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, ps pubsub.P
 	}
 	// nolint:gocritic // Inserting a replica is a system function.
 	replica, err := db.InsertReplica(dbauthz.AsSystemRestricted(ctx), database.InsertReplicaParams{
-		ID:              options.ID,
-		CreatedAt:       dbtime.Now(),
-		StartedAt:       dbtime.Now(),
-		UpdatedAt:       dbtime.Now(),
-		Hostname:        hostname,
-		RegionID:        options.RegionID,
-		RelayAddress:    options.RelayAddress,
-		Version:         buildinfo.Version(),
+		ID:           options.ID,
+		CreatedAt:    dbtime.Now(),
+		StartedAt:    dbtime.Now(),
+		UpdatedAt:    dbtime.Now(),
+		Hostname:     hostname,
+		RegionID:     options.RegionID,
+		RelayAddress: options.RelayAddress,
+		Version:      buildinfo.Version(),
 		// #nosec G115 - Safe conversion for microseconds latency which is expected to be within int32 range
 		DatabaseLatency: int32(databaseLatency.Microseconds()),
 		Primary:         true,
@@ -314,15 +314,15 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 	defer m.mutex.Unlock()
 	// nolint:gocritic // Updating a replica is a system function.
 	replica, err := m.db.UpdateReplica(dbauthz.AsSystemRestricted(ctx), database.UpdateReplicaParams{
-		ID:              m.self.ID,
-		UpdatedAt:       dbtime.Now(),
-		StartedAt:       m.self.StartedAt,
-		StoppedAt:       m.self.StoppedAt,
-		RelayAddress:    m.self.RelayAddress,
-		RegionID:        m.self.RegionID,
-		Hostname:        m.self.Hostname,
-		Version:         m.self.Version,
-		Error:           replicaError,
+		ID:           m.self.ID,
+		UpdatedAt:    dbtime.Now(),
+		StartedAt:    m.self.StartedAt,
+		StoppedAt:    m.self.StoppedAt,
+		RelayAddress: m.self.RelayAddress,
+		RegionID:     m.self.RegionID,
+		Hostname:     m.self.Hostname,
+		Version:      m.self.Version,
+		Error:        replicaError,
 		// #nosec G115 - Safe conversion for microseconds latency which is expected to be within int32 range
 		DatabaseLatency: int32(databaseLatency.Microseconds()),
 		Primary:         m.self.Primary,
@@ -334,14 +334,14 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 		// self replica has been cleaned up, we must reinsert
 		// nolint:gocritic // Updating a replica is a system function.
 		replica, err = m.db.InsertReplica(dbauthz.AsSystemRestricted(ctx), database.InsertReplicaParams{
-			ID:              m.self.ID,
-			CreatedAt:       dbtime.Now(),
-			UpdatedAt:       dbtime.Now(),
-			StartedAt:       m.self.StartedAt,
-			RelayAddress:    m.self.RelayAddress,
-			RegionID:        m.self.RegionID,
-			Hostname:        m.self.Hostname,
-			Version:         m.self.Version,
+			ID:           m.self.ID,
+			CreatedAt:    dbtime.Now(),
+			UpdatedAt:    dbtime.Now(),
+			StartedAt:    m.self.StartedAt,
+			RelayAddress: m.self.RelayAddress,
+			RegionID:     m.self.RegionID,
+			Hostname:     m.self.Hostname,
+			Version:      m.self.Version,
 			// #nosec G115 - Safe conversion for microseconds latency which is expected to be within int32 range
 			DatabaseLatency: int32(databaseLatency.Microseconds()),
 			Primary:         m.self.Primary,
