@@ -284,7 +284,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 
 	if options.PushNotifier == nil {
 		// nolint:gocritic // Gets/sets VAPID keys.
-		pushNotifier, err := push.New(dbauthz.AsSystemRestricted(context.Background()), options.Logger, options.Database)
+		pushNotifier, err := push.New(dbauthz.AsNotifier(context.Background()), options.Logger, options.Database)
 		if err != nil {
 			panic(xerrors.Errorf("failed to create push notifier: %w", err))
 		}

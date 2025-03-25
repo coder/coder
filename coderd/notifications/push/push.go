@@ -135,7 +135,7 @@ func (n *Notifier) Dispatch(ctx context.Context, userID uuid.UUID, notification 
 
 	if len(cleanupSubscriptions) > 0 {
 		// nolint:gocritic // These are known to be invalid subscriptions.
-		err = n.store.DeleteNotificationPushSubscriptions(dbauthz.AsSystemRestricted(ctx), cleanupSubscriptions)
+		err = n.store.DeleteNotificationPushSubscriptions(dbauthz.AsNotifier(ctx), cleanupSubscriptions)
 		if err != nil {
 			n.log.Error(ctx, "failed to delete stale push subscriptions", slog.Error(err))
 		}
