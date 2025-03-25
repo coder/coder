@@ -45,7 +45,7 @@ const (
 	// login page.
 	// It is important that this URL can never match a valid app hostname.
 	//
-	// DEPRECATED: we no longer use this, but we still redirect from it to the
+	// Deprecated: we no longer use this, but we still redirect from it to the
 	// main login page.
 	appLogoutHostname = "coder-logout"
 )

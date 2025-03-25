@@ -371,7 +371,7 @@ func main() {
 				gitlabAuthed.Store(true)
 			}()
 			return cliui.ExternalAuth(inv.Context(), inv.Stdout, cliui.ExternalAuthOptions{
-				Fetch: func(ctx context.Context) ([]codersdk.TemplateVersionExternalAuth, error) {
+				Fetch: func(_ context.Context) ([]codersdk.TemplateVersionExternalAuth, error) {
 					count.Add(1)
 					return []codersdk.TemplateVersionExternalAuth{{
 						ID:              "github",

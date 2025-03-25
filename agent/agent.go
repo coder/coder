@@ -936,7 +936,7 @@ func (a *agent) run() (retErr error) {
 	connMan.startAgentAPI("send logs", gracefulShutdownBehaviorRemain,
 		func(ctx context.Context, aAPI proto.DRPCAgentClient24) error {
 			err := a.logSender.SendLoop(ctx, aAPI)
-			if xerrors.Is(err, agentsdk.LogLimitExceededError) {
+			if xerrors.Is(err, agentsdk.ErrLogLimitExceeded) {
 				// we don't want this error to tear down the API connection and propagate to the
 				// other routines that use the API.  The LogSender has already dropped a warning
 				// log, so just return nil here.
