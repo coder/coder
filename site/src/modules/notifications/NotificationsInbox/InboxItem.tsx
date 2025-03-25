@@ -40,7 +40,14 @@ export const InboxItem: FC<InboxItemProps> = ({
 					{notification.actions.map((action) => {
 						return (
 							<Button variant="outline" size="sm" key={action.label} asChild>
-								<RouterLink to={action.url}>{action.label}</RouterLink>
+								<RouterLink
+									to={action.url}
+									onClick={() => {
+										onMarkNotificationAsRead(notification.id);
+									}}
+								>
+									{action.label}
+								</RouterLink>
 							</Button>
 						);
 					})}
