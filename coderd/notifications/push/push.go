@@ -27,8 +27,7 @@ import (
 // and push notifications at time of implementation are being used
 // for updates inside of a workspace, which we want to be immediate.
 //
-// There should be refactor of the core abstraction to merge dispatch
-// and queue, and then we can integrate this.
+// See: https://github.com/coder/internal/issues/528
 func New(ctx context.Context, log *slog.Logger, db database.Store) (*Notifier, error) {
 	keys, err := db.GetNotificationVAPIDKeys(ctx)
 	if err != nil {

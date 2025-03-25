@@ -713,6 +713,16 @@ func TestRolePermissions(t *testing.T) {
 				},
 			},
 		},
+		// All users can create, read, and delete their own push notification subscriptions.
+		{
+			Name:     "NotificationPushSubscription",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionDelete},
+			Resource: rbac.ResourceNotificationPushSubscription.WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, memberMe, orgMemberMe},
+				false: {otherOrgMember, orgAdmin, otherOrgAdmin, orgAuditor, otherOrgAuditor, templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin, userAdmin, orgUserAdmin, otherOrgUserAdmin},
+			},
+		},
 		// AnyOrganization tests
 		{
 			Name:     "CreateOrgMember",

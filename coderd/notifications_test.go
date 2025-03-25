@@ -379,6 +379,8 @@ func TestNotificationTest(t *testing.T) {
 }
 
 const (
+	// These are valid keys for a push notification subscription.
+	// DO NOT REUSE THESE IN ANY REAL CODE.
 	validEndpointAuthKey   = "zqbxT6JKstKSY9JKibZLSQ=="
 	validEndpointP256dhKey = "BNNL5ZaTfK81qhXOx23+wewhigUeFb632jN6LvRWCFH1ubQr77FE/9qV1FuojuRmHP42zmf34rXgW80OvUVDgTk="
 )
@@ -386,52 +388,33 @@ const (
 func TestPushNotificationSubscription(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Create", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		notificationSent := false
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			notificationSent = true
-			w.WriteHeader(http.StatusOK)
-		}))
-		defer server.Close()
-
-		client := coderdtest.New(t, nil)
-		coderdtest.CreateFirstUser(t, client)
-
-		err := client.CreateNotificationPushSubscription(ctx, "me", codersdk.PushNotificationSubscription{
-			Endpoint:  server.URL,
-			AuthKey:   validEndpointAuthKey,
-			P256DHKey: validEndpointP256dhKey,
-		})
-		require.NoError(t, err)
-		require.True(t, notificationSent)
-	})
-	t.Run("Delete", func(t *testing.T) {
+	t.Run("CRUD", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		client := coderdtest.New(t, nil)
-		coderdtest.CreateFirstUser(t, client)
+		owner := coderdtest.CreateFirstUser(t, client)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
+		handlerCalled := make(chan bool, 1)
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			w.WriteHeader(http.StatusOK)
+			w.WriteHeader(http.StatusCreated)
+			handlerCalled <- true
 		}))
 		defer server.Close()
 
-		err := client.CreateNotificationPushSubscription(ctx, "me", codersdk.PushNotificationSubscription{
+		err := memberClient.CreateNotificationPushSubscription(ctx, "me", codersdk.PushNotificationSubscription{
 			Endpoint:  server.URL,
 			AuthKey:   validEndpointAuthKey,
 			P256DHKey: validEndpointP256dhKey,
 		})
-		require.NoError(t, err)
+		require.NoError(t, err, "create notification push subscription")
+		require.True(t, <-handlerCalled, "handler should have been called")
 
-		err = client.DeleteNotificationPushSubscription(ctx, "me", codersdk.DeletePushNotificationSubscription{
+		err = memberClient.DeleteNotificationPushSubscription(ctx, "me", codersdk.DeletePushNotificationSubscription{
 			Endpoint: server.URL,
 		})
-		require.NoError(t, err)
+		require.NoError(t, err, "delete notification push subscription")
 	})
 }
