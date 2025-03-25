@@ -4532,7 +4532,14 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args(true).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
 	s.Run("GetNotificationVAPIDKeys", s.Subtest(func(db database.Store, check *expects) {
-		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Errors(sql.ErrNoRows)
+		require.NoError(s.T(), db.UpsertNotificationVAPIDKeys(context.Background(), database.UpsertNotificationVAPIDKeysParams{
+			VapidPublicKey:  "test",
+			VapidPrivateKey: "test",
+		}))
+		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns(database.GetNotificationVAPIDKeysRow{
+			VapidPublicKey:  "test",
+			VapidPrivateKey: "test",
+		})
 	}))
 	s.Run("UpsertNotificationVAPIDKeys", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.UpsertNotificationVAPIDKeysParams{
