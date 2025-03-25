@@ -7,7 +7,6 @@ import { useQuery } from "react-query";
 interface PushNotifications {
 	readonly subscribed: boolean;
 	readonly loading: boolean;
-	readonly enabled: boolean;
 
 	subscribe(): Promise<void>;
 	unsubscribe(): Promise<void>;
@@ -20,17 +19,6 @@ export const usePushNotifications = (): PushNotifications => {
 	const [subscribed, setSubscribed] = useState<boolean>(false);
 	const [loading, setLoading] = useState<boolean>(true);
 
-	// Disable push notifications if the server is not configured to send them.
-	const enabled = !!buildInfoQuery.data?.push_notifications_public_key;
-	if (!enabled) {
-		return {
-			enabled: false,
-			subscribed: false,
-			loading: false,
-			subscribe: async () => {},
-			unsubscribe: async () => {},
-		};
-	}
 	useEffect(() => {
 		// Check if browser supports push notifications
 		if (!("Notification" in window) || !("serviceWorker" in navigator)) {
@@ -107,7 +95,6 @@ export const usePushNotifications = (): PushNotifications => {
 	};
 
 	return {
-		enabled,
 		subscribed,
 		loading: loading || buildInfoQuery.isLoading,
 		subscribe,
