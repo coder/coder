@@ -6070,8 +6070,8 @@ const docTemplate = `{
                 "tags": [
                     "Users"
                 ],
-                "summary": "Returns URL for the OIDC logout",
-                "operationId": "user-oidc-logout",
+                "summary": "Get user OIDC logout URL",
+                "operationId": "get-user-oidc-logout-url",
                 "responses": {
                     "200": {
                         "description": "Returns a map containing the OIDC logout URL",
