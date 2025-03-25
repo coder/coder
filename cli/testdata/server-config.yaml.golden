@@ -644,7 +644,7 @@ notifications:
     # (default: <unset>, type: url)
     endpoint:
   inbox:
-    # TODO: Write description later.
+    # Enable Coder Inbox.
     # (default: true, type: bool)
     enabled: true
   # The upper limit of attempts to send a notification.

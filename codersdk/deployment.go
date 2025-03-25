@@ -2870,7 +2870,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Notifications: Inbox: Enabled",
-			Description: "TODO: Write description later.",
+			Description: "Enable Coder Inbox.",
 			Flag:        "notifications-inbox-enabled",
 			Env:         "CODER_NOTIFICATIONS_INBOX_ENABLED",
 			Value:       &c.Notifications.Inbox.Enabled,

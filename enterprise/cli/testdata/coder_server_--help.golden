@@ -476,7 +476,7 @@ Configure TLS for your SMTP server target.
 
 NOTIFICATIONS / INBOX OPTIONS: 
       --notifications-inbox-enabled bool, $CODER_NOTIFICATIONS_INBOX_ENABLED (default: true)
-          TODO: Write description later.
+          Enable Coder Inbox.
 
 NOTIFICATIONS / WEBHOOK OPTIONS: 
       --notifications-webhook-endpoint url, $CODER_NOTIFICATIONS_WEBHOOK_ENDPOINT

@@ -1569,7 +1569,7 @@ The endpoint to which to send webhooks.
 | YAML        | <code>notifications.inbox.enabled</code>        |
 | Default     | <code>true</code>                               |
 
-TODO: Write description later.
+Enable Coder Inbox.
 
 ### --notifications-max-send-attempts
 
