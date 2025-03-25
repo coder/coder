@@ -108,24 +108,36 @@ function createMockWebSocket(
 
 	const publisher: MockPublisher = {
 		publishOpen: (event) => {
+			if (closed) {
+				return;
+			}
 			for (const sub of store.open) {
 				sub(event);
 			}
 		},
 
 		publishError: (event) => {
+			if (closed) {
+				return;
+			}
 			for (const sub of store.error) {
 				sub(event);
 			}
 		},
 
 		publishMessage: (event) => {
+			if (closed) {
+				return;
+			}
 			for (const sub of store.message) {
 				sub(event);
 			}
 		},
 
 		publishClose: (event) => {
+			if (closed) {
+				return;
+			}
 			for (const sub of store.close) {
 				sub(event);
 			}
