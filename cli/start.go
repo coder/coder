@@ -17,6 +17,8 @@ func (r *RootCmd) start() *serpent.Command {
 	var (
 		parameterFlags workspaceParameterFlags
 		bflags         buildFlags
+
+		noWait bool
 	)
 
 	client := new(codersdk.Client)
@@ -28,7 +30,15 @@ func (r *RootCmd) start() *serpent.Command {
 			serpent.RequireNArgs(1),
 			r.InitClient(client),
 		),
-		Options: serpent.OptionSet{cliui.SkipPromptOption()},
+		Options: serpent.OptionSet{
+			{
+				Flag:        "no-wait",
+				Description: "Return immediately after starting the workspace.",
+				Value:       serpent.BoolOf(&noWait),
+				Hidden:      false,
+			},
+			cliui.SkipPromptOption(),
+		},
 		Handler: func(inv *serpent.Invocation) error {
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
@@ -78,6 +88,11 @@ func (r *RootCmd) start() *serpent.Command {
 				} else if err != nil {
 					return err
 				}
+			}
+
+			if noWait {
+				_, _ = fmt.Fprintf(inv.Stdout, "The %s workspace has been started in no-wait mode. Workspace is building in the background.\n", cliui.Keyword(workspace.Name))
+				return nil
 			}
 
 			err = cliui.WorkspaceBuild(inv.Context(), inv.Stdout, client, build.ID)
