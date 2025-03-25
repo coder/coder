@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -77,6 +78,20 @@ func (p *QueryParamParser) Int(vals url.Values, def int, queryParam string) int 
 			Field:  queryParam,
 			Detail: fmt.Sprintf("Query param %q must be a valid integer: %s", queryParam, err.Error()),
 		})
+	}
+	return v
+}
+
+func (p *QueryParamParser) Int64(vals url.Values, def int64, queryParam string) int64 {
+	v, err := parseQueryParam(p, vals, func(v string) (int64, error) {
+		return strconv.ParseInt(v, 10, 64)
+	}, def, queryParam)
+	if err != nil {
+		p.Errors = append(p.Errors, codersdk.ValidationError{
+			Field:  queryParam,
+			Detail: fmt.Sprintf("Query param %q must be a valid 64-bit integer: %s", queryParam, err.Error()),
+		})
+		return 0
 	}
 	return v
 }
@@ -255,6 +270,23 @@ func (p *QueryParamParser) Strings(vals url.Values, def []string, queryParam str
 	return ParseCustomList(p, vals, def, queryParam, func(v string) (string, error) {
 		return v, nil
 	})
+}
+
+func (p *QueryParamParser) JSONStringMap(vals url.Values, def map[string]string, queryParam string) map[string]string {
+	v, err := parseQueryParam(p, vals, func(v string) (map[string]string, error) {
+		var m map[string]string
+		if err := json.NewDecoder(strings.NewReader(v)).Decode(&m); err != nil {
+			return nil, err
+		}
+		return m, nil
+	}, def, queryParam)
+	if err != nil {
+		p.Errors = append(p.Errors, codersdk.ValidationError{
+			Field:  queryParam,
+			Detail: fmt.Sprintf("Query param %q must be a valid JSON object: %s", queryParam, err.Error()),
+		})
+	}
+	return v
 }
 
 // ValidEnum represents an enum that can be parsed and validated.

@@ -1,5 +1,3 @@
-//go:build linux
-
 package database_test
 
 import (
@@ -21,11 +19,13 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/migrations"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/provisionersdk"
@@ -1258,6 +1258,15 @@ func TestQueuePosition(t *testing.T) {
 		time.Sleep(time.Millisecond)
 	}
 
+	// Create default provisioner daemon:
+	dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+		Name:         "default_provisioner",
+		Provisioners: []database.ProvisionerType{database.ProvisionerTypeEcho},
+		// Ensure the `tags` field is NOT NULL for the default provisioner;
+		// otherwise, it won't be able to pick up any jobs.
+		Tags: database.StringMap{},
+	})
+
 	queued, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, jobIDs)
 	require.NoError(t, err)
 	require.Len(t, queued, jobCount)
@@ -1354,6 +1363,113 @@ func TestUserLastSeenFilter(t *testing.T) {
 		require.NoError(t, err)
 		requireUsersMatch(t, []database.User{today, yesterday}, allAfterLastWeek, "after last week")
 	})
+}
+
+func TestGetUsers_IncludeSystem(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		includeSystem  bool
+		wantSystemUser bool
+	}{
+		{
+			name:           "include system users",
+			includeSystem:  true,
+			wantSystemUser: true,
+		},
+		{
+			name:           "exclude system users",
+			includeSystem:  false,
+			wantSystemUser: false,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			// Given: a system user
+			// postgres: introduced by migration coderd/database/migrations/00030*_system_user.up.sql
+			// dbmem: created in dbmem/dbmem.go
+			db, _ := dbtestutil.NewDB(t)
+			other := dbgen.User(t, db, database.User{})
+			users, err := db.GetUsers(ctx, database.GetUsersParams{
+				IncludeSystem: tt.includeSystem,
+			})
+			require.NoError(t, err)
+
+			// Should always find the regular user
+			foundRegularUser := false
+			foundSystemUser := false
+
+			for _, u := range users {
+				if u.IsSystem {
+					foundSystemUser = true
+					require.Equal(t, prebuilds.SystemUserID, u.ID)
+				} else {
+					foundRegularUser = true
+					require.Equalf(t, other.ID.String(), u.ID.String(), "found unexpected regular user")
+				}
+			}
+
+			require.True(t, foundRegularUser, "regular user should always be found")
+			require.Equal(t, tt.wantSystemUser, foundSystemUser, "system user presence should match includeSystem setting")
+			require.Equal(t, tt.wantSystemUser, len(users) == 2, "should have 2 users when including system user, 1 otherwise")
+		})
+	}
+}
+
+func TestUpdateSystemUser(t *testing.T) {
+	t.Parallel()
+
+	// TODO (sasswart): We've disabled the protection that prevents updates to system users
+	// while we reassess the mechanism to do so. Rather than skip the test, we've just inverted
+	// the assertions to ensure that the behavior is as desired.
+	// Once we've re-enabeld the system user protection, we'll revert the assertions.
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Given: a system user introduced by migration coderd/database/migrations/00030*_system_user.up.sql
+	db, _ := dbtestutil.NewDB(t)
+	users, err := db.GetUsers(ctx, database.GetUsersParams{
+		IncludeSystem: true,
+	})
+	require.NoError(t, err)
+	var systemUser database.GetUsersRow
+	for _, u := range users {
+		if u.IsSystem {
+			systemUser = u
+		}
+	}
+	require.NotNil(t, systemUser)
+
+	// When: attempting to update a system user's name.
+	_, err = db.UpdateUserProfile(ctx, database.UpdateUserProfileParams{
+		ID:   systemUser.ID,
+		Name: "not prebuilds",
+	})
+	// Then: the attempt is rejected by a postgres trigger.
+	// require.ErrorContains(t, err, "Cannot modify or delete system users")
+	require.NoError(t, err)
+
+	// When: attempting to delete a system user.
+	err = db.UpdateUserDeletedByID(ctx, systemUser.ID)
+	// Then: the attempt is rejected by a postgres trigger.
+	// require.ErrorContains(t, err, "Cannot modify or delete system users")
+	require.NoError(t, err)
+
+	// When: attempting to update a user's roles.
+	_, err = db.UpdateUserRoles(ctx, database.UpdateUserRolesParams{
+		ID:           systemUser.ID,
+		GrantedRoles: []string{rbac.RoleAuditor().String()},
+	})
+	// Then: the attempt is rejected by a postgres trigger.
+	// require.ErrorContains(t, err, "Cannot modify or delete system users")
+	require.NoError(t, err)
 }
 
 func TestUserChangeLoginType(t *testing.T) {
@@ -1497,7 +1613,10 @@ func TestWorkspaceQuotas(t *testing.T) {
 		})
 
 		// Fetch the 'Everyone' group members
-		everyoneMembers, err := db.GetGroupMembersByGroupID(ctx, org.ID)
+		everyoneMembers, err := db.GetGroupMembersByGroupID(ctx, database.GetGroupMembersByGroupIDParams{
+			GroupID:       everyoneGroup.ID,
+			IncludeSystem: false,
+		})
 		require.NoError(t, err)
 
 		require.ElementsMatch(t, db2sdk.List(everyoneMembers, groupMemberIDs),
@@ -2160,6 +2279,306 @@ func TestExpectOne(t *testing.T) {
 
 func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 	t.Parallel()
+
+	testCases := []struct {
+		name           string
+		jobTags        []database.StringMap
+		daemonTags     []database.StringMap
+		queueSizes     []int64
+		queuePositions []int64
+		// GetProvisionerJobsByIDsWithQueuePosition takes jobIDs as a parameter.
+		// If skipJobIDs is empty, all jobs are passed to the function; otherwise, the specified jobs are skipped.
+		// NOTE: Skipping job IDs means they will be excluded from the result,
+		// but this should not affect the queue position or queue size of other jobs.
+		skipJobIDs map[int]struct{}
+	}{
+		// Baseline test case
+		{
+			name: "test-case-1",
+			jobTags: []database.StringMap{
+				{"a": "1", "b": "2"},
+				{"a": "1"},
+				{"a": "1", "c": "3"},
+			},
+			daemonTags: []database.StringMap{
+				{"a": "1", "b": "2"},
+				{"a": "1"},
+			},
+			queueSizes:     []int64{2, 2, 0},
+			queuePositions: []int64{1, 1, 0},
+		},
+		// Includes an additional provisioner
+		{
+			name: "test-case-2",
+			jobTags: []database.StringMap{
+				{"a": "1", "b": "2"},
+				{"a": "1"},
+				{"a": "1", "c": "3"},
+			},
+			daemonTags: []database.StringMap{
+				{"a": "1", "b": "2"},
+				{"a": "1"},
+				{"a": "1", "b": "2", "c": "3"},
+			},
+			queueSizes:     []int64{3, 3, 3},
+			queuePositions: []int64{1, 1, 3},
+		},
+		// Skips job at index 0
+		{
+			name: "test-case-3",
+			jobTags: []database.StringMap{
+				{"a": "1", "b": "2"},
+				{"a": "1"},
+				{"a": "1", "c": "3"},
+			},
+			daemonTags: []database.StringMap{
+				{"a": "1", "b": "2"},
+				{"a": "1"},
+				{"a": "1", "b": "2", "c": "3"},
+			},
+			queueSizes:     []int64{3, 3},
+			queuePositions: []int64{1, 3},
+			skipJobIDs: map[int]struct{}{
+				0: {},
+			},
+		},
+		// Skips job at index 1
+		{
+			name: "test-case-4",
+			jobTags: []database.StringMap{
+				{"a": "1", "b": "2"},
+				{"a": "1"},
+				{"a": "1", "c": "3"},
+			},
+			daemonTags: []database.StringMap{
+				{"a": "1", "b": "2"},
+				{"a": "1"},
+				{"a": "1", "b": "2", "c": "3"},
+			},
+			queueSizes:     []int64{3, 3},
+			queuePositions: []int64{1, 3},
+			skipJobIDs: map[int]struct{}{
+				1: {},
+			},
+		},
+		// Skips job at index 2
+		{
+			name: "test-case-5",
+			jobTags: []database.StringMap{
+				{"a": "1", "b": "2"},
+				{"a": "1"},
+				{"a": "1", "c": "3"},
+			},
+			daemonTags: []database.StringMap{
+				{"a": "1", "b": "2"},
+				{"a": "1"},
+				{"a": "1", "b": "2", "c": "3"},
+			},
+			queueSizes:     []int64{3, 3},
+			queuePositions: []int64{1, 1},
+			skipJobIDs: map[int]struct{}{
+				2: {},
+			},
+		},
+		// Skips jobs at indexes 0 and 2
+		{
+			name: "test-case-6",
+			jobTags: []database.StringMap{
+				{"a": "1", "b": "2"},
+				{"a": "1"},
+				{"a": "1", "c": "3"},
+			},
+			daemonTags: []database.StringMap{
+				{"a": "1", "b": "2"},
+				{"a": "1"},
+				{"a": "1", "b": "2", "c": "3"},
+			},
+			queueSizes:     []int64{3},
+			queuePositions: []int64{1},
+			skipJobIDs: map[int]struct{}{
+				0: {},
+				2: {},
+			},
+		},
+		// Includes two additional jobs that any provisioner can execute.
+		{
+			name: "test-case-7",
+			jobTags: []database.StringMap{
+				{},
+				{},
+				{"a": "1", "b": "2"},
+				{"a": "1"},
+				{"a": "1", "c": "3"},
+			},
+			daemonTags: []database.StringMap{
+				{"a": "1", "b": "2"},
+				{"a": "1"},
+				{"a": "1", "b": "2", "c": "3"},
+			},
+			queueSizes:     []int64{5, 5, 5, 5, 5},
+			queuePositions: []int64{1, 2, 3, 3, 5},
+		},
+		// Includes two additional jobs that any provisioner can execute, but they are intentionally skipped.
+		{
+			name: "test-case-8",
+			jobTags: []database.StringMap{
+				{},
+				{},
+				{"a": "1", "b": "2"},
+				{"a": "1"},
+				{"a": "1", "c": "3"},
+			},
+			daemonTags: []database.StringMap{
+				{"a": "1", "b": "2"},
+				{"a": "1"},
+				{"a": "1", "b": "2", "c": "3"},
+			},
+			queueSizes:     []int64{5, 5, 5},
+			queuePositions: []int64{3, 3, 5},
+			skipJobIDs: map[int]struct{}{
+				0: {},
+				1: {},
+			},
+		},
+		// N jobs (1 job with 0 tags) & 0 provisioners exist
+		{
+			name: "test-case-9",
+			jobTags: []database.StringMap{
+				{},
+				{"a": "1"},
+				{"b": "2"},
+			},
+			daemonTags:     []database.StringMap{},
+			queueSizes:     []int64{0, 0, 0},
+			queuePositions: []int64{0, 0, 0},
+		},
+		// N jobs (1 job with 0 tags) & N provisioners
+		{
+			name: "test-case-10",
+			jobTags: []database.StringMap{
+				{},
+				{"a": "1"},
+				{"b": "2"},
+			},
+			daemonTags: []database.StringMap{
+				{},
+				{"a": "1"},
+				{"b": "2"},
+			},
+			queueSizes:     []int64{2, 2, 2},
+			queuePositions: []int64{1, 2, 2},
+		},
+		// (N + 1) jobs (1 job with 0 tags) & N provisioners
+		// 1 job not matching any provisioner (first in the list)
+		{
+			name: "test-case-11",
+			jobTags: []database.StringMap{
+				{"c": "3"},
+				{},
+				{"a": "1"},
+				{"b": "2"},
+			},
+			daemonTags: []database.StringMap{
+				{},
+				{"a": "1"},
+				{"b": "2"},
+			},
+			queueSizes:     []int64{0, 2, 2, 2},
+			queuePositions: []int64{0, 1, 2, 2},
+		},
+		// 0 jobs & 0 provisioners
+		{
+			name:           "test-case-12",
+			jobTags:        []database.StringMap{},
+			daemonTags:     []database.StringMap{},
+			queueSizes:     nil, // TODO(yevhenii): should it be empty array instead?
+			queuePositions: nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc // Capture loop variable to avoid data races
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			db, _ := dbtestutil.NewDB(t)
+			now := dbtime.Now()
+			ctx := testutil.Context(t, testutil.WaitShort)
+
+			// Create provisioner jobs based on provided tags:
+			allJobs := make([]database.ProvisionerJob, len(tc.jobTags))
+			for idx, tags := range tc.jobTags {
+				// Make sure jobs are stored in correct order, first job should have the earliest createdAt timestamp.
+				// Example for 3 jobs:
+				// job_1 createdAt: now - 3 minutes
+				// job_2 createdAt: now - 2 minutes
+				// job_3 createdAt: now - 1 minute
+				timeOffsetInMinutes := len(tc.jobTags) - idx
+				timeOffset := time.Duration(timeOffsetInMinutes) * time.Minute
+				createdAt := now.Add(-timeOffset)
+
+				allJobs[idx] = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+					CreatedAt: createdAt,
+					Tags:      tags,
+				})
+			}
+
+			// Create provisioner daemons based on provided tags:
+			for idx, tags := range tc.daemonTags {
+				dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+					Name:         fmt.Sprintf("prov_%v", idx),
+					Provisioners: []database.ProvisionerType{database.ProvisionerTypeEcho},
+					Tags:         tags,
+				})
+			}
+
+			// Assert invariant: the jobs are in pending status
+			for idx, job := range allJobs {
+				require.Equal(t, database.ProvisionerJobStatusPending, job.JobStatus, "expected job %d to have status %s", idx, database.ProvisionerJobStatusPending)
+			}
+
+			filteredJobs := make([]database.ProvisionerJob, 0)
+			filteredJobIDs := make([]uuid.UUID, 0)
+			for idx, job := range allJobs {
+				if _, skip := tc.skipJobIDs[idx]; skip {
+					continue
+				}
+
+				filteredJobs = append(filteredJobs, job)
+				filteredJobIDs = append(filteredJobIDs, job.ID)
+			}
+
+			// When: we fetch the jobs by their IDs
+			actualJobs, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, filteredJobIDs)
+			require.NoError(t, err)
+			require.Len(t, actualJobs, len(filteredJobs), "should return all unskipped jobs")
+
+			// Then: the jobs should be returned in the correct order (sorted by createdAt)
+			sort.Slice(filteredJobs, func(i, j int) bool {
+				return filteredJobs[i].CreatedAt.Before(filteredJobs[j].CreatedAt)
+			})
+			for idx, job := range actualJobs {
+				assert.EqualValues(t, filteredJobs[idx], job.ProvisionerJob)
+			}
+
+			// Then: the queue size should be set correctly
+			var queueSizes []int64
+			for _, job := range actualJobs {
+				queueSizes = append(queueSizes, job.QueueSize)
+			}
+			assert.EqualValues(t, tc.queueSizes, queueSizes, "expected queue positions to be set correctly")
+
+			// Then: the queue position should be set correctly:
+			var queuePositions []int64
+			for _, job := range actualJobs {
+				queuePositions = append(queuePositions, job.QueuePosition)
+			}
+			assert.EqualValues(t, tc.queuePositions, queuePositions, "expected queue positions to be set correctly")
+		})
+	}
+}
+
+func TestGetProvisionerJobsByIDsWithQueuePosition_MixedStatuses(t *testing.T) {
+	t.Parallel()
 	if !dbtestutil.WillUsePostgres() {
 		t.SkipNow()
 	}
@@ -2168,7 +2587,7 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 	now := dbtime.Now()
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	// Given the following provisioner jobs:
+	// Create the following provisioner jobs:
 	allJobs := []database.ProvisionerJob{
 		// Pending. This will be the last in the queue because
 		// it was created most recently.
@@ -2178,6 +2597,9 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 			CanceledAt:  sql.NullTime{},
 			CompletedAt: sql.NullTime{},
 			Error:       sql.NullString{},
+			// Ensure the `tags` field is NOT NULL for both provisioner jobs and provisioner daemons;
+			// otherwise, provisioner daemons won't be able to pick up any jobs.
+			Tags: database.StringMap{},
 		}),
 
 		// Another pending. This will come first in the queue
@@ -2188,6 +2610,7 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 			CanceledAt:  sql.NullTime{},
 			CompletedAt: sql.NullTime{},
 			Error:       sql.NullString{},
+			Tags:        database.StringMap{},
 		}),
 
 		// Running
@@ -2197,6 +2620,7 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 			CanceledAt:  sql.NullTime{},
 			CompletedAt: sql.NullTime{},
 			Error:       sql.NullString{},
+			Tags:        database.StringMap{},
 		}),
 
 		// Succeeded
@@ -2206,6 +2630,7 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 			CanceledAt:  sql.NullTime{},
 			CompletedAt: sql.NullTime{Valid: true, Time: now},
 			Error:       sql.NullString{},
+			Tags:        database.StringMap{},
 		}),
 
 		// Canceling
@@ -2215,6 +2640,7 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 			CanceledAt:  sql.NullTime{Valid: true, Time: now},
 			CompletedAt: sql.NullTime{},
 			Error:       sql.NullString{},
+			Tags:        database.StringMap{},
 		}),
 
 		// Canceled
@@ -2224,6 +2650,7 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 			CanceledAt:  sql.NullTime{Valid: true, Time: now},
 			CompletedAt: sql.NullTime{Valid: true, Time: now},
 			Error:       sql.NullString{},
+			Tags:        database.StringMap{},
 		}),
 
 		// Failed
@@ -2233,8 +2660,16 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 			CanceledAt:  sql.NullTime{},
 			CompletedAt: sql.NullTime{},
 			Error:       sql.NullString{String: "failed", Valid: true},
+			Tags:        database.StringMap{},
 		}),
 	}
+
+	// Create default provisioner daemon:
+	dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+		Name:         "default_provisioner",
+		Provisioners: []database.ProvisionerType{database.ProvisionerTypeEcho},
+		Tags:         database.StringMap{},
+	})
 
 	// Assert invariant: the jobs are in the expected order
 	require.Len(t, allJobs, 7, "expected 7 jobs")
@@ -2260,22 +2695,123 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, actualJobs, len(allJobs), "should return all jobs")
 
-	// Then: the jobs should be returned in the correct order (by IDs in the input slice)
+	// Then: the jobs should be returned in the correct order (sorted by createdAt)
+	sort.Slice(allJobs, func(i, j int) bool {
+		return allJobs[i].CreatedAt.Before(allJobs[j].CreatedAt)
+	})
 	for idx, job := range actualJobs {
 		assert.EqualValues(t, allJobs[idx], job.ProvisionerJob)
 	}
 
 	// Then: the queue size should be set correctly
+	var queueSizes []int64
 	for _, job := range actualJobs {
-		assert.EqualValues(t, job.QueueSize, 2, "should have queue size 2")
+		queueSizes = append(queueSizes, job.QueueSize)
 	}
+	assert.EqualValues(t, []int64{0, 0, 0, 0, 0, 2, 2}, queueSizes, "expected queue positions to be set correctly")
 
 	// Then: the queue position should be set correctly:
 	var queuePositions []int64
 	for _, job := range actualJobs {
 		queuePositions = append(queuePositions, job.QueuePosition)
 	}
-	assert.EqualValues(t, []int64{2, 1, 0, 0, 0, 0, 0}, queuePositions, "expected queue positions to be set correctly")
+	assert.EqualValues(t, []int64{0, 0, 0, 0, 0, 1, 2}, queuePositions, "expected queue positions to be set correctly")
+}
+
+func TestGetProvisionerJobsByIDsWithQueuePosition_OrderValidation(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	now := dbtime.Now()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	// Create the following provisioner jobs:
+	allJobs := []database.ProvisionerJob{
+		dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			CreatedAt: now.Add(-4 * time.Minute),
+			// Ensure the `tags` field is NOT NULL for both provisioner jobs and provisioner daemons;
+			// otherwise, provisioner daemons won't be able to pick up any jobs.
+			Tags: database.StringMap{},
+		}),
+
+		dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			CreatedAt: now.Add(-5 * time.Minute),
+			Tags:      database.StringMap{},
+		}),
+
+		dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			CreatedAt: now.Add(-6 * time.Minute),
+			Tags:      database.StringMap{},
+		}),
+
+		dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			CreatedAt: now.Add(-3 * time.Minute),
+			Tags:      database.StringMap{},
+		}),
+
+		dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			CreatedAt: now.Add(-2 * time.Minute),
+			Tags:      database.StringMap{},
+		}),
+
+		dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			CreatedAt: now.Add(-1 * time.Minute),
+			Tags:      database.StringMap{},
+		}),
+	}
+
+	// Create default provisioner daemon:
+	dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+		Name:         "default_provisioner",
+		Provisioners: []database.ProvisionerType{database.ProvisionerTypeEcho},
+		Tags:         database.StringMap{},
+	})
+
+	// Assert invariant: the jobs are in the expected order
+	require.Len(t, allJobs, 6, "expected 7 jobs")
+	for idx, status := range []database.ProvisionerJobStatus{
+		database.ProvisionerJobStatusPending,
+		database.ProvisionerJobStatusPending,
+		database.ProvisionerJobStatusPending,
+		database.ProvisionerJobStatusPending,
+		database.ProvisionerJobStatusPending,
+		database.ProvisionerJobStatusPending,
+	} {
+		require.Equal(t, status, allJobs[idx].JobStatus, "expected job %d to have status %s", idx, status)
+	}
+
+	var jobIDs []uuid.UUID
+	for _, job := range allJobs {
+		jobIDs = append(jobIDs, job.ID)
+	}
+
+	// When: we fetch the jobs by their IDs
+	actualJobs, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, jobIDs)
+	require.NoError(t, err)
+	require.Len(t, actualJobs, len(allJobs), "should return all jobs")
+
+	// Then: the jobs should be returned in the correct order (sorted by createdAt)
+	sort.Slice(allJobs, func(i, j int) bool {
+		return allJobs[i].CreatedAt.Before(allJobs[j].CreatedAt)
+	})
+	for idx, job := range actualJobs {
+		assert.EqualValues(t, allJobs[idx], job.ProvisionerJob)
+		assert.EqualValues(t, allJobs[idx].CreatedAt, job.ProvisionerJob.CreatedAt)
+	}
+
+	// Then: the queue size should be set correctly
+	var queueSizes []int64
+	for _, job := range actualJobs {
+		queueSizes = append(queueSizes, job.QueueSize)
+	}
+	assert.EqualValues(t, []int64{6, 6, 6, 6, 6, 6}, queueSizes, "expected queue positions to be set correctly")
+
+	// Then: the queue position should be set correctly:
+	var queuePositions []int64
+	for _, job := range actualJobs {
+		queuePositions = append(queuePositions, job.QueuePosition)
+	}
+	assert.EqualValues(t, []int64{1, 2, 3, 4, 5, 6}, queuePositions, "expected queue positions to be set correctly")
 }
 
 func TestGroupRemovalTrigger(t *testing.T) {
@@ -2377,6 +2913,7 @@ func TestGroupRemovalTrigger(t *testing.T) {
 
 func TestGetUserStatusCounts(t *testing.T) {
 	t.Parallel()
+	t.Skip("https://github.com/coder/internal/issues/464")
 
 	if !dbtestutil.WillUsePostgres() {
 		t.SkipNow()
@@ -2876,6 +3413,7 @@ func TestGetUserStatusCounts(t *testing.T) {
 
 			t.Run("User deleted during query range", func(t *testing.T) {
 				t.Parallel()
+
 				db, _ := dbtestutil.NewDB(t)
 				ctx := testutil.Context(t, testutil.WaitShort)
 
@@ -2914,6 +3452,135 @@ func TestGetUserStatusCounts(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestOrganizationDeleteTrigger(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.SkipNow()
+	}
+
+	t.Run("WorkspaceExists", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+
+		orgA := dbfake.Organization(t, db).Do()
+
+		user := dbgen.User(t, db, database.User{})
+
+		dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: orgA.Org.ID,
+			OwnerID:        user.ID,
+		}).Do()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		err := db.UpdateOrganizationDeletedByID(ctx, database.UpdateOrganizationDeletedByIDParams{
+			UpdatedAt: dbtime.Now(),
+			ID:        orgA.Org.ID,
+		})
+		require.Error(t, err)
+		// cannot delete organization: organization has 1 workspaces and 1 templates that must be deleted first
+		require.ErrorContains(t, err, "cannot delete organization")
+		require.ErrorContains(t, err, "has 1 workspaces")
+		require.ErrorContains(t, err, "1 templates")
+	})
+
+	t.Run("TemplateExists", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+
+		orgA := dbfake.Organization(t, db).Do()
+
+		user := dbgen.User(t, db, database.User{})
+
+		dbgen.Template(t, db, database.Template{
+			OrganizationID: orgA.Org.ID,
+			CreatedBy:      user.ID,
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		err := db.UpdateOrganizationDeletedByID(ctx, database.UpdateOrganizationDeletedByIDParams{
+			UpdatedAt: dbtime.Now(),
+			ID:        orgA.Org.ID,
+		})
+		require.Error(t, err)
+		// cannot delete organization: organization has 0 workspaces and 1 templates that must be deleted first
+		require.ErrorContains(t, err, "cannot delete organization")
+		require.ErrorContains(t, err, "1 templates")
+	})
+
+	t.Run("ProvisionerKeyExists", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+
+		orgA := dbfake.Organization(t, db).Do()
+
+		dbgen.ProvisionerKey(t, db, database.ProvisionerKey{
+			OrganizationID: orgA.Org.ID,
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		err := db.UpdateOrganizationDeletedByID(ctx, database.UpdateOrganizationDeletedByIDParams{
+			UpdatedAt: dbtime.Now(),
+			ID:        orgA.Org.ID,
+		})
+		require.Error(t, err)
+		// cannot delete organization: organization has 1 provisioner keys that must be deleted first
+		require.ErrorContains(t, err, "cannot delete organization")
+		require.ErrorContains(t, err, "1 provisioner keys")
+	})
+
+	t.Run("GroupExists", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+
+		orgA := dbfake.Organization(t, db).Do()
+
+		dbgen.Group(t, db, database.Group{
+			OrganizationID: orgA.Org.ID,
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		err := db.UpdateOrganizationDeletedByID(ctx, database.UpdateOrganizationDeletedByIDParams{
+			UpdatedAt: dbtime.Now(),
+			ID:        orgA.Org.ID,
+		})
+		require.Error(t, err)
+		// cannot delete organization: organization has 1 groups that must be deleted first
+		require.ErrorContains(t, err, "cannot delete organization")
+		require.ErrorContains(t, err, "has 1 groups")
+	})
+
+	t.Run("MemberExists", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+
+		orgA := dbfake.Organization(t, db).Do()
+
+		userA := dbgen.User(t, db, database.User{})
+		userB := dbgen.User(t, db, database.User{})
+
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: orgA.Org.ID,
+			UserID:         userA.ID,
+		})
+
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: orgA.Org.ID,
+			UserID:         userB.ID,
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		err := db.UpdateOrganizationDeletedByID(ctx, database.UpdateOrganizationDeletedByIDParams{
+			UpdatedAt: dbtime.Now(),
+			ID:        orgA.Org.ID,
+		})
+		require.Error(t, err)
+		// cannot delete organization: organization has 1 members that must be deleted first
+		require.ErrorContains(t, err, "cannot delete organization")
+		require.ErrorContains(t, err, "has 1 members")
+	})
 }
 
 func requireUsersMatch(t testing.TB, expected []database.User, found []database.GetUsersRow, msg string) {

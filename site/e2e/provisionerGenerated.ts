@@ -94,6 +94,17 @@ export interface RichParameterValue {
   value: string;
 }
 
+/** Preset represents a set of preset parameters for a template version. */
+export interface Preset {
+  name: string;
+  parameters: PresetParameter[];
+}
+
+export interface PresetParameter {
+  name: string;
+  value: string;
+}
+
 /** VariableValue holds the key/value mapping of a Terraform variable. */
 export interface VariableValue {
   name: string;
@@ -147,6 +158,7 @@ export interface Agent {
   extraEnvs: Env[];
   order: number;
   resourcesMonitoring: ResourcesMonitoring | undefined;
+  devcontainers: Devcontainer[];
 }
 
 export interface Agent_Metadata {
@@ -205,6 +217,12 @@ export interface Script {
   logPath: string;
 }
 
+export interface Devcontainer {
+  workspaceFolder: string;
+  configPath: string;
+  name: string;
+}
+
 /** App represents a dev-accessible application on the workspace. */
 export interface App {
   /**
@@ -258,6 +276,11 @@ export interface Module {
   key: string;
 }
 
+export interface Role {
+  name: string;
+  orgId: string;
+}
+
 /** Metadata is information about a workspace used in the execution of a build */
 export interface Metadata {
   coderUrl: string;
@@ -278,6 +301,7 @@ export interface Metadata {
   workspaceOwnerSshPrivateKey: string;
   workspaceBuildId: string;
   workspaceOwnerLoginType: string;
+  workspaceOwnerRbacRoles: Role[];
 }
 
 /** Config represents execution configuration shared by all subsequent requests in the Session */
@@ -322,6 +346,8 @@ export interface PlanComplete {
   externalAuthProviders: ExternalAuthProviderResource[];
   timings: Timing[];
   modules: Module[];
+  presets: Preset[];
+  plan: Uint8Array;
 }
 
 /**
@@ -485,6 +511,30 @@ export const RichParameterValue = {
   },
 };
 
+export const Preset = {
+  encode(message: Preset, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.name !== "") {
+      writer.uint32(10).string(message.name);
+    }
+    for (const v of message.parameters) {
+      PresetParameter.encode(v!, writer.uint32(18).fork()).ldelim();
+    }
+    return writer;
+  },
+};
+
+export const PresetParameter = {
+  encode(message: PresetParameter, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.name !== "") {
+      writer.uint32(10).string(message.name);
+    }
+    if (message.value !== "") {
+      writer.uint32(18).string(message.value);
+    }
+    return writer;
+  },
+};
+
 export const VariableValue = {
   encode(message: VariableValue, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
     if (message.name !== "") {
@@ -600,6 +650,9 @@ export const Agent = {
     }
     if (message.resourcesMonitoring !== undefined) {
       ResourcesMonitoring.encode(message.resourcesMonitoring, writer.uint32(194).fork()).ldelim();
+    }
+    for (const v of message.devcontainers) {
+      Devcontainer.encode(v!, writer.uint32(202).fork()).ldelim();
     }
     return writer;
   },
@@ -746,6 +799,21 @@ export const Script = {
   },
 };
 
+export const Devcontainer = {
+  encode(message: Devcontainer, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.workspaceFolder !== "") {
+      writer.uint32(10).string(message.workspaceFolder);
+    }
+    if (message.configPath !== "") {
+      writer.uint32(18).string(message.configPath);
+    }
+    if (message.name !== "") {
+      writer.uint32(26).string(message.name);
+    }
+    return writer;
+  },
+};
+
 export const App = {
   encode(message: App, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
     if (message.slug !== "") {
@@ -869,6 +937,18 @@ export const Module = {
   },
 };
 
+export const Role = {
+  encode(message: Role, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.name !== "") {
+      writer.uint32(10).string(message.name);
+    }
+    if (message.orgId !== "") {
+      writer.uint32(18).string(message.orgId);
+    }
+    return writer;
+  },
+};
+
 export const Metadata = {
   encode(message: Metadata, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
     if (message.coderUrl !== "") {
@@ -924,6 +1004,9 @@ export const Metadata = {
     }
     if (message.workspaceOwnerLoginType !== "") {
       writer.uint32(146).string(message.workspaceOwnerLoginType);
+    }
+    for (const v of message.workspaceOwnerRbacRoles) {
+      Role.encode(v!, writer.uint32(154).fork()).ldelim();
     }
     return writer;
   },
@@ -1017,6 +1100,12 @@ export const PlanComplete = {
     }
     for (const v of message.modules) {
       Module.encode(v!, writer.uint32(58).fork()).ldelim();
+    }
+    for (const v of message.presets) {
+      Preset.encode(v!, writer.uint32(66).fork()).ldelim();
+    }
+    if (message.plan.length !== 0) {
+      writer.uint32(74).bytes(message.plan);
     }
     return writer;
   },

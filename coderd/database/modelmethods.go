@@ -168,6 +168,12 @@ func (TemplateVersion) RBACObject(template Template) rbac.Object {
 	return template.RBACObject()
 }
 
+func (i InboxNotification) RBACObject() rbac.Object {
+	return rbac.ResourceInboxNotification.
+		WithID(i.ID).
+		WithOwner(i.UserID.String())
+}
+
 // RBACObjectNoTemplate is for orphaned template versions.
 func (v TemplateVersion) RBACObjectNoTemplate() rbac.Object {
 	return rbac.ResourceTemplate.InOrg(v.OrganizationID)
@@ -250,6 +256,10 @@ func (m OrganizationMembersRow) RBACObject() rbac.Object {
 	return m.OrganizationMember.RBACObject()
 }
 
+func (m PaginatedOrganizationMembersRow) RBACObject() rbac.Object {
+	return m.OrganizationMember.RBACObject()
+}
+
 func (m GetOrganizationIDsByMemberIDsRow) RBACObject() rbac.Object {
 	// TODO: This feels incorrect as we are really returning a list of orgmembers.
 	// This return type should be refactored to return a list of orgmembers, not this
@@ -277,8 +287,10 @@ func (p GetEligibleProvisionerDaemonsByProvisionerJobIDsRow) RBACObject() rbac.O
 	return p.ProvisionerDaemon.RBACObject()
 }
 
+// RBACObject for a provisioner key is the same as a provisioner daemon.
+// Keys == provisioners from a RBAC perspective.
 func (p ProvisionerKey) RBACObject() rbac.Object {
-	return rbac.ResourceProvisionerKeys.
+	return rbac.ResourceProvisionerDaemon.
 		WithID(p.ID).
 		InOrg(p.OrganizationID)
 }
@@ -398,20 +410,20 @@ func ConvertUserRows(rows []GetUsersRow) []User {
 	users := make([]User, len(rows))
 	for i, r := range rows {
 		users[i] = User{
-			ID:              r.ID,
-			Email:           r.Email,
-			Username:        r.Username,
-			Name:            r.Name,
-			HashedPassword:  r.HashedPassword,
-			CreatedAt:       r.CreatedAt,
-			UpdatedAt:       r.UpdatedAt,
-			Status:          r.Status,
-			RBACRoles:       r.RBACRoles,
-			LoginType:       r.LoginType,
-			AvatarURL:       r.AvatarURL,
-			Deleted:         r.Deleted,
-			LastSeenAt:      r.LastSeenAt,
-			ThemePreference: r.ThemePreference,
+			ID:             r.ID,
+			Email:          r.Email,
+			Username:       r.Username,
+			Name:           r.Name,
+			HashedPassword: r.HashedPassword,
+			CreatedAt:      r.CreatedAt,
+			UpdatedAt:      r.UpdatedAt,
+			Status:         r.Status,
+			RBACRoles:      r.RBACRoles,
+			LoginType:      r.LoginType,
+			AvatarURL:      r.AvatarURL,
+			Deleted:        r.Deleted,
+			LastSeenAt:     r.LastSeenAt,
+			IsSystem:       r.IsSystem,
 		}
 	}
 
@@ -526,4 +538,32 @@ func (k CryptoKey) CanVerify(now time.Time) bool {
 
 func (r GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow) RBACObject() rbac.Object {
 	return r.ProvisionerJob.RBACObject()
+}
+
+func (m WorkspaceAgentMemoryResourceMonitor) Debounce(
+	by time.Duration,
+	now time.Time,
+	oldState, newState WorkspaceAgentMonitorState,
+) (time.Time, bool) {
+	if now.After(m.DebouncedUntil) &&
+		oldState == WorkspaceAgentMonitorStateOK &&
+		newState == WorkspaceAgentMonitorStateNOK {
+		return now.Add(by), true
+	}
+
+	return m.DebouncedUntil, false
+}
+
+func (m WorkspaceAgentVolumeResourceMonitor) Debounce(
+	by time.Duration,
+	now time.Time,
+	oldState, newState WorkspaceAgentMonitorState,
+) (debouncedUntil time.Time, shouldNotify bool) {
+	if now.After(m.DebouncedUntil) &&
+		oldState == WorkspaceAgentMonitorStateOK &&
+		newState == WorkspaceAgentMonitorStateNOK {
+		return now.Add(by), true
+	}
+
+	return m.DebouncedUntil, false
 }

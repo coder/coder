@@ -7,20 +7,32 @@ import {
 } from "components/Breadcrumb/Breadcrumb";
 import { Loader } from "components/Loader/Loader";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
-import { RequirePermission } from "contexts/auth/RequirePermission";
+import { canViewDeploymentSettings } from "modules/permissions";
+import { RequirePermission } from "modules/permissions/RequirePermission";
 import { type FC, Suspense } from "react";
-import { Outlet } from "react-router-dom";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { DeploymentSidebar } from "./DeploymentSidebar";
 
 const DeploymentSettingsLayout: FC = () => {
 	const { permissions } = useAuthenticated();
+	const location = useLocation();
 
-	// The deployment settings page also contains users, audit logs, and groups
-	// so this page must be visible if you can see any of these.
-	const canViewDeploymentSettingsPage =
-		permissions.viewDeploymentValues ||
-		permissions.viewAllUsers ||
-		permissions.viewAnyAuditLog;
+	if (location.pathname === "/deployment") {
+		return (
+			<Navigate
+				to={
+					permissions.viewDeploymentConfig
+						? "/deployment/overview"
+						: "/deployment/users"
+				}
+				replace
+			/>
+		);
+	}
+
+	// The deployment settings page also contains users and groups and more so
+	// this page must be visible if you can see any of these.
+	const canViewDeploymentSettingsPage = canViewDeploymentSettings(permissions);
 
 	return (
 		<RequirePermission isFeatureVisible={canViewDeploymentSettingsPage}>

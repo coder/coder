@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/trace"
+	"slices"
 	"strings"
 	"sync"
 	"syscall"
@@ -25,7 +26,6 @@ import (
 
 	"github.com/mattn/go-isatty"
 	"github.com/mitchellh/go-wordwrap"
-	"golang.org/x/exp/slices"
 	"golang.org/x/mod/semver"
 	"golang.org/x/xerrors"
 
@@ -433,7 +433,7 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 		{
 			Flag:        varForceTty,
 			Env:         "CODER_FORCE_TTY",
-			Hidden:      true,
+			Hidden:      false,
 			Description: "Force the use of a TTY.",
 			Value:       serpent.BoolOf(&r.forceTTY),
 			Group:       globalGroup,
@@ -1213,9 +1213,14 @@ func wrapTransportWithVersionMismatchCheck(rt http.RoundTripper, inv *serpent.In
 				return
 			}
 			upgradeMessage := defaultUpgradeMessage(semver.Canonical(serverVersion))
-			serverInfo, err := getBuildInfo(inv.Context())
-			if err == nil && serverInfo.UpgradeMessage != "" {
-				upgradeMessage = serverInfo.UpgradeMessage
+			if serverInfo, err := getBuildInfo(inv.Context()); err == nil {
+				switch {
+				case serverInfo.UpgradeMessage != "":
+					upgradeMessage = serverInfo.UpgradeMessage
+				// The site-local `install.sh` was introduced in v2.19.0
+				case serverInfo.DashboardURL != "" && semver.Compare(semver.MajorMinor(serverVersion), "v2.19") >= 0:
+					upgradeMessage = fmt.Sprintf("download %s with: 'curl -fsSL %s/install.sh | sh'", serverVersion, serverInfo.DashboardURL)
+				}
 			}
 			fmtWarningText := "version mismatch: client %s, server %s\n%s"
 			fmtWarn := pretty.Sprint(cliui.DefaultStyles.Warn, fmtWarningText)

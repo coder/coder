@@ -1,0 +1,438 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.11.0",
+  "planned_values": {
+    "root_module": {
+      "resources": [
+        {
+          "address": "coder_agent.main",
+          "mode": "managed",
+          "type": "coder_agent",
+          "name": "main",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 1,
+          "values": {
+            "arch": "amd64",
+            "auth": "token",
+            "connection_timeout": 120,
+            "dir": null,
+            "env": null,
+            "metadata": [
+              {
+                "display_name": "Process Count",
+                "interval": 5,
+                "key": "process_count",
+                "order": null,
+                "script": "ps -ef | wc -l",
+                "timeout": 1
+              }
+            ],
+            "motd_file": null,
+            "order": null,
+            "os": "linux",
+            "resources_monitoring": [],
+            "shutdown_script": null,
+            "startup_script": null,
+            "startup_script_behavior": "non-blocking",
+            "troubleshooting_url": null
+          },
+          "sensitive_values": {
+            "display_apps": [],
+            "metadata": [
+              {}
+            ],
+            "resources_monitoring": [],
+            "token": true
+          }
+        },
+        {
+          "address": "coder_metadata.about_info",
+          "mode": "managed",
+          "type": "coder_metadata",
+          "name": "about_info",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 1,
+          "values": {
+            "daily_cost": 29,
+            "hide": true,
+            "icon": "/icon/server.svg",
+            "item": [
+              {
+                "key": "hello",
+                "sensitive": false,
+                "value": "world"
+              },
+              {
+                "key": "null",
+                "sensitive": false,
+                "value": null
+              }
+            ]
+          },
+          "sensitive_values": {
+            "item": [
+              {},
+              {}
+            ]
+          }
+        },
+        {
+          "address": "coder_metadata.other_info",
+          "mode": "managed",
+          "type": "coder_metadata",
+          "name": "other_info",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 1,
+          "values": {
+            "daily_cost": 20,
+            "hide": true,
+            "icon": "/icon/server.svg",
+            "item": [
+              {
+                "key": "hello",
+                "sensitive": false,
+                "value": "world"
+              }
+            ]
+          },
+          "sensitive_values": {
+            "item": [
+              {}
+            ]
+          }
+        },
+        {
+          "address": "null_resource.about",
+          "mode": "managed",
+          "type": "null_resource",
+          "name": "about",
+          "provider_name": "registry.terraform.io/hashicorp/null",
+          "schema_version": 0,
+          "values": {
+            "triggers": null
+          },
+          "sensitive_values": {}
+        }
+      ]
+    }
+  },
+  "resource_changes": [
+    {
+      "address": "coder_agent.main",
+      "mode": "managed",
+      "type": "coder_agent",
+      "name": "main",
+      "provider_name": "registry.terraform.io/coder/coder",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "arch": "amd64",
+          "auth": "token",
+          "connection_timeout": 120,
+          "dir": null,
+          "env": null,
+          "metadata": [
+            {
+              "display_name": "Process Count",
+              "interval": 5,
+              "key": "process_count",
+              "order": null,
+              "script": "ps -ef | wc -l",
+              "timeout": 1
+            }
+          ],
+          "motd_file": null,
+          "order": null,
+          "os": "linux",
+          "resources_monitoring": [],
+          "shutdown_script": null,
+          "startup_script": null,
+          "startup_script_behavior": "non-blocking",
+          "troubleshooting_url": null
+        },
+        "after_unknown": {
+          "display_apps": true,
+          "id": true,
+          "init_script": true,
+          "metadata": [
+            {}
+          ],
+          "resources_monitoring": [],
+          "token": true
+        },
+        "before_sensitive": false,
+        "after_sensitive": {
+          "display_apps": [],
+          "metadata": [
+            {}
+          ],
+          "resources_monitoring": [],
+          "token": true
+        }
+      }
+    },
+    {
+      "address": "coder_metadata.about_info",
+      "mode": "managed",
+      "type": "coder_metadata",
+      "name": "about_info",
+      "provider_name": "registry.terraform.io/coder/coder",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "daily_cost": 29,
+          "hide": true,
+          "icon": "/icon/server.svg",
+          "item": [
+            {
+              "key": "hello",
+              "sensitive": false,
+              "value": "world"
+            },
+            {
+              "key": "null",
+              "sensitive": false,
+              "value": null
+            }
+          ]
+        },
+        "after_unknown": {
+          "id": true,
+          "item": [
+            {
+              "is_null": true
+            },
+            {
+              "is_null": true
+            }
+          ],
+          "resource_id": true
+        },
+        "before_sensitive": false,
+        "after_sensitive": {
+          "item": [
+            {},
+            {}
+          ]
+        }
+      }
+    },
+    {
+      "address": "coder_metadata.other_info",
+      "mode": "managed",
+      "type": "coder_metadata",
+      "name": "other_info",
+      "provider_name": "registry.terraform.io/coder/coder",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "daily_cost": 20,
+          "hide": true,
+          "icon": "/icon/server.svg",
+          "item": [
+            {
+              "key": "hello",
+              "sensitive": false,
+              "value": "world"
+            }
+          ]
+        },
+        "after_unknown": {
+          "id": true,
+          "item": [
+            {
+              "is_null": true
+            }
+          ],
+          "resource_id": true
+        },
+        "before_sensitive": false,
+        "after_sensitive": {
+          "item": [
+            {}
+          ]
+        }
+      }
+    },
+    {
+      "address": "null_resource.about",
+      "mode": "managed",
+      "type": "null_resource",
+      "name": "about",
+      "provider_name": "registry.terraform.io/hashicorp/null",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "triggers": null
+        },
+        "after_unknown": {
+          "id": true
+        },
+        "before_sensitive": false,
+        "after_sensitive": {}
+      }
+    }
+  ],
+  "configuration": {
+    "provider_config": {
+      "coder": {
+        "name": "coder",
+        "full_name": "registry.terraform.io/coder/coder",
+        "version_constraint": ">= 2.0.0"
+      },
+      "null": {
+        "name": "null",
+        "full_name": "registry.terraform.io/hashicorp/null"
+      }
+    },
+    "root_module": {
+      "resources": [
+        {
+          "address": "coder_agent.main",
+          "mode": "managed",
+          "type": "coder_agent",
+          "name": "main",
+          "provider_config_key": "coder",
+          "expressions": {
+            "arch": {
+              "constant_value": "amd64"
+            },
+            "metadata": [
+              {
+                "display_name": {
+                  "constant_value": "Process Count"
+                },
+                "interval": {
+                  "constant_value": 5
+                },
+                "key": {
+                  "constant_value": "process_count"
+                },
+                "script": {
+                  "constant_value": "ps -ef | wc -l"
+                },
+                "timeout": {
+                  "constant_value": 1
+                }
+              }
+            ],
+            "os": {
+              "constant_value": "linux"
+            }
+          },
+          "schema_version": 1
+        },
+        {
+          "address": "coder_metadata.about_info",
+          "mode": "managed",
+          "type": "coder_metadata",
+          "name": "about_info",
+          "provider_config_key": "coder",
+          "expressions": {
+            "daily_cost": {
+              "constant_value": 29
+            },
+            "hide": {
+              "constant_value": true
+            },
+            "icon": {
+              "constant_value": "/icon/server.svg"
+            },
+            "item": [
+              {
+                "key": {
+                  "constant_value": "hello"
+                },
+                "value": {
+                  "constant_value": "world"
+                }
+              },
+              {
+                "key": {
+                  "constant_value": "null"
+                }
+              }
+            ],
+            "resource_id": {
+              "references": [
+                "null_resource.about.id",
+                "null_resource.about"
+              ]
+            }
+          },
+          "schema_version": 1
+        },
+        {
+          "address": "coder_metadata.other_info",
+          "mode": "managed",
+          "type": "coder_metadata",
+          "name": "other_info",
+          "provider_config_key": "coder",
+          "expressions": {
+            "daily_cost": {
+              "constant_value": 20
+            },
+            "hide": {
+              "constant_value": true
+            },
+            "icon": {
+              "constant_value": "/icon/server.svg"
+            },
+            "item": [
+              {
+                "key": {
+                  "constant_value": "hello"
+                },
+                "value": {
+                  "constant_value": "world"
+                }
+              }
+            ],
+            "resource_id": {
+              "references": [
+                "null_resource.about.id",
+                "null_resource.about"
+              ]
+            }
+          },
+          "schema_version": 1
+        },
+        {
+          "address": "null_resource.about",
+          "mode": "managed",
+          "type": "null_resource",
+          "name": "about",
+          "provider_config_key": "null",
+          "schema_version": 0,
+          "depends_on": [
+            "coder_agent.main"
+          ]
+        }
+      ]
+    }
+  },
+  "relevant_attributes": [
+    {
+      "resource": "null_resource.about",
+      "attribute": [
+        "id"
+      ]
+    }
+  ],
+  "timestamp": "2025-03-03T20:39:59Z",
+  "applyable": true,
+  "complete": true,
+  "errored": false
+}

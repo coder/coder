@@ -1660,6 +1660,166 @@ const docTemplate = `{
                 }
             }
         },
+        "/notifications/inbox": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "List inbox notifications",
+                "operationId": "list-inbox-notifications",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Comma-separated list of target IDs to filter notifications",
+                        "name": "targets",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated list of template IDs to filter notifications",
+                        "name": "templates",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter notifications by read status. Possible values: read, unread, all",
+                        "name": "read_status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "ID of the last notification from the current page. Notifications returned will be older than the associated one",
+                        "name": "starting_before",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ListInboxNotificationsResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/notifications/inbox/mark-all-as-read": {
+            "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "Mark all unread notifications as read",
+                "operationId": "mark-all-unread-notifications-as-read",
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/notifications/inbox/watch": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "Watch for new inbox notifications",
+                "operationId": "watch-for-new-inbox-notifications",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Comma-separated list of target IDs to filter notifications",
+                        "name": "targets",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated list of template IDs to filter notifications",
+                        "name": "templates",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter notifications by read status. Possible values: read, unread, all",
+                        "name": "read_status",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "plaintext",
+                            "markdown"
+                        ],
+                        "type": "string",
+                        "description": "Define the output format for notifications title and body.",
+                        "name": "format",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.GetInboxNotificationResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/notifications/inbox/{id}/read-status": {
+            "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "Update read status of a notification",
+                "operationId": "update-read-status-of-a-notification",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "id of the notification",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/notifications/settings": {
             "get": {
                 "security": [
@@ -1783,6 +1943,25 @@ const docTemplate = `{
                     },
                     "304": {
                         "description": "Not modified"
+                    }
+                }
+            }
+        },
+        "/notifications/test": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "Send a test notification",
+                "operationId": "send-a-test-notification",
+                "responses": {
+                    "200": {
+                        "description": "OK"
                     }
                 }
             }
@@ -2526,6 +2705,7 @@ const docTemplate = `{
                 ],
                 "summary": "List organization members",
                 "operationId": "list-organization-members",
+                "deprecated": true,
                 "parameters": [
                     {
                         "type": "string",
@@ -2952,6 +3132,55 @@ const docTemplate = `{
                 }
             }
         },
+        "/organizations/{organization}/paginated-members": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Members"
+                ],
+                "summary": "Paginated organization members",
+                "operationId": "paginated-organization-members",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page limit, if 0 returns all members",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page offset",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.PaginatedMembersResponse"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/organizations/{organization}/provisionerdaemons": {
             "get": {
                 "security": [
@@ -2975,6 +3204,43 @@ const docTemplate = `{
                         "name": "organization",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "array",
+                        "format": "uuid",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "Filter results by job IDs",
+                        "name": "ids",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "pending",
+                            "running",
+                            "succeeded",
+                            "canceling",
+                            "canceled",
+                            "failed",
+                            "unknown",
+                            "pending",
+                            "running",
+                            "succeeded",
+                            "canceling",
+                            "canceled",
+                            "failed"
+                        ],
+                        "type": "string",
+                        "description": "Filter results by status",
+                        "name": "status",
+                        "in": "query"
                     },
                     {
                         "type": "object",
@@ -3056,6 +3322,16 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "type": "array",
+                        "format": "uuid",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "Filter results by job IDs",
+                        "name": "ids",
+                        "in": "query"
+                    },
+                    {
                         "enum": [
                             "pending",
                             "running",
@@ -3074,6 +3350,12 @@ const docTemplate = `{
                         "type": "string",
                         "description": "Filter results by status",
                         "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "object",
+                        "description": "Provisioner tags to filter by (JSON of the form {'tag1':'value1','tag2':'value2'})",
+                        "name": "tags",
                         "in": "query"
                     }
                 ],
@@ -6095,6 +6377,31 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/oauth2/github/device": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Get Github device auth.",
+                "operationId": "get-github-device-auth",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ExternalAuthDevice"
+                        }
+                    }
+                }
+            }
+        },
         "/users/oidc/callback": {
             "get": {
                 "security": [
@@ -6298,6 +6605,38 @@ const docTemplate = `{
             }
         },
         "/users/{user}/appearance": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Get user appearance settings",
+                "operationId": "get-user-appearance-settings",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserAppearanceSettings"
+                        }
+                    }
+                }
+            },
             "put": {
                 "security": [
                     {
@@ -6337,7 +6676,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.User"
+                            "$ref": "#/definitions/codersdk.UserAppearanceSettings"
                         }
                     }
                 }
@@ -10098,7 +10437,11 @@ const docTemplate = `{
                 "login",
                 "logout",
                 "register",
-                "request_password_reset"
+                "request_password_reset",
+                "connect",
+                "disconnect",
+                "open",
+                "close"
             ],
             "x-enum-varnames": [
                 "AuditActionCreate",
@@ -10109,7 +10452,11 @@ const docTemplate = `{
                 "AuditActionLogin",
                 "AuditActionLogout",
                 "AuditActionRegister",
-                "AuditActionRequestPasswordReset"
+                "AuditActionRequestPasswordReset",
+                "AuditActionConnect",
+                "AuditActionDisconnect",
+                "AuditActionOpen",
+                "AuditActionClose"
             ]
         },
         "codersdk.AuditDiff": {
@@ -10226,7 +10573,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "github": {
-                    "$ref": "#/definitions/codersdk.AuthMethod"
+                    "$ref": "#/definitions/codersdk.GithubAuthMethod"
                 },
                 "oidc": {
                     "$ref": "#/definitions/codersdk.OIDCAuthMethod"
@@ -10767,6 +11114,10 @@ const docTemplate = `{
                     ]
                 },
                 "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "request_id": {
                     "type": "string",
                     "format": "uuid"
                 },
@@ -11699,6 +12050,17 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.GetInboxNotificationResponse": {
+            "type": "object",
+            "properties": {
+                "notification": {
+                    "$ref": "#/definitions/codersdk.InboxNotification"
+                },
+                "unread_count": {
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.GetUserStatusCountsResponse": {
             "type": "object",
             "properties": {
@@ -11735,6 +12097,7 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "public_key": {
+                    "description": "PublicKey is the SSH public key in OpenSSH format.\nExample: \"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID3OmYJvT7q1cF1azbybYy0OZ9yrXfA+M6Lr4vzX5zlp\\n\"\nNote: The key includes a trailing newline (\\n).",
                     "type": "string"
                 },
                 "updated_at": {
@@ -11744,6 +12107,17 @@ const docTemplate = `{
                 "user_id": {
                     "type": "string",
                     "format": "uuid"
+                }
+            }
+        },
+        "codersdk.GithubAuthMethod": {
+            "type": "object",
+            "properties": {
+                "default_provider_configured": {
+                    "type": "boolean"
+                },
+                "enabled": {
+                    "type": "boolean"
                 }
             }
         },
@@ -11868,6 +12242,63 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.InboxNotification": {
+            "type": "object",
+            "properties": {
+                "actions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.InboxNotificationAction"
+                    }
+                },
+                "content": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "read_at": {
+                    "type": "string"
+                },
+                "targets": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
+                "template_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
+        "codersdk.InboxNotificationAction": {
+            "type": "object",
+            "properties": {
+                "label": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.InsightsReportInterval": {
             "type": "string",
             "enum": [
@@ -11975,6 +12406,20 @@ const docTemplate = `{
                 },
                 "target": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.ListInboxNotificationsResponse": {
+            "type": "object",
+            "properties": {
+                "notifications": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.InboxNotification"
+                    }
+                },
+                "unread_count": {
+                    "type": "integer"
                 }
             }
         },
@@ -12213,6 +12658,14 @@ const docTemplate = `{
                     "description": "How often to query the database for queued notifications.",
                     "type": "integer"
                 },
+                "inbox": {
+                    "description": "Inbox settings.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.NotificationsInboxConfig"
+                        }
+                    ]
+                },
                 "lease_count": {
                     "description": "How many notifications a notifier should lease per fetch interval.",
                     "type": "integer"
@@ -12338,6 +12791,14 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.NotificationsInboxConfig": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                }
+            }
+        },
         "codersdk.NotificationsSettings": {
             "type": "object",
             "properties": {
@@ -12408,6 +12869,12 @@ const docTemplate = `{
                 },
                 "client_secret": {
                     "type": "string"
+                },
+                "default_provider_enable": {
+                    "type": "boolean"
+                },
+                "device_flow": {
+                    "type": "boolean"
                 },
                 "enterprise_base_url": {
                     "type": "string"
@@ -12556,6 +13023,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "ignore_user_info": {
+                    "description": "IgnoreUserInfo \u0026 UserInfoFromAccessToken are mutually exclusive. Only 1\ncan be set to true. Ideally this would be an enum with 3 states, ['none',\n'userinfo', 'access_token']. However, for backward compatibility,\n` + "`" + `ignore_user_info` + "`" + ` must remain. And ` + "`" + `access_token` + "`" + ` is a niche, non-spec\ncompliant edge case. So it's use is rare, and should not be advised.",
                     "type": "boolean"
                 },
                 "issuer_url": {
@@ -12586,6 +13054,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "skip_issuer_checks": {
+                    "type": "boolean"
+                },
+                "source_user_info_from_access_token": {
+                    "description": "UserInfoFromAccessToken as mentioned above is an edge case. This allows\nsourcing the user_info from the access token itself instead of a user_info\nendpoint. This assumes the access token is a valid JWT with a set of claims to\nbe merged with the id_token.",
                     "type": "boolean"
                 },
                 "user_role_field": {
@@ -12735,6 +13207,20 @@ const docTemplate = `{
                 "organization_assign_default": {
                     "description": "AssignDefault will ensure the default org is always included\nfor every user, regardless of their claims. This preserves legacy behavior.",
                     "type": "boolean"
+                }
+            }
+        },
+        "codersdk.PaginatedMembersResponse": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "members": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.OrganizationMemberWithUserData"
+                    }
                 }
             }
         },
@@ -13567,6 +14053,7 @@ const docTemplate = `{
                 "read",
                 "read_personal",
                 "ssh",
+                "unassign",
                 "update",
                 "update_personal",
                 "use",
@@ -13582,6 +14069,7 @@ const docTemplate = `{
                 "ActionRead",
                 "ActionReadPersonal",
                 "ActionSSH",
+                "ActionUnassign",
                 "ActionUpdate",
                 "ActionUpdatePersonal",
                 "ActionUse",
@@ -13606,6 +14094,7 @@ const docTemplate = `{
                 "group",
                 "group_member",
                 "idpsync_settings",
+                "inbox_notification",
                 "license",
                 "notification_message",
                 "notification_preference",
@@ -13617,13 +14106,13 @@ const docTemplate = `{
                 "organization_member",
                 "provisioner_daemon",
                 "provisioner_jobs",
-                "provisioner_keys",
                 "replicas",
                 "system",
                 "tailnet_coordinator",
                 "template",
                 "user",
                 "workspace",
+                "workspace_agent_devcontainers",
                 "workspace_agent_resource_monitor",
                 "workspace_dormant",
                 "workspace_proxy"
@@ -13642,6 +14131,7 @@ const docTemplate = `{
                 "ResourceGroup",
                 "ResourceGroupMember",
                 "ResourceIdpsyncSettings",
+                "ResourceInboxNotification",
                 "ResourceLicense",
                 "ResourceNotificationMessage",
                 "ResourceNotificationPreference",
@@ -13653,13 +14143,13 @@ const docTemplate = `{
                 "ResourceOrganizationMember",
                 "ResourceProvisionerDaemon",
                 "ResourceProvisionerJobs",
-                "ResourceProvisionerKeys",
                 "ResourceReplicas",
                 "ResourceSystem",
                 "ResourceTailnetCoordinator",
                 "ResourceTemplate",
                 "ResourceUser",
                 "ResourceWorkspace",
+                "ResourceWorkspaceAgentDevcontainers",
                 "ResourceWorkspaceAgentResourceMonitor",
                 "ResourceWorkspaceDormant",
                 "ResourceWorkspaceProxy"
@@ -13723,6 +14213,7 @@ const docTemplate = `{
                     ]
                 },
                 "theme_preference": {
+                    "description": "Deprecated: this value should be retrieved from\n` + "`" + `codersdk.UserPreferenceSettings` + "`" + ` instead.",
                     "type": "string"
                 },
                 "updated_at": {
@@ -13864,7 +14355,9 @@ const docTemplate = `{
                 "notification_template",
                 "idp_sync_settings_organization",
                 "idp_sync_settings_group",
-                "idp_sync_settings_role"
+                "idp_sync_settings_role",
+                "workspace_agent",
+                "workspace_app"
             ],
             "x-enum-varnames": [
                 "ResourceTypeTemplate",
@@ -13888,7 +14381,9 @@ const docTemplate = `{
                 "ResourceTypeNotificationTemplate",
                 "ResourceTypeIdpSyncSettingsOrganization",
                 "ResourceTypeIdpSyncSettingsGroup",
-                "ResourceTypeIdpSyncSettingsRole"
+                "ResourceTypeIdpSyncSettingsRole",
+                "ResourceTypeWorkspaceAgent",
+                "ResourceTypeWorkspaceApp"
             ]
         },
         "codersdk.Response": {
@@ -14586,6 +15081,7 @@ const docTemplate = `{
                     ]
                 },
                 "theme_preference": {
+                    "description": "Deprecated: this value should be retrieved from\n` + "`" + `codersdk.UserPreferenceSettings` + "`" + ` instead.",
                     "type": "string"
                 },
                 "updated_at": {
@@ -15196,6 +15692,7 @@ const docTemplate = `{
                     ]
                 },
                 "theme_preference": {
+                    "description": "Deprecated: this value should be retrieved from\n` + "`" + `codersdk.UserPreferenceSettings` + "`" + ` instead.",
                     "type": "string"
                 },
                 "updated_at": {
@@ -15265,6 +15762,14 @@ const docTemplate = `{
             "properties": {
                 "report": {
                     "$ref": "#/definitions/codersdk.UserActivityInsightsReport"
+                }
+            }
+        },
+        "codersdk.UserAppearanceSettings": {
+            "type": "object",
+            "properties": {
+                "theme_preference": {
+                    "type": "string"
                 }
             }
         },
@@ -15729,7 +16234,7 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.WorkspaceAgentDevcontainer": {
+        "codersdk.WorkspaceAgentContainer": {
             "type": "object",
             "properties": {
                 "created_at": {
@@ -15760,7 +16265,7 @@ const docTemplate = `{
                     "description": "Ports includes ports exposed by the container.",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/codersdk.WorkspaceAgentListeningPort"
+                        "$ref": "#/definitions/codersdk.WorkspaceAgentContainerPort"
                     }
                 },
                 "running": {
@@ -15777,6 +16282,27 @@ const docTemplate = `{
                     "additionalProperties": {
                         "type": "string"
                     }
+                }
+            }
+        },
+        "codersdk.WorkspaceAgentContainerPort": {
+            "type": "object",
+            "properties": {
+                "host_ip": {
+                    "description": "HostIP is the IP address of the host interface to which the port is\nbound. Note that this can be an IPv4 or IPv6 address.",
+                    "type": "string"
+                },
+                "host_port": {
+                    "description": "HostPort is the port number *outside* the container.",
+                    "type": "integer"
+                },
+                "network": {
+                    "description": "Network is the network protocol used by the port (tcp, udp, etc).",
+                    "type": "string"
+                },
+                "port": {
+                    "description": "Port is the port number *inside* the container.",
+                    "type": "integer"
                 }
             }
         },
@@ -15827,7 +16353,7 @@ const docTemplate = `{
                     "description": "Containers is a list of containers visible to the workspace agent.",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/codersdk.WorkspaceAgentDevcontainer"
+                        "$ref": "#/definitions/codersdk.WorkspaceAgentContainer"
                     }
                 },
                 "warnings": {

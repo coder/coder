@@ -226,6 +226,10 @@ type Options struct {
 	UpdateAgentMetrics func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 	StatsBatcher       workspacestats.Batcher
 
+	// WorkspaceAppAuditSessionTimeout allows changing the timeout for audit
+	// sessions. Raising or lowering this value will directly affect the write
+	// load of the audit log table. This is used for testing. Default 1 hour.
+	WorkspaceAppAuditSessionTimeout    time.Duration
 	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions
 
 	// This janky function is used in telemetry to parse fields out of the raw
@@ -422,6 +426,7 @@ func New(options *Options) *API {
 	metricsCache := metricscache.New(
 		options.Database,
 		options.Logger.Named("metrics_cache"),
+		options.Clock,
 		metricscache.Intervals{
 			TemplateBuildTimes: options.MetricsCacheRefreshInterval,
 			DeploymentStats:    options.AgentStatsRefreshInterval,
@@ -533,16 +538,6 @@ func New(options *Options) *API {
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
 		},
-		WorkspaceAppsProvider: workspaceapps.NewDBTokenProvider(
-			options.Logger.Named("workspaceapps"),
-			options.AccessURL,
-			options.Authorizer,
-			options.Database,
-			options.DeploymentValues,
-			oauthConfigs,
-			options.AgentInactiveDisconnectTimeout,
-			options.AppSigningKeyCache,
-		),
 		metricsCache:                metricsCache,
 		Auditor:                     atomic.Pointer[audit.Auditor]{},
 		TailnetCoordinator:          atomic.Pointer[tailnet.Coordinator]{},
@@ -560,6 +555,18 @@ func New(options *Options) *API {
 		),
 		dbRolluper: options.DatabaseRolluper,
 	}
+	api.WorkspaceAppsProvider = workspaceapps.NewDBTokenProvider(
+		options.Logger.Named("workspaceapps"),
+		options.AccessURL,
+		options.Authorizer,
+		&api.Auditor,
+		options.Database,
+		options.DeploymentValues,
+		oauthConfigs,
+		options.AgentInactiveDisconnectTimeout,
+		options.WorkspaceAppAuditSessionTimeout,
+		options.AppSigningKeyCache,
+	)
 
 	f := appearance.NewDefaultFetcher(api.DeploymentValues.DocsURL.String())
 	api.AppearanceFetcher.Store(&f)
@@ -930,6 +937,25 @@ func New(options *Options) *API {
 		r.Route("/audit", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
+				// This middleware only checks the site and orgs for the audit_log read
+				// permission.
+				// In the future if it makes sense to have this permission on the user as
+				// well we will need to update this middleware to include that check.
+				func(next http.Handler) http.Handler {
+					return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+						if api.Authorize(r, policy.ActionRead, rbac.ResourceAuditLog) {
+							next.ServeHTTP(rw, r)
+							return
+						}
+
+						if api.Authorize(r, policy.ActionRead, rbac.ResourceAuditLog.AnyOrganization()) {
+							next.ServeHTTP(rw, r)
+							return
+						}
+
+						httpapi.Forbidden(rw)
+					})
+				},
 			)
 
 			r.Get("/", api.auditLogs)
@@ -982,6 +1008,7 @@ func New(options *Options) *API {
 						})
 					})
 				})
+				r.Get("/paginated-members", api.paginatedMembers)
 				r.Route("/members", func(r chi.Router) {
 					r.Get("/", api.listMembers)
 					r.Route("/roles", func(r chi.Router) {
@@ -1087,6 +1114,7 @@ func New(options *Options) *API {
 				r.Post("/validate-password", api.validateUserPassword)
 				r.Post("/otp/change-password", api.postChangePasswordWithOneTimePasscode)
 				r.Route("/oauth2", func(r chi.Router) {
+					r.Get("/github/device", api.userOAuth2GithubDevice)
 					r.Route("/github", func(r chi.Router) {
 						r.Use(
 							httpmw.ExtractOAuth2(options.GithubOAuth2Config, options.HTTPClient, nil),
@@ -1124,6 +1152,7 @@ func New(options *Options) *API {
 						r.Put("/suspend", api.putSuspendUserAccount())
 						r.Put("/activate", api.putActivateUserAccount())
 					})
+					r.Get("/appearance", api.userAppearanceSettings)
 					r.Put("/appearance", api.putUserAppearanceSettings)
 					r.Route("/password", func(r chi.Router) {
 						r.Use(httpmw.RateLimit(options.LoginRateLimit, time.Minute))
@@ -1304,7 +1333,7 @@ func New(options *Options) *API {
 				func(next http.Handler) http.Handler {
 					return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 						if !api.Authorize(r, policy.ActionRead, rbac.ResourceDebugInfo) {
-							httpapi.ResourceNotFound(rw)
+							httpapi.Forbidden(rw)
 							return
 						}
 
@@ -1364,12 +1393,19 @@ func New(options *Options) *API {
 		})
 		r.Route("/notifications", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
+			r.Route("/inbox", func(r chi.Router) {
+				r.Get("/", api.listInboxNotifications)
+				r.Put("/mark-all-as-read", api.markAllInboxNotificationsAsRead)
+				r.Get("/watch", api.watchInboxNotifications)
+				r.Put("/{id}/read-status", api.updateInboxNotificationReadStatus)
+			})
 			r.Get("/settings", api.notificationsSettings)
 			r.Put("/settings", api.putNotificationsSettings)
 			r.Route("/templates", func(r chi.Router) {
 				r.Get("/system", api.systemNotificationTemplates)
 			})
 			r.Get("/dispatch-methods", api.notificationDispatchMethods)
+			r.Post("/test", api.postTestNotification)
 		})
 		r.Route("/tailnet", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)

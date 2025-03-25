@@ -1,20 +1,20 @@
 import { expect, test } from "@playwright/test";
-import { defaultOrganizationName } from "../constants";
+import { defaultOrganizationName, users } from "../constants";
 import { expectUrl } from "../expectUrl";
 import {
 	createGroup,
 	createTemplate,
+	login,
 	requiresLicense,
 	updateTemplateSettings,
 } from "../helpers";
-import { login } from "../helpers";
 import { beforeCoderTest } from "../hooks";
 
 test.describe.configure({ mode: "parallel" });
 
 test.beforeEach(async ({ page }) => {
 	beforeCoderTest(page);
-	await login(page);
+	await login(page, users.templateAdmin);
 });
 
 test("template update with new name redirects on successful submit", async ({
@@ -29,9 +29,12 @@ test("template update with new name redirects on successful submit", async ({
 test("add and remove a group", async ({ page }) => {
 	requiresLicense();
 
+	await login(page, users.userAdmin);
 	const orgName = defaultOrganizationName;
-	const templateName = await createTemplate(page);
 	const groupName = await createGroup(page, orgName);
+
+	await login(page, users.templateAdmin);
+	const templateName = await createTemplate(page);
 
 	await page.goto(
 		`/templates/${orgName}/${templateName}/settings/permissions`,

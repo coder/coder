@@ -1,0 +1,592 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.11.0",
+  "planned_values": {
+    "root_module": {
+      "resources": [
+        {
+          "address": "coder_agent.dev1",
+          "mode": "managed",
+          "type": "coder_agent",
+          "name": "dev1",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 1,
+          "values": {
+            "arch": "amd64",
+            "auth": "token",
+            "connection_timeout": 120,
+            "dir": null,
+            "env": null,
+            "metadata": [],
+            "motd_file": null,
+            "order": null,
+            "os": "linux",
+            "resources_monitoring": [],
+            "shutdown_script": null,
+            "startup_script": null,
+            "startup_script_behavior": "non-blocking",
+            "troubleshooting_url": null
+          },
+          "sensitive_values": {
+            "display_apps": [],
+            "metadata": [],
+            "resources_monitoring": [],
+            "token": true
+          }
+        },
+        {
+          "address": "coder_agent.dev2",
+          "mode": "managed",
+          "type": "coder_agent",
+          "name": "dev2",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 1,
+          "values": {
+            "arch": "amd64",
+            "auth": "token",
+            "connection_timeout": 120,
+            "dir": null,
+            "env": null,
+            "metadata": [],
+            "motd_file": null,
+            "order": null,
+            "os": "linux",
+            "resources_monitoring": [],
+            "shutdown_script": null,
+            "startup_script": null,
+            "startup_script_behavior": "non-blocking",
+            "troubleshooting_url": null
+          },
+          "sensitive_values": {
+            "display_apps": [],
+            "metadata": [],
+            "resources_monitoring": [],
+            "token": true
+          }
+        },
+        {
+          "address": "coder_app.app1",
+          "mode": "managed",
+          "type": "coder_app",
+          "name": "app1",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 1,
+          "values": {
+            "command": null,
+            "display_name": null,
+            "external": false,
+            "healthcheck": [],
+            "hidden": false,
+            "icon": null,
+            "open_in": "slim-window",
+            "order": null,
+            "share": "owner",
+            "slug": "app1",
+            "subdomain": null,
+            "url": null
+          },
+          "sensitive_values": {
+            "healthcheck": []
+          }
+        },
+        {
+          "address": "coder_app.app2",
+          "mode": "managed",
+          "type": "coder_app",
+          "name": "app2",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 1,
+          "values": {
+            "command": null,
+            "display_name": null,
+            "external": false,
+            "healthcheck": [
+              {
+                "interval": 5,
+                "threshold": 6,
+                "url": "http://localhost:13337/healthz"
+              }
+            ],
+            "hidden": false,
+            "icon": null,
+            "open_in": "slim-window",
+            "order": null,
+            "share": "owner",
+            "slug": "app2",
+            "subdomain": true,
+            "url": null
+          },
+          "sensitive_values": {
+            "healthcheck": [
+              {}
+            ]
+          }
+        },
+        {
+          "address": "coder_app.app3",
+          "mode": "managed",
+          "type": "coder_app",
+          "name": "app3",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 1,
+          "values": {
+            "command": null,
+            "display_name": null,
+            "external": false,
+            "healthcheck": [],
+            "hidden": false,
+            "icon": null,
+            "open_in": "slim-window",
+            "order": null,
+            "share": "owner",
+            "slug": "app3",
+            "subdomain": false,
+            "url": null
+          },
+          "sensitive_values": {
+            "healthcheck": []
+          }
+        },
+        {
+          "address": "null_resource.dev1",
+          "mode": "managed",
+          "type": "null_resource",
+          "name": "dev1",
+          "provider_name": "registry.terraform.io/hashicorp/null",
+          "schema_version": 0,
+          "values": {
+            "triggers": null
+          },
+          "sensitive_values": {}
+        },
+        {
+          "address": "null_resource.dev2",
+          "mode": "managed",
+          "type": "null_resource",
+          "name": "dev2",
+          "provider_name": "registry.terraform.io/hashicorp/null",
+          "schema_version": 0,
+          "values": {
+            "triggers": null
+          },
+          "sensitive_values": {}
+        }
+      ]
+    }
+  },
+  "resource_changes": [
+    {
+      "address": "coder_agent.dev1",
+      "mode": "managed",
+      "type": "coder_agent",
+      "name": "dev1",
+      "provider_name": "registry.terraform.io/coder/coder",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "arch": "amd64",
+          "auth": "token",
+          "connection_timeout": 120,
+          "dir": null,
+          "env": null,
+          "metadata": [],
+          "motd_file": null,
+          "order": null,
+          "os": "linux",
+          "resources_monitoring": [],
+          "shutdown_script": null,
+          "startup_script": null,
+          "startup_script_behavior": "non-blocking",
+          "troubleshooting_url": null
+        },
+        "after_unknown": {
+          "display_apps": true,
+          "id": true,
+          "init_script": true,
+          "metadata": [],
+          "resources_monitoring": [],
+          "token": true
+        },
+        "before_sensitive": false,
+        "after_sensitive": {
+          "display_apps": [],
+          "metadata": [],
+          "resources_monitoring": [],
+          "token": true
+        }
+      }
+    },
+    {
+      "address": "coder_agent.dev2",
+      "mode": "managed",
+      "type": "coder_agent",
+      "name": "dev2",
+      "provider_name": "registry.terraform.io/coder/coder",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "arch": "amd64",
+          "auth": "token",
+          "connection_timeout": 120,
+          "dir": null,
+          "env": null,
+          "metadata": [],
+          "motd_file": null,
+          "order": null,
+          "os": "linux",
+          "resources_monitoring": [],
+          "shutdown_script": null,
+          "startup_script": null,
+          "startup_script_behavior": "non-blocking",
+          "troubleshooting_url": null
+        },
+        "after_unknown": {
+          "display_apps": true,
+          "id": true,
+          "init_script": true,
+          "metadata": [],
+          "resources_monitoring": [],
+          "token": true
+        },
+        "before_sensitive": false,
+        "after_sensitive": {
+          "display_apps": [],
+          "metadata": [],
+          "resources_monitoring": [],
+          "token": true
+        }
+      }
+    },
+    {
+      "address": "coder_app.app1",
+      "mode": "managed",
+      "type": "coder_app",
+      "name": "app1",
+      "provider_name": "registry.terraform.io/coder/coder",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "command": null,
+          "display_name": null,
+          "external": false,
+          "healthcheck": [],
+          "hidden": false,
+          "icon": null,
+          "open_in": "slim-window",
+          "order": null,
+          "share": "owner",
+          "slug": "app1",
+          "subdomain": null,
+          "url": null
+        },
+        "after_unknown": {
+          "agent_id": true,
+          "healthcheck": [],
+          "id": true
+        },
+        "before_sensitive": false,
+        "after_sensitive": {
+          "healthcheck": []
+        }
+      }
+    },
+    {
+      "address": "coder_app.app2",
+      "mode": "managed",
+      "type": "coder_app",
+      "name": "app2",
+      "provider_name": "registry.terraform.io/coder/coder",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "command": null,
+          "display_name": null,
+          "external": false,
+          "healthcheck": [
+            {
+              "interval": 5,
+              "threshold": 6,
+              "url": "http://localhost:13337/healthz"
+            }
+          ],
+          "hidden": false,
+          "icon": null,
+          "open_in": "slim-window",
+          "order": null,
+          "share": "owner",
+          "slug": "app2",
+          "subdomain": true,
+          "url": null
+        },
+        "after_unknown": {
+          "agent_id": true,
+          "healthcheck": [
+            {}
+          ],
+          "id": true
+        },
+        "before_sensitive": false,
+        "after_sensitive": {
+          "healthcheck": [
+            {}
+          ]
+        }
+      }
+    },
+    {
+      "address": "coder_app.app3",
+      "mode": "managed",
+      "type": "coder_app",
+      "name": "app3",
+      "provider_name": "registry.terraform.io/coder/coder",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "command": null,
+          "display_name": null,
+          "external": false,
+          "healthcheck": [],
+          "hidden": false,
+          "icon": null,
+          "open_in": "slim-window",
+          "order": null,
+          "share": "owner",
+          "slug": "app3",
+          "subdomain": false,
+          "url": null
+        },
+        "after_unknown": {
+          "agent_id": true,
+          "healthcheck": [],
+          "id": true
+        },
+        "before_sensitive": false,
+        "after_sensitive": {
+          "healthcheck": []
+        }
+      }
+    },
+    {
+      "address": "null_resource.dev1",
+      "mode": "managed",
+      "type": "null_resource",
+      "name": "dev1",
+      "provider_name": "registry.terraform.io/hashicorp/null",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "triggers": null
+        },
+        "after_unknown": {
+          "id": true
+        },
+        "before_sensitive": false,
+        "after_sensitive": {}
+      }
+    },
+    {
+      "address": "null_resource.dev2",
+      "mode": "managed",
+      "type": "null_resource",
+      "name": "dev2",
+      "provider_name": "registry.terraform.io/hashicorp/null",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "triggers": null
+        },
+        "after_unknown": {
+          "id": true
+        },
+        "before_sensitive": false,
+        "after_sensitive": {}
+      }
+    }
+  ],
+  "configuration": {
+    "provider_config": {
+      "coder": {
+        "name": "coder",
+        "full_name": "registry.terraform.io/coder/coder",
+        "version_constraint": ">= 2.0.0"
+      },
+      "null": {
+        "name": "null",
+        "full_name": "registry.terraform.io/hashicorp/null"
+      }
+    },
+    "root_module": {
+      "resources": [
+        {
+          "address": "coder_agent.dev1",
+          "mode": "managed",
+          "type": "coder_agent",
+          "name": "dev1",
+          "provider_config_key": "coder",
+          "expressions": {
+            "arch": {
+              "constant_value": "amd64"
+            },
+            "os": {
+              "constant_value": "linux"
+            }
+          },
+          "schema_version": 1
+        },
+        {
+          "address": "coder_agent.dev2",
+          "mode": "managed",
+          "type": "coder_agent",
+          "name": "dev2",
+          "provider_config_key": "coder",
+          "expressions": {
+            "arch": {
+              "constant_value": "amd64"
+            },
+            "os": {
+              "constant_value": "linux"
+            }
+          },
+          "schema_version": 1
+        },
+        {
+          "address": "coder_app.app1",
+          "mode": "managed",
+          "type": "coder_app",
+          "name": "app1",
+          "provider_config_key": "coder",
+          "expressions": {
+            "agent_id": {
+              "references": [
+                "coder_agent.dev1.id",
+                "coder_agent.dev1"
+              ]
+            },
+            "slug": {
+              "constant_value": "app1"
+            }
+          },
+          "schema_version": 1
+        },
+        {
+          "address": "coder_app.app2",
+          "mode": "managed",
+          "type": "coder_app",
+          "name": "app2",
+          "provider_config_key": "coder",
+          "expressions": {
+            "agent_id": {
+              "references": [
+                "coder_agent.dev1.id",
+                "coder_agent.dev1"
+              ]
+            },
+            "healthcheck": [
+              {
+                "interval": {
+                  "constant_value": 5
+                },
+                "threshold": {
+                  "constant_value": 6
+                },
+                "url": {
+                  "constant_value": "http://localhost:13337/healthz"
+                }
+              }
+            ],
+            "slug": {
+              "constant_value": "app2"
+            },
+            "subdomain": {
+              "constant_value": true
+            }
+          },
+          "schema_version": 1
+        },
+        {
+          "address": "coder_app.app3",
+          "mode": "managed",
+          "type": "coder_app",
+          "name": "app3",
+          "provider_config_key": "coder",
+          "expressions": {
+            "agent_id": {
+              "references": [
+                "coder_agent.dev2.id",
+                "coder_agent.dev2"
+              ]
+            },
+            "slug": {
+              "constant_value": "app3"
+            },
+            "subdomain": {
+              "constant_value": false
+            }
+          },
+          "schema_version": 1
+        },
+        {
+          "address": "null_resource.dev1",
+          "mode": "managed",
+          "type": "null_resource",
+          "name": "dev1",
+          "provider_config_key": "null",
+          "schema_version": 0,
+          "depends_on": [
+            "coder_agent.dev1"
+          ]
+        },
+        {
+          "address": "null_resource.dev2",
+          "mode": "managed",
+          "type": "null_resource",
+          "name": "dev2",
+          "provider_config_key": "null",
+          "schema_version": 0,
+          "depends_on": [
+            "coder_agent.dev2"
+          ]
+        }
+      ]
+    }
+  },
+  "relevant_attributes": [
+    {
+      "resource": "coder_agent.dev1",
+      "attribute": [
+        "id"
+      ]
+    },
+    {
+      "resource": "coder_agent.dev2",
+      "attribute": [
+        "id"
+      ]
+    }
+  ],
+  "timestamp": "2025-03-03T20:39:59Z",
+  "applyable": true,
+  "complete": true,
+  "errored": false
+}

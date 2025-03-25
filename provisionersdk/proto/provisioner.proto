@@ -57,6 +57,17 @@ message RichParameterValue {
     string value = 2;
 }
 
+// Preset represents a set of preset parameters for a template version.
+message Preset {
+    string name = 1;
+    repeated PresetParameter parameters = 2;
+}
+
+message PresetParameter {
+    string name = 1;
+    string value = 2;
+}
+
 // VariableValue holds the key/value mapping of a Terraform variable.
 message VariableValue {
     string name = 1;
@@ -130,6 +141,7 @@ message Agent {
 	repeated Env extra_envs = 22;
 	int64 order = 23;
 	ResourcesMonitoring resources_monitoring = 24;
+	repeated Devcontainer devcontainers = 25;
 }
 
 enum AppSharingLevel {
@@ -178,6 +190,12 @@ message Script {
 	bool run_on_stop = 7;
 	int32 timeout_seconds = 8;
 	string log_path = 9;
+}
+
+message Devcontainer {
+	string workspace_folder = 1;
+	string config_path = 2;
+	string name = 3;
 }
 
 enum AppOpenIn {
@@ -244,6 +262,11 @@ enum WorkspaceTransition {
     DESTROY = 2;
 }
 
+message Role {
+    string name = 1;
+    string org_id = 2;
+}
+
 // Metadata is information about a workspace used in the execution of a build
 message Metadata {
     string coder_url = 1;
@@ -264,6 +287,7 @@ message Metadata {
     string workspace_owner_ssh_private_key = 16;
     string workspace_build_id = 17;
     string workspace_owner_login_type =  18;
+    repeated Role workspace_owner_rbac_roles =  19;
 }
 
 // Config represents execution configuration shared by all subsequent requests in the Session
@@ -303,6 +327,8 @@ message PlanComplete {
     repeated ExternalAuthProviderResource external_auth_providers = 4;
     repeated Timing timings = 6;
     repeated Module modules = 7;
+    repeated Preset presets = 8;
+    bytes plan = 9;
 }
 
 // ApplyRequest asks the provisioner to apply the changes.  Apply MUST be preceded by a successful plan request/response

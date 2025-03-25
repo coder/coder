@@ -19,6 +19,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -29,7 +30,6 @@ import (
 	"github.com/justinas/nosurf"
 	"github.com/klauspost/compress/zstd"
 	"github.com/unrolled/secure"
-	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
@@ -166,7 +166,7 @@ func New(opts *Options) *Handler {
 
 	handler.installScript, err = parseInstallScript(opts.SiteFS, opts.BuildInfo)
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "install.sh will be unavailable: %v", err.Error())
+		opts.Logger.Warn(context.Background(), "could not parse install.sh, it will be unavailable", slog.Error(err))
 	}
 
 	return handler
@@ -292,13 +292,14 @@ type htmlState struct {
 	ApplicationName string
 	LogoURL         string
 
-	BuildInfo    string
-	User         string
-	Entitlements string
-	Appearance   string
-	Experiments  string
-	Regions      string
-	DocsURL      string
+	BuildInfo      string
+	User           string
+	Entitlements   string
+	Appearance     string
+	UserAppearance string
+	Experiments    string
+	Regions        string
+	DocsURL        string
 }
 
 type csrfState struct {
@@ -426,10 +427,20 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 
 	var eg errgroup.Group
 	var user database.User
+	var themePreference string
 	orgIDs := []uuid.UUID{}
 	eg.Go(func() error {
 		var err error
 		user, err = h.opts.Database.GetUserByID(ctx, apiKey.UserID)
+		return err
+	})
+	eg.Go(func() error {
+		var err error
+		themePreference, err = h.opts.Database.GetUserAppearanceSettings(ctx, apiKey.UserID)
+		if errors.Is(err, sql.ErrNoRows) {
+			themePreference = ""
+			return nil
+		}
 		return err
 	})
 	eg.Go(func() error {
@@ -452,6 +463,17 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 			user, err := json.Marshal(db2sdk.User(user, orgIDs))
 			if err == nil {
 				state.User = html.EscapeString(string(user))
+			}
+		}()
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			userAppearance, err := json.Marshal(codersdk.UserAppearanceSettings{
+				ThemePreference: themePreference,
+			})
+			if err == nil {
+				state.UserAppearance = html.EscapeString(string(userAppearance))
 			}
 		}()
 

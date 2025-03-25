@@ -16,6 +16,11 @@
 					"title": "Screenshots",
 					"description": "View screenshots of the Coder platform",
 					"path": "./start/screenshots.md"
+				},
+				{
+					"title": "Feature stages",
+					"description": "Information about pre-GA stages.",
+					"path": "./about/feature-stages.md"
 				}
 			]
 		},
@@ -42,6 +47,12 @@
 					"description": "Install Coder on Kubernetes",
 					"path": "./install/kubernetes.md",
 					"icon_path": "./images/icons/kubernetes.svg"
+				},
+				{
+					"title": "Rancher",
+					"description": "Deploy Coder on Rancher",
+					"path": "./install/rancher.md",
+					"icon_path": "./images/icons/rancher.svg"
 				},
 				{
 					"title": "OpenShift",
@@ -157,6 +168,13 @@
 							"path": "./user-guides/workspace-access/zed.md"
 						}
 					]
+				},
+				{
+					"title": "Coder Desktop",
+					"description": "Use Coder Desktop to access your workspace like it's a local machine",
+					"path": "./user-guides/desktop/index.md",
+					"icon_path": "./images/icons/computer-code.svg",
+					"state": ["early access"]
 				},
 				{
 					"title": "Workspace Management",
@@ -394,6 +412,11 @@
 									"title": "Resource Metadata",
 									"description": "Display resource state in the workspace dashboard",
 									"path": "./admin/templates/extending-templates/resource-metadata.md"
+								},
+								{
+									"title": "Resource Monitoring",
+									"description": "Monitor resources in the workspace dashboard",
+									"path": "./admin/templates/extending-templates/resource-monitoring.md"
 								},
 								{
 									"title": "Resource Ordering",
@@ -644,12 +667,6 @@
 					"description": "See the code of conduct for contributing to Coder",
 					"path": "./contributing/CODE_OF_CONDUCT.md",
 					"icon_path": "./images/icons/circle-dot.svg"
-				},
-				{
-					"title": "Feature stages",
-					"description": "Policies for Alpha and Experimental features.",
-					"path": "./contributing/feature-stages.md",
-					"icon_path": "./images/icons/stairs.svg"
 				},
 				{
 					"title": "Documentation",
@@ -1045,9 +1062,19 @@
 							"path": "reference/cli/notifications_resume.md"
 						},
 						{
+							"title": "notifications test",
+							"description": "Send a test notification",
+							"path": "reference/cli/notifications_test.md"
+						},
+						{
 							"title": "open",
 							"description": "Open a workspace",
 							"path": "reference/cli/open.md"
+						},
+						{
+							"title": "open app",
+							"description": "Open a workspace application.",
+							"path": "reference/cli/open_app.md"
 						},
 						{
 							"title": "open vscode",

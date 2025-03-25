@@ -497,7 +497,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		return nil
 	})
 	eg.Go(func() error {
-		groupMembers, err := r.options.Database.GetGroupMembers(ctx)
+		groupMembers, err := r.options.Database.GetGroupMembers(ctx, false)
 		if err != nil {
 			return xerrors.Errorf("get groups: %w", err)
 		}
@@ -621,6 +621,28 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 			for _, stat := range agentStats {
 				snapshot.WorkspaceAgentStats = append(snapshot.WorkspaceAgentStats, ConvertWorkspaceAgentStat(stat))
 			}
+		}
+		return nil
+	})
+	eg.Go(func() error {
+		memoryMonitors, err := r.options.Database.FetchMemoryResourceMonitorsUpdatedAfter(ctx, createdAfter)
+		if err != nil {
+			return xerrors.Errorf("get memory resource monitors: %w", err)
+		}
+		snapshot.WorkspaceAgentMemoryResourceMonitors = make([]WorkspaceAgentMemoryResourceMonitor, 0, len(memoryMonitors))
+		for _, monitor := range memoryMonitors {
+			snapshot.WorkspaceAgentMemoryResourceMonitors = append(snapshot.WorkspaceAgentMemoryResourceMonitors, ConvertWorkspaceAgentMemoryResourceMonitor(monitor))
+		}
+		return nil
+	})
+	eg.Go(func() error {
+		volumeMonitors, err := r.options.Database.FetchVolumesResourceMonitorsUpdatedAfter(ctx, createdAfter)
+		if err != nil {
+			return xerrors.Errorf("get volume resource monitors: %w", err)
+		}
+		snapshot.WorkspaceAgentVolumeResourceMonitors = make([]WorkspaceAgentVolumeResourceMonitor, 0, len(volumeMonitors))
+		for _, monitor := range volumeMonitors {
+			snapshot.WorkspaceAgentVolumeResourceMonitors = append(snapshot.WorkspaceAgentVolumeResourceMonitors, ConvertWorkspaceAgentVolumeResourceMonitor(monitor))
 		}
 		return nil
 	})
@@ -763,6 +785,26 @@ func ConvertWorkspaceAgent(agent database.WorkspaceAgent) WorkspaceAgent {
 		snapAgent.DisconnectedAt = &agent.DisconnectedAt.Time
 	}
 	return snapAgent
+}
+
+func ConvertWorkspaceAgentMemoryResourceMonitor(monitor database.WorkspaceAgentMemoryResourceMonitor) WorkspaceAgentMemoryResourceMonitor {
+	return WorkspaceAgentMemoryResourceMonitor{
+		AgentID:   monitor.AgentID,
+		Enabled:   monitor.Enabled,
+		Threshold: monitor.Threshold,
+		CreatedAt: monitor.CreatedAt,
+		UpdatedAt: monitor.UpdatedAt,
+	}
+}
+
+func ConvertWorkspaceAgentVolumeResourceMonitor(monitor database.WorkspaceAgentVolumeResourceMonitor) WorkspaceAgentVolumeResourceMonitor {
+	return WorkspaceAgentVolumeResourceMonitor{
+		AgentID:   monitor.AgentID,
+		Enabled:   monitor.Enabled,
+		Threshold: monitor.Threshold,
+		CreatedAt: monitor.CreatedAt,
+		UpdatedAt: monitor.UpdatedAt,
+	}
 }
 
 // ConvertWorkspaceAgentStat anonymizes a workspace agent stat.
@@ -947,6 +989,7 @@ func ConvertUser(dbUser database.User) User {
 		CreatedAt:       dbUser.CreatedAt,
 		Status:          dbUser.Status,
 		GithubComUserID: dbUser.GithubComUserID.Int64,
+		LoginType:       string(dbUser.LoginType),
 	}
 }
 
@@ -1082,28 +1125,31 @@ func ConvertTelemetryItem(item database.TelemetryItem) TelemetryItem {
 type Snapshot struct {
 	DeploymentID string `json:"deployment_id"`
 
-	APIKeys                   []APIKey                    `json:"api_keys"`
-	CLIInvocations            []clitelemetry.Invocation   `json:"cli_invocations"`
-	ExternalProvisioners      []ExternalProvisioner       `json:"external_provisioners"`
-	Licenses                  []License                   `json:"licenses"`
-	ProvisionerJobs           []ProvisionerJob            `json:"provisioner_jobs"`
-	TemplateVersions          []TemplateVersion           `json:"template_versions"`
-	Templates                 []Template                  `json:"templates"`
-	Users                     []User                      `json:"users"`
-	Groups                    []Group                     `json:"groups"`
-	GroupMembers              []GroupMember               `json:"group_members"`
-	WorkspaceAgentStats       []WorkspaceAgentStat        `json:"workspace_agent_stats"`
-	WorkspaceAgents           []WorkspaceAgent            `json:"workspace_agents"`
-	WorkspaceApps             []WorkspaceApp              `json:"workspace_apps"`
-	WorkspaceBuilds           []WorkspaceBuild            `json:"workspace_build"`
-	WorkspaceProxies          []WorkspaceProxy            `json:"workspace_proxies"`
-	WorkspaceResourceMetadata []WorkspaceResourceMetadata `json:"workspace_resource_metadata"`
-	WorkspaceResources        []WorkspaceResource         `json:"workspace_resources"`
-	WorkspaceModules          []WorkspaceModule           `json:"workspace_modules"`
-	Workspaces                []Workspace                 `json:"workspaces"`
-	NetworkEvents             []NetworkEvent              `json:"network_events"`
-	Organizations             []Organization              `json:"organizations"`
-	TelemetryItems            []TelemetryItem             `json:"telemetry_items"`
+	APIKeys                              []APIKey                              `json:"api_keys"`
+	CLIInvocations                       []clitelemetry.Invocation             `json:"cli_invocations"`
+	ExternalProvisioners                 []ExternalProvisioner                 `json:"external_provisioners"`
+	Licenses                             []License                             `json:"licenses"`
+	ProvisionerJobs                      []ProvisionerJob                      `json:"provisioner_jobs"`
+	TemplateVersions                     []TemplateVersion                     `json:"template_versions"`
+	Templates                            []Template                            `json:"templates"`
+	Users                                []User                                `json:"users"`
+	Groups                               []Group                               `json:"groups"`
+	GroupMembers                         []GroupMember                         `json:"group_members"`
+	WorkspaceAgentStats                  []WorkspaceAgentStat                  `json:"workspace_agent_stats"`
+	WorkspaceAgents                      []WorkspaceAgent                      `json:"workspace_agents"`
+	WorkspaceApps                        []WorkspaceApp                        `json:"workspace_apps"`
+	WorkspaceBuilds                      []WorkspaceBuild                      `json:"workspace_build"`
+	WorkspaceProxies                     []WorkspaceProxy                      `json:"workspace_proxies"`
+	WorkspaceResourceMetadata            []WorkspaceResourceMetadata           `json:"workspace_resource_metadata"`
+	WorkspaceResources                   []WorkspaceResource                   `json:"workspace_resources"`
+	WorkspaceAgentMemoryResourceMonitors []WorkspaceAgentMemoryResourceMonitor `json:"workspace_agent_memory_resource_monitors"`
+	WorkspaceAgentVolumeResourceMonitors []WorkspaceAgentVolumeResourceMonitor `json:"workspace_agent_volume_resource_monitors"`
+	WorkspaceModules                     []WorkspaceModule                     `json:"workspace_modules"`
+	Workspaces                           []Workspace                           `json:"workspaces"`
+	NetworkEvents                        []NetworkEvent                        `json:"network_events"`
+	Organizations                        []Organization                        `json:"organizations"`
+	TelemetryItems                       []TelemetryItem                       `json:"telemetry_items"`
+	UserTailnetConnections               []UserTailnetConnection               `json:"user_tailnet_connections"`
 }
 
 // Deployment contains information about the host running Coder.
@@ -1149,6 +1195,8 @@ type User struct {
 	RBACRoles       []string            `json:"rbac_roles"`
 	Status          database.UserStatus `json:"status"`
 	GithubComUserID int64               `json:"github_com_user_id"`
+	// Omitempty for backwards compatibility.
+	LoginType string `json:"login_type,omitempty"`
 }
 
 type Group struct {
@@ -1227,6 +1275,22 @@ type WorkspaceAgentStat struct {
 	SessionCountJetBrains       int64     `json:"session_count_jetbrains"`
 	SessionCountReconnectingPTY int64     `json:"session_count_reconnecting_pty"`
 	SessionCountSSH             int64     `json:"session_count_ssh"`
+}
+
+type WorkspaceAgentMemoryResourceMonitor struct {
+	AgentID   uuid.UUID `json:"agent_id"`
+	Enabled   bool      `json:"enabled"`
+	Threshold int32     `json:"threshold"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type WorkspaceAgentVolumeResourceMonitor struct {
+	AgentID   uuid.UUID `json:"agent_id"`
+	Enabled   bool      `json:"enabled"`
+	Threshold int32     `json:"threshold"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type WorkspaceApp struct {
@@ -1646,6 +1710,16 @@ type TelemetryItem struct {
 	Value     string    `json:"value"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type UserTailnetConnection struct {
+	ConnectedAt         time.Time  `json:"connected_at"`
+	DisconnectedAt      *time.Time `json:"disconnected_at"`
+	UserID              string     `json:"user_id"`
+	PeerID              string     `json:"peer_id"`
+	DeviceID            *string    `json:"device_id"`
+	DeviceOS            *string    `json:"device_os"`
+	CoderDesktopVersion *string    `json:"coder_desktop_version"`
 }
 
 type noopReporter struct{}

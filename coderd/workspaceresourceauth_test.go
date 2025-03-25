@@ -33,6 +33,7 @@ func TestPostWorkspaceAuthAzureInstanceIdentity(t *testing.T) {
 						Name: "somename",
 						Type: "someinstance",
 						Agents: []*proto.Agent{{
+							Name: "dev",
 							Auth: &proto.Agent_InstanceId{
 								InstanceId: instanceID,
 							},
@@ -78,6 +79,7 @@ func TestPostWorkspaceAuthAWSInstanceIdentity(t *testing.T) {
 							Name: "somename",
 							Type: "someinstance",
 							Agents: []*proto.Agent{{
+								Name: "dev",
 								Auth: &proto.Agent_InstanceId{
 									InstanceId: instanceID,
 								},
@@ -164,6 +166,7 @@ func TestPostWorkspaceAuthGoogleInstanceIdentity(t *testing.T) {
 							Name: "somename",
 							Type: "someinstance",
 							Agents: []*proto.Agent{{
+								Name: "dev",
 								Auth: &proto.Agent_InstanceId{
 									InstanceId: instanceID,
 								},

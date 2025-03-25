@@ -1,0 +1,231 @@
+{
+  "format_version": "1.0",
+  "terraform_version": "1.11.0",
+  "values": {
+    "root_module": {
+      "resources": [
+        {
+          "address": "coder_agent.dev1",
+          "mode": "managed",
+          "type": "coder_agent",
+          "name": "dev1",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 1,
+          "values": {
+            "arch": "amd64",
+            "auth": "token",
+            "connection_timeout": 120,
+            "dir": null,
+            "display_apps": [
+              {
+                "port_forwarding_helper": true,
+                "ssh_helper": true,
+                "vscode": true,
+                "vscode_insiders": false,
+                "web_terminal": true
+              }
+            ],
+            "env": null,
+            "id": "ca077115-5e6d-4ae5-9ca1-10d3b4f21ca8",
+            "init_script": "",
+            "metadata": [],
+            "motd_file": null,
+            "order": null,
+            "os": "linux",
+            "resources_monitoring": [
+              {
+                "memory": [
+                  {
+                    "enabled": true,
+                    "threshold": 80
+                  }
+                ],
+                "volume": []
+              }
+            ],
+            "shutdown_script": null,
+            "startup_script": null,
+            "startup_script_behavior": "non-blocking",
+            "token": "91e41276-344e-4664-a560-85f0ceb71a7e",
+            "troubleshooting_url": null
+          },
+          "sensitive_values": {
+            "display_apps": [
+              {}
+            ],
+            "metadata": [],
+            "resources_monitoring": [
+              {
+                "memory": [
+                  {}
+                ],
+                "volume": []
+              }
+            ],
+            "token": true
+          }
+        },
+        {
+          "address": "coder_agent.dev2",
+          "mode": "managed",
+          "type": "coder_agent",
+          "name": "dev2",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 1,
+          "values": {
+            "arch": "amd64",
+            "auth": "token",
+            "connection_timeout": 120,
+            "dir": null,
+            "display_apps": [
+              {
+                "port_forwarding_helper": true,
+                "ssh_helper": true,
+                "vscode": true,
+                "vscode_insiders": false,
+                "web_terminal": true
+              }
+            ],
+            "env": null,
+            "id": "e3ce0177-ce0c-4136-af81-90d0751bf3de",
+            "init_script": "",
+            "metadata": [],
+            "motd_file": null,
+            "order": null,
+            "os": "linux",
+            "resources_monitoring": [
+              {
+                "memory": [
+                  {
+                    "enabled": true,
+                    "threshold": 99
+                  }
+                ],
+                "volume": [
+                  {
+                    "enabled": false,
+                    "path": "/volume2",
+                    "threshold": 50
+                  },
+                  {
+                    "enabled": true,
+                    "path": "/volume1",
+                    "threshold": 80
+                  }
+                ]
+              }
+            ],
+            "shutdown_script": null,
+            "startup_script": null,
+            "startup_script_behavior": "non-blocking",
+            "token": "2ce64d1c-c57f-4b6b-af87-b693c5998182",
+            "troubleshooting_url": null
+          },
+          "sensitive_values": {
+            "display_apps": [
+              {}
+            ],
+            "metadata": [],
+            "resources_monitoring": [
+              {
+                "memory": [
+                  {}
+                ],
+                "volume": [
+                  {},
+                  {}
+                ]
+              }
+            ],
+            "token": true
+          }
+        },
+        {
+          "address": "coder_app.app1",
+          "mode": "managed",
+          "type": "coder_app",
+          "name": "app1",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 1,
+          "values": {
+            "agent_id": "ca077115-5e6d-4ae5-9ca1-10d3b4f21ca8",
+            "command": null,
+            "display_name": null,
+            "external": false,
+            "healthcheck": [],
+            "hidden": false,
+            "icon": null,
+            "id": "8f710f60-480a-4455-8233-c96b64097cba",
+            "open_in": "slim-window",
+            "order": null,
+            "share": "owner",
+            "slug": "app1",
+            "subdomain": null,
+            "url": null
+          },
+          "sensitive_values": {
+            "healthcheck": []
+          },
+          "depends_on": [
+            "coder_agent.dev1"
+          ]
+        },
+        {
+          "address": "coder_app.app2",
+          "mode": "managed",
+          "type": "coder_app",
+          "name": "app2",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 1,
+          "values": {
+            "agent_id": "ca077115-5e6d-4ae5-9ca1-10d3b4f21ca8",
+            "command": null,
+            "display_name": null,
+            "external": false,
+            "healthcheck": [
+              {
+                "interval": 5,
+                "threshold": 6,
+                "url": "http://localhost:13337/healthz"
+              }
+            ],
+            "hidden": false,
+            "icon": null,
+            "id": "5e725fae-5963-4350-a6c0-c9c805423121",
+            "open_in": "slim-window",
+            "order": null,
+            "share": "owner",
+            "slug": "app2",
+            "subdomain": true,
+            "url": null
+          },
+          "sensitive_values": {
+            "healthcheck": [
+              {}
+            ]
+          },
+          "depends_on": [
+            "coder_agent.dev1"
+          ]
+        },
+        {
+          "address": "null_resource.dev",
+          "mode": "managed",
+          "type": "null_resource",
+          "name": "dev",
+          "provider_name": "registry.terraform.io/hashicorp/null",
+          "schema_version": 0,
+          "values": {
+            "id": "3642675114531644233",
+            "triggers": null
+          },
+          "sensitive_values": {},
+          "depends_on": [
+            "coder_agent.dev1",
+            "coder_agent.dev2"
+          ]
+        }
+      ]
+    }
+  }
+}

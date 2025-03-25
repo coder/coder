@@ -9,6 +9,9 @@ OPTIONS:
   -c, --column [id|username|email|created at|updated at|status] (default: username,email,created at,status)
           Columns to display in table output.
 
+      --github-user-id int
+          Filter users by their GitHub user ID.
+
   -o, --output table|json (default: table)
           Output format.
 

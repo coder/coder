@@ -101,7 +101,7 @@ jobs:
           AC_CERTIFICATE_PASSWORD_FILE: /tmp/apple_cert_password.txt
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: dylibs
           path: |
@@ -122,7 +122,11 @@ jobs:
       # Necessary to push docker images to ghcr.io.
       packages: write
       # Necessary for GCP authentication (https://github.com/google-github-actions/setup-gcloud#usage)
+      # Also necessary for keyless cosign (https://docs.sigstore.dev/cosign/signing/overview/)
+      # And for GitHub Actions attestation
       id-token: write
+      # Required for GitHub Actions attestation
+      attestations: write
     env:
       # Necessary for Docker manifest
       DOCKER_CLI_EXPERIMENTAL: "enabled"
@@ -130,7 +134,7 @@ jobs:
       version: ${{ steps.version.outputs.version }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
         with:
           egress-policy: audit
 
@@ -204,7 +208,7 @@ jobs:
           cat "$CODER_RELEASE_NOTES_FILE"
 
       - name: Docker Login
-        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -223,20 +227,11 @@ jobs:
           distribution: "zulu"
           java-version: "11.0"
 
+      - name: Install go-winres
+        run: go install github.com/tc-hib/go-winres@d743268d7ea168077ddd443c4240562d4f5e8c3e # v0.3.3
+
       - name: Install nsis and zstd
         run: sudo apt-get install -y nsis zstd
-
-      - name: Download dylibs
-        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
-        with:
-          name: dylibs
-          path: ./build
-
-      - name: Insert dylibs
-        run: |
-          mv ./build/*amd64.dylib ./site/out/bin/coder-vpn-darwin-amd64.dylib
-          mv ./build/*arm64.dylib ./site/out/bin/coder-vpn-darwin-arm64.dylib
-          mv ./build/*arm64.h     ./site/out/bin/coder-vpn-darwin-dylib.h
 
       - name: Install nfpm
         run: |
@@ -254,6 +249,12 @@ jobs:
             --strip-components=1 \
             apple-codesign-0.22.0-x86_64-unknown-linux-musl/rcodesign
           rm /tmp/rcodesign.tar.gz
+
+      - name: Install cosign
+        uses: ./.github/actions/install-cosign
+
+      - name: Install syft
+        uses: ./.github/actions/install-syft
 
       - name: Setup Apple Developer certificate and API key
         run: |
@@ -294,6 +295,18 @@ jobs:
       - name: Setup GCloud SDK
         uses: google-github-actions/setup-gcloud@77e7a554d41e2ee56fc945c52dfd3f33d12def9a # v2.1.4
 
+      - name: Download dylibs
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+        with:
+          name: dylibs
+          path: ./build
+
+      - name: Insert dylibs
+        run: |
+          mv ./build/*amd64.dylib ./site/out/bin/coder-vpn-darwin-amd64.dylib
+          mv ./build/*arm64.dylib ./site/out/bin/coder-vpn-darwin-arm64.dylib
+          mv ./build/*arm64.h     ./site/out/bin/coder-vpn-darwin-dylib.h
+
       - name: Build binaries
         run: |
           set -euo pipefail
@@ -310,6 +323,7 @@ jobs:
         env:
           CODER_SIGN_WINDOWS: "1"
           CODER_SIGN_DARWIN: "1"
+          CODER_WINDOWS_RESOURCES: "1"
           AC_CERTIFICATE_FILE: /tmp/apple_cert.p12
           AC_CERTIFICATE_PASSWORD_FILE: /tmp/apple_cert_password.txt
           AC_APIKEY_ISSUER_ID: ${{ secrets.AC_APIKEY_ISSUER_ID }}
@@ -357,6 +371,7 @@ jobs:
           file: scripts/Dockerfile.base
           platforms: linux/amd64,linux/arm64,linux/arm/v7
           provenance: true
+          sbom: true
           pull: true
           no-cache: true
           push: true
@@ -393,7 +408,52 @@ jobs:
           echo "$manifests" | grep -q linux/arm64
           echo "$manifests" | grep -q linux/arm/v7
 
+      # GitHub attestation provides SLSA provenance for Docker images, establishing a verifiable
+      # record that these images were built in GitHub Actions with specific inputs and environment.
+      # This complements our existing cosign attestations (which focus on SBOMs) by adding
+      # GitHub-specific build provenance to enhance our supply chain security.
+      #
+      # TODO: Consider refactoring these attestation steps to use a matrix strategy or composite action
+      # to reduce duplication while maintaining the required functionality for each distinct image tag.
+      - name: GitHub Attestation for Base Docker image
+        id: attest_base
+        if: ${{ !inputs.dry_run && steps.image-base-tag.outputs.tag != '' }}
+        continue-on-error: true
+        uses: actions/attest@a63cfcc7d1aab266ee064c58250cfc2c7d07bc31 # v2.2.1
+        with:
+          subject-name: ${{ steps.image-base-tag.outputs.tag }}
+          predicate-type: "https://slsa.dev/provenance/v1"
+          predicate: |
+            {
+              "buildType": "https://github.com/actions/runner-images/",
+              "builder": {
+                "id": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              },
+              "invocation": {
+                "configSource": {
+                  "uri": "git+https://github.com/${{ github.repository }}@${{ github.ref }}",
+                  "digest": {
+                    "sha1": "${{ github.sha }}"
+                  },
+                  "entryPoint": ".github/workflows/release.yaml"
+                },
+                "environment": {
+                  "github_workflow": "${{ github.workflow }}",
+                  "github_run_id": "${{ github.run_id }}"
+                }
+              },
+              "metadata": {
+                "buildInvocationID": "${{ github.run_id }}",
+                "completeness": {
+                  "environment": true,
+                  "materials": true
+                }
+              }
+            }
+          push-to-registry: true
+
       - name: Build Linux Docker images
+        id: build_docker
         run: |
           set -euxo pipefail
 
@@ -412,17 +472,124 @@ jobs:
           # being pushed so will automatically push them.
           make push/build/coder_"$version"_linux.tag
 
+          # Save multiarch image tag for attestation
+          multiarch_image="$(./scripts/image_tag.sh)"
+          echo "multiarch_image=${multiarch_image}" >> $GITHUB_OUTPUT
+
+          # For debugging, print all docker image tags
+          docker images
+
           # if the current version is equal to the highest (according to semver)
           # version in the repo, also create a multi-arch image as ":latest" and
           # push it
+          created_latest_tag=false
           if [[ "$(git tag | grep '^v' | grep -vE '(rc|dev|-|\+|\/)' | sort -r --version-sort | head -n1)" == "v$(./scripts/version.sh)" ]]; then
             ./scripts/build_docker_multiarch.sh \
               --push \
               --target "$(./scripts/image_tag.sh --version latest)" \
               $(cat build/coder_"$version"_linux_{amd64,arm64,armv7}.tag)
+            created_latest_tag=true
+            echo "created_latest_tag=true" >> $GITHUB_OUTPUT
+          else
+            echo "created_latest_tag=false" >> $GITHUB_OUTPUT
           fi
         env:
           CODER_BASE_IMAGE_TAG: ${{ steps.image-base-tag.outputs.tag }}
+
+      - name: GitHub Attestation for Docker image
+        id: attest_main
+        if: ${{ !inputs.dry_run }}
+        continue-on-error: true
+        uses: actions/attest@a63cfcc7d1aab266ee064c58250cfc2c7d07bc31 # v2.2.1
+        with:
+          subject-name: ${{ steps.build_docker.outputs.multiarch_image }}
+          predicate-type: "https://slsa.dev/provenance/v1"
+          predicate: |
+            {
+              "buildType": "https://github.com/actions/runner-images/",
+              "builder": {
+                "id": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              },
+              "invocation": {
+                "configSource": {
+                  "uri": "git+https://github.com/${{ github.repository }}@${{ github.ref }}",
+                  "digest": {
+                    "sha1": "${{ github.sha }}"
+                  },
+                  "entryPoint": ".github/workflows/release.yaml"
+                },
+                "environment": {
+                  "github_workflow": "${{ github.workflow }}",
+                  "github_run_id": "${{ github.run_id }}"
+                }
+              },
+              "metadata": {
+                "buildInvocationID": "${{ github.run_id }}",
+                "completeness": {
+                  "environment": true,
+                  "materials": true
+                }
+              }
+            }
+          push-to-registry: true
+
+      # Get the latest tag name for attestation
+      - name: Get latest tag name
+        id: latest_tag
+        if: ${{ !inputs.dry_run && steps.build_docker.outputs.created_latest_tag == 'true' }}
+        run: echo "tag=$(./scripts/image_tag.sh --version latest)" >> $GITHUB_OUTPUT
+
+      # If this is the highest version according to semver, also attest the "latest" tag
+      - name: GitHub Attestation for "latest" Docker image
+        id: attest_latest
+        if: ${{ !inputs.dry_run && steps.build_docker.outputs.created_latest_tag == 'true' }}
+        continue-on-error: true
+        uses: actions/attest@a63cfcc7d1aab266ee064c58250cfc2c7d07bc31 # v2.2.1
+        with:
+          subject-name: ${{ steps.latest_tag.outputs.tag }}
+          predicate-type: "https://slsa.dev/provenance/v1"
+          predicate: |
+            {
+              "buildType": "https://github.com/actions/runner-images/",
+              "builder": {
+                "id": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              },
+              "invocation": {
+                "configSource": {
+                  "uri": "git+https://github.com/${{ github.repository }}@${{ github.ref }}",
+                  "digest": {
+                    "sha1": "${{ github.sha }}"
+                  },
+                  "entryPoint": ".github/workflows/release.yaml"
+                },
+                "environment": {
+                  "github_workflow": "${{ github.workflow }}",
+                  "github_run_id": "${{ github.run_id }}"
+                }
+              },
+              "metadata": {
+                "buildInvocationID": "${{ github.run_id }}",
+                "completeness": {
+                  "environment": true,
+                  "materials": true
+                }
+              }
+            }
+          push-to-registry: true
+
+      # Report attestation failures but don't fail the workflow
+      - name: Check attestation status
+        if: ${{ !inputs.dry_run }}
+        run: |
+          if [[ "${{ steps.attest_base.outcome }}" == "failure" && "${{ steps.attest_base.conclusion }}" != "skipped" ]]; then
+            echo "::warning::GitHub attestation for base image failed"
+          fi
+          if [[ "${{ steps.attest_main.outcome }}" == "failure" ]]; then
+            echo "::warning::GitHub attestation for main image failed"
+          fi
+          if [[ "${{ steps.attest_latest.outcome }}" == "failure" && "${{ steps.attest_latest.conclusion }}" != "skipped" ]]; then
+            echo "::warning::GitHub attestation for latest image failed"
+          fi
 
       - name: Generate offline docs
         run: |
@@ -485,7 +652,7 @@ jobs:
 
       - name: Upload artifacts to actions (if dry-run)
         if: ${{ inputs.dry_run }}
-        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-artifacts
           path: |
@@ -517,7 +684,7 @@ jobs:
       # TODO: skip this if it's not a new release (i.e. a backport). This is
       #       fine right now because it just makes a PR that we can close.
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
         with:
           egress-policy: audit
 
@@ -593,7 +760,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
         with:
           egress-policy: audit
 
@@ -683,7 +850,7 @@ jobs:
     if: ${{ !inputs.dry_run }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
         with:
           egress-policy: audit
 

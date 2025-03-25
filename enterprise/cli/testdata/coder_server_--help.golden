@@ -474,6 +474,10 @@ Configure TLS for your SMTP server target.
           Enable STARTTLS to upgrade insecure SMTP connections using TLS.
           DEPRECATED: Use --email-tls-starttls instead.
 
+NOTIFICATIONS / INBOX OPTIONS: 
+      --notifications-inbox-enabled bool, $CODER_NOTIFICATIONS_INBOX_ENABLED (default: true)
+          Enable Coder Inbox.
+
 NOTIFICATIONS / WEBHOOK OPTIONS: 
       --notifications-webhook-endpoint url, $CODER_NOTIFICATIONS_WEBHOOK_ENDPOINT
           The endpoint to which to send webhooks.
@@ -498,6 +502,12 @@ OAUTH2 / GITHUB OPTIONS:
 
       --oauth2-github-client-secret string, $CODER_OAUTH2_GITHUB_CLIENT_SECRET
           Client secret for Login with GitHub.
+
+      --oauth2-github-default-provider-enable bool, $CODER_OAUTH2_GITHUB_DEFAULT_PROVIDER_ENABLE (default: true)
+          Enable the default GitHub OAuth2 provider managed by Coder.
+
+      --oauth2-github-device-flow bool, $CODER_OAUTH2_GITHUB_DEVICE_FLOW (default: false)
+          Enable device flow for Login with GitHub.
 
       --oauth2-github-enterprise-base-url string, $CODER_OAUTH2_GITHUB_ENTERPRISE_BASE_URL
           Base URL of a GitHub Enterprise deployment to use for Login with

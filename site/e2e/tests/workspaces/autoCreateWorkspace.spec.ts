@@ -16,7 +16,7 @@ let template!: string;
 
 test.beforeAll(async ({ browser }) => {
 	const page = await (await browser.newContext()).newPage();
-	await login(page);
+	await login(page, users.templateAdmin);
 
 	const richParameters: RichParameter[] = [
 		{ ...emptyParameter, name: "repo", type: "string" },
@@ -29,7 +29,7 @@ test.beforeAll(async ({ browser }) => {
 
 test.beforeEach(async ({ page }) => {
 	beforeCoderTest(page);
-	await login(page, users.user);
+	await login(page, users.member);
 });
 
 test("create workspace in auto mode", async ({ page }) => {
@@ -40,7 +40,7 @@ test("create workspace in auto mode", async ({ page }) => {
 			waitUntil: "domcontentloaded",
 		},
 	);
-	await expect(page).toHaveTitle(`${users.user.username}/${name} - Coder`);
+	await expect(page).toHaveTitle(`${users.member.username}/${name} - Coder`);
 });
 
 test("use an existing workspace that matches the `match` parameter instead of creating a new one", async ({
@@ -54,7 +54,7 @@ test("use an existing workspace that matches the `match` parameter instead of cr
 		},
 	);
 	await expect(page).toHaveTitle(
-		`${users.user.username}/${prevWorkspace} - Coder`,
+		`${users.member.username}/${prevWorkspace} - Coder`,
 	);
 });
 

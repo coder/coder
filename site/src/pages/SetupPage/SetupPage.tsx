@@ -1,9 +1,9 @@
 import { buildInfo } from "api/queries/buildInfo";
-import { createFirstUser } from "api/queries/users";
+import { authMethods, createFirstUser } from "api/queries/users";
 import { Loader } from "components/Loader/Loader";
 import { useAuthContext } from "contexts/auth/AuthProvider";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
-import { type FC, useEffect, useState } from "react";
+import { type FC, useEffect } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery } from "react-query";
 import { Navigate, useNavigate } from "react-router-dom";
@@ -19,6 +19,7 @@ export const SetupPage: FC = () => {
 		isSignedIn,
 		isSigningIn,
 	} = useAuthContext();
+	const authMethodsQuery = useQuery(authMethods());
 	const createFirstUserMutation = useMutation(createFirstUser());
 	const setupIsComplete = !isConfiguringTheFirstUser;
 	const { metadata } = useEmbeddedMetadata();
@@ -34,7 +35,7 @@ export const SetupPage: FC = () => {
 		});
 	}, [buildInfoQuery.data]);
 
-	if (isLoading) {
+	if (isLoading || authMethodsQuery.isLoading) {
 		return <Loader fullscreen />;
 	}
 
@@ -54,6 +55,7 @@ export const SetupPage: FC = () => {
 				<title>{pageTitle("Set up your account")}</title>
 			</Helmet>
 			<SetupPageView
+				authMethods={authMethodsQuery.data}
 				isLoading={isSigningIn || createFirstUserMutation.isLoading}
 				error={createFirstUserMutation.error}
 				onSubmit={async (firstUser) => {

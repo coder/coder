@@ -554,6 +554,10 @@
 | `logout`                 |
 | `register`               |
 | `request_password_reset` |
+| `connect`                |
+| `disconnect`             |
+| `open`                   |
+| `close`                  |
 
 ## codersdk.AuditDiff
 
@@ -783,6 +787,7 @@
 ```json
 {
   "github": {
+    "default_provider_configured": true,
     "enabled": true
   },
   "oidc": {
@@ -799,12 +804,12 @@
 
 ### Properties
 
-| Name                   | Type                                               | Required | Restrictions | Description |
-|------------------------|----------------------------------------------------|----------|--------------|-------------|
-| `github`               | [codersdk.AuthMethod](#codersdkauthmethod)         | false    |              |             |
-| `oidc`                 | [codersdk.OIDCAuthMethod](#codersdkoidcauthmethod) | false    |              |             |
-| `password`             | [codersdk.AuthMethod](#codersdkauthmethod)         | false    |              |             |
-| `terms_of_service_url` | string                                             | false    |              |             |
+| Name                   | Type                                                   | Required | Restrictions | Description |
+|------------------------|--------------------------------------------------------|----------|--------------|-------------|
+| `github`               | [codersdk.GithubAuthMethod](#codersdkgithubauthmethod) | false    |              |             |
+| `oidc`                 | [codersdk.OIDCAuthMethod](#codersdkoidcauthmethod)     | false    |              |             |
+| `password`             | [codersdk.AuthMethod](#codersdkauthmethod)             | false    |              |             |
+| `terms_of_service_url` | string                                                 | false    |              |             |
 
 ## codersdk.AuthorizationCheck
 
@@ -1314,6 +1319,7 @@ This is required on creation to enable a user-flow of validating a template work
   ],
   "build_reason": "autostart",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
   "resource_type": "template",
   "time": "2019-08-24T14:15:22Z"
@@ -1328,6 +1334,7 @@ This is required on creation to enable a user-flow of validating a template work
 | `additional_fields` | array of integer                               | false    |              |             |
 | `build_reason`      | [codersdk.BuildReason](#codersdkbuildreason)   | false    |              |             |
 | `organization_id`   | string                                         | false    |              |             |
+| `request_id`        | string                                         | false    |              |             |
 | `resource_id`       | string                                         | false    |              |             |
 | `resource_type`     | [codersdk.ResourceType](#codersdkresourcetype) | false    |              |             |
 | `time`              | string                                         | false    |              |             |
@@ -1936,6 +1943,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         }
       },
       "fetch_interval": 0,
+      "inbox": {
+        "enabled": true
+      },
       "lease_count": 0,
       "lease_period": 0,
       "max_send_attempts": 0,
@@ -1971,6 +1981,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         ],
         "client_id": "string",
         "client_secret": "string",
+        "default_provider_enable": true,
+        "device_flow": true,
         "enterprise_base_url": "string"
       }
     },
@@ -2018,6 +2030,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "sign_in_text": "string",
       "signups_disabled_text": "string",
       "skip_issuer_checks": true,
+      "source_user_info_from_access_token": true,
       "user_role_field": "string",
       "user_role_mapping": {},
       "user_roles_default": [
@@ -2406,6 +2419,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       }
     },
     "fetch_interval": 0,
+    "inbox": {
+      "enabled": true
+    },
     "lease_count": 0,
     "lease_period": 0,
     "max_send_attempts": 0,
@@ -2441,6 +2457,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       ],
       "client_id": "string",
       "client_secret": "string",
+      "default_provider_enable": true,
+      "device_flow": true,
       "enterprise_base_url": "string"
     }
   },
@@ -2488,6 +2506,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "sign_in_text": "string",
     "signups_disabled_text": "string",
     "skip_issuer_checks": true,
+    "source_user_info_from_access_token": true,
     "user_role_field": "string",
     "user_role_mapping": {},
     "user_roles_default": [
@@ -3003,6 +3022,40 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |-------|--------|----------|--------------|-------------|
 | `key` | string | false    |              |             |
 
+## codersdk.GetInboxNotificationResponse
+
+```json
+{
+  "notification": {
+    "actions": [
+      {
+        "label": "string",
+        "url": "string"
+      }
+    ],
+    "content": "string",
+    "created_at": "2019-08-24T14:15:22Z",
+    "icon": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "read_at": "string",
+    "targets": [
+      "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+    ],
+    "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+    "title": "string",
+    "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+  },
+  "unread_count": 0
+}
+```
+
+### Properties
+
+| Name           | Type                                                     | Required | Restrictions | Description |
+|----------------|----------------------------------------------------------|----------|--------------|-------------|
+| `notification` | [codersdk.InboxNotification](#codersdkinboxnotification) | false    |              |             |
+| `unread_count` | integer                                                  | false    |              |             |
+
 ## codersdk.GetUserStatusCountsResponse
 
 ```json
@@ -3084,12 +3137,28 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name         | Type   | Required | Restrictions | Description |
-|--------------|--------|----------|--------------|-------------|
-| `created_at` | string | false    |              |             |
-| `public_key` | string | false    |              |             |
-| `updated_at` | string | false    |              |             |
-| `user_id`    | string | false    |              |             |
+| Name         | Type   | Required | Restrictions | Description                                                                                                                                                                                       |
+|--------------|--------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `created_at` | string | false    |              |                                                                                                                                                                                                   |
+| `public_key` | string | false    |              | Public key is the SSH public key in OpenSSH format. Example: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID3OmYJvT7q1cF1azbybYy0OZ9yrXfA+M6Lr4vzX5zlp\n" Note: The key includes a trailing newline (\n). |
+| `updated_at` | string | false    |              |                                                                                                                                                                                                   |
+| `user_id`    | string | false    |              |                                                                                                                                                                                                   |
+
+## codersdk.GithubAuthMethod
+
+```json
+{
+  "default_provider_configured": true,
+  "enabled": true
+}
+```
+
+### Properties
+
+| Name                          | Type    | Required | Restrictions | Description |
+|-------------------------------|---------|----------|--------------|-------------|
+| `default_provider_configured` | boolean | false    |              |             |
+| `enabled`                     | boolean | false    |              |             |
 
 ## codersdk.Group
 
@@ -3222,6 +3291,61 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `refresh`            | integer | false    |              |             |
 | `threshold_database` | integer | false    |              |             |
 
+## codersdk.InboxNotification
+
+```json
+{
+  "actions": [
+    {
+      "label": "string",
+      "url": "string"
+    }
+  ],
+  "content": "string",
+  "created_at": "2019-08-24T14:15:22Z",
+  "icon": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "read_at": "string",
+  "targets": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ],
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+  "title": "string",
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+}
+```
+
+### Properties
+
+| Name          | Type                                                                          | Required | Restrictions | Description |
+|---------------|-------------------------------------------------------------------------------|----------|--------------|-------------|
+| `actions`     | array of [codersdk.InboxNotificationAction](#codersdkinboxnotificationaction) | false    |              |             |
+| `content`     | string                                                                        | false    |              |             |
+| `created_at`  | string                                                                        | false    |              |             |
+| `icon`        | string                                                                        | false    |              |             |
+| `id`          | string                                                                        | false    |              |             |
+| `read_at`     | string                                                                        | false    |              |             |
+| `targets`     | array of string                                                               | false    |              |             |
+| `template_id` | string                                                                        | false    |              |             |
+| `title`       | string                                                                        | false    |              |             |
+| `user_id`     | string                                                                        | false    |              |             |
+
+## codersdk.InboxNotificationAction
+
+```json
+{
+  "label": "string",
+  "url": "string"
+}
+```
+
+### Properties
+
+| Name    | Type   | Required | Restrictions | Description |
+|---------|--------|----------|--------------|-------------|
+| `label` | string | false    |              |             |
+| `url`   | string | false    |              |             |
+
 ## codersdk.InsightsReportInterval
 
 ```json
@@ -3350,6 +3474,42 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `icon`   | `bug`  |
 | `icon`   | `chat` |
 | `icon`   | `docs` |
+
+## codersdk.ListInboxNotificationsResponse
+
+```json
+{
+  "notifications": [
+    {
+      "actions": [
+        {
+          "label": "string",
+          "url": "string"
+        }
+      ],
+      "content": "string",
+      "created_at": "2019-08-24T14:15:22Z",
+      "icon": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "read_at": "string",
+      "targets": [
+        "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+      ],
+      "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+      "title": "string",
+      "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+    }
+  ],
+  "unread_count": 0
+}
+```
+
+### Properties
+
+| Name            | Type                                                              | Required | Restrictions | Description |
+|-----------------|-------------------------------------------------------------------|----------|--------------|-------------|
+| `notifications` | array of [codersdk.InboxNotification](#codersdkinboxnotification) | false    |              |             |
+| `unread_count`  | integer                                                           | false    |              |             |
 
 ## codersdk.LogLevel
 
@@ -3603,6 +3763,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
     }
   },
   "fetch_interval": 0,
+  "inbox": {
+    "enabled": true
+  },
   "lease_count": 0,
   "lease_period": 0,
   "max_send_attempts": 0,
@@ -3635,6 +3798,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `dispatch_timeout`  | integer                                                                    | false    |              | How long to wait while a notification is being sent before giving up.                                                                                                                                                                                                                                                                                                                                                                               |
 | `email`             | [codersdk.NotificationsEmailConfig](#codersdknotificationsemailconfig)     | false    |              | Email settings.                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `fetch_interval`    | integer                                                                    | false    |              | How often to query the database for queued notifications.                                                                                                                                                                                                                                                                                                                                                                                           |
+| `inbox`             | [codersdk.NotificationsInboxConfig](#codersdknotificationsinboxconfig)     | false    |              | Inbox settings.                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `lease_count`       | integer                                                                    | false    |              | How many notifications a notifier should lease per fetch interval.                                                                                                                                                                                                                                                                                                                                                                                  |
 | `lease_period`      | integer                                                                    | false    |              | How long a notifier should lease a message. This is effectively how long a notification is 'owned' by a notifier, and once this period expires it will be available for lease by another notifier. Leasing is important in order for multiple running notifiers to not pick the same messages to deliver concurrently. This lease period will only expire if a notifier shuts down ungracefully; a dispatch of the notification releases the lease. |
 | `max_send_attempts` | integer                                                                    | false    |              | The upper limit of attempts to send a notification.                                                                                                                                                                                                                                                                                                                                                                                                 |
@@ -3724,6 +3888,20 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `server_name`          | string  | false    |              | Server name to verify the hostname for the targets.          |
 | `start_tls`            | boolean | false    |              | Start tls attempts to upgrade plain connections to TLS.      |
 
+## codersdk.NotificationsInboxConfig
+
+```json
+{
+  "enabled": true
+}
+```
+
+### Properties
+
+| Name      | Type    | Required | Restrictions | Description |
+|-----------|---------|----------|--------------|-------------|
+| `enabled` | boolean | false    |              |             |
+
 ## codersdk.NotificationsSettings
 
 ```json
@@ -3797,6 +3975,8 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
     ],
     "client_id": "string",
     "client_secret": "string",
+    "default_provider_enable": true,
+    "device_flow": true,
     "enterprise_base_url": "string"
   }
 }
@@ -3822,21 +4002,25 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   ],
   "client_id": "string",
   "client_secret": "string",
+  "default_provider_enable": true,
+  "device_flow": true,
   "enterprise_base_url": "string"
 }
 ```
 
 ### Properties
 
-| Name                  | Type            | Required | Restrictions | Description |
-|-----------------------|-----------------|----------|--------------|-------------|
-| `allow_everyone`      | boolean         | false    |              |             |
-| `allow_signups`       | boolean         | false    |              |             |
-| `allowed_orgs`        | array of string | false    |              |             |
-| `allowed_teams`       | array of string | false    |              |             |
-| `client_id`           | string          | false    |              |             |
-| `client_secret`       | string          | false    |              |             |
-| `enterprise_base_url` | string          | false    |              |             |
+| Name                      | Type            | Required | Restrictions | Description |
+|---------------------------|-----------------|----------|--------------|-------------|
+| `allow_everyone`          | boolean         | false    |              |             |
+| `allow_signups`           | boolean         | false    |              |             |
+| `allowed_orgs`            | array of string | false    |              |             |
+| `allowed_teams`           | array of string | false    |              |             |
+| `client_id`               | string          | false    |              |             |
+| `client_secret`           | string          | false    |              |             |
+| `default_provider_enable` | boolean         | false    |              |             |
+| `device_flow`             | boolean         | false    |              |             |
+| `enterprise_base_url`     | string          | false    |              |             |
 
 ## codersdk.OAuth2ProviderApp
 
@@ -3983,6 +4167,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "sign_in_text": "string",
   "signups_disabled_text": "string",
   "skip_issuer_checks": true,
+  "source_user_info_from_access_token": true,
   "user_role_field": "string",
   "user_role_mapping": {},
   "user_roles_default": [
@@ -3994,37 +4179,38 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name                          | Type                             | Required | Restrictions | Description                                                                      |
-|-------------------------------|----------------------------------|----------|--------------|----------------------------------------------------------------------------------|
-| `allow_signups`               | boolean                          | false    |              |                                                                                  |
-| `auth_url_params`             | object                           | false    |              |                                                                                  |
-| `client_cert_file`            | string                           | false    |              |                                                                                  |
-| `client_id`                   | string                           | false    |              |                                                                                  |
-| `client_key_file`             | string                           | false    |              | Client key file & ClientCertFile are used in place of ClientSecret for PKI auth. |
-| `client_secret`               | string                           | false    |              |                                                                                  |
-| `email_domain`                | array of string                  | false    |              |                                                                                  |
-| `email_field`                 | string                           | false    |              |                                                                                  |
-| `group_allow_list`            | array of string                  | false    |              |                                                                                  |
-| `group_auto_create`           | boolean                          | false    |              |                                                                                  |
-| `group_mapping`               | object                           | false    |              |                                                                                  |
-| `group_regex_filter`          | [serpent.Regexp](#serpentregexp) | false    |              |                                                                                  |
-| `groups_field`                | string                           | false    |              |                                                                                  |
-| `icon_url`                    | [serpent.URL](#serpenturl)       | false    |              |                                                                                  |
-| `ignore_email_verified`       | boolean                          | false    |              |                                                                                  |
-| `ignore_user_info`            | boolean                          | false    |              |                                                                                  |
-| `issuer_url`                  | string                           | false    |              |                                                                                  |
-| `name_field`                  | string                           | false    |              |                                                                                  |
-| `organization_assign_default` | boolean                          | false    |              |                                                                                  |
-| `organization_field`          | string                           | false    |              |                                                                                  |
-| `organization_mapping`        | object                           | false    |              |                                                                                  |
-| `scopes`                      | array of string                  | false    |              |                                                                                  |
-| `sign_in_text`                | string                           | false    |              |                                                                                  |
-| `signups_disabled_text`       | string                           | false    |              |                                                                                  |
-| `skip_issuer_checks`          | boolean                          | false    |              |                                                                                  |
-| `user_role_field`             | string                           | false    |              |                                                                                  |
-| `user_role_mapping`           | object                           | false    |              |                                                                                  |
-| `user_roles_default`          | array of string                  | false    |              |                                                                                  |
-| `username_field`              | string                           | false    |              |                                                                                  |
+| Name                                 | Type                             | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                        |
+|--------------------------------------|----------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `allow_signups`                      | boolean                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `auth_url_params`                    | object                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `client_cert_file`                   | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `client_id`                          | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `client_key_file`                    | string                           | false    |              | Client key file & ClientCertFile are used in place of ClientSecret for PKI auth.                                                                                                                                                                                                                                                                                   |
+| `client_secret`                      | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `email_domain`                       | array of string                  | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `email_field`                        | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `group_allow_list`                   | array of string                  | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `group_auto_create`                  | boolean                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `group_mapping`                      | object                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `group_regex_filter`                 | [serpent.Regexp](#serpentregexp) | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `groups_field`                       | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `icon_url`                           | [serpent.URL](#serpenturl)       | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `ignore_email_verified`              | boolean                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `ignore_user_info`                   | boolean                          | false    |              | Ignore user info & UserInfoFromAccessToken are mutually exclusive. Only 1 can be set to true. Ideally this would be an enum with 3 states, ['none', 'userinfo', 'access_token']. However, for backward compatibility, `ignore_user_info` must remain. And `access_token` is a niche, non-spec compliant edge case. So it's use is rare, and should not be advised. |
+| `issuer_url`                         | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `name_field`                         | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `organization_assign_default`        | boolean                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `organization_field`                 | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `organization_mapping`               | object                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `scopes`                             | array of string                  | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `sign_in_text`                       | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `signups_disabled_text`              | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `skip_issuer_checks`                 | boolean                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `source_user_info_from_access_token` | boolean                          | false    |              | Source user info from access token as mentioned above is an edge case. This allows sourcing the user_info from the access token itself instead of a user_info endpoint. This assumes the access token is a valid JWT with a set of claims to be merged with the id_token.                                                                                          |
+| `user_role_field`                    | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `user_role_mapping`                  | object                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `user_roles_default`                 | array of string                  | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `username_field`                     | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
 
 ## codersdk.Organization
 
@@ -4151,6 +4337,47 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `mapping`                     | object          | false    |              | Mapping maps from an OIDC claim --> Coder organization uuid                                                                                                                         |
 | » `[any property]`            | array of string | false    |              |                                                                                                                                                                                     |
 | `organization_assign_default` | boolean         | false    |              | Organization assign default will ensure the default org is always included for every user, regardless of their claims. This preserves legacy behavior.                              |
+
+## codersdk.PaginatedMembersResponse
+
+```json
+{
+  "count": 0,
+  "members": [
+    {
+      "avatar_url": "string",
+      "created_at": "2019-08-24T14:15:22Z",
+      "email": "string",
+      "global_roles": [
+        {
+          "display_name": "string",
+          "name": "string",
+          "organization_id": "string"
+        }
+      ],
+      "name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "roles": [
+        {
+          "display_name": "string",
+          "name": "string",
+          "organization_id": "string"
+        }
+      ],
+      "updated_at": "2019-08-24T14:15:22Z",
+      "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+      "username": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name      | Type                                                                                        | Required | Restrictions | Description |
+|-----------|---------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `count`   | integer                                                                                     | false    |              |             |
+| `members` | array of [codersdk.OrganizationMemberWithUserData](#codersdkorganizationmemberwithuserdata) | false    |              |             |
 
 ## codersdk.PatchGroupIDPSyncConfigRequest
 
@@ -5067,6 +5294,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `read`                |
 | `read_personal`       |
 | `ssh`                 |
+| `unassign`            |
 | `update`              |
 | `update_personal`     |
 | `use`                 |
@@ -5099,6 +5327,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `group`                            |
 | `group_member`                     |
 | `idpsync_settings`                 |
+| `inbox_notification`               |
 | `license`                          |
 | `notification_message`             |
 | `notification_preference`          |
@@ -5110,13 +5339,13 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `organization_member`              |
 | `provisioner_daemon`               |
 | `provisioner_jobs`                 |
-| `provisioner_keys`                 |
 | `replicas`                         |
 | `system`                           |
 | `tailnet_coordinator`              |
 | `template`                         |
 | `user`                             |
 | `workspace`                        |
+| `workspace_agent_devcontainers`    |
 | `workspace_agent_resource_monitor` |
 | `workspace_dormant`                |
 | `workspace_proxy`                  |
@@ -5157,19 +5386,19 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name               | Type                                       | Required | Restrictions | Description |
-|--------------------|--------------------------------------------|----------|--------------|-------------|
-| `avatar_url`       | string                                     | false    |              |             |
-| `created_at`       | string                                     | true     |              |             |
-| `email`            | string                                     | true     |              |             |
-| `id`               | string                                     | true     |              |             |
-| `last_seen_at`     | string                                     | false    |              |             |
-| `login_type`       | [codersdk.LoginType](#codersdklogintype)   | false    |              |             |
-| `name`             | string                                     | false    |              |             |
-| `status`           | [codersdk.UserStatus](#codersdkuserstatus) | false    |              |             |
-| `theme_preference` | string                                     | false    |              |             |
-| `updated_at`       | string                                     | false    |              |             |
-| `username`         | string                                     | true     |              |             |
+| Name               | Type                                       | Required | Restrictions | Description                                                                                |
+|--------------------|--------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------|
+| `avatar_url`       | string                                     | false    |              |                                                                                            |
+| `created_at`       | string                                     | true     |              |                                                                                            |
+| `email`            | string                                     | true     |              |                                                                                            |
+| `id`               | string                                     | true     |              |                                                                                            |
+| `last_seen_at`     | string                                     | false    |              |                                                                                            |
+| `login_type`       | [codersdk.LoginType](#codersdklogintype)   | false    |              |                                                                                            |
+| `name`             | string                                     | false    |              |                                                                                            |
+| `status`           | [codersdk.UserStatus](#codersdkuserstatus) | false    |              |                                                                                            |
+| `theme_preference` | string                                     | false    |              | Deprecated: this value should be retrieved from `codersdk.UserPreferenceSettings` instead. |
+| `updated_at`       | string                                     | false    |              |                                                                                            |
+| `username`         | string                                     | true     |              |                                                                                            |
 
 #### Enumerated Values
 
@@ -5358,6 +5587,8 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `idp_sync_settings_organization` |
 | `idp_sync_settings_group`        |
 | `idp_sync_settings_role`         |
+| `workspace_agent`                |
+| `workspace_app`                  |
 
 ## codersdk.Response
 
@@ -6140,22 +6371,22 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name               | Type                                            | Required | Restrictions | Description |
-|--------------------|-------------------------------------------------|----------|--------------|-------------|
-| `avatar_url`       | string                                          | false    |              |             |
-| `created_at`       | string                                          | true     |              |             |
-| `email`            | string                                          | true     |              |             |
-| `id`               | string                                          | true     |              |             |
-| `last_seen_at`     | string                                          | false    |              |             |
-| `login_type`       | [codersdk.LoginType](#codersdklogintype)        | false    |              |             |
-| `name`             | string                                          | false    |              |             |
-| `organization_ids` | array of string                                 | false    |              |             |
-| `role`             | [codersdk.TemplateRole](#codersdktemplaterole)  | false    |              |             |
-| `roles`            | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |             |
-| `status`           | [codersdk.UserStatus](#codersdkuserstatus)      | false    |              |             |
-| `theme_preference` | string                                          | false    |              |             |
-| `updated_at`       | string                                          | false    |              |             |
-| `username`         | string                                          | true     |              |             |
+| Name               | Type                                            | Required | Restrictions | Description                                                                                |
+|--------------------|-------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------|
+| `avatar_url`       | string                                          | false    |              |                                                                                            |
+| `created_at`       | string                                          | true     |              |                                                                                            |
+| `email`            | string                                          | true     |              |                                                                                            |
+| `id`               | string                                          | true     |              |                                                                                            |
+| `last_seen_at`     | string                                          | false    |              |                                                                                            |
+| `login_type`       | [codersdk.LoginType](#codersdklogintype)        | false    |              |                                                                                            |
+| `name`             | string                                          | false    |              |                                                                                            |
+| `organization_ids` | array of string                                 | false    |              |                                                                                            |
+| `role`             | [codersdk.TemplateRole](#codersdktemplaterole)  | false    |              |                                                                                            |
+| `roles`            | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |                                                                                            |
+| `status`           | [codersdk.UserStatus](#codersdkuserstatus)      | false    |              |                                                                                            |
+| `theme_preference` | string                                          | false    |              | Deprecated: this value should be retrieved from `codersdk.UserPreferenceSettings` instead. |
+| `updated_at`       | string                                          | false    |              |                                                                                            |
+| `username`         | string                                          | true     |              |                                                                                            |
 
 #### Enumerated Values
 
@@ -6840,21 +7071,21 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name               | Type                                            | Required | Restrictions | Description |
-|--------------------|-------------------------------------------------|----------|--------------|-------------|
-| `avatar_url`       | string                                          | false    |              |             |
-| `created_at`       | string                                          | true     |              |             |
-| `email`            | string                                          | true     |              |             |
-| `id`               | string                                          | true     |              |             |
-| `last_seen_at`     | string                                          | false    |              |             |
-| `login_type`       | [codersdk.LoginType](#codersdklogintype)        | false    |              |             |
-| `name`             | string                                          | false    |              |             |
-| `organization_ids` | array of string                                 | false    |              |             |
-| `roles`            | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |             |
-| `status`           | [codersdk.UserStatus](#codersdkuserstatus)      | false    |              |             |
-| `theme_preference` | string                                          | false    |              |             |
-| `updated_at`       | string                                          | false    |              |             |
-| `username`         | string                                          | true     |              |             |
+| Name               | Type                                            | Required | Restrictions | Description                                                                                |
+|--------------------|-------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------|
+| `avatar_url`       | string                                          | false    |              |                                                                                            |
+| `created_at`       | string                                          | true     |              |                                                                                            |
+| `email`            | string                                          | true     |              |                                                                                            |
+| `id`               | string                                          | true     |              |                                                                                            |
+| `last_seen_at`     | string                                          | false    |              |                                                                                            |
+| `login_type`       | [codersdk.LoginType](#codersdklogintype)        | false    |              |                                                                                            |
+| `name`             | string                                          | false    |              |                                                                                            |
+| `organization_ids` | array of string                                 | false    |              |                                                                                            |
+| `roles`            | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |                                                                                            |
+| `status`           | [codersdk.UserStatus](#codersdkuserstatus)      | false    |              |                                                                                            |
+| `theme_preference` | string                                          | false    |              | Deprecated: this value should be retrieved from `codersdk.UserPreferenceSettings` instead. |
+| `updated_at`       | string                                          | false    |              |                                                                                            |
+| `username`         | string                                          | true     |              |                                                                                            |
 
 #### Enumerated Values
 
@@ -6949,6 +7180,20 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | Name     | Type                                                                       | Required | Restrictions | Description |
 |----------|----------------------------------------------------------------------------|----------|--------------|-------------|
 | `report` | [codersdk.UserActivityInsightsReport](#codersdkuseractivityinsightsreport) | false    |              |             |
+
+## codersdk.UserAppearanceSettings
+
+```json
+{
+  "theme_preference": "string"
+}
+```
+
+### Properties
+
+| Name               | Type   | Required | Restrictions | Description |
+|--------------------|--------|----------|--------------|-------------|
+| `theme_preference` | string | false    |              |             |
 
 ## codersdk.UserLatency
 
@@ -7623,7 +7868,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `updated_at`                 | string                                                                                       | false    |              |                                                                                                                                                                              |
 | `version`                    | string                                                                                       | false    |              |                                                                                                                                                                              |
 
-## codersdk.WorkspaceAgentDevcontainer
+## codersdk.WorkspaceAgentContainer
 
 ```json
 {
@@ -7637,9 +7882,10 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "name": "string",
   "ports": [
     {
+      "host_ip": "string",
+      "host_port": 0,
       "network": "string",
-      "port": 0,
-      "process_name": "string"
+      "port": 0
     }
   ],
   "running": true,
@@ -7661,11 +7907,31 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `labels`           | object                                                                                | false    |              | Labels is a map of key-value pairs of container labels.                                                                                    |
 | » `[any property]` | string                                                                                | false    |              |                                                                                                                                            |
 | `name`             | string                                                                                | false    |              | Name is the human-readable name of the container.                                                                                          |
-| `ports`            | array of [codersdk.WorkspaceAgentListeningPort](#codersdkworkspaceagentlisteningport) | false    |              | Ports includes ports exposed by the container.                                                                                             |
+| `ports`            | array of [codersdk.WorkspaceAgentContainerPort](#codersdkworkspaceagentcontainerport) | false    |              | Ports includes ports exposed by the container.                                                                                             |
 | `running`          | boolean                                                                               | false    |              | Running is true if the container is currently running.                                                                                     |
 | `status`           | string                                                                                | false    |              | Status is the current status of the container. This is somewhat implementation-dependent, but should generally be a human-readable string. |
 | `volumes`          | object                                                                                | false    |              | Volumes is a map of "things" mounted into the container. Again, this is somewhat implementation-dependent.                                 |
 | » `[any property]` | string                                                                                | false    |              |                                                                                                                                            |
+
+## codersdk.WorkspaceAgentContainerPort
+
+```json
+{
+  "host_ip": "string",
+  "host_port": 0,
+  "network": "string",
+  "port": 0
+}
+```
+
+### Properties
+
+| Name        | Type    | Required | Restrictions | Description                                                                                                                |
+|-------------|---------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------|
+| `host_ip`   | string  | false    |              | Host ip is the IP address of the host interface to which the port is bound. Note that this can be an IPv4 or IPv6 address. |
+| `host_port` | integer | false    |              | Host port is the port number *outside* the container.                                                                      |
+| `network`   | string  | false    |              | Network is the network protocol used by the port (tcp, udp, etc).                                                          |
+| `port`      | integer | false    |              | Port is the port number *inside* the container.                                                                            |
 
 ## codersdk.WorkspaceAgentHealth
 
@@ -7721,9 +7987,10 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "name": "string",
       "ports": [
         {
+          "host_ip": "string",
+          "host_port": 0,
           "network": "string",
-          "port": 0,
-          "process_name": "string"
+          "port": 0
         }
       ],
       "running": true,
@@ -7742,10 +8009,10 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name         | Type                                                                                | Required | Restrictions | Description                                                                                                                           |
-|--------------|-------------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------|
-| `containers` | array of [codersdk.WorkspaceAgentDevcontainer](#codersdkworkspaceagentdevcontainer) | false    |              | Containers is a list of containers visible to the workspace agent.                                                                    |
-| `warnings`   | array of string                                                                     | false    |              | Warnings is a list of warnings that may have occurred during the process of listing containers. This should not include fatal errors. |
+| Name         | Type                                                                          | Required | Restrictions | Description                                                                                                                           |
+|--------------|-------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------|
+| `containers` | array of [codersdk.WorkspaceAgentContainer](#codersdkworkspaceagentcontainer) | false    |              | Containers is a list of containers visible to the workspace agent.                                                                    |
+| `warnings`   | array of string                                                               | false    |              | Warnings is a list of warnings that may have occurred during the process of listing containers. This should not include fatal errors. |
 
 ## codersdk.WorkspaceAgentListeningPort
 

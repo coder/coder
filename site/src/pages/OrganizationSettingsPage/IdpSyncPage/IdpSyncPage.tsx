@@ -8,7 +8,6 @@ import {
 	roleIdpSyncSettings,
 } from "api/queries/organizations";
 import { organizationRoles } from "api/queries/roles";
-import type { GroupSyncSettings, RoleSyncSettings } from "api/typesGenerated";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { displayError } from "components/GlobalSnackbar/utils";
@@ -17,6 +16,7 @@ import { Link } from "components/Link/Link";
 import { Paywall } from "components/Paywall/Paywall";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
+import { RequirePermission } from "modules/permissions/RequirePermission";
 import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQueries, useQuery, useQueryClient } from "react-query";
@@ -32,8 +32,7 @@ export const IdpSyncPage: FC = () => {
 	const { organization: organizationName } = useParams() as {
 		organization: string;
 	};
-	const { organizations } = useOrganizationSettings();
-	const organization = organizations?.find((o) => o.name === organizationName);
+	const { organization, organizationPermissions } = useOrganizationSettings();
 	const [groupField, setGroupField] = useState("");
 	const [roleField, setRoleField] = useState("");
 
@@ -81,6 +80,23 @@ export const IdpSyncPage: FC = () => {
 		return <EmptyState message="Organization not found" />;
 	}
 
+	const helmet = (
+		<Helmet>
+			<title>
+				{pageTitle("IdP Sync", organization.display_name || organization.name)}
+			</title>
+		</Helmet>
+	);
+
+	if (!organizationPermissions?.viewIdpSyncSettings) {
+		return (
+			<>
+				{helmet}
+				<RequirePermission isFeatureVisible={false} />
+			</>
+		);
+	}
+
 	const patchGroupSyncSettingsMutation = useMutation(
 		patchGroupSyncSettings(organizationName, queryClient),
 	);
@@ -104,9 +120,7 @@ export const IdpSyncPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("IdP Sync")}</title>
-			</Helmet>
+			{helmet}
 
 			<div className="flex flex-col gap-12">
 				<header className="flex flex-row items-baseline justify-between">

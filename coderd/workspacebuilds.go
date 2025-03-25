@@ -7,13 +7,13 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"slices"
 	"sort"
 	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
@@ -517,11 +517,12 @@ func (api *API) notifyWorkspaceUpdated(
 		receiverID,
 		notifications.TemplateWorkspaceManuallyUpdated,
 		map[string]string{
-			"organization": template.OrganizationName,
-			"initiator":    initiator.Name,
-			"workspace":    workspace.Name,
-			"template":     template.Name,
-			"version":      version.Name,
+			"organization":             template.OrganizationName,
+			"initiator":                initiator.Name,
+			"workspace":                workspace.Name,
+			"template":                 template.Name,
+			"version":                  version.Name,
+			"workspace_owner_username": owner.Username,
 		},
 		map[string]any{
 			"workspace":        map[string]any{"id": workspace.ID, "name": workspace.Name},

@@ -2,7 +2,7 @@
   "_version": "1.1",
   "msg_id": "00000000-0000-0000-0000-000000000000",
   "payload": {
-    "_version": "1.1",
+    "_version": "1.2",
     "notification_name": "Workspace Out Of Disk",
     "notification_template_id": "00000000-0000-0000-0000-000000000000",
     "user_id": "00000000-0000-0000-0000-000000000000",
@@ -25,10 +25,11 @@
           "threshold": "90%"
         }
       ]
-    }
+    },
+    "targets": null
   },
   "title": "Your workspace \"bobby-workspace\" is low on volume space",
   "title_markdown": "Your workspace \"bobby-workspace\" is low on volume space",
-  "body": "Hi Bobby,\n\nVolume /home/coder is over 90% full in workspace bobby-workspace.",
-  "body_markdown": "Hi Bobby,\n\nVolume **`/home/coder`** is over 90% full in workspace **bobby-workspace**."
+  "body": "Volume /home/coder is over 90% full in workspace bobby-workspace.",
+  "body_markdown": "Volume **`/home/coder`** is over 90% full in workspace **bobby-workspace**."
 }

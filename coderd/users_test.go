@@ -2,24 +2,26 @@ package coderd_test
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/coder/serpent"
 
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
-	"github.com/coder/serpent"
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
@@ -1872,6 +1874,33 @@ func TestGetUsers(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.ElementsMatch(t, active, res.Users)
+	})
+	t.Run("GithubComUserID", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		first := coderdtest.CreateFirstUser(t, client)
+		_ = dbgen.User(t, db, database.User{
+			Email:    "test2@coder.com",
+			Username: "test2",
+		})
+		// nolint:gocritic // Unit test
+		err := db.UpdateUserGithubComUserID(dbauthz.AsSystemRestricted(ctx), database.UpdateUserGithubComUserIDParams{
+			ID: first.UserID,
+			GithubComUserID: sql.NullInt64{
+				Int64: 123,
+				Valid: true,
+			},
+		})
+		require.NoError(t, err)
+		res, err := client.Users(ctx, codersdk.UsersRequest{
+			SearchQuery: "github_com_user_id:123",
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Users, 1)
+		require.Equal(t, res.Users[0].ID, first.UserID)
 	})
 }
 

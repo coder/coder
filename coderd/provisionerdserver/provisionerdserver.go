@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"reflect"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -20,7 +21,6 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.14.0"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 	protobuf "google.golang.org/protobuf/proto"
@@ -594,6 +594,19 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			})
 		}
 
+		roles, err := s.Database.GetAuthorizationUserRoles(ctx, owner.ID)
+		if err != nil {
+			return nil, failJob(fmt.Sprintf("get owner authorization roles: %s", err))
+		}
+		ownerRbacRoles := []*sdkproto.Role{}
+		for _, role := range roles.Roles {
+			if s.OrganizationID == uuid.Nil {
+				ownerRbacRoles = append(ownerRbacRoles, &sdkproto.Role{Name: role, OrgId: ""})
+				continue
+			}
+			ownerRbacRoles = append(ownerRbacRoles, &sdkproto.Role{Name: role, OrgId: s.OrganizationID.String()})
+		}
+
 		protoJob.Type = &proto.AcquiredJob_WorkspaceBuild_{
 			WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
 				WorkspaceBuildId:      workspaceBuild.ID.String(),
@@ -621,6 +634,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					WorkspaceOwnerSshPrivateKey:   ownerSSHPrivateKey,
 					WorkspaceBuildId:              workspaceBuild.ID.String(),
 					WorkspaceOwnerLoginType:       string(owner.LoginType),
+					WorkspaceOwnerRbacRoles:       ownerRbacRoles,
 				},
 				LogLevel: input.LogLevel,
 			},
@@ -1256,6 +1270,8 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			return nil, xerrors.Errorf("template version ID is expected: %w", err)
 		}
 
+		now := s.timeNow()
+
 		for transition, resources := range map[database.WorkspaceTransition][]*sdkproto.Resource{
 			database.WorkspaceTransitionStart: jobType.TemplateImport.StartResources,
 			database.WorkspaceTransitionStop:  jobType.TemplateImport.StopResources,
@@ -1340,6 +1356,11 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			}
 		}
 
+		err = InsertWorkspacePresetsAndParameters(ctx, s.Logger, s.Database, jobID, input.TemplateVersionID, jobType.TemplateImport.Presets, now)
+		if err != nil {
+			return nil, xerrors.Errorf("insert workspace presets and parameters: %w", err)
+		}
+
 		var completedError sql.NullString
 
 		for _, externalAuthProvider := range jobType.TemplateImport.ExternalAuthProviders {
@@ -1387,18 +1408,27 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 
 		err = s.Database.UpdateTemplateVersionExternalAuthProvidersByJobID(ctx, database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams{
 			JobID:                 jobID,
-			ExternalAuthProviders: json.RawMessage(externalAuthProvidersMessage),
-			UpdatedAt:             s.timeNow(),
+			ExternalAuthProviders: externalAuthProvidersMessage,
+			UpdatedAt:             now,
 		})
 		if err != nil {
 			return nil, xerrors.Errorf("update template version external auth providers: %w", err)
 		}
 
+		err = s.Database.InsertTemplateVersionTerraformValuesByJobID(ctx, database.InsertTemplateVersionTerraformValuesByJobIDParams{
+			JobID:      jobID,
+			CachedPlan: jobType.TemplateImport.Plan,
+			UpdatedAt:  now,
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("insert template version terraform data: %w", err)
+		}
+
 		err = s.Database.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
 			ID:        jobID,
-			UpdatedAt: s.timeNow(),
+			UpdatedAt: now,
 			CompletedAt: sql.NullTime{
-				Time:  s.timeNow(),
+				Time:  now,
 				Valid: true,
 			},
 			Error:     completedError,
@@ -1408,6 +1438,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			return nil, xerrors.Errorf("update provisioner job: %w", err)
 		}
 		s.Logger.Debug(ctx, "marked import job as completed", slog.F("job_id", jobID))
+
 	case *proto.CompletedJob_WorkspaceBuild_:
 		var input WorkspaceProvisionJob
 		err = json.Unmarshal(job.Input, &input)
@@ -1809,6 +1840,52 @@ func InsertWorkspaceModule(ctx context.Context, db database.Store, jobID uuid.UU
 	return nil
 }
 
+func InsertWorkspacePresetsAndParameters(ctx context.Context, logger slog.Logger, db database.Store, jobID uuid.UUID, templateVersionID uuid.UUID, protoPresets []*sdkproto.Preset, t time.Time) error {
+	for _, preset := range protoPresets {
+		logger.Info(ctx, "inserting template import job preset",
+			slog.F("job_id", jobID.String()),
+			slog.F("preset_name", preset.Name),
+		)
+		if err := InsertWorkspacePresetAndParameters(ctx, db, templateVersionID, preset, t); err != nil {
+			return xerrors.Errorf("insert workspace preset: %w", err)
+		}
+	}
+	return nil
+}
+
+func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, templateVersionID uuid.UUID, protoPreset *sdkproto.Preset, t time.Time) error {
+	err := db.InTx(func(tx database.Store) error {
+		dbPreset, err := tx.InsertPreset(ctx, database.InsertPresetParams{
+			TemplateVersionID: templateVersionID,
+			Name:              protoPreset.Name,
+			CreatedAt:         t,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert preset: %w", err)
+		}
+
+		var presetParameterNames []string
+		var presetParameterValues []string
+		for _, parameter := range protoPreset.Parameters {
+			presetParameterNames = append(presetParameterNames, parameter.Name)
+			presetParameterValues = append(presetParameterValues, parameter.Value)
+		}
+		_, err = tx.InsertPresetParameters(ctx, database.InsertPresetParametersParams{
+			TemplateVersionPresetID: dbPreset.ID,
+			Names:                   presetParameterNames,
+			Values:                  presetParameterValues,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert preset parameters: %w", err)
+		}
+		return nil
+	}, nil)
+	if err != nil {
+		return xerrors.Errorf("insert preset and parameters: %w", err)
+	}
+	return nil
+}
+
 func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.UUID, transition database.WorkspaceTransition, protoResource *sdkproto.Resource, snapshot *telemetry.Snapshot) error {
 	resource, err := db.InsertWorkspaceResource(ctx, database.InsertWorkspaceResourceParams{
 		ID:         uuid.New(),
@@ -1840,10 +1917,25 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		appSlugs   = make(map[string]struct{})
 	)
 	for _, prAgent := range protoResource.Agents {
-		if _, ok := agentNames[prAgent.Name]; ok {
+		// Similar logic is duplicated in terraform/resources.go.
+		if prAgent.Name == "" {
+			return xerrors.Errorf("agent name cannot be empty")
+		}
+		// In 2025-02 we removed support for underscores in agent names. To
+		// provide a nicer error message, we check the regex first and check
+		// for underscores if it fails.
+		if !provisioner.AgentNameRegex.MatchString(prAgent.Name) {
+			if strings.Contains(prAgent.Name, "_") {
+				return xerrors.Errorf("agent name %q contains underscores which are no longer supported, please use hyphens instead (regex: %q)", prAgent.Name, provisioner.AgentNameRegex.String())
+			}
+			return xerrors.Errorf("agent name %q does not match regex %q", prAgent.Name, provisioner.AgentNameRegex.String())
+		}
+		// Agent names must be case-insensitive-unique, to be unambiguous in
+		// `coder_app`s and CoderVPN DNS names.
+		if _, ok := agentNames[strings.ToLower(prAgent.Name)]; ok {
 			return xerrors.Errorf("duplicate agent name %q", prAgent.Name)
 		}
-		agentNames[prAgent.Name] = struct{}{}
+		agentNames[strings.ToLower(prAgent.Name)] = struct{}{}
 
 		var instanceID sql.NullString
 		if prAgent.GetInstanceId() != "" {
@@ -1930,10 +2022,13 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		if prAgent.ResourcesMonitoring != nil {
 			if prAgent.ResourcesMonitoring.Memory != nil {
 				_, err = db.InsertMemoryResourceMonitor(ctx, database.InsertMemoryResourceMonitorParams{
-					AgentID:   agentID,
-					Enabled:   prAgent.ResourcesMonitoring.Memory.Enabled,
-					Threshold: prAgent.ResourcesMonitoring.Memory.Threshold,
-					CreatedAt: dbtime.Now(),
+					AgentID:        agentID,
+					Enabled:        prAgent.ResourcesMonitoring.Memory.Enabled,
+					Threshold:      prAgent.ResourcesMonitoring.Memory.Threshold,
+					State:          database.WorkspaceAgentMonitorStateOK,
+					CreatedAt:      dbtime.Now(),
+					UpdatedAt:      dbtime.Now(),
+					DebouncedUntil: time.Time{},
 				})
 				if err != nil {
 					return xerrors.Errorf("failed to insert agent memory resource monitor into db: %w", err)
@@ -1941,11 +2036,14 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			}
 			for _, volume := range prAgent.ResourcesMonitoring.Volumes {
 				_, err = db.InsertVolumeResourceMonitor(ctx, database.InsertVolumeResourceMonitorParams{
-					AgentID:   agentID,
-					Path:      volume.Path,
-					Enabled:   volume.Enabled,
-					Threshold: volume.Threshold,
-					CreatedAt: dbtime.Now(),
+					AgentID:        agentID,
+					Path:           volume.Path,
+					Enabled:        volume.Enabled,
+					Threshold:      volume.Threshold,
+					State:          database.WorkspaceAgentMonitorStateOK,
+					CreatedAt:      dbtime.Now(),
+					UpdatedAt:      dbtime.Now(),
+					DebouncedUntil: time.Time{},
 				})
 				if err != nil {
 					return xerrors.Errorf("failed to insert agent volume resource monitor into db: %w", err)
@@ -2010,11 +2108,41 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			return xerrors.Errorf("insert agent scripts: %w", err)
 		}
 
+		if devcontainers := prAgent.GetDevcontainers(); len(devcontainers) > 0 {
+			var (
+				devcontainerIDs              = make([]uuid.UUID, 0, len(devcontainers))
+				devcontainerNames            = make([]string, 0, len(devcontainers))
+				devcontainerWorkspaceFolders = make([]string, 0, len(devcontainers))
+				devcontainerConfigPaths      = make([]string, 0, len(devcontainers))
+			)
+			for _, dc := range devcontainers {
+				devcontainerIDs = append(devcontainerIDs, uuid.New())
+				devcontainerNames = append(devcontainerNames, dc.Name)
+				devcontainerWorkspaceFolders = append(devcontainerWorkspaceFolders, dc.WorkspaceFolder)
+				devcontainerConfigPaths = append(devcontainerConfigPaths, dc.ConfigPath)
+			}
+
+			_, err = db.InsertWorkspaceAgentDevcontainers(ctx, database.InsertWorkspaceAgentDevcontainersParams{
+				WorkspaceAgentID: agentID,
+				CreatedAt:        dbtime.Now(),
+				ID:               devcontainerIDs,
+				Name:             devcontainerNames,
+				WorkspaceFolder:  devcontainerWorkspaceFolders,
+				ConfigPath:       devcontainerConfigPaths,
+			})
+			if err != nil {
+				return xerrors.Errorf("insert agent devcontainer: %w", err)
+			}
+		}
+
 		for _, app := range prAgent.Apps {
+			// Similar logic is duplicated in terraform/resources.go.
 			slug := app.Slug
 			if slug == "" {
 				return xerrors.Errorf("app must have a slug or name set")
 			}
+			// Contrary to agent names above, app slugs were never permitted to
+			// contain uppercase letters or underscores.
 			if !provisioner.AppSlugRegex.MatchString(slug) {
 				return xerrors.Errorf("app slug %q does not match regex %q", slug, provisioner.AppSlugRegex.String())
 			}

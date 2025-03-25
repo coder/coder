@@ -392,11 +392,20 @@ func (c *Client) WorkspaceAgentListeningPorts(ctx context.Context, agentID uuid.
 	return listeningPorts, json.NewDecoder(res.Body).Decode(&listeningPorts)
 }
 
-// WorkspaceAgentDevcontainer describes a devcontainer of some sort
+// WorkspaceAgentDevcontainer defines the location of a devcontainer
+// configuration in a workspace that is visible to the workspace agent.
+type WorkspaceAgentDevcontainer struct {
+	ID              uuid.UUID `json:"id" format:"uuid"`
+	Name            string    `json:"name"`
+	WorkspaceFolder string    `json:"workspace_folder"`
+	ConfigPath      string    `json:"config_path,omitempty"`
+}
+
+// WorkspaceAgentContainer describes a devcontainer of some sort
 // that is visible to the workspace agent. This struct is an abstraction
 // of potentially multiple implementations, and the fields will be
 // somewhat implementation-dependent.
-type WorkspaceAgentDevcontainer struct {
+type WorkspaceAgentContainer struct {
 	// CreatedAt is the time the container was created.
 	CreatedAt time.Time `json:"created_at" format:"date-time"`
 	// ID is the unique identifier of the container.
@@ -410,7 +419,7 @@ type WorkspaceAgentDevcontainer struct {
 	// Running is true if the container is currently running.
 	Running bool `json:"running"`
 	// Ports includes ports exposed by the container.
-	Ports []WorkspaceAgentListeningPort `json:"ports"`
+	Ports []WorkspaceAgentContainerPort `json:"ports"`
 	// Status is the current status of the container. This is somewhat
 	// implementation-dependent, but should generally be a human-readable
 	// string.
@@ -420,11 +429,24 @@ type WorkspaceAgentDevcontainer struct {
 	Volumes map[string]string `json:"volumes"`
 }
 
+// WorkspaceAgentContainerPort describes a port as exposed by a container.
+type WorkspaceAgentContainerPort struct {
+	// Port is the port number *inside* the container.
+	Port uint16 `json:"port"`
+	// Network is the network protocol used by the port (tcp, udp, etc).
+	Network string `json:"network"`
+	// HostIP is the IP address of the host interface to which the port is
+	// bound. Note that this can be an IPv4 or IPv6 address.
+	HostIP string `json:"host_ip,omitempty"`
+	// HostPort is the port number *outside* the container.
+	HostPort uint16 `json:"host_port,omitempty"`
+}
+
 // WorkspaceAgentListContainersResponse is the response to the list containers
 // request.
 type WorkspaceAgentListContainersResponse struct {
 	// Containers is a list of containers visible to the workspace agent.
-	Containers []WorkspaceAgentDevcontainer `json:"containers"`
+	Containers []WorkspaceAgentContainer `json:"containers"`
 	// Warnings is a list of warnings that may have occurred during the
 	// process of listing containers. This should not include fatal errors.
 	Warnings []string `json:"warnings,omitempty"`

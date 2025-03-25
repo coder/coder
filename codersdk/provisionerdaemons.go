@@ -7,13 +7,13 @@ import (
 	"io"
 	"net/http"
 	"net/http/cookiejar"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/buildinfo"
@@ -239,6 +239,7 @@ func (c *Client) provisionerJobLogsAfter(ctx context.Context, path string, after
 // @typescript-ignore ServeProvisionerDaemonRequest
 type ServeProvisionerDaemonRequest struct {
 	// ID is a unique ID for a provisioner daemon.
+	// Deprecated: this field has always been ignored.
 	ID uuid.UUID `json:"id" format:"uuid"`
 	// Name is the human-readable unique identifier for the daemon.
 	Name string `json:"name" example:"my-cool-provisioner-daemon"`
@@ -270,7 +271,6 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, req ServeProvisione
 	}
 	query := serverURL.Query()
 	query.Add("version", proto.CurrentVersion.String())
-	query.Add("id", req.ID.String())
 	query.Add("name", req.Name)
 	query.Add("version", proto.CurrentVersion.String())
 

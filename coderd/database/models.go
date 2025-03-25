@@ -147,6 +147,10 @@ const (
 	AuditActionLogout               AuditAction = "logout"
 	AuditActionRegister             AuditAction = "register"
 	AuditActionRequestPasswordReset AuditAction = "request_password_reset"
+	AuditActionConnect              AuditAction = "connect"
+	AuditActionDisconnect           AuditAction = "disconnect"
+	AuditActionOpen                 AuditAction = "open"
+	AuditActionClose                AuditAction = "close"
 )
 
 func (e *AuditAction) Scan(src interface{}) error {
@@ -194,7 +198,11 @@ func (e AuditAction) Valid() bool {
 		AuditActionLogin,
 		AuditActionLogout,
 		AuditActionRegister,
-		AuditActionRequestPasswordReset:
+		AuditActionRequestPasswordReset,
+		AuditActionConnect,
+		AuditActionDisconnect,
+		AuditActionOpen,
+		AuditActionClose:
 		return true
 	}
 	return false
@@ -211,6 +219,10 @@ func AllAuditActionValues() []AuditAction {
 		AuditActionLogout,
 		AuditActionRegister,
 		AuditActionRequestPasswordReset,
+		AuditActionConnect,
+		AuditActionDisconnect,
+		AuditActionOpen,
+		AuditActionClose,
 	}
 }
 
@@ -531,6 +543,67 @@ func AllGroupSourceValues() []GroupSource {
 	}
 }
 
+type InboxNotificationReadStatus string
+
+const (
+	InboxNotificationReadStatusAll    InboxNotificationReadStatus = "all"
+	InboxNotificationReadStatusUnread InboxNotificationReadStatus = "unread"
+	InboxNotificationReadStatusRead   InboxNotificationReadStatus = "read"
+)
+
+func (e *InboxNotificationReadStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = InboxNotificationReadStatus(s)
+	case string:
+		*e = InboxNotificationReadStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for InboxNotificationReadStatus: %T", src)
+	}
+	return nil
+}
+
+type NullInboxNotificationReadStatus struct {
+	InboxNotificationReadStatus InboxNotificationReadStatus `json:"inbox_notification_read_status"`
+	Valid                       bool                        `json:"valid"` // Valid is true if InboxNotificationReadStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullInboxNotificationReadStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.InboxNotificationReadStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.InboxNotificationReadStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullInboxNotificationReadStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.InboxNotificationReadStatus), nil
+}
+
+func (e InboxNotificationReadStatus) Valid() bool {
+	switch e {
+	case InboxNotificationReadStatusAll,
+		InboxNotificationReadStatusUnread,
+		InboxNotificationReadStatusRead:
+		return true
+	}
+	return false
+}
+
+func AllInboxNotificationReadStatusValues() []InboxNotificationReadStatus {
+	return []InboxNotificationReadStatus{
+		InboxNotificationReadStatusAll,
+		InboxNotificationReadStatusUnread,
+		InboxNotificationReadStatusRead,
+	}
+}
+
 type LogLevel string
 
 const (
@@ -805,6 +878,7 @@ type NotificationMethod string
 const (
 	NotificationMethodSmtp    NotificationMethod = "smtp"
 	NotificationMethodWebhook NotificationMethod = "webhook"
+	NotificationMethodInbox   NotificationMethod = "inbox"
 )
 
 func (e *NotificationMethod) Scan(src interface{}) error {
@@ -845,7 +919,8 @@ func (ns NullNotificationMethod) Value() (driver.Value, error) {
 func (e NotificationMethod) Valid() bool {
 	switch e {
 	case NotificationMethodSmtp,
-		NotificationMethodWebhook:
+		NotificationMethodWebhook,
+		NotificationMethodInbox:
 		return true
 	}
 	return false
@@ -855,6 +930,7 @@ func AllNotificationMethodValues() []NotificationMethod {
 	return []NotificationMethod{
 		NotificationMethodSmtp,
 		NotificationMethodWebhook,
+		NotificationMethodInbox,
 	}
 }
 
@@ -1608,6 +1684,8 @@ const (
 	ResourceTypeIdpSyncSettingsOrganization ResourceType = "idp_sync_settings_organization"
 	ResourceTypeIdpSyncSettingsGroup        ResourceType = "idp_sync_settings_group"
 	ResourceTypeIdpSyncSettingsRole         ResourceType = "idp_sync_settings_role"
+	ResourceTypeWorkspaceAgent              ResourceType = "workspace_agent"
+	ResourceTypeWorkspaceApp                ResourceType = "workspace_app"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -1668,7 +1746,9 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeNotificationTemplate,
 		ResourceTypeIdpSyncSettingsOrganization,
 		ResourceTypeIdpSyncSettingsGroup,
-		ResourceTypeIdpSyncSettingsRole:
+		ResourceTypeIdpSyncSettingsRole,
+		ResourceTypeWorkspaceAgent,
+		ResourceTypeWorkspaceApp:
 		return true
 	}
 	return false
@@ -1698,6 +1778,8 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeIdpSyncSettingsOrganization,
 		ResourceTypeIdpSyncSettingsGroup,
 		ResourceTypeIdpSyncSettingsRole,
+		ResourceTypeWorkspaceAgent,
+		ResourceTypeWorkspaceApp,
 	}
 }
 
@@ -1955,6 +2037,64 @@ func AllWorkspaceAgentLifecycleStateValues() []WorkspaceAgentLifecycleState {
 		WorkspaceAgentLifecycleStateShutdownTimeout,
 		WorkspaceAgentLifecycleStateShutdownError,
 		WorkspaceAgentLifecycleStateOff,
+	}
+}
+
+type WorkspaceAgentMonitorState string
+
+const (
+	WorkspaceAgentMonitorStateOK  WorkspaceAgentMonitorState = "OK"
+	WorkspaceAgentMonitorStateNOK WorkspaceAgentMonitorState = "NOK"
+)
+
+func (e *WorkspaceAgentMonitorState) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkspaceAgentMonitorState(s)
+	case string:
+		*e = WorkspaceAgentMonitorState(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkspaceAgentMonitorState: %T", src)
+	}
+	return nil
+}
+
+type NullWorkspaceAgentMonitorState struct {
+	WorkspaceAgentMonitorState WorkspaceAgentMonitorState `json:"workspace_agent_monitor_state"`
+	Valid                      bool                       `json:"valid"` // Valid is true if WorkspaceAgentMonitorState is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkspaceAgentMonitorState) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkspaceAgentMonitorState, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkspaceAgentMonitorState.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkspaceAgentMonitorState) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkspaceAgentMonitorState), nil
+}
+
+func (e WorkspaceAgentMonitorState) Valid() bool {
+	switch e {
+	case WorkspaceAgentMonitorStateOK,
+		WorkspaceAgentMonitorStateNOK:
+		return true
+	}
+	return false
+}
+
+func AllWorkspaceAgentMonitorStateValues() []WorkspaceAgentMonitorState {
+	return []WorkspaceAgentMonitorState{
+		WorkspaceAgentMonitorStateOK,
+		WorkspaceAgentMonitorStateNOK,
 	}
 }
 
@@ -2468,9 +2608,9 @@ type GroupMember struct {
 	UserDeleted            bool          `db:"user_deleted" json:"user_deleted"`
 	UserLastSeenAt         time.Time     `db:"user_last_seen_at" json:"user_last_seen_at"`
 	UserQuietHoursSchedule string        `db:"user_quiet_hours_schedule" json:"user_quiet_hours_schedule"`
-	UserThemePreference    string        `db:"user_theme_preference" json:"user_theme_preference"`
 	UserName               string        `db:"user_name" json:"user_name"`
 	UserGithubComUserID    sql.NullInt64 `db:"user_github_com_user_id" json:"user_github_com_user_id"`
+	UserIsSystem           bool          `db:"user_is_system" json:"user_is_system"`
 	OrganizationID         uuid.UUID     `db:"organization_id" json:"organization_id"`
 	GroupName              string        `db:"group_name" json:"group_name"`
 	GroupID                uuid.UUID     `db:"group_id" json:"group_id"`
@@ -2479,6 +2619,19 @@ type GroupMember struct {
 type GroupMemberTable struct {
 	UserID  uuid.UUID `db:"user_id" json:"user_id"`
 	GroupID uuid.UUID `db:"group_id" json:"group_id"`
+}
+
+type InboxNotification struct {
+	ID         uuid.UUID       `db:"id" json:"id"`
+	UserID     uuid.UUID       `db:"user_id" json:"user_id"`
+	TemplateID uuid.UUID       `db:"template_id" json:"template_id"`
+	Targets    []uuid.UUID     `db:"targets" json:"targets"`
+	Title      string          `db:"title" json:"title"`
+	Content    string          `db:"content" json:"content"`
+	Icon       string          `db:"icon" json:"icon"`
+	Actions    json.RawMessage `db:"actions" json:"actions"`
+	ReadAt     sql.NullTime    `db:"read_at" json:"read_at"`
+	CreatedAt  time.Time       `db:"created_at" json:"created_at"`
 }
 
 type JfrogXrayScan struct {
@@ -2599,6 +2752,7 @@ type Organization struct {
 	IsDefault   bool      `db:"is_default" json:"is_default"`
 	DisplayName string    `db:"display_name" json:"display_name"`
 	Icon        string    `db:"icon" json:"icon"`
+	Deleted     bool      `db:"deleted" json:"deleted"`
 }
 
 type OrganizationMember struct {
@@ -2986,6 +3140,12 @@ type TemplateVersionTable struct {
 	SourceExampleID sql.NullString `db:"source_example_id" json:"source_example_id"`
 }
 
+type TemplateVersionTerraformValue struct {
+	TemplateVersionID uuid.UUID       `db:"template_version_id" json:"template_version_id"`
+	UpdatedAt         time.Time       `db:"updated_at" json:"updated_at"`
+	CachedPlan        json.RawMessage `db:"cached_plan" json:"cached_plan"`
+}
+
 type TemplateVersionVariable struct {
 	TemplateVersionID uuid.UUID `db:"template_version_id" json:"template_version_id"`
 	// Variable name
@@ -3025,16 +3185,22 @@ type User struct {
 	LastSeenAt     time.Time      `db:"last_seen_at" json:"last_seen_at"`
 	// Daily (!) cron schedule (with optional CRON_TZ) signifying the start of the user's quiet hours. If empty, the default quiet hours on the instance is used instead.
 	QuietHoursSchedule string `db:"quiet_hours_schedule" json:"quiet_hours_schedule"`
-	// "" can be interpreted as "the user does not care", falling back to the default theme
-	ThemePreference string `db:"theme_preference" json:"theme_preference"`
 	// Name of the Coder user
 	Name string `db:"name" json:"name"`
-	// The GitHub.com numerical user ID. At time of implementation, this is used to check if the user has starred the Coder repository.
+	// The GitHub.com numerical user ID. It is used to check if the user has starred the Coder repository. It is also used for filtering users in the users list CLI command, and may become more widely used in the future.
 	GithubComUserID sql.NullInt64 `db:"github_com_user_id" json:"github_com_user_id"`
 	// A hash of the one-time-passcode given to the user.
 	HashedOneTimePasscode []byte `db:"hashed_one_time_passcode" json:"hashed_one_time_passcode"`
 	// The time when the one-time-passcode expires.
 	OneTimePasscodeExpiresAt sql.NullTime `db:"one_time_passcode_expires_at" json:"one_time_passcode_expires_at"`
+	// Determines if a user is a system user, and therefore cannot login or perform normal actions
+	IsSystem bool `db:"is_system" json:"is_system"`
+}
+
+type UserConfig struct {
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	Key    string    `db:"key" json:"key"`
+	Value  string    `db:"value" json:"value"`
 }
 
 // Tracks when users were deleted
@@ -3149,6 +3315,22 @@ type WorkspaceAgent struct {
 	DisplayOrder int32 `db:"display_order" json:"display_order"`
 }
 
+// Workspace agent devcontainer configuration
+type WorkspaceAgentDevcontainer struct {
+	// Unique identifier
+	ID uuid.UUID `db:"id" json:"id"`
+	// Workspace agent foreign key
+	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	// Creation timestamp
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	// Workspace folder
+	WorkspaceFolder string `db:"workspace_folder" json:"workspace_folder"`
+	// Path to devcontainer.json.
+	ConfigPath string `db:"config_path" json:"config_path"`
+	// The name of the Dev Container.
+	Name string `db:"name" json:"name"`
+}
+
 type WorkspaceAgentLog struct {
 	AgentID     uuid.UUID `db:"agent_id" json:"agent_id"`
 	CreatedAt   time.Time `db:"created_at" json:"created_at"`
@@ -3167,10 +3349,13 @@ type WorkspaceAgentLogSource struct {
 }
 
 type WorkspaceAgentMemoryResourceMonitor struct {
-	AgentID   uuid.UUID `db:"agent_id" json:"agent_id"`
-	Enabled   bool      `db:"enabled" json:"enabled"`
-	Threshold int32     `db:"threshold" json:"threshold"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	AgentID        uuid.UUID                  `db:"agent_id" json:"agent_id"`
+	Enabled        bool                       `db:"enabled" json:"enabled"`
+	Threshold      int32                      `db:"threshold" json:"threshold"`
+	CreatedAt      time.Time                  `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time                  `db:"updated_at" json:"updated_at"`
+	State          WorkspaceAgentMonitorState `db:"state" json:"state"`
+	DebouncedUntil time.Time                  `db:"debounced_until" json:"debounced_until"`
 }
 
 type WorkspaceAgentMetadatum struct {
@@ -3241,11 +3426,14 @@ type WorkspaceAgentStat struct {
 }
 
 type WorkspaceAgentVolumeResourceMonitor struct {
-	AgentID   uuid.UUID `db:"agent_id" json:"agent_id"`
-	Enabled   bool      `db:"enabled" json:"enabled"`
-	Threshold int32     `db:"threshold" json:"threshold"`
-	Path      string    `db:"path" json:"path"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	AgentID        uuid.UUID                  `db:"agent_id" json:"agent_id"`
+	Enabled        bool                       `db:"enabled" json:"enabled"`
+	Threshold      int32                      `db:"threshold" json:"threshold"`
+	Path           string                     `db:"path" json:"path"`
+	CreatedAt      time.Time                  `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time                  `db:"updated_at" json:"updated_at"`
+	State          WorkspaceAgentMonitorState `db:"state" json:"state"`
+	DebouncedUntil time.Time                  `db:"debounced_until" json:"debounced_until"`
 }
 
 type WorkspaceApp struct {
@@ -3269,6 +3457,29 @@ type WorkspaceApp struct {
 	// Determines if the app is not shown in user interfaces.
 	Hidden bool               `db:"hidden" json:"hidden"`
 	OpenIn WorkspaceAppOpenIn `db:"open_in" json:"open_in"`
+}
+
+// Audit sessions for workspace apps, the data in this table is ephemeral and is used to deduplicate audit log entries for workspace apps. While a session is active, the same data will not be logged again. This table does not store historical data.
+type WorkspaceAppAuditSession struct {
+	// The agent that the workspace app or port forward belongs to.
+	AgentID uuid.UUID `db:"agent_id" json:"agent_id"`
+	// The app that is currently in the workspace app. This is may be uuid.Nil because ports are not associated with an app.
+	AppID uuid.UUID `db:"app_id" json:"app_id"`
+	// The user that is currently using the workspace app. This is may be uuid.Nil if we cannot determine the user.
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	// The IP address of the user that is currently using the workspace app.
+	Ip string `db:"ip" json:"ip"`
+	// The user agent of the user that is currently using the workspace app.
+	UserAgent string `db:"user_agent" json:"user_agent"`
+	// The slug or port of the workspace app that the user is currently using.
+	SlugOrPort string `db:"slug_or_port" json:"slug_or_port"`
+	// The HTTP status produced by the token authorization. Defaults to 200 if no status is provided.
+	StatusCode int32 `db:"status_code" json:"status_code"`
+	// The time the user started the session.
+	StartedAt time.Time `db:"started_at" json:"started_at"`
+	// The time the session was last updated.
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	ID        uuid.UUID `db:"id" json:"id"`
 }
 
 // A record of workspace app usage statistics

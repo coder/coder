@@ -85,7 +85,7 @@ func (api *API) userDebugOIDC(rw http.ResponseWriter, r *http.Request) {
 func (api *API) firstUser(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	// nolint:gocritic // Getting user count is a system function.
-	userCount, err := api.Database.GetUserCount(dbauthz.AsSystemRestricted(ctx))
+	userCount, err := api.Database.GetUserCount(dbauthz.AsSystemRestricted(ctx), false)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching user count.",
@@ -118,6 +118,8 @@ func (api *API) firstUser(rw http.ResponseWriter, r *http.Request) {
 // @Success 201 {object} codersdk.CreateFirstUserResponse
 // @Router /users/first [post]
 func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
+	// The first user can also be created via oidc, so if making changes to the flow,
+	// ensure that the oidc flow is also updated.
 	ctx := r.Context()
 	var createUser codersdk.CreateFirstUserRequest
 	if !httpapi.Read(ctx, rw, r, &createUser) {
@@ -126,7 +128,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 
 	// This should only function for the first user.
 	// nolint:gocritic // Getting user count is a system function.
-	userCount, err := api.Database.GetUserCount(dbauthz.AsSystemRestricted(ctx))
+	userCount, err := api.Database.GetUserCount(dbauthz.AsSystemRestricted(ctx), false)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching user count.",
@@ -198,6 +200,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 			OrganizationIDs: []uuid.UUID{defaultOrg.ID},
 		},
 		LoginType:          database.LoginTypePassword,
+		RBACRoles:          []string{rbac.RoleOwner().String()},
 		accountCreatorName: "coder",
 	})
 	if err != nil {
@@ -224,23 +227,6 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	api.Telemetry.Report(&telemetry.Snapshot{
 		Users: []telemetry.User{telemetryUser},
 	})
-
-	// TODO: @emyrk this currently happens outside the database tx used to create
-	// 	the user. Maybe I add this ability to grant roles in the createUser api
-	//	and add some rbac bypass when calling api functions this way??
-	// Add the admin role to this first user.
-	//nolint:gocritic // needed to create first user
-	_, err = api.Database.UpdateUserRoles(dbauthz.AsSystemRestricted(ctx), database.UpdateUserRolesParams{
-		GrantedRoles: []string{rbac.RoleOwner().String()},
-		ID:           user.ID,
-	})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error updating user's roles.",
-			Detail:  err.Error(),
-		})
-		return
-	}
 
 	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.CreateFirstUserResponse{
 		UserID:         user.ID,
@@ -311,16 +297,17 @@ func (api *API) GetUsers(rw http.ResponseWriter, r *http.Request) ([]database.Us
 	}
 
 	userRows, err := api.Database.GetUsers(ctx, database.GetUsersParams{
-		AfterID:        paginationParams.AfterID,
-		Search:         params.Search,
-		Status:         params.Status,
-		RbacRole:       params.RbacRole,
-		LastSeenBefore: params.LastSeenBefore,
-		LastSeenAfter:  params.LastSeenAfter,
-		CreatedAfter:   params.CreatedAfter,
-		CreatedBefore:  params.CreatedBefore,
-		OffsetOpt:      int32(paginationParams.Offset),
-		LimitOpt:       int32(paginationParams.Limit),
+		AfterID:         paginationParams.AfterID,
+		Search:          params.Search,
+		Status:          params.Status,
+		RbacRole:        params.RbacRole,
+		LastSeenBefore:  params.LastSeenBefore,
+		LastSeenAfter:   params.LastSeenAfter,
+		CreatedAfter:    params.CreatedAfter,
+		CreatedBefore:   params.CreatedBefore,
+		GithubComUserID: params.GithubComUserID,
+		OffsetOpt:       int32(paginationParams.Offset),
+		LimitOpt:        int32(paginationParams.Limit),
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -973,6 +960,38 @@ func (api *API) notifyUserStatusChanged(ctx context.Context, actingUserName stri
 	return nil
 }
 
+// @Summary Get user appearance settings
+// @ID get-user-appearance-settings
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Param user path string true "User ID, name, or me"
+// @Success 200 {object} codersdk.UserAppearanceSettings
+// @Router /users/{user}/appearance [get]
+func (api *API) userAppearanceSettings(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx  = r.Context()
+		user = httpmw.UserParam(r)
+	)
+
+	themePreference, err := api.Database.GetUserAppearanceSettings(ctx, user.ID)
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Error reading user settings.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		themePreference = ""
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserAppearanceSettings{
+		ThemePreference: themePreference,
+	})
+}
+
 // @Summary Update user appearance settings
 // @ID update-user-appearance-settings
 // @Security CoderSessionToken
@@ -981,7 +1000,7 @@ func (api *API) notifyUserStatusChanged(ctx context.Context, actingUserName stri
 // @Tags Users
 // @Param user path string true "User ID, name, or me"
 // @Param request body codersdk.UpdateUserAppearanceSettingsRequest true "New appearance settings"
-// @Success 200 {object} codersdk.User
+// @Success 200 {object} codersdk.UserAppearanceSettings
 // @Router /users/{user}/appearance [put]
 func (api *API) putUserAppearanceSettings(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -994,10 +1013,9 @@ func (api *API) putUserAppearanceSettings(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	updatedUser, err := api.Database.UpdateUserAppearanceSettings(ctx, database.UpdateUserAppearanceSettingsParams{
-		ID:              user.ID,
+	updatedSettings, err := api.Database.UpdateUserAppearanceSettings(ctx, database.UpdateUserAppearanceSettingsParams{
+		UserID:          user.ID,
 		ThemePreference: params.ThemePreference,
-		UpdatedAt:       dbtime.Now(),
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1007,16 +1025,9 @@ func (api *API) putUserAppearanceSettings(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	organizationIDs, err := userOrganizationIDs(ctx, api, user)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching user's organizations.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.User(updatedUser, organizationIDs))
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserAppearanceSettings{
+		ThemePreference: updatedSettings.Value,
+	})
 }
 
 // @Summary Update user password
@@ -1181,6 +1192,7 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 	memberships, err := api.Database.OrganizationMembers(ctx, database.OrganizationMembersParams{
 		UserID:         user.ID,
 		OrganizationID: uuid.Nil,
+		IncludeSystem:  false,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1286,7 +1298,10 @@ func (api *API) organizationsByUser(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
 
-	organizations, err := api.Database.GetOrganizationsByUserID(ctx, user.ID)
+	organizations, err := api.Database.GetOrganizationsByUserID(ctx, database.GetOrganizationsByUserIDParams{
+		UserID:  user.ID,
+		Deleted: false,
+	})
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
 		organizations = []database.Organization{}
@@ -1324,7 +1339,10 @@ func (api *API) organizationsByUser(rw http.ResponseWriter, r *http.Request) {
 func (api *API) organizationByUserAndName(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organizationName := chi.URLParam(r, "organizationname")
-	organization, err := api.Database.GetOrganizationByName(ctx, organizationName)
+	organization, err := api.Database.GetOrganizationByName(ctx, database.GetOrganizationByNameParams{
+		Name:    organizationName,
+		Deleted: false,
+	})
 	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -1345,6 +1363,7 @@ type CreateUserRequest struct {
 	LoginType          database.LoginType
 	SkipNotifications  bool
 	accountCreatorName string
+	RBACRoles          []string
 }
 
 func (api *API) CreateUser(ctx context.Context, store database.Store, req CreateUserRequest) (database.User, error) {
@@ -1352,6 +1371,13 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 	// the username is valid and unique.
 	if usernameValid := codersdk.NameValid(req.Username); usernameValid != nil {
 		return database.User{}, xerrors.Errorf("invalid username %q: %w", req.Username, usernameValid)
+	}
+
+	// If the caller didn't specify rbac roles, default to
+	// a member of the site.
+	rbacRoles := []string{}
+	if req.RBACRoles != nil {
+		rbacRoles = req.RBACRoles
 	}
 
 	var user database.User
@@ -1370,10 +1396,9 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 			CreatedAt:      dbtime.Now(),
 			UpdatedAt:      dbtime.Now(),
 			HashedPassword: []byte{},
-			// All new users are defaulted to members of the site.
-			RBACRoles: []string{},
-			LoginType: req.LoginType,
-			Status:    status,
+			RBACRoles:      rbacRoles,
+			LoginType:      req.LoginType,
+			Status:         status,
 		}
 		// If a user signs up with OAuth, they can have no password!
 		if req.Password != "" {
@@ -1431,6 +1456,10 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 	}
 
 	for _, u := range userAdmins {
+		if u.ID == user.ID {
+			// If the new user is an admin, don't notify them about themselves.
+			continue
+		}
 		if _, err := api.NotificationsEnqueuer.EnqueueWithData(
 			// nolint:gocritic // Need notifier actor to enqueue notifications
 			dbauthz.AsNotifier(ctx),

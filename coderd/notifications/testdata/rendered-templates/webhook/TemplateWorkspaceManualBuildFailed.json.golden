@@ -2,7 +2,7 @@
   "_version": "1.1",
   "msg_id": "00000000-0000-0000-0000-000000000000",
   "payload": {
-    "_version": "1.1",
+    "_version": "1.2",
     "notification_name": "Workspace Manual Build Failed",
     "notification_template_id": "00000000-0000-0000-0000-000000000000",
     "user_id": "00000000-0000-0000-0000-000000000000",
@@ -23,10 +23,11 @@
       "workspace_build_number": "3",
       "workspace_owner_username": "mrbobby"
     },
-    "data": null
+    "data": null,
+    "targets": null
   },
   "title": "Workspace \"bobby-workspace\" manual build failed",
   "title_markdown": "Workspace \"bobby-workspace\" manual build failed",
-  "body": "Hi Bobby,\n\nA manual build of the workspace bobby-workspace using the template bobby-template failed (version: bobby-template-version).\n\nThe workspace build was initiated by joe.",
-  "body_markdown": "Hi Bobby,\n\nA manual build of the workspace **bobby-workspace** using the template **bobby-template** failed (version: **bobby-template-version**).\n\nThe workspace build was initiated by **joe**."
+  "body": "A manual build of the workspace bobby-workspace using the template bobby-template failed (version: bobby-template-version).\nThe workspace build was initiated by joe.",
+  "body_markdown": "A manual build of the workspace **bobby-workspace** using the template **bobby-template** failed (version: **bobby-template-version**).\nThe workspace build was initiated by **joe**."
 }

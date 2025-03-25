@@ -3,13 +3,14 @@ package idpsync
 import (
 	"context"
 	"encoding/json"
+	"slices"
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
-	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -91,6 +92,7 @@ func (s AGPLIDPSync) SyncRoles(ctx context.Context, db database.Store, user data
 		orgMemberships, err := tx.OrganizationMembers(ctx, database.OrganizationMembersParams{
 			OrganizationID: uuid.Nil,
 			UserID:         user.ID,
+			IncludeSystem:  false,
 		})
 		if err != nil {
 			return xerrors.Errorf("get organizations by user id: %w", err)

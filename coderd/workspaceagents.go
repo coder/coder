@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -17,12 +18,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
+	"github.com/coder/websocket"
+
 	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -34,6 +36,7 @@ import (
 	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/telemetry"
 	maputil "github.com/coder/coder/v2/coderd/util/maps"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
@@ -42,7 +45,6 @@ import (
 	"github.com/coder/coder/v2/codersdk/wsjson"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
-	"github.com/coder/websocket"
 )
 
 // @Summary Get workspace agent by ID
@@ -765,7 +767,7 @@ func (api *API) workspaceAgentListContainers(rw http.ResponseWriter, r *http.Req
 	}
 
 	// Filter in-place by labels
-	cts.Containers = slices.DeleteFunc(cts.Containers, func(ct codersdk.WorkspaceAgentDevcontainer) bool {
+	cts.Containers = slices.DeleteFunc(cts.Containers, func(ct codersdk.WorkspaceAgentContainer) bool {
 		return !maputil.Subset(labels, ct.Labels)
 	})
 
@@ -906,6 +908,7 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 	}
 
 	// This is used by Enterprise code to control the functionality of this route.
+	// Namely, disabling the route using `CODER_BROWSER_ONLY`.
 	override := api.WorkspaceClientCoordinateOverride.Load()
 	if override != nil {
 		overrideFunc := *override
@@ -1576,6 +1579,16 @@ func (api *API) workspaceAgentsExternalAuthListen(ctx context.Context, rw http.R
 func (api *API) tailnetRPCConn(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	// This is used by Enterprise code to control the functionality of this route.
+	// Namely, disabling the route using `CODER_BROWSER_ONLY`.
+	override := api.WorkspaceClientCoordinateOverride.Load()
+	if override != nil {
+		overrideFunc := *override
+		if overrideFunc != nil && overrideFunc(rw) {
+			return
+		}
+	}
+
 	version := "2.0"
 	qv := r.URL.Query().Get("version")
 	if qv != "" {
@@ -1624,6 +1637,35 @@ func (api *API) tailnetRPCConn(rw http.ResponseWriter, r *http.Request) {
 	defer wsNetConn.Close()
 	defer conn.Close(websocket.StatusNormalClosure, "")
 
+	// Get user ID for telemetry
+	apiKey := httpmw.APIKey(r)
+	userID := apiKey.UserID.String()
+
+	// Store connection telemetry event
+	now := time.Now()
+	connectionTelemetryEvent := telemetry.UserTailnetConnection{
+		ConnectedAt:         now,
+		DisconnectedAt:      nil,
+		UserID:              userID,
+		PeerID:              peerID.String(),
+		DeviceID:            nil,
+		DeviceOS:            nil,
+		CoderDesktopVersion: nil,
+	}
+
+	fillCoderDesktopTelemetry(r, &connectionTelemetryEvent, api.Logger)
+	api.Telemetry.Report(&telemetry.Snapshot{
+		UserTailnetConnections: []telemetry.UserTailnetConnection{connectionTelemetryEvent},
+	})
+	defer func() {
+		// Update telemetry event with disconnection time
+		disconnectTime := time.Now()
+		connectionTelemetryEvent.DisconnectedAt = &disconnectTime
+		api.Telemetry.Report(&telemetry.Snapshot{
+			UserTailnetConnections: []telemetry.UserTailnetConnection{connectionTelemetryEvent},
+		})
+	}()
+
 	go httpapi.Heartbeat(ctx, conn)
 	err = api.TailnetClientService.ServeClient(ctx, version, wsNetConn, tailnet.StreamID{
 		Name: "client",
@@ -1638,6 +1680,34 @@ func (api *API) tailnetRPCConn(rw http.ResponseWriter, r *http.Request) {
 	if err != nil && !xerrors.Is(err, io.EOF) && !xerrors.Is(err, context.Canceled) {
 		_ = conn.Close(websocket.StatusInternalError, err.Error())
 		return
+	}
+}
+
+// fillCoderDesktopTelemetry fills out the provided event based on a Coder Desktop telemetry header on the request, if
+// present.
+func fillCoderDesktopTelemetry(r *http.Request, event *telemetry.UserTailnetConnection, logger slog.Logger) {
+	// Parse desktop telemetry from header if it exists
+	desktopTelemetryHeader := r.Header.Get(codersdk.CoderDesktopTelemetryHeader)
+	if desktopTelemetryHeader != "" {
+		var telemetryData codersdk.CoderDesktopTelemetry
+		if err := telemetryData.FromHeader(desktopTelemetryHeader); err == nil {
+			// Only set fields if they aren't empty
+			if telemetryData.DeviceID != "" {
+				event.DeviceID = &telemetryData.DeviceID
+			}
+			if telemetryData.DeviceOS != "" {
+				event.DeviceOS = &telemetryData.DeviceOS
+			}
+			if telemetryData.CoderDesktopVersion != "" {
+				event.CoderDesktopVersion = &telemetryData.CoderDesktopVersion
+			}
+			logger.Debug(r.Context(), "received desktop telemetry",
+				slog.F("device_id", telemetryData.DeviceID),
+				slog.F("device_os", telemetryData.DeviceOS),
+				slog.F("desktop_version", telemetryData.CoderDesktopVersion))
+		} else {
+			logger.Warn(r.Context(), "failed to parse desktop telemetry header", slog.Error(err))
+		}
 	}
 }
 

@@ -11,7 +11,9 @@ SET
 		'':: bytea
 	END
 WHERE
-	id = @user_id RETURNING *;
+	id = @user_id
+	AND NOT is_system
+RETURNING *;
 
 -- name: GetUserByID :one
 SELECT
@@ -46,7 +48,8 @@ SELECT
 FROM
 	users
 WHERE
-	deleted = false;
+	deleted = false
+  	AND CASE WHEN @include_system::bool THEN TRUE ELSE is_system = false END;
 
 -- name: GetActiveUserCount :one
 SELECT
@@ -54,7 +57,8 @@ SELECT
 FROM
 	users
 WHERE
-	status = 'active'::user_status AND deleted = false;
+	status = 'active'::user_status AND deleted = false
+	AND CASE WHEN @include_system::bool THEN TRUE ELSE is_system = false END;
 
 -- name: InsertUser :one
 INSERT INTO
@@ -98,14 +102,27 @@ SET
 WHERE
 	id = $1;
 
--- name: UpdateUserAppearanceSettings :one
-UPDATE
-	users
-SET
-	theme_preference = $2,
-	updated_at = $3
+-- name: GetUserAppearanceSettings :one
+SELECT
+	value as theme_preference
+FROM
+	user_configs
 WHERE
-	id = $1
+	user_id = @user_id
+	AND key = 'theme_preference';
+
+-- name: UpdateUserAppearanceSettings :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'theme_preference', @theme_preference)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @theme_preference
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'theme_preference'
 RETURNING *;
 
 -- name: UpdateUserRoles :one
@@ -210,6 +227,16 @@ WHERE
 			created_at >= @created_after
 		ELSE true
 	END
+  	AND CASE
+  	    WHEN @include_system::bool THEN TRUE
+  	    ELSE
+			is_system = false
+	END
+	AND CASE
+		WHEN @github_com_user_id :: bigint != 0 THEN
+			github_com_user_id = @github_com_user_id
+		ELSE true
+	END
 	-- End of filters
 
 	-- Authorize Filter clause will be injected below in GetAuthorizedUsers
@@ -298,15 +325,17 @@ UPDATE
     users
 SET
     status = 'dormant'::user_status,
-	updated_at = @updated_at
+    updated_at = @updated_at
 WHERE
     last_seen_at < @last_seen_after :: timestamp
     AND status = 'active'::user_status
+		AND NOT is_system
 RETURNING id, email, username, last_seen_at;
 
 -- AllUserIDs returns all UserIDs regardless of user status or deletion.
 -- name: AllUserIDs :many
-SELECT DISTINCT id FROM USERS;
+SELECT DISTINCT id FROM USERS
+	WHERE CASE WHEN @include_system::bool THEN TRUE ELSE is_system = false END;
 
 -- name: UpdateUserHashedOneTimePasscode :exec
 UPDATE

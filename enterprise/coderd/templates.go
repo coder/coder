@@ -62,14 +62,20 @@ func (api *API) templateAvailablePermissions(rw http.ResponseWriter, r *http.Req
 	sdkGroups := make([]codersdk.Group, 0, len(groups))
 	for _, group := range groups {
 		// nolint:gocritic
-		members, err := api.Database.GetGroupMembersByGroupID(dbauthz.AsSystemRestricted(ctx), group.Group.ID)
+		members, err := api.Database.GetGroupMembersByGroupID(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersByGroupIDParams{
+			GroupID:       group.Group.ID,
+			IncludeSystem: false,
+		})
 		if err != nil {
 			httpapi.InternalServerError(rw, err)
 			return
 		}
 
 		// nolint:gocritic
-		memberCount, err := api.Database.GetGroupMembersCountByGroupID(dbauthz.AsSystemRestricted(ctx), group.Group.ID)
+		memberCount, err := api.Database.GetGroupMembersCountByGroupID(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersCountByGroupIDParams{
+			GroupID:       group.Group.ID,
+			IncludeSystem: false,
+		})
 		if err != nil {
 			httpapi.InternalServerError(rw, err)
 			return
@@ -138,13 +144,19 @@ func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
 		// them read the group members.
 		// We should probably at least return more truncated user data here.
 		// nolint:gocritic
-		members, err = api.Database.GetGroupMembersByGroupID(dbauthz.AsSystemRestricted(ctx), group.ID)
+		members, err = api.Database.GetGroupMembersByGroupID(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersByGroupIDParams{
+			GroupID:       group.Group.ID,
+			IncludeSystem: false,
+		})
 		if err != nil {
 			httpapi.InternalServerError(rw, err)
 			return
 		}
 		// nolint:gocritic
-		memberCount, err := api.Database.GetGroupMembersCountByGroupID(dbauthz.AsSystemRestricted(ctx), group.ID)
+		memberCount, err := api.Database.GetGroupMembersCountByGroupID(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersCountByGroupIDParams{
+			GroupID:       group.Group.ID,
+			IncludeSystem: false,
+		})
 		if err != nil {
 			httpapi.InternalServerError(rw, err)
 			return
