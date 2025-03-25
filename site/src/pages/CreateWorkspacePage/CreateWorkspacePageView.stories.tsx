@@ -159,6 +159,25 @@ export const PresetSelected: Story = {
 	},
 };
 
+export const PresetReselected: Story = {
+	args: PresetsButNoneSelected.args,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// First selection of Preset 1
+		await userEvent.click(canvas.getByLabelText("Preset"));
+		await userEvent.click(
+			canvas.getByText("Preset 1", { selector: ".MuiMenuItem-root" }),
+		);
+
+		// Reselect the same preset
+		await userEvent.click(canvas.getByLabelText("Preset"));
+		await userEvent.click(
+			canvas.getByText("Preset 1", { selector: ".MuiMenuItem-root" }),
+		);
+	},
+};
+
 export const ExternalAuth: Story = {
 	args: {
 		externalAuth: [

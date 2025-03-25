@@ -441,3 +441,36 @@ func TestStart_Starting(t *testing.T) {
 
 	_ = testutil.RequireRecvCtx(ctx, t, doneChan)
 }
+
+func TestStart_NoWait(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	// Prepare user, template, workspace
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	owner := coderdtest.CreateFirstUser(t, client)
+	member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+	version1 := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version1.ID)
+	template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version1.ID)
+	workspace := coderdtest.CreateWorkspace(t, member, template.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+	// Stop the workspace
+	build := coderdtest.CreateWorkspaceBuild(t, member, workspace, database.WorkspaceTransitionStop)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
+
+	// Start in no-wait mode
+	inv, root := clitest.New(t, "start", workspace.Name, "--no-wait")
+	clitest.SetupConfig(t, member, root)
+	doneChan := make(chan struct{})
+	pty := ptytest.New(t).Attach(inv)
+	go func() {
+		defer close(doneChan)
+		err := inv.Run()
+		assert.NoError(t, err)
+	}()
+
+	pty.ExpectMatch("workspace has been started in no-wait mode")
+	_ = testutil.RequireRecvCtx(ctx, t, doneChan)
+}

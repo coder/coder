@@ -52,6 +52,8 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/quartz"
+
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/autobuild"
@@ -91,7 +93,6 @@ import (
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/coder/quartz"
 )
 
 type Options struct {
@@ -170,6 +171,7 @@ type Options struct {
 	APIKeyEncryptionCache              cryptokeys.EncryptionKeycache
 	OIDCConvertKeyCache                cryptokeys.SigningKeycache
 	Clock                              quartz.Clock
+	TelemetryReporter                  telemetry.Reporter
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
@@ -358,6 +360,10 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	hangDetector.Start()
 	t.Cleanup(hangDetector.Close)
 
+	if options.TelemetryReporter == nil {
+		options.TelemetryReporter = telemetry.NewNoop()
+	}
+
 	// Did last_used_at not update? Scratching your noggin? Here's why.
 	// Workspace usage tracking must be triggered manually in tests.
 	// The vast majority of existing tests do not depend on last_used_at
@@ -517,7 +523,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			LoginRateLimit:                     options.LoginRateLimit,
 			FilesRateLimit:                     options.FilesRateLimit,
 			Authorizer:                         options.Authorizer,
-			Telemetry:                          telemetry.NewNoop(),
+			Telemetry:                          options.TelemetryReporter,
 			TemplateScheduleStore:              &templateScheduleStore,
 			AccessControlStore:                 accessControlStore,
 			TLSCertificates:                    options.TLSCertificates,

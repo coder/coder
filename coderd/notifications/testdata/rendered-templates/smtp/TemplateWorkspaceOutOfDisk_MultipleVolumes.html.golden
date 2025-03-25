@@ -50,9 +50,8 @@ argin: 8px 0 32px; line-height: 1.5;">
       </h1>
       <div style=3D"line-height: 1.5;">
         <p>Hi Bobby,</p>
-
-<p>The following volumes are nearly full in workspace <strong>bobby-workspa=
-ce</strong></p>
+        <p>The following volumes are nearly full in workspace <strong>bobby=
+-workspace</strong></p>
 
 <ul>
 <li><strong><code>/home/coder</code></strong> is over 90% full<br>

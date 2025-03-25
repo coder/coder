@@ -294,6 +294,13 @@ var (
 		Type: "workspace",
 	}
 
+	// ResourceWorkspaceAgentDevcontainers
+	// Valid Actions
+	//  - "ActionCreate" :: create workspace agent devcontainers
+	ResourceWorkspaceAgentDevcontainers = Object{
+		Type: "workspace_agent_devcontainers",
+	}
+
 	// ResourceWorkspaceAgentResourceMonitor
 	// Valid Actions
 	//  - "ActionCreate" :: create workspace agent resource monitor
@@ -361,6 +368,7 @@ func AllResources() []Objecter {
 		ResourceTemplate,
 		ResourceUser,
 		ResourceWorkspace,
+		ResourceWorkspaceAgentDevcontainers,
 		ResourceWorkspaceAgentResourceMonitor,
 		ResourceWorkspaceDormant,
 		ResourceWorkspaceProxy,

@@ -26,8 +26,10 @@ import (
 	"tailscale.com/wgengine/router"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/quartz"
+
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/tailnet"
 )
 
 // netStatusInterval is the interval at which the tunnel sends network status updates to the manager.
@@ -236,6 +238,24 @@ func (t *Tunnel) start(req *StartRequest) error {
 	for _, h := range req.GetHeaders() {
 		header.Add(h.GetName(), h.GetValue())
 	}
+
+	// Add desktop telemetry if any fields are provided
+	telemetryData := codersdk.CoderDesktopTelemetry{
+		DeviceID:            req.GetDeviceId(),
+		DeviceOS:            req.GetDeviceOs(),
+		CoderDesktopVersion: req.GetCoderDesktopVersion(),
+	}
+	if !telemetryData.IsEmpty() {
+		headerValue, err := json.Marshal(telemetryData)
+		if err == nil {
+			header.Set(codersdk.CoderDesktopTelemetryHeader, string(headerValue))
+			t.logger.Debug(t.ctx, "added desktop telemetry header",
+				slog.F("data", telemetryData))
+		} else {
+			t.logger.Warn(t.ctx, "failed to marshal telemetry data")
+		}
+	}
+
 	var networkingStack NetworkStack
 	if t.networkingStackFn != nil {
 		networkingStack, err = t.networkingStackFn(t, req, t.clientLogger)

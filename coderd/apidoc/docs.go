@@ -1693,6 +1693,13 @@ const docTemplate = `{
                         "description": "Filter notifications by read status. Possible values: read, unread, all",
                         "name": "read_status",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "ID of the last notification from the current page. Notifications returned will be older than the associated one",
+                        "name": "starting_before",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -1701,6 +1708,25 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.ListInboxNotificationsResponse"
                         }
+                    }
+                }
+            }
+        },
+        "/notifications/inbox/mark-all-as-read": {
+            "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "Mark all unread notifications as read",
+                "operationId": "mark-all-unread-notifications-as-read",
+                "responses": {
+                    "204": {
+                        "description": "No Content"
                     }
                 }
             }
@@ -1737,6 +1763,16 @@ const docTemplate = `{
                         "type": "string",
                         "description": "Filter notifications by read status. Possible values: read, unread, all",
                         "name": "read_status",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "plaintext",
+                            "markdown"
+                        ],
+                        "type": "string",
+                        "description": "Define the output format for notifications title and body.",
+                        "name": "format",
                         "in": "query"
                     }
                 ],
@@ -12697,6 +12733,14 @@ const docTemplate = `{
                     "description": "How often to query the database for queued notifications.",
                     "type": "integer"
                 },
+                "inbox": {
+                    "description": "Inbox settings.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.NotificationsInboxConfig"
+                        }
+                    ]
+                },
                 "lease_count": {
                     "description": "How many notifications a notifier should lease per fetch interval.",
                     "type": "integer"
@@ -12818,6 +12862,14 @@ const docTemplate = `{
                 },
                 "start_tls": {
                     "description": "StartTLS attempts to upgrade plain connections to TLS.",
+                    "type": "boolean"
+                }
+            }
+        },
+        "codersdk.NotificationsInboxConfig": {
+            "type": "object",
+            "properties": {
+                "enabled": {
                     "type": "boolean"
                 }
             }
@@ -14135,6 +14187,7 @@ const docTemplate = `{
                 "template",
                 "user",
                 "workspace",
+                "workspace_agent_devcontainers",
                 "workspace_agent_resource_monitor",
                 "workspace_dormant",
                 "workspace_proxy"
@@ -14171,6 +14224,7 @@ const docTemplate = `{
                 "ResourceTemplate",
                 "ResourceUser",
                 "ResourceWorkspace",
+                "ResourceWorkspaceAgentDevcontainers",
                 "ResourceWorkspaceAgentResourceMonitor",
                 "ResourceWorkspaceDormant",
                 "ResourceWorkspaceProxy"
@@ -16277,7 +16331,7 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.WorkspaceAgentDevcontainer": {
+        "codersdk.WorkspaceAgentContainer": {
             "type": "object",
             "properties": {
                 "created_at": {
@@ -16308,7 +16362,7 @@ const docTemplate = `{
                     "description": "Ports includes ports exposed by the container.",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/codersdk.WorkspaceAgentDevcontainerPort"
+                        "$ref": "#/definitions/codersdk.WorkspaceAgentContainerPort"
                     }
                 },
                 "running": {
@@ -16328,7 +16382,7 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.WorkspaceAgentDevcontainerPort": {
+        "codersdk.WorkspaceAgentContainerPort": {
             "type": "object",
             "properties": {
                 "host_ip": {
@@ -16396,7 +16450,7 @@ const docTemplate = `{
                     "description": "Containers is a list of containers visible to the workspace agent.",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/codersdk.WorkspaceAgentDevcontainer"
+                        "$ref": "#/definitions/codersdk.WorkspaceAgentContainer"
                     }
                 },
                 "warnings": {

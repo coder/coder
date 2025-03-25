@@ -35,6 +35,7 @@ const (
 	ResourceTemplate                      RBACResource = "template"
 	ResourceUser                          RBACResource = "user"
 	ResourceWorkspace                     RBACResource = "workspace"
+	ResourceWorkspaceAgentDevcontainers   RBACResource = "workspace_agent_devcontainers"
 	ResourceWorkspaceAgentResourceMonitor RBACResource = "workspace_agent_resource_monitor"
 	ResourceWorkspaceDormant              RBACResource = "workspace_dormant"
 	ResourceWorkspaceProxy                RBACResource = "workspace_proxy"
@@ -93,6 +94,7 @@ var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceTemplate:                      {ActionCreate, ActionDelete, ActionRead, ActionUpdate, ActionUse, ActionViewInsights},
 	ResourceUser:                          {ActionCreate, ActionDelete, ActionRead, ActionReadPersonal, ActionUpdate, ActionUpdatePersonal},
 	ResourceWorkspace:                     {ActionApplicationConnect, ActionCreate, ActionDelete, ActionRead, ActionSSH, ActionWorkspaceStart, ActionWorkspaceStop, ActionUpdate},
+	ResourceWorkspaceAgentDevcontainers:   {ActionCreate},
 	ResourceWorkspaceAgentResourceMonitor: {ActionCreate, ActionRead, ActionUpdate},
 	ResourceWorkspaceDormant:              {ActionApplicationConnect, ActionCreate, ActionDelete, ActionRead, ActionSSH, ActionWorkspaceStart, ActionWorkspaceStop, ActionUpdate},
 	ResourceWorkspaceProxy:                {ActionCreate, ActionDelete, ActionRead, ActionUpdate},

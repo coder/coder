@@ -1,6 +1,6 @@
 import Link from "@mui/material/Link";
 import Tooltip, { type TooltipProps } from "@mui/material/Tooltip";
-import type { Workspace, WorkspaceAgentDevcontainer } from "api/typesGenerated";
+import type { Workspace, WorkspaceAgentContainer } from "api/typesGenerated";
 import { ExternalLinkIcon } from "lucide-react";
 import type { FC } from "react";
 import { portForwardURL } from "utils/portForward";
@@ -9,7 +9,7 @@ import { AgentDevcontainerSSHButton } from "./SSHButton/SSHButton";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
 
 type AgentDevcontainerCardProps = {
-	container: WorkspaceAgentDevcontainer;
+	container: WorkspaceAgentContainer;
 	workspace: Workspace;
 	wildcardHostname: string;
 	agentName: string;

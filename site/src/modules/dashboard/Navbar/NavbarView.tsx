@@ -55,23 +55,25 @@ export const NavbarView: FC<NavbarViewProps> = ({
 
 			<NavItems className="ml-4" />
 
-			<div className=" hidden md:flex items-center gap-3 ml-auto">
+			<div className="flex items-center gap-3 ml-auto">
 				{proxyContextValue && (
-					<ProxyMenu proxyContextValue={proxyContextValue} />
+					<div className="hidden md:block">
+						<ProxyMenu proxyContextValue={proxyContextValue} />
+					</div>
 				)}
 
-				<DeploymentDropdown
-					canViewAuditLog={canViewAuditLog}
-					canViewOrganizations={canViewOrganizations}
-					canViewDeployment={canViewDeployment}
-					canViewHealth={canViewHealth}
-				/>
+				<div className="hidden md:block">
+					<DeploymentDropdown
+						canViewAuditLog={canViewAuditLog}
+						canViewOrganizations={canViewOrganizations}
+						canViewDeployment={canViewDeployment}
+						canViewHealth={canViewHealth}
+					/>
+				</div>
 
 				<NotificationsInbox
 					fetchNotifications={API.getInboxNotifications}
-					markAllAsRead={() => {
-						throw new Error("Function not implemented.");
-					}}
+					markAllAsRead={API.markAllInboxNotificationsAsRead}
 					markNotificationAsRead={(notificationId) =>
 						API.updateInboxNotificationReadStatus(notificationId, {
 							is_read: true,
@@ -80,25 +82,29 @@ export const NavbarView: FC<NavbarViewProps> = ({
 				/>
 
 				{user && (
-					<UserDropdown
+					<div className="hidden md:block">
+						<UserDropdown
+							user={user}
+							buildInfo={buildInfo}
+							supportLinks={supportLinks}
+							onSignOut={onSignOut}
+						/>
+					</div>
+				)}
+
+				<div className="md:hidden">
+					<MobileMenu
+						proxyContextValue={proxyContextValue}
 						user={user}
-						buildInfo={buildInfo}
 						supportLinks={supportLinks}
 						onSignOut={onSignOut}
+						canViewAuditLog={canViewAuditLog}
+						canViewOrganizations={canViewOrganizations}
+						canViewDeployment={canViewDeployment}
+						canViewHealth={canViewHealth}
 					/>
-				)}
+				</div>
 			</div>
-
-			<MobileMenu
-				proxyContextValue={proxyContextValue}
-				user={user}
-				supportLinks={supportLinks}
-				onSignOut={onSignOut}
-				canViewAuditLog={canViewAuditLog}
-				canViewOrganizations={canViewOrganizations}
-				canViewDeployment={canViewDeployment}
-				canViewHealth={canViewHealth}
-			/>
 		</div>
 	);
 };

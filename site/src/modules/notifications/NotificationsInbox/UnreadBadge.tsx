@@ -13,13 +13,13 @@ export const UnreadBadge: FC<UnreadBadgeProps> = ({
 	return (
 		<span
 			className={cn([
-				"flex size-[18px] rounded text-2xs items-center justify-center",
+				"flex min-w-[18px] h-[18px] w-fit px-1 rounded text-2xs items-center justify-center",
 				"bg-surface-sky text-highlight-sky",
 				className,
 			])}
 			{...props}
 		>
-			{count > 9 ? "9+" : count}
+			{count > 99 ? "99+" : count}
 		</span>
 	);
 };
