@@ -207,6 +207,13 @@ func (m queryMetricsStore) DeleteAPIKeysByUserID(ctx context.Context, userID uui
 	return err
 }
 
+func (m queryMetricsStore) DeleteAllNotificationPushSubscriptions(ctx context.Context) error {
+	start := time.Now()
+	r0 := m.s.DeleteAllNotificationPushSubscriptions(ctx)
+	m.queryLatencies.WithLabelValues("DeleteAllNotificationPushSubscriptions").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m queryMetricsStore) DeleteAllTailnetClientSubscriptions(ctx context.Context, arg database.DeleteAllTailnetClientSubscriptionsParams) error {
 	start := time.Now()
 	r0 := m.s.DeleteAllTailnetClientSubscriptions(ctx, arg)

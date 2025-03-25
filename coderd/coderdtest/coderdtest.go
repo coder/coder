@@ -162,7 +162,7 @@ type Options struct {
 	Logger       *slog.Logger
 	StatsBatcher workspacestats.Batcher
 
-	PushNotifier                       *push.Notifier
+	PushNotifier                       push.NotificationDispatcher
 	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions
 	AllowWorkspaceRenames              bool
 	NewTicker                          func(duration time.Duration) (<-chan time.Time, func())

@@ -6384,6 +6384,76 @@
 				}
 			}
 		},
+		"/users/{user}/notifications/push/subscription": {
+			"post": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"consumes": ["application/json"],
+				"tags": ["Notifications"],
+				"summary": "Create user push notification subscription",
+				"operationId": "create-user-push-notification-subscription",
+				"parameters": [
+					{
+						"description": "Push notification subscription",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/codersdk.PushNotificationSubscription"
+						}
+					},
+					{
+						"type": "string",
+						"description": "User ID, name, or me",
+						"name": "user",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"204": {
+						"description": "No Content"
+					}
+				}
+			},
+			"delete": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"consumes": ["application/json"],
+				"tags": ["Notifications"],
+				"summary": "Delete user push notification subscription",
+				"operationId": "delete-user-push-notification-subscription",
+				"parameters": [
+					{
+						"description": "Push notification subscription",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/codersdk.DeletePushNotificationSubscription"
+						}
+					},
+					{
+						"type": "string",
+						"description": "User ID, name, or me",
+						"name": "user",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"204": {
+						"description": "No Content"
+					}
+				}
+			}
+		},
 		"/users/{user}/organizations": {
 			"get": {
 				"security": [

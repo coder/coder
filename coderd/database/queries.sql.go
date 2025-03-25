@@ -3988,6 +3988,19 @@ func (q *sqlQuerier) BulkMarkNotificationMessagesSent(ctx context.Context, arg B
 	return result.RowsAffected()
 }
 
+const deleteAllNotificationPushSubscriptions = `-- name: DeleteAllNotificationPushSubscriptions :exec
+TRUNCATE TABLE notification_push_subscriptions
+`
+
+// Deletes all existing notification push subscriptions.
+// This should be called when the VAPID keypair is regenerated, as the old
+// keypair will no longer be valid and all existing subscriptions will need to
+// be recreated.
+func (q *sqlQuerier) DeleteAllNotificationPushSubscriptions(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, deleteAllNotificationPushSubscriptions)
+	return err
+}
+
 const deleteNotificationPushSubscriptionByEndpoint = `-- name: DeleteNotificationPushSubscriptionByEndpoint :exec
 DELETE FROM notification_push_subscriptions
 WHERE user_id = $1 AND endpoint = $2

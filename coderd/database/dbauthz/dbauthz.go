@@ -317,24 +317,25 @@ var (
 				Identifier:  rbac.RoleIdentifier{Name: "system"},
 				DisplayName: "Coder",
 				Site: rbac.Permissions(map[string][]policy.Action{
-					rbac.ResourceWildcard.Type:               {policy.ActionRead},
-					rbac.ResourceApiKey.Type:                 rbac.ResourceApiKey.AvailableActions(),
-					rbac.ResourceGroup.Type:                  {policy.ActionCreate, policy.ActionUpdate},
-					rbac.ResourceAssignRole.Type:             rbac.ResourceAssignRole.AvailableActions(),
-					rbac.ResourceAssignOrgRole.Type:          rbac.ResourceAssignOrgRole.AvailableActions(),
-					rbac.ResourceSystem.Type:                 {policy.WildcardSymbol},
-					rbac.ResourceOrganization.Type:           {policy.ActionCreate, policy.ActionRead},
-					rbac.ResourceOrganizationMember.Type:     {policy.ActionCreate, policy.ActionDelete, policy.ActionRead},
-					rbac.ResourceProvisionerDaemon.Type:      {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
-					rbac.ResourceUser.Type:                   rbac.ResourceUser.AvailableActions(),
-					rbac.ResourceWorkspaceDormant.Type:       {policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceStop},
-					rbac.ResourceWorkspace.Type:              {policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceStart, policy.ActionWorkspaceStop, policy.ActionSSH},
-					rbac.ResourceWorkspaceProxy.Type:         {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
-					rbac.ResourceDeploymentConfig.Type:       {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
-					rbac.ResourceNotificationMessage.Type:    {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
-					rbac.ResourceNotificationPreference.Type: {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
-					rbac.ResourceNotificationTemplate.Type:   {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
-					rbac.ResourceCryptoKey.Type:              {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceWildcard.Type:                     {policy.ActionRead},
+					rbac.ResourceApiKey.Type:                       rbac.ResourceApiKey.AvailableActions(),
+					rbac.ResourceGroup.Type:                        {policy.ActionCreate, policy.ActionUpdate},
+					rbac.ResourceAssignRole.Type:                   rbac.ResourceAssignRole.AvailableActions(),
+					rbac.ResourceAssignOrgRole.Type:                rbac.ResourceAssignOrgRole.AvailableActions(),
+					rbac.ResourceSystem.Type:                       {policy.WildcardSymbol},
+					rbac.ResourceOrganization.Type:                 {policy.ActionCreate, policy.ActionRead},
+					rbac.ResourceOrganizationMember.Type:           {policy.ActionCreate, policy.ActionDelete, policy.ActionRead},
+					rbac.ResourceProvisionerDaemon.Type:            {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
+					rbac.ResourceUser.Type:                         rbac.ResourceUser.AvailableActions(),
+					rbac.ResourceWorkspaceDormant.Type:             {policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceStop},
+					rbac.ResourceWorkspace.Type:                    {policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceStart, policy.ActionWorkspaceStop, policy.ActionSSH},
+					rbac.ResourceWorkspaceProxy.Type:               {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceDeploymentConfig.Type:             {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceNotificationMessage.Type:          {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceNotificationPreference.Type:       {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceNotificationTemplate.Type:         {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceNotificationPushSubscription.Type: {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceCryptoKey.Type:                    {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},
@@ -1160,6 +1161,13 @@ func (q *querier) DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) e
 		return err
 	}
 	return q.db.DeleteAPIKeysByUserID(ctx, userID)
+}
+
+func (q *querier) DeleteAllNotificationPushSubscriptions(ctx context.Context) error {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceNotificationPushSubscription); err != nil {
+		return err
+	}
+	return q.db.DeleteAllNotificationPushSubscriptions(ctx)
 }
 
 func (q *querier) DeleteAllTailnetClientSubscriptions(ctx context.Context, arg database.DeleteAllTailnetClientSubscriptionsParams) error {

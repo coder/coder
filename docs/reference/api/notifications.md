@@ -510,3 +510,77 @@ Status Code **200**
 | `» updated_at` | string(date-time) | false    |              |             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Create user push notification subscription
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/users/{user}/notifications/push/subscription \
+  -H 'Content-Type: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /users/{user}/notifications/push/subscription`
+
+> Body parameter
+
+```json
+{
+  "auth_key": "string",
+  "endpoint": "string",
+  "p256dh_key": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                     | Required | Description                    |
+|--------|------|------------------------------------------------------------------------------------------|----------|--------------------------------|
+| `user` | path | string                                                                                   | true     | User ID, name, or me           |
+| `body` | body | [codersdk.PushNotificationSubscription](schemas.md#codersdkpushnotificationsubscription) | true     | Push notification subscription |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Delete user push notification subscription
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X DELETE http://coder-server:8080/api/v2/users/{user}/notifications/push/subscription \
+  -H 'Content-Type: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`DELETE /users/{user}/notifications/push/subscription`
+
+> Body parameter
+
+```json
+{
+  "endpoint": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                                 | Required | Description                    |
+|--------|------|------------------------------------------------------------------------------------------------------|----------|--------------------------------|
+| `user` | path | string                                                                                               | true     | User ID, name, or me           |
+| `body` | body | [codersdk.DeletePushNotificationSubscription](schemas.md#codersdkdeletepushnotificationsubscription) | true     | Push notification subscription |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).

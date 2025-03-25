@@ -207,3 +207,10 @@ WHERE id = ANY(@ids::uuid[]);
 -- name: DeleteNotificationPushSubscriptionByEndpoint :exec
 DELETE FROM notification_push_subscriptions
 WHERE user_id = @user_id AND endpoint = @endpoint;
+
+-- name: DeleteAllNotificationPushSubscriptions :exec
+-- Deletes all existing notification push subscriptions.
+-- This should be called when the VAPID keypair is regenerated, as the old
+-- keypair will no longer be valid and all existing subscriptions will need to
+-- be recreated.
+TRUNCATE TABLE notification_push_subscriptions;

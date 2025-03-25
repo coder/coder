@@ -4605,6 +4605,10 @@ func (s *MethodTestSuite) TestNotifications() {
 			Endpoint: push.Endpoint,
 		}).Asserts(rbac.ResourceNotificationPushSubscription.WithOwner(user.ID.String()), policy.ActionDelete)
 	}))
+	s.Run("DeleteAllNotificationPushSubscriptions", s.Subtest(func(_ database.Store, check *expects) {
+		check.Args().
+			Asserts(rbac.ResourceNotificationPushSubscription, policy.ActionDelete)
+	}))
 
 	// Notification templates
 	s.Run("GetNotificationTemplateByID", s.Subtest(func(db database.Store, check *expects) {

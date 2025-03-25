@@ -67,6 +67,11 @@ type sqlcQuerier interface {
 	CustomRoles(ctx context.Context, arg CustomRolesParams) ([]CustomRole, error)
 	DeleteAPIKeyByID(ctx context.Context, id string) error
 	DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
+	// Deletes all existing notification push subscriptions.
+	// This should be called when the VAPID keypair is regenerated, as the old
+	// keypair will no longer be valid and all existing subscriptions will need to
+	// be recreated.
+	DeleteAllNotificationPushSubscriptions(ctx context.Context) error
 	DeleteAllTailnetClientSubscriptions(ctx context.Context, arg DeleteAllTailnetClientSubscriptionsParams) error
 	DeleteAllTailnetTunnels(ctx context.Context, arg DeleteAllTailnetTunnelsParams) error
 	DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error

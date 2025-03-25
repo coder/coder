@@ -776,11 +776,18 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("set deployment id: %w", err)
 			}
 
-			pushNotifier, err := push.New(ctx, &options.Logger, options.Database)
-			if err != nil {
-				return xerrors.Errorf("failed to create push notifier: %w", err)
+			// Manage push notifications.
+			{
+				pushNotifier, err := push.New(ctx, &options.Logger, options.Database)
+				if err != nil {
+					options.Logger.Error(ctx, "failed to create push notifier", slog.Error(err))
+					options.Logger.Warn(ctx, "push notifications will not work until the VAPID keys are regenerated")
+					pushNotifier = &push.NoopNotifier{
+						Msg: "Push notifications are disabled due to a system error. Please contact your Coder administrator.",
+					}
+				}
+				options.PushNotifier = pushNotifier
 			}
-			options.PushNotifier = pushNotifier
 
 			githubOAuth2ConfigParams, err := getGithubOAuth2ConfigParams(ctx, options.Database, vals)
 			if err != nil {
@@ -1262,6 +1269,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 	}
 
 	createAdminUserCmd := r.newCreateAdminUserCommand()
+	regenerateVapidKeypairCmd := r.newRegenerateVapidKeypairCommand()
 
 	rawURLOpt := serpent.Option{
 		Flag: "raw-url",
@@ -1275,7 +1283,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 	serverCmd.Children = append(
 		serverCmd.Children,
-		createAdminUserCmd, postgresBuiltinURLCmd, postgresBuiltinServeCmd,
+		createAdminUserCmd, postgresBuiltinURLCmd, postgresBuiltinServeCmd, regenerateVapidKeypairCmd,
 	)
 
 	return serverCmd

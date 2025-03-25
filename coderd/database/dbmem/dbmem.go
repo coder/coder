@@ -1838,6 +1838,14 @@ func (q *FakeQuerier) DeleteAPIKeysByUserID(_ context.Context, userID uuid.UUID)
 	return nil
 }
 
+func (q *FakeQuerier) DeleteAllNotificationPushSubscriptions(_ context.Context) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	q.notificationPushSubscriptions = make([]database.NotificationPushSubscription, 0)
+	return nil
+}
+
 func (*FakeQuerier) DeleteAllTailnetClientSubscriptions(_ context.Context, arg database.DeleteAllTailnetClientSubscriptionsParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -8517,7 +8525,7 @@ func (q *FakeQuerier) InsertMissingGroups(_ context.Context, arg database.Insert
 	return newGroups, nil
 }
 
-func (q *FakeQuerier) InsertNotificationPushSubscription(ctx context.Context, arg database.InsertNotificationPushSubscriptionParams) (database.NotificationPushSubscription, error) {
+func (q *FakeQuerier) InsertNotificationPushSubscription(_ context.Context, arg database.InsertNotificationPushSubscriptionParams) (database.NotificationPushSubscription, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return database.NotificationPushSubscription{}, err

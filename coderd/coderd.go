@@ -263,7 +263,7 @@ type Options struct {
 	Clock                 quartz.Clock
 
 	// PushNotifier is a way to send push notifications to users.
-	PushNotifier *push.Notifier
+	PushNotifier push.NotificationDispatcher
 }
 
 // @title Coder API
@@ -585,7 +585,7 @@ func New(options *Options) *API {
 		WorkspaceProxy:             false,
 		UpgradeMessage:             api.DeploymentValues.CLIUpgradeMessage.String(),
 		DeploymentID:               api.DeploymentID,
-		PushNotificationsPublicKey: api.PushNotifier.VAPIDPublicKey,
+		PushNotificationsPublicKey: api.PushNotifier.PublicKey(),
 		Telemetry:                  api.Telemetry.Enabled(),
 	}
 	api.SiteHandler = site.New(&site.Options{
@@ -1505,7 +1505,7 @@ type API struct {
 	NetworkTelemetryBatcher           *tailnet.NetworkTelemetryBatcher
 	TailnetClientService              *tailnet.ClientService
 	// PushNotifier is a way to send push notifications to users.
-	PushNotifier      *push.Notifier
+	PushNotifier      push.NotificationDispatcher
 	QuotaCommitter    atomic.Pointer[proto.QuotaCommitter]
 	AppearanceFetcher atomic.Pointer[appearance.Fetcher]
 	// WorkspaceProxyHostsFn returns the hosts of healthy workspace proxies

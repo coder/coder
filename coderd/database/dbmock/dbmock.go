@@ -290,6 +290,20 @@ func (mr *MockStoreMockRecorder) DeleteAPIKeysByUserID(ctx, userID any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAPIKeysByUserID", reflect.TypeOf((*MockStore)(nil).DeleteAPIKeysByUserID), ctx, userID)
 }
 
+// DeleteAllNotificationPushSubscriptions mocks base method.
+func (m *MockStore) DeleteAllNotificationPushSubscriptions(ctx context.Context) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteAllNotificationPushSubscriptions", ctx)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteAllNotificationPushSubscriptions indicates an expected call of DeleteAllNotificationPushSubscriptions.
+func (mr *MockStoreMockRecorder) DeleteAllNotificationPushSubscriptions(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAllNotificationPushSubscriptions", reflect.TypeOf((*MockStore)(nil).DeleteAllNotificationPushSubscriptions), ctx)
+}
+
 // DeleteAllTailnetClientSubscriptions mocks base method.
 func (m *MockStore) DeleteAllTailnetClientSubscriptions(ctx context.Context, arg database.DeleteAllTailnetClientSubscriptionsParams) error {
 	m.ctrl.T.Helper()

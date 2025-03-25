@@ -20,6 +20,14 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// NotificationDispatcher is an interface that can be used to dispatch
+// push notifications.
+type NotificationDispatcher interface {
+	Dispatch(ctx context.Context, userID uuid.UUID, notification codersdk.PushNotification) error
+	PublicKey() string
+	PrivateKey() string
+}
+
 // New creates a new push manager to dispatch push notifications.
 //
 // This is *not* integrated into the enqueue system unfortunately.
@@ -28,7 +36,7 @@ import (
 // for updates inside of a workspace, which we want to be immediate.
 //
 // See: https://github.com/coder/internal/issues/528
-func New(ctx context.Context, log *slog.Logger, db database.Store) (*Notifier, error) {
+func New(ctx context.Context, log *slog.Logger, db database.Store) (NotificationDispatcher, error) {
 	keys, err := db.GetNotificationVAPIDKeys(ctx)
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
@@ -36,19 +44,16 @@ func New(ctx context.Context, log *slog.Logger, db database.Store) (*Notifier, e
 		}
 	}
 	if keys.VapidPublicKey == "" || keys.VapidPrivateKey == "" {
-		privateKey, publicKey, err := webpush.GenerateVAPIDKeys()
+		// Generate new VAPID keys. This also deletes all existing push
+		// subscriptions as part of the transaction, as they are no longer
+		// valid.
+		newPrivateKey, newPublicKey, err := RegenerateVAPIDKeys(ctx, db)
 		if err != nil {
-			return nil, xerrors.Errorf("generate vapid keys: %w", err)
+			return nil, xerrors.Errorf("regenerate vapid keys: %w", err)
 		}
-		err = db.UpsertNotificationVAPIDKeys(ctx, database.UpsertNotificationVAPIDKeysParams{
-			VapidPublicKey:  publicKey,
-			VapidPrivateKey: privateKey,
-		})
-		if err != nil {
-			return nil, xerrors.Errorf("upsert notification vapid keys: %w", err)
-		}
-		keys.VapidPublicKey = publicKey
-		keys.VapidPrivateKey = privateKey
+
+		keys.VapidPublicKey = newPublicKey
+		keys.VapidPrivateKey = newPrivateKey
 	}
 
 	return &Notifier{
@@ -137,4 +142,57 @@ func (n *Notifier) Dispatch(ctx context.Context, userID uuid.UUID, notification 
 	}
 
 	return nil
+}
+
+func (n *Notifier) PublicKey() string {
+	return n.VAPIDPublicKey
+}
+
+func (n *Notifier) PrivateKey() string {
+	return n.VAPIDPrivateKey
+}
+
+// NoopNotifier is a Notifier that does nothing except return an error.
+// This is returned when push notifications are disabled, or if there was an
+// error generating the VAPID keys.
+type NoopNotifier struct {
+	Msg string
+}
+
+func (n *NoopNotifier) Dispatch(context.Context, uuid.UUID, codersdk.PushNotification) error {
+	return xerrors.New(n.Msg)
+}
+
+func (*NoopNotifier) PublicKey() string {
+	return ""
+}
+
+func (*NoopNotifier) PrivateKey() string {
+	return ""
+}
+
+// RegenerateVAPIDKeys regenerates the VAPID keys and deletes all existing
+// push subscriptions as part of the transaction, as they are no longer valid.
+func RegenerateVAPIDKeys(ctx context.Context, db database.Store) (newPrivateKey string, newPublicKey string, err error) {
+	newPrivateKey, newPublicKey, err = webpush.GenerateVAPIDKeys()
+	if err != nil {
+		return "", "", xerrors.Errorf("generate new vapid keypair: %w", err)
+	}
+
+	if txErr := db.InTx(func(tx database.Store) error {
+		if err := tx.DeleteAllNotificationPushSubscriptions(ctx); err != nil {
+			return xerrors.Errorf("delete all notification push subscriptions: %w", err)
+		}
+		if err := tx.UpsertNotificationVAPIDKeys(ctx, database.UpsertNotificationVAPIDKeysParams{
+			VapidPrivateKey: newPrivateKey,
+			VapidPublicKey:  newPublicKey,
+		}); err != nil {
+			return xerrors.Errorf("upsert notification vapid key: %w", err)
+		}
+		return nil
+	}, nil); txErr != nil {
+		return "", "", xerrors.Errorf("regenerate vapid keypair: %w", txErr)
+	}
+
+	return newPrivateKey, newPublicKey, nil
 }

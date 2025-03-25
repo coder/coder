@@ -13,10 +13,12 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/notifications/push"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 const (
@@ -29,13 +31,14 @@ func TestPush(t *testing.T) {
 
 	t.Run("SuccessfulDelivery", func(t *testing.T) {
 		t.Parallel()
-		manager, store, serverURL := setupPushTest(t, func(w http.ResponseWriter, _ *http.Request) {
+		ctx := testutil.Context(t, testutil.WaitShort)
+		manager, store, serverURL := setupPushTest(ctx, t, func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		})
-		userID := uuid.New()
-		sub, err := store.InsertNotificationPushSubscription(context.Background(), database.InsertNotificationPushSubscriptionParams{
+		user := dbgen.User(t, store, database.User{})
+		sub, err := store.InsertNotificationPushSubscription(ctx, database.InsertNotificationPushSubscriptionParams{
 			ID:                uuid.New(),
-			UserID:            userID,
+			UserID:            user.ID,
 			Endpoint:          serverURL,
 			EndpointAuthKey:   validEndpointAuthKey,
 			EndpointP256dhKey: validEndpointP256dhKey,
@@ -52,10 +55,10 @@ func TestPush(t *testing.T) {
 			Icon: "workspace",
 		}
 
-		err = manager.Dispatch(context.Background(), userID, notification)
+		err = manager.Dispatch(ctx, user.ID, notification)
 		require.NoError(t, err)
 
-		subscriptions, err := store.GetNotificationPushSubscriptionsByUserID(context.Background(), userID)
+		subscriptions, err := store.GetNotificationPushSubscriptionsByUserID(ctx, user.ID)
 		require.NoError(t, err)
 		assert.Len(t, subscriptions, 1, "One subscription should be returned")
 		assert.Equal(t, subscriptions[0].ID, sub.ID, "The subscription should not be deleted")
@@ -63,14 +66,15 @@ func TestPush(t *testing.T) {
 
 	t.Run("ExpiredSubscription", func(t *testing.T) {
 		t.Parallel()
-		manager, store, serverURL := setupPushTest(t, func(w http.ResponseWriter, _ *http.Request) {
+		ctx := testutil.Context(t, testutil.WaitShort)
+		manager, store, serverURL := setupPushTest(ctx, t, func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusGone)
 		})
-		userID := uuid.New()
+		user := dbgen.User(t, store, database.User{})
 		subID := uuid.New()
-		_, err := store.InsertNotificationPushSubscription(context.Background(), database.InsertNotificationPushSubscriptionParams{
+		_, err := store.InsertNotificationPushSubscription(ctx, database.InsertNotificationPushSubscriptionParams{
 			ID:                subID,
-			UserID:            userID,
+			UserID:            user.ID,
 			Endpoint:          serverURL,
 			EndpointAuthKey:   validEndpointAuthKey,
 			EndpointP256dhKey: validEndpointP256dhKey,
@@ -83,24 +87,26 @@ func TestPush(t *testing.T) {
 			Body:  "Test Body",
 		}
 
-		err = manager.Dispatch(context.Background(), userID, notification)
+		err = manager.Dispatch(ctx, user.ID, notification)
 		require.NoError(t, err)
 
-		subscriptions, err := store.GetNotificationPushSubscriptionsByUserID(context.Background(), userID)
+		subscriptions, err := store.GetNotificationPushSubscriptionsByUserID(ctx, user.ID)
 		require.NoError(t, err)
 		assert.Len(t, subscriptions, 0, "No subscriptions should be returned")
 	})
 
 	t.Run("FailedDelivery", func(t *testing.T) {
 		t.Parallel()
-		manager, store, serverURL := setupPushTest(t, func(w http.ResponseWriter, _ *http.Request) {
+		ctx := testutil.Context(t, testutil.WaitShort)
+		manager, store, serverURL := setupPushTest(ctx, t, func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusBadRequest)
 			w.Write([]byte("Invalid request"))
 		})
-		userID := uuid.New()
-		sub, err := store.InsertNotificationPushSubscription(context.Background(), database.InsertNotificationPushSubscriptionParams{
+
+		user := dbgen.User(t, store, database.User{})
+		sub, err := store.InsertNotificationPushSubscription(ctx, database.InsertNotificationPushSubscriptionParams{
 			ID:                uuid.New(),
-			UserID:            userID,
+			UserID:            user.ID,
 			Endpoint:          serverURL,
 			EndpointAuthKey:   validEndpointAuthKey,
 			EndpointP256dhKey: validEndpointP256dhKey,
@@ -113,11 +119,11 @@ func TestPush(t *testing.T) {
 			Body:  "Test Body",
 		}
 
-		err = manager.Dispatch(context.Background(), userID, notification)
+		err = manager.Dispatch(ctx, user.ID, notification)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "Invalid request")
 
-		subscriptions, err := store.GetNotificationPushSubscriptionsByUserID(context.Background(), userID)
+		subscriptions, err := store.GetNotificationPushSubscriptionsByUserID(ctx, user.ID)
 		require.NoError(t, err)
 		assert.Len(t, subscriptions, 1, "One subscription should be returned")
 		assert.Equal(t, subscriptions[0].ID, sub.ID, "The subscription should not be deleted")
@@ -125,10 +131,10 @@ func TestPush(t *testing.T) {
 
 	t.Run("MultipleSubscriptions", func(t *testing.T) {
 		t.Parallel()
-
+		ctx := testutil.Context(t, testutil.WaitShort)
 		var okEndpointCalled bool
 		var goneEndpointCalled bool
-		manager, store, serverOKURL := setupPushTest(t, func(w http.ResponseWriter, _ *http.Request) {
+		manager, store, serverOKURL := setupPushTest(ctx, t, func(w http.ResponseWriter, _ *http.Request) {
 			okEndpointCalled = true
 			w.WriteHeader(http.StatusOK)
 		})
@@ -141,13 +147,13 @@ func TestPush(t *testing.T) {
 		serverGoneURL := serverGone.URL
 
 		// Setup subscriptions pointing to our test servers
-		userID := uuid.New()
+		user := dbgen.User(t, store, database.User{})
 		sub1ID := uuid.New()
 		sub2ID := uuid.New()
 
-		_, err := store.InsertNotificationPushSubscription(context.Background(), database.InsertNotificationPushSubscriptionParams{
+		_, err := store.InsertNotificationPushSubscription(ctx, database.InsertNotificationPushSubscriptionParams{
 			ID:                sub1ID,
-			UserID:            userID,
+			UserID:            user.ID,
 			Endpoint:          serverOKURL,
 			EndpointAuthKey:   validEndpointAuthKey,
 			EndpointP256dhKey: validEndpointP256dhKey,
@@ -155,9 +161,9 @@ func TestPush(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		_, err = store.InsertNotificationPushSubscription(context.Background(), database.InsertNotificationPushSubscriptionParams{
+		_, err = store.InsertNotificationPushSubscription(ctx, database.InsertNotificationPushSubscriptionParams{
 			ID:                sub2ID,
-			UserID:            userID,
+			UserID:            user.ID,
 			Endpoint:          serverGoneURL,
 			EndpointAuthKey:   validEndpointAuthKey,
 			EndpointP256dhKey: validEndpointP256dhKey,
@@ -173,7 +179,7 @@ func TestPush(t *testing.T) {
 			},
 		}
 
-		err = manager.Dispatch(context.Background(), userID, notification)
+		err = manager.Dispatch(context.Background(), user.ID, notification)
 		require.NoError(t, err)
 		assert.True(t, okEndpointCalled, "The valid endpoint should be called")
 		assert.True(t, goneEndpointCalled, "The expired endpoint should be called")
@@ -185,23 +191,25 @@ func TestPush(t *testing.T) {
 
 	t.Run("NotificationPayload", func(t *testing.T) {
 		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
 		var requestReceived bool
-		manager, store, serverURL := setupPushTest(t, func(w http.ResponseWriter, _ *http.Request) {
+		manager, store, serverURL := setupPushTest(ctx, t, func(w http.ResponseWriter, _ *http.Request) {
 			requestReceived = true
 			w.WriteHeader(http.StatusOK)
 		})
 
-		userID := uuid.New()
+		user := dbgen.User(t, store, database.User{})
 
-		_, err := store.InsertNotificationPushSubscription(context.Background(), database.InsertNotificationPushSubscriptionParams{
+		_, err := store.InsertNotificationPushSubscription(ctx, database.InsertNotificationPushSubscriptionParams{
 			ID:                uuid.New(),
 			CreatedAt:         dbtime.Now(),
-			UserID:            userID,
+			UserID:            user.ID,
 			Endpoint:          serverURL,
 			EndpointAuthKey:   validEndpointAuthKey,
 			EndpointP256dhKey: validEndpointP256dhKey,
 		})
-		require.NoError(t, err)
+		require.NoError(t, err, "Failed to insert push subscription")
 
 		notification := codersdk.PushNotification{
 			Title: "Test Notification",
@@ -213,14 +221,15 @@ func TestPush(t *testing.T) {
 			Icon: "workspace-icon",
 		}
 
-		err = manager.Dispatch(context.Background(), userID, notification)
-		require.NoError(t, err)
-		assert.True(t, requestReceived, "The push notification request should have been received by the server")
+		err = manager.Dispatch(ctx, user.ID, notification)
+		require.NoError(t, err, "The push notification should be dispatched successfully")
+		require.True(t, requestReceived, "The push notification request should have been received by the server")
 	})
 
 	t.Run("NoSubscriptions", func(t *testing.T) {
 		t.Parallel()
-		manager, store, _ := setupPushTest(t, func(w http.ResponseWriter, _ *http.Request) {
+		ctx := testutil.Context(t, testutil.WaitShort)
+		manager, store, _ := setupPushTest(ctx, t, func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		})
 
@@ -230,25 +239,25 @@ func TestPush(t *testing.T) {
 			Body:  "Test Body",
 		}
 
-		err := manager.Dispatch(context.Background(), userID, notification)
+		err := manager.Dispatch(ctx, userID, notification)
 		require.NoError(t, err)
 
-		subscriptions, err := store.GetNotificationPushSubscriptionsByUserID(context.Background(), userID)
+		subscriptions, err := store.GetNotificationPushSubscriptionsByUserID(ctx, userID)
 		require.NoError(t, err)
 		assert.Empty(t, subscriptions, "No subscriptions should be returned")
 	})
 }
 
 // setupPushTest creates a common test setup for push notification tests
-func setupPushTest(t *testing.T, handlerFunc func(w http.ResponseWriter, r *http.Request)) (*push.Notifier, database.Store, string) {
+func setupPushTest(ctx context.Context, t *testing.T, handlerFunc func(w http.ResponseWriter, r *http.Request)) (push.NotificationDispatcher, database.Store, string) {
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	db, _ := dbtestutil.NewDB(t)
 
 	server := httptest.NewServer(http.HandlerFunc(handlerFunc))
 	t.Cleanup(server.Close)
 
-	manager, err := push.New(context.Background(), &logger, db)
-	require.NoError(t, err)
+	manager, err := push.New(ctx, &logger, db)
+	require.NoError(t, err, "Failed to create push manager")
 
 	return manager, db, server.URL
 }
