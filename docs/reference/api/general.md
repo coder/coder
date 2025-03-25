@@ -293,6 +293,9 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         }
       },
       "fetch_interval": 0,
+      "inbox": {
+        "enabled": true
+      },
       "lease_count": 0,
       "lease_period": 0,
       "max_send_attempts": 0,

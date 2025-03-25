@@ -200,6 +200,7 @@ message Script {
 message Devcontainer {
 	string workspace_folder = 1;
 	string config_path = 2;
+	string name = 3;
 }
 
 enum AppOpenIn {

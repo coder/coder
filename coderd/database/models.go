@@ -3109,10 +3109,12 @@ type TemplateVersionParameter struct {
 }
 
 type TemplateVersionPreset struct {
-	ID                uuid.UUID `db:"id" json:"id"`
-	TemplateVersionID uuid.UUID `db:"template_version_id" json:"template_version_id"`
-	Name              string    `db:"name" json:"name"`
-	CreatedAt         time.Time `db:"created_at" json:"created_at"`
+	ID                  uuid.UUID     `db:"id" json:"id"`
+	TemplateVersionID   uuid.UUID     `db:"template_version_id" json:"template_version_id"`
+	Name                string        `db:"name" json:"name"`
+	CreatedAt           time.Time     `db:"created_at" json:"created_at"`
+	DesiredInstances    sql.NullInt32 `db:"desired_instances" json:"desired_instances"`
+	InvalidateAfterSecs sql.NullInt32 `db:"invalidate_after_secs" json:"invalidate_after_secs"`
 }
 
 type TemplateVersionPresetParameter struct {
@@ -3120,13 +3122,6 @@ type TemplateVersionPresetParameter struct {
 	TemplateVersionPresetID uuid.UUID `db:"template_version_preset_id" json:"template_version_preset_id"`
 	Name                    string    `db:"name" json:"name"`
 	Value                   string    `db:"value" json:"value"`
-}
-
-type TemplateVersionPresetPrebuild struct {
-	ID                  uuid.UUID     `db:"id" json:"id"`
-	PresetID            uuid.UUID     `db:"preset_id" json:"preset_id"`
-	DesiredInstances    int32         `db:"desired_instances" json:"desired_instances"`
-	InvalidateAfterSecs sql.NullInt32 `db:"invalidate_after_secs" json:"invalidate_after_secs"`
 }
 
 type TemplateVersionTable struct {
@@ -3334,6 +3329,8 @@ type WorkspaceAgentDevcontainer struct {
 	WorkspaceFolder string `db:"workspace_folder" json:"workspace_folder"`
 	// Path to devcontainer.json.
 	ConfigPath string `db:"config_path" json:"config_path"`
+	// The name of the Dev Container.
+	Name string `db:"name" json:"name"`
 }
 
 type WorkspaceAgentLog struct {

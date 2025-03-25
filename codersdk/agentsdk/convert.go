@@ -450,6 +450,7 @@ func DevcontainerFromProto(pdc *proto.WorkspaceAgentDevcontainer) (codersdk.Work
 	}
 	return codersdk.WorkspaceAgentDevcontainer{
 		ID:              id,
+		Name:            pdc.Name,
 		WorkspaceFolder: pdc.WorkspaceFolder,
 		ConfigPath:      pdc.ConfigPath,
 	}, nil
@@ -466,6 +467,7 @@ func ProtoFromDevcontainers(dcs []codersdk.WorkspaceAgentDevcontainer) []*proto.
 func ProtoFromDevcontainer(dc codersdk.WorkspaceAgentDevcontainer) *proto.WorkspaceAgentDevcontainer {
 	return &proto.WorkspaceAgentDevcontainer{
 		Id:              dc.ID[:],
+		Name:            dc.Name,
 		WorkspaceFolder: dc.WorkspaceFolder,
 		ConfigPath:      dc.ConfigPath,
 	}

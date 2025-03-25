@@ -1372,18 +1372,13 @@ CREATE TABLE template_version_preset_parameters (
     value text NOT NULL
 );
 
-CREATE TABLE template_version_preset_prebuilds (
-    id uuid NOT NULL,
-    preset_id uuid NOT NULL,
-    desired_instances integer NOT NULL,
-    invalidate_after_secs integer DEFAULT 0
-);
-
 CREATE TABLE template_version_presets (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     template_version_id uuid NOT NULL,
     name text NOT NULL,
-    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    desired_instances integer,
+    invalidate_after_secs integer DEFAULT 0
 );
 
 CREATE TABLE template_version_terraform_values (
@@ -1607,7 +1602,8 @@ CREATE TABLE workspace_agent_devcontainers (
     workspace_agent_id uuid NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     workspace_folder text NOT NULL,
-    config_path text NOT NULL
+    config_path text NOT NULL,
+    name text NOT NULL
 );
 
 COMMENT ON TABLE workspace_agent_devcontainers IS 'Workspace agent devcontainer configuration';
@@ -1621,6 +1617,8 @@ COMMENT ON COLUMN workspace_agent_devcontainers.created_at IS 'Creation timestam
 COMMENT ON COLUMN workspace_agent_devcontainers.workspace_folder IS 'Workspace folder';
 
 COMMENT ON COLUMN workspace_agent_devcontainers.config_path IS 'Path to devcontainer.json.';
+
+COMMENT ON COLUMN workspace_agent_devcontainers.name IS 'The name of the Dev Container.';
 
 CREATE TABLE workspace_agent_log_sources (
     workspace_agent_id uuid NOT NULL,
@@ -1948,7 +1946,7 @@ CREATE VIEW workspace_build_with_user AS
 
 COMMENT ON VIEW workspace_build_with_user IS 'Joins in the username + avatar url of the initiated by user.';
 
-CREATE VIEW workspace_latest_build AS
+CREATE VIEW workspace_latest_builds AS
  SELECT DISTINCT ON (workspace_builds.workspace_id) workspace_builds.id,
     workspace_builds.created_at,
     workspace_builds.updated_at,
@@ -2315,9 +2313,6 @@ ALTER TABLE ONLY template_version_parameters
 ALTER TABLE ONLY template_version_preset_parameters
     ADD CONSTRAINT template_version_preset_parameters_pkey PRIMARY KEY (id);
 
-ALTER TABLE ONLY template_version_preset_prebuilds
-    ADD CONSTRAINT template_version_preset_prebuilds_pkey PRIMARY KEY (id);
-
 ALTER TABLE ONLY template_version_presets
     ADD CONSTRAINT template_version_presets_pkey PRIMARY KEY (id);
 
@@ -2625,30 +2620,30 @@ CREATE OR REPLACE VIEW workspace_prebuilds AS
            FROM workspaces w
           WHERE (w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid)
         ), latest_prebuild_builds AS (
-         SELECT workspace_latest_build.id,
-            workspace_latest_build.created_at,
-            workspace_latest_build.updated_at,
-            workspace_latest_build.workspace_id,
-            workspace_latest_build.template_version_id,
-            workspace_latest_build.build_number,
-            workspace_latest_build.transition,
-            workspace_latest_build.initiator_id,
-            workspace_latest_build.provisioner_state,
-            workspace_latest_build.job_id,
-            workspace_latest_build.deadline,
-            workspace_latest_build.reason,
-            workspace_latest_build.daily_cost,
-            workspace_latest_build.max_deadline,
-            workspace_latest_build.template_version_preset_id
-           FROM workspace_latest_build
-          WHERE (workspace_latest_build.template_version_preset_id IS NOT NULL)
+         SELECT workspace_latest_builds.id,
+            workspace_latest_builds.created_at,
+            workspace_latest_builds.updated_at,
+            workspace_latest_builds.workspace_id,
+            workspace_latest_builds.template_version_id,
+            workspace_latest_builds.build_number,
+            workspace_latest_builds.transition,
+            workspace_latest_builds.initiator_id,
+            workspace_latest_builds.provisioner_state,
+            workspace_latest_builds.job_id,
+            workspace_latest_builds.deadline,
+            workspace_latest_builds.reason,
+            workspace_latest_builds.daily_cost,
+            workspace_latest_builds.max_deadline,
+            workspace_latest_builds.template_version_preset_id
+           FROM workspace_latest_builds
+          WHERE (workspace_latest_builds.template_version_preset_id IS NOT NULL)
         ), workspace_agents AS (
          SELECT w.id AS workspace_id,
             wa.id AS agent_id,
             wa.lifecycle_state,
             wa.ready_at
            FROM (((workspaces w
-             JOIN workspace_latest_build wlb ON ((wlb.workspace_id = w.id)))
+             JOIN workspace_latest_builds wlb ON ((wlb.workspace_id = w.id)))
              JOIN workspace_resources wr ON ((wr.job_id = wlb.job_id)))
              JOIN workspace_agents wa ON ((wa.resource_id = wr.id)))
           WHERE (w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid)
@@ -2830,9 +2825,6 @@ ALTER TABLE ONLY template_version_parameters
 
 ALTER TABLE ONLY template_version_preset_parameters
     ADD CONSTRAINT template_version_preset_paramet_template_version_preset_id_fkey FOREIGN KEY (template_version_preset_id) REFERENCES template_version_presets(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY template_version_preset_prebuilds
-    ADD CONSTRAINT template_version_preset_prebuilds_preset_id_fkey FOREIGN KEY (preset_id) REFERENCES template_version_presets(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY template_version_presets
     ADD CONSTRAINT template_version_presets_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;

@@ -1977,6 +1977,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         }
       },
       "fetch_interval": 0,
+      "inbox": {
+        "enabled": true
+      },
       "lease_count": 0,
       "lease_period": 0,
       "max_send_attempts": 0,
@@ -2455,6 +2458,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       }
     },
     "fetch_interval": 0,
+    "inbox": {
+      "enabled": true
+    },
     "lease_count": 0,
     "lease_period": 0,
     "max_send_attempts": 0,
@@ -3803,6 +3809,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
     }
   },
   "fetch_interval": 0,
+  "inbox": {
+    "enabled": true
+  },
   "lease_count": 0,
   "lease_period": 0,
   "max_send_attempts": 0,
@@ -3835,6 +3844,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `dispatch_timeout`  | integer                                                                    | false    |              | How long to wait while a notification is being sent before giving up.                                                                                                                                                                                                                                                                                                                                                                               |
 | `email`             | [codersdk.NotificationsEmailConfig](#codersdknotificationsemailconfig)     | false    |              | Email settings.                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `fetch_interval`    | integer                                                                    | false    |              | How often to query the database for queued notifications.                                                                                                                                                                                                                                                                                                                                                                                           |
+| `inbox`             | [codersdk.NotificationsInboxConfig](#codersdknotificationsinboxconfig)     | false    |              | Inbox settings.                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `lease_count`       | integer                                                                    | false    |              | How many notifications a notifier should lease per fetch interval.                                                                                                                                                                                                                                                                                                                                                                                  |
 | `lease_period`      | integer                                                                    | false    |              | How long a notifier should lease a message. This is effectively how long a notification is 'owned' by a notifier, and once this period expires it will be available for lease by another notifier. Leasing is important in order for multiple running notifiers to not pick the same messages to deliver concurrently. This lease period will only expire if a notifier shuts down ungracefully; a dispatch of the notification releases the lease. |
 | `max_send_attempts` | integer                                                                    | false    |              | The upper limit of attempts to send a notification.                                                                                                                                                                                                                                                                                                                                                                                                 |
@@ -3923,6 +3933,20 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `key_file`             | string  | false    |              | Key file specifies the location of the key to use.           |
 | `server_name`          | string  | false    |              | Server name to verify the hostname for the targets.          |
 | `start_tls`            | boolean | false    |              | Start tls attempts to upgrade plain connections to TLS.      |
+
+## codersdk.NotificationsInboxConfig
+
+```json
+{
+  "enabled": true
+}
+```
+
+### Properties
+
+| Name      | Type    | Required | Restrictions | Description |
+|-----------|---------|----------|--------------|-------------|
+| `enabled` | boolean | false    |              |             |
 
 ## codersdk.NotificationsSettings
 

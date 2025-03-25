@@ -48,7 +48,7 @@ func NewReconciliationState(presets []database.GetTemplatePresetsWithPrebuildsRo
 
 func (s ReconciliationState) FilterByPreset(presetID uuid.UUID) (*PresetState, error) {
 	preset, found := slice.Find(s.Presets, func(preset database.GetTemplatePresetsWithPrebuildsRow) bool {
-		return preset.PresetID == presetID
+		return preset.ID == presetID
 	})
 	if !found {
 		return nil, xerrors.Errorf("no preset found with ID %q", presetID)
@@ -58,7 +58,7 @@ func (s ReconciliationState) FilterByPreset(presetID uuid.UUID) (*PresetState, e
 		if !prebuild.CurrentPresetID.Valid {
 			return false
 		}
-		return prebuild.CurrentPresetID.UUID == preset.PresetID &&
+		return prebuild.CurrentPresetID.UUID == preset.ID &&
 			prebuild.TemplateVersionID == preset.TemplateVersionID // Not strictly necessary since presets are 1:1 with template versions, but no harm in being extra safe.
 	})
 
@@ -73,7 +73,7 @@ func (s ReconciliationState) FilterByPreset(presetID uuid.UUID) (*PresetState, e
 
 	var backoff *database.GetPresetsBackoffRow
 	backoffs := slice.Filter(s.Backoffs, func(row database.GetPresetsBackoffRow) bool {
-		return row.PresetID == preset.PresetID
+		return row.PresetID == preset.ID
 	})
 	if len(backoffs) == 1 {
 		backoff = &backoffs[0]

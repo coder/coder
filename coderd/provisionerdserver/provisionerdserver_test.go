@@ -2204,8 +2204,8 @@ func TestInsertWorkspaceResource(t *testing.T) {
 			Agents: []*sdkproto.Agent{{
 				Name: "dev",
 				Devcontainers: []*sdkproto.Devcontainer{
-					{WorkspaceFolder: "/workspace1"},
-					{WorkspaceFolder: "/workspace2", ConfigPath: "/workspace2/.devcontainer/devcontainer.json"},
+					{Name: "foo", WorkspaceFolder: "/workspace1"},
+					{Name: "bar", WorkspaceFolder: "/workspace2", ConfigPath: "/workspace2/.devcontainer/devcontainer.json"},
 				},
 			}},
 		})
@@ -2220,7 +2220,10 @@ func TestInsertWorkspaceResource(t *testing.T) {
 		devcontainers, err := db.GetWorkspaceAgentDevcontainersByAgentID(ctx, agent.ID)
 		require.NoError(t, err)
 		require.Len(t, devcontainers, 2)
+		require.Equal(t, "foo", devcontainers[0].Name)
 		require.Equal(t, "/workspace1", devcontainers[0].WorkspaceFolder)
+		require.Equal(t, "", devcontainers[0].ConfigPath)
+		require.Equal(t, "bar", devcontainers[1].Name)
 		require.Equal(t, "/workspace2", devcontainers[1].WorkspaceFolder)
 		require.Equal(t, "/workspace2/.devcontainer/devcontainer.json", devcontainers[1].ConfigPath)
 	})

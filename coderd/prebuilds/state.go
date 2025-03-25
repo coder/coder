@@ -28,7 +28,7 @@ func (p PresetState) CalculateActions(clock quartz.Clock, backoffInterval time.D
 
 	if p.Preset.UsingActiveVersion {
 		actual = int32(len(p.Running))
-		desired = p.Preset.DesiredInstances
+		desired = p.Preset.DesiredInstances.Int32
 	}
 
 	for _, prebuild := range p.Running {
@@ -37,7 +37,7 @@ func (p PresetState) CalculateActions(clock quartz.Clock, backoffInterval time.D
 				eligible++
 			}
 
-			extraneous = int32(math.Max(float64(actual-p.Preset.DesiredInstances), 0))
+			extraneous = int32(math.Max(float64(actual-p.Preset.DesiredInstances.Int32), 0))
 		}
 
 		if prebuild.TemplateVersionID == p.Preset.TemplateVersionID && !p.Preset.UsingActiveVersion {
@@ -93,7 +93,8 @@ func (p PresetState) CalculateActions(clock quartz.Clock, backoffInterval time.D
 	if p.Backoff != nil && p.Backoff.NumFailed > 0 {
 		actions.Failed = p.Backoff.NumFailed
 
-		backoffUntil := p.Backoff.LastBuildAt.Add(time.Duration(p.Backoff.NumFailed) * backoffInterval)
+		// TODO(yevhenii): remove (time.Time) type conversion
+		backoffUntil := p.Backoff.LastBuildAt.(time.Time).Add(time.Duration(p.Backoff.NumFailed) * backoffInterval)
 
 		if clock.Now().Before(backoffUntil) {
 			actions.Create = 0
