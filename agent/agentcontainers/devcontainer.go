@@ -3,17 +3,29 @@ package agentcontainers
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/codersdk"
 )
 
+const devcontainerUpScriptTemplate = `
+if ! which devcontainer > /dev/null 2>&1; then
+  echo "ERROR: Unable to start devcontainer, @devcontainers/cli is not installed."
+  exit 1
+fi
+devcontainer up %s
+`
+
+// DevcontainerStartupScript returns a script that starts a devcontainer.
 func DevcontainerStartupScript(dc codersdk.WorkspaceAgentDevcontainer, script codersdk.WorkspaceAgentScript) codersdk.WorkspaceAgentScript {
-	cmd := fmt.Sprintf("devcontainer up --workspace-folder %q", dc.WorkspaceFolder)
+	var args []string
+	args = append(args, fmt.Sprintf("--workspace-folder %q", dc.WorkspaceFolder))
 	if dc.ConfigPath != "" {
-		cmd = fmt.Sprintf("%s --config %q", cmd, dc.ConfigPath)
+		args = append(args, fmt.Sprintf("--config %q", dc.ConfigPath))
 	}
+	cmd := fmt.Sprintf(devcontainerUpScriptTemplate, strings.Join(args, " "))
 	script.RunOnStart = false
 	script.Script = cmd
 	return script
