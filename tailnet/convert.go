@@ -31,7 +31,7 @@ func NodeToProto(n *Node) (*proto.Node, error) {
 	}
 	derpForcedWebsocket := make(map[int32]string)
 	for i, s := range n.DERPForcedWebsocket {
-		derpForcedWebsocket[int32(i)] = s
+		derpForcedWebsocket[int32(i)] = s // #nosec G115 -- int to int32 is safe for indices
 	}
 	addresses := make([]string, len(n.Addresses))
 	for i, prefix := range n.Addresses {

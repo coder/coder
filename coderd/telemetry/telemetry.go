@@ -729,7 +729,7 @@ func ConvertWorkspaceBuild(build database.WorkspaceBuild) WorkspaceBuild {
 		WorkspaceID:       build.WorkspaceID,
 		JobID:             build.JobID,
 		TemplateVersionID: build.TemplateVersionID,
-		BuildNumber:       uint32(build.BuildNumber),
+		BuildNumber:       uint32(build.BuildNumber), // #nosec G115 -- int32 to uint32 is safe for build numbers
 	}
 }
 
@@ -1035,9 +1035,9 @@ func ConvertTemplate(dbTemplate database.Template) Template {
 		FailureTTLMillis:               time.Duration(dbTemplate.FailureTTL).Milliseconds(),
 		TimeTilDormantMillis:           time.Duration(dbTemplate.TimeTilDormant).Milliseconds(),
 		TimeTilDormantAutoDeleteMillis: time.Duration(dbTemplate.TimeTilDormantAutoDelete).Milliseconds(),
-		AutostopRequirementDaysOfWeek:  codersdk.BitmapToWeekdays(uint8(dbTemplate.AutostopRequirementDaysOfWeek)),
+		AutostopRequirementDaysOfWeek:  codersdk.BitmapToWeekdays(uint8(dbTemplate.AutostopRequirementDaysOfWeek)), // #nosec G115 -- int16 to uint8 is safe since we only use 7 bits
 		AutostopRequirementWeeks:       dbTemplate.AutostopRequirementWeeks,
-		AutostartAllowedDays:           codersdk.BitmapToWeekdays(dbTemplate.AutostartAllowedDays()),
+		AutostartAllowedDays:           codersdk.BitmapToWeekdays(dbTemplate.AutostartAllowedDays()), // #nosec G115 -- uses AutostartAllowedDays() which already ensures safe conversion
 		RequireActiveVersion:           dbTemplate.RequireActiveVersion,
 		Deprecated:                     dbTemplate.Deprecated != "",
 	}

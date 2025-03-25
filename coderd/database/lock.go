@@ -18,5 +18,7 @@ const (
 func GenLockID(name string) int64 {
 	hash := fnv.New64()
 	_, _ = hash.Write([]byte(name))
-	return int64(hash.Sum64())
+	// For our locking purposes, it's acceptable to have potential overflow
+	// The important part is consistency of the lock ID for a given name
+	return int64(hash.Sum64()) // #nosec G115 -- potential overflow is acceptable for lock IDs
 }

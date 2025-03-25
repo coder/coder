@@ -160,7 +160,8 @@ func (t Template) DeepCopy() Template {
 func (t Template) AutostartAllowedDays() uint8 {
 	// Just flip the binary 0s to 1s and vice versa.
 	// There is an extra day with the 8th bit that needs to be zeroed.
-	return ^uint8(t.AutostartBlockDaysOfWeek) & 0b01111111
+	// The conversion is safe because AutostartBlockDaysOfWeek is enforced to use only the lower 7 bits
+	return ^uint8(t.AutostartBlockDaysOfWeek) & 0b01111111 // #nosec G115 -- int16 to uint8 is safe as we only use 7 bits
 }
 
 func (TemplateVersion) RBACObject(template Template) rbac.Object {

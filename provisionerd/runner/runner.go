@@ -886,7 +886,7 @@ func (r *Runner) commitQuota(ctx context.Context, resources []*sdkproto.Resource
 
 	resp, err := r.quotaCommitter.CommitQuota(ctx, &proto.CommitQuotaRequest{
 		JobId:     r.job.JobId,
-		DailyCost: int32(cost),
+		DailyCost: int32(cost), // #nosec G115 -- int to int32 is safe for cost values
 	})
 	if err != nil {
 		r.queueLog(ctx, &proto.Log{
