@@ -1778,22 +1778,22 @@ func (q *querier) GetGroupByOrgAndName(ctx context.Context, arg database.GetGrou
 	return fetch(q.log, q.auth, q.db.GetGroupByOrgAndName)(ctx, arg)
 }
 
-func (q *querier) GetGroupMembers(ctx context.Context) ([]database.GroupMember, error) {
+func (q *querier) GetGroupMembers(ctx context.Context, includeSystem bool) ([]database.GroupMember, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
 	}
-	return q.db.GetGroupMembers(ctx)
+	return q.db.GetGroupMembers(ctx, includeSystem)
 }
 
-func (q *querier) GetGroupMembersByGroupID(ctx context.Context, id uuid.UUID) ([]database.GroupMember, error) {
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetGroupMembersByGroupID)(ctx, id)
+func (q *querier) GetGroupMembersByGroupID(ctx context.Context, arg database.GetGroupMembersByGroupIDParams) ([]database.GroupMember, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetGroupMembersByGroupID)(ctx, arg)
 }
 
-func (q *querier) GetGroupMembersCountByGroupID(ctx context.Context, groupID uuid.UUID) (int64, error) {
-	if _, err := q.GetGroupByID(ctx, groupID); err != nil { // AuthZ check
+func (q *querier) GetGroupMembersCountByGroupID(ctx context.Context, arg database.GetGroupMembersCountByGroupIDParams) (int64, error) {
+	if _, err := q.GetGroupByID(ctx, arg.GroupID); err != nil { // AuthZ check
 		return 0, err
 	}
-	memberCount, err := q.db.GetGroupMembersCountByGroupID(ctx, groupID)
+	memberCount, err := q.db.GetGroupMembersCountByGroupID(ctx, arg)
 	if err != nil {
 		return 0, err
 	}

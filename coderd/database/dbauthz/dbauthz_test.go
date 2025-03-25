@@ -387,19 +387,25 @@ func (s *MethodTestSuite) TestGroup() {
 		g := dbgen.Group(s.T(), db, database.Group{})
 		u := dbgen.User(s.T(), db, database.User{})
 		gm := dbgen.GroupMember(s.T(), db, database.GroupMemberTable{GroupID: g.ID, UserID: u.ID})
-		check.Args(g.ID).Asserts(gm, policy.ActionRead)
+		check.Args(database.GetGroupMembersByGroupIDParams{
+			GroupID:       g.ID,
+			IncludeSystem: false,
+		}).Asserts(gm, policy.ActionRead)
 	}))
 	s.Run("GetGroupMembersCountByGroupID", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		g := dbgen.Group(s.T(), db, database.Group{})
-		check.Args(g.ID).Asserts(g, policy.ActionRead)
+		check.Args(database.GetGroupMembersCountByGroupIDParams{
+			GroupID:       g.ID,
+			IncludeSystem: false,
+		}).Asserts(g, policy.ActionRead)
 	}))
 	s.Run("GetGroupMembers", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		g := dbgen.Group(s.T(), db, database.Group{})
 		u := dbgen.User(s.T(), db, database.User{})
 		dbgen.GroupMember(s.T(), db, database.GroupMemberTable{GroupID: g.ID, UserID: u.ID})
-		check.Asserts(rbac.ResourceSystem, policy.ActionRead)
+		check.Args(false).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("System/GetGroups", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)

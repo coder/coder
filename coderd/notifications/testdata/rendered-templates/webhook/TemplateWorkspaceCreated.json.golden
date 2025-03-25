@@ -12,13 +12,14 @@
     "actions": [
       {
         "label": "View workspace",
-        "url": "http://test.com/@bobby/bobby-workspace"
+        "url": "http://test.com/@mrbobby/bobby-workspace"
       }
     ],
     "labels": {
       "template": "bobby-template",
       "version": "alpha",
-      "workspace": "bobby-workspace"
+      "workspace": "bobby-workspace",
+      "workspace_owner_username": "mrbobby"
     },
     "data": null,
     "targets": null

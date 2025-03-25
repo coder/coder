@@ -874,9 +874,10 @@ func (api *API) notifyWorkspaceCreated(
 		receiverID,
 		notifications.TemplateWorkspaceCreated,
 		map[string]string{
-			"workspace": workspace.Name,
-			"template":  template.Name,
-			"version":   version.Name,
+			"workspace":                workspace.Name,
+			"template":                 template.Name,
+			"version":                  version.Name,
+			"workspace_owner_username": owner.Username,
 		},
 		map[string]any{
 			"workspace":        map[string]any{"id": workspace.ID, "name": workspace.Name},
