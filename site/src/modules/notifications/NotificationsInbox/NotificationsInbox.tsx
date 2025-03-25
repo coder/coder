@@ -70,10 +70,10 @@ export const NotificationsInbox: FC<NotificationsInboxProps> = ({
 			}
 
 			const msg = e.parsedMessage;
-			updateNotificationsCache((prev) => {
+			updateNotificationsCache((current) => {
 				return {
 					unread_count: msg.unread_count,
-					notifications: [msg.notification, ...prev.notifications],
+					notifications: [msg.notification, ...current.notifications],
 				};
 			});
 		});

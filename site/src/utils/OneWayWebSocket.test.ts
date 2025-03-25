@@ -13,17 +13,21 @@ import {
 	type WebSocketEventType,
 } from "./OneWayWebSocket";
 
-type MockSocket = WebSocket & {
+type MockPublisher = Readonly<{
 	publishMessage: (event: MessageEvent<string>) => void;
 	publishError: (event: ErrorEvent) => void;
 	publishClose: (event: CloseEvent) => void;
 	publishOpen: (event: Event) => void;
+}>;
+
+type MockSocket = WebSocket & {
+	publisher: MockPublisher;
 };
 
 function createMockWebSocket(
 	url: string,
 	protocols?: string | string[],
-): MockSocket {
+): readonly [WebSocket, MockPublisher] {
 	type EventMap = {
 		message: MessageEvent<string>;
 		error: ErrorEvent;
@@ -51,7 +55,7 @@ function createMockWebSocket(
 		open: [],
 	};
 
-	return {
+	const mockSocket: WebSocket = {
 		CONNECTING: 0,
 		OPEN: 1,
 		CLOSING: 2,
@@ -104,7 +108,9 @@ function createMockWebSocket(
 		close: () => {
 			closed = true;
 		},
+	};
 
+	const publisher: MockPublisher = {
 		publishOpen: (event) => {
 			for (const sub of store.open) {
 				sub(event);
@@ -129,6 +135,8 @@ function createMockWebSocket(
 			}
 		},
 	};
+
+	return [mockSocket, publisher] as const;
 }
 
 describe(OneWayWebSocket.name, () => {
@@ -141,19 +149,22 @@ describe(OneWayWebSocket.name, () => {
 			expect(() => {
 				new OneWayWebSocket({
 					apiRoute: r,
-					websocketInit: createMockWebSocket,
+					websocketInit: (url, protocols) => {
+						const [socket] = createMockWebSocket(url, protocols);
+						return socket;
+					},
 				});
 			}).toThrow(Error);
 		}
 	});
 
 	it("Lets a consumer add an event listener of each type", () => {
-		let mock!: MockSocket;
+		let publisher!: MockPublisher;
 		const oneWay = new OneWayWebSocket({
 			apiRoute: dummyRoute,
 			websocketInit: (url, protocols) => {
-				const socket = createMockWebSocket(url, protocols);
-				mock = socket;
+				const [socket, pub] = createMockWebSocket(url, protocols);
+				publisher = pub;
 				return socket;
 			},
 		});
@@ -168,14 +179,14 @@ describe(OneWayWebSocket.name, () => {
 		oneWay.addEventListener("error", onError);
 		oneWay.addEventListener("message", onMessage);
 
-		mock.publishOpen(new Event("open"));
-		mock.publishClose(new CloseEvent("close"));
-		mock.publishError(
+		publisher.publishOpen(new Event("open"));
+		publisher.publishClose(new CloseEvent("close"));
+		publisher.publishError(
 			new ErrorEvent("error", {
 				error: new Error("Whoops - connection broke"),
 			}),
 		);
-		mock.publishMessage(
+		publisher.publishMessage(
 			new MessageEvent("message", {
 				data: "null",
 			}),
@@ -188,12 +199,12 @@ describe(OneWayWebSocket.name, () => {
 	});
 
 	it("Lets a consumer remove an event listener of each type", () => {
-		let mock!: MockSocket;
+		let publisher!: MockPublisher;
 		const oneWay = new OneWayWebSocket({
 			apiRoute: dummyRoute,
 			websocketInit: (url, protocols) => {
-				const socket = createMockWebSocket(url, protocols);
-				mock = socket;
+				const [socket, pub] = createMockWebSocket(url, protocols);
+				publisher = pub;
 				return socket;
 			},
 		});
@@ -213,14 +224,14 @@ describe(OneWayWebSocket.name, () => {
 		oneWay.removeEventListener("error", onError);
 		oneWay.removeEventListener("message", onMessage);
 
-		mock.publishOpen(new Event("open"));
-		mock.publishClose(new CloseEvent("close"));
-		mock.publishError(
+		publisher.publishOpen(new Event("open"));
+		publisher.publishClose(new CloseEvent("close"));
+		publisher.publishError(
 			new ErrorEvent("error", {
 				error: new Error("Whoops - connection broke"),
 			}),
 		);
-		mock.publishMessage(
+		publisher.publishMessage(
 			new MessageEvent("message", {
 				data: "null",
 			}),
@@ -233,12 +244,12 @@ describe(OneWayWebSocket.name, () => {
 	});
 
 	it("Only calls each callback once if callback is added multiple times", () => {
-		let mock!: MockSocket;
+		let publisher!: MockPublisher;
 		const oneWay = new OneWayWebSocket({
 			apiRoute: dummyRoute,
 			websocketInit: (url, protocols) => {
-				const socket = createMockWebSocket(url, protocols);
-				mock = socket;
+				const [socket, pub] = createMockWebSocket(url, protocols);
+				publisher = pub;
 				return socket;
 			},
 		});
@@ -255,14 +266,14 @@ describe(OneWayWebSocket.name, () => {
 			oneWay.addEventListener("message", onMessage);
 		}
 
-		mock.publishOpen(new Event("open"));
-		mock.publishClose(new CloseEvent("close"));
-		mock.publishError(
+		publisher.publishOpen(new Event("open"));
+		publisher.publishClose(new CloseEvent("close"));
+		publisher.publishError(
 			new ErrorEvent("error", {
 				error: new Error("Whoops - connection broke"),
 			}),
 		);
-		mock.publishMessage(
+		publisher.publishMessage(
 			new MessageEvent("message", {
 				data: "null",
 			}),
@@ -275,12 +286,12 @@ describe(OneWayWebSocket.name, () => {
 	});
 
 	it("Lets consumers register multiple callbacks for each event type", () => {
-		let mock!: MockSocket;
+		let publisher!: MockPublisher;
 		const oneWay = new OneWayWebSocket({
 			apiRoute: dummyRoute,
 			websocketInit: (url, protocols) => {
-				const socket = createMockWebSocket(url, protocols);
-				mock = socket;
+				const [socket, pub] = createMockWebSocket(url, protocols);
+				publisher = pub;
 				return socket;
 			},
 		});
@@ -303,14 +314,14 @@ describe(OneWayWebSocket.name, () => {
 		oneWay.addEventListener("error", onError2);
 		oneWay.addEventListener("message", onMessage2);
 
-		mock.publishOpen(new Event("open"));
-		mock.publishClose(new CloseEvent("close"));
-		mock.publishError(
+		publisher.publishOpen(new Event("open"));
+		publisher.publishClose(new CloseEvent("close"));
+		publisher.publishError(
 			new ErrorEvent("error", {
 				error: new Error("Whoops - connection broke"),
 			}),
 		);
-		mock.publishMessage(
+		publisher.publishMessage(
 			new MessageEvent("message", {
 				data: "null",
 			}),
@@ -330,7 +341,10 @@ describe(OneWayWebSocket.name, () => {
 	it("Computes the socket protocol based on the browser location protocol", () => {
 		const oneWay1 = new OneWayWebSocket({
 			apiRoute: dummyRoute,
-			websocketInit: createMockWebSocket,
+			websocketInit: (url, protocols) => {
+				const [socket] = createMockWebSocket(url, protocols);
+				return socket;
+			},
 			location: {
 				protocol: "https:",
 				host: "www.cool.com",
@@ -338,7 +352,10 @@ describe(OneWayWebSocket.name, () => {
 		});
 		const oneWay2 = new OneWayWebSocket({
 			apiRoute: dummyRoute,
-			websocketInit: createMockWebSocket,
+			websocketInit: (url, protocols) => {
+				const [socket] = createMockWebSocket(url, protocols);
+				return socket;
+			},
 			location: {
 				protocol: "http:",
 				host: "www.cool.com",
@@ -350,12 +367,12 @@ describe(OneWayWebSocket.name, () => {
 	});
 
 	it("Gives consumers pre-parsed versions of message events", () => {
-		let mock!: MockSocket;
+		let publisher!: MockPublisher;
 		const oneWay = new OneWayWebSocket({
 			apiRoute: dummyRoute,
 			websocketInit: (url, protocols) => {
-				const socket = createMockWebSocket(url, protocols);
-				mock = socket;
+				const [socket, pub] = createMockWebSocket(url, protocols);
+				publisher = pub;
 				return socket;
 			},
 		});
@@ -371,7 +388,7 @@ describe(OneWayWebSocket.name, () => {
 			data: JSON.stringify(payload),
 		});
 
-		mock.publishMessage(event);
+		publisher.publishMessage(event);
 		expect(onMessage).toHaveBeenCalledWith({
 			sourceEvent: event,
 			parsedMessage: payload,
@@ -380,12 +397,12 @@ describe(OneWayWebSocket.name, () => {
 	});
 
 	it("Exposes parsing error if message payload could not be parsed as JSON", () => {
-		let mock!: MockSocket;
+		let publisher!: MockPublisher;
 		const oneWay = new OneWayWebSocket({
 			apiRoute: dummyRoute,
 			websocketInit: (url, protocols) => {
-				const socket = createMockWebSocket(url, protocols);
-				mock = socket;
+				const [socket, pub] = createMockWebSocket(url, protocols);
+				publisher = pub;
 				return socket;
 			},
 		});
@@ -397,7 +414,7 @@ describe(OneWayWebSocket.name, () => {
 		const event = new MessageEvent("message", {
 			data: payload,
 		});
-		mock.publishMessage(event);
+		publisher.publishMessage(event);
 
 		const arg: OneWayMessageEvent<never> = onMessage.mock.lastCall[0];
 		expect(arg.sourceEvent).toEqual(event);
@@ -413,7 +430,10 @@ describe(OneWayWebSocket.name, () => {
 		};
 		const oneWay1 = new OneWayWebSocket({
 			apiRoute: dummyRoute,
-			websocketInit: createMockWebSocket,
+			websocketInit: (url, protocols) => {
+				const [socket] = createMockWebSocket(url, protocols);
+				return socket;
+			},
 			searchParams: input1,
 			location: {
 				protocol: "https:",
@@ -429,7 +449,10 @@ describe(OneWayWebSocket.name, () => {
 		const input2 = new URLSearchParams(input1);
 		const oneWay2 = new OneWayWebSocket({
 			apiRoute: dummyRoute,
-			websocketInit: createMockWebSocket,
+			websocketInit: (url, protocols) => {
+				const [socket] = createMockWebSocket(url, protocols);
+				return socket;
+			},
 			searchParams: input2,
 			location: {
 				protocol: "https:",
@@ -444,7 +467,10 @@ describe(OneWayWebSocket.name, () => {
 
 		const oneWay3 = new OneWayWebSocket({
 			apiRoute: dummyRoute,
-			websocketInit: createMockWebSocket,
+			websocketInit: (url, protocols) => {
+				const [socket] = createMockWebSocket(url, protocols);
+				return socket;
+			},
 			searchParams: undefined,
 			location: {
 				protocol: "https:",
