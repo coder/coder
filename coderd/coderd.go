@@ -1203,6 +1203,7 @@ func New(options *Options) *API {
 						r.Route("/push", func(r chi.Router) {
 							r.Post("/subscription", api.postUserPushNotificationSubscription)
 							r.Delete("/subscription", api.deleteUserPushNotificationSubscription)
+							r.Post("/test", api.postUserPushNotificationTest)
 						})
 					})
 				})

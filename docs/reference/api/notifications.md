@@ -584,3 +584,29 @@ curl -X DELETE http://coder-server:8080/api/v2/users/{user}/notifications/push/s
 | 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Send a test push notification
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/users/{user}/notifications/push/test \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /users/{user}/notifications/push/test`
+
+### Parameters
+
+| Name   | In   | Type   | Required | Description          |
+|--------|------|--------|----------|----------------------|
+| `user` | path | string | true     | User ID, name, or me |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
