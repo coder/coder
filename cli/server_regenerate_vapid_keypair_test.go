@@ -17,6 +17,9 @@ import (
 
 func TestRegenerateVapidKeypair(t *testing.T) {
 	t.Parallel()
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("this test is only supported on postgres")
+	}
 
 	t.Run("NoExistingVAPIDKeys", func(t *testing.T) {
 		t.Parallel()
