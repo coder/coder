@@ -20,10 +20,6 @@ type MockPublisher = Readonly<{
 	publishOpen: (event: Event) => void;
 }>;
 
-type MockSocket = WebSocket & {
-	publisher: MockPublisher;
-};
-
 function createMockWebSocket(
 	url: string,
 	protocols?: string | string[],
