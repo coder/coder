@@ -1652,6 +1652,30 @@ func (api *API) tailnetRPCConn(rw http.ResponseWriter, r *http.Request) {
 		DeviceOS:            nil,
 		CoderDesktopVersion: nil,
 	}
+
+	// Parse desktop telemetry from header if it exists
+	desktopTelemetryHeader := r.Header.Get(codersdk.CoderDesktopTelemetryHeader)
+	if desktopTelemetryHeader != "" {
+		var telemetryData codersdk.CoderDesktopTelemetry
+		if err := telemetryData.FromHeader(desktopTelemetryHeader); err == nil {
+			// Only set fields if they aren't empty
+			if telemetryData.DeviceID != "" {
+				connectionTelemetryEvent.DeviceID = &telemetryData.DeviceID
+			}
+			if telemetryData.DeviceOS != "" {
+				connectionTelemetryEvent.DeviceOS = &telemetryData.DeviceOS
+			}
+			if telemetryData.CoderDesktopVersion != "" {
+				connectionTelemetryEvent.CoderDesktopVersion = &telemetryData.CoderDesktopVersion
+			}
+			api.Logger.Debug(ctx, "received desktop telemetry",
+				slog.F("device_id", telemetryData.DeviceID),
+				slog.F("device_os", telemetryData.DeviceOS),
+				slog.F("desktop_version", telemetryData.CoderDesktopVersion))
+		} else {
+			api.Logger.Warn(ctx, "failed to parse desktop telemetry header", slog.Error(err))
+		}
+	}
 	api.Telemetry.Report(&telemetry.Snapshot{
 		UserTailnetConnections: []telemetry.UserTailnetConnection{connectionTelemetryEvent},
 	})

@@ -76,6 +76,10 @@ const (
 	// only.
 	CLITelemetryHeader = "Coder-CLI-Telemetry"
 
+	// CoderDesktopTelemetryHeader contains a JSON-encoded representation of Desktop telemetry
+	// fields, including device ID, OS, and Desktop version.
+	CoderDesktopTelemetryHeader = "Coder-Desktop-Telemetry"
+
 	// ProvisionerDaemonPSK contains the authentication pre-shared key for an external provisioner daemon
 	ProvisionerDaemonPSK = "Coder-Provisioner-Daemon-PSK"
 
@@ -522,6 +526,28 @@ func (e ValidationError) Error() string {
 }
 
 var _ error = (*ValidationError)(nil)
+
+// CoderDesktopTelemetry represents the telemetry data sent from Coder Desktop clients.
+// @typescript-ignore CoderDesktopTelemetry
+type CoderDesktopTelemetry struct {
+	DeviceID            string `json:"device_id"`
+	DeviceOS            string `json:"device_os"`
+	CoderDesktopVersion string `json:"coder_desktop_version"`
+}
+
+// FromHeader parses the desktop telemetry from the provided header value.
+// Returns nil if the header is empty or if parsing fails.
+func (t *CoderDesktopTelemetry) FromHeader(headerValue string) error {
+	if headerValue == "" {
+		return nil
+	}
+	return json.Unmarshal([]byte(headerValue), t)
+}
+
+// IsEmpty returns true if all fields in the telemetry data are empty.
+func (t *CoderDesktopTelemetry) IsEmpty() bool {
+	return t.DeviceID == "" && t.DeviceOS == "" && t.CoderDesktopVersion == ""
+}
 
 // IsConnectionError is a convenience function for checking if the source of an
 // error is due to a 'connection refused', 'no such host', etc.
