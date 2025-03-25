@@ -5,14 +5,13 @@ import {
 	getCurrentOrgId,
 	setupApiCalls,
 } from "../../api";
-import { defaultOrganizationName } from "../../constants";
-import { requiresLicense } from "../../helpers";
-import { login } from "../../helpers";
+import { defaultOrganizationName, users } from "../../constants";
+import { login, requiresLicense } from "../../helpers";
 import { beforeCoderTest } from "../../hooks";
 
 test.beforeEach(async ({ page }) => {
 	beforeCoderTest(page);
-	await login(page);
+	await login(page, users.userAdmin);
 	await setupApiCalls(page);
 });
 

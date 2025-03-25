@@ -394,6 +394,7 @@ func (q *sqlQuerier) GetAuthorizedUsers(ctx context.Context, arg GetUsersParams,
 		arg.CreatedBefore,
 		arg.CreatedAfter,
 		arg.IncludeSystem,
+		arg.GithubComUserID,
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)

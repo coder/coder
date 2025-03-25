@@ -146,6 +146,7 @@ message Agent {
 	repeated Env extra_envs = 22;
 	int64 order = 23;
 	ResourcesMonitoring resources_monitoring = 24;
+	repeated Devcontainer devcontainers = 25;
 }
 
 enum AppSharingLevel {
@@ -194,6 +195,11 @@ message Script {
 	bool run_on_stop = 7;
 	int32 timeout_seconds = 8;
 	string log_path = 9;
+}
+
+message Devcontainer {
+	string workspace_folder = 1;
+	string config_path = 2;
 }
 
 enum AppOpenIn {
@@ -328,6 +334,7 @@ message PlanComplete {
     repeated Timing timings = 6;
     repeated Module modules = 7;
     repeated Preset presets = 8;
+    bytes plan = 9;
 }
 
 // ApplyRequest asks the provisioner to apply the changes.  Apply MUST be preceded by a successful plan request/response

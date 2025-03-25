@@ -32,7 +32,7 @@ import (
 
 // UpdateGoldenFiles indicates golden files should be updated.
 // To update the golden files:
-// make update-golden-files
+// make gen/golden-files
 var UpdateGoldenFiles = flag.Bool("update", false, "update .golden files")
 
 // TestHeartbeats_Cleanup tests the cleanup loop
@@ -316,11 +316,11 @@ func TestDebugTemplate(t *testing.T) {
 	}
 
 	expected, err := os.ReadFile(goldenPath)
-	require.NoError(t, err, "read golden file, run \"make update-golden-files\" and commit the changes")
+	require.NoError(t, err, "read golden file, run \"make gen/golden-files\" and commit the changes")
 
 	require.Equal(
 		t, string(expected), string(actual),
-		"golden file mismatch: %s, run \"make update-golden-files\", verify and commit the changes",
+		"golden file mismatch: %s, run \"make gen/golden-files\", verify and commit the changes",
 		goldenPath,
 	)
 }

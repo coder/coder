@@ -1,22 +1,27 @@
+import { watchInboxNotifications } from "api/api";
 import { getErrorDetail, getErrorMessage } from "api/errors";
+import type {
+	ListInboxNotificationsResponse,
+	UpdateInboxNotificationReadStatusResponse,
+} from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
-import type { FC } from "react";
+import { useEffectEvent } from "hooks/hookPolyfills";
+import { type FC, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { InboxPopover } from "./InboxPopover";
-import type { Notification } from "./types";
 
 const NOTIFICATIONS_QUERY_KEY = ["notifications"];
-
-type NotificationsResponse = {
-	notifications: Notification[];
-	unread_count: number;
-};
+const NOTIFICATIONS_LIMIT = 25; // This is hard set in the API
 
 type NotificationsInboxProps = {
 	defaultOpen?: boolean;
-	fetchNotifications: () => Promise<NotificationsResponse>;
+	fetchNotifications: (
+		startingBeforeId?: string,
+	) => Promise<ListInboxNotificationsResponse>;
 	markAllAsRead: () => Promise<void>;
-	markNotificationAsRead: (notificationId: string) => Promise<void>;
+	markNotificationAsRead: (
+		notificationId: string,
+	) => Promise<UpdateInboxNotificationReadStatusResponse>;
 };
 
 export const NotificationsInbox: FC<NotificationsInboxProps> = ({
@@ -28,23 +33,86 @@ export const NotificationsInbox: FC<NotificationsInboxProps> = ({
 	const queryClient = useQueryClient();
 
 	const {
-		data: res,
+		data: inboxRes,
 		error,
 		refetch,
 	} = useQuery({
 		queryKey: NOTIFICATIONS_QUERY_KEY,
-		queryFn: fetchNotifications,
+		queryFn: () => fetchNotifications(),
+	});
+
+	const updateNotificationsCache = useEffectEvent(
+		async (
+			callback: (
+				res: ListInboxNotificationsResponse,
+			) => ListInboxNotificationsResponse,
+		) => {
+			await queryClient.cancelQueries(NOTIFICATIONS_QUERY_KEY);
+			queryClient.setQueryData<ListInboxNotificationsResponse>(
+				NOTIFICATIONS_QUERY_KEY,
+				(prev) => {
+					if (!prev) {
+						return { notifications: [], unread_count: 0 };
+					}
+					return callback(prev);
+				},
+			);
+		},
+	);
+
+	useEffect(() => {
+		const socket = watchInboxNotifications(
+			(res) => {
+				updateNotificationsCache((prev) => {
+					return {
+						unread_count: res.unread_count,
+						notifications: [res.notification, ...prev.notifications],
+					};
+				});
+			},
+			{ read_status: "unread" },
+		);
+
+		return () => {
+			socket.close();
+		};
+	}, [updateNotificationsCache]);
+
+	const {
+		mutate: loadMoreNotifications,
+		isLoading: isLoadingMoreNotifications,
+	} = useMutation({
+		mutationFn: async () => {
+			if (!inboxRes || inboxRes.notifications.length === 0) {
+				return;
+			}
+			const lastNotification =
+				inboxRes.notifications[inboxRes.notifications.length - 1];
+			const newRes = await fetchNotifications(lastNotification.id);
+			updateNotificationsCache((prev) => {
+				return {
+					unread_count: newRes.unread_count,
+					notifications: [...prev.notifications, ...newRes.notifications],
+				};
+			});
+		},
+		onError: (error) => {
+			displayError(
+				getErrorMessage(error, "Error loading more notifications"),
+				getErrorDetail(error),
+			);
+		},
 	});
 
 	const markAllAsReadMutation = useMutation({
 		mutationFn: markAllAsRead,
 		onSuccess: () => {
-			safeUpdateNotificationsCache((prev) => {
+			updateNotificationsCache((prev) => {
 				return {
 					unread_count: 0,
 					notifications: prev.notifications.map((n) => ({
 						...n,
-						read_status: "read",
+						read_at: new Date().toISOString(),
 					})),
 				};
 			});
@@ -59,15 +127,15 @@ export const NotificationsInbox: FC<NotificationsInboxProps> = ({
 
 	const markNotificationAsReadMutation = useMutation({
 		mutationFn: markNotificationAsRead,
-		onSuccess: (_, notificationId) => {
-			safeUpdateNotificationsCache((prev) => {
+		onSuccess: (res) => {
+			updateNotificationsCache((prev) => {
 				return {
-					unread_count: prev.unread_count - 1,
+					unread_count: res.unread_count,
 					notifications: prev.notifications.map((n) => {
-						if (n.id !== notificationId) {
+						if (n.id !== res.notification.id) {
 							return n;
 						}
-						return { ...n, read_status: "read" };
+						return res.notification;
 					}),
 				};
 			});
@@ -80,30 +148,20 @@ export const NotificationsInbox: FC<NotificationsInboxProps> = ({
 		},
 	});
 
-	async function safeUpdateNotificationsCache(
-		callback: (res: NotificationsResponse) => NotificationsResponse,
-	) {
-		await queryClient.cancelQueries(NOTIFICATIONS_QUERY_KEY);
-		queryClient.setQueryData<NotificationsResponse>(
-			NOTIFICATIONS_QUERY_KEY,
-			(prev) => {
-				if (!prev) {
-					return { notifications: [], unread_count: 0 };
-				}
-				return callback(prev);
-			},
-		);
-	}
-
 	return (
 		<InboxPopover
 			defaultOpen={defaultOpen}
-			notifications={res?.notifications}
-			unreadCount={res?.unread_count ?? 0}
+			notifications={inboxRes?.notifications}
+			unreadCount={inboxRes?.unread_count ?? 0}
 			error={error}
+			isLoadingMoreNotifications={isLoadingMoreNotifications}
+			hasMoreNotifications={Boolean(
+				inboxRes && inboxRes.notifications.length === NOTIFICATIONS_LIMIT,
+			)}
 			onRetry={refetch}
 			onMarkAllAsRead={markAllAsReadMutation.mutate}
 			onMarkNotificationAsRead={markNotificationAsReadMutation.mutate}
+			onLoadMoreNotifications={loadMoreNotifications}
 		/>
 	);
 };

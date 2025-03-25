@@ -80,13 +80,14 @@ func Users(query string) (database.GetUsersParams, []codersdk.ValidationError) {
 
 	parser := httpapi.NewQueryParamParser()
 	filter := database.GetUsersParams{
-		Search:         parser.String(values, "", "search"),
-		Status:         httpapi.ParseCustomList(parser, values, []database.UserStatus{}, "status", httpapi.ParseEnum[database.UserStatus]),
-		RbacRole:       parser.Strings(values, []string{}, "role"),
-		LastSeenAfter:  parser.Time3339Nano(values, time.Time{}, "last_seen_after"),
-		LastSeenBefore: parser.Time3339Nano(values, time.Time{}, "last_seen_before"),
-		CreatedAfter:   parser.Time3339Nano(values, time.Time{}, "created_after"),
-		CreatedBefore:  parser.Time3339Nano(values, time.Time{}, "created_before"),
+		Search:          parser.String(values, "", "search"),
+		Status:          httpapi.ParseCustomList(parser, values, []database.UserStatus{}, "status", httpapi.ParseEnum[database.UserStatus]),
+		RbacRole:        parser.Strings(values, []string{}, "role"),
+		LastSeenAfter:   parser.Time3339Nano(values, time.Time{}, "last_seen_after"),
+		LastSeenBefore:  parser.Time3339Nano(values, time.Time{}, "last_seen_before"),
+		CreatedAfter:    parser.Time3339Nano(values, time.Time{}, "created_after"),
+		CreatedBefore:   parser.Time3339Nano(values, time.Time{}, "created_before"),
+		GithubComUserID: parser.Int64(values, 0, "github_com_user_id"),
 	}
 	parser.ErrorExcessParams(values)
 	return filter, parser.Errors
