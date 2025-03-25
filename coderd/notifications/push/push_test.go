@@ -179,7 +179,7 @@ func TestPush(t *testing.T) {
 			},
 		}
 
-		err = manager.Dispatch(context.Background(), user.ID, notification)
+		err = manager.Dispatch(ctx, user.ID, notification)
 		require.NoError(t, err)
 		assert.True(t, okEndpointCalled, "The valid endpoint should be called")
 		assert.True(t, goneEndpointCalled, "The expired endpoint should be called")

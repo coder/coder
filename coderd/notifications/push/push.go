@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"slices"
 	"sync"
 
 	"github.com/SherClockHolmes/webpush-go"
@@ -93,8 +94,8 @@ func (n *Notifier) Dispatch(ctx context.Context, userID uuid.UUID, notification 
 		subscription := subscription
 		eg.Go(func() error {
 			n.log.Debug(ctx, "dispatching via push", slog.F("subscription", subscription.Endpoint))
-
-			resp, err := webpush.SendNotificationWithContext(ctx, notificationJSON, &webpush.Subscription{
+			cpy := slices.Clone(notificationJSON) // Need to copy as webpush.SendNotificationWithContext modifies the slice.
+			resp, err := webpush.SendNotificationWithContext(ctx, cpy, &webpush.Subscription{
 				Endpoint: subscription.Endpoint,
 				Keys: webpush.Keys{
 					Auth:   subscription.EndpointAuthKey,
