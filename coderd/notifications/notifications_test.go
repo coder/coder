@@ -1869,7 +1869,7 @@ func TestNotificationMethodCannotDefaultToInbox(t *testing.T) {
 	mClock.Set(time.Date(2024, 1, 15, 9, 0, 0, 0, time.UTC))
 
 	_, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), mClock)
-	require.ErrorIs(t, err, notifications.InvalidNotificationMethodError{Method: string(database.NotificationMethodInbox)})
+	require.ErrorIs(t, err, notifications.InvalidDefaultNotificationMethodError{Method: string(database.NotificationMethodInbox)})
 }
 
 func TestNotificationTargetMatrix(t *testing.T) {

@@ -26,12 +26,12 @@ var (
 	ErrDuplicate                         = xerrors.New("duplicate notification")
 )
 
-type InvalidNotificationMethodError struct {
+type InvalidDefaultNotificationMethodError struct {
 	Method string
 }
 
-func (e InvalidNotificationMethodError) Error() string {
-	return fmt.Sprintf("given notification method %q is invalid", e.Method)
+func (e InvalidDefaultNotificationMethodError) Error() string {
+	return fmt.Sprintf("given default notification method %q is invalid", e.Method)
 }
 
 type StoreEnqueuer struct {
@@ -54,7 +54,7 @@ func NewStoreEnqueuer(cfg codersdk.NotificationsConfig, store Store, helpers tem
 	var method database.NotificationMethod
 	// We do not allow setting Coder Inbox as the default method.
 	if err := method.Scan(cfg.Method.String()); err != nil || method == database.NotificationMethodInbox {
-		return nil, InvalidNotificationMethodError{Method: cfg.Method.String()}
+		return nil, InvalidDefaultNotificationMethodError{Method: cfg.Method.String()}
 	}
 
 	return &StoreEnqueuer{
