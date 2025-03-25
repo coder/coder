@@ -604,13 +604,11 @@
 									"title": "Slack Notifications",
 									"description": "Learn how to setup Slack notifications",
 									"path": "./admin/monitoring/notifications/slack.md",
-									"state": ["beta"]
 								},
 								{
 									"title": "Microsoft Teams Notifications",
 									"description": "Learn how to setup Microsoft Teams notifications",
 									"path": "./admin/monitoring/notifications/teams.md",
-									"state": ["beta"]
 								}
 							]
 						}
