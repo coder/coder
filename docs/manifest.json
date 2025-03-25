@@ -599,7 +599,6 @@
 							"title": "Notifications",
 							"description": "Configure notifications for your deployment",
 							"path": "./admin/monitoring/notifications/index.md",
-							"state": ["beta"],
 							"children": [
 								{
 									"title": "Slack Notifications",
