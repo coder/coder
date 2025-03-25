@@ -4352,21 +4352,6 @@ func (mr *MockStoreMockRecorder) InsertPresetParameters(ctx, arg any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertPresetParameters", reflect.TypeOf((*MockStore)(nil).InsertPresetParameters), ctx, arg)
 }
 
-// InsertPresetPrebuild mocks base method.
-func (m *MockStore) InsertPresetPrebuild(ctx context.Context, arg database.InsertPresetPrebuildParams) (database.TemplateVersionPresetPrebuild, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertPresetPrebuild", ctx, arg)
-	ret0, _ := ret[0].(database.TemplateVersionPresetPrebuild)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// InsertPresetPrebuild indicates an expected call of InsertPresetPrebuild.
-func (mr *MockStoreMockRecorder) InsertPresetPrebuild(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertPresetPrebuild", reflect.TypeOf((*MockStore)(nil).InsertPresetPrebuild), ctx, arg)
-}
-
 // InsertProvisionerJob mocks base method.
 func (m *MockStore) InsertProvisionerJob(ctx context.Context, arg database.InsertProvisionerJobParams) (database.ProvisionerJob, error) {
 	m.ctrl.T.Helper()

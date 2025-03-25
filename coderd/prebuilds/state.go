@@ -93,8 +93,7 @@ func (p PresetState) CalculateActions(clock quartz.Clock, backoffInterval time.D
 	if p.Backoff != nil && p.Backoff.NumFailed > 0 {
 		actions.Failed = p.Backoff.NumFailed
 
-		// TODO(yevhenii): remove (time.Time) type conversion
-		backoffUntil := p.Backoff.LastBuildAt.(time.Time).Add(time.Duration(p.Backoff.NumFailed) * backoffInterval)
+		backoffUntil := p.Backoff.LastBuildAt.Add(time.Duration(p.Backoff.NumFailed) * backoffInterval)
 
 		if clock.Now().Before(backoffUntil) {
 			actions.Create = 0

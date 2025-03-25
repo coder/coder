@@ -76,7 +76,7 @@ func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
 			continue
 		}
 
-		presetState, err := state.FilterByPreset(preset.PresetID)
+		presetState, err := state.FilterByPreset(preset.ID)
 		if err != nil {
 			mc.logger.Error(ctx, "failed to filter by preset", slog.Error(err))
 			continue

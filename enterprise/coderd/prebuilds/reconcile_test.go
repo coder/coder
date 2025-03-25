@@ -594,15 +594,15 @@ func setupTestDBPreset(
 	preset := dbgen.Preset(t, db, database.InsertPresetParams{
 		TemplateVersionID: templateVersionID,
 		Name:              presetName,
+		DesiredInstances: sql.NullInt32{
+			Valid: true,
+			Int32: desiredInstances,
+		},
 	})
 	dbgen.PresetParameter(t, db, database.InsertPresetParametersParams{
 		TemplateVersionPresetID: preset.ID,
 		Names:                   []string{"test"},
 		Values:                  []string{"test"},
-	})
-	dbgen.PresetPrebuild(t, db, database.InsertPresetPrebuildParams{
-		PresetID:         preset.ID,
-		DesiredInstances: desiredInstances,
 	})
 	return preset
 }

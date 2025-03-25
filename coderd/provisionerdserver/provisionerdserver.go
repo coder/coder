@@ -1882,13 +1882,26 @@ func InsertWorkspacePresetsAndParameters(ctx context.Context, logger slog.Logger
 
 func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, templateVersionID uuid.UUID, protoPreset *sdkproto.Preset, t time.Time) error {
 	err := db.InTx(func(tx database.Store) error {
-		dbPreset, err := tx.InsertPreset(ctx, database.InsertPresetParams{
+		// insert preset
+		insertPresetParams := database.InsertPresetParams{
 			TemplateVersionID:   templateVersionID,
 			Name:                protoPreset.Name,
 			CreatedAt:           t,
 			DesiredInstances:    sql.NullInt32{},
 			InvalidateAfterSecs: sql.NullInt32{},
-		})
+		}
+		// update preset with prebuid if set
+		if protoPreset.Prebuild != nil {
+			insertPresetParams.DesiredInstances = sql.NullInt32{
+				Valid: true,
+				Int32: protoPreset.Prebuild.Instances,
+			}
+			insertPresetParams.InvalidateAfterSecs = sql.NullInt32{
+				Valid: true,
+				Int32: 0,
+			}
+		}
+		dbPreset, err := tx.InsertPreset(ctx, insertPresetParams)
 		if err != nil {
 			return xerrors.Errorf("insert preset: %w", err)
 		}
@@ -1908,17 +1921,6 @@ func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, 
 			return xerrors.Errorf("insert preset parameters: %w", err)
 		}
 
-		if protoPreset.Prebuild != nil {
-			_, err := tx.InsertPresetPrebuild(ctx, database.InsertPresetPrebuildParams{
-				ID:                  uuid.New(),
-				PresetID:            dbPreset.ID,
-				DesiredInstances:    protoPreset.Prebuild.Instances,
-				InvalidateAfterSecs: 0, // TODO: implement cache invalidation
-			})
-			if err != nil {
-				return xerrors.Errorf("insert preset prebuild: %w", err)
-			}
-		}
 		return nil
 	}, nil)
 	if err != nil {
@@ -2158,7 +2160,8 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			)
 			for _, dc := range devcontainers {
 				devcontainerIDs = append(devcontainerIDs, uuid.New())
-				devcontainerNames = append(devcontainerNames, dc.Name)
+				// TODO(yevhenii): uncomment after make gen
+				//devcontainerNames = append(devcontainerNames, dc.Name)
 				devcontainerWorkspaceFolders = append(devcontainerWorkspaceFolders, dc.WorkspaceFolder)
 				devcontainerConfigPaths = append(devcontainerConfigPaths, dc.ConfigPath)
 			}

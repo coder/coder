@@ -1,6 +1,7 @@
 package prebuilds_test
 
 import (
+	"database/sql"
 	"fmt"
 	"testing"
 	"time"
@@ -450,7 +451,6 @@ func TestLatestBuildFailed(t *testing.T) {
 		{
 			TemplateVersionID: current.templateVersionID,
 			PresetID:          current.presetID,
-			LatestBuildStatus: database.ProvisionerJobStatusFailed,
 			NumFailed:         int32(numFailed),
 			LastBuildAt:       lastBuildTime,
 		},
@@ -497,12 +497,15 @@ func preset(active bool, instances int32, opts options, muts ...func(row databas
 	entry := database.GetTemplatePresetsWithPrebuildsRow{
 		TemplateID:         opts.templateID,
 		TemplateVersionID:  opts.templateVersionID,
-		PresetID:           opts.presetID,
+		ID:                 opts.presetID,
 		UsingActiveVersion: active,
 		Name:               opts.presetName,
-		DesiredInstances:   instances,
-		Deleted:            false,
-		Deprecated:         false,
+		DesiredInstances: sql.NullInt32{
+			Valid: true,
+			Int32: instances,
+		},
+		Deleted:    false,
+		Deprecated: false,
 	}
 
 	for _, mut := range muts {

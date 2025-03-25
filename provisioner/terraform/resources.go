@@ -614,7 +614,8 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 						continue
 					}
 					agent.Devcontainers = append(agent.Devcontainers, &proto.Devcontainer{
-						Name:            resource.Name,
+						// TODO(yevhenii): uncomment after make gen
+						//Name:            resource.Name,
 						WorkspaceFolder: attrs.WorkspaceFolder,
 						ConfigPath:      attrs.ConfigPath,
 					})

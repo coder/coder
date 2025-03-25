@@ -157,9 +157,9 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) error {
 		// TODO: bounded concurrency? probably not but consider
 		var eg errgroup.Group
 		for _, preset := range state.Presets {
-			ps, err := state.FilterByPreset(preset.PresetID)
+			ps, err := state.FilterByPreset(preset.ID)
 			if err != nil {
-				logger.Warn(ctx, "failed to find preset state", slog.Error(err), slog.F("preset_id", preset.PresetID.String()))
+				logger.Warn(ctx, "failed to find preset state", slog.Error(err), slog.F("preset_id", preset.ID.String()))
 				continue
 			}
 
@@ -167,21 +167,21 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) error {
 				logger.Debug(ctx, "skipping reconciliation for preset; inactive, no running prebuilds, and no in-progress operations",
 					slog.F("template_id", preset.TemplateID.String()), slog.F("template_name", preset.TemplateName),
 					slog.F("template_version_id", preset.TemplateVersionID.String()), slog.F("template_version_name", preset.TemplateVersionName),
-					slog.F("preset_id", preset.PresetID.String()), slog.F("preset_name", preset.Name))
+					slog.F("preset_id", preset.ID.String()), slog.F("preset_name", preset.Name))
 				continue
 			}
 
 			eg.Go(func() error {
 				actions, err := c.DetermineActions(ctx, *ps)
 				if err != nil {
-					logger.Error(ctx, "failed to determine actions for preset", slog.Error(err), slog.F("preset_id", preset.PresetID))
+					logger.Error(ctx, "failed to determine actions for preset", slog.Error(err), slog.F("preset_id", preset.ID))
 					return nil
 				}
 
 				// Pass outer context.
 				err = c.Reconcile(ctx, *ps, *actions)
 				if err != nil {
-					logger.Error(ctx, "failed to reconcile prebuilds for preset", slog.Error(err), slog.F("preset_id", preset.PresetID))
+					logger.Error(ctx, "failed to reconcile prebuilds for preset", slog.Error(err), slog.F("preset_id", preset.ID))
 				}
 				// DO NOT return error otherwise the tx will end.
 				return nil
@@ -293,7 +293,7 @@ func (c *StoreReconciler) Reconcile(ctx context.Context, ps prebuilds.PresetStat
 
 	var lastErr multierror.Error
 	vlogger := logger.With(slog.F("template_version_id", ps.Preset.TemplateVersionID), slog.F("template_version_name", ps.Preset.TemplateVersionName),
-		slog.F("preset_id", ps.Preset.PresetID), slog.F("preset_name", ps.Preset.Name))
+		slog.F("preset_id", ps.Preset.ID), slog.F("preset_name", ps.Preset.Name))
 
 	prebuildsCtx := dbauthz.AsPrebuildsOrchestrator(ctx)
 
@@ -343,14 +343,14 @@ func (c *StoreReconciler) Reconcile(ctx context.Context, ps prebuilds.PresetStat
 
 	// TODO: i've removed the surrounding tx, but if we restore it then we need to pass down the store to these funcs.
 	for range actions.Create {
-		if err := c.createPrebuild(prebuildsCtx, uuid.New(), ps.Preset.TemplateID, ps.Preset.PresetID); err != nil {
+		if err := c.createPrebuild(prebuildsCtx, uuid.New(), ps.Preset.TemplateID, ps.Preset.ID); err != nil {
 			vlogger.Error(ctx, "failed to create prebuild", slog.Error(err))
 			lastErr.Errors = append(lastErr.Errors, err)
 		}
 	}
 
 	for _, id := range actions.DeleteIDs {
-		if err := c.deletePrebuild(prebuildsCtx, id, ps.Preset.TemplateID, ps.Preset.PresetID); err != nil {
+		if err := c.deletePrebuild(prebuildsCtx, id, ps.Preset.TemplateID, ps.Preset.ID); err != nil {
 			vlogger.Error(ctx, "failed to delete prebuild", slog.Error(err))
 			lastErr.Errors = append(lastErr.Errors, err)
 		}
