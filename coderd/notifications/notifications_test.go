@@ -1856,6 +1856,22 @@ func TestNotificationDuplicates(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestNotificationMethodCannotDefaultToInbox(t *testing.T) {
+	t.Parallel()
+
+	store, _ := dbtestutil.NewDB(t)
+	logger := testutil.Logger(t)
+
+	cfg := defaultNotificationsConfig(database.NotificationMethodInbox)
+
+	// Set the time to a known value.
+	mClock := quartz.NewMock(t)
+	mClock.Set(time.Date(2024, 1, 15, 9, 0, 0, 0, time.UTC))
+
+	_, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), mClock)
+	require.ErrorIs(t, err, notifications.InvalidNotificationMethodError{Method: string(database.NotificationMethodInbox)})
+}
+
 func TestNotificationTargetMatrix(t *testing.T) {
 	t.Parallel()
 

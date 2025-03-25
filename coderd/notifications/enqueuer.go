@@ -3,6 +3,7 @@ package notifications
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"slices"
 	"strings"
 	"text/template"
@@ -25,6 +26,14 @@ var (
 	ErrDuplicate                         = xerrors.New("duplicate notification")
 )
 
+type InvalidNotificationMethodError struct {
+	Method string
+}
+
+func (e InvalidNotificationMethodError) Error() string {
+	return fmt.Sprintf("given notification method %q is invalid", e.Method)
+}
+
 type StoreEnqueuer struct {
 	store Store
 	log   slog.Logger
@@ -43,8 +52,9 @@ type StoreEnqueuer struct {
 // NewStoreEnqueuer creates an Enqueuer implementation which can persist notification messages in the store.
 func NewStoreEnqueuer(cfg codersdk.NotificationsConfig, store Store, helpers template.FuncMap, log slog.Logger, clock quartz.Clock) (*StoreEnqueuer, error) {
 	var method database.NotificationMethod
-	if err := method.Scan(cfg.Method.String()); err != nil {
-		return nil, xerrors.Errorf("given notification method %q is invalid", cfg.Method)
+	// We do not allow setting Coder Inbox as the default method.
+	if err := method.Scan(cfg.Method.String()); err != nil || method == database.NotificationMethodInbox {
+		return nil, InvalidNotificationMethodError{Method: cfg.Method.String()}
 	}
 
 	return &StoreEnqueuer{
