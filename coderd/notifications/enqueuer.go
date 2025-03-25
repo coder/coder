@@ -3,6 +3,7 @@ package notifications
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"strings"
 	"text/template"
 
@@ -28,7 +29,10 @@ type StoreEnqueuer struct {
 	store Store
 	log   slog.Logger
 
-	defaultMethod database.NotificationMethod
+	defaultMethod  database.NotificationMethod
+	defaultEnabled bool
+	inboxEnabled   bool
+
 	// helpers holds a map of template funcs which are used when rendering templates. These need to be passed in because
 	// the template funcs will return values which are inappropriately encapsulated in this struct.
 	helpers template.FuncMap
@@ -44,11 +48,13 @@ func NewStoreEnqueuer(cfg codersdk.NotificationsConfig, store Store, helpers tem
 	}
 
 	return &StoreEnqueuer{
-		store:         store,
-		log:           log,
-		defaultMethod: method,
-		helpers:       helpers,
-		clock:         clock,
+		store:          store,
+		log:            log,
+		defaultMethod:  method,
+		defaultEnabled: cfg.Enabled(),
+		inboxEnabled:   cfg.Inbox.Enabled.Value(),
+		helpers:        helpers,
+		clock:          clock,
 	}, nil
 }
 
@@ -69,11 +75,6 @@ func (s *StoreEnqueuer) EnqueueWithData(ctx context.Context, userID, templateID 
 		return nil, xerrors.Errorf("new message metadata: %w", err)
 	}
 
-	dispatchMethod := s.defaultMethod
-	if metadata.CustomMethod.Valid {
-		dispatchMethod = metadata.CustomMethod.NotificationMethod
-	}
-
 	payload, err := s.buildPayload(metadata, labels, data, targets)
 	if err != nil {
 		s.log.Warn(ctx, "failed to build payload", slog.F("template_id", templateID), slog.F("user_id", userID), slog.Error(err))
@@ -85,11 +86,22 @@ func (s *StoreEnqueuer) EnqueueWithData(ctx context.Context, userID, templateID 
 		return nil, xerrors.Errorf("failed encoding input labels: %w", err)
 	}
 
-	uuids := make([]uuid.UUID, 0, 2)
+	methods := []database.NotificationMethod{}
+	if metadata.CustomMethod.Valid {
+		methods = append(methods, metadata.CustomMethod.NotificationMethod)
+	} else if s.defaultEnabled {
+		methods = append(methods, s.defaultMethod)
+	}
+
 	// All the enqueued messages are enqueued both on the dispatch method set by the user (or default one) and the inbox.
 	// As the inbox is not configurable per the user and is always enabled, we always enqueue the message on the inbox.
 	// The logic is done here in order to have two completely separated processing and retries are handled separately.
-	for _, method := range []database.NotificationMethod{dispatchMethod, database.NotificationMethodInbox} {
+	if !slices.Contains(methods, database.NotificationMethodInbox) && s.inboxEnabled {
+		methods = append(methods, database.NotificationMethodInbox)
+	}
+
+	uuids := make([]uuid.UUID, 0, 2)
+	for _, method := range methods {
 		id := uuid.New()
 		err = s.store.EnqueueNotificationMessage(ctx, database.EnqueueNotificationMessageParams{
 			ID:                     id,

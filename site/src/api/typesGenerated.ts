@@ -1313,6 +1313,7 @@ export interface NotificationsConfig {
 	readonly dispatch_timeout: number;
 	readonly email: NotificationsEmailConfig;
 	readonly webhook: NotificationsWebhookConfig;
+	readonly inbox: NotificationsInboxConfig;
 }
 
 // From codersdk/deployment.go
@@ -1341,6 +1342,11 @@ export interface NotificationsEmailTLSConfig {
 	readonly ca_file: string;
 	readonly cert_file: string;
 	readonly key_file: string;
+}
+
+// From codersdk/deployment.go
+export interface NotificationsInboxConfig {
+	readonly enabled: boolean;
 }
 
 // From codersdk/notifications.go

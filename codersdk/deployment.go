@@ -698,10 +698,17 @@ type NotificationsConfig struct {
 	SMTP NotificationsEmailConfig `json:"email" typescript:",notnull"`
 	// Webhook settings.
 	Webhook NotificationsWebhookConfig `json:"webhook" typescript:",notnull"`
+	// Inbox settings.
+	Inbox NotificationsInboxConfig `json:"inbox" typescript:",notnull"`
 }
 
+// Are either of the notification methods enabled?
 func (n *NotificationsConfig) Enabled() bool {
 	return n.SMTP.Smarthost != "" || n.Webhook.Endpoint != serpent.URL{}
+}
+
+type NotificationsInboxConfig struct {
+	Enabled serpent.Bool `json:"enabled" typescript:",notnull"`
 }
 
 type NotificationsEmailConfig struct {
@@ -988,6 +995,11 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Name:   "Webhook",
 			Parent: &deploymentGroupNotifications,
 			YAML:   "webhook",
+		}
+		deploymentGroupInbox = serpent.Group{
+			Name:   "Inbox",
+			Parent: &deploymentGroupNotifications,
+			YAML:   "inbox",
 		}
 	)
 
@@ -2855,6 +2867,16 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.Notifications.Webhook.Endpoint,
 			Group:       &deploymentGroupNotificationsWebhook,
 			YAML:        "endpoint",
+		},
+		{
+			Name:        "Notifications: Inbox: Enabled",
+			Description: "Enable Coder Inbox.",
+			Flag:        "notifications-inbox-enabled",
+			Env:         "CODER_NOTIFICATIONS_INBOX_ENABLED",
+			Value:       &c.Notifications.Inbox.Enabled,
+			Default:     "true",
+			Group:       &deploymentGroupInbox,
+			YAML:        "enabled",
 		},
 		{
 			Name:        "Notifications: Max Send Attempts",
