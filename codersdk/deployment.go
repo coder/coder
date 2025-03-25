@@ -700,6 +700,12 @@ type NotificationsConfig struct {
 	Webhook NotificationsWebhookConfig `json:"webhook" typescript:",notnull"`
 	// Inbox settings.
 	Inbox NotificationsInboxConfig `json:"inbox" typescript:",notnull"`
+	// Push notification settings.
+	Push NotificationsPushConfig `json:"push" typescript:",notnull"`
+}
+
+type NotificationsPushConfig struct {
+	Enabled serpent.Bool `json:"enabled" typescript:",notnull"`
 }
 
 // Are either of the notification methods enabled?
@@ -1000,6 +1006,11 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Name:   "Inbox",
 			Parent: &deploymentGroupNotifications,
 			YAML:   "inbox",
+		}
+		deploymentGroupNotificationsPush = serpent.Group{
+			Name:   "Push",
+			Parent: &deploymentGroupNotifications,
+			YAML:   "push",
 		}
 	)
 
@@ -2967,6 +2978,17 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "fetchInterval",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 			Hidden:      true, // Hidden because most operators should not need to modify this.
+		},
+		// Push notifications.
+		{
+			Name:        "Notifications: Push: Enabled",
+			Description: "Enable push notifications using VAPID.",
+			Flag:        "notifications-push-enabled",
+			Env:         "CODER_NOTIFICATIONS_PUSH_ENABLED",
+			Value:       &c.Notifications.Push.Enabled,
+			Default:     "false",
+			Group:       &deploymentGroupNotificationsPush,
+			YAML:        "enabled",
 		},
 	}
 

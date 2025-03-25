@@ -412,6 +412,10 @@ func TestPushNotificationSubscription(t *testing.T) {
 		require.NoError(t, err, "create notification push subscription")
 		require.True(t, <-handlerCalled, "handler should have been called")
 
+		err = memberClient.TestPushNotification(ctx)
+		require.NoError(t, err, "test push notification")
+		require.True(t, <-handlerCalled, "handler should have been called again")
+
 		err = memberClient.DeleteNotificationPushSubscription(ctx, "me", codersdk.DeletePushNotificationSubscription{
 			Endpoint: server.URL,
 		})

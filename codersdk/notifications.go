@@ -265,3 +265,19 @@ func (c *Client) DeleteNotificationPushSubscription(ctx context.Context, user st
 	}
 	return nil
 }
+
+func (c *Client) TestPushNotification(ctx context.Context) error {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/notifications/push/test", Me), PushNotification{
+		Title: "It's working!",
+		Body:  "You've subscribed to push notifications.",
+	})
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
