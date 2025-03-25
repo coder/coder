@@ -40,36 +40,39 @@ func convertRouterConfig(cfg router.Config) *NetworkSettingsRequest {
 	v6LocalAddrs := make([]string, 0)
 	v6PrefixLengths := make([]uint32, 0)
 	for _, addrs := range cfg.LocalAddrs {
-		if addrs.Addr().Is4() {
+		switch {
+		case addrs.Addr().Is4():
 			v4LocalAddrs = append(v4LocalAddrs, addrs.Addr().String())
 			v4SubnetMasks = append(v4SubnetMasks, prefixToSubnetMask(addrs))
-		} else if addrs.Addr().Is6() {
+		case addrs.Addr().Is6():
 			v6LocalAddrs = append(v6LocalAddrs, addrs.Addr().String())
 			// #nosec G115 - Safe conversion as IPv6 prefix lengths are always within uint32 range (0-128)
 			v6PrefixLengths = append(v6PrefixLengths, uint32(addrs.Bits()))
-		} else {
+		default:
 			continue
 		}
 	}
 	v4Routes := make([]*NetworkSettingsRequest_IPv4Settings_IPv4Route, 0)
 	v6Routes := make([]*NetworkSettingsRequest_IPv6Settings_IPv6Route, 0)
 	for _, route := range cfg.Routes {
-		if route.Addr().Is4() {
+		switch {
+		case route.Addr().Is4():
 			v4Routes = append(v4Routes, convertToIPV4Route(route))
-		} else if route.Addr().Is6() {
+		case route.Addr().Is6():
 			v6Routes = append(v6Routes, convertToIPV6Route(route))
-		} else {
+		default:
 			continue
 		}
 	}
 	v4ExcludedRoutes := make([]*NetworkSettingsRequest_IPv4Settings_IPv4Route, 0)
 	v6ExcludedRoutes := make([]*NetworkSettingsRequest_IPv6Settings_IPv6Route, 0)
 	for _, route := range cfg.LocalRoutes {
-		if route.Addr().Is4() {
+		switch {
+		case route.Addr().Is4():
 			v4ExcludedRoutes = append(v4ExcludedRoutes, convertToIPV4Route(route))
-		} else if route.Addr().Is6() {
+		case route.Addr().Is6():
 			v6ExcludedRoutes = append(v6ExcludedRoutes, convertToIPV6Route(route))
-		} else {
+		default:
 			continue
 		}
 	}

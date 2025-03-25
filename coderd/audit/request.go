@@ -407,11 +407,12 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 
 		var userID uuid.UUID
 		key, ok := httpmw.APIKeyOptional(p.Request)
-		if ok {
+		switch {
+		case ok:
 			userID = key.UserID
-		} else if req.UserID != uuid.Nil {
+		case req.UserID != uuid.Nil:
 			userID = req.UserID
-		} else {
+		default:
 			// if we do not have a user associated with the audit action
 			// we do not want to audit
 			// (this pertains to logins; we don't want to capture non-user login attempts)
@@ -557,16 +558,18 @@ func BaggageFromContext(ctx context.Context) WorkspaceBuildBaggage {
 }
 
 func either[T Auditable, R any](old, new T, fn func(T) R, auditAction database.AuditAction) R {
-	if ResourceID(new) != uuid.Nil {
+	switch {
+	case ResourceID(new) != uuid.Nil:
 		return fn(new)
-	} else if ResourceID(old) != uuid.Nil {
+	case ResourceID(old) != uuid.Nil:
 		return fn(old)
-	} else if auditAction == database.AuditActionLogin || auditAction == database.AuditActionLogout {
+	case auditAction == database.AuditActionLogin || auditAction == database.AuditActionLogout:
 		// If the request action is a login or logout, we always want to audit it even if
 		// there is no diff. See the comment in audit.InitRequest for more detail.
 		return fn(old)
+	default:
+		panic("both old and new are nil")
 	}
-	panic("both old and new are nil")
 }
 
 func ParseIP(ipStr string) pqtype.Inet {
