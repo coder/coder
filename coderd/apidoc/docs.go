@@ -12800,6 +12800,14 @@ const docTemplate = `{
                     "description": "Which delivery method to use (available options: 'smtp', 'webhook').",
                     "type": "string"
                 },
+                "push": {
+                    "description": "Push notification settings.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.NotificationsPushConfig"
+                        }
+                    ]
+                },
                 "retry_interval": {
                     "description": "The minimum time between retries.",
                     "type": "integer"
@@ -12910,6 +12918,14 @@ const docTemplate = `{
             }
         },
         "codersdk.NotificationsInboxConfig": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "codersdk.NotificationsPushConfig": {
             "type": "object",
             "properties": {
                 "enabled": {

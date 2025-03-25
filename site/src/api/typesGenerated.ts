@@ -1320,6 +1320,7 @@ export interface NotificationsConfig {
 	readonly email: NotificationsEmailConfig;
 	readonly webhook: NotificationsWebhookConfig;
 	readonly inbox: NotificationsInboxConfig;
+	readonly push: NotificationsPushConfig;
 }
 
 // From codersdk/deployment.go
@@ -1352,6 +1353,11 @@ export interface NotificationsEmailTLSConfig {
 
 // From codersdk/deployment.go
 export interface NotificationsInboxConfig {
+	readonly enabled: boolean;
+}
+
+// From codersdk/deployment.go
+export interface NotificationsPushConfig {
 	readonly enabled: boolean;
 }
 

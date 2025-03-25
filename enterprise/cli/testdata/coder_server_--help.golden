@@ -480,6 +480,10 @@ NOTIFICATIONS / INBOX OPTIONS:
       --notifications-inbox-enabled bool, $CODER_NOTIFICATIONS_INBOX_ENABLED (default: true)
           Enable Coder Inbox.
 
+NOTIFICATIONS / PUSH OPTIONS: 
+      --notifications-push-enabled bool, $CODER_NOTIFICATIONS_PUSH_ENABLED (default: false)
+          Enable push notifications using VAPID.
+
 NOTIFICATIONS / WEBHOOK OPTIONS: 
       --notifications-webhook-endpoint url, $CODER_NOTIFICATIONS_WEBHOOK_ENDPOINT
           The endpoint to which to send webhooks.

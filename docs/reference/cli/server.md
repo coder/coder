@@ -1582,3 +1582,14 @@ Enable Coder Inbox.
 | Default     | <code>5</code>                                      |
 
 The upper limit of attempts to send a notification.
+
+### --notifications-push-enabled
+
+|             |                                                |
+|-------------|------------------------------------------------|
+| Type        | <code>bool</code>                              |
+| Environment | <code>$CODER_NOTIFICATIONS_PUSH_ENABLED</code> |
+| YAML        | <code>notifications.push.enabled</code>        |
+| Default     | <code>false</code>                             |
+
+Enable push notifications using VAPID.

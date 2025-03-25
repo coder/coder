@@ -777,7 +777,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 
 			// Manage push notifications.
-			{
+			if options.DeploymentValues.Notifications.Push.Enabled {
 				pushNotifier, err := push.New(ctx, &options.Logger, options.Database)
 				if err != nil {
 					options.Logger.Error(ctx, "failed to create push notifier", slog.Error(err))
@@ -787,6 +787,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					}
 				}
 				options.PushNotifier = pushNotifier
+			} else {
+				options.PushNotifier = &push.NoopNotifier{
+					Msg: "Push notifications are not configured.",
+				}
 			}
 
 			githubOAuth2ConfigParams, err := getGithubOAuth2ConfigParams(ctx, options.Database, vals)
