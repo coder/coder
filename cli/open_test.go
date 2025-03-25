@@ -381,4 +381,29 @@ func TestOpenApp(t *testing.T) {
 		w.RequireError()
 		w.RequireContains("region not found")
 	})
+
+	t.Run("ExternalAppSessionToken", func(t *testing.T) {
+		t.Parallel()
+
+		client, ws, _ := setupWorkspaceForAgent(t, func(agents []*proto.Agent) []*proto.Agent {
+			agents[0].Apps = []*proto.App{
+				{
+					Slug:     "app1",
+					Url:      "https://example.com/app1?token=$SESSION_TOKEN",
+					External: true,
+				},
+			}
+			return agents
+		})
+		inv, root := clitest.New(t, "open", "app", ws.Name, "app1", "--test.open-error")
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t)
+		inv.Stdin = pty.Input()
+		inv.Stdout = pty.Output()
+
+		w := clitest.StartWithWaiter(t, inv)
+		w.RequireError()
+		w.RequireContains("test.open-error")
+		w.RequireContains(client.SessionToken())
+	})
 }
