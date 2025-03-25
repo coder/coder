@@ -219,9 +219,11 @@ func handleOpenCmd(inv *serpent.Invocation, client *codersdk.Client, regionArg s
 		appURL = buildAppLinkURL(baseURL, ws, agt, foundApp, region.WildcardHostname, pathAppURL)
 	}
 
-	dontPrintAppURL := appURL
+	// appURL may contain a placeholder string $SESSION_TOKEN which we need to
+	// replace with an actual session token. We want to avoid printing this.
+	maybeSensitiveAppURL := appURL
 	if foundApp.External {
-		dontPrintAppURL = replacePlaceholderExternalSessionTokenString(client, appURL)
+		maybeSensitiveAppURL = replacePlaceholderExternalSessionTokenString(client, appURL)
 	}
 
 	// Check if we're inside a workspace.  Generally, we know
@@ -234,7 +236,7 @@ func handleOpenCmd(inv *serpent.Invocation, client *codersdk.Client, regionArg s
 	}
 	_, _ = fmt.Fprintf(inv.Stderr, "Opening %s\n", appURL)
 
-	return openFn(dontPrintAppURL)
+	return openFn(maybeSensitiveAppURL)
 }
 
 //nolint:revive // Correct, generateToken *is* a control flag and that's *fine*.
