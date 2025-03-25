@@ -41,5 +41,6 @@ func RandomPortNoListen(*testing.T) uint16 {
 	rndMu.Lock()
 	x := rnd.Intn(n)
 	rndMu.Unlock()
+	// #nosec G115 - Safe conversion since min and x are explicitly within the uint16 range
 	return uint16(min + x)
 }

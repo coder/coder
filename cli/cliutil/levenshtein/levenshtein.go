@@ -32,7 +32,9 @@ func Distance(a, b string, maxDist int) (int, error) {
 	if len(b) > 255 {
 		return 0, xerrors.Errorf("levenshtein: b must be less than 255 characters long")
 	}
+	// #nosec G115 - Safe conversion since we've checked that len(a) < 255
 	m := uint8(len(a))
+	// #nosec G115 - Safe conversion since we've checked that len(b) < 255
 	n := uint8(len(b))
 
 	// Special cases for empty strings
@@ -76,6 +78,7 @@ func Distance(a, b string, maxDist int) (int, error) {
 				d[i][j]+subCost, // substitution
 			)
 			// check maxDist on the diagonal
+			// #nosec G115 - Safe conversion as maxDist is expected to be small for edit distances
 			if maxDist > -1 && i == j && d[i+1][j+1] > uint8(maxDist) {
 				return int(d[i+1][j+1]), ErrMaxDist
 			}

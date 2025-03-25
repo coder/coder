@@ -455,6 +455,7 @@ func convertDockerInspect(raw []byte) ([]codersdk.WorkspaceAgentContainer, []str
 				out.Ports = append(out.Ports, codersdk.WorkspaceAgentContainerPort{
 					Network:  network,
 					Port:     cp,
+					// #nosec G115 - Safe conversion since Docker ports are limited to uint16 range
 					HostPort: uint16(hp),
 					HostIP:   p.HostIP,
 				})
@@ -497,12 +498,14 @@ func convertDockerPort(in string) (uint16, string, error) {
 		if err != nil {
 			return 0, "", xerrors.Errorf("invalid port format: %s", in)
 		}
+		// #nosec G115 - Safe conversion since Docker TCP ports are limited to uint16 range
 		return uint16(p), "tcp", nil
 	case 2:
 		p, err := strconv.Atoi(parts[0])
 		if err != nil {
 			return 0, "", xerrors.Errorf("invalid port format: %s", in)
 		}
+		// #nosec G115 - Safe conversion since Docker ports are limited to uint16 range
 		return uint16(p), parts[1], nil
 	default:
 		return 0, "", xerrors.Errorf("invalid port format: %s", in)

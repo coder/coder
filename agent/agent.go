@@ -1564,6 +1564,7 @@ func (a *agent) Collect(ctx context.Context, networkStats map[netlogtype.Connect
 	}
 	for conn, counts := range networkStats {
 		stats.ConnectionsByProto[conn.Proto.String()]++
+		// #nosec G115 - Safe conversions for network statistics which we expect to be within int64 range
 		stats.RxBytes += int64(counts.RxBytes)
 		stats.RxPackets += int64(counts.RxPackets)
 		stats.TxBytes += int64(counts.TxBytes)

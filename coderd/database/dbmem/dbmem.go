@@ -12327,9 +12327,12 @@ TemplateUsageStatsInsertLoop:
 			EndTime:             stat.TimeBucket.Add(30 * time.Minute),
 			TemplateID:          stat.TemplateID,
 			UserID:              stat.UserID,
+			// #nosec G115 - Safe conversion for usage minutes which are expected to be within int16 range
 			UsageMins:           int16(stat.UsageMins),
 			MedianLatencyMs:     sql.NullFloat64{Float64: latency.MedianLatencyMS, Valid: latencyOk},
+			// #nosec G115 - Safe conversion for SSH minutes which are expected to be within int16 range
 			SshMins:             int16(stat.SSHMins),
+			// #nosec G115 - Safe conversion for SFTP minutes which are expected to be within int16 range
 			SftpMins:            int16(stat.SFTPMins),
 			ReconnectingPtyMins: int16(stat.ReconnectingPTYMins),
 			VscodeMins:          int16(stat.VSCodeMins),

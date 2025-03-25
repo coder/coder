@@ -73,6 +73,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, ps pubsub.P
 		RegionID:        options.RegionID,
 		RelayAddress:    options.RelayAddress,
 		Version:         buildinfo.Version(),
+		// #nosec G115 - Safe conversion for microseconds latency which is expected to be within int32 range
 		DatabaseLatency: int32(databaseLatency.Microseconds()),
 		Primary:         true,
 	})
@@ -322,6 +323,7 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 		Hostname:        m.self.Hostname,
 		Version:         m.self.Version,
 		Error:           replicaError,
+		// #nosec G115 - Safe conversion for microseconds latency which is expected to be within int32 range
 		DatabaseLatency: int32(databaseLatency.Microseconds()),
 		Primary:         m.self.Primary,
 	})
@@ -340,6 +342,7 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 			RegionID:        m.self.RegionID,
 			Hostname:        m.self.Hostname,
 			Version:         m.self.Version,
+			// #nosec G115 - Safe conversion for microseconds latency which is expected to be within int32 range
 			DatabaseLatency: int32(databaseLatency.Microseconds()),
 			Primary:         m.self.Primary,
 		})

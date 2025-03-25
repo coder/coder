@@ -67,6 +67,7 @@ func ProtoFromManifest(manifest Manifest) (*proto.Manifest, error) {
 		OwnerUsername:            manifest.OwnerName,
 		WorkspaceId:              manifest.WorkspaceID[:],
 		WorkspaceName:            manifest.WorkspaceName,
+		// #nosec G115 - Safe conversion for GitAuthConfigs which is expected to be small and positive
 		GitAuthConfigs:           uint32(manifest.GitAuthConfigs),
 		EnvironmentVariables:     manifest.EnvironmentVariables,
 		Directory:                manifest.Directory,
