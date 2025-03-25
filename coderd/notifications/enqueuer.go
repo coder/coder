@@ -52,7 +52,11 @@ type StoreEnqueuer struct {
 // NewStoreEnqueuer creates an Enqueuer implementation which can persist notification messages in the store.
 func NewStoreEnqueuer(cfg codersdk.NotificationsConfig, store Store, helpers template.FuncMap, log slog.Logger, clock quartz.Clock) (*StoreEnqueuer, error) {
 	var method database.NotificationMethod
-	// We do not allow setting Coder Inbox as the default method.
+	// TODO(DanielleMaywood):
+	// Currently we do not want to allow setting `inbox` as the default notification method.
+	// As of 2025-03-25, setting this to `inbox` would cause a crash on the deployment
+	// notification settings page. Until we make a future decision on this we want to disallow
+	// setting it.
 	if err := method.Scan(cfg.Method.String()); err != nil || method == database.NotificationMethodInbox {
 		return nil, InvalidDefaultNotificationMethodError{Method: cfg.Method.String()}
 	}
