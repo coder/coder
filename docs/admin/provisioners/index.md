@@ -32,7 +32,7 @@ Provisioners are started with the
 the [full Coder binary](https://github.com/coder/coder/releases). Keep reading
 to learn how to start provisioners via Docker, Kubernetes, Systemd, etc.
 
-You can use the dashboard, CLI, or API to [manage provisioners](./manage-provisioners.md).
+You can use the dashboard, CLI, or API to [manage provisioners](./manage-provisioner-jobs.md).
 
 ## Authentication
 
@@ -395,4 +395,4 @@ separately.
 
 ## Next
 
-- [Manage Provisioners](./manage-provisioners.md)
+- [Manage Provisioners](./manage-provisioner-jobs.md)
