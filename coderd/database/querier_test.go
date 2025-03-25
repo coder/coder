@@ -3587,6 +3587,10 @@ func TestOrganizationDeleteTrigger(t *testing.T) {
 
 func TestGetPresetsBackoff(t *testing.T) {
 	t.Parallel()
+	if !dbtestutil.WillUsePostgres() {
+		t.SkipNow()
+	}
+
 	type extTmplVersion struct {
 		database.TemplateVersion
 		preset database.TemplateVersionPreset
