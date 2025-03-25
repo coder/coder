@@ -2008,6 +2008,7 @@ func createTemplateVersion(t testing.TB, db database.Store, tpl database.Templat
 			dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
 				WorkspaceID:       wrk.ID,
 				TemplateVersionID: version.ID,
+				// #nosec G115 - Safe conversion as build number is expected to be within int32 range
 				BuildNumber:       int32(i) + 2,
 				Transition:        trans,
 				InitiatorID:       tpl.CreatedBy,

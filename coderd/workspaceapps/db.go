@@ -465,6 +465,7 @@ func (p *DBTokenProvider) auditInitRequest(ctx context.Context, w http.ResponseW
 				Ip:         ip,
 				UserAgent:  userAgent,
 				SlugOrPort: appInfo.SlugOrPort,
+				// #nosec G115 - Safe conversion as HTTP status code is expected to be within int32 range (typically 100-599)
 				StatusCode: int32(statusCode),
 				StartedAt:  aReq.time,
 				UpdatedAt:  aReq.time,

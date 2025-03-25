@@ -435,6 +435,7 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 			ResourceTarget:   either(req.Old, req.New, ResourceTarget[T], req.params.Action),
 			Action:           action,
 			Diff:             diffRaw,
+			// #nosec G115 - Safe conversion as HTTP status code is expected to be within int32 range (typically 100-599)
 			StatusCode:       int32(sw.Status),
 			RequestID:        httpmw.RequestID(p.Request),
 			AdditionalFields: additionalFieldsRaw,
@@ -486,6 +487,7 @@ func BackgroundAudit[T Auditable](ctx context.Context, p *BackgroundAuditParams[
 		ResourceTarget:   either(p.Old, p.New, ResourceTarget[T], p.Action),
 		Action:           p.Action,
 		Diff:             diffRaw,
+		// #nosec G115 - Safe conversion as HTTP status code is expected to be within int32 range (typically 100-599)
 		StatusCode:       int32(p.Status),
 		RequestID:        p.RequestID,
 		AdditionalFields: p.AdditionalFields,

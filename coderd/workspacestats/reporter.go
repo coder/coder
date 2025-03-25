@@ -68,6 +68,7 @@ func (r *Reporter) ReportAppStats(ctx context.Context, stats []workspaceapps.Sta
 			batch.SessionID = append(batch.SessionID, stat.SessionID)
 			batch.SessionStartedAt = append(batch.SessionStartedAt, stat.SessionStartedAt)
 			batch.SessionEndedAt = append(batch.SessionEndedAt, stat.SessionEndedAt)
+			// #nosec G115 - Safe conversion as request count is expected to be within int32 range
 			batch.Requests = append(batch.Requests, int32(stat.Requests))
 
 			if len(batch.UserID) >= r.opts.AppStatBatchSize {

@@ -249,6 +249,7 @@ func TestCache_BuildTime(t *testing.T) {
 				})
 
 				dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+					// #nosec G115 - Safe conversion as build number is expected to be within int32 range
 					BuildNumber:       int32(1 + buildNumber),
 					WorkspaceID:       workspace.ID,
 					InitiatorID:       user.ID,
