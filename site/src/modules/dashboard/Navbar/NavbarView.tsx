@@ -59,11 +59,13 @@ export const NavbarView: FC<NavbarViewProps> = ({
 
 			<NavItems className="ml-4" />
 
+			{/* // TODO: styling required here.
 			{subscribed ? (
 				<button onClick={unsubscribe}>Unsubscribe</button>
 			) : (
 				<button onClick={subscribe}>Subscribe</button>
 			)}
+			*/}
 
 			<div className=" hidden md:flex items-center gap-3 ml-auto">
 				{proxyContextValue && (
