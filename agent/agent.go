@@ -1124,21 +1124,21 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				// initialized (git clone, etc).
 				postStartScripts []codersdk.WorkspaceAgentScript
 			)
-			for _, dc := range manifest.Devcontainers {
-				// TODO(mafredri): Verify `@devcontainers/cli` presence.
-				// TODO(mafredri): Verify workspace folder exists.
-				// TODO(mafredri): If set, verify config path exists.
-				dc = expandDevcontainerPaths(a.logger, dc)
+			if a.experimentalDevcontainersEnabled {
+				for _, dc := range manifest.Devcontainers {
+					// TODO(mafredri): Verify `@devcontainers/cli` presence.
+					// TODO(mafredri): Verify workspace folder exists.
+					// TODO(mafredri): If set, verify config path exists.
+					dc = expandDevcontainerPaths(a.logger, dc)
 
-				for i, s := range scripts {
-					// The devcontainer scripts match the devcontainer ID for
-					// identification.
-					if s.ID == dc.ID {
-						scripts = slices.Delete(scripts, i, i+1)
-						if a.experimentalDevcontainersEnabled {
+					for i, s := range scripts {
+						// The devcontainer scripts match the devcontainer ID for
+						// identification.
+						if s.ID == dc.ID {
+							scripts = slices.Delete(scripts, i, i+1)
 							postStartScripts = append(postStartScripts, agentcontainers.DevcontainerStartupScript(dc, s))
+							break
 						}
-						break
 					}
 				}
 			}

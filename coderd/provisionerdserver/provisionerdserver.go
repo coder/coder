@@ -2051,34 +2051,6 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			}
 		}
 
-		var (
-			devcontainers                = prAgent.GetDevcontainers()
-			devcontainerIDs              = make([]uuid.UUID, 0, len(devcontainers))
-			devcontainerNames            = make([]string, 0, len(devcontainers))
-			devcontainerWorkspaceFolders = make([]string, 0, len(devcontainers))
-			devcontainerConfigPaths      = make([]string, 0, len(devcontainers))
-		)
-		if len(devcontainers) > 0 {
-			for _, dc := range devcontainers {
-				devcontainerIDs = append(devcontainerIDs, uuid.New())
-				devcontainerNames = append(devcontainerNames, dc.Name)
-				devcontainerWorkspaceFolders = append(devcontainerWorkspaceFolders, dc.WorkspaceFolder)
-				devcontainerConfigPaths = append(devcontainerConfigPaths, dc.ConfigPath)
-			}
-
-			_, err = db.InsertWorkspaceAgentDevcontainers(ctx, database.InsertWorkspaceAgentDevcontainersParams{
-				WorkspaceAgentID: agentID,
-				CreatedAt:        dbtime.Now(),
-				ID:               devcontainerIDs,
-				Name:             devcontainerNames,
-				WorkspaceFolder:  devcontainerWorkspaceFolders,
-				ConfigPath:       devcontainerConfigPaths,
-			})
-			if err != nil {
-				return xerrors.Errorf("insert agent devcontainer: %w", err)
-			}
-		}
-
 		logSourceIDs := make([]uuid.UUID, 0, len(prAgent.Scripts))
 		logSourceDisplayNames := make([]string, 0, len(prAgent.Scripts))
 		logSourceIcons := make([]string, 0, len(prAgent.Scripts))
@@ -2106,21 +2078,54 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			scriptRunOnStart = append(scriptRunOnStart, script.RunOnStart)
 			scriptRunOnStop = append(scriptRunOnStop, script.RunOnStop)
 		}
-		// Add a log source and script for each devcontainer so we can
-		// track logs and timings for each.
-		for _, id := range devcontainerIDs {
-			logSourceIDs = append(logSourceIDs, uuid.New())
-			logSourceDisplayNames = append(logSourceDisplayNames, "Dev Container")
-			logSourceIcons = append(logSourceIcons, "/emojis/1f4e6.png")   // Emoji package. Or perhaps /icon/container.svg?
-			scriptIDs = append(scriptIDs, id)                              // Re-use the devcontainer ID as the script ID for identification.
-			scriptDisplayName = append(scriptDisplayName, "Dev Container") // TODO(mafredri): Make it unique? Grab from id used in TF?
-			scriptLogPaths = append(scriptLogPaths, "")
-			scriptSources = append(scriptSources, "")
-			scriptCron = append(scriptCron, "")
-			scriptTimeout = append(scriptTimeout, 0)
-			scriptStartBlocksLogin = append(scriptStartBlocksLogin, false)
-			scriptRunOnStart = append(scriptRunOnStart, false)
-			scriptRunOnStop = append(scriptRunOnStop, false)
+
+		// Dev Containers require a script and log/source, so we do this before
+		// the logs insert below.
+		if devcontainers := prAgent.GetDevcontainers(); len(devcontainers) > 0 {
+			var (
+				devcontainerIDs              = make([]uuid.UUID, 0, len(devcontainers))
+				devcontainerNames            = make([]string, 0, len(devcontainers))
+				devcontainerWorkspaceFolders = make([]string, 0, len(devcontainers))
+				devcontainerConfigPaths      = make([]string, 0, len(devcontainers))
+			)
+			for _, dc := range devcontainers {
+				id := uuid.New()
+				devcontainerIDs = append(devcontainerIDs, id)
+				devcontainerNames = append(devcontainerNames, dc.Name)
+				devcontainerWorkspaceFolders = append(devcontainerWorkspaceFolders, dc.WorkspaceFolder)
+				devcontainerConfigPaths = append(devcontainerConfigPaths, dc.ConfigPath)
+
+				// Add a log source and script for each devcontainer so we can
+				// track logs and timings for each devcontainer.
+				displayName := fmt.Sprintf("Dev Container (%s)", dc.Name)
+				logSourceIDs = append(logSourceIDs, uuid.New())
+				logSourceDisplayNames = append(logSourceDisplayNames, displayName)
+				logSourceIcons = append(logSourceIcons, "/emojis/1f4e6.png") // Emoji package. Or perhaps /icon/container.svg?
+				scriptIDs = append(scriptIDs, id)                            // Re-use the devcontainer ID as the script ID for identification.
+				scriptDisplayName = append(scriptDisplayName, displayName)
+				scriptLogPaths = append(scriptLogPaths, "")
+				scriptSources = append(scriptSources, `echo "WARNING: Dev Containers are early access. If you're seeing this message then Dev Containers haven't been enabled for your workspace yet. To enable, the agent needs to run with the environment variable CODER_AGENT_DEVCONTAINERS_ENABLE=true set."`)
+				scriptCron = append(scriptCron, "")
+				scriptTimeout = append(scriptTimeout, 0)
+				scriptStartBlocksLogin = append(scriptStartBlocksLogin, false)
+				// Run on start to surface the warning message in case the
+				// terraform resource is used, but the experiment hasn't
+				// been enabled.
+				scriptRunOnStart = append(scriptRunOnStart, true)
+				scriptRunOnStop = append(scriptRunOnStop, false)
+			}
+
+			_, err = db.InsertWorkspaceAgentDevcontainers(ctx, database.InsertWorkspaceAgentDevcontainersParams{
+				WorkspaceAgentID: agentID,
+				CreatedAt:        dbtime.Now(),
+				ID:               devcontainerIDs,
+				Name:             devcontainerNames,
+				WorkspaceFolder:  devcontainerWorkspaceFolders,
+				ConfigPath:       devcontainerConfigPaths,
+			})
+			if err != nil {
+				return xerrors.Errorf("insert agent devcontainer: %w", err)
+			}
 		}
 
 		_, err = db.InsertWorkspaceAgentLogSources(ctx, database.InsertWorkspaceAgentLogSourcesParams{

@@ -11,6 +11,7 @@ func DevcontainerStartupScript(dc codersdk.WorkspaceAgentDevcontainer, script co
 	if dc.ConfigPath != "" {
 		cmd = fmt.Sprintf("%s --config %q", cmd, dc.ConfigPath)
 	}
+	script.RunOnStart = false
 	script.Script = cmd
 	return script
 }
