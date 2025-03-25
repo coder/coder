@@ -378,8 +378,10 @@ func TestNotificationTest(t *testing.T) {
 	})
 }
 
-const validEndpointAuthKey = "zqbxT6JKstKSY9JKibZLSQ=="
-const validEndpointP256dhKey = "BNNL5ZaTfK81qhXOx23+wewhigUeFb632jN6LvRWCFH1ubQr77FE/9qV1FuojuRmHP42zmf34rXgW80OvUVDgTk="
+const (
+	validEndpointAuthKey   = "zqbxT6JKstKSY9JKibZLSQ=="
+	validEndpointP256dhKey = "BNNL5ZaTfK81qhXOx23+wewhigUeFb632jN6LvRWCFH1ubQr77FE/9qV1FuojuRmHP42zmf34rXgW80OvUVDgTk="
+)
 
 func TestPushNotificationSubscription(t *testing.T) {
 	t.Parallel()
