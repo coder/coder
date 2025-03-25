@@ -744,10 +744,10 @@ func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Returns the OIDC logout URL.
+// Returns URL for the OIDC logout.
 //
-// @Summary Returns URL for the OIDC logout
-// @ID user-oidc-logout
+// @Summary Get user OIDC logout URL
+// @ID get-user-oidc-logout-url
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Users

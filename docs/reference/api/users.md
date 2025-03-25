@@ -373,7 +373,7 @@ curl -X GET http://coder-server:8080/api/v2/users/oauth2/github/device \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Returns URL for the OIDC logout
+## Get user OIDC logout URL
 
 ### Code samples
 
