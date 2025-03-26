@@ -29,7 +29,7 @@ type Filter interface {
 
 // DefaultFilter is the default filter used when exporting audit logs. It allows
 // storage and exporting for all audit logs.
-var DefaultFilter Filter = FilterFunc(func(_ context.Context, alog database.AuditLog) (FilterDecision, error) {
+var DefaultFilter Filter = FilterFunc(func(_ context.Context, _ database.AuditLog) (FilterDecision, error) {
 	// Store and export all audit logs for now.
 	return FilterDecisionStore | FilterDecisionExport, nil
 })

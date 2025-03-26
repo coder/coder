@@ -99,7 +99,7 @@ func (r *RootCmd) openVSCode() *serpent.Command {
 				// However, if no directory is set, the expanded directory will
 				// not be set either.
 				if workspaceAgent.Directory != "" {
-					workspace, workspaceAgent, err = waitForAgentCond(ctx, client, workspace, workspaceAgent, func(a codersdk.WorkspaceAgent) bool {
+					workspace, workspaceAgent, err = waitForAgentCond(ctx, client, workspace, workspaceAgent, func(_ codersdk.WorkspaceAgent) bool {
 						return workspaceAgent.LifecycleState != codersdk.WorkspaceAgentLifecycleCreated
 					})
 					if err != nil {

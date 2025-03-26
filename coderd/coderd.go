@@ -829,7 +829,7 @@ func New(options *Options) *API {
 	// we do not override subdomain app routes.
 	r.Get("/latency-check", tracing.StatusWriterMiddleware(prometheusMW(LatencyCheck())).ServeHTTP)
 
-	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("OK")) })
+	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("OK")) })
 
 	// Attach workspace apps routes.
 	r.Group(func(r chi.Router) {
@@ -844,7 +844,7 @@ func New(options *Options) *API {
 		r.Route("/derp", func(r chi.Router) {
 			r.Get("/", derpHandler.ServeHTTP)
 			// This is used when UDP is blocked, and latency must be checked via HTTP(s).
-			r.Get("/latency-check", func(w http.ResponseWriter, r *http.Request) {
+			r.Get("/latency-check", func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(http.StatusOK)
 			})
 		})
@@ -901,7 +901,7 @@ func New(options *Options) *API {
 	r.Route("/api/v2", func(r chi.Router) {
 		api.APIHandler = r
 
-		r.NotFound(func(rw http.ResponseWriter, r *http.Request) { httpapi.RouteNotFound(rw) })
+		r.NotFound(func(rw http.ResponseWriter, _ *http.Request) { httpapi.RouteNotFound(rw) })
 		r.Use(
 			// Specific routes can specify different limits, but every rate
 			// limit must be configurable by the admin.

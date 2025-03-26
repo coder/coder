@@ -203,7 +203,7 @@ func (m *Manager) subscribe(ctx context.Context) error {
 		updating = false
 		updateMutex.Unlock()
 	}
-	cancelFunc, err := m.pubsub.Subscribe(PubsubEvent, func(ctx context.Context, message []byte) {
+	cancelFunc, err := m.pubsub.Subscribe(PubsubEvent, func(_ context.Context, message []byte) {
 		updateMutex.Lock()
 		defer updateMutex.Unlock()
 		id, err := uuid.Parse(string(message))

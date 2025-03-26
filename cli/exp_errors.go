@@ -16,7 +16,7 @@ func (RootCmd) errorExample() *serpent.Command {
 	errorCmd := func(use string, err error) *serpent.Command {
 		return &serpent.Command{
 			Use: use,
-			Handler: func(inv *serpent.Invocation) error {
+			Handler: func(_ *serpent.Invocation) error {
 				return err
 			},
 		}
@@ -57,7 +57,7 @@ func (RootCmd) errorExample() *serpent.Command {
 		Long: "This command is pretty pointless, but without it testing errors is" +
 			"difficult to visually inspect. Error message formatting is inherently" +
 			"visual, so we need a way to quickly see what they look like.",
-		Handler: func(inv *serpent.Invocation) error {
+		Handler: func(_ *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
 		Children: []*serpent.Command{
@@ -70,7 +70,7 @@ func (RootCmd) errorExample() *serpent.Command {
 			// A multi-error
 			{
 				Use: "multi-error",
-				Handler: func(inv *serpent.Invocation) error {
+				Handler: func(_ *serpent.Invocation) error {
 					return xerrors.Errorf("wrapped: %w", errors.Join(
 						xerrors.Errorf("first error: %w", errorWithStackTrace()),
 						xerrors.Errorf("second error: %w", errorWithStackTrace()),
@@ -81,7 +81,7 @@ func (RootCmd) errorExample() *serpent.Command {
 			{
 				Use:   "multi-multi-error",
 				Short: "This is a multi error inside a multi error",
-				Handler: func(inv *serpent.Invocation) error {
+				Handler: func(_ *serpent.Invocation) error {
 					return errors.Join(
 						xerrors.Errorf("parent error: %w", errorWithStackTrace()),
 						errors.Join(
@@ -100,7 +100,7 @@ func (RootCmd) errorExample() *serpent.Command {
 						Required:    true,
 						Flag:        "magic-word",
 						Default:     "",
-						Value: serpent.Validate(&magicWord, func(value *serpent.String) error {
+						Value: serpent.Validate(&magicWord, func(_ *serpent.String) error {
 							return xerrors.Errorf("magic word is incorrect")
 						}),
 					},

@@ -3364,7 +3364,7 @@ func (q *querier) InsertUserGroupsByName(ctx context.Context, arg database.Inser
 	// This will add the user to all named groups. This counts as updating a group.
 	// NOTE: instead of checking if the user has permission to update each group, we instead
 	// check if the user has permission to update *a* group in the org.
-	fetch := func(ctx context.Context, arg database.InsertUserGroupsByNameParams) (rbac.Objecter, error) {
+	fetch := func(_ context.Context, arg database.InsertUserGroupsByNameParams) (rbac.Objecter, error) {
 		return rbac.ResourceGroup.InOrg(arg.OrganizationID), nil
 	}
 	return update(q.log, q.auth, fetch, q.db.InsertUserGroupsByName)(ctx, arg)
