@@ -1,6 +1,7 @@
 package agentcontainers_test
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -133,12 +134,12 @@ func TestExtractAndInitializeDevcontainerScripts(t *testing.T) {
 			wantDevcontainerScripts: []codersdk.WorkspaceAgentScript{
 				{
 					ID:         devcontainerIDs[0],
-					Script:     "devcontainer up --workspace-folder \"workspace1\" --config \"config1\"",
+					Script:     "devcontainer up --workspace-folder \"workspace1\" --config \"workspace1/config1\"",
 					RunOnStart: false,
 				},
 				{
 					ID:         devcontainerIDs[1],
-					Script:     "devcontainer up --workspace-folder \"workspace2\" --config \"config2\"",
+					Script:     "devcontainer up --workspace-folder \"workspace2\" --config \"workspace2/config2\"",
 					RunOnStart: false,
 				},
 			},
@@ -147,7 +148,7 @@ func TestExtractAndInitializeDevcontainerScripts(t *testing.T) {
 			name: "scripts match devcontainers with expand path",
 			args: args{
 				expandPath: func(s string) (string, error) {
-					return "expanded/" + s, nil
+					return "/home/" + s, nil
 				},
 				devcontainers: []codersdk.WorkspaceAgentDevcontainer{
 					{
@@ -170,12 +171,53 @@ func TestExtractAndInitializeDevcontainerScripts(t *testing.T) {
 			wantDevcontainerScripts: []codersdk.WorkspaceAgentScript{
 				{
 					ID:         devcontainerIDs[0],
-					Script:     "devcontainer up --workspace-folder \"expanded/workspace1\" --config \"expanded/config1\"",
+					Script:     "devcontainer up --workspace-folder \"/home/workspace1\" --config \"/home/workspace1/config1\"",
 					RunOnStart: false,
 				},
 				{
 					ID:         devcontainerIDs[1],
-					Script:     "devcontainer up --workspace-folder \"expanded/workspace2\" --config \"expanded/config2\"",
+					Script:     "devcontainer up --workspace-folder \"/home/workspace2\" --config \"/home/workspace2/config2\"",
+					RunOnStart: false,
+				},
+			},
+		},
+		{
+			name: "expand config path when ~",
+			args: args{
+				expandPath: func(s string) (string, error) {
+					s = strings.Replace(s, "~/", "", 1)
+					if filepath.IsAbs(s) {
+						return s, nil
+					}
+					return "/home/" + s, nil
+				},
+				devcontainers: []codersdk.WorkspaceAgentDevcontainer{
+					{
+						ID:              devcontainerIDs[0],
+						WorkspaceFolder: "workspace1",
+						ConfigPath:      "~/config1",
+					},
+					{
+						ID:              devcontainerIDs[1],
+						WorkspaceFolder: "workspace2",
+						ConfigPath:      "/config2",
+					},
+				},
+				scripts: []codersdk.WorkspaceAgentScript{
+					{ID: devcontainerIDs[0], RunOnStart: true},
+					{ID: devcontainerIDs[1], RunOnStart: true},
+				},
+			},
+			wantFilteredScripts: []codersdk.WorkspaceAgentScript{},
+			wantDevcontainerScripts: []codersdk.WorkspaceAgentScript{
+				{
+					ID:         devcontainerIDs[0],
+					Script:     "devcontainer up --workspace-folder \"/home/workspace1\" --config \"/home/config1\"",
+					RunOnStart: false,
+				},
+				{
+					ID:         devcontainerIDs[1],
+					Script:     "devcontainer up --workspace-folder \"/home/workspace2\" --config \"/config2\"",
 					RunOnStart: false,
 				},
 			},

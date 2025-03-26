@@ -3,6 +3,8 @@ package agentcontainers
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"cdr.dev/slog"
@@ -64,17 +66,33 @@ func devcontainerStartupScript(dc codersdk.WorkspaceAgentDevcontainer, script co
 }
 
 func expandDevcontainerPaths(logger slog.Logger, expandPath func(string) (string, error), dc codersdk.WorkspaceAgentDevcontainer) codersdk.WorkspaceAgentDevcontainer {
+	logger = logger.With(slog.F("devcontainer", dc.Name), slog.F("workspace_folder", dc.WorkspaceFolder), slog.F("config_path", dc.ConfigPath))
+
 	if wf, err := expandPath(dc.WorkspaceFolder); err != nil {
 		logger.Warn(context.Background(), "expand devcontainer workspace folder failed", slog.Error(err))
 	} else {
 		dc.WorkspaceFolder = wf
 	}
 	if dc.ConfigPath != "" {
-		if cp, err := expandPath(dc.ConfigPath); err != nil {
-			logger.Warn(context.Background(), "expand devcontainer config path failed", slog.Error(err))
+		// Let expandPath handle home directory, otherwise assume relative to
+		// workspace folder or absoulte.
+		if dc.ConfigPath[0] == '~' {
+			if cp, err := expandPath(dc.ConfigPath); err != nil {
+				logger.Warn(context.Background(), "expand devcontainer config path failed", slog.Error(err))
+			} else {
+				dc.ConfigPath = cp
+			}
 		} else {
-			dc.ConfigPath = cp
+			dc.ConfigPath = relativePathToAbs(dc.WorkspaceFolder, dc.ConfigPath)
 		}
 	}
 	return dc
+}
+
+func relativePathToAbs(workdir, path string) string {
+	path = os.ExpandEnv(path)
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(workdir, path)
+	}
+	return path
 }
