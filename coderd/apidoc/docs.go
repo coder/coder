@@ -11561,7 +11561,7 @@ const docTemplate = `{
                     }
                 },
                 "address": {
-                    "description": "DEPRECATED: Use HTTPAddress or TLS.Address instead.",
+                    "description": "Deprecated: Use HTTPAddress or TLS.Address instead.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/serpent.HostPort"
@@ -12658,6 +12658,14 @@ const docTemplate = `{
                     "description": "How often to query the database for queued notifications.",
                     "type": "integer"
                 },
+                "inbox": {
+                    "description": "Inbox settings.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.NotificationsInboxConfig"
+                        }
+                    ]
+                },
                 "lease_count": {
                     "description": "How many notifications a notifier should lease per fetch interval.",
                     "type": "integer"
@@ -12779,6 +12787,14 @@ const docTemplate = `{
                 },
                 "start_tls": {
                     "description": "StartTLS attempts to upgrade plain connections to TLS.",
+                    "type": "boolean"
+                }
+            }
+        },
+        "codersdk.NotificationsInboxConfig": {
+            "type": "object",
+            "properties": {
+                "enabled": {
                     "type": "boolean"
                 }
             }

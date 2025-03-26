@@ -287,7 +287,7 @@ func convertParameterInsights(rows []database.GetTemplateParameterInsightsRow) [
 			if _, ok := m[key]; !ok {
 				m[key] = 0
 			}
-			m[key] = m[key] + r.Count
+			m[key] += r.Count
 		}
 	}
 

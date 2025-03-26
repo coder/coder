@@ -3,6 +3,8 @@ package notifications
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"slices"
 	"strings"
 	"text/template"
 
@@ -24,11 +26,22 @@ var (
 	ErrDuplicate                         = xerrors.New("duplicate notification")
 )
 
+type InvalidDefaultNotificationMethodError struct {
+	Method string
+}
+
+func (e InvalidDefaultNotificationMethodError) Error() string {
+	return fmt.Sprintf("given default notification method %q is invalid", e.Method)
+}
+
 type StoreEnqueuer struct {
 	store Store
 	log   slog.Logger
 
-	defaultMethod database.NotificationMethod
+	defaultMethod  database.NotificationMethod
+	defaultEnabled bool
+	inboxEnabled   bool
+
 	// helpers holds a map of template funcs which are used when rendering templates. These need to be passed in because
 	// the template funcs will return values which are inappropriately encapsulated in this struct.
 	helpers template.FuncMap
@@ -39,16 +52,23 @@ type StoreEnqueuer struct {
 // NewStoreEnqueuer creates an Enqueuer implementation which can persist notification messages in the store.
 func NewStoreEnqueuer(cfg codersdk.NotificationsConfig, store Store, helpers template.FuncMap, log slog.Logger, clock quartz.Clock) (*StoreEnqueuer, error) {
 	var method database.NotificationMethod
-	if err := method.Scan(cfg.Method.String()); err != nil {
-		return nil, xerrors.Errorf("given notification method %q is invalid", cfg.Method)
+	// TODO(DanielleMaywood):
+	// Currently we do not want to allow setting `inbox` as the default notification method.
+	// As of 2025-03-25, setting this to `inbox` would cause a crash on the deployment
+	// notification settings page. Until we make a future decision on this we want to disallow
+	// setting it.
+	if err := method.Scan(cfg.Method.String()); err != nil || method == database.NotificationMethodInbox {
+		return nil, InvalidDefaultNotificationMethodError{Method: cfg.Method.String()}
 	}
 
 	return &StoreEnqueuer{
-		store:         store,
-		log:           log,
-		defaultMethod: method,
-		helpers:       helpers,
-		clock:         clock,
+		store:          store,
+		log:            log,
+		defaultMethod:  method,
+		defaultEnabled: cfg.Enabled(),
+		inboxEnabled:   cfg.Inbox.Enabled.Value(),
+		helpers:        helpers,
+		clock:          clock,
 	}, nil
 }
 
@@ -69,11 +89,6 @@ func (s *StoreEnqueuer) EnqueueWithData(ctx context.Context, userID, templateID 
 		return nil, xerrors.Errorf("new message metadata: %w", err)
 	}
 
-	dispatchMethod := s.defaultMethod
-	if metadata.CustomMethod.Valid {
-		dispatchMethod = metadata.CustomMethod.NotificationMethod
-	}
-
 	payload, err := s.buildPayload(metadata, labels, data, targets)
 	if err != nil {
 		s.log.Warn(ctx, "failed to build payload", slog.F("template_id", templateID), slog.F("user_id", userID), slog.Error(err))
@@ -85,11 +100,29 @@ func (s *StoreEnqueuer) EnqueueWithData(ctx context.Context, userID, templateID 
 		return nil, xerrors.Errorf("failed encoding input labels: %w", err)
 	}
 
-	uuids := make([]uuid.UUID, 0, 2)
+	methods := []database.NotificationMethod{}
+	if metadata.CustomMethod.Valid {
+		methods = append(methods, metadata.CustomMethod.NotificationMethod)
+	} else if s.defaultEnabled {
+		methods = append(methods, s.defaultMethod)
+	}
+
 	// All the enqueued messages are enqueued both on the dispatch method set by the user (or default one) and the inbox.
 	// As the inbox is not configurable per the user and is always enabled, we always enqueue the message on the inbox.
 	// The logic is done here in order to have two completely separated processing and retries are handled separately.
-	for _, method := range []database.NotificationMethod{dispatchMethod, database.NotificationMethodInbox} {
+	if !slices.Contains(methods, database.NotificationMethodInbox) && s.inboxEnabled {
+		methods = append(methods, database.NotificationMethodInbox)
+	}
+
+	uuids := make([]uuid.UUID, 0, 2)
+	for _, method := range methods {
+		// TODO(DanielleMaywood):
+		// We should have a more permanent solution in the future, but for now this will work.
+		// We do not want password reset notifications to end up in Coder Inbox.
+		if method == database.NotificationMethodInbox && templateID == TemplateUserRequestedOneTimePasscode {
+			continue
+		}
+
 		id := uuid.New()
 		err = s.store.EnqueueNotificationMessage(ctx, database.EnqueueNotificationMessageParams{
 			ID:                     id,

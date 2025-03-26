@@ -10,12 +10,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/serpent"
+
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
-	"github.com/coder/serpent"
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"

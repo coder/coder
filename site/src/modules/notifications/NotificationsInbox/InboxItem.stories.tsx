@@ -48,6 +48,23 @@ export const LongText: Story = {
 	},
 };
 
+export const Markdown: Story = {
+	args: {
+		notification: {
+			...MockNotification,
+			read_at: null,
+			content:
+				"Template **Write Coder on Coder with AI** has failed to build 1/33 times over the last week.\n\n**Report:**\n\n**sweet_cannon7** failed 1 time:\n\n* [edward / coder-on-coder-claude / #34](https://dev.coder.com/@edward/coder-on-coder-claude/builds/34)\n\nWe recommend reviewing these issues to ensure future builds are successful.",
+			actions: [
+				{
+					label: "View workspaces",
+					url: "https://dev.coder.com/workspaces?filter=template%3Acoder-with-ai",
+				},
+			],
+		},
+	},
+};
+
 export const UnreadFocus: Story = {
 	args: {
 		notification: {

@@ -89,7 +89,7 @@ func (r *RootCmd) openVSCode() *serpent.Command {
 				})
 				if err != nil {
 					if xerrors.Is(err, context.Canceled) {
-						return cliui.Canceled
+						return cliui.ErrCanceled
 					}
 					return xerrors.Errorf("agent: %w", err)
 				}
@@ -99,7 +99,7 @@ func (r *RootCmd) openVSCode() *serpent.Command {
 				// However, if no directory is set, the expanded directory will
 				// not be set either.
 				if workspaceAgent.Directory != "" {
-					workspace, workspaceAgent, err = waitForAgentCond(ctx, client, workspace, workspaceAgent, func(a codersdk.WorkspaceAgent) bool {
+					workspace, workspaceAgent, err = waitForAgentCond(ctx, client, workspace, workspaceAgent, func(_ codersdk.WorkspaceAgent) bool {
 						return workspaceAgent.LifecycleState != codersdk.WorkspaceAgentLifecycleCreated
 					})
 					if err != nil {
@@ -301,6 +301,10 @@ func (r *RootCmd) openApp() *serpent.Command {
 			pathAppURL := strings.TrimPrefix(region.PathAppURL, baseURL.String())
 			appURL := buildAppLinkURL(baseURL, ws, agt, foundApp, region.WildcardHostname, pathAppURL)
 
+			if foundApp.External {
+				appURL = replacePlaceholderExternalSessionTokenString(client, appURL)
+			}
+
 			// Check if we're inside a workspace.  Generally, we know
 			// that if we're inside a workspace, `open` can't be used.
 			insideAWorkspace := inv.Environ.Get("CODER") == "true"
@@ -314,7 +318,7 @@ func (r *RootCmd) openApp() *serpent.Command {
 			if !testOpenError {
 				err = open.Run(appURL)
 			} else {
-				err = xerrors.New("test.open-error")
+				err = xerrors.New("test.open-error: " + appURL)
 			}
 			return err
 		},
@@ -510,4 +514,16 @@ func buildAppLinkURL(baseURL *url.URL, workspace codersdk.Workspace, agent coder
 		u.Path = "/"
 	}
 	return u.String()
+}
+
+// replacePlaceholderExternalSessionTokenString replaces any $SESSION_TOKEN
+// strings in the URL with the actual session token.
+// This is consistent behavior with the frontend. See: site/src/modules/resources/AppLink/AppLink.tsx
+func replacePlaceholderExternalSessionTokenString(client *codersdk.Client, appURL string) string {
+	if !strings.Contains(appURL, "$SESSION_TOKEN") {
+		return appURL
+	}
+
+	// We will just re-use the existing session token we're already using.
+	return strings.ReplaceAll(appURL, "$SESSION_TOKEN", client.SessionToken())
 }

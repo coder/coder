@@ -153,6 +153,7 @@ func (cryptoRandSource) Int63() int64 {
 	}
 
 	// mask off sign bit to ensure positive number
+	// #nosec G115 - Safe conversion because we're masking the highest bit to ensure a positive int64
 	return int64(binary.LittleEndian.Uint64(b[:]) & (1<<63 - 1))
 }
 

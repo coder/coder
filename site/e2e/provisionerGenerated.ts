@@ -220,6 +220,7 @@ export interface Script {
 export interface Devcontainer {
   workspaceFolder: string;
   configPath: string;
+  name: string;
 }
 
 /** App represents a dev-accessible application on the workspace. */
@@ -346,6 +347,7 @@ export interface PlanComplete {
   timings: Timing[];
   modules: Module[];
   presets: Preset[];
+  plan: Uint8Array;
 }
 
 /**
@@ -805,6 +807,9 @@ export const Devcontainer = {
     if (message.configPath !== "") {
       writer.uint32(18).string(message.configPath);
     }
+    if (message.name !== "") {
+      writer.uint32(26).string(message.name);
+    }
     return writer;
   },
 };
@@ -1098,6 +1103,9 @@ export const PlanComplete = {
     }
     for (const v of message.presets) {
       Preset.encode(v!, writer.uint32(66).fork()).ldelim();
+    }
+    if (message.plan.length !== 0) {
+      writer.uint32(74).bytes(message.plan);
     }
     return writer;
   },

@@ -54,6 +54,16 @@ FIND_EXCLUSIONS= \
 	-not \( \( -path '*/.git/*' -o -path './build/*' -o -path './vendor/*' -o -path './.coderv2/*' -o -path '*/node_modules/*' -o -path '*/out/*' -o -path './coderd/apidoc/*' -o -path '*/.next/*' -o -path '*/.terraform/*' \) -prune \)
 # Source files used for make targets, evaluated on use.
 GO_SRC_FILES := $(shell find . $(FIND_EXCLUSIONS) -type f -name '*.go' -not -name '*_test.go')
+# Same as GO_SRC_FILES but excluding certain files that have problematic
+# Makefile dependencies (e.g. pnpm).
+MOST_GO_SRC_FILES := $(shell \
+	find . \
+		$(FIND_EXCLUSIONS) \
+		-type f \
+		-name '*.go' \
+		-not -name '*_test.go' \
+		-not -wholename './agent/agentcontainers/dcspec/dcspec_gen.go' \
+)
 # All the shell files in the repo, excluding ignored files.
 SHELL_SRC_FILES := $(shell find . $(FIND_EXCLUSIONS) -type f -name '*.sh')
 
@@ -243,7 +253,7 @@ $(CODER_ALL_BINARIES): go.mod go.sum \
 	fi
 
 # This task builds Coder Desktop dylibs
-$(CODER_DYLIBS): go.mod go.sum $(GO_SRC_FILES)
+$(CODER_DYLIBS): go.mod go.sum $(MOST_GO_SRC_FILES)
 	@if [ "$(shell uname)" = "Darwin" ]; then
 		$(get-mode-os-arch-ext)
 		./scripts/build_go.sh \
@@ -659,8 +669,12 @@ agent/agentcontainers/acmock/acmock.go: agent/agentcontainers/containers.go
 	go generate ./agent/agentcontainers/acmock/
 	touch "$@"
 
-agent/agentcontainers/dcspec/dcspec_gen.go: agent/agentcontainers/dcspec/devContainer.base.schema.json
-	go generate ./agent/agentcontainers/dcspec/
+agent/agentcontainers/dcspec/dcspec_gen.go: \
+	node_modules/.installed \
+	agent/agentcontainers/dcspec/devContainer.base.schema.json \
+	agent/agentcontainers/dcspec/gen.sh \
+	agent/agentcontainers/dcspec/doc.go
+	DCSPEC_QUIET=true go generate ./agent/agentcontainers/dcspec/
 	touch "$@"
 
 $(TAILNETTEST_MOCKS): tailnet/coordinator.go tailnet/service.go

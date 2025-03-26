@@ -195,6 +195,7 @@ message Script {
 message Devcontainer {
 	string workspace_folder = 1;
 	string config_path = 2;
+	string name = 3;
 }
 
 enum AppOpenIn {
@@ -327,6 +328,7 @@ message PlanComplete {
     repeated Timing timings = 6;
     repeated Module modules = 7;
     repeated Preset presets = 8;
+    bytes plan = 9;
 }
 
 // ApplyRequest asks the provisioner to apply the changes.  Apply MUST be preceded by a successful plan request/response

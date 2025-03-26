@@ -178,7 +178,7 @@ jobs:
           echo "LINT_CACHE_DIR=$dir" >> $GITHUB_ENV
 
       - name: golangci-lint cache
-        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: |
             ${{ env.LINT_CACHE_DIR }}
@@ -730,7 +730,7 @@ jobs:
 
       - name: Upload Playwright Failed Tests
         if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: failed-test-videos${{ matrix.variant.premium && '-premium' || '' }}
           path: ./site/test-results/**/*.webm
@@ -738,7 +738,7 @@ jobs:
 
       - name: Upload pprof dumps
         if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: debug-pprof-dumps${{ matrix.variant.premium && '-premium' || ''  }}
           path: ./site/test-results/**/debug-pprof-*.txt
@@ -997,7 +997,7 @@ jobs:
 
       - name: Upload build artifacts
         if: ${{ github.repository_owner == 'coder' && github.ref == 'refs/heads/main' }}
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: dylibs
           path: |
@@ -1071,14 +1071,10 @@ jobs:
         run: sudo apt-get install -y zstd
 
       - name: Install cosign
-        uses: sigstore/cosign-installer@d7d6bc7722e3daa8354c50bcb52f4837da5e9b6a # v3.8.1
-        with:
-          cosign-release: "v2.4.3"
+        uses: ./.github/actions/install-cosign
 
       - name: Install syft
-        uses: anchore/sbom-action/download-syft@f325610c9f50a54015d37c8d16cb3b0e2c8f4de0 # v0.18.0
-        with:
-          syft-version: "v1.20.0"
+        uses: ./.github/actions/install-syft
 
       - name: Setup Windows EV Signing Certificate
         run: |
@@ -1103,7 +1099,7 @@ jobs:
         uses: google-github-actions/setup-gcloud@77e7a554d41e2ee56fc945c52dfd3f33d12def9a # v2.1.4
 
       - name: Download dylibs
-        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4.1.9
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
         with:
           name: dylibs
           path: ./build
@@ -1330,7 +1326,7 @@ jobs:
 
       - name: Upload build artifacts
         if: github.ref == 'refs/heads/main'
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: coder
           path: |

@@ -120,7 +120,7 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 		// (later on) fails and the user is not authenticated, they will be
 		// redirected to the login page or app auth endpoint using code below.
 		Optional: true,
-		SessionTokenFunc: func(r *http.Request) string {
+		SessionTokenFunc: func(_ *http.Request) string {
 			return issueReq.SessionToken
 		},
 	})
@@ -132,13 +132,14 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 
 	// Lookup workspace app details from DB.
 	dbReq, err := appReq.getDatabase(dangerousSystemCtx, p.Database)
-	if xerrors.Is(err, sql.ErrNoRows) {
+	switch {
+	case xerrors.Is(err, sql.ErrNoRows):
 		WriteWorkspaceApp404(p.Logger, p.DashboardURL, rw, r, &appReq, nil, err.Error())
 		return nil, "", false
-	} else if xerrors.Is(err, errWorkspaceStopped) {
+	case xerrors.Is(err, errWorkspaceStopped):
 		WriteWorkspaceOffline(p.Logger, p.DashboardURL, rw, r, &appReq)
 		return nil, "", false
-	} else if err != nil {
+	case err != nil:
 		WriteWorkspaceApp500(p.Logger, p.DashboardURL, rw, r, &appReq, err, "get app details from database")
 		return nil, "", false
 	}
@@ -464,6 +465,7 @@ func (p *DBTokenProvider) auditInitRequest(ctx context.Context, w http.ResponseW
 				Ip:         ip,
 				UserAgent:  userAgent,
 				SlugOrPort: appInfo.SlugOrPort,
+				// #nosec G115 - Safe conversion as HTTP status code is expected to be within int32 range (typically 100-599)
 				StatusCode: int32(statusCode),
 				StartedAt:  aReq.time,
 				UpdatedAt:  aReq.time,
