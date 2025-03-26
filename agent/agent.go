@@ -36,6 +36,7 @@ import (
 	"tailscale.com/util/clientmetric"
 
 	"cdr.dev/slog"
+	"github.com/coder/clistat"
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentscripts"
@@ -44,7 +45,6 @@ import (
 	"github.com/coder/coder/v2/agent/proto/resourcesmonitor"
 	"github.com/coder/coder/v2/agent/reconnectingpty"
 	"github.com/coder/coder/v2/buildinfo"
-	"github.com/coder/coder/v2/cli/clistat"
 	"github.com/coder/coder/v2/cli/gitauth"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
