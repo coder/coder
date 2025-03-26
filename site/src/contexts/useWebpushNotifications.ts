@@ -1,10 +1,12 @@
 import { API } from "api/api";
 import { buildInfo } from "api/queries/buildInfo";
+import { experiments } from "api/queries/experiments";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { useEffect, useState } from "react";
 import { useQuery } from "react-query";
 
-interface PushNotifications {
+interface WebpushNotifications {
+	readonly enabled: boolean;
 	readonly subscribed: boolean;
 	readonly loading: boolean;
 
@@ -12,14 +14,21 @@ interface PushNotifications {
 	unsubscribe(): Promise<void>;
 }
 
-export const usePushNotifications = (): PushNotifications => {
+export const useWebpushNotifications = (): WebpushNotifications => {
 	const { metadata } = useEmbeddedMetadata();
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
+	const enabledExperimentsQuery = useQuery(experiments(metadata.experiments));
 
 	const [subscribed, setSubscribed] = useState<boolean>(false);
 	const [loading, setLoading] = useState<boolean>(true);
+	const [enabled, setEnabled] = useState<boolean>(false);
 
 	useEffect(() => {
+		// Check if the experiment is enabled.
+		if (enabledExperimentsQuery.data?.includes("web-push")) {
+			setEnabled(true);
+		}
+
 		// Check if browser supports push notifications
 		if (!("Notification" in window) || !("serviceWorker" in navigator)) {
 			setSubscribed(false);
@@ -41,14 +50,12 @@ export const usePushNotifications = (): PushNotifications => {
 		};
 
 		checkSubscription();
-	}, []);
+	}, [enabledExperimentsQuery.data]);
 
 	const subscribe = async (): Promise<void> => {
 		try {
 			setLoading(true);
 			const registration = await navigator.serviceWorker.ready;
-
-			// Note: You'd typically get this key from your server
 			const vapidPublicKey = buildInfoQuery.data?.webpush_public_key;
 
 			const subscription = await registration.pushManager.subscribe({
@@ -66,7 +73,6 @@ export const usePushNotifications = (): PushNotifications => {
 				p256dh_key: json.keys.p256dh,
 			});
 
-			// Send subscription to your server here
 			setSubscribed(true);
 		} catch (error) {
 			console.error("Subscription failed:", error);
@@ -96,6 +102,7 @@ export const usePushNotifications = (): PushNotifications => {
 
 	return {
 		subscribed,
+		enabled,
 		loading: loading || buildInfoQuery.isLoading,
 		subscribe,
 		unsubscribe,

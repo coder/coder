@@ -1,9 +1,6 @@
 /// <reference lib="webworker" />
 
-import {
-	type PushNotification,
-	PushNotificationAction,
-} from "api/typesGenerated";
+import type { WebpushMessage } from "api/typesGenerated";
 
 // @ts-ignore
 declare const self: ServiceWorkerGlobalScope;
@@ -21,7 +18,7 @@ self.addEventListener("push", (event) => {
 		return;
 	}
 
-	let payload: PushNotification;
+	let payload: WebpushMessage;
 	try {
 		payload = event.data.json();
 	} catch (e) {
