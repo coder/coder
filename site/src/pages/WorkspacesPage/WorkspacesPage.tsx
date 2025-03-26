@@ -45,7 +45,6 @@ const WorkspacesPage: FC = () => {
 
 	const templatesQuery = useQuery(templates());
 
-	// Check if user can create workspaces in each organization
 	const orgPermissionsQuery = useQuery(
 		organizationsPermissions(
 			templatesQuery.data?.map((template) => template.organization_id),
