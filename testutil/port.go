@@ -34,13 +34,13 @@ func RandomPort(t *testing.T) int {
 func RandomPortNoListen(*testing.T) uint16 {
 	const (
 		// Overlap of windows, linux in https://en.wikipedia.org/wiki/Ephemeral_port
-		min = 49152
-		max = 60999
+		minPort = 49152
+		maxPort = 60999
 	)
-	n := max - min
+	n := maxPort - minPort
 	rndMu.Lock()
 	x := rnd.Intn(n)
 	rndMu.Unlock()
-	// #nosec G115 - Safe conversion since min and x are explicitly within the uint16 range
-	return uint16(min + x)
+	// #nosec G115 - Safe conversion since minPort and x are explicitly within the uint16 range
+	return uint16(minPort + x)
 }

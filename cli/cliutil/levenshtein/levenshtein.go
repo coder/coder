@@ -72,7 +72,7 @@ func Distance(a, b string, maxDist int) (int, error) {
 				subCost = 1
 			}
 			// Don't forget: matrix is +1 size
-			d[i+1][j+1] = min(
+			d[i+1][j+1] = minOf(
 				d[i][j+1]+1,     // deletion
 				d[i+1][j]+1,     // insertion
 				d[i][j]+subCost, // substitution
@@ -88,9 +88,9 @@ func Distance(a, b string, maxDist int) (int, error) {
 	return int(d[m][n]), nil
 }
 
-func min[T constraints.Ordered](ts ...T) T {
+func minOf[T constraints.Ordered](ts ...T) T {
 	if len(ts) == 0 {
-		panic("min: no arguments")
+		panic("minOf: no arguments")
 	}
 	m := ts[0]
 	for _, t := range ts[1:] {

@@ -13,7 +13,7 @@ import (
 
 type Auditor interface {
 	Export(ctx context.Context, alog database.AuditLog) error
-	diff(old, new any) Map
+	diff(old, newVal any) Map
 }
 
 type AdditionalFields struct {

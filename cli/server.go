@@ -1768,9 +1768,9 @@ func parseTLSCipherSuites(ciphers []string) ([]tls.CipherSuite, error) {
 // hasSupportedVersion is a helper function that returns true if the list
 // of supported versions contains a version between min and max.
 // If the versions list is outside the min/max, then it returns false.
-func hasSupportedVersion(min, max uint16, versions []uint16) bool {
+func hasSupportedVersion(minVal, maxVal uint16, versions []uint16) bool {
 	for _, v := range versions {
-		if v >= min && v <= max {
+		if v >= minVal && v <= maxVal {
 			// If one version is in between min/max, return true.
 			return true
 		}

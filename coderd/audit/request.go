@@ -557,10 +557,10 @@ func BaggageFromContext(ctx context.Context) WorkspaceBuildBaggage {
 	return d
 }
 
-func either[T Auditable, R any](old, new T, fn func(T) R, auditAction database.AuditAction) R {
+func either[T Auditable, R any](old, newVal T, fn func(T) R, auditAction database.AuditAction) R {
 	switch {
-	case ResourceID(new) != uuid.Nil:
-		return fn(new)
+	case ResourceID(newVal) != uuid.Nil:
+		return fn(newVal)
 	case ResourceID(old) != uuid.Nil:
 		return fn(old)
 	case auditAction == database.AuditActionLogin || auditAction == database.AuditActionLogout:

@@ -152,7 +152,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		q.Add("provisioner", "echo")
 
 		// Set a different (newer) version than the current.
-		v := apiversion.New(proto.CurrentMajor+1, proto.CurrentMinor+1)
+		v := apiversion.NewAPIVersion(proto.CurrentMajor+1, proto.CurrentMinor+1)
 		q.Add("version", v.String())
 		srvURL.RawQuery = q.Encode()
 

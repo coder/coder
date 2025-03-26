@@ -138,7 +138,7 @@ var fallbackIdentityFiles = strings.Join([]string{
 //
 // The extra arguments work without issue and lets us run the command
 // as-is without stripping out the excess (git-upload-pack 'coder/coder').
-func parseIdentityFilesForHost(ctx context.Context, args, env []string) (identityFiles []string, error error) {
+func parseIdentityFilesForHost(ctx context.Context, args, env []string) (identityFiles []string, err error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return nil, xerrors.Errorf("get user home dir failed: %w", err)
