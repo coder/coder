@@ -379,7 +379,7 @@ func TestNotificationTest(t *testing.T) {
 }
 
 const (
-	// These are valid keys for a push notification subscription.
+	// These are valid keys for a web push subscription.
 	// DO NOT REUSE THESE IN ANY REAL CODE.
 	validEndpointAuthKey   = "zqbxT6JKstKSY9JKibZLSQ=="
 	validEndpointP256dhKey = "BNNL5ZaTfK81qhXOx23+wewhigUeFb632jN6LvRWCFH1ubQr77FE/9qV1FuojuRmHP42zmf34rXgW80OvUVDgTk="
@@ -413,7 +413,7 @@ func TestPushNotificationSubscription(t *testing.T) {
 		require.True(t, <-handlerCalled, "handler should have been called")
 
 		err = memberClient.PostTestWebpushMessage(ctx)
-		require.NoError(t, err, "test push notification")
+		require.NoError(t, err, "test web push notification")
 		require.True(t, <-handlerCalled, "handler should have been called again")
 
 		err = memberClient.DeleteWebpushSubscription(ctx, "me", codersdk.DeleteWebpushSubscription{

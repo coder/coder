@@ -21,15 +21,15 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// NotificationDispatcher is an interface that can be used to dispatch
-// push notifications.
-type NotificationDispatcher interface {
+// Dispatcher is an interface that can be used to dispatch
+// push notifications over Web Push.
+type Dispatcher interface {
 	Dispatch(ctx context.Context, userID uuid.UUID, notification codersdk.WebpushMessage) error
 	PublicKey() string
 	PrivateKey() string
 }
 
-// New creates a new push manager to dispatch push notifications.
+// New creates a new Dispatcher to dispatch notifications via Web Push.
 //
 // This is *not* integrated into the enqueue system unfortunately.
 // That's because the notifications system has a enqueue system,
@@ -37,7 +37,7 @@ type NotificationDispatcher interface {
 // for updates inside of a workspace, which we want to be immediate.
 //
 // See: https://github.com/coder/internal/issues/528
-func New(ctx context.Context, log *slog.Logger, db database.Store) (NotificationDispatcher, error) {
+func New(ctx context.Context, log *slog.Logger, db database.Store) (Dispatcher, error) {
 	keys, err := db.GetWebpushVAPIDKeys(ctx)
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
@@ -57,7 +57,7 @@ func New(ctx context.Context, log *slog.Logger, db database.Store) (Notification
 		keys.VapidPrivateKey = newPrivateKey
 	}
 
-	return &Notifier{
+	return &Webpusher{
 		store:           db,
 		log:             log,
 		VAPIDPublicKey:  keys.VapidPublicKey,
@@ -65,7 +65,7 @@ func New(ctx context.Context, log *slog.Logger, db database.Store) (Notification
 	}, nil
 }
 
-type Notifier struct {
+type Webpusher struct {
 	store database.Store
 	log   *slog.Logger
 
@@ -73,7 +73,7 @@ type Notifier struct {
 	VAPIDPrivateKey string
 }
 
-func (n *Notifier) Dispatch(ctx context.Context, userID uuid.UUID, notification codersdk.WebpushMessage) error {
+func (n *Webpusher) Dispatch(ctx context.Context, userID uuid.UUID, notification codersdk.WebpushMessage) error {
 	subscriptions, err := n.store.GetWebpushSubscriptionsByUserID(ctx, userID)
 	if err != nil {
 		return xerrors.Errorf("get notification push subscriptions by user ID: %w", err)
@@ -122,7 +122,7 @@ func (n *Notifier) Dispatch(ctx context.Context, userID uuid.UUID, notification 
 			if resp.StatusCode > http.StatusAccepted {
 				// It's likely the subscription failed to deliver for some reason.
 				body, _ := io.ReadAll(resp.Body)
-				return xerrors.Errorf("push notification failed with status code %d: %s", resp.StatusCode, string(body))
+				return xerrors.Errorf("web push dispatch failed with status code %d: %s", resp.StatusCode, string(body))
 			}
 
 			return nil
@@ -145,30 +145,30 @@ func (n *Notifier) Dispatch(ctx context.Context, userID uuid.UUID, notification 
 	return nil
 }
 
-func (n *Notifier) PublicKey() string {
+func (n *Webpusher) PublicKey() string {
 	return n.VAPIDPublicKey
 }
 
-func (n *Notifier) PrivateKey() string {
+func (n *Webpusher) PrivateKey() string {
 	return n.VAPIDPrivateKey
 }
 
-// NoopNotifier is a Notifier that does nothing except return an error.
+// NoopWebpusher is a Dispatcher that does nothing except return an error.
 // This is returned when push notifications are disabled, or if there was an
 // error generating the VAPID keys.
-type NoopNotifier struct {
+type NoopWebpusher struct {
 	Msg string
 }
 
-func (n *NoopNotifier) Dispatch(context.Context, uuid.UUID, codersdk.WebpushMessage) error {
+func (n *NoopWebpusher) Dispatch(context.Context, uuid.UUID, codersdk.WebpushMessage) error {
 	return xerrors.New(n.Msg)
 }
 
-func (*NoopNotifier) PublicKey() string {
+func (*NoopWebpusher) PublicKey() string {
 	return ""
 }
 
-func (*NoopNotifier) PrivateKey() string {
+func (*NoopWebpusher) PrivateKey() string {
 	return ""
 }
 

@@ -263,7 +263,7 @@ export interface BuildInfoResponse {
 	readonly provisioner_api_version: string;
 	readonly upgrade_message: string;
 	readonly deployment_id: string;
-	readonly push_notifications_public_key: string;
+	readonly webpush_public_key?: string;
 }
 
 // From codersdk/workspacebuilds.go
@@ -1903,27 +1903,6 @@ export const ProxyHealthStatuses: ProxyHealthStatus[] = [
 	"unregistered",
 ];
 
-// From codersdk/notifications.go
-export interface PushNotification {
-	readonly icon: string;
-	readonly title: string;
-	readonly body: string;
-	readonly actions: readonly PushNotificationAction[];
-}
-
-// From codersdk/notifications.go
-export interface PushNotificationAction {
-	readonly label: string;
-	readonly url: string;
-}
-
-// From codersdk/notifications.go
-export interface PushNotificationSubscription {
-	readonly endpoint: string;
-	readonly auth_key: string;
-	readonly p256dh_key: string;
-}
-
 // From codersdk/workspaces.go
 export interface PutExtendWorkspaceRequest {
 	readonly deadline: string;
@@ -1988,7 +1967,6 @@ export type RBACResource =
 	| "license"
 	| "notification_message"
 	| "notification_preference"
-	| "webpush_subscription"
 	| "notification_template"
 	| "oauth2_app"
 	| "oauth2_app_code_token"
@@ -2002,6 +1980,7 @@ export type RBACResource =
 	| "tailnet_coordinator"
 	| "template"
 	| "user"
+	| "webpush_subscription"
 	| "*"
 	| "workspace"
 	| "workspace_agent_devcontainers"
@@ -2039,8 +2018,8 @@ export const RBACResources: RBACResource[] = [
 	"tailnet_coordinator",
 	"template",
 	"user",
-	"*",
 	"webpush_subscription",
+	"*",
 	"workspace",
 	"workspace_agent_devcontainers",
 	"workspace_agent_resource_monitor",
@@ -3022,6 +3001,27 @@ export const ValidationMonotonicOrders: ValidationMonotonicOrder[] = [
 export interface VariableValue {
 	readonly name: string;
 	readonly value: string;
+}
+
+// From codersdk/notifications.go
+export interface WebpushMessage {
+	readonly icon: string;
+	readonly title: string;
+	readonly body: string;
+	readonly actions: readonly WebpushMessageAction[];
+}
+
+// From codersdk/notifications.go
+export interface WebpushMessageAction {
+	readonly label: string;
+	readonly url: string;
+}
+
+// From codersdk/notifications.go
+export interface WebpushSubscription {
+	readonly endpoint: string;
+	readonly auth_key: string;
+	readonly p256dh_key: string;
 }
 
 // From healthsdk/healthsdk.go

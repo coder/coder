@@ -25,7 +25,7 @@ func (r *RootCmd) newRegenerateVapidKeypairCommand() *serpent.Command {
 	)
 	regenerateVapidKeypairCommand := &serpent.Command{
 		Use:    "regenerate-vapid-keypair",
-		Short:  "Regenerate the VAPID keypair used for push notifications.",
+		Short:  "Regenerate the VAPID keypair used for web push notifications.",
 		Hidden: true, // Hide this command as it's an experimental feature
 		Handler: func(inv *serpent.Invocation) error {
 			var (
@@ -71,7 +71,7 @@ func (r *RootCmd) newRegenerateVapidKeypairCommand() *serpent.Command {
 
 			// Confirm that the user really wants to regenerate the VAPID keypair.
 			cliui.Infof(inv.Stdout, "Regenerating VAPID keypair...")
-			cliui.Infof(inv.Stdout, "This will delete all existing push notification subscriptions.")
+			cliui.Infof(inv.Stdout, "This will delete all existing webpush subscriptions.")
 			cliui.Infof(inv.Stdout, "Are you sure you want to continue? (y/N)")
 
 			if resp, err := cliui.Prompt(inv, cliui.PromptOptions{

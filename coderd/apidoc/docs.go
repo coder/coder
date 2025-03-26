@@ -7236,8 +7236,8 @@ const docTemplate = `{
                 "tags": [
                     "Notifications"
                 ],
-                "summary": "Create user push notification subscription",
-                "operationId": "create-user-push-notification-subscription",
+                "summary": "Create user webpush notification subscription",
+                "operationId": "create-user-webpush-notification-subscription",
                 "parameters": [
                     {
                         "description": "Webpush subscription",
@@ -7274,8 +7274,8 @@ const docTemplate = `{
                 "tags": [
                     "Notifications"
                 ],
-                "summary": "Delete user push notification subscription",
-                "operationId": "delete-user-push-notification-subscription",
+                "summary": "Delete user webpush notification subscription",
+                "operationId": "delete-user-webpush-notification-subscription",
                 "parameters": [
                     {
                         "description": "Push notification subscription",
@@ -10828,7 +10828,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "webpush_public_key": {
-                    "description": "WebPushPublicKey is the public key for push notifications.",
+                    "description": "WebPushPublicKey is the public key for push notifications via Web Push.",
                     "type": "string"
                 },
                 "workspace_proxy": {

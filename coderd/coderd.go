@@ -262,8 +262,8 @@ type Options struct {
 	OIDCConvertKeyCache   cryptokeys.SigningKeycache
 	Clock                 quartz.Clock
 
-	// PushNotifier is a way to send push notifications to users.
-	PushNotifier push.NotificationDispatcher
+	// WebpushDispatcher is a way to send notifications over Web Push.
+	WebpushDispatcher push.Dispatcher
 }
 
 // @title Coder API
@@ -550,7 +550,7 @@ func New(options *Options) *API {
 		UserQuietHoursScheduleStore: options.UserQuietHoursScheduleStore,
 		AccessControlStore:          options.AccessControlStore,
 		Experiments:                 experiments,
-		PushNotifier:                options.PushNotifier,
+		PushNotifier:                options.WebpushDispatcher,
 		healthCheckGroup:            &singleflight.Group[string, *healthsdk.HealthcheckReport]{},
 		Acquirer: provisionerdserver.NewAcquirer(
 			ctx,
@@ -1506,7 +1506,7 @@ type API struct {
 	NetworkTelemetryBatcher           *tailnet.NetworkTelemetryBatcher
 	TailnetClientService              *tailnet.ClientService
 	// PushNotifier is a way to send push notifications to users.
-	PushNotifier      push.NotificationDispatcher
+	PushNotifier      push.Dispatcher
 	QuotaCommitter    atomic.Pointer[proto.QuotaCommitter]
 	AppearanceFetcher atomic.Pointer[appearance.Fetcher]
 	// WorkspaceProxyHostsFn returns the hosts of healthy workspace proxies

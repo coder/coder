@@ -327,8 +327,8 @@ func (api *API) putUserNotificationPreferences(rw http.ResponseWriter, r *http.R
 	httpapi.Write(ctx, rw, http.StatusOK, out)
 }
 
-// @Summary Create user push notification subscription
-// @ID create-user-push-notification-subscription
+// @Summary Create user webpush notification subscription
+// @ID create-user-webpush-notification-subscription
 // @Security CoderSessionToken
 // @Accept json
 // @Tags Notifications
@@ -404,8 +404,8 @@ func (api *API) postUserWebpushSubscription(rw http.ResponseWriter, r *http.Requ
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// @Summary Delete user push notification subscription
-// @ID delete-user-push-notification-subscription
+// @Summary Delete user webpush notification subscription
+// @ID delete-user-webpush-notification-subscription
 // @Security CoderSessionToken
 // @Accept json
 // @Tags Notifications

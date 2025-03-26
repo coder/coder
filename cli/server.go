@@ -779,18 +779,18 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// Manage push notifications.
 			experiments := coderd.ReadExperiments(options.Logger, options.DeploymentValues.Experiments.Value())
 			if experiments.Enabled(codersdk.ExperimentWebPush) {
-				pushNotifier, err := push.New(ctx, &options.Logger, options.Database)
+				webpusher, err := push.New(ctx, &options.Logger, options.Database)
 				if err != nil {
-					options.Logger.Error(ctx, "failed to create push notifier", slog.Error(err))
-					options.Logger.Warn(ctx, "push notifications will not work until the VAPID keys are regenerated")
-					pushNotifier = &push.NoopNotifier{
-						Msg: "Push notifications are disabled due to a system error. Please contact your Coder administrator.",
+					options.Logger.Error(ctx, "failed to create web push dispatcher", slog.Error(err))
+					options.Logger.Warn(ctx, "web push notifications will not work until the VAPID keys are regenerated")
+					webpusher = &push.NoopWebpusher{
+						Msg: "Web Push notifications are disabled due to a system error. Please contact your Coder administrator.",
 					}
 				}
-				options.PushNotifier = pushNotifier
+				options.WebpushDispatcher = webpusher
 			} else {
-				options.PushNotifier = &push.NoopNotifier{
-					Msg: "Push notifications are disabled. Enable the 'web-push' experiment to use this feature.",
+				options.WebpushDispatcher = &push.NoopWebpusher{
+					Msg: "Web Push notifications are an experimental feature and are disabled by default. Enable the 'web-push' experiment to use this feature.",
 				}
 			}
 

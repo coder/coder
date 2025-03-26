@@ -3149,7 +3149,7 @@ type BuildInfoResponse struct {
 	// DeploymentID is the unique identifier for this deployment.
 	DeploymentID string `json:"deployment_id"`
 
-	// WebPushPublicKey is the public key for push notifications.
+	// WebPushPublicKey is the public key for push notifications via Web Push.
 	WebPushPublicKey string `json:"webpush_public_key,omitempty"`
 }
 

@@ -243,7 +243,7 @@ func TestPush(t *testing.T) {
 }
 
 // setupPushTest creates a common test setup for push notification tests
-func setupPushTest(ctx context.Context, t *testing.T, handlerFunc func(w http.ResponseWriter, r *http.Request)) (push.NotificationDispatcher, database.Store, string) {
+func setupPushTest(ctx context.Context, t *testing.T, handlerFunc func(w http.ResponseWriter, r *http.Request)) (push.Dispatcher, database.Store, string) {
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	db, _ := dbtestutil.NewDB(t)
 
