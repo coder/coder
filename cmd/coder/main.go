@@ -13,6 +13,7 @@ import (
 )
 
 func main() {
+	panic("hey")
 	if len(os.Args) > 1 && os.Args[1] == "agent-exec" {
 		err := agentexec.CLI()
 		_, _ = fmt.Fprintln(os.Stderr, err)

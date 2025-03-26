@@ -172,14 +172,14 @@ func (r *RootCmd) RunWithSubcommands(subcommands []*serpent.Command) {
 			err = exitErr.err
 		}
 		if errors.Is(err, cliui.ErrCanceled) {
-			//nolint:revive
+			//nolint:revive,gocritic
 			os.Exit(code)
 		}
 		f := PrettyErrorFormatter{w: os.Stderr, verbose: r.verbose}
 		if err != nil {
 			f.Format(err)
 		}
-		//nolint:revive
+		//nolint:revive,gocritic
 		os.Exit(code)
 	}
 }
@@ -891,7 +891,7 @@ func DumpHandler(ctx context.Context, name string) {
 
 	done:
 		if sigStr == "SIGQUIT" {
-			//nolint:revive
+			//nolint:revive,gocritic
 			os.Exit(1)
 		}
 	}
