@@ -222,5 +222,5 @@ The resolution depends on which version of macOS you use:
 1. Select **Login Items & Extensions**
 1. Scroll down, and select the **ⓘ** for **Network Extensions**
 1. Select the **...** next to Coder Desktop, then **Delete Extension**, and follow the prompts.
-
+1. Re-open the app, and follow the prompts to reinstall the network extension.
 </div>
