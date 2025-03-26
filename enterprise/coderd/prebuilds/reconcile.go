@@ -253,7 +253,6 @@ func (c *StoreReconciler) SnapshotState(ctx context.Context, store database.Stor
 		if len(presetsWithPrebuilds) == 0 {
 			return nil
 		}
-
 		allRunningPrebuilds, err := db.GetRunningPrebuilds(ctx)
 		if err != nil {
 			return xerrors.Errorf("failed to get running prebuilds: %w", err)
@@ -327,9 +326,9 @@ func (c *StoreReconciler) Reconcile(ctx context.Context, ps prebuilds.PresetStat
 
 		// return ErrBackoff
 		return nil
-	} else {
-		levelFn(ctx, "template prebuild state retrieved", fields...)
 	}
+
+	levelFn(ctx, "template prebuild state retrieved", fields...)
 
 	// Shit happens (i.e. bugs or bitflips); let's defend against disastrous outcomes.
 	// See https://blog.robertelder.org/causes-of-bit-flips-in-computer-memory/.

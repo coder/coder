@@ -129,6 +129,6 @@ INNER JOIN templates t ON t.id = w.template_id
 INNER JOIN template_version_presets tvp ON tvp.id = wpb.template_version_preset_id
 INNER JOIN provisioner_jobs pj ON pj.id = wpb.job_id
 INNER JOIN organizations o ON o.id = w.organization_id
-WHERE wpb.build_number = 1
+WHERE NOT t.deleted AND wpb.build_number = 1
 GROUP BY t.name, tvp.name, o.name
 ORDER BY t.name, tvp.name, o.name;
