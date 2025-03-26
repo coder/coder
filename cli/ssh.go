@@ -452,16 +452,12 @@ func (r *RootCmd) ssh() *serpent.Command {
 				if err != nil {
 					return err
 				}
-				defer func() {
-					_ = pty.RestoreTerminal(stdinFile.Fd(), inState)
-				}()
+				defer pty.RestoreTerminal(stdinFile.Fd(), inState)
 				outState, err := pty.MakeOutputRaw(stdoutFile.Fd())
 				if err != nil {
 					return err
 				}
-				defer func() {
-					_ = pty.RestoreTerminal(stdoutFile.Fd(), outState)
-				}()
+				defer pty.RestoreTerminal(stdoutFile.Fd(), outState)
 
 				windowChange := listenWindowSize(ctx)
 				go func() {

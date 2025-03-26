@@ -111,8 +111,8 @@ func TestTunnel(t *testing.T) {
 				err := server.Serve(tun.Listener)
 				assert.Equal(t, http.ErrServerClosed, err)
 			}()
-			defer func() { _ = server.Close() }()
-			defer func() { tun.Listener.Close() }()
+			defer server.Close()
+			defer tun.Listener.Close()
 
 			require.Eventually(t, func() bool {
 				req, err := http.NewRequestWithContext(ctx, http.MethodGet, tun.URL.String(), nil)
