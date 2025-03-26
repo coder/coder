@@ -49,7 +49,7 @@ export const usePushNotifications = (): PushNotifications => {
 			const registration = await navigator.serviceWorker.ready;
 
 			// Note: You'd typically get this key from your server
-			const vapidPublicKey = buildInfoQuery.data?.push_notifications_public_key;
+			const vapidPublicKey = buildInfoQuery.data?.webpush_public_key;
 
 			const subscription = await registration.pushManager.subscribe({
 				userVisibleOnly: true,
