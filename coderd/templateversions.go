@@ -1280,10 +1280,8 @@ func (api *API) setArchiveTemplateVersion(archive bool) func(rw http.ResponseWri
 
 			if archiveError != nil {
 				err = archiveError
-			} else {
-				if len(archived) == 0 {
-					err = xerrors.New("Unable to archive specified version, the version is likely in use by a workspace or currently set to the active version")
-				}
+			} else if len(archived) == 0 {
+				err = xerrors.New("Unable to archive specified version, the version is likely in use by a workspace or currently set to the active version")
 			}
 		} else {
 			err = api.Database.UnarchiveTemplateVersion(ctx, database.UnarchiveTemplateVersionParams{

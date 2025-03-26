@@ -1452,7 +1452,7 @@ func TestUserOIDC(t *testing.T) {
 				oidctest.WithStaticUserInfo(tc.UserInfoClaims),
 			}
 
-			if tc.AccessTokenClaims != nil && len(tc.AccessTokenClaims) > 0 {
+			if len(tc.AccessTokenClaims) > 0 {
 				opts = append(opts, oidctest.WithAccessTokenJWTHook(func(email string, exp time.Time) jwt.MapClaims {
 					return tc.AccessTokenClaims
 				}))

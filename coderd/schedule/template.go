@@ -89,6 +89,7 @@ func VerifyTemplateAutostopRequirement(days uint8, weeks int64) error {
 	if days&0b10000000 != 0 {
 		return xerrors.New("invalid autostop requirement days, last bit is set")
 	}
+	//nolint:staticcheck
 	if days > 0b11111111 {
 		return xerrors.New("invalid autostop requirement days, too large")
 	}
@@ -107,6 +108,7 @@ func VerifyTemplateAutostartRequirement(days uint8) error {
 	if days&0b10000000 != 0 {
 		return xerrors.New("invalid autostart requirement days, last bit is set")
 	}
+	//nolint:staticcheck
 	if days > 0b11111111 {
 		return xerrors.New("invalid autostart requirement days, too large")
 	}
