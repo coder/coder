@@ -158,3 +158,7 @@ that the URL must explicitly reference the archive file:
 Click `Download IDE and Connect`. Gateway should now download the backend and
 clients from the server into your remote workspace and local machine,
 respectively.
+
+## Next steps
+
+- [Pre install the JetBrains IDEs backend in your workspace](./jetbrains-pre-install.md)

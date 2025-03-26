@@ -208,15 +208,7 @@ This is in lieu of using Coder's Gateway plugin which automatically performs the
 
 ## Using an existing JetBrains installation in the workspace
 
-If you would like to use an existing JetBrains IDE in a Coder workspace (or you
-are air-gapped, and cannot reach `jetbrains.com`), run the following script in
-the JetBrains IDE directory to point the default Gateway directory to the IDE
-directory. This step must be done before configuring Gateway.
-
-```shell
-cd /opt/idea/bin
-./remote-dev-server.sh registerBackendLocationForGateway
-```
+For JetBrains IDEs, you can use an existing installation in the workspace. Please ask you administrator to install the JetBrains Gateway backend in the workspace by following the [pre-install guide](./jetbrains-pre-install.md).
 
 > [!NOTE]
 > Gateway only works with paid versions of JetBrains IDEs so the script will not
