@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -135,6 +136,9 @@ func TestInboxNotification_Watch(t *testing.T) {
 
 		require.Equal(t, 1, notif.UnreadCount)
 		require.Equal(t, memberClient.ID, notif.Notification.UserID)
+
+		// check for the fallback icon logic
+		require.Equal(t, coderd.FallbackIconWorkspace, notif.Notification.Icon)
 	})
 
 	t.Run("OK - change format", func(t *testing.T) {

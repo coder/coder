@@ -25,47 +25,47 @@ import (
 )
 
 const (
-	fallbackIconWorkspace = ""
-	fallbackIconAccount   = ""
-	fallbackIconTemplate  = ""
-	fallbackIconOther     = ""
-)
-
-const (
 	notificationFormatMarkdown  = "markdown"
 	notificationFormatPlaintext = "plaintext"
 )
 
+const (
+	FallbackIconWorkspace = "DEFAULT_WORKSPACE_ICON"
+	FallbackIconAccount   = "DEFAULT_ACCOUNT_ICON"
+	FallbackIconTemplate  = "DEFAULT_TEMPLATE_ICON"
+	FallbackIconOther     = "DEFAULT_OTHER_ICON"
+)
+
 var fallbackIcons = map[uuid.UUID]string{
 	// workspace related notifications
-	notifications.TemplateWorkspaceCreated:           fallbackIconWorkspace,
-	notifications.TemplateWorkspaceCreated:           fallbackIconWorkspace,
-	notifications.TemplateWorkspaceManuallyUpdated:   fallbackIconWorkspace,
-	notifications.TemplateWorkspaceDeleted:           fallbackIconWorkspace,
-	notifications.TemplateWorkspaceAutobuildFailed:   fallbackIconWorkspace,
-	notifications.TemplateWorkspaceDormant:           fallbackIconWorkspace,
-	notifications.TemplateWorkspaceAutoUpdated:       fallbackIconWorkspace,
-	notifications.TemplateWorkspaceMarkedForDeletion: fallbackIconWorkspace,
-	notifications.TemplateWorkspaceManualBuildFailed: fallbackIconWorkspace,
-	notifications.TemplateWorkspaceOutOfMemory:       fallbackIconWorkspace,
-	notifications.TemplateWorkspaceOutOfDisk:         fallbackIconWorkspace,
+	notifications.TemplateWorkspaceCreated:           FallbackIconWorkspace,
+	notifications.TemplateWorkspaceCreated:           FallbackIconWorkspace,
+	notifications.TemplateWorkspaceManuallyUpdated:   FallbackIconWorkspace,
+	notifications.TemplateWorkspaceDeleted:           FallbackIconWorkspace,
+	notifications.TemplateWorkspaceAutobuildFailed:   FallbackIconWorkspace,
+	notifications.TemplateWorkspaceDormant:           FallbackIconWorkspace,
+	notifications.TemplateWorkspaceAutoUpdated:       FallbackIconWorkspace,
+	notifications.TemplateWorkspaceMarkedForDeletion: FallbackIconWorkspace,
+	notifications.TemplateWorkspaceManualBuildFailed: FallbackIconWorkspace,
+	notifications.TemplateWorkspaceOutOfMemory:       FallbackIconWorkspace,
+	notifications.TemplateWorkspaceOutOfDisk:         FallbackIconWorkspace,
 
 	// account related notifications
-	notifications.TemplateUserAccountCreated:           fallbackIconAccount,
-	notifications.TemplateUserAccountDeleted:           fallbackIconAccount,
-	notifications.TemplateUserAccountSuspended:         fallbackIconAccount,
-	notifications.TemplateUserAccountActivated:         fallbackIconAccount,
-	notifications.TemplateYourAccountSuspended:         fallbackIconAccount,
-	notifications.TemplateYourAccountActivated:         fallbackIconAccount,
-	notifications.TemplateUserRequestedOneTimePasscode: fallbackIconAccount,
+	notifications.TemplateUserAccountCreated:           FallbackIconAccount,
+	notifications.TemplateUserAccountDeleted:           FallbackIconAccount,
+	notifications.TemplateUserAccountSuspended:         FallbackIconAccount,
+	notifications.TemplateUserAccountActivated:         FallbackIconAccount,
+	notifications.TemplateYourAccountSuspended:         FallbackIconAccount,
+	notifications.TemplateYourAccountActivated:         FallbackIconAccount,
+	notifications.TemplateUserRequestedOneTimePasscode: FallbackIconAccount,
 
 	// template related notifications
-	notifications.TemplateTemplateDeleted:             fallbackIconTemplate,
-	notifications.TemplateTemplateDeprecated:          fallbackIconTemplate,
-	notifications.TemplateWorkspaceBuildsFailedReport: fallbackIconTemplate,
+	notifications.TemplateTemplateDeleted:             FallbackIconTemplate,
+	notifications.TemplateTemplateDeprecated:          FallbackIconTemplate,
+	notifications.TemplateWorkspaceBuildsFailedReport: FallbackIconTemplate,
 
 	// other related notifications
-	notifications.TemplateTestNotification: fallbackIconOther,
+	notifications.TemplateTestNotification: FallbackIconOther,
 }
 
 // convertInboxNotificationResponse works as a util function to transform a database.InboxNotification to codersdk.InboxNotification
@@ -189,6 +189,11 @@ func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request)
 							return
 						}
 					}
+				}
+
+				// convert icon to fallback if required
+				if payload.InboxNotification.Icon == "" {
+					payload.InboxNotification.Icon = fallbackIcons[payload.InboxNotification.TemplateID]
 				}
 
 				// keep a safe guard in case of latency to push notifications through websocket
