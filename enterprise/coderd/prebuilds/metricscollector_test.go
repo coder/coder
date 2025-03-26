@@ -161,12 +161,12 @@ func TestMetricsCollector(t *testing.T) {
 
 							numTemplates := 2
 							for i := 0; i < numTemplates; i++ {
-								orgID, templateID := setupTestDBTemplate(t, db, ownerID)
-								templateVersionID := setupTestDBTemplateVersion(ctx, t, clock, db, pubsub, orgID, ownerID, templateID)
+								org, template := setupTestDBTemplate(t, db, ownerID)
+								templateVersionID := setupTestDBTemplateVersion(ctx, t, clock, db, pubsub, org.ID, ownerID, template.ID)
 								preset := setupTestDBPreset(t, db, templateVersionID, 1, uuid.New().String())
 								setupTestDBWorkspace(
 									t, clock, db, pubsub,
-									transition, jobStatus, orgID, preset, templateID, templateVersionID, initiatorID, ownerID,
+									transition, jobStatus, org.ID, preset, template.ID, templateVersionID, initiatorID, ownerID,
 								)
 							}
 
@@ -178,7 +178,8 @@ func TestMetricsCollector(t *testing.T) {
 							require.Equal(t, numTemplates, len(templates))
 
 							for _, template := range templates {
-								template := template // capture for parallel
+								org, err := db.GetOrganizationByID(ctx, template.OrganizationID)
+								require.NoError(t, err)
 								templateVersions, err := db.GetTemplateVersionsByTemplateID(ctx, database.GetTemplateVersionsByTemplateIDParams{
 									TemplateID: template.ID,
 								})
@@ -192,8 +193,9 @@ func TestMetricsCollector(t *testing.T) {
 								for _, preset := range presets {
 									preset := preset // capture for parallel
 									labels := map[string]string{
-										"template_name": template.Name,
-										"preset_name":   preset.Name,
+										"template_name":     template.Name,
+										"preset_name":       preset.Name,
+										"organization_name": org.Name,
 									}
 
 									for _, check := range test.metrics {

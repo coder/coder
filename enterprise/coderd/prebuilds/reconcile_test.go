@@ -301,16 +301,16 @@ func TestPrebuildReconciliation(t *testing.T) {
 						dbgen.User(t, db, database.User{
 							ID: ownerID,
 						})
-						orgID, templateID := setupTestDBTemplate(t, db, ownerID)
+						org, template := setupTestDBTemplate(t, db, ownerID)
 						templateVersionID := setupTestDBTemplateVersion(
 							ctx,
 							t,
 							clock,
 							db,
 							pubsub,
-							orgID,
+							org.ID,
 							ownerID,
-							templateID,
+							template.ID,
 						)
 						preset := setupTestDBPreset(
 							t,
@@ -326,16 +326,16 @@ func TestPrebuildReconciliation(t *testing.T) {
 							pubsub,
 							prebuildLatestTransition,
 							prebuildJobStatus,
-							orgID,
+							org.ID,
 							preset,
-							templateID,
+							template.ID,
 							templateVersionID,
 						)
 
 						if !templateVersionActive {
 							// Create a new template version and mark it as active
 							// This marks the template version that we care about as inactive
-							setupTestDBTemplateVersion(ctx, t, clock, db, pubsub, orgID, ownerID, templateID)
+							setupTestDBTemplateVersion(ctx, t, clock, db, pubsub, org.ID, ownerID, template.ID)
 						}
 
 						// Run the reconciliation multiple times to ensure idempotency
@@ -345,7 +345,7 @@ func TestPrebuildReconciliation(t *testing.T) {
 
 							if tc.shouldCreateNewPrebuild != nil {
 								newPrebuildCount := 0
-								workspaces, err := db.GetWorkspacesByTemplateID(ctx, templateID)
+								workspaces, err := db.GetWorkspacesByTemplateID(ctx, template.ID)
 								require.NoError(t, err)
 								for _, workspace := range workspaces {
 									if workspace.ID != prebuild.ID {
@@ -407,12 +407,12 @@ func TestFailedBuildBackoff(t *testing.T) {
 	dbgen.User(t, db, database.User{
 		ID: userID,
 	})
-	orgID, templateID := setupTestDBTemplate(t, db, userID)
-	templateVersionID := setupTestDBTemplateVersion(ctx, t, clock, db, ps, orgID, userID, templateID)
+	org, template := setupTestDBTemplate(t, db, userID)
+	templateVersionID := setupTestDBTemplateVersion(ctx, t, clock, db, ps, org.ID, userID, template.ID)
 
 	preset := setupTestDBPreset(t, db, templateVersionID, desiredInstances, "test")
 	for range desiredInstances {
-		_ = setupTestDBPrebuild(t, clock, db, ps, database.WorkspaceTransitionStart, database.ProvisionerJobStatusFailed, orgID, preset, templateID, templateVersionID)
+		_ = setupTestDBPrebuild(t, clock, db, ps, database.WorkspaceTransitionStart, database.ProvisionerJobStatusFailed, org.ID, preset, template.ID, templateVersionID)
 	}
 
 	// When: determining what actions to take next, backoff is calculated because the prebuild is in a failed state.
@@ -470,7 +470,7 @@ func TestFailedBuildBackoff(t *testing.T) {
 		if i == 1 {
 			status = database.ProvisionerJobStatusSucceeded
 		}
-		_ = setupTestDBPrebuild(t, clock, db, ps, database.WorkspaceTransitionStart, status, orgID, preset, templateID, templateVersionID)
+		_ = setupTestDBPrebuild(t, clock, db, ps, database.WorkspaceTransitionStart, status, org.ID, preset, template.ID, templateVersionID)
 	}
 
 	// Then: the backoff time is roughly equal to two backoff intervals, since another build has failed.
@@ -532,8 +532,8 @@ func setupTestDBTemplate(
 	db database.Store,
 	userID uuid.UUID,
 ) (
-	orgID uuid.UUID,
-	templateID uuid.UUID,
+	database.Organization,
+	database.Template,
 ) {
 	t.Helper()
 	org := dbgen.Organization(t, db, database.Organization{})
@@ -544,7 +544,7 @@ func setupTestDBTemplate(
 		CreatedAt:      time.Now().Add(muchEarlier),
 	})
 
-	return org.ID, template.ID
+	return org, template
 }
 
 const (

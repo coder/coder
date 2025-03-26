@@ -5841,6 +5841,7 @@ const getPrebuildMetrics = `-- name: GetPrebuildMetrics :many
 SELECT
     t.name as template_name,
     tvp.name as preset_name,
+		o.name as organization_name,
     COUNT(*) as created_count,
     COUNT(*) FILTER (WHERE pj.job_status = 'failed'::provisioner_job_status) as failed_count,
     COUNT(*) FILTER (
@@ -5851,17 +5852,19 @@ INNER JOIN workspace_prebuild_builds wpb ON wpb.workspace_id = w.id
 INNER JOIN templates t ON t.id = w.template_id
 INNER JOIN template_version_presets tvp ON tvp.id = wpb.template_version_preset_id
 INNER JOIN provisioner_jobs pj ON pj.id = wpb.job_id
+INNER JOIN organizations o ON o.id = w.organization_id
 WHERE wpb.build_number = 1
-GROUP BY t.name, tvp.name
-ORDER BY t.name, tvp.name
+GROUP BY t.name, tvp.name, o.name
+ORDER BY t.name, tvp.name, o.name
 `
 
 type GetPrebuildMetricsRow struct {
-	TemplateName string `db:"template_name" json:"template_name"`
-	PresetName   string `db:"preset_name" json:"preset_name"`
-	CreatedCount int64  `db:"created_count" json:"created_count"`
-	FailedCount  int64  `db:"failed_count" json:"failed_count"`
-	ClaimedCount int64  `db:"claimed_count" json:"claimed_count"`
+	TemplateName     string `db:"template_name" json:"template_name"`
+	PresetName       string `db:"preset_name" json:"preset_name"`
+	OrganizationName string `db:"organization_name" json:"organization_name"`
+	CreatedCount     int64  `db:"created_count" json:"created_count"`
+	FailedCount      int64  `db:"failed_count" json:"failed_count"`
+	ClaimedCount     int64  `db:"claimed_count" json:"claimed_count"`
 }
 
 func (q *sqlQuerier) GetPrebuildMetrics(ctx context.Context) ([]GetPrebuildMetricsRow, error) {
@@ -5876,6 +5879,7 @@ func (q *sqlQuerier) GetPrebuildMetrics(ctx context.Context) ([]GetPrebuildMetri
 		if err := rows.Scan(
 			&i.TemplateName,
 			&i.PresetName,
+			&i.OrganizationName,
 			&i.CreatedCount,
 			&i.FailedCount,
 			&i.ClaimedCount,
@@ -6083,19 +6087,22 @@ func (q *sqlQuerier) GetRunningPrebuilds(ctx context.Context) ([]GetRunningPrebu
 }
 
 const getTemplatePresetsWithPrebuilds = `-- name: GetTemplatePresetsWithPrebuilds :many
-SELECT t.id                        AS template_id,
-	   t.name                      AS template_name,
-	   tv.id                       AS template_version_id,
-	   tv.name                     AS template_version_name,
-	   tv.id = t.active_version_id AS using_active_version,
-       tvp.id,
-	   tvp.name,
-	   tvp.desired_instances       AS desired_instances,
-	   t.deleted,
-	   t.deprecated != ''          AS deprecated
+SELECT
+		t.id                        AS template_id,
+		t.name                      AS template_name,
+		o.name                      AS organization_name,
+		tv.id                       AS template_version_id,
+		tv.name                     AS template_version_name,
+		tv.id = t.active_version_id AS using_active_version,
+		tvp.id,
+		tvp.name,
+		tvp.desired_instances       AS desired_instances,
+		t.deleted,
+		t.deprecated != ''          AS deprecated
 FROM templates t
 		 INNER JOIN template_versions tv ON tv.template_id = t.id
 		 INNER JOIN template_version_presets tvp ON tvp.template_version_id = tv.id
+		 INNER JOIN organizations o ON o.id = t.organization_id
 WHERE tvp.desired_instances IS NOT NULL -- Consider only presets that have a prebuild configuration.
   AND (t.id = $1::uuid OR $1 IS NULL)
 `
@@ -6103,6 +6110,7 @@ WHERE tvp.desired_instances IS NOT NULL -- Consider only presets that have a pre
 type GetTemplatePresetsWithPrebuildsRow struct {
 	TemplateID          uuid.UUID     `db:"template_id" json:"template_id"`
 	TemplateName        string        `db:"template_name" json:"template_name"`
+	OrganizationName    string        `db:"organization_name" json:"organization_name"`
 	TemplateVersionID   uuid.UUID     `db:"template_version_id" json:"template_version_id"`
 	TemplateVersionName string        `db:"template_version_name" json:"template_version_name"`
 	UsingActiveVersion  bool          `db:"using_active_version" json:"using_active_version"`
@@ -6128,6 +6136,7 @@ func (q *sqlQuerier) GetTemplatePresetsWithPrebuilds(ctx context.Context, templa
 		if err := rows.Scan(
 			&i.TemplateID,
 			&i.TemplateName,
+			&i.OrganizationName,
 			&i.TemplateVersionID,
 			&i.TemplateVersionName,
 			&i.UsingActiveVersion,
