@@ -598,7 +598,7 @@
 						{
 							"title": "Notifications",
 							"description": "Configure notifications for your deployment",
-							"path": "./admin/monitoring/notifications/index.md"
+							"path": "./admin/monitoring/notifications/index.md",
 							"children": [
 								{
 									"title": "Slack Notifications",
