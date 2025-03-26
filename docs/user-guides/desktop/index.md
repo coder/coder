@@ -75,7 +75,17 @@ Before you can use Coder Desktop, you will need to sign in.
 
 1. Open the Desktop menu and select **Sign in**:
 
-   <Image height="325px" src="../../images/user-guides/desktop/coder-desktop-pre-sign-in.png" alt="Coder Desktop menu before the user signs in" align="center" />
+   <div class="tabs">
+
+   ## macOS
+
+   <Image height="325px" src="../../images/user-guides/desktop/coder-desktop-mac-pre-sign-in.png" alt="Coder Desktop menu before the user signs in" align="center" />
+
+   ## Windows
+
+   <Image height="325px" src="../../images/user-guides/desktop/coder-desktop-win-pre-sign-in.png" alt="Coder Desktop menu before the user signs in" align="center" />
+
+   </div>
 
 1. In the **Sign In** window, enter your Coder deployment's URL and select **Next**:
 
@@ -102,6 +112,8 @@ Before you can use Coder Desktop, you will need to sign in.
    <Image height="350px" src="../../images/user-guides/desktop/mac-allow-vpn.png" alt="Copy session token" align="center" />
 
 1. Select the Coder icon in the menu bar (macOS) or system tray (Windows), and click the **Coder Connect** toggle to enable the connection.
+
+   ![Coder Desktop on Windows - enable Coder Connect](../../images/user-guides/desktop/coder-desktop-win-enable-coder-connect.png)
 
    This may take a few moments, as Coder Desktop will download the necessary components from the Coder server if they have been updated.
 
