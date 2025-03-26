@@ -25,7 +25,9 @@ WITH
         WHERE template_version_preset_id IS NOT NULL
         ORDER BY workspace_id, build_number DESC
     ),
-    -- All workspace agents belonging to the workspaces owned by the "prebuilds" user.
+	-- workspaces_with_agents_status contains workspaces owned by the "prebuilds" user,
+	-- along with the readiness status of their agents.
+	-- A workspace is marked as 'ready' only if ALL of its agents are ready.
 	workspaces_with_agents_status AS (
 		SELECT w.id AS workspace_id,
 		       BOOL_AND(wa.lifecycle_state = 'ready'::workspace_agent_lifecycle_state) AS ready
