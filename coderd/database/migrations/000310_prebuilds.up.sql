@@ -26,22 +26,23 @@ WITH
         ORDER BY workspace_id, build_number DESC
     ),
     -- All workspace agents belonging to the workspaces owned by the "prebuilds" user.
-    workspace_agents AS (
-		SELECT w.id AS workspace_id, wa.id AS agent_id, wa.lifecycle_state, wa.ready_at
+	workspaces_with_agents_status AS (
+		SELECT w.id AS workspace_id,
+		       BOOL_AND(wa.lifecycle_state = 'ready'::workspace_agent_lifecycle_state) AS ready
 		FROM workspaces w
 			INNER JOIN workspace_latest_builds wlb ON wlb.workspace_id = w.id
 			INNER JOIN workspace_resources wr ON wr.job_id = wlb.job_id
 			INNER JOIN workspace_agents wa ON wa.resource_id = wr.id
 		WHERE w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0' -- The system user responsible for prebuilds.
-		GROUP BY w.id, wa.id
+		GROUP BY w.id
 	),
     current_presets AS (SELECT w.id AS prebuild_id, wlp.template_version_preset_id
                         FROM workspaces w
                                  INNER JOIN workspaces_with_latest_presets wlp ON wlp.workspace_id = w.id
                         WHERE w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0') -- The system user responsible for prebuilds.
-SELECT p.id, p.name, p.template_id, p.created_at, a.agent_id, a.lifecycle_state, a.ready_at, cp.template_version_preset_id AS current_preset_id
+SELECT p.id, p.name, p.template_id, p.created_at, COALESCE(a.ready, false) AS ready, cp.template_version_preset_id AS current_preset_id
 FROM all_prebuilds p
-         LEFT JOIN workspace_agents a ON a.workspace_id = p.id
+         LEFT JOIN workspaces_with_agents_status a ON a.workspace_id = p.id
          INNER JOIN current_presets cp ON cp.prebuild_id = p.id;
 
 CREATE VIEW workspace_prebuild_builds AS

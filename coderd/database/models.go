@@ -3584,14 +3584,12 @@ type WorkspaceModule struct {
 }
 
 type WorkspacePrebuild struct {
-	ID              uuid.UUID                        `db:"id" json:"id"`
-	Name            string                           `db:"name" json:"name"`
-	TemplateID      uuid.UUID                        `db:"template_id" json:"template_id"`
-	CreatedAt       time.Time                        `db:"created_at" json:"created_at"`
-	AgentID         uuid.NullUUID                    `db:"agent_id" json:"agent_id"`
-	LifecycleState  NullWorkspaceAgentLifecycleState `db:"lifecycle_state" json:"lifecycle_state"`
-	ReadyAt         sql.NullTime                     `db:"ready_at" json:"ready_at"`
-	CurrentPresetID uuid.NullUUID                    `db:"current_preset_id" json:"current_preset_id"`
+	ID              uuid.UUID     `db:"id" json:"id"`
+	Name            string        `db:"name" json:"name"`
+	TemplateID      uuid.UUID     `db:"template_id" json:"template_id"`
+	CreatedAt       time.Time     `db:"created_at" json:"created_at"`
+	Ready           bool          `db:"ready" json:"ready"`
+	CurrentPresetID uuid.NullUUID `db:"current_preset_id" json:"current_preset_id"`
 }
 
 type WorkspacePrebuildBuild struct {

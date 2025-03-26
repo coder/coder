@@ -5813,7 +5813,7 @@ WHERE w.id IN (SELECT p.id
 				   AND pj.job_status IN ('succeeded'::provisioner_job_status))
 				 AND b.template_version_id = t.active_version_id
 				 AND b.template_version_preset_id = $3::uuid
-				 AND p.lifecycle_state = 'ready'::workspace_agent_lifecycle_state
+				 AND p.ready
 			   ORDER BY random()
 			   LIMIT 1 FOR UPDATE OF p SKIP LOCKED) -- Ensure that a concurrent request will not select the same prebuild.
 RETURNING w.id, w.name
@@ -6034,9 +6034,7 @@ SELECT p.id                AS workspace_id,
 	   p.template_id,
 	   b.template_version_id,
        p.current_preset_id AS current_preset_id,
-	   CASE
-		   WHEN p.lifecycle_state = 'ready'::workspace_agent_lifecycle_state THEN TRUE
-		   ELSE FALSE END AS ready,
+	   p.ready,
 	   p.created_at
 FROM workspace_prebuilds p
 		 INNER JOIN workspace_latest_builds b ON b.workspace_id = p.id
