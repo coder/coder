@@ -64,13 +64,16 @@ func devcontainerStartupScript(dc codersdk.WorkspaceAgentDevcontainer, script co
 }
 
 func expandDevcontainerPaths(logger slog.Logger, expandPath func(string) (string, error), dc codersdk.WorkspaceAgentDevcontainer) codersdk.WorkspaceAgentDevcontainer {
-	var err error
-	if dc.WorkspaceFolder, err = expandPath(dc.WorkspaceFolder); err != nil {
+	if wf, err := expandPath(dc.WorkspaceFolder); err != nil {
 		logger.Warn(context.Background(), "expand devcontainer workspace folder failed", slog.Error(err))
+	} else {
+		dc.WorkspaceFolder = wf
 	}
 	if dc.ConfigPath != "" {
-		if dc.ConfigPath, err = expandPath(dc.ConfigPath); err != nil {
+		if cp, err := expandPath(dc.ConfigPath); err != nil {
 			logger.Warn(context.Background(), "expand devcontainer config path failed", slog.Error(err))
+		} else {
+			dc.ConfigPath = cp
 		}
 	}
 	return dc
