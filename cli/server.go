@@ -790,6 +790,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				options.WebpushDispatcher = webpusher
 			} else {
 				options.WebpushDispatcher = &webpush.NoopWebpusher{
+					// Users will likely not see this message as the endpoints return 404
+					// if not enabled. Just in case...
 					Msg: "Web Push notifications are an experimental feature and are disabled by default. Enable the 'web-push' experiment to use this feature.",
 				}
 			}

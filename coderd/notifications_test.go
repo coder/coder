@@ -390,7 +390,11 @@ func TestWebpushSubscribeUnsubscribe(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	client := coderdtest.New(t, nil)
+	dv := coderdtest.DeploymentValues(t)
+	dv.Experiments = []string{string(codersdk.ExperimentWebPush)}
+	client := coderdtest.New(t, &coderdtest.Options{
+		DeploymentValues: dv,
+	})
 	owner := coderdtest.CreateFirstUser(t, client)
 	memberClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 

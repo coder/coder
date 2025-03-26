@@ -337,6 +337,10 @@ func (api *API) putUserNotificationPreferences(rw http.ResponseWriter, r *http.R
 func (api *API) postUserWebpushSubscription(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
+	if !api.Experiments.Enabled(codersdk.ExperimentWebPush) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
 
 	var req codersdk.WebpushSubscription
 	if !httpapi.Read(ctx, rw, r, &req) {
@@ -382,6 +386,11 @@ func (api *API) deleteUserWebpushSubscription(rw http.ResponseWriter, r *http.Re
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
 
+	if !api.Experiments.Enabled(codersdk.ExperimentWebPush) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
 	var req codersdk.DeleteWebpushSubscription
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
@@ -413,6 +422,11 @@ func (api *API) deleteUserWebpushSubscription(rw http.ResponseWriter, r *http.Re
 func (api *API) postUserPushNotificationTest(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
+
+	if !api.Experiments.Enabled(codersdk.ExperimentWebPush) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
 
 	if err := api.WebpushDispatcher.Dispatch(ctx, user.ID, codersdk.WebpushMessage{
 		Title: "It's working!",
