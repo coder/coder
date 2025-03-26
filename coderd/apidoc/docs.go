@@ -11613,7 +11613,7 @@ const docTemplate = `{
                     }
                 },
                 "address": {
-                    "description": "DEPRECATED: Use HTTPAddress or TLS.Address instead.",
+                    "description": "Deprecated: Use HTTPAddress or TLS.Address instead.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/serpent.HostPort"

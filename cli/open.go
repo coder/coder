@@ -89,7 +89,7 @@ func (r *RootCmd) openVSCode() *serpent.Command {
 				})
 				if err != nil {
 					if xerrors.Is(err, context.Canceled) {
-						return cliui.Canceled
+						return cliui.ErrCanceled
 					}
 					return xerrors.Errorf("agent: %w", err)
 				}
@@ -99,7 +99,7 @@ func (r *RootCmd) openVSCode() *serpent.Command {
 				// However, if no directory is set, the expanded directory will
 				// not be set either.
 				if workspaceAgent.Directory != "" {
-					workspace, workspaceAgent, err = waitForAgentCond(ctx, client, workspace, workspaceAgent, func(a codersdk.WorkspaceAgent) bool {
+					workspace, workspaceAgent, err = waitForAgentCond(ctx, client, workspace, workspaceAgent, func(_ codersdk.WorkspaceAgent) bool {
 						return workspaceAgent.LifecycleState != codersdk.WorkspaceAgentLifecycleCreated
 					})
 					if err != nil {

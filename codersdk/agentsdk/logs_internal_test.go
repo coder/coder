@@ -157,7 +157,7 @@ func TestLogSender_LogLimitExceeded(t *testing.T) {
 		&proto.BatchCreateLogsResponse{LogLimitExceeded: true})
 
 	err := testutil.RequireRecvCtx(ctx, t, loopErr)
-	require.ErrorIs(t, err, LogLimitExceededError)
+	require.ErrorIs(t, err, ErrLogLimitExceeded)
 
 	// Should also unblock WaitUntilEmpty
 	err = testutil.RequireRecvCtx(ctx, t, empty)
@@ -180,7 +180,7 @@ func TestLogSender_LogLimitExceeded(t *testing.T) {
 		loopErr <- err
 	}()
 	err = testutil.RequireRecvCtx(ctx, t, loopErr)
-	require.ErrorIs(t, err, LogLimitExceededError)
+	require.ErrorIs(t, err, ErrLogLimitExceeded)
 }
 
 func TestLogSender_SkipHugeLog(t *testing.T) {

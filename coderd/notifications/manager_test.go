@@ -192,6 +192,7 @@ type syncInterceptor struct {
 
 func (b *syncInterceptor) BulkMarkNotificationMessagesSent(ctx context.Context, arg database.BulkMarkNotificationMessagesSentParams) (int64, error) {
 	updated, err := b.Store.BulkMarkNotificationMessagesSent(ctx, arg)
+	// #nosec G115 - Safe conversion as the count of updated notification messages is expected to be within int32 range
 	b.sent.Add(int32(updated))
 	if err != nil {
 		b.err.Store(err)
@@ -201,6 +202,7 @@ func (b *syncInterceptor) BulkMarkNotificationMessagesSent(ctx context.Context, 
 
 func (b *syncInterceptor) BulkMarkNotificationMessagesFailed(ctx context.Context, arg database.BulkMarkNotificationMessagesFailedParams) (int64, error) {
 	updated, err := b.Store.BulkMarkNotificationMessagesFailed(ctx, arg)
+	// #nosec G115 - Safe conversion as the count of updated notification messages is expected to be within int32 range
 	b.failed.Add(int32(updated))
 	if err != nil {
 		b.err.Store(err)

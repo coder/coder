@@ -73,7 +73,7 @@ func New(db database.Store, log slog.Logger, opts Options) *Checker {
 		opts.UpdateTimeout = 30 * time.Second
 	}
 	if opts.Notify == nil {
-		opts.Notify = func(r Result) {}
+		opts.Notify = func(_ Result) {}
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())

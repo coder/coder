@@ -39,6 +39,7 @@ import (
 
 	"github.com/coder/retry"
 
+	"github.com/coder/clistat"
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentscripts"
@@ -47,7 +48,6 @@ import (
 	"github.com/coder/coder/v2/agent/proto/resourcesmonitor"
 	"github.com/coder/coder/v2/agent/reconnectingpty"
 	"github.com/coder/coder/v2/buildinfo"
-	"github.com/coder/coder/v2/cli/clistat"
 	"github.com/coder/coder/v2/cli/gitauth"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
@@ -940,7 +940,7 @@ func (a *agent) run() (retErr error) {
 	connMan.startAgentAPI("send logs", gracefulShutdownBehaviorRemain,
 		func(ctx context.Context, aAPI proto.DRPCAgentClient24) error {
 			err := a.logSender.SendLoop(ctx, aAPI)
-			if xerrors.Is(err, agentsdk.LogLimitExceededError) {
+			if xerrors.Is(err, agentsdk.ErrLogLimitExceeded) {
 				// we don't want this error to tear down the API connection and propagate to the
 				// other routines that use the API.  The LogSender has already dropped a warning
 				// log, so just return nil here.
@@ -1572,9 +1572,13 @@ func (a *agent) Collect(ctx context.Context, networkStats map[netlogtype.Connect
 	}
 	for conn, counts := range networkStats {
 		stats.ConnectionsByProto[conn.Proto.String()]++
+		// #nosec G115 - Safe conversions for network statistics which we expect to be within int64 range
 		stats.RxBytes += int64(counts.RxBytes)
+		// #nosec G115 - Safe conversions for network statistics which we expect to be within int64 range
 		stats.RxPackets += int64(counts.RxPackets)
+		// #nosec G115 - Safe conversions for network statistics which we expect to be within int64 range
 		stats.TxBytes += int64(counts.TxBytes)
+		// #nosec G115 - Safe conversions for network statistics which we expect to be within int64 range
 		stats.TxPackets += int64(counts.TxPackets)
 	}
 
@@ -1627,11 +1631,12 @@ func (a *agent) Collect(ctx context.Context, networkStats map[netlogtype.Connect
 	wg.Wait()
 	sort.Float64s(durations)
 	durationsLength := len(durations)
-	if durationsLength == 0 {
+	switch {
+	case durationsLength == 0:
 		stats.ConnectionMedianLatencyMs = -1
-	} else if durationsLength%2 == 0 {
+	case durationsLength%2 == 0:
 		stats.ConnectionMedianLatencyMs = (durations[durationsLength/2-1] + durations[durationsLength/2]) / 2
-	} else {
+	default:
 		stats.ConnectionMedianLatencyMs = durations[durationsLength/2]
 	}
 	// Convert from microseconds to milliseconds.
@@ -1738,7 +1743,7 @@ func (a *agent) HTTPDebug() http.Handler {
 	r.Get("/debug/magicsock", a.HandleHTTPDebugMagicsock)
 	r.Get("/debug/magicsock/debug-logging/{state}", a.HandleHTTPMagicsockDebugLoggingState)
 	r.Get("/debug/manifest", a.HandleHTTPDebugManifest)
-	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
+	r.NotFound(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		_, _ = w.Write([]byte("404 not found"))
 	})
@@ -2024,7 +2029,7 @@ func (a *apiConnRoutineManager) wait() error {
 }
 
 func PrometheusMetricsHandler(prometheusRegistry *prometheus.Registry, logger slog.Logger) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 
 		// Based on: https://github.com/tailscale/tailscale/blob/280255acae604796a1113861f5a84e6fa2dc6121/ipn/localapi/localapi.go#L489
@@ -2060,5 +2065,6 @@ func WorkspaceKeySeed(workspaceID uuid.UUID, agentName string) (int64, error) {
 		return 42, err
 	}
 
+	// #nosec G115 - Safe conversion to generate int64 hash from Sum64, data loss acceptable
 	return int64(h.Sum64()), nil
 }

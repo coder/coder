@@ -123,6 +123,7 @@ func init() {
 	// Add a thousand more ports to the ignore list during tests so it's easier
 	// to find an available port.
 	for i := 63000; i < 64000; i++ {
+		// #nosec G115 - Safe conversion as port numbers are within uint16 range (0-65535)
 		AgentIgnoredListeningPorts[uint16(i)] = struct{}{}
 	}
 }
