@@ -1,15 +1,10 @@
 import { API } from "api/api";
-import { experiments } from "api/queries/experiments";
 import type * as TypesGen from "api/typesGenerated";
-import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import type { ProxyContextValue } from "contexts/ProxyContext";
-import { useWebpushNotifications } from "contexts/useWebpushNotifications";
-import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { NotificationsInbox } from "modules/notifications/NotificationsInbox/NotificationsInbox";
 import type { FC } from "react";
-import { useQuery } from "react-query";
 import { NavLink, useLocation } from "react-router-dom";
 import { cn } from "utils/cn";
 import { DeploymentDropdown } from "./DeploymentDropdown";
@@ -48,9 +43,6 @@ export const NavbarView: FC<NavbarViewProps> = ({
 	canViewAuditLog,
 	proxyContextValue,
 }) => {
-	const { subscribed, enabled, loading, subscribe, unsubscribe } =
-		useWebpushNotifications();
-
 	return (
 		<div className="border-0 border-b border-solid h-[72px] flex items-center leading-none px-6">
 			<NavLink to="/workspaces">
@@ -63,7 +55,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 
 			<NavItems className="ml-4" />
 
-			<div className=" hidden md:flex items-center gap-3 ml-auto">
+			<div className="flex items-center gap-3 ml-auto">
 				{proxyContextValue && (
 					<div className="hidden md:block">
 						<ProxyMenu proxyContextValue={proxyContextValue} />
@@ -78,18 +70,6 @@ export const NavbarView: FC<NavbarViewProps> = ({
 						canViewHealth={canViewHealth}
 					/>
 				</div>
-
-				{enabled ? (
-					subscribed ? (
-						<Button variant="outline" disabled={loading} onClick={unsubscribe}>
-							Disable WebPush
-						</Button>
-					) : (
-						<Button variant="outline" disabled={loading} onClick={subscribe}>
-							Enable WebPush
-						</Button>
-					)
-				) : null}
 
 				<NotificationsInbox
 					fetchNotifications={API.getInboxNotifications}

@@ -1,6 +1,5 @@
 import * as path from "node:path";
 import react from "@vitejs/plugin-react";
-import { buildSync } from "esbuild";
 import { visualizer } from "rollup-plugin-visualizer";
 import { type PluginOption, defineConfig } from "vite";
 import checker from "vite-plugin-checker";
@@ -29,19 +28,6 @@ export default defineConfig({
 		emptyOutDir: false,
 		// 'hidden' works like true except that the corresponding sourcemap comments in the bundled files are suppressed
 		sourcemap: "hidden",
-		rollupOptions: {
-			input: {
-				index: path.resolve(__dirname, "./index.html"),
-				serviceWorker: path.resolve(__dirname, "./src/serviceWorker.ts"),
-			},
-			output: {
-				entryFileNames: (chunkInfo) => {
-					return chunkInfo.name === "serviceWorker"
-						? "[name].js"
-						: "assets/[name]-[hash].js";
-				},
-			},
-		},
 	},
 	define: {
 		"process.env": {
@@ -100,10 +86,6 @@ export default defineConfig({
 				secure: process.env.NODE_ENV === "production",
 			},
 			"/healthz": {
-				target: process.env.CODER_HOST || "http://localhost:3000",
-				secure: process.env.NODE_ENV === "production",
-			},
-			"/serviceWorker.js": {
 				target: process.env.CODER_HOST || "http://localhost:3000",
 				secure: process.env.NODE_ENV === "production",
 			},
