@@ -61,10 +61,10 @@ module "jetbrains_gateway" {
 }
 
 resource "coder_agent" "main" {
-	...
-	startup_script = <<-EOF
-	~/JetBrains/backends/IU/ideaIU-243.26053.27/bin/remote-dev-server.sh registerBackendLocationForGateway
-	EOF
+    ...
+    startup_script = <<-EOF
+    ~/JetBrains/backends/IU/ideaIU-243.26053.27/bin/remote-dev-server.sh registerBackendLocationForGateway
+    EOF
 }
 ```
 
