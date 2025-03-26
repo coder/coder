@@ -61,6 +61,7 @@ export const Markdown: Story = {
 					url: "https://dev.coder.com/workspaces?filter=template%3Acoder-with-ai",
 				},
 			],
+			icon: "DEFAULT_TEMPLATE_ICON",
 		},
 	},
 };

@@ -4260,7 +4260,7 @@ export const MockNotification: TypesGen.InboxNotification = {
 	template_id: MockTemplate.id,
 	targets: [],
 	title: "User account created",
-	icon: "user",
+	icon: "DEFAULT_ACCOUNT_ICON",
 };
 
 export const MockNotifications: TypesGen.InboxNotification[] = [
