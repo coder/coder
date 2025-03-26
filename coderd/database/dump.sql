@@ -1395,7 +1395,9 @@ CREATE TABLE template_version_presets (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     template_version_id uuid NOT NULL,
     name text NOT NULL,
-    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    desired_instances integer,
+    invalidate_after_secs integer DEFAULT 0
 );
 
 CREATE TABLE template_version_terraform_values (
@@ -1963,6 +1965,25 @@ CREATE VIEW workspace_build_with_user AS
 
 COMMENT ON VIEW workspace_build_with_user IS 'Joins in the username + avatar url of the initiated by user.';
 
+CREATE VIEW workspace_latest_builds AS
+ SELECT DISTINCT ON (workspace_builds.workspace_id) workspace_builds.id,
+    workspace_builds.created_at,
+    workspace_builds.updated_at,
+    workspace_builds.workspace_id,
+    workspace_builds.template_version_id,
+    workspace_builds.build_number,
+    workspace_builds.transition,
+    workspace_builds.initiator_id,
+    workspace_builds.provisioner_state,
+    workspace_builds.job_id,
+    workspace_builds.deadline,
+    workspace_builds.reason,
+    workspace_builds.daily_cost,
+    workspace_builds.max_deadline,
+    workspace_builds.template_version_preset_id
+   FROM workspace_builds
+  ORDER BY workspace_builds.workspace_id, workspace_builds.build_number DESC;
+
 CREATE TABLE workspace_modules (
     id uuid NOT NULL,
     job_id uuid NOT NULL,
@@ -1972,6 +1993,48 @@ CREATE TABLE workspace_modules (
     key text NOT NULL,
     created_at timestamp with time zone NOT NULL
 );
+
+CREATE VIEW workspace_prebuild_builds AS
+ SELECT workspace_builds.id,
+    workspace_builds.created_at,
+    workspace_builds.updated_at,
+    workspace_builds.workspace_id,
+    workspace_builds.template_version_id,
+    workspace_builds.build_number,
+    workspace_builds.transition,
+    workspace_builds.initiator_id,
+    workspace_builds.provisioner_state,
+    workspace_builds.job_id,
+    workspace_builds.deadline,
+    workspace_builds.reason,
+    workspace_builds.daily_cost,
+    workspace_builds.max_deadline,
+    workspace_builds.template_version_preset_id
+   FROM workspace_builds
+  WHERE (workspace_builds.initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid);
+
+CREATE VIEW workspace_prebuilds AS
+SELECT
+    NULL::uuid AS id,
+    NULL::timestamp with time zone AS created_at,
+    NULL::timestamp with time zone AS updated_at,
+    NULL::uuid AS owner_id,
+    NULL::uuid AS organization_id,
+    NULL::uuid AS template_id,
+    NULL::boolean AS deleted,
+    NULL::character varying(64) AS name,
+    NULL::text AS autostart_schedule,
+    NULL::bigint AS ttl,
+    NULL::timestamp with time zone AS last_used_at,
+    NULL::timestamp with time zone AS dormant_at,
+    NULL::timestamp with time zone AS deleting_at,
+    NULL::automatic_updates AS automatic_updates,
+    NULL::boolean AS favorite,
+    NULL::timestamp with time zone AS next_start_at,
+    NULL::uuid AS agent_id,
+    NULL::workspace_agent_lifecycle_state AS lifecycle_state,
+    NULL::timestamp with time zone AS ready_at,
+    NULL::uuid AS current_preset_id;
 
 CREATE TABLE workspace_proxies (
     id uuid NOT NULL,
@@ -2431,6 +2494,8 @@ CREATE INDEX idx_tailnet_tunnels_dst_id ON tailnet_tunnels USING hash (dst_id);
 
 CREATE INDEX idx_tailnet_tunnels_src_id ON tailnet_tunnels USING hash (src_id);
 
+CREATE UNIQUE INDEX idx_unique_preset_name ON template_version_presets USING btree (name, template_version_id);
+
 CREATE INDEX idx_user_deleted_deleted_at ON user_deleted USING btree (deleted_at);
 
 CREATE INDEX idx_user_status_changes_changed_at ON user_status_changes USING btree (changed_at);
@@ -2552,6 +2617,86 @@ CREATE OR REPLACE VIEW provisioner_job_stats AS
      JOIN workspace_builds wb ON ((wb.job_id = pj.id)))
      LEFT JOIN provisioner_job_timings pjt ON ((pjt.job_id = pj.id)))
   GROUP BY pj.id, wb.workspace_id;
+
+CREATE OR REPLACE VIEW workspace_prebuilds AS
+ WITH all_prebuilds AS (
+         SELECT w.id,
+            w.created_at,
+            w.updated_at,
+            w.owner_id,
+            w.organization_id,
+            w.template_id,
+            w.deleted,
+            w.name,
+            w.autostart_schedule,
+            w.ttl,
+            w.last_used_at,
+            w.dormant_at,
+            w.deleting_at,
+            w.automatic_updates,
+            w.favorite,
+            w.next_start_at
+           FROM workspaces w
+          WHERE (w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid)
+        ), latest_prebuild_builds AS (
+         SELECT workspace_latest_builds.id,
+            workspace_latest_builds.created_at,
+            workspace_latest_builds.updated_at,
+            workspace_latest_builds.workspace_id,
+            workspace_latest_builds.template_version_id,
+            workspace_latest_builds.build_number,
+            workspace_latest_builds.transition,
+            workspace_latest_builds.initiator_id,
+            workspace_latest_builds.provisioner_state,
+            workspace_latest_builds.job_id,
+            workspace_latest_builds.deadline,
+            workspace_latest_builds.reason,
+            workspace_latest_builds.daily_cost,
+            workspace_latest_builds.max_deadline,
+            workspace_latest_builds.template_version_preset_id
+           FROM workspace_latest_builds
+          WHERE (workspace_latest_builds.template_version_preset_id IS NOT NULL)
+        ), workspace_agents AS (
+         SELECT w.id AS workspace_id,
+            wa.id AS agent_id,
+            wa.lifecycle_state,
+            wa.ready_at
+           FROM (((workspaces w
+             JOIN workspace_latest_builds wlb ON ((wlb.workspace_id = w.id)))
+             JOIN workspace_resources wr ON ((wr.job_id = wlb.job_id)))
+             JOIN workspace_agents wa ON ((wa.resource_id = wr.id)))
+          WHERE (w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid)
+          GROUP BY w.id, wa.id
+        ), current_presets AS (
+         SELECT w.id AS prebuild_id,
+            lpb.template_version_preset_id
+           FROM (workspaces w
+             JOIN latest_prebuild_builds lpb ON ((lpb.workspace_id = w.id)))
+          WHERE (w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid)
+        )
+ SELECT p.id,
+    p.created_at,
+    p.updated_at,
+    p.owner_id,
+    p.organization_id,
+    p.template_id,
+    p.deleted,
+    p.name,
+    p.autostart_schedule,
+    p.ttl,
+    p.last_used_at,
+    p.dormant_at,
+    p.deleting_at,
+    p.automatic_updates,
+    p.favorite,
+    p.next_start_at,
+    a.agent_id,
+    a.lifecycle_state,
+    a.ready_at,
+    cp.template_version_preset_id AS current_preset_id
+   FROM ((all_prebuilds p
+     LEFT JOIN workspace_agents a ON ((a.workspace_id = p.id)))
+     JOIN current_presets cp ON ((cp.prebuild_id = p.id)));
 
 CREATE TRIGGER inhibit_enqueue_if_disabled BEFORE INSERT ON notification_messages FOR EACH ROW EXECUTE FUNCTION inhibit_enqueue_if_disabled();
 
