@@ -2013,16 +2013,80 @@ CREATE VIEW workspace_prebuild_builds AS
    FROM workspace_builds
   WHERE (workspace_builds.initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid);
 
+CREATE TABLE workspace_resources (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    job_id uuid NOT NULL,
+    transition workspace_transition NOT NULL,
+    type character varying(192) NOT NULL,
+    name character varying(64) NOT NULL,
+    hide boolean DEFAULT false NOT NULL,
+    icon character varying(256) DEFAULT ''::character varying NOT NULL,
+    instance_type character varying(256),
+    daily_cost integer DEFAULT 0 NOT NULL,
+    module_path text
+);
+
+CREATE TABLE workspaces (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    owner_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    template_id uuid NOT NULL,
+    deleted boolean DEFAULT false NOT NULL,
+    name character varying(64) NOT NULL,
+    autostart_schedule text,
+    ttl bigint,
+    last_used_at timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
+    dormant_at timestamp with time zone,
+    deleting_at timestamp with time zone,
+    automatic_updates automatic_updates DEFAULT 'never'::automatic_updates NOT NULL,
+    favorite boolean DEFAULT false NOT NULL,
+    next_start_at timestamp with time zone
+);
+
+COMMENT ON COLUMN workspaces.favorite IS 'Favorite is true if the workspace owner has favorited the workspace.';
+
 CREATE VIEW workspace_prebuilds AS
-SELECT
-    NULL::uuid AS id,
-    NULL::character varying(64) AS name,
-    NULL::uuid AS template_id,
-    NULL::timestamp with time zone AS created_at,
-    NULL::uuid AS agent_id,
-    NULL::workspace_agent_lifecycle_state AS lifecycle_state,
-    NULL::timestamp with time zone AS ready_at,
-    NULL::uuid AS current_preset_id;
+ WITH all_prebuilds AS (
+         SELECT w.id,
+            w.name,
+            w.template_id,
+            w.created_at
+           FROM workspaces w
+          WHERE (w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid)
+        ), workspaces_with_latest_presets AS (
+         SELECT DISTINCT ON (workspace_builds.workspace_id) workspace_builds.workspace_id,
+            workspace_builds.template_version_preset_id
+           FROM workspace_builds
+          WHERE (workspace_builds.template_version_preset_id IS NOT NULL)
+          ORDER BY workspace_builds.workspace_id, workspace_builds.build_number DESC
+        ), workspaces_with_agents_status AS (
+         SELECT w.id AS workspace_id,
+            bool_and((wa.lifecycle_state = 'ready'::workspace_agent_lifecycle_state)) AS ready
+           FROM (((workspaces w
+             JOIN workspace_latest_builds wlb ON ((wlb.workspace_id = w.id)))
+             JOIN workspace_resources wr ON ((wr.job_id = wlb.job_id)))
+             JOIN workspace_agents wa ON ((wa.resource_id = wr.id)))
+          WHERE (w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid)
+          GROUP BY w.id
+        ), current_presets AS (
+         SELECT w.id AS prebuild_id,
+            wlp.template_version_preset_id
+           FROM (workspaces w
+             JOIN workspaces_with_latest_presets wlp ON ((wlp.workspace_id = w.id)))
+          WHERE (w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid)
+        )
+ SELECT p.id,
+    p.name,
+    p.template_id,
+    p.created_at,
+    COALESCE(a.ready, false) AS ready,
+    cp.template_version_preset_id AS current_preset_id
+   FROM ((all_prebuilds p
+     LEFT JOIN workspaces_with_agents_status a ON ((a.workspace_id = p.id)))
+     JOIN current_presets cp ON ((cp.prebuild_id = p.id)));
 
 CREATE TABLE workspace_proxies (
     id uuid NOT NULL,
@@ -2079,41 +2143,6 @@ CREATE SEQUENCE workspace_resource_metadata_id_seq
     CACHE 1;
 
 ALTER SEQUENCE workspace_resource_metadata_id_seq OWNED BY workspace_resource_metadata.id;
-
-CREATE TABLE workspace_resources (
-    id uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    job_id uuid NOT NULL,
-    transition workspace_transition NOT NULL,
-    type character varying(192) NOT NULL,
-    name character varying(64) NOT NULL,
-    hide boolean DEFAULT false NOT NULL,
-    icon character varying(256) DEFAULT ''::character varying NOT NULL,
-    instance_type character varying(256),
-    daily_cost integer DEFAULT 0 NOT NULL,
-    module_path text
-);
-
-CREATE TABLE workspaces (
-    id uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    owner_id uuid NOT NULL,
-    organization_id uuid NOT NULL,
-    template_id uuid NOT NULL,
-    deleted boolean DEFAULT false NOT NULL,
-    name character varying(64) NOT NULL,
-    autostart_schedule text,
-    ttl bigint,
-    last_used_at timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
-    dormant_at timestamp with time zone,
-    deleting_at timestamp with time zone,
-    automatic_updates automatic_updates DEFAULT 'never'::automatic_updates NOT NULL,
-    favorite boolean DEFAULT false NOT NULL,
-    next_start_at timestamp with time zone
-);
-
-COMMENT ON COLUMN workspaces.favorite IS 'Favorite is true if the workspace owner has favorited the workspace.';
 
 CREATE VIEW workspaces_expanded AS
  SELECT workspaces.id,
@@ -2605,50 +2634,6 @@ CREATE OR REPLACE VIEW provisioner_job_stats AS
      JOIN workspace_builds wb ON ((wb.job_id = pj.id)))
      LEFT JOIN provisioner_job_timings pjt ON ((pjt.job_id = pj.id)))
   GROUP BY pj.id, wb.workspace_id;
-
-CREATE OR REPLACE VIEW workspace_prebuilds AS
- WITH all_prebuilds AS (
-         SELECT w.id,
-            w.name,
-            w.template_id,
-            w.created_at
-           FROM workspaces w
-          WHERE (w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid)
-        ), latest_prebuild_builds AS (
-         SELECT DISTINCT ON (workspace_builds.workspace_id) workspace_builds.workspace_id,
-            workspace_builds.template_version_preset_id
-           FROM workspace_builds
-          WHERE (workspace_builds.template_version_preset_id IS NOT NULL)
-          ORDER BY workspace_builds.workspace_id, workspace_builds.build_number DESC
-        ), workspace_agents AS (
-         SELECT w.id AS workspace_id,
-            wa.id AS agent_id,
-            wa.lifecycle_state,
-            wa.ready_at
-           FROM (((workspaces w
-             JOIN workspace_latest_builds wlb ON ((wlb.workspace_id = w.id)))
-             JOIN workspace_resources wr ON ((wr.job_id = wlb.job_id)))
-             JOIN workspace_agents wa ON ((wa.resource_id = wr.id)))
-          WHERE (w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid)
-          GROUP BY w.id, wa.id
-        ), current_presets AS (
-         SELECT w.id AS prebuild_id,
-            lpb.template_version_preset_id
-           FROM (workspaces w
-             JOIN latest_prebuild_builds lpb ON ((lpb.workspace_id = w.id)))
-          WHERE (w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid)
-        )
- SELECT p.id,
-    p.name,
-    p.template_id,
-    p.created_at,
-    a.agent_id,
-    a.lifecycle_state,
-    a.ready_at,
-    cp.template_version_preset_id AS current_preset_id
-   FROM ((all_prebuilds p
-     LEFT JOIN workspace_agents a ON ((a.workspace_id = p.id)))
-     JOIN current_presets cp ON ((cp.prebuild_id = p.id)));
 
 CREATE TRIGGER inhibit_enqueue_if_disabled BEFORE INSERT ON notification_messages FOR EACH ROW EXECUTE FUNCTION inhibit_enqueue_if_disabled();
 
