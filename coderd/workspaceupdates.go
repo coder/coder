@@ -70,10 +70,9 @@ func (s *sub) handleEvent(ctx context.Context, event wspubsub.WorkspaceEvent, er
 	default:
 		if err == nil {
 			return
-		} else {
-			// Always attempt an update if the pubsub lost connection
-			s.logger.Warn(ctx, "failed to handle workspace event", slog.Error(err))
 		}
+		// Always attempt an update if the pubsub lost connection
+		s.logger.Warn(ctx, "failed to handle workspace event", slog.Error(err))
 	}
 
 	// Use context containing actor

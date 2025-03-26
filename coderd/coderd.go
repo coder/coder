@@ -1421,7 +1421,7 @@ func New(options *Options) *API {
 		// global variable here.
 		r.Get("/swagger/*", globalHTTPSwaggerHandler)
 	} else {
-		swaggerDisabled := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		swaggerDisabled := http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
 			httpapi.Write(context.Background(), rw, http.StatusNotFound, codersdk.Response{
 				Message: "Swagger documentation is disabled.",
 			})
