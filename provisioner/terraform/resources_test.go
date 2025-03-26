@@ -1210,6 +1210,12 @@ func TestParameterValidation(t *testing.T) {
 	tfPlanGraph, err := os.ReadFile(filepath.Join(dir, "rich-parameters.tfplan.dot"))
 	require.NoError(t, err)
 
+	for _, resource := range tfPlan.PriorState.Values.RootModule.Resources {
+		if resource.Type == "coder_parameter" {
+			resource.AttributeValues["name"] = "identical"
+		}
+	}
+
 	state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfPlan.PriorState.Values.RootModule}, string(tfPlanGraph), logger)
 	require.Nil(t, state)
 	require.Error(t, err)
