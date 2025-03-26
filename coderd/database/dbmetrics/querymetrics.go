@@ -88,13 +88,6 @@ func (m queryMetricsStore) DeleteOrganization(ctx context.Context, id uuid.UUID)
 	return r0
 }
 
-func (m queryMetricsStore) InsertPresetPrebuild(ctx context.Context, arg database.InsertPresetPrebuildParams) (database.TemplateVersionPresetPrebuild, error) {
-	start := time.Now()
-	r0, r1 := m.s.InsertPresetPrebuild(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertPresetPrebuild").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
 func (m queryMetricsStore) AcquireLock(ctx context.Context, pgAdvisoryXactLock int64) error {
 	start := time.Now()
 	err := m.s.AcquireLock(ctx, pgAdvisoryXactLock)

@@ -2160,8 +2160,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			)
 			for _, dc := range devcontainers {
 				devcontainerIDs = append(devcontainerIDs, uuid.New())
-				// TODO(yevhenii): uncomment after make gen
-				//devcontainerNames = append(devcontainerNames, dc.Name)
+				devcontainerNames = append(devcontainerNames, dc.Name)
 				devcontainerWorkspaceFolders = append(devcontainerWorkspaceFolders, dc.WorkspaceFolder)
 				devcontainerConfigPaths = append(devcontainerConfigPaths, dc.ConfigPath)
 			}
