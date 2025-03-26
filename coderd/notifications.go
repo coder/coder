@@ -428,6 +428,12 @@ func (api *API) postUserPushNotificationTest(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
+	// We need to authorize the user to send a push notification to themselves.
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceNotificationMessage.WithOwner(user.ID.String())) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
 	if err := api.WebpushDispatcher.Dispatch(ctx, user.ID, codersdk.WebpushMessage{
 		Title: "It's working!",
 		Body:  "You've subscribed to push notifications.",
