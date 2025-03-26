@@ -76,7 +76,7 @@ func systemBinary(ctx context.Context) (*systemBinaryDetails, error) {
 	}
 
 	if installedVersion.LessThan(minTerraformVersion) {
-		return details, terraformMinorVersionMismatch
+		return details, errTerraformMinorVersionMismatch
 	}
 
 	return details, nil
@@ -94,7 +94,7 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 				return xerrors.Errorf("system binary context canceled: %w", err)
 			}
 
-			if errors.Is(err, terraformMinorVersionMismatch) {
+			if errors.Is(err, errTerraformMinorVersionMismatch) {
 				options.Logger.Warn(ctx, "installed terraform version too old, will download known good version to cache, or use a previously cached version",
 					slog.F("installed_version", binaryDetails.version.String()),
 					slog.F("min_version", minTerraformVersion.String()))
@@ -150,11 +150,10 @@ type server struct {
 	exitTimeout time.Duration
 }
 
-func (s *server) startTrace(ctx context.Context, name string, _ ...trace.SpanStartOption) (context.Context, trace.Span) {
-	// Always use the same attributes for consistency
-	return s.tracer.Start(ctx, name, trace.WithAttributes(
+func (s *server) startTrace(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
+	return s.tracer.Start(ctx, name, append(opts, trace.WithAttributes(
 		semconv.ServiceNameKey.String("coderd.provisionerd.terraform"),
-	))
+	))...)
 }
 
 func (s *server) executor(workdir string, stage database.ProvisionerJobTimingStage) *executor {

@@ -33,8 +33,8 @@ var _ database.Store = (*querier)(nil)
 
 const wrapname = "dbauthz.querier"
 
-// NoActorError is returned if no actor is present in the context.
-var NoActorError = xerrors.Errorf("no authorization actor in context")
+// ErrNoActor is returned if no actor is present in the context.
+var ErrNoActor = xerrors.Errorf("no authorization actor in context")
 
 // NotAuthorizedError is a sentinel error that unwraps to sql.ErrNoRows.
 // This allows the internal error to be read by the caller if needed. Otherwise
@@ -69,7 +69,7 @@ func IsNotAuthorizedError(err error) bool {
 	if err == nil {
 		return false
 	}
-	if xerrors.Is(err, NoActorError) {
+	if xerrors.Is(err, ErrNoActor) {
 		return true
 	}
 
@@ -140,7 +140,7 @@ func (q *querier) Wrappers() []string {
 func (q *querier) authorizeContext(ctx context.Context, action policy.Action, object rbac.Objecter) error {
 	act, ok := ActorFromContext(ctx)
 	if !ok {
-		return NoActorError
+		return ErrNoActor
 	}
 
 	err := q.auth.Authorize(ctx, act, action, object.RBACObject())
@@ -466,7 +466,7 @@ func insertWithAction[
 		// Fetch the rbac subject
 		act, ok := ActorFromContext(ctx)
 		if !ok {
-			return empty, NoActorError
+			return empty, ErrNoActor
 		}
 
 		// Authorize the action
@@ -544,7 +544,7 @@ func fetchWithAction[
 		// Fetch the rbac subject
 		act, ok := ActorFromContext(ctx)
 		if !ok {
-			return empty, NoActorError
+			return empty, ErrNoActor
 		}
 
 		// Fetch the database object
@@ -620,7 +620,7 @@ func fetchAndQuery[
 		// Fetch the rbac subject
 		act, ok := ActorFromContext(ctx)
 		if !ok {
-			return empty, NoActorError
+			return empty, ErrNoActor
 		}
 
 		// Fetch the database object
@@ -654,7 +654,7 @@ func fetchWithPostFilter[
 		// Fetch the rbac subject
 		act, ok := ActorFromContext(ctx)
 		if !ok {
-			return empty, NoActorError
+			return empty, ErrNoActor
 		}
 
 		// Fetch the database object
@@ -673,7 +673,7 @@ func fetchWithPostFilter[
 func prepareSQLFilter(ctx context.Context, authorizer rbac.Authorizer, action policy.Action, resourceType string) (rbac.PreparedAuthorized, error) {
 	act, ok := ActorFromContext(ctx)
 	if !ok {
-		return nil, NoActorError
+		return nil, ErrNoActor
 	}
 
 	return authorizer.Prepare(ctx, act, action, resourceType)
@@ -752,7 +752,7 @@ func (*querier) convertToDeploymentRoles(names []string) []rbac.RoleIdentifier {
 func (q *querier) canAssignRoles(ctx context.Context, orgID uuid.UUID, added, removed []rbac.RoleIdentifier) error {
 	actor, ok := ActorFromContext(ctx)
 	if !ok {
-		return NoActorError
+		return ErrNoActor
 	}
 
 	roleAssign := rbac.ResourceAssignRole
@@ -961,7 +961,7 @@ func (q *querier) customRoleEscalationCheck(ctx context.Context, actor rbac.Subj
 func (q *querier) customRoleCheck(ctx context.Context, role database.CustomRole) error {
 	act, ok := ActorFromContext(ctx)
 	if !ok {
-		return NoActorError
+		return ErrNoActor
 	}
 
 	// Org permissions require an org role
@@ -3896,7 +3896,7 @@ func (q *querier) UpdateProvisionerJobWithCancelByID(ctx context.Context, arg da
 			// Only owners can cancel workspace builds
 			actor, ok := ActorFromContext(ctx)
 			if !ok {
-				return NoActorError
+				return ErrNoActor
 			}
 			if !slice.Contains(actor.Roles.Names(), rbac.RoleOwner()) {
 				return xerrors.Errorf("only owners can cancel workspace builds")

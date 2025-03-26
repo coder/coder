@@ -89,7 +89,7 @@ func main() {
 					return nil
 				},
 			})
-			if errors.Is(err, cliui.Canceled) {
+			if errors.Is(err, cliui.ErrCanceled) {
 				return nil
 			}
 			if err != nil {
@@ -100,7 +100,7 @@ func main() {
 				Default:   cliui.ConfirmYes,
 				IsConfirm: true,
 			})
-			if errors.Is(err, cliui.Canceled) {
+			if errors.Is(err, cliui.ErrCanceled) {
 				return nil
 			}
 			if err != nil {

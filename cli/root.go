@@ -171,7 +171,7 @@ func (r *RootCmd) RunWithSubcommands(subcommands []*serpent.Command) {
 			code = exitErr.code
 			err = exitErr.err
 		}
-		if errors.Is(err, cliui.Canceled) {
+		if errors.Is(err, cliui.ErrCanceled) {
 			//nolint:revive
 			os.Exit(code)
 		}

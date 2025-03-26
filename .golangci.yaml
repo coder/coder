@@ -231,6 +231,8 @@ issues:
 
 run:
   timeout: 10m
+  skip-files:
+    - scripts/rules.go
 
 # Over time, add more and more linters from
 # https://golangci-lint.run/usage/linters/ as the code improves.

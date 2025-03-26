@@ -42,7 +42,7 @@ type agentAttributes struct {
 	ID              string            `mapstructure:"id"`
 	Token           string            `mapstructure:"token"`
 	Env             map[string]string `mapstructure:"env"`
-	// Deprecated, but remains here for backwards compatibility.
+	// Deprecated: but remains here for backwards compatibility.
 	StartupScript                string `mapstructure:"startup_script"`
 	StartupScriptBehavior        string `mapstructure:"startup_script_behavior"`
 	StartupScriptTimeoutSeconds  int32  `mapstructure:"startup_script_timeout"`

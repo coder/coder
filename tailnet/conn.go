@@ -132,7 +132,6 @@ type TelemetrySink interface {
 // NodeID creates a Tailscale NodeID from the last 8 bytes of a UUID. It ensures
 // the returned NodeID is always positive.
 func NodeID(uid uuid.UUID) tailcfg.NodeID {
-	// #nosec G115 - Safe conversion with potential loss of range, but acceptable for node IDs
 	id := int64(binary.BigEndian.Uint64(uid[8:]))
 
 	// ensure id is positive
@@ -961,7 +960,7 @@ func (ln *listener) Close() error {
 	return ln.closeNoLock()
 }
 
-func (ln *listener) closeNoLock() (err error) {
+func (ln *listener) closeNoLock() error {
 	if v, ok := ln.s.listeners[ln.key]; ok && v == ln {
 		delete(ln.s.listeners, ln.key)
 		close(ln.closed)

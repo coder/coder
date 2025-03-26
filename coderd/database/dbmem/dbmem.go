@@ -9191,7 +9191,7 @@ func (q *FakeQuerier) InsertWorkspaceAgentLogs(_ context.Context, arg database.I
 			LogSourceID: arg.LogSourceID,
 			Output:      output,
 		})
-			// #nosec G115 - Safe conversion as log output length is expected to be within int32 range
+		// #nosec G115 - Safe conversion as log output length is expected to be within int32 range
 		outputLength += int32(len(output))
 	}
 	for index, agent := range q.workspaceAgents {
@@ -12327,23 +12327,23 @@ TemplateUsageStatsInsertLoop:
 
 		// SELECT
 		tus := database.TemplateUsageStat{
-			StartTime:           stat.TimeBucket,
-			EndTime:             stat.TimeBucket.Add(30 * time.Minute),
-			TemplateID:          stat.TemplateID,
-			UserID:              stat.UserID,
+			StartTime:  stat.TimeBucket,
+			EndTime:    stat.TimeBucket.Add(30 * time.Minute),
+			TemplateID: stat.TemplateID,
+			UserID:     stat.UserID,
 			// #nosec G115 - Safe conversion for usage minutes which are expected to be within int16 range
-			UsageMins:           int16(stat.UsageMins),
-			MedianLatencyMs:     sql.NullFloat64{Float64: latency.MedianLatencyMS, Valid: latencyOk},
+			UsageMins:       int16(stat.UsageMins),
+			MedianLatencyMs: sql.NullFloat64{Float64: latency.MedianLatencyMS, Valid: latencyOk},
 			// #nosec G115 - Safe conversion for SSH minutes which are expected to be within int16 range
-			SshMins:             int16(stat.SSHMins),
+			SshMins: int16(stat.SSHMins),
 			// #nosec G115 - Safe conversion for SFTP minutes which are expected to be within int16 range
-			SftpMins:            int16(stat.SFTPMins),
+			SftpMins: int16(stat.SFTPMins),
 			// #nosec G115 - Safe conversion for ReconnectingPTY minutes which are expected to be within int16 range
 			ReconnectingPtyMins: int16(stat.ReconnectingPTYMins),
 			// #nosec G115 - Safe conversion for VSCode minutes which are expected to be within int16 range
-			VscodeMins:          int16(stat.VSCodeMins),
+			VscodeMins: int16(stat.VSCodeMins),
 			// #nosec G115 - Safe conversion for JetBrains minutes which are expected to be within int16 range
-			JetbrainsMins:       int16(stat.JetBrainsMins),
+			JetbrainsMins: int16(stat.JetBrainsMins),
 		}
 		if len(stat.AppUsageMinutes) > 0 {
 			tus.AppUsageMins = make(map[string]int64, len(stat.AppUsageMinutes))

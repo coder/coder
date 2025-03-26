@@ -504,12 +504,10 @@ func decodedSecret(t *testing.T, key codersdk.CryptoKey) []byte {
 	return secret
 }
 
-func generateKey(t *testing.T, _ int) string {
+func generateKey(t *testing.T, size int) string {
 	t.Helper()
 
-	// Always use 64 bytes for consistency
-	const keySize = 64
-	key := make([]byte, keySize)
+	key := make([]byte, size)
 	_, err := rand.Read(key)
 	require.NoError(t, err)
 

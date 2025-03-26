@@ -121,7 +121,7 @@ type server struct {
 // We use the null byte (0x00) in generating a canonical map key for tags, so
 // it cannot be used in the tag keys or values.
 
-var ErrorTagsContainNullByte = xerrors.New("tags cannot contain the null byte (0x00)")
+var ErrTagsContainNullByte = xerrors.New("tags cannot contain the null byte (0x00)")
 
 type Tags map[string]string
 
@@ -136,7 +136,7 @@ func (t Tags) ToJSON() (json.RawMessage, error) {
 func (t Tags) Valid() error {
 	for k, v := range t {
 		if slices.Contains([]byte(k), 0x00) || slices.Contains([]byte(v), 0x00) {
-			return ErrorTagsContainNullByte
+			return ErrTagsContainNullByte
 		}
 	}
 	return nil
@@ -238,8 +238,8 @@ func NewServer(
 
 // timeNow should be used when trying to get the current time for math
 // calculations regarding workspace start and stop time.
-func (s *server) timeNow(_ ...string) time.Time {
-	return dbtime.Time(s.Clock.Now())
+func (s *server) timeNow(tags ...string) time.Time {
+	return dbtime.Time(s.Clock.Now(tags...))
 }
 
 // heartbeatLoop runs heartbeatOnce at the interval specified by HeartbeatInterval
@@ -1817,11 +1817,10 @@ func (s *server) notifyWorkspaceDeleted(ctx context.Context, workspace database.
 	}
 }
 
-func (s *server) startTrace(ctx context.Context, name string, _ ...trace.SpanStartOption) (context.Context, trace.Span) {
-	// Always use the same attribute for consistency
-	return s.Tracer.Start(ctx, name, trace.WithAttributes(
+func (s *server) startTrace(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
+	return s.Tracer.Start(ctx, name, append(opts, trace.WithAttributes(
 		semconv.ServiceNameKey.String("coderd.provisionerd"),
-	))
+	))...)
 }
 
 func InsertWorkspaceModule(ctx context.Context, db database.Store, jobID uuid.UUID, transition database.WorkspaceTransition, protoModule *sdkproto.Module, snapshot *telemetry.Snapshot) error {
@@ -1997,8 +1996,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			DisplayApps:              convertDisplayApps(prAgent.GetDisplayApps()),
 			InstanceMetadata:         pqtype.NullRawMessage{},
 			ResourceMetadata:         pqtype.NullRawMessage{},
-			// #nosec G115 - Safe conversion as display order value is expected to be within int32 range
-			DisplayOrder: int32(prAgent.Order),
+			DisplayOrder:             int32(prAgent.Order),
 		})
 		if err != nil {
 			return xerrors.Errorf("insert agent: %w", err)
@@ -2013,8 +2011,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				Key:              md.Key,
 				Timeout:          md.Timeout,
 				Interval:         md.Interval,
-				// #nosec G115 - Safe conversion as display order value is expected to be within int32 range
-				DisplayOrder: int32(md.Order),
+				DisplayOrder:     int32(md.Order),
 			}
 			err := db.InsertWorkspaceAgentMetadata(ctx, p)
 			if err != nil {
@@ -2197,10 +2194,9 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				HealthcheckInterval:  app.Healthcheck.Interval,
 				HealthcheckThreshold: app.Healthcheck.Threshold,
 				Health:               health,
-				// #nosec G115 - Safe conversion as display order value is expected to be within int32 range
-				DisplayOrder: int32(app.Order),
-				Hidden:       app.Hidden,
-				OpenIn:       openIn,
+				DisplayOrder:         int32(app.Order),
+				Hidden:               app.Hidden,
+				OpenIn:               openIn,
 			})
 			if err != nil {
 				return xerrors.Errorf("insert app: %w", err)

@@ -120,9 +120,7 @@ func TestCache_TemplateWorkspaceOwners(t *testing.T) {
 	)
 }
 
-func clockTime(t time.Time, _ int, minute, sec int) time.Time {
-	// Always use a consistent hour (10) for testing
-	const hour = 10
+func clockTime(t time.Time, hour, minute, sec int) time.Time {
 	return time.Date(t.Year(), t.Month(), t.Day(), hour, minute, sec, t.Nanosecond(), t.Location())
 }
 
@@ -251,7 +249,6 @@ func TestCache_BuildTime(t *testing.T) {
 				})
 
 				dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-					// #nosec G115 - Safe conversion as build number is expected to be within int32 range
 					BuildNumber:       int32(1 + buildNumber),
 					WorkspaceID:       workspace.ID,
 					InitiatorID:       user.ID,

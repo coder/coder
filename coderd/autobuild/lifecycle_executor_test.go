@@ -1219,10 +1219,9 @@ func mustProvisionWorkspaceWithParameters(t *testing.T, client *codersdk.Client,
 	return coderdtest.MustWorkspace(t, client, ws.ID)
 }
 
-func mustSchedule(t *testing.T, _ string) *cron.Schedule {
+func mustSchedule(t *testing.T, s string) *cron.Schedule {
 	t.Helper()
-	// Always use the same schedule string for consistency
-	sched, err := cron.Weekly("CRON_TZ=UTC 0 * * * *")
+	sched, err := cron.Weekly(s)
 	require.NoError(t, err)
 	return sched
 }

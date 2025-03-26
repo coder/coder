@@ -89,7 +89,7 @@ func (r *RootCmd) openVSCode() *serpent.Command {
 				})
 				if err != nil {
 					if xerrors.Is(err, context.Canceled) {
-						return cliui.Canceled
+						return cliui.ErrCanceled
 					}
 					return xerrors.Errorf("agent: %w", err)
 				}
