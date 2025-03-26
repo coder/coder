@@ -24,30 +24,19 @@ linters-settings:
     enabled-checks:
       # - appendAssign
       # - appendCombine
-      - argOrder
       # - assignOp
       # - badCall
-      - badCond
       - badLock
       - badRegexp
       - boolExprSimplify
       # - builtinShadow
       - builtinShadowDecl
-      - captLocal
-      - caseOrder
-      - codegenComment
       # - commentedOutCode
       - commentedOutImport
-      - commentFormatting
-      - defaultCaseOrder
       - deferUnlambda
       # - deprecatedComment
       # - docStub
-      - dupArg
-      - dupBranchBody
-      - dupCase
       - dupImport
-      - dupSubExpr
       # - elseif
       - emptyFallthrough
       # - emptyStringTest
@@ -56,8 +45,6 @@ linters-settings:
       # - exitAfterDefer
       # - exposedSyncMutex
       # - filepathJoin
-      - flagDeref
-      - flagName
       - hexLiteral
       # - httpNoBody
       # - hugeParam
@@ -65,47 +52,36 @@ linters-settings:
       # - importShadow
       - indexAlloc
       - initClause
-      - mapKey
       - methodExprCall
       # - nestingReduce
-      - newDeref
       - nilValReturn
       # - octalLiteral
-      - offBy1
       # - paramTypeCombine
       # - preferStringWriter
       # - preferWriteByte
       # - ptrToRefParam
       # - rangeExprCopy
       # - rangeValCopy
-      - regexpMust
       - regexpPattern
       # - regexpSimplify
       - ruleguard
-      - singleCaseSwitch
-      - sloppyLen
       # - sloppyReassign
-      - sloppyTypeAssert
       - sortSlice
       - sprintfQuotedString
       - sqlQuery
       # - stringConcatSimplify
       # - stringXbytes
       # - suspiciousSorting
-      - switchTrue
       - truncateCmp
       - typeAssertChain
       # - typeDefFirst
-      - typeSwitchVar
       # - typeUnparen
-      - underef
       # - unlabelStmt
       # - unlambda
       # - unnamedResult
       # - unnecessaryBlock
       # - unnecessaryDefer
       # - unslice
-      - valSwap
       - weakCond
       # - whyNoLint
       # - wrapperFunc
@@ -224,6 +200,9 @@ issues:
     - path: scripts/*
       linters:
         - exhaustruct
+    - path: scripts/rules.go
+      linters:
+        - ALL
 
   fix: true
   max-issues-per-linter: 0
@@ -231,8 +210,6 @@ issues:
 
 run:
   timeout: 10m
-  skip-files:
-    - scripts/rules.go
 
 # Over time, add more and more linters from
 # https://golangci-lint.run/usage/linters/ as the code improves.
@@ -277,7 +254,6 @@ linters:
     # - wastedassign
 
     - staticcheck
-    - tenv
     # In Go, it's possible for a package to test it's internal functionality
     # without testing any exported functions. This is enabled to promote
     # decomposing a package before testing it's internals. A function caller
@@ -290,4 +266,5 @@ linters:
     - typecheck
     - unconvert
     - unused
+    - usetesting
     - dupl
