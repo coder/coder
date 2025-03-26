@@ -1997,21 +1997,9 @@ CREATE VIEW workspace_prebuild_builds AS
 CREATE VIEW workspace_prebuilds AS
 SELECT
     NULL::uuid AS id,
-    NULL::timestamp with time zone AS created_at,
-    NULL::timestamp with time zone AS updated_at,
-    NULL::uuid AS owner_id,
-    NULL::uuid AS organization_id,
-    NULL::uuid AS template_id,
-    NULL::boolean AS deleted,
     NULL::character varying(64) AS name,
-    NULL::text AS autostart_schedule,
-    NULL::bigint AS ttl,
-    NULL::timestamp with time zone AS last_used_at,
-    NULL::timestamp with time zone AS dormant_at,
-    NULL::timestamp with time zone AS deleting_at,
-    NULL::automatic_updates AS automatic_updates,
-    NULL::boolean AS favorite,
-    NULL::timestamp with time zone AS next_start_at,
+    NULL::uuid AS template_id,
+    NULL::timestamp with time zone AS created_at,
     NULL::uuid AS agent_id,
     NULL::workspace_agent_lifecycle_state AS lifecycle_state,
     NULL::timestamp with time zone AS ready_at,
@@ -2602,41 +2590,17 @@ CREATE OR REPLACE VIEW provisioner_job_stats AS
 CREATE OR REPLACE VIEW workspace_prebuilds AS
  WITH all_prebuilds AS (
          SELECT w.id,
-            w.created_at,
-            w.updated_at,
-            w.owner_id,
-            w.organization_id,
-            w.template_id,
-            w.deleted,
             w.name,
-            w.autostart_schedule,
-            w.ttl,
-            w.last_used_at,
-            w.dormant_at,
-            w.deleting_at,
-            w.automatic_updates,
-            w.favorite,
-            w.next_start_at
+            w.template_id,
+            w.created_at
            FROM workspaces w
           WHERE (w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid)
         ), latest_prebuild_builds AS (
-         SELECT workspace_latest_builds.id,
-            workspace_latest_builds.created_at,
-            workspace_latest_builds.updated_at,
-            workspace_latest_builds.workspace_id,
-            workspace_latest_builds.template_version_id,
-            workspace_latest_builds.build_number,
-            workspace_latest_builds.transition,
-            workspace_latest_builds.initiator_id,
-            workspace_latest_builds.provisioner_state,
-            workspace_latest_builds.job_id,
-            workspace_latest_builds.deadline,
-            workspace_latest_builds.reason,
-            workspace_latest_builds.daily_cost,
-            workspace_latest_builds.max_deadline,
-            workspace_latest_builds.template_version_preset_id
-           FROM workspace_latest_builds
-          WHERE (workspace_latest_builds.template_version_preset_id IS NOT NULL)
+         SELECT DISTINCT ON (workspace_builds.workspace_id) workspace_builds.workspace_id,
+            workspace_builds.template_version_preset_id
+           FROM workspace_builds
+          WHERE (workspace_builds.template_version_preset_id IS NOT NULL)
+          ORDER BY workspace_builds.workspace_id, workspace_builds.build_number DESC
         ), workspace_agents AS (
          SELECT w.id AS workspace_id,
             wa.id AS agent_id,
@@ -2656,21 +2620,9 @@ CREATE OR REPLACE VIEW workspace_prebuilds AS
           WHERE (w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid)
         )
  SELECT p.id,
-    p.created_at,
-    p.updated_at,
-    p.owner_id,
-    p.organization_id,
-    p.template_id,
-    p.deleted,
     p.name,
-    p.autostart_schedule,
-    p.ttl,
-    p.last_used_at,
-    p.dormant_at,
-    p.deleting_at,
-    p.automatic_updates,
-    p.favorite,
-    p.next_start_at,
+    p.template_id,
+    p.created_at,
     a.agent_id,
     a.lifecycle_state,
     a.ready_at,
