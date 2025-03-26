@@ -1045,7 +1045,7 @@ func formatMultiError(from string, multi []error, opts *formatOpts) string {
 		prefix := fmt.Sprintf("%d. ", i+1)
 		if len(prefix) < len(indent) {
 			// Indent the prefix to match the indent
-			prefix = prefix + strings.Repeat(" ", len(indent)-len(prefix))
+			prefix += strings.Repeat(" ", len(indent)-len(prefix))
 		}
 		errStr = prefix + errStr
 		// Now looks like

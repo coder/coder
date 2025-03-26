@@ -190,7 +190,7 @@ var usageTemplate = func() *template.Template {
 				},
 				"formatGroupDescription": func(s string) string {
 					s = strings.ReplaceAll(s, "\n", "")
-					s = s + "\n"
+					s += "\n"
 					s = wrapTTY(s)
 					return s
 				},
