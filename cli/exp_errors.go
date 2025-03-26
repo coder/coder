@@ -57,7 +57,7 @@ func (RootCmd) errorExample() *serpent.Command {
 		Long: "This command is pretty pointless, but without it testing errors is" +
 			"difficult to visually inspect. Error message formatting is inherently" +
 			"visual, so we need a way to quickly see what they look like.",
-		Handler: func(_ *serpent.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
 		Children: []*serpent.Command{
