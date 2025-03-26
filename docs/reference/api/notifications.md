@@ -536,10 +536,10 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/notifications/push/sub
 
 ### Parameters
 
-| Name   | In   | Type                                                                                     | Required | Description                    |
-|--------|------|------------------------------------------------------------------------------------------|----------|--------------------------------|
-| `user` | path | string                                                                                   | true     | User ID, name, or me           |
-| `body` | body | [codersdk.PushNotificationSubscription](schemas.md#codersdkpushnotificationsubscription) | true     | Push notification subscription |
+| Name   | In   | Type                                                                   | Required | Description          |
+|--------|------|------------------------------------------------------------------------|----------|----------------------|
+| `user` | path | string                                                                 | true     | User ID, name, or me |
+| `body` | body | [codersdk.WebpushSubscription](schemas.md#codersdkwebpushsubscription) | true     | Webpush subscription |
 
 ### Responses
 
@@ -572,10 +572,10 @@ curl -X DELETE http://coder-server:8080/api/v2/users/{user}/notifications/push/s
 
 ### Parameters
 
-| Name   | In   | Type                                                                                                 | Required | Description                    |
-|--------|------|------------------------------------------------------------------------------------------------------|----------|--------------------------------|
-| `user` | path | string                                                                                               | true     | User ID, name, or me           |
-| `body` | body | [codersdk.DeletePushNotificationSubscription](schemas.md#codersdkdeletepushnotificationsubscription) | true     | Push notification subscription |
+| Name   | In   | Type                                                                               | Required | Description                    |
+|--------|------|------------------------------------------------------------------------------------|----------|--------------------------------|
+| `user` | path | string                                                                             | true     | User ID, name, or me           |
+| `body` | body | [codersdk.DeleteWebpushSubscription](schemas.md#codersdkdeletewebpushsubscription) | true     | Push notification subscription |
 
 ### Responses
 

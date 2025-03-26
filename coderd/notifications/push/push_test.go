@@ -36,8 +36,7 @@ func TestPush(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		})
 		user := dbgen.User(t, store, database.User{})
-		sub, err := store.InsertNotificationPushSubscription(ctx, database.InsertNotificationPushSubscriptionParams{
-			ID:                uuid.New(),
+		sub, err := store.InsertWebpushSubscription(ctx, database.InsertWebpushSubscriptionParams{
 			UserID:            user.ID,
 			Endpoint:          serverURL,
 			EndpointAuthKey:   validEndpointAuthKey,
@@ -46,10 +45,10 @@ func TestPush(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		notification := codersdk.PushNotification{
+		notification := codersdk.WebpushMessage{
 			Title: "Test Title",
 			Body:  "Test Body",
-			Actions: []codersdk.PushNotificationAction{
+			Actions: []codersdk.WebpushMessageAction{
 				{Label: "View", URL: "https://coder.com/view"},
 			},
 			Icon: "workspace",
@@ -58,7 +57,7 @@ func TestPush(t *testing.T) {
 		err = manager.Dispatch(ctx, user.ID, notification)
 		require.NoError(t, err)
 
-		subscriptions, err := store.GetNotificationPushSubscriptionsByUserID(ctx, user.ID)
+		subscriptions, err := store.GetWebpushSubscriptionsByUserID(ctx, user.ID)
 		require.NoError(t, err)
 		assert.Len(t, subscriptions, 1, "One subscription should be returned")
 		assert.Equal(t, subscriptions[0].ID, sub.ID, "The subscription should not be deleted")
@@ -71,9 +70,7 @@ func TestPush(t *testing.T) {
 			w.WriteHeader(http.StatusGone)
 		})
 		user := dbgen.User(t, store, database.User{})
-		subID := uuid.New()
-		_, err := store.InsertNotificationPushSubscription(ctx, database.InsertNotificationPushSubscriptionParams{
-			ID:                subID,
+		_, err := store.InsertWebpushSubscription(ctx, database.InsertWebpushSubscriptionParams{
 			UserID:            user.ID,
 			Endpoint:          serverURL,
 			EndpointAuthKey:   validEndpointAuthKey,
@@ -82,7 +79,7 @@ func TestPush(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		notification := codersdk.PushNotification{
+		notification := codersdk.WebpushMessage{
 			Title: "Test Title",
 			Body:  "Test Body",
 		}
@@ -90,7 +87,7 @@ func TestPush(t *testing.T) {
 		err = manager.Dispatch(ctx, user.ID, notification)
 		require.NoError(t, err)
 
-		subscriptions, err := store.GetNotificationPushSubscriptionsByUserID(ctx, user.ID)
+		subscriptions, err := store.GetWebpushSubscriptionsByUserID(ctx, user.ID)
 		require.NoError(t, err)
 		assert.Len(t, subscriptions, 0, "No subscriptions should be returned")
 	})
@@ -104,8 +101,7 @@ func TestPush(t *testing.T) {
 		})
 
 		user := dbgen.User(t, store, database.User{})
-		sub, err := store.InsertNotificationPushSubscription(ctx, database.InsertNotificationPushSubscriptionParams{
-			ID:                uuid.New(),
+		sub, err := store.InsertWebpushSubscription(ctx, database.InsertWebpushSubscriptionParams{
 			UserID:            user.ID,
 			Endpoint:          serverURL,
 			EndpointAuthKey:   validEndpointAuthKey,
@@ -114,7 +110,7 @@ func TestPush(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		notification := codersdk.PushNotification{
+		notification := codersdk.WebpushMessage{
 			Title: "Test Title",
 			Body:  "Test Body",
 		}
@@ -123,7 +119,7 @@ func TestPush(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "Invalid request")
 
-		subscriptions, err := store.GetNotificationPushSubscriptionsByUserID(ctx, user.ID)
+		subscriptions, err := store.GetWebpushSubscriptionsByUserID(ctx, user.ID)
 		require.NoError(t, err)
 		assert.Len(t, subscriptions, 1, "One subscription should be returned")
 		assert.Equal(t, subscriptions[0].ID, sub.ID, "The subscription should not be deleted")
@@ -148,11 +144,8 @@ func TestPush(t *testing.T) {
 
 		// Setup subscriptions pointing to our test servers
 		user := dbgen.User(t, store, database.User{})
-		sub1ID := uuid.New()
-		sub2ID := uuid.New()
 
-		_, err := store.InsertNotificationPushSubscription(ctx, database.InsertNotificationPushSubscriptionParams{
-			ID:                sub1ID,
+		sub1, err := store.InsertWebpushSubscription(ctx, database.InsertWebpushSubscriptionParams{
 			UserID:            user.ID,
 			Endpoint:          serverOKURL,
 			EndpointAuthKey:   validEndpointAuthKey,
@@ -161,8 +154,7 @@ func TestPush(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		_, err = store.InsertNotificationPushSubscription(ctx, database.InsertNotificationPushSubscriptionParams{
-			ID:                sub2ID,
+		_, err = store.InsertWebpushSubscription(ctx, database.InsertWebpushSubscriptionParams{
 			UserID:            user.ID,
 			Endpoint:          serverGoneURL,
 			EndpointAuthKey:   validEndpointAuthKey,
@@ -171,10 +163,10 @@ func TestPush(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		notification := codersdk.PushNotification{
+		notification := codersdk.WebpushMessage{
 			Title: "Test Title",
 			Body:  "Test Body",
-			Actions: []codersdk.PushNotificationAction{
+			Actions: []codersdk.WebpushMessageAction{
 				{Label: "View", URL: "https://coder.com/view"},
 			},
 		}
@@ -184,9 +176,12 @@ func TestPush(t *testing.T) {
 		assert.True(t, okEndpointCalled, "The valid endpoint should be called")
 		assert.True(t, goneEndpointCalled, "The expired endpoint should be called")
 
-		// assert.Len(t, store.deletedIDs, 1, "One subscription should be deleted")
-		// assert.Contains(t, store.deletedIDs, sub2ID, "The expired subscription should be deleted")
-		// assert.NotContains(t, store.deletedIDs, sub1ID, "The valid subscription should not be deleted")
+		// Assert that sub1 was not deleted.
+		subscriptions, err := store.GetWebpushSubscriptionsByUserID(ctx, user.ID)
+		require.NoError(t, err)
+		if assert.Len(t, subscriptions, 1, "One subscription should be returned") {
+			assert.Equal(t, subscriptions[0].ID, sub1.ID, "The valid subscription should not be deleted")
+		}
 	})
 
 	t.Run("NotificationPayload", func(t *testing.T) {
@@ -201,8 +196,7 @@ func TestPush(t *testing.T) {
 
 		user := dbgen.User(t, store, database.User{})
 
-		_, err := store.InsertNotificationPushSubscription(ctx, database.InsertNotificationPushSubscriptionParams{
-			ID:                uuid.New(),
+		_, err := store.InsertWebpushSubscription(ctx, database.InsertWebpushSubscriptionParams{
 			CreatedAt:         dbtime.Now(),
 			UserID:            user.ID,
 			Endpoint:          serverURL,
@@ -211,10 +205,10 @@ func TestPush(t *testing.T) {
 		})
 		require.NoError(t, err, "Failed to insert push subscription")
 
-		notification := codersdk.PushNotification{
+		notification := codersdk.WebpushMessage{
 			Title: "Test Notification",
 			Body:  "This is a test notification body",
-			Actions: []codersdk.PushNotificationAction{
+			Actions: []codersdk.WebpushMessageAction{
 				{Label: "View Workspace", URL: "https://coder.com/workspace/123"},
 				{Label: "Cancel", URL: "https://coder.com/cancel"},
 			},
@@ -234,7 +228,7 @@ func TestPush(t *testing.T) {
 		})
 
 		userID := uuid.New()
-		notification := codersdk.PushNotification{
+		notification := codersdk.WebpushMessage{
 			Title: "Test Title",
 			Body:  "Test Body",
 		}
@@ -242,7 +236,7 @@ func TestPush(t *testing.T) {
 		err := manager.Dispatch(ctx, userID, notification)
 		require.NoError(t, err)
 
-		subscriptions, err := store.GetNotificationPushSubscriptionsByUserID(ctx, userID)
+		subscriptions, err := store.GetWebpushSubscriptionsByUserID(ctx, userID)
 		require.NoError(t, err)
 		assert.Empty(t, subscriptions, "No subscriptions should be returned")
 	})

@@ -404,21 +404,21 @@ func TestPushNotificationSubscription(t *testing.T) {
 		}))
 		defer server.Close()
 
-		err := memberClient.CreateNotificationPushSubscription(ctx, "me", codersdk.PushNotificationSubscription{
+		err := memberClient.PostWebpushSubscription(ctx, "me", codersdk.WebpushSubscription{
 			Endpoint:  server.URL,
 			AuthKey:   validEndpointAuthKey,
 			P256DHKey: validEndpointP256dhKey,
 		})
-		require.NoError(t, err, "create notification push subscription")
+		require.NoError(t, err, "create webpush subscription")
 		require.True(t, <-handlerCalled, "handler should have been called")
 
-		err = memberClient.TestPushNotification(ctx)
+		err = memberClient.PostTestWebpushMessage(ctx)
 		require.NoError(t, err, "test push notification")
 		require.True(t, <-handlerCalled, "handler should have been called again")
 
-		err = memberClient.DeleteNotificationPushSubscription(ctx, "me", codersdk.DeletePushNotificationSubscription{
+		err = memberClient.DeleteWebpushSubscription(ctx, "me", codersdk.DeleteWebpushSubscription{
 			Endpoint: server.URL,
 		})
-		require.NoError(t, err, "delete notification push subscription")
+		require.NoError(t, err, "delete webpush subscription")
 	})
 }

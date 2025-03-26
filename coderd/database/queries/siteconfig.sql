@@ -132,15 +132,15 @@ SET value = CASE
 END
 WHERE site_configs.key = 'oauth2_github_default_eligible';
 
--- name: UpsertNotificationVAPIDKeys :exec
+-- name: UpsertWebpushVAPIDKeys :exec
 INSERT INTO site_configs (key, value)
 VALUES
-    ('notification_vapid_public_key', @vapid_public_key :: text),
-    ('notification_vapid_private_key', @vapid_private_key :: text)
+    ('webpush_vapid_public_key', @vapid_public_key :: text),
+    ('webpush_vapid_private_key', @vapid_private_key :: text)
 ON CONFLICT (key)
 DO UPDATE SET value = EXCLUDED.value WHERE site_configs.key = EXCLUDED.key;
 
--- name: GetNotificationVAPIDKeys :one
+-- name: GetWebpushVAPIDKeys :one
 SELECT
-    COALESCE((SELECT value FROM site_configs WHERE key = 'notification_vapid_public_key'), '') :: text AS vapid_public_key,
-    COALESCE((SELECT value FROM site_configs WHERE key = 'notification_vapid_private_key'), '') :: text AS vapid_private_key;
+    COALESCE((SELECT value FROM site_configs WHERE key = 'webpush_vapid_public_key'), '') :: text AS vapid_public_key,
+    COALESCE((SELECT value FROM site_configs WHERE key = 'webpush_vapid_private_key'), '') :: text AS vapid_private_key;

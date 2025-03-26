@@ -1,6 +1,6 @@
--- notification_push_subscriptions is a table that stores push notification
+-- webpush_subscriptions is a table that stores push notification
 -- subscriptions for users. These are acquired via the Push API in the browser.
-CREATE TABLE IF NOT EXISTS notification_push_subscriptions (
+CREATE TABLE IF NOT EXISTS webpush_subscriptions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users ON DELETE CASCADE,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,

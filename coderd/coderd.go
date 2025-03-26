@@ -577,16 +577,16 @@ func New(options *Options) *API {
 	api.AppearanceFetcher.Store(&f)
 	api.PortSharer.Store(&portsharing.DefaultPortSharer)
 	buildInfo := codersdk.BuildInfoResponse{
-		ExternalURL:                buildinfo.ExternalURL(),
-		Version:                    buildinfo.Version(),
-		AgentAPIVersion:            AgentAPIVersionREST,
-		ProvisionerAPIVersion:      proto.CurrentVersion.String(),
-		DashboardURL:               api.AccessURL.String(),
-		WorkspaceProxy:             false,
-		UpgradeMessage:             api.DeploymentValues.CLIUpgradeMessage.String(),
-		DeploymentID:               api.DeploymentID,
-		PushNotificationsPublicKey: api.PushNotifier.PublicKey(),
-		Telemetry:                  api.Telemetry.Enabled(),
+		ExternalURL:           buildinfo.ExternalURL(),
+		Version:               buildinfo.Version(),
+		AgentAPIVersion:       AgentAPIVersionREST,
+		ProvisionerAPIVersion: proto.CurrentVersion.String(),
+		DashboardURL:          api.AccessURL.String(),
+		WorkspaceProxy:        false,
+		UpgradeMessage:        api.DeploymentValues.CLIUpgradeMessage.String(),
+		DeploymentID:          api.DeploymentID,
+		WebPushPublicKey:      api.PushNotifier.PublicKey(),
+		Telemetry:             api.Telemetry.Enabled(),
 	}
 	api.SiteHandler = site.New(&site.Options{
 		BinFS:             binFS,
@@ -1201,8 +1201,8 @@ func New(options *Options) *API {
 							r.Put("/", api.putUserNotificationPreferences)
 						})
 						r.Route("/push", func(r chi.Router) {
-							r.Post("/subscription", api.postUserPushNotificationSubscription)
-							r.Delete("/subscription", api.deleteUserPushNotificationSubscription)
+							r.Post("/subscription", api.postUserWebpushSubscription)
+							r.Delete("/subscription", api.deleteUserWebpushSubscription)
 							r.Post("/test", api.postUserPushNotificationTest)
 						})
 					})

@@ -7240,12 +7240,12 @@ const docTemplate = `{
                 "operationId": "create-user-push-notification-subscription",
                 "parameters": [
                     {
-                        "description": "Push notification subscription",
+                        "description": "Webpush subscription",
                         "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/codersdk.PushNotificationSubscription"
+                            "$ref": "#/definitions/codersdk.WebpushSubscription"
                         }
                     },
                     {
@@ -7283,7 +7283,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/codersdk.DeletePushNotificationSubscription"
+                            "$ref": "#/definitions/codersdk.DeleteWebpushSubscription"
                         }
                     },
                     {
@@ -10815,10 +10815,6 @@ const docTemplate = `{
                     "description": "ProvisionerAPIVersion is the current version of the Provisioner API",
                     "type": "string"
                 },
-                "push_notifications_public_key": {
-                    "description": "PushNotificationsPublicKey is the public key for push notifications.",
-                    "type": "string"
-                },
                 "telemetry": {
                     "description": "Telemetry is a boolean that indicates whether telemetry is enabled.",
                     "type": "boolean"
@@ -10829,6 +10825,10 @@ const docTemplate = `{
                 },
                 "version": {
                     "description": "Version returns the semantic version of the build.",
+                    "type": "string"
+                },
+                "webpush_public_key": {
+                    "description": "WebPushPublicKey is the public key for push notifications.",
                     "type": "string"
                 },
                 "workspace_proxy": {
@@ -11607,7 +11607,7 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.DeletePushNotificationSubscription": {
+        "codersdk.DeleteWebpushSubscription": {
             "type": "object",
             "properties": {
                 "endpoint": {
@@ -14134,20 +14134,6 @@ const docTemplate = `{
                 "ProxyUnregistered"
             ]
         },
-        "codersdk.PushNotificationSubscription": {
-            "type": "object",
-            "properties": {
-                "auth_key": {
-                    "type": "string"
-                },
-                "endpoint": {
-                    "type": "string"
-                },
-                "p256dh_key": {
-                    "type": "string"
-                }
-            }
-        },
         "codersdk.PutExtendWorkspaceRequest": {
             "type": "object",
             "required": [
@@ -14233,7 +14219,6 @@ const docTemplate = `{
                 "license",
                 "notification_message",
                 "notification_preference",
-                "notification_push_subscription",
                 "notification_template",
                 "oauth2_app",
                 "oauth2_app_code_token",
@@ -14247,6 +14232,7 @@ const docTemplate = `{
                 "tailnet_coordinator",
                 "template",
                 "user",
+                "webpush_subscription",
                 "workspace",
                 "workspace_agent_devcontainers",
                 "workspace_agent_resource_monitor",
@@ -14271,7 +14257,6 @@ const docTemplate = `{
                 "ResourceLicense",
                 "ResourceNotificationMessage",
                 "ResourceNotificationPreference",
-                "ResourceNotificationPushSubscription",
                 "ResourceNotificationTemplate",
                 "ResourceOauth2App",
                 "ResourceOauth2AppCodeToken",
@@ -14285,6 +14270,7 @@ const docTemplate = `{
                 "ResourceTailnetCoordinator",
                 "ResourceTemplate",
                 "ResourceUser",
+                "ResourceWebpushSubscription",
                 "ResourceWorkspace",
                 "ResourceWorkspaceAgentDevcontainers",
                 "ResourceWorkspaceAgentResourceMonitor",
@@ -16113,6 +16099,20 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.WebpushSubscription": {
+            "type": "object",
+            "properties": {
+                "auth_key": {
+                    "type": "string"
+                },
+                "endpoint": {
+                    "type": "string"
+                },
+                "p256dh_key": {
                     "type": "string"
                 }
             }

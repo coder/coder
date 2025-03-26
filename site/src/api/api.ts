@@ -2383,7 +2383,7 @@ class ApiMethods {
 
 	deleteNotificationPushSubscription = async (
 		userId: string,
-		req: TypesGen.DeletePushNotificationSubscription,
+		req: TypesGen.DeleteWebpushSubscription,
 	) => {
 		await this.axios.delete<void>(
 			`/api/v2/users/${userId}/notifications/push/subscription`,

@@ -4531,18 +4531,18 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	s.Run("UpsertOAuth2GithubDefaultEligible", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(true).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
-	s.Run("GetNotificationVAPIDKeys", s.Subtest(func(db database.Store, check *expects) {
-		require.NoError(s.T(), db.UpsertNotificationVAPIDKeys(context.Background(), database.UpsertNotificationVAPIDKeysParams{
+	s.Run("GetWebpushVAPIDKeys", s.Subtest(func(db database.Store, check *expects) {
+		require.NoError(s.T(), db.UpsertWebpushVAPIDKeys(context.Background(), database.UpsertWebpushVAPIDKeysParams{
 			VapidPublicKey:  "test",
 			VapidPrivateKey: "test",
 		}))
-		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns(database.GetNotificationVAPIDKeysRow{
+		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns(database.GetWebpushVAPIDKeysRow{
 			VapidPublicKey:  "test",
 			VapidPrivateKey: "test",
 		})
 	}))
-	s.Run("UpsertNotificationVAPIDKeys", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.UpsertNotificationVAPIDKeysParams{
+	s.Run("UpsertWebpushVAPIDKeys", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.UpsertWebpushVAPIDKeysParams{
 			VapidPublicKey:  "test",
 			VapidPrivateKey: "test",
 		}).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
@@ -4584,37 +4584,37 @@ func (s *MethodTestSuite) TestNotifications() {
 		}).Asserts(rbac.ResourceNotificationMessage, policy.ActionRead)
 	}))
 
-	// Notification push subscriptions
-	s.Run("GetNotificationPushSubscriptionsByUserID", s.Subtest(func(db database.Store, check *expects) {
+	// webpush subscriptions
+	s.Run("GetWebpushSubscriptionsByUserID", s.Subtest(func(db database.Store, check *expects) {
 		user := dbgen.User(s.T(), db, database.User{})
-		check.Args(user.ID).Asserts(rbac.ResourceNotificationPushSubscription.WithOwner(user.ID.String()), policy.ActionRead)
+		check.Args(user.ID).Asserts(rbac.ResourceWebpushSubscription.WithOwner(user.ID.String()), policy.ActionRead)
 	}))
-	s.Run("InsertNotificationPushSubscription", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("InsertWebpushSubscription", s.Subtest(func(db database.Store, check *expects) {
 		user := dbgen.User(s.T(), db, database.User{})
-		check.Args(database.InsertNotificationPushSubscriptionParams{
+		check.Args(database.InsertWebpushSubscriptionParams{
 			UserID: user.ID,
-		}).Asserts(rbac.ResourceNotificationPushSubscription.WithOwner(user.ID.String()), policy.ActionCreate)
+		}).Asserts(rbac.ResourceWebpushSubscription.WithOwner(user.ID.String()), policy.ActionCreate)
 	}))
-	s.Run("DeleteNotificationPushSubscriptions", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("DeleteWebpushSubscriptions", s.Subtest(func(db database.Store, check *expects) {
 		user := dbgen.User(s.T(), db, database.User{})
-		push := dbgen.NotificationPushSubscription(s.T(), db, database.InsertNotificationPushSubscriptionParams{
+		push := dbgen.WebpushSubscription(s.T(), db, database.InsertWebpushSubscriptionParams{
 			UserID: user.ID,
 		})
 		check.Args([]uuid.UUID{push.ID}).Asserts(rbac.ResourceSystem, policy.ActionDelete)
 	}))
-	s.Run("DeleteNotificationPushSubscriptionByEndpoint", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("DeleteWebpushSubscriptionByUserIDAndEndpoint", s.Subtest(func(db database.Store, check *expects) {
 		user := dbgen.User(s.T(), db, database.User{})
-		push := dbgen.NotificationPushSubscription(s.T(), db, database.InsertNotificationPushSubscriptionParams{
+		push := dbgen.WebpushSubscription(s.T(), db, database.InsertWebpushSubscriptionParams{
 			UserID: user.ID,
 		})
-		check.Args(database.DeleteNotificationPushSubscriptionByEndpointParams{
+		check.Args(database.DeleteWebpushSubscriptionByUserIDAndEndpointParams{
 			UserID:   user.ID,
 			Endpoint: push.Endpoint,
-		}).Asserts(rbac.ResourceNotificationPushSubscription.WithOwner(user.ID.String()), policy.ActionDelete)
+		}).Asserts(rbac.ResourceWebpushSubscription.WithOwner(user.ID.String()), policy.ActionDelete)
 	}))
-	s.Run("DeleteAllNotificationPushSubscriptions", s.Subtest(func(_ database.Store, check *expects) {
+	s.Run("DeleteAllWebpushSubscriptions", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args().
-			Asserts(rbac.ResourceNotificationPushSubscription, policy.ActionDelete)
+			Asserts(rbac.ResourceWebpushSubscription, policy.ActionDelete)
 	}))
 
 	// Notification templates

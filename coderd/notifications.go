@@ -332,20 +332,20 @@ func (api *API) putUserNotificationPreferences(rw http.ResponseWriter, r *http.R
 // @Security CoderSessionToken
 // @Accept json
 // @Tags Notifications
-// @Param request body codersdk.PushNotificationSubscription true "Push notification subscription"
+// @Param request body codersdk.WebpushSubscription true "Webpush subscription"
 // @Param user path string true "User ID, name, or me"
 // @Router /users/{user}/notifications/push/subscription [post]
 // @Success 204
-func (api *API) postUserPushNotificationSubscription(rw http.ResponseWriter, r *http.Request) {
+func (api *API) postUserWebpushSubscription(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
 
-	var req codersdk.PushNotificationSubscription
+	var req codersdk.WebpushSubscription
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
 
-	notificationJSON, err := json.Marshal(codersdk.PushNotification{
+	notificationJSON, err := json.Marshal(codersdk.WebpushMessage{
 		Title: "It's working!",
 		Body:  "You've subscribed to push notifications.",
 	})
@@ -386,8 +386,7 @@ func (api *API) postUserPushNotificationSubscription(rw http.ResponseWriter, r *
 		return
 	}
 
-	_, err = api.Database.InsertNotificationPushSubscription(ctx, database.InsertNotificationPushSubscriptionParams{
-		ID:                uuid.New(),
+	_, err = api.Database.InsertWebpushSubscription(ctx, database.InsertWebpushSubscriptionParams{
 		CreatedAt:         dbtime.Now(),
 		UserID:            user.ID,
 		Endpoint:          req.Endpoint,
@@ -410,20 +409,20 @@ func (api *API) postUserPushNotificationSubscription(rw http.ResponseWriter, r *
 // @Security CoderSessionToken
 // @Accept json
 // @Tags Notifications
-// @Param request body codersdk.DeletePushNotificationSubscription true "Push notification subscription"
+// @Param request body codersdk.DeleteWebpushSubscription true "Push notification subscription"
 // @Param user path string true "User ID, name, or me"
 // @Router /users/{user}/notifications/push/subscription [delete]
 // @Success 204
-func (api *API) deleteUserPushNotificationSubscription(rw http.ResponseWriter, r *http.Request) {
+func (api *API) deleteUserWebpushSubscription(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
 
-	var req codersdk.DeletePushNotificationSubscription
+	var req codersdk.DeleteWebpushSubscription
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
 
-	err := api.Database.DeleteNotificationPushSubscriptionByEndpoint(ctx, database.DeleteNotificationPushSubscriptionByEndpointParams{
+	err := api.Database.DeleteWebpushSubscriptionByUserIDAndEndpoint(ctx, database.DeleteWebpushSubscriptionByUserIDAndEndpointParams{
 		UserID:   user.ID,
 		Endpoint: req.Endpoint,
 	})
@@ -449,7 +448,7 @@ func (api *API) postUserPushNotificationTest(rw http.ResponseWriter, r *http.Req
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
 
-	if err := api.PushNotifier.Dispatch(ctx, user.ID, codersdk.PushNotification{
+	if err := api.PushNotifier.Dispatch(ctx, user.ID, codersdk.WebpushMessage{
 		Title: "It's working!",
 		Body:  "You've subscribed to push notifications.",
 	}); err != nil {

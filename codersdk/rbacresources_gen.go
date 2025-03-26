@@ -21,7 +21,6 @@ const (
 	ResourceLicense                       RBACResource = "license"
 	ResourceNotificationMessage           RBACResource = "notification_message"
 	ResourceNotificationPreference        RBACResource = "notification_preference"
-	ResourceNotificationPushSubscription  RBACResource = "notification_push_subscription"
 	ResourceNotificationTemplate          RBACResource = "notification_template"
 	ResourceOauth2App                     RBACResource = "oauth2_app"
 	ResourceOauth2AppCodeToken            RBACResource = "oauth2_app_code_token"
@@ -35,6 +34,7 @@ const (
 	ResourceTailnetCoordinator            RBACResource = "tailnet_coordinator"
 	ResourceTemplate                      RBACResource = "template"
 	ResourceUser                          RBACResource = "user"
+	ResourceWebpushSubscription           RBACResource = "webpush_subscription"
 	ResourceWorkspace                     RBACResource = "workspace"
 	ResourceWorkspaceAgentDevcontainers   RBACResource = "workspace_agent_devcontainers"
 	ResourceWorkspaceAgentResourceMonitor RBACResource = "workspace_agent_resource_monitor"
@@ -81,7 +81,6 @@ var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceLicense:                       {ActionCreate, ActionDelete, ActionRead},
 	ResourceNotificationMessage:           {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceNotificationPreference:        {ActionRead, ActionUpdate},
-	ResourceNotificationPushSubscription:  {ActionCreate, ActionDelete, ActionRead},
 	ResourceNotificationTemplate:          {ActionRead, ActionUpdate},
 	ResourceOauth2App:                     {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceOauth2AppCodeToken:            {ActionCreate, ActionDelete, ActionRead},
@@ -95,6 +94,7 @@ var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceTailnetCoordinator:            {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceTemplate:                      {ActionCreate, ActionDelete, ActionRead, ActionUpdate, ActionUse, ActionViewInsights},
 	ResourceUser:                          {ActionCreate, ActionDelete, ActionRead, ActionReadPersonal, ActionUpdate, ActionUpdatePersonal},
+	ResourceWebpushSubscription:           {ActionCreate, ActionDelete, ActionRead},
 	ResourceWorkspace:                     {ActionApplicationConnect, ActionCreate, ActionDelete, ActionRead, ActionSSH, ActionWorkspaceStart, ActionWorkspaceStop, ActionUpdate},
 	ResourceWorkspaceAgentDevcontainers:   {ActionCreate},
 	ResourceWorkspaceAgentResourceMonitor: {ActionCreate, ActionRead, ActionUpdate},

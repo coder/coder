@@ -281,10 +281,10 @@ var (
 				Identifier:  rbac.RoleIdentifier{Name: "notifier"},
 				DisplayName: "Notifier",
 				Site: rbac.Permissions(map[string][]policy.Action{
-					rbac.ResourceNotificationMessage.Type:          {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
-					rbac.ResourceInboxNotification.Type:            {policy.ActionCreate},
-					rbac.ResourceNotificationPushSubscription.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
-					rbac.ResourceDeploymentConfig.Type:             {policy.ActionRead, policy.ActionUpdate}, // To read and upsert VAPID keys
+					rbac.ResourceNotificationMessage.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceInboxNotification.Type:   {policy.ActionCreate},
+					rbac.ResourceWebpushSubscription.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceDeploymentConfig.Type:    {policy.ActionRead, policy.ActionUpdate}, // To read and upsert VAPID keys
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},
@@ -1033,6 +1033,20 @@ func (q *querier) customRoleCheck(ctx context.Context, role database.CustomRole)
 	return nil
 }
 
+func (q *querier) GetWebpushVAPIDKeys(ctx context.Context) (database.GetWebpushVAPIDKeysRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return database.GetWebpushVAPIDKeysRow{}, err
+	}
+	return q.db.GetWebpushVAPIDKeys(ctx)
+}
+
+func (q *querier) UpsertWebpushVAPIDKeys(ctx context.Context, arg database.UpsertWebpushVAPIDKeysParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.UpsertWebpushVAPIDKeys(ctx, arg)
+}
+
 func (q *querier) AcquireLock(ctx context.Context, id int64) error {
 	return q.db.AcquireLock(ctx, id)
 }
@@ -1164,13 +1178,6 @@ func (q *querier) DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) e
 	return q.db.DeleteAPIKeysByUserID(ctx, userID)
 }
 
-func (q *querier) DeleteAllNotificationPushSubscriptions(ctx context.Context) error {
-	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceNotificationPushSubscription); err != nil {
-		return err
-	}
-	return q.db.DeleteAllNotificationPushSubscriptions(ctx)
-}
-
 func (q *querier) DeleteAllTailnetClientSubscriptions(ctx context.Context, arg database.DeleteAllTailnetClientSubscriptionsParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
 		return err
@@ -1183,6 +1190,13 @@ func (q *querier) DeleteAllTailnetTunnels(ctx context.Context, arg database.Dele
 		return err
 	}
 	return q.db.DeleteAllTailnetTunnels(ctx, arg)
+}
+
+func (q *querier) DeleteAllWebpushSubscriptions(ctx context.Context) error {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceWebpushSubscription); err != nil {
+		return err
+	}
+	return q.db.DeleteAllWebpushSubscriptions(ctx)
 }
 
 func (q *querier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
@@ -1252,20 +1266,6 @@ func (q *querier) DeleteLicense(ctx context.Context, id int32) (int32, error) {
 		return -1, err
 	}
 	return id, nil
-}
-
-func (q *querier) DeleteNotificationPushSubscriptionByEndpoint(ctx context.Context, arg database.DeleteNotificationPushSubscriptionByEndpointParams) error {
-	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceNotificationPushSubscription.WithOwner(arg.UserID.String())); err != nil {
-		return err
-	}
-	return q.db.DeleteNotificationPushSubscriptionByEndpoint(ctx, arg)
-}
-
-func (q *querier) DeleteNotificationPushSubscriptions(ctx context.Context, ids []uuid.UUID) error {
-	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
-		return err
-	}
-	return q.db.DeleteNotificationPushSubscriptions(ctx, ids)
 }
 
 func (q *querier) DeleteOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) error {
@@ -1402,6 +1402,20 @@ func (q *querier) DeleteTailnetTunnel(ctx context.Context, arg database.DeleteTa
 		return database.DeleteTailnetTunnelRow{}, err
 	}
 	return q.db.DeleteTailnetTunnel(ctx, arg)
+}
+
+func (q *querier) DeleteWebpushSubscriptionByUserIDAndEndpoint(ctx context.Context, arg database.DeleteWebpushSubscriptionByUserIDAndEndpointParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceWebpushSubscription.WithOwner(arg.UserID.String())); err != nil {
+		return err
+	}
+	return q.db.DeleteWebpushSubscriptionByUserIDAndEndpoint(ctx, arg)
+}
+
+func (q *querier) DeleteWebpushSubscriptions(ctx context.Context, ids []uuid.UUID) error {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.DeleteWebpushSubscriptions(ctx, ids)
 }
 
 func (q *querier) DeleteWorkspaceAgentPortShare(ctx context.Context, arg database.DeleteWorkspaceAgentPortShareParams) error {
@@ -1890,13 +1904,6 @@ func (q *querier) GetNotificationMessagesByStatus(ctx context.Context, arg datab
 	return q.db.GetNotificationMessagesByStatus(ctx, arg)
 }
 
-func (q *querier) GetNotificationPushSubscriptionsByUserID(ctx context.Context, userID uuid.UUID) ([]database.NotificationPushSubscription, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceNotificationPushSubscription.WithOwner(userID.String())); err != nil {
-		return nil, err
-	}
-	return q.db.GetNotificationPushSubscriptionsByUserID(ctx, userID)
-}
-
 func (q *querier) GetNotificationReportGeneratorLogByTemplate(ctx context.Context, arg uuid.UUID) (database.NotificationReportGeneratorLog, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return database.NotificationReportGeneratorLog{}, err
@@ -1919,13 +1926,6 @@ func (q *querier) GetNotificationTemplatesByKind(ctx context.Context, kind datab
 
 	// TODO(dannyk): handle template ownership when we support user-default notification templates.
 	return nil, sql.ErrNoRows
-}
-
-func (q *querier) GetNotificationVAPIDKeys(ctx context.Context) (database.GetNotificationVAPIDKeysRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
-		return database.GetNotificationVAPIDKeysRow{}, err
-	}
-	return q.db.GetNotificationVAPIDKeys(ctx)
 }
 
 func (q *querier) GetNotificationsSettings(ctx context.Context) (string, error) {
@@ -2700,6 +2700,13 @@ func (q *querier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]databas
 	return q.db.GetUsersByIDs(ctx, ids)
 }
 
+func (q *querier) GetWebpushSubscriptionsByUserID(ctx context.Context, userID uuid.UUID) ([]database.WebpushSubscription, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWebpushSubscription.WithOwner(userID.String())); err != nil {
+		return nil, err
+	}
+	return q.db.GetWebpushSubscriptionsByUserID(ctx, userID)
+}
+
 func (q *querier) GetWorkspaceAgentAndLatestBuildByAuthToken(ctx context.Context, authToken uuid.UUID) (database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow, error) {
 	// This is a system function
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
@@ -3238,13 +3245,6 @@ func (q *querier) InsertMissingGroups(ctx context.Context, arg database.InsertMi
 	return q.db.InsertMissingGroups(ctx, arg)
 }
 
-func (q *querier) InsertNotificationPushSubscription(ctx context.Context, arg database.InsertNotificationPushSubscriptionParams) (database.NotificationPushSubscription, error) {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceNotificationPushSubscription.WithOwner(arg.UserID.String())); err != nil {
-		return database.NotificationPushSubscription{}, err
-	}
-	return q.db.InsertNotificationPushSubscription(ctx, arg)
-}
-
 func (q *querier) InsertOAuth2ProviderApp(ctx context.Context, arg database.InsertOAuth2ProviderAppParams) (database.OAuth2ProviderApp, error) {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceOauth2App); err != nil {
 		return database.OAuth2ProviderApp{}, err
@@ -3462,6 +3462,13 @@ func (q *querier) InsertVolumeResourceMonitor(ctx context.Context, arg database.
 	}
 
 	return q.db.InsertVolumeResourceMonitor(ctx, arg)
+}
+
+func (q *querier) InsertWebpushSubscription(ctx context.Context, arg database.InsertWebpushSubscriptionParams) (database.WebpushSubscription, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceWebpushSubscription.WithOwner(arg.UserID.String())); err != nil {
+		return database.WebpushSubscription{}, err
+	}
+	return q.db.InsertWebpushSubscription(ctx, arg)
 }
 
 func (q *querier) InsertWorkspace(ctx context.Context, arg database.InsertWorkspaceParams) (database.WorkspaceTable, error) {
@@ -4617,13 +4624,6 @@ func (q *querier) UpsertNotificationReportGeneratorLog(ctx context.Context, arg 
 		return err
 	}
 	return q.db.UpsertNotificationReportGeneratorLog(ctx, arg)
-}
-
-func (q *querier) UpsertNotificationVAPIDKeys(ctx context.Context, arg database.UpsertNotificationVAPIDKeysParams) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return err
-	}
-	return q.db.UpsertNotificationVAPIDKeys(ctx, arg)
 }
 
 func (q *querier) UpsertNotificationsSettings(ctx context.Context, value string) error {

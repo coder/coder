@@ -24,7 +24,7 @@ import (
 // NotificationDispatcher is an interface that can be used to dispatch
 // push notifications.
 type NotificationDispatcher interface {
-	Dispatch(ctx context.Context, userID uuid.UUID, notification codersdk.PushNotification) error
+	Dispatch(ctx context.Context, userID uuid.UUID, notification codersdk.WebpushMessage) error
 	PublicKey() string
 	PrivateKey() string
 }
@@ -38,7 +38,7 @@ type NotificationDispatcher interface {
 //
 // See: https://github.com/coder/internal/issues/528
 func New(ctx context.Context, log *slog.Logger, db database.Store) (NotificationDispatcher, error) {
-	keys, err := db.GetNotificationVAPIDKeys(ctx)
+	keys, err := db.GetWebpushVAPIDKeys(ctx)
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
 			return nil, xerrors.Errorf("get notification vapid keys: %w", err)
@@ -73,8 +73,8 @@ type Notifier struct {
 	VAPIDPrivateKey string
 }
 
-func (n *Notifier) Dispatch(ctx context.Context, userID uuid.UUID, notification codersdk.PushNotification) error {
-	subscriptions, err := n.store.GetNotificationPushSubscriptionsByUserID(ctx, userID)
+func (n *Notifier) Dispatch(ctx context.Context, userID uuid.UUID, notification codersdk.WebpushMessage) error {
+	subscriptions, err := n.store.GetWebpushSubscriptionsByUserID(ctx, userID)
 	if err != nil {
 		return xerrors.Errorf("get notification push subscriptions by user ID: %w", err)
 	}
@@ -136,7 +136,7 @@ func (n *Notifier) Dispatch(ctx context.Context, userID uuid.UUID, notification 
 
 	if len(cleanupSubscriptions) > 0 {
 		// nolint:gocritic // These are known to be invalid subscriptions.
-		err = n.store.DeleteNotificationPushSubscriptions(dbauthz.AsNotifier(ctx), cleanupSubscriptions)
+		err = n.store.DeleteWebpushSubscriptions(dbauthz.AsNotifier(ctx), cleanupSubscriptions)
 		if err != nil {
 			n.log.Error(ctx, "failed to delete stale push subscriptions", slog.Error(err))
 		}
@@ -160,7 +160,7 @@ type NoopNotifier struct {
 	Msg string
 }
 
-func (n *NoopNotifier) Dispatch(context.Context, uuid.UUID, codersdk.PushNotification) error {
+func (n *NoopNotifier) Dispatch(context.Context, uuid.UUID, codersdk.WebpushMessage) error {
 	return xerrors.New(n.Msg)
 }
 
@@ -181,10 +181,10 @@ func RegenerateVAPIDKeys(ctx context.Context, db database.Store) (newPrivateKey 
 	}
 
 	if txErr := db.InTx(func(tx database.Store) error {
-		if err := tx.DeleteAllNotificationPushSubscriptions(ctx); err != nil {
-			return xerrors.Errorf("delete all notification push subscriptions: %w", err)
+		if err := tx.DeleteAllWebpushSubscriptions(ctx); err != nil {
+			return xerrors.Errorf("delete all webpush subscriptions: %w", err)
 		}
-		if err := tx.UpsertNotificationVAPIDKeys(ctx, database.UpsertNotificationVAPIDKeysParams{
+		if err := tx.UpsertWebpushVAPIDKeys(ctx, database.UpsertWebpushVAPIDKeysParams{
 			VapidPrivateKey: newPrivateKey,
 			VapidPublicKey:  newPublicKey,
 		}); err != nil {

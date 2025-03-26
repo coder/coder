@@ -599,7 +599,7 @@ export interface DatabaseReport extends BaseReport {
 }
 
 // From codersdk/notifications.go
-export interface DeletePushNotificationSubscription {
+export interface DeleteWebpushSubscription {
 	readonly endpoint: string;
 }
 
@@ -1988,7 +1988,7 @@ export type RBACResource =
 	| "license"
 	| "notification_message"
 	| "notification_preference"
-	| "notification_push_subscription"
+	| "webpush_subscription"
 	| "notification_template"
 	| "oauth2_app"
 	| "oauth2_app_code_token"
@@ -2026,7 +2026,6 @@ export const RBACResources: RBACResource[] = [
 	"license",
 	"notification_message",
 	"notification_preference",
-	"notification_push_subscription",
 	"notification_template",
 	"oauth2_app",
 	"oauth2_app_code_token",
@@ -2041,6 +2040,7 @@ export const RBACResources: RBACResource[] = [
 	"template",
 	"user",
 	"*",
+	"webpush_subscription",
 	"workspace",
 	"workspace_agent_devcontainers",
 	"workspace_agent_resource_monitor",

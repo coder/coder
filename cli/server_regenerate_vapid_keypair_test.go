@@ -36,7 +36,7 @@ func TestRegenerateVapidKeypair(t *testing.T) {
 
 		db := database.New(sqlDB)
 		// Ensure there is no existing VAPID keypair.
-		rows, err := db.GetNotificationVAPIDKeys(ctx)
+		rows, err := db.GetWebpushVAPIDKeys(ctx)
 		require.NoError(t, err)
 		require.Empty(t, rows)
 
@@ -48,13 +48,13 @@ func TestRegenerateVapidKeypair(t *testing.T) {
 		clitest.Start(t, inv)
 
 		pty.ExpectMatchContext(ctx, "Regenerating VAPID keypair...")
-		pty.ExpectMatchContext(ctx, "This will delete all existing push notification subscriptions.")
+		pty.ExpectMatchContext(ctx, "This will delete all existing webpush subscriptions.")
 		pty.ExpectMatchContext(ctx, "Are you sure you want to continue? (y/N)")
 		pty.WriteLine("y")
 		pty.ExpectMatchContext(ctx, "VAPID keypair regenerated successfully.")
 
 		// Ensure the VAPID keypair was created.
-		keys, err := db.GetNotificationVAPIDKeys(ctx)
+		keys, err := db.GetWebpushVAPIDKeys(ctx)
 		require.NoError(t, err)
 		require.NotEmpty(t, keys.VapidPublicKey)
 		require.NotEmpty(t, keys.VapidPrivateKey)
@@ -79,7 +79,7 @@ func TestRegenerateVapidKeypair(t *testing.T) {
 			u := dbgen.User(t, db, database.User{})
 			// Insert a few fake push subscriptions for each user.
 			for j := 0; j < 10; j++ {
-				_ = dbgen.NotificationPushSubscription(t, db, database.InsertNotificationPushSubscriptionParams{
+				_ = dbgen.WebpushSubscription(t, db, database.InsertWebpushSubscriptionParams{
 					UserID: u.ID,
 				})
 			}
@@ -93,20 +93,20 @@ func TestRegenerateVapidKeypair(t *testing.T) {
 		clitest.Start(t, inv)
 
 		pty.ExpectMatchContext(ctx, "Regenerating VAPID keypair...")
-		pty.ExpectMatchContext(ctx, "This will delete all existing push notification subscriptions.")
+		pty.ExpectMatchContext(ctx, "This will delete all existing webpush subscriptions.")
 		pty.ExpectMatchContext(ctx, "Are you sure you want to continue? (y/N)")
 		pty.WriteLine("y")
 		pty.ExpectMatchContext(ctx, "VAPID keypair regenerated successfully.")
 
 		// Ensure the VAPID keypair was created.
-		keys, err := db.GetNotificationVAPIDKeys(ctx)
+		keys, err := db.GetWebpushVAPIDKeys(ctx)
 		require.NoError(t, err)
 		require.NotEmpty(t, keys.VapidPublicKey)
 		require.NotEmpty(t, keys.VapidPrivateKey)
 
 		// Ensure the push subscriptions were deleted.
 		var count int64
-		rows, err := sqlDB.QueryContext(ctx, "SELECT COUNT(*) FROM notification_push_subscriptions")
+		rows, err := sqlDB.QueryContext(ctx, "SELECT COUNT(*) FROM webpush_subscriptions")
 		require.NoError(t, err)
 		t.Cleanup(func() {
 			_ = rows.Close()

@@ -996,15 +996,6 @@ CREATE TABLE notification_preferences (
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
-CREATE TABLE notification_push_subscriptions (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    user_id uuid NOT NULL,
-    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    endpoint text NOT NULL,
-    endpoint_p256dh_key text NOT NULL,
-    endpoint_auth_key text NOT NULL
-);
-
 CREATE TABLE notification_report_generator_logs (
     notification_template_id uuid NOT NULL,
     last_generated_at timestamp with time zone NOT NULL
@@ -1623,6 +1614,15 @@ CREATE TABLE user_status_changes (
 
 COMMENT ON TABLE user_status_changes IS 'Tracks the history of user status changes';
 
+CREATE TABLE webpush_subscriptions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    endpoint text NOT NULL,
+    endpoint_p256dh_key text NOT NULL,
+    endpoint_auth_key text NOT NULL
+);
+
 CREATE TABLE workspace_agent_devcontainers (
     id uuid NOT NULL,
     workspace_agent_id uuid NOT NULL,
@@ -2182,9 +2182,6 @@ ALTER TABLE ONLY notification_messages
 ALTER TABLE ONLY notification_preferences
     ADD CONSTRAINT notification_preferences_pkey PRIMARY KEY (user_id, notification_template_id);
 
-ALTER TABLE ONLY notification_push_subscriptions
-    ADD CONSTRAINT notification_push_subscriptions_pkey PRIMARY KEY (id);
-
 ALTER TABLE ONLY notification_report_generator_logs
     ADD CONSTRAINT notification_report_generator_logs_pkey PRIMARY KEY (notification_template_id);
 
@@ -2316,6 +2313,9 @@ ALTER TABLE ONLY user_status_changes
 
 ALTER TABLE ONLY users
     ADD CONSTRAINT users_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY webpush_subscriptions
+    ADD CONSTRAINT webpush_subscriptions_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY workspace_agent_devcontainers
     ADD CONSTRAINT workspace_agent_devcontainers_pkey PRIMARY KEY (id);
@@ -2649,9 +2649,6 @@ ALTER TABLE ONLY notification_preferences
 ALTER TABLE ONLY notification_preferences
     ADD CONSTRAINT notification_preferences_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
-ALTER TABLE ONLY notification_push_subscriptions
-    ADD CONSTRAINT notification_push_subscriptions_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
-
 ALTER TABLE ONLY oauth2_provider_app_codes
     ADD CONSTRAINT oauth2_provider_app_codes_app_id_fkey FOREIGN KEY (app_id) REFERENCES oauth2_provider_apps(id) ON DELETE CASCADE;
 
@@ -2759,6 +2756,9 @@ ALTER TABLE ONLY user_links
 
 ALTER TABLE ONLY user_status_changes
     ADD CONSTRAINT user_status_changes_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);
+
+ALTER TABLE ONLY webpush_subscriptions
+    ADD CONSTRAINT webpush_subscriptions_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agent_devcontainers
     ADD CONSTRAINT workspace_agent_devcontainers_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;

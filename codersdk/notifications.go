@@ -215,30 +215,30 @@ type UpdateUserNotificationPreferences struct {
 	PushSubscription    string          `json:"push_subscription,omitempty"`
 }
 
-type PushNotificationAction struct {
+type WebpushMessageAction struct {
 	Label string `json:"label"`
 	URL   string `json:"url"`
 }
 
-type PushNotification struct {
-	Icon    string                   `json:"icon"`
-	Title   string                   `json:"title"`
-	Body    string                   `json:"body"`
-	Actions []PushNotificationAction `json:"actions"`
+type WebpushMessage struct {
+	Icon    string                 `json:"icon"`
+	Title   string                 `json:"title"`
+	Body    string                 `json:"body"`
+	Actions []WebpushMessageAction `json:"actions"`
 }
 
-type PushNotificationSubscription struct {
+type WebpushSubscription struct {
 	Endpoint  string `json:"endpoint"`
 	AuthKey   string `json:"auth_key"`
 	P256DHKey string `json:"p256dh_key"`
 }
 
-type DeletePushNotificationSubscription struct {
+type DeleteWebpushSubscription struct {
 	Endpoint string `json:"endpoint"`
 }
 
-// CreateNotificationPushSubscription creates a push notification subscription for a given user.
-func (c *Client) CreateNotificationPushSubscription(ctx context.Context, user string, req PushNotificationSubscription) error {
+// PostWebpushSubscription creates a push notification subscription for a given user.
+func (c *Client) PostWebpushSubscription(ctx context.Context, user string, req WebpushSubscription) error {
 	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/notifications/push/subscription", user), req)
 	if err != nil {
 		return err
@@ -251,9 +251,9 @@ func (c *Client) CreateNotificationPushSubscription(ctx context.Context, user st
 	return nil
 }
 
-// DeleteNotificationPushSubscription deletes a push notification subscription for a given user.
+// DeleteWebpushSubscription deletes a push notification subscription for a given user.
 // Think of this as an unsubscribe, but for a specific push notification subscription.
-func (c *Client) DeleteNotificationPushSubscription(ctx context.Context, user string, req DeletePushNotificationSubscription) error {
+func (c *Client) DeleteWebpushSubscription(ctx context.Context, user string, req DeleteWebpushSubscription) error {
 	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/users/%s/notifications/push/subscription", user), req)
 	if err != nil {
 		return err
@@ -266,8 +266,8 @@ func (c *Client) DeleteNotificationPushSubscription(ctx context.Context, user st
 	return nil
 }
 
-func (c *Client) TestPushNotification(ctx context.Context) error {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/notifications/push/test", Me), PushNotification{
+func (c *Client) PostTestWebpushMessage(ctx context.Context) error {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/notifications/push/test", Me), WebpushMessage{
 		Title: "It's working!",
 		Body:  "You've subscribed to push notifications.",
 	})

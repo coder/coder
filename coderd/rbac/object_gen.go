@@ -155,13 +155,13 @@ var (
 		Type: "notification_preference",
 	}
 
-	// ResourceNotificationPushSubscription
+	// ResourceWebpushSubscription
 	// Valid Actions
-	//  - "ActionCreate" :: create notification push subscriptions
-	//  - "ActionDelete" :: delete notification push subscriptions
-	//  - "ActionRead" :: read notification push subscriptions
-	ResourceNotificationPushSubscription = Object{
-		Type: "notification_push_subscription",
+	//  - "ActionCreate" :: create webpush subscriptions
+	//  - "ActionDelete" :: delete webpush subscriptions
+	//  - "ActionRead" :: read webpush subscriptions
+	ResourceWebpushSubscription = Object{
+		Type: "webpush_subscription",
 	}
 
 	// ResourceNotificationTemplate
@@ -363,7 +363,7 @@ func AllResources() []Objecter {
 		ResourceLicense,
 		ResourceNotificationMessage,
 		ResourceNotificationPreference,
-		ResourceNotificationPushSubscription,
+		ResourceWebpushSubscription,
 		ResourceNotificationTemplate,
 		ResourceOauth2App,
 		ResourceOauth2AppCodeToken,

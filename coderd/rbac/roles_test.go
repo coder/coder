@@ -713,11 +713,11 @@ func TestRolePermissions(t *testing.T) {
 				},
 			},
 		},
-		// All users can create, read, and delete their own push notification subscriptions.
+		// All users can create, read, and delete their own webpush notification subscriptions.
 		{
-			Name:     "NotificationPushSubscription",
+			Name:     "WebpushSubscription",
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionDelete},
-			Resource: rbac.ResourceNotificationPushSubscription.WithOwner(currentUser.String()),
+			Resource: rbac.ResourceWebpushSubscription.WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, memberMe, orgMemberMe},
 				false: {otherOrgMember, orgAdmin, otherOrgAdmin, orgAuditor, otherOrgAuditor, templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin, userAdmin, orgUserAdmin, otherOrgUserAdmin},

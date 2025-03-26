@@ -190,27 +190,27 @@ INSERT INTO notification_report_generator_logs (notification_template_id, last_g
 ON CONFLICT (notification_template_id) DO UPDATE set last_generated_at = EXCLUDED.last_generated_at
 WHERE notification_report_generator_logs.notification_template_id = EXCLUDED.notification_template_id;
 
--- name: GetNotificationPushSubscriptionsByUserID :many
+-- name: GetWebpushSubscriptionsByUserID :many
 SELECT *
-FROM notification_push_subscriptions
+FROM webpush_subscriptions
 WHERE user_id = @user_id::uuid;
 
--- name: InsertNotificationPushSubscription :one
-INSERT INTO notification_push_subscriptions (id, user_id, created_at, endpoint, endpoint_p256dh_key, endpoint_auth_key)
-VALUES ($1, $2, $3, $4, $5, $6)
+-- name: InsertWebpushSubscription :one
+INSERT INTO webpush_subscriptions (user_id, created_at, endpoint, endpoint_p256dh_key, endpoint_auth_key)
+VALUES ($1, $2, $3, $4, $5)
 RETURNING *;
 
--- name: DeleteNotificationPushSubscriptions :exec
-DELETE FROM notification_push_subscriptions
+-- name: DeleteWebpushSubscriptions :exec
+DELETE FROM webpush_subscriptions
 WHERE id = ANY(@ids::uuid[]);
 
--- name: DeleteNotificationPushSubscriptionByEndpoint :exec
-DELETE FROM notification_push_subscriptions
+-- name: DeleteWebpushSubscriptionByUserIDAndEndpoint :exec
+DELETE FROM webpush_subscriptions
 WHERE user_id = @user_id AND endpoint = @endpoint;
 
--- name: DeleteAllNotificationPushSubscriptions :exec
--- Deletes all existing notification push subscriptions.
+-- name: DeleteAllWebpushSubscriptions :exec
+-- Deletes all existing webpush subscriptions.
 -- This should be called when the VAPID keypair is regenerated, as the old
 -- keypair will no longer be valid and all existing subscriptions will need to
 -- be recreated.
-TRUNCATE TABLE notification_push_subscriptions;
+TRUNCATE TABLE webpush_subscriptions;
