@@ -22,7 +22,6 @@ import (
 type MockCoordinatee struct {
 	ctrl     *gomock.Controller
 	recorder *MockCoordinateeMockRecorder
-	isgomock struct{}
 }
 
 // MockCoordinateeMockRecorder is the mock recorder for MockCoordinatee.
@@ -67,15 +66,15 @@ func (mr *MockCoordinateeMockRecorder) SetNodeCallback(arg0 any) *gomock.Call {
 }
 
 // SetTunnelDestination mocks base method.
-func (m *MockCoordinatee) SetTunnelDestination(id uuid.UUID) {
+func (m *MockCoordinatee) SetTunnelDestination(arg0 uuid.UUID) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetTunnelDestination", id)
+	m.ctrl.Call(m, "SetTunnelDestination", arg0)
 }
 
 // SetTunnelDestination indicates an expected call of SetTunnelDestination.
-func (mr *MockCoordinateeMockRecorder) SetTunnelDestination(id any) *gomock.Call {
+func (mr *MockCoordinateeMockRecorder) SetTunnelDestination(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTunnelDestination", reflect.TypeOf((*MockCoordinatee)(nil).SetTunnelDestination), id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTunnelDestination", reflect.TypeOf((*MockCoordinatee)(nil).SetTunnelDestination), arg0)
 }
 
 // UpdatePeers mocks base method.

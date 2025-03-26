@@ -58,12 +58,8 @@ var usageTemplate = func() *template.Template {
 	return template.Must(
 		template.New("usage").Funcs(
 			template.FuncMap{
-				"version": func() string {
-					return buildinfo.Version()
-				},
-				"wrapTTY": func(s string) string {
-					return wrapTTY(s)
-				},
+				"version": buildinfo.Version,
+				"wrapTTY": wrapTTY,
 				"trimNewline": func(s string) string {
 					return strings.TrimSuffix(s, "\n")
 				},
