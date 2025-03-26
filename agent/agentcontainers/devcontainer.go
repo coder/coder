@@ -18,39 +18,49 @@ fi
 devcontainer up %s
 `
 
-// DevcontainerStartupScript returns a script that starts a devcontainer.
-func DevcontainerStartupScript(dc codersdk.WorkspaceAgentDevcontainer, script codersdk.WorkspaceAgentScript) codersdk.WorkspaceAgentScript {
+// ExtractAndInitializeDevcontainerScripts extracts devcontainer scripts from
+// the given scripts and devcontainers. The devcontainer scripts are removed
+// from the returned scripts so that they can be run separately.
+//
+// Dev Containers have an inherent dependency on start scripts, since they
+// initialize the workspace (e.g. git clone, npm install, etc). This is
+// important if e.g. a Coder module to install @devcontainer/cli is used.
+func ExtractAndInitializeDevcontainerScripts(
+	logger slog.Logger,
+	expandPath func(string) (string, error),
+	devcontainers []codersdk.WorkspaceAgentDevcontainer,
+	scripts []codersdk.WorkspaceAgentScript,
+) (filteredScripts []codersdk.WorkspaceAgentScript, devcontainerScripts []codersdk.WorkspaceAgentScript) {
+ScriptLoop:
+	for _, script := range scripts {
+		for _, dc := range devcontainers {
+			// The devcontainer scripts match the devcontainer ID for
+			// identification.
+			if script.ID == dc.ID {
+				dc = expandDevcontainerPaths(logger, expandPath, dc)
+				devcontainerScripts = append(devcontainerScripts, devcontainerStartupScript(dc, script))
+				continue ScriptLoop
+			}
+		}
+
+		filteredScripts = append(filteredScripts, script)
+	}
+
+	return filteredScripts, devcontainerScripts
+}
+
+func devcontainerStartupScript(dc codersdk.WorkspaceAgentDevcontainer, script codersdk.WorkspaceAgentScript) codersdk.WorkspaceAgentScript {
 	var args []string
 	args = append(args, fmt.Sprintf("--workspace-folder %q", dc.WorkspaceFolder))
 	if dc.ConfigPath != "" {
 		args = append(args, fmt.Sprintf("--config %q", dc.ConfigPath))
 	}
 	cmd := fmt.Sprintf(devcontainerUpScriptTemplate, strings.Join(args, " "))
-	script.RunOnStart = false
 	script.Script = cmd
+	// Disable RunOnStart, scripts have this set so that when devcontainers
+	// have not been enabled, a warning will be surfaced in the agent logs.
+	script.RunOnStart = false
 	return script
-}
-
-func ExtractDevcontainerScripts(
-	logger slog.Logger,
-	expandPath func(string) (string, error),
-	devcontainers []codersdk.WorkspaceAgentDevcontainer,
-	scripts []codersdk.WorkspaceAgentScript,
-) (other []codersdk.WorkspaceAgentScript, devcontainerScripts []codersdk.WorkspaceAgentScript) {
-	for _, dc := range devcontainers {
-		dc = expandDevcontainerPaths(logger, expandPath, dc)
-		for _, script := range scripts {
-			// The devcontainer scripts match the devcontainer ID for
-			// identification.
-			if script.ID == dc.ID {
-				devcontainerScripts = append(devcontainerScripts, DevcontainerStartupScript(dc, script))
-			} else {
-				other = append(other, script)
-			}
-		}
-	}
-
-	return other, devcontainerScripts
 }
 
 func expandDevcontainerPaths(logger slog.Logger, expandPath func(string) (string, error), dc codersdk.WorkspaceAgentDevcontainer) codersdk.WorkspaceAgentDevcontainer {
