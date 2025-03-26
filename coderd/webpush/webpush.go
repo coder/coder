@@ -24,9 +24,12 @@ import (
 // Dispatcher is an interface that can be used to dispatch
 // push notifications over Web Push.
 type Dispatcher interface {
+	// Dispatch sends a notification to all subscriptions for a user. Any
+	// notifications that fail to send are silently dropped.
 	Dispatch(ctx context.Context, userID uuid.UUID, notification codersdk.WebpushMessage) error
+	// Test sends a test notification to a subscription to ensure it is valid.
+	Test(ctx context.Context, req codersdk.WebpushSubscription) error
 	PublicKey() string
-	PrivateKey() string
 }
 
 // New creates a new Dispatcher to dispatch notifications via Web Push.
@@ -93,24 +96,15 @@ func (n *Webpusher) Dispatch(ctx context.Context, userID uuid.UUID, notification
 	for _, subscription := range subscriptions {
 		subscription := subscription
 		eg.Go(func() error {
-			n.log.Debug(ctx, "dispatching via push", slog.F("subscription", subscription.Endpoint))
-			cpy := slices.Clone(notificationJSON) // Need to copy as webpush.SendNotificationWithContext modifies the slice.
-			resp, err := webpush.SendNotificationWithContext(ctx, cpy, &webpush.Subscription{
-				Endpoint: subscription.Endpoint,
-				Keys: webpush.Keys{
-					Auth:   subscription.EndpointAuthKey,
-					P256dh: subscription.EndpointP256dhKey,
-				},
-			}, &webpush.Options{
-				VAPIDPublicKey:  n.VAPIDPublicKey,
-				VAPIDPrivateKey: n.VAPIDPrivateKey,
+			statusCode, body, err := n.webpushSend(ctx, notificationJSON, subscription.Endpoint, webpush.Keys{
+				Auth:   subscription.EndpointAuthKey,
+				P256dh: subscription.EndpointP256dhKey,
 			})
 			if err != nil {
 				return xerrors.Errorf("send notification: %w", err)
 			}
-			defer resp.Body.Close()
 
-			if resp.StatusCode == http.StatusGone {
+			if statusCode == http.StatusGone {
 				// The subscription is no longer valid, remove it.
 				mu.Lock()
 				cleanupSubscriptions = append(cleanupSubscriptions, subscription.ID)
@@ -119,10 +113,9 @@ func (n *Webpusher) Dispatch(ctx context.Context, userID uuid.UUID, notification
 			}
 
 			// 200, 201, and 202 are common for successful delivery.
-			if resp.StatusCode > http.StatusAccepted {
+			if statusCode > http.StatusAccepted {
 				// It's likely the subscription failed to deliver for some reason.
-				body, _ := io.ReadAll(resp.Body)
-				return xerrors.Errorf("web push dispatch failed with status code %d: %s", resp.StatusCode, string(body))
+				return xerrors.Errorf("web push dispatch failed with status code %d: %s", statusCode, string(body))
 			}
 
 			return nil
@@ -145,12 +138,55 @@ func (n *Webpusher) Dispatch(ctx context.Context, userID uuid.UUID, notification
 	return nil
 }
 
-func (n *Webpusher) PublicKey() string {
-	return n.VAPIDPublicKey
+func (n *Webpusher) webpushSend(ctx context.Context, msg []byte, endpoint string, keys webpush.Keys) (int, []byte, error) {
+	// Copy the message to avoid modifying the original.
+	cpy := slices.Clone(msg)
+	resp, err := webpush.SendNotificationWithContext(ctx, cpy, &webpush.Subscription{
+		Endpoint: endpoint,
+		Keys:     keys,
+	}, &webpush.Options{
+		VAPIDPublicKey:  n.VAPIDPublicKey,
+		VAPIDPrivateKey: n.VAPIDPrivateKey,
+	})
+	if err != nil {
+		return -1, nil, xerrors.Errorf("send notification: %w", err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return -1, nil, xerrors.Errorf("read response body: %w", err)
+	}
+
+	return resp.StatusCode, body, nil
 }
 
-func (n *Webpusher) PrivateKey() string {
-	return n.VAPIDPrivateKey
+func (n *Webpusher) Test(ctx context.Context, req codersdk.WebpushSubscription) error {
+	notificationJSON, err := json.Marshal(codersdk.WebpushMessage{
+		Title: "Test",
+		Body:  "This is a test notification",
+	})
+	if err != nil {
+		return xerrors.Errorf("marshal notification: %w", err)
+	}
+	statusCode, body, err := n.webpushSend(ctx, notificationJSON, req.Endpoint, webpush.Keys{
+		Auth:   req.AuthKey,
+		P256dh: req.P256DHKey,
+	})
+	if err != nil {
+		return xerrors.Errorf("send test notification: %w", err)
+	}
+
+	// 200, 201, and 202 are common for successful delivery.
+	if statusCode > http.StatusAccepted {
+		// It's likely the subscription failed to deliver for some reason.
+		return xerrors.Errorf("web push dispatch failed with status code %d: %s", statusCode, string(body))
+	}
+
+	return nil
+}
+
+func (n *Webpusher) PublicKey() string {
+	return n.VAPIDPublicKey
 }
 
 // NoopWebpusher is a Dispatcher that does nothing except return an error.
@@ -164,11 +200,11 @@ func (n *NoopWebpusher) Dispatch(context.Context, uuid.UUID, codersdk.WebpushMes
 	return xerrors.New(n.Msg)
 }
 
-func (*NoopWebpusher) PublicKey() string {
-	return ""
+func (n *NoopWebpusher) Test(context.Context, codersdk.WebpushSubscription) error {
+	return xerrors.New(n.Msg)
 }
 
-func (*NoopWebpusher) PrivateKey() string {
+func (*NoopWebpusher) PublicKey() string {
 	return ""
 }
 

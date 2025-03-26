@@ -3,11 +3,8 @@ package coderd
 import (
 	"bytes"
 	"encoding/json"
-	"io"
 	"net/http"
-	"strconv"
 
-	"github.com/SherClockHolmes/webpush-go"
 	"github.com/google/uuid"
 
 	"cdr.dev/slog"
@@ -345,55 +342,21 @@ func (api *API) postUserWebpushSubscription(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	notificationJSON, err := json.Marshal(codersdk.WebpushMessage{
-		Title: "It's working!",
-		Body:  "You've subscribed to push notifications.",
-	})
-	if err != nil {
+	if err := api.WebpushDispatcher.Test(ctx, req); err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to marshal notification",
+			Message: "Failed to test webpush subscription",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	// Before inserting the subscription into the database, we send a test notification
-	// to ensure the subscription is valid.
-	resp, err := webpush.SendNotificationWithContext(r.Context(), notificationJSON, &webpush.Subscription{
-		Endpoint: req.Endpoint,
-		Keys: webpush.Keys{
-			Auth:   req.AuthKey,
-			P256dh: req.P256DHKey,
-		},
-	}, &webpush.Options{
-		VAPIDPublicKey:  api.WebpushDispatcher.PublicKey(),
-		VAPIDPrivateKey: api.WebpushDispatcher.PrivateKey(),
-	})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to send notification",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusCreated {
-		body, _ := io.ReadAll(resp.Body)
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to send notification. Status code: " + strconv.Itoa(resp.StatusCode),
-			Detail:  string(body),
-		})
-		return
-	}
-
-	_, err = api.Database.InsertWebpushSubscription(ctx, database.InsertWebpushSubscriptionParams{
+	if _, err := api.Database.InsertWebpushSubscription(ctx, database.InsertWebpushSubscriptionParams{
 		CreatedAt:         dbtime.Now(),
 		UserID:            user.ID,
 		Endpoint:          req.Endpoint,
 		EndpointAuthKey:   req.AuthKey,
 		EndpointP256dhKey: req.P256DHKey,
-	})
-	if err != nil {
+	}); err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to insert push notification subscription.",
 			Detail:  err.Error(),

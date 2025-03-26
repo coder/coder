@@ -385,40 +385,36 @@ const (
 	validEndpointP256dhKey = "BNNL5ZaTfK81qhXOx23+wewhigUeFb632jN6LvRWCFH1ubQr77FE/9qV1FuojuRmHP42zmf34rXgW80OvUVDgTk="
 )
 
-func TestPushNotificationSubscription(t *testing.T) {
+func TestWebpushSubscribeUnsubscribe(t *testing.T) {
 	t.Parallel()
 
-	t.Run("CRUD", func(t *testing.T) {
-		t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
 
-		ctx := testutil.Context(t, testutil.WaitShort)
+	client := coderdtest.New(t, nil)
+	owner := coderdtest.CreateFirstUser(t, client)
+	memberClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
-		client := coderdtest.New(t, nil)
-		owner := coderdtest.CreateFirstUser(t, client)
-		memberClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+	handlerCalled := make(chan bool, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusCreated)
+		handlerCalled <- true
+	}))
+	defer server.Close()
 
-		handlerCalled := make(chan bool, 1)
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			w.WriteHeader(http.StatusCreated)
-			handlerCalled <- true
-		}))
-		defer server.Close()
-
-		err := memberClient.PostWebpushSubscription(ctx, "me", codersdk.WebpushSubscription{
-			Endpoint:  server.URL,
-			AuthKey:   validEndpointAuthKey,
-			P256DHKey: validEndpointP256dhKey,
-		})
-		require.NoError(t, err, "create webpush subscription")
-		require.True(t, <-handlerCalled, "handler should have been called")
-
-		err = memberClient.PostTestWebpushMessage(ctx)
-		require.NoError(t, err, "test web push notification")
-		require.True(t, <-handlerCalled, "handler should have been called again")
-
-		err = memberClient.DeleteWebpushSubscription(ctx, "me", codersdk.DeleteWebpushSubscription{
-			Endpoint: server.URL,
-		})
-		require.NoError(t, err, "delete webpush subscription")
+	err := memberClient.PostWebpushSubscription(ctx, "me", codersdk.WebpushSubscription{
+		Endpoint:  server.URL,
+		AuthKey:   validEndpointAuthKey,
+		P256DHKey: validEndpointP256dhKey,
 	})
+	require.NoError(t, err, "create webpush subscription")
+	require.True(t, <-handlerCalled, "handler should have been called")
+
+	err = memberClient.PostTestWebpushMessage(ctx)
+	require.NoError(t, err, "test web push notification")
+	require.True(t, <-handlerCalled, "handler should have been called again")
+
+	err = memberClient.DeleteWebpushSubscription(ctx, "me", codersdk.DeleteWebpushSubscription{
+		Endpoint: server.URL,
+	})
+	require.NoError(t, err, "delete webpush subscription")
 }
