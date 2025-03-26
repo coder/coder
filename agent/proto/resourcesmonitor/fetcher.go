@@ -1,9 +1,8 @@
 package resourcesmonitor
 
 import (
+	"github.com/coder/clistat"
 	"golang.org/x/xerrors"
-
-	"github.com/coder/coder/v2/cli/clistat"
 )
 
 type Statter interface {
