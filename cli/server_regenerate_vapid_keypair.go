@@ -24,8 +24,9 @@ func (r *RootCmd) newRegenerateVapidKeypairCommand() *serpent.Command {
 		regenVapidKeypairPgAuth string
 	)
 	regenerateVapidKeypairCommand := &serpent.Command{
-		Use:   "regenerate-vapid-keypair",
-		Short: "Regenerate the VAPID keypair used for push notifications.",
+		Use:    "regenerate-vapid-keypair",
+		Short:  "Regenerate the VAPID keypair used for push notifications.",
+		Hidden: true, // Hide this command as it's an experimental feature
 		Handler: func(inv *serpent.Invocation) error {
 			var (
 				ctx, cancel = inv.SignalNotifyContext(inv.Context(), StopSignals...)

@@ -1966,9 +1966,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "lease_period": 0,
       "max_send_attempts": 0,
       "method": "string",
-      "push": {
-        "enabled": true
-      },
       "retry_interval": 0,
       "sync_buffer_size": 0,
       "sync_interval": 0,
@@ -2445,9 +2442,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "lease_period": 0,
     "max_send_attempts": 0,
     "method": "string",
-    "push": {
-      "enabled": true
-    },
     "retry_interval": 0,
     "sync_buffer_size": 0,
     "sync_interval": 0,
@@ -2826,6 +2820,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `auto-fill-parameters` |
 | `notifications`        |
 | `workspace-usage`      |
+| `web-push`             |
 
 ## codersdk.ExternalAuth
 
@@ -3792,9 +3787,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "lease_period": 0,
   "max_send_attempts": 0,
   "method": "string",
-  "push": {
-    "enabled": true
-  },
   "retry_interval": 0,
   "sync_buffer_size": 0,
   "sync_interval": 0,
@@ -3828,7 +3820,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `lease_period`      | integer                                                                    | false    |              | How long a notifier should lease a message. This is effectively how long a notification is 'owned' by a notifier, and once this period expires it will be available for lease by another notifier. Leasing is important in order for multiple running notifiers to not pick the same messages to deliver concurrently. This lease period will only expire if a notifier shuts down ungracefully; a dispatch of the notification releases the lease. |
 | `max_send_attempts` | integer                                                                    | false    |              | The upper limit of attempts to send a notification.                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `method`            | string                                                                     | false    |              | Which delivery method to use (available options: 'smtp', 'webhook').                                                                                                                                                                                                                                                                                                                                                                                |
-| `push`              | [codersdk.NotificationsPushConfig](#codersdknotificationspushconfig)       | false    |              | Push notification settings.                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `retry_interval`    | integer                                                                    | false    |              | The minimum time between retries.                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `sync_buffer_size`  | integer                                                                    | false    |              | The notifications system buffers message updates in memory to ease pressure on the database. This option controls how many updates are kept in memory. The lower this value the lower the change of state inconsistency in a non-graceful shutdown - but it also increases load on the database. It is recommended to keep this option at its default value.                                                                                        |
 | `sync_interval`     | integer                                                                    | false    |              | The notifications system buffers message updates in memory to ease pressure on the database. This option controls how often it synchronizes its state with the database. The shorter this value the lower the change of state inconsistency in a non-graceful shutdown - but it also increases load on the database. It is recommended to keep this option at its default value.                                                                    |
@@ -3915,20 +3906,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `start_tls`            | boolean | false    |              | Start tls attempts to upgrade plain connections to TLS.      |
 
 ## codersdk.NotificationsInboxConfig
-
-```json
-{
-  "enabled": true
-}
-```
-
-### Properties
-
-| Name      | Type    | Required | Restrictions | Description |
-|-----------|---------|----------|--------------|-------------|
-| `enabled` | boolean | false    |              |             |
-
-## codersdk.NotificationsPushConfig
 
 ```json
 {

@@ -681,7 +681,3 @@ notifications:
   # How often to query the database for queued notifications.
   # (default: 15s, type: duration)
   fetchInterval: 15s
-  push:
-    # Enable push notifications using VAPID.
-    # (default: false, type: bool)
-    enabled: false

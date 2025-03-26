@@ -11950,19 +11950,22 @@ const docTemplate = `{
                 "example",
                 "auto-fill-parameters",
                 "notifications",
-                "workspace-usage"
+                "workspace-usage",
+                "web-push"
             ],
             "x-enum-comments": {
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
+                "ExperimentWebPush": "Enables web push notifications through the browser.",
                 "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
             },
             "x-enum-varnames": [
                 "ExperimentExample",
                 "ExperimentAutoFillParameters",
                 "ExperimentNotifications",
-                "ExperimentWorkspaceUsage"
+                "ExperimentWorkspaceUsage",
+                "ExperimentWebPush"
             ]
         },
         "codersdk.ExternalAuth": {
@@ -12800,14 +12803,6 @@ const docTemplate = `{
                     "description": "Which delivery method to use (available options: 'smtp', 'webhook').",
                     "type": "string"
                 },
-                "push": {
-                    "description": "Push notification settings.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.NotificationsPushConfig"
-                        }
-                    ]
-                },
                 "retry_interval": {
                     "description": "The minimum time between retries.",
                     "type": "integer"
@@ -12918,14 +12913,6 @@ const docTemplate = `{
             }
         },
         "codersdk.NotificationsInboxConfig": {
-            "type": "object",
-            "properties": {
-                "enabled": {
-                    "type": "boolean"
-                }
-            }
-        },
-        "codersdk.NotificationsPushConfig": {
             "type": "object",
             "properties": {
                 "enabled": {

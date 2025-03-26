@@ -1321,11 +1321,6 @@
 							"path": "reference/cli/server_postgres-builtin-url.md"
 						},
 						{
-							"title": "server regenerate-vapid-keypair",
-							"description": "Regenerate the VAPID keypair used for push notifications.",
-							"path": "reference/cli/server_regenerate-vapid-keypair.md"
-						},
-						{
 							"title": "show",
 							"description": "Display details of a workspace's resources and agents",
 							"path": "reference/cli/show.md"

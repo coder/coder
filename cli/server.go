@@ -777,7 +777,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 
 			// Manage push notifications.
-			if options.DeploymentValues.Notifications.Push.Enabled {
+			experiments := coderd.ReadExperiments(options.Logger, options.DeploymentValues.Experiments.Value())
+			if experiments.Enabled(codersdk.ExperimentWebPush) {
 				pushNotifier, err := push.New(ctx, &options.Logger, options.Database)
 				if err != nil {
 					options.Logger.Error(ctx, "failed to create push notifier", slog.Error(err))
@@ -789,7 +790,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				options.PushNotifier = pushNotifier
 			} else {
 				options.PushNotifier = &push.NoopNotifier{
-					Msg: "Push notifications are not configured.",
+					Msg: "Push notifications are disabled. Enable the 'web-push' experiment to use this feature.",
 				}
 			}
 
