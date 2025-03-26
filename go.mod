@@ -103,7 +103,7 @@ require (
 	github.com/dave/dst v0.27.2
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/dblohm7/wingoes v0.0.0-20240820181039-f2b84150679e
-	github.com/elastic/go-sysinfo v1.15.0
+	github.com/elastic/go-sysinfo v1.15.1
 	github.com/emersion/go-sasl v0.0.0-20200509203442-7bfe0ed36a21
 	github.com/emersion/go-smtp v0.21.2
 	github.com/fatih/color v1.18.0
@@ -209,7 +209,7 @@ require (
 	gvisor.dev/gvisor v0.0.0-20240509041132-65b30f7869dc
 	kernel.org/pub/linux/libs/security/libcap/cap v1.2.73
 	storj.io/drpc v0.0.33
-	tailscale.com v1.46.1
+	tailscale.com v1.80.3
 )
 
 require (
@@ -468,6 +468,8 @@ require (
 	kernel.org/pub/linux/libs/security/libcap/psx v1.2.73 // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
+
+require github.com/coder/clistat v1.0.0
 
 require (
 	github.com/charmbracelet/colorprofile v0.2.3-0.20250311203215-f60798e515dc // indirect
