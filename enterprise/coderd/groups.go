@@ -61,6 +61,7 @@ func (api *API) postGroupByOrganization(rw http.ResponseWriter, r *http.Request)
 		DisplayName:    req.DisplayName,
 		OrganizationID: org.ID,
 		AvatarURL:      req.AvatarURL,
+		// #nosec G115 - Quota allowance is small and fits in int32
 		QuotaAllowance: int32(req.QuotaAllowance),
 	})
 	if database.IsUniqueViolation(err) {
@@ -218,6 +219,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 			updateGroupParams.Name = req.Name
 		}
 		if req.QuotaAllowance != nil {
+			// #nosec G115 - Quota allowance is small and fits in int32
 			updateGroupParams.QuotaAllowance = int32(*req.QuotaAllowance)
 		}
 		if req.DisplayName != nil {
