@@ -844,6 +844,7 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 			o.PortCacheDuration = time.Millisecond
 		})
 		resources := coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
+		// #nosec G115 - Safe conversion as TCP port numbers are within uint16 range (0-65535)
 		return client, uint16(coderdPort), resources[0].Agents[0].ID
 	}
 
@@ -878,6 +879,7 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 				_ = l.Close()
 			})
 
+			// #nosec G115 - Safe conversion as TCP port numbers are within uint16 range (0-65535)
 			port = uint16(tcpAddr.Port)
 			return true
 		}, testutil.WaitShort, testutil.IntervalFast)

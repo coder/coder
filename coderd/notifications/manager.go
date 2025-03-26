@@ -337,6 +337,7 @@ func (m *Manager) syncUpdates(ctx context.Context) {
 		uctx, cancel := context.WithTimeout(ctx, time.Second*30)
 		defer cancel()
 
+		// #nosec G115 - Safe conversion for max send attempts which is expected to be within int32 range
 		failureParams.MaxAttempts = int32(m.cfg.MaxSendAttempts)
 		failureParams.RetryInterval = int32(m.cfg.RetryInterval.Value().Seconds())
 		n, err := m.store.BulkMarkNotificationMessagesFailed(uctx, failureParams)
