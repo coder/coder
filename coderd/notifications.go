@@ -333,6 +333,7 @@ func (api *API) putUserNotificationPreferences(rw http.ResponseWriter, r *http.R
 // @Param user path string true "User ID, name, or me"
 // @Router /users/{user}/webpush/subscription [post]
 // @Success 204
+// @x-apidocgen {"skip": true}
 func (api *API) postUserWebpushSubscription(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
@@ -376,6 +377,7 @@ func (api *API) postUserWebpushSubscription(rw http.ResponseWriter, r *http.Requ
 // @Param user path string true "User ID, name, or me"
 // @Router /users/{user}/webpush/subscription [delete]
 // @Success 204
+// @x-apidocgen {"skip": true}
 func (api *API) deleteUserWebpushSubscription(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
@@ -407,6 +409,7 @@ func (api *API) deleteUserWebpushSubscription(rw http.ResponseWriter, r *http.Re
 // @Param user path string true "User ID, name, or me"
 // @Success 204
 // @Router /users/{user}/webpush/test [post]
+// @x-apidocgen {"skip": true}
 func (api *API) postUserPushNotificationTest(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)

@@ -6767,6 +6767,9 @@
 					"204": {
 						"description": "No Content"
 					}
+				},
+				"x-apidocgen": {
+					"skip": true
 				}
 			},
 			"delete": {
@@ -6801,6 +6804,9 @@
 					"204": {
 						"description": "No Content"
 					}
+				},
+				"x-apidocgen": {
+					"skip": true
 				}
 			}
 		},
@@ -6827,6 +6833,9 @@
 					"204": {
 						"description": "No Content"
 					}
+				},
+				"x-apidocgen": {
+					"skip": true
 				}
 			}
 		},

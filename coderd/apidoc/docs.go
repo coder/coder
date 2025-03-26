@@ -7656,6 +7656,9 @@ const docTemplate = `{
                     "204": {
                         "description": "No Content"
                     }
+                },
+                "x-apidocgen": {
+                    "skip": true
                 }
             },
             "delete": {
@@ -7694,6 +7697,9 @@ const docTemplate = `{
                     "204": {
                         "description": "No Content"
                     }
+                },
+                "x-apidocgen": {
+                    "skip": true
                 }
             }
         },
@@ -7722,6 +7728,9 @@ const docTemplate = `{
                     "204": {
                         "description": "No Content"
                     }
+                },
+                "x-apidocgen": {
+                    "skip": true
                 }
             }
         },
