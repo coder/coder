@@ -84,11 +84,6 @@ export const RBACResourceActions: Partial<
 		read: "read notification preferences",
 		update: "update notification preferences",
 	},
-	webpush_subscription: {
-		create: "create webpush subscriptions",
-		delete: "delete webpush subscriptions",
-		read: "read webpush subscriptions",
-	},
 	notification_template: {
 		read: "read notification templates",
 		update: "update notification templates",
@@ -161,6 +156,11 @@ export const RBACResourceActions: Partial<
 		read_personal: "read personal user data like user settings and auth links",
 		update: "update an existing user",
 		update_personal: "update personal data",
+	},
+	webpush_subscription: {
+		create: "create webpush subscriptions",
+		delete: "delete webpush subscriptions",
+		read: "read webpush subscriptions",
 	},
 	workspace: {
 		application_connect: "connect to workspace apps via browser",

@@ -155,15 +155,6 @@ var (
 		Type: "notification_preference",
 	}
 
-	// ResourceWebpushSubscription
-	// Valid Actions
-	//  - "ActionCreate" :: create webpush subscriptions
-	//  - "ActionDelete" :: delete webpush subscriptions
-	//  - "ActionRead" :: read webpush subscriptions
-	ResourceWebpushSubscription = Object{
-		Type: "webpush_subscription",
-	}
-
 	// ResourceNotificationTemplate
 	// Valid Actions
 	//  - "ActionRead" :: read notification templates
@@ -289,6 +280,15 @@ var (
 		Type: "user",
 	}
 
+	// ResourceWebpushSubscription
+	// Valid Actions
+	//  - "ActionCreate" :: create webpush subscriptions
+	//  - "ActionDelete" :: delete webpush subscriptions
+	//  - "ActionRead" :: read webpush subscriptions
+	ResourceWebpushSubscription = Object{
+		Type: "webpush_subscription",
+	}
+
 	// ResourceWorkspace
 	// Valid Actions
 	//  - "ActionApplicationConnect" :: connect to workspace apps via browser
@@ -363,7 +363,6 @@ func AllResources() []Objecter {
 		ResourceLicense,
 		ResourceNotificationMessage,
 		ResourceNotificationPreference,
-		ResourceWebpushSubscription,
 		ResourceNotificationTemplate,
 		ResourceOauth2App,
 		ResourceOauth2AppCodeToken,
@@ -377,6 +376,7 @@ func AllResources() []Objecter {
 		ResourceTailnetCoordinator,
 		ResourceTemplate,
 		ResourceUser,
+		ResourceWebpushSubscription,
 		ResourceWorkspace,
 		ResourceWorkspaceAgentDevcontainers,
 		ResourceWorkspaceAgentResourceMonitor,
