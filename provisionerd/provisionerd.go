@@ -288,7 +288,7 @@ func (p *Server) client() (proto.DRPCProvisionerDaemonClient, bool) {
 func (p *Server) acquireLoop() {
 	defer p.opts.Logger.Debug(p.closeContext, "acquire loop exited")
 	defer p.wg.Done()
-	defer close(p.acquireDoneCh)
+	defer func() { close(p.acquireDoneCh) }()
 	ctx := p.closeContext
 	for {
 		if p.acquireExit() {
