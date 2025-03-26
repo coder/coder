@@ -626,7 +626,8 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 		// it if it exists. If it doesn't exist, create it.
 		now := time.Now()
 		replica, err := db.GetReplicaByID(ctx, req.ReplicaID)
-		if err == nil {
+		switch {
+		case err == nil:
 			// Replica exists, update it.
 			if replica.StoppedAt.Valid && !replica.StartedAt.IsZero() {
 				// If the replica deregistered, it shouldn't be able to
@@ -651,7 +652,7 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 			if err != nil {
 				return xerrors.Errorf("update replica: %w", err)
 			}
-		} else if xerrors.Is(err, sql.ErrNoRows) {
+		case xerrors.Is(err, sql.ErrNoRows):
 			// Replica doesn't exist, create it.
 			replica, err = db.InsertReplica(ctx, database.InsertReplicaParams{
 				ID:              req.ReplicaID,
@@ -668,7 +669,7 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 			if err != nil {
 				return xerrors.Errorf("insert replica: %w", err)
 			}
-		} else {
+		default:
 			return xerrors.Errorf("get replica: %w", err)
 		}
 

@@ -4,65 +4,65 @@ import (
 	"context"
 	"fmt"
 	"strings"
-
-	"github.com/prometheus/client_golang/prometheus"
-	prompb "github.com/prometheus/client_model/go"
-	"tailscale.com/util/clientmetric"
+	"time"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/v2/agent/proto"
+	"github.com/prometheus/client_golang/prometheus"
+	prompb "github.com/prometheus/client_model/go"
+	"tailscale.com/client/tailscale/apitype"
+	"tailscale.com/clientmetric"
+	"tailscale.com/net/netcheck"
+
+	proto "github.com/coder/coder/v2/agent/proto"
 )
 
 type agentMetrics struct {
-	connectionsTotal      prometheus.Counter
-	reconnectingPTYErrors *prometheus.CounterVec
-	// startupScriptSeconds is the time in seconds that the start script(s)
-	// took to run. This is reported once per agent.
 	startupScriptSeconds *prometheus.GaugeVec
-	currentConnections   *prometheus.GaugeVec
+
+	// I/O metrics
+	bytesSent     prometheus.Counter
+	bytesReceived prometheus.Counter
+
+	// Session metrics
+	sessionsTotal         prometheus.Counter
+	sessionsClosed        prometheus.Counter
+	sessionsActive        prometheus.Gauge
+	sessionReconnectCount *prometheus.CounterVec
+
+	// Connection metrics
+	currentConnections *prometheus.GaugeVec
+
+	// Tailscale Peer metrics
+	peerStatus         *prometheus.GaugeVec
+	magicsockLoss      prometheus.Gauge
+	magicsockLatency   prometheus.Gauge
+	networkMapPingCost *prometheus.GaugeVec
+
+	// Prometheus Registry
+	prometheusRegistry *prometheus.Registry
+	logger             slog.Logger
 }
 
-func newAgentMetrics(registerer prometheus.Registerer) *agentMetrics {
-	connectionsTotal := prometheus.NewCounter(prometheus.CounterOpts{
-		Namespace: "agent", Subsystem: "reconnecting_pty", Name: "connections_total",
-	})
-	registerer.MustRegister(connectionsTotal)
-
-	reconnectingPTYErrors := prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: "agent",
-			Subsystem: "reconnecting_pty",
-			Name:      "errors_total",
-		},
-		[]string{"error_type"},
-	)
-	registerer.MustRegister(reconnectingPTYErrors)
-
+func (a *Agent) newMetrics() error {
 	startupScriptSeconds := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "coderd",
-		Subsystem: "agentstats",
-		Name:      "startup_script_seconds",
-		Help:      "Amount of time taken to run the startup script in seconds.",
-	}, []string{"success"})
-	registerer.MustRegister(startupScriptSeconds)
+		Name: "startup_script_seconds",
+		Help: "Total number of seconds spent executing a startup script.",
+	}, []string{"status"})
 
+	// Connection metrics
 	currentConnections := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "coderd",
-		Subsystem: "agentstats",
-		Name:      "currently_reachable_peers",
-		Help:      "The number of peers (e.g. clients) that are currently reachable over the encrypted network.",
-	}, []string{"connection_type"})
-	registerer.MustRegister(currentConnections)
+		Name: "current_connections",
+		Help: "Current active connection count.",
+	}, []string{"type"})
 
-	return &agentMetrics{
-		connectionsTotal:      connectionsTotal,
-		reconnectingPTYErrors: reconnectingPTYErrors,
-		startupScriptSeconds:  startupScriptSeconds,
-		currentConnections:    currentConnections,
+	a.metrics = &agentMetrics{
+		startupScriptSeconds: startupScriptSeconds,
+		currentConnections:   currentConnections,
 	}
+	return nil
 }
 
-func (a *agent) collectMetrics(ctx context.Context) []*proto.Stats_Metric {
+func (a *Agent) collectMetrics(ctx context.Context) []*proto.Stats_Metric {
 	var collected []*proto.Stats_Metric
 
 	// Tailscale internal metrics
@@ -79,7 +79,7 @@ func (a *agent) collectMetrics(ctx context.Context) []*proto.Stats_Metric {
 		})
 	}
 
-	metricFamilies, err := a.prometheusRegistry.Gather()
+	metricFamilies, err := a.metrics.prometheusRegistry.Gather()
 	if err != nil {
 		a.logger.Error(ctx, "can't gather agent metrics", slog.Error(err))
 		return collected
@@ -89,21 +89,22 @@ func (a *agent) collectMetrics(ctx context.Context) []*proto.Stats_Metric {
 		for _, metric := range metricFamily.GetMetric() {
 			labels := toAgentMetricLabels(metric.Label)
 
-			if metric.Counter != nil {
+			switch {
+			case metric.Counter != nil:
 				collected = append(collected, &proto.Stats_Metric{
 					Name:   metricFamily.GetName(),
 					Type:   proto.Stats_Metric_COUNTER,
 					Value:  metric.Counter.GetValue(),
 					Labels: labels,
 				})
-			} else if metric.Gauge != nil {
+			case metric.Gauge != nil:
 				collected = append(collected, &proto.Stats_Metric{
 					Name:   metricFamily.GetName(),
 					Type:   proto.Stats_Metric_GAUGE,
 					Value:  metric.Gauge.GetValue(),
 					Labels: labels,
 				})
-			} else {
+			default:
 				a.logger.Error(ctx, "unsupported metric type", slog.F("type", metricFamily.Type.String()))
 			}
 		}
@@ -148,4 +149,21 @@ func asMetricType(typ clientmetric.Type) proto.Stats_Metric_Type {
 	default:
 		panic(fmt.Sprintf("unknown metric type: %d", typ))
 	}
+}
+
+// parseNetInfoToMetrics parses Tailscale's netcheck data into a list of metrics
+func parseNetInfoToMetrics(data *netcheck.Report) []apitype.TailnetDERPRegionProbe {
+	if data == nil {
+		return nil
+	}
+
+	var res []apitype.TailnetDERPRegionProbe
+	for id, region := range data.DERPRegionLatency {
+		res = append(res, apitype.TailnetDERPRegionProbe{
+			RegionID:   int(id),
+			RegionCode: data.RegionV4Servers[id],
+			LatencyMs:  float64(region.Milliseconds()),
+		})
+	}
+	return res
 }
