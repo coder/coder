@@ -156,7 +156,7 @@ export const NotificationsInbox: FC<NotificationsInboxProps> = ({
 			error={error}
 			isLoadingMoreNotifications={isLoadingMoreNotifications}
 			hasMoreNotifications={Boolean(
-				inboxRes && inboxRes.notifications.length === NOTIFICATIONS_LIMIT,
+				inboxRes && inboxRes.notifications.length % NOTIFICATIONS_LIMIT === 0,
 			)}
 			onRetry={refetch}
 			onMarkAllAsRead={markAllAsReadMutation.mutate}

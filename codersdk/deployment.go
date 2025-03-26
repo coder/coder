@@ -397,7 +397,7 @@ type DeploymentValues struct {
 	Config      serpent.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig serpent.Bool           `json:"write_config,omitempty" typescript:",notnull"`
 
-	// DEPRECATED: Use HTTPAddress or TLS.Address instead.
+	// Deprecated: Use HTTPAddress or TLS.Address instead.
 	Address serpent.HostPort `json:"address,omitempty" typescript:",notnull"`
 }
 

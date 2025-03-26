@@ -885,7 +885,8 @@ func (r *Runner) commitQuota(ctx context.Context, resources []*sdkproto.Resource
 	const stage = "Commit quota"
 
 	resp, err := r.quotaCommitter.CommitQuota(ctx, &proto.CommitQuotaRequest{
-		JobId:     r.job.JobId,
+		JobId: r.job.JobId,
+		// #nosec G115 - Safe conversion as cost is expected to be within int32 range for provisioning costs
 		DailyCost: int32(cost),
 	})
 	if err != nil {

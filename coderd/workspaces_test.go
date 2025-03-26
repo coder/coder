@@ -129,7 +129,7 @@ func TestWorkspace(t *testing.T) {
 			want = want[:32-5] + "-test"
 		}
 		// Sometimes truncated names result in `--test` which is not an allowed name.
-		want = strings.Replace(want, "--", "-", -1)
+		want = strings.ReplaceAll(want, "--", "-")
 		err := client.UpdateWorkspace(ctx, ws1.ID, codersdk.UpdateWorkspaceRequest{
 			Name: want,
 		})

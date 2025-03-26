@@ -154,6 +154,7 @@ func (c *AgentConn) ReconnectingPTY(ctx context.Context, id uuid.UUID, height, w
 		return nil, err
 	}
 	data = append(make([]byte, 2), data...)
+	// #nosec G115 - Safe conversion as the data length is expected to be within uint16 range for PTY initialization
 	binary.LittleEndian.PutUint16(data, uint16(len(data)-2))
 
 	_, err = conn.Write(data)

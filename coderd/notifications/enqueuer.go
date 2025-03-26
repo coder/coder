@@ -3,6 +3,7 @@ package notifications
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"slices"
 	"strings"
 	"text/template"
@@ -25,6 +26,14 @@ var (
 	ErrDuplicate                         = xerrors.New("duplicate notification")
 )
 
+type InvalidDefaultNotificationMethodError struct {
+	Method string
+}
+
+func (e InvalidDefaultNotificationMethodError) Error() string {
+	return fmt.Sprintf("given default notification method %q is invalid", e.Method)
+}
+
 type StoreEnqueuer struct {
 	store Store
 	log   slog.Logger
@@ -43,8 +52,13 @@ type StoreEnqueuer struct {
 // NewStoreEnqueuer creates an Enqueuer implementation which can persist notification messages in the store.
 func NewStoreEnqueuer(cfg codersdk.NotificationsConfig, store Store, helpers template.FuncMap, log slog.Logger, clock quartz.Clock) (*StoreEnqueuer, error) {
 	var method database.NotificationMethod
-	if err := method.Scan(cfg.Method.String()); err != nil {
-		return nil, xerrors.Errorf("given notification method %q is invalid", cfg.Method)
+	// TODO(DanielleMaywood):
+	// Currently we do not want to allow setting `inbox` as the default notification method.
+	// As of 2025-03-25, setting this to `inbox` would cause a crash on the deployment
+	// notification settings page. Until we make a future decision on this we want to disallow
+	// setting it.
+	if err := method.Scan(cfg.Method.String()); err != nil || method == database.NotificationMethodInbox {
+		return nil, InvalidDefaultNotificationMethodError{Method: cfg.Method.String()}
 	}
 
 	return &StoreEnqueuer{
@@ -102,6 +116,13 @@ func (s *StoreEnqueuer) EnqueueWithData(ctx context.Context, userID, templateID 
 
 	uuids := make([]uuid.UUID, 0, 2)
 	for _, method := range methods {
+		// TODO(DanielleMaywood):
+		// We should have a more permanent solution in the future, but for now this will work.
+		// We do not want password reset notifications to end up in Coder Inbox.
+		if method == database.NotificationMethodInbox && templateID == TemplateUserRequestedOneTimePasscode {
+			continue
+		}
+
 		id := uuid.New()
 		err = s.store.EnqueueNotificationMessage(ctx, database.EnqueueNotificationMessageParams{
 			ID:                     id,

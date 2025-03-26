@@ -1212,12 +1212,9 @@ func TestParameterValidation(t *testing.T) {
 	tfPlanGraph, err := os.ReadFile(filepath.Join(dir, "rich-parameters.tfplan.dot"))
 	require.NoError(t, err)
 
-	// Change all names to be identical.
-	var names []string
 	for _, resource := range tfPlan.PriorState.Values.RootModule.Resources {
 		if resource.Type == "coder_parameter" {
 			resource.AttributeValues["name"] = "identical"
-			names = append(names, resource.Name)
 		}
 	}
 
@@ -1228,11 +1225,9 @@ func TestParameterValidation(t *testing.T) {
 
 	// Make two sets of identical names.
 	count := 0
-	names = nil
 	for _, resource := range tfPlan.PriorState.Values.RootModule.Resources {
 		if resource.Type == "coder_parameter" {
 			resource.AttributeValues["name"] = fmt.Sprintf("identical-%d", count%2)
-			names = append(names, resource.Name)
 			count++
 		}
 	}
@@ -1244,11 +1239,9 @@ func TestParameterValidation(t *testing.T) {
 
 	// Once more with three sets.
 	count = 0
-	names = nil
 	for _, resource := range tfPlan.PriorState.Values.RootModule.Resources {
 		if resource.Type == "coder_parameter" {
 			resource.AttributeValues["name"] = fmt.Sprintf("identical-%d", count%3)
-			names = append(names, resource.Name)
 			count++
 		}
 	}

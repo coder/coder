@@ -32,10 +32,13 @@ func (api *API) postJFrogXrayScan(rw http.ResponseWriter, r *http.Request) {
 	err := api.Database.UpsertJFrogXrayScanByWorkspaceAndAgentID(ctx, database.UpsertJFrogXrayScanByWorkspaceAndAgentIDParams{
 		WorkspaceID: req.WorkspaceID,
 		AgentID:     req.AgentID,
-		Critical:    int32(req.Critical),
-		High:        int32(req.High),
-		Medium:      int32(req.Medium),
-		ResultsUrl:  req.ResultsURL,
+		// #nosec G115 - Vulnerability counts are small and fit in int32
+		Critical: int32(req.Critical),
+		// #nosec G115 - Vulnerability counts are small and fit in int32
+		High: int32(req.High),
+		// #nosec G115 - Vulnerability counts are small and fit in int32
+		Medium:     int32(req.Medium),
+		ResultsUrl: req.ResultsURL,
 	})
 	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
