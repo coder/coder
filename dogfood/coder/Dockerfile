@@ -162,6 +162,7 @@ RUN apt-get update --quiet && apt-get install --yes \
 	libgbm-dev \
 	libssl-dev \
 	lsb-release \
+	lsof \
 	man \
 	meld \
 	ncdu \
