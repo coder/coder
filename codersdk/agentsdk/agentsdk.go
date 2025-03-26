@@ -175,7 +175,7 @@ func (c *Client) RewriteDERPMap(derpMap *tailcfg.DERPMap) {
 // Release Versions from 2.9+
 // Deprecated: use ConnectRPC20WithTailnet
 func (c *Client) ConnectRPC20(ctx context.Context) (proto.DRPCAgentClient20, error) {
-	conn, err := c.connectRPCVersion(ctx, apiversion.NewAPIVersion(2, 0))
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 0))
 	if err != nil {
 		return nil, err
 	}
@@ -188,7 +188,7 @@ func (c *Client) ConnectRPC20(ctx context.Context) (proto.DRPCAgentClient20, err
 func (c *Client) ConnectRPC20WithTailnet(ctx context.Context) (
 	proto.DRPCAgentClient20, tailnetproto.DRPCTailnetClient20, error,
 ) {
-	conn, err := c.connectRPCVersion(ctx, apiversion.NewAPIVersion(2, 0))
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 0))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -199,7 +199,7 @@ func (c *Client) ConnectRPC20WithTailnet(ctx context.Context) (
 // maximally compatible with Coderd Release Versions from 2.12+
 // Deprecated: use ConnectRPC21WithTailnet
 func (c *Client) ConnectRPC21(ctx context.Context) (proto.DRPCAgentClient21, error) {
-	conn, err := c.connectRPCVersion(ctx, apiversion.NewAPIVersion(2, 1))
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 1))
 	if err != nil {
 		return nil, err
 	}
@@ -211,7 +211,7 @@ func (c *Client) ConnectRPC21(ctx context.Context) (proto.DRPCAgentClient21, err
 func (c *Client) ConnectRPC21WithTailnet(ctx context.Context) (
 	proto.DRPCAgentClient21, tailnetproto.DRPCTailnetClient21, error,
 ) {
-	conn, err := c.connectRPCVersion(ctx, apiversion.NewAPIVersion(2, 1))
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 1))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -223,7 +223,7 @@ func (c *Client) ConnectRPC21WithTailnet(ctx context.Context) (
 func (c *Client) ConnectRPC22(ctx context.Context) (
 	proto.DRPCAgentClient22, tailnetproto.DRPCTailnetClient22, error,
 ) {
-	conn, err := c.connectRPCVersion(ctx, apiversion.NewAPIVersion(2, 2))
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 2))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -235,7 +235,7 @@ func (c *Client) ConnectRPC22(ctx context.Context) (
 func (c *Client) ConnectRPC23(ctx context.Context) (
 	proto.DRPCAgentClient23, tailnetproto.DRPCTailnetClient23, error,
 ) {
-	conn, err := c.connectRPCVersion(ctx, apiversion.NewAPIVersion(2, 3))
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 3))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -247,7 +247,7 @@ func (c *Client) ConnectRPC23(ctx context.Context) (
 func (c *Client) ConnectRPC24(ctx context.Context) (
 	proto.DRPCAgentClient24, tailnetproto.DRPCTailnetClient24, error,
 ) {
-	conn, err := c.connectRPCVersion(ctx, apiversion.NewAPIVersion(2, 4))
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 4))
 	if err != nil {
 		return nil, nil, err
 	}

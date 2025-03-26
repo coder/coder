@@ -980,10 +980,11 @@ func (api *API) handleResumeToken(ctx context.Context, rw http.ResponseWriter, r
 		peerID, err = api.Options.CoordinatorResumeTokenProvider.VerifyResumeToken(ctx, resumeToken)
 		// If the token is missing the key ID, it's probably an old token in which
 		// case we just want to generate a new peer ID.
-		if xerrors.Is(err, jwtutils.ErrMissingKeyID) {
+		switch {
+		case xerrors.Is(err, jwtutils.ErrMissingKeyID):
 			peerID = uuid.New()
 			err = nil
-		} else if err != nil {
+		case err != nil:
 			httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
 				Message: workspacesdk.CoordinateAPIInvalidResumeToken,
 				Detail:  err.Error(),
@@ -992,7 +993,7 @@ func (api *API) handleResumeToken(ctx context.Context, rw http.ResponseWriter, r
 				},
 			})
 			return peerID, err
-		} else {
+		default:
 			api.Logger.Debug(ctx, "accepted coordinate resume token for peer",
 				slog.F("peer_id", peerID.String()))
 		}

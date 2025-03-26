@@ -20,4 +20,4 @@ const (
 // CurrentVersion is the current provisionerd API version.
 // Breaking changes to the provisionerd API **MUST** increment
 // CurrentMajor above.
-var CurrentVersion = apiversion.NewAPIVersion(CurrentMajor, CurrentMinor)
+var CurrentVersion = apiversion.New(CurrentMajor, CurrentMinor)

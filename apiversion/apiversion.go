@@ -8,12 +8,12 @@ import (
 	"golang.org/x/xerrors"
 )
 
-// NewAPIVersion returns an *APIVersion with the given major.minor and
+// New returns an *APIVersion with the given major.minor and
 // additional supported major versions.
-func NewAPIVersion(maj, min int) *APIVersion {
+func New(maj, minor int) *APIVersion {
 	v := &APIVersion{
 		supportedMajor:   maj,
-		supportedMinor:   min,
+		supportedMinor:   minor,
 		additionalMajors: make([]int, 0),
 	}
 	return v

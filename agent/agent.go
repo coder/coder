@@ -1623,11 +1623,12 @@ func (a *agent) Collect(ctx context.Context, networkStats map[netlogtype.Connect
 	wg.Wait()
 	sort.Float64s(durations)
 	durationsLength := len(durations)
-	if durationsLength == 0 {
+	switch {
+	case durationsLength == 0:
 		stats.ConnectionMedianLatencyMs = -1
-	} else if durationsLength%2 == 0 {
+	case durationsLength%2 == 0:
 		stats.ConnectionMedianLatencyMs = (durations[durationsLength/2-1] + durations[durationsLength/2]) / 2
-	} else {
+	default:
 		stats.ConnectionMedianLatencyMs = durations[durationsLength/2]
 	}
 	// Convert from microseconds to milliseconds.

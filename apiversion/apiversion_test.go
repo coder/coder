@@ -12,7 +12,7 @@ func TestAPIVersionValidate(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	v := apiversion.NewAPIVersion(2, 1).WithBackwardCompat(1)
+	v := apiversion.New(2, 1).WithBackwardCompat(1)
 
 	for _, tc := range []struct {
 		name          string

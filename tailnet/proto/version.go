@@ -50,4 +50,4 @@ const (
 	CurrentMinor = 4
 )
 
-var CurrentVersion = apiversion.NewAPIVersion(CurrentMajor, CurrentMinor)
+var CurrentVersion = apiversion.New(CurrentMajor, CurrentMinor)

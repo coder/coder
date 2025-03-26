@@ -89,21 +89,22 @@ func (a *agent) collectMetrics(ctx context.Context) []*proto.Stats_Metric {
 		for _, metric := range metricFamily.GetMetric() {
 			labels := toAgentMetricLabels(metric.Label)
 
-			if metric.Counter != nil {
+			switch {
+			case metric.Counter != nil:
 				collected = append(collected, &proto.Stats_Metric{
 					Name:   metricFamily.GetName(),
 					Type:   proto.Stats_Metric_COUNTER,
 					Value:  metric.Counter.GetValue(),
 					Labels: labels,
 				})
-			} else if metric.Gauge != nil {
+			case metric.Gauge != nil:
 				collected = append(collected, &proto.Stats_Metric{
 					Name:   metricFamily.GetName(),
 					Type:   proto.Stats_Metric_GAUGE,
 					Value:  metric.Gauge.GetValue(),
 					Labels: labels,
 				})
-			} else {
+			default:
 				a.logger.Error(ctx, "unsupported metric type", slog.F("type", metricFamily.Type.String()))
 			}
 		}

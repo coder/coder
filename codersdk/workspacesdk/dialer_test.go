@@ -276,7 +276,7 @@ func TestWebsocketDialer_UplevelVersion(t *testing.T) {
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 
 	svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		sVer := apiversion.NewAPIVersion(2, 2)
+		sVer := apiversion.New(2, 2)
 
 		// the following matches what Coderd does;
 		// c.f. coderd/workspaceagents.go: workspaceAgentClientCoordinate
