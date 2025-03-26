@@ -70,7 +70,6 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
-	"github.com/coder/coder/v2/coderd/notifications/push"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
@@ -79,6 +78,7 @@ import (
 	"github.com/coder/coder/v2/coderd/unhanger"
 	"github.com/coder/coder/v2/coderd/updatecheck"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/coderd/workspacestats"
@@ -162,7 +162,7 @@ type Options struct {
 	Logger       *slog.Logger
 	StatsBatcher workspacestats.Batcher
 
-	PushNotifier                       push.Dispatcher
+	WebpushDispatcher                  webpush.Dispatcher
 	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions
 	AllowWorkspaceRenames              bool
 	NewTicker                          func(duration time.Duration) (<-chan time.Time, func())
@@ -282,13 +282,13 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		require.NoError(t, err, "insert a deployment id")
 	}
 
-	if options.PushNotifier == nil {
+	if options.WebpushDispatcher == nil {
 		// nolint:gocritic // Gets/sets VAPID keys.
-		pushNotifier, err := push.New(dbauthz.AsNotifier(context.Background()), options.Logger, options.Database)
+		pushNotifier, err := webpush.New(dbauthz.AsNotifier(context.Background()), options.Logger, options.Database)
 		if err != nil {
 			panic(xerrors.Errorf("failed to create push notifier: %w", err))
 		}
-		options.PushNotifier = pushNotifier
+		options.WebpushDispatcher = pushNotifier
 	}
 
 	if options.DeploymentValues == nil {
@@ -541,7 +541,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			TrialGenerator:                     options.TrialGenerator,
 			RefreshEntitlements:                options.RefreshEntitlements,
 			TailnetCoordinator:                 options.Coordinator,
-			WebpushDispatcher:                  options.PushNotifier,
+			WebpushDispatcher:                  options.WebpushDispatcher,
 			BaseDERPMap:                        derpMap,
 			DERPMapUpdateFrequency:             150 * time.Millisecond,
 			CoordinatorResumeTokenProvider:     options.CoordinatorResumeTokenProvider,

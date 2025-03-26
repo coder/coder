@@ -1,4 +1,4 @@
-package push_test
+package webpush_test
 
 import (
 	"context"
@@ -16,7 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/coderd/notifications/push"
+	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -242,16 +242,16 @@ func TestPush(t *testing.T) {
 	})
 }
 
-// setupPushTest creates a common test setup for push notification tests
-func setupPushTest(ctx context.Context, t *testing.T, handlerFunc func(w http.ResponseWriter, r *http.Request)) (push.Dispatcher, database.Store, string) {
+// setupPushTest creates a common test setup for webpush notification tests
+func setupPushTest(ctx context.Context, t *testing.T, handlerFunc func(w http.ResponseWriter, r *http.Request)) (webpush.Dispatcher, database.Store, string) {
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	db, _ := dbtestutil.NewDB(t)
 
 	server := httptest.NewServer(http.HandlerFunc(handlerFunc))
 	t.Cleanup(server.Close)
 
-	manager, err := push.New(ctx, &logger, db)
-	require.NoError(t, err, "Failed to create push manager")
+	manager, err := webpush.New(ctx, &logger, db)
+	require.NoError(t, err, "Failed to create webpush manager")
 
 	return manager, db, server.URL
 }

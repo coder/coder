@@ -13,7 +13,7 @@ import (
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/awsiamrds"
-	"github.com/coder/coder/v2/coderd/notifications/push"
+	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
@@ -81,7 +81,7 @@ func (r *RootCmd) newRegenerateVapidKeypairCommand() *serpent.Command {
 				return xerrors.Errorf("VAPID keypair regeneration failed: %w", err)
 			}
 
-			if _, _, err := push.RegenerateVAPIDKeys(ctx, db); err != nil {
+			if _, _, err := webpush.RegenerateVAPIDKeys(ctx, db); err != nil {
 				return xerrors.Errorf("regenerate vapid keypair: %w", err)
 			}
 

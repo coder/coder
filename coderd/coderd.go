@@ -44,8 +44,8 @@ import (
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/idpsync"
-	"github.com/coder/coder/v2/coderd/notifications/push"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
+	"github.com/coder/coder/v2/coderd/webpush"
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/buildinfo"
@@ -263,7 +263,7 @@ type Options struct {
 	Clock                 quartz.Clock
 
 	// WebpushDispatcher is a way to send notifications over Web Push.
-	WebpushDispatcher push.Dispatcher
+	WebpushDispatcher webpush.Dispatcher
 }
 
 // @title Coder API
@@ -550,7 +550,7 @@ func New(options *Options) *API {
 		UserQuietHoursScheduleStore: options.UserQuietHoursScheduleStore,
 		AccessControlStore:          options.AccessControlStore,
 		Experiments:                 experiments,
-		PushNotifier:                options.WebpushDispatcher,
+		WebpushDispatcher:           options.WebpushDispatcher,
 		healthCheckGroup:            &singleflight.Group[string, *healthsdk.HealthcheckReport]{},
 		Acquirer: provisionerdserver.NewAcquirer(
 			ctx,
@@ -585,7 +585,7 @@ func New(options *Options) *API {
 		WorkspaceProxy:        false,
 		UpgradeMessage:        api.DeploymentValues.CLIUpgradeMessage.String(),
 		DeploymentID:          api.DeploymentID,
-		WebPushPublicKey:      api.PushNotifier.PublicKey(),
+		WebPushPublicKey:      api.WebpushDispatcher.PublicKey(),
 		Telemetry:             api.Telemetry.Enabled(),
 	}
 	api.SiteHandler = site.New(&site.Options{
@@ -1505,8 +1505,8 @@ type API struct {
 	TailnetCoordinator                atomic.Pointer[tailnet.Coordinator]
 	NetworkTelemetryBatcher           *tailnet.NetworkTelemetryBatcher
 	TailnetClientService              *tailnet.ClientService
-	// PushNotifier is a way to send push notifications to users.
-	PushNotifier      push.Dispatcher
+	// WebpushDispatcher is a way to send notifications to users via Web Push.
+	WebpushDispatcher webpush.Dispatcher
 	QuotaCommitter    atomic.Pointer[proto.QuotaCommitter]
 	AppearanceFetcher atomic.Pointer[appearance.Fetcher]
 	// WorkspaceProxyHostsFn returns the hosts of healthy workspace proxies

@@ -366,8 +366,8 @@ func (api *API) postUserWebpushSubscription(rw http.ResponseWriter, r *http.Requ
 			P256dh: req.P256DHKey,
 		},
 	}, &webpush.Options{
-		VAPIDPublicKey:  api.PushNotifier.PublicKey(),
-		VAPIDPrivateKey: api.PushNotifier.PrivateKey(),
+		VAPIDPublicKey:  api.WebpushDispatcher.PublicKey(),
+		VAPIDPrivateKey: api.WebpushDispatcher.PrivateKey(),
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -448,7 +448,7 @@ func (api *API) postUserPushNotificationTest(rw http.ResponseWriter, r *http.Req
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
 
-	if err := api.PushNotifier.Dispatch(ctx, user.ID, codersdk.WebpushMessage{
+	if err := api.WebpushDispatcher.Dispatch(ctx, user.ID, codersdk.WebpushMessage{
 		Title: "It's working!",
 		Body:  "You've subscribed to push notifications.",
 	}); err != nil {
