@@ -127,6 +127,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 				logger.Info(ctx, "spawning reaper process")
 				// Do not start a reaper on the child process. It's important
 				// to do this else we fork bomb ourselves.
+				//nolint:gocritic
 				args := append(os.Args, "--no-reap")
 				err := reaper.ForkReap(
 					reaper.WithExecArgs(args...),

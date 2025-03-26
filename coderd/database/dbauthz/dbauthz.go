@@ -3212,6 +3212,7 @@ func (q *querier) InsertOrganizationMember(ctx context.Context, arg database.Ins
 	}
 
 	// All roles are added roles. Org member is always implied.
+	//nolint:gocritic
 	addedRoles := append(orgRoles, rbac.ScopedRoleOrgMember(arg.OrganizationID))
 	err = q.canAssignRoles(ctx, arg.OrganizationID, addedRoles, []rbac.RoleIdentifier{})
 	if err != nil {
@@ -3796,6 +3797,7 @@ func (q *querier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemb
 	}
 
 	// The org member role is always implied.
+	//nolint:gocritic
 	impliedTypes := append(scopedGranted, rbac.ScopedRoleOrgMember(arg.OrgID))
 
 	added, removed := rbac.ChangeRoleSet(originalRoles, impliedTypes)

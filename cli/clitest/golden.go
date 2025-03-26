@@ -58,6 +58,7 @@ func TestCommandHelp(t *testing.T, getRoot func(t *testing.T) *serpent.Command, 
 ExtractCommandPathsLoop:
 	for _, cp := range extractVisibleCommandPaths(nil, root.Children) {
 		name := fmt.Sprintf("coder %s --help", strings.Join(cp, " "))
+		//nolint:gocritic
 		cmd := append(cp, "--help")
 		for _, tt := range cases {
 			if tt.Name == name {
