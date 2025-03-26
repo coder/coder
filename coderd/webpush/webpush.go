@@ -97,6 +97,8 @@ func (n *Webpusher) Dispatch(ctx context.Context, userID uuid.UUID, notification
 	for _, subscription := range subscriptions {
 		subscription := subscription
 		eg.Go(func() error {
+			// TODO: Implement some retry logic here. For now, this is just a
+			// best-effort attempt.
 			statusCode, body, err := n.webpushSend(ctx, notificationJSON, subscription.Endpoint, webpush.Keys{
 				Auth:   subscription.EndpointAuthKey,
 				P256dh: subscription.EndpointP256dhKey,
@@ -186,6 +188,8 @@ func (n *Webpusher) Test(ctx context.Context, req codersdk.WebpushSubscription) 
 	return nil
 }
 
+// PublicKey returns the VAPID public key for the webpush dispatcher.
+// Clients need this, so it's exposed via the BuildInfo endpoint.
 func (n *Webpusher) PublicKey() string {
 	return n.VAPIDPublicKey
 }

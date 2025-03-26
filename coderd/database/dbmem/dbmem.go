@@ -2453,6 +2453,8 @@ func (q *FakeQuerier) DeleteWebpushSubscriptionByUserIDAndEndpoint(_ context.Con
 }
 
 func (q *FakeQuerier) DeleteWebpushSubscriptions(_ context.Context, ids []uuid.UUID) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
 	for i, subscription := range q.webpushSubscriptions {
 		if slices.Contains(ids, subscription.ID) {
 			q.webpushSubscriptions[i] = q.webpushSubscriptions[len(q.webpushSubscriptions)-1]

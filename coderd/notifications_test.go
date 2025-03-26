@@ -397,6 +397,7 @@ func TestWebpushSubscribeUnsubscribe(t *testing.T) {
 	})
 	owner := coderdtest.CreateFirstUser(t, client)
 	memberClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+	_, anotherMember := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
 	handlerCalled := make(chan bool, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -414,11 +415,34 @@ func TestWebpushSubscribeUnsubscribe(t *testing.T) {
 	require.True(t, <-handlerCalled, "handler should have been called")
 
 	err = memberClient.PostTestWebpushMessage(ctx)
-	require.NoError(t, err, "test web push notification")
+	require.NoError(t, err, "test webpush message")
 	require.True(t, <-handlerCalled, "handler should have been called again")
 
 	err = memberClient.DeleteWebpushSubscription(ctx, "me", codersdk.DeleteWebpushSubscription{
 		Endpoint: server.URL,
 	})
 	require.NoError(t, err, "delete webpush subscription")
+
+	// Deleting the subscription for a non-existent endpoint should return a 404
+	err = memberClient.DeleteWebpushSubscription(ctx, "me", codersdk.DeleteWebpushSubscription{
+		Endpoint: server.URL,
+	})
+	var sdkError *codersdk.Error
+	require.Error(t, err)
+	require.ErrorAsf(t, err, &sdkError, "error should be of type *codersdk.Error")
+	require.Equal(t, http.StatusNotFound, sdkError.StatusCode())
+
+	// Creating a subscription for another user should not be allowed.
+	err = memberClient.PostWebpushSubscription(ctx, anotherMember.ID.String(), codersdk.WebpushSubscription{
+		Endpoint:  server.URL,
+		AuthKey:   validEndpointAuthKey,
+		P256DHKey: validEndpointP256dhKey,
+	})
+	require.Error(t, err, "create webpush subscription for another user")
+
+	// Deleting a subscription for another user should not be allowed.
+	err = memberClient.DeleteWebpushSubscription(ctx, anotherMember.ID.String(), codersdk.DeleteWebpushSubscription{
+		Endpoint: server.URL,
+	})
+	require.Error(t, err, "delete webpush subscription for another user")
 }

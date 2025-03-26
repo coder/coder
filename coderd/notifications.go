@@ -2,8 +2,11 @@ package coderd
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
+	"slices"
 
 	"github.com/google/uuid"
 
@@ -396,11 +399,31 @@ func (api *API) deleteUserWebpushSubscription(rw http.ResponseWriter, r *http.Re
 		return
 	}
 
-	err := api.Database.DeleteWebpushSubscriptionByUserIDAndEndpoint(ctx, database.DeleteWebpushSubscriptionByUserIDAndEndpointParams{
+	// Return NotFound if the subscription does not exist.
+	if existing, err := api.Database.GetWebpushSubscriptionsByUserID(ctx, user.ID); err != nil && errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: "Webpush subscription not found.",
+		})
+		return
+	} else if idx := slices.IndexFunc(existing, func(s database.WebpushSubscription) bool {
+		return s.Endpoint == req.Endpoint
+	}); idx == -1 {
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: "Webpush subscription not found.",
+		})
+		return
+	}
+
+	if err := api.Database.DeleteWebpushSubscriptionByUserIDAndEndpoint(ctx, database.DeleteWebpushSubscriptionByUserIDAndEndpointParams{
 		UserID:   user.ID,
 		Endpoint: req.Endpoint,
-	})
-	if err != nil {
+	}); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+				Message: "Webpush subscription not found.",
+			})
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to delete push notification subscription.",
 			Detail:  err.Error(),

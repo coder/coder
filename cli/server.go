@@ -787,9 +787,9 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 						Msg: "Web Push notifications are disabled due to a system error. Please contact your Coder administrator.",
 					}
 				}
-				options.WebpushDispatcher = webpusher
+				options.WebPushDispatcher = webpusher
 			} else {
-				options.WebpushDispatcher = &webpush.NoopWebpusher{
+				options.WebPushDispatcher = &webpush.NoopWebpusher{
 					// Users will likely not see this message as the endpoints return 404
 					// if not enabled. Just in case...
 					Msg: "Web Push notifications are an experimental feature and are disabled by default. Enable the 'web-push' experiment to use this feature.",

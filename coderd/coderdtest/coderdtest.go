@@ -286,7 +286,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		// nolint:gocritic // Gets/sets VAPID keys.
 		pushNotifier, err := webpush.New(dbauthz.AsNotifier(context.Background()), options.Logger, options.Database)
 		if err != nil {
-			panic(xerrors.Errorf("failed to create push notifier: %w", err))
+			panic(xerrors.Errorf("failed to create web push notifier: %w", err))
 		}
 		options.WebpushDispatcher = pushNotifier
 	}
@@ -541,7 +541,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			TrialGenerator:                     options.TrialGenerator,
 			RefreshEntitlements:                options.RefreshEntitlements,
 			TailnetCoordinator:                 options.Coordinator,
-			WebpushDispatcher:                  options.WebpushDispatcher,
+			WebPushDispatcher:                  options.WebpushDispatcher,
 			BaseDERPMap:                        derpMap,
 			DERPMapUpdateFrequency:             150 * time.Millisecond,
 			CoordinatorResumeTokenProvider:     options.CoordinatorResumeTokenProvider,

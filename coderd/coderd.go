@@ -262,8 +262,8 @@ type Options struct {
 	OIDCConvertKeyCache   cryptokeys.SigningKeycache
 	Clock                 quartz.Clock
 
-	// WebpushDispatcher is a way to send notifications over Web Push.
-	WebpushDispatcher webpush.Dispatcher
+	// WebPushDispatcher is a way to send notifications over Web Push.
+	WebPushDispatcher webpush.Dispatcher
 }
 
 // @title Coder API
@@ -550,7 +550,7 @@ func New(options *Options) *API {
 		UserQuietHoursScheduleStore: options.UserQuietHoursScheduleStore,
 		AccessControlStore:          options.AccessControlStore,
 		Experiments:                 experiments,
-		WebpushDispatcher:           options.WebpushDispatcher,
+		WebpushDispatcher:           options.WebPushDispatcher,
 		healthCheckGroup:            &singleflight.Group[string, *healthsdk.HealthcheckReport]{},
 		Acquirer: provisionerdserver.NewAcquirer(
 			ctx,
