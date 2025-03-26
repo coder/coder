@@ -1,8 +1,8 @@
 import { Button, type ButtonProps } from "components/Button/Button";
 import { BellIcon } from "lucide-react";
 import { forwardRef } from "react";
-import { UnreadBadge } from "./UnreadBadge";
 import { cn } from "utils/cn";
+import { UnreadBadge } from "./UnreadBadge";
 
 type InboxButtonProps = {
 	unreadCount: number;
