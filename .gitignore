@@ -32,7 +32,8 @@ site/e2e/.auth.json
 site/playwright-report/*
 site/.swc
 
-# Make target for updating golden files (any dir).
+# Make target for updating generated/golden files (any dir).
+.gen
 .gen-golden
 
 # Build

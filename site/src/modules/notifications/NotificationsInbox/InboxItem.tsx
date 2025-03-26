@@ -3,7 +3,9 @@ import { Avatar } from "components/Avatar/Avatar";
 import { Button } from "components/Button/Button";
 import { SquareCheckBig } from "lucide-react";
 import type { FC } from "react";
+import Markdown from "react-markdown";
 import { Link as RouterLink } from "react-router-dom";
+import { cn } from "utils/cn";
 import { relativeTime } from "utils/time";
 
 type InboxItemProps = {
@@ -26,14 +28,26 @@ export const InboxItem: FC<InboxItemProps> = ({
 			</div>
 
 			<div className="flex flex-col gap-3 flex-1">
-				<span className="text-content-secondary text-sm font-medium whitespace-break-spaces [overflow-wrap:anywhere]">
-					{notification.content}
+				<span
+					className={cn([
+						"text-content-secondary text-sm font-medium whitespace-break-spaces [overflow-wrap:anywhere]",
+						"[&_p]:m-0",
+					])}
+				>
+					<Markdown>{notification.content}</Markdown>
 				</span>
 				<div className="flex items-center gap-1">
 					{notification.actions.map((action) => {
 						return (
 							<Button variant="outline" size="sm" key={action.label} asChild>
-								<RouterLink to={action.url}>{action.label}</RouterLink>
+								<RouterLink
+									to={action.url}
+									onClick={() => {
+										onMarkNotificationAsRead(notification.id);
+									}}
+								>
+									{action.label}
+								</RouterLink>
 							</Button>
 						);
 					})}

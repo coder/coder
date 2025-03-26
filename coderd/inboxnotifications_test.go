@@ -37,6 +37,7 @@ func TestInboxNotification_Watch(t *testing.T) {
 	// I skip these tests specifically on windows as for now they are flaky - only on Windows.
 	// For now the idea is that the runner takes too long to insert the entries, could be worth
 	// investigating a manual Tx.
+	// see: https://github.com/coder/internal/issues/503
 	if runtime.GOOS == "windows" {
 		t.Skip("our runners are randomly taking too long to insert entries")
 	}
@@ -134,6 +135,62 @@ func TestInboxNotification_Watch(t *testing.T) {
 
 		require.Equal(t, 1, notif.UnreadCount)
 		require.Equal(t, memberClient.ID, notif.Notification.UserID)
+	})
+
+	t.Run("OK - change format", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		logger := testutil.Logger(t)
+
+		db, ps := dbtestutil.NewDB(t)
+
+		firstClient, _, _ := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			Pubsub:   ps,
+			Database: db,
+		})
+		firstUser := coderdtest.CreateFirstUser(t, firstClient)
+		member, memberClient := coderdtest.CreateAnotherUser(t, firstClient, firstUser.OrganizationID, rbac.RoleTemplateAdmin())
+
+		u, err := member.URL.Parse("/api/v2/notifications/inbox/watch?format=plaintext")
+		require.NoError(t, err)
+
+		// nolint:bodyclose
+		wsConn, resp, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{
+			HTTPHeader: http.Header{
+				"Coder-Session-Token": []string{member.SessionToken()},
+			},
+		})
+		if err != nil {
+			if resp.StatusCode != http.StatusSwitchingProtocols {
+				err = codersdk.ReadBodyAsError(resp)
+			}
+			require.NoError(t, err)
+		}
+		defer wsConn.Close(websocket.StatusNormalClosure, "done")
+
+		inboxHandler := dispatch.NewInboxHandler(logger, db, ps)
+		dispatchFunc, err := inboxHandler.Dispatcher(types.MessagePayload{
+			UserID:                 memberClient.ID.String(),
+			NotificationTemplateID: notifications.TemplateWorkspaceOutOfMemory.String(),
+		}, "# Notification Title", "This is the __content__.", nil)
+		require.NoError(t, err)
+
+		_, err = dispatchFunc(ctx, uuid.New())
+		require.NoError(t, err)
+
+		_, message, err := wsConn.Read(ctx)
+		require.NoError(t, err)
+
+		var notif codersdk.GetInboxNotificationResponse
+		err = json.Unmarshal(message, &notif)
+		require.NoError(t, err)
+
+		require.Equal(t, 1, notif.UnreadCount)
+		require.Equal(t, memberClient.ID, notif.Notification.UserID)
+
+		require.Equal(t, "Notification Title", notif.Notification.Title)
+		require.Equal(t, "This is the content.", notif.Notification.Content)
 	})
 
 	t.Run("OK - filters on templates", func(t *testing.T) {
@@ -312,6 +369,7 @@ func TestInboxNotifications_List(t *testing.T) {
 	// I skip these tests specifically on windows as for now they are flaky - only on Windows.
 	// For now the idea is that the runner takes too long to insert the entries, could be worth
 	// investigating a manual Tx.
+	// see: https://github.com/coder/internal/issues/503
 	if runtime.GOOS == "windows" {
 		t.Skip("our runners are randomly taking too long to insert entries")
 	}
@@ -595,6 +653,7 @@ func TestInboxNotifications_ReadStatus(t *testing.T) {
 	// I skip these tests specifically on windows as for now they are flaky - only on Windows.
 	// For now the idea is that the runner takes too long to insert the entries, could be worth
 	// investigating a manual Tx.
+	// see: https://github.com/coder/internal/issues/503
 	if runtime.GOOS == "windows" {
 		t.Skip("our runners are randomly taking too long to insert entries")
 	}
@@ -728,5 +787,78 @@ func TestInboxNotifications_ReadStatus(t *testing.T) {
 		require.ErrorContains(t, err, `Failed to update inbox notification read status`)
 		require.Equal(t, 0, updatedNotif.UnreadCount)
 		require.Empty(t, updatedNotif.Notification)
+	})
+}
+
+func TestInboxNotifications_MarkAllAsRead(t *testing.T) {
+	t.Parallel()
+
+	// I skip these tests specifically on windows as for now they are flaky - only on Windows.
+	// For now the idea is that the runner takes too long to insert the entries, could be worth
+	// investigating a manual Tx.
+	// see: https://github.com/coder/internal/issues/503
+	if runtime.GOOS == "windows" {
+		t.Skip("our runners are randomly taking too long to insert entries")
+	}
+
+	t.Run("ok", func(t *testing.T) {
+		t.Parallel()
+		client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{})
+		firstUser := coderdtest.CreateFirstUser(t, client)
+		client, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		notifs, err := client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
+		require.NoError(t, err)
+		require.NotNil(t, notifs)
+		require.Equal(t, 0, notifs.UnreadCount)
+		require.Empty(t, notifs.Notifications)
+
+		for i := range 20 {
+			dbgen.NotificationInbox(t, api.Database, database.InsertInboxNotificationParams{
+				ID:         uuid.New(),
+				UserID:     member.ID,
+				TemplateID: notifications.TemplateWorkspaceOutOfMemory,
+				Title:      fmt.Sprintf("Notification %d", i),
+				Actions:    json.RawMessage("[]"),
+				Content:    fmt.Sprintf("Content of the notif %d", i),
+				CreatedAt:  dbtime.Now(),
+			})
+		}
+
+		notifs, err = client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
+		require.NoError(t, err)
+		require.NotNil(t, notifs)
+		require.Equal(t, 20, notifs.UnreadCount)
+		require.Len(t, notifs.Notifications, 20)
+
+		err = client.MarkAllInboxNotificationsAsRead(ctx)
+		require.NoError(t, err)
+
+		notifs, err = client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
+		require.NoError(t, err)
+		require.NotNil(t, notifs)
+		require.Equal(t, 0, notifs.UnreadCount)
+		require.Len(t, notifs.Notifications, 20)
+
+		for i := range 10 {
+			dbgen.NotificationInbox(t, api.Database, database.InsertInboxNotificationParams{
+				ID:         uuid.New(),
+				UserID:     member.ID,
+				TemplateID: notifications.TemplateWorkspaceOutOfMemory,
+				Title:      fmt.Sprintf("Notification %d", i),
+				Actions:    json.RawMessage("[]"),
+				Content:    fmt.Sprintf("Content of the notif %d", i),
+				CreatedAt:  dbtime.Now(),
+			})
+		}
+
+		notifs, err = client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
+		require.NoError(t, err)
+		require.NotNil(t, notifs)
+		require.Equal(t, 10, notifs.UnreadCount)
+		require.Len(t, notifs.Notifications, 25)
 	})
 }

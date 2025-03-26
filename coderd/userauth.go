@@ -24,6 +24,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/coderd/jwtutils"
@@ -1096,7 +1097,10 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	}
 	// If the user is logging in with github.com we update their associated
 	// GitHub user ID to the new one.
-	if externalauth.IsGithubDotComURL(api.GithubOAuth2Config.AuthCodeURL("")) && user.GithubComUserID.Int64 != ghUser.GetID() {
+	// We use AuthCodeURL from the OAuth2Config field instead of the one on
+	// GithubOAuth2Config because when device flow is configured, AuthCodeURL
+	// is overridden and returns a value that doesn't pass the URL check.
+	if externalauth.IsGithubDotComURL(api.GithubOAuth2Config.OAuth2Config.AuthCodeURL("")) && user.GithubComUserID.Int64 != ghUser.GetID() {
 		err = api.Database.UpdateUserGithubComUserID(ctx, database.UpdateUserGithubComUserIDParams{
 			ID: user.ID,
 			GithubComUserID: sql.NullInt64{
@@ -1665,7 +1669,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 		}
 
 		// nolint:gocritic // Getting user count is a system function.
-		userCount, err := tx.GetUserCount(dbauthz.AsSystemRestricted(ctx))
+		userCount, err := tx.GetUserCount(dbauthz.AsSystemRestricted(ctx), false)
 		if err != nil {
 			return xerrors.Errorf("unable to fetch user count: %w", err)
 		}

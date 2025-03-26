@@ -290,6 +290,9 @@ export interface ChangePasswordWithOneTimePasscodeRequest {
 	readonly one_time_passcode: string;
 }
 
+// From codersdk/client.go
+export const CoderDesktopTelemetryHeader = "Coder-Desktop-Telemetry";
+
 // From codersdk/insights.go
 export interface ConnectionLatency {
 	readonly p50: number;
@@ -1310,6 +1313,7 @@ export interface NotificationsConfig {
 	readonly dispatch_timeout: number;
 	readonly email: NotificationsEmailConfig;
 	readonly webhook: NotificationsWebhookConfig;
+	readonly inbox: NotificationsInboxConfig;
 }
 
 // From codersdk/deployment.go
@@ -1338,6 +1342,11 @@ export interface NotificationsEmailTLSConfig {
 	readonly ca_file: string;
 	readonly cert_file: string;
 	readonly key_file: string;
+}
+
+// From codersdk/deployment.go
+export interface NotificationsInboxConfig {
+	readonly enabled: boolean;
 }
 
 // From codersdk/notifications.go
@@ -1966,6 +1975,7 @@ export type RBACResource =
 	| "user"
 	| "*"
 	| "workspace"
+	| "workspace_agent_devcontainers"
 	| "workspace_agent_resource_monitor"
 	| "workspace_dormant"
 	| "workspace_proxy";
@@ -2002,6 +2012,7 @@ export const RBACResources: RBACResource[] = [
 	"user",
 	"*",
 	"workspace",
+	"workspace_agent_devcontainers",
 	"workspace_agent_resource_monitor",
 	"workspace_dormant",
 	"workspace_proxy",
@@ -3076,6 +3087,14 @@ export interface WorkspaceAgentContainerPort {
 	readonly network: string;
 	readonly host_ip?: string;
 	readonly host_port?: number;
+}
+
+// From codersdk/workspaceagents.go
+export interface WorkspaceAgentDevcontainer {
+	readonly id: string;
+	readonly name: string;
+	readonly workspace_folder: string;
+	readonly config_path?: string;
 }
 
 // From codersdk/workspaceagents.go

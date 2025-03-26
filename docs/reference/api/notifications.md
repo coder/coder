@@ -61,11 +61,12 @@ curl -X GET http://coder-server:8080/api/v2/notifications/inbox \
 
 ### Parameters
 
-| Name          | In    | Type   | Required | Description                                                             |
-|---------------|-------|--------|----------|-------------------------------------------------------------------------|
-| `targets`     | query | string | false    | Comma-separated list of target IDs to filter notifications              |
-| `templates`   | query | string | false    | Comma-separated list of template IDs to filter notifications            |
-| `read_status` | query | string | false    | Filter notifications by read status. Possible values: read, unread, all |
+| Name              | In    | Type         | Required | Description                                                                                                     |
+|-------------------|-------|--------------|----------|-----------------------------------------------------------------------------------------------------------------|
+| `targets`         | query | string       | false    | Comma-separated list of target IDs to filter notifications                                                      |
+| `templates`       | query | string       | false    | Comma-separated list of template IDs to filter notifications                                                    |
+| `read_status`     | query | string       | false    | Filter notifications by read status. Possible values: read, unread, all                                         |
+| `starting_before` | query | string(uuid) | false    | ID of the last notification from the current page. Notifications returned will be older than the associated one |
 
 ### Example responses
 
@@ -106,6 +107,26 @@ curl -X GET http://coder-server:8080/api/v2/notifications/inbox \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Mark all unread notifications as read
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/v2/notifications/inbox/mark-all-as-read \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /notifications/inbox/mark-all-as-read`
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Watch for new inbox notifications
 
 ### Code samples
@@ -126,6 +147,14 @@ curl -X GET http://coder-server:8080/api/v2/notifications/inbox/watch \
 | `targets`     | query | string | false    | Comma-separated list of target IDs to filter notifications              |
 | `templates`   | query | string | false    | Comma-separated list of template IDs to filter notifications            |
 | `read_status` | query | string | false    | Filter notifications by read status. Possible values: read, unread, all |
+| `format`      | query | string | false    | Define the output format for notifications title and body.              |
+
+#### Enumerated Values
+
+| Parameter | Value       |
+|-----------|-------------|
+| `format`  | `plaintext` |
+| `format`  | `markdown`  |
 
 ### Example responses
 

@@ -109,3 +109,21 @@ func (c *Client) UpdateInboxNotificationReadStatus(ctx context.Context, notifID 
 	var resp UpdateInboxNotificationReadStatusResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
+
+func (c *Client) MarkAllInboxNotificationsAsRead(ctx context.Context) error {
+	res, err := c.Request(
+		ctx, http.MethodPut,
+		"/api/v2/notifications/inbox/mark-all-as-read",
+		nil,
+	)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+
+	return nil
+}

@@ -58,7 +58,7 @@ jobs:
 
       - name: Get branch name
         id: branch-name
-        uses: tj-actions/branch-names@6871f53176ad61624f978536bbf089c574dc19a2 # v8.0.1
+        uses: tj-actions/branch-names@f44339b51f74753b57583fbbd124e18a81170ab1 # v8.1.0
 
       - name: "Branch name to Docker tag name"
         id: docker-tag-name

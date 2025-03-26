@@ -11,7 +11,9 @@ SET
 		'':: bytea
 	END
 WHERE
-	id = @user_id RETURNING *;
+	id = @user_id
+	AND NOT is_system
+RETURNING *;
 
 -- name: GetUserByID :one
 SELECT
@@ -46,7 +48,8 @@ SELECT
 FROM
 	users
 WHERE
-	deleted = false;
+	deleted = false
+  	AND CASE WHEN @include_system::bool THEN TRUE ELSE is_system = false END;
 
 -- name: GetActiveUserCount :one
 SELECT
@@ -54,7 +57,8 @@ SELECT
 FROM
 	users
 WHERE
-	status = 'active'::user_status AND deleted = false;
+	status = 'active'::user_status AND deleted = false
+	AND CASE WHEN @include_system::bool THEN TRUE ELSE is_system = false END;
 
 -- name: InsertUser :one
 INSERT INTO
@@ -223,6 +227,16 @@ WHERE
 			created_at >= @created_after
 		ELSE true
 	END
+  	AND CASE
+  	    WHEN @include_system::bool THEN TRUE
+  	    ELSE
+			is_system = false
+	END
+	AND CASE
+		WHEN @github_com_user_id :: bigint != 0 THEN
+			github_com_user_id = @github_com_user_id
+		ELSE true
+	END
 	-- End of filters
 
 	-- Authorize Filter clause will be injected below in GetAuthorizedUsers
@@ -311,15 +325,17 @@ UPDATE
     users
 SET
     status = 'dormant'::user_status,
-	updated_at = @updated_at
+    updated_at = @updated_at
 WHERE
     last_seen_at < @last_seen_after :: timestamp
     AND status = 'active'::user_status
+		AND NOT is_system
 RETURNING id, email, username, last_seen_at;
 
 -- AllUserIDs returns all UserIDs regardless of user status or deletion.
 -- name: AllUserIDs :many
-SELECT DISTINCT id FROM USERS;
+SELECT DISTINCT id FROM USERS
+	WHERE CASE WHEN @include_system::bool THEN TRUE ELSE is_system = false END;
 
 -- name: UpdateUserHashedOneTimePasscode :exec
 UPDATE

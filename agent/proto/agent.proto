@@ -95,6 +95,14 @@ message Manifest {
 	repeated WorkspaceAgentScript scripts = 10;
 	repeated WorkspaceApp apps = 11;
 	repeated WorkspaceAgentMetadata.Description metadata = 12;
+	repeated WorkspaceAgentDevcontainer devcontainers = 17;
+}
+
+message WorkspaceAgentDevcontainer {
+	bytes id = 1;
+	string workspace_folder = 2;
+	string config_path = 3;
+	string name = 4;
 }
 
 message GetManifestRequest {}

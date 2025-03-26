@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/pubsub"
+	markdown "github.com/coder/coder/v2/coderd/render"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/wsjson"
 	"github.com/coder/websocket"
@@ -28,6 +29,11 @@ const (
 	fallbackIconAccount   = ""
 	fallbackIconTemplate  = ""
 	fallbackIconOther     = ""
+)
+
+const (
+	notificationFormatMarkdown  = "markdown"
+	notificationFormatPlaintext = "plaintext"
 )
 
 var fallbackIcons = map[uuid.UUID]string{
@@ -106,6 +112,7 @@ func convertInboxNotificationResponse(ctx context.Context, logger slog.Logger, n
 // @Param targets query string false "Comma-separated list of target IDs to filter notifications"
 // @Param templates query string false "Comma-separated list of template IDs to filter notifications"
 // @Param read_status query string false "Filter notifications by read status. Possible values: read, unread, all"
+// @Param format query string false "Define the output format for notifications title and body." enums(plaintext,markdown)
 // @Success 200 {object} codersdk.GetInboxNotificationResponse
 // @Router /notifications/inbox/watch [get]
 func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request) {
@@ -119,6 +126,7 @@ func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request)
 		targets    = p.UUIDs(vals, []uuid.UUID{}, "targets")
 		templates  = p.UUIDs(vals, []uuid.UUID{}, "templates")
 		readStatus = p.String(vals, "all", "read_status")
+		format     = p.String(vals, notificationFormatMarkdown, "format")
 	)
 	p.ErrorExcessParams(vals)
 	if len(p.Errors) > 0 {
@@ -222,6 +230,23 @@ func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request)
 				api.Logger.Error(ctx, "failed to count unread inbox notifications", slog.Error(err))
 				return
 			}
+
+			// By default, notifications are stored as markdown
+			// We can change the format based on parameter if required
+			if format == notificationFormatPlaintext {
+				notif.Title, err = markdown.PlaintextFromMarkdown(notif.Title)
+				if err != nil {
+					api.Logger.Error(ctx, "failed to convert notification title to plain text", slog.Error(err))
+					return
+				}
+
+				notif.Content, err = markdown.PlaintextFromMarkdown(notif.Content)
+				if err != nil {
+					api.Logger.Error(ctx, "failed to convert notification content to plain text", slog.Error(err))
+					return
+				}
+			}
+
 			if err := encoder.Encode(codersdk.GetInboxNotificationResponse{
 				Notification: notif,
 				UnreadCount:  int(unreadCount),
@@ -242,6 +267,7 @@ func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request)
 // @Param targets query string false "Comma-separated list of target IDs to filter notifications"
 // @Param templates query string false "Comma-separated list of template IDs to filter notifications"
 // @Param read_status query string false "Filter notifications by read status. Possible values: read, unread, all"
+// @Param starting_before query string false "ID of the last notification from the current page. Notifications returned will be older than the associated one" format(uuid)
 // @Success 200 {object} codersdk.ListInboxNotificationsResponse
 // @Router /notifications/inbox [get]
 func (api *API) listInboxNotifications(rw http.ResponseWriter, r *http.Request) {
@@ -389,4 +415,32 @@ func (api *API) updateInboxNotificationReadStatus(rw http.ResponseWriter, r *htt
 		Notification: convertInboxNotificationResponse(ctx, api.Logger, updatedNotification),
 		UnreadCount:  int(unreadCount),
 	})
+}
+
+// markAllInboxNotificationsAsRead marks as read all unread notifications for authenticated user.
+// @Summary Mark all unread notifications as read
+// @ID mark-all-unread-notifications-as-read
+// @Security CoderSessionToken
+// @Tags Notifications
+// @Success 204
+// @Router /notifications/inbox/mark-all-as-read [put]
+func (api *API) markAllInboxNotificationsAsRead(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx    = r.Context()
+		apikey = httpmw.APIKey(r)
+	)
+
+	err := api.Database.MarkAllInboxNotificationsAsRead(ctx, database.MarkAllInboxNotificationsAsReadParams{
+		UserID: apikey.UserID,
+		ReadAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
+	})
+	if err != nil {
+		api.Logger.Error(ctx, "failed to mark all unread notifications as read", slog.Error(err))
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to mark all unread notifications as read.",
+		})
+		return
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
 }

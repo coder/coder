@@ -2434,9 +2434,13 @@ class ApiMethods {
 		return res.data;
 	};
 
-	getInboxNotifications = async () => {
+	getInboxNotifications = async (startingBeforeId?: string) => {
+		const params = new URLSearchParams();
+		if (startingBeforeId) {
+			params.append("starting_before", startingBeforeId);
+		}
 		const res = await this.axios.get<TypesGen.ListInboxNotificationsResponse>(
-			"/api/v2/notifications/inbox",
+			`/api/v2/notifications/inbox?${params.toString()}`,
 		);
 		return res.data;
 	};
@@ -2451,6 +2455,10 @@ class ApiMethods {
 				req,
 			);
 		return res.data;
+	};
+
+	markAllInboxNotificationsAsRead = async () => {
+		await this.axios.put<void>("/api/v2/notifications/inbox/mark-all-as-read");
 	};
 }
 

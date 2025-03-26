@@ -24,6 +24,6 @@
   },
   "title": "Your account \"bobby\" has been activated",
   "title_markdown": "Your account \"bobby\" has been activated",
-  "body": "Hi Bobby,\n\nYour account bobby has been activated by rob.",
-  "body_markdown": "Hi Bobby,\n\nYour account **bobby** has been activated by **rob**."
+  "body": "Your account bobby has been activated by rob.",
+  "body_markdown": "Your account **bobby** has been activated by **rob**."
 }

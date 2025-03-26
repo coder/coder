@@ -2610,6 +2610,7 @@ type GroupMember struct {
 	UserQuietHoursSchedule string        `db:"user_quiet_hours_schedule" json:"user_quiet_hours_schedule"`
 	UserName               string        `db:"user_name" json:"user_name"`
 	UserGithubComUserID    sql.NullInt64 `db:"user_github_com_user_id" json:"user_github_com_user_id"`
+	UserIsSystem           bool          `db:"user_is_system" json:"user_is_system"`
 	OrganizationID         uuid.UUID     `db:"organization_id" json:"organization_id"`
 	GroupName              string        `db:"group_name" json:"group_name"`
 	GroupID                uuid.UUID     `db:"group_id" json:"group_id"`
@@ -3139,6 +3140,12 @@ type TemplateVersionTable struct {
 	SourceExampleID sql.NullString `db:"source_example_id" json:"source_example_id"`
 }
 
+type TemplateVersionTerraformValue struct {
+	TemplateVersionID uuid.UUID       `db:"template_version_id" json:"template_version_id"`
+	UpdatedAt         time.Time       `db:"updated_at" json:"updated_at"`
+	CachedPlan        json.RawMessage `db:"cached_plan" json:"cached_plan"`
+}
+
 type TemplateVersionVariable struct {
 	TemplateVersionID uuid.UUID `db:"template_version_id" json:"template_version_id"`
 	// Variable name
@@ -3180,12 +3187,14 @@ type User struct {
 	QuietHoursSchedule string `db:"quiet_hours_schedule" json:"quiet_hours_schedule"`
 	// Name of the Coder user
 	Name string `db:"name" json:"name"`
-	// The GitHub.com numerical user ID. At time of implementation, this is used to check if the user has starred the Coder repository.
+	// The GitHub.com numerical user ID. It is used to check if the user has starred the Coder repository. It is also used for filtering users in the users list CLI command, and may become more widely used in the future.
 	GithubComUserID sql.NullInt64 `db:"github_com_user_id" json:"github_com_user_id"`
 	// A hash of the one-time-passcode given to the user.
 	HashedOneTimePasscode []byte `db:"hashed_one_time_passcode" json:"hashed_one_time_passcode"`
 	// The time when the one-time-passcode expires.
 	OneTimePasscodeExpiresAt sql.NullTime `db:"one_time_passcode_expires_at" json:"one_time_passcode_expires_at"`
+	// Determines if a user is a system user, and therefore cannot login or perform normal actions
+	IsSystem bool `db:"is_system" json:"is_system"`
 }
 
 type UserConfig struct {
@@ -3304,6 +3313,22 @@ type WorkspaceAgent struct {
 	APIVersion  string                    `db:"api_version" json:"api_version"`
 	// Specifies the order in which to display agents in user interfaces.
 	DisplayOrder int32 `db:"display_order" json:"display_order"`
+}
+
+// Workspace agent devcontainer configuration
+type WorkspaceAgentDevcontainer struct {
+	// Unique identifier
+	ID uuid.UUID `db:"id" json:"id"`
+	// Workspace agent foreign key
+	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	// Creation timestamp
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	// Workspace folder
+	WorkspaceFolder string `db:"workspace_folder" json:"workspace_folder"`
+	// Path to devcontainer.json.
+	ConfigPath string `db:"config_path" json:"config_path"`
+	// The name of the Dev Container.
+	Name string `db:"name" json:"name"`
 }
 
 type WorkspaceAgentLog struct {
@@ -3454,6 +3479,7 @@ type WorkspaceAppAuditSession struct {
 	StartedAt time.Time `db:"started_at" json:"started_at"`
 	// The time the session was last updated.
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	ID        uuid.UUID `db:"id" json:"id"`
 }
 
 // A record of workspace app usage statistics
