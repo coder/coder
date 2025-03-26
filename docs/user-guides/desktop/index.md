@@ -198,11 +198,11 @@ We are planning some changes to Coder Desktop that will make accessing secure co
 
 ### Mac: Issues updating Coder Desktop
 
-> Internal Error: The VPN must be started with the app open during first-time setup.
+> No workspaces!
 
 And
 
-> No workspaces!
+> Internal Error: The VPN must be started with the app open during first-time setup.
 
 Due to an issue with the way Coder Desktop works with the macOS [interprocess communication mechanism](https://developer.apple.com/documentation/xpc)(XPC) system network extension, core Desktop functionality can break when you upgrade the application.
 
