@@ -324,14 +324,14 @@ func (api *API) putUserNotificationPreferences(rw http.ResponseWriter, r *http.R
 	httpapi.Write(ctx, rw, http.StatusOK, out)
 }
 
-// @Summary Create user webpush notification subscription
-// @ID create-user-webpush-notification-subscription
+// @Summary Create user webpush subscription
+// @ID create-user-webpush-subscription
 // @Security CoderSessionToken
 // @Accept json
 // @Tags Notifications
 // @Param request body codersdk.WebpushSubscription true "Webpush subscription"
 // @Param user path string true "User ID, name, or me"
-// @Router /users/{user}/notifications/push/subscription [post]
+// @Router /users/{user}/webpush/subscription [post]
 // @Success 204
 func (api *API) postUserWebpushSubscription(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -367,14 +367,14 @@ func (api *API) postUserWebpushSubscription(rw http.ResponseWriter, r *http.Requ
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// @Summary Delete user webpush notification subscription
-// @ID delete-user-webpush-notification-subscription
+// @Summary Delete user webpush subscription
+// @ID delete-user-webpush-subscription
 // @Security CoderSessionToken
 // @Accept json
 // @Tags Notifications
-// @Param request body codersdk.DeleteWebpushSubscription true "Push notification subscription"
+// @Param request body codersdk.DeleteWebpushSubscription true "Webpush subscription"
 // @Param user path string true "User ID, name, or me"
-// @Router /users/{user}/notifications/push/subscription [delete]
+// @Router /users/{user}/webpush/subscription [delete]
 // @Success 204
 func (api *API) deleteUserWebpushSubscription(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -406,7 +406,7 @@ func (api *API) deleteUserWebpushSubscription(rw http.ResponseWriter, r *http.Re
 // @Tags Notifications
 // @Param user path string true "User ID, name, or me"
 // @Success 204
-// @Router /users/{user}/notifications/push/test [post]
+// @Router /users/{user}/webpush/test [post]
 func (api *API) postUserPushNotificationTest(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)

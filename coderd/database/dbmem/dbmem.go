@@ -1378,34 +1378,6 @@ func (q *FakeQuerier) getProvisionerJobsByIDsWithQueuePositionLockedGlobalQueue(
 	return jobs, nil
 }
 
-func (q *FakeQuerier) GetWebpushVAPIDKeys(_ context.Context) (database.GetWebpushVAPIDKeysRow, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	if q.webpushVAPIDPublicKey == "" && q.webpushVAPIDPrivateKey == "" {
-		return database.GetWebpushVAPIDKeysRow{}, sql.ErrNoRows
-	}
-
-	return database.GetWebpushVAPIDKeysRow{
-		VapidPublicKey:  q.webpushVAPIDPublicKey,
-		VapidPrivateKey: q.webpushVAPIDPrivateKey,
-	}, nil
-}
-
-func (q *FakeQuerier) UpsertWebpushVAPIDKeys(_ context.Context, arg database.UpsertWebpushVAPIDKeysParams) error {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	q.webpushVAPIDPublicKey = arg.VapidPublicKey
-	q.webpushVAPIDPrivateKey = arg.VapidPrivateKey
-	return nil
-}
-
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }
@@ -6798,6 +6770,20 @@ func (q *FakeQuerier) GetWebpushSubscriptionsByUserID(_ context.Context, userID 
 	}
 
 	return out, nil
+}
+
+func (q *FakeQuerier) GetWebpushVAPIDKeys(_ context.Context) (database.GetWebpushVAPIDKeysRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	if q.webpushVAPIDPublicKey == "" && q.webpushVAPIDPrivateKey == "" {
+		return database.GetWebpushVAPIDKeysRow{}, sql.ErrNoRows
+	}
+
+	return database.GetWebpushVAPIDKeysRow{
+		VapidPublicKey:  q.webpushVAPIDPublicKey,
+		VapidPrivateKey: q.webpushVAPIDPrivateKey,
+	}, nil
 }
 
 func (q *FakeQuerier) GetWorkspaceAgentAndLatestBuildByAuthToken(_ context.Context, authToken uuid.UUID) (database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow, error) {
@@ -12559,6 +12545,20 @@ TemplateUsageStatsInsertLoop:
 		q.templateUsageStats = append(q.templateUsageStats, tus)
 	}
 
+	return nil
+}
+
+func (q *FakeQuerier) UpsertWebpushVAPIDKeys(_ context.Context, arg database.UpsertWebpushVAPIDKeysParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	q.webpushVAPIDPublicKey = arg.VapidPublicKey
+	q.webpushVAPIDPrivateKey = arg.VapidPrivateKey
 	return nil
 }
 

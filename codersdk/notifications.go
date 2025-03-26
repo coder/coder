@@ -239,7 +239,7 @@ type DeleteWebpushSubscription struct {
 
 // PostWebpushSubscription creates a push notification subscription for a given user.
 func (c *Client) PostWebpushSubscription(ctx context.Context, user string, req WebpushSubscription) error {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/notifications/push/subscription", user), req)
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/webpush/subscription", user), req)
 	if err != nil {
 		return err
 	}
@@ -254,7 +254,7 @@ func (c *Client) PostWebpushSubscription(ctx context.Context, user string, req W
 // DeleteWebpushSubscription deletes a push notification subscription for a given user.
 // Think of this as an unsubscribe, but for a specific push notification subscription.
 func (c *Client) DeleteWebpushSubscription(ctx context.Context, user string, req DeleteWebpushSubscription) error {
-	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/users/%s/notifications/push/subscription", user), req)
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/users/%s/webpush/subscription", user), req)
 	if err != nil {
 		return err
 	}
@@ -267,7 +267,7 @@ func (c *Client) DeleteWebpushSubscription(ctx context.Context, user string, req
 }
 
 func (c *Client) PostTestWebpushMessage(ctx context.Context) error {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/notifications/push/test", Me), WebpushMessage{
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/webpush/test", Me), WebpushMessage{
 		Title: "It's working!",
 		Body:  "You've subscribed to push notifications.",
 	})

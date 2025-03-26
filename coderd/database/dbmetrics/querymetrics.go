@@ -88,20 +88,6 @@ func (m queryMetricsStore) DeleteOrganization(ctx context.Context, id uuid.UUID)
 	return r0
 }
 
-func (m queryMetricsStore) GetWebpushVAPIDKeys(ctx context.Context) (database.GetWebpushVAPIDKeysRow, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetWebpushVAPIDKeys(ctx)
-	m.queryLatencies.WithLabelValues("GetWebpushVAPIDKeys").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
-func (m queryMetricsStore) UpsertWebpushVAPIDKeys(ctx context.Context, arg database.UpsertWebpushVAPIDKeysParams) error {
-	start := time.Now()
-	r0 := m.s.UpsertWebpushVAPIDKeys(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpsertWebpushVAPIDKeys").Observe(time.Since(start).Seconds())
-	return r0
-}
-
 func (m queryMetricsStore) AcquireLock(ctx context.Context, pgAdvisoryXactLock int64) error {
 	start := time.Now()
 	err := m.s.AcquireLock(ctx, pgAdvisoryXactLock)
@@ -1541,6 +1527,13 @@ func (m queryMetricsStore) GetWebpushSubscriptionsByUserID(ctx context.Context, 
 	start := time.Now()
 	r0, r1 := m.s.GetWebpushSubscriptionsByUserID(ctx, userID)
 	m.queryLatencies.WithLabelValues("GetWebpushSubscriptionsByUserID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetWebpushVAPIDKeys(ctx context.Context) (database.GetWebpushVAPIDKeysRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWebpushVAPIDKeys(ctx)
+	m.queryLatencies.WithLabelValues("GetWebpushVAPIDKeys").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -3060,6 +3053,13 @@ func (m queryMetricsStore) UpsertTemplateUsageStats(ctx context.Context) error {
 	start := time.Now()
 	r0 := m.s.UpsertTemplateUsageStats(ctx)
 	m.queryLatencies.WithLabelValues("UpsertTemplateUsageStats").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m queryMetricsStore) UpsertWebpushVAPIDKeys(ctx context.Context, arg database.UpsertWebpushVAPIDKeysParams) error {
+	start := time.Now()
+	r0 := m.s.UpsertWebpushVAPIDKeys(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertWebpushVAPIDKeys").Observe(time.Since(start).Seconds())
 	return r0
 }
 

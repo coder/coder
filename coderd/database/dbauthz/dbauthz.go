@@ -1033,20 +1033,6 @@ func (q *querier) customRoleCheck(ctx context.Context, role database.CustomRole)
 	return nil
 }
 
-func (q *querier) GetWebpushVAPIDKeys(ctx context.Context) (database.GetWebpushVAPIDKeysRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
-		return database.GetWebpushVAPIDKeysRow{}, err
-	}
-	return q.db.GetWebpushVAPIDKeys(ctx)
-}
-
-func (q *querier) UpsertWebpushVAPIDKeys(ctx context.Context, arg database.UpsertWebpushVAPIDKeysParams) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return err
-	}
-	return q.db.UpsertWebpushVAPIDKeys(ctx, arg)
-}
-
 func (q *querier) AcquireLock(ctx context.Context, id int64) error {
 	return q.db.AcquireLock(ctx, id)
 }
@@ -2705,6 +2691,13 @@ func (q *querier) GetWebpushSubscriptionsByUserID(ctx context.Context, userID uu
 		return nil, err
 	}
 	return q.db.GetWebpushSubscriptionsByUserID(ctx, userID)
+}
+
+func (q *querier) GetWebpushVAPIDKeys(ctx context.Context) (database.GetWebpushVAPIDKeysRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return database.GetWebpushVAPIDKeysRow{}, err
+	}
+	return q.db.GetWebpushVAPIDKeys(ctx)
 }
 
 func (q *querier) GetWorkspaceAgentAndLatestBuildByAuthToken(ctx context.Context, authToken uuid.UUID) (database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow, error) {
@@ -4719,6 +4712,13 @@ func (q *querier) UpsertTemplateUsageStats(ctx context.Context) error {
 		return err
 	}
 	return q.db.UpsertTemplateUsageStats(ctx)
+}
+
+func (q *querier) UpsertWebpushVAPIDKeys(ctx context.Context, arg database.UpsertWebpushVAPIDKeysParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.UpsertWebpushVAPIDKeys(ctx, arg)
 }
 
 func (q *querier) UpsertWorkspaceAgentPortShare(ctx context.Context, arg database.UpsertWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortShare, error) {

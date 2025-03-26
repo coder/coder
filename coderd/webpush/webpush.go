@@ -29,6 +29,7 @@ type Dispatcher interface {
 	Dispatch(ctx context.Context, userID uuid.UUID, notification codersdk.WebpushMessage) error
 	// Test sends a test notification to a subscription to ensure it is valid.
 	Test(ctx context.Context, req codersdk.WebpushSubscription) error
+	// PublicKey returns the VAPID public key for the webpush dispatcher.
 	PublicKey() string
 }
 

@@ -2373,10 +2373,10 @@ class ApiMethods {
 
 	createNotificationPushSubscription = async (
 		userId: string,
-		req: TypesGen.PushNotificationSubscription,
+		req: TypesGen.WebpushSubscription,
 	) => {
 		await this.axios.post<void>(
-			`/api/v2/users/${userId}/notifications/push/subscription`,
+			`/api/v2/users/${userId}/webpush/subscription`,
 			req,
 		);
 	};
@@ -2386,7 +2386,7 @@ class ApiMethods {
 		req: TypesGen.DeleteWebpushSubscription,
 	) => {
 		await this.axios.delete<void>(
-			`/api/v2/users/${userId}/notifications/push/subscription`,
+			`/api/v2/users/${userId}/webpush/subscription`,
 			{
 				data: req,
 			},

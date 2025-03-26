@@ -1200,11 +1200,11 @@ func New(options *Options) *API {
 							r.Get("/", api.userNotificationPreferences)
 							r.Put("/", api.putUserNotificationPreferences)
 						})
-						r.Route("/push", func(r chi.Router) {
-							r.Post("/subscription", api.postUserWebpushSubscription)
-							r.Delete("/subscription", api.deleteUserWebpushSubscription)
-							r.Post("/test", api.postUserPushNotificationTest)
-						})
+					})
+					r.Route("/webpush", func(r chi.Router) {
+						r.Post("/subscription", api.postUserWebpushSubscription)
+						r.Delete("/subscription", api.deleteUserWebpushSubscription)
+						r.Post("/test", api.postUserPushNotificationTest)
 					})
 				})
 			})

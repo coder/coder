@@ -511,18 +511,18 @@ Status Code **200**
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Create user webpush notification subscription
+## Create user webpush subscription
 
 ### Code samples
 
 ```shell
 # Example request using curl
-curl -X POST http://coder-server:8080/api/v2/users/{user}/notifications/push/subscription \
+curl -X POST http://coder-server:8080/api/v2/users/{user}/webpush/subscription \
   -H 'Content-Type: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /users/{user}/notifications/push/subscription`
+`POST /users/{user}/webpush/subscription`
 
 > Body parameter
 
@@ -549,18 +549,18 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/notifications/push/sub
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Delete user webpush notification subscription
+## Delete user webpush subscription
 
 ### Code samples
 
 ```shell
 # Example request using curl
-curl -X DELETE http://coder-server:8080/api/v2/users/{user}/notifications/push/subscription \
+curl -X DELETE http://coder-server:8080/api/v2/users/{user}/webpush/subscription \
   -H 'Content-Type: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`DELETE /users/{user}/notifications/push/subscription`
+`DELETE /users/{user}/webpush/subscription`
 
 > Body parameter
 
@@ -572,10 +572,10 @@ curl -X DELETE http://coder-server:8080/api/v2/users/{user}/notifications/push/s
 
 ### Parameters
 
-| Name   | In   | Type                                                                               | Required | Description                    |
-|--------|------|------------------------------------------------------------------------------------|----------|--------------------------------|
-| `user` | path | string                                                                             | true     | User ID, name, or me           |
-| `body` | body | [codersdk.DeleteWebpushSubscription](schemas.md#codersdkdeletewebpushsubscription) | true     | Push notification subscription |
+| Name   | In   | Type                                                                               | Required | Description          |
+|--------|------|------------------------------------------------------------------------------------|----------|----------------------|
+| `user` | path | string                                                                             | true     | User ID, name, or me |
+| `body` | body | [codersdk.DeleteWebpushSubscription](schemas.md#codersdkdeletewebpushsubscription) | true     | Webpush subscription |
 
 ### Responses
 
@@ -591,11 +591,11 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X POST http://coder-server:8080/api/v2/users/{user}/notifications/push/test \
+curl -X POST http://coder-server:8080/api/v2/users/{user}/webpush/test \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /users/{user}/notifications/push/test`
+`POST /users/{user}/webpush/test`
 
 ### Parameters
 
