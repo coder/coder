@@ -22,18 +22,18 @@ import (
 )
 
 // Dispatcher is an interface that can be used to dispatch
-// push notifications over Web Push.
+// web push notifications to clients such as browsers.
 type Dispatcher interface {
-	// Dispatch sends a notification to all subscriptions for a user. Any
-	// notifications that fail to send are silently dropped.
+	// Dispatch sends a web push notification to all subscriptions
+	// for a user. Any notifications that fail to send are silently dropped.
 	Dispatch(ctx context.Context, userID uuid.UUID, notification codersdk.WebpushMessage) error
-	// Test sends a test notification to a subscription to ensure it is valid.
+	// Test sends a test web push notificatoin to a subscription to ensure it is valid.
 	Test(ctx context.Context, req codersdk.WebpushSubscription) error
 	// PublicKey returns the VAPID public key for the webpush dispatcher.
 	PublicKey() string
 }
 
-// New creates a new Dispatcher to dispatch notifications via Web Push.
+// New creates a new Dispatcher to dispatch web push notifications.
 //
 // This is *not* integrated into the enqueue system unfortunately.
 // That's because the notifications system has a enqueue system,
@@ -77,18 +77,18 @@ type Webpusher struct {
 	VAPIDPrivateKey string
 }
 
-func (n *Webpusher) Dispatch(ctx context.Context, userID uuid.UUID, notification codersdk.WebpushMessage) error {
+func (n *Webpusher) Dispatch(ctx context.Context, userID uuid.UUID, msg codersdk.WebpushMessage) error {
 	subscriptions, err := n.store.GetWebpushSubscriptionsByUserID(ctx, userID)
 	if err != nil {
-		return xerrors.Errorf("get notification push subscriptions by user ID: %w", err)
+		return xerrors.Errorf("get web push subscriptions by user ID: %w", err)
 	}
 	if len(subscriptions) == 0 {
 		return nil
 	}
 
-	notificationJSON, err := json.Marshal(notification)
+	msgJSON, err := json.Marshal(msg)
 	if err != nil {
-		return xerrors.Errorf("marshal notification: %w", err)
+		return xerrors.Errorf("marshal webpush notification: %w", err)
 	}
 
 	cleanupSubscriptions := make([]uuid.UUID, 0)
@@ -99,12 +99,12 @@ func (n *Webpusher) Dispatch(ctx context.Context, userID uuid.UUID, notification
 		eg.Go(func() error {
 			// TODO: Implement some retry logic here. For now, this is just a
 			// best-effort attempt.
-			statusCode, body, err := n.webpushSend(ctx, notificationJSON, subscription.Endpoint, webpush.Keys{
+			statusCode, body, err := n.webpushSend(ctx, msgJSON, subscription.Endpoint, webpush.Keys{
 				Auth:   subscription.EndpointAuthKey,
 				P256dh: subscription.EndpointP256dhKey,
 			})
 			if err != nil {
-				return xerrors.Errorf("send notification: %w", err)
+				return xerrors.Errorf("send webpush notification: %w", err)
 			}
 
 			if statusCode == http.StatusGone {
@@ -127,7 +127,7 @@ func (n *Webpusher) Dispatch(ctx context.Context, userID uuid.UUID, notification
 
 	err = eg.Wait()
 	if err != nil {
-		return xerrors.Errorf("send push notifications: %w", err)
+		return xerrors.Errorf("send webpush notifications: %w", err)
 	}
 
 	if len(cleanupSubscriptions) > 0 {
@@ -152,7 +152,7 @@ func (n *Webpusher) webpushSend(ctx context.Context, msg []byte, endpoint string
 		VAPIDPrivateKey: n.VAPIDPrivateKey,
 	})
 	if err != nil {
-		return -1, nil, xerrors.Errorf("send notification: %w", err)
+		return -1, nil, xerrors.Errorf("send webpush notification: %w", err)
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
@@ -164,19 +164,19 @@ func (n *Webpusher) webpushSend(ctx context.Context, msg []byte, endpoint string
 }
 
 func (n *Webpusher) Test(ctx context.Context, req codersdk.WebpushSubscription) error {
-	notificationJSON, err := json.Marshal(codersdk.WebpushMessage{
+	msgJSON, err := json.Marshal(codersdk.WebpushMessage{
 		Title: "Test",
-		Body:  "This is a test notification",
+		Body:  "This is a test Web Push notification",
 	})
 	if err != nil {
-		return xerrors.Errorf("marshal notification: %w", err)
+		return xerrors.Errorf("marshal webpush notification: %w", err)
 	}
-	statusCode, body, err := n.webpushSend(ctx, notificationJSON, req.Endpoint, webpush.Keys{
+	statusCode, body, err := n.webpushSend(ctx, msgJSON, req.Endpoint, webpush.Keys{
 		Auth:   req.AuthKey,
 		P256dh: req.P256DHKey,
 	})
 	if err != nil {
-		return xerrors.Errorf("send test notification: %w", err)
+		return xerrors.Errorf("send test webpush notification: %w", err)
 	}
 
 	// 200, 201, and 202 are common for successful delivery.
@@ -195,7 +195,7 @@ func (n *Webpusher) PublicKey() string {
 }
 
 // NoopWebpusher is a Dispatcher that does nothing except return an error.
-// This is returned when push notifications are disabled, or if there was an
+// This is returned when web push notifications are disabled, or if there was an
 // error generating the VAPID keys.
 type NoopWebpusher struct {
 	Msg string
