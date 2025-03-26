@@ -1,13 +1,13 @@
 coder v0.0.0-devel
 
 USAGE:
-  coder organizations roles edit [flags] <role_name>
+  coder organizations roles update [flags] <role_name>
 
-  Edit an organization custom role
+  Update an organization custom role
 
     - Run with an input.json file:
   
-       $ coder roles edit --stdin < role.json
+       $ coder roles update --stdin < role.json
 
 OPTIONS:
   -c, --column [name|display name|organization id|site permissions|organization permissions|user permissions] (default: name,display name,site permissions,organization permissions,user permissions)
