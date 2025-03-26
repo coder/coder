@@ -159,7 +159,7 @@ export type TemplatePageHeaderProps = {
 	template: Template;
 	activeVersion: TemplateVersion;
 	permissions: AuthorizationResponse;
-	orgPermissions: OrganizationPermissions;
+	orgPermissions: OrganizationPermissions | undefined;
 	onDeleteTemplate: () => void;
 };
 
@@ -180,7 +180,7 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
 			<PageHeader
 				actions={
 					<>
-						{!template.deprecated && orgPermissions.createWorkspaces && (
+						{!template.deprecated && orgPermissions?.createWorkspaces && (
 							<Button
 								variant="contained"
 								startIcon={<AddIcon />}
