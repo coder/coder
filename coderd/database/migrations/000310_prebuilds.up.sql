@@ -19,7 +19,7 @@ WITH
     -- and therefore we can't rely on (say) the latest build's chosen template_version_preset_id.
     --
     -- See https://github.com/coder/internal/issues/398
-    latest_prebuild_builds AS (
+    workspaces_with_latest_presets AS (
         SELECT DISTINCT ON (workspace_id) workspace_id, template_version_preset_id
         FROM workspace_builds
         WHERE template_version_preset_id IS NOT NULL
@@ -35,9 +35,9 @@ WITH
 		WHERE w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0' -- The system user responsible for prebuilds.
 		GROUP BY w.id, wa.id
 	),
-    current_presets AS (SELECT w.id AS prebuild_id, lpb.template_version_preset_id
+    current_presets AS (SELECT w.id AS prebuild_id, wlp.template_version_preset_id
                         FROM workspaces w
-                                 INNER JOIN latest_prebuild_builds lpb ON lpb.workspace_id = w.id
+                                 INNER JOIN workspaces_with_latest_presets wlp ON wlp.workspace_id = w.id
                         WHERE w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0') -- The system user responsible for prebuilds.
 SELECT p.id, p.name, p.template_id, p.created_at, a.agent_id, a.lifecycle_state, a.ready_at, cp.template_version_preset_id AS current_preset_id
 FROM all_prebuilds p

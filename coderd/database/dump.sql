@@ -2595,7 +2595,7 @@ CREATE OR REPLACE VIEW workspace_prebuilds AS
             w.created_at
            FROM workspaces w
           WHERE (w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid)
-        ), latest_prebuild_builds AS (
+        ), workspaces_with_latest_presets AS (
          SELECT DISTINCT ON (workspace_builds.workspace_id) workspace_builds.workspace_id,
             workspace_builds.template_version_preset_id
            FROM workspace_builds
@@ -2614,9 +2614,9 @@ CREATE OR REPLACE VIEW workspace_prebuilds AS
           GROUP BY w.id, wa.id
         ), current_presets AS (
          SELECT w.id AS prebuild_id,
-            lpb.template_version_preset_id
+            wlp.template_version_preset_id
            FROM (workspaces w
-             JOIN latest_prebuild_builds lpb ON ((lpb.workspace_id = w.id)))
+             JOIN workspaces_with_latest_presets wlp ON ((wlp.workspace_id = w.id)))
           WHERE (w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid)
         )
  SELECT p.id,
