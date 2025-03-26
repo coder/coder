@@ -19,6 +19,7 @@ func (*Statter) Disk(p Prefix, path string) (*Result, error) {
 		return nil, err
 	}
 	var r Result
+	// #nosec G115 - Safe conversion because stat.Bsize is always positive and within uint64 range
 	r.Total = ptr.To(float64(stat.Blocks * uint64(stat.Bsize)))
 	r.Used = float64(stat.Blocks-stat.Bfree) * float64(stat.Bsize)
 	r.Unit = "B"

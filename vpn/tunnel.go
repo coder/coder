@@ -322,6 +322,7 @@ func (t *Tunnel) Sync() {
 
 func sinkEntryToPb(e slog.SinkEntry) *Log {
 	l := &Log{
+		// #nosec G115 - Safe conversion for log levels which are small positive integers
 		Level:       Log_Level(e.Level),
 		Message:     e.Message,
 		LoggerNames: e.LoggerNames,

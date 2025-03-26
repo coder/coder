@@ -134,20 +134,22 @@ func TestGenerate(t *testing.T) {
 			assert.WithinDuration(t, dbtime.Now(), key.CreatedAt, time.Second*5)
 			assert.WithinDuration(t, dbtime.Now(), key.UpdatedAt, time.Second*5)
 
-			if tc.params.LifetimeSeconds > 0 {
+			switch {
+			case tc.params.LifetimeSeconds > 0:
 				assert.Equal(t, tc.params.LifetimeSeconds, key.LifetimeSeconds)
-			} else if !tc.params.ExpiresAt.IsZero() {
+			case !tc.params.ExpiresAt.IsZero():
 				// Should not be a delta greater than 5 seconds.
 				assert.InDelta(t, time.Until(tc.params.ExpiresAt).Seconds(), key.LifetimeSeconds, 5)
-			} else {
+			default:
 				assert.Equal(t, int64(tc.params.DefaultLifetime.Seconds()), key.LifetimeSeconds)
 			}
 
-			if !tc.params.ExpiresAt.IsZero() {
+			switch {
+			case !tc.params.ExpiresAt.IsZero():
 				assert.Equal(t, tc.params.ExpiresAt.UTC(), key.ExpiresAt)
-			} else if tc.params.LifetimeSeconds > 0 {
+			case tc.params.LifetimeSeconds > 0:
 				assert.WithinDuration(t, dbtime.Now().Add(time.Duration(tc.params.LifetimeSeconds)*time.Second), key.ExpiresAt, time.Second*5)
-			} else {
+			default:
 				assert.WithinDuration(t, dbtime.Now().Add(tc.params.DefaultLifetime), key.ExpiresAt, time.Second*5)
 			}
 

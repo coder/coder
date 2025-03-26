@@ -75,7 +75,7 @@ func (api *API) updateNotificationTemplateMethod(rw http.ResponseWriter, r *http
 
 	err := api.Database.InTx(func(tx database.Store) error {
 		var err error
-		template, err = api.Database.UpdateNotificationTemplateMethodByID(r.Context(), database.UpdateNotificationTemplateMethodByIDParams{
+		template, err = tx.UpdateNotificationTemplateMethodByID(r.Context(), database.UpdateNotificationTemplateMethodByIDParams{
 			ID:     template.ID,
 			Method: nm,
 		})

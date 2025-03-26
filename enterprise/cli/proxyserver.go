@@ -308,7 +308,7 @@ func (r *RootCmd) proxyServer() *serpent.Command {
 
 			// TODO: So this obviously is not going to work well.
 			errCh := make(chan error, 1)
-			go rpprof.Do(ctx, rpprof.Labels("service", "workspace-proxy"), func(ctx context.Context) {
+			go rpprof.Do(ctx, rpprof.Labels("service", "workspace-proxy"), func(_ context.Context) {
 				errCh <- httpServers.Serve(httpServer)
 			})
 

@@ -226,11 +226,9 @@ func (p *QueryParamParser) Time(vals url.Values, def time.Time, queryParam, layo
 // Time uses the default time format of RFC3339Nano and always returns a UTC time.
 func (p *QueryParamParser) Time3339Nano(vals url.Values, def time.Time, queryParam string) time.Time {
 	layout := time.RFC3339Nano
-	return p.timeWithMutate(vals, def, queryParam, layout, func(term string) string {
-		// All search queries are forced to lowercase. But the RFC format requires
-		// upper case letters. So just uppercase the term.
-		return strings.ToUpper(term)
-	})
+	// All search queries are forced to lowercase. But the RFC format requires
+	// upper case letters. So just uppercase the term.
+	return p.timeWithMutate(vals, def, queryParam, layout, strings.ToUpper)
 }
 
 func (p *QueryParamParser) timeWithMutate(vals url.Values, def time.Time, queryParam, layout string, mutate func(term string) string) time.Time {

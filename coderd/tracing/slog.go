@@ -78,6 +78,7 @@ func slogFieldsToAttributes(m slog.Map) []attribute.KeyValue {
 		case []int64:
 			value = attribute.Int64SliceValue(v)
 		case uint:
+			// #nosec G115 - Safe conversion from uint to int64 as we're only using this for non-critical logging/tracing
 			value = attribute.Int64Value(int64(v))
 		// no uint slice method
 		case uint8:
@@ -90,6 +91,8 @@ func slogFieldsToAttributes(m slog.Map) []attribute.KeyValue {
 			value = attribute.Int64Value(int64(v))
 		// no uint32 slice method
 		case uint64:
+			// #nosec G115 - Safe conversion from uint64 to int64 as we're only using this for non-critical logging/tracing
+			// This is intentionally lossy for very large values, but acceptable for tracing purposes
 			value = attribute.Int64Value(int64(v))
 		// no uint64 slice method
 		case string:
