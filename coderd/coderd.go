@@ -43,6 +43,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/entitlements"
+	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
 
@@ -1511,6 +1512,7 @@ type API struct {
 	// passed to dbauthz.
 	AccessControlStore *atomic.Pointer[dbauthz.AccessControlStore]
 	PortSharer         atomic.Pointer[portsharing.PortSharer]
+	FileCache          files.Cache
 
 	UpdatesProvider tailnet.WorkspaceUpdatesProvider
 

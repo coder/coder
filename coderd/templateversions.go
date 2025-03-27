@@ -39,6 +39,7 @@ import (
 	"github.com/coder/coder/v2/provisioner/terraform/tfparse"
 	"github.com/coder/coder/v2/provisionersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/websocket"
 )
 
 // @Summary Get template version by ID
@@ -264,6 +265,64 @@ func (api *API) patchCancelTemplateVersion(rw http.ResponseWriter, r *http.Reque
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
 		Message: "Job has been marked as canceled...",
 	})
+}
+
+// @Summary Open dynamic parameters WebSocket by template version
+// @ID open-dynamic-parameters-websocket-by-template-version
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Templates
+// @Param templateversion path string true "Template version ID" format(uuid)
+// @Success 101
+// @Router /templateversions/{templateversion}/dynamic-parameters [get]
+func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	templateVersion := httpmw.TemplateVersionParam(r)
+
+	// Check that the job has completed successfully
+	job, err := api.Database.GetProvisionerJobByID(ctx, templateVersion.JobID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching provisioner job.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if !job.CompletedAt.Valid {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Job hasn't completed!",
+		})
+		return
+	}
+
+	// dbTemplateVersionParameters, err := api.Database.GetFileID(ctx, templateVersion.ID)
+	// if err != nil {
+	// 	httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+	// 		Message: "Internal error fetching template version parameters.",
+	// 		Detail:  err.Error(),
+	// 	})
+	// 	return
+	// }
+
+	// _, err = convertTemplateVersionParameters(dbTemplateVersionParameters)
+	// if err != nil {
+	// 	httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+	// 		Message: "Internal error converting template version parameter.",
+	// 		Detail:  err.Error(),
+	// 	})
+	// 	return
+	// }
+
+	// TODO: idk if I need to set any options here. it doesn't seem like anyone
+	// else does, but steven had to set a * domain in the prototype. do we need
+	// to specify some host or anything?
+	_, err = websocket.Accept(rw, r, &websocket.AcceptOptions{})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
+			Message: "devour feculence mr drummond",
+		})
+		return
+	}
 }
 
 // @Summary Get rich parameters by template version

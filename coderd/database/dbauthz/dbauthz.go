@@ -1714,6 +1714,13 @@ func (q *querier) GetFileByID(ctx context.Context, id uuid.UUID) (database.File,
 	return file, nil
 }
 
+func (q *querier) GetFileIDByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) (uuid.UUID, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceFile); err != nil {
+		return uuid.Nil, err
+	}
+	return q.db.GetFileIDByTemplateVersionID(ctx, templateVersionID)
+}
+
 func (q *querier) GetFileTemplates(ctx context.Context, fileID uuid.UUID) ([]database.GetFileTemplatesRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
@@ -2388,6 +2395,29 @@ func (q *querier) GetTemplateVersionParameters(ctx context.Context, templateVers
 		return nil, err
 	}
 	return q.db.GetTemplateVersionParameters(ctx, templateVersionID)
+}
+
+func (q *querier) GetTemplateVersionTerraformValues(ctx context.Context, id uuid.UUID) (database.TemplateVersionTerraformValue, error) {
+	tv, err := q.db.GetTemplateVersionByID(ctx, id)
+	if err != nil {
+		return database.TemplateVersionTerraformValue{}, err
+	}
+
+	var object rbac.Objecter
+	template, err := q.db.GetTemplateByID(ctx, tv.TemplateID.UUID)
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			return database.TemplateVersionTerraformValue{}, err
+		}
+		object = rbac.ResourceTemplate.InOrg(tv.OrganizationID)
+	} else {
+		object = tv.RBACObject(template)
+	}
+
+	if err := q.authorizeContext(ctx, policy.ActionRead, object); err != nil {
+		return database.TemplateVersionTerraformValue{}, err
+	}
+	return q.db.GetTemplateVersionTerraformValues(ctx, id)
 }
 
 func (q *querier) GetTemplateVersionVariables(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionVariable, error) {
