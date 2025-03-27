@@ -253,7 +253,7 @@ func setupPushTest(ctx context.Context, t *testing.T, handlerFunc func(w http.Re
 	server := httptest.NewServer(http.HandlerFunc(handlerFunc))
 	t.Cleanup(server.Close)
 
-	manager, err := webpush.New(ctx, &logger, db)
+	manager, err := webpush.New(ctx, logger, db, "http://example.com")
 	require.NoError(t, err, "Failed to create webpush manager")
 
 	return manager, db, server.URL

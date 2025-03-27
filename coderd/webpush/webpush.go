@@ -41,13 +41,14 @@ type Dispatcher interface {
 // for updates inside of a workspace, which we want to be immediate.
 //
 // See: https://github.com/coder/internal/issues/528
-func New(ctx context.Context, log *slog.Logger, db database.Store) (Dispatcher, error) {
+func New(ctx context.Context, log slog.Logger, db database.Store, vapidSub string) (Dispatcher, error) {
 	keys, err := db.GetWebpushVAPIDKeys(ctx)
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
 			return nil, xerrors.Errorf("get notification vapid keys: %w", err)
 		}
 	}
+
 	if keys.VapidPublicKey == "" || keys.VapidPrivateKey == "" {
 		// Generate new VAPID keys. This also deletes all existing push
 		// subscriptions as part of the transaction, as they are no longer
@@ -62,6 +63,7 @@ func New(ctx context.Context, log *slog.Logger, db database.Store) (Dispatcher, 
 	}
 
 	return &Webpusher{
+		vapidSub:        vapidSub,
 		store:           db,
 		log:             log,
 		VAPIDPublicKey:  keys.VapidPublicKey,
@@ -71,8 +73,14 @@ func New(ctx context.Context, log *slog.Logger, db database.Store) (Dispatcher, 
 
 type Webpusher struct {
 	store database.Store
-	log   *slog.Logger
+	log   slog.Logger
+	// VAPID allows us to identify the sender of the message.
+	// This must be a https:// URL or an email address.
+	// Some push services (such as Apple's) require this to be set.
+	vapidSub string
 
+	// public and private keys for VAPID. These are used to sign and encrypt
+	// the message payload.
 	VAPIDPublicKey  string
 	VAPIDPrivateKey string
 }
@@ -148,10 +156,13 @@ func (n *Webpusher) webpushSend(ctx context.Context, msg []byte, endpoint string
 		Endpoint: endpoint,
 		Keys:     keys,
 	}, &webpush.Options{
+		Subscriber:      n.vapidSub,
 		VAPIDPublicKey:  n.VAPIDPublicKey,
 		VAPIDPrivateKey: n.VAPIDPrivateKey,
 	})
 	if err != nil {
+		n.log.Error(ctx, "failed to send webpush notification", slog.Error(err), slog.F("endpoint", endpoint))
+		n.log.Debug(ctx, "webpush notification payload", slog.F("payload", string(cpy)))
 		return -1, nil, xerrors.Errorf("send webpush notification: %w", err)
 	}
 	defer resp.Body.Close()
