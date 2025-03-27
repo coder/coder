@@ -75,7 +75,7 @@ func expandDevcontainerPaths(logger slog.Logger, expandPath func(string) (string
 	}
 	if dc.ConfigPath != "" {
 		// Let expandPath handle home directory, otherwise assume relative to
-		// workspace folder or absoulte.
+		// workspace folder or absolute.
 		if dc.ConfigPath[0] == '~' {
 			if cp, err := expandPath(dc.ConfigPath); err != nil {
 				logger.Warn(context.Background(), "expand devcontainer config path failed", slog.Error(err))
