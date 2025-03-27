@@ -166,6 +166,7 @@ type sqlcQuerier interface {
 	GetFailedWorkspaceBuildsByTemplateID(ctx context.Context, arg GetFailedWorkspaceBuildsByTemplateIDParams) ([]GetFailedWorkspaceBuildsByTemplateIDRow, error)
 	GetFileByHashAndCreator(ctx context.Context, arg GetFileByHashAndCreatorParams) (File, error)
 	GetFileByID(ctx context.Context, id uuid.UUID) (File, error)
+	GetFileIDByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) (uuid.UUID, error)
 	// Get all templates that use a file.
 	GetFileTemplates(ctx context.Context, fileID uuid.UUID) ([]GetFileTemplatesRow, error)
 	// Fetches inbox notifications for a user filtered by templates and targets
@@ -298,6 +299,7 @@ type sqlcQuerier interface {
 	GetTemplateVersionByJobID(ctx context.Context, jobID uuid.UUID) (TemplateVersion, error)
 	GetTemplateVersionByTemplateIDAndName(ctx context.Context, arg GetTemplateVersionByTemplateIDAndNameParams) (TemplateVersion, error)
 	GetTemplateVersionParameters(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionParameter, error)
+	GetTemplateVersionTerraformValues(ctx context.Context, templateVersionID uuid.UUID) (TemplateVersionTerraformValue, error)
 	GetTemplateVersionVariables(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionVariable, error)
 	GetTemplateVersionWorkspaceTags(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionWorkspaceTag, error)
 	GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UUID) ([]TemplateVersion, error)
