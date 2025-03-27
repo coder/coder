@@ -2780,7 +2780,6 @@ export interface UpdateUserAppearanceSettingsRequest {
 // From codersdk/notifications.go
 export interface UpdateUserNotificationPreferences {
 	readonly template_disabled_map: Record<string, boolean>;
-	readonly push_subscription?: string;
 }
 
 // From codersdk/users.go

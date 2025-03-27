@@ -6866,7 +6866,6 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ```json
 {
-  "push_subscription": "string",
   "template_disabled_map": {
     "property1": true,
     "property2": true
@@ -6878,7 +6877,6 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 | Name                    | Type    | Required | Restrictions | Description |
 |-------------------------|---------|----------|--------------|-------------|
-| `push_subscription`     | string  | false    |              |             |
 | `template_disabled_map` | object  | false    |              |             |
 | » `[any property]`      | boolean | false    |              |             |
 

@@ -7630,7 +7630,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Notifications"
+                    "WebPush"
                 ],
                 "summary": "Create user webpush subscription",
                 "operationId": "create-user-webpush-subscription",
@@ -7671,7 +7671,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Notifications"
+                    "WebPush"
                 ],
                 "summary": "Delete user webpush subscription",
                 "operationId": "delete-user-webpush-subscription",
@@ -15617,9 +15617,6 @@ const docTemplate = `{
         "codersdk.UpdateUserNotificationPreferences": {
             "type": "object",
             "properties": {
-                "push_subscription": {
-                    "type": "string"
-                },
                 "template_disabled_map": {
                     "type": "object",
                     "additionalProperties": {

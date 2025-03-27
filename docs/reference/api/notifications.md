@@ -463,7 +463,6 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/notifications/preferenc
 
 ```json
 {
-  "push_subscription": "string",
   "template_disabled_map": {
     "property1": true,
     "property2": true
