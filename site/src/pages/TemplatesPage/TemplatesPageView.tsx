@@ -116,6 +116,7 @@ const TemplateRow: FC<TemplateRowProps> = ({ showOrganizations, template }) => {
 							variant="icon"
 							src={template.icon}
 							fallback={template.display_name || template.name}
+							listView
 						/>
 					}
 				/>
