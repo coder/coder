@@ -2,11 +2,16 @@
 
 [Cursor](https://cursor.sh/) is a modern IDE built on top of VS Code with enhanced AI capabilities.
 
-## Connect to Coder via SSH
+Use these steps to use Cursor to access your Coder workspaces.
+
+If your team uses Cursor regularly, ask your Coder administrator to add a [Cursor module](https://registry.coder.com/modules/cursor) to your template.
+
+## Install Cursor and Coder CLI
 
 Cursor can connect to a Coder workspace using SSH:
 
-1. [Install Cursor](https://cursor.sh/) on your local machine
+1. [Install Cursor](https://docs.cursor.com/get-started/installation) on your local machine.
+
 1. Install the Coder CLI:
 
    <!-- copied from docs/install/cli.md - make changes there -->
@@ -61,19 +66,44 @@ Cursor can connect to a Coder workspace using SSH:
    coder list
    ```
 
-1. Open Cursor
+1. Open Cursor and log in or [create a Cursor account](https://authenticator.cursor.sh/sign-up)
+   if you don't have one already.
 
-1. Download [Open Remote - SSH](https://open-vsx.org/extension/jeanp413/open-remote-ssh).
+## Install the Coder extension
 
-1. Download the [latest vscode-coder extension](https://github.com/coder/vscode-coder/releases/latest).
+<div class="tabs">
 
-1. Open the Command Palette (<kdb>Ctrl</kdb>+<kdb>Shift</kdb>+<kdb>P</kdb> or <kdb>Cmd</kdb>+<kdb>Shift</kdb>+<kdb>P</kdb>) and search for `vsix`.
+You can install the Coder extension through the Marketplace built in to Cursor or manually.
 
-1. Select **Extensions: Install from VSIX** and select the extensions you downloaded.
+## Extension Marketplace
 
-1. Select **Connect via SSH** and enter the workspace name as `coder.workspace-name`.
+1. Search for Coder from the Extensions Pane and select **Install**.
 
-1. After you connect, select **Open Folder** and you can start working on your files.
+1. Coder Remote uses the **Remote - SSH extension** to connect.
+
+   You can find it in the **Extension Pack** tab of the Coder extension.
+
+## Manually
+
+1. Download the [latest vscode-coder extension](https://github.com/coder/vscode-coder/releases/latest) `.vsix` file.
+
+1. Drag the `.vsix` file into the extensions pane of Cursor.
+
+   Alternatively:
+
+   1. Open the Command Palette
+   (<kdb>Ctrl</kdb>+<kdb>Shift</kdb>+<kdb>P</kdb> or <kdb>Cmd</kdb>+<kdb>Shift</kdb>+<kdb>P</kdb>)
+   and search for `vsix`.
+
+   1. Select **Extensions: Install from VSIX** and select the vscode-coder extension you downloaded.
+
+</div>
+
+## Open a workspace in Cursor
+
+From the Cursor Command Palette
+(<kdb>Ctrl</kdb>+<kdb>Shift</kdb>+<kdb>P</kdb> or <kdb>Cmd</kdb>+<kdb>Shift</kdb>+<kdb>P</kdb>),
+enter `coder` and select **Coder: Open Workspace**.
 
 > [!NOTE]
 > If you have any suggestions or experience any issues, please
