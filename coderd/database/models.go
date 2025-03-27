@@ -3556,13 +3556,14 @@ type WorkspaceBuildTable struct {
 }
 
 type WorkspaceLatestBuild struct {
-	ID                      uuid.UUID           `db:"id" json:"id"`
-	WorkspaceID             uuid.UUID           `db:"workspace_id" json:"workspace_id"`
-	TemplateVersionID       uuid.UUID           `db:"template_version_id" json:"template_version_id"`
-	JobID                   uuid.UUID           `db:"job_id" json:"job_id"`
-	TemplateVersionPresetID uuid.NullUUID       `db:"template_version_preset_id" json:"template_version_preset_id"`
-	Transition              WorkspaceTransition `db:"transition" json:"transition"`
-	CreatedAt               time.Time           `db:"created_at" json:"created_at"`
+	ID                      uuid.UUID            `db:"id" json:"id"`
+	WorkspaceID             uuid.UUID            `db:"workspace_id" json:"workspace_id"`
+	TemplateVersionID       uuid.UUID            `db:"template_version_id" json:"template_version_id"`
+	JobID                   uuid.UUID            `db:"job_id" json:"job_id"`
+	TemplateVersionPresetID uuid.NullUUID        `db:"template_version_preset_id" json:"template_version_preset_id"`
+	Transition              WorkspaceTransition  `db:"transition" json:"transition"`
+	CreatedAt               time.Time            `db:"created_at" json:"created_at"`
+	JobStatus               ProvisionerJobStatus `db:"job_status" json:"job_status"`
 }
 
 type WorkspaceModule struct {

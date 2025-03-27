@@ -1966,15 +1966,17 @@ CREATE VIEW workspace_build_with_user AS
 COMMENT ON VIEW workspace_build_with_user IS 'Joins in the username + avatar url of the initiated by user.';
 
 CREATE VIEW workspace_latest_builds AS
- SELECT DISTINCT ON (workspace_builds.workspace_id) workspace_builds.id,
-    workspace_builds.workspace_id,
-    workspace_builds.template_version_id,
-    workspace_builds.job_id,
-    workspace_builds.template_version_preset_id,
-    workspace_builds.transition,
-    workspace_builds.created_at
-   FROM workspace_builds
-  ORDER BY workspace_builds.workspace_id, workspace_builds.build_number DESC;
+ SELECT DISTINCT ON (wb.workspace_id) wb.id,
+    wb.workspace_id,
+    wb.template_version_id,
+    wb.job_id,
+    wb.template_version_preset_id,
+    wb.transition,
+    wb.created_at,
+    pj.job_status
+   FROM (workspace_builds wb
+     JOIN provisioner_jobs pj ON ((wb.job_id = pj.id)))
+  ORDER BY wb.workspace_id, wb.build_number DESC;
 
 CREATE TABLE workspace_modules (
     id uuid NOT NULL,
