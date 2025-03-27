@@ -6742,7 +6742,7 @@
 					}
 				],
 				"consumes": ["application/json"],
-				"tags": ["WebPush"],
+				"tags": ["Notifications"],
 				"summary": "Create user webpush subscription",
 				"operationId": "create-user-webpush-subscription",
 				"parameters": [
@@ -6779,7 +6779,7 @@
 					}
 				],
 				"consumes": ["application/json"],
-				"tags": ["WebPush"],
+				"tags": ["Notifications"],
 				"summary": "Delete user webpush subscription",
 				"operationId": "delete-user-webpush-subscription",
 				"parameters": [

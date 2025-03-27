@@ -7630,7 +7630,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "WebPush"
+                    "Notifications"
                 ],
                 "summary": "Create user webpush subscription",
                 "operationId": "create-user-webpush-subscription",
@@ -7671,7 +7671,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "WebPush"
+                    "Notifications"
                 ],
                 "summary": "Delete user webpush subscription",
                 "operationId": "delete-user-webpush-subscription",
