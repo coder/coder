@@ -162,7 +162,6 @@ func (n *Webpusher) webpushSend(ctx context.Context, msg []byte, endpoint string
 	})
 	if err != nil {
 		n.log.Error(ctx, "failed to send webpush notification", slog.Error(err), slog.F("endpoint", endpoint))
-		n.log.Debug(ctx, "webpush notification payload", slog.F("payload", string(cpy)))
 		return -1, nil, xerrors.Errorf("send webpush notification: %w", err)
 	}
 	defer resp.Body.Close()
