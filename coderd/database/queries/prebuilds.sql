@@ -34,11 +34,13 @@ FROM workspace_prebuilds p
 WHERE (b.transition = 'start'::workspace_transition
 	AND b.job_status = 'succeeded'::provisioner_job_status);
 
--- name: GetPrebuildsInProgress :many
+-- name: CountInProgressPrebuilds :many
+-- CountInProgressPrebuilds returns the number of in-progress prebuilds, grouped by template version ID and transition.
+-- Prebuild considered in-progress if it's in the "starting", "stopping", or "deleting" state.
 SELECT t.id AS template_id, wpb.template_version_id, wpb.transition, COUNT(wpb.transition)::int AS count
 FROM workspace_latest_builds wlb
-		 INNER JOIN workspace_prebuild_builds wpb ON wpb.id = wlb.id
-		 INNER JOIN templates t ON t.active_version_id = wlb.template_version_id
+         INNER JOIN workspace_prebuild_builds wpb ON wpb.id = wlb.id
+         INNER JOIN templates t ON t.active_version_id = wlb.template_version_id
 WHERE wlb.job_status IN ('pending'::provisioner_job_status, 'running'::provisioner_job_status)
 GROUP BY t.id, wpb.template_version_id, wpb.transition;
 

@@ -5869,6 +5869,52 @@ func (q *sqlQuerier) ClaimPrebuild(ctx context.Context, arg ClaimPrebuildParams)
 	return i, err
 }
 
+const countInProgressPrebuilds = `-- name: CountInProgressPrebuilds :many
+SELECT t.id AS template_id, wpb.template_version_id, wpb.transition, COUNT(wpb.transition)::int AS count
+FROM workspace_latest_builds wlb
+         INNER JOIN workspace_prebuild_builds wpb ON wpb.id = wlb.id
+         INNER JOIN templates t ON t.active_version_id = wlb.template_version_id
+WHERE wlb.job_status IN ('pending'::provisioner_job_status, 'running'::provisioner_job_status)
+GROUP BY t.id, wpb.template_version_id, wpb.transition
+`
+
+type CountInProgressPrebuildsRow struct {
+	TemplateID        uuid.UUID           `db:"template_id" json:"template_id"`
+	TemplateVersionID uuid.UUID           `db:"template_version_id" json:"template_version_id"`
+	Transition        WorkspaceTransition `db:"transition" json:"transition"`
+	Count             int32               `db:"count" json:"count"`
+}
+
+// CountInProgressPrebuilds returns the number of in-progress prebuilds, grouped by template version ID and transition.
+// Prebuild considered in-progress if it's in the "starting", "stopping", or "deleting" state.
+func (q *sqlQuerier) CountInProgressPrebuilds(ctx context.Context) ([]CountInProgressPrebuildsRow, error) {
+	rows, err := q.db.QueryContext(ctx, countInProgressPrebuilds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CountInProgressPrebuildsRow
+	for rows.Next() {
+		var i CountInProgressPrebuildsRow
+		if err := rows.Scan(
+			&i.TemplateID,
+			&i.TemplateVersionID,
+			&i.Transition,
+			&i.Count,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getPrebuildMetrics = `-- name: GetPrebuildMetrics :many
 SELECT
     t.name as template_name,
@@ -5915,50 +5961,6 @@ func (q *sqlQuerier) GetPrebuildMetrics(ctx context.Context) ([]GetPrebuildMetri
 			&i.CreatedCount,
 			&i.FailedCount,
 			&i.ClaimedCount,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getPrebuildsInProgress = `-- name: GetPrebuildsInProgress :many
-SELECT t.id AS template_id, wpb.template_version_id, wpb.transition, COUNT(wpb.transition)::int AS count
-FROM workspace_latest_builds wlb
-		 INNER JOIN workspace_prebuild_builds wpb ON wpb.id = wlb.id
-		 INNER JOIN templates t ON t.active_version_id = wlb.template_version_id
-WHERE wlb.job_status IN ('pending'::provisioner_job_status, 'running'::provisioner_job_status)
-GROUP BY t.id, wpb.template_version_id, wpb.transition
-`
-
-type GetPrebuildsInProgressRow struct {
-	TemplateID        uuid.UUID           `db:"template_id" json:"template_id"`
-	TemplateVersionID uuid.UUID           `db:"template_version_id" json:"template_version_id"`
-	Transition        WorkspaceTransition `db:"transition" json:"transition"`
-	Count             int32               `db:"count" json:"count"`
-}
-
-func (q *sqlQuerier) GetPrebuildsInProgress(ctx context.Context) ([]GetPrebuildsInProgressRow, error) {
-	rows, err := q.db.QueryContext(ctx, getPrebuildsInProgress)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetPrebuildsInProgressRow
-	for rows.Next() {
-		var i GetPrebuildsInProgressRow
-		if err := rows.Scan(
-			&i.TemplateID,
-			&i.TemplateVersionID,
-			&i.Transition,
-			&i.Count,
 		); err != nil {
 			return nil, err
 		}

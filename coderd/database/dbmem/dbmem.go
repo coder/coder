@@ -1753,6 +1753,10 @@ func (*FakeQuerier) CleanTailnetTunnels(context.Context) error {
 	return ErrUnimplemented
 }
 
+func (q *FakeQuerier) CountInProgressPrebuilds(ctx context.Context) ([]database.CountInProgressPrebuildsRow, error) {
+	return nil, ErrUnimplemented
+}
+
 func (q *FakeQuerier) CountUnreadInboxNotificationsByUserID(_ context.Context, userID uuid.UUID) (int64, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -4121,10 +4125,6 @@ func (q *FakeQuerier) GetParameterSchemasByJobID(_ context.Context, jobID uuid.U
 }
 
 func (*FakeQuerier) GetPrebuildMetrics(_ context.Context) ([]database.GetPrebuildMetricsRow, error) {
-	return nil, ErrUnimplemented
-}
-
-func (*FakeQuerier) GetPrebuildsInProgress(_ context.Context) ([]database.GetPrebuildsInProgressRow, error) {
 	return nil, ErrUnimplemented
 }
 
