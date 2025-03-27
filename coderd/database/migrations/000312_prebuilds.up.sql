@@ -1,6 +1,6 @@
 -- workspace_latest_builds contains latest build for every workspace
 CREATE VIEW workspace_latest_builds AS
-SELECT DISTINCT ON (workspace_id) *
+SELECT DISTINCT ON (workspace_id) id, workspace_id, template_version_id, job_id, template_version_preset_id, transition, created_at
 FROM workspace_builds
 ORDER BY workspace_id, build_number DESC;
 
@@ -48,6 +48,6 @@ FROM all_prebuilds p
          INNER JOIN current_presets cp ON cp.prebuild_id = p.id;
 
 CREATE VIEW workspace_prebuild_builds AS
-SELECT *
+SELECT id, workspace_id, template_version_id, transition, job_id, template_version_preset_id, build_number
 FROM workspace_builds
 WHERE initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'; -- The system user responsible for prebuilds.

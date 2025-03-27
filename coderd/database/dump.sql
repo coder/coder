@@ -1967,20 +1967,12 @@ COMMENT ON VIEW workspace_build_with_user IS 'Joins in the username + avatar url
 
 CREATE VIEW workspace_latest_builds AS
  SELECT DISTINCT ON (workspace_builds.workspace_id) workspace_builds.id,
-    workspace_builds.created_at,
-    workspace_builds.updated_at,
     workspace_builds.workspace_id,
     workspace_builds.template_version_id,
-    workspace_builds.build_number,
-    workspace_builds.transition,
-    workspace_builds.initiator_id,
-    workspace_builds.provisioner_state,
     workspace_builds.job_id,
-    workspace_builds.deadline,
-    workspace_builds.reason,
-    workspace_builds.daily_cost,
-    workspace_builds.max_deadline,
-    workspace_builds.template_version_preset_id
+    workspace_builds.template_version_preset_id,
+    workspace_builds.transition,
+    workspace_builds.created_at
    FROM workspace_builds
   ORDER BY workspace_builds.workspace_id, workspace_builds.build_number DESC;
 
@@ -1996,20 +1988,12 @@ CREATE TABLE workspace_modules (
 
 CREATE VIEW workspace_prebuild_builds AS
  SELECT workspace_builds.id,
-    workspace_builds.created_at,
-    workspace_builds.updated_at,
     workspace_builds.workspace_id,
     workspace_builds.template_version_id,
-    workspace_builds.build_number,
     workspace_builds.transition,
-    workspace_builds.initiator_id,
-    workspace_builds.provisioner_state,
     workspace_builds.job_id,
-    workspace_builds.deadline,
-    workspace_builds.reason,
-    workspace_builds.daily_cost,
-    workspace_builds.max_deadline,
-    workspace_builds.template_version_preset_id
+    workspace_builds.template_version_preset_id,
+    workspace_builds.build_number
    FROM workspace_builds
   WHERE (workspace_builds.initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid);
 
