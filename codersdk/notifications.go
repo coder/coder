@@ -212,7 +212,6 @@ type UpdateNotificationTemplateMethod struct {
 
 type UpdateUserNotificationPreferences struct {
 	TemplateDisabledMap map[string]bool `json:"template_disabled_map"`
-	PushSubscription    string          `json:"push_subscription,omitempty"`
 }
 
 type WebpushMessageAction struct {

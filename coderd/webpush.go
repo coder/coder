@@ -19,7 +19,7 @@ import (
 // @ID create-user-webpush-subscription
 // @Security CoderSessionToken
 // @Accept json
-// @Tags Notifications
+// @Tags WebPush
 // @Param request body codersdk.WebpushSubscription true "Webpush subscription"
 // @Param user path string true "User ID, name, or me"
 // @Router /users/{user}/webpush/subscription [post]
@@ -67,7 +67,7 @@ func (api *API) postUserWebpushSubscription(rw http.ResponseWriter, r *http.Requ
 // @ID delete-user-webpush-subscription
 // @Security CoderSessionToken
 // @Accept json
-// @Tags Notifications
+// @Tags WebPush
 // @Param request body codersdk.DeleteWebpushSubscription true "Webpush subscription"
 // @Param user path string true "User ID, name, or me"
 // @Router /users/{user}/webpush/subscription [delete]
