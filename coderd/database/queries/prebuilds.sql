@@ -40,6 +40,12 @@ WHERE (b.transition = 'start'::workspace_transition
 SELECT t.id AS template_id, wpb.template_version_id, wpb.transition, COUNT(wpb.transition)::int AS count
 FROM workspace_latest_builds wlb
          INNER JOIN workspace_prebuild_builds wpb ON wpb.id = wlb.id
+         -- We only need these counts for active template versions.
+         -- It doesn't influence whether we create or delete prebuilds
+         -- for inactive template versions. This is because we never create
+         -- prebuilds for inactive template versions, we always delete
+         -- running prebuilds for inactive template versions, and we ignore
+         -- prebuilds that are still building.
          INNER JOIN templates t ON t.active_version_id = wlb.template_version_id
 WHERE wlb.job_status IN ('pending'::provisioner_job_status, 'running'::provisioner_job_status)
 GROUP BY t.id, wpb.template_version_id, wpb.transition;
