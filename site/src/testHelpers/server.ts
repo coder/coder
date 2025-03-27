@@ -1,3 +1,6 @@
+// Import the polyfill first
+import 'web-streams-polyfill/polyfill';
+
 import { setupServer } from "msw/node";
 import { handlers } from "./handlers";
 
