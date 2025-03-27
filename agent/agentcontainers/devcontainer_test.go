@@ -31,6 +31,8 @@ func TestExtractAndInitializeDevcontainerScripts(t *testing.T) {
 		args                    args
 		wantFilteredScripts     []codersdk.WorkspaceAgentScript
 		wantDevcontainerScripts []codersdk.WorkspaceAgentScript
+
+		skipOnWindowsDueToPathSeparator bool
 	}{
 		{
 			name: "no scripts",
@@ -143,6 +145,7 @@ func TestExtractAndInitializeDevcontainerScripts(t *testing.T) {
 					RunOnStart: false,
 				},
 			},
+			skipOnWindowsDueToPathSeparator: true,
 		},
 		{
 			name: "scripts match devcontainers with expand path",
@@ -180,6 +183,7 @@ func TestExtractAndInitializeDevcontainerScripts(t *testing.T) {
 					RunOnStart: false,
 				},
 			},
+			skipOnWindowsDueToPathSeparator: true,
 		},
 		{
 			name: "expand config path when ~",
@@ -221,11 +225,16 @@ func TestExtractAndInitializeDevcontainerScripts(t *testing.T) {
 					RunOnStart: false,
 				},
 			},
+			skipOnWindowsDueToPathSeparator: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+			if tt.skipOnWindowsDueToPathSeparator && filepath.Separator == '\\' {
+				t.Skip("Skipping test on Windows due to path separator difference.")
+			}
+
 			logger := slogtest.Make(t, nil)
 			if tt.args.expandPath == nil {
 				tt.args.expandPath = func(s string) (string, error) {
