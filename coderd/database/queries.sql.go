@@ -11067,8 +11067,8 @@ WHERE
 	template_version_terraform_values.template_version_id = $1
 `
 
-func (q *sqlQuerier) GetTemplateVersionTerraformValues(ctx context.Context, id uuid.UUID) (TemplateVersionTerraformValue, error) {
-	row := q.db.QueryRowContext(ctx, getTemplateVersionTerraformValues, id)
+func (q *sqlQuerier) GetTemplateVersionTerraformValues(ctx context.Context, templateVersionID uuid.UUID) (TemplateVersionTerraformValue, error) {
+	row := q.db.QueryRowContext(ctx, getTemplateVersionTerraformValues, templateVersionID)
 	var i TemplateVersionTerraformValue
 	err := row.Scan(&i.TemplateVersionID, &i.UpdatedAt, &i.CachedPlan)
 	return i, err

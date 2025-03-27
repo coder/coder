@@ -299,7 +299,7 @@ type sqlcQuerier interface {
 	GetTemplateVersionByJobID(ctx context.Context, jobID uuid.UUID) (TemplateVersion, error)
 	GetTemplateVersionByTemplateIDAndName(ctx context.Context, arg GetTemplateVersionByTemplateIDAndNameParams) (TemplateVersion, error)
 	GetTemplateVersionParameters(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionParameter, error)
-	GetTemplateVersionTerraformData(ctx context.Context, templateVersionID uuid.UUID) (TemplateVersionTerraformValue, error)
+	GetTemplateVersionTerraformValues(ctx context.Context, templateVersionID uuid.UUID) (TemplateVersionTerraformValue, error)
 	GetTemplateVersionVariables(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionVariable, error)
 	GetTemplateVersionWorkspaceTags(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionWorkspaceTag, error)
 	GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UUID) ([]TemplateVersion, error)

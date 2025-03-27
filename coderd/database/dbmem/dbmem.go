@@ -3335,7 +3335,7 @@ func (q *FakeQuerier) GetFileIDByTemplateVersionID(ctx context.Context, template
 			jobID := v.JobID
 			for _, j := range q.provisionerJobs {
 				if j.ID == jobID {
-					if j.StorageMethod != database.ProvisionerStorageMethodFile {
+					if j.StorageMethod == database.ProvisionerStorageMethodFile {
 						return j.FileID, nil
 					}
 					// We found the right job id but it wasn't a proper match.
@@ -6015,12 +6015,12 @@ func (q *FakeQuerier) GetTemplateVersionParameters(_ context.Context, templateVe
 	return parameters, nil
 }
 
-func (q *FakeQuerier) GetTemplateVersionTerraformValues(ctx context.Context, id uuid.UUID) (database.TemplateVersionTerraformValue, error) {
+func (q *FakeQuerier) GetTemplateVersionTerraformValues(ctx context.Context, templateVersionID uuid.UUID) (database.TemplateVersionTerraformValue, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	for _, tvtv := range q.templateVersionTerraformValues {
-		if tvtv.TemplateVersionID == id {
+		if tvtv.TemplateVersionID == templateVersionID {
 			return tvtv, nil
 		}
 	}

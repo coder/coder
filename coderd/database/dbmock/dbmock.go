@@ -2869,6 +2869,21 @@ func (mr *MockStoreMockRecorder) GetTemplateVersionParameters(ctx, templateVersi
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateVersionParameters", reflect.TypeOf((*MockStore)(nil).GetTemplateVersionParameters), ctx, templateVersionID)
 }
 
+// GetTemplateVersionTerraformValues mocks base method.
+func (m *MockStore) GetTemplateVersionTerraformValues(ctx context.Context, templateVersionID uuid.UUID) (database.TemplateVersionTerraformValue, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTemplateVersionTerraformValues", ctx, templateVersionID)
+	ret0, _ := ret[0].(database.TemplateVersionTerraformValue)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTemplateVersionTerraformValues indicates an expected call of GetTemplateVersionTerraformValues.
+func (mr *MockStoreMockRecorder) GetTemplateVersionTerraformValues(ctx, templateVersionID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateVersionTerraformValues", reflect.TypeOf((*MockStore)(nil).GetTemplateVersionTerraformValues), ctx, templateVersionID)
+}
+
 // GetTemplateVersionVariables mocks base method.
 func (m *MockStore) GetTemplateVersionVariables(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionVariable, error) {
 	m.ctrl.T.Helper()

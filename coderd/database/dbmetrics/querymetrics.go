@@ -1376,6 +1376,13 @@ func (m queryMetricsStore) GetTemplateVersionParameters(ctx context.Context, tem
 	return parameters, err
 }
 
+func (m queryMetricsStore) GetTemplateVersionTerraformValues(ctx context.Context, templateVersionID uuid.UUID) (database.TemplateVersionTerraformValue, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTemplateVersionTerraformValues(ctx, templateVersionID)
+	m.queryLatencies.WithLabelValues("GetTemplateVersionTerraformValues").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetTemplateVersionVariables(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionVariable, error) {
 	start := time.Now()
 	variables, err := m.s.GetTemplateVersionVariables(ctx, templateVersionID)

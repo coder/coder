@@ -1,88 +1,104 @@
 package files
 
 import (
-	"archive/tar"
 	"bytes"
 	"context"
-	"fmt"
-	"io"
 	"io/fs"
 	"sync"
-	"time"
+	"sync/atomic"
 
-	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/util/lazy"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+
+	archivefs "github.com/coder/coder/v2/archive/fs"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/util/lazy"
 )
 
-// Cache persists the files for template versions, and is used by dynamic
-// parameters to deduplicate the files in memory.
-//   - The user connects to the dynamic parameters websocket with a given template
-//     version id.
-//   - template version -> provisioner job -> file
-//   - We persist those files
-//
-// Requirements:
-//   - Multiple template versions can share a single "file"
-//   - Files should be "ref counted" so that they're released when no one is using
-//     them
-//   - You should be able to fetch multiple different files in parallel, but you
-//     should not fetch the same file multiple times in parallel.
-type Cache struct {
-	sync.Mutex
-	data map[uuid.UUID]*lazy.Value[fs.FS]
-}
-
-// type CacheEntry struct {
-// 	atomic.
-// }
-
-// Acquire
-func (c *Cache) Acquire(fileID uuid.UUID) fs.FS {
-	return c.fetch(fileID).Load()
-}
-
-// fetch handles grabbing the lock, creating a new lazy.Value if necessary,
-// and returning it. The lock can be safely released because lazy.Value handles
-// its own synchronization, so multiple concurrent reads for the same fileID
-// will still only ever result in a single load being performed.
-func (c *Cache) fetch(fileID uuid.UUID) *lazy.Value[fs.FS] {
-	c.Mutex.Lock()
-	defer c.Mutex.Unlock()
-
-	entry := c.data[fileID]
-	if entry == nil {
-		entry = lazy.New(func() fs.FS {
-			time.Sleep(5 * time.Second)
-			return NilFS{}
-		})
-		c.data[fileID] = entry
-	}
-
-	return entry
-}
-
+// NewFromStore returns a file cache that will fetch files from the provided
+// database.
 func NewFromStore(store database.Store) Cache {
-	_ = func(ctx context.Context, fileID uuid.UUID) (fs.FS, error) {
+	fetcher := func(ctx context.Context, fileID uuid.UUID) (fs.FS, error) {
 		file, err := store.GetFileByID(ctx, fileID)
 		if err != nil {
 			return nil, xerrors.Errorf("failed to read file from database: %w", err)
 		}
 
-		reader := tar.NewReader(bytes.NewBuffer(file.Data))
-		_, _ = io.ReadAll(reader)
-
-		return NilFS{}, nil
+		content := bytes.NewBuffer(file.Data)
+		return archivefs.FromTarReader(content), nil
 	}
 
-	return Cache{}
+	return Cache{
+		fetcher: fetcher,
+	}
 }
 
-type NilFS struct{}
+// Cache persists the files for template versions, and is used by dynamic
+// parameters to deduplicate the files in memory. When any number of users opens
+// the workspace creation form for a given template version, it's files are
+// loaded into memory exactly once. We hold those files until there are no
+// longer any open connections, and then we remove the value from the map.
+type Cache struct {
+	lock sync.Mutex
+	data map[uuid.UUID]*cacheEntry
 
-var _ fs.FS = NilFS{}
+	fetcher func(context.Context, uuid.UUID) (fs.FS, error)
+}
 
-func (t NilFS) Open(_ string) (fs.File, error) {
-	return nil, fmt.Errorf("oh no")
+type cacheEntry struct {
+	refCount *atomic.Int64
+	value    *lazy.ValueWithError[fs.FS]
+}
+
+// Acquire will load the fs.FS for the given file. It guarantees that parallel
+// calls for the same fileID will only result in one fetch, and that parallel
+// calls for distinct fileIDs will fetch in parallel.
+func (c *Cache) Acquire(ctx context.Context, fileID uuid.UUID) (fs.FS, error) {
+	// It's important that this `Load` call occurs outside of `prepare`, after the
+	// mutex has been released, or we would continue to hold the lock until the
+	// entire file has been fetched, which may be slow, and would prevent other
+	// files from being fetched in parallel.
+	return c.prepare(ctx, fileID).Load()
+}
+
+func (c *Cache) prepare(ctx context.Context, fileID uuid.UUID) *lazy.ValueWithError[fs.FS] {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	entry, ok := c.data[fileID]
+	if !ok {
+		var refCount atomic.Int64
+		value := lazy.NewWithError(func() (fs.FS, error) {
+			return c.fetcher(ctx, fileID)
+		})
+
+		entry = &cacheEntry{
+			value:    value,
+			refCount: &refCount,
+		}
+		c.data[fileID] = entry
+	}
+
+	entry.refCount.Add(1)
+	return entry.value
+}
+
+// Release decrements the reference count for the given fileID, and frees the
+// backing data if there are no further references being held.
+func (c *Cache) Release(fileID uuid.UUID) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	entry, ok := c.data[fileID]
+	if !ok {
+		// If we land here, it's almost certainly because a bug already happened,
+		// and we're freeing something that's already been freed, or we're calling
+		// this function with an incorrect ID. Should this function return an error?
+		return
+	}
+	refCount := entry.refCount.Add(-1)
+	if refCount > 0 {
+		return
+	}
+	delete(c.data, fileID)
 }

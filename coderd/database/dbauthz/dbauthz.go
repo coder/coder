@@ -1742,10 +1742,15 @@ func (q *querier) GetFileByID(ctx context.Context, id uuid.UUID) (database.File,
 }
 
 func (q *querier) GetFileIDByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) (uuid.UUID, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceFile); err != nil {
+	fileID, err := q.db.GetFileIDByTemplateVersionID(ctx, templateVersionID)
+	if err != nil {
 		return uuid.Nil, err
 	}
-	return q.db.GetFileIDByTemplateVersionID(ctx, templateVersionID)
+	err = q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceFile.WithID(fileID))
+	if err != nil {
+		return uuid.Nil, err
+	}
+	return fileID, nil
 }
 
 func (q *querier) GetFileTemplates(ctx context.Context, fileID uuid.UUID) ([]database.GetFileTemplatesRow, error) {
@@ -2453,8 +2458,8 @@ func (q *querier) GetTemplateVersionParameters(ctx context.Context, templateVers
 	return q.db.GetTemplateVersionParameters(ctx, templateVersionID)
 }
 
-func (q *querier) GetTemplateVersionTerraformValues(ctx context.Context, id uuid.UUID) (database.TemplateVersionTerraformValue, error) {
-	tv, err := q.db.GetTemplateVersionByID(ctx, id)
+func (q *querier) GetTemplateVersionTerraformValues(ctx context.Context, templateVersionID uuid.UUID) (database.TemplateVersionTerraformValue, error) {
+	tv, err := q.db.GetTemplateVersionByID(ctx, templateVersionID)
 	if err != nil {
 		return database.TemplateVersionTerraformValue{}, err
 	}
@@ -2473,7 +2478,7 @@ func (q *querier) GetTemplateVersionTerraformValues(ctx context.Context, id uuid
 	if err := q.authorizeContext(ctx, policy.ActionRead, object); err != nil {
 		return database.TemplateVersionTerraformValue{}, err
 	}
-	return q.db.GetTemplateVersionTerraformValues(ctx, id)
+	return q.db.GetTemplateVersionTerraformValues(ctx, templateVersionID)
 }
 
 func (q *querier) GetTemplateVersionVariables(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionVariable, error) {
