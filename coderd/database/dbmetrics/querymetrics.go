@@ -746,6 +746,13 @@ func (m queryMetricsStore) GetFileByID(ctx context.Context, id uuid.UUID) (datab
 	return file, err
 }
 
+func (m queryMetricsStore) GetFileIDByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) (uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetFileIDByTemplateVersionID(ctx, templateVersionID)
+	m.queryLatencies.WithLabelValues("GetFileIDByTemplateVersionID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetFileTemplates(ctx context.Context, fileID uuid.UUID) ([]database.GetFileTemplatesRow, error) {
 	start := time.Now()
 	rows, err := m.s.GetFileTemplates(ctx, fileID)
@@ -1367,6 +1374,13 @@ func (m queryMetricsStore) GetTemplateVersionParameters(ctx context.Context, tem
 	parameters, err := m.s.GetTemplateVersionParameters(ctx, templateVersionID)
 	m.queryLatencies.WithLabelValues("GetTemplateVersionParameters").Observe(time.Since(start).Seconds())
 	return parameters, err
+}
+
+func (m queryMetricsStore) GetTemplateVersionTerraformValues(ctx context.Context, templateVersionID uuid.UUID) (database.TemplateVersionTerraformValue, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTemplateVersionTerraformValues(ctx, templateVersionID)
+	m.queryLatencies.WithLabelValues("GetTemplateVersionTerraformValues").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m queryMetricsStore) GetTemplateVersionVariables(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionVariable, error) {
