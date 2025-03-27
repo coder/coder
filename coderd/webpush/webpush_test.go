@@ -2,6 +2,8 @@ package webpush_test
 
 import (
 	"context"
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -32,7 +34,9 @@ func TestPush(t *testing.T) {
 	t.Run("SuccessfulDelivery", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
-		manager, store, serverURL := setupPushTest(ctx, t, func(w http.ResponseWriter, _ *http.Request) {
+		msg := randomWebpushMessage(t)
+		manager, store, serverURL := setupPushTest(ctx, t, func(w http.ResponseWriter, r *http.Request) {
+			assertWebpushPayload(t, r)
 			w.WriteHeader(http.StatusOK)
 		})
 		user := dbgen.User(t, store, database.User{})
@@ -45,16 +49,7 @@ func TestPush(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		notification := codersdk.WebpushMessage{
-			Title: "Test Title",
-			Body:  "Test Body",
-			Actions: []codersdk.WebpushMessageAction{
-				{Label: "View", URL: "https://coder.com/view"},
-			},
-			Icon: "workspace",
-		}
-
-		err = manager.Dispatch(ctx, user.ID, notification)
+		err = manager.Dispatch(ctx, user.ID, msg)
 		require.NoError(t, err)
 
 		subscriptions, err := store.GetWebpushSubscriptionsByUserID(ctx, user.ID)
@@ -66,7 +61,8 @@ func TestPush(t *testing.T) {
 	t.Run("ExpiredSubscription", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
-		manager, store, serverURL := setupPushTest(ctx, t, func(w http.ResponseWriter, _ *http.Request) {
+		manager, store, serverURL := setupPushTest(ctx, t, func(w http.ResponseWriter, r *http.Request) {
+			assertWebpushPayload(t, r)
 			w.WriteHeader(http.StatusGone)
 		})
 		user := dbgen.User(t, store, database.User{})
@@ -79,12 +75,8 @@ func TestPush(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		notification := codersdk.WebpushMessage{
-			Title: "Test Title",
-			Body:  "Test Body",
-		}
-
-		err = manager.Dispatch(ctx, user.ID, notification)
+		msg := randomWebpushMessage(t)
+		err = manager.Dispatch(ctx, user.ID, msg)
 		require.NoError(t, err)
 
 		subscriptions, err := store.GetWebpushSubscriptionsByUserID(ctx, user.ID)
@@ -95,7 +87,8 @@ func TestPush(t *testing.T) {
 	t.Run("FailedDelivery", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
-		manager, store, serverURL := setupPushTest(ctx, t, func(w http.ResponseWriter, _ *http.Request) {
+		manager, store, serverURL := setupPushTest(ctx, t, func(w http.ResponseWriter, r *http.Request) {
+			assertWebpushPayload(t, r)
 			w.WriteHeader(http.StatusBadRequest)
 			w.Write([]byte("Invalid request"))
 		})
@@ -110,12 +103,8 @@ func TestPush(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		notification := codersdk.WebpushMessage{
-			Title: "Test Title",
-			Body:  "Test Body",
-		}
-
-		err = manager.Dispatch(ctx, user.ID, notification)
+		msg := randomWebpushMessage(t)
+		err = manager.Dispatch(ctx, user.ID, msg)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "Invalid request")
 
@@ -130,13 +119,15 @@ func TestPush(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		var okEndpointCalled bool
 		var goneEndpointCalled bool
-		manager, store, serverOKURL := setupPushTest(ctx, t, func(w http.ResponseWriter, _ *http.Request) {
+		manager, store, serverOKURL := setupPushTest(ctx, t, func(w http.ResponseWriter, r *http.Request) {
 			okEndpointCalled = true
+			assertWebpushPayload(t, r)
 			w.WriteHeader(http.StatusOK)
 		})
 
-		serverGone := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		serverGone := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			goneEndpointCalled = true
+			assertWebpushPayload(t, r)
 			w.WriteHeader(http.StatusGone)
 		}))
 		defer serverGone.Close()
@@ -163,15 +154,8 @@ func TestPush(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		notification := codersdk.WebpushMessage{
-			Title: "Test Title",
-			Body:  "Test Body",
-			Actions: []codersdk.WebpushMessageAction{
-				{Label: "View", URL: "https://coder.com/view"},
-			},
-		}
-
-		err = manager.Dispatch(ctx, user.ID, notification)
+		msg := randomWebpushMessage(t)
+		err = manager.Dispatch(ctx, user.ID, msg)
 		require.NoError(t, err)
 		assert.True(t, okEndpointCalled, "The valid endpoint should be called")
 		assert.True(t, goneEndpointCalled, "The expired endpoint should be called")
@@ -189,8 +173,9 @@ func TestPush(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 		var requestReceived bool
-		manager, store, serverURL := setupPushTest(ctx, t, func(w http.ResponseWriter, _ *http.Request) {
+		manager, store, serverURL := setupPushTest(ctx, t, func(w http.ResponseWriter, r *http.Request) {
 			requestReceived = true
+			assertWebpushPayload(t, r)
 			w.WriteHeader(http.StatusOK)
 		})
 
@@ -205,17 +190,8 @@ func TestPush(t *testing.T) {
 		})
 		require.NoError(t, err, "Failed to insert push subscription")
 
-		notification := codersdk.WebpushMessage{
-			Title: "Test Notification",
-			Body:  "This is a test notification body",
-			Actions: []codersdk.WebpushMessageAction{
-				{Label: "View Workspace", URL: "https://coder.com/workspace/123"},
-				{Label: "Cancel", URL: "https://coder.com/cancel"},
-			},
-			Icon: "workspace-icon",
-		}
-
-		err = manager.Dispatch(ctx, user.ID, notification)
+		msg := randomWebpushMessage(t)
+		err = manager.Dispatch(ctx, user.ID, msg)
 		require.NoError(t, err, "The push notification should be dispatched successfully")
 		require.True(t, requestReceived, "The push notification request should have been received by the server")
 	})
@@ -242,15 +218,42 @@ func TestPush(t *testing.T) {
 	})
 }
 
+func randomWebpushMessage(t testing.TB) codersdk.WebpushMessage {
+	t.Helper()
+	return codersdk.WebpushMessage{
+		Title: testutil.GetRandomName(t),
+		Body:  testutil.GetRandomName(t),
+
+		Actions: []codersdk.WebpushMessageAction{
+			{Label: "A", URL: "https://example.com/a"},
+			{Label: "B", URL: "https://example.com/b"},
+		},
+		Icon: "https://example.com/icon.png",
+	}
+}
+
+func assertWebpushPayload(t testing.TB, r *http.Request) {
+	t.Helper()
+	assert.Equal(t, http.MethodPost, r.Method)
+	assert.Equal(t, "application/octet-stream", r.Header.Get("Content-Type"))
+	assert.Equal(t, r.Header.Get("content-encoding"), "aes128gcm")
+	assert.Contains(t, r.Header.Get("Authorization"), "vapid")
+
+	// Attempting to decode the request body as JSON should fail as it is
+	// encrypted.
+	assert.Error(t, json.NewDecoder(r.Body).Decode(io.Discard))
+}
+
 // setupPushTest creates a common test setup for webpush notification tests
 func setupPushTest(ctx context.Context, t *testing.T, handlerFunc func(w http.ResponseWriter, r *http.Request)) (webpush.Dispatcher, database.Store, string) {
+	t.Helper()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	db, _ := dbtestutil.NewDB(t)
 
 	server := httptest.NewServer(http.HandlerFunc(handlerFunc))
 	t.Cleanup(server.Close)
 
-	manager, err := webpush.New(ctx, &logger, db)
+	manager, err := webpush.New(ctx, &logger, db, "http://example.com")
 	require.NoError(t, err, "Failed to create webpush manager")
 
 	return manager, db, server.URL
