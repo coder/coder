@@ -5834,18 +5834,21 @@ UPDATE workspaces w
 SET owner_id   = $1::uuid,
 	name       = $2::text,
 	updated_at = NOW()
-WHERE w.id IN (SELECT p.id
-			   FROM workspace_prebuilds p
-						INNER JOIN workspace_latest_builds b ON b.workspace_id = p.id
-						INNER JOIN provisioner_jobs pj ON b.job_id = pj.id
-						INNER JOIN templates t ON p.template_id = t.id
-			   WHERE (b.transition = 'start'::workspace_transition
-				   AND pj.job_status IN ('succeeded'::provisioner_job_status))
-				 AND b.template_version_id = t.active_version_id
-				 AND b.template_version_preset_id = $3::uuid
-				 AND p.ready
-			   ORDER BY random()
-			   LIMIT 1 FOR UPDATE OF p SKIP LOCKED) -- Ensure that a concurrent request will not select the same prebuild.
+WHERE w.id IN (
+	SELECT p.id
+	FROM workspace_prebuilds p
+		INNER JOIN workspace_latest_builds b ON b.workspace_id = p.id
+		INNER JOIN provisioner_jobs pj ON b.job_id = pj.id
+		INNER JOIN templates t ON p.template_id = t.id
+	WHERE (b.transition = 'start'::workspace_transition
+		AND pj.job_status IN ('succeeded'::provisioner_job_status))
+	-- The prebuilds system should never try to claim a prebuild for an inactive template version.
+	-- Nevertheless, this filter is here as a defensive measure:
+	AND b.template_version_id = t.active_version_id
+	AND b.template_version_preset_id = $3::uuid
+	AND p.ready
+	LIMIT 1 FOR UPDATE OF p SKIP LOCKED -- Ensure that a concurrent request will not select the same prebuild.
+)
 RETURNING w.id, w.name
 `
 
