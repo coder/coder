@@ -3587,6 +3587,248 @@ func TestOrganizationDeleteTrigger(t *testing.T) {
 	})
 }
 
+func TestWorkspacePrebuildsView(t *testing.T) {
+	t.Parallel()
+	if !dbtestutil.WillUsePostgres() {
+		t.SkipNow()
+	}
+
+	type extTmplVersion struct {
+		database.TemplateVersion
+		preset database.TemplateVersionPreset
+	}
+
+	now := dbtime.Now()
+	orgID := uuid.New()
+	userID := uuid.New()
+
+	createTemplate := func(db database.Store) database.Template {
+		// create template
+		tmpl := dbgen.Template(t, db, database.Template{
+			OrganizationID:  orgID,
+			CreatedBy:       userID,
+			ActiveVersionID: uuid.New(),
+		})
+
+		return tmpl
+	}
+	type tmplVersionOpts struct {
+		DesiredInstances int
+	}
+	createTmplVersion := func(db database.Store, tmpl database.Template, versionId uuid.UUID, opts *tmplVersionOpts) extTmplVersion {
+		// Create template version with corresponding preset and preset prebuild
+		tmplVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			ID: versionId,
+			TemplateID: uuid.NullUUID{
+				UUID:  tmpl.ID,
+				Valid: true,
+			},
+			OrganizationID: tmpl.OrganizationID,
+			CreatedAt:      now,
+			UpdatedAt:      now,
+			CreatedBy:      tmpl.CreatedBy,
+		})
+		desiredInstances := 1
+		if opts != nil {
+			desiredInstances = opts.DesiredInstances
+		}
+		preset := dbgen.Preset(t, db, database.InsertPresetParams{
+			TemplateVersionID: tmplVersion.ID,
+			Name:              "preset",
+			DesiredInstances: sql.NullInt32{
+				Int32: int32(desiredInstances),
+				Valid: true,
+			},
+		})
+
+		return extTmplVersion{
+			TemplateVersion: tmplVersion,
+			preset:          preset,
+		}
+	}
+	type workspaceBuildOpts struct {
+		successfulJob  bool
+		createdAt      time.Time
+		readyAgents    int
+		notReadyAgents int
+	}
+	createWorkspaceBuild := func(
+		ctx context.Context,
+		db database.Store,
+		tmpl database.Template,
+		extTmplVersion extTmplVersion,
+		opts *workspaceBuildOpts,
+	) {
+		// Create job with corresponding resource and agent
+		jobError := sql.NullString{String: "failed", Valid: true}
+		if opts != nil && opts.successfulJob {
+			jobError = sql.NullString{}
+		}
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			OrganizationID: orgID,
+
+			CreatedAt: now.Add(-1 * time.Minute),
+			Error:     jobError,
+		})
+
+		// create ready agents
+		readyAgents := 0
+		if opts != nil {
+			readyAgents = opts.readyAgents
+		}
+		for i := 0; i < readyAgents; i++ {
+			resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+				JobID: job.ID,
+			})
+			agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+				ResourceID: resource.ID,
+			})
+			err := db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+				ID:             agent.ID,
+				LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+			})
+			require.NoError(t, err)
+		}
+
+		// create not ready agents
+		notReadyAgents := 1
+		if opts != nil {
+			notReadyAgents = opts.notReadyAgents
+		}
+		for i := 0; i < notReadyAgents; i++ {
+			resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+				JobID: job.ID,
+			})
+			agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+				ResourceID: resource.ID,
+			})
+			err := db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+				ID:             agent.ID,
+				LifecycleState: database.WorkspaceAgentLifecycleStateCreated,
+			})
+			require.NoError(t, err)
+		}
+
+		// Create corresponding workspace and workspace build
+		workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+			OwnerID:        uuid.MustParse("c42fdf75-3097-471c-8c33-fb52454d81c0"),
+			OrganizationID: tmpl.OrganizationID,
+			TemplateID:     tmpl.ID,
+		})
+		createdAt := now
+		if opts != nil {
+			createdAt = opts.createdAt
+		}
+		dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			CreatedAt:         createdAt,
+			WorkspaceID:       workspace.ID,
+			TemplateVersionID: extTmplVersion.ID,
+			BuildNumber:       1,
+			Transition:        database.WorkspaceTransitionStart,
+			InitiatorID:       tmpl.CreatedBy,
+			JobID:             job.ID,
+			TemplateVersionPresetID: uuid.NullUUID{
+				UUID:  extTmplVersion.preset.ID,
+				Valid: true,
+			},
+		})
+	}
+
+	type workspacePrebuild struct {
+		ID              uuid.UUID
+		Name            string
+		CreatedAt       time.Time
+		Ready           bool
+		CurrentPresetID uuid.UUID
+	}
+	getWorkspacePrebuilds := func(sqlDB *sql.DB) []*workspacePrebuild {
+		rows, err := sqlDB.Query("SELECT id, name, created_at, ready, current_preset_id FROM workspace_prebuilds")
+		require.NoError(t, err)
+		defer rows.Close()
+
+		workspacePrebuilds := make([]*workspacePrebuild, 0)
+		for rows.Next() {
+			var wp workspacePrebuild
+			err := rows.Scan(&wp.ID, &wp.Name, &wp.CreatedAt, &wp.Ready, &wp.CurrentPresetID)
+			require.NoError(t, err)
+
+			workspacePrebuilds = append(workspacePrebuilds, &wp)
+		}
+
+		return workspacePrebuilds
+	}
+
+	testCases := []struct {
+		name           string
+		readyAgents    int
+		notReadyAgents int
+		expectReady    bool
+	}{
+		{
+			name:           "one ready agent",
+			readyAgents:    1,
+			notReadyAgents: 0,
+			expectReady:    true,
+		},
+		{
+			name:           "one not ready agent",
+			readyAgents:    0,
+			notReadyAgents: 1,
+			expectReady:    false,
+		},
+		{
+			name:           "one ready, one not ready",
+			readyAgents:    1,
+			notReadyAgents: 1,
+			expectReady:    false,
+		},
+		{
+			name:           "both ready",
+			readyAgents:    2,
+			notReadyAgents: 0,
+			expectReady:    true,
+		},
+		{
+			name:           "five ready, one not ready",
+			readyAgents:    5,
+			notReadyAgents: 1,
+			expectReady:    false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			sqlDB := testSQLDB(t)
+			err := migrations.Up(sqlDB)
+			require.NoError(t, err)
+			db := database.New(sqlDB)
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+
+			dbgen.Organization(t, db, database.Organization{
+				ID: orgID,
+			})
+			dbgen.User(t, db, database.User{
+				ID: userID,
+			})
+
+			tmpl := createTemplate(db)
+			tmplV1 := createTmplVersion(db, tmpl, tmpl.ActiveVersionID, nil)
+			createWorkspaceBuild(ctx, db, tmpl, tmplV1, &workspaceBuildOpts{
+				readyAgents:    tc.readyAgents,
+				notReadyAgents: tc.notReadyAgents,
+			})
+
+			workspacePrebuilds := getWorkspacePrebuilds(sqlDB)
+			require.Len(t, workspacePrebuilds, 1)
+			require.Equal(t, tc.expectReady, workspacePrebuilds[0].Ready)
+		})
+	}
+}
+
 func TestGetPresetsBackoff(t *testing.T) {
 	t.Parallel()
 	if !dbtestutil.WillUsePostgres() {
