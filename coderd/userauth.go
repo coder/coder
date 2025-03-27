@@ -1358,7 +1358,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		emailSp := strings.Split(email, "@")
 		if len(emailSp) == 1 {
 			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-				Message: fmt.Sprintf("Your email %q is not in domains %q!", email, api.OIDCConfig.EmailDomain),
+				Message: fmt.Sprintf("Your email %q is not from an authorized domain! Please contact your administrator.", email),
 			})
 			return
 		}
@@ -1373,7 +1373,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		}
 		if !ok {
 			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-				Message: fmt.Sprintf("Your email %q is not in domains %q!", email, api.OIDCConfig.EmailDomain),
+				Message: fmt.Sprintf("Your email %q is not from an authorized domain! Please contact your administrator.", email),
 			})
 			return
 		}
