@@ -471,9 +471,12 @@ require (
 
 require github.com/coder/clistat v1.0.0
 
+require github.com/SherClockHolmes/webpush-go v1.4.0
+
 require (
 	github.com/charmbracelet/colorprofile v0.2.3-0.20250311203215-f60798e515dc // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.13-0.20250311204145-2c3ea96c31dd // indirect
 	github.com/go-json-experiment/json v0.0.0-20250211171154-1ae217ad3535 // indirect
+	github.com/golang-jwt/jwt/v5 v5.2.1 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 )
