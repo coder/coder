@@ -1,12 +1,18 @@
 # Windsurf
 
-[Windsurf](https://codeium.com/windsurf) Codeium's code editor designed for AI-powered development. It combines JetBrains's IDE with Codeium's AI capabilities in a lightweight, browser-first experience.
+[Windsurf](https://codeium.com/windsurf) is Codeium's code editor designed for AI-assisted
+development.
 
-## Connect to Coder via SSH
+Follow this guide to use Windsurf to access your Coder workspaces.
 
-Windsurf can connect to your Coder workspaces via SSH, similar to other JetBrains products:
+If your team uses Windsurf regularly, ask your Coder administrator to add Windsurf as a workspace application in your template.
 
-1. [Install Windsurf](https://www.jetbrains.com/windsurf/) on your local machine
+## Install Windsurf and Coder CLI
+
+Windsurf can connect to your Coder workspaces via SSH:
+
+1. [Install Windsurf](https://docs.codeium.com/windsurf/getting-started) on your local machine.
+
 1. Install the Coder CLI:
 
    <!-- copied from docs/install/cli.md - make changes there -->
@@ -55,121 +61,48 @@ Windsurf can connect to your Coder workspaces via SSH, similar to other JetBrain
    coder config-ssh
    ```
 
-1. Connect to your workspace in Windsurf:
+1. List your available workspaces:
 
-   - Launch Windsurf
-   - Select "Connect to Remote Host"
-   - Choose "SSH" as the connection type
-   - Enter "coder.workspace-name" as the host
-   - Windsurf will connect to your workspace, and you can start working
+   ```shell
+   coder list
+   ```
 
-## Features
+1. Open Windsurf and select **Get started**.
 
-Windsurf provides several notable features that work well with Coder:
+   Import your settings from another IDE, or select **Start fresh**.
 
-- AI-powered code completion and assistance (powered by Codeium)
-- Real-time collaborative editing
-- Lightweight interface with fast loading times
-- JetBrains code intelligence and smart navigation
-- Extended language support
-- Browser-based development
-- Code chat and AI explanations
-- Multi-cursor editing
+1. Complete the setup flow and log in or [create a Codeium account](https://codeium.com/windsurf/signup)
+   if you don't have one already.
 
-## Web-Based Access
+## Install the Coder extension
 
-Windsurf is designed as a browser-first experience and can be deployed directly in your Coder workspace. There are two main approaches:
+Use the Coder extension to connect to your workspaces through SSH.
 
-### 1. Using Windsurf as a Web Application
+1. Download the [latest vscode-coder extension](https://github.com/coder/vscode-coder/releases/latest) `.vsix` file.
 
-Your template administrator can add Windsurf as a workspace application using this Terraform configuration:
+1. Drag the `.vsix` file into the extensions pane of Windsurf.
 
-```tf
-resource "coder_app" "windsurf" {
-  agent_id      = coder_agent.main.id
-  slug          = "windsurf"
-  display_name  = "Windsurf"
-  icon          = "/icon/jetbrains.svg" # Using JetBrains icon
-  url           = "http://localhost:8008" # Default Windsurf port
-  subdomain     = true
-  share         = "authenticated"
-  healthcheck {
-    url       = "http://localhost:8008/healthz"
-    interval  = 5
-    threshold = 6
-  }
-}
-```
+   Alternatively:
 
-### 2. Installing Windsurf in Your Workspace
+   1. Open the Command Palette
+   (<kdb>Ctrl</kdb>+<kdb>Shift</kdb>+<kdb>P</kdb> or <kdb>Cmd</kdb>+<kdb>Shift</kdb>+<kdb>P</kdb>)
+   and search for `vsix`.
 
-You can install Windsurf directly in your workspace:
+   1. Select **Extensions: Install from VSIX** and select the vscode-coder extension you downloaded.
 
-1. Add the following to your workspace startup script:
+## Open a workspace in Windsurf
 
-```bash
-# Download and install Windsurf
-curl -L "https://download.jetbrains.com/windsurf/windsurf-linux-x64.tar.gz" -o windsurf.tar.gz
-mkdir -p ~/windsurf
-tar -xzf windsurf.tar.gz -C ~/windsurf
-rm windsurf.tar.gz
+1. From the Windsurf Command Palette
+(<kdb>Ctrl</kdb>+<kdb>Shift</kdb>+<kdb>P</kdb> or <kdb>Cmd</kdb>+<kdb>Shift</kdb>+<kdb>P</kdb>),
+enter `coder` and select **Coder: Login**.
 
-# Start Windsurf in the background
-~/windsurf/bin/windsurf --port 8008 &
-```
+1. Follow the prompts to login and copy your session token.
 
-2. Configure a Coder application in your template:
+   Paste the session token in the **Coder API Key** dialogue in Windsurf.
 
-```tf
-resource "coder_agent" "main" {
-  # ... other configuration
-  startup_script = file("./startup.sh") # Include Windsurf installation
-}
-
-resource "coder_app" "windsurf" {
-  agent_id      = coder_agent.main.id
-  slug          = "windsurf"
-  display_name  = "Windsurf"
-  icon          = "/icon/jetbrains.svg"
-  url           = "http://localhost:8008"
-  subdomain     = true
-}
-```
-
-> [!NOTE]
-> The examples above use port 8008, which is common for Windsurf. Your template administrator should adjust this as needed based on your specific configuration.
-
-## Authentication and Collaboration
-
-Windsurf offers several options for authentication and collaboration:
-
-### Codeium Account Integration
-
-You can connect Windsurf to your Codeium account to enable AI features:
-
-1. In Windsurf, click on your profile icon in the top right corner
-2. Select "Sign in with Codeium"
-3. Complete the authentication process
-4. AI features like code completion and chat will now be available
-
-### Collaboration Features
-
-Windsurf excels at real-time collaboration, which works well in Coder environments:
-
-1. To share your session with other users:
-   - Click the "Collaborate" button in the toolbar
-   - Generate a sharing link
-   - Send the link to your collaborators
-
-2. Collaborators can join your session and:
-   - See your cursor and selections in real-time
-   - Make edits that appear instantly
-   - Use the built-in chat to communicate
-   - View and participate in AI code completions
-
-These collaboration features are particularly useful in Coder environments where teams already share infrastructure.
+1. Windsurf prompts you to open a workspace, or you can use the Command Palette to run **Coder: Open Workspace**.
 
 > [!NOTE]
 > If you have any suggestions or experience any issues, please
-> [create a GitHub issue](https://github.com/coder/coder/issues) or share in
+> [create a GitHub issue](https://github.com/coder/coder/issues/new?title=docs%3A+windsurf+request+title+here&labels=["customer-reported","docs"]&body=please+enter+your+request+here) or share in
 > [our Discord channel](https://discord.gg/coder).
