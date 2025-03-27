@@ -247,6 +247,21 @@ func (mr *MockStoreMockRecorder) CleanTailnetTunnels(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanTailnetTunnels", reflect.TypeOf((*MockStore)(nil).CleanTailnetTunnels), ctx)
 }
 
+// CountInProgressPrebuilds mocks base method.
+func (m *MockStore) CountInProgressPrebuilds(ctx context.Context) ([]database.CountInProgressPrebuildsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountInProgressPrebuilds", ctx)
+	ret0, _ := ret[0].([]database.CountInProgressPrebuildsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountInProgressPrebuilds indicates an expected call of CountInProgressPrebuilds.
+func (mr *MockStoreMockRecorder) CountInProgressPrebuilds(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountInProgressPrebuilds", reflect.TypeOf((*MockStore)(nil).CountInProgressPrebuilds), ctx)
+}
+
 // CountUnreadInboxNotificationsByUserID mocks base method.
 func (m *MockStore) CountUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
 	m.ctrl.T.Helper()
@@ -2150,21 +2165,6 @@ func (m *MockStore) GetPrebuildMetrics(ctx context.Context) ([]database.GetPrebu
 func (mr *MockStoreMockRecorder) GetPrebuildMetrics(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPrebuildMetrics", reflect.TypeOf((*MockStore)(nil).GetPrebuildMetrics), ctx)
-}
-
-// GetPrebuildsInProgress mocks base method.
-func (m *MockStore) GetPrebuildsInProgress(ctx context.Context) ([]database.GetPrebuildsInProgressRow, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetPrebuildsInProgress", ctx)
-	ret0, _ := ret[0].([]database.GetPrebuildsInProgressRow)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetPrebuildsInProgress indicates an expected call of GetPrebuildsInProgress.
-func (mr *MockStoreMockRecorder) GetPrebuildsInProgress(ctx any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPrebuildsInProgress", reflect.TypeOf((*MockStore)(nil).GetPrebuildsInProgress), ctx)
 }
 
 // GetPresetByWorkspaceBuildID mocks base method.

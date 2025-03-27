@@ -126,7 +126,7 @@ func TestOutdatedPrebuilds(t *testing.T) {
 	}
 
 	// GIVEN: no in-progress builds.
-	var inProgress []database.GetPrebuildsInProgressRow
+	var inProgress []database.CountInProgressPrebuildsRow
 
 	// WHEN: calculating the outdated preset's state.
 	state := prebuilds.NewReconciliationState(presets, running, inProgress, nil)
@@ -324,7 +324,7 @@ func TestInProgressActions(t *testing.T) {
 			}
 
 			// GIVEN: one prebuild for the old preset which is currently transitioning.
-			inProgress := []database.GetPrebuildsInProgressRow{
+			inProgress := []database.CountInProgressPrebuildsRow{
 				{
 					TemplateID:        current.templateID,
 					TemplateVersionID: current.templateVersionID,
@@ -373,7 +373,7 @@ func TestExtraneous(t *testing.T) {
 	}
 
 	// GIVEN: NO prebuilds in progress.
-	var inProgress []database.GetPrebuildsInProgressRow
+	var inProgress []database.CountInProgressPrebuildsRow
 
 	// WHEN: calculating the current preset's state.
 	state := prebuilds.NewReconciliationState(presets, running, inProgress, nil)
@@ -408,7 +408,7 @@ func TestDeprecated(t *testing.T) {
 	}
 
 	// GIVEN: NO prebuilds in progress.
-	var inProgress []database.GetPrebuildsInProgressRow
+	var inProgress []database.CountInProgressPrebuildsRow
 
 	// WHEN: calculating the current preset's state.
 	state := prebuilds.NewReconciliationState(presets, running, inProgress, nil)
@@ -442,7 +442,7 @@ func TestLatestBuildFailed(t *testing.T) {
 	}
 
 	// GIVEN: NO prebuilds in progress.
-	var inProgress []database.GetPrebuildsInProgressRow
+	var inProgress []database.CountInProgressPrebuildsRow
 
 	// GIVEN: a backoff entry.
 	lastBuildTime := clock.Now()

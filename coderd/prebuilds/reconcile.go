@@ -14,7 +14,7 @@ import (
 type ReconciliationState struct {
 	Presets             []database.GetTemplatePresetsWithPrebuildsRow
 	RunningPrebuilds    []database.GetRunningPrebuildsRow
-	PrebuildsInProgress []database.GetPrebuildsInProgressRow
+	PrebuildsInProgress []database.CountInProgressPrebuildsRow
 	Backoffs            []database.GetPresetsBackoffRow
 }
 
@@ -22,7 +22,7 @@ type ReconciliationState struct {
 type PresetState struct {
 	Preset     database.GetTemplatePresetsWithPrebuildsRow
 	Running    []database.GetRunningPrebuildsRow
-	InProgress []database.GetPrebuildsInProgressRow
+	InProgress []database.CountInProgressPrebuildsRow
 	Backoff    *database.GetPresetsBackoffRow
 }
 
@@ -41,7 +41,7 @@ type ReconciliationActions struct {
 }
 
 func NewReconciliationState(presets []database.GetTemplatePresetsWithPrebuildsRow, runningPrebuilds []database.GetRunningPrebuildsRow,
-	prebuildsInProgress []database.GetPrebuildsInProgressRow, backoffs []database.GetPresetsBackoffRow,
+	prebuildsInProgress []database.CountInProgressPrebuildsRow, backoffs []database.GetPresetsBackoffRow,
 ) ReconciliationState {
 	return ReconciliationState{Presets: presets, RunningPrebuilds: runningPrebuilds, PrebuildsInProgress: prebuildsInProgress, Backoffs: backoffs}
 }
@@ -67,7 +67,7 @@ func (s ReconciliationState) FilterByPreset(presetID uuid.UUID) (*PresetState, e
 	// and back, or a template is updated from one version to another.
 	// We group by the template so that all prebuilds being provisioned for a prebuild are inhibited if any prebuild for
 	// any preset in that template are in progress, to prevent clobbering.
-	inProgress := slice.Filter(s.PrebuildsInProgress, func(prebuild database.GetPrebuildsInProgressRow) bool {
+	inProgress := slice.Filter(s.PrebuildsInProgress, func(prebuild database.CountInProgressPrebuildsRow) bool {
 		return prebuild.TemplateID == preset.TemplateID
 	})
 

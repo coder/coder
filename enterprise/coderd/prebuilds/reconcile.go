@@ -258,7 +258,7 @@ func (c *StoreReconciler) SnapshotState(ctx context.Context, store database.Stor
 			return xerrors.Errorf("failed to get running prebuilds: %w", err)
 		}
 
-		allPrebuildsInProgress, err := db.GetPrebuildsInProgress(ctx)
+		allPrebuildsInProgress, err := db.CountInProgressPrebuilds(ctx)
 		if err != nil {
 			return xerrors.Errorf("failed to get prebuilds in progress: %w", err)
 		}
