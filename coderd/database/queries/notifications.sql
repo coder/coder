@@ -189,3 +189,28 @@ WHERE
 INSERT INTO notification_report_generator_logs (notification_template_id, last_generated_at) VALUES (@notification_template_id, @last_generated_at)
 ON CONFLICT (notification_template_id) DO UPDATE set last_generated_at = EXCLUDED.last_generated_at
 WHERE notification_report_generator_logs.notification_template_id = EXCLUDED.notification_template_id;
+
+-- name: GetWebpushSubscriptionsByUserID :many
+SELECT *
+FROM webpush_subscriptions
+WHERE user_id = @user_id::uuid;
+
+-- name: InsertWebpushSubscription :one
+INSERT INTO webpush_subscriptions (user_id, created_at, endpoint, endpoint_p256dh_key, endpoint_auth_key)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING *;
+
+-- name: DeleteWebpushSubscriptions :exec
+DELETE FROM webpush_subscriptions
+WHERE id = ANY(@ids::uuid[]);
+
+-- name: DeleteWebpushSubscriptionByUserIDAndEndpoint :exec
+DELETE FROM webpush_subscriptions
+WHERE user_id = @user_id AND endpoint = @endpoint;
+
+-- name: DeleteAllWebpushSubscriptions :exec
+-- Deletes all existing webpush subscriptions.
+-- This should be called when the VAPID keypair is regenerated, as the old
+-- keypair will no longer be valid and all existing subscriptions will need to
+-- be recreated.
+TRUNCATE TABLE webpush_subscriptions;

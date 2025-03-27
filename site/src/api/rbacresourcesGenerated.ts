@@ -157,6 +157,11 @@ export const RBACResourceActions: Partial<
 		update: "update an existing user",
 		update_personal: "update personal data",
 	},
+	webpush_subscription: {
+		create: "create webpush subscriptions",
+		delete: "delete webpush subscriptions",
+		read: "read webpush subscriptions",
+	},
 	workspace: {
 		application_connect: "connect to workspace apps via browser",
 		create: "create a new workspace",
