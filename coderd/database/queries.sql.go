@@ -5978,7 +5978,7 @@ func (q *sqlQuerier) GetPrebuildsInProgress(ctx context.Context) ([]GetPrebuilds
 const getPresetsBackoff = `-- name: GetPresetsBackoff :many
 WITH filtered_builds AS (
 	-- Only select builds which are for prebuild creations
-	SELECT wlb.id, wlb.created_at, wlb.updated_at, wlb.workspace_id, wlb.template_version_id, wlb.build_number, wlb.transition, wlb.initiator_id, wlb.provisioner_state, wlb.job_id, wlb.deadline, wlb.reason, wlb.daily_cost, wlb.max_deadline, wlb.template_version_preset_id, tvp.id AS preset_id, pj.job_status, tvp.desired_instances
+	SELECT wlb.template_version_id, wlb.created_at, tvp.id AS preset_id, pj.job_status, tvp.desired_instances
 	FROM template_version_presets tvp
 			 INNER JOIN workspace_latest_builds wlb ON wlb.template_version_preset_id = tvp.id
              INNER JOIN provisioner_jobs pj ON wlb.job_id = pj.id
@@ -5989,8 +5989,8 @@ WITH filtered_builds AS (
 ),
 time_sorted_builds AS (
     -- Group builds by template version, then sort each group by created_at.
-	SELECT fb.id, fb.created_at, fb.updated_at, fb.workspace_id, fb.template_version_id, fb.build_number, fb.transition, fb.initiator_id, fb.provisioner_state, fb.job_id, fb.deadline, fb.reason, fb.daily_cost, fb.max_deadline, fb.template_version_preset_id, fb.preset_id, fb.job_status, fb.desired_instances,
-	    ROW_NUMBER() OVER (PARTITION BY fb.template_version_preset_id ORDER BY fb.created_at DESC) as rn
+	SELECT fb.template_version_id, fb.created_at, fb.preset_id, fb.job_status, fb.desired_instances,
+	    ROW_NUMBER() OVER (PARTITION BY fb.preset_id ORDER BY fb.created_at DESC) as rn
 	FROM filtered_builds fb
 ),
 failed_count AS (
