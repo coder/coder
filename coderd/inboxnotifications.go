@@ -39,7 +39,6 @@ const (
 var fallbackIcons = map[uuid.UUID]string{
 	// workspace related notifications
 	notifications.TemplateWorkspaceCreated:           FallbackIconWorkspace,
-	notifications.TemplateWorkspaceCreated:           FallbackIconWorkspace,
 	notifications.TemplateWorkspaceManuallyUpdated:   FallbackIconWorkspace,
 	notifications.TemplateWorkspaceDeleted:           FallbackIconWorkspace,
 	notifications.TemplateWorkspaceAutobuildFailed:   FallbackIconWorkspace,
@@ -63,27 +62,30 @@ var fallbackIcons = map[uuid.UUID]string{
 	notifications.TemplateTemplateDeleted:             FallbackIconTemplate,
 	notifications.TemplateTemplateDeprecated:          FallbackIconTemplate,
 	notifications.TemplateWorkspaceBuildsFailedReport: FallbackIconTemplate,
+}
 
-	// other related notifications
-	notifications.TemplateTestNotification: FallbackIconOther,
+func SetInboxNotificationIcon(notif *codersdk.InboxNotification) {
+	if notif.Icon != "" {
+		return
+	}
+
+	fallbackIcon, ok := fallbackIcons[notif.TemplateID]
+	if !ok {
+		fallbackIcon = FallbackIconOther
+	}
+
+	notif.Icon = fallbackIcon
 }
 
 // convertInboxNotificationResponse works as a util function to transform a database.InboxNotification to codersdk.InboxNotification
 func convertInboxNotificationResponse(ctx context.Context, logger slog.Logger, notif database.InboxNotification) codersdk.InboxNotification {
-	return codersdk.InboxNotification{
+	convertedNotif := codersdk.InboxNotification{
 		ID:         notif.ID,
 		UserID:     notif.UserID,
 		TemplateID: notif.TemplateID,
 		Targets:    notif.Targets,
 		Title:      notif.Title,
 		Content:    notif.Content,
-		Icon: func() string {
-			if notif.Icon != "" {
-				return notif.Icon
-			}
-
-			return fallbackIcons[notif.TemplateID]
-		}(),
 		Actions: func() []codersdk.InboxNotificationAction {
 			var actionsList []codersdk.InboxNotificationAction
 			err := json.Unmarshal([]byte(notif.Actions), &actionsList)
@@ -100,6 +102,9 @@ func convertInboxNotificationResponse(ctx context.Context, logger slog.Logger, n
 		}(),
 		CreatedAt: notif.CreatedAt,
 	}
+
+	SetInboxNotificationIcon(&convertedNotif)
+	return convertedNotif
 }
 
 // watchInboxNotifications watches for new inbox notifications and sends them to the client.
@@ -191,10 +196,7 @@ func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request)
 					}
 				}
 
-				// convert icon to fallback if required
-				if payload.InboxNotification.Icon == "" {
-					payload.InboxNotification.Icon = fallbackIcons[payload.InboxNotification.TemplateID]
-				}
+				SetInboxNotificationIcon(&payload.InboxNotification)
 
 				// keep a safe guard in case of latency to push notifications through websocket
 				select {
