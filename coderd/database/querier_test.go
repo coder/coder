@@ -4147,7 +4147,7 @@ func TestGetPresetsBackoff(t *testing.T) {
 			require.Equal(t, backoff.PresetID, tmpl1V1.preset.ID)
 			require.Equal(t, int32(5), backoff.NumFailed)
 			// make sure LastBuildAt is equal to latest failed build timestamp
-			require.Equal(t, 0, now.Compare(backoff.LastBuildAt.(time.Time)))
+			require.Equal(t, 0, now.Compare(backoff.LastBuildAt))
 		}
 	})
 
