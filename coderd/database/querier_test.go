@@ -3588,153 +3588,167 @@ func TestOrganizationDeleteTrigger(t *testing.T) {
 	})
 }
 
+type extTmplVersion struct {
+	database.TemplateVersion
+	preset database.TemplateVersionPreset
+}
+
+func createTemplate(t *testing.T, db database.Store, orgID uuid.UUID, userID uuid.UUID) database.Template {
+	// create template
+	tmpl := dbgen.Template(t, db, database.Template{
+		OrganizationID:  orgID,
+		CreatedBy:       userID,
+		ActiveVersionID: uuid.New(),
+	})
+
+	return tmpl
+}
+
+type tmplVersionOpts struct {
+	DesiredInstances int
+}
+
+func createTmplVersion(
+	t *testing.T,
+	db database.Store,
+	tmpl database.Template,
+	versionId uuid.UUID,
+	now time.Time,
+	opts *tmplVersionOpts,
+) extTmplVersion {
+	// Create template version with corresponding preset and preset prebuild
+	tmplVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		ID: versionId,
+		TemplateID: uuid.NullUUID{
+			UUID:  tmpl.ID,
+			Valid: true,
+		},
+		OrganizationID: tmpl.OrganizationID,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+		CreatedBy:      tmpl.CreatedBy,
+	})
+	desiredInstances := 1
+	if opts != nil {
+		desiredInstances = opts.DesiredInstances
+	}
+	preset := dbgen.Preset(t, db, database.InsertPresetParams{
+		TemplateVersionID: tmplVersion.ID,
+		Name:              "preset",
+		DesiredInstances: sql.NullInt32{
+			Int32: int32(desiredInstances),
+			Valid: true,
+		},
+	})
+
+	return extTmplVersion{
+		TemplateVersion: tmplVersion,
+		preset:          preset,
+	}
+}
+
+type workspaceBuildOpts struct {
+	successfulJob  bool
+	createdAt      time.Time
+	readyAgents    int
+	notReadyAgents int
+}
+
+func createWorkspaceBuild(
+	t *testing.T,
+	ctx context.Context,
+	db database.Store,
+	tmpl database.Template,
+	extTmplVersion extTmplVersion,
+	orgID uuid.UUID,
+	now time.Time,
+	opts *workspaceBuildOpts,
+) {
+	// Create job with corresponding resource and agent
+	jobError := sql.NullString{String: "failed", Valid: true}
+	if opts != nil && opts.successfulJob {
+		jobError = sql.NullString{}
+	}
+	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+		OrganizationID: orgID,
+
+		CreatedAt: now.Add(-1 * time.Minute),
+		Error:     jobError,
+	})
+
+	// create ready agents
+	readyAgents := 0
+	if opts != nil {
+		readyAgents = opts.readyAgents
+	}
+	for i := 0; i < readyAgents; i++ {
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: job.ID,
+		})
+		agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resource.ID,
+		})
+		err := db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+			ID:             agent.ID,
+			LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+		})
+		require.NoError(t, err)
+	}
+
+	// create not ready agents
+	notReadyAgents := 1
+	if opts != nil {
+		notReadyAgents = opts.notReadyAgents
+	}
+	for i := 0; i < notReadyAgents; i++ {
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: job.ID,
+		})
+		agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resource.ID,
+		})
+		err := db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+			ID:             agent.ID,
+			LifecycleState: database.WorkspaceAgentLifecycleStateCreated,
+		})
+		require.NoError(t, err)
+	}
+
+	// Create corresponding workspace and workspace build
+	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OwnerID:        uuid.MustParse("c42fdf75-3097-471c-8c33-fb52454d81c0"),
+		OrganizationID: tmpl.OrganizationID,
+		TemplateID:     tmpl.ID,
+	})
+	createdAt := now
+	if opts != nil {
+		createdAt = opts.createdAt
+	}
+	dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		CreatedAt:         createdAt,
+		WorkspaceID:       workspace.ID,
+		TemplateVersionID: extTmplVersion.ID,
+		BuildNumber:       1,
+		Transition:        database.WorkspaceTransitionStart,
+		InitiatorID:       tmpl.CreatedBy,
+		JobID:             job.ID,
+		TemplateVersionPresetID: uuid.NullUUID{
+			UUID:  extTmplVersion.preset.ID,
+			Valid: true,
+		},
+	})
+}
+
 func TestWorkspacePrebuildsView(t *testing.T) {
 	t.Parallel()
 	if !dbtestutil.WillUsePostgres() {
 		t.SkipNow()
 	}
 
-	type extTmplVersion struct {
-		database.TemplateVersion
-		preset database.TemplateVersionPreset
-	}
-
 	now := dbtime.Now()
 	orgID := uuid.New()
 	userID := uuid.New()
-
-	createTemplate := func(db database.Store) database.Template {
-		// create template
-		tmpl := dbgen.Template(t, db, database.Template{
-			OrganizationID:  orgID,
-			CreatedBy:       userID,
-			ActiveVersionID: uuid.New(),
-		})
-
-		return tmpl
-	}
-	type tmplVersionOpts struct {
-		DesiredInstances int
-	}
-	createTmplVersion := func(db database.Store, tmpl database.Template, versionId uuid.UUID, opts *tmplVersionOpts) extTmplVersion {
-		// Create template version with corresponding preset and preset prebuild
-		tmplVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-			ID: versionId,
-			TemplateID: uuid.NullUUID{
-				UUID:  tmpl.ID,
-				Valid: true,
-			},
-			OrganizationID: tmpl.OrganizationID,
-			CreatedAt:      now,
-			UpdatedAt:      now,
-			CreatedBy:      tmpl.CreatedBy,
-		})
-		desiredInstances := 1
-		if opts != nil {
-			desiredInstances = opts.DesiredInstances
-		}
-		preset := dbgen.Preset(t, db, database.InsertPresetParams{
-			TemplateVersionID: tmplVersion.ID,
-			Name:              "preset",
-			DesiredInstances: sql.NullInt32{
-				Int32: int32(desiredInstances),
-				Valid: true,
-			},
-		})
-
-		return extTmplVersion{
-			TemplateVersion: tmplVersion,
-			preset:          preset,
-		}
-	}
-	type workspaceBuildOpts struct {
-		successfulJob  bool
-		createdAt      time.Time
-		readyAgents    int
-		notReadyAgents int
-	}
-	createWorkspaceBuild := func(
-		ctx context.Context,
-		db database.Store,
-		tmpl database.Template,
-		extTmplVersion extTmplVersion,
-		opts *workspaceBuildOpts,
-	) {
-		// Create job with corresponding resource and agent
-		jobError := sql.NullString{String: "failed", Valid: true}
-		if opts != nil && opts.successfulJob {
-			jobError = sql.NullString{}
-		}
-		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
-			Type:           database.ProvisionerJobTypeWorkspaceBuild,
-			OrganizationID: orgID,
-
-			CreatedAt: now.Add(-1 * time.Minute),
-			Error:     jobError,
-		})
-
-		// create ready agents
-		readyAgents := 0
-		if opts != nil {
-			readyAgents = opts.readyAgents
-		}
-		for i := 0; i < readyAgents; i++ {
-			resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
-				JobID: job.ID,
-			})
-			agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
-				ResourceID: resource.ID,
-			})
-			err := db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
-				ID:             agent.ID,
-				LifecycleState: database.WorkspaceAgentLifecycleStateReady,
-			})
-			require.NoError(t, err)
-		}
-
-		// create not ready agents
-		notReadyAgents := 1
-		if opts != nil {
-			notReadyAgents = opts.notReadyAgents
-		}
-		for i := 0; i < notReadyAgents; i++ {
-			resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
-				JobID: job.ID,
-			})
-			agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
-				ResourceID: resource.ID,
-			})
-			err := db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
-				ID:             agent.ID,
-				LifecycleState: database.WorkspaceAgentLifecycleStateCreated,
-			})
-			require.NoError(t, err)
-		}
-
-		// Create corresponding workspace and workspace build
-		workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
-			OwnerID:        uuid.MustParse("c42fdf75-3097-471c-8c33-fb52454d81c0"),
-			OrganizationID: tmpl.OrganizationID,
-			TemplateID:     tmpl.ID,
-		})
-		createdAt := now
-		if opts != nil {
-			createdAt = opts.createdAt
-		}
-		dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-			CreatedAt:         createdAt,
-			WorkspaceID:       workspace.ID,
-			TemplateVersionID: extTmplVersion.ID,
-			BuildNumber:       1,
-			Transition:        database.WorkspaceTransitionStart,
-			InitiatorID:       tmpl.CreatedBy,
-			JobID:             job.ID,
-			TemplateVersionPresetID: uuid.NullUUID{
-				UUID:  extTmplVersion.preset.ID,
-				Valid: true,
-			},
-		})
-	}
 
 	type workspacePrebuild struct {
 		ID              uuid.UUID
@@ -3816,9 +3830,9 @@ func TestWorkspacePrebuildsView(t *testing.T) {
 				ID: userID,
 			})
 
-			tmpl := createTemplate(db)
-			tmplV1 := createTmplVersion(db, tmpl, tmpl.ActiveVersionID, nil)
-			createWorkspaceBuild(ctx, db, tmpl, tmplV1, &workspaceBuildOpts{
+			tmpl := createTemplate(t, db, orgID, userID)
+			tmplV1 := createTmplVersion(t, db, tmpl, tmpl.ActiveVersionID, now, nil)
+			createWorkspaceBuild(t, ctx, db, tmpl, tmplV1, orgID, now, &workspaceBuildOpts{
 				readyAgents:    tc.readyAgents,
 				notReadyAgents: tc.notReadyAgents,
 			})
@@ -3836,112 +3850,10 @@ func TestGetPresetsBackoff(t *testing.T) {
 		t.SkipNow()
 	}
 
-	type extTmplVersion struct {
-		database.TemplateVersion
-		preset database.TemplateVersionPreset
-	}
-
 	now := dbtime.Now()
 	orgID := uuid.New()
 	userID := uuid.New()
 
-	createTemplate := func(db database.Store) database.Template {
-		// create template
-		tmpl := dbgen.Template(t, db, database.Template{
-			OrganizationID:  orgID,
-			CreatedBy:       userID,
-			ActiveVersionID: uuid.New(),
-		})
-
-		return tmpl
-	}
-	type tmplVersionOpts struct {
-		DesiredInstances int
-	}
-	createTmplVersion := func(db database.Store, tmpl database.Template, versionId uuid.UUID, opts *tmplVersionOpts) extTmplVersion {
-		// Create template version with corresponding preset and preset prebuild
-		tmplVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-			ID: versionId,
-			TemplateID: uuid.NullUUID{
-				UUID:  tmpl.ID,
-				Valid: true,
-			},
-			OrganizationID: tmpl.OrganizationID,
-			CreatedAt:      now,
-			UpdatedAt:      now,
-			CreatedBy:      tmpl.CreatedBy,
-		})
-		desiredInstances := 1
-		if opts != nil {
-			desiredInstances = opts.DesiredInstances
-		}
-		preset := dbgen.Preset(t, db, database.InsertPresetParams{
-			TemplateVersionID: tmplVersion.ID,
-			Name:              "preset",
-			DesiredInstances: sql.NullInt32{
-				Int32: int32(desiredInstances),
-				Valid: true,
-			},
-		})
-
-		return extTmplVersion{
-			TemplateVersion: tmplVersion,
-			preset:          preset,
-		}
-	}
-	type workspaceBuildOpts struct {
-		successfulJob bool
-		createdAt     time.Time
-	}
-	createWorkspaceBuild := func(
-		db database.Store,
-		tmpl database.Template,
-		extTmplVersion extTmplVersion,
-		opts *workspaceBuildOpts,
-	) {
-		// Create job with corresponding resource and agent
-		jobError := sql.NullString{String: "failed", Valid: true}
-		if opts != nil && opts.successfulJob {
-			jobError = sql.NullString{}
-		}
-		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
-			Type:           database.ProvisionerJobTypeWorkspaceBuild,
-			OrganizationID: orgID,
-
-			CreatedAt: now.Add(-1 * time.Minute),
-			Error:     jobError,
-		})
-		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
-			JobID: job.ID,
-		})
-		dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
-			ResourceID: resource.ID,
-		})
-
-		// Create corresponding workspace and workspace build
-		workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
-			OwnerID:        tmpl.CreatedBy,
-			OrganizationID: tmpl.OrganizationID,
-			TemplateID:     tmpl.ID,
-		})
-		createdAt := now
-		if opts != nil {
-			createdAt = opts.createdAt
-		}
-		dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-			CreatedAt:         createdAt,
-			WorkspaceID:       workspace.ID,
-			TemplateVersionID: extTmplVersion.ID,
-			BuildNumber:       1,
-			Transition:        database.WorkspaceTransitionStart,
-			InitiatorID:       tmpl.CreatedBy,
-			JobID:             job.ID,
-			TemplateVersionPresetID: uuid.NullUUID{
-				UUID:  extTmplVersion.preset.ID,
-				Valid: true,
-			},
-		})
-	}
 	findBackoffByTmplVersionID := func(backoffs []database.GetPresetsBackoffRow, tmplVersionID uuid.UUID) *database.GetPresetsBackoffRow {
 		for _, backoff := range backoffs {
 			if backoff.TemplateVersionID == tmplVersionID {
@@ -3964,9 +3876,9 @@ func TestGetPresetsBackoff(t *testing.T) {
 			ID: userID,
 		})
 
-		tmpl := createTemplate(db)
-		tmplV1 := createTmplVersion(db, tmpl, tmpl.ActiveVersionID, nil)
-		createWorkspaceBuild(db, tmpl, tmplV1, nil)
+		tmpl := createTemplate(t, db, orgID, userID)
+		tmplV1 := createTmplVersion(t, db, tmpl, tmpl.ActiveVersionID, now, nil)
+		createWorkspaceBuild(t, ctx, db, tmpl, tmplV1, orgID, now, nil)
 
 		backoffs, err := db.GetPresetsBackoff(ctx, now.Add(-time.Hour))
 		require.NoError(t, err)
@@ -3990,11 +3902,11 @@ func TestGetPresetsBackoff(t *testing.T) {
 			ID: userID,
 		})
 
-		tmpl := createTemplate(db)
-		tmplV1 := createTmplVersion(db, tmpl, tmpl.ActiveVersionID, nil)
-		createWorkspaceBuild(db, tmpl, tmplV1, nil)
-		createWorkspaceBuild(db, tmpl, tmplV1, nil)
-		createWorkspaceBuild(db, tmpl, tmplV1, nil)
+		tmpl := createTemplate(t, db, orgID, userID)
+		tmplV1 := createTmplVersion(t, db, tmpl, tmpl.ActiveVersionID, now, nil)
+		createWorkspaceBuild(t, ctx, db, tmpl, tmplV1, orgID, now, nil)
+		createWorkspaceBuild(t, ctx, db, tmpl, tmplV1, orgID, now, nil)
+		createWorkspaceBuild(t, ctx, db, tmpl, tmplV1, orgID, now, nil)
 
 		backoffs, err := db.GetPresetsBackoff(ctx, now.Add(-time.Hour))
 		require.NoError(t, err)
@@ -4018,14 +3930,14 @@ func TestGetPresetsBackoff(t *testing.T) {
 			ID: userID,
 		})
 
-		tmpl := createTemplate(db)
-		tmplV1 := createTmplVersion(db, tmpl, uuid.New(), nil)
-		createWorkspaceBuild(db, tmpl, tmplV1, nil)
+		tmpl := createTemplate(t, db, orgID, userID)
+		tmplV1 := createTmplVersion(t, db, tmpl, uuid.New(), now, nil)
+		createWorkspaceBuild(t, ctx, db, tmpl, tmplV1, orgID, now, nil)
 
 		// Active Version
-		tmplV2 := createTmplVersion(db, tmpl, tmpl.ActiveVersionID, nil)
-		createWorkspaceBuild(db, tmpl, tmplV2, nil)
-		createWorkspaceBuild(db, tmpl, tmplV2, nil)
+		tmplV2 := createTmplVersion(t, db, tmpl, tmpl.ActiveVersionID, now, nil)
+		createWorkspaceBuild(t, ctx, db, tmpl, tmplV2, orgID, now, nil)
+		createWorkspaceBuild(t, ctx, db, tmpl, tmplV2, orgID, now, nil)
 
 		backoffs, err := db.GetPresetsBackoff(ctx, now.Add(-time.Hour))
 		require.NoError(t, err)
@@ -4049,13 +3961,13 @@ func TestGetPresetsBackoff(t *testing.T) {
 			ID: userID,
 		})
 
-		tmpl1 := createTemplate(db)
-		tmpl1V1 := createTmplVersion(db, tmpl1, tmpl1.ActiveVersionID, nil)
-		createWorkspaceBuild(db, tmpl1, tmpl1V1, nil)
+		tmpl1 := createTemplate(t, db, orgID, userID)
+		tmpl1V1 := createTmplVersion(t, db, tmpl1, tmpl1.ActiveVersionID, now, nil)
+		createWorkspaceBuild(t, ctx, db, tmpl1, tmpl1V1, orgID, now, nil)
 
-		tmpl2 := createTemplate(db)
-		tmpl2V1 := createTmplVersion(db, tmpl2, tmpl2.ActiveVersionID, nil)
-		createWorkspaceBuild(db, tmpl2, tmpl2V1, nil)
+		tmpl2 := createTemplate(t, db, orgID, userID)
+		tmpl2V1 := createTmplVersion(t, db, tmpl2, tmpl2.ActiveVersionID, now, nil)
+		createWorkspaceBuild(t, ctx, db, tmpl2, tmpl2V1, orgID, now, nil)
 
 		backoffs, err := db.GetPresetsBackoff(ctx, now.Add(-time.Hour))
 		require.NoError(t, err)
@@ -4087,23 +3999,23 @@ func TestGetPresetsBackoff(t *testing.T) {
 			ID: userID,
 		})
 
-		tmpl1 := createTemplate(db)
-		tmpl1V1 := createTmplVersion(db, tmpl1, tmpl1.ActiveVersionID, nil)
-		createWorkspaceBuild(db, tmpl1, tmpl1V1, nil)
+		tmpl1 := createTemplate(t, db, orgID, userID)
+		tmpl1V1 := createTmplVersion(t, db, tmpl1, tmpl1.ActiveVersionID, now, nil)
+		createWorkspaceBuild(t, ctx, db, tmpl1, tmpl1V1, orgID, now, nil)
 
-		tmpl2 := createTemplate(db)
-		tmpl2V1 := createTmplVersion(db, tmpl2, tmpl2.ActiveVersionID, nil)
-		createWorkspaceBuild(db, tmpl2, tmpl2V1, nil)
-		createWorkspaceBuild(db, tmpl2, tmpl2V1, nil)
+		tmpl2 := createTemplate(t, db, orgID, userID)
+		tmpl2V1 := createTmplVersion(t, db, tmpl2, tmpl2.ActiveVersionID, now, nil)
+		createWorkspaceBuild(t, ctx, db, tmpl2, tmpl2V1, orgID, now, nil)
+		createWorkspaceBuild(t, ctx, db, tmpl2, tmpl2V1, orgID, now, nil)
 
-		tmpl3 := createTemplate(db)
-		tmpl3V1 := createTmplVersion(db, tmpl3, uuid.New(), nil)
-		createWorkspaceBuild(db, tmpl3, tmpl3V1, nil)
+		tmpl3 := createTemplate(t, db, orgID, userID)
+		tmpl3V1 := createTmplVersion(t, db, tmpl3, uuid.New(), now, nil)
+		createWorkspaceBuild(t, ctx, db, tmpl3, tmpl3V1, orgID, now, nil)
 
-		tmpl3V2 := createTmplVersion(db, tmpl3, tmpl3.ActiveVersionID, nil)
-		createWorkspaceBuild(db, tmpl3, tmpl3V2, nil)
-		createWorkspaceBuild(db, tmpl3, tmpl3V2, nil)
-		createWorkspaceBuild(db, tmpl3, tmpl3V2, nil)
+		tmpl3V2 := createTmplVersion(t, db, tmpl3, tmpl3.ActiveVersionID, now, nil)
+		createWorkspaceBuild(t, ctx, db, tmpl3, tmpl3V2, orgID, now, nil)
+		createWorkspaceBuild(t, ctx, db, tmpl3, tmpl3V2, orgID, now, nil)
+		createWorkspaceBuild(t, ctx, db, tmpl3, tmpl3V2, orgID, now, nil)
 
 		backoffs, err := db.GetPresetsBackoff(ctx, now.Add(-time.Hour))
 		require.NoError(t, err)
@@ -4141,8 +4053,8 @@ func TestGetPresetsBackoff(t *testing.T) {
 			ID: userID,
 		})
 
-		tmpl1 := createTemplate(db)
-		tmpl1V1 := createTmplVersion(db, tmpl1, tmpl1.ActiveVersionID, nil)
+		tmpl1 := createTemplate(t, db, orgID, userID)
+		tmpl1V1 := createTmplVersion(t, db, tmpl1, tmpl1.ActiveVersionID, now, nil)
 		_ = tmpl1V1
 
 		backoffs, err := db.GetPresetsBackoff(ctx, now.Add(-time.Hour))
@@ -4162,14 +4074,14 @@ func TestGetPresetsBackoff(t *testing.T) {
 			ID: userID,
 		})
 
-		tmpl1 := createTemplate(db)
-		tmpl1V1 := createTmplVersion(db, tmpl1, tmpl1.ActiveVersionID, nil)
+		tmpl1 := createTemplate(t, db, orgID, userID)
+		tmpl1V1 := createTmplVersion(t, db, tmpl1, tmpl1.ActiveVersionID, now, nil)
 		successfulJobOpts := workspaceBuildOpts{
 			successfulJob: true,
 		}
-		createWorkspaceBuild(db, tmpl1, tmpl1V1, &successfulJobOpts)
-		createWorkspaceBuild(db, tmpl1, tmpl1V1, &successfulJobOpts)
-		createWorkspaceBuild(db, tmpl1, tmpl1V1, &successfulJobOpts)
+		createWorkspaceBuild(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &successfulJobOpts)
+		createWorkspaceBuild(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &successfulJobOpts)
+		createWorkspaceBuild(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &successfulJobOpts)
 
 		backoffs, err := db.GetPresetsBackoff(ctx, now.Add(-time.Hour))
 		require.NoError(t, err)
@@ -4188,8 +4100,8 @@ func TestGetPresetsBackoff(t *testing.T) {
 			ID: userID,
 		})
 
-		tmpl1 := createTemplate(db)
-		tmpl1V1 := createTmplVersion(db, tmpl1, tmpl1.ActiveVersionID, &tmplVersionOpts{
+		tmpl1 := createTemplate(t, db, orgID, userID)
+		tmpl1V1 := createTmplVersion(t, db, tmpl1, tmpl1.ActiveVersionID, now, &tmplVersionOpts{
 			DesiredInstances: 1,
 		})
 		failedJobOpts := workspaceBuildOpts{
@@ -4200,8 +4112,8 @@ func TestGetPresetsBackoff(t *testing.T) {
 			successfulJob: true,
 			createdAt:     now.Add(-1 * time.Minute),
 		}
-		createWorkspaceBuild(db, tmpl1, tmpl1V1, &failedJobOpts)
-		createWorkspaceBuild(db, tmpl1, tmpl1V1, &successfulJobOpts)
+		createWorkspaceBuild(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &failedJobOpts)
+		createWorkspaceBuild(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &successfulJobOpts)
 
 		backoffs, err := db.GetPresetsBackoff(ctx, now.Add(-time.Hour))
 		require.NoError(t, err)
@@ -4220,23 +4132,23 @@ func TestGetPresetsBackoff(t *testing.T) {
 			ID: userID,
 		})
 
-		tmpl1 := createTemplate(db)
-		tmpl1V1 := createTmplVersion(db, tmpl1, tmpl1.ActiveVersionID, &tmplVersionOpts{
+		tmpl1 := createTemplate(t, db, orgID, userID)
+		tmpl1V1 := createTmplVersion(t, db, tmpl1, tmpl1.ActiveVersionID, now, &tmplVersionOpts{
 			DesiredInstances: 3,
 		})
-		createWorkspaceBuild(db, tmpl1, tmpl1V1, &workspaceBuildOpts{
+		createWorkspaceBuild(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &workspaceBuildOpts{
 			successfulJob: false,
 			createdAt:     now.Add(-4 * time.Minute),
 		})
-		createWorkspaceBuild(db, tmpl1, tmpl1V1, &workspaceBuildOpts{
+		createWorkspaceBuild(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &workspaceBuildOpts{
 			successfulJob: true,
 			createdAt:     now.Add(-3 * time.Minute),
 		})
-		createWorkspaceBuild(db, tmpl1, tmpl1V1, &workspaceBuildOpts{
+		createWorkspaceBuild(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &workspaceBuildOpts{
 			successfulJob: true,
 			createdAt:     now.Add(-2 * time.Minute),
 		})
-		createWorkspaceBuild(db, tmpl1, tmpl1V1, &workspaceBuildOpts{
+		createWorkspaceBuild(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &workspaceBuildOpts{
 			successfulJob: true,
 			createdAt:     now.Add(-1 * time.Minute),
 		})
@@ -4258,19 +4170,19 @@ func TestGetPresetsBackoff(t *testing.T) {
 			ID: userID,
 		})
 
-		tmpl1 := createTemplate(db)
-		tmpl1V1 := createTmplVersion(db, tmpl1, tmpl1.ActiveVersionID, &tmplVersionOpts{
+		tmpl1 := createTemplate(t, db, orgID, userID)
+		tmpl1V1 := createTmplVersion(t, db, tmpl1, tmpl1.ActiveVersionID, now, &tmplVersionOpts{
 			DesiredInstances: 3,
 		})
-		createWorkspaceBuild(db, tmpl1, tmpl1V1, &workspaceBuildOpts{
+		createWorkspaceBuild(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &workspaceBuildOpts{
 			successfulJob: false,
 			createdAt:     now.Add(-3 * time.Minute),
 		})
-		createWorkspaceBuild(db, tmpl1, tmpl1V1, &workspaceBuildOpts{
+		createWorkspaceBuild(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &workspaceBuildOpts{
 			successfulJob: true,
 			createdAt:     now.Add(-2 * time.Minute),
 		})
-		createWorkspaceBuild(db, tmpl1, tmpl1V1, &workspaceBuildOpts{
+		createWorkspaceBuild(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &workspaceBuildOpts{
 			successfulJob: true,
 			createdAt:     now.Add(-1 * time.Minute),
 		})
@@ -4300,27 +4212,27 @@ func TestGetPresetsBackoff(t *testing.T) {
 		})
 		lookbackPeriod := time.Hour
 
-		tmpl1 := createTemplate(db)
-		tmpl1V1 := createTmplVersion(db, tmpl1, tmpl1.ActiveVersionID, &tmplVersionOpts{
+		tmpl1 := createTemplate(t, db, orgID, userID)
+		tmpl1V1 := createTmplVersion(t, db, tmpl1, tmpl1.ActiveVersionID, now, &tmplVersionOpts{
 			DesiredInstances: 3,
 		})
-		createWorkspaceBuild(db, tmpl1, tmpl1V1, &workspaceBuildOpts{
+		createWorkspaceBuild(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &workspaceBuildOpts{
 			successfulJob: false,
 			createdAt:     now.Add(-lookbackPeriod - time.Minute), // earlier than lookback period - skipped
 		})
-		createWorkspaceBuild(db, tmpl1, tmpl1V1, &workspaceBuildOpts{
+		createWorkspaceBuild(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &workspaceBuildOpts{
 			successfulJob: false,
 			createdAt:     now.Add(-4 * time.Minute), // within lookback period - counted as failed job
 		})
-		createWorkspaceBuild(db, tmpl1, tmpl1V1, &workspaceBuildOpts{
+		createWorkspaceBuild(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &workspaceBuildOpts{
 			successfulJob: false,
 			createdAt:     now.Add(-3 * time.Minute), // within lookback period - counted as failed job
 		})
-		createWorkspaceBuild(db, tmpl1, tmpl1V1, &workspaceBuildOpts{
+		createWorkspaceBuild(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &workspaceBuildOpts{
 			successfulJob: true,
 			createdAt:     now.Add(-2 * time.Minute),
 		})
-		createWorkspaceBuild(db, tmpl1, tmpl1V1, &workspaceBuildOpts{
+		createWorkspaceBuild(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &workspaceBuildOpts{
 			successfulJob: true,
 			createdAt:     now.Add(-1 * time.Minute),
 		})
@@ -4350,31 +4262,31 @@ func TestGetPresetsBackoff(t *testing.T) {
 		})
 		lookbackPeriod := time.Hour
 
-		tmpl1 := createTemplate(db)
-		tmpl1V1 := createTmplVersion(db, tmpl1, tmpl1.ActiveVersionID, &tmplVersionOpts{
+		tmpl1 := createTemplate(t, db, orgID, userID)
+		tmpl1V1 := createTmplVersion(t, db, tmpl1, tmpl1.ActiveVersionID, now, &tmplVersionOpts{
 			DesiredInstances: 6,
 		})
-		createWorkspaceBuild(db, tmpl1, tmpl1V1, &workspaceBuildOpts{
+		createWorkspaceBuild(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &workspaceBuildOpts{
 			successfulJob: false,
 			createdAt:     now.Add(-lookbackPeriod - time.Minute), // earlier than lookback period - skipped
 		})
-		createWorkspaceBuild(db, tmpl1, tmpl1V1, &workspaceBuildOpts{
+		createWorkspaceBuild(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &workspaceBuildOpts{
 			successfulJob: false,
 			createdAt:     now.Add(-4 * time.Minute),
 		})
-		createWorkspaceBuild(db, tmpl1, tmpl1V1, &workspaceBuildOpts{
+		createWorkspaceBuild(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &workspaceBuildOpts{
 			successfulJob: false,
 			createdAt:     now.Add(-0 * time.Minute),
 		})
-		createWorkspaceBuild(db, tmpl1, tmpl1V1, &workspaceBuildOpts{
+		createWorkspaceBuild(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &workspaceBuildOpts{
 			successfulJob: false,
 			createdAt:     now.Add(-3 * time.Minute),
 		})
-		createWorkspaceBuild(db, tmpl1, tmpl1V1, &workspaceBuildOpts{
+		createWorkspaceBuild(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &workspaceBuildOpts{
 			successfulJob: false,
 			createdAt:     now.Add(-1 * time.Minute),
 		})
-		createWorkspaceBuild(db, tmpl1, tmpl1V1, &workspaceBuildOpts{
+		createWorkspaceBuild(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &workspaceBuildOpts{
 			successfulJob: false,
 			createdAt:     now.Add(-2 * time.Minute),
 		})
@@ -4406,11 +4318,12 @@ func TestGetPresetsBackoff(t *testing.T) {
 		})
 		lookbackPeriod := time.Hour
 
-		tmpl1 := createTemplate(db)
-		tmpl1V1 := createTmplVersion(db, tmpl1, tmpl1.ActiveVersionID, &tmplVersionOpts{
+		tmpl1 := createTemplate(t, db, orgID, userID)
+		tmpl1V1 := createTmplVersion(t, db, tmpl1, tmpl1.ActiveVersionID, now, &tmplVersionOpts{
 			DesiredInstances: 1,
 		})
-		createWorkspaceBuild(db, tmpl1, tmpl1V1, &workspaceBuildOpts{
+
+		createWorkspaceBuild(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &workspaceBuildOpts{
 			successfulJob: false,
 			createdAt:     now.Add(-lookbackPeriod - time.Minute), // earlier than lookback period - skipped
 		})
