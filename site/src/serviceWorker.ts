@@ -14,6 +14,10 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("push", (event) => {
+	if (!event.data) {
+		return;
+	}
+
 	let payload: WebpushMessage;
 	try {
 		payload = event.data?.json();
