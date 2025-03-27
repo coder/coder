@@ -1,4 +1,4 @@
-package main
+package files
 
 import (
 	"archive/tar"
@@ -38,6 +38,7 @@ type Cache struct {
 // 	atomic.
 // }
 
+// Acquire
 func (c *Cache) Acquire(fileID uuid.UUID) fs.FS {
 	return c.fetch(fileID).Load()
 }

@@ -1342,6 +1342,30 @@ func (q *sqlQuerier) GetFileByID(ctx context.Context, id uuid.UUID) (File, error
 	return i, err
 }
 
+const getFileIDByTemplateVersionID = `-- name: GetFileIDByTemplateVersionID :one
+SELECT
+	files.id
+FROM
+	files
+JOIN
+	provisioner_jobs ON
+		provisioner_jobs.storage_method = 'file'
+		AND provisioner_jobs.file_id = files.id
+JOIN
+	template_versions ON template_versions.job_id = provisioner_jobs.id
+WHERE
+	template_versions.id = $1
+LIMIT
+	1
+`
+
+func (q *sqlQuerier) GetFileIDByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, getFileIDByTemplateVersionID, templateVersionID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const getFileTemplates = `-- name: GetFileTemplates :many
 SELECT
 	files.id AS file_id,
@@ -10817,6 +10841,22 @@ type UpdateTemplateVersionExternalAuthProvidersByJobIDParams struct {
 func (q *sqlQuerier) UpdateTemplateVersionExternalAuthProvidersByJobID(ctx context.Context, arg UpdateTemplateVersionExternalAuthProvidersByJobIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateTemplateVersionExternalAuthProvidersByJobID, arg.JobID, arg.ExternalAuthProviders, arg.UpdatedAt)
 	return err
+}
+
+const getTemplateVersionTerraformValues = `-- name: GetTemplateVersionTerraformValues :one
+SELECT
+	template_version_terraform_values.template_version_id, template_version_terraform_values.updated_at, template_version_terraform_values.cached_plan
+FROM
+	template_version_terraform_values
+WHERE
+	template_version_terraform_values.template_version_id = $1
+`
+
+func (q *sqlQuerier) GetTemplateVersionTerraformValues(ctx context.Context, id uuid.UUID) (TemplateVersionTerraformValue, error) {
+	row := q.db.QueryRowContext(ctx, getTemplateVersionTerraformValues, id)
+	var i TemplateVersionTerraformValue
+	err := row.Scan(&i.TemplateVersionID, &i.UpdatedAt, &i.CachedPlan)
+	return i, err
 }
 
 const insertTemplateVersionTerraformValuesByJobID = `-- name: InsertTemplateVersionTerraformValuesByJobID :exec
