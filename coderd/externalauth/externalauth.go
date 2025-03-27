@@ -664,7 +664,7 @@ func copyDefaultSettings(config *codersdk.ExternalAuthConfig, defaults codersdk.
 	if config.Regex == "" {
 		config.Regex = defaults.Regex
 	}
-	if config.Scopes == nil || len(config.Scopes) == 0 {
+	if len(config.Scopes) == 0 {
 		config.Scopes = defaults.Scopes
 	}
 	if config.DeviceCodeURL == "" {
@@ -676,7 +676,7 @@ func copyDefaultSettings(config *codersdk.ExternalAuthConfig, defaults codersdk.
 	if config.DisplayIcon == "" {
 		config.DisplayIcon = defaults.DisplayIcon
 	}
-	if config.ExtraTokenKeys == nil || len(config.ExtraTokenKeys) == 0 {
+	if len(config.ExtraTokenKeys) == 0 {
 		config.ExtraTokenKeys = defaults.ExtraTokenKeys
 	}
 

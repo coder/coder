@@ -341,7 +341,7 @@ func TestSSH(t *testing.T) {
 
 		cmdDone := tGo(t, func() {
 			err := inv.WithContext(ctx).Run()
-			assert.ErrorIs(t, err, cliui.Canceled)
+			assert.ErrorIs(t, err, cliui.ErrCanceled)
 		})
 		pty.ExpectMatch(wantURL)
 		cancel()

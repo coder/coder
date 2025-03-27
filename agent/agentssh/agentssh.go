@@ -223,7 +223,7 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 				slog.F("destination_port", destinationPort))
 			return true
 		},
-		PtyCallback: func(ctx ssh.Context, pty ssh.Pty) bool {
+		PtyCallback: func(_ ssh.Context, _ ssh.Pty) bool {
 			return true
 		},
 		ReversePortForwardingCallback: func(ctx ssh.Context, bindHost string, bindPort uint32) bool {
@@ -240,7 +240,7 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 			"cancel-streamlocal-forward@openssh.com": unixForwardHandler.HandleSSHRequest,
 		},
 		X11Callback: s.x11Callback,
-		ServerConfigCallback: func(ctx ssh.Context) *gossh.ServerConfig {
+		ServerConfigCallback: func(_ ssh.Context) *gossh.ServerConfig {
 			return &gossh.ServerConfig{
 				NoClientAuth: true,
 			}
@@ -702,6 +702,7 @@ func (s *Server) startPTYSession(logger slog.Logger, session ptySession, magicTy
 					windowSize = nil
 					continue
 				}
+				// #nosec G115 - Safe conversions for terminal dimensions which are expected to be within uint16 range
 				resizeErr := ptty.Resize(uint16(win.Height), uint16(win.Width))
 				// If the pty is closed, then command has exited, no need to log.
 				if resizeErr != nil && !errors.Is(resizeErr, pty.ErrClosed) {

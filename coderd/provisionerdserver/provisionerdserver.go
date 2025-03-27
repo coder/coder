@@ -121,7 +121,7 @@ type server struct {
 // We use the null byte (0x00) in generating a canonical map key for tags, so
 // it cannot be used in the tag keys or values.
 
-var ErrorTagsContainNullByte = xerrors.New("tags cannot contain the null byte (0x00)")
+var ErrTagsContainNullByte = xerrors.New("tags cannot contain the null byte (0x00)")
 
 type Tags map[string]string
 
@@ -136,7 +136,7 @@ func (t Tags) ToJSON() (json.RawMessage, error) {
 func (t Tags) Valid() error {
 	for k, v := range t {
 		if slices.Contains([]byte(k), 0x00) || slices.Contains([]byte(v), 0x00) {
-			return ErrorTagsContainNullByte
+			return ErrTagsContainNullByte
 		}
 	}
 	return nil
@@ -1996,7 +1996,8 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			DisplayApps:              convertDisplayApps(prAgent.GetDisplayApps()),
 			InstanceMetadata:         pqtype.NullRawMessage{},
 			ResourceMetadata:         pqtype.NullRawMessage{},
-			DisplayOrder:             int32(prAgent.Order),
+			// #nosec G115 - Order represents a display order value that's always small and fits in int32
+			DisplayOrder: int32(prAgent.Order),
 		})
 		if err != nil {
 			return xerrors.Errorf("insert agent: %w", err)
@@ -2011,7 +2012,8 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				Key:              md.Key,
 				Timeout:          md.Timeout,
 				Interval:         md.Interval,
-				DisplayOrder:     int32(md.Order),
+				// #nosec G115 - Order represents a display order value that's always small and fits in int32
+				DisplayOrder: int32(md.Order),
 			}
 			err := db.InsertWorkspaceAgentMetadata(ctx, p)
 			if err != nil {
@@ -2197,9 +2199,10 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				HealthcheckInterval:  app.Healthcheck.Interval,
 				HealthcheckThreshold: app.Healthcheck.Threshold,
 				Health:               health,
-				DisplayOrder:         int32(app.Order),
-				Hidden:               app.Hidden,
-				OpenIn:               openIn,
+				// #nosec G115 - Order represents a display order value that's always small and fits in int32
+				DisplayOrder: int32(app.Order),
+				Hidden:       app.Hidden,
+				OpenIn:       openIn,
 			})
 			if err != nil {
 				return xerrors.Errorf("insert app: %w", err)

@@ -193,3 +193,35 @@ We are planning some changes to Coder Desktop that will make accessing secure co
 1. Web apps accessed on the configured hostnames will now function correctly in a secure context without requiring a restart.
 
 </div>
+
+## Troubleshooting
+
+### Mac: Issues updating Coder Desktop
+
+> No workspaces!
+
+And
+
+> Internal Error: The VPN must be started with the app open during first-time setup.
+
+Due to an issue with the way Coder Desktop works with the macOS [interprocess communication mechanism](https://developer.apple.com/documentation/xpc)(XPC) system network extension, core Desktop functionality can break when you upgrade the application.
+
+<div class="tabs">
+
+The resolution depends on which version of macOS you use:
+
+### macOS <=14
+
+1. Delete the application from `/Applications`.
+1. Restart your device.
+
+### macOS 15+
+
+1. Open **System Settings**
+1. Select **General**
+1. Select **Login Items & Extensions**
+1. Scroll down, and select the **ⓘ** for **Network Extensions**
+1. Select the **...** next to Coder Desktop, then **Delete Extension**, and follow the prompts.
+1. Re-open Coder Desktop and follow the prompts to reinstall the network extension.
+
+</div>
