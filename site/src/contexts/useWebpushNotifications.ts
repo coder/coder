@@ -67,7 +67,7 @@ export const useWebpushNotifications = (): WebpushNotifications => {
 				throw new Error("No keys or endpoint found");
 			}
 
-			await API.createNotificationPushSubscription("me", {
+			await API.createWebPushSubscription("me", {
 				endpoint: json.endpoint,
 				auth_key: json.keys.auth,
 				p256dh_key: json.keys.p256dh,
