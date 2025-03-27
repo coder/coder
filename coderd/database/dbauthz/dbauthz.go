@@ -34,8 +34,8 @@ var _ database.Store = (*querier)(nil)
 
 const wrapname = "dbauthz.querier"
 
-// NoActorError is returned if no actor is present in the context.
-var NoActorError = xerrors.Errorf("no authorization actor in context")
+// ErrNoActor is returned if no actor is present in the context.
+var ErrNoActor = xerrors.Errorf("no authorization actor in context")
 
 // NotAuthorizedError is a sentinel error that unwraps to sql.ErrNoRows.
 // This allows the internal error to be read by the caller if needed. Otherwise
@@ -70,7 +70,7 @@ func IsNotAuthorizedError(err error) bool {
 	if err == nil {
 		return false
 	}
-	if xerrors.Is(err, NoActorError) {
+	if xerrors.Is(err, ErrNoActor) {
 		return true
 	}
 
@@ -141,7 +141,7 @@ func (q *querier) Wrappers() []string {
 func (q *querier) authorizeContext(ctx context.Context, action policy.Action, object rbac.Objecter) error {
 	act, ok := ActorFromContext(ctx)
 	if !ok {
-		return NoActorError
+		return ErrNoActor
 	}
 
 	err := q.auth.Authorize(ctx, act, action, object.RBACObject())
@@ -494,7 +494,7 @@ func insertWithAction[
 		// Fetch the rbac subject
 		act, ok := ActorFromContext(ctx)
 		if !ok {
-			return empty, NoActorError
+			return empty, ErrNoActor
 		}
 
 		// Authorize the action
@@ -572,7 +572,7 @@ func fetchWithAction[
 		// Fetch the rbac subject
 		act, ok := ActorFromContext(ctx)
 		if !ok {
-			return empty, NoActorError
+			return empty, ErrNoActor
 		}
 
 		// Fetch the database object
@@ -648,7 +648,7 @@ func fetchAndQuery[
 		// Fetch the rbac subject
 		act, ok := ActorFromContext(ctx)
 		if !ok {
-			return empty, NoActorError
+			return empty, ErrNoActor
 		}
 
 		// Fetch the database object
@@ -682,7 +682,7 @@ func fetchWithPostFilter[
 		// Fetch the rbac subject
 		act, ok := ActorFromContext(ctx)
 		if !ok {
-			return empty, NoActorError
+			return empty, ErrNoActor
 		}
 
 		// Fetch the database object
@@ -701,7 +701,7 @@ func fetchWithPostFilter[
 func prepareSQLFilter(ctx context.Context, authorizer rbac.Authorizer, action policy.Action, resourceType string) (rbac.PreparedAuthorized, error) {
 	act, ok := ActorFromContext(ctx)
 	if !ok {
-		return nil, NoActorError
+		return nil, ErrNoActor
 	}
 
 	return authorizer.Prepare(ctx, act, action, resourceType)
@@ -780,7 +780,7 @@ func (*querier) convertToDeploymentRoles(names []string) []rbac.RoleIdentifier {
 func (q *querier) canAssignRoles(ctx context.Context, orgID uuid.UUID, added, removed []rbac.RoleIdentifier) error {
 	actor, ok := ActorFromContext(ctx)
 	if !ok {
-		return NoActorError
+		return ErrNoActor
 	}
 
 	roleAssign := rbac.ResourceAssignRole
@@ -989,7 +989,7 @@ func (q *querier) customRoleEscalationCheck(ctx context.Context, actor rbac.Subj
 func (q *querier) customRoleCheck(ctx context.Context, role database.CustomRole) error {
 	act, ok := ActorFromContext(ctx)
 	if !ok {
-		return NoActorError
+		return ErrNoActor
 	}
 
 	// Org permissions require an org role
@@ -1704,8 +1704,8 @@ func (q *querier) GetDeploymentWorkspaceStats(ctx context.Context) (database.Get
 	return q.db.GetDeploymentWorkspaceStats(ctx)
 }
 
-func (q *querier) GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx context.Context, provisionerJobIds []uuid.UUID) ([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, error) {
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetEligibleProvisionerDaemonsByProvisionerJobIDs)(ctx, provisionerJobIds)
+func (q *querier) GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx context.Context, provisionerJobIDs []uuid.UUID) ([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetEligibleProvisionerDaemonsByProvisionerJobIDs)(ctx, provisionerJobIDs)
 }
 
 func (q *querier) GetExternalAuthLink(ctx context.Context, arg database.GetExternalAuthLinkParams) (database.ExternalAuthLink, error) {
@@ -2024,6 +2024,35 @@ func (q *querier) GetOrganizationIDsByMemberIDs(ctx context.Context, ids []uuid.
 	// TODO: This should be rewritten to return a list of database.OrganizationMember for consistent RBAC objects.
 	// Currently this row returns a list of org ids per user, which is challenging to check against the RBAC system.
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetOrganizationIDsByMemberIDs)(ctx, ids)
+}
+
+func (q *querier) GetOrganizationResourceCountByID(ctx context.Context, organizationID uuid.UUID) (database.GetOrganizationResourceCountByIDRow, error) {
+	// Can read org members
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceOrganizationMember.InOrg(organizationID)); err != nil {
+		return database.GetOrganizationResourceCountByIDRow{}, err
+	}
+
+	// Can read org workspaces
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspace.InOrg(organizationID)); err != nil {
+		return database.GetOrganizationResourceCountByIDRow{}, err
+	}
+
+	// Can read org groups
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceGroup.InOrg(organizationID)); err != nil {
+		return database.GetOrganizationResourceCountByIDRow{}, err
+	}
+
+	// Can read org templates
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate.InOrg(organizationID)); err != nil {
+		return database.GetOrganizationResourceCountByIDRow{}, err
+	}
+
+	// Can read org provisioner daemons
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerDaemon.InOrg(organizationID)); err != nil {
+		return database.GetOrganizationResourceCountByIDRow{}, err
+	}
+
+	return q.db.GetOrganizationResourceCountByID(ctx, organizationID)
 }
 
 func (q *querier) GetOrganizations(ctx context.Context, args database.GetOrganizationsParams) ([]database.Organization, error) {
@@ -3096,11 +3125,11 @@ func (q *querier) GetWorkspaceResourcesCreatedAfter(ctx context.Context, created
 	return q.db.GetWorkspaceResourcesCreatedAfter(ctx, createdAt)
 }
 
-func (q *querier) GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx context.Context, templateIds []uuid.UUID) ([]database.GetWorkspaceUniqueOwnerCountByTemplateIDsRow, error) {
+func (q *querier) GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx context.Context, templateIDs []uuid.UUID) ([]database.GetWorkspaceUniqueOwnerCountByTemplateIDsRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
 	}
-	return q.db.GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx, templateIds)
+	return q.db.GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx, templateIDs)
 }
 
 func (q *querier) GetWorkspaces(ctx context.Context, arg database.GetWorkspacesParams) ([]database.GetWorkspacesRow, error) {
@@ -3291,6 +3320,7 @@ func (q *querier) InsertOrganizationMember(ctx context.Context, arg database.Ins
 	}
 
 	// All roles are added roles. Org member is always implied.
+	//nolint:gocritic
 	addedRoles := append(orgRoles, rbac.ScopedRoleOrgMember(arg.OrganizationID))
 	err = q.canAssignRoles(ctx, arg.OrganizationID, addedRoles, []rbac.RoleIdentifier{})
 	if err != nil {
@@ -3443,7 +3473,7 @@ func (q *querier) InsertUserGroupsByName(ctx context.Context, arg database.Inser
 	// This will add the user to all named groups. This counts as updating a group.
 	// NOTE: instead of checking if the user has permission to update each group, we instead
 	// check if the user has permission to update *a* group in the org.
-	fetch := func(ctx context.Context, arg database.InsertUserGroupsByNameParams) (rbac.Objecter, error) {
+	fetch := func(_ context.Context, arg database.InsertUserGroupsByNameParams) (rbac.Objecter, error) {
 		return rbac.ResourceGroup.InOrg(arg.OrganizationID), nil
 	}
 	return update(q.log, q.auth, fetch, q.db.InsertUserGroupsByName)(ctx, arg)
@@ -3876,6 +3906,7 @@ func (q *querier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemb
 	}
 
 	// The org member role is always implied.
+	//nolint:gocritic
 	impliedTypes := append(scopedGranted, rbac.ScopedRoleOrgMember(arg.OrgID))
 
 	added, removed := rbac.ChangeRoleSet(originalRoles, impliedTypes)
@@ -3976,7 +4007,7 @@ func (q *querier) UpdateProvisionerJobWithCancelByID(ctx context.Context, arg da
 			// Only owners can cancel workspace builds
 			actor, ok := ActorFromContext(ctx)
 			if !ok {
-				return NoActorError
+				return ErrNoActor
 			}
 			if !slice.Contains(actor.Roles.Names(), rbac.RoleOwner()) {
 				return xerrors.Errorf("only owners can cancel workspace builds")

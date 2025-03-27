@@ -159,11 +159,13 @@ func TestGetManifest(t *testing.T) {
 		devcontainers = []database.WorkspaceAgentDevcontainer{
 			{
 				ID:               uuid.New(),
+				Name:             "cool",
 				WorkspaceAgentID: agent.ID,
 				WorkspaceFolder:  "/cool/folder",
 			},
 			{
 				ID:               uuid.New(),
+				Name:             "another",
 				WorkspaceAgentID: agent.ID,
 				WorkspaceFolder:  "/another/cool/folder",
 				ConfigPath:       "/another/cool/folder/.devcontainer/devcontainer.json",
@@ -283,10 +285,12 @@ func TestGetManifest(t *testing.T) {
 		protoDevcontainers = []*agentproto.WorkspaceAgentDevcontainer{
 			{
 				Id:              devcontainers[0].ID[:],
+				Name:            devcontainers[0].Name,
 				WorkspaceFolder: devcontainers[0].WorkspaceFolder,
 			},
 			{
 				Id:              devcontainers[1].ID[:],
+				Name:            devcontainers[1].Name,
 				WorkspaceFolder: devcontainers[1].WorkspaceFolder,
 				ConfigPath:      devcontainers[1].ConfigPath,
 			},

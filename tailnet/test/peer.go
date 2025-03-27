@@ -234,7 +234,7 @@ func (p *Peer) AssertEventuallyResponsesClosed() {
 	p.t.Helper()
 	for {
 		err := p.readOneResp()
-		if xerrors.Is(err, responsesClosed) {
+		if xerrors.Is(err, errResponsesClosed) {
 			return
 		}
 		if !assert.NoError(p.t, err) {
@@ -278,7 +278,7 @@ func (p *Peer) AssertEventuallyReadyForHandshake(other uuid.UUID) {
 		}
 
 		err := p.readOneResp()
-		if xerrors.Is(err, responsesClosed) {
+		if xerrors.Is(err, errResponsesClosed) {
 			return
 		}
 	}
@@ -288,7 +288,7 @@ func (p *Peer) AssertEventuallyGetsError(match string) {
 	p.t.Helper()
 	for {
 		err := p.readOneResp()
-		if xerrors.Is(err, responsesClosed) {
+		if xerrors.Is(err, errResponsesClosed) {
 			p.t.Error("closed before target error")
 			return
 		}
@@ -312,7 +312,7 @@ func (p *Peer) AssertNeverUpdateKind(peer uuid.UUID, kind proto.CoordinateRespon
 	}
 }
 
-var responsesClosed = xerrors.New("responses closed")
+var errResponsesClosed = xerrors.New("responses closed")
 
 func (p *Peer) readOneResp() error {
 	select {
@@ -320,7 +320,7 @@ func (p *Peer) readOneResp() error {
 		return p.ctx.Err()
 	case resp, ok := <-p.resps:
 		if !ok {
-			return responsesClosed
+			return errResponsesClosed
 		}
 		err := p.handleResp(resp)
 		if err != nil {

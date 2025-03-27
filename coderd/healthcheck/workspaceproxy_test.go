@@ -195,10 +195,8 @@ func TestWorkspaceProxies(t *testing.T) {
 			assert.Equal(t, tt.expectedSeverity, rpt.Severity)
 			if tt.expectedError != "" && assert.NotNil(t, rpt.Error) {
 				assert.Contains(t, *rpt.Error, tt.expectedError)
-			} else {
-				if !assert.Nil(t, rpt.Error) {
-					t.Logf("error: %v", *rpt.Error)
-				}
+			} else if !assert.Nil(t, rpt.Error) {
+				t.Logf("error: %v", *rpt.Error)
 			}
 			if tt.expectedWarningCode != "" && assert.NotEmpty(t, rpt.Warnings) {
 				var found bool

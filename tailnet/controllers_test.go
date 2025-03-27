@@ -35,7 +35,7 @@ import (
 	"github.com/coder/quartz"
 )
 
-var unimplementedError = drpcerr.WithCode(xerrors.New("Unimplemented"), drpcerr.Unimplemented)
+var errUnimplemented = drpcerr.WithCode(xerrors.New("Unimplemented"), drpcerr.Unimplemented)
 
 func TestInMemoryCoordination(t *testing.T) {
 	t.Parallel()
@@ -708,7 +708,7 @@ func TestBasicTelemetryController_Unimplemented(t *testing.T) {
 	call = testutil.RequireRecvCtx(ctx, t, ft.calls)
 
 	// for real this time
-	telemetryError = unimplementedError
+	telemetryError = errUnimplemented
 	testutil.RequireSendCtx(ctx, t, call.errCh, telemetryError)
 	testutil.RequireRecvCtx(ctx, t, sendDone)
 
@@ -948,7 +948,7 @@ func TestBasicResumeTokenController_Unimplemented(t *testing.T) {
 	cw := uut.New(fr)
 
 	call := testutil.RequireRecvCtx(ctx, t, fr.calls)
-	testutil.RequireSendCtx(ctx, t, call.errCh, unimplementedError)
+	testutil.RequireSendCtx(ctx, t, call.errCh, errUnimplemented)
 	err := testutil.RequireRecvCtx(ctx, t, cw.Wait())
 	require.NoError(t, err)
 	_, ok = uut.Token()
@@ -974,13 +974,13 @@ func (f *fakeResumeTokenClient) RefreshResumeToken(_ context.Context, _ *proto.R
 	}
 	select {
 	case <-f.ctx.Done():
-		return nil, timeoutOnFakeErr
+		return nil, errTimeoutOnFake
 	case f.calls <- call:
 		// OK
 	}
 	select {
 	case <-f.ctx.Done():
-		return nil, timeoutOnFakeErr
+		return nil, errTimeoutOnFake
 	case err := <-call.errCh:
 		return nil, err
 	case resp := <-call.resp:
@@ -1245,10 +1245,10 @@ func (p *pipeDialer) Dial(_ context.Context, _ tailnet.ResumeTokenController) (t
 	}, nil
 }
 
-// timeoutOnFakeErr is the error we send when fakes fail to send calls or receive responses before
+// errTimeoutOnFake is the error we send when fakes fail to send calls or receive responses before
 // their context times out. We don't want to send the context error since that often doesn't trigger
 // test failures or logging.
-var timeoutOnFakeErr = xerrors.New("test timeout")
+var errTimeoutOnFake = xerrors.New("test timeout")
 
 type fakeCoordinatorClient struct {
 	ctx   context.Context
@@ -1263,13 +1263,13 @@ func (f fakeCoordinatorClient) Close() error {
 	errs := make(chan error)
 	select {
 	case <-f.ctx.Done():
-		return timeoutOnFakeErr
+		return errTimeoutOnFake
 	case f.close <- errs:
 		// OK
 	}
 	select {
 	case <-f.ctx.Done():
-		return timeoutOnFakeErr
+		return errTimeoutOnFake
 	case err := <-errs:
 		return err
 	}
@@ -1284,13 +1284,13 @@ func (f fakeCoordinatorClient) Send(request *proto.CoordinateRequest) error {
 	}
 	select {
 	case <-f.ctx.Done():
-		return timeoutOnFakeErr
+		return errTimeoutOnFake
 	case f.reqs <- call:
 		// OK
 	}
 	select {
 	case <-f.ctx.Done():
-		return timeoutOnFakeErr
+		return errTimeoutOnFake
 	case err := <-errs:
 		return err
 	}
@@ -1306,13 +1306,13 @@ func (f fakeCoordinatorClient) Recv() (*proto.CoordinateResponse, error) {
 	}
 	select {
 	case <-f.ctx.Done():
-		return nil, timeoutOnFakeErr
+		return nil, errTimeoutOnFake
 	case f.resps <- call:
 		// OK
 	}
 	select {
 	case <-f.ctx.Done():
-		return nil, timeoutOnFakeErr
+		return nil, errTimeoutOnFake
 	case err := <-errs:
 		return nil, err
 	case resp := <-resps:
@@ -1352,13 +1352,13 @@ func (f *fakeWorkspaceUpdateClient) Close() error {
 	errs := make(chan error)
 	select {
 	case <-f.ctx.Done():
-		return timeoutOnFakeErr
+		return errTimeoutOnFake
 	case f.close <- errs:
 		// OK
 	}
 	select {
 	case <-f.ctx.Done():
-		return timeoutOnFakeErr
+		return errTimeoutOnFake
 	case err := <-errs:
 		return err
 	}
@@ -1374,13 +1374,13 @@ func (f *fakeWorkspaceUpdateClient) Recv() (*proto.WorkspaceUpdate, error) {
 	}
 	select {
 	case <-f.ctx.Done():
-		return nil, timeoutOnFakeErr
+		return nil, errTimeoutOnFake
 	case f.recv <- call:
 		// OK
 	}
 	select {
 	case <-f.ctx.Done():
-		return nil, timeoutOnFakeErr
+		return nil, errTimeoutOnFake
 	case err := <-errs:
 		return nil, err
 	case resp := <-resps:
@@ -1440,13 +1440,13 @@ func (f *fakeDNSSetter) SetDNSHosts(hosts map[dnsname.FQDN][]netip.Addr) error {
 	}
 	select {
 	case <-f.ctx.Done():
-		return timeoutOnFakeErr
+		return errTimeoutOnFake
 	case f.calls <- call:
 		// OK
 	}
 	select {
 	case <-f.ctx.Done():
-		return timeoutOnFakeErr
+		return errTimeoutOnFake
 	case err := <-errs:
 		return err
 	}
@@ -1470,7 +1470,7 @@ func (f *fakeUpdateHandler) Update(wu tailnet.WorkspaceUpdate) error {
 	f.t.Helper()
 	select {
 	case <-f.ctx.Done():
-		return timeoutOnFakeErr
+		return errTimeoutOnFake
 	case f.ch <- wu:
 		// OK
 	}
@@ -1946,7 +1946,7 @@ func (f fakeWorkspaceUpdatesController) New(client tailnet.WorkspaceUpdatesClien
 	select {
 	case <-f.ctx.Done():
 		cw := newFakeCloserWaiter()
-		cw.errCh <- timeoutOnFakeErr
+		cw.errCh <- errTimeoutOnFake
 		return cw
 	case f.calls <- call:
 		// OK
@@ -1954,7 +1954,7 @@ func (f fakeWorkspaceUpdatesController) New(client tailnet.WorkspaceUpdatesClien
 	select {
 	case <-f.ctx.Done():
 		cw := newFakeCloserWaiter()
-		cw.errCh <- timeoutOnFakeErr
+		cw.errCh <- errTimeoutOnFake
 		return cw
 	case resp := <-resps:
 		return resp

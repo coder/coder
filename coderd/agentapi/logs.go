@@ -101,11 +101,12 @@ func (a *LogsAPI) BatchCreateLogs(ctx context.Context, req *agentproto.BatchCrea
 	}
 
 	logs, err := a.Database.InsertWorkspaceAgentLogs(ctx, database.InsertWorkspaceAgentLogsParams{
-		AgentID:      workspaceAgent.ID,
-		CreatedAt:    a.now(),
-		Output:       output,
-		Level:        level,
-		LogSourceID:  logSourceID,
+		AgentID:     workspaceAgent.ID,
+		CreatedAt:   a.now(),
+		Output:      output,
+		Level:       level,
+		LogSourceID: logSourceID,
+		// #nosec G115 - Safe conversion as output length is expected to be within int32 range
 		OutputLength: int32(outputLength),
 	})
 	if err != nil {

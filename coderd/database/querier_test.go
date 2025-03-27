@@ -2120,10 +2120,11 @@ func createTemplateVersion(t testing.TB, db database.Store, tpl database.Templat
 			dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
 				WorkspaceID:       wrk.ID,
 				TemplateVersionID: version.ID,
-				BuildNumber:       int32(i) + 2,
-				Transition:        trans,
-				InitiatorID:       tpl.CreatedBy,
-				JobID:             latestJob.ID,
+				// #nosec G115 - Safe conversion as build number is expected to be within int32 range
+				BuildNumber: int32(i) + 2,
+				Transition:  trans,
+				InitiatorID: tpl.CreatedBy,
+				JobID:       latestJob.ID,
 			})
 		}
 
@@ -3183,21 +3184,22 @@ func TestGetUserStatusCounts(t *testing.T) {
 								row.Date.In(location).String(),
 								i,
 							)
-							if row.Date.Before(createdAt) {
+							switch {
+							case row.Date.Before(createdAt):
 								require.Equal(t, int64(0), row.Count)
-							} else if row.Date.Before(firstTransitionTime) {
+							case row.Date.Before(firstTransitionTime):
 								if row.Status == tc.initialStatus {
 									require.Equal(t, int64(1), row.Count)
 								} else if row.Status == tc.targetStatus {
 									require.Equal(t, int64(0), row.Count)
 								}
-							} else if !row.Date.After(today) {
+							case !row.Date.After(today):
 								if row.Status == tc.initialStatus {
 									require.Equal(t, int64(0), row.Count)
 								} else if row.Status == tc.targetStatus {
 									require.Equal(t, int64(1), row.Count)
 								}
-							} else {
+							default:
 								t.Errorf("date %q beyond expected range end %q", row.Date, today)
 							}
 						}
@@ -3338,18 +3340,19 @@ func TestGetUserStatusCounts(t *testing.T) {
 							expectedCounts[d][tc.user2Transition.to] = 0
 
 							// Counted Values
-							if d.Before(createdAt) {
+							switch {
+							case d.Before(createdAt):
 								continue
-							} else if d.Before(firstTransitionTime) {
+							case d.Before(firstTransitionTime):
 								expectedCounts[d][tc.user1Transition.from]++
 								expectedCounts[d][tc.user2Transition.from]++
-							} else if d.Before(secondTransitionTime) {
+							case d.Before(secondTransitionTime):
 								expectedCounts[d][tc.user1Transition.to]++
 								expectedCounts[d][tc.user2Transition.from]++
-							} else if d.Before(today) {
+							case d.Before(today):
 								expectedCounts[d][tc.user1Transition.to]++
 								expectedCounts[d][tc.user2Transition.to]++
-							} else {
+							default:
 								t.Fatalf("date %q beyond expected range end %q", d, today)
 							}
 						}
@@ -3442,11 +3445,12 @@ func TestGetUserStatusCounts(t *testing.T) {
 						i,
 					)
 					require.Equal(t, database.UserStatusActive, row.Status)
-					if row.Date.Before(createdAt) {
+					switch {
+					case row.Date.Before(createdAt):
 						require.Equal(t, int64(0), row.Count)
-					} else if i == len(userStatusChanges)-1 {
+					case i == len(userStatusChanges)-1:
 						require.Equal(t, int64(0), row.Count)
-					} else {
+					default:
 						require.Equal(t, int64(1), row.Count)
 					}
 				}
@@ -3508,7 +3512,6 @@ func TestOrganizationDeleteTrigger(t *testing.T) {
 		require.Error(t, err)
 		// cannot delete organization: organization has 0 workspaces and 1 templates that must be deleted first
 		require.ErrorContains(t, err, "cannot delete organization")
-		require.ErrorContains(t, err, "has 0 workspaces")
 		require.ErrorContains(t, err, "1 templates")
 	})
 
@@ -3587,6 +3590,10 @@ func TestOrganizationDeleteTrigger(t *testing.T) {
 
 func TestGetPresetsBackoff(t *testing.T) {
 	t.Parallel()
+	if !dbtestutil.WillUsePostgres() {
+		t.SkipNow()
+	}
+
 	type extTmplVersion struct {
 		database.TemplateVersion
 		preset database.TemplateVersionPreset
@@ -4140,8 +4147,35 @@ func TestGetPresetsBackoff(t *testing.T) {
 			require.Equal(t, backoff.PresetID, tmpl1V1.preset.ID)
 			require.Equal(t, int32(5), backoff.NumFailed)
 			// make sure LastBuildAt is equal to latest failed build timestamp
-			require.Equal(t, 0, now.Compare(backoff.LastBuildAt.(time.Time)))
+			require.Equal(t, 0, now.Compare(backoff.LastBuildAt))
 		}
+	})
+
+	t.Run("failed job outside lookback period", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		dbgen.Organization(t, db, database.Organization{
+			ID: orgID,
+		})
+		dbgen.User(t, db, database.User{
+			ID: userID,
+		})
+		lookbackPeriod := time.Hour
+
+		tmpl1 := createTemplate(db)
+		tmpl1V1 := createTmplVersion(db, tmpl1, tmpl1.ActiveVersionID, &tmplVersionOpts{
+			DesiredInstances: 1,
+		})
+		createWorkspaceBuild(db, tmpl1, tmpl1V1, &workspaceBuildOpts{
+			successfulJob: false,
+			createdAt:     now.Add(-lookbackPeriod - time.Minute), // earlier than lookback period - skipped
+		})
+
+		backoffs, err := db.GetPresetsBackoff(ctx, now.Add(-lookbackPeriod))
+		require.NoError(t, err)
+		require.Len(t, backoffs, 0)
 	})
 }
 

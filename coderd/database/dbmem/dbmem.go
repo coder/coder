@@ -4012,6 +4012,54 @@ func (q *FakeQuerier) GetOrganizationIDsByMemberIDs(_ context.Context, ids []uui
 	return getOrganizationIDsByMemberIDRows, nil
 }
 
+func (q *FakeQuerier) GetOrganizationResourceCountByID(_ context.Context, organizationID uuid.UUID) (database.GetOrganizationResourceCountByIDRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	workspacesCount := 0
+	for _, workspace := range q.workspaces {
+		if workspace.OrganizationID == organizationID {
+			workspacesCount++
+		}
+	}
+
+	groupsCount := 0
+	for _, group := range q.groups {
+		if group.OrganizationID == organizationID {
+			groupsCount++
+		}
+	}
+
+	templatesCount := 0
+	for _, template := range q.templates {
+		if template.OrganizationID == organizationID {
+			templatesCount++
+		}
+	}
+
+	organizationMembersCount := 0
+	for _, organizationMember := range q.organizationMembers {
+		if organizationMember.OrganizationID == organizationID {
+			organizationMembersCount++
+		}
+	}
+
+	provKeyCount := 0
+	for _, provKey := range q.provisionerKeys {
+		if provKey.OrganizationID == organizationID {
+			provKeyCount++
+		}
+	}
+
+	return database.GetOrganizationResourceCountByIDRow{
+		WorkspaceCount:      int64(workspacesCount),
+		GroupCount:          int64(groupsCount),
+		TemplateCount:       int64(templatesCount),
+		MemberCount:         int64(organizationMembersCount),
+		ProvisionerKeyCount: int64(provKeyCount),
+	}, nil
+}
+
 func (q *FakeQuerier) GetOrganizations(_ context.Context, args database.GetOrganizationsParams) ([]database.Organization, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -6033,6 +6081,7 @@ func (q *FakeQuerier) GetTemplateVersionsByTemplateID(_ context.Context, arg dat
 
 	if arg.LimitOpt > 0 {
 		if int(arg.LimitOpt) > len(version) {
+			// #nosec G115 - Safe conversion as version slice length is expected to be within int32 range
 			arg.LimitOpt = int32(len(version))
 		}
 		version = version[:arg.LimitOpt]
@@ -6671,6 +6720,7 @@ func (q *FakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 
 	if params.LimitOpt > 0 {
 		if int(params.LimitOpt) > len(users) {
+			// #nosec G115 - Safe conversion as users slice length is expected to be within int32 range
 			params.LimitOpt = int32(len(users))
 		}
 		users = users[:params.LimitOpt]
@@ -7598,6 +7648,7 @@ func (q *FakeQuerier) GetWorkspaceBuildsByWorkspaceID(_ context.Context,
 
 	if params.LimitOpt > 0 {
 		if int(params.LimitOpt) > len(history) {
+			// #nosec G115 - Safe conversion as history slice length is expected to be within int32 range
 			params.LimitOpt = int32(len(history))
 		}
 		history = history[:params.LimitOpt]
@@ -9199,6 +9250,7 @@ func (q *FakeQuerier) InsertWorkspaceAgentDevcontainers(_ context.Context, arg d
 					WorkspaceAgentID: arg.WorkspaceAgentID,
 					CreatedAt:        arg.CreatedAt,
 					ID:               id,
+					Name:             arg.Name[i],
 					WorkspaceFolder:  arg.WorkspaceFolder[i],
 					ConfigPath:       arg.ConfigPath[i],
 				})
@@ -9259,6 +9311,7 @@ func (q *FakeQuerier) InsertWorkspaceAgentLogs(_ context.Context, arg database.I
 			LogSourceID: arg.LogSourceID,
 			Output:      output,
 		})
+		// #nosec G115 - Safe conversion as log output length is expected to be within int32 range
 		outputLength += int32(len(output))
 	}
 	for index, agent := range q.workspaceAgents {
@@ -12394,17 +12447,23 @@ TemplateUsageStatsInsertLoop:
 
 		// SELECT
 		tus := database.TemplateUsageStat{
-			StartTime:           stat.TimeBucket,
-			EndTime:             stat.TimeBucket.Add(30 * time.Minute),
-			TemplateID:          stat.TemplateID,
-			UserID:              stat.UserID,
-			UsageMins:           int16(stat.UsageMins),
-			MedianLatencyMs:     sql.NullFloat64{Float64: latency.MedianLatencyMS, Valid: latencyOk},
-			SshMins:             int16(stat.SSHMins),
-			SftpMins:            int16(stat.SFTPMins),
+			StartTime:  stat.TimeBucket,
+			EndTime:    stat.TimeBucket.Add(30 * time.Minute),
+			TemplateID: stat.TemplateID,
+			UserID:     stat.UserID,
+			// #nosec G115 - Safe conversion for usage minutes which are expected to be within int16 range
+			UsageMins:       int16(stat.UsageMins),
+			MedianLatencyMs: sql.NullFloat64{Float64: latency.MedianLatencyMS, Valid: latencyOk},
+			// #nosec G115 - Safe conversion for SSH minutes which are expected to be within int16 range
+			SshMins: int16(stat.SSHMins),
+			// #nosec G115 - Safe conversion for SFTP minutes which are expected to be within int16 range
+			SftpMins: int16(stat.SFTPMins),
+			// #nosec G115 - Safe conversion for ReconnectingPTY minutes which are expected to be within int16 range
 			ReconnectingPtyMins: int16(stat.ReconnectingPTYMins),
-			VscodeMins:          int16(stat.VSCodeMins),
-			JetbrainsMins:       int16(stat.JetBrainsMins),
+			// #nosec G115 - Safe conversion for VSCode minutes which are expected to be within int16 range
+			VscodeMins: int16(stat.VSCodeMins),
+			// #nosec G115 - Safe conversion for JetBrains minutes which are expected to be within int16 range
+			JetbrainsMins: int16(stat.JetBrainsMins),
 		}
 		if len(stat.AppUsageMinutes) > 0 {
 			tus.AppUsageMins = make(map[string]int64, len(stat.AppUsageMinutes))

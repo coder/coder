@@ -821,7 +821,6 @@ func TestGroup(t *testing.T) {
 	})
 
 	t.Run("everyoneGroupReturnsEmpty", func(t *testing.T) {
-		// TODO (sasswart): this test seems to have drifted from its original intention. evaluate and remove/fix
 		t.Parallel()
 		client, user := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{

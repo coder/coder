@@ -5521,6 +5521,36 @@ func (q *sqlQuerier) GetOrganizationByName(ctx context.Context, arg GetOrganizat
 	return i, err
 }
 
+const getOrganizationResourceCountByID = `-- name: GetOrganizationResourceCountByID :one
+SELECT
+    (SELECT COUNT(*) FROM workspaces WHERE workspaces.organization_id = $1 AND workspaces.deleted = false) AS workspace_count,
+    (SELECT COUNT(*) FROM groups WHERE groups.organization_id = $1) AS group_count,
+    (SELECT COUNT(*) FROM templates WHERE templates.organization_id = $1 AND templates.deleted = false) AS template_count,
+    (SELECT COUNT(*) FROM organization_members WHERE organization_members.organization_id = $1) AS member_count,
+    (SELECT COUNT(*) FROM provisioner_keys WHERE provisioner_keys.organization_id = $1) AS provisioner_key_count
+`
+
+type GetOrganizationResourceCountByIDRow struct {
+	WorkspaceCount      int64 `db:"workspace_count" json:"workspace_count"`
+	GroupCount          int64 `db:"group_count" json:"group_count"`
+	TemplateCount       int64 `db:"template_count" json:"template_count"`
+	MemberCount         int64 `db:"member_count" json:"member_count"`
+	ProvisionerKeyCount int64 `db:"provisioner_key_count" json:"provisioner_key_count"`
+}
+
+func (q *sqlQuerier) GetOrganizationResourceCountByID(ctx context.Context, organizationID uuid.UUID) (GetOrganizationResourceCountByIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getOrganizationResourceCountByID, organizationID)
+	var i GetOrganizationResourceCountByIDRow
+	err := row.Scan(
+		&i.WorkspaceCount,
+		&i.GroupCount,
+		&i.TemplateCount,
+		&i.MemberCount,
+		&i.ProvisionerKeyCount,
+	)
+	return i, err
+}
+
 const getOrganizations = `-- name: GetOrganizations :many
 SELECT
     id, name, description, created_at, updated_at, is_default, display_name, icon, deleted
@@ -5813,7 +5843,7 @@ WHERE w.id IN (SELECT p.id
 				   AND pj.job_status IN ('succeeded'::provisioner_job_status))
 				 AND b.template_version_id = t.active_version_id
 				 AND b.template_version_preset_id = $3::uuid
-				 AND p.lifecycle_state = 'ready'::workspace_agent_lifecycle_state
+				 AND p.ready
 			   ORDER BY random()
 			   LIMIT 1 FOR UPDATE OF p SKIP LOCKED) -- Ensure that a concurrent request will not select the same prebuild.
 RETURNING w.id, w.name
@@ -5841,6 +5871,7 @@ const getPrebuildMetrics = `-- name: GetPrebuildMetrics :many
 SELECT
     t.name as template_name,
     tvp.name as preset_name,
+		o.name as organization_name,
     COUNT(*) as created_count,
     COUNT(*) FILTER (WHERE pj.job_status = 'failed'::provisioner_job_status) as failed_count,
     COUNT(*) FILTER (
@@ -5851,17 +5882,19 @@ INNER JOIN workspace_prebuild_builds wpb ON wpb.workspace_id = w.id
 INNER JOIN templates t ON t.id = w.template_id
 INNER JOIN template_version_presets tvp ON tvp.id = wpb.template_version_preset_id
 INNER JOIN provisioner_jobs pj ON pj.id = wpb.job_id
-WHERE wpb.build_number = 1
-GROUP BY t.name, tvp.name
-ORDER BY t.name, tvp.name
+INNER JOIN organizations o ON o.id = w.organization_id
+WHERE NOT t.deleted AND wpb.build_number = 1
+GROUP BY t.name, tvp.name, o.name
+ORDER BY t.name, tvp.name, o.name
 `
 
 type GetPrebuildMetricsRow struct {
-	TemplateName string `db:"template_name" json:"template_name"`
-	PresetName   string `db:"preset_name" json:"preset_name"`
-	CreatedCount int64  `db:"created_count" json:"created_count"`
-	FailedCount  int64  `db:"failed_count" json:"failed_count"`
-	ClaimedCount int64  `db:"claimed_count" json:"claimed_count"`
+	TemplateName     string `db:"template_name" json:"template_name"`
+	PresetName       string `db:"preset_name" json:"preset_name"`
+	OrganizationName string `db:"organization_name" json:"organization_name"`
+	CreatedCount     int64  `db:"created_count" json:"created_count"`
+	FailedCount      int64  `db:"failed_count" json:"failed_count"`
+	ClaimedCount     int64  `db:"claimed_count" json:"claimed_count"`
 }
 
 func (q *sqlQuerier) GetPrebuildMetrics(ctx context.Context) ([]GetPrebuildMetricsRow, error) {
@@ -5876,6 +5909,7 @@ func (q *sqlQuerier) GetPrebuildMetrics(ctx context.Context) ([]GetPrebuildMetri
 		if err := rows.Scan(
 			&i.TemplateName,
 			&i.PresetName,
+			&i.OrganizationName,
 			&i.CreatedCount,
 			&i.FailedCount,
 			&i.ClaimedCount,
@@ -5967,33 +6001,32 @@ failed_count AS (
 SELECT tsb.template_version_id,
 	   tsb.preset_id,
 	   COALESCE(fc.num_failed, 0)::int  AS num_failed,
-	   MAX(tsb.created_at::timestamptz) AS last_build_at
+	   MAX(tsb.created_at)::timestamptz AS last_build_at
 FROM time_sorted_builds tsb
 		 LEFT JOIN failed_count fc ON fc.preset_id = tsb.preset_id
 WHERE tsb.rn <= tsb.desired_instances -- Fetch the last N builds, where N is the number of desired instances; if any fail, we backoff
   AND tsb.job_status = 'failed'::provisioner_job_status
+  AND created_at >= $1::timestamptz
 GROUP BY tsb.template_version_id, tsb.preset_id, fc.num_failed
 `
 
 type GetPresetsBackoffRow struct {
-	TemplateVersionID uuid.UUID   `db:"template_version_id" json:"template_version_id"`
-	PresetID          uuid.UUID   `db:"preset_id" json:"preset_id"`
-	NumFailed         int32       `db:"num_failed" json:"num_failed"`
-	LastBuildAt       interface{} `db:"last_build_at" json:"last_build_at"`
+	TemplateVersionID uuid.UUID `db:"template_version_id" json:"template_version_id"`
+	PresetID          uuid.UUID `db:"preset_id" json:"preset_id"`
+	NumFailed         int32     `db:"num_failed" json:"num_failed"`
+	LastBuildAt       time.Time `db:"last_build_at" json:"last_build_at"`
 }
 
 // GetPresetsBackoff groups workspace builds by template version ID.
-// For each group, the query checks the last N jobs, where N equals the number of desired instances for the corresponding preset.
-// If at least one of the last N jobs has failed, we should backoff on the corresponding template version ID.
+// For each group, the query checks up to N of the most recent jobs that occurred within the
+// lookback period, where N equals the number of desired instances for the corresponding preset.
+// If at least one of the job within a group has failed, we should backoff on the corresponding template version ID.
 // Query returns a list of template version IDs for which we should backoff.
 // Only active template versions with configured presets are considered.
+// We also return the number of failed workspace builds that occurred during the lookback period.
 //
 // NOTE:
-// We back off on the template version ID if at least one of the N latest workspace builds has failed.
-// However, we also return the number of failed workspace builds that occurred during the lookback period.
-//
-// In other words:
-// - To **decide whether to back off**, we look at the N most recent builds (regardless of when they happened).
+// - To **decide whether to back off**, we look at up to the N most recent builds (within the defined lookback period).
 // - To **calculate the number of failed builds**, we consider all builds within the defined lookback period.
 //
 // The number of failed builds is used downstream to determine the backoff duration.
@@ -6031,9 +6064,7 @@ SELECT p.id                AS workspace_id,
 	   p.template_id,
 	   b.template_version_id,
        p.current_preset_id AS current_preset_id,
-	   CASE
-		   WHEN p.lifecycle_state = 'ready'::workspace_agent_lifecycle_state THEN TRUE
-		   ELSE FALSE END AS ready,
+	   p.ready,
 	   p.created_at
 FROM workspace_prebuilds p
 		 INNER JOIN workspace_latest_builds b ON b.workspace_id = p.id
@@ -6084,19 +6115,22 @@ func (q *sqlQuerier) GetRunningPrebuilds(ctx context.Context) ([]GetRunningPrebu
 }
 
 const getTemplatePresetsWithPrebuilds = `-- name: GetTemplatePresetsWithPrebuilds :many
-SELECT t.id                        AS template_id,
-	   t.name                      AS template_name,
-	   tv.id                       AS template_version_id,
-	   tv.name                     AS template_version_name,
-	   tv.id = t.active_version_id AS using_active_version,
-     tvp.id,
-	   tvp.name,
-	   tvp.desired_instances       AS desired_instances,
-	   t.deleted,
-	   t.deprecated != ''          AS deprecated
+SELECT
+		t.id                        AS template_id,
+		t.name                      AS template_name,
+		o.name                      AS organization_name,
+		tv.id                       AS template_version_id,
+		tv.name                     AS template_version_name,
+		tv.id = t.active_version_id AS using_active_version,
+		tvp.id,
+		tvp.name,
+		tvp.desired_instances       AS desired_instances,
+		t.deleted,
+		t.deprecated != ''          AS deprecated
 FROM templates t
 		 INNER JOIN template_versions tv ON tv.template_id = t.id
 		 INNER JOIN template_version_presets tvp ON tvp.template_version_id = tv.id
+		 INNER JOIN organizations o ON o.id = t.organization_id
 WHERE tvp.desired_instances IS NOT NULL -- Consider only presets that have a prebuild configuration.
   AND (t.id = $1::uuid OR $1 IS NULL)
 `
@@ -6104,6 +6138,7 @@ WHERE tvp.desired_instances IS NOT NULL -- Consider only presets that have a pre
 type GetTemplatePresetsWithPrebuildsRow struct {
 	TemplateID          uuid.UUID     `db:"template_id" json:"template_id"`
 	TemplateName        string        `db:"template_name" json:"template_name"`
+	OrganizationName    string        `db:"organization_name" json:"organization_name"`
 	TemplateVersionID   uuid.UUID     `db:"template_version_id" json:"template_version_id"`
 	TemplateVersionName string        `db:"template_version_name" json:"template_version_name"`
 	UsingActiveVersion  bool          `db:"using_active_version" json:"using_active_version"`
@@ -6129,6 +6164,7 @@ func (q *sqlQuerier) GetTemplatePresetsWithPrebuilds(ctx context.Context, templa
 		if err := rows.Scan(
 			&i.TemplateID,
 			&i.TemplateName,
+			&i.OrganizationName,
 			&i.TemplateVersionID,
 			&i.TemplateVersionName,
 			&i.UsingActiveVersion,
@@ -12745,7 +12781,7 @@ func (q *sqlQuerier) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusP
 
 const getWorkspaceAgentDevcontainersByAgentID = `-- name: GetWorkspaceAgentDevcontainersByAgentID :many
 SELECT
-	id, workspace_agent_id, created_at, workspace_folder, config_path
+	id, workspace_agent_id, created_at, workspace_folder, config_path, name
 FROM
 	workspace_agent_devcontainers
 WHERE
@@ -12769,6 +12805,7 @@ func (q *sqlQuerier) GetWorkspaceAgentDevcontainersByAgentID(ctx context.Context
 			&i.CreatedAt,
 			&i.WorkspaceFolder,
 			&i.ConfigPath,
+			&i.Name,
 		); err != nil {
 			return nil, err
 		}
@@ -12785,20 +12822,22 @@ func (q *sqlQuerier) GetWorkspaceAgentDevcontainersByAgentID(ctx context.Context
 
 const insertWorkspaceAgentDevcontainers = `-- name: InsertWorkspaceAgentDevcontainers :many
 INSERT INTO
-	workspace_agent_devcontainers (workspace_agent_id, created_at, id, workspace_folder, config_path)
+	workspace_agent_devcontainers (workspace_agent_id, created_at, id, name, workspace_folder, config_path)
 SELECT
 	$1::uuid AS workspace_agent_id,
 	$2::timestamptz AS created_at,
 	unnest($3::uuid[]) AS id,
-	unnest($4::text[]) AS workspace_folder,
-	unnest($5::text[]) AS config_path
-RETURNING workspace_agent_devcontainers.id, workspace_agent_devcontainers.workspace_agent_id, workspace_agent_devcontainers.created_at, workspace_agent_devcontainers.workspace_folder, workspace_agent_devcontainers.config_path
+	unnest($4::text[]) AS name,
+	unnest($5::text[]) AS workspace_folder,
+	unnest($6::text[]) AS config_path
+RETURNING workspace_agent_devcontainers.id, workspace_agent_devcontainers.workspace_agent_id, workspace_agent_devcontainers.created_at, workspace_agent_devcontainers.workspace_folder, workspace_agent_devcontainers.config_path, workspace_agent_devcontainers.name
 `
 
 type InsertWorkspaceAgentDevcontainersParams struct {
 	WorkspaceAgentID uuid.UUID   `db:"workspace_agent_id" json:"workspace_agent_id"`
 	CreatedAt        time.Time   `db:"created_at" json:"created_at"`
 	ID               []uuid.UUID `db:"id" json:"id"`
+	Name             []string    `db:"name" json:"name"`
 	WorkspaceFolder  []string    `db:"workspace_folder" json:"workspace_folder"`
 	ConfigPath       []string    `db:"config_path" json:"config_path"`
 }
@@ -12808,6 +12847,7 @@ func (q *sqlQuerier) InsertWorkspaceAgentDevcontainers(ctx context.Context, arg 
 		arg.WorkspaceAgentID,
 		arg.CreatedAt,
 		pq.Array(arg.ID),
+		pq.Array(arg.Name),
 		pq.Array(arg.WorkspaceFolder),
 		pq.Array(arg.ConfigPath),
 	)
@@ -12824,6 +12864,7 @@ func (q *sqlQuerier) InsertWorkspaceAgentDevcontainers(ctx context.Context, arg 
 			&i.CreatedAt,
 			&i.WorkspaceFolder,
 			&i.ConfigPath,
+			&i.Name,
 		); err != nil {
 			return nil, err
 		}

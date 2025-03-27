@@ -102,6 +102,7 @@ message WorkspaceAgentDevcontainer {
 	bytes id = 1;
 	string workspace_folder = 2;
 	string config_path = 3;
+	string name = 4;
 }
 
 message GetManifestRequest {}

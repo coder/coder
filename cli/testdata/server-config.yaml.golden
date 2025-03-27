@@ -643,6 +643,10 @@ notifications:
     # The endpoint to which to send webhooks.
     # (default: <unset>, type: url)
     endpoint:
+  inbox:
+    # Enable Coder Inbox.
+    # (default: true, type: bool)
+    enabled: true
   # The upper limit of attempts to send a notification.
   # (default: 5, type: int)
   maxSendAttempts: 5

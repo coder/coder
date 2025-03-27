@@ -339,8 +339,8 @@ func NewFakeIDP(t testing.TB, opts ...FakeIDPOpt) *FakeIDP {
 		refreshIDTokenClaims: syncmap.New[string, jwt.MapClaims](),
 		deviceCode:           syncmap.New[string, deviceFlow](),
 		hookOnRefresh:        func(_ string) error { return nil },
-		hookUserInfo:         func(email string) (jwt.MapClaims, error) { return jwt.MapClaims{}, nil },
-		hookValidRedirectURL: func(redirectURL string) error { return nil },
+		hookUserInfo:         func(_ string) (jwt.MapClaims, error) { return jwt.MapClaims{}, nil },
+		hookValidRedirectURL: func(_ string) error { return nil },
 		defaultExpire:        time.Minute * 5,
 	}
 
@@ -553,7 +553,7 @@ func (f *FakeIDP) ExternalLogin(t testing.TB, client *codersdk.Client, opts ...f
 	f.SetRedirect(t, coderOauthURL.String())
 
 	cli := f.HTTPClient(client.HTTPClient)
-	cli.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+	cli.CheckRedirect = func(req *http.Request, _ []*http.Request) error {
 		// Store the idTokenClaims to the specific state request. This ties
 		// the claims 1:1 with a given authentication flow.
 		state := req.URL.Query().Get("state")
@@ -1210,7 +1210,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 		}.Encode())
 	}))
 
-	mux.NotFound(func(rw http.ResponseWriter, r *http.Request) {
+	mux.NotFound(func(_ http.ResponseWriter, r *http.Request) {
 		f.logger.Error(r.Context(), "http call not found", slogRequestFields(r)...)
 		t.Errorf("unexpected request to IDP at path %q. Not supported", r.URL.Path)
 	})
