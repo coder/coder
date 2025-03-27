@@ -111,7 +111,8 @@ func TestOIDCDomainErrorMessage(t *testing.T) {
 		}
 
 		// Attempt login and expect success
-		client, _ := fake.Login(t, server, claims)
+		client, resp := fake.Login(t, server, claims)
+		defer resp.Body.Close()
 
 		// Verify the user was created correctly
 		user, err := client.User(context.Background(), "me")
