@@ -95,12 +95,12 @@ func main() {
 	dumpBytesAfter, err := dbtestutil.PGDumpSchemaOnly(postgresURL)
 	if err != nil {
 		friendlyError(os.Stderr, err, migrateFromVersion, migrateToVersion)
-		panic("")
+		panic(err)
 	}
 
 	if diff := cmp.Diff(string(dumpBytesAfter), string(stripGenPreamble(expectedSchemaAfter))); diff != "" {
 		friendlyError(os.Stderr, xerrors.Errorf("Schema differs from expected after migration: %s", diff), migrateFromVersion, migrateToVersion)
-		panic("")
+		panic(err)
 	}
 	_, _ = fmt.Fprintf(os.Stderr, "OK\n")
 }
