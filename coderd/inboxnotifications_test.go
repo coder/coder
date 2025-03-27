@@ -869,6 +869,8 @@ func TestInboxNotifications_MarkAllAsRead(t *testing.T) {
 }
 
 func TestInboxNotifications_SetInboxNotificationIcon(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		icon         string
@@ -913,17 +915,21 @@ func TestInboxNotifications_SetInboxNotificationIcon(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 
-		notif := codersdk.InboxNotification{
-			ID:         uuid.New(),
-			UserID:     uuid.New(),
-			TemplateID: tt.templateID,
-			Title:      "notification title",
-			Content:    "notification content",
-			Icon:       tt.icon,
-			CreatedAt:  time.Now(),
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		coderd.SetInboxNotificationIcon(&notif)
-		require.Equal(t, tt.expectedIcon, notif.Icon)
+			notif := codersdk.InboxNotification{
+				ID:         uuid.New(),
+				UserID:     uuid.New(),
+				TemplateID: tt.templateID,
+				Title:      "notification title",
+				Content:    "notification content",
+				Icon:       tt.icon,
+				CreatedAt:  time.Now(),
+			}
+
+			coderd.SetInboxNotificationIcon(&notif)
+			require.Equal(t, tt.expectedIcon, notif.Icon)
+		})
 	}
 }
