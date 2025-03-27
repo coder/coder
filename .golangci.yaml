@@ -184,7 +184,7 @@ issues:
     - node_modules
     - .git
 
-  skip-files:
+  exclude-files:
     - scripts/rules.go
 
   # Rules listed here: https://github.com/securego/gosec#available-rules
@@ -254,6 +254,7 @@ linters:
     # - wastedassign
 
     - staticcheck
+    - tenv
     # In Go, it's possible for a package to test it's internal functionality
     # without testing any exported functions. This is enabled to promote
     # decomposing a package before testing it's internals. A function caller
@@ -266,5 +267,4 @@ linters:
     - typecheck
     - unconvert
     - unused
-    - usetesting
     - dupl
