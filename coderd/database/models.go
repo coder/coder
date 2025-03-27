@@ -2610,6 +2610,7 @@ type GroupMember struct {
 	UserQuietHoursSchedule string        `db:"user_quiet_hours_schedule" json:"user_quiet_hours_schedule"`
 	UserName               string        `db:"user_name" json:"user_name"`
 	UserGithubComUserID    sql.NullInt64 `db:"user_github_com_user_id" json:"user_github_com_user_id"`
+	UserIsSystem           bool          `db:"user_is_system" json:"user_is_system"`
 	OrganizationID         uuid.UUID     `db:"organization_id" json:"organization_id"`
 	GroupName              string        `db:"group_name" json:"group_name"`
 	GroupID                uuid.UUID     `db:"group_id" json:"group_id"`
@@ -3192,6 +3193,8 @@ type User struct {
 	HashedOneTimePasscode []byte `db:"hashed_one_time_passcode" json:"hashed_one_time_passcode"`
 	// The time when the one-time-passcode expires.
 	OneTimePasscodeExpiresAt sql.NullTime `db:"one_time_passcode_expires_at" json:"one_time_passcode_expires_at"`
+	// Determines if a user is a system user, and therefore cannot login or perform normal actions
+	IsSystem bool `db:"is_system" json:"is_system"`
 }
 
 type UserConfig struct {
@@ -3235,6 +3238,15 @@ type VisibleUser struct {
 	ID        uuid.UUID `db:"id" json:"id"`
 	Username  string    `db:"username" json:"username"`
 	AvatarURL string    `db:"avatar_url" json:"avatar_url"`
+}
+
+type WebpushSubscription struct {
+	ID                uuid.UUID `db:"id" json:"id"`
+	UserID            uuid.UUID `db:"user_id" json:"user_id"`
+	CreatedAt         time.Time `db:"created_at" json:"created_at"`
+	Endpoint          string    `db:"endpoint" json:"endpoint"`
+	EndpointP256dhKey string    `db:"endpoint_p256dh_key" json:"endpoint_p256dh_key"`
+	EndpointAuthKey   string    `db:"endpoint_auth_key" json:"endpoint_auth_key"`
 }
 
 // Joins in the display name information such as username, avatar, and organization name.
@@ -3324,6 +3336,8 @@ type WorkspaceAgentDevcontainer struct {
 	WorkspaceFolder string `db:"workspace_folder" json:"workspace_folder"`
 	// Path to devcontainer.json.
 	ConfigPath string `db:"config_path" json:"config_path"`
+	// The name of the Dev Container.
+	Name string `db:"name" json:"name"`
 }
 
 type WorkspaceAgentLog struct {

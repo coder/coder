@@ -24,6 +24,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/coderd/jwtutils"
@@ -1357,7 +1358,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		emailSp := strings.Split(email, "@")
 		if len(emailSp) == 1 {
 			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-				Message: fmt.Sprintf("Your email %q is not in domains %q!", email, api.OIDCConfig.EmailDomain),
+				Message: fmt.Sprintf("Your email %q is not from an authorized domain! Please contact your administrator.", email),
 			})
 			return
 		}
@@ -1372,7 +1373,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		}
 		if !ok {
 			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-				Message: fmt.Sprintf("Your email %q is not in domains %q!", email, api.OIDCConfig.EmailDomain),
+				Message: fmt.Sprintf("Your email %q is not from an authorized domain! Please contact your administrator.", email),
 			})
 			return
 		}
@@ -1508,7 +1509,8 @@ func (api *API) accessTokenClaims(ctx context.Context, rw http.ResponseWriter, s
 func (api *API) userInfoClaims(ctx context.Context, rw http.ResponseWriter, state httpmw.OAuth2State, logger slog.Logger) (userInfoClaims map[string]interface{}, ok bool) {
 	userInfoClaims = make(map[string]interface{})
 	userInfo, err := api.OIDCConfig.Provider.UserInfo(ctx, oauth2.StaticTokenSource(state.Token))
-	if err == nil {
+	switch {
+	case err == nil:
 		err = userInfo.Claims(&userInfoClaims)
 		if err != nil {
 			logger.Error(ctx, "oauth2: unable to unmarshal user info claims", slog.Error(err))
@@ -1523,14 +1525,14 @@ func (api *API) userInfoClaims(ctx context.Context, rw http.ResponseWriter, stat
 			slog.F("claim_fields", claimFields(userInfoClaims)),
 			slog.F("blank", blankFields(userInfoClaims)),
 		)
-	} else if !strings.Contains(err.Error(), "user info endpoint is not supported by this provider") {
+	case !strings.Contains(err.Error(), "user info endpoint is not supported by this provider"):
 		logger.Error(ctx, "oauth2: unable to obtain user information claims", slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to obtain user information claims.",
 			Detail:  "The attempt to fetch claims via the UserInfo endpoint failed: " + err.Error(),
 		})
 		return nil, false
-	} else {
+	default:
 		// The OIDC provider does not support the UserInfo endpoint.
 		// This is not an error, but we should log it as it may mean
 		// that some claims are missing.
@@ -1668,7 +1670,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 		}
 
 		// nolint:gocritic // Getting user count is a system function.
-		userCount, err := tx.GetUserCount(dbauthz.AsSystemRestricted(ctx))
+		userCount, err := tx.GetUserCount(dbauthz.AsSystemRestricted(ctx), false)
 		if err != nil {
 			return xerrors.Errorf("unable to fetch user count: %w", err)
 		}

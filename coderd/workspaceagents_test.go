@@ -51,6 +51,7 @@ import (
 	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/telemetry"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -843,6 +844,7 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 			o.PortCacheDuration = time.Millisecond
 		})
 		resources := coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
+		// #nosec G115 - Safe conversion as TCP port numbers are within uint16 range (0-65535)
 		return client, uint16(coderdPort), resources[0].Agents[0].ID
 	}
 
@@ -877,6 +879,7 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 				_ = l.Close()
 			})
 
+			// #nosec G115 - Safe conversion as TCP port numbers are within uint16 range (0-65535)
 			port = uint16(tcpAddr.Port)
 			return true
 		}, testutil.WaitShort, testutil.IntervalFast)
@@ -2135,12 +2138,8 @@ func TestOwnedWorkspacesCoordinate(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	logger := testutil.Logger(t)
-
-	fTelemetry := newFakeTelemetryReporter(ctx, t, 200)
-	fTelemetry.enabled = false
 	firstClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-		Coordinator:       tailnet.NewCoordinator(logger),
-		TelemetryReporter: fTelemetry,
+		Coordinator: tailnet.NewCoordinator(logger),
 	})
 	firstUser := coderdtest.CreateFirstUser(t, firstClient)
 	member, memberUser := coderdtest.CreateAnotherUser(t, firstClient, firstUser.OrganizationID, rbac.RoleTemplateAdmin())
@@ -2148,16 +2147,11 @@ func TestOwnedWorkspacesCoordinate(t *testing.T) {
 	// Create a workspace with an agent
 	firstWorkspace := buildWorkspaceWithAgent(t, member, firstUser.OrganizationID, memberUser.ID, api.Database, api.Pubsub)
 
-	// enable telemetry now that workspace is built; we don't care about snapshots before this.
-	fTelemetry.enabled = true
-
 	u, err := member.URL.Parse("/api/v2/tailnet")
 	require.NoError(t, err)
 	q := u.Query()
 	q.Set("version", "2.0")
 	u.RawQuery = q.Encode()
-
-	predialTime := time.Now()
 
 	//nolint:bodyclose // websocket package closes this for you
 	wsConn, resp, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{
@@ -2172,15 +2166,6 @@ func TestOwnedWorkspacesCoordinate(t *testing.T) {
 		require.NoError(t, err)
 	}
 	defer wsConn.Close(websocket.StatusNormalClosure, "done")
-
-	// Check telemetry
-	snapshot := testutil.RequireRecvCtx(ctx, t, fTelemetry.snapshots)
-	require.Len(t, snapshot.UserTailnetConnections, 1)
-	telemetryConnection := snapshot.UserTailnetConnections[0]
-	require.Equal(t, memberUser.ID.String(), telemetryConnection.UserID)
-	require.GreaterOrEqual(t, telemetryConnection.ConnectedAt, predialTime)
-	require.LessOrEqual(t, telemetryConnection.ConnectedAt, time.Now())
-	require.NotEmpty(t, telemetryConnection.PeerID)
 
 	rpcClient, err := tailnet.NewDRPCClient(
 		websocket.NetConn(ctx, wsConn, websocket.MessageBinary),
@@ -2229,23 +2214,135 @@ func TestOwnedWorkspacesCoordinate(t *testing.T) {
 			NumAgents: 0,
 		},
 	})
-	err = stream.Close()
+}
+
+func TestUserTailnetTelemetry(t *testing.T) {
+	t.Parallel()
+
+	telemetryData := &codersdk.CoderDesktopTelemetry{
+		DeviceOS:            "Windows",
+		DeviceID:            "device001",
+		CoderDesktopVersion: "0.22.1",
+	}
+	fullHeader, err := json.Marshal(telemetryData)
 	require.NoError(t, err)
 
-	beforeDisconnectTime := time.Now()
-	err = wsConn.Close(websocket.StatusNormalClosure, "done")
-	require.NoError(t, err)
+	testCases := []struct {
+		name    string
+		headers map[string]string
+		// only used for DeviceID, DeviceOS, CoderDesktopVersion
+		expected telemetry.UserTailnetConnection
+	}{
+		{
+			name:     "no header",
+			headers:  map[string]string{},
+			expected: telemetry.UserTailnetConnection{},
+		},
+		{
+			name: "full header",
+			headers: map[string]string{
+				codersdk.CoderDesktopTelemetryHeader: string(fullHeader),
+			},
+			expected: telemetry.UserTailnetConnection{
+				DeviceOS:            ptr.Ref("Windows"),
+				DeviceID:            ptr.Ref("device001"),
+				CoderDesktopVersion: ptr.Ref("0.22.1"),
+			},
+		},
+		{
+			name: "empty header",
+			headers: map[string]string{
+				codersdk.CoderDesktopTelemetryHeader: "",
+			},
+			expected: telemetry.UserTailnetConnection{},
+		},
+		{
+			name: "invalid header",
+			headers: map[string]string{
+				codersdk.CoderDesktopTelemetryHeader: "{\"device_os",
+			},
+			expected: telemetry.UserTailnetConnection{},
+		},
+	}
 
-	snapshot = testutil.RequireRecvCtx(ctx, t, fTelemetry.snapshots)
-	require.Len(t, snapshot.UserTailnetConnections, 1)
-	telemetryDisconnection := snapshot.UserTailnetConnections[0]
-	require.Equal(t, memberUser.ID.String(), telemetryDisconnection.UserID)
-	require.Equal(t, telemetryConnection.ConnectedAt, telemetryDisconnection.ConnectedAt)
-	require.Equal(t, telemetryConnection.UserID, telemetryDisconnection.UserID)
-	require.Equal(t, telemetryConnection.PeerID, telemetryDisconnection.PeerID)
-	require.NotNil(t, telemetryDisconnection.DisconnectedAt)
-	require.GreaterOrEqual(t, *telemetryDisconnection.DisconnectedAt, beforeDisconnectTime)
-	require.LessOrEqual(t, *telemetryDisconnection.DisconnectedAt, time.Now())
+	// nolint: paralleltest // no longer need to reinitialize loop vars in go 1.22
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			logger := testutil.Logger(t)
+
+			fTelemetry := newFakeTelemetryReporter(ctx, t, 200)
+			fTelemetry.enabled = false
+			firstClient := coderdtest.New(t, &coderdtest.Options{
+				Logger:            &logger,
+				TelemetryReporter: fTelemetry,
+			})
+			firstUser := coderdtest.CreateFirstUser(t, firstClient)
+			member, memberUser := coderdtest.CreateAnotherUser(t, firstClient, firstUser.OrganizationID, rbac.RoleTemplateAdmin())
+
+			headers := http.Header{
+				"Coder-Session-Token": []string{member.SessionToken()},
+			}
+			for k, v := range tc.headers {
+				headers.Add(k, v)
+			}
+
+			// enable telemetry now that user is created.
+			fTelemetry.enabled = true
+
+			u, err := member.URL.Parse("/api/v2/tailnet")
+			require.NoError(t, err)
+			q := u.Query()
+			q.Set("version", "2.0")
+			u.RawQuery = q.Encode()
+
+			predialTime := time.Now()
+
+			//nolint:bodyclose // websocket package closes this for you
+			wsConn, resp, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{
+				HTTPHeader: headers,
+			})
+			if err != nil {
+				if resp != nil && resp.StatusCode != http.StatusSwitchingProtocols {
+					err = codersdk.ReadBodyAsError(resp)
+				}
+				require.NoError(t, err)
+			}
+			defer wsConn.Close(websocket.StatusNormalClosure, "done")
+
+			// Check telemetry
+			snapshot := testutil.RequireRecvCtx(ctx, t, fTelemetry.snapshots)
+			require.Len(t, snapshot.UserTailnetConnections, 1)
+			telemetryConnection := snapshot.UserTailnetConnections[0]
+			require.Equal(t, memberUser.ID.String(), telemetryConnection.UserID)
+			require.GreaterOrEqual(t, telemetryConnection.ConnectedAt, predialTime)
+			require.LessOrEqual(t, telemetryConnection.ConnectedAt, time.Now())
+			require.NotEmpty(t, telemetryConnection.PeerID)
+			requireEqualOrBothNil(t, telemetryConnection.DeviceID, tc.expected.DeviceID)
+			requireEqualOrBothNil(t, telemetryConnection.DeviceOS, tc.expected.DeviceOS)
+			requireEqualOrBothNil(t, telemetryConnection.CoderDesktopVersion, tc.expected.CoderDesktopVersion)
+
+			beforeDisconnectTime := time.Now()
+			err = wsConn.Close(websocket.StatusNormalClosure, "done")
+			require.NoError(t, err)
+
+			snapshot = testutil.RequireRecvCtx(ctx, t, fTelemetry.snapshots)
+			require.Len(t, snapshot.UserTailnetConnections, 1)
+			telemetryDisconnection := snapshot.UserTailnetConnections[0]
+			require.Equal(t, memberUser.ID.String(), telemetryDisconnection.UserID)
+			require.Equal(t, telemetryConnection.ConnectedAt, telemetryDisconnection.ConnectedAt)
+			require.Equal(t, telemetryConnection.UserID, telemetryDisconnection.UserID)
+			require.Equal(t, telemetryConnection.PeerID, telemetryDisconnection.PeerID)
+			require.NotNil(t, telemetryDisconnection.DisconnectedAt)
+			require.GreaterOrEqual(t, *telemetryDisconnection.DisconnectedAt, beforeDisconnectTime)
+			require.LessOrEqual(t, *telemetryDisconnection.DisconnectedAt, time.Now())
+			requireEqualOrBothNil(t, telemetryConnection.DeviceID, tc.expected.DeviceID)
+			requireEqualOrBothNil(t, telemetryConnection.DeviceOS, tc.expected.DeviceOS)
+			requireEqualOrBothNil(t, telemetryConnection.CoderDesktopVersion, tc.expected.CoderDesktopVersion)
+		})
+	}
 }
 
 func buildWorkspaceWithAgent(
@@ -2414,3 +2511,12 @@ func (f *fakeTelemetryReporter) Enabled() bool {
 
 // Close implements the telemetry.Reporter interface.
 func (*fakeTelemetryReporter) Close() {}
+
+func requireEqualOrBothNil[T any](t testing.TB, a, b *T) {
+	t.Helper()
+	if a != nil && b != nil {
+		require.Equal(t, *a, *b)
+		return
+	}
+	require.Equal(t, a, b)
+}

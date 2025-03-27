@@ -1603,11 +1603,16 @@ func (q *sqlQuerier) DeleteGroupMemberFromGroup(ctx context.Context, arg DeleteG
 }
 
 const getGroupMembers = `-- name: GetGroupMembers :many
-SELECT user_id, user_email, user_username, user_hashed_password, user_created_at, user_updated_at, user_status, user_rbac_roles, user_login_type, user_avatar_url, user_deleted, user_last_seen_at, user_quiet_hours_schedule, user_name, user_github_com_user_id, organization_id, group_name, group_id FROM group_members_expanded
+SELECT user_id, user_email, user_username, user_hashed_password, user_created_at, user_updated_at, user_status, user_rbac_roles, user_login_type, user_avatar_url, user_deleted, user_last_seen_at, user_quiet_hours_schedule, user_name, user_github_com_user_id, user_is_system, organization_id, group_name, group_id FROM group_members_expanded
+WHERE CASE
+      WHEN $1::bool THEN TRUE
+      ELSE
+        user_is_system = false
+        END
 `
 
-func (q *sqlQuerier) GetGroupMembers(ctx context.Context) ([]GroupMember, error) {
-	rows, err := q.db.QueryContext(ctx, getGroupMembers)
+func (q *sqlQuerier) GetGroupMembers(ctx context.Context, includeSystem bool) ([]GroupMember, error) {
+	rows, err := q.db.QueryContext(ctx, getGroupMembers, includeSystem)
 	if err != nil {
 		return nil, err
 	}
@@ -1631,6 +1636,7 @@ func (q *sqlQuerier) GetGroupMembers(ctx context.Context) ([]GroupMember, error)
 			&i.UserQuietHoursSchedule,
 			&i.UserName,
 			&i.UserGithubComUserID,
+			&i.UserIsSystem,
 			&i.OrganizationID,
 			&i.GroupName,
 			&i.GroupID,
@@ -1649,11 +1655,24 @@ func (q *sqlQuerier) GetGroupMembers(ctx context.Context) ([]GroupMember, error)
 }
 
 const getGroupMembersByGroupID = `-- name: GetGroupMembersByGroupID :many
-SELECT user_id, user_email, user_username, user_hashed_password, user_created_at, user_updated_at, user_status, user_rbac_roles, user_login_type, user_avatar_url, user_deleted, user_last_seen_at, user_quiet_hours_schedule, user_name, user_github_com_user_id, organization_id, group_name, group_id FROM group_members_expanded WHERE group_id = $1
+SELECT user_id, user_email, user_username, user_hashed_password, user_created_at, user_updated_at, user_status, user_rbac_roles, user_login_type, user_avatar_url, user_deleted, user_last_seen_at, user_quiet_hours_schedule, user_name, user_github_com_user_id, user_is_system, organization_id, group_name, group_id
+FROM group_members_expanded
+WHERE group_id = $1
+  -- Filter by system type
+  AND CASE
+      WHEN $2::bool THEN TRUE
+      ELSE
+        user_is_system = false
+      END
 `
 
-func (q *sqlQuerier) GetGroupMembersByGroupID(ctx context.Context, groupID uuid.UUID) ([]GroupMember, error) {
-	rows, err := q.db.QueryContext(ctx, getGroupMembersByGroupID, groupID)
+type GetGroupMembersByGroupIDParams struct {
+	GroupID       uuid.UUID `db:"group_id" json:"group_id"`
+	IncludeSystem bool      `db:"include_system" json:"include_system"`
+}
+
+func (q *sqlQuerier) GetGroupMembersByGroupID(ctx context.Context, arg GetGroupMembersByGroupIDParams) ([]GroupMember, error) {
+	rows, err := q.db.QueryContext(ctx, getGroupMembersByGroupID, arg.GroupID, arg.IncludeSystem)
 	if err != nil {
 		return nil, err
 	}
@@ -1677,6 +1696,7 @@ func (q *sqlQuerier) GetGroupMembersByGroupID(ctx context.Context, groupID uuid.
 			&i.UserQuietHoursSchedule,
 			&i.UserName,
 			&i.UserGithubComUserID,
+			&i.UserIsSystem,
 			&i.OrganizationID,
 			&i.GroupName,
 			&i.GroupID,
@@ -1695,14 +1715,27 @@ func (q *sqlQuerier) GetGroupMembersByGroupID(ctx context.Context, groupID uuid.
 }
 
 const getGroupMembersCountByGroupID = `-- name: GetGroupMembersCountByGroupID :one
-SELECT COUNT(*) FROM group_members_expanded WHERE group_id = $1
+SELECT COUNT(*)
+FROM group_members_expanded
+WHERE group_id = $1
+  -- Filter by system type
+  AND CASE
+      WHEN $2::bool THEN TRUE
+      ELSE
+        user_is_system = false
+        END
 `
+
+type GetGroupMembersCountByGroupIDParams struct {
+	GroupID       uuid.UUID `db:"group_id" json:"group_id"`
+	IncludeSystem bool      `db:"include_system" json:"include_system"`
+}
 
 // Returns the total count of members in a group. Shows the total
 // count even if the caller does not have read access to ResourceGroupMember.
 // They only need ResourceGroup read access.
-func (q *sqlQuerier) GetGroupMembersCountByGroupID(ctx context.Context, groupID uuid.UUID) (int64, error) {
-	row := q.db.QueryRowContext(ctx, getGroupMembersCountByGroupID, groupID)
+func (q *sqlQuerier) GetGroupMembersCountByGroupID(ctx context.Context, arg GetGroupMembersCountByGroupIDParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getGroupMembersCountByGroupID, arg.GroupID, arg.IncludeSystem)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -3979,6 +4012,19 @@ func (q *sqlQuerier) BulkMarkNotificationMessagesSent(ctx context.Context, arg B
 	return result.RowsAffected()
 }
 
+const deleteAllWebpushSubscriptions = `-- name: DeleteAllWebpushSubscriptions :exec
+TRUNCATE TABLE webpush_subscriptions
+`
+
+// Deletes all existing webpush subscriptions.
+// This should be called when the VAPID keypair is regenerated, as the old
+// keypair will no longer be valid and all existing subscriptions will need to
+// be recreated.
+func (q *sqlQuerier) DeleteAllWebpushSubscriptions(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, deleteAllWebpushSubscriptions)
+	return err
+}
+
 const deleteOldNotificationMessages = `-- name: DeleteOldNotificationMessages :exec
 DELETE
 FROM notification_messages
@@ -3991,6 +4037,31 @@ WHERE id IN
 // Delete all notification messages which have not been updated for over a week.
 func (q *sqlQuerier) DeleteOldNotificationMessages(ctx context.Context) error {
 	_, err := q.db.ExecContext(ctx, deleteOldNotificationMessages)
+	return err
+}
+
+const deleteWebpushSubscriptionByUserIDAndEndpoint = `-- name: DeleteWebpushSubscriptionByUserIDAndEndpoint :exec
+DELETE FROM webpush_subscriptions
+WHERE user_id = $1 AND endpoint = $2
+`
+
+type DeleteWebpushSubscriptionByUserIDAndEndpointParams struct {
+	UserID   uuid.UUID `db:"user_id" json:"user_id"`
+	Endpoint string    `db:"endpoint" json:"endpoint"`
+}
+
+func (q *sqlQuerier) DeleteWebpushSubscriptionByUserIDAndEndpoint(ctx context.Context, arg DeleteWebpushSubscriptionByUserIDAndEndpointParams) error {
+	_, err := q.db.ExecContext(ctx, deleteWebpushSubscriptionByUserIDAndEndpoint, arg.UserID, arg.Endpoint)
+	return err
+}
+
+const deleteWebpushSubscriptions = `-- name: DeleteWebpushSubscriptions :exec
+DELETE FROM webpush_subscriptions
+WHERE id = ANY($1::uuid[])
+`
+
+func (q *sqlQuerier) DeleteWebpushSubscriptions(ctx context.Context, ids []uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteWebpushSubscriptions, pq.Array(ids))
 	return err
 }
 
@@ -4244,6 +4315,76 @@ func (q *sqlQuerier) GetUserNotificationPreferences(ctx context.Context, userID 
 		return nil, err
 	}
 	return items, nil
+}
+
+const getWebpushSubscriptionsByUserID = `-- name: GetWebpushSubscriptionsByUserID :many
+SELECT id, user_id, created_at, endpoint, endpoint_p256dh_key, endpoint_auth_key
+FROM webpush_subscriptions
+WHERE user_id = $1::uuid
+`
+
+func (q *sqlQuerier) GetWebpushSubscriptionsByUserID(ctx context.Context, userID uuid.UUID) ([]WebpushSubscription, error) {
+	rows, err := q.db.QueryContext(ctx, getWebpushSubscriptionsByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WebpushSubscription
+	for rows.Next() {
+		var i WebpushSubscription
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.CreatedAt,
+			&i.Endpoint,
+			&i.EndpointP256dhKey,
+			&i.EndpointAuthKey,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertWebpushSubscription = `-- name: InsertWebpushSubscription :one
+INSERT INTO webpush_subscriptions (user_id, created_at, endpoint, endpoint_p256dh_key, endpoint_auth_key)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, user_id, created_at, endpoint, endpoint_p256dh_key, endpoint_auth_key
+`
+
+type InsertWebpushSubscriptionParams struct {
+	UserID            uuid.UUID `db:"user_id" json:"user_id"`
+	CreatedAt         time.Time `db:"created_at" json:"created_at"`
+	Endpoint          string    `db:"endpoint" json:"endpoint"`
+	EndpointP256dhKey string    `db:"endpoint_p256dh_key" json:"endpoint_p256dh_key"`
+	EndpointAuthKey   string    `db:"endpoint_auth_key" json:"endpoint_auth_key"`
+}
+
+func (q *sqlQuerier) InsertWebpushSubscription(ctx context.Context, arg InsertWebpushSubscriptionParams) (WebpushSubscription, error) {
+	row := q.db.QueryRowContext(ctx, insertWebpushSubscription,
+		arg.UserID,
+		arg.CreatedAt,
+		arg.Endpoint,
+		arg.EndpointP256dhKey,
+		arg.EndpointAuthKey,
+	)
+	var i WebpushSubscription
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.CreatedAt,
+		&i.Endpoint,
+		&i.EndpointP256dhKey,
+		&i.EndpointAuthKey,
+	)
+	return i, err
 }
 
 const updateNotificationTemplateMethodByID = `-- name: UpdateNotificationTemplateMethodByID :one
@@ -5256,11 +5397,18 @@ WHERE
 			user_id = $2
 		ELSE true
 	END
+  -- Filter by system type
+  	AND CASE
+		  WHEN $3::bool THEN TRUE
+		  ELSE
+			  is_system = false
+	END
 `
 
 type OrganizationMembersParams struct {
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	IncludeSystem  bool      `db:"include_system" json:"include_system"`
 }
 
 type OrganizationMembersRow struct {
@@ -5277,7 +5425,7 @@ type OrganizationMembersRow struct {
 //   - Use just 'user_id' to get all orgs a user is a member of
 //   - Use both to get a specific org member row
 func (q *sqlQuerier) OrganizationMembers(ctx context.Context, arg OrganizationMembersParams) ([]OrganizationMembersRow, error) {
-	rows, err := q.db.QueryContext(ctx, organizationMembers, arg.OrganizationID, arg.UserID)
+	rows, err := q.db.QueryContext(ctx, organizationMembers, arg.OrganizationID, arg.UserID, arg.IncludeSystem)
 	if err != nil {
 		return nil, err
 	}
@@ -5501,6 +5649,36 @@ func (q *sqlQuerier) GetOrganizationByName(ctx context.Context, arg GetOrganizat
 		&i.DisplayName,
 		&i.Icon,
 		&i.Deleted,
+	)
+	return i, err
+}
+
+const getOrganizationResourceCountByID = `-- name: GetOrganizationResourceCountByID :one
+SELECT
+    (SELECT COUNT(*) FROM workspaces WHERE workspaces.organization_id = $1 AND workspaces.deleted = false) AS workspace_count,
+    (SELECT COUNT(*) FROM groups WHERE groups.organization_id = $1) AS group_count,
+    (SELECT COUNT(*) FROM templates WHERE templates.organization_id = $1 AND templates.deleted = false) AS template_count,
+    (SELECT COUNT(*) FROM organization_members WHERE organization_members.organization_id = $1) AS member_count,
+    (SELECT COUNT(*) FROM provisioner_keys WHERE provisioner_keys.organization_id = $1) AS provisioner_key_count
+`
+
+type GetOrganizationResourceCountByIDRow struct {
+	WorkspaceCount      int64 `db:"workspace_count" json:"workspace_count"`
+	GroupCount          int64 `db:"group_count" json:"group_count"`
+	TemplateCount       int64 `db:"template_count" json:"template_count"`
+	MemberCount         int64 `db:"member_count" json:"member_count"`
+	ProvisionerKeyCount int64 `db:"provisioner_key_count" json:"provisioner_key_count"`
+}
+
+func (q *sqlQuerier) GetOrganizationResourceCountByID(ctx context.Context, organizationID uuid.UUID) (GetOrganizationResourceCountByIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getOrganizationResourceCountByID, organizationID)
+	var i GetOrganizationResourceCountByIDRow
+	err := row.Scan(
+		&i.WorkspaceCount,
+		&i.GroupCount,
+		&i.TemplateCount,
+		&i.MemberCount,
+		&i.ProvisionerKeyCount,
 	)
 	return i, err
 }
@@ -7890,7 +8068,7 @@ FROM
 	(
 		-- Select all groups this user is a member of. This will also include
 		-- the "Everyone" group for organizations the user is a member of.
-		SELECT user_id, user_email, user_username, user_hashed_password, user_created_at, user_updated_at, user_status, user_rbac_roles, user_login_type, user_avatar_url, user_deleted, user_last_seen_at, user_quiet_hours_schedule, user_name, user_github_com_user_id, organization_id, group_name, group_id FROM group_members_expanded
+		SELECT user_id, user_email, user_username, user_hashed_password, user_created_at, user_updated_at, user_status, user_rbac_roles, user_login_type, user_avatar_url, user_deleted, user_last_seen_at, user_quiet_hours_schedule, user_name, user_github_com_user_id, user_is_system, organization_id, group_name, group_id FROM group_members_expanded
 		         WHERE
 		             $1 = user_id AND
 		             $2 = group_members_expanded.organization_id
@@ -8515,6 +8693,24 @@ func (q *sqlQuerier) GetRuntimeConfig(ctx context.Context, key string) (string, 
 	return value, err
 }
 
+const getWebpushVAPIDKeys = `-- name: GetWebpushVAPIDKeys :one
+SELECT
+    COALESCE((SELECT value FROM site_configs WHERE key = 'webpush_vapid_public_key'), '') :: text AS vapid_public_key,
+    COALESCE((SELECT value FROM site_configs WHERE key = 'webpush_vapid_private_key'), '') :: text AS vapid_private_key
+`
+
+type GetWebpushVAPIDKeysRow struct {
+	VapidPublicKey  string `db:"vapid_public_key" json:"vapid_public_key"`
+	VapidPrivateKey string `db:"vapid_private_key" json:"vapid_private_key"`
+}
+
+func (q *sqlQuerier) GetWebpushVAPIDKeys(ctx context.Context) (GetWebpushVAPIDKeysRow, error) {
+	row := q.db.QueryRowContext(ctx, getWebpushVAPIDKeys)
+	var i GetWebpushVAPIDKeysRow
+	err := row.Scan(&i.VapidPublicKey, &i.VapidPrivateKey)
+	return i, err
+}
+
 const insertDERPMeshKey = `-- name: InsertDERPMeshKey :exec
 INSERT INTO site_configs (key, value) VALUES ('derp_mesh_key', $1)
 `
@@ -8680,6 +8876,25 @@ type UpsertRuntimeConfigParams struct {
 
 func (q *sqlQuerier) UpsertRuntimeConfig(ctx context.Context, arg UpsertRuntimeConfigParams) error {
 	_, err := q.db.ExecContext(ctx, upsertRuntimeConfig, arg.Key, arg.Value)
+	return err
+}
+
+const upsertWebpushVAPIDKeys = `-- name: UpsertWebpushVAPIDKeys :exec
+INSERT INTO site_configs (key, value)
+VALUES
+    ('webpush_vapid_public_key', $1 :: text),
+    ('webpush_vapid_private_key', $2 :: text)
+ON CONFLICT (key)
+DO UPDATE SET value = EXCLUDED.value WHERE site_configs.key = EXCLUDED.key
+`
+
+type UpsertWebpushVAPIDKeysParams struct {
+	VapidPublicKey  string `db:"vapid_public_key" json:"vapid_public_key"`
+	VapidPrivateKey string `db:"vapid_private_key" json:"vapid_private_key"`
+}
+
+func (q *sqlQuerier) UpsertWebpushVAPIDKeys(ctx context.Context, arg UpsertWebpushVAPIDKeysParams) error {
+	_, err := q.db.ExecContext(ctx, upsertWebpushVAPIDKeys, arg.VapidPublicKey, arg.VapidPrivateKey)
 	return err
 }
 
@@ -11407,11 +11622,12 @@ func (q *sqlQuerier) UpdateUserLinkedID(ctx context.Context, arg UpdateUserLinke
 
 const allUserIDs = `-- name: AllUserIDs :many
 SELECT DISTINCT id FROM USERS
+	WHERE CASE WHEN $1::bool THEN TRUE ELSE is_system = false END
 `
 
 // AllUserIDs returns all UserIDs regardless of user status or deletion.
-func (q *sqlQuerier) AllUserIDs(ctx context.Context) ([]uuid.UUID, error) {
-	rows, err := q.db.QueryContext(ctx, allUserIDs)
+func (q *sqlQuerier) AllUserIDs(ctx context.Context, includeSystem bool) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, allUserIDs, includeSystem)
 	if err != nil {
 		return nil, err
 	}
@@ -11440,10 +11656,11 @@ FROM
 	users
 WHERE
 	status = 'active'::user_status AND deleted = false
+	AND CASE WHEN $1::bool THEN TRUE ELSE is_system = false END
 `
 
-func (q *sqlQuerier) GetActiveUserCount(ctx context.Context) (int64, error) {
-	row := q.db.QueryRowContext(ctx, getActiveUserCount)
+func (q *sqlQuerier) GetActiveUserCount(ctx context.Context, includeSystem bool) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getActiveUserCount, includeSystem)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -11533,7 +11750,7 @@ func (q *sqlQuerier) GetUserAppearanceSettings(ctx context.Context, userID uuid.
 
 const getUserByEmailOrUsername = `-- name: GetUserByEmailOrUsername :one
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system
 FROM
 	users
 WHERE
@@ -11569,13 +11786,14 @@ func (q *sqlQuerier) GetUserByEmailOrUsername(ctx context.Context, arg GetUserBy
 		&i.GithubComUserID,
 		&i.HashedOneTimePasscode,
 		&i.OneTimePasscodeExpiresAt,
+		&i.IsSystem,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system
 FROM
 	users
 WHERE
@@ -11605,6 +11823,7 @@ func (q *sqlQuerier) GetUserByID(ctx context.Context, id uuid.UUID) (User, error
 		&i.GithubComUserID,
 		&i.HashedOneTimePasscode,
 		&i.OneTimePasscodeExpiresAt,
+		&i.IsSystem,
 	)
 	return i, err
 }
@@ -11616,10 +11835,11 @@ FROM
 	users
 WHERE
 	deleted = false
+  	AND CASE WHEN $1::bool THEN TRUE ELSE is_system = false END
 `
 
-func (q *sqlQuerier) GetUserCount(ctx context.Context) (int64, error) {
-	row := q.db.QueryRowContext(ctx, getUserCount)
+func (q *sqlQuerier) GetUserCount(ctx context.Context, includeSystem bool) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getUserCount, includeSystem)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -11627,7 +11847,7 @@ func (q *sqlQuerier) GetUserCount(ctx context.Context) (int64, error) {
 
 const getUsers = `-- name: GetUsers :many
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, COUNT(*) OVER() AS count
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, COUNT(*) OVER() AS count
 FROM
 	users
 WHERE
@@ -11698,9 +11918,14 @@ WHERE
 			created_at >= $8
 		ELSE true
 	END
+  	AND CASE
+  	    WHEN $9::bool THEN TRUE
+  	    ELSE
+			is_system = false
+	END
 	AND CASE
-		WHEN $9 :: bigint != 0 THEN
-			github_com_user_id = $9
+		WHEN $10 :: bigint != 0 THEN
+			github_com_user_id = $10
 		ELSE true
 	END
 	-- End of filters
@@ -11709,10 +11934,10 @@ WHERE
 	-- @authorize_filter
 ORDER BY
 	-- Deterministic and consistent ordering of all users. This is to ensure consistent pagination.
-	LOWER(username) ASC OFFSET $10
+	LOWER(username) ASC OFFSET $11
 LIMIT
 	-- A null limit means "no limit", so 0 means return all
-	NULLIF($11 :: int, 0)
+	NULLIF($12 :: int, 0)
 `
 
 type GetUsersParams struct {
@@ -11724,6 +11949,7 @@ type GetUsersParams struct {
 	LastSeenAfter   time.Time    `db:"last_seen_after" json:"last_seen_after"`
 	CreatedBefore   time.Time    `db:"created_before" json:"created_before"`
 	CreatedAfter    time.Time    `db:"created_after" json:"created_after"`
+	IncludeSystem   bool         `db:"include_system" json:"include_system"`
 	GithubComUserID int64        `db:"github_com_user_id" json:"github_com_user_id"`
 	OffsetOpt       int32        `db:"offset_opt" json:"offset_opt"`
 	LimitOpt        int32        `db:"limit_opt" json:"limit_opt"`
@@ -11747,6 +11973,7 @@ type GetUsersRow struct {
 	GithubComUserID          sql.NullInt64  `db:"github_com_user_id" json:"github_com_user_id"`
 	HashedOneTimePasscode    []byte         `db:"hashed_one_time_passcode" json:"hashed_one_time_passcode"`
 	OneTimePasscodeExpiresAt sql.NullTime   `db:"one_time_passcode_expires_at" json:"one_time_passcode_expires_at"`
+	IsSystem                 bool           `db:"is_system" json:"is_system"`
 	Count                    int64          `db:"count" json:"count"`
 }
 
@@ -11761,6 +11988,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUse
 		arg.LastSeenAfter,
 		arg.CreatedBefore,
 		arg.CreatedAfter,
+		arg.IncludeSystem,
 		arg.GithubComUserID,
 		arg.OffsetOpt,
 		arg.LimitOpt,
@@ -11790,6 +12018,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUse
 			&i.GithubComUserID,
 			&i.HashedOneTimePasscode,
 			&i.OneTimePasscodeExpiresAt,
+			&i.IsSystem,
 			&i.Count,
 		); err != nil {
 			return nil, err
@@ -11806,7 +12035,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUse
 }
 
 const getUsersByIDs = `-- name: GetUsersByIDs :many
-SELECT id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at FROM users WHERE id = ANY($1 :: uuid [ ])
+SELECT id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system FROM users WHERE id = ANY($1 :: uuid [ ])
 `
 
 // This shouldn't check for deleted, because it's frequently used
@@ -11839,6 +12068,7 @@ func (q *sqlQuerier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]User
 			&i.GithubComUserID,
 			&i.HashedOneTimePasscode,
 			&i.OneTimePasscodeExpiresAt,
+			&i.IsSystem,
 		); err != nil {
 			return nil, err
 		}
@@ -11872,7 +12102,7 @@ VALUES
 		-- if the status passed in is empty, fallback to dormant, which is what
 		-- we were doing before.
 		COALESCE(NULLIF($10::text, '')::user_status, 'dormant'::user_status)
-	) RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at
+	) RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system
 `
 
 type InsertUserParams struct {
@@ -11920,6 +12150,7 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 		&i.GithubComUserID,
 		&i.HashedOneTimePasscode,
 		&i.OneTimePasscodeExpiresAt,
+		&i.IsSystem,
 	)
 	return i, err
 }
@@ -11929,10 +12160,11 @@ UPDATE
     users
 SET
     status = 'dormant'::user_status,
-	updated_at = $1
+    updated_at = $1
 WHERE
     last_seen_at < $2 :: timestamp
     AND status = 'active'::user_status
+		AND NOT is_system
 RETURNING id, email, username, last_seen_at
 `
 
@@ -12085,7 +12317,7 @@ SET
 	last_seen_at = $2,
 	updated_at = $3
 WHERE
-	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at
+	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system
 `
 
 type UpdateUserLastSeenAtParams struct {
@@ -12115,6 +12347,7 @@ func (q *sqlQuerier) UpdateUserLastSeenAt(ctx context.Context, arg UpdateUserLas
 		&i.GithubComUserID,
 		&i.HashedOneTimePasscode,
 		&i.OneTimePasscodeExpiresAt,
+		&i.IsSystem,
 	)
 	return i, err
 }
@@ -12132,7 +12365,9 @@ SET
 		'':: bytea
 	END
 WHERE
-	id = $2 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at
+	id = $2
+	AND NOT is_system
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system
 `
 
 type UpdateUserLoginTypeParams struct {
@@ -12161,6 +12396,7 @@ func (q *sqlQuerier) UpdateUserLoginType(ctx context.Context, arg UpdateUserLogi
 		&i.GithubComUserID,
 		&i.HashedOneTimePasscode,
 		&i.OneTimePasscodeExpiresAt,
+		&i.IsSystem,
 	)
 	return i, err
 }
@@ -12176,7 +12412,7 @@ SET
 	name = $6
 WHERE
 	id = $1
-RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system
 `
 
 type UpdateUserProfileParams struct {
@@ -12216,6 +12452,7 @@ func (q *sqlQuerier) UpdateUserProfile(ctx context.Context, arg UpdateUserProfil
 		&i.GithubComUserID,
 		&i.HashedOneTimePasscode,
 		&i.OneTimePasscodeExpiresAt,
+		&i.IsSystem,
 	)
 	return i, err
 }
@@ -12227,7 +12464,7 @@ SET
 	quiet_hours_schedule = $2
 WHERE
 	id = $1
-RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system
 `
 
 type UpdateUserQuietHoursScheduleParams struct {
@@ -12256,6 +12493,7 @@ func (q *sqlQuerier) UpdateUserQuietHoursSchedule(ctx context.Context, arg Updat
 		&i.GithubComUserID,
 		&i.HashedOneTimePasscode,
 		&i.OneTimePasscodeExpiresAt,
+		&i.IsSystem,
 	)
 	return i, err
 }
@@ -12268,7 +12506,7 @@ SET
 	rbac_roles = ARRAY(SELECT DISTINCT UNNEST($1 :: text[]))
 WHERE
 	id = $2
-RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system
 `
 
 type UpdateUserRolesParams struct {
@@ -12297,6 +12535,7 @@ func (q *sqlQuerier) UpdateUserRoles(ctx context.Context, arg UpdateUserRolesPar
 		&i.GithubComUserID,
 		&i.HashedOneTimePasscode,
 		&i.OneTimePasscodeExpiresAt,
+		&i.IsSystem,
 	)
 	return i, err
 }
@@ -12308,7 +12547,7 @@ SET
 	status = $2,
 	updated_at = $3
 WHERE
-	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at
+	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system
 `
 
 type UpdateUserStatusParams struct {
@@ -12338,13 +12577,14 @@ func (q *sqlQuerier) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusP
 		&i.GithubComUserID,
 		&i.HashedOneTimePasscode,
 		&i.OneTimePasscodeExpiresAt,
+		&i.IsSystem,
 	)
 	return i, err
 }
 
 const getWorkspaceAgentDevcontainersByAgentID = `-- name: GetWorkspaceAgentDevcontainersByAgentID :many
 SELECT
-	id, workspace_agent_id, created_at, workspace_folder, config_path
+	id, workspace_agent_id, created_at, workspace_folder, config_path, name
 FROM
 	workspace_agent_devcontainers
 WHERE
@@ -12368,6 +12608,7 @@ func (q *sqlQuerier) GetWorkspaceAgentDevcontainersByAgentID(ctx context.Context
 			&i.CreatedAt,
 			&i.WorkspaceFolder,
 			&i.ConfigPath,
+			&i.Name,
 		); err != nil {
 			return nil, err
 		}
@@ -12384,20 +12625,22 @@ func (q *sqlQuerier) GetWorkspaceAgentDevcontainersByAgentID(ctx context.Context
 
 const insertWorkspaceAgentDevcontainers = `-- name: InsertWorkspaceAgentDevcontainers :many
 INSERT INTO
-	workspace_agent_devcontainers (workspace_agent_id, created_at, id, workspace_folder, config_path)
+	workspace_agent_devcontainers (workspace_agent_id, created_at, id, name, workspace_folder, config_path)
 SELECT
 	$1::uuid AS workspace_agent_id,
 	$2::timestamptz AS created_at,
 	unnest($3::uuid[]) AS id,
-	unnest($4::text[]) AS workspace_folder,
-	unnest($5::text[]) AS config_path
-RETURNING workspace_agent_devcontainers.id, workspace_agent_devcontainers.workspace_agent_id, workspace_agent_devcontainers.created_at, workspace_agent_devcontainers.workspace_folder, workspace_agent_devcontainers.config_path
+	unnest($4::text[]) AS name,
+	unnest($5::text[]) AS workspace_folder,
+	unnest($6::text[]) AS config_path
+RETURNING workspace_agent_devcontainers.id, workspace_agent_devcontainers.workspace_agent_id, workspace_agent_devcontainers.created_at, workspace_agent_devcontainers.workspace_folder, workspace_agent_devcontainers.config_path, workspace_agent_devcontainers.name
 `
 
 type InsertWorkspaceAgentDevcontainersParams struct {
 	WorkspaceAgentID uuid.UUID   `db:"workspace_agent_id" json:"workspace_agent_id"`
 	CreatedAt        time.Time   `db:"created_at" json:"created_at"`
 	ID               []uuid.UUID `db:"id" json:"id"`
+	Name             []string    `db:"name" json:"name"`
 	WorkspaceFolder  []string    `db:"workspace_folder" json:"workspace_folder"`
 	ConfigPath       []string    `db:"config_path" json:"config_path"`
 }
@@ -12407,6 +12650,7 @@ func (q *sqlQuerier) InsertWorkspaceAgentDevcontainers(ctx context.Context, arg 
 		arg.WorkspaceAgentID,
 		arg.CreatedAt,
 		pq.Array(arg.ID),
+		pq.Array(arg.Name),
 		pq.Array(arg.WorkspaceFolder),
 		pq.Array(arg.ConfigPath),
 	)
@@ -12423,6 +12667,7 @@ func (q *sqlQuerier) InsertWorkspaceAgentDevcontainers(ctx context.Context, arg 
 			&i.CreatedAt,
 			&i.WorkspaceFolder,
 			&i.ConfigPath,
+			&i.Name,
 		); err != nil {
 			return nil, err
 		}

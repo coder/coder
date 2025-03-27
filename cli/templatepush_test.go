@@ -723,6 +723,7 @@ func TestTemplatePush(t *testing.T) {
 			template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, templateVersion.ID)
 
 			// Test the cli command.
+			//nolint:gocritic
 			modifiedTemplateVariables := append(initialTemplateVariables,
 				&proto.TemplateVariable{
 					Name:        "second_variable",
@@ -792,6 +793,7 @@ func TestTemplatePush(t *testing.T) {
 			template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, templateVersion.ID)
 
 			// Test the cli command.
+			//nolint:gocritic
 			modifiedTemplateVariables := append(initialTemplateVariables,
 				&proto.TemplateVariable{
 					Name:        "second_variable",
@@ -839,6 +841,7 @@ func TestTemplatePush(t *testing.T) {
 			template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, templateVersion.ID)
 
 			// Test the cli command.
+			//nolint:gocritic
 			modifiedTemplateVariables := append(initialTemplateVariables,
 				&proto.TemplateVariable{
 					Name:         "second_variable",
@@ -905,6 +908,7 @@ func TestTemplatePush(t *testing.T) {
 			template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, templateVersion.ID)
 
 			// Test the cli command.
+			//nolint:gocritic
 			modifiedTemplateVariables := append(initialTemplateVariables,
 				&proto.TemplateVariable{
 					Name:        "second_variable",

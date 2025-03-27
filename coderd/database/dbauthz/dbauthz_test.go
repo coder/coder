@@ -387,19 +387,25 @@ func (s *MethodTestSuite) TestGroup() {
 		g := dbgen.Group(s.T(), db, database.Group{})
 		u := dbgen.User(s.T(), db, database.User{})
 		gm := dbgen.GroupMember(s.T(), db, database.GroupMemberTable{GroupID: g.ID, UserID: u.ID})
-		check.Args(g.ID).Asserts(gm, policy.ActionRead)
+		check.Args(database.GetGroupMembersByGroupIDParams{
+			GroupID:       g.ID,
+			IncludeSystem: false,
+		}).Asserts(gm, policy.ActionRead)
 	}))
 	s.Run("GetGroupMembersCountByGroupID", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		g := dbgen.Group(s.T(), db, database.Group{})
-		check.Args(g.ID).Asserts(g, policy.ActionRead)
+		check.Args(database.GetGroupMembersCountByGroupIDParams{
+			GroupID:       g.ID,
+			IncludeSystem: false,
+		}).Asserts(g, policy.ActionRead)
 	}))
 	s.Run("GetGroupMembers", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		g := dbgen.Group(s.T(), db, database.Group{})
 		u := dbgen.User(s.T(), db, database.User{})
 		dbgen.GroupMember(s.T(), db, database.GroupMemberTable{GroupID: g.ID, UserID: u.ID})
-		check.Asserts(rbac.ResourceSystem, policy.ActionRead)
+		check.Args(false).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("System/GetGroups", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
@@ -808,6 +814,39 @@ func (s *MethodTestSuite) TestOrganization() {
 	s.Run("GetOrganizationByID", s.Subtest(func(db database.Store, check *expects) {
 		o := dbgen.Organization(s.T(), db, database.Organization{})
 		check.Args(o.ID).Asserts(o, policy.ActionRead).Returns(o)
+	}))
+	s.Run("GetOrganizationResourceCountByID", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+
+		t := dbgen.Template(s.T(), db, database.Template{
+			CreatedBy:      u.ID,
+			OrganizationID: o.ID,
+		})
+		dbgen.Workspace(s.T(), db, database.WorkspaceTable{
+			OrganizationID: o.ID,
+			OwnerID:        u.ID,
+			TemplateID:     t.ID,
+		})
+		dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
+		dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{
+			OrganizationID: o.ID,
+			UserID:         u.ID,
+		})
+
+		check.Args(o.ID).Asserts(
+			rbac.ResourceOrganizationMember.InOrg(o.ID), policy.ActionRead,
+			rbac.ResourceWorkspace.InOrg(o.ID), policy.ActionRead,
+			rbac.ResourceGroup.InOrg(o.ID), policy.ActionRead,
+			rbac.ResourceTemplate.InOrg(o.ID), policy.ActionRead,
+			rbac.ResourceProvisionerDaemon.InOrg(o.ID), policy.ActionRead,
+		).Returns(database.GetOrganizationResourceCountByIDRow{
+			WorkspaceCount:      1,
+			GroupCount:          1,
+			TemplateCount:       1,
+			MemberCount:         1,
+			ProvisionerKeyCount: 0,
+		})
 	}))
 	s.Run("GetDefaultOrganization", s.Subtest(func(db database.Store, check *expects) {
 		o, _ := db.GetDefaultOrganization(context.Background())
@@ -1681,7 +1720,7 @@ func (s *MethodTestSuite) TestUser() {
 	s.Run("AllUserIDs", s.Subtest(func(db database.Store, check *expects) {
 		a := dbgen.User(s.T(), db, database.User{})
 		b := dbgen.User(s.T(), db, database.User{})
-		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(slice.New(a.ID, b.ID))
+		check.Args(false).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(slice.New(a.ID, b.ID))
 	}))
 	s.Run("CustomRoles", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.CustomRolesParams{}).Asserts(rbac.ResourceAssignRole, policy.ActionRead).Returns([]database.CustomRole{})
@@ -3696,7 +3735,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetActiveUserCount", s.Subtest(func(db database.Store, check *expects) {
-		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(int64(0))
+		check.Args(false).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(int64(0))
 	}))
 	s.Run("GetUnexpiredLicenses", s.Subtest(func(db database.Store, check *expects) {
 		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead)
@@ -3739,7 +3778,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args(time.Now().Add(time.Hour*-1)).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetUserCount", s.Subtest(func(db database.Store, check *expects) {
-		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(int64(0))
+		check.Args(false).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(int64(0))
 	}))
 	s.Run("GetTemplates", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
@@ -4492,6 +4531,22 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	s.Run("UpsertOAuth2GithubDefaultEligible", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(true).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
+	s.Run("GetWebpushVAPIDKeys", s.Subtest(func(db database.Store, check *expects) {
+		require.NoError(s.T(), db.UpsertWebpushVAPIDKeys(context.Background(), database.UpsertWebpushVAPIDKeysParams{
+			VapidPublicKey:  "test",
+			VapidPrivateKey: "test",
+		}))
+		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns(database.GetWebpushVAPIDKeysRow{
+			VapidPublicKey:  "test",
+			VapidPrivateKey: "test",
+		})
+	}))
+	s.Run("UpsertWebpushVAPIDKeys", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.UpsertWebpushVAPIDKeysParams{
+			VapidPublicKey:  "test",
+			VapidPrivateKey: "test",
+		}).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
+	}))
 }
 
 func (s *MethodTestSuite) TestNotifications() {
@@ -4527,6 +4582,39 @@ func (s *MethodTestSuite) TestNotifications() {
 			Status: database.NotificationMessageStatusLeased,
 			Limit:  10,
 		}).Asserts(rbac.ResourceNotificationMessage, policy.ActionRead)
+	}))
+
+	// webpush subscriptions
+	s.Run("GetWebpushSubscriptionsByUserID", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		check.Args(user.ID).Asserts(rbac.ResourceWebpushSubscription.WithOwner(user.ID.String()), policy.ActionRead)
+	}))
+	s.Run("InsertWebpushSubscription", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		check.Args(database.InsertWebpushSubscriptionParams{
+			UserID: user.ID,
+		}).Asserts(rbac.ResourceWebpushSubscription.WithOwner(user.ID.String()), policy.ActionCreate)
+	}))
+	s.Run("DeleteWebpushSubscriptions", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		push := dbgen.WebpushSubscription(s.T(), db, database.InsertWebpushSubscriptionParams{
+			UserID: user.ID,
+		})
+		check.Args([]uuid.UUID{push.ID}).Asserts(rbac.ResourceSystem, policy.ActionDelete)
+	}))
+	s.Run("DeleteWebpushSubscriptionByUserIDAndEndpoint", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		push := dbgen.WebpushSubscription(s.T(), db, database.InsertWebpushSubscriptionParams{
+			UserID: user.ID,
+		})
+		check.Args(database.DeleteWebpushSubscriptionByUserIDAndEndpointParams{
+			UserID:   user.ID,
+			Endpoint: push.Endpoint,
+		}).Asserts(rbac.ResourceWebpushSubscription.WithOwner(user.ID.String()), policy.ActionDelete)
+	}))
+	s.Run("DeleteAllWebpushSubscriptions", s.Subtest(func(_ database.Store, check *expects) {
+		check.Args().
+			Asserts(rbac.ResourceWebpushSubscription, policy.ActionDelete)
 	}))
 
 	// Notification templates

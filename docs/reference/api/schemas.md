@@ -964,6 +964,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "telemetry": true,
   "upgrade_message": "string",
   "version": "string",
+  "webpush_public_key": "string",
   "workspace_proxy": true
 }
 ```
@@ -980,6 +981,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `telemetry`               | boolean | false    |              | Telemetry is a boolean that indicates whether telemetry is enabled.                                                                                                 |
 | `upgrade_message`         | string  | false    |              | Upgrade message is the message displayed to users when an outdated client is detected.                                                                              |
 | `version`                 | string  | false    |              | Version returns the semantic version of the build.                                                                                                                  |
+| `webpush_public_key`      | string  | false    |              | Webpush public key is the public key for push notifications via Web Push.                                                                                           |
 | `workspace_proxy`         | boolean | false    |              |                                                                                                                                                                     |
 
 ## codersdk.BuildReason
@@ -1755,6 +1757,20 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `allow_path_app_sharing`           | boolean | false    |              |             |
 | `allow_path_app_site_owner_access` | boolean | false    |              |             |
 
+## codersdk.DeleteWebpushSubscription
+
+```json
+{
+  "endpoint": "string"
+}
+```
+
+### Properties
+
+| Name       | Type   | Required | Restrictions | Description |
+|------------|--------|----------|--------------|-------------|
+| `endpoint` | string | false    |              |             |
+
 ## codersdk.DeleteWorkspaceAgentPortShareRequest
 
 ```json
@@ -1943,6 +1959,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         }
       },
       "fetch_interval": 0,
+      "inbox": {
+        "enabled": true
+      },
       "lease_count": 0,
       "lease_period": 0,
       "max_send_attempts": 0,
@@ -2416,6 +2435,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       }
     },
     "fetch_interval": 0,
+    "inbox": {
+      "enabled": true
+    },
     "lease_count": 0,
     "lease_period": 0,
     "max_send_attempts": 0,
@@ -2644,7 +2666,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 |--------------------------------------|------------------------------------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------|
 | `access_url`                         | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                    |
 | `additional_csp_policy`              | array of string                                                                                      | false    |              |                                                                    |
-| `address`                            | [serpent.HostPort](#serpenthostport)                                                                 | false    |              | Address Use HTTPAddress or TLS.Address instead.                    |
+| `address`                            | [serpent.HostPort](#serpenthostport)                                                                 | false    |              | Deprecated: Use HTTPAddress or TLS.Address instead.                |
 | `agent_fallback_troubleshooting_url` | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                    |
 | `agent_stat_refresh_interval`        | integer                                                                                              | false    |              |                                                                    |
 | `allow_workspace_renames`            | boolean                                                                                              | false    |              |                                                                    |
@@ -2798,6 +2820,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `auto-fill-parameters` |
 | `notifications`        |
 | `workspace-usage`      |
+| `web-push`             |
 
 ## codersdk.ExternalAuth
 
@@ -3757,6 +3780,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
     }
   },
   "fetch_interval": 0,
+  "inbox": {
+    "enabled": true
+  },
   "lease_count": 0,
   "lease_period": 0,
   "max_send_attempts": 0,
@@ -3789,6 +3815,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `dispatch_timeout`  | integer                                                                    | false    |              | How long to wait while a notification is being sent before giving up.                                                                                                                                                                                                                                                                                                                                                                               |
 | `email`             | [codersdk.NotificationsEmailConfig](#codersdknotificationsemailconfig)     | false    |              | Email settings.                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `fetch_interval`    | integer                                                                    | false    |              | How often to query the database for queued notifications.                                                                                                                                                                                                                                                                                                                                                                                           |
+| `inbox`             | [codersdk.NotificationsInboxConfig](#codersdknotificationsinboxconfig)     | false    |              | Inbox settings.                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `lease_count`       | integer                                                                    | false    |              | How many notifications a notifier should lease per fetch interval.                                                                                                                                                                                                                                                                                                                                                                                  |
 | `lease_period`      | integer                                                                    | false    |              | How long a notifier should lease a message. This is effectively how long a notification is 'owned' by a notifier, and once this period expires it will be available for lease by another notifier. Leasing is important in order for multiple running notifiers to not pick the same messages to deliver concurrently. This lease period will only expire if a notifier shuts down ungracefully; a dispatch of the notification releases the lease. |
 | `max_send_attempts` | integer                                                                    | false    |              | The upper limit of attempts to send a notification.                                                                                                                                                                                                                                                                                                                                                                                                 |
@@ -3877,6 +3904,20 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `key_file`             | string  | false    |              | Key file specifies the location of the key to use.           |
 | `server_name`          | string  | false    |              | Server name to verify the hostname for the targets.          |
 | `start_tls`            | boolean | false    |              | Start tls attempts to upgrade plain connections to TLS.      |
+
+## codersdk.NotificationsInboxConfig
+
+```json
+{
+  "enabled": true
+}
+```
+
+### Properties
+
+| Name      | Type    | Required | Restrictions | Description |
+|-----------|---------|----------|--------------|-------------|
+| `enabled` | boolean | false    |              |             |
 
 ## codersdk.NotificationsSettings
 
@@ -5320,6 +5361,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `tailnet_coordinator`              |
 | `template`                         |
 | `user`                             |
+| `webpush_subscription`             |
 | `workspace`                        |
 | `workspace_agent_devcontainers`    |
 | `workspace_agent_resource_monitor` |
@@ -7445,6 +7487,24 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |---------|--------|----------|--------------|-------------|
 | `name`  | string | false    |              |             |
 | `value` | string | false    |              |             |
+
+## codersdk.WebpushSubscription
+
+```json
+{
+  "auth_key": "string",
+  "endpoint": "string",
+  "p256dh_key": "string"
+}
+```
+
+### Properties
+
+| Name         | Type   | Required | Restrictions | Description |
+|--------------|--------|----------|--------------|-------------|
+| `auth_key`   | string | false    |              |             |
+| `endpoint`   | string | false    |              |             |
+| `p256dh_key` | string | false    |              |             |
 
 ## codersdk.Workspace
 

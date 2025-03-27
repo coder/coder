@@ -78,6 +78,7 @@ import (
 	"github.com/coder/coder/v2/coderd/unhanger"
 	"github.com/coder/coder/v2/coderd/updatecheck"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/coderd/workspacestats"
@@ -161,6 +162,7 @@ type Options struct {
 	Logger       *slog.Logger
 	StatsBatcher workspacestats.Batcher
 
+	WebpushDispatcher                  webpush.Dispatcher
 	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions
 	AllowWorkspaceRenames              bool
 	NewTicker                          func(duration time.Duration) (<-chan time.Time, func())
@@ -278,6 +280,15 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		// nolint:gocritic // Setting up unit test data inside test helper
 		err := options.Database.InsertDeploymentID(dbauthz.AsSystemRestricted(context.Background()), uuid.NewString())
 		require.NoError(t, err, "insert a deployment id")
+	}
+
+	if options.WebpushDispatcher == nil {
+		// nolint:gocritic // Gets/sets VAPID keys.
+		pushNotifier, err := webpush.New(dbauthz.AsNotifier(context.Background()), options.Logger, options.Database)
+		if err != nil {
+			panic(xerrors.Errorf("failed to create web push notifier: %w", err))
+		}
+		options.WebpushDispatcher = pushNotifier
 	}
 
 	if options.DeploymentValues == nil {
@@ -530,6 +541,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			TrialGenerator:                     options.TrialGenerator,
 			RefreshEntitlements:                options.RefreshEntitlements,
 			TailnetCoordinator:                 options.Coordinator,
+			WebPushDispatcher:                  options.WebpushDispatcher,
 			BaseDERPMap:                        derpMap,
 			DERPMapUpdateFrequency:             150 * time.Millisecond,
 			CoordinatorResumeTokenProvider:     options.CoordinatorResumeTokenProvider,
@@ -1194,7 +1206,7 @@ func MustWorkspace(t testing.TB, client *codersdk.Client, workspaceID uuid.UUID)
 // RequestExternalAuthCallback makes a request with the proper OAuth2 state cookie
 // to the external auth callback endpoint.
 func RequestExternalAuthCallback(t testing.TB, providerID string, client *codersdk.Client, opts ...func(*http.Request)) *http.Response {
-	client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+	client.HTTPClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
 	state := "somestate"

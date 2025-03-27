@@ -820,7 +820,6 @@ func TestGroup(t *testing.T) {
 
 	t.Run("everyoneGroupReturnsEmpty", func(t *testing.T) {
 		t.Parallel()
-
 		client, user := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
 				codersdk.FeatureTemplateRBAC: 1,
@@ -829,8 +828,8 @@ func TestGroup(t *testing.T) {
 		userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
 		_, user1 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		_, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
-
 		ctx := testutil.Context(t, testutil.WaitLong)
+
 		// The 'Everyone' group always has an ID that matches the organization ID.
 		group, err := userAdminClient.Group(ctx, user.OrganizationID)
 		require.NoError(t, err)

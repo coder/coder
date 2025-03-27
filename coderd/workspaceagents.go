@@ -215,11 +215,12 @@ func (api *API) patchWorkspaceAgentLogs(rw http.ResponseWriter, r *http.Request)
 	}
 
 	logs, err := api.Database.InsertWorkspaceAgentLogs(ctx, database.InsertWorkspaceAgentLogsParams{
-		AgentID:      workspaceAgent.ID,
-		CreatedAt:    dbtime.Now(),
-		Output:       output,
-		Level:        level,
-		LogSourceID:  req.LogSourceID,
+		AgentID:     workspaceAgent.ID,
+		CreatedAt:   dbtime.Now(),
+		Output:      output,
+		Level:       level,
+		LogSourceID: req.LogSourceID,
+		// #nosec G115 - Log output length is limited and fits in int32
 		OutputLength: int32(outputLength),
 	})
 	if err != nil {
@@ -979,10 +980,11 @@ func (api *API) handleResumeToken(ctx context.Context, rw http.ResponseWriter, r
 		peerID, err = api.Options.CoordinatorResumeTokenProvider.VerifyResumeToken(ctx, resumeToken)
 		// If the token is missing the key ID, it's probably an old token in which
 		// case we just want to generate a new peer ID.
-		if xerrors.Is(err, jwtutils.ErrMissingKeyID) {
+		switch {
+		case xerrors.Is(err, jwtutils.ErrMissingKeyID):
 			peerID = uuid.New()
 			err = nil
-		} else if err != nil {
+		case err != nil:
 			httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
 				Message: workspacesdk.CoordinateAPIInvalidResumeToken,
 				Detail:  err.Error(),
@@ -991,7 +993,7 @@ func (api *API) handleResumeToken(ctx context.Context, rw http.ResponseWriter, r
 				},
 			})
 			return peerID, err
-		} else {
+		default:
 			api.Logger.Debug(ctx, "accepted coordinate resume token for peer",
 				slog.F("peer_id", peerID.String()))
 		}
@@ -1652,6 +1654,8 @@ func (api *API) tailnetRPCConn(rw http.ResponseWriter, r *http.Request) {
 		DeviceOS:            nil,
 		CoderDesktopVersion: nil,
 	}
+
+	fillCoderDesktopTelemetry(r, &connectionTelemetryEvent, api.Logger)
 	api.Telemetry.Report(&telemetry.Snapshot{
 		UserTailnetConnections: []telemetry.UserTailnetConnection{connectionTelemetryEvent},
 	})
@@ -1678,6 +1682,34 @@ func (api *API) tailnetRPCConn(rw http.ResponseWriter, r *http.Request) {
 	if err != nil && !xerrors.Is(err, io.EOF) && !xerrors.Is(err, context.Canceled) {
 		_ = conn.Close(websocket.StatusInternalError, err.Error())
 		return
+	}
+}
+
+// fillCoderDesktopTelemetry fills out the provided event based on a Coder Desktop telemetry header on the request, if
+// present.
+func fillCoderDesktopTelemetry(r *http.Request, event *telemetry.UserTailnetConnection, logger slog.Logger) {
+	// Parse desktop telemetry from header if it exists
+	desktopTelemetryHeader := r.Header.Get(codersdk.CoderDesktopTelemetryHeader)
+	if desktopTelemetryHeader != "" {
+		var telemetryData codersdk.CoderDesktopTelemetry
+		if err := telemetryData.FromHeader(desktopTelemetryHeader); err == nil {
+			// Only set fields if they aren't empty
+			if telemetryData.DeviceID != "" {
+				event.DeviceID = &telemetryData.DeviceID
+			}
+			if telemetryData.DeviceOS != "" {
+				event.DeviceOS = &telemetryData.DeviceOS
+			}
+			if telemetryData.CoderDesktopVersion != "" {
+				event.CoderDesktopVersion = &telemetryData.CoderDesktopVersion
+			}
+			logger.Debug(r.Context(), "received desktop telemetry",
+				slog.F("device_id", telemetryData.DeviceID),
+				slog.F("device_os", telemetryData.DeviceOS),
+				slog.F("desktop_version", telemetryData.CoderDesktopVersion))
+		} else {
+			logger.Warn(r.Context(), "failed to parse desktop telemetry header", slog.Error(err))
+		}
 	}
 }
 
