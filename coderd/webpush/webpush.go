@@ -41,7 +41,7 @@ type Dispatcher interface {
 // for updates inside of a workspace, which we want to be immediate.
 //
 // See: https://github.com/coder/internal/issues/528
-func New(ctx context.Context, log slog.Logger, db database.Store, vapidSub string) (Dispatcher, error) {
+func New(ctx context.Context, log *slog.Logger, db database.Store, vapidSub string) (Dispatcher, error) {
 	keys, err := db.GetWebpushVAPIDKeys(ctx)
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
@@ -73,7 +73,7 @@ func New(ctx context.Context, log slog.Logger, db database.Store, vapidSub strin
 
 type Webpusher struct {
 	store database.Store
-	log   slog.Logger
+	log   *slog.Logger
 	// VAPID allows us to identify the sender of the message.
 	// This must be a https:// URL or an email address.
 	// Some push services (such as Apple's) require this to be set.

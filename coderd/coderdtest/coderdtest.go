@@ -284,7 +284,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 
 	if options.WebpushDispatcher == nil {
 		// nolint:gocritic // Gets/sets VAPID keys.
-		pushNotifier, err := webpush.New(dbauthz.AsNotifier(context.Background()), *options.Logger, options.Database, options.AccessURL.String())
+		pushNotifier, err := webpush.New(dbauthz.AsNotifier(context.Background()), options.Logger, options.Database, "http://example.com")
 		if err != nil {
 			panic(xerrors.Errorf("failed to create web push notifier: %w", err))
 		}
