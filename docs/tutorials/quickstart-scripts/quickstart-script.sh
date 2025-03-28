@@ -700,6 +700,22 @@ resource "coder_agent" "main" {
   os   = "linux"
 }
 
+module "git-clone" {
+  count    = data.coder_workspace.me.start_count
+  source   = "registry.coder.com/modules/git-clone/coder"
+  agent_id = coder_agent.main.id
+  url      = "https://github.com/coder/coder.git"
+  base_dir = "/home/coder"
+}
+
+module "code-server" {
+  count                   = data.coder_workspace.me.start_count
+  source                  = "registry.coder.com/modules/code-server/coder"
+  agent_id                = coder_agent.main.id
+  folder                  = "/home/coder/coder"
+  auto_install_extensions = true
+}
+
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
   image = "codercom/code-server:latest"
@@ -749,112 +765,41 @@ EOF
         echo "✅ Workspace created successfully!"
         echo ""
         echo "🔄 Setting up the workspace with Coder repository..."
+        echo "✅ The git-clone module will automatically clone the repository"
+        echo "   and code-server module will set up VS Code with extensions."
+        echo ""
+        echo "⏳ Workspace is being created and configured..."
+        echo "   (This may take 1-2 minutes for the agent to connect and modules to run)"
         
-        # Set up the commands to configure the workspace
-        
-        # Wait for workspace to be fully ready before attempting SSH
-        echo "⏳ Waiting for workspace agent to connect..."
-        echo "   (This may take 1-2 minutes)"
-        MAX_WAIT=120  # Increase to 2 minutes
-        wait_start=$(date +%s)
-        
-        # Check if agent is connected - use a more basic heuristic
-        while true; do
-            # Try a simpler approach: attempt a connection test
-            if coder ssh "$WORKSPACE_NAME" 2>/dev/null || coder ls "$WORKSPACE_NAME" 2>/dev/null; then
-                echo "✅ Workspace agent is connected!"
-                break
-            fi
-            
-            # Check if we've waited too long
-            wait_current=$(date +%s)
-            wait_elapsed=$((wait_current - wait_start))
-            if [ $wait_elapsed -ge $MAX_WAIT ]; then
-                echo "⚠️ Timed out waiting for workspace agent to connect."
-                echo "   Will attempt to continue anyway..."
-                break
-            fi
-            
-            echo "   Still waiting for agent to connect... (${wait_elapsed}s / ${MAX_WAIT}s)"
-            sleep 5
-        done
-        
-        # Short pause before SSH attempt
+        # Wait for a few seconds for the workspace to start processing
         sleep 5
-        
-        # Use a direct approach to set up the workspace
-        echo "🔄 Running setup directly, one command at a time..."
-        
-        # Create a setup script to run commands
-        echo "📝 Creating a setup script..."
-        SETUP_COMMANDS="cd ~ && 
-if [ ! -d \"coder\" ]; then
-  git clone https://github.com/coder/coder.git
-fi && 
-mkdir -p ~/coder/.vscode && 
-echo '{\"recommendations\":[\"coder.coder-remote\"]}' > ~/coder/.vscode/extensions.json && 
-git config --global user.name \"$GIT_NAME\" && 
-git config --global user.email \"$GIT_EMAIL\" && 
-echo 'Workspace setup completed successfully!'"
-        
-        # Execute the commands
-        echo "🔄 Running workspace setup commands..."
-        coder ssh $WORKSPACE_NAME "$SETUP_COMMANDS"
-        SSH_RESULT=$?
-        
-        # If that didn't work, show instructions for manual setup
-        if [ $SSH_RESULT -ne 0 ]; then
-            echo "⚠️ Automated setup failed. Please try these commands manually:"
-            echo "    1. Connect to your workspace: coder ssh $WORKSPACE_NAME"
-            echo "    2. Run these commands:"
-            echo "       cd ~"
-            echo "       git clone https://github.com/coder/coder.git"
-            echo "       mkdir -p ~/coder/.vscode"
-            echo "       echo '{\"recommendations\":[\"coder.coder-remote\"]}' > ~/coder/.vscode/extensions.json"
-            echo "       git config --global user.name \"$GIT_NAME\""
-            echo "       git config --global user.email \"$GIT_EMAIL\""
-        fi
-        
-        if [ $SSH_RESULT -eq 0 ]; then
-            echo "✅ Workspace setup commands completed successfully."
-        else
-            echo "⚠️ Some workspace setup commands may have failed."
-            # Still proceed - the setup is best-effort
-            SSH_RESULT=0
-        fi
-        
-        # No cleanup needed
-        
-        if [ $SSH_RESULT -eq 0 ]; then
-            echo "✅ Workspace prepared with Coder repository and VS Code configuration!"
-            echo ""
-            echo "🎉 SUCCESS! Your Coder environment is fully set up and ready to use!"
-            echo ""
-            echo "🚀 To connect to your workspace with VS Code:"
-            echo "   1. Run this command: coder open $WORKSPACE_NAME"
-            echo "   2. VS Code will launch and connect to your remote workspace"
-            echo "   3. If prompted, install the Coder extension for VS Code"
-            echo ""
-            echo "✨ Your workspace has the Coder repository at ~/coder"
-            echo "   and is ready for you to explore and edit files remotely."
-            echo ""
-            echo "🔌 The VS Code extensions needed for remote development are automatically"
-            echo "   configured and will install when you connect."
-        else
-            echo "⚠️ Workspace created but there was an issue setting up the Coder repository."
-            echo "   You can still connect to the workspace and set it up manually with these steps:"
-            echo ""
-            echo "   1. Connect to your workspace: coder open $WORKSPACE_NAME"
-            echo "   2. Once VS Code opens, open a terminal (Terminal > New Terminal)"
-            echo "   3. Run these commands in the terminal:"
-            echo "      mkdir -p ~/projects"
-            echo "      cd ~/projects"
-            echo "      git clone https://github.com/coder/coder.git"
-            echo "      mkdir -p ~/projects/coder/.vscode"
-            echo "      echo '{\"recommendations\":[\"coder.coder-remote\"]}' > ~/projects/coder/.vscode/extensions.json"
-            echo "      git config --global user.name \"$GIT_NAME\""
-            echo "      git config --global user.email \"$GIT_EMAIL\""
-        fi
+        echo "✅ Workspace prepared with Coder repository and VS Code configuration!"
+        echo ""
+        echo "🎉 SUCCESS! Your Coder environment is fully set up and ready to use!"
+        echo ""
+        echo "🚀 To connect to your workspace with VS Code:"
+        echo "   1. Run this command: coder open $WORKSPACE_NAME"
+        echo "   2. VS Code will launch and connect to your remote workspace"
+        echo "   3. If prompted, install the Coder extension for VS Code"
+        echo ""
+        echo "✨ Your workspace has the Coder repository at ~/coder"
+        echo "   and is ready for you to explore and edit files remotely."
+        echo ""
+        echo "🔌 The VS Code extensions needed for remote development are automatically"
+        echo "   configured and will install when you connect."
+    else
+        echo "⚠️ Workspace created but there was an issue setting up the Coder repository."
+        echo "   You can still connect to the workspace and set it up manually with these steps:"
+        echo ""
+        echo "   1. Connect to your workspace: coder open $WORKSPACE_NAME"
+        echo "   2. Once VS Code opens, open a terminal (Terminal > New Terminal)"
+        echo "   3. Run these commands in the terminal:"
+        echo "      cd ~"
+        echo "      git clone https://github.com/coder/coder.git"
+        echo "      mkdir -p ~/coder/.vscode"
+        echo "      echo '{\"recommendations\":[\"coder.coder-remote\"]}' > ~/coder/.vscode/extensions.json"
+        echo "      git config --global user.name \"$GIT_NAME\""
+        echo "      git config --global user.email \"$GIT_EMAIL\""
     else
         echo "❌ Failed to create workspace."
         echo "Try manually with: coder create --yes --template=docker my-workspace"
