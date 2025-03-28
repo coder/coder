@@ -3648,7 +3648,7 @@ func createTmplVersion(
 }
 
 type workspaceBuildOpts struct {
-	successfulJob  bool
+	failedJob      bool
 	createdAt      time.Time
 	readyAgents    int
 	notReadyAgents int
@@ -3665,9 +3665,9 @@ func createPrebuiltWorkspace(
 	opts *workspaceBuildOpts,
 ) {
 	// Create job with corresponding resource and agent
-	jobError := sql.NullString{String: "failed", Valid: true}
-	if opts != nil && opts.successfulJob {
-		jobError = sql.NullString{}
+	jobError := sql.NullString{}
+	if opts != nil && opts.failedJob {
+		jobError = sql.NullString{String: "failed", Valid: true}
 	}
 	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 		Type:           database.ProvisionerJobTypeWorkspaceBuild,
@@ -3878,7 +3878,9 @@ func TestGetPresetsBackoff(t *testing.T) {
 
 		tmpl := createTemplate(t, db, orgID, userID)
 		tmplV1 := createTmplVersion(t, db, tmpl, tmpl.ActiveVersionID, now, nil)
-		createPrebuiltWorkspace(t, ctx, db, tmpl, tmplV1, orgID, now, nil)
+		createPrebuiltWorkspace(t, ctx, db, tmpl, tmplV1, orgID, now, &workspaceBuildOpts{
+			failedJob: true,
+		})
 
 		backoffs, err := db.GetPresetsBackoff(ctx, now.Add(-time.Hour))
 		require.NoError(t, err)
@@ -3904,9 +3906,15 @@ func TestGetPresetsBackoff(t *testing.T) {
 
 		tmpl := createTemplate(t, db, orgID, userID)
 		tmplV1 := createTmplVersion(t, db, tmpl, tmpl.ActiveVersionID, now, nil)
-		createPrebuiltWorkspace(t, ctx, db, tmpl, tmplV1, orgID, now, nil)
-		createPrebuiltWorkspace(t, ctx, db, tmpl, tmplV1, orgID, now, nil)
-		createPrebuiltWorkspace(t, ctx, db, tmpl, tmplV1, orgID, now, nil)
+		createPrebuiltWorkspace(t, ctx, db, tmpl, tmplV1, orgID, now, &workspaceBuildOpts{
+			failedJob: true,
+		})
+		createPrebuiltWorkspace(t, ctx, db, tmpl, tmplV1, orgID, now, &workspaceBuildOpts{
+			failedJob: true,
+		})
+		createPrebuiltWorkspace(t, ctx, db, tmpl, tmplV1, orgID, now, &workspaceBuildOpts{
+			failedJob: true,
+		})
 
 		backoffs, err := db.GetPresetsBackoff(ctx, now.Add(-time.Hour))
 		require.NoError(t, err)
@@ -3932,12 +3940,18 @@ func TestGetPresetsBackoff(t *testing.T) {
 
 		tmpl := createTemplate(t, db, orgID, userID)
 		tmplV1 := createTmplVersion(t, db, tmpl, uuid.New(), now, nil)
-		createPrebuiltWorkspace(t, ctx, db, tmpl, tmplV1, orgID, now, nil)
+		createPrebuiltWorkspace(t, ctx, db, tmpl, tmplV1, orgID, now, &workspaceBuildOpts{
+			failedJob: true,
+		})
 
 		// Active Version
 		tmplV2 := createTmplVersion(t, db, tmpl, tmpl.ActiveVersionID, now, nil)
-		createPrebuiltWorkspace(t, ctx, db, tmpl, tmplV2, orgID, now, nil)
-		createPrebuiltWorkspace(t, ctx, db, tmpl, tmplV2, orgID, now, nil)
+		createPrebuiltWorkspace(t, ctx, db, tmpl, tmplV2, orgID, now, &workspaceBuildOpts{
+			failedJob: true,
+		})
+		createPrebuiltWorkspace(t, ctx, db, tmpl, tmplV2, orgID, now, &workspaceBuildOpts{
+			failedJob: true,
+		})
 
 		backoffs, err := db.GetPresetsBackoff(ctx, now.Add(-time.Hour))
 		require.NoError(t, err)
@@ -3963,11 +3977,15 @@ func TestGetPresetsBackoff(t *testing.T) {
 
 		tmpl1 := createTemplate(t, db, orgID, userID)
 		tmpl1V1 := createTmplVersion(t, db, tmpl1, tmpl1.ActiveVersionID, now, nil)
-		createPrebuiltWorkspace(t, ctx, db, tmpl1, tmpl1V1, orgID, now, nil)
+		createPrebuiltWorkspace(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &workspaceBuildOpts{
+			failedJob: true,
+		})
 
 		tmpl2 := createTemplate(t, db, orgID, userID)
 		tmpl2V1 := createTmplVersion(t, db, tmpl2, tmpl2.ActiveVersionID, now, nil)
-		createPrebuiltWorkspace(t, ctx, db, tmpl2, tmpl2V1, orgID, now, nil)
+		createPrebuiltWorkspace(t, ctx, db, tmpl2, tmpl2V1, orgID, now, &workspaceBuildOpts{
+			failedJob: true,
+		})
 
 		backoffs, err := db.GetPresetsBackoff(ctx, now.Add(-time.Hour))
 		require.NoError(t, err)
@@ -4001,21 +4019,35 @@ func TestGetPresetsBackoff(t *testing.T) {
 
 		tmpl1 := createTemplate(t, db, orgID, userID)
 		tmpl1V1 := createTmplVersion(t, db, tmpl1, tmpl1.ActiveVersionID, now, nil)
-		createPrebuiltWorkspace(t, ctx, db, tmpl1, tmpl1V1, orgID, now, nil)
+		createPrebuiltWorkspace(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &workspaceBuildOpts{
+			failedJob: true,
+		})
 
 		tmpl2 := createTemplate(t, db, orgID, userID)
 		tmpl2V1 := createTmplVersion(t, db, tmpl2, tmpl2.ActiveVersionID, now, nil)
-		createPrebuiltWorkspace(t, ctx, db, tmpl2, tmpl2V1, orgID, now, nil)
-		createPrebuiltWorkspace(t, ctx, db, tmpl2, tmpl2V1, orgID, now, nil)
+		createPrebuiltWorkspace(t, ctx, db, tmpl2, tmpl2V1, orgID, now, &workspaceBuildOpts{
+			failedJob: true,
+		})
+		createPrebuiltWorkspace(t, ctx, db, tmpl2, tmpl2V1, orgID, now, &workspaceBuildOpts{
+			failedJob: true,
+		})
 
 		tmpl3 := createTemplate(t, db, orgID, userID)
 		tmpl3V1 := createTmplVersion(t, db, tmpl3, uuid.New(), now, nil)
-		createPrebuiltWorkspace(t, ctx, db, tmpl3, tmpl3V1, orgID, now, nil)
+		createPrebuiltWorkspace(t, ctx, db, tmpl3, tmpl3V1, orgID, now, &workspaceBuildOpts{
+			failedJob: true,
+		})
 
 		tmpl3V2 := createTmplVersion(t, db, tmpl3, tmpl3.ActiveVersionID, now, nil)
-		createPrebuiltWorkspace(t, ctx, db, tmpl3, tmpl3V2, orgID, now, nil)
-		createPrebuiltWorkspace(t, ctx, db, tmpl3, tmpl3V2, orgID, now, nil)
-		createPrebuiltWorkspace(t, ctx, db, tmpl3, tmpl3V2, orgID, now, nil)
+		createPrebuiltWorkspace(t, ctx, db, tmpl3, tmpl3V2, orgID, now, &workspaceBuildOpts{
+			failedJob: true,
+		})
+		createPrebuiltWorkspace(t, ctx, db, tmpl3, tmpl3V2, orgID, now, &workspaceBuildOpts{
+			failedJob: true,
+		})
+		createPrebuiltWorkspace(t, ctx, db, tmpl3, tmpl3V2, orgID, now, &workspaceBuildOpts{
+			failedJob: true,
+		})
 
 		backoffs, err := db.GetPresetsBackoff(ctx, now.Add(-time.Hour))
 		require.NoError(t, err)
@@ -4076,9 +4108,7 @@ func TestGetPresetsBackoff(t *testing.T) {
 
 		tmpl1 := createTemplate(t, db, orgID, userID)
 		tmpl1V1 := createTmplVersion(t, db, tmpl1, tmpl1.ActiveVersionID, now, nil)
-		successfulJobOpts := workspaceBuildOpts{
-			successfulJob: true,
-		}
+		successfulJobOpts := workspaceBuildOpts{}
 		createPrebuiltWorkspace(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &successfulJobOpts)
 		createPrebuiltWorkspace(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &successfulJobOpts)
 		createPrebuiltWorkspace(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &successfulJobOpts)
@@ -4105,12 +4135,12 @@ func TestGetPresetsBackoff(t *testing.T) {
 			DesiredInstances: 1,
 		})
 		failedJobOpts := workspaceBuildOpts{
-			successfulJob: false,
-			createdAt:     now.Add(-2 * time.Minute),
+			failedJob: true,
+			createdAt: now.Add(-2 * time.Minute),
 		}
 		successfulJobOpts := workspaceBuildOpts{
-			successfulJob: true,
-			createdAt:     now.Add(-1 * time.Minute),
+			failedJob: false,
+			createdAt: now.Add(-1 * time.Minute),
 		}
 		createPrebuiltWorkspace(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &failedJobOpts)
 		createPrebuiltWorkspace(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &successfulJobOpts)
@@ -4137,20 +4167,20 @@ func TestGetPresetsBackoff(t *testing.T) {
 			DesiredInstances: 3,
 		})
 		createPrebuiltWorkspace(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &workspaceBuildOpts{
-			successfulJob: false,
-			createdAt:     now.Add(-4 * time.Minute),
+			failedJob: true,
+			createdAt: now.Add(-4 * time.Minute),
 		})
 		createPrebuiltWorkspace(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &workspaceBuildOpts{
-			successfulJob: true,
-			createdAt:     now.Add(-3 * time.Minute),
+			failedJob: false,
+			createdAt: now.Add(-3 * time.Minute),
 		})
 		createPrebuiltWorkspace(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &workspaceBuildOpts{
-			successfulJob: true,
-			createdAt:     now.Add(-2 * time.Minute),
+			failedJob: false,
+			createdAt: now.Add(-2 * time.Minute),
 		})
 		createPrebuiltWorkspace(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &workspaceBuildOpts{
-			successfulJob: true,
-			createdAt:     now.Add(-1 * time.Minute),
+			failedJob: false,
+			createdAt: now.Add(-1 * time.Minute),
 		})
 
 		backoffs, err := db.GetPresetsBackoff(ctx, now.Add(-time.Hour))
@@ -4175,16 +4205,16 @@ func TestGetPresetsBackoff(t *testing.T) {
 			DesiredInstances: 3,
 		})
 		createPrebuiltWorkspace(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &workspaceBuildOpts{
-			successfulJob: false,
-			createdAt:     now.Add(-3 * time.Minute),
+			failedJob: true,
+			createdAt: now.Add(-3 * time.Minute),
 		})
 		createPrebuiltWorkspace(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &workspaceBuildOpts{
-			successfulJob: true,
-			createdAt:     now.Add(-2 * time.Minute),
+			failedJob: false,
+			createdAt: now.Add(-2 * time.Minute),
 		})
 		createPrebuiltWorkspace(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &workspaceBuildOpts{
-			successfulJob: true,
-			createdAt:     now.Add(-1 * time.Minute),
+			failedJob: false,
+			createdAt: now.Add(-1 * time.Minute),
 		})
 
 		backoffs, err := db.GetPresetsBackoff(ctx, now.Add(-time.Hour))
@@ -4217,24 +4247,24 @@ func TestGetPresetsBackoff(t *testing.T) {
 			DesiredInstances: 3,
 		})
 		createPrebuiltWorkspace(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &workspaceBuildOpts{
-			successfulJob: false,
-			createdAt:     now.Add(-lookbackPeriod - time.Minute), // earlier than lookback period - skipped
+			failedJob: true,
+			createdAt: now.Add(-lookbackPeriod - time.Minute), // earlier than lookback period - skipped
 		})
 		createPrebuiltWorkspace(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &workspaceBuildOpts{
-			successfulJob: false,
-			createdAt:     now.Add(-4 * time.Minute), // within lookback period - counted as failed job
+			failedJob: true,
+			createdAt: now.Add(-4 * time.Minute), // within lookback period - counted as failed job
 		})
 		createPrebuiltWorkspace(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &workspaceBuildOpts{
-			successfulJob: false,
-			createdAt:     now.Add(-3 * time.Minute), // within lookback period - counted as failed job
+			failedJob: true,
+			createdAt: now.Add(-3 * time.Minute), // within lookback period - counted as failed job
 		})
 		createPrebuiltWorkspace(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &workspaceBuildOpts{
-			successfulJob: true,
-			createdAt:     now.Add(-2 * time.Minute),
+			failedJob: false,
+			createdAt: now.Add(-2 * time.Minute),
 		})
 		createPrebuiltWorkspace(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &workspaceBuildOpts{
-			successfulJob: true,
-			createdAt:     now.Add(-1 * time.Minute),
+			failedJob: false,
+			createdAt: now.Add(-1 * time.Minute),
 		})
 
 		backoffs, err := db.GetPresetsBackoff(ctx, now.Add(-lookbackPeriod))
@@ -4267,28 +4297,28 @@ func TestGetPresetsBackoff(t *testing.T) {
 			DesiredInstances: 6,
 		})
 		createPrebuiltWorkspace(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &workspaceBuildOpts{
-			successfulJob: false,
-			createdAt:     now.Add(-lookbackPeriod - time.Minute), // earlier than lookback period - skipped
+			failedJob: true,
+			createdAt: now.Add(-lookbackPeriod - time.Minute), // earlier than lookback period - skipped
 		})
 		createPrebuiltWorkspace(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &workspaceBuildOpts{
-			successfulJob: false,
-			createdAt:     now.Add(-4 * time.Minute),
+			failedJob: true,
+			createdAt: now.Add(-4 * time.Minute),
 		})
 		createPrebuiltWorkspace(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &workspaceBuildOpts{
-			successfulJob: false,
-			createdAt:     now.Add(-0 * time.Minute),
+			failedJob: true,
+			createdAt: now.Add(-0 * time.Minute),
 		})
 		createPrebuiltWorkspace(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &workspaceBuildOpts{
-			successfulJob: false,
-			createdAt:     now.Add(-3 * time.Minute),
+			failedJob: true,
+			createdAt: now.Add(-3 * time.Minute),
 		})
 		createPrebuiltWorkspace(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &workspaceBuildOpts{
-			successfulJob: false,
-			createdAt:     now.Add(-1 * time.Minute),
+			failedJob: true,
+			createdAt: now.Add(-1 * time.Minute),
 		})
 		createPrebuiltWorkspace(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &workspaceBuildOpts{
-			successfulJob: false,
-			createdAt:     now.Add(-2 * time.Minute),
+			failedJob: true,
+			createdAt: now.Add(-2 * time.Minute),
 		})
 
 		backoffs, err := db.GetPresetsBackoff(ctx, now.Add(-lookbackPeriod))
@@ -4324,8 +4354,8 @@ func TestGetPresetsBackoff(t *testing.T) {
 		})
 
 		createPrebuiltWorkspace(t, ctx, db, tmpl1, tmpl1V1, orgID, now, &workspaceBuildOpts{
-			successfulJob: false,
-			createdAt:     now.Add(-lookbackPeriod - time.Minute), // earlier than lookback period - skipped
+			failedJob: true,
+			createdAt: now.Add(-lookbackPeriod - time.Minute), // earlier than lookback period - skipped
 		})
 
 		backoffs, err := db.GetPresetsBackoff(ctx, now.Add(-lookbackPeriod))
