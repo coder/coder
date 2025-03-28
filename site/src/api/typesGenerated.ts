@@ -263,6 +263,7 @@ export interface BuildInfoResponse {
 	readonly provisioner_api_version: string;
 	readonly upgrade_message: string;
 	readonly deployment_id: string;
+	readonly webpush_public_key?: string;
 }
 
 // From codersdk/workspacebuilds.go
@@ -599,6 +600,11 @@ export interface DatabaseReport extends BaseReport {
 	readonly threshold_ms: number;
 }
 
+// From codersdk/notifications.go
+export interface DeleteWebpushSubscription {
+	readonly endpoint: string;
+}
+
 // From codersdk/workspaceagentportshare.go
 export interface DeleteWorkspaceAgentPortShareRequest {
 	readonly agent_name: string;
@@ -748,6 +754,7 @@ export type Experiment =
 	| "auto-fill-parameters"
 	| "example"
 	| "notifications"
+	| "web-push"
 	| "workspace-prebuilds"
 	| "workspace-usage";
 
@@ -1986,6 +1993,7 @@ export type RBACResource =
 	| "tailnet_coordinator"
 	| "template"
 	| "user"
+	| "webpush_subscription"
 	| "*"
 	| "workspace"
 	| "workspace_agent_devcontainers"
@@ -2023,6 +2031,7 @@ export const RBACResources: RBACResource[] = [
 	"tailnet_coordinator",
 	"template",
 	"user",
+	"webpush_subscription",
 	"*",
 	"workspace",
 	"workspace_agent_devcontainers",
@@ -3004,6 +3013,27 @@ export const ValidationMonotonicOrders: ValidationMonotonicOrder[] = [
 export interface VariableValue {
 	readonly name: string;
 	readonly value: string;
+}
+
+// From codersdk/notifications.go
+export interface WebpushMessage {
+	readonly icon: string;
+	readonly title: string;
+	readonly body: string;
+	readonly actions: readonly WebpushMessageAction[];
+}
+
+// From codersdk/notifications.go
+export interface WebpushMessageAction {
+	readonly label: string;
+	readonly url: string;
+}
+
+// From codersdk/notifications.go
+export interface WebpushSubscription {
+	readonly endpoint: string;
+	readonly auth_key: string;
+	readonly p256dh_key: string;
 }
 
 // From healthsdk/healthsdk.go

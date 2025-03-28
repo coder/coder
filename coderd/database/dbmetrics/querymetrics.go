@@ -235,6 +235,13 @@ func (m queryMetricsStore) DeleteAllTailnetTunnels(ctx context.Context, arg data
 	return r0
 }
 
+func (m queryMetricsStore) DeleteAllWebpushSubscriptions(ctx context.Context) error {
+	start := time.Now()
+	r0 := m.s.DeleteAllWebpushSubscriptions(ctx)
+	m.queryLatencies.WithLabelValues("DeleteAllWebpushSubscriptions").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m queryMetricsStore) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
 	start := time.Now()
 	err := m.s.DeleteApplicationConnectAPIKeysByUserID(ctx, userID)
@@ -422,6 +429,20 @@ func (m queryMetricsStore) DeleteTailnetTunnel(ctx context.Context, arg database
 	r0, r1 := m.s.DeleteTailnetTunnel(ctx, arg)
 	m.queryLatencies.WithLabelValues("DeleteTailnetTunnel").Observe(time.Since(start).Seconds())
 	return r0, r1
+}
+
+func (m queryMetricsStore) DeleteWebpushSubscriptionByUserIDAndEndpoint(ctx context.Context, arg database.DeleteWebpushSubscriptionByUserIDAndEndpointParams) error {
+	start := time.Now()
+	r0 := m.s.DeleteWebpushSubscriptionByUserIDAndEndpoint(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteWebpushSubscriptionByUserIDAndEndpoint").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m queryMetricsStore) DeleteWebpushSubscriptions(ctx context.Context, ids []uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteWebpushSubscriptions(ctx, ids)
+	m.queryLatencies.WithLabelValues("DeleteWebpushSubscriptions").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m queryMetricsStore) DeleteWorkspaceAgentPortShare(ctx context.Context, arg database.DeleteWorkspaceAgentPortShareParams) error {
@@ -1544,6 +1565,20 @@ func (m queryMetricsStore) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) (
 	return users, err
 }
 
+func (m queryMetricsStore) GetWebpushSubscriptionsByUserID(ctx context.Context, userID uuid.UUID) ([]database.WebpushSubscription, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWebpushSubscriptionsByUserID(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetWebpushSubscriptionsByUserID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetWebpushVAPIDKeys(ctx context.Context) (database.GetWebpushVAPIDKeysRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWebpushVAPIDKeys(ctx)
+	m.queryLatencies.WithLabelValues("GetWebpushVAPIDKeys").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetWorkspaceAgentAndLatestBuildByAuthToken(ctx context.Context, authToken uuid.UUID) (database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetWorkspaceAgentAndLatestBuildByAuthToken(ctx, authToken)
@@ -2185,6 +2220,13 @@ func (m queryMetricsStore) InsertVolumeResourceMonitor(ctx context.Context, arg 
 	start := time.Now()
 	r0, r1 := m.s.InsertVolumeResourceMonitor(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertVolumeResourceMonitor").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertWebpushSubscription(ctx context.Context, arg database.InsertWebpushSubscriptionParams) (database.WebpushSubscription, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertWebpushSubscription(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertWebpushSubscription").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -3053,6 +3095,13 @@ func (m queryMetricsStore) UpsertTemplateUsageStats(ctx context.Context) error {
 	start := time.Now()
 	r0 := m.s.UpsertTemplateUsageStats(ctx)
 	m.queryLatencies.WithLabelValues("UpsertTemplateUsageStats").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m queryMetricsStore) UpsertWebpushVAPIDKeys(ctx context.Context, arg database.UpsertWebpushVAPIDKeysParams) error {
+	start := time.Now()
+	r0 := m.s.UpsertWebpushVAPIDKeys(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertWebpushVAPIDKeys").Observe(time.Since(start).Seconds())
 	return r0
 }
 

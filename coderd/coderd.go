@@ -47,6 +47,7 @@ import (
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
+	"github.com/coder/coder/v2/coderd/webpush"
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/buildinfo"
@@ -262,6 +263,9 @@ type Options struct {
 	AppEncryptionKeyCache cryptokeys.EncryptionKeycache
 	OIDCConvertKeyCache   cryptokeys.SigningKeycache
 	Clock                 quartz.Clock
+
+	// WebPushDispatcher is a way to send notifications over Web Push.
+	WebPushDispatcher webpush.Dispatcher
 }
 
 // @title Coder API
@@ -548,6 +552,7 @@ func New(options *Options) *API {
 		UserQuietHoursScheduleStore: options.UserQuietHoursScheduleStore,
 		AccessControlStore:          options.AccessControlStore,
 		Experiments:                 experiments,
+		WebpushDispatcher:           options.WebPushDispatcher,
 		healthCheckGroup:            &singleflight.Group[string, *healthsdk.HealthcheckReport]{},
 		Acquirer: provisionerdserver.NewAcquirer(
 			ctx,
@@ -583,6 +588,7 @@ func New(options *Options) *API {
 		WorkspaceProxy:        false,
 		UpgradeMessage:        api.DeploymentValues.CLIUpgradeMessage.String(),
 		DeploymentID:          api.DeploymentID,
+		WebPushPublicKey:      api.WebpushDispatcher.PublicKey(),
 		Telemetry:             api.Telemetry.Enabled(),
 	}
 	api.SiteHandler = site.New(&site.Options{
@@ -1198,6 +1204,11 @@ func New(options *Options) *API {
 							r.Put("/", api.putUserNotificationPreferences)
 						})
 					})
+					r.Route("/webpush", func(r chi.Router) {
+						r.Post("/subscription", api.postUserWebpushSubscription)
+						r.Delete("/subscription", api.deleteUserWebpushSubscription)
+						r.Post("/test", api.postUserPushNotificationTest)
+					})
 				})
 			})
 		})
@@ -1498,8 +1509,10 @@ type API struct {
 	TailnetCoordinator                atomic.Pointer[tailnet.Coordinator]
 	NetworkTelemetryBatcher           *tailnet.NetworkTelemetryBatcher
 	TailnetClientService              *tailnet.ClientService
-	QuotaCommitter                    atomic.Pointer[proto.QuotaCommitter]
-	AppearanceFetcher                 atomic.Pointer[appearance.Fetcher]
+	// WebpushDispatcher is a way to send notifications to users via Web Push.
+	WebpushDispatcher webpush.Dispatcher
+	QuotaCommitter    atomic.Pointer[proto.QuotaCommitter]
+	AppearanceFetcher atomic.Pointer[appearance.Fetcher]
 	// WorkspaceProxyHostsFn returns the hosts of healthy workspace proxies
 	// for header reasons.
 	WorkspaceProxyHostsFn atomic.Pointer[func() []string]

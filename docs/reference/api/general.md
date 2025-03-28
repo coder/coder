@@ -61,6 +61,7 @@ curl -X GET http://coder-server:8080/api/v2/buildinfo \
   "telemetry": true,
   "upgrade_message": "string",
   "version": "string",
+  "webpush_public_key": "string",
   "workspace_proxy": true
 }
 ```

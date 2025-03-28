@@ -1083,7 +1083,7 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 		//
 		// An example is VS Code Remote, which must know the directory
 		// before initializing a connection.
-		manifest.Directory, err = expandDirectory(manifest.Directory)
+		manifest.Directory, err = expandPathToAbs(manifest.Directory)
 		if err != nil {
 			return xerrors.Errorf("expand directory: %w", err)
 		}
@@ -1123,16 +1123,35 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				}
 			}
 
-			err = a.scriptRunner.Init(manifest.Scripts, aAPI.ScriptCompleted)
+			var (
+				scripts          = manifest.Scripts
+				scriptRunnerOpts []agentscripts.InitOption
+			)
+			if a.experimentalDevcontainersEnabled {
+				var dcScripts []codersdk.WorkspaceAgentScript
+				scripts, dcScripts = agentcontainers.ExtractAndInitializeDevcontainerScripts(a.logger, expandPathToAbs, manifest.Devcontainers, scripts)
+				// See ExtractAndInitializeDevcontainerScripts for motivation
+				// behind running dcScripts as post start scripts.
+				scriptRunnerOpts = append(scriptRunnerOpts, agentscripts.WithPostStartScripts(dcScripts...))
+			}
+			err = a.scriptRunner.Init(scripts, aAPI.ScriptCompleted, scriptRunnerOpts...)
 			if err != nil {
 				return xerrors.Errorf("init script runner: %w", err)
 			}
 			err = a.trackGoroutine(func() {
 				start := time.Now()
-				// here we use the graceful context because the script runner is not directly tied
-				// to the agent API.
+				// Here we use the graceful context because the script runner is
+				// not directly tied to the agent API.
+				//
+				// First we run the start scripts to ensure the workspace has
+				// been initialized and then the post start scripts which may
+				// depend on the workspace start scripts.
+				//
+				// Measure the time immediately after the start scripts have
+				// finished (both start and post start). For instance, an
+				// autostarted devcontainer will be included in this time.
 				err := a.scriptRunner.Execute(a.gracefulCtx, agentscripts.ExecuteStartScripts)
-				// Measure the time immediately after the script has finished
+				err = errors.Join(err, a.scriptRunner.Execute(a.gracefulCtx, agentscripts.ExecutePostStartScripts))
 				dur := time.Since(start).Seconds()
 				if err != nil {
 					a.logger.Warn(ctx, "startup script(s) failed", slog.Error(err))
@@ -1859,30 +1878,29 @@ func userHomeDir() (string, error) {
 	return u.HomeDir, nil
 }
 
-// expandDirectory converts a directory path to an absolute path.
-// It primarily resolves the home directory and any environment
-// variables that may be set
-func expandDirectory(dir string) (string, error) {
-	if dir == "" {
+// expandPathToAbs converts a path to an absolute path. It primarily resolves
+// the home directory and any environment variables that may be set.
+func expandPathToAbs(path string) (string, error) {
+	if path == "" {
 		return "", nil
 	}
-	if dir[0] == '~' {
+	if path[0] == '~' {
 		home, err := userHomeDir()
 		if err != nil {
 			return "", err
 		}
-		dir = filepath.Join(home, dir[1:])
+		path = filepath.Join(home, path[1:])
 	}
-	dir = os.ExpandEnv(dir)
+	path = os.ExpandEnv(path)
 
-	if !filepath.IsAbs(dir) {
+	if !filepath.IsAbs(path) {
 		home, err := userHomeDir()
 		if err != nil {
 			return "", err
 		}
-		dir = filepath.Join(home, dir)
+		path = filepath.Join(home, path)
 	}
-	return dir, nil
+	return path, nil
 }
 
 // EnvAgentSubsystem is the environment variable used to denote the

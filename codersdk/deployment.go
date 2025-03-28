@@ -3018,6 +3018,7 @@ Write out the current server config as YAML to stdout.`,
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 			Hidden:      true,
 		},
+		// Push notifications.
 	}
 
 	return opts
@@ -3197,6 +3198,9 @@ type BuildInfoResponse struct {
 
 	// DeploymentID is the unique identifier for this deployment.
 	DeploymentID string `json:"deployment_id"`
+
+	// WebPushPublicKey is the public key for push notifications via Web Push.
+	WebPushPublicKey string `json:"webpush_public_key,omitempty"`
 }
 
 type WorkspaceProxyBuildInfo struct {
@@ -3240,6 +3244,7 @@ const (
 	ExperimentNotifications      Experiment = "notifications"        // Sends notifications via SMTP and webhooks following certain events.
 	ExperimentWorkspaceUsage     Experiment = "workspace-usage"      // Enables the new workspace usage tracking.
 	ExperimentWorkspacePrebuilds Experiment = "workspace-prebuilds"  // Enables the new workspace prebuilds feature.
+	ExperimentWebPush            Experiment = "web-push"             // Enables web push notifications through the browser.
 )
 
 // ExperimentsAll should include all experiments that are safe for
