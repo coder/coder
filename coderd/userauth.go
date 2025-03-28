@@ -1100,6 +1100,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	// We use AuthCodeURL from the OAuth2Config field instead of the one on
 	// GithubOAuth2Config because when device flow is configured, AuthCodeURL
 	// is overridden and returns a value that doesn't pass the URL check.
+	// codeql[go/constant-oauth2-state] -- We are solely using the AuthCodeURL from the OAuth2Config field in order to validate the hostname of the external auth provider.
 	if externalauth.IsGithubDotComURL(api.GithubOAuth2Config.OAuth2Config.AuthCodeURL("")) && user.GithubComUserID.Int64 != ghUser.GetID() {
 		err = api.Database.UpdateUserGithubComUserID(ctx, database.UpdateUserGithubComUserIDParams{
 			ID: user.ID,

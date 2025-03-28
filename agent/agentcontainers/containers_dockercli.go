@@ -491,21 +491,15 @@ func convertDockerInspect(raw []byte) ([]codersdk.WorkspaceAgentContainer, []str
 //	"8080" -> 8080, "tcp"
 func convertDockerPort(in string) (uint16, string, error) {
 	parts := strings.Split(in, "/")
+	p, err := strconv.ParseUint(parts[0], 10, 16)
+	if err != nil {
+		return 0, "", xerrors.Errorf("invalid port format: %s", in)
+	}
 	switch len(parts) {
 	case 1:
 		// assume it's a TCP port
-		p, err := strconv.Atoi(parts[0])
-		if err != nil {
-			return 0, "", xerrors.Errorf("invalid port format: %s", in)
-		}
-		// #nosec G115 - Safe conversion since Docker TCP ports are limited to uint16 range
 		return uint16(p), "tcp", nil
 	case 2:
-		p, err := strconv.Atoi(parts[0])
-		if err != nil {
-			return 0, "", xerrors.Errorf("invalid port format: %s", in)
-		}
-		// #nosec G115 - Safe conversion since Docker ports are limited to uint16 range
 		return uint16(p), parts[1], nil
 	default:
 		return 0, "", xerrors.Errorf("invalid port format: %s", in)
