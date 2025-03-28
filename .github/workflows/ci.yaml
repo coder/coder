@@ -299,6 +299,9 @@ jobs:
       - name: Setup Node
         uses: ./.github/actions/setup-node
 
+      - name: Check Go version
+        run: IGNORE_NIX=true ./scripts/check_go_versions.sh
+
       # Use default Go version
       - name: Setup Go
         uses: ./.github/actions/setup-go
