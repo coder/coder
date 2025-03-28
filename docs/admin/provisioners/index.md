@@ -1,7 +1,7 @@
 # External provisioners
 
 By default, the Coder server runs
-[built-in provisioner daemons](../reference/cli/server.md#--provisioner-daemons),
+[built-in provisioner daemons](../../reference/cli/server.md#--provisioner-daemons),
 which execute `terraform` during workspace and template builds. However, there
 are often benefits to running external provisioner daemons:
 
@@ -11,7 +11,7 @@ are often benefits to running external provisioner daemons:
 - **Isolate APIs:** Deploy provisioners in isolated environments (on-prem, AWS,
   Azure) instead of exposing APIs (Docker, Kubernetes, VMware) to the Coder
   server. See
-  [Provider Authentication](../admin/templates/extending-templates/provider-authentication.md)
+  [Provider Authentication](../../admin/templates/extending-templates/provider-authentication.md)
   for more details.
 
 - **Isolate secrets**: Keep Coder unaware of cloud secrets, manage/rotate
@@ -19,18 +19,20 @@ are often benefits to running external provisioner daemons:
 
 - **Reduce server load**: External provisioners reduce load and build queue
   times from the Coder server. See
-  [Scaling Coder](../admin/infrastructure/index.md#scale-tests) for more
+  [Scaling Coder](../../admin/infrastructure/index.md#scale-tests) for more
   details.
 
 Each provisioner runs a single
-[concurrent workspace build](../admin/infrastructure/scale-testing.md#control-plane-provisionerd).
+[concurrent workspace build](../../admin/infrastructure/scale-testing.md#control-plane-provisionerd).
 For example, running 30 provisioner containers will allow 30 users to start
 workspaces at the same time.
 
 Provisioners are started with the
-[`coder provisioner start`](../reference/cli/provisioner_start.md) command in
+[`coder provisioner start`](../../reference/cli/provisioner_start.md) command in
 the [full Coder binary](https://github.com/coder/coder/releases). Keep reading
 to learn how to start provisioners via Docker, Kubernetes, Systemd, etc.
+
+You can use the dashboard, CLI, or API to [manage provisioners](./manage-provisioner-jobs.md).
 
 ## Authentication
 
@@ -83,7 +85,7 @@ Kubernetes/Docker/etc.
 
 A user account with the role `Template Admin` or `Owner` can start provisioners
 using their user account. This may be beneficial if you are running provisioners
-via [automation](../reference/index.md).
+via [automation](../../reference/index.md).
 
 ```sh
 coder login https://<your-coder-url>
@@ -110,7 +112,7 @@ Global pre-shared keys (PSK) make it difficult to rotate keys or isolate provisi
 
 A deployment-wide PSK can be used to authenticate any provisioner. To use a
 global PSK, set a
-[provisioner daemon pre-shared key (PSK)](../reference/cli/server.md#--provisioner-daemon-psk)
+[provisioner daemon pre-shared key (PSK)](../../reference/cli/server.md#--provisioner-daemon-psk)
 on the Coder server.
 
 Next, start the provisioner:
@@ -157,12 +159,12 @@ coder templates push on-prem-chicago \
 
 This can also be done in the UI when building a template:
 
-![template tags](../images/admin/provisioner-tags.png)
+![template tags](../../images/admin/provisioner-tags.png)
 
 Alternatively, a template can target a provisioner via
 [workspace tags](https://github.com/coder/coder/tree/main/examples/workspace-tags)
 inside the Terraform. See the
-[workspace tags documentation](../admin/templates/extending-templates/workspace-tags.md)
+[workspace tags documentation](../../admin/templates/extending-templates/workspace-tags.md)
 for more information.
 
 > [!NOTE]
@@ -237,17 +239,17 @@ This is illustrated in the below table:
 
 Provisioners can broadly be categorized by scope: `organization` or `user`. The
 scope of a provisioner can be specified with
-[`-tag=scope=<scope>`](../reference/cli/provisioner_start.md#-t---tag) when
+[`-tag=scope=<scope>`](../../reference/cli/provisioner_start.md#-t---tag) when
 starting the provisioner daemon. Only users with at least the
-[Template Admin](./users/index.md#roles) role or higher may create
+[Template Admin](../users/index.md#roles) role or higher may create
 organization-scoped provisioner daemons.
 
 There are two exceptions:
 
-- [Built-in provisioners](../reference/cli/server.md#--provisioner-daemons) are
+- [Built-in provisioners](../../reference/cli/server.md#--provisioner-daemons) are
   always organization-scoped.
 - External provisioners started using a
-  [pre-shared key (PSK)](../reference/cli/provisioner_start.md#--psk) are always
+  [pre-shared key (PSK)](../../reference/cli/provisioner_start.md#--psk) are always
   organization-scoped.
 
 ### Organization-Scoped Provisioners
@@ -371,7 +373,7 @@ docker run --rm -it \
 
 As mentioned above, the Coder server will run built-in provisioners by default.
 This can be disabled with a server-wide
-[flag or environment variable](../reference/cli/server.md#--provisioner-daemons).
+[flag or environment variable](../../reference/cli/server.md#--provisioner-daemons).
 
 ```sh
 coder server --provisioner-daemons=0
@@ -390,3 +392,7 @@ address.
 
 If you have provisioners daemons deployed as pods, it is advised to monitor them
 separately.
+
+## Next
+
+- [Manage Provisioners](./manage-provisioner-jobs.md)

@@ -120,7 +120,7 @@ template as the underlying module.
 ### Private git repository
 
 If you are importing a module from a private git repository, the Coder server or
-[provisioner](../../provisioners.md) needs git credentials. Since this token
+[provisioner](../../provisioners/index.md) needs git credentials. Since this token
 will only be used for cloning your repositories with modules, it is best to
 create a token with access limited to the repository and no extra permissions.
 In GitHub, you can generate a
