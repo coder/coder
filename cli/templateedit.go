@@ -147,12 +147,13 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 				autostopRequirementWeeks = template.AutostopRequirement.Weeks
 			}
 
-			if len(autostartRequirementDaysOfWeek) == 1 && autostartRequirementDaysOfWeek[0] == "all" {
+			switch {
+			case len(autostartRequirementDaysOfWeek) == 1 && autostartRequirementDaysOfWeek[0] == "all":
 				// Set it to every day of the week
 				autostartRequirementDaysOfWeek = []string{"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}
-			} else if !userSetOption(inv, "autostart-requirement-weekdays") {
+			case !userSetOption(inv, "autostart-requirement-weekdays"):
 				autostartRequirementDaysOfWeek = template.AutostartRequirement.DaysOfWeek
-			} else if len(autostartRequirementDaysOfWeek) == 0 {
+			case len(autostartRequirementDaysOfWeek) == 0:
 				autostartRequirementDaysOfWeek = []string{}
 			}
 

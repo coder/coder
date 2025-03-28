@@ -341,7 +341,7 @@ func TestSSH(t *testing.T) {
 
 		cmdDone := tGo(t, func() {
 			err := inv.WithContext(ctx).Run()
-			assert.ErrorIs(t, err, cliui.Canceled)
+			assert.ErrorIs(t, err, cliui.ErrCanceled)
 		})
 		pty.ExpectMatch(wantURL)
 		cancel()
@@ -1997,7 +1997,7 @@ func TestSSH_Container(t *testing.T) {
 		_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
 
 		mLister.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
-			Containers: []codersdk.WorkspaceAgentDevcontainer{
+			Containers: []codersdk.WorkspaceAgentContainer{
 				{
 					ID:           uuid.NewString(),
 					FriendlyName: "something_completely_different",

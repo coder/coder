@@ -49,11 +49,10 @@ argin: 8px 0 32px; line-height: 1.5;">
       </h1>
       <div style=3D"line-height: 1.5;">
         <p>Hi Bobby,</p>
-
-<p>Your workspace <strong>bobby-workspace</strong> has been marked for <str=
-ong>deletion</strong> after 24 hours of <a href=3D"https://coder.com/docs/t=
-emplates/schedule#dormancy-auto-deletion-enterprise">dormancy</a> because o=
-f template updated to new dormancy policy.<br>
+        <p>Your workspace <strong>bobby-workspace</strong> has been marked =
+for <strong>deletion</strong> after 24 hours of <a href=3D"https://coder.co=
+m/docs/templates/schedule#dormancy-auto-deletion-enterprise">dormancy</a> b=
+ecause of template updated to new dormancy policy.<br>
 To prevent deletion, use your workspace with the link below.</p>
       </div>
       <div style=3D"text-align: center; margin-top: 32px;">

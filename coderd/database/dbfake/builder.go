@@ -40,6 +40,7 @@ type OrganizationResponse struct {
 
 func (b OrganizationBuilder) EveryoneAllowance(allowance int) OrganizationBuilder {
 	//nolint: revive // returns modified struct
+	// #nosec G115 - Safe conversion as allowance is expected to be within int32 range
 	b.allUsersAllowance = int32(allowance)
 	return b
 }

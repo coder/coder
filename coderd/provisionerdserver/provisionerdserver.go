@@ -122,7 +122,7 @@ type server struct {
 // We use the null byte (0x00) in generating a canonical map key for tags, so
 // it cannot be used in the tag keys or values.
 
-var ErrorTagsContainNullByte = xerrors.New("tags cannot contain the null byte (0x00)")
+var ErrTagsContainNullByte = xerrors.New("tags cannot contain the null byte (0x00)")
 
 type Tags map[string]string
 
@@ -137,7 +137,7 @@ func (t Tags) ToJSON() (json.RawMessage, error) {
 func (t Tags) Valid() error {
 	for k, v := range t {
 		if slices.Contains([]byte(k), 0x00) || slices.Contains([]byte(v), 0x00) {
-			return ErrorTagsContainNullByte
+			return ErrTagsContainNullByte
 		}
 	}
 	return nil
@@ -1272,6 +1272,8 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			return nil, xerrors.Errorf("template version ID is expected: %w", err)
 		}
 
+		now := s.timeNow()
+
 		for transition, resources := range map[database.WorkspaceTransition][]*sdkproto.Resource{
 			database.WorkspaceTransitionStart: jobType.TemplateImport.StartResources,
 			database.WorkspaceTransitionStop:  jobType.TemplateImport.StopResources,
@@ -1356,7 +1358,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			}
 		}
 
-		err = InsertWorkspacePresetsAndParameters(ctx, s.Logger, s.Database, jobID, input.TemplateVersionID, jobType.TemplateImport.Presets, s.timeNow())
+		err = InsertWorkspacePresetsAndParameters(ctx, s.Logger, s.Database, jobID, input.TemplateVersionID, jobType.TemplateImport.Presets, now)
 		if err != nil {
 			return nil, xerrors.Errorf("insert workspace presets and parameters: %w", err)
 		}
@@ -1408,18 +1410,27 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 
 		err = s.Database.UpdateTemplateVersionExternalAuthProvidersByJobID(ctx, database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams{
 			JobID:                 jobID,
-			ExternalAuthProviders: json.RawMessage(externalAuthProvidersMessage),
-			UpdatedAt:             s.timeNow(),
+			ExternalAuthProviders: externalAuthProvidersMessage,
+			UpdatedAt:             now,
 		})
 		if err != nil {
 			return nil, xerrors.Errorf("update template version external auth providers: %w", err)
 		}
 
+		err = s.Database.InsertTemplateVersionTerraformValuesByJobID(ctx, database.InsertTemplateVersionTerraformValuesByJobIDParams{
+			JobID:      jobID,
+			CachedPlan: jobType.TemplateImport.Plan,
+			UpdatedAt:  now,
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("insert template version terraform data: %w", err)
+		}
+
 		err = s.Database.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
 			ID:        jobID,
-			UpdatedAt: s.timeNow(),
+			UpdatedAt: now,
 			CompletedAt: sql.NullTime{
-				Time:  s.timeNow(),
+				Time:  now,
 				Valid: true,
 			},
 			Error:     completedError,
@@ -1429,6 +1440,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			return nil, xerrors.Errorf("update provisioner job: %w", err)
 		}
 		s.Logger.Debug(ctx, "marked import job as completed", slog.F("job_id", jobID))
+
 	case *proto.CompletedJob_WorkspaceBuild_:
 		var input WorkspaceProvisionJob
 		err = json.Unmarshal(job.Input, &input)
@@ -1846,9 +1858,11 @@ func InsertWorkspacePresetsAndParameters(ctx context.Context, logger slog.Logger
 func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, templateVersionID uuid.UUID, protoPreset *sdkproto.Preset, t time.Time) error {
 	err := db.InTx(func(tx database.Store) error {
 		dbPreset, err := tx.InsertPreset(ctx, database.InsertPresetParams{
-			TemplateVersionID: templateVersionID,
-			Name:              protoPreset.Name,
-			CreatedAt:         t,
+			TemplateVersionID:   templateVersionID,
+			Name:                protoPreset.Name,
+			CreatedAt:           t,
+			DesiredInstances:    sql.NullInt32{},
+			InvalidateAfterSecs: sql.NullInt32{},
 		})
 		if err != nil {
 			return xerrors.Errorf("insert preset: %w", err)
@@ -1986,7 +2000,8 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			DisplayApps:              convertDisplayApps(prAgent.GetDisplayApps()),
 			InstanceMetadata:         pqtype.NullRawMessage{},
 			ResourceMetadata:         pqtype.NullRawMessage{},
-			DisplayOrder:             int32(prAgent.Order),
+			// #nosec G115 - Order represents a display order value that's always small and fits in int32
+			DisplayOrder: int32(prAgent.Order),
 		})
 		if err != nil {
 			return xerrors.Errorf("insert agent: %w", err)
@@ -2001,7 +2016,8 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				Key:              md.Key,
 				Timeout:          md.Timeout,
 				Interval:         md.Interval,
-				DisplayOrder:     int32(md.Order),
+				// #nosec G115 - Order represents a display order value that's always small and fits in int32
+				DisplayOrder: int32(md.Order),
 			}
 			err := db.InsertWorkspaceAgentMetadata(ctx, p)
 			if err != nil {
@@ -2067,6 +2083,55 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			scriptStartBlocksLogin = append(scriptStartBlocksLogin, script.StartBlocksLogin)
 			scriptRunOnStart = append(scriptRunOnStart, script.RunOnStart)
 			scriptRunOnStop = append(scriptRunOnStop, script.RunOnStop)
+		}
+
+		// Dev Containers require a script and log/source, so we do this before
+		// the logs insert below.
+		if devcontainers := prAgent.GetDevcontainers(); len(devcontainers) > 0 {
+			var (
+				devcontainerIDs              = make([]uuid.UUID, 0, len(devcontainers))
+				devcontainerNames            = make([]string, 0, len(devcontainers))
+				devcontainerWorkspaceFolders = make([]string, 0, len(devcontainers))
+				devcontainerConfigPaths      = make([]string, 0, len(devcontainers))
+			)
+			for _, dc := range devcontainers {
+				id := uuid.New()
+				devcontainerIDs = append(devcontainerIDs, id)
+				devcontainerNames = append(devcontainerNames, dc.Name)
+				devcontainerWorkspaceFolders = append(devcontainerWorkspaceFolders, dc.WorkspaceFolder)
+				devcontainerConfigPaths = append(devcontainerConfigPaths, dc.ConfigPath)
+
+				// Add a log source and script for each devcontainer so we can
+				// track logs and timings for each devcontainer.
+				displayName := fmt.Sprintf("Dev Container (%s)", dc.Name)
+				logSourceIDs = append(logSourceIDs, uuid.New())
+				logSourceDisplayNames = append(logSourceDisplayNames, displayName)
+				logSourceIcons = append(logSourceIcons, "/emojis/1f4e6.png") // Emoji package. Or perhaps /icon/container.svg?
+				scriptIDs = append(scriptIDs, id)                            // Re-use the devcontainer ID as the script ID for identification.
+				scriptDisplayName = append(scriptDisplayName, displayName)
+				scriptLogPaths = append(scriptLogPaths, "")
+				scriptSources = append(scriptSources, `echo "WARNING: Dev Containers are early access. If you're seeing this message then Dev Containers haven't been enabled for your workspace yet. To enable, the agent needs to run with the environment variable CODER_AGENT_DEVCONTAINERS_ENABLE=true set."`)
+				scriptCron = append(scriptCron, "")
+				scriptTimeout = append(scriptTimeout, 0)
+				scriptStartBlocksLogin = append(scriptStartBlocksLogin, false)
+				// Run on start to surface the warning message in case the
+				// terraform resource is used, but the experiment hasn't
+				// been enabled.
+				scriptRunOnStart = append(scriptRunOnStart, true)
+				scriptRunOnStop = append(scriptRunOnStop, false)
+			}
+
+			_, err = db.InsertWorkspaceAgentDevcontainers(ctx, database.InsertWorkspaceAgentDevcontainersParams{
+				WorkspaceAgentID: agentID,
+				CreatedAt:        dbtime.Now(),
+				ID:               devcontainerIDs,
+				Name:             devcontainerNames,
+				WorkspaceFolder:  devcontainerWorkspaceFolders,
+				ConfigPath:       devcontainerConfigPaths,
+			})
+			if err != nil {
+				return xerrors.Errorf("insert agent devcontainer: %w", err)
+			}
 		}
 
 		_, err = db.InsertWorkspaceAgentLogSources(ctx, database.InsertWorkspaceAgentLogSourcesParams{
@@ -2160,9 +2225,10 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				HealthcheckInterval:  app.Healthcheck.Interval,
 				HealthcheckThreshold: app.Healthcheck.Threshold,
 				Health:               health,
-				DisplayOrder:         int32(app.Order),
-				Hidden:               app.Hidden,
-				OpenIn:               openIn,
+				// #nosec G115 - Order represents a display order value that's always small and fits in int32
+				DisplayOrder: int32(app.Order),
+				Hidden:       app.Hidden,
+				OpenIn:       openIn,
 			})
 			if err != nil {
 				return xerrors.Errorf("insert app: %w", err)

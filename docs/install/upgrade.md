@@ -1,33 +1,37 @@
 # Upgrade
 
-This article walks you through how to upgrade your Coder server.
+This article describes how to upgrade your Coder server.
 
 > [!CAUTION]
 > Prior to upgrading a production Coder deployment, take a database snapshot since
 > Coder does not support rollbacks.
 
-To upgrade your Coder server, simply reinstall Coder using your original method
+## Reinstall Coder to upgrade
+
+To upgrade your Coder server, reinstall Coder using your original method
 of [install](../install).
 
-## Via install.sh
+### Coder install script
 
-If you installed Coder using the `install.sh` script, re-run the below command
-on the host:
+1. If you installed Coder using the `install.sh` script, re-run the below command
+   on the host:
 
-```shell
-curl -L https://coder.com/install.sh | sh
-```
+   ```shell
+   curl -L https://coder.com/install.sh | sh
+   ```
 
-The script will unpack the new `coder` binary version over the one currently
-installed. Next, you can restart Coder with the following commands (if running
-it as a system service):
+1. If you're running Coder as a system service, you can restart it with `systemctl`:
 
-```shell
-systemctl daemon-reload
-systemctl restart coder
-```
+   ```shell
+   systemctl daemon-reload
+   systemctl restart coder
+   ```
 
-## Via docker-compose
+### Other upgrade methods
+
+<div class="tabs">
+
+### docker-compose
 
 If you installed using `docker-compose`, run the below command to upgrade the
 Coder container:
@@ -36,12 +40,30 @@ Coder container:
 docker-compose pull coder && docker-compose up -d coder
 ```
 
-## Via Kubernetes
+### Kubernetes
 
 See
 [Upgrading Coder via Helm](../install/kubernetes.md#upgrading-coder-via-helm).
 
-## Via Windows
+### Coder AMI on AWS
+
+1. Run the Coder installation script on the host:
+
+   ```shell
+   curl -L https://coder.com/install.sh | sh
+   ```
+
+   The script will unpack the new `coder` binary version over the one currently
+   installed.
+
+1. Restart the Coder system process with `systemctl`:
+
+   ```shell
+   systemctl daemon-reload
+   systemctl restart coder
+   ```
+
+### Windows
 
 Download the latest Windows installer or binary from
 [GitHub releases](https://github.com/coder/coder/releases/latest), or upgrade
@@ -50,3 +72,5 @@ from Winget.
 ```pwsh
 winget install Coder.Coder
 ```
+
+</div>

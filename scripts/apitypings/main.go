@@ -116,7 +116,7 @@ func TypeMappings(gen *guts.GoParser) error {
 // 'serpent.Struct' overrides the json.Marshal to use the underlying type,
 // so the typescript type should be the underlying type.
 func FixSerpentStruct(gen *guts.Typescript) {
-	gen.ForEach(func(key string, originalNode bindings.Node) {
+	gen.ForEach(func(_ string, originalNode bindings.Node) {
 		isInterface, ok := originalNode.(*bindings.Interface)
 		if ok && isInterface.Name.Ref() == "SerpentStruct" {
 			// replace it with

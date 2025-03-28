@@ -280,6 +280,13 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionUpdate: actDef("update notification preferences"),
 		},
 	},
+	"webpush_subscription": {
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: actDef("create webpush subscriptions"),
+			ActionRead:   actDef("read webpush subscriptions"),
+			ActionDelete: actDef("delete webpush subscriptions"),
+		},
+	},
 	"inbox_notification": {
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: actDef("create inbox notifications"),
@@ -307,6 +314,11 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionRead:   actDef("read workspace agent resource monitor"),
 			ActionCreate: actDef("create workspace agent resource monitor"),
 			ActionUpdate: actDef("update workspace agent resource monitor"),
+		},
+	},
+	"workspace_agent_devcontainers": {
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: actDef("create workspace agent devcontainers"),
 		},
 	},
 }

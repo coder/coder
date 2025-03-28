@@ -61,6 +61,7 @@ func (api *API) postGroupByOrganization(rw http.ResponseWriter, r *http.Request)
 		DisplayName:    req.DisplayName,
 		OrganizationID: org.ID,
 		AvatarURL:      req.AvatarURL,
+		// #nosec G115 - Quota allowance is small and fits in int32
 		QuotaAllowance: int32(req.QuotaAllowance),
 	})
 	if database.IsUniqueViolation(err) {
@@ -153,7 +154,10 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	currentMembers, err := api.Database.GetGroupMembersByGroupID(ctx, group.ID)
+	currentMembers, err := api.Database.GetGroupMembersByGroupID(ctx, database.GetGroupMembersByGroupIDParams{
+		GroupID:       group.ID,
+		IncludeSystem: false,
+	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
@@ -219,6 +223,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 			updateGroupParams.Name = req.Name
 		}
 		if req.QuotaAllowance != nil {
+			// #nosec G115 - Quota allowance is small and fits in int32
 			updateGroupParams.QuotaAllowance = int32(*req.QuotaAllowance)
 		}
 		if req.DisplayName != nil {
@@ -283,7 +288,10 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(rw, err)
 	}
 
-	patchedMembers, err := api.Database.GetGroupMembersByGroupID(ctx, group.ID)
+	patchedMembers, err := api.Database.GetGroupMembersByGroupID(ctx, database.GetGroupMembersByGroupIDParams{
+		GroupID:       group.ID,
+		IncludeSystem: false,
+	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
@@ -291,7 +299,10 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 
 	aReq.New = group.Auditable(patchedMembers)
 
-	memberCount, err := api.Database.GetGroupMembersCountByGroupID(ctx, group.ID)
+	memberCount, err := api.Database.GetGroupMembersCountByGroupID(ctx, database.GetGroupMembersCountByGroupIDParams{
+		GroupID:       group.ID,
+		IncludeSystem: false,
+	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
@@ -334,7 +345,10 @@ func (api *API) deleteGroup(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	groupMembers, getMembersErr := api.Database.GetGroupMembersByGroupID(ctx, group.ID)
+	groupMembers, getMembersErr := api.Database.GetGroupMembersByGroupID(ctx, database.GetGroupMembersByGroupIDParams{
+		GroupID:       group.ID,
+		IncludeSystem: false,
+	})
 	if getMembersErr != nil {
 		httpapi.InternalServerError(rw, getMembersErr)
 		return
@@ -385,13 +399,19 @@ func (api *API) group(rw http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(rw, err)
 	}
 
-	users, err := api.Database.GetGroupMembersByGroupID(ctx, group.ID)
+	users, err := api.Database.GetGroupMembersByGroupID(ctx, database.GetGroupMembersByGroupIDParams{
+		GroupID:       group.ID,
+		IncludeSystem: false,
+	})
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
 
-	memberCount, err := api.Database.GetGroupMembersCountByGroupID(ctx, group.ID)
+	memberCount, err := api.Database.GetGroupMembersCountByGroupID(ctx, database.GetGroupMembersCountByGroupIDParams{
+		GroupID:       group.ID,
+		IncludeSystem: false,
+	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
@@ -484,12 +504,18 @@ func (api *API) groups(rw http.ResponseWriter, r *http.Request) {
 
 	resp := make([]codersdk.Group, 0, len(groups))
 	for _, group := range groups {
-		members, err := api.Database.GetGroupMembersByGroupID(ctx, group.Group.ID)
+		members, err := api.Database.GetGroupMembersByGroupID(ctx, database.GetGroupMembersByGroupIDParams{
+			GroupID:       group.Group.ID,
+			IncludeSystem: false,
+		})
 		if err != nil {
 			httpapi.InternalServerError(rw, err)
 			return
 		}
-		memberCount, err := api.Database.GetGroupMembersCountByGroupID(ctx, group.Group.ID)
+		memberCount, err := api.Database.GetGroupMembersCountByGroupID(ctx, database.GetGroupMembersCountByGroupIDParams{
+			GroupID:       group.Group.ID,
+			IncludeSystem: false,
+		})
 		if err != nil {
 			httpapi.InternalServerError(rw, err)
 			return

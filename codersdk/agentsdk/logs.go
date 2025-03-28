@@ -355,7 +355,7 @@ func (l *LogSender) Flush(src uuid.UUID) {
 	// the map.
 }
 
-var LogLimitExceededError = xerrors.New("Log limit exceeded")
+var ErrLogLimitExceeded = xerrors.New("Log limit exceeded")
 
 // SendLoop sends any pending logs until it hits an error or the context is canceled.  It does not
 // retry as it is expected that a higher layer retries establishing connection to the agent API and
@@ -365,7 +365,7 @@ func (l *LogSender) SendLoop(ctx context.Context, dest LogDest) error {
 	defer l.L.Unlock()
 	if l.exceededLogLimit {
 		l.logger.Debug(ctx, "aborting SendLoop because log limit is already exceeded")
-		return LogLimitExceededError
+		return ErrLogLimitExceeded
 	}
 
 	ctxDone := false
@@ -438,7 +438,7 @@ func (l *LogSender) SendLoop(ctx context.Context, dest LogDest) error {
 			// no point in keeping anything we have queued around, server will not accept them
 			l.queues = make(map[uuid.UUID]*logQueue)
 			l.Broadcast() // might unblock WaitUntilEmpty
-			return LogLimitExceededError
+			return ErrLogLimitExceeded
 		}
 
 		// Since elsewhere we only append to the logs, here we can remove them

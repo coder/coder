@@ -127,6 +127,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 				logger.Info(ctx, "spawning reaper process")
 				// Do not start a reaper on the child process. It's important
 				// to do this else we fork bomb ourselves.
+				//nolint:gocritic
 				args := append(os.Args, "--no-reap")
 				err := reaper.ForkReap(
 					reaper.WithExecArgs(args...),
@@ -327,10 +328,11 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			}
 
 			agnt := agent.New(agent.Options{
-				Client:            client,
-				Logger:            logger,
-				LogDir:            logDir,
-				ScriptDataDir:     scriptDataDir,
+				Client:        client,
+				Logger:        logger,
+				LogDir:        logDir,
+				ScriptDataDir: scriptDataDir,
+				// #nosec G115 - Safe conversion as tailnet listen port is within uint16 range (0-65535)
 				TailnetListenPort: uint16(tailnetListenPort),
 				ExchangeToken: func(ctx context.Context) (string, error) {
 					if exchangeToken == nil {

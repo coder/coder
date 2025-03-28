@@ -2610,6 +2610,7 @@ type GroupMember struct {
 	UserQuietHoursSchedule string        `db:"user_quiet_hours_schedule" json:"user_quiet_hours_schedule"`
 	UserName               string        `db:"user_name" json:"user_name"`
 	UserGithubComUserID    sql.NullInt64 `db:"user_github_com_user_id" json:"user_github_com_user_id"`
+	UserIsSystem           bool          `db:"user_is_system" json:"user_is_system"`
 	OrganizationID         uuid.UUID     `db:"organization_id" json:"organization_id"`
 	GroupName              string        `db:"group_name" json:"group_name"`
 	GroupID                uuid.UUID     `db:"group_id" json:"group_id"`
@@ -3108,10 +3109,12 @@ type TemplateVersionParameter struct {
 }
 
 type TemplateVersionPreset struct {
-	ID                uuid.UUID `db:"id" json:"id"`
-	TemplateVersionID uuid.UUID `db:"template_version_id" json:"template_version_id"`
-	Name              string    `db:"name" json:"name"`
-	CreatedAt         time.Time `db:"created_at" json:"created_at"`
+	ID                  uuid.UUID     `db:"id" json:"id"`
+	TemplateVersionID   uuid.UUID     `db:"template_version_id" json:"template_version_id"`
+	Name                string        `db:"name" json:"name"`
+	CreatedAt           time.Time     `db:"created_at" json:"created_at"`
+	DesiredInstances    sql.NullInt32 `db:"desired_instances" json:"desired_instances"`
+	InvalidateAfterSecs sql.NullInt32 `db:"invalidate_after_secs" json:"invalidate_after_secs"`
 }
 
 type TemplateVersionPresetParameter struct {
@@ -3119,13 +3122,6 @@ type TemplateVersionPresetParameter struct {
 	TemplateVersionPresetID uuid.UUID `db:"template_version_preset_id" json:"template_version_preset_id"`
 	Name                    string    `db:"name" json:"name"`
 	Value                   string    `db:"value" json:"value"`
-}
-
-type TemplateVersionPresetPrebuild struct {
-	ID                  uuid.UUID     `db:"id" json:"id"`
-	PresetID            uuid.UUID     `db:"preset_id" json:"preset_id"`
-	DesiredInstances    int32         `db:"desired_instances" json:"desired_instances"`
-	InvalidateAfterSecs sql.NullInt32 `db:"invalidate_after_secs" json:"invalidate_after_secs"`
 }
 
 type TemplateVersionTable struct {
@@ -3144,6 +3140,12 @@ type TemplateVersionTable struct {
 	Message         string         `db:"message" json:"message"`
 	Archived        bool           `db:"archived" json:"archived"`
 	SourceExampleID sql.NullString `db:"source_example_id" json:"source_example_id"`
+}
+
+type TemplateVersionTerraformValue struct {
+	TemplateVersionID uuid.UUID       `db:"template_version_id" json:"template_version_id"`
+	UpdatedAt         time.Time       `db:"updated_at" json:"updated_at"`
+	CachedPlan        json.RawMessage `db:"cached_plan" json:"cached_plan"`
 }
 
 type TemplateVersionVariable struct {
@@ -3187,7 +3189,7 @@ type User struct {
 	QuietHoursSchedule string `db:"quiet_hours_schedule" json:"quiet_hours_schedule"`
 	// Name of the Coder user
 	Name string `db:"name" json:"name"`
-	// The GitHub.com numerical user ID. At time of implementation, this is used to check if the user has starred the Coder repository.
+	// The GitHub.com numerical user ID. It is used to check if the user has starred the Coder repository. It is also used for filtering users in the users list CLI command, and may become more widely used in the future.
 	GithubComUserID sql.NullInt64 `db:"github_com_user_id" json:"github_com_user_id"`
 	// A hash of the one-time-passcode given to the user.
 	HashedOneTimePasscode []byte `db:"hashed_one_time_passcode" json:"hashed_one_time_passcode"`
@@ -3238,6 +3240,15 @@ type VisibleUser struct {
 	ID        uuid.UUID `db:"id" json:"id"`
 	Username  string    `db:"username" json:"username"`
 	AvatarURL string    `db:"avatar_url" json:"avatar_url"`
+}
+
+type WebpushSubscription struct {
+	ID                uuid.UUID `db:"id" json:"id"`
+	UserID            uuid.UUID `db:"user_id" json:"user_id"`
+	CreatedAt         time.Time `db:"created_at" json:"created_at"`
+	Endpoint          string    `db:"endpoint" json:"endpoint"`
+	EndpointP256dhKey string    `db:"endpoint_p256dh_key" json:"endpoint_p256dh_key"`
+	EndpointAuthKey   string    `db:"endpoint_auth_key" json:"endpoint_auth_key"`
 }
 
 // Joins in the display name information such as username, avatar, and organization name.
@@ -3313,6 +3324,22 @@ type WorkspaceAgent struct {
 	APIVersion  string                    `db:"api_version" json:"api_version"`
 	// Specifies the order in which to display agents in user interfaces.
 	DisplayOrder int32 `db:"display_order" json:"display_order"`
+}
+
+// Workspace agent devcontainer configuration
+type WorkspaceAgentDevcontainer struct {
+	// Unique identifier
+	ID uuid.UUID `db:"id" json:"id"`
+	// Workspace agent foreign key
+	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	// Creation timestamp
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	// Workspace folder
+	WorkspaceFolder string `db:"workspace_folder" json:"workspace_folder"`
+	// Path to devcontainer.json.
+	ConfigPath string `db:"config_path" json:"config_path"`
+	// The name of the Dev Container.
+	Name string `db:"name" json:"name"`
 }
 
 type WorkspaceAgentLog struct {
@@ -3443,6 +3470,29 @@ type WorkspaceApp struct {
 	OpenIn WorkspaceAppOpenIn `db:"open_in" json:"open_in"`
 }
 
+// Audit sessions for workspace apps, the data in this table is ephemeral and is used to deduplicate audit log entries for workspace apps. While a session is active, the same data will not be logged again. This table does not store historical data.
+type WorkspaceAppAuditSession struct {
+	// The agent that the workspace app or port forward belongs to.
+	AgentID uuid.UUID `db:"agent_id" json:"agent_id"`
+	// The app that is currently in the workspace app. This is may be uuid.Nil because ports are not associated with an app.
+	AppID uuid.UUID `db:"app_id" json:"app_id"`
+	// The user that is currently using the workspace app. This is may be uuid.Nil if we cannot determine the user.
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	// The IP address of the user that is currently using the workspace app.
+	Ip string `db:"ip" json:"ip"`
+	// The user agent of the user that is currently using the workspace app.
+	UserAgent string `db:"user_agent" json:"user_agent"`
+	// The slug or port of the workspace app that the user is currently using.
+	SlugOrPort string `db:"slug_or_port" json:"slug_or_port"`
+	// The HTTP status produced by the token authorization. Defaults to 200 if no status is provided.
+	StatusCode int32 `db:"status_code" json:"status_code"`
+	// The time the user started the session.
+	StartedAt time.Time `db:"started_at" json:"started_at"`
+	// The time the session was last updated.
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	ID        uuid.UUID `db:"id" json:"id"`
+}
+
 // A record of workspace app usage statistics
 type WorkspaceAppStat struct {
 	// The ID of the record
@@ -3515,21 +3565,14 @@ type WorkspaceBuildTable struct {
 }
 
 type WorkspaceLatestBuild struct {
-	ID                      uuid.UUID           `db:"id" json:"id"`
-	CreatedAt               time.Time           `db:"created_at" json:"created_at"`
-	UpdatedAt               time.Time           `db:"updated_at" json:"updated_at"`
-	WorkspaceID             uuid.UUID           `db:"workspace_id" json:"workspace_id"`
-	TemplateVersionID       uuid.UUID           `db:"template_version_id" json:"template_version_id"`
-	BuildNumber             int32               `db:"build_number" json:"build_number"`
-	Transition              WorkspaceTransition `db:"transition" json:"transition"`
-	InitiatorID             uuid.UUID           `db:"initiator_id" json:"initiator_id"`
-	ProvisionerState        []byte              `db:"provisioner_state" json:"provisioner_state"`
-	JobID                   uuid.UUID           `db:"job_id" json:"job_id"`
-	Deadline                time.Time           `db:"deadline" json:"deadline"`
-	Reason                  BuildReason         `db:"reason" json:"reason"`
-	DailyCost               int32               `db:"daily_cost" json:"daily_cost"`
-	MaxDeadline             time.Time           `db:"max_deadline" json:"max_deadline"`
-	TemplateVersionPresetID uuid.NullUUID       `db:"template_version_preset_id" json:"template_version_preset_id"`
+	ID                      uuid.UUID            `db:"id" json:"id"`
+	WorkspaceID             uuid.UUID            `db:"workspace_id" json:"workspace_id"`
+	TemplateVersionID       uuid.UUID            `db:"template_version_id" json:"template_version_id"`
+	JobID                   uuid.UUID            `db:"job_id" json:"job_id"`
+	TemplateVersionPresetID uuid.NullUUID        `db:"template_version_preset_id" json:"template_version_preset_id"`
+	Transition              WorkspaceTransition  `db:"transition" json:"transition"`
+	CreatedAt               time.Time            `db:"created_at" json:"created_at"`
+	JobStatus               ProvisionerJobStatus `db:"job_status" json:"job_status"`
 }
 
 type WorkspaceModule struct {
@@ -3543,44 +3586,22 @@ type WorkspaceModule struct {
 }
 
 type WorkspacePrebuild struct {
-	ID                uuid.UUID                        `db:"id" json:"id"`
-	CreatedAt         time.Time                        `db:"created_at" json:"created_at"`
-	UpdatedAt         time.Time                        `db:"updated_at" json:"updated_at"`
-	OwnerID           uuid.UUID                        `db:"owner_id" json:"owner_id"`
-	OrganizationID    uuid.UUID                        `db:"organization_id" json:"organization_id"`
-	TemplateID        uuid.UUID                        `db:"template_id" json:"template_id"`
-	Deleted           bool                             `db:"deleted" json:"deleted"`
-	Name              string                           `db:"name" json:"name"`
-	AutostartSchedule sql.NullString                   `db:"autostart_schedule" json:"autostart_schedule"`
-	Ttl               sql.NullInt64                    `db:"ttl" json:"ttl"`
-	LastUsedAt        time.Time                        `db:"last_used_at" json:"last_used_at"`
-	DormantAt         sql.NullTime                     `db:"dormant_at" json:"dormant_at"`
-	DeletingAt        sql.NullTime                     `db:"deleting_at" json:"deleting_at"`
-	AutomaticUpdates  AutomaticUpdates                 `db:"automatic_updates" json:"automatic_updates"`
-	Favorite          bool                             `db:"favorite" json:"favorite"`
-	NextStartAt       sql.NullTime                     `db:"next_start_at" json:"next_start_at"`
-	AgentID           uuid.NullUUID                    `db:"agent_id" json:"agent_id"`
-	LifecycleState    NullWorkspaceAgentLifecycleState `db:"lifecycle_state" json:"lifecycle_state"`
-	ReadyAt           sql.NullTime                     `db:"ready_at" json:"ready_at"`
-	CurrentPresetID   uuid.NullUUID                    `db:"current_preset_id" json:"current_preset_id"`
+	ID              uuid.UUID     `db:"id" json:"id"`
+	Name            string        `db:"name" json:"name"`
+	TemplateID      uuid.UUID     `db:"template_id" json:"template_id"`
+	CreatedAt       time.Time     `db:"created_at" json:"created_at"`
+	Ready           bool          `db:"ready" json:"ready"`
+	CurrentPresetID uuid.NullUUID `db:"current_preset_id" json:"current_preset_id"`
 }
 
 type WorkspacePrebuildBuild struct {
 	ID                      uuid.UUID           `db:"id" json:"id"`
-	CreatedAt               time.Time           `db:"created_at" json:"created_at"`
-	UpdatedAt               time.Time           `db:"updated_at" json:"updated_at"`
 	WorkspaceID             uuid.UUID           `db:"workspace_id" json:"workspace_id"`
 	TemplateVersionID       uuid.UUID           `db:"template_version_id" json:"template_version_id"`
-	BuildNumber             int32               `db:"build_number" json:"build_number"`
 	Transition              WorkspaceTransition `db:"transition" json:"transition"`
-	InitiatorID             uuid.UUID           `db:"initiator_id" json:"initiator_id"`
-	ProvisionerState        []byte              `db:"provisioner_state" json:"provisioner_state"`
 	JobID                   uuid.UUID           `db:"job_id" json:"job_id"`
-	Deadline                time.Time           `db:"deadline" json:"deadline"`
-	Reason                  BuildReason         `db:"reason" json:"reason"`
-	DailyCost               int32               `db:"daily_cost" json:"daily_cost"`
-	MaxDeadline             time.Time           `db:"max_deadline" json:"max_deadline"`
 	TemplateVersionPresetID uuid.NullUUID       `db:"template_version_preset_id" json:"template_version_preset_id"`
+	BuildNumber             int32               `db:"build_number" json:"build_number"`
 }
 
 type WorkspaceProxy struct {

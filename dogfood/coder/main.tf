@@ -17,10 +17,12 @@ locals {
   docker_host = {
     ""              = "tcp://dogfood-ts-cdr-dev.tailscale.svc.cluster.local:2375"
     "us-pittsburgh" = "tcp://dogfood-ts-cdr-dev.tailscale.svc.cluster.local:2375"
-    "eu-helsinki"   = "tcp://reinhard-hel-cdr-dev.tailscale.svc.cluster.local:2375"
-    "ap-sydney"     = "tcp://wolfgang-syd-cdr-dev.tailscale.svc.cluster.local:2375"
-    "sa-saopaulo"   = "tcp://oberstein-sao-cdr-dev.tailscale.svc.cluster.local:2375"
-    "za-cpt"        = "tcp://schonkopf-cpt-cdr-dev.tailscale.svc.cluster.local:2375"
+    // For legacy reasons, this host is labelled `eu-helsinki` but it's
+    // actually in Germany now.
+    "eu-helsinki" = "tcp://katerose-fsn-cdr-dev.tailscale.svc.cluster.local:2375"
+    "ap-sydney"   = "tcp://wolfgang-syd-cdr-dev.tailscale.svc.cluster.local:2375"
+    "sa-saopaulo" = "tcp://oberstein-sao-cdr-dev.tailscale.svc.cluster.local:2375"
+    "za-cpt"      = "tcp://schonkopf-cpt-cdr-dev.tailscale.svc.cluster.local:2375"
   }
 
   repo_base_dir  = data.coder_parameter.repo_base_dir.value == "~" ? "/home/coder" : replace(data.coder_parameter.repo_base_dir.value, "/^~\\//", "/home/coder/")
@@ -64,8 +66,10 @@ data "coder_parameter" "region" {
     value = "us-pittsburgh"
   }
   option {
-    icon  = "/emojis/1f1eb-1f1ee.png"
-    name  = "Helsinki"
+    icon = "/emojis/1f1e9-1f1ea.png"
+    name = "Falkenstein"
+    // For legacy reasons, this host is labelled `eu-helsinki` but it's
+    // actually in Germany now.
     value = "eu-helsinki"
   }
   option {
@@ -353,6 +357,14 @@ resource "coder_agent" "dev" {
     cd "${local.repo_dir}" && make clean
     cd "${local.repo_dir}/site" && pnpm install
   EOT
+
+  shutdown_script = <<-EOT
+    #!/usr/bin/env bash
+    set -eux -o pipefail
+
+    # Stop the Docker service to prevent errors during workspace destroy.
+    sudo service docker stop
+  EOT
 }
 
 # Add a cost so we get some quota usage in dev.coder.com
@@ -414,6 +426,10 @@ resource "docker_container" "workspace" {
   # CPU limits are unnecessary since Docker will load balance automatically
   memory  = data.coder_workspace_owner.me.name == "code-asher" ? 65536 : 32768
   runtime = "sysbox-runc"
+  # Ensure the workspace is given time to execute shutdown scripts.
+  destroy_grace_seconds = 60
+  stop_timeout          = 60
+  stop_signal           = "SIGINT"
   env = [
     "CODER_AGENT_TOKEN=${coder_agent.dev.token}",
     "USE_CAP_NET_ADMIN=true",

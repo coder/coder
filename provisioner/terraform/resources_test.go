@@ -830,12 +830,42 @@ func TestConvertResources(t *testing.T) {
 				}},
 			}},
 		},
+		"devcontainer": {
+			resources: []*proto.Resource{
+				{
+					Name: "dev",
+					Type: "null_resource",
+					Agents: []*proto.Agent{{
+						Name:                     "main",
+						OperatingSystem:          "linux",
+						Architecture:             "amd64",
+						Auth:                     &proto.Agent_Token{},
+						ConnectionTimeoutSeconds: 120,
+						DisplayApps:              &displayApps,
+						ResourcesMonitoring:      &proto.ResourcesMonitoring{},
+						Devcontainers: []*proto.Devcontainer{
+							{
+								Name:            "dev1",
+								WorkspaceFolder: "/workspace1",
+							},
+							{
+								Name:            "dev2",
+								WorkspaceFolder: "/workspace2",
+								ConfigPath:      "/workspace2/.devcontainer/devcontainer.json",
+							},
+						},
+					}},
+				},
+				{Name: "dev1", Type: "coder_devcontainer"},
+				{Name: "dev2", Type: "coder_devcontainer"},
+			},
+		},
 	} {
 		folderName := folderName
 		expected := expected
 		t.Run(folderName, func(t *testing.T) {
 			t.Parallel()
-			dir := filepath.Join(filepath.Dir(filename), "testdata", folderName)
+			dir := filepath.Join(filepath.Dir(filename), "testdata", "resources", folderName)
 			t.Run("Plan", func(t *testing.T) {
 				t.Parallel()
 				ctx, logger := ctxAndLogger(t)
@@ -993,7 +1023,7 @@ func TestAppSlugValidation(t *testing.T) {
 	_, filename, _, _ := runtime.Caller(0)
 
 	// Load the multiple-apps state file and edit it.
-	dir := filepath.Join(filepath.Dir(filename), "testdata", "multiple-apps")
+	dir := filepath.Join(filepath.Dir(filename), "testdata", "resources", "multiple-apps")
 	tfPlanRaw, err := os.ReadFile(filepath.Join(dir, "multiple-apps.tfplan.json"))
 	require.NoError(t, err)
 	var tfPlan tfjson.Plan
@@ -1042,7 +1072,7 @@ func TestAppSlugDuplicate(t *testing.T) {
 	// nolint:dogsled
 	_, filename, _, _ := runtime.Caller(0)
 
-	dir := filepath.Join(filepath.Dir(filename), "testdata", "multiple-apps")
+	dir := filepath.Join(filepath.Dir(filename), "testdata", "resources", "multiple-apps")
 	tfPlanRaw, err := os.ReadFile(filepath.Join(dir, "multiple-apps.tfplan.json"))
 	require.NoError(t, err)
 	var tfPlan tfjson.Plan
@@ -1070,7 +1100,7 @@ func TestAgentNameInvalid(t *testing.T) {
 	// nolint:dogsled
 	_, filename, _, _ := runtime.Caller(0)
 
-	dir := filepath.Join(filepath.Dir(filename), "testdata", "multiple-agents")
+	dir := filepath.Join(filepath.Dir(filename), "testdata", "resources", "multiple-agents")
 	tfPlanRaw, err := os.ReadFile(filepath.Join(dir, "multiple-agents.tfplan.json"))
 	require.NoError(t, err)
 	var tfPlan tfjson.Plan
@@ -1119,7 +1149,7 @@ func TestAgentNameDuplicate(t *testing.T) {
 	// nolint:dogsled
 	_, filename, _, _ := runtime.Caller(0)
 
-	dir := filepath.Join(filepath.Dir(filename), "testdata", "multiple-agents")
+	dir := filepath.Join(filepath.Dir(filename), "testdata", "resources", "multiple-agents")
 	tfPlanRaw, err := os.ReadFile(filepath.Join(dir, "multiple-agents.tfplan.json"))
 	require.NoError(t, err)
 	var tfPlan tfjson.Plan
@@ -1150,7 +1180,7 @@ func TestMetadataResourceDuplicate(t *testing.T) {
 	ctx, logger := ctxAndLogger(t)
 
 	// Load the multiple-apps state file and edit it.
-	dir := filepath.Join("testdata", "resource-metadata-duplicate")
+	dir := filepath.Join("testdata", "resources", "resource-metadata-duplicate")
 	tfPlanRaw, err := os.ReadFile(filepath.Join(dir, "resource-metadata-duplicate.tfplan.json"))
 	require.NoError(t, err)
 	var tfPlan tfjson.Plan
@@ -1173,7 +1203,7 @@ func TestParameterValidation(t *testing.T) {
 	_, filename, _, _ := runtime.Caller(0)
 
 	// Load the rich-parameters state file and edit it.
-	dir := filepath.Join(filepath.Dir(filename), "testdata", "rich-parameters")
+	dir := filepath.Join(filepath.Dir(filename), "testdata", "resources", "rich-parameters")
 	tfPlanRaw, err := os.ReadFile(filepath.Join(dir, "rich-parameters.tfplan.json"))
 	require.NoError(t, err)
 	var tfPlan tfjson.Plan
@@ -1182,12 +1212,9 @@ func TestParameterValidation(t *testing.T) {
 	tfPlanGraph, err := os.ReadFile(filepath.Join(dir, "rich-parameters.tfplan.dot"))
 	require.NoError(t, err)
 
-	// Change all names to be identical.
-	var names []string
 	for _, resource := range tfPlan.PriorState.Values.RootModule.Resources {
 		if resource.Type == "coder_parameter" {
 			resource.AttributeValues["name"] = "identical"
-			names = append(names, resource.Name)
 		}
 	}
 
@@ -1198,11 +1225,9 @@ func TestParameterValidation(t *testing.T) {
 
 	// Make two sets of identical names.
 	count := 0
-	names = nil
 	for _, resource := range tfPlan.PriorState.Values.RootModule.Resources {
 		if resource.Type == "coder_parameter" {
 			resource.AttributeValues["name"] = fmt.Sprintf("identical-%d", count%2)
-			names = append(names, resource.Name)
 			count++
 		}
 	}
@@ -1214,11 +1239,9 @@ func TestParameterValidation(t *testing.T) {
 
 	// Once more with three sets.
 	count = 0
-	names = nil
 	for _, resource := range tfPlan.PriorState.Values.RootModule.Resources {
 		if resource.Type == "coder_parameter" {
 			resource.AttributeValues["name"] = fmt.Sprintf("identical-%d", count%3)
-			names = append(names, resource.Name)
 			count++
 		}
 	}
@@ -1374,6 +1397,9 @@ func sortResources(resources []*proto.Resource) {
 			})
 			sort.Slice(agent.Scripts, func(i, j int) bool {
 				return agent.Scripts[i].DisplayName < agent.Scripts[j].DisplayName
+			})
+			sort.Slice(agent.Devcontainers, func(i, j int) bool {
+				return agent.Devcontainers[i].Name < agent.Devcontainers[j].Name
 			})
 		}
 		sort.Slice(resource.Agents, func(i, j int) bool {

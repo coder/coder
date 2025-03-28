@@ -171,15 +171,15 @@ func (r *RootCmd) RunWithSubcommands(subcommands []*serpent.Command) {
 			code = exitErr.code
 			err = exitErr.err
 		}
-		if errors.Is(err, cliui.Canceled) {
-			//nolint:revive
+		if errors.Is(err, cliui.ErrCanceled) {
+			//nolint:revive,gocritic
 			os.Exit(code)
 		}
 		f := PrettyErrorFormatter{w: os.Stderr, verbose: r.verbose}
 		if err != nil {
 			f.Format(err)
 		}
-		//nolint:revive
+		//nolint:revive,gocritic
 		os.Exit(code)
 	}
 }
@@ -433,7 +433,7 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 		{
 			Flag:        varForceTty,
 			Env:         "CODER_FORCE_TTY",
-			Hidden:      true,
+			Hidden:      false,
 			Description: "Force the use of a TTY.",
 			Value:       serpent.BoolOf(&r.forceTTY),
 			Group:       globalGroup,
@@ -891,7 +891,7 @@ func DumpHandler(ctx context.Context, name string) {
 
 	done:
 		if sigStr == "SIGQUIT" {
-			//nolint:revive
+			//nolint:revive,gocritic
 			os.Exit(1)
 		}
 	}
@@ -1045,7 +1045,7 @@ func formatMultiError(from string, multi []error, opts *formatOpts) string {
 		prefix := fmt.Sprintf("%d. ", i+1)
 		if len(prefix) < len(indent) {
 			// Indent the prefix to match the indent
-			prefix = prefix + strings.Repeat(" ", len(indent)-len(prefix))
+			prefix += strings.Repeat(" ", len(indent)-len(prefix))
 		}
 		errStr = prefix + errStr
 		// Now looks like

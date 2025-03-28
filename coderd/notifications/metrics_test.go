@@ -39,7 +39,7 @@ func TestMetrics(t *testing.T) {
 
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
-	store, _ := dbtestutil.NewDB(t)
+	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
 
 	reg := prometheus.NewRegistry()
@@ -60,7 +60,7 @@ func TestMetrics(t *testing.T) {
 	cfg.RetryInterval = serpent.Duration(time.Millisecond * 50)
 	cfg.StoreSyncInterval = serpent.Duration(time.Millisecond * 100) // Twice as long as fetch interval to ensure we catch pending updates.
 
-	mgr, err := notifications.NewManager(cfg, store, defaultHelpers(), metrics, logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, store, pubsub, defaultHelpers(), metrics, logger.Named("manager"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
@@ -169,7 +169,7 @@ func TestMetrics(t *testing.T) {
 			// See TestPendingUpdatesMetric for a more precise test.
 			return true
 		},
-		"coderd_notifications_synced_updates_total": func(metric *dto.Metric, series string) bool {
+		"coderd_notifications_synced_updates_total": func(metric *dto.Metric, _ string) bool {
 			if debug {
 				t.Logf("coderd_notifications_synced_updates_total = %v: %v", maxAttempts+1, metric.Counter.GetValue())
 			}
@@ -228,7 +228,7 @@ func TestPendingUpdatesMetric(t *testing.T) {
 	// SETUP
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
-	store, _ := dbtestutil.NewDB(t)
+	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
 
 	reg := prometheus.NewRegistry()
@@ -250,7 +250,7 @@ func TestPendingUpdatesMetric(t *testing.T) {
 	defer trap.Close()
 	fetchTrap := mClock.Trap().TickerFunc("notifier", "fetchInterval")
 	defer fetchTrap.Close()
-	mgr, err := notifications.NewManager(cfg, interceptor, defaultHelpers(), metrics, logger.Named("manager"),
+	mgr, err := notifications.NewManager(cfg, interceptor, pubsub, defaultHelpers(), metrics, logger.Named("manager"),
 		notifications.WithTestClock(mClock))
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -322,7 +322,7 @@ func TestInflightDispatchesMetric(t *testing.T) {
 	// SETUP
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
-	store, _ := dbtestutil.NewDB(t)
+	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
 
 	reg := prometheus.NewRegistry()
@@ -338,7 +338,7 @@ func TestInflightDispatchesMetric(t *testing.T) {
 	cfg.RetryInterval = serpent.Duration(time.Hour) // Delay retries so they don't interfere.
 	cfg.StoreSyncInterval = serpent.Duration(time.Millisecond * 100)
 
-	mgr, err := notifications.NewManager(cfg, store, defaultHelpers(), metrics, logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, store, pubsub, defaultHelpers(), metrics, logger.Named("manager"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
@@ -402,7 +402,7 @@ func TestCustomMethodMetricCollection(t *testing.T) {
 
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
-	store, _ := dbtestutil.NewDB(t)
+	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
 
 	var (
@@ -427,7 +427,7 @@ func TestCustomMethodMetricCollection(t *testing.T) {
 
 	// WHEN: two notifications (each with different templates) are enqueued.
 	cfg := defaultNotificationsConfig(defaultMethod)
-	mgr, err := notifications.NewManager(cfg, store, defaultHelpers(), metrics, logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, store, pubsub, defaultHelpers(), metrics, logger.Named("manager"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))

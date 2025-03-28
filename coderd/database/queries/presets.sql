@@ -1,8 +1,18 @@
 -- name: InsertPreset :one
-INSERT INTO
-	template_version_presets (template_version_id, name, created_at)
-VALUES
-	(@template_version_id, @name, @created_at) RETURNING *;
+INSERT INTO template_version_presets (
+	template_version_id,
+	name,
+	created_at,
+	desired_instances,
+	invalidate_after_secs
+)
+VALUES (
+	@template_version_id,
+	@name,
+	@created_at,
+	@desired_instances,
+	@invalidate_after_secs
+) RETURNING *;
 
 -- name: InsertPresetParameters :many
 INSERT INTO

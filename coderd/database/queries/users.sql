@@ -11,7 +11,9 @@ SET
 		'':: bytea
 	END
 WHERE
-	id = @user_id RETURNING *;
+	id = @user_id
+	AND NOT is_system
+RETURNING *;
 
 -- name: GetUserByID :one
 SELECT
@@ -230,6 +232,11 @@ WHERE
   	    ELSE
 			is_system = false
 	END
+	AND CASE
+		WHEN @github_com_user_id :: bigint != 0 THEN
+			github_com_user_id = @github_com_user_id
+		ELSE true
+	END
 	-- End of filters
 
 	-- Authorize Filter clause will be injected below in GetAuthorizedUsers
@@ -318,10 +325,11 @@ UPDATE
     users
 SET
     status = 'dormant'::user_status,
-	updated_at = @updated_at
+    updated_at = @updated_at
 WHERE
     last_seen_at < @last_seen_after :: timestamp
     AND status = 'active'::user_status
+		AND NOT is_system
 RETURNING id, email, username, last_seen_at;
 
 -- AllUserIDs returns all UserIDs regardless of user status or deletion.

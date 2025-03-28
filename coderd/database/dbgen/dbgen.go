@@ -255,6 +255,19 @@ func WorkspaceAgentScriptTiming(t testing.TB, db database.Store, orig database.W
 	panic("failed to insert workspace agent script timing")
 }
 
+func WorkspaceAgentDevcontainer(t testing.TB, db database.Store, orig database.WorkspaceAgentDevcontainer) database.WorkspaceAgentDevcontainer {
+	devcontainers, err := db.InsertWorkspaceAgentDevcontainers(genCtx, database.InsertWorkspaceAgentDevcontainersParams{
+		WorkspaceAgentID: takeFirst(orig.WorkspaceAgentID, uuid.New()),
+		CreatedAt:        takeFirst(orig.CreatedAt, dbtime.Now()),
+		ID:               []uuid.UUID{takeFirst(orig.ID, uuid.New())},
+		Name:             []string{takeFirst(orig.Name, testutil.GetRandomName(t))},
+		WorkspaceFolder:  []string{takeFirst(orig.WorkspaceFolder, "/workspace")},
+		ConfigPath:       []string{takeFirst(orig.ConfigPath, "")},
+	})
+	require.NoError(t, err, "insert workspace agent devcontainer")
+	return devcontainers[0]
+}
+
 func Workspace(t testing.TB, db database.Store, orig database.WorkspaceTable) database.WorkspaceTable {
 	t.Helper()
 
@@ -464,6 +477,18 @@ func NotificationInbox(t testing.TB, db database.Store, orig database.InsertInbo
 	})
 	require.NoError(t, err, "insert notification")
 	return notification
+}
+
+func WebpushSubscription(t testing.TB, db database.Store, orig database.InsertWebpushSubscriptionParams) database.WebpushSubscription {
+	subscription, err := db.InsertWebpushSubscription(genCtx, database.InsertWebpushSubscriptionParams{
+		CreatedAt:         takeFirst(orig.CreatedAt, dbtime.Now()),
+		UserID:            takeFirst(orig.UserID, uuid.New()),
+		Endpoint:          takeFirst(orig.Endpoint, testutil.GetRandomName(t)),
+		EndpointP256dhKey: takeFirst(orig.EndpointP256dhKey, testutil.GetRandomName(t)),
+		EndpointAuthKey:   takeFirst(orig.EndpointAuthKey, testutil.GetRandomName(t)),
+	})
+	require.NoError(t, err, "insert webpush subscription")
+	return subscription
 }
 
 func Group(t testing.TB, db database.Store, orig database.Group) database.Group {
@@ -1160,9 +1185,11 @@ func TelemetryItem(t testing.TB, db database.Store, seed database.TelemetryItem)
 
 func Preset(t testing.TB, db database.Store, seed database.InsertPresetParams) database.TemplateVersionPreset {
 	preset, err := db.InsertPreset(genCtx, database.InsertPresetParams{
-		TemplateVersionID: takeFirst(seed.TemplateVersionID, uuid.New()),
-		Name:              takeFirst(seed.Name, testutil.GetRandomName(t)),
-		CreatedAt:         takeFirst(seed.CreatedAt, dbtime.Now()),
+		TemplateVersionID:   takeFirst(seed.TemplateVersionID, uuid.New()),
+		Name:                takeFirst(seed.Name, testutil.GetRandomName(t)),
+		CreatedAt:           takeFirst(seed.CreatedAt, dbtime.Now()),
+		DesiredInstances:    seed.DesiredInstances,
+		InvalidateAfterSecs: seed.InvalidateAfterSecs,
 	})
 	require.NoError(t, err, "insert preset")
 	return preset
@@ -1177,17 +1204,6 @@ func PresetParameter(t testing.TB, db database.Store, seed database.InsertPreset
 
 	require.NoError(t, err, "insert preset parameters")
 	return parameters
-}
-
-func PresetPrebuild(t testing.TB, db database.Store, seed database.InsertPresetPrebuildParams) database.TemplateVersionPresetPrebuild {
-	prebuild, err := db.InsertPresetPrebuild(genCtx, database.InsertPresetPrebuildParams{
-		ID:                  takeFirst(seed.ID, uuid.New()),
-		PresetID:            takeFirst(seed.PresetID, uuid.New()),
-		DesiredInstances:    takeFirst(seed.DesiredInstances, 1),
-		InvalidateAfterSecs: 0,
-	})
-	require.NoError(t, err, "insert preset prebuild")
-	return prebuild
 }
 
 func provisionerJobTiming(t testing.TB, db database.Store, seed database.ProvisionerJobTiming) database.ProvisionerJobTiming {

@@ -964,6 +964,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "telemetry": true,
   "upgrade_message": "string",
   "version": "string",
+  "webpush_public_key": "string",
   "workspace_proxy": true
 }
 ```
@@ -980,6 +981,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `telemetry`               | boolean | false    |              | Telemetry is a boolean that indicates whether telemetry is enabled.                                                                                                 |
 | `upgrade_message`         | string  | false    |              | Upgrade message is the message displayed to users when an outdated client is detected.                                                                              |
 | `version`                 | string  | false    |              | Version returns the semantic version of the build.                                                                                                                  |
+| `webpush_public_key`      | string  | false    |              | Webpush public key is the public key for push notifications via Web Push.                                                                                           |
 | `workspace_proxy`         | boolean | false    |              |                                                                                                                                                                     |
 
 ## codersdk.BuildReason
@@ -1759,6 +1761,20 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `allow_path_app_sharing`           | boolean | false    |              |             |
 | `allow_path_app_site_owner_access` | boolean | false    |              |             |
 
+## codersdk.DeleteWebpushSubscription
+
+```json
+{
+  "endpoint": "string"
+}
+```
+
+### Properties
+
+| Name       | Type   | Required | Restrictions | Description |
+|------------|--------|----------|--------------|-------------|
+| `endpoint` | string | false    |              |             |
+
 ## codersdk.DeleteWorkspaceAgentPortShareRequest
 
 ```json
@@ -1947,6 +1963,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         }
       },
       "fetch_interval": 0,
+      "inbox": {
+        "enabled": true
+      },
       "lease_count": 0,
       "lease_period": 0,
       "max_send_attempts": 0,
@@ -2420,6 +2439,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       }
     },
     "fetch_interval": 0,
+    "inbox": {
+      "enabled": true
+    },
     "lease_count": 0,
     "lease_period": 0,
     "max_send_attempts": 0,
@@ -2648,7 +2670,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 |--------------------------------------|------------------------------------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------|
 | `access_url`                         | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                    |
 | `additional_csp_policy`              | array of string                                                                                      | false    |              |                                                                    |
-| `address`                            | [serpent.HostPort](#serpenthostport)                                                                 | false    |              | Address Use HTTPAddress or TLS.Address instead.                    |
+| `address`                            | [serpent.HostPort](#serpenthostport)                                                                 | false    |              | Deprecated: Use HTTPAddress or TLS.Address instead.                |
 | `agent_fallback_troubleshooting_url` | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                    |
 | `agent_stat_refresh_interval`        | integer                                                                                              | false    |              |                                                                    |
 | `allow_workspace_renames`            | boolean                                                                                              | false    |              |                                                                    |
@@ -2802,6 +2824,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `auto-fill-parameters` |
 | `notifications`        |
 | `workspace-usage`      |
+| `web-push`             |
 
 ## codersdk.ExternalAuth
 
@@ -3019,6 +3042,40 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | Name  | Type   | Required | Restrictions | Description |
 |-------|--------|----------|--------------|-------------|
 | `key` | string | false    |              |             |
+
+## codersdk.GetInboxNotificationResponse
+
+```json
+{
+  "notification": {
+    "actions": [
+      {
+        "label": "string",
+        "url": "string"
+      }
+    ],
+    "content": "string",
+    "created_at": "2019-08-24T14:15:22Z",
+    "icon": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "read_at": "string",
+    "targets": [
+      "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+    ],
+    "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+    "title": "string",
+    "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+  },
+  "unread_count": 0
+}
+```
+
+### Properties
+
+| Name           | Type                                                     | Required | Restrictions | Description |
+|----------------|----------------------------------------------------------|----------|--------------|-------------|
+| `notification` | [codersdk.InboxNotification](#codersdkinboxnotification) | false    |              |             |
+| `unread_count` | integer                                                  | false    |              |             |
 
 ## codersdk.GetUserStatusCountsResponse
 
@@ -3255,6 +3312,61 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `refresh`            | integer | false    |              |             |
 | `threshold_database` | integer | false    |              |             |
 
+## codersdk.InboxNotification
+
+```json
+{
+  "actions": [
+    {
+      "label": "string",
+      "url": "string"
+    }
+  ],
+  "content": "string",
+  "created_at": "2019-08-24T14:15:22Z",
+  "icon": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "read_at": "string",
+  "targets": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ],
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+  "title": "string",
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+}
+```
+
+### Properties
+
+| Name          | Type                                                                          | Required | Restrictions | Description |
+|---------------|-------------------------------------------------------------------------------|----------|--------------|-------------|
+| `actions`     | array of [codersdk.InboxNotificationAction](#codersdkinboxnotificationaction) | false    |              |             |
+| `content`     | string                                                                        | false    |              |             |
+| `created_at`  | string                                                                        | false    |              |             |
+| `icon`        | string                                                                        | false    |              |             |
+| `id`          | string                                                                        | false    |              |             |
+| `read_at`     | string                                                                        | false    |              |             |
+| `targets`     | array of string                                                               | false    |              |             |
+| `template_id` | string                                                                        | false    |              |             |
+| `title`       | string                                                                        | false    |              |             |
+| `user_id`     | string                                                                        | false    |              |             |
+
+## codersdk.InboxNotificationAction
+
+```json
+{
+  "label": "string",
+  "url": "string"
+}
+```
+
+### Properties
+
+| Name    | Type   | Required | Restrictions | Description |
+|---------|--------|----------|--------------|-------------|
+| `label` | string | false    |              |             |
+| `url`   | string | false    |              |             |
+
 ## codersdk.InsightsReportInterval
 
 ```json
@@ -3383,6 +3495,42 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `icon`   | `bug`  |
 | `icon`   | `chat` |
 | `icon`   | `docs` |
+
+## codersdk.ListInboxNotificationsResponse
+
+```json
+{
+  "notifications": [
+    {
+      "actions": [
+        {
+          "label": "string",
+          "url": "string"
+        }
+      ],
+      "content": "string",
+      "created_at": "2019-08-24T14:15:22Z",
+      "icon": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "read_at": "string",
+      "targets": [
+        "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+      ],
+      "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+      "title": "string",
+      "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+    }
+  ],
+  "unread_count": 0
+}
+```
+
+### Properties
+
+| Name            | Type                                                              | Required | Restrictions | Description |
+|-----------------|-------------------------------------------------------------------|----------|--------------|-------------|
+| `notifications` | array of [codersdk.InboxNotification](#codersdkinboxnotification) | false    |              |             |
+| `unread_count`  | integer                                                           | false    |              |             |
 
 ## codersdk.LogLevel
 
@@ -3636,6 +3784,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
     }
   },
   "fetch_interval": 0,
+  "inbox": {
+    "enabled": true
+  },
   "lease_count": 0,
   "lease_period": 0,
   "max_send_attempts": 0,
@@ -3668,6 +3819,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `dispatch_timeout`  | integer                                                                    | false    |              | How long to wait while a notification is being sent before giving up.                                                                                                                                                                                                                                                                                                                                                                               |
 | `email`             | [codersdk.NotificationsEmailConfig](#codersdknotificationsemailconfig)     | false    |              | Email settings.                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `fetch_interval`    | integer                                                                    | false    |              | How often to query the database for queued notifications.                                                                                                                                                                                                                                                                                                                                                                                           |
+| `inbox`             | [codersdk.NotificationsInboxConfig](#codersdknotificationsinboxconfig)     | false    |              | Inbox settings.                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `lease_count`       | integer                                                                    | false    |              | How many notifications a notifier should lease per fetch interval.                                                                                                                                                                                                                                                                                                                                                                                  |
 | `lease_period`      | integer                                                                    | false    |              | How long a notifier should lease a message. This is effectively how long a notification is 'owned' by a notifier, and once this period expires it will be available for lease by another notifier. Leasing is important in order for multiple running notifiers to not pick the same messages to deliver concurrently. This lease period will only expire if a notifier shuts down ungracefully; a dispatch of the notification releases the lease. |
 | `max_send_attempts` | integer                                                                    | false    |              | The upper limit of attempts to send a notification.                                                                                                                                                                                                                                                                                                                                                                                                 |
@@ -3756,6 +3908,20 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `key_file`             | string  | false    |              | Key file specifies the location of the key to use.           |
 | `server_name`          | string  | false    |              | Server name to verify the hostname for the targets.          |
 | `start_tls`            | boolean | false    |              | Start tls attempts to upgrade plain connections to TLS.      |
+
+## codersdk.NotificationsInboxConfig
+
+```json
+{
+  "enabled": true
+}
+```
+
+### Properties
+
+| Name      | Type    | Required | Restrictions | Description |
+|-----------|---------|----------|--------------|-------------|
+| `enabled` | boolean | false    |              |             |
 
 ## codersdk.NotificationsSettings
 
@@ -5199,7 +5365,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `tailnet_coordinator`              |
 | `template`                         |
 | `user`                             |
+| `webpush_subscription`             |
 | `workspace`                        |
+| `workspace_agent_devcontainers`    |
 | `workspace_agent_resource_monitor` |
 | `workspace_dormant`                |
 | `workspace_proxy`                  |
@@ -7324,6 +7492,24 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `name`  | string | false    |              |             |
 | `value` | string | false    |              |             |
 
+## codersdk.WebpushSubscription
+
+```json
+{
+  "auth_key": "string",
+  "endpoint": "string",
+  "p256dh_key": "string"
+}
+```
+
+### Properties
+
+| Name         | Type   | Required | Restrictions | Description |
+|--------------|--------|----------|--------------|-------------|
+| `auth_key`   | string | false    |              |             |
+| `endpoint`   | string | false    |              |             |
+| `p256dh_key` | string | false    |              |             |
+
 ## codersdk.Workspace
 
 ```json
@@ -7722,7 +7908,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `updated_at`                 | string                                                                                       | false    |              |                                                                                                                                                                              |
 | `version`                    | string                                                                                       | false    |              |                                                                                                                                                                              |
 
-## codersdk.WorkspaceAgentDevcontainer
+## codersdk.WorkspaceAgentContainer
 
 ```json
 {
@@ -7736,9 +7922,10 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "name": "string",
   "ports": [
     {
+      "host_ip": "string",
+      "host_port": 0,
       "network": "string",
-      "port": 0,
-      "process_name": "string"
+      "port": 0
     }
   ],
   "running": true,
@@ -7760,11 +7947,31 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `labels`           | object                                                                                | false    |              | Labels is a map of key-value pairs of container labels.                                                                                    |
 | » `[any property]` | string                                                                                | false    |              |                                                                                                                                            |
 | `name`             | string                                                                                | false    |              | Name is the human-readable name of the container.                                                                                          |
-| `ports`            | array of [codersdk.WorkspaceAgentListeningPort](#codersdkworkspaceagentlisteningport) | false    |              | Ports includes ports exposed by the container.                                                                                             |
+| `ports`            | array of [codersdk.WorkspaceAgentContainerPort](#codersdkworkspaceagentcontainerport) | false    |              | Ports includes ports exposed by the container.                                                                                             |
 | `running`          | boolean                                                                               | false    |              | Running is true if the container is currently running.                                                                                     |
 | `status`           | string                                                                                | false    |              | Status is the current status of the container. This is somewhat implementation-dependent, but should generally be a human-readable string. |
 | `volumes`          | object                                                                                | false    |              | Volumes is a map of "things" mounted into the container. Again, this is somewhat implementation-dependent.                                 |
 | » `[any property]` | string                                                                                | false    |              |                                                                                                                                            |
+
+## codersdk.WorkspaceAgentContainerPort
+
+```json
+{
+  "host_ip": "string",
+  "host_port": 0,
+  "network": "string",
+  "port": 0
+}
+```
+
+### Properties
+
+| Name        | Type    | Required | Restrictions | Description                                                                                                                |
+|-------------|---------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------|
+| `host_ip`   | string  | false    |              | Host ip is the IP address of the host interface to which the port is bound. Note that this can be an IPv4 or IPv6 address. |
+| `host_port` | integer | false    |              | Host port is the port number *outside* the container.                                                                      |
+| `network`   | string  | false    |              | Network is the network protocol used by the port (tcp, udp, etc).                                                          |
+| `port`      | integer | false    |              | Port is the port number *inside* the container.                                                                            |
 
 ## codersdk.WorkspaceAgentHealth
 
@@ -7820,9 +8027,10 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "name": "string",
       "ports": [
         {
+          "host_ip": "string",
+          "host_port": 0,
           "network": "string",
-          "port": 0,
-          "process_name": "string"
+          "port": 0
         }
       ],
       "running": true,
@@ -7841,10 +8049,10 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name         | Type                                                                                | Required | Restrictions | Description                                                                                                                           |
-|--------------|-------------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------|
-| `containers` | array of [codersdk.WorkspaceAgentDevcontainer](#codersdkworkspaceagentdevcontainer) | false    |              | Containers is a list of containers visible to the workspace agent.                                                                    |
-| `warnings`   | array of string                                                                     | false    |              | Warnings is a list of warnings that may have occurred during the process of listing containers. This should not include fatal errors. |
+| Name         | Type                                                                          | Required | Restrictions | Description                                                                                                                           |
+|--------------|-------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------|
+| `containers` | array of [codersdk.WorkspaceAgentContainer](#codersdkworkspaceagentcontainer) | false    |              | Containers is a list of containers visible to the workspace agent.                                                                    |
+| `warnings`   | array of string                                                               | false    |              | Warnings is a list of warnings that may have occurred during the process of listing containers. This should not include fatal errors. |
 
 ## codersdk.WorkspaceAgentListeningPort
 

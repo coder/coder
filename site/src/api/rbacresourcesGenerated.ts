@@ -157,6 +157,11 @@ export const RBACResourceActions: Partial<
 		update: "update an existing user",
 		update_personal: "update personal data",
 	},
+	webpush_subscription: {
+		create: "create webpush subscriptions",
+		delete: "delete webpush subscriptions",
+		read: "read webpush subscriptions",
+	},
 	workspace: {
 		application_connect: "connect to workspace apps via browser",
 		create: "create a new workspace",
@@ -166,6 +171,9 @@ export const RBACResourceActions: Partial<
 		start: "allows starting a workspace",
 		stop: "allows stopping a workspace",
 		update: "edit workspace settings (scheduling, permissions, parameters)",
+	},
+	workspace_agent_devcontainers: {
+		create: "create workspace agent devcontainers",
 	},
 	workspace_agent_resource_monitor: {
 		create: "create workspace agent resource monitor",
