@@ -2351,6 +2351,28 @@ class ApiMethods {
 		await this.axios.post<void>("/api/v2/notifications/test");
 	};
 
+	createWebPushSubscription = async (
+		userId: string,
+		req: TypesGen.WebpushSubscription,
+	) => {
+		await this.axios.post<void>(
+			`/api/v2/users/${userId}/webpush/subscription`,
+			req,
+		);
+	};
+
+	deleteWebPushSubscription = async (
+		userId: string,
+		req: TypesGen.DeleteWebpushSubscription,
+	) => {
+		await this.axios.delete<void>(
+			`/api/v2/users/${userId}/webpush/subscription`,
+			{
+				data: req,
+			},
+		);
+	};
+
 	requestOneTimePassword = async (
 		req: TypesGen.RequestOneTimePasscodeRequest,
 	) => {

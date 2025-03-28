@@ -76,6 +76,7 @@ func listFiles(query LSRequest) (LSResponse, error) {
 		return LSResponse{}, xerrors.Errorf("failed to get absolute path of %q: %w", fullPathRelative, err)
 	}
 
+	// codeql[go/path-injection] - The intent is to allow the user to navigate to any directory in their workspace.
 	f, err := os.Open(absolutePathString)
 	if err != nil {
 		return LSResponse{}, xerrors.Errorf("failed to open directory %q: %w", absolutePathString, err)

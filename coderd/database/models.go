@@ -3240,6 +3240,15 @@ type VisibleUser struct {
 	AvatarURL string    `db:"avatar_url" json:"avatar_url"`
 }
 
+type WebpushSubscription struct {
+	ID                uuid.UUID `db:"id" json:"id"`
+	UserID            uuid.UUID `db:"user_id" json:"user_id"`
+	CreatedAt         time.Time `db:"created_at" json:"created_at"`
+	Endpoint          string    `db:"endpoint" json:"endpoint"`
+	EndpointP256dhKey string    `db:"endpoint_p256dh_key" json:"endpoint_p256dh_key"`
+	EndpointAuthKey   string    `db:"endpoint_auth_key" json:"endpoint_auth_key"`
+}
+
 // Joins in the display name information such as username, avatar, and organization name.
 type Workspace struct {
 	ID                      uuid.UUID        `db:"id" json:"id"`

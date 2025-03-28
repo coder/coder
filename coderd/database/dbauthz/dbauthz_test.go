@@ -815,6 +815,39 @@ func (s *MethodTestSuite) TestOrganization() {
 		o := dbgen.Organization(s.T(), db, database.Organization{})
 		check.Args(o.ID).Asserts(o, policy.ActionRead).Returns(o)
 	}))
+	s.Run("GetOrganizationResourceCountByID", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+
+		t := dbgen.Template(s.T(), db, database.Template{
+			CreatedBy:      u.ID,
+			OrganizationID: o.ID,
+		})
+		dbgen.Workspace(s.T(), db, database.WorkspaceTable{
+			OrganizationID: o.ID,
+			OwnerID:        u.ID,
+			TemplateID:     t.ID,
+		})
+		dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
+		dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{
+			OrganizationID: o.ID,
+			UserID:         u.ID,
+		})
+
+		check.Args(o.ID).Asserts(
+			rbac.ResourceOrganizationMember.InOrg(o.ID), policy.ActionRead,
+			rbac.ResourceWorkspace.InOrg(o.ID), policy.ActionRead,
+			rbac.ResourceGroup.InOrg(o.ID), policy.ActionRead,
+			rbac.ResourceTemplate.InOrg(o.ID), policy.ActionRead,
+			rbac.ResourceProvisionerDaemon.InOrg(o.ID), policy.ActionRead,
+		).Returns(database.GetOrganizationResourceCountByIDRow{
+			WorkspaceCount:      1,
+			GroupCount:          1,
+			TemplateCount:       1,
+			MemberCount:         1,
+			ProvisionerKeyCount: 0,
+		})
+	}))
 	s.Run("GetDefaultOrganization", s.Subtest(func(db database.Store, check *expects) {
 		o, _ := db.GetDefaultOrganization(context.Background())
 		check.Args().Asserts(o, policy.ActionRead).Returns(o)
@@ -4498,6 +4531,22 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	s.Run("UpsertOAuth2GithubDefaultEligible", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(true).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
+	s.Run("GetWebpushVAPIDKeys", s.Subtest(func(db database.Store, check *expects) {
+		require.NoError(s.T(), db.UpsertWebpushVAPIDKeys(context.Background(), database.UpsertWebpushVAPIDKeysParams{
+			VapidPublicKey:  "test",
+			VapidPrivateKey: "test",
+		}))
+		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns(database.GetWebpushVAPIDKeysRow{
+			VapidPublicKey:  "test",
+			VapidPrivateKey: "test",
+		})
+	}))
+	s.Run("UpsertWebpushVAPIDKeys", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.UpsertWebpushVAPIDKeysParams{
+			VapidPublicKey:  "test",
+			VapidPrivateKey: "test",
+		}).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
+	}))
 }
 
 func (s *MethodTestSuite) TestNotifications() {
@@ -4533,6 +4582,39 @@ func (s *MethodTestSuite) TestNotifications() {
 			Status: database.NotificationMessageStatusLeased,
 			Limit:  10,
 		}).Asserts(rbac.ResourceNotificationMessage, policy.ActionRead)
+	}))
+
+	// webpush subscriptions
+	s.Run("GetWebpushSubscriptionsByUserID", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		check.Args(user.ID).Asserts(rbac.ResourceWebpushSubscription.WithOwner(user.ID.String()), policy.ActionRead)
+	}))
+	s.Run("InsertWebpushSubscription", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		check.Args(database.InsertWebpushSubscriptionParams{
+			UserID: user.ID,
+		}).Asserts(rbac.ResourceWebpushSubscription.WithOwner(user.ID.String()), policy.ActionCreate)
+	}))
+	s.Run("DeleteWebpushSubscriptions", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		push := dbgen.WebpushSubscription(s.T(), db, database.InsertWebpushSubscriptionParams{
+			UserID: user.ID,
+		})
+		check.Args([]uuid.UUID{push.ID}).Asserts(rbac.ResourceSystem, policy.ActionDelete)
+	}))
+	s.Run("DeleteWebpushSubscriptionByUserIDAndEndpoint", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		push := dbgen.WebpushSubscription(s.T(), db, database.InsertWebpushSubscriptionParams{
+			UserID: user.ID,
+		})
+		check.Args(database.DeleteWebpushSubscriptionByUserIDAndEndpointParams{
+			UserID:   user.ID,
+			Endpoint: push.Endpoint,
+		}).Asserts(rbac.ResourceWebpushSubscription.WithOwner(user.ID.String()), policy.ActionDelete)
+	}))
+	s.Run("DeleteAllWebpushSubscriptions", s.Subtest(func(_ database.Store, check *expects) {
+		check.Args().
+			Asserts(rbac.ResourceWebpushSubscription, policy.ActionDelete)
 	}))
 
 	// Notification templates

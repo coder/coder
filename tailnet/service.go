@@ -322,7 +322,7 @@ func NewNetworkTelemetryBatcher(clk quartz.Clock, frequency time.Duration, maxSi
 		done:      make(chan struct{}),
 	}
 	if b.batchFn == nil {
-		b.batchFn = func(batch []*proto.TelemetryEvent) {}
+		b.batchFn = func(_ []*proto.TelemetryEvent) {}
 	}
 	b.start()
 	return b

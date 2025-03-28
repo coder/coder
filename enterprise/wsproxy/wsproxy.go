@@ -398,13 +398,13 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		r.Route("/derp", func(r chi.Router) {
 			r.Get("/", derpHandler.ServeHTTP)
 			// This is used when UDP is blocked, and latency must be checked via HTTP(s).
-			r.Get("/latency-check", func(w http.ResponseWriter, r *http.Request) {
+			r.Get("/latency-check", func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(http.StatusOK)
 			})
 		})
 	} else {
 		r.Route("/derp", func(r chi.Router) {
-			r.HandleFunc("/*", func(rw http.ResponseWriter, r *http.Request) {
+			r.HandleFunc("/*", func(rw http.ResponseWriter, _ *http.Request) {
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 					Message: "DERP is disabled on this proxy.",
 				})
@@ -413,7 +413,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	}
 
 	r.Get("/api/v2/buildinfo", s.buildInfo)
-	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("OK")) })
+	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("OK")) })
 	// TODO: @emyrk should this be authenticated or debounced?
 	r.Get("/healthz-report", s.healthReport)
 	r.NotFound(func(rw http.ResponseWriter, r *http.Request) {

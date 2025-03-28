@@ -216,11 +216,9 @@ func TestWorkspaceLatestBuildTotals(t *testing.T) {
 		Total    int
 		Status   map[codersdk.ProvisionerJobStatus]int
 	}{{
-		Name: "None",
-		Database: func() database.Store {
-			return dbmem.New()
-		},
-		Total: 0,
+		Name:     "None",
+		Database: dbmem.New,
+		Total:    0,
 	}, {
 		Name: "Multiple",
 		Database: func() database.Store {
@@ -289,10 +287,8 @@ func TestWorkspaceLatestBuildStatuses(t *testing.T) {
 		ExpectedWorkspaces int
 		ExpectedStatuses   map[codersdk.ProvisionerJobStatus]int
 	}{{
-		Name: "None",
-		Database: func() database.Store {
-			return dbmem.New()
-		},
+		Name:               "None",
+		Database:           dbmem.New,
 		ExpectedWorkspaces: 0,
 	}, {
 		Name: "Multiple",

@@ -9,7 +9,7 @@ RUN cargo install typos-cli watchexec-cli && \
 FROM ubuntu:jammy@sha256:0e5e4a57c2499249aafc3b40fcd541e9a456aab7296681a3994d631587203f97 AS go
 
 # Install Go manually, so that we can control the version
-ARG GO_VERSION=1.22.12
+ARG GO_VERSION=1.24.1
 
 # Boring Go is needed to build FIPS-compliant binaries.
 RUN apt-get update && \
@@ -162,6 +162,7 @@ RUN apt-get update --quiet && apt-get install --yes \
 	libgbm-dev \
 	libssl-dev \
 	lsb-release \
+	lsof \
 	man \
 	meld \
 	ncdu \
@@ -271,7 +272,7 @@ RUN systemctl enable \
 ARG CLOUD_SQL_PROXY_VERSION=2.2.0 \
 	DIVE_VERSION=0.10.0 \
 	DOCKER_GCR_VERSION=2.1.8 \
-	GOLANGCI_LINT_VERSION=1.55.2 \
+	GOLANGCI_LINT_VERSION=1.64.8 \
 	GRYPE_VERSION=0.61.1 \
 	HELM_VERSION=3.12.0 \
 	KUBE_LINTER_VERSION=0.6.3 \
