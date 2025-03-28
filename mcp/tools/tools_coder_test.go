@@ -217,14 +217,13 @@ func TestCoderTools(t *testing.T) {
 	})
 
 	// NOTE: this test runs after the list_workspaces tool is called.
-	t.Run("tool_and_command_restrictions", func(t *testing.T) {
+	t.Run("tool_restrictions", func(t *testing.T) {
 		// Given: the workspace agent is connected
 		<-agentStarted
 
 		// Given: a restricted MCP server with only allowed tools and commands
 		restrictedPty := ptytest.New(t)
 		allowedTools := []string{"coder_workspace_exec"}
-		allowedCommands := []string{"echo", "ls"}
 		restrictedMCPSrv, closeRestrictedSrv := startTestMCPServer(ctx, t, restrictedPty.Input(), restrictedPty.Output())
 		t.Cleanup(func() {
 			_ = closeRestrictedSrv()
@@ -232,9 +231,8 @@ func TestCoderTools(t *testing.T) {
 		mcptools.AllTools().
 			WithOnlyAllowed(allowedTools...).
 			Register(restrictedMCPSrv, mcptools.ToolDeps{
-				Client:              memberClient,
-				Logger:              &logger,
-				AllowedExecCommands: allowedCommands,
+				Client: memberClient,
+				Logger: &logger,
 			})
 
 		// When: the tools/list command is called
@@ -256,31 +254,6 @@ func TestCoderTools(t *testing.T) {
 		disallowedToolResponse := restrictedPty.ReadLine(ctx)
 		require.Contains(t, disallowedToolResponse, "error")
 		require.Contains(t, disallowedToolResponse, "not found")
-
-		// When: an allowed exec command is called
-		randString := testutil.GetRandomName(t)
-		allowedCmd := makeJSONRPCRequest(t, "tools/call", "coder_workspace_exec", map[string]any{
-			"workspace": r.Workspace.ID.String(),
-			"command":   "echo " + randString,
-		})
-
-		// Then: the response is the output of the command.
-		restrictedPty.WriteLine(allowedCmd)
-		_ = restrictedPty.ReadLine(ctx) // skip the echo
-		actual := restrictedPty.ReadLine(ctx)
-		require.Contains(t, actual, randString)
-
-		// When: a disallowed exec command is called
-		disallowedCmd := makeJSONRPCRequest(t, "tools/call", "coder_workspace_exec", map[string]any{
-			"workspace": r.Workspace.ID.String(),
-			"command":   "evil --hax",
-		})
-
-		// Then: the response is an error indicating the command is not allowed.
-		restrictedPty.WriteLine(disallowedCmd)
-		_ = restrictedPty.ReadLine(ctx) // skip the echo
-		errorResponse := restrictedPty.ReadLine(ctx)
-		require.Contains(t, errorResponse, `command \"evil\" is not allowed`)
 	})
 
 	t.Run("coder_start_workspace", func(t *testing.T) {

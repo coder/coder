@@ -17,12 +17,11 @@ import (
 )
 
 type mcpOptions struct {
-	in                  io.Reader
-	out                 io.Writer
-	instructions        string
-	logger              *slog.Logger
-	allowedTools        []string
-	allowedExecCommands []string
+	in           io.Reader
+	out          io.Writer
+	instructions string
+	logger       *slog.Logger
+	allowedTools []string
 }
 
 // Option is a function that configures the MCP server.
@@ -63,13 +62,6 @@ func WithAllowedTools(tools []string) Option {
 	}
 }
 
-// WithAllowedExecCommands sets the allowed commands for workspace execution.
-func WithAllowedExecCommands(commands []string) Option {
-	return func(o *mcpOptions) {
-		o.allowedExecCommands = commands
-	}
-}
-
 // New creates a new MCP server with the given client and options.
 func New(ctx context.Context, client *codersdk.Client, opts ...Option) io.Closer {
 	options := &mcpOptions{
@@ -96,9 +88,8 @@ func New(ctx context.Context, client *codersdk.Client, opts ...Option) io.Closer
 		reg = reg.WithOnlyAllowed(options.allowedTools...)
 	}
 	reg.Register(mcpSrv, mcptools.ToolDeps{
-		Client:              client,
-		Logger:              &logger,
-		AllowedExecCommands: options.allowedExecCommands,
+		Client: client,
+		Logger: &logger,
 	})
 
 	srv := server.NewStdioServer(mcpSrv)
