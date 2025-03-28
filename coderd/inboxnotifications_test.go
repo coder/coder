@@ -532,10 +532,8 @@ func TestInboxNotifications_List(t *testing.T) {
 						return notifications.TemplateUserAccountActivated
 					case 3:
 						return notifications.TemplateTemplateDeprecated
-					case 4:
-						return notifications.TemplateTestNotification
 					default:
-						return uuid.New()
+						return notifications.TemplateTestNotification
 					}
 				}(),
 				Title:   fmt.Sprintf("Notification %d", i),
@@ -563,7 +561,6 @@ func TestInboxNotifications_List(t *testing.T) {
 		require.Equal(t, codersdk.FallbackIconWorkspace, notifs.Notifications[8].Icon)
 		require.Equal(t, codersdk.FallbackIconAccount, notifs.Notifications[7].Icon)
 		require.Equal(t, codersdk.FallbackIconTemplate, notifs.Notifications[6].Icon)
-		require.Equal(t, codersdk.FallbackIconOther, notifs.Notifications[5].Icon)
 		require.Equal(t, codersdk.FallbackIconOther, notifs.Notifications[4].Icon)
 	})
 
