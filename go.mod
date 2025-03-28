@@ -161,7 +161,7 @@ require (
 	github.com/prometheus-community/pro-bing v0.6.0
 	github.com/prometheus/client_golang v1.21.0
 	github.com/prometheus/client_model v0.6.1
-	github.com/prometheus/common v0.62.0
+	github.com/prometheus/common v0.63.0
 	github.com/quasilyte/go-ruleguard/dsl v0.3.21
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/shirou/gopsutil/v4 v4.25.2
