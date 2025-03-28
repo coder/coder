@@ -787,13 +787,12 @@ EOF
         
         # Create a setup script to run commands
         echo "📝 Creating a setup script..."
-        SETUP_COMMANDS="mkdir -p ~/projects && 
-cd ~/projects && 
+        SETUP_COMMANDS="cd ~ && 
 if [ ! -d \"coder\" ]; then
   git clone https://github.com/coder/coder.git
 fi && 
-mkdir -p ~/projects/coder/.vscode && 
-echo '{\"recommendations\":[\"coder.coder-remote\"]}' > ~/projects/coder/.vscode/extensions.json && 
+mkdir -p ~/coder/.vscode && 
+echo '{\"recommendations\":[\"coder.coder-remote\"]}' > ~/coder/.vscode/extensions.json && 
 git config --global user.name \"$GIT_NAME\" && 
 git config --global user.email \"$GIT_EMAIL\" && 
 echo 'Workspace setup completed successfully!'"
@@ -808,11 +807,10 @@ echo 'Workspace setup completed successfully!'"
             echo "⚠️ Automated setup failed. Please try these commands manually:"
             echo "    1. Connect to your workspace: coder ssh $WORKSPACE_NAME"
             echo "    2. Run these commands:"
-            echo "       mkdir -p ~/projects"
-            echo "       cd ~/projects"
+            echo "       cd ~"
             echo "       git clone https://github.com/coder/coder.git"
-            echo "       mkdir -p ~/projects/coder/.vscode"
-            echo "       echo '{\"recommendations\":[\"coder.coder-remote\"]}' > ~/projects/coder/.vscode/extensions.json"
+            echo "       mkdir -p ~/coder/.vscode"
+            echo "       echo '{\"recommendations\":[\"coder.coder-remote\"]}' > ~/coder/.vscode/extensions.json"
             echo "       git config --global user.name \"$GIT_NAME\""
             echo "       git config --global user.email \"$GIT_EMAIL\""
         fi
@@ -837,7 +835,7 @@ echo 'Workspace setup completed successfully!'"
             echo "   2. VS Code will launch and connect to your remote workspace"
             echo "   3. If prompted, install the Coder extension for VS Code"
             echo ""
-            echo "✨ Your workspace has the Coder repository at ~/projects/coder"
+            echo "✨ Your workspace has the Coder repository at ~/coder"
             echo "   and is ready for you to explore and edit files remotely."
             echo ""
             echo "🔌 The VS Code extensions needed for remote development are automatically"
