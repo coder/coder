@@ -280,6 +280,13 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionUpdate: actDef("update notification preferences"),
 		},
 	},
+	"webpush_subscription": {
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: actDef("create webpush subscriptions"),
+			ActionRead:   actDef("read webpush subscriptions"),
+			ActionDelete: actDef("delete webpush subscriptions"),
+		},
+	},
 	"inbox_notification": {
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: actDef("create inbox notifications"),
