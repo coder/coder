@@ -57,15 +57,7 @@ export const NotificationsPage: FC = () => {
 				}
 			>
 				<SettingsHeaderTitle
-					tooltip={
-						<span className="relative top-[2px]">
-							<FeatureStageBadge
-								contentType="beta"
-								size="lg"
-								css={{ marginBottom: "5px", fontSize: "0.75rem" }}
-							/>
-						</span>
-					}
+					tooltip={<FeatureStageBadge contentType="beta" size="lg" />}
 				>
 					Notifications
 				</SettingsHeaderTitle>

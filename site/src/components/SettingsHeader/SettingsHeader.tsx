@@ -81,7 +81,7 @@ export const SettingsHeaderTitle: FC<SettingsHeaderTitleProps> = ({
 	// in invalid markup
 	const Title = level;
 	return (
-		<div className="flex flex-row gap-2 items-middle">
+		<div className="flex flex-row gap-2 items-center">
 			<Title className={cn(titleVariants({ hierarchy }), className)}>
 				{children}
 			</Title>
