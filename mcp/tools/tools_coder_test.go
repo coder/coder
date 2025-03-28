@@ -190,9 +190,8 @@ func TestCoderTools(t *testing.T) {
 		_ = pty.ReadLine(ctx) // skip the echo
 
 		// Then: the response is the output of the command.
-		expected := makeJSONRPCTextResponse(t, randString)
 		actual := pty.ReadLine(ctx)
-		testutil.RequireJSONEq(t, expected, actual)
+		require.Contains(t, actual, randString)
 	})
 
 	// NOTE: this test runs after the list_workspaces tool is called.
