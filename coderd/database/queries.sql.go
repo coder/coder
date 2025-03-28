@@ -5942,18 +5942,20 @@ UPDATE workspaces w
 SET owner_id   = $1::uuid,
 	name       = $2::text,
 	updated_at = NOW()
-WHERE w.id IN (SELECT p.id
-			   FROM workspace_prebuilds p
-						INNER JOIN workspace_latest_builds b ON b.workspace_id = p.id
-						INNER JOIN provisioner_jobs pj ON b.job_id = pj.id
-						INNER JOIN templates t ON p.template_id = t.id
-			   WHERE (b.transition = 'start'::workspace_transition
-				   AND pj.job_status IN ('succeeded'::provisioner_job_status))
-				 AND b.template_version_id = t.active_version_id
-				 AND b.template_version_preset_id = $3::uuid
-				 AND p.ready
-			   ORDER BY random()
-			   LIMIT 1 FOR UPDATE OF p SKIP LOCKED) -- Ensure that a concurrent request will not select the same prebuild.
+WHERE w.id IN (
+	SELECT p.id
+	FROM workspace_prebuilds p
+		INNER JOIN workspace_latest_builds b ON b.workspace_id = p.id
+		INNER JOIN templates t ON p.template_id = t.id
+	WHERE (b.transition = 'start'::workspace_transition
+		AND b.job_status IN ('succeeded'::provisioner_job_status))
+	-- The prebuilds system should never try to claim a prebuild for an inactive template version.
+	-- Nevertheless, this filter is here as a defensive measure:
+	AND b.template_version_id = t.active_version_id
+	AND b.template_version_preset_id = $3::uuid
+	AND p.ready
+	LIMIT 1 FOR UPDATE OF p SKIP LOCKED -- Ensure that a concurrent request will not select the same prebuild.
+)
 RETURNING w.id, w.name
 `
 
@@ -5973,6 +5975,58 @@ func (q *sqlQuerier) ClaimPrebuild(ctx context.Context, arg ClaimPrebuildParams)
 	var i ClaimPrebuildRow
 	err := row.Scan(&i.ID, &i.Name)
 	return i, err
+}
+
+const countInProgressPrebuilds = `-- name: CountInProgressPrebuilds :many
+SELECT t.id AS template_id, wpb.template_version_id, wpb.transition, COUNT(wpb.transition)::int AS count
+FROM workspace_latest_builds wlb
+         INNER JOIN workspace_prebuild_builds wpb ON wpb.id = wlb.id
+         -- We only need these counts for active template versions.
+         -- It doesn't influence whether we create or delete prebuilds
+         -- for inactive template versions. This is because we never create
+         -- prebuilds for inactive template versions, we always delete
+         -- running prebuilds for inactive template versions, and we ignore
+         -- prebuilds that are still building.
+         INNER JOIN templates t ON t.active_version_id = wlb.template_version_id
+WHERE wlb.job_status IN ('pending'::provisioner_job_status, 'running'::provisioner_job_status)
+GROUP BY t.id, wpb.template_version_id, wpb.transition
+`
+
+type CountInProgressPrebuildsRow struct {
+	TemplateID        uuid.UUID           `db:"template_id" json:"template_id"`
+	TemplateVersionID uuid.UUID           `db:"template_version_id" json:"template_version_id"`
+	Transition        WorkspaceTransition `db:"transition" json:"transition"`
+	Count             int32               `db:"count" json:"count"`
+}
+
+// CountInProgressPrebuilds returns the number of in-progress prebuilds, grouped by template version ID and transition.
+// Prebuild considered in-progress if it's in the "starting", "stopping", or "deleting" state.
+func (q *sqlQuerier) CountInProgressPrebuilds(ctx context.Context) ([]CountInProgressPrebuildsRow, error) {
+	rows, err := q.db.QueryContext(ctx, countInProgressPrebuilds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CountInProgressPrebuildsRow
+	for rows.Next() {
+		var i CountInProgressPrebuildsRow
+		if err := rows.Scan(
+			&i.TemplateID,
+			&i.TemplateVersionID,
+			&i.Transition,
+			&i.Count,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getPrebuildMetrics = `-- name: GetPrebuildMetrics :many
@@ -6035,58 +6089,12 @@ func (q *sqlQuerier) GetPrebuildMetrics(ctx context.Context) ([]GetPrebuildMetri
 	return items, nil
 }
 
-const getPrebuildsInProgress = `-- name: GetPrebuildsInProgress :many
-SELECT t.id AS template_id, wpb.template_version_id, wpb.transition, COUNT(wpb.transition)::int AS count
-FROM workspace_latest_builds wlb
-		 INNER JOIN provisioner_jobs pj ON wlb.job_id = pj.id
-		 INNER JOIN workspace_prebuild_builds wpb ON wpb.id = wlb.id
-		 INNER JOIN templates t ON t.active_version_id = wlb.template_version_id
-WHERE pj.job_status IN ('pending'::provisioner_job_status, 'running'::provisioner_job_status)
-GROUP BY t.id, wpb.template_version_id, wpb.transition
-`
-
-type GetPrebuildsInProgressRow struct {
-	TemplateID        uuid.UUID           `db:"template_id" json:"template_id"`
-	TemplateVersionID uuid.UUID           `db:"template_version_id" json:"template_version_id"`
-	Transition        WorkspaceTransition `db:"transition" json:"transition"`
-	Count             int32               `db:"count" json:"count"`
-}
-
-func (q *sqlQuerier) GetPrebuildsInProgress(ctx context.Context) ([]GetPrebuildsInProgressRow, error) {
-	rows, err := q.db.QueryContext(ctx, getPrebuildsInProgress)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetPrebuildsInProgressRow
-	for rows.Next() {
-		var i GetPrebuildsInProgressRow
-		if err := rows.Scan(
-			&i.TemplateID,
-			&i.TemplateVersionID,
-			&i.Transition,
-			&i.Count,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getPresetsBackoff = `-- name: GetPresetsBackoff :many
 WITH filtered_builds AS (
 	-- Only select builds which are for prebuild creations
-	SELECT wlb.id, wlb.created_at, wlb.updated_at, wlb.workspace_id, wlb.template_version_id, wlb.build_number, wlb.transition, wlb.initiator_id, wlb.provisioner_state, wlb.job_id, wlb.deadline, wlb.reason, wlb.daily_cost, wlb.max_deadline, wlb.template_version_preset_id, tvp.id AS preset_id, pj.job_status, tvp.desired_instances
+	SELECT wlb.template_version_id, wlb.created_at, tvp.id AS preset_id, wlb.job_status, tvp.desired_instances
 	FROM template_version_presets tvp
 			 INNER JOIN workspace_latest_builds wlb ON wlb.template_version_preset_id = tvp.id
-             INNER JOIN provisioner_jobs pj ON wlb.job_id = pj.id
              INNER JOIN template_versions tv ON wlb.template_version_id = tv.id
              INNER JOIN templates t ON tv.template_id = t.id AND t.active_version_id = tv.id
 	WHERE tvp.desired_instances IS NOT NULL -- Consider only presets that have a prebuild configuration.
@@ -6094,8 +6102,8 @@ WITH filtered_builds AS (
 ),
 time_sorted_builds AS (
     -- Group builds by template version, then sort each group by created_at.
-	SELECT fb.id, fb.created_at, fb.updated_at, fb.workspace_id, fb.template_version_id, fb.build_number, fb.transition, fb.initiator_id, fb.provisioner_state, fb.job_id, fb.deadline, fb.reason, fb.daily_cost, fb.max_deadline, fb.template_version_preset_id, fb.preset_id, fb.job_status, fb.desired_instances,
-	    ROW_NUMBER() OVER (PARTITION BY fb.template_version_preset_id ORDER BY fb.created_at DESC) as rn
+	SELECT fb.template_version_id, fb.created_at, fb.preset_id, fb.job_status, fb.desired_instances,
+	    ROW_NUMBER() OVER (PARTITION BY fb.preset_id ORDER BY fb.created_at DESC) as rn
 	FROM filtered_builds fb
 ),
 failed_count AS (
@@ -6176,9 +6184,8 @@ SELECT p.id                AS workspace_id,
 	   p.created_at
 FROM workspace_prebuilds p
 		 INNER JOIN workspace_latest_builds b ON b.workspace_id = p.id
-		 INNER JOIN provisioner_jobs pj ON b.job_id = pj.id -- See https://github.com/coder/internal/issues/398.
 WHERE (b.transition = 'start'::workspace_transition
-	AND pj.job_status = 'succeeded'::provisioner_job_status)
+	AND b.job_status = 'succeeded'::provisioner_job_status)
 `
 
 type GetRunningPrebuildsRow struct {

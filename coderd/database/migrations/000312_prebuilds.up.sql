@@ -1,8 +1,17 @@
 -- workspace_latest_builds contains latest build for every workspace
 CREATE VIEW workspace_latest_builds AS
-SELECT DISTINCT ON (workspace_id) *
-FROM workspace_builds
-ORDER BY workspace_id, build_number DESC;
+SELECT DISTINCT ON (workspace_id)
+	wb.id,
+	wb.workspace_id,
+	wb.template_version_id,
+	wb.job_id,
+	wb.template_version_preset_id,
+	wb.transition,
+	wb.created_at,
+	pj.job_status
+FROM workspace_builds wb
+	INNER JOIN provisioner_jobs pj ON wb.job_id = pj.id
+ORDER BY wb.workspace_id, wb.build_number DESC;
 
 -- workspace_prebuilds contains all prebuilt workspaces with corresponding agent information
 -- (including lifecycle_state which indicates is agent ready or not) and corresponding preset_id for prebuild
@@ -48,6 +57,6 @@ FROM all_prebuilds p
          INNER JOIN current_presets cp ON cp.prebuild_id = p.id;
 
 CREATE VIEW workspace_prebuild_builds AS
-SELECT *
+SELECT id, workspace_id, template_version_id, transition, job_id, template_version_preset_id, build_number
 FROM workspace_builds
 WHERE initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'; -- The system user responsible for prebuilds.

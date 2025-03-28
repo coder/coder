@@ -186,6 +186,13 @@ func (m queryMetricsStore) CleanTailnetTunnels(ctx context.Context) error {
 	return r0
 }
 
+func (m queryMetricsStore) CountInProgressPrebuilds(ctx context.Context) ([]database.CountInProgressPrebuildsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.CountInProgressPrebuilds(ctx)
+	m.queryLatencies.WithLabelValues("CountInProgressPrebuilds").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) CountUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.CountUnreadInboxNotificationsByUserID(ctx, userID)
@@ -1072,13 +1079,6 @@ func (m queryMetricsStore) GetPrebuildMetrics(ctx context.Context) ([]database.G
 	start := time.Now()
 	r0, r1 := m.s.GetPrebuildMetrics(ctx)
 	m.queryLatencies.WithLabelValues("GetPrebuildMetrics").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetPrebuildsInProgress(ctx context.Context) ([]database.GetPrebuildsInProgressRow, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetPrebuildsInProgress(ctx)
-	m.queryLatencies.WithLabelValues("GetPrebuildsInProgress").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 

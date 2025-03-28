@@ -1975,23 +1975,17 @@ CREATE VIEW workspace_build_with_user AS
 COMMENT ON VIEW workspace_build_with_user IS 'Joins in the username + avatar url of the initiated by user.';
 
 CREATE VIEW workspace_latest_builds AS
- SELECT DISTINCT ON (workspace_builds.workspace_id) workspace_builds.id,
-    workspace_builds.created_at,
-    workspace_builds.updated_at,
-    workspace_builds.workspace_id,
-    workspace_builds.template_version_id,
-    workspace_builds.build_number,
-    workspace_builds.transition,
-    workspace_builds.initiator_id,
-    workspace_builds.provisioner_state,
-    workspace_builds.job_id,
-    workspace_builds.deadline,
-    workspace_builds.reason,
-    workspace_builds.daily_cost,
-    workspace_builds.max_deadline,
-    workspace_builds.template_version_preset_id
-   FROM workspace_builds
-  ORDER BY workspace_builds.workspace_id, workspace_builds.build_number DESC;
+ SELECT DISTINCT ON (wb.workspace_id) wb.id,
+    wb.workspace_id,
+    wb.template_version_id,
+    wb.job_id,
+    wb.template_version_preset_id,
+    wb.transition,
+    wb.created_at,
+    pj.job_status
+   FROM (workspace_builds wb
+     JOIN provisioner_jobs pj ON ((wb.job_id = pj.id)))
+  ORDER BY wb.workspace_id, wb.build_number DESC;
 
 CREATE TABLE workspace_modules (
     id uuid NOT NULL,
@@ -2005,20 +1999,12 @@ CREATE TABLE workspace_modules (
 
 CREATE VIEW workspace_prebuild_builds AS
  SELECT workspace_builds.id,
-    workspace_builds.created_at,
-    workspace_builds.updated_at,
     workspace_builds.workspace_id,
     workspace_builds.template_version_id,
-    workspace_builds.build_number,
     workspace_builds.transition,
-    workspace_builds.initiator_id,
-    workspace_builds.provisioner_state,
     workspace_builds.job_id,
-    workspace_builds.deadline,
-    workspace_builds.reason,
-    workspace_builds.daily_cost,
-    workspace_builds.max_deadline,
-    workspace_builds.template_version_preset_id
+    workspace_builds.template_version_preset_id,
+    workspace_builds.build_number
    FROM workspace_builds
   WHERE (workspace_builds.initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid);
 

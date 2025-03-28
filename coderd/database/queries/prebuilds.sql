@@ -31,17 +31,23 @@ SELECT p.id                AS workspace_id,
 	   p.created_at
 FROM workspace_prebuilds p
 		 INNER JOIN workspace_latest_builds b ON b.workspace_id = p.id
-		 INNER JOIN provisioner_jobs pj ON b.job_id = pj.id -- See https://github.com/coder/internal/issues/398.
 WHERE (b.transition = 'start'::workspace_transition
-	AND pj.job_status = 'succeeded'::provisioner_job_status);
+	AND b.job_status = 'succeeded'::provisioner_job_status);
 
--- name: GetPrebuildsInProgress :many
+-- name: CountInProgressPrebuilds :many
+-- CountInProgressPrebuilds returns the number of in-progress prebuilds, grouped by template version ID and transition.
+-- Prebuild considered in-progress if it's in the "starting", "stopping", or "deleting" state.
 SELECT t.id AS template_id, wpb.template_version_id, wpb.transition, COUNT(wpb.transition)::int AS count
 FROM workspace_latest_builds wlb
-		 INNER JOIN provisioner_jobs pj ON wlb.job_id = pj.id
-		 INNER JOIN workspace_prebuild_builds wpb ON wpb.id = wlb.id
-		 INNER JOIN templates t ON t.active_version_id = wlb.template_version_id
-WHERE pj.job_status IN ('pending'::provisioner_job_status, 'running'::provisioner_job_status)
+         INNER JOIN workspace_prebuild_builds wpb ON wpb.id = wlb.id
+         -- We only need these counts for active template versions.
+         -- It doesn't influence whether we create or delete prebuilds
+         -- for inactive template versions. This is because we never create
+         -- prebuilds for inactive template versions, we always delete
+         -- running prebuilds for inactive template versions, and we ignore
+         -- prebuilds that are still building.
+         INNER JOIN templates t ON t.active_version_id = wlb.template_version_id
+WHERE wlb.job_status IN ('pending'::provisioner_job_status, 'running'::provisioner_job_status)
 GROUP BY t.id, wpb.template_version_id, wpb.transition;
 
 -- GetPresetsBackoff groups workspace builds by template version ID.
@@ -60,10 +66,9 @@ GROUP BY t.id, wpb.template_version_id, wpb.transition;
 -- name: GetPresetsBackoff :many
 WITH filtered_builds AS (
 	-- Only select builds which are for prebuild creations
-	SELECT wlb.*, tvp.id AS preset_id, pj.job_status, tvp.desired_instances
+	SELECT wlb.template_version_id, wlb.created_at, tvp.id AS preset_id, wlb.job_status, tvp.desired_instances
 	FROM template_version_presets tvp
 			 INNER JOIN workspace_latest_builds wlb ON wlb.template_version_preset_id = tvp.id
-             INNER JOIN provisioner_jobs pj ON wlb.job_id = pj.id
              INNER JOIN template_versions tv ON wlb.template_version_id = tv.id
              INNER JOIN templates t ON tv.template_id = t.id AND t.active_version_id = tv.id
 	WHERE tvp.desired_instances IS NOT NULL -- Consider only presets that have a prebuild configuration.
@@ -71,8 +76,8 @@ WITH filtered_builds AS (
 ),
 time_sorted_builds AS (
     -- Group builds by template version, then sort each group by created_at.
-	SELECT fb.*,
-	    ROW_NUMBER() OVER (PARTITION BY fb.template_version_preset_id ORDER BY fb.created_at DESC) as rn
+	SELECT fb.template_version_id, fb.created_at, fb.preset_id, fb.job_status, fb.desired_instances,
+	    ROW_NUMBER() OVER (PARTITION BY fb.preset_id ORDER BY fb.created_at DESC) as rn
 	FROM filtered_builds fb
 ),
 failed_count AS (
@@ -99,18 +104,20 @@ UPDATE workspaces w
 SET owner_id   = @new_user_id::uuid,
 	name       = @new_name::text,
 	updated_at = NOW()
-WHERE w.id IN (SELECT p.id
-			   FROM workspace_prebuilds p
-						INNER JOIN workspace_latest_builds b ON b.workspace_id = p.id
-						INNER JOIN provisioner_jobs pj ON b.job_id = pj.id
-						INNER JOIN templates t ON p.template_id = t.id
-			   WHERE (b.transition = 'start'::workspace_transition
-				   AND pj.job_status IN ('succeeded'::provisioner_job_status))
-				 AND b.template_version_id = t.active_version_id
-				 AND b.template_version_preset_id = @preset_id::uuid
-				 AND p.ready
-			   ORDER BY random()
-			   LIMIT 1 FOR UPDATE OF p SKIP LOCKED) -- Ensure that a concurrent request will not select the same prebuild.
+WHERE w.id IN (
+	SELECT p.id
+	FROM workspace_prebuilds p
+		INNER JOIN workspace_latest_builds b ON b.workspace_id = p.id
+		INNER JOIN templates t ON p.template_id = t.id
+	WHERE (b.transition = 'start'::workspace_transition
+		AND b.job_status IN ('succeeded'::provisioner_job_status))
+	-- The prebuilds system should never try to claim a prebuild for an inactive template version.
+	-- Nevertheless, this filter is here as a defensive measure:
+	AND b.template_version_id = t.active_version_id
+	AND b.template_version_preset_id = @preset_id::uuid
+	AND p.ready
+	LIMIT 1 FOR UPDATE OF p SKIP LOCKED -- Ensure that a concurrent request will not select the same prebuild.
+)
 RETURNING w.id, w.name;
 
 -- name: GetPrebuildMetrics :many
