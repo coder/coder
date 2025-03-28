@@ -960,8 +960,7 @@ func (s *MethodTestSuite) TestOrganization() {
 			TemplateVersionID: workspaceBuild.TemplateVersionID,
 			Name:              "test",
 		}
-		preset, err := db.InsertPreset(context.Background(), insertPresetParams)
-		require.NoError(s.T(), err)
+		preset := dbgen.Preset(s.T(), db, insertPresetParams)
 		insertPresetParametersParams := database.InsertPresetParametersParams{
 			TemplateVersionPresetID: preset.ID,
 			Names:                   []string{"test"},
