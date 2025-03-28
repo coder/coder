@@ -1719,12 +1719,33 @@ func (api *API) resolveAutostart(rw http.ResponseWriter, r *http.Request) {
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Success 200 {object} codersdk.Response
 // @Router /workspaces/{workspace}/watch [get]
-func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
+// @Deprecated Use /workspaces/{workspace}/watch-ws instead
+func (api *API) watchWorkspaceSSE(rw http.ResponseWriter, r *http.Request) {
+	api.watchWorkspace(rw, r, httpapi.ServerSentEventSender)
+}
+
+// @Summary Watch workspace by ID via WebSockets
+// @ID watch-workspace-by-id-via-websockets
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Workspaces
+// @Param workspace path string true "Workspace ID" format(uuid)
+// @Success 200 {object} codersdk.ServerSentEvent
+// @Router /workspaces/{workspace}/watch-ws [get]
+func (api *API) watchWorkspaceWS(rw http.ResponseWriter, r *http.Request) {
+	api.watchWorkspace(rw, r, httpapi.OneWayWebSocketEventSender)
+}
+
+func (api *API) watchWorkspace(
+	rw http.ResponseWriter,
+	r *http.Request,
+	connect httpapi.EventSender,
+) {
 	ctx := r.Context()
 	workspace := httpmw.WorkspaceParam(r)
 	apiKey := httpmw.APIKey(r)
 
-	sendEvent, senderClosed, err := httpapi.ServerSentEventSender(rw, r)
+	sendEvent, senderClosed, err := connect(rw, r)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error setting up server-sent events.",
@@ -1740,7 +1761,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 	sendUpdate := func(_ context.Context, _ []byte) {
 		workspace, err := api.Database.GetWorkspaceByID(ctx, workspace.ID)
 		if err != nil {
-			_ = sendEvent(ctx, codersdk.ServerSentEvent{
+			_ = sendEvent(codersdk.ServerSentEvent{
 				Type: codersdk.ServerSentEventTypeError,
 				Data: codersdk.Response{
 					Message: "Internal error fetching workspace.",
@@ -1752,7 +1773,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 
 		data, err := api.workspaceData(ctx, []database.Workspace{workspace})
 		if err != nil {
-			_ = sendEvent(ctx, codersdk.ServerSentEvent{
+			_ = sendEvent(codersdk.ServerSentEvent{
 				Type: codersdk.ServerSentEventTypeError,
 				Data: codersdk.Response{
 					Message: "Internal error fetching workspace data.",
@@ -1762,7 +1783,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if len(data.templates) == 0 {
-			_ = sendEvent(ctx, codersdk.ServerSentEvent{
+			_ = sendEvent(codersdk.ServerSentEvent{
 				Type: codersdk.ServerSentEventTypeError,
 				Data: codersdk.Response{
 					Message: "Forbidden reading template of selected workspace.",
@@ -1779,7 +1800,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 			api.Options.AllowWorkspaceRenames,
 		)
 		if err != nil {
-			_ = sendEvent(ctx, codersdk.ServerSentEvent{
+			_ = sendEvent(codersdk.ServerSentEvent{
 				Type: codersdk.ServerSentEventTypeError,
 				Data: codersdk.Response{
 					Message: "Internal error converting workspace.",
@@ -1787,7 +1808,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 				},
 			})
 		}
-		_ = sendEvent(ctx, codersdk.ServerSentEvent{
+		_ = sendEvent(codersdk.ServerSentEvent{
 			Type: codersdk.ServerSentEventTypeData,
 			Data: w,
 		})
@@ -1805,7 +1826,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 				sendUpdate(ctx, nil)
 			}))
 	if err != nil {
-		_ = sendEvent(ctx, codersdk.ServerSentEvent{
+		_ = sendEvent(codersdk.ServerSentEvent{
 			Type: codersdk.ServerSentEventTypeError,
 			Data: codersdk.Response{
 				Message: "Internal error subscribing to workspace events.",
@@ -1819,7 +1840,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 	// This is required to show whether the workspace is up-to-date.
 	cancelTemplateSubscribe, err := api.Pubsub.Subscribe(watchTemplateChannel(workspace.TemplateID), sendUpdate)
 	if err != nil {
-		_ = sendEvent(ctx, codersdk.ServerSentEvent{
+		_ = sendEvent(codersdk.ServerSentEvent{
 			Type: codersdk.ServerSentEventTypeError,
 			Data: codersdk.Response{
 				Message: "Internal error subscribing to template events.",
@@ -1832,7 +1853,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 
 	// An initial ping signals to the request that the server is now ready
 	// and the client can begin servicing a channel with data.
-	_ = sendEvent(ctx, codersdk.ServerSentEvent{
+	_ = sendEvent(codersdk.ServerSentEvent{
 		Type: codersdk.ServerSentEventTypePing,
 	})
 	// Send updated workspace info after connection is established. This avoids
