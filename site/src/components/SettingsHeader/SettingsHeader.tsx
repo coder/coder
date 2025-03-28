@@ -1,79 +1,109 @@
 import { cva, type VariantProps } from "class-variance-authority";
 import { Button } from "components/Button/Button";
 import { SquareArrowOutUpRightIcon } from "lucide-react";
-import type { FC, ReactNode } from "react";
-import { twMerge } from "tailwind-merge";
+import type { FC, PropsWithChildren, ReactNode } from "react";
+import { cn } from "utils/cn";
 
-const headerVariants = cva("m-0 pb-1 flex items-center gap-2 leading-tight", {
+type SettingsHeaderProps = Readonly<
+	PropsWithChildren<{
+		actions?: ReactNode;
+		className?: string;
+	}>
+>;
+export const SettingsHeader: FC<SettingsHeaderProps> = ({
+	children,
+	actions,
+	className,
+}) => {
+	return (
+		<hgroup className="flex flex-row justify-between align-baseline">
+			{/*
+			 * The text-sm class is only meant to adjust the font size of
+			 * SettingsDescription, but we need to apply it here. That way,
+			 * text-sm combines with the max-w-prose class and makes sure
+			 * we have a predictable max width for the header + description by
+			 * default.
+			 */}
+			<div className={cn("text-sm max-w-prose pb-6", className)}>
+				{children}
+			</div>
+			{actions}
+		</hgroup>
+	);
+};
+
+type SettingsHeaderDocsLinkProps = Readonly<
+	PropsWithChildren<{ href: string }>
+>;
+export const SettingsHeaderDocsLink: FC<SettingsHeaderDocsLinkProps> = ({
+	href,
+	children = "Read the docs",
+}) => {
+	return (
+		<Button asChild variant="outline">
+			<a href={href} target="_blank" rel="noreferrer">
+				<SquareArrowOutUpRightIcon />
+				{children}
+				<span className="sr-only"> (link opens in new tab)</span>
+			</a>
+		</Button>
+	);
+};
+
+const titleVariants = cva("m-0 pb-1 flex items-center gap-2 leading-tight", {
 	variants: {
-		titleVisualHierarchy: {
+		hierarchy: {
 			primary: "text-3xl font-bold",
 			secondary: "text-2xl font-medium",
 		},
 	},
 	defaultVariants: {
-		titleVisualHierarchy: "primary",
+		hierarchy: "primary",
 	},
 });
-
-type HeaderLevel = `h${1 | 2 | 3 | 4 | 5 | 6}`;
-
-type HeaderProps = Readonly<
-	VariantProps<typeof headerVariants> & {
-		title: ReactNode;
-		description?: ReactNode;
-		titleHeaderLevel?: HeaderLevel;
-		docsHref?: string;
-		tooltip?: ReactNode;
-	}
+type SettingsHeaderTitleProps = Readonly<
+	PropsWithChildren<
+		VariantProps<typeof titleVariants> & {
+			level?: `h${1 | 2 | 3 | 4 | 5 | 6}`;
+			tooltip?: ReactNode;
+			className?: string;
+		}
+	>
 >;
-
-export const SettingsHeader: FC<HeaderProps> = ({
-	title,
-	description,
-	docsHref,
+export const SettingsHeaderTitle: FC<SettingsHeaderTitleProps> = ({
+	children,
 	tooltip,
-	titleHeaderLevel = "h1",
-	titleVisualHierarchy = "primary",
+	className,
+	level = "h1",
+	hierarchy = "primary",
 }) => {
-	const HeaderTitle = titleHeaderLevel;
+	// Explicitly not using Radix's Slot component, because we don't want to
+	// allow any arbitrary element to be composed into this. We specifically
+	// only want to allow the six HTML headers. Anything else will likely result
+	// in invalid markup
+	const Title = level;
 	return (
-		<hgroup className="flex flex-row justify-between align-baseline">
-			{/*
-			 * The text-sm class only adjusts the font size of the description,
-			 * but we need to apply it here and not on the <p> tag itself. That
-			 * way, text-sm combines with the max-w-prose class and makes sure
-			 * we have a predictable max width for the header + description.
-			 */}
-			<div className="text-sm max-w-prose pb-6">
-				<div className="flex flex-row gap-2 align-middle">
-					<HeaderTitle
-						className={twMerge(
-							"m-0 pb-1 text-3xl font-bold flex items-center gap-2 leading-tight",
-							titleVisualHierarchy === "secondary" && "text-2xl font-medium",
-						)}
-					>
-						{title}
-					</HeaderTitle>
-					{tooltip}
-				</div>
+		<div className="flex flex-row gap-2 align-middle">
+			<Title className={cn(titleVariants({ hierarchy }), className)}>
+				{children}
+			</Title>
+			{tooltip}
+		</div>
+	);
+};
 
-				{description && (
-					<p className="m-0 text-content-secondary leading-relaxed">
-						{description}
-					</p>
-				)}
-			</div>
-
-			{docsHref && (
-				<Button asChild variant="outline">
-					<a href={docsHref} target="_blank" rel="noreferrer">
-						<SquareArrowOutUpRightIcon />
-						Read the docs
-						<span className="sr-only"> (link opens in new tab)</span>
-					</a>
-				</Button>
-			)}
-		</hgroup>
+type SettingsHeaderDescriptionProps = Readonly<
+	PropsWithChildren<{
+		className?: string;
+	}>
+>;
+export const SettingsHeaderDescription: FC<SettingsHeaderDescriptionProps> = ({
+	children,
+	className,
+}) => {
+	return (
+		<p className={cn("m-0 text-content-secondary leading-relaxed", className)}>
+			{children}
+		</p>
 	);
 };

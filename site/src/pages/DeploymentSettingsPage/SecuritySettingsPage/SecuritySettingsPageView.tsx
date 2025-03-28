@@ -5,7 +5,12 @@ import {
 	EnabledBadge,
 	PremiumBadge,
 } from "components/Badges/Badges";
-import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderDocsLink,
+	SettingsHeaderTitle,
+} from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import type { FC } from "react";
 import {
@@ -31,10 +36,12 @@ export const SecuritySettingsPageView: FC<SecuritySettingsPageViewProps> = ({
 	return (
 		<Stack direction="column" spacing={6}>
 			<div>
-				<SettingsHeader
-					title="Security"
-					description="Ensure your Coder deployment is secure."
-				/>
+				<SettingsHeader>
+					<SettingsHeaderTitle>Security</SettingsHeaderTitle>
+					<SettingsHeaderDescription>
+						Ensure your Coder deployment is secure.
+					</SettingsHeaderDescription>
+				</SettingsHeader>
 
 				<OptionsTable
 					options={useDeploymentOptions(
@@ -48,12 +55,20 @@ export const SecuritySettingsPageView: FC<SecuritySettingsPageViewProps> = ({
 
 			<div>
 				<SettingsHeader
-					title="Browser Only Connections"
-					titleHeaderLevel="h2"
-					titleVisualHierarchy="secondary"
-					description="Block all workspace access via SSH, port forward, and other non-browser connections."
-					docsHref={docs("/admin/networking#browser-only-connections")}
-				/>
+					actions={
+						<SettingsHeaderDocsLink
+							href={docs("/admin/networking#browser-only-connections")}
+						/>
+					}
+				>
+					<SettingsHeaderTitle level="h2" hierarchy="secondary">
+						Browser-Only Connections
+					</SettingsHeaderTitle>
+					<SettingsHeaderDescription>
+						Block all workspace access via SSH, port forward, and other
+						non-browser connections.
+					</SettingsHeaderDescription>
+				</SettingsHeader>
 
 				<Badges>
 					{featureBrowserOnlyEnabled ? <EnabledBadge /> : <DisabledBadge />}
@@ -63,12 +78,14 @@ export const SecuritySettingsPageView: FC<SecuritySettingsPageViewProps> = ({
 
 			{tlsOptions.length > 0 && (
 				<div>
-					<SettingsHeader
-						title="TLS"
-						titleHeaderLevel="h2"
-						titleVisualHierarchy="secondary"
-						description="Ensure TLS is properly configured for your Coder deployment."
-					/>
+					<SettingsHeader>
+						<SettingsHeaderTitle level="h2" hierarchy="secondary">
+							TLS
+						</SettingsHeaderTitle>
+						<SettingsHeaderDescription>
+							Ensure TLS is properly configured for your Coder deployment.
+						</SettingsHeaderDescription>
+					</SettingsHeader>
 
 					<OptionsTable options={tlsOptions} />
 				</div>
