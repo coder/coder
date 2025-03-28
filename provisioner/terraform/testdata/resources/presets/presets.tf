@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "2.1.3"
+      version = "2.3.0-pre2"
     }
   }
 }
@@ -22,9 +22,9 @@ data "coder_workspace_preset" "MyFirstProject" {
   name = "My First Project"
   parameters = {
     (data.coder_parameter.sample.name) = "A1B2C3"
-    # TODO (sasswart): Add support for parameters from external modules
-    # (data.coder_parameter.first_parameter_from_module.name) = "A1B2C3"
-    # (data.coder_parameter.child_first_parameter_from_module.name) = "A1B2C3"
+  }
+  prebuilds {
+    instances = 4
   }
 }
 
