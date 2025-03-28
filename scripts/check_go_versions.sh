@@ -41,9 +41,9 @@ if [ "$IGNORE_NIX" = "false" ]; then
 	GO_VERSION_GO_MOD_MAJOR_MINOR=$(echo "$GO_VERSION_GO_MOD" | cut -d '.' -f 1-2)
 	if [ "$GO_VERSION_FLAKE_NIX_MAJOR_MINOR" != "$GO_VERSION_GO_MOD_MAJOR_MINOR" ]; then
 		error "Go version mismatch between go.mod and flake.nix"
-  fi
+	fi
 else
-  log "INFO : Ignoring flake.nix, as IGNORE_NIX=${IGNORE_NIX}"
+	log "INFO : Ignoring flake.nix, as IGNORE_NIX=${IGNORE_NIX}"
 fi
 
 log "Go version check passed, all versions are $GO_VERSION_GO_MOD"
