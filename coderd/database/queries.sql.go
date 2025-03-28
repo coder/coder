@@ -6101,13 +6101,13 @@ WITH filtered_builds AS (
       AND wlb.transition = 'start'::workspace_transition
 ),
 time_sorted_builds AS (
-    -- Group builds by template version, then sort each group by created_at.
+    -- Group builds by preset, then sort each group by created_at.
 	SELECT fb.template_version_id, fb.created_at, fb.preset_id, fb.job_status, fb.desired_instances,
 	    ROW_NUMBER() OVER (PARTITION BY fb.preset_id ORDER BY fb.created_at DESC) as rn
 	FROM filtered_builds fb
 ),
 failed_count AS (
-    -- Count failed builds per template version/preset in the given period
+    -- Count failed builds per preset in the given period
 	SELECT preset_id, COUNT(*) AS num_failed
 	FROM filtered_builds
 	WHERE job_status = 'failed'::provisioner_job_status
@@ -6133,11 +6133,12 @@ type GetPresetsBackoffRow struct {
 	LastBuildAt       time.Time `db:"last_build_at" json:"last_build_at"`
 }
 
-// GetPresetsBackoff groups workspace builds by template version ID.
+// GetPresetsBackoff groups workspace builds by preset ID.
+// Each preset is associated with exactly once template version ID.
 // For each group, the query checks up to N of the most recent jobs that occurred within the
 // lookback period, where N equals the number of desired instances for the corresponding preset.
-// If at least one of the job within a group has failed, we should backoff on the corresponding template version ID.
-// Query returns a list of template version IDs for which we should backoff.
+// If at least one of the job within a group has failed, we should backoff on the corresponding preset ID.
+// Query returns a list of preset IDs for which we should backoff.
 // Only active template versions with configured presets are considered.
 // We also return the number of failed workspace builds that occurred during the lookback period.
 //
