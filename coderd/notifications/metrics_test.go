@@ -169,7 +169,7 @@ func TestMetrics(t *testing.T) {
 			// See TestPendingUpdatesMetric for a more precise test.
 			return true
 		},
-		"coderd_notifications_synced_updates_total": func(metric *dto.Metric, series string) bool {
+		"coderd_notifications_synced_updates_total": func(metric *dto.Metric, _ string) bool {
 			if debug {
 				t.Logf("coderd_notifications_synced_updates_total = %v: %v", maxAttempts+1, metric.Counter.GetValue())
 			}

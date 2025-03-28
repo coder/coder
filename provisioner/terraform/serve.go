@@ -76,7 +76,7 @@ func systemBinary(ctx context.Context) (*systemBinaryDetails, error) {
 	}
 
 	if installedVersion.LessThan(minTerraformVersion) {
-		return details, terraformMinorVersionMismatch
+		return details, errTerraformMinorVersionMismatch
 	}
 
 	return details, nil
@@ -94,7 +94,7 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 				return xerrors.Errorf("system binary context canceled: %w", err)
 			}
 
-			if errors.Is(err, terraformMinorVersionMismatch) {
+			if errors.Is(err, errTerraformMinorVersionMismatch) {
 				options.Logger.Warn(ctx, "installed terraform version too old, will download known good version to cache, or use a previously cached version",
 					slog.F("installed_version", binaryDetails.version.String()),
 					slog.F("min_version", minTerraformVersion.String()))

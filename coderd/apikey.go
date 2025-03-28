@@ -257,12 +257,12 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var userIds []uuid.UUID
+	var userIDs []uuid.UUID
 	for _, key := range keys {
-		userIds = append(userIds, key.UserID)
+		userIDs = append(userIDs, key.UserID)
 	}
 
-	users, _ := api.Database.GetUsersByIDs(ctx, userIds)
+	users, _ := api.Database.GetUsersByIDs(ctx, userIDs)
 	usersByID := map[uuid.UUID]database.User{}
 	for _, user := range users {
 		usersByID[user.ID] = user

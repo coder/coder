@@ -203,7 +203,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 	// Write wraps writing a response to redirect if the handler
 	// specified it should. This redirect is used for user-facing pages
 	// like workspace applications.
-	write := func(code int, response codersdk.Response) (*database.APIKey, *rbac.Subject, bool) {
+	write := func(code int, response codersdk.Response) (apiKey *database.APIKey, subject *rbac.Subject, ok bool) {
 		if cfg.RedirectToLogin {
 			RedirectToLogin(rw, r, nil, response.Message)
 			return nil, nil, false

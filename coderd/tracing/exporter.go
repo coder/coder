@@ -98,7 +98,7 @@ func TracerProvider(ctx context.Context, service string, opts TracerOpts) (*sdkt
 	tracerProvider := sdktrace.NewTracerProvider(tracerOpts...)
 	otel.SetTracerProvider(tracerProvider)
 	// Ignore otel errors!
-	otel.SetErrorHandler(otel.ErrorHandlerFunc(func(err error) {}))
+	otel.SetErrorHandler(otel.ErrorHandlerFunc(func(_ error) {}))
 	otel.SetTextMapPropagator(
 		propagation.NewCompositeTextMapPropagator(
 			propagation.TraceContext{},
