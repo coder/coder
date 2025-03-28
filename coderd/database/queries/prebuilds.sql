@@ -23,12 +23,12 @@ WHERE tvp.desired_instances IS NOT NULL -- Consider only presets that have a pre
 
 -- name: GetRunningPrebuilds :many
 SELECT p.id                AS workspace_id,
-	   p.name              AS workspace_name,
-	   p.template_id,
-	   b.template_version_id,
+       p.name              AS workspace_name,
+       p.template_id,
+       b.template_version_id,
        p.current_preset_id AS current_preset_id,
-	   p.ready,
-	   p.created_at
+       p.ready,
+       p.created_at
 FROM workspace_prebuilds p
 		 INNER JOIN workspace_latest_builds b ON b.workspace_id = p.id
 WHERE (b.transition = 'start'::workspace_transition
