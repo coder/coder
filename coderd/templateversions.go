@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/externalauth"
+	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
@@ -39,6 +40,10 @@ import (
 	"github.com/coder/coder/v2/provisioner/terraform/tfparse"
 	"github.com/coder/coder/v2/provisionersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/preview"
+	"github.com/coder/preview/types"
+	"github.com/coder/websocket"
+	"github.com/coder/websocket/wsjson"
 )
 
 // @Summary Get template version by ID
@@ -264,6 +269,83 @@ func (api *API) patchCancelTemplateVersion(rw http.ResponseWriter, r *http.Reque
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
 		Message: "Job has been marked as canceled...",
 	})
+}
+
+// @Summary Open dynamic parameters WebSocket by template version
+// @ID open-dynamic-parameters-websocket-by-template-version
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Templates
+// @Param templateversion path string true "Template version ID" format(uuid)
+// @Success 101
+// @Router /templateversions/{templateversion}/dynamic-parameters [get]
+func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	templateVersion := httpmw.TemplateVersionParam(r)
+
+	// Check that the job has completed successfully
+	job, err := api.Database.GetProvisionerJobByID(ctx, templateVersion.JobID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching provisioner job.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if !job.CompletedAt.Valid {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Job hasn't completed!",
+		})
+		return
+	}
+
+	fileID, err := api.Database.GetFileIDByTemplateVersionID(ctx, templateVersion.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error finding template version Terraform.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	file := api.FileCache.Acquire(fileID)
+	if file == nil {
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: "Internal error fetching template version Terraform.",
+			Detail:  "Failed to acquire file from cache.",
+		})
+		return
+	}
+
+	// Having the Terraform plan available for the evaluation engine is helpful
+	// for populating values from data blocks, but isn't strictly required. If
+	// we don't have a cached plan available, we just use an empty one instead.
+	var plan json.RawMessage = []byte("{}")
+	tf, err := api.Database.GetTemplateVersionTerraformValues(ctx, templateVersion.ID)
+	if err == nil {
+		plan = tf.CachedPlan
+	}
+
+	// TODO: idk if I need to set any options here. it doesn't seem like anyone
+	// else does, but steven had to set a * domain in the prototype. do we need
+	// to specify some host or anything?
+	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
+			Message: "devour feculence mr drummond",
+		})
+		return
+	}
+
+	input := preview.Input{
+		PlanJSON:        plan,
+		ParameterValues: map[string]string{},
+		Owner:           types.WorkspaceOwner{},
+	}
+
+	preview.Preview(ctx, input, files.NilFS{})
+
+	wsjson.Write(ctx, conn, struct{}{})
 }
 
 // @Summary Get rich parameters by template version
