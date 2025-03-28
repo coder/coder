@@ -1740,6 +1740,10 @@ func (*FakeQuerier) BulkMarkNotificationMessagesSent(_ context.Context, arg data
 	return int64(len(arg.IDs)), nil
 }
 
+func (*FakeQuerier) ClaimPrebuild(_ context.Context, _ database.ClaimPrebuildParams) (database.ClaimPrebuildRow, error) {
+	return database.ClaimPrebuildRow{}, ErrUnimplemented
+}
+
 func (*FakeQuerier) CleanTailnetCoordinators(_ context.Context) error {
 	return ErrUnimplemented
 }
@@ -1750,6 +1754,10 @@ func (*FakeQuerier) CleanTailnetLostPeers(context.Context) error {
 
 func (*FakeQuerier) CleanTailnetTunnels(context.Context) error {
 	return ErrUnimplemented
+}
+
+func (q *FakeQuerier) CountInProgressPrebuilds(ctx context.Context) ([]database.CountInProgressPrebuildsRow, error) {
+	return nil, ErrUnimplemented
 }
 
 func (q *FakeQuerier) CountUnreadInboxNotificationsByUserID(_ context.Context, userID uuid.UUID) (int64, error) {
@@ -4159,6 +4167,10 @@ func (q *FakeQuerier) GetParameterSchemasByJobID(_ context.Context, jobID uuid.U
 	return parameters, nil
 }
 
+func (*FakeQuerier) GetPrebuildMetrics(_ context.Context) ([]database.GetPrebuildMetricsRow, error) {
+	return nil, ErrUnimplemented
+}
+
 func (q *FakeQuerier) GetPresetByWorkspaceBuildID(_ context.Context, workspaceBuildID uuid.UUID) (database.TemplateVersionPreset, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -4199,6 +4211,10 @@ func (q *FakeQuerier) GetPresetParametersByTemplateVersionID(_ context.Context, 
 	}
 
 	return parameters, nil
+}
+
+func (*FakeQuerier) GetPresetsBackoff(_ context.Context, _ time.Time) ([]database.GetPresetsBackoffRow, error) {
+	return nil, ErrUnimplemented
 }
 
 func (q *FakeQuerier) GetPresetsByTemplateVersionID(_ context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionPreset, error) {
@@ -4862,6 +4878,10 @@ func (q *FakeQuerier) GetReplicasUpdatedAfter(_ context.Context, updatedAt time.
 		}
 	}
 	return replicas, nil
+}
+
+func (*FakeQuerier) GetRunningPrebuilds(_ context.Context) ([]database.GetRunningPrebuildsRow, error) {
+	return nil, ErrUnimplemented
 }
 
 func (q *FakeQuerier) GetRuntimeConfig(_ context.Context, key string) (string, error) {
@@ -5903,6 +5923,10 @@ func (q *FakeQuerier) GetTemplateParameterInsights(ctx context.Context, arg data
 	return rows, nil
 }
 
+func (*FakeQuerier) GetTemplatePresetsWithPrebuilds(_ context.Context, _ uuid.NullUUID) ([]database.GetTemplatePresetsWithPrebuildsRow, error) {
+	return nil, ErrUnimplemented
+}
+
 func (q *FakeQuerier) GetTemplateUsageStats(_ context.Context, arg database.GetTemplateUsageStatsParams) ([]database.TemplateUsageStat, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -6359,6 +6383,10 @@ func (q *FakeQuerier) GetUserCount(_ context.Context, includeSystem bool) (int64
 		}
 		if !u.Deleted {
 			existing++
+		}
+
+		if !includeSystem && u.IsSystem {
+			continue
 		}
 	}
 	return existing, nil
