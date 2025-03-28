@@ -1,0 +1,10 @@
+name: "Install cosign"
+description: |
+  Cosign Github Action.
+runs:
+  using: "composite"
+  steps:
+    - name: Install cosign
+      uses: sigstore/cosign-installer@d7d6bc7722e3daa8354c50bcb52f4837da5e9b6a # v3.8.1
+      with:
+        cosign-release: "v2.4.3"

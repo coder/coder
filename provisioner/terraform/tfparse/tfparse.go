@@ -279,7 +279,7 @@ func WriteArchive(bs []byte, mimetype string, path string) error {
 			return xerrors.Errorf("read zip file: %w", err)
 		} else if tarBytes, err := archive.CreateTarFromZip(zr, maxFileSizeBytes); err != nil {
 			return xerrors.Errorf("convert zip to tar: %w", err)
-		} else {
+		} else { //nolint:revive
 			rdr = bytes.NewReader(tarBytes)
 		}
 	default:
@@ -558,9 +558,8 @@ func CtyValueString(val cty.Value) (string, error) {
 	case cty.Bool:
 		if val.True() {
 			return "true", nil
-		} else {
-			return "false", nil
 		}
+		return "false", nil
 	case cty.Number:
 		return val.AsBigFloat().String(), nil
 	case cty.String:

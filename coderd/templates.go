@@ -1045,7 +1045,7 @@ func (api *API) convertTemplate(
 		TimeTilDormantMillis:           time.Duration(template.TimeTilDormant).Milliseconds(),
 		TimeTilDormantAutoDeleteMillis: time.Duration(template.TimeTilDormantAutoDelete).Milliseconds(),
 		AutostopRequirement: codersdk.TemplateAutostopRequirement{
-			DaysOfWeek: codersdk.BitmapToWeekdays(uint8(template.AutostopRequirementDaysOfWeek)),
+			DaysOfWeek: codersdk.BitmapToWeekdays(uint8(template.AutostopRequirementDaysOfWeek)), // #nosec G115 - Safe conversion as AutostopRequirementDaysOfWeek is a 7-bit bitmap
 			Weeks:      autostopRequirementWeeks,
 		},
 		AutostartRequirement: codersdk.TemplateAutostartRequirement{

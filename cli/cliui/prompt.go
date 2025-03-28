@@ -124,7 +124,7 @@ func Prompt(inv *serpent.Invocation, opts PromptOptions) (string, error) {
 		return "", err
 	case line := <-lineCh:
 		if opts.IsConfirm && line != "yes" && line != "y" {
-			return line, xerrors.Errorf("got %q: %w", line, Canceled)
+			return line, xerrors.Errorf("got %q: %w", line, ErrCanceled)
 		}
 		if opts.Validate != nil {
 			err := opts.Validate(line)
@@ -139,7 +139,7 @@ func Prompt(inv *serpent.Invocation, opts PromptOptions) (string, error) {
 	case <-interrupt:
 		// Print a newline so that any further output starts properly on a new line.
 		_, _ = fmt.Fprintln(inv.Stdout)
-		return "", Canceled
+		return "", ErrCanceled
 	}
 }
 

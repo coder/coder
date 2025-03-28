@@ -108,7 +108,6 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 					fullWidth
 					size={size}
 					label={label}
-					autoFocus
 					placeholder="Organization name"
 					css={{
 						"&:not(:has(label))": {

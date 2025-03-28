@@ -51,7 +51,9 @@ var (
 	// PlanComplete is a helper to indicate an empty provision completion.
 	PlanComplete = []*proto.Response{{
 		Type: &proto.Response_Plan{
-			Plan: &proto.PlanComplete{},
+			Plan: &proto.PlanComplete{
+				Plan: []byte("{}"),
+			},
 		},
 	}}
 	// ApplyComplete is a helper to indicate an empty provision completion.
@@ -240,8 +242,20 @@ func TarWithOptions(ctx context.Context, logger slog.Logger, responses *Response
 					Resources:             resp.GetApply().GetResources(),
 					Parameters:            resp.GetApply().GetParameters(),
 					ExternalAuthProviders: resp.GetApply().GetExternalAuthProviders(),
+					Plan:                  []byte("{}"),
 				}},
 			})
+		}
+	}
+
+	for _, resp := range responses.ProvisionPlan {
+		plan := resp.GetPlan()
+		if plan == nil {
+			continue
+		}
+
+		if plan.Error == "" && len(plan.Plan) == 0 {
+			plan.Plan = []byte("{}")
 		}
 	}
 
@@ -299,8 +313,15 @@ func TarWithOptions(ctx context.Context, logger slog.Logger, responses *Response
 		}
 	}
 	for trans, m := range responses.ProvisionPlanMap {
-		for i, rs := range m {
-			err := writeProto(fmt.Sprintf("%d.%s.plan.protobuf", i, strings.ToLower(trans.String())), rs)
+		for i, resp := range m {
+			plan := resp.GetPlan()
+			if plan != nil {
+				if plan.Error == "" && len(plan.Plan) == 0 {
+					plan.Plan = []byte("{}")
+				}
+			}
+
+			err := writeProto(fmt.Sprintf("%d.%s.plan.protobuf", i, strings.ToLower(trans.String())), resp)
 			if err != nil {
 				return nil, err
 			}
@@ -322,6 +343,7 @@ func WithResources(resources []*proto.Resource) *Responses {
 		}}}},
 		ProvisionPlan: []*proto.Response{{Type: &proto.Response_Plan{Plan: &proto.PlanComplete{
 			Resources: resources,
+			Plan:      []byte("{}"),
 		}}}},
 	}
 }

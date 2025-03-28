@@ -210,7 +210,9 @@ Status Code **200**
 | `resource_type` | `tailnet_coordinator`              |
 | `resource_type` | `template`                         |
 | `resource_type` | `user`                             |
+| `resource_type` | `webpush_subscription`             |
 | `resource_type` | `workspace`                        |
+| `resource_type` | `workspace_agent_devcontainers`    |
 | `resource_type` | `workspace_agent_resource_monitor` |
 | `resource_type` | `workspace_dormant`                |
 | `resource_type` | `workspace_proxy`                  |
@@ -374,7 +376,9 @@ Status Code **200**
 | `resource_type` | `tailnet_coordinator`              |
 | `resource_type` | `template`                         |
 | `resource_type` | `user`                             |
+| `resource_type` | `webpush_subscription`             |
 | `resource_type` | `workspace`                        |
+| `resource_type` | `workspace_agent_devcontainers`    |
 | `resource_type` | `workspace_agent_resource_monitor` |
 | `resource_type` | `workspace_dormant`                |
 | `resource_type` | `workspace_proxy`                  |
@@ -538,7 +542,9 @@ Status Code **200**
 | `resource_type` | `tailnet_coordinator`              |
 | `resource_type` | `template`                         |
 | `resource_type` | `user`                             |
+| `resource_type` | `webpush_subscription`             |
 | `resource_type` | `workspace`                        |
+| `resource_type` | `workspace_agent_devcontainers`    |
 | `resource_type` | `workspace_agent_resource_monitor` |
 | `resource_type` | `workspace_dormant`                |
 | `resource_type` | `workspace_proxy`                  |
@@ -671,7 +677,9 @@ Status Code **200**
 | `resource_type` | `tailnet_coordinator`              |
 | `resource_type` | `template`                         |
 | `resource_type` | `user`                             |
+| `resource_type` | `webpush_subscription`             |
 | `resource_type` | `workspace`                        |
+| `resource_type` | `workspace_agent_devcontainers`    |
 | `resource_type` | `workspace_agent_resource_monitor` |
 | `resource_type` | `workspace_dormant`                |
 | `resource_type` | `workspace_proxy`                  |
@@ -1026,7 +1034,9 @@ Status Code **200**
 | `resource_type` | `tailnet_coordinator`              |
 | `resource_type` | `template`                         |
 | `resource_type` | `user`                             |
+| `resource_type` | `webpush_subscription`             |
 | `resource_type` | `workspace`                        |
+| `resource_type` | `workspace_agent_devcontainers`    |
 | `resource_type` | `workspace_agent_resource_monitor` |
 | `resource_type` | `workspace_dormant`                |
 | `resource_type` | `workspace_proxy`                  |

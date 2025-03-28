@@ -2,14 +2,14 @@ FROM rust:slim@sha256:9abf10cc84dfad6ace1b0aae3951dc5200f467c593394288c11db1e17b
 # Install rust helper programs
 # ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
 ENV CARGO_INSTALL_ROOT=/tmp/
-RUN cargo install exa bat ripgrep typos-cli watchexec-cli && \
+RUN cargo install typos-cli watchexec-cli && \
 	# Reduce image size.
 	rm -rf /usr/local/cargo/registry
 
 FROM ubuntu:jammy@sha256:0e5e4a57c2499249aafc3b40fcd541e9a456aab7296681a3994d631587203f97 AS go
 
 # Install Go manually, so that we can control the version
-ARG GO_VERSION=1.22.8
+ARG GO_VERSION=1.24.1
 
 # Boring Go is needed to build FIPS-compliant binaries.
 RUN apt-get update && \
@@ -65,9 +65,6 @@ RUN apt-get update && \
 	# we're using for the version of go-critic that it embeds, then check
 	# the version of ruleguard in go-critic for that tag.
 	go install github.com/quasilyte/go-ruleguard/cmd/ruleguard@v0.3.13 && \
-	# go-fuzz for fuzzy testing. they don't publish releases so we rely on latest.
-	go install github.com/dvyukov/go-fuzz/go-fuzz@latest && \
-	go install github.com/dvyukov/go-fuzz/go-fuzz-build@latest && \
 	# go-releaser for building 'fat binaries' that work cross-platform
 	go install github.com/goreleaser/goreleaser@v1.6.1 && \
 	go install mvdan.cc/sh/v3/cmd/shfmt@v3.7.0 && \
@@ -128,6 +125,7 @@ RUN apt-get update --quiet && apt-get install --yes \
 	asciinema \
 	bash \
 	bash-completion \
+	bat \
 	bats \
 	bind9-dnsutils \
 	build-essential \
@@ -140,6 +138,7 @@ RUN apt-get update --quiet && apt-get install --yes \
 	docker-ce \
 	docker-ce-cli \
 	docker-compose-plugin \
+	exa \
 	fd-find \
 	file \
 	fish \
@@ -163,6 +162,7 @@ RUN apt-get update --quiet && apt-get install --yes \
 	libgbm-dev \
 	libssl-dev \
 	lsb-release \
+	lsof \
 	man \
 	meld \
 	ncdu \
@@ -176,6 +176,7 @@ RUN apt-get update --quiet && apt-get install --yes \
 	postgresql-16 \
 	python3 \
 	python3-pip \
+	ripgrep \
 	rsync \
 	screen \
 	shellcheck \
@@ -196,9 +197,9 @@ RUN apt-get update --quiet && apt-get install --yes \
 	# Configure FIPS-compliant policies
 	update-crypto-policies --set FIPS
 
-# NOTE: In scripts/Dockerfile.base we specifically install Terraform version 1.10.5.
+# NOTE: In scripts/Dockerfile.base we specifically install Terraform version 1.11.2.
 # Installing the same version here to match.
-RUN wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.11.0/terraform_1.11.0_linux_amd64.zip" && \
+RUN wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.11.2/terraform_1.11.2_linux_amd64.zip" && \
 	unzip /tmp/terraform.zip -d /usr/local/bin && \
 	rm -f /tmp/terraform.zip && \
 	chmod +x /usr/local/bin/terraform && \
@@ -271,14 +272,16 @@ RUN systemctl enable \
 ARG CLOUD_SQL_PROXY_VERSION=2.2.0 \
 	DIVE_VERSION=0.10.0 \
 	DOCKER_GCR_VERSION=2.1.8 \
-	GOLANGCI_LINT_VERSION=1.55.2 \
+	GOLANGCI_LINT_VERSION=1.64.8 \
 	GRYPE_VERSION=0.61.1 \
 	HELM_VERSION=3.12.0 \
 	KUBE_LINTER_VERSION=0.6.3 \
 	KUBECTX_VERSION=0.9.4 \
 	STRIPE_VERSION=1.14.5 \
 	TERRAGRUNT_VERSION=0.45.11 \
-	TRIVY_VERSION=0.41.0
+	TRIVY_VERSION=0.41.0 \
+	SYFT_VERSION=1.20.0 \
+	COSIGN_VERSION=2.4.3
 
 # cloud_sql_proxy, for connecting to cloudsql instances
 # the upstream go.mod prevents this from being installed with go install
@@ -316,7 +319,13 @@ RUN curl --silent --show-error --location --output /usr/local/bin/cloud_sql_prox
 	chmod a=rx /usr/local/bin/terragrunt && \
 	# AquaSec Trivy for scanning container images for security issues
 	curl --silent --show-error --location "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" | \
-	tar --extract --gzip --directory=/usr/local/bin --file=- trivy
+	tar --extract --gzip --directory=/usr/local/bin --file=- trivy && \
+	# Anchore Syft for SBOM generation
+	curl --silent --show-error --location "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_linux_amd64.tar.gz" | \
+	tar --extract --gzip --directory=/usr/local/bin --file=- syft && \
+	# Sigstore Cosign for artifact signing and attestation
+	curl --silent --show-error --location --output /usr/local/bin/cosign "https://github.com/sigstore/cosign/releases/download/v${COSIGN_VERSION}/cosign-linux-amd64" && \
+	chmod a=rx /usr/local/bin/cosign
 
 # We use yq during "make deploy" to manually substitute out fields in
 # our helm values.yaml file. See https://github.com/helm/helm/issues/3141

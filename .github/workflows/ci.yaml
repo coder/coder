@@ -178,7 +178,7 @@ jobs:
           echo "LINT_CACHE_DIR=$dir" >> $GITHUB_ENV
 
       - name: golangci-lint cache
-        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: |
             ${{ env.LINT_CACHE_DIR }}
@@ -267,18 +267,15 @@ jobs:
           popd
 
       - name: make gen
-        # no `-j` flag as `make` fails with:
-        # coderd/rbac/object_gen.go:1:1: syntax error: package statement must be first
-        run: "make --output-sync -B gen"
-
-      - name: make update-golden-files
         run: |
+          # Remove golden files to detect discrepancy in generated files.
           make clean/golden-files
           # Notifications require DB, we could start a DB instance here but
           # let's just restore for now.
           git checkout -- coderd/notifications/testdata/rendered-templates
-          # As above, skip `-j` flag.
-          make --output-sync -B update-golden-files
+          # no `-j` flag as `make` fails with:
+          # coderd/rbac/object_gen.go:1:1: syntax error: package statement must be first
+          make --output-sync -B gen
 
       - name: Check for unstaged files
         run: ./scripts/check_unstaged.sh
@@ -733,7 +730,7 @@ jobs:
 
       - name: Upload Playwright Failed Tests
         if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: failed-test-videos${{ matrix.variant.premium && '-premium' || '' }}
           path: ./site/test-results/**/*.webm
@@ -741,7 +738,7 @@ jobs:
 
       - name: Upload pprof dumps
         if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: debug-pprof-dumps${{ matrix.variant.premium && '-premium' || ''  }}
           path: ./site/test-results/**/debug-pprof-*.txt
@@ -1000,7 +997,7 @@ jobs:
 
       - name: Upload build artifacts
         if: ${{ github.repository_owner == 'coder' && github.ref == 'refs/heads/main' }}
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: dylibs
           path: |
@@ -1024,7 +1021,11 @@ jobs:
       # Necessary to push docker images to ghcr.io.
       packages: write
       # Necessary for GCP authentication (https://github.com/google-github-actions/setup-gcloud#usage)
+      # Also necessary for keyless cosign (https://docs.sigstore.dev/cosign/signing/overview/)
+      # And for GitHub Actions attestation
       id-token: write
+      # Required for GitHub Actions attestation
+      attestations: write
     env:
       DOCKER_CLI_EXPERIMENTAL: "enabled"
     outputs:
@@ -1041,7 +1042,7 @@ jobs:
           fetch-depth: 0
 
       - name: GHCR Login
-        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -1069,6 +1070,12 @@ jobs:
       - name: Install zstd
         run: sudo apt-get install -y zstd
 
+      - name: Install cosign
+        uses: ./.github/actions/install-cosign
+
+      - name: Install syft
+        uses: ./.github/actions/install-syft
+
       - name: Setup Windows EV Signing Certificate
         run: |
           set -euo pipefail
@@ -1092,7 +1099,7 @@ jobs:
         uses: google-github-actions/setup-gcloud@77e7a554d41e2ee56fc945c52dfd3f33d12def9a # v2.1.4
 
       - name: Download dylibs
-        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4.1.9
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
         with:
           name: dylibs
           path: ./build
@@ -1170,6 +1177,138 @@ jobs:
             done
           fi
 
+      # GitHub attestation provides SLSA provenance for the Docker images, establishing a verifiable
+      # record that these images were built in GitHub Actions with specific inputs and environment.
+      # This complements our existing cosign attestations which focus on SBOMs.
+      #
+      # We attest each tag separately to ensure all tags have proper provenance records.
+      # TODO: Consider refactoring these steps to use a matrix strategy or composite action to reduce duplication
+      # while maintaining the required functionality for each tag.
+      - name: GitHub Attestation for Docker image
+        id: attest_main
+        if: github.ref == 'refs/heads/main'
+        continue-on-error: true
+        uses: actions/attest@a63cfcc7d1aab266ee064c58250cfc2c7d07bc31 # v2.2.1
+        with:
+          subject-name: "ghcr.io/coder/coder-preview:main"
+          predicate-type: "https://slsa.dev/provenance/v1"
+          predicate: |
+            {
+              "buildType": "https://github.com/actions/runner-images/",
+              "builder": {
+                "id": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              },
+              "invocation": {
+                "configSource": {
+                  "uri": "git+https://github.com/${{ github.repository }}@${{ github.ref }}",
+                  "digest": {
+                    "sha1": "${{ github.sha }}"
+                  },
+                  "entryPoint": ".github/workflows/ci.yaml"
+                },
+                "environment": {
+                  "github_workflow": "${{ github.workflow }}",
+                  "github_run_id": "${{ github.run_id }}"
+                }
+              },
+              "metadata": {
+                "buildInvocationID": "${{ github.run_id }}",
+                "completeness": {
+                  "environment": true,
+                  "materials": true
+                }
+              }
+            }
+          push-to-registry: true
+
+      - name: GitHub Attestation for Docker image (latest tag)
+        id: attest_latest
+        if: github.ref == 'refs/heads/main'
+        continue-on-error: true
+        uses: actions/attest@a63cfcc7d1aab266ee064c58250cfc2c7d07bc31 # v2.2.1
+        with:
+          subject-name: "ghcr.io/coder/coder-preview:latest"
+          predicate-type: "https://slsa.dev/provenance/v1"
+          predicate: |
+            {
+              "buildType": "https://github.com/actions/runner-images/",
+              "builder": {
+                "id": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              },
+              "invocation": {
+                "configSource": {
+                  "uri": "git+https://github.com/${{ github.repository }}@${{ github.ref }}",
+                  "digest": {
+                    "sha1": "${{ github.sha }}"
+                  },
+                  "entryPoint": ".github/workflows/ci.yaml"
+                },
+                "environment": {
+                  "github_workflow": "${{ github.workflow }}",
+                  "github_run_id": "${{ github.run_id }}"
+                }
+              },
+              "metadata": {
+                "buildInvocationID": "${{ github.run_id }}",
+                "completeness": {
+                  "environment": true,
+                  "materials": true
+                }
+              }
+            }
+          push-to-registry: true
+
+      - name: GitHub Attestation for version-specific Docker image
+        id: attest_version
+        if: github.ref == 'refs/heads/main'
+        continue-on-error: true
+        uses: actions/attest@a63cfcc7d1aab266ee064c58250cfc2c7d07bc31 # v2.2.1
+        with:
+          subject-name: "ghcr.io/coder/coder-preview:${{ steps.build-docker.outputs.tag }}"
+          predicate-type: "https://slsa.dev/provenance/v1"
+          predicate: |
+            {
+              "buildType": "https://github.com/actions/runner-images/",
+              "builder": {
+                "id": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              },
+              "invocation": {
+                "configSource": {
+                  "uri": "git+https://github.com/${{ github.repository }}@${{ github.ref }}",
+                  "digest": {
+                    "sha1": "${{ github.sha }}"
+                  },
+                  "entryPoint": ".github/workflows/ci.yaml"
+                },
+                "environment": {
+                  "github_workflow": "${{ github.workflow }}",
+                  "github_run_id": "${{ github.run_id }}"
+                }
+              },
+              "metadata": {
+                "buildInvocationID": "${{ github.run_id }}",
+                "completeness": {
+                  "environment": true,
+                  "materials": true
+                }
+              }
+            }
+          push-to-registry: true
+
+      # Report attestation failures but don't fail the workflow
+      - name: Check attestation status
+        if: github.ref == 'refs/heads/main'
+        run: |
+          if [[ "${{ steps.attest_main.outcome }}" == "failure" ]]; then
+            echo "::warning::GitHub attestation for main tag failed"
+          fi
+          if [[ "${{ steps.attest_latest.outcome }}" == "failure" ]]; then
+            echo "::warning::GitHub attestation for latest tag failed"
+          fi
+          if [[ "${{ steps.attest_version.outcome }}" == "failure" ]]; then
+            echo "::warning::GitHub attestation for version-specific tag failed"
+          fi
+
       - name: Prune old images
         if: github.ref == 'refs/heads/main'
         uses: vlaurin/action-ghcr-prune@0cf7d39f88546edd31965acba78cdcb0be14d641 # v0.6.0
@@ -1187,7 +1326,7 @@ jobs:
 
       - name: Upload build artifacts
         if: github.ref == 'refs/heads/main'
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: coder
           path: |

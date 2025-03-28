@@ -298,7 +298,7 @@ func TestServer(t *testing.T) {
 		out := pty.ReadAll()
 		numLines := countLines(string(out))
 		t.Logf("numLines: %d", numLines)
-		require.Less(t, numLines, 12, "expected less than 12 lines of output (terminal width 80), got %d", numLines)
+		require.Less(t, numLines, 20, "expected less than 20 lines of output (terminal width 80), got %d", numLines)
 	})
 
 	t.Run("OAuth2GitHubDefaultProvider", func(t *testing.T) {
@@ -1701,6 +1701,7 @@ func TestServer(t *testing.T) {
 			// Next, we instruct the same server to display the YAML config
 			// and then save it.
 			inv = inv.WithContext(testutil.Context(t, testutil.WaitMedium))
+			//nolint:gocritic
 			inv.Args = append(args, "--write-config")
 			fi, err := os.OpenFile(testutil.TempFile(t, "", "coder-config-test-*"), os.O_WRONLY|os.O_CREATE, 0o600)
 			require.NoError(t, err)

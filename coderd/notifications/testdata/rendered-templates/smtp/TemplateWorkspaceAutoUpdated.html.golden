@@ -49,9 +49,8 @@ argin: 8px 0 32px; line-height: 1.5;">
       </h1>
       <div style=3D"line-height: 1.5;">
         <p>Hi Bobby,</p>
-
-<p>Your workspace <strong>bobby-workspace</strong> has been updated automat=
-ically to the latest template version (1.0).</p>
+        <p>Your workspace <strong>bobby-workspace</strong> has been updated=
+ automatically to the latest template version (1.0).</p>
 
 <p>Reason for update: <strong>template now includes catnip</strong>.</p>
       </div>

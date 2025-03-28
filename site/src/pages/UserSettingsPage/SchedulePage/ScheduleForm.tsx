@@ -79,6 +79,7 @@ export const ScheduleForm: FC<ScheduleFormProps> = ({
 			},
 		});
 	const getFieldHelpers = getFormHelpers<ScheduleFormValues>(form, submitError);
+	const browserLocale = navigator.language || "en-US";
 
 	return (
 		<Form onSubmit={form.handleSubmit}>
@@ -127,7 +128,12 @@ export const ScheduleForm: FC<ScheduleFormProps> = ({
 					disabled
 					fullWidth
 					label="Next occurrence"
-					value={quietHoursDisplay(form.values.time, form.values.timezone, now)}
+					value={quietHoursDisplay(
+						browserLocale,
+						form.values.time,
+						form.values.timezone,
+						now,
+					)}
 				/>
 
 				<div>

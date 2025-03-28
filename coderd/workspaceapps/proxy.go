@@ -45,7 +45,7 @@ const (
 	// login page.
 	// It is important that this URL can never match a valid app hostname.
 	//
-	// DEPRECATED: we no longer use this, but we still redirect from it to the
+	// Deprecated: we no longer use this, but we still redirect from it to the
 	// main login page.
 	appLogoutHostname = "coder-logout"
 )
@@ -655,6 +655,7 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	width := parser.UInt(values, 80, "width")
 	container := parser.String(values, "", "container")
 	containerUser := parser.String(values, "", "container_user")
+	backendType := parser.String(values, "", "backend_type")
 	if len(parser.Errors) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid query parameters.",
@@ -692,9 +693,11 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	}
 	defer release()
 	log.Debug(ctx, "dialed workspace agent")
+	// #nosec G115 - Safe conversion for terminal height/width which are expected to be within uint16 range (0-65535)
 	ptNetConn, err := agentConn.ReconnectingPTY(ctx, reconnect, uint16(height), uint16(width), r.URL.Query().Get("command"), func(arp *workspacesdk.AgentReconnectingPTYInit) {
 		arp.Container = container
 		arp.ContainerUser = containerUser
+		arp.BackendType = backendType
 	})
 	if err != nil {
 		log.Debug(ctx, "dial reconnecting pty server in workspace agent", slog.Error(err))

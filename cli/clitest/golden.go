@@ -24,7 +24,7 @@ import (
 
 // UpdateGoldenFiles indicates golden files should be updated.
 // To update the golden files:
-// make update-golden-files
+// make gen/golden-files
 var UpdateGoldenFiles = flag.Bool("update", false, "update .golden files")
 
 var timestampRegex = regexp.MustCompile(`(?i)\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(.\d+)?(Z|[+-]\d+:\d+)`)
@@ -58,6 +58,7 @@ func TestCommandHelp(t *testing.T, getRoot func(t *testing.T) *serpent.Command, 
 ExtractCommandPathsLoop:
 	for _, cp := range extractVisibleCommandPaths(nil, root.Children) {
 		name := fmt.Sprintf("coder %s --help", strings.Join(cp, " "))
+		//nolint:gocritic
 		cmd := append(cp, "--help")
 		for _, tt := range cases {
 			if tt.Name == name {
@@ -113,12 +114,12 @@ func TestGoldenFile(t *testing.T, fileName string, actual []byte, replacements m
 	}
 
 	expected, err := os.ReadFile(goldenPath)
-	require.NoError(t, err, "read golden file, run \"make update-golden-files\" and commit the changes")
+	require.NoError(t, err, "read golden file, run \"make gen/golden-files\" and commit the changes")
 
 	expected = normalizeGoldenFile(t, expected)
 	require.Equal(
 		t, string(expected), string(actual),
-		"golden file mismatch: %s, run \"make update-golden-files\", verify and commit the changes",
+		"golden file mismatch: %s, run \"make gen/golden-files\", verify and commit the changes",
 		goldenPath,
 	)
 }

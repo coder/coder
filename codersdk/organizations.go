@@ -82,14 +82,13 @@ type OrganizationMemberWithUserData struct {
 }
 
 type PaginatedMembersRequest struct {
-	OrganizationID uuid.UUID `table:"organization id" json:"organization_id" format:"uuid"`
-	Limit          int       `json:"limit,omitempty"`
-	Offset         int       `json:"offset,omitempty"`
+	Limit  int `json:"limit,omitempty"`
+	Offset int `json:"offset,omitempty"`
 }
 
 type PaginatedMembersResponse struct {
-	Members []OrganizationMemberWithUserData
-	Count   int `json:"count"`
+	Members []OrganizationMemberWithUserData `json:"members"`
+	Count   int                              `json:"count"`
 }
 
 type CreateOrganizationRequest struct {

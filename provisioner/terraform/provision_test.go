@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strings"
 	"testing"
@@ -119,10 +118,6 @@ func sendApply(sess proto.DRPCProvisioner_SessionClient, transition proto.Worksp
 // one process tries to do this simultaneously, it can cause "text file busy"
 // nolint: paralleltest
 func TestProvision_Cancel(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("This test uses interrupts and is not supported on Windows")
-	}
-
 	cwd, err := os.Getwd()
 	require.NoError(t, err)
 	fakeBin := filepath.Join(cwd, "testdata", "fake_cancel.sh")
@@ -215,10 +210,6 @@ func TestProvision_Cancel(t *testing.T) {
 // one process tries to do this, it can cause "text file busy"
 // nolint: paralleltest
 func TestProvision_CancelTimeout(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("This test uses interrupts and is not supported on Windows")
-	}
-
 	cwd, err := os.Getwd()
 	require.NoError(t, err)
 	fakeBin := filepath.Join(cwd, "testdata", "fake_cancel_hang.sh")
@@ -278,10 +269,6 @@ func TestProvision_CancelTimeout(t *testing.T) {
 // terraform-provider-coder
 // nolint: paralleltest
 func TestProvision_TextFileBusy(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("This test uses unix sockets and is not supported on Windows")
-	}
-
 	cwd, err := os.Getwd()
 	require.NoError(t, err)
 	fakeBin := filepath.Join(cwd, "testdata", "fake_text_file_busy.sh")

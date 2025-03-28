@@ -85,7 +85,7 @@ func (api *API) userDebugOIDC(rw http.ResponseWriter, r *http.Request) {
 func (api *API) firstUser(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	// nolint:gocritic // Getting user count is a system function.
-	userCount, err := api.Database.GetUserCount(dbauthz.AsSystemRestricted(ctx))
+	userCount, err := api.Database.GetUserCount(dbauthz.AsSystemRestricted(ctx), false)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching user count.",
@@ -128,7 +128,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 
 	// This should only function for the first user.
 	// nolint:gocritic // Getting user count is a system function.
-	userCount, err := api.Database.GetUserCount(dbauthz.AsSystemRestricted(ctx))
+	userCount, err := api.Database.GetUserCount(dbauthz.AsSystemRestricted(ctx), false)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching user count.",
@@ -297,16 +297,19 @@ func (api *API) GetUsers(rw http.ResponseWriter, r *http.Request) ([]database.Us
 	}
 
 	userRows, err := api.Database.GetUsers(ctx, database.GetUsersParams{
-		AfterID:        paginationParams.AfterID,
-		Search:         params.Search,
-		Status:         params.Status,
-		RbacRole:       params.RbacRole,
-		LastSeenBefore: params.LastSeenBefore,
-		LastSeenAfter:  params.LastSeenAfter,
-		CreatedAfter:   params.CreatedAfter,
-		CreatedBefore:  params.CreatedBefore,
-		OffsetOpt:      int32(paginationParams.Offset),
-		LimitOpt:       int32(paginationParams.Limit),
+		AfterID:         paginationParams.AfterID,
+		Search:          params.Search,
+		Status:          params.Status,
+		RbacRole:        params.RbacRole,
+		LastSeenBefore:  params.LastSeenBefore,
+		LastSeenAfter:   params.LastSeenAfter,
+		CreatedAfter:    params.CreatedAfter,
+		CreatedBefore:   params.CreatedBefore,
+		GithubComUserID: params.GithubComUserID,
+		// #nosec G115 - Pagination offsets are small and fit in int32
+		OffsetOpt: int32(paginationParams.Offset),
+		// #nosec G115 - Pagination limits are small and fit in int32
+		LimitOpt: int32(paginationParams.Limit),
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1191,6 +1194,7 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 	memberships, err := api.Database.OrganizationMembers(ctx, database.OrganizationMembersParams{
 		UserID:         user.ID,
 		OrganizationID: uuid.Nil,
+		IncludeSystem:  false,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

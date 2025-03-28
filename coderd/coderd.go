@@ -45,6 +45,7 @@ import (
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
+	"github.com/coder/coder/v2/coderd/webpush"
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/buildinfo"
@@ -226,6 +227,10 @@ type Options struct {
 	UpdateAgentMetrics func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 	StatsBatcher       workspacestats.Batcher
 
+	// WorkspaceAppAuditSessionTimeout allows changing the timeout for audit
+	// sessions. Raising or lowering this value will directly affect the write
+	// load of the audit log table. This is used for testing. Default 1 hour.
+	WorkspaceAppAuditSessionTimeout    time.Duration
 	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions
 
 	// This janky function is used in telemetry to parse fields out of the raw
@@ -256,6 +261,9 @@ type Options struct {
 	AppEncryptionKeyCache cryptokeys.EncryptionKeycache
 	OIDCConvertKeyCache   cryptokeys.SigningKeycache
 	Clock                 quartz.Clock
+
+	// WebPushDispatcher is a way to send notifications over Web Push.
+	WebPushDispatcher webpush.Dispatcher
 }
 
 // @title Coder API
@@ -534,16 +542,6 @@ func New(options *Options) *API {
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
 		},
-		WorkspaceAppsProvider: workspaceapps.NewDBTokenProvider(
-			options.Logger.Named("workspaceapps"),
-			options.AccessURL,
-			options.Authorizer,
-			options.Database,
-			options.DeploymentValues,
-			oauthConfigs,
-			options.AgentInactiveDisconnectTimeout,
-			options.AppSigningKeyCache,
-		),
 		metricsCache:                metricsCache,
 		Auditor:                     atomic.Pointer[audit.Auditor]{},
 		TailnetCoordinator:          atomic.Pointer[tailnet.Coordinator]{},
@@ -552,6 +550,7 @@ func New(options *Options) *API {
 		UserQuietHoursScheduleStore: options.UserQuietHoursScheduleStore,
 		AccessControlStore:          options.AccessControlStore,
 		Experiments:                 experiments,
+		WebpushDispatcher:           options.WebPushDispatcher,
 		healthCheckGroup:            &singleflight.Group[string, *healthsdk.HealthcheckReport]{},
 		Acquirer: provisionerdserver.NewAcquirer(
 			ctx,
@@ -561,6 +560,18 @@ func New(options *Options) *API {
 		),
 		dbRolluper: options.DatabaseRolluper,
 	}
+	api.WorkspaceAppsProvider = workspaceapps.NewDBTokenProvider(
+		options.Logger.Named("workspaceapps"),
+		options.AccessURL,
+		options.Authorizer,
+		&api.Auditor,
+		options.Database,
+		options.DeploymentValues,
+		oauthConfigs,
+		options.AgentInactiveDisconnectTimeout,
+		options.WorkspaceAppAuditSessionTimeout,
+		options.AppSigningKeyCache,
+	)
 
 	f := appearance.NewDefaultFetcher(api.DeploymentValues.DocsURL.String())
 	api.AppearanceFetcher.Store(&f)
@@ -574,6 +585,7 @@ func New(options *Options) *API {
 		WorkspaceProxy:        false,
 		UpgradeMessage:        api.DeploymentValues.CLIUpgradeMessage.String(),
 		DeploymentID:          api.DeploymentID,
+		WebPushPublicKey:      api.WebpushDispatcher.PublicKey(),
 		Telemetry:             api.Telemetry.Enabled(),
 	}
 	api.SiteHandler = site.New(&site.Options{
@@ -823,7 +835,7 @@ func New(options *Options) *API {
 	// we do not override subdomain app routes.
 	r.Get("/latency-check", tracing.StatusWriterMiddleware(prometheusMW(LatencyCheck())).ServeHTTP)
 
-	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("OK")) })
+	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("OK")) })
 
 	// Attach workspace apps routes.
 	r.Group(func(r chi.Router) {
@@ -838,7 +850,7 @@ func New(options *Options) *API {
 		r.Route("/derp", func(r chi.Router) {
 			r.Get("/", derpHandler.ServeHTTP)
 			// This is used when UDP is blocked, and latency must be checked via HTTP(s).
-			r.Get("/latency-check", func(w http.ResponseWriter, r *http.Request) {
+			r.Get("/latency-check", func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(http.StatusOK)
 			})
 		})
@@ -895,7 +907,7 @@ func New(options *Options) *API {
 	r.Route("/api/v2", func(r chi.Router) {
 		api.APIHandler = r
 
-		r.NotFound(func(rw http.ResponseWriter, r *http.Request) { httpapi.RouteNotFound(rw) })
+		r.NotFound(func(rw http.ResponseWriter, _ *http.Request) { httpapi.RouteNotFound(rw) })
 		r.Use(
 			// Specific routes can specify different limits, but every rate
 			// limit must be configurable by the admin.
@@ -1189,6 +1201,11 @@ func New(options *Options) *API {
 							r.Put("/", api.putUserNotificationPreferences)
 						})
 					})
+					r.Route("/webpush", func(r chi.Router) {
+						r.Post("/subscription", api.postUserWebpushSubscription)
+						r.Delete("/subscription", api.deleteUserWebpushSubscription)
+						r.Post("/test", api.postUserPushNotificationTest)
+					})
 				})
 			})
 		})
@@ -1387,6 +1404,12 @@ func New(options *Options) *API {
 		})
 		r.Route("/notifications", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
+			r.Route("/inbox", func(r chi.Router) {
+				r.Get("/", api.listInboxNotifications)
+				r.Put("/mark-all-as-read", api.markAllInboxNotificationsAsRead)
+				r.Get("/watch", api.watchInboxNotifications)
+				r.Put("/{id}/read-status", api.updateInboxNotificationReadStatus)
+			})
 			r.Get("/settings", api.notificationsSettings)
 			r.Put("/settings", api.putNotificationsSettings)
 			r.Route("/templates", func(r chi.Router) {
@@ -1409,7 +1432,7 @@ func New(options *Options) *API {
 		// global variable here.
 		r.Get("/swagger/*", globalHTTPSwaggerHandler)
 	} else {
-		swaggerDisabled := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		swaggerDisabled := http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
 			httpapi.Write(context.Background(), rw, http.StatusNotFound, codersdk.Response{
 				Message: "Swagger documentation is disabled.",
 			})
@@ -1482,8 +1505,10 @@ type API struct {
 	TailnetCoordinator                atomic.Pointer[tailnet.Coordinator]
 	NetworkTelemetryBatcher           *tailnet.NetworkTelemetryBatcher
 	TailnetClientService              *tailnet.ClientService
-	QuotaCommitter                    atomic.Pointer[proto.QuotaCommitter]
-	AppearanceFetcher                 atomic.Pointer[appearance.Fetcher]
+	// WebpushDispatcher is a way to send notifications to users via Web Push.
+	WebpushDispatcher webpush.Dispatcher
+	QuotaCommitter    atomic.Pointer[proto.QuotaCommitter]
+	AppearanceFetcher atomic.Pointer[appearance.Fetcher]
 	// WorkspaceProxyHostsFn returns the hosts of healthy workspace proxies
 	// for header reasons.
 	WorkspaceProxyHostsFn atomic.Pointer[func() []string]

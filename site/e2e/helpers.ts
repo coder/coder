@@ -267,9 +267,8 @@ export const createTemplate = async (
 			);
 		}
 
-		// picker is disabled if only one org is available
+		// The organization picker will be disabled if there is only one option.
 		const pickerIsDisabled = await orgPicker.isDisabled();
-
 		if (!pickerIsDisabled) {
 			await orgPicker.click();
 			await page.getByText(orgName, { exact: true }).click();
@@ -545,6 +544,8 @@ interface EchoProvisionerResponses {
 	apply?: RecursivePartial<Response>[];
 }
 
+const emptyPlan = new TextEncoder().encode("{}");
+
 /**
  * createTemplateVersionTar consumes a series of echo provisioner protobufs and
  * converts it into an uploadable tar file.
@@ -582,6 +583,7 @@ const createTemplateVersionTar = async (
 					externalAuthProviders: response.apply?.externalAuthProviders ?? [],
 					timings: response.apply?.timings ?? [],
 					presets: [],
+					plan: emptyPlan,
 				},
 			};
 		});
@@ -641,6 +643,7 @@ const createTemplateVersionTar = async (
 						startupScriptTimeoutSeconds: 300,
 						troubleshootingUrl: "",
 						token: randomUUID(),
+						devcontainers: [],
 						...agent,
 					} as Agent;
 
@@ -703,6 +706,7 @@ const createTemplateVersionTar = async (
 			timings: [],
 			modules: [],
 			presets: [],
+			plan: emptyPlan,
 			...response.plan,
 		} as PlanComplete;
 		response.plan.resources = response.plan.resources?.map(fillResource);
@@ -1094,8 +1098,12 @@ export async function createUser(
 	const orgPicker = page.getByLabel("Organization *");
 	const organizationsEnabled = await orgPicker.isVisible();
 	if (organizationsEnabled) {
-		await orgPicker.click();
-		await page.getByText(orgName, { exact: true }).click();
+		// The organization picker will be disabled if there is only one option.
+		const pickerIsDisabled = await orgPicker.isDisabled();
+		if (!pickerIsDisabled) {
+			await orgPicker.click();
+			await page.getByText(orgName, { exact: true }).click();
+		}
 	}
 
 	await page.getByLabel("Login Type").click();

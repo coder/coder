@@ -82,6 +82,20 @@ func (p *QueryParamParser) Int(vals url.Values, def int, queryParam string) int 
 	return v
 }
 
+func (p *QueryParamParser) Int64(vals url.Values, def int64, queryParam string) int64 {
+	v, err := parseQueryParam(p, vals, func(v string) (int64, error) {
+		return strconv.ParseInt(v, 10, 64)
+	}, def, queryParam)
+	if err != nil {
+		p.Errors = append(p.Errors, codersdk.ValidationError{
+			Field:  queryParam,
+			Detail: fmt.Sprintf("Query param %q must be a valid 64-bit integer: %s", queryParam, err.Error()),
+		})
+		return 0
+	}
+	return v
+}
+
 // PositiveInt32 function checks if the given value is 32-bit and positive.
 //
 // We can't use `uint32` as the value must be within the range  <0,2147483647>
@@ -212,11 +226,9 @@ func (p *QueryParamParser) Time(vals url.Values, def time.Time, queryParam, layo
 // Time uses the default time format of RFC3339Nano and always returns a UTC time.
 func (p *QueryParamParser) Time3339Nano(vals url.Values, def time.Time, queryParam string) time.Time {
 	layout := time.RFC3339Nano
-	return p.timeWithMutate(vals, def, queryParam, layout, func(term string) string {
-		// All search queries are forced to lowercase. But the RFC format requires
-		// upper case letters. So just uppercase the term.
-		return strings.ToUpper(term)
-	})
+	// All search queries are forced to lowercase. But the RFC format requires
+	// upper case letters. So just uppercase the term.
+	return p.timeWithMutate(vals, def, queryParam, layout, strings.ToUpper)
 }
 
 func (p *QueryParamParser) timeWithMutate(vals url.Values, def time.Time, queryParam, layout string, mutate func(term string) string) time.Time {

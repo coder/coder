@@ -49,6 +49,12 @@
 					"icon_path": "./images/icons/kubernetes.svg"
 				},
 				{
+					"title": "Rancher",
+					"description": "Deploy Coder on Rancher",
+					"path": "./install/rancher.md",
+					"icon_path": "./images/icons/rancher.svg"
+				},
+				{
 					"title": "OpenShift",
 					"description": "Install Coder on OpenShift",
 					"path": "./install/openshift.md",
@@ -184,7 +190,7 @@
 				},
 				{
 					"title": "Workspace Lifecycle",
-					"description": "Cost control with workspace schedules",
+					"description": "A guide to the workspace lifecycle, from creation and status through stopping and deletion.",
 					"path": "./user-guides/workspace-lifecycle.md",
 					"icon_path": "./images/icons/circle-dot.svg"
 				},
@@ -1058,6 +1064,11 @@
 							"title": "open",
 							"description": "Open a workspace",
 							"path": "reference/cli/open.md"
+						},
+						{
+							"title": "open app",
+							"description": "Open a workspace application.",
+							"path": "reference/cli/open_app.md"
 						},
 						{
 							"title": "open vscode",

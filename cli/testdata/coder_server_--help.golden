@@ -6,12 +6,12 @@ USAGE:
   Start a Coder server
 
 SUBCOMMANDS:
-    create-admin-user         Create a new admin user with the given username,
-                              email and password and adds it to every
-                              organization.
-    postgres-builtin-serve    Run the built-in PostgreSQL deployment.
-    postgres-builtin-url      Output the connection URL for the built-in
-                              PostgreSQL deployment.
+    create-admin-user           Create a new admin user with the given username,
+                                email and password and adds it to every
+                                organization.
+    postgres-builtin-serve      Run the built-in PostgreSQL deployment.
+    postgres-builtin-url        Output the connection URL for the built-in
+                                PostgreSQL deployment.
 
 OPTIONS:
       --allow-workspace-renames bool, $CODER_ALLOW_WORKSPACE_RENAMES (default: false)
@@ -472,6 +472,10 @@ Configure TLS for your SMTP server target.
       --notifications-email-tls-starttls bool, $CODER_NOTIFICATIONS_EMAIL_TLS_STARTTLS
           Enable STARTTLS to upgrade insecure SMTP connections using TLS.
           DEPRECATED: Use --email-tls-starttls instead.
+
+NOTIFICATIONS / INBOX OPTIONS: 
+      --notifications-inbox-enabled bool, $CODER_NOTIFICATIONS_INBOX_ENABLED (default: true)
+          Enable Coder Inbox.
 
 NOTIFICATIONS / WEBHOOK OPTIONS: 
       --notifications-webhook-endpoint url, $CODER_NOTIFICATIONS_WEBHOOK_ENDPOINT

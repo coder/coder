@@ -255,6 +255,19 @@ func WorkspaceAgentScriptTiming(t testing.TB, db database.Store, orig database.W
 	panic("failed to insert workspace agent script timing")
 }
 
+func WorkspaceAgentDevcontainer(t testing.TB, db database.Store, orig database.WorkspaceAgentDevcontainer) database.WorkspaceAgentDevcontainer {
+	devcontainers, err := db.InsertWorkspaceAgentDevcontainers(genCtx, database.InsertWorkspaceAgentDevcontainersParams{
+		WorkspaceAgentID: takeFirst(orig.WorkspaceAgentID, uuid.New()),
+		CreatedAt:        takeFirst(orig.CreatedAt, dbtime.Now()),
+		ID:               []uuid.UUID{takeFirst(orig.ID, uuid.New())},
+		Name:             []string{takeFirst(orig.Name, testutil.GetRandomName(t))},
+		WorkspaceFolder:  []string{takeFirst(orig.WorkspaceFolder, "/workspace")},
+		ConfigPath:       []string{takeFirst(orig.ConfigPath, "")},
+	})
+	require.NoError(t, err, "insert workspace agent devcontainer")
+	return devcontainers[0]
+}
+
 func Workspace(t testing.TB, db database.Store, orig database.WorkspaceTable) database.WorkspaceTable {
 	t.Helper()
 
@@ -464,6 +477,18 @@ func NotificationInbox(t testing.TB, db database.Store, orig database.InsertInbo
 	})
 	require.NoError(t, err, "insert notification")
 	return notification
+}
+
+func WebpushSubscription(t testing.TB, db database.Store, orig database.InsertWebpushSubscriptionParams) database.WebpushSubscription {
+	subscription, err := db.InsertWebpushSubscription(genCtx, database.InsertWebpushSubscriptionParams{
+		CreatedAt:         takeFirst(orig.CreatedAt, dbtime.Now()),
+		UserID:            takeFirst(orig.UserID, uuid.New()),
+		Endpoint:          takeFirst(orig.Endpoint, testutil.GetRandomName(t)),
+		EndpointP256dhKey: takeFirst(orig.EndpointP256dhKey, testutil.GetRandomName(t)),
+		EndpointAuthKey:   takeFirst(orig.EndpointAuthKey, testutil.GetRandomName(t)),
+	})
+	require.NoError(t, err, "insert webpush subscription")
+	return subscription
 }
 
 func Group(t testing.TB, db database.Store, orig database.Group) database.Group {
