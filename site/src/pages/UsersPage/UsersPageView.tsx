@@ -5,7 +5,11 @@ import {
 	PaginationContainer,
 	type PaginationResult,
 } from "components/PaginationWidget/PaginationContainer";
-import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { UserPlusIcon } from "lucide-react";
 import type { ComponentProps, FC } from "react";
@@ -68,24 +72,23 @@ export const UsersPageView: FC<UsersPageViewProps> = ({
 }) => {
 	return (
 		<>
-			<Stack
-				alignItems="baseline"
-				direction="row"
-				justifyContent="space-between"
+			<SettingsHeader
+				actions={
+					canCreateUser && (
+						<Button asChild>
+							<RouterLink to="create">
+								<UserPlusIcon />
+								Create user
+							</RouterLink>
+						</Button>
+					)
+				}
 			>
-				<SettingsHeader
-					title="Users"
-					description="Manage user accounts and permissions."
-				/>
-				{canCreateUser && (
-					<Button asChild>
-						<RouterLink to="create">
-							<UserPlusIcon />
-							Create user
-						</RouterLink>
-					</Button>
-				)}
-			</Stack>
+				<SettingsHeaderTitle>Users</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Manage user accounts and permissions.
+				</SettingsHeaderDescription>
+			</SettingsHeader>
 
 			<UsersFilter {...filterProps} />
 

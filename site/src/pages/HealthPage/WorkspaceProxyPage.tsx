@@ -154,12 +154,12 @@ export const WorkspaceProxyPage: FC = () => {
 									<span>OK</span>
 								) : (
 									<div css={{ display: "flex", flexDirection: "column" }}>
-										{[...errors, ...warnings].map((msg, i) => (
+										{[...errors, ...warnings].map((msg) => (
 											<span
+												key={msg}
 												css={{
 													":first-letter": { textTransform: "uppercase" },
 												}}
-												key={i}
 											>
 												{msg}
 											</span>

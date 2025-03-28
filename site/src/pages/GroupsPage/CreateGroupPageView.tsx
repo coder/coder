@@ -10,7 +10,11 @@ import {
 	HorizontalForm,
 } from "components/Form/Form";
 import { IconField } from "components/IconField/IconField";
-import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "components/SettingsHeader/SettingsHeader";
 import { Spinner } from "components/Spinner/Spinner";
 import { useFormik } from "formik";
 import type { FC } from "react";
@@ -53,10 +57,12 @@ export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
 
 	return (
 		<>
-			<SettingsHeader
-				title="New Group"
-				description="Create a group in this organization."
-			/>
+			<SettingsHeader>
+				<SettingsHeaderTitle>New Group</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Create a group in this organization.
+				</SettingsHeaderDescription>
+			</SettingsHeader>
 
 			<HorizontalForm onSubmit={form.handleSubmit}>
 				<FormSection

@@ -8,7 +8,12 @@ import TableRow from "@mui/material/TableRow";
 import type { DeploymentValues, ExternalAuthConfig } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { PremiumBadge } from "components/Badges/Badges";
-import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderDocsLink,
+	SettingsHeaderTitle,
+} from "components/SettingsHeader/SettingsHeader";
 import type { FC } from "react";
 import { docs } from "utils/docs";
 
@@ -22,10 +27,14 @@ export const ExternalAuthSettingsPageView: FC<
 	return (
 		<>
 			<SettingsHeader
-				title="External Authentication"
-				description="Coder integrates with GitHub, GitLab, BitBucket, Azure Repos, and OpenID Connect to authenticate developers with external services."
-				docsHref={docs("/admin/external-auth")}
-			/>
+				actions={<SettingsHeaderDocsLink href={docs("/admin/external-auth")} />}
+			>
+				<SettingsHeaderTitle>External Authentication</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Coder integrates with GitHub, GitLab, BitBucket, Azure Repos, and
+					OpenID Connect to authenticate developers with external services.
+				</SettingsHeaderDescription>
+			</SettingsHeader>
 
 			<video
 				autoPlay

@@ -9,7 +9,10 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Loader } from "components/Loader/Loader";
 import { Paywall } from "components/Paywall/Paywall";
-import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
+import {
+	SettingsHeader,
+	SettingsHeaderTitle,
+} from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { ProvisionerGroup } from "modules/provisioners/ProvisionerGroup";
 import type { FC } from "react";
@@ -39,7 +42,10 @@ export const OrganizationProvisionersPageView: FC<
 				direction="row"
 				justifyContent="space-between"
 			>
-				<SettingsHeader title="Provisioners" />
+				<SettingsHeader>
+					<SettingsHeaderTitle>Provisioners</SettingsHeaderTitle>
+				</SettingsHeader>
+
 				{!showPaywall && (
 					<Button
 						endIcon={<OpenInNewIcon />}
