@@ -61,7 +61,3 @@ enter `coder` and select **Coder: Login**.
 
 1. Select **Open Workspace** or use the Command Palette to run **Coder: Open Workspace**.
 
-> [!NOTE]
-> If you have any suggestions or experience any issues, please
-> [create a GitHub issue](https://github.com/coder/coder/issues/new?title=docs%3A+cursor+request+title+here&labels=["customer-reported","docs"]&body=please+enter+your+request+here) or share in
-> [our Discord channel](https://discord.gg/coder).
