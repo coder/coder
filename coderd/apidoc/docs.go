@@ -8096,6 +8096,45 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceagents/me/app-status": {
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Patch workspace agent app status",
+                "operationId": "patch-workspace-agent-app-status",
+                "parameters": [
+                    {
+                        "description": "app status",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/agentsdk.PatchAppStatus"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/workspaceagents/me/external-auth": {
             "get": {
                 "security": [
@@ -16995,61 +17034,6 @@ const docTemplate = `{
                 "WorkspaceAppSharingLevelOwner",
                 "WorkspaceAppSharingLevelAuthenticated",
                 "WorkspaceAppSharingLevelPublic"
-            ]
-        },
-        "codersdk.WorkspaceAppStatus": {
-            "type": "object",
-            "properties": {
-                "agent_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "app_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "created_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "icon": {
-                    "description": "Icon is an external URL to an icon that will be rendered in the UI.",
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "message": {
-                    "type": "string"
-                },
-                "needs_user_attention": {
-                    "type": "boolean"
-                },
-                "state": {
-                    "$ref": "#/definitions/codersdk.WorkspaceAppStatusState"
-                },
-                "uri": {
-                    "description": "URI is the URI of the resource that the status is for.\ne.g. https://github.com/org/repo/pull/123\ne.g. file:///path/to/file",
-                    "type": "string"
-                },
-                "workspace_id": {
-                    "type": "string",
-                    "format": "uuid"
-                }
-            }
-        },
-        "codersdk.WorkspaceAppStatusState": {
-            "type": "string",
-            "enum": [
-                "working",
-                "complete",
-                "failure"
-            ],
-            "x-enum-varnames": [
-                "WorkspaceAppStatusStateWorking",
-                "WorkspaceAppStatusStateComplete",
-                "WorkspaceAppStatusStateFailure"
             ]
         },
         "codersdk.WorkspaceBuild": {
