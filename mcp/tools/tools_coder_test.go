@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"runtime"
 	"testing"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -25,6 +26,9 @@ import (
 // Running them in parallel is prone to racy behavior.
 // nolint:tparallel,paralleltest
 func TestCoderTools(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("skipping on non-linux due to pty issues")
+	}
 	ctx := testutil.Context(t, testutil.WaitLong)
 	// Given: a coder server, workspace, and agent.
 	client, store := coderdtest.NewWithDatabase(t, nil)
@@ -146,6 +150,9 @@ func TestCoderTools(t *testing.T) {
 	})
 
 	t.Run("coder_get_workspace", func(t *testing.T) {
+		// Given: the workspace agent is connected.
+		// The act of starting the agent will modify the workspace state.
+		<-agentStarted
 		// When: the coder_get_workspace tool is called
 		ctr := makeJSONRPCRequest(t, "tools/call", "coder_get_workspace", map[string]any{
 			"workspace": r.Workspace.ID.String(),
