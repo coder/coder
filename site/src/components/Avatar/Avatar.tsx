@@ -28,7 +28,7 @@ const avatarVariants = cva(
 			},
 			variant: {
 				default: null,
-				icon: null,
+				icon: "[&_svg]:size-full",
 			},
 		},
 		defaultVariants: {
