@@ -108,8 +108,8 @@ You must add the SSH key to your Git provider.
 
 1. Add the key to your Git provider accounts:
 
-   - [GitHub](https://github.com/settings/ssh/new)
-   - [GitLab](https://gitlab.com/-/profile/keys)
+   - [GitHub](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account#adding-a-new-ssh-key-to-your-account)
+   - [GitLab](https://docs.gitlab.com/user/ssh/#add-an-ssh-key-to-your-gitlab-account)
 
 ## Git-provider specific env variables
 
