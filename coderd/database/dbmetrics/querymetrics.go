@@ -158,10 +158,10 @@ func (m queryMetricsStore) BulkMarkNotificationMessagesSent(ctx context.Context,
 	return r0, r1
 }
 
-func (m queryMetricsStore) ClaimPrebuild(ctx context.Context, newOwnerID database.ClaimPrebuildParams) (database.ClaimPrebuildRow, error) {
+func (m queryMetricsStore) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.ClaimPrebuild(ctx, newOwnerID)
-	m.queryLatencies.WithLabelValues("ClaimPrebuild").Observe(time.Since(start).Seconds())
+	r0, r1 := m.s.ClaimPrebuiltWorkspace(ctx, arg)
+	m.queryLatencies.WithLabelValues("ClaimPrebuiltWorkspace").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 

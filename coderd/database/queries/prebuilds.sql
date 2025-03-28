@@ -100,7 +100,7 @@ WHERE tsb.rn <= tsb.desired_instances -- Fetch the last N builds, where N is the
   AND created_at >= @lookback::timestamptz
 GROUP BY tsb.template_version_id, tsb.preset_id, fc.num_failed;
 
--- name: ClaimPrebuild :one
+-- name: ClaimPrebuiltWorkspace :one
 UPDATE workspaces w
 SET owner_id   = @new_user_id::uuid,
 	name       = @new_name::text,
