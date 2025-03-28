@@ -236,7 +236,7 @@ type sqlcQuerier interface {
 	GetPresetByWorkspaceBuildID(ctx context.Context, workspaceBuildID uuid.UUID) (TemplateVersionPreset, error)
 	GetPresetParametersByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionPresetParameter, error)
 	// GetPresetsBackoff groups workspace builds by preset ID.
-	// Each preset is associated with exactly once template version ID.
+	// Each preset is associated with exactly one template version ID.
 	// For each group, the query checks up to N of the most recent jobs that occurred within the
 	// lookback period, where N equals the number of desired instances for the corresponding preset.
 	// If at least one of the job within a group has failed, we should backoff on the corresponding preset ID.

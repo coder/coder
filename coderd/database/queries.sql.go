@@ -6134,7 +6134,7 @@ type GetPresetsBackoffRow struct {
 }
 
 // GetPresetsBackoff groups workspace builds by preset ID.
-// Each preset is associated with exactly once template version ID.
+// Each preset is associated with exactly one template version ID.
 // For each group, the query checks up to N of the most recent jobs that occurred within the
 // lookback period, where N equals the number of desired instances for the corresponding preset.
 // If at least one of the job within a group has failed, we should backoff on the corresponding preset ID.
@@ -6177,12 +6177,12 @@ func (q *sqlQuerier) GetPresetsBackoff(ctx context.Context, lookback time.Time) 
 
 const getRunningPrebuilds = `-- name: GetRunningPrebuilds :many
 SELECT p.id                AS workspace_id,
-	   p.name              AS workspace_name,
-	   p.template_id,
-	   b.template_version_id,
+       p.name              AS workspace_name,
+       p.template_id,
+       b.template_version_id,
        p.current_preset_id AS current_preset_id,
-	   p.ready,
-	   p.created_at
+       p.ready,
+       p.created_at
 FROM workspace_prebuilds p
 		 INNER JOIN workspace_latest_builds b ON b.workspace_id = p.id
 WHERE (b.transition = 'start'::workspace_transition
