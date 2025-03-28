@@ -1,19 +1,32 @@
+import { cva, type VariantProps } from "class-variance-authority";
 import { Button } from "components/Button/Button";
 import { SquareArrowOutUpRightIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
 import { twMerge } from "tailwind-merge";
 
-type HeaderHierarchy = "primary" | "secondary";
+const headerVariants = cva("m-0 pb-1 flex items-center gap-2 leading-tight", {
+	variants: {
+		titleVisualHierarchy: {
+			primary: "text-3xl font-bold",
+			secondary: "text-2xl font-medium",
+		},
+	},
+	defaultVariants: {
+		titleVisualHierarchy: "primary",
+	},
+});
+
 type HeaderLevel = `h${1 | 2 | 3 | 4 | 5 | 6}`;
 
-type HeaderProps = Readonly<{
-	title: ReactNode;
-	description?: ReactNode;
-	titleVisualHierarchy?: HeaderHierarchy;
-	titleHeaderLevel?: HeaderLevel;
-	docsHref?: string;
-	tooltip?: ReactNode;
-}>;
+type HeaderProps = Readonly<
+	VariantProps<typeof headerVariants> & {
+		title: ReactNode;
+		description?: ReactNode;
+		titleHeaderLevel?: HeaderLevel;
+		docsHref?: string;
+		tooltip?: ReactNode;
+	}
+>;
 
 export const SettingsHeader: FC<HeaderProps> = ({
 	title,
