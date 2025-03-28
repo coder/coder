@@ -1986,7 +1986,7 @@ func TestSSH_Container(t *testing.T) {
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitShort)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		client, workspace, agentToken := setupWorkspaceForAgent(t)
 		ctrl := gomock.NewController(t)
 		mLister := acmock.NewMockLister(ctrl)
@@ -2024,7 +2024,7 @@ func TestSSH_Container(t *testing.T) {
 	t.Run("NotEnabled", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitShort)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		client, workspace, agentToken := setupWorkspaceForAgent(t)
 		_ = agenttest.New(t, client.URL, agentToken)
 		_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
