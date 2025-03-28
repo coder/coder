@@ -23,7 +23,7 @@ func (r *RootCmd) mcpCommand() *serpent.Command {
 		Handler: func(inv *serpent.Invocation) error {
 			return mcpHandler(inv, client, instructions, allowedTools)
 		},
-		Short: "Start an MCP server that can be used to interact with a Coder depoyment.",
+		Short: "Start an MCP server that can be used to interact with a Coder deployment.",
 		Middleware: serpent.Chain(
 			r.InitClient(client),
 		),
