@@ -2539,19 +2539,19 @@ func (mr *MockStoreMockRecorder) GetReplicasUpdatedAfter(ctx, updatedAt any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetReplicasUpdatedAfter", reflect.TypeOf((*MockStore)(nil).GetReplicasUpdatedAfter), ctx, updatedAt)
 }
 
-// GetRunningPrebuilds mocks base method.
-func (m *MockStore) GetRunningPrebuilds(ctx context.Context) ([]database.GetRunningPrebuildsRow, error) {
+// GetRunningPrebuiltWorkspaces mocks base method.
+func (m *MockStore) GetRunningPrebuiltWorkspaces(ctx context.Context) ([]database.GetRunningPrebuiltWorkspacesRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetRunningPrebuilds", ctx)
-	ret0, _ := ret[0].([]database.GetRunningPrebuildsRow)
+	ret := m.ctrl.Call(m, "GetRunningPrebuiltWorkspaces", ctx)
+	ret0, _ := ret[0].([]database.GetRunningPrebuiltWorkspacesRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetRunningPrebuilds indicates an expected call of GetRunningPrebuilds.
-func (mr *MockStoreMockRecorder) GetRunningPrebuilds(ctx any) *gomock.Call {
+// GetRunningPrebuiltWorkspaces indicates an expected call of GetRunningPrebuiltWorkspaces.
+func (mr *MockStoreMockRecorder) GetRunningPrebuiltWorkspaces(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRunningPrebuilds", reflect.TypeOf((*MockStore)(nil).GetRunningPrebuilds), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRunningPrebuiltWorkspaces", reflect.TypeOf((*MockStore)(nil).GetRunningPrebuiltWorkspaces), ctx)
 }
 
 // GetRuntimeConfig mocks base method.

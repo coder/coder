@@ -13,7 +13,7 @@ import (
 // ReconciliationState represents a full point-in-time snapshot of state relating to prebuilds across all templates.
 type ReconciliationState struct {
 	Presets             []database.GetTemplatePresetsWithPrebuildsRow
-	RunningPrebuilds    []database.GetRunningPrebuildsRow
+	RunningPrebuilds    []database.GetRunningPrebuiltWorkspacesRow
 	PrebuildsInProgress []database.CountInProgressPrebuildsRow
 	Backoffs            []database.GetPresetsBackoffRow
 }
@@ -21,7 +21,7 @@ type ReconciliationState struct {
 // PresetState is a subset of ReconciliationState but specifically for a single preset.
 type PresetState struct {
 	Preset     database.GetTemplatePresetsWithPrebuildsRow
-	Running    []database.GetRunningPrebuildsRow
+	Running    []database.GetRunningPrebuiltWorkspacesRow
 	InProgress []database.CountInProgressPrebuildsRow
 	Backoff    *database.GetPresetsBackoffRow
 }
@@ -40,7 +40,7 @@ type ReconciliationActions struct {
 	BackoffUntil                 time.Time   // The time to wait until before trying to provision a new prebuild.
 }
 
-func NewReconciliationState(presets []database.GetTemplatePresetsWithPrebuildsRow, runningPrebuilds []database.GetRunningPrebuildsRow,
+func NewReconciliationState(presets []database.GetTemplatePresetsWithPrebuildsRow, runningPrebuilds []database.GetRunningPrebuiltWorkspacesRow,
 	prebuildsInProgress []database.CountInProgressPrebuildsRow, backoffs []database.GetPresetsBackoffRow,
 ) ReconciliationState {
 	return ReconciliationState{Presets: presets, RunningPrebuilds: runningPrebuilds, PrebuildsInProgress: prebuildsInProgress, Backoffs: backoffs}
@@ -54,7 +54,7 @@ func (s ReconciliationState) FilterByPreset(presetID uuid.UUID) (*PresetState, e
 		return nil, xerrors.Errorf("no preset found with ID %q", presetID)
 	}
 
-	running := slice.Filter(s.RunningPrebuilds, func(prebuild database.GetRunningPrebuildsRow) bool {
+	running := slice.Filter(s.RunningPrebuilds, func(prebuild database.GetRunningPrebuiltWorkspacesRow) bool {
 		if !prebuild.CurrentPresetID.Valid {
 			return false
 		}

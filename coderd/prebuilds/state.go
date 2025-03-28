@@ -110,7 +110,7 @@ func (p PresetState) CalculateActions(clock quartz.Clock, backoffInterval time.D
 	if extraneous > 0 {
 		// Sort running IDs by creation time so we always delete the oldest prebuilds.
 		// In general, we want fresher prebuilds (imagine a mono-repo is cloned; newer is better).
-		slices.SortFunc(p.Running, func(a, b database.GetRunningPrebuildsRow) int {
+		slices.SortFunc(p.Running, func(a, b database.GetRunningPrebuiltWorkspacesRow) int {
 			if a.CreatedAt.Before(b.CreatedAt) {
 				return -1
 			}

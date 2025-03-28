@@ -201,9 +201,9 @@ func TestClaimPrebuild(t *testing.T) {
 			}
 
 			// Given: a set of running, eligible prebuilds eventually starts up.
-			runningPrebuilds := make(map[uuid.UUID]database.GetRunningPrebuildsRow, desiredInstances*presetCount)
+			runningPrebuilds := make(map[uuid.UUID]database.GetRunningPrebuiltWorkspacesRow, desiredInstances*presetCount)
 			require.Eventually(t, func() bool {
-				rows, err := spy.GetRunningPrebuilds(ctx)
+				rows, err := spy.GetRunningPrebuiltWorkspaces(ctx)
 				require.NoError(t, err)
 
 				for _, row := range rows {
@@ -252,7 +252,7 @@ func TestClaimPrebuild(t *testing.T) {
 				require.EqualValues(t, spy.claims.Load(), 0)
 				require.Nil(t, spy.claimedWorkspace.Load())
 
-				currentPrebuilds, err := spy.GetRunningPrebuilds(ctx)
+				currentPrebuilds, err := spy.GetRunningPrebuiltWorkspaces(ctx)
 				require.NoError(t, err)
 				// The number of prebuilds should NOT change.
 				require.Equal(t, len(currentPrebuilds), len(runningPrebuilds))
@@ -279,12 +279,12 @@ func TestClaimPrebuild(t *testing.T) {
 			require.Equal(t, user.ID, workspace.OwnerID)
 
 			// Then: the number of running prebuilds has changed since one was claimed.
-			currentPrebuilds, err := spy.GetRunningPrebuilds(ctx)
+			currentPrebuilds, err := spy.GetRunningPrebuiltWorkspaces(ctx)
 			require.NoError(t, err)
 			require.NotEqual(t, len(currentPrebuilds), len(runningPrebuilds))
 
 			// Then: the claimed prebuild is now missing from the running prebuilds set.
-			current, err := spy.GetRunningPrebuilds(ctx)
+			current, err := spy.GetRunningPrebuiltWorkspaces(ctx)
 			require.NoError(t, err)
 
 			var found bool
@@ -315,7 +315,7 @@ func TestClaimPrebuild(t *testing.T) {
 			}
 
 			require.Eventually(t, func() bool {
-				rows, err := spy.GetRunningPrebuilds(ctx)
+				rows, err := spy.GetRunningPrebuiltWorkspaces(ctx)
 				require.NoError(t, err)
 
 				t.Logf("found %d running prebuilds so far, want %d", len(rows), tc.expectedPrebuildsCount)

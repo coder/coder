@@ -121,7 +121,7 @@ func TestOutdatedPrebuilds(t *testing.T) {
 	}
 
 	// GIVEN: a running prebuild for the outdated preset.
-	running := []database.GetRunningPrebuildsRow{
+	running := []database.GetRunningPrebuiltWorkspacesRow{
 		prebuild(outdated, clock),
 	}
 
@@ -308,11 +308,11 @@ func TestInProgressActions(t *testing.T) {
 			}
 
 			// GIVEN: a running prebuild for the preset.
-			running := make([]database.GetRunningPrebuildsRow, 0, tc.running)
+			running := make([]database.GetRunningPrebuiltWorkspacesRow, 0, tc.running)
 			for range tc.running {
 				name, err := prebuilds.GenerateName()
 				require.NoError(t, err)
-				running = append(running, database.GetRunningPrebuildsRow{
+				running = append(running, database.GetRunningPrebuiltWorkspacesRow{
 					WorkspaceID:       uuid.New(),
 					WorkspaceName:     name,
 					TemplateID:        current.templateID,
@@ -359,14 +359,14 @@ func TestExtraneous(t *testing.T) {
 
 	var older uuid.UUID
 	// GIVEN: 2 running prebuilds for the preset.
-	running := []database.GetRunningPrebuildsRow{
-		prebuild(current, clock, func(row database.GetRunningPrebuildsRow) database.GetRunningPrebuildsRow {
+	running := []database.GetRunningPrebuiltWorkspacesRow{
+		prebuild(current, clock, func(row database.GetRunningPrebuiltWorkspacesRow) database.GetRunningPrebuiltWorkspacesRow {
 			// The older of the running prebuilds will be deleted in order to maintain freshness.
 			row.CreatedAt = clock.Now().Add(-time.Hour)
 			older = row.WorkspaceID
 			return row
 		}),
-		prebuild(current, clock, func(row database.GetRunningPrebuildsRow) database.GetRunningPrebuildsRow {
+		prebuild(current, clock, func(row database.GetRunningPrebuiltWorkspacesRow) database.GetRunningPrebuiltWorkspacesRow {
 			row.CreatedAt = clock.Now()
 			return row
 		}),
@@ -403,7 +403,7 @@ func TestDeprecated(t *testing.T) {
 	}
 
 	// GIVEN: 1 running prebuilds for the preset.
-	running := []database.GetRunningPrebuildsRow{
+	running := []database.GetRunningPrebuiltWorkspacesRow{
 		prebuild(current, clock),
 	}
 
@@ -437,7 +437,7 @@ func TestLatestBuildFailed(t *testing.T) {
 	}
 
 	// GIVEN: running prebuilds only for one preset (the other will be failing, as evidenced by the backoffs below).
-	running := []database.GetRunningPrebuildsRow{
+	running := []database.GetRunningPrebuiltWorkspacesRow{
 		prebuild(other, clock),
 	}
 
@@ -514,8 +514,8 @@ func preset(active bool, instances int32, opts options, muts ...func(row databas
 	return entry
 }
 
-func prebuild(opts options, clock quartz.Clock, muts ...func(row database.GetRunningPrebuildsRow) database.GetRunningPrebuildsRow) database.GetRunningPrebuildsRow {
-	entry := database.GetRunningPrebuildsRow{
+func prebuild(opts options, clock quartz.Clock, muts ...func(row database.GetRunningPrebuiltWorkspacesRow) database.GetRunningPrebuiltWorkspacesRow) database.GetRunningPrebuiltWorkspacesRow {
+	entry := database.GetRunningPrebuiltWorkspacesRow{
 		WorkspaceID:       opts.prebuildID,
 		WorkspaceName:     opts.workspaceName,
 		TemplateID:        opts.templateID,

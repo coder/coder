@@ -21,7 +21,7 @@ FROM templates t
 WHERE tvp.desired_instances IS NOT NULL -- Consider only presets that have a prebuild configuration.
   AND (t.id = sqlc.narg('template_id')::uuid OR sqlc.narg('template_id') IS NULL);
 
--- name: GetRunningPrebuilds :many
+-- name: GetRunningPrebuiltWorkspaces :many
 SELECT p.id                AS workspace_id,
        p.name              AS workspace_name,
        p.template_id,

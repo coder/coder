@@ -253,7 +253,7 @@ func (c *StoreReconciler) SnapshotState(ctx context.Context, store database.Stor
 		if len(presetsWithPrebuilds) == 0 {
 			return nil
 		}
-		allRunningPrebuilds, err := db.GetRunningPrebuilds(ctx)
+		allRunningPrebuilds, err := db.GetRunningPrebuiltWorkspaces(ctx)
 		if err != nil {
 			return xerrors.Errorf("failed to get running prebuilds: %w", err)
 		}
