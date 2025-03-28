@@ -6,7 +6,7 @@ import type { FC } from "react";
 import Markdown from "react-markdown";
 import { Link as RouterLink } from "react-router-dom";
 import { relativeTime } from "utils/time";
-import { InboxAvatar, type InboxIcon } from "./InboxAvatar";
+import { InboxAvatar } from "./InboxAvatar";
 
 type InboxItemProps = {
 	notification: InboxNotification;
@@ -24,7 +24,7 @@ export const InboxItem: FC<InboxItemProps> = ({
 			tabIndex={-1}
 		>
 			<div className="flex-shrink-0">
-				<InboxAvatar icon={notification.icon as InboxIcon} />
+				<InboxAvatar icon={notification.icon} />
 			</div>
 
 			<div className="flex flex-col gap-3 flex-1">
