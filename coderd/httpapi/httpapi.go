@@ -20,6 +20,7 @@ import (
 	"github.com/coder/websocket/wsjson"
 
 	"github.com/coder/coder/v2/coderd/httpapi/httpapiconstraints"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -198,6 +199,12 @@ func Write(ctx context.Context, rw http.ResponseWriter, status int, response int
 	_, span := tracing.StartSpan(ctx)
 	defer span.End()
 
+	if true {
+		if checks, err := rbac.GetAuthzChecks(ctx); err == nil {
+			rw.Header().Set("x-authz-checks", checks.Serialize())
+		}
+	}
+
 	rw.Header().Set("Content-Type", "application/json; charset=utf-8")
 	rw.WriteHeader(status)
 
@@ -212,6 +219,12 @@ func Write(ctx context.Context, rw http.ResponseWriter, status int, response int
 func WriteIndent(ctx context.Context, rw http.ResponseWriter, status int, response interface{}) {
 	_, span := tracing.StartSpan(ctx)
 	defer span.End()
+
+	if true {
+		if checks, err := rbac.GetAuthzChecks(ctx); err == nil {
+			rw.Header().Set("x-dbauthz-checks", checks.Serialize())
+		}
+	}
 
 	rw.Header().Set("Content-Type", "application/json; charset=utf-8")
 	rw.WriteHeader(status)
