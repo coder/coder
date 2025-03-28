@@ -413,8 +413,7 @@ TFEOF
 terraform {
   required_providers {
     coder = {
-      source  = "coder/coder"
-      version = "~> 0.12.0"
+      source = "coder/coder"
     }
     docker = {
       source  = "kreuzwerker/docker"
@@ -683,7 +682,8 @@ terraform {
       source = "coder/coder"
     }
     docker = {
-      source = "kreuzwerker/docker"
+      source  = "kreuzwerker/docker"
+      version = "~> 3.0.0"
     }
   }
 }
@@ -693,11 +693,108 @@ provider "docker" {
 }
 provider "coder" {}
 
+# Variables for git configuration
+variable "git_name" {
+  type        = string
+  description = "Git user name"
+  default     = "Coder User"
+}
+
+variable "git_email" {
+  type        = string
+  description = "Git user email"
+  default     = "coder@example.com"
+}
+
 data "coder_workspace" "me" {}
+data "coder_workspace_owner" "me" {}
+
+locals {
+  # repo_dir will be populated by the git-clone module
+  repo_dir = try(module.git-clone[0].repo_dir, "/home/coder/coder")
+  container_name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
+}
 
 resource "coder_agent" "main" {
   arch = "amd64"
   os   = "linux"
+  dir  = local.repo_dir
+  
+  # Set environment variables to pass Git configuration
+  env = {
+    GIT_NAME = var.git_name
+    GIT_EMAIL = var.git_email
+  }
+  
+  # Use blocking behavior to ensure the script completes
+  startup_script_behavior = "blocking"
+  
+  # Add a startup script to ensure the repository is cloned
+  startup_script = <<-EOT
+    #!/bin/bash
+    set -e
+    
+    # This script runs after the git-clone module, but we add this
+    # as a fallback in case the module doesn't work
+    if [ ! -d "/home/coder/coder" ]; then
+      echo "Cloning Coder repository (fallback method)..."
+      cd /home/coder
+      git clone https://github.com/coder/coder.git
+      mkdir -p /home/coder/coder/.vscode
+      echo '{"recommendations":["coder.coder-remote"]}' > /home/coder/coder/.vscode/extensions.json
+    fi
+    
+    # Set Git configuration if values are provided
+    if [ ! -z "$GIT_NAME" ]; then
+      git config --global user.name "$GIT_NAME"
+    fi
+    if [ ! -z "$GIT_EMAIL" ]; then
+      git config --global user.email "$GIT_EMAIL"
+    fi
+    
+    echo "Startup script completed successfully!"
+  EOT
+  
+  # Add metadata blocks for monitoring
+  metadata {
+    display_name = "CPU Usage"
+    key          = "cpu_usage"
+    order        = 0
+    script       = "coder stat cpu"
+    interval     = 10
+    timeout      = 1
+  }
+
+  metadata {
+    display_name = "RAM Usage"
+    key          = "ram_usage"
+    order        = 1
+    script       = "coder stat mem"
+    interval     = 10
+    timeout      = 1
+  }
+
+  metadata {
+    display_name = "Disk Usage"
+    key          = "disk_usage"
+    order        = 2
+    script       = "coder stat disk --path /home/coder"
+    interval     = 60
+    timeout      = 1
+  }
+
+  # Add resources monitoring for notifications
+  resources_monitoring {
+    memory {
+      enabled   = true
+      threshold = 80
+    }
+    volume {
+      enabled   = true
+      threshold = 90
+      path      = "/home/coder"
+    }
+  }
 }
 
 module "git-clone" {
@@ -712,15 +809,43 @@ module "code-server" {
   count                   = data.coder_workspace.me.start_count
   source                  = "registry.coder.com/modules/code-server/coder"
   agent_id                = coder_agent.main.id
-  folder                  = "/home/coder/coder"
+  folder                  = local.repo_dir
   auto_install_extensions = true
+}
+
+# Create a persistent volume for the workspace
+resource "docker_volume" "home_volume" {
+  name = "coder-${data.coder_workspace.me.id}-home"
+  # Protect the volume from being deleted due to changes in attributes.
+  lifecycle {
+    ignore_changes = all
+  }
+  # Add labels in Docker to keep track of orphan resources.
+  labels {
+    label = "coder.owner"
+    value = data.coder_workspace_owner.me.name
+  }
+  labels {
+    label = "coder.owner_id"
+    value = data.coder_workspace_owner.me.id
+  }
+  labels {
+    label = "coder.workspace_id"
+    value = data.coder_workspace.me.id
+  }
+  labels {
+    label = "coder.workspace_name_at_creation"
+    value = data.coder_workspace.me.name
+  }
 }
 
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
   image = "codercom/code-server:latest"
-  # Use a random suffix to avoid name conflicts
-  name  = "coder-${lower(data.coder_workspace.me.name)}-${substr(data.coder_workspace.me.id, 0, 8)}"
+  # Use the container name from locals
+  name = local.container_name
+  # Hostname makes the shell more user friendly: coder@my-workspace:~$
+  hostname = data.coder_workspace.me.name
   
   # Uses docker networking to expose container's IP on Docker network instead of publishing ports
   # See https://docs.docker.com/engine/reference/commandline/network_connect/
@@ -728,14 +853,71 @@ resource "docker_container" "workspace" {
     name = "coder"
   }
   
+  # Execute the agent init script at container startup
   entrypoint = ["sh", "-c", coder_agent.main.init_script]
-  env        = ["CODER_AGENT_TOKEN=${coder_agent.main.token}"]
+  env = [
+    "CODER_AGENT_TOKEN=${coder_agent.main.token}",
+    # Allow workspace user to access their private repositories
+    "GIT_AUTHOR_NAME=${var.git_name}",
+    "GIT_COMMITTER_NAME=${var.git_name}",
+    "GIT_AUTHOR_EMAIL=${var.git_email}",
+    "GIT_COMMITTER_EMAIL=${var.git_email}"
+  ]
+  
+  # Give the container a bit more memory
+  memory = 4096
+  
+  # Ensure resources are cleaned up properly with more generous timeouts
+  stop_timeout = 60
+  destroy_grace_seconds = 60
+  stop_signal = "SIGINT"
+  
+  # Add host gateway for access to host Docker socket
+  host {
+    host = "host.docker.internal"
+    ip   = "host-gateway"
+  }
+  
+  # Mount the persistent volume
+  volumes {
+    container_path = "/home/coder/"
+    volume_name    = docker_volume.home_volume.name
+    read_only      = false
+  }
+  
+  # Add labels in Docker to keep track of orphan resources
+  labels {
+    label = "coder.owner"
+    value = data.coder_workspace_owner.me.name
+  }
+  labels {
+    label = "coder.owner_id"
+    value = data.coder_workspace_owner.me.id
+  }
+  labels {
+    label = "coder.workspace_id"
+    value = data.coder_workspace.me.id
+  }
+  labels {
+    label = "coder.workspace_name"
+    value = data.coder_workspace.me.name
+  }
 }
 EOF
         
         # No need to initialize Terraform - Coder will handle this
         
         # Create the template using push command (preferred over create)
+        # Create terraform.tfvars file for Git configuration
+        # Escape double quotes in git variables for Terraform
+        ESCAPED_GIT_NAME=$(echo "$GIT_NAME" | sed 's/"/\\"/g')
+        ESCAPED_GIT_EMAIL=$(echo "$GIT_EMAIL" | sed 's/"/\\"/g')
+        
+        cat > "$TEMPLATE_DIR/terraform.tfvars" << EOF
+git_name = "${ESCAPED_GIT_NAME}"
+git_email = "${ESCAPED_GIT_EMAIL}"
+EOF
+        
         echo "🔄 Creating the template..."
         coder templates push "$TEMPLATE_NAME" --directory="$TEMPLATE_DIR" --yes
         CREATE_TEMPLATE_RESULT=$?
@@ -788,21 +970,27 @@ EOF
         echo "🔌 The VS Code extensions needed for remote development are automatically"
         echo "   configured and will install when you connect."
     else
-        echo "⚠️ Workspace created but there was an issue setting up the Coder repository."
-        echo "   You can still connect to the workspace and set it up manually with these steps:"
-        echo ""
-        echo "   1. Connect to your workspace: coder open $WORKSPACE_NAME"
-        echo "   2. Once VS Code opens, open a terminal (Terminal > New Terminal)"
-        echo "   3. Run these commands in the terminal:"
-        echo "      cd ~"
-        echo "      git clone https://github.com/coder/coder.git"
-        echo "      mkdir -p ~/coder/.vscode"
-        echo "      echo '{\"recommendations\":[\"coder.coder-remote\"]}' > ~/coder/.vscode/extensions.json"
-        echo "      git config --global user.name \"$GIT_NAME\""
-        echo "      git config --global user.email \"$GIT_EMAIL\""
-    else
-        echo "❌ Failed to create workspace."
-        echo "Try manually with: coder create --yes --template=docker my-workspace"
+        # Handle workspace creation failure or issues
+        if [ $CREATE_RESULT -ne 0 ]; then
+            echo "❌ Failed to create workspace."
+            echo "Try manually with: coder create --yes --template=docker my-workspace"
+        else
+            echo "⚠️ Workspace created but there was an issue setting up the Coder repository."
+            echo "   The workspace was created but the repository wasn't cloned automatically."
+            echo "   It should be cloned when the agent startup script completes."
+            echo "   If not, you can manually set it up with these steps:"
+            echo ""
+            echo "   1. Connect to your workspace: coder open $WORKSPACE_NAME"
+            echo "   2. Once VS Code opens, open a terminal (Terminal > New Terminal)"
+            echo "   3. Verify if the repository exists: ls -la ~/"
+            echo "   4. If it doesn't exist, run these commands:"
+            echo "      cd ~"
+            echo "      git clone https://github.com/coder/coder.git"
+            echo "      mkdir -p ~/coder/.vscode"
+            echo "      echo '{\"recommendations\":[\"coder.coder-remote\"]}' > ~/coder/.vscode/extensions.json"
+            echo "      git config --global user.name \"$GIT_NAME\""
+            echo "      git config --global user.email \"$GIT_EMAIL\""
+        fi
     fi
 }
 
