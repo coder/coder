@@ -1,11 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { docs } from "utils/docs";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "./SettingsHeader";
-import { docs } from "utils/docs";
 
 const meta: Meta<typeof SettingsHeader> = {
 	title: "components/SettingsHeader",
