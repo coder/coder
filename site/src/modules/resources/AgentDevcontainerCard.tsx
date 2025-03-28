@@ -1,26 +1,35 @@
 import Link from "@mui/material/Link";
 import Tooltip, { type TooltipProps } from "@mui/material/Tooltip";
-import type { Workspace, WorkspaceAgentContainer } from "api/typesGenerated";
+import type {
+	Workspace,
+	WorkspaceAgent,
+	WorkspaceAgentContainer,
+} from "api/typesGenerated";
 import { ExternalLinkIcon } from "lucide-react";
 import type { FC } from "react";
 import { portForwardURL } from "utils/portForward";
 import { AgentButton } from "./AgentButton";
 import { AgentDevcontainerSSHButton } from "./SSHButton/SSHButton";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
+import { VSCodeDevContainerButton } from "./VSCodeDevContainerButton/VSCodeDevContainerButton";
 
 type AgentDevcontainerCardProps = {
+	agent: WorkspaceAgent;
 	container: WorkspaceAgentContainer;
 	workspace: Workspace;
 	wildcardHostname: string;
-	agentName: string;
 };
 
 export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
+	agent,
 	container,
 	workspace,
-	agentName,
 	wildcardHostname,
 }) => {
+	const folderPath = container.labels["devcontainer.local_folder"];
+	const configFile = container.labels["devcontainer.config_file"];
+	const containerFolder = container.volumes[folderPath];
+
 	return (
 		<section
 			className="border border-border border-dashed rounded p-6 "
@@ -40,9 +49,18 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 			<h4 className="m-0 text-xl font-semibold">Forwarded ports</h4>
 
 			<div className="flex gap-4 flex-wrap mt-4">
+				<VSCodeDevContainerButton
+					userName={workspace.owner_name}
+					workspaceName={workspace.name}
+					folderPath={folderPath}
+					devContainerPath={configFile}
+					devContainerFolder={containerFolder}
+					displayApps={agent.display_apps}
+				/>
+
 				<TerminalLink
 					workspaceName={workspace.name}
-					agentName={agentName}
+					agentName={agent.name}
 					containerName={container.name}
 					userName={workspace.owner_name}
 				/>
@@ -58,7 +76,7 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 							? portForwardURL(
 									wildcardHostname,
 									port.host_port!,
-									agentName,
+									agent.name,
 									workspace.name,
 									workspace.owner_name,
 									location.protocol === "https" ? "https" : "http",

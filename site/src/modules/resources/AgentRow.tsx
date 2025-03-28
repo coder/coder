@@ -289,7 +289,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 									container={container}
 									workspace={workspace}
 									wildcardHostname={proxy.preferredWildcardHostname}
-									agentName={agent.name}
+									agent={agent}
 								/>
 							);
 						})}
