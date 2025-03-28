@@ -273,8 +273,9 @@ func handleCoderListTemplates(deps ToolDeps) mcpserver.ToolHandlerFunc {
 }
 
 // Example payload:
-// {"jsonrpc":"2.0","id":1,"method":"tools/call", "params": {"name": "coder_start_workspace", "arguments": {"workspace": "dev"}}}
-func handleCoderStartWorkspace(deps ToolDeps) mcpserver.ToolHandlerFunc {
+// {"jsonrpc":"2.0","id":1,"method":"tools/call", "params": {"name":
+// "coder_workspace_transition", "arguments": {"workspace": "dev", "transition": "stop"}}}
+func handleCoderWorkspaceTransition(deps ToolDeps) mcpserver.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		if deps.Client == nil {
 			return nil, xerrors.New("developer error: client is required")
@@ -292,59 +293,22 @@ func handleCoderStartWorkspace(deps ToolDeps) mcpserver.ToolHandlerFunc {
 			return nil, xerrors.Errorf("failed to fetch workspace: %w", err)
 		}
 
-		switch workspace.LatestBuild.Status {
-		case codersdk.WorkspaceStatusPending, codersdk.WorkspaceStatusStarting, codersdk.WorkspaceStatusRunning, codersdk.WorkspaceStatusCanceling:
-			return nil, xerrors.Errorf("workspace is %s", workspace.LatestBuild.Status)
-		}
-
-		wb, err := deps.Client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-			Transition: codersdk.WorkspaceTransitionStart,
-		})
-		if err != nil {
-			return nil, xerrors.Errorf("failed to start workspace: %w", err)
-		}
-
-		resp := map[string]any{"status": wb.Status, "transition": wb.Transition}
-		respJSON, err := json.Marshal(resp)
-		if err != nil {
-			return nil, xerrors.Errorf("failed to encode workspace build: %w", err)
-		}
-
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				mcp.NewTextContent(string(respJSON)),
-			},
-		}, nil
-	}
-}
-
-// Example payload:
-// {"jsonrpc":"2.0","id":1,"method":"tools/call", "params": {"name": "coder_stop_workspace", "arguments": {"workspace": "dev"}}}
-func handleCoderStopWorkspace(deps ToolDeps) mcpserver.ToolHandlerFunc {
-	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		if deps.Client == nil {
-			return nil, xerrors.New("developer error: client is required")
-		}
-
-		args := request.Params.Arguments
-
-		wsArg, ok := args["workspace"].(string)
+		transition, ok := args["transition"].(string)
 		if !ok {
-			return nil, xerrors.New("workspace is required")
+			return nil, xerrors.New("transition is required")
+		}
+		wsTransition := codersdk.WorkspaceTransition(transition)
+		switch wsTransition {
+		case codersdk.WorkspaceTransitionStart:
+		case codersdk.WorkspaceTransitionStop:
+		default:
+			return nil, xerrors.New("invalid transition")
 		}
 
-		workspace, err := getWorkspaceByIDOrOwnerName(ctx, deps.Client, wsArg)
-		if err != nil {
-			return nil, xerrors.Errorf("failed to fetch workspace: %w", err)
-		}
-
-		switch workspace.LatestBuild.Status {
-		case codersdk.WorkspaceStatusPending, codersdk.WorkspaceStatusStopping, codersdk.WorkspaceStatusStopped, codersdk.WorkspaceStatusCanceling:
-			return nil, xerrors.Errorf("workspace is %s", workspace.LatestBuild.Status)
-		}
-
+		// We're not going to check the workspace status here as it is checked on the
+		// server side.
 		wb, err := deps.Client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-			Transition: codersdk.WorkspaceTransitionStop,
+			Transition: wsTransition,
 		})
 		if err != nil {
 			return nil, xerrors.Errorf("failed to stop workspace: %w", err)

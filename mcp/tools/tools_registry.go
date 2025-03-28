@@ -155,52 +155,34 @@ Note: Very long-running commands may time out.`), mcp.Required()),
 		MakeHandler: handleCoderWorkspaceExec,
 	},
 	{
-		Tool: mcp.NewTool("coder_start_workspace",
-			mcp.WithDescription(`Start a stopped Coder workspace.
-Initiates the workspace build process to provision and start all resources.
+		Tool: mcp.NewTool("coder_workspace_transition",
+			mcp.WithDescription(`Start or stop a running Coder workspace.
+If stopping, initiates the workspace stop transition.
+Only works on workspaces that are currently running or failed.
+
+If starting, initiates the workspace start transition.
 Only works on workspaces that are currently stopped or failed.
-Starting a workspace is an asynchronous operation - it may take several minutes to complete.
+
+Stopping or starting a workspace is an asynchronous operation - it may take several minutes to complete.
 
 After calling this tool:
-1. Use coder_report_task to inform the user that the workspace is starting
+1. Use coder_report_task to inform the user that the workspace is stopping or starting
 2. Use coder_get_workspace periodically to check for completion
 
 Common errors:
-- Workspace already running/starting: No action needed
-- Quota limits exceeded: User may have reached resource limits
-- Template error: The underlying template may have issues`),
-			mcp.WithString("workspace", mcp.Description(`The workspace ID (UUID) or name to start.
-Can be specified as either:
-- Full UUID: e.g., "8a0b9c7d-1e2f-3a4b-5c6d-7e8f9a0b1c2d"
-- Workspace name: e.g., "dev", "python-project"
-The workspace must be in a stopped state to be started.
-Use coder_get_workspace first to check the current workspace status.`), mcp.Required()),
-		),
-		MakeHandler: handleCoderStartWorkspace,
-	},
-	{
-		Tool: mcp.NewTool("coder_stop_workspace",
-			mcp.WithDescription(`Stop a running Coder workspace.
-Initiates the workspace termination process to shut down all resources.
-Only works on workspaces that are currently running.
-Stopping a workspace is an asynchronous operation - it may take several minutes to complete.
-
-After calling this tool:
-1. Use coder_report_task to inform the user that the workspace is stopping
-2. Use coder_get_workspace periodically to check for completion
-
-Common errors:
-- Workspace already stopped/stopping: No action needed
+- Workspace already started/starting/stopped/stopping: No action needed
 - Cancellation failed: There may be issues with the underlying infrastructure
 - User doesn't own workspace: Permission issues`),
-			mcp.WithString("workspace", mcp.Description(`The workspace ID (UUID) or name to stop.
+			mcp.WithString("workspace", mcp.Description(`The workspace ID (UUID) or name to start or stop.
 Can be specified as either:
 - Full UUID: e.g., "8a0b9c7d-1e2f-3a4b-5c6d-7e8f9a0b1c2d"
 - Workspace name: e.g., "dev", "python-project"
-The workspace must be in a running state to be stopped.
+The workspace must be in a running state to be stopped, or in a stopped or failed state to be started.
 Use coder_get_workspace first to check the current workspace status.`), mcp.Required()),
+			mcp.WithString("transition", mcp.Description(`The transition to apply to the workspace.
+Can be either "start" or "stop".`)),
 		),
-		MakeHandler: handleCoderStopWorkspace,
+		MakeHandler: handleCoderWorkspaceTransition,
 	},
 }
 

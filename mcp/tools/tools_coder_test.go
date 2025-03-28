@@ -195,27 +195,6 @@ func TestCoderTools(t *testing.T) {
 		testutil.RequireJSONEq(t, expected, actual)
 	})
 
-	t.Run("coder_stop_workspace", func(t *testing.T) {
-		// Given: a separate workspace in the running state
-		stopWs := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
-			OrganizationID: owner.OrganizationID,
-			OwnerID:        member.ID,
-		}).WithAgent().Do()
-
-		// When: the coder_stop_workspace tool is called
-		ctr := makeJSONRPCRequest(t, "tools/call", "coder_stop_workspace", map[string]any{
-			"workspace": stopWs.Workspace.ID.String(),
-		})
-
-		pty.WriteLine(ctr)
-		_ = pty.ReadLine(ctx) // skip the echo
-
-		// Then: the response is as expected.
-		expected := makeJSONRPCTextResponse(t, `{"status":"pending","transition":"stop"}`) // no provisionerd yet
-		actual := pty.ReadLine(ctx)
-		testutil.RequireJSONEq(t, expected, actual)
-	})
-
 	// NOTE: this test runs after the list_workspaces tool is called.
 	t.Run("tool_restrictions", func(t *testing.T) {
 		// Given: the workspace agent is connected
@@ -256,7 +235,29 @@ func TestCoderTools(t *testing.T) {
 		require.Contains(t, disallowedToolResponse, "not found")
 	})
 
-	t.Run("coder_start_workspace", func(t *testing.T) {
+	t.Run("coder_workspace_transition_stop", func(t *testing.T) {
+		// Given: a separate workspace in the running state
+		stopWs := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+			OrganizationID: owner.OrganizationID,
+			OwnerID:        member.ID,
+		}).WithAgent().Do()
+
+		// When: the coder_workspace_transition tool is called with a stop transition
+		ctr := makeJSONRPCRequest(t, "tools/call", "coder_workspace_transition", map[string]any{
+			"workspace":  stopWs.Workspace.ID.String(),
+			"transition": "stop",
+		})
+
+		pty.WriteLine(ctr)
+		_ = pty.ReadLine(ctx) // skip the echo
+
+		// Then: the response is as expected.
+		expected := makeJSONRPCTextResponse(t, `{"status":"pending","transition":"stop"}`) // no provisionerd yet
+		actual := pty.ReadLine(ctx)
+		testutil.RequireJSONEq(t, expected, actual)
+	})
+
+	t.Run("coder_workspace_transition_start", func(t *testing.T) {
 		// Given: a separate workspace in the stopped state
 		stopWs := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
 			OrganizationID: owner.OrganizationID,
@@ -265,9 +266,10 @@ func TestCoderTools(t *testing.T) {
 			Transition: database.WorkspaceTransitionStop,
 		}).Do()
 
-		// When: the coder_start_workspace tool is called
-		ctr := makeJSONRPCRequest(t, "tools/call", "coder_start_workspace", map[string]any{
-			"workspace": stopWs.Workspace.ID.String(),
+		// When: the coder_workspace_transition tool is called with a start transition
+		ctr := makeJSONRPCRequest(t, "tools/call", "coder_workspace_transition", map[string]any{
+			"workspace":  stopWs.Workspace.ID.String(),
+			"transition": "start",
 		})
 
 		pty.WriteLine(ctr)
