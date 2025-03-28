@@ -5952,7 +5952,7 @@ WHERE w.id IN (
 	-- The prebuilds system should never try to claim a prebuild for an inactive template version.
 	-- Nevertheless, this filter is here as a defensive measure:
 	AND b.template_version_id = t.active_version_id
-	AND b.template_version_preset_id = $3::uuid
+	AND p.current_preset_id = $3::uuid
 	AND p.ready
 	LIMIT 1 FOR UPDATE OF p SKIP LOCKED -- Ensure that a concurrent request will not select the same prebuild.
 )
