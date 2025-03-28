@@ -16,7 +16,7 @@ export const SettingsHeader: FC<SettingsHeaderProps> = ({
 	className,
 }) => {
 	return (
-		<hgroup className="flex flex-row justify-between align-baseline">
+		<hgroup className="flex flex-col justify-between items-start gap-2 pb-6 sm:flex-row">
 			{/*
 			 * The text-sm class is only meant to adjust the font size of
 			 * SettingsDescription, but we need to apply it here. That way,
@@ -24,9 +24,7 @@ export const SettingsHeader: FC<SettingsHeaderProps> = ({
 			 * we have a predictable max width for the header + description by
 			 * default.
 			 */}
-			<div className={cn("text-sm max-w-prose pb-6", className)}>
-				{children}
-			</div>
+			<div className={cn("text-sm max-w-prose", className)}>{children}</div>
 			{actions}
 		</hgroup>
 	);
@@ -83,7 +81,7 @@ export const SettingsHeaderTitle: FC<SettingsHeaderTitleProps> = ({
 	// in invalid markup
 	const Title = level;
 	return (
-		<div className="flex flex-row gap-2 align-middle">
+		<div className="flex flex-row gap-2 items-middle">
 			<Title className={cn(titleVariants({ hierarchy }), className)}>
 				{children}
 			</Title>
