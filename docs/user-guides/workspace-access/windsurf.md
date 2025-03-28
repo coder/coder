@@ -7,65 +7,11 @@ Follow this guide to use Windsurf to access your Coder workspaces.
 
 If your team uses Windsurf regularly, ask your Coder administrator to add Windsurf as a workspace application in your template.
 
-## Install Windsurf and Coder CLI
+## Install Windsurf
 
 Windsurf can connect to your Coder workspaces via SSH:
 
 1. [Install Windsurf](https://docs.codeium.com/windsurf/getting-started) on your local machine.
-
-1. Install the Coder CLI:
-
-   <!-- copied from docs/install/cli.md - make changes there -->
-
-   <div class="tabs">
-
-   ### Linux/macOS
-
-   Our install script is the fastest way to install Coder on Linux/macOS:
-
-   ```sh
-   curl -L https://coder.com/install.sh | sh
-   ```
-
-   Refer to [GitHub releases](https://github.com/coder/coder/releases) for
-   alternate installation methods (e.g. standalone binaries, system packages).
-
-   ### Windows
-
-   Use [GitHub releases](https://github.com/coder/coder/releases) to download the
-   Windows installer (`.msi`) or standalone binary (`.exe`).
-
-   ![Windows setup wizard](../../images/install/windows-installer.png)
-
-   Alternatively, you can use the
-   [`winget`](https://learn.microsoft.com/en-us/windows/package-manager/winget/#use-winget)
-   package manager to install Coder:
-
-   ```powershell
-   winget install Coder.Coder
-   ```
-
-   </div>
-
-   Consult the [Coder CLI documentation](../../install/cli.md) for more options.
-
-1. Log in to your Coder deployment and authenticate when prompted:
-
-   ```shell
-   coder login coder.example.com
-   ```
-
-1. Configure Coder SSH:
-
-   ```shell
-   coder config-ssh
-   ```
-
-1. List your available workspaces:
-
-   ```shell
-   coder list
-   ```
 
 1. Open Windsurf and select **Get started**.
 

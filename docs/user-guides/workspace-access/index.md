@@ -83,9 +83,15 @@ Read more details on [using VSCode in your workspace](./vscode.md).
 ## Cursor
 
 [Cursor](https://cursor.sh/) is an IDE built on VS Code with enhanced AI capabilities.
-Cursor connects using SSH and provides AI-assisted development features.
+Cursor connects using the Coder extension.
 
 Read more about [using Cursor with your workspace](./cursor.md).
+
+## Windsurf
+
+[Windsurf](./windsurf.md) is Codeium's code editor designed for AI-assisted development.
+Windsurf connects using the Coder extension.
+
 
 ## JetBrains IDEs
 
@@ -101,7 +107,6 @@ IDEs are supported for remote development:
 - RubyMine
 - WebStorm
 - [JetBrains Fleet](./jetbrains.md#jetbrains-fleet)
-- [Windsurf](./windsurf.md)
 
 Read our [docs on JetBrains Gateway](./jetbrains.md) for more information on
 connecting your JetBrains IDEs.
@@ -127,8 +132,6 @@ Supported IDEs:
 - RStudio
 - Airflow
 - File Browser
-- [Cursor](./cursor.md)
-- [Windsurf](./windsurf.md)
 
 Our [Module Registry](https://registry.coder.com/modules) also hosts a variety
 of tools for extending the capability of your workspace. If you have a request

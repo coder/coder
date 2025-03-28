@@ -6,65 +6,11 @@ Follow this guide to use Cursor to access your Coder workspaces.
 
 If your team uses Cursor regularly, ask your Coder administrator to add a [Cursor module](https://registry.coder.com/modules/cursor) to your template.
 
-## Install Cursor and Coder CLI
+## Install Cursor
 
-Cursor can connect to a Coder workspace using SSH:
+Cursor can connect to a Coder workspace using the Coder extension:
 
 1. [Install Cursor](https://docs.cursor.com/get-started/installation) on your local machine.
-
-1. Install the Coder CLI:
-
-   <!-- copied from docs/install/cli.md - make changes there -->
-
-   <div class="tabs">
-
-   ### Linux/macOS
-
-   Our install script is the fastest way to install Coder on Linux/macOS:
-
-   ```sh
-   curl -L https://coder.com/install.sh | sh
-   ```
-
-   Refer to [GitHub releases](https://github.com/coder/coder/releases) for
-   alternate installation methods (e.g. standalone binaries, system packages).
-
-   ### Windows
-
-   Use [GitHub releases](https://github.com/coder/coder/releases) to download the
-   Windows installer (`.msi`) or standalone binary (`.exe`).
-
-   ![Windows setup wizard](../../images/install/windows-installer.png)
-
-   Alternatively, you can use the
-   [`winget`](https://learn.microsoft.com/en-us/windows/package-manager/winget/#use-winget)
-   package manager to install Coder:
-
-   ```powershell
-   winget install Coder.Coder
-   ```
-
-   </div>
-
-   Consult the [Coder CLI documentation](../../install/cli.md) for more options.
-
-1. Log in to your Coder deployment and authenticate when prompted:
-
-   ```shell
-   coder login coder.example.com
-   ```
-
-1. Configure Coder SSH:
-
-   ```shell
-   coder config-ssh
-   ```
-
-1. List your available workspaces:
-
-   ```shell
-   coder list
-   ```
 
 1. Open Cursor and log in or [create a Cursor account](https://authenticator.cursor.sh/sign-up)
    if you don't have one already.
