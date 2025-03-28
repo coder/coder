@@ -1,6 +1,6 @@
 import {
-	InboxNotificationFallbackIcons,
 	type InboxNotificationFallbackIcon,
+	InboxNotificationFallbackIcons,
 } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import {
@@ -28,7 +28,6 @@ export const InboxAvatar: FC<InboxAvatarProps> = ({ icon }) => {
 		return <Avatar variant="icon">{fallbackIcons[icon]}</Avatar>;
 	}
 
-	console.log("ICON");
 	return <Avatar variant="icon" src={icon} />;
 };
 
