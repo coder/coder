@@ -130,14 +130,14 @@ organizations. This can be enforced from the organization settings page in the
 
 Coder supports
 [device flow](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps#device-flow)
-for GitHub OAuth. This is enabled by default for the default GitHub app and cannot be disabled 
+for GitHub OAuth. This is enabled by default for the default GitHub app and cannot be disabled
 for that app. For your own custom GitHub OAuth app, you can enable device flow by setting:
 
 ```env
 CODER_OAUTH2_GITHUB_DEVICE_FLOW=true
 ```
 
-Device flow is optional for custom GitHub OAuth apps. We generally recommend using 
+Device flow is optional for custom GitHub OAuth apps. We generally recommend using
 the standard OAuth flow instead, as it is more convenient for end users.
 
 > [!NOTE]
