@@ -1,3 +1,7 @@
+import {
+	InboxNotificationFallbackIcons,
+	type InboxNotificationFallbackIcon,
+} from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import {
 	InfoIcon,
@@ -8,23 +12,28 @@ import {
 import type { FC } from "react";
 import type React from "react";
 
-export type InboxIcon =
-	| "DEFAULT_WORKSPACE_ICON"
-	| "DEFAULT_ACCOUNT_ICON"
-	| "DEFAULT_TEMPLATE_ICON"
-	| "DEFAULT_OTHER_ICON";
-
-const inboxIcons: Record<InboxIcon, React.ReactNode> = {
-	DEFAULT_WORKSPACE_ICON: <LaptopIcon />,
-	DEFAULT_ACCOUNT_ICON: <UserIcon />,
-	DEFAULT_TEMPLATE_ICON: <LayoutTemplateIcon />,
-	DEFAULT_OTHER_ICON: <InfoIcon />,
+const fallbackIcons: Record<InboxNotificationFallbackIcon, React.ReactNode> = {
+	DEFAULT_ICON_WORKSPACE: <LaptopIcon />,
+	DEFAULT_ICON_ACCOUNT: <UserIcon />,
+	DEFAULT_ICON_TEMPLATE: <LayoutTemplateIcon />,
+	DEFAULT_ICON_OTHER: <InfoIcon />,
 };
 
 type InboxAvatarProps = {
-	icon: InboxIcon;
+	icon: string;
 };
 
 export const InboxAvatar: FC<InboxAvatarProps> = ({ icon }) => {
-	return <Avatar variant="icon">{inboxIcons[icon]}</Avatar>;
+	if (isInboxNotificationFallbackIcon(icon)) {
+		return <Avatar variant="icon">{fallbackIcons[icon]}</Avatar>;
+	}
+
+	console.log("ICON");
+	return <Avatar variant="icon" src={icon} />;
 };
+
+function isInboxNotificationFallbackIcon(
+	icon: string,
+): icon is InboxNotificationFallbackIcon {
+	return (InboxNotificationFallbackIcons as string[]).includes(icon);
+}

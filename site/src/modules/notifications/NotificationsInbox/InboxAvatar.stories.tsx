@@ -9,26 +9,32 @@ const meta: Meta<typeof InboxAvatar> = {
 export default meta;
 type Story = StoryObj<typeof InboxAvatar>;
 
-export const Workspace: Story = {
+export const Custom: Story = {
 	args: {
-		icon: "DEFAULT_WORKSPACE_ICON",
+		icon: "/icon/git.svg",
 	},
 };
 
-export const Account: Story = {
+export const FallbackWorkspace: Story = {
 	args: {
-		icon: "DEFAULT_ACCOUNT_ICON",
+		icon: "DEFAULT_ICON_WORKSPACE",
 	},
 };
 
-export const Template: Story = {
+export const FallbackAccount: Story = {
 	args: {
-		icon: "DEFAULT_TEMPLATE_ICON",
+		icon: "DEFAULT_ICON_ACCOUNT",
 	},
 };
 
-export const Other: Story = {
+export const FallbackTemplate: Story = {
 	args: {
-		icon: "DEFAULT_OTHER_ICON",
+		icon: "DEFAULT_ICON_TEMPLATE",
+	},
+};
+
+export const FallbackOther: Story = {
+	args: {
+		icon: "DEFAULT_ICON_OTHER",
 	},
 };

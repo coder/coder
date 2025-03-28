@@ -3052,7 +3052,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
     ],
     "content": "string",
     "created_at": "2019-08-24T14:15:22Z",
-    "icon": "string",
+    "icon": "DEFAULT_ICON_WORKSPACE",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "read_at": "string",
     "targets": [
@@ -3320,7 +3320,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   ],
   "content": "string",
   "created_at": "2019-08-24T14:15:22Z",
-  "icon": "string",
+  "icon": "DEFAULT_ICON_WORKSPACE",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "read_at": "string",
   "targets": [
@@ -3334,18 +3334,18 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name          | Type                                                                          | Required | Restrictions | Description |
-|---------------|-------------------------------------------------------------------------------|----------|--------------|-------------|
-| `actions`     | array of [codersdk.InboxNotificationAction](#codersdkinboxnotificationaction) | false    |              |             |
-| `content`     | string                                                                        | false    |              |             |
-| `created_at`  | string                                                                        | false    |              |             |
-| `icon`        | string                                                                        | false    |              |             |
-| `id`          | string                                                                        | false    |              |             |
-| `read_at`     | string                                                                        | false    |              |             |
-| `targets`     | array of string                                                               | false    |              |             |
-| `template_id` | string                                                                        | false    |              |             |
-| `title`       | string                                                                        | false    |              |             |
-| `user_id`     | string                                                                        | false    |              |             |
+| Name          | Type                                                                             | Required | Restrictions | Description |
+|---------------|----------------------------------------------------------------------------------|----------|--------------|-------------|
+| `actions`     | array of [codersdk.InboxNotificationAction](#codersdkinboxnotificationaction)    | false    |              |             |
+| `content`     | string                                                                           | false    |              |             |
+| `created_at`  | string                                                                           | false    |              |             |
+| `icon`        | [codersdk.InboxNotificationFallbackIcon](#codersdkinboxnotificationfallbackicon) | false    |              |             |
+| `id`          | string                                                                           | false    |              |             |
+| `read_at`     | string                                                                           | false    |              |             |
+| `targets`     | array of string                                                                  | false    |              |             |
+| `template_id` | string                                                                           | false    |              |             |
+| `title`       | string                                                                           | false    |              |             |
+| `user_id`     | string                                                                           | false    |              |             |
 
 ## codersdk.InboxNotificationAction
 
@@ -3362,6 +3362,23 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |---------|--------|----------|--------------|-------------|
 | `label` | string | false    |              |             |
 | `url`   | string | false    |              |             |
+
+## codersdk.InboxNotificationFallbackIcon
+
+```json
+"DEFAULT_ICON_WORKSPACE"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value                    |
+|--------------------------|
+| `DEFAULT_ICON_WORKSPACE` |
+| `DEFAULT_ICON_ACCOUNT`   |
+| `DEFAULT_ICON_TEMPLATE`  |
+| `DEFAULT_ICON_OTHER`     |
 
 ## codersdk.InsightsReportInterval
 
@@ -3506,7 +3523,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
       ],
       "content": "string",
       "created_at": "2019-08-24T14:15:22Z",
-      "icon": "string",
+      "icon": "DEFAULT_ICON_WORKSPACE",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "read_at": "string",
       "targets": [

@@ -10,24 +10,26 @@ import (
 	"github.com/google/uuid"
 )
 
+type InboxNotificationFallbackIcon string
+
 const (
-	FallbackIconWorkspace = "DEFAULT_ICON_WORKSPACE"
-	FallbackIconAccount   = "DEFAULT_ICON_ACCOUNT"
-	FallbackIconTemplate  = "DEFAULT_ICON_TEMPLATE"
-	FallbackIconOther     = "DEFAULT_ICON_OTHER"
+	FallbackIconWorkspace InboxNotificationFallbackIcon = "DEFAULT_ICON_WORKSPACE"
+	FallbackIconAccount   InboxNotificationFallbackIcon = "DEFAULT_ICON_ACCOUNT"
+	FallbackIconTemplate  InboxNotificationFallbackIcon = "DEFAULT_ICON_TEMPLATE"
+	FallbackIconOther     InboxNotificationFallbackIcon = "DEFAULT_ICON_OTHER"
 )
 
 type InboxNotification struct {
-	ID         uuid.UUID                 `json:"id" format:"uuid"`
-	UserID     uuid.UUID                 `json:"user_id" format:"uuid"`
-	TemplateID uuid.UUID                 `json:"template_id" format:"uuid"`
-	Targets    []uuid.UUID               `json:"targets" format:"uuid"`
-	Title      string                    `json:"title"`
-	Content    string                    `json:"content"`
-	Icon       string                    `json:"icon"`
-	Actions    []InboxNotificationAction `json:"actions"`
-	ReadAt     *time.Time                `json:"read_at"`
-	CreatedAt  time.Time                 `json:"created_at" format:"date-time"`
+	ID         uuid.UUID                     `json:"id" format:"uuid"`
+	UserID     uuid.UUID                     `json:"user_id" format:"uuid"`
+	TemplateID uuid.UUID                     `json:"template_id" format:"uuid"`
+	Targets    []uuid.UUID                   `json:"targets" format:"uuid"`
+	Title      string                        `json:"title"`
+	Content    string                        `json:"content"`
+	Icon       InboxNotificationFallbackIcon `json:"icon"`
+	Actions    []InboxNotificationAction     `json:"actions"`
+	ReadAt     *time.Time                    `json:"read_at"`
+	CreatedAt  time.Time                     `json:"created_at" format:"date-time"`
 }
 
 type InboxNotificationAction struct {

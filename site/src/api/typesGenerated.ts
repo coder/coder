@@ -839,18 +839,6 @@ export interface ExternalAuthUser {
 	readonly name: string;
 }
 
-// From codersdk/inboxnotification.go
-export const FallbackIconAccount = "DEFAULT_ICON_ACCOUNT";
-
-// From codersdk/inboxnotification.go
-export const FallbackIconOther = "DEFAULT_ICON_OTHER";
-
-// From codersdk/inboxnotification.go
-export const FallbackIconTemplate = "DEFAULT_ICON_TEMPLATE";
-
-// From codersdk/inboxnotification.go
-export const FallbackIconWorkspace = "DEFAULT_ICON_WORKSPACE";
-
 // From codersdk/deployment.go
 export interface Feature {
 	readonly entitlement: Entitlement;
@@ -1112,7 +1100,7 @@ export interface InboxNotification {
 	readonly targets: readonly string[];
 	readonly title: string;
 	readonly content: string;
-	readonly icon: string;
+	readonly icon: InboxNotificationFallbackIcon;
 	readonly actions: readonly InboxNotificationAction[];
 	readonly read_at: string | null;
 	readonly created_at: string;
@@ -1123,6 +1111,20 @@ export interface InboxNotificationAction {
 	readonly label: string;
 	readonly url: string;
 }
+
+// From codersdk/inboxnotification.go
+export type InboxNotificationFallbackIcon =
+	| "DEFAULT_ICON_ACCOUNT"
+	| "DEFAULT_ICON_OTHER"
+	| "DEFAULT_ICON_TEMPLATE"
+	| "DEFAULT_ICON_WORKSPACE";
+
+export const InboxNotificationFallbackIcons: InboxNotificationFallbackIcon[] = [
+	"DEFAULT_ICON_ACCOUNT",
+	"DEFAULT_ICON_OTHER",
+	"DEFAULT_ICON_TEMPLATE",
+	"DEFAULT_ICON_WORKSPACE",
+];
 
 // From codersdk/insights.go
 export type InsightsReportInterval = "day" | "week";

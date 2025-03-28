@@ -16,9 +16,9 @@ func TestInboxNotifications_ensureNotificationIcon(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		icon         string
+		icon         codersdk.InboxNotificationFallbackIcon
 		templateID   uuid.UUID
-		expectedIcon string
+		expectedIcon codersdk.InboxNotificationFallbackIcon
 	}{
 		{"WorkspaceCreated", "", notifications.TemplateWorkspaceCreated, codersdk.FallbackIconWorkspace},
 		{"UserAccountCreated", "", notifications.TemplateUserAccountCreated, codersdk.FallbackIconAccount},

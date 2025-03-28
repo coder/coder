@@ -29,7 +29,7 @@ const (
 	notificationFormatPlaintext = "plaintext"
 )
 
-var fallbackIcons = map[uuid.UUID]string{
+var fallbackIcons = map[uuid.UUID]codersdk.InboxNotificationFallbackIcon{
 	// workspace related notifications
 	notifications.TemplateWorkspaceCreated:           codersdk.FallbackIconWorkspace,
 	notifications.TemplateWorkspaceManuallyUpdated:   codersdk.FallbackIconWorkspace,
@@ -80,7 +80,7 @@ func convertInboxNotificationResponse(ctx context.Context, logger slog.Logger, n
 		Targets:    notif.Targets,
 		Title:      notif.Title,
 		Content:    notif.Content,
-		Icon:       notif.Icon,
+		Icon:       codersdk.InboxNotificationFallbackIcon(notif.Icon),
 		Actions: func() []codersdk.InboxNotificationAction {
 			var actionsList []codersdk.InboxNotificationAction
 			err := json.Unmarshal([]byte(notif.Actions), &actionsList)
