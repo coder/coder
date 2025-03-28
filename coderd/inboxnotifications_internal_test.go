@@ -11,7 +11,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func TestInboxNotifications_SetInboxNotificationIcon(t *testing.T) {
+func TestInboxNotifications_ensureNotificationIcon(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {

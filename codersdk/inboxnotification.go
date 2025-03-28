@@ -11,10 +11,10 @@ import (
 )
 
 const (
-	FallbackIconWorkspace = "DEFAULT_WORKSPACE_ICON"
-	FallbackIconAccount   = "DEFAULT_ACCOUNT_ICON"
-	FallbackIconTemplate  = "DEFAULT_TEMPLATE_ICON"
-	FallbackIconOther     = "DEFAULT_OTHER_ICON"
+	FallbackIconWorkspace = "DEFAULT_ICON_WORKSPACE"
+	FallbackIconAccount   = "DEFAULT_ICON_ACCOUNT"
+	FallbackIconTemplate  = "DEFAULT_ICON_TEMPLATE"
+	FallbackIconOther     = "DEFAULT_ICON_OTHER"
 )
 
 type InboxNotification struct {
