@@ -3,6 +3,7 @@ package coderd
 import (
 	"net/http"
 
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
@@ -29,7 +30,9 @@ func (api *API) templateVersionPresets(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	presetParams, err := api.Database.GetPresetParametersByTemplateVersionID(ctx, templateVersion.ID)
+	presetParams, err := api.Database.GetPresetParametersByTemplateVersionID(ctx, database.GetPresetParametersByTemplateVersionIDParams{
+		TemplateVersionID: templateVersion.ID,
+	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching template version presets.",

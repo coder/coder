@@ -4188,14 +4188,14 @@ func (q *FakeQuerier) GetPresetByWorkspaceBuildID(_ context.Context, workspaceBu
 	return database.TemplateVersionPreset{}, sql.ErrNoRows
 }
 
-func (q *FakeQuerier) GetPresetParametersByTemplateVersionID(_ context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionPresetParameter, error) {
+func (q *FakeQuerier) GetPresetParametersByTemplateVersionID(_ context.Context, args database.GetPresetParametersByTemplateVersionIDParams) ([]database.TemplateVersionPresetParameter, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	presets := make([]database.TemplateVersionPreset, 0)
 	parameters := make([]database.TemplateVersionPresetParameter, 0)
 	for _, preset := range q.presets {
-		if preset.TemplateVersionID != templateVersionID {
+		if preset.TemplateVersionID != args.TemplateVersionID {
 			continue
 		}
 		presets = append(presets, preset)
@@ -8739,6 +8739,11 @@ func (q *FakeQuerier) InsertPreset(_ context.Context, arg database.InsertPresetP
 		TemplateVersionID: arg.TemplateVersionID,
 		Name:              arg.Name,
 		CreatedAt:         arg.CreatedAt,
+		DesiredInstances:  arg.DesiredInstances,
+		InvalidateAfterSecs: sql.NullInt32{
+			Int32: 0,
+			Valid: true,
+		},
 	}
 	q.presets = append(q.presets, preset)
 	return preset, nil

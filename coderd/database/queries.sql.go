@@ -6334,10 +6334,16 @@ FROM
 	INNER JOIN template_version_presets ON template_version_preset_parameters.template_version_preset_id = template_version_presets.id
 WHERE
 	template_version_presets.template_version_id = $1
+	AND ($2::uuid IS NULL OR template_version_presets.id = $2)
 `
 
-func (q *sqlQuerier) GetPresetParametersByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionPresetParameter, error) {
-	rows, err := q.db.QueryContext(ctx, getPresetParametersByTemplateVersionID, templateVersionID)
+type GetPresetParametersByTemplateVersionIDParams struct {
+	TemplateVersionID uuid.UUID     `db:"template_version_id" json:"template_version_id"`
+	PresetID          uuid.NullUUID `db:"preset_id" json:"preset_id"`
+}
+
+func (q *sqlQuerier) GetPresetParametersByTemplateVersionID(ctx context.Context, arg GetPresetParametersByTemplateVersionIDParams) ([]TemplateVersionPresetParameter, error) {
+	rows, err := q.db.QueryContext(ctx, getPresetParametersByTemplateVersionID, arg.TemplateVersionID, arg.PresetID)
 	if err != nil {
 		return nil, err
 	}
