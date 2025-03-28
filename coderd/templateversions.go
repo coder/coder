@@ -26,7 +26,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/externalauth"
-	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
@@ -41,7 +40,8 @@ import (
 	"github.com/coder/coder/v2/provisionersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/preview"
-	"github.com/coder/preview/types"
+	previewtypes "github.com/coder/preview/types"
+	previewweb "github.com/coder/preview/web"
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 )
@@ -308,11 +308,11 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 		return
 	}
 
-	file := api.FileCache.Acquire(fileID)
-	if file == nil {
+	fs, err := api.FileCache.Acquire(fileID)
+	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: "Internal error fetching template version Terraform.",
-			Detail:  "Failed to acquire file from cache.",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -340,12 +340,14 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 	input := preview.Input{
 		PlanJSON:        plan,
 		ParameterValues: map[string]string{},
-		Owner:           types.WorkspaceOwner{},
+		Owner:           previewtypes.WorkspaceOwner{},
 	}
 
-	preview.Preview(ctx, input, files.NilFS{})
-
-	wsjson.Write(ctx, conn, struct{}{})
+	result, diagnostics := preview.Preview(ctx, input, fs)
+	wsjson.Write(ctx, conn, previewweb.Response{
+		Parameters:  result.Parameters,
+		Diagnostics: previewtypes.Diagnostics(diagnostics),
+	})
 }
 
 // @Summary Get rich parameters by template version
