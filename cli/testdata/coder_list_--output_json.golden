@@ -69,6 +69,7 @@
         "most_recently_seen": null
       }
     },
+    "latest_app_status": null,
     "outdated": false,
     "name": "test-workspace",
     "autostart_schedule": "CRON_TZ=US/Central 30 9 * * 1-5",

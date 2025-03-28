@@ -858,6 +858,13 @@ func (m queryMetricsStore) GetLatestCryptoKeyByFeature(ctx context.Context, feat
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetLatestWorkspaceAppStatusesByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAppStatus, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetLatestWorkspaceAppStatusesByWorkspaceIDs(ctx, ids)
+	m.queryLatencies.WithLabelValues("GetLatestWorkspaceAppStatusesByWorkspaceIDs").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.WorkspaceBuild, error) {
 	start := time.Now()
 	build, err := m.s.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspaceID)
@@ -1670,6 +1677,13 @@ func (m queryMetricsStore) GetWorkspaceAppByAgentIDAndSlug(ctx context.Context, 
 	return app, err
 }
 
+func (m queryMetricsStore) GetWorkspaceAppStatusesByAppIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAppStatus, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceAppStatusesByAppIDs(ctx, ids)
+	m.queryLatencies.WithLabelValues("GetWorkspaceAppStatusesByAppIDs").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uuid.UUID) ([]database.WorkspaceApp, error) {
 	start := time.Now()
 	apps, err := m.s.GetWorkspaceAppsByAgentID(ctx, agentID)
@@ -2263,6 +2277,13 @@ func (m queryMetricsStore) InsertWorkspaceAppStats(ctx context.Context, arg data
 	r0 := m.s.InsertWorkspaceAppStats(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertWorkspaceAppStats").Observe(time.Since(start).Seconds())
 	return r0
+}
+
+func (m queryMetricsStore) InsertWorkspaceAppStatus(ctx context.Context, arg database.InsertWorkspaceAppStatusParams) (database.WorkspaceAppStatus, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertWorkspaceAppStatus(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertWorkspaceAppStatus").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m queryMetricsStore) InsertWorkspaceBuild(ctx context.Context, arg database.InsertWorkspaceBuildParams) error {
