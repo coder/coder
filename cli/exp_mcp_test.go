@@ -3,6 +3,7 @@ package cli_test
 import (
 	"context"
 	"encoding/json"
+	"runtime"
 	"slices"
 	"testing"
 
@@ -17,6 +18,11 @@ import (
 
 func TestExpMcp(t *testing.T) {
 	t.Parallel()
+
+	// Reading to / writing from the PTY is flaky on non-linux systems.
+	if runtime.GOOS != "linux" {
+		t.Skip("skipping on non-linux")
+	}
 
 	t.Run("AllowedTools", func(t *testing.T) {
 		t.Parallel()
