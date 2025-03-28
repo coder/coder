@@ -20,6 +20,13 @@ import (
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
+type handleCoderReportTaskArgs struct {
+	Summary string `json:"summary"`
+	Link    string `json:"link"`
+	Emoji   string `json:"emoji"`
+	Done    bool   `json:"done"`
+}
+
 // Example payload:
 // {"jsonrpc":"2.0","id":1,"method":"tools/call", "params": {"name": "coder_report_task", "arguments": {"summary": "I'm working on the login page.", "link": "https://github.com/coder/coder/pull/1234", "emoji": "🔍", "done": false}}}
 func handleCoderReportTask(deps ToolDeps) mcpserver.ToolHandlerFunc {
@@ -28,30 +35,15 @@ func handleCoderReportTask(deps ToolDeps) mcpserver.ToolHandlerFunc {
 			return nil, xerrors.New("developer error: client is required")
 		}
 
-		args := request.Params.Arguments
-
-		summary, ok := args["summary"].(string)
-		if !ok {
-			return nil, xerrors.New("summary is required")
-		}
-
-		link, ok := args["link"].(string)
-		if !ok {
-			return nil, xerrors.New("link is required")
-		}
-
-		emoji, ok := args["emoji"].(string)
-		if !ok {
-			return nil, xerrors.New("emoji is required")
-		}
-
-		done, ok := args["done"].(bool)
-		if !ok {
-			return nil, xerrors.New("done is required")
+		// Convert the request parameters to a json.RawMessage so we can unmarshal
+		// them into the correct struct.
+		args, err := unmarshalArgs[handleCoderReportTaskArgs](request.Params.Arguments)
+		if err != nil {
+			return nil, xerrors.Errorf("failed to unmarshal arguments: %w", err)
 		}
 
 		// TODO: Waiting on support for tasks.
-		deps.Logger.Info(ctx, "report task tool called", slog.F("summary", summary), slog.F("link", link), slog.F("done", done), slog.F("emoji", emoji))
+		deps.Logger.Info(ctx, "report task tool called", slog.F("summary", args.Summary), slog.F("link", args.Link), slog.F("done", args.Done), slog.F("emoji", args.Emoji))
 		/*
 			err := sdk.PostTask(ctx, agentsdk.PostTaskRequest{
 				Reporter:   "claude",
@@ -98,6 +90,12 @@ func handleCoderWhoami(deps ToolDeps) mcpserver.ToolHandlerFunc {
 	}
 }
 
+type handleCoderListWorkspacesArgs struct {
+	Owner  string `json:"owner"`
+	Offset int    `json:"offset"`
+	Limit  int    `json:"limit"`
+}
+
 // Example payload:
 // {"jsonrpc":"2.0","id":1,"method":"tools/call", "params": {"name": "coder_list_workspaces", "arguments": {"owner": "me", "offset": 0, "limit": 10}}}
 func handleCoderListWorkspaces(deps ToolDeps) mcpserver.ToolHandlerFunc {
@@ -105,26 +103,15 @@ func handleCoderListWorkspaces(deps ToolDeps) mcpserver.ToolHandlerFunc {
 		if deps.Client == nil {
 			return nil, xerrors.New("developer error: client is required")
 		}
-		args := request.Params.Arguments
-
-		owner, ok := args["owner"].(string)
-		if !ok {
-			owner = codersdk.Me
-		}
-
-		offset, ok := args["offset"].(int)
-		if !ok || offset < 0 {
-			offset = 0
-		}
-		limit, ok := args["limit"].(int)
-		if !ok || limit <= 0 {
-			limit = 10
+		args, err := unmarshalArgs[handleCoderListWorkspacesArgs](request.Params.Arguments)
+		if err != nil {
+			return nil, xerrors.Errorf("failed to unmarshal arguments: %w", err)
 		}
 
 		workspaces, err := deps.Client.Workspaces(ctx, codersdk.WorkspaceFilter{
-			Owner:  owner,
-			Offset: offset,
-			Limit:  limit,
+			Owner:  args.Owner,
+			Offset: args.Offset,
+			Limit:  args.Limit,
 		})
 		if err != nil {
 			return nil, xerrors.Errorf("failed to fetch workspaces: %w", err)
@@ -144,6 +131,10 @@ func handleCoderListWorkspaces(deps ToolDeps) mcpserver.ToolHandlerFunc {
 	}
 }
 
+type handleCoderGetWorkspaceArgs struct {
+	Workspace string `json:"workspace"`
+}
+
 // Example payload:
 // {"jsonrpc":"2.0","id":1,"method":"tools/call", "params": {"name": "coder_get_workspace", "arguments": {"workspace": "dev"}}}
 func handleCoderGetWorkspace(deps ToolDeps) mcpserver.ToolHandlerFunc {
@@ -151,14 +142,12 @@ func handleCoderGetWorkspace(deps ToolDeps) mcpserver.ToolHandlerFunc {
 		if deps.Client == nil {
 			return nil, xerrors.New("developer error: client is required")
 		}
-		args := request.Params.Arguments
-
-		wsArg, ok := args["workspace"].(string)
-		if !ok {
-			return nil, xerrors.New("workspace is required")
+		args, err := unmarshalArgs[handleCoderGetWorkspaceArgs](request.Params.Arguments)
+		if err != nil {
+			return nil, xerrors.Errorf("failed to unmarshal arguments: %w", err)
 		}
 
-		workspace, err := getWorkspaceByIDOrOwnerName(ctx, deps.Client, wsArg)
+		workspace, err := getWorkspaceByIDOrOwnerName(ctx, deps.Client, args.Workspace)
 		if err != nil {
 			return nil, xerrors.Errorf("failed to fetch workspace: %w", err)
 		}
@@ -176,6 +165,11 @@ func handleCoderGetWorkspace(deps ToolDeps) mcpserver.ToolHandlerFunc {
 	}
 }
 
+type handleCoderWorkspaceExecArgs struct {
+	Workspace string `json:"workspace"`
+	Command   string `json:"command"`
+}
+
 // Example payload:
 // {"jsonrpc":"2.0","id":1,"method":"tools/call", "params": {"name": "coder_workspace_exec", "arguments": {"workspace": "dev", "command": "ps -ef"}}}
 func handleCoderWorkspaceExec(deps ToolDeps) mcpserver.ToolHandlerFunc {
@@ -183,21 +177,14 @@ func handleCoderWorkspaceExec(deps ToolDeps) mcpserver.ToolHandlerFunc {
 		if deps.Client == nil {
 			return nil, xerrors.New("developer error: client is required")
 		}
-		args := request.Params.Arguments
-
-		wsArg, ok := args["workspace"].(string)
-		if !ok {
-			return nil, xerrors.New("workspace is required")
-		}
-
-		command, ok := args["command"].(string)
-		if !ok {
-			return nil, xerrors.New("command is required")
+		args, err := unmarshalArgs[handleCoderWorkspaceExecArgs](request.Params.Arguments)
+		if err != nil {
+			return nil, xerrors.Errorf("failed to unmarshal arguments: %w", err)
 		}
 
 		// Attempt to fetch the workspace. We may get a UUID or a name, so try to
 		// handle both.
-		ws, err := getWorkspaceByIDOrOwnerName(ctx, deps.Client, wsArg)
+		ws, err := getWorkspaceByIDOrOwnerName(ctx, deps.Client, args.Workspace)
 		if err != nil {
 			return nil, xerrors.Errorf("failed to fetch workspace: %w", err)
 		}
@@ -224,7 +211,7 @@ func handleCoderWorkspaceExec(deps ToolDeps) mcpserver.ToolHandlerFunc {
 			Reconnect:   uuid.New(),
 			Width:       80,
 			Height:      24,
-			Command:     command,
+			Command:     args.Command,
 			BackendType: "buffered", // the screen backend is annoying to use here.
 		})
 		if err != nil {
@@ -288,6 +275,11 @@ func handleCoderListTemplates(deps ToolDeps) mcpserver.ToolHandlerFunc {
 	}
 }
 
+type handleCoderWorkspaceTransitionArgs struct {
+	Workspace  string `json:"workspace"`
+	Transition string `json:"transition"`
+}
+
 // Example payload:
 // {"jsonrpc":"2.0","id":1,"method":"tools/call", "params": {"name":
 // "coder_workspace_transition", "arguments": {"workspace": "dev", "transition": "stop"}}}
@@ -296,24 +288,17 @@ func handleCoderWorkspaceTransition(deps ToolDeps) mcpserver.ToolHandlerFunc {
 		if deps.Client == nil {
 			return nil, xerrors.New("developer error: client is required")
 		}
-
-		args := request.Params.Arguments
-
-		wsArg, ok := args["workspace"].(string)
-		if !ok {
-			return nil, xerrors.New("workspace is required")
+		args, err := unmarshalArgs[handleCoderWorkspaceTransitionArgs](request.Params.Arguments)
+		if err != nil {
+			return nil, xerrors.Errorf("failed to unmarshal arguments: %w", err)
 		}
 
-		workspace, err := getWorkspaceByIDOrOwnerName(ctx, deps.Client, wsArg)
+		workspace, err := getWorkspaceByIDOrOwnerName(ctx, deps.Client, args.Workspace)
 		if err != nil {
 			return nil, xerrors.Errorf("failed to fetch workspace: %w", err)
 		}
 
-		transition, ok := args["transition"].(string)
-		if !ok {
-			return nil, xerrors.New("transition is required")
-		}
-		wsTransition := codersdk.WorkspaceTransition(transition)
+		wsTransition := codersdk.WorkspaceTransition(args.Transition)
 		switch wsTransition {
 		case codersdk.WorkspaceTransitionStart:
 		case codersdk.WorkspaceTransitionStop:
@@ -349,4 +334,18 @@ func getWorkspaceByIDOrOwnerName(ctx context.Context, client *codersdk.Client, i
 		return client.Workspace(ctx, wsid)
 	}
 	return client.WorkspaceByOwnerAndName(ctx, codersdk.Me, identifier, codersdk.WorkspaceOptions{})
+}
+
+// unmarshalArgs is a helper function to convert the map[string]any we get from
+// the MCP server into a typed struct. It does this by marshaling and unmarshalling
+// the arguments.
+func unmarshalArgs[T any](args map[string]interface{}) (t T, err error) {
+	argsJSON, err := json.Marshal(args)
+	if err != nil {
+		return t, xerrors.Errorf("failed to marshal arguments: %w", err)
+	}
+	if err := json.Unmarshal(argsJSON, &t); err != nil {
+		return t, xerrors.Errorf("failed to unmarshal arguments: %w", err)
+	}
+	return t, nil
 }
