@@ -15,66 +15,191 @@ import (
 var allTools = ToolRegistry{
 	{
 		Tool: mcp.NewTool("coder_report_task",
-			mcp.WithDescription(`Report progress on a task.`),
-			mcp.WithString("summary", mcp.Description(`A summary of your progress on a task.
-	
+			mcp.WithDescription(`Report progress on a user task in Coder.
+Use this tool to keep the user informed about your progress with their request.
+For long-running operations, call this periodically to provide status updates.
+This is especially useful when performing multi-step operations like workspace creation or deployment.`),
+			mcp.WithString("summary", mcp.Description(`A concise summary of your current progress on the task.
+		
 Good Summaries:
 - "Taking a look at the login page..."
 - "Found a bug! Fixing it now..."
-- "Investigating the GitHub Issue..."`), mcp.Required()),
-			mcp.WithString("link", mcp.Description(`A relevant link to your work. e.g. GitHub issue link, pull request link, etc.`), mcp.Required()),
-			mcp.WithString("emoji", mcp.Description(`A relevant emoji to your work.`), mcp.Required()),
-			mcp.WithBoolean("done", mcp.Description(`Whether the task the user requested is complete.`), mcp.Required()),
+- "Investigating the GitHub Issue..."
+- "Waiting for workspace to start (1/3 resources ready)"
+- "Downloading template files from repository"`), mcp.Required()),
+			mcp.WithString("link", mcp.Description(`A relevant URL related to your work, such as:
+- GitHub issue link
+- Pull request URL
+- Documentation reference
+- Workspace URL
+Use complete URLs (including https://) when possible.`), mcp.Required()),
+			mcp.WithString("emoji", mcp.Description(`A relevant emoji that visually represents the current status:
+- 🔍 for investigating/searching
+- 🚀 for deploying/starting
+- 🐛 for debugging
+- ✅ for completion
+- ⏳ for waiting
+Choose an emoji that helps the user understand the current phase at a glance.`), mcp.Required()),
+			mcp.WithBoolean("done", mcp.Description(`Whether the overall task the user requested is complete.
+Set to true only when the entire requested operation is finished successfully.
+For multi-step processes, use false until all steps are complete.`), mcp.Required()),
 		),
 		MakeHandler: handleCoderReportTask,
 	},
 	{
 		Tool: mcp.NewTool("coder_whoami",
-			mcp.WithDescription(`Get information about the currently logged-in Coder user.`),
+			mcp.WithDescription(`Get information about the currently logged-in Coder user.
+Returns JSON with the user's profile including fields: id, username, email, created_at, status, roles, etc.
+Use this to identify the current user context before performing workspace operations.
+This tool is useful for verifying permissions and checking the user's identity.
+
+Common errors:
+- Authentication failure: The session may have expired
+- Server unavailable: The Coder deployment may be unreachable`),
 		),
 		MakeHandler: handleCoderWhoami,
 	},
 	{
 		Tool: mcp.NewTool("coder_list_templates",
-			mcp.WithDescription(`List all templates on a given Coder deployment.`),
+			mcp.WithDescription(`List all templates available on the Coder deployment.
+Returns JSON with detailed information about each template, including:
+- Template name, ID, and description
+- Creation/modification timestamps
+- Version information
+- Associated organization
+
+Use this tool to discover available templates before creating workspaces.
+Templates define the infrastructure and configuration for workspaces.
+
+Common errors:
+- Authentication failure: Check user permissions
+- No templates available: The deployment may not have any templates configured`),
 		),
 		MakeHandler: handleCoderListTemplates,
 	},
 	{
 		Tool: mcp.NewTool("coder_list_workspaces",
-			mcp.WithDescription(`List workspaces on a given Coder deployment owned by the current user.`),
-			mcp.WithString(`owner`, mcp.Description(`The owner of the workspaces to list. Defaults to the current user.`), mcp.DefaultString(codersdk.Me)),
-			mcp.WithNumber(`offset`, mcp.Description(`The offset to start listing workspaces from. Defaults to 0.`), mcp.DefaultNumber(0)),
-			mcp.WithNumber(`limit`, mcp.Description(`The maximum number of workspaces to list. Defaults to 10.`), mcp.DefaultNumber(10)),
+			mcp.WithDescription(`List workspaces available on the Coder deployment.
+Returns JSON with workspace metadata including status, resources, and configurations.
+Use this before other workspace operations to find valid workspace names/IDs.
+Results are paginated - use offset and limit parameters for large deployments.
+
+Common errors:
+- Authentication failure: Check user permissions
+- Invalid owner parameter: Ensure the owner exists`),
+			mcp.WithString(`owner`, mcp.Description(`The username of the workspace owner to filter by.
+Defaults to "me" which represents the currently authenticated user.
+Use this to view workspaces belonging to other users (requires appropriate permissions).
+Special value: "me" - List workspaces owned by the authenticated user.`), mcp.DefaultString(codersdk.Me)),
+			mcp.WithNumber(`offset`, mcp.Description(`Pagination offset - the starting index for listing workspaces.
+Used with the 'limit' parameter to implement pagination.
+For example, to get the second page of results with 10 items per page, use offset=10.
+Defaults to 0 (first page).`), mcp.DefaultNumber(0)),
+			mcp.WithNumber(`limit`, mcp.Description(`Maximum number of workspaces to return in a single request.
+Used with the 'offset' parameter to implement pagination.
+Higher values return more results but may increase response time.
+Valid range: 1-100. Defaults to 10.`), mcp.DefaultNumber(10)),
 		),
 		MakeHandler: handleCoderListWorkspaces,
 	},
 	{
 		Tool: mcp.NewTool("coder_get_workspace",
-			mcp.WithDescription(`Get information about a workspace on a given Coder deployment.`),
-			mcp.WithString("workspace", mcp.Description(`The workspace ID or name to get.`), mcp.Required()),
+			mcp.WithDescription(`Get detailed information about a specific Coder workspace.
+Returns comprehensive JSON with the workspace's configuration, status, and resources.
+Use this to check workspace status before performing operations like exec or start/stop.
+The response includes the latest build status, agent connectivity, and resource details.
+
+Common errors:
+- Workspace not found: Check the workspace name or ID
+- Permission denied: The user may not have access to this workspace`),
+			mcp.WithString("workspace", mcp.Description(`The workspace ID (UUID) or name to retrieve.
+Can be specified as either:
+- Full UUID: e.g., "8a0b9c7d-1e2f-3a4b-5c6d-7e8f9a0b1c2d"
+- Workspace name: e.g., "dev", "python-project"
+Use coder_list_workspaces first if you're not sure about available workspace names.`), mcp.Required()),
 		),
 		MakeHandler: handleCoderGetWorkspace,
 	},
 	{
 		Tool: mcp.NewTool("coder_workspace_exec",
-			mcp.WithDescription(`Execute a command in a remote workspace on a given Coder deployment.`),
-			mcp.WithString("workspace", mcp.Description(`The workspace ID or name in which to execute the command in. The workspace must be running.`), mcp.Required()),
-			mcp.WithString("command", mcp.Description(`The command to execute. Changing the working directory is not currently supported, so you may need to preface the command with 'cd /some/path && <my-command>'.`), mcp.Required()),
+			mcp.WithDescription(`Execute a shell command in a remote Coder workspace.
+Runs the specified command and returns the complete output (stdout/stderr).
+Use this for file operations, running build commands, or checking workspace state.
+The workspace must be running with a connected agent for this to succeed.
+
+Before using this tool:
+1. Verify the workspace is running using coder_get_workspace
+2. Start the workspace if needed using coder_start_workspace
+
+Common errors:
+- Workspace not running: Start the workspace first
+- Command not allowed: Check security restrictions
+- Agent not connected: The workspace may still be starting up`),
+			mcp.WithString("workspace", mcp.Description(`The workspace ID (UUID) or name where the command will execute.
+Can be specified as either:
+- Full UUID: e.g., "8a0b9c7d-1e2f-3a4b-5c6d-7e8f9a0b1c2d" 
+- Workspace name: e.g., "dev", "python-project"
+The workspace must be running with a connected agent.
+Use coder_get_workspace first to check the workspace status.`), mcp.Required()),
+			mcp.WithString("command", mcp.Description(`The shell command to execute in the workspace.
+Commands are executed in the default shell of the workspace.
+
+Examples:
+- "ls -la" - List files with details
+- "cd /path/to/directory && command" - Execute in specific directory
+- "cat ~/.bashrc" - View a file's contents
+- "python -m pip list" - List installed Python packages
+
+Note: Commands are subject to security restrictions and validation.
+Very long-running commands may time out.`), mcp.Required()),
 		),
 		MakeHandler: handleCoderWorkspaceExec,
 	},
 	{
 		Tool: mcp.NewTool("coder_start_workspace",
-			mcp.WithDescription(`Start a workspace on a given Coder deployment.`),
-			mcp.WithString("workspace", mcp.Description(`The workspace ID or name to start.`), mcp.Required()),
+			mcp.WithDescription(`Start a stopped Coder workspace.
+Initiates the workspace build process to provision and start all resources.
+Only works on workspaces that are currently stopped or failed.
+Starting a workspace is an asynchronous operation - it may take several minutes to complete.
+
+After calling this tool:
+1. Use coder_report_task to inform the user that the workspace is starting
+2. Use coder_get_workspace periodically to check for completion
+
+Common errors:
+- Workspace already running/starting: No action needed
+- Quota limits exceeded: User may have reached resource limits
+- Template error: The underlying template may have issues`),
+			mcp.WithString("workspace", mcp.Description(`The workspace ID (UUID) or name to start.
+Can be specified as either:
+- Full UUID: e.g., "8a0b9c7d-1e2f-3a4b-5c6d-7e8f9a0b1c2d"
+- Workspace name: e.g., "dev", "python-project"
+The workspace must be in a stopped state to be started.
+Use coder_get_workspace first to check the current workspace status.`), mcp.Required()),
 		),
 		MakeHandler: handleCoderStartWorkspace,
 	},
 	{
 		Tool: mcp.NewTool("coder_stop_workspace",
-			mcp.WithDescription(`Stop a workspace on a given Coder deployment.`),
-			mcp.WithString("workspace", mcp.Description(`The workspace ID or name to stop.`), mcp.Required()),
+			mcp.WithDescription(`Stop a running Coder workspace.
+Initiates the workspace termination process to shut down all resources.
+Only works on workspaces that are currently running.
+Stopping a workspace is an asynchronous operation - it may take several minutes to complete.
+
+After calling this tool:
+1. Use coder_report_task to inform the user that the workspace is stopping
+2. Use coder_get_workspace periodically to check for completion
+
+Common errors:
+- Workspace already stopped/stopping: No action needed
+- Cancellation failed: There may be issues with the underlying infrastructure
+- User doesn't own workspace: Permission issues`),
+			mcp.WithString("workspace", mcp.Description(`The workspace ID (UUID) or name to stop.
+Can be specified as either:
+- Full UUID: e.g., "8a0b9c7d-1e2f-3a4b-5c6d-7e8f9a0b1c2d"
+- Workspace name: e.g., "dev", "python-project"
+The workspace must be in a running state to be stopped.
+Use coder_get_workspace first to check the current workspace status.`), mcp.Required()),
 		),
 		MakeHandler: handleCoderStopWorkspace,
 	},
