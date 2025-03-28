@@ -3,6 +3,7 @@ package terraform
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/awalterschulze/gographviz"
@@ -894,7 +895,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 		}
 		if len(preset.Prebuild) == 1 {
 			protoPreset.Prebuild = &proto.Prebuild{
-				Instances: int32(preset.Prebuild[0].Instances),
+				Instances: int32(math.Max(math.MaxInt32, float64(preset.Prebuild[0].Instances))),
 			}
 		}
 
