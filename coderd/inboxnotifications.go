@@ -29,32 +29,32 @@ const (
 	notificationFormatPlaintext = "plaintext"
 )
 
-var fallbackIcons = map[uuid.UUID]codersdk.InboxNotificationFallbackIcon{
+var fallbackIcons = map[uuid.UUID]string{
 	// workspace related notifications
-	notifications.TemplateWorkspaceCreated:           codersdk.FallbackIconWorkspace,
-	notifications.TemplateWorkspaceManuallyUpdated:   codersdk.FallbackIconWorkspace,
-	notifications.TemplateWorkspaceDeleted:           codersdk.FallbackIconWorkspace,
-	notifications.TemplateWorkspaceAutobuildFailed:   codersdk.FallbackIconWorkspace,
-	notifications.TemplateWorkspaceDormant:           codersdk.FallbackIconWorkspace,
-	notifications.TemplateWorkspaceAutoUpdated:       codersdk.FallbackIconWorkspace,
-	notifications.TemplateWorkspaceMarkedForDeletion: codersdk.FallbackIconWorkspace,
-	notifications.TemplateWorkspaceManualBuildFailed: codersdk.FallbackIconWorkspace,
-	notifications.TemplateWorkspaceOutOfMemory:       codersdk.FallbackIconWorkspace,
-	notifications.TemplateWorkspaceOutOfDisk:         codersdk.FallbackIconWorkspace,
+	notifications.TemplateWorkspaceCreated:           codersdk.InboxNotificationFallbackIconWorkspace,
+	notifications.TemplateWorkspaceManuallyUpdated:   codersdk.InboxNotificationFallbackIconWorkspace,
+	notifications.TemplateWorkspaceDeleted:           codersdk.InboxNotificationFallbackIconWorkspace,
+	notifications.TemplateWorkspaceAutobuildFailed:   codersdk.InboxNotificationFallbackIconWorkspace,
+	notifications.TemplateWorkspaceDormant:           codersdk.InboxNotificationFallbackIconWorkspace,
+	notifications.TemplateWorkspaceAutoUpdated:       codersdk.InboxNotificationFallbackIconWorkspace,
+	notifications.TemplateWorkspaceMarkedForDeletion: codersdk.InboxNotificationFallbackIconWorkspace,
+	notifications.TemplateWorkspaceManualBuildFailed: codersdk.InboxNotificationFallbackIconWorkspace,
+	notifications.TemplateWorkspaceOutOfMemory:       codersdk.InboxNotificationFallbackIconWorkspace,
+	notifications.TemplateWorkspaceOutOfDisk:         codersdk.InboxNotificationFallbackIconWorkspace,
 
 	// account related notifications
-	notifications.TemplateUserAccountCreated:           codersdk.FallbackIconAccount,
-	notifications.TemplateUserAccountDeleted:           codersdk.FallbackIconAccount,
-	notifications.TemplateUserAccountSuspended:         codersdk.FallbackIconAccount,
-	notifications.TemplateUserAccountActivated:         codersdk.FallbackIconAccount,
-	notifications.TemplateYourAccountSuspended:         codersdk.FallbackIconAccount,
-	notifications.TemplateYourAccountActivated:         codersdk.FallbackIconAccount,
-	notifications.TemplateUserRequestedOneTimePasscode: codersdk.FallbackIconAccount,
+	notifications.TemplateUserAccountCreated:           codersdk.InboxNotificationFallbackIconAccount,
+	notifications.TemplateUserAccountDeleted:           codersdk.InboxNotificationFallbackIconAccount,
+	notifications.TemplateUserAccountSuspended:         codersdk.InboxNotificationFallbackIconAccount,
+	notifications.TemplateUserAccountActivated:         codersdk.InboxNotificationFallbackIconAccount,
+	notifications.TemplateYourAccountSuspended:         codersdk.InboxNotificationFallbackIconAccount,
+	notifications.TemplateYourAccountActivated:         codersdk.InboxNotificationFallbackIconAccount,
+	notifications.TemplateUserRequestedOneTimePasscode: codersdk.InboxNotificationFallbackIconAccount,
 
 	// template related notifications
-	notifications.TemplateTemplateDeleted:             codersdk.FallbackIconTemplate,
-	notifications.TemplateTemplateDeprecated:          codersdk.FallbackIconTemplate,
-	notifications.TemplateWorkspaceBuildsFailedReport: codersdk.FallbackIconTemplate,
+	notifications.TemplateTemplateDeleted:             codersdk.InboxNotificationFallbackIconTemplate,
+	notifications.TemplateTemplateDeprecated:          codersdk.InboxNotificationFallbackIconTemplate,
+	notifications.TemplateWorkspaceBuildsFailedReport: codersdk.InboxNotificationFallbackIconTemplate,
 }
 
 func ensureNotificationIcon(notif codersdk.InboxNotification) codersdk.InboxNotification {
@@ -64,7 +64,7 @@ func ensureNotificationIcon(notif codersdk.InboxNotification) codersdk.InboxNoti
 
 	fallbackIcon, ok := fallbackIcons[notif.TemplateID]
 	if !ok {
-		fallbackIcon = codersdk.FallbackIconOther
+		fallbackIcon = codersdk.InboxNotificationFallbackIconOther
 	}
 
 	notif.Icon = fallbackIcon
@@ -80,7 +80,7 @@ func convertInboxNotificationResponse(ctx context.Context, logger slog.Logger, n
 		Targets:    notif.Targets,
 		Title:      notif.Title,
 		Content:    notif.Content,
-		Icon:       codersdk.InboxNotificationFallbackIcon(notif.Icon),
+		Icon:       notif.Icon,
 		Actions: func() []codersdk.InboxNotificationAction {
 			var actionsList []codersdk.InboxNotificationAction
 			err := json.Unmarshal([]byte(notif.Actions), &actionsList)

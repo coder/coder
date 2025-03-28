@@ -1100,7 +1100,7 @@ export interface InboxNotification {
 	readonly targets: readonly string[];
 	readonly title: string;
 	readonly content: string;
-	readonly icon: InboxNotificationFallbackIcon;
+	readonly icon: string;
 	readonly actions: readonly InboxNotificationAction[];
 	readonly read_at: string | null;
 	readonly created_at: string;
@@ -1113,18 +1113,16 @@ export interface InboxNotificationAction {
 }
 
 // From codersdk/inboxnotification.go
-export type InboxNotificationFallbackIcon =
-	| "DEFAULT_ICON_ACCOUNT"
-	| "DEFAULT_ICON_OTHER"
-	| "DEFAULT_ICON_TEMPLATE"
-	| "DEFAULT_ICON_WORKSPACE";
+export const InboxNotificationFallbackIconAccount = "DEFAULT_ICON_ACCOUNT";
 
-export const InboxNotificationFallbackIcons: InboxNotificationFallbackIcon[] = [
-	"DEFAULT_ICON_ACCOUNT",
-	"DEFAULT_ICON_OTHER",
-	"DEFAULT_ICON_TEMPLATE",
-	"DEFAULT_ICON_WORKSPACE",
-];
+// From codersdk/inboxnotification.go
+export const InboxNotificationFallbackIconOther = "DEFAULT_ICON_OTHER";
+
+// From codersdk/inboxnotification.go
+export const InboxNotificationFallbackIconTemplate = "DEFAULT_ICON_TEMPLATE";
+
+// From codersdk/inboxnotification.go
+export const InboxNotificationFallbackIconWorkspace = "DEFAULT_ICON_WORKSPACE";
 
 // From codersdk/insights.go
 export type InsightsReportInterval = "day" | "week";

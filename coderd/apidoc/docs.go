@@ -12389,7 +12389,7 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "icon": {
-                    "$ref": "#/definitions/codersdk.InboxNotificationFallbackIcon"
+                    "type": "string"
                 },
                 "id": {
                     "type": "string",
@@ -12428,21 +12428,6 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
-        },
-        "codersdk.InboxNotificationFallbackIcon": {
-            "type": "string",
-            "enum": [
-                "DEFAULT_ICON_WORKSPACE",
-                "DEFAULT_ICON_ACCOUNT",
-                "DEFAULT_ICON_TEMPLATE",
-                "DEFAULT_ICON_OTHER"
-            ],
-            "x-enum-varnames": [
-                "FallbackIconWorkspace",
-                "FallbackIconAccount",
-                "FallbackIconTemplate",
-                "FallbackIconOther"
-            ]
         },
         "codersdk.InsightsReportInterval": {
             "type": "string",
