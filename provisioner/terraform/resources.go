@@ -3,6 +3,7 @@ package terraform
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/awalterschulze/gographviz"
@@ -887,6 +888,17 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			Name:       preset.Name,
 			Parameters: presetParameters,
 		}
+
+		if len(preset.Prebuild) > 1 {
+			// The provider template schema should prevent this, but we're being defensive here.
+			logger.Info(ctx, "coder_workspace_preset has more than 1 prebuild, only using the first one", slog.F("name", preset.Name))
+		}
+		if len(preset.Prebuild) == 1 {
+			protoPreset.Prebuild = &proto.Prebuild{
+				Instances: int32(math.Min(math.MaxInt32, float64(preset.Prebuild[0].Instances))),
+			}
+		}
+
 		if slice.Contains(duplicatedPresetNames, preset.Name) {
 			duplicatedPresetNames = append(duplicatedPresetNames, preset.Name)
 		}

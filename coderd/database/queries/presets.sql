@@ -47,4 +47,5 @@ FROM
 	template_version_preset_parameters
 	INNER JOIN template_version_presets ON template_version_preset_parameters.template_version_preset_id = template_version_presets.id
 WHERE
-	template_version_presets.template_version_id = @template_version_id;
+	template_version_presets.template_version_id = @template_version_id
+	AND (sqlc.narg('preset_id')::uuid IS NULL OR template_version_presets.id = sqlc.narg('preset_id'));

@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/coder/v2/coderd/prebuilds"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
@@ -830,6 +832,9 @@ func TestGroup(t *testing.T) {
 		_, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
+		// nolint:gocritic // "This client is operating as the owner user" is fine in this case.
+		prebuildsUser, err := client.User(ctx, prebuilds.SystemUserID.String())
+		require.NoError(t, err)
 		// The 'Everyone' group always has an ID that matches the organization ID.
 		group, err := userAdminClient.Group(ctx, user.OrganizationID)
 		require.NoError(t, err)
@@ -838,6 +843,7 @@ func TestGroup(t *testing.T) {
 		require.Equal(t, user.OrganizationID, group.OrganizationID)
 		require.Contains(t, group.Members, user1.ReducedUser)
 		require.Contains(t, group.Members, user2.ReducedUser)
+		require.NotContains(t, group.Members, prebuildsUser.ReducedUser)
 	})
 }
 

@@ -234,7 +234,7 @@ type sqlcQuerier interface {
 	GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUID) ([]ParameterSchema, error)
 	GetPrebuildMetrics(ctx context.Context) ([]GetPrebuildMetricsRow, error)
 	GetPresetByWorkspaceBuildID(ctx context.Context, workspaceBuildID uuid.UUID) (TemplateVersionPreset, error)
-	GetPresetParametersByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionPresetParameter, error)
+	GetPresetParametersByTemplateVersionID(ctx context.Context, arg GetPresetParametersByTemplateVersionIDParams) ([]TemplateVersionPresetParameter, error)
 	// GetPresetsBackoff groups workspace builds by template version ID.
 	// For each group, the query checks up to N of the most recent jobs that occurred within the
 	// lookback period, where N equals the number of desired instances for the corresponding preset.

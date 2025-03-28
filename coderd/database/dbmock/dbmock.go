@@ -2225,18 +2225,18 @@ func (mr *MockStoreMockRecorder) GetPresetByWorkspaceBuildID(ctx, workspaceBuild
 }
 
 // GetPresetParametersByTemplateVersionID mocks base method.
-func (m *MockStore) GetPresetParametersByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionPresetParameter, error) {
+func (m *MockStore) GetPresetParametersByTemplateVersionID(ctx context.Context, arg database.GetPresetParametersByTemplateVersionIDParams) ([]database.TemplateVersionPresetParameter, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetPresetParametersByTemplateVersionID", ctx, templateVersionID)
+	ret := m.ctrl.Call(m, "GetPresetParametersByTemplateVersionID", ctx, arg)
 	ret0, _ := ret[0].([]database.TemplateVersionPresetParameter)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetPresetParametersByTemplateVersionID indicates an expected call of GetPresetParametersByTemplateVersionID.
-func (mr *MockStoreMockRecorder) GetPresetParametersByTemplateVersionID(ctx, templateVersionID any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetPresetParametersByTemplateVersionID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPresetParametersByTemplateVersionID", reflect.TypeOf((*MockStore)(nil).GetPresetParametersByTemplateVersionID), ctx, templateVersionID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPresetParametersByTemplateVersionID", reflect.TypeOf((*MockStore)(nil).GetPresetParametersByTemplateVersionID), ctx, arg)
 }
 
 // GetPresetsBackoff mocks base method.
