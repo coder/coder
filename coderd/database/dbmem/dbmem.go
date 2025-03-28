@@ -4195,6 +4195,9 @@ func (q *FakeQuerier) GetPresetParametersByTemplateVersionID(_ context.Context, 
 	presets := make([]database.TemplateVersionPreset, 0)
 	parameters := make([]database.TemplateVersionPresetParameter, 0)
 	for _, preset := range q.presets {
+		if args.PresetID.Valid && preset.ID != args.PresetID.UUID {
+			continue
+		}
 		if preset.TemplateVersionID != args.TemplateVersionID {
 			continue
 		}
