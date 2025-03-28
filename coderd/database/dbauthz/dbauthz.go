@@ -2298,11 +2298,11 @@ func (q *querier) GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Ti
 	return q.db.GetReplicasUpdatedAfter(ctx, updatedAt)
 }
 
-func (q *querier) GetRunningPrebuilds(ctx context.Context) ([]database.GetRunningPrebuildsRow, error) {
+func (q *querier) GetRunningPrebuiltWorkspaces(ctx context.Context) ([]database.GetRunningPrebuiltWorkspacesRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate); err != nil {
 		return nil, err
 	}
-	return q.db.GetRunningPrebuilds(ctx)
+	return q.db.GetRunningPrebuiltWorkspaces(ctx)
 }
 
 func (q *querier) GetRuntimeConfig(ctx context.Context, key string) (string, error) {

@@ -1236,10 +1236,10 @@ func (m queryMetricsStore) GetReplicasUpdatedAfter(ctx context.Context, updatedA
 	return replicas, err
 }
 
-func (m queryMetricsStore) GetRunningPrebuilds(ctx context.Context) ([]database.GetRunningPrebuildsRow, error) {
+func (m queryMetricsStore) GetRunningPrebuiltWorkspaces(ctx context.Context) ([]database.GetRunningPrebuiltWorkspacesRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetRunningPrebuilds(ctx)
-	m.queryLatencies.WithLabelValues("GetRunningPrebuilds").Observe(time.Since(start).Seconds())
+	r0, r1 := m.s.GetRunningPrebuiltWorkspaces(ctx)
+	m.queryLatencies.WithLabelValues("GetRunningPrebuiltWorkspaces").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 

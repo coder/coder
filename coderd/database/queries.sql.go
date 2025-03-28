@@ -6175,7 +6175,7 @@ func (q *sqlQuerier) GetPresetsBackoff(ctx context.Context, lookback time.Time) 
 	return items, nil
 }
 
-const getRunningPrebuilds = `-- name: GetRunningPrebuilds :many
+const getRunningPrebuiltWorkspaces = `-- name: GetRunningPrebuiltWorkspaces :many
 SELECT p.id                AS workspace_id,
        p.name              AS workspace_name,
        p.template_id,
@@ -6189,7 +6189,7 @@ WHERE (b.transition = 'start'::workspace_transition
 	AND b.job_status = 'succeeded'::provisioner_job_status)
 `
 
-type GetRunningPrebuildsRow struct {
+type GetRunningPrebuiltWorkspacesRow struct {
 	WorkspaceID       uuid.UUID     `db:"workspace_id" json:"workspace_id"`
 	WorkspaceName     string        `db:"workspace_name" json:"workspace_name"`
 	TemplateID        uuid.UUID     `db:"template_id" json:"template_id"`
@@ -6199,15 +6199,15 @@ type GetRunningPrebuildsRow struct {
 	CreatedAt         time.Time     `db:"created_at" json:"created_at"`
 }
 
-func (q *sqlQuerier) GetRunningPrebuilds(ctx context.Context) ([]GetRunningPrebuildsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getRunningPrebuilds)
+func (q *sqlQuerier) GetRunningPrebuiltWorkspaces(ctx context.Context) ([]GetRunningPrebuiltWorkspacesRow, error) {
+	rows, err := q.db.QueryContext(ctx, getRunningPrebuiltWorkspaces)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetRunningPrebuildsRow
+	var items []GetRunningPrebuiltWorkspacesRow
 	for rows.Next() {
-		var i GetRunningPrebuildsRow
+		var i GetRunningPrebuiltWorkspacesRow
 		if err := rows.Scan(
 			&i.WorkspaceID,
 			&i.WorkspaceName,

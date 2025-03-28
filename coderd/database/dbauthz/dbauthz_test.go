@@ -4821,7 +4821,7 @@ func (s *MethodTestSuite) TestPrebuilds() {
 			Asserts(rbac.ResourceTemplate, policy.ActionRead).
 			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 	}))
-	s.Run("GetRunningPrebuilds", s.Subtest(func(_ database.Store, check *expects) {
+	s.Run("GetRunningPrebuiltWorkspaces", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args().
 			Asserts(rbac.ResourceTemplate, policy.ActionRead).
 			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
