@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -57,6 +58,7 @@ var (
 	autostopNotifyCountdown = []time.Duration{30 * time.Minute}
 	// gracefulShutdownTimeout is the timeout, per item in the stack of things to close
 	gracefulShutdownTimeout = 2 * time.Second
+	workspaceNameRe         = regexp.MustCompile(`[/.]+|--`)
 )
 
 func (r *RootCmd) ssh() *serpent.Command {
@@ -200,10 +202,9 @@ func (r *RootCmd) ssh() *serpent.Command {
 				parsedEnv = append(parsedEnv, [2]string{k, v})
 			}
 
-			namedWorkspace := strings.TrimPrefix(inv.Args[0], hostPrefix)
-			// Support "--" as a delimiter between owner and workspace name
-			namedWorkspace = strings.Replace(namedWorkspace, "--", "/", 1)
-
+			workspaceInput := strings.TrimPrefix(inv.Args[0], hostPrefix)
+			// convert workspace name format into owner/workspace.agent
+			namedWorkspace := normalizeWorkspaceInput(workspaceInput)
 			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, !disableAutostart, namedWorkspace)
 			if err != nil {
 				return err
@@ -1412,4 +1413,29 @@ func collectNetworkStats(ctx context.Context, agentConn *workspacesdk.AgentConn,
 		UploadBytesSec:   int64(uploadSecs),
 		DownloadBytesSec: int64(downloadSecs),
 	}, nil
+}
+
+// Converts workspace name input to owner/workspace.agent format
+// Possible valid input formats:
+// workspace
+// owner/workspace
+// owner--workspace
+// owner/workspace--agent
+// owner/workspace.agent
+// owner--workspace--agent
+// owner--workspace.agent
+func normalizeWorkspaceInput(input string) string {
+	// Split on "/", "--", and "."
+	parts := workspaceNameRe.Split(input, -1)
+
+	switch len(parts) {
+	case 1:
+		return input // "workspace"
+	case 2:
+		return fmt.Sprintf("%s/%s", parts[0], parts[1]) // "owner/workspace"
+	case 3:
+		return fmt.Sprintf("%s/%s.%s", parts[0], parts[1], parts[2]) // "owner/workspace.agent"
+	default:
+		return input // Fallback
+	}
 }
