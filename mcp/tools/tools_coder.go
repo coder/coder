@@ -194,15 +194,6 @@ func handleCoderWorkspaceExec(deps ToolDeps) mcpserver.ToolHandlerFunc {
 			return nil, xerrors.New("command is required")
 		}
 
-		// Validate the command if allowed commands are specified
-		allowed, err := IsCommandAllowed(command, deps.AllowedExecCommands)
-		if err != nil {
-			return nil, err
-		}
-		if !allowed {
-			return nil, xerrors.Errorf("command not allowed: %s", command)
-		}
-
 		// Attempt to fetch the workspace. We may get a UUID or a name, so try to
 		// handle both.
 		ws, err := getWorkspaceByIDOrOwnerName(ctx, deps.Client, wsArg)

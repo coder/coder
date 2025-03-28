@@ -150,8 +150,7 @@ Examples:
 - "cat ~/.bashrc" - View a file's contents
 - "python -m pip list" - List installed Python packages
 
-Note: Commands are subject to security restrictions and validation.
-Very long-running commands may time out.`), mcp.Required()),
+Note: Very long-running commands may time out.`), mcp.Required()),
 		),
 		MakeHandler: handleCoderWorkspaceExec,
 	},
@@ -215,9 +214,8 @@ var _ ToolAdder = (*server.MCPServer)(nil)
 
 // ToolDeps contains all dependencies needed by tool handlers
 type ToolDeps struct {
-	Client              *codersdk.Client
-	Logger              *slog.Logger
-	AllowedExecCommands []string
+	Client *codersdk.Client
+	Logger *slog.Logger
 }
 
 // ToolHandler associates a tool with its handler creation function

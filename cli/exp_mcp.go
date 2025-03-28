@@ -14,15 +14,14 @@ import (
 
 func (r *RootCmd) mcpCommand() *serpent.Command {
 	var (
-		client              = new(codersdk.Client)
-		instructions        string
-		allowedTools        []string
-		allowedExecCommands []string
+		client       = new(codersdk.Client)
+		instructions string
+		allowedTools []string
 	)
 	return &serpent.Command{
 		Use: "mcp",
 		Handler: func(inv *serpent.Invocation) error {
-			return mcpHandler(inv, client, instructions, allowedTools, allowedExecCommands)
+			return mcpHandler(inv, client, instructions, allowedTools)
 		},
 		Short: "Start an MCP server that can be used to interact with a Coder depoyment.",
 		Middleware: serpent.Chain(
@@ -41,17 +40,11 @@ func (r *RootCmd) mcpCommand() *serpent.Command {
 				Flag:        "allowed-tools",
 				Value:       serpent.StringArrayOf(&allowedTools),
 			},
-			{
-				Name:        "allowed-exec-commands",
-				Description: "Comma-separated list of allowed commands for workspace execution. If not specified, all commands are allowed.",
-				Flag:        "allowed-exec-commands",
-				Value:       serpent.StringArrayOf(&allowedExecCommands),
-			},
 		},
 	}
 }
 
-func mcpHandler(inv *serpent.Invocation, client *codersdk.Client, instructions string, allowedTools []string, allowedExecCommands []string) error {
+func mcpHandler(inv *serpent.Invocation, client *codersdk.Client, instructions string, allowedTools []string) error {
 	ctx, cancel := context.WithCancel(inv.Context())
 	defer cancel()
 
@@ -70,9 +63,6 @@ func mcpHandler(inv *serpent.Invocation, client *codersdk.Client, instructions s
 	cliui.Infof(inv.Stderr, "Instructions  : %q", instructions)
 	if len(allowedTools) > 0 {
 		cliui.Infof(inv.Stderr, "Allowed Tools : %v", allowedTools)
-	}
-	if len(allowedExecCommands) > 0 {
-		cliui.Infof(inv.Stderr, "Allowed Exec Commands : %v", allowedExecCommands)
 	}
 	cliui.Infof(inv.Stderr, "Press Ctrl+C to stop the server")
 
@@ -96,11 +86,6 @@ func mcpHandler(inv *serpent.Invocation, client *codersdk.Client, instructions s
 	// Add allowed tools option if specified
 	if len(allowedTools) > 0 {
 		options = append(options, codermcp.WithAllowedTools(allowedTools))
-	}
-
-	// Add allowed exec commands option if specified
-	if len(allowedExecCommands) > 0 {
-		options = append(options, codermcp.WithAllowedExecCommands(allowedExecCommands))
 	}
 
 	closer := codermcp.New(ctx, client, options...)
