@@ -4799,6 +4799,41 @@ func (s *MethodTestSuite) TestNotifications() {
 	}))
 }
 
+func (s *MethodTestSuite) TestPrebuilds() {
+	s.Run("ClaimPrebuiltWorkspace", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.ClaimPrebuiltWorkspaceParams{}).
+			Asserts(rbac.ResourceWorkspace, policy.ActionUpdate).
+			ErrorsWithInMemDB(dbmem.ErrUnimplemented).
+			ErrorsWithPG(sql.ErrNoRows)
+	}))
+	s.Run("GetPrebuildMetrics", s.Subtest(func(_ database.Store, check *expects) {
+		check.Args().
+			Asserts(rbac.ResourceTemplate, policy.ActionRead).
+			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
+	}))
+	s.Run("CountInProgressPrebuilds", s.Subtest(func(_ database.Store, check *expects) {
+		check.Args().
+			Asserts(rbac.ResourceTemplate, policy.ActionRead).
+			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
+	}))
+	s.Run("GetPresetsBackoff", s.Subtest(func(_ database.Store, check *expects) {
+		check.Args(time.Time{}).
+			Asserts(rbac.ResourceTemplate, policy.ActionRead).
+			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
+	}))
+	s.Run("GetRunningPrebuiltWorkspaces", s.Subtest(func(_ database.Store, check *expects) {
+		check.Args().
+			Asserts(rbac.ResourceTemplate, policy.ActionRead).
+			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
+	}))
+	s.Run("GetTemplatePresetsWithPrebuilds", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		check.Args(uuid.NullUUID{UUID: user.ID, Valid: true}).
+			Asserts(rbac.ResourceTemplate, policy.ActionRead).
+			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
+	}))
+}
+
 func (s *MethodTestSuite) TestOAuth2ProviderApps() {
 	s.Run("GetOAuth2ProviderApps", s.Subtest(func(db database.Store, check *expects) {
 		apps := []database.OAuth2ProviderApp{
