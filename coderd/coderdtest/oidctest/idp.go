@@ -20,6 +20,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -61,6 +62,8 @@ type deviceFlow struct {
 // FakeIDP is a functional OIDC provider.
 // It only supports 1 OIDC client.
 type FakeIDP struct {
+	mu sync.RWMutex
+
 	issuer    string
 	issuerURL *url.URL
 	key       *rsa.PrivateKey
@@ -369,10 +372,14 @@ func NewFakeIDP(t testing.TB, opts ...FakeIDPOpt) *FakeIDP {
 }
 
 func (f *FakeIDP) WellknownConfig() ProviderJSON {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
 	return f.provider
 }
 
 func (f *FakeIDP) IssuerURL() *url.URL {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
 	return f.issuerURL
 }
 
@@ -382,6 +389,7 @@ func (f *FakeIDP) updateIssuerURL(t testing.TB, issuer string) {
 	u, err := url.Parse(issuer)
 	require.NoError(t, err, "invalid issuer URL")
 
+	f.mu.Lock()
 	f.issuer = issuer
 	f.issuerURL = u
 	// ProviderJSON is the JSON representation of the OpenID Connect provider
@@ -398,6 +406,7 @@ func (f *FakeIDP) updateIssuerURL(t testing.TB, issuer string) {
 		},
 		ExternalAuthURL: u.ResolveReference(&url.URL{Path: "/external-auth-validate/user"}).String(),
 	}
+	f.mu.Unlock()
 }
 
 // realServer turns the FakeIDP into a real http server.
@@ -437,7 +446,9 @@ func (f *FakeIDP) realServer(t testing.TB) *httptest.Server {
 // valid token for some given claims.
 func (f *FakeIDP) GenerateAuthenticatedToken(claims jwt.MapClaims) (*oauth2.Token, error) {
 	state := uuid.NewString()
+	f.mu.Lock()
 	f.stateToIDTokenClaims.Store(state, claims)
+	f.mu.Unlock()
 	code := f.newCode(state)
 	return f.cfg.Exchange(oidc.ClientContext(context.Background(), f.HTTPClient(nil)), code)
 }
@@ -1269,6 +1280,7 @@ func (f *FakeIDP) RefreshUsed(refreshToken string) bool {
 // for a given refresh token. By default, all refreshes use the same claims as
 // the original IDToken issuance.
 func (f *FakeIDP) UpdateRefreshClaims(refreshToken string, claims jwt.MapClaims) {
+	// no mutex because it's a sync.Map
 	f.refreshIDTokenClaims.Store(refreshToken, claims)
 }
 
@@ -1277,7 +1289,9 @@ func (f *FakeIDP) UpdateRefreshClaims(refreshToken string, claims jwt.MapClaims)
 func (f *FakeIDP) SetRedirect(t testing.TB, u string) {
 	t.Helper()
 
+	f.mu.Lock()
 	f.cfg.RedirectURL = u
+	f.mu.Unlock()
 }
 
 // SetCoderdCallback is optional and only works if not using the IsServing.
@@ -1287,15 +1301,19 @@ func (f *FakeIDP) SetCoderdCallback(callback func(req *http.Request) (*http.Resp
 	if f.serve {
 		panic("cannot set callback handler when using 'WithServing'. Must implement an actual 'Coderd'")
 	}
+	f.mu.Lock()
 	f.fakeCoderd = callback
+	f.mu.Unlock()
 }
 
 func (f *FakeIDP) SetCoderdCallbackHandler(handler http.HandlerFunc) {
+	f.mu.Lock()
 	f.SetCoderdCallback(func(req *http.Request) (*http.Response, error) {
 		resp := httptest.NewRecorder()
 		handler.ServeHTTP(resp, req)
 		return resp.Result(), nil
 	})
+	f.mu.Unlock()
 }
 
 // ExternalAuthConfigOptions exists to provide additional functionality ontop
