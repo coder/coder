@@ -47,4 +47,3 @@ enter `coder` and select **Coder: Login**.
    Paste the session token in the **Coder API Key** dialogue in Windsurf.
 
 1. Windsurf prompts you to open a workspace, or you can use the Command Palette to run **Coder: Open Workspace**.
-

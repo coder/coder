@@ -60,4 +60,3 @@ enter `coder` and select **Coder: Login**.
    Paste the session token in the **Paste your API key** box in Cursor.
 
 1. Select **Open Workspace** or use the Command Palette to run **Coder: Open Workspace**.
-

@@ -92,7 +92,6 @@ Read more about [using Cursor with your workspace](./cursor.md).
 [Windsurf](./windsurf.md) is Codeium's code editor designed for AI-assisted development.
 Windsurf connects using the Coder extension.
 
-
 ## JetBrains IDEs
 
 We support JetBrains IDEs using
