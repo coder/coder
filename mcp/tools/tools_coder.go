@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -217,6 +218,7 @@ func handleCoderWorkspaceExec(deps ToolDeps) mcpserver.ToolHandlerFunc {
 			return nil, xerrors.Errorf("no connected agents for workspace %s", ws.ID)
 		}
 
+		startedAt := time.Now()
 		conn, err := workspacesdk.New(deps.Client).AgentReconnectingPTY(ctx, workspacesdk.WorkspaceAgentReconnectingPTYOpts{
 			AgentID:     agt.ID,
 			Reconnect:   uuid.New(),
@@ -229,6 +231,7 @@ func handleCoderWorkspaceExec(deps ToolDeps) mcpserver.ToolHandlerFunc {
 			return nil, xerrors.Errorf("failed to open reconnecting PTY: %w", err)
 		}
 		defer conn.Close()
+		connectedAt := time.Now()
 
 		var buf bytes.Buffer
 		if _, err := io.Copy(&buf, conn); err != nil {
@@ -238,10 +241,23 @@ func handleCoderWorkspaceExec(deps ToolDeps) mcpserver.ToolHandlerFunc {
 				return nil, xerrors.Errorf("failed to read from reconnecting PTY: %w", err)
 			}
 		}
+		completedAt := time.Now()
+		connectionTime := connectedAt.Sub(startedAt)
+		executionTime := completedAt.Sub(connectedAt)
+
+		resp := map[string]string{
+			"connection_time": connectionTime.String(),
+			"execution_time":  executionTime.String(),
+			"output":          buf.String(),
+		}
+		respJSON, err := json.Marshal(resp)
+		if err != nil {
+			return nil, xerrors.Errorf("failed to encode workspace build: %w", err)
+		}
 
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{
-				mcp.NewTextContent(strings.TrimSpace(buf.String())),
+				mcp.NewTextContent(string(respJSON)),
 			},
 		}, nil
 	}
