@@ -87,7 +87,7 @@ metadata:
   annotations:
     {}
 spec:
-  type: NodePort
+  type: LoadBalancer
   sessionAffinity: None
   ports:
     - name: "http"
@@ -95,6 +95,7 @@ spec:
       targetPort: "http"
       protocol: TCP
       nodePort: 
+  externalTrafficPolicy: "Cluster"
   selector:
     app.kubernetes.io/name: coder
     app.kubernetes.io/instance: release-name
@@ -160,8 +161,6 @@ spec:
               fieldPath: status.podIP
         - name: CODER_DERP_SERVER_RELAY_URL
           value: http://$(KUBE_POD_IP):8080
-        - name: CODER_PROMETHEUS_ENABLE
-          value: "true"
         image: ghcr.io/coder/coder:latest
         imagePullPolicy: IfNotPresent
         lifecycle: {}
@@ -175,9 +174,6 @@ spec:
         - containerPort: 8080
           name: http
           protocol: TCP
-        - containerPort: 2112
-          name: prometheus-http
-          protocol: TCP
         readinessProbe:
           httpGet:
             path: /healthz
@@ -185,11 +181,11 @@ spec:
             scheme: HTTP
         resources:
           limits:
-            cpu: 2000m
-            memory: 4096Mi
+            cpu: 4000m
+            memory: 8192Mi
           requests:
-            cpu: 2000m
-            memory: 4096Mi
+            cpu: 1000m
+            memory: 2048Mi
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: null
