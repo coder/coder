@@ -22,17 +22,52 @@ Internal communication with Provisioners occurs over gRPC, with service definiti
 
 Coder implements a secure networking layer based on Tailscale's Wireguard implementation. The `tailnet` package provides connectivity between workspace agents and clients through DERP (Designated Encrypted Relay for Packets) servers when direct connections aren't possible. This creates a secure overlay network allowing access to workspaces regardless of network topology, firewalls, or NAT configurations.
 
+## Tailnet and DERP System
+
+The networking system has three key components:
+
+1. **Tailnet**: An overlay network implemented in the `tailnet` package that provides secure, end-to-end encrypted connections between clients, the Coder server, and workspace agents.
+
+2. **DERP Servers**: These relay traffic when direct connections aren't possible. Coder provides several options:
+   - A built-in DERP server that runs on the Coder control plane
+   - Integration with Tailscale's global DERP infrastructure
+   - Support for custom DERP servers for lower latency or offline deployments
+
+3. **Direct Connections**: When possible, the system establishes peer-to-peer connections between clients and workspaces using STUN for NAT traversal. This requires both endpoints to send UDP traffic on ephemeral ports.
+
+## Workspace Proxies
+
+Workspace proxies (in the Enterprise edition) provide regional relay points for browser-based connections, reducing latency for geo-distributed teams. Key characteristics:
+
+- Deployed as independent servers that authenticate with the Coder control plane
+- Relay connections for SSH, workspace apps, port forwarding, and web terminals
+- Do not make direct database connections
+- Managed through the `coder wsproxy` commands
+- Implemented primarily in the `enterprise/wsproxy/` package
+
 # Agent System
 
 The workspace agent runs within each provisioned workspace and provides core functionality including:
-- SSH access to workspaces
+- SSH access to workspaces via the `agentssh` package
 - Port forwarding
-- Terminal connectivity
+- Terminal connectivity via the `pty` package for pseudo-terminal support
 - Application serving
 - Healthcheck monitoring
 - Resource usage reporting
 
 Agents communicate with the control plane using the tailnet system and authenticate using secure tokens.
+
+# Workspace Applications
+
+Workspace applications (or "apps") provide browser-based access to services running within workspaces. The system supports:
+
+- HTTP(S) and WebSocket connections
+- Path-based or subdomain-based access URLs
+- Health checks to monitor application availability
+- Different sharing levels (owner-only, authenticated users, or public)
+- Custom icons and display settings
+
+The implementation is primarily in the `coderd/workspaceapps/` directory with components for URL generation, proxying connections, and managing application state.
 
 # Implementation Details
 
@@ -43,6 +78,27 @@ Database interactions are carefully managed through migrations in `coderd/databa
 # Authorization System
 
 The database authorization (dbauthz) system enforces fine-grained access control across all database operations. It uses role-based access control (RBAC) to validate user permissions before executing database operations. The `dbauthz` package wraps the database store and performs authorization checks before returning data. All database operations must pass through this layer to ensure security.
+
+# Testing Framework
+
+The codebase has a comprehensive testing approach with several key components:
+
+1. **Parallel Testing**: All tests must use `t.Parallel()` to run concurrently, which improves test suite performance and helps identify race conditions.
+
+2. **coderdtest Package**: This package in `coderd/coderdtest/` provides utilities for creating test instances of the Coder server, setting up test users and workspaces, and mocking external components.
+
+3. **Integration Tests**: Tests often span multiple components to verify system behavior, such as template creation, workspace provisioning, and agent connectivity.
+
+4. **Enterprise Testing**: Enterprise features have dedicated test utilities in the `coderdenttest` package.
+
+# Open Source and Enterprise Components
+
+The repository contains both open source and enterprise components:
+
+- Enterprise code lives primarily in the `enterprise/` directory
+- Enterprise features focus on governance, scalability (high availability), and advanced deployment options like workspace proxies
+- The boundary between open source and enterprise is managed through a licensing system
+- The same core codebase supports both editions, with enterprise features conditionally enabled
 
 # Development Philosophy
 
@@ -58,6 +114,8 @@ Git contributions follow a standard format with commit messages structured as `t
 # Development Workflow
 
 Development can be initiated using `scripts/develop.sh` to start the application after making changes. Database schema updates should be performed through the migration system using `create_migration.sh <name>` to generate migration files, with each `.up.sql` migration paired with a corresponding `.down.sql` that properly reverts all changes.
+
+If the development database gets into a bad state, it can be completely reset by removing the PostgreSQL data directory with `rm -rf .coderv2/postgres`. This will destroy all data in the development database, requiring you to recreate any test users, templates, or workspaces after restarting the application.
 
 Code generation for the database layer uses `coderd/database/generate.sh`, and developers should refer to `sqlc.yaml` for the appropriate style and patterns to follow when creating new queries or tables.
 
