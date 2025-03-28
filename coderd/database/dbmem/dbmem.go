@@ -246,6 +246,7 @@ type data struct {
 	templates                            []database.TemplateTable
 	templateUsageStats                   []database.TemplateUsageStat
 	userConfigs                          []database.UserConfig
+	webpushSubscriptions                 []database.WebpushSubscription
 	workspaceAgents                      []database.WorkspaceAgent
 	workspaceAgentMetadata               []database.WorkspaceAgentMetadatum
 	workspaceAgentLogs                   []database.WorkspaceAgentLog
@@ -289,6 +290,8 @@ type data struct {
 	lastLicenseID                    int32
 	defaultProxyDisplayName          string
 	defaultProxyIconURL              string
+	webpushVAPIDPublicKey            string
+	webpushVAPIDPrivateKey           string
 	userStatusChanges                []database.UserStatusChange
 	telemetryItems                   []database.TelemetryItem
 	presets                          []database.TemplateVersionPreset
@@ -1857,6 +1860,14 @@ func (*FakeQuerier) DeleteAllTailnetTunnels(_ context.Context, arg database.Dele
 	return ErrUnimplemented
 }
 
+func (q *FakeQuerier) DeleteAllWebpushSubscriptions(_ context.Context) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	q.webpushSubscriptions = make([]database.WebpushSubscription, 0)
+	return nil
+}
+
 func (q *FakeQuerier) DeleteApplicationConnectAPIKeysByUserID(_ context.Context, userID uuid.UUID) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -2424,6 +2435,38 @@ func (*FakeQuerier) DeleteTailnetTunnel(_ context.Context, arg database.DeleteTa
 	}
 
 	return database.DeleteTailnetTunnelRow{}, ErrUnimplemented
+}
+
+func (q *FakeQuerier) DeleteWebpushSubscriptionByUserIDAndEndpoint(_ context.Context, arg database.DeleteWebpushSubscriptionByUserIDAndEndpointParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, subscription := range q.webpushSubscriptions {
+		if subscription.UserID == arg.UserID && subscription.Endpoint == arg.Endpoint {
+			q.webpushSubscriptions[i] = q.webpushSubscriptions[len(q.webpushSubscriptions)-1]
+			q.webpushSubscriptions = q.webpushSubscriptions[:len(q.webpushSubscriptions)-1]
+			return nil
+		}
+	}
+	return sql.ErrNoRows
+}
+
+func (q *FakeQuerier) DeleteWebpushSubscriptions(_ context.Context, ids []uuid.UUID) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+	for i, subscription := range q.webpushSubscriptions {
+		if slices.Contains(ids, subscription.ID) {
+			q.webpushSubscriptions[i] = q.webpushSubscriptions[len(q.webpushSubscriptions)-1]
+			q.webpushSubscriptions = q.webpushSubscriptions[:len(q.webpushSubscriptions)-1]
+			return nil
+		}
+	}
+	return sql.ErrNoRows
 }
 
 func (q *FakeQuerier) DeleteWorkspaceAgentPortShare(_ context.Context, arg database.DeleteWorkspaceAgentPortShareParams) error {
@@ -6745,6 +6788,34 @@ func (q *FakeQuerier) GetUsersByIDs(_ context.Context, ids []uuid.UUID) ([]datab
 	return users, nil
 }
 
+func (q *FakeQuerier) GetWebpushSubscriptionsByUserID(_ context.Context, userID uuid.UUID) ([]database.WebpushSubscription, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	out := make([]database.WebpushSubscription, 0)
+	for _, subscription := range q.webpushSubscriptions {
+		if subscription.UserID == userID {
+			out = append(out, subscription)
+		}
+	}
+
+	return out, nil
+}
+
+func (q *FakeQuerier) GetWebpushVAPIDKeys(_ context.Context) (database.GetWebpushVAPIDKeysRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	if q.webpushVAPIDPublicKey == "" && q.webpushVAPIDPrivateKey == "" {
+		return database.GetWebpushVAPIDKeysRow{}, sql.ErrNoRows
+	}
+
+	return database.GetWebpushVAPIDKeysRow{
+		VapidPublicKey:  q.webpushVAPIDPublicKey,
+		VapidPrivateKey: q.webpushVAPIDPrivateKey,
+	}, nil
+}
+
 func (q *FakeQuerier) GetWorkspaceAgentAndLatestBuildByAuthToken(_ context.Context, authToken uuid.UUID) (database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -9170,6 +9241,27 @@ func (q *FakeQuerier) InsertVolumeResourceMonitor(_ context.Context, arg databas
 
 	q.workspaceAgentVolumeResourceMonitors = append(q.workspaceAgentVolumeResourceMonitors, monitor)
 	return monitor, nil
+}
+
+func (q *FakeQuerier) InsertWebpushSubscription(_ context.Context, arg database.InsertWebpushSubscriptionParams) (database.WebpushSubscription, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.WebpushSubscription{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	newSub := database.WebpushSubscription{
+		ID:                uuid.New(),
+		UserID:            arg.UserID,
+		CreatedAt:         arg.CreatedAt,
+		Endpoint:          arg.Endpoint,
+		EndpointP256dhKey: arg.EndpointP256dhKey,
+		EndpointAuthKey:   arg.EndpointAuthKey,
+	}
+	q.webpushSubscriptions = append(q.webpushSubscriptions, newSub)
+	return newSub, nil
 }
 
 func (q *FakeQuerier) InsertWorkspace(_ context.Context, arg database.InsertWorkspaceParams) (database.WorkspaceTable, error) {
@@ -12483,6 +12575,20 @@ TemplateUsageStatsInsertLoop:
 		q.templateUsageStats = append(q.templateUsageStats, tus)
 	}
 
+	return nil
+}
+
+func (q *FakeQuerier) UpsertWebpushVAPIDKeys(_ context.Context, arg database.UpsertWebpushVAPIDKeysParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	q.webpushVAPIDPublicKey = arg.VapidPublicKey
+	q.webpushVAPIDPrivateKey = arg.VapidPrivateKey
 	return nil
 }
 
