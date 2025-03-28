@@ -166,6 +166,16 @@
 							"title": "Zed",
 							"description": "Access your workspace with Zed",
 							"path": "./user-guides/workspace-access/zed.md"
+						},
+						{
+							"title": "Cursor",
+							"description": "Access your workspace with Cursor",
+							"path": "./user-guides/workspace-access/cursor.md"
+						},
+						{
+							"title": "Windsurf",
+							"description": "Access your workspace with Windsurf",
+							"path": "./user-guides/workspace-access/windsurf.md"
 						}
 					]
 				},
