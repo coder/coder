@@ -280,6 +280,15 @@ var (
 		Type: "user",
 	}
 
+	// ResourceWebpushSubscription
+	// Valid Actions
+	//  - "ActionCreate" :: create webpush subscriptions
+	//  - "ActionDelete" :: delete webpush subscriptions
+	//  - "ActionRead" :: read webpush subscriptions
+	ResourceWebpushSubscription = Object{
+		Type: "webpush_subscription",
+	}
+
 	// ResourceWorkspace
 	// Valid Actions
 	//  - "ActionApplicationConnect" :: connect to workspace apps via browser
@@ -367,6 +376,7 @@ func AllResources() []Objecter {
 		ResourceTailnetCoordinator,
 		ResourceTemplate,
 		ResourceUser,
+		ResourceWebpushSubscription,
 		ResourceWorkspace,
 		ResourceWorkspaceAgentDevcontainers,
 		ResourceWorkspaceAgentResourceMonitor,

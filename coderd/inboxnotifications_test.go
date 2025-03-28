@@ -135,6 +135,9 @@ func TestInboxNotification_Watch(t *testing.T) {
 
 		require.Equal(t, 1, notif.UnreadCount)
 		require.Equal(t, memberClient.ID, notif.Notification.UserID)
+
+		// check for the fallback icon logic
+		require.Equal(t, codersdk.FallbackIconWorkspace, notif.Notification.Icon)
 	})
 
 	t.Run("OK - change format", func(t *testing.T) {
@@ -474,8 +477,9 @@ func TestInboxNotifications_List(t *testing.T) {
 				TemplateID: notifications.TemplateWorkspaceOutOfMemory,
 				Title:      fmt.Sprintf("Notification %d", i),
 				Actions:    json.RawMessage("[]"),
-				Content:    fmt.Sprintf("Content of the notif %d", i),
-				CreatedAt:  dbtime.Now(),
+
+				Content:   fmt.Sprintf("Content of the notif %d", i),
+				CreatedAt: dbtime.Now(),
 			})
 		}
 
@@ -496,6 +500,68 @@ func TestInboxNotifications_List(t *testing.T) {
 		require.Len(t, notifs.Notifications, 15)
 
 		require.Equal(t, "Notification 14", notifs.Notifications[0].Title)
+	})
+
+	t.Run("OK check icons", func(t *testing.T) {
+		t.Parallel()
+
+		client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{})
+		firstUser := coderdtest.CreateFirstUser(t, client)
+		client, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		notifs, err := client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
+		require.NoError(t, err)
+		require.NotNil(t, notifs)
+		require.Equal(t, 0, notifs.UnreadCount)
+		require.Empty(t, notifs.Notifications)
+
+		for i := range 10 {
+			dbgen.NotificationInbox(t, api.Database, database.InsertInboxNotificationParams{
+				ID:     uuid.New(),
+				UserID: member.ID,
+				TemplateID: func() uuid.UUID {
+					switch i {
+					case 0:
+						return notifications.TemplateWorkspaceCreated
+					case 1:
+						return notifications.TemplateWorkspaceMarkedForDeletion
+					case 2:
+						return notifications.TemplateUserAccountActivated
+					case 3:
+						return notifications.TemplateTemplateDeprecated
+					default:
+						return notifications.TemplateTestNotification
+					}
+				}(),
+				Title:   fmt.Sprintf("Notification %d", i),
+				Actions: json.RawMessage("[]"),
+				Icon: func() string {
+					if i == 9 {
+						return "https://dev.coder.com/icon.png"
+					}
+
+					return ""
+				}(),
+				Content:   fmt.Sprintf("Content of the notif %d", i),
+				CreatedAt: dbtime.Now(),
+			})
+		}
+
+		notifs, err = client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
+		require.NoError(t, err)
+		require.NotNil(t, notifs)
+		require.Equal(t, 10, notifs.UnreadCount)
+		require.Len(t, notifs.Notifications, 10)
+
+		require.Equal(t, "https://dev.coder.com/icon.png", notifs.Notifications[0].Icon)
+		require.Equal(t, codersdk.FallbackIconWorkspace, notifs.Notifications[9].Icon)
+		require.Equal(t, codersdk.FallbackIconWorkspace, notifs.Notifications[8].Icon)
+		require.Equal(t, codersdk.FallbackIconAccount, notifs.Notifications[7].Icon)
+		require.Equal(t, codersdk.FallbackIconTemplate, notifs.Notifications[6].Icon)
+		require.Equal(t, codersdk.FallbackIconOther, notifs.Notifications[4].Icon)
 	})
 
 	t.Run("OK with template filter", func(t *testing.T) {
@@ -541,6 +607,7 @@ func TestInboxNotifications_List(t *testing.T) {
 		require.Len(t, notifs.Notifications, 5)
 
 		require.Equal(t, "Notification 8", notifs.Notifications[0].Title)
+		require.Equal(t, codersdk.FallbackIconWorkspace, notifs.Notifications[0].Icon)
 	})
 
 	t.Run("OK with target filter", func(t *testing.T) {
