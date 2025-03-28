@@ -832,6 +832,18 @@ export interface ExternalAuthUser {
 	readonly name: string;
 }
 
+// From codersdk/inboxnotification.go
+export const FallbackIconAccount = "DEFAULT_ACCOUNT_ICON";
+
+// From codersdk/inboxnotification.go
+export const FallbackIconOther = "DEFAULT_OTHER_ICON";
+
+// From codersdk/inboxnotification.go
+export const FallbackIconTemplate = "DEFAULT_TEMPLATE_ICON";
+
+// From codersdk/inboxnotification.go
+export const FallbackIconWorkspace = "DEFAULT_WORKSPACE_ICON";
+
 // From codersdk/deployment.go
 export interface Feature {
 	readonly entitlement: Entitlement;

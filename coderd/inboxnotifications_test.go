@@ -7,12 +7,10 @@ import (
 	"net/http"
 	"runtime"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -139,7 +137,7 @@ func TestInboxNotification_Watch(t *testing.T) {
 		require.Equal(t, memberClient.ID, notif.Notification.UserID)
 
 		// check for the fallback icon logic
-		require.Equal(t, coderd.FallbackIconWorkspace, notif.Notification.Icon)
+		require.Equal(t, codersdk.FallbackIconWorkspace, notif.Notification.Icon)
 	})
 
 	t.Run("OK - change format", func(t *testing.T) {
@@ -479,8 +477,9 @@ func TestInboxNotifications_List(t *testing.T) {
 				TemplateID: notifications.TemplateWorkspaceOutOfMemory,
 				Title:      fmt.Sprintf("Notification %d", i),
 				Actions:    json.RawMessage("[]"),
-				Content:    fmt.Sprintf("Content of the notif %d", i),
-				CreatedAt:  dbtime.Now(),
+
+				Content:   fmt.Sprintf("Content of the notif %d", i),
+				CreatedAt: dbtime.Now(),
 			})
 		}
 
@@ -501,6 +500,71 @@ func TestInboxNotifications_List(t *testing.T) {
 		require.Len(t, notifs.Notifications, 15)
 
 		require.Equal(t, "Notification 14", notifs.Notifications[0].Title)
+	})
+
+	t.Run("OK check icons", func(t *testing.T) {
+		t.Parallel()
+
+		client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{})
+		firstUser := coderdtest.CreateFirstUser(t, client)
+		client, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		notifs, err := client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
+		require.NoError(t, err)
+		require.NotNil(t, notifs)
+		require.Equal(t, 0, notifs.UnreadCount)
+		require.Empty(t, notifs.Notifications)
+
+		for i := range 10 {
+			dbgen.NotificationInbox(t, api.Database, database.InsertInboxNotificationParams{
+				ID:     uuid.New(),
+				UserID: member.ID,
+				TemplateID: func() uuid.UUID {
+					switch i {
+					case 0:
+						return notifications.TemplateWorkspaceCreated
+					case 1:
+						return notifications.TemplateWorkspaceMarkedForDeletion
+					case 2:
+						return notifications.TemplateUserAccountActivated
+					case 3:
+						return notifications.TemplateTemplateDeprecated
+					case 4:
+						return notifications.TemplateTestNotification
+					default:
+						return uuid.New()
+					}
+				}(),
+				Title:   fmt.Sprintf("Notification %d", i),
+				Actions: json.RawMessage("[]"),
+				Icon: func() string {
+					if i == 9 {
+						return "https://dev.coder.com/icon.png"
+					}
+
+					return ""
+				}(),
+				Content:   fmt.Sprintf("Content of the notif %d", i),
+				CreatedAt: dbtime.Now(),
+			})
+		}
+
+		notifs, err = client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
+		require.NoError(t, err)
+		require.NotNil(t, notifs)
+		require.Equal(t, 10, notifs.UnreadCount)
+		require.Len(t, notifs.Notifications, 10)
+
+		require.Equal(t, "https://dev.coder.com/icon.png", notifs.Notifications[0].Icon)
+		require.Equal(t, codersdk.FallbackIconWorkspace, notifs.Notifications[9].Icon)
+		require.Equal(t, codersdk.FallbackIconWorkspace, notifs.Notifications[8].Icon)
+		require.Equal(t, codersdk.FallbackIconAccount, notifs.Notifications[7].Icon)
+		require.Equal(t, codersdk.FallbackIconTemplate, notifs.Notifications[6].Icon)
+		require.Equal(t, codersdk.FallbackIconOther, notifs.Notifications[5].Icon)
+		require.Equal(t, codersdk.FallbackIconOther, notifs.Notifications[4].Icon)
 	})
 
 	t.Run("OK with template filter", func(t *testing.T) {
@@ -546,6 +610,7 @@ func TestInboxNotifications_List(t *testing.T) {
 		require.Len(t, notifs.Notifications, 5)
 
 		require.Equal(t, "Notification 8", notifs.Notifications[0].Title)
+		require.Equal(t, codersdk.FallbackIconWorkspace, notifs.Notifications[0].Icon)
 	})
 
 	t.Run("OK with target filter", func(t *testing.T) {
@@ -866,70 +931,4 @@ func TestInboxNotifications_MarkAllAsRead(t *testing.T) {
 		require.Equal(t, 10, notifs.UnreadCount)
 		require.Len(t, notifs.Notifications, 25)
 	})
-}
-
-func TestInboxNotifications_SetInboxNotificationIcon(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name         string
-		icon         string
-		templateID   uuid.UUID
-		expectedIcon string
-	}{
-		{"WorkspaceCreated", "", notifications.TemplateWorkspaceCreated, coderd.FallbackIconWorkspace},
-		{"WorkspaceManuallyUpdated", "", notifications.TemplateWorkspaceManuallyUpdated, coderd.FallbackIconWorkspace},
-		{"WorkspaceDeleted", "", notifications.TemplateWorkspaceDeleted, coderd.FallbackIconWorkspace},
-		{"WorkspaceAutobuildFailed", "", notifications.TemplateWorkspaceAutobuildFailed, coderd.FallbackIconWorkspace},
-		{"WorkspaceDormant", "", notifications.TemplateWorkspaceDormant, coderd.FallbackIconWorkspace},
-		{"WorkspaceAutoUpdated", "", notifications.TemplateWorkspaceAutoUpdated, coderd.FallbackIconWorkspace},
-		{"WorkspaceMarkedForDeletion", "", notifications.TemplateWorkspaceMarkedForDeletion, coderd.FallbackIconWorkspace},
-		{"WorkspaceManualBuildFailed", "", notifications.TemplateWorkspaceManualBuildFailed, coderd.FallbackIconWorkspace},
-		{"WorkspaceOutOfMemory", "", notifications.TemplateWorkspaceOutOfMemory, coderd.FallbackIconWorkspace},
-		{"WorkspaceOutOfDisk", "", notifications.TemplateWorkspaceOutOfDisk, coderd.FallbackIconWorkspace},
-
-		// Account-related events
-		{"UserAccountCreated", "", notifications.TemplateUserAccountCreated, coderd.FallbackIconAccount},
-		{"UserAccountDeleted", "", notifications.TemplateUserAccountDeleted, coderd.FallbackIconAccount},
-		{"UserAccountSuspended", "", notifications.TemplateUserAccountSuspended, coderd.FallbackIconAccount},
-		{"UserAccountActivated", "", notifications.TemplateUserAccountActivated, coderd.FallbackIconAccount},
-		{"YourAccountSuspended", "", notifications.TemplateYourAccountSuspended, coderd.FallbackIconAccount},
-		{"YourAccountActivated", "", notifications.TemplateYourAccountActivated, coderd.FallbackIconAccount},
-		{"UserRequestedOneTimePasscode", "", notifications.TemplateUserRequestedOneTimePasscode, coderd.FallbackIconAccount},
-
-		// Template-related events
-		{"TemplateDeleted", "", notifications.TemplateTemplateDeleted, coderd.FallbackIconTemplate},
-		{"TemplateDeprecated", "", notifications.TemplateTemplateDeprecated, coderd.FallbackIconTemplate},
-		{"WorkspaceBuildsFailedReport", "", notifications.TemplateWorkspaceBuildsFailedReport, coderd.FallbackIconTemplate},
-
-		// Notification-related events
-		{"TestNotification", "", notifications.TemplateTestNotification, coderd.FallbackIconOther},
-
-		// Testing out that we dont erase existing icon
-		{"TestExistingIcon", "https://cdn.coder.com/icon_notif.png", notifications.TemplateTemplateDeleted, "https://cdn.coder.com/icon_notif.png"},
-
-		// Unknown template
-		{"UnknownTemplate", "", uuid.New(), coderd.FallbackIconOther},
-	}
-
-	for _, tt := range tests {
-		tt := tt
-
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			notif := codersdk.InboxNotification{
-				ID:         uuid.New(),
-				UserID:     uuid.New(),
-				TemplateID: tt.templateID,
-				Title:      "notification title",
-				Content:    "notification content",
-				Icon:       tt.icon,
-				CreatedAt:  time.Now(),
-			}
-
-			coderd.SetInboxNotificationIcon(&notif)
-			require.Equal(t, tt.expectedIcon, notif.Icon)
-		})
-	}
 }

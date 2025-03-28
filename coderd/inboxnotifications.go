@@ -29,52 +29,46 @@ const (
 	notificationFormatPlaintext = "plaintext"
 )
 
-const (
-	FallbackIconWorkspace = "DEFAULT_WORKSPACE_ICON"
-	FallbackIconAccount   = "DEFAULT_ACCOUNT_ICON"
-	FallbackIconTemplate  = "DEFAULT_TEMPLATE_ICON"
-	FallbackIconOther     = "DEFAULT_OTHER_ICON"
-)
-
 var fallbackIcons = map[uuid.UUID]string{
 	// workspace related notifications
-	notifications.TemplateWorkspaceCreated:           FallbackIconWorkspace,
-	notifications.TemplateWorkspaceManuallyUpdated:   FallbackIconWorkspace,
-	notifications.TemplateWorkspaceDeleted:           FallbackIconWorkspace,
-	notifications.TemplateWorkspaceAutobuildFailed:   FallbackIconWorkspace,
-	notifications.TemplateWorkspaceDormant:           FallbackIconWorkspace,
-	notifications.TemplateWorkspaceAutoUpdated:       FallbackIconWorkspace,
-	notifications.TemplateWorkspaceMarkedForDeletion: FallbackIconWorkspace,
-	notifications.TemplateWorkspaceManualBuildFailed: FallbackIconWorkspace,
-	notifications.TemplateWorkspaceOutOfMemory:       FallbackIconWorkspace,
-	notifications.TemplateWorkspaceOutOfDisk:         FallbackIconWorkspace,
+	notifications.TemplateWorkspaceCreated:           codersdk.FallbackIconWorkspace,
+	notifications.TemplateWorkspaceManuallyUpdated:   codersdk.FallbackIconWorkspace,
+	notifications.TemplateWorkspaceDeleted:           codersdk.FallbackIconWorkspace,
+	notifications.TemplateWorkspaceAutobuildFailed:   codersdk.FallbackIconWorkspace,
+	notifications.TemplateWorkspaceDormant:           codersdk.FallbackIconWorkspace,
+	notifications.TemplateWorkspaceAutoUpdated:       codersdk.FallbackIconWorkspace,
+	notifications.TemplateWorkspaceMarkedForDeletion: codersdk.FallbackIconWorkspace,
+	notifications.TemplateWorkspaceManualBuildFailed: codersdk.FallbackIconWorkspace,
+	notifications.TemplateWorkspaceOutOfMemory:       codersdk.FallbackIconWorkspace,
+	notifications.TemplateWorkspaceOutOfDisk:         codersdk.FallbackIconWorkspace,
 
 	// account related notifications
-	notifications.TemplateUserAccountCreated:           FallbackIconAccount,
-	notifications.TemplateUserAccountDeleted:           FallbackIconAccount,
-	notifications.TemplateUserAccountSuspended:         FallbackIconAccount,
-	notifications.TemplateUserAccountActivated:         FallbackIconAccount,
-	notifications.TemplateYourAccountSuspended:         FallbackIconAccount,
-	notifications.TemplateYourAccountActivated:         FallbackIconAccount,
-	notifications.TemplateUserRequestedOneTimePasscode: FallbackIconAccount,
+	notifications.TemplateUserAccountCreated:           codersdk.FallbackIconAccount,
+	notifications.TemplateUserAccountDeleted:           codersdk.FallbackIconAccount,
+	notifications.TemplateUserAccountSuspended:         codersdk.FallbackIconAccount,
+	notifications.TemplateUserAccountActivated:         codersdk.FallbackIconAccount,
+	notifications.TemplateYourAccountSuspended:         codersdk.FallbackIconAccount,
+	notifications.TemplateYourAccountActivated:         codersdk.FallbackIconAccount,
+	notifications.TemplateUserRequestedOneTimePasscode: codersdk.FallbackIconAccount,
 
 	// template related notifications
-	notifications.TemplateTemplateDeleted:             FallbackIconTemplate,
-	notifications.TemplateTemplateDeprecated:          FallbackIconTemplate,
-	notifications.TemplateWorkspaceBuildsFailedReport: FallbackIconTemplate,
+	notifications.TemplateTemplateDeleted:             codersdk.FallbackIconTemplate,
+	notifications.TemplateTemplateDeprecated:          codersdk.FallbackIconTemplate,
+	notifications.TemplateWorkspaceBuildsFailedReport: codersdk.FallbackIconTemplate,
 }
 
-func SetInboxNotificationIcon(notif *codersdk.InboxNotification) {
+func ensureNotificationIcon(notif codersdk.InboxNotification) codersdk.InboxNotification {
 	if notif.Icon != "" {
-		return
+		return notif
 	}
 
 	fallbackIcon, ok := fallbackIcons[notif.TemplateID]
 	if !ok {
-		fallbackIcon = FallbackIconOther
+		fallbackIcon = codersdk.FallbackIconOther
 	}
 
 	notif.Icon = fallbackIcon
+	return notif
 }
 
 // convertInboxNotificationResponse works as a util function to transform a database.InboxNotification to codersdk.InboxNotification
@@ -86,6 +80,7 @@ func convertInboxNotificationResponse(ctx context.Context, logger slog.Logger, n
 		Targets:    notif.Targets,
 		Title:      notif.Title,
 		Content:    notif.Content,
+		Icon:       notif.Icon,
 		Actions: func() []codersdk.InboxNotificationAction {
 			var actionsList []codersdk.InboxNotificationAction
 			err := json.Unmarshal([]byte(notif.Actions), &actionsList)
@@ -103,8 +98,7 @@ func convertInboxNotificationResponse(ctx context.Context, logger slog.Logger, n
 		CreatedAt: notif.CreatedAt,
 	}
 
-	SetInboxNotificationIcon(&convertedNotif)
-	return convertedNotif
+	return ensureNotificationIcon(convertedNotif)
 }
 
 // watchInboxNotifications watches for new inbox notifications and sends them to the client.
@@ -196,11 +190,9 @@ func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request)
 					}
 				}
 
-				SetInboxNotificationIcon(&payload.InboxNotification)
-
 				// keep a safe guard in case of latency to push notifications through websocket
 				select {
-				case notificationCh <- payload.InboxNotification:
+				case notificationCh <- ensureNotificationIcon(payload.InboxNotification):
 				default:
 					api.Logger.Error(ctx, "failed to push consumed notification into websocket handler, check latency")
 				}
