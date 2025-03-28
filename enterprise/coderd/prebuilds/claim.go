@@ -25,7 +25,7 @@ func (_ EnterpriseClaimer) Claim(ctx context.Context, store database.Store, user
 		//	return xerrors.Errorf("acquire claim lock for user %q: %w", userID.String(), err)
 		//}
 
-		result, err := db.ClaimPrebuild(ctx, database.ClaimPrebuildParams{
+		result, err := db.ClaimPrebuiltWorkspace(ctx, database.ClaimPrebuiltWorkspaceParams{
 			NewUserID: userID,
 			NewName:   name,
 			PresetID:  presetID,

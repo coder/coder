@@ -5937,7 +5937,7 @@ func (q *sqlQuerier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.
 	return items, nil
 }
 
-const claimPrebuild = `-- name: ClaimPrebuild :one
+const claimPrebuiltWorkspace = `-- name: ClaimPrebuiltWorkspace :one
 UPDATE workspaces w
 SET owner_id   = $1::uuid,
 	name       = $2::text,
@@ -5959,20 +5959,20 @@ WHERE w.id IN (
 RETURNING w.id, w.name
 `
 
-type ClaimPrebuildParams struct {
+type ClaimPrebuiltWorkspaceParams struct {
 	NewUserID uuid.UUID `db:"new_user_id" json:"new_user_id"`
 	NewName   string    `db:"new_name" json:"new_name"`
 	PresetID  uuid.UUID `db:"preset_id" json:"preset_id"`
 }
 
-type ClaimPrebuildRow struct {
+type ClaimPrebuiltWorkspaceRow struct {
 	ID   uuid.UUID `db:"id" json:"id"`
 	Name string    `db:"name" json:"name"`
 }
 
-func (q *sqlQuerier) ClaimPrebuild(ctx context.Context, arg ClaimPrebuildParams) (ClaimPrebuildRow, error) {
-	row := q.db.QueryRowContext(ctx, claimPrebuild, arg.NewUserID, arg.NewName, arg.PresetID)
-	var i ClaimPrebuildRow
+func (q *sqlQuerier) ClaimPrebuiltWorkspace(ctx context.Context, arg ClaimPrebuiltWorkspaceParams) (ClaimPrebuiltWorkspaceRow, error) {
+	row := q.db.QueryRowContext(ctx, claimPrebuiltWorkspace, arg.NewUserID, arg.NewName, arg.PresetID)
+	var i ClaimPrebuiltWorkspaceRow
 	err := row.Scan(&i.ID, &i.Name)
 	return i, err
 }

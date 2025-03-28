@@ -32,16 +32,16 @@ type storeSpy struct {
 	database.Store
 
 	claims           *atomic.Int32
-	claimParams      *atomic.Pointer[database.ClaimPrebuildParams]
-	claimedWorkspace *atomic.Pointer[database.ClaimPrebuildRow]
+	claimParams      *atomic.Pointer[database.ClaimPrebuiltWorkspaceParams]
+	claimedWorkspace *atomic.Pointer[database.ClaimPrebuiltWorkspaceRow]
 }
 
 func newStoreSpy(db database.Store) *storeSpy {
 	return &storeSpy{
 		Store:            db,
 		claims:           &atomic.Int32{},
-		claimParams:      &atomic.Pointer[database.ClaimPrebuildParams]{},
-		claimedWorkspace: &atomic.Pointer[database.ClaimPrebuildRow]{},
+		claimParams:      &atomic.Pointer[database.ClaimPrebuiltWorkspaceParams]{},
+		claimedWorkspace: &atomic.Pointer[database.ClaimPrebuiltWorkspaceRow]{},
 	}
 }
 
@@ -57,10 +57,10 @@ func (m *storeSpy) InTx(fn func(store database.Store) error, opts *database.TxOp
 	}, opts)
 }
 
-func (m *storeSpy) ClaimPrebuild(ctx context.Context, arg database.ClaimPrebuildParams) (database.ClaimPrebuildRow, error) {
+func (m *storeSpy) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
 	m.claims.Add(1)
 	m.claimParams.Store(&arg)
-	result, err := m.Store.ClaimPrebuild(ctx, arg)
+	result, err := m.Store.ClaimPrebuiltWorkspace(ctx, arg)
 	if err == nil {
 		m.claimedWorkspace.Store(&result)
 	}
@@ -233,7 +233,7 @@ func TestClaimPrebuild(t *testing.T) {
 
 			// When: a user creates a new workspace with a preset for which prebuilds are configured.
 			workspaceName := strings.ReplaceAll(testutil.GetRandomName(t), "_", "-")
-			params := database.ClaimPrebuildParams{
+			params := database.ClaimPrebuiltWorkspaceParams{
 				NewUserID: user.ID,
 				NewName:   workspaceName,
 				PresetID:  presets[0].ID,
