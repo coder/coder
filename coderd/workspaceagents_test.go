@@ -339,6 +339,44 @@ func TestWorkspaceAgentLogs(t *testing.T) {
 	})
 }
 
+func TestWorkspaceAgentAppStatus(t *testing.T) {
+	t.Parallel()
+	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).WithAgent(func(a []*proto.Agent) []*proto.Agent {
+			a[0].Apps = []*proto.App{
+				{
+					Slug: "vscode",
+				},
+			}
+			return a
+		}).Do()
+
+		agentClient := agentsdk.New(client.URL)
+		agentClient.SetSessionToken(r.AgentToken)
+		err := agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
+			AppSlug: "vscode",
+			Message: "testing",
+			URI:     "https://example.com",
+			Icon:    "https://example.com/icon.png",
+			State:   codersdk.WorkspaceAppStatusStateComplete,
+		})
+		require.NoError(t, err)
+
+		workspace, err := client.Workspace(ctx, r.Workspace.ID)
+		require.NoError(t, err)
+		agent, err := client.WorkspaceAgent(ctx, workspace.LatestBuild.Resources[0].Agents[0].ID)
+		require.NoError(t, err)
+		require.Len(t, agent.Apps[0].Statuses, 1)
+	})
+}
+
 func TestWorkspaceAgentConnectRPC(t *testing.T) {
 	t.Parallel()
 
