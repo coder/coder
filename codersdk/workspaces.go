@@ -106,6 +106,8 @@ type CreateWorkspaceBuildRequest struct {
 
 	// Log level changes the default logging verbosity of a provider ("info" if empty).
 	LogLevel ProvisionerLogLevel `json:"log_level,omitempty" validate:"omitempty,oneof=debug"`
+	// TemplateVersionPresetID is the ID of the template version preset to use for the build.
+	TemplateVersionPresetID uuid.UUID `json:"template_version_preset_id,omitempty" format:"uuid"`
 }
 
 type WorkspaceOptions struct {

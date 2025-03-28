@@ -268,6 +268,10 @@ func provisionEnv(
 		"CODER_WORKSPACE_TEMPLATE_VERSION="+metadata.GetTemplateVersion(),
 		"CODER_WORKSPACE_BUILD_ID="+metadata.GetWorkspaceBuildId(),
 	)
+	if metadata.GetIsPrebuild() {
+		env = append(env, provider.IsPrebuildEnvironmentVariable()+"=true")
+	}
+
 	for key, value := range provisionersdk.AgentScriptEnv() {
 		env = append(env, key+"="+value)
 	}
