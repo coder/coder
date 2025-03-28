@@ -17,7 +17,7 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestEditOrganizationRoles(t *testing.T) {
+func TestCreateOrganizationRoles(t *testing.T) {
 	t.Parallel()
 
 	// Unit test uses --stdin and json as the role input. The interactive cli would
@@ -34,7 +34,7 @@ func TestEditOrganizationRoles(t *testing.T) {
 		})
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		inv, root := clitest.New(t, "organization", "roles", "edit", "--stdin")
+		inv, root := clitest.New(t, "organization", "roles", "create", "--stdin")
 		inv.Stdin = bytes.NewBufferString(fmt.Sprintf(`{
     "name": "new-role",
     "organization_id": "%s",
@@ -72,7 +72,7 @@ func TestEditOrganizationRoles(t *testing.T) {
 		})
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		inv, root := clitest.New(t, "organization", "roles", "edit", "--stdin")
+		inv, root := clitest.New(t, "organization", "roles", "create", "--stdin")
 		inv.Stdin = bytes.NewBufferString(fmt.Sprintf(`{
     "name": "new-role",
     "organization_id": "%s",

@@ -1116,14 +1116,19 @@
 							"path": "reference/cli/organizations_roles.md"
 						},
 						{
-							"title": "organizations roles edit",
-							"description": "Edit an organization custom role",
-							"path": "reference/cli/organizations_roles_edit.md"
+							"title": "organizations roles create",
+							"description": "Create a new organization custom role",
+							"path": "reference/cli/organizations_roles_create.md"
 						},
 						{
 							"title": "organizations roles show",
 							"description": "Show role(s)",
 							"path": "reference/cli/organizations_roles_show.md"
+						},
+						{
+							"title": "organizations roles update",
+							"description": "Update an organization custom role",
+							"path": "reference/cli/organizations_roles_update.md"
 						},
 						{
 							"title": "organizations settings",
