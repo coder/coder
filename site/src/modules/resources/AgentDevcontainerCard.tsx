@@ -27,7 +27,6 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 	wildcardHostname,
 }) => {
 	const folderPath = container.labels["devcontainer.local_folder"];
-	const configFile = container.labels["devcontainer.config_file"];
 	const containerFolder = container.volumes[folderPath];
 
 	return (
@@ -52,8 +51,7 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 				<VSCodeDevContainerButton
 					userName={workspace.owner_name}
 					workspaceName={workspace.name}
-					folderPath={folderPath}
-					devContainerPath={configFile}
+					devContainerName={container.name}
 					devContainerFolder={containerFolder}
 					displayApps={agent.display_apps}
 				/>

@@ -14,8 +14,7 @@ export interface VSCodeDevContainerButtonProps {
 	userName: string;
 	workspaceName: string;
 	agentName?: string;
-	folderPath: string;
-	devContainerPath: string;
+	devContainerName: string;
 	devContainerFolder: string;
 	displayApps: readonly DisplayApp[];
 }
@@ -113,8 +112,7 @@ const VSCodeButton: FC<VSCodeDevContainerButtonProps> = ({
 	userName,
 	workspaceName,
 	agentName,
-	folderPath,
-	devContainerPath,
+	devContainerName,
 	devContainerFolder,
 }) => {
 	const [loading, setLoading] = useState(false);
@@ -132,14 +130,11 @@ const VSCodeButton: FC<VSCodeDevContainerButtonProps> = ({
 							workspace: workspaceName,
 							url: location.origin,
 							token: key,
-							devContainerPath,
+							devContainerName,
 							devContainerFolder,
 						});
 						if (agentName) {
 							query.set("agent", agentName);
-						}
-						if (folderPath) {
-							query.set("folder", folderPath);
 						}
 
 						location.href = `vscode://coder.coder-remote/openDevContainer?${query.toString()}`;
@@ -161,8 +156,7 @@ const VSCodeInsidersButton: FC<VSCodeDevContainerButtonProps> = ({
 	userName,
 	workspaceName,
 	agentName,
-	folderPath,
-	devContainerPath,
+	devContainerName,
 	devContainerFolder,
 }) => {
 	const [loading, setLoading] = useState(false);
@@ -180,14 +174,11 @@ const VSCodeInsidersButton: FC<VSCodeDevContainerButtonProps> = ({
 							workspace: workspaceName,
 							url: location.origin,
 							token: key,
-							devContainerPath,
+							devContainerName,
 							devContainerFolder,
 						});
 						if (agentName) {
 							query.set("agent", agentName);
-						}
-						if (folderPath) {
-							query.set("folder", folderPath);
 						}
 
 						location.href = `vscode-insiders://coder.coder-remote/openDevContainer?${query.toString()}`;
