@@ -1937,6 +1937,134 @@ func TestAgent_ReconnectingPTYContainer(t *testing.T) {
 	require.ErrorIs(t, tr.ReadUntil(ctx, nil), io.EOF)
 }
 
+// This tests end-to-end functionality of auto-starting a devcontainer.
+// It runs "devcontainer up" which creates a real Docker container. As
+// such, it does not run by default in CI.
+//
+// You can run it manually as follows:
+//
+// CODER_TEST_USE_DOCKER=1 go test -count=1 ./agent -run TestAgent_DevcontainerAutostart
+func TestAgent_DevcontainerAutostart(t *testing.T) {
+	t.Parallel()
+	if os.Getenv("CODER_TEST_USE_DOCKER") != "1" {
+		t.Skip("Set CODER_TEST_USE_DOCKER=1 to run this test")
+	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Connect to Docker
+	pool, err := dockertest.NewPool("")
+	require.NoError(t, err, "Could not connect to docker")
+
+	// Prepare temporary devcontainer for test (mywork).
+	devcontainerID := uuid.New()
+	tempWorkspaceFolder := t.TempDir()
+	tempWorkspaceFolder = filepath.Join(tempWorkspaceFolder, "mywork")
+	t.Logf("Workspace folder: %s", tempWorkspaceFolder)
+	devcontainerPath := filepath.Join(tempWorkspaceFolder, ".devcontainer")
+	err = os.MkdirAll(devcontainerPath, 0o755)
+	require.NoError(t, err, "create devcontainer directory")
+	devcontainerFile := filepath.Join(devcontainerPath, "devcontainer.json")
+	err = os.WriteFile(devcontainerFile, []byte(`{
+        "name": "mywork",
+        "image": "busybox:latest",
+        "cmd": ["sleep", "infinity"]
+    }`), 0o600)
+	require.NoError(t, err, "write devcontainer.json")
+
+	manifest := agentsdk.Manifest{
+		// Set up pre-conditions for auto-starting a devcontainer, the script
+		// is expected to be prepared by the provisioner normally.
+		Devcontainers: []codersdk.WorkspaceAgentDevcontainer{
+			{
+				ID:              devcontainerID,
+				Name:            "test",
+				WorkspaceFolder: tempWorkspaceFolder,
+			},
+		},
+		Scripts: []codersdk.WorkspaceAgentScript{
+			{
+				ID:          devcontainerID,
+				LogSourceID: agentsdk.ExternalLogSourceID,
+				RunOnStart:  true,
+				Script:      "echo this-will-be-replaced",
+				DisplayName: "Dev Container (test)",
+			},
+		},
+	}
+	// nolint: dogsled
+	conn, _, _, _, _ := setupAgent(t, manifest, 0, func(_ *agenttest.Client, o *agent.Options) {
+		o.ExperimentalDevcontainersEnabled = true
+	})
+
+	t.Logf("Waiting for container with label: devcontainer.local_folder=%s", tempWorkspaceFolder)
+
+	var container docker.APIContainers
+	require.Eventually(t, func() bool {
+		containers, err := pool.Client.ListContainers(docker.ListContainersOptions{All: true})
+		if err != nil {
+			t.Logf("Error listing containers: %v", err)
+			return false
+		}
+
+		for _, c := range containers {
+			t.Logf("Found container: %s with labels: %v", c.ID[:12], c.Labels)
+			if labelValue, ok := c.Labels["devcontainer.local_folder"]; ok {
+				if labelValue == tempWorkspaceFolder {
+					t.Logf("Found matching container: %s", c.ID[:12])
+					container = c
+					return true
+				}
+			}
+		}
+
+		return false
+	}, testutil.WaitSuperLong, testutil.IntervalMedium, "no container with workspace folder label found")
+
+	t.Cleanup(func() {
+		// We can't rely on pool here because the container is not
+		// managed by it (it is managed by @devcontainer/cli).
+		err := pool.Client.RemoveContainer(docker.RemoveContainerOptions{
+			ID:            container.ID,
+			RemoveVolumes: true,
+			Force:         true,
+		})
+		assert.NoError(t, err, "remove container")
+	})
+
+	containerInfo, err := pool.Client.InspectContainer(container.ID)
+	require.NoError(t, err, "inspect container")
+	t.Logf("Container state: status: %v", containerInfo.State.Status)
+	require.True(t, containerInfo.State.Running, "container should be running")
+
+	ac, err := conn.ReconnectingPTY(ctx, uuid.New(), 80, 80, "", func(opts *workspacesdk.AgentReconnectingPTYInit) {
+		opts.Container = container.ID
+	})
+	require.NoError(t, err, "failed to create ReconnectingPTY")
+	defer ac.Close()
+
+	// Use terminal reader so we can see output in case somethin goes wrong.
+	tr := testutil.NewTerminalReader(t, ac)
+
+	require.NoError(t, tr.ReadUntil(ctx, func(line string) bool {
+		return strings.Contains(line, "#") || strings.Contains(line, "$")
+	}), "find prompt")
+
+	wantFileName := "file-from-devcontainer"
+	wantFile := filepath.Join(tempWorkspaceFolder, wantFileName)
+
+	require.NoError(t, json.NewEncoder(ac).Encode(workspacesdk.ReconnectingPTYRequest{
+		// NOTE(mafredri): We must use absolute path here for some reason.
+		Data: fmt.Sprintf("touch /workspaces/mywork/%s; exit\r", wantFileName),
+	}), "create file inside devcontainer")
+
+	// Wait for the connection to close to ensure the touch was executed.
+	require.ErrorIs(t, tr.ReadUntil(ctx, nil), io.EOF)
+
+	_, err = os.Stat(wantFile)
+	require.NoError(t, err, "file should exist outside devcontainer")
+}
+
 func TestAgent_Dial(t *testing.T) {
 	t.Parallel()
 
