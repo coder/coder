@@ -173,7 +173,7 @@
 		"jest-location-mock": "2.0.0",
 		"jest-websocket-mock": "2.5.0",
 		"jest_workaround": "0.1.14",
-		"msw": "2.4.3",
+		"msw": "2.4.8",
 		"postcss": "8.5.1",
 		"protobufjs": "7.4.0",
 		"rxjs": "7.8.1",
@@ -190,7 +190,11 @@
 		"vite-plugin-checker": "0.8.0",
 		"vite-plugin-turbosnap": "1.0.3"
 	},
-	"browserslist": ["chrome 110", "firefox 111", "safari 16.0"],
+	"browserslist": [
+		"chrome 110",
+		"firefox 111",
+		"safari 16.0"
+	],
 	"resolutions": {
 		"optionator": "0.9.3",
 		"semver": "7.6.2"
