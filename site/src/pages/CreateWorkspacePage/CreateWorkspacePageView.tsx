@@ -1,7 +1,7 @@
 import type { Interpolation, Theme } from "@emotion/react";
+import FormControlLabel from "@mui/material/FormControlLabel";
 import FormHelperText from "@mui/material/FormHelperText";
 import TextField from "@mui/material/TextField";
-import FormControlLabel from "@mui/material/FormControlLabel";
 import type * as TypesGen from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
@@ -25,6 +25,7 @@ import { Pill } from "components/Pill/Pill";
 import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
 import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
+import { Switch } from "components/Switch/Switch";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
@@ -46,7 +47,6 @@ import type {
 } from "./CreateWorkspacePage";
 import { ExternalAuthButton } from "./ExternalAuthButton";
 import type { CreateWSPermissions } from "./permissions";
-import { Switch } from "components/Switch/Switch";
 
 export const Language = {
 	duplicationWarning:
@@ -200,7 +200,13 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 				value: presetParameter.Value,
 			});
 		}
-	}, [presetOptions, selectedPresetIndex, presets, parameters, form.setFieldValue]);
+	}, [
+		presetOptions,
+		selectedPresetIndex,
+		presets,
+		parameters,
+		form.setFieldValue,
+	]);
 
 	return (
 		<Margins size="medium">
@@ -296,7 +302,9 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 											selectedOption={presetOptions[selectedPresetIndex]}
 										/>
 									</Stack>
-									<div css={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+									<div
+										css={{ display: "flex", alignItems: "center", gap: "8px" }}
+									>
 										<Switch
 											checked={showPresetParameters}
 											onCheckedChange={setShowPresetParameters}
@@ -382,7 +390,9 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 							{parameters.map((parameter, index) => {
 								const parameterField = `rich_parameter_values.${index}`;
 								const parameterInputName = `${parameterField}.value`;
-								const isPresetParameter = presetParameterNames.includes(parameter.name);
+								const isPresetParameter = presetParameterNames.includes(
+									parameter.name,
+								);
 								const isDisabled =
 									disabledParams?.includes(
 										parameter.name.toLowerCase().replace(/ /g, "_"),

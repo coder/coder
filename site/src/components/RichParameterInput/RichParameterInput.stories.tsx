@@ -381,7 +381,8 @@ export const WithPreset: Story = {
 		id: "project_name",
 		parameter: createTemplateVersionParameter({
 			name: "project_name",
-			description: "Customize the name of a Google Cloud project that will be created!",
+			description:
+				"Customize the name of a Google Cloud project that will be created!",
 		}),
 		isPreset: true,
 	},
@@ -393,7 +394,8 @@ export const WithPresetAndImmutable: Story = {
 		id: "project_name",
 		parameter: createTemplateVersionParameter({
 			name: "project_name",
-			description: "Customize the name of a Google Cloud project that will be created!",
+			description:
+				"Customize the name of a Google Cloud project that will be created!",
 			mutable: false,
 		}),
 		isPreset: true,
@@ -406,7 +408,8 @@ export const WithPresetAndOptional: Story = {
 		id: "project_name",
 		parameter: createTemplateVersionParameter({
 			name: "project_name",
-			description: "Customize the name of a Google Cloud project that will be created!",
+			description:
+				"Customize the name of a Google Cloud project that will be created!",
 			required: false,
 		}),
 		isPreset: true,

@@ -1,5 +1,6 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import ErrorOutline from "@mui/icons-material/ErrorOutline";
+import SettingsIcon from "@mui/icons-material/Settings";
 import Button from "@mui/material/Button";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import FormHelperText from "@mui/material/FormHelperText";
@@ -19,7 +20,6 @@ import type {
 	AutofillSource,
 } from "utils/richParameters";
 import { MultiTextField } from "./MultiTextField";
-import SettingsIcon from "@mui/icons-material/Settings";
 
 const isBoolean = (parameter: TemplateVersionParameter) => {
 	return parameter.type === "bool";
