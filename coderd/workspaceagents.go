@@ -67,7 +67,8 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 
 	var eg errgroup.Group
 	eg.Go(func() (err error) {
-		dbApps, err = api.Database.GetWorkspaceAppsByAgentID(ctx, workspaceAgent.ID)
+		// nolint:gocritic // This is a system restricted operation.
+		dbApps, err = api.Database.GetWorkspaceAppsByAgentID(dbauthz.AsSystemRestricted(ctx), workspaceAgent.ID)
 		return err
 	})
 	eg.Go(func() (err error) {
