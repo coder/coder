@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log"
 	"os"
 	"path/filepath"
 
@@ -41,7 +42,7 @@ func (r *RootCmd) mcpConfigure() *serpent.Command {
 	return cmd
 }
 
-func (r *RootCmd) mcpConfigureClaudeDesktop() *serpent.Command {
+func (*RootCmd) mcpConfigureClaudeDesktop() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "claude-desktop",
 		Short: "Configure the Claude Desktop server.",
@@ -51,7 +52,7 @@ func (r *RootCmd) mcpConfigureClaudeDesktop() *serpent.Command {
 				return err
 			}
 			configPath = filepath.Join(configPath, "Claude")
-			err = os.MkdirAll(configPath, 0755)
+			err = os.MkdirAll(configPath, 0o755)
 			if err != nil {
 				return err
 			}
@@ -85,7 +86,7 @@ func (r *RootCmd) mcpConfigureClaudeDesktop() *serpent.Command {
 			if err != nil {
 				return err
 			}
-			err = os.WriteFile(configPath, data, 0600)
+			err = os.WriteFile(configPath, data, 0o600)
 			if err != nil {
 				return err
 			}
@@ -95,7 +96,7 @@ func (r *RootCmd) mcpConfigureClaudeDesktop() *serpent.Command {
 	return cmd
 }
 
-func (_ *RootCmd) mcpConfigureClaudeCode() *serpent.Command {
+func (*RootCmd) mcpConfigureClaudeCode() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "claude-code",
 		Short: "Configure the Claude Code server.",
@@ -106,7 +107,7 @@ func (_ *RootCmd) mcpConfigureClaudeCode() *serpent.Command {
 	return cmd
 }
 
-func (_ *RootCmd) mcpConfigureCursor() *serpent.Command {
+func (*RootCmd) mcpConfigureCursor() *serpent.Command {
 	var project bool
 	cmd := &serpent.Command{
 		Use:   "cursor",
@@ -131,7 +132,7 @@ func (_ *RootCmd) mcpConfigureCursor() *serpent.Command {
 				}
 			}
 			cursorDir := filepath.Join(dir, ".cursor")
-			err = os.MkdirAll(cursorDir, 0755)
+			err = os.MkdirAll(cursorDir, 0o755)
 			if err != nil {
 				return err
 			}
@@ -172,7 +173,7 @@ func (_ *RootCmd) mcpConfigureCursor() *serpent.Command {
 			if err != nil {
 				return err
 			}
-			err = os.WriteFile(mcpConfig, data, 0600)
+			err = os.WriteFile(mcpConfig, data, 0o600)
 			if err != nil {
 				return err
 			}
@@ -249,8 +250,6 @@ func mcpServerHandler(inv *serpent.Invocation, client *codersdk.Client, instruct
 	options := []codermcp.Option{
 		codermcp.WithInstructions(instructions),
 		codermcp.WithLogger(&logger),
-		codermcp.WithStdin(invStdin),
-		codermcp.WithStdout(invStdout),
 	}
 
 	// Add allowed tools option if specified
@@ -258,14 +257,22 @@ func mcpServerHandler(inv *serpent.Invocation, client *codersdk.Client, instruct
 		options = append(options, codermcp.WithAllowedTools(allowedTools))
 	}
 
-	closer := codermcp.New(ctx, client, options...)
+	srv := codermcp.NewStdio(client, options...)
+	srv.SetErrorLogger(log.New(invStderr, "", log.LstdFlags))
 
-	<-ctx.Done()
-	if err := closer.Close(); err != nil {
+	done := make(chan error)
+	go func() {
+		defer close(done)
+		srvErr := srv.Listen(ctx, invStdin, invStdout)
+		done <- srvErr
+	}()
+
+	if err := <-done; err != nil {
 		if !errors.Is(err, context.Canceled) {
-			cliui.Errorf(inv.Stderr, "Failed to stop the MCP server: %s", err)
+			cliui.Errorf(inv.Stderr, "Failed to start the MCP server: %s", err)
 			return err
 		}
 	}
+
 	return nil
 }

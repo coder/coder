@@ -1,9 +1,7 @@
 package codermcp
 
 import (
-	"context"
 	"io"
-	"log"
 	"os"
 
 	"github.com/mark3labs/mcp-go/server"
@@ -17,8 +15,6 @@ import (
 )
 
 type mcpOptions struct {
-	in           io.Reader
-	out          io.Writer
 	instructions string
 	logger       *slog.Logger
 	allowedTools []string
@@ -41,20 +37,6 @@ func WithLogger(logger *slog.Logger) Option {
 	}
 }
 
-// WithStdin sets the input reader for the MCP server.
-func WithStdin(in io.Reader) Option {
-	return func(o *mcpOptions) {
-		o.in = in
-	}
-}
-
-// WithStdout sets the output writer for the MCP server.
-func WithStdout(out io.Writer) Option {
-	return func(o *mcpOptions) {
-		o.out = out
-	}
-}
-
 // WithAllowedTools sets the allowed tools for the MCP server.
 func WithAllowedTools(tools []string) Option {
 	return func(o *mcpOptions) {
@@ -62,13 +44,12 @@ func WithAllowedTools(tools []string) Option {
 	}
 }
 
-// New creates a new MCP server with the given client and options.
-func New(ctx context.Context, client *codersdk.Client, opts ...Option) io.Closer {
+// NewStdio creates a new MCP stdio server with the given client and options.
+// It is the responsibility of the caller to start and stop the server.
+func NewStdio(client *codersdk.Client, opts ...Option) *server.StdioServer {
 	options := &mcpOptions{
-		in:           os.Stdin,
 		instructions: ``,
 		logger:       ptr.Ref(slog.Make(sloghuman.Sink(os.Stdout))),
-		out:          os.Stdout,
 	}
 	for _, opt := range opts {
 		opt(options)
@@ -93,17 +74,7 @@ func New(ctx context.Context, client *codersdk.Client, opts ...Option) io.Closer
 	})
 
 	srv := server.NewStdioServer(mcpSrv)
-	srv.SetErrorLogger(log.New(options.out, "", log.LstdFlags))
-	done := make(chan error)
-	go func() {
-		defer close(done)
-		srvErr := srv.Listen(ctx, options.in, options.out)
-		done <- srvErr
-	}()
-
-	return closeFunc(func() error {
-		return <-done
-	})
+	return srv
 }
 
 type closeFunc func() error
