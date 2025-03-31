@@ -301,7 +301,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 											checked={showPresetParameters}
 											onCheckedChange={setShowPresetParameters}
 										/>
-										<span>Show preset parameters</span>
+										<span css={styles.description}>Show preset parameters</span>
 									</div>
 								</Stack>
 							</Stack>
