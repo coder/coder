@@ -276,50 +276,6 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 							</Stack>
 						)}
 
-						{presets.length > 0 && (
-							<Stack direction="column" spacing={2}>
-								<Stack direction="row" spacing={2} alignItems="center">
-									<span css={styles.description}>
-										Select a preset to get started
-									</span>
-									<FeatureStageBadge contentType={"beta"} size="md" />
-								</Stack>
-								<Stack direction="column" spacing={2}>
-									<Stack direction="row" spacing={2}>
-										<SelectFilter
-											label="Preset"
-											options={presetOptions}
-											onSelect={(option) => {
-												const index = presetOptions.findIndex(
-													(preset) => preset.value === option?.value,
-												);
-												if (index === -1) {
-													return;
-												}
-												setSelectedPresetIndex(index);
-											}}
-											placeholder="Select a preset"
-											selectedOption={presetOptions[selectedPresetIndex]}
-										/>
-									</Stack>
-									<div
-										css={{ display: "flex", alignItems: "center", gap: "8px" }}
-									>
-										<Switch
-											id="show-preset-parameters"
-											checked={showPresetParameters}
-											onCheckedChange={setShowPresetParameters}
-										/>
-										<label
-											htmlFor="show-preset-parameters"
-											css={styles.description}
-										>
-											Show preset parameters
-										</label>
-									</div>
-								</Stack>
-							</Stack>
-						)}
 						<div>
 							<TextField
 								{...getFieldHelpers("name")}
@@ -393,6 +349,55 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
                 hence they require additional vertical spacing for better readability and
                 user experience. */}
 						<FormFields css={{ gap: 36 }}>
+							{presets.length > 0 && (
+								<Stack direction="column" spacing={2}>
+									<Stack direction="row" spacing={2} alignItems="center">
+										<span css={styles.description}>
+											Select a preset to get started
+										</span>
+										<FeatureStageBadge contentType={"beta"} size="md" />
+									</Stack>
+									<Stack direction="column" spacing={2}>
+										<Stack direction="row" spacing={2}>
+											<SelectFilter
+												label="Preset"
+												options={presetOptions}
+												onSelect={(option) => {
+													const index = presetOptions.findIndex(
+														(preset) => preset.value === option?.value,
+													);
+													if (index === -1) {
+														return;
+													}
+													setSelectedPresetIndex(index);
+												}}
+												placeholder="Select a preset"
+												selectedOption={presetOptions[selectedPresetIndex]}
+											/>
+										</Stack>
+										<div
+											css={{
+												display: "flex",
+												alignItems: "center",
+												gap: "8px",
+											}}
+										>
+											<Switch
+												id="show-preset-parameters"
+												checked={showPresetParameters}
+												onCheckedChange={setShowPresetParameters}
+											/>
+											<label
+												htmlFor="show-preset-parameters"
+												css={styles.description}
+											>
+												Show preset parameters
+											</label>
+										</div>
+									</Stack>
+								</Stack>
+							)}
+
 							{parameters.map((parameter, index) => {
 								const parameterField = `rich_parameter_values.${index}`;
 								const parameterInputName = `${parameterField}.value`;
