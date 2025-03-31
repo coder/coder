@@ -36,7 +36,7 @@ func TestExpMcp(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, client)
 
 		// Given: we run the exp mcp command with allowed tools set
-		inv, root := clitest.New(t, "exp", "mcp", "--allowed-tools=coder_whoami,coder_list_templates")
+		inv, root := clitest.New(t, "exp", "mcp", "server", "--allowed-tools=coder_whoami,coder_list_templates")
 		inv = inv.WithContext(cancelCtx)
 
 		pty := ptytest.New(t)
@@ -88,7 +88,7 @@ func TestExpMcp(t *testing.T) {
 
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
-		inv, root := clitest.New(t, "exp", "mcp")
+		inv, root := clitest.New(t, "exp", "mcp", "server")
 		inv = inv.WithContext(cancelCtx)
 
 		pty := ptytest.New(t)
@@ -128,7 +128,7 @@ func TestExpMcp(t *testing.T) {
 		t.Cleanup(cancel)
 
 		client := coderdtest.New(t, nil)
-		inv, root := clitest.New(t, "exp", "mcp")
+		inv, root := clitest.New(t, "exp", "mcp", "server")
 		inv = inv.WithContext(cancelCtx)
 
 		pty := ptytest.New(t)
