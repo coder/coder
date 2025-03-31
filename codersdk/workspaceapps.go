@@ -101,7 +101,7 @@ type Healthcheck struct {
 
 type WorkspaceAppStatus struct {
 	ID                 uuid.UUID               `json:"id" format:"uuid"`
-	CreatedAt          time.Time               `json:"created_at"`
+	CreatedAt          time.Time               `json:"created_at" format:"date-time"`
 	WorkspaceID        uuid.UUID               `json:"workspace_id" format:"uuid"`
 	AgentID            uuid.UUID               `json:"agent_id" format:"uuid"`
 	AppID              uuid.UUID               `json:"app_id" format:"uuid"`

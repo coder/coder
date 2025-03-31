@@ -913,6 +913,7 @@ export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
 	},
 	hidden: false,
 	open_in: "slim-window",
+	statuses: [],
 };
 
 export const MockWorkspaceAgentLogSource: TypesGen.WorkspaceAgentLogSource = {
@@ -1371,6 +1372,7 @@ export const MockWorkspace: TypesGen.Workspace = {
 		healthy: true,
 		failing_agents: [],
 	},
+	latest_app_status: null,
 	automatic_updates: "never",
 	allow_renames: true,
 	favorite: false,
