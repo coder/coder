@@ -200,13 +200,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 				value: presetParameter.Value,
 			});
 		}
-	}, [
-		presetOptions,
-		selectedPresetIndex,
-		presets,
-		parameters,
-		form.setFieldValue,
-	]);
+	}, [presetOptions, selectedPresetIndex, presets, parameters, form.setFieldValue]);
 
 	return (
 		<Margins size="medium">
@@ -395,7 +389,8 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 									creatingWorkspace ||
 									presetParameterNames.includes(parameter.name);
 
-								// Skip rendering preset parameters if showPresetParameters is false
+								// Hide preset parameters if showPresetParameters is false
+								// but keep their values in the form
 								if (!showPresetParameters && presetParameterNames.includes(parameter.name)) {
 									return null;
 								}
