@@ -306,10 +306,16 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 										css={{ display: "flex", alignItems: "center", gap: "8px" }}
 									>
 										<Switch
+											id="show-preset-parameters"
 											checked={showPresetParameters}
 											onCheckedChange={setShowPresetParameters}
 										/>
-										<span css={styles.description}>Show preset parameters</span>
+										<label
+											htmlFor="show-preset-parameters"
+											css={styles.description}
+										>
+											Show preset parameters
+										</label>
 									</div>
 								</Stack>
 							</Stack>
