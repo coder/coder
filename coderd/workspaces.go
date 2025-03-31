@@ -14,6 +14,7 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -1928,25 +1929,42 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 		templateIDs = append(templateIDs, workspace.TemplateID)
 	}
 
-	templates, err := api.Database.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{
-		IDs: templateIDs,
+	var (
+		templates   []database.Template
+		builds      []database.WorkspaceBuild
+		appStatuses []database.WorkspaceAppStatus
+		eg          errgroup.Group
+	)
+	eg.Go(func() (err error) {
+		templates, err = api.Database.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{
+			IDs: templateIDs,
+		})
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return xerrors.Errorf("get templates: %w", err)
+		}
+		return nil
 	})
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return workspaceData{}, xerrors.Errorf("get templates: %w", err)
-	}
-
-	// This query must be run as system restricted to be efficient.
-	// nolint:gocritic
-	builds, err := api.Database.GetLatestWorkspaceBuildsByWorkspaceIDs(dbauthz.AsSystemRestricted(ctx), workspaceIDs)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return workspaceData{}, xerrors.Errorf("get workspace builds: %w", err)
-	}
-
-	// This query must be run as system restricted to be efficient.
-	// nolint:gocritic
-	appStatuses, err := api.Database.GetLatestWorkspaceAppStatusesByWorkspaceIDs(dbauthz.AsSystemRestricted(ctx), workspaceIDs)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return workspaceData{}, xerrors.Errorf("get workspace app statuses: %w", err)
+	eg.Go(func() (err error) {
+		// This query must be run as system restricted to be efficient.
+		// nolint:gocritic
+		builds, err = api.Database.GetLatestWorkspaceBuildsByWorkspaceIDs(dbauthz.AsSystemRestricted(ctx), workspaceIDs)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return xerrors.Errorf("get workspace builds: %w", err)
+		}
+		return nil
+	})
+	eg.Go(func() (err error) {
+		// This query must be run as system restricted to be efficient.
+		// nolint:gocritic
+		appStatuses, err = api.Database.GetLatestWorkspaceAppStatusesByWorkspaceIDs(dbauthz.AsSystemRestricted(ctx), workspaceIDs)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return xerrors.Errorf("get workspace app statuses: %w", err)
+		}
+		return nil
+	})
+	err := eg.Wait()
+	if err != nil {
+		return workspaceData{}, err
 	}
 
 	data, err := api.workspaceBuildsData(ctx, builds)
