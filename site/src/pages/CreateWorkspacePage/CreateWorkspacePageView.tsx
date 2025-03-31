@@ -103,7 +103,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	const [suggestedName, setSuggestedName] = useState(() =>
 		generateWorkspaceName(),
 	);
-	const [showPresetParameters, setShowPresetParameters] = useState(true);
+	const [showPresetParameters, setShowPresetParameters] = useState(false);
 
 	const rerollSuggestedName = useCallback(() => {
 		setSuggestedName(() => generateWorkspaceName());
