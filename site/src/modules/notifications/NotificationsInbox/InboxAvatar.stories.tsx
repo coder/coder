@@ -15,6 +15,12 @@ export const Custom: Story = {
 	},
 };
 
+export const EmptyIcon: Story = {
+	args: {
+		icon: "",
+	},
+};
+
 export const FallbackWorkspace: Story = {
 	args: {
 		icon: "DEFAULT_ICON_WORKSPACE",

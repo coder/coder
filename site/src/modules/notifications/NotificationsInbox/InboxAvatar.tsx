@@ -36,6 +36,10 @@ type InboxAvatarProps = {
 };
 
 export const InboxAvatar: FC<InboxAvatarProps> = ({ icon }) => {
+	if (icon === "") {
+		return <Avatar variant="icon">{fallbackIcons.DEFAULT_ICON_OTHER}</Avatar>;
+	}
+
 	if (isInboxNotificationFallbackIcon(icon)) {
 		return <Avatar variant="icon">{fallbackIcons[icon]}</Avatar>;
 	}
