@@ -70,7 +70,7 @@ of the template will be used.
   "latest_app_status": {
     "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
     "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
-    "created_at": "string",
+    "created_at": "2019-08-24T14:15:22Z",
     "icon": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "message": "string",
@@ -157,7 +157,7 @@ of the template will be used.
                   {
                     "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
                     "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
-                    "created_at": "string",
+                    "created_at": "2019-08-24T14:15:22Z",
                     "icon": "string",
                     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                     "message": "string",
@@ -346,7 +346,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
   "latest_app_status": {
     "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
     "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
-    "created_at": "string",
+    "created_at": "2019-08-24T14:15:22Z",
     "icon": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "message": "string",
@@ -433,7 +433,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
                   {
                     "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
                     "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
-                    "created_at": "string",
+                    "created_at": "2019-08-24T14:15:22Z",
                     "icon": "string",
                     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                     "message": "string",
@@ -646,7 +646,7 @@ of the template will be used.
   "latest_app_status": {
     "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
     "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
-    "created_at": "string",
+    "created_at": "2019-08-24T14:15:22Z",
     "icon": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "message": "string",
@@ -733,7 +733,7 @@ of the template will be used.
                   {
                     "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
                     "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
-                    "created_at": "string",
+                    "created_at": "2019-08-24T14:15:22Z",
                     "icon": "string",
                     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                     "message": "string",
@@ -925,7 +925,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
       "latest_app_status": {
         "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
         "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
-        "created_at": "string",
+        "created_at": "2019-08-24T14:15:22Z",
         "icon": "string",
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "message": "string",
@@ -1185,7 +1185,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
   "latest_app_status": {
     "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
     "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
-    "created_at": "string",
+    "created_at": "2019-08-24T14:15:22Z",
     "icon": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "message": "string",
@@ -1272,7 +1272,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
                   {
                     "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
                     "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
-                    "created_at": "string",
+                    "created_at": "2019-08-24T14:15:22Z",
                     "icon": "string",
                     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                     "message": "string",
@@ -1577,7 +1577,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
   "latest_app_status": {
     "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
     "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
-    "created_at": "string",
+    "created_at": "2019-08-24T14:15:22Z",
     "icon": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "message": "string",
@@ -1664,7 +1664,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
                   {
                     "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
                     "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
-                    "created_at": "string",
+                    "created_at": "2019-08-24T14:15:22Z",
                     "icon": "string",
                     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                     "message": "string",

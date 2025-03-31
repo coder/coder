@@ -67,8 +67,7 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 
 	var eg errgroup.Group
 	eg.Go(func() (err error) {
-		// nolint:gocritic // This is a system restricted operation.
-		dbApps, err = api.Database.GetWorkspaceAppsByAgentID(dbauthz.AsSystemRestricted(ctx), workspaceAgent.ID)
+		dbApps, err = api.Database.GetWorkspaceAppsByAgentID(ctx, workspaceAgent.ID)
 		return err
 	})
 	eg.Go(func() (err error) {
@@ -98,7 +97,8 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 	for _, app := range dbApps {
 		appIDs = append(appIDs, app.ID)
 	}
-	statuses, err := api.Database.GetWorkspaceAppStatusesByAppIDs(ctx, appIDs)
+	// nolint:gocritic // This is a system restricted operation.
+	statuses, err := api.Database.GetWorkspaceAppStatusesByAppIDs(dbauthz.AsSystemRestricted(ctx), appIDs)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace app statuses.",

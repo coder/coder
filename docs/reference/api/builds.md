@@ -104,7 +104,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
                 {
                   "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
                   "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
-                  "created_at": "string",
+                  "created_at": "2019-08-24T14:15:22Z",
                   "icon": "string",
                   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                   "message": "string",
@@ -332,7 +332,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
                 {
                   "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
                   "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
-                  "created_at": "string",
+                  "created_at": "2019-08-24T14:15:22Z",
                   "icon": "string",
                   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                   "message": "string",
@@ -675,7 +675,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
               {
                 "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
                 "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
-                "created_at": "string",
+                "created_at": "2019-08-24T14:15:22Z",
                 "icon": "string",
                 "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                 "message": "string",
@@ -815,7 +815,7 @@ Status Code **200**
 | `»»» statuses`                  | array                                                                                                  | false    |              | Statuses is a list of statuses for the app.                                                                                                                                                                                                    |
 | `»»»» agent_id`                 | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» app_id`                   | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
-| `»»»» created_at`               | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» created_at`               | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» icon`                     | string                                                                                                 | false    |              | Icon is an external URL to an icon that will be rendered in the UI.                                                                                                                                                                            |
 | `»»»» id`                       | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» message`                  | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
@@ -1030,7 +1030,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
                 {
                   "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
                   "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
-                  "created_at": "string",
+                  "created_at": "2019-08-24T14:15:22Z",
                   "icon": "string",
                   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                   "message": "string",
@@ -1331,7 +1331,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
                   {
                     "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
                     "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
-                    "created_at": "string",
+                    "created_at": "2019-08-24T14:15:22Z",
                     "icon": "string",
                     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                     "message": "string",
@@ -1527,7 +1527,7 @@ Status Code **200**
 | `»»»» statuses`                  | array                                                                                                  | false    |              | Statuses is a list of statuses for the app.                                                                                                                                                                                                    |
 | `»»»»» agent_id`                 | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»»»» app_id`                   | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
-| `»»»»» created_at`               | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»»»» created_at`               | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»»»»» icon`                     | string                                                                                                 | false    |              | Icon is an external URL to an icon that will be rendered in the UI.                                                                                                                                                                            |
 | `»»»»» id`                       | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»»»» message`                  | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
@@ -1801,7 +1801,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
                 {
                   "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
                   "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
-                  "created_at": "string",
+                  "created_at": "2019-08-24T14:15:22Z",
                   "icon": "string",
                   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                   "message": "string",

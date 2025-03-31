@@ -16912,7 +16912,8 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "created_at": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "icon": {
                     "description": "Icon is an external URL to an icon that will be rendered in the UI.",
