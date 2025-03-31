@@ -1,6 +1,7 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import FormHelperText from "@mui/material/FormHelperText";
 import TextField from "@mui/material/TextField";
+import FormControlLabel from "@mui/material/FormControlLabel";
 import type * as TypesGen from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
@@ -45,6 +46,7 @@ import type {
 } from "./CreateWorkspacePage";
 import { ExternalAuthButton } from "./ExternalAuthButton";
 import type { CreateWSPermissions } from "./permissions";
+import { Switch } from "components/Switch/Switch";
 
 export const Language = {
 	duplicationWarning:
@@ -101,6 +103,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	const [suggestedName, setSuggestedName] = useState(() =>
 		generateWorkspaceName(),
 	);
+	const [showPresetParameters, setShowPresetParameters] = useState(true);
 
 	const rerollSuggestedName = useCallback(() => {
 		setSuggestedName(() => generateWorkspaceName());
@@ -281,22 +284,31 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 									</span>
 									<FeatureStageBadge contentType={"beta"} size="md" />
 								</Stack>
-								<Stack direction="row" spacing={2}>
-									<SelectFilter
-										label="Preset"
-										options={presetOptions}
-										onSelect={(option) => {
-											const index = presetOptions.findIndex(
-												(preset) => preset.value === option?.value,
-											);
-											if (index === -1) {
-												return;
-											}
-											setSelectedPresetIndex(index);
-										}}
-										placeholder="Select a preset"
-										selectedOption={presetOptions[selectedPresetIndex]}
-									/>
+								<Stack direction="column" spacing={2}>
+									<Stack direction="row" spacing={2}>
+										<SelectFilter
+											label="Preset"
+											options={presetOptions}
+											onSelect={(option) => {
+												const index = presetOptions.findIndex(
+													(preset) => preset.value === option?.value,
+												);
+												if (index === -1) {
+													return;
+												}
+												setSelectedPresetIndex(index);
+											}}
+											placeholder="Select a preset"
+											selectedOption={presetOptions[selectedPresetIndex]}
+										/>
+									</Stack>
+									<div css={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+										<Switch
+											checked={showPresetParameters}
+											onCheckedChange={setShowPresetParameters}
+										/>
+										<span>Show preset parameters</span>
+									</div>
 								</Stack>
 							</Stack>
 						)}
@@ -382,6 +394,11 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 									) ||
 									creatingWorkspace ||
 									presetParameterNames.includes(parameter.name);
+
+								// Skip rendering preset parameters if showPresetParameters is false
+								if (!showPresetParameters && presetParameterNames.includes(parameter.name)) {
+									return null;
+								}
 
 								return (
 									<RichParameterInput
