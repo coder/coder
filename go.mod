@@ -480,3 +480,7 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.2.1 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 )
+
+require github.com/mark3labs/mcp-go v0.17.0
+
+require github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
