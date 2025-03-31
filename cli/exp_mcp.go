@@ -21,6 +21,9 @@ func (r *RootCmd) mcpCommand() *serpent.Command {
 		Use:   "mcp",
 		Short: "Run the Coder MCP server and configure it to work with AI tools.",
 		Long:  "The Coder MCP server allows you to automatically create workspaces with parameters.",
+		Handler: func(i *serpent.Invocation) error {
+			return i.Command.HelpHandler(i)
+		},
 		Children: []*serpent.Command{
 			r.mcpConfigure(),
 			r.mcpServer(),
@@ -33,6 +36,9 @@ func (r *RootCmd) mcpConfigure() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "configure",
 		Short: "Automatically configure the MCP server.",
+		Handler: func(i *serpent.Invocation) error {
+			return i.Command.HelpHandler(i)
+		},
 		Children: []*serpent.Command{
 			r.mcpConfigureClaudeDesktop(),
 			r.mcpConfigureClaudeCode(),
