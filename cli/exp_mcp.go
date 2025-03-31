@@ -86,7 +86,7 @@ func (*RootCmd) mcpConfigureClaudeDesktop() *serpent.Command {
 				return err
 			}
 			contents["mcpServers"] = map[string]any{
-				"coder": map[string]any{"command": binPath, "args": []string{"mcp", "server"}},
+				"coder": map[string]any{"command": binPath, "args": []string{"exp", "mcp", "server"}},
 			}
 			data, err = json.MarshalIndent(contents, "", "  ")
 			if err != nil {
@@ -172,7 +172,7 @@ func (*RootCmd) mcpConfigureCursor() *serpent.Command {
 			}
 			mcpServers["coder"] = map[string]any{
 				"command": binPath,
-				"args":    []string{"mcp", "server"},
+				"args":    []string{"exp", "mcp", "server"},
 			}
 			contents["mcpServers"] = mcpServers
 			data, err := json.MarshalIndent(contents, "", "  ")
