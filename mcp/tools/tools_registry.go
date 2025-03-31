@@ -186,14 +186,6 @@ Can be either "start" or "stop".`)),
 	},
 }
 
-// ToolAdder interface for adding tools to a server
-type ToolAdder interface {
-	AddTool(tool mcp.Tool, handler server.ToolHandlerFunc)
-}
-
-// Ensure that MCPServer implements ToolAdder
-var _ ToolAdder = (*server.MCPServer)(nil)
-
 // ToolDeps contains all dependencies needed by tool handlers
 type ToolDeps struct {
 	Client *codersdk.Client
@@ -231,9 +223,9 @@ func (r ToolRegistry) WithOnlyAllowed(allowed ...string) ToolRegistry {
 
 // Register registers all tools in the registry with the given tool adder
 // and dependencies.
-func (r ToolRegistry) Register(ta ToolAdder, deps ToolDeps) {
+func (r ToolRegistry) Register(srv *server.MCPServer, deps ToolDeps) {
 	for _, entry := range r {
-		ta.AddTool(entry.Tool, entry.MakeHandler(deps))
+		srv.AddTool(entry.Tool, entry.MakeHandler(deps))
 	}
 }
 
