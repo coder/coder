@@ -382,33 +382,35 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 							{parameters.map((parameter, index) => {
 								const parameterField = `rich_parameter_values.${index}`;
 								const parameterInputName = `${parameterField}.value`;
+								const isPresetParameter = presetParameterNames.includes(parameter.name);
 								const isDisabled =
 									disabledParams?.includes(
 										parameter.name.toLowerCase().replace(/ /g, "_"),
 									) ||
 									creatingWorkspace ||
-									presetParameterNames.includes(parameter.name);
+									isPresetParameter;
 
 								// Hide preset parameters if showPresetParameters is false
-								// but keep their values in the form
-								if (!showPresetParameters && presetParameterNames.includes(parameter.name)) {
+								if (!showPresetParameters && isPresetParameter) {
 									return null;
 								}
 
 								return (
-									<RichParameterInput
-										{...getFieldHelpers(parameterInputName)}
-										onChange={async (value) => {
-											await form.setFieldValue(parameterField, {
-												name: parameter.name,
-												value,
-											});
-										}}
-										key={parameter.name}
-										parameter={parameter}
-										parameterAutofill={autofillByName[parameter.name]}
-										disabled={isDisabled}
-									/>
+									<div key={parameter.name}>
+										<RichParameterInput
+											{...getFieldHelpers(parameterInputName)}
+											onChange={async (value) => {
+												await form.setFieldValue(parameterField, {
+													name: parameter.name,
+													value,
+												});
+											}}
+											parameter={parameter}
+											parameterAutofill={autofillByName[parameter.name]}
+											disabled={isDisabled}
+											isPreset={isPresetParameter}
+										/>
+									</div>
 								);
 							})}
 						</FormFields>
