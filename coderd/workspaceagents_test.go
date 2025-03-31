@@ -346,9 +346,11 @@ func TestWorkspaceAgentAppStatus(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
+		client, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+
 		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OrganizationID: user.OrganizationID,
-			OwnerID:        user.UserID,
+			OwnerID:        user2.ID,
 		}).WithAgent(func(a []*proto.Agent) []*proto.Agent {
 			a[0].Apps = []*proto.App{
 				{
