@@ -6176,8 +6176,8 @@ func (q *sqlQuerier) GetPresetsBackoff(ctx context.Context, lookback time.Time) 
 }
 
 const getRunningPrebuiltWorkspaces = `-- name: GetRunningPrebuiltWorkspaces :many
-SELECT p.id                AS workspace_id,
-       p.name              AS workspace_name,
+SELECT p.id,
+       p.name,
        p.template_id,
        b.template_version_id,
        p.current_preset_id AS current_preset_id,
@@ -6190,8 +6190,8 @@ WHERE (b.transition = 'start'::workspace_transition
 `
 
 type GetRunningPrebuiltWorkspacesRow struct {
-	WorkspaceID       uuid.UUID     `db:"workspace_id" json:"workspace_id"`
-	WorkspaceName     string        `db:"workspace_name" json:"workspace_name"`
+	ID                uuid.UUID     `db:"id" json:"id"`
+	Name              string        `db:"name" json:"name"`
 	TemplateID        uuid.UUID     `db:"template_id" json:"template_id"`
 	TemplateVersionID uuid.UUID     `db:"template_version_id" json:"template_version_id"`
 	CurrentPresetID   uuid.NullUUID `db:"current_preset_id" json:"current_preset_id"`
@@ -6209,8 +6209,8 @@ func (q *sqlQuerier) GetRunningPrebuiltWorkspaces(ctx context.Context) ([]GetRun
 	for rows.Next() {
 		var i GetRunningPrebuiltWorkspacesRow
 		if err := rows.Scan(
-			&i.WorkspaceID,
-			&i.WorkspaceName,
+			&i.ID,
+			&i.Name,
 			&i.TemplateID,
 			&i.TemplateVersionID,
 			&i.CurrentPresetID,

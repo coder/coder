@@ -131,7 +131,7 @@ func (p PresetState) CalculateActions(clock quartz.Clock, backoffInterval time.D
 				continue
 			}
 
-			actions.DeleteIDs = append(actions.DeleteIDs, p.Running[i].WorkspaceID)
+			actions.DeleteIDs = append(actions.DeleteIDs, p.Running[i].ID)
 		}
 
 		// TODO: move up
@@ -160,7 +160,7 @@ func (p PresetState) CalculateActions(clock quartz.Clock, backoffInterval time.D
 			continue
 		}
 
-		actions.DeleteIDs = append(actions.DeleteIDs, p.Running[i].WorkspaceID)
+		actions.DeleteIDs = append(actions.DeleteIDs, p.Running[i].ID)
 	}
 
 	return actions, nil

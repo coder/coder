@@ -213,7 +213,7 @@ func TestClaimPrebuild(t *testing.T) {
 						continue
 					}
 
-					agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, row.WorkspaceID)
+					agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, row.ID)
 					require.NoError(t, err)
 
 					for _, agent := range agents {
@@ -289,7 +289,7 @@ func TestClaimPrebuild(t *testing.T) {
 
 			var found bool
 			for _, prebuild := range current {
-				if prebuild.WorkspaceID == claimed.ID {
+				if prebuild.ID == claimed.ID {
 					found = true
 					break
 				}

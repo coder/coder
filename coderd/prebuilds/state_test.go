@@ -313,8 +313,8 @@ func TestInProgressActions(t *testing.T) {
 				name, err := prebuilds.GenerateName()
 				require.NoError(t, err)
 				running = append(running, database.GetRunningPrebuiltWorkspacesRow{
-					WorkspaceID:       uuid.New(),
-					WorkspaceName:     name,
+					ID:                uuid.New(),
+					Name:              name,
 					TemplateID:        current.templateID,
 					TemplateVersionID: current.templateVersionID,
 					CurrentPresetID:   uuid.NullUUID{UUID: current.presetID, Valid: true},
@@ -363,7 +363,7 @@ func TestExtraneous(t *testing.T) {
 		prebuild(current, clock, func(row database.GetRunningPrebuiltWorkspacesRow) database.GetRunningPrebuiltWorkspacesRow {
 			// The older of the running prebuilds will be deleted in order to maintain freshness.
 			row.CreatedAt = clock.Now().Add(-time.Hour)
-			older = row.WorkspaceID
+			older = row.ID
 			return row
 		}),
 		prebuild(current, clock, func(row database.GetRunningPrebuiltWorkspacesRow) database.GetRunningPrebuiltWorkspacesRow {
@@ -516,8 +516,8 @@ func preset(active bool, instances int32, opts options, muts ...func(row databas
 
 func prebuild(opts options, clock quartz.Clock, muts ...func(row database.GetRunningPrebuiltWorkspacesRow) database.GetRunningPrebuiltWorkspacesRow) database.GetRunningPrebuiltWorkspacesRow {
 	entry := database.GetRunningPrebuiltWorkspacesRow{
-		WorkspaceID:       opts.prebuildID,
-		WorkspaceName:     opts.workspaceName,
+		ID:                opts.prebuildID,
+		Name:              opts.workspaceName,
 		TemplateID:        opts.templateID,
 		TemplateVersionID: opts.templateVersionID,
 		CurrentPresetID:   uuid.NullUUID{UUID: opts.presetID, Valid: true},

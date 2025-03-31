@@ -22,8 +22,8 @@ WHERE tvp.desired_instances IS NOT NULL -- Consider only presets that have a pre
   AND (t.id = sqlc.narg('template_id')::uuid OR sqlc.narg('template_id') IS NULL);
 
 -- name: GetRunningPrebuiltWorkspaces :many
-SELECT p.id                AS workspace_id,
-       p.name              AS workspace_name,
+SELECT p.id,
+       p.name,
        p.template_id,
        b.template_version_id,
        p.current_preset_id AS current_preset_id,
