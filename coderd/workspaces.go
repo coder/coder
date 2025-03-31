@@ -1988,13 +1988,6 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 		return workspaceData{}, err
 	}
 
-	// This query must be run as system restricted to be efficient.
-	// nolint:gocritic
-	appStatuses, err := api.Database.GetLatestWorkspaceAppStatusesByWorkspaceIDs(dbauthz.AsSystemRestricted(ctx), workspaceIDs)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return workspaceData{}, xerrors.Errorf("get workspace app statuses: %w", err)
-	}
-
 	data, err := api.workspaceBuildsData(ctx, builds)
 	if err != nil {
 		return workspaceData{}, xerrors.Errorf("get workspace builds data: %w", err)
