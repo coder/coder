@@ -1,4 +1,4 @@
-package mcptools_test
+package codermcp_test
 
 import (
 	"context"
@@ -17,7 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/codersdk"
-	mcptools "github.com/coder/coder/v2/mcp/tools"
+	codermcp "github.com/coder/coder/v2/mcp"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -65,7 +65,7 @@ func TestCoderTools(t *testing.T) {
 
 	// Register tools using our registry
 	logger := slogtest.Make(t, nil)
-	mcptools.AllTools().Register(mcpSrv, mcptools.ToolDeps{
+	codermcp.AllTools().Register(mcpSrv, codermcp.ToolDeps{
 		Client: memberClient,
 		Logger: &logger,
 	})
@@ -206,9 +206,9 @@ func TestCoderTools(t *testing.T) {
 		t.Cleanup(func() {
 			_ = closeRestrictedSrv()
 		})
-		mcptools.AllTools().
+		codermcp.AllTools().
 			WithOnlyAllowed(allowedTools...).
-			Register(restrictedMCPSrv, mcptools.ToolDeps{
+			Register(restrictedMCPSrv, codermcp.ToolDeps{
 				Client: memberClient,
 				Logger: &logger,
 			})
