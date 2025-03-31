@@ -16,7 +16,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Start Coder workspace
-        uses: coder/start-workspace-action@26d3600161d67901f24d8612793d3b82771cde2d
+        uses: coder/start-workspace-action@f3cda2e65a469e6dd60478c111c745b919c0ec68
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           trigger-phrase: "@coder"
