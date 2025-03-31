@@ -166,8 +166,6 @@ export const PresetSelectedWithHiddenParameters: Story = {
 		// Select a preset
 		await userEvent.click(canvas.getByLabelText("Preset"));
 		await userEvent.click(canvas.getByText("Preset 1"));
-		// Toggle off the show preset parameters switch
-		await userEvent.click(canvas.getByLabelText("Show preset parameters"));
 	},
 };
 
@@ -178,7 +176,8 @@ export const PresetSelectedWithVisibleParameters: Story = {
 		// Select a preset
 		await userEvent.click(canvas.getByLabelText("Preset"));
 		await userEvent.click(canvas.getByText("Preset 1"));
-		// Ensure the show preset parameters switch is on (it's on by default)
+		// Toggle off the show preset parameters switch
+		await userEvent.click(canvas.getByLabelText("Show preset parameters"));
 	},
 };
 
