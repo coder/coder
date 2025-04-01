@@ -539,6 +539,7 @@ func WorkspaceAppStatus(status database.WorkspaceAppStatus) codersdk.WorkspaceAp
 	return codersdk.WorkspaceAppStatus{
 		ID:                 status.ID,
 		CreatedAt:          status.CreatedAt,
+		WorkspaceID:        status.WorkspaceID,
 		AgentID:            status.AgentID,
 		AppID:              status.AppID,
 		NeedsUserAttention: status.NeedsUserAttention,

@@ -374,3 +374,44 @@ export const SmallBasicWithDisplayName: Story = {
 		size: "small",
 	},
 };
+
+export const WithPreset: Story = {
+	args: {
+		value: "preset-value",
+		id: "project_name",
+		parameter: createTemplateVersionParameter({
+			name: "project_name",
+			description:
+				"Customize the name of a Google Cloud project that will be created!",
+		}),
+		isPreset: true,
+	},
+};
+
+export const WithPresetAndImmutable: Story = {
+	args: {
+		value: "preset-value",
+		id: "project_name",
+		parameter: createTemplateVersionParameter({
+			name: "project_name",
+			description:
+				"Customize the name of a Google Cloud project that will be created!",
+			mutable: false,
+		}),
+		isPreset: true,
+	},
+};
+
+export const WithPresetAndOptional: Story = {
+	args: {
+		value: "preset-value",
+		id: "project_name",
+		parameter: createTemplateVersionParameter({
+			name: "project_name",
+			description:
+				"Customize the name of a Google Cloud project that will be created!",
+			required: false,
+		}),
+		isPreset: true,
+	},
+};
