@@ -134,7 +134,7 @@ func (*RootCmd) mcpConfigureClaudeCode() *serpent.Command {
 				binPath = testBinaryName
 			}
 			configureClaudeEnv := map[string]string{}
-			agentToken, err := getAgentToken(inv, fs)
+			agentToken, err := getAgentToken(fs)
 			if err != nil {
 				cliui.Warnf(inv.Stderr, "failed to get agent token: %s", err)
 			} else {
@@ -613,7 +613,7 @@ func indexOf(s, substr string) int {
 	return -1
 }
 
-func getAgentToken(inv *serpent.Invocation, fs afero.Fs) (string, error) {
+func getAgentToken(fs afero.Fs) (string, error) {
 	token, ok := os.LookupEnv("CODER_AGENT_TOKEN")
 	if ok {
 		return token, nil
