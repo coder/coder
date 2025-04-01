@@ -27,6 +27,7 @@ import {
 } from "components/TableLoader/TableLoader";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import { useDashboard } from "modules/dashboard/useDashboard";
+import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
 import { WorkspaceDormantBadge } from "modules/workspaces/WorkspaceDormantBadge/WorkspaceDormantBadge";
 import { WorkspaceOutdatedTooltip } from "modules/workspaces/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
 import { WorkspaceStatusBadge } from "modules/workspaces/WorkspaceStatusBadge/WorkspaceStatusBadge";
@@ -35,7 +36,6 @@ import { useMemo, type FC, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { getDisplayWorkspaceTemplateName } from "utils/workspace";
 import { WorkspacesEmpty } from "./WorkspacesEmpty";
-import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
 
 export interface WorkspacesTableProps {
 	workspaces?: readonly Workspace[];

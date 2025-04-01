@@ -1,14 +1,13 @@
+import type { Meta, StoryObj } from "@storybook/react";
+import { getPreferredProxy, ProxyContext } from "contexts/ProxyContext";
 import {
-	MockWorkspaceAgent,
+	MockProxyLatencies,
 	MockWorkspace,
+	MockWorkspaceAgent,
 	MockWorkspaceApp,
 	MockWorkspaceAppStatus,
 } from "testHelpers/entities";
 import { AppStatuses } from "./AppStatuses";
-import type { Meta, StoryObj } from "@storybook/react";
-import type { WorkspaceAppStatus as APIWorkspaceAppStatus } from "api/typesGenerated";
-import { MockProxyLatencies } from "testHelpers/entities";
-import { getPreferredProxy, ProxyContext } from "contexts/ProxyContext";
 
 const meta: Meta<typeof AppStatuses> = {
 	title: "pages/WorkspacePage/AppStatuses",

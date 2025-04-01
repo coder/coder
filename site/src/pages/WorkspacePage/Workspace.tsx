@@ -4,6 +4,7 @@ import HistoryOutlined from "@mui/icons-material/HistoryOutlined";
 import HubOutlined from "@mui/icons-material/HubOutlined";
 import AlertTitle from "@mui/material/AlertTitle";
 import type * as TypesGen from "api/typesGenerated";
+import type { WorkspaceApp } from "api/typesGenerated";
 import { Alert, AlertDetail } from "components/Alert/Alert";
 import { SidebarIconButton } from "components/FullPageLayout/Sidebar";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
@@ -12,6 +13,7 @@ import { AgentRow } from "modules/resources/AgentRow";
 import { WorkspaceTimings } from "modules/workspaces/WorkspaceTiming/WorkspaceTimings";
 import { useMemo, type FC } from "react";
 import { useNavigate } from "react-router-dom";
+import { AppStatuses } from "./AppStatuses";
 import { HistorySidebar } from "./HistorySidebar";
 import { ResourceMetadata } from "./ResourceMetadata";
 import { ResourcesSidebar } from "./ResourcesSidebar";
@@ -24,8 +26,6 @@ import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
 import type { WorkspacePermissions } from "./permissions";
 import { resourceOptionValue, useResourcesNav } from "./useResourcesNav";
-import { AppStatuses } from "./AppStatuses";
-import type { WorkspaceApp } from "api/typesGenerated";
 
 export interface WorkspaceProps {
 	handleStart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;

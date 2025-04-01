@@ -10,6 +10,7 @@ import {
 	getDefaultFilterProps,
 } from "components/Filter/storyHelpers";
 import { DEFAULT_RECORDS_PER_PAGE } from "components/PaginationWidget/utils";
+import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
 import dayjs from "dayjs";
 import uniqueId from "lodash/uniqueId";
 import type { ComponentProps } from "react";
@@ -23,12 +24,10 @@ import {
 	MockUser,
 	MockWorkspace,
 	MockWorkspaceAppStatus,
-	MockWorkspaceBuild,
-	mockApiError,
+	mockApiError
 } from "testHelpers/entities";
 import { withDashboardProvider } from "testHelpers/storybook";
 import { WorkspacesPageView } from "./WorkspacesPageView";
-import { getPreferredProxy, ProxyContext } from "contexts/ProxyContext";
 
 const createWorkspace = (
 	status: WorkspaceStatus,
