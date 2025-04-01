@@ -235,7 +235,6 @@ func (r *RootCmd) mcpServer() *serpent.Command {
 	}
 }
 
-//nolint:revive // control coupling
 func mcpServerHandler(inv *serpent.Invocation, client *codersdk.Client, instructions string, allowedTools []string, appStatusSlug string) error {
 	ctx, cancel := context.WithCancel(inv.Context())
 	defer cancel()
