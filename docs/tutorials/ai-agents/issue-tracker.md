@@ -23,8 +23,9 @@ integrate with other issue trackers.
 
 ### GitHub Action
 
-The [start-workspace](https://github.com/coder/start-workspace) GitHub action
-will create a Coder workspace based on a specific comment (e.g. `@coder`).
+The [start-workspace](https://github.com/coder/start-workspace-action) GitHub
+action will create a Coder workspace based on a specific comment (e.g.
+`@coder`).
 
 ![GitHub Issue](../../images/guides/ai-agents/github-action.png)
 
