@@ -28,7 +28,7 @@ or other tools with MCP support to interact with Coder in order to:
 - Check in on agent activity
 
 In this model, an [IDE Agent](./agents.md#in-ide-agents) could interact with a
-remote Coder workspace, or Coder can be used in a remote pipeline or larger
+remote Coder workspace, or Coder can be used in a remote pipeline or a larger
 workflow.
 
 The Coder CLI has options to automatically configure MCP servers for you. On

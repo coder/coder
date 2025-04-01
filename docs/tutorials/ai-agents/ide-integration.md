@@ -16,8 +16,8 @@
 
 ## Overview
 
-Once you have an agent running and reporting activity to Coder, you view status
-and switch between workspaces from the IDE. This can be very helpful for
+Once you have an agent running and reporting activity to Coder, you can view the
+status and switch between workspaces from the IDE. This can be very helpful for
 reviewing code, working along with the agent, and more.
 
 ![IDE Integration](../../images/guides/ai-agents/ide-integration.png)

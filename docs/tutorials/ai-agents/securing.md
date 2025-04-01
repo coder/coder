@@ -14,13 +14,13 @@ environments.
 ## Use Trusted Models
 
 Most [agents](./agents.md) can be configured to either use a local LLM (e.g.
-llama3), an agent proxy (e.g. OpenRouter), or a Cloud-Provided LLM through (e.g.
-AWS Bedrock). Research which models you are comfortable with and configure your
+llama3), an agent proxy (e.g. OpenRouter), or a Cloud-Provided LLM (e.g. AWS
+Bedrock). Research which models you are comfortable with and configure your
 [Coder templates](./create-template.md) use those.
 
 ## Set up Firewalls and Proxies
 
-Many enterprises run Coder workspaces behind a firewall or proxy to prevent
+Many enterprises run Coder workspaces behind a firewall or a proxy to prevent
 threats or bad actors. These same protections can be used to ensure AI agents do
 not access or upload sensitive information.
 
@@ -30,7 +30,7 @@ Many agents require API keys to access external services. It is recommended to
 create a separate API key for your agent with the minimum permissions required.
 This will likely involve editing your
 [template for Agents](./create-template.md) to set different scopes or tokens
-than the standard one.
+from the standard one.
 
 Additional guidance and tooling is coming in future releases of Coder.
 

@@ -17,8 +17,9 @@
 Once you have an agent running and reporting activity to Coder, you can view
 status and switch between workspaces from the Coder dashboard.
 
-- TODO
-- TODO
+![Coder Dashboard](../../images/guides/ai-agents/workspaces-list.png)
+
+![Workspace Details](../../images/guides/ai-agents/workspace-details.png)
 
 ## Next Steps
 
