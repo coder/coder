@@ -14,27 +14,24 @@ user(s) of the event.
 
 Coder supports the following list of events:
 
-### Workspace Events
+### Template Events
 
-These notifications are sent to the workspace owner:
+These notifications are sent to users with **template admin** roles:
 
-- Workspace created
-- Workspace deleted
-- Workspace manual build failure
-- Workspace automatic build failure
-- Workspace manually updated
-- Workspace automatically updated
-- Workspace marked as dormant
-- Workspace marked for deletion
+- Report: Workspace builds failed for template
+  - This notification is delivered as part of a weekly cron job and summarizes
+    the failed builds for a given template.
+- Template deleted
+- Template deprecated
 
 ### User Events
 
 These notifications are sent to users with **owner** and **user admin** roles:
 
+- User account activated
 - User account created
 - User account deleted
 - User account suspended
-- User account activated
 
 These notifications are sent to users themselves:
 
@@ -42,22 +39,39 @@ These notifications are sent to users themselves:
 - User account activated
 - User password reset (One-time passcode)
 
-### Template Events
+### Workspace Events
 
-These notifications are sent to users with **template admin** roles:
+These notifications are sent to the workspace owner:
 
-- Template deleted
-- Template deprecated
+- Workspace automatic build failure
+- Workspace created
+- Workspace deleted
+- Workspace manual build failure
+- Workspace manually updated
+- Workspace marked as dormant
+- Workspace marked for deletion
 - Out of memory (OOM) / Out of disk (OOD)
-  - [Configure](#configure-oomood-notifications) in the template `main.tf`.
-- Report: Workspace builds failed for template
-  - This notification is delivered as part of a weekly cron job and summarizes
-    the failed builds for a given template.
+  - Template admins can [configure OOM/OOD](#configure-oomood-notifications) notifications in the template `main.tf`.
+- Workspace automatically updated
+
+## Delivery Methods
+
+Notifications can be delivered in the Coder dashboard and by SMTP or webhook.
+OOM/OOD notifications can be delivered to users in VS Code.
+
+You can choose SMTP or webhook globally with
+[`CODER_NOTIFICATIONS_METHOD`](../../../reference/cli/server.md#--notifications-method)
+(default: `smtp`).
+When there are no delivery methods configured, notifications are disabled.
+
+Premium customers can configure which method to use for each of the supported
+[Events](#workspace-events).
+See the [Preferences](#delivery-preferences) section for more details.
 
 ## Configuration
 
-You can modify the notification delivery behavior using the following server
-flags.
+You can modify the notification delivery behavior in your Coder deployment's
+`https://coder.example.com/deployment/notifications`, or with the following server flags:
 
 | Required | CLI                                 | Env                                     | Type       | Description                                                                                                           | Default |
 |:--------:|-------------------------------------|-----------------------------------------|------------|-----------------------------------------------------------------------------------------------------------------------|---------|
@@ -74,18 +88,6 @@ This can help prevent agent disconnects due to OOM/OOD issues.
 
 To enable OOM/OOD notifications on a template, follow the steps in the
 [resource monitoring guide](../../templates/extending-templates/resource-monitoring.md).
-
-## Delivery Methods
-
-Notifications can currently be delivered by either SMTP or webhook. Each message
-can only be delivered to one method, and this method is configured globally with
-[`CODER_NOTIFICATIONS_METHOD`](../../../reference/cli/server.md#--notifications-method)
-(default: `smtp`). When there are no delivery methods configured, notifications
-will be disabled.
-
-Premium customers can configure which method to use for each of the supported
-[Events](#workspace-events); see the [Preferences](#delivery-preferences)
-section below for more details.
 
 ## SMTP (Email)
 
