@@ -18,8 +18,7 @@ to this data by administering the GitHub app.
 > [!IMPORTANT]
 > The default GitHub app requires [device flow](#device-flow) to authenticate.
 > This is enabled by default when using the default GitHub app. If you disable
-> device flow using `CODER_OAUTH2_GITHUB_DEVICE_FLOW=false`, it will be ignored
-> for the default GitHub app and device flow will still be used.
+> device flow using `CODER_OAUTH2_GITHUB_DEVICE_FLOW=false`, it will be ignored.
 
 By default, only the admin user can sign up. To allow additional users to sign
 up with GitHub, add the following environment variable:
