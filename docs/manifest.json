@@ -739,7 +739,7 @@
 					"path": "./tutorials/quickstart.md"
 				},
 				{
-					"title": "Run AI Agents in Coder",
+					"title": "Run AI Coding Agents with Coder",
 					"description": "Learn how to run and secure agents in Coder",
 					"path": "./tutorials/ai-agents/README.md",
 					"state": [
