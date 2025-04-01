@@ -382,7 +382,7 @@ func (api *API) createAPIKey(ctx context.Context, params apikey.CreateParams) (*
 		APIKeys: []telemetry.APIKey{telemetry.ConvertAPIKey(newkey)},
 	})
 
-	return api.Cookies.Apply(&http.Cookie{
+	return api.DeploymentValues.HTTPCookies.Apply(&http.Cookie{
 		Name:     codersdk.SessionTokenCookie,
 		Value:    sessionToken,
 		Path:     "/",

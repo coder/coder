@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/rand"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -33,6 +34,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
+	"github.com/coder/coder/v2/coderd/coderdtest/testjar"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -66,8 +68,16 @@ func TestOIDCOauthLoginWithExisting(t *testing.T) {
 		cfg.SecondaryClaims = coderd.MergedClaimsSourceNone
 	})
 
+	certificates := []tls.Certificate{testutil.GenerateTLSCertificate(t, "localhost")}
 	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-		OIDCConfig: cfg,
+		OIDCConfig:      cfg,
+		TLSCertificates: certificates,
+		DeploymentValues: coderdtest.DeploymentValues(t, func(values *codersdk.DeploymentValues) {
+			values.HTTPCookies = codersdk.HTTPCookieConfig{
+				Secure:   true,
+				SameSite: "none",
+			}
+		}),
 	})
 
 	const username = "alice"
@@ -78,15 +88,35 @@ func TestOIDCOauthLoginWithExisting(t *testing.T) {
 		"sub":                uuid.NewString(),
 	}
 
-	helper := oidctest.NewLoginHelper(client, fake)
 	// Signup alice
-	userClient, _ := helper.Login(t, claims)
+	freshClient := func() *codersdk.Client {
+		cli := codersdk.New(client.URL)
+		cli.HTTPClient.Transport = &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		}
+		cli.HTTPClient.Jar = testjar.New()
+		return cli
+	}
+
+	unauthenticated := freshClient()
+	userClient, _ := fake.Login(t, unauthenticated, claims)
+
+	cookies := unauthenticated.HTTPClient.Jar.Cookies(client.URL)
+	require.True(t, len(cookies) > 0)
+	for _, c := range cookies {
+		require.Truef(t, c.Secure, "cookie %q", c.Name)
+		require.Equalf(t, http.SameSiteNoneMode, c.SameSite, "cookie %q", c.Name)
+	}
 
 	// Expire the link. This will force the client to refresh the token.
+	helper := oidctest.NewLoginHelper(userClient, fake)
 	helper.ExpireOauthToken(t, api.Database, userClient)
 
 	// Instead of refreshing, just log in again.
-	helper.Login(t, claims)
+	unauthenticated = freshClient()
+	fake.Login(t, unauthenticated, claims)
 }
 
 func TestUserLogin(t *testing.T) {
