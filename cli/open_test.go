@@ -211,7 +211,7 @@ func TestOpenVSCode_NoAgentDirectory(t *testing.T) {
 		{
 			name:    "ok with absolute path",
 			args:    []string{"--test.open-error", workspace.Name, absPath},
-			wantDir: "/home/coder",
+			wantDir: absPath,
 		},
 		{
 			name:      "ok with token",
