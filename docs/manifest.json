@@ -792,7 +792,7 @@
 							]
 						},
 						{
-							"title": "Programatically manage agents",
+							"title": "Programmatically manage agents",
 							"description": "Manage agents via MCP, the Coder CLI, and/or REST API",
 							"path": "./tutorials/ai-agents/headless.md",
 							"state": [

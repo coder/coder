@@ -33,4 +33,4 @@ Coder is free and open source for developers, with a [premium plan](https://code
 
 ## Table of Contents
 
-<children></chilren>
+<children></children>

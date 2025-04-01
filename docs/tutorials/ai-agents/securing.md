@@ -24,7 +24,7 @@ Many enterprises run Coder workspaces behind a firewall or proxy to prevent
 threats or bad actors. These same protections can be used to ensure AI agents do
 not access or upload sensitive information.
 
-## Seperate API keys and scopes for agents
+## Separate API keys and scopes for agents
 
 Many agents require API keys to access external services. It is recommended to
 create a separate API key for your agent with the minimum permissions required.
@@ -38,7 +38,7 @@ Additional guidance and tooling is coming in future releases of Coder.
 
 Agent Boundaries add an additional layer and isolation of security between the
 agent and the rest of the environment inside of your Coder workspace, allowing
-humans to have more priviledges and access compared to agents inside the same
+humans to have more privileges and access compared to agents inside the same
 workspace.
 
 Trial agent boundaries in your workspaces by following the instructions in the

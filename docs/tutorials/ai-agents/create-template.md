@@ -22,7 +22,7 @@ for agents.
 
 ## 1. Duplicate an existing template
 
-It is best to create a seperate template for AI agents based on an existing
+It is best to create a separate template for AI agents based on an existing
 template that has all of the tools and dependencies installed.
 
 This can be done in the Coder UI:

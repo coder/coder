@@ -55,5 +55,5 @@ automatically create a workspace with specific parameters.
 - [Best practices & adding tools via MCP](./best-practices.md)
 - [Supervise Agents in the UI](./coder-dashboard.md)
 - [Supervise Agents in the IDE](./ide-integration.md)
-- [Supervise Agents Programatically](./headless.md)
+- [Supervise Agents Programmatically](./headless.md)
 - [Securing Agents with Boundaries](./securing.md)

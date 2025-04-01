@@ -15,7 +15,7 @@
 ## Overview
 
 Once you have an agent running and reporting activity to Coder, you can manage
-it programatically via the MCP server, Coder CLI, and/or REST API.
+it programmatically via the MCP server, Coder CLI, and/or REST API.
 
 ## MCP Server
 

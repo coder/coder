@@ -64,5 +64,5 @@ when these tools are added via MCP.
 
 - [Supervise Agents in the UI](./coder-dashboard.md)
 - [Supervise Agents in the IDE](./ide-integration.md)
-- [Supervise Agents Programatically](./headless.md)
+- [Supervise Agents Programmatically](./headless.md)
 - [Securing Agents](./securing.md)

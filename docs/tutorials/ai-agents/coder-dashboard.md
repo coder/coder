@@ -23,5 +23,5 @@ status and switch between workspaces from the Coder dashboard.
 ## Next Steps
 
 - [Supervise Agents in the IDE](./ide-integration.md)
-- [Supervise Agents Programatically](./headless.md)
+- [Supervise Agents Programmatically](./headless.md)
 - [Securing Agents](./securing.md)

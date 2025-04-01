@@ -24,5 +24,5 @@ reviewing code, working along with the agent, and more.
 
 ## Next Steps
 
-- [Programatically manage agents](./headless.md)
+- [Programmatically manage agents](./headless.md)
 - [Securing Agents with Boundaries](./securing.md)
