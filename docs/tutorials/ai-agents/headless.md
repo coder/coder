@@ -27,7 +27,7 @@ or other tools with MCP support to interact with Coder in order to:
 - Run commands on workspaces
 - Check in on agent activity
 
-In this model, an [IDE Agent](./agents.md#ide-agent) could interact with a
+In this model, an [IDE Agent](./agents.md#in-ide-agents) could interact with a
 remote Coder workspace, or Coder can be used in a remote pipeline or larger
 workflow.
 

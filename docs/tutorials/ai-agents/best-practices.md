@@ -31,8 +31,8 @@ for development. With AI Agents, this is no exception.
 - Ensure your [template](./create-template.md) is truly pre-configured for
   development without manual intervention (e.g. repos are cloned, dependencies
   are built, secrets are added/mocked, etc.)
-  > Note: [External authentication](../../admin/auth.md) can be helpful to
-  > authenticate with third-party services such as GitHub or JFrog.
+  > Note: [External authentication](../../admin/external-auth.md) can be helpful
+  > to authenticate with third-party services such as GitHub or JFrog.
 - Give your agent the proper tools via MCP to interact with your codebase and
   related services.
 - Read our recommendations on [securing agents](./securing.md) to avoid
@@ -56,7 +56,7 @@ when these tools are added via MCP.
 - [Playwright](https://github.com/microsoft/playwright-mcp): Instruct your agent
   to open a browser, and check its work by viewing output and taking
   screenshots.
-- [desktop-commander](https://github.com/desktop-commander/desktop-commander):
+- [desktop-commander](https://github.com/wonderwhy-er/DesktopCommanderMCP):
   Instruct your agent to run long-running tasks (e.g. `npm run dev`) in the
   background instead of blocking the main thread.
 
