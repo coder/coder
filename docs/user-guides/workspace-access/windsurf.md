@@ -22,19 +22,29 @@ Windsurf can connect to your Coder workspaces via SSH:
 
 ## Install the Coder extension
 
-Use the Coder extension to connect to your workspaces through SSH.
+1. You can install the Coder extension through the Marketplace built in to Windsurf or manually.
 
-1. Download the [latest vscode-coder extension](https://github.com/coder/vscode-coder/releases/latest) `.vsix` file.
+   <div class="tabs">
 
-1. Drag the `.vsix` file into the extensions pane of Windsurf.
+   ## Extension Marketplace
 
-   Alternatively:
+   1. Search for Coder from the Extensions Pane and select **Install**.
 
-   1. Open the Command Palette
+   ## Manually
+
+   1. Download the [latest vscode-coder extension](https://github.com/coder/vscode-coder/releases/latest) `.vsix` file.
+
+   1. Drag the `.vsix` file into the extensions pane of Windsurf.
+
+      Alternatively:
+
+      1. Open the Command Palette
    (<kdb>Ctrl</kdb>+<kdb>Shift</kdb>+<kdb>P</kdb> or <kdb>Cmd</kdb>+<kdb>Shift</kdb>+<kdb>P</kdb>)
    and search for `vsix`.
 
-   1. Select **Extensions: Install from VSIX** and select the vscode-coder extension you downloaded.
+      1. Select **Extensions: Install from VSIX** and select the vscode-coder extension you downloaded.
+
+   </div>
 
 ## Open a workspace in Windsurf
 
