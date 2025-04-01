@@ -36,10 +36,12 @@ CODER_EXTERNAL_AUTH_0_DISPLAY_ICON="https://mycustomicon.com/google.svg"
 ```
 
 The `CODER_EXTERNAL_AUTH_0_ID` environment variable is used as an identifier for the authentication provider.
+
 This variable is used as part of the callback URL path that you must configure in your OAuth provider settings.
+If the value in your callback URL doesn't match the `CODER_EXTERNAL_AUTH_0_ID` value, authentication will fail with `redirect URI is not valid`.
 Set it with a value that helps you identify the provider.
 For example, if you use `CODER_EXTERNAL_AUTH_0_ID="primary-github"` for your GitHub provider,
-your callback URL will be `https://example.com/external-auth/primary-github/callback`.
+configure your callback URL as `https://example.com/external-auth/primary-github/callback`.
 
 ### Add an authentication button to the workspace template
 
@@ -188,7 +190,7 @@ For a more complete, step-by-step guide, follow the
 [configure a GitHub OAuth app](#configure-a-github-oauth-app) section instead.
 
 ```env
-CODER_EXTERNAL_AUTH_0_ID="USER_DEFINED_ID"
+CODER_EXTERNAL_AUTH_0_ID="primary-github"
 CODER_EXTERNAL_AUTH_0_TYPE=github
 CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxx
 CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
@@ -196,8 +198,8 @@ CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
 
 When configuring your GitHub OAuth application, set the
 [authorization callback URL](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/about-the-user-authorization-callback-url)
-as `https://example.com/external-auth/USER_DEFINED_ID/callback`, where
-`USER_DEFINED_ID` matches your `CODER_EXTERNAL_AUTH_0_ID` value (in this example, `USER_DEFINED_ID`).
+as `https://example.com/external-auth/primary-github/callback`, where
+`primary-github` matches your `CODER_EXTERNAL_AUTH_0_ID` value.
 
 ### GitHub Enterprise
 
@@ -216,7 +218,7 @@ CODER_EXTERNAL_AUTH_0_TOKEN_URL="https://github.example.com/login/oauth/access_t
 When configuring your GitHub Enterprise OAuth application, set the
 [authorization callback URL](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/about-the-user-authorization-callback-url)
 as `https://example.com/external-auth/primary-github/callback`, where
-`USER_DEFINED_ID` matches your `CODER_EXTERNAL_AUTH_0_ID` value (in this example, `primary-github`).
+`primary-github` matches your `CODER_EXTERNAL_AUTH_0_ID` value.
 
 ### GitLab self-managed
 
@@ -272,7 +274,7 @@ CODER_EXTERNAL_AUTH_0_SCOPES="repo:read repo:write write:gpg_key"
 1. [Create a GitHub App](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app)
 
    - Set the authorization callback URL to
-     `https://coder.example.com/external-auth/USER_DEFINED_ID/callback`, where `USER_DEFINED_ID`
+     `https://coder.example.com/external-auth/primary-github/callback`, where `primary-github`
      is the value you set for `CODER_EXTERNAL_AUTH_0_ID`.
    - Deactivate Webhooks.
    - Enable fine-grained access to specific repositories or a subset of
