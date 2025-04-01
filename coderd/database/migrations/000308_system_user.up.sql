@@ -43,7 +43,6 @@ CREATE VIEW group_members_expanded AS
   WHERE (users.deleted = false);
 
 COMMENT ON VIEW group_members_expanded IS 'Joins group members with user information, organization ID, group name. Includes both regular group members and organization members (as part of the "Everyone" group).';
--- TODO: do we *want* to use the default org here? how do we handle multi-org?
 WITH default_org AS (SELECT id
 					 FROM organizations
 					 WHERE is_default = true
