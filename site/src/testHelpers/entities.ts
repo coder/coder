@@ -900,7 +900,7 @@ export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
 	id: "test-app",
 	slug: "test-app",
 	display_name: "Test App",
-	icon: "",
+	icon: "https://registry.npmmirror.com/@lobehub/icons-static-png/1.24.0/files/dark/claude-color.png",
 	subdomain: false,
 	health: "disabled",
 	external: false,
@@ -975,6 +975,19 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
 		"vscode_insiders",
 		"web_terminal",
 	],
+};
+
+export const MockWorkspaceAppStatus: TypesGen.WorkspaceAppStatus = {
+	id: "test-app-status",
+	created_at: "2022-05-17T17:39:01.382927298Z",
+	agent_id: "test-workspace-agent",
+	workspace_id: "test-workspace",
+	app_id: MockWorkspaceApp.id,
+	needs_user_attention: false,
+	icon: "/emojis/1f957.png",
+	uri: "https://github.com/coder/coder/pull/1234",
+	message: "Your competitors page is completed!",
+	state: "complete",
 };
 
 export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {

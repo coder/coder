@@ -10,7 +10,7 @@ import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
 import { AgentRow } from "modules/resources/AgentRow";
 import { WorkspaceTimings } from "modules/workspaces/WorkspaceTiming/WorkspaceTimings";
-import type { FC } from "react";
+import { useMemo, type FC } from "react";
 import { useNavigate } from "react-router-dom";
 import { HistorySidebar } from "./HistorySidebar";
 import { ResourceMetadata } from "./ResourceMetadata";
@@ -24,6 +24,9 @@ import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
 import type { WorkspacePermissions } from "./permissions";
 import { resourceOptionValue, useResourcesNav } from "./useResourcesNav";
+import { AppStatuses } from "./AppStatuses";
+import { WorkspaceApp } from "api/typesGenerated";
+import { Box, Typography } from "@mui/material";
 
 export interface WorkspaceProps {
 	handleStart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
@@ -118,6 +121,14 @@ export const Workspace: FC<WorkspaceProps> = ({
 		(workspace.latest_build.matched_provisioners?.available ?? 1) > 0;
 	const shouldShowProvisionerAlert =
 		workspacePending && !haveBuildLogs && !provisionersHealthy && !isRestarting;
+
+	const hasAppStatus = useMemo(() => {
+		return selectedResource?.agents?.some((agent) => {
+			return agent.apps?.some((app) => {
+				return app.statuses?.length > 0;
+			});
+		});
+	}, [selectedResource]);
 
 	return (
 		<div
@@ -249,46 +260,138 @@ export const Workspace: FC<WorkspaceProps> = ({
 						<WorkspaceBuildLogsSection logs={buildLogs} />
 					)}
 
+					{/* Container for Agent Rows + Activity Sidebar */}
 					{selectedResource && (
-						<section
-							css={{ display: "flex", flexDirection: "column", gap: 24 }}
-						>
-							{selectedResource.agents?.map((agent) => (
-								<AgentRow
-									key={agent.id}
-									agent={agent}
-									workspace={workspace}
-									template={template}
-									sshPrefix={sshPrefix}
-									showApps={permissions.updateWorkspace}
-									showBuiltinApps={permissions.updateWorkspace}
-									hideSSHButton={hideSSHButton}
-									hideVSCodeDesktopButton={hideVSCodeDesktopButton}
-									serverVersion={buildInfo?.version || ""}
-									serverAPIVersion={buildInfo?.agent_api_version || ""}
-									onUpdateAgent={handleUpdate} // On updating the workspace the agent version is also updated
-								/>
-							))}
+						<Box sx={{ display: "flex", gap: 3, alignItems: "flex-start" }}>
+							{/* Left Side: Agent Rows */}
+							<section
+								css={{
+									display: "flex",
+									flexDirection: "column",
+									gap: 24,
+									flexGrow: 1,
+									minWidth: 0 /* Prevent overflow */,
+								}}
+							>
+								{selectedResource.agents?.map((agent) => (
+									<AgentRow
+										key={agent.id}
+										agent={agent}
+										workspace={workspace}
+										template={template}
+										sshPrefix={sshPrefix}
+										showApps={permissions.updateWorkspace}
+										showBuiltinApps={permissions.updateWorkspace}
+										hideSSHButton={hideSSHButton}
+										hideVSCodeDesktopButton={hideVSCodeDesktopButton}
+										serverVersion={buildInfo?.version || ""}
+										serverAPIVersion={buildInfo?.agent_api_version || ""}
+										onUpdateAgent={handleUpdate} // On updating the workspace the agent version is also updated
+									/>
+								))}
 
-							{(!selectedResource.agents ||
-								selectedResource.agents?.length === 0) && (
-								<div
-									css={{
-										display: "flex",
-										justifyContent: "center",
-										alignItems: "center",
-										width: "100%",
-										height: "100%",
+								{(!selectedResource.agents ||
+									selectedResource.agents?.length === 0) && (
+									<div
+										css={{
+											display: "flex",
+											justifyContent: "center",
+											alignItems: "center",
+											width: "100%",
+											height: "100%",
+										}}
+									>
+										<div>
+											<h4 css={{ fontSize: 16, fontWeight: 500 }}>
+												No agents are currently assigned to this resource.
+											</h4>
+										</div>
+									</div>
+								)}
+							</section>
+
+							{/* Right Side: Activity Box */}
+							{hasAppStatus && (
+								<Box
+									sx={{
+										// Mimic AgentRow styling but with subtler border
+										border: `1px solid ${theme.palette.divider}`, // Use divider color
+										borderRadius: "8px",
+										boxShadow: theme.shadows[3],
+										width: 360,
+										flexShrink: 0,
+										bgcolor: "background.default", // Add background color
+										overflow: "hidden",
 									}}
 								>
-									<div>
-										<h4 css={{ fontSize: 16, fontWeight: 500 }}>
-											No agents are currently assigned to this resource.
-										</h4>
-									</div>
-								</div>
+									{/* Activity Header */}
+									<Box
+										sx={{
+											display: "flex",
+											justifyContent: "space-between",
+											alignItems: "center",
+											px: 2,
+											pt: 1.5,
+											pb: 1,
+											bgcolor: "background.paper", // Add background to header
+											borderBottom: `1px solid ${theme.palette.divider}`, // Add separator
+										}}
+									>
+										<Typography
+											sx={{
+												fontWeight: 500,
+												fontSize: 14,
+											}}
+										>
+											Activity
+										</Typography>
+										<Typography variant="caption" color="text.secondary">
+											{
+												// Calculate total status count
+												selectedResource.agents
+													?.flatMap((agent) => agent.apps ?? [])
+													.reduce(
+														(count, app) => count + (app.statuses?.length ?? 0),
+														0,
+													)
+											}{" "}
+											Total
+										</Typography>
+									</Box>
+
+									<Box
+										sx={{
+											maxHeight: 800,
+											overflowY: "auto",
+											// Thin scrollbar styles
+											"&::-webkit-scrollbar": {
+												width: "6px",
+											},
+											"&::-webkit-scrollbar-track": {
+												background: theme.palette.background.paper, // Match header background
+											},
+											"&::-webkit-scrollbar-thumb": {
+												backgroundColor: theme.palette.divider, // Use divider color
+												borderRadius: "3px",
+											},
+											"&::-webkit-scrollbar-thumb:hover": {
+												backgroundColor: theme.palette.text.secondary, // Darken on hover
+											},
+										}}
+									>
+										<AppStatuses
+											apps={
+												selectedResource.agents?.flatMap(
+													(agent) => agent.apps ?? [],
+												) as WorkspaceApp[]
+											}
+											workspace={workspace}
+											agents={selectedResource.agents || []}
+										/>
+									</Box>
+								</Box>
 							)}
-						</section>
+						</Box>
 					)}
 
 					<WorkspaceTimings
