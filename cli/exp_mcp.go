@@ -149,7 +149,8 @@ func (*RootCmd) mcpConfigureClaudeCode() *serpent.Command {
 			}
 
 			if err := configureClaude(fs, ClaudeConfig{
-				AllowedTools:     []string{},
+				// TODO: will this always be stable?
+				AllowedTools:     []string{`mcp__coder__coder_report_task`},
 				APIKey:           apiKey,
 				ConfigPath:       claudeConfigPath,
 				ProjectDirectory: projectDirectory,
