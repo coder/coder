@@ -6303,6 +6303,40 @@ func (q *sqlQuerier) GetTemplatePresetsWithPrebuilds(ctx context.Context, templa
 	return items, nil
 }
 
+const getPresetByID = `-- name: GetPresetByID :one
+SELECT tvp.id, tvp.template_version_id, tvp.name, tvp.created_at, tvp.desired_instances, tvp.invalidate_after_secs, tv.template_id, tv.organization_id FROM
+	template_version_presets tvp
+		INNER JOIN template_versions tv ON tvp.template_version_id = tv.id
+WHERE tvp.id = $1
+`
+
+type GetPresetByIDRow struct {
+	ID                  uuid.UUID     `db:"id" json:"id"`
+	TemplateVersionID   uuid.UUID     `db:"template_version_id" json:"template_version_id"`
+	Name                string        `db:"name" json:"name"`
+	CreatedAt           time.Time     `db:"created_at" json:"created_at"`
+	DesiredInstances    sql.NullInt32 `db:"desired_instances" json:"desired_instances"`
+	InvalidateAfterSecs sql.NullInt32 `db:"invalidate_after_secs" json:"invalidate_after_secs"`
+	TemplateID          uuid.NullUUID `db:"template_id" json:"template_id"`
+	OrganizationID      uuid.UUID     `db:"organization_id" json:"organization_id"`
+}
+
+func (q *sqlQuerier) GetPresetByID(ctx context.Context, presetID uuid.UUID) (GetPresetByIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getPresetByID, presetID)
+	var i GetPresetByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.TemplateVersionID,
+		&i.Name,
+		&i.CreatedAt,
+		&i.DesiredInstances,
+		&i.InvalidateAfterSecs,
+		&i.TemplateID,
+		&i.OrganizationID,
+	)
+	return i, err
+}
+
 const getPresetByWorkspaceBuildID = `-- name: GetPresetByWorkspaceBuildID :one
 SELECT
 	template_version_presets.id, template_version_presets.template_version_id, template_version_presets.name, template_version_presets.created_at, template_version_presets.desired_instances, template_version_presets.invalidate_after_secs
