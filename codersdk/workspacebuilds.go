@@ -73,7 +73,7 @@ type WorkspaceBuild struct {
 	Status                  WorkspaceStatus      `json:"status" enums:"pending,starting,running,stopping,stopped,failed,canceling,canceled,deleting,deleted"`
 	DailyCost               int32                `json:"daily_cost"`
 	MatchedProvisioners     *MatchedProvisioners `json:"matched_provisioners,omitempty"`
-	TemplateVersionPresetID *uuid.UUID           `json:"template_version_preset_id" format:"uuid"`
+	TemplateVersionPresetID *uuid.UUID           `json:"template_version_preset_id,omitempty" format:"uuid"`
 }
 
 // WorkspaceResource describes resources used to create a workspace, for instance:

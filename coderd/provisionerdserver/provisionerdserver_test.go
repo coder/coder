@@ -563,7 +563,7 @@ func TestAcquireJob(t *testing.T) {
 				Type:           database.ProvisionerJobTypeWorkspaceBuild,
 				Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
 					WorkspaceBuildID: build.ID,
-					IsPrebuild:       true,
+					Prebuild:         true,
 				})),
 			})
 
@@ -651,7 +651,7 @@ func TestAcquireJob(t *testing.T) {
 						WorkspaceBuildId:              build.ID.String(),
 						WorkspaceOwnerLoginType:       string(user.LoginType),
 						WorkspaceOwnerRbacRoles:       []*sdkproto.Role{{Name: "member", OrgId: pd.OrganizationID.String()}},
-						IsPrebuild:                    true,
+						Prebuild:                      true,
 					},
 				},
 			})

@@ -3351,7 +3351,7 @@ export interface WorkspaceBuild {
 	readonly status: WorkspaceStatus;
 	readonly daily_cost: number;
 	readonly matched_provisioners?: MatchedProvisioners;
-	readonly template_version_preset_id: string | null;
+	readonly template_version_preset_id?: string;
 }
 
 // From codersdk/workspacebuilds.go

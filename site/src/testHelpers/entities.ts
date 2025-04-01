@@ -1251,7 +1251,6 @@ export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
 		count: 1,
 		available: 1,
 	},
-	template_version_preset_id: null,
 };
 
 export const MockWorkspaceBuildAutostart: TypesGen.WorkspaceBuild = {
@@ -1275,7 +1274,6 @@ export const MockWorkspaceBuildAutostart: TypesGen.WorkspaceBuild = {
 	resources: [MockWorkspaceResource],
 	status: "running",
 	daily_cost: 20,
-	template_version_preset_id: null,
 };
 
 export const MockWorkspaceBuildAutostop: TypesGen.WorkspaceBuild = {
@@ -1299,7 +1297,6 @@ export const MockWorkspaceBuildAutostop: TypesGen.WorkspaceBuild = {
 	resources: [MockWorkspaceResource],
 	status: "running",
 	daily_cost: 20,
-	template_version_preset_id: null,
 };
 
 export const MockFailedWorkspaceBuild = (
@@ -1325,7 +1322,6 @@ export const MockFailedWorkspaceBuild = (
 	resources: [],
 	status: "failed",
 	daily_cost: 20,
-	template_version_preset_id: null,
 });
 
 export const MockWorkspaceBuildStop: TypesGen.WorkspaceBuild = {
