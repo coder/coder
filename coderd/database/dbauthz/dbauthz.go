@@ -1168,7 +1168,7 @@ func (q *querier) CleanTailnetTunnels(ctx context.Context) error {
 }
 
 func (q *querier) CountInProgressPrebuilds(ctx context.Context) ([]database.CountInProgressPrebuildsRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
 	}
 	return q.db.CountInProgressPrebuilds(ctx)
@@ -2118,7 +2118,7 @@ func (q *querier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUI
 }
 
 func (q *querier) GetPrebuildMetrics(ctx context.Context) ([]database.GetPrebuildMetricsRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
 	}
 	return q.db.GetPrebuildMetrics(ctx)
@@ -2142,7 +2142,7 @@ func (q *querier) GetPresetParametersByTemplateVersionID(ctx context.Context, te
 }
 
 func (q *querier) GetPresetsBackoff(ctx context.Context, lookback time.Time) ([]database.GetPresetsBackoffRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
 	}
 	return q.db.GetPresetsBackoff(ctx, lookback)
@@ -2299,7 +2299,7 @@ func (q *querier) GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Ti
 }
 
 func (q *querier) GetRunningPrebuiltWorkspaces(ctx context.Context) ([]database.GetRunningPrebuiltWorkspacesRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
 	}
 	return q.db.GetRunningPrebuiltWorkspaces(ctx)
@@ -2433,7 +2433,7 @@ func (q *querier) GetTemplatePresetsWithPrebuilds(ctx context.Context, templateI
 	// Although this fetches presets. It filters them by prebuilds and is only of use to the prebuild system.
 	// As such, we authorize this in line with other prebuild queries, not with other preset queries.
 
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
 	}
 	return q.db.GetTemplatePresetsWithPrebuilds(ctx, templateID)
