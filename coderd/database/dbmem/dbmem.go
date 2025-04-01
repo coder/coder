@@ -4171,6 +4171,10 @@ func (*FakeQuerier) GetPrebuildMetrics(_ context.Context) ([]database.GetPrebuil
 	return nil, ErrUnimplemented
 }
 
+func (q *FakeQuerier) GetPresetByID(ctx context.Context, presetID uuid.UUID) (database.GetPresetByIDRow, error) {
+	return database.GetPresetByIDRow{}, ErrUnimplemented
+}
+
 func (q *FakeQuerier) GetPresetByWorkspaceBuildID(_ context.Context, workspaceBuildID uuid.UUID) (database.TemplateVersionPreset, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
