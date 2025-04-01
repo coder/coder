@@ -136,6 +136,8 @@ func (r *RootCmd) openVSCode() *serpent.Command {
 							if !ok {
 								return xerrors.New("container missing volume for `devcontainer.local_folder`")
 							}
+
+							directory = filepath.FromSlash(directory)
 						}
 
 						break
