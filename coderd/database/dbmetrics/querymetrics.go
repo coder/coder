@@ -158,10 +158,10 @@ func (m queryMetricsStore) BulkMarkNotificationMessagesSent(ctx context.Context,
 	return r0, r1
 }
 
-func (m queryMetricsStore) ClaimPrebuild(ctx context.Context, newOwnerID database.ClaimPrebuildParams) (database.ClaimPrebuildRow, error) {
+func (m queryMetricsStore) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.ClaimPrebuild(ctx, newOwnerID)
-	m.queryLatencies.WithLabelValues("ClaimPrebuild").Observe(time.Since(start).Seconds())
+	r0, r1 := m.s.ClaimPrebuiltWorkspace(ctx, arg)
+	m.queryLatencies.WithLabelValues("ClaimPrebuiltWorkspace").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -1236,10 +1236,10 @@ func (m queryMetricsStore) GetReplicasUpdatedAfter(ctx context.Context, updatedA
 	return replicas, err
 }
 
-func (m queryMetricsStore) GetRunningPrebuilds(ctx context.Context) ([]database.GetRunningPrebuildsRow, error) {
+func (m queryMetricsStore) GetRunningPrebuiltWorkspaces(ctx context.Context) ([]database.GetRunningPrebuiltWorkspacesRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetRunningPrebuilds(ctx)
-	m.queryLatencies.WithLabelValues("GetRunningPrebuilds").Observe(time.Since(start).Seconds())
+	r0, r1 := m.s.GetRunningPrebuiltWorkspaces(ctx)
+	m.queryLatencies.WithLabelValues("GetRunningPrebuiltWorkspaces").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 

@@ -1137,13 +1137,13 @@ func (q *querier) BulkMarkNotificationMessagesSent(ctx context.Context, arg data
 	return q.db.BulkMarkNotificationMessagesSent(ctx, arg)
 }
 
-func (q *querier) ClaimPrebuild(ctx context.Context, newOwnerID database.ClaimPrebuildParams) (database.ClaimPrebuildRow, error) {
+func (q *querier) ClaimPrebuiltWorkspace(ctx context.Context, newOwnerID database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceWorkspace); err != nil {
-		return database.ClaimPrebuildRow{
+		return database.ClaimPrebuiltWorkspaceRow{
 			ID: uuid.Nil,
 		}, err
 	}
-	return q.db.ClaimPrebuild(ctx, newOwnerID)
+	return q.db.ClaimPrebuiltWorkspace(ctx, newOwnerID)
 }
 
 func (q *querier) CleanTailnetCoordinators(ctx context.Context) error {
@@ -2298,11 +2298,11 @@ func (q *querier) GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Ti
 	return q.db.GetReplicasUpdatedAfter(ctx, updatedAt)
 }
 
-func (q *querier) GetRunningPrebuilds(ctx context.Context) ([]database.GetRunningPrebuildsRow, error) {
+func (q *querier) GetRunningPrebuiltWorkspaces(ctx context.Context) ([]database.GetRunningPrebuiltWorkspacesRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate); err != nil {
 		return nil, err
 	}
-	return q.db.GetRunningPrebuilds(ctx)
+	return q.db.GetRunningPrebuiltWorkspaces(ctx)
 }
 
 func (q *querier) GetRuntimeConfig(ctx context.Context, key string) (string, error) {

@@ -60,7 +60,7 @@ type sqlcQuerier interface {
 	BatchUpdateWorkspaceNextStartAt(ctx context.Context, arg BatchUpdateWorkspaceNextStartAtParams) error
 	BulkMarkNotificationMessagesFailed(ctx context.Context, arg BulkMarkNotificationMessagesFailedParams) (int64, error)
 	BulkMarkNotificationMessagesSent(ctx context.Context, arg BulkMarkNotificationMessagesSentParams) (int64, error)
-	ClaimPrebuild(ctx context.Context, arg ClaimPrebuildParams) (ClaimPrebuildRow, error)
+	ClaimPrebuiltWorkspace(ctx context.Context, arg ClaimPrebuiltWorkspaceParams) (ClaimPrebuiltWorkspaceRow, error)
 	CleanTailnetCoordinators(ctx context.Context) error
 	CleanTailnetLostPeers(ctx context.Context) error
 	CleanTailnetTunnels(ctx context.Context) error
@@ -235,11 +235,12 @@ type sqlcQuerier interface {
 	GetPrebuildMetrics(ctx context.Context) ([]GetPrebuildMetricsRow, error)
 	GetPresetByWorkspaceBuildID(ctx context.Context, workspaceBuildID uuid.UUID) (TemplateVersionPreset, error)
 	GetPresetParametersByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionPresetParameter, error)
-	// GetPresetsBackoff groups workspace builds by template version ID.
+	// GetPresetsBackoff groups workspace builds by preset ID.
+	// Each preset is associated with exactly one template version ID.
 	// For each group, the query checks up to N of the most recent jobs that occurred within the
 	// lookback period, where N equals the number of desired instances for the corresponding preset.
-	// If at least one of the job within a group has failed, we should backoff on the corresponding template version ID.
-	// Query returns a list of template version IDs for which we should backoff.
+	// If at least one of the job within a group has failed, we should backoff on the corresponding preset ID.
+	// Query returns a list of preset IDs for which we should backoff.
 	// Only active template versions with configured presets are considered.
 	// We also return the number of failed workspace builds that occurred during the lookback period.
 	//
@@ -270,7 +271,7 @@ type sqlcQuerier interface {
 	GetQuotaConsumedForUser(ctx context.Context, arg GetQuotaConsumedForUserParams) (int64, error)
 	GetReplicaByID(ctx context.Context, id uuid.UUID) (Replica, error)
 	GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]Replica, error)
-	GetRunningPrebuilds(ctx context.Context) ([]GetRunningPrebuildsRow, error)
+	GetRunningPrebuiltWorkspaces(ctx context.Context) ([]GetRunningPrebuiltWorkspacesRow, error)
 	GetRuntimeConfig(ctx context.Context, key string) (string, error)
 	GetTailnetAgents(ctx context.Context, id uuid.UUID) ([]TailnetAgent, error)
 	GetTailnetClientsForAgent(ctx context.Context, agentID uuid.UUID) ([]TailnetClient, error)

@@ -1740,8 +1740,8 @@ func (*FakeQuerier) BulkMarkNotificationMessagesSent(_ context.Context, arg data
 	return int64(len(arg.IDs)), nil
 }
 
-func (*FakeQuerier) ClaimPrebuild(_ context.Context, _ database.ClaimPrebuildParams) (database.ClaimPrebuildRow, error) {
-	return database.ClaimPrebuildRow{}, ErrUnimplemented
+func (q *FakeQuerier) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
+	return database.ClaimPrebuiltWorkspaceRow{}, ErrUnimplemented
 }
 
 func (*FakeQuerier) CleanTailnetCoordinators(_ context.Context) error {
@@ -4880,7 +4880,7 @@ func (q *FakeQuerier) GetReplicasUpdatedAfter(_ context.Context, updatedAt time.
 	return replicas, nil
 }
 
-func (*FakeQuerier) GetRunningPrebuilds(_ context.Context) ([]database.GetRunningPrebuildsRow, error) {
+func (q *FakeQuerier) GetRunningPrebuiltWorkspaces(ctx context.Context) ([]database.GetRunningPrebuiltWorkspacesRow, error) {
 	return nil, ErrUnimplemented
 }
 

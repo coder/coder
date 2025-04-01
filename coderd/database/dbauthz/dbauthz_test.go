@@ -4800,8 +4800,8 @@ func (s *MethodTestSuite) TestNotifications() {
 }
 
 func (s *MethodTestSuite) TestPrebuilds() {
-	s.Run("ClaimPrebuild", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.ClaimPrebuildParams{}).
+	s.Run("ClaimPrebuiltWorkspace", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.ClaimPrebuiltWorkspaceParams{}).
 			Asserts(rbac.ResourceWorkspace, policy.ActionUpdate).
 			ErrorsWithInMemDB(dbmem.ErrUnimplemented).
 			ErrorsWithPG(sql.ErrNoRows)
@@ -4821,7 +4821,7 @@ func (s *MethodTestSuite) TestPrebuilds() {
 			Asserts(rbac.ResourceTemplate, policy.ActionRead).
 			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 	}))
-	s.Run("GetRunningPrebuilds", s.Subtest(func(_ database.Store, check *expects) {
+	s.Run("GetRunningPrebuiltWorkspaces", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args().
 			Asserts(rbac.ResourceTemplate, policy.ActionRead).
 			ErrorsWithInMemDB(dbmem.ErrUnimplemented)

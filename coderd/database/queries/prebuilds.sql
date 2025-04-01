@@ -21,14 +21,14 @@ FROM templates t
 WHERE tvp.desired_instances IS NOT NULL -- Consider only presets that have a prebuild configuration.
   AND (t.id = sqlc.narg('template_id')::uuid OR sqlc.narg('template_id') IS NULL);
 
--- name: GetRunningPrebuilds :many
-SELECT p.id                AS workspace_id,
-	   p.name              AS workspace_name,
-	   p.template_id,
-	   b.template_version_id,
+-- name: GetRunningPrebuiltWorkspaces :many
+SELECT p.id,
+       p.name,
+       p.template_id,
+       b.template_version_id,
        p.current_preset_id AS current_preset_id,
-	   p.ready,
-	   p.created_at
+       p.ready,
+       p.created_at
 FROM workspace_prebuilds p
 		 INNER JOIN workspace_latest_builds b ON b.workspace_id = p.id
 WHERE (b.transition = 'start'::workspace_transition
@@ -50,11 +50,12 @@ FROM workspace_latest_builds wlb
 WHERE wlb.job_status IN ('pending'::provisioner_job_status, 'running'::provisioner_job_status)
 GROUP BY t.id, wpb.template_version_id, wpb.transition;
 
--- GetPresetsBackoff groups workspace builds by template version ID.
+-- GetPresetsBackoff groups workspace builds by preset ID.
+-- Each preset is associated with exactly one template version ID.
 -- For each group, the query checks up to N of the most recent jobs that occurred within the
 -- lookback period, where N equals the number of desired instances for the corresponding preset.
--- If at least one of the job within a group has failed, we should backoff on the corresponding template version ID.
--- Query returns a list of template version IDs for which we should backoff.
+-- If at least one of the job within a group has failed, we should backoff on the corresponding preset ID.
+-- Query returns a list of preset IDs for which we should backoff.
 -- Only active template versions with configured presets are considered.
 -- We also return the number of failed workspace builds that occurred during the lookback period.
 --
@@ -75,13 +76,13 @@ WITH filtered_builds AS (
       AND wlb.transition = 'start'::workspace_transition
 ),
 time_sorted_builds AS (
-    -- Group builds by template version, then sort each group by created_at.
+    -- Group builds by preset, then sort each group by created_at.
 	SELECT fb.template_version_id, fb.created_at, fb.preset_id, fb.job_status, fb.desired_instances,
 	    ROW_NUMBER() OVER (PARTITION BY fb.preset_id ORDER BY fb.created_at DESC) as rn
 	FROM filtered_builds fb
 ),
 failed_count AS (
-    -- Count failed builds per template version/preset in the given period
+    -- Count failed builds per preset in the given period
 	SELECT preset_id, COUNT(*) AS num_failed
 	FROM filtered_builds
 	WHERE job_status = 'failed'::provisioner_job_status
@@ -99,7 +100,7 @@ WHERE tsb.rn <= tsb.desired_instances -- Fetch the last N builds, where N is the
   AND created_at >= @lookback::timestamptz
 GROUP BY tsb.template_version_id, tsb.preset_id, fc.num_failed;
 
--- name: ClaimPrebuild :one
+-- name: ClaimPrebuiltWorkspace :one
 UPDATE workspaces w
 SET owner_id   = @new_user_id::uuid,
 	name       = @new_name::text,
@@ -114,7 +115,7 @@ WHERE w.id IN (
 	-- The prebuilds system should never try to claim a prebuild for an inactive template version.
 	-- Nevertheless, this filter is here as a defensive measure:
 	AND b.template_version_id = t.active_version_id
-	AND b.template_version_preset_id = @preset_id::uuid
+	AND p.current_preset_id = @preset_id::uuid
 	AND p.ready
 	LIMIT 1 FOR UPDATE OF p SKIP LOCKED -- Ensure that a concurrent request will not select the same prebuild.
 )
