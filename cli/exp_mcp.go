@@ -6,8 +6,11 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/mark3labs/mcp-go/server"
+	"github.com/spf13/afero"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
@@ -106,11 +109,117 @@ func (*RootCmd) mcpConfigureClaudeDesktop() *serpent.Command {
 }
 
 func (*RootCmd) mcpConfigureClaudeCode() *serpent.Command {
+	var (
+		apiKey           string
+		claudeConfigPath string
+		claudeMDPath     string
+		systemPrompt     string
+		appStatusSlug    string
+		testBinaryName   string
+	)
 	cmd := &serpent.Command{
-		Use:   "claude-code",
-		Short: "Configure the Claude Code server.",
-		Handler: func(_ *serpent.Invocation) error {
+		Use:   "claude-code <project-directory>",
+		Short: "Configure the Claude Code server. You will need to run this command for each project you want to use. Specify the project directory as the first argument.",
+		Handler: func(inv *serpent.Invocation) error {
+			if len(inv.Args) == 0 {
+				return xerrors.Errorf("project directory is required")
+			}
+			projectDirectory := inv.Args[0]
+			fs := afero.NewOsFs()
+			binPath, err := os.Executable()
+			if err != nil {
+				return xerrors.Errorf("failed to get executable path: %w", err)
+			}
+			if testBinaryName != "" {
+				binPath = testBinaryName
+			}
+			configureClaudeEnv := map[string]string{}
+			agentToken, err := getAgentToken(fs)
+			if err != nil {
+				cliui.Warnf(inv.Stderr, "failed to get agent token: %s", err)
+			} else {
+				configureClaudeEnv["CODER_AGENT_TOKEN"] = agentToken
+			}
+			if appStatusSlug != "" {
+				configureClaudeEnv["CODER_MCP_APP_STATUS_SLUG"] = appStatusSlug
+			}
+			if deprecatedSystemPromptEnv, ok := os.LookupEnv("SYSTEM_PROMPT"); ok {
+				cliui.Warnf(inv.Stderr, "SYSTEM_PROMPT is deprecated, use CODER_MCP_CLAUDE_SYSTEM_PROMPT instead")
+				systemPrompt = deprecatedSystemPromptEnv
+			}
+
+			if err := configureClaude(fs, ClaudeConfig{
+				// TODO: will this always be stable?
+				AllowedTools:     []string{`mcp__coder__coder_report_task`},
+				APIKey:           apiKey,
+				ConfigPath:       claudeConfigPath,
+				ProjectDirectory: projectDirectory,
+				MCPServers: map[string]ClaudeConfigMCP{
+					"coder": {
+						Command: binPath,
+						Args:    []string{"exp", "mcp", "server"},
+						Env:     configureClaudeEnv,
+					},
+				},
+			}); err != nil {
+				return xerrors.Errorf("failed to modify claude.json: %w", err)
+			}
+			cliui.Infof(inv.Stderr, "Wrote config to %s", claudeConfigPath)
+
+			// We also write the system prompt to the CLAUDE.md file.
+			if err := injectClaudeMD(fs, systemPrompt, claudeMDPath); err != nil {
+				return xerrors.Errorf("failed to modify CLAUDE.md: %w", err)
+			}
+			cliui.Infof(inv.Stderr, "Wrote CLAUDE.md to %s", claudeMDPath)
 			return nil
+		},
+		Options: []serpent.Option{
+			{
+				Name:        "claude-config-path",
+				Description: "The path to the Claude config file.",
+				Env:         "CODER_MCP_CLAUDE_CONFIG_PATH",
+				Flag:        "claude-config-path",
+				Value:       serpent.StringOf(&claudeConfigPath),
+				Default:     filepath.Join(os.Getenv("HOME"), ".claude.json"),
+			},
+			{
+				Name:        "claude-md-path",
+				Description: "The path to CLAUDE.md.",
+				Env:         "CODER_MCP_CLAUDE_MD_PATH",
+				Flag:        "claude-md-path",
+				Value:       serpent.StringOf(&claudeMDPath),
+				Default:     filepath.Join(os.Getenv("HOME"), ".claude", "CLAUDE.md"),
+			},
+			{
+				Name:        "api-key",
+				Description: "The API key to use for the Claude Code server.",
+				Env:         "CODER_MCP_CLAUDE_API_KEY",
+				Flag:        "claude-api-key",
+				Value:       serpent.StringOf(&apiKey),
+			},
+			{
+				Name:        "system-prompt",
+				Description: "The system prompt to use for the Claude Code server.",
+				Env:         "CODER_MCP_CLAUDE_SYSTEM_PROMPT",
+				Flag:        "claude-system-prompt",
+				Value:       serpent.StringOf(&systemPrompt),
+				Default:     "Send a task status update to notify the user that you are ready for input, and then wait for user input.",
+			},
+			{
+				Name:        "app-status-slug",
+				Description: "The app status slug to use when running the Coder MCP server.",
+				Env:         "CODER_MCP_CLAUDE_APP_STATUS_SLUG",
+				Flag:        "claude-app-status-slug",
+				Value:       serpent.StringOf(&appStatusSlug),
+			},
+			{
+				Name:        "test-binary-name",
+				Description: "Only used for testing.",
+				Env:         "CODER_MCP_CLAUDE_TEST_BINARY_NAME",
+				Flag:        "claude-test-binary-name",
+				Value:       serpent.StringOf(&testBinaryName),
+				Hidden:      true,
+			},
 		},
 	}
 	return cmd
@@ -316,4 +425,248 @@ func mcpServerHandler(inv *serpent.Invocation, client *codersdk.Client, instruct
 	}
 
 	return nil
+}
+
+type ClaudeConfig struct {
+	ConfigPath       string
+	ProjectDirectory string
+	APIKey           string
+	AllowedTools     []string
+	MCPServers       map[string]ClaudeConfigMCP
+}
+
+type ClaudeConfigMCP struct {
+	Command string            `json:"command"`
+	Args    []string          `json:"args"`
+	Env     map[string]string `json:"env"`
+}
+
+func configureClaude(fs afero.Fs, cfg ClaudeConfig) error {
+	if cfg.ConfigPath == "" {
+		cfg.ConfigPath = filepath.Join(os.Getenv("HOME"), ".claude.json")
+	}
+	var config map[string]any
+	_, err := fs.Stat(cfg.ConfigPath)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return xerrors.Errorf("failed to stat claude config: %w", err)
+		}
+		// Touch the file to create it if it doesn't exist.
+		if err = afero.WriteFile(fs, cfg.ConfigPath, []byte(`{}`), 0o600); err != nil {
+			return xerrors.Errorf("failed to touch claude config: %w", err)
+		}
+	}
+	oldConfigBytes, err := afero.ReadFile(fs, cfg.ConfigPath)
+	if err != nil {
+		return xerrors.Errorf("failed to read claude config: %w", err)
+	}
+	err = json.Unmarshal(oldConfigBytes, &config)
+	if err != nil {
+		return xerrors.Errorf("failed to unmarshal claude config: %w", err)
+	}
+
+	if cfg.APIKey != "" {
+		// Stops Claude from requiring the user to generate
+		// a Claude-specific API key.
+		config["primaryApiKey"] = cfg.APIKey
+	}
+	// Stops Claude from asking for onboarding.
+	config["hasCompletedOnboarding"] = true
+	// Stops Claude from asking for permissions.
+	config["bypassPermissionsModeAccepted"] = true
+	config["autoUpdaterStatus"] = "disabled"
+	// Stops Claude from asking for cost threshold.
+	config["hasAcknowledgedCostThreshold"] = true
+
+	projects, ok := config["projects"].(map[string]any)
+	if !ok {
+		projects = make(map[string]any)
+	}
+
+	project, ok := projects[cfg.ProjectDirectory].(map[string]any)
+	if !ok {
+		project = make(map[string]any)
+	}
+
+	allowedTools, ok := project["allowedTools"].([]string)
+	if !ok {
+		allowedTools = []string{}
+	}
+
+	// Add cfg.AllowedTools to the list if they're not already present.
+	for _, tool := range cfg.AllowedTools {
+		for _, existingTool := range allowedTools {
+			if tool == existingTool {
+				continue
+			}
+		}
+		allowedTools = append(allowedTools, tool)
+	}
+	project["allowedTools"] = allowedTools
+	project["hasTrustDialogAccepted"] = true
+	project["hasCompletedProjectOnboarding"] = true
+
+	mcpServers, ok := project["mcpServers"].(map[string]any)
+	if !ok {
+		mcpServers = make(map[string]any)
+	}
+	for name, mcp := range cfg.MCPServers {
+		mcpServers[name] = mcp
+	}
+	project["mcpServers"] = mcpServers
+	// Prevents Claude from asking the user to complete the project onboarding.
+	project["hasCompletedProjectOnboarding"] = true
+
+	history, ok := project["history"].([]string)
+	injectedHistoryLine := "make sure to read claude.md and report tasks properly"
+
+	if !ok || len(history) == 0 {
+		// History doesn't exist or is empty, create it with our injected line
+		history = []string{injectedHistoryLine}
+	} else if history[0] != injectedHistoryLine {
+		// Check if our line is already the first item
+		// Prepend our line to the existing history
+		history = append([]string{injectedHistoryLine}, history...)
+	}
+	project["history"] = history
+
+	projects[cfg.ProjectDirectory] = project
+	config["projects"] = projects
+
+	newConfigBytes, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return xerrors.Errorf("failed to marshal claude config: %w", err)
+	}
+	err = afero.WriteFile(fs, cfg.ConfigPath, newConfigBytes, 0o644)
+	if err != nil {
+		return xerrors.Errorf("failed to write claude config: %w", err)
+	}
+	return nil
+}
+
+var (
+	coderPrompt = `YOU MUST REPORT YOUR STATUS IMMEDIATELY AFTER EACH USER MESSAGE.
+INTERRUPT READING FILES OR ANY OTHER TOOL CALL IF YOU HAVE NOT REPORTED A STATUS YET.
+You MUST use the mcp__coder__coder_report_task function with all required parameters:
+- summary: Short description of what you're doing
+- link: A relevant link for the status
+- done: Boolean indicating if the task is complete (true/false)
+- emoji: Relevant emoji for the status
+- need_user_attention: Boolean indicating if the task needs user attention (true/false)
+WHEN TO REPORT (MANDATORY):
+1. IMMEDIATELY after receiving ANY user message, before any other actions
+2. After completing any task
+3. When making significant progress
+4. When encountering roadblocks
+5. When asking questions
+6. Before and after using search tools or making code changes
+FAILING TO REPORT STATUS PROPERLY WILL RESULT IN INCORRECT BEHAVIOR.`
+
+	// Define the guard strings
+	coderPromptStartGuard  = "<coder-prompt>"
+	coderPromptEndGuard    = "</coder-prompt>"
+	systemPromptStartGuard = "<system-prompt>"
+	systemPromptEndGuard   = "</system-prompt>"
+)
+
+func injectClaudeMD(fs afero.Fs, systemPrompt string, claudeMDPath string) error {
+	_, err := fs.Stat(claudeMDPath)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return xerrors.Errorf("failed to stat claude config: %w", err)
+		}
+		// Write a new file with the system prompt.
+		if err = fs.MkdirAll(filepath.Dir(claudeMDPath), 0o700); err != nil {
+			return xerrors.Errorf("failed to create claude config directory: %w", err)
+		}
+
+		return afero.WriteFile(fs, claudeMDPath, []byte(promptsBlock(coderPrompt, systemPrompt, "")), 0o600)
+	}
+
+	bs, err := afero.ReadFile(fs, claudeMDPath)
+	if err != nil {
+		return xerrors.Errorf("failed to read claude config: %w", err)
+	}
+
+	// Extract the content without the guarded sections
+	cleanContent := string(bs)
+
+	// Remove existing coder prompt section if it exists
+	coderStartIdx := indexOf(cleanContent, coderPromptStartGuard)
+	coderEndIdx := indexOf(cleanContent, coderPromptEndGuard)
+	if coderStartIdx != -1 && coderEndIdx != -1 && coderStartIdx < coderEndIdx {
+		beforeCoderPrompt := cleanContent[:coderStartIdx]
+		afterCoderPrompt := cleanContent[coderEndIdx+len(coderPromptEndGuard):]
+		cleanContent = beforeCoderPrompt + afterCoderPrompt
+	}
+
+	// Remove existing system prompt section if it exists
+	systemStartIdx := indexOf(cleanContent, systemPromptStartGuard)
+	systemEndIdx := indexOf(cleanContent, systemPromptEndGuard)
+	if systemStartIdx != -1 && systemEndIdx != -1 && systemStartIdx < systemEndIdx {
+		beforeSystemPrompt := cleanContent[:systemStartIdx]
+		afterSystemPrompt := cleanContent[systemEndIdx+len(systemPromptEndGuard):]
+		cleanContent = beforeSystemPrompt + afterSystemPrompt
+	}
+
+	// Trim any leading whitespace from the clean content
+	cleanContent = strings.TrimSpace(cleanContent)
+
+	// Create the new content with coder and system prompt prepended
+	newContent := promptsBlock(coderPrompt, systemPrompt, cleanContent)
+
+	// Write the updated content back to the file
+	err = afero.WriteFile(fs, claudeMDPath, []byte(newContent), 0o600)
+	if err != nil {
+		return xerrors.Errorf("failed to write claude config: %w", err)
+	}
+
+	return nil
+}
+
+func promptsBlock(coderPrompt, systemPrompt, existingContent string) string {
+	var newContent strings.Builder
+	_, _ = newContent.WriteString(coderPromptStartGuard)
+	_, _ = newContent.WriteRune('\n')
+	_, _ = newContent.WriteString(coderPrompt)
+	_, _ = newContent.WriteRune('\n')
+	_, _ = newContent.WriteString(coderPromptEndGuard)
+	_, _ = newContent.WriteRune('\n')
+	_, _ = newContent.WriteString(systemPromptStartGuard)
+	_, _ = newContent.WriteRune('\n')
+	_, _ = newContent.WriteString(systemPrompt)
+	_, _ = newContent.WriteRune('\n')
+	_, _ = newContent.WriteString(systemPromptEndGuard)
+	_, _ = newContent.WriteRune('\n')
+	if existingContent != "" {
+		_, _ = newContent.WriteString(existingContent)
+	}
+	return newContent.String()
+}
+
+// indexOf returns the index of the first instance of substr in s,
+// or -1 if substr is not present in s.
+func indexOf(s, substr string) int {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return i
+		}
+	}
+	return -1
+}
+
+func getAgentToken(fs afero.Fs) (string, error) {
+	token, ok := os.LookupEnv("CODER_AGENT_TOKEN")
+	if ok {
+		return token, nil
+	}
+	tokenFile, ok := os.LookupEnv("CODER_AGENT_TOKEN_FILE")
+	if !ok {
+		return "", xerrors.Errorf("CODER_AGENT_TOKEN or CODER_AGENT_TOKEN_FILE must be set for token auth")
+	}
+	bs, err := afero.ReadFile(fs, tokenFile)
+	if err != nil {
+		return "", xerrors.Errorf("failed to read agent token file: %w", err)
+	}
+	return string(bs), nil
 }
