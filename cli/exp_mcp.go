@@ -4,14 +4,18 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log"
 	"os"
 	"path/filepath"
 
+	"github.com/mark3labs/mcp-go/server"
+	"golang.org/x/xerrors"
+
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 	codermcp "github.com/coder/coder/v2/mcp"
 	"github.com/coder/serpent"
 )
@@ -191,14 +195,16 @@ func (*RootCmd) mcpConfigureCursor() *serpent.Command {
 
 func (r *RootCmd) mcpServer() *serpent.Command {
 	var (
-		client       = new(codersdk.Client)
-		instructions string
-		allowedTools []string
+		client         = new(codersdk.Client)
+		instructions   string
+		allowedTools   []string
+		appStatusSlug  string
+		mcpServerAgent bool
 	)
 	return &serpent.Command{
 		Use: "server",
 		Handler: func(inv *serpent.Invocation) error {
-			return mcpServerHandler(inv, client, instructions, allowedTools)
+			return mcpServerHandler(inv, client, instructions, allowedTools, appStatusSlug, mcpServerAgent)
 		},
 		Short: "Start the Coder MCP server.",
 		Middleware: serpent.Chain(
@@ -209,23 +215,38 @@ func (r *RootCmd) mcpServer() *serpent.Command {
 				Name:        "instructions",
 				Description: "The instructions to pass to the MCP server.",
 				Flag:        "instructions",
+				Env:         "CODER_MCP_INSTRUCTIONS",
 				Value:       serpent.StringOf(&instructions),
 			},
 			{
 				Name:        "allowed-tools",
 				Description: "Comma-separated list of allowed tools. If not specified, all tools are allowed.",
 				Flag:        "allowed-tools",
+				Env:         "CODER_MCP_ALLOWED_TOOLS",
 				Value:       serpent.StringArrayOf(&allowedTools),
+			},
+			{
+				Name:        "app-status-slug",
+				Description: "When reporting a task, the coder_app slug under which to report the task.",
+				Flag:        "app-status-slug",
+				Env:         "CODER_MCP_APP_STATUS_SLUG",
+				Value:       serpent.StringOf(&appStatusSlug),
+				Default:     "",
+			},
+			{
+				Flag:        "agent",
+				Env:         "CODER_MCP_SERVER_AGENT",
+				Description: "Start the MCP server in agent mode, with a different set of tools.",
+				Value:       serpent.BoolOf(&mcpServerAgent),
 			},
 		},
 	}
 }
 
-func mcpServerHandler(inv *serpent.Invocation, client *codersdk.Client, instructions string, allowedTools []string) error {
+//nolint:revive // control coupling
+func mcpServerHandler(inv *serpent.Invocation, client *codersdk.Client, instructions string, allowedTools []string, appStatusSlug string, mcpServerAgent bool) error {
 	ctx, cancel := context.WithCancel(inv.Context())
 	defer cancel()
-
-	logger := slog.Make(sloghuman.Sink(inv.Stdout))
 
 	me, err := client.User(ctx, codersdk.Me)
 	if err != nil {
@@ -253,19 +274,40 @@ func mcpServerHandler(inv *serpent.Invocation, client *codersdk.Client, instruct
 		inv.Stderr = invStderr
 	}()
 
-	options := []codermcp.Option{
-		codermcp.WithInstructions(instructions),
-		codermcp.WithLogger(&logger),
+	mcpSrv := server.NewMCPServer(
+		"Coder Agent",
+		buildinfo.Version(),
+		server.WithInstructions(instructions),
+	)
+
+	// Create a separate logger for the tools.
+	toolLogger := slog.Make(sloghuman.Sink(invStderr))
+
+	toolDeps := codermcp.ToolDeps{
+		Client:        client,
+		Logger:        &toolLogger,
+		AppStatusSlug: appStatusSlug,
+		AgentClient:   agentsdk.New(client.URL),
 	}
 
-	// Add allowed tools option if specified
+	if mcpServerAgent {
+		// Get the workspace agent token from the environment.
+		agentToken, ok := os.LookupEnv("CODER_AGENT_TOKEN")
+		if !ok || agentToken == "" {
+			return xerrors.New("CODER_AGENT_TOKEN is not set")
+		}
+		toolDeps.AgentClient.SetSessionToken(agentToken)
+	}
+
+	// Register tools based on the allowlist (if specified)
+	reg := codermcp.AllTools()
 	if len(allowedTools) > 0 {
-		options = append(options, codermcp.WithAllowedTools(allowedTools))
+		reg = reg.WithOnlyAllowed(allowedTools...)
 	}
 
-	srv := codermcp.NewStdio(client, options...)
-	srv.SetErrorLogger(log.New(invStderr, "", log.LstdFlags))
+	reg.Register(mcpSrv, toolDeps)
 
+	srv := server.NewStdioServer(mcpSrv)
 	done := make(chan error)
 	go func() {
 		defer close(done)

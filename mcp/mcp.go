@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"os"
 	"slices"
 	"strings"
 	"time"
@@ -17,75 +16,11 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/sloghuman"
-	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
-
-type mcpOptions struct {
-	instructions string
-	logger       *slog.Logger
-	allowedTools []string
-}
-
-// Option is a function that configures the MCP server.
-type Option func(*mcpOptions)
-
-// WithInstructions sets the instructions for the MCP server.
-func WithInstructions(instructions string) Option {
-	return func(o *mcpOptions) {
-		o.instructions = instructions
-	}
-}
-
-// WithLogger sets the logger for the MCP server.
-func WithLogger(logger *slog.Logger) Option {
-	return func(o *mcpOptions) {
-		o.logger = logger
-	}
-}
-
-// WithAllowedTools sets the allowed tools for the MCP server.
-func WithAllowedTools(tools []string) Option {
-	return func(o *mcpOptions) {
-		o.allowedTools = tools
-	}
-}
-
-// NewStdio creates a new MCP stdio server with the given client and options.
-// It is the responsibility of the caller to start and stop the server.
-func NewStdio(client *codersdk.Client, opts ...Option) *server.StdioServer {
-	options := &mcpOptions{
-		instructions: ``,
-		logger:       ptr.Ref(slog.Make(sloghuman.Sink(os.Stdout))),
-	}
-	for _, opt := range opts {
-		opt(options)
-	}
-
-	mcpSrv := server.NewMCPServer(
-		"Coder Agent",
-		buildinfo.Version(),
-		server.WithInstructions(options.instructions),
-	)
-
-	logger := slog.Make(sloghuman.Sink(os.Stdout))
-
-	// Register tools based on the allowed list (if specified)
-	reg := AllTools()
-	if len(options.allowedTools) > 0 {
-		reg = reg.WithOnlyAllowed(options.allowedTools...)
-	}
-	reg.Register(mcpSrv, ToolDeps{
-		Client: client,
-		Logger: &logger,
-	})
-
-	srv := server.NewStdioServer(mcpSrv)
-	return srv
-}
 
 // allTools is the list of all available tools. When adding a new tool,
 // make sure to update this list.
@@ -120,6 +55,8 @@ Choose an emoji that helps the user understand the current phase at a glance.`),
 			mcp.WithBoolean("done", mcp.Description(`Whether the overall task the user requested is complete.
 Set to true only when the entire requested operation is finished successfully.
 For multi-step processes, use false until all steps are complete.`), mcp.Required()),
+			mcp.WithBoolean("need_user_attention", mcp.Description(`Whether the user needs to take action on the task.
+Set to true if the task is in a failed state or if the user needs to take action to continue.`), mcp.Required()),
 		),
 		MakeHandler: handleCoderReportTask,
 	},
@@ -265,8 +202,10 @@ Can be either "start" or "stop".`)),
 
 // ToolDeps contains all dependencies needed by tool handlers
 type ToolDeps struct {
-	Client *codersdk.Client
-	Logger *slog.Logger
+	Client        *codersdk.Client
+	AgentClient   *agentsdk.Client
+	Logger        *slog.Logger
+	AppStatusSlug string
 }
 
 // ToolHandler associates a tool with its handler creation function
@@ -313,18 +252,23 @@ func AllTools() ToolRegistry {
 }
 
 type handleCoderReportTaskArgs struct {
-	Summary string `json:"summary"`
-	Link    string `json:"link"`
-	Emoji   string `json:"emoji"`
-	Done    bool   `json:"done"`
+	Summary           string `json:"summary"`
+	Link              string `json:"link"`
+	Emoji             string `json:"emoji"`
+	Done              bool   `json:"done"`
+	NeedUserAttention bool   `json:"need_user_attention"`
 }
 
 // Example payload:
-// {"jsonrpc":"2.0","id":1,"method":"tools/call", "params": {"name": "coder_report_task", "arguments": {"summary": "I'm working on the login page.", "link": "https://github.com/coder/coder/pull/1234", "emoji": "🔍", "done": false}}}
+// {"jsonrpc":"2.0","id":1,"method":"tools/call", "params": {"name": "coder_report_task", "arguments": {"summary": "I need help with the login page.", "link": "https://github.com/coder/coder/pull/1234", "emoji": "🔍", "done": false, "need_user_attention": true}}}
 func handleCoderReportTask(deps ToolDeps) server.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		if deps.Client == nil {
-			return nil, xerrors.New("developer error: client is required")
+		if deps.AgentClient == nil {
+			return nil, xerrors.New("developer error: agent client is required")
+		}
+
+		if deps.AppStatusSlug == "" {
+			return nil, xerrors.New("No app status slug provided, set CODER_MCP_APP_STATUS_SLUG when running the MCP server to report tasks.")
 		}
 
 		// Convert the request parameters to a json.RawMessage so we can unmarshal
@@ -334,20 +278,33 @@ func handleCoderReportTask(deps ToolDeps) server.ToolHandlerFunc {
 			return nil, xerrors.Errorf("failed to unmarshal arguments: %w", err)
 		}
 
-		// TODO: Waiting on support for tasks.
-		deps.Logger.Info(ctx, "report task tool called", slog.F("summary", args.Summary), slog.F("link", args.Link), slog.F("done", args.Done), slog.F("emoji", args.Emoji))
-		/*
-			err := sdk.PostTask(ctx, agentsdk.PostTaskRequest{
-				Reporter:   "claude",
-				Summary:    summary,
-				URL:        link,
-				Completion: done,
-				Icon:       emoji,
-			})
-			if err != nil {
-				return nil, err
-			}
-		*/
+		deps.Logger.Info(ctx, "report task tool called",
+			slog.F("summary", args.Summary),
+			slog.F("link", args.Link),
+			slog.F("emoji", args.Emoji),
+			slog.F("done", args.Done),
+			slog.F("need_user_attention", args.NeedUserAttention),
+		)
+
+		newStatus := agentsdk.PatchAppStatus{
+			AppSlug:            deps.AppStatusSlug,
+			Message:            args.Summary,
+			URI:                args.Link,
+			Icon:               args.Emoji,
+			NeedsUserAttention: args.NeedUserAttention,
+			State:              codersdk.WorkspaceAppStatusStateWorking,
+		}
+
+		if args.Done {
+			newStatus.State = codersdk.WorkspaceAppStatusStateComplete
+		}
+		if args.NeedUserAttention {
+			newStatus.State = codersdk.WorkspaceAppStatusStateFailure
+		}
+
+		if err := deps.AgentClient.PatchAppStatus(ctx, newStatus); err != nil {
+			return nil, xerrors.Errorf("failed to patch app status: %w", err)
+		}
 
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{
