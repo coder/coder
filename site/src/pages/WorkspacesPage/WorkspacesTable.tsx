@@ -230,6 +230,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 													variant="icon"
 													src={workspace.template_icon}
 													fallback={workspace.name}
+													listView
 												/>
 											}
 										/>

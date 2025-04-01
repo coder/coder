@@ -37,7 +37,7 @@ export const AvatarData: FC<AvatarDataProps> = ({
 	}
 
 	return (
-		<Stack spacing={1} direction="row" className="w-full">
+		<Stack spacing={1} direction="row" className="w-full" alignItems="center">
 			{avatar}
 
 			<Stack spacing={0} className="w-full">

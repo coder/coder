@@ -58,34 +58,66 @@ export type AvatarProps = AvatarPrimitive.AvatarProps &
 	VariantProps<typeof avatarVariants> & {
 		src?: string;
 		fallback?: string;
+		/**
+		 * Style overrides specifically for list view avatars.
+		 * When true, applies special styling for workspace/template list views:
+		 * - Removes background and border when an image is present
+		 * - Makes the icon slightly larger
+		 */
+		listView?: boolean;
 	};
 
 const Avatar = React.forwardRef<
 	React.ElementRef<typeof AvatarPrimitive.Root>,
 	AvatarProps
->(({ className, size, variant, src, fallback, children, ...props }, ref) => {
-	const theme = useTheme();
+>(
+	(
+		{ className, size, variant, src, fallback, listView, children, ...props },
+		ref,
+	) => {
+		const theme = useTheme();
 
-	return (
-		<AvatarPrimitive.Root
-			ref={ref}
-			className={cn(avatarVariants({ size, variant, className }))}
-			{...props}
-		>
-			<AvatarPrimitive.Image
-				src={src}
-				className="aspect-square h-full w-full object-contain"
-				css={getExternalImageStylesFromUrl(theme.externalImages, src)}
-			/>
-			{fallback && (
-				<AvatarPrimitive.Fallback className="flex h-full w-full items-center justify-center rounded-full">
-					{fallback.charAt(0).toUpperCase()}
-				</AvatarPrimitive.Fallback>
-			)}
-			{children}
-		</AvatarPrimitive.Root>
-	);
-});
+		// Process list view styling
+		const processedCss = {
+			...(listView && {
+				width: "42px",
+				height: "42px",
+				fontSize: "16px",
+				...(src && {
+					background: "transparent !important",
+					backgroundColor: "transparent !important",
+					border: "none !important",
+					boxShadow: "none !important",
+					padding: 0,
+					"& img": {
+						transform: "scale(1.3)", // 30% larger icon
+					},
+				}),
+			}),
+		};
+
+		return (
+			<AvatarPrimitive.Root
+				ref={ref}
+				className={cn(avatarVariants({ size, variant, className }))}
+				css={processedCss}
+				{...props}
+			>
+				<AvatarPrimitive.Image
+					src={src}
+					className="aspect-square h-full w-full object-contain"
+					css={getExternalImageStylesFromUrl(theme.externalImages, src)}
+				/>
+				{fallback && (
+					<AvatarPrimitive.Fallback className="flex h-full w-full items-center justify-center">
+						{fallback.charAt(0).toUpperCase()}
+					</AvatarPrimitive.Fallback>
+				)}
+				{children}
+			</AvatarPrimitive.Root>
+		);
+	},
+);
 Avatar.displayName = AvatarPrimitive.Root.displayName;
 
 export { Avatar };
