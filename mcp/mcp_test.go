@@ -17,7 +17,9 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 	codermcp "github.com/coder/coder/v2/mcp"
+	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -39,7 +41,14 @@ func TestCoderTools(t *testing.T) {
 	r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
 		OrganizationID: owner.OrganizationID,
 		OwnerID:        member.ID,
-	}).WithAgent().Do()
+	}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+		agents[0].Apps = []*proto.App{
+			{
+				Slug: "some-agent-app",
+			},
+		}
+		return agents
+	}).Do()
 
 	// Note: we want to test the list_workspaces tool before starting the
 	// workspace agent. Starting the workspace agent will modify the workspace
@@ -65,9 +74,12 @@ func TestCoderTools(t *testing.T) {
 
 	// Register tools using our registry
 	logger := slogtest.Make(t, nil)
+	agentClient := agentsdk.New(memberClient.URL)
 	codermcp.AllTools().Register(mcpSrv, codermcp.ToolDeps{
-		Client: memberClient,
-		Logger: &logger,
+		Client:        memberClient,
+		Logger:        &logger,
+		AppStatusSlug: "some-agent-app",
+		AgentClient:   agentClient,
 	})
 
 	t.Run("coder_list_templates", func(t *testing.T) {
@@ -86,24 +98,44 @@ func TestCoderTools(t *testing.T) {
 	})
 
 	t.Run("coder_report_task", func(t *testing.T) {
+		// Given: the MCP server has an agent token.
+		oldAgentToken := agentClient.SDK.SessionToken()
+		agentClient.SetSessionToken(r.AgentToken)
+		t.Cleanup(func() {
+			agentClient.SDK.SetSessionToken(oldAgentToken)
+		})
 		// When: the coder_report_task tool is called
 		ctr := makeJSONRPCRequest(t, "tools/call", "coder_report_task", map[string]any{
 			"summary":             "Test summary",
 			"link":                "https://example.com",
 			"emoji":               "🔍",
 			"done":                false,
-			"coder_url":           client.URL.String(),
-			"coder_session_token": client.SessionToken(),
+			"need_user_attention": true,
 		})
 
 		pty.WriteLine(ctr)
 		_ = pty.ReadLine(ctx) // skip the echo
 
-		// Then: the response is a success message.
-		// TODO: check the task was created. This functionality is not yet implemented.
-		expected := makeJSONRPCTextResponse(t, "Thanks for reporting!")
+		// Then: positive feedback is given to the reporting agent.
 		actual := pty.ReadLine(ctx)
-		testutil.RequireJSONEq(t, expected, actual)
+		require.Contains(t, actual, "Thanks for reporting!")
+
+		// Then: the response is a success message.
+		ws, err := memberClient.Workspace(ctx, r.Workspace.ID)
+		require.NoError(t, err, "failed to get workspace")
+		agt, err := memberClient.WorkspaceAgent(ctx, ws.LatestBuild.Resources[0].Agents[0].ID)
+		require.NoError(t, err, "failed to get workspace agent")
+		require.NotEmpty(t, agt.Apps, "workspace agent should have an app")
+		require.NotEmpty(t, agt.Apps[0].Statuses, "workspace agent app should have a status")
+		st := agt.Apps[0].Statuses[0]
+		// require.Equal(t, ws.ID, st.WorkspaceID, "workspace app status should have the correct workspace id")
+		require.Equal(t, agt.ID, st.AgentID, "workspace app status should have the correct agent id")
+		require.Equal(t, agt.Apps[0].ID, st.AppID, "workspace app status should have the correct app id")
+		require.Equal(t, codersdk.WorkspaceAppStatusStateFailure, st.State, "workspace app status should be in the failure state")
+		require.Equal(t, "Test summary", st.Message, "workspace app status should have the correct message")
+		require.Equal(t, "https://example.com", st.URI, "workspace app status should have the correct uri")
+		require.Equal(t, "🔍", st.Icon, "workspace app status should have the correct icon")
+		require.True(t, st.NeedsUserAttention, "workspace app status should need user attention")
 	})
 
 	t.Run("coder_whoami", func(t *testing.T) {
