@@ -56,13 +56,17 @@ These notifications are sent to the workspace owner:
 
 ## Delivery Methods
 
-Notifications can be delivered in the Coder dashboard and by SMTP or webhook.
+Notifications can be delivered through the Coder dashboard Inbox and by SMTP or webhook.
 OOM/OOD notifications can be delivered to users in VS Code.
 
-You can choose SMTP or webhook globally with
+You can configure:
+
+- SMTP or webhooks globally with
 [`CODER_NOTIFICATIONS_METHOD`](../../../reference/cli/server.md#--notifications-method)
 (default: `smtp`).
-When there are no delivery methods configured, notifications are disabled.
+- Coder dashboard Inbox with
+[`CODER_NOTIFICATIONS_INBOX_ENABLED`](../../../reference/cli/server.md#--notifications-inbox-enabled)
+(default: `true`).
 
 Premium customers can configure which method to use for each of the supported
 [Events](#workspace-events).
@@ -78,6 +82,7 @@ You can modify the notification delivery behavior in your Coder deployment's
 |    ✔️    | `--notifications-dispatch-timeout`  | `CODER_NOTIFICATIONS_DISPATCH_TIMEOUT`  | `duration` | How long to wait while a notification is being sent before giving up.                                                 | 1m      |
 |    ✔️    | `--notifications-method`            | `CODER_NOTIFICATIONS_METHOD`            | `string`   | Which delivery method to use (available options: 'smtp', 'webhook'). See [Delivery Methods](#delivery-methods) below. | smtp    |
 |    -️    | `--notifications-max-send-attempts` | `CODER_NOTIFICATIONS_MAX_SEND_ATTEMPTS` | `int`      | The upper limit of attempts to send a notification.                                                                   | 5       |
+|    -️    | `--notifications-inbox-enabled`     | `CODER_NOTIFICATIONS_INBOX_ENABLED`     | `bool`     | Enable or disable inbox notifications in the Coder dashboard.                                                         | true    |
 
 ### Configure OOM/OOD notifications
 
