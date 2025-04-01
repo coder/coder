@@ -201,7 +201,16 @@ func TestServer(t *testing.T) {
 		go func() {
 			errCh <- inv.WithContext(ctx).Run()
 		}()
-		pty.ExpectMatch("Using an ephemeral deployment directory")
+		matchCh1 := make(chan string, 1)
+		go func() {
+			matchCh1 <- pty.ExpectMatchContext(ctx, "Using an ephemeral deployment directory")
+		}()
+		select {
+		case err := <-errCh:
+			require.NoError(t, err)
+		case <-matchCh1:
+			// OK!
+		}
 		rootDirLine := pty.ReadLine(ctx)
 		rootDir := strings.TrimPrefix(rootDirLine, "Using an ephemeral deployment directory")
 		rootDir = strings.TrimSpace(rootDir)
@@ -210,7 +219,16 @@ func TestServer(t *testing.T) {
 		require.NotEmpty(t, rootDir)
 		require.DirExists(t, rootDir)
 
-		pty.ExpectMatchContext(ctx, "View the Web UI")
+		matchCh2 := make(chan string, 1)
+		go func() {
+			matchCh2 <- pty.ExpectMatchContext(ctx, "View the Web UI")
+		}()
+		select {
+		case err := <-errCh:
+			require.NoError(t, err)
+		case <-matchCh2:
+			// OK!
+		}
 
 		cancelFunc()
 		<-errCh
