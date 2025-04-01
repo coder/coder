@@ -428,6 +428,8 @@ func buildVSCodeWorkspaceDevContainerLink(
 	containerName string,
 	containerFolder string,
 ) (*url.URL, url.Values) {
+	containerFolder = windowsToUnixPath(containerFolder)
+
 	qp := url.Values{}
 	qp.Add("url", clientURL)
 	qp.Add("owner", workspace.OwnerName)
@@ -518,6 +520,10 @@ func windowsJoinPath(elem ...string) string {
 
 func unixToWindowsPath(p string) string {
 	return strings.ReplaceAll(p, "/", "\\")
+}
+
+func windowsToUnixPath(p string) string {
+	return strings.ReplaceAll(p, "\\", "/")
 }
 
 // resolveAgentAbsPath resolves the absolute path to a file or directory in the

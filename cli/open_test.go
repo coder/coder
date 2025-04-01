@@ -185,11 +185,6 @@ func TestOpenVSCode_NoAgentDirectory(t *testing.T) {
 	wd, err := os.Getwd()
 	require.NoError(t, err)
 
-	absPath := "/home/coder"
-	if runtime.GOOS == "windows" {
-		absPath = "C:\\home\\coder"
-	}
-
 	tests := []struct {
 		name      string
 		args      []string
@@ -210,8 +205,8 @@ func TestOpenVSCode_NoAgentDirectory(t *testing.T) {
 		},
 		{
 			name:    "ok with absolute path",
-			args:    []string{"--test.open-error", workspace.Name, absPath},
-			wantDir: absPath,
+			args:    []string{"--test.open-error", workspace.Name, "/home/coder"},
+			wantDir: "/home/coder",
 		},
 		{
 			name:      "ok with token",
