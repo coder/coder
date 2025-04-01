@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, fn, userEvent, waitFor, within } from "@storybook/test";
 import type { ProvisionerJob } from "api/typesGenerated";
+import { useState } from "react";
 import { MockOrganization, MockProvisionerJob } from "testHelpers/entities";
 import { daysAgo } from "utils/time";
 import OrganizationProvisionerJobsPageView from "./OrganizationProvisionerJobsPageView";
@@ -73,5 +74,37 @@ export const RetryAfterError: Story = {
 export const Empty: Story = {
 	args: {
 		jobs: [],
+	},
+};
+
+export const OnFilter: Story = {
+	render: function FilterWithState({ ...args }) {
+		const [jobs, setJobs] = useState<ProvisionerJob[]>([]);
+		const [filter, setFilter] = useState({ status: "pending" });
+		const handleFilterChange = (newFilter: { status: string }) => {
+			setFilter(newFilter);
+			const filteredJobs = MockProvisionerJobs.filter((job) =>
+				newFilter.status ? job.status === newFilter.status : true,
+			);
+			setJobs(filteredJobs);
+		};
+
+		return (
+			<OrganizationProvisionerJobsPageView
+				{...args}
+				filter={filter}
+				jobs={jobs}
+				onFilterChange={handleFilterChange}
+			/>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const statusFilter = canvas.getByTestId("status-filter");
+		await userEvent.click(statusFilter);
+
+		const body = within(canvasElement.ownerDocument.body);
+		const option = await body.findByRole("option", { name: "succeeded" });
+		await userEvent.click(option);
 	},
 };

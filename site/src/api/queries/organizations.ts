@@ -4,6 +4,7 @@ import type {
 	GroupSyncSettings,
 	PaginatedMembersRequest,
 	PaginatedMembersResponse,
+	ProvisionerJobStatus,
 	RoleSyncSettings,
 	UpdateOrganizationRequest,
 } from "api/typesGenerated";
@@ -236,16 +237,20 @@ export const patchRoleSyncSettings = (
 	};
 };
 
-export const provisionerJobQueryKey = (orgId: string) => [
+export const provisionerJobsQueryKey = (orgId: string, status?: string) => [
 	"organization",
 	orgId,
 	"provisionerjobs",
+	status,
 ];
 
-export const provisionerJobs = (orgId: string) => {
+export const provisionerJobs = (
+	orgId: string,
+	status?: ProvisionerJobStatus,
+) => {
 	return {
-		queryKey: provisionerJobQueryKey(orgId),
-		queryFn: () => API.getProvisionerJobs(orgId),
+		queryKey: provisionerJobsQueryKey(orgId, status),
+		queryFn: () => API.getProvisionerJobs(orgId, status),
 	};
 };
 

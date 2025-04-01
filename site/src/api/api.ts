@@ -2392,9 +2392,16 @@ class ApiMethods {
 		return res.data;
 	};
 
-	getProvisionerJobs = async (orgId: string) => {
+	getProvisionerJobs = async (
+		orgId: string,
+		status?: TypesGen.ProvisionerJobStatus,
+	) => {
+		const params = new URLSearchParams();
+		if (status) {
+			params.append("status", status);
+		}
 		const res = await this.axios.get<TypesGen.ProvisionerJob[]>(
-			`/api/v2/organizations/${orgId}/provisionerjobs`,
+			`/api/v2/organizations/${orgId}/provisionerjobs?${params.toString()}`,
 		);
 		return res.data;
 	};
