@@ -1138,13 +1138,29 @@ func (q *querier) BulkMarkNotificationMessagesSent(ctx context.Context, arg data
 	return q.db.BulkMarkNotificationMessagesSent(ctx, arg)
 }
 
-func (q *querier) ClaimPrebuiltWorkspace(ctx context.Context, newOwnerID database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceWorkspace); err != nil {
-		return database.ClaimPrebuiltWorkspaceRow{
-			ID: uuid.Nil,
-		}, err
+func (q *querier) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
+	empty := database.ClaimPrebuiltWorkspaceRow{}
+
+	preset, err := q.db.GetPresetByID(ctx, arg.PresetID)
+	if err != nil {
+		return empty, err
 	}
-	return q.db.ClaimPrebuiltWorkspace(ctx, newOwnerID)
+
+	workspaceObject := rbac.ResourceWorkspace.WithOwner(arg.NewUserID.String()).InOrg(preset.OrganizationID)
+	err = q.authorizeContext(ctx, policy.ActionCreate, workspaceObject.RBACObject())
+	if err != nil {
+		return empty, err
+	}
+
+	tpl, err := q.GetTemplateByID(ctx, preset.TemplateID.UUID)
+	if err != nil {
+		return empty, xerrors.Errorf("verify template by id: %w", err)
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUse, tpl); err != nil {
+		return empty, xerrors.Errorf("use template for workspace: %w", err)
+	}
+
+	return q.db.ClaimPrebuiltWorkspace(ctx, arg)
 }
 
 func (q *querier) CleanTailnetCoordinators(ctx context.Context) error {
@@ -2123,6 +2139,10 @@ func (q *querier) GetPrebuildMetrics(ctx context.Context) ([]database.GetPrebuil
 		return nil, err
 	}
 	return q.db.GetPrebuildMetrics(ctx)
+}
+
+func (q *querier) GetPresetByID(ctx context.Context, presetID uuid.UUID) (database.GetPresetByIDRow, error) {
+	panic("not implemented")
 }
 
 func (q *querier) GetPresetByWorkspaceBuildID(ctx context.Context, workspaceID uuid.UUID) (database.TemplateVersionPreset, error) {
