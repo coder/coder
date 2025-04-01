@@ -61,21 +61,31 @@ export const NotificationsInbox: FC<NotificationsInboxProps> = ({
 	);
 
 	useEffect(() => {
-		const socket = watchInboxNotifications(
-			(res) => {
-				updateNotificationsCache((prev) => {
-					return {
-						unread_count: res.unread_count,
-						notifications: [res.notification, ...prev.notifications],
-					};
-				});
-			},
-			{ read_status: "unread" },
-		);
+		const socket = watchInboxNotifications({ read_status: "unread" });
 
-		return () => {
+		socket.addEventListener("message", (e) => {
+			if (e.parseError) {
+				console.warn("Error parsing inbox notification: ", e.parseError);
+				return;
+			}
+
+			const msg = e.parsedMessage;
+			updateNotificationsCache((current) => {
+				return {
+					unread_count: msg.unread_count,
+					notifications: [msg.notification, ...current.notifications],
+				};
+			});
+		});
+
+		socket.addEventListener("error", () => {
+			displayError(
+				"Unable to retrieve latest inbox notifications. Please try refreshing the browser.",
+			);
 			socket.close();
-		};
+		});
+
+		return () => socket.close();
 	}, [updateNotificationsCache]);
 
 	const {
@@ -156,7 +166,7 @@ export const NotificationsInbox: FC<NotificationsInboxProps> = ({
 			error={error}
 			isLoadingMoreNotifications={isLoadingMoreNotifications}
 			hasMoreNotifications={Boolean(
-				inboxRes && inboxRes.notifications.length === NOTIFICATIONS_LIMIT,
+				inboxRes && inboxRes.notifications.length % NOTIFICATIONS_LIMIT === 0,
 			)}
 			onRetry={refetch}
 			onMarkAllAsRead={markAllAsReadMutation.mutate}

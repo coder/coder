@@ -15,6 +15,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -47,7 +48,7 @@ func TestSpeaker_RawPeer(t *testing.T) {
 		errCh <- err
 	}()
 
-	expectedHandshake := "codervpn tunnel 1.0\n"
+	expectedHandshake := "codervpn tunnel 1.1\n"
 
 	b := make([]byte, 256)
 	n, err := mp.Read(b)
@@ -74,6 +75,7 @@ func TestSpeaker_RawPeer(t *testing.T) {
 	msgBuf := make([]byte, msgLen)
 	n, err = mp.Read(msgBuf)
 	require.NoError(t, err)
+	// #nosec G115 - Safe conversion of read bytes count to uint32 for comparison with message length
 	require.Equal(t, msgLen, uint32(n))
 	msg := new(TunnelMessage)
 	err = proto.Unmarshal(msgBuf, msg)
@@ -155,7 +157,7 @@ func TestSpeaker_OversizeHandshake(t *testing.T) {
 		errCh <- err
 	}()
 
-	expectedHandshake := "codervpn tunnel 1.0\n"
+	expectedHandshake := "codervpn tunnel 1.1\n"
 
 	b := make([]byte, 256)
 	n, err := mp.Read(b)
@@ -177,12 +179,12 @@ func TestSpeaker_HandshakeInvalid(t *testing.T) {
 	for _, tc := range []struct {
 		name, handshake string
 	}{
-		{name: "preamble", handshake: "ssh manager 1.0\n"},
+		{name: "preamble", handshake: "ssh manager 1.1\n"},
 		{name: "2components", handshake: "ssh manager\n"},
 		{name: "newmajors", handshake: "codervpn manager 2.0,3.0\n"},
 		{name: "0version", handshake: "codervpn 0.1 manager\n"},
-		{name: "unknown_role", handshake: "codervpn 1.0 supervisor\n"},
-		{name: "unexpected_role", handshake: "codervpn 1.0 tunnel\n"},
+		{name: "unknown_role", handshake: "codervpn 1.1 supervisor\n"},
+		{name: "unexpected_role", handshake: "codervpn 1.1 tunnel\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -208,7 +210,7 @@ func TestSpeaker_HandshakeInvalid(t *testing.T) {
 			_, err = mp.Write([]byte(tc.handshake))
 			require.NoError(t, err)
 
-			expectedHandshake := "codervpn tunnel 1.0\n"
+			expectedHandshake := "codervpn tunnel 1.1\n"
 			b := make([]byte, 256)
 			n, err := mp.Read(b)
 			require.NoError(t, err)
@@ -246,7 +248,7 @@ func TestSpeaker_CorruptMessage(t *testing.T) {
 		errCh <- err
 	}()
 
-	expectedHandshake := "codervpn tunnel 1.0\n"
+	expectedHandshake := "codervpn tunnel 1.1\n"
 
 	b := make([]byte, 256)
 	n, err := mp.Read(b)

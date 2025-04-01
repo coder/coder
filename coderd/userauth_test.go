@@ -28,6 +28,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -304,7 +305,7 @@ func TestUserOAuth2Github(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// nolint:gocritic // Unit test
-		count, err := db.GetUserCount(dbauthz.AsSystemRestricted(ctx))
+		count, err := db.GetUserCount(dbauthz.AsSystemRestricted(ctx), false)
 		require.NoError(t, err)
 		require.Equal(t, int64(1), count)
 
@@ -1452,7 +1453,7 @@ func TestUserOIDC(t *testing.T) {
 				oidctest.WithStaticUserInfo(tc.UserInfoClaims),
 			}
 
-			if tc.AccessTokenClaims != nil && len(tc.AccessTokenClaims) > 0 {
+			if len(tc.AccessTokenClaims) > 0 {
 				opts = append(opts, oidctest.WithAccessTokenJWTHook(func(email string, exp time.Time) jwt.MapClaims {
 					return tc.AccessTokenClaims
 				}))
@@ -1981,6 +1982,87 @@ func TestUserLogout(t *testing.T) {
 // - JWT with issuer https://secondary.com
 //
 // Without this security check disabled, all three above would have to match.
+
+// TestOIDCDomainErrorMessage ensures that when a user with an unauthorized domain
+// attempts to login, the error message doesn't expose the list of authorized domains.
+func TestOIDCDomainErrorMessage(t *testing.T) {
+	t.Parallel()
+
+	allowedDomains := []string{"allowed1.com", "allowed2.org", "company.internal"}
+
+	setup := func() (*oidctest.FakeIDP, *codersdk.Client) {
+		fake := oidctest.NewFakeIDP(t, oidctest.WithServing())
+
+		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
+			cfg.EmailDomain = allowedDomains
+			cfg.AllowSignups = true
+		})
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			OIDCConfig: cfg,
+		})
+		return fake, client
+	}
+
+	// Test case 1: Email domain not in allowed list
+	t.Run("ErrorMessageOmitsDomains", func(t *testing.T) {
+		t.Parallel()
+
+		fake, client := setup()
+
+		// Prepare claims with email from unauthorized domain
+		claims := jwt.MapClaims{
+			"email":          "user@unauthorized.com",
+			"email_verified": true,
+			"sub":            uuid.NewString(),
+		}
+
+		_, resp := fake.AttemptLogin(t, client, claims)
+		defer resp.Body.Close()
+
+		require.Equal(t, http.StatusForbidden, resp.StatusCode)
+
+		data, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+
+		require.Contains(t, string(data), "is not from an authorized domain")
+		require.Contains(t, string(data), "Please contact your administrator")
+
+		for _, domain := range allowedDomains {
+			require.NotContains(t, string(data), domain)
+		}
+	})
+
+	// Test case 2: Malformed email without @ symbol
+	t.Run("MalformedEmailErrorOmitsDomains", func(t *testing.T) {
+		t.Parallel()
+
+		fake, client := setup()
+
+		// Prepare claims with an invalid email format (no @ symbol)
+		claims := jwt.MapClaims{
+			"email":          "invalid-email-without-domain",
+			"email_verified": true,
+			"sub":            uuid.NewString(),
+		}
+
+		_, resp := fake.AttemptLogin(t, client, claims)
+		defer resp.Body.Close()
+
+		require.Equal(t, http.StatusForbidden, resp.StatusCode)
+
+		data, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+
+		require.Contains(t, string(data), "is not from an authorized domain")
+		require.Contains(t, string(data), "Please contact your administrator")
+
+		for _, domain := range allowedDomains {
+			require.NotContains(t, string(data), domain)
+		}
+	})
+}
+
 func TestOIDCSkipIssuer(t *testing.T) {
 	t.Parallel()
 	const primaryURLString = "https://primary.com"

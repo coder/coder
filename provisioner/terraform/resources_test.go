@@ -845,9 +845,11 @@ func TestConvertResources(t *testing.T) {
 						ResourcesMonitoring:      &proto.ResourcesMonitoring{},
 						Devcontainers: []*proto.Devcontainer{
 							{
+								Name:            "dev1",
 								WorkspaceFolder: "/workspace1",
 							},
 							{
+								Name:            "dev2",
 								WorkspaceFolder: "/workspace2",
 								ConfigPath:      "/workspace2/.devcontainer/devcontainer.json",
 							},
@@ -1210,12 +1212,9 @@ func TestParameterValidation(t *testing.T) {
 	tfPlanGraph, err := os.ReadFile(filepath.Join(dir, "rich-parameters.tfplan.dot"))
 	require.NoError(t, err)
 
-	// Change all names to be identical.
-	var names []string
 	for _, resource := range tfPlan.PriorState.Values.RootModule.Resources {
 		if resource.Type == "coder_parameter" {
 			resource.AttributeValues["name"] = "identical"
-			names = append(names, resource.Name)
 		}
 	}
 
@@ -1226,11 +1225,9 @@ func TestParameterValidation(t *testing.T) {
 
 	// Make two sets of identical names.
 	count := 0
-	names = nil
 	for _, resource := range tfPlan.PriorState.Values.RootModule.Resources {
 		if resource.Type == "coder_parameter" {
 			resource.AttributeValues["name"] = fmt.Sprintf("identical-%d", count%2)
-			names = append(names, resource.Name)
 			count++
 		}
 	}
@@ -1242,11 +1239,9 @@ func TestParameterValidation(t *testing.T) {
 
 	// Once more with three sets.
 	count = 0
-	names = nil
 	for _, resource := range tfPlan.PriorState.Values.RootModule.Resources {
 		if resource.Type == "coder_parameter" {
 			resource.AttributeValues["name"] = fmt.Sprintf("identical-%d", count%3)
-			names = append(names, resource.Name)
 			count++
 		}
 	}
@@ -1404,7 +1399,7 @@ func sortResources(resources []*proto.Resource) {
 				return agent.Scripts[i].DisplayName < agent.Scripts[j].DisplayName
 			})
 			sort.Slice(agent.Devcontainers, func(i, j int) bool {
-				return agent.Devcontainers[i].WorkspaceFolder < agent.Devcontainers[j].WorkspaceFolder
+				return agent.Devcontainers[i].Name < agent.Devcontainers[j].Name
 			})
 		}
 		sort.Slice(resource.Agents, func(i, j int) bool {

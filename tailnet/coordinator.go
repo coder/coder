@@ -323,7 +323,7 @@ func (c *core) handleReadyForHandshakeLocked(src *peer, rfhs []*proto.Coordinate
 	return nil
 }
 
-func (c *core) nodeUpdateLocked(p *peer, node *proto.Node) error {
+func (c *core) nodeUpdateLocked(p *peer, node *proto.Node) (err error) {
 	c.logger.Debug(context.Background(), "processing node update",
 		slog.F("peer_id", p.id),
 		slog.F("node", node.String()))

@@ -33,7 +33,7 @@ func Entitlements(
 	}
 
 	// nolint:gocritic // Getting active user count is a system function.
-	activeUserCount, err := db.GetActiveUserCount(dbauthz.AsSystemRestricted(ctx))
+	activeUserCount, err := db.GetActiveUserCount(dbauthz.AsSystemRestricted(ctx), false) // Don't include system user in license count.
 	if err != nil {
 		return codersdk.Entitlements{}, xerrors.Errorf("query active user count: %w", err)
 	}
@@ -389,7 +389,7 @@ func ParseClaimsIgnoreNbf(rawJWT string, keys map[string]ed25519.PublicKey) (*Cl
 	var vErr *jwt.ValidationError
 	if xerrors.As(err, &vErr) {
 		// zero out the NotValidYet error to check if there were other problems
-		vErr.Errors = vErr.Errors & (^jwt.ValidationErrorNotValidYet)
+		vErr.Errors &= (^jwt.ValidationErrorNotValidYet)
 		if vErr.Errors != 0 {
 			// There are other errors besides not being valid yet. We _could_ go
 			// through all the jwt.ValidationError bits and try to work out the

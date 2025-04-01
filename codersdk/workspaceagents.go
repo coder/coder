@@ -396,6 +396,7 @@ func (c *Client) WorkspaceAgentListeningPorts(ctx context.Context, agentID uuid.
 // configuration in a workspace that is visible to the workspace agent.
 type WorkspaceAgentDevcontainer struct {
 	ID              uuid.UUID `json:"id" format:"uuid"`
+	Name            string    `json:"name"`
 	WorkspaceFolder string    `json:"workspace_folder"`
 	ConfigPath      string    `json:"config_path,omitempty"`
 }

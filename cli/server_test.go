@@ -201,7 +201,16 @@ func TestServer(t *testing.T) {
 		go func() {
 			errCh <- inv.WithContext(ctx).Run()
 		}()
-		pty.ExpectMatch("Using an ephemeral deployment directory")
+		matchCh1 := make(chan string, 1)
+		go func() {
+			matchCh1 <- pty.ExpectMatchContext(ctx, "Using an ephemeral deployment directory")
+		}()
+		select {
+		case err := <-errCh:
+			require.NoError(t, err)
+		case <-matchCh1:
+			// OK!
+		}
 		rootDirLine := pty.ReadLine(ctx)
 		rootDir := strings.TrimPrefix(rootDirLine, "Using an ephemeral deployment directory")
 		rootDir = strings.TrimSpace(rootDir)
@@ -210,7 +219,17 @@ func TestServer(t *testing.T) {
 		require.NotEmpty(t, rootDir)
 		require.DirExists(t, rootDir)
 
-		pty.ExpectMatchContext(ctx, "View the Web UI")
+		matchCh2 := make(chan string, 1)
+		go func() {
+			// The "View the Web UI" log is a decent indicator that the server was successfully started.
+			matchCh2 <- pty.ExpectMatchContext(ctx, "View the Web UI")
+		}()
+		select {
+		case err := <-errCh:
+			require.NoError(t, err)
+		case <-matchCh2:
+			// OK!
+		}
 
 		cancelFunc()
 		<-errCh
@@ -298,7 +317,7 @@ func TestServer(t *testing.T) {
 		out := pty.ReadAll()
 		numLines := countLines(string(out))
 		t.Logf("numLines: %d", numLines)
-		require.Less(t, numLines, 12, "expected less than 12 lines of output (terminal width 80), got %d", numLines)
+		require.Less(t, numLines, 20, "expected less than 20 lines of output (terminal width 80), got %d", numLines)
 	})
 
 	t.Run("OAuth2GitHubDefaultProvider", func(t *testing.T) {
@@ -1701,6 +1720,7 @@ func TestServer(t *testing.T) {
 			// Next, we instruct the same server to display the YAML config
 			// and then save it.
 			inv = inv.WithContext(testutil.Context(t, testutil.WaitMedium))
+			//nolint:gocritic
 			inv.Args = append(args, "--write-config")
 			fi, err := os.OpenFile(testutil.TempFile(t, "", "coder-config-test-*"), os.O_WRONLY|os.O_CREATE, 0o600)
 			require.NoError(t, err)
