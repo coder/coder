@@ -370,6 +370,24 @@ data "coder_parameter" "jetbrains_ide" {
 
 </details>
 
+## Prebuilt workspaces
+
+Prebuilt workspaces expand on presets and allow you to provision a ready-to-deploy workspace with a defined set of parameters.
+
+You can use prebuilt workspaces to ensure that workspaces can be deployed within one minute.
+Use the `prebuilds` parameter to define how many instances of the template should be stored as a prebuilt workspace.
+
+When a developer selects the associated template, the workspace will be assigned to that developer and the server will build a new prebuilt workspace.
+
+For example:
+
+```hcl
+...(more example here)
+	prebuilds {
+	instances = 1
+  }
+```
+
 ## Create Autofill
 
 When the template doesn't specify default values, Coder may still autofill
