@@ -293,6 +293,10 @@ func TestOpenVSCode_NoAgentDirectory(t *testing.T) {
 func TestOpenVSCodeDevContainer(t *testing.T) {
 	t.Parallel()
 
+	if runtime.GOOS != "linux" {
+		t.Skip("DevContainers are only supported for agents on Linux")
+	}
+
 	agentName := "agent1"
 	agentDir, err := filepath.Abs(filepath.FromSlash("/tmp"))
 	require.NoError(t, err)
@@ -464,6 +468,10 @@ func TestOpenVSCodeDevContainer(t *testing.T) {
 
 func TestOpenVSCodeDevContainer_NoAgentDirectory(t *testing.T) {
 	t.Parallel()
+
+	if runtime.GOOS != "linux" {
+		t.Skip("DevContainers are only supported for agents on Linux")
+	}
 
 	agentName := "agent1"
 
