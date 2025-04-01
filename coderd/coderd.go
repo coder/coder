@@ -1217,6 +1217,7 @@ func New(options *Options) *API {
 				}))
 				r.Get("/rpc", api.workspaceAgentRPC)
 				r.Patch("/logs", api.patchWorkspaceAgentLogs)
+				r.Patch("/app-status", api.patchWorkspaceAgentAppStatus)
 				// Deprecated: Required to support legacy agents
 				r.Get("/gitauth", api.workspaceAgentsGitAuth)
 				r.Get("/external-auth", api.workspaceAgentsExternalAuth)

@@ -3706,6 +3706,12 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			LoginType: database.LoginTypeGithub,
 		}).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(l)
 	}))
+	s.Run("GetLatestWorkspaceAppStatusesByWorkspaceIDs", s.Subtest(func(db database.Store, check *expects) {
+		check.Args([]uuid.UUID{}).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("GetWorkspaceAppStatusesByAppIDs", s.Subtest(func(db database.Store, check *expects) {
+		check.Args([]uuid.UUID{}).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
 	s.Run("GetLatestWorkspaceBuildsByWorkspaceIDs", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
@@ -4133,6 +4139,13 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args(database.InsertTemplateVersionParameterParams{
 			TemplateVersionID: v.ID,
 			Options:           json.RawMessage("{}"),
+		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	}))
+	s.Run("InsertWorkspaceAppStatus", s.Subtest(func(db database.Store, check *expects) {
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
+		check.Args(database.InsertWorkspaceAppStatusParams{
+			ID:    uuid.New(),
+			State: "working",
 		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
 	s.Run("InsertWorkspaceResource", s.Subtest(func(db database.Store, check *expects) {

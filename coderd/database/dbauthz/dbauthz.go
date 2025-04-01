@@ -1817,6 +1817,13 @@ func (q *querier) GetLatestCryptoKeyByFeature(ctx context.Context, feature datab
 	return q.db.GetLatestCryptoKeyByFeature(ctx, feature)
 }
 
+func (q *querier) GetLatestWorkspaceAppStatusesByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAppStatus, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetLatestWorkspaceAppStatusesByWorkspaceIDs(ctx, ids)
+}
+
 func (q *querier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.WorkspaceBuild, error) {
 	if _, err := q.GetWorkspaceByID(ctx, workspaceID); err != nil {
 		return database.WorkspaceBuild{}, err
@@ -2817,6 +2824,13 @@ func (q *querier) GetWorkspaceAppByAgentIDAndSlug(ctx context.Context, arg datab
 	return q.db.GetWorkspaceAppByAgentIDAndSlug(ctx, arg)
 }
 
+func (q *querier) GetWorkspaceAppStatusesByAppIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAppStatus, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspaceAppStatusesByAppIDs(ctx, ids)
+}
+
 func (q *querier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uuid.UUID) ([]database.WorkspaceApp, error) {
 	if _, err := q.GetWorkspaceByAgentID(ctx, agentID); err != nil {
 		return nil, err
@@ -3500,6 +3514,13 @@ func (q *querier) InsertWorkspaceAppStats(ctx context.Context, arg database.Inse
 		return err
 	}
 	return q.db.InsertWorkspaceAppStats(ctx, arg)
+}
+
+func (q *querier) InsertWorkspaceAppStatus(ctx context.Context, arg database.InsertWorkspaceAppStatusParams) (database.WorkspaceAppStatus, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.WorkspaceAppStatus{}, err
+	}
+	return q.db.InsertWorkspaceAppStatus(ctx, arg)
 }
 
 func (q *querier) InsertWorkspaceBuild(ctx context.Context, arg database.InsertWorkspaceBuildParams) error {

@@ -14963,6 +14963,48 @@ func (q *sqlQuerier) UpsertWorkspaceAppAuditSession(ctx context.Context, arg Ups
 	return new_or_stale, err
 }
 
+const getLatestWorkspaceAppStatusesByWorkspaceIDs = `-- name: GetLatestWorkspaceAppStatusesByWorkspaceIDs :many
+SELECT DISTINCT ON (workspace_id)
+  id, created_at, agent_id, app_id, workspace_id, state, needs_user_attention, message, uri, icon
+FROM workspace_app_statuses 
+WHERE workspace_id = ANY($1 :: uuid[])
+ORDER BY workspace_id, created_at DESC
+`
+
+func (q *sqlQuerier) GetLatestWorkspaceAppStatusesByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAppStatus, error) {
+	rows, err := q.db.QueryContext(ctx, getLatestWorkspaceAppStatusesByWorkspaceIDs, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAppStatus
+	for rows.Next() {
+		var i WorkspaceAppStatus
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.AgentID,
+			&i.AppID,
+			&i.WorkspaceID,
+			&i.State,
+			&i.NeedsUserAttention,
+			&i.Message,
+			&i.Uri,
+			&i.Icon,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkspaceAppByAgentIDAndSlug = `-- name: GetWorkspaceAppByAgentIDAndSlug :one
 SELECT id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external, display_order, hidden, open_in FROM workspace_apps WHERE agent_id = $1 AND slug = $2
 `
@@ -14996,6 +15038,44 @@ func (q *sqlQuerier) GetWorkspaceAppByAgentIDAndSlug(ctx context.Context, arg Ge
 		&i.OpenIn,
 	)
 	return i, err
+}
+
+const getWorkspaceAppStatusesByAppIDs = `-- name: GetWorkspaceAppStatusesByAppIDs :many
+SELECT id, created_at, agent_id, app_id, workspace_id, state, needs_user_attention, message, uri, icon FROM workspace_app_statuses WHERE app_id = ANY($1 :: uuid [ ])
+`
+
+func (q *sqlQuerier) GetWorkspaceAppStatusesByAppIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAppStatus, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAppStatusesByAppIDs, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAppStatus
+	for rows.Next() {
+		var i WorkspaceAppStatus
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.AgentID,
+			&i.AppID,
+			&i.WorkspaceID,
+			&i.State,
+			&i.NeedsUserAttention,
+			&i.Message,
+			&i.Uri,
+			&i.Icon,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getWorkspaceAppsByAgentID = `-- name: GetWorkspaceAppsByAgentID :many
@@ -15224,6 +15304,54 @@ func (q *sqlQuerier) InsertWorkspaceApp(ctx context.Context, arg InsertWorkspace
 		&i.DisplayOrder,
 		&i.Hidden,
 		&i.OpenIn,
+	)
+	return i, err
+}
+
+const insertWorkspaceAppStatus = `-- name: InsertWorkspaceAppStatus :one
+INSERT INTO workspace_app_statuses (id, created_at, workspace_id, agent_id, app_id, state, message, needs_user_attention, uri, icon)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+RETURNING id, created_at, agent_id, app_id, workspace_id, state, needs_user_attention, message, uri, icon
+`
+
+type InsertWorkspaceAppStatusParams struct {
+	ID                 uuid.UUID               `db:"id" json:"id"`
+	CreatedAt          time.Time               `db:"created_at" json:"created_at"`
+	WorkspaceID        uuid.UUID               `db:"workspace_id" json:"workspace_id"`
+	AgentID            uuid.UUID               `db:"agent_id" json:"agent_id"`
+	AppID              uuid.UUID               `db:"app_id" json:"app_id"`
+	State              WorkspaceAppStatusState `db:"state" json:"state"`
+	Message            string                  `db:"message" json:"message"`
+	NeedsUserAttention bool                    `db:"needs_user_attention" json:"needs_user_attention"`
+	Uri                sql.NullString          `db:"uri" json:"uri"`
+	Icon               sql.NullString          `db:"icon" json:"icon"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceAppStatus(ctx context.Context, arg InsertWorkspaceAppStatusParams) (WorkspaceAppStatus, error) {
+	row := q.db.QueryRowContext(ctx, insertWorkspaceAppStatus,
+		arg.ID,
+		arg.CreatedAt,
+		arg.WorkspaceID,
+		arg.AgentID,
+		arg.AppID,
+		arg.State,
+		arg.Message,
+		arg.NeedsUserAttention,
+		arg.Uri,
+		arg.Icon,
+	)
+	var i WorkspaceAppStatus
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.AgentID,
+		&i.AppID,
+		&i.WorkspaceID,
+		&i.State,
+		&i.NeedsUserAttention,
+		&i.Message,
+		&i.Uri,
+		&i.Icon,
 	)
 	return i, err
 }
