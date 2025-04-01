@@ -3327,6 +3327,30 @@ func (q *FakeQuerier) GetFileByID(_ context.Context, id uuid.UUID) (database.Fil
 	return database.File{}, sql.ErrNoRows
 }
 
+func (q *FakeQuerier) GetFileIDByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) (uuid.UUID, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, v := range q.templateVersions {
+		if v.ID == templateVersionID {
+			jobID := v.JobID
+			for _, j := range q.provisionerJobs {
+				if j.ID == jobID {
+					if j.StorageMethod == database.ProvisionerStorageMethodFile {
+						return j.FileID, nil
+					}
+					// We found the right job id but it wasn't a proper match.
+					break
+				}
+			}
+			// We found the right template version but it wasn't a proper match.
+			break
+		}
+	}
+
+	return uuid.Nil, sql.ErrNoRows
+}
+
 func (q *FakeQuerier) GetFileTemplates(_ context.Context, id uuid.UUID) ([]database.GetFileTemplatesRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -6018,6 +6042,19 @@ func (q *FakeQuerier) GetTemplateVersionParameters(_ context.Context, templateVe
 		return strings.ToLower(parameters[i].Name) < strings.ToLower(parameters[j].Name)
 	})
 	return parameters, nil
+}
+
+func (q *FakeQuerier) GetTemplateVersionTerraformValues(ctx context.Context, templateVersionID uuid.UUID) (database.TemplateVersionTerraformValue, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, tvtv := range q.templateVersionTerraformValues {
+		if tvtv.TemplateVersionID == templateVersionID {
+			return tvtv, nil
+		}
+	}
+
+	return database.TemplateVersionTerraformValue{}, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) GetTemplateVersionVariables(_ context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionVariable, error) {
