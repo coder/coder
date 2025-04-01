@@ -134,8 +134,11 @@ func (*RootCmd) mcpConfigureClaudeCode() *serpent.Command {
 				binPath = testBinaryName
 			}
 			configureClaudeEnv := map[string]string{}
-			if _, ok := os.LookupEnv("CODER_AGENT_TOKEN"); ok {
-				configureClaudeEnv["CODER_AGENT_TOKEN"] = os.Getenv("CODER_AGENT_TOKEN")
+			agentToken, err := getAgentToken(inv, fs)
+			if err != nil {
+				cliui.Warnf(inv.Stderr, "failed to get agent token: %s", err)
+			} else {
+				configureClaudeEnv["CODER_AGENT_TOKEN"] = agentToken
 			}
 			if appStatusSlug != "" {
 				configureClaudeEnv["CODER_MCP_APP_STATUS_SLUG"] = appStatusSlug
@@ -608,4 +611,20 @@ func indexOf(s, substr string) int {
 		}
 	}
 	return -1
+}
+
+func getAgentToken(inv *serpent.Invocation, fs afero.Fs) (string, error) {
+	token, ok := os.LookupEnv("CODER_AGENT_TOKEN")
+	if ok {
+		return token, nil
+	}
+	tokenFile, ok := os.LookupEnv("CODER_AGENT_TOKEN_FILE")
+	if !ok {
+		return "", xerrors.Errorf("CODER_AGENT_TOKEN or CODER_AGENT_TOKEN_FILE must be set for token auth")
+	}
+	bs, err := afero.ReadFile(fs, tokenFile)
+	if err != nil {
+		return "", xerrors.Errorf("failed to read agent token file: %w", err)
+	}
+	return string(bs), nil
 }
