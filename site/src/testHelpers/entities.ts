@@ -900,7 +900,7 @@ export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
 	id: "test-app",
 	slug: "test-app",
 	display_name: "Test App",
-	icon: "https://registry.npmmirror.com/@lobehub/icons-static-png/1.24.0/files/dark/claude-color.png",
+	icon: "",
 	subdomain: false,
 	health: "disabled",
 	external: false,
