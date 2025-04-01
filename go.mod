@@ -470,6 +470,7 @@ require (
 )
 
 replace github.com/coder/terraform-provider-coder/v2 => github.com/coder/terraform-provider-coder/v2 v2.1.4-0.20250211100915-129c295afed8
+
 require github.com/coder/clistat v1.0.0
 
 require github.com/SherClockHolmes/webpush-go v1.4.0

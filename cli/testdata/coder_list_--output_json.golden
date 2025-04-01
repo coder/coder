@@ -67,7 +67,8 @@
         "count": 0,
         "available": 0,
         "most_recently_seen": null
-      }
+      },
+      "template_version_preset_id": null
     },
     "outdated": false,
     "name": "test-workspace",
