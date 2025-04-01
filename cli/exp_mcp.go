@@ -547,11 +547,12 @@ func configureClaude(fs afero.Fs, cfg ClaudeConfig) error {
 var (
 	coderPrompt = `YOU MUST REPORT YOUR STATUS IMMEDIATELY AFTER EACH USER MESSAGE.
 INTERRUPT READING FILES OR ANY OTHER TOOL CALL IF YOU HAVE NOT REPORTED A STATUS YET.
-You MUST use the mcp__coder-agent__report_status function with all required parameters:
+You MUST use the mcp__coder__coder_report_task function with all required parameters:
 - summary: Short description of what you're doing
 - link: A relevant link for the status
 - done: Boolean indicating if the task is complete (true/false)
 - emoji: Relevant emoji for the status
+- need_user_attention: Boolean indicating if the task needs user attention (true/false)
 WHEN TO REPORT (MANDATORY):
 1. IMMEDIATELY after receiving ANY user message, before any other actions
 2. After completing any task
