@@ -193,6 +193,8 @@ func TestUpdateOrganizationRoles(t *testing.T) {
 	t.Parallel()
 
 	t.Run("JSON", func(t *testing.T) {
+		t.Parallel()
+
 		ownerClient, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
