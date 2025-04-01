@@ -266,6 +266,16 @@ WHERE
 	AND started_at IS NOT NULL
 	AND completed_at IS NULL;
 
+-- name: GetNotStartedProvisionerJobs :many
+SELECT
+	*
+FROM
+	provisioner_jobs
+WHERE
+	updated_at < $1
+	AND started_at IS NULL
+	AND completed_at IS NULL;
+
 -- name: InsertProvisionerJobTimings :many
 INSERT INTO provisioner_job_timings (job_id, started_at, ended_at, stage, source, action, resource)
 SELECT

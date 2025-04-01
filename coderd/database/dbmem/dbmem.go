@@ -3897,6 +3897,23 @@ func (q *FakeQuerier) GetLogoURL(_ context.Context) (string, error) {
 	return q.logoURL, nil
 }
 
+func (q *FakeQuerier) GetNotStartedProvisionerJobs(ctx context.Context, notStartedSince time.Time) ([]database.ProvisionerJob, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	notStartedJobs := []database.ProvisionerJob{}
+	for _, provisionerJob := range q.provisionerJobs {
+		if !provisionerJob.StartedAt.Valid && !provisionerJob.CompletedAt.Valid && provisionerJob.UpdatedAt.Before(notStartedSince) {
+			// clone the Tags before appending, since maps are reference types and
+			// we don't want the caller to be able to mutate the map we have inside
+			// dbmem!
+			provisionerJob.Tags = maps.Clone(provisionerJob.Tags)
+			notStartedJobs = append(notStartedJobs, provisionerJob)
+		}
+	}
+	return notStartedJobs, nil
+}
+
 func (q *FakeQuerier) GetNotificationMessagesByStatus(_ context.Context, arg database.GetNotificationMessagesByStatusParams) ([]database.NotificationMessage, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {

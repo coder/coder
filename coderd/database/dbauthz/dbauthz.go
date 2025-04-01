@@ -1992,6 +1992,10 @@ func (q *querier) GetLogoURL(ctx context.Context) (string, error) {
 	return q.db.GetLogoURL(ctx)
 }
 
+func (q *querier) GetNotStartedProvisionerJobs(ctx context.Context, notStartedSince time.Time) ([]database.ProvisionerJob, error) {
+	return q.db.GetNotStartedProvisionerJobs(ctx, notStartedSince)
+}
+
 func (q *querier) GetNotificationMessagesByStatus(ctx context.Context, arg database.GetNotificationMessagesByStatusParams) ([]database.NotificationMessage, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceNotificationMessage); err != nil {
 		return nil, err

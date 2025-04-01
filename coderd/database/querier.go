@@ -213,6 +213,7 @@ type sqlcQuerier interface {
 	GetLicenseByID(ctx context.Context, id int32) (License, error)
 	GetLicenses(ctx context.Context) ([]License, error)
 	GetLogoURL(ctx context.Context) (string, error)
+	GetNotStartedProvisionerJobs(ctx context.Context, updatedAt time.Time) ([]ProvisionerJob, error)
 	GetNotificationMessagesByStatus(ctx context.Context, arg GetNotificationMessagesByStatusParams) ([]NotificationMessage, error)
 	// Fetch the notification report generator log indicating recent activity.
 	GetNotificationReportGeneratorLogByTemplate(ctx context.Context, templateID uuid.UUID) (NotificationReportGeneratorLog, error)
