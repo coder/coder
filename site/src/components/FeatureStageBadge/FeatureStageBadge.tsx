@@ -61,7 +61,7 @@ export const FeatureStageBadge: FC<FeatureStageBadgeProps> = ({
 					</p>
 
 					<Link
-						href={docs("/about/feature-stages")}
+						href={docs("/install/feature-stages")}
 						target="_blank"
 						rel="noreferrer"
 						css={styles.tooltipLink}
