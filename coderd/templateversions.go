@@ -43,7 +43,6 @@ import (
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/preview"
 	previewtypes "github.com/coder/preview/types"
-	previewweb "github.com/coder/preview/web"
 	"github.com/coder/websocket"
 )
 
@@ -344,11 +343,11 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 		return
 	}
 
-	stream := wsjson.NewStream[previewweb.Request, previewweb.Response](conn, websocket.MessageText, websocket.MessageText, api.Logger)
+	stream := wsjson.NewStream[codersdk.DynamicParametersRequest, codersdk.DynamicParametersResponse](conn, websocket.MessageText, websocket.MessageText, api.Logger)
 
 	// Send an initial form state, computed without any user input.
 	result, diagnostics := preview.Preview(ctx, input, fs)
-	stream.Send(previewweb.Response{
+	stream.Send(codersdk.DynamicParametersResponse{
 		// or maybe it could be -1 or something? it just has to be unique from
 		// anything a client could reasonably send.
 		ID:          math.MaxInt32,
@@ -367,7 +366,7 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 			newInput := input
 			newInput.ParameterValues = update.Inputs
 			result, diagnostics := preview.Preview(ctx, input, fs)
-			stream.Send(previewweb.Response{
+			stream.Send(codersdk.DynamicParametersResponse{
 				ID:          update.ID,
 				Parameters:  result.Parameters,
 				Diagnostics: previewtypes.Diagnostics(diagnostics),

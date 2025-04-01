@@ -8,6 +8,9 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/coder/coder/v2/codersdk/wsjson"
+	previewweb "github.com/coder/preview/web"
+	"github.com/coder/websocket"
 	"github.com/google/uuid"
 )
 
@@ -121,6 +124,19 @@ func (c *Client) CancelTemplateVersion(ctx context.Context, version uuid.UUID) e
 		return ReadBodyAsError(res)
 	}
 	return nil
+}
+
+type (
+	DynamicParametersRequest  = previewweb.Request
+	DynamicParametersResponse = previewweb.Response
+)
+
+func (c *Client) TemplateVersionDynamicParameters(ctx context.Context, version uuid.UUID) (*wsjson.Stream[DynamicParametersResponse, DynamicParametersRequest], error) {
+	conn, err := c.Dial(ctx, "/api/v2/templateversions/%s/dynamic-parameters", nil)
+	if err != nil {
+		return nil, err
+	}
+	return wsjson.NewStream[DynamicParametersResponse, DynamicParametersRequest](conn, websocket.MessageText, websocket.MessageText, c.Logger()), nil
 }
 
 // TemplateVersionParameters returns parameters a template version exposes.

@@ -21,6 +21,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/websocket"
 
 	"cdr.dev/slog"
 )
@@ -334,6 +335,36 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 	})
 
 	return resp, err
+}
+
+func (c *Client) Dial(ctx context.Context, path string, opts *websocket.DialOptions) (*websocket.Conn, error) {
+	url, err := c.URL.Parse(path)
+	if err != nil {
+		return nil, err
+	}
+
+	tokenHeader := c.SessionTokenHeader
+	if tokenHeader == "" {
+		tokenHeader = SessionTokenHeader
+	}
+
+	if opts == nil {
+		opts = &websocket.DialOptions{}
+	}
+	if opts.HTTPHeader == nil {
+		opts.HTTPHeader = http.Header{}
+	}
+	if opts.HTTPHeader.Get("tokenHeader") == "" {
+		opts.HTTPHeader.Set(tokenHeader, c.SessionToken())
+	}
+
+	conn, resp, err := websocket.Dial(ctx, url.String(), opts)
+	resp.Body.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	return conn, nil
 }
 
 // ExpectJSONMime is a helper function that will assert the content type
