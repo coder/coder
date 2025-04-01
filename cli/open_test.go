@@ -185,6 +185,11 @@ func TestOpenVSCode_NoAgentDirectory(t *testing.T) {
 	wd, err := os.Getwd()
 	require.NoError(t, err)
 
+	absPath := "/home/coder"
+	if runtime.GOOS == "windows" {
+		absPath = "C:\\home\\coder"
+	}
+
 	tests := []struct {
 		name      string
 		args      []string
@@ -205,7 +210,7 @@ func TestOpenVSCode_NoAgentDirectory(t *testing.T) {
 		},
 		{
 			name:    "ok with absolute path",
-			args:    []string{"--test.open-error", workspace.Name, "/home/coder"},
+			args:    []string{"--test.open-error", workspace.Name, absPath},
 			wantDir: "/home/coder",
 		},
 		{
@@ -508,11 +513,6 @@ func TestOpenVSCodeDevContainer_NoAgentDirectory(t *testing.T) {
 	wd, err := os.Getwd()
 	require.NoError(t, err)
 
-	absPath := "/home/coder"
-	if runtime.GOOS == "windows" {
-		absPath = "C:\\home\\coder"
-	}
-
 	tests := []struct {
 		name      string
 		env       map[string]string
@@ -533,8 +533,8 @@ func TestOpenVSCodeDevContainer_NoAgentDirectory(t *testing.T) {
 		},
 		{
 			name:    "ok with absolute path",
-			args:    []string{"--test.open-error", workspace.Name, "--container", containerName, absPath},
-			wantDir: absPath,
+			args:    []string{"--test.open-error", workspace.Name, "--container", containerName, "/home/coder"},
+			wantDir: "/home/coder",
 		},
 		{
 			name:      "ok with token",
