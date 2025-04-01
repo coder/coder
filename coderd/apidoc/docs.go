@@ -17186,6 +17186,10 @@ const docTemplate = `{
                 "template_version_name": {
                     "type": "string"
                 },
+                "template_version_preset_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "transition": {
                     "enum": [
                         "start",

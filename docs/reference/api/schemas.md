@@ -7829,6 +7829,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "status": "pending",
     "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
     "template_version_name": "string",
+    "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
     "transition": "start",
     "updated_at": "2019-08-24T14:15:22Z",
     "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
@@ -8780,6 +8781,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "status": "pending",
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
   "template_version_name": "string",
+  "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
   "transition": "start",
   "updated_at": "2019-08-24T14:15:22Z",
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
@@ -8809,6 +8811,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `status`                     | [codersdk.WorkspaceStatus](#codersdkworkspacestatus)              | false    |              |             |
 | `template_version_id`        | string                                                            | false    |              |             |
 | `template_version_name`      | string                                                            | false    |              |             |
+| `template_version_preset_id` | string                                                            | false    |              |             |
 | `transition`                 | [codersdk.WorkspaceTransition](#codersdkworkspacetransition)      | false    |              |             |
 | `updated_at`                 | string                                                            | false    |              |             |
 | `workspace_id`               | string                                                            | false    |              |             |
@@ -9476,6 +9479,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "status": "pending",
         "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
         "template_version_name": "string",
+        "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
         "transition": "start",
         "updated_at": "2019-08-24T14:15:22Z",
         "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
