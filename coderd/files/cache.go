@@ -98,9 +98,11 @@ func (c *Cache) Release(fileID uuid.UUID) {
 		// this function with an incorrect ID. Should this function return an error?
 		return
 	}
+
 	entry.refCount--
 	if entry.refCount > 0 {
 		return
 	}
+
 	delete(c.data, fileID)
 }
