@@ -259,6 +259,7 @@ type data struct {
 	workspaceAgentVolumeResourceMonitors []database.WorkspaceAgentVolumeResourceMonitor
 	workspaceAgentDevcontainers          []database.WorkspaceAgentDevcontainer
 	workspaceApps                        []database.WorkspaceApp
+	workspaceAppStatuses                 []database.WorkspaceAppStatus
 	workspaceAppAuditSessions            []database.WorkspaceAppAuditSession
 	workspaceAppStatsLastInsertID        int64
 	workspaceAppStats                    []database.WorkspaceAppStat
@@ -3326,6 +3327,30 @@ func (q *FakeQuerier) GetFileByID(_ context.Context, id uuid.UUID) (database.Fil
 	return database.File{}, sql.ErrNoRows
 }
 
+func (q *FakeQuerier) GetFileIDByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) (uuid.UUID, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, v := range q.templateVersions {
+		if v.ID == templateVersionID {
+			jobID := v.JobID
+			for _, j := range q.provisionerJobs {
+				if j.ID == jobID {
+					if j.StorageMethod == database.ProvisionerStorageMethodFile {
+						return j.FileID, nil
+					}
+					// We found the right job id but it wasn't a proper match.
+					break
+				}
+			}
+			// We found the right template version but it wasn't a proper match.
+			break
+		}
+	}
+
+	return uuid.Nil, sql.ErrNoRows
+}
+
 func (q *FakeQuerier) GetFileTemplates(_ context.Context, id uuid.UUID) ([]database.GetFileTemplatesRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -3695,6 +3720,34 @@ func (q *FakeQuerier) GetLatestCryptoKeyByFeature(_ context.Context, feature dat
 		return database.CryptoKey{}, sql.ErrNoRows
 	}
 	return latestKey, nil
+}
+
+func (q *FakeQuerier) GetLatestWorkspaceAppStatusesByWorkspaceIDs(_ context.Context, ids []uuid.UUID) ([]database.WorkspaceAppStatus, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	// Map to track latest status per workspace ID
+	latestByWorkspace := make(map[uuid.UUID]database.WorkspaceAppStatus)
+
+	// Find latest status for each workspace ID
+	for _, appStatus := range q.workspaceAppStatuses {
+		if !slices.Contains(ids, appStatus.WorkspaceID) {
+			continue
+		}
+
+		current, exists := latestByWorkspace[appStatus.WorkspaceID]
+		if !exists || appStatus.CreatedAt.After(current.CreatedAt) {
+			latestByWorkspace[appStatus.WorkspaceID] = appStatus
+		}
+	}
+
+	// Convert map to slice
+	appStatuses := make([]database.WorkspaceAppStatus, 0, len(latestByWorkspace))
+	for _, status := range latestByWorkspace {
+		appStatuses = append(appStatuses, status)
+	}
+
+	return appStatuses, nil
 }
 
 func (q *FakeQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.WorkspaceBuild, error) {
@@ -5991,6 +6044,19 @@ func (q *FakeQuerier) GetTemplateVersionParameters(_ context.Context, templateVe
 	return parameters, nil
 }
 
+func (q *FakeQuerier) GetTemplateVersionTerraformValues(ctx context.Context, templateVersionID uuid.UUID) (database.TemplateVersionTerraformValue, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, tvtv := range q.templateVersionTerraformValues {
+		if tvtv.TemplateVersionID == templateVersionID {
+			return tvtv, nil
+		}
+	}
+
+	return database.TemplateVersionTerraformValue{}, sql.ErrNoRows
+}
+
 func (q *FakeQuerier) GetTemplateVersionVariables(_ context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionVariable, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -7486,6 +7552,21 @@ func (q *FakeQuerier) GetWorkspaceAppByAgentIDAndSlug(ctx context.Context, arg d
 	defer q.mutex.RUnlock()
 
 	return q.getWorkspaceAppByAgentIDAndSlugNoLock(ctx, arg)
+}
+
+func (q *FakeQuerier) GetWorkspaceAppStatusesByAppIDs(_ context.Context, ids []uuid.UUID) ([]database.WorkspaceAppStatus, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	statuses := make([]database.WorkspaceAppStatus, 0)
+	for _, status := range q.workspaceAppStatuses {
+		for _, id := range ids {
+			if status.AppID == id {
+				statuses = append(statuses, status)
+			}
+		}
+	}
+	return statuses, nil
 }
 
 func (q *FakeQuerier) GetWorkspaceAppsByAgentID(_ context.Context, id uuid.UUID) ([]database.WorkspaceApp, error) {
@@ -9582,6 +9663,31 @@ InsertWorkspaceAppStatsLoop:
 	}
 
 	return nil
+}
+
+func (q *FakeQuerier) InsertWorkspaceAppStatus(_ context.Context, arg database.InsertWorkspaceAppStatusParams) (database.WorkspaceAppStatus, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.WorkspaceAppStatus{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	status := database.WorkspaceAppStatus{
+		ID:                 arg.ID,
+		CreatedAt:          arg.CreatedAt,
+		WorkspaceID:        arg.WorkspaceID,
+		AgentID:            arg.AgentID,
+		AppID:              arg.AppID,
+		NeedsUserAttention: arg.NeedsUserAttention,
+		State:              arg.State,
+		Message:            arg.Message,
+		Uri:                arg.Uri,
+		Icon:               arg.Icon,
+	}
+	q.workspaceAppStatuses = append(q.workspaceAppStatuses, status)
+	return status, nil
 }
 
 func (q *FakeQuerier) InsertWorkspaceBuild(_ context.Context, arg database.InsertWorkspaceBuildParams) error {

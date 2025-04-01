@@ -20,12 +20,12 @@ func TestInboxNotifications_ensureNotificationIcon(t *testing.T) {
 		templateID   uuid.UUID
 		expectedIcon string
 	}{
-		{"WorkspaceCreated", "", notifications.TemplateWorkspaceCreated, codersdk.FallbackIconWorkspace},
-		{"UserAccountCreated", "", notifications.TemplateUserAccountCreated, codersdk.FallbackIconAccount},
-		{"TemplateDeleted", "", notifications.TemplateTemplateDeleted, codersdk.FallbackIconTemplate},
-		{"TestNotification", "", notifications.TemplateTestNotification, codersdk.FallbackIconOther},
+		{"WorkspaceCreated", "", notifications.TemplateWorkspaceCreated, codersdk.InboxNotificationFallbackIconWorkspace},
+		{"UserAccountCreated", "", notifications.TemplateUserAccountCreated, codersdk.InboxNotificationFallbackIconAccount},
+		{"TemplateDeleted", "", notifications.TemplateTemplateDeleted, codersdk.InboxNotificationFallbackIconTemplate},
+		{"TestNotification", "", notifications.TemplateTestNotification, codersdk.InboxNotificationFallbackIconOther},
 		{"TestExistingIcon", "https://cdn.coder.com/icon_notif.png", notifications.TemplateTemplateDeleted, "https://cdn.coder.com/icon_notif.png"},
-		{"UnknownTemplate", "", uuid.New(), codersdk.FallbackIconOther},
+		{"UnknownTemplate", "", uuid.New(), codersdk.InboxNotificationFallbackIconOther},
 	}
 
 	for _, tt := range tests {
