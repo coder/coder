@@ -106,12 +106,14 @@
 					"title": "Releases",
 					"description": "Learn about the Coder release channels and schedule",
 					"path": "./install/releases/index.md",
-					"icon_path": "./images/icons/star.svg"
-				},
-				{
-					"title": "Feature stages",
-					"description": "Information about pre-GA stages.",
-					"path": "./install/releases/feature-stages.md"
+					"icon_path": "./images/icons/star.svg",
+					"children": [
+						{
+							"title": "Feature stages",
+							"description": "Information about pre-GA stages.",
+							"path": "./install/releases/feature-stages.md"
+						}
+					]
 				}
 			]
 		},
