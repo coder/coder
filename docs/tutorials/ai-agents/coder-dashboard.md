@@ -5,7 +5,7 @@
 > staging environment.
 >
 > Join our [Discord channel](https://discord.gg/coder) or
-> [contact us](https://coder.com/contact) for support or feedback.
+> [contact us](https://coder.com/contact) to get help or leave feedback.
 
 ## Prerequisites
 
