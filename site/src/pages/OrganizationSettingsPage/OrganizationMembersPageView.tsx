@@ -19,7 +19,10 @@ import {
 	ThreeDotsButton,
 } from "components/MoreMenu/MoreMenu";
 import { PaginationContainer } from "components/PaginationWidget/PaginationContainer";
-import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
+import {
+	SettingsHeader,
+	SettingsHeaderTitle,
+} from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import {
 	Table,
@@ -79,7 +82,10 @@ export const OrganizationMembersPageView: FC<
 }) => {
 	return (
 		<div>
-			<SettingsHeader title="Members" />
+			<SettingsHeader>
+				<SettingsHeaderTitle>Members</SettingsHeaderTitle>
+			</SettingsHeader>
+
 			<div className="flex flex-col gap-4">
 				{Boolean(error) && <ErrorAlert error={error} />}
 

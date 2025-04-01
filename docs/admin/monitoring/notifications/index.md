@@ -102,11 +102,11 @@ existing one.
 
 **Server Settings:**
 
-| Required | CLI                 | Env                     | Type     | Description                               | Default   |
-|:--------:|---------------------|-------------------------|----------|-------------------------------------------|-----------|
-|    ✔️    | `--email-from`      | `CODER_EMAIL_FROM`      | `string` | The sender's address to use.              |           |
-|    ✔️    | `--email-smarthost` | `CODER_EMAIL_SMARTHOST` | `string` | The SMTP relay to send messages           |           |
-|    ✔️    | `--email-hello`     | `CODER_EMAIL_HELLO`     | `string` | The hostname identifying the SMTP server. | localhost |
+| Required | CLI                 | Env                     | Type     | Description                                               | Default   |
+|:--------:|---------------------|-------------------------|----------|-----------------------------------------------------------|-----------|
+|    ✔️    | `--email-from`      | `CODER_EMAIL_FROM`      | `string` | The sender's address to use.                              |           |
+|    ✔️    | `--email-smarthost` | `CODER_EMAIL_SMARTHOST` | `string` | The SMTP relay to send messages (format: `hostname:port`) |           |
+|    ✔️    | `--email-hello`     | `CODER_EMAIL_HELLO`     | `string` | The hostname identifying the SMTP server.                 | localhost |
 
 **Authentication Settings:**
 
@@ -122,7 +122,7 @@ existing one.
 | Required | CLI                         | Env                           | Type     | Description                                                                                                                                                        | Default |
 |:--------:|-----------------------------|-------------------------------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
 |    -     | `--email-force-tls`         | `CODER_EMAIL_FORCE_TLS`       | `bool`   | Force a TLS connection to the configured SMTP smarthost. If port 465 is used, TLS will be forced. See <https://datatracker.ietf.org/doc/html/rfc8314#section-3.3>. | false   |
-|    -     | `--email-tls-starttls`      | `CODER_EMAIL_TLS_STARTTLS`    | `bool`   | Enable STARTTLS to upgrade insecure SMTP connections using TLS. Ignored if `CODER_NOTIFICATIONS_EMAIL_FORCE_TLS` is set.                                           | false   |
+|    -     | `--email-tls-starttls`      | `CODER_EMAIL_TLS_STARTTLS`    | `bool`   | Enable STARTTLS to upgrade insecure SMTP connections using TLS. Ignored if `CODER_EMAIL_FORCE_TLS` is set.                                                         | false   |
 |    -     | `--email-tls-skip-verify`   | `CODER_EMAIL_TLS_SKIPVERIFY`  | `bool`   | Skip verification of the target server's certificate (**insecure**).                                                                                               | false   |
 |    -     | `--email-tls-server-name`   | `CODER_EMAIL_TLS_SERVERNAME`  | `string` | Server name to verify against the target certificate.                                                                                                              |         |
 |    -     | `--email-tls-cert-file`     | `CODER_EMAIL_TLS_CERTFILE`    | `string` | Certificate file to use.                                                                                                                                           |         |

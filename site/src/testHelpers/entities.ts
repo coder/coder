@@ -977,6 +977,19 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
 	],
 };
 
+export const MockWorkspaceAppStatus: TypesGen.WorkspaceAppStatus = {
+	id: "test-app-status",
+	created_at: "2022-05-17T17:39:01.382927298Z",
+	agent_id: "test-workspace-agent",
+	workspace_id: "test-workspace",
+	app_id: MockWorkspaceApp.id,
+	needs_user_attention: false,
+	icon: "/emojis/1f957.png",
+	uri: "https://github.com/coder/coder/pull/1234",
+	message: "Your competitors page is completed!",
+	state: "complete",
+};
+
 export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {
 	...MockWorkspaceAgent,
 	id: "test-workspace-agent-2",

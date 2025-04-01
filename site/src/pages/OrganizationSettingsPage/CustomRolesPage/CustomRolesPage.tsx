@@ -4,7 +4,11 @@ import type { Role } from "api/typesGenerated";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
@@ -71,10 +75,12 @@ export const CustomRolesPage: FC = () => {
 					direction="row"
 					justifyContent="space-between"
 				>
-					<SettingsHeader
-						title="Roles"
-						description="Manage roles for this organization."
-					/>
+					<SettingsHeader>
+						<SettingsHeaderTitle>Roles</SettingsHeaderTitle>
+						<SettingsHeaderDescription>
+							Manage roles for this organization.
+						</SettingsHeaderDescription>
+					</SettingsHeader>
 				</Stack>
 
 				<CustomRolesPageView
