@@ -221,6 +221,7 @@ func TestServer(t *testing.T) {
 
 		matchCh2 := make(chan string, 1)
 		go func() {
+			// The "View the Web UI" log is a decent indicator that the server was successfully started.
 			matchCh2 <- pty.ExpectMatchContext(ctx, "View the Web UI")
 		}()
 		select {
