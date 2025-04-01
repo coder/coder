@@ -6095,10 +6095,12 @@ WITH filtered_builds AS (
 	SELECT wlb.template_version_id, wlb.created_at, tvp.id AS preset_id, wlb.job_status, tvp.desired_instances
 	FROM template_version_presets tvp
 			 INNER JOIN workspace_latest_builds wlb ON wlb.template_version_preset_id = tvp.id
+			 INNER JOIN workspaces w ON wlb.workspace_id = w.id
              INNER JOIN template_versions tv ON wlb.template_version_id = tv.id
              INNER JOIN templates t ON tv.template_id = t.id AND t.active_version_id = tv.id
 	WHERE tvp.desired_instances IS NOT NULL -- Consider only presets that have a prebuild configuration.
       AND wlb.transition = 'start'::workspace_transition
+      AND w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'
 ),
 time_sorted_builds AS (
     -- Group builds by preset, then sort each group by created_at.
