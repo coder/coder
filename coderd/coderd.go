@@ -868,7 +868,7 @@ func New(options *Options) *API {
 				r.Route(fmt.Sprintf("/%s/callback", externalAuthConfig.ID), func(r chi.Router) {
 					r.Use(
 						apiKeyMiddlewareRedirect,
-						httpmw.ExtractOAuth2(externalAuthConfig, options.HTTPClient, codersdk.HTTPCookieConfig{}, nil),
+						httpmw.ExtractOAuth2(externalAuthConfig, options.HTTPClient, options.Cookies, nil),
 					)
 					r.Get("/", api.externalAuthCallback(externalAuthConfig))
 				})
@@ -1123,14 +1123,14 @@ func New(options *Options) *API {
 					r.Get("/github/device", api.userOAuth2GithubDevice)
 					r.Route("/github", func(r chi.Router) {
 						r.Use(
-							httpmw.ExtractOAuth2(options.GithubOAuth2Config, options.HTTPClient, codersdk.HTTPCookieConfig{}, nil),
+							httpmw.ExtractOAuth2(options.GithubOAuth2Config, options.HTTPClient, options.Cookies, nil),
 						)
 						r.Get("/callback", api.userOAuth2Github)
 					})
 				})
 				r.Route("/oidc/callback", func(r chi.Router) {
 					r.Use(
-						httpmw.ExtractOAuth2(options.OIDCConfig, options.HTTPClient, codersdk.HTTPCookieConfig{}, oidcAuthURLParams),
+						httpmw.ExtractOAuth2(options.OIDCConfig, options.HTTPClient, options.Cookies, oidcAuthURLParams),
 					)
 					r.Get("/", api.userOIDC)
 				})
