@@ -1,28 +1,26 @@
-import Box from "@mui/material/Box";
-import Typography from "@mui/material/Typography";
+import type { Theme } from "@emotion/react";
+import { useTheme } from "@emotion/react";
+import AppsIcon from "@mui/icons-material/Apps";
+import CheckCircle from "@mui/icons-material/CheckCircle";
+import ErrorIcon from "@mui/icons-material/Error";
+import HelpOutline from "@mui/icons-material/HelpOutline";
+import InsertDriveFile from "@mui/icons-material/InsertDriveFile";
+import OpenInNew from "@mui/icons-material/OpenInNew";
+import Warning from "@mui/icons-material/Warning";
 import CircularProgress from "@mui/material/CircularProgress";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
-import { useTheme } from "@emotion/react";
 import type {
+	WorkspaceAppStatus as APIWorkspaceAppStatus,
 	Workspace,
 	WorkspaceAgent,
 	WorkspaceApp,
-	WorkspaceAppStatus as APIWorkspaceAppStatus,
 } from "api/typesGenerated";
-import type { FC } from "react";
-import CheckCircle from "@mui/icons-material/CheckCircle";
-import ErrorIcon from "@mui/icons-material/Error";
-import Warning from "@mui/icons-material/Warning";
-import OpenInNew from "@mui/icons-material/OpenInNew";
-import InsertDriveFile from "@mui/icons-material/InsertDriveFile";
-import HelpOutline from "@mui/icons-material/HelpOutline";
-import { formatDistanceToNow, formatDistance } from "date-fns";
 import { useProxy } from "contexts/ProxyContext";
+import { formatDistance, formatDistanceToNow } from "date-fns";
+import { DividerWithText } from "pages/DeploymentSettingsPage/LicensesSettingsPage/DividerWithText";
+import type { FC } from "react";
 import { createAppLinkHref } from "utils/apps";
-import AppsIcon from "@mui/icons-material/Apps";
-import type { Theme } from "@mui/material/styles";
-
 
 const getStatusColor = (
 	theme: Theme,
@@ -172,15 +170,13 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 	const comparisonDate = referenceDate ?? new Date();
 
 	if (allStatuses.length === 0) {
-		return (
-			<Typography sx={{ p: 2, color: "text.secondary", textAlign: "center" }}>
-				No application statuses reported yet.
-			</Typography>
-		);
+		return null;
 	}
 
 	return (
-		<Box sx={{ display: "flex", flexDirection: "column", gap: 2, p: 2 }}>
+		<div
+			css={{ display: "flex", flexDirection: "column", gap: 16, padding: 16 }}
+		>
 			{allStatuses.map((status, index) => {
 				const isLatest = index === 0;
 				const isFileURI = status.uri?.startsWith("file://");
@@ -215,15 +211,15 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 					(index > 0 && status.app_id !== allStatuses[index - 1].app_id);
 
 				return (
-					<Box
+					<div
 						key={status.id}
-						sx={{
+						css={{
 							display: "flex",
 							alignItems: "flex-start", // Align icon with the first line of text
-							gap: 1.5,
-							bgcolor: "background.paper",
-							borderRadius: 1,
-							p: 1.5,
+							gap: 12,
+							backgroundColor: theme.palette.background.paper,
+							borderRadius: 8,
+							padding: 12,
 							opacity: isLatest ? 1 : 0.65, // Apply opacity if not the latest
 							transition: "opacity 0.15s ease-in-out", // Add smooth transition
 							"&:hover": {
@@ -232,10 +228,10 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 						}}
 					>
 						{/* Icon Column */}
-						<Box
-							sx={{
+						<div
+							css={{
 								flexShrink: 0,
-								mt: "2px",
+								marginTop: 2,
 								display: "flex",
 								alignItems: "center",
 							}}
@@ -243,38 +239,40 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 							{getStatusIcon(theme, status.state, isLatest) || (
 								<HelpOutline sx={{ fontSize: 18, color: "text.disabled" }} />
 							)}
-						</Box>
+						</div>
 
 						{/* Content Column */}
-						<Box
-							sx={{
+						<div
+							css={{
 								display: "flex",
 								flexDirection: "column",
-								gap: 0.5,
+								gap: 4,
 								minWidth: 0,
 								flex: 1,
 							}}
 						>
 							{/* Message */}
-							<Typography
-								sx={{
+							<div
+								css={{
 									fontSize: 14,
 									lineHeight: "20px",
-									color: "text.primary",
+									color: theme.palette.text.primary,
 									fontWeight: 500,
 								}}
 							>
 								{status.message}
-							</Typography>
+							</div>
 
 							{/* Links Row */}
-							<Box
-								display="flex"
-								flexDirection="column"
-								alignItems="flex-start"
-								gap={0.5}
-								mt={0.5}
-								minWidth={0}
+							<div
+								css={{
+									display: "flex",
+									flexDirection: "column",
+									alignItems: "flex-start",
+									gap: 4,
+									marginTop: 4,
+									minWidth: 0,
+								}}
 							>
 								{/* Conditional App Link */}
 								{currentApp && appHref && showAppLink && (
@@ -300,7 +298,7 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 												},
 												"&:hover": {
 													...commonStyles["&:hover"],
-													color: "text.secondary", // Keep consistent hover color
+													color: theme.palette.text.primary, // Keep consistent hover color
 													"& img": {
 														opacity: 1,
 													},
@@ -322,10 +320,8 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 												<AppsIcon />
 											)}
 											{/* Keep app name short */}
-											<Typography
-												component="span"
-												variant="caption"
-												sx={{
+											<span
+												css={{
 													lineHeight: 1,
 													textOverflow: "ellipsis",
 													overflow: "hidden",
@@ -333,19 +329,18 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 												}}
 											>
 												{currentApp.display_name}
-											</Typography>
+											</span>
 										</Link>
 									</Tooltip>
 								)}
 
 								{/* Existing URI Link */}
 								{status.uri && (
-									<Box sx={{ display: "flex", minWidth: 0, width: "100%" }}>
-										{" "}
+									<div css={{ display: "flex", minWidth: 0, width: "100%" }}>
 										{isFileURI ? (
 											<Tooltip title="This file is located in your workspace">
-												<Typography
-													sx={{
+												<div
+													css={{
 														...commonStyles,
 														"&:hover": {
 															bgcolor: "action.hover",
@@ -355,7 +350,7 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 												>
 													<InsertDriveFile sx={{ mr: 0.5 }} />
 													{formatURI(status.uri)}
-												</Typography>
+												</div>
 											</Tooltip>
 										) : (
 											<Link
@@ -371,10 +366,10 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 												}}
 											>
 												<OpenInNew sx={{ mr: 0.5 }} />
-												<Typography
-													sx={{
+												<div
+													css={{
 														bgcolor: "transparent",
-														p: 0,
+														padding: 0,
 														color: "inherit",
 														fontSize: "inherit",
 														lineHeight: "inherit",
@@ -385,23 +380,27 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 													}}
 												>
 													{formatURI(status.uri)}
-												</Typography>
+												</div>
 											</Link>
 										)}
-									</Box>
+									</div>
 								)}
-							</Box>
+							</div>
 
 							{/* Timestamp */}
-							<Typography
-								sx={{ fontSize: 12, color: "text.secondary", mt: 0.25 }}
+							<div
+								css={{
+									fontSize: 12,
+									color: theme.palette.text.secondary,
+									marginTop: 2,
+								}}
 							>
 								{formattedTimestamp}
-							</Typography>
-						</Box>
-					</Box>
+							</div>
+						</div>
+					</div>
 				);
 			})}
-		</Box>
+		</div>
 	);
 };

@@ -14,33 +14,7 @@ import InsertDriveFile from "@mui/icons-material/InsertDriveFile";
 import AppsIcon from "@mui/icons-material/Apps";
 import { createAppLinkHref } from "utils/apps";
 import { useProxy } from "contexts/ProxyContext";
-import Box from "@mui/material/Box";
-import Typography from "@mui/material/Typography";
-
-const commonStyles = {
-	fontSize: "12px",
-	lineHeight: "15px",
-	color: "text.disabled",
-	display: "inline-flex",
-	alignItems: "center",
-	gap: 0.5,
-	px: 0.75,
-	py: 0.25,
-	borderRadius: "6px",
-	bgcolor: "transparent",
-	minWidth: 0,
-	maxWidth: "fit-content",
-	overflow: "hidden",
-	textOverflow: "ellipsis",
-	whiteSpace: "nowrap",
-	textDecoration: "none",
-	transition: "all 0.15s ease-in-out",
-	"&:hover": {
-		textDecoration: "none",
-		bgcolor: "action.hover",
-		color: "text.secondary",
-	},
-};
+import CircularProgress from "@mui/material/CircularProgress";
 
 const formatURI = (uri: string) => {
 	try {
@@ -51,37 +25,34 @@ const formatURI = (uri: string) => {
 	}
 };
 
-const getStatusIcon = (theme: Theme, state: APIWorkspaceAppStatus["state"]) => {
+const getStatusColor = (
+	theme: Theme,
+	state: APIWorkspaceAppStatus["state"],
+) => {
 	switch (state) {
-		case "running":
-			return (
-				<CheckCircle
-					sx={{
-						fontSize: 16,
-						color: theme.palette.success.main,
-					}}
-				/>
-			);
-		case "error":
-			return (
-				<ErrorIcon
-					sx={{
-						fontSize: 16,
-						color: theme.palette.error.main,
-					}}
-				/>
-			);
-		case "starting":
-			return (
-				<Warning
-					sx={{
-						fontSize: 16,
-						color: theme.palette.warning.main,
-					}}
-				/>
-			);
+		case "complete":
+			return theme.palette.success.main;
+		case "failure":
+			return theme.palette.error.main;
+		case "working":
+			return theme.palette.primary.main;
 		default:
-			return null;
+			// Assuming unknown state maps to warning/secondary visually
+			return theme.palette.text.secondary;
+	}
+};
+
+const getStatusIcon = (theme: Theme, state: APIWorkspaceAppStatus["state"]) => {
+	const color = getStatusColor(theme, state);
+	switch (state) {
+		case "complete":
+			return <CheckCircle sx={{ color, fontSize: 16 }} />;
+		case "failure":
+			return <ErrorIcon sx={{ color, fontSize: 16 }} />;
+		case "working":
+			return <CircularProgress size={16} sx={{ color }} />;
+		default:
+			return <Warning sx={{ color, fontSize: 16 }} />;
 	}
 };
 
@@ -101,28 +72,52 @@ export const WorkspaceAppStatus = ({
 	const preferredPathBase = proxy.preferredPathAppURL;
 	const appsHost = proxy.preferredWildcardHostname;
 
+	const commonStyles = {
+		fontSize: "12px",
+		lineHeight: "15px",
+		color: theme.palette.text.disabled,
+		display: "inline-flex",
+		alignItems: "center",
+		gap: 4,
+		padding: "2px 6px",
+		borderRadius: "6px",
+		bgcolor: "transparent",
+		minWidth: 0,
+		maxWidth: "fit-content",
+		overflow: "hidden",
+		textOverflow: "ellipsis",
+		whiteSpace: "nowrap",
+		textDecoration: "none",
+		transition: "all 0.15s ease-in-out",
+		"&:hover": {
+			textDecoration: "none",
+			backgroundColor: theme.palette.action.hover,
+			color: theme.palette.text.secondary,
+		},
+	};
+
 	if (!status) {
 		return (
-			<Box
-				sx={{
+			<div
+				css={{
 					display: "flex",
 					alignItems: "center",
-					gap: 1.5,
+					gap: 12,
 					minWidth: 0,
-					pr: 2,
+					paddingRight: 16,
 				}}
 			>
-				<Typography
-					sx={{
+				<div
+					css={{
 						fontSize: "14px",
-						color: "text.disabled",
+						color: theme.palette.text.disabled,
 						flexShrink: 1,
 						minWidth: 0,
 					}}
 				>
 					―
-				</Typography>
-			</Box>
+				</div>
+			</div>
 		);
 	}
 	const isFileURI = status.uri?.startsWith("file://");
@@ -143,40 +138,40 @@ export const WorkspaceAppStatus = ({
 	}
 
 	return (
-		<Box
-			sx={{
+		<div
+			css={{
 				display: "flex",
 				alignItems: "flex-start",
-				gap: 1.5,
+				gap: 8,
 				minWidth: 0,
-				pr: 2,
+				paddingRight: 16,
 			}}
 		>
-			<Box
-				sx={{
+			<div
+				css={{
 					display: "flex",
 					alignItems: "center",
 					flexShrink: 0,
-					mt: 0.25,
+					marginTop: 2,
 				}}
 			>
 				{getStatusIcon(theme, status.state)}
-			</Box>
-			<Box
-				sx={{
+			</div>
+			<div
+				css={{
 					display: "flex",
 					flexDirection: "column",
-					gap: 0.75,
+					gap: 6,
 					minWidth: 0,
 					flex: 1,
 				}}
 			>
-				<Typography
-					sx={{
+				<div
+					css={{
 						fontSize: "14px",
 						lineHeight: "20px",
 						color: "text.primary",
-						m: 0,
+						margin: 0,
 						display: "-webkit-box",
 						WebkitLineClamp: 2,
 						WebkitBoxOrient: "vertical",
@@ -186,25 +181,26 @@ export const WorkspaceAppStatus = ({
 					}}
 				>
 					{status.message}
-				</Typography>
-				<Box
-					sx={{
+				</div>
+				<div
+					css={{
 						display: "flex",
 						alignItems: "center",
 					}}
 				>
 					{app && appHref && (
-						<Box
-							component="a"
+						<a
 							href={appHref}
 							target="_blank"
-							rel="noopener"
-							sx={{
+							rel="noopener noreferrer"
+							css={{
 								...commonStyles,
-								mr: 1,
+								marginRight: 8,
 								position: "relative",
+								color: theme.palette.text.secondary,
 								"&:hover": {
 									...commonStyles["&:hover"],
+									color: theme.palette.text.primary,
 									"& img": {
 										opacity: 1,
 									},
@@ -212,16 +208,15 @@ export const WorkspaceAppStatus = ({
 							}}
 						>
 							{app.icon ? (
-								<Box
-									component="img"
+								<img
 									src={app.icon}
 									alt={`${app.display_name} icon`}
 									width={14}
 									height={14}
-									sx={{
+									css={{
 										borderRadius: "3px",
 										opacity: 0.8,
-										mr: 0.5,
+										marginRight: 4,
 									}}
 								/>
 							) : (
@@ -232,19 +227,19 @@ export const WorkspaceAppStatus = ({
 									}}
 								/>
 							)}
-							<Typography component="span">{app.display_name}</Typography>
-						</Box>
+							<span>{app.display_name}</span>
+						</a>
 					)}
 					{status.uri && (
-						<Box
-							sx={{
+						<div
+							css={{
 								display: "flex",
 								minWidth: 0,
 							}}
 						>
 							{isFileURI ? (
-								<Box
-									sx={{
+								<div
+									css={{
 										...commonStyles,
 									}}
 								>
@@ -255,21 +250,19 @@ export const WorkspaceAppStatus = ({
 											mr: 0.25,
 										}}
 									/>
-									<Typography component="span">
-										{formatURI(status.uri)}
-									</Typography>
-								</Box>
+									<span>{formatURI(status.uri)}</span>
+								</div>
 							) : (
-								<Box
-									component="a"
+								<a
 									href={status.uri}
 									target="_blank"
-									rel="noopener"
-									sx={{
+									rel="noopener noreferrer"
+									css={{
 										...commonStyles,
+										color: theme.palette.text.secondary,
 										"&:hover": {
 											...commonStyles["&:hover"],
-											color: "text.primary",
+											color: theme.palette.text.primary,
 										},
 									}}
 								>
@@ -282,11 +275,10 @@ export const WorkspaceAppStatus = ({
 											mr: 0.5,
 										}}
 									/>
-									<Typography
-										component="span"
-										sx={{
-											bgcolor: "transparent",
-											p: 0,
+									<span
+										css={{
+											backgroundColor: "transparent",
+											padding: 0,
 											color: "inherit",
 											fontSize: "inherit",
 											lineHeight: "inherit",
@@ -296,13 +288,13 @@ export const WorkspaceAppStatus = ({
 										}}
 									>
 										{formatURI(status.uri)}
-									</Typography>
-								</Box>
+									</span>
+								</a>
 							)}
-						</Box>
+						</div>
 					)}
-				</Box>
-			</Box>
-		</Box>
+				</div>
+			</div>
+		</div>
 	);
 };

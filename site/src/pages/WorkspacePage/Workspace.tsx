@@ -25,8 +25,6 @@ import { WorkspaceTopbar } from "./WorkspaceTopbar";
 import type { WorkspacePermissions } from "./permissions";
 import { resourceOptionValue, useResourcesNav } from "./useResourcesNav";
 import { AppStatuses } from "./AppStatuses";
-import Box from "@mui/material/Box";
-import Typography from "@mui/material/Typography";
 import type { WorkspaceApp } from "api/typesGenerated";
 
 export interface WorkspaceProps {
@@ -263,7 +261,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 
 					{/* Container for Agent Rows + Activity Sidebar */}
 					{selectedResource && (
-						<Box sx={{ display: "flex", gap: 3, alignItems: "flex-start" }}>
+						<div css={{ display: "flex", gap: 24, alignItems: "flex-start" }}>
 							{/* Left Side: Agent Rows */}
 							<section
 								css={{
@@ -313,40 +311,46 @@ export const Workspace: FC<WorkspaceProps> = ({
 
 							{/* Right Side: Activity Box */}
 							{hasAppStatus && (
-								<Box
-									sx={{
+								<div
+									css={{
 										// Mimic AgentRow styling but with subtler border
 										border: `1px solid ${theme.palette.divider}`, // Use divider color
 										borderRadius: "8px",
 										boxShadow: theme.shadows[3],
 										width: 360,
 										flexShrink: 0,
-										bgcolor: "background.default", // Add background color
+										backgroundColor: theme.palette.background.default, // Add background color
 										overflow: "hidden",
 									}}
 								>
 									{/* Activity Header */}
-									<Box
-										sx={{
+									<div
+										css={{
 											display: "flex",
 											justifyContent: "space-between",
 											alignItems: "center",
-											px: 2,
-											pt: 1.5,
-											pb: 1,
-											bgcolor: "background.paper", // Add background to header
+											backgroundColor: theme.palette.background.paper,
+											paddingLeft: 16,
+											paddingRight: 16,
+											paddingTop: 12,
+											paddingBottom: 12,
 											borderBottom: `1px solid ${theme.palette.divider}`, // Add separator
 										}}
 									>
-										<Typography
-											sx={{
+										<div
+											css={{
 												fontWeight: 500,
 												fontSize: 14,
 											}}
 										>
 											Activity
-										</Typography>
-										<Typography variant="caption" color="text.secondary">
+										</div>
+										<div
+											css={{
+												fontSize: 12,
+												color: theme.palette.text.secondary,
+											}}
+										>
 											{
 												// Calculate total status count
 												selectedResource.agents
@@ -357,11 +361,11 @@ export const Workspace: FC<WorkspaceProps> = ({
 													)
 											}{" "}
 											Total
-										</Typography>
-									</Box>
+										</div>
+									</div>
 
-									<Box
-										sx={{
+									<div
+										css={{
 											maxHeight: 800,
 											overflowY: "auto",
 											// Thin scrollbar styles
@@ -389,10 +393,10 @@ export const Workspace: FC<WorkspaceProps> = ({
 											workspace={workspace}
 											agents={selectedResource.agents || []}
 										/>
-									</Box>
-								</Box>
+									</div>
+								</div>
 							)}
-						</Box>
+						</div>
 					)}
 
 					<WorkspaceTimings
