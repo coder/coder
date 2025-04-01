@@ -1746,6 +1746,9 @@ func (q *querier) GetFileIDByTemplateVersionID(ctx context.Context, templateVers
 	if err != nil {
 		return uuid.Nil, err
 	}
+	// This is a kind of weird check, because users will almost never have this
+	// permission. Since this query is not currently used to provide data in a
+	// user facing way, it is expected that this query is run as some system user.
 	err = q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceFile.WithID(fileID))
 	if err != nil {
 		return uuid.Nil, err
