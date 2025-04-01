@@ -7,7 +7,7 @@
 > staging environment.
 >
 > Join our [Discord channel](https://discord.gg/coder) or
-> [contact us](https://coder.com/contact) to get help or leave feedback.
+> [contact us](https://coder.com/contact) to get help or share feedback.
 
 AI Coding Agents such as [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), [Goose](https://block.github.io/goose/), and [Aider](https://github.com/paul-gauthier/aider) are becoming increasingly popular for:
 
