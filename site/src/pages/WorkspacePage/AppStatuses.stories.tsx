@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { getPreferredProxy, ProxyContext } from "contexts/ProxyContext";
+import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
 import {
 	MockProxyLatencies,
 	MockWorkspace,

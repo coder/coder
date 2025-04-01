@@ -1,20 +1,20 @@
-import { useTheme } from "@emotion/react";
 import type { Theme } from "@emotion/react";
+import { useTheme } from "@emotion/react";
+import AppsIcon from "@mui/icons-material/Apps";
+import CheckCircle from "@mui/icons-material/CheckCircle";
+import ErrorIcon from "@mui/icons-material/Error";
+import InsertDriveFile from "@mui/icons-material/InsertDriveFile";
+import OpenInNew from "@mui/icons-material/OpenInNew";
+import Warning from "@mui/icons-material/Warning";
+import CircularProgress from "@mui/material/CircularProgress";
 import type {
 	WorkspaceAppStatus as APIWorkspaceAppStatus,
 	Workspace,
 	WorkspaceAgent,
 	WorkspaceApp,
 } from "api/typesGenerated";
-import CheckCircle from "@mui/icons-material/CheckCircle";
-import ErrorIcon from "@mui/icons-material/Error";
-import Warning from "@mui/icons-material/Warning";
-import OpenInNew from "@mui/icons-material/OpenInNew";
-import InsertDriveFile from "@mui/icons-material/InsertDriveFile";
-import AppsIcon from "@mui/icons-material/Apps";
-import { createAppLinkHref } from "utils/apps";
 import { useProxy } from "contexts/ProxyContext";
-import CircularProgress from "@mui/material/CircularProgress";
+import { createAppLinkHref } from "utils/apps";
 
 const formatURI = (uri: string) => {
 	try {

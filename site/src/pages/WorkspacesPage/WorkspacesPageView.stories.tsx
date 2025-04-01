@@ -24,7 +24,7 @@ import {
 	MockUser,
 	MockWorkspace,
 	MockWorkspaceAppStatus,
-	mockApiError
+	mockApiError,
 } from "testHelpers/entities";
 import { withDashboardProvider } from "testHelpers/storybook";
 import { WorkspacesPageView } from "./WorkspacesPageView";

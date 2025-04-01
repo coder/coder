@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
 import {
 	MockProxyLatencies,
 	MockWorkspace,
@@ -7,7 +8,6 @@ import {
 	MockWorkspaceAppStatus,
 } from "testHelpers/entities";
 import { WorkspaceAppStatus } from "./WorkspaceAppStatus";
-import { getPreferredProxy, ProxyContext } from "contexts/ProxyContext";
 
 const meta: Meta<typeof WorkspaceAppStatus> = {
 	title: "modules/workspaces/WorkspaceAppStatus",

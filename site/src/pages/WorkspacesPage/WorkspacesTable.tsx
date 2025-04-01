@@ -32,7 +32,7 @@ import { WorkspaceDormantBadge } from "modules/workspaces/WorkspaceDormantBadge/
 import { WorkspaceOutdatedTooltip } from "modules/workspaces/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
 import { WorkspaceStatusBadge } from "modules/workspaces/WorkspaceStatusBadge/WorkspaceStatusBadge";
 import { LastUsed } from "pages/WorkspacesPage/LastUsed";
-import { useMemo, type FC, type ReactNode } from "react";
+import { type FC, type ReactNode, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { getDisplayWorkspaceTemplateName } from "utils/workspace";
 import { WorkspacesEmpty } from "./WorkspacesEmpty";

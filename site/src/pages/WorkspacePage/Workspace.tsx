@@ -11,7 +11,7 @@ import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
 import { AgentRow } from "modules/resources/AgentRow";
 import { WorkspaceTimings } from "modules/workspaces/WorkspaceTiming/WorkspaceTimings";
-import { useMemo, type FC } from "react";
+import { type FC, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { AppStatuses } from "./AppStatuses";
 import { HistorySidebar } from "./HistorySidebar";
