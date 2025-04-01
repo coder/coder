@@ -378,6 +378,7 @@ var (
 						policy.ActionCreate, policy.ActionDelete, policy.ActionRead, policy.ActionUpdate,
 						policy.ActionWorkspaceStart, policy.ActionWorkspaceStop,
 					},
+					rbac.ResourceSystem.Type: {policy.ActionRead},
 				}),
 			},
 		}),
