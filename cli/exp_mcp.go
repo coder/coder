@@ -288,6 +288,9 @@ func mcpServerHandler(inv *serpent.Invocation, client *codersdk.Client, instruct
 	} else {
 		cliui.Warnf(inv.Stderr, "CODER_AGENT_TOKEN is not set, task reporting will not be available")
 	}
+	if appStatusSlug == "" {
+		cliui.Warnf(inv.Stderr, "CODER_MCP_APP_STATUS_SLUG is not set, task reporting will not be available.")
+	}
 
 	// Register tools based on the allowlist (if specified)
 	reg := codermcp.AllTools()
