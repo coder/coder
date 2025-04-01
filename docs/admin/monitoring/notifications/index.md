@@ -71,7 +71,7 @@ See the [Preferences](#delivery-preferences) section for more details.
 ## Configuration
 
 You can modify the notification delivery behavior in your Coder deployment's
-`https://coder.example.com/deployment/notifications`, or with the following server flags:
+`https://coder.example.com/settings/notifications`, or with the following server flags:
 
 | Required | CLI                                 | Env                                     | Type       | Description                                                                                                           | Default |
 |:--------:|-------------------------------------|-----------------------------------------|------------|-----------------------------------------------------------------------------------------------------------------------|---------|
