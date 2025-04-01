@@ -2142,7 +2142,21 @@ func (q *querier) GetPrebuildMetrics(ctx context.Context) ([]database.GetPrebuil
 }
 
 func (q *querier) GetPresetByID(ctx context.Context, presetID uuid.UUID) (database.GetPresetByIDRow, error) {
-	panic("not implemented")
+	empty := database.GetPresetByIDRow{}
+
+	preset, err := q.db.GetPresetByID(ctx, presetID)
+	if err != nil {
+		return empty, err
+	}
+	tpl, err := q.db.GetTemplateByID(ctx, preset.TemplateID.UUID)
+	if err != nil {
+		return empty, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, tpl); err != nil {
+		return empty, err
+	}
+
+	return preset, nil
 }
 
 func (q *querier) GetPresetByWorkspaceBuildID(ctx context.Context, workspaceID uuid.UUID) (database.TemplateVersionPreset, error) {
