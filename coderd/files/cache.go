@@ -5,7 +5,6 @@ import (
 	"context"
 	"io/fs"
 	"sync"
-	"sync/atomic"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -47,7 +46,8 @@ type Cache struct {
 }
 
 type cacheEntry struct {
-	refCount *atomic.Int64
+	// refCount must only be accessed while the Cache lock is held.
+	refCount int
 	value    *lazy.ValueWithError[fs.FS]
 }
 
@@ -70,19 +70,18 @@ func (c *Cache) prepare(ctx context.Context, fileID uuid.UUID) *lazy.ValueWithEr
 
 	entry, ok := c.data[fileID]
 	if !ok {
-		var refCount atomic.Int64
 		value := lazy.NewWithError(func() (fs.FS, error) {
 			return c.fetcher(ctx, fileID)
 		})
 
 		entry = &cacheEntry{
 			value:    value,
-			refCount: &refCount,
+			refCount: 0,
 		}
 		c.data[fileID] = entry
 	}
 
-	entry.refCount.Add(1)
+	entry.refCount += 1
 	return entry.value
 }
 
@@ -99,8 +98,8 @@ func (c *Cache) Release(fileID uuid.UUID) {
 		// this function with an incorrect ID. Should this function return an error?
 		return
 	}
-	refCount := entry.refCount.Add(-1)
-	if refCount > 0 {
+	entry.refCount -= 1
+	if entry.refCount > 0 {
 		return
 	}
 	delete(c.data, fileID)
