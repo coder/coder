@@ -1,33 +1,33 @@
-import { Workspace, WorkspaceAgent } from "api/typesGenerated";
-import {
-	Box,
-	Typography,
-	CircularProgress,
-	Link,
-	Tooltip,
-} from "@mui/material";
-import { useTheme } from "@mui/material/styles";
-import {
+import Box from "@mui/material/Box";
+import Typography from "@mui/material/Typography";
+import CircularProgress from "@mui/material/CircularProgress";
+import Link from "@mui/material/Link";
+import Tooltip from "@mui/material/Tooltip";
+import { useTheme } from "@emotion/react";
+import type {
+	Workspace,
+	WorkspaceAgent,
 	WorkspaceApp,
-	WorkspaceAppStatus as APIWorkspaceAppStatus, // Alias to avoid naming conflict
+	WorkspaceAppStatus as APIWorkspaceAppStatus,
 } from "api/typesGenerated";
-import { FC } from "react";
-import {
-	CheckCircle,
-	Error,
-	Warning,
-	OpenInNew,
-	InsertDriveFile,
-	HelpOutline, // Fallback icon
-} from "@mui/icons-material";
+import type { FC } from "react";
+import CheckCircle from "@mui/icons-material/CheckCircle";
+import ErrorIcon from "@mui/icons-material/Error";
+import Warning from "@mui/icons-material/Warning";
+import OpenInNew from "@mui/icons-material/OpenInNew";
+import InsertDriveFile from "@mui/icons-material/InsertDriveFile";
+import HelpOutline from "@mui/icons-material/HelpOutline";
 import { formatDistanceToNow, formatDistance } from "date-fns";
 import { useProxy } from "contexts/ProxyContext";
 import { createAppLinkHref } from "utils/apps";
-import { Apps as AppsIcon } from "@mui/icons-material";
+import AppsIcon from "@mui/icons-material/Apps";
+import type { Theme } from "@mui/material/styles";
 
-// --- Copied Helper Functions & Styles ---
 
-const getStatusColor = (theme: any, state: APIWorkspaceAppStatus["state"]) => {
+const getStatusColor = (
+	theme: Theme,
+	state: APIWorkspaceAppStatus["state"],
+) => {
 	switch (state) {
 		case "complete":
 			return theme.palette.success.main;
@@ -42,7 +42,7 @@ const getStatusColor = (theme: any, state: APIWorkspaceAppStatus["state"]) => {
 };
 
 const getStatusIcon = (
-	theme: any,
+	theme: Theme,
 	state: APIWorkspaceAppStatus["state"],
 	isLatest: boolean,
 ) => {
@@ -54,7 +54,7 @@ const getStatusIcon = (
 		case "complete":
 			return <CheckCircle sx={{ color, fontSize: 18 }} />;
 		case "failure":
-			return <Error sx={{ color, fontSize: 18 }} />;
+			return <ErrorIcon sx={{ color, fontSize: 18 }} />;
 		case "working":
 			return <CircularProgress size={18} sx={{ color }} />;
 		default:
@@ -150,7 +150,6 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 	referenceDate,
 }) => {
 	const theme = useTheme();
-	// Get proxy info for app links
 	const { proxy } = useProxy();
 	const preferredPathBase = proxy.preferredPathAppURL;
 	const appsHost = proxy.preferredWildcardHostname;
@@ -197,11 +196,7 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 				const agent = agents.find((agent) => agent.id === status.agent_id);
 
 				if (currentApp && agent) {
-					let appSlug = currentApp.slug;
-					let appDisplayName = currentApp.display_name;
-					if (!appSlug) {
-						appSlug = appDisplayName;
-					}
+					const appSlug = currentApp.slug || currentApp.display_name;
 					appHref = createAppLinkHref(
 						window.location.protocol,
 						preferredPathBase,

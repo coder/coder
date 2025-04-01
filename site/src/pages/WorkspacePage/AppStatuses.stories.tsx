@@ -5,10 +5,8 @@ import {
 	MockWorkspaceAppStatus,
 } from "testHelpers/entities";
 import { AppStatuses } from "./AppStatuses";
-import { Meta, StoryObj } from "@storybook/react";
-// Import the specific type for state if possible, otherwise use inline type/casting
-import { WorkspaceAppStatus as APIWorkspaceAppStatus } from "api/typesGenerated";
-// Imports needed for ProxyContext decorator
+import type { Meta, StoryObj } from "@storybook/react";
+import type { WorkspaceAppStatus as APIWorkspaceAppStatus } from "api/typesGenerated";
 import { MockProxyLatencies } from "testHelpers/entities";
 import { getPreferredProxy, ProxyContext } from "contexts/ProxyContext";
 

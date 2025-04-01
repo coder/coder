@@ -1,54 +1,21 @@
-import {
-	Box,
-	Typography,
-	CircularProgress,
-	Link,
-	Tooltip,
-} from "@mui/material";
-import { useTheme } from "@mui/material/styles";
-import {
+import { useTheme } from "@emotion/react";
+import type { Theme } from "@emotion/react";
+import type {
 	WorkspaceAppStatus as APIWorkspaceAppStatus,
 	Workspace,
 	WorkspaceAgent,
 	WorkspaceApp,
 } from "api/typesGenerated";
-import {
-	CheckCircle,
-	Error,
-	Warning,
-	OpenInNew,
-	InsertDriveFile,
-	Apps as AppsIcon,
-} from "@mui/icons-material";
+import CheckCircle from "@mui/icons-material/CheckCircle";
+import ErrorIcon from "@mui/icons-material/Error";
+import Warning from "@mui/icons-material/Warning";
+import OpenInNew from "@mui/icons-material/OpenInNew";
+import InsertDriveFile from "@mui/icons-material/InsertDriveFile";
+import AppsIcon from "@mui/icons-material/Apps";
 import { createAppLinkHref } from "utils/apps";
 import { useProxy } from "contexts/ProxyContext";
-
-const getStatusColor = (theme: any, state: APIWorkspaceAppStatus["state"]) => {
-	switch (state) {
-		case "complete":
-			return theme.palette.success.main;
-		case "failure":
-			return theme.palette.error.main;
-		case "working":
-			return theme.palette.primary.main;
-		default:
-			return theme.palette.text.secondary;
-	}
-};
-
-const getStatusIcon = (theme: any, state: APIWorkspaceAppStatus["state"]) => {
-	const color = getStatusColor(theme, state);
-	switch (state) {
-		case "complete":
-			return <CheckCircle sx={{ color }} />;
-		case "failure":
-			return <Error sx={{ color }} />;
-		case "working":
-			return <CircularProgress size={16} sx={{ color }} />;
-		default:
-			return <Warning sx={{ color }} />;
-	}
-};
+import Box from "@mui/material/Box";
+import Typography from "@mui/material/Typography";
 
 const commonStyles = {
 	fontSize: "12px",
@@ -76,32 +43,45 @@ const commonStyles = {
 };
 
 const formatURI = (uri: string) => {
-	if (uri.startsWith("file://")) {
-		const path = uri.slice(7);
-		if (path.length > 40) {
-			const start = path.slice(0, 20);
-			const end = path.slice(-20);
-			return `${start}...${end}`;
-		}
-		return path;
-	}
-
 	try {
 		const url = new URL(uri);
-		const fullUrl = url.toString();
-		if (fullUrl.length > 50) {
-			const start = fullUrl.slice(0, 25);
-			const end = fullUrl.slice(-25);
-			return `${start}...${end}`;
-		}
-		return fullUrl;
+		return url.hostname + url.pathname;
 	} catch {
-		if (uri.length > 40) {
-			const start = uri.slice(0, 20);
-			const end = uri.slice(-20);
-			return `${start}...${end}`;
-		}
 		return uri;
+	}
+};
+
+const getStatusIcon = (theme: Theme, state: APIWorkspaceAppStatus["state"]) => {
+	switch (state) {
+		case "running":
+			return (
+				<CheckCircle
+					sx={{
+						fontSize: 16,
+						color: theme.palette.success.main,
+					}}
+				/>
+			);
+		case "error":
+			return (
+				<ErrorIcon
+					sx={{
+						fontSize: 16,
+						color: theme.palette.error.main,
+					}}
+				/>
+			);
+		case "starting":
+			return (
+				<Warning
+					sx={{
+						fontSize: 16,
+						color: theme.palette.warning.main,
+					}}
+				/>
+			);
+		default:
+			return null;
 	}
 };
 
@@ -132,18 +112,16 @@ export const WorkspaceAppStatus = ({
 					pr: 2,
 				}}
 			>
-				<Tooltip title="No apps have reported a status">
-					<Typography
-						sx={{
-							fontSize: 14,
-							color: "text.disabled",
-							flexShrink: 1,
-							minWidth: 0,
-						}}
-					>
-						―
-					</Typography>
-				</Tooltip>
+				<Typography
+					sx={{
+						fontSize: "14px",
+						color: "text.disabled",
+						flexShrink: 1,
+						minWidth: 0,
+					}}
+				>
+					―
+				</Typography>
 			</Box>
 		);
 	}
@@ -151,11 +129,7 @@ export const WorkspaceAppStatus = ({
 
 	let appHref: string | undefined;
 	if (app && agent) {
-		let appSlug = app.slug;
-		let appDisplayName = app.display_name;
-		if (!appSlug) {
-			appSlug = appDisplayName;
-		}
+		const appSlug = app.slug || app.display_name;
 		appHref = createAppLinkHref(
 			window.location.protocol,
 			preferredPathBase,
@@ -183,10 +157,7 @@ export const WorkspaceAppStatus = ({
 					display: "flex",
 					alignItems: "center",
 					flexShrink: 0,
-					marginTop: "2px",
-					"& svg": {
-						fontSize: 16,
-					},
+					mt: 0.25,
 				}}
 			>
 				{getStatusIcon(theme, status.state)}
@@ -202,9 +173,10 @@ export const WorkspaceAppStatus = ({
 			>
 				<Typography
 					sx={{
-						fontSize: 14,
+						fontSize: "14px",
 						lineHeight: "20px",
 						color: "text.primary",
+						m: 0,
 						display: "-webkit-box",
 						WebkitLineClamp: 2,
 						WebkitBoxOrient: "vertical",
@@ -215,90 +187,103 @@ export const WorkspaceAppStatus = ({
 				>
 					{status.message}
 				</Typography>
-				<Box display="flex" alignItems="center">
+				<Box
+					sx={{
+						display: "flex",
+						alignItems: "center",
+					}}
+				>
 					{app && appHref && (
-						<Tooltip title={`Open ${app.display_name}`} placement="top">
-							<Link
-								href={appHref}
-								target="_blank"
-								rel="noopener"
-								sx={{
-									...commonStyles,
-									marginRight: 1,
-									position: "relative",
-									"& .MuiSvgIcon-root": {
+						<Box
+							component="a"
+							href={appHref}
+							target="_blank"
+							rel="noopener"
+							sx={{
+								...commonStyles,
+								mr: 1,
+								position: "relative",
+								"&:hover": {
+									...commonStyles["&:hover"],
+									"& img": {
+										opacity: 1,
+									},
+								},
+							}}
+						>
+							{app.icon ? (
+								<Box
+									component="img"
+									src={app.icon}
+									alt={`${app.display_name} icon`}
+									width={14}
+									height={14}
+									sx={{
+										borderRadius: "3px",
+										opacity: 0.8,
+										mr: 0.5,
+									}}
+								/>
+							) : (
+								<AppsIcon
+									sx={{
 										fontSize: 14,
 										opacity: 0.7,
-									},
-									"& img": {
-										opacity: 0.8,
-										marginRight: 0.5,
-									},
-									"&:hover": {
-										...commonStyles["&:hover"],
-										"& img": {
-											opacity: 1,
-										},
-									},
-								}}
-							>
-								{app.icon ? (
-									<img
-										src={app.icon}
-										alt={`${app.display_name} icon`}
-										width={14}
-										height={14}
-										style={{ borderRadius: "3px" }}
-									/>
-								) : (
-									<AppsIcon />
-								)}
-
-								<span>{app.display_name}</span>
-							</Link>
-						</Tooltip>
+									}}
+								/>
+							)}
+							<Typography component="span">{app.display_name}</Typography>
+						</Box>
 					)}
 					{status.uri && (
-						<Box sx={{ display: "flex", minWidth: 0 }}>
+						<Box
+							sx={{
+								display: "flex",
+								minWidth: 0,
+							}}
+						>
 							{isFileURI ? (
-								<Tooltip title="This file is located in your workspace">
-									<Typography
+								<Box
+									sx={{
+										...commonStyles,
+									}}
+								>
+									<InsertDriveFile
 										sx={{
-											...commonStyles,
-											"&:hover": {
-												bgcolor: "action.hover",
-												color: "text.secondary",
-											},
+											fontSize: "11px",
+											opacity: 0.5,
+											mr: 0.25,
 										}}
-									>
-										<InsertDriveFile
-											sx={{ fontSize: "11px", opacity: 0.5, mr: 0.25 }}
-										/>
+									/>
+									<Typography component="span">
 										{formatURI(status.uri)}
 									</Typography>
-								</Tooltip>
+								</Box>
 							) : (
-								<Link
+								<Box
+									component="a"
 									href={status.uri}
 									target="_blank"
 									rel="noopener"
 									sx={{
 										...commonStyles,
-										"& .MuiSvgIcon-root": {
-											fontSize: 11,
-											opacity: 0.7,
-											mt: "-1px",
-											flexShrink: 0,
-											marginRight: 0.5,
-										},
 										"&:hover": {
 											...commonStyles["&:hover"],
 											color: "text.primary",
 										},
 									}}
 								>
-									<OpenInNew />
+									<OpenInNew
+										sx={{
+											fontSize: 11,
+											opacity: 0.7,
+											mt: -0.125,
+											flexShrink: 0,
+											mr: 0.5,
+										}}
+									/>
 									<Typography
+										component="span"
 										sx={{
 											bgcolor: "transparent",
 											p: 0,
@@ -312,7 +297,7 @@ export const WorkspaceAppStatus = ({
 									>
 										{formatURI(status.uri)}
 									</Typography>
-								</Link>
+								</Box>
 							)}
 						</Box>
 					)}
