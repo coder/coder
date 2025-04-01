@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/spf13/afero"
@@ -111,6 +112,7 @@ func (*RootCmd) mcpConfigureClaudeCode() *serpent.Command {
 	var (
 		apiKey           string
 		claudeConfigPath string
+		claudeMDPath     string
 		systemPrompt     string
 		testBinaryName   string
 	)
@@ -148,9 +150,15 @@ func (*RootCmd) mcpConfigureClaudeCode() *serpent.Command {
 					},
 				},
 			}); err != nil {
-				return xerrors.Errorf("failed to configure claude: %w", err)
+				return xerrors.Errorf("failed to modify claude.json: %w", err)
 			}
 			cliui.Infof(inv.Stderr, "Wrote config to %s", claudeConfigPath)
+
+			// We also write the system prompt to the CLAUDE.md file.
+			if err := injectClaudeMD(fs, systemPrompt, claudeMDPath); err != nil {
+				return xerrors.Errorf("failed to modify CLAUDE.md: %w", err)
+			}
+			cliui.Infof(inv.Stderr, "Wrote CLAUDE.md to %s", claudeMDPath)
 			return nil
 		},
 		Options: []serpent.Option{
@@ -161,6 +169,14 @@ func (*RootCmd) mcpConfigureClaudeCode() *serpent.Command {
 				Flag:        "claude-config-path",
 				Value:       serpent.StringOf(&claudeConfigPath),
 				Default:     filepath.Join(os.Getenv("HOME"), ".claude.json"),
+			},
+			{
+				Name:        "claude-md-path",
+				Description: "The path to CLAUDE.md.",
+				Env:         "CODER_MCP_CLAUDE_MD_PATH",
+				Flag:        "claude-md-path",
+				Value:       serpent.StringOf(&claudeMDPath),
+				Default:     filepath.Join(os.Getenv("HOME"), ".claude", "CLAUDE.md"),
 			},
 			{
 				Name:        "api-key",
@@ -506,4 +522,74 @@ func configureClaude(fs afero.Fs, cfg ClaudeConfig) error {
 		return xerrors.Errorf("failed to write claude config: %w", err)
 	}
 	return nil
+}
+
+func injectClaudeMD(fs afero.Fs, systemPrompt string, claudeMDPath string) error {
+	_, err := fs.Stat(claudeMDPath)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return xerrors.Errorf("failed to stat claude config: %w", err)
+		}
+		// Write a new file with the system prompt.
+		if err = fs.MkdirAll(filepath.Dir(claudeMDPath), 0o700); err != nil {
+			return xerrors.Errorf("failed to create claude config directory: %w", err)
+		}
+
+		content := "<system-prompt>\n" + systemPrompt + "\n</system-prompt>"
+		return afero.WriteFile(fs, claudeMDPath, []byte(content), 0o600)
+	}
+
+	bs, err := afero.ReadFile(fs, claudeMDPath)
+	if err != nil {
+		return xerrors.Errorf("failed to read claude config: %w", err)
+	}
+
+	// Define the guard strings
+	const systemPromptStartGuard = "<system-prompt>"
+	const systemPromptEndGuard = "</system-prompt>"
+
+	// Extract the content without the guarded sections
+	cleanContent := string(bs)
+
+	// Remove existing system prompt section if it exists
+	systemStartIdx := indexOf(cleanContent, systemPromptStartGuard)
+	systemEndIdx := indexOf(cleanContent, systemPromptEndGuard)
+	if systemStartIdx != -1 && systemEndIdx != -1 && systemStartIdx < systemEndIdx {
+		beforeSystemPrompt := cleanContent[:systemStartIdx]
+		afterSystemPrompt := cleanContent[systemEndIdx+len(systemPromptEndGuard):]
+		cleanContent = beforeSystemPrompt + afterSystemPrompt
+	}
+
+	// Trim any leading whitespace from the clean content
+	cleanContent = strings.TrimSpace(cleanContent)
+
+	// Create the new content with system prompt prepended
+	var newContent strings.Builder
+	_, _ = newContent.WriteString(systemPromptStartGuard)
+	_, _ = newContent.WriteRune('\n')
+	_, _ = newContent.WriteString(systemPrompt)
+	_, _ = newContent.WriteRune('\n')
+	_, _ = newContent.WriteString(systemPromptEndGuard)
+	_, _ = newContent.WriteRune('\n')
+	_, _ = newContent.WriteRune('\n')
+	_, _ = newContent.WriteString(cleanContent)
+
+	// Write the updated content back to the file
+	err = afero.WriteFile(fs, claudeMDPath, []byte(newContent.String()), 0o600)
+	if err != nil {
+		return xerrors.Errorf("failed to write claude config: %w", err)
+	}
+
+	return nil
+}
+
+// indexOf returns the index of the first instance of substr in s,
+// or -1 if substr is not present in s.
+func indexOf(s, substr string) int {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return i
+		}
+	}
+	return -1
 }
