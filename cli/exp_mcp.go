@@ -111,15 +111,17 @@ func (*RootCmd) mcpConfigureClaudeCode() *serpent.Command {
 	var (
 		apiKey           string
 		claudeConfigPath string
-		projectDirectory string
 		systemPrompt     string
-		taskPrompt       string
 		testBinaryName   string
 	)
 	cmd := &serpent.Command{
-		Use:   "claude-code",
-		Short: "Configure the Claude Code server.",
+		Use:   "claude-code <project-directory>",
+		Short: "Configure the Claude Code server. You will need to run this command for each project you want to use. Specify the project directory as the first argument.",
 		Handler: func(inv *serpent.Invocation) error {
+			if len(inv.Args) == 0 {
+				return xerrors.Errorf("project directory is required")
+			}
+			projectDirectory := inv.Args[0]
 			fs := afero.NewOsFs()
 			binPath, err := os.Executable()
 			if err != nil {
@@ -173,20 +175,6 @@ func (*RootCmd) mcpConfigureClaudeCode() *serpent.Command {
 				Env:         "CODER_MCP_CLAUDE_SYSTEM_PROMPT",
 				Flag:        "claude-system-prompt",
 				Value:       serpent.StringOf(&systemPrompt),
-			},
-			{
-				Name:        "task-prompt",
-				Description: "The task prompt to use for the Claude Code server.",
-				Env:         "CODER_MCP_CLAUDE_TASK_PROMPT",
-				Flag:        "claude-task-prompt",
-				Value:       serpent.StringOf(&taskPrompt),
-			},
-			{
-				Name:        "project-directory",
-				Description: "The project directory to use for the Claude Code server.",
-				Env:         "CODER_MCP_CLAUDE_PROJECT_DIRECTORY",
-				Flag:        "claude-project-directory",
-				Value:       serpent.StringOf(&projectDirectory),
 			},
 			{
 				Name:        "test-binary-name",
@@ -428,7 +416,7 @@ func configureClaude(fs afero.Fs, cfg ClaudeConfig) error {
 			return xerrors.Errorf("failed to stat claude config: %w", err)
 		}
 		// Touch the file to create it if it doesn't exist.
-		if err = afero.WriteFile(fs, cfg.ConfigPath, []byte(`{}`), 0600); err != nil {
+		if err = afero.WriteFile(fs, cfg.ConfigPath, []byte(`{}`), 0o600); err != nil {
 			return xerrors.Errorf("failed to touch claude config: %w", err)
 		}
 	}
@@ -513,7 +501,7 @@ func configureClaude(fs afero.Fs, cfg ClaudeConfig) error {
 	if err != nil {
 		return xerrors.Errorf("failed to marshal claude config: %w", err)
 	}
-	err = afero.WriteFile(fs, cfg.ConfigPath, newConfigBytes, 0644)
+	err = afero.WriteFile(fs, cfg.ConfigPath, newConfigBytes, 0o644)
 	if err != nil {
 		return xerrors.Errorf("failed to write claude config: %w", err)
 	}

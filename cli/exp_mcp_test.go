@@ -143,8 +143,18 @@ func TestExpMcpServer(t *testing.T) {
 	})
 }
 
-func TestExpMcpConfigure(t *testing.T) {
-	t.Run("ClaudeCode", func(t *testing.T) {
+//nolint:tparallel,paralleltest
+func TestExpMcpConfigureClaudeCode(t *testing.T) {
+	t.Run("NoProjectDirectory", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitShort)
+		cancelCtx, cancel := context.WithCancel(ctx)
+		t.Cleanup(cancel)
+
+		inv, _ := clitest.New(t, "exp", "mcp", "configure", "claude-code")
+		err := inv.WithContext(cancelCtx).Run()
+		require.ErrorContains(t, err, "project directory is required")
+	})
+	t.Run("NewConfig", func(t *testing.T) {
 		t.Setenv("CODER_AGENT_TOKEN", "test-agent-token")
 		ctx := testutil.Context(t, testutil.WaitShort)
 		cancelCtx, cancel := context.WithCancel(ctx)
@@ -182,12 +192,10 @@ func TestExpMcpConfigure(t *testing.T) {
 			}
 		}`
 
-		inv, root := clitest.New(t, "exp", "mcp", "configure", "claude-code",
+		inv, root := clitest.New(t, "exp", "mcp", "configure", "claude-code", "/path/to/project",
 			"--claude-api-key=test-api-key",
 			"--claude-config-path="+claudeConfigPath,
-			"--claude-project-directory=/path/to/project",
 			"--claude-system-prompt=test-system-prompt",
-			"--claude-task-prompt=test-task-prompt",
 			"--claude-test-binary-name=pathtothecoderbinary",
 		)
 		clitest.SetupConfig(t, client, root)
@@ -246,12 +254,10 @@ func TestExpMcpConfigure(t *testing.T) {
 			}
 		}`
 
-		inv, root := clitest.New(t, "exp", "mcp", "configure", "claude-code",
+		inv, root := clitest.New(t, "exp", "mcp", "configure", "claude-code", "/path/to/project",
 			"--claude-api-key=test-api-key",
 			"--claude-config-path="+claudeConfigPath,
-			"--claude-project-directory=/path/to/project",
 			"--claude-system-prompt=test-system-prompt",
-			"--claude-task-prompt=test-task-prompt",
 			"--claude-test-binary-name=pathtothecoderbinary",
 		)
 
