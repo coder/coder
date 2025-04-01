@@ -1342,6 +1342,30 @@ func (q *sqlQuerier) GetFileByID(ctx context.Context, id uuid.UUID) (File, error
 	return i, err
 }
 
+const getFileIDByTemplateVersionID = `-- name: GetFileIDByTemplateVersionID :one
+SELECT
+	files.id
+FROM
+	files
+JOIN
+	provisioner_jobs ON
+		provisioner_jobs.storage_method = 'file'
+		AND provisioner_jobs.file_id = files.id
+JOIN
+	template_versions ON template_versions.job_id = provisioner_jobs.id
+WHERE
+	template_versions.id = $1
+LIMIT
+	1
+`
+
+func (q *sqlQuerier) GetFileIDByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, getFileIDByTemplateVersionID, templateVersionID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const getFileTemplates = `-- name: GetFileTemplates :many
 SELECT
 	files.id AS file_id,
@@ -3988,6 +4012,19 @@ func (q *sqlQuerier) BulkMarkNotificationMessagesSent(ctx context.Context, arg B
 	return result.RowsAffected()
 }
 
+const deleteAllWebpushSubscriptions = `-- name: DeleteAllWebpushSubscriptions :exec
+TRUNCATE TABLE webpush_subscriptions
+`
+
+// Deletes all existing webpush subscriptions.
+// This should be called when the VAPID keypair is regenerated, as the old
+// keypair will no longer be valid and all existing subscriptions will need to
+// be recreated.
+func (q *sqlQuerier) DeleteAllWebpushSubscriptions(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, deleteAllWebpushSubscriptions)
+	return err
+}
+
 const deleteOldNotificationMessages = `-- name: DeleteOldNotificationMessages :exec
 DELETE
 FROM notification_messages
@@ -4000,6 +4037,31 @@ WHERE id IN
 // Delete all notification messages which have not been updated for over a week.
 func (q *sqlQuerier) DeleteOldNotificationMessages(ctx context.Context) error {
 	_, err := q.db.ExecContext(ctx, deleteOldNotificationMessages)
+	return err
+}
+
+const deleteWebpushSubscriptionByUserIDAndEndpoint = `-- name: DeleteWebpushSubscriptionByUserIDAndEndpoint :exec
+DELETE FROM webpush_subscriptions
+WHERE user_id = $1 AND endpoint = $2
+`
+
+type DeleteWebpushSubscriptionByUserIDAndEndpointParams struct {
+	UserID   uuid.UUID `db:"user_id" json:"user_id"`
+	Endpoint string    `db:"endpoint" json:"endpoint"`
+}
+
+func (q *sqlQuerier) DeleteWebpushSubscriptionByUserIDAndEndpoint(ctx context.Context, arg DeleteWebpushSubscriptionByUserIDAndEndpointParams) error {
+	_, err := q.db.ExecContext(ctx, deleteWebpushSubscriptionByUserIDAndEndpoint, arg.UserID, arg.Endpoint)
+	return err
+}
+
+const deleteWebpushSubscriptions = `-- name: DeleteWebpushSubscriptions :exec
+DELETE FROM webpush_subscriptions
+WHERE id = ANY($1::uuid[])
+`
+
+func (q *sqlQuerier) DeleteWebpushSubscriptions(ctx context.Context, ids []uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteWebpushSubscriptions, pq.Array(ids))
 	return err
 }
 
@@ -4253,6 +4315,76 @@ func (q *sqlQuerier) GetUserNotificationPreferences(ctx context.Context, userID 
 		return nil, err
 	}
 	return items, nil
+}
+
+const getWebpushSubscriptionsByUserID = `-- name: GetWebpushSubscriptionsByUserID :many
+SELECT id, user_id, created_at, endpoint, endpoint_p256dh_key, endpoint_auth_key
+FROM webpush_subscriptions
+WHERE user_id = $1::uuid
+`
+
+func (q *sqlQuerier) GetWebpushSubscriptionsByUserID(ctx context.Context, userID uuid.UUID) ([]WebpushSubscription, error) {
+	rows, err := q.db.QueryContext(ctx, getWebpushSubscriptionsByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WebpushSubscription
+	for rows.Next() {
+		var i WebpushSubscription
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.CreatedAt,
+			&i.Endpoint,
+			&i.EndpointP256dhKey,
+			&i.EndpointAuthKey,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertWebpushSubscription = `-- name: InsertWebpushSubscription :one
+INSERT INTO webpush_subscriptions (user_id, created_at, endpoint, endpoint_p256dh_key, endpoint_auth_key)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, user_id, created_at, endpoint, endpoint_p256dh_key, endpoint_auth_key
+`
+
+type InsertWebpushSubscriptionParams struct {
+	UserID            uuid.UUID `db:"user_id" json:"user_id"`
+	CreatedAt         time.Time `db:"created_at" json:"created_at"`
+	Endpoint          string    `db:"endpoint" json:"endpoint"`
+	EndpointP256dhKey string    `db:"endpoint_p256dh_key" json:"endpoint_p256dh_key"`
+	EndpointAuthKey   string    `db:"endpoint_auth_key" json:"endpoint_auth_key"`
+}
+
+func (q *sqlQuerier) InsertWebpushSubscription(ctx context.Context, arg InsertWebpushSubscriptionParams) (WebpushSubscription, error) {
+	row := q.db.QueryRowContext(ctx, insertWebpushSubscription,
+		arg.UserID,
+		arg.CreatedAt,
+		arg.Endpoint,
+		arg.EndpointP256dhKey,
+		arg.EndpointAuthKey,
+	)
+	var i WebpushSubscription
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.CreatedAt,
+		&i.Endpoint,
+		&i.EndpointP256dhKey,
+		&i.EndpointAuthKey,
+	)
+	return i, err
 }
 
 const updateNotificationTemplateMethodByID = `-- name: UpdateNotificationTemplateMethodByID :one
@@ -8561,6 +8693,24 @@ func (q *sqlQuerier) GetRuntimeConfig(ctx context.Context, key string) (string, 
 	return value, err
 }
 
+const getWebpushVAPIDKeys = `-- name: GetWebpushVAPIDKeys :one
+SELECT
+    COALESCE((SELECT value FROM site_configs WHERE key = 'webpush_vapid_public_key'), '') :: text AS vapid_public_key,
+    COALESCE((SELECT value FROM site_configs WHERE key = 'webpush_vapid_private_key'), '') :: text AS vapid_private_key
+`
+
+type GetWebpushVAPIDKeysRow struct {
+	VapidPublicKey  string `db:"vapid_public_key" json:"vapid_public_key"`
+	VapidPrivateKey string `db:"vapid_private_key" json:"vapid_private_key"`
+}
+
+func (q *sqlQuerier) GetWebpushVAPIDKeys(ctx context.Context) (GetWebpushVAPIDKeysRow, error) {
+	row := q.db.QueryRowContext(ctx, getWebpushVAPIDKeys)
+	var i GetWebpushVAPIDKeysRow
+	err := row.Scan(&i.VapidPublicKey, &i.VapidPrivateKey)
+	return i, err
+}
+
 const insertDERPMeshKey = `-- name: InsertDERPMeshKey :exec
 INSERT INTO site_configs (key, value) VALUES ('derp_mesh_key', $1)
 `
@@ -8726,6 +8876,25 @@ type UpsertRuntimeConfigParams struct {
 
 func (q *sqlQuerier) UpsertRuntimeConfig(ctx context.Context, arg UpsertRuntimeConfigParams) error {
 	_, err := q.db.ExecContext(ctx, upsertRuntimeConfig, arg.Key, arg.Value)
+	return err
+}
+
+const upsertWebpushVAPIDKeys = `-- name: UpsertWebpushVAPIDKeys :exec
+INSERT INTO site_configs (key, value)
+VALUES
+    ('webpush_vapid_public_key', $1 :: text),
+    ('webpush_vapid_private_key', $2 :: text)
+ON CONFLICT (key)
+DO UPDATE SET value = EXCLUDED.value WHERE site_configs.key = EXCLUDED.key
+`
+
+type UpsertWebpushVAPIDKeysParams struct {
+	VapidPublicKey  string `db:"vapid_public_key" json:"vapid_public_key"`
+	VapidPrivateKey string `db:"vapid_private_key" json:"vapid_private_key"`
+}
+
+func (q *sqlQuerier) UpsertWebpushVAPIDKeys(ctx context.Context, arg UpsertWebpushVAPIDKeysParams) error {
+	_, err := q.db.ExecContext(ctx, upsertWebpushVAPIDKeys, arg.VapidPublicKey, arg.VapidPrivateKey)
 	return err
 }
 
@@ -10887,6 +11056,22 @@ type UpdateTemplateVersionExternalAuthProvidersByJobIDParams struct {
 func (q *sqlQuerier) UpdateTemplateVersionExternalAuthProvidersByJobID(ctx context.Context, arg UpdateTemplateVersionExternalAuthProvidersByJobIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateTemplateVersionExternalAuthProvidersByJobID, arg.JobID, arg.ExternalAuthProviders, arg.UpdatedAt)
 	return err
+}
+
+const getTemplateVersionTerraformValues = `-- name: GetTemplateVersionTerraformValues :one
+SELECT
+	template_version_terraform_values.template_version_id, template_version_terraform_values.updated_at, template_version_terraform_values.cached_plan
+FROM
+	template_version_terraform_values
+WHERE
+	template_version_terraform_values.template_version_id = $1
+`
+
+func (q *sqlQuerier) GetTemplateVersionTerraformValues(ctx context.Context, templateVersionID uuid.UUID) (TemplateVersionTerraformValue, error) {
+	row := q.db.QueryRowContext(ctx, getTemplateVersionTerraformValues, templateVersionID)
+	var i TemplateVersionTerraformValue
+	err := row.Scan(&i.TemplateVersionID, &i.UpdatedAt, &i.CachedPlan)
+	return i, err
 }
 
 const insertTemplateVersionTerraformValuesByJobID = `-- name: InsertTemplateVersionTerraformValuesByJobID :exec
@@ -14963,6 +15148,48 @@ func (q *sqlQuerier) UpsertWorkspaceAppAuditSession(ctx context.Context, arg Ups
 	return new_or_stale, err
 }
 
+const getLatestWorkspaceAppStatusesByWorkspaceIDs = `-- name: GetLatestWorkspaceAppStatusesByWorkspaceIDs :many
+SELECT DISTINCT ON (workspace_id)
+  id, created_at, agent_id, app_id, workspace_id, state, needs_user_attention, message, uri, icon
+FROM workspace_app_statuses 
+WHERE workspace_id = ANY($1 :: uuid[])
+ORDER BY workspace_id, created_at DESC
+`
+
+func (q *sqlQuerier) GetLatestWorkspaceAppStatusesByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAppStatus, error) {
+	rows, err := q.db.QueryContext(ctx, getLatestWorkspaceAppStatusesByWorkspaceIDs, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAppStatus
+	for rows.Next() {
+		var i WorkspaceAppStatus
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.AgentID,
+			&i.AppID,
+			&i.WorkspaceID,
+			&i.State,
+			&i.NeedsUserAttention,
+			&i.Message,
+			&i.Uri,
+			&i.Icon,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkspaceAppByAgentIDAndSlug = `-- name: GetWorkspaceAppByAgentIDAndSlug :one
 SELECT id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external, display_order, hidden, open_in FROM workspace_apps WHERE agent_id = $1 AND slug = $2
 `
@@ -14996,6 +15223,44 @@ func (q *sqlQuerier) GetWorkspaceAppByAgentIDAndSlug(ctx context.Context, arg Ge
 		&i.OpenIn,
 	)
 	return i, err
+}
+
+const getWorkspaceAppStatusesByAppIDs = `-- name: GetWorkspaceAppStatusesByAppIDs :many
+SELECT id, created_at, agent_id, app_id, workspace_id, state, needs_user_attention, message, uri, icon FROM workspace_app_statuses WHERE app_id = ANY($1 :: uuid [ ])
+`
+
+func (q *sqlQuerier) GetWorkspaceAppStatusesByAppIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAppStatus, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAppStatusesByAppIDs, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAppStatus
+	for rows.Next() {
+		var i WorkspaceAppStatus
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.AgentID,
+			&i.AppID,
+			&i.WorkspaceID,
+			&i.State,
+			&i.NeedsUserAttention,
+			&i.Message,
+			&i.Uri,
+			&i.Icon,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getWorkspaceAppsByAgentID = `-- name: GetWorkspaceAppsByAgentID :many
@@ -15224,6 +15489,54 @@ func (q *sqlQuerier) InsertWorkspaceApp(ctx context.Context, arg InsertWorkspace
 		&i.DisplayOrder,
 		&i.Hidden,
 		&i.OpenIn,
+	)
+	return i, err
+}
+
+const insertWorkspaceAppStatus = `-- name: InsertWorkspaceAppStatus :one
+INSERT INTO workspace_app_statuses (id, created_at, workspace_id, agent_id, app_id, state, message, needs_user_attention, uri, icon)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+RETURNING id, created_at, agent_id, app_id, workspace_id, state, needs_user_attention, message, uri, icon
+`
+
+type InsertWorkspaceAppStatusParams struct {
+	ID                 uuid.UUID               `db:"id" json:"id"`
+	CreatedAt          time.Time               `db:"created_at" json:"created_at"`
+	WorkspaceID        uuid.UUID               `db:"workspace_id" json:"workspace_id"`
+	AgentID            uuid.UUID               `db:"agent_id" json:"agent_id"`
+	AppID              uuid.UUID               `db:"app_id" json:"app_id"`
+	State              WorkspaceAppStatusState `db:"state" json:"state"`
+	Message            string                  `db:"message" json:"message"`
+	NeedsUserAttention bool                    `db:"needs_user_attention" json:"needs_user_attention"`
+	Uri                sql.NullString          `db:"uri" json:"uri"`
+	Icon               sql.NullString          `db:"icon" json:"icon"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceAppStatus(ctx context.Context, arg InsertWorkspaceAppStatusParams) (WorkspaceAppStatus, error) {
+	row := q.db.QueryRowContext(ctx, insertWorkspaceAppStatus,
+		arg.ID,
+		arg.CreatedAt,
+		arg.WorkspaceID,
+		arg.AgentID,
+		arg.AppID,
+		arg.State,
+		arg.Message,
+		arg.NeedsUserAttention,
+		arg.Uri,
+		arg.Icon,
+	)
+	var i WorkspaceAppStatus
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.AgentID,
+		&i.AppID,
+		&i.WorkspaceID,
+		&i.State,
+		&i.NeedsUserAttention,
+		&i.Message,
+		&i.Uri,
+		&i.Icon,
 	)
 	return i, err
 }

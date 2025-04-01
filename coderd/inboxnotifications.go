@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/pubsub"
 	markdown "github.com/coder/coder/v2/coderd/render"
 	"github.com/coder/coder/v2/codersdk"
@@ -28,9 +29,51 @@ const (
 	notificationFormatPlaintext = "plaintext"
 )
 
+var fallbackIcons = map[uuid.UUID]string{
+	// workspace related notifications
+	notifications.TemplateWorkspaceCreated:           codersdk.InboxNotificationFallbackIconWorkspace,
+	notifications.TemplateWorkspaceManuallyUpdated:   codersdk.InboxNotificationFallbackIconWorkspace,
+	notifications.TemplateWorkspaceDeleted:           codersdk.InboxNotificationFallbackIconWorkspace,
+	notifications.TemplateWorkspaceAutobuildFailed:   codersdk.InboxNotificationFallbackIconWorkspace,
+	notifications.TemplateWorkspaceDormant:           codersdk.InboxNotificationFallbackIconWorkspace,
+	notifications.TemplateWorkspaceAutoUpdated:       codersdk.InboxNotificationFallbackIconWorkspace,
+	notifications.TemplateWorkspaceMarkedForDeletion: codersdk.InboxNotificationFallbackIconWorkspace,
+	notifications.TemplateWorkspaceManualBuildFailed: codersdk.InboxNotificationFallbackIconWorkspace,
+	notifications.TemplateWorkspaceOutOfMemory:       codersdk.InboxNotificationFallbackIconWorkspace,
+	notifications.TemplateWorkspaceOutOfDisk:         codersdk.InboxNotificationFallbackIconWorkspace,
+
+	// account related notifications
+	notifications.TemplateUserAccountCreated:           codersdk.InboxNotificationFallbackIconAccount,
+	notifications.TemplateUserAccountDeleted:           codersdk.InboxNotificationFallbackIconAccount,
+	notifications.TemplateUserAccountSuspended:         codersdk.InboxNotificationFallbackIconAccount,
+	notifications.TemplateUserAccountActivated:         codersdk.InboxNotificationFallbackIconAccount,
+	notifications.TemplateYourAccountSuspended:         codersdk.InboxNotificationFallbackIconAccount,
+	notifications.TemplateYourAccountActivated:         codersdk.InboxNotificationFallbackIconAccount,
+	notifications.TemplateUserRequestedOneTimePasscode: codersdk.InboxNotificationFallbackIconAccount,
+
+	// template related notifications
+	notifications.TemplateTemplateDeleted:             codersdk.InboxNotificationFallbackIconTemplate,
+	notifications.TemplateTemplateDeprecated:          codersdk.InboxNotificationFallbackIconTemplate,
+	notifications.TemplateWorkspaceBuildsFailedReport: codersdk.InboxNotificationFallbackIconTemplate,
+}
+
+func ensureNotificationIcon(notif codersdk.InboxNotification) codersdk.InboxNotification {
+	if notif.Icon != "" {
+		return notif
+	}
+
+	fallbackIcon, ok := fallbackIcons[notif.TemplateID]
+	if !ok {
+		fallbackIcon = codersdk.InboxNotificationFallbackIconOther
+	}
+
+	notif.Icon = fallbackIcon
+	return notif
+}
+
 // convertInboxNotificationResponse works as a util function to transform a database.InboxNotification to codersdk.InboxNotification
 func convertInboxNotificationResponse(ctx context.Context, logger slog.Logger, notif database.InboxNotification) codersdk.InboxNotification {
-	return codersdk.InboxNotification{
+	convertedNotif := codersdk.InboxNotification{
 		ID:         notif.ID,
 		UserID:     notif.UserID,
 		TemplateID: notif.TemplateID,
@@ -54,6 +97,8 @@ func convertInboxNotificationResponse(ctx context.Context, logger slog.Logger, n
 		}(),
 		CreatedAt: notif.CreatedAt,
 	}
+
+	return ensureNotificationIcon(convertedNotif)
 }
 
 // watchInboxNotifications watches for new inbox notifications and sends them to the client.
@@ -147,7 +192,7 @@ func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request)
 
 				// keep a safe guard in case of latency to push notifications through websocket
 				select {
-				case notificationCh <- payload.InboxNotification:
+				case notificationCh <- ensureNotificationIcon(payload.InboxNotification):
 				default:
 					api.Logger.Error(ctx, "failed to push consumed notification into websocket handler, check latency")
 				}

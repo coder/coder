@@ -166,6 +166,16 @@
 							"title": "Zed",
 							"description": "Access your workspace with Zed",
 							"path": "./user-guides/workspace-access/zed.md"
+						},
+						{
+							"title": "Cursor",
+							"description": "Access your workspace with Cursor",
+							"path": "./user-guides/workspace-access/cursor.md"
+						},
+						{
+							"title": "Windsurf",
+							"description": "Access your workspace with Windsurf",
+							"path": "./user-guides/workspace-access/windsurf.md"
 						}
 					]
 				},
@@ -190,7 +200,7 @@
 				},
 				{
 					"title": "Workspace Lifecycle",
-					"description": "Cost control with workspace schedules",
+					"description": "A guide to the workspace lifecycle, from creation and status through stopping and deletion.",
 					"path": "./user-guides/workspace-lifecycle.md",
 					"icon_path": "./images/icons/circle-dot.svg"
 				},

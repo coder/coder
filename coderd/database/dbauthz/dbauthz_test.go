@@ -342,6 +342,15 @@ func (s *MethodTestSuite) TestFile() {
 		f := dbgen.File(s.T(), db, database.File{})
 		check.Args(f.ID).Asserts(f, policy.ActionRead).Returns(f)
 	}))
+	s.Run("GetFileIDByTemplateVersionID", s.Subtest(func(db database.Store, check *expects) {
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		u := dbgen.User(s.T(), db, database.User{})
+		_ = dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{OrganizationID: o.ID, UserID: u.ID})
+		f := dbgen.File(s.T(), db, database.File{CreatedBy: u.ID})
+		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{StorageMethod: database.ProvisionerStorageMethodFile, FileID: f.ID})
+		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{OrganizationID: o.ID, JobID: j.ID, CreatedBy: u.ID})
+		check.Args(tv.ID).Asserts(rbac.ResourceFile.WithID(f.ID), policy.ActionRead).Returns(f.ID)
+	}))
 	s.Run("InsertFile", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
 		check.Args(database.InsertFileParams{
@@ -1195,6 +1204,23 @@ func (s *MethodTestSuite) TestTemplate() {
 			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
 		})
 		check.Args(tv.ID).Asserts(t1, policy.ActionRead).Returns([]database.TemplateVersionParameter{})
+	}))
+	s.Run("GetTemplateVersionTerraformValues", s.Subtest(func(db database.Store, check *expects) {
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		u := dbgen.User(s.T(), db, database.User{})
+		_ = dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{OrganizationID: o.ID, UserID: u.ID})
+		t := dbgen.Template(s.T(), db, database.Template{OrganizationID: o.ID, CreatedBy: u.ID})
+		job := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{OrganizationID: o.ID})
+		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			OrganizationID: o.ID,
+			CreatedBy:      u.ID,
+			JobID:          job.ID,
+			TemplateID:     uuid.NullUUID{UUID: t.ID, Valid: true},
+		})
+		dbgen.TemplateVersionTerraformValues(s.T(), db, database.InsertTemplateVersionTerraformValuesByJobIDParams{
+			JobID: job.ID,
+		})
+		check.Args(tv.ID).Asserts(t, policy.ActionRead)
 	}))
 	s.Run("GetTemplateVersionVariables", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
@@ -3706,6 +3732,12 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			LoginType: database.LoginTypeGithub,
 		}).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(l)
 	}))
+	s.Run("GetLatestWorkspaceAppStatusesByWorkspaceIDs", s.Subtest(func(db database.Store, check *expects) {
+		check.Args([]uuid.UUID{}).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("GetWorkspaceAppStatusesByAppIDs", s.Subtest(func(db database.Store, check *expects) {
+		check.Args([]uuid.UUID{}).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
 	s.Run("GetLatestWorkspaceBuildsByWorkspaceIDs", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
@@ -4135,6 +4167,13 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			Options:           json.RawMessage("{}"),
 		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
+	s.Run("InsertWorkspaceAppStatus", s.Subtest(func(db database.Store, check *expects) {
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
+		check.Args(database.InsertWorkspaceAppStatusParams{
+			ID:    uuid.New(),
+			State: "working",
+		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	}))
 	s.Run("InsertWorkspaceResource", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		check.Args(database.InsertWorkspaceResourceParams{
@@ -4531,6 +4570,22 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	s.Run("UpsertOAuth2GithubDefaultEligible", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(true).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
+	s.Run("GetWebpushVAPIDKeys", s.Subtest(func(db database.Store, check *expects) {
+		require.NoError(s.T(), db.UpsertWebpushVAPIDKeys(context.Background(), database.UpsertWebpushVAPIDKeysParams{
+			VapidPublicKey:  "test",
+			VapidPrivateKey: "test",
+		}))
+		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns(database.GetWebpushVAPIDKeysRow{
+			VapidPublicKey:  "test",
+			VapidPrivateKey: "test",
+		})
+	}))
+	s.Run("UpsertWebpushVAPIDKeys", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.UpsertWebpushVAPIDKeysParams{
+			VapidPublicKey:  "test",
+			VapidPrivateKey: "test",
+		}).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
+	}))
 }
 
 func (s *MethodTestSuite) TestNotifications() {
@@ -4566,6 +4621,39 @@ func (s *MethodTestSuite) TestNotifications() {
 			Status: database.NotificationMessageStatusLeased,
 			Limit:  10,
 		}).Asserts(rbac.ResourceNotificationMessage, policy.ActionRead)
+	}))
+
+	// webpush subscriptions
+	s.Run("GetWebpushSubscriptionsByUserID", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		check.Args(user.ID).Asserts(rbac.ResourceWebpushSubscription.WithOwner(user.ID.String()), policy.ActionRead)
+	}))
+	s.Run("InsertWebpushSubscription", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		check.Args(database.InsertWebpushSubscriptionParams{
+			UserID: user.ID,
+		}).Asserts(rbac.ResourceWebpushSubscription.WithOwner(user.ID.String()), policy.ActionCreate)
+	}))
+	s.Run("DeleteWebpushSubscriptions", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		push := dbgen.WebpushSubscription(s.T(), db, database.InsertWebpushSubscriptionParams{
+			UserID: user.ID,
+		})
+		check.Args([]uuid.UUID{push.ID}).Asserts(rbac.ResourceSystem, policy.ActionDelete)
+	}))
+	s.Run("DeleteWebpushSubscriptionByUserIDAndEndpoint", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		push := dbgen.WebpushSubscription(s.T(), db, database.InsertWebpushSubscriptionParams{
+			UserID: user.ID,
+		})
+		check.Args(database.DeleteWebpushSubscriptionByUserIDAndEndpointParams{
+			UserID:   user.ID,
+			Endpoint: push.Endpoint,
+		}).Asserts(rbac.ResourceWebpushSubscription.WithOwner(user.ID.String()), policy.ActionDelete)
+	}))
+	s.Run("DeleteAllWebpushSubscriptions", s.Subtest(func(_ database.Store, check *expects) {
+		check.Args().
+			Asserts(rbac.ResourceWebpushSubscription, policy.ActionDelete)
 	}))
 
 	// Notification templates

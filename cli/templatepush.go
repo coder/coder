@@ -137,8 +137,9 @@ func (r *RootCmd) templatePush() *serpent.Command {
 				UserVariableValues: userVariableValues,
 			}
 
+			// This ensures the version name is set in the request arguments regardless of whether you're creating a new template or updating an existing one.
+			args.Name = versionName
 			if !createTemplate {
-				args.Name = versionName
 				args.Template = &template
 				args.ReuseParameters = !alwaysPrompt
 			}

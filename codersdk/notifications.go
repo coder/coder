@@ -213,3 +213,70 @@ type UpdateNotificationTemplateMethod struct {
 type UpdateUserNotificationPreferences struct {
 	TemplateDisabledMap map[string]bool `json:"template_disabled_map"`
 }
+
+type WebpushMessageAction struct {
+	Label string `json:"label"`
+	URL   string `json:"url"`
+}
+
+type WebpushMessage struct {
+	Icon    string                 `json:"icon"`
+	Title   string                 `json:"title"`
+	Body    string                 `json:"body"`
+	Actions []WebpushMessageAction `json:"actions"`
+}
+
+type WebpushSubscription struct {
+	Endpoint  string `json:"endpoint"`
+	AuthKey   string `json:"auth_key"`
+	P256DHKey string `json:"p256dh_key"`
+}
+
+type DeleteWebpushSubscription struct {
+	Endpoint string `json:"endpoint"`
+}
+
+// PostWebpushSubscription creates a push notification subscription for a given user.
+func (c *Client) PostWebpushSubscription(ctx context.Context, user string, req WebpushSubscription) error {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/webpush/subscription", user), req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// DeleteWebpushSubscription deletes a push notification subscription for a given user.
+// Think of this as an unsubscribe, but for a specific push notification subscription.
+func (c *Client) DeleteWebpushSubscription(ctx context.Context, user string, req DeleteWebpushSubscription) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/users/%s/webpush/subscription", user), req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+func (c *Client) PostTestWebpushMessage(ctx context.Context) error {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/webpush/test", Me), WebpushMessage{
+		Title: "It's working!",
+		Body:  "You've subscribed to push notifications.",
+	})
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
