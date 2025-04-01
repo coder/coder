@@ -3,6 +3,8 @@ package cli_test
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"runtime"
 	"slices"
 	"testing"
@@ -16,7 +18,7 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestExpMcp(t *testing.T) {
+func TestExpMcpServer(t *testing.T) {
 	t.Parallel()
 
 	// Reading to / writing from the PTY is flaky on non-linux systems.
@@ -138,5 +140,128 @@ func TestExpMcp(t *testing.T) {
 
 		err := inv.Run()
 		assert.ErrorContains(t, err, "your session has expired")
+	})
+}
+
+func TestExpMcpConfigure(t *testing.T) {
+	t.Run("ClaudeCode", func(t *testing.T) {
+		t.Setenv("CODER_AGENT_TOKEN", "test-agent-token")
+		ctx := testutil.Context(t, testutil.WaitShort)
+		cancelCtx, cancel := context.WithCancel(ctx)
+		t.Cleanup(cancel)
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		tmpDir := t.TempDir()
+		claudeConfigPath := filepath.Join(tmpDir, "claude.json")
+		expectedConfig := `{
+			"autoUpdaterStatus": "disabled",
+			"bypassPermissionsModeAccepted": true,
+			"hasAcknowledgedCostThreshold": true,
+			"hasCompletedOnboarding": true,
+			"primaryApiKey": "test-api-key",
+			"projects": {
+				"/path/to/project": {
+					"allowedTools": [],
+					"hasCompletedProjectOnboarding": true,
+					"hasTrustDialogAccepted": true,
+					"history": [
+						"make sure to read claude.md and report tasks properly"
+					],
+					"mcpServers": {
+						"coder": {
+							"command": "pathtothecoderbinary",
+							"args": ["exp", "mcp", "server"],
+							"env": {
+								"CODER_AGENT_TOKEN": "test-agent-token"
+							}
+						}
+					}
+				}
+			}
+		}`
+
+		inv, root := clitest.New(t, "exp", "mcp", "configure", "claude-code",
+			"--claude-api-key=test-api-key",
+			"--claude-config-path="+claudeConfigPath,
+			"--claude-project-directory=/path/to/project",
+			"--claude-system-prompt=test-system-prompt",
+			"--claude-task-prompt=test-task-prompt",
+			"--claude-test-binary-name=pathtothecoderbinary",
+		)
+		clitest.SetupConfig(t, client, root)
+
+		err := inv.WithContext(cancelCtx).Run()
+		require.NoError(t, err, "failed to configure claude code")
+		require.FileExists(t, claudeConfigPath, "claude config file should exist")
+		claudeConfig, err := os.ReadFile(claudeConfigPath)
+		require.NoError(t, err, "failed to read claude config path")
+		testutil.RequireJSONEq(t, expectedConfig, string(claudeConfig))
+	})
+
+	t.Run("ExistingConfig", func(t *testing.T) {
+		t.Setenv("CODER_AGENT_TOKEN", "test-agent-token")
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		cancelCtx, cancel := context.WithCancel(ctx)
+		t.Cleanup(cancel)
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		tmpDir := t.TempDir()
+		claudeConfigPath := filepath.Join(tmpDir, "claude.json")
+		err := os.WriteFile(claudeConfigPath, []byte(`{
+			"bypassPermissionsModeAccepted": false,
+			"hasCompletedOnboarding": false,
+			"primaryApiKey": "magic-api-key"
+		}`), 0o600)
+		require.NoError(t, err, "failed to write claude config path")
+
+		expectedConfig := `{
+			"autoUpdaterStatus": "disabled",
+			"bypassPermissionsModeAccepted": true,
+			"hasAcknowledgedCostThreshold": true,
+			"hasCompletedOnboarding": true,
+			"primaryApiKey": "test-api-key",
+			"projects": {
+				"/path/to/project": {
+					"allowedTools": [],
+					"hasCompletedProjectOnboarding": true,
+					"hasTrustDialogAccepted": true,
+					"history": [
+						"make sure to read claude.md and report tasks properly"
+					],
+					"mcpServers": {
+						"coder": {
+							"command": "pathtothecoderbinary",
+							"args": ["exp", "mcp", "server"],
+							"env": {
+								"CODER_AGENT_TOKEN": "test-agent-token"
+							}
+						}
+					}
+				}
+			}
+		}`
+
+		inv, root := clitest.New(t, "exp", "mcp", "configure", "claude-code",
+			"--claude-api-key=test-api-key",
+			"--claude-config-path="+claudeConfigPath,
+			"--claude-project-directory=/path/to/project",
+			"--claude-system-prompt=test-system-prompt",
+			"--claude-task-prompt=test-task-prompt",
+			"--claude-test-binary-name=pathtothecoderbinary",
+		)
+
+		clitest.SetupConfig(t, client, root)
+
+		err = inv.WithContext(cancelCtx).Run()
+		require.NoError(t, err, "failed to configure claude code")
+		require.FileExists(t, claudeConfigPath, "claude config file should exist")
+		claudeConfig, err := os.ReadFile(claudeConfigPath)
+		require.NoError(t, err, "failed to read claude config path")
+		testutil.RequireJSONEq(t, expectedConfig, string(claudeConfig))
 	})
 }

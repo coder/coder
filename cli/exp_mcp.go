@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 
 	"github.com/mark3labs/mcp-go/server"
+	"github.com/spf13/afero"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
@@ -106,11 +108,94 @@ func (*RootCmd) mcpConfigureClaudeDesktop() *serpent.Command {
 }
 
 func (*RootCmd) mcpConfigureClaudeCode() *serpent.Command {
+	var (
+		apiKey           string
+		claudeConfigPath string
+		projectDirectory string
+		systemPrompt     string
+		taskPrompt       string
+		testBinaryName   string
+	)
 	cmd := &serpent.Command{
 		Use:   "claude-code",
 		Short: "Configure the Claude Code server.",
-		Handler: func(_ *serpent.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
+			fs := afero.NewOsFs()
+			binPath, err := os.Executable()
+			if err != nil {
+				return xerrors.Errorf("failed to get executable path: %w", err)
+			}
+			if testBinaryName != "" {
+				binPath = testBinaryName
+			}
+			configureClaudeEnv := map[string]string{}
+			if _, ok := os.LookupEnv("CODER_AGENT_TOKEN"); ok {
+				configureClaudeEnv["CODER_AGENT_TOKEN"] = os.Getenv("CODER_AGENT_TOKEN")
+			}
+
+			if err := configureClaude(fs, ClaudeConfig{
+				AllowedTools:     []string{},
+				APIKey:           apiKey,
+				ConfigPath:       claudeConfigPath,
+				ProjectDirectory: projectDirectory,
+				MCPServers: map[string]ClaudeConfigMCP{
+					"coder": {
+						Command: binPath,
+						Args:    []string{"exp", "mcp", "server"},
+						Env:     configureClaudeEnv,
+					},
+				},
+			}); err != nil {
+				return xerrors.Errorf("failed to configure claude: %w", err)
+			}
+			cliui.Infof(inv.Stderr, "Wrote config to %s", claudeConfigPath)
 			return nil
+		},
+		Options: []serpent.Option{
+			{
+				Name:        "claude-config-path",
+				Description: "The path to the Claude config file.",
+				Env:         "CODER_MCP_CLAUDE_CONFIG_PATH",
+				Flag:        "claude-config-path",
+				Value:       serpent.StringOf(&claudeConfigPath),
+				Default:     filepath.Join(os.Getenv("HOME"), ".claude.json"),
+			},
+			{
+				Name:        "api-key",
+				Description: "The API key to use for the Claude Code server.",
+				Env:         "CODER_MCP_CLAUDE_API_KEY",
+				Flag:        "claude-api-key",
+				Value:       serpent.StringOf(&apiKey),
+			},
+			{
+				Name:        "system-prompt",
+				Description: "The system prompt to use for the Claude Code server.",
+				Env:         "CODER_MCP_CLAUDE_SYSTEM_PROMPT",
+				Flag:        "claude-system-prompt",
+				Value:       serpent.StringOf(&systemPrompt),
+			},
+			{
+				Name:        "task-prompt",
+				Description: "The task prompt to use for the Claude Code server.",
+				Env:         "CODER_MCP_CLAUDE_TASK_PROMPT",
+				Flag:        "claude-task-prompt",
+				Value:       serpent.StringOf(&taskPrompt),
+			},
+			{
+				Name:        "project-directory",
+				Description: "The project directory to use for the Claude Code server.",
+				Env:         "CODER_MCP_CLAUDE_PROJECT_DIRECTORY",
+				Flag:        "claude-project-directory",
+				Value:       serpent.StringOf(&projectDirectory),
+			},
+			{
+				Name:        "test-binary-name",
+				Description: "Only used for testing.",
+				Env:         "CODER_MCP_CLAUDE_TEST_BINARY_NAME",
+				Flag:        "claude-test-binary-name",
+				Value:       serpent.StringOf(&testBinaryName),
+				Hidden:      true,
+			},
 		},
 	}
 	return cmd
@@ -315,5 +400,122 @@ func mcpServerHandler(inv *serpent.Invocation, client *codersdk.Client, instruct
 		}
 	}
 
+	return nil
+}
+
+type ClaudeConfig struct {
+	ConfigPath       string
+	ProjectDirectory string
+	APIKey           string
+	AllowedTools     []string
+	MCPServers       map[string]ClaudeConfigMCP
+}
+
+type ClaudeConfigMCP struct {
+	Command string            `json:"command"`
+	Args    []string          `json:"args"`
+	Env     map[string]string `json:"env"`
+}
+
+func configureClaude(fs afero.Fs, cfg ClaudeConfig) error {
+	if cfg.ConfigPath == "" {
+		cfg.ConfigPath = filepath.Join(os.Getenv("HOME"), ".claude.json")
+	}
+	var config map[string]any
+	_, err := fs.Stat(cfg.ConfigPath)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return xerrors.Errorf("failed to stat claude config: %w", err)
+		}
+		// Touch the file to create it if it doesn't exist.
+		if err = afero.WriteFile(fs, cfg.ConfigPath, []byte(`{}`), 0600); err != nil {
+			return xerrors.Errorf("failed to touch claude config: %w", err)
+		}
+	}
+	oldConfigBytes, err := afero.ReadFile(fs, cfg.ConfigPath)
+	if err != nil {
+		return xerrors.Errorf("failed to read claude config: %w", err)
+	}
+	err = json.Unmarshal(oldConfigBytes, &config)
+	if err != nil {
+		return xerrors.Errorf("failed to unmarshal claude config: %w", err)
+	}
+
+	if cfg.APIKey != "" {
+		// Stops Claude from requiring the user to generate
+		// a Claude-specific API key.
+		config["primaryApiKey"] = cfg.APIKey
+	}
+	// Stops Claude from asking for onboarding.
+	config["hasCompletedOnboarding"] = true
+	// Stops Claude from asking for permissions.
+	config["bypassPermissionsModeAccepted"] = true
+	config["autoUpdaterStatus"] = "disabled"
+	// Stops Claude from asking for cost threshold.
+	config["hasAcknowledgedCostThreshold"] = true
+
+	projects, ok := config["projects"].(map[string]any)
+	if !ok {
+		projects = make(map[string]any)
+	}
+
+	project, ok := projects[cfg.ProjectDirectory].(map[string]any)
+	if !ok {
+		project = make(map[string]any)
+	}
+
+	allowedTools, ok := project["allowedTools"].([]string)
+	if !ok {
+		allowedTools = []string{}
+	}
+
+	// Add cfg.AllowedTools to the list if they're not already present.
+	for _, tool := range cfg.AllowedTools {
+		for _, existingTool := range allowedTools {
+			if tool == existingTool {
+				continue
+			}
+		}
+		allowedTools = append(allowedTools, tool)
+	}
+	project["allowedTools"] = allowedTools
+	project["hasTrustDialogAccepted"] = true
+	project["hasCompletedProjectOnboarding"] = true
+
+	mcpServers, ok := project["mcpServers"].(map[string]any)
+	if !ok {
+		mcpServers = make(map[string]any)
+	}
+	for name, mcp := range cfg.MCPServers {
+		mcpServers[name] = mcp
+	}
+	project["mcpServers"] = mcpServers
+	// Prevents Claude from asking the user to complete the project onboarding.
+	project["hasCompletedProjectOnboarding"] = true
+
+	history, ok := project["history"].([]string)
+	injectedHistoryLine := "make sure to read claude.md and report tasks properly"
+
+	if !ok || len(history) == 0 {
+		// History doesn't exist or is empty, create it with our injected line
+		history = []string{injectedHistoryLine}
+	} else if history[0] != injectedHistoryLine {
+		// Check if our line is already the first item
+		// Prepend our line to the existing history
+		history = append([]string{injectedHistoryLine}, history...)
+	}
+	project["history"] = history
+
+	projects[cfg.ProjectDirectory] = project
+	config["projects"] = projects
+
+	newConfigBytes, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return xerrors.Errorf("failed to marshal claude config: %w", err)
+	}
+	err = afero.WriteFile(fs, cfg.ConfigPath, newConfigBytes, 0644)
+	if err != nil {
+		return xerrors.Errorf("failed to write claude config: %w", err)
+	}
 	return nil
 }
