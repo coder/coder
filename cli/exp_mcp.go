@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 
 	"github.com/mark3labs/mcp-go/server"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
@@ -195,16 +194,15 @@ func (*RootCmd) mcpConfigureCursor() *serpent.Command {
 
 func (r *RootCmd) mcpServer() *serpent.Command {
 	var (
-		client         = new(codersdk.Client)
-		instructions   string
-		allowedTools   []string
-		appStatusSlug  string
-		mcpServerAgent bool
+		client        = new(codersdk.Client)
+		instructions  string
+		allowedTools  []string
+		appStatusSlug string
 	)
 	return &serpent.Command{
 		Use: "server",
 		Handler: func(inv *serpent.Invocation) error {
-			return mcpServerHandler(inv, client, instructions, allowedTools, appStatusSlug, mcpServerAgent)
+			return mcpServerHandler(inv, client, instructions, allowedTools, appStatusSlug)
 		},
 		Short: "Start the Coder MCP server.",
 		Middleware: serpent.Chain(
@@ -233,18 +231,11 @@ func (r *RootCmd) mcpServer() *serpent.Command {
 				Value:       serpent.StringOf(&appStatusSlug),
 				Default:     "",
 			},
-			{
-				Flag:        "agent",
-				Env:         "CODER_MCP_SERVER_AGENT",
-				Description: "Start the MCP server in agent mode, with a different set of tools.",
-				Value:       serpent.BoolOf(&mcpServerAgent),
-			},
 		},
 	}
 }
 
-//nolint:revive // control coupling
-func mcpServerHandler(inv *serpent.Invocation, client *codersdk.Client, instructions string, allowedTools []string, appStatusSlug string, mcpServerAgent bool) error {
+func mcpServerHandler(inv *serpent.Invocation, client *codersdk.Client, instructions string, allowedTools []string, appStatusSlug string) error {
 	ctx, cancel := context.WithCancel(inv.Context())
 	defer cancel()
 
@@ -290,13 +281,15 @@ func mcpServerHandler(inv *serpent.Invocation, client *codersdk.Client, instruct
 		AgentClient:   agentsdk.New(client.URL),
 	}
 
-	if mcpServerAgent {
-		// Get the workspace agent token from the environment.
-		agentToken, ok := os.LookupEnv("CODER_AGENT_TOKEN")
-		if !ok || agentToken == "" {
-			return xerrors.New("CODER_AGENT_TOKEN is not set")
-		}
+	// Get the workspace agent token from the environment.
+	agentToken, ok := os.LookupEnv("CODER_AGENT_TOKEN")
+	if ok && agentToken != "" {
 		toolDeps.AgentClient.SetSessionToken(agentToken)
+	} else {
+		cliui.Warnf(inv.Stderr, "CODER_AGENT_TOKEN is not set, task reporting will not be available")
+	}
+	if appStatusSlug == "" {
+		cliui.Warnf(inv.Stderr, "CODER_MCP_APP_STATUS_SLUG is not set, task reporting will not be available.")
 	}
 
 	// Register tools based on the allowlist (if specified)
