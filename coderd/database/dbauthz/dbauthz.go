@@ -2459,23 +2459,12 @@ func (q *querier) GetTemplateVersionParameters(ctx context.Context, templateVers
 }
 
 func (q *querier) GetTemplateVersionTerraformValues(ctx context.Context, templateVersionID uuid.UUID) (database.TemplateVersionTerraformValue, error) {
-	tv, err := q.db.GetTemplateVersionByID(ctx, templateVersionID)
+	// The template_version_terraform_values table should follow the same access
+	// control as the template_version table. Rather than reimplement the checks,
+	// we just defer to existing implementation. (plus we'd need to use this query
+	// to reimplement the proper checks anyway)
+	_, err := q.GetTemplateVersionByID(ctx, templateVersionID)
 	if err != nil {
-		return database.TemplateVersionTerraformValue{}, err
-	}
-
-	var object rbac.Objecter
-	template, err := q.db.GetTemplateByID(ctx, tv.TemplateID.UUID)
-	if err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			return database.TemplateVersionTerraformValue{}, err
-		}
-		object = rbac.ResourceTemplate.InOrg(tv.OrganizationID)
-	} else {
-		object = tv.RBACObject(template)
-	}
-
-	if err := q.authorizeContext(ctx, policy.ActionRead, object); err != nil {
 		return database.TemplateVersionTerraformValue{}, err
 	}
 	return q.db.GetTemplateVersionTerraformValues(ctx, templateVersionID)
