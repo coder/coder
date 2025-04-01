@@ -1,4 +1,4 @@
-import { organizationsPermissions } from "api/queries/organizations";
+import { workspacePermissionsByOrganization } from "api/queries/organizations";
 import { templateExamples, templates } from "api/queries/templates";
 import { useFilter } from "components/Filter/Filter";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
@@ -27,14 +27,16 @@ export const TemplatesPage: FC = () => {
 		enabled: permissions.createTemplates,
 	});
 
-	const orgPermissionsQuery = useQuery(
-		organizationsPermissions(
+	const workspacePermissionsQuery = useQuery(
+		workspacePermissionsByOrganization(
 			templatesQuery.data?.map((template) => template.organization_id),
 		),
 	);
 
 	const error =
-		templatesQuery.error || examplesQuery.error || orgPermissionsQuery.error;
+		templatesQuery.error ||
+		examplesQuery.error ||
+		workspacePermissionsQuery.error;
 
 	return (
 		<>
@@ -48,7 +50,7 @@ export const TemplatesPage: FC = () => {
 				canCreateTemplates={permissions.createTemplates}
 				examples={examplesQuery.data}
 				templates={templatesQuery.data}
-				orgPermissions={orgPermissionsQuery.data}
+				workspacePermissions={workspacePermissionsQuery.data}
 			/>
 		</>
 	);

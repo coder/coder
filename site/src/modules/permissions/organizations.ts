@@ -115,14 +115,6 @@ export const organizationPermissionChecks = (organizationId: string) =>
 			},
 			action: "update",
 		},
-		createWorkspaces: {
-			object: {
-				resource_type: "workspace",
-				organization_id: organizationId,
-				owner_id: "*",
-			},
-			action: "create",
-		},
 	}) as const satisfies Record<string, AuthorizationCheck>;
 
 /**

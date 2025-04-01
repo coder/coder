@@ -31,7 +31,6 @@ import {
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
 import { linkToTemplate, useLinks } from "modules/navigation";
-import type { OrganizationPermissions } from "modules/permissions/organizations";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
@@ -159,7 +158,7 @@ export type TemplatePageHeaderProps = {
 	template: Template;
 	activeVersion: TemplateVersion;
 	permissions: AuthorizationResponse;
-	orgPermissions: OrganizationPermissions | undefined;
+	workspacePermissions: AuthorizationResponse;
 	onDeleteTemplate: () => void;
 };
 
@@ -167,7 +166,7 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
 	template,
 	activeVersion,
 	permissions,
-	orgPermissions,
+	workspacePermissions,
 	onDeleteTemplate,
 }) => {
 	const getLink = useLinks();
@@ -180,16 +179,17 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
 			<PageHeader
 				actions={
 					<>
-						{!template.deprecated && orgPermissions?.createWorkspaces && (
-							<Button
-								variant="contained"
-								startIcon={<AddIcon />}
-								component={RouterLink}
-								to={`${templateLink}/workspace`}
-							>
-								Create Workspace
-							</Button>
-						)}
+						{!template.deprecated &&
+							workspacePermissions.createWorkspaceForUser && (
+								<Button
+									variant="contained"
+									startIcon={<AddIcon />}
+									component={RouterLink}
+									to={`${templateLink}/workspace`}
+								>
+									Create Workspace
+								</Button>
+							)}
 
 						{permissions.canUpdateTemplate && (
 							<TemplateMenu

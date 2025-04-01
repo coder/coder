@@ -1,4 +1,4 @@
-import { organizationsPermissions } from "api/queries/organizations";
+import { workspacePermissionsByOrganization } from "api/queries/organizations";
 import { templates } from "api/queries/templates";
 import type { Workspace } from "api/typesGenerated";
 import { useFilter } from "components/Filter/Filter";
@@ -46,7 +46,7 @@ const WorkspacesPage: FC = () => {
 	const templatesQuery = useQuery(templates());
 
 	const orgPermissionsQuery = useQuery(
-		organizationsPermissions(
+		workspacePermissionsByOrganization(
 			templatesQuery.data?.map((template) => template.organization_id),
 		),
 	);
@@ -59,7 +59,7 @@ const WorkspacesPage: FC = () => {
 
 		return templatesQuery.data.filter((template) => {
 			const orgPermission = orgPermissionsQuery.data[template.organization_id];
-			return orgPermission?.createWorkspaces;
+			return orgPermission?.createWorkspaceForUser;
 		});
 	}, [templatesQuery.data, orgPermissionsQuery.data]);
 

@@ -40,7 +40,7 @@ import {
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import { PlusIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
-import type { OrganizationPermissions } from "modules/permissions/organizations";
+import type { WorkspacePermissions } from "modules/permissions/workspaces";
 import type { FC } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { createDayString } from "utils/createDayString";
@@ -88,13 +88,13 @@ const TemplateHelpTooltip: FC = () => {
 interface TemplateRowProps {
 	showOrganizations: boolean;
 	template: Template;
-	orgPermissions: Record<string, OrganizationPermissions> | undefined;
+	workspacePermissions: Record<string, WorkspacePermissions> | undefined;
 }
 
 const TemplateRow: FC<TemplateRowProps> = ({
 	showOrganizations,
 	template,
-	orgPermissions,
+	workspacePermissions,
 }) => {
 	const getLink = useLinks();
 	const templatePageLink = getLink(
@@ -159,7 +159,8 @@ const TemplateRow: FC<TemplateRowProps> = ({
 			<TableCell css={styles.actionCell}>
 				{template.deprecated ? (
 					<DeprecatedBadge />
-				) : orgPermissions?.[template.organization_id]?.createWorkspaces ? (
+				) : workspacePermissions?.[template.organization_id]
+						?.createWorkspaceForUser ? (
 					<MuiButton
 						size="small"
 						css={styles.actionButton}
@@ -186,7 +187,7 @@ export interface TemplatesPageViewProps {
 	canCreateTemplates: boolean;
 	examples: TemplateExample[] | undefined;
 	templates: Template[] | undefined;
-	orgPermissions: Record<string, OrganizationPermissions> | undefined;
+	workspacePermissions: Record<string, WorkspacePermissions> | undefined;
 }
 
 export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
@@ -196,7 +197,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 	canCreateTemplates,
 	examples,
 	templates,
-	orgPermissions,
+	workspacePermissions,
 }) => {
 	const isLoading = !templates;
 	const isEmpty = templates && templates.length === 0;
@@ -258,7 +259,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 									key={template.id}
 									showOrganizations={showOrganizations}
 									template={template}
-									orgPermissions={orgPermissions}
+									workspacePermissions={workspacePermissions}
 								/>
 							))
 						)}
