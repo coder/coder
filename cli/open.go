@@ -42,6 +42,7 @@ func (r *RootCmd) openVSCode() *serpent.Command {
 		generateToken    bool
 		testOpenError    bool
 		appearanceConfig codersdk.AppearanceConfig
+		containerName    string
 	)
 
 	client := new(codersdk.Client)
@@ -112,27 +113,46 @@ func (r *RootCmd) openVSCode() *serpent.Command {
 			if len(inv.Args) > 1 {
 				directory = inv.Args[1]
 			}
+
+			if containerName != "" {
+				containers, err := client.WorkspaceAgentListContainers(ctx, workspaceAgent.ID, map[string]string{"devcontainer.local_folder": ""})
+				if err != nil {
+					return xerrors.Errorf("list workspace agent containers: %w", err)
+				}
+
+				var foundContainer bool
+
+				for _, container := range containers.Containers {
+					if container.FriendlyName == containerName {
+						foundContainer = true
+
+						if directory == "" {
+							localFolder, ok := container.Labels["devcontainer.local_folder"]
+							if !ok {
+								return xerrors.New("container missing `devcontainer.local_folder` label")
+							}
+
+							directory, ok = container.Volumes[localFolder]
+							if !ok {
+								return xerrors.New("container missing volume for `devcontainer.local_folder`")
+							}
+						}
+
+						break
+					}
+				}
+
+				if !foundContainer {
+					return xerrors.New("no container found")
+				}
+			}
+
 			directory, err = resolveAgentAbsPath(workspaceAgent.ExpandedDirectory, directory, workspaceAgent.OperatingSystem, insideThisWorkspace)
 			if err != nil {
 				return xerrors.Errorf("resolve agent path: %w", err)
 			}
 
-			u := &url.URL{
-				Scheme: "vscode",
-				Host:   "coder.coder-remote",
-				Path:   "/open",
-			}
-
-			qp := url.Values{}
-
-			qp.Add("url", client.URL.String())
-			qp.Add("owner", workspace.OwnerName)
-			qp.Add("workspace", workspace.Name)
-			qp.Add("agent", workspaceAgent.Name)
-			if directory != "" {
-				qp.Add("folder", directory)
-			}
-
+			var token string
 			// We always set the token if we believe we can open without
 			// printing the URI, otherwise the token must be explicitly
 			// requested as it will be printed in plain text.
@@ -145,10 +165,31 @@ func (r *RootCmd) openVSCode() *serpent.Command {
 				if err != nil {
 					return xerrors.Errorf("create API key: %w", err)
 				}
-				qp.Add("token", apiKey.Key)
+				token = apiKey.Key
 			}
 
-			u.RawQuery = qp.Encode()
+			var (
+				u  *url.URL
+				qp url.Values
+			)
+			if containerName != "" {
+				u, qp = buildVSCodeWorkspaceDevContainerLink(
+					token,
+					client.URL.String(),
+					workspace,
+					workspaceAgent,
+					containerName,
+					directory,
+				)
+			} else {
+				u, qp = buildVSCodeWorkspaceLink(
+					token,
+					client.URL.String(),
+					workspace,
+					workspaceAgent,
+					directory,
+				)
+			}
 
 			openingPath := workspaceName
 			if directory != "" {
@@ -203,6 +244,12 @@ func (r *RootCmd) openVSCode() *serpent.Command {
 				vscodeDesktopName,
 			),
 			Value: serpent.BoolOf(&generateToken),
+		},
+		{
+			Flag:          "container",
+			FlagShorthand: "c",
+			Description:   "Container name to connect to in the workspace.",
+			Value:         serpent.StringOf(&containerName),
 		},
 		{
 			Flag:        "test.open-error",
@@ -342,6 +389,63 @@ func (r *RootCmd) openApp() *serpent.Command {
 	}
 
 	return cmd
+}
+
+func buildVSCodeWorkspaceLink(
+	token string,
+	clientURL string,
+	workspace codersdk.Workspace,
+	workspaceAgent codersdk.WorkspaceAgent,
+	directory string,
+) (*url.URL, url.Values) {
+	qp := url.Values{}
+	qp.Add("url", clientURL)
+	qp.Add("owner", workspace.OwnerName)
+	qp.Add("workspace", workspace.Name)
+	qp.Add("agent", workspaceAgent.Name)
+
+	if directory != "" {
+		qp.Add("folder", directory)
+	}
+
+	if token != "" {
+		qp.Add("token", token)
+	}
+
+	return &url.URL{
+		Scheme:   "vscode",
+		Host:     "coder.coder-remote",
+		Path:     "/open",
+		RawQuery: qp.Encode(),
+	}, qp
+}
+
+func buildVSCodeWorkspaceDevContainerLink(
+	token string,
+	clientURL string,
+	workspace codersdk.Workspace,
+	workspaceAgent codersdk.WorkspaceAgent,
+	containerName string,
+	containerFolder string,
+) (*url.URL, url.Values) {
+	qp := url.Values{}
+	qp.Add("url", clientURL)
+	qp.Add("owner", workspace.OwnerName)
+	qp.Add("workspace", workspace.Name)
+	qp.Add("agent", workspaceAgent.Name)
+	qp.Add("devContainerName", containerName)
+	qp.Add("devContainerFolder", containerFolder)
+
+	if token != "" {
+		qp.Add("token", token)
+	}
+
+	return &url.URL{
+		Scheme:   "vscode",
+		Host:     "coder.coder-remote",
+		Path:     "/openDevContainer",
+		RawQuery: qp.Encode(),
+	}, qp
 }
 
 // waitForAgentCond uses the watch workspace API to update the agent information
