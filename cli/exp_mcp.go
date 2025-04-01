@@ -114,6 +114,7 @@ func (*RootCmd) mcpConfigureClaudeCode() *serpent.Command {
 		claudeConfigPath string
 		claudeMDPath     string
 		systemPrompt     string
+		appStatusSlug    string
 		testBinaryName   string
 	)
 	cmd := &serpent.Command{
@@ -135,6 +136,13 @@ func (*RootCmd) mcpConfigureClaudeCode() *serpent.Command {
 			configureClaudeEnv := map[string]string{}
 			if _, ok := os.LookupEnv("CODER_AGENT_TOKEN"); ok {
 				configureClaudeEnv["CODER_AGENT_TOKEN"] = os.Getenv("CODER_AGENT_TOKEN")
+			}
+			if appStatusSlug != "" {
+				configureClaudeEnv["CODER_MCP_APP_STATUS_SLUG"] = appStatusSlug
+			}
+			if deprecatedSystemPromptEnv, ok := os.LookupEnv("SYSTEM_PROMPT"); ok {
+				cliui.Warnf(inv.Stderr, "SYSTEM_PROMPT is deprecated, use CODER_MCP_CLAUDE_SYSTEM_PROMPT instead")
+				systemPrompt = deprecatedSystemPromptEnv
 			}
 
 			if err := configureClaude(fs, ClaudeConfig{
@@ -191,6 +199,13 @@ func (*RootCmd) mcpConfigureClaudeCode() *serpent.Command {
 				Env:         "CODER_MCP_CLAUDE_SYSTEM_PROMPT",
 				Flag:        "claude-system-prompt",
 				Value:       serpent.StringOf(&systemPrompt),
+			},
+			{
+				Name:        "app-status-slug",
+				Description: "The app status slug to use when running the Coder MCP server.",
+				Env:         "CODER_MCP_CLAUDE_APP_STATUS_SLUG",
+				Flag:        "claude-app-status-slug",
+				Value:       serpent.StringOf(&appStatusSlug),
 			},
 			{
 				Name:        "test-binary-name",
