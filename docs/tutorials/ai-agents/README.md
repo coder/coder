@@ -1,12 +1,21 @@
 # Run AI Agents in Coder (Early Access)
 
+> [!NOTE]
+>
+> This functionality is in early access and subject to change. Do not run in
+> production as it is unstable. Instead, deploy these changes into a demo or
+> staging environment.
+>
+> Join our [Discord channel](https://discord.gg/coder) or
+> [contact us](https://coder.com/contact) for support or feedback.
+
 AI Coding Agents such as [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), [Goose](https://block.github.io/goose/), and [Aider](https://github.com/paul-gauthier/aider) are becoming increasingly popular for:
 
 - Protyping web applications or landing pages
 - Researching / onboarding to a codebase
 - Assisting with lightweight refactors
 - Writing tests and documentation
-- Well-defined "good first issues"
+- Small, well-defined chores
 
 With Coder, you can self-host AI agents in isolated development environments with proper context and tooling around your existing developer workflows. Whether you are a regulated enterprise or an individual developer, running AI agents at scale with Coder is much more productive and secure than running them locally.
 

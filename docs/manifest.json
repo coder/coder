@@ -749,45 +749,60 @@
 						{
 							"title": "Learn about coding agents",
 							"description": "Learn about the different AI agents and their tradeoffs",
-							"path": "./tutorials/ai-agents/picking-an-agent.md"
+							"path": "./tutorials/ai-agents/agents.md"
 						},
 						{
 							"title": "Create a Coder template for agents",
 							"description": "Create a purpose-built template for your AI agents",
-							"path": "./tutorials/ai-agents/idk.md"
+							"path": "./tutorials/ai-agents/create-template.md",
+							"state": [
+								"early access"
+							]
 						},
 						{
 							"title": "Integrate with your issue tracker",
 							"description": "Assign tickets to AI agents and interact via code reviews",
-							"path": "./tutorials/ai-agents/integrating-with-github.md"
+							"path": "./tutorials/ai-agents/issue-tracker.md",
+							"state": [
+								"early access"
+							]
 						},
 						{
-							"title": "Adding tools via MCP",
+							"title": "Best practices & adding tools via MCP",
 							"description": "Improve results by adding tools to your agents",
-							"path": "./tutorials/ai-agents/adding-tools-via-mcp.md"
+							"path": "./tutorials/ai-agents/best-practices.md",
+							"state": [
+								"early access"
+							]
 						},
 						{
 							"title": "Supervise agents via Coder UI",
 							"description": "Interact with agents via the Coder UI",
-							"path": "./tutorials/ai-agents/managing-via-ui.md"
+							"path": "./tutorials/ai-agents/coder-dashboard.md",
+							"state": [
+								"early access"
+							]
 						},
 						{
 							"title": "Supervise agents via the IDE",
 							"description": "Interact with agents via VS Code or Cursor",
-							"path": "./tutorials/ai-agents/managing-via-ide.md"
+							"path": "./tutorials/ai-agents/ide-integration.md",
+							"state": [
+								"early access"
+							]
 						},
 						{
 							"title": "Programatically manage agents",
 							"description": "Manage agents via MCP, the Coder CLI, and/or REST API",
-							"path": "./tutorials/ai-agents/programmatically-managing-agents.md"
+							"path": "./tutorials/ai-agents/headless.md",
+							"state": [
+								"early access"
+							]
 						},
 						{
-							"title": "Securing agents with Boundaries",
+							"title": "Securing agents in Coder",
 							"description": "Learn how to secure agents with boundaries",
-							"path": "./tutorials/ai-agents/securing-agents-with-boundaries.md",
-							"state": [
-								"premium"
-							]
+							"path": "./tutorials/ai-agents/securing.md"
 						}
 					]
 				},
