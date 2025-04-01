@@ -543,6 +543,30 @@ func configureClaude(fs afero.Fs, cfg ClaudeConfig) error {
 	return nil
 }
 
+var (
+	coderPrompt = `YOU MUST REPORT YOUR STATUS IMMEDIATELY AFTER EACH USER MESSAGE.
+INTERRUPT READING FILES OR ANY OTHER TOOL CALL IF YOU HAVE NOT REPORTED A STATUS YET.
+You MUST use the mcp__coder-agent__report_status function with all required parameters:
+- summary: Short description of what you're doing
+- link: A relevant link for the status
+- done: Boolean indicating if the task is complete (true/false)
+- emoji: Relevant emoji for the status
+WHEN TO REPORT (MANDATORY):
+1. IMMEDIATELY after receiving ANY user message, before any other actions
+2. After completing any task
+3. When making significant progress
+4. When encountering roadblocks
+5. When asking questions
+6. Before and after using search tools or making code changes
+FAILING TO REPORT STATUS PROPERLY WILL RESULT IN INCORRECT BEHAVIOR.`
+
+	// Define the guard strings
+	coderPromptStartGuard  = "<coder-prompt>"
+	coderPromptEndGuard    = "</coder-prompt>"
+	systemPromptStartGuard = "<system-prompt>"
+	systemPromptEndGuard   = "</system-prompt>"
+)
+
 func injectClaudeMD(fs afero.Fs, systemPrompt string, claudeMDPath string) error {
 	_, err := fs.Stat(claudeMDPath)
 	if err != nil {
@@ -554,8 +578,7 @@ func injectClaudeMD(fs afero.Fs, systemPrompt string, claudeMDPath string) error
 			return xerrors.Errorf("failed to create claude config directory: %w", err)
 		}
 
-		content := "<system-prompt>\n" + systemPrompt + "\n</system-prompt>"
-		return afero.WriteFile(fs, claudeMDPath, []byte(content), 0o600)
+		return afero.WriteFile(fs, claudeMDPath, []byte(promptsBlock(coderPrompt, systemPrompt, "")), 0o600)
 	}
 
 	bs, err := afero.ReadFile(fs, claudeMDPath)
@@ -563,12 +586,17 @@ func injectClaudeMD(fs afero.Fs, systemPrompt string, claudeMDPath string) error
 		return xerrors.Errorf("failed to read claude config: %w", err)
 	}
 
-	// Define the guard strings
-	const systemPromptStartGuard = "<system-prompt>"
-	const systemPromptEndGuard = "</system-prompt>"
-
 	// Extract the content without the guarded sections
 	cleanContent := string(bs)
+
+	// Remove existing coder prompt section if it exists
+	coderStartIdx := indexOf(cleanContent, coderPromptStartGuard)
+	coderEndIdx := indexOf(cleanContent, coderPromptEndGuard)
+	if coderStartIdx != -1 && coderEndIdx != -1 && coderStartIdx < coderEndIdx {
+		beforeCoderPrompt := cleanContent[:coderStartIdx]
+		afterCoderPrompt := cleanContent[coderEndIdx+len(coderPromptEndGuard):]
+		cleanContent = beforeCoderPrompt + afterCoderPrompt
+	}
 
 	// Remove existing system prompt section if it exists
 	systemStartIdx := indexOf(cleanContent, systemPromptStartGuard)
@@ -582,24 +610,36 @@ func injectClaudeMD(fs afero.Fs, systemPrompt string, claudeMDPath string) error
 	// Trim any leading whitespace from the clean content
 	cleanContent = strings.TrimSpace(cleanContent)
 
-	// Create the new content with system prompt prepended
+	// Create the new content with coder and system prompt prepended
+	newContent := promptsBlock(coderPrompt, systemPrompt, cleanContent)
+
+	// Write the updated content back to the file
+	err = afero.WriteFile(fs, claudeMDPath, []byte(newContent), 0o600)
+	if err != nil {
+		return xerrors.Errorf("failed to write claude config: %w", err)
+	}
+
+	return nil
+}
+
+func promptsBlock(coderPrompt, systemPrompt, existingContent string) string {
 	var newContent strings.Builder
+	_, _ = newContent.WriteString(coderPromptStartGuard)
+	_, _ = newContent.WriteRune('\n')
+	_, _ = newContent.WriteString(coderPrompt)
+	_, _ = newContent.WriteRune('\n')
+	_, _ = newContent.WriteString(coderPromptEndGuard)
+	_, _ = newContent.WriteRune('\n')
 	_, _ = newContent.WriteString(systemPromptStartGuard)
 	_, _ = newContent.WriteRune('\n')
 	_, _ = newContent.WriteString(systemPrompt)
 	_, _ = newContent.WriteRune('\n')
 	_, _ = newContent.WriteString(systemPromptEndGuard)
 	_, _ = newContent.WriteRune('\n')
-	_, _ = newContent.WriteRune('\n')
-	_, _ = newContent.WriteString(cleanContent)
-
-	// Write the updated content back to the file
-	err = afero.WriteFile(fs, claudeMDPath, []byte(newContent.String()), 0o600)
-	if err != nil {
-		return xerrors.Errorf("failed to write claude config: %w", err)
+	if existingContent != "" {
+		_, _ = newContent.WriteString(existingContent)
 	}
-
-	return nil
+	return newContent.String()
 }
 
 // indexOf returns the index of the first instance of substr in s,
