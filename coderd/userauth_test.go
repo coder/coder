@@ -1988,21 +1988,27 @@ func TestUserLogout(t *testing.T) {
 func TestOIDCDomainErrorMessage(t *testing.T) {
 	t.Parallel()
 
-	fake := oidctest.NewFakeIDP(t, oidctest.WithServing())
-
 	allowedDomains := []string{"allowed1.com", "allowed2.org", "company.internal"}
-	cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
-		cfg.EmailDomain = allowedDomains
-		cfg.AllowSignups = true
-	})
 
-	server := coderdtest.New(t, &coderdtest.Options{
-		OIDCConfig: cfg,
-	})
+	setup := func() (*oidctest.FakeIDP, *codersdk.Client) {
+		fake := oidctest.NewFakeIDP(t, oidctest.WithServing())
+
+		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
+			cfg.EmailDomain = allowedDomains
+			cfg.AllowSignups = true
+		})
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			OIDCConfig: cfg,
+		})
+		return fake, client
+	}
 
 	// Test case 1: Email domain not in allowed list
 	t.Run("ErrorMessageOmitsDomains", func(t *testing.T) {
 		t.Parallel()
+
+		fake, client := setup()
 
 		// Prepare claims with email from unauthorized domain
 		claims := jwt.MapClaims{
@@ -2011,7 +2017,7 @@ func TestOIDCDomainErrorMessage(t *testing.T) {
 			"sub":            uuid.NewString(),
 		}
 
-		_, resp := fake.AttemptLogin(t, server, claims)
+		_, resp := fake.AttemptLogin(t, client, claims)
 		defer resp.Body.Close()
 
 		require.Equal(t, http.StatusForbidden, resp.StatusCode)
@@ -2031,6 +2037,8 @@ func TestOIDCDomainErrorMessage(t *testing.T) {
 	t.Run("MalformedEmailErrorOmitsDomains", func(t *testing.T) {
 		t.Parallel()
 
+		fake, client := setup()
+
 		// Prepare claims with an invalid email format (no @ symbol)
 		claims := jwt.MapClaims{
 			"email":          "invalid-email-without-domain",
@@ -2038,7 +2046,7 @@ func TestOIDCDomainErrorMessage(t *testing.T) {
 			"sub":            uuid.NewString(),
 		}
 
-		_, resp := fake.AttemptLogin(t, server, claims)
+		_, resp := fake.AttemptLogin(t, client, claims)
 		defer resp.Body.Close()
 
 		require.Equal(t, http.StatusForbidden, resp.StatusCode)
