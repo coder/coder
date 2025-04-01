@@ -1,7 +1,5 @@
 {
-	"versions": [
-		"main"
-	],
+	"versions": ["main"],
 	"routes": [
 		{
 			"title": "About",
@@ -176,9 +174,7 @@
 					"description": "Use Coder Desktop to access your workspace like it's a local machine",
 					"path": "./user-guides/desktop/index.md",
 					"icon_path": "./images/icons/computer-code.svg",
-					"state": [
-						"early access"
-					]
+					"state": ["early access"]
 				},
 				{
 					"title": "Workspace Management",
@@ -222,10 +218,7 @@
 							"title": "Appearance",
 							"description": "Learn how to configure the appearance of Coder",
 							"path": "./admin/setup/appearance.md",
-							"state": [
-								"enterprise",
-								"premium"
-							]
+							"state": ["enterprise", "premium"]
 						},
 						{
 							"title": "Telemetry",
@@ -306,33 +299,22 @@
 						{
 							"title": "Groups \u0026 Roles",
 							"path": "./admin/users/groups-roles.md",
-							"state": [
-								"enterprise",
-								"premium"
-							]
+							"state": ["enterprise", "premium"]
 						},
 						{
 							"title": "IdP Sync",
 							"path": "./admin/users/idp-sync.md",
-							"state": [
-								"enterprise",
-								"premium"
-							]
+							"state": ["enterprise", "premium"]
 						},
 						{
 							"title": "Organizations",
 							"path": "./admin/users/organizations.md",
-							"state": [
-								"premium"
-							]
+							"state": ["premium"]
 						},
 						{
 							"title": "Quotas",
 							"path": "./admin/users/quotas.md",
-							"state": [
-								"enterprise",
-								"premium"
-							]
+							"state": ["enterprise", "premium"]
 						},
 						{
 							"title": "Sessions \u0026 API Tokens",
@@ -474,10 +456,7 @@
 									"title": "Process Logging",
 									"description": "Log workspace processes",
 									"path": "./admin/templates/extending-templates/process-logging.md",
-									"state": [
-										"enterprise",
-										"premium"
-									]
+									"state": ["enterprise", "premium"]
 								}
 							]
 						},
@@ -490,10 +469,7 @@
 							"title": "Permissions \u0026 Policies",
 							"description": "Learn how to create templates with Terraform",
 							"path": "./admin/templates/template-permissions.md",
-							"state": [
-								"enterprise",
-								"premium"
-							]
+							"state": ["enterprise", "premium"]
 						},
 						{
 							"title": "Troubleshooting Templates",
@@ -507,10 +483,7 @@
 					"description": "Learn how to run external provisioners with Coder",
 					"path": "./admin/provisioners.md",
 					"icon_path": "./images/icons/key.svg",
-					"state": [
-						"enterprise",
-						"premium"
-					]
+					"state": ["enterprise", "premium"]
 				},
 				{
 					"title": "External Auth",
@@ -586,19 +559,13 @@
 							"title": "Workspace Proxies",
 							"description": "Run geo distributed workspace proxies",
 							"path": "./admin/networking/workspace-proxies.md",
-							"state": [
-								"enterprise",
-								"premium"
-							]
+							"state": ["enterprise", "premium"]
 						},
 						{
 							"title": "High Availability",
 							"description": "Learn how to configure Coder for High Availability",
 							"path": "./admin/networking/high-availability.md",
-							"state": [
-								"enterprise",
-								"premium"
-							]
+							"state": ["enterprise", "premium"]
 						},
 						{
 							"title": "Troubleshooting",
@@ -632,25 +599,19 @@
 							"title": "Notifications",
 							"description": "Configure notifications for your deployment",
 							"path": "./admin/monitoring/notifications/index.md",
-							"state": [
-								"beta"
-							],
+							"state": ["beta"],
 							"children": [
 								{
 									"title": "Slack Notifications",
 									"description": "Learn how to setup Slack notifications",
 									"path": "./admin/monitoring/notifications/slack.md",
-									"state": [
-										"beta"
-									]
+									"state": ["beta"]
 								},
 								{
 									"title": "Microsoft Teams Notifications",
 									"description": "Learn how to setup Microsoft Teams notifications",
 									"path": "./admin/monitoring/notifications/teams.md",
-									"state": [
-										"beta"
-									]
+									"state": ["beta"]
 								}
 							]
 						}
@@ -666,10 +627,7 @@
 							"title": "Audit Logs",
 							"description": "Audit actions taken inside Coder",
 							"path": "./admin/security/audit-logs.md",
-							"state": [
-								"enterprise",
-								"premium"
-							]
+							"state": ["enterprise", "premium"]
 						},
 						{
 							"title": "Secrets",
@@ -680,10 +638,7 @@
 							"title": "Database Encryption",
 							"description": "Encrypt the database to prevent unauthorized access",
 							"path": "./admin/security/database-encryption.md",
-							"state": [
-								"enterprise",
-								"premium"
-							]
+							"state": ["enterprise", "premium"]
 						}
 					]
 				},
@@ -742,9 +697,7 @@
 					"title": "Run AI Coding Agents with Coder",
 					"description": "Learn how to run and secure agents in Coder",
 					"path": "./tutorials/ai-agents/README.md",
-					"state": [
-						"early access"
-					],
+					"state": ["early access"],
 					"children": [
 						{
 							"title": "Learn about coding agents",
@@ -755,49 +708,37 @@
 							"title": "Create a Coder template for agents",
 							"description": "Create a purpose-built template for your AI agents",
 							"path": "./tutorials/ai-agents/create-template.md",
-							"state": [
-								"early access"
-							]
+							"state": ["early access"]
 						},
 						{
 							"title": "Integrate with your issue tracker",
 							"description": "Assign tickets to AI agents and interact via code reviews",
 							"path": "./tutorials/ai-agents/issue-tracker.md",
-							"state": [
-								"early access"
-							]
+							"state": ["early access"]
 						},
 						{
-							"title": "Best practices & adding tools via MCP",
+							"title": "Best practices \u0026 adding tools via MCP",
 							"description": "Improve results by adding tools to your agents",
 							"path": "./tutorials/ai-agents/best-practices.md",
-							"state": [
-								"early access"
-							]
+							"state": ["early access"]
 						},
 						{
 							"title": "Supervise agents via Coder UI",
 							"description": "Interact with agents via the Coder UI",
 							"path": "./tutorials/ai-agents/coder-dashboard.md",
-							"state": [
-								"early access"
-							]
+							"state": ["early access"]
 						},
 						{
 							"title": "Supervise agents via the IDE",
 							"description": "Interact with agents via VS Code or Cursor",
 							"path": "./tutorials/ai-agents/ide-integration.md",
-							"state": [
-								"early access"
-							]
+							"state": ["early access"]
 						},
 						{
 							"title": "Programmatically manage agents",
 							"description": "Manage agents via MCP, the Coder CLI, and/or REST API",
 							"path": "./tutorials/ai-agents/headless.md",
-							"state": [
-								"early access"
-							]
+							"state": ["early access"]
 						},
 						{
 							"title": "Securing agents in Coder",
