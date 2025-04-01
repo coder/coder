@@ -49,7 +49,7 @@ latest stable release:
 curl -fsSL https://coder.com/install.sh | sh -s -- --stable
 ```
 
-Best practices for installing Coder can be found on our [install](./index.md)
+Best practices for installing Coder can be found on our [install](../index.md)
 pages.
 
 ## Release schedule
