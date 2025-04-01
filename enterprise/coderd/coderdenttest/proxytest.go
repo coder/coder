@@ -156,7 +156,7 @@ func NewWorkspaceProxyReplica(t *testing.T, coderdAPI *coderd.API, owner *coders
 		RealIPConfig:      coderdAPI.RealIPConfig,
 		Tracing:           coderdAPI.TracerProvider,
 		APIRateLimit:      coderdAPI.APIRateLimit,
-		CookieConfig:      coderdAPI.Cookies,
+		CookieConfig:      coderdAPI.DeploymentValues.HTTPCookies,
 		ProxySessionToken: token,
 		DisablePathApps:   options.DisablePathApps,
 		// We need a new registry to not conflict with the coderd internal
