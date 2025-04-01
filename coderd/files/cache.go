@@ -81,7 +81,7 @@ func (c *Cache) prepare(ctx context.Context, fileID uuid.UUID) *lazy.ValueWithEr
 		c.data[fileID] = entry
 	}
 
-	entry.refCount += 1
+	entry.refCount++
 	return entry.value
 }
 
@@ -98,7 +98,7 @@ func (c *Cache) Release(fileID uuid.UUID) {
 		// this function with an incorrect ID. Should this function return an error?
 		return
 	}
-	entry.refCount -= 1
+	entry.refCount--
 	if entry.refCount > 0 {
 		return
 	}
