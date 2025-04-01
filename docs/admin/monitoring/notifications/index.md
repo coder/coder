@@ -278,7 +278,7 @@ troubleshoot:
     `CODER_VERBOSE=true` or `--verbose` to output debug logs.
 1. If you are on version 2.15.x, notifications must be enabled using the
     `notifications`
-    [experiment](../../../about/feature-stages.md#early-access-features).
+    [experiment](../../../install/releases/feature-stages.md#early-access-features).
 
     Notifications are enabled by default in Coder v2.16.0 and later.
 
