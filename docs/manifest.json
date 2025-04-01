@@ -16,11 +16,6 @@
 					"title": "Screenshots",
 					"description": "View screenshots of the Coder platform",
 					"path": "./start/screenshots.md"
-				},
-				{
-					"title": "Feature stages",
-					"description": "Information about pre-GA stages.",
-					"path": "./about/feature-stages.md"
 				}
 			]
 		},
@@ -110,8 +105,15 @@
 				{
 					"title": "Releases",
 					"description": "Learn about the Coder release channels and schedule",
-					"path": "./install/releases.md",
-					"icon_path": "./images/icons/star.svg"
+					"path": "./install/releases/index.md",
+					"icon_path": "./images/icons/star.svg",
+					"children": [
+						{
+							"title": "Feature stages",
+							"description": "Information about pre-GA stages.",
+							"path": "./install/releases/feature-stages.md"
+						}
+					]
 				}
 			]
 		},
