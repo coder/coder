@@ -4,6 +4,7 @@ import AppsIcon from "@mui/icons-material/Apps";
 import CheckCircle from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
 import HelpOutline from "@mui/icons-material/HelpOutline";
+import HourglassEmpty from "@mui/icons-material/HourglassEmpty";
 import InsertDriveFile from "@mui/icons-material/InsertDriveFile";
 import OpenInNew from "@mui/icons-material/OpenInNew";
 import Warning from "@mui/icons-material/Warning";
@@ -18,7 +19,6 @@ import type {
 } from "api/typesGenerated";
 import { useProxy } from "contexts/ProxyContext";
 import { formatDistance, formatDistanceToNow } from "date-fns";
-import { DividerWithText } from "pages/DeploymentSettingsPage/LicensesSettingsPage/DividerWithText";
 import type { FC } from "react";
 import { createAppLinkHref } from "utils/apps";
 
@@ -54,7 +54,12 @@ const getStatusIcon = (
 		case "failure":
 			return <ErrorIcon sx={{ color, fontSize: 18 }} />;
 		case "working":
-			return <CircularProgress size={18} sx={{ color }} />;
+			// Use Hourglass for past "working" states, spinner for the current one
+			return isLatest ? (
+				<CircularProgress size={18} sx={{ color }} />
+			) : (
+				<HourglassEmpty sx={{ color, fontSize: 18 }} />
+			);
 		default:
 			return <Warning sx={{ color, fontSize: 18 }} />;
 	}
