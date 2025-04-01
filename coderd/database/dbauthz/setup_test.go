@@ -252,7 +252,7 @@ func (s *MethodTestSuite) NoActorErrorTest(callMethod func(ctx context.Context) 
 	s.Run("AsRemoveActor", func() {
 		// Call without any actor
 		_, err := callMethod(context.Background())
-		s.ErrorIs(err, dbauthz.NoActorError, "method should return NoActorError error when no actor is provided")
+		s.ErrorIs(err, dbauthz.ErrNoActor, "method should return NoActorError error when no actor is provided")
 	})
 }
 

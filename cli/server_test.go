@@ -1701,6 +1701,7 @@ func TestServer(t *testing.T) {
 			// Next, we instruct the same server to display the YAML config
 			// and then save it.
 			inv = inv.WithContext(testutil.Context(t, testutil.WaitMedium))
+			//nolint:gocritic
 			inv.Args = append(args, "--write-config")
 			fi, err := os.OpenFile(testutil.TempFile(t, "", "coder-config-test-*"), os.O_WRONLY|os.O_CREATE, 0o600)
 			require.NoError(t, err)
