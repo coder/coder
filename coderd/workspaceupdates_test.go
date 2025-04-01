@@ -364,6 +364,7 @@ func (*mockAuthorizer) Authorize(context.Context, rbac.Subject, policy.Action, r
 
 // Prepare implements rbac.Authorizer.
 func (*mockAuthorizer) Prepare(context.Context, rbac.Subject, policy.Action, string) (rbac.PreparedAuthorized, error) {
+	//nolint:nilnil
 	return nil, nil
 }
 

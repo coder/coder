@@ -106,13 +106,14 @@ func (b *TelemetryStore) changedConntype(addr string) bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	if b.p2p && addr != "" {
+	switch {
+	case b.p2p && addr != "":
 		return false
-	} else if !b.p2p && addr != "" {
+	case !b.p2p && addr != "":
 		b.p2p = true
 		b.p2pSetupTime = time.Since(b.lastDerpTime)
 		return true
-	} else if b.p2p && addr == "" {
+	case b.p2p && addr == "":
 		b.p2p = false
 		b.lastDerpTime = time.Now()
 		b.p2pSetupTime = 0
@@ -131,6 +132,7 @@ func (b *TelemetryStore) updateRemoteNodeIDLocked(nm *netmap.NetworkMap) {
 	for _, p := range nm.Peers {
 		for _, a := range p.Addresses {
 			if a.Addr() == ip && a.IsSingleIP() {
+				// #nosec G115 - Safe conversion as p.ID is expected to be within uint64 range for node IDs
 				b.nodeIDRemote = uint64(p.ID)
 			}
 		}
@@ -188,6 +190,7 @@ func (b *TelemetryStore) updateByNodeLocked(n *tailcfg.Node) bool {
 	if n == nil {
 		return false
 	}
+	// #nosec G115 - Safe conversion as n.ID is expected to be within uint64 range for node IDs
 	b.nodeIDSelf = uint64(n.ID)
 	derpIP, err := netip.ParseAddrPort(n.DERP)
 	if err != nil {

@@ -339,6 +339,46 @@ func TestWorkspaceAgentLogs(t *testing.T) {
 	})
 }
 
+func TestWorkspaceAgentAppStatus(t *testing.T) {
+	t.Parallel()
+	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		client, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user2.ID,
+		}).WithAgent(func(a []*proto.Agent) []*proto.Agent {
+			a[0].Apps = []*proto.App{
+				{
+					Slug: "vscode",
+				},
+			}
+			return a
+		}).Do()
+
+		agentClient := agentsdk.New(client.URL)
+		agentClient.SetSessionToken(r.AgentToken)
+		err := agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
+			AppSlug: "vscode",
+			Message: "testing",
+			URI:     "https://example.com",
+			Icon:    "https://example.com/icon.png",
+			State:   codersdk.WorkspaceAppStatusStateComplete,
+		})
+		require.NoError(t, err)
+
+		workspace, err := client.Workspace(ctx, r.Workspace.ID)
+		require.NoError(t, err)
+		agent, err := client.WorkspaceAgent(ctx, workspace.LatestBuild.Resources[0].Agents[0].ID)
+		require.NoError(t, err)
+		require.Len(t, agent.Apps[0].Statuses, 1)
+	})
+}
+
 func TestWorkspaceAgentConnectRPC(t *testing.T) {
 	t.Parallel()
 
@@ -844,6 +884,7 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 			o.PortCacheDuration = time.Millisecond
 		})
 		resources := coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
+		// #nosec G115 - Safe conversion as TCP port numbers are within uint16 range (0-65535)
 		return client, uint16(coderdPort), resources[0].Agents[0].ID
 	}
 
@@ -878,6 +919,7 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 				_ = l.Close()
 			})
 
+			// #nosec G115 - Safe conversion as TCP port numbers are within uint16 range (0-65535)
 			port = uint16(tcpAddr.Port)
 			return true
 		}, testutil.WaitShort, testutil.IntervalFast)

@@ -62,11 +62,12 @@ func ProtoFromManifest(manifest Manifest) (*proto.Manifest, error) {
 		return nil, xerrors.Errorf("convert workspace apps: %w", err)
 	}
 	return &proto.Manifest{
-		AgentId:                  manifest.AgentID[:],
-		AgentName:                manifest.AgentName,
-		OwnerUsername:            manifest.OwnerName,
-		WorkspaceId:              manifest.WorkspaceID[:],
-		WorkspaceName:            manifest.WorkspaceName,
+		AgentId:       manifest.AgentID[:],
+		AgentName:     manifest.AgentName,
+		OwnerUsername: manifest.OwnerName,
+		WorkspaceId:   manifest.WorkspaceID[:],
+		WorkspaceName: manifest.WorkspaceName,
+		// #nosec G115 - Safe conversion for GitAuthConfigs which is expected to be small and positive
 		GitAuthConfigs:           uint32(manifest.GitAuthConfigs),
 		EnvironmentVariables:     manifest.EnvironmentVariables,
 		Directory:                manifest.Directory,

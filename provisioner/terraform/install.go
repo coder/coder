@@ -27,7 +27,7 @@ var (
 	minTerraformVersion = version.Must(version.NewVersion("1.1.0"))
 	maxTerraformVersion = version.Must(version.NewVersion("1.11.9")) // use .9 to automatically allow patch releases
 
-	terraformMinorVersionMismatch = xerrors.New("Terraform binary minor version mismatch.")
+	errTerraformMinorVersionMismatch = xerrors.New("Terraform binary minor version mismatch.")
 )
 
 // Install implements a thread-safe, idempotent Terraform Install

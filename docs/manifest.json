@@ -196,7 +196,7 @@
 				},
 				{
 					"title": "Workspace Lifecycle",
-					"description": "Cost control with workspace schedules",
+					"description": "A guide to the workspace lifecycle, from creation and status through stopping and deletion.",
 					"path": "./user-guides/workspace-lifecycle.md",
 					"icon_path": "./images/icons/circle-dot.svg"
 				},

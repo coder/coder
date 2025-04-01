@@ -1,12 +1,12 @@
 import type { InboxNotification } from "api/typesGenerated";
-import { Avatar } from "components/Avatar/Avatar";
 import { Button } from "components/Button/Button";
+import { Link } from "components/Link/Link";
 import { SquareCheckBig } from "lucide-react";
 import type { FC } from "react";
 import Markdown from "react-markdown";
 import { Link as RouterLink } from "react-router-dom";
-import { cn } from "utils/cn";
 import { relativeTime } from "utils/time";
+import { InboxAvatar } from "./InboxAvatar";
 
 type InboxItemProps = {
 	notification: InboxNotification;
@@ -24,18 +24,20 @@ export const InboxItem: FC<InboxItemProps> = ({
 			tabIndex={-1}
 		>
 			<div className="flex-shrink-0">
-				<Avatar fallback="AR" />
+				<InboxAvatar icon={notification.icon} />
 			</div>
 
 			<div className="flex flex-col gap-3 flex-1">
-				<span
-					className={cn([
-						"text-content-secondary text-sm font-medium whitespace-break-spaces [overflow-wrap:anywhere]",
-						"[&_p]:m-0",
-					])}
+				<Markdown
+					className="text-content-secondary prose-sm font-medium [overflow-wrap:anywhere]"
+					components={{
+						a: ({ node, ...props }) => {
+							return <Link {...props} />;
+						},
+					}}
 				>
-					<Markdown>{notification.content}</Markdown>
-				</span>
+					{notification.content}
+				</Markdown>
 				<div className="flex items-center gap-1">
 					{notification.actions.map((action) => {
 						return (

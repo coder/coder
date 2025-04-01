@@ -69,6 +69,11 @@ type sqlcQuerier interface {
 	DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
 	DeleteAllTailnetClientSubscriptions(ctx context.Context, arg DeleteAllTailnetClientSubscriptionsParams) error
 	DeleteAllTailnetTunnels(ctx context.Context, arg DeleteAllTailnetTunnelsParams) error
+	// Deletes all existing webpush subscriptions.
+	// This should be called when the VAPID keypair is regenerated, as the old
+	// keypair will no longer be valid and all existing subscriptions will need to
+	// be recreated.
+	DeleteAllWebpushSubscriptions(ctx context.Context) error
 	DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
 	DeleteCoordinator(ctx context.Context, id uuid.UUID) error
 	DeleteCryptoKey(ctx context.Context, arg DeleteCryptoKeyParams) (CryptoKey, error)
@@ -104,6 +109,8 @@ type sqlcQuerier interface {
 	DeleteTailnetClientSubscription(ctx context.Context, arg DeleteTailnetClientSubscriptionParams) error
 	DeleteTailnetPeer(ctx context.Context, arg DeleteTailnetPeerParams) (DeleteTailnetPeerRow, error)
 	DeleteTailnetTunnel(ctx context.Context, arg DeleteTailnetTunnelParams) (DeleteTailnetTunnelRow, error)
+	DeleteWebpushSubscriptionByUserIDAndEndpoint(ctx context.Context, arg DeleteWebpushSubscriptionByUserIDAndEndpointParams) error
+	DeleteWebpushSubscriptions(ctx context.Context, ids []uuid.UUID) error
 	DeleteWorkspaceAgentPortShare(ctx context.Context, arg DeleteWorkspaceAgentPortShareParams) error
 	DeleteWorkspaceAgentPortSharesByTemplate(ctx context.Context, templateID uuid.UUID) error
 	// Disable foreign keys and triggers for all tables.
@@ -191,6 +198,7 @@ type sqlcQuerier interface {
 	GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg GetJFrogXrayScanByWorkspaceAndAgentIDParams) (JfrogXrayScan, error)
 	GetLastUpdateCheck(ctx context.Context) (string, error)
 	GetLatestCryptoKeyByFeature(ctx context.Context, feature CryptoKeyFeature) (CryptoKey, error)
+	GetLatestWorkspaceAppStatusesByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAppStatus, error)
 	GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (WorkspaceBuild, error)
 	GetLatestWorkspaceBuilds(ctx context.Context) ([]WorkspaceBuild, error)
 	GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceBuild, error)
@@ -340,6 +348,8 @@ type sqlcQuerier interface {
 	// to look up references to actions. eg. a user could build a workspace
 	// for another user, then be deleted... we still want them to appear!
 	GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]User, error)
+	GetWebpushSubscriptionsByUserID(ctx context.Context, userID uuid.UUID) ([]WebpushSubscription, error)
+	GetWebpushVAPIDKeys(ctx context.Context) (GetWebpushVAPIDKeysRow, error)
 	GetWorkspaceAgentAndLatestBuildByAuthToken(ctx context.Context, authToken uuid.UUID) (GetWorkspaceAgentAndLatestBuildByAuthTokenRow, error)
 	GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (WorkspaceAgent, error)
 	GetWorkspaceAgentByInstanceID(ctx context.Context, authInstanceID string) (WorkspaceAgent, error)
@@ -360,6 +370,7 @@ type sqlcQuerier interface {
 	GetWorkspaceAgentsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceAgent, error)
 	GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]WorkspaceAgent, error)
 	GetWorkspaceAppByAgentIDAndSlug(ctx context.Context, arg GetWorkspaceAppByAgentIDAndSlugParams) (WorkspaceApp, error)
+	GetWorkspaceAppStatusesByAppIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAppStatus, error)
 	GetWorkspaceAppsByAgentID(ctx context.Context, agentID uuid.UUID) ([]WorkspaceApp, error)
 	GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceApp, error)
 	GetWorkspaceAppsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceApp, error)
@@ -453,6 +464,7 @@ type sqlcQuerier interface {
 	InsertUserGroupsByName(ctx context.Context, arg InsertUserGroupsByNameParams) error
 	InsertUserLink(ctx context.Context, arg InsertUserLinkParams) (UserLink, error)
 	InsertVolumeResourceMonitor(ctx context.Context, arg InsertVolumeResourceMonitorParams) (WorkspaceAgentVolumeResourceMonitor, error)
+	InsertWebpushSubscription(ctx context.Context, arg InsertWebpushSubscriptionParams) (WebpushSubscription, error)
 	InsertWorkspace(ctx context.Context, arg InsertWorkspaceParams) (WorkspaceTable, error)
 	InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspaceAgentParams) (WorkspaceAgent, error)
 	InsertWorkspaceAgentDevcontainers(ctx context.Context, arg InsertWorkspaceAgentDevcontainersParams) ([]WorkspaceAgentDevcontainer, error)
@@ -464,6 +476,7 @@ type sqlcQuerier interface {
 	InsertWorkspaceAgentStats(ctx context.Context, arg InsertWorkspaceAgentStatsParams) error
 	InsertWorkspaceApp(ctx context.Context, arg InsertWorkspaceAppParams) (WorkspaceApp, error)
 	InsertWorkspaceAppStats(ctx context.Context, arg InsertWorkspaceAppStatsParams) error
+	InsertWorkspaceAppStatus(ctx context.Context, arg InsertWorkspaceAppStatusParams) (WorkspaceAppStatus, error)
 	InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspaceBuildParams) error
 	InsertWorkspaceBuildParameters(ctx context.Context, arg InsertWorkspaceBuildParametersParams) error
 	InsertWorkspaceModule(ctx context.Context, arg InsertWorkspaceModuleParams) (WorkspaceModule, error)
@@ -597,6 +610,7 @@ type sqlcQuerier interface {
 	// used to store the data, and the minutes are summed for each user and template
 	// combination. The result is stored in the template_usage_stats table.
 	UpsertTemplateUsageStats(ctx context.Context) error
+	UpsertWebpushVAPIDKeys(ctx context.Context, arg UpsertWebpushVAPIDKeysParams) error
 	UpsertWorkspaceAgentPortShare(ctx context.Context, arg UpsertWorkspaceAgentPortShareParams) (WorkspaceAgentPortShare, error)
 	//
 	// The returned boolean, new_or_stale, can be used to deduce if a new session

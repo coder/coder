@@ -116,6 +116,13 @@ func (s *StoreEnqueuer) EnqueueWithData(ctx context.Context, userID, templateID 
 
 	uuids := make([]uuid.UUID, 0, 2)
 	for _, method := range methods {
+		// TODO(DanielleMaywood):
+		// We should have a more permanent solution in the future, but for now this will work.
+		// We do not want password reset notifications to end up in Coder Inbox.
+		if method == database.NotificationMethodInbox && templateID == TemplateUserRequestedOneTimePasscode {
+			continue
+		}
+
 		id := uuid.New()
 		err = s.store.EnqueueNotificationMessage(ctx, database.EnqueueNotificationMessageParams{
 			ID:                     id,

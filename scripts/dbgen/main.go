@@ -53,7 +53,7 @@ func run() error {
 	}
 	databasePath := filepath.Join(localPath, "..", "..", "..", "coderd", "database")
 
-	err = orderAndStubDatabaseFunctions(filepath.Join(databasePath, "dbmem", "dbmem.go"), "q", "FakeQuerier", func(params stubParams) string {
+	err = orderAndStubDatabaseFunctions(filepath.Join(databasePath, "dbmem", "dbmem.go"), "q", "FakeQuerier", func(_ stubParams) string {
 		return `panic("not implemented")`
 	})
 	if err != nil {
@@ -72,7 +72,7 @@ return %s
 		return xerrors.Errorf("stub dbmetrics: %w", err)
 	}
 
-	err = orderAndStubDatabaseFunctions(filepath.Join(databasePath, "dbauthz", "dbauthz.go"), "q", "querier", func(params stubParams) string {
+	err = orderAndStubDatabaseFunctions(filepath.Join(databasePath, "dbauthz", "dbauthz.go"), "q", "querier", func(_ stubParams) string {
 		return `panic("not implemented")`
 	})
 	if err != nil {

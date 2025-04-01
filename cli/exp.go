@@ -13,6 +13,7 @@ func (r *RootCmd) expCmd() *serpent.Command {
 		Children: []*serpent.Command{
 			r.scaletestCmd(),
 			r.errorExample(),
+			r.mcpCommand(),
 			r.promptExample(),
 			r.rptyCommand(),
 		},
