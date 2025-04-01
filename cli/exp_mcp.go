@@ -199,6 +199,7 @@ func (*RootCmd) mcpConfigureClaudeCode() *serpent.Command {
 				Env:         "CODER_MCP_CLAUDE_SYSTEM_PROMPT",
 				Flag:        "claude-system-prompt",
 				Value:       serpent.StringOf(&systemPrompt),
+				Default:     "Send a task status update to notify the user that you are ready for input, and then wait for user input.",
 			},
 			{
 				Name:        "app-status-slug",
