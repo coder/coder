@@ -3636,7 +3636,7 @@ func createTmplVersionAndPreset(
 		TemplateVersionID: tmplVersion.ID,
 		Name:              "preset",
 		DesiredInstances: sql.NullInt32{
-			Int32: int32(desiredInstances),
+			Int32: desiredInstances,
 			Valid: true,
 		},
 	})
