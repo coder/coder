@@ -350,7 +350,6 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 
 	// Send an initial form state, computed without any user input.
 	result, diagnostics := preview.Preview(ctx, input, fs)
-	// result, diagnostics = preview.Preview(ctx, input, fs)
 	response := codersdk.DynamicParametersResponse{
 		// or maybe it could be -1 or something? it just has to be unique from
 		// anything a client could reasonably send.
