@@ -4914,7 +4914,6 @@ func (s *MethodTestSuite) TestPrebuilds() {
 		})
 		check.Args(preset.ID).
 			Asserts(template, policy.ActionRead).
-			ErrorsWithInMemDB(dbmem.ErrUnimplemented).
 			Returns(database.GetPresetByIDRow{
 				ID:                preset.ID,
 				TemplateVersionID: preset.TemplateVersionID,
