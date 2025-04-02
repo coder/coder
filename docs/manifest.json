@@ -597,6 +597,23 @@
 							"title": "Troubleshooting",
 							"description": "Troubleshoot networking issues in Coder",
 							"path": "./admin/networking/troubleshooting.md"
+						},
+						{
+							"title": "More",
+							"description": "More about networking",
+							"path": "./admin/networking/more-networking/index.md",
+							"children": [
+								{
+									"title": "Connections and geo-distribution",
+									"description": "Learn more about the Coder connections and geo-distribution",
+									"path": "./admin/networking/more-networking/index.md"
+								},
+								{
+									"title": "Underlying networking stack",
+									"description": "Learn more about the underlying networking stack and Coder agent",
+									"path": "./admin/networking/more-networking/underlying-stack.md"
+								}
+							]
 						}
 					]
 				},
