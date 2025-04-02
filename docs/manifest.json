@@ -674,9 +674,10 @@
 			]
 		},
 		{
-			"title": "Use AI Coding Agents in Coder workspaces",
+			"title": "Run AI Coding Agents in Coder",
 			"description": "Learn how to run and integrate AI coding agents like GPT-Code, OpenDevin, or SWE-Agent in Coder workspaces to boost developer productivity.",
 			"path": "./coder-ai/README.md",
+			"icon_path": "./images/icons/wand-sparkles.svg",
 			"state": ["early access"],
 			"children": [
 				{
