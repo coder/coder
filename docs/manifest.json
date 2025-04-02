@@ -499,9 +499,17 @@
 				{
 					"title": "External Provisioners",
 					"description": "Learn how to run external provisioners with Coder",
-					"path": "./admin/provisioners.md",
+					"path": "./admin/provisioners/index.md",
 					"icon_path": "./images/icons/key.svg",
-					"state": ["enterprise", "premium"]
+					"state": ["enterprise", "premium"],
+					"children": [
+						{
+							"title": "Manage Provisioner Jobs",
+							"description": "Learn how to run external provisioners with Coder",
+							"path": "./admin/provisioners/manage-provisioner-jobs.md",
+							"state": ["enterprise", "premium"]
+						}
+					]
 				},
 				{
 					"title": "External Auth",
