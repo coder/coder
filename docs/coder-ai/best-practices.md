@@ -31,7 +31,7 @@ for development. With AI Agents, this is no exception.
 - Ensure your [template](./create-template.md) is truly pre-configured for
   development without manual intervention (e.g. repos are cloned, dependencies
   are built, secrets are added/mocked, etc.)
-  > Note: [External authentication](../../admin/external-auth.md) can be helpful
+  > Note: [External authentication](../admin/external-auth.md) can be helpful
   > to authenticate with third-party services such as GitHub or JFrog.
 - Give your agent the proper tools via MCP to interact with your codebase and
   related services.
