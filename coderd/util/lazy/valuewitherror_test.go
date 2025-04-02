@@ -46,7 +46,7 @@ func TestLazyWithErrorPointers(t *testing.T) {
 	c, err := l.Load()
 	require.NoError(t, err)
 
-	*b += 1
-	*c += 1
+	*b++
+	*c++
 	require.Equal(t, 3, a)
 }

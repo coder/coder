@@ -75,9 +75,9 @@ func TestRelease(t *testing.T) {
 	batchSize := 10
 	for _, id := range ids {
 		for range batchSize {
-			fs, err := c.Acquire(t.Context(), id)
+			it, err := c.Acquire(t.Context(), id)
 			require.NoError(t, err)
-			require.Equal(t, emptyFS, fs)
+			require.Equal(t, emptyFS, it)
 		}
 	}
 
