@@ -161,7 +161,7 @@ provision:
 
 ### Authentication
 
-1. Use a [scoped key](../../admin/provisioners.md#scoped-key-recommended) to
+1. Use a [scoped key](../../admin/provisioners/index.md#scoped-key-recommended) to
    authenticate the provisioner daemons with Coder. These keys can only be used
    to authenticate provisioner daemons (not other APIs on the Coder Server).
 

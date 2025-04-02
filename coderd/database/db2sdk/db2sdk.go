@@ -487,7 +487,7 @@ func AppSubdomain(dbApp database.WorkspaceApp, agentName, workspaceName, ownerNa
 	}.String()
 }
 
-func Apps(dbApps []database.WorkspaceApp, agent database.WorkspaceAgent, ownerName string, workspace database.Workspace) []codersdk.WorkspaceApp {
+func Apps(dbApps []database.WorkspaceApp, statuses []database.WorkspaceAppStatus, agent database.WorkspaceAgent, ownerName string, workspace database.Workspace) []codersdk.WorkspaceApp {
 	sort.Slice(dbApps, func(i, j int) bool {
 		if dbApps[i].DisplayOrder != dbApps[j].DisplayOrder {
 			return dbApps[i].DisplayOrder < dbApps[j].DisplayOrder
@@ -498,8 +498,14 @@ func Apps(dbApps []database.WorkspaceApp, agent database.WorkspaceAgent, ownerNa
 		return dbApps[i].Slug < dbApps[j].Slug
 	})
 
+	statusesByAppID := map[uuid.UUID][]database.WorkspaceAppStatus{}
+	for _, status := range statuses {
+		statusesByAppID[status.AppID] = append(statusesByAppID[status.AppID], status)
+	}
+
 	apps := make([]codersdk.WorkspaceApp, 0)
 	for _, dbApp := range dbApps {
+		statuses := statusesByAppID[dbApp.ID]
 		apps = append(apps, codersdk.WorkspaceApp{
 			ID:            dbApp.ID,
 			URL:           dbApp.Url.String,
@@ -516,12 +522,32 @@ func Apps(dbApps []database.WorkspaceApp, agent database.WorkspaceAgent, ownerNa
 				Interval:  dbApp.HealthcheckInterval,
 				Threshold: dbApp.HealthcheckThreshold,
 			},
-			Health: codersdk.WorkspaceAppHealth(dbApp.Health),
-			Hidden: dbApp.Hidden,
-			OpenIn: codersdk.WorkspaceAppOpenIn(dbApp.OpenIn),
+			Health:   codersdk.WorkspaceAppHealth(dbApp.Health),
+			Hidden:   dbApp.Hidden,
+			OpenIn:   codersdk.WorkspaceAppOpenIn(dbApp.OpenIn),
+			Statuses: WorkspaceAppStatuses(statuses),
 		})
 	}
 	return apps
+}
+
+func WorkspaceAppStatuses(statuses []database.WorkspaceAppStatus) []codersdk.WorkspaceAppStatus {
+	return List(statuses, WorkspaceAppStatus)
+}
+
+func WorkspaceAppStatus(status database.WorkspaceAppStatus) codersdk.WorkspaceAppStatus {
+	return codersdk.WorkspaceAppStatus{
+		ID:                 status.ID,
+		CreatedAt:          status.CreatedAt,
+		WorkspaceID:        status.WorkspaceID,
+		AgentID:            status.AgentID,
+		AppID:              status.AppID,
+		NeedsUserAttention: status.NeedsUserAttention,
+		URI:                status.Uri.String,
+		Icon:               status.Icon.String,
+		Message:            status.Message,
+		State:              codersdk.WorkspaceAppStatusState(status.State),
+	}
 }
 
 func ProvisionerDaemon(dbDaemon database.ProvisionerDaemon) codersdk.ProvisionerDaemon {

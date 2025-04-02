@@ -35,7 +35,7 @@ staging deployment.
 
 <details><summary>To enable early access features:</summary>
 
-Use the [Coder CLI](../install/cli.md) `--experiments` flag to enable early access features:
+Use the [Coder CLI](../../install/cli.md) `--experiments` flag to enable early access features:
 
 - Enable all early access features:
 
@@ -49,7 +49,7 @@ Use the [Coder CLI](../install/cli.md) `--experiments` flag to enable early acce
    coder server --experiments=feature1,feature2
    ```
 
-You can also use the `CODER_EXPERIMENTS` [environment variable](../admin/setup/index.md).
+You can also use the `CODER_EXPERIMENTS` [environment variable](../../admin/setup/index.md).
 
 You can opt-out of a feature after you've enabled it.
 
@@ -101,7 +101,7 @@ If your Coder license includes an SLA, please consult it for an outline of speci
 For support, consult our knowledgeable and growing community on [Discord](https://discord.gg/coder), or create a [GitHub issue](https://github.com/coder/coder/issues) if one doesn't exist already.
 Customers with a valid Coder license, can submit a support request or contact your [account team](https://coder.com/contact).
 
-We intend [Coder documentation](../README.md) to be the [single source of truth](https://en.wikipedia.org/wiki/Single_source_of_truth) and all features should have some form of complete documentation that outlines how to use or implement a feature.
+We intend [Coder documentation](../../README.md) to be the [single source of truth](https://en.wikipedia.org/wiki/Single_source_of_truth) and all features should have some form of complete documentation that outlines how to use or implement a feature.
 If you discover an error or if you have a suggestion that could improve the documentation, please [submit a GitHub issue](https://github.com/coder/internal/issues/new?title=request%28docs%29%3A+request+title+here&labels=["customer-feedback","docs"]&body=please+enter+your+request+here).
 
 Some GA features can be disabled for air-gapped deployments.

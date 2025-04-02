@@ -16,11 +16,6 @@
 					"title": "Screenshots",
 					"description": "View screenshots of the Coder platform",
 					"path": "./start/screenshots.md"
-				},
-				{
-					"title": "Feature stages",
-					"description": "Information about pre-GA stages.",
-					"path": "./about/feature-stages.md"
 				}
 			]
 		},
@@ -110,8 +105,15 @@
 				{
 					"title": "Releases",
 					"description": "Learn about the Coder release channels and schedule",
-					"path": "./install/releases.md",
-					"icon_path": "./images/icons/star.svg"
+					"path": "./install/releases/index.md",
+					"icon_path": "./images/icons/star.svg",
+					"children": [
+						{
+							"title": "Feature stages",
+							"description": "Information about pre-GA stages.",
+							"path": "./install/releases/feature-stages.md"
+						}
+					]
 				}
 			]
 		},
@@ -166,6 +168,16 @@
 							"title": "Zed",
 							"description": "Access your workspace with Zed",
 							"path": "./user-guides/workspace-access/zed.md"
+						},
+						{
+							"title": "Cursor",
+							"description": "Access your workspace with Cursor",
+							"path": "./user-guides/workspace-access/cursor.md"
+						},
+						{
+							"title": "Windsurf",
+							"description": "Access your workspace with Windsurf",
+							"path": "./user-guides/workspace-access/windsurf.md"
 						}
 					]
 				},
@@ -183,6 +195,12 @@
 					"icon_path": "./images/icons/generic.svg"
 				},
 				{
+					"title": "Workspace Notifications",
+					"description": "Manage workspace notifications",
+					"path": "./user-guides/inbox/index.md",
+					"icon_path": "./images/icons/inbox-in.svg"
+				},
+				{
 					"title": "Workspace Scheduling",
 					"description": "Cost control with workspace schedules",
 					"path": "./user-guides/workspace-scheduling.md",
@@ -190,7 +208,7 @@
 				},
 				{
 					"title": "Workspace Lifecycle",
-					"description": "Cost control with workspace schedules",
+					"description": "A guide to the workspace lifecycle, from creation and status through stopping and deletion.",
 					"path": "./user-guides/workspace-lifecycle.md",
 					"icon_path": "./images/icons/circle-dot.svg"
 				},
@@ -481,9 +499,17 @@
 				{
 					"title": "External Provisioners",
 					"description": "Learn how to run external provisioners with Coder",
-					"path": "./admin/provisioners.md",
+					"path": "./admin/provisioners/index.md",
 					"icon_path": "./images/icons/key.svg",
-					"state": ["enterprise", "premium"]
+					"state": ["enterprise", "premium"],
+					"children": [
+						{
+							"title": "Manage Provisioner Jobs",
+							"description": "Learn how to run external provisioners with Coder",
+							"path": "./admin/provisioners/manage-provisioner-jobs.md",
+							"state": ["enterprise", "premium"]
+						}
+					]
 				},
 				{
 					"title": "External Auth",
@@ -599,19 +625,16 @@
 							"title": "Notifications",
 							"description": "Configure notifications for your deployment",
 							"path": "./admin/monitoring/notifications/index.md",
-							"state": ["beta"],
 							"children": [
 								{
 									"title": "Slack Notifications",
 									"description": "Learn how to setup Slack notifications",
-									"path": "./admin/monitoring/notifications/slack.md",
-									"state": ["beta"]
+									"path": "./admin/monitoring/notifications/slack.md"
 								},
 								{
 									"title": "Microsoft Teams Notifications",
 									"description": "Learn how to setup Microsoft Teams notifications",
-									"path": "./admin/monitoring/notifications/teams.md",
-									"state": ["beta"]
+									"path": "./admin/monitoring/notifications/teams.md"
 								}
 							]
 						}
@@ -692,6 +715,67 @@
 					"title": "Quickstart",
 					"description": "Learn how to install and run Coder quickly",
 					"path": "./tutorials/quickstart.md"
+				},
+				{
+					"title": "Run AI Coding Agents with Coder",
+					"description": "Learn how to run and secure agents in Coder",
+					"path": "./tutorials/ai-agents/README.md",
+					"state": ["early access"],
+					"children": [
+						{
+							"title": "Learn about coding agents",
+							"description": "Learn about the different AI agents and their tradeoffs",
+							"path": "./tutorials/ai-agents/agents.md"
+						},
+						{
+							"title": "Create a Coder template for agents",
+							"description": "Create a purpose-built template for your AI agents",
+							"path": "./tutorials/ai-agents/create-template.md",
+							"state": ["early access"]
+						},
+						{
+							"title": "Integrate with your issue tracker",
+							"description": "Assign tickets to AI agents and interact via code reviews",
+							"path": "./tutorials/ai-agents/issue-tracker.md",
+							"state": ["early access"]
+						},
+						{
+							"title": "Best practices \u0026 adding tools via MCP",
+							"description": "Improve results by adding tools to your agents",
+							"path": "./tutorials/ai-agents/best-practices.md",
+							"state": ["early access"]
+						},
+						{
+							"title": "Supervise agents via Coder UI",
+							"description": "Interact with agents via the Coder UI",
+							"path": "./tutorials/ai-agents/coder-dashboard.md",
+							"state": ["early access"]
+						},
+						{
+							"title": "Supervise agents via the IDE",
+							"description": "Interact with agents via VS Code or Cursor",
+							"path": "./tutorials/ai-agents/ide-integration.md",
+							"state": ["early access"]
+						},
+						{
+							"title": "Programmatically manage agents",
+							"description": "Manage agents via MCP, the Coder CLI, and/or REST API",
+							"path": "./tutorials/ai-agents/headless.md",
+							"state": ["early access"]
+						},
+						{
+							"title": "Securing agents in Coder",
+							"description": "Learn how to secure agents with boundaries",
+							"path": "./tutorials/ai-agents/securing.md",
+							"state": ["early access"]
+						},
+						{
+							"title": "Custom agents",
+							"description": "Learn how to use custom agents with Coder",
+							"path": "./tutorials/ai-agents/custom-agents.md",
+							"state": ["early access"]
+						}
+					]
 				},
 				{
 					"title": "Write a Template from Scratch",
