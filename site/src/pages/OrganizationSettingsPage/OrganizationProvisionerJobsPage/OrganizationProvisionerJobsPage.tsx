@@ -5,22 +5,24 @@ import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router-dom";
 import OrganizationProvisionerJobsPageView from "./OrganizationProvisionerJobsPageView";
+import type { GetProvisionerJobsParams } from "api/api";
 
 const OrganizationProvisionerJobsPage: FC = () => {
 	const { organization } = useOrganizationSettings();
-	const [params, setParams] = useSearchParams();
+	const [searchParams, setSearchParams] = useSearchParams();
 	const filter = {
-		status: params.get("status") || "",
+		status: searchParams.get("status") || "",
 	};
+	const queryParams = {
+		...filter,
+		limit: 100,
+	} as GetProvisionerJobsParams;
 	const {
 		data: jobs,
 		isLoadingError,
 		refetch,
 	} = useQuery({
-		...provisionerJobs(
-			organization?.id || "",
-			filter.status as ProvisionerJobStatus,
-		),
+		...provisionerJobs(organization?.id || "", queryParams),
 		enabled: organization !== undefined,
 	});
 
@@ -31,7 +33,7 @@ const OrganizationProvisionerJobsPage: FC = () => {
 			organization={organization}
 			error={isLoadingError}
 			onRetry={refetch}
-			onFilterChange={setParams}
+			onFilterChange={setSearchParams}
 		/>
 	);
 };

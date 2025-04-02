@@ -397,6 +397,11 @@ export class MissingBuildParameters extends Error {
 	}
 }
 
+export type GetProvisionerJobsParams = {
+	status?: TypesGen.ProvisionerJobStatus;
+	limit?: number;
+};
+
 /**
  * This is the container for all API methods. It's split off to make it more
  * clear where API methods should go, but it is eventually merged into the Api
@@ -2394,14 +2399,11 @@ class ApiMethods {
 
 	getProvisionerJobs = async (
 		orgId: string,
-		status?: TypesGen.ProvisionerJobStatus,
+		params: GetProvisionerJobsParams = {},
 	) => {
-		const params = new URLSearchParams();
-		if (status) {
-			params.append("status", status);
-		}
 		const res = await this.axios.get<TypesGen.ProvisionerJob[]>(
-			`/api/v2/organizations/${orgId}/provisionerjobs?${params.toString()}`,
+			`/api/v2/organizations/${orgId}/provisionerjobs`,
+			{ params },
 		);
 		return res.data;
 	};
