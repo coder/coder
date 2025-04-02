@@ -11,8 +11,9 @@
 
 ## Overview
 
-Coder has first-class support for GitHub issues and pull requests, but can also
-integrate with other issue trackers.
+Coder has first-class support for managing agents through Github, but can also
+integrate with other issue trackers. Use our action to interact with agents
+directly in issues and PRs.
 
 ## Prerequisites
 

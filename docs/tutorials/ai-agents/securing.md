@@ -16,7 +16,7 @@ environments.
 Most [agents](./agents.md) can be configured to either use a local LLM (e.g.
 llama3), an agent proxy (e.g. OpenRouter), or a Cloud-Provided LLM (e.g. AWS
 Bedrock). Research which models you are comfortable with and configure your
-[Coder templates](./create-template.md) use those.
+[Coder templates](./create-template.md) to use those.
 
 ## Set up Firewalls and Proxies
 
