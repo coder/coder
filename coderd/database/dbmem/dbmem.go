@@ -4172,7 +4172,37 @@ func (*FakeQuerier) GetPrebuildMetrics(_ context.Context) ([]database.GetPrebuil
 }
 
 func (q *FakeQuerier) GetPresetByID(ctx context.Context, presetID uuid.UUID) (database.GetPresetByIDRow, error) {
-	return database.GetPresetByIDRow{}, ErrUnimplemented
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	empty := database.GetPresetByIDRow{}
+
+	// Create an index for faster lookup
+	versionMap := make(map[uuid.UUID]database.TemplateVersionTable)
+	for _, tv := range q.templateVersions {
+		versionMap[tv.ID] = tv
+	}
+
+	for _, preset := range q.presets {
+		if preset.ID == presetID {
+			tv, ok := versionMap[preset.TemplateVersionID]
+			if !ok {
+				return empty, fmt.Errorf("template version %v does not exist", preset.TemplateVersionID)
+			}
+			return database.GetPresetByIDRow{
+				ID:                  preset.ID,
+				TemplateVersionID:   preset.TemplateVersionID,
+				Name:                preset.Name,
+				CreatedAt:           preset.CreatedAt,
+				DesiredInstances:    preset.DesiredInstances,
+				InvalidateAfterSecs: preset.InvalidateAfterSecs,
+				TemplateID:          tv.TemplateID,
+				OrganizationID:      tv.OrganizationID,
+			}, nil
+		}
+	}
+
+	return empty, fmt.Errorf("preset %v does not exist", presetID)
 }
 
 func (q *FakeQuerier) GetPresetByWorkspaceBuildID(_ context.Context, workspaceBuildID uuid.UUID) (database.TemplateVersionPreset, error) {
