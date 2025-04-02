@@ -41,8 +41,8 @@ Follow the instructions in the Coder Registry to install the module. Be sure to
 enable the `experiment_use_screen` and `experiment_report_tasks` variables to
 report status back to the Coder control plane.
 
-> Alternatively, you can report status from a custom agent back to the Coder
-> control plane via our MCP server. For more information,
+> Alternatively, you can [report status from a custom agent]() back to the Coder
+> control plane via MCP (`coder exp mcp server`). For more information,
 > [join our Discord](https://discord.gg/coder) or
 > [contact us](https://coder.com/contact).
 
