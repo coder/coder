@@ -554,7 +554,7 @@ func (f *logFollower) follow() {
 		return
 	}
 
-	// write the initial logs to the connection
+	// write the initial connection to the logs
 	httpmw.FromContext(f.ctx).WriteLog(
 		f.ctx, http.StatusAccepted)
 
