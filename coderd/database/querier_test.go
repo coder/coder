@@ -3604,20 +3604,20 @@ func createTemplate(t *testing.T, db database.Store, orgID uuid.UUID, userID uui
 }
 
 type tmplVersionOpts struct {
-	DesiredInstances int
+	DesiredInstances int32
 }
 
 func createTmplVersionAndPreset(
 	t *testing.T,
 	db database.Store,
 	tmpl database.Template,
-	versionId uuid.UUID,
+	versionID uuid.UUID,
 	now time.Time,
 	opts *tmplVersionOpts,
 ) templateVersionWithPreset {
 	// Create template version with corresponding preset and preset prebuild
 	tmplVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-		ID: versionId,
+		ID: versionID,
 		TemplateID: uuid.NullUUID{
 			UUID:  tmpl.ID,
 			Valid: true,
@@ -3627,7 +3627,7 @@ func createTmplVersionAndPreset(
 		UpdatedAt:      now,
 		CreatedBy:      tmpl.CreatedBy,
 	})
-	desiredInstances := 1
+	desiredInstances := int32(1)
 	if opts != nil {
 		desiredInstances = opts.DesiredInstances
 	}
