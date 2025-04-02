@@ -11,9 +11,7 @@
 
 - A Coder deployment with v2.21 or later
 - A [template configured for AI agents](./create-template.md)
-- VS Code, Windsurf, or Cursor IDE with the
-  [Coder Extension](https://github.com/coder/vscode-coder/releases) v1.6.0+ or
-  the [experimental AI VSIX](https://github.com/coder/vscode-coder/releases/)
+- VS Code, Windsurf, or Cursor IDE with the [experimental AI Coder Extension  ](https://github.com/coder/vscode-coder/releases/)
 
 ## Overview
 
