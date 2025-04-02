@@ -91,7 +91,7 @@ manually updated the workspace.
 ## Bulk operations
 
 > [!NOTE]
-> Bulk operations are an Enterprise and Premium feature.
+> Bulk operations are a Premium feature.
 > [Learn more](https://coder.com/pricing#compare-plans).
 
 Licensed admins may apply bulk operations (update, delete, start, stop) in the

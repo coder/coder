@@ -2,7 +2,7 @@
 # IdP Sync
 
 > [!NOTE]
-> IdP sync is an Enterprise and Premium feature.
+> IdP sync is a Premium feature.
 > [Learn more](https://coder.com/pricing#compare-plans).
 
 IdP (Identity provider) sync allows you to use OpenID Connect (OIDC) to
