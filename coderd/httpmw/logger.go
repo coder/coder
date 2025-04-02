@@ -36,7 +36,6 @@ func Logger(log slog.Logger) func(next http.Handler) http.Handler {
 			)
 
 			logContext := &RequestLoggerContext{
-				Fields:  map[string]any{},
 				log:     &httplog,
 				written: false,
 			}
@@ -87,10 +86,13 @@ func Logger(log slog.Logger) func(next http.Handler) http.Handler {
 }
 
 type RequestLoggerContext struct {
-	Fields map[string]any
-
 	log     *slog.Logger
 	written bool
+}
+
+func (c *RequestLoggerContext) WithFields(fields ...slog.Field) {
+	newLogger := c.log.With(fields...)
+	c.log = &newLogger
 }
 
 func (c *RequestLoggerContext) WriteLog(ctx context.Context, msg string, status int) {
@@ -98,10 +100,6 @@ func (c *RequestLoggerContext) WriteLog(ctx context.Context, msg string, status 
 		return
 	}
 	c.written = true
-	// append extra fields to the logger
-	for k, v := range c.Fields {
-		c.log.With(slog.F(k, v))
-	}
 
 	if status >= http.StatusInternalServerError {
 		c.log.Error(ctx, msg)
