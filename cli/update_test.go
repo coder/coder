@@ -101,13 +101,14 @@ func TestUpdateWithRichParameters(t *testing.T) {
 		immutableParameterValue       = "4"
 	)
 
-	echoResponses := prepareEchoResponses([]*proto.RichParameter{
-		{Name: firstParameterName, Description: firstParameterDescription, Mutable: true},
-		{Name: immutableParameterName, Description: immutableParameterDescription, Mutable: false},
-		{Name: secondParameterName, Description: secondParameterDescription, Mutable: true},
-		{Name: ephemeralParameterName, Description: ephemeralParameterDescription, Mutable: true, Ephemeral: true},
-	},
-	)
+	echoResponses := func() *echo.Responses {
+		return prepareEchoResponses([]*proto.RichParameter{
+			{Name: firstParameterName, Description: firstParameterDescription, Mutable: true},
+			{Name: immutableParameterName, Description: immutableParameterDescription, Mutable: false},
+			{Name: secondParameterName, Description: secondParameterDescription, Mutable: true},
+			{Name: ephemeralParameterName, Description: ephemeralParameterDescription, Mutable: true, Ephemeral: true},
+		})
+	}
 
 	t.Run("ImmutableCannotBeCustomized", func(t *testing.T) {
 		t.Parallel()
@@ -115,7 +116,7 @@ func TestUpdateWithRichParameters(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, echoResponses)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, echoResponses())
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
@@ -166,7 +167,7 @@ func TestUpdateWithRichParameters(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, echoResponses)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, echoResponses())
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
@@ -231,7 +232,7 @@ func TestUpdateWithRichParameters(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, echoResponses)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, echoResponses())
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
