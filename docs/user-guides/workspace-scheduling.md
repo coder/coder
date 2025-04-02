@@ -71,7 +71,7 @@ To avoid unexpected cloud costs, close your connections, this includes IDE windo
 ## Autostop requirement
 
 > [!NOTE]
-> Autostop requirement is an Enterprise and Premium feature.
+> Autostop requirement is a Premium feature.
 > [Learn more](https://coder.com/pricing#compare-plans).
 
 Licensed template admins may enforce a required stop for workspaces to apply
@@ -87,7 +87,7 @@ Autostop Requirement.
 ### User quiet hours
 
 > [!NOTE]
-> User quiet hours are an Enterprise and Premium feature.
+> User quiet hours are a Premium feature.
 > [Learn more](https://coder.com/pricing#compare-plans).
 
 User quiet hours can be configured in the user's schedule settings page.
@@ -130,7 +130,7 @@ hours of inactivity.
 ## Dormancy
 
 > [!NOTE]
-> Dormancy is an Enterprise and Premium feature.
+> Dormancy is a Premium feature.
 > [Learn more](https://coder.com/pricing#compare-plans).
 
 Dormancy automatically deletes workspaces that remain unused for long

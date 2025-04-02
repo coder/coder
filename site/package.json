@@ -199,5 +199,11 @@
 	"engines": {
 		"npm": ">=9.0.0 <10.0.0",
 		"node": ">=18.0.0 <21.0.0"
+	},
+	"pnpm": {
+		"overrides": {
+			"@babel/runtime": "7.26.10",
+			"@babel/helpers": "7.26.10"
+		}
 	}
 }

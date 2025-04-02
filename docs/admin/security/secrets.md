@@ -7,7 +7,7 @@ guide to
 
 This article explains how to use secrets in a workspace. To authenticate the
 workspace provisioner, see the
-<a href="../provisioners.md#authentication">provisioners documentation</a>.
+<a href="../provisioners/index.md#authentication">provisioners documentation</a>.
 
 ## Before you begin
 

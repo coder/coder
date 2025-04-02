@@ -20,7 +20,7 @@ export const Logs: FC<LogsProps> = ({
 		<div css={styles.root} className={`${className} logs-container`}>
 			<div css={{ minWidth: "fit-content" }}>
 				{lines.map((line) => (
-					<LogLine key={line.output} level={line.level}>
+					<LogLine key={line.id} level={line.level}>
 						{!hideTimestamps && (
 							<LogLinePrefix>
 								{dayjs(line.time).format("HH:mm:ss.SSS")}

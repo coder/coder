@@ -121,7 +121,7 @@ func TestLimitWriter(t *testing.T) {
 				n, err := cryptorand.Read(data)
 				require.NoError(t, err, "crand read")
 				require.Equal(t, wc.N, n, "correct bytes read")
-				max := data[:wc.ExpN]
+				maxSeen := data[:wc.ExpN]
 				n, err = w.Write(data)
 				if wc.Err {
 					require.Error(t, err, "exp error")
@@ -131,7 +131,7 @@ func TestLimitWriter(t *testing.T) {
 
 				// Need to use this to compare across multiple writes.
 				// Each write appends to the expected output.
-				allBuff.Write(max)
+				allBuff.Write(maxSeen)
 
 				require.Equal(t, wc.ExpN, n, "correct bytes written")
 				require.Equal(t, allBuff.Bytes(), buf.Bytes(), "expected data")

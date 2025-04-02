@@ -7,7 +7,7 @@ This feature is only available on Linux in Kubernetes. There are
 additional requirements outlined further in this document.
 
 > [!NOTE]
-> Workspace process logging is an Enterprise and Premium feature.
+> Workspace process logging is a Premium feature.
 > [Learn more](https://coder.com/pricing#compare-plans).
 
 Workspace process logging adds a sidecar container to workspace pods that will

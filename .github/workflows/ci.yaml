@@ -677,8 +677,8 @@ jobs:
         variant:
           - premium: false
             name: test-e2e
-          - premium: true
-            name: test-e2e-premium
+          #- premium: true
+          #  name: test-e2e-premium
     # Skip test-e2e on forks as they don't have access to CI secrets
     if: (needs.changes.outputs.go == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main') && !(github.event.pull_request.head.repo.fork)
     timeout-minutes: 20

@@ -79,25 +79,27 @@ var (
 func TestStart(t *testing.T) {
 	t.Parallel()
 
-	echoResponses := &echo.Responses{
-		Parse: echo.ParseComplete,
-		ProvisionPlan: []*proto.Response{
-			{
-				Type: &proto.Response_Plan{
-					Plan: &proto.PlanComplete{
-						Parameters: []*proto.RichParameter{
-							{
-								Name:        ephemeralParameterName,
-								Description: ephemeralParameterDescription,
-								Mutable:     true,
-								Ephemeral:   true,
+	echoResponses := func() *echo.Responses {
+		return &echo.Responses{
+			Parse: echo.ParseComplete,
+			ProvisionPlan: []*proto.Response{
+				{
+					Type: &proto.Response_Plan{
+						Plan: &proto.PlanComplete{
+							Parameters: []*proto.RichParameter{
+								{
+									Name:        ephemeralParameterName,
+									Description: ephemeralParameterDescription,
+									Mutable:     true,
+									Ephemeral:   true,
+								},
 							},
 						},
 					},
 				},
 			},
-		},
-		ProvisionApply: echo.ApplyComplete,
+			ProvisionApply: echo.ApplyComplete,
+		}
 	}
 
 	t.Run("BuildOptions", func(t *testing.T) {
@@ -106,7 +108,7 @@ func TestStart(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, echoResponses)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, echoResponses())
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, member, template.ID)
@@ -160,7 +162,7 @@ func TestStart(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, echoResponses)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, echoResponses())
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, member, template.ID)

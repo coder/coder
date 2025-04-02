@@ -1,19 +1,16 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Tooltip from "@mui/material/Tooltip";
 import type { WorkspaceAgentLogSource } from "api/typesGenerated";
+import type { Line } from "components/Logs/LogLine";
 import { type ComponentProps, forwardRef, useMemo } from "react";
 import { FixedSizeList as List } from "react-window";
-import {
-	AGENT_LOG_LINE_HEIGHT,
-	AgentLogLine,
-	type LineWithID,
-} from "./AgentLogLine";
+import { AGENT_LOG_LINE_HEIGHT, AgentLogLine } from "./AgentLogLine";
 
 type AgentLogsProps = Omit<
 	ComponentProps<typeof List>,
 	"children" | "itemSize" | "itemCount"
 > & {
-	logs: readonly LineWithID[];
+	logs: readonly Line[];
 	sources: readonly WorkspaceAgentLogSource[];
 };
 

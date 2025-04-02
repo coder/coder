@@ -7,6 +7,7 @@ settings:
 overrides:
   semver: 7.5.3
   jsonpointer: 5.0.1
+  '@babel/runtime': 7.26.10
 
 importers:
 
@@ -30,8 +31,8 @@ packages:
     resolution: {integrity: sha512-BSKlD1hgnedS5XRnGOljZawtag7H1yPfQp0tdNJCHoH6AZ+Pcm9VvkrK59/Yy593Ypg0zMxH2BxD1VPYUQ7UIw==}
     engines: {node: '>=6.9.0'}
 
-  '@babel/runtime@7.22.6':
-    resolution: {integrity: sha512-wDb5pWm4WDdF6LFUde3Jl8WzPA+3ZbxYqkC6xAXuD3irdEHN1k0NfTRrJD8ZD378SJ61miMLCqIOXYhd8x+AJQ==}
+  '@babel/runtime@7.26.10':
+    resolution: {integrity: sha512-2WJMeRQPHKSPemqk/awGrAiuFfzBmOIPXKizAsVhWH9YJqLZ0H+HS4c8loHGgW6utJ3E/ejXQUsiGaQy2NZ9Fw==}
     engines: {node: '>=6.9.0'}
 
   '@exodus/schemasafe@1.0.1':
@@ -530,8 +531,8 @@ packages:
   reftools@1.1.9:
     resolution: {integrity: sha512-OVede/NQE13xBQ+ob5CKd5KyeJYU2YInb1bmV4nRoOfquZPkAkxuOXicSe1PvqIuZZ4kD13sPKBbR7UFDmli6w==}
 
-  regenerator-runtime@0.13.11:
-    resolution: {integrity: sha512-kY1AZVr2Ra+t+piVaJ4gxaFaReZVH40AKNo7UCX6W+dEwBo/2oZJzqfuN1qLq1oL45o56cPaTXELwrTh8Fpggg==}
+  regenerator-runtime@0.14.1:
+    resolution: {integrity: sha512-dYnhHh0nJoMfnkZs6GmmhFknAGRrLznOu5nc9ML+EJxGvrx6H7teuevqVqCuPcPK//3eDrrjQhehXVx9cnkGdw==}
 
   require-directory@2.1.1:
     resolution: {integrity: sha512-fGxEI7+wsG9xrvdjsrlmL22OMTTiHRwAMroiEeMgq8gzoLC/PQr7RsRDSTLUg/bZAZtF+TVIkHc6/4RIKrui+Q==}
@@ -730,9 +731,9 @@ snapshots:
       chalk: 2.4.2
       js-tokens: 4.0.0
 
-  '@babel/runtime@7.22.6':
+  '@babel/runtime@7.26.10':
     dependencies:
-      regenerator-runtime: 0.13.11
+      regenerator-runtime: 0.14.1
 
   '@exodus/schemasafe@1.0.1': {}
 
@@ -777,7 +778,7 @@ snapshots:
   better-ajv-errors@0.6.7(ajv@5.5.2):
     dependencies:
       '@babel/code-frame': 7.22.5
-      '@babel/runtime': 7.22.6
+      '@babel/runtime': 7.26.10
       ajv: 5.5.2
       chalk: 2.4.2
       core-js: 3.31.0
@@ -1205,7 +1206,7 @@ snapshots:
 
   reftools@1.1.9: {}
 
-  regenerator-runtime@0.13.11: {}
+  regenerator-runtime@0.14.1: {}
 
   require-directory@2.1.1: {}
 

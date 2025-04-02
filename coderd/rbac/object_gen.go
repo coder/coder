@@ -242,6 +242,9 @@ var (
 	//  - "ActionDelete" :: delete system resources
 	//  - "ActionRead" :: view system resources
 	//  - "ActionUpdate" :: update system resources
+	// DEPRECATED: New resources should be created for new things, rather than adding them to System, which has become
+	//             an unmanaged collection of things that don't relate to one another. We can't effectively enforce
+	//             least privilege access control when unrelated resources are grouped together.
 	ResourceSystem = Object{
 		Type: "system",
 	}

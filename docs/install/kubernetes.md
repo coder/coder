@@ -123,7 +123,7 @@ details on the values that are available, or you can view the
 file directly.
 
 We support two release channels: mainline and stable - read the
-[Releases](./releases.md) page to learn more about which best suits your team.
+[Releases](./releases/index.md) page to learn more about which best suits your team.
 
 - **Mainline** Coder release:
 

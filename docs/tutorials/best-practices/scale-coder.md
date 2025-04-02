@@ -141,7 +141,7 @@ maintenance window to minimize disruption.
 ### Locality
 
 We recommend that you run one or more
-[provisioner daemon deployments external to Coder Server](../../admin/provisioners.md)
+[provisioner daemon deployments external to Coder Server](../../admin/provisioners/index.md)
 and disable provisioner daemons within your Coder Server.
 This allows you to scale them independently of the Coder Server:
 
