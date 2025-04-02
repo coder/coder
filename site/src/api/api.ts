@@ -243,7 +243,10 @@ export const watchWorkspaceAgentLogs = (
 	agentId: string,
 	{ after, onMessage, onDone, onError }: WatchWorkspaceAgentLogsOptions,
 ) => {
-	const searchParams = new URLSearchParams({ after: after.toString() });
+	const searchParams = new URLSearchParams({
+		follow: "true",
+		after: after.toString(),
+	});
 
 	/**
 	 * WebSocket compression in Safari (confirmed in 16.5) is broken when
