@@ -306,11 +306,11 @@ func makeJSONRPCRequest(t *testing.T, method, name string, args map[string]any) 
 		JSONRPC: "2.0",
 		Request: mcp.Request{Method: method},
 		Params: struct { // Unfortunately, there is no type for this yet.
-			Name      string         "json:\"name\""
-			Arguments map[string]any "json:\"arguments,omitempty\""
+			Name      string         `json:"name"`
+			Arguments map[string]any `json:"arguments,omitempty"`
 			Meta      *struct {
-				ProgressToken mcp.ProgressToken "json:\"progressToken,omitempty\""
-			} "json:\"_meta,omitempty\""
+				ProgressToken mcp.ProgressToken `json:"progressToken,omitempty"`
+			} `json:"_meta,omitempty"`
 		}{
 			Name:      name,
 			Arguments: args,
