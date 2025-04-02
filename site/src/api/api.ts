@@ -22,7 +22,7 @@
 import globalAxios, { type AxiosInstance, isAxiosError } from "axios";
 import type dayjs from "dayjs";
 import userAgentParser from "ua-parser-js";
-import { OneWayWebSocket } from "utils/OneWayWebSocket";
+import { OneWayWebSocket } from "../utils/OneWayWebSocket";
 import { delay } from "../utils/delay";
 import type { PostWorkspaceUsageRequest } from "./typesGenerated";
 import * as TypesGen from "./typesGenerated";
