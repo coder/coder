@@ -376,6 +376,10 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 			logger.Debug(ctx, "drpc server error", slog.Error(err))
 		},
 	})
+
+	// log the initial connection
+	httpmw.FromContext(ctx).WriteLog(ctx, http.StatusAccepted)
+
 	err = server.Serve(ctx, session)
 	srvCancel()
 	logger.Info(ctx, "provisioner daemon disconnected", slog.Error(err))
