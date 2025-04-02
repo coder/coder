@@ -293,7 +293,7 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 		return
 	}
 	if !job.CompletedAt.Valid {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusTooEarly, codersdk.Response{
 			Message: "Job hasn't completed!",
 		})
 		return
@@ -311,7 +311,10 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 	input := preview.Input{
 		PlanJSON:        plan,
 		ParameterValues: map[string]string{},
-		Owner:           previewtypes.WorkspaceOwner{},
+		// TODO: fill this out
+		Owner: previewtypes.WorkspaceOwner{
+			Groups: []string{"Everyone", "Bloob"},
+		},
 	}
 
 	fileCtx := dbauthz.AsProvisionerd(ctx)
@@ -347,13 +350,17 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 
 	// Send an initial form state, computed without any user input.
 	result, diagnostics := preview.Preview(ctx, input, fs)
-	stream.Send(codersdk.DynamicParametersResponse{
+	// result, diagnostics = preview.Preview(ctx, input, fs)
+	response := codersdk.DynamicParametersResponse{
 		// or maybe it could be -1 or something? it just has to be unique from
 		// anything a client could reasonably send.
 		ID:          math.MaxInt32,
-		Parameters:  result.Parameters,
 		Diagnostics: previewtypes.Diagnostics(diagnostics),
-	})
+	}
+	if result != nil {
+		response.Parameters = result.Parameters
+	}
+	stream.Send(response)
 
 	// As the user types into the form, reprocess the state using their input,
 	// and respond with updates.
@@ -361,16 +368,19 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 	for {
 		select {
 		case <-ctx.Done():
+			stream.Close(websocket.StatusGoingAway)
 			return
 		case update := <-updates:
-			newInput := input
-			newInput.ParameterValues = update.Inputs
+			input.ParameterValues = update.Inputs
 			result, diagnostics := preview.Preview(ctx, input, fs)
-			stream.Send(codersdk.DynamicParametersResponse{
+			response := codersdk.DynamicParametersResponse{
 				ID:          update.ID,
-				Parameters:  result.Parameters,
 				Diagnostics: previewtypes.Diagnostics(diagnostics),
-			})
+			}
+			if result != nil {
+				response.Parameters = result.Parameters
+			}
+			stream.Send(response)
 		}
 	}
 }
@@ -396,7 +406,7 @@ func (api *API) templateVersionRichParameters(rw http.ResponseWriter, r *http.Re
 		return
 	}
 	if !job.CompletedAt.Valid {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusTooEarly, codersdk.Response{
 			Message: "Job hasn't completed!",
 		})
 		return
@@ -592,7 +602,7 @@ func (api *API) postTemplateVersionDryRun(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 	if !job.CompletedAt.Valid {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusTooEarly, codersdk.Response{
 			Message: "Template version import job hasn't completed!",
 		})
 		return

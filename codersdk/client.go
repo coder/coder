@@ -359,7 +359,11 @@ func (c *Client) Dial(ctx context.Context, path string, opts *websocket.DialOpti
 	}
 
 	conn, resp, err := websocket.Dial(ctx, url.String(), opts)
-	resp.Body.Close()
+	if resp.Body != nil {
+		// websocket.Dial acts like you need to _always_ destroy this, I have no
+		// idea what's going on because no one else does and it's `nil` on upgrades
+		resp.Body.Close()
+	}
 	if err != nil {
 		return nil, err
 	}
