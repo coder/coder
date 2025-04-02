@@ -1,5 +1,6 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import type { ProvisionerJobLog } from "api/typesGenerated";
+import type { Line } from "components/Logs/LogLine";
 import { DEFAULT_LOG_LINE_SIDE_PADDING, Logs } from "components/Logs/Logs";
 import dayjs from "dayjs";
 import { type FC, Fragment, type HTMLAttributes } from "react";
@@ -63,7 +64,8 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
 		>
 			{Object.entries(groupedLogsByStage).map(([stage, logs]) => {
 				const isEmpty = logs.every((log) => log.output === "");
-				const lines = logs.map((log) => ({
+				const lines = logs.map<Line>((log) => ({
+					id: String(log.id),
 					time: log.created_at,
 					output: log.output,
 					level: log.log_level,

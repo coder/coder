@@ -12,6 +12,7 @@ import type {
 	WorkspaceAgentMetadata,
 } from "api/typesGenerated";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
+import type { Line } from "components/Logs/LogLine";
 import { Stack } from "components/Stack/Stack";
 import { useProxy } from "contexts/ProxyContext";
 import {
@@ -318,8 +319,8 @@ export const AgentRow: FC<AgentRowProps> = ({
 									width={width}
 									css={styles.startupLogs}
 									onScroll={handleLogScroll}
-									logs={startupLogs.map((l) => ({
-										id: l.id,
+									logs={startupLogs.map<Line>((l) => ({
+										id: String(l.id),
 										level: l.level,
 										output: l.output,
 										sourceId: l.source_id,
