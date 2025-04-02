@@ -62,7 +62,7 @@ Use the Coder CLI to log in and configure SSH, then connect to your workspace wi
    zed ssh://coder.workspace-name
    ```
 
-1. Connect via a coder_app workspace icon and SSH hot link:
+1. Connect via a coder_app workspace icon and SSH hotlink:
 
    ```hcl
    resource "coder_app" "zed" {
