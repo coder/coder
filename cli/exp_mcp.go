@@ -111,12 +111,13 @@ func (*RootCmd) mcpConfigureClaudeDesktop() *serpent.Command {
 func (*RootCmd) mcpConfigureClaudeCode() *serpent.Command {
 	var (
 		claudeAPIKey     string
-		claudeAPIKeyAlt  string
 		claudeConfigPath string
 		claudeMDPath     string
 		systemPrompt     string
 		appStatusSlug    string
 		testBinaryName   string
+
+		deprecatedCoderMCPClaudeAPIKey string
 	)
 	cmd := &serpent.Command{
 		Use:   "claude-code <project-directory>",
@@ -141,8 +142,13 @@ func (*RootCmd) mcpConfigureClaudeCode() *serpent.Command {
 			} else {
 				configureClaudeEnv["CODER_AGENT_TOKEN"] = agentToken
 			}
-			if claudeAPIKey == "" && claudeAPIKeyAlt == "" {
-				cliui.Warnf(inv.Stderr, "Neither CODER_MCP_CLAUDE_API_KEY nor CLAUDE_API_KEY are set.")
+			if claudeAPIKey == "" {
+				if deprecatedCoderMCPClaudeAPIKey == "" {
+					cliui.Warnf(inv.Stderr, "CLAUDE_API_KEY is not set.")
+				} else {
+					cliui.Warnf(inv.Stderr, "CODER_MCP_CLAUDE_API_KEY is deprecated, use CLAUDE_API_KEY instead")
+					claudeAPIKey = deprecatedCoderMCPClaudeAPIKey
+				}
 			}
 			if appStatusSlug != "" {
 				configureClaudeEnv["CODER_MCP_APP_STATUS_SLUG"] = appStatusSlug
@@ -205,7 +211,7 @@ func (*RootCmd) mcpConfigureClaudeCode() *serpent.Command {
 				Name:        "mcp-claude-api-key",
 				Description: "Hidden alias for CLAUDE_API_KEY. This will be removed in a future version.",
 				Env:         "CODER_MCP_CLAUDE_API_KEY",
-				Value:       serpent.StringOf(&claudeAPIKeyAlt),
+				Value:       serpent.StringOf(&deprecatedCoderMCPClaudeAPIKey),
 				Hidden:      true,
 			},
 			{
