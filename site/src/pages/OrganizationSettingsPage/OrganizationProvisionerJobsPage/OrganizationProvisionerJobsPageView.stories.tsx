@@ -21,6 +21,7 @@ const meta: Meta<typeof OrganizationProvisionerJobsPageView> = {
 	args: {
 		organization: MockOrganization,
 		jobs: MockProvisionerJobs,
+		filter: { status: "" },
 		onRetry: fn(),
 	},
 };
