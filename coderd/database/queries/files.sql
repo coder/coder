@@ -8,6 +8,23 @@ WHERE
 LIMIT
 	1;
 
+-- name: GetFileIDByTemplateVersionID :one
+SELECT
+	files.id
+FROM
+	files
+JOIN
+	provisioner_jobs ON
+		provisioner_jobs.storage_method = 'file'
+		AND provisioner_jobs.file_id = files.id
+JOIN
+	template_versions ON template_versions.job_id = provisioner_jobs.id
+WHERE
+	template_versions.id = @template_version_id
+LIMIT
+	1;
+
+
 -- name: GetFileByHashAndCreator :one
 SELECT
 	*

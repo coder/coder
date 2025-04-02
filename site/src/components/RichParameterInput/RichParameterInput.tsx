@@ -1,5 +1,6 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import ErrorOutline from "@mui/icons-material/ErrorOutline";
+import SettingsIcon from "@mui/icons-material/Settings";
 import Button from "@mui/material/Button";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import FormHelperText from "@mui/material/FormHelperText";
@@ -122,9 +123,10 @@ const styles = {
 
 export interface ParameterLabelProps {
 	parameter: TemplateVersionParameter;
+	isPreset?: boolean;
 }
 
-const ParameterLabel: FC<ParameterLabelProps> = ({ parameter }) => {
+const ParameterLabel: FC<ParameterLabelProps> = ({ parameter, isPreset }) => {
 	const hasDescription = parameter.description && parameter.description !== "";
 	const displayName = parameter.display_name
 		? parameter.display_name
@@ -143,6 +145,13 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ parameter }) => {
 				<Tooltip title="This value cannot be modified after the workspace has been created.">
 					<Pill type="warning" icon={<ErrorOutline />}>
 						Immutable
+					</Pill>
+				</Tooltip>
+			)}
+			{isPreset && (
+				<Tooltip title="This value was set by a preset">
+					<Pill type="info" icon={<SettingsIcon />}>
+						Preset
 					</Pill>
 				</Tooltip>
 			)}
@@ -187,6 +196,7 @@ export type RichParameterInputProps = Omit<
 	parameterAutofill?: AutofillBuildParameter;
 	onChange: (value: string) => void;
 	size?: Size;
+	isPreset?: boolean;
 };
 
 const autofillDescription: Partial<Record<AutofillSource, ReactNode>> = {
@@ -198,6 +208,7 @@ export const RichParameterInput: FC<RichParameterInputProps> = ({
 	parameter,
 	parameterAutofill,
 	onChange,
+	isPreset,
 	...fieldProps
 }) => {
 	const autofillSource = parameterAutofill?.source;
@@ -211,7 +222,7 @@ export const RichParameterInput: FC<RichParameterInputProps> = ({
 			className={size}
 			data-testid={`parameter-field-${parameter.name}`}
 		>
-			<ParameterLabel parameter={parameter} />
+			<ParameterLabel parameter={parameter} isPreset={isPreset} />
 			<div css={{ display: "flex", flexDirection: "column" }}>
 				<RichParameterField
 					{...fieldProps}
