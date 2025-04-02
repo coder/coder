@@ -2,9 +2,9 @@
 
 > [!NOTE]
 >
-> This functionality is in early access and subject to change. Do not run in
-> production as it is unstable. Instead, deploy these changes into a demo or
-> staging environment.
+> This functionality is in early access and still evolving.
+> For now, we recommend testing it in a demo or staging environment,
+> rather than deploying to production.
 >
 > Join our [Discord channel](https://discord.gg/coder) or
 > [contact us](https://coder.com/contact) to get help or share feedback.
@@ -23,7 +23,7 @@ Coder uses the [MCP protocol](https://modelcontextprotocol.io/introduction) to r
 
 First, your template will need a [coder_app](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app) for the agent. This can be a web app or command run in the terminal and ideally gives the user a UI to interact with or view more details about the agent.
 
-From there, the agent can run the MCP server with the `coder exp mcp server` command. You will need to set the `CODER_MCP_APP_STATUS_SLUG` environment variable to match the slug in the coder_app resource.
+From there, the agent can run the MCP server with the `coder exp mcp server` command. You will need to set the `CODER_MCP_APP_STATUS_SLUG` environment variable to match the slug in the coder_app resource. `CODER_AGENT_TOKEN` must also be set, but will be present inside a Coder workspace.
 
 ## Example
 

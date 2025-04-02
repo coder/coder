@@ -2,9 +2,9 @@
 
 > [!NOTE]
 >
-> This functionality is in early access and subject to change. Do not run in
-> production as it is unstable. Instead, deploy these changes into a demo or
-> staging environment.
+> This functionality is in early access and still evolving.
+> For now, we recommend testing it in a demo or staging environment,
+> rather than deploying to production.
 >
 > Join our [Discord channel](https://discord.gg/coder) or
 > [contact us](https://coder.com/contact) to get help or share feedback.
