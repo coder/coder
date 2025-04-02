@@ -257,14 +257,14 @@ export const CreateWorkspacePageViewExperimental: FC<
 					)}
 
 					<section className="flex flex-col gap-4">
-						<div>
+						<hgroup>
 							<h2 className="text-xl font-semibold m-0">General</h2>
 							<p className="text-sm text-content-secondary mt-0">
 								{permissions.createWorkspaceForUser
 									? "Only admins can create workspaces for other users."
 									: "The name of your new workspace."}
 							</p>
-						</div>
+						</hgroup>
 						<div>
 							{versionId && versionId !== template.active_version_id && (
 								<div className="flex flex-col gap-2 pb-4">
@@ -274,11 +274,6 @@ export const CreateWorkspacePageViewExperimental: FC<
 									<Input
 										id={`${id}-version-id`}
 										value={versionId}
-										// onChange={onChangeTrimmed(form, resetMutation)}
-										onChange={(e) => {
-											form.setFieldValue("name", e.target.value);
-											resetMutation();
-										}}
 										disabled
 									/>
 									<span className="text-xs text-content-secondary">
@@ -286,7 +281,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 									</span>
 								</div>
 							)}
-							<div className="flex gap-4 w-full">
+							<div className="flex gap-4 flex-wrap">
 								<div className="flex flex-col gap-2 flex-1">
 									<Label className="text-sm" htmlFor={`${id}-workspace-name`}>
 										Workspace name
@@ -295,9 +290,8 @@ export const CreateWorkspacePageViewExperimental: FC<
 										<Input
 											id={`${id}-workspace-name`}
 											value={form.values.name}
-											// onChange={onChangeTrimmed(form, resetMutation)}
 											onChange={(e) => {
-												form.setFieldValue("name", e.target.value);
+												form.setFieldValue("name", e.target.value.trim());
 												resetMutation();
 											}}
 											disabled={creatingWorkspace}
@@ -328,7 +322,6 @@ export const CreateWorkspacePageViewExperimental: FC<
 												setOwner(user ?? defaultOwner);
 											}}
 											size="medium"
-											className="w-full"
 										/>
 									</div>
 								)}
@@ -338,12 +331,14 @@ export const CreateWorkspacePageViewExperimental: FC<
 
 					{externalAuth && externalAuth.length > 0 && (
 						<section>
-							<h2 className="text-xl font-semibold mb-0">
-								External Authentication
-							</h2>
-							<p className="text-sm text-content-secondary mt-0">
-								This template uses external services for authentication.
-							</p>
+							<hgroup>
+								<h2 className="text-xl font-semibold mb-0">
+									External Authentication
+								</h2>
+								<p className="text-sm text-content-secondary mt-0">
+									This template uses external services for authentication.
+								</p>
+							</hgroup>
 							<div>
 								{Boolean(error) && !hasAllRequiredExternalAuth && (
 									<Alert severity="error">
@@ -367,14 +362,14 @@ export const CreateWorkspacePageViewExperimental: FC<
 
 					{parameters.length > 0 && (
 						<section className="flex flex-col gap-6">
-							<div>
+							<hgroup>
 								<h2 className="text-xl font-semibold m-0">Parameters</h2>
 								<p className="text-sm text-content-secondary m-0">
 									These are the settings used by your template. Please note that
 									immutable parameters cannot be modified once the workspace is
 									created.
 								</p>
-							</div>
+							</hgroup>
 							{presets.length > 0 && (
 								<Stack direction="column" spacing={2}>
 									<div className="flex flex-col gap-2">
