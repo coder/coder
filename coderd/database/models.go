@@ -2414,6 +2414,67 @@ func AllWorkspaceAppOpenInValues() []WorkspaceAppOpenIn {
 	}
 }
 
+type WorkspaceAppStatusState string
+
+const (
+	WorkspaceAppStatusStateWorking  WorkspaceAppStatusState = "working"
+	WorkspaceAppStatusStateComplete WorkspaceAppStatusState = "complete"
+	WorkspaceAppStatusStateFailure  WorkspaceAppStatusState = "failure"
+)
+
+func (e *WorkspaceAppStatusState) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkspaceAppStatusState(s)
+	case string:
+		*e = WorkspaceAppStatusState(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkspaceAppStatusState: %T", src)
+	}
+	return nil
+}
+
+type NullWorkspaceAppStatusState struct {
+	WorkspaceAppStatusState WorkspaceAppStatusState `json:"workspace_app_status_state"`
+	Valid                   bool                    `json:"valid"` // Valid is true if WorkspaceAppStatusState is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkspaceAppStatusState) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkspaceAppStatusState, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkspaceAppStatusState.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkspaceAppStatusState) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkspaceAppStatusState), nil
+}
+
+func (e WorkspaceAppStatusState) Valid() bool {
+	switch e {
+	case WorkspaceAppStatusStateWorking,
+		WorkspaceAppStatusStateComplete,
+		WorkspaceAppStatusStateFailure:
+		return true
+	}
+	return false
+}
+
+func AllWorkspaceAppStatusStateValues() []WorkspaceAppStatusState {
+	return []WorkspaceAppStatusState{
+		WorkspaceAppStatusStateWorking,
+		WorkspaceAppStatusStateComplete,
+		WorkspaceAppStatusStateFailure,
+	}
+}
+
 type WorkspaceTransition string
 
 const (
@@ -3240,6 +3301,15 @@ type VisibleUser struct {
 	AvatarURL string    `db:"avatar_url" json:"avatar_url"`
 }
 
+type WebpushSubscription struct {
+	ID                uuid.UUID `db:"id" json:"id"`
+	UserID            uuid.UUID `db:"user_id" json:"user_id"`
+	CreatedAt         time.Time `db:"created_at" json:"created_at"`
+	Endpoint          string    `db:"endpoint" json:"endpoint"`
+	EndpointP256dhKey string    `db:"endpoint_p256dh_key" json:"endpoint_p256dh_key"`
+	EndpointAuthKey   string    `db:"endpoint_auth_key" json:"endpoint_auth_key"`
+}
+
 // Joins in the display name information such as username, avatar, and organization name.
 type Workspace struct {
 	ID                      uuid.UUID        `db:"id" json:"id"`
@@ -3504,6 +3574,19 @@ type WorkspaceAppStat struct {
 	SessionEndedAt time.Time `db:"session_ended_at" json:"session_ended_at"`
 	// The number of requests made during the session, a number larger than 1 indicates that multiple sessions were rolled up into one
 	Requests int32 `db:"requests" json:"requests"`
+}
+
+type WorkspaceAppStatus struct {
+	ID                 uuid.UUID               `db:"id" json:"id"`
+	CreatedAt          time.Time               `db:"created_at" json:"created_at"`
+	AgentID            uuid.UUID               `db:"agent_id" json:"agent_id"`
+	AppID              uuid.UUID               `db:"app_id" json:"app_id"`
+	WorkspaceID        uuid.UUID               `db:"workspace_id" json:"workspace_id"`
+	State              WorkspaceAppStatusState `db:"state" json:"state"`
+	NeedsUserAttention bool                    `db:"needs_user_attention" json:"needs_user_attention"`
+	Message            string                  `db:"message" json:"message"`
+	Uri                sql.NullString          `db:"uri" json:"uri"`
+	Icon               sql.NullString          `db:"icon" json:"icon"`
 }
 
 // Joins in the username + avatar url of the initiated by user.

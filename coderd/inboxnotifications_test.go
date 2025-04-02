@@ -137,7 +137,7 @@ func TestInboxNotification_Watch(t *testing.T) {
 		require.Equal(t, memberClient.ID, notif.Notification.UserID)
 
 		// check for the fallback icon logic
-		require.Equal(t, codersdk.FallbackIconWorkspace, notif.Notification.Icon)
+		require.Equal(t, codersdk.InboxNotificationFallbackIconWorkspace, notif.Notification.Icon)
 	})
 
 	t.Run("OK - change format", func(t *testing.T) {
@@ -557,11 +557,11 @@ func TestInboxNotifications_List(t *testing.T) {
 		require.Len(t, notifs.Notifications, 10)
 
 		require.Equal(t, "https://dev.coder.com/icon.png", notifs.Notifications[0].Icon)
-		require.Equal(t, codersdk.FallbackIconWorkspace, notifs.Notifications[9].Icon)
-		require.Equal(t, codersdk.FallbackIconWorkspace, notifs.Notifications[8].Icon)
-		require.Equal(t, codersdk.FallbackIconAccount, notifs.Notifications[7].Icon)
-		require.Equal(t, codersdk.FallbackIconTemplate, notifs.Notifications[6].Icon)
-		require.Equal(t, codersdk.FallbackIconOther, notifs.Notifications[4].Icon)
+		require.Equal(t, codersdk.InboxNotificationFallbackIconWorkspace, notifs.Notifications[9].Icon)
+		require.Equal(t, codersdk.InboxNotificationFallbackIconWorkspace, notifs.Notifications[8].Icon)
+		require.Equal(t, codersdk.InboxNotificationFallbackIconAccount, notifs.Notifications[7].Icon)
+		require.Equal(t, codersdk.InboxNotificationFallbackIconTemplate, notifs.Notifications[6].Icon)
+		require.Equal(t, codersdk.InboxNotificationFallbackIconOther, notifs.Notifications[4].Icon)
 	})
 
 	t.Run("OK with template filter", func(t *testing.T) {
@@ -607,7 +607,7 @@ func TestInboxNotifications_List(t *testing.T) {
 		require.Len(t, notifs.Notifications, 5)
 
 		require.Equal(t, "Notification 8", notifs.Notifications[0].Title)
-		require.Equal(t, codersdk.FallbackIconWorkspace, notifs.Notifications[0].Icon)
+		require.Equal(t, codersdk.InboxNotificationFallbackIconWorkspace, notifs.Notifications[0].Icon)
 	})
 
 	t.Run("OK with target filter", func(t *testing.T) {

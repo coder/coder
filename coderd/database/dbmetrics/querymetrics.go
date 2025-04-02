@@ -221,6 +221,13 @@ func (m queryMetricsStore) DeleteAllTailnetTunnels(ctx context.Context, arg data
 	return r0
 }
 
+func (m queryMetricsStore) DeleteAllWebpushSubscriptions(ctx context.Context) error {
+	start := time.Now()
+	r0 := m.s.DeleteAllWebpushSubscriptions(ctx)
+	m.queryLatencies.WithLabelValues("DeleteAllWebpushSubscriptions").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m queryMetricsStore) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
 	start := time.Now()
 	err := m.s.DeleteApplicationConnectAPIKeysByUserID(ctx, userID)
@@ -408,6 +415,20 @@ func (m queryMetricsStore) DeleteTailnetTunnel(ctx context.Context, arg database
 	r0, r1 := m.s.DeleteTailnetTunnel(ctx, arg)
 	m.queryLatencies.WithLabelValues("DeleteTailnetTunnel").Observe(time.Since(start).Seconds())
 	return r0, r1
+}
+
+func (m queryMetricsStore) DeleteWebpushSubscriptionByUserIDAndEndpoint(ctx context.Context, arg database.DeleteWebpushSubscriptionByUserIDAndEndpointParams) error {
+	start := time.Now()
+	r0 := m.s.DeleteWebpushSubscriptionByUserIDAndEndpoint(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteWebpushSubscriptionByUserIDAndEndpoint").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m queryMetricsStore) DeleteWebpushSubscriptions(ctx context.Context, ids []uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteWebpushSubscriptions(ctx, ids)
+	m.queryLatencies.WithLabelValues("DeleteWebpushSubscriptions").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m queryMetricsStore) DeleteWorkspaceAgentPortShare(ctx context.Context, arg database.DeleteWorkspaceAgentPortShareParams) error {
@@ -834,6 +855,13 @@ func (m queryMetricsStore) GetLatestCryptoKeyByFeature(ctx context.Context, feat
 	start := time.Now()
 	r0, r1 := m.s.GetLatestCryptoKeyByFeature(ctx, feature)
 	m.queryLatencies.WithLabelValues("GetLatestCryptoKeyByFeature").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetLatestWorkspaceAppStatusesByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAppStatus, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetLatestWorkspaceAppStatusesByWorkspaceIDs(ctx, ids)
+	m.queryLatencies.WithLabelValues("GetLatestWorkspaceAppStatusesByWorkspaceIDs").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -1502,6 +1530,20 @@ func (m queryMetricsStore) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) (
 	return users, err
 }
 
+func (m queryMetricsStore) GetWebpushSubscriptionsByUserID(ctx context.Context, userID uuid.UUID) ([]database.WebpushSubscription, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWebpushSubscriptionsByUserID(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetWebpushSubscriptionsByUserID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetWebpushVAPIDKeys(ctx context.Context) (database.GetWebpushVAPIDKeysRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWebpushVAPIDKeys(ctx)
+	m.queryLatencies.WithLabelValues("GetWebpushVAPIDKeys").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetWorkspaceAgentAndLatestBuildByAuthToken(ctx context.Context, authToken uuid.UUID) (database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetWorkspaceAgentAndLatestBuildByAuthToken(ctx, authToken)
@@ -1633,6 +1675,13 @@ func (m queryMetricsStore) GetWorkspaceAppByAgentIDAndSlug(ctx context.Context, 
 	app, err := m.s.GetWorkspaceAppByAgentIDAndSlug(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetWorkspaceAppByAgentIDAndSlug").Observe(time.Since(start).Seconds())
 	return app, err
+}
+
+func (m queryMetricsStore) GetWorkspaceAppStatusesByAppIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAppStatus, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceAppStatusesByAppIDs(ctx, ids)
+	m.queryLatencies.WithLabelValues("GetWorkspaceAppStatusesByAppIDs").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m queryMetricsStore) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uuid.UUID) ([]database.WorkspaceApp, error) {
@@ -2146,6 +2195,13 @@ func (m queryMetricsStore) InsertVolumeResourceMonitor(ctx context.Context, arg 
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertWebpushSubscription(ctx context.Context, arg database.InsertWebpushSubscriptionParams) (database.WebpushSubscription, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertWebpushSubscription(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertWebpushSubscription").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertWorkspace(ctx context.Context, arg database.InsertWorkspaceParams) (database.WorkspaceTable, error) {
 	start := time.Now()
 	workspace, err := m.s.InsertWorkspace(ctx, arg)
@@ -2221,6 +2277,13 @@ func (m queryMetricsStore) InsertWorkspaceAppStats(ctx context.Context, arg data
 	r0 := m.s.InsertWorkspaceAppStats(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertWorkspaceAppStats").Observe(time.Since(start).Seconds())
 	return r0
+}
+
+func (m queryMetricsStore) InsertWorkspaceAppStatus(ctx context.Context, arg database.InsertWorkspaceAppStatusParams) (database.WorkspaceAppStatus, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertWorkspaceAppStatus(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertWorkspaceAppStatus").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m queryMetricsStore) InsertWorkspaceBuild(ctx context.Context, arg database.InsertWorkspaceBuildParams) error {
@@ -3011,6 +3074,13 @@ func (m queryMetricsStore) UpsertTemplateUsageStats(ctx context.Context) error {
 	start := time.Now()
 	r0 := m.s.UpsertTemplateUsageStats(ctx)
 	m.queryLatencies.WithLabelValues("UpsertTemplateUsageStats").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m queryMetricsStore) UpsertWebpushVAPIDKeys(ctx context.Context, arg database.UpsertWebpushVAPIDKeysParams) error {
+	start := time.Now()
+	r0 := m.s.UpsertWebpushVAPIDKeys(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertWebpushVAPIDKeys").Observe(time.Since(start).Seconds())
 	return r0
 }
 

@@ -318,6 +318,20 @@ func (mr *MockStoreMockRecorder) DeleteAllTailnetTunnels(ctx, arg any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAllTailnetTunnels", reflect.TypeOf((*MockStore)(nil).DeleteAllTailnetTunnels), ctx, arg)
 }
 
+// DeleteAllWebpushSubscriptions mocks base method.
+func (m *MockStore) DeleteAllWebpushSubscriptions(ctx context.Context) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteAllWebpushSubscriptions", ctx)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteAllWebpushSubscriptions indicates an expected call of DeleteAllWebpushSubscriptions.
+func (mr *MockStoreMockRecorder) DeleteAllWebpushSubscriptions(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAllWebpushSubscriptions", reflect.TypeOf((*MockStore)(nil).DeleteAllWebpushSubscriptions), ctx)
+}
+
 // DeleteApplicationConnectAPIKeysByUserID mocks base method.
 func (m *MockStore) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
 	m.ctrl.T.Helper()
@@ -700,6 +714,34 @@ func (m *MockStore) DeleteTailnetTunnel(ctx context.Context, arg database.Delete
 func (mr *MockStoreMockRecorder) DeleteTailnetTunnel(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTailnetTunnel", reflect.TypeOf((*MockStore)(nil).DeleteTailnetTunnel), ctx, arg)
+}
+
+// DeleteWebpushSubscriptionByUserIDAndEndpoint mocks base method.
+func (m *MockStore) DeleteWebpushSubscriptionByUserIDAndEndpoint(ctx context.Context, arg database.DeleteWebpushSubscriptionByUserIDAndEndpointParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteWebpushSubscriptionByUserIDAndEndpoint", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteWebpushSubscriptionByUserIDAndEndpoint indicates an expected call of DeleteWebpushSubscriptionByUserIDAndEndpoint.
+func (mr *MockStoreMockRecorder) DeleteWebpushSubscriptionByUserIDAndEndpoint(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWebpushSubscriptionByUserIDAndEndpoint", reflect.TypeOf((*MockStore)(nil).DeleteWebpushSubscriptionByUserIDAndEndpoint), ctx, arg)
+}
+
+// DeleteWebpushSubscriptions mocks base method.
+func (m *MockStore) DeleteWebpushSubscriptions(ctx context.Context, ids []uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteWebpushSubscriptions", ctx, ids)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteWebpushSubscriptions indicates an expected call of DeleteWebpushSubscriptions.
+func (mr *MockStoreMockRecorder) DeleteWebpushSubscriptions(ctx, ids any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWebpushSubscriptions", reflect.TypeOf((*MockStore)(nil).DeleteWebpushSubscriptions), ctx, ids)
 }
 
 // DeleteWorkspaceAgentPortShare mocks base method.
@@ -1685,6 +1727,21 @@ func (m *MockStore) GetLatestCryptoKeyByFeature(ctx context.Context, feature dat
 func (mr *MockStoreMockRecorder) GetLatestCryptoKeyByFeature(ctx, feature any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLatestCryptoKeyByFeature", reflect.TypeOf((*MockStore)(nil).GetLatestCryptoKeyByFeature), ctx, feature)
+}
+
+// GetLatestWorkspaceAppStatusesByWorkspaceIDs mocks base method.
+func (m *MockStore) GetLatestWorkspaceAppStatusesByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAppStatus, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLatestWorkspaceAppStatusesByWorkspaceIDs", ctx, ids)
+	ret0, _ := ret[0].([]database.WorkspaceAppStatus)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetLatestWorkspaceAppStatusesByWorkspaceIDs indicates an expected call of GetLatestWorkspaceAppStatusesByWorkspaceIDs.
+func (mr *MockStoreMockRecorder) GetLatestWorkspaceAppStatusesByWorkspaceIDs(ctx, ids any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLatestWorkspaceAppStatusesByWorkspaceIDs", reflect.TypeOf((*MockStore)(nil).GetLatestWorkspaceAppStatusesByWorkspaceIDs), ctx, ids)
 }
 
 // GetLatestWorkspaceBuildByWorkspaceID mocks base method.
@@ -3142,6 +3199,36 @@ func (mr *MockStoreMockRecorder) GetUsersByIDs(ctx, ids any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUsersByIDs", reflect.TypeOf((*MockStore)(nil).GetUsersByIDs), ctx, ids)
 }
 
+// GetWebpushSubscriptionsByUserID mocks base method.
+func (m *MockStore) GetWebpushSubscriptionsByUserID(ctx context.Context, userID uuid.UUID) ([]database.WebpushSubscription, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWebpushSubscriptionsByUserID", ctx, userID)
+	ret0, _ := ret[0].([]database.WebpushSubscription)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWebpushSubscriptionsByUserID indicates an expected call of GetWebpushSubscriptionsByUserID.
+func (mr *MockStoreMockRecorder) GetWebpushSubscriptionsByUserID(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWebpushSubscriptionsByUserID", reflect.TypeOf((*MockStore)(nil).GetWebpushSubscriptionsByUserID), ctx, userID)
+}
+
+// GetWebpushVAPIDKeys mocks base method.
+func (m *MockStore) GetWebpushVAPIDKeys(ctx context.Context) (database.GetWebpushVAPIDKeysRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWebpushVAPIDKeys", ctx)
+	ret0, _ := ret[0].(database.GetWebpushVAPIDKeysRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWebpushVAPIDKeys indicates an expected call of GetWebpushVAPIDKeys.
+func (mr *MockStoreMockRecorder) GetWebpushVAPIDKeys(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWebpushVAPIDKeys", reflect.TypeOf((*MockStore)(nil).GetWebpushVAPIDKeys), ctx)
+}
+
 // GetWorkspaceAgentAndLatestBuildByAuthToken mocks base method.
 func (m *MockStore) GetWorkspaceAgentAndLatestBuildByAuthToken(ctx context.Context, authToken uuid.UUID) (database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow, error) {
 	m.ctrl.T.Helper()
@@ -3425,6 +3512,21 @@ func (m *MockStore) GetWorkspaceAppByAgentIDAndSlug(ctx context.Context, arg dat
 func (mr *MockStoreMockRecorder) GetWorkspaceAppByAgentIDAndSlug(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAppByAgentIDAndSlug", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAppByAgentIDAndSlug), ctx, arg)
+}
+
+// GetWorkspaceAppStatusesByAppIDs mocks base method.
+func (m *MockStore) GetWorkspaceAppStatusesByAppIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAppStatus, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceAppStatusesByAppIDs", ctx, ids)
+	ret0, _ := ret[0].([]database.WorkspaceAppStatus)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceAppStatusesByAppIDs indicates an expected call of GetWorkspaceAppStatusesByAppIDs.
+func (mr *MockStoreMockRecorder) GetWorkspaceAppStatusesByAppIDs(ctx, ids any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAppStatusesByAppIDs", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAppStatusesByAppIDs), ctx, ids)
 }
 
 // GetWorkspaceAppsByAgentID mocks base method.
@@ -4527,6 +4629,21 @@ func (mr *MockStoreMockRecorder) InsertVolumeResourceMonitor(ctx, arg any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertVolumeResourceMonitor", reflect.TypeOf((*MockStore)(nil).InsertVolumeResourceMonitor), ctx, arg)
 }
 
+// InsertWebpushSubscription mocks base method.
+func (m *MockStore) InsertWebpushSubscription(ctx context.Context, arg database.InsertWebpushSubscriptionParams) (database.WebpushSubscription, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertWebpushSubscription", ctx, arg)
+	ret0, _ := ret[0].(database.WebpushSubscription)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertWebpushSubscription indicates an expected call of InsertWebpushSubscription.
+func (mr *MockStoreMockRecorder) InsertWebpushSubscription(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWebpushSubscription", reflect.TypeOf((*MockStore)(nil).InsertWebpushSubscription), ctx, arg)
+}
+
 // InsertWorkspace mocks base method.
 func (m *MockStore) InsertWorkspace(ctx context.Context, arg database.InsertWorkspaceParams) (database.WorkspaceTable, error) {
 	m.ctrl.T.Helper()
@@ -4687,6 +4804,21 @@ func (m *MockStore) InsertWorkspaceAppStats(ctx context.Context, arg database.In
 func (mr *MockStoreMockRecorder) InsertWorkspaceAppStats(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceAppStats", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceAppStats), ctx, arg)
+}
+
+// InsertWorkspaceAppStatus mocks base method.
+func (m *MockStore) InsertWorkspaceAppStatus(ctx context.Context, arg database.InsertWorkspaceAppStatusParams) (database.WorkspaceAppStatus, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertWorkspaceAppStatus", ctx, arg)
+	ret0, _ := ret[0].(database.WorkspaceAppStatus)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertWorkspaceAppStatus indicates an expected call of InsertWorkspaceAppStatus.
+func (mr *MockStoreMockRecorder) InsertWorkspaceAppStatus(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceAppStatus", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceAppStatus), ctx, arg)
 }
 
 // InsertWorkspaceBuild mocks base method.
@@ -6345,6 +6477,20 @@ func (m *MockStore) UpsertTemplateUsageStats(ctx context.Context) error {
 func (mr *MockStoreMockRecorder) UpsertTemplateUsageStats(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertTemplateUsageStats", reflect.TypeOf((*MockStore)(nil).UpsertTemplateUsageStats), ctx)
+}
+
+// UpsertWebpushVAPIDKeys mocks base method.
+func (m *MockStore) UpsertWebpushVAPIDKeys(ctx context.Context, arg database.UpsertWebpushVAPIDKeysParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertWebpushVAPIDKeys", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertWebpushVAPIDKeys indicates an expected call of UpsertWebpushVAPIDKeys.
+func (mr *MockStoreMockRecorder) UpsertWebpushVAPIDKeys(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertWebpushVAPIDKeys", reflect.TypeOf((*MockStore)(nil).UpsertWebpushVAPIDKeys), ctx, arg)
 }
 
 // UpsertWorkspaceAgentPortShare mocks base method.
