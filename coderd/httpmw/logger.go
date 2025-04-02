@@ -35,7 +35,11 @@ func Logger(log slog.Logger) func(next http.Handler) http.Handler {
 				slog.F("start", start),
 			)
 
-			logContext := &RequestLoggerContext{}
+			logContext := &RequestLoggerContext{
+				Fields:  map[string]any{},
+				log:     &slog.Logger{},
+				written: false,
+			}
 			defer func() {
 				logContext.WriteLog(r.Context(), "", sw.Status)
 			}()
