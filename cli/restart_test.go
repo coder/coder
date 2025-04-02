@@ -282,10 +282,8 @@ func TestRestart(t *testing.T) {
 func TestRestartWithParameters(t *testing.T) {
 	t.Parallel()
 
-	t.Run("DoNotAskForImmutables", func(t *testing.T) {
-		t.Parallel()
-
-		echoResponses := &echo.Responses{
+	echoResponses := func() *echo.Responses {
+		return &echo.Responses{
 			Parse: echo.ParseComplete,
 			ProvisionPlan: []*proto.Response{
 				{
@@ -304,12 +302,16 @@ func TestRestartWithParameters(t *testing.T) {
 			},
 			ProvisionApply: echo.ApplyComplete,
 		}
+	}
+
+	t.Run("DoNotAskForImmutables", func(t *testing.T) {
+		t.Parallel()
 
 		// Create the workspace
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, echoResponses)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, echoResponses())
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, member, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
