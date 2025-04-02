@@ -20,7 +20,7 @@ WHERE w.id IN (
 RETURNING w.id, w.name;
 
 -- name: GetTemplatePresetsWithPrebuilds :many
--- GetTemplatePresetsWithPrebuilds retrieves template versions with configured presets.
+-- GetTemplatePresetsWithPrebuilds retrieves template versions with configured presets and prebuilds.
 -- It also returns the number of desired instances for each preset.
 -- If template_id is specified, only template versions associated with that template will be returned.
 SELECT

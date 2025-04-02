@@ -372,13 +372,12 @@ var (
 				DisplayName: "Coder",
 				Site: rbac.Permissions(map[string][]policy.Action{
 					// May use template, read template-related info, & insert template-related resources (preset prebuilds).
-					rbac.ResourceTemplate.Type: {policy.ActionRead, policy.ActionUpdate, policy.ActionUse},
+					rbac.ResourceTemplate.Type: {policy.ActionRead, policy.ActionUpdate, policy.ActionUse, policy.ActionViewInsights},
 					// May CRUD workspaces, and start/stop them.
 					rbac.ResourceWorkspace.Type: {
 						policy.ActionCreate, policy.ActionDelete, policy.ActionRead, policy.ActionUpdate,
 						policy.ActionWorkspaceStart, policy.ActionWorkspaceStop,
 					},
-					rbac.ResourceSystem.Type: {policy.ActionRead},
 				}),
 			},
 		}),
@@ -1185,7 +1184,7 @@ func (q *querier) CleanTailnetTunnels(ctx context.Context) error {
 }
 
 func (q *querier) CountInProgressPrebuilds(ctx context.Context) ([]database.CountInProgressPrebuildsRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspace.All()); err != nil {
 		return nil, err
 	}
 	return q.db.CountInProgressPrebuilds(ctx)
@@ -2135,7 +2134,9 @@ func (q *querier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUI
 }
 
 func (q *querier) GetPrebuildMetrics(ctx context.Context) ([]database.GetPrebuildMetricsRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+	// GetPrebuildMetrics returns metrics related to prebuilt workspaces,
+	// such as the number of created and failed prebuilt workspaces.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspace.All()); err != nil {
 		return nil, err
 	}
 	return q.db.GetPrebuildMetrics(ctx)
@@ -2174,7 +2175,8 @@ func (q *querier) GetPresetParametersByTemplateVersionID(ctx context.Context, te
 }
 
 func (q *querier) GetPresetsBackoff(ctx context.Context, lookback time.Time) ([]database.GetPresetsBackoffRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+	// GetPresetsBackoff returns a list of template version presets along with metadata such as the number of failed prebuilds.
+	if err := q.authorizeContext(ctx, policy.ActionViewInsights, rbac.ResourceTemplate.All()); err != nil {
 		return nil, err
 	}
 	return q.db.GetPresetsBackoff(ctx, lookback)
@@ -2331,7 +2333,8 @@ func (q *querier) GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Ti
 }
 
 func (q *querier) GetRunningPrebuiltWorkspaces(ctx context.Context) ([]database.GetRunningPrebuiltWorkspacesRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+	// This query returns only prebuilt workspaces, but we decided to require permissions for all workspaces.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspace.All()); err != nil {
 		return nil, err
 	}
 	return q.db.GetRunningPrebuiltWorkspaces(ctx)
@@ -2462,10 +2465,9 @@ func (q *querier) GetTemplateParameterInsights(ctx context.Context, arg database
 }
 
 func (q *querier) GetTemplatePresetsWithPrebuilds(ctx context.Context, templateID uuid.NullUUID) ([]database.GetTemplatePresetsWithPrebuildsRow, error) {
-	// Although this fetches presets. It filters them by prebuilds and is only of use to the prebuild system.
-	// As such, we authorize this in line with other prebuild queries, not with other preset queries.
-
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+	// GetTemplatePresetsWithPrebuilds retrieves template versions with configured presets and prebuilds.
+	// Presets and prebuilds are part of the template, so if you can access templates - you can access them as well.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate.All()); err != nil {
 		return nil, err
 	}
 	return q.db.GetTemplatePresetsWithPrebuilds(ctx, templateID)

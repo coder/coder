@@ -315,7 +315,7 @@ type sqlcQuerier interface {
 	// created in the timeframe and return the aggregate usage counts of parameter
 	// values.
 	GetTemplateParameterInsights(ctx context.Context, arg GetTemplateParameterInsightsParams) ([]GetTemplateParameterInsightsRow, error)
-	// GetTemplatePresetsWithPrebuilds retrieves template versions with configured presets.
+	// GetTemplatePresetsWithPrebuilds retrieves template versions with configured presets and prebuilds.
 	// It also returns the number of desired instances for each preset.
 	// If template_id is specified, only template versions associated with that template will be returned.
 	GetTemplatePresetsWithPrebuilds(ctx context.Context, templateID uuid.NullUUID) ([]GetTemplatePresetsWithPrebuildsRow, error)
