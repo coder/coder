@@ -35,7 +35,14 @@ func Logger(log slog.Logger) func(next http.Handler) http.Handler {
 				slog.F("start", start),
 			)
 
-			next.ServeHTTP(sw, r)
+			logContext := &RequestLoggerContext{}
+			defer func() {
+				logContext.WriteLog(r.Context(), "", sw.Status)
+			}()
+
+			ctx := context.WithValue(r.Context(), logContextKey{}, logContext)
+
+			next.ServeHTTP(sw, r.WithContext(ctx))
 
 			end := time.Now()
 
@@ -73,4 +80,38 @@ func Logger(log slog.Logger) func(next http.Handler) http.Handler {
 			})
 		})
 	}
+}
+
+type RequestLoggerContext struct {
+	Fields map[string]any
+
+	log     *slog.Logger
+	written bool
+}
+
+func (c *RequestLoggerContext) WriteLog(ctx context.Context, msg string, status int) {
+	if c.written {
+		return
+	}
+	c.written = true
+	// append extra fields to the logger
+	for k, v := range c.Fields {
+		c.log.With(slog.F(k, v))
+	}
+
+	if status >= http.StatusInternalServerError {
+		c.log.Error(ctx, msg)
+	} else {
+		c.log.Debug(ctx, msg)
+	}
+}
+
+type logContextKey struct{}
+
+func FromContext(ctx context.Context) *RequestLoggerContext {
+	val := ctx.Value(logContextKey{})
+	if logCtx, ok := val.(*RequestLoggerContext); ok {
+		return logCtx
+	}
+	return nil
 }
