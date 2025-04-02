@@ -92,57 +92,45 @@ func (f *fakeIDPLocked) PrivateKey() *rsa.PrivateKey {
 }
 
 func (f *fakeIDPLocked) Provider() ProviderJSON {
-	if !f.mu.TryRLock() {
-		panic("developer error: fakeIDPLocked is already locked")
-	}
+	f.mu.RLock()
 	defer f.mu.RUnlock()
 	return f.provider
 }
 
 func (f *fakeIDPLocked) Config() *oauth2.Config {
-	if !f.mu.TryRLock() {
-		panic("developer error: fakeIDPLocked is already locked")
-	}
+	f.mu.RLock()
 	defer f.mu.RUnlock()
 	return f.cfg
 }
 
 func (f *fakeIDPLocked) Handler() http.Handler {
-	if !f.mu.TryRLock() {
-		panic("developer error: fakeIDPLocked is already locked")
-	}
+	f.mu.RLock()
 	defer f.mu.RUnlock()
 	return f.handler
 }
 
 func (f *fakeIDPLocked) SetIssuer(issuer string) {
-	if !f.mu.TryLock() {
-		panic("developer error: fakeIDPLocked is already locked")
-	}
+	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.issuer = issuer
 }
 
 func (f *fakeIDPLocked) SetIssuerURL(issuerURL *url.URL) {
-	if !f.mu.TryLock() {
-		panic("developer error: fakeIDPLocked is already locked")
-	}
+	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.issuerURL = issuerURL
 }
 
 func (f *fakeIDPLocked) SetProvider(provider ProviderJSON) {
-	if !f.mu.TryLock() {
-		panic("developer error: fakeIDPLocked is already locked")
-	}
+	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.provider = provider
 }
 
+// MutateConfig is a helper function to mutate the oauth2.Config.
+// Beware of re-entrant locks!
 func (f *fakeIDPLocked) MutateConfig(fn func(cfg *oauth2.Config)) {
-	if !f.mu.TryLock() {
-		panic("developer error: fakeIDPLocked is already locked")
-	}
+	f.mu.Lock()
 	if f.cfg == nil {
 		f.cfg = &oauth2.Config{}
 	}
@@ -151,25 +139,19 @@ func (f *fakeIDPLocked) MutateConfig(fn func(cfg *oauth2.Config)) {
 }
 
 func (f *fakeIDPLocked) SetHandler(handler http.Handler) {
-	if !f.mu.TryLock() {
-		panic("developer error: fakeIDPLocked is already locked")
-	}
+	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.handler = handler
 }
 
 func (f *fakeIDPLocked) SetFakeCoderd(fakeCoderd func(req *http.Request) (*http.Response, error)) {
-	if !f.mu.TryLock() {
-		panic("developer error: fakeIDPLocked is already locked")
-	}
+	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.fakeCoderd = fakeCoderd
 }
 
 func (f *fakeIDPLocked) FakeCoderd() func(req *http.Request) (*http.Response, error) {
-	if !f.mu.TryRLock() {
-		panic("developer error: fakeIDPLocked is already locked")
-	}
+	f.mu.RLock()
 	defer f.mu.RUnlock()
 	return f.fakeCoderd
 }
@@ -1530,8 +1512,7 @@ func (f *FakeIDP) PublicKey() crypto.PublicKey {
 func (f *FakeIDP) OauthConfig(t testing.TB, scopes []string) *oauth2.Config {
 	t.Helper()
 
-	authURL := f.locked.Provider().AuthURL
-	tokenURL := f.locked.Provider().TokenURL
+	provider := f.locked.Provider()
 	f.locked.MutateConfig(func(cfg *oauth2.Config) {
 		if len(scopes) == 0 {
 			scopes = []string{"openid", "email", "profile"}
@@ -1539,8 +1520,8 @@ func (f *FakeIDP) OauthConfig(t testing.TB, scopes []string) *oauth2.Config {
 		cfg.ClientID = f.clientID
 		cfg.ClientSecret = f.clientSecret
 		cfg.Endpoint = oauth2.Endpoint{
-			AuthURL:   authURL,
-			TokenURL:  tokenURL,
+			AuthURL:   provider.AuthURL,
+			TokenURL:  provider.TokenURL,
 			AuthStyle: oauth2.AuthStyleInParams,
 		}
 		// If the user is using a real network request, they will need to do
