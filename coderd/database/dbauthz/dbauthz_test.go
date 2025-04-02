@@ -4831,28 +4831,28 @@ func (s *MethodTestSuite) TestPrebuilds() {
 	}))
 	s.Run("GetPrebuildMetrics", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args().
-			Asserts(rbac.ResourceSystem, policy.ActionRead).
+			Asserts(rbac.ResourceWorkspace.All(), policy.ActionRead).
 			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 	}))
 	s.Run("CountInProgressPrebuilds", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args().
-			Asserts(rbac.ResourceSystem, policy.ActionRead).
+			Asserts(rbac.ResourceWorkspace.All(), policy.ActionRead).
 			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 	}))
 	s.Run("GetPresetsBackoff", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args(time.Time{}).
-			Asserts(rbac.ResourceSystem, policy.ActionRead).
+			Asserts(rbac.ResourceTemplate.All(), policy.ActionViewInsights).
 			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 	}))
 	s.Run("GetRunningPrebuiltWorkspaces", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args().
-			Asserts(rbac.ResourceSystem, policy.ActionRead).
+			Asserts(rbac.ResourceWorkspace.All(), policy.ActionRead).
 			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 	}))
 	s.Run("GetTemplatePresetsWithPrebuilds", s.Subtest(func(db database.Store, check *expects) {
 		user := dbgen.User(s.T(), db, database.User{})
 		check.Args(uuid.NullUUID{UUID: user.ID, Valid: true}).
-			Asserts(rbac.ResourceSystem, policy.ActionRead).
+			Asserts(rbac.ResourceTemplate.All(), policy.ActionRead).
 			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 	}))
 	s.Run("GetPresetByID", s.Subtest(func(db database.Store, check *expects) {
