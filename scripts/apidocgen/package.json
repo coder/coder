@@ -5,5 +5,10 @@
 	"resolutions": {
 		"semver": "7.5.3",
 		"jsonpointer": "5.0.1"
-	}
+	},
+	"pnpm": {
+    "overrides": {
+      "@babel/runtime": "7.26.10"
+    }
+  }
 }
