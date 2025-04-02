@@ -37,7 +37,7 @@ func Logger(log slog.Logger) func(next http.Handler) http.Handler {
 
 			logContext := &RequestLoggerContext{
 				Fields:  map[string]any{},
-				log:     &slog.Logger{},
+				log:     &httplog,
 				written: false,
 			}
 			defer func() {
