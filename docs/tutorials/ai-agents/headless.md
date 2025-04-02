@@ -39,7 +39,7 @@ coder exp mcp configure claude-desktop # Configure Claude Desktop to interact wi
 coder exp mcp configure cursor # Configure Cursor to interact with Coder
 ```
 
-> MCP is also used for various agents to report activity back to Coder. Learn more about this in [configuring templates](./create-template.md).
+> MCP is also used for various agents to report activity back to Coder. Learn more about this in [custom agents](./custom-agents.md).
 
 ## Coder CLI
 
