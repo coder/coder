@@ -1,3 +1,24 @@
+-- name: ClaimPrebuiltWorkspace :one
+UPDATE workspaces w
+SET owner_id   = @new_user_id::uuid,
+	name       = @new_name::text,
+	updated_at = NOW()
+WHERE w.id IN (
+	SELECT p.id
+	FROM workspace_prebuilds p
+		INNER JOIN workspace_latest_builds b ON b.workspace_id = p.id
+		INNER JOIN templates t ON p.template_id = t.id
+	WHERE (b.transition = 'start'::workspace_transition
+		AND b.job_status IN ('succeeded'::provisioner_job_status))
+		-- The prebuilds system should never try to claim a prebuild for an inactive template version.
+		-- Nevertheless, this filter is here as a defensive measure:
+		AND b.template_version_id = t.active_version_id
+		AND p.current_preset_id = @preset_id::uuid
+		AND p.ready
+	LIMIT 1 FOR UPDATE OF p SKIP LOCKED -- Ensure that a concurrent request will not select the same prebuild.
+)
+RETURNING w.id, w.name;
+
 -- name: GetTemplatePresetsWithPrebuilds :many
 -- GetTemplatePresetsWithPrebuilds retrieves template versions with configured presets.
 -- It also returns the number of desired instances for each preset.
@@ -103,27 +124,6 @@ WHERE tsb.rn <= tsb.desired_instances -- Fetch the last N builds, where N is the
 		AND tsb.job_status = 'failed'::provisioner_job_status
 		AND created_at >= @lookback::timestamptz
 GROUP BY tsb.template_version_id, tsb.preset_id, fc.num_failed;
-
--- name: ClaimPrebuiltWorkspace :one
-UPDATE workspaces w
-SET owner_id   = @new_user_id::uuid,
-	name       = @new_name::text,
-	updated_at = NOW()
-WHERE w.id IN (
-	SELECT p.id
-	FROM workspace_prebuilds p
-		INNER JOIN workspace_latest_builds b ON b.workspace_id = p.id
-		INNER JOIN templates t ON p.template_id = t.id
-	WHERE (b.transition = 'start'::workspace_transition
-		AND b.job_status IN ('succeeded'::provisioner_job_status))
-		-- The prebuilds system should never try to claim a prebuild for an inactive template version.
-		-- Nevertheless, this filter is here as a defensive measure:
-		AND b.template_version_id = t.active_version_id
-		AND p.current_preset_id = @preset_id::uuid
-		AND p.ready
-	LIMIT 1 FOR UPDATE OF p SKIP LOCKED -- Ensure that a concurrent request will not select the same prebuild.
-)
-RETURNING w.id, w.name;
 
 -- name: GetPrebuildMetrics :many
 SELECT
