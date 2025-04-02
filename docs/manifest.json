@@ -766,7 +766,14 @@
 						{
 							"title": "Securing agents in Coder",
 							"description": "Learn how to secure agents with boundaries",
-							"path": "./tutorials/ai-agents/securing.md"
+							"path": "./tutorials/ai-agents/securing.md",
+							"state": ["early access"]
+						},
+						{
+							"title": "Custom agents",
+							"description": "Learn how to use custom agents with Coder",
+							"path": "./tutorials/ai-agents/custom-agents.md",
+							"state": ["early access"]
 						}
 					]
 				},
