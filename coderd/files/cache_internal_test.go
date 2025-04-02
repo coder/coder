@@ -16,11 +16,10 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-var emptyFS fs.FS = afero.NewIOFS(afero.NewMemMapFs())
-
 func TestConcurrency(t *testing.T) {
 	t.Parallel()
 
+	emptyFS := afero.NewIOFS(afero.NewReadOnlyFs(afero.NewMemMapFs()))
 	var fetches atomic.Int64
 	c := newTestCache(func(_ context.Context, _ uuid.UUID) (fs.FS, error) {
 		fetches.Add(1)
@@ -44,6 +43,8 @@ func TestConcurrency(t *testing.T) {
 		id := uuid.New()
 		for range batchSize {
 			g.Go(func() error {
+				// We don't bother to Release these references because the Cache will be
+				// released at the end of the test anyway.
 				_, err := c.Acquire(t.Context(), id)
 				return err
 			})
@@ -59,6 +60,7 @@ func TestConcurrency(t *testing.T) {
 func TestRelease(t *testing.T) {
 	t.Parallel()
 
+	emptyFS := afero.NewIOFS(afero.NewReadOnlyFs(afero.NewMemMapFs()))
 	c := newTestCache(func(_ context.Context, _ uuid.UUID) (fs.FS, error) {
 		return emptyFS, nil
 	})

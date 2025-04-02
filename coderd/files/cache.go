@@ -56,6 +56,8 @@ type fetcher func(context.Context, uuid.UUID) (fs.FS, error)
 // Acquire will load the fs.FS for the given file. It guarantees that parallel
 // calls for the same fileID will only result in one fetch, and that parallel
 // calls for distinct fileIDs will fetch in parallel.
+//
+// Every call to Acquire must have a matching call to Release.
 func (c *Cache) Acquire(ctx context.Context, fileID uuid.UUID) (fs.FS, error) {
 	// It's important that this `Load` call occurs outside of `prepare`, after the
 	// mutex has been released, or we would continue to hold the lock until the
