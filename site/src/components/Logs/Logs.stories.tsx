@@ -10,7 +10,7 @@ const meta: Meta<typeof Logs> = {
 	component: Logs,
 	args: {
 		lines: MockWorkspaceBuildLogs.map<Line>((log) => ({
-			id: String(log.id),
+			id: log.id,
 			level: log.log_level,
 			time: log.created_at,
 			output: log.output,

@@ -320,7 +320,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 									css={styles.startupLogs}
 									onScroll={handleLogScroll}
 									logs={startupLogs.map<Line>((l) => ({
-										id: String(l.id),
+										id: l.id,
 										level: l.level,
 										output: l.output,
 										sourceId: l.source_id,

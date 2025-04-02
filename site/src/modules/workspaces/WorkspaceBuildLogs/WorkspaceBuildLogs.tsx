@@ -65,7 +65,7 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
 			{Object.entries(groupedLogsByStage).map(([stage, logs]) => {
 				const isEmpty = logs.every((log) => log.output === "");
 				const lines = logs.map<Line>((log) => ({
-					id: String(log.id),
+					id: log.id,
 					time: log.created_at,
 					output: log.output,
 					level: log.log_level,

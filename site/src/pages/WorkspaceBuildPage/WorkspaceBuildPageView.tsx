@@ -304,7 +304,7 @@ const AgentLogsContent: FC<{ workspaceId: string; agent: WorkspaceAgent }> = ({
 		<AgentLogs
 			sources={agent.log_sources}
 			logs={logs.map<Line>((l) => ({
-				id: String(l.id),
+				id: l.id,
 				output: l.output,
 				time: l.created_at,
 				level: l.level,
