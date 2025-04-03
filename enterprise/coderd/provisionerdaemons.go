@@ -377,7 +377,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		},
 	})
 
-	// log the initial connection
+	// Log the request immediately instead of after it completes.
 	httpmw.FromContext(ctx).WriteLog(ctx, http.StatusAccepted)
 
 	err = server.Serve(ctx, session)
