@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"strings"
 
 	"github.com/shirou/gopsutil/v4/disk"
@@ -102,6 +103,17 @@ func listFiles(query LSRequest) (LSResponse, error) {
 			IsDir:              file.IsDir(),
 		})
 	}
+
+	// Sort alphabetically: directories then files
+	slices.SortFunc(respContents, func(a, b LSFile) int {
+		if a.IsDir && !b.IsDir {
+			return -1
+		}
+		if !a.IsDir && b.IsDir {
+			return 1
+		}
+		return strings.Compare(a.Name, b.Name)
+	})
 
 	absolutePath := pathToArray(absolutePathString)
 
