@@ -27,24 +27,11 @@ func TestRequestLoggerContext_WriteLog(t *testing.T) {
 	// Write log for 200 status
 	logCtx.WriteLog(ctx, http.StatusOK)
 
-	if !logCtxWrittenOnce(t, logCtx) {
+	if !logCtx.written {
 		t.Error("expected log to be written once")
 	}
 	// Attempt to write again (should be skipped).
 	// If the error log entry gets written,
 	// slogtest will fail the test.
 	logCtx.WriteLog(ctx, http.StatusInternalServerError)
-}
-
-func logCtxWrittenOnce(t *testing.T, logCtx *RequestLoggerContext) bool {
-	return logCtxWrittenField(t, logCtx)
-}
-
-func logCtxWrittenField(t *testing.T, logCtx *RequestLoggerContext) bool {
-	logCtxWritten := logCtx != nil && logCtx.written
-	if !logCtxWritten {
-		t.Error("log was not marked as written")
-		return false
-	}
-	return true
 }
