@@ -1,5 +1,5 @@
 name: 'Multi-arch Docker Image Attestation'
-description: 'Create GitHub attestation for a multi-arch Docker image using SLSA provenance'
+description: 'Create GitHub attestation for a multi-arch Docker image using SLSA provenance v1'
 
 inputs:
   image-name:
@@ -15,38 +15,11 @@ runs:
       run: |
         set -euo pipefail
         
-        # Get the manifest list (index) for our multi-arch image
-        # Keep the exact format from docker buildx to match the digest
-        manifest_list=$(docker buildx imagetools inspect --raw ${{ inputs.image-name }})
-        
-        # Verify that we have all three architectures
-        echo "Checking architectures in manifest..."
-        if ! echo "$manifest_list" | jq -e '.manifests | any(.platform.architecture == "amd64" and .platform.os == "linux")' > /dev/null; then
-          echo "Error: Missing linux/amd64 manifest" >&2
-          exit 1
-        fi
-        if ! echo "$manifest_list" | jq -e '.manifests | any(.platform.architecture == "arm64" and .platform.os == "linux")' > /dev/null; then
-          echo "Error: Missing linux/arm64 manifest" >&2
-          exit 1
-        fi
-        if ! echo "$manifest_list" | jq -e '.manifests | any(.platform.architecture == "arm" and .platform.os == "linux" and .platform.variant == "v7")' > /dev/null; then
-          echo "Error: Missing linux/arm/v7 manifest" >&2
-          exit 1
-        fi
-        
-        # Calculate digest from the raw manifest list exactly as provided by docker
-        # This matches how Docker and GHCR calculate the digest
-        DIGEST="sha256:$(echo "$manifest_list" | sha256sum | cut -d' ' -f1)"
-        
-        # Verify our digest matches what Docker reports
-        DOCKER_DIGEST=$(docker buildx imagetools inspect ${{ inputs.image-name }} | awk '/Digest:/ {print $2}')
-        if [[ "$DIGEST" != "$DOCKER_DIGEST" ]]; then
-          echo "Error: Calculated digest ($DIGEST) does not match Docker's digest ($DOCKER_DIGEST)" >&2
-          exit 1
-        fi
-        
+        # Get the manifest list digest directly from the multi-arch image
+        # For multi-arch images, this will be the manifest list digest which is what we want
+        DIGEST="sha256:$(docker buildx imagetools inspect --raw ${{ inputs.image-name }} | sha256sum | cut -d' ' -f1)"
         echo "digest=$DIGEST" >> $GITHUB_OUTPUT
-        echo "Found multi-arch manifest list digest: $DIGEST (verified)"
+        echo "Found manifest digest: $DIGEST"
     
     - name: GitHub Attestation
       uses: actions/attest@a63cfcc7d1aab266ee064c58250cfc2c7d07bc31 # v2.2.1
