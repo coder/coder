@@ -158,6 +158,7 @@ export type TemplatePageHeaderProps = {
 	template: Template;
 	activeVersion: TemplateVersion;
 	permissions: AuthorizationResponse;
+	workspacePermissions: AuthorizationResponse;
 	onDeleteTemplate: () => void;
 };
 
@@ -165,6 +166,7 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
 	template,
 	activeVersion,
 	permissions,
+	workspacePermissions,
 	onDeleteTemplate,
 }) => {
 	const getLink = useLinks();
@@ -177,16 +179,17 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
 			<PageHeader
 				actions={
 					<>
-						{!template.deprecated && (
-							<Button
-								variant="contained"
-								startIcon={<AddIcon />}
-								component={RouterLink}
-								to={`${templateLink}/workspace`}
-							>
-								Create Workspace
-							</Button>
-						)}
+						{!template.deprecated &&
+							workspacePermissions.createWorkspaceForUser && (
+								<Button
+									variant="contained"
+									startIcon={<AddIcon />}
+									component={RouterLink}
+									to={`${templateLink}/workspace`}
+								>
+									Create Workspace
+								</Button>
+							)}
 
 						{permissions.canUpdateTemplate && (
 							<TemplateMenu
