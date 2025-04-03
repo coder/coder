@@ -1741,6 +1741,10 @@ func (*FakeQuerier) BulkMarkNotificationMessagesSent(_ context.Context, arg data
 	return int64(len(arg.IDs)), nil
 }
 
+func (q *FakeQuerier) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
+	return database.ClaimPrebuiltWorkspaceRow{}, ErrUnimplemented
+}
+
 func (*FakeQuerier) CleanTailnetCoordinators(_ context.Context) error {
 	return ErrUnimplemented
 }
@@ -1751,6 +1755,10 @@ func (*FakeQuerier) CleanTailnetLostPeers(context.Context) error {
 
 func (*FakeQuerier) CleanTailnetTunnels(context.Context) error {
 	return ErrUnimplemented
+}
+
+func (q *FakeQuerier) CountInProgressPrebuilds(ctx context.Context) ([]database.CountInProgressPrebuildsRow, error) {
+	return nil, ErrUnimplemented
 }
 
 func (q *FakeQuerier) CountUnreadInboxNotificationsByUserID(_ context.Context, userID uuid.UUID) (int64, error) {
@@ -4212,6 +4220,44 @@ func (q *FakeQuerier) GetParameterSchemasByJobID(_ context.Context, jobID uuid.U
 	return parameters, nil
 }
 
+func (*FakeQuerier) GetPrebuildMetrics(_ context.Context) ([]database.GetPrebuildMetricsRow, error) {
+	return nil, ErrUnimplemented
+}
+
+func (q *FakeQuerier) GetPresetByID(ctx context.Context, presetID uuid.UUID) (database.GetPresetByIDRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	empty := database.GetPresetByIDRow{}
+
+	// Create an index for faster lookup
+	versionMap := make(map[uuid.UUID]database.TemplateVersionTable)
+	for _, tv := range q.templateVersions {
+		versionMap[tv.ID] = tv
+	}
+
+	for _, preset := range q.presets {
+		if preset.ID == presetID {
+			tv, ok := versionMap[preset.TemplateVersionID]
+			if !ok {
+				return empty, fmt.Errorf("template version %v does not exist", preset.TemplateVersionID)
+			}
+			return database.GetPresetByIDRow{
+				ID:                  preset.ID,
+				TemplateVersionID:   preset.TemplateVersionID,
+				Name:                preset.Name,
+				CreatedAt:           preset.CreatedAt,
+				DesiredInstances:    preset.DesiredInstances,
+				InvalidateAfterSecs: preset.InvalidateAfterSecs,
+				TemplateID:          tv.TemplateID,
+				OrganizationID:      tv.OrganizationID,
+			}, nil
+		}
+	}
+
+	return empty, fmt.Errorf("preset %v does not exist", presetID)
+}
+
 func (q *FakeQuerier) GetPresetByWorkspaceBuildID(_ context.Context, workspaceBuildID uuid.UUID) (database.TemplateVersionPreset, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -4252,6 +4298,10 @@ func (q *FakeQuerier) GetPresetParametersByTemplateVersionID(_ context.Context, 
 	}
 
 	return parameters, nil
+}
+
+func (*FakeQuerier) GetPresetsBackoff(_ context.Context, _ time.Time) ([]database.GetPresetsBackoffRow, error) {
+	return nil, ErrUnimplemented
 }
 
 func (q *FakeQuerier) GetPresetsByTemplateVersionID(_ context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionPreset, error) {
@@ -4915,6 +4965,10 @@ func (q *FakeQuerier) GetReplicasUpdatedAfter(_ context.Context, updatedAt time.
 		}
 	}
 	return replicas, nil
+}
+
+func (q *FakeQuerier) GetRunningPrebuiltWorkspaces(ctx context.Context) ([]database.GetRunningPrebuiltWorkspacesRow, error) {
+	return nil, ErrUnimplemented
 }
 
 func (q *FakeQuerier) GetRuntimeConfig(_ context.Context, key string) (string, error) {
@@ -5956,6 +6010,10 @@ func (q *FakeQuerier) GetTemplateParameterInsights(ctx context.Context, arg data
 	return rows, nil
 }
 
+func (*FakeQuerier) GetTemplatePresetsWithPrebuilds(_ context.Context, _ uuid.NullUUID) ([]database.GetTemplatePresetsWithPrebuildsRow, error) {
+	return nil, ErrUnimplemented
+}
+
 func (q *FakeQuerier) GetTemplateUsageStats(_ context.Context, arg database.GetTemplateUsageStatsParams) ([]database.TemplateUsageStat, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -6425,6 +6483,10 @@ func (q *FakeQuerier) GetUserCount(_ context.Context, includeSystem bool) (int64
 		}
 		if !u.Deleted {
 			existing++
+		}
+
+		if !includeSystem && u.IsSystem {
+			continue
 		}
 	}
 	return existing, nil
