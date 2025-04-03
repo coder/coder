@@ -1920,16 +1920,6 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			YAML:  "dangerousSkipIssuerChecks",
 		},
 		{
-			Name:        "OIDC logout endpoint",
-			Description: "OIDC endpoint for logout.",
-			Flag:        "logout-endpoint",
-			Env:         "CODER_OIDC_LOGOUT_ENDPOINT",
-			Default:     "",
-			Value:       &c.OIDC.LogoutEndpoint,
-			Group:       &deploymentGroupOIDC,
-			YAML:        "logoutEndpoint",
-		},
-		{
 			Name:        "OIDC logout redirect URI",
 			Description: "OIDC redirect URI after logout.",
 			Flag:        "oidc-logout-redirect-uri",

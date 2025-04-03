@@ -3,8 +3,10 @@ package coderd
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/mail"
 	"net/url"
@@ -735,7 +737,78 @@ func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Returns URL for the OIDC logout.
+// getDiscoveryEndpoints will return endpoints for end session and revocation
+func (api *API) getDiscoveryEndpoints() (endSessionEndpoint string, revocationEndpoint string, err error) {
+	oidcProvider := api.OIDCConfig.Provider
+
+	var discoveryConfig struct {
+		EndSessionEndpoint string `json:"end_session_endpoint"`
+		RevocationEndpoint string `json:"revocation_endpoint"`
+	}
+
+	// Extract endpoints
+	if err := oidcProvider.Claims(&discoveryConfig); err != nil {
+		return "", "", xerrors.Errorf("failed to extract endpoints from OIDC provider discovery claims: %w", err)
+	}
+
+	return discoveryConfig.EndSessionEndpoint, discoveryConfig.RevocationEndpoint, nil
+}
+
+// revokeOAuthToken will revoke a particular token
+func (api *API) revokeOAuthToken(ctx context.Context, token string, revocationEndpoint string) error {
+	logger := api.Logger.Named(userAuthLoggerName)
+
+	if token == "" || revocationEndpoint == "" {
+		logger.Warn(ctx, "skip OAuth token revocation")
+		return nil
+	}
+
+	dvOIDC := api.DeploymentValues.OIDC
+	oidcClientID := dvOIDC.ClientID.Value()
+	oidcClientSecret := dvOIDC.ClientSecret.Value()
+
+	if oidcClientID == "" || oidcClientSecret == "" {
+		return xerrors.New("missing required configs for revocation (endpoint, client ID, or secret)")
+	}
+
+	data := url.Values{}
+	data.Set("token", token)
+
+	revokeReq, err := http.NewRequestWithContext(ctx, http.MethodPost, revocationEndpoint, strings.NewReader(data.Encode()))
+	if err != nil {
+		return xerrors.Errorf("failed to create revoke request object: %w", err)
+	}
+
+	revokeReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	auth := base64.StdEncoding.EncodeToString([]byte(oidcClientID + ":" + oidcClientSecret))
+	revokeReq.Header.Set("Authorization", "Basic "+auth)
+
+	httpClient := &http.Client{}
+	resp, err := httpClient.Do(revokeReq)
+	if err != nil {
+		return xerrors.Errorf("failed to send revoke request to %s: %w", revocationEndpoint, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respBodyBytes, _ := io.ReadAll(resp.Body)
+		respBodyStr := string(respBodyBytes)
+
+		logger.Warn(ctx, "failed to request OAuth token revocation",
+			slog.F("status_code", resp.StatusCode),
+			slog.F("response_body", respBodyStr),
+			slog.F("endpoint", revocationEndpoint),
+			slog.F("client_id", oidcClientID),
+		)
+
+		return xerrors.Errorf("failed to revoke with status %d: %s", resp.StatusCode, respBodyStr)
+	}
+
+	logger.Info(ctx, "success to revoke OAuth token", slog.F("status_code", resp.StatusCode))
+	return nil // Success
+}
+
+// Returns URL for the OIDC logout after token revocation.
 //
 // @Summary Get user OIDC logout URL
 // @ID get-user-oidc-logout-url
@@ -745,7 +818,17 @@ func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} codersdk.OIDCLogoutResponse "Returns a map containing the OIDC logout URL"
 // @Router /users/oidc-logout [get]
 func (api *API) userOIDCLogoutURL(rw http.ResponseWriter, r *http.Request) {
+	logger := api.Logger.Named(userAuthLoggerName)
 	ctx := r.Context()
+
+	// Check if OIDC is configured
+	if api.OIDCConfig == nil || api.OIDCConfig.Provider == nil {
+		logger.Warn(ctx, "unable to support OIDC logout with current configuration")
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to retrieve OIDC configuration.",
+		})
+		return
+	}
 
 	// Get logged-in user
 	apiKey := httpmw.APIKey(r)
@@ -756,8 +839,6 @@ func (api *API) userOIDCLogoutURL(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
-	logger := api.Logger.Named(userAuthLoggerName)
 
 	// Default response: empty URL if OIDC logout is not supported
 	response := codersdk.OIDCLogoutResponse{URL: ""}
@@ -784,22 +865,39 @@ func (api *API) userOIDCLogoutURL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rawIDToken := link.OAuthAccessToken
+	accessToken := link.OAuthAccessToken
+	refreshToken := link.OAuthRefreshToken
 
 	// Retrieve OIDC environment variables
 	dvOIDC := api.DeploymentValues.OIDC
-	oidcEndpoint := dvOIDC.LogoutEndpoint.Value()
 	oidcClientID := dvOIDC.ClientID.Value()
 	logoutURI := dvOIDC.LogoutRedirectURI.Value()
 
-	if oidcEndpoint == "" {
+	endSessionEndpoint, revocationEndpoint, err := api.getDiscoveryEndpoints()
+	if err != nil {
+		logger.Error(ctx, "failed to get OIDC discovery endpoints", slog.Error(err))
+
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to process OIDC configuration.",
+		})
+		return
+	}
+
+	// Perform token revocation first
+	err = api.revokeOAuthToken(ctx, refreshToken, revocationEndpoint)
+	if err != nil {
+		// Do not return since this step is optional
+		logger.Warn(ctx, "failed to revoke OAuth token during logout", slog.Error(err))
+	}
+
+	if endSessionEndpoint == "" {
 		logger.Warn(ctx, "missing OIDC logout endpoint")
 		httpapi.Write(ctx, rw, http.StatusOK, response)
 		return
 	}
 
 	// Construct OIDC Logout URL
-	logoutURL, err := url.Parse(oidcEndpoint)
+	logoutURL, err := url.Parse(endSessionEndpoint)
 	if err != nil {
 		logger.Error(ctx, "failed to parse OIDC endpoint", "error", err)
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -812,11 +910,11 @@ func (api *API) userOIDCLogoutURL(rw http.ResponseWriter, r *http.Request) {
 	// Build parameters
 	q := url.Values{}
 
+	if accessToken != "" {
+		q.Set("id_token_hint", accessToken)
+	}
 	if oidcClientID != "" {
 		q.Set("client_id", oidcClientID)
-	}
-	if rawIDToken != "" {
-		q.Set("id_token_hint", rawIDToken)
 	}
 	if logoutURI != "" {
 		q.Set("logout_uri", logoutURI)
