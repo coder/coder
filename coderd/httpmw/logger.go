@@ -99,7 +99,7 @@ func (c *RequestLoggerContext) WriteLog(ctx context.Context, status int) {
 	// includes proxy errors etc. It also causes slogtest to fail
 	// instantly without an error message by default.
 	if status >= http.StatusInternalServerError {
-		c.log.Error(ctx, c.message)
+		c.log.Warn(ctx, c.message)
 	} else {
 		c.log.Debug(ctx, c.message)
 	}
