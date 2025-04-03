@@ -1,14 +1,10 @@
-name: 'Docker Image Attestation'
-description: 'Create GitHub attestation for a Docker image, handling multi-arch images correctly'
+name: 'Multi-arch Docker Image Attestation'
+description: 'Create GitHub attestation for a multi-arch Docker image'
 
 inputs:
   image-name:
     description: 'Full image name including registry and tag (e.g., ghcr.io/coder/coder-preview:main)'
     required: true
-  predicate-type:
-    description: 'Type of predicate to use in the attestation'
-    required: false
-    default: 'https://slsa.dev/provenance/v1'
   workflow:
     description: 'Name of the GitHub workflow'
     required: true
@@ -38,28 +34,23 @@ runs:
       run: |
         set -euo pipefail
         
-        # Get individual platform digests
+        # Get the manifest list digest for our multi-arch image
+        # We use --raw to get the full manifest and extract the digest
         manifests=$(docker buildx imagetools inspect --raw ${{ inputs.image-name }})
         
-        # For multi-arch images, the digest will be in the manifest list
-        # For single arch, it will be in the config
-        if echo "$manifests" | jq -e '.manifests' > /dev/null; then
-          # Multi-arch image, get the manifest list digest
-          DIGEST=$(echo "$manifests" | jq -r '.mediaType + ":" + .config.digest')
-        else
-          # Single arch image, get the config digest
-          DIGEST=$(echo "$manifests" | jq -r '.config.digest')
-        fi
+        # Extract the manifest list digest which represents all architectures
+        DIGEST=$(echo "$manifests" | sha256sum | cut -d' ' -f1)
+        DIGEST="sha256:$DIGEST"
         
         echo "digest=$DIGEST" >> $GITHUB_OUTPUT
-        echo "Found digest: $DIGEST"
+        echo "Found multi-arch digest: $DIGEST"
     
     - name: GitHub Attestation
       uses: actions/attest@a63cfcc7d1aab266ee064c58250cfc2c7d07bc31 # v2.2.1
       with:
         subject-name: ${{ inputs.image-name }}
         subject-digest: ${{ steps.get_digest.outputs.digest }}
-        predicate-type: ${{ inputs.predicate-type }}
+        predicate-type: "https://slsa.dev/provenance/v1"
         predicate: |
           {
             "buildType": "https://github.com/actions/runner-images/",
