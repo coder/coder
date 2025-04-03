@@ -316,10 +316,9 @@ export const workspacePermissionsByOrganization = (
 		queryKey: ["workspaces", organizationIds.sort(), "permissions"],
 		queryFn: async () => {
 			const prefixedChecks = organizationIds.flatMap((orgId) =>
-				Object.entries(workspacePermissionChecks(orgId, userId)).map(([key, val]) => [
-					`${orgId}.${key}`,
-					val,
-				]),
+				Object.entries(workspacePermissionChecks(orgId, userId)).map(
+					([key, val]) => [`${orgId}.${key}`, val],
+				),
 			);
 
 			const response = await API.checkAuthorization({

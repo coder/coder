@@ -5,8 +5,8 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
-import { workspacePermissionChecks } from "modules/permissions/workspaces";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { workspacePermissionChecks } from "modules/permissions/workspaces";
 import {
 	type FC,
 	type PropsWithChildren,

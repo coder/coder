@@ -67,7 +67,10 @@ const CreateWorkspacePage: FC = () => {
 	const permissionsQuery = useQuery(
 		templateQuery.data
 			? checkAuthorization({
-					checks: workspacePermissionChecks(templateQuery.data.organization_id, me.id),
+					checks: workspacePermissionChecks(
+						templateQuery.data.organization_id,
+						me.id,
+					),
 				})
 			: { enabled: false },
 	);

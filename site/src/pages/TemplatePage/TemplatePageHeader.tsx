@@ -179,17 +179,16 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
 			<PageHeader
 				actions={
 					<>
-						{!template.deprecated &&
-							workspacePermissions.createWorkspace && (
-								<Button
-									variant="contained"
-									startIcon={<AddIcon />}
-									component={RouterLink}
-									to={`${templateLink}/workspace`}
-								>
-									Create Workspace
-								</Button>
-							)}
+						{!template.deprecated && workspacePermissions.createWorkspace && (
+							<Button
+								variant="contained"
+								startIcon={<AddIcon />}
+								component={RouterLink}
+								to={`${templateLink}/workspace`}
+							>
+								Create Workspace
+							</Button>
+						)}
 
 						{permissions.canUpdateTemplate && (
 							<TemplateMenu

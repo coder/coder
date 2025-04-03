@@ -1,4 +1,7 @@
-export const workspacePermissionChecks = (organizationId: string, userId: string) =>
+export const workspacePermissionChecks = (
+	organizationId: string,
+	userId: string,
+) =>
 	({
 		createWorkspace: {
 			object: {
