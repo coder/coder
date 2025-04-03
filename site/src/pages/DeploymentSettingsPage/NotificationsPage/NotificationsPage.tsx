@@ -56,9 +56,7 @@ export const NotificationsPage: FC = () => {
 					/>
 				}
 			>
-				<SettingsHeaderTitle
-					tooltip={<FeatureStageBadge contentType="beta" size="lg" />}
-				>
+				<SettingsHeaderTitle>
 					Notifications
 				</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
