@@ -25,10 +25,7 @@ import {
 	useMemo,
 	useState,
 } from "react";
-import {
-	getFormHelpers,
-	nameValidator,
-} from "utils/formUtils";
+import { getFormHelpers, nameValidator } from "utils/formUtils";
 import {
 	type AutofillBuildParameter,
 	getInitialRichParameterValues,
