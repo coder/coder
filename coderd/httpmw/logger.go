@@ -57,8 +57,7 @@ func Logger(log slog.Logger) func(next http.Handler) http.Handler {
 			// We already capture most of this information in the span (minus
 			// the response body which we don't want to capture anyways).
 			tracing.RunWithoutSpan(r.Context(), func(ctx context.Context) {
-				// logLevelFn(ctx, r.Method)
-				logContext.WriteLog(r.Context(), sw.Status)
+				logContext.WriteLog(ctx, sw.Status)
 			})
 		})
 	}
@@ -100,9 +99,9 @@ func (c *RequestLoggerContext) WriteLog(ctx context.Context, status int) {
 	// includes proxy errors etc. It also causes slogtest to fail
 	// instantly without an error message by default.
 	if status >= http.StatusInternalServerError {
-		c.log.Error(ctx, c.message, "status_code", status)
+		c.log.Error(ctx, c.message)
 	} else {
-		c.log.Debug(ctx, c.message, "status_code", status)
+		c.log.Debug(ctx, c.message)
 	}
 }
 
