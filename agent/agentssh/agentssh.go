@@ -1055,11 +1055,6 @@ func (s *Server) trackSession(ss ssh.Session, add bool) (ok bool) {
 // Close the server and all active connections. Server can be re-used
 // after Close is done.
 func (s *Server) Close() error {
-	return s.close(context.Background())
-}
-
-//nolint:revive // Ignore the similarity of close and Close.
-func (s *Server) close(ctx context.Context) error {
 	s.mu.Lock()
 
 	// Guard against multiple calls to Close and
@@ -1070,24 +1065,26 @@ func (s *Server) close(ctx context.Context) error {
 	}
 	s.closing = make(chan struct{})
 
+	ctx := context.Background()
+
 	s.logger.Debug(ctx, "closing server")
 
 	// Stop accepting new connections.
-	s.logger.Debug(ctx, "closing all active listeners")
+	s.logger.Debug(ctx, "closing all active listeners", slog.F("count", len(s.listeners)))
 	for l := range s.listeners {
 		_ = l.Close()
 	}
 
 	// Close all active sessions to gracefully
 	// terminate client connections.
-	s.logger.Debug(ctx, "closing all active sessions")
+	s.logger.Debug(ctx, "closing all active sessions", slog.F("count", len(s.sessions)))
 	for ss := range s.sessions {
 		// We call Close on the underlying channel here because we don't
 		// want to send an exit status to the client (via Exit()).
 		// Typically OpenSSH clients will return 255 as the exit status.
 		_ = ss.Close()
 	}
-	s.logger.Debug(ctx, "closing all active connections")
+	s.logger.Debug(ctx, "closing all active connections", slog.F("count", len(s.conns)))
 	for c := range s.conns {
 		_ = c.Close()
 	}
@@ -1096,6 +1093,8 @@ func (s *Server) close(ctx context.Context) error {
 	err := s.srv.Close()
 
 	s.mu.Unlock()
+
+	s.logger.Debug(ctx, "waiting for all goroutines to exit")
 	s.wg.Wait() // Wait for all goroutines to exit.
 
 	s.mu.Lock()
@@ -1108,11 +1107,9 @@ func (s *Server) close(ctx context.Context) error {
 	return err
 }
 
-// Shutdown ~~gracefully~~ closes all active SSH connections and stops
-// accepting new connections.
-//
-// For now, simply calls Close and allows early return via context
-// cancellation.
+// Shutdown stops accepting new connections. The current implementation
+// calls Close() for simplicity instead of waiting for existing
+// connections to close.
 func (s *Server) Shutdown(ctx context.Context) error {
 	ch := make(chan error, 1)
 	go func() {
