@@ -15,7 +15,6 @@ import { Stack } from "components/Stack/Stack";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
 import { ArrowLeft } from "lucide-react";
-import type { WorkspacePermissions } from "modules/permissions/workspaces";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
 import {
 	type FC,
@@ -42,6 +41,7 @@ import type {
 	ExternalAuthPollingState,
 } from "./CreateWorkspacePage";
 import { ExternalAuthButton } from "./ExternalAuthButton";
+import type { CreateWSPermissions } from "./permissions";
 
 export const Language = {
 	duplicationWarning:
@@ -64,7 +64,7 @@ export interface CreateWorkspacePageViewExperimentalProps {
 	parameters: TypesGen.TemplateVersionParameter[];
 	autofillParameters: AutofillBuildParameter[];
 	presets: TypesGen.Preset[];
-	permissions: WorkspacePermissions;
+	permissions: CreateWSPermissions;
 	creatingWorkspace: boolean;
 	onCancel: () => void;
 	onSubmit: (
