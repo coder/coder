@@ -306,7 +306,7 @@ func (api *API) GetUsers(rw http.ResponseWriter, r *http.Request) ([]database.Us
 		CreatedAfter:    params.CreatedAfter,
 		CreatedBefore:   params.CreatedBefore,
 		GithubComUserID: params.GithubComUserID,
-		LoginType: 	 	 params.LoginType,
+		LoginType:       params.LoginType,
 		// #nosec G115 - Pagination offsets are small and fit in int32
 		OffsetOpt: int32(paginationParams.Offset),
 		// #nosec G115 - Pagination limits are small and fit in int32

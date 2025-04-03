@@ -1902,6 +1902,31 @@ func TestGetUsers(t *testing.T) {
 		require.Len(t, res.Users, 1)
 		require.Equal(t, res.Users[0].ID, first.UserID)
 	})
+	t.Run("LoginType", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		first := coderdtest.CreateFirstUser(t, client)
+		_ = dbgen.User(t, db, database.User{
+			Email:    "test2@coder.com",
+			Username: "test2",
+		})
+		// nolint:gocritic // Unit test
+		_, err := db.UpdateUserLoginType(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLoginTypeParams{
+			UserID:       first.UserID,
+			NewLoginType: database.LoginTypeNone,
+		})
+		require.NoError(t, err)
+		res, err := client.Users(ctx, codersdk.UsersRequest{
+			LoginType: codersdk.LoginTypeNone,
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Users, 1)
+		require.Equal(t, res.Users[0].ID, first.UserID)
+		require.Equal(t, res.Users[0].LoginType, codersdk.LoginTypeGithub)
+	})
 }
 
 func TestGetUsersPagination(t *testing.T) {
