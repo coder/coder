@@ -338,7 +338,7 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 }
 
 func (c *Client) Dial(ctx context.Context, path string, opts *websocket.DialOptions) (*websocket.Conn, error) {
-	url, err := c.URL.Parse(path)
+	u, err := c.URL.Parse(path)
 	if err != nil {
 		return nil, err
 	}
@@ -358,10 +358,8 @@ func (c *Client) Dial(ctx context.Context, path string, opts *websocket.DialOpti
 		opts.HTTPHeader.Set(tokenHeader, c.SessionToken())
 	}
 
-	conn, resp, err := websocket.Dial(ctx, url.String(), opts)
+	conn, resp, err := websocket.Dial(ctx, u.String(), opts)
 	if resp.Body != nil {
-		// websocket.Dial acts like you need to _always_ destroy this, I have no
-		// idea what's going on because no one else does and it's `nil` on upgrades
 		resp.Body.Close()
 	}
 	if err != nil {

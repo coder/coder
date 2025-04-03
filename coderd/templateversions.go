@@ -315,6 +315,8 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 		},
 	}
 
+	// nolint:gocritic // We need to fetch the templates files for the Terraform
+	// evaluator, and the user likely does not have permission.
 	fileCtx := dbauthz.AsProvisionerd(ctx)
 	fileID, err := api.Database.GetFileIDByTemplateVersionID(fileCtx, templateVersion.ID)
 	if err != nil {
@@ -355,7 +357,7 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 	if result != nil {
 		response.Parameters = result.Parameters
 	}
-	stream.Send(response)
+	_ = stream.Send(response)
 
 	// As the user types into the form, reprocess the state using their input,
 	// and respond with updates.
@@ -375,7 +377,7 @@ func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http
 			if result != nil {
 				response.Parameters = result.Parameters
 			}
-			stream.Send(response)
+			_ = stream.Send(response)
 		}
 	}
 }

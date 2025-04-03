@@ -8,10 +8,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/coder/coder/v2/codersdk/wsjson"
-	previewweb "github.com/coder/preview/web"
-	"github.com/coder/websocket"
 	"github.com/google/uuid"
+
+	"github.com/coder/coder/v2/codersdk/wsjson"
+	previewtypes "github.com/coder/preview/types"
+	"github.com/coder/websocket"
 )
 
 type TemplateVersionWarning string
@@ -126,10 +127,19 @@ func (c *Client) CancelTemplateVersion(ctx context.Context, version uuid.UUID) e
 	return nil
 }
 
-type (
-	DynamicParametersRequest  = previewweb.Request
-	DynamicParametersResponse = previewweb.Response
-)
+type DynamicParametersRequest struct {
+	// ID identifies the request. The response contains the same
+	// ID so that the client can match it to the request.
+	ID     int               `json:"id"`
+	Inputs map[string]string `json:"inputs"`
+}
+
+type DynamicParametersResponse struct {
+	ID          int                      `json:"id"`
+	Diagnostics previewtypes.Diagnostics `json:"diagnostics"`
+	Parameters  []previewtypes.Parameter `json:"parameters"`
+	// TODO: Workspace tags
+}
 
 func (c *Client) TemplateVersionDynamicParameters(ctx context.Context, version uuid.UUID) (*wsjson.Stream[DynamicParametersResponse, DynamicParametersRequest], error) {
 	conn, err := c.Dial(ctx, fmt.Sprintf("/api/v2/templateversions/%s/dynamic-parameters", version), nil)
